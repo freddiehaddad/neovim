@@ -1661,13 +1661,13 @@ static mut breakpt_expand_what: BreakptExpandWhat = BreakptExpandWhat::Add;
 
 static mut HEALTHCHECK_NAMES: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
-    data: ObjectData { integer: 0 },
+    data: ObjectData::Integer(0),
 };
 static mut HEALTHCHECK_LAST_GEN: c_uint = 0;
 
 static mut ARG1_LUA_NAMES: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
-    data: ObjectData { integer: 0 },
+    data: ObjectData::Integer(0),
 };
 static mut ARG1_LUA_LAST_XP_LINE: Option<CString> = None;
 static mut ARG1_LUA_LAST_GEN: c_uint = 0;
@@ -4503,11 +4503,11 @@ unsafe fn get_healthcheck_names(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
 
         if HEALTHCHECK_NAMES.obj_type == ObjectType::kObjectTypeArray
             && idx >= 0
-            && (idx as usize) < HEALTHCHECK_NAMES.data.array.size
+            && (idx as usize) < HEALTHCHECK_NAMES.data.array().size
         {
-            let item = *HEALTHCHECK_NAMES.data.array.items.add(idx as usize);
+            let item = *HEALTHCHECK_NAMES.data.array().items.add(idx as usize);
             if item.obj_type == ObjectType::kObjectTypeString {
-                return item.data.string.data;
+                return item.data.string().data;
             }
         }
         ptr::null_mut()
@@ -4528,15 +4528,11 @@ unsafe fn get_arg1_from_lua(lua: *const c_char, xp: *mut expand_T, idx: c_int) -
             let mut args_items = [
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: cstr_as_string((*xp).xp_pattern),
-                    },
+                    data: ObjectData::String(cstr_as_string((*xp).xp_pattern)),
                 },
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: cstr_as_string((*xp).xp_line),
-                    },
+                    data: ObjectData::String(cstr_as_string((*xp).xp_line)),
                 },
             ];
             let args = Array {
@@ -4561,11 +4557,11 @@ unsafe fn get_arg1_from_lua(lua: *const c_char, xp: *mut expand_T, idx: c_int) -
 
         if ARG1_LUA_NAMES.obj_type == ObjectType::kObjectTypeArray
             && idx >= 0
-            && (idx as usize) < ARG1_LUA_NAMES.data.array.size
+            && (idx as usize) < ARG1_LUA_NAMES.data.array().size
         {
-            let item = *ARG1_LUA_NAMES.data.array.items.add(idx as usize);
+            let item = *ARG1_LUA_NAMES.data.array().items.add(idx as usize);
             if item.obj_type == ObjectType::kObjectTypeString {
-                return item.data.string.data;
+                return item.data.string().data;
             }
         }
         ptr::null_mut()

@@ -2599,8 +2599,8 @@ pub unsafe fn deferred_event(mut e: AutoCmdEvent) {
             let mut save_v_event: save_v_event_T = save_v_event_T::new();
             let v_event = get_v_event(&raw mut save_v_event);
             if !data.is_null() && (*data).obj_type == ObjectType::kObjectTypeDict {
-                for i in 0..(*data).data.dict.size {
-                    let item = *(*data).data.dict.items.add(i);
+                for i in 0..(*data).data.dict().size {
+                    let item = *(*data).data.dict().items.add(i);
                     let mut tv: typval_T = typval_T::new();
                     object_to_vim(item.value, &raw mut tv, &raw mut err);
                     if err.err_type != ErrorType::kErrorTypeNone {
@@ -3407,7 +3407,7 @@ unsafe fn au_callback(
                 ptr::null_mut(),
                 ptr::null_mut(),
             );
-            result.obj_type == ObjectType::kObjectTypeBoolean && result.data.boolean
+            result.obj_type == ObjectType::kObjectTypeBoolean && result.data.boolean()
         } else {
             let mut argsin: typval_T = typval_T::new();
             let mut rettv: typval_T = typval_T::new();

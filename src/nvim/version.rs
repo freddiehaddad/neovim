@@ -4047,7 +4047,7 @@ pub unsafe fn list_lua_version() {
         );
         debug_assert!(err.err_type == ErrorType::kErrorTypeNone);
         debug_assert!(ret.obj_type == ObjectType::kObjectTypeString);
-        msg_puts(ret.data.string.data);
+        msg_puts(ret.data.string().data);
         api_free_object(ret);
     }
 }

@@ -1020,9 +1020,9 @@ pub unsafe fn set_hl_group(
                 if val < 0 {
                     *dest = kColorIdxNone;
                 } else if name.obj_type == ObjectType::kObjectTypeString
-                    && name.data.string.size > 0
+                    && name.data.string().size > 0
                 {
-                    name_to_color(name.data.string.data, dest);
+                    name_to_color(name.data.string().data, dest);
                 } else {
                     *dest = kColorIdxHex;
                 }

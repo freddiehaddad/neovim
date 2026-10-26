@@ -70,7 +70,7 @@ impl KeyDict_xdl_diff {
             interhunkctxlen: 0,
             linematch: Object {
                 obj_type: ObjectType::kObjectTypeNil,
-                data: ObjectData { integer: 0 },
+                data: ObjectData::Integer(0),
             },
             ignore_whitespace: false,
             ignore_whitespace_change: false,
@@ -378,13 +378,13 @@ unsafe fn process_xdl_diff_opts(
 
             if opts.has_key(KEYSET_OPTIDX_LINEMATCH) {
                 if opts.linematch.obj_type == ObjectType::kObjectTypeBoolean {
-                    *linematch = if opts.linematch.data.boolean {
+                    *linematch = if opts.linematch.data.boolean() {
                         i64::MAX
                     } else {
                         0
                     };
                 } else if opts.linematch.obj_type == ObjectType::kObjectTypeInteger {
-                    *linematch = opts.linematch.data.integer;
+                    *linematch = opts.linematch.data.integer();
                 } else {
                     api_set_error!(
                         err,

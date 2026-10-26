@@ -745,11 +745,11 @@ pub unsafe extern "C" fn nvim_cmd(
 
                     if first_arg.obj_type == ObjectType::kObjectTypeInteger {
                         is_numeric = true;
-                        count_value = first_arg.data.integer;
+                        count_value = first_arg.data.integer();
                     } else if first_arg.obj_type == ObjectType::kObjectTypeString {
-                        let mut endptr: *const c_char = first_arg.data.string.data;
+                        let mut endptr: *const c_char = first_arg.data.string().data;
                         let val = getdigits_long((&raw mut endptr).cast(), false, 0);
-                        if *endptr == 0 && first_arg.data.string.size > 0 {
+                        if *endptr == 0 && first_arg.data.string().size > 0 {
                             is_numeric = true;
                             {
                                 count_value = val as _;
@@ -774,7 +774,7 @@ pub unsafe extern "C" fn nvim_cmd(
                             ObjectType::kObjectTypeBoolean => {
                                 let data_str = arena_alloc(arena, 2, false).cast::<c_char>();
                                 *data_str.add(0) =
-                                    if elem.data.boolean { b'1' } else { b'0' } as c_char;
+                                    if elem.data.boolean() { b'1' } else { b'0' } as c_char;
                                 *data_str.add(1) = NUL;
                                 add_c(&mut args, string_obj(cstr_as_string(data_str)));
                             }
@@ -782,13 +782,13 @@ pub unsafe extern "C" fn nvim_cmd(
                             | ObjectType::kObjectTypeWindow
                             | ObjectType::kObjectTypeTabpage
                             | ObjectType::kObjectTypeInteger => {
-                                let s = elem.data.integer.to_string();
+                                let s = elem.data.integer().to_string();
                                 let data_str =
                                     arena_memdupz(arena, s.as_ptr().cast::<c_char>(), s.len());
                                 add_c(&mut args, string_obj(cstr_as_string(data_str)));
                             }
                             ObjectType::kObjectTypeString => {
-                                if string_iswhite(elem.data.string) {
+                                if string_iswhite(elem.data.string()) {
                                     api_err_exp(
                                         err,
                                         c"command arg".as_ptr(),
@@ -857,7 +857,7 @@ pub unsafe extern "C" fn nvim_cmd(
 
                 for i in 0..range.size {
                     let elem = *range.items.add(i);
-                    if elem.obj_type != ObjectType::kObjectTypeInteger || elem.data.integer < 0 {
+                    if elem.obj_type != ObjectType::kObjectTypeInteger || elem.data.integer() < 0 {
                         api_err_exp(
                             err,
                             c"range element".as_ptr(),
@@ -869,8 +869,8 @@ pub unsafe extern "C" fn nvim_cmd(
                 }
 
                 if range.size > 0 {
-                    ea.line1 = (*range.items.add(0)).data.integer as linenr_T;
-                    ea.line2 = (*range.items.add(range.size - 1)).data.integer as linenr_T;
+                    ea.line1 = (*range.items.add(0)).data.integer() as linenr_T;
+                    ea.line2 = (*range.items.add(range.size - 1)).data.integer() as linenr_T;
                 }
             }
 
@@ -917,7 +917,7 @@ pub unsafe extern "C" fn nvim_cmd(
                 p = ea.arg;
                 for i in 0..args.size {
                     ea.args.push(p);
-                    let arglen = (*args.items.add(i)).data.string.size;
+                    let arglen = (*args.items.add(i)).data.string().size;
                     ea.arglens.push(arglen);
                     p = p.add(arglen + 1);
                 }
@@ -1287,7 +1287,7 @@ unsafe fn build_cmdline_str(
         );
 
         for i in 0..args.size {
-            let s = (*args.items.add(i)).data.string;
+            let s = (*args.items.add(i)).data.string();
             cmdline_buf.push(b' ' as c_char);
             if s.size > 0 {
                 cmdline_buf.extend_from_slice(std::slice::from_raw_parts(s.data, s.size));
@@ -1492,7 +1492,7 @@ pub unsafe fn create_user_command(
             }
 
             if (*opts).nargs.obj_type == ObjectType::kObjectTypeInteger {
-                match (*opts).nargs.data.integer {
+                match (*opts).nargs.data.integer() {
                     0 => {}
                     1 => {
                         argt |= EX_EXTRA | EX_NOSPC | EX_NEEDARG;
@@ -1503,17 +1503,17 @@ pub unsafe fn create_user_command(
                     }
                 }
             } else if (*opts).nargs.obj_type == ObjectType::kObjectTypeString {
-                if (*opts).nargs.data.string.size > 1 {
+                if (*opts).nargs.data.string().size > 1 {
                     api_err_invalid(
                         err,
                         c"nargs".as_ptr(),
-                        (*opts).nargs.data.string.data,
+                        (*opts).nargs.data.string().data,
                         0,
                         true,
                     );
                     break 'err;
                 }
-                match *(*opts).nargs.data.string.data as u8 {
+                match *(*opts).nargs.data.string().data as u8 {
                     b'*' => argt |= EX_EXTRA,
                     b'?' => argt |= EX_EXTRA | EX_NOSPC,
                     b'+' => argt |= EX_EXTRA | EX_NEEDARG,
@@ -1522,7 +1522,7 @@ pub unsafe fn create_user_command(
                         api_err_invalid(
                             err,
                             c"nargs".as_ptr(),
-                            (*opts).nargs.data.string.data,
+                            (*opts).nargs.data.string().data,
                             0,
                             true,
                         );
@@ -1545,13 +1545,13 @@ pub unsafe fn create_user_command(
             }
 
             if (*opts).range.obj_type == ObjectType::kObjectTypeBoolean {
-                if (*opts).range.data.boolean {
+                if (*opts).range.data.boolean() {
                     argt |= EX_RANGE;
                     addr_type_arg = ADDR_LINES;
                 }
             } else if (*opts).range.obj_type == ObjectType::kObjectTypeString {
-                if !(*(*opts).range.data.string.data == b'%' as c_char
-                    && (*opts).range.data.string.size == 1)
+                if !(*(*opts).range.data.string().data == b'%' as c_char
+                    && (*opts).range.data.string().size == 1)
                 {
                     api_err_invalid(err, c"range".as_ptr(), c"".as_ptr(), 0, true);
                     break 'err;
@@ -1560,7 +1560,7 @@ pub unsafe fn create_user_command(
                 addr_type_arg = ADDR_LINES;
             } else if (*opts).range.obj_type == ObjectType::kObjectTypeInteger {
                 argt |= EX_RANGE | EX_ZEROR;
-                def = (*opts).range.data.integer;
+                def = (*opts).range.data.integer();
                 addr_type_arg = ADDR_LINES;
             } else if has_key(mask, KEYSET_OPTIDX_user_command__range) {
                 api_err_invalid(err, c"range".as_ptr(), c"".as_ptr(), 0, true);
@@ -1568,7 +1568,7 @@ pub unsafe fn create_user_command(
             }
 
             if (*opts).count.obj_type == ObjectType::kObjectTypeBoolean {
-                if (*opts).count.data.boolean {
+                if (*opts).count.data.boolean() {
                     argt |= EX_COUNT | EX_ZEROR | EX_RANGE;
                     addr_type_arg = ADDR_OTHER;
                     def = 0;
@@ -1576,7 +1576,7 @@ pub unsafe fn create_user_command(
             } else if (*opts).count.obj_type == ObjectType::kObjectTypeInteger {
                 argt |= EX_COUNT | EX_ZEROR | EX_RANGE;
                 addr_type_arg = ADDR_OTHER;
-                def = (*opts).count.data.integer;
+                def = (*opts).count.data.integer();
             } else if has_key(mask, KEYSET_OPTIDX_user_command__count) {
                 api_err_invalid(err, c"count".as_ptr(), c"".as_ptr(), 0, true);
                 break 'err;
@@ -1593,15 +1593,15 @@ pub unsafe fn create_user_command(
                     break 'err;
                 }
                 if parse_addr_type_arg(
-                    (*opts).addr.data.string.data,
-                    (*opts).addr.data.string.size as c_int,
+                    (*opts).addr.data.string().data,
+                    (*opts).addr.data.string().size as c_int,
                     &mut addr_type_arg,
                 ) != OK
                 {
                     api_err_invalid(
                         err,
                         c"addr".as_ptr(),
-                        (*opts).addr.data.string.data,
+                        (*opts).addr.data.string().data,
                         0,
                         true,
                     );
@@ -1637,12 +1637,13 @@ pub unsafe fn create_user_command(
 
             if (*opts).complete.obj_type == ObjectType::kObjectTypeLuaRef {
                 context = EXPAND_USER_LUA;
-                compl_luaref = (*opts).complete.data.luaref;
-                (*opts).complete.data.luaref = LUA_NOREF;
+                compl_luaref = (*opts).complete.data.luaref();
+                (*opts).complete.data =
+                    crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
             } else if (*opts).complete.obj_type == ObjectType::kObjectTypeString {
                 if parse_compl_arg(
-                    (*opts).complete.data.string.data,
-                    (*opts).complete.data.string.size as c_int,
+                    (*opts).complete.data.string().data,
+                    (*opts).complete.data.string().size as c_int,
                     &mut context,
                     &mut argt,
                     &mut compl_arg,
@@ -1651,7 +1652,7 @@ pub unsafe fn create_user_command(
                     api_err_invalid(
                         err,
                         c"complete".as_ptr(),
-                        (*opts).complete.data.string.data,
+                        (*opts).complete.data.string().data,
                         0,
                         true,
                     );
@@ -1678,8 +1679,9 @@ pub unsafe fn create_user_command(
                     break 'err;
                 }
                 argt |= EX_PREVIEW;
-                preview_luaref = (*opts).preview.data.luaref;
-                (*opts).preview.data.luaref = LUA_NOREF;
+                preview_luaref = (*opts).preview.data.luaref();
+                (*opts).preview.data =
+                    crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
             }
 
             let mut desc: *const c_char = ptr::null();
@@ -1693,16 +1695,16 @@ pub unsafe fn create_user_command(
                     );
                     break 'err;
                 }
-                desc = (*opts).desc.data.string.data;
+                desc = (*opts).desc.data.string().data;
             }
 
             match cmd.obj_type {
                 ObjectType::kObjectTypeLuaRef => {
-                    luaref = api_new_luaref(cmd.data.luaref);
+                    luaref = api_new_luaref(cmd.data.luaref());
                     rep = c"".as_ptr();
                 }
                 ObjectType::kObjectTypeString => {
-                    rep = cmd.data.string.data;
+                    rep = cmd.data.string().data;
                 }
                 _ => {
                     api_err_exp(

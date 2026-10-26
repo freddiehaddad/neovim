@@ -1047,12 +1047,10 @@ pub unsafe fn eval_foldtext(wp: *mut win_T) -> Object {
         ) {
             retval = Object {
                 obj_type: ObjectType::kObjectTypeString,
-                data: ObjectData {
-                    string: NvimString {
+                data: ObjectData::String(NvimString {
                         data: ptr::null_mut(),
                         size: 0,
-                    },
-                },
+                    }),
             };
         } else {
             if tv.v_type == VarType::VAR_LIST {
@@ -1060,9 +1058,7 @@ pub unsafe fn eval_foldtext(wp: *mut win_T) -> Object {
             } else {
                 retval = Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: cstr_to_string(tv_get_string(&raw const tv)),
-                    },
+                    data: ObjectData::String(cstr_to_string(tv_get_string(&raw const tv))),
                 };
             }
             tv_clear(&raw mut tv);
@@ -6943,9 +6939,7 @@ pub unsafe fn do_string_sub(
             if *p_cpo == NUL {
                 let obj = Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: cstr_as_string(save_cpo),
-                    },
+                    data: ObjectData::String(cstr_as_string(save_cpo)),
                 };
                 set_option_value_give_err(kOptCpoptions, obj, 0);
             }

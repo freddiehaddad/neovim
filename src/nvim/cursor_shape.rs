@@ -148,9 +148,7 @@ pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
                 c"name",
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: cstr_as_string(cur.full_name.as_ptr()),
-                    },
+                    data: ObjectData::String(cstr_as_string(cur.full_name.as_ptr())),
                 },
             );
             dict_put_c(
@@ -158,9 +156,7 @@ pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
                 c"short_name",
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: cstr_as_string(cur.name.as_ptr()),
-                    },
+                    data: ObjectData::String(cstr_as_string(cur.name.as_ptr())),
                 },
             );
             if (cur.used_for as c_int & SHAPE_MOUSE) != 0 {
@@ -169,9 +165,7 @@ pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
                     c"mouse_shape",
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData {
-                            integer: cur.mshape as i64,
-                        },
+                        data: ObjectData::Integer(cur.mshape as i64),
                     },
                 );
             }
@@ -186,9 +180,7 @@ pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
                     c"cursor_shape",
                     Object {
                         obj_type: ObjectType::kObjectTypeString,
-                        data: ObjectData {
-                            string: cstr_as_string(shape_cstr.as_ptr()),
-                        },
+                        data: ObjectData::String(cstr_as_string(shape_cstr.as_ptr())),
                     },
                 );
                 dict_put_c(
@@ -196,9 +188,7 @@ pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
                     c"cell_percentage",
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData {
-                            integer: cur.percentage as i64,
-                        },
+                        data: ObjectData::Integer(cur.percentage as i64),
                     },
                 );
                 dict_put_c(
@@ -206,9 +196,7 @@ pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
                     c"blinkwait",
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData {
-                            integer: cur.blinkwait as i64,
-                        },
+                        data: ObjectData::Integer(cur.blinkwait as i64),
                     },
                 );
                 dict_put_c(
@@ -216,9 +204,7 @@ pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
                     c"blinkon",
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData {
-                            integer: cur.blinkon as i64,
-                        },
+                        data: ObjectData::Integer(cur.blinkon as i64),
                     },
                 );
                 dict_put_c(
@@ -226,9 +212,7 @@ pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
                     c"blinkoff",
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData {
-                            integer: cur.blinkoff as i64,
-                        },
+                        data: ObjectData::Integer(cur.blinkoff as i64),
                     },
                 );
                 dict_put_c(
@@ -236,9 +220,7 @@ pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
                     c"hl_id",
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData {
-                            integer: cur.id as i64,
-                        },
+                        data: ObjectData::Integer(cur.id as i64),
                     },
                 );
                 dict_put_c(
@@ -246,9 +228,7 @@ pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
                     c"id_lm",
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData {
-                            integer: cur.id_lm as i64,
-                        },
+                        data: ObjectData::Integer(cur.id_lm as i64),
                     },
                 );
                 dict_put_c(
@@ -256,13 +236,11 @@ pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
                     c"attr_id",
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData {
-                            integer: if cur.id != 0 {
-                                syn_id2attr(cur.id) as i64
-                            } else {
-                                0
-                            },
-                        },
+                        data: ObjectData::Integer(if cur.id != 0 {
+                            syn_id2attr(cur.id) as i64
+                        } else {
+                            0
+                        }),
                     },
                 );
                 dict_put_c(
@@ -270,20 +248,18 @@ pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
                     c"attr_id_lm",
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData {
-                            integer: if cur.id_lm != 0 {
-                                syn_id2attr(cur.id_lm) as i64
-                            } else {
-                                0
-                            },
-                        },
+                        data: ObjectData::Integer(if cur.id_lm != 0 {
+                            syn_id2attr(cur.id_lm) as i64
+                        } else {
+                            0
+                        }),
                     },
                 );
             }
             assert!(all.size < all.capacity);
             *all.items.add(all.size) = Object {
                 obj_type: ObjectType::kObjectTypeDict,
-                data: ObjectData { dict: dic },
+                data: ObjectData::Dict(dic),
             };
             all.size += 1;
         }

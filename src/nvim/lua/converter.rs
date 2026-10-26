@@ -1487,22 +1487,22 @@ pub unsafe extern "C-unwind" fn nlua_push_Object(
                 }
             }
             ObjectType::kObjectTypeLuaRef => {
-                nlua_pushref(lstate, obj.data.luaref);
+                nlua_pushref(lstate, obj.data.luaref());
                 if (flags & K_NLUA_PUSH_FREE_REFS) != 0 {
-                    api_free_luaref(obj.data.luaref);
-                    obj.data.luaref = LUA_NOREF;
+                    api_free_luaref(obj.data.luaref());
+                    obj.data = ObjectData::LuaRef(LUA_NOREF);
                 }
             }
-            ObjectType::kObjectTypeBoolean => nlua_push_Boolean(lstate, obj.data.boolean, flags),
-            ObjectType::kObjectTypeInteger => nlua_push_Integer(lstate, obj.data.integer, flags),
-            ObjectType::kObjectTypeFloat => nlua_push_Float(lstate, obj.data.floating, flags),
-            ObjectType::kObjectTypeString => nlua_push_String(lstate, obj.data.string, flags),
-            ObjectType::kObjectTypeArray => nlua_push_Array(lstate, obj.data.array, flags),
-            ObjectType::kObjectTypeDict => nlua_push_Dict(lstate, obj.data.dict, flags),
+            ObjectType::kObjectTypeBoolean => nlua_push_Boolean(lstate, obj.data.boolean(), flags),
+            ObjectType::kObjectTypeInteger => nlua_push_Integer(lstate, obj.data.integer(), flags),
+            ObjectType::kObjectTypeFloat => nlua_push_Float(lstate, obj.data.floating(), flags),
+            ObjectType::kObjectTypeString => nlua_push_String(lstate, obj.data.string(), flags),
+            ObjectType::kObjectTypeArray => nlua_push_Array(lstate, obj.data.array(), flags),
+            ObjectType::kObjectTypeDict => nlua_push_Dict(lstate, obj.data.dict(), flags),
             ObjectType::kObjectTypeBuffer
             | ObjectType::kObjectTypeWindow
             | ObjectType::kObjectTypeTabpage => {
-                nlua_push_handle(lstate, obj.data.integer as handle_T, flags);
+                nlua_push_handle(lstate, obj.data.integer() as handle_T, flags);
             }
         }
     }
@@ -1837,7 +1837,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
                     break;
                 }
                 if (*cur.obj).obj_type == ObjectType::kObjectTypeDict {
-                    if (*cur.obj).data.dict.size == (*cur.obj).data.dict.capacity {
+                    if (*cur.obj).data.dict().size == (*cur.obj).data.dict().capacity {
                         lua_pop(lstate, 2);
                         continue;
                     }
@@ -1852,9 +1852,9 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
                     if next_key_found {
                         let mut len = 0usize;
                         let s = lua_tolstring(lstate, -2, &mut len);
-                        let idx = (*cur.obj).data.dict.size;
-                        (*cur.obj).data.dict.size += 1;
-                        let item = (*cur.obj).data.dict.items.add(idx);
+                        let idx = (*cur.obj).data.dict().size;
+                        (*cur.obj).data.dict().size += 1;
+                        let item = (*cur.obj).data.dict().items.add(idx);
                         (*item).key = cbuf_to_arena_str(arena, s, len);
                         stack.push(cur);
                         cur = ObjPopStackItem {
@@ -1866,14 +1866,14 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
                         continue;
                     }
                 } else {
-                    if (*cur.obj).data.array.size == (*cur.obj).data.array.capacity {
+                    if (*cur.obj).data.array().size == (*cur.obj).data.array().capacity {
                         lua_pop(lstate, 1);
                         continue;
                     }
-                    let idx = (*cur.obj).data.array.size;
-                    (*cur.obj).data.array.size += 1;
+                    let idx = (*cur.obj).data.array().size;
+                    (*cur.obj).data.array().size += 1;
                     lua_rawgeti(lstate, -1, (idx as c_int) + 1);
-                    let item_ptr = (*cur.obj).data.array.items.add(idx);
+                    let item_ptr = (*cur.obj).data.array().items.add(idx);
                     stack.push(cur);
                     cur = ObjPopStackItem {
                         obj: item_ptr,
@@ -1888,9 +1888,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
                 LUA_TBOOLEAN => {
                     *cur.obj = Object {
                         obj_type: ObjectType::kObjectTypeBoolean,
-                        data: ObjectData {
-                            boolean: lua_toboolean(lstate, -1) != 0,
-                        },
+                        data: ObjectData::Boolean(lua_toboolean(lstate, -1) != 0),
                     };
                 }
                 LUA_TSTRING => {
@@ -1898,9 +1896,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
                     let s = lua_tolstring(lstate, -1, &mut len);
                     *cur.obj = Object {
                         obj_type: ObjectType::kObjectTypeString,
-                        data: ObjectData {
-                            string: cbuf_to_arena_str(arena, s, len),
-                        },
+                        data: ObjectData::String(cbuf_to_arena_str(arena, s, len)),
                     };
                 }
                 LUA_TNUMBER => {
@@ -1911,14 +1907,12 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
                     {
                         *cur.obj = Object {
                             obj_type: ObjectType::kObjectTypeFloat,
-                            data: ObjectData { floating: n },
+                            data: ObjectData::Floating(n),
                         };
                     } else {
                         *cur.obj = Object {
                             obj_type: ObjectType::kObjectTypeInteger,
-                            data: ObjectData {
-                                integer: n as Integer,
-                            },
+                            data: ObjectData::Integer(n as Integer),
                         };
                     }
                 }
@@ -1928,16 +1922,14 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
                         ObjectType::kObjectTypeArray => {
                             *cur.obj = Object {
                                 obj_type: ObjectType::kObjectTypeArray,
-                                data: ObjectData {
-                                    array: Array {
+                                data: ObjectData::Array(Array {
                                         size: 0,
                                         capacity: 0,
                                         items: std::ptr::null_mut(),
-                                    },
-                                },
+                                    }),
                             };
                             if table_props.maxidx != 0 {
-                                (*cur.obj).data.array = arena_array(arena, table_props.maxidx);
+                                (*cur.obj).data = ObjectData::Array(arena_array(arena, table_props.maxidx));
                                 cur.container = true;
                                 stack.push(cur);
                             }
@@ -1945,17 +1937,14 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
                         ObjectType::kObjectTypeDict => {
                             *cur.obj = Object {
                                 obj_type: ObjectType::kObjectTypeDict,
-                                data: ObjectData {
-                                    dict: Dict {
+                                data: ObjectData::Dict(Dict {
                                         size: 0,
                                         capacity: 0,
                                         items: std::ptr::null_mut(),
-                                    },
-                                },
+                                    }),
                             };
                             if table_props.string_keys_num != 0 {
-                                (*cur.obj).data.dict =
-                                    arena_dict(arena, table_props.string_keys_num);
+                                (*cur.obj).data = ObjectData::Dict(arena_dict(arena, table_props.string_keys_num));
                                 cur.container = true;
                                 stack.push(cur);
                                 lua_pushnil(lstate);
@@ -1964,9 +1953,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
                         ObjectType::kObjectTypeFloat => {
                             *cur.obj = Object {
                                 obj_type: ObjectType::kObjectTypeFloat,
-                                data: ObjectData {
-                                    floating: table_props.val,
-                                },
+                                data: ObjectData::Floating(table_props.val),
                             };
                         }
                         ObjectType::kObjectTypeNil => {
@@ -1983,9 +1970,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
                     if ref_ {
                         *cur.obj = Object {
                             obj_type: ObjectType::kObjectTypeLuaRef,
-                            data: ObjectData {
-                                luaref: nlua_ref_global(lstate, -1),
-                            },
+                            data: ObjectData::LuaRef(nlua_ref_global(lstate, -1)),
                         };
                     } else {
                         api_set_error!(
@@ -2269,6 +2254,6 @@ mod tests {
     fn keyset_link_and_nil_obj_defaults() {
         let obj = nil_obj();
         assert_eq!(obj.obj_type, ObjectType::kObjectTypeNil);
-        assert_eq!(unsafe { obj.data.integer }, 0);
+        assert_eq!(obj.data.integer(), 0);
     }
 }

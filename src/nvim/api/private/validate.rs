@@ -202,19 +202,108 @@ impl Default for Dict {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
-pub union ObjectData {
-    pub boolean: bool,
-    pub integer: i64,
-    pub floating: f64,
-    pub string: NvimString,
-    pub array: Array,
-    pub dict: Dict,
-    pub luaref: c_int,
+#[derive(Clone, Copy, Debug, Default)]
+pub enum ObjectData {
+    #[default]
+    Nil,
+    Boolean(bool),
+    Integer(i64),
+    Floating(f64),
+    String(NvimString),
+    Array(Array),
+    Dict(Dict),
+    LuaRef(c_int),
+}
+
+impl ObjectData {
+    #[inline]
+    pub const fn boolean(self) -> bool {
+        match self {
+            Self::Boolean(b) => b,
+            Self::Integer(i) => i != 0,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub const fn integer(self) -> i64 {
+        match self {
+            Self::Integer(i) => i,
+            Self::Boolean(b) => b as i64,
+            Self::LuaRef(r) => r as i64,
+            _ => 0,
+        }
+    }
+
+    #[inline]
+    pub fn integer_mut(&mut self) -> &mut i64 {
+        match self {
+            Self::Integer(i) => i,
+            _ => std::process::abort(),
+        }
+    }
+
+    #[inline]
+    pub const fn floating(self) -> f64 {
+        match self {
+            Self::Floating(f) => f,
+            Self::Integer(i) => i as f64,
+            _ => 0.0,
+        }
+    }
+
+    #[inline]
+    pub const fn string(self) -> NvimString {
+        match self {
+            Self::String(s) => s,
+            _ => NvimString::new(),
+        }
+    }
+
+    #[inline]
+    pub const fn array(self) -> Array {
+        match self {
+            Self::Array(a) => a,
+            _ => Array::new(),
+        }
+    }
+
+    #[inline]
+    pub fn array_mut(&mut self) -> &mut Array {
+        match self {
+            Self::Array(a) => a,
+            _ => std::process::abort(),
+        }
+    }
+
+    #[inline]
+    pub const fn dict(self) -> Dict {
+        match self {
+            Self::Dict(d) => d,
+            _ => Dict::new(),
+        }
+    }
+
+    #[inline]
+    pub fn dict_mut(&mut self) -> &mut Dict {
+        match self {
+            Self::Dict(d) => d,
+            _ => std::process::abort(),
+        }
+    }
+
+    #[inline]
+    pub const fn luaref(self) -> c_int {
+        match self {
+            Self::LuaRef(r) => r,
+            Self::Integer(i) => i as c_int,
+            _ => 0,
+        }
+    }
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Object {
     pub obj_type: ObjectType,
     pub data: ObjectData,
@@ -225,9 +314,7 @@ impl Object {
     pub const fn new() -> Self {
         Self {
             obj_type: ObjectType::kObjectTypeNil,
-            data: ObjectData {
-                array: Array::new(),
-            },
+            data: ObjectData::Nil,
         }
     }
 }
@@ -422,7 +509,7 @@ pub unsafe fn check_string_array(
             return false;
         }
         if disallow_nl {
-            let l = unsafe { item.data.string };
+            let l = item.data.string();
             if l.size > 0 && !l.data.is_null() {
                 let bytes = unsafe { std::slice::from_raw_parts(l.data.cast::<u8>(), l.size) };
                 if bytes.contains(&b'\n') {

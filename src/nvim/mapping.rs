@@ -1702,7 +1702,7 @@ pub unsafe fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> Option<CString> {
                 &mut err,
             );
             if ret.obj_type == ObjectType::kObjectTypeString {
-                p = Some(string_to_cstr(ret.data.string));
+                p = Some(string_to_cstr(ret.data.string()));
             }
             api_free_object(ret);
             if err.err_type != ErrorType::kErrorTypeNone {

@@ -240,9 +240,7 @@ pub unsafe fn os_proc_info(pid: c_int, arena: *mut Arena) -> Dict {
                 c"pid",
                 Object {
                     obj_type: ObjectType::kObjectTypeInteger,
-                    data: ObjectData {
-                        integer: i64::from(pid),
-                    },
+                    data: ObjectData::Integer(i64::from(pid)),
                 },
             );
             put(
@@ -250,9 +248,7 @@ pub unsafe fn os_proc_info(pid: c_int, arena: *mut Arena) -> Dict {
                 c"ppid",
                 Object {
                     obj_type: ObjectType::kObjectTypeInteger,
-                    data: ObjectData {
-                        integer: i64::from(pe.th32_parent_process_id as c_int),
-                    },
+                    data: ObjectData::Integer(i64::from(pe.th32_parent_process_id as c_int)),
                 },
             );
             let exe_ptr = pe.sz_exe_file.as_ptr();
@@ -269,7 +265,7 @@ pub unsafe fn os_proc_info(pid: c_int, arena: *mut Arena) -> Dict {
                 c"name",
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData { string: name_str },
+                    data: ObjectData::String(name_str),
                 },
             );
         }

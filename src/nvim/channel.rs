@@ -1176,7 +1176,7 @@ pub unsafe fn set_info_event(chan: *mut Channel, event: event_T) {
         object_to_vim(
             Object {
                 obj_type: ObjectType::kObjectTypeDict,
-                data: ObjectData { dict: info },
+                data: ObjectData::Dict(info),
             },
             &raw mut retval,
             ptr::null_mut(),
@@ -1228,9 +1228,7 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
             c"id",
             Object {
                 obj_type: ObjectType::kObjectTypeInteger,
-                data: ObjectData {
-                    integer: (*cp).id as Integer,
-                },
+                data: ObjectData::Integer((*cp).id as Integer),
             },
         );
 
@@ -1257,7 +1255,7 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                         c"pty",
                         Object {
                             obj_type: ObjectType::kObjectTypeString,
-                            data: ObjectData { string: s },
+                            data: ObjectData::String(s),
                         },
                     );
                 }
@@ -1276,9 +1274,7 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                             &mut argv,
                             Object {
                                 obj_type: ObjectType::kObjectTypeString,
-                                data: ObjectData {
-                                    string: cstr_as_string(arg.as_ptr()),
-                                },
+                                data: ObjectData::String(cstr_as_string(arg.as_ptr())),
                             },
                         );
                     }
@@ -1288,7 +1284,7 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                     c"argv",
                     Object {
                         obj_type: ObjectType::kObjectTypeArray,
-                        data: ObjectData { array: argv },
+                        data: ObjectData::Array(argv),
                     },
                 );
                 c"job"
@@ -1301,7 +1297,7 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                     c"internal",
                     Object {
                         obj_type: ObjectType::kObjectTypeBoolean,
-                        data: ObjectData { boolean: true },
+                        data: ObjectData::Boolean(true),
                     },
                 );
                 c"socket"
@@ -1314,9 +1310,7 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
             c"stream",
             Object {
                 obj_type: ObjectType::kObjectTypeString,
-                data: ObjectData {
-                    string: cstr_as_string(stream_desc.as_ptr()),
-                },
+                data: ObjectData::String(cstr_as_string(stream_desc.as_ptr())),
             },
         );
 
@@ -1326,9 +1320,7 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                 c"client",
                 Object {
                     obj_type: ObjectType::kObjectTypeDict,
-                    data: ObjectData {
-                        dict: (*ct).rpc.info,
-                    },
+                    data: ObjectData::Dict((*ct).rpc.info),
                 },
             );
             put_c(
@@ -1336,9 +1328,7 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                 c"detach",
                 Object {
                     obj_type: ObjectType::kObjectTypeBoolean,
-                    data: ObjectData {
-                        boolean: (*ct).detach,
-                    },
+                    data: ObjectData::Boolean((*ct).detach),
                 },
             );
             c"rpc"
@@ -1349,9 +1339,7 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                 c"buf",
                 Object {
                     obj_type: ObjectType::kObjectTypeBuffer,
-                    data: ObjectData {
-                        integer: i64::from(tbuf),
-                    },
+                    data: ObjectData::Integer(i64::from(tbuf)),
                 },
             );
             put_c(
@@ -1359,9 +1347,7 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                 c"buffer",
                 Object {
                     obj_type: ObjectType::kObjectTypeBuffer,
-                    data: ObjectData {
-                        integer: i64::from(tbuf),
-                    },
+                    data: ObjectData::Integer(i64::from(tbuf)),
                 },
             );
             put_c(
@@ -1369,9 +1355,7 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                 c"exitcode",
                 Object {
                     obj_type: ObjectType::kObjectTypeInteger,
-                    data: ObjectData {
-                        integer: i64::from((*ct).exit_status),
-                    },
+                    data: ObjectData::Integer(i64::from((*ct).exit_status)),
                 },
             );
             c"terminal"
@@ -1384,9 +1368,7 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
             c"mode",
             Object {
                 obj_type: ObjectType::kObjectTypeString,
-                data: ObjectData {
-                    string: cstr_as_string(mode_desc.as_ptr()),
-                },
+                data: ObjectData::String(cstr_as_string(mode_desc.as_ptr())),
             },
         );
 
@@ -1405,7 +1387,7 @@ pub unsafe fn channel_all_info(arena: *mut Arena) -> Array {
                 &mut ret,
                 Object {
                     obj_type: ObjectType::kObjectTypeDict,
-                    data: ObjectData { dict: info },
+                    data: ObjectData::Dict(info),
                 },
             );
         }

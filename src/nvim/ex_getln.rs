@@ -5068,7 +5068,7 @@ pub unsafe fn cmdline_init() {
 /// Validate the `'cedit'` option.
 pub unsafe fn validate_cedit(args: *mut optset_T) -> *const c_char {
     unsafe {
-        let value = (*args).os_newval.data.string.data;
+        let value = (*args).os_newval.data.string().data;
         if *value != NUL {
             let n = string_to_key(value);
             if n == 0 || vim_isprintc(n) {

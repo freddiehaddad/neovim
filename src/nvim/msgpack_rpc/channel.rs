@@ -391,13 +391,13 @@ pub unsafe fn rpc_send_call(
                     err,
                     ErrorType::kErrorTypeException,
                     c"%s".as_ptr(),
-                    res.data.string.data,
+                    res.data.string().data,
                 );
             } else if res.obj_type == ObjectType::kObjectTypeArray {
-                let array = res.data.array;
+                let array = res.data.array();
                 if array.size == 2
                     && (*array.items).obj_type == ObjectType::kObjectTypeInteger
-                    && let Some(et) = ErrorType::from_raw((*array.items).data.integer as c_int)
+                    && let Some(et) = ErrorType::from_raw((*array.items).data.integer() as c_int)
                     && matches!(
                         et,
                         ErrorType::kErrorTypeException | ErrorType::kErrorTypeValidation
@@ -408,7 +408,7 @@ pub unsafe fn rpc_send_call(
                         err,
                         et,
                         c"%s".as_ptr(),
-                        (*array.items.add(1)).data.string.data,
+                        (*array.items.add(1)).data.string().data,
                     );
                 } else {
                     api_set_error!(
@@ -506,7 +506,7 @@ unsafe fn parse_msgpack(channel: *mut Channel) {
                     } else if let Some(ui_fn) = (*p).ui_handler.r#fn
                         && (*p).result.obj_type == ObjectType::kObjectTypeArray
                     {
-                        ui_fn((*p).result.data.array);
+                        ui_fn((*p).result.data.array());
                     }
                 }
                 arena_mem_free(arena_finish(&raw mut (*p).arena));
@@ -552,7 +552,7 @@ unsafe fn parse_msgpack(channel: *mut Channel) {
                     );
                     return;
                 }
-                handle_request(channel, p, res.data.array);
+                handle_request(channel, p, res.data.array());
             }
         }
 
@@ -871,7 +871,7 @@ unsafe fn chan_close_on_err(channel: *mut Channel, msg: *const c_char, loglevel:
             let s = arena_string(&raw mut (*p).arena, cstr_as_string(msg));
             (*frame).result = Object {
                 obj_type: ObjectType::kObjectTypeString,
-                data: ObjectData { string: s },
+                data: ObjectData::String(s),
             };
             (*frame).result_mem = arena_finish(&raw mut (*p).arena);
         }
@@ -941,15 +941,11 @@ pub unsafe fn serialize_response(
                 let mut items = [
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData {
-                            integer: (*err).err_type as i64,
-                        },
+                        data: ObjectData::Integer((*err).err_type as i64),
                     },
                     Object {
                         obj_type: ObjectType::kObjectTypeString,
-                        data: ObjectData {
-                            string: cstr_as_string((*err).msg_ptr()),
-                        },
+                        data: ObjectData::String(cstr_as_string((*err).msg_ptr())),
                     },
                 ];
                 let args = Array {
@@ -1075,7 +1071,7 @@ pub unsafe fn get_client_info(chan: *mut Channel, key: *const c_char) -> *const 
                 && CStr::from_ptr(item.key.data).to_bytes() == key_bytes
                 && item.value.obj_type == ObjectType::kObjectTypeString
             {
-                return item.value.data.string.data;
+                return item.value.data.string().data;
             }
         }
 

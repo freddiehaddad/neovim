@@ -1041,7 +1041,7 @@ unsafe fn runtime_get_named_common(
                         buf_len,
                         c"%s/%s".as_ptr(),
                         item.path.as_ptr(),
-                        pat_item.data.string.data,
+                        pat_item.data.string().data,
                     ) as usize;
                     if size < buf_len && os_file_is_readable(buf) {
                         to_slash(buf);
@@ -2952,7 +2952,7 @@ unsafe fn do_source_ext(
                 );
                 if err.err_type == ErrorType::kErrorTypeNone
                     && result.obj_type == ObjectType::kObjectTypeBoolean
-                    && result.data.boolean
+                    && result.data.boolean()
                 {
                     ts_lua = true;
                 }

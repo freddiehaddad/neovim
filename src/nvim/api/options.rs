@@ -477,8 +477,8 @@ pub unsafe extern "C" fn nvim__option_to_object(
         let flags = (*option).flags;
         let schema = (*option).schema;
 
-        let str_ptr = if !value.data.string.data.is_null() {
-            value.data.string.data
+        let str_ptr = if !value.data.string().data.is_null() {
+            value.data.string().data
         } else {
             c"".as_ptr().cast_mut()
         };
@@ -638,9 +638,9 @@ pub unsafe extern "C" fn nvim_set_option_value(
         let varp = get_varp_from(option, buf, win);
 
         let nitems = if is_array {
-            value.data.array.size
+            value.data.array().size
         } else if is_dict {
-            value.data.dict.size
+            value.data.dict().size
         } else {
             0
         };
@@ -652,24 +652,20 @@ pub unsafe extern "C" fn nvim_set_option_value(
             if per_item && is_array {
                 item = Object {
                     obj_type: ObjectType::kObjectTypeArray,
-                    data: ObjectData {
-                        array: Array {
-                            items: value.data.array.items.add(i),
+                    data: ObjectData::Array(Array {
+                            items: value.data.array().items.add(i),
                             size: 1,
                             capacity: 0,
-                        },
-                    },
+                        }),
                 };
             } else if per_item {
                 item = Object {
                     obj_type: ObjectType::kObjectTypeDict,
-                    data: ObjectData {
-                        dict: Dict {
-                            items: value.data.dict.items.add(i),
+                    data: ObjectData::Dict(Dict {
+                            items: value.data.dict().items.add(i),
                             size: 1,
                             capacity: 0,
-                        },
-                    },
+                        }),
                 };
             }
 
@@ -692,7 +688,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
             match optval_right.obj_type {
                 ObjectType::kObjectTypeUnset | ObjectType::kObjectTypeNil => {}
                 ObjectType::kObjectTypeString => {
-                    let optval_escaped = escape_option_str_cmdline(optval_right.data.string.data);
+                    let optval_escaped = escape_option_str_cmdline(optval_right.data.string().data);
                     let escaped_bytes = optval_escaped.as_bytes();
                     let mut buf_bytes = Vec::with_capacity(1 + escaped_bytes.len());
                     buf_bytes.push(b'=');
@@ -700,7 +696,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
                     argp = arena_memdupz(arena, buf_bytes.as_ptr().cast(), buf_bytes.len());
                 }
                 ObjectType::kObjectTypeInteger => {
-                    let s = format!("={}", optval_right.data.integer);
+                    let s = format!("={}", optval_right.data.integer());
                     argp = arena_memdupz(arena, s.as_ptr().cast(), s.len());
                 }
                 ObjectType::kObjectTypeBoolean => {

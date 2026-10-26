@@ -147,7 +147,7 @@ unsafe fn decor_provider_invoke(
             (*provider).error_count = 0;
             if !res.is_null() {
                 debug_assert!(matches!(ret.obj_type, ObjectType::kObjectTypeArray));
-                *res = ret.data.array;
+                *res = ret.data.array();
                 return true;
             } else if api_object_to_bool(
                 ret,
@@ -423,16 +423,16 @@ pub unsafe fn decor_providers_invoke_range(
                 } else if res.size >= 1 {
                     let first = *res.items;
                     if matches!(first.obj_type, ObjectType::kObjectTypeBoolean) {
-                        if !first.data.boolean {
+                        if !first.data.boolean() {
                             p.state = kDecorProviderWinDisabled;
                         }
                     } else if matches!(first.obj_type, ObjectType::kObjectTypeInteger) {
-                        let row = first.data.integer;
+                        let row = first.data.integer();
                         let mut col: Integer = 0;
                         if res.size >= 2 {
                             let second = *res.items.add(1);
                             if matches!(second.obj_type, ObjectType::kObjectTypeInteger) {
-                                col = second.data.integer;
+                                col = second.data.integer();
                             }
                         }
                         p.win_skip_row = row as c_int;

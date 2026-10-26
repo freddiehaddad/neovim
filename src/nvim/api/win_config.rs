@@ -1319,8 +1319,8 @@ unsafe fn parse_float_bufpos(bufpos: Array, out: *mut lpos_T) -> bool {
         {
             return false;
         }
-        (*out).lnum = (*bufpos.items.add(0)).data.integer as i32;
-        (*out).col = (*bufpos.items.add(1)).data.integer as i32;
+        (*out).lnum = (*bufpos.items.add(0)).data.integer() as i32;
+        (*out).col = (*bufpos.items.add(1)).data.integer() as i32;
         true
     }
 }
@@ -1346,7 +1346,7 @@ pub unsafe fn parse_bordertext(
             return;
         }
 
-        if bordertext.obj_type == ObjectType::kObjectTypeArray && bordertext.data.array.size == 0 {
+        if bordertext.obj_type == ObjectType::kObjectTypeArray && bordertext.data.array().size == 0 {
             api_err_exp(
                 err,
                 c"title/footer".as_ptr(),
@@ -1374,11 +1374,11 @@ pub unsafe fn parse_bordertext(
         };
 
         if bordertext.obj_type == ObjectType::kObjectTypeString {
-            if bordertext.data.string.size == 0 {
+            if bordertext.data.string().size == 0 {
                 *is_present = false;
                 return;
             }
-            let text_cstr = transstr(bordertext.data.string.data, true);
+            let text_cstr = transstr(bordertext.data.string().data, true);
             *width = mb_string2cells(text_cstr.as_ptr()) as c_int;
             chunks.clear();
             chunks.push(VirtTextChunk {
@@ -1386,7 +1386,7 @@ pub unsafe fn parse_bordertext(
                 hl_id: -1,
             });
         } else {
-            *chunks = parse_virt_text(bordertext.data.array, err, width, true);
+            *chunks = parse_virt_text(bordertext.data.array(), err, width, true);
             if error_set(err) {
                 return;
             }
@@ -1461,7 +1461,7 @@ pub unsafe fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: *m
         (*fconfig).border = true;
 
         if style.obj_type == ObjectType::kObjectTypeArray {
-            let arr = style.data.array;
+            let arr = style.data.array();
             let mut size = arr.size;
             if size == 0 || size > 8 || (size & (size - 1)) != 0 {
                 api_err_exp(
@@ -1477,7 +1477,7 @@ pub unsafe fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: *m
                 let string: NvimString;
                 let mut hl_id: c_int = 0;
                 if iytem.obj_type == ObjectType::kObjectTypeArray {
-                    let iarr = iytem.data.array;
+                    let iarr = iytem.data.array();
                     if iarr.size == 0 || iarr.size > 2 {
                         api_err_exp(
                             err,
@@ -1497,7 +1497,7 @@ pub unsafe fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: *m
                         );
                         return;
                     }
-                    string = first.data.string;
+                    string = first.data.string();
                     if iarr.size == 2 {
                         hl_id = object_to_hl_id(
                             *iarr.items.add(1),
@@ -1509,7 +1509,7 @@ pub unsafe fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: *m
                         }
                     }
                 } else if iytem.obj_type == ObjectType::kObjectTypeString {
-                    string = iytem.data.string;
+                    string = iytem.data.string();
                 } else {
                     api_err_exp(
                         err,
@@ -1555,7 +1555,7 @@ pub unsafe fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: *m
                 );
             }
         } else if style.obj_type == ObjectType::kObjectTypeString {
-            let str_val = style.data.string;
+            let str_val = style.data.string();
             if str_val.size == 0 || strequal_str(str_val.data, "none") {
                 (*fconfig).border = false;
                 (*fconfig).title = false;

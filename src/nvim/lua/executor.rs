@@ -2265,9 +2265,7 @@ unsafe fn nlua_call_pop_retval(
                 lua_pop(lstate, 1);
                 Object {
                     obj_type: ObjectType::kObjectTypeBoolean,
-                    data: ObjectData {
-                        boolean: bool_value,
-                    },
+                    data: ObjectData::Boolean(bool_value),
                 }
             }
             kRetLuaref => {
@@ -2275,7 +2273,7 @@ unsafe fn nlua_call_pop_retval(
                 lua_pop(lstate, 1);
                 Object {
                     obj_type: ObjectType::kObjectTypeLuaRef,
-                    data: ObjectData { luaref: ref_ },
+                    data: ObjectData::LuaRef(ref_),
                 }
             }
             kRetObject => nlua_pop_Object(lstate, false, arena, perr),
@@ -2292,7 +2290,7 @@ unsafe fn nlua_call_pop_retval(
                 res.size = nres.max(0) as usize;
                 Object {
                     obj_type: ObjectType::kObjectTypeArray,
-                    data: ObjectData { array: res },
+                    data: ObjectData::Array(res),
                 }
             }
             kRetMultiStack => OBJECT_NIL,
@@ -2556,8 +2554,8 @@ pub unsafe fn nlua_expand_pat(xp: *mut expand_T) {
                         break;
                     }
                     (*er).push(crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
-                        v.data.string.data.cast::<u8>(),
-                        v.data.string.size,
+                        v.data.string().data.cast::<u8>(),
+                        v.data.string().size,
                     )));
                 }
 
@@ -2871,12 +2869,10 @@ pub unsafe fn nlua_func_exists(lua_funcname: *const c_char) -> bool {
         let str_cstr = std::ffi::CString::new(str_bytes).unwrap();
         let mut args_items: [Object; 1] = [Object {
             obj_type: ObjectType::kObjectTypeString,
-            data: ObjectData {
-                string: NvimString {
+            data: ObjectData::String(NvimString {
                     data: str_cstr.as_ptr().cast_mut(),
                     size: str_cstr.as_bytes().len(),
-                },
-            },
+                }),
         }];
         let args = Array {
             items: args_items.as_mut_ptr(),
@@ -2901,7 +2897,7 @@ pub unsafe fn nlua_func_exists(lua_funcname: *const c_char) -> bool {
         drop(str_cstr);
 
         api_clear_error(&raw mut err);
-        result.obj_type == ObjectType::kObjectTypeBoolean && result.data.boolean
+        result.obj_type == ObjectType::kObjectTypeBoolean && result.data.boolean()
     }
 }
 

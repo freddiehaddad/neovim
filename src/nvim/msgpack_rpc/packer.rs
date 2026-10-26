@@ -415,7 +415,7 @@ pub unsafe fn mpack_object_array(arr: Array, packer: *mut PackerBuffer) {
         if arr.size > 0 {
             let mut container = Object {
                 obj_type: ObjectType::kObjectTypeArray,
-                data: ObjectData { array: arr },
+                data: ObjectData::Array(arr),
             };
             let cont_ptr = if arr.size > 1 {
                 &mut container
@@ -445,9 +445,9 @@ pub unsafe fn mpack_object_inner(
             let cur = &mut *current;
             match cur.obj_type {
                 ObjectType::kObjectTypeLuaRef => {
-                    let cs = nlua_funcref_str(cur.data.luaref, true);
-                    api_free_luaref(cur.data.luaref);
-                    cur.data.luaref = LUA_NOREF;
+                    let cs = nlua_funcref_str(cur.data.luaref(), true);
+                    api_free_luaref(cur.data.luaref());
+                    cur.data = ObjectData::LuaRef(LUA_NOREF);
                     let s = NvimString {
                         data: cs.as_ptr().cast_mut(),
                         size: cs.to_bytes().len(),
@@ -458,35 +458,35 @@ pub unsafe fn mpack_object_inner(
                     mpack_nil(&mut (*packer).ptr);
                 }
                 ObjectType::kObjectTypeBoolean => {
-                    mpack_bool(&mut (*packer).ptr, cur.data.boolean);
+                    mpack_bool(&mut (*packer).ptr, cur.data.boolean());
                 }
                 ObjectType::kObjectTypeInteger => {
-                    mpack_integer(&mut (*packer).ptr, cur.data.integer);
+                    mpack_integer(&mut (*packer).ptr, cur.data.integer());
                 }
                 ObjectType::kObjectTypeFloat => {
-                    mpack_float8(&mut (*packer).ptr, cur.data.floating);
+                    mpack_float8(&mut (*packer).ptr, cur.data.floating());
                 }
                 ObjectType::kObjectTypeString => {
-                    mpack_str(cur.data.string, packer);
+                    mpack_str(cur.data.string(), packer);
                 }
                 ObjectType::kObjectTypeBuffer
                 | ObjectType::kObjectTypeWindow
                 | ObjectType::kObjectTypeTabpage => {
-                    mpack_handle(cur.obj_type, cur.data.integer as handle_T, packer);
+                    mpack_handle(cur.obj_type, cur.data.integer() as handle_T, packer);
                 }
                 ObjectType::kObjectTypeDict | ObjectType::kObjectTypeArray => {
                     let current_size = if cur.obj_type == ObjectType::kObjectTypeArray {
-                        let sz = cur.data.array.size;
+                        let sz = cur.data.array().size;
                         mpack_array(&mut (*packer).ptr, sz as u32);
                         sz
                     } else {
-                        let sz = cur.data.dict.size;
+                        let sz = cur.data.dict().size;
                         mpack_map(&mut (*packer).ptr, sz as u32);
                         sz
                     };
                     if current_size > 0 {
                         if cur.obj_type == ObjectType::kObjectTypeArray && current_size == 1 {
-                            current = cur.data.array.items;
+                            current = cur.data.array().items;
                             continue;
                         }
                         if !container.is_null() {
@@ -512,14 +512,14 @@ pub unsafe fn mpack_object_inner(
 
             let cont = &mut *container;
             if cont.obj_type == ObjectType::kObjectTypeArray {
-                let arr = cont.data.array;
+                let arr = cont.data.array();
                 current = arr.items.add(container_idx);
                 container_idx += 1;
                 if container_idx >= arr.size {
                     container = std::ptr::null_mut();
                 }
             } else {
-                let dict = cont.data.dict;
+                let dict = cont.data.dict();
                 let it = &mut *dict.items.add(container_idx);
                 container_idx += 1;
                 mpack_check_buffer(packer);

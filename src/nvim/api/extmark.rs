@@ -836,7 +836,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__hl_group) {
                 if (*opts).hl_group.obj_type == ObjectType::kObjectTypeArray {
-                    let arr = (*opts).hl_group.data.array;
+                    let arr = (*opts).hl_group.data.array();
                     if arr.size >= 1 {
                         hl.hl_id =
                             object_to_hl_id(*arr.items.add(0), c"hl_group item".as_ptr(), err);
@@ -891,13 +891,13 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
 
                 has_hl = true;
                 if (*opts).conceal.obj_type == ObjectType::kObjectTypeBoolean {
-                    hl.flags |= if (*opts).conceal.data.boolean {
+                    hl.flags |= if (*opts).conceal.data.boolean() {
                         kSHConceal
                     } else {
                         kSHConcealOff
                     };
                 } else {
-                    let conceal_str = (*opts).conceal.data.string;
+                    let conceal_str = (*opts).conceal.data.string();
                     hl.flags |= kSHConceal;
                     if conceal_str.size > 0 {
                         let mut ch: c_int = 0;
@@ -1029,7 +1029,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                         break 'error;
                     }
                     let mut dummig: c_int = 0;
-                    let jtem = parse_virt_text(item.data.array, err, &mut dummig, false);
+                    let jtem = parse_virt_text(item.data.array(), err, &mut dummig, false);
                     virt_lines.data.virt_lines_mut().push(VirtLine {
                         line: jtem,
                         flags: virt_lines_flags,
@@ -1264,7 +1264,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                 }
 
                 if has_hl_multiple {
-                    let arr = (*opts).hl_group.data.array;
+                    let arr = (*opts).hl_group.data.array();
                     let mut i = arr.size - 1;
                     while i > 0 {
                         let hl_id =
@@ -1545,7 +1545,7 @@ unsafe fn extmark_get_index_from_obj(
 ) -> bool {
     unsafe {
         if obj.obj_type == ObjectType::kObjectTypeInteger {
-            let id = obj.data.integer;
+            let id = obj.data.integer();
             if id == 0 {
                 *row = 0;
                 *col = 0;
@@ -1568,7 +1568,7 @@ unsafe fn extmark_get_index_from_obj(
             *col = extmark.start.pos.col;
             true
         } else if obj.obj_type == ObjectType::kObjectTypeArray {
-            let pos = obj.data.array;
+            let pos = obj.data.array();
             if pos.size != 2
                 || (*pos.items.add(0)).obj_type != ObjectType::kObjectTypeInteger
                 || (*pos.items.add(1)).obj_type != ObjectType::kObjectTypeInteger
@@ -1582,8 +1582,8 @@ unsafe fn extmark_get_index_from_obj(
                 return false;
             }
 
-            let pos_row = (*pos.items.add(0)).data.integer;
-            let pos_col = (*pos.items.add(1)).data.integer;
+            let pos_row = (*pos.items.add(0)).data.integer();
+            let pos_col = (*pos.items.add(1)).data.integer();
             *row = (if pos_row >= 0 { pos_row } else { MAXLNUM }) as c_int;
             *col = (if pos_col >= 0 { pos_col } else { MAXCOL }) as colnr_T;
             true
@@ -1622,7 +1622,7 @@ pub unsafe fn parse_virt_text(
                     );
                     break 'free_exit;
                 }
-                let chunk = item.data.array;
+                let chunk = item.data.array();
                 if chunk.size == 0
                     || chunk.size > 2
                     || (*chunk.items.add(0)).obj_type != ObjectType::kObjectTypeString
@@ -1636,12 +1636,12 @@ pub unsafe fn parse_virt_text(
                     break 'free_exit;
                 }
 
-                let str_val = (*chunk.items.add(0)).data.string;
+                let str_val = (*chunk.items.add(0)).data.string();
                 let mut hl_id: c_int = -1;
                 if chunk.size == 2 {
                     let hl = *chunk.items.add(1);
                     if hl.obj_type == ObjectType::kObjectTypeArray {
-                        let arr = hl.data.array;
+                        let arr = hl.data.array();
                         for j in 0..arr.size {
                             hl_id = object_to_hl_id(
                                 *arr.items.add(j),
@@ -1737,7 +1737,7 @@ pub unsafe extern "C" fn nvim__ns_set(ns_id: Integer, opts: *mut KeyDict_ns_opts
             let mut windows: std::collections::HashSet<*mut win_T> =
                 std::collections::HashSet::new();
             for i in 0..(*opts).wins.size {
-                let win = (*(*opts).wins.items.add(i)).data.integer;
+                let win = (*(*opts).wins.items.add(i)).data.integer();
                 let wp = find_window_by_handle(win as Window, err);
                 if wp.is_null() {
                     return;

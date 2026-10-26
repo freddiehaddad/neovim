@@ -472,7 +472,7 @@ pub unsafe fn buffer_get_line(
             err,
         );
         if !error_set(err) && slice.size > 0 {
-            rv = (*slice.items.add(0)).data.string;
+            rv = (*slice.items.add(0)).data.string();
         }
         rv
     }
@@ -1097,7 +1097,7 @@ pub unsafe extern "C" fn nvim_call_atomic(
                     );
                     break 'theend;
                 }
-                let call = item.data.array;
+                let call = item.data.array();
                 if call.size != 2 {
                     api_err_exp(
                         err,
@@ -1117,7 +1117,7 @@ pub unsafe extern "C" fn nvim_call_atomic(
                     );
                     break 'theend;
                 }
-                let name = first.data.string;
+                let name = first.data.string();
                 let second = *call.items.add(1);
                 if second.obj_type != ObjectType::kObjectTypeArray {
                     api_err_exp(
@@ -1128,7 +1128,7 @@ pub unsafe extern "C" fn nvim_call_atomic(
                     );
                     break 'theend;
                 }
-                let args = second.data.array;
+                let args = second.data.array();
 
                 let handler = msgpack_rpc_get_handler_for(name.data, name.size, &mut nested_error);
                 if error_set(&nested_error) {

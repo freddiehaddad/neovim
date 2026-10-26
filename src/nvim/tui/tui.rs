@@ -717,7 +717,7 @@ unsafe fn apply_termdefs(tui: *mut TUIData) {
         let mut chunks: Vec<Object> = Vec::new();
         let mut err_count = 0usize;
 
-        let dict = rv.data.dict;
+        let dict = rv.data.dict();
         for i in 0..dict.size {
             let kv = *dict.items.add(i);
             let key_bytes = if kv.key.data.is_null() {
@@ -743,36 +743,36 @@ unsafe fn apply_termdefs(tui: *mut TUIData) {
             let val = kv.value;
             match target {
                 TermdefFieldTarget::BoolBackColorErase => {
-                    (*tui).ti.back_color_erase = val.data.boolean;
+                    (*tui).ti.back_color_erase = val.data.boolean();
                 }
                 TermdefFieldTarget::BoolTc => {
-                    (*tui).ti.Tc = val.data.boolean;
+                    (*tui).ti.Tc = val.data.boolean();
                 }
                 TermdefFieldTarget::BoolRGB => {
-                    (*tui).ti.RGB = val.data.boolean;
+                    (*tui).ti.RGB = val.data.boolean();
                 }
                 TermdefFieldTarget::BoolSu => {
-                    (*tui).ti.Su = val.data.boolean;
+                    (*tui).ti.Su = val.data.boolean();
                 }
                 TermdefFieldTarget::IntMaxColors => {
-                    (*tui).ti.max_colors = val.data.integer as c_int;
+                    (*tui).ti.max_colors = val.data.integer() as c_int;
                 }
                 TermdefFieldTarget::IntLines => {
-                    (*tui).ti.lines = val.data.integer as c_int;
+                    (*tui).ti.lines = val.data.integer() as c_int;
                 }
                 TermdefFieldTarget::IntColumns => {
-                    (*tui).ti.columns = val.data.integer as c_int;
+                    (*tui).ti.columns = val.data.integer() as c_int;
                 }
                 TermdefFieldTarget::Def(idx) => {
                     (*tui).ti.defs[idx] =
-                        arena_strdup(&raw mut (*tui).ti_arena, val.data.string.data);
+                        arena_strdup(&raw mut (*tui).ti_arena, val.data.string().data);
                 }
                 TermdefFieldTarget::KeyStr(idx) => {
                     (*tui).ti.keys[idx][0] =
-                        arena_strdup(&raw mut (*tui).ti_arena, val.data.string.data);
+                        arena_strdup(&raw mut (*tui).ti_arena, val.data.string().data);
                 }
                 TermdefFieldTarget::KeyArr(idx) => {
-                    let arr = val.data.array;
+                    let arr = val.data.array();
                     if arr.size > 2 {
                         let msg = format!(
                             "skipping invalid field definition in $NVIM_TERMDEFS for {key_str}: array should have at most two entries for unshifted and shifted key variants.\n"
@@ -794,12 +794,12 @@ unsafe fn apply_termdefs(tui: *mut TUIData) {
                             continue;
                         }
                         (*tui).ti.keys[idx][key_map_idx] =
-                            arena_strdup(&raw mut (*tui).ti_arena, key_mapping.data.string.data);
+                            arena_strdup(&raw mut (*tui).ti_arena, key_mapping.data.string().data);
                     }
                 }
                 TermdefFieldTarget::FKey(idx) => {
                     (*tui).ti.f_keys[idx] =
-                        arena_strdup(&raw mut (*tui).ti_arena, val.data.string.data);
+                        arena_strdup(&raw mut (*tui).ti_arena, val.data.string().data);
                 }
             }
         }
@@ -1847,13 +1847,13 @@ unsafe fn decode_cursor_entry(args: Dict) -> cursorentry_T {
             let key = item.key.data;
             let value = item.value;
             if strequal(key, c"cursor_shape".as_ptr()) {
-                r.shape = tui_cursor_decode_shape(value.data.string.data);
+                r.shape = tui_cursor_decode_shape(value.data.string().data);
             } else if strequal(key, c"blinkon".as_ptr()) {
-                r.blinkon = value.data.integer as c_int;
+                r.blinkon = value.data.integer() as c_int;
             } else if strequal(key, c"blinkoff".as_ptr()) {
-                r.blinkoff = value.data.integer as c_int;
+                r.blinkoff = value.data.integer() as c_int;
             } else if strequal(key, c"attr_id".as_ptr()) {
-                r.id = value.data.integer as c_int;
+                r.id = value.data.integer() as c_int;
             }
         }
         r
@@ -1873,7 +1873,7 @@ pub unsafe fn tui_mode_info_set(tui: *mut TUIData, guicursor_enabled: bool, args
         for i in 0..args.size {
             let item = *args.items.add(i);
             assert!(item.obj_type == ObjectType::kObjectTypeDict);
-            let r = decode_cursor_entry(item.data.dict);
+            let r = decode_cursor_entry(item.data.dict());
             (*tui).cursor_shapes[i] = r;
         }
 
@@ -2420,24 +2420,24 @@ pub unsafe fn tui_screenshot(tui: *mut TUIData, path: NvimString) {
 pub unsafe fn tui_option_set(tui: *mut TUIData, name: NvimString, value: Object) {
     unsafe {
         if strequal(name.data, c"mousemoveevent".as_ptr()) {
-            if (*tui).mouse_move_enabled != value.data.boolean {
+            if (*tui).mouse_move_enabled != value.data.boolean() {
                 if (*tui).mouse_enabled {
                     tui_mouse_off(tui);
-                    (*tui).mouse_move_enabled = value.data.boolean;
+                    (*tui).mouse_move_enabled = value.data.boolean();
                     tui_mouse_on(tui);
                 } else {
-                    (*tui).mouse_move_enabled = value.data.boolean;
+                    (*tui).mouse_move_enabled = value.data.boolean();
                 }
             }
         } else if strequal(name.data, c"termguicolors".as_ptr()) {
-            (*tui).rgb = value.data.boolean;
+            (*tui).rgb = value.data.boolean();
             (*tui).print_attr_id = -1;
             invalidate(tui, 0, (*tui).grid.height, 0, (*tui).grid.width);
 
             if ui_client_channel_id != 0 {
                 let mut args_items = [
                     cstr_as_obj(c"rgb".as_ptr()),
-                    boolean_obj(value.data.boolean),
+                    boolean_obj(value.data.boolean()),
                 ];
                 let args = Array {
                     items: args_items.as_mut_ptr(),
@@ -2447,13 +2447,13 @@ pub unsafe fn tui_option_set(tui: *mut TUIData, name: NvimString, value: Object)
                 rpc_send_event(ui_client_channel_id, c"nvim_ui_set_option".as_ptr(), args);
             }
         } else if strequal(name.data, c"ttimeout".as_ptr()) {
-            (*tui).input.ttimeout = value.data.boolean;
+            (*tui).input.ttimeout = value.data.boolean();
         } else if strequal(name.data, c"ttimeoutlen".as_ptr()) {
-            (*tui).input.ttimeoutlen = value.data.integer as OptInt;
+            (*tui).input.ttimeoutlen = value.data.integer() as OptInt;
         } else if strequal(name.data, c"verbose".as_ptr()) {
-            (*tui).verbose = value.data.integer;
+            (*tui).verbose = value.data.integer();
         } else if strequal(name.data, c"termsync".as_ptr()) {
-            (*tui).sync_output = value.data.boolean;
+            (*tui).sync_output = value.data.boolean();
         }
     }
 }

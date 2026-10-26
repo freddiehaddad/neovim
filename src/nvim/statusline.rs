@@ -666,28 +666,22 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
                     let mut chunk = Array::new();
                     chunk.push(Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData {
-                            integer: i64::from(curattr),
-                        },
+                        data: ObjectData::Integer(i64::from(curattr)),
                     });
                     chunk.push(Object {
                         obj_type: ObjectType::kObjectTypeString,
-                        data: ObjectData {
-                            string: crate::api::private::helpers::cbuf_to_string(
+                        data: ObjectData::String(crate::api::private::helpers::cbuf_to_string(
                                 transbuf.as_ptr(),
                                 tsize,
-                            ),
-                        },
+                            )),
                     });
                     chunk.push(Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData {
-                            integer: i64::from(curgroup),
-                        },
+                        data: ObjectData::Integer(i64::from(curgroup)),
                     });
                     content.push(Object {
                         obj_type: ObjectType::kObjectTypeArray,
-                        data: ObjectData { array: chunk },
+                        data: ObjectData::Array(chunk),
                     });
                 }
                 p = (*sp).start;
@@ -842,9 +836,7 @@ unsafe fn ui_ext_tabline_update() {
                 c"tab".as_ptr(),
                 Object {
                     obj_type: ObjectType::kObjectTypeTabpage,
-                    data: ObjectData {
-                        integer: i64::from((*tp).handle),
-                    },
+                    data: ObjectData::Integer(i64::from((*tp).handle)),
                 },
             );
 
@@ -859,9 +851,7 @@ unsafe fn ui_ext_tabline_update() {
                 c"name".as_ptr(),
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: arena_string(&raw mut arena, cstr_as_string(name_buff)),
-                    },
+                    data: ObjectData::String(arena_string(&raw mut arena, cstr_as_string(name_buff))),
                 },
             );
 
@@ -869,7 +859,7 @@ unsafe fn ui_ext_tabline_update() {
                 &mut tabs,
                 Object {
                     obj_type: ObjectType::kObjectTypeDict,
-                    data: ObjectData { dict: tab_info },
+                    data: ObjectData::Dict(tab_info),
                 },
             );
             tp = (*tp).tp_next;
@@ -894,9 +884,7 @@ unsafe fn ui_ext_tabline_update() {
                     c"buffer".as_ptr(),
                     Object {
                         obj_type: ObjectType::kObjectTypeBuffer,
-                        data: ObjectData {
-                            integer: i64::from((*buf).b_fnum),
-                        },
+                        data: ObjectData::Integer(i64::from((*buf).b_fnum)),
                     },
                 );
 
@@ -906,9 +894,7 @@ unsafe fn ui_ext_tabline_update() {
                     c"name".as_ptr(),
                     Object {
                         obj_type: ObjectType::kObjectTypeString,
-                        data: ObjectData {
-                            string: arena_string(&raw mut arena, cstr_as_string(name_buff)),
-                        },
+                        data: ObjectData::String(arena_string(&raw mut arena, cstr_as_string(name_buff))),
                     },
                 );
 
@@ -916,7 +902,7 @@ unsafe fn ui_ext_tabline_update() {
                     &mut buffers,
                     Object {
                         obj_type: ObjectType::kObjectTypeDict,
-                        data: ObjectData { dict: buffer_info },
+                        data: ObjectData::Dict(buffer_info),
                     },
                 );
             }

@@ -362,7 +362,7 @@ pub unsafe extern "C" fn nvim_call_dict_function(
                 let mut tstate = TryState::new();
                 try_enter(&mut tstate);
                 let eval_ret = eval0(
-                    dict.data.string.data,
+                    dict.data.string().data,
                     &mut rettv,
                     std::ptr::null_mut(),
                     std::ptr::addr_of_mut!(EVALARG_EVALUATE),

@@ -1295,7 +1295,7 @@ pub unsafe fn api_wrapper(argvars: *mut typval_T, rettv: *mut typval_T, fptr: Ev
         };
         let mut args_storage = [Object {
             obj_type: ObjectType::kObjectTypeNil,
-            data: ObjectData { boolean: false },
+            data: ObjectData::Boolean(false),
         }; MAX_FUNC_ARGS];
         let mut args = Array {
             items: args_storage.as_mut_ptr(),
@@ -1338,7 +1338,7 @@ pub unsafe fn lua_wrapper(argvars: *mut typval_T, rettv: *mut typval_T, fptr: Ev
     unsafe {
         let mut args_storage = [Object {
             obj_type: ObjectType::kObjectTypeNil,
-            data: ObjectData { boolean: false },
+            data: ObjectData::Boolean(false),
         }; MAX_FUNC_ARGS];
         let mut args = Array {
             items: args_storage.as_mut_ptr(),
@@ -4910,9 +4910,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                     cstr_as_string(c"terminal_job_id".as_ptr()),
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData {
-                            integer: (*cp).id as Integer,
-                        },
+                        data: ObjectData::Integer((*cp).id as Integer),
                     },
                     false,
                     false,
@@ -4925,9 +4923,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                     cstr_as_string(c"terminal_job_pid".as_ptr()),
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData {
-                            integer: Integer::from(pid),
-                        },
+                        data: ObjectData::Integer(Integer::from(pid)),
                     },
                     false,
                     false,
@@ -7110,7 +7106,7 @@ pub unsafe fn f_rpcnotify(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
 
         let mut args_storage = [Object {
             obj_type: ObjectType::kObjectTypeNil,
-            data: ObjectData { boolean: false },
+            data: ObjectData::Boolean(false),
         }; MAX_FUNC_ARGS];
         let mut args = Array {
             items: args_storage.as_mut_ptr(),
@@ -7176,7 +7172,7 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
 
         let mut args_storage = [Object {
             obj_type: ObjectType::kObjectTypeNil,
-            data: ObjectData { boolean: false },
+            data: ObjectData::Boolean(false),
         }; MAX_FUNC_ARGS];
         let mut args = Array {
             items: args_storage.as_mut_ptr(),
@@ -7711,9 +7707,7 @@ pub unsafe fn do_searchpair(
                     kOptCpoptions,
                     Object {
                         obj_type: ObjectType::kObjectTypeString,
-                        data: ObjectData {
-                            string: cstr_as_string(save_cpo),
-                        },
+                        data: ObjectData::String(cstr_as_string(save_cpo)),
                     },
                     0,
                 );

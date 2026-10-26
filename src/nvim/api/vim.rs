@@ -1059,7 +1059,7 @@ pub unsafe extern "C" fn nvim__get_runtime(
         let res = runtime_get_named((*opts).is_lua, pat, all, arena);
         if (*opts).do_source {
             for i in 0..res.size {
-                let name = (*res.items.add(i)).data.string;
+                let name = (*res.items.add(i)).data.string();
                 do_source(name.data, false, DOSO_NONE, ptr::null_mut());
             }
         }
@@ -1394,9 +1394,9 @@ pub unsafe extern "C" fn nvim_echo(
 
             if !validate_int(
                 (*opts).id.obj_type != ObjectType::kObjectTypeInteger
-                    || msg_id_exists((*opts).id.data.integer),
+                    || msg_id_exists((*opts).id.data.integer()),
                 c"id".as_ptr(),
-                (*opts).id.data.integer,
+                (*opts).id.data.integer(),
                 err,
             ) {
                 break 'validate false;
@@ -2005,7 +2005,7 @@ pub unsafe extern "C" fn nvim_paste(
             arena,
             err,
         );
-        if error_set(&*err) || (rv.obj_type == ObjectType::kObjectTypeBoolean && !rv.data.boolean) {
+        if error_set(&*err) || (rv.obj_type == ObjectType::kObjectTypeBoolean && !rv.data.boolean()) {
             PASTE_CANCELLED = true;
         }
         if (phase == -1 || phase == 3 || PASTE_CANCELLED) && !(*curbuf).terminal.is_null() {
@@ -2083,7 +2083,7 @@ pub unsafe extern "C" fn nvim_put(
             ) {
                 return;
             }
-            let line = item.data.string;
+            let line = item.data.string();
             let copied = copy_string(line, ptr::null_mut());
             reg.y_array.push(copied);
             memchrsub(copied.data.cast(), NUL, NL, line.size);
@@ -2184,7 +2184,7 @@ pub unsafe extern "C" fn nvim_get_context(
             for i in 0..types.size {
                 let item = *types.items.add(i);
                 if item.obj_type == ObjectType::kObjectTypeString {
-                    let s = item.data.string.data;
+                    let s = item.data.string().data;
                     if strequal(s, c"regs".as_ptr()) {
                         int_types |= kCtxRegs;
                     } else if strequal(s, c"jumps".as_ptr()) {
@@ -2720,7 +2720,7 @@ pub unsafe extern "C" fn nvim_get_proc_children(
                     err,
                 );
                 if o.obj_type == ObjectType::kObjectTypeArray {
-                    rvobj = o.data.array;
+                    rvobj = o.data.array();
                 } else if !error_set(&*err) {
                     api_set_error!(
                         err,
@@ -2763,7 +2763,7 @@ pub unsafe extern "C" fn nvim_get_proc(pid: Integer, arena: *mut Arena, err: *mu
         {
             let _ = err;
             let rvobj = dict_obj(os_proc_info(pid as c_int, arena));
-            if rvobj.data.dict.size == 0 {
+            if rvobj.data.dict().size == 0 {
                 return nil_obj();
             }
             rvobj
@@ -2785,7 +2785,7 @@ pub unsafe extern "C" fn nvim_get_proc(pid: Integer, arena: *mut Arena, err: *mu
                 arena,
                 err,
             );
-            if o.obj_type == ObjectType::kObjectTypeArray && o.data.array.size == 0 {
+            if o.obj_type == ObjectType::kObjectTypeArray && o.data.array().size == 0 {
                 return nil_obj();
             } else if o.obj_type == ObjectType::kObjectTypeDict {
                 rvobj = o;
@@ -3492,8 +3492,8 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: *mut Error
             let ok = r.size == 2
                 && (*r.items).obj_type == ObjectType::kObjectTypeInteger
                 && (*r.items.add(1)).obj_type == ObjectType::kObjectTypeInteger
-                && (*r.items).data.integer >= 0
-                && (*r.items.add(1)).data.integer >= -1;
+                && (*r.items).data.integer() >= 0
+                && (*r.items.add(1)).data.integer() >= -1;
             if !ok {
                 api_set_error!(
                     err,
@@ -3503,8 +3503,8 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: *mut Error
                 );
                 return;
             }
-            let begin_raw = (*r.items).data.integer;
-            let end_raw = (*r.items.add(1)).data.integer;
+            let begin_raw = (*r.items).data.integer();
+            let end_raw = (*r.items.add(1)).data.integer();
 
             let rbuf = if !win.is_null() {
                 (*win).w_buffer

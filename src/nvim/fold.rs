@@ -1499,14 +1499,14 @@ pub unsafe fn get_foldtext(
                 let obj = eval_foldtext(wp);
                 if obj.obj_type == ObjectType::kObjectTypeArray {
                     let mut err = Error::new();
-                    *vt = parse_virt_text(obj.data.array, &mut err, ptr::null_mut(), false);
+                    *vt = parse_virt_text(obj.data.array(), &mut err, ptr::null_mut(), false);
                     if err.err_type == ErrorType::kErrorTypeNone {
                         text = Some(std::ffi::CString::default());
                     }
                     api_clear_error(&mut err);
                 } else if obj.obj_type == ObjectType::kObjectTypeString {
-                    text = (!obj.data.string.data.is_null())
-                        .then(|| CStr::from_ptr(obj.data.string.data).to_owned());
+                    text = (!obj.data.string().data.is_null())
+                        .then(|| CStr::from_ptr(obj.data.string().data).to_owned());
                 }
                 api_free_object(obj);
 

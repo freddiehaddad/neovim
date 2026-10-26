@@ -164,8 +164,8 @@ pub unsafe extern "C" fn nvim_win_set_cursor(win: Window, pos: Array, err: *mut 
             return;
         }
 
-        let row = (*pos.items.add(0)).data.integer;
-        let col = (*pos.items.add(1)).data.integer;
+        let row = (*pos.items.add(0)).data.integer();
+        let col = (*pos.items.add(1)).data.integer();
 
         if row <= 0 || row > i64::from((*(*w).w_buffer).b_ml.ml_line_count) {
             api_err_range(err, c"cursor line".as_ptr());
@@ -824,7 +824,7 @@ mod tests {
     fn keyset_and_integer_obj_helpers() {
         let obj = integer_obj(42);
         assert_eq!(obj.obj_type, ObjectType::kObjectTypeInteger);
-        assert_eq!(unsafe { obj.data.integer }, 42);
+        assert_eq!(obj.data.integer(), 42);
         assert!(has_key(
             1u64 << KEYSET_OPTIDX_win_resize__anchor,
             KEYSET_OPTIDX_win_resize__anchor

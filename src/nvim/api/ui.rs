@@ -545,7 +545,7 @@ unsafe fn ui_set_option(
                 );
                 return;
             }
-            (*ui).r#override = value.data.boolean;
+            (*ui).r#override = value.data.boolean();
             return;
         }
 
@@ -559,7 +559,7 @@ unsafe fn ui_set_option(
                 );
                 return;
             }
-            (*ui).rgb = value.data.boolean;
+            (*ui).rgb = value.data.boolean();
             if !init && !(*ui).ui_ext[kUILinegrid] {
                 ui_refresh();
             }
@@ -576,7 +576,7 @@ unsafe fn ui_set_option(
                 );
                 return;
             }
-            let s = value.data.string;
+            let s = value.data.string();
             let slice = if s.data.is_null() || s.size == 0 {
                 &[][..]
             } else {
@@ -598,8 +598,8 @@ unsafe fn ui_set_option(
                 );
                 return;
             }
-            t_colors = value.data.integer as c_int;
-            (*ui).term_colors = value.data.integer as c_int;
+            t_colors = value.data.integer() as c_int;
+            (*ui).term_colors = value.data.integer() as c_int;
             return;
         }
 
@@ -613,12 +613,12 @@ unsafe fn ui_set_option(
                 );
                 return;
             }
-            if value.data.integer < 0 {
+            if value.data.integer() < 0 {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"Invalid stdin_fd: %lld".as_ptr(),
-                    value.data.integer,
+                    value.data.integer(),
                 );
                 return;
             }
@@ -631,7 +631,7 @@ unsafe fn ui_set_option(
                 );
                 return;
             }
-            stdin_fd = value.data.integer as c_int;
+            stdin_fd = value.data.integer() as c_int;
             return;
         }
 
@@ -646,9 +646,9 @@ unsafe fn ui_set_option(
                 return;
             }
             if (*ui).channel_id == CHAN_STDIO {
-                stdin_isatty = value.data.boolean;
+                stdin_isatty = value.data.boolean();
             }
-            (*ui).stdin_tty = value.data.boolean;
+            (*ui).stdin_tty = value.data.boolean();
             return;
         }
 
@@ -663,9 +663,9 @@ unsafe fn ui_set_option(
                 return;
             }
             if (*ui).channel_id == CHAN_STDIO {
-                stdout_isatty = value.data.boolean;
+                stdout_isatty = value.data.boolean();
             }
-            (*ui).stdout_tty = value.data.boolean;
+            (*ui).stdout_tty = value.data.boolean();
             return;
         }
 
@@ -682,7 +682,7 @@ unsafe fn ui_set_option(
                     );
                     return;
                 }
-                let boolval = value.data.boolean;
+                let boolval = value.data.boolean();
                 if !init && i == kUILinegrid && boolval != (*ui).ui_ext[i] {
                     api_set_error!(
                         err,
@@ -1458,9 +1458,9 @@ unsafe fn translate_contents(ui: *mut RemoteUI, contents: Array, arena: *mut Are
     unsafe {
         let mut new_contents = arena_array(arena, contents.size);
         for i in 0..contents.size {
-            let item = (*contents.items.add(i)).data.array;
+            let item = (*contents.items.add(i)).data.array();
             let mut new_item = arena_array(arena, 2);
-            let attr = (*item.items).data.integer as c_int;
+            let attr = (*item.items).data.integer() as c_int;
             if attr != 0 {
                 let mut rgb_attrs = arena_dict(arena, HLATTRS_DICT_SIZE);
                 hlattrs2dict(
@@ -1486,7 +1486,7 @@ unsafe fn translate_contents(ui: *mut RemoteUI, contents: Array, arena: *mut Are
 unsafe fn translate_firstarg(ui: *mut RemoteUI, args: Array, arena: *mut Arena) -> Array {
     unsafe {
         let mut new_args = arena_array(arena, args.size);
-        let contents = (*args.items).data.array;
+        let contents = (*args.items).data.array();
         *new_args.items.add(0) = array_obj(translate_contents(ui, contents, arena));
         for i in 1..args.size {
             *new_args.items.add(i) = *args.items.add(i);
@@ -1511,12 +1511,12 @@ pub unsafe fn remote_ui_event(ui: *mut RemoteUI, mut name: *mut c_char, args: Ar
                 arena_mem_free(arena_finish(&raw mut arena));
                 return;
             } else if strequal(name, c"cmdline_block_show".as_ptr()) {
-                let block = (*args.items).data.array;
+                let block = (*args.items).data.array();
                 let mut new_block = arena_array(&raw mut arena, block.size);
                 for i in 0..block.size {
                     *new_block.items.add(i) = array_obj(translate_contents(
                         ui,
-                        (*block.items.add(i)).data.array,
+                        (*block.items.add(i)).data.array(),
                         &raw mut arena,
                     ));
                 }
@@ -1541,12 +1541,12 @@ pub unsafe fn remote_ui_event(ui: *mut RemoteUI, mut name: *mut c_char, args: Ar
         if (*ui).ui_ext[kUIWildmenu] {
             if strequal(name, c"popupmenu_show".as_ptr()) {
                 (*ui).wildmenu_active =
-                    (*args.items.add(4)).data.integer == -1 || !(*ui).ui_ext[kUIPopupmenu];
+                    (*args.items.add(4)).data.integer() == -1 || !(*ui).ui_ext[kUIPopupmenu];
                 if (*ui).wildmenu_active {
-                    let items = (*args.items).data.array;
+                    let items = (*args.items).data.array();
                     let mut new_items = arena_array(&raw mut arena, items.size);
                     for i in 0..items.size {
-                        *new_items.items.add(i) = *(*items.items.add(i)).data.array.items;
+                        *new_items.items.add(i) = *(*items.items.add(i)).data.array().items;
                     }
                     new_items.size = items.size;
                     let mut new_args_items: [Object; 1] = [array_obj(new_items)];
@@ -1559,7 +1559,7 @@ pub unsafe fn remote_ui_event(ui: *mut RemoteUI, mut name: *mut c_char, args: Ar
                             capacity: 1,
                         },
                     );
-                    if (*args.items.add(1)).data.integer != -1 {
+                    if (*args.items.add(1)).data.integer() != -1 {
                         new_args_items[0] = *args.items.add(1);
                         push_call(
                             ui,

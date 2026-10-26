@@ -2021,10 +2021,10 @@ unsafe fn shada_pack_entry(
                     mpack_str(kv.key, &mut sbuf);
                     match kv.value.obj_type {
                         ObjectType::kObjectTypeString => {
-                            mpack_bin(kv.value.data.string, &mut sbuf);
+                            mpack_bin(kv.value.data.string(), &mut sbuf);
                         }
                         ObjectType::kObjectTypeInteger => {
-                            mpack_integer(&mut sbuf.ptr, kv.value.data.integer);
+                            mpack_integer(&mut sbuf.ptr, kv.value.data.integer());
                         }
                         _ => std::process::abort(),
                     }
@@ -2726,45 +2726,35 @@ unsafe fn shada_write(
                 key: static_cstr_as_string(c"generator"),
                 value: Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: static_cstr_as_string(c"nvim"),
-                    },
+                    data: ObjectData::String(static_cstr_as_string(c"nvim")),
                 },
             },
             KeyValuePair {
                 key: static_cstr_as_string(c"version"),
                 value: Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: cstr_as_string(longVersion),
-                    },
+                    data: ObjectData::String(cstr_as_string(longVersion)),
                 },
             },
             KeyValuePair {
                 key: static_cstr_as_string(c"max_kbyte"),
                 value: Object {
                     obj_type: ObjectType::kObjectTypeInteger,
-                    data: ObjectData {
-                        integer: max_kbyte as Integer,
-                    },
+                    data: ObjectData::Integer(max_kbyte as Integer),
                 },
             },
             KeyValuePair {
                 key: static_cstr_as_string(c"pid"),
                 value: Object {
                     obj_type: ObjectType::kObjectTypeInteger,
-                    data: ObjectData {
-                        integer: os_get_pid() as Integer,
-                    },
+                    data: ObjectData::Integer(os_get_pid() as Integer),
                 },
             },
             KeyValuePair {
                 key: static_cstr_as_string(c"encoding"),
                 value: Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: cstr_as_string(p_enc),
-                    },
+                    data: ObjectData::String(cstr_as_string(p_enc)),
                 },
             },
         ];

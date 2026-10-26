@@ -453,7 +453,7 @@ pub unsafe fn emit_termrequest(mut req: Box<TermRequestEvent>) {
                 key: cstr_slice_as_string(b"cursor\0"),
                 value: Object {
                     obj_type: ObjectType::kObjectTypeArray,
-                    data: ObjectData { array: cursor },
+                    data: ObjectData::Array(cursor),
                 },
             },
             KeyValuePair {
@@ -463,13 +463,11 @@ pub unsafe fn emit_termrequest(mut req: Box<TermRequestEvent>) {
         ];
         let mut data_obj = Object {
             obj_type: ObjectType::kObjectTypeDict,
-            data: ObjectData {
-                dict: Dict {
+            data: ObjectData::Dict(Dict {
                     items: data_items.as_mut_ptr(),
                     size: 3,
                     capacity: 3,
-                },
-            },
+                }),
         };
 
         (*term).refcount += 1;
@@ -977,13 +975,11 @@ pub unsafe fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
             }];
             let mut data_obj = Object {
                 obj_type: ObjectType::kObjectTypeDict,
-                data: ObjectData {
-                    dict: Dict {
+                data: ObjectData::Dict(Dict {
                         items: data_items.as_mut_ptr(),
                         size: 1,
                         capacity: 1,
-                    },
-                },
+                    }),
             };
 
             apply_autocmds_group(
@@ -2754,7 +2750,7 @@ unsafe fn get_config_string(buf: *mut buf_T, key: *mut c_char) -> *mut c_char {
             api_clear_error(&mut err);
         }
         if obj.obj_type == ObjectType::kObjectTypeString {
-            return obj.data.string.data;
+            return obj.data.string().data;
         }
         api_free_object(obj);
         ptr::null_mut()

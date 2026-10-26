@@ -776,23 +776,19 @@ pub unsafe fn ui_array(arena: *mut Arena) -> Array {
                 c"term_name".as_ptr(),
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: cstr_as_string(
+                    data: ObjectData::String(cstr_as_string(
                             (*ui).term_name.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                        ),
-                    },
+                        )),
                 },
             );
             put_info(
                 c"term_background".as_ptr(),
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: NvimString {
+                    data: ObjectData::String(NvimString {
                             data: c"".as_ptr().cast_mut(),
                             size: 0,
-                        },
-                    },
+                        }),
                 },
             );
             put_info(
@@ -812,7 +808,7 @@ pub unsafe fn ui_array(arena: *mut Arena) -> Array {
 
             *all_uis.items.add(all_uis.size) = Object {
                 obj_type: ObjectType::kObjectTypeDict,
-                data: ObjectData { dict: info },
+                data: ObjectData::Dict(info),
             };
             all_uis.size += 1;
         }
@@ -902,7 +898,7 @@ pub unsafe fn ui_call_event(name: *mut c_char, args: Array) {
                 &raw mut err,
             );
             ui_event_ns_id = 0;
-            if res.obj_type == ObjectType::kObjectTypeBoolean && res.data.boolean {
+            if res.obj_type == ObjectType::kObjectTypeBoolean && res.data.boolean() {
                 handled = true;
             }
             if !matches!(err.err_type, ErrorType::kErrorTypeNone) {
@@ -1050,9 +1046,7 @@ const NOARGS_ARRAY: Array = Array {
 const fn buf_obj(b: handle_T) -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeBuffer,
-        data: ObjectData {
-            integer: b as Integer,
-        },
+        data: ObjectData::Integer(b as Integer),
     }
 }
 
@@ -1060,9 +1054,7 @@ const fn buf_obj(b: handle_T) -> Object {
 const fn tab_obj(t: handle_T) -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeTabpage,
-        data: ObjectData {
-            integer: t as Integer,
-        },
+        data: ObjectData::Integer(t as Integer),
     }
 }
 

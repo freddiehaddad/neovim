@@ -478,7 +478,7 @@ pub unsafe fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: boo
         if !valid_item && (*p).hl_def != LUA_NOREF && ns_get_hl_recursive == 0 {
             let mut args_storage = [Object {
                 obj_type: ObjectType::kObjectTypeNil,
-                data: ObjectData { integer: 0 },
+                data: ObjectData::Integer(0),
             }; 3];
             let mut args = Array {
                 size: 0,
@@ -510,7 +510,7 @@ pub unsafe fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: boo
                 if api_dict_to_keydict(
                     (&raw mut dict).cast(),
                     Some(KeyDict_highlight_get_field),
-                    ret.data.dict,
+                    ret.data.dict(),
                     &raw mut err,
                 ) {
                     attrs = dict2hlattrs(
@@ -1776,9 +1776,9 @@ pub unsafe fn dict2hlattrs(
 pub unsafe fn object_to_color(val: Object, key: *mut c_char, rgb: bool, err: *mut Error) -> c_int {
     unsafe {
         if val.obj_type == ObjectType::kObjectTypeInteger {
-            val.data.integer as c_int
+            val.data.integer() as c_int
         } else if val.obj_type == ObjectType::kObjectTypeString {
-            let str_ = val.data.string;
+            let str_ = val.data.string();
             if str_.size == 0 || is_none_str(str_.data) {
                 return -1;
             }

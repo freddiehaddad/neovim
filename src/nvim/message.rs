@@ -105,7 +105,7 @@ const VERBOSE_KIND: &CStr = c"verbose";
 
 pub(crate) const NIL_OBJ: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
-    data: ObjectData { integer: 0 },
+    data: ObjectData::Integer(0),
 };
 
 /// Message history for `:messages`
@@ -157,7 +157,7 @@ static mut msg_ext_kind: *const c_char = ptr::null();
 static mut msg_ext_trigger: *const c_char = ptr::null();
 static mut msg_ext_id: MsgID = Object {
     obj_type: ObjectType::kObjectTypeInteger,
-    data: ObjectData { integer: 1 },
+    data: ObjectData::Integer(1),
 };
 static mut msg_ext_chunks: Array = Array::new();
 static mut msg_ext_last_chunk: Vec<c_char> = Vec::new();
@@ -639,9 +639,9 @@ pub unsafe fn msg_multihl(
             msg_id_next += 1;
             id = Object {
                 obj_type: ObjectType::kObjectTypeInteger,
-                data: ObjectData { integer: next_id },
+                data: ObjectData::Integer(next_id),
             };
-        } else if id.obj_type == ObjectType::kObjectTypeInteger && !msg_id_exists(id.data.integer) {
+        } else if id.obj_type == ObjectType::kObjectTypeInteger && !msg_id_exists(id.data.integer()) {
             std::process::abort();
         }
 
@@ -711,9 +711,7 @@ pub unsafe fn msg_multihl(
         // (often a stack buffer). Redundant unless nothing was emitted (e.g. 'msg_silent').
         msg_ext_id = Object {
             obj_type: ObjectType::kObjectTypeInteger,
-            data: ObjectData {
-                integer: msg_id_next,
-            },
+            data: ObjectData::Integer(msg_id_next),
         };
         id
     }
@@ -1375,9 +1373,7 @@ pub unsafe fn msg_with_id(
         msg_ext_no_fast();
         let id_obj = Object {
             obj_type: ObjectType::kObjectTypeString,
-            data: ObjectData {
-                string: cstr_as_string(id),
-            },
+            data: ObjectData::String(cstr_as_string(id)),
         };
         msg_multihl(
             id_obj,
@@ -1432,7 +1428,7 @@ pub unsafe fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, msg_data: *mut
             .iter()
             .map(|chunk| Object {
                 obj_type: ObjectType::kObjectTypeString,
-                data: ObjectData { string: chunk.text },
+                data: ObjectData::String(chunk.text),
             })
             .collect();
         let messages = Array {
@@ -1466,7 +1462,7 @@ pub unsafe fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, msg_data: *mut
             c"text",
             Object {
                 obj_type: ObjectType::kObjectTypeArray,
-                data: ObjectData { array: messages },
+                data: ObjectData::Array(messages),
             },
         );
         if !msg_data.is_null() {
@@ -1475,9 +1471,7 @@ pub unsafe fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, msg_data: *mut
                     c"percent",
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData {
-                            integer: (*msg_data).percent,
-                        },
+                        data: ObjectData::Integer((*msg_data).percent),
                     },
                 );
             }
@@ -1485,49 +1479,39 @@ pub unsafe fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, msg_data: *mut
                 c"source",
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: (*msg_data).source,
-                    },
+                    data: ObjectData::String((*msg_data).source),
                 },
             );
             put_c(
                 c"status",
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: (*msg_data).status,
-                    },
+                    data: ObjectData::String((*msg_data).status),
                 },
             );
             put_c(
                 c"title",
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: (*msg_data).title,
-                    },
+                    data: ObjectData::String((*msg_data).title),
                 },
             );
             put_c(
                 c"data",
                 Object {
                     obj_type: ObjectType::kObjectTypeDict,
-                    data: ObjectData {
-                        dict: (*msg_data).data,
-                    },
+                    data: ObjectData::Dict((*msg_data).data),
                 },
             );
         }
 
         let mut dict_obj = Object {
             obj_type: ObjectType::kObjectTypeDict,
-            data: ObjectData {
-                dict: Dict {
+            data: ObjectData::Dict(Dict {
                     items: data_items.as_mut_ptr(),
                     size: data_size,
                     capacity: 7,
-                },
-            },
+                }),
         };
         let fname = if !msg_data.is_null() && (*msg_data).source.size > 0 {
             (*msg_data).source.data
@@ -1619,7 +1603,7 @@ pub unsafe fn msg_hist_clear_temp() {
 pub unsafe fn validate_messagesopt(args: *mut optset_T) -> *const c_char {
     unsafe {
         let v = opt_keyset(
-            (*args).os_newval.data.string.data,
+            (*args).os_newval.data.string().data,
             kOptMessagesopt,
             ptr::null_mut(),
         )
@@ -1700,57 +1684,45 @@ pub unsafe fn ex_messages(eap: *mut exarg_T) {
                 let mut entry = Array::new();
                 entry.push(Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: cstr_to_string(
+                    data: ObjectData::String(cstr_to_string(
                             (*p).kind.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
-                        ),
-                    },
+                        )),
                 });
                 let mut content = Array::new();
                 for chunk in &(*p).msg {
                     let mut content_entry = Array::new();
                     content_entry.push(Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData {
-                            integer: if chunk.hl_id != 0 {
-                                syn_id2attr(chunk.hl_id) as Integer
-                            } else {
-                                0
-                            },
-                        },
+                        data: ObjectData::Integer(if chunk.hl_id != 0 {
+                            syn_id2attr(chunk.hl_id) as Integer
+                        } else {
+                            0
+                        }),
                     });
                     content_entry.push(Object {
                         obj_type: ObjectType::kObjectTypeString,
-                        data: ObjectData {
-                            string: copy_string(chunk.text, ptr::null_mut()),
-                        },
+                        data: ObjectData::String(copy_string(chunk.text, ptr::null_mut())),
                     });
                     content_entry.push(Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData {
-                            integer: chunk.hl_id as Integer,
-                        },
+                        data: ObjectData::Integer(chunk.hl_id as Integer),
                     });
                     content.push(Object {
                         obj_type: ObjectType::kObjectTypeArray,
-                        data: ObjectData {
-                            array: content_entry,
-                        },
+                        data: ObjectData::Array(content_entry),
                     });
                 }
                 entry.push(Object {
                     obj_type: ObjectType::kObjectTypeArray,
-                    data: ObjectData { array: content },
+                    data: ObjectData::Array(content),
                 });
                 entry.push(Object {
                     obj_type: ObjectType::kObjectTypeBoolean,
-                    data: ObjectData {
-                        boolean: (*p).append,
-                    },
+                    data: ObjectData::Boolean((*p).append),
                 });
                 entries.push(Object {
                     obj_type: ObjectType::kObjectTypeArray,
-                    data: ObjectData { array: entry },
+                    data: ObjectData::Array(entry),
                 });
             }
             if redirecting() != 0 || !ui_has(kUIMessages) {
@@ -2792,7 +2764,7 @@ pub unsafe fn msg_puts_len(str_: *const c_char, len: isize, hl_id: c_int, hist: 
                     false,
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData { integer: -1 },
+                        data: ObjectData::Integer(-1),
                     },
                     NvimString {
                         data: ptr::null_mut(),
@@ -2840,9 +2812,7 @@ unsafe fn msg_ext_emit_chunk() {
         let mut chunk = Array::new();
         chunk.push(Object {
             obj_type: ObjectType::kObjectTypeInteger,
-            data: ObjectData {
-                integer: msg_ext_last_attr as Integer,
-            },
+            data: ObjectData::Integer(msg_ext_last_attr as Integer),
         });
         msg_ext_last_attr = -1;
         let last_chunk = &raw mut msg_ext_last_chunk;
@@ -2853,18 +2823,16 @@ unsafe fn msg_ext_emit_chunk() {
         *last_chunk = Vec::new();
         chunk.push(Object {
             obj_type: ObjectType::kObjectTypeString,
-            data: ObjectData { string: text },
+            data: ObjectData::String(text),
         });
         chunk.push(Object {
             obj_type: ObjectType::kObjectTypeInteger,
-            data: ObjectData {
-                integer: msg_ext_last_hl_id as Integer,
-            },
+            data: ObjectData::Integer(msg_ext_last_hl_id as Integer),
         });
         let chunks = &raw mut msg_ext_chunks;
         (*chunks).push(Object {
             obj_type: ObjectType::kObjectTypeArray,
-            data: ObjectData { array: chunk },
+            data: ObjectData::Array(chunk),
         });
     }
 }
@@ -3899,9 +3867,9 @@ pub unsafe fn msg_ext_ui_flush() {
                 // Add to history as temporary message for "g<".
                 let mut msg = HlMessage::new();
                 for i in 0..tofree.size {
-                    let chunk = (*tofree.items.add(i)).data.array.items;
+                    let chunk = (*tofree.items.add(i)).data.array().items;
                     let text = std::mem::replace(
-                        &mut (*chunk.add(1)).data.string,
+                        &mut (*chunk.add(1)).data.string(),
                         NvimString {
                             data: ptr::null_mut(),
                             size: 0,
@@ -3909,7 +3877,7 @@ pub unsafe fn msg_ext_ui_flush() {
                     );
                     msg.push(HlMessageChunk {
                         text,
-                        hl_id: (*chunk.add(2)).data.integer as c_int,
+                        hl_id: (*chunk.add(2)).data.integer() as c_int,
                     });
                 }
                 api_free_array(tofree);
@@ -3921,15 +3889,13 @@ pub unsafe fn msg_ext_ui_flush() {
             msg_ext_fast = true;
             msg_ext_kind = ptr::null();
             if msg_ext_id.obj_type == ObjectType::kObjectTypeInteger
-                && msg_ext_id.data.integer == msg_id_next
+                && msg_ext_id.data.integer() == msg_id_next
             {
                 msg_id_next += 1;
             }
             msg_ext_id = Object {
                 obj_type: ObjectType::kObjectTypeInteger,
-                data: ObjectData {
-                    integer: msg_id_next,
-                },
+                data: ObjectData::Integer(msg_id_next),
             };
         }
     }

@@ -164,7 +164,7 @@ pub unsafe fn ui_client_attach(width: c_int, height: c_int, term: *mut c_char, r
             integer_obj(Integer::from(height)),
             Object {
                 obj_type: ObjectType::kObjectTypeDict,
-                data: ObjectData { dict: opts },
+                data: ObjectData::Dict(opts),
             },
         ];
         let args = Array {
@@ -186,13 +186,13 @@ pub unsafe fn ui_client_attach(width: c_int, height: c_int, term: *mut c_char, r
             size: 0,
             capacity: 0,
         };
-        debug_assert!(m.data.dict.size > 0);
-        for i in 0..m.data.dict.size {
-            let item = *m.data.dict.items.add(i);
+        debug_assert!(m.data.dict().size > 0);
+        for i in 0..m.data.dict().size {
+            let item = *m.data.dict().items.add(i);
             if strequal(item.key.data, c"version".as_ptr()) {
-                version = item.value.data.dict;
+                version = item.value.data.dict();
                 break;
-            } else if i + 1 == m.data.dict.size {
+            } else if i + 1 == m.data.dict().size {
                 std::process::abort();
             }
         }
@@ -221,16 +221,16 @@ pub unsafe fn ui_client_attach(width: c_int, height: c_int, term: *mut c_char, r
             cstr_as_obj(c"nvim-tui".as_ptr()),
             Object {
                 obj_type: ObjectType::kObjectTypeDict,
-                data: ObjectData { dict: version },
+                data: ObjectData::Dict(version),
             },
             cstr_as_obj(c"ui".as_ptr()),
             Object {
                 obj_type: ObjectType::kObjectTypeArray,
-                data: ObjectData { array: ARRAY_INIT },
+                data: ObjectData::Array(ARRAY_INIT),
             },
             Object {
                 obj_type: ObjectType::kObjectTypeDict,
-                data: ObjectData { dict: info },
+                data: ObjectData::Dict(info),
             },
         ];
         let args2 = Array {
@@ -384,9 +384,9 @@ pub unsafe fn ui_client_event_grid_resize(args: Array) {
             return;
         }
 
-        let grid = (*args.items).data.integer;
-        let width = (*args.items.add(1)).data.integer;
-        let height = (*args.items.add(2)).data.integer;
+        let grid = (*args.items).data.integer();
+        let width = (*args.items.add(1)).data.integer();
+        let height = (*args.items.add(2)).data.integer();
         tui_grid_resize(tui_ptr(), grid, width, height);
 
         let cols = width as usize;
@@ -442,7 +442,7 @@ pub unsafe fn ui_client_event_connect(args: Array) {
             return;
         }
 
-        let s = (*args.items).data.string;
+        let s = (*args.items).data.string();
         let bytes = if s.size == 0 || s.data.is_null() {
             &[][..]
         } else {
@@ -549,7 +549,7 @@ pub unsafe fn ui_client_attach_to_restarted_server(error_restart: bool) {
             return;
         }
 
-        let first_arg = (*args.items).data.string.data;
+        let first_arg = (*args.items).data.string().data;
         let chan_id = if start_server {
             if args.size < 2 || (*args.items.add(1)).obj_type != ObjectType::kObjectTypeArray {
                 logmsg!(
@@ -563,12 +563,12 @@ pub unsafe fn ui_client_attach_to_restarted_server(error_restart: bool) {
                 cleanup();
                 return;
             }
-            let cmdargs = (*args.items.add(1)).data.array;
+            let cmdargs = (*args.items.add(1)).data.array();
             let mut argv: Vec<*mut c_char> = vec![ptr::null_mut(); cmdargs.size + 1];
             for (i, dst) in argv.iter_mut().enumerate().take(cmdargs.size) {
                 let item = *cmdargs.items.add(i);
                 if item.obj_type == ObjectType::kObjectTypeString {
-                    *dst = item.data.string.data;
+                    *dst = item.data.string().data;
                 }
                 if (*dst).is_null() {
                     *dst = c"".as_ptr().cast_mut();
@@ -638,7 +638,7 @@ pub unsafe fn ui_client_event_error_exit(args: Array) {
             );
             return;
         }
-        ui_client_error_exit = (*args.items).data.integer as c_int;
+        ui_client_error_exit = (*args.items).data.integer() as c_int;
     }
 }
 
@@ -686,8 +686,8 @@ pub unsafe fn ui_client_event_mode_info_set(args: Array) {
         }
         tui_mode_info_set(
             tui_ptr(),
-            (*args.items).data.boolean,
-            (*args.items.add(1)).data.array,
+            (*args.items).data.boolean(),
+            (*args.items.add(1)).data.array(),
         );
     }
 }
@@ -736,8 +736,8 @@ pub unsafe fn ui_client_event_mode_change(args: Array) {
         }
         tui_mode_change(
             tui_ptr(),
-            (*args.items).data.string,
-            (*args.items.add(1)).data.integer,
+            (*args.items).data.string(),
+            (*args.items.add(1)).data.integer(),
         );
     }
 }
@@ -772,7 +772,7 @@ pub unsafe fn ui_client_event_set_title(args: Array) {
             log_ui_event_err(c"ui_client_event_set_title".as_ptr(), c"set_title".as_ptr());
             return;
         }
-        tui_set_title(tui_ptr(), (*args.items).data.string);
+        tui_set_title(tui_ptr(), (*args.items).data.string());
     }
 }
 
@@ -782,7 +782,7 @@ pub unsafe fn ui_client_event_set_icon(args: Array) {
             log_ui_event_err(c"ui_client_event_set_icon".as_ptr(), c"set_icon".as_ptr());
             return;
         }
-        tui_set_icon(tui_ptr(), (*args.items).data.string);
+        tui_set_icon(tui_ptr(), (*args.items).data.string());
     }
 }
 
@@ -795,7 +795,7 @@ pub unsafe fn ui_client_event_screenshot(args: Array) {
             );
             return;
         }
-        tui_screenshot(tui_ptr(), (*args.items).data.string);
+        tui_screenshot(tui_ptr(), (*args.items).data.string());
     }
 }
 
@@ -808,7 +808,7 @@ pub unsafe fn ui_client_event_option_set(args: Array) {
             );
             return;
         }
-        tui_option_set(tui_ptr(), (*args.items).data.string, *args.items.add(1));
+        tui_option_set(tui_ptr(), (*args.items).data.string(), *args.items.add(1));
     }
 }
 
@@ -818,7 +818,7 @@ pub unsafe fn ui_client_event_chdir(args: Array) {
             log_ui_event_err(c"ui_client_event_chdir".as_ptr(), c"chdir".as_ptr());
             return;
         }
-        tui_chdir(tui_ptr(), (*args.items).data.string);
+        tui_chdir(tui_ptr(), (*args.items).data.string());
     }
 }
 
@@ -828,7 +828,7 @@ pub unsafe fn ui_client_event_ui_send(args: Array) {
             log_ui_event_err(c"ui_client_event_ui_send".as_ptr(), c"ui_send".as_ptr());
             return;
         }
-        tui_ui_send(tui_ptr(), (*args.items).data.string);
+        tui_ui_send(tui_ptr(), (*args.items).data.string());
     }
 }
 
@@ -849,11 +849,11 @@ pub unsafe fn ui_client_event_default_colors_set(args: Array) {
         }
         tui_default_colors_set(
             tui_ptr(),
-            (*args.items).data.integer,
-            (*args.items.add(1)).data.integer,
-            (*args.items.add(2)).data.integer,
-            (*args.items.add(3)).data.integer,
-            (*args.items.add(4)).data.integer,
+            (*args.items).data.integer(),
+            (*args.items.add(1)).data.integer(),
+            (*args.items.add(2)).data.integer(),
+            (*args.items.add(3)).data.integer(),
+            (*args.items.add(4)).data.integer(),
         );
     }
 }
@@ -872,10 +872,10 @@ pub unsafe fn ui_client_event_hl_attr_define(args: Array) {
             );
             return;
         }
-        let arg_1 = (*args.items).data.integer;
-        let arg_2 = ui_client_dict2hlattrs((*args.items.add(1)).data.dict, true);
-        let arg_3 = ui_client_dict2hlattrs((*args.items.add(2)).data.dict, false);
-        let arg_4 = (*args.items.add(3)).data.array;
+        let arg_1 = (*args.items).data.integer();
+        let arg_2 = ui_client_dict2hlattrs((*args.items.add(1)).data.dict(), true);
+        let arg_3 = ui_client_dict2hlattrs((*args.items.add(2)).data.dict(), false);
+        let arg_4 = (*args.items.add(3)).data.array();
         tui_hl_attr_define(tui_ptr(), arg_1, arg_2, arg_3, arg_4);
     }
 }
@@ -889,7 +889,7 @@ pub unsafe fn ui_client_event_grid_clear(args: Array) {
             );
             return;
         }
-        tui_grid_clear(tui_ptr(), (*args.items).data.integer);
+        tui_grid_clear(tui_ptr(), (*args.items).data.integer());
     }
 }
 
@@ -908,9 +908,9 @@ pub unsafe fn ui_client_event_grid_cursor_goto(args: Array) {
         }
         tui_grid_cursor_goto(
             tui_ptr(),
-            (*args.items).data.integer,
-            (*args.items.add(1)).data.integer,
-            (*args.items.add(2)).data.integer,
+            (*args.items).data.integer(),
+            (*args.items.add(1)).data.integer(),
+            (*args.items.add(2)).data.integer(),
         );
     }
 }
@@ -934,13 +934,13 @@ pub unsafe fn ui_client_event_grid_scroll(args: Array) {
         }
         tui_grid_scroll(
             tui_ptr(),
-            (*args.items).data.integer,
-            (*args.items.add(1)).data.integer,
-            (*args.items.add(2)).data.integer,
-            (*args.items.add(3)).data.integer,
-            (*args.items.add(4)).data.integer,
-            (*args.items.add(5)).data.integer,
-            (*args.items.add(6)).data.integer,
+            (*args.items).data.integer(),
+            (*args.items.add(1)).data.integer(),
+            (*args.items.add(2)).data.integer(),
+            (*args.items.add(3)).data.integer(),
+            (*args.items.add(4)).data.integer(),
+            (*args.items.add(5)).data.integer(),
+            (*args.items.add(6)).data.integer(),
         );
     }
 }

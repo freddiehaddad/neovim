@@ -1762,14 +1762,14 @@ unsafe fn ex_let_option(
         if !op.is_null() && *op != b'=' as c_char {
             if !hidden && is_num {
                 let cur_n: OptInt = if curval.obj_type == ObjectType::kObjectTypeInteger {
-                    curval.data.integer
+                    curval.data.integer()
                 } else {
-                    OptInt::from(curval.data.boolean)
+                    OptInt::from(curval.data.boolean())
                 };
                 let mut new_n: OptInt = if newval.obj_type == ObjectType::kObjectTypeInteger {
-                    newval.data.integer
+                    newval.data.integer()
                 } else {
-                    OptInt::from(newval.data.boolean)
+                    OptInt::from(newval.data.boolean())
                 };
 
                 match *op as u8 {
@@ -1787,8 +1787,8 @@ unsafe fn ex_let_option(
                     newval = opt_from_tristate(tristate_from_int(new_n));
                 }
             } else if !hidden && is_string {
-                let curval_data = curval.data.string.data;
-                let newval_data = newval.data.string.data;
+                let curval_data = curval.data.string().data;
+                let newval_data = newval.data.string().data;
 
                 if !curval_data.is_null() && !newval_data.is_null() {
                     let newval_old = newval;
@@ -3473,10 +3473,10 @@ pub unsafe fn opt_to_tv(value: Object, numbool: bool) -> typval_T {
             ObjectType::kObjectTypeBoolean => {
                 if numbool {
                     rettv.v_type = VarType::VAR_NUMBER;
-                    rettv.vval.v_number = varnumber_T::from(value.data.boolean);
+                    rettv.vval.v_number = varnumber_T::from(value.data.boolean());
                 } else {
                     rettv.v_type = VarType::VAR_BOOL;
-                    rettv.vval.v_bool = if value.data.boolean {
+                    rettv.vval.v_bool = if value.data.boolean() {
                         kBoolVarTrue
                     } else {
                         kBoolVarFalse
@@ -3485,14 +3485,14 @@ pub unsafe fn opt_to_tv(value: Object, numbool: bool) -> typval_T {
             }
             ObjectType::kObjectTypeInteger => {
                 rettv.v_type = VarType::VAR_NUMBER;
-                rettv.vval.v_number = value.data.integer;
+                rettv.vval.v_number = value.data.integer();
             }
             ObjectType::kObjectTypeString => {
-                if !value.data.string.data.is_null() {
+                if !value.data.string().data.is_null() {
                     crate::eval::typval::tv_set_string_len(
                         &raw mut rettv,
-                        value.data.string.data,
-                        value.data.string.size,
+                        value.data.string().data,
+                        value.data.string().size,
                     );
                 } else {
                     rettv.v_type = VarType::VAR_STRING;
@@ -3500,7 +3500,7 @@ pub unsafe fn opt_to_tv(value: Object, numbool: bool) -> typval_T {
                 }
             }
             ObjectType::kObjectTypeLuaRef => {
-                let s = nlua_funcref_str(value.data.luaref, true);
+                let s = nlua_funcref_str(value.data.luaref(), true);
                 crate::eval::typval::tv_set_string_len(
                     &raw mut rettv,
                     s.as_ptr(),

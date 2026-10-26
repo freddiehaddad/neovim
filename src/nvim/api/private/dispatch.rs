@@ -165,8 +165,8 @@ unsafe fn extract_keydict<T: Default>(
     unsafe {
         if item.obj_type == ObjectType::kObjectTypeDict {
             *out = T::default();
-            api_dict_to_keydict(out.cast(), get_field, item.data.dict, error)
-        } else if item.obj_type == ObjectType::kObjectTypeArray && item.data.array.size == 0 {
+            api_dict_to_keydict(out.cast(), get_field, item.data.dict(), error)
+        } else if item.obj_type == ObjectType::kObjectTypeArray && item.data.array().size == 0 {
             *out = T::default();
             true
         } else {
@@ -186,9 +186,9 @@ unsafe fn extract_handle(
 ) -> bool {
     unsafe {
         if (item.obj_type == expected || item.obj_type == ObjectType::kObjectTypeInteger)
-            && item.data.integer >= 0
+            && item.data.integer() >= 0
         {
-            *out = item.data.integer as handle_T;
+            *out = item.data.integer() as handle_T;
             true
         } else {
             api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg);
@@ -206,10 +206,10 @@ unsafe fn extract_boolean(
 ) -> bool {
     unsafe {
         if item.obj_type == ObjectType::kObjectTypeBoolean {
-            *out = item.data.boolean;
+            *out = item.data.boolean();
             true
-        } else if item.obj_type == ObjectType::kObjectTypeInteger && item.data.integer >= 0 {
-            *out = (item.data.integer as handle_T) != 0;
+        } else if item.obj_type == ObjectType::kObjectTypeInteger && item.data.integer() >= 0 {
+            *out = (item.data.integer() as handle_T) != 0;
             true
         } else {
             api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg);
@@ -227,10 +227,10 @@ unsafe fn extract_float(
 ) -> bool {
     unsafe {
         if item.obj_type == ObjectType::kObjectTypeFloat {
-            *out = item.data.floating;
+            *out = item.data.floating();
             true
         } else if item.obj_type == ObjectType::kObjectTypeInteger {
-            *out = item.data.integer as Float;
+            *out = item.data.integer() as Float;
             true
         } else {
             api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg);
@@ -248,9 +248,9 @@ unsafe fn extract_dict(
 ) -> bool {
     unsafe {
         if item.obj_type == ObjectType::kObjectTypeDict {
-            *out = item.data.dict;
+            *out = item.data.dict();
             true
-        } else if item.obj_type == ObjectType::kObjectTypeArray && item.data.array.size == 0 {
+        } else if item.obj_type == ObjectType::kObjectTypeArray && item.data.array().size == 0 {
             *out = Dict {
                 items: ptr::null_mut(),
                 size: 0,
@@ -273,7 +273,7 @@ unsafe fn extract_integer(
 ) -> bool {
     unsafe {
         if item.obj_type == ObjectType::kObjectTypeInteger {
-            *out = item.data.integer;
+            *out = item.data.integer();
             true
         } else {
             api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg);
@@ -291,7 +291,7 @@ unsafe fn extract_string(
 ) -> bool {
     unsafe {
         if item.obj_type == ObjectType::kObjectTypeString {
-            *out = item.data.string;
+            *out = item.data.string();
             true
         } else {
             api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg);
@@ -309,7 +309,7 @@ unsafe fn extract_array(
 ) -> bool {
     unsafe {
         if item.obj_type == ObjectType::kObjectTypeArray {
-            *out = item.data.array;
+            *out = item.data.array();
             true
         } else {
             api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg);

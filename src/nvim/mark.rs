@@ -295,12 +295,10 @@ unsafe fn do_markset_autocmd(c: c_char, pos: *const pos_T, buf: *mut buf_T) {
                 },
                 value: Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: NvimString {
+                    data: ObjectData::String(NvimString {
                             data: mark_str.as_mut_ptr(),
                             size: 1,
-                        },
-                    },
+                        }),
                 },
             },
             KeyValuePair {
@@ -310,9 +308,7 @@ unsafe fn do_markset_autocmd(c: c_char, pos: *const pos_T, buf: *mut buf_T) {
                 },
                 value: Object {
                     obj_type: ObjectType::kObjectTypeInteger,
-                    data: ObjectData {
-                        integer: i64::from((*pos).lnum),
-                    },
+                    data: ObjectData::Integer(i64::from((*pos).lnum)),
                 },
             },
             KeyValuePair {
@@ -322,9 +318,7 @@ unsafe fn do_markset_autocmd(c: c_char, pos: *const pos_T, buf: *mut buf_T) {
                 },
                 value: Object {
                     obj_type: ObjectType::kObjectTypeInteger,
-                    data: ObjectData {
-                        integer: i64::from((*pos).col),
-                    },
+                    data: ObjectData::Integer(i64::from((*pos).col)),
                 },
             },
         ];
@@ -335,7 +329,7 @@ unsafe fn do_markset_autocmd(c: c_char, pos: *const pos_T, buf: *mut buf_T) {
         };
         let mut dict_obj = Object {
             obj_type: ObjectType::kObjectTypeDict,
-            data: ObjectData { dict: data },
+            data: ObjectData::Dict(data),
         };
         aucmd_defer(
             EVENT_MARKSET,

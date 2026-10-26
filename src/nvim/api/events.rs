@@ -67,7 +67,7 @@ pub unsafe extern "C" fn nvim_ui_term_event(
                 return;
             }
 
-            let termresponse = value.data.string;
+            let termresponse = value.data.string();
             set_vim_var_string(
                 VV_TERMRESPONSE,
                 termresponse.data,

@@ -461,7 +461,7 @@ pub unsafe fn ctx_load(ctx: *mut Context, flags: CtxStateFlags, loadflags: CtxLo
 
         if (flags & kCtxFuncs) != 0 {
             for i in 0..(*ctx).funcs.size {
-                do_cmdline_cmd((*(*ctx).funcs.items.add(i)).data.string.data);
+                do_cmdline_cmd((*(*ctx).funcs.items.add(i)).data.string().data);
             }
         }
     }
@@ -540,19 +540,19 @@ pub unsafe fn ctx_from_dict(dict: Dict, ctx: *mut Context, err: *mut Error) -> C
             }
             if strequal_str(item.key.data, "regs") {
                 types |= kCtxRegs;
-                (*ctx).regs = array_to_string(item.value.data.array, err);
+                (*ctx).regs = array_to_string(item.value.data.array(), err);
             } else if strequal_str(item.key.data, "jumps") {
                 types |= kCtxJumps;
-                (*ctx).jumps = array_to_string(item.value.data.array, err);
+                (*ctx).jumps = array_to_string(item.value.data.array(), err);
             } else if strequal_str(item.key.data, "bufs") {
                 types |= kCtxBufs;
-                (*ctx).bufs = array_to_string(item.value.data.array, err);
+                (*ctx).bufs = array_to_string(item.value.data.array(), err);
             } else if strequal_str(item.key.data, "gvars") {
                 types |= kCtxGVars;
-                (*ctx).gvars = array_to_string(item.value.data.array, err);
+                (*ctx).gvars = array_to_string(item.value.data.array(), err);
             } else if strequal_str(item.key.data, "funcs") {
                 types |= kCtxFuncs;
-                (*ctx).funcs = copy_object(item.value, ptr::null_mut()).data.array;
+                (*ctx).funcs = copy_object(item.value, ptr::null_mut()).data.array();
             }
         }
         types

@@ -50,7 +50,7 @@ pub(crate) const SID_LUA: scid_T = -8;
 
 pub const OBJECT_NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
-    data: ObjectData { integer: 0 },
+    data: ObjectData::Integer(0),
 };
 
 #[inline]
@@ -62,7 +62,7 @@ pub const fn nil_obj() -> Object {
 pub const fn boolean_obj(b: Boolean) -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
+        data: ObjectData::Boolean(b),
     }
 }
 
@@ -70,7 +70,7 @@ pub const fn boolean_obj(b: Boolean) -> Object {
 pub const fn integer_obj(i: Integer) -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
+        data: ObjectData::Integer(i),
     }
 }
 
@@ -78,7 +78,7 @@ pub const fn integer_obj(i: Integer) -> Object {
 pub const fn float_obj(f: Float) -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeFloat,
-        data: ObjectData { floating: f },
+        data: ObjectData::Floating(f),
     }
 }
 
@@ -86,7 +86,7 @@ pub const fn float_obj(f: Float) -> Object {
 pub const fn string_obj(s: NvimString) -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
+        data: ObjectData::String(s),
     }
 }
 
@@ -94,9 +94,7 @@ pub const fn string_obj(s: NvimString) -> Object {
 pub const fn buffer_obj(b: Buffer) -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeBuffer,
-        data: ObjectData {
-            integer: b as Integer,
-        },
+        data: ObjectData::Integer(b as Integer),
     }
 }
 
@@ -104,9 +102,7 @@ pub const fn buffer_obj(b: Buffer) -> Object {
 pub const fn window_obj(w: Window) -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeWindow,
-        data: ObjectData {
-            integer: w as Integer,
-        },
+        data: ObjectData::Integer(w as Integer),
     }
 }
 
@@ -114,9 +110,7 @@ pub const fn window_obj(w: Window) -> Object {
 pub const fn tabpage_obj(t: Tabpage) -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeTabpage,
-        data: ObjectData {
-            integer: t as Integer,
-        },
+        data: ObjectData::Integer(t as Integer),
     }
 }
 
@@ -124,7 +118,7 @@ pub const fn tabpage_obj(t: Tabpage) -> Object {
 pub const fn array_obj(a: Array) -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeArray,
-        data: ObjectData { array: a },
+        data: ObjectData::Array(a),
     }
 }
 
@@ -132,7 +126,7 @@ pub const fn array_obj(a: Array) -> Object {
 pub const fn dict_obj(d: Dict) -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeDict,
-        data: ObjectData { dict: d },
+        data: ObjectData::Dict(d),
     }
 }
 
@@ -140,7 +134,7 @@ pub const fn dict_obj(d: Dict) -> Object {
 pub const fn luaref_obj(r: LuaRef) -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeLuaRef,
-        data: ObjectData { luaref: r },
+        data: ObjectData::LuaRef(r),
     }
 }
 
@@ -776,7 +770,7 @@ pub unsafe fn string_to_array(input: NvimString, crlf: bool, arena: *mut Arena) 
             memchrsub(s.data.cast(), NUL, NL, line_len);
             ret.push(Object {
                 obj_type: ObjectType::kObjectTypeString,
-                data: ObjectData { string: s },
+                data: ObjectData::String(s),
             });
             if i + 1 == input.size && (*end == NL || (crlf && *end == CAR)) {
                 let empty_s = arena_string(
@@ -788,7 +782,7 @@ pub unsafe fn string_to_array(input: NvimString, crlf: bool, arena: *mut Arena) 
                 );
                 ret.push(Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData { string: empty_s },
+                    data: ObjectData::String(empty_s),
                 });
             }
             i += 1;
@@ -941,10 +935,10 @@ pub unsafe fn api_free_object(value: Object) {
             | ObjectType::kObjectTypeBuffer
             | ObjectType::kObjectTypeWindow
             | ObjectType::kObjectTypeTabpage => {}
-            ObjectType::kObjectTypeString => api_free_string(value.data.string),
-            ObjectType::kObjectTypeArray => api_free_array(value.data.array),
-            ObjectType::kObjectTypeDict => api_free_dict(value.data.dict),
-            ObjectType::kObjectTypeLuaRef => api_free_luaref(value.data.luaref),
+            ObjectType::kObjectTypeString => api_free_string(value.data.string()),
+            ObjectType::kObjectTypeArray => api_free_array(value.data.array()),
+            ObjectType::kObjectTypeDict => api_free_dict(value.data.dict()),
+            ObjectType::kObjectTypeLuaRef => api_free_luaref(value.data.luaref()),
         }
     }
 }
@@ -1035,27 +1029,19 @@ pub unsafe fn copy_object(obj: Object, arena: *mut Arena) -> Object {
             | ObjectType::kObjectTypeFloat => obj,
             ObjectType::kObjectTypeString => Object {
                 obj_type: ObjectType::kObjectTypeString,
-                data: ObjectData {
-                    string: copy_string(obj.data.string, arena),
-                },
+                data: ObjectData::String(copy_string(obj.data.string(), arena)),
             },
             ObjectType::kObjectTypeArray => Object {
                 obj_type: ObjectType::kObjectTypeArray,
-                data: ObjectData {
-                    array: copy_array(obj.data.array, arena),
-                },
+                data: ObjectData::Array(copy_array(obj.data.array(), arena)),
             },
             ObjectType::kObjectTypeDict => Object {
                 obj_type: ObjectType::kObjectTypeDict,
-                data: ObjectData {
-                    dict: copy_dict(obj.data.dict, arena),
-                },
+                data: ObjectData::Dict(copy_dict(obj.data.dict(), arena)),
             },
             ObjectType::kObjectTypeLuaRef => Object {
                 obj_type: ObjectType::kObjectTypeLuaRef,
-                data: ObjectData {
-                    luaref: api_new_luaref(obj.data.luaref),
-                },
+                data: ObjectData::LuaRef(api_new_luaref(obj.data.luaref())),
             },
         }
     }
@@ -1069,8 +1055,8 @@ pub unsafe fn api_object_to_bool(
 ) -> bool {
     unsafe {
         match obj.obj_type {
-            ObjectType::kObjectTypeBoolean => obj.data.boolean,
-            ObjectType::kObjectTypeInteger => obj.data.integer != 0,
+            ObjectType::kObjectTypeBoolean => obj.data.boolean(),
+            ObjectType::kObjectTypeInteger => obj.data.integer() != 0,
             ObjectType::kObjectTypeNil => nil_value,
             _ => {
                 api_err_exp(err, what, c"boolean".as_ptr(), ptr::null());
@@ -1084,7 +1070,7 @@ pub unsafe fn object_to_hl_id(obj: Object, what: *const c_char, err: *mut Error)
     unsafe {
         match obj.obj_type {
             ObjectType::kObjectTypeString => {
-                let str_ = obj.data.string;
+                let str_ = obj.data.string();
                 if str_.size != 0 {
                     syn_check_group(str_.data, str_.size)
                 } else {
@@ -1092,7 +1078,7 @@ pub unsafe fn object_to_hl_id(obj: Object, what: *const c_char, err: *mut Error)
                 }
             }
             ObjectType::kObjectTypeInteger => {
-                let id = obj.data.integer as c_int;
+                let id = obj.data.integer() as c_int;
                 if (1..=highlight_num_groups()).contains(&id) {
                     id
                 } else {
@@ -1143,7 +1129,7 @@ pub unsafe fn parse_hl_msg(chunks: Array, is_err: bool, err: *mut Error) -> HlMe
                 );
                 return HlMessage::new();
             }
-            let chunk = item.data.array;
+            let chunk = item.data.array();
             if chunk.size == 0
                 || chunk.size > 2
                 || (*chunk.items).obj_type != ObjectType::kObjectTypeString
@@ -1157,7 +1143,7 @@ pub unsafe fn parse_hl_msg(chunks: Array, is_err: bool, err: *mut Error) -> HlMe
                 return HlMessage::new();
             }
 
-            let str_ = copy_string((*chunk.items).data.string, ptr::null_mut());
+            let str_ = copy_string((*chunk.items).data.string(), ptr::null_mut());
             let hl_id = if chunk.size == 2 {
                 object_to_hl_id(*chunk.items.add(1), c"text highlight".as_ptr(), err)
             } else if is_err {
@@ -1228,15 +1214,15 @@ pub unsafe fn api_dict_to_keydict(
                             );
                             return false;
                         }
-                        *mem.cast::<Integer>() = (*value).data.integer;
+                        *mem.cast::<Integer>() = (*value).data.integer();
                     }
                 }
                 ObjectType::kObjectTypeFloat => {
                     let val = mem.cast::<Float>();
                     if (*value).obj_type == ObjectType::kObjectTypeInteger {
-                        *val = (*value).data.integer as Float;
+                        *val = (*value).data.integer() as Float;
                     } else if (*value).obj_type == ObjectType::kObjectTypeFloat {
-                        *val = (*value).data.floating;
+                        *val = (*value).data.floating();
                     } else {
                         api_err_exp(
                             err,
@@ -1263,7 +1249,7 @@ pub unsafe fn api_dict_to_keydict(
                         );
                         return false;
                     }
-                    *mem.cast::<NvimString>() = (*value).data.string;
+                    *mem.cast::<NvimString>() = (*value).data.string();
                 }
                 ObjectType::kObjectTypeArray => {
                     if (*value).obj_type != ObjectType::kObjectTypeArray {
@@ -1275,12 +1261,12 @@ pub unsafe fn api_dict_to_keydict(
                         );
                         return false;
                     }
-                    *mem.cast::<Array>() = (*value).data.array;
+                    *mem.cast::<Array>() = (*value).data.array();
                 }
                 ObjectType::kObjectTypeDict => {
                     let val = mem.cast::<Dict>();
                     if (*value).obj_type == ObjectType::kObjectTypeArray
-                        && (*value).data.array.size == 0
+                        && (*value).data.array().size == 0
                     {
                         *val = Dict {
                             items: ptr::null_mut(),
@@ -1288,7 +1274,7 @@ pub unsafe fn api_dict_to_keydict(
                             capacity: 0,
                         };
                     } else if (*value).obj_type == ObjectType::kObjectTypeDict {
-                        *val = (*value).data.dict;
+                        *val = (*value).data.dict();
                     } else {
                         api_err_exp(
                             err,
@@ -1305,7 +1291,7 @@ pub unsafe fn api_dict_to_keydict(
                     if (*value).obj_type == ObjectType::kObjectTypeInteger
                         || (*value).obj_type == field_type
                     {
-                        *mem.cast::<handle_T>() = (*value).data.integer as handle_T;
+                        *mem.cast::<handle_T>() = (*value).data.integer() as handle_T;
                     } else {
                         api_err_exp(
                             err,
@@ -1360,47 +1346,33 @@ pub unsafe fn api_keydict_to_dict(
                 ObjectType::kObjectTypeNil => *mem.cast::<Object>(),
                 ObjectType::kObjectTypeInteger => Object {
                     obj_type: ObjectType::kObjectTypeInteger,
-                    data: ObjectData {
-                        integer: *mem.cast::<Integer>(),
-                    },
+                    data: ObjectData::Integer(*mem.cast::<Integer>()),
                 },
                 ObjectType::kObjectTypeFloat => Object {
                     obj_type: ObjectType::kObjectTypeFloat,
-                    data: ObjectData {
-                        floating: *mem.cast::<Float>(),
-                    },
+                    data: ObjectData::Floating(*mem.cast::<Float>()),
                 },
                 ObjectType::kObjectTypeBoolean => Object {
                     obj_type: ObjectType::kObjectTypeBoolean,
-                    data: ObjectData {
-                        boolean: *mem.cast::<Boolean>(),
-                    },
+                    data: ObjectData::Boolean(*mem.cast::<Boolean>()),
                 },
                 ObjectType::kObjectTypeString => Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData {
-                        string: *mem.cast::<NvimString>(),
-                    },
+                    data: ObjectData::String(*mem.cast::<NvimString>()),
                 },
                 ObjectType::kObjectTypeArray => Object {
                     obj_type: ObjectType::kObjectTypeArray,
-                    data: ObjectData {
-                        array: *mem.cast::<Array>(),
-                    },
+                    data: ObjectData::Array(*mem.cast::<Array>()),
                 },
                 ObjectType::kObjectTypeDict => Object {
                     obj_type: ObjectType::kObjectTypeDict,
-                    data: ObjectData {
-                        dict: *mem.cast::<Dict>(),
-                    },
+                    data: ObjectData::Dict(*mem.cast::<Dict>()),
                 },
                 ObjectType::kObjectTypeBuffer
                 | ObjectType::kObjectTypeWindow
                 | ObjectType::kObjectTypeTabpage => Object {
                     obj_type: field_type,
-                    data: ObjectData {
-                        integer: Integer::from(*mem.cast::<handle_T>()),
-                    },
+                    data: ObjectData::Integer(Integer::from(*mem.cast::<handle_T>())),
                 },
                 ObjectType::kObjectTypeLuaRef => OBJECT_NIL,
                 ObjectType::kObjectTypeUnset => std::process::abort(),
@@ -1420,9 +1392,9 @@ pub unsafe fn api_keydict_to_dict(
 pub unsafe fn api_luarefs_free_object(value: Object) {
     unsafe {
         match value.obj_type {
-            ObjectType::kObjectTypeLuaRef => api_free_luaref(value.data.luaref),
-            ObjectType::kObjectTypeArray => api_luarefs_free_array(value.data.array),
-            ObjectType::kObjectTypeDict => api_luarefs_free_dict(value.data.dict),
+            ObjectType::kObjectTypeLuaRef => api_free_luaref(value.data.luaref()),
+            ObjectType::kObjectTypeArray => api_luarefs_free_array(value.data.array()),
+            ObjectType::kObjectTypeDict => api_luarefs_free_dict(value.data.dict()),
             _ => {}
         }
     }
@@ -4397,7 +4369,7 @@ mod tests {
             assert!(raw.size > 30_000);
             let meta = api_metadata();
             assert_eq!(meta.obj_type, ObjectType::kObjectTypeDict);
-            assert_eq!(meta.data.dict.size, 6);
+            assert_eq!(meta.data.dict().size, 6);
         }
     }
 }

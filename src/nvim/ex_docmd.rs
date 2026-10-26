@@ -9315,9 +9315,9 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
                 );
                 if !error_set(&raw const lua_err)
                     && rv.obj_type == ObjectType::kObjectTypeString
-                    && rv.data.string.size > 0
+                    && rv.data.string().size > 0
                 {
-                    listen_arg = Some(cstr_to_cstring(rv.data.string.data));
+                    listen_arg = Some(cstr_to_cstring(rv.data.string().data));
                 }
                 api_free_object(rv);
                 api_clear_error(&raw mut lua_err);
@@ -9399,7 +9399,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
                 integer_obj(0),
                 Object {
                     obj_type: ObjectType::kObjectTypeDict,
-                    data: ObjectData { dict: detach_opts },
+                    data: ObjectData::Dict(detach_opts),
                 },
             ];
             let detach_args = Array {
@@ -9444,7 +9444,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
                     cstr_as_obj(c"UIEnter".as_ptr()),
                     Object {
                         obj_type: ObjectType::kObjectTypeDict,
-                        data: ObjectData { dict: autocmd_opts },
+                        data: ObjectData::Dict(autocmd_opts),
                     },
                 ];
                 let autocmd_args = Array {
@@ -9482,14 +9482,14 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
             if error_set(&raw const err) {
                 break 'fail_2;
             }
-            if result.obj_type != ObjectType::kObjectTypeString || result.data.string.size == 0 {
+            if result.obj_type != ObjectType::kObjectTypeString || result.data.string().size == 0 {
                 let _ =
                     emsg(c"restart failed: could not get listen address from new server".as_ptr());
                 break 'fail_2;
             }
             let listen_addr = cstr_from_bytes(std::slice::from_raw_parts(
-                result.data.string.data.cast::<u8>(),
-                result.data.string.size,
+                result.data.string().data.cast::<u8>(),
+                result.data.string().size,
             ));
             arena_mem_free(result_mem);
             result_mem = ptr::null_mut();
@@ -9509,9 +9509,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
                     ),
                     Object {
                         obj_type: ObjectType::kObjectTypeArray,
-                        data: ObjectData {
-                            array: handoff_params,
-                        },
+                        data: ObjectData::Array(handoff_params),
                     },
                 ];
                 let lua_args = Array {

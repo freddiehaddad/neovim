@@ -125,11 +125,11 @@ unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) 
             match (*parent).tok.r#type {
                 mpack_token_type_t::MPACK_TOKEN_ARRAY => {
                     let obj = (*parent).data[0].object();
-                    result = (*obj).data.array.items.add((*parent).pos);
+                    result = (*obj).data.array().items.add((*parent).pos);
                 }
                 mpack_token_type_t::MPACK_TOKEN_MAP => {
                     let obj = (*parent).data[0].object();
-                    let kv = &mut *(*obj).data.dict.items.add((*parent).pos);
+                    let kv = &mut *(*obj).data.dict().items.add((*parent).pos);
                     if (*parent).key_visited == 0 {
                         kv.key = NvimString {
                             data: std::ptr::null_mut(),
@@ -158,33 +158,25 @@ unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) 
             mpack_token_type_t::MPACK_TOKEN_BOOLEAN => {
                 *result = Object {
                     obj_type: ObjectType::kObjectTypeBoolean,
-                    data: ObjectData {
-                        boolean: mpack_unpack_boolean(tok),
-                    },
+                    data: ObjectData::Boolean(mpack_unpack_boolean(tok)),
                 };
             }
             mpack_token_type_t::MPACK_TOKEN_SINT => {
                 *result = Object {
                     obj_type: ObjectType::kObjectTypeInteger,
-                    data: ObjectData {
-                        integer: mpack_unpack_sint(tok),
-                    },
+                    data: ObjectData::Integer(mpack_unpack_sint(tok)),
                 };
             }
             mpack_token_type_t::MPACK_TOKEN_UINT => {
                 *result = Object {
                     obj_type: ObjectType::kObjectTypeInteger,
-                    data: ObjectData {
-                        integer: mpack_unpack_uint(tok) as Integer,
-                    },
+                    data: ObjectData::Integer(mpack_unpack_uint(tok) as Integer),
                 };
             }
             mpack_token_type_t::MPACK_TOKEN_FLOAT => {
                 *result = Object {
                     obj_type: ObjectType::kObjectTypeFloat,
-                    data: ObjectData {
-                        floating: mpack_unpack_float_fast(tok),
-                    },
+                    data: ObjectData::Floating(mpack_unpack_float_fast(tok)),
                 };
             }
             mpack_token_type_t::MPACK_TOKEN_BIN | mpack_token_type_t::MPACK_TOKEN_STR => {
@@ -200,7 +192,7 @@ unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) 
                 } else {
                     *result = Object {
                         obj_type: ObjectType::kObjectTypeString,
-                        data: ObjectData { string: s },
+                        data: ObjectData::String(s),
                     };
                 }
                 (*node).data[0] = crate::mpack::object::mpack_data_t::Bytes(mem.cast());
@@ -253,7 +245,7 @@ unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) 
                             ObjectType::from_raw(ext_type + EXT_OBJECT_TYPE_SHIFT)
                     {
                         (*res).obj_type = obj_type;
-                        (*res).data.integer = mpack_unpack_uint(ext_tok) as i64;
+                        (*res).data = ObjectData::Integer(mpack_unpack_uint(ext_tok) as i64);
                     } else {
                         *res = nil_obj();
                     }
@@ -265,13 +257,11 @@ unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) 
                     .cast::<Object>();
                 *result = Object {
                     obj_type: ObjectType::kObjectTypeArray,
-                    data: ObjectData {
-                        array: Array {
+                    data: ObjectData::Array(Array {
                             size: len,
                             capacity: len,
                             items,
-                        },
-                    },
+                        }),
                 };
                 (*node).data[0] = crate::mpack::object::mpack_data_t::Object(result);
             }
@@ -285,13 +275,11 @@ unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) 
                 .cast::<KeyValuePair>();
                 *result = Object {
                     obj_type: ObjectType::kObjectTypeDict,
-                    data: ObjectData {
-                        dict: Dict {
+                    data: ObjectData::Dict(Dict {
                             size: len,
                             capacity: len,
                             items,
-                        },
-                    },
+                        }),
                 };
                 (*node).data[0] = crate::mpack::object::mpack_data_t::Object(result);
             }

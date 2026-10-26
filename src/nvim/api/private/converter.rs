@@ -47,7 +47,7 @@ unsafe fn cbuf_to_string_obj(
     };
     Object {
         obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
+        data: ObjectData::String(s),
     }
 }
 
@@ -90,14 +90,14 @@ unsafe fn convert_one_value(
             let n = unsafe { tv.vval.v_number };
             stack.push(Object {
                 obj_type: ObjectType::kObjectTypeInteger,
-                data: ObjectData { integer: n },
+                data: ObjectData::Integer(n),
             });
         }
         VarType::VAR_FLOAT => {
             let f = unsafe { tv.vval.v_float };
             stack.push(Object {
                 obj_type: ObjectType::kObjectTypeFloat,
-                data: ObjectData { floating: f },
+                data: ObjectData::Floating(f),
             });
         }
         VarType::VAR_BLOB => {
@@ -117,9 +117,7 @@ unsafe fn convert_one_value(
                     if !fp.is_null() && ((*fp).uf_flags & FC_LUAREF) != 0 {
                         Object {
                             obj_type: ObjectType::kObjectTypeLuaRef,
-                            data: ObjectData {
-                                luaref: api_new_luaref((*fp).uf_luaref),
-                            },
+                            data: ObjectData::LuaRef(api_new_luaref((*fp).uf_luaref)),
                         }
                     } else {
                         nil_obj()
@@ -143,9 +141,7 @@ unsafe fn convert_one_value(
                     if !fp.is_null() && ((*fp).uf_flags & FC_LUAREF) != 0 {
                         Object {
                             obj_type: ObjectType::kObjectTypeLuaRef,
-                            data: ObjectData {
-                                luaref: api_new_luaref((*fp).uf_luaref),
-                            },
+                            data: ObjectData::LuaRef(api_new_luaref((*fp).uf_luaref)),
                         }
                     } else {
                         nil_obj()
@@ -161,13 +157,11 @@ unsafe fn convert_one_value(
             if list.is_null() || unsafe { (*list).lv_len == 0 } {
                 stack.push(Object {
                     obj_type: ObjectType::kObjectTypeArray,
-                    data: ObjectData {
-                        array: Array {
+                    data: ObjectData::Array(Array {
                             size: 0,
                             capacity: 0,
                             items: std::ptr::null_mut(),
-                        },
-                    },
+                        }),
                 });
                 return;
             }
@@ -181,7 +175,7 @@ unsafe fn convert_one_value(
                 let arr = arena_array(arena, (*list).lv_len as usize);
                 stack.push(Object {
                     obj_type: ObjectType::kObjectTypeArray,
-                    data: ObjectData { array: arr },
+                    data: ObjectData::Array(arr),
                 });
                 mpstack.push(ConvStackEntry::List {
                     list,
@@ -195,7 +189,7 @@ unsafe fn convert_one_value(
             let b = unsafe { tv.vval.v_bool == K_BOOL_VAR_TRUE as c_int };
             stack.push(Object {
                 obj_type: ObjectType::kObjectTypeBoolean,
-                data: ObjectData { boolean: b },
+                data: ObjectData::Boolean(b),
             });
         }
         VarType::VAR_SPECIAL => {
@@ -206,13 +200,11 @@ unsafe fn convert_one_value(
             if dict.is_null() || unsafe { (*dict).dv_hashtab.ht_used == 0 } {
                 stack.push(Object {
                     obj_type: ObjectType::kObjectTypeDict,
-                    data: ObjectData {
-                        dict: Dict {
+                    data: ObjectData::Dict(Dict {
                             size: 0,
                             capacity: 0,
                             items: std::ptr::null_mut(),
-                        },
-                    },
+                        }),
                 });
                 return;
             }
@@ -227,7 +219,7 @@ unsafe fn convert_one_value(
                 let d_obj = arena_dict(arena, used);
                 stack.push(Object {
                     obj_type: ObjectType::kObjectTypeDict,
-                    data: ObjectData { dict: d_obj },
+                    data: ObjectData::Dict(d_obj),
                 });
                 mpstack.push(ConvStackEntry::Dict {
                     dict,
@@ -250,7 +242,7 @@ unsafe fn pop_into_parent_list(stack: &mut Vec<Object>) {
     let list_obj = stack.last_mut().unwrap();
     debug_assert_eq!(list_obj.obj_type, ObjectType::kObjectTypeArray);
     unsafe {
-        let arr = &mut list_obj.data.array;
+        let arr = list_obj.data.array_mut();
         debug_assert!(arr.size < arr.capacity);
         *arr.items.add(arr.size) = item;
         arr.size += 1;
@@ -263,7 +255,7 @@ unsafe fn pop_into_parent_dict(stack: &mut Vec<Object>) {
     let dict_obj = stack.last_mut().unwrap();
     debug_assert_eq!(dict_obj.obj_type, ObjectType::kObjectTypeDict);
     unsafe {
-        let d = &mut dict_obj.data.dict;
+        let d = dict_obj.data.dict_mut();
         debug_assert!(d.size < d.capacity);
         (*d.items.add(d.size)).value = val;
         d.size += 1;
@@ -336,8 +328,8 @@ pub unsafe fn vim_to_object(obj: *mut typval_T, arena: *mut Arena, reuse_strdata
 
                     let dict_obj = stack.last_mut().unwrap();
                     debug_assert_eq!(dict_obj.obj_type, ObjectType::kObjectTypeDict);
-                    let d = &mut dict_obj.data.dict;
-                    (*d.items.add(d.size)).key = key_obj.data.string;
+                    let d = dict_obj.data.dict_mut();
+                    (*d.items.add(d.size)).key = key_obj.data.string();
 
                     &mut (*di).di_tv
                 }
@@ -386,7 +378,7 @@ pub unsafe fn object_to_vim_take_luaref(
             };
         }
         ObjectType::kObjectTypeBoolean => {
-            let b = unsafe { obj.data.boolean };
+            let b = obj.data.boolean();
             tv_ref.v_type = VarType::VAR_BOOL;
             tv_ref.vval = TypvalVval {
                 v_number: if b { K_BOOL_VAR_TRUE } else { K_BOOL_VAR_FALSE },
@@ -396,21 +388,21 @@ pub unsafe fn object_to_vim_take_luaref(
         | ObjectType::kObjectTypeWindow
         | ObjectType::kObjectTypeTabpage
         | ObjectType::kObjectTypeInteger => {
-            let n = unsafe { obj.data.integer };
+            let n = obj.data.integer();
             tv_ref.v_type = VarType::VAR_NUMBER;
             tv_ref.vval = TypvalVval { v_number: n };
         }
         ObjectType::kObjectTypeFloat => {
-            let f = unsafe { obj.data.floating };
+            let f = obj.data.floating();
             tv_ref.v_type = VarType::VAR_FLOAT;
             tv_ref.vval = TypvalVval { v_float: f };
         }
         ObjectType::kObjectTypeString => {
-            let s = unsafe { obj.data.string };
+            let s = obj.data.string();
             *tv_ref = unsafe { decode_string(s.data, s.size, false, false) };
         }
         ObjectType::kObjectTypeArray => unsafe {
-            let arr = obj.data.array;
+            let arr = obj.data.array();
             let list = tv_list_alloc(arr.size as isize);
             for i in 0..arr.size {
                 let mut li_tv = typval_T {
@@ -428,7 +420,7 @@ pub unsafe fn object_to_vim_take_luaref(
             tv_ref.vval = TypvalVval { v_list: list };
         },
         ObjectType::kObjectTypeDict => unsafe {
-            let d = obj.data.dict;
+            let d = obj.data.dict();
             let dict = tv_dict_alloc();
             for i in 0..d.size {
                 let item = &mut *d.items.add(i);
@@ -441,9 +433,9 @@ pub unsafe fn object_to_vim_take_luaref(
             tv_ref.vval = TypvalVval { v_dict: dict };
         },
         ObjectType::kObjectTypeLuaRef => unsafe {
-            let mut ref_id = obj.data.luaref;
+            let mut ref_id = obj.data.luaref();
             if take_luaref {
-                obj.data.luaref = LUA_NOREF;
+                obj.data = ObjectData::LuaRef(LUA_NOREF);
             } else {
                 ref_id = api_new_luaref(ref_id);
             }
@@ -472,7 +464,7 @@ mod tests {
             object_to_vim(
                 Object {
                     obj_type: ObjectType::kObjectTypeInteger,
-                    data: ObjectData { integer: 99 },
+                    data: ObjectData::Integer(99),
                 },
                 &mut tv,
                 std::ptr::null_mut(),
@@ -482,7 +474,7 @@ mod tests {
 
             let obj = vim_to_object(&mut tv, std::ptr::null_mut(), false);
             assert_eq!(obj.obj_type, ObjectType::kObjectTypeInteger);
-            assert_eq!(obj.data.integer, 99);
+            assert_eq!(obj.data.integer(), 99);
 
             // NULL list -> empty Array, NULL dict -> empty Dict
             let mut null_list = typval_T {
@@ -494,7 +486,7 @@ mod tests {
             };
             let arr_obj = vim_to_object(&mut null_list, std::ptr::null_mut(), false);
             assert_eq!(arr_obj.obj_type, ObjectType::kObjectTypeArray);
-            assert_eq!(arr_obj.data.array.size, 0);
+            assert_eq!(arr_obj.data.array().size, 0);
 
             let mut null_dict = typval_T {
                 v_type: VarType::VAR_DICT,
@@ -505,7 +497,7 @@ mod tests {
             };
             let dict_obj = vim_to_object(&mut null_dict, std::ptr::null_mut(), false);
             assert_eq!(dict_obj.obj_type, ObjectType::kObjectTypeDict);
-            assert_eq!(dict_obj.data.dict.size, 0);
+            assert_eq!(dict_obj.data.dict().size, 0);
 
             // Self-referencing list converts nested cycle to Nil
             let list = tv_list_alloc(1);
@@ -518,9 +510,9 @@ mod tests {
             tv_list_append_owned_tv(list, list_tv);
             let cyc_obj = vim_to_object(&mut list_tv, std::ptr::null_mut(), false);
             assert_eq!(cyc_obj.obj_type, ObjectType::kObjectTypeArray);
-            assert_eq!(cyc_obj.data.array.size, 1);
+            assert_eq!(cyc_obj.data.array().size, 1);
             assert_eq!(
-                (*cyc_obj.data.array.items).obj_type,
+                (*cyc_obj.data.array().items).obj_type,
                 ObjectType::kObjectTypeNil
             );
             crate::api::private::helpers::api_free_object(cyc_obj);

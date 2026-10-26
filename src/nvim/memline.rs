@@ -1130,9 +1130,7 @@ pub unsafe fn ml_recover(checkext: bool) {
         if let Some(ref fenc) = b0_fenc {
             let fenc_obj = Object {
                 obj_type: ObjectType::kObjectTypeString,
-                data: ObjectData {
-                    string: cstr_as_string(fenc.as_ptr()),
-                },
+                data: ObjectData::String(cstr_as_string(fenc.as_ptr())),
             };
             set_option_value_give_err(kOptFileencoding, fenc_obj, OPT_LOCAL);
         }

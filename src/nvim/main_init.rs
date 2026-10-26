@@ -1186,7 +1186,7 @@ unsafe fn remote_request(
             cstr_as_obj(connect_error),
             Object {
                 obj_type: ObjectType::kObjectTypeArray,
-                data: ObjectData { array: args },
+                data: ObjectData::Array(args),
             },
         ];
         let a = Array {
@@ -1212,7 +1212,7 @@ unsafe fn remote_request(
             );
             os_exit(2);
         }
-        let dict: Dict = o.data.dict;
+        let dict: Dict = o.data.dict();
 
         let mut should_exit: TriState = kNone;
         let mut tabbed: TriState = kNone;
@@ -1227,7 +1227,7 @@ unsafe fn remote_request(
                     );
                     os_exit(2);
                 }
-                fprintf!(stderr, c"%s\n".as_ptr(), item.value.data.string.data);
+                fprintf!(stderr, c"%s\n".as_ptr(), item.value.data.string().data);
                 os_exit(2);
             } else if strequal(item.key.data, c"result".as_ptr()) {
                 if item.value.obj_type != ObjectType::kObjectTypeString {
@@ -1237,7 +1237,7 @@ unsafe fn remote_request(
                     );
                     os_exit(2);
                 }
-                printf!(c"%s".as_ptr(), item.value.data.string.data);
+                printf!(c"%s".as_ptr(), item.value.data.string().data);
             } else if strequal(item.key.data, c"tabbed".as_ptr()) {
                 if item.value.obj_type != ObjectType::kObjectTypeBoolean {
                     fprintf!(
@@ -1246,7 +1246,7 @@ unsafe fn remote_request(
                     );
                     os_exit(2);
                 }
-                tabbed = if item.value.data.boolean {
+                tabbed = if item.value.data.boolean() {
                     kTrue
                 } else {
                     kFalse
@@ -1259,7 +1259,7 @@ unsafe fn remote_request(
                     );
                     os_exit(2);
                 }
-                should_exit = if item.value.data.boolean {
+                should_exit = if item.value.data.boolean() {
                     kTrue
                 } else {
                     kFalse
