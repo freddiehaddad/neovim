@@ -1752,7 +1752,9 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
         let mode = get_menu_mode_flag();
 
         for mp in &(*menu).children {
-            if menu_is_separator(mp.dname) || (mp.modes & mp.enabled & mode) != 0 {
+            if menu_is_separator(mp.dname.as_ptr().cast_mut())
+                || (mp.modes & mp.enabled & mode) != 0
+            {
                 PUM_SIZE += 1;
             }
         }
@@ -1768,10 +1770,10 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
 
         for mp in &(*menu).children {
             let mut s: *const c_char = ptr::null();
-            if menu_is_separator(mp.dname) {
+            if menu_is_separator(mp.dname.as_ptr().cast_mut()) {
                 s = c"".as_ptr();
             } else if (mp.modes & mp.enabled & mode) != 0 {
-                s = mp.dname;
+                s = mp.dname.as_ptr();
             }
             if !s.is_null() {
                 array_vec[idx].pum_text = xstrdup(s);
