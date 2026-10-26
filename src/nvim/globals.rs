@@ -205,6 +205,7 @@ pub static mut arg_had_last: bool = false;
 pub static mut ru_col: c_int = 0;
 pub static mut ru_wid: c_int = 0;
 pub static mut sc_col: c_int = 0;
+#[unsafe(no_mangle)]
 pub static mut starting: c_int = NO_SCREEN;
 pub static mut exiting: bool = false;
 pub static mut v_dying: c_int = 0;
@@ -649,6 +650,7 @@ pub static mut ns_hl_win: NS = -1;
 pub static mut ns_hl_fast: NS = -1;
 pub static mut ns_hl_active: NS = 0;
 pub static mut hl_attr_active: *mut c_int = (&raw mut highlight_attr).cast();
+#[unsafe(no_mangle)]
 pub static mut test_disable_char_avail: bool = false;
 pub static mut nlua_global_refs: *mut nlua_ref_state_t = ptr::null_mut();
 pub static mut nlua_disable_preload: bool = false;

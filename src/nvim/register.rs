@@ -806,13 +806,11 @@ pub unsafe fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent:
             retval = put_in_typebuf(p, true, colon != 0, silent);
             xfree(p.cast());
         } else if regname == c_int::from(b'.') {
-            let p = get_last_insert_save();
-            if p.is_null() {
+            let Some(p) = get_last_insert_save() else {
                 emsg(gettext(e_noinstext.as_ptr()));
                 return FAIL;
-            }
-            retval = put_in_typebuf(p, false, colon != 0, silent);
-            xfree(p.cast());
+            };
+            retval = put_in_typebuf(p.as_ptr().cast_mut(), false, colon != 0, silent);
         } else {
             let reg = &*get_yank_register(regname, YREG_PASTE);
             if !reg.y_allocated {
@@ -990,7 +988,7 @@ pub unsafe fn get_spec_reg(
                 true
             }
             x if x == c_int::from(b'.') => {
-                *argp = get_last_insert_save();
+                *argp = get_last_insert_save().map_or(ptr::null_mut(), |s| xstrdup(s.as_ptr()));
                 *allocated = true;
                 if (*argp).is_null() && errmsg {
                     emsg(gettext(e_noinstext.as_ptr()));

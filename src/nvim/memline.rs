@@ -2880,6 +2880,22 @@ pub unsafe fn ml_replace_buf_len(
     }
 }
 
+/// Replace the in-memory dirty line buffer in `buf` with `bytes` (without trailing NUL).
+pub unsafe fn ml_replace_dirty_line(buf: *mut buf_T, bytes: &[c_char], clear_empty: bool) {
+    unsafe {
+        let newp: *mut c_char = xmemdupz(bytes.as_ptr().cast(), bytes.len()).cast();
+        if ((*buf).b_ml.ml_flags & (ML_LINE_DIRTY | ML_ALLOCATED)) != 0 {
+            xfree((*buf).b_ml.ml_line_ptr.cast());
+        }
+        (*buf).b_ml.ml_line_ptr = newp;
+        (*buf).b_ml.ml_line_textlen = (bytes.len() as colnr_T) + 1;
+        (*buf).b_ml.ml_flags |= ML_LINE_DIRTY;
+        if clear_empty {
+            (*buf).b_ml.ml_flags &= !ML_EMPTY;
+        }
+    }
+}
+
 /// Delete line `lnum` in `buf`.
 pub unsafe fn ml_delete_buf(buf: *mut buf_T, lnum: linenr_T, message: bool) -> c_int {
     unsafe {

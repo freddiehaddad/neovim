@@ -1,7 +1,6 @@
 //! Functions for Insert mode (`src/nvim/insert.c`).
 
 use crate::api::private::validate::NvimString;
-use crate::arglist::ML_EMPTY;
 use crate::autocmd::{
     EVENT_CURSORMOVEDI, EVENT_INSERTCHANGE, EVENT_INSERTCHARPRE, EVENT_INSERTENTER,
     EVENT_INSERTLEAVE, EVENT_INSERTLEAVEPRE, EVENT_TEXTCHANGEDI, EVENT_TEXTCHANGEDP,
@@ -109,9 +108,9 @@ use crate::mbyte::{
 };
 use crate::mcursor::{mc_ins_cascade, mc_ins_cascade_restart, mc_ins_join, mc_ins_replaying};
 use crate::memline::{
-    ML_LINE_DIRTY, gchar_pos, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace,
+    gchar_pos, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace, ml_replace_dirty_line,
 };
-use crate::memory::{strnequal, xfree, xmalloc, xmemdupz, xstrdup};
+use crate::memory::{cstr_take, strnequal};
 use crate::message::{emsg, msg_check_for_delay};
 use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, ins_mouse, ins_mousescroll, setmouse,
@@ -147,7 +146,6 @@ use crate::state::{
     REPLACE_FLAG, VREPLACE_FLAG, VimState, may_trigger_modechanged, may_trigger_safestate,
     state_enter, state_handle_k_event, virtual_active,
 };
-use crate::strings::xstrnsave;
 use crate::strings::{gettext, strlen, vim_snprintf, vim_strchr};
 use crate::syntax::syntax_present;
 use crate::terminal::terminal_enter;
@@ -281,10 +279,7 @@ impl Default for InsertState {
 }
 
 static mut compl_busy: bool = false;
-static mut last_insert: NvimString = NvimString {
-    data: ptr::null_mut(),
-    size: 0,
-};
+static mut last_insert: Option<std::ffi::CString> = None;
 static mut last_insert_skip: c_int = 0;
 static mut replace_stack: Vec<c_char> = Vec::new();
 
@@ -521,9 +516,7 @@ unsafe fn insert_enter(s: *mut InsertState) {
 
         let redo = redo_keys(ptr::null());
         Ins.new_insert_skip = redo.size as c_int;
-        if !redo.data.is_null() {
-            xfree(redo.data.cast());
-        }
+        let _ = cstr_take(redo.data);
 
         old_indent = 0;
 
@@ -754,14 +747,12 @@ unsafe fn insert_execute(state: *mut VimState, key: c_int) -> c_int {
 
                 let is_commit = ins_compl_commit_char((*s).c);
                 if !is_commit && ins_compl_accept_char((*s).c) {
-                    let str_ = do_insert_char_pre((*s).c);
-                    if !str_.is_null() {
-                        let mut p = str_;
+                    if let Some(str_) = do_insert_char_pre((*s).c) {
+                        let mut p = str_.as_ptr().cast_mut();
                         while *p != NUL {
                             ins_compl_addleader(utf_ptr2char(p));
                             p = p.add(utfc_ptr2len(p) as usize);
                         }
-                        xfree(str_.cast());
                     } else {
                         ins_compl_addleader((*s).c);
                     }
@@ -1247,10 +1238,10 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
         if goto_normalchar {
             let mut skip_char = false;
             if p_paste == 0 {
-                let str_ = do_insert_char_pre((*s).c);
-                if !str_.is_null() {
-                    if *str_ != NUL && stop_arrow() != FAIL {
-                        let mut p = str_;
+                if let Some(str_) = do_insert_char_pre((*s).c) {
+                    let str_ptr = str_.as_ptr().cast_mut();
+                    if *str_ptr != NUL && stop_arrow() != FAIL {
+                        let mut p = str_ptr;
                         while *p != NUL {
                             (*s).c = utf_ptr2char(p);
                             if (*s).c == CAR || (*s).c == K_KENTER || (*s).c == NL {
@@ -1260,9 +1251,8 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
                             }
                             p = p.add(utfc_ptr2len(p) as usize);
                         }
-                        redo_append_lit(str_, -1);
+                        redo_append_lit(str_ptr, -1);
                     }
-                    xfree(str_.cast());
                     (*s).c = NUL as c_int;
                 }
                 if (*s).c == NUL as c_int {
@@ -2115,7 +2105,7 @@ pub unsafe fn stop_arrow() -> c_int {
             } else {
                 let redo = redo_keys(ptr::null());
                 Ins.new_insert_skip = redo.size as c_int;
-                xfree(redo.data.cast());
+                let _ = cstr_take(redo.data);
             }
         } else if Ins.need_undo && u_save_cursor() == OK {
             if lt((*curwin).w_cursor, Ins.start) {
@@ -2141,17 +2131,15 @@ unsafe fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
         replace_stack = Vec::new();
 
         let redo = redo_keys(ptr::null());
-        let added = if redo.data.is_null() {
+        let redo_cstr = cstr_take(redo.data);
+        let added = if redo_cstr.is_none() {
             0
         } else {
             (redo.size as c_int) - Ins.new_insert_skip
         };
         if Ins.did_restart_edit == 0 || added > 0 {
-            xfree(last_insert.data.cast());
-            last_insert = redo;
+            last_insert = redo_cstr;
             last_insert_skip = if added < 0 { 0 } else { Ins.new_insert_skip };
-        } else {
-            xfree(redo.data.cast());
         }
 
         if Ins.moved == kInsNone && !end_insert_pos.is_null() {
@@ -2251,9 +2239,8 @@ unsafe fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
 /// Set the last inserted text to a single character.
 pub unsafe fn set_last_insert(c: c_int) {
     unsafe {
-        xfree(last_insert.data.cast());
-        last_insert.data = xmalloc(MB_MAXBYTES * 3 + 5).cast();
-        let mut s = last_insert.data;
+        let mut buf = [0 as c_char; MB_MAXBYTES * 3 + 5];
+        let mut s = buf.as_mut_ptr();
         if c < b' ' as c_int || c == DEL {
             *s = Ctrl_V as c_char;
             s = s.add(1);
@@ -2262,20 +2249,14 @@ pub unsafe fn set_last_insert(c: c_int) {
         *s = ESC as c_char;
         s = s.add(1);
         *s = NUL;
-        last_insert.size = s.offset_from(last_insert.data) as usize;
+        last_insert = Some(CStr::from_ptr(buf.as_ptr()).to_owned());
         last_insert_skip = 0;
     }
 }
 
 pub unsafe fn free_last_insert() {
     unsafe {
-        if !last_insert.data.is_null() {
-            xfree(last_insert.data.cast());
-        }
-        last_insert = NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
+        last_insert = None;
     }
 }
 
@@ -2549,32 +2530,33 @@ pub unsafe fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> c_int
 
 pub unsafe fn get_last_insert() -> NvimString {
     unsafe {
-        if last_insert.data.is_null() {
+        if let Some(li) = (&raw const last_insert).as_ref().unwrap() {
+            let skip = last_insert_skip as usize;
+            let bytes = li.as_bytes();
             NvimString {
-                data: ptr::null_mut(),
-                size: 0,
+                data: li.as_ptr().add(skip).cast_mut(),
+                size: bytes.len().saturating_sub(skip),
             }
         } else {
             NvimString {
-                data: last_insert.data.offset(last_insert_skip as isize),
-                size: last_insert.size - (last_insert_skip as usize),
+                data: ptr::null_mut(),
+                size: 0,
             }
         }
     }
 }
 
-pub unsafe fn get_last_insert_save() -> *mut c_char {
+pub unsafe fn get_last_insert_save() -> Option<std::ffi::CString> {
     unsafe {
         let mut insert = get_last_insert();
         if insert.data.is_null() {
-            return ptr::null_mut();
+            return None;
         }
-        let s: *mut c_char = xmemdupz(insert.data.cast(), insert.size).cast();
-        if insert.size > 0 && *s.add(insert.size - 1) == ESC as c_char {
+        if insert.size > 0 && *insert.data.add(insert.size - 1) == ESC as c_char {
             insert.size -= 1;
-            *s.add(insert.size) = NUL;
         }
-        s
+        let slice = std::slice::from_raw_parts(insert.data.cast::<u8>(), insert.size);
+        Some(std::ffi::CString::new(slice).unwrap_or_default())
     }
 }
 
@@ -3183,13 +3165,9 @@ unsafe fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: *mut c_int) -> boo
                         let ptr = ml_get_buf(curbuf, (*curwin).w_cursor.lnum);
                         let len = get_cursor_line_len();
                         if len > 0 && *ptr.add((len - 1) as usize) == b' ' as c_char {
-                            let newp: *mut c_char = xmemdupz(ptr.cast(), (len - 1) as usize).cast();
-                            if ((*curbuf).b_ml.ml_flags & (ML_LINE_DIRTY | ML_ALLOCATED)) != 0 {
-                                xfree((*curbuf).b_ml.ml_line_ptr.cast());
-                            }
-                            (*curbuf).b_ml.ml_line_ptr = newp;
-                            (*curbuf).b_ml.ml_line_textlen -= 1;
-                            (*curbuf).b_ml.ml_flags |= ML_LINE_DIRTY;
+                            let new_line =
+                                std::slice::from_raw_parts(ptr, (len - 1) as usize).to_vec();
+                            ml_replace_dirty_line(curbuf, &new_line, false);
                         }
                     }
 
@@ -3727,6 +3705,7 @@ unsafe fn ins_tab() -> bool {
         {
             let mut pos: pos_T;
             let cursor: *mut pos_T;
+            let mut saved_line_vec: Vec<c_char>;
             let mut saved_line: *mut c_char = ptr::null_mut();
             let mut ptr: *mut c_char;
             let mut vcol: colnr_T = 0;
@@ -3737,7 +3716,11 @@ unsafe fn ins_tab() -> bool {
             if (State & VREPLACE_FLAG) != 0 {
                 pos = (*curwin).w_cursor;
                 cursor = &raw mut pos;
-                saved_line = xstrnsave(get_cursor_line_ptr(), get_cursor_line_len() as usize);
+                let line_len = get_cursor_line_len() as usize;
+                saved_line_vec =
+                    std::slice::from_raw_parts(get_cursor_line_ptr(), line_len + 1).to_vec();
+                saved_line_vec[line_len] = NUL;
+                saved_line = saved_line_vec.as_mut_ptr();
                 ptr = saved_line.offset(pos.col as isize);
             } else {
                 ptr = get_cursor_pos_ptr();
@@ -3821,24 +3804,18 @@ unsafe fn ins_tab() -> bool {
                 let i = (*cursor).col - fpos.col;
                 if i > 0 {
                     if (State & VREPLACE_FLAG) == 0 {
-                        let newp_len = (*curbuf).b_ml.ml_line_textlen - i;
-                        let newp = xmalloc(newp_len as usize).cast::<c_char>();
-                        let col = ptr.offset_from((*curbuf).b_ml.ml_line_ptr);
+                        let newp_len = ((*curbuf).b_ml.ml_line_textlen - i) as usize;
+                        let col = ptr.offset_from((*curbuf).b_ml.ml_line_ptr) as usize;
+                        let mut new_line = Vec::with_capacity(newp_len.saturating_sub(1));
                         if col > 0 {
-                            ptr::copy(ptr.offset(-col), newp, col as usize);
+                            new_line
+                                .extend_from_slice(std::slice::from_raw_parts(ptr.sub(col), col));
                         }
-                        ptr::copy(
+                        new_line.extend_from_slice(std::slice::from_raw_parts(
                             ptr.offset(i as isize),
-                            newp.offset(col),
-                            (newp_len as isize - col) as usize,
-                        );
-                        if ((*curbuf).b_ml.ml_flags & (ML_LINE_DIRTY | ML_ALLOCATED)) != 0 {
-                            xfree((*curbuf).b_ml.ml_line_ptr.cast());
-                        }
-                        (*curbuf).b_ml.ml_line_ptr = newp;
-                        (*curbuf).b_ml.ml_line_textlen = newp_len;
-                        (*curbuf).b_ml.ml_flags =
-                            ((*curbuf).b_ml.ml_flags | ML_LINE_DIRTY) & !ML_EMPTY;
+                            newp_len.saturating_sub(col + 1),
+                        ));
+                        ml_replace_dirty_line(curbuf, &new_line, true);
                         inserted_bytes(
                             fpos.lnum,
                             change_col,
@@ -3866,9 +3843,6 @@ unsafe fn ins_tab() -> bool {
                 }
             }
 
-            if (State & VREPLACE_FLAG) != 0 {
-                xfree(saved_line.cast());
-            }
             (*curwin).w_onebuf_opt.wo_list = save_list;
         }
 
@@ -4066,10 +4040,10 @@ pub unsafe fn get_nolist_virtcol() -> colnr_T {
     }
 }
 
-unsafe fn do_insert_char_pre(c: c_int) -> *mut c_char {
+unsafe fn do_insert_char_pre(c: c_int) -> Option<std::ffi::CString> {
     unsafe {
         if c == Ctrl_RSB || KeyStuffed != 0 || !has_event(EVENT_INSERTCHARPRE) {
-            return ptr::null_mut();
+            return None;
         }
 
         let mut buf = [0 as c_char; MB_MAXBYTES + 1];
@@ -4080,11 +4054,11 @@ unsafe fn do_insert_char_pre(c: c_int) -> *mut c_char {
         textlock += 1;
         set_vim_var_string(VV_CHAR, (&raw const buf).cast(), buflen as isize);
 
-        let mut res: *mut c_char = ptr::null_mut();
+        let mut res: Option<std::ffi::CString> = None;
         if ins_apply_autocmds(EVENT_INSERTCHARPRE) != 0 {
             let vchar = get_vim_var_str(VV_CHAR);
             if CStr::from_ptr((&raw const buf).cast()) != CStr::from_ptr(vchar) {
-                res = xstrdup(vchar);
+                res = Some(CStr::from_ptr(vchar).to_owned());
             }
         }
 

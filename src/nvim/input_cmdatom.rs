@@ -1863,14 +1863,7 @@ unsafe fn atom_ins_push(session: *const InsSession, cascade: bool) {
         if key_bytes.is_empty() || (!replace && key_bytes[key_bytes.len() - 1] != ESC) {
             return;
         }
-        let raw_text = get_last_insert_save();
-        atom.text = if raw_text.is_null() {
-            None
-        } else {
-            let cstr = std::ffi::CStr::from_ptr(raw_text).to_owned();
-            xfree(raw_text.cast());
-            Some(cstr)
-        };
+        atom.text = get_last_insert_save();
         atom.origin = (*session).origin;
         atom_push_raw(cascade, &mut atom);
     }
