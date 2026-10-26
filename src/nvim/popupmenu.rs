@@ -41,7 +41,7 @@ use crate::keycodes::{
     K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_UP, NL,
 };
 use crate::mbyte::{mb_string2cells, mb_strnicmp, ptr2cells, utf_ptr2cells, utfc_ptr2len};
-use crate::memory::{Arena, arena_finish, arena_mem_free, strequal, xfree, xstrdup};
+use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_take, strequal};
 use crate::menu::{execute_menu, get_menu_mode_flag, menu_find, menu_is_separator, vimmenu_T};
 use crate::message::emsg;
 use crate::mouse::mouse_find_win_outer;
@@ -924,7 +924,10 @@ pub unsafe fn pum_redraw() {
                         if saved != NUL {
                             *p = NUL;
                         }
-                        let st = transstr(s, true);
+                        let mut st_bytes = cstr_take(transstr(s, true))
+                            .unwrap_or_default()
+                            .into_bytes_with_nul();
+                        let st = st_bytes.as_mut_ptr().cast::<c_char>();
                         if saved != NUL {
                             *p = saved;
                         }
@@ -940,8 +943,10 @@ pub unsafe fn pum_redraw() {
                         };
 
                         if PUM_RL {
-                            let mut rt = reverse_text(st);
-                            let rt_start = rt;
+                            let mut rt_bytes = cstr_take(reverse_text(st))
+                                .unwrap_or_default()
+                                .into_bytes_with_nul();
+                            let mut rt = rt_bytes.as_mut_ptr().cast::<c_char>();
                             let mut cells = mb_string2cells(rt) as c_int;
                             let pad = if next_isempty { 0 } else { 2 };
                             if width_limit - totwidth < cells + pad {
@@ -976,8 +981,6 @@ pub unsafe fn pum_redraw() {
                                 grid_line_puts(grid_col - cells + 1, rt, -1, attr);
                             }
 
-                            xfree(rt_start.cast());
-                            xfree(st.cast());
                             grid_col -= width;
                         } else {
                             let mut cells = mb_string2cells(st) as c_int;
@@ -1014,7 +1017,6 @@ pub unsafe fn pum_redraw() {
                                 grid_line_puts(grid_col, st, -1, attr);
                             }
 
-                            xfree(st.cast());
                             grid_col += width;
                         }
 
@@ -1765,6 +1767,7 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
         }
 
         let mut idx: usize = 0;
+        let mut owned_texts: Vec<std::ffi::CString> = Vec::with_capacity(PUM_SIZE as usize);
         let mut array_vec: Vec<pumitem_T> = vec![pumitem_T::new(); PUM_SIZE as usize];
         let array = array_vec.as_mut_ptr();
 
@@ -1776,7 +1779,8 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
                 s = mp.dname.as_ptr();
             }
             if !s.is_null() {
-                array_vec[idx].pum_text = xstrdup(s);
+                owned_texts.push(CStr::from_ptr(s).to_owned());
+                array_vec[idx].pum_text = owned_texts.last().unwrap().as_ptr().cast_mut();
                 idx += 1;
             }
         }
@@ -1845,9 +1849,6 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
             }
         }
 
-        for item in &array_vec {
-            xfree(item.pum_text.cast());
-        }
         pum_undisplay(true);
         if p_mousemev == 0 {
             ui_call_option_set(

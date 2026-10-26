@@ -53,7 +53,7 @@ use crate::mbyte::{
     utf_ptr2StrCharInfo, utf_ptr2cells, utfc_ptr2len, utfc_ptr2schar,
 };
 use crate::memline::{gchar_pos, ml_get_buf, ml_get_buf_len};
-use crate::memory::{xfree, xmalloc, xstrlcpy};
+use crate::memory::{cstr_take, xstrlcpy};
 use crate::r#move::{set_empty_rows, validate_virtcol, win_col_off, win_col_off2};
 use crate::option::get_showbreak_value;
 use crate::option_vars::*;
@@ -177,8 +177,7 @@ struct winlinevars_T {
     color_cols: *mut c_int,
 }
 
-static mut extra_buf: *mut c_char = ptr::null_mut();
-static mut extra_buf_size: usize = 0;
+static mut extra_buf: Vec<c_char> = Vec::new();
 
 static mut saved_w_virtcol: c_int = 0;
 static mut margin_prev_wp: *mut win_T = ptr::null_mut();
@@ -211,18 +210,17 @@ const fn vcol_hlc(wlv: &winlinevars_T) -> c_int {
 unsafe fn get_extra_buf(mut size: usize) -> *mut c_char {
     unsafe {
         size = size.max(64);
-        if extra_buf_size < size {
-            xfree(extra_buf.cast());
-            extra_buf = xmalloc(size).cast();
-            extra_buf_size = size;
+        let buf = (&raw mut extra_buf).as_mut().unwrap();
+        if buf.len() < size {
+            buf.resize(size, 0);
         }
-        extra_buf
+        buf.as_mut_ptr()
     }
 }
 
 pub unsafe fn drawline_free_all_mem() {
     unsafe {
-        xfree(extra_buf.cast());
+        extra_buf = Vec::new();
     }
 }
 
@@ -1425,7 +1423,7 @@ pub unsafe fn win_line(
         let mut buf_fold = [0 as c_char; FOLD_TEXT_LEN];
         let buf_fold_ptr = (&raw mut buf_fold).cast::<c_char>();
         let mut fold_vt: VirtText = Vec::new();
-        let mut foldtext_free: *mut c_char = ptr::null_mut();
+        let mut foldtext_free: Option<std::ffi::CString> = None;
 
         let mut cul_screenline = false;
         let mut left_curline_col: c_int = 0;
@@ -2388,12 +2386,14 @@ pub unsafe fn win_line(
                     wlv.n_extra = CStr::from_ptr(wlv.p_extra).to_bytes().len() as c_int;
 
                     if wlv.p_extra != buf_fold_ptr {
-                        debug_assert!(foldtext_free.is_null());
-                        foldtext_free = wlv.p_extra;
+                        debug_assert!(foldtext_free.is_none());
+                        foldtext_free = cstr_take(wlv.p_extra);
+                        wlv.p_extra = foldtext_free
+                            .as_ref()
+                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
                     }
                     wlv.sc_extra = 0;
                     wlv.sc_final = 0;
-                    *wlv.p_extra.add(wlv.n_extra as usize) = NUL;
 
                     line = ml_get_buf((*wp).w_buffer, lnum);
                     ptr = line.add(v as usize);
@@ -3679,7 +3679,7 @@ pub unsafe fn win_line(
 
         drop(fold_vt);
         drop(virt_lines);
-        xfree(foldtext_free.cast());
+        drop(foldtext_free);
         wlv.row
     }
 }

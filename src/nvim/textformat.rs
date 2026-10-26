@@ -33,14 +33,13 @@ use crate::insert::{
 use crate::mark::mark_col_adjust;
 use crate::mbyte::{utf_allow_break, utf_allow_break_before, utf_iscomposing_first, utf_ptr2char};
 use crate::memline::{ml_get, ml_get_len, ml_replace};
-use crate::memory::xfree;
 use crate::message::msgmore;
 use crate::r#move::update_topline;
 use crate::ops::do_join;
 use crate::option::{OPT_LOCAL, kBufOptFormatexpr, kOptFormatexpr, was_set_insecurely};
 use crate::option_vars::*;
 use crate::os::input::line_breakcheck;
-use crate::strings::{strncmp, vim_strchr, xstrnsave};
+use crate::strings::{strncmp, vim_strchr};
 use crate::textobject::startPS;
 use crate::ui::ui_cursor_shape;
 use crate::undo::{u_save, u_save_cursor};
@@ -212,7 +211,7 @@ pub unsafe fn internal_format(
             let mut foundcol: c_int;
             let mut end_foundcol: c_int = 0;
             let mut orig_col: c_int = 0;
-            let mut saved_text: *mut c_char = ptr::null_mut();
+            let mut saved_text: Vec<c_char> = Vec::new();
             let mut col: colnr_T;
             let mut did_do_comment = false;
 
@@ -436,9 +435,13 @@ pub unsafe fn internal_format(
             startcol = startcol.max(0);
 
             if (State & VREPLACE_FLAG) != 0 {
-                saved_text = xstrnsave(get_cursor_pos_ptr(), get_cursor_pos_len() as usize);
+                let pos_len = get_cursor_pos_len() as usize;
+                let keep_len = (startcol as usize).min(pos_len);
+                saved_text.reserve_exact(keep_len + 1);
+                saved_text
+                    .extend_from_slice(std::slice::from_raw_parts(get_cursor_pos_ptr(), keep_len));
+                saved_text.push(NUL);
                 (*curwin).w_cursor.col = orig_col;
-                *saved_text.add(startcol as usize) = NUL;
 
                 if !fo_white_par {
                     backspace_until_column(foundcol);
@@ -498,8 +501,7 @@ pub unsafe fn internal_format(
             }
 
             if (State & VREPLACE_FLAG) != 0 {
-                ins_bytes(saved_text);
-                xfree(saved_text.cast());
+                ins_bytes(saved_text.as_mut_ptr());
             } else {
                 (*curwin).w_cursor.col += startcol;
                 let len = get_cursor_line_len();
@@ -609,28 +611,28 @@ unsafe fn same_leader(
             }
         }
 
-        let line1 = xstrnsave(ml_get(lnum), ml_get_len(lnum) as usize);
+        let line1 =
+            std::slice::from_raw_parts(ml_get(lnum), ml_get_len(lnum) as usize + 1).to_vec();
         let mut idx1: c_int = 0;
-        while ascii_iswhite(*line1.add(idx1 as usize) as c_int) {
+        while ascii_iswhite(line1[idx1 as usize] as c_int) {
             idx1 += 1;
         }
         let line2 = ml_get(lnum + 1);
         let mut idx2: c_int = 0;
         while idx2 < leader2_len {
             if !ascii_iswhite(*line2.add(idx2 as usize) as c_int) {
-                let c1 = *line1.add(idx1 as usize);
+                let c1 = line1[idx1 as usize];
                 idx1 += 1;
                 if c1 != *line2.add(idx2 as usize) {
                     break;
                 }
             } else {
-                while ascii_iswhite(*line1.add(idx1 as usize) as c_int) {
+                while ascii_iswhite(line1[idx1 as usize] as c_int) {
                     idx1 += 1;
                 }
             }
             idx2 += 1;
         }
-        xfree(line1.cast());
 
         idx2 == leader2_len && idx1 == leader1_len
     }
@@ -753,10 +755,11 @@ pub unsafe fn auto_format(trailblank: bool, prev_line: bool) {
             let linep = get_cursor_line_ptr();
             let len = get_cursor_line_len();
             if (*curwin).w_cursor.col == len {
-                let plinep = xstrnsave(linep, len as usize + 2);
-                *plinep.add(len as usize) = b' ' as c_char;
-                *plinep.add(len as usize + 1) = NUL;
-                ml_replace((*curwin).w_cursor.lnum, plinep, false);
+                let mut pline = Vec::with_capacity(len as usize + 2);
+                pline.extend_from_slice(std::slice::from_raw_parts(linep, len as usize));
+                pline.push(b' ' as c_char);
+                pline.push(NUL);
+                ml_replace((*curwin).w_cursor.lnum, pline.as_mut_ptr(), true);
                 did_add_space = true;
             } else {
                 check_auto_format(false);

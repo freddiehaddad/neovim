@@ -7,7 +7,7 @@ use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str};
 use crate::event::r#loop::{uv_mutex_lock, uv_mutex_unlock, uv_strerror};
 use crate::fileio::{EOF, FILE, fclose, fflush, fopen, fprintf, fputc};
 use crate::globals::*;
-use crate::memory::{entered_free_all_mem, xfree, xstrlcpy};
+use crate::memory::{cstr_take, entered_free_all_mem, xstrlcpy};
 use crate::message::msg_schedule_semsg;
 use crate::os::env::{expand_env, os_get_pid, os_getenv_buf, os_setenv};
 use crate::os::fs::{os_isdir, os_mkdir_recurse};
@@ -99,18 +99,16 @@ macro_rules! logmsg {
             );
             if len >= stack_buf.len() as std::ffi::c_int {
                 let cap = (len as usize) + 1;
-                let heap_buf = $crate::memory::xmalloc(cap).cast::<std::ffi::c_char>();
-                $crate::strings::vim_snprintf!(heap_buf, cap, fmt_ptr, $($arg),+);
-                let ret = $crate::log::logmsg_str(
+                let mut heap_buf = vec![0 as std::ffi::c_char; cap];
+                $crate::strings::vim_snprintf!(heap_buf.as_mut_ptr(), cap, fmt_ptr, $($arg),+);
+                $crate::log::logmsg_str(
                     lvl,
                     $context,
                     $func_name,
                     $line_num,
                     $eol,
-                    heap_buf,
-                );
-                $crate::memory::xfree(heap_buf.cast());
-                ret
+                    heap_buf.as_ptr(),
+                )
             } else {
                 $crate::log::logmsg_str(
                     lvl,
@@ -160,22 +158,33 @@ unsafe fn log_path_init() {
             if user_set {
                 os_setenv(c"__NVIM_LOG_FILE_WANT".as_ptr(), path_ptr, 1);
             }
-            let loghome = concat_fnames_realloc(
+            let loghome = cstr_take(concat_fnames_realloc(
                 get_xdg_home(crate::os::stdpaths::XDGVarType::kXDGStateHome),
                 c"logs".as_ptr(),
                 true,
-            );
+            ))
+            .unwrap_or_default();
             let mut failed_dir: *mut c_char = ptr::null_mut();
             let mut log_dir_failure: c_int = 0;
-            if !os_isdir(loghome) {
-                log_dir_failure =
-                    os_mkdir_recurse(loghome, 0o700, &raw mut failed_dir, ptr::null_mut());
+            if !os_isdir(loghome.as_ptr()) {
+                log_dir_failure = os_mkdir_recurse(
+                    loghome.as_ptr(),
+                    0o700,
+                    &raw mut failed_dir,
+                    ptr::null_mut(),
+                );
             }
-            xfree(loghome.cast());
+            drop(loghome);
+            let failed_dir = cstr_take(failed_dir);
 
-            let defaultpath = stdpaths_user_state_subpath(c"logs/nvim.log".as_ptr(), 0, true);
-            let mut len = xstrlcpy(path_ptr, defaultpath, size);
-            xfree(defaultpath.cast());
+            let defaultpath = cstr_take(stdpaths_user_state_subpath(
+                c"logs/nvim.log".as_ptr(),
+                0,
+                true,
+            ))
+            .unwrap_or_default();
+            let mut len = xstrlcpy(path_ptr, defaultpath.as_ptr(), size);
+            drop(defaultpath);
 
             if len >= size || !log_try_create(path_ptr) {
                 if !user_set {
@@ -185,16 +194,14 @@ unsafe fn log_path_init() {
             }
             if len >= size || !log_try_create(path_ptr) {
                 *path_ptr = NUL;
-                xfree(failed_dir.cast());
                 return;
             }
             os_setenv(c"NVIM_LOG_FILE".as_ptr(), path_ptr, 1);
             if log_dir_failure != 0 {
                 let err_str = uv_strerror(log_dir_failure);
-                let failed_s = if failed_dir.is_null() {
-                    "(null)"
-                } else {
-                    CStr::from_ptr(failed_dir).to_str().unwrap_or("")
+                let failed_s = match failed_dir {
+                    None => "(null)",
+                    Some(ref d) => d.to_str().unwrap_or(""),
                 };
                 let err_s = if err_str.is_null() {
                     ""
@@ -215,7 +222,6 @@ unsafe fn log_path_init() {
                     msg.as_ptr().cast(),
                 );
             }
-            xfree(failed_dir.cast());
         }
     }
 }
