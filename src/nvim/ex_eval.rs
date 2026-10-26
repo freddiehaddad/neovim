@@ -288,7 +288,7 @@ pub unsafe fn cause_errthrow(
 
             let is_first = list.is_empty();
             let tmsg = CStr::from_ptr(mesg).to_owned();
-            let sfile = cstr_take(estack_sfile(ESTACK_NONE));
+            let sfile = estack_sfile(ESTACK_NONE);
             let tmsg_bytes = tmsg.as_bytes();
             let has_vim_e_prefix = tmsg_bytes.len() >= 10
                 && tmsg_bytes.starts_with(b"Vim E")
@@ -459,7 +459,7 @@ unsafe fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int 
             let sfile = messages[0].sfile.take().unwrap();
             (sfile, messages[0].slnum)
         } else {
-            let sfile = cstr_take(estack_sfile(ESTACK_NONE)).unwrap_or_default();
+            let sfile = estack_sfile(ESTACK_NONE).unwrap_or_default();
             (sfile, sourcing_lnum())
         };
 

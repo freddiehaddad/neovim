@@ -12291,7 +12291,7 @@ pub unsafe fn eval_vars(
                 }
                 SPEC_SFILE => {
                     use_shellslash = true;
-                    let Some(sfile) = cstr_take(estack_sfile(ESTACK_SFILE)) else {
+                    let Some(sfile) = estack_sfile(ESTACK_SFILE) else {
                         *errormsg = gettext(e_no_source_file_name_to_substitute_for_sfile.as_ptr());
                         return ptr::null_mut();
                     };
@@ -12305,7 +12305,7 @@ pub unsafe fn eval_vars(
                 }
                 SPEC_STACK => {
                     use_shellslash = true;
-                    let Some(stack) = cstr_take(estack_sfile(ESTACK_STACK)) else {
+                    let Some(stack) = estack_sfile(ESTACK_STACK) else {
                         *errormsg = gettext(e_no_call_stack_to_substitute_for_stack.as_ptr());
                         return ptr::null_mut();
                     };
@@ -12319,7 +12319,7 @@ pub unsafe fn eval_vars(
                 }
                 SPEC_SCRIPT => {
                     use_shellslash = true;
-                    let Some(script) = cstr_take(estack_sfile(ESTACK_SCRIPT)) else {
+                    let Some(script) = estack_sfile(ESTACK_SCRIPT) else {
                         *errormsg =
                             gettext(e_no_script_file_name_to_substitute_for_script.as_ptr());
                         return ptr::null_mut();

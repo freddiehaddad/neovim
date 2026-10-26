@@ -57,7 +57,7 @@ use crate::mbyte::{
     utf_ptr2cells, utf_ptr2char, utf_ptr2len, utf8len_tab, utfc_ptr2len, utfc_ptr2len_len,
 };
 use crate::memory::{
-    Arena, arena_alloc, cstr_take, strequal, xfree, xmemdupz, xmemrchr, xstrlcat, xstrlcpy,
+    Arena, arena_alloc, strequal, xfree, xmemdupz, xmemrchr, xstrlcat, xstrlcpy,
     xstrnlen,
 };
 use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
@@ -956,7 +956,7 @@ unsafe fn get_emsg_source() -> Option<std::ffi::CString> {
     unsafe {
         let mut sname = sourcing_name();
         if have_sourcing_info() && !sname.is_null() && other_sourcing_name() {
-            let tofree = cstr_take(estack_sfile(ESTACK_NONE));
+            let tofree = estack_sfile(ESTACK_NONE);
             if let Some(ref tf) = tofree {
                 sname = tf.as_ptr().cast_mut();
             }

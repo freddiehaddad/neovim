@@ -117,7 +117,7 @@ unsafe fn do_checkbacktracelevel() {
             debug_backtrace_level = 0;
             msg(c"frame is zero".as_ptr(), 0);
         } else {
-            let sname = cstr_take(estack_sfile(ESTACK_NONE));
+            let sname = estack_sfile(ESTACK_NONE);
             let max =
                 get_maxbacktrace_level(sname.as_ref().map_or(std::ptr::null(), |s| s.as_ptr()));
             if debug_backtrace_level > max {
@@ -142,7 +142,7 @@ unsafe fn do_setdebugtracelevel(arg: *mut c_char) {
 
 unsafe fn do_showbacktrace(cmd: *const c_char) {
     unsafe {
-        let sname_cstr = cstr_take(estack_sfile(ESTACK_NONE));
+        let sname_cstr = estack_sfile(ESTACK_NONE);
         let max =
             get_maxbacktrace_level(sname_cstr.as_ref().map_or(std::ptr::null(), |s| s.as_ptr()));
         if let Some(sname_cstr) = sname_cstr {
@@ -222,7 +222,7 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
         if let Some(newval) = (&raw mut DEBUG_NEWVAL).as_mut().unwrap().take() {
             smsg!(0, c"Newval = \"%s\"".as_ptr(), newval.as_ptr());
         }
-        if let Some(sname) = cstr_take(estack_sfile(ESTACK_NONE)) {
+        if let Some(sname) = estack_sfile(ESTACK_NONE) {
             msg(sname.as_ptr(), 0);
         }
         let slnum = sourcing_lnum();

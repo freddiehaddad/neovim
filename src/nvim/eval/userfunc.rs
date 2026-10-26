@@ -3235,16 +3235,14 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                 let mut j = FAIL;
                 let sname = sourcing_name();
                 if !sname.is_null() {
-                    let scriptname = cstr_take(autoload_name(name, strlen(name)));
-                    if let Some(ref sn) = scriptname {
-                        p = vim_strchr(sn.as_ptr(), b'/' as c_int);
-                        let plen = strlen(p) as c_int;
-                        let slen = strlen(sname) as c_int;
-                        if slen > plen
-                            && path_equal(p, sname.add((slen - plen) as usize), kPathCmpLiteral)
-                        {
-                            j = OK;
-                        }
+                    let sn = autoload_name(name, strlen(name));
+                    p = vim_strchr(sn.as_ptr(), b'/' as c_int);
+                    let plen = strlen(p) as c_int;
+                    let slen = strlen(sname) as c_int;
+                    if slen > plen
+                        && path_equal(p, sname.add((slen - plen) as usize), kPathCmpLiteral)
+                    {
+                        j = OK;
                     }
                 }
                 if j == FAIL {
