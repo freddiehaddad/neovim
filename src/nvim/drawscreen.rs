@@ -1443,7 +1443,7 @@ unsafe fn win_update(wp: *mut win_T) {
             let svt_ptr = &raw mut suspended_virt_text;
             if (*svt_ptr).data.virt_text().is_empty() {
                 (*svt_ptr).data.virt_text_mut().push(VirtTextChunk {
-                    text: crate::memory::xstrdup(c"[Process suspended]".as_ptr()),
+                    text: Some(c"[Process suspended]".to_owned()),
                     hl_id: -1,
                 });
             }

@@ -634,10 +634,7 @@ pub unsafe extern "C" fn nvim_get_autocmds(
                                 );
                                 pat = pattern_buflocal.as_ptr();
                             }
-                            if !ap.pat.is_null()
-                                && !pat.is_null()
-                                && CStr::from_ptr(ap.pat).to_bytes()
-                                    == CStr::from_ptr(pat).to_bytes()
+                            if !pat.is_null() && ap.pat.as_bytes() == CStr::from_ptr(pat).to_bytes()
                             {
                                 passed = true;
                                 break;
@@ -667,11 +664,11 @@ pub unsafe extern "C" fn nvim_get_autocmds(
                         put_c(&mut autocmd_info, c"id", integer_obj(ac.id));
                     }
 
-                    if !ac.desc.is_null() {
+                    if let Some(desc) = &ac.desc {
                         put_c(
                             &mut autocmd_info,
                             c"desc",
-                            string_obj(cstr_as_string(ac.desc)),
+                            string_obj(cstr_as_string(desc.as_ptr())),
                         );
                     }
 
@@ -680,7 +677,7 @@ pub unsafe extern "C" fn nvim_get_autocmds(
                             put_c(
                                 &mut autocmd_info,
                                 c"command",
-                                string_obj(cstr_as_string(*cmd)),
+                                string_obj(cstr_as_string(cmd.as_ptr())),
                             );
                         }
                         crate::autocmd::AutoCmdHandler::Fn(cb) => {
@@ -724,7 +721,7 @@ pub unsafe extern "C" fn nvim_get_autocmds(
                     put_c(
                         &mut autocmd_info,
                         c"pattern",
-                        string_obj(cstr_as_string(ap.pat)),
+                        string_obj(cstr_as_string(ap.pat.as_ptr())),
                     );
                     put_c(
                         &mut autocmd_info,

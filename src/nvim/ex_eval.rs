@@ -23,10 +23,9 @@ use crate::regexp::{
 };
 use crate::runtime::{ESTACK_NONE, do_finish, estack_sfile, sourcing_lnum, stacktrace_create};
 use crate::strings::{
-    concat_str, gettext, strcat, strcpy, strlen, strncmp, vim_snprintf, vim_snprintf_safelen,
-    xstrnsave,
+    concat_str, gettext, strcat, strcpy, strlen, vim_snprintf, vim_snprintf_safelen, xstrnsave,
 };
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
 
 const CSTACK_LEN: usize = 50;
@@ -114,28 +113,20 @@ impl Default for cstack_T {
 
 #[repr(C)]
 pub struct msglist_T {
-    pub msg: *mut c_char,
-    pub throw_msg: *mut c_char,
-    pub sfile: *mut c_char,
+    pub msg: CString,
+    pub throw_idx: usize,
+    pub throw_off: usize,
+    pub sfile: Option<CString>,
     pub slnum: linenr_T,
     pub multiline: bool,
-}
-
-impl Drop for msglist_T {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.msg.cast());
-            xfree(self.sfile.cast());
-        }
-    }
 }
 
 #[repr(C)]
 pub struct except_T {
     pub r#type: except_type_T,
-    pub value: *mut c_char,
+    pub value: CString,
     pub messages: Vec<msglist_T>,
-    pub throw_name: *mut c_char,
+    pub throw_name: CString,
     pub throw_lnum: linenr_T,
     pub stacktrace: *mut list_T,
 }
@@ -143,10 +134,6 @@ pub struct except_T {
 impl Drop for except_T {
     fn drop(&mut self) {
         unsafe {
-            if self.r#type != ET_INTERRUPT {
-                xfree(self.value.cast());
-            }
-            xfree(self.throw_name.cast());
             tv_list_unref(self.stacktrace);
         }
     }
@@ -293,38 +280,42 @@ pub unsafe fn cause_errthrow(
         if !msg_list.is_null() {
             let list = &mut *msg_list;
             if concat && let Some(last) = list.last_mut() {
-                let old_msg = last.msg;
-                let joined = crate::strings::concat_str(old_msg, mesg);
-                xfree(old_msg.cast());
-                last.msg = joined;
-                last.throw_msg = joined;
-                if ptr::eq(list[0].throw_msg, old_msg) {
-                    list[0].throw_msg = joined;
-                }
+                let mut bytes = last.msg.as_bytes().to_vec();
+                bytes.extend_from_slice(CStr::from_ptr(mesg).to_bytes());
+                last.msg = CString::new(bytes).unwrap();
                 return true;
             }
 
             let is_first = list.is_empty();
-            let tmsg = xstrdup(mesg);
+            let tmsg = CStr::from_ptr(mesg).to_owned();
+            let raw_sfile = estack_sfile(ESTACK_NONE);
+            let sfile = if raw_sfile.is_null() {
+                None
+            } else {
+                let cstr = CStr::from_ptr(raw_sfile).to_owned();
+                xfree(raw_sfile.cast());
+                Some(cstr)
+            };
+            let tmsg_bytes = tmsg.as_bytes();
+            let has_vim_e_prefix = tmsg_bytes.len() >= 10
+                && tmsg_bytes.starts_with(b"Vim E")
+                && tmsg_bytes[5].is_ascii_digit()
+                && tmsg_bytes[6].is_ascii_digit()
+                && tmsg_bytes[7].is_ascii_digit()
+                && tmsg_bytes[8] == b':'
+                && tmsg_bytes[9] == b' ';
             list.push(msglist_T {
                 msg: tmsg,
-                throw_msg: ptr::null_mut(),
-                sfile: estack_sfile(ESTACK_NONE),
+                throw_idx: 0,
+                throw_off: 0,
+                sfile,
                 slnum: sourcing_lnum(),
                 multiline,
             });
             if is_first || severe {
-                if strncmp(tmsg, c"Vim E".as_ptr(), 5) == 0
-                    && ascii_isdigit(*tmsg.add(5))
-                    && ascii_isdigit(*tmsg.add(6))
-                    && ascii_isdigit(*tmsg.add(7))
-                    && *tmsg.add(8) == b':' as c_char
-                    && *tmsg.add(9) == b' ' as c_char
-                {
-                    list[0].throw_msg = tmsg.add(4);
-                } else {
-                    list[0].throw_msg = tmsg;
-                }
+                let idx = list.len() - 1;
+                list[0].throw_idx = idx;
+                list[0].throw_off = if has_vim_e_prefix { 4 } else { 0 };
             }
         }
         true
@@ -372,7 +363,7 @@ pub unsafe fn do_intthrow(cstack: *mut cstack_T) -> bool {
             discard_current_exception();
         }
         if throw_exception(
-            ExceptionValue::Interrupt(c"Vim:Interrupt".as_ptr().cast_mut()),
+            ExceptionValue::Interrupt(c"Vim:Interrupt".to_owned()),
             ptr::null_mut(),
         ) != FAIL
         {
@@ -385,8 +376,8 @@ pub unsafe fn do_intthrow(cstack: *mut cstack_T) -> bool {
 
 enum ExceptionValue {
     Error(Vec<msglist_T>),
-    Interrupt(*mut c_char),
-    User(*mut c_char),
+    Interrupt(CString),
+    User(CString),
 }
 
 pub unsafe fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_char) -> *mut c_char {
@@ -446,10 +437,9 @@ unsafe fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int 
     unsafe {
         let (r#type, mut messages, excp_value) = match value {
             ExceptionValue::User(val_str) => {
-                if strncmp(val_str, c"Vim".as_ptr(), 3) == 0
-                    && (*val_str.add(3) == NUL
-                        || *val_str.add(3) == b':' as c_char
-                        || *val_str.add(3) == b'(' as c_char)
+                let bytes = val_str.as_bytes();
+                if bytes.starts_with(b"Vim")
+                    && (bytes.len() == 3 || bytes[3] == b':' || bytes[3] == b'(')
                 {
                     emsg(gettext(
                         c"E608: Cannot :throw exceptions with 'Vim' prefix".as_ptr(),
@@ -461,26 +451,32 @@ unsafe fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int 
             }
             ExceptionValue::Interrupt(val_str) => (ET_INTERRUPT, Vec::new(), val_str),
             ExceptionValue::Error(msgs) => {
-                let excp_val = get_error_exception_string(msgs[0].throw_msg, cmdname);
+                let throw_ptr = msgs[msgs[0].throw_idx].msg.as_ptr().add(msgs[0].throw_off);
+                let excp_val = get_error_exception_string(throw_ptr, cmdname);
                 if excp_val.is_null() {
                     suppress_errthrow = true;
                     emsg(gettext(e_outofmem.as_ptr()));
                     current_exception = ptr::null_mut();
                     return FAIL;
                 }
-                (ET_ERROR, msgs, excp_val)
+                let excp_cstr = CStr::from_ptr(excp_val).to_owned();
+                xfree(excp_val.cast());
+                (ET_ERROR, msgs, excp_cstr)
             }
         };
 
-        let (throw_name, throw_lnum) = if r#type == ET_ERROR && !messages[0].sfile.is_null() {
-            let sfile = messages[0].sfile;
-            messages[0].sfile = ptr::null_mut();
+        let (throw_name, throw_lnum) = if r#type == ET_ERROR && messages[0].sfile.is_some() {
+            let sfile = messages[0].sfile.take().unwrap();
             (sfile, messages[0].slnum)
         } else {
-            let mut sfile = estack_sfile(ESTACK_NONE);
-            if sfile.is_null() {
-                sfile = xstrdup(c"".as_ptr());
-            }
+            let raw_sfile = estack_sfile(ESTACK_NONE);
+            let sfile = if raw_sfile.is_null() {
+                CString::default()
+            } else {
+                let cstr = CStr::from_ptr(raw_sfile).to_owned();
+                xfree(raw_sfile.cast());
+                cstr
+            };
             (sfile, sourcing_lnum())
         };
 
@@ -508,7 +504,11 @@ unsafe fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int 
             if debug_break_level > 0 || *p_vfile == NUL {
                 msg_scroll = 1;
             }
-            smsg!(0, gettext(c"Exception thrown: %s".as_ptr()), (*excp).value);
+            smsg!(
+                0,
+                gettext(c"Exception thrown: %s".as_ptr()),
+                (*excp).value.as_ptr(),
+            );
             msg_puts(c"\n".as_ptr());
 
             if debug_break_level > 0 || *p_vfile == NUL {
@@ -554,7 +554,7 @@ unsafe fn discard_exception(excp: *mut except_T, was_finished: bool) {
             } else {
                 gettext(c"Exception discarded: %s".as_ptr())
             };
-            smsg!(0, fmt, (*excp).value);
+            smsg!(0, fmt, (*excp).value.as_ptr());
             msg_puts(c"\n".as_ptr());
             if debug_break_level > 0 || *p_vfile == NUL {
                 cmdline_row = msg_row;
@@ -586,15 +586,15 @@ unsafe fn catch_exception(excp: *mut except_T) {
     unsafe {
         let stack = &raw mut caught_stack;
         (*stack).push(excp);
-        set_vim_var_string(VV_EXCEPTION, (*excp).value, -1);
+        set_vim_var_string(VV_EXCEPTION, (*excp).value.as_ptr(), -1);
         set_vim_var_list(VV_STACKTRACE, (*excp).stacktrace);
-        if *(*excp).throw_name != NUL {
+        if !(*excp).throw_name.as_bytes().is_empty() {
             let iobufflen = if (*excp).throw_lnum != 0 {
                 vim_snprintf_safelen!(
                     ptr::addr_of_mut!(IObuff).cast(),
                     IOSIZE,
                     gettext(c"%s, line %lld".as_ptr()),
-                    (*excp).throw_name,
+                    (*excp).throw_name.as_ptr(),
                     i64::from((*excp).throw_lnum),
                 )
             } else {
@@ -602,7 +602,7 @@ unsafe fn catch_exception(excp: *mut except_T) {
                     ptr::addr_of_mut!(IObuff).cast(),
                     IOSIZE,
                     c"%s".as_ptr(),
-                    (*excp).throw_name,
+                    (*excp).throw_name.as_ptr(),
                 )
             };
             set_vim_var_string(
@@ -626,7 +626,11 @@ unsafe fn catch_exception(excp: *mut except_T) {
             if debug_break_level > 0 || *p_vfile == NUL {
                 msg_scroll = 1;
             }
-            smsg!(0, gettext(c"Exception caught: %s".as_ptr()), (*excp).value);
+            smsg!(
+                0,
+                gettext(c"Exception caught: %s".as_ptr()),
+                (*excp).value.as_ptr(),
+            );
             msg_puts(c"\n".as_ptr());
 
             if debug_break_level > 0 || *p_vfile == NUL {
@@ -650,15 +654,15 @@ unsafe fn finish_exception(excp: *mut except_T) {
         }
         (*stack).pop();
         if let Some(&top) = (*stack).last() {
-            set_vim_var_string(VV_EXCEPTION, (*top).value, -1);
+            set_vim_var_string(VV_EXCEPTION, (*top).value.as_ptr(), -1);
             set_vim_var_list(VV_STACKTRACE, (*top).stacktrace);
-            if *(*top).throw_name != NUL {
+            if !(*top).throw_name.as_bytes().is_empty() {
                 let iobufflen = if (*top).throw_lnum != 0 {
                     vim_snprintf_safelen!(
                         ptr::addr_of_mut!(IObuff).cast(),
                         IOSIZE,
                         gettext(c"%s, line %lld".as_ptr()),
-                        (*top).throw_name,
+                        (*top).throw_name.as_ptr(),
                         i64::from((*top).throw_lnum),
                     )
                 } else {
@@ -666,7 +670,7 @@ unsafe fn finish_exception(excp: *mut except_T) {
                         ptr::addr_of_mut!(IObuff).cast(),
                         IOSIZE,
                         c"%s".as_ptr(),
-                        (*top).throw_name,
+                        (*top).throw_name.as_ptr(),
                     )
                 };
                 set_vim_var_string(
@@ -754,7 +758,7 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
                         gettext(c"Exception".as_ptr()),
                     );
                     mesg = concat_str(ptr::addr_of!(IObuff).cast(), c": %s".as_ptr());
-                    (*excp).value
+                    (*excp).value.as_ptr().cast_mut()
                 } else if (pending & CSTP_ERROR) != 0 && (pending & CSTP_INTERRUPT) != 0 {
                     gettext(c"Error and interrupt".as_ptr())
                 } else if (pending & CSTP_ERROR) != 0 {
@@ -1117,10 +1121,12 @@ pub unsafe fn ex_throw(eap: *mut exarg_T) {
             ptr::null_mut()
         };
 
-        if (*eap).skip == 0 && !value.is_null() {
-            if throw_exception(ExceptionValue::User(value), ptr::null_mut()) == FAIL {
-                xfree(value.cast());
-            } else {
+        if !value.is_null() {
+            let val_cstr = CStr::from_ptr(value).to_owned();
+            xfree(value.cast());
+            if (*eap).skip == 0
+                && throw_exception(ExceptionValue::User(val_cstr), ptr::null_mut()) != FAIL
+            {
                 do_throw((*eap).cstack.cast());
             }
         }
@@ -1263,7 +1269,11 @@ pub unsafe fn ex_catch(eap: *mut exarg_T) {
                     } else {
                         let prev_got_int = got_int;
                         got_int = false;
-                        caught = vim_regexec_nl(&mut regmatch, (*current_exception).value, 0);
+                        caught = vim_regexec_nl(
+                            &mut regmatch,
+                            (*current_exception).value.as_ptr().cast_mut(),
+                            0,
+                        );
                         got_int |= prev_got_int;
                         vim_regfree(regmatch.regprog);
                     }

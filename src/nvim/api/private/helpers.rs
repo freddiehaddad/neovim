@@ -409,29 +409,30 @@ pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
             );
             got_int = false;
         } else if !msg_list.is_null() && !(*msg_list).is_empty() {
-            let msg =
-                get_error_exception_string((*msg_list).as_slice()[0].throw_msg, ptr::null_mut());
+            let msgs = (*msg_list).as_slice();
+            let throw_ptr = msgs[msgs[0].throw_idx].msg.as_ptr().add(msgs[0].throw_off);
+            let msg = get_error_exception_string(throw_ptr, ptr::null_mut());
             api_set_error!(err, ErrorType::kErrorTypeException, c"%s".as_ptr(), msg);
             free_global_msglist();
             xfree(msg.cast());
         } else if did_throw || need_rethrow {
-            if *(*current_exception).throw_name != NUL {
+            if !(*current_exception).throw_name.as_bytes().is_empty() {
                 if (*current_exception).throw_lnum != 0 {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"%s, line %d: %s".as_ptr(),
-                        (*current_exception).throw_name,
+                        (*current_exception).throw_name.as_ptr(),
                         (*current_exception).throw_lnum,
-                        (*current_exception).value,
+                        (*current_exception).value.as_ptr(),
                     );
                 } else {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"%s: %s".as_ptr(),
-                        (*current_exception).throw_name,
-                        (*current_exception).value,
+                        (*current_exception).throw_name.as_ptr(),
+                        (*current_exception).value.as_ptr(),
                     );
                 }
             } else {
@@ -439,7 +440,7 @@ pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
                     err,
                     ErrorType::kErrorTypeException,
                     c"%s".as_ptr(),
-                    (*current_exception).value,
+                    (*current_exception).value.as_ptr(),
                 );
             }
             discard_current_exception();

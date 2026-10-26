@@ -62,7 +62,7 @@ use crate::window::{
 };
 use crate::xdiff::xdiffi::xdl_diff;
 use crate::xdiff::{mmfile_t, xdemitcb_t, xdemitconf_t, xpparam_t};
-use std::ffi::{c_char, c_int, c_uint, c_ulong};
+use std::ffi::{CStr, CString, c_char, c_int, c_uint, c_ulong};
 use std::ptr;
 const DB_COUNT: usize = 8;
 const MAX_DIFF_ANCHORS: usize = 20;
@@ -143,14 +143,13 @@ pub struct diffline_T {
     pub lineoff: c_int,
 }
 #[repr(C)]
-#[derive(Clone, Copy)]
 struct diffin_T {
-    din_fname: *mut c_char,
+    din_fname: Option<CString>,
     din_mmfile: mmfile_t,
 }
 #[repr(C)]
 pub(crate) struct diffout_T {
-    dout_fname: *mut c_char,
+    dout_fname: Option<CString>,
     dout_ga: Vec<diffhunk_T>,
 }
 #[repr(C)]
@@ -167,15 +166,6 @@ struct diffio_T {
     dio_new: diffin_T,
     dio_diff: diffout_T,
     dio_internal: c_int,
-}
-impl Drop for diffio_T {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.dio_orig.din_fname.cast());
-            xfree(self.dio_new.din_fname.cast());
-            xfree(self.dio_diff.dout_fname.cast());
-        }
-    }
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum diffstyle_T {
@@ -719,20 +709,20 @@ pub unsafe fn diff_redraw(dofold: bool) {
 }
 unsafe fn clear_diffin(din: &mut diffin_T) {
     unsafe {
-        if din.din_fname.is_null() {
+        if let Some(ref fname) = din.din_fname {
+            let _ = os_remove(fname.as_ptr());
+        } else {
             xfree(din.din_mmfile.ptr.cast());
             din.din_mmfile.ptr = ptr::null_mut();
-        } else {
-            let _ = os_remove(din.din_fname);
         }
     }
 }
 unsafe fn clear_diffout(dout: &mut diffout_T) {
     unsafe {
-        if dout.dout_fname.is_null() {
-            dout.dout_ga = Vec::new();
+        if let Some(ref fname) = dout.dout_fname {
+            let _ = os_remove(fname.as_ptr());
         } else {
-            let _ = os_remove(dout.dout_fname);
+            dout.dout_ga = Vec::new();
         }
     }
 }
@@ -808,9 +798,9 @@ unsafe fn diff_write(
     mut end: linenr_T,
 ) -> c_int {
     unsafe {
-        if (*din).din_fname.is_null() {
+        let Some(ref din_fname) = (*din).din_fname else {
             return diff_write_buffer(buf, &raw mut (*din).din_mmfile, start, end);
-        }
+        };
         if frames_locked() {
             return FAIL;
         }
@@ -828,7 +818,7 @@ unsafe fn diff_write(
         }
         let r = buf_write(
             buf,
-            (*din).din_fname,
+            din_fname.as_ptr().cast_mut(),
             ptr::null_mut(),
             start,
             end,
@@ -847,16 +837,26 @@ unsafe fn diff_write(
 }
 unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T) {
     unsafe {
+        let take_tempname = || {
+            let raw = vim_tempname();
+            if raw.is_null() {
+                None
+            } else {
+                let cstr = CStr::from_ptr(raw).to_owned();
+                xfree(raw.cast());
+                Some(cstr)
+            }
+        };
         'theend: {
             if (*dio).dio_internal != 0 {
                 (*dio).dio_diff.dout_ga.clear();
             } else {
-                (*dio).dio_orig.din_fname = vim_tempname();
-                (*dio).dio_new.din_fname = vim_tempname();
-                (*dio).dio_diff.dout_fname = vim_tempname();
-                if (*dio).dio_orig.din_fname.is_null()
-                    || (*dio).dio_new.din_fname.is_null()
-                    || (*dio).dio_diff.dout_fname.is_null()
+                (*dio).dio_orig.din_fname = take_tempname();
+                (*dio).dio_new.din_fname = take_tempname();
+                (*dio).dio_diff.dout_fname = take_tempname();
+                if (*dio).dio_orig.din_fname.is_none()
+                    || (*dio).dio_new.din_fname.is_none()
+                    || (*dio).dio_diff.dout_fname.is_none()
                 {
                     break 'theend;
                 }
@@ -1007,21 +1007,21 @@ pub unsafe fn ex_diffupdate(eap: *mut exarg_T) {
             }
             let mut diffio = diffio_T {
                 dio_orig: diffin_T {
-                    din_fname: ptr::null_mut(),
+                    din_fname: None,
                     din_mmfile: mmfile_t {
                         ptr: ptr::null_mut(),
                         size: 0,
                     },
                 },
                 dio_new: diffin_T {
-                    din_fname: ptr::null_mut(),
+                    din_fname: None,
                     din_mmfile: mmfile_t {
                         ptr: ptr::null_mut(),
                         size: 0,
                     },
                 },
                 dio_diff: diffout_T {
-                    dout_fname: ptr::null_mut(),
+                    dout_fname: None,
                     dout_ga: Vec::new(),
                 },
                 dio_internal: diff_internal(),
@@ -1047,9 +1047,12 @@ unsafe fn check_external_diff(diffio: *mut diffio_T) -> c_int {
     unsafe {
         let mut io_error = false;
         let mut ok: TriState;
+        let orig_fname = (*diffio).dio_orig.din_fname.as_ref().unwrap().as_ptr();
+        let new_fname = (*diffio).dio_new.din_fname.as_ref().unwrap().as_ptr();
+        let diff_fname = (*diffio).dio_diff.dout_fname.as_ref().unwrap().as_ptr();
         loop {
             ok = kFalse;
-            let mut fd = os_fopen((*diffio).dio_orig.din_fname, c"w".as_ptr());
+            let mut fd = os_fopen(orig_fname, c"w".as_ptr());
             if fd.is_null() {
                 io_error = true;
             } else {
@@ -1057,7 +1060,7 @@ unsafe fn check_external_diff(diffio: *mut diffio_T) -> c_int {
                     io_error = true;
                 }
                 fclose(fd);
-                fd = os_fopen((*diffio).dio_new.din_fname, c"w".as_ptr());
+                fd = os_fopen(new_fname, c"w".as_ptr());
                 if fd.is_null() {
                     io_error = true;
                 } else {
@@ -1066,7 +1069,7 @@ unsafe fn check_external_diff(diffio: *mut diffio_T) -> c_int {
                     }
                     fclose(fd);
                     fd = if diff_file(diffio) == OK {
-                        os_fopen((*diffio).dio_diff.dout_fname, c"r".as_ptr())
+                        os_fopen(diff_fname, c"r".as_ptr())
                     } else {
                         ptr::null_mut()
                     };
@@ -1087,10 +1090,10 @@ unsafe fn check_external_diff(diffio: *mut diffio_T) -> c_int {
                         }
                         fclose(fd);
                     }
-                    let _ = os_remove((*diffio).dio_diff.dout_fname);
-                    let _ = os_remove((*diffio).dio_new.din_fname);
+                    let _ = os_remove(diff_fname);
+                    let _ = os_remove(new_fname);
                 }
-                let _ = os_remove((*diffio).dio_orig.din_fname);
+                let _ = os_remove(orig_fname);
             }
             if p_dex.cb_type() != kCallbackNone {
                 break;
@@ -1163,9 +1166,21 @@ unsafe fn diff_file_internal(diffio: *mut diffio_T) -> c_int {
 }
 unsafe fn diff_file(dio: *mut diffio_T) -> c_int {
     unsafe {
-        let tmp_orig = (*dio).dio_orig.din_fname;
-        let tmp_new = (*dio).dio_new.din_fname;
-        let tmp_diff = (*dio).dio_diff.dout_fname;
+        let tmp_orig = (*dio)
+            .dio_orig
+            .din_fname
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        let tmp_new = (*dio)
+            .dio_new
+            .din_fname
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        let tmp_diff = (*dio)
+            .dio_diff
+            .dout_fname
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         if p_dex.cb_type() != kCallbackNone {
             eval_diff(tmp_orig, tmp_new, tmp_diff);
             return OK;
@@ -1744,7 +1759,7 @@ unsafe fn diff_read(idx_orig: usize, idx_new: usize, dio: *mut diffio_T) {
         let mut notset = true;
         let mut diffstyle = diffstyle_T::DIFF_NONE;
         if (*dio).dio_internal == 0 {
-            fd = os_fopen((*dout).dout_fname, c"r".as_ptr());
+            fd = os_fopen((*dout).dout_fname.as_ref().unwrap().as_ptr(), c"r".as_ptr());
             if fd.is_null() {
                 emsg(gettext(c"E98: Cannot read diff output".as_ptr()));
                 return;
@@ -2817,21 +2832,21 @@ unsafe fn diff_find_change_inline_diff(dp_idx: usize) {
         let save_diff_algorithm = diff_algorithm;
         let mut dio = diffio_T {
             dio_orig: diffin_T {
-                din_fname: ptr::null_mut(),
+                din_fname: None,
                 din_mmfile: mmfile_t {
                     ptr: ptr::null_mut(),
                     size: 0,
                 },
             },
             dio_new: diffin_T {
-                din_fname: ptr::null_mut(),
+                din_fname: None,
                 din_mmfile: mmfile_t {
                     ptr: ptr::null_mut(),
                     size: 0,
                 },
             },
             dio_diff: diffout_T {
-                dout_fname: ptr::null_mut(),
+                dout_fname: None,
                 dout_ga: Vec::new(),
             },
             dio_internal: 1,

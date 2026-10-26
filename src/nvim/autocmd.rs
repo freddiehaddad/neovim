@@ -68,7 +68,7 @@ use crate::window::{
     check_lnums, check_lnums_nested, reset_lnums, snapshot_windows_scroll_size, unuse_tabpage,
     use_tabpage, win_T,
 };
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
 
 pub type event_T = c_int;
@@ -76,7 +76,7 @@ pub(crate) const BUFLOCAL_PAT_LEN: usize = 25;
 
 #[repr(C)]
 pub struct AutoPat {
-    pub pat: *mut c_char,
+    pub pat: CString,
     pub reg_prog: std::cell::Cell<*mut crate::regexp::regprog_T>,
     pub group: c_int,
     pub patlen: c_int,
@@ -87,16 +87,15 @@ pub struct AutoPat {
 impl Drop for AutoPat {
     fn drop(&mut self) {
         unsafe {
-            xfree(self.pat.cast());
             vim_regfree(self.reg_prog.get());
         }
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum AutoCmdHandler {
     None,
-    Cmd(*mut c_char),
+    Cmd(CString),
     Fn(Callback),
 }
 
@@ -111,7 +110,7 @@ impl AutoCmdHandler {
 pub struct AutoCmd {
     pub pat: Option<std::rc::Rc<AutoPat>>,
     pub id: i64,
-    pub desc: *mut c_char,
+    pub desc: Option<CString>,
     pub handler: AutoCmdHandler,
     pub script_ctx: crate::runtime::sctx_T,
     pub once: bool,
@@ -123,7 +122,7 @@ impl AutoCmd {
         Self {
             pat: None,
             id: 0,
-            desc: ptr::null_mut(),
+            desc: None,
             handler: AutoCmdHandler::None,
             script_ctx: crate::runtime::sctx_T::new(),
             once: false,
@@ -141,18 +140,10 @@ impl Default for AutoCmd {
 impl Drop for AutoCmd {
     fn drop(&mut self) {
         unsafe {
-            match &mut self.handler {
-                AutoCmdHandler::Cmd(cmd) => {
-                    xfree((*cmd).cast());
-                }
-                AutoCmdHandler::Fn(cb) => {
-                    callback_free(cb);
-                }
-                AutoCmdHandler::None => {}
+            if let AutoCmdHandler::Fn(cb) = &mut self.handler {
+                callback_free(cb);
             }
             self.handler = AutoCmdHandler::None;
-            xfree(self.desc.cast());
-            self.desc = ptr::null_mut();
         }
     }
 }
@@ -1575,7 +1566,7 @@ unsafe fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char
                 let pat_matches = if patlen != 0 {
                     ap.patlen == patlen
                         && std::slice::from_raw_parts(pat.cast::<u8>(), patlen as usize)
-                            == std::slice::from_raw_parts(ap.pat.cast::<u8>(), patlen as usize)
+                            == ap.pat.as_bytes()
                 } else {
                     true
                 };
@@ -1616,7 +1607,7 @@ unsafe fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char
                     }
 
                     msg_advance(4);
-                    msg_outtrans(ap.pat, 0, false);
+                    msg_outtrans(ap.pat.as_ptr(), 0, false);
                 }
 
                 if got_int {
@@ -1632,28 +1623,30 @@ unsafe fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char
                 }
 
                 let handler_str = aucmd_handler_to_string(ac);
-                if !ac.desc.is_null() {
+                if let Some(desc) = &ac.desc {
                     let msglen = 100usize;
-                    let mbuf = xmallocz(msglen).cast::<c_char>();
-                    let desc_str = CStr::from_ptr(ac.desc).to_string_lossy();
+                    let mut mbuf = [0 as c_char; 100];
+                    let desc_str = desc.to_string_lossy();
                     let formatted = if ac.handler.is_cmd() {
-                        let h_str = CStr::from_ptr(handler_str).to_string_lossy();
+                        let h_str = handler_str.to_string_lossy();
                         format!("{h_str} [{desc_str}]")
                     } else {
-                        msg_puts_hl(handler_str, HLF_8, false);
+                        msg_puts_hl(handler_str.as_ptr(), HLF_8, false);
                         format!(" [{desc_str}]")
                     };
                     let copy_len = formatted.len().min(msglen - 1);
-                    ptr::copy_nonoverlapping(formatted.as_ptr().cast::<c_char>(), mbuf, copy_len);
-                    *mbuf.add(copy_len) = NUL;
-                    msg_outtrans(mbuf, 0, false);
-                    xfree(mbuf.cast());
+                    ptr::copy_nonoverlapping(
+                        formatted.as_ptr().cast::<c_char>(),
+                        mbuf.as_mut_ptr(),
+                        copy_len,
+                    );
+                    mbuf[copy_len] = NUL;
+                    msg_outtrans(mbuf.as_ptr(), 0, false);
                 } else if ac.handler.is_cmd() {
-                    msg_outtrans(handler_str, 0, false);
+                    msg_outtrans(handler_str.as_ptr(), 0, false);
                 } else {
-                    msg_puts_hl(handler_str, HLF_8, false);
+                    msg_puts_hl(handler_str.as_ptr(), HLF_8, false);
                 }
-                xfree(handler_str.cast());
                 if p_verbose > 0 {
                     last_set_msg(ac.script_ctx);
                 }
@@ -2248,7 +2241,7 @@ pub unsafe fn do_autocmd_event(
                         && ap.group == findgroup
                         && ap.patlen == patlen
                         && std::slice::from_raw_parts(pat.cast::<u8>(), patlen as usize)
-                            == std::slice::from_raw_parts(ap.pat.cast::<u8>(), patlen as usize)
+                            == ap.pat.as_bytes()
                     {
                         aucmd_del(ac);
                     }
@@ -2333,7 +2326,7 @@ pub unsafe fn autocmd_register(
             if ac_ap.group == findgroup
                 && ac_ap.patlen == patlen
                 && std::slice::from_raw_parts(pat.cast::<u8>(), patlen as usize)
-                    == std::slice::from_raw_parts(ac_ap.pat.cast::<u8>(), patlen as usize)
+                    == ac_ap.pat.as_bytes()
             {
                 ap = Some(ac_ap.clone());
             }
@@ -2387,8 +2380,9 @@ pub unsafe fn autocmd_register(
                 use_tabpage(save_curtab);
             }
 
+            let pat_slice = std::slice::from_raw_parts(pat.cast::<u8>(), patlen as usize);
             std::rc::Rc::new(AutoPat {
-                pat: xmemdupz(pat.cast(), patlen as usize).cast::<c_char>(),
+                pat: CString::new(pat_slice).unwrap(),
                 reg_prog: std::cell::Cell::new(reg_prog),
                 group: findgroup,
                 patlen,
@@ -2401,7 +2395,7 @@ pub unsafe fn autocmd_register(
         ac.pat = Some(ap);
         ac.id = id;
         if !handler_cmd.is_null() {
-            ac.handler = AutoCmdHandler::Cmd(xstrdup(handler_cmd));
+            ac.handler = AutoCmdHandler::Cmd(CStr::from_ptr(handler_cmd).to_owned());
         } else {
             let mut cb = Callback::new();
             callback_copy(&raw mut cb, handler_fn);
@@ -2415,9 +2409,9 @@ pub unsafe fn autocmd_register(
         ac.once = once;
         ac.nested = nested;
         ac.desc = if desc.is_null() {
-            ptr::null_mut()
+            None
         } else {
-            xstrdup(desc)
+            Some(CStr::from_ptr(desc).to_owned())
         };
         (*acs).push(ac);
 
@@ -3288,7 +3282,7 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
 
                 let name = event_nr2name((*apc).event);
                 let name_str = CStr::from_ptr(name).to_string_lossy();
-                let pat_str = CStr::from_ptr(ap.pat).to_string_lossy();
+                let pat_str = ap.pat.to_string_lossy();
                 let formatted = format!("{name_str} Autocommands for \"{pat_str}\"");
                 let namep = xmemdupz(formatted.as_ptr().cast(), formatted.len()).cast::<c_char>();
                 if p_verbose >= 8 {
@@ -3319,16 +3313,12 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
 }
 
 unsafe fn au_callback(
-    handler: AutoCmdHandler,
+    mut callback: Callback,
     id: i64,
     group: c_int,
     apc: *const AutoPatCmd,
 ) -> bool {
     unsafe {
-        let mut callback = match handler {
-            AutoCmdHandler::Fn(cb) => cb,
-            AutoCmdHandler::Cmd(_) | AutoCmdHandler::None => Callback::NONE,
-        };
         if callback.cb_type() == kCallbackLua {
             let mut data_items = [KeyValuePair {
                 key: NvimString {
@@ -3444,9 +3434,8 @@ pub unsafe fn getnextac(
         if p_verbose >= 9 {
             verbose_enter_scroll();
             let handler_str = aucmd_handler_to_string(ac);
-            smsg!(0, tr(c"autocommand %s"), handler_str);
+            smsg!(0, tr(c"autocommand %s"), handler_str.as_ptr());
             msg_puts(c"\n".as_ptr());
-            xfree(handler_str.cast());
             verbose_leave_scroll();
         }
 
@@ -3454,14 +3443,25 @@ pub unsafe fn getnextac(
         current_sctx = ac.script_ctx;
         (*apc).script_ctx = current_sctx;
 
-        let retval = match ac.handler {
-            AutoCmdHandler::Cmd(cmd) => xstrdup(cmd),
-            AutoCmdHandler::Fn(_) | AutoCmdHandler::None => {
-                let handler = ac.handler;
+        let retval = match &ac.handler {
+            AutoCmdHandler::Cmd(cmd) => xstrdup(cmd.as_ptr()),
+            AutoCmdHandler::Fn(cb) => {
+                let cb = *cb;
                 let id = ac.id;
                 let group = ac.pat.as_ref().unwrap().group;
                 let saved_pat = if oneshot { ac.pat.take() } else { None };
-                let rv = au_callback(handler, id, group, apc);
+                let rv = au_callback(cb, id, group, apc);
+                if oneshot {
+                    (&mut *acs)[auidx].pat = saved_pat;
+                }
+                oneshot = oneshot || rv;
+                xmallocz(0).cast::<c_char>()
+            }
+            AutoCmdHandler::None => {
+                let id = ac.id;
+                let group = ac.pat.as_ref().unwrap().group;
+                let saved_pat = if oneshot { ac.pat.take() } else { None };
+                let rv = au_callback(Callback::NONE, id, group, apc);
                 if oneshot {
                     (&mut *acs)[auidx].pat = saved_pat;
                 }
@@ -3706,7 +3706,7 @@ pub unsafe fn au_exists(arg: *const c_char) -> bool {
                         let pat_match = if pattern.is_null() {
                             true
                         } else if buflocal_buf.is_null() {
-                            mb_strcmp_ic(p_fic != 0, ap.pat, pattern) == 0
+                            mb_strcmp_ic(p_fic != 0, ap.pat.as_ptr(), pattern) == 0
                         } else {
                             ap.buflocal_nr == (*buflocal_buf).b_fnum
                         };
@@ -3793,12 +3793,17 @@ pub unsafe fn autocmd_delete_id(id: i64) -> bool {
     }
 }
 
-pub unsafe fn aucmd_handler_to_string(ac: &mut AutoCmd) -> *mut c_char {
+pub unsafe fn aucmd_handler_to_string(ac: &mut AutoCmd) -> CString {
     unsafe {
         match &mut ac.handler {
-            AutoCmdHandler::Cmd(cmd) => xstrdup(*cmd),
-            AutoCmdHandler::Fn(cb) => callback_to_string(cb, ptr::null_mut()),
-            AutoCmdHandler::None => xstrdup(c"".as_ptr()),
+            AutoCmdHandler::Cmd(cmd) => cmd.clone(),
+            AutoCmdHandler::Fn(cb) => {
+                let raw = callback_to_string(cb, ptr::null_mut());
+                let cstr = CStr::from_ptr(raw).to_owned();
+                xfree(raw.cast());
+                cstr
+            }
+            AutoCmdHandler::None => CString::default(),
         }
     }
 }

@@ -480,7 +480,10 @@ unsafe fn draw_virt_text_item(
         let mut virt_str: *const c_char = c"".as_ptr();
         let mut virt_attr: c_int = 0;
         let mut virt_pos: usize = 0;
-        eol_hl &= !vt.is_empty() && *vt[vt.len() - 1].text == NUL;
+        eol_hl &= vt
+            .last()
+            .and_then(|c| c.text.as_ref())
+            .is_some_and(|s| s.as_bytes().is_empty());
 
         while col < max_col {
             if eol_hl && *virt_str == NUL && virt_pos == vt.len() {

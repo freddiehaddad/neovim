@@ -49,7 +49,7 @@ use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::Integer;
 use crate::sign::init_sign_text;
 use crate::window::win_T;
-use std::ffi::{c_char, c_int};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::cursor::{colnr_T, linenr_T};
@@ -278,7 +278,7 @@ pub unsafe fn virt_text_to_array(vt: &[VirtTextChunk], hl_name: bool, arena: *mu
         while i < vt.len() {
             let mut j = i;
             while j < vt.len() {
-                if !vt[j].text.is_null() {
+                if vt[j].text.is_some() {
                     break;
                 }
                 j += 1;
@@ -293,7 +293,7 @@ pub unsafe fn virt_text_to_array(vt: &[VirtTextChunk], hl_name: bool, arena: *mu
                 i += 1;
             }
 
-            let text = vt[i].text;
+            let text = vt[i].text.as_ref().map_or(ptr::null(), |s| s.as_ptr());
             let hl_id = vt[i].hl_id;
             let mut chunk = arena_array(arena, 2);
             add_c(&mut chunk, string_obj(cstr_as_string(text)));
@@ -1655,10 +1655,7 @@ pub unsafe fn parse_virt_text(
                                 break 'free_exit;
                             }
                             if j < arr.size - 1 {
-                                virt_text.push(VirtTextChunk {
-                                    text: ptr::null_mut(),
-                                    hl_id,
-                                });
+                                virt_text.push(VirtTextChunk { text: None, hl_id });
                             }
                         }
                     } else {
@@ -1678,8 +1675,13 @@ pub unsafe fn parse_virt_text(
                     untab,
                 );
                 w += mb_string2cells(text) as c_int;
+                let text_cstr = CStr::from_ptr(text).to_owned();
+                xfree(text.cast());
 
-                virt_text.push(VirtTextChunk { text, hl_id });
+                virt_text.push(VirtTextChunk {
+                    text: Some(text_cstr),
+                    hl_id,
+                });
             }
 
             if !width.is_null() {

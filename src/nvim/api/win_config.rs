@@ -1379,9 +1379,14 @@ pub unsafe fn parse_bordertext(
                 return;
             }
             let text = transstr(bordertext.data.string.data, true);
-            chunks.clear();
-            chunks.push(VirtTextChunk { text, hl_id: -1 });
             *width = mb_string2cells(text) as c_int;
+            let text_cstr = std::ffi::CStr::from_ptr(text).to_owned();
+            crate::memory::xfree(text.cast());
+            chunks.clear();
+            chunks.push(VirtTextChunk {
+                text: Some(text_cstr),
+                hl_id: -1,
+            });
         } else {
             *chunks = parse_virt_text(bordertext.data.array, err, width, true);
             if error_set(err) {

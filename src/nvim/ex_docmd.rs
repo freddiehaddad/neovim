@@ -5415,7 +5415,7 @@ pub unsafe fn handle_did_throw() {
                     (&raw mut IObuff).cast(),
                     IOSIZE,
                     gettext(c"E605: Exception not caught: %s".as_ptr()),
-                    (*current_exception).value,
+                    (*current_exception).value.as_ptr(),
                 );
                 p = xstrdup((&raw const IObuff).cast());
             }
@@ -5426,12 +5426,12 @@ pub unsafe fn handle_did_throw() {
             _ => {}
         }
 
+        let throw_name = std::mem::take(&mut (*current_exception).throw_name);
         estack_push(
             ETYPE_EXCEPT,
-            (*current_exception).throw_name,
+            throw_name.as_ptr().cast_mut(),
             (*current_exception).throw_lnum,
         );
-        (*current_exception).throw_name = ptr::null_mut();
 
         discard_current_exception();
 
@@ -5442,14 +5442,19 @@ pub unsafe fn handle_did_throw() {
 
         if !messages.is_empty() {
             for msg in messages {
-                let _ = emsg_multiline(msg.msg, c"emsg".as_ptr(), HLF_E, msg.multiline);
+                let _ = emsg_multiline(
+                    msg.msg.as_ptr().cast_mut(),
+                    c"emsg".as_ptr(),
+                    HLF_E,
+                    msg.multiline,
+                );
             }
         } else if !p.is_null() {
             let _ = emsg(p);
             xfree(p.cast());
         }
-        xfree((*sourcing_name_ptr()).cast());
         estack_pop();
+        drop(throw_name);
     }
 }
 

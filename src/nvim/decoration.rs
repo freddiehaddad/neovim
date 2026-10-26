@@ -30,7 +30,7 @@ use crate::marktree::{
     mt_end, mt_invalid,
 };
 use crate::mbyte::{utf_ptr2cells, utfc_ptr2len};
-use crate::memory::{Arena, xfree, xstrdup};
+use crate::memory::{Arena, xfree};
 use crate::r#move::{changed_window_setting, win_col_off};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::MAXCOL;
@@ -291,35 +291,11 @@ impl DecorInline {
 }
 
 #[repr(C)]
+#[derive(Clone)]
 pub struct VirtTextChunk {
-    pub text: *mut c_char,
+    pub text: Option<std::ffi::CString>,
     pub hl_id: c_int,
 }
-
-impl Clone for VirtTextChunk {
-    fn clone(&self) -> Self {
-        Self {
-            text: if self.text.is_null() {
-                ptr::null_mut()
-            } else {
-                unsafe { xstrdup(self.text) }
-            },
-            hl_id: self.hl_id,
-        }
-    }
-}
-
-impl Drop for VirtTextChunk {
-    fn drop(&mut self) {
-        if !self.text.is_null() {
-            unsafe {
-                xfree(self.text.cast());
-            }
-        }
-    }
-}
-
-unsafe impl Sync for VirtTextChunk {}
 
 pub type VirtText = Vec<VirtTextChunk>;
 
@@ -824,7 +800,10 @@ pub unsafe fn next_virt_text_chunk(
         let mut text: *mut c_char = ptr::null_mut();
         while text.is_null() && *pos < vt.len() {
             let chunk = &vt[*pos];
-            text = chunk.text;
+            text = chunk
+                .text
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             let hl_id = chunk.hl_id;
             if hl_id >= 0 {
                 *attr = (*attr).max(0);
@@ -1700,10 +1679,10 @@ pub unsafe fn decor_virt_line_rows(
         let mut row_cells: c_int = 0;
         let mut row: c_int = 0;
         for chunk in vt {
-            let mut virt_str: *const c_char = chunk.text;
-            if virt_str.is_null() {
+            let Some(ref text) = chunk.text else {
                 continue;
-            }
+            };
+            let mut virt_str: *const c_char = text.as_ptr();
             while *virt_str != NUL {
                 let bytes_to_next_char = utfc_ptr2len(virt_str);
                 let cells = if *virt_str == TAB {
