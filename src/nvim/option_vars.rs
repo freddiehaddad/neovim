@@ -479,7 +479,7 @@ pub static mut opt_cpt_values: [*const c_char; 16] = [
     c"o".as_ptr(),
     ptr::null(),
 ];
-pub static mut opt_cot_values: [*const c_char; 13] = [
+pub static mut opt_cot_values: [*const c_char; 14] = [
     c"fuzzy".as_ptr(),
     c"longest".as_ptr(),
     c"menu".as_ptr(),
@@ -488,6 +488,7 @@ pub static mut opt_cot_values: [*const c_char; 13] = [
     c"noinsert".as_ptr(),
     c"noselect".as_ptr(),
     c"nosort".as_ptr(),
+    c"pathopt".as_ptr(),
     c"popup".as_ptr(),
     c"preinsert".as_ptr(),
     c"preselect".as_ptr(),

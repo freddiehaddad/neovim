@@ -137,7 +137,7 @@ pub(crate) const SIGN_SHOW_MAX: usize = 9;
 
 pub(crate) const kCdScopeGlobal: c_int = 3;
 
-pub(crate) const kOptCotFlagPopup: c_uint = 0x100;
+pub(crate) const kOptCotFlagPopup: c_uint = 0x200;
 
 pub(crate) const kChannelStreamInternal: ChannelStreamType = 4;
 

@@ -132,7 +132,7 @@ const HLF_PBR: hlf_T = 51;
 const kZIndexPopupMenu: c_int = 100;
 const kZIndexCmdlinePopupMenu: c_int = 250;
 
-const kOptCotFlagPreview: c_uint = 0x800;
+const kOptCotFlagPreview: c_uint = 0x1000;
 
 static mut PUM_ARRAY: *mut pumitem_T = ptr::null_mut();
 static mut PUM_SIZE: c_int = 0;

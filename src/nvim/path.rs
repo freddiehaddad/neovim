@@ -1235,7 +1235,7 @@ unsafe fn has_special_wildchar(mut p: *const c_char, flags: c_int) -> bool {
                     continue;
                 }
                 if (*p == b'`' as c_char || *p == b'\'' as c_char)
-                    && vim_strchr(p, *p as u8 as c_int).is_null()
+                    && vim_strchr(p.add(1), *p as u8 as c_int).is_null()
                 {
                     p = p.add(1);
                     continue;

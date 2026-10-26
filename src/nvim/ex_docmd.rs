@@ -7673,15 +7673,7 @@ pub unsafe fn skip_range(mut cmd: *const c_char, ctx: *mut c_int) -> *mut c_char
                     *ctx = EXPAND_NOTHING;
                 }
             } else if *cmd == b'/' as c_char || *cmd == b'?' as c_char {
-                let delim = *cmd;
-                cmd = cmd.add(1);
-                while *cmd != NUL && *cmd != delim {
-                    let cur = *cmd;
-                    cmd = cmd.add(1);
-                    if cur == b'\\' as c_char && *cmd != NUL {
-                        cmd = cmd.add(1);
-                    }
-                }
+                cmd = skip_regexp(cmd.add(1).cast_mut(), c_int::from(*cmd as u8), p_magic);
                 if *cmd == NUL && !ctx.is_null() {
                     *ctx = EXPAND_NOTHING;
                 }

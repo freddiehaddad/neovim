@@ -163,7 +163,7 @@ pub unsafe fn os_expand_wildcards(
     flags: c_int,
 ) -> c_int {
     const SH_VIMGLOB_FUNC: &CStr =
-        c"vimglob() { while [ $# -ge 1 ]; do echo \"$1\"; shift; done }; vimglob >";
+        c"vimglob() { while [ $# -ge 1 ]; do printf '%s\\n' \"$1\"; shift; done }; vimglob >";
     const SH_GLOBSTAR_OPT: &CStr = c"[[ ${BASH_VERSINFO[0]} -ge 4 ]] && shopt -s globstar; ";
 
     unsafe {

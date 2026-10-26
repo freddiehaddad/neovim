@@ -2443,10 +2443,10 @@ pub unsafe fn find_tags_vec(
         matches.clear();
         matches.reserve_exact(raw_matches.len());
         for m in raw_matches {
-            matches.push(crate::path::alloc_cstring_bytes(std::slice::from_raw_parts(
-                m.as_ptr().cast::<u8>(),
+            matches.push(crate::memory::alloc_cstring_len(
+                m.as_ptr(),
                 m.len().saturating_sub(1),
-            )));
+            ));
         }
         ret
     }

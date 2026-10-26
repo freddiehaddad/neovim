@@ -3857,7 +3857,7 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
             (*curwin).w_set_curswant = true;
 
             (*oap).empty = (*oap).motion_type != kMTLineWise
-                && (!(*oap).inclusive
+                && ((!(*oap).inclusive && (*oap).motion_type != kMTBlockWise)
                     || ((*oap).op_type == OP_YANK
                         && gchar_pos(&raw mut (*oap).end) == c_int::from(NUL)))
                 && equalpos((*oap).start, (*oap).end)

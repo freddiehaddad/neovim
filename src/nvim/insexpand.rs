@@ -93,7 +93,7 @@ use crate::os::fs::os_fopen;
 use crate::os::input::{fast_breakcheck, line_breakcheck, os_breakcheck};
 use crate::os::time::os_hrtime;
 use crate::path::{
-    EW_ADDSLASH, EW_DIR, EW_FILE, EW_SILENT, PATHSEP, expand_wildcards_vec, path_tail,
+    EW_ADDSLASH, EW_DIR, EW_FILE, EW_PATH, EW_SILENT, PATHSEP, expand_wildcards_vec, path_tail,
 };
 #[cfg(windows)]
 use crate::path::{path_has_drive_letter, path_to_slash};
@@ -161,8 +161,9 @@ const kOptCotFlagNearest: c_uint = 0x10;
 const kOptCotFlagNoinsert: c_uint = 0x20;
 const kOptCotFlagNoselect: c_uint = 0x40;
 const kOptCotFlagNosort: c_uint = 0x80;
-const kOptCotFlagPreinsert: c_uint = 0x200;
-const kOptCotFlagPreselect: c_uint = 0x400;
+const kOptCotFlagPathopt: c_uint = 0x100;
+const kOptCotFlagPreinsert: c_uint = 0x400;
+const kOptCotFlagPreselect: c_uint = 0x800;
 
 pub(crate) const kShmCompletionscan: c_int = b'C' as c_int;
 
@@ -4295,14 +4296,12 @@ unsafe fn get_next_filename_completion() {
             }
         }
 
+        let mut flags = EW_FILE | EW_DIR | EW_ADDSLASH | EW_SILENT;
+        if (get_cot_flags() & kOptCotFlagPathopt) != 0 {
+            flags |= EW_PATH;
+        }
         let mut pat_ptr = compl_pattern_ptr();
-        if expand_wildcards_vec(
-            1,
-            &raw mut pat_ptr,
-            &mut matches,
-            EW_FILE | EW_DIR | EW_ADDSLASH | EW_SILENT,
-        ) != OK
-        {
+        if expand_wildcards_vec(1, &raw mut pat_ptr, &mut matches, flags) != OK {
             return;
         }
 
