@@ -11,14 +11,14 @@ use crate::fileio::file_pat_to_reg_pat;
 use crate::globals::*;
 use crate::input::{restore_typeahead, save_typeahead, tasave_T};
 use crate::math::OK;
-use crate::memory::{xfree, xmalloc};
+use crate::memory::cstr_take;
 use crate::message::{emsg, msg, msg_starthere, semsg, smsg};
 use crate::os::env::{expand_env_save, home_replace};
 use crate::path::fix_fname;
 use crate::regexp::{RE_MAGIC, RE_STRING, vim_regcomp, vim_regexec_prog, vim_regfree};
 use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
 use crate::strings::atoi;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, CString, c_char, c_int};
 
 const DBG_FUNC: c_int = 1;
 const DBG_FILE: c_int = 2;
@@ -46,8 +46,8 @@ static mut HAS_EXPR_BREAKPOINT: bool = false;
 static mut DEBUG_SKIPPED: bool = false;
 static mut DEBUG_BREAKPOINT_LNUM: c_int = 0;
 
-static mut DEBUG_OLDVAL: *mut c_char = std::ptr::null_mut();
-static mut DEBUG_NEWVAL: *mut c_char = std::ptr::null_mut();
+static mut DEBUG_OLDVAL: Option<CString> = None;
+static mut DEBUG_NEWVAL: Option<CString> = None;
 static mut DEBUG_BREAKPOINT_NAME: *mut c_char = std::ptr::null_mut();
 static mut DEBUG_SKIPPED_NAME: *mut c_char = std::ptr::null_mut();
 
@@ -117,13 +117,13 @@ unsafe fn do_checkbacktracelevel() {
             debug_backtrace_level = 0;
             msg(c"frame is zero".as_ptr(), 0);
         } else {
-            let sname = estack_sfile(ESTACK_NONE);
-            let max = get_maxbacktrace_level(sname);
+            let sname = cstr_take(estack_sfile(ESTACK_NONE));
+            let max =
+                get_maxbacktrace_level(sname.as_ref().map_or(std::ptr::null(), |s| s.as_ptr()));
             if debug_backtrace_level > max {
                 debug_backtrace_level = max;
                 smsg!(0, c"frame at highest level: %d".as_ptr(), max);
             }
-            xfree(sname.cast());
         }
     }
 }
@@ -142,11 +142,17 @@ unsafe fn do_setdebugtracelevel(arg: *mut c_char) {
 
 unsafe fn do_showbacktrace(cmd: *const c_char) {
     unsafe {
-        let sname = estack_sfile(ESTACK_NONE);
-        let max = get_maxbacktrace_level(sname);
-        if !sname.is_null() {
+        let sname_cstr = cstr_take(estack_sfile(ESTACK_NONE));
+        let max =
+            get_maxbacktrace_level(sname_cstr.as_ref().map_or(std::ptr::null(), |s| s.as_ptr()));
+        if let Some(sname_cstr) = sname_cstr {
+            let mut sname_vec: Vec<c_char> = sname_cstr
+                .as_bytes_with_nul()
+                .iter()
+                .map(|&b| b as c_char)
+                .collect();
             let mut i: c_int = 0;
-            let mut cur = sname;
+            let mut cur = sname_vec.as_mut_ptr();
             while !got_int {
                 let cur_bytes = CStr::from_ptr(cur).to_bytes();
                 let next_off = cur_bytes.windows(2).position(|w| w == b"..");
@@ -166,7 +172,6 @@ unsafe fn do_showbacktrace(cmd: *const c_char) {
                     break;
                 }
             }
-            xfree(sname.cast());
         }
 
         let slnum = sourcing_lnum();
@@ -192,7 +197,7 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
         let mut typeaheadbuf = tasave_T::new();
         let mut typeahead_saved = false;
         let mut save_ignore_script = false;
-        let mut cmdline: *mut c_char = std::ptr::null_mut();
+        let mut cmdline_cstr: Option<CString>;
 
         RedrawingDisabled += 1;
         no_wait_return += 1;
@@ -211,21 +216,15 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
                 0,
             );
         }
-        if !DEBUG_OLDVAL.is_null() {
-            smsg!(0, c"Oldval = \"%s\"".as_ptr(), DEBUG_OLDVAL);
-            xfree(DEBUG_OLDVAL.cast());
-            DEBUG_OLDVAL = std::ptr::null_mut();
+        if let Some(oldval) = (&raw mut DEBUG_OLDVAL).as_mut().unwrap().take() {
+            smsg!(0, c"Oldval = \"%s\"".as_ptr(), oldval.as_ptr());
         }
-        if !DEBUG_NEWVAL.is_null() {
-            smsg!(0, c"Newval = \"%s\"".as_ptr(), DEBUG_NEWVAL);
-            xfree(DEBUG_NEWVAL.cast());
-            DEBUG_NEWVAL = std::ptr::null_mut();
+        if let Some(newval) = (&raw mut DEBUG_NEWVAL).as_mut().unwrap().take() {
+            smsg!(0, c"Newval = \"%s\"".as_ptr(), newval.as_ptr());
         }
-        let sname = estack_sfile(ESTACK_NONE);
-        if !sname.is_null() {
-            msg(sname, 0);
+        if let Some(sname) = cstr_take(estack_sfile(ESTACK_NONE)) {
+            msg(sname.as_ptr(), 0);
         }
-        xfree(sname.cast());
         let slnum = sourcing_lnum();
         if slnum != 0 {
             let line_msg = format!("line {slnum}: %s\0");
@@ -250,8 +249,7 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
             let n = debug_break_level;
             debug_break_level = -1;
 
-            xfree(cmdline.cast());
-            cmdline = getcmdline_prompt(
+            cmdline_cstr = cstr_take(getcmdline_prompt(
                 b'>' as c_int,
                 std::ptr::null(),
                 0,
@@ -260,7 +258,10 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
                 Callback::NONE,
                 false,
                 std::ptr::null_mut(),
-            );
+            ));
+            let cmdline = cmdline_cstr
+                .as_ref()
+                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
             debug_break_level = n;
             if typeahead_saved {
@@ -379,7 +380,6 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
             }
             lines_left = Rows - 1;
         }
-        xfree(cmdline.cast());
 
         RedrawingDisabled -= 1;
         no_wait_return -= 1;
@@ -541,27 +541,14 @@ unsafe fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
             bp.dbg_name = CStr::from_ptr(p).to_owned();
             bp.dbg_val = eval_expr_no_emsg(bp.dbg_name.as_ptr().cast_mut());
         } else {
-            let q = expand_env_save(p);
-            if q.is_null() {
-                return None;
-            }
-            let p_exp = expand_env_save(q);
-            xfree(q.cast());
-            if p_exp.is_null() {
-                return None;
-            }
-            let raw_name = if *p_exp as u8 != b'*' {
-                let fixed = fix_fname(p_exp);
-                xfree(p_exp.cast());
-                fixed
+            let q = cstr_take(expand_env_save(p))?;
+            let p_exp = cstr_take(expand_env_save(q.as_ptr().cast_mut()))?;
+            let raw_name = if *p_exp.as_ptr() as u8 != b'*' {
+                cstr_take(fix_fname(p_exp.as_ptr()))?
             } else {
                 p_exp
             };
-            if raw_name.is_null() {
-                return None;
-            }
-            bp.dbg_name = CStr::from_ptr(raw_name).to_owned();
-            xfree(raw_name.cast());
+            bp.dbg_name = raw_name;
         }
 
         Some(bp)
@@ -582,17 +569,16 @@ pub unsafe fn ex_breakadd(eap: *mut exarg_T) {
         bp.dbg_forceit = eap.forceit;
 
         if bp.dbg_type != DBG_EXPR {
-            let pat = file_pat_to_reg_pat(
+            let pat = cstr_take(file_pat_to_reg_pat(
                 bp.dbg_name.as_ptr(),
                 std::ptr::null(),
                 std::ptr::null_mut(),
                 0,
-            );
-            if !pat.is_null() {
-                bp.dbg_prog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
-                xfree(pat.cast());
+            ));
+            if let Some(ref pat) = pat {
+                bp.dbg_prog = vim_regcomp(pat.as_ptr(), RE_MAGIC + RE_STRING);
             }
-            if !pat.is_null() && !bp.dbg_prog.is_null() {
+            if pat.is_some() && !bp.dbg_prog.is_null() {
                 if bp.dbg_lnum == 0 {
                     bp.dbg_lnum = 1;
                 }
@@ -741,13 +727,14 @@ unsafe fn debuggy_find(
         }
 
         let mut lnum: i32 = 0;
+        let name_owned: Option<CString>;
         let name = if !file && (*fname as u8) == K_SPECIAL {
             let rest_bytes = CStr::from_ptr(fname.add(3)).to_bytes();
-            let buf = xmalloc(5 + rest_bytes.len() + 1).cast::<u8>();
-            std::ptr::copy_nonoverlapping(b"<SNR>".as_ptr(), buf, 5);
-            std::ptr::copy_nonoverlapping(rest_bytes.as_ptr(), buf.add(5), rest_bytes.len());
-            *buf.add(5 + rest_bytes.len()) = 0;
-            buf.cast::<c_char>()
+            let mut bytes = Vec::with_capacity(5 + rest_bytes.len());
+            bytes.extend_from_slice(b"<SNR>");
+            bytes.extend_from_slice(rest_bytes);
+            name_owned = Some(CString::new(bytes).unwrap_or_default());
+            name_owned.as_ref().unwrap().as_ptr().cast_mut()
         } else {
             fname
         };
@@ -774,28 +761,22 @@ unsafe fn debuggy_find(
                             && tv.vval.v_number == 0
                         {
                             line = true;
-                            xfree(DEBUG_OLDVAL.cast());
-                            DEBUG_OLDVAL = typval_tostring(Some(old_val), true);
+                            DEBUG_OLDVAL = cstr_take(typval_tostring(Some(old_val), true));
                             let mut v = eval_expr_no_emsg(bp.dbg_name.as_ptr().cast_mut());
-                            xfree(DEBUG_NEWVAL.cast());
-                            DEBUG_NEWVAL = typval_tostring(v.as_mut(), true);
+                            DEBUG_NEWVAL = cstr_take(typval_tostring(v.as_mut(), true));
                             tv_clear(old_val);
                             bp.dbg_val = v;
                         }
                         tv_clear(&raw mut tv);
                     } else {
-                        xfree(DEBUG_OLDVAL.cast());
-                        DEBUG_OLDVAL = typval_tostring(None, true);
+                        DEBUG_OLDVAL = cstr_take(typval_tostring(None, true));
                         bp.dbg_val = Some(tv);
-                        xfree(DEBUG_NEWVAL.cast());
-                        DEBUG_NEWVAL = typval_tostring(bp.dbg_val.as_mut(), true);
+                        DEBUG_NEWVAL = cstr_take(typval_tostring(bp.dbg_val.as_mut(), true));
                         line = true;
                     }
                 } else if let Some(ref mut old_val) = bp.dbg_val {
-                    xfree(DEBUG_OLDVAL.cast());
-                    DEBUG_OLDVAL = typval_tostring(Some(old_val), true);
-                    xfree(DEBUG_NEWVAL.cast());
-                    DEBUG_NEWVAL = typval_tostring(None, true);
+                    DEBUG_OLDVAL = cstr_take(typval_tostring(Some(old_val), true));
+                    DEBUG_NEWVAL = cstr_take(typval_tostring(None, true));
                     tv_clear(old_val);
                     bp.dbg_val = None;
                     line = true;
@@ -806,10 +787,6 @@ unsafe fn debuggy_find(
                     break;
                 }
             }
-        }
-
-        if name != fname {
-            xfree(name.cast());
         }
 
         lnum

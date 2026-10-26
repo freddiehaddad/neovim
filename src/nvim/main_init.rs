@@ -73,9 +73,7 @@ use crate::math::{FAIL, OK};
 use crate::mcursor::mc_init;
 use crate::memfile::memfile_T;
 use crate::memline::{ml_close_all, ml_close_notmod, ml_recover, ml_sync_all, recover_names};
-use crate::memory::{
-    entered_free_all_mem, free_all_mem, strequal, striequal_str, xfree, xmalloc, xstrdup,
-};
+use crate::memory::{cstr_take, entered_free_all_mem, free_all_mem, strequal, striequal_str};
 use crate::message::{msg_putchar, semsg, wait_return};
 use crate::mouse::setmouse;
 use crate::r#move::update_topline;
@@ -169,7 +167,6 @@ const ERR_TOO_MANY_ARGS: &CStr = c"Too many edit arguments";
 const ERR_EXTRA_CMD: &CStr =
     c"Too many \"+command\", \"-c command\" or \"--cmd command\" arguments";
 
-#[repr(C)]
 pub struct mparm_T {
     pub argc: c_int,
     pub argv: *mut *mut c_char,
@@ -177,11 +174,8 @@ pub struct mparm_T {
     pub use_vimrc: *mut c_char,
     pub clean: bool,
 
-    pub n_commands: c_int,
-    pub commands: [*mut c_char; MAX_ARG_CMDS],
-    pub cmds_tofree: [c_char; MAX_ARG_CMDS],
-    pub n_pre_commands: c_int,
-    pub pre_commands: [*mut c_char; MAX_ARG_CMDS],
+    pub commands: Vec<std::ffi::CString>,
+    pub pre_commands: Vec<std::ffi::CString>,
     pub luaf: *mut c_char,
     pub lua_arg0: c_int,
 
@@ -215,11 +209,8 @@ impl mparm_T {
             argv: ptr::null_mut(),
             use_vimrc: ptr::null_mut(),
             clean: false,
-            n_commands: 0,
-            commands: [ptr::null_mut(); MAX_ARG_CMDS],
-            cmds_tofree: [0; MAX_ARG_CMDS],
-            n_pre_commands: 0,
-            pre_commands: [ptr::null_mut(); MAX_ARG_CMDS],
+            commands: Vec::new(),
+            pre_commands: Vec::new(),
             luaf: ptr::null_mut(),
             lua_arg0: 0,
             edit_type: 0,
@@ -707,7 +698,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
 
         handle_tag(params.tagname);
 
-        if params.n_commands > 0 {
+        if !params.commands.is_empty() {
             exe_commands(&raw mut params);
         }
 
@@ -1320,16 +1311,16 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
         while argc > 0 {
             let arg0 = *argv;
             if *arg0 == b'+' as c_char && !had_minmin {
-                if (*parmp).n_commands as usize >= MAX_ARG_CMDS {
+                if (*parmp).commands.len() >= MAX_ARG_CMDS {
                     mainerr(ERR_EXTRA_CMD.as_ptr(), ptr::null(), ptr::null());
                 }
                 argv_idx = -1;
-                let idx = (*parmp).n_commands as usize;
-                (*parmp).n_commands += 1;
                 if *arg0.add(1) == NUL {
-                    (*parmp).commands[idx] = c"$".as_ptr().cast_mut();
+                    (*parmp).commands.push(c"$".to_owned());
                 } else {
-                    (*parmp).commands[idx] = arg0.add(1);
+                    (*parmp)
+                        .commands
+                        .push(CStr::from_ptr(arg0.add(1)).to_owned());
                 }
             } else if *arg0 == b'-' as c_char && !had_minmin {
                 let mut want_argument = false;
@@ -1539,12 +1530,12 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                     }
                     b'c' => {
                         if *arg0.add(argv_idx as usize) != NUL {
-                            if (*parmp).n_commands as usize >= MAX_ARG_CMDS {
+                            if (*parmp).commands.len() >= MAX_ARG_CMDS {
                                 mainerr(ERR_EXTRA_CMD.as_ptr(), ptr::null(), ptr::null());
                             }
-                            let idx = (*parmp).n_commands as usize;
-                            (*parmp).n_commands += 1;
-                            (*parmp).commands[idx] = arg0.add(argv_idx as usize);
+                            (*parmp)
+                                .commands
+                                .push(CStr::from_ptr(arg0.add(argv_idx as usize)).to_owned());
                             argv_idx = -1;
                         } else {
                             want_argument = true;
@@ -1575,7 +1566,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
 
                     match c {
                         b'c' | b'S' => {
-                            if (*parmp).n_commands as usize >= MAX_ARG_CMDS {
+                            if (*parmp).commands.len() >= MAX_ARG_CMDS {
                                 mainerr(ERR_EXTRA_CMD.as_ptr(), ptr::null(), ptr::null());
                             }
                             if c == b'S' {
@@ -1590,30 +1581,24 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                                 };
 
                                 let a_bytes = CStr::from_ptr(a).to_bytes();
-                                let s_size = a_bytes.len() + 9;
-                                let s = xmalloc(s_size).cast::<u8>();
-                                ptr::copy_nonoverlapping(b"so ".as_ptr(), s, 3);
-                                ptr::copy_nonoverlapping(a_bytes.as_ptr(), s.add(3), a_bytes.len());
-                                *s.add(3 + a_bytes.len()) = 0;
-
-                                let idx = (*parmp).n_commands as usize;
-                                (*parmp).cmds_tofree[idx] = 1;
-                                (*parmp).commands[idx] = s.cast();
-                                (*parmp).n_commands += 1;
+                                let mut s = Vec::with_capacity(3 + a_bytes.len());
+                                s.extend_from_slice(b"so ");
+                                s.extend_from_slice(a_bytes);
+                                (*parmp)
+                                    .commands
+                                    .push(std::ffi::CString::new(s).unwrap_or_default());
                             } else {
-                                let idx = (*parmp).n_commands as usize;
-                                (*parmp).commands[idx] = cur_arg;
-                                (*parmp).n_commands += 1;
+                                (*parmp).commands.push(CStr::from_ptr(cur_arg).to_owned());
                             }
                         }
                         b'-' => {
                             if strequal(prev_arg, c"--cmd".as_ptr()) {
-                                if (*parmp).n_pre_commands as usize >= MAX_ARG_CMDS {
+                                if (*parmp).pre_commands.len() >= MAX_ARG_CMDS {
                                     mainerr(ERR_EXTRA_CMD.as_ptr(), ptr::null(), ptr::null());
                                 }
-                                let idx = (*parmp).n_pre_commands as usize;
-                                (*parmp).pre_commands[idx] = cur_arg;
-                                (*parmp).n_pre_commands += 1;
+                                (*parmp)
+                                    .pre_commands
+                                    .push(CStr::from_ptr(cur_arg).to_owned());
                             } else if strequal(prev_arg, c"--listen".as_ptr()) {
                                 to_slash_if_needed(cur_arg);
                                 (*parmp).listen_addr = cur_arg;
@@ -1722,46 +1707,54 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                 }
                 (*parmp).edit_type = EDIT_FILE;
 
-                let mut p = xstrdup(arg0);
+                let mut p_vec: Vec<c_char> = CStr::from_ptr(arg0)
+                    .to_bytes_with_nul()
+                    .iter()
+                    .map(|&b| b as c_char)
+                    .collect();
 
                 #[cfg(windows)]
                 {
-                    to_slash_if_needed(p);
-                    if *p == b'~' as c_char && *p.add(1) == b'/' as c_char {
+                    to_slash_if_needed(p_vec.as_mut_ptr());
+                    if p_vec[0] == b'~' as c_char && p_vec.get(1) == Some(&(b'/' as c_char)) {
                         let homedir = os_homedir();
                         let h_bytes = CStr::from_ptr(homedir).to_bytes();
-                        let p_bytes = CStr::from_ptr(p.add(1)).to_bytes();
-                        let size = h_bytes.len() + p_bytes.len() + 1;
-                        let tilde_expanded = xmalloc(size).cast::<u8>();
-                        ptr::copy_nonoverlapping(h_bytes.as_ptr(), tilde_expanded, h_bytes.len());
-                        ptr::copy_nonoverlapping(
-                            p_bytes.as_ptr(),
-                            tilde_expanded.add(h_bytes.len()),
-                            p_bytes.len(),
-                        );
-                        *tilde_expanded.add(h_bytes.len() + p_bytes.len()) = 0;
-                        xfree(p.cast());
-                        p = tilde_expanded.cast();
+                        let p_bytes = CStr::from_ptr(p_vec.as_ptr().add(1)).to_bytes();
+                        let mut expanded = Vec::with_capacity(h_bytes.len() + p_bytes.len() + 1);
+                        expanded.extend(h_bytes.iter().map(|&b| b as c_char));
+                        expanded.extend(p_bytes.iter().map(|&b| b as c_char));
+                        expanded.push(0);
+                        p_vec = expanded;
                     }
                 }
 
                 if (*parmp).diff_mode != 0
-                    && os_isdir(p)
+                    && os_isdir(p_vec.as_ptr())
                     && gargcount() > 0
                     && !os_isdir(alist_name(garglist()))
                 {
                     let tail = path_tail(alist_name(garglist()));
-                    let ret = concat_fnames(cstr_as_string(p), cstr_as_string(tail), true);
-                    xfree(p.cast());
-                    p = ret.data;
+                    let ret =
+                        concat_fnames(cstr_as_string(p_vec.as_ptr()), cstr_as_string(tail), true);
+                    if let Some(joined) = cstr_take(ret.data) {
+                        p_vec = joined
+                            .as_bytes_with_nul()
+                            .iter()
+                            .map(|&b| b as c_char)
+                            .collect();
+                    }
                 }
 
                 if CASE_INSENSITIVE_FILENAME {
-                    path_fix_case(p);
+                    path_fix_case(p_vec.as_mut_ptr());
                 }
 
                 let alist_fnum_flag = if edit_stdin(parmp) { 1 } else { 2 };
-                alist_add(&raw mut global_alist, p, alist_fnum_flag);
+                alist_add(
+                    &raw mut global_alist,
+                    CStr::from_ptr(p_vec.as_ptr()).to_owned(),
+                    alist_fnum_flag,
+                );
             }
 
             if argv_idx <= 0 || *(*argv).add(argv_idx as usize) == NUL {
@@ -1779,8 +1772,8 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
             );
         }
 
-        if (*parmp).n_commands > 0 {
-            let cmd0_bytes = CStr::from_ptr((*parmp).commands[0]).to_bytes();
+        if let Some(cmd0) = (*parmp).commands.first() {
+            let cmd0_bytes = cmd0.as_bytes();
             let swcmd_len = cmd0_bytes.len() + 2;
             let mut swcmd = Vec::with_capacity(swcmd_len + 1);
             swcmd.push(b':');
@@ -2102,7 +2095,7 @@ unsafe fn create_windows(parmp: *mut mparm_T) {
 unsafe fn edit_buffers(parmp: *mut mparm_T) {
     unsafe {
         let mut advance = true;
-        let mut p_shm_save: *mut c_char = ptr::null_mut();
+        let mut p_shm_save: Option<std::ffi::CString> = None;
 
         autocmd_no_enter += 1;
         autocmd_no_leave += 1;
@@ -2129,7 +2122,7 @@ unsafe fn edit_buffers(parmp: *mut mparm_T) {
                     goto_tabpage(0);
                     if i == 1 {
                         let mut buf = [0 as c_char; 100];
-                        p_shm_save = xstrdup(p_shm);
+                        p_shm_save = Some(CStr::from_ptr(p_shm).to_owned());
                         vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"F%s".as_ptr(), p_shm);
                         set_option_value_give_err(kOptShortmess, cstr_as_obj(buf.as_ptr()), 0);
                     }
@@ -2180,9 +2173,8 @@ unsafe fn edit_buffers(parmp: *mut mparm_T) {
             }
         }
 
-        if !p_shm_save.is_null() {
-            set_option_value_give_err(kOptShortmess, cstr_as_obj(p_shm_save), 0);
-            xfree(p_shm_save.cast());
+        if let Some(ref p_shm_save) = p_shm_save {
+            set_option_value_give_err(kOptShortmess, cstr_as_obj(p_shm_save.as_ptr()), 0);
         }
 
         if (*parmp).window_layout == WIN_TABS {
@@ -2214,16 +2206,15 @@ unsafe fn edit_buffers(parmp: *mut mparm_T) {
 
 unsafe fn exe_pre_commands(parmp: *mut mparm_T) {
     unsafe {
-        let cnt = (*parmp).n_pre_commands;
-        if cnt <= 0 {
+        if (*parmp).pre_commands.is_empty() {
             return;
         }
 
         (*curwin).w_cursor.lnum = 0;
         estack_push(ETYPE_ARGS, gettext(c"pre-vimrc command line".as_ptr()), 0);
         current_sctx.sc_sid = SID_CMDARG;
-        for i in 0..(cnt as usize) {
-            do_cmdline_cmd((*parmp).pre_commands[i]);
+        for cmd in &(*parmp).pre_commands {
+            do_cmdline_cmd(cmd.as_ptr());
         }
         estack_pop();
         current_sctx.sc_sid = 0;
@@ -2240,11 +2231,9 @@ unsafe fn exe_commands(parmp: *mut mparm_T) {
         estack_push(ETYPE_ARGS, c"command line".as_ptr().cast_mut(), 0);
         current_sctx.sc_sid = SID_CARG;
         current_sctx.sc_seq = 0;
-        for i in 0..((*parmp).n_commands as usize) {
-            do_cmdline_cmd((*parmp).commands[i]);
-            if (*parmp).cmds_tofree[i] != 0 {
-                xfree((*parmp).commands[i].cast());
-            }
+        let cmds = std::mem::take(&mut (*parmp).commands);
+        for cmd in &cmds {
+            do_cmdline_cmd(cmd.as_ptr());
         }
         estack_pop();
         current_sctx.sc_sid = 0;
@@ -2263,8 +2252,7 @@ unsafe fn exe_commands(parmp: *mut mparm_T) {
 
 unsafe fn do_system_initialization() {
     unsafe {
-        let config_dirs = stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs);
-        if !config_dirs.is_null() {
+        if let Some(config_dirs) = cstr_take(stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs)) {
             let mut iter: *const c_char = ptr::null();
             let appname = get_appname(false);
             let appname_bytes = CStr::from_ptr(appname).to_bytes();
@@ -2276,7 +2264,7 @@ unsafe fn do_system_initialization() {
                 let mut dir_len: usize = 0;
                 iter = vim_env_iter(
                     b':' as c_char,
-                    config_dirs,
+                    config_dirs.as_ptr(),
                     iter,
                     &raw mut dir,
                     &raw mut dir_len,
@@ -2293,14 +2281,12 @@ unsafe fn do_system_initialization() {
                 vimrc.extend_from_slice(appname_bytes);
                 vimrc.extend_from_slice(&sysinit_suffix);
                 if do_source(vimrc.as_mut_ptr().cast(), false, DOSO_NONE, ptr::null_mut()) != FAIL {
-                    xfree(config_dirs.cast());
                     return;
                 }
                 if iter.is_null() {
                     break;
                 }
             }
-            xfree(config_dirs.cast());
         }
 
         do_source(
@@ -2320,38 +2306,40 @@ unsafe fn do_user_initialization() -> bool {
             return do_exrc;
         }
 
-        let init_lua_path = stdpaths_user_conf_subpath(c"init.lua".as_ptr());
-        let user_vimrc = stdpaths_user_conf_subpath(c"init.vim".as_ptr());
+        let init_lua_path = cstr_take(stdpaths_user_conf_subpath(c"init.lua".as_ptr()));
+        let user_vimrc = cstr_take(stdpaths_user_conf_subpath(c"init.vim".as_ptr()));
+        let init_lua_ptr = init_lua_path
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        let user_vimrc_ptr = user_vimrc
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
-        if os_path_exists(init_lua_path)
-            && do_source(init_lua_path, true, DOSO_VIMRC, ptr::null_mut()) != 0
+        if os_path_exists(init_lua_ptr)
+            && do_source(init_lua_ptr, true, DOSO_VIMRC, ptr::null_mut()) != 0
         {
-            if os_path_exists(user_vimrc) {
+            if os_path_exists(user_vimrc_ptr) {
                 semsg!(
                     (&raw const e_conflicting_configs).cast(),
-                    init_lua_path,
-                    user_vimrc,
+                    init_lua_ptr,
+                    user_vimrc_ptr,
                 );
             }
-            xfree(user_vimrc.cast());
-            xfree(init_lua_path.cast());
             do_exrc = p_exrc != 0;
             return do_exrc;
         }
-        xfree(init_lua_path.cast());
+        drop(init_lua_path);
 
-        if do_source(user_vimrc, true, DOSO_VIMRC, ptr::null_mut()) != FAIL {
+        if do_source(user_vimrc_ptr, true, DOSO_VIMRC, ptr::null_mut()) != FAIL {
             do_exrc = p_exrc != 0;
             if do_exrc {
-                do_exrc = !path_equal(c".nvimrc".as_ptr(), user_vimrc, kPathCmpExpand);
+                do_exrc = !path_equal(c".nvimrc".as_ptr(), user_vimrc_ptr, kPathCmpExpand);
             }
-            xfree(user_vimrc.cast());
             return do_exrc;
         }
-        xfree(user_vimrc.cast());
+        drop(user_vimrc);
 
-        let config_dirs = stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs);
-        if !config_dirs.is_null() {
+        if let Some(config_dirs) = cstr_take(stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs)) {
             let appname = get_appname(false);
             let appname_bytes = CStr::from_ptr(appname).to_bytes();
             let init_lua_suffix: [u8; 10] =
@@ -2365,7 +2353,7 @@ unsafe fn do_user_initialization() -> bool {
                 let mut dir_len: usize = 0;
                 iter = vim_env_iter(
                     b':' as c_char,
-                    config_dirs,
+                    config_dirs.as_ptr(),
                     iter,
                     &raw mut dir,
                     &raw mut dir_len,
@@ -2403,7 +2391,6 @@ unsafe fn do_user_initialization() -> bool {
                             init_vim.as_ptr(),
                         );
                     }
-                    xfree(config_dirs.cast());
                     do_exrc = p_exrc != 0;
                     return do_exrc;
                 }
@@ -2423,7 +2410,6 @@ unsafe fn do_user_initialization() -> bool {
                             kPathCmpExpand,
                         );
                     }
-                    xfree(config_dirs.cast());
                     return do_exrc;
                 }
 
@@ -2431,7 +2417,6 @@ unsafe fn do_user_initialization() -> bool {
                     break;
                 }
             }
-            xfree(config_dirs.cast());
         }
 
         if execute_env(c"EXINIT".as_ptr().cast_mut()) == OK {

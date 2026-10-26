@@ -209,7 +209,9 @@ unsafe fn alist_set(al: *mut alist_T, mut files: Vec<*mut c_char>, use_curbuf: c
                 break;
             }
 
-            alist_add(al, fname, if use_curbuf != 0 { 2 } else { 1 });
+            if let Some(ae_fname) = cstr_take(fname) {
+                alist_add(al, ae_fname, if use_curbuf != 0 { 2 } else { 1 });
+            }
             os_breakcheck();
         }
 
@@ -220,12 +222,9 @@ unsafe fn alist_set(al: *mut alist_T, mut files: Vec<*mut c_char>, use_curbuf: c
 }
 
 /// Add file `fname` to argument list `al` (`alist_add`).
-pub unsafe fn alist_add(al: *mut alist_T, fname: *mut c_char, set_fnum: c_int) {
+pub unsafe fn alist_add(al: *mut alist_T, ae_fname: CString, set_fnum: c_int) {
     unsafe {
         let wp = curwin;
-        let Some(ae_fname) = cstr_take(fname) else {
-            return;
-        };
         if check_arglist_locked() == FAIL {
             return;
         }
