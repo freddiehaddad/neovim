@@ -116,7 +116,7 @@ use crate::strings::{
     atoi, gettext, memcmp, strcat, strchr, strcmp, strcpy, strlen, strncmp, strncpy, strrchr,
     tolower, vim_snprintf, vim_strchr, vim_strsave_escaped, xstrnsave,
 };
-use crate::tag::find_tags_vec;
+use crate::tag::find_tags;
 use crate::textformat::auto_format;
 use crate::ui::{ui_flush, ui_has, vim_beep};
 use crate::undo::undo_allowed;
@@ -4101,8 +4101,8 @@ unsafe fn get_next_tag_completion() {
         p_ic = ignorecase(compl_pattern.data);
 
         g_tag_at_cursor = true;
-        let mut matches: Vec<*mut c_char> = Vec::new();
-        if find_tags_vec(
+        let mut matches: Vec<Vec<c_char>> = Vec::new();
+        if find_tags(
             compl_pattern.data,
             &mut matches,
             TAG_REGEXP
@@ -4119,7 +4119,30 @@ unsafe fn get_next_tag_completion() {
         ) == OK
             && !matches.is_empty()
         {
-            ins_compl_add_matches(&mut matches, p_ic);
+            let mut add_r = OK;
+            let mut dir = compl_direction;
+            for m in &matches {
+                if add_r == FAIL {
+                    break;
+                }
+                add_r = ins_compl_add(
+                    m.as_ptr().cast_mut(),
+                    -1,
+                    ptr::null_mut(),
+                    [const { None }; CPT_COUNT],
+                    ptr::null_mut(),
+                    dir,
+                    CP_FAST | if p_ic != 0 { CP_ICASE } else { 0 },
+                    false,
+                    ptr::null(),
+                    FUZZY_SCORE_NONE,
+                    false,
+                    None,
+                );
+                if add_r == OK {
+                    dir = FORWARD;
+                }
+            }
         }
         g_tag_at_cursor = false;
         p_ic = save_p_ic;

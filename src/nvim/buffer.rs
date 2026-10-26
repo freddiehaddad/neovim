@@ -70,7 +70,9 @@ use crate::memline::{
     ml_close, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_open, ml_recover,
     ml_setname, ml_timestamp,
 };
-use crate::memory::{entered_free_all_mem, xfree, xmalloc, xstrdup, xstrlcpy};
+use crate::memory::{
+    cstr_from_bytes, cstr_take, cstr_to_cstring, entered_free_all_mem, xfree, xstrdup, xstrlcpy,
+};
 use crate::message::{
     emsg, message_filtered, msg, msg_delay, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts,
     msg_start, msg_trunc, semsg, set_keep_msg, smsg,
@@ -104,7 +106,7 @@ use crate::state::{MAP_ALL_MODES, MODE_INSERT};
 use crate::statusline::build_stl_str_hl;
 use crate::strings::{
     gettext, ngettext, strcmp, strcpy, strlen, strncmp, vim_snprintf, vim_snprintf_safelen,
-    vim_strchr, xstrnsave,
+    vim_strchr,
 };
 use crate::syntax::{reset_synblock, synblock_T, syntax_clear};
 use crate::terminal::{Terminal, terminal_check_size, terminal_close, terminal_running};
@@ -860,8 +862,8 @@ static mut no_position: fmark_T = fmark_T {
     view: INIT_FMARKV,
     additional_data: None,
 };
-static mut lasttitle: *mut c_char = ptr::null_mut();
-static mut lasticon: *mut c_char = ptr::null_mut();
+static mut lasttitle: Option<std::ffi::CString> = None;
+static mut lasticon: Option<std::ffi::CString> = None;
 static mut modelines_entered: c_int = 0;
 
 const E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR: &CStr =
@@ -3099,10 +3101,8 @@ unsafe fn buflist_getfpos() {
 pub unsafe fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T {
     unsafe {
         let mut buf: *mut buf_T = ptr::null_mut();
-        let ffname = FullName_save(fname, cfg!(unix));
-        if !ffname.is_null() {
-            buf = buflist_findname(ffname);
-            xfree(ffname.cast());
+        if let Some(ffname) = cstr_take(FullName_save(fname, cfg!(unix))) {
+            buf = buflist_findname(ffname.as_ptr().cast_mut());
         }
         buf
     }
@@ -3257,7 +3257,6 @@ pub unsafe fn ExpandBufnames(
 ) -> c_int {
     unsafe {
         let mut matches: Vec<bufmatch_T> = Vec::new();
-        let mut to_free = false;
 
         file.clear();
 
@@ -3268,24 +3267,23 @@ pub unsafe fn ExpandBufnames(
         let fuzzy = cmdline_fuzzy_complete(pat);
         let use_matches = !fuzzy && (options & WILD_BUFLASTUSED) != 0;
 
-        let mut patc: *mut c_char = ptr::null_mut();
+        let mut patc_owned: Option<std::ffi::CString> = None;
         let mut fuzmatch: Vec<fuzmatch_str_T> = Vec::new();
         let mut regmatch: regmatch_T = regmatch_T::new();
 
         if !fuzzy {
-            if *pat == b'^' as c_char && *pat.add(1) != NUL {
-                patc = xstrdup(pat.add(1));
-                to_free = true;
+            let patc: *const c_char = if *pat == b'^' as c_char && *pat.add(1) != NUL {
+                let pc = cstr_to_cstring(pat.add(1));
+                let ptr = pc.as_ptr();
+                patc_owned = Some(pc);
+                ptr
             } else if *pat == b'^' as c_char {
-                patc = c"".as_ptr().cast_mut();
+                c"".as_ptr()
             } else {
-                patc = pat;
-            }
+                pat
+            };
             regmatch.regprog = vim_regcomp(patc, RE_MAGIC);
             if regmatch.regprog.is_null() {
-                if to_free {
-                    xfree(patc.cast());
-                }
                 return FAIL;
             }
         }
@@ -3349,9 +3347,7 @@ pub unsafe fn ExpandBufnames(
 
         if !fuzzy {
             vim_regfree(regmatch.regprog);
-            if to_free {
-                xfree(patc.cast());
-            }
+            drop(patc_owned);
         }
 
         if !fuzzy {
@@ -4008,7 +4004,8 @@ unsafe fn buf_same_file_id(buf: *mut buf_T, file_id: *mut FileID) -> bool {
 /// Print info about the current buffer.
 pub unsafe fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
     unsafe {
-        let buffer = xmalloc(IOSIZE).cast::<c_char>();
+        let mut buffer_vec = vec![0 as c_char; IOSIZE];
+        let buffer = buffer_vec.as_mut_ptr();
         let mut bufferlen = 0usize;
 
         if fullname > 1 {
@@ -4153,8 +4150,6 @@ pub unsafe fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
                 set_keep_msg(p, 0);
             }
         }
-
-        xfree(buffer.cast());
     }
 }
 
@@ -4185,7 +4180,11 @@ pub unsafe fn maketitle() {
         }
 
         need_maketitle = false;
-        if p_title == 0 && p_icon == 0 && lasttitle.is_null() && lasticon.is_null() {
+        if p_title == 0
+            && p_icon == 0
+            && (&raw const lasttitle).as_ref().unwrap().is_none()
+            && (&raw const lasticon).as_ref().unwrap().is_none()
+        {
             return;
         }
 
@@ -4245,7 +4244,7 @@ pub unsafe fn maketitle() {
                 }
             }
         }
-        let mut mustset = value_change(title_str, &raw mut lasttitle);
+        let mut mustset = value_change(title_str, (&raw mut lasttitle).as_mut().unwrap());
 
         if p_icon != 0 {
             icon_str = buf.as_mut_ptr();
@@ -4283,7 +4282,7 @@ pub unsafe fn maketitle() {
             }
         }
 
-        mustset |= value_change(icon_str, &raw mut lasticon);
+        mustset |= value_change(icon_str, (&raw mut lasticon).as_mut().unwrap());
 
         if mustset {
             resettitle();
@@ -4291,17 +4290,17 @@ pub unsafe fn maketitle() {
     }
 }
 
-unsafe fn value_change(str_: *mut c_char, last: *mut *mut c_char) -> bool {
+unsafe fn value_change(str_: *mut c_char, last: &mut Option<std::ffi::CString>) -> bool {
     unsafe {
-        if str_.is_null() != (*last).is_null()
-            || (!str_.is_null() && !(*last).is_null() && strcmp(str_, *last) != 0)
+        let last_ptr = last.as_ref().map_or(ptr::null(), |s| s.as_ptr());
+        if str_.is_null() != last_ptr.is_null()
+            || (!str_.is_null() && !last_ptr.is_null() && strcmp(str_, last_ptr) != 0)
         {
-            xfree((*last).cast());
             if str_.is_null() {
-                *last = ptr::null_mut();
+                *last = None;
                 resettitle();
             } else {
-                *last = xstrdup(str_);
+                *last = Some(cstr_to_cstring(str_));
                 return true;
             }
         }
@@ -4312,15 +4311,25 @@ unsafe fn value_change(str_: *mut c_char, last: *mut *mut c_char) -> bool {
 /// Set current window title.
 pub unsafe fn resettitle() {
     unsafe {
-        ui_call_set_icon(cstr_as_string(lasticon));
-        ui_call_set_title(cstr_as_string(lasttitle));
+        let icon_ptr = (&raw const lasticon)
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .map_or(ptr::null(), |s| s.as_ptr());
+        let title_ptr = (&raw const lasttitle)
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .map_or(ptr::null(), |s| s.as_ptr());
+        ui_call_set_icon(cstr_as_string(icon_ptr));
+        ui_call_set_title(cstr_as_string(title_ptr));
     }
 }
 
 pub unsafe fn free_titles() {
     unsafe {
-        xfree(lasttitle.cast());
-        xfree(lasticon.cast());
+        lasttitle = None;
+        lasticon = None;
     }
 }
 
@@ -4401,8 +4410,13 @@ pub unsafe fn fname_expand(buf: *mut buf_T, ffname: *mut *mut c_char, sfname: *m
             return;
         }
         if os_isdir(*ffname) {
-            let name = xstrdup(*sfname);
-            let name_len = strlen(name);
+            let mut name_vec: Vec<c_char> = cstr_to_cstring(*sfname)
+                .into_bytes_with_nul()
+                .into_iter()
+                .map(|b| b as c_char)
+                .collect();
+            let name = name_vec.as_mut_ptr();
+            let name_len = name_vec.len() - 1;
             if name_len > 0
                 && after_pathsep(name, name.add(name_len)) != 0
                 && name.add(name_len) > get_past_head(name)
@@ -4410,7 +4424,7 @@ pub unsafe fn fname_expand(buf: *mut buf_T, ffname: *mut *mut c_char, sfname: *m
                 *path_tail_with_sep(name) = NUL;
             }
             let full = fix_fname(name);
-            xfree(name.cast());
+            drop(name_vec);
             if !full.is_null() {
                 xfree((*ffname).cast());
                 *ffname = full;
@@ -4720,9 +4734,14 @@ unsafe fn chk_modeline(lnum: linenr_T, flags: c_int) -> c_int {
         }
 
         let len = line_end.offset_from(s) as usize;
-        let linecopy = xstrnsave(s, len);
-        s = linecopy;
-        line_end = s.add(len);
+        let linecopy_cstr = cstr_from_bytes(std::slice::from_raw_parts(s.cast::<u8>(), len));
+        let mut linecopy_vec: Vec<c_char> = linecopy_cstr
+            .into_bytes_with_nul()
+            .into_iter()
+            .map(|b| b as c_char)
+            .collect();
+        s = linecopy_vec.as_mut_ptr();
+        line_end = s.add(linecopy_vec.len() - 1);
 
         estack_push(ETYPE_MODELINE, c"modelines".as_ptr().cast_mut(), lnum);
 
@@ -4774,7 +4793,7 @@ unsafe fn chk_modeline(lnum: linenr_T, flags: c_int) -> c_int {
         }
 
         estack_pop();
-        xfree(linecopy.cast());
+        drop(linecopy_vec);
 
         retval
     }
