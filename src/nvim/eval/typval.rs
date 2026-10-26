@@ -4336,43 +4336,6 @@ pub unsafe fn tv_clear(tv: *mut typval_T) {
     }
 }
 
-/// Free allocated Vimscript object and value stored inside.
-pub unsafe fn tv_free(tv: *mut typval_T) {
-    unsafe {
-        if tv.is_null() {
-            return;
-        }
-
-        match (*tv).v_type {
-            VarType::VAR_PARTIAL => {
-                partial_unref((*tv).vval.v_partial);
-            }
-            VarType::VAR_FUNC => {
-                func_unref((*tv).vval.v_string);
-                xfree((*tv).vval.v_string.cast());
-            }
-            VarType::VAR_STRING => {
-                xfree((*tv).vval.v_string.cast());
-            }
-            VarType::VAR_BLOB => {
-                tv_blob_unref((*tv).vval.v_blob);
-            }
-            VarType::VAR_LIST => {
-                tv_list_unref((*tv).vval.v_list);
-            }
-            VarType::VAR_DICT => {
-                tv_dict_unref((*tv).vval.v_dict);
-            }
-            VarType::VAR_BOOL
-            | VarType::VAR_SPECIAL
-            | VarType::VAR_NUMBER
-            | VarType::VAR_FLOAT
-            | VarType::VAR_UNKNOWN => {}
-        }
-        drop(Box::from_raw(tv));
-    }
-}
-
 /// Copy typval from one location to another.
 pub unsafe fn tv_copy(from: *const typval_T, to: *mut typval_T) {
     unsafe {

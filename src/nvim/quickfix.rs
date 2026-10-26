@@ -31,7 +31,7 @@ use crate::eval::typval::{
     tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_add_tv,
     tv_dict_alloc, tv_dict_alloc_lock, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool,
     tv_dict_get_number, tv_dict_get_string, tv_dict_get_tv, tv_dict_item_alloc_len,
-    tv_dict_item_free, tv_dict_unref, tv_free, tv_get_number_chk, tv_get_string_chk,
+    tv_dict_item_free, tv_dict_unref, tv_get_number_chk, tv_get_string_chk,
     tv_initial_value, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_first,
     tv_list_len, tv_list_ref, tv_list_unref,
     typval_T, varnumber_T,
@@ -304,7 +304,7 @@ pub struct qf_list_T {
     pub qf_nonevalid: bool,
     pub qf_has_user_data: bool,
     pub qf_title: *mut c_char,
-    pub qf_ctx: *mut typval_T,
+    pub qf_ctx: Option<typval_T>,
     pub qf_qftf_cb: Callback,
     pub qf_dir_stack: Vec<*mut c_char>,
     pub qf_directory: *mut c_char,
@@ -352,7 +352,7 @@ impl Default for qf_list_T {
             qf_nonevalid: false,
             qf_has_user_data: false,
             qf_title: ptr::null_mut(),
-            qf_ctx: ptr::null_mut(),
+            qf_ctx: None,
             qf_qftf_cb: Callback::new(),
             qf_dir_stack: Vec::new(),
             qf_directory: ptr::null_mut(),
@@ -2526,11 +2526,12 @@ unsafe fn copy_loclist(from_qfl: *mut qf_list_T, to_qfl: *mut qf_list_T) -> c_in
         } else {
             (*to_qfl).qf_title = ptr::null_mut();
         }
-        if !(*from_qfl).qf_ctx.is_null() {
-            (*to_qfl).qf_ctx = Box::into_raw(Box::new(tv_initial_value()));
-            tv_copy((*from_qfl).qf_ctx, (*to_qfl).qf_ctx);
+        if let Some(ref from_ctx) = (*from_qfl).qf_ctx {
+            let mut to_ctx = tv_initial_value();
+            tv_copy(from_ctx, &raw mut to_ctx);
+            (*to_qfl).qf_ctx = Some(to_ctx);
         } else {
-            (*to_qfl).qf_ctx = ptr::null_mut();
+            (*to_qfl).qf_ctx = None;
         }
         callback_copy(
             &raw mut (*to_qfl).qf_qftf_cb,
@@ -3895,8 +3896,10 @@ unsafe fn qf_free(qfl: *mut qf_list_T) {
 
         xfree((*qfl).qf_title.cast());
         (*qfl).qf_title = ptr::null_mut();
-        tv_free((*qfl).qf_ctx);
-        (*qfl).qf_ctx = ptr::null_mut();
+        if let Some(ref mut ctx) = (*qfl).qf_ctx {
+            tv_clear(ctx);
+        }
+        (*qfl).qf_ctx = None;
         callback_free(&raw mut (*qfl).qf_qftf_cb);
         (*qfl).qf_id = 0;
         (*qfl).qf_changedtick = 0;
@@ -6608,9 +6611,9 @@ unsafe fn qf_getprop_items(
 
 unsafe fn qf_getprop_ctx(qfl: *mut qf_list_T, retdict: *mut dict_T) -> c_int {
     unsafe {
-        if !(*qfl).qf_ctx.is_null() {
+        if let Some(ref ctx) = (*qfl).qf_ctx {
             let di = tv_dict_item_alloc_len(c"context".as_ptr(), 7);
-            tv_copy((*qfl).qf_ctx, &raw mut (*di).di_tv);
+            tv_copy(ctx, &raw mut (*di).di_tv);
             let status = tv_dict_add(retdict, di);
             if status == FAIL {
                 tv_dict_item_free(di);
@@ -7160,10 +7163,12 @@ unsafe fn qf_setprop_items_from_lines(
 
 unsafe fn qf_setprop_context(qfl: *mut qf_list_T, di: *mut dictitem_T) -> c_int {
     unsafe {
-        tv_free((*qfl).qf_ctx);
-        let ctx = Box::into_raw(Box::new(tv_initial_value()));
-        tv_copy(&raw const (*di).di_tv, ctx);
-        (*qfl).qf_ctx = ctx;
+        if let Some(ref mut ctx) = (*qfl).qf_ctx {
+            tv_clear(ctx);
+        }
+        let mut ctx = tv_initial_value();
+        tv_copy(&raw const (*di).di_tv, &raw mut ctx);
+        (*qfl).qf_ctx = Some(ctx);
 
         OK
     }
@@ -7380,11 +7385,10 @@ unsafe fn mark_quickfix_ctx(qi: *mut qf_info_T, copyID: c_int) -> bool {
         let mut i: c_int = 0;
         while i < (*qi).qf_maxcount && !abort {
             let qfl = &mut (&mut (*qi).qf_lists)[i as usize];
-            let ctx = qfl.qf_ctx;
-            if !ctx.is_null()
-                && (*ctx).v_type != VarType::VAR_NUMBER
-                && (*ctx).v_type != VarType::VAR_STRING
-                && (*ctx).v_type != VarType::VAR_FLOAT
+            if let Some(ref mut ctx) = qfl.qf_ctx
+                && ctx.v_type != VarType::VAR_NUMBER
+                && ctx.v_type != VarType::VAR_STRING
+                && ctx.v_type != VarType::VAR_FLOAT
             {
                 abort = set_ref_in_item(ctx, copyID, ptr::null_mut(), ptr::null_mut());
             }
@@ -7673,13 +7677,12 @@ pub unsafe fn ex_cexpr(eap: *mut exarg_T) {
             return;
         }
 
-        let tv = eval_expr((*eap).arg, eap.cast());
-        if tv.is_null() {
+        let Some(mut tv) = eval_expr((*eap).arg, eap.cast()) else {
             return;
-        }
+        };
 
-        let _ = cexpr_core(eap, tv);
-        tv_free(tv);
+        let _ = cexpr_core(eap, &raw mut tv);
+        tv_clear(&raw mut tv);
     }
 }
 

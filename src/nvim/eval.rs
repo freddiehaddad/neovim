@@ -812,7 +812,7 @@ pub unsafe fn eval_to_number(expr: *mut c_char, use_simple_function: bool) -> va
 }
 
 /// Top level evaluation function.
-pub unsafe fn eval_expr(arg: *mut c_char, eap: *mut exarg_T) -> *mut typval_T {
+pub unsafe fn eval_expr(arg: *mut c_char, eap: *mut exarg_T) -> Option<typval_T> {
     unsafe { eval_expr_ext(arg, eap, false) }
 }
 
@@ -820,9 +820,9 @@ pub unsafe fn eval_expr_ext(
     arg: *mut c_char,
     eap: *mut exarg_T,
     use_simple_function: bool,
-) -> *mut typval_T {
+) -> Option<typval_T> {
     unsafe {
-        let mut tv = Box::into_raw(Box::new(tv_initial_value()));
+        let mut tv = tv_initial_value();
         let mut evalarg = evalarg_T::new();
 
         fill_evalarg_from_eap(&raw mut evalarg, eap, !eap.is_null() && (*eap).skip != 0);
@@ -830,19 +830,14 @@ pub unsafe fn eval_expr_ext(
         let mut r = NOTDONE;
 
         if use_simple_function {
-            r = eval0_simple_funccal(arg, tv, eap, &raw mut evalarg);
+            r = eval0_simple_funccal(arg, &raw mut tv, eap, &raw mut evalarg);
         }
         if r == NOTDONE {
-            r = eval0(arg, tv, eap, &raw mut evalarg);
-        }
-
-        if r == FAIL {
-            drop(Box::from_raw(tv));
-            tv = ptr::null_mut();
+            r = eval0(arg, &raw mut tv, eap, &raw mut evalarg);
         }
 
         clear_evalarg(&raw mut evalarg, eap);
-        tv
+        (r != FAIL).then_some(tv)
     }
 }
 
@@ -7436,16 +7431,16 @@ pub unsafe fn typval_compare(
 }
 
 /// Convert any type to a string, never give an error.
-pub unsafe fn typval_tostring(arg: *mut typval_T, quotes: bool) -> *mut c_char {
+pub unsafe fn typval_tostring(arg: Option<&mut typval_T>, quotes: bool) -> *mut c_char {
     unsafe {
-        if arg.is_null() {
+        let Some(arg) = arg else {
             return xstrdup(c"(does not exist)".as_ptr());
-        }
-        if !quotes && (*arg).v_type == VarType::VAR_STRING {
-            return xstrdup(if (*arg).vval.v_string.is_null() {
+        };
+        if !quotes && arg.v_type == VarType::VAR_STRING {
+            return xstrdup(if arg.vval.v_string.is_null() {
                 c"".as_ptr()
             } else {
-                (*arg).vval.v_string
+                arg.vval.v_string
             });
         }
         encode_tv2string(arg, ptr::null_mut())

@@ -3,7 +3,7 @@
 use crate::charset::{getdigits_int32, skipwhite};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::errors::{e_invarg2, e_noname};
-use crate::eval::typval::{Callback, tv_free, typval_T};
+use crate::eval::typval::{Callback, tv_clear, typval_T};
 use crate::eval::{EXPR_IS, eval_expr, typval_compare, typval_tostring};
 use crate::ex_docmd::{DOCMD_EXCRESET, do_cmdline, do_cmdline_cmd, exarg_T};
 use crate::ex_getln::getcmdline_prompt;
@@ -65,7 +65,6 @@ unsafe fn dbg_vec_mut(is_prof: bool) -> &'static mut Vec<debuggy> {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct debuggy {
     pub dbg_nr: c_int,
     pub dbg_type: c_int,
@@ -73,8 +72,20 @@ pub struct debuggy {
     pub dbg_prog: *mut crate::regexp::regprog_T,
     pub dbg_lnum: i32,
     pub dbg_forceit: c_int,
-    pub dbg_val: *mut typval_T,
+    pub dbg_val: Option<typval_T>,
     pub dbg_level: c_int,
+}
+
+impl Drop for debuggy {
+    fn drop(&mut self) {
+        unsafe {
+            xfree(self.dbg_name.cast());
+            if let Some(ref mut val) = self.dbg_val {
+                tv_clear(val);
+            }
+            vim_regfree(self.dbg_prog);
+        }
+    }
 }
 
 use crate::autocmd::DOCMD_VERBOSE;
@@ -453,10 +464,10 @@ pub unsafe fn dbg_check_skipped(eap: *mut exarg_T) -> bool {
     }
 }
 
-unsafe fn eval_expr_no_emsg(bp: &debuggy) -> *mut typval_T {
+unsafe fn eval_expr_no_emsg(name: *mut c_char) -> Option<typval_T> {
     unsafe {
         emsg_off += 1;
-        let tv = eval_expr(bp.dbg_name, std::ptr::null_mut());
+        let tv = eval_expr(name, std::ptr::null_mut());
         emsg_off -= 1;
         tv
     }
@@ -473,7 +484,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
             dbg_prog: std::ptr::null_mut(),
             dbg_lnum: 0,
             dbg_forceit: 0,
-            dbg_val: std::ptr::null_mut(),
+            dbg_val: None,
             dbg_level: 0,
         };
 
@@ -526,7 +537,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
             bp.dbg_name = xstrdup((*curbuf).b_ffname);
         } else if bp.dbg_type == DBG_EXPR {
             bp.dbg_name = xstrdup(p);
-            bp.dbg_val = eval_expr_no_emsg(&bp);
+            bp.dbg_val = eval_expr_no_emsg(bp.dbg_name);
         } else {
             let q = expand_env_save(p);
             if q.is_null() {
@@ -571,9 +582,7 @@ pub unsafe fn ex_breakadd(eap: *mut exarg_T) {
                 bp.dbg_prog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
                 xfree(pat.cast());
             }
-            if pat.is_null() || bp.dbg_prog.is_null() {
-                xfree(bp.dbg_name.cast());
-            } else {
+            if !pat.is_null() && !bp.dbg_prog.is_null() {
                 if bp.dbg_lnum == 0 {
                     bp.dbg_lnum = 1;
                 }
@@ -644,7 +653,6 @@ pub unsafe fn ex_breakdel(eap: *mut exarg_T) {
                     best_lnum = bpi.dbg_lnum;
                 }
             }
-            xfree(bp.dbg_name.cast());
         }
 
         if todel < 0 || (todel as usize) >= gap.len() {
@@ -654,12 +662,7 @@ pub unsafe fn ex_breakdel(eap: *mut exarg_T) {
 
         let idx = todel as usize;
         while idx < gap.len() {
-            let cur = gap.remove(idx);
-            xfree(cur.dbg_name.cast());
-            if cur.dbg_type == DBG_EXPR && !cur.dbg_val.is_null() {
-                tv_free(cur.dbg_val);
-            }
-            vim_regfree(cur.dbg_prog);
+            let _ = gap.remove(idx);
             if eap.cmdidx == CMD_BREAKDEL {
                 debug_tick += 1;
             }
@@ -756,37 +759,36 @@ unsafe fn debuggy_find(
                 got_int |= prev_got_int;
             } else if bp.dbg_type == DBG_EXPR {
                 let mut line = false;
-                let tv = eval_expr_no_emsg(bp);
-                if !tv.is_null() {
-                    if bp.dbg_val.is_null() {
-                        xfree(DEBUG_OLDVAL.cast());
-                        DEBUG_OLDVAL = typval_tostring(std::ptr::null_mut(), true);
-                        bp.dbg_val = tv;
-                        xfree(DEBUG_NEWVAL.cast());
-                        DEBUG_NEWVAL = typval_tostring(bp.dbg_val, true);
-                        line = true;
-                    } else {
-                        if typval_compare(tv, bp.dbg_val, EXPR_IS, false) == OK
-                            && (*tv).vval.v_number == 0
+                if let Some(mut tv) = eval_expr_no_emsg(bp.dbg_name) {
+                    if let Some(ref mut old_val) = bp.dbg_val {
+                        if typval_compare(&raw mut tv, old_val, EXPR_IS, false) == OK
+                            && tv.vval.v_number == 0
                         {
                             line = true;
                             xfree(DEBUG_OLDVAL.cast());
-                            DEBUG_OLDVAL = typval_tostring(bp.dbg_val, true);
-                            let v = eval_expr_no_emsg(bp);
+                            DEBUG_OLDVAL = typval_tostring(Some(old_val), true);
+                            let mut v = eval_expr_no_emsg(bp.dbg_name);
                             xfree(DEBUG_NEWVAL.cast());
-                            DEBUG_NEWVAL = typval_tostring(v, true);
-                            tv_free(bp.dbg_val);
+                            DEBUG_NEWVAL = typval_tostring(v.as_mut(), true);
+                            tv_clear(old_val);
                             bp.dbg_val = v;
                         }
-                        tv_free(tv);
+                        tv_clear(&raw mut tv);
+                    } else {
+                        xfree(DEBUG_OLDVAL.cast());
+                        DEBUG_OLDVAL = typval_tostring(None, true);
+                        bp.dbg_val = Some(tv);
+                        xfree(DEBUG_NEWVAL.cast());
+                        DEBUG_NEWVAL = typval_tostring(bp.dbg_val.as_mut(), true);
+                        line = true;
                     }
-                } else if !bp.dbg_val.is_null() {
+                } else if let Some(ref mut old_val) = bp.dbg_val {
                     xfree(DEBUG_OLDVAL.cast());
-                    DEBUG_OLDVAL = typval_tostring(bp.dbg_val, true);
+                    DEBUG_OLDVAL = typval_tostring(Some(old_val), true);
                     xfree(DEBUG_NEWVAL.cast());
-                    DEBUG_NEWVAL = typval_tostring(std::ptr::null_mut(), true);
-                    tv_free(bp.dbg_val);
-                    bp.dbg_val = std::ptr::null_mut();
+                    DEBUG_NEWVAL = typval_tostring(None, true);
+                    tv_clear(old_val);
+                    bp.dbg_val = None;
                     line = true;
                 }
 

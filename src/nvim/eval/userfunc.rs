@@ -3573,7 +3573,7 @@ pub unsafe fn ex_return(eap: *mut exarg_T) {
             && eval0(arg, &raw mut rettv, eap, &raw mut evalarg) != FAIL
         {
             if (*eap).skip == 0 {
-                returning = do_return(eap, false, true, &raw mut rettv);
+                returning = do_return(eap, false, true, Some(rettv));
             } else {
                 tv_clear(&raw mut rettv);
             }
@@ -3581,7 +3581,7 @@ pub unsafe fn ex_return(eap: *mut exarg_T) {
             update_force_abort();
 
             if !aborting() {
-                returning = do_return(eap, false, true, ptr::null_mut());
+                returning = do_return(eap, false, true, None);
             }
         }
 
@@ -3937,8 +3937,8 @@ pub unsafe fn ex_call(eap: *mut exarg_T) {
 pub unsafe fn do_return(
     eap: *mut exarg_T,
     reanimate: bool,
-    is_cmd: bool,
-    mut rettv: *mut typval_T,
+    _is_cmd: bool,
+    mut rettv: Option<typval_T>,
 ) -> bool {
     unsafe {
         let cstack = (*eap).cstack.cast::<cstack_T>();
@@ -3951,36 +3951,21 @@ pub unsafe fn do_return(
         if idx >= 0 {
             (*cstack).cs_pending[idx as usize] = CSTP_RETURN as c_char;
 
-            if !is_cmd && !reanimate {
-                (*cstack).cs_rettv[idx as usize] = rettv;
-            } else {
-                if reanimate {
-                    debug_assert!(!(*current_funccal).fc_rettv.is_null());
-                    rettv = (*current_funccal).fc_rettv;
-                }
-
-                if !rettv.is_null() {
-                    let stored = Box::into_raw(Box::new(*rettv));
-                    (*cstack).cs_rettv[idx as usize] = stored;
-                } else {
-                    (*cstack).cs_rettv[idx as usize] = ptr::null_mut();
-                }
-
-                if reanimate {
-                    (*(*current_funccal).fc_rettv).v_type = VarType::VAR_NUMBER;
-                    (*(*current_funccal).fc_rettv).vval.v_number = 0;
-                }
+            if reanimate {
+                debug_assert!(!(*current_funccal).fc_rettv.is_null());
+                rettv = Some(*(*current_funccal).fc_rettv);
+                (*(*current_funccal).fc_rettv).v_type = VarType::VAR_NUMBER;
+                (*(*current_funccal).fc_rettv).vval.v_number = 0;
             }
+
+            (*cstack).cs_rettv[idx as usize] = rettv;
             report_make_pending(CSTP_RETURN, PendingVal::Return(rettv));
         } else {
             (*current_funccal).fc_returned = 1;
 
-            if !reanimate && !rettv.is_null() {
+            if !reanimate && let Some(tv) = rettv {
                 tv_clear((*current_funccal).fc_rettv);
-                *(*current_funccal).fc_rettv = *rettv;
-                if !is_cmd {
-                    drop(Box::from_raw(rettv));
-                }
+                *(*current_funccal).fc_rettv = tv;
             }
         }
 
@@ -3989,14 +3974,14 @@ pub unsafe fn do_return(
 }
 
 /// Generate a return command for producing the value of `rettv`.
-pub unsafe fn get_return_cmd(rettv: *mut typval_T) -> *mut c_char {
+pub unsafe fn get_return_cmd(rettv: Option<typval_T>) -> *mut c_char {
     unsafe {
         let mut s: *mut c_char = ptr::null_mut();
         let mut tofree: *mut c_char = ptr::null_mut();
         let mut slen = 0usize;
 
-        if !rettv.is_null() {
-            s = encode_tv2echo(rettv, ptr::null_mut());
+        if let Some(mut tv) = rettv {
+            s = encode_tv2echo(&raw mut tv, ptr::null_mut());
             tofree = s;
         }
         if s.is_null() {

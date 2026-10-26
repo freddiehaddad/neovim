@@ -6712,7 +6712,7 @@ unsafe fn do_one_cmd(
                 if source_finished(fgetline) {
                     do_finish(&raw mut ea, true);
                 } else if fgetline.is_func() && current_func_returned() != 0 {
-                    let _ = do_return(&raw mut ea, true, false, ptr::null_mut());
+                    let _ = do_return(&raw mut ea, true, false, None);
                 }
             }
             need_rethrow = false;

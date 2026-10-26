@@ -44,7 +44,7 @@ use crate::errors::*;
 use crate::eval::encode::encode_tv2string;
 use crate::eval::typval::{
     Callback, callback_copy, callback_free, callback_put, dict_T, tv_clear, tv_dict_add_tv,
-    tv_dict_alloc, tv_free, typval_T,
+    tv_dict_alloc, typval_T,
 };
 use crate::eval::userfunc::get_scriptlocal_funcname;
 use crate::eval::vars::{
@@ -8419,31 +8419,30 @@ pub unsafe fn option_set_callback_func(optval: *mut c_char, optcb: *mut Callback
             return OK;
         }
 
-        let tv: *mut typval_T = if *optval == b'{' as c_char
+        let mut tv: typval_T = if *optval == b'{' as c_char
             || strncmp(optval, c"function(".as_ptr(), 9) == 0
             || strncmp(optval, c"funcref(".as_ptr(), 8) == 0
         {
-            let evaluated = eval_expr(optval, ptr::null_mut());
-            if evaluated.is_null() {
+            let Some(evaluated) = eval_expr(optval, ptr::null_mut()) else {
                 return FAIL;
-            }
+            };
             evaluated
         } else {
             let mut allocated = typval_T::new();
             allocated.v_type = VAR_STRING;
             allocated.vval.v_string = xstrdup(optval);
-            Box::into_raw(Box::new(allocated))
+            allocated
         };
 
         let mut cb = Callback::NONE;
-        if !callback_from_typval(&raw mut cb, tv) || cb.cb_type() == kCallbackNone {
-            tv_free(tv);
+        if !callback_from_typval(&raw mut cb, &raw mut tv) || cb.cb_type() == kCallbackNone {
+            tv_clear(&raw mut tv);
             return FAIL;
         }
 
         callback_free(optcb);
         *optcb = cb;
-        tv_free(tv);
+        tv_clear(&raw mut tv);
         OK
     }
 }

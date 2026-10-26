@@ -361,7 +361,7 @@ pub struct AutoCmdEvent {
     pub buf: Buffer,
     pub group: c_int,
     pub eap: *mut exarg_T,
-    pub data: *mut Object,
+    pub data: Option<Object>,
 }
 
 impl Drop for AutoCmdEvent {
@@ -369,9 +369,8 @@ impl Drop for AutoCmdEvent {
         unsafe {
             xfree(self.fname.cast());
             xfree(self.fname_io.cast());
-            if !self.data.is_null() {
-                api_free_object(*self.data);
-                drop(Box::from_raw(self.data));
+            if let Some(data) = self.data.take() {
+                api_free_object(data);
             }
         }
     }
@@ -2601,11 +2600,7 @@ pub unsafe fn aucmd_defer(
             group,
             buf: (*buf).b_fnum,
             eap,
-            data: if !data.is_null() {
-                Box::into_raw(Box::new(copy_object(*data, ptr::null_mut())))
-            } else {
-                ptr::null_mut()
-            },
+            data: (!data.is_null()).then(|| copy_object(*data, ptr::null_mut())),
         }));
 
         multiqueue_put_event(deferred_events, Event::AutoCmdDeferred(evdata));
@@ -2614,18 +2609,19 @@ pub unsafe fn aucmd_defer(
 
 pub unsafe fn deferred_event(e: *mut AutoCmdEvent) {
     unsafe {
-        let event = (*e).event;
-        let fname = (*e).fname;
-        let fname_io = (*e).fname_io;
-        let group = (*e).group;
-        let eap = (*e).eap;
-        let data = (*e).data;
+        let mut e = Box::from_raw(e);
+        let event = e.event;
+        let fname = e.fname;
+        let fname_io = e.fname_io;
+        let group = e.group;
+        let eap = e.eap;
+        let data = e.data.as_mut().map_or(ptr::null_mut(), |d| &raw mut *d);
 
         let mut err = Error {
             err_type: ErrorType::kErrorTypeNone,
             msg: ptr::null_mut(),
         };
-        let buf = find_buffer_by_handle((*e).buf, &raw mut err);
+        let buf = find_buffer_by_handle(e.buf, &raw mut err);
         if !buf.is_null() {
             let mut save_v_event: save_v_event_T = save_v_event_T::new();
             let v_event = get_v_event(&raw mut save_v_event);
@@ -2654,8 +2650,6 @@ pub unsafe fn deferred_event(e: *mut AutoCmdEvent) {
 
             restore_v_event(v_event, &raw mut save_v_event);
         }
-
-        drop(Box::from_raw(e));
     }
 }
 

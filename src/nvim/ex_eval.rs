@@ -4,7 +4,7 @@ use crate::charset::{ascii_isdigit, skipwhite};
 use crate::cursor::linenr_T;
 use crate::debugger::dbg_check_skipped;
 use crate::errors::*;
-use crate::eval::typval::{list_T, tv_clear, tv_free, tv_list_ref, tv_list_unref, typval_T};
+use crate::eval::typval::{list_T, tv_clear, tv_list_ref, tv_list_unref, typval_T};
 use crate::eval::userfunc::{do_return, get_return_cmd};
 use crate::eval::vars::{
     VV_EXCEPTION, VV_STACKTRACE, VV_THROWPOINT, evalarg_T, set_vim_var_list, set_vim_var_string,
@@ -83,7 +83,7 @@ const E_MULTIPLE_FINALLY: &CStr = c"E607: Multiple :finally";
 pub struct cstack_T {
     pub cs_flags: [c_int; CSTACK_LEN],
     pub cs_pending: [c_char; CSTACK_LEN],
-    pub cs_rettv: [*mut typval_T; CSTACK_LEN],
+    pub cs_rettv: [Option<typval_T>; CSTACK_LEN],
     pub cs_exception: [*mut except_T; CSTACK_LEN],
     pub cs_forinfo: [Option<Box<forinfo_T>>; CSTACK_LEN],
     pub cs_line: [c_int; CSTACK_LEN],
@@ -99,7 +99,7 @@ impl Default for cstack_T {
         Self {
             cs_flags: [0; CSTACK_LEN],
             cs_pending: [0; CSTACK_LEN],
-            cs_rettv: [ptr::null_mut(); CSTACK_LEN],
+            cs_rettv: [None; CSTACK_LEN],
             cs_exception: [ptr::null_mut(); CSTACK_LEN],
             cs_forinfo: [const { None }; CSTACK_LEN],
             cs_line: [0; CSTACK_LEN],
@@ -155,7 +155,7 @@ impl Drop for except_T {
 #[derive(Clone, Copy)]
 pub enum PendingVal {
     None,
-    Return(*mut typval_T),
+    Return(Option<typval_T>),
     Throw(*mut except_T),
 }
 
@@ -227,9 +227,11 @@ unsafe fn check_skip(cstack: *const cstack_T) -> bool {
 }
 
 #[inline]
-unsafe fn discard_pending_return(p: *mut typval_T) {
-    unsafe {
-        tv_free(p);
+unsafe fn discard_pending_return(p: &mut Option<typval_T>) {
+    if let Some(ref mut tv) = p.take() {
+        unsafe {
+            tv_clear(tv);
+        }
     }
 }
 
@@ -739,7 +741,7 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
             CSTP_RETURN => {
                 let rettv = match value {
                     PendingVal::Return(tv) => tv,
-                    _ => ptr::null_mut(),
+                    _ => None,
                 };
                 get_return_cmd(rettv)
             }
@@ -1343,7 +1345,7 @@ pub unsafe fn ex_finally(eap: *mut exarg_T) {
                         CSTP_RETURN,
                         PendingVal::Return((*cstack).cs_rettv[cur_idx]),
                     );
-                    discard_pending_return((*cstack).cs_rettv[cur_idx]);
+                    discard_pending_return(&mut (&mut (*cstack).cs_rettv)[cur_idx]);
                 }
                 if (pending == CSTP_ERROR && did_emsg == 0) || did_throw {
                     pending |= CSTP_THROW;
@@ -1370,7 +1372,7 @@ pub unsafe fn ex_endtry(eap: *mut exarg_T) {
     unsafe {
         let mut rethrow = false;
         let mut pending: c_int = CSTP_NONE;
-        let mut rettv: *mut typval_T = ptr::null_mut();
+        let mut rettv: Option<typval_T> = None;
         let cstack = (*eap).cstack.cast::<cstack_T>();
 
         let mut idx = (*cstack).cs_idx;
@@ -1432,7 +1434,7 @@ pub unsafe fn ex_endtry(eap: *mut exarg_T) {
             pending = c_int::from((*cstack).cs_pending[u_idx]);
             (*cstack).cs_pending[u_idx] = CSTP_NONE as c_char;
             if pending == CSTP_RETURN {
-                rettv = (*cstack).cs_rettv[u_idx];
+                rettv = (&mut (*cstack).cs_rettv)[u_idx].take();
             } else if (pending & CSTP_THROW) != 0 {
                 current_exception = (*cstack).cs_exception[u_idx];
             }
@@ -1590,7 +1592,7 @@ pub unsafe fn cleanup_conditionals(
                                 CSTP_RETURN,
                                 PendingVal::Return((*cstack).cs_rettv[u_idx]),
                             );
-                            discard_pending_return((*cstack).cs_rettv[u_idx]);
+                            discard_pending_return(&mut (&mut (*cstack).cs_rettv)[u_idx]);
                             (*cstack).cs_pending[u_idx] = CSTP_NONE as c_char;
                         }
                         _ => {
