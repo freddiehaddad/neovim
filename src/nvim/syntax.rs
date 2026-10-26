@@ -50,7 +50,7 @@ use crate::regexp::{
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{
     gettext, strcat, strchr, strcmp, strlen, strncmp, strpbrk, vim_snprintf, vim_strchr,
-    vim_stricmp, vim_strnicmp, vim_strnsave_up, vim_strsave_up, xstrnsave,
+    vim_stricmp, vim_strnicmp, vim_strnsave_up, vim_strsave_up,
 };
 use crate::window::win_T;
 use std::ffi::{c_char, c_int, c_uint};
@@ -96,7 +96,7 @@ pub struct synblock_T {
     pub b_syn_sync_minlines: i32,
     pub b_syn_sync_maxlines: i32,
     pub b_syn_sync_linebreaks: i32,
-    pub b_syn_linecont_pat: *mut c_char,
+    pub b_syn_linecont_pat: Option<std::ffi::CString>,
     pub b_syn_linecont_prog: *mut regprog_T,
     pub b_syn_linecont_time: syn_time_T,
     pub b_syn_linecont_ic: c_int,
@@ -143,7 +143,7 @@ impl synblock_T {
             b_syn_sync_minlines: 0,
             b_syn_sync_maxlines: 0,
             b_syn_sync_linebreaks: 0,
-            b_syn_linecont_pat: ptr::null_mut(),
+            b_syn_linecont_pat: None,
             b_syn_linecont_prog: ptr::null_mut(),
             b_syn_linecont_time: syn_time_T {
                 total: 0,
@@ -344,7 +344,7 @@ pub struct synstate_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct synpat_T {
     sp_type: c_char,
     sp_syncing: bool,
@@ -360,7 +360,7 @@ pub struct synpat_T {
     sp_cont_list: *mut i16,
     sp_next_list: *mut i16,
     sp_syn: sp_syn,
-    sp_pattern: *mut c_char,
+    sp_pattern: Option<std::ffi::CString>,
     sp_prog: *mut regprog_T,
     sp_time: syn_time_T,
 }
@@ -382,7 +382,7 @@ impl synpat_T {
             sp_cont_list: ptr::null_mut(),
             sp_next_list: ptr::null_mut(),
             sp_syn: sp_syn::new(),
-            sp_pattern: ptr::null_mut(),
+            sp_pattern: None,
             sp_prog: ptr::null_mut(),
             sp_time: syn_time_T::new(),
         }
@@ -2938,8 +2938,7 @@ pub unsafe fn syntax_clear(block: *mut synblock_T) {
 
         vim_regfree((*block).b_syn_linecont_prog);
         (*block).b_syn_linecont_prog = ptr::null_mut();
-        xfree((*block).b_syn_linecont_pat.cast());
-        (*block).b_syn_linecont_pat = ptr::null_mut();
+        (*block).b_syn_linecont_pat = None;
         (*block).b_syn_folditems = 0;
         clear_string_option(&raw mut (*block).b_syn_isk);
 
@@ -2985,8 +2984,7 @@ unsafe fn syntax_sync_clear() {
 
         vim_regfree((*win_s(curwin)).b_syn_linecont_prog);
         (*win_s(curwin)).b_syn_linecont_prog = ptr::null_mut();
-        xfree((*win_s(curwin)).b_syn_linecont_pat.cast());
-        (*win_s(curwin)).b_syn_linecont_pat = ptr::null_mut();
+        (*win_s(curwin)).b_syn_linecont_pat = None;
         clear_string_option(&raw mut (*win_s(curwin)).b_syn_isk);
 
         syn_stack_free_all(win_s(curwin));
@@ -3009,7 +3007,7 @@ unsafe fn syn_clear_pattern(block: *mut synblock_T, i: c_int) {
     unsafe {
         let items = syn_items(block);
         let spp = items.offset(i as isize);
-        xfree((*spp).sp_pattern.cast());
+        (*spp).sp_pattern = None;
         vim_regfree((*spp).sp_prog);
         if i == 0 || (*items.offset((i - 1) as isize)).sp_type != SPTYPE_START {
             xfree((*spp).sp_cont_list.cast());
@@ -3472,8 +3470,12 @@ unsafe fn put_pattern(s: *const c_char, c: c_int, spp: *const synpat_T, hl_id: c
         msg_puts_hl(s, hl_id, false);
         msg_putchar(c);
 
+        let pat_ptr = (*spp)
+            .sp_pattern
+            .as_ref()
+            .map_or(c"".as_ptr(), |s| s.as_ptr());
         let mut i: usize = 0;
-        while !vim_strchr((*spp).sp_pattern, SEPCHARS[i] as c_int).is_null() {
+        while !vim_strchr(pat_ptr, SEPCHARS[i] as c_int).is_null() {
             i += 1;
             if SEPCHARS[i] == 0 {
                 i = 0;
@@ -3481,7 +3483,7 @@ unsafe fn put_pattern(s: *const c_char, c: c_int, spp: *const synpat_T, hl_id: c
             }
         }
         msg_putchar(SEPCHARS[i] as c_int);
-        msg_outtrans((*spp).sp_pattern, 0, false);
+        msg_outtrans(pat_ptr, 0, false);
         msg_putchar(SEPCHARS[i] as c_int);
 
         let mut first = true;
@@ -3791,11 +3793,15 @@ unsafe fn get_syn_options(
                     if gname_start == arg {
                         return ptr::null_mut();
                     }
-                    let gname = xstrnsave(gname_start, arg.offset_from(gname_start) as usize);
-                    if strcmp(gname, c"NONE".as_ptr()) == 0 {
+                    let gname_slice = std::slice::from_raw_parts(
+                        gname_start.cast::<u8>(),
+                        arg.offset_from(gname_start) as usize,
+                    );
+                    let gname = std::ffi::CString::new(gname_slice).unwrap();
+                    if gname.as_bytes() == b"NONE" {
                         *(*opt).sync_idx = NONE_IDX;
                     } else {
-                        let syn_id = syn_name2id(gname);
+                        let syn_id = syn_name2id(gname.as_ptr());
                         let mut i = (*win_s(curwin)).b_syn_patterns.len() as c_int - 1;
                         while i >= 0 {
                             let spp = syn_items(win_s(curwin)).offset(i as isize);
@@ -3809,14 +3815,12 @@ unsafe fn get_syn_options(
                         if i < 0 {
                             semsg!(
                                 gettext(c"E394: Didn't find region item for %s".as_ptr()),
-                                gname,
+                                gname.as_ptr(),
                             );
-                            xfree(gname.cast());
                             return ptr::null_mut();
                         }
                     }
 
-                    xfree(gname.cast());
                     arg = skipwhite(arg);
                 } else if flags == HL_FOLD && foldmethodIsSyntax(curwin) {
                     foldUpdateAll(curwin);
@@ -4112,7 +4116,6 @@ unsafe fn syn_cmd_match(eap: *mut exarg_T, syncing: c_int) {
         }
 
         vim_regfree(item.sp_prog);
-        xfree(item.sp_pattern.cast());
 
         if rest.is_null() {
             semsg!(gettext((&raw const e_invarg2).cast()), arg);
@@ -4250,12 +4253,12 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
                     let pats = &mut (*win_s(curwin)).b_syn_patterns;
                     pats.reserve(pat_count as usize);
                     for (item, pat_vec) in pat_ptrs
-                        .iter()
+                        .iter_mut()
                         .enumerate()
                         .take(ITEM_END + 1)
                         .skip(ITEM_START)
                     {
-                        for ppp in pat_vec {
+                        for ppp in pat_vec.drain(..) {
                             let mut pat = ppp.pp_synp;
                             pat.sp_syncing = syncing != 0;
                             pat.sp_type = if item == ITEM_START {
@@ -4299,7 +4302,6 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
             for pat_vec in pat_ptrs.iter().take(ITEM_END + 1).skip(ITEM_START) {
                 for ppp in pat_vec {
                     vim_regfree(ppp.pp_synp.sp_prog);
-                    xfree(ppp.pp_synp.sp_pattern.cast());
                 }
             }
         }
@@ -4568,12 +4570,15 @@ unsafe fn get_syn_pattern(arg: *mut c_char, ci: *mut synpat_T) -> *mut c_char {
             );
             return ptr::null_mut();
         }
-        (*ci).sp_pattern = xstrnsave(arg.add(1), end.offset_from(arg) as usize - 1);
+        let pat_slice =
+            std::slice::from_raw_parts(arg.add(1).cast::<u8>(), end.offset_from(arg) as usize - 1);
+        let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
 
         let cpo_save = p_cpo;
         p_cpo = (&raw mut empty_string_option).cast();
-        (*ci).sp_prog = vim_regcomp((*ci).sp_pattern, RE_MAGIC);
+        (*ci).sp_prog = vim_regcomp(pat_cstr.as_ptr(), RE_MAGIC);
         p_cpo = cpo_save;
+        (*ci).sp_pattern = Some(pat_cstr);
 
         if (*ci).sp_prog.is_null() {
             return ptr::null_mut();
@@ -4707,7 +4712,7 @@ unsafe fn syn_cmd_sync(eap: *mut exarg_T, _syncing: c_int) {
                     illegal = true;
                     break;
                 }
-                if !(*win_s(curwin)).b_syn_linecont_pat.is_null() {
+                if (*win_s(curwin)).b_syn_linecont_pat.is_some() {
                     emsg(gettext(
                         c"E403: syntax sync: line continuations pattern specified twice".as_ptr(),
                     ));
@@ -4721,23 +4726,25 @@ unsafe fn syn_cmd_sync(eap: *mut exarg_T, _syncing: c_int) {
                 }
 
                 if (*eap).skip == 0 {
-                    (*win_s(curwin)).b_syn_linecont_pat =
-                        xstrnsave(next_arg.add(1), arg_end.offset_from(next_arg) as usize - 1);
+                    let pat_slice = std::slice::from_raw_parts(
+                        next_arg.add(1).cast::<u8>(),
+                        arg_end.offset_from(next_arg) as usize - 1,
+                    );
+                    let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
                     (*win_s(curwin)).b_syn_linecont_ic = (*win_s(curwin)).b_syn_ic;
 
                     let cpo_save = p_cpo;
                     p_cpo = (&raw mut empty_string_option).cast();
-                    (*win_s(curwin)).b_syn_linecont_prog =
-                        vim_regcomp((*win_s(curwin)).b_syn_linecont_pat, RE_MAGIC);
+                    (*win_s(curwin)).b_syn_linecont_prog = vim_regcomp(pat_cstr.as_ptr(), RE_MAGIC);
                     p_cpo = cpo_save;
                     syn_clear_time(&raw mut (*win_s(curwin)).b_syn_linecont_time);
 
                     if (*win_s(curwin)).b_syn_linecont_prog.is_null() {
-                        xfree((*win_s(curwin)).b_syn_linecont_pat.cast());
-                        (*win_s(curwin)).b_syn_linecont_pat = ptr::null_mut();
+                        (*win_s(curwin)).b_syn_linecont_pat = None;
                         finished = true;
                         break;
                     }
+                    (*win_s(curwin)).b_syn_linecont_pat = Some(pat_cstr);
                 }
                 next_arg = skipwhite(arg_end.add(1));
             } else {
@@ -5160,13 +5167,15 @@ pub unsafe fn ex_syntax(eap: *mut exarg_T) {
         while ascii_isalpha(*subcmd_end) {
             subcmd_end = subcmd_end.add(1);
         }
-        let subcmd_name = xstrnsave(arg, subcmd_end.offset_from(arg) as usize);
+        let subcmd_slice =
+            std::slice::from_raw_parts(arg.cast::<u8>(), subcmd_end.offset_from(arg) as usize);
+        let subcmd_name = std::ffi::CString::new(subcmd_slice).unwrap();
         if (*eap).skip != 0 {
             emsg_skip += 1;
         }
         let mut found = false;
         for &(name, func) in &SUBCOMMANDS {
-            if strcmp(subcmd_name, name) == 0 {
+            if strcmp(subcmd_name.as_ptr(), name) == 0 {
                 (*eap).arg = skipwhite(subcmd_end);
                 func(eap, 0);
                 found = true;
@@ -5177,11 +5186,10 @@ pub unsafe fn ex_syntax(eap: *mut exarg_T) {
         if !found {
             semsg!(
                 gettext(c"E410: Invalid :syntax subcommand: %s".as_ptr()),
-                subcmd_name,
+                subcmd_name.as_ptr(),
             );
         }
 
-        xfree(subcmd_name.cast());
         if (*eap).skip != 0 {
             emsg_skip -= 1;
         }
@@ -5204,10 +5212,12 @@ pub unsafe fn ex_ownsyntax(eap: *mut exarg_T) {
             clear_string_option(&raw mut (*new_s_ptr).b_syn_isk);
         }
 
-        let mut old_value = get_var_value(c"b:current_syntax".as_ptr());
-        if !old_value.is_null() {
-            old_value = xstrdup(old_value);
-        }
+        let raw_old = get_var_value(c"b:current_syntax".as_ptr());
+        let old_value = if raw_old.is_null() {
+            None
+        } else {
+            Some(std::ffi::CStr::from_ptr(raw_old).to_owned())
+        };
 
         apply_autocmds(EVENT_SYNTAX, (*eap).arg, (*curbuf).b_fname, true, curbuf);
 
@@ -5216,11 +5226,10 @@ pub unsafe fn ex_ownsyntax(eap: *mut exarg_T) {
             set_internal_string_var(c"w:current_syntax".as_ptr(), new_value);
         }
 
-        if old_value.is_null() {
-            do_unlet(c"b:current_syntax".as_ptr(), 16, true);
+        if let Some(ref old_cstr) = old_value {
+            set_internal_string_var(c"b:current_syntax".as_ptr(), old_cstr.as_ptr().cast_mut());
         } else {
-            set_internal_string_var(c"b:current_syntax".as_ptr(), old_value);
-            xfree(old_value.cast());
+            do_unlet(c"b:current_syntax".as_ptr(), 16, true);
         }
     }
 }
@@ -5545,7 +5554,10 @@ unsafe fn syntime_report() {
                     slowest: pat.sp_time.slowest,
                     average: profile_divide(pat.sp_time.total, pat.sp_time.count),
                     id: pat.sp_syn.id as c_int,
-                    pattern: pat.sp_pattern,
+                    pattern: pat
+                        .sp_pattern
+                        .as_ref()
+                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
                 });
             }
         }

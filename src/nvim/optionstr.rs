@@ -128,7 +128,7 @@ pub enum OptSetPrep {
     Flags(c_uint),
     Spellsuggest([c_int; 2]),
     Wildmode([u8; 4]),
-    Encoding(*mut c_char),
+    Encoding(std::ffi::CString),
     SpellcapProg(*mut regprog_T),
     Tabstop(Vec<colnr_T>),
 }
@@ -143,11 +143,11 @@ impl OptSetPrep {
     }
 
     #[inline]
-    pub fn take_encoding(&mut self) -> *mut c_char {
-        let old = std::mem::ManuallyDrop::new(std::mem::replace(self, Self::None));
-        match &*old {
-            Self::Encoding(p) => *p,
-            _ => ptr::null_mut(),
+    pub fn take_encoding(&mut self) -> Option<std::ffi::CString> {
+        let mut old = std::mem::ManuallyDrop::new(std::mem::replace(self, Self::None));
+        match &mut *old {
+            Self::Encoding(s) => Some(std::mem::take(s)),
+            _ => None,
         }
     }
 
@@ -174,10 +174,10 @@ impl Drop for OptSetPrep {
     fn drop(&mut self) {
         unsafe {
             match self {
-                Self::Encoding(p) => xfree((*p).cast()),
                 Self::SpellcapProg(p) => vim_regfree(*p),
                 Self::None
                 | Self::Flags(_)
+                | Self::Encoding(_)
                 | Self::Spellsuggest(_)
                 | Self::Wildmode(_)
                 | Self::Tabstop(_) => {}
@@ -2332,8 +2332,11 @@ pub unsafe fn validate_encoding(args: *mut optset_T) -> *const c_char {
         }
 
         let value = enc_canonize((*args).os_newval.data.string.data);
-        (*args).os_prep = OptSetPrep::Encoding(value);
-        if (*args).os_idx == kOptEncoding && strcmp(value, c"utf-8".as_ptr()) != 0 {
+        let value_cstr = CStr::from_ptr(value).to_owned();
+        xfree(value.cast());
+        let is_not_utf8 = value_cstr.as_bytes() != b"utf-8";
+        (*args).os_prep = OptSetPrep::Encoding(value_cstr);
+        if (*args).os_idx == kOptEncoding && is_not_utf8 {
             return e_unsupportedoption.as_ptr();
         }
         ptr::null()
@@ -2350,10 +2353,9 @@ pub unsafe fn did_set_encoding(args: *mut optset_T) -> *const c_char {
             ml_setflags(buf);
         }
 
-        let prep_ptr = (*args).os_prep.take_encoding();
-        if !prep_ptr.is_null() {
+        if let Some(prep_cstr) = (*args).os_prep.take_encoding() {
             xfree((*varp).cast());
-            *varp = prep_ptr;
+            *varp = xstrdup(prep_cstr.as_ptr());
         }
         if ptr::eq(varp, &raw mut p_enc) {
             spell_reload();
