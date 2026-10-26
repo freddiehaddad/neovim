@@ -5207,7 +5207,7 @@ pub unsafe fn spell_add_word(
 
         let fname: *mut c_char = if idx == 0 {
             if (&raw const int_wordlist).as_ref().unwrap().is_none() {
-                int_wordlist = crate::memory::cstr_take(vim_tempname());
+                int_wordlist = vim_tempname();
                 if (&raw const int_wordlist).as_ref().unwrap().is_none() {
                     return;
                 }

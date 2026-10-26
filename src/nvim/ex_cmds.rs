@@ -99,7 +99,9 @@ use crate::memline::{
     ml_find_line_or_offset, ml_firstmarked, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len,
     ml_replace, ml_replace_buf, ml_setmarked,
 };
-use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{
+    cstr_from_bytes, cstr_take, cstr_to_cstring, xfree, xmalloc, xstrlcat, xstrlcpy,
+};
 use crate::message::{
     emsg, message_filtered, messaging, msg, msg_check_for_delay, msg_clr_eos, msg_end,
     msg_ext_no_fast, msg_ext_set_kind, msg_multiline, msg_outtrans, msg_prt_line, msg_putchar,
@@ -135,7 +137,7 @@ use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_LANGMAP};
 use crate::strings::{
     atoi, atol, concat_str, gettext, isalpha, ngettext, sort_slice_by, strcat, strchr, strcmp,
     strcoll, strcpy, strlen, strncmp, strtod, vim_snprintf, vim_snprintf_add, vim_snprintf_safelen,
-    vim_strchr, vim_stricmp, vim_strsave_escaped, xstrnsave,
+    vim_strchr, vim_stricmp, vim_strsave_escaped,
 };
 use crate::terminal::{Terminal, terminal_check_size, terminal_running};
 use crate::ui::{ui_cursor_goto, ui_cursor_shape, ui_has};
@@ -1186,9 +1188,11 @@ pub unsafe fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> c
 
         let mut extra: linenr_T = 0;
         for l in line1..=line2 {
-            let str = xstrnsave(ml_get(l + extra), ml_get_len(l + extra) as usize);
-            ml_append(dest + l - line1, str, 0, false);
-            xfree(str.cast());
+            let str_cstr = cstr_from_bytes(std::slice::from_raw_parts(
+                ml_get(l + extra).cast::<u8>(),
+                ml_get_len(l + extra) as usize,
+            ));
+            ml_append(dest + l - line1, str_cstr.as_ptr().cast_mut(), 0, false);
             if dest < line1 {
                 extra += 1;
             }
@@ -1351,9 +1355,11 @@ pub unsafe fn ex_copy(mut line1: linenr_T, mut line2: linenr_T, n: linenr_T) {
 
         (*curwin).w_cursor.lnum = n;
         while line1 <= line2 {
-            let p = xstrnsave(ml_get(line1), ml_get_len(line1) as usize);
-            ml_append((*curwin).w_cursor.lnum, p, 0, false);
-            xfree(p.cast());
+            let p = cstr_from_bytes(std::slice::from_raw_parts(
+                ml_get(line1).cast::<u8>(),
+                ml_get_len(line1) as usize,
+            ));
+            ml_append((*curwin).w_cursor.lnum, p.as_ptr().cast_mut(), 0, false);
 
             if line1 == n {
                 line1 = (*curwin).w_cursor.lnum;
@@ -1559,8 +1565,8 @@ unsafe fn do_filter(
     do_out: bool,
 ) {
     unsafe {
-        let mut itmp: *mut c_char = ptr::null_mut();
-        let mut otmp: *mut c_char = ptr::null_mut();
+        let mut itmp_owned: Option<std::ffi::CString> = None;
+        let mut otmp_owned: Option<std::ffi::CString> = None;
         let old_curbuf = curbuf;
         let mut shell_flags: c_int = 0;
         let orig_start = (*curbuf).b_op_start;
@@ -1600,20 +1606,27 @@ unsafe fn do_filter(
                 (*curwin).w_cursor.lnum = line2;
             } else {
                 if do_in {
-                    itmp = vim_tempname();
-                    if itmp.is_null() {
+                    itmp_owned = vim_tempname();
+                    if itmp_owned.is_none() {
                         emsg(gettext(e_notmp.as_ptr()));
                         break 'filterend;
                     }
                 }
                 if do_out {
-                    otmp = vim_tempname();
-                    if otmp.is_null() {
+                    otmp_owned = vim_tempname();
+                    if otmp_owned.is_none() {
                         emsg(gettext(e_notmp.as_ptr()));
                         break 'filterend;
                     }
                 }
             }
+
+            let itmp = itmp_owned
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+            let otmp = otmp_owned
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
             no_wait_return += 1;
             if !itmp.is_null()
@@ -1653,15 +1666,18 @@ unsafe fn do_filter(
             'error: {
                 if do_out {
                     if u_save(line2, line2 + 1) == FAIL {
-                        xfree(cmd_buf.cast());
                         break 'error;
                     }
                     redraw_curbuf_later(UPD_VALID);
                 }
                 let mut read_linecount = (*curbuf).b_ml.ml_line_count;
 
-                call_shell(cmd_buf, kShellOptFilter | shell_flags, ptr::null_mut());
-                xfree(cmd_buf.cast());
+                call_shell(
+                    cmd_buf.as_ptr().cast_mut(),
+                    kShellOptFilter | shell_flags,
+                    ptr::null_mut(),
+                );
+                drop(cmd_buf);
 
                 did_check_timestamps = false;
                 need_check_timestamps = true;
@@ -1787,14 +1803,12 @@ unsafe fn do_filter(
             (*curbuf).b_op_end = orig_end;
         }
 
-        if !itmp.is_null() {
-            os_remove(itmp);
+        if let Some(ref itmp) = itmp_owned {
+            os_remove(itmp.as_ptr());
         }
-        if !otmp.is_null() {
-            os_remove(otmp);
+        if let Some(ref otmp) = otmp_owned {
+            os_remove(otmp.as_ptr());
         }
-        xfree(itmp.cast());
-        xfree(otmp.cast());
     }
 }
 
@@ -1868,7 +1882,7 @@ pub unsafe fn make_filter_cmd(
     itmp: *mut c_char,
     otmp: *mut c_char,
     do_in: bool,
-) -> *mut c_char {
+) -> std::ffi::CString {
     unsafe {
         #[cfg(unix)]
         let is_fish_shell = strncmp(
@@ -1916,7 +1930,8 @@ pub unsafe fn make_filter_cmd(
             len += strlen(otmp) + strlen(p_srr) + 2;
         }
 
-        let buf = xmalloc(len).cast::<c_char>();
+        let mut buf_vec = vec![0 as c_char; len];
+        let buf = buf_vec.as_mut_ptr();
 
         if is_pwsh {
             if !itmp.is_null() {
@@ -1975,7 +1990,7 @@ pub unsafe fn make_filter_cmd(
         if !otmp.is_null() {
             append_redir(buf, len, p_srr, otmp);
         }
-        buf
+        cstr_to_cstring(buf)
     }
 }
 
@@ -2193,7 +2208,7 @@ pub unsafe fn do_write(eap: *mut exarg_T) -> c_int {
     unsafe {
         let mut fname: *mut c_char = ptr::null_mut();
         let mut retval = FAIL;
-        let mut free_fname: *mut c_char = ptr::null_mut();
+        let mut free_fname: Option<std::ffi::CString> = None;
         let mut alt_buf: *mut buf_T = ptr::null_mut();
 
         if not_writing() {
@@ -2212,9 +2227,9 @@ pub unsafe fn do_write(eap: *mut exarg_T) -> c_int {
                 other = false;
             } else {
                 fname = ffname;
-                free_fname = fix_fname(ffname);
-                if !free_fname.is_null() {
-                    ffname = free_fname;
+                free_fname = cstr_take(fix_fname(ffname));
+                if let Some(ref ff) = free_fname {
+                    ffname = ff.as_ptr().cast_mut();
                 }
                 other = otherfile(ffname);
             }
@@ -2378,7 +2393,7 @@ pub unsafe fn do_write(eap: *mut exarg_T) -> c_int {
             }
         }
 
-        xfree(free_fname.cast());
+        drop(free_fname);
         retval
     }
 }
@@ -2731,14 +2746,14 @@ pub unsafe fn set_swapcommand(command: *mut c_char, newlnum: linenr_T) -> bool {
         } else {
             30
         };
-        let data = xmalloc(valsize).cast::<c_char>();
+        let mut data_vec = vec![0 as c_char; valsize];
+        let data = data_vec.as_mut_ptr();
         let size = if !command.is_null() {
             vim_snprintf_safelen!(data, valsize, c":%s\r".as_ptr(), command)
         } else {
             vim_snprintf_safelen!(data, valsize, c"%lldG".as_ptr(), newlnum as i64)
         };
         set_vim_var_string(VV_SWAPCOMMAND, data, size as isize);
-        xfree(data.cast());
         true
     }
 }
@@ -2757,12 +2772,12 @@ pub unsafe fn do_ecmd(
         let other_file: bool;
         let oldbuf: bool;
         let mut auto_buf = false;
-        let mut new_name: *mut c_char = ptr::null_mut();
+        let mut new_name: Option<std::ffi::CString> = None;
         let mut did_set_swapcommand = false;
         let mut buf: *mut buf_T;
         let mut bufref: bufref_T = bufref_T::new();
         let mut old_curbuf: bufref_T = bufref_T::new();
-        let mut free_fname: *mut c_char = ptr::null_mut();
+        let mut free_fname: Option<std::ffi::CString> = None;
         let mut retval = FAIL;
         let mut topline: linenr_T = 0;
         let mut newcol: c_int = -1;
@@ -2812,9 +2827,9 @@ pub unsafe fn do_ecmd(
                         ffname = (*curbuf).b_ffname;
                         sfname = (*curbuf).b_fname;
                     }
-                    free_fname = fix_fname(ffname);
-                    if !free_fname.is_null() {
-                        ffname = free_fname;
+                    free_fname = cstr_take(fix_fname(ffname));
+                    if let Some(ref ff) = free_fname {
+                        ffname = ff.as_ptr().cast_mut();
                     }
                     other_file = otherfile(ffname);
                 }
@@ -2934,7 +2949,7 @@ pub unsafe fn do_ecmd(
 
                 if buf != curbuf {
                     if !(*buf).b_fname.is_null() {
-                        new_name = xstrdup((*buf).b_fname);
+                        new_name = Some(cstr_to_cstring((*buf).b_fname));
                     }
                     let save_au_new_curbuf = au_new_curbuf;
                     set_bufref(&raw mut au_new_curbuf, buf);
@@ -2947,12 +2962,11 @@ pub unsafe fn do_ecmd(
                     );
 
                     if !bufref_valid(&raw mut au_new_curbuf) {
-                        delbuf_msg(new_name);
+                        delbuf_msg(new_name.take());
                         au_new_curbuf = save_au_new_curbuf;
                         break 'theend;
                     }
                     if aborting() {
-                        xfree(new_name.cast());
                         au_new_curbuf = save_au_new_curbuf;
                         break 'theend;
                     }
@@ -2991,7 +3005,6 @@ pub unsafe fn do_ecmd(
                         (*buf).b_locked -= 1;
 
                         if aborting() && !(*curwin).w_buffer.is_null() {
-                            xfree(new_name.cast());
                             au_new_curbuf = save_au_new_curbuf;
                             break 'theend;
                         }
@@ -2999,7 +3012,7 @@ pub unsafe fn do_ecmd(
                             if (*curwin).w_buffer.is_null() {
                                 buf = lastbuf;
                             } else {
-                                delbuf_msg(new_name);
+                                delbuf_msg(new_name.take());
                                 au_new_curbuf = save_au_new_curbuf;
                                 break 'theend;
                             }
@@ -3030,7 +3043,7 @@ pub unsafe fn do_ecmd(
                         get_winopts(curbuf);
                         did_get_winopts = true;
                     }
-                    xfree(new_name.cast());
+                    new_name = None;
                     au_new_curbuf = save_au_new_curbuf;
                 }
 
@@ -3070,9 +3083,9 @@ pub unsafe fn do_ecmd(
                 }
                 buf = curbuf;
                 new_name = if !(*buf).b_fname.is_null() {
-                    xstrdup((*buf).b_fname)
+                    Some(cstr_to_cstring((*buf).b_fname))
                 } else {
-                    ptr::null_mut()
+                    None
                 };
                 set_bufref(&raw mut bufref, buf);
 
@@ -3081,7 +3094,6 @@ pub unsafe fn do_ecmd(
                 {
                     u_sync(false);
                     if u_savecommon(curbuf, 0, (*curbuf).b_ml.ml_line_count + 1, 0, true) == FAIL {
-                        xfree(new_name.cast());
                         break 'theend;
                     }
                     u_unchanged(curbuf);
@@ -3092,10 +3104,10 @@ pub unsafe fn do_ecmd(
                     buf_freeall(curbuf, 0);
                 }
                 if !bufref_valid(&raw mut bufref) {
-                    delbuf_msg(new_name);
+                    delbuf_msg(new_name.take());
                     break 'theend;
                 }
-                xfree(new_name.cast());
+                new_name = None;
 
                 if buf != curbuf {
                     break 'theend;
@@ -3300,55 +3312,59 @@ pub unsafe fn do_ecmd(
         if did_set_swapcommand {
             set_vim_var_string(VV_SWAPCOMMAND, ptr::null(), -1);
         }
-        xfree(free_fname.cast());
+        drop(new_name);
+        drop(free_fname);
         retval
     }
 }
 
-unsafe fn delbuf_msg(name: *mut c_char) {
+unsafe fn delbuf_msg(name: Option<std::ffi::CString>) {
     unsafe {
         semsg!(
             gettext(c"E143: Autocommands unexpectedly deleted new buffer %s".as_ptr()),
-            if name.is_null() { c"".as_ptr() } else { name },
+            name.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
         );
-        xfree(name.cast());
         au_new_curbuf.br_buf = ptr::null_mut();
         au_new_curbuf.br_buf_free_count = 0;
     }
 }
 
 /// Get the next line of text for `":append"`, `":insert"` and `":change"`.
-unsafe fn get_append_line(eap: *mut exarg_T, indent: c_int) -> *mut c_char {
+unsafe fn get_append_line(eap: *mut exarg_T, indent: c_int) -> Option<Vec<c_char>> {
     unsafe {
         if *(*eap).arg == b'|' as c_char {
-            let theline = xstrdup((*eap).arg.add(1));
+            let theline = cstr_to_cstring((*eap).arg.add(1))
+                .into_bytes_with_nul()
+                .into_iter()
+                .map(|b| b as c_char)
+                .collect();
             *(*eap).arg = NUL;
-            theline
+            Some(theline)
         } else if (*eap).ea_getline.is_none() {
             if (*eap).nextcmd.is_null() {
-                return ptr::null_mut();
+                return None;
             }
             let mut p = vim_strchr((*eap).nextcmd, NL);
             if p.is_null() {
                 p = (*eap).nextcmd.add(strlen((*eap).nextcmd));
             }
-            let theline = xmemdupz(
-                (*eap).nextcmd.cast(),
-                p.offset_from((*eap).nextcmd) as usize,
-            )
-            .cast::<c_char>();
+            let len = p.offset_from((*eap).nextcmd) as usize;
+            let mut theline = vec![0 as c_char; len + 1];
+            if len > 0 {
+                ptr::copy_nonoverlapping((*eap).nextcmd, theline.as_mut_ptr(), len);
+            }
             if *p != NUL {
                 p = p.add(1);
             } else {
                 p = ptr::null_mut();
             }
             (*eap).nextcmd = p;
-            theline
+            Some(theline)
         } else {
             let getline_State = State;
             State = MODE_CMDLINE;
             let cstack = (*eap).cstack.cast::<cstack_T>();
-            let theline = (*eap).ea_getline.call(
+            let raw_line = (*eap).ea_getline.call(
                 if (*cstack).cs_looplevel > 0 {
                     -1
                 } else {
@@ -3358,7 +3374,12 @@ unsafe fn get_append_line(eap: *mut exarg_T, indent: c_int) -> *mut c_char {
                 true,
             );
             State = getline_State;
-            theline
+            cstr_take(raw_line).map(|s| {
+                s.into_bytes_with_nul()
+                    .into_iter()
+                    .map(|b| b as c_char)
+                    .collect()
+            })
         }
     }
 }
@@ -3372,14 +3393,8 @@ pub unsafe fn ex_append(eap: *mut exarg_T) {
         let mut empty = ((*curbuf).b_ml.ml_flags & ML_EMPTY) != 0;
 
         if (*eap).skip != 0 {
-            loop {
-                let theline = get_append_line(eap, 0);
-                if theline.is_null() {
-                    break;
-                }
-                let end = *theline == b'.' as c_char && *theline.add(1) == NUL;
-                xfree(theline.cast());
-                if end {
+            while let Some(theline) = get_append_line(eap, 0) {
+                if theline[0] == b'.' as c_char && theline[1] == NUL {
                     break;
                 }
             }
@@ -3419,11 +3434,12 @@ pub unsafe fn ex_append(eap: *mut exarg_T) {
                     indent = get_indent_lnum(lnum);
                 }
             }
-            let theline = get_append_line(eap, indent);
+            let mut theline_vec = get_append_line(eap, indent);
             lines_left = Rows - 1;
-            if theline.is_null() {
+            let Some(ref mut theline_v) = theline_vec else {
                 break;
-            }
+            };
+            let theline = theline_v.as_mut_ptr();
 
             let mut vcol: c_int = 0;
             let mut p = theline;
@@ -3440,7 +3456,6 @@ pub unsafe fn ex_append(eap: *mut exarg_T) {
             if (*p == b'.' as c_char && *p.add(1) == NUL)
                 || (!did_undo && u_save(lnum, lnum + 1 + if empty { 1 } else { 0 }) == FAIL)
             {
-                xfree(theline.cast());
                 break;
             }
 
@@ -3456,7 +3471,6 @@ pub unsafe fn ex_append(eap: *mut exarg_T) {
                 appended_lines_mark(lnum, 1);
             }
 
-            xfree(theline.cast());
             lnum += 1;
 
             if empty {
@@ -3902,6 +3916,7 @@ unsafe fn do_sub(
         let mut i: c_int;
         let mut regmatch: regmmatch_T = regmmatch_T::new();
         let mut sub: *mut c_char = ptr::null_mut();
+        let mut sub_owned: Option<std::ffi::CString> = None;
         let mut pat = NvimString {
             data: ptr::null_mut(),
             size: 0,
@@ -3987,11 +4002,13 @@ unsafe fn do_sub(
 
             let p = cmd;
             cmd = skip_substitute(cmd, delimiter);
-            sub = xstrdup(p);
+            let sub_cstr = cstr_to_cstring(p);
+            sub = sub_cstr.as_ptr().cast_mut();
+            sub_owned = Some(sub_cstr);
 
             if (*eap).skip == 0 && !keeppatterns && cmdpreview_ns <= 0 {
                 sub_set_replacement(SubReplacementString {
-                    sub: Some(CStr::from_ptr(sub).to_owned()),
+                    sub: sub_owned.clone(),
                     timestamp: os_time(),
                     additional_data: None,
                 });
@@ -4005,13 +4022,14 @@ unsafe fn do_sub(
                 data: ptr::null_mut(),
                 size: 0,
             };
-            sub = xstrdup(old_sub_cstr.as_ptr());
+            let sub_cstr = old_sub_cstr.clone();
+            sub = sub_cstr.as_ptr().cast_mut();
+            sub_owned = Some(sub_cstr);
             endcolumn = (*curwin).w_curswant == MAXCOL;
         }
 
         if !sub.is_null() && sub_joining_lines(eap, pat, sub, cmd, cmdpreview_ns <= 0, keeppatterns)
         {
-            xfree(sub.cast());
             return 0;
         }
 
@@ -4026,7 +4044,6 @@ unsafe fn do_sub(
             i = getdigits_int(&raw mut cmd, false, c_int::MAX);
             if i <= 0 && (*eap).skip == 0 && subflags.do_error {
                 emsg(gettext(e_zerocount.as_ptr()));
-                xfree(sub.cast());
                 return 0;
             } else if i == c_int::MAX {
                 semsg!(
@@ -4034,7 +4051,6 @@ unsafe fn do_sub(
                     cmd.offset_from(count_arg) as c_int,
                     count_arg,
                 );
-                xfree(sub.cast());
                 return 0;
             }
             (*eap).line1 = (*eap).line2;
@@ -4047,19 +4063,16 @@ unsafe fn do_sub(
             (*eap).nextcmd = check_nextcmd(cmd);
             if (*eap).nextcmd.is_null() {
                 semsg!(gettext(e_trailing_arg.as_ptr()), cmd);
-                xfree(sub.cast());
                 return 0;
             }
         }
 
         if (*eap).skip != 0 {
-            xfree(sub.cast());
             return 0;
         }
 
         if !subflags.do_count && !modifiable(curbuf) {
             emsg(gettext(e_modifiable.as_ptr()));
-            xfree(sub.cast());
             return 0;
         }
 
@@ -4084,7 +4097,6 @@ unsafe fn do_sub(
             if subflags.do_error {
                 emsg(gettext(e_invcmd.as_ptr()));
             }
-            xfree(sub.cast());
             return 0;
         }
 
@@ -4101,13 +4113,11 @@ unsafe fn do_sub(
 
         debug_assert!(!sub.is_null());
 
-        if *sub == b'\\' as c_char && *sub.add(1) == b'=' as c_char {
-            let p = xstrdup(sub);
-            xfree(sub.cast());
-            sub = p;
-        } else if let Some(new_sub) = regtilde(sub, p_magic, cmdpreview_ns > 0) {
-            xfree(sub.cast());
-            sub = xstrdup(new_sub.as_ptr());
+        if !(*sub == b'\\' as c_char && *sub.add(1) == b'=' as c_char)
+            && let Some(new_sub) = regtilde(sub, p_magic, cmdpreview_ns > 0)
+        {
+            sub = new_sub.as_ptr().cast_mut();
+            sub_owned = Some(new_sub);
         }
 
         let mut line2 = (*eap).line2;
@@ -4285,10 +4295,15 @@ unsafe fn do_sub(
                                         .as_ptr(),
                                 );
                                 vim_snprintf!(iobuff_ptr, IOSIZE, p_fmt, sub);
-                                let p = xstrdup(iobuff_ptr);
-                                typed = prompt_for_input(p, HLF_R, true, ptr::null_mut());
+                                let p = cstr_to_cstring(iobuff_ptr);
+                                typed = prompt_for_input(
+                                    p.as_ptr().cast_mut(),
+                                    HLF_R,
+                                    true,
+                                    ptr::null_mut(),
+                                );
                                 Search.hl_match = false;
-                                xfree(p.cast());
+                                drop(p);
 
                                 msg_didout = false;
                                 gotocmdline(true);
@@ -4770,7 +4785,7 @@ unsafe fn do_sub(
         }
 
         vim_regfree(regmatch.regprog);
-        xfree(sub.cast());
+        drop(sub_owned);
 
         subflags.do_all = save_do_all;
         subflags.do_ask = save_do_ask;
@@ -5142,7 +5157,7 @@ unsafe fn show_sub(
     cmdpreview_bufnr: handle_T,
 ) -> c_int {
     unsafe {
-        let save_shm_p = xstrdup(p_shm);
+        let save_shm_p = cstr_to_cstring(p_shm);
         let subresults = &(*preview_lines).subresults;
         let orig_buf = curbuf;
         let mut cmdpreview_buf: *mut buf_T = ptr::null_mut();
@@ -5253,8 +5268,7 @@ unsafe fn show_sub(
             bufhl_add_hl_pos_offset(orig_buf, cmdpreview_ns, hl_id, m.start, m.end, 0);
         }
 
-        set_option_direct(kOptShortmess, cstr_as_obj(save_shm_p), 0, SID_NONE);
-        xfree(save_shm_p.cast());
+        set_option_direct(kOptShortmess, cstr_as_obj(save_shm_p.as_ptr()), 0, SID_NONE);
 
         if preview { 2 } else { 1 }
     }

@@ -842,7 +842,7 @@ unsafe fn diff_write(
 }
 unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T) {
     unsafe {
-        let take_tempname = || cstr_take(vim_tempname());
+        let take_tempname = || vim_tempname();
         'theend: {
             if (*dio).dio_internal != 0 {
                 (*dio).dio_diff.dout_ga.clear();
@@ -1249,8 +1249,8 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
         let esc_name: Option<CString>;
         #[cfg(unix)]
         let fullname: Option<CString>;
-        let tmp_orig_owned = cstr_take(vim_tempname());
-        let tmp_new_owned = cstr_take(vim_tempname());
+        let tmp_orig_owned = vim_tempname();
+        let tmp_new_owned = vim_tempname();
         'theend: {
             let (Some(tmp_orig_cstr), Some(tmp_new_cstr)) = (&tmp_orig_owned, &tmp_new_owned)
             else {

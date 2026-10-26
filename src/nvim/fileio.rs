@@ -53,7 +53,7 @@ use crate::memline::{
     check_need_swap, ml_append, ml_delete, ml_get, ml_get_buf, ml_get_len, ml_open,
 };
 use crate::memory::{
-    cstr_take, memchrsub, strequal, time_to_bytes, xfree, xstrdup, xstrlcat, xstrlcpy,
+    memchrsub, strequal, time_to_bytes, xfree, xstrdup, xstrlcat, xstrlcpy,
 };
 use crate::message::{
     emsg, msg, msg_check_for_delay, msg_clr_eos, msg_delay, msg_end, msg_may_trunc, msg_outtrans,
@@ -2881,7 +2881,7 @@ unsafe fn readfile_charconvert(
     unsafe {
         let mut errmsg: *mut c_char = ptr::null_mut();
 
-        let mut tmpname = cstr_take(vim_tempname());
+        let mut tmpname = vim_tempname();
         match tmpname {
             None => {
                 errmsg = tr(c"Can't find temp file for conversion".as_ptr());
@@ -4490,13 +4490,13 @@ unsafe fn vim_settempdir(tempdir: *mut c_char) -> bool {
 }
 
 /// Return a unique name that can be used for a temp file.
-pub unsafe fn vim_tempname() -> *mut c_char {
+pub unsafe fn vim_tempname() -> Option<std::ffi::CString> {
     unsafe {
         static mut TEMP_COUNT: u64 = 0;
 
         let tempdir = vim_gettempdir();
         if tempdir.is_null() {
-            return ptr::null_mut();
+            return None;
         }
 
         let mut templ: [c_char; TEMP_FILE_PATH_MAXLEN] = [0; TEMP_FILE_PATH_MAXLEN];
@@ -4509,7 +4509,7 @@ pub unsafe fn vim_tempname() -> *mut c_char {
             tempdir,
             count,
         );
-        xstrdup(templ.as_ptr())
+        Some(crate::memory::cstr_to_cstring(templ.as_ptr()))
     }
 }
 
@@ -4995,8 +4995,8 @@ mod tests {
                 .to_string();
             assert_eq!(dir1, dir2);
 
-            let f1 = cstr_take(vim_tempname()).unwrap();
-            let f2 = cstr_take(vim_tempname()).unwrap();
+            let f1 = vim_tempname().unwrap();
+            let f2 = vim_tempname().unwrap();
             let f1_str = f1.to_str().unwrap().to_string();
             let f2_str = f2.to_str().unwrap().to_string();
             assert_ne!(f1_str, f2_str);

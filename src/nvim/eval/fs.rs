@@ -1914,8 +1914,12 @@ pub unsafe fn f_simplify(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 /// "tempname()" function
 pub unsafe fn f_tempname(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = vim_tempname();
+        if let Some(tn) = vim_tempname() {
+            crate::eval::typval::tv_set_string(rettv, tn.as_ptr());
+        } else {
+            (*rettv).v_type = VarType::VAR_STRING;
+            (*rettv).vval.v_string = ptr::null_mut();
+        }
     }
 }
 

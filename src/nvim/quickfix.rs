@@ -4864,7 +4864,7 @@ pub unsafe fn ex_make(eap: *mut exarg_T) {
 unsafe fn get_mef_name() -> Option<std::ffi::CString> {
     unsafe {
         if *p_mef == NUL {
-            let name = cstr_take(vim_tempname());
+            let name = vim_tempname();
             if name.is_none() {
                 emsg(gettext((&raw const e_notmp).cast()));
             }

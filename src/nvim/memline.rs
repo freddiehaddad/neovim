@@ -575,7 +575,7 @@ pub unsafe fn ml_open_file(buf: *mut buf_T) {
         }
 
         if (*buf).b_spell {
-            if let Some(fname) = cstr_take(vim_tempname()) {
+            if let Some(fname) = vim_tempname() {
                 mf_open_file(mfp, fname);
             }
             (*buf).b_may_swap = false;

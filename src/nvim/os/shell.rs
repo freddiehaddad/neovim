@@ -198,7 +198,7 @@ pub unsafe fn os_expand_wildcards(
             }
         }
 
-        let Some(tempname_cstr) = cstr_take(vim_tempname()) else {
+        let Some(tempname_cstr) = vim_tempname() else {
             emsg(gettext(e_notmp.as_ptr()));
             return FAIL;
         };
@@ -723,19 +723,17 @@ pub unsafe fn get_cmd_output(
             return None;
         }
 
-        let Some(tempname_cstr) = cstr_take(vim_tempname()) else {
+        let Some(tempname_cstr) = vim_tempname() else {
             emsg(gettext(e_notmp.as_ptr()));
             return None;
         };
         let tempname = tempname_cstr.as_ptr().cast_mut();
 
-        let command = cstr_take(make_filter_cmd(cmd, infile, tempname, false));
+        let command = make_filter_cmd(cmd, infile, tempname, false);
 
         no_check_timestamps += 1;
         call_shell(
-            command
-                .as_ref()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+            command.as_ptr().cast_mut(),
             kShellOptDoOut | kShellOptExpand | flags,
             ptr::null_mut(),
         );
