@@ -359,10 +359,7 @@ pub unsafe fn ctx_save(ctx: *mut Context, flags: CtxStateFlags) {
         if (flags & (kCtxFuncs | kCtxSFuncs)) != 0 {
             let scriptonly = (flags & kCtxFuncs) == 0;
             (*ctx).funcs = Array::new();
-            let mut err = Error {
-                err_type: ErrorType::kErrorTypeNone,
-                msg: ptr::null_mut(),
-            };
+            let mut err = Error::new();
 
             let ht = func_tbl_get();
             for name_bytes in ht.keys() {

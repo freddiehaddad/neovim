@@ -933,10 +933,7 @@ static mut winclosed_recursive: bool = false;
 static mut tabclosedpre_recursive: bool = false;
 static mut win_scrolled_resized_recursive: bool = false;
 
-const ERROR_INIT: Error = Error {
-    err_type: ErrorType::kErrorTypeNone,
-    msg: ptr::null_mut(),
-};
+const ERROR_INIT: Error = Error::new();
 
 #[inline]
 fn nowin() -> *mut win_T {
@@ -992,7 +989,7 @@ pub unsafe fn window_layout_locked(cmd: cmdidx_T) -> bool {
         let mut err = ERROR_INIT;
         let locked = window_layout_locked_err(cmd, &raw mut err);
         if error_set(&err) {
-            emsg(gettext(err.msg));
+            emsg(gettext(err.msg_ptr()));
             api_clear_error(&raw mut err);
         }
         locked
@@ -1549,7 +1546,7 @@ pub unsafe fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                         config.external = true;
                         let mut err = ERROR_INIT;
                         if win_new_float(curwin, false, config, &raw mut err).is_null() {
-                            emsg(err.msg);
+                            emsg(err.msg_ptr());
                             api_clear_error(&raw mut err);
                             beep_flush();
                         }
@@ -1908,7 +1905,7 @@ pub unsafe fn check_split_disallowed(wp: *const win_T) -> c_int {
         let mut err = ERROR_INIT;
         let ok = check_split_disallowed_err(wp, &raw mut err);
         if error_set(&err) {
-            emsg(gettext(err.msg));
+            emsg(gettext(err.msg_ptr()));
             api_clear_error(&raw mut err);
         }
         if ok { OK } else { FAIL }

@@ -9550,7 +9550,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
             nvim_command(cstr_as_string(quit_cmd), &raw mut err);
 
             if error_set(&raw const err) {
-                let _ = emsg(err.msg);
+                let _ = emsg(err.msg_ptr());
                 api_clear_error(&raw mut err);
             } else if !exiting {
                 let _ = semsg!(e_restart_failed_cmd_no_quit.as_ptr(), quit_cmd);
@@ -9560,7 +9560,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
 
         set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
         if error_set(&raw const err) {
-            let _ = emsg(err.msg);
+            let _ = emsg(err.msg_ptr());
             api_clear_error(&raw mut err);
         }
         arena_mem_free(result_mem);
@@ -10415,7 +10415,7 @@ unsafe fn ex_detach(eap: *mut exarg_T) {
             let mut err = error_init();
             ui_detach_channel(current_ui, &raw mut err);
             if error_set(&raw const err) {
-                let _ = emsg(err.msg);
+                let _ = emsg(err.msg_ptr());
                 api_clear_error(&raw mut err);
                 return;
             }
@@ -10446,7 +10446,7 @@ unsafe fn ex_connect(eap: *mut exarg_T) {
         remote_ui_connect(current_ui, (*eap).arg, &raw mut err);
 
         if error_set(&raw const err) {
-            let _ = emsg(err.msg);
+            let _ = emsg(err.msg_ptr());
             api_clear_error(&raw mut err);
             return;
         }

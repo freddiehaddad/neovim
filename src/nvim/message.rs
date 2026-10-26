@@ -3436,7 +3436,7 @@ unsafe fn msg_puts_printf(str_: *const c_char, maxlen: isize) {
         let mut s = str_;
         let mut buf = [0 as c_char; 7];
 
-        if on_print.cb_type() != kCallbackNone {
+        if crate::eval::typval::Callback::raw_cb_type(&raw const on_print) != kCallbackNone {
             let mut argv = [typval_T {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_UNLOCKED,

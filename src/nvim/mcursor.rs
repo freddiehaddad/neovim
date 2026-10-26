@@ -818,10 +818,7 @@ unsafe fn mc_ins_preview_replace(start: pos_T, end: pos_T, text: *const NvimStri
             pos: 0,
             size: 0,
         };
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let input = if !(*text).data.is_null() {
             *text
         } else {
@@ -851,7 +848,7 @@ unsafe fn mc_ins_preview_replace(start: pos_T, end: pos_T, text: *const NvimStri
                     747,
                     true,
                     c"preview replace failed: %s".as_ptr(),
-                    err.msg,
+                    err.msg_ptr(),
                 );
             }
             api_clear_error(&mut err);

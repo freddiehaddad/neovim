@@ -445,10 +445,7 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> c_int {
         let mut ma = get_string_arg(lstate, 1);
         let mut mb = get_string_arg(lstate, 2);
 
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: std::ptr::null_mut(),
-        };
+        let mut err = Error::new();
 
         let mut cfg = xdemitconf_t::default();
         let mut params = xpparam_t::default();
@@ -495,7 +492,7 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> c_int {
 
         if err.err_type != ErrorType::kErrorTypeNone {
             luaL_where(lstate, 1);
-            lua_pushstring(lstate, err.msg);
+            lua_pushstring(lstate, err.msg_ptr());
             api_clear_error(&mut err);
             lua_concat(lstate, 2);
             return lua_error(lstate);

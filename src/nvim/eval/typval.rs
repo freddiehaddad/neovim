@@ -116,25 +116,25 @@ impl Drop for partial_T {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum CallbackData {
     None,
-    Funcref(*mut c_char),
+    Funcref(std::ffi::CString),
     Partial(*mut partial_T),
     Lua(LuaRef),
-    Expr(*mut c_char),
+    Expr(std::ffi::CString),
 }
 
 impl CallbackData {
     pub const NONE: Self = Self::None;
 
     #[inline]
-    pub const fn funcref(funcref: *mut c_char) -> Self {
+    pub const fn funcref(funcref: std::ffi::CString) -> Self {
         Self::Funcref(funcref)
     }
 
     #[inline]
-    pub const fn expr(expr: *mut c_char) -> Self {
+    pub const fn expr(expr: std::ffi::CString) -> Self {
         Self::Expr(expr)
     }
 
@@ -149,32 +149,32 @@ impl CallbackData {
     }
 
     #[inline]
-    pub const fn as_funcref(self) -> *mut c_char {
+    pub fn as_funcref(&self) -> *mut c_char {
         match self {
-            Self::Funcref(p) | Self::Expr(p) => p,
+            Self::Funcref(s) | Self::Expr(s) => s.as_ptr().cast_mut(),
             _ => ptr::null_mut(),
         }
     }
 
     #[inline]
-    pub const fn as_partial(self) -> *mut partial_T {
+    pub const fn as_partial(&self) -> *mut partial_T {
         match self {
-            Self::Partial(p) => p,
+            Self::Partial(p) => *p,
             _ => ptr::null_mut(),
         }
     }
 
     #[inline]
-    pub const fn as_luaref(self) -> LuaRef {
+    pub const fn as_luaref(&self) -> LuaRef {
         match self {
-            Self::Lua(r) => r,
+            Self::Lua(r) => *r,
             _ => 0,
         }
     }
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Callback {
     pub data: CallbackData,
 }
@@ -190,7 +190,7 @@ impl Callback {
     }
 
     #[inline]
-    pub const fn cb_type(self) -> c_int {
+    pub const fn cb_type(&self) -> c_int {
         match self.data {
             CallbackData::None => kCallbackNone,
             CallbackData::Funcref(_) => kCallbackFuncref,
@@ -198,6 +198,11 @@ impl Callback {
             CallbackData::Lua(_) => kCallbackLua,
             CallbackData::Expr(_) => kCallbackExpr,
         }
+    }
+
+    #[inline]
+    pub unsafe fn raw_cb_type(cb: *const Self) -> c_int {
+        unsafe { (*cb).cb_type() }
     }
 }
 
@@ -2458,9 +2463,7 @@ pub unsafe fn callback_free(callback: *mut Callback) {
     unsafe {
         match (*callback).cb_type() {
             kCallbackFuncref => {
-                let funcref = (*callback).data.as_funcref();
-                func_unref(funcref);
-                crate::path::free_cstring(funcref);
+                func_unref((*callback).data.as_funcref());
             }
             kCallbackPartial => {
                 partial_unref((*callback).data.as_partial());
@@ -2468,9 +2471,6 @@ pub unsafe fn callback_free(callback: *mut Callback) {
             kCallbackLua => {
                 let mut luaref = (*callback).data.as_luaref();
                 nlua_clear_ref(&mut luaref);
-            }
-            kCallbackExpr => {
-                crate::path::free_cstring((*callback).data.as_funcref());
             }
             _ => {}
         }
@@ -2513,7 +2513,7 @@ pub unsafe fn callback_copy(dest: *mut Callback, src: *mut Callback) {
             }
             kCallbackFuncref => {
                 let funcref = (*src).data.as_funcref();
-                (*dest).data = CallbackData::funcref(crate::path::alloc_cstring(funcref));
+                (*dest).data = CallbackData::funcref(CStr::from_ptr(funcref).to_owned());
                 func_ref(funcref);
             }
             kCallbackLua => {
@@ -2522,7 +2522,7 @@ pub unsafe fn callback_copy(dest: *mut Callback, src: *mut Callback) {
             }
             kCallbackExpr => {
                 (*dest).data =
-                    CallbackData::expr(crate::path::alloc_cstring((*src).data.as_funcref()));
+                    CallbackData::expr(CStr::from_ptr((*src).data.as_funcref()).to_owned());
             }
             _ => {
                 (*dest).data = CallbackData::NONE;
@@ -2576,7 +2576,7 @@ pub unsafe fn tv_dict_watcher_remove(
     dict: *mut dict_T,
     key_pattern: *const c_char,
     key_pattern_len: usize,
-    callback: Callback,
+    callback: &Callback,
 ) -> bool {
     unsafe {
         if dict.is_null() {
@@ -2590,7 +2590,7 @@ pub unsafe fn tv_dict_watcher_remove(
                 queue_is_busy = true;
             }
             if matched_idx.is_none()
-                && tv_callback_equal(&raw const w.callback, &raw const callback)
+                && tv_callback_equal(&raw const w.callback, callback)
                 && w.key_pattern_len == key_pattern_len
                 && w.key_pattern.as_bytes()
                     == std::slice::from_raw_parts(key_pattern.cast::<u8>(), key_pattern_len)
@@ -2672,7 +2672,7 @@ pub unsafe fn tv_dict_watcher_notify(
             if matches {
                 let mut rettv = tv_initial_value();
                 (&mut (*dict).watchers)[i].busy = true;
-                let mut cb = (&(*dict).watchers)[i].callback;
+                let mut cb = (&(*dict).watchers)[i].callback.clone();
                 callback_call(&raw mut cb, 3, argv.as_mut_ptr(), &raw mut rettv);
                 let w = &mut (&mut (*dict).watchers)[i];
                 w.callback = cb;

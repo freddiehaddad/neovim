@@ -1701,10 +1701,7 @@ pub unsafe fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> Option<CString> {
         let save_msg_col = msg_col;
         let save_msg_row = msg_row;
         if (*mp).m_luaref != LUA_NOREF {
-            let mut err = Error {
-                err_type: ErrorType::kErrorTypeNone,
-                msg: ptr::null_mut(),
-            };
+            let mut err = Error::new();
             let args = Array {
                 items: ptr::null_mut(),
                 size: 0,
@@ -1723,7 +1720,7 @@ pub unsafe fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> Option<CString> {
             }
             api_free_object(ret);
             if err.err_type != ErrorType::kErrorTypeNone {
-                semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg);
+                semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg_ptr());
                 api_clear_error(&mut err);
             }
         } else {

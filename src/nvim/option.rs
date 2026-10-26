@@ -5280,9 +5280,9 @@ unsafe fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
                 } else if value.data.string.size > 0 {
                     let funcref =
                         if let Some(name) = get_scriptlocal_funcname(value.data.string.data) {
-                            crate::path::alloc_cstring_bytes(name.as_bytes())
+                            name
                         } else {
-                            crate::path::alloc_cstring(value.data.string.data)
+                            CStr::from_ptr(value.data.string.data).to_owned()
                         };
                     cb.data = crate::eval::typval::CallbackData::expr(funcref);
                 }

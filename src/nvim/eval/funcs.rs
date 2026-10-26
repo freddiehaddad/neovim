@@ -1315,15 +1315,12 @@ pub unsafe fn api_wrapper(argvars: *mut typval_T, rettv: *mut typval_T, fptr: Ev
             tv = tv.add(1);
         }
 
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let fn_ptr = handler.r#fn.unwrap();
         let mut result = fn_ptr(VIML_INTERNAL_CALL, args, &raw mut arena, &raw mut err);
 
         if err.err_type != ErrorType::kErrorTypeNone {
-            semsg_multiline!(c"emsg".as_ptr(), e_api_error.as_ptr(), err.msg);
+            semsg_multiline!(c"emsg".as_ptr(), e_api_error.as_ptr(), err.msg_ptr());
         } else {
             object_to_vim_take_luaref(&raw mut result, rettv, true, &raw mut err);
         }
@@ -1372,10 +1369,7 @@ pub unsafe fn lua_wrapper(argvars: *mut typval_T, rettv: *mut typval_T, fptr: Ev
             lua_name.as_ptr(),
         );
 
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let mut result = nlua_exec(
             cstr_as_string(buf.as_ptr()),
             ptr::null(),
@@ -1386,7 +1380,7 @@ pub unsafe fn lua_wrapper(argvars: *mut typval_T, rettv: *mut typval_T, fptr: Ev
         );
 
         if err.err_type != ErrorType::kErrorTypeNone {
-            semsg_multiline!(c"emsg".as_ptr(), e_api_error.as_ptr(), err.msg);
+            semsg_multiline!(c"emsg".as_ptr(), e_api_error.as_ptr(), err.msg_ptr());
         } else {
             object_to_vim_take_luaref(&raw mut result, rettv, true, &raw mut err);
         }
@@ -2067,7 +2061,7 @@ pub unsafe fn f_dictwatcherdel(argvars: *mut typval_T, _rettv: *mut typval_T, _f
             (*argvars).vval.v_dict.cast(),
             key_pattern,
             strlen(key_pattern),
-            callback,
+            &callback,
         ) {
             emsg(c"Couldn't find a watcher matching key and callback".as_ptr());
         }
@@ -4016,10 +4010,7 @@ unsafe fn eval_has_static_feature(name: *const c_char) -> bool {
 unsafe fn has_wsl() -> bool {
     unsafe {
         if HAS_WSL == kNone {
-            let mut err = Error {
-                err_type: ErrorType::kErrorTypeNone,
-                msg: ptr::null_mut(),
-            };
+            let mut err = Error::new();
             let cmd = c"return vim.uv.os_uname()['release']:lower():match('microsoft')";
             let o = nlua_exec(
                 NvimString {
@@ -4907,10 +4898,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                     break 'term_done;
                 }
 
-                let mut err = Error {
-                    err_type: ErrorType::kErrorTypeNone,
-                    msg: ptr::null_mut(),
-                };
+                let mut err = Error::new();
                 (*buf).b_locked += 1;
                 let cp = chan;
                 dict_set_var(
@@ -7228,10 +7216,7 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
             set_current_funccal(provider_caller_scope.funccalp);
         }
 
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let chan_id = (*argvars).vval.v_number as u64;
         let method = tv_get_string(argvars.add(1));
 
@@ -7263,7 +7248,7 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
                     method,
                     chan_id,
                     name,
-                    err.msg,
+                    err.msg_ptr(),
                 );
             } else {
                 semsg_multiline!(
@@ -7271,7 +7256,7 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
                     c"Invoking '%s' on channel %llu:\n%s".as_ptr(),
                     method,
                     chan_id,
-                    err.msg,
+                    err.msg_ptr(),
                 );
             }
         } else {
@@ -9207,7 +9192,7 @@ pub unsafe fn f_timer_start(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             return;
         }
         (*rettv).vval.v_number =
-            timer_start(tv_get_number(argvars), repeat, &raw const callback) as varnumber_T;
+            timer_start(tv_get_number(argvars), repeat, callback) as varnumber_T;
     }
 }
 

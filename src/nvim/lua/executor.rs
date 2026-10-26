@@ -803,14 +803,11 @@ unsafe extern "C-unwind" fn nlua_thr_api_nvim__get_runtime(lstate: *mut lua_Stat
         let all = lua_toboolean(lstate, -1) != 0;
         lua_pop(lstate, 1);
 
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let pat = nlua_pop_Array(lstate, ptr::null_mut(), &raw mut err);
         if error_set(&raw const err) {
             luaL_where(lstate, 1);
-            lua_pushstring(lstate, err.msg);
+            lua_pushstring(lstate, err.msg_ptr());
             api_clear_error(&raw mut err);
             lua_concat(lstate, 2);
             return lua_error(lstate);
@@ -1403,7 +1400,9 @@ pub unsafe fn nlua_print_event(text: NvimString) {
     unsafe {
         msg_ext_no_fast();
         let raw =
-            msg_use_printf() != 0 && redirecting() == 0 && on_print.cb_type() == kCallbackNone;
+            msg_use_printf() != 0
+                && redirecting() == 0
+                && crate::eval::typval::Callback::raw_cb_type(&raw const on_print) == kCallbackNone;
 
         let mut msg: HlMessage = vec![HlMessageChunk { text, hl_id: 0 }];
         let mut needs_clear = false;
@@ -1617,10 +1616,7 @@ unsafe fn viml_func_is_fast(name: *const c_char) -> bool {
 
 pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
     unsafe {
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let mut name_len: usize = 0;
         let name = luaL_checklstring(lstate, 1, &raw mut name_len);
         if !nlua_is_deferred_safe() && !viml_func_is_fast(name) {
@@ -1717,7 +1713,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             tv_clear(&raw mut vim_args[i]);
         }
         if error_set(&raw const err) {
-            lua_pushstring(lstate, err.msg);
+            lua_pushstring(lstate, err.msg_ptr());
             api_clear_error(&raw mut err);
             return lua_error(lstate);
         }
@@ -1748,10 +1744,7 @@ unsafe fn nlua_rpc(lstate: *mut lua_State, request: bool) -> c_int {
         let chan_id = luaL_checkinteger(lstate, 1) as u64;
         let name = luaL_checklstring(lstate, 2, &raw mut name_len);
         let nargs = lua_gettop(lstate) - 2;
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let mut arena = Arena {
             cur_blk: ptr::null_mut(),
             pos: 0,
@@ -1792,7 +1785,7 @@ unsafe fn nlua_rpc(lstate: *mut lua_State, request: bool) -> c_int {
         arena_mem_free(arena_finish(&raw mut arena));
 
         if error_set(&raw const err) {
-            lua_pushstring(lstate, err.msg);
+            lua_pushstring(lstate, err.msg_ptr());
             api_clear_error(&raw mut err);
             return lua_error(lstate);
         }
@@ -2263,10 +2256,7 @@ unsafe fn nlua_call_pop_retval(
             lua_pop(lstate, 1);
             return OBJECT_NIL;
         }
-        let mut dummy = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut dummy = Error::new();
         let perr = if !err.is_null() { err } else { &raw mut dummy };
 
         match mode {
@@ -2545,10 +2535,7 @@ pub unsafe fn nlua_expand_pat(xp: *mut expand_T) {
             return;
         }
 
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let mut arena = Arena {
             cur_blk: ptr::null_mut(),
             pos: 0,
@@ -2898,10 +2885,7 @@ pub unsafe fn nlua_func_exists(lua_funcname: *const c_char) -> bool {
             size: 1,
             capacity: 1,
         };
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let code = NvimString {
             data: c"return type(loadstring(...)()) == 'function'"
                 .as_ptr()

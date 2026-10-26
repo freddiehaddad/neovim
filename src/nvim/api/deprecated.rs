@@ -1082,10 +1082,7 @@ pub unsafe extern "C" fn nvim_call_atomic(
     unsafe {
         let mut rv = arena_array(arena, 2);
         let mut results = arena_array(arena, calls.size);
-        let mut nested_error = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut nested_error = Error::new();
 
         let mut i = 0usize;
         'theend: {
@@ -1158,7 +1155,7 @@ pub unsafe extern "C" fn nvim_call_atomic(
                 add_c(&mut errval, integer_obj(nested_error.err_type as Integer));
                 add_c(
                     &mut errval,
-                    string_obj(copy_string(cstr_as_string(nested_error.msg), arena)),
+                    string_obj(copy_string(cstr_as_string(nested_error.msg_ptr()), arena)),
                 );
                 add_c(&mut rv, array_obj(errval));
             } else {

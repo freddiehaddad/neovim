@@ -1133,7 +1133,7 @@ unsafe fn command_line_enter(
                         msg_putchar(b'\n' as c_int);
                     }
                     msg_scroll = 1;
-                    msg_puts_hl(err.msg, HLF_E, true);
+                    msg_puts_hl(err.msg_ptr(), HLF_E, true);
                     api_clear_error(&raw mut err);
                     redrawcmd();
                 }
@@ -1290,7 +1290,7 @@ unsafe fn command_line_enter(
                 if !ui_has(kUIMessages) {
                     msg_putchar(b'\n' as c_int);
                 }
-                emsg(err.msg);
+                emsg(err.msg_ptr());
                 did_emsg = 0;
                 api_clear_error(&raw mut err);
             }
@@ -3266,7 +3266,7 @@ unsafe fn do_autocmd_cmdlinechanged(firstc: c_int) {
                     msg_putchar(b'\n' as c_int);
                 }
                 msg_scroll = 1;
-                msg_puts_hl(err.msg, HLF_E, true);
+                msg_puts_hl(err.msg_ptr(), HLF_E, true);
                 api_clear_error(&raw mut err);
                 redrawcmd();
             }
@@ -3384,6 +3384,7 @@ pub unsafe fn getcmdline_prompt(
 
         let ret = command_line_enter(firstc, 1, 0, false);
         ccline.redraw_state = kCmdRedrawNone;
+        ccline.highlight_callback = Callback::NONE;
 
         if did_save_ccline {
             restore_cmdline(&raw mut save_ccline);
@@ -3768,7 +3769,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                 }
                 if (*colored_ccline).highlight_callback.cb_type() != kCallbackNone {
                     debug_assert!((*colored_ccline).input_fn != 0);
-                    color_cb = (*colored_ccline).highlight_callback;
+                    color_cb = (*colored_ccline).highlight_callback.clone();
                 } else if (*colored_ccline).cmdfirstc == b':' as c_int {
                     let mut tstate = TryState::new();
                     try_enter(&raw mut tstate);
@@ -3973,7 +3974,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
             if error_set(&err) {
                 msg_scroll = 1;
                 msg_putchar(b'\n' as c_int);
-                smsg!(HLF_E, gettext(err_errmsg), err.msg);
+                smsg!(HLF_E, gettext(err_errmsg), err.msg_ptr());
                 printed_errmsg = true;
                 api_clear_error(&raw mut err);
             }
@@ -5406,7 +5407,7 @@ pub unsafe fn get_user_input(
             xp_arg
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
-            input_callback,
+            input_callback.clone(),
             false,
             ptr::null_mut(),
         );

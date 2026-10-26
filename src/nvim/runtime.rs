@@ -2939,10 +2939,7 @@ unsafe fn do_source_ext(
                     size: 3,
                     capacity: 3,
                 };
-                let mut err = Error {
-                    err_type: ErrorType::kErrorTypeNone,
-                    msg: ptr::null_mut(),
-                };
+                let mut err = Error::new();
                 let result = nlua_exec(
                     static_cstr_as_string(c"return require('vim._core.util').source_is_lua(...)"),
                     ptr::null(),

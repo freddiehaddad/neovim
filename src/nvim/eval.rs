@@ -5223,19 +5223,20 @@ pub unsafe fn callback_from_typval(callback: *mut Callback, arg: *const typval_T
                 let funcref = if (*arg).v_type == VarType::VAR_STRING
                     && let Some(sl) = get_scriptlocal_funcname(name)
                 {
-                    crate::path::alloc_cstring_bytes(sl.as_bytes())
+                    sl
                 } else {
-                    crate::path::alloc_cstring(name)
+                    CStr::from_ptr(name).to_owned()
                 };
-                func_ref(funcref);
+                func_ref(funcref.as_ptr().cast_mut());
                 (*callback).data = crate::eval::typval::CallbackData::funcref(funcref);
             }
         } else if is_lua_tbl {
             {
                 let name = nlua_register_table_as_callable(arg);
                 if !name.is_null() {
-                    (*callback).data =
-                        crate::eval::typval::CallbackData::funcref(crate::path::alloc_cstring(name));
+                    (*callback).data = crate::eval::typval::CallbackData::funcref(
+                        CStr::from_ptr(name).to_owned(),
+                    );
                 } else {
                     r = FAIL;
                 }
@@ -5305,10 +5306,7 @@ pub unsafe fn callback_call(
                         vim_to_object(argvars_in.add(i), &raw mut arena, false);
                     luaargs.size += 1;
                 }
-                let mut err = Error {
-                    err_type: ErrorType::kErrorTypeNone,
-                    msg: ptr::null_mut(),
-                };
+                let mut err = Error::new();
                 let luaref = (*callback).data.as_luaref();
                 callback_depth += 1;
                 let result = nlua_call_ref(
@@ -5322,7 +5320,7 @@ pub unsafe fn callback_call(
                 callback_depth -= 1;
                 let ok = err.err_type == ErrorType::kErrorTypeNone;
                 if !ok {
-                    semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg);
+                    semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg_ptr());
                     api_clear_error(&raw mut err);
                 } else {
                     object_to_vim(result, rettv, ptr::null_mut());
@@ -5527,7 +5525,7 @@ pub unsafe fn timer_due_cb(_tw: *mut TimeWatcher, timer: *mut timer_T) {
     }
 }
 
-pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: *const Callback) -> u64 {
+pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: Callback) -> u64 {
     unsafe {
         let id = last_timer_id;
         last_timer_id += 1;
@@ -5540,7 +5538,7 @@ pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: *const Ca
             timeout,
             stopped: false,
             paused: false,
-            callback: *callback,
+            callback,
         }));
 
         {

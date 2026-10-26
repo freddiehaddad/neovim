@@ -1498,10 +1498,7 @@ pub unsafe fn get_foldtext(
 
                 let obj = eval_foldtext(wp);
                 if obj.obj_type == ObjectType::kObjectTypeArray {
-                    let mut err = Error {
-                        err_type: ErrorType::kErrorTypeNone,
-                        msg: ptr::null_mut(),
-                    };
+                    let mut err = Error::new();
                     *vt = parse_virt_text(obj.data.array, &mut err, ptr::null_mut(), false);
                     if err.err_type == ErrorType::kErrorTypeNone {
                         text = Some(std::ffi::CString::default());

@@ -3485,7 +3485,7 @@ unsafe fn op_function(oap: *const oparg_T) {
         let orig_start = (*curbuf).b_op_start;
         let orig_end = (*curbuf).b_op_end;
 
-        if p_opfunc.cb_type() == kCallbackNone {
+        if crate::eval::typval::Callback::raw_cb_type(&raw const p_opfunc) == kCallbackNone {
             emsg(tr(c"E774: 'operatorfunc' is empty".as_ptr()));
         } else {
             (*curbuf).b_op_start = (*oap).start;

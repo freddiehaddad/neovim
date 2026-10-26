@@ -160,7 +160,7 @@ unsafe fn decor_provider_invoke(
         }
 
         if error_set(&err) && (*provider).error_count < CB_MAX_ERROR {
-            decor_provider_error(provider, name, err.msg);
+            decor_provider_error(provider, name, err.msg_ptr());
             (*provider).error_count += 1;
 
             if (*provider).error_count >= CB_MAX_ERROR {

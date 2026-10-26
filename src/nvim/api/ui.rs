@@ -201,10 +201,7 @@ pub unsafe fn ui_detach_others(keep_chan: u64) -> usize {
 
         let mut detached: usize = 0;
         for chan in chans {
-            let mut err = Error {
-                err_type: ErrorType::kErrorTypeNone,
-                msg: ptr::null_mut(),
-            };
+            let mut err = Error::new();
             ui_detach_channel(chan, &raw mut err);
             if error_set(&raw const err) {
                 api_clear_error(&raw mut err);

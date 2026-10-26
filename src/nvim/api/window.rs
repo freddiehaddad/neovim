@@ -386,10 +386,7 @@ pub unsafe extern "C" fn nvim_win_get_number(win: Window, err: *mut Error) -> In
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_win_is_valid(win: Window) -> Boolean {
     unsafe {
-        let mut stub = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut stub = Error::new();
         let ret = !find_window_by_handle(win, &mut stub).is_null();
         api_clear_error(&mut stub);
         ret

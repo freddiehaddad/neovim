@@ -874,10 +874,7 @@ unsafe fn getcwd_scope_args(
                 return false;
             }
             if argv[kBufArg] > 0 {
-                let mut err = Error {
-                    err_type: ErrorType::kErrorTypeNone,
-                    msg: ptr::null_mut(),
-                };
+                let mut err = Error::new();
                 *buf = find_buffer_by_handle(argv[kBufArg], &raw mut err);
                 if err.err_type != ErrorType::kErrorTypeNone {
                     emsg(gettext(c"E5007: Cannot find buffer number.".as_ptr()));

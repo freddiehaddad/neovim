@@ -320,10 +320,7 @@ pub unsafe extern "C-unwind" fn nlua_str_byteindex(lstate: *mut lua_State) -> c_
 
 pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> c_int {
     unsafe {
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let text = luaL_checkstring(lstate, 1);
 
         let mut tstate = TryState::new();
@@ -334,7 +331,7 @@ pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> c_int {
         if err.err_type != ErrorType::kErrorTypeNone {
             luaL_where(lstate, 1);
             lua_pushlstring(lstate, b"couldn't parse regex: ".as_ptr().cast(), 22);
-            lua_pushstring(lstate, err.msg);
+            lua_pushstring(lstate, err.msg_ptr());
             lua_concat(lstate, 3);
             api_clear_error(&raw mut err);
             return lua_error(lstate);
@@ -359,10 +356,7 @@ unsafe fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut dict_T {
         let scope = luaL_checkstring(lstate, 1);
         let handle = luaL_checkinteger(lstate, 2) as handle_T;
         let mut dict: *mut dict_T = ptr::null_mut();
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
 
         match CStr::from_ptr(scope).to_bytes() {
             b"g" => dict = get_globvar_dict(),
@@ -394,7 +388,7 @@ unsafe fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut dict_T {
         if err.err_type != ErrorType::kErrorTypeNone {
             luaL_where(lstate, 1);
             lua_pushlstring(lstate, b"scoped variable: ".as_ptr().cast(), 17);
-            lua_pushstring(lstate, err.msg);
+            lua_pushstring(lstate, err.msg_ptr());
             lua_concat(lstate, 3);
             api_clear_error(&raw mut err);
             lua_error(lstate);
@@ -416,14 +410,11 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
 
         let del = lua_gettop(lstate) < 4 || lua_isnil(lstate, 4);
 
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let mut di = dict_check_writable(dict, key, del, &raw mut err);
         if err.err_type != ErrorType::kErrorTypeNone {
             luaL_where(lstate, 1);
-            lua_pushstring(lstate, err.msg);
+            lua_pushstring(lstate, err.msg_ptr());
             lua_concat(lstate, 2);
             api_clear_error(&raw mut err);
             lua_error(lstate);
@@ -680,10 +671,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
         cmdmod.cmod_flags = flags;
         apply_cmdmod(&raw mut cmdmod);
 
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         {
@@ -731,7 +719,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
             return lua_error(lstate);
         } else if err.err_type != ErrorType::kErrorTypeNone {
             luaL_where(lstate, 1);
-            lua_pushstring(lstate, err.msg);
+            lua_pushstring(lstate, err.msg_ptr());
             lua_concat(lstate, 2);
             api_clear_error(&raw mut err);
             return lua_error(lstate);

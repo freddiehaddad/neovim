@@ -1459,10 +1459,7 @@ pub unsafe extern "C" fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: *
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_is_loaded(buf: Buffer) -> Boolean {
     unsafe {
-        let mut stub = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut stub = Error::new();
         let b = find_buffer_by_handle(buf, &mut stub);
         api_clear_error(&mut stub);
         !b.is_null() && !(*b).b_ml.ml_mfp.is_null()
@@ -1529,10 +1526,7 @@ pub unsafe extern "C" fn nvim_buf_delete(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_is_valid(buf: Buffer) -> Boolean {
     unsafe {
-        let mut stub = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut stub = Error::new();
         let ret = !find_buffer_by_handle(buf, &mut stub).is_null();
         api_clear_error(&mut stub);
         ret

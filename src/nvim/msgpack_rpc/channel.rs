@@ -557,7 +557,7 @@ unsafe fn parse_msgpack(channel: *mut Channel) {
         }
 
         if unpacker_closed(p) {
-            chan_close_on_err(channel, (*p).unpack_error.msg, LOGLVL_INF);
+            chan_close_on_err(channel, (*p).unpack_error.msg_ptr(), LOGLVL_INF);
             api_clear_error(&raw mut (*p).unpack_error);
         }
     }
@@ -576,7 +576,7 @@ unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
                 (*p).handler,
                 (*p).msg_type,
                 (*p).request_id,
-                (*p).unpack_error.msg,
+                (*p).unpack_error.msg_ptr(),
             );
             api_clear_error(&raw mut (*p).unpack_error);
             arena_mem_free(arena_finish(&raw mut (*p).arena));
@@ -636,10 +636,7 @@ pub unsafe fn request_event(mut e: RequestEvent) {
         let cp = channel;
         let ct = channel;
         let handler = e.handler;
-        let mut error = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut error = Error::new();
 
         if !(*ct).rpc.closed {
             let fn_call = handler.r#fn.unwrap();
@@ -751,10 +748,7 @@ unsafe fn send_error(
     err: *const c_char,
 ) {
     unsafe {
-        let mut e = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut e = Error::new();
         api_set_error!(
             &raw mut e,
             ErrorType::kErrorTypeException,
@@ -940,7 +934,7 @@ pub unsafe fn serialize_response(
 
             if is_paste {
                 {
-                    semsg!(c"paste: %s".as_ptr(), (*err).msg);
+                    semsg!(c"paste: %s".as_ptr(), (*err).msg_ptr());
                     api_clear_error(err);
                 }
             } else {
@@ -954,7 +948,7 @@ pub unsafe fn serialize_response(
                     Object {
                         obj_type: ObjectType::kObjectTypeString,
                         data: ObjectData {
-                            string: cstr_as_string((*err).msg),
+                            string: cstr_as_string((*err).msg_ptr()),
                         },
                     },
                 ];
@@ -978,7 +972,7 @@ pub unsafe fn serialize_response(
         if (*err).err_type != ErrorType::kErrorTypeNone {
             mpack_array(&raw mut packer.ptr, 2);
             mpack_integer(&raw mut packer.ptr, (*err).err_type as Integer);
-            mpack_str(cstr_as_string((*err).msg), &raw mut packer);
+            mpack_str(cstr_as_string((*err).msg_ptr()), &raw mut packer);
             mpack_nil(&raw mut packer.ptr);
         } else {
             mpack_nil(&raw mut packer.ptr);

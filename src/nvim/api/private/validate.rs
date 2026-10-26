@@ -52,7 +52,31 @@ impl ErrorType {
 #[derive(Debug)]
 pub struct Error {
     pub err_type: ErrorType,
-    pub msg: *mut c_char,
+    pub msg: Option<std::ffi::CString>,
+}
+
+impl Error {
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            err_type: ErrorType::kErrorTypeNone,
+            msg: None,
+        }
+    }
+
+    #[inline]
+    pub fn msg_ptr(&self) -> *mut c_char {
+        self.msg
+            .as_ref()
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    }
+}
+
+impl Default for Error {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[repr(C)]
@@ -253,7 +277,7 @@ unsafe fn set_error_str(err: *mut Error, err_type: ErrorType, msg: &str) {
     let bytes = msg.as_bytes();
     let len = bytes.len().min((1024 * 1024) - 1);
     unsafe {
-        (*err).msg = crate::path::alloc_cstring_bytes(&bytes[..len]);
+        (*err).msg = Some(crate::memory::cstr_from_bytes(&bytes[..len]));
         (*err).err_type = err_type;
     }
 }
@@ -428,18 +452,12 @@ mod tests {
 
     #[test]
     fn formats_validation_error_messages() {
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: std::ptr::null_mut(),
-        };
+        let mut err = Error::new();
 
         unsafe {
             api_err_invalid(&mut err, c"col".as_ptr(), std::ptr::null(), -1, false);
             assert_eq!(err.err_type, ErrorType::kErrorTypeValidation);
-            assert_eq!(
-                CStr::from_ptr(err.msg).to_str().unwrap(),
-                "Invalid 'col': -1"
-            );
+            assert_eq!(err.msg.as_ref().unwrap().to_str().unwrap(), "Invalid 'col': -1");
             api_clear_error(&mut err);
 
             api_err_exp(
@@ -449,21 +467,21 @@ mod tests {
                 c"String".as_ptr(),
             );
             assert_eq!(
-                CStr::from_ptr(err.msg).to_str().unwrap(),
+                err.msg.as_ref().unwrap().to_str().unwrap(),
                 "Invalid buffer id: expected Integer, got String"
             );
             api_clear_error(&mut err);
 
             api_err_required(&mut err, c"width".as_ptr());
             assert_eq!(
-                CStr::from_ptr(err.msg).to_str().unwrap(),
+                err.msg.as_ref().unwrap().to_str().unwrap(),
                 "Required: 'width'"
             );
             api_clear_error(&mut err);
 
             api_err_conflict(&mut err, c"row".as_ptr(), c"win".as_ptr());
             assert_eq!(
-                CStr::from_ptr(err.msg).to_str().unwrap(),
+                err.msg.as_ref().unwrap().to_str().unwrap(),
                 "Conflict: 'row' not allowed with 'win'"
             );
             api_clear_error(&mut err);

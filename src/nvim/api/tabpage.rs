@@ -250,10 +250,7 @@ pub unsafe extern "C" fn nvim_tabpage_get_number(tabpage: Tabpage, err: *mut Err
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_tabpage_is_valid(tabpage: Tabpage) -> Boolean {
     unsafe {
-        let mut stub = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: std::ptr::null_mut(),
-        };
+        let mut stub = Error::new();
         let ret = !find_tab_by_handle(tabpage, &mut stub).is_null();
         api_clear_error(&mut stub);
         ret

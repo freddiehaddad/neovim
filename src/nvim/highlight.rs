@@ -489,10 +489,7 @@ pub unsafe fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: boo
             add_c(&mut args, cstr_as_obj(syn_id2name(hl_id)));
             add_c(&mut args, boolean_obj(link));
 
-            let mut err = Error {
-                err_type: ErrorType::kErrorTypeNone,
-                msg: ptr::null_mut(),
-            };
+            let mut err = Error::new();
             ns_get_hl_recursive += 1;
             let ret = nlua_call_ref(
                 (*p).hl_def,

@@ -9,7 +9,7 @@ use crate::api::private::helpers::{
     api_clear_error, api_free_object, dict_get_value, dict_set_var, integer_obj, string_obj,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
+    Array, Dict, Error, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::api::tabpage::Buffer;
 use crate::autocmd::{
@@ -1851,10 +1851,7 @@ unsafe fn buf_set_term_title(buf: *mut buf_T, title: *const c_char, len: usize) 
             return;
         }
 
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         (*buf).b_locked += 1;
         dict_set_var(
             (*buf).b_vars,
@@ -2745,10 +2742,7 @@ unsafe fn is_focused(term: *mut Terminal) -> bool {
 
 unsafe fn get_config_string(buf: *mut buf_T, key: *mut c_char) -> *mut c_char {
     unsafe {
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let key_str = NvimString {
             data: key,
             size: CStr::from_ptr(key).to_bytes().len(),

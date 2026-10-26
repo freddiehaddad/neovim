@@ -831,7 +831,6 @@ pub unsafe extern "C" fn nvim_create_autocmd(
         let mut autocmd_id: i64 = -1;
         let mut desc: *const c_char = std::ptr::null();
         let mut handler_cmd: Option<CString> = None;
-        let mut funcref_cstr: Option<CString> = None;
         let mut handler_fn = Callback::NONE;
 
         'body: {
@@ -870,9 +869,7 @@ pub unsafe extern "C" fn nvim_create_autocmd(
                             callback.data.string.data.cast::<u8>(),
                             callback.data.string.size,
                         ));
-                        handler_fn.data =
-                            crate::eval::typval::CallbackData::funcref(s.as_ptr().cast_mut());
-                        funcref_cstr = Some(s);
+                        handler_fn.data = crate::eval::typval::CallbackData::funcref(s);
                     }
                     _ => {
                         api_err_exp(
@@ -989,7 +986,7 @@ pub unsafe extern "C" fn nvim_create_autocmd(
             }
         }
 
-        if handler_cmd.is_none() && funcref_cstr.is_none() {
+        if handler_fn.cb_type() == kCallbackLua {
             callback_free(&mut handler_fn);
         }
 

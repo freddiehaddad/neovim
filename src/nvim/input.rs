@@ -3318,10 +3318,7 @@ pub unsafe fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
             repeat_luamap = id;
         }
 
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let args = Array {
             items: ptr::null_mut(),
             size: 0,
@@ -3336,7 +3333,7 @@ pub unsafe fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
             &raw mut err,
         );
         if err.err_type != ErrorType::kErrorTypeNone {
-            semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg);
+            semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg_ptr());
             api_clear_error(&raw mut err);
         }
 
@@ -3465,10 +3462,7 @@ pub unsafe fn paste_repeat(count: c_int) {
             pos: 0,
             size: 0,
         };
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let mut i = 0;
         while !aborted && i < count {
             nvim_paste(

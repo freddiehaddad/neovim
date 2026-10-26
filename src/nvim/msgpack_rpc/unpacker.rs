@@ -378,10 +378,7 @@ impl Unpacker {
             },
             error: nil_obj(),
             result: nil_obj(),
-            unpack_error: Error {
-                err_type: ErrorType::kErrorTypeNone,
-                msg: std::ptr::null_mut(),
-            },
+            unpack_error: Error::new(),
             arena: empty_arena(),
             nevents: 0,
             ncalls: 0,
@@ -418,10 +415,7 @@ pub unsafe fn unpacker_init(p: *mut Unpacker) {
         mpack_parser_init(&mut p_ref.parser, 0);
         p_ref.parser.data = crate::mpack::object::mpack_data_t::Unpacker(p);
         mpack_tokbuf_init(&mut p_ref.reader);
-        p_ref.unpack_error = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: std::ptr::null_mut(),
-        };
+        p_ref.unpack_error = Error::new();
         p_ref.arena = empty_arena();
         p_ref.has_grid_line_event = false;
     }

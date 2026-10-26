@@ -891,10 +891,7 @@ pub unsafe fn ui_call_event(name: *mut c_char, args: Array) {
                 continue;
             }
             ui_event_ns_id = ns_id;
-            let mut err = Error {
-                err_type: ErrorType::kErrorTypeNone,
-                msg: ptr::null_mut(),
-            };
+            let mut err = Error::new();
             let res = nlua_call_ref_ctx(
                 fast,
                 cb_ref,
@@ -909,7 +906,7 @@ pub unsafe fn ui_call_event(name: *mut c_char, args: Array) {
                 handled = true;
             }
             if !matches!(err.err_type, ErrorType::kErrorTypeNone) {
-                ui_attach_error(ns_id, name, err.msg);
+                ui_attach_error(ns_id, name, err.msg_ptr());
                 ui_remove_cb(ns_id, true);
             }
             api_clear_error(&raw mut err);

@@ -1395,7 +1395,7 @@ pub unsafe fn buf_write(
                             conv_buf_vec = vec![0; write_info.bw_conv_buflen];
                             write_info.bw_conv_buf = conv_buf_vec.as_mut_ptr();
                             write_info.bw_first = 1;
-                        } else if p_ccv.cb_type() != kCallbackNone {
+                        } else if crate::eval::typval::Callback::raw_cb_type(&raw const p_ccv) != kCallbackNone {
                             wfname_owned = vim_tempname();
                             match wfname_owned {
                                 Some(ref wf) => wfname = wf.as_ptr().cast_mut(),

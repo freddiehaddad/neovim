@@ -753,13 +753,10 @@ pub unsafe fn pum_redraw() {
         let has_border = border_width > 0;
 
         if border_width > 0 {
-            let mut err = Error {
-                err_type: ErrorType::kErrorTypeNone,
-                msg: ptr::null_mut(),
-            };
+            let mut err = Error::new();
             if !parse_winborder(&raw mut fconfig, p_pumborder, &raw mut err) {
                 if err.err_type != ErrorType::kErrorTypeNone {
-                    emsg(err.msg);
+                    emsg(err.msg_ptr());
                 }
                 api_clear_error(&raw mut err);
                 return;
@@ -1134,10 +1131,7 @@ unsafe fn pum_preview_set_text(
     max_width: *mut c_int,
 ) {
     unsafe {
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let mut arena = Arena {
             cur_blk: ptr::null_mut(),
             pos: 0,
@@ -1190,7 +1184,7 @@ unsafe fn pum_preview_set_text(
         );
         textlock = original_textlock;
         if err.err_type != ErrorType::kErrorTypeNone {
-            emsg(err.msg);
+            emsg(err.msg_ptr());
             api_clear_error(&raw mut err);
         }
         arena_mem_free(arena_finish(&raw mut arena));

@@ -3047,10 +3047,7 @@ pub unsafe fn did_set_signcolumn(args: *mut optset_T) -> *const c_char {
 pub unsafe fn validate_spellcapcheck(args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut prog: *mut regprog_T = ptr::null_mut();
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let save_emsg_silent = emsg_silent;
         let save_suppress_errthrow = suppress_errthrow;
         emsg_silent = 0;
@@ -3065,10 +3062,10 @@ pub unsafe fn validate_spellcapcheck(args: *mut optset_T) -> *const c_char {
         suppress_errthrow = save_suppress_errthrow;
         (*args).os_prep = OptSetPrep::SpellcapProg(prog);
         if err.err_type != ErrorType::kErrorTypeNone {
-            let msg = if strncmp(err.msg, c"Vim:".as_ptr(), 4) == 0 {
-                err.msg.add(4)
+            let msg = if strncmp(err.msg_ptr(), c"Vim:".as_ptr(), 4) == 0 {
+                err.msg_ptr().add(4)
             } else {
-                err.msg
+                err.msg_ptr()
             };
             errmsg = opt_error((*args).os_errbuf, c"%s".as_ptr(), msg);
             api_clear_error(&raw mut err);
@@ -3479,10 +3476,7 @@ pub unsafe fn did_set_winbar(args: *mut optset_T) -> *const c_char {
 pub unsafe fn validate_border(args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut fconfig = WIN_CONFIG_INIT;
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let ok = parse_winborder(
             &raw mut fconfig,
             (*args).os_newval.data.string.data,

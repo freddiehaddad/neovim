@@ -341,10 +341,7 @@ pub unsafe fn handle_ui_client_redraw(
 
 pub unsafe fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
     unsafe {
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let mut dict = KeyDict_highlight::default();
         if !api_dict_to_keydict(
             (&raw mut dict).cast(),

@@ -3,7 +3,7 @@
 use crate::api::command::is_user_cmdidx;
 use crate::api::private::helpers::{api_clear_error, api_free_object, cstr_as_string};
 use crate::api::private::validate::{
-    Array, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
+    Array, Error, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::arglist::get_arglist_name;
 use crate::autocmd::{
@@ -4503,10 +4503,7 @@ unsafe fn get_healthcheck_names(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
         let prompt_id = get_cmdline_last_prompt_id();
         if HEALTHCHECK_LAST_GEN != prompt_id || HEALTHCHECK_LAST_GEN == 0 {
             let a = Array::new();
-            let mut err = Error {
-                err_type: ErrorType::kErrorTypeNone,
-                msg: ptr::null_mut(),
-            };
+            let mut err = Error::new();
             let code = c"return vim.health._complete()";
             let res = nlua_exec(
                 NvimString {
@@ -4568,10 +4565,7 @@ unsafe fn get_arg1_from_lua(lua: *const c_char, xp: *mut expand_T, idx: c_int) -
                 capacity: 2,
                 items: args_items.as_mut_ptr(),
             };
-            let mut err = Error {
-                err_type: ErrorType::kErrorTypeNone,
-                msg: ptr::null_mut(),
-            };
+            let mut err = Error::new();
             let res = nlua_exec(
                 cstr_as_string(lua),
                 ptr::null(),

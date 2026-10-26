@@ -701,7 +701,7 @@ pub unsafe fn check_compl_option(dict_opt: bool) -> bool {
             *(*curbuf).b_p_tsr == NUL
                 && *p_tsr == NUL
                 && (*curbuf).b_p_tsrfu.cb_type() == kCallbackNone
-                && p_tsrfu.cb_type() == kCallbackNone
+                && crate::eval::typval::Callback::raw_cb_type(&raw const p_tsrfu) == kCallbackNone
         };
         if empty {
             ctrl_x_mode = CTRL_X_NORMAL;
@@ -3905,7 +3905,7 @@ unsafe fn thesaurus_func_complete(type_: c_int) -> bool {
     unsafe {
         type_ == CTRL_X_THESAURUS
             && ((*curbuf).b_p_tsrfu.cb_type() != kCallbackNone
-                || p_tsrfu.cb_type() != kCallbackNone)
+                || crate::eval::typval::Callback::raw_cb_type(&raw const p_tsrfu) != kCallbackNone)
     }
 }
 

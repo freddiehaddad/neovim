@@ -4028,10 +4028,7 @@ pub unsafe fn list_in_columns(items: &[*mut c_char], current: c_int) {
 pub unsafe fn list_lua_version() {
     unsafe {
         const CODE: &[u8] = b"return ((jit and jit.version) and jit.version or _VERSION)\0";
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let args = Array {
             items: ptr::null_mut(),
             size: 0,

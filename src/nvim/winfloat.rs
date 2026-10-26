@@ -459,7 +459,7 @@ pub unsafe fn win_float_find_altwin(win: *const win_T, tp: *const tabpage_T) -> 
 unsafe fn win_float_special_fail(wp: *mut win_T, err: *mut Error) -> *mut win_T {
     unsafe {
         if error_set(&*err) {
-            emsg((*err).msg);
+            emsg((*err).msg_ptr());
             api_clear_error(err);
         }
         if !wp.is_null() {

@@ -2593,10 +2593,7 @@ pub unsafe fn deferred_event(mut e: AutoCmdEvent) {
         let eap = e.eap;
         let data = e.data.as_mut().map_or(ptr::null_mut(), |d| &raw mut *d);
 
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let buf = find_buffer_by_handle(e.buf, &raw mut err);
         if !buf.is_null() {
             let mut save_v_event: save_v_event_T = save_v_event_T::new();
@@ -2631,10 +2628,7 @@ pub unsafe fn deferred_event(mut e: AutoCmdEvent) {
 
 pub unsafe fn deferred_optionset_modified(bufnr: c_int, new_val: bool) {
     unsafe {
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let buf = find_buffer_by_handle(bufnr, &raw mut err);
         api_clear_error(&raw mut err);
         if !buf.is_null() {
@@ -3456,7 +3450,7 @@ pub unsafe fn getnextac(
         let retval = match &ac.handler {
             AutoCmdHandler::Cmd(cmd) => cmd.clone(),
             AutoCmdHandler::Fn(cb) => {
-                let cb = *cb;
+                let cb = cb.clone();
                 let id = ac.id;
                 let group = ac.pat.as_ref().unwrap().group;
                 let saved_pat = if oneshot { ac.pat.take() } else { None };

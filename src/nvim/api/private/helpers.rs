@@ -224,7 +224,7 @@ use crate::api::vim::HlMessage;
 pub unsafe fn api_set_error_str(err: *mut Error, err_type: ErrorType, msg: *const c_char) {
     unsafe {
         debug_assert!(!matches!(err_type, ErrorType::kErrorTypeNone));
-        (*err).msg = crate::path::alloc_cstring(msg);
+        (*err).msg = Some(CStr::from_ptr(msg).to_owned());
         (*err).err_type = err_type;
     }
 }
@@ -243,7 +243,7 @@ macro_rules! api_set_error {
             let bufsize = ((len.max(0) as usize) + 1).min(1024 * 1024);
             let mut buf = vec![0 as std::ffi::c_char; bufsize];
             $crate::strings::vim_snprintf!(buf.as_mut_ptr(), bufsize, fmt_ptr, $($arg),+);
-            (*err_ptr).msg = $crate::path::alloc_cstring(buf.as_ptr());
+            (*err_ptr).msg = Some(std::ffi::CStr::from_ptr(buf.as_ptr()).to_owned());
             (*err_ptr).err_type = et;
         }
     }};
@@ -291,10 +291,7 @@ pub unsafe fn with_script_context<F: FnOnce()>(channel_id: u64, f: F) {
 
 #[inline]
 pub const fn error_init() -> Error {
-    Error {
-        err_type: ErrorType::kErrorTypeNone,
-        msg: ptr::null_mut(),
-    }
+    Error::new()
 }
 
 #[inline]
@@ -977,8 +974,7 @@ pub unsafe fn api_clear_error(value: *mut Error) {
         if !error_set(value) {
             return;
         }
-        crate::path::free_cstring((*value).msg);
-        (*value).msg = ptr::null_mut();
+        (*value).msg = None;
         (*value).err_type = ErrorType::kErrorTypeNone;
     }
 }
@@ -4345,10 +4341,7 @@ pub unsafe fn api_metadata() -> Object {
                 pos: 0,
                 size: 0,
             };
-            let mut err = Error {
-                err_type: ErrorType::kErrorTypeNone,
-                msg: ptr::null_mut(),
-            };
+            let mut err = Error::new();
             let mut len: usize = 0;
             let ptr = api_get_packed_metadata(&mut len).cast::<c_char>();
             METADATA_OBJ = unpack(ptr, len, &mut arena, &mut err);

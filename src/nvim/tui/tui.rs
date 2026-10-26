@@ -5,7 +5,7 @@ use crate::api::private::helpers::{
     static_cstr_as_obj, static_cstr_as_string, string_obj,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType,
+    Array, Dict, Error, KeyValuePair, NvimString, Object, ObjectType,
 };
 use crate::buffer_updates::ARENA_EMPTY;
 use crate::charset::getdigits_int;
@@ -693,10 +693,7 @@ unsafe fn apply_termdefs(tui: *mut TUIData) {
             return;
         }
 
-        let mut lua_err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut lua_err = Error::new();
         let empty_args = Array {
             items: ptr::null_mut(),
             size: 0,

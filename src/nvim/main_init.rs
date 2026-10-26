@@ -1179,10 +1179,7 @@ unsafe fn remote_request(
             capacity: count,
         };
 
-        let mut err = Error {
-            err_type: ErrorType::kErrorTypeNone,
-            msg: ptr::null_mut(),
-        };
+        let mut err = Error::new();
         let mut a_items: [Object; 4] = [
             integer_obj(Integer::from(chan as c_int)),
             cstr_as_obj(server_addr),
@@ -1204,7 +1201,7 @@ unsafe fn remote_request(
         let o = nlua_exec(s, ptr::null(), a, kRetObject, ptr::null_mut(), &raw mut err);
         drop(args_vec);
         if err.err_type != ErrorType::kErrorTypeNone {
-            fprintf!(stderr, c"%s\n".as_ptr(), err.msg);
+            fprintf!(stderr, c"%s\n".as_ptr(), err.msg_ptr());
             os_exit(2);
         }
 
