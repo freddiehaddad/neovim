@@ -2,7 +2,7 @@
 
 use std::cell::Cell;
 use std::collections::VecDeque;
-use std::ffi::{c_char, c_int};
+use std::ffi::{CString, c_char, c_int};
 use std::rc::Rc;
 
 pub enum Event {
@@ -43,7 +43,7 @@ pub enum Event {
     },
     RpcClose(*mut crate::channel::Channel),
     NluaLuvError {
-        msg: *mut c_char,
+        msg: Option<CString>,
         kind: isize,
     },
     NluaSchedule {
@@ -54,14 +54,13 @@ pub enum Event {
         data: *mut c_char,
         len: usize,
     },
-    MsgSemsg(*mut c_char),
-    MsgSemsgMultiline(*mut c_char),
+    MsgSemsg(CString),
+    MsgSemsgMultiline(CString),
     CursorHold,
     #[cfg(windows)]
     PtyProcFinish(*mut crate::event::proc::Proc),
     ShellOutData {
-        str_copy: *mut c_char,
-        count: usize,
+        str_copy: Vec<c_char>,
         fd: c_int,
     },
     TermRequest(Box<crate::terminal::TermRequestEvent>),
@@ -69,14 +68,14 @@ pub enum Event {
     TermSyncFlush(crate::msgpack_rpc::packer::handle_T),
     TermClipboardSet {
         mask: c_int,
-        data: *mut c_char,
+        data: CString,
     },
     TInputDone,
     UiRefresh,
-    UiClientConnect(*mut c_char),
+    UiClientConnect(CString),
     CmdwinOpen {
         firstc: c_int,
-        content: *mut c_char,
+        content: Option<CString>,
         pos: c_int,
     },
     #[cfg(test)]
@@ -140,11 +139,9 @@ impl Event {
                 Self::CursorHold => crate::os::input::cursorhold_event(),
                 #[cfg(windows)]
                 Self::PtyProcFinish(proc_) => crate::os::pty_proc_win::pty_proc_finish(proc_),
-                Self::ShellOutData {
-                    str_copy,
-                    count,
-                    fd,
-                } => crate::os::shell::out_data_event(str_copy, count, fd),
+                Self::ShellOutData { str_copy, fd } => {
+                    crate::os::shell::out_data_event(str_copy, fd);
+                }
                 Self::TermRequest(ev) => crate::terminal::emit_termrequest(ev),
                 Self::TermStateChange(buf_handle) => {
                     crate::terminal::terminal_state_change_event(buf_handle);

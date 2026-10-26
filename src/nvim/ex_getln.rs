@@ -5112,10 +5112,12 @@ pub unsafe fn cmdwin_do_action(action: *const c_char) {
 }
 
 /// Deferred event: opens cmdwin after the cmdline-reader unwinds.
-pub unsafe fn open_cmdwin_event(firstc: c_int, content: *mut c_char, pos: c_int) {
+pub unsafe fn open_cmdwin_event(firstc: c_int, content: Option<std::ffi::CString>, pos: c_int) {
     unsafe {
-        cmdwin_invoke(c"open".as_ptr(), firstc, content, pos);
-        xfree(content.cast());
+        let content_ptr = content
+            .as_ref()
+            .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
+        cmdwin_invoke(c"open".as_ptr(), firstc, content_ptr, pos);
     }
 }
 
@@ -5136,11 +5138,12 @@ unsafe fn open_cmdwin() -> c_int {
             return K_IGNORE;
         }
 
-        let content = if !ccline.cmdbuff.is_null() {
-            xstrnsave(ccline.cmdbuff, ccline.cmdlen as usize)
-        } else {
-            ptr::null_mut()
-        };
+        let content = (!ccline.cmdbuff.is_null()).then(|| {
+            let bytes =
+                std::slice::from_raw_parts(ccline.cmdbuff.cast::<u8>(), ccline.cmdlen as usize);
+            let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+            std::ffi::CString::new(&bytes[..end]).unwrap()
+        });
         let pos = ccline.cmdpos;
         ccline.cmdlen = 0;
         ccline.cmdpos = 0;

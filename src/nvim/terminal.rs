@@ -75,7 +75,7 @@ use crate::keycodes::{
 use crate::mark::{kMarkAdjustTerm, mark_adjust_buf};
 use crate::mbyte::{mb_check_adjust_col, utf_ptr2char, utf_ptr2len};
 use crate::memline::{ml_append_buf, ml_delete_buf, ml_replace_buf};
-use crate::memory::{strequal, xfree, xmemdup, xmemdupz, xstrdup};
+use crate::memory::{strequal, xfree, xmemdup, xstrdup};
 use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, do_mousescroll, mouse_find_win_inner,
 };
@@ -2041,7 +2041,7 @@ unsafe fn term_sb_clear(term: *mut Terminal) -> c_int {
     }
 }
 
-pub unsafe fn term_clipboard_set(mask: VTermSelectionMask, data: *mut c_char) {
+pub unsafe fn term_clipboard_set(mask: VTermSelectionMask, data: std::ffi::CString) {
     unsafe {
         let regname: c_char = match mask as u16 {
             VTERM_SELECTION_CLIPBOARD => b'+' as c_char,
@@ -2050,7 +2050,7 @@ pub unsafe fn term_clipboard_set(mask: VTermSelectionMask, data: *mut c_char) {
         };
 
         let lines = tv_list_alloc(kListLenMayKnow);
-        let mut start = data;
+        let mut start = data.as_ptr();
         loop {
             let start_bytes = CStr::from_ptr(start).to_bytes();
             if let Some(pos) = start_bytes.iter().position(|&b| b == b'\n') {
@@ -2061,7 +2061,7 @@ pub unsafe fn term_clipboard_set(mask: VTermSelectionMask, data: *mut c_char) {
             }
         }
         tv_list_append_string(lines, start, -1);
-        xfree(data.cast());
+        drop(data);
 
         let args = tv_list_alloc(3);
         tv_list_append_list(args, lines);
@@ -2095,8 +2095,12 @@ unsafe fn term_selection_set(
         }
 
         if frag.final_() {
-            let data = xmemdupz((*term).selection.as_ptr().cast(), (*term).selection.len())
-                .cast::<c_char>();
+            let bytes = std::slice::from_raw_parts(
+                (*term).selection.as_ptr().cast::<u8>(),
+                (*term).selection.len(),
+            );
+            let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+            let data = std::ffi::CString::new(&bytes[..end]).unwrap();
             multiqueue_put_event(
                 (*loop_queues((&raw mut main_loop).cast())).events,
                 Event::TermClipboardSet { mask, data },

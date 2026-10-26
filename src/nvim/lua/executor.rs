@@ -634,26 +634,34 @@ pub unsafe fn nlua_pcall(lstate: *mut lua_State, nargs: c_int, mut nresults: c_i
     }
 }
 
-pub unsafe fn nlua_luv_error_event(error: *mut c_char, err_type: isize) {
+pub unsafe fn nlua_luv_error_event(error: Option<std::ffi::CString>, err_type: isize) {
     unsafe {
+        let error_ptr = error.as_ref().map_or(ptr::null(), |c| c.as_ptr());
         match err_type {
             kCallback => {
                 msg_ext_no_fast();
-                semsg_multiline!(c"lua_error".as_ptr(), c"Lua callback:\n%s".as_ptr(), error);
+                semsg_multiline!(
+                    c"lua_error".as_ptr(),
+                    c"Lua callback:\n%s".as_ptr(),
+                    error_ptr
+                );
             }
             kThread => {
-                semsg_multiline!(c"lua_error".as_ptr(), c"Luv thread:\n%s".as_ptr(), error);
+                semsg_multiline!(
+                    c"lua_error".as_ptr(),
+                    c"Luv thread:\n%s".as_ptr(),
+                    error_ptr
+                );
             }
             kThreadCallback => {
                 semsg_multiline!(
                     c"lua_error".as_ptr(),
                     c"Luv callback, thread:\n%s".as_ptr(),
-                    error,
+                    error_ptr,
                 );
             }
             _ => {}
         }
-        xfree(error.cast());
     }
 }
 
@@ -679,11 +687,7 @@ unsafe extern "C-unwind" fn nlua_fast_cfpcall(
             put_event(
                 (*queues).events,
                 Event::NluaLuvError {
-                    msg: if !error.is_null() {
-                        xstrdup(error)
-                    } else {
-                        ptr::null_mut()
-                    },
+                    msg: (!error.is_null()).then(|| CStr::from_ptr(error).to_owned()),
                     kind: kCallback,
                 },
             );
@@ -762,7 +766,11 @@ unsafe fn nlua_luv_thread_common_cfpcall(
             let mut len: usize = 0;
             let error = nlua_get_error(lstate, &raw mut len);
             let ev = Event::NluaLuvError {
-                msg: xmemdupz(error.cast(), len).cast(),
+                msg: (!error.is_null()).then(|| {
+                    let slice = std::slice::from_raw_parts(error.cast::<u8>(), len);
+                    let end = slice.iter().position(|&b| b == 0).unwrap_or(len);
+                    std::ffi::CString::new(&slice[..end]).unwrap()
+                }),
                 kind: if is_callback {
                     kThreadCallback
                 } else {

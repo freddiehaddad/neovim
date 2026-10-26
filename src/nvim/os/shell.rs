@@ -1046,7 +1046,7 @@ unsafe fn out_data_ring(output: *const c_char, size: usize) {
     }
 }
 
-pub unsafe fn out_data_event(str_copy: *mut c_char, count: usize, fd: c_int) {
+pub unsafe fn out_data_event(mut str_copy: Vec<c_char>, fd: c_int) {
     unsafe {
         let mut need_clear = true;
         let hl = if fd == STDERR_FILENO { HLF_SE } else { HLF_SO };
@@ -1058,11 +1058,11 @@ pub unsafe fn out_data_event(str_copy: *mut c_char, count: usize, fd: c_int) {
         msg_ext_set_append(true);
         msg_ext_no_fast();
         let str_arg = NvimString {
-            data: str_copy,
-            size: count,
+            data: str_copy.as_mut_ptr(),
+            size: str_copy.len(),
         };
         msg_multiline(str_arg, hl, false, false, &raw mut need_clear);
-        xfree(str_copy.cast());
+        drop(str_copy);
         ui_flush();
     }
 }
@@ -1094,19 +1094,12 @@ unsafe fn out_data_append_to_screen(
             p = p.add(i as usize);
         }
 
-        let str_copy: *mut c_char = xmemdupz(output.cast(), *count).cast();
+        let str_copy = std::slice::from_raw_parts(output, *count).to_vec();
         if ui_has(kUIMessages) {
             let qc = loop_queues(main_loop_ptr());
-            multiqueue_put_event(
-                (*qc).fast_events,
-                Event::ShellOutData {
-                    str_copy,
-                    count: *count,
-                    fd,
-                },
-            );
+            multiqueue_put_event((*qc).fast_events, Event::ShellOutData { str_copy, fd });
         } else {
-            out_data_event(str_copy, *count, fd);
+            out_data_event(str_copy, fd);
         }
     }
 }

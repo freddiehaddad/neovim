@@ -23,7 +23,7 @@ use crate::globals::*;
 use crate::highlight::{HLATTRS_INIT, HlAttrs, KeyDict_highlight, dict2hlattrs};
 use crate::log::{LOGLVL_ERR, LOGLVL_INF, logmsg};
 use crate::main_init::os_exit;
-use crate::memory::{Arena, strequal, xfree, xmemdupz, xstrdup};
+use crate::memory::{Arena, strequal, xstrdup};
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::msgpack_rpc::packer::Integer;
 use crate::msgpack_rpc::unpacker::GridLineEvent;
@@ -447,7 +447,13 @@ pub unsafe fn ui_client_event_connect(args: Array) {
         }
 
         let s = (*args.items).data.string;
-        let server_addr = xmemdupz(s.data.cast(), s.size).cast::<c_char>();
+        let bytes = if s.size == 0 || s.data.is_null() {
+            &[][..]
+        } else {
+            std::slice::from_raw_parts(s.data.cast::<u8>(), s.size)
+        };
+        let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+        let server_addr = std::ffi::CString::new(&bytes[..end]).unwrap();
         multiqueue_put_event(
             (*loop_queues((&raw mut main_loop).cast())).fast_events,
             Event::UiClientConnect(server_addr),
@@ -456,12 +462,13 @@ pub unsafe fn ui_client_event_connect(args: Array) {
     }
 }
 
-pub unsafe fn channel_connect_event(server_addr: *mut c_char) {
+pub unsafe fn channel_connect_event(server_addr: std::ffi::CString) {
     unsafe {
         let mut err: *const c_char = c"".as_ptr();
-        let is_tcp = !socket_address_tcp_host_end(server_addr).is_null();
+        let addr_ptr = server_addr.as_ptr();
+        let is_tcp = !socket_address_tcp_host_end(addr_ptr).is_null();
         let on_data = CallbackReader::none();
-        let chan = channel_connect(is_tcp, server_addr, true, on_data, 50, &raw mut err);
+        let chan = channel_connect(is_tcp, addr_ptr, true, on_data, 50, &raw mut err);
 
         if !strequal(err, c"".as_ptr()) {
             logmsg!(
@@ -471,10 +478,10 @@ pub unsafe fn channel_connect_event(server_addr: *mut c_char) {
                 302,
                 true,
                 c"Cannot connect to server %s: %s".as_ptr(),
-                server_addr,
+                addr_ptr,
                 err,
             );
-            xfree(server_addr.cast());
+            drop(server_addr);
             ui_client_exit_status = 1;
             os_exit(1);
         }
@@ -489,10 +496,9 @@ pub unsafe fn channel_connect_event(server_addr: *mut c_char) {
             312,
             true,
             c"Connected to server %s on channel %lld".as_ptr(),
-            server_addr,
+            addr_ptr,
             chan as i64,
         );
-        xfree(server_addr.cast());
     }
 }
 
