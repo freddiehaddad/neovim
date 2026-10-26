@@ -201,7 +201,7 @@ struct TerminalState {
     cursor_visible: bool,
     save_curwin_handle: handle_T,
     save_w_p_cul: bool,
-    save_w_p_culopt: *mut c_char,
+    save_w_p_culopt: Option<std::ffi::CString>,
     save_w_p_culopt_flags: u8,
     save_w_p_cuc: c_int,
     save_w_p_so: OptInt,
@@ -220,7 +220,7 @@ impl TerminalState {
             cursor_visible: false,
             save_curwin_handle: 0,
             save_w_p_cul: false,
-            save_w_p_culopt: ptr::null_mut(),
+            save_w_p_culopt: None,
             save_w_p_culopt_flags: 0,
             save_w_p_cuc: 0,
             save_w_p_so: 0,
@@ -1074,7 +1074,7 @@ unsafe fn set_terminal_winopts(s: *mut TerminalState) {
 
         (*s).save_curwin_handle = (*curwin).handle;
         (*s).save_w_p_cul = (*curwin).w_onebuf_opt.wo_cul != 0;
-        (*s).save_w_p_culopt = ptr::null_mut();
+        (*s).save_w_p_culopt = None;
         (*s).save_w_p_culopt_flags = (*curwin).w_p_culopt_flags;
         (*s).save_w_p_cuc = (*curwin).w_onebuf_opt.wo_cuc;
         (*s).save_w_p_so = (*curwin).w_onebuf_opt.wo_so;
@@ -1084,7 +1084,9 @@ unsafe fn set_terminal_winopts(s: *mut TerminalState) {
             && ((*curwin).w_p_culopt_flags & kOptCuloptFlagNumber) != 0
         {
             if !strequal((*curwin).w_onebuf_opt.wo_culopt, c"number".as_ptr()) {
-                (*s).save_w_p_culopt = (*curwin).w_onebuf_opt.wo_culopt;
+                (*s).save_w_p_culopt =
+                    Some(CStr::from_ptr((*curwin).w_onebuf_opt.wo_culopt).to_owned());
+                free_string_option((*curwin).w_onebuf_opt.wo_culopt);
                 (*curwin).w_onebuf_opt.wo_culopt = alloc_string_option(c"number".as_ptr());
             }
             (*curwin).w_p_culopt_flags = kOptCuloptFlagNumber;
@@ -1139,10 +1141,9 @@ unsafe fn unset_terminal_winopts(s: *mut TerminalState) {
             }
 
             if !winopts.is_null() {
-                if !(*s).save_w_p_culopt.is_null() {
+                if let Some(saved) = (*s).save_w_p_culopt.take() {
                     free_string_option((*winopts).wo_culopt);
-                    (*winopts).wo_culopt = (*s).save_w_p_culopt;
-                    (*s).save_w_p_culopt = ptr::null_mut();
+                    (*winopts).wo_culopt = alloc_string_option(saved.as_ptr());
                 }
                 (*winopts).wo_cul = c_int::from((*s).save_w_p_cul);
                 (*winopts).wo_cuc = (*s).save_w_p_cuc;
@@ -1151,7 +1152,7 @@ unsafe fn unset_terminal_winopts(s: *mut TerminalState) {
             }
         }
 
-        free_string_option((*s).save_w_p_culopt);
+        (*s).save_w_p_culopt = None;
         (*s).save_curwin_handle = 0;
     }
 }

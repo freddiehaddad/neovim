@@ -231,7 +231,7 @@ pub struct source_cookie_T {
     #[cfg(windows)]
     error: bool,
     breakpoint: linenr_T,
-    fname: *mut c_char,
+    fname: Option<std::ffi::CString>,
     dbg_tick: c_int,
     level: c_int,
     conv: vimconv_T,
@@ -252,7 +252,7 @@ impl source_cookie_T {
             #[cfg(windows)]
             error: false,
             breakpoint: 0,
-            fname: ptr::null_mut(),
+            fname: None,
             dbg_tick: 0,
             level: 0,
             conv: vimconv_T {
@@ -2859,7 +2859,11 @@ unsafe fn do_source_ext(
             }
 
             cookie.breakpoint = dbg_find_breakpoint(true, fname_exp, 0);
-            cookie.fname = fname_exp;
+            cookie.fname = if fname_exp.is_null() {
+                None
+            } else {
+                Some(CStr::from_ptr(fname_exp).to_owned())
+            };
             cookie.dbg_tick = debug_tick;
             cookie.level = ex_nesting_level;
 
@@ -3321,7 +3325,11 @@ pub unsafe fn getsourceline(
 ) -> Option<std::ffi::CString> {
     unsafe {
         if (*sp).dbg_tick < debug_tick && !(*sp).source_from_buf_or_str {
-            (*sp).breakpoint = dbg_find_breakpoint(true, (*sp).fname, sourcing_lnum());
+            let fname_ptr = (*sp)
+                .fname
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+            (*sp).breakpoint = dbg_find_breakpoint(true, fname_ptr, sourcing_lnum());
             (*sp).dbg_tick = debug_tick;
         }
         if do_profiling == PROF_YES {
@@ -3391,8 +3399,12 @@ pub unsafe fn getsourceline(
             && (*sp).breakpoint != 0
             && (*sp).breakpoint <= sourcing_lnum()
         {
-            dbg_breakpoint((*sp).fname, sourcing_lnum());
-            (*sp).breakpoint = dbg_find_breakpoint(true, (*sp).fname, sourcing_lnum());
+            let fname_ptr = (*sp)
+                .fname
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+            dbg_breakpoint(fname_ptr, sourcing_lnum());
+            (*sp).breakpoint = dbg_find_breakpoint(true, fname_ptr, sourcing_lnum());
             (*sp).dbg_tick = debug_tick;
         }
 

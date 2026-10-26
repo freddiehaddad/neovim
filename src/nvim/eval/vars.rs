@@ -2494,27 +2494,37 @@ pub unsafe fn set_reg_var(c: c_int) {
     }
 }
 
-pub unsafe fn v_exception(oldval: *mut c_char) -> *mut c_char {
+pub unsafe fn v_exception(oldval: Option<std::ffi::CString>) -> Option<std::ffi::CString> {
     unsafe {
         let tv = get_vim_var_tv(VV_EXCEPTION);
-        if oldval.is_null() {
-            return (*tv).vval.v_string();
-        }
+        let Some(oldval) = oldval else {
+            let s = (*tv).vval.v_string();
+            return if s.is_null() {
+                None
+            } else {
+                Some(CStr::from_ptr(s).to_owned())
+            };
+        };
 
-        (*tv).vval = crate::eval::typval::TypvalVval::String(oldval);
-        ptr::null_mut()
+        set_vim_var_string(VV_EXCEPTION, oldval.as_ptr(), -1);
+        None
     }
 }
 
-pub unsafe fn set_cmdarg(eap: *mut exarg_T, oldarg: *mut c_char) -> *mut c_char {
+pub unsafe fn set_cmdarg(
+    eap: *mut exarg_T,
+    oldarg: Option<std::ffi::CString>,
+) -> Option<std::ffi::CString> {
     unsafe {
         let tv = get_vim_var_tv(VV_CMDARG);
-        let oldval = (*tv).vval.v_string();
+        let oldval = crate::eval::typval::tv_take_string((*tv).vval.v_string());
+        (*tv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         if eap.is_null() {
-            tv_clear(tv);
             (*tv).v_type = VarType::VAR_STRING;
-            (*tv).vval = crate::eval::typval::TypvalVval::String(oldarg);
-            return ptr::null_mut();
+            (*tv).vval = crate::eval::typval::TypvalVval::String(
+                oldarg.map_or(ptr::null_mut(), std::ffi::CString::into_raw),
+            );
+            return None;
         }
 
         let mut newval: Vec<u8> = Vec::new();
@@ -2557,21 +2567,25 @@ pub unsafe fn set_cmdarg(eap: *mut exarg_T, oldarg: *mut c_char) -> *mut c_char 
             newval.extend_from_slice(b" ++p");
         }
 
-        (*tv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         crate::eval::typval::tv_set_string_len(tv, newval.as_ptr().cast::<c_char>(), newval.len());
         oldval
     }
 }
 
-pub unsafe fn v_throwpoint(oldval: *mut c_char) -> *mut c_char {
+pub unsafe fn v_throwpoint(oldval: Option<std::ffi::CString>) -> Option<std::ffi::CString> {
     unsafe {
         let tv = get_vim_var_tv(VV_THROWPOINT);
-        if oldval.is_null() {
-            return (*tv).vval.v_string();
-        }
+        let Some(oldval) = oldval else {
+            let s = (*tv).vval.v_string();
+            return if s.is_null() {
+                None
+            } else {
+                Some(CStr::from_ptr(s).to_owned())
+            };
+        };
 
-        (*tv).vval = crate::eval::typval::TypvalVval::String(oldval);
-        ptr::null_mut()
+        set_vim_var_string(VV_THROWPOINT, oldval.as_ptr(), -1);
+        None
     }
 }
 

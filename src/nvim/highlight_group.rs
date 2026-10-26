@@ -40,7 +40,7 @@ use crate::lua::converter::Boolean;
 use crate::lua::executor::nlua_set_sctx;
 use crate::math::OK;
 use crate::mbyte::{mb_stricmp, mb_strnicmp};
-use crate::memory::{Arena, arena_finish, arena_mem_free, arena_memdupz, xmemrchr, xstrlcat};
+use crate::memory::{Arena, xmemrchr, xstrlcat};
 use crate::message::{
     emsg, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind, msg_outtrans, msg_putchar,
     msg_puts_hl, msg_source, semsg,
@@ -54,7 +54,7 @@ use crate::os::time::os_delay;
 use crate::runtime::{
     DIP_OPT, DIP_START, sctx_T, source_runtime_vim_lua, sourcing_lnum, sourcing_name,
 };
-use crate::strings::{atoi, gettext, strchr, strncmp, strtol, vim_memcpy_up, vim_strup};
+use crate::strings::{atoi, gettext, strchr, strncmp, strtol, vim_memcpy_up};
 use crate::ui::{
     ui_call_hl_group_set, ui_default_colors_set, ui_flush, ui_has, ui_mode_info_set, ui_refresh,
     ui_rgb_attached,
@@ -111,8 +111,7 @@ pub struct color_name_table_T {
 #[repr(C)]
 #[derive(Clone, PartialEq, Eq)]
 struct HlGroup {
-    sg_name: *mut c_char,
-    sg_name_u: *mut c_char,
+    sg_name: std::ffi::CString,
     sg_cleared: bool,
     sg_attr: c_int,
     sg_link: c_int,
@@ -137,10 +136,9 @@ struct HlGroup {
 }
 
 impl HlGroup {
-    const fn new() -> Self {
+    fn new() -> Self {
         Self {
-            sg_name: ptr::null_mut(),
-            sg_name_u: ptr::null_mut(),
+            sg_name: std::ffi::CString::default(),
             sg_cleared: false,
             sg_attr: 0,
             sg_link: 0,
@@ -173,11 +171,6 @@ impl Default for HlGroup {
 }
 
 static mut highlight_ga: Vec<HlGroup> = Vec::new();
-static mut highlight_arena: Arena = Arena {
-    cur_blk: ptr::null_mut(),
-    pos: 0,
-    size: 0,
-};
 static mut highlight_unames: std::collections::BTreeMap<Vec<u8>, c_int> =
     std::collections::BTreeMap::new();
 static mut had_both: bool = false;
@@ -838,7 +831,7 @@ pub unsafe fn highlight_num_groups() -> c_int {
 }
 
 pub unsafe fn highlight_group_name(id: c_int) -> *mut c_char {
-    unsafe { (*hl_table().add(id as usize)).sg_name }
+    unsafe { (*hl_table().add(id as usize)).sg_name.as_ptr().cast_mut() }
 }
 
 pub unsafe fn highlight_link_id(id: c_int) -> c_int {
@@ -1064,7 +1057,7 @@ pub unsafe fn set_hl_group(
 
         g.sg_attr = hl_get_syn_attr(0, id, attrs);
 
-        if CStr::from_ptr(g.sg_name_u).to_bytes() == b"NORMAL" {
+        if g.sg_name.to_bytes().eq_ignore_ascii_case(b"NORMAL") {
             cterm_normal_fg_color = g.sg_cterm_fg;
             cterm_normal_bg_color = g.sg_cterm_bg;
             let did_changed =
@@ -1257,8 +1250,10 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
         }
 
         let item_before = (*hl_table().add(idx as usize)).clone();
-        let is_normal_group =
-            CStr::from_ptr((*hl_table().add(idx as usize)).sg_name_u).to_bytes() == b"NORMAL";
+        let is_normal_group = (*hl_table().add(idx as usize))
+            .sg_name
+            .to_bytes()
+            .eq_ignore_ascii_case(b"NORMAL");
 
         if doclear || (forceit && init) {
             highlight_clear(idx);
@@ -1598,7 +1593,6 @@ pub unsafe fn free_highlight() {
         *ga = Vec::new();
         let unames_ptr = &raw mut highlight_unames;
         *unames_ptr = std::collections::BTreeMap::new();
-        arena_mem_free(arena_finish(&raw mut highlight_arena));
     }
 }
 
@@ -1654,7 +1648,7 @@ unsafe fn highlight_list_one(id: c_int) {
         let sgp = &*hl_table().add((id - 1) as usize);
         let mut didh = false;
 
-        if message_filtered(sgp.sg_name) {
+        if message_filtered(sgp.sg_name.as_ptr()) {
             return;
         }
 
@@ -1745,7 +1739,11 @@ unsafe fn highlight_list_one(id: c_int) {
             msg_puts_hl(c"links to".as_ptr(), HLF_D, false);
             msg_putchar(c_int::from(b' '));
             let link_id = (*hl_table().add((id - 1) as usize)).sg_link;
-            msg_outtrans((*hl_table().add((link_id - 1) as usize)).sg_name, 0, false);
+            msg_outtrans(
+                (*hl_table().add((link_id - 1) as usize)).sg_name.as_ptr(),
+                0,
+                false,
+            );
         }
 
         if !didh {
@@ -1788,7 +1786,7 @@ unsafe fn hlgroup2dict(hl: *mut Dict, ns_id: NS, hl_id: c_int, arena: *mut Arena
             put_c(
                 &mut *hl,
                 c"link".as_ptr(),
-                cstr_as_obj((*hl_table().add((link - 1) as usize)).sg_name),
+                cstr_as_obj((*hl_table().add((link - 1) as usize)).sg_name.as_ptr()),
             );
         }
         let mut hl_cterm = arena_dict(arena, HLATTRS_DICT_SIZE);
@@ -1873,7 +1871,9 @@ pub unsafe fn ns_get_hl_defs(
             let target_id = if link { i } else { syn_get_final_id(i) };
             put_c(
                 &mut rv,
-                (*hl_table().add((target_id - 1) as usize)).sg_name,
+                (*hl_table().add((target_id - 1) as usize))
+                    .sg_name
+                    .as_ptr(),
                 dict_obj(attrs),
             );
         }
@@ -2068,7 +2068,11 @@ pub unsafe fn syn_list_header(
             if got_int {
                 return true;
             }
-            name_col = msg_outtrans((*hl_table().add((id - 1) as usize)).sg_name, 0, false);
+            name_col = msg_outtrans(
+                (*hl_table().add((id - 1) as usize)).sg_name.as_ptr(),
+                0,
+                false,
+            );
             msg_col = name_col;
             endcol = 15;
         } else if (ui_has(kUIMessages) || msg_silent != 0) && !force_newline {
@@ -2185,7 +2189,10 @@ pub unsafe fn syn_id2name(id: c_int) -> *mut c_char {
         if id <= 0 || id > hl_len() {
             return c"".as_ptr().cast_mut();
         }
-        (*hl_table().add((id - 1) as usize)).sg_name
+        (*hl_table().add((id - 1) as usize))
+            .sg_name
+            .as_ptr()
+            .cast_mut()
     }
 }
 
@@ -2240,8 +2247,10 @@ unsafe fn syn_add_group(name: *const c_char, len: usize) -> c_int {
             return 0;
         }
 
+        let name_slice = std::slice::from_raw_parts(name.cast::<u8>(), len);
+        let name_u_bytes: Vec<u8> = name_slice.iter().map(u8::to_ascii_uppercase).collect();
         let mut hlg = HlGroup::new();
-        hlg.sg_name = arena_memdupz(&raw mut highlight_arena, name, len);
+        hlg.sg_name = std::ffi::CString::new(name_slice).unwrap();
         hlg.sg_rgb_bg = -1;
         hlg.sg_rgb_fg = -1;
         hlg.sg_rgb_sp = -1;
@@ -2249,11 +2258,8 @@ unsafe fn syn_add_group(name: *const c_char, len: usize) -> c_int {
         hlg.sg_rgb_fg_idx = kColorIdxNone;
         hlg.sg_rgb_sp_idx = kColorIdxNone;
         hlg.sg_blend = -1;
-        hlg.sg_name_u = arena_memdupz(&raw mut highlight_arena, name, len);
         hlg.sg_parent = scoped_parent;
         hlg.sg_cleared = true;
-        vim_strup(hlg.sg_name_u);
-        let name_u_bytes = CStr::from_ptr(hlg.sg_name_u).to_bytes().to_vec();
         (*ga).push(hlg);
 
         let id = hl_len();
@@ -2583,7 +2589,7 @@ pub unsafe fn get_highlight_name_ext(
         } else if idx >= len {
             return ptr::null();
         }
-        (*hl_table().add(idx as usize)).sg_name
+        (*hl_table().add(idx as usize)).sg_name.as_ptr()
     }
 }
 

@@ -631,8 +631,8 @@ struct dbg_stuff {
     trylevel: c_int,
     force_abort: c_int,
     caught_stack: Vec<*mut except_T>,
-    vv_exception: *mut c_char,
-    vv_throwpoint: *mut c_char,
+    vv_exception: Option<std::ffi::CString>,
+    vv_throwpoint: Option<std::ffi::CString>,
     did_emsg: c_int,
     got_int: c_int,
     did_throw: bool,
@@ -647,8 +647,8 @@ impl dbg_stuff {
             trylevel: 0,
             force_abort: 0,
             caught_stack: Vec::new(),
-            vv_exception: ptr::null_mut(),
-            vv_throwpoint: ptr::null_mut(),
+            vv_exception: None,
+            vv_throwpoint: None,
             did_emsg: 0,
             got_int: 0,
             did_throw: false,
@@ -4850,8 +4850,8 @@ unsafe fn save_dbg_stuff(dsp: *mut dbg_stuff) {
         force_abort = false;
         let stack = &raw mut caught_stack;
         (*dsp).caught_stack = std::mem::take(&mut *stack);
-        (*dsp).vv_exception = v_exception(ptr::null_mut());
-        (*dsp).vv_throwpoint = v_throwpoint(ptr::null_mut());
+        (*dsp).vv_exception = v_exception(None);
+        (*dsp).vv_throwpoint = v_throwpoint(None);
 
         // Necessary for debugging an inactive ":catch", ":finally", ":endtry".
         (*dsp).did_emsg = did_emsg;
@@ -4876,8 +4876,8 @@ unsafe fn restore_dbg_stuff(dsp: *mut dbg_stuff) {
         force_abort = (*dsp).force_abort != 0;
         let stack = &raw mut caught_stack;
         *stack = std::mem::take(&mut (*dsp).caught_stack);
-        v_exception((*dsp).vv_exception);
-        v_throwpoint((*dsp).vv_throwpoint);
+        v_exception((*dsp).vv_exception.take());
+        v_throwpoint((*dsp).vv_throwpoint.take());
         did_emsg = (*dsp).did_emsg;
         got_int = (*dsp).got_int != 0;
         did_throw = (*dsp).did_throw;

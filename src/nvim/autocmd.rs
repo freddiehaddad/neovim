@@ -3076,11 +3076,11 @@ pub unsafe fn apply_autocmds_group(
 
                 let save_cmdbang = get_vim_var_nr(VV_CMDBANG);
                 let save_cmdarg = if !eap.is_null() {
-                    let s = set_cmdarg(eap, ptr::null_mut());
+                    let s = set_cmdarg(eap, None);
                     set_vim_var_nr(VV_CMDBANG, varnumber_T::from((*eap).forceit));
                     s
                 } else {
-                    ptr::null_mut()
+                    None
                 };
                 retval = true;
 

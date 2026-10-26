@@ -479,7 +479,7 @@ pub struct idl_cache_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct time_entry_T {
     total: proftime_T,
     count: c_int,
@@ -487,7 +487,7 @@ struct time_entry_T {
     slowest: proftime_T,
     average: proftime_T,
     id: c_int,
-    pattern: *mut c_char,
+    pattern: Option<std::ffi::CString>,
 }
 
 struct pat_ptr_T {
@@ -5459,10 +5459,7 @@ unsafe fn syntime_report() {
                     slowest: pat.sp_time.slowest,
                     average: profile_divide(pat.sp_time.total, pat.sp_time.count),
                     id: pat.sp_syn.id as c_int,
-                    pattern: pat
-                        .sp_pattern
-                        .as_ref()
-                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+                    pattern: pat.sp_pattern.clone(),
                 });
             }
         }
@@ -5501,11 +5498,12 @@ unsafe fn syntime_report() {
 
             msg_advance(69);
             let mut len = if Columns < 80 { 20 } else { Columns - 70 };
-            let patlen = strlen(p.pattern) as c_int;
+            let pat_ptr = p.pattern.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
+            let patlen = p.pattern.as_ref().map_or(0, |s| s.to_bytes().len() as c_int);
             if patlen < len {
                 len = patlen;
             }
-            msg_outtrans_len(p.pattern, len, 0, false);
+            msg_outtrans_len(pat_ptr, len, 0, false);
             msg_puts(c"\n".as_ptr());
         }
         if !got_int {
