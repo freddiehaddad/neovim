@@ -6010,7 +6010,12 @@ pub unsafe fn f_getcompletiontype(
             cmdline_len,
             false as c_int,
         );
-        (*rettv).vval.v_string = cmdcomplete_type_to_str(xpc.xp_context, xpc.xp_arg);
+        crate::eval::typval::tv_set_string(
+            rettv,
+            cmdcomplete_type_to_str(xpc.xp_context, xpc.xp_arg)
+                .as_ref()
+                .map_or(ptr::null(), |s| s.as_ptr()),
+        );
     }
 }
 

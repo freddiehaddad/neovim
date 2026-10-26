@@ -4532,9 +4532,8 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
             strcpy(buf_vec.as_mut_ptr(), c"help!".as_ptr());
             buflen = 5;
         } else if cmdchar == b'K' as c_int && !kp_help {
-            let ptr_cstr =
-                std::ffi::CString::new(std::slice::from_raw_parts(ptr.cast::<u8>(), n))
-                    .unwrap_or_default();
+            let ptr_cstr = std::ffi::CString::new(std::slice::from_raw_parts(ptr.cast::<u8>(), n))
+                .unwrap_or_default();
             let p = cstr_take(if kp_ex {
                 vim_strsave_fnameescape(ptr_cstr.as_ptr(), VSE_NONE)
             } else {

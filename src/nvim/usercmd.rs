@@ -44,7 +44,7 @@ use crate::lua::executor::{api_new_luaref, nlua_do_ucmd, nlua_funcref_str, nlua_
 use crate::mapping::set_context_in_map_cmd;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_copy_char, utfc_ptr2len};
-use crate::memory::{Arena, arena_memdupz, xfree, xmalloc, xstrdup};
+use crate::memory::{Arena, arena_memdupz, cstr_take};
 use crate::menu::set_context_in_menu_cmd;
 use crate::message::{
     emsg, message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_outtrans_special, msg_putchar,
@@ -55,7 +55,7 @@ use crate::os::env::expand_T;
 use crate::os::input::line_breakcheck;
 use crate::runtime::sourcing_lnum;
 use crate::strings::{
-    gettext, strcat, strchr, strcmp, strcpy, strncmp, vim_strchr, vim_strnicmp_asc, xstrnsave,
+    gettext, strcat, strchr, strcmp, strcpy, strncmp, vim_strchr, vim_strnicmp_asc,
 };
 use crate::window::{
     WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT, prevwin_curwin, tabpage_index,
@@ -549,30 +549,24 @@ pub unsafe fn get_user_cmd_complete(_xp: *mut expand_T, idx: c_int) -> *mut c_ch
 }
 
 /// Get the name of completion type `expand` as an allocated string (`cmdcomplete_type_to_str`).
-pub unsafe fn cmdcomplete_type_to_str(expand: c_int, compl_arg: *const c_char) -> *mut c_char {
+pub unsafe fn cmdcomplete_type_to_str(expand: c_int, compl_arg: *const c_char) -> Option<CString> {
     unsafe {
         let cmd_compl = get_command_complete(expand);
         if cmd_compl.is_null() || expand == EXPAND_USER_LUA {
-            return ptr::null_mut();
+            return None;
         }
 
         if expand == EXPAND_USER_LIST || expand == EXPAND_USER_DEFINED {
             let compl_bytes = CStr::from_ptr(cmd_compl).to_bytes();
             let arg_bytes = CStr::from_ptr(compl_arg).to_bytes();
-            let buflen = compl_bytes.len() + arg_bytes.len() + 2;
-            let buffer = xmalloc(buflen).cast::<u8>();
-            ptr::copy_nonoverlapping(compl_bytes.as_ptr(), buffer, compl_bytes.len());
-            *buffer.add(compl_bytes.len()) = b',';
-            ptr::copy_nonoverlapping(
-                arg_bytes.as_ptr(),
-                buffer.add(compl_bytes.len() + 1),
-                arg_bytes.len(),
-            );
-            *buffer.add(buflen - 1) = 0;
-            return buffer.cast::<c_char>();
+            let mut bytes = Vec::with_capacity(compl_bytes.len() + arg_bytes.len() + 1);
+            bytes.extend_from_slice(compl_bytes);
+            bytes.push(b',');
+            bytes.extend_from_slice(arg_bytes);
+            return Some(CString::new(bytes).unwrap_or_default());
         }
 
-        xstrdup(cmd_compl)
+        Some(CStr::from_ptr(cmd_compl).to_owned())
     }
 }
 
@@ -790,9 +784,12 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                 msg_outtrans(&raw const IObuff[0], 0, false);
 
                 if cmd.uc_luaref != LUA_NOREF {
-                    let fn_str = nlua_funcref_str(cmd.uc_luaref, ptr::null_mut(), true);
-                    msg_puts_hl(fn_str, HLF_8, false);
-                    xfree(fn_str.cast());
+                    let fn_str = cstr_take(nlua_funcref_str(cmd.uc_luaref, ptr::null_mut(), true));
+                    msg_puts_hl(
+                        fn_str.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                        HLF_8,
+                        false,
+                    );
                     if !cmd.uc_rep.as_bytes().is_empty() {
                         msg_puts(c"\n                                               ".as_ptr());
                     }
@@ -867,7 +864,7 @@ pub unsafe fn parse_compl_arg(
     vallen: c_int,
     complp: *mut c_int,
     argt: *mut u32,
-    compl_arg: *mut *mut c_char,
+    compl_arg: &mut Option<CString>,
 ) -> c_int {
     unsafe {
         let mut arg: *const c_char = ptr::null();
@@ -923,7 +920,10 @@ pub unsafe fn parse_compl_arg(
         }
 
         if !arg.is_null() {
-            *compl_arg = xstrnsave(arg, arglen);
+            *compl_arg = Some(
+                CString::new(std::slice::from_raw_parts(arg.cast::<u8>(), arglen))
+                    .unwrap_or_default(),
+            );
         }
         OK
     }
@@ -936,7 +936,7 @@ unsafe fn uc_scan_attr(
     def: *mut c_int,
     flags: *mut c_int,
     complp: *mut c_int,
-    compl_arg: *mut *mut c_char,
+    compl_arg: &mut Option<CString>,
     addr_type_arg: *mut cmd_addr_T,
 ) -> c_int {
     unsafe {
@@ -1097,7 +1097,7 @@ pub unsafe fn uc_add_command(
     def: i64,
     flags: c_int,
     context: c_int,
-    compl_arg: *mut c_char,
+    compl_arg: Option<CString>,
     mut compl_luaref: LuaRef,
     mut preview_luaref: LuaRef,
     addr_type: cmd_addr_T,
@@ -1119,9 +1119,7 @@ pub unsafe fn uc_add_command(
             ptr::null_mut(),
             p_cpo,
         );
-        if rep_buf.is_null() {
-            rep_buf = xstrdup(rep);
-        }
+        let rep_cstr = cstr_take(rep_buf).unwrap_or_else(|| CStr::from_ptr(rep).to_owned());
 
         let u = &raw mut ucmds;
         let gap: &mut Vec<ucmd_T> = if (flags & UC_BUFFER) != 0 {
@@ -1152,8 +1150,6 @@ pub unsafe fn uc_add_command(
                         gettext(c"E174: Command already exists: add ! to replace it: %s".as_ptr()),
                         name,
                     );
-                    xfree(rep_buf.cast());
-                    xfree(compl_arg.cast());
                     nlua_clear_ref(&mut luaref);
                     nlua_clear_ref(&mut compl_luaref);
                     nlua_clear_ref(&mut preview_luaref);
@@ -1183,8 +1179,7 @@ pub unsafe fn uc_add_command(
             cmd = &raw mut gap[i as usize];
         }
 
-        (*cmd).uc_rep = CStr::from_ptr(rep_buf).to_owned();
-        xfree(rep_buf.cast());
+        (*cmd).uc_rep = rep_cstr;
         (*cmd).uc_desc = if !desc.is_null() && *desc != NUL {
             Some(CStr::from_ptr(desc).to_owned())
         } else {
@@ -1196,13 +1191,7 @@ pub unsafe fn uc_add_command(
         (*cmd).uc_script_ctx = current_sctx;
         (*cmd).uc_script_ctx.sc_lnum += sourcing_lnum();
         nlua_set_sctx(&raw mut (*cmd).uc_script_ctx);
-        (*cmd).uc_compl_arg = if compl_arg.is_null() {
-            None
-        } else {
-            let cstr = CStr::from_ptr(compl_arg).to_owned();
-            xfree(compl_arg.cast());
-            Some(cstr)
-        };
+        (*cmd).uc_compl_arg = compl_arg;
         (*cmd).uc_compl_luaref = compl_luaref;
         (*cmd).uc_preview_luaref = preview_luaref;
         (*cmd).uc_addr_type = addr_type;
@@ -1219,7 +1208,7 @@ pub unsafe fn ex_command(eap: *mut exarg_T) {
         let mut def: c_int = -1;
         let mut flags: c_int = 0;
         let mut context: c_int = EXPAND_NOTHING;
-        let mut compl_arg: *mut c_char = ptr::null_mut();
+        let mut compl_arg: Option<CString> = None;
         let mut addr_type_arg: cmd_addr_T = ADDR_NONE;
         let has_attr = *(*eap).arg == b'-' as c_char;
 
@@ -1235,11 +1224,10 @@ pub unsafe fn ex_command(eap: *mut exarg_T) {
                 &raw mut def,
                 &raw mut flags,
                 &raw mut context,
-                &raw mut compl_arg,
+                &mut compl_arg,
                 &raw mut addr_type_arg,
             ) == FAIL
             {
-                xfree(compl_arg.cast());
                 return;
             }
             p = skipwhite(end);
@@ -1249,7 +1237,6 @@ pub unsafe fn ex_command(eap: *mut exarg_T) {
         let end = uc_validate_name(name);
         if end.is_null() {
             emsg(gettext(c"E182: Invalid command name".as_ptr()));
-            xfree(compl_arg.cast());
             return;
         }
         let name_len = end.offset_from(name) as usize;
@@ -1284,10 +1271,7 @@ pub unsafe fn ex_command(eap: *mut exarg_T) {
                 ptr::null(),
                 (*eap).forceit != 0,
             );
-            return;
         }
-
-        xfree(compl_arg.cast());
     }
 }
 
@@ -1419,7 +1403,7 @@ unsafe fn uc_split_args(
     args: &[*mut c_char],
     arglens: &[usize],
     lenp: *mut usize,
-) -> *mut c_char {
+) -> CString {
     unsafe {
         let mut len: c_int = 2;
         if args.is_empty() {
@@ -1468,8 +1452,8 @@ unsafe fn uc_split_args(
             }
         }
 
-        let buf = xmalloc((len as usize) + 1).cast::<c_char>();
-        let mut q = buf;
+        let mut buf_vec: Vec<c_char> = vec![0; (len as usize) + 1];
+        let mut q = buf_vec.as_mut_ptr();
         *q = b'"' as c_char;
         q = q.add(1);
 
@@ -1533,7 +1517,7 @@ unsafe fn uc_split_args(
         *q.add(1) = NUL;
 
         *lenp = len as usize;
-        buf
+        CStr::from_ptr(buf_vec.as_ptr()).to_owned()
     }
 }
 
@@ -1687,7 +1671,7 @@ unsafe fn uc_check_code(
     mut buf: *mut c_char,
     cmd: *mut ucmd_T,
     eap: *mut exarg_T,
-    split_buf: *mut *mut c_char,
+    split_buf: &mut Option<CString>,
     split_len: *mut usize,
 ) -> usize {
     unsafe {
@@ -1784,18 +1768,18 @@ unsafe fn uc_check_code(
                             }
                         }
                         2 => {
-                            if (*split_buf).is_null() {
-                                *split_buf = uc_split_args(
+                            if split_buf.is_none() {
+                                *split_buf = Some(uc_split_args(
                                     (*eap).arg,
                                     &(*eap).args,
                                     &(*eap).arglens,
                                     split_len,
-                                );
+                                ));
                             }
 
                             result = *split_len;
                             if !buf.is_null() && result != 0 {
-                                strcpy(buf, *split_buf);
+                                strcpy(buf, split_buf.as_ref().unwrap().as_ptr());
                             }
                         }
                         _ => {}
@@ -1896,7 +1880,7 @@ pub unsafe fn do_ucmd(eap: *mut exarg_T, preview: bool) -> c_int {
     unsafe {
         let mut end: *mut c_char = ptr::null_mut();
         let mut split_len: usize = 0;
-        let mut split_buf: *mut c_char = ptr::null_mut();
+        let mut split_buf: Option<CString> = None;
 
         let cmd = if (*eap).cmdidx == CMD_USER {
             let u = &raw mut ucmds;
@@ -1915,6 +1899,7 @@ pub unsafe fn do_ucmd(eap: *mut exarg_T, preview: bool) -> c_int {
             return 0;
         }
 
+        let mut buf_vec: Vec<c_char>;
         let mut buf: *mut c_char = ptr::null_mut();
         loop {
             let mut p = (*cmd).uc_rep.as_ptr().cast_mut();
@@ -1968,7 +1953,7 @@ pub unsafe fn do_ucmd(eap: *mut exarg_T, preview: bool) -> c_int {
                     q,
                     cmd,
                     eap,
-                    &raw mut split_buf,
+                    &mut split_buf,
                     &raw mut split_len,
                 );
                 if len == usize::MAX {
@@ -1989,7 +1974,8 @@ pub unsafe fn do_ucmd(eap: *mut exarg_T, preview: bool) -> c_int {
             }
 
             totlen += CStr::from_ptr(p).to_bytes().len();
-            buf = xmalloc(totlen + 1).cast::<c_char>();
+            buf_vec = vec![0; totlen + 1];
+            buf = buf_vec.as_mut_ptr();
         }
 
         let mut save_current_sctx = current_sctx;
@@ -2008,8 +1994,6 @@ pub unsafe fn do_ucmd(eap: *mut exarg_T, preview: bool) -> c_int {
         if restore_current_sctx {
             current_sctx = save_current_sctx;
         }
-        xfree(buf.cast());
-        xfree(split_buf.cast());
 
         0
     }

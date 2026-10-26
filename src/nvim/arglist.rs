@@ -9,7 +9,7 @@ use crate::context::is_ctx_win;
 use crate::errors::*;
 use crate::eval::typval::{
     EvalFuncData, VarType, tv_get_number, tv_get_number_chk, tv_list_alloc_ret,
-    tv_list_append_string, typval_T, varnumber_T,
+    tv_list_append_string, tv_set_string, typval_T, varnumber_T,
 };
 use crate::eval::window::{find_tabwin, find_win_by_nr_or_id};
 use crate::ex_cmds::{ECMD_FORCEIT, ECMD_HIDE, ECMD_LAST, ECMD_OLDBUF, ECMD_ONE, do_ecmd};
@@ -19,7 +19,7 @@ use crate::ex_getln::gotocmdline;
 use crate::fileio::file_pat_to_reg_pat;
 use crate::globals::*;
 use crate::mark::{setmark, setpcmark};
-use crate::memory::{xfree, xmalloc, xstrdup};
+use crate::memory::cstr_take;
 use crate::message::{emsg, semsg};
 use crate::normal::reset_VIsual_and_resel;
 use crate::option_vars::*;
@@ -37,7 +37,7 @@ use crate::window::{
     tabpage_T, tabpage_index, valid_tabpage, win_T, win_close, win_enter, win_move_after,
     win_split, win_valid,
 };
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
 
 use crate::math::{FAIL, OK};
@@ -202,9 +202,9 @@ unsafe fn alist_set(al: *mut alist_T, mut files: Vec<*mut c_char>, use_curbuf: c
         let mut iter = files.into_iter();
         while let Some(fname) = iter.next() {
             if got_int {
-                xfree(fname.cast());
+                let _ = cstr_take(fname);
                 for rest in iter {
-                    xfree(rest.cast());
+                    let _ = cstr_take(rest);
                 }
                 break;
             }
@@ -223,9 +223,9 @@ unsafe fn alist_set(al: *mut alist_T, mut files: Vec<*mut c_char>, use_curbuf: c
 pub unsafe fn alist_add(al: *mut alist_T, fname: *mut c_char, set_fnum: c_int) {
     unsafe {
         let wp = curwin;
-        if fname.is_null() {
+        let Some(ae_fname) = cstr_take(fname) else {
             return;
-        }
+        };
         if check_arglist_locked() == FAIL {
             return;
         }
@@ -234,15 +234,16 @@ pub unsafe fn alist_add(al: *mut alist_T, fname: *mut c_char, set_fnum: c_int) {
 
         let ae_fnum = if set_fnum > 0 {
             buflist_add(
-                fname,
+                ae_fname.as_ptr().cast_mut(),
                 BLN_LISTED | if set_fnum == 2 { BLN_CURBUF } else { 0 },
             )
         } else {
             0
         };
-        let ae_fname = Some(CStr::from_ptr(fname).to_owned());
-        xfree(fname.cast());
-        (*al).al_ga.push(aentry_T { ae_fname, ae_fnum });
+        (*al).al_ga.push(aentry_T {
+            ae_fname: Some(ae_fname),
+            ae_fnum,
+        });
 
         arglist_locked = false;
         (*wp).w_locked -= 1;
@@ -354,9 +355,13 @@ unsafe fn alist_add_list(mut files: Vec<*mut c_char>, mut after: c_int, will_edi
             let mut new_entries = Vec::with_capacity(files.len());
             for f in files {
                 let flags = BLN_LISTED | if will_edit { BLN_CURBUF } else { 0 };
-                let ae_fnum = buflist_add(f, flags);
-                let ae_fname = (!f.is_null()).then(|| CStr::from_ptr(f).to_owned());
-                xfree(f.cast());
+                let ae_fname = cstr_take(f);
+                let ae_fnum = buflist_add(
+                    ae_fname
+                        .as_ref()
+                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+                    flags,
+                );
                 new_entries.push(aentry_T { ae_fname, ae_fnum });
             }
             let pos = after as usize;
@@ -382,13 +387,12 @@ unsafe fn arglist_del_files(alist_ga: &[*mut c_char]) {
             if got_int {
                 break;
             }
-            let p = file_pat_to_reg_pat(orig_p, ptr::null(), ptr::null_mut(), 0);
-            if p.is_null() {
+            let Some(p) = cstr_take(file_pat_to_reg_pat(orig_p, ptr::null(), ptr::null_mut(), 0))
+            else {
                 break;
-            }
-            regmatch.regprog = vim_regcomp(p, if p_magic != 0 { RE_MAGIC } else { 0 });
+            };
+            regmatch.regprog = vim_regcomp(p.as_ptr(), if p_magic != 0 { RE_MAGIC } else { 0 });
             if regmatch.regprog.is_null() {
-                xfree(p.cast());
                 break;
             }
 
@@ -412,7 +416,6 @@ unsafe fn arglist_del_files(alist_ga: &[*mut c_char]) {
             }
 
             vim_regfree(regmatch.regprog);
-            xfree(p.cast());
             if !didone {
                 semsg!(gettext((&raw const e_nomatch2).cast()), orig_p);
             }
@@ -658,9 +661,11 @@ pub unsafe fn do_argfile(eap: *mut exarg_T, argn: c_int) {
         } else {
             let mut other = true;
             if buf_hide(curbuf) {
-                let p = fix_fname(alist_name(arglist().add(argn as usize)));
-                other = otherfile(p);
-                xfree(p.cast());
+                let p = cstr_take(fix_fname(alist_name(arglist().add(argn as usize))));
+                other = otherfile(
+                    p.as_ref()
+                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+                );
             }
             if (!buf_hide(curbuf) || !other)
                 && check_changed(
@@ -729,14 +734,24 @@ pub unsafe fn ex_argdedupe(_eap: *mut exarg_T) {
     unsafe {
         let mut i: c_int = 0;
         while i < argcount() {
-            let first_fullname = FullName_save((*arglist().add(i as usize)).fname_ptr(), false);
+            let first_fullname = cstr_take(FullName_save(
+                (*arglist().add(i as usize)).fname_ptr(),
+                false,
+            ));
+            let first_ptr = first_fullname
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
             let mut j = i + 1;
             while j < argcount() {
-                let second_fullname =
-                    FullName_save((*arglist().add(j as usize)).fname_ptr(), false);
-                let dup = path_equal(first_fullname, second_fullname, kPathCmpLiteral);
-                xfree(second_fullname.cast());
+                let second_fullname = cstr_take(FullName_save(
+                    (*arglist().add(j as usize)).fname_ptr(),
+                    false,
+                ));
+                let second_ptr = second_fullname
+                    .as_ref()
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                let dup = path_equal(first_ptr, second_ptr, kPathCmpLiteral);
 
                 if dup {
                     (*win_alist(curwin)).al_ga.remove(j as usize);
@@ -752,7 +767,6 @@ pub unsafe fn ex_argdedupe(_eap: *mut exarg_T) {
                 j += 1;
             }
 
-            xfree(first_fullname.cast());
             i += 1;
         }
     }
@@ -1195,50 +1209,29 @@ pub unsafe fn ex_all(eap: *mut exarg_T) {
 }
 
 /// Concatenate all files in the argument list, separated by spaces (`arg_all`).
-pub unsafe fn arg_all() -> *mut c_char {
+pub unsafe fn arg_all() -> CString {
     unsafe {
-        let mut retval: *mut c_char = ptr::null_mut();
-
-        loop {
-            let mut len: usize = 0;
-            let count = argcount();
-            for idx in 0..(count as usize) {
-                let mut p = alist_name(arglist().add(idx));
-                if p.is_null() {
-                    continue;
-                }
-                if len > 0 {
-                    if !retval.is_null() {
-                        *retval.add(len) = b' ' as c_char;
-                    }
-                    len += 1;
-                }
-                while *p != NUL {
-                    let ch = *p as u8;
-                    let escape = ch == b' ' || ch == b'`' || (cfg!(not(windows)) && ch == b'\\');
-                    if escape {
-                        if !retval.is_null() {
-                            *retval.add(len) = b'\\' as c_char;
-                        }
-                        len += 1;
-                    }
-                    if !retval.is_null() {
-                        *retval.add(len) = *p;
-                    }
-                    len += 1;
-                    p = p.add(1);
-                }
+        let mut bytes: Vec<u8> = Vec::new();
+        let count = argcount();
+        for idx in 0..(count as usize) {
+            let mut p = alist_name(arglist().add(idx));
+            if p.is_null() {
+                continue;
             }
-
-            if !retval.is_null() {
-                *retval.add(len) = NUL;
-                break;
+            if !bytes.is_empty() {
+                bytes.push(b' ');
             }
-
-            retval = xmalloc(len + 1).cast();
+            while *p != NUL {
+                let ch = *p as u8;
+                let escape = ch == b' ' || ch == b'`' || (cfg!(not(windows)) && ch == b'\\');
+                if escape {
+                    bytes.push(b'\\');
+                }
+                bytes.push(ch);
+                p = p.add(1);
+            }
         }
-
-        retval
+        CString::new(bytes).unwrap_or_default()
     }
 }
 
@@ -1316,11 +1309,10 @@ pub unsafe fn f_argv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
             }
         }
 
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = ptr::null_mut();
+        tv_set_string(rettv, ptr::null());
         let idx = tv_get_number_chk(argvars, ptr::null_mut()) as c_int;
         if !al_ptr.is_null() && idx >= 0 && idx < count {
-            (*rettv).vval.v_string = xstrdup(alist_name(al_ptr.add(idx as usize)));
+            tv_set_string(rettv, alist_name(al_ptr.add(idx as usize)));
         } else if idx == -1 {
             get_arglist_as_rettv(al_ptr, count, rettv);
         }

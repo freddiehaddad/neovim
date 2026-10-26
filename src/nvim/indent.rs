@@ -783,16 +783,8 @@ pub unsafe fn get_breakindent_win(wp: *mut win_T, line: *mut c_char) -> c_int {
             || PREV_LISTOPT != (*wp).w_briopt_list
             || PREV_NO_TS != no_ts
             || PREV_DY_UHEX != (dy_flags & kOptDyFlagUhex)
-            || (&raw const PREV_FLP)
-                .as_ref()
-                .unwrap()
-                .as_deref()
-                != Some(flp_val)
-            || (&raw const PREV_LINE)
-                .as_ref()
-                .unwrap()
-                .as_deref()
-                != Some(line_cstr)
+            || (&raw const PREV_FLP).as_ref().unwrap().as_deref() != Some(flp_val)
+            || (&raw const PREV_LINE).as_ref().unwrap().as_deref() != Some(line_cstr)
         {
             PREV_FNUM = (*buf).b_fnum;
             PREV_LINE = Some(line_cstr.to_owned());

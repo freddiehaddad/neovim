@@ -1421,7 +1421,7 @@ pub unsafe fn create_user_command(
         let mut def: i64 = -1;
         let mut addr_type_arg: cmd_addr_T = ADDR_NONE;
         let mut context: c_int = EXPAND_NOTHING;
-        let mut compl_arg: *mut c_char = ptr::null_mut();
+        let mut compl_arg: Option<std::ffi::CString> = None;
         let rep: *const c_char;
         let mut luaref: LuaRef = LUA_NOREF;
         let mut compl_luaref: LuaRef = LUA_NOREF;
@@ -1717,7 +1717,6 @@ pub unsafe fn create_user_command(
         if preview_luaref != LUA_NOREF {
             api_free_luaref(preview_luaref);
         }
-        xfree(compl_arg.cast());
     }
 }
 

@@ -12151,6 +12151,7 @@ pub unsafe fn eval_vars(
         let mut skip_mod = false;
         let mut strbuf = [0 as c_char; 30];
         let mut use_shellslash = false;
+        let arg_all_cstr: Option<std::ffi::CString>;
 
         *errormsg = ptr::null();
         if !escaped.is_null() {
@@ -12196,8 +12197,8 @@ pub unsafe fn eval_vars(
                 }
                 SPEC_HASH => {
                     if *src.add(1) == b'#' as c_char {
-                        result = arg_all();
-                        resultbuf = result;
+                        arg_all_cstr = Some(arg_all());
+                        result = arg_all_cstr.as_ref().unwrap().as_ptr().cast_mut();
                         *usedlen = 2;
                         if !escaped.is_null() {
                             *escaped = c_int::from(true);

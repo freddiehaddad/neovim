@@ -617,6 +617,18 @@ pub unsafe fn tv_list_set_ret(tv: *mut typval_T, l: *mut list_T) {
 }
 
 #[inline]
+pub unsafe fn tv_set_string(tv: *mut typval_T, s: *const c_char) {
+    unsafe {
+        (*tv).v_type = VarType::VAR_STRING;
+        (*tv).vval.v_string = if s.is_null() {
+            ptr::null_mut()
+        } else {
+            xstrdup(s)
+        };
+    }
+}
+
+#[inline]
 pub unsafe fn tv_blob_get(b: *const blob_T, idx: c_int) -> u8 {
     unsafe { tv_blob_get_inline(b, idx) }
 }

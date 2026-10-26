@@ -4773,15 +4773,15 @@ unsafe fn get_cmdline_completion_pattern() -> *mut c_char {
 }
 
 /// Get the command-line completion type.
-unsafe fn get_cmdline_completion() -> *mut c_char {
+unsafe fn get_cmdline_completion() -> Option<std::ffi::CString> {
     unsafe {
         if cmdline_star > 0 {
-            return ptr::null_mut();
+            return None;
         }
 
         let p = get_ccline_ptr();
         if p.is_null() || (*p).xpc.is_null() {
-            return ptr::null_mut();
+            return None;
         }
 
         let mut xp_context = (*(*p).xpc).xp_context;
@@ -4791,7 +4791,7 @@ unsafe fn get_cmdline_completion() -> *mut c_char {
             (*(*p).xpc).xp_context = EXPAND_NOTHING;
         }
         if xp_context == EXPAND_UNSUCCESSFUL {
-            return ptr::null_mut();
+            return None;
         }
 
         cmdcomplete_type_to_str(xp_context, (*(*p).xpc).xp_arg)
@@ -4813,8 +4813,12 @@ pub unsafe fn f_getcmdcompltype(
     _fptr: EvalFuncData,
 ) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = get_cmdline_completion();
+        crate::eval::typval::tv_set_string(
+            rettv,
+            get_cmdline_completion()
+                .as_ref()
+                .map_or(ptr::null(), |s| s.as_ptr()),
+        );
     }
 }
 
@@ -5318,7 +5322,7 @@ pub unsafe fn get_user_input(
         }
 
         let mut xp_type: c_int = EXPAND_NOTHING;
-        let mut xp_arg: *mut c_char = ptr::null_mut();
+        let mut xp_arg: Option<std::ffi::CString> = None;
         if !xp_name.is_null() {
             let xp_namelen = strlen(xp_name) as c_int;
             let mut argt: u32 = 0;
@@ -5327,7 +5331,7 @@ pub unsafe fn get_user_input(
                 xp_namelen,
                 &raw mut xp_type,
                 &raw mut argt,
-                &raw mut xp_arg,
+                &mut xp_arg,
             ) == FAIL
             {
                 return;
@@ -5358,7 +5362,9 @@ pub unsafe fn get_user_input(
             p,
             get_echo_hl_id(),
             xp_type,
-            xp_arg,
+            xp_arg
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
             input_callback,
             false,
             ptr::null_mut(),
@@ -5370,8 +5376,6 @@ pub unsafe fn get_user_input(
         if (*rettv).vval.v_string.is_null() && !cancelreturn.is_null() {
             tv_copy(cancelreturn, rettv);
         }
-
-        xfree(xp_arg.cast());
 
         need_wait_return = false;
         msg_didout = false;

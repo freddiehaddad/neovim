@@ -412,9 +412,13 @@ pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
             let msgs = (*msg_list).as_slice();
             let throw_ptr = msgs[msgs[0].throw_idx].msg.as_ptr().add(msgs[0].throw_off);
             let msg = get_error_exception_string(throw_ptr, ptr::null_mut());
-            api_set_error!(err, ErrorType::kErrorTypeException, c"%s".as_ptr(), msg);
+            api_set_error!(
+                err,
+                ErrorType::kErrorTypeException,
+                c"%s".as_ptr(),
+                msg.as_ptr()
+            );
             free_global_msglist();
-            xfree(msg.cast());
         } else if did_throw || need_rethrow {
             if !(*current_exception).throw_name.as_bytes().is_empty() {
                 if (*current_exception).throw_lnum != 0 {

@@ -15,7 +15,7 @@ use crate::eval::{
 };
 use crate::ex_docmd::{ends_excmd, exarg_T, find_nextcmd, handle_did_throw, modifier_len};
 use crate::globals::*;
-use crate::memory::{xfree, xstrdup, xstrlcpy};
+use crate::memory::{cstr_take, xstrlcpy};
 use crate::message::{emsg, internal_error, msg_puts, semsg, smsg, verbose_enter, verbose_leave};
 use crate::option_vars::*;
 use crate::regexp::{
@@ -23,7 +23,7 @@ use crate::regexp::{
 };
 use crate::runtime::{ESTACK_NONE, do_finish, estack_sfile, sourcing_lnum, stacktrace_create};
 use crate::strings::{
-    concat_str, gettext, strcat, strcpy, strlen, vim_snprintf, vim_snprintf_safelen, xstrnsave,
+    concat_str, gettext, strcat, strcpy, strlen, vim_snprintf, vim_snprintf_safelen,
 };
 use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
@@ -71,7 +71,7 @@ const RP_RESUME: c_int = 1;
 const RP_DISCARD: c_int = 2;
 
 use crate::errors::{
-    e_argreq, e_endfor, e_endif, e_endtry, e_endwhile, e_for, e_invarg2, e_invexpr2, e_outofmem,
+    e_argreq, e_endfor, e_endif, e_endtry, e_endwhile, e_for, e_invarg2, e_invexpr2,
     e_str_not_inside_function, e_trailing_arg, e_while,
 };
 
@@ -288,14 +288,7 @@ pub unsafe fn cause_errthrow(
 
             let is_first = list.is_empty();
             let tmsg = CStr::from_ptr(mesg).to_owned();
-            let raw_sfile = estack_sfile(ESTACK_NONE);
-            let sfile = if raw_sfile.is_null() {
-                None
-            } else {
-                let cstr = CStr::from_ptr(raw_sfile).to_owned();
-                xfree(raw_sfile.cast());
-                Some(cstr)
-            };
+            let sfile = cstr_take(estack_sfile(ESTACK_NONE));
             let tmsg_bytes = tmsg.as_bytes();
             let has_vim_e_prefix = tmsg_bytes.len() >= 10
                 && tmsg_bytes.starts_with(b"Vim E")
@@ -380,17 +373,22 @@ enum ExceptionValue {
     User(CString),
 }
 
-pub unsafe fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_char) -> *mut c_char {
+pub unsafe fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_char) -> CString {
     unsafe {
-        let (ret, val) = if !cmdname.is_null() && *cmdname != NUL {
+        let mut ret_vec: Vec<c_char>;
+        let val = if !cmdname.is_null() && *cmdname != NUL {
             let cmdlen = strlen(cmdname);
-            let ret = xstrnsave(c"Vim(".as_ptr(), 4 + cmdlen + 2 + strlen(mesg));
+            ret_vec = vec![0; 4 + cmdlen + 2 + strlen(mesg) + 1];
+            let ret = ret_vec.as_mut_ptr();
+            strcpy(ret, c"Vim(".as_ptr());
             strcpy(ret.add(4), cmdname);
             strcpy(ret.add(4 + cmdlen), c"):".as_ptr());
-            (ret, ret.add(4 + cmdlen + 2))
+            ret.add(4 + cmdlen + 2)
         } else {
-            let ret = xstrnsave(c"Vim:".as_ptr(), 4 + strlen(mesg));
-            (ret, ret.add(4))
+            ret_vec = vec![0; 4 + strlen(mesg) + 1];
+            let ret = ret_vec.as_mut_ptr();
+            strcpy(ret, c"Vim:".as_ptr());
+            ret.add(4)
         };
 
         let mut p = mesg;
@@ -429,7 +427,7 @@ pub unsafe fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_ch
             }
             p = p.add(1);
         }
-        ret
+        CStr::from_ptr(ret_vec.as_ptr()).to_owned()
     }
 }
 
@@ -452,15 +450,7 @@ unsafe fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int 
             ExceptionValue::Interrupt(val_str) => (ET_INTERRUPT, Vec::new(), val_str),
             ExceptionValue::Error(msgs) => {
                 let throw_ptr = msgs[msgs[0].throw_idx].msg.as_ptr().add(msgs[0].throw_off);
-                let excp_val = get_error_exception_string(throw_ptr, cmdname);
-                if excp_val.is_null() {
-                    suppress_errthrow = true;
-                    emsg(gettext(e_outofmem.as_ptr()));
-                    current_exception = ptr::null_mut();
-                    return FAIL;
-                }
-                let excp_cstr = CStr::from_ptr(excp_val).to_owned();
-                xfree(excp_val.cast());
+                let excp_cstr = get_error_exception_string(throw_ptr, cmdname);
                 (ET_ERROR, msgs, excp_cstr)
             }
         };
@@ -469,14 +459,7 @@ unsafe fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int 
             let sfile = messages[0].sfile.take().unwrap();
             (sfile, messages[0].slnum)
         } else {
-            let raw_sfile = estack_sfile(ESTACK_NONE);
-            let sfile = if raw_sfile.is_null() {
-                CString::default()
-            } else {
-                let cstr = CStr::from_ptr(raw_sfile).to_owned();
-                xfree(raw_sfile.cast());
-                cstr
-            };
+            let sfile = cstr_take(estack_sfile(ESTACK_NONE)).unwrap_or_default();
             (sfile, sourcing_lnum())
         };
 
@@ -539,7 +522,7 @@ unsafe fn discard_exception(excp: *mut except_T, was_finished: bool) {
 
         if p_verbose >= 13 || debug_break_level > 0 {
             let save_msg_silent = msg_silent;
-            let saved_iobuff = xstrdup(ptr::addr_of!(IObuff).cast());
+            let saved_iobuff = CStr::from_ptr(ptr::addr_of!(IObuff).cast()).to_owned();
             if debug_break_level > 0 {
                 msg_silent = 0;
             } else {
@@ -565,8 +548,11 @@ unsafe fn discard_exception(excp: *mut except_T, was_finished: bool) {
             } else {
                 verbose_leave();
             }
-            xstrlcpy(ptr::addr_of_mut!(IObuff).cast(), saved_iobuff, IOSIZE);
-            xfree(saved_iobuff.cast());
+            xstrlcpy(
+                ptr::addr_of_mut!(IObuff).cast(),
+                saved_iobuff.as_ptr(),
+                IOSIZE,
+            );
         }
         drop(Box::from_raw(excp));
     }
@@ -732,17 +718,20 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
             _ => gettext(c"%s discarded".as_ptr()),
         };
 
-        let s: *mut c_char = match pending {
+        let s_owned: Option<CString>;
+        let mesg_owned: Option<CString>;
+        let s: *const c_char = match pending {
             CSTP_NONE => return,
-            CSTP_CONTINUE => c":continue".as_ptr().cast_mut(),
-            CSTP_BREAK => c":break".as_ptr().cast_mut(),
-            CSTP_FINISH => c":finish".as_ptr().cast_mut(),
+            CSTP_CONTINUE => c":continue".as_ptr(),
+            CSTP_BREAK => c":break".as_ptr(),
+            CSTP_FINISH => c":finish".as_ptr(),
             CSTP_RETURN => {
                 let rettv = match value {
                     PendingVal::Return(tv) => tv,
                     _ => None,
                 };
-                get_return_cmd(rettv)
+                s_owned = cstr_take(get_return_cmd(rettv));
+                s_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr())
             }
             _ => {
                 if (pending & CSTP_THROW) != 0 {
@@ -757,8 +746,12 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
                         mesg,
                         gettext(c"Exception".as_ptr()),
                     );
-                    mesg = concat_str(ptr::addr_of!(IObuff).cast(), c": %s".as_ptr());
-                    (*excp).value.as_ptr().cast_mut()
+                    mesg_owned =
+                        cstr_take(concat_str(ptr::addr_of!(IObuff).cast(), c": %s".as_ptr()));
+                    mesg = mesg_owned
+                        .as_ref()
+                        .map_or(ptr::null_mut(), |cs| cs.as_ptr().cast_mut());
+                    (*excp).value.as_ptr()
                 } else if (pending & CSTP_ERROR) != 0 && (pending & CSTP_INTERRUPT) != 0 {
                     gettext(c"Error and interrupt".as_ptr())
                 } else if (pending & CSTP_ERROR) != 0 {
@@ -781,12 +774,6 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
         no_wait_return -= 1;
         if debug_break_level > 0 {
             msg_silent = save_msg_silent;
-        }
-
-        if pending == CSTP_RETURN {
-            xfree(s.cast());
-        } else if (pending & CSTP_THROW) != 0 {
-            xfree(mesg.cast());
         }
     }
 }
@@ -1121,14 +1108,11 @@ pub unsafe fn ex_throw(eap: *mut exarg_T) {
             ptr::null_mut()
         };
 
-        if !value.is_null() {
-            let val_cstr = CStr::from_ptr(value).to_owned();
-            xfree(value.cast());
-            if (*eap).skip == 0
-                && throw_exception(ExceptionValue::User(val_cstr), ptr::null_mut()) != FAIL
-            {
-                do_throw((*eap).cstack.cast());
-            }
+        if let Some(val_cstr) = cstr_take(value)
+            && (*eap).skip == 0
+            && throw_exception(ExceptionValue::User(val_cstr), ptr::null_mut()) != FAIL
+        {
+            do_throw((*eap).cstack.cast());
         }
     }
 }
