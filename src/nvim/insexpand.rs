@@ -78,7 +78,7 @@ use crate::mbyte::{
     utfc_ptr2len,
 };
 use crate::memline::{dec, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
-use crate::memory::{strequal, xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy};
+use crate::memory::{cstr_take, strequal, xstrlcpy};
 use crate::message::{
     emsg, internal_error, msg, msg_clr_cmdline, msg_delay, msg_ext_set_kind, msg_progress, semsg,
 };
@@ -346,7 +346,7 @@ impl Drop for compl_T {
 /// State information used for getting the next set of insert completion matches.
 #[repr(C)]
 struct ins_compl_next_state_T {
-    e_cpt_copy: *mut c_char,
+    e_cpt_copy: Vec<c_char>,
     e_cpt: *mut c_char,
     ins_buf: *mut buf_T,
     cur_match_pos: *mut pos_T,
@@ -363,7 +363,7 @@ struct ins_compl_next_state_T {
 impl ins_compl_next_state_T {
     const fn new() -> Self {
         Self {
-            e_cpt_copy: ptr::null_mut(),
+            e_cpt_copy: Vec::new(),
             e_cpt: ptr::null_mut(),
             ins_buf: ptr::null_mut(),
             cur_match_pos: ptr::null_mut(),
@@ -865,7 +865,7 @@ unsafe fn ins_compl_infercase_gettext(
     char_len: c_int,
     compl_char_len: c_int,
     min_len: c_int,
-    tofree: *mut *mut c_char,
+    tofree: &mut Vec<c_char>,
 ) -> *mut c_char {
     unsafe {
         let mut has_lower = false;
@@ -946,9 +946,9 @@ unsafe fn ins_compl_infercase_gettext(
         }
 
         if !gap.is_empty() {
-            let out = xmemdupz(gap.as_ptr().cast(), gap.len()).cast::<c_char>();
-            *tofree = out;
-            return out;
+            gap.push(0);
+            *tofree = gap;
+            return tofree.as_mut_ptr();
         }
 
         *p = NUL;
@@ -969,7 +969,7 @@ pub unsafe fn ins_compl_add_infercase(
     unsafe {
         let mut str_ptr = str_arg;
         let mut flags: c_int = 0;
-        let mut tofree: *mut c_char = ptr::null_mut();
+        let mut tofree: Vec<c_char> = Vec::new();
 
         if p_ic != 0 && (*curbuf).b_p_inf != 0 && len > 0 {
             let mut char_len: c_int = 0;
@@ -996,7 +996,7 @@ pub unsafe fn ins_compl_add_infercase(
                 char_len,
                 compl_char_len,
                 min_len,
-                &raw mut tofree,
+                &mut tofree,
             );
         }
         if cont_s_ipos {
@@ -1006,12 +1006,11 @@ pub unsafe fn ins_compl_add_infercase(
             flags |= CP_ICASE;
         }
 
-        let res = ins_compl_add(
+        ins_compl_add(
             str_ptr,
             len,
             fname,
-            ptr::null(),
-            false,
+            [const { None }; CPT_COUNT],
             ptr::null_mut(),
             dir,
             flags,
@@ -1019,21 +1018,8 @@ pub unsafe fn ins_compl_add_infercase(
             ptr::null(),
             score,
             false,
-            ptr::null_mut(),
-        );
-        xfree(tofree.cast());
-        res
-    }
-}
-
-#[inline]
-unsafe fn free_cptext(cptext: *const *mut c_char) {
-    unsafe {
-        if !cptext.is_null() {
-            for i in 0..CPT_COUNT {
-                xfree((*cptext.add(i)).cast());
-            }
-        }
+            None,
+        )
     }
 }
 
@@ -1066,8 +1052,7 @@ unsafe fn ins_compl_add(
     str_ptr: *mut c_char,
     mut len: c_int,
     fname: *mut c_char,
-    cptext: *const *mut c_char,
-    cptext_allocated: bool,
+    cptext: [Option<std::ffi::CString>; CPT_COUNT],
     user_data: *mut typval_T,
     cdir: Direction,
     flags_arg: c_int,
@@ -1075,7 +1060,7 @@ unsafe fn ins_compl_add(
     user_hl: *const c_int,
     score: c_int,
     preselect: bool,
-    commit_chars: *mut c_char,
+    commit_chars: Option<std::ffi::CString>,
 ) -> c_int {
     unsafe {
         let dir = if cdir == kDirectionNotSet {
@@ -1091,10 +1076,6 @@ unsafe fn ins_compl_add(
             os_breakcheck();
         }
         if got_int {
-            if cptext_allocated {
-                free_cptext(cptext);
-            }
-            xfree(commit_chars.cast());
             return FAIL;
         }
         if len < 0 {
@@ -1122,10 +1103,6 @@ unsafe fn ins_compl_add(
                         }
                     }
                 }
-                if cptext_allocated {
-                    free_cptext(cptext);
-                }
-                xfree(commit_chars.cast());
                 return NOTDONE;
             }
         }
@@ -1139,27 +1116,14 @@ unsafe fn ins_compl_add(
             None
         };
         let mut cp_text = [const { None }; CPT_COUNT];
-        if !cptext.is_null() {
-            for (slot, i) in cp_text.iter_mut().zip(0..CPT_COUNT) {
-                let s = *cptext.add(i);
-                if s.is_null() {
-                    continue;
-                }
-                if *s != NUL {
-                    *slot = Some(CStr::from_ptr(s).to_owned());
-                }
-                if cptext_allocated {
-                    xfree(s.cast());
-                }
+        for (slot, item) in cp_text.iter_mut().zip(cptext) {
+            if let Some(s) = item
+                && !s.as_bytes().is_empty()
+            {
+                *slot = Some(s);
             }
         }
-        let cp_commit_chars = if commit_chars.is_null() {
-            None
-        } else {
-            let cstr = CStr::from_ptr(commit_chars).to_owned();
-            xfree(commit_chars.cast());
-            Some(cstr)
-        };
+        let cp_commit_chars = commit_chars;
         let cp_user_data = if !user_data.is_null() {
             *user_data
         } else {
@@ -1451,8 +1415,7 @@ unsafe fn ins_compl_add_matches(matches: &mut Vec<*mut c_char>, icase: c_int) {
                 m,
                 -1,
                 ptr::null_mut(),
-                ptr::null(),
-                false,
+                [const { None }; CPT_COUNT],
                 ptr::null_mut(),
                 dir,
                 CP_FAST | if icase != 0 { CP_ICASE } else { 0 },
@@ -1460,7 +1423,7 @@ unsafe fn ins_compl_add_matches(matches: &mut Vec<*mut c_char>, icase: c_int) {
                 ptr::null(),
                 FUZZY_SCORE_NONE,
                 false,
-                ptr::null_mut(),
+                None,
             );
             if add_r == OK {
                 dir = FORWARD;
@@ -1618,24 +1581,22 @@ fn cp_compare_nearest(a: &compl_T, b: &compl_T) -> c_int {
 unsafe fn prepend_startcol_text(dest: *mut NvimString, src: *const NvimString, startcol: c_int) {
     unsafe {
         let prepend_len = compl_col - startcol;
-        let new_length = prepend_len + (*src).size as c_int;
-
-        (*dest).size = new_length as usize;
-        (*dest).data = xmalloc(new_length as usize + 1).cast::<c_char>();
+        let new_length = (prepend_len + (*src).size as c_int) as usize;
+        let mut buf: Vec<c_char> = vec![0; new_length + 1];
 
         let line = ml_get((*curwin).w_cursor.lnum);
 
         ptr::copy(
             line.add(startcol as usize),
-            (*dest).data,
+            buf.as_mut_ptr(),
             prepend_len as usize,
         );
         ptr::copy(
             (*src).data,
-            (*dest).data.add(prepend_len as usize),
+            buf.as_mut_ptr().add(prepend_len as usize),
             (*src).size,
         );
-        *(*dest).data.add(new_length as usize) = NUL;
+        *dest = cbuf_to_string(buf.as_ptr(), new_length);
     }
 }
 
@@ -2055,13 +2016,12 @@ unsafe fn ins_compl_dictionaries(
         }
 
         if ctrl_x_mode_line_or_eval() {
-            let pat_esc = vim_strsave_escaped(pat, c"\\".as_ptr());
-            let len = strlen(pat_esc) + 10;
+            let pat_esc = cstr_take(vim_strsave_escaped(pat, c"\\".as_ptr())).unwrap_or_default();
+            let len = pat_esc.as_bytes().len() + 10;
             let mut ptr_vec = vec![0 as c_char; len];
             let ptr = ptr_vec.as_mut_ptr();
-            vim_snprintf!(ptr, len, c"^\\s*\\zs\\V%s".as_ptr(), pat_esc);
+            vim_snprintf!(ptr, len, c"^\\s*\\zs\\V%s".as_ptr(), pat_esc.as_ptr());
             regmatch.regprog = vim_regcomp(ptr, RE_MAGIC);
-            xfree(pat_esc.cast());
         } else {
             regmatch.regprog = vim_regcomp(pat, if p_magic != 0 { RE_MAGIC } else { 0 });
             if regmatch.regprog.is_null() {
@@ -2829,7 +2789,7 @@ unsafe fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
             }
         }
 
-        let mut word = empty_nvim_string();
+        let mut word_owned: Option<std::ffi::CString> = None;
         let is_commit = pum_visible() && ins_compl_commit_char(c);
         if (c == Ctrl_Y
             || is_commit
@@ -2837,7 +2797,7 @@ unsafe fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
             && pum_visible()
         {
             let shown = compl_opt(compl_shown_idx);
-            word = copy_string((*shown).cp_str, ptr::null_mut());
+            word_owned = Some(CStr::from_ptr((*shown).cp_str.data).to_owned());
             if !is_commit {
                 retval = true;
             }
@@ -2846,14 +2806,14 @@ unsafe fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
 
         let arr = &raw const compl_match_array;
         let curr = compl_opt(compl_curr_idx);
-        if word.data.is_null()
+        if word_owned.is_none()
             && c != Ctrl_E
             && compl_used_match
             && (*arr).is_empty()
             && !curr.is_null()
             && !(*curr).cp_str.data.is_null()
         {
-            word = copy_string((*curr).cp_str, ptr::null_mut());
+            word_owned = Some(CStr::from_ptr((*curr).cp_str.data).to_owned());
         }
 
         if c == Ctrl_E {
@@ -2907,8 +2867,14 @@ unsafe fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
         if want_cindent && in_cinkeys(KEY_COMPLETE, b' ' as c_int, inindent(0)) {
             do_c_expr_indent();
         }
+        let mut word = match word_owned {
+            Some(ref w) => NvimString {
+                data: w.as_ptr().cast_mut(),
+                size: w.as_bytes().len(),
+            },
+            None => empty_nvim_string(),
+        };
         do_autocmd_completedone(c, prev_mode, &raw mut word);
-        xfree(word.data.cast());
 
         retval
     }
@@ -3333,8 +3299,8 @@ unsafe fn ins_compl_add_tv(tv: *mut typval_T, dir: Direction, fast: bool) -> c_i
         let mut empty = false;
         let mut flags = if fast { CP_FAST } else { 0 };
         let mut preselect = false;
-        let mut cptext: [*mut c_char; CPT_COUNT] = [ptr::null_mut(); CPT_COUNT];
-        let mut commit_chars: *mut c_char = ptr::null_mut();
+        let mut cptext: [Option<std::ffi::CString>; CPT_COUNT] = [const { None }; CPT_COUNT];
+        let mut commit_chars: Option<std::ffi::CString> = None;
         let mut user_hl: [c_int; 2] = [0, 0];
         let mut user_data: typval_T = typval_T::new();
         user_data.v_type = VAR_UNKNOWN;
@@ -3342,11 +3308,11 @@ unsafe fn ins_compl_add_tv(tv: *mut typval_T, dir: Direction, fast: bool) -> c_i
         if (*tv).v_type == VAR_DICT && !(*tv).vval.v_dict.is_null() {
             let d = (*tv).vval.v_dict;
             word = tv_dict_get_string(d, c"word".as_ptr(), false);
-            cptext[CPT_ABBR] = tv_dict_get_string(d, c"abbr".as_ptr(), true);
-            cptext[CPT_MENU] = tv_dict_get_string(d, c"menu".as_ptr(), true);
-            cptext[CPT_KIND] = tv_dict_get_string(d, c"kind".as_ptr(), true);
-            cptext[CPT_INFO] = tv_dict_get_string(d, c"info".as_ptr(), true);
-            commit_chars = tv_dict_get_string(d, c"commit_chars".as_ptr(), true);
+            cptext[CPT_ABBR] = cstr_take(tv_dict_get_string(d, c"abbr".as_ptr(), true));
+            cptext[CPT_MENU] = cstr_take(tv_dict_get_string(d, c"menu".as_ptr(), true));
+            cptext[CPT_KIND] = cstr_take(tv_dict_get_string(d, c"kind".as_ptr(), true));
+            cptext[CPT_INFO] = cstr_take(tv_dict_get_string(d, c"info".as_ptr(), true));
+            commit_chars = cstr_take(tv_dict_get_string(d, c"commit_chars".as_ptr(), true));
 
             let user_abbr_hlname = tv_dict_get_string(d, c"abbr_hlgroup".as_ptr(), false);
             user_hl[0] = get_user_highlight_id(user_abbr_hlname);
@@ -3371,17 +3337,14 @@ unsafe fn ins_compl_add_tv(tv: *mut typval_T, dir: Direction, fast: bool) -> c_i
             word = tv_get_string_chk(tv);
         }
         if word.is_null() || (!empty && *word == NUL) {
-            free_cptext(cptext.as_ptr());
             tv_clear(&raw mut user_data);
-            xfree(commit_chars.cast());
             return FAIL;
         }
         let status = ins_compl_add(
             word.cast_mut(),
             -1,
             ptr::null_mut(),
-            cptext.as_ptr(),
-            true,
+            cptext,
             &raw mut user_data,
             dir,
             flags,
@@ -3493,8 +3456,7 @@ unsafe fn set_completion(mut startcol: colnr_T, list: *mut list_T) {
             compl_orig_text.data,
             compl_orig_text.size as c_int,
             ptr::null_mut(),
-            ptr::null(),
-            false,
+            [const { None }; CPT_COUNT],
             ptr::null_mut(),
             0,
             flags | CP_FAST,
@@ -3502,7 +3464,7 @@ unsafe fn set_completion(mut startcol: colnr_T, list: *mut list_T) {
             ptr::null(),
             FUZZY_SCORE_NONE,
             false,
-            ptr::null_mut(),
+            None,
         ) != OK
         {
             return;
@@ -4238,9 +4200,9 @@ unsafe fn fuzzy_longest_match() {
         let leader_len = ins_compl_leader_len();
 
         if leader_len == 0 || strncmp(prefix, leader, leader_len) == 0 {
-            let dup = xmemdupz(prefix.cast(), prefix_len as usize).cast::<c_char>();
-            ins_compl_longest_insert(dup);
-            xfree(dup.cast());
+            let mut dup_vec: Vec<c_char> = vec![0; prefix_len as usize + 1];
+            ptr::copy_nonoverlapping(prefix, dup_vec.as_mut_ptr(), prefix_len as usize);
+            ins_compl_longest_insert(dup_vec.as_mut_ptr());
         }
 
         compl_num_bests = 0;
@@ -4270,9 +4232,9 @@ unsafe fn get_next_filename_completion() {
                 in_fuzzy_collect = false;
             } else {
                 let path_len = last_sep.offset_from(leader) as usize + 1;
-                let path_with_wildcard = xmalloc(path_len + 2).cast::<c_char>();
+                let mut path_with_wildcard: Vec<c_char> = vec![0; path_len + 2];
                 vim_snprintf!(
-                    path_with_wildcard,
+                    path_with_wildcard.as_mut_ptr(),
                     path_len + 2,
                     c"%*.*s*".as_ptr(),
                     path_len as c_int,
@@ -4280,8 +4242,7 @@ unsafe fn get_next_filename_completion() {
                     leader,
                 );
                 api_clear_string(&raw mut compl_pattern);
-                compl_pattern.data = path_with_wildcard;
-                compl_pattern.size = path_len + 1;
+                compl_pattern = cbuf_to_string(path_with_wildcard.as_ptr(), path_len + 1);
 
                 leader = last_sep.add(1);
                 leader_len -= path_len;
@@ -4341,8 +4302,7 @@ unsafe fn get_next_filename_completion() {
                         match_,
                         -1,
                         ptr::null_mut(),
-                        ptr::null(),
-                        false,
+                        [const { None }; CPT_COUNT],
                         ptr::null_mut(),
                         dir,
                         CP_FAST
@@ -4355,7 +4315,7 @@ unsafe fn get_next_filename_completion() {
                         ptr::null(),
                         current_score,
                         false,
-                        ptr::null_mut(),
+                        None,
                     ) == OK
                     {
                         dir = FORWARD;
@@ -4401,28 +4361,28 @@ unsafe fn get_next_cmdline_completion() {
                 if add_r == FAIL {
                     break;
                 }
-                let mut cptext: [*mut c_char; CPT_COUNT] = [ptr::null_mut(); CPT_COUNT];
+                let mut cptext: [Option<std::ffi::CString>; CPT_COUNT] =
+                    [const { None }; CPT_COUNT];
 
                 let cxp = &raw const compl_xp;
                 if let Some(Some(abbr)) = (*cxp).xp_files_abbr.as_slice().get(i) {
-                    cptext[CPT_ABBR] = abbr.as_ptr().cast_mut();
+                    cptext[CPT_ABBR] = Some(abbr.clone());
                 }
                 if let Some(Some(kind)) = (*cxp).xp_files_kind.as_slice().get(i) {
-                    cptext[CPT_KIND] = kind.as_ptr().cast_mut();
+                    cptext[CPT_KIND] = Some(kind.clone());
                 }
                 if let Some(Some(menu)) = (*cxp).xp_files_menu.as_slice().get(i) {
-                    cptext[CPT_MENU] = menu.as_ptr().cast_mut();
+                    cptext[CPT_MENU] = Some(menu.clone());
                 }
                 if let Some(Some(info)) = (*cxp).xp_files_info.as_slice().get(i) {
-                    cptext[CPT_INFO] = info.as_ptr().cast_mut();
+                    cptext[CPT_INFO] = Some(info.clone());
                 }
 
                 add_r = ins_compl_add(
                     match_i,
                     -1,
                     ptr::null_mut(),
-                    cptext.as_ptr(),
-                    false,
+                    cptext,
                     ptr::null_mut(),
                     dir,
                     CP_FAST,
@@ -4430,7 +4390,7 @@ unsafe fn get_next_cmdline_completion() {
                     ptr::null(),
                     FUZZY_SCORE_NONE,
                     false,
-                    ptr::null_mut(),
+                    None,
                 );
                 if add_r == OK {
                     dir = FORWARD;
@@ -4890,8 +4850,7 @@ unsafe fn get_next_bufname_token() {
                         tail,
                         strlen(tail) as c_int,
                         ptr::null_mut(),
-                        ptr::null(),
-                        false,
+                        [const { None }; CPT_COUNT],
                         ptr::null_mut(),
                         0,
                         if p_ic != 0 { CP_ICASE } else { 0 },
@@ -4899,7 +4858,7 @@ unsafe fn get_next_bufname_token() {
                         ptr::null(),
                         FUZZY_SCORE_NONE,
                         false,
-                        ptr::null_mut(),
+                        None,
                     );
                 }
             }
@@ -4943,7 +4902,12 @@ unsafe fn strip_caret_numbers_in_place(str_ptr: *mut c_char) {
 
 unsafe fn prepare_cpt_compl_funcs() {
     unsafe {
-        let cpt = xstrdup((*curbuf).b_p_cpt);
+        let mut cpt_vec: Vec<c_char> = CStr::from_ptr((*curbuf).b_p_cpt)
+            .to_bytes_with_nul()
+            .iter()
+            .map(|&b| b as c_char)
+            .collect();
+        let cpt = cpt_vec.as_mut_ptr();
         strip_caret_numbers_in_place(cpt);
 
         let mut idx: c_int = 0;
@@ -4978,8 +4942,6 @@ unsafe fn prepare_cpt_compl_funcs() {
             let _ = copy_option_part(&raw mut p, iobuff_ptr, IOSIZE, c",".as_ptr());
             idx += 1;
         }
-
-        xfree(cpt.cast());
     }
 }
 
@@ -5030,14 +4992,20 @@ unsafe fn ins_compl_get_exp(ini: *mut pos_T) -> c_int {
             }
             st.found_all = false;
             st.ins_buf = curbuf;
-            xfree(st.e_cpt_copy.cast());
-            st.e_cpt_copy = xstrdup(if (compl_cont_status & CONT_LOCAL) != 0 {
+            let src = if (compl_cont_status & CONT_LOCAL) != 0 {
                 c".".as_ptr()
             } else {
                 (*curbuf).b_p_cpt
-            });
-            strip_caret_numbers_in_place(st.e_cpt_copy);
-            st.e_cpt = st.e_cpt_copy;
+            };
+            let mut e_cpt_copy: Vec<c_char> = CStr::from_ptr(src)
+                .to_bytes_with_nul()
+                .iter()
+                .map(|&b| b as c_char)
+                .collect();
+            strip_caret_numbers_in_place(e_cpt_copy.as_mut_ptr());
+            let e_cpt_ptr = e_cpt_copy.as_mut_ptr();
+            st.e_cpt_copy = e_cpt_copy;
+            st.e_cpt = e_cpt_ptr;
 
             if compl_autocomplete && is_nearest_active() {
                 start_pos.lnum = (start_pos.lnum - LOOKBACK_LINE_COUNT).max(1);
@@ -5262,17 +5230,17 @@ pub unsafe fn ins_compl_delete(new_leader: bool) {
             (*curwin).w_cursor.col = compl_ins_end_col;
         }
 
-        let mut remaining = empty_nvim_string();
+        let mut remaining_vec: Option<Vec<c_char>> = None;
         if (*curwin).w_cursor.lnum > compl_lnum {
             if (*curwin).w_cursor.col < get_cursor_line_len() {
-                remaining = cbuf_to_string(get_cursor_pos_ptr(), get_cursor_pos_len() as usize);
+                let len = get_cursor_pos_len() as usize;
+                let mut v = vec![0; len + 1];
+                ptr::copy_nonoverlapping(get_cursor_pos_ptr(), v.as_mut_ptr(), len);
+                remaining_vec = Some(v);
             }
 
             while (*curwin).w_cursor.lnum > compl_lnum {
                 if ml_delete((*curwin).w_cursor.lnum) == FAIL {
-                    if !remaining.data.is_null() {
-                        xfree(remaining.data.cast());
-                    }
                     return;
                 }
                 deleted_lines_mark((*curwin).w_cursor.lnum, 1);
@@ -5283,20 +5251,16 @@ pub unsafe fn ins_compl_delete(new_leader: bool) {
 
         if (*curwin).w_cursor.col > col {
             if stop_arrow() == FAIL {
-                if !remaining.data.is_null() {
-                    xfree(remaining.data.cast());
-                }
                 return;
             }
             backspace_until_column(col);
             compl_ins_end_col = (*curwin).w_cursor.col;
         }
 
-        if !remaining.data.is_null() {
+        if let Some(ref rem) = remaining_vec {
             orig_col = (*curwin).w_cursor.col;
-            ins_str(remaining.data, remaining.size);
+            ins_str(rem.as_ptr().cast_mut(), rem.len() - 1);
             (*curwin).w_cursor.col = orig_col;
-            xfree(remaining.data.cast());
         }
 
         changed_cline_bef_curs(curwin);
@@ -5930,14 +5894,14 @@ unsafe fn get_normal_compl_info(
             let n = quote_meta(ptr::null_mut(), line.add(compl_col as usize), compl_length)
                 as usize
                 + prefixlen;
-            compl_pattern.data = xmalloc(n).cast::<c_char>();
-            strcpy(compl_pattern.data, prefix);
+            let mut pat_vec: Vec<c_char> = vec![0; n];
+            strcpy(pat_vec.as_mut_ptr(), prefix);
             quote_meta(
-                compl_pattern.data.add(prefixlen),
+                pat_vec.as_mut_ptr().add(prefixlen),
                 line.add(compl_col as usize),
                 compl_length,
             );
-            compl_pattern.size = n - 1;
+            compl_pattern = cbuf_to_string(pat_vec.as_ptr(), n - 1);
         } else {
             startcol -= 1;
             if startcol < 0 || !vim_iswordp(mb_prevptr(line, line.add((startcol + 1) as usize))) {
@@ -5963,23 +5927,23 @@ unsafe fn get_normal_compl_info(
                 compl_col += startcol;
                 compl_length = curs_col - startcol;
                 if compl_length == 1 {
-                    compl_pattern.data = xmalloc(7).cast::<c_char>();
-                    strcpy(compl_pattern.data, c"\\<".as_ptr());
-                    quote_meta(compl_pattern.data.add(2), line.add(compl_col as usize), 1);
-                    strcat(compl_pattern.data, c"\\k".as_ptr());
-                    compl_pattern.size = strlen(compl_pattern.data);
+                    let mut pat_vec = [0 as c_char; 7];
+                    strcpy(pat_vec.as_mut_ptr(), c"\\<".as_ptr());
+                    quote_meta(pat_vec.as_mut_ptr().add(2), line.add(compl_col as usize), 1);
+                    strcat(pat_vec.as_mut_ptr(), c"\\k".as_ptr());
+                    compl_pattern = cbuf_to_string(pat_vec.as_ptr(), strlen(pat_vec.as_ptr()));
                 } else {
                     let n = quote_meta(ptr::null_mut(), line.add(compl_col as usize), compl_length)
                         as usize
                         + 2;
-                    compl_pattern.data = xmalloc(n).cast::<c_char>();
-                    strcpy(compl_pattern.data, c"\\<".as_ptr());
+                    let mut pat_vec: Vec<c_char> = vec![0; n];
+                    strcpy(pat_vec.as_mut_ptr(), c"\\<".as_ptr());
                     quote_meta(
-                        compl_pattern.data.add(2),
+                        pat_vec.as_mut_ptr().add(2),
                         line.add(compl_col as usize),
                         compl_length,
                     );
-                    compl_pattern.size = n - 1;
+                    compl_pattern = cbuf_to_string(pat_vec.as_ptr(), n - 1);
                 }
             }
         }
@@ -6387,8 +6351,7 @@ unsafe fn ins_compl_start() -> c_int {
             compl_orig_text.data,
             compl_orig_text.size as c_int,
             ptr::null_mut(),
-            ptr::null(),
-            false,
+            [const { None }; CPT_COUNT],
             ptr::null_mut(),
             0,
             flags,
@@ -6396,7 +6359,7 @@ unsafe fn ins_compl_start() -> c_int {
             ptr::null(),
             FUZZY_SCORE_NONE,
             false,
-            ptr::null_mut(),
+            None,
         ) != OK
         {
             api_clear_string(&raw mut compl_pattern);
@@ -6882,7 +6845,12 @@ unsafe fn get_cpt_func_completion_matches(cb: *mut Callback) {
 unsafe fn cpt_compl_refresh() {
     unsafe {
         ins_compl_make_linear();
-        let cpt = xstrdup((*curbuf).b_p_cpt);
+        let mut cpt_vec: Vec<c_char> = CStr::from_ptr((*curbuf).b_p_cpt)
+            .to_bytes_with_nul()
+            .iter()
+            .map(|&b| b as c_char)
+            .collect();
+        let cpt = cpt_vec.as_mut_ptr();
         strip_caret_numbers_in_place(cpt);
 
         cpt_sources_index = 0;
@@ -6927,7 +6895,6 @@ unsafe fn cpt_compl_refresh() {
         }
         cpt_sources_index = -1;
 
-        xfree(cpt.cast());
         compl_matches = ins_compl_make_cyclic();
     }
 }
