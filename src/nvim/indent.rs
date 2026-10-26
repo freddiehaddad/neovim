@@ -28,7 +28,6 @@ use crate::insert::{
 };
 use crate::mbyte::{utf_ClusterInfo, utf_ptr2CharInfo, utf_ptr2StrCharInfo, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_buf, ml_get_len, ml_get_pos, ml_replace};
-use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup};
 use crate::message::{emsg, msg_progress};
 use crate::r#move::{changed_cline_bef_curs, win_col_off, win_col_off2};
 use crate::ops::shift_line;
@@ -48,7 +47,7 @@ use crate::regexp::{
     vim_regfree,
 };
 use crate::search::{findmatch, linewhite};
-use crate::strings::{atoi, gettext, ngettext, strcmp, strncmp, vim_strchr, xstrnsave};
+use crate::strings::{atoi, gettext, ngettext, strcmp, strncmp, vim_strchr};
 use crate::textformat::{has_format_option, oparg_T};
 use crate::undo::{u_clearline, u_save, u_savecommon, u_savesub};
 use crate::window::win_T;
@@ -90,13 +89,13 @@ static mut PREV_INDENT: c_int = 0;
 static mut PREV_TS: OptInt = 0;
 static mut PREV_VTS: Vec<colnr_T> = Vec::new();
 static mut PREV_FNUM: c_int = 0;
-static mut PREV_LINE: *mut c_char = ptr::null_mut();
+static mut PREV_LINE: Option<std::ffi::CString> = None;
 static mut PREV_TICK: varnumber_T = 0;
 static mut PREV_LIST: c_int = 0;
 static mut PREV_LISTOPT: c_int = 0;
 static mut PREV_NO_TS: bool = false;
 static mut PREV_DY_UHEX: c_uint = 0;
-static mut PREV_FLP: *mut c_char = ptr::null_mut();
+static mut PREV_FLP: Option<std::ffi::CString> = None;
 
 #[inline]
 const fn has_briopt_key(v: &OptKeyDict_briopt, bit: u64) -> bool {
@@ -550,6 +549,7 @@ pub unsafe fn set_indent(size: c_int, flags: c_int) -> bool {
         }
 
         let mut skipcols: c_int = 0;
+        let mut newline_vec: Vec<c_char>;
         let newline: *mut c_char;
         let mut s: *mut c_char;
         if orig_char_len != -1 {
@@ -559,7 +559,8 @@ pub unsafe fn set_indent(size: c_int, flags: c_int) -> bool {
                 .and_then(|v| v.checked_add(line_len))
                 .expect("newline_size overflow");
             debug_assert!(newline_size >= 0);
-            newline = xmalloc(newline_size as usize).cast::<c_char>();
+            newline_vec = vec![0 as c_char; newline_size as usize];
+            newline = newline_vec.as_mut_ptr();
             todo = size - ind_done;
 
             ind_len = orig_char_len + todo;
@@ -583,7 +584,8 @@ pub unsafe fn set_indent(size: c_int, flags: c_int) -> bool {
             let newline_size = (ind_len as usize)
                 .checked_add(line_len as usize)
                 .expect("newline_size overflow");
-            newline = xmalloc(newline_size).cast::<c_char>();
+            newline_vec = vec![0 as c_char; newline_size];
+            newline = newline_vec.as_mut_ptr();
             s = newline;
         }
 
@@ -644,7 +646,7 @@ pub unsafe fn set_indent(size: c_int, flags: c_int) -> bool {
             let old_offset = p.offset_from(oldline) as colnr_T;
             let new_offset = s.offset_from(newline) as colnr_T;
 
-            ml_replace((*curwin).w_cursor.lnum, newline, false);
+            ml_replace((*curwin).w_cursor.lnum, newline, true);
             if (flags & SIN_NOMARK) == 0 {
                 extmark_splice_cols(
                     curbuf,
@@ -668,9 +670,8 @@ pub unsafe fn set_indent(size: c_int, flags: c_int) -> bool {
                 }
             }
             retval = true;
-        } else {
-            xfree(newline.cast());
         }
+        drop(newline_vec);
         (*curwin).w_cursor.col = ind_len;
         retval
     }
@@ -773,6 +774,8 @@ pub unsafe fn get_breakindent_win(wp: *mut win_T, line: *mut c_char) -> c_int {
 
         let buf = (*wp).w_buffer;
         let prev_vts = &raw mut PREV_VTS;
+        let flp_val = CStr::from_ptr(get_flp_value(buf));
+        let line_cstr = CStr::from_ptr(line);
         if PREV_FNUM != (*buf).b_fnum
             || PREV_TS != (*buf).b_p_ts
             || (*prev_vts).as_slice() != (*buf).b_p_vts_array.as_slice()
@@ -780,14 +783,19 @@ pub unsafe fn get_breakindent_win(wp: *mut win_T, line: *mut c_char) -> c_int {
             || PREV_LISTOPT != (*wp).w_briopt_list
             || PREV_NO_TS != no_ts
             || PREV_DY_UHEX != (dy_flags & kOptDyFlagUhex)
-            || PREV_FLP.is_null()
-            || strcmp(PREV_FLP, get_flp_value(buf)) != 0
-            || PREV_LINE.is_null()
-            || strcmp(PREV_LINE, line) != 0
+            || (&raw const PREV_FLP)
+                .as_ref()
+                .unwrap()
+                .as_deref()
+                != Some(flp_val)
+            || (&raw const PREV_LINE)
+                .as_ref()
+                .unwrap()
+                .as_deref()
+                != Some(line_cstr)
         {
             PREV_FNUM = (*buf).b_fnum;
-            xfree(PREV_LINE.cast());
-            PREV_LINE = xstrdup(line);
+            PREV_LINE = Some(line_cstr.to_owned());
             PREV_TS = (*buf).b_p_ts;
             (*prev_vts).clone_from(&(*buf).b_p_vts_array);
             if (*wp).w_briopt_vcol == 0 {
@@ -802,12 +810,18 @@ pub unsafe fn get_breakindent_win(wp: *mut win_T, line: *mut c_char) -> c_int {
             PREV_LIST = 0;
             PREV_NO_TS = no_ts;
             PREV_DY_UHEX = dy_flags & kOptDyFlagUhex;
-            xfree(PREV_FLP.cast());
-            PREV_FLP = xstrdup(get_flp_value(buf));
+            PREV_FLP = Some(flp_val.to_owned());
 
             if (*wp).w_briopt_list != 0 && (*wp).w_briopt_vcol == 0 {
+                let flp_ptr = (&raw const PREV_FLP)
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .as_ptr()
+                    .cast_mut();
                 let mut regmatch = regmatch_T {
-                    regprog: vim_regcomp(PREV_FLP, RE_MAGIC + RE_STRING + RE_AUTO + RE_STRICT),
+                    regprog: vim_regcomp(flp_ptr, RE_MAGIC + RE_STRING + RE_AUTO + RE_STRICT),
                     startp: [ptr::null_mut(); 10],
                     endp: [ptr::null_mut(); 10],
                     rm_matchcol: 0,
@@ -1094,10 +1108,14 @@ pub unsafe fn ins_try_si(c: c_int) {
 pub unsafe fn change_indent(type_: c_int, amount: c_int, round: c_int, call_changed_bytes: bool) {
     unsafe {
         let mut orig_col: colnr_T = 0;
-        let mut orig_line: *mut c_char = ptr::null_mut();
+        let mut orig_line: Vec<c_char> = Vec::new();
 
         if (State & VREPLACE_FLAG) != 0 {
-            orig_line = xstrnsave(get_cursor_line_ptr(), get_cursor_line_len() as usize);
+            orig_line = std::slice::from_raw_parts(
+                get_cursor_line_ptr(),
+                get_cursor_line_len() as usize + 1,
+            )
+            .to_vec();
             orig_col = (*curwin).w_cursor.col;
         }
 
@@ -1226,18 +1244,18 @@ pub unsafe fn change_indent(type_: c_int, amount: c_int, round: c_int, call_chan
         }
 
         if (State & VREPLACE_FLAG) != 0 {
-            let new_line = xstrnsave(get_cursor_line_ptr(), get_cursor_line_len() as usize);
-            *new_line.add((*curwin).w_cursor.col as usize) = NUL;
             let new_col = (*curwin).w_cursor.col;
+            let mut new_line =
+                std::slice::from_raw_parts(get_cursor_line_ptr(), new_col as usize).to_vec();
+            new_line.push(NUL);
 
-            ml_replace((*curwin).w_cursor.lnum, orig_line, false);
+            ml_replace((*curwin).w_cursor.lnum, orig_line.as_mut_ptr(), true);
             (*curwin).w_cursor.col = orig_col;
 
             curbuf_splice_pending += 1;
 
             backspace_until_column(0);
-            ins_bytes(new_line);
-            xfree(new_line.cast());
+            ins_bytes(new_line.as_mut_ptr());
 
             curbuf_splice_pending -= 1;
 
@@ -1258,6 +1276,7 @@ pub unsafe fn change_indent(type_: c_int, amount: c_int, round: c_int, call_chan
 pub unsafe fn copy_indent(size: c_int, src: *mut c_char) -> bool {
     unsafe {
         let mut p: *mut c_char = ptr::null_mut();
+        let mut line_vec: Vec<c_char> = Vec::new();
         let mut line: *mut c_char = ptr::null_mut();
         let mut ind_len: c_int = 0;
         let mut line_len: c_int = 0;
@@ -1337,13 +1356,15 @@ pub unsafe fn copy_indent(size: c_int, src: *mut c_char) -> bool {
                 let line_size = (ind_len as usize)
                     .checked_add(line_len as usize)
                     .expect("line_size overflow");
-                line = xmalloc(line_size).cast::<c_char>();
+                line_vec = vec![0 as c_char; line_size];
+                line = line_vec.as_mut_ptr();
                 p = line;
             }
         }
 
         ptr::copy(get_cursor_line_ptr(), p, line_len as usize);
-        ml_replace((*curwin).w_cursor.lnum, line, false);
+        ml_replace((*curwin).w_cursor.lnum, line, true);
+        drop(line_vec);
         (*curwin).w_cursor.col = ind_len;
         true
     }
@@ -1378,7 +1399,7 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
             ptr = skipwhite(ptr.add(11));
         }
 
-        let mut new_ts_str = ptr;
+        let ts_start = ptr;
         let mut errbuf_storage = [0 as c_char; IOSIZE];
         let errbuf = CharBuf {
             data: errbuf_storage.as_mut_ptr(),
@@ -1393,12 +1414,18 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
             ptr = ptr.add(1);
         }
 
-        if new_vts_array.is_empty() {
+        let new_ts_str = if new_vts_array.is_empty() {
             new_vts_array = (*curbuf).b_p_vts_array.clone();
-            new_ts_str = ptr::null_mut();
+            None
         } else {
-            new_ts_str = xmemdupz(new_ts_str.cast(), ptr.offset_from(new_ts_str) as usize).cast();
-        }
+            Some(
+                std::ffi::CString::new(std::slice::from_raw_parts(
+                    ts_start.cast::<u8>(),
+                    ptr.offset_from(ts_start) as usize,
+                ))
+                .unwrap_or_default(),
+            )
+        };
 
         let save_list = (*curwin).w_onebuf_opt.wo_list;
         (*curwin).w_onebuf_opt.wo_list = 0;
@@ -1455,7 +1482,8 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
                                 emsg_text_too_long();
                                 break;
                             }
-                            new_line = xmalloc(new_len as usize).cast::<c_char>();
+                            let mut new_line_vec = vec![0 as c_char; new_len as usize];
+                            new_line = new_line_vec.as_mut_ptr();
 
                             if start_col > 0 {
                                 ptr::copy(ptr, new_line, start_col as usize);
@@ -1473,7 +1501,7 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
                                     b' ' as c_char
                                 };
                             }
-                            if ml_replace(lnum, new_line, false) == OK {
+                            if ml_replace(lnum, new_line, true) == OK {
                                 new_line = (*curbuf).b_ml.ml_line_ptr;
                                 extmark_splice_cols(
                                     curbuf,
@@ -1484,6 +1512,7 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
                                     kExtmarkUndo,
                                 );
                             }
+                            drop(new_line_vec);
                             if first_line == 0 {
                                 first_line = lnum;
                             }
@@ -1531,14 +1560,14 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
         (*curwin).w_onebuf_opt.wo_list = save_list;
         u_clearline(curbuf);
 
-        if !new_ts_str.is_null() {
+        if let Some(ref ts_cstr) = new_ts_str {
             let win_handle: handle_T = (*curwin).handle;
             let buf_handle: handle_T = (*curbuf).b_fnum;
 
             if tabstop_count(&(*curbuf).b_p_vts_array) > 0 || tabstop_count(&new_vts_array) > 1 {
                 set_option_value(
                     kOptVartabstop,
-                    cstr_as_obj(new_ts_str),
+                    cstr_as_obj(ts_cstr.as_ptr()),
                     OPT_LOCAL,
                     true,
                     ptr::null(),
@@ -1552,7 +1581,6 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
                     ptr::null(),
                 );
             }
-            xfree(new_ts_str.cast());
             if (*curwin).handle != win_handle || (*curbuf).b_fnum != buf_handle {
                 return;
             }

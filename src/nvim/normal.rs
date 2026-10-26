@@ -114,7 +114,7 @@ use crate::mcursor::{
     mc_buf_has_cursors, mc_counter, mc_follow_set, mc_replaying, mc_showcmd, mc_toggle, mc_zq_start,
 };
 use crate::memline::{goto_byte, inc, ml_delete_flags, ml_get, ml_get_buf, ml_get_len, ml_get_pos};
-use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy};
+use crate::memory::{cstr_take, xstrlcpy};
 use crate::message::{
     NIL_OBJ, emsg, may_clear_sb_text, messaging, msg, msg_delay, msg_ext_set_trigger,
     msg_grid_validate, show_sb_text, wait_return,
@@ -168,7 +168,6 @@ use crate::state::{
 use crate::statusline::{draw_tabline, win_redr_status};
 use crate::strings::{
     strcat, strchr, strcpy, strlen, tr, vim_snprintf, vim_strchr, vim_strsave_shellescape,
-    xstrnsave,
 };
 use crate::syntax::{syn_stack_free_all, synblock_T};
 use crate::tag::do_tag;
@@ -1793,15 +1792,14 @@ unsafe fn normal_redraw_mode_message(_s: *mut NormalState) {
         }
 
         if must_redraw != 0 && !keep_msg.is_null() && !emsg_on_display {
-            let mut kmsg = keep_msg;
+            let kmsg = keep_msg;
             keep_msg = ptr::null_mut();
             setcursor();
             update_screen();
             keep_msg = kmsg;
 
-            kmsg = xstrdup(keep_msg);
-            msg(kmsg, keep_msg_hl_id);
-            xfree(kmsg.cast());
+            let kmsg_cstr = CStr::from_ptr(keep_msg).to_owned();
+            msg(kmsg_cstr.as_ptr(), keep_msg_hl_id);
         }
         setcursor();
         ui_cursor_shape();
@@ -2304,7 +2302,7 @@ unsafe fn normal_execute(state: *mut VimState, key: c_int) -> c_int {
         }
 
         normal_finish_command(s, &raw mut frame);
-        xfree((*s).ca.searchbuf.cast());
+        (*s).ca.searchbuf = None;
         1
     }
 }
@@ -2424,11 +2422,10 @@ unsafe fn normal_redraw(_s: *mut NormalState) {
         (*curbuf).b_last_used = os_time() as time_t;
 
         if !keep_msg.is_null() {
-            let p = xstrdup(keep_msg);
+            let p = CStr::from_ptr(keep_msg).to_owned();
             msg_hist_off = true;
-            msg(p, keep_msg_hl_id);
+            msg(p.as_ptr(), keep_msg_hl_id);
             msg_hist_off = false;
-            xfree(p.cast());
         }
 
         if need_fileinfo && !shortmess(kShmFileinfo) {
@@ -3383,7 +3380,8 @@ pub unsafe fn find_decl(
         let mut searchflags = flags_arg;
 
         let patsize = len + 7;
-        let pat: *mut c_char = xmalloc(patsize).cast();
+        let mut pat_vec = vec![0 as c_char; patsize];
+        let pat: *mut c_char = pat_vec.as_mut_ptr();
 
         assert!(patsize <= c_int::MAX as usize);
         let patlen = vim_snprintf!(
@@ -3490,7 +3488,7 @@ pub unsafe fn find_decl(
             reset_search_dir();
         }
 
-        xfree(pat.cast());
+        drop(pat_vec);
         p_ws = save_p_ws;
         p_scs = save_p_scs;
 
@@ -4370,7 +4368,6 @@ unsafe fn nv_K_getcmd(
         }
         if n == 0 {
             emsg(tr(e_noident.as_ptr()));
-            xfree(buf.cast());
             *ptr_arg = ptr;
             return 0;
         }
@@ -4535,18 +4532,19 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
             strcpy(buf_vec.as_mut_ptr(), c"help!".as_ptr());
             buflen = 5;
         } else if cmdchar == b'K' as c_int && !kp_help {
-            ptr = xstrnsave(ptr, n);
-            let p = if kp_ex {
-                vim_strsave_fnameescape(ptr, VSE_NONE)
+            let ptr_cstr =
+                std::ffi::CString::new(std::slice::from_raw_parts(ptr.cast::<u8>(), n))
+                    .unwrap_or_default();
+            let p = cstr_take(if kp_ex {
+                vim_strsave_fnameescape(ptr_cstr.as_ptr(), VSE_NONE)
             } else {
-                vim_strsave_shellescape(ptr, true, true)
-            };
-            xfree(ptr.cast());
-            let plen = strlen(p);
+                vim_strsave_shellescape(ptr_cstr.as_ptr(), true, true)
+            })
+            .unwrap_or_default();
+            let plen = p.to_bytes().len();
             buf_vec.resize(buflen + plen + 1, 0);
-            strcpy(buf_vec.as_mut_ptr().add(buflen), p);
+            strcpy(buf_vec.as_mut_ptr().add(buflen), p.as_ptr());
             buflen += plen;
-            xfree(p.cast());
         } else {
             let aux_ptr = if cmdchar == b'*' as c_int {
                 if p_magic != 0 {
@@ -5020,18 +5018,20 @@ unsafe fn nv_search(cap: *mut cmdarg_T) {
             return;
         }
 
-        (*cap).searchbuf = getcmdline((*cap).cmdchar, (*cap).count1, 0, true);
+        (*cap).searchbuf = cstr_take(getcmdline((*cap).cmdchar, (*cap).count1, 0, true));
 
-        if (*cap).searchbuf.is_null() {
+        let Some(ref sbuf) = (*cap).searchbuf else {
             clearop(oap);
             return;
-        }
+        };
+        let sbuf_ptr = sbuf.as_ptr().cast_mut();
+        let sbuf_len = sbuf.to_bytes().len();
 
         normal_search(
             cap,
             (*cap).cmdchar,
-            (*cap).searchbuf,
-            strlen((*cap).searchbuf),
+            sbuf_ptr,
+            sbuf_len,
             if (*cap).arg != 0 || !equalpos(save_cursor, (*curwin).w_cursor) {
                 0
             } else {
@@ -5331,11 +5331,13 @@ unsafe fn nv_brackets(cap: *mut cmdarg_T) {
             if len == 0 {
                 clearop((*cap).oap);
             } else {
-                ptr = xmemdupz(ptr.cast(), len).cast();
+                let mut ptr_vec = Vec::with_capacity(len + 1);
+                ptr_vec.extend_from_slice(std::slice::from_raw_parts(ptr, len));
+                ptr_vec.push(NUL);
                 let is_upper = ((*cap).nchar as u8).is_ascii_uppercase();
                 let is_lower = ((*cap).nchar as u8).is_ascii_lowercase();
                 find_pattern_in_path(
-                    ptr,
+                    ptr_vec.as_mut_ptr(),
                     0,
                     len,
                     true,
@@ -5362,7 +5364,6 @@ unsafe fn nv_brackets(cap: *mut cmdarg_T) {
                     false,
                     false,
                 );
-                xfree(ptr.cast());
                 (*curwin).w_set_curswant = true;
             }
         } else if ((*cap).cmdchar == b'[' as c_int

@@ -60,11 +60,9 @@ use crate::ex_getln::{
 use crate::mapping::MAXMAPLEN;
 use crate::regexp::{Ctrl_H, Ctrl_V, NUMBUFLEN};
 
-#[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct cmdarg_T {
     pub oap: *mut oparg_T,
-    pub prechar: c_int,
     pub cmdchar: c_int,
     pub nchar: c_int,
     pub nchar_composing: [c_char; MAX_SCHAR_SIZE],
@@ -75,14 +73,13 @@ pub struct cmdarg_T {
     pub count1: c_int,
     pub arg: c_int,
     pub retval: c_int,
-    pub searchbuf: *mut c_char,
+    pub searchbuf: Option<std::ffi::CString>,
 }
 
 impl cmdarg_T {
     pub const fn new() -> Self {
         Self {
             oap: ptr::null_mut(),
-            prechar: 0,
             cmdchar: 0,
             nchar: 0,
             nchar_composing: [0; MAX_SCHAR_SIZE],
@@ -93,8 +90,15 @@ impl cmdarg_T {
             count1: 0,
             arg: 0,
             retval: 0,
-            searchbuf: ptr::null_mut(),
+            searchbuf: None,
         }
+    }
+
+    #[inline]
+    pub fn searchbuf_ptr(&self) -> *mut c_char {
+        self.searchbuf
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
     }
 }
 
@@ -1677,7 +1681,7 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: *mut cmdarg_T, redo_yank: 
             );
             if (*cap).cmdchar == b'/' as c_int || (*cap).cmdchar == b'?' as c_int {
                 if vim_strchr(p_cpo, kCpoRedo).is_null() {
-                    redo_append_lit((*cap).searchbuf, -1);
+                    redo_append_lit((*cap).searchbuf_ptr(), -1);
                 }
                 redo_append_str(c"\n".as_ptr(), 1);
             } else if excmd {
@@ -2047,12 +2051,12 @@ unsafe fn atom_capture_cmd(ca: *mut cmdarg_T, old: *mut CmdFrame) -> bool {
                     atom.origin = (*old).origin;
                     atom_push(effect, &mut atom);
                 }
-            } else if !(*ca).searchbuf.is_null()
+            } else if (*ca).searchbuf.is_some()
                 && ((*ca).cmdchar == b'/' as c_int || (*ca).cmdchar == b'?' as c_int)
                 && !(vis && unchanged)
             {
                 let mut atom =
-                    atom_from_cmdline(kAMotion, ca, (*ca).searchbuf, (*old).visual.active);
+                    atom_from_cmdline(kAMotion, ca, (*ca).searchbuf_ptr(), (*old).visual.active);
                 atom.origin = (*old).origin;
                 atom_push(false, &mut atom);
             } else if ((*root).cmdline.is_some()
