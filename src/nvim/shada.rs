@@ -269,11 +269,10 @@ struct ShadaFilemark {
     fname: *mut c_char,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct ShadaHistoryItem {
     histtype: u8,
-    string: *mut c_char,
+    string: Option<std::ffi::CString>,
     sep: c_char,
 }
 
@@ -378,9 +377,9 @@ impl ShadaEntryData {
     }
 
     #[inline]
-    const fn history_item(&self) -> ShadaHistoryItem {
+    const fn history_item(&self) -> &ShadaHistoryItem {
         match self {
-            Self::HistoryItem(v) => *v,
+            Self::HistoryItem(v) => v,
             _ => unreachable!(),
         }
     }
@@ -657,7 +656,7 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
             timestamp: 0,
             data: ShadaEntryData::HistoryItem(ShadaHistoryItem {
                 histtype: HIST_CMD as u8,
-                string: ptr::null_mut(),
+                string: None,
                 sep: NUL,
             }),
             additional_data: ptr::null_mut(),
@@ -881,8 +880,13 @@ unsafe fn hmll_remove(hmll: &mut HMLList, entry_idx: usize) {
         }
         let next_idx = hmll.entries[entry_idx].next;
         let prev_idx = hmll.entries[entry_idx].prev;
-        let key_ptr = hmll.entries[entry_idx].data.data.history_item().string;
-        let key = CStr::from_ptr(key_ptr).to_bytes();
+        let key = hmll.entries[entry_idx]
+            .data
+            .data
+            .history_item()
+            .string
+            .as_ref()
+            .map_or(&b""[..], |s| s.to_bytes());
         let val = hmll.contained_entries.remove(key);
         assert!(val.is_some());
         if let Some(n) = next_idx {
@@ -919,9 +923,12 @@ unsafe fn hmll_insert(hmll: &mut HMLList, mut after_idx: Option<usize>, data: Sh
             hmll.last_free_entry += 1;
             idx
         };
-        let key = CStr::from_ptr(data.data.history_item().string)
-            .to_bytes()
-            .to_vec();
+        let key = data
+            .data
+            .history_item()
+            .string
+            .as_ref()
+            .map_or_else(Vec::new, |s| s.to_bytes().to_vec());
         hmll.entries[target_idx].data = data;
         hmll.contained_entries.entry(key).or_insert(target_idx);
         hmll.num_entries += 1;
@@ -1068,11 +1075,11 @@ unsafe fn shada_hist_iter(
     unsafe {
         let mut hist_he = histentry_T::new();
         let ret = hist_iter(iter, history_type, zero, &mut hist_he);
-        if hist_he.hisstr.is_null() {
+        if hist_he.hisstr.is_none() {
             *hist = MISSING_ENTRY;
         } else {
             let sep = if (history_type as c_int) == HIST_SEARCH {
-                *hist_he.hisstr.add(hist_he.hisstrlen + 1)
+                hist_he.sep
             } else {
                 0
             };
@@ -1113,7 +1120,12 @@ unsafe fn hms_insert(hms_p: *mut HistoryMergerState, entry: ShadaEntry, do_iter:
             }
         }
         let hmll = &mut (*hms_p).hmll;
-        let key = CStr::from_ptr(entry.data.history_item().string).to_bytes();
+        let key = entry
+            .data
+            .history_item()
+            .string
+            .as_ref()
+            .map_or(&b""[..], |s| s.to_bytes());
         if let Some(&existing_idx) = hmll.contained_entries.get(key) {
             let existing_ts = hmll.entries[existing_idx].data.timestamp;
             if entry.timestamp > existing_ts {
@@ -1179,32 +1191,30 @@ unsafe fn hms_insert_whole_neovim_history(hms_p: *mut HistoryMergerState) {
 }
 
 #[inline]
-unsafe fn hms_to_he_array(
+fn hms_to_he_array(
     hms_p: &HistoryMergerState,
     hist_array: &mut [histentry_T],
     new_hisidx: &mut c_int,
     new_hisnum: &mut c_int,
 ) {
-    unsafe {
-        let mut count = 0usize;
-        let hmll = &hms_p.hmll;
-        let mut cur_idx = hmll.first;
-        while let Some(idx) = cur_idx {
-            let cur_entry = &hmll.entries[idx];
-            let s = cur_entry.data.data.history_item().string;
-            hist_array[count] = histentry_T {
-                timestamp: cur_entry.data.timestamp,
-                hisnum: (count as c_int) + 1,
-                hisstr: s,
-                hisstrlen: CStr::from_ptr(s).to_bytes().len(),
-                additional_data: cur_entry.data.additional_data,
-            };
-            count += 1;
-            cur_idx = cur_entry.next;
-        }
-        *new_hisnum = count as c_int;
-        *new_hisidx = *new_hisnum - 1;
+    let mut count = 0usize;
+    let hmll = &hms_p.hmll;
+    let mut cur_idx = hmll.first;
+    while let Some(idx) = cur_idx {
+        let cur_entry = &hmll.entries[idx];
+        let hi = cur_entry.data.data.history_item();
+        hist_array[count] = histentry_T {
+            timestamp: cur_entry.data.timestamp,
+            hisnum: (count as c_int) + 1,
+            hisstr: hi.string.clone(),
+            sep: hi.sep,
+            additional_data: cur_entry.data.additional_data,
+        };
+        count += 1;
+        cur_idx = cur_entry.next;
     }
+    *new_hisnum = count as c_int;
+    *new_hisidx = *new_hisnum - 1;
 }
 
 #[inline]
@@ -1792,7 +1802,10 @@ unsafe fn shada_pack_entry(
                     2 + u32::from(is_hist_search) + additional_data_len(entry.additional_data);
                 mpack_array(&mut sbuf.ptr, arr_size);
                 mpack_uint(&mut sbuf.ptr, u32::from(hi.histtype));
-                mpack_bin(cstr_as_string(hi.string), &mut sbuf);
+                mpack_bin(
+                    cstr_as_string(hi.string.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
+                    &mut sbuf,
+                );
                 if is_hist_search {
                     mpack_uint(&mut sbuf.ptr, u32::from(hi.sep as u8));
                 }
@@ -3468,7 +3481,7 @@ unsafe fn shada_free_shada_entry(entry: *mut ShadaEntry) {
                 }
             }
             ShadaEntryType::kSDItemHistoryEntry => {
-                xfree((*entry).data.history_item().string.cast());
+                (*entry).data.history_item_mut().string = None;
             }
             ShadaEntryType::kSDItemVariable => {
                 xfree((*entry).data.global_var().name.cast());
@@ -3996,12 +4009,13 @@ unsafe fn shada_read_next_item(
                             }
                             hi.sep = sep_type as c_char;
                         }
-                        let strsize = item.size + 2;
-                        let s = xmalloc(strsize).cast::<c_char>();
-                        ptr::copy_nonoverlapping(item.data, s, item.size);
-                        *s.add(strsize - 2) = 0;
-                        *s.add(strsize - 1) = hi.sep;
-                        hi.string = s;
+                        hi.string = Some(
+                            std::ffi::CString::new(std::slice::from_raw_parts(
+                                item.data.cast::<u8>(),
+                                item.size,
+                            ))
+                            .unwrap_or_default(),
+                        );
                         read_additional_array_elements =
                             (len as u32) - (2 + u32::from(is_hist_search));
                     }

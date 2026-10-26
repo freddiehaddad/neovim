@@ -2313,7 +2313,7 @@ unsafe fn command_line_next_histidx(s: *mut CommandLineState, next_match: bool) 
                 }
             }
 
-            if (*s).hiscnt < 0 || hist[(*s).hiscnt as usize].hisstr.is_null() {
+            if (*s).hiscnt < 0 || hist[(*s).hiscnt as usize].hisstr.is_none() {
                 (*s).hiscnt = (*s).save_hiscnt;
                 break;
             }
@@ -2321,7 +2321,7 @@ unsafe fn command_line_next_histidx(s: *mut CommandLineState, next_match: bool) 
             if ((*s).c != K_UP && (*s).c != K_DOWN)
                 || (*s).hiscnt == (*s).save_hiscnt
                 || strncmp(
-                    hist[(*s).hiscnt as usize].hisstr,
+                    hist[(*s).hiscnt as usize].hisstr_ptr(),
                     (*s).lookfor,
                     (*s).lookforlen as usize,
                 ) == 0
@@ -2359,6 +2359,7 @@ unsafe fn command_line_browse_history(s: *mut CommandLineState) -> c_int {
             let p: *mut c_char;
             let plen: c_int;
             let old_firstc: c_int;
+            let mut sep: c_char = 0;
 
             dealloc_cmdbuff();
 
@@ -2368,12 +2369,13 @@ unsafe fn command_line_browse_history(s: *mut CommandLineState) -> c_int {
                 plen = (*s).lookforlen;
             } else {
                 let entry = &get_histentry((*s).histype)[(*s).hiscnt as usize];
-                p = entry.hisstr;
-                plen = entry.hisstrlen as c_int;
+                p = entry.hisstr_ptr();
+                plen = entry.hisstrlen() as c_int;
+                sep = entry.sep;
             }
 
             if (*s).histype == HIST_SEARCH && p != (*s).lookfor && {
-                old_firstc = (*p.add((plen + 1) as usize) as u8) as c_int;
+                old_firstc = (sep as u8) as c_int;
                 old_firstc != (*s).firstc
             } {
                 let mut len: c_int = 0;

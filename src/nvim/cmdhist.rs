@@ -11,7 +11,7 @@ use crate::ex_docmd::{CMOD_KEEPPATTERNS, exarg_T};
 use crate::ex_getln::{get_cmdline_firstc, get_list_range};
 use crate::globals::*;
 use crate::math::{FAIL, OK};
-use crate::memory::{xfree, xmallocz, xstrlcpy};
+use crate::memory::{xfree, xmallocz, xstrdup, xstrlcpy};
 use crate::message::{
     message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts_title, semsg,
     trunc_string,
@@ -44,12 +44,11 @@ const HISTORY_EXPAND_ARGS: [&CStr; 12] = [
     c":", c"=", c"@", c">", c"?", c"/", c"cmd", c"search", c"expr", c"input", c"debug", c"all",
 ];
 
-#[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct histentry_T {
     pub hisnum: c_int,
-    pub hisstr: *mut c_char,
-    pub hisstrlen: usize,
+    pub hisstr: Option<std::ffi::CString>,
+    pub sep: c_char,
     pub timestamp: u64,
     pub additional_data: *mut crate::search::AdditionalData,
 }
@@ -58,11 +57,23 @@ impl histentry_T {
     pub const fn new() -> Self {
         Self {
             hisnum: 0,
-            hisstr: std::ptr::null_mut(),
-            hisstrlen: 0,
+            hisstr: None,
+            sep: 0,
             timestamp: 0,
             additional_data: std::ptr::null_mut(),
         }
+    }
+
+    #[inline]
+    pub fn hisstr_ptr(&self) -> *mut c_char {
+        self.hisstr
+            .as_ref()
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    }
+
+    #[inline]
+    pub fn hisstrlen(&self) -> usize {
+        self.hisstr.as_ref().map_or(0, |s| s.to_bytes().len())
     }
 }
 
@@ -78,20 +89,14 @@ use crate::strings::vim_strnicmp_asc;
 #[inline]
 unsafe fn clear_hist_entry(hisptr: *mut histentry_T) {
     unsafe {
-        *hisptr = histentry_T {
-            hisnum: 0,
-            hisstr: std::ptr::null_mut(),
-            hisstrlen: 0,
-            timestamp: 0,
-            additional_data: std::ptr::null_mut(),
-        };
+        *hisptr = histentry_T::new();
     }
 }
 
 #[inline]
 unsafe fn hist_free_entry(hisptr: *mut histentry_T) {
     unsafe {
-        xfree((*hisptr).hisstr.cast());
+        (*hisptr).hisstr = None;
         xfree((*hisptr).additional_data.cast());
         clear_hist_entry(hisptr);
     }
@@ -162,11 +167,11 @@ pub unsafe fn init_history() {
                 if newlen > 0 {
                     if l2 > 0 {
                         temp[..l2 as usize]
-                            .copy_from_slice(&HISTORY[hist_type][i2 as usize..(i2 + l2) as usize]);
+                            .clone_from_slice(&HISTORY[hist_type][i2 as usize..(i2 + l2) as usize]);
                     }
                     if l1 > 0 {
                         temp[l2 as usize..(l2 + l1) as usize]
-                            .copy_from_slice(&HISTORY[hist_type][i1 as usize..(i1 + l1) as usize]);
+                            .clone_from_slice(&HISTORY[hist_type][i1 as usize..(i1 + l1) as usize]);
                     }
                 }
 
@@ -204,12 +209,11 @@ unsafe fn in_history(
 
         loop {
             let entry = &HISTORY[hist_type][i as usize];
-            if entry.hisstr.is_null() {
+            let Some(ref hisstr) = entry.hisstr else {
                 return false;
-            }
-            let p_bytes = CStr::from_ptr(entry.hisstr).to_bytes();
-            let sep_matches = (hist_type as c_int) != HIST_SEARCH
-                || (sep as c_char) == *entry.hisstr.add(entry.hisstrlen + 1);
+            };
+            let p_bytes = hisstr.to_bytes();
+            let sep_matches = (hist_type as c_int) != HIST_SEARCH || (sep as c_char) == entry.sep;
             if str_bytes == p_bytes && sep_matches {
                 if !move_to_front {
                     return true;
@@ -230,13 +234,13 @@ unsafe fn in_history(
             return false;
         }
 
-        let matched = HISTORY[hist_type][i as usize];
+        let matched = HISTORY[hist_type][i as usize].clone();
         while i != HISIDX[hist_type] {
             i += 1;
             if i >= hislen {
                 i = 0;
             }
-            HISTORY[hist_type][last_i as usize] = HISTORY[hist_type][i as usize];
+            HISTORY[hist_type][last_i as usize] = HISTORY[hist_type][i as usize].clone();
             last_i = i;
         }
         xfree(matched.additional_data.cast());
@@ -244,7 +248,7 @@ unsafe fn in_history(
         let dst = &mut HISTORY[hist_type][i as usize];
         dst.hisnum = HISNUM[hist_type];
         dst.hisstr = matched.hisstr;
-        dst.hisstrlen = matched.hisstrlen;
+        dst.sep = matched.sep;
         dst.timestamp = os_time();
         dst.additional_data = std::ptr::null_mut();
         true
@@ -322,22 +326,12 @@ pub unsafe fn add_to_history(
         let hisptr = &mut HISTORY[htype][HISIDX[htype] as usize];
         hist_free_entry(hisptr);
 
-        let buf = xmallocz(new_entrylen + 2).cast::<c_char>();
-        let actual_len = CStr::from_ptr(new_entry).to_bytes().len().min(new_entrylen);
-        if actual_len > 0 {
-            std::ptr::copy_nonoverlapping(new_entry.cast::<u8>(), buf.cast::<u8>(), actual_len);
-        }
-        std::ptr::write_bytes(
-            buf.add(actual_len).cast::<u8>(),
-            0,
-            new_entrylen + 1 - actual_len,
-        );
-        *buf.add(new_entrylen + 1) = sep as c_char;
-
-        hisptr.hisstr = buf;
+        let entry_bytes = CStr::from_ptr(new_entry).to_bytes();
+        let actual_len = entry_bytes.len().min(new_entrylen);
+        hisptr.hisstr = Some(std::ffi::CString::new(&entry_bytes[..actual_len]).unwrap());
+        hisptr.sep = sep as c_char;
         hisptr.timestamp = os_time();
         hisptr.additional_data = std::ptr::null_mut();
-        hisptr.hisstrlen = new_entrylen;
         HISNUM[htype] += 1;
         hisptr.hisnum = HISNUM[htype];
 
@@ -382,7 +376,7 @@ unsafe fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
                 wrapped = true;
             }
         }
-        if i >= 0 && hist[i as usize].hisnum == num && !hist[i as usize].hisstr.is_null() {
+        if i >= 0 && hist[i as usize].hisnum == num && hist[i as usize].hisstr.is_some() {
             return i;
         }
     } else if -num <= hislen {
@@ -390,7 +384,7 @@ unsafe fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
         if i < 0 {
             i += hislen;
         }
-        if !hist[i as usize].hisstr.is_null() {
+        if hist[i as usize].hisstr.is_some() {
             return i;
         }
     }
@@ -445,15 +439,15 @@ unsafe fn del_history_entry(histype: c_int, str_ptr: *mut c_char) -> c_int {
         let mut last = idx;
         loop {
             let hisptr = &raw mut HISTORY[htype][i as usize];
-            if (*hisptr).hisstr.is_null() {
+            let Some(ref hisstr) = (*hisptr).hisstr else {
                 break;
-            }
-            if vim_regexec(&mut regmatch, (*hisptr).hisstr, 0) {
+            };
+            if vim_regexec(&mut regmatch, hisstr.as_ptr(), 0) {
                 found = true;
                 hist_free_entry(hisptr);
             } else {
                 if i != last {
-                    HISTORY[htype][last as usize] = *hisptr;
+                    HISTORY[htype][last as usize] = (*hisptr).clone();
                     clear_hist_entry(hisptr);
                 }
                 last -= 1;
@@ -470,7 +464,7 @@ unsafe fn del_history_entry(histype: c_int, str_ptr: *mut c_char) -> c_int {
             }
         }
 
-        if HISTORY[htype][idx as usize].hisstr.is_null() {
+        if HISTORY[htype][idx as usize].hisstr.is_none() {
             HISIDX[htype] = -1;
         }
 
@@ -496,7 +490,7 @@ unsafe fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
 
         while i != idx {
             let j = (i + 1) % hislen;
-            HISTORY[htype][i as usize] = HISTORY[htype][j as usize];
+            HISTORY[htype][i as usize] = HISTORY[htype][j as usize].clone();
             i = j;
         }
         clear_hist_entry(&raw mut HISTORY[htype][idx as usize]);
@@ -586,20 +580,7 @@ pub unsafe fn f_histget(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                 (*rettv).vval.v_string = xmallocz(0).cast::<c_char>();
             } else {
                 let entry = &HISTORY[htype as usize][idx as usize];
-                let out = xmallocz(entry.hisstrlen).cast::<c_char>();
-                let actual = CStr::from_ptr(entry.hisstr)
-                    .to_bytes()
-                    .len()
-                    .min(entry.hisstrlen);
-                if actual > 0 {
-                    std::ptr::copy_nonoverlapping(
-                        entry.hisstr.cast::<u8>(),
-                        out.cast::<u8>(),
-                        actual,
-                    );
-                }
-                *out.add(actual) = 0;
-                (*rettv).vval.v_string = out;
+                (*rettv).vval.v_string = xstrdup(entry.hisstr_ptr());
             }
         }
         (*rettv).v_type = VarType::VAR_STRING;
@@ -702,10 +683,11 @@ pub unsafe fn ex_history(eap: *mut exarg_T) {
                         i = 0;
                     }
                     let entry = &hist[i as usize];
-                    if !entry.hisstr.is_null()
+                    let entry_ptr = entry.hisstr_ptr();
+                    if !entry_ptr.is_null()
                         && entry.hisnum >= j
                         && entry.hisnum <= k
-                        && !message_filtered(entry.hisstr)
+                        && !message_filtered(entry_ptr)
                     {
                         msg_putchar(b'\n' as c_int);
                         let marker = if i == idx { '>' } else { ' ' };
@@ -717,15 +699,15 @@ pub unsafe fn ex_history(eap: *mut exarg_T) {
                             prefix_bytes.len(),
                         );
                         let len = prefix_bytes.len();
-                        if vim_strsize(entry.hisstr) > Columns - 10 {
+                        if vim_strsize(entry_ptr) > Columns - 10 {
                             trunc_string(
-                                entry.hisstr,
+                                entry_ptr,
                                 iobuf.as_mut_ptr().add(len),
                                 Columns - 10,
                                 (IOSIZE - len) as c_int,
                             );
                         } else {
-                            xstrlcpy(iobuf.as_mut_ptr().add(len), entry.hisstr, IOSIZE - len);
+                            xstrlcpy(iobuf.as_mut_ptr().add(len), entry_ptr, IOSIZE - len);
                         }
                         msg_outtrans(iobuf.as_ptr(), 0, false);
                     }
@@ -767,14 +749,14 @@ pub unsafe fn hist_iter(
                 if first >= hislen {
                     first = 0;
                 }
-                if !history[first].hisstr.is_null() || first == last_idx {
+                if history[first].hisstr.is_some() || first == last_idx {
                     break;
                 }
             }
             first
         };
 
-        *hist = history[hiter];
+        *hist = history[hiter].clone();
         if zero {
             clear_hist_entry(&raw mut history[hiter]);
         }
