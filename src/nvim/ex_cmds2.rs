@@ -34,7 +34,6 @@ use crate::ex_getln::script_get;
 use crate::fileio::{buf_check_timestamp, check_timestamps};
 use crate::globals::*;
 use crate::mark::setpcmark;
-use crate::memory::xfree;
 use crate::message::{emsg, msg, msg_source, semsg, wait_return};
 use crate::r#move::validate_cursor;
 use crate::normal::do_check_scrollbind;
@@ -266,10 +265,7 @@ pub unsafe fn dialog_changed(buf: *mut buf_T, checkall: bool) {
 
             if empty_bufname {
                 (*buf).b_fname = ptr::null_mut();
-                xfree((*buf).b_ffname.cast());
-                (*buf).b_ffname = ptr::null_mut();
-                xfree((*buf).b_sfname.cast());
-                (*buf).b_sfname = ptr::null_mut();
+                (*buf).clear_fnames();
             }
         } else if ret == VIM_NO {
             unchanged(buf, true, false);

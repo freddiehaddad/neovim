@@ -2093,14 +2093,13 @@ pub unsafe fn rename_buffer(new_fname: *mut c_char) -> c_int {
         if aborting() {
             return FAIL;
         }
-        let fname = (*curbuf).b_ffname;
-        let sfname = (*curbuf).b_sfname;
         let xfname = (*curbuf).b_fname;
-        (*curbuf).b_ffname = ptr::null_mut();
-        (*curbuf).b_sfname = ptr::null_mut();
+        let (fname_cstr, sfname_cstr) = (*curbuf).take_fnames();
+        let fname = fname_cstr
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         if setfname(curbuf, new_fname, ptr::null_mut(), true) == FAIL {
-            (*curbuf).b_ffname = fname;
-            (*curbuf).b_sfname = sfname;
+            (*curbuf).restore_fnames(fname_cstr, sfname_cstr);
             return FAIL;
         }
         (*curbuf).b_flags |= BF_NOTEDITED;
@@ -2110,8 +2109,8 @@ pub unsafe fn rename_buffer(new_fname: *mut c_char) -> c_int {
                 (*curwin).w_alt_fnum = (*buf).b_fnum;
             }
         }
-        drop(cstr_take(fname));
-        drop(cstr_take(sfname));
+        drop(fname_cstr);
+        drop(sfname_cstr);
         apply_autocmds(
             EVENT_BUFFILEPOST,
             ptr::null_mut(),
@@ -2306,15 +2305,7 @@ pub unsafe fn do_write(eap: *mut exarg_T) -> c_int {
                         break 'theend;
                     }
 
-                    fname = (*alt_buf).b_fname;
-                    (*alt_buf).b_fname = (*curbuf).b_fname;
-                    (*curbuf).b_fname = fname;
-                    fname = (*alt_buf).b_ffname;
-                    (*alt_buf).b_ffname = (*curbuf).b_ffname;
-                    (*curbuf).b_ffname = fname;
-                    fname = (*alt_buf).b_sfname;
-                    (*alt_buf).b_sfname = (*curbuf).b_sfname;
-                    (*curbuf).b_sfname = fname;
+                    (*alt_buf).swap_fnames(&mut *curbuf);
                     buf_name_changed(curbuf);
                     apply_autocmds(
                         EVENT_BUFFILEPOST,
@@ -2668,12 +2659,8 @@ pub unsafe fn getfile(
         }
 
         if fnum == 0 {
-            fname_expand(curbuf, &raw mut ffname, &raw mut sfname);
+            free_me = fname_expand(curbuf, &raw mut ffname, &raw mut sfname);
             other = otherfile(ffname);
-            free_me = cstr_take(ffname);
-            ffname = free_me
-                .as_ref()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         } else {
             other = fnum != (*curbuf).b_fnum;
         }

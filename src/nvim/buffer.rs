@@ -70,9 +70,7 @@ use crate::memline::{
     ml_close, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_open, ml_recover,
     ml_setname, ml_timestamp,
 };
-use crate::memory::{
-    cstr_from_bytes, cstr_to_cstring, entered_free_all_mem, xfree, xstrdup, xstrlcpy,
-};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, entered_free_all_mem, xstrdup, xstrlcpy};
 use crate::message::{
     emsg, message_filtered, msg, msg_delay, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts,
     msg_start, msg_trunc, semsg, set_keep_msg, smsg,
@@ -94,7 +92,7 @@ use crate::os::fs::{CASE_INSENSITIVE_FILENAME, FileID, os_fileid, os_fileid_equa
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::os::time::os_time;
 use crate::path::{
-    FullName_save, after_pathsep, concat_fnames_realloc, fix_fname, get_past_head, kPathCmpLiteral,
+    FullName_save, after_pathsep, concat_fnames_cstr, fix_fname, get_past_head, kPathCmpLiteral,
     path_equal, path_fix_case, path_tail, path_tail_with_sep, to_slash,
 };
 use crate::plines::win_get_fill;
@@ -202,6 +200,8 @@ pub struct buf_T {
     pub b_ffname: *mut c_char,
     pub b_sfname: *mut c_char,
     pub b_fname: *mut c_char,
+    pub b_ffname_cstr: Option<std::ffi::CString>,
+    pub b_sfname_cstr: Option<std::ffi::CString>,
     pub file_id_valid: bool,
     pub file_id: FileID,
     pub b_changed: c_int,
@@ -475,6 +475,8 @@ impl buf_T {
             b_ffname: ptr::null_mut(),
             b_sfname: ptr::null_mut(),
             b_fname: ptr::null_mut(),
+            b_ffname_cstr: None,
+            b_sfname_cstr: None,
             file_id_valid: false,
             file_id: FileID {
                 inode: 0,
@@ -1503,12 +1505,7 @@ pub unsafe fn close_buffer(
                 }
                 tp = (*tp).tp_next;
             }
-            if (*buf).b_sfname != (*buf).b_ffname {
-                xfree((*buf).b_sfname.cast());
-            }
-            (*buf).b_sfname = ptr::null_mut();
-            xfree((*buf).b_ffname.cast());
-            (*buf).b_ffname = ptr::null_mut();
+            (*buf).clear_fnames();
             if (*buf).b_prev.is_null() {
                 firstbuf = (*buf).b_next;
             } else {
@@ -1684,15 +1681,62 @@ pub unsafe fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
     }
 }
 
+impl buf_T {
+    #[inline]
+    pub fn set_ffname(&mut self, ffname: Option<std::ffi::CString>) {
+        self.b_ffname = ffname
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        self.b_ffname_cstr = ffname;
+    }
+
+    #[inline]
+    pub fn set_sfname(&mut self, sfname: Option<std::ffi::CString>) {
+        self.b_sfname = sfname
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        self.b_sfname_cstr = sfname;
+    }
+
+    #[inline]
+    pub fn clear_fnames(&mut self) {
+        self.b_ffname_cstr = None;
+        self.b_sfname_cstr = None;
+        self.b_ffname = ptr::null_mut();
+        self.b_sfname = ptr::null_mut();
+    }
+
+    #[inline]
+    pub fn take_fnames(&mut self) -> (Option<std::ffi::CString>, Option<std::ffi::CString>) {
+        self.b_ffname = ptr::null_mut();
+        self.b_sfname = ptr::null_mut();
+        (self.b_ffname_cstr.take(), self.b_sfname_cstr.take())
+    }
+
+    #[inline]
+    pub fn restore_fnames(
+        &mut self,
+        ffname: Option<std::ffi::CString>,
+        sfname: Option<std::ffi::CString>,
+    ) {
+        self.set_ffname(ffname);
+        self.set_sfname(sfname);
+    }
+
+    #[inline]
+    pub fn swap_fnames(&mut self, other: &mut Self) {
+        std::mem::swap(&mut self.b_fname, &mut other.b_fname);
+        std::mem::swap(&mut self.b_ffname, &mut other.b_ffname);
+        std::mem::swap(&mut self.b_sfname, &mut other.b_sfname);
+        std::mem::swap(&mut self.b_ffname_cstr, &mut other.b_ffname_cstr);
+        std::mem::swap(&mut self.b_sfname_cstr, &mut other.b_sfname_cstr);
+    }
+}
+
 impl Drop for buf_T {
     fn drop(&mut self) {
         unsafe {
-            if self.b_sfname != self.b_ffname {
-                xfree(self.b_sfname.cast());
-            }
-            self.b_sfname = ptr::null_mut();
-            xfree(self.b_ffname.cast());
-            self.b_ffname = ptr::null_mut();
+            self.clear_fnames();
             free_buf_options(self, true);
             self.b_start_fenc = None;
             self.b_localdir = None;
@@ -2724,14 +2768,14 @@ pub unsafe fn buflist_new(
         let mut sfname = sfname_arg;
         let mut buf: *mut buf_T;
 
-        fname_expand(curbuf, &raw mut ffname, &raw mut sfname);
+        let ffname_cstr = fname_expand(curbuf, &raw mut ffname, &raw mut sfname);
 
         let mut file_id: FileID = FileID::new();
         let file_id_valid = !sfname.is_null() && os_fileid(sfname, (&raw mut file_id).cast());
         if !ffname.is_null() && (flags & (BLN_DUMMY | BLN_NEW)) == 0 {
             buf = buflist_findname_file_id(ffname, &raw mut file_id, file_id_valid);
             if !buf.is_null() {
-                xfree(ffname.cast());
+                drop(ffname_cstr);
                 if lnum != 0 {
                     buflist_setfpos(
                         buf,
@@ -2779,7 +2823,7 @@ pub unsafe fn buflist_new(
             trigger_undo_ftplugin(buf, curwin);
             buf_freeall(buf, BFA_WIPE | BFA_DEL);
             if aborting() {
-                xfree(ffname.cast());
+                drop(ffname_cstr);
                 return ptr::null_mut();
             }
             if !bufref_valid(&raw mut bufref) {
@@ -2794,11 +2838,12 @@ pub unsafe fn buflist_new(
             buf_init_changedtick(buf);
         }
 
-        if !ffname.is_null() {
+        if let Some(ff_cstr) = ffname_cstr {
             debug_assert!(!sfname.is_null());
-            (*buf).b_ffname = ffname;
-            (*buf).b_sfname = xstrdup(sfname);
-            to_slash((*buf).b_sfname);
+            let mut sf_vec = cstr_to_cstring(sfname).into_bytes_with_nul();
+            to_slash(sf_vec.as_mut_ptr().cast::<c_char>());
+            (*buf).set_ffname(Some(ff_cstr));
+            (*buf).set_sfname(Some(std::ffi::CString::from_vec_with_nul(sf_vec).unwrap()));
         }
 
         clear_wininfo(buf);
@@ -3793,17 +3838,11 @@ pub unsafe fn setfname(
         let mut file_id_valid = false;
 
         if ffname.is_null() || *ffname == NUL {
-            if (*buf).b_sfname != (*buf).b_ffname {
-                xfree((*buf).b_sfname.cast());
-            }
-            (*buf).b_sfname = ptr::null_mut();
-            xfree((*buf).b_ffname.cast());
-            (*buf).b_ffname = ptr::null_mut();
+            (*buf).clear_fnames();
         } else {
-            fname_expand(buf, &raw mut ffname, &raw mut sfname);
-            if ffname.is_null() {
+            let Some(ffname_cstr) = fname_expand(buf, &raw mut ffname, &raw mut sfname) else {
                 return FAIL;
-            }
+            };
 
             file_id_valid = os_fileid(ffname, (&raw mut file_id).cast());
             if ((*buf).b_flags & BF_DUMMY) == 0 {
@@ -3834,29 +3873,28 @@ pub unsafe fn setfname(
                             c"E95: Buffer with this name already exists".as_ptr(),
                         ));
                     }
-                    xfree(ffname.cast());
                     return FAIL;
                 }
                 close_buffer(ptr::null_mut(), obuf, DOBUF_WIPE, false, false, false);
             }
-            sfname = xstrdup(sfname);
+            let mut sf_vec = cstr_to_cstring(sfname).into_bytes_with_nul();
             if CASE_INSENSITIVE_FILENAME {
-                to_slash(sfname);
-                path_fix_case(sfname);
+                to_slash(sf_vec.as_mut_ptr().cast::<c_char>());
+                path_fix_case(sf_vec.as_mut_ptr().cast::<c_char>());
             }
-            if (*buf).b_sfname != (*buf).b_ffname {
-                xfree((*buf).b_sfname.cast());
-            }
-            xfree((*buf).b_ffname.cast());
-            (*buf).b_ffname = ffname;
-            (*buf).b_sfname = sfname;
+            let sf_len = CStr::from_ptr(sf_vec.as_ptr().cast::<c_char>())
+                .to_bytes()
+                .len();
+            let sfname_cstr = cstr_from_bytes(&sf_vec[..sf_len]);
+            (*buf).set_ffname(Some(ffname_cstr));
+            (*buf).set_sfname(Some(sfname_cstr));
         }
         (*buf).b_fname = (*buf).b_sfname;
         if !file_id_valid {
             (*buf).file_id_valid = false;
         } else {
-            (*buf).file_id_valid = true;
             (*buf).file_id = file_id;
+            (*buf).file_id_valid = true;
         }
 
         buf_name_changed(buf);
@@ -3872,13 +3910,20 @@ pub unsafe fn buf_set_name(fnum: c_int, name: *mut c_char) {
             return;
         }
 
-        if (*buf).b_sfname != (*buf).b_ffname {
-            xfree((*buf).b_sfname.cast());
-        }
-        xfree((*buf).b_ffname.cast());
-        (*buf).b_ffname = xstrdup(name);
-        (*buf).b_sfname = ptr::null_mut();
-        fname_expand(buf, &raw mut (*buf).b_ffname, &raw mut (*buf).b_sfname);
+        (*buf).clear_fnames();
+        let name_cstr = cstr_to_cstring(name);
+        let mut ffname = name_cstr.as_ptr().cast_mut();
+        let mut sfname: *mut c_char = ptr::null_mut();
+        let ffname_cstr = fname_expand(buf, &raw mut ffname, &raw mut sfname);
+        let sfname_cstr = if sfname.is_null() {
+            None
+        } else if ptr::eq(sfname, name_cstr.as_ptr()) {
+            Some(name_cstr)
+        } else {
+            Some(cstr_to_cstring(sfname))
+        };
+        (*buf).set_ffname(ffname_cstr);
+        (*buf).set_sfname(sfname_cstr);
         (*buf).b_fname = (*buf).b_sfname;
     }
 }
@@ -4393,22 +4438,26 @@ pub unsafe fn append_arg_number(wp: *mut win_T, buf: *mut c_char, buflen: usize)
 }
 
 /// Make `*ffname` a full file name, set `*sfname` to `*ffname` if not NULL.
-pub unsafe fn fname_expand(buf: *mut buf_T, ffname: *mut *mut c_char, sfname: *mut *mut c_char) {
+pub unsafe fn fname_expand(
+    buf: *mut buf_T,
+    ffname: *mut *mut c_char,
+    sfname: *mut *mut c_char,
+) -> Option<std::ffi::CString> {
     unsafe {
         #[cfg(not(windows))]
         let _ = buf;
         if (*ffname).is_null() {
-            return;
+            return None;
         }
         if (*sfname).is_null() {
             *sfname = *ffname;
         }
-        *ffname = fix_fname(*ffname).map_or(ptr::null_mut(), |s| xstrdup(s.as_ptr()));
-        if (*ffname).is_null() {
+        let Some(mut full_cstr) = fix_fname(*ffname) else {
+            *ffname = ptr::null_mut();
             *sfname = ptr::null_mut();
-            return;
-        }
-        if os_isdir(*ffname) {
+            return None;
+        };
+        if os_isdir(full_cstr.as_ptr()) {
             let mut name_vec: Vec<c_char> = cstr_to_cstring(*sfname)
                 .into_bytes_with_nul()
                 .into_iter()
@@ -4424,22 +4473,22 @@ pub unsafe fn fname_expand(buf: *mut buf_T, ffname: *mut *mut c_char, sfname: *m
             }
             let full = fix_fname(name);
             drop(name_vec);
-            if let Some(full_cstr) = full {
-                xfree((*ffname).cast());
-                *ffname = xstrdup(full_cstr.as_ptr());
+            if let Some(dir_full) = full {
+                full_cstr = dir_full;
             }
-            *ffname = concat_fnames_realloc(*ffname, c"".as_ptr(), true);
+            full_cstr = concat_fnames_cstr(full_cstr.as_ptr(), c"".as_ptr(), true);
         }
 
         #[cfg(windows)]
         if (*buf).b_p_bin == 0
-            && let Some(rfname_cstr) = os_resolve_shortcut(*ffname)
+            && let Some(rfname_cstr) = os_resolve_shortcut(full_cstr.as_ptr())
         {
-            let rfname = xstrdup(rfname_cstr.as_ptr());
-            xfree((*ffname).cast());
-            *ffname = rfname;
-            *sfname = rfname;
+            full_cstr = rfname_cstr;
+            *sfname = full_cstr.as_ptr().cast_mut();
         }
+
+        *ffname = full_cstr.as_ptr().cast_mut();
+        Some(full_cstr)
     }
 }
 

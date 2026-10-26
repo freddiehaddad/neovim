@@ -529,22 +529,6 @@ pub unsafe fn concat_fnames_cstr(
     }
 }
 
-pub unsafe fn concat_fnames_realloc(
-    fname1: *mut c_char,
-    fname2: *const c_char,
-    sep: bool,
-) -> *mut c_char {
-    unsafe {
-        let len1 = CStr::from_ptr(fname1).to_bytes().len();
-        let len2 = CStr::from_ptr(fname2).to_bytes().len();
-        let mut len: usize = 0;
-        let dst = xmalloc(len1 + len2 + 3).cast::<c_char>();
-        ptr::copy_nonoverlapping(fname1, dst, len1 + 1);
-        xfree(fname1.cast());
-        do_concat_fnames(dst, len1, fname2, len2, sep, &mut len)
-    }
-}
-
 pub unsafe fn add_pathsep(p: *mut c_char) -> bool {
     unsafe {
         if *p == NUL {

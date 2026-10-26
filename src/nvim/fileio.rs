@@ -52,9 +52,7 @@ use crate::memfile::{memfile_T, mf_fullname};
 use crate::memline::{
     check_need_swap, ml_append, ml_delete, ml_get, ml_get_buf, ml_get_len, ml_open,
 };
-use crate::memory::{
-    memchrsub, strequal, time_to_bytes, xfree, xstrdup, xstrlcat, xstrlcpy,
-};
+use crate::memory::{cstr_to_cstring, memchrsub, strequal, time_to_bytes, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, msg, msg_check_for_delay, msg_clr_eos, msg_delay, msg_end, msg_may_trunc, msg_outtrans,
     msg_progress, msg_putchar, msg_puts, msg_puts_hl, msg_schedule_semsg, msg_start, msg_trunc,
@@ -3254,12 +3252,8 @@ pub unsafe fn shorten_buf_fname(buf: *mut buf_T, dirname: *mut c_char, force: c_
         let changed =
             new_fname.is_null() || CStr::from_ptr(new_fname) != CStr::from_ptr((*buf).b_fname);
 
-        if (*buf).b_sfname != (*buf).b_ffname {
-            xfree((*buf).b_sfname.cast());
-            (*buf).b_sfname = ptr::null_mut();
-        }
+        (*buf).set_sfname(shorten.then(|| cstr_to_cstring(p)));
         if shorten {
-            (*buf).b_sfname = xstrdup(p);
             (*buf).b_fname = (*buf).b_sfname;
         } else {
             (*buf).b_fname = (*buf).b_ffname;
