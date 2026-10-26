@@ -208,14 +208,35 @@ pub(super) static META_flags: [u8; 127] = [
     1, 0, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1,
 ];
 
-#[repr(C)]
-#[derive(Clone, Copy)]
+pub(super) enum RegProgEngine {
+    Bt(bt_regprog_T),
+    Nfa(nfa_regprog_T),
+}
+
 pub struct regprog_T {
-    pub engine: *mut regengine_T,
     pub regflags: c_uint,
     pub re_engine: c_uint,
     pub re_flags: c_uint,
     pub re_in_use: bool,
+    pub(super) engine: RegProgEngine,
+}
+
+impl regprog_T {
+    #[inline]
+    pub(super) fn bt_mut(&mut self) -> &mut bt_regprog_T {
+        match &mut self.engine {
+            RegProgEngine::Bt(bt) => bt,
+            RegProgEngine::Nfa(_) => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub(super) fn nfa_mut(&mut self) -> &mut nfa_regprog_T {
+        match &mut self.engine {
+            RegProgEngine::Nfa(nfa) => nfa,
+            RegProgEngine::Bt(_) => unreachable!(),
+        }
+    }
 }
 
 #[repr(C)]
@@ -295,11 +316,7 @@ impl Drop for reg_extmatch_T {
 
 #[repr(C)]
 pub(super) struct bt_regprog_T {
-    pub engine: *mut regengine_T,
     pub regflags: c_uint,
-    pub re_engine: c_uint,
-    pub re_flags: c_uint,
-    pub re_in_use: bool,
     pub regstart: c_int,
     pub reganch: u8,
     pub regmust: *mut u8,
@@ -340,11 +357,8 @@ impl Default for nfa_state_T {
 
 #[repr(C)]
 pub(super) struct nfa_regprog_T {
-    pub engine: *mut regengine_T,
     pub regflags: c_uint,
     pub re_engine: c_uint,
-    pub re_flags: c_uint,
-    pub re_in_use: bool,
     pub start: *mut nfa_state_T,
     pub reganch: c_int,
     pub regstart: c_int,
@@ -366,23 +380,6 @@ impl Drop for nfa_regprog_T {
             xfree(self.pattern.cast());
         }
     }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct regengine_T {
-    pub regcomp: unsafe fn(*mut u8, c_int) -> *mut regprog_T,
-    pub regfree: unsafe fn(*mut regprog_T),
-    pub regexec_nl: unsafe fn(*mut regmatch_T, *mut u8, colnr_T, bool) -> c_int,
-    pub regexec_multi: unsafe fn(
-        *mut regmmatch_T,
-        *mut win_T,
-        *mut buf_T,
-        linenr_T,
-        colnr_T,
-        *mut proftime_T,
-        *mut c_int,
-    ) -> c_int,
 }
 
 #[derive(Clone, Copy)]
@@ -1286,33 +1283,6 @@ pub(super) static mut nfa_ll_index: usize = 0;
 pub(super) static mut state_ptr: *mut nfa_state_T = ptr::null_mut();
 pub(super) static mut nfa_stack: Vec<Frag_T> = Vec::new();
 
-pub(super) const BT_REGENGINE: regengine_T = regengine_T {
-    regcomp: bt_regcomp,
-    regfree: bt_regfree,
-    regexec_nl: bt_regexec_nl,
-    regexec_multi: bt_regexec_multi,
-};
-
-pub(super) const NFA_REGENGINE: regengine_T = regengine_T {
-    regcomp: nfa_regcomp,
-    regfree: nfa_regfree,
-    regexec_nl: nfa_regexec_nl,
-    regexec_multi: nfa_regexec_multi,
-};
-
-static BT_REGENGINE_STATIC: regengine_T = BT_REGENGINE;
-static NFA_REGENGINE_STATIC: regengine_T = NFA_REGENGINE;
-
-#[inline]
-pub(super) fn bt_regengine_ptr() -> *mut regengine_T {
-    (&raw const BT_REGENGINE_STATIC).cast_mut()
-}
-
-#[inline]
-pub(super) fn nfa_regengine_ptr() -> *mut regengine_T {
-    (&raw const NFA_REGENGINE_STATIC).cast_mut()
-}
-
 static mut regexp_engine: c_int = 0;
 
 use crate::eval::partial_name;
@@ -2190,11 +2160,10 @@ pub(super) unsafe fn prog_magic_wrong() -> bool {
         } else {
             (*rex.reg_match).regprog
         };
-        if (*prog).engine == nfa_regengine_ptr() {
+        let RegProgEngine::Bt(ref bt_prog) = (*prog).engine else {
             return false;
-        }
-        let bt_prog = prog.cast::<bt_regprog_T>();
-        if UCHARAT((*bt_prog).program.as_ptr()) != REGMAGIC {
+        };
+        if UCHARAT(bt_prog.program.as_ptr()) != REGMAGIC {
             emsg(tr((&raw const e_re_corr).cast()));
             return true;
         }
@@ -3359,7 +3328,6 @@ pub unsafe fn vim_regcomp_had_eol() -> c_int {
 /// Compile a regular expression into internal code.
 pub unsafe fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T {
     unsafe {
-        let mut prog: *mut regprog_T;
         let mut expr = expr_arg;
 
         regexp_engine = p_re as c_int;
@@ -3384,8 +3352,8 @@ pub unsafe fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regp
         rex.reg_buf = curbuf;
 
         let called_emsg_before = called_emsg;
-        if regexp_engine != BACKTRACKING_ENGINE {
-            prog = (NFA_REGENGINE.regcomp)(
+        let mut prog_opt = if regexp_engine != BACKTRACKING_ENGINE {
+            nfa_regcomp(
                 expr.cast_mut().cast(),
                 re_flags
                     + if regexp_engine == AUTOMATIC_ENGINE {
@@ -3393,24 +3361,47 @@ pub unsafe fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regp
                     } else {
                         0
                     },
-            );
+            )
+            .map(|mut nfa| {
+                nfa.re_engine = regexp_engine as c_uint;
+                regprog_T {
+                    regflags: nfa.regflags,
+                    re_engine: regexp_engine as c_uint,
+                    re_flags: re_flags as c_uint,
+                    re_in_use: false,
+                    engine: RegProgEngine::Nfa(nfa),
+                }
+            })
         } else {
-            prog = (BT_REGENGINE.regcomp)(expr.cast_mut().cast(), re_flags);
-        }
+            bt_regcomp(expr.cast_mut().cast(), re_flags).map(|bt| regprog_T {
+                regflags: bt.regflags,
+                re_engine: regexp_engine as c_uint,
+                re_flags: re_flags as c_uint,
+                re_in_use: false,
+                engine: RegProgEngine::Bt(bt),
+            })
+        };
 
-        if prog.is_null() && regexp_engine == AUTOMATIC_ENGINE && called_emsg == called_emsg_before
+        if prog_opt.is_none()
+            && regexp_engine == AUTOMATIC_ENGINE
+            && called_emsg == called_emsg_before
         {
             regexp_engine = BACKTRACKING_ENGINE;
             report_re_switch(expr);
-            prog = (BT_REGENGINE.regcomp)(expr.cast_mut().cast(), re_flags);
+            prog_opt = bt_regcomp(expr.cast_mut().cast(), re_flags).map(|bt| regprog_T {
+                regflags: bt.regflags,
+                re_engine: regexp_engine as c_uint,
+                re_flags: re_flags as c_uint,
+                re_in_use: false,
+                engine: RegProgEngine::Bt(bt),
+            });
         }
 
-        if !prog.is_null() {
-            (*prog).re_engine = regexp_engine as c_uint;
-            (*prog).re_flags = re_flags as c_uint;
+        if let Some(prog) = prog_opt {
+            Box::into_raw(Box::new(prog))
+        } else {
+            ptr::null_mut()
         }
-
-        prog
     }
 }
 
@@ -3418,7 +3409,7 @@ pub unsafe fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regp
 pub unsafe fn vim_regfree(prog: *mut regprog_T) {
     unsafe {
         if !prog.is_null() {
-            ((*(*prog).engine).regfree)(prog);
+            drop(Box::from_raw(prog));
         }
     }
 }
@@ -3477,15 +3468,17 @@ unsafe fn vim_regexec_string(
         rex.reg_startpos = ptr::null_mut();
         rex.reg_endpos = ptr::null_mut();
 
-        let mut result =
-            ((*(*(*rmp).regprog).engine).regexec_nl)(rmp, line.cast_mut().cast(), col, nl);
+        let mut result = match (*(*rmp).regprog).engine {
+            RegProgEngine::Bt(_) => bt_regexec_nl(rmp, line.cast_mut().cast(), col, nl),
+            RegProgEngine::Nfa(_) => nfa_regexec_nl(rmp, line.cast_mut().cast(), col, nl),
+        };
         (*(*rmp).regprog).re_in_use = false;
 
         if (*(*rmp).regprog).re_engine == AUTOMATIC_ENGINE as c_uint && result == NFA_TOO_EXPENSIVE
         {
             let save_p_re = p_re;
             let re_flags = (*(*rmp).regprog).re_flags as c_int;
-            let pat = xstrdup((*((*rmp).regprog.cast::<nfa_regprog_T>())).pattern);
+            let pat = xstrdup((*(*rmp).regprog).nfa_mut().pattern);
 
             p_re = OptInt::from(BACKTRACKING_ENGINE);
             let prev_prog = (*rmp).regprog;
@@ -3496,8 +3489,10 @@ unsafe fn vim_regexec_string(
             } else {
                 vim_regfree(prev_prog);
                 (*(*rmp).regprog).re_in_use = true;
-                result =
-                    ((*(*(*rmp).regprog).engine).regexec_nl)(rmp, line.cast_mut().cast(), col, nl);
+                result = match (*(*rmp).regprog).engine {
+                    RegProgEngine::Bt(_) => bt_regexec_nl(rmp, line.cast_mut().cast(), col, nl),
+                    RegProgEngine::Nfa(_) => nfa_regexec_nl(rmp, line.cast_mut().cast(), col, nl),
+                };
                 (*(*rmp).regprog).re_in_use = false;
             }
 
@@ -3566,15 +3561,17 @@ pub unsafe fn vim_regexec_multi(
         }
         rex_in_use = true;
 
-        let mut result =
-            ((*(*(*rmp).regprog).engine).regexec_multi)(rmp, win, buf, lnum, col, tm, timed_out);
+        let mut result = match (*(*rmp).regprog).engine {
+            RegProgEngine::Bt(_) => bt_regexec_multi(rmp, win, buf, lnum, col, tm, timed_out),
+            RegProgEngine::Nfa(_) => nfa_regexec_multi(rmp, win, buf, lnum, col, tm, timed_out),
+        };
         (*(*rmp).regprog).re_in_use = false;
 
         if (*(*rmp).regprog).re_engine == AUTOMATIC_ENGINE as c_uint && result == NFA_TOO_EXPENSIVE
         {
             let save_p_re = p_re;
             let re_flags = (*(*rmp).regprog).re_flags as c_int;
-            let pat = xstrdup((*((*rmp).regprog.cast::<nfa_regprog_T>())).pattern);
+            let pat = xstrdup((*(*rmp).regprog).nfa_mut().pattern);
 
             p_re = OptInt::from(BACKTRACKING_ENGINE);
             let prev_prog = (*rmp).regprog;
@@ -3589,9 +3586,14 @@ pub unsafe fn vim_regexec_multi(
             } else {
                 vim_regfree(prev_prog);
                 (*(*rmp).regprog).re_in_use = true;
-                result = ((*(*(*rmp).regprog).engine).regexec_multi)(
-                    rmp, win, buf, lnum, col, tm, timed_out,
-                );
+                result = match (*(*rmp).regprog).engine {
+                    RegProgEngine::Bt(_) => {
+                        bt_regexec_multi(rmp, win, buf, lnum, col, tm, timed_out)
+                    }
+                    RegProgEngine::Nfa(_) => {
+                        nfa_regexec_multi(rmp, win, buf, lnum, col, tm, timed_out)
+                    }
+                };
                 (*(*rmp).regprog).re_in_use = false;
             }
 

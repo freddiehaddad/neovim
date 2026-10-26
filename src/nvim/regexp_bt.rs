@@ -2063,14 +2063,14 @@ unsafe fn reg(paren: c_int, flagp: *mut c_int) -> *mut u8 {
     }
 }
 
-pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog_T {
+pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<bt_regprog_T> {
     unsafe {
         let mut flags: c_int = 0;
 
         if expr.is_null() {
             iemsg(tr((&raw const e_null).cast()));
             rc_did_emsg = true;
-            return ptr::null_mut();
+            return None;
         }
 
         init_class_tab();
@@ -2079,59 +2079,54 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog_
         regcode = just_calc_size();
         regc(REGMAGIC);
         if reg(REG_NOPAREN, &raw mut flags).is_null() {
-            return ptr::null_mut();
+            return None;
         }
 
-        let r = Box::into_raw(Box::new(bt_regprog_T {
-            engine: ptr::null_mut(),
+        let mut r = bt_regprog_T {
             regflags: 0,
-            re_engine: 0,
-            re_flags: 0,
-            re_in_use: false,
             regstart: 0,
             reganch: 0,
             regmust: ptr::null_mut(),
             regmlen: 0,
             reghasz: 0,
             program: vec![0u8; regsize as usize],
-        }));
+        };
 
         regcomp_start(expr, re_flags);
-        regcode = (*r).program.as_mut_ptr();
+        regcode = r.program.as_mut_ptr();
         regc(REGMAGIC);
         if reg(REG_NOPAREN, &raw mut flags).is_null() || reg_toolong != 0 {
-            drop(Box::from_raw(r));
             if reg_toolong != 0 {
                 emsg(tr(c"E339: Pattern too long".as_ptr()));
                 rc_did_emsg = true;
             }
-            return ptr::null_mut();
+            return None;
         }
 
-        (*r).regstart = NUL as c_int;
-        (*r).reganch = 0;
-        (*r).regmust = ptr::null_mut();
-        (*r).regmlen = 0;
-        (*r).regflags = regflags;
+        r.regstart = NUL as c_int;
+        r.reganch = 0;
+        r.regmust = ptr::null_mut();
+        r.regmlen = 0;
+        r.regflags = regflags;
         if (flags & HASNL) != 0 {
-            (*r).regflags |= RF_HASNL;
+            r.regflags |= RF_HASNL;
         }
         if (flags & HASLOOKBH) != 0 {
-            (*r).regflags |= RF_LOOKBH;
+            r.regflags |= RF_LOOKBH;
         }
-        (*r).reghasz = re_has_z as u8;
+        r.reghasz = re_has_z as u8;
 
-        let mut scan = (*r).program.as_mut_ptr().add(1);
+        let mut scan = r.program.as_mut_ptr().add(1);
         if OP(regnext(scan)) == END {
             scan = OPERAND(scan);
 
             if OP(scan) == BOL || OP(scan) == RE_BOF {
-                (*r).reganch += 1;
+                r.reganch += 1;
                 scan = regnext(scan);
             }
 
             if OP(scan) == EXACTLY {
-                (*r).regstart = utf_ptr2char(OPERAND(scan).cast());
+                r.regstart = utf_ptr2char(OPERAND(scan).cast());
             } else if OP(scan) == BOW
                 || OP(scan) == EOW
                 || OP(scan) == NOTHING
@@ -2142,7 +2137,7 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog_
             {
                 let regnext_scan = regnext(scan);
                 if OP(regnext_scan) == EXACTLY {
-                    (*r).regstart = utf_ptr2char(OPERAND(regnext_scan).cast());
+                    r.regstart = utf_ptr2char(OPERAND(regnext_scan).cast());
                 }
             }
 
@@ -2161,20 +2156,11 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog_
                     }
                     scan = regnext(scan);
                 }
-                (*r).regmust = longest;
-                (*r).regmlen = len;
+                r.regmust = longest;
+                r.regmlen = len;
             }
         }
-        (*r).engine = bt_regengine_ptr();
-        r.cast()
-    }
-}
-
-pub(super) unsafe fn bt_regfree(prog: *mut regprog_T) {
-    unsafe {
-        if !prog.is_null() {
-            drop(Box::from_raw(prog.cast::<bt_regprog_T>()));
-        }
+        Some(r)
     }
 }
 
@@ -3903,14 +3889,14 @@ unsafe fn bt_regexec_both(
             (*bp).reserve(BACKPOS_INITIAL as usize);
         }
 
-        let prog = if REG_MULTI() {
-            let p = (*rex.reg_mmatch).regprog.cast::<bt_regprog_T>();
+        let prog: *mut bt_regprog_T = if REG_MULTI() {
+            let p = (*(*rex.reg_mmatch).regprog).bt_mut();
             line = reg_getline(0).cast();
             rex.reg_startpos = (&raw mut (*rex.reg_mmatch).startpos).cast();
             rex.reg_endpos = (&raw mut (*rex.reg_mmatch).endpos).cast();
             p
         } else {
-            let p = (*rex.reg_match).regprog.cast::<bt_regprog_T>();
+            let p = (*(*rex.reg_match).regprog).bt_mut();
             rex.reg_startp = (&raw mut (*rex.reg_match).startp).cast();
             rex.reg_endp = (&raw mut (*rex.reg_match).endp).cast();
             p
