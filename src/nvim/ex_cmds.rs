@@ -1505,12 +1505,8 @@ pub unsafe fn do_bang(
                     .as_ref()
                     .unwrap()
                     .as_ptr();
-                if let Some(cmd) = crate::memory::cstr_take(vim_strsave_escaped(
-                    prev_ptr.cast_mut(),
-                    c"%#".as_ptr(),
-                )) {
-                    redo_append_lit(cmd.as_ptr().cast_mut(), -1);
-                }
+                let cmd = vim_strsave_escaped(prev_ptr.cast_mut(), c"%#".as_ptr());
+                redo_append_lit(cmd.as_ptr().cast_mut(), -1);
                 redo_append_str(c"\n".as_ptr(), 1);
                 bangredo = false;
             }

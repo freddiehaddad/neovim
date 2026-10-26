@@ -2127,11 +2127,15 @@ pub unsafe fn f_empty(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
 pub unsafe fn f_escape(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut buf = [0 as c_char; NUMBUFLEN];
-        (*rettv).vval.v_string = vim_strsave_escaped(
+        let escaped = vim_strsave_escaped(
             tv_get_string(argvars),
             tv_get_string_buf(argvars.add(1), buf.as_mut_ptr()),
         );
-        (*rettv).v_type = VarType::VAR_STRING;
+        crate::eval::typval::tv_set_string_len(
+            rettv,
+            escaped.as_ptr(),
+            escaped.as_bytes().len(),
+        );
     }
 }
 
@@ -2597,8 +2601,12 @@ pub unsafe fn f_fmod(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
 /// "fnameescape({string})" function
 pub unsafe fn f_fnameescape(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_string = vim_strsave_fnameescape(tv_get_string(argvars), VSE_NONE);
-        (*rettv).v_type = VarType::VAR_STRING;
+        let escaped = vim_strsave_fnameescape(tv_get_string(argvars), VSE_NONE);
+        crate::eval::typval::tv_set_string_len(
+            rettv,
+            escaped.as_ptr(),
+            escaped.as_bytes().len(),
+        );
     }
 }
 

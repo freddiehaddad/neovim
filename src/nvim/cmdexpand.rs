@@ -59,7 +59,7 @@ use crate::mapping::{ExpandMappings, set_context_in_map_cmd};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_len};
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, xfree, xmemcpyz, xmemdupz, xstrdup};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, xmemcpyz};
 use crate::menu::{get_menu_name, get_menu_names, menu_is_separator, set_context_in_menu_cmd};
 use crate::message::{
     emsg, msg_advance, msg_clr_eos, msg_ext_set_kind, msg_outtrans, msg_outtrans_long, msg_putchar,
@@ -1779,31 +1779,32 @@ unsafe fn wildescape(xp: *mut expand_T, str_arg: *const c_char, files: &mut [*mu
                     } else {
                         c" ".as_ptr()
                     };
-                    let p = vim_strsave_escaped(*file_slot, pat);
-                    xfree((*file_slot).cast());
+                    let p = vim_strsave_escaped(*file_slot, pat).into_raw();
+                    crate::path::free_cstring(*file_slot);
                     *file_slot = p;
                     #[cfg(windows)]
                     {
-                        let p2 = vim_strsave_escaped(*file_slot, c" ".as_ptr());
-                        xfree((*file_slot).cast());
+                        let p2 = vim_strsave_escaped(*file_slot, c" ".as_ptr()).into_raw();
+                        crate::path::free_cstring(*file_slot);
                         *file_slot = p2;
                     }
                 } else if ((*xp).xp_backslash & XP_BS_COMMA) != 0
                     && !vim_strchr(*file_slot, b',' as c_int).is_null()
                 {
-                    let p = vim_strsave_escaped(*file_slot, c",".as_ptr());
-                    xfree((*file_slot).cast());
+                    let p = vim_strsave_escaped(*file_slot, c",".as_ptr()).into_raw();
+                    crate::path::free_cstring(*file_slot);
                     *file_slot = p;
                 }
 
                 #[cfg(windows)]
-                let p = vim_strsave_fnameescape(*file_slot, vse_what);
+                let p = vim_strsave_fnameescape(*file_slot, vse_what).into_raw();
                 #[cfg(not(windows))]
                 let p = vim_strsave_fnameescape(
                     *file_slot,
                     if (*xp).xp_shell { VSE_SHELL } else { vse_what },
-                );
-                xfree((*file_slot).cast());
+                )
+                .into_raw();
+                crate::path::free_cstring(*file_slot);
                 *file_slot = p;
 
                 if *str_arg == b'\\' as c_char
@@ -1822,8 +1823,8 @@ unsafe fn wildescape(xp: *mut expand_T, str_arg: *const c_char, files: &mut [*mu
             }
         } else if (*xp).xp_context == EXPAND_TAGS {
             for file_slot in files.iter_mut() {
-                let p = vim_strsave_escaped(*file_slot, c"\\|\"".as_ptr());
-                xfree((*file_slot).cast());
+                let p = vim_strsave_escaped(*file_slot, c"\\|\"".as_ptr()).into_raw();
+                crate::path::free_cstring(*file_slot);
                 *file_slot = p;
             }
         }
@@ -2713,11 +2714,12 @@ unsafe fn showmatches_oneline(
             if (*xp).xp_context == EXPAND_TAGS_LISTFILES {
                 let m = matches[j as usize];
                 msg_outtrans(m, HLF_D, false);
-                let p = m.add(strlen(m) + 1);
-                msg_advance(maxlen + 1);
-                msg_puts(p);
-                msg_advance(maxlen + 3);
-                msg_outtrans_long(p.add(2), HLF_D);
+                if let Some((kind_str, fname_str)) = crate::tag::tag_listfiles_extra(j as usize) {
+                    msg_advance(maxlen + 1);
+                    msg_puts(kind_str);
+                    msg_advance(maxlen + 3);
+                    msg_outtrans_long(fname_str.cast_mut(), HLF_D);
+                }
                 break;
             }
             let mut i = maxlen - lastlen;
@@ -5104,9 +5106,9 @@ pub unsafe fn ExpandGeneric(
             }
 
             str_item = if escaped {
-                vim_strsave_escaped(str_item, c" \t\\.".as_ptr())
+                vim_strsave_escaped(str_item, c" \t\\.".as_ptr()).into_raw()
             } else {
-                xstrdup(str_item)
+                crate::path::alloc_cstring(str_item)
             };
 
             if fuzzy {
@@ -5179,19 +5181,17 @@ unsafe fn expand_shellcmd_onedir(
 
         gap.reserve(dir_matches.len());
 
-        for mut name in dir_matches {
+        for name in dir_matches {
             let namelen = strlen(name);
 
             if namelen > pathlen {
                 let tail_bytes =
                     std::slice::from_raw_parts(name.add(pathlen).cast::<u8>(), namelen - pathlen);
                 if found_ht.insert(tail_bytes.to_vec()) {
-                    ptr::copy(name.add(pathlen), name, namelen - pathlen + 1);
-                    gap.push(name);
-                    name = ptr::null_mut();
+                    gap.push(crate::path::alloc_cstring_bytes(tail_bytes));
                 }
             }
-            xfree(name.cast());
+            crate::path::free_cstring(name);
         }
     }
 }
@@ -5390,7 +5390,10 @@ unsafe fn ExpandUserDefined(
             *e = keep;
 
             if match_ok {
-                let p = xmemdupz(s.cast(), e.offset_from(s) as usize).cast::<c_char>();
+                let p = crate::path::alloc_cstring_bytes(std::slice::from_raw_parts(
+                    s.cast::<u8>(),
+                    e.offset_from(s) as usize,
+                ));
 
                 if !fuzzy {
                     str_ga.push(p);
@@ -5450,7 +5453,7 @@ pub unsafe fn expand_process_user_list(
                         li = (*li).li_next;
                         continue;
                     }
-                    p = xstrdup((*tv).vval.v_string);
+                    p = crate::path::alloc_cstring((*tv).vval.v_string);
                 } else if (*tv).v_type == VarType::VAR_DICT && !(*tv).vval.v_dict.is_null() {
                     let d = (*tv).vval.v_dict;
                     let word = tv_dict_get_string(d, c"word".as_ptr(), false);
@@ -5458,7 +5461,7 @@ pub unsafe fn expand_process_user_list(
                         li = (*li).li_next;
                         continue;
                     }
-                    p = xstrdup(word);
+                    p = crate::path::alloc_cstring(word);
                     abbr = crate::memory::cstr_take(tv_dict_get_string(d, c"abbr".as_ptr(), true));
                     kind = crate::memory::cstr_take(tv_dict_get_string(d, c"kind".as_ptr(), true));
                     menu = crate::memory::cstr_take(tv_dict_get_string(d, c"menu".as_ptr(), true));
@@ -6327,7 +6330,7 @@ unsafe fn expand_pattern_in_buf(
                 }
             }
             if !dup {
-                matches.push(xstrdup(match_cstr.as_ptr()));
+                matches.push(match_cstr.into_raw());
                 if matches.len() as c_int > TAG_MANY {
                     break;
                 }

@@ -14,7 +14,7 @@ use crate::ex_docmd::{CMOD_KEEPALT, do_cmdline_cmd, exarg_T};
 use crate::fileio::fclose;
 use crate::globals::*;
 use crate::lua::executor::nlua_call_typval;
-use crate::memory::{cstr_take, xfree, xstrlcpy};
+use crate::memory::{cstr_take, xstrlcpy};
 use crate::message::{emsg, semsg, smsg};
 use crate::option::{OPT_LOCAL, OptInt, kOptBuftype, set_option_direct};
 use crate::option_vars::*;
@@ -394,7 +394,7 @@ pub unsafe fn find_help_tags(
             matches.sort_unstable_by(|a, b| help_compare(a, b));
             while matches.len() > TAG_MANY as usize {
                 if let Some(p) = matches.pop() {
-                    xfree(p.cast());
+                    crate::path::free_cstring(p);
                 }
             }
         }
@@ -433,20 +433,25 @@ pub unsafe fn cleanup_help_tags(file: &mut [*mut c_char]) {
                     }
                 }
                 if !found_other {
-                    *fi_ptr.add(len) = NUL;
+                    let new_p = crate::path::alloc_cstring_bytes(&fi_bytes[..len]);
+                    crate::path::free_cstring(fi_ptr);
+                    file[i] = new_p;
                 }
             }
         }
 
         if has_default_lang {
-            for &fi_ptr in file.iter() {
+            for slot in file.iter_mut() {
+                let fi_ptr = *slot;
                 let fi_bytes = CStr::from_ptr(fi_ptr).to_bytes();
                 if fi_bytes.len() <= 3 {
                     continue;
                 }
                 let len = fi_bytes.len() - 3;
                 if fi_bytes[len..] == buf {
-                    *fi_ptr.add(len) = NUL;
+                    let new_p = crate::path::alloc_cstring_bytes(&fi_bytes[..len]);
+                    crate::path::free_cstring(fi_ptr);
+                    *slot = new_p;
                 }
             }
         }

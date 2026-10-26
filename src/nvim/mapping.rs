@@ -47,8 +47,7 @@ use crate::mbyte::{
     mb_prevptr, mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
 use crate::memory::{
-    Arena, arena_alloc, arena_finish, arena_mem_free, cstr_take, xmemcpyz, xmemdupz, xstrdup,
-    xstrlcpy,
+    Arena, arena_alloc, arena_finish, arena_mem_free, cstr_take, xmemcpyz, xstrlcpy,
 };
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_outtrans,
@@ -1328,7 +1327,7 @@ unsafe fn translate_mapping(str_in: *const c_char, cpo_val: *const c_char) -> *m
             }
             str_ptr = str_ptr.add(1);
         }
-        xmemdupz(buf.as_ptr().cast(), buf.len()).cast::<c_char>()
+        crate::path::alloc_cstring_bytes(&buf)
     }
 }
 
@@ -1443,11 +1442,11 @@ pub unsafe fn ExpandMappings(
                 let idx = fuz_matches.len() as c_int;
                 fuz_matches.push(fuzmatch_str_T {
                     idx,
-                    str_ptr: xstrdup(p),
+                    str_ptr: crate::path::alloc_cstring(p),
                     score,
                 });
             } else {
-                str_matches.push(xstrdup(p));
+                str_matches.push(crate::path::alloc_cstring(p));
             }
         }
 

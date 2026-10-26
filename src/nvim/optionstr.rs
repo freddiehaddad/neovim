@@ -37,7 +37,7 @@ use crate::mark::{fmark_T, fmarkv_T};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{enc_canonize, get_encoding_name, utf_ptr2char, utfc_ptr2len, utfc_ptr2schar};
 use crate::memline::ml_setflags;
-use crate::memory::{cstr_take, cstr_to_cstring, xmemcpyz, xmemdupz, xstrdup};
+use crate::memory::{cstr_take, cstr_to_cstring, xmemcpyz};
 use crate::message::{kOptMessagesopt, msg_grid_validate, verbose_open, verbose_stop};
 use crate::r#move::validate_virtcol;
 use crate::msgpack_rpc::packer::Integer;
@@ -1443,7 +1443,7 @@ unsafe fn expand_set_opt_string(
         matches.clear();
 
         if include_orig_val && *option_val != NUL {
-            matches.push(xstrdup(option_val));
+            matches.push(crate::path::alloc_cstring(option_val));
         }
 
         let mut val = values;
@@ -1455,7 +1455,7 @@ unsafe fn expand_set_opt_string(
                 continue;
             }
             if vim_regexec(regmatch, *val, 0) {
-                matches.push(xstrdup(*val));
+                matches.push(crate::path::alloc_cstring(*val));
             }
             val = val.add(1);
         }
@@ -1528,7 +1528,7 @@ unsafe fn expand_set_opt_listflag(
         matches.clear();
 
         if include_orig_val {
-            matches.push(xstrdup(option_val));
+            matches.push(crate::path::alloc_cstring(option_val));
         }
 
         let mut flag = flags;
@@ -1543,7 +1543,7 @@ unsafe fn expand_set_opt_listflag(
                     flag = flag.add(1);
                     continue;
                 }
-                matches.push(xmemdupz(flag.cast(), 1).cast::<c_char>());
+                matches.push(crate::path::alloc_cstring_bytes(&[*flag as u8]));
             }
             flag = flag.add(1);
         }

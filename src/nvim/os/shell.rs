@@ -31,9 +31,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::CP_UTF8;
 use crate::mbyte::{utf8len_tab_zero, utfc_ptr2len_len};
 use crate::memline::ml_append;
-use crate::memory::{cstr_take, xstrlcat, xstrlcpy};
-#[cfg(unix)]
-use crate::memory::{xmalloc, xstrdup};
+use crate::memory::{xstrlcat, xstrlcpy};
 #[cfg(unix)]
 use crate::message::msg;
 use crate::message::{
@@ -121,9 +119,13 @@ unsafe fn save_patterns(num_pat: c_int, pat: *mut *mut c_char, file: &mut Vec<*m
         file.clear();
         file.reserve(num_pat as usize);
         for i in 0..(num_pat as usize) {
-            let s = xstrdup(*pat.add(i));
-            backslash_halve(s);
-            file.push(s);
+            let mut v: Vec<c_char> = CStr::from_ptr(*pat.add(i))
+                .to_bytes_with_nul()
+                .iter()
+                .map(|&b| b as c_char)
+                .collect();
+            backslash_halve(v.as_mut_ptr());
+            file.push(crate::path::alloc_cstring(v.as_ptr()));
         }
     }
 }
@@ -531,12 +533,13 @@ pub unsafe fn os_expand_wildcards(
                 continue;
             }
 
-            let new_entry: *mut c_char = xmalloc(strlen(entry) + 1 + usize::from(dir)).cast();
-            strcpy(new_entry, entry);
+            let entry_len = strlen(entry);
+            let mut new_vec = vec![0 as c_char; entry_len + 1 + usize::from(dir)];
+            strcpy(new_vec.as_mut_ptr(), entry);
             if dir {
-                add_pathsep(new_entry);
+                add_pathsep(new_vec.as_mut_ptr());
             }
-            file.push(new_entry);
+            file.push(crate::path::alloc_cstring(new_vec.as_ptr()));
         }
         drop(buffer_vec);
 
@@ -1226,7 +1229,7 @@ unsafe fn shell_xescape_xquote(cmd: *const c_char) -> std::ffi::CString {
 
         let sxq_bytes = CStr::from_ptr(p_sxq).to_bytes();
         let owned_ecmd = if *p_sxe != NUL && sxq_bytes == b"(" {
-            cstr_take(vim_strsave_escaped_ext(cmd, p_sxe, b'^' as c_char, false))
+            Some(vim_strsave_escaped_ext(cmd, p_sxe, b'^' as c_char, false))
         } else {
             None
         };

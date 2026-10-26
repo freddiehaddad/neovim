@@ -94,7 +94,7 @@ use crate::mbyte::{
     utf8len_tab_zero, utfc_ptr2len,
 };
 use crate::memline::{decl, incl};
-use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free, xfree, xmalloc};
+use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free};
 use crate::message::{
     emsg, msg, msg_check, msg_clr_eos, msg_cursor_goto, msg_grid_validate, msg_outtrans_len,
     msg_putchar, msg_puts_hl, msg_puts_len, msg_start, msg_starthere, sb_text_end_cmdline,
@@ -4631,7 +4631,7 @@ unsafe fn ccheck_abbr(c: c_int) -> c_int {
 }
 
 /// Escape special characters in `fname`, depending on `what`.
-pub unsafe fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> *mut c_char {
+pub unsafe fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> std::ffi::CString {
     unsafe {
         #[cfg(windows)]
         let mut p = {
@@ -4667,35 +4667,36 @@ pub unsafe fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> *mut
             };
             let mut res = vim_strsave_escaped(fname, chars);
             if what == VSE_SHELL && csh_like_shell() != 0 {
-                let prev = crate::memory::cstr_take(res);
-                res = vim_strsave_escaped(
-                    prev.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
-                    c"!".as_ptr(),
-                );
+                res = vim_strsave_escaped(res.as_ptr(), c"!".as_ptr());
             }
             res
         };
 
-        if *p == b'>' as c_char
-            || *p == b'+' as c_char
-            || (*p == b'-' as c_char && *p.add(1) == NUL)
-        {
-            escape_fname(&raw mut p);
+        let bytes = p.as_bytes();
+        if bytes.first() == Some(&b'>') || bytes.first() == Some(&b'+') || bytes == b"-" {
+            escape_fname_cstr(&mut p);
         }
 
         p
     }
 }
 
-/// Put a backslash before the file name in `pp`, which is in allocated memory.
+/// Put a backslash before the file name in `pp`, which is an allocated `CString::into_raw()`.
 pub unsafe fn escape_fname(pp: *mut *mut c_char) {
     unsafe {
-        let p = xmalloc(strlen(*pp) + 2).cast::<c_char>();
-        *p = b'\\' as c_char;
-        strcpy(p.add(1), *pp);
-        xfree((*pp).cast());
-        *pp = p;
+        if let Some(mut s) = crate::memory::cstr_take(*pp) {
+            escape_fname_cstr(&mut s);
+            *pp = s.into_raw();
+        }
     }
+}
+
+pub fn escape_fname_cstr(s: &mut std::ffi::CString) {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len() + 1);
+    out.push(b'\\');
+    out.extend_from_slice(bytes);
+    *s = crate::memory::cstr_from_bytes(&out);
 }
 
 /// For each file name in `files`:
@@ -4705,8 +4706,8 @@ pub unsafe fn tilde_replace(orig_pat: *mut c_char, files: &mut [*mut c_char]) {
         if *orig_pat == b'~' as c_char && vim_ispathsep((*orig_pat.add(1) as u8) as c_int) {
             for f in files {
                 let p = home_replace_save(ptr::null_mut(), *f);
-                xfree((*f).cast());
-                *f = crate::memory::xstrdup(p.as_ptr());
+                crate::path::free_cstring(*f);
+                *f = p.into_raw();
             }
         }
     }

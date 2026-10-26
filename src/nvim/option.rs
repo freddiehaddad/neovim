@@ -94,7 +94,7 @@ use crate::mbyte::{enc_locale, utfc_ptr2len};
 use crate::mcursor::{kOptFollow, mc_ins_replay_can_join};
 use crate::memfile::mf_close_file;
 use crate::memline::{ml_open_file, ml_open_files};
-use crate::memory::{Arena, strequal, strnequal, xmemcpyz, xmemdupz, xstrdup, xstrlcpy};
+use crate::memory::{Arena, strequal, strnequal, xmemcpyz, xstrlcpy};
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar,
     msg_puts, msg_puts_title, msg_source,
@@ -7973,7 +7973,7 @@ unsafe fn match_str(
     unsafe {
         if !fuzzy {
             if vim_regexec(regmatch.cast(), str_arg, 0) {
-                matches.push(xstrdup(str_arg));
+                matches.push(crate::path::alloc_cstring(str_arg));
                 return true;
             }
         } else {
@@ -7982,7 +7982,7 @@ unsafe fn match_str(
                 let idx = fuzmatch.len() as c_int;
                 fuzmatch.push(fuzmatch_str_T {
                     idx,
-                    str_ptr: xstrdup(str_arg),
+                    str_ptr: crate::path::alloc_cstring(str_arg),
                     score,
                 });
                 return true;
@@ -8030,7 +8030,7 @@ pub unsafe fn ExpandSettings(
                 && !(*opt).shortname.is_null()
                 && vim_regexec(regmatch.cast(), (*opt).shortname, 0)
             {
-                matches.push(xstrdup(str_ptr));
+                matches.push(crate::path::alloc_cstring(str_ptr));
             }
         }
 
@@ -8045,8 +8045,7 @@ pub unsafe fn ExpandSettings(
 /// Escape an option value that can be used on the command-line with :set.
 pub unsafe fn escape_option_str_cmdline(var_arg: *mut c_char) -> std::ffi::CString {
     unsafe {
-        let buf_cstr =
-            crate::memory::cstr_take(vim_strsave_escaped(var_arg, escape_chars)).unwrap_or_default();
+        let buf_cstr = vim_strsave_escaped(var_arg, escape_chars);
 
         #[cfg(windows)]
         {
@@ -8102,7 +8101,7 @@ pub unsafe fn ExpandOldSetting(matches: &mut Vec<*mut c_char>) -> c_int {
             c"".as_ptr().cast_mut()
         };
 
-        matches.push(xstrdup(escape_option_str_cmdline(var).as_ptr()));
+        matches.push(escape_option_str_cmdline(var).into_raw());
         OK
     }
 }
@@ -8189,7 +8188,7 @@ pub unsafe fn ExpandSettingSubtract(
 
                 if *item != NUL && vim_regexec(regmatch.cast(), item, 0) {
                     let buf = escape_option_str_cmdline(item);
-                    matches.push(xstrdup(buf.as_ptr()));
+                    matches.push(buf.into_raw());
                 }
 
                 if next_val.is_null() {
@@ -8210,12 +8209,15 @@ pub unsafe fn ExpandSettingSubtract(
 
             matches.clear();
             matches.reserve_exact(num_flags + 1);
-            matches.push(xmemdupz(option_val.cast(), num_flags).cast::<c_char>());
+            matches.push(crate::path::alloc_cstring_bytes(std::slice::from_raw_parts(
+                option_val.cast::<u8>(),
+                num_flags,
+            )));
 
             if num_flags > 1 {
                 let mut flag = option_val;
                 while *flag != NUL {
-                    matches.push(xmemdupz(flag.cast(), 1).cast::<c_char>());
+                    matches.push(crate::path::alloc_cstring_bytes(&[*flag as u8]));
                     flag = flag.add(1);
                 }
             }

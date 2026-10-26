@@ -738,7 +738,7 @@ pub unsafe fn expand_env_esc(
                     let var_bytes = CStr::from_ptr(var).to_bytes();
                     let esc_bytes = CStr::from_ptr(esc_chars).to_bytes();
                     if var_bytes.iter().any(|b| esc_bytes.contains(b)) {
-                        var_cstr = cstr_take(vim_strsave_escaped(var, esc_chars));
+                        var_cstr = Some(vim_strsave_escaped(var, esc_chars));
                         var = var_cstr
                             .as_ref()
                             .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());

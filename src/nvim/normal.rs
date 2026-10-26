@@ -114,7 +114,7 @@ use crate::mcursor::{
     mc_buf_has_cursors, mc_counter, mc_follow_set, mc_replaying, mc_showcmd, mc_toggle, mc_zq_start,
 };
 use crate::memline::{goto_byte, inc, ml_delete_flags, ml_get, ml_get_buf, ml_get_len, ml_get_pos};
-use crate::memory::{cstr_take, xstrlcpy};
+use crate::memory::xstrlcpy;
 use crate::message::{
     NIL_OBJ, emsg, may_clear_sb_text, messaging, msg, msg_delay, msg_ext_set_trigger,
     msg_grid_validate, show_sb_text, wait_return,
@@ -4537,7 +4537,7 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
             let ptr_cstr = std::ffi::CString::new(std::slice::from_raw_parts(ptr.cast::<u8>(), n))
                 .unwrap_or_default();
             let p = if kp_ex {
-                cstr_take(vim_strsave_fnameescape(ptr_cstr.as_ptr(), VSE_NONE)).unwrap_or_default()
+                vim_strsave_fnameescape(ptr_cstr.as_ptr(), VSE_NONE)
             } else {
                 vim_strsave_shellescape(ptr_cstr.as_ptr(), true, true)
             };

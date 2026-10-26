@@ -70,7 +70,7 @@ use crate::memline::{
     ml_close, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_open, ml_recover,
     ml_setname, ml_timestamp,
 };
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, entered_free_all_mem, xstrdup, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, entered_free_all_mem, xstrlcpy};
 use crate::message::{
     emsg, message_filtered, msg, msg_delay, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts,
     msg_start, msg_trunc, semsg, set_keep_msg, smsg,
@@ -3366,10 +3366,9 @@ pub unsafe fn ExpandBufnames(
             }
 
             p = if (options & WILD_HOME_REPLACE) != 0 {
-                let hr = home_replace_save(buf, p);
-                xstrdup(hr.as_ptr())
+                home_replace_save(buf, p).into_raw()
             } else {
-                xstrdup(p)
+                crate::path::alloc_cstring(p)
             };
 
             if !fuzzy {

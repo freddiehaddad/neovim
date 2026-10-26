@@ -56,7 +56,7 @@ use crate::mbyte::{
 };
 use crate::mcursor::mc_ins_cascading;
 use crate::memline::{decl, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace};
-use crate::memory::{cstr_take, memchrsub, memcnt};
+use crate::memory::{memchrsub, memcnt};
 use crate::message::{
     emsg, emsg_invreg, message_filtered, msg, msg_ext_set_kind, msg_outtrans_len, msg_putchar,
     msg_puts, msg_puts_hl, msg_puts_title, msgmore, semsg, smsg,
@@ -761,13 +761,12 @@ pub unsafe fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent:
                 return FAIL;
             };
             new_last_cmdline = None;
-            let p = cstr_take(vim_strsave_escaped_ext(
+            let p = vim_strsave_escaped_ext(
                 last_cmd.as_ptr(),
                 c"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f".as_ptr(),
                 Ctrl_V as u8 as c_char,
                 false,
-            ))
-            .unwrap_or_default();
+            );
             let p_ptr = p.as_ptr().cast_mut();
             if Visual.active && strncmp(p_ptr, c"'<,'>".as_ptr(), 5) == 0 {
                 retval = put_in_typebuf(p_ptr.add(5), true, true, silent);

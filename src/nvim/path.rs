@@ -14,9 +14,7 @@ use crate::mbyte::mb_isalpha;
 use crate::mbyte::{mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2len};
 #[cfg(windows)]
 use crate::memory::strchrsub;
-#[cfg(not(unix))]
-use crate::memory::cstr_from_bytes;
-use crate::memory::{cstr_to_cstring, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_take, cstr_to_cstring, xmemcpyz, xstrlcat, xstrlcpy};
 use crate::option::copy_option_part;
 use crate::option_vars::*;
 use crate::os::env::{expand_env_esc, expand_env_save_opt, os_getenv_cstr, vim_env_iter};
@@ -37,10 +35,27 @@ use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
+#[inline]
+pub unsafe fn alloc_cstring(s: *const c_char) -> *mut c_char {
+    unsafe { cstr_to_cstring(s).into_raw() }
+}
+
+#[inline]
+pub fn alloc_cstring_bytes(bytes: &[u8]) -> *mut c_char {
+    cstr_from_bytes(bytes).into_raw()
+}
+
+#[inline]
+pub unsafe fn free_cstring(p: *mut c_char) {
+    unsafe {
+        let _ = cstr_take(p);
+    }
+}
+
 pub unsafe fn clear_cstrings(strings: &mut Vec<*mut c_char>) {
     unsafe {
         for p in strings.drain(..) {
-            xfree(p.cast());
+            free_cstring(p);
         }
     }
 }
@@ -55,7 +70,7 @@ pub unsafe fn remove_duplicate_strings(fnames: &mut Vec<*mut c_char>) {
         while i > 0 {
             if path_equal(fnames[i - 1], fnames[i], kPathCmpLiteral) {
                 let dup = fnames.remove(i);
-                xfree(dup.cast());
+                free_cstring(dup);
             }
             i -= 1;
         }
@@ -475,20 +490,18 @@ unsafe fn do_concat_fnames(
 
 pub unsafe fn concat_fnames(fname1: NvimString, fname2: NvimString, sep: bool) -> NvimString {
     unsafe {
-        let mut ret = NvimString {
-            data: xmalloc(fname1.size + usize::from(sep) + fname2.size + 1).cast::<c_char>(),
-            size: 0,
-        };
-        ptr::copy(fname1.data, ret.data, fname1.size + 1);
+        let mut buf = vec![0 as c_char; fname1.size + usize::from(sep) + fname2.size + 1];
+        ptr::copy(fname1.data, buf.as_mut_ptr(), fname1.size + 1);
+        let mut size: usize = 0;
         do_concat_fnames(
-            ret.data,
+            buf.as_mut_ptr(),
             fname1.size,
             fname2.data,
             fname2.size,
             sep,
-            &mut ret.size,
+            &mut size,
         );
-        ret
+        crate::api::private::helpers::cbuf_to_string(buf.as_ptr(), size)
     }
 }
 
@@ -1079,24 +1092,25 @@ unsafe fn uniquefy_paths(
                 short_name = path;
             }
             if is_unique(short_name, gap, i) {
-                let slen = CStr::from_ptr(short_name).to_bytes().len();
-                ptr::copy_nonoverlapping(short_name, gap[i], slen + 1);
+                let new_p = alloc_cstring(short_name);
+                free_cstring(gap[i]);
+                gap[i] = new_p;
                 continue;
             }
 
             let rel_pathsize =
                 1 + (PATHSEPSTR.len() - 1) + CStr::from_ptr(short_name).to_bytes().len() + 1;
-            let rel_path = xmalloc(rel_pathsize).cast::<c_char>();
+            let mut rel_vec = vec![0 as c_char; rel_pathsize];
             vim_snprintf!(
-                rel_path,
+                rel_vec.as_mut_ptr(),
                 rel_pathsize,
                 c".%s%s".as_ptr(),
                 PATHSEPSTR.as_ptr().cast::<c_char>(),
                 short_name,
             );
 
-            xfree(gap[i].cast());
-            gap[i] = rel_path;
+            free_cstring(gap[i]);
+            gap[i] = alloc_cstring(rel_vec.as_ptr());
             sort_again = true;
             os_breakcheck();
         }
@@ -1377,7 +1391,7 @@ pub unsafe fn expand_wildcards_vec(
                 let ffname = FullName_save(fi, false).unwrap_or_default();
                 debug_assert!(!fi.is_null());
                 if match_file_list(p_wig, fi, ffname.as_ptr().cast_mut()) {
-                    xfree(fi.cast());
+                    free_cstring(fi);
                     files.remove(i);
                 } else {
                     i += 1;
@@ -1556,13 +1570,13 @@ pub unsafe fn addfile(gap: &mut Vec<*mut c_char>, f: *mut c_char, flags: c_int) 
         }
 
         let flen = CStr::from_ptr(f).to_bytes().len();
-        let p = xmalloc(flen + 1 + usize::from(isdir)).cast::<c_char>();
-        ptr::copy_nonoverlapping(f, p, flen + 1);
-        to_slash(p);
+        let mut buf = vec![0 as c_char; flen + 1 + usize::from(isdir)];
+        ptr::copy_nonoverlapping(f, buf.as_mut_ptr(), flen + 1);
+        to_slash(buf.as_mut_ptr());
         if isdir && (flags & EW_ADDSLASH) != 0 {
-            add_pathsep(p);
+            add_pathsep(buf.as_mut_ptr());
         }
-        gap.push(p);
+        gap.push(alloc_cstring(buf.as_ptr()));
     }
 }
 
@@ -2096,7 +2110,7 @@ pub unsafe fn expand_wildcards_eval(
             && is_cur_alt_file
             && star_follows
         {
-            file.push(xstrdup(ep.as_ptr()));
+            file.push(ep.into_raw());
             ret = OK;
         }
         drop(exp_pat_owned);
@@ -2431,7 +2445,7 @@ mod tests {
             assert_eq!(empty_concat.to_str().unwrap(), "");
 
             for w in [c"ccc", c"aaa", c"bbb", c"aaa", c"ccc"] {
-                str_vec.push(xstrdup(w.as_ptr()));
+                str_vec.push(alloc_cstring(w.as_ptr()));
             }
             remove_duplicate_strings(&mut str_vec);
             assert_eq!(str_vec.len(), 3);

@@ -49,8 +49,8 @@ use crate::mbyte::{
 };
 use crate::memline::ml_get;
 use crate::memory::{
-    Arena, cstr_from_bytes, cstr_take, cstr_to_cstring, memcnt, strequal, xmemcpyz, xstrdup,
-    xstrlcat, xstrlcpy,
+    Arena, cstr_from_bytes, cstr_take, cstr_to_cstring, memcnt, strequal, xmemcpyz, xstrlcat,
+    xstrlcpy,
 };
 #[cfg(windows)]
 use crate::message::msg_source;
@@ -1979,14 +1979,14 @@ unsafe fn ExpandRTDir_int(
             }
         }
 
-        for &match_ptr in gap.iter() {
+        for slot in gap.iter_mut() {
+            let match_ptr = *slot;
             let mut s = match_ptr;
             let mut e = s.add(CStr::from_ptr(s).to_bytes().len());
             if (e as usize) - (s as usize) > 4 && !keep_ext {
                 let tail4 = std::slice::from_raw_parts(e.sub(4).cast::<u8>(), 4);
                 if tail4.eq_ignore_ascii_case(b".vim") || tail4.eq_ignore_ascii_case(b".lua") {
                     e = e.sub(4);
-                    *e = NUL;
                 }
             }
 
@@ -2007,10 +2007,11 @@ unsafe fn ExpandRTDir_int(
                 s = mb_prevptr(match_ptr, s);
             }
             s = s.add(1);
-            if !ptr::eq(s, match_ptr) {
-                let copy_len = (e as usize) - (s as usize) + 1;
-                ptr::copy(s, match_ptr, copy_len);
-            }
+            let copy_len = (e as usize) - (s as usize);
+            let new_p =
+                crate::path::alloc_cstring_bytes(std::slice::from_raw_parts(s.cast::<u8>(), copy_len));
+            crate::path::free_cstring(match_ptr);
+            *slot = new_p;
         }
 
         if gap.is_empty() {
@@ -2069,7 +2070,7 @@ pub unsafe fn expand_runtime_cmd(pat: *mut c_char, matches: &mut Vec<*mut c_char
             let pat_slice = std::slice::from_raw_parts(pat.cast::<u8>(), pat_len);
             for wv in &where_values {
                 if wv.to_bytes().starts_with(pat_slice) {
-                    matches.push(xstrdup(wv.as_ptr()));
+                    matches.push(crate::path::alloc_cstring(wv.as_ptr()));
                 }
             }
         }
@@ -2097,10 +2098,12 @@ pub unsafe fn ExpandPackAddDir(pat: *mut c_char, file: &mut Vec<*mut c_char>) ->
         globpath(p_pp, s, file, 0, true);
         drop(s_vec);
 
-        for &match_ptr in file.iter() {
+        for slot in file.iter_mut() {
+            let match_ptr = *slot;
             let tail = path_tail(match_ptr);
-            let tail_len = CStr::from_ptr(tail).to_bytes().len();
-            ptr::copy(tail, match_ptr, tail_len + 1);
+            let new_p = crate::path::alloc_cstring(tail);
+            crate::path::free_cstring(match_ptr);
+            *slot = new_p;
         }
 
         if file.is_empty() {

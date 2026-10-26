@@ -44,7 +44,7 @@ use crate::mark::{fm_getname, fmark_T, fmarkv_T, mark_view_make, mark_view_resto
 use crate::mbyte::{
     convert_setup, mb_ptr_adv, mb_strnicmp, string_convert, utfc_ptr2len, vimconv_T,
 };
-use crate::memory::{cstr_to_cstring, xmemcpyz, xmemdupz, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_to_cstring, xmemcpyz, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, give_warning, msg, msg_delay, msg_outtrans, msg_putchar, msg_puts, msg_puts_title, semsg,
     smsg, verbose_enter, verbose_leave, wait_return,
@@ -2443,7 +2443,10 @@ pub unsafe fn find_tags_vec(
         matches.clear();
         matches.reserve_exact(raw_matches.len());
         for m in raw_matches {
-            matches.push(xmemdupz(m.as_ptr().cast(), m.len().saturating_sub(1)).cast());
+            matches.push(crate::path::alloc_cstring_bytes(std::slice::from_raw_parts(
+                m.as_ptr().cast::<u8>(),
+                m.len().saturating_sub(1),
+            )));
         }
         ret
     }
@@ -3148,47 +3151,73 @@ pub unsafe fn tagstack_clear_entry(item: *mut taggy_T) {
     }
 }
 
+static mut TAG_LISTFILES_EXTRA: Vec<([c_char; 2], std::ffi::CString)> = Vec::new();
+
+pub unsafe fn tag_listfiles_extra(idx: usize) -> Option<(*const c_char, *const c_char)> {
+    unsafe {
+        let extra = &raw const TAG_LISTFILES_EXTRA;
+        (*extra)
+            .as_slice()
+            .get(idx)
+            .map(|(k, f)| (k.as_ptr(), f.as_ptr()))
+    }
+}
+
 pub unsafe fn expand_tags(tagnames: bool, pat: *mut c_char, file: &mut Vec<*mut c_char>) -> c_int {
     unsafe {
-        let mut name_buf: Vec<c_char> = Vec::with_capacity(100);
-
         let extra_flag = if tagnames { TAG_NAMES } else { 0 };
+        let mut raw_matches: Vec<Vec<c_char>> = Vec::new();
         let ret = if *pat == b'/' as c_char {
-            find_tags_vec(
+            find_tags(
                 pat.add(1),
-                file,
+                &mut raw_matches,
                 TAG_REGEXP | extra_flag | TAG_VERBOSE,
                 TAG_MANY,
                 (*curbuf).b_ffname,
             )
         } else {
-            find_tags_vec(
+            find_tags(
                 pat,
-                file,
+                &mut raw_matches,
                 TAG_REGEXP | extra_flag | TAG_VERBOSE | TAG_NOIC,
                 TAG_MANY,
                 (*curbuf).b_ffname,
             )
         };
-        if ret == OK && !tagnames {
-            for &item_ptr in file.iter() {
-                let mut t_p = tagptrs_T::default();
-                parse_match(item_ptr, &mut t_p);
-                let len = t_p.tagname_end.offset_from(t_p.tagname) as usize;
-                name_buf.clear();
-                name_buf.extend_from_slice(std::slice::from_raw_parts(t_p.tagname, len));
-                name_buf.push(0);
-                name_buf.push(if !t_p.tagkind.is_null() && *t_p.tagkind != NUL {
-                    *t_p.tagkind
-                } else {
-                    b'f' as c_char
-                });
-                name_buf.push(0);
-                let prefix_len = name_buf.len();
-                let fname_len = t_p.fname_end.offset_from(t_p.fname) as usize;
-                ptr::copy(t_p.fname, item_ptr.add(prefix_len), fname_len);
-                *item_ptr.add(prefix_len + fname_len) = 0;
-                ptr::copy_nonoverlapping(name_buf.as_ptr(), item_ptr, prefix_len);
+        file.clear();
+        let extra = &raw mut TAG_LISTFILES_EXTRA;
+        (*extra).clear();
+        if ret == OK {
+            file.reserve_exact(raw_matches.len());
+            if tagnames {
+                for m in raw_matches {
+                    file.push(crate::path::alloc_cstring_bytes(std::slice::from_raw_parts(
+                        m.as_ptr().cast::<u8>(),
+                        m.len().saturating_sub(1),
+                    )));
+                }
+            } else {
+                (*extra).reserve_exact(raw_matches.len());
+                for mut m in raw_matches {
+                    let mut t_p = tagptrs_T::default();
+                    parse_match(m.as_mut_ptr(), &mut t_p);
+                    let len = t_p.tagname_end.offset_from(t_p.tagname) as usize;
+                    file.push(crate::path::alloc_cstring_bytes(std::slice::from_raw_parts(
+                        t_p.tagname.cast::<u8>(),
+                        len,
+                    )));
+                    let kind_c = if !t_p.tagkind.is_null() && *t_p.tagkind != NUL {
+                        *t_p.tagkind
+                    } else {
+                        b'f' as c_char
+                    };
+                    let fname_len = t_p.fname_end.offset_from(t_p.fname) as usize;
+                    let fname_cstr = crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
+                        t_p.fname.cast::<u8>(),
+                        fname_len,
+                    ));
+                    (*extra).push(([kind_c, 0], fname_cstr));
+                }
             }
         }
         ret

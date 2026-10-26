@@ -19,7 +19,7 @@ use crate::mbyte::{
     utf_char2bytes, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2cells, utf_ptr2char, utf_ptr2len,
     utfc_ptr2len,
 };
-use crate::memory::{xmalloc, xmallocz, xmemscan, xstrchrnul, xstrlcpy};
+use crate::memory::{xmemscan, xstrchrnul, xstrlcpy};
 use crate::message::{emsg, semsg};
 use crate::option::{csh_like_shell, fish_like_shell};
 #[cfg(windows)]
@@ -746,28 +746,21 @@ pub unsafe fn wcslen(mut s: *const u16) -> usize {
 
 use crate::charset::tolower_asc;
 
-/// Copy up to `len` bytes of `string` into newly allocated memory and terminate with a NUL.
-pub unsafe fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char {
+/// Copy up to `len` bytes of `string` into an owned `CString`.
+pub unsafe fn xstrnsave(string: *const c_char, len: usize) -> std::ffi::CString {
     unsafe {
-        let dst = xmallocz(len).cast::<c_char>();
         let mut i = 0;
-        while i < len {
-            let b = *string.add(i);
-            if b == NUL {
-                break;
-            }
-            *dst.add(i) = b;
+        while i < len && *string.add(i) != NUL {
             i += 1;
         }
-        while i < len {
-            *dst.add(i) = NUL;
-            i += 1;
-        }
-        dst
+        crate::memory::cstr_from_bytes(std::slice::from_raw_parts(string.cast::<u8>(), i))
     }
 }
 
-pub unsafe fn vim_strsave_escaped(string: *const c_char, esc_chars: *const c_char) -> *mut c_char {
+pub unsafe fn vim_strsave_escaped(
+    string: *const c_char,
+    esc_chars: *const c_char,
+) -> std::ffi::CString {
     unsafe { vim_strsave_escaped_ext(string, esc_chars, b'\\' as c_char, false) }
 }
 
@@ -776,9 +769,9 @@ pub unsafe fn vim_strsave_escaped_ext(
     esc_chars: *const c_char,
     cc: c_char,
     bsl: bool,
-) -> *mut c_char {
+) -> std::ffi::CString {
     unsafe {
-        let mut length: usize = 1;
+        let mut length: usize = 0;
         let mut p = string;
         while *p != NUL {
             let l = utfc_ptr2len(p) as usize;
@@ -794,28 +787,23 @@ pub unsafe fn vim_strsave_escaped_ext(
             p = p.add(1);
         }
 
-        let escaped_string = xmalloc(length).cast::<c_char>();
-        let mut p2 = escaped_string;
+        let mut escaped = Vec::with_capacity(length);
         p = string;
         while *p != NUL {
             let l = utfc_ptr2len(p) as usize;
             if l > 1 {
-                ptr::copy_nonoverlapping(p, p2, l);
-                p2 = p2.add(l);
+                escaped.extend_from_slice(std::slice::from_raw_parts(p.cast::<u8>(), l));
                 p = p.add(l);
                 continue;
             }
             if !vim_strchr(esc_chars, (*p as u8) as c_int).is_null() || (bsl && rem_backslash(p)) {
-                *p2 = cc;
-                p2 = p2.add(1);
+                escaped.push(cc as u8);
             }
-            *p2 = *p;
-            p2 = p2.add(1);
+            escaped.push(*p as u8);
             p = p.add(1);
         }
-        *p2 = NUL;
 
-        escaped_string
+        crate::memory::cstr_from_bytes(&escaped)
     }
 }
 
@@ -3708,7 +3696,6 @@ pub unsafe fn f_trim(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::memory::xfree;
 
     #[test]
     fn vim_strnsave_unquoted_and_strrep_and_format_typeof_work() {
@@ -3820,8 +3807,7 @@ mod tests {
                 (c"some text", c"a", "some text"),
             ] {
                 let res = vim_strsave_escaped(s.as_ptr(), esc.as_ptr());
-                assert_eq!(CStr::from_ptr(res).to_str().unwrap(), expected);
-                xfree(res.cast());
+                assert_eq!(res.to_str().unwrap(), expected);
             }
 
             for (s, len, expected) in [

@@ -146,8 +146,8 @@ use crate::mbyte::{get_encoding_name, mb_copy_char, utf_head_off, utfc_ptr2len};
 use crate::memfile::memfile_T;
 use crate::memline::{goto_byte, ml_clearmarked, ml_preserve, ml_recover, ml_setmarked};
 use crate::memory::{
-    ArenaMem, arena_mem_free, cstr_from_bytes, cstr_take, cstr_to_cstring, strequal, xstrdup,
-    xstrlcat, xstrlcpy,
+    ArenaMem, arena_mem_free, cstr_from_bytes, cstr_take, cstr_to_cstring, strequal, xstrlcat,
+    xstrlcpy,
 };
 use crate::menu::{ex_emenu, ex_menu, ex_menutranslate, save_state_T};
 use crate::message::{
@@ -8286,11 +8286,7 @@ pub unsafe fn expand_filename(
                 let mut l = repl_cstr.as_ptr();
                 while *l != NUL {
                     if !vim_strchr(esc_chars, c_int::from(*l as u8)).is_null() {
-                        if let Some(new_repl) =
-                            cstr_take(vim_strsave_escaped(repl_cstr.as_ptr(), esc_chars))
-                        {
-                            repl_cstr = new_repl;
-                        }
+                        repl_cstr = vim_strsave_escaped(repl_cstr.as_ptr(), esc_chars);
                         break;
                     }
                     l = l.add(1);
@@ -8301,10 +8297,8 @@ pub unsafe fn expand_filename(
                 || (*eap).cmdidx == cmdidx_T::CMD_bang as c_int
                 || (*eap).cmdidx == cmdidx_T::CMD_terminal as c_int)
                 && !strpbrk(repl_cstr.as_ptr(), c"!".as_ptr()).is_null()
-                && let Some(new_repl) =
-                    cstr_take(vim_strsave_escaped(repl_cstr.as_ptr(), c"!".as_ptr()))
             {
-                repl_cstr = new_repl;
+                repl_cstr = vim_strsave_escaped(repl_cstr.as_ptr(), c"!".as_ptr());
             }
 
             p = repl_cmdline(eap, p, srclen, repl_cstr.as_ptr().cast_mut(), cmdlinep);
@@ -8682,7 +8676,7 @@ pub unsafe fn expand_argopt(
         if (*xp).xp_pattern_len == 2
             && strncmp((*xp).xp_pattern, c"ff".as_ptr(), (*xp).xp_pattern_len) == 0
         {
-            *matches = vec![xstrdup(c"fileformat=".as_ptr())];
+            *matches = vec![crate::path::alloc_cstring(c"fileformat=".as_ptr())];
             return OK;
         }
 

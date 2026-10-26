@@ -17,7 +17,7 @@ use crate::globals::*;
 use crate::hashtab::hashitem_empty;
 use crate::mapping::makemap;
 use crate::mbyte::utfc_ptr2len;
-use crate::memory::{cstr_take, xmemcpyz};
+use crate::memory::xmemcpyz;
 use crate::message::{emsg, semsg};
 use crate::option::{OPT_GLOBAL, OPT_LOCAL, makefoldset, makeset};
 use crate::option_vars::*;
@@ -310,7 +310,7 @@ unsafe fn ses_escape_fname(name: *mut c_char, _flagp: *mut c_uint) -> CString {
             p = p.add(utfc_ptr2len(p) as usize);
         }
 
-        cstr_take(vim_strsave_fnameescape(sname_vec.as_ptr(), VSE_NONE)).unwrap_or_default()
+        vim_strsave_fnameescape(sname_vec.as_ptr(), VSE_NONE)
     }
 }
 
@@ -539,11 +539,10 @@ unsafe fn store_session_globals(fd: *mut FILE) -> c_int {
                     || (*this_var).di_tv.v_type == VarType::VAR_STRING)
                     && var_flavour(key_ptr) == VAR_FLAVOUR_SESSION
                 {
-                    let p = cstr_take(vim_strsave_escaped(
+                    let p = vim_strsave_escaped(
                         tv_get_string(&raw const (*this_var).di_tv),
                         c"\\\"\n\r".as_ptr(),
-                    ))
-                    .unwrap_or_default();
+                    );
                     let mut p_vec: Vec<c_char> = p
                         .into_bytes_with_nul()
                         .into_iter()

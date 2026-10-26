@@ -28,7 +28,7 @@ use crate::mbyte::{
 use crate::memline::{
     ml_append, ml_close, ml_delete, ml_get_buf, ml_get_buf_len, ml_open, ml_open_file, ml_replace,
 };
-use crate::memory::{xmemcpyz, xstrdup, xstrlcpy};
+use crate::memory::{xmemcpyz, xstrlcpy};
 use crate::message::{
     emsg, give_warning, msg_end, msg_ext_set_kind, msg_putchar, msg_puts, msg_start, semsg, smsg,
 };
@@ -3236,7 +3236,7 @@ pub unsafe fn expand_spelling(_lnum: linenr_T, pat: *mut c_char, matches: &mut V
     unsafe {
         matches.clear();
         for s in spell_suggest_list(pat, 100, spell_expand_need_cap, true) {
-            matches.push(xstrdup(s.as_ptr()));
+            matches.push(s.into_raw());
         }
     }
 }

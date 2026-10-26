@@ -4,7 +4,7 @@ use crate::api::command::is_user_cmdidx;
 use crate::api::extmark::ns_initialized;
 use crate::api::private::helpers::{
     HlMessageChunk, OBJECT_NIL, TryState, api_clear_error, api_free_array, api_set_error,
-    api_set_sctx, arena_array, error_set, string_to_cstr, try_enter, try_leave,
+    api_set_sctx, arena_array, error_set, try_enter, try_leave,
 };
 use crate::api::private::validate::{
     Array, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
@@ -56,7 +56,7 @@ use crate::lua::treesitter::nlua_treesitter_init;
 use crate::main_init::{getout, os_exit, preserve_exit};
 use crate::math::{FAIL, OK};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{Arena, ArenaMem, arena_finish, arena_mem_free, strequal, xfree, xmemdupz};
+use crate::memory::{Arena, ArenaMem, arena_finish, arena_mem_free, strequal, xmemdupz};
 use crate::message::{
     emsg, msg_ext_no_fast, msg_multihl, msg_putchar, msg_use_printf, redirecting, semsg_multiline,
 };
@@ -2574,9 +2574,7 @@ pub unsafe fn nlua_expand_pat(xp: *mut expand_T) {
         if !error_set(&raw const err) && prefix_len <= patlen {
             let completions = nlua_pop_Array(lstate, &raw mut arena, &raw mut err);
             if !error_set(&raw const err) {
-                for &p in &*er {
-                    xfree(p.cast());
-                }
+                crate::path::clear_cstrings(&mut *er);
                 *er = Vec::with_capacity(completions.size);
 
                 let mut all_strings = true;
@@ -2586,7 +2584,10 @@ pub unsafe fn nlua_expand_pat(xp: *mut expand_T) {
                         all_strings = false;
                         break;
                     }
-                    (*er).push(string_to_cstr(v.data.string));
+                    (*er).push(crate::path::alloc_cstring_bytes(std::slice::from_raw_parts(
+                        v.data.string.data.cast::<u8>(),
+                        v.data.string.size,
+                    )));
                 }
 
                 if all_strings {
@@ -2598,9 +2599,7 @@ pub unsafe fn nlua_expand_pat(xp: *mut expand_T) {
         }
 
         if status == FAIL {
-            for &p in &*er {
-                xfree(p.cast());
-            }
+            crate::path::clear_cstrings(&mut *er);
             *er = Vec::new();
         }
     }
