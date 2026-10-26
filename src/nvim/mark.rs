@@ -26,7 +26,7 @@ use crate::lua::executor::nlua_call_excmd;
 use crate::mbyte::{ptr2cells, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::mcursor::mc_replaying;
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len};
-use crate::memory::{xfree, xstrdup, xstrlcpy};
+use crate::memory::{cstr_take, xfree, xstrdup, xstrlcpy};
 use crate::message::{
     emsg, message_filtered, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts, msg_puts_title,
     semsg,
@@ -40,7 +40,7 @@ use crate::os::time::{Timestamp, os_time};
 use crate::path::{kPathCmpLiteral, path_equal, path_shorten_fname, vim_ispathsep_nocolon};
 use crate::plines::linetabsize_eol;
 use crate::quickfix::qf_mark_adjust;
-use crate::strings::{gettext, xstrnsave};
+use crate::strings::gettext;
 use crate::textformat::oparg_T;
 use crate::textobject::{findpar, findsent};
 use crate::undo::u_update_named_mark;
@@ -1019,35 +1019,41 @@ pub unsafe fn clrallmarks(buf: *mut buf_T, timestamp: Timestamp) {
 }
 
 /// Get name of file from a filemark (`fm_getname`).
-pub unsafe fn fm_getname(fmark: *mut fmark_T, lead_len: c_int) -> *mut c_char {
+pub unsafe fn fm_getname(fmark: *mut fmark_T, lead_len: c_int) -> Option<std::ffi::CString> {
     unsafe {
         if (*fmark).fnum == (*curbuf).b_fnum {
-            return mark_line(&raw mut (*fmark).mark, lead_len);
+            return Some(mark_line(&raw mut (*fmark).mark, lead_len));
         }
-        buflist_nr2name((*fmark).fnum, 0, 1)
+        cstr_take(buflist_nr2name((*fmark).fnum, 0, 1))
     }
 }
 
 /// Return the line at mark `mp`, truncated to fit in window (`mark_line`).
-unsafe fn mark_line(mp: *mut pos_T, lead_len: c_int) -> *mut c_char {
+unsafe fn mark_line(mp: *mut pos_T, lead_len: c_int) -> std::ffi::CString {
     unsafe {
         if (*mp).lnum == 0 || (*mp).lnum > (*curbuf).b_ml.ml_line_count {
-            return xstrdup(c"-invalid-".as_ptr());
+            return c"-invalid-".to_owned();
         }
         debug_assert!(Columns >= 0);
-        let s = xstrnsave(skipwhite(ml_get((*mp).lnum)), (Columns as usize) * 5);
+        let line = skipwhite(ml_get((*mp).lnum));
+        let max_bytes = std::ffi::CStr::from_ptr(line)
+            .to_bytes()
+            .len()
+            .min((Columns as usize) * 5);
 
         let mut len: c_int = 0;
-        let mut p = s;
-        while *p != NUL {
+        let mut p = line;
+        let end = line.add(max_bytes);
+        while p < end && *p != NUL {
             len += ptr2cells(p);
             if len >= Columns - lead_len {
                 break;
             }
             p = p.add(utfc_ptr2len(p) as usize);
         }
-        *p = NUL;
-        s
+        let keep = (p.offset_from(line) as usize).min(max_bytes);
+        std::ffi::CString::new(std::slice::from_raw_parts(line.cast::<u8>(), keep))
+            .unwrap_or_default()
     }
 }
 
@@ -1227,18 +1233,20 @@ pub unsafe fn ex_jumps(_eap: *mut exarg_T) {
             if (*curwin).w_jumplist[idx].fmark.mark.lnum != 0 {
                 let mut name = fm_getname(&raw mut (*curwin).w_jumplist[idx].fmark, 16);
 
-                if name.is_null() && i == (*curwin).w_jumplistidx {
-                    name = xstrdup(c"-invalid-".as_ptr());
+                if name.is_none() && i == (*curwin).w_jumplistidx {
+                    name = Some(c"-invalid-".to_owned());
                 }
-                if name.is_null() || message_filtered(name) {
-                    xfree(name.cast());
+                let Some(name_cstr) = name else {
+                    i += 1;
+                    continue;
+                };
+                if message_filtered(name_cstr.as_ptr()) {
                     i += 1;
                     continue;
                 }
 
                 msg_putchar(b'\n' as c_int);
                 if got_int {
-                    xfree(name.cast());
                     break;
                 }
                 let indicator = if i == (*curwin).w_jumplistidx {
@@ -1261,7 +1269,7 @@ pub unsafe fn ex_jumps(_eap: *mut exarg_T) {
 
                 msg_outtrans(&raw const IObuff[0], 0, false);
                 msg_outtrans(
-                    name,
+                    name_cstr.as_ptr(),
                     if (*curwin).w_jumplist[idx].fmark.fnum == (*curbuf).b_fnum {
                         HLF_D
                     } else {
@@ -1269,7 +1277,6 @@ pub unsafe fn ex_jumps(_eap: *mut exarg_T) {
                     },
                     false,
                 );
-                xfree(name.cast());
                 os_breakcheck();
             }
             i += 1;
@@ -1322,8 +1329,7 @@ pub unsafe fn ex_changes(_eap: *mut exarg_T) {
 
                 msg_outtrans(&raw const IObuff[0], 0, false);
                 let name = mark_line(&raw mut (*curbuf).b_changelist[idx].mark, 17);
-                msg_outtrans(name, HLF_D, false);
-                xfree(name.cast());
+                msg_outtrans(name.as_ptr(), HLF_D, false);
                 os_breakcheck();
             }
             i += 1;
@@ -2356,8 +2362,15 @@ pub unsafe fn get_global_marks(l: *mut list_T) {
         let fm_base = (&raw const namedfm).cast::<xfmark_T>();
         for i in 0..(NMARKS + EXTRA_MARKS) {
             let fm = &*fm_base.add(i);
+            let owned_name = if fm.fmark.fnum != 0 {
+                cstr_take(buflist_nr2name(fm.fmark.fnum, 1, 1))
+            } else {
+                None
+            };
             let name = if fm.fmark.fnum != 0 {
-                buflist_nr2name(fm.fmark.fnum, 1, 1)
+                owned_name
+                    .as_ref()
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
             } else {
                 fm.fname
             };
@@ -2376,9 +2389,6 @@ pub unsafe fn get_global_marks(l: *mut list_T) {
                     fm.fmark.fnum,
                     name,
                 );
-                if fm.fmark.fnum != 0 {
-                    xfree(name.cast());
-                }
             }
         }
     }

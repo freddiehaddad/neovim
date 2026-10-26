@@ -44,7 +44,7 @@ use crate::mark::{fm_getname, fmark_T, fmarkv_T, mark_view_make, mark_view_resto
 use crate::mbyte::{
     convert_setup, mb_ptr_adv, mb_strnicmp, string_convert, utfc_ptr2len, vimconv_T,
 };
-use crate::memory::{xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_take, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, give_warning, msg, msg_delay, msg_outtrans, msg_putchar, msg_puts, msg_puts_title, semsg,
     smsg, verbose_enter, verbose_leave, wait_return,
@@ -52,7 +52,6 @@ use crate::message::{
 use crate::r#move::{set_topline, validate_cursor};
 use crate::option::{OptInt, copy_option_part};
 use crate::option_vars::*;
-use crate::optionstr::free_string_option;
 use crate::os::fs::{os_fopen, os_path_exists};
 use crate::os::input::{fast_breakcheck, line_breakcheck, os_breakcheck};
 use crate::path::{
@@ -68,7 +67,7 @@ use crate::search::{do_search, ignorecase, ignorecase_opt};
 use crate::state::MODE_INSERT;
 use crate::strings::{
     atoi, gettext, strcmp, strcpy, strlen, strncmp, strpbrk, strstr, vim_snprintf,
-    vim_snprintf_safelen, vim_strchr, xstrnsave,
+    vim_snprintf_safelen, vim_strchr,
 };
 use crate::window::{
     WSP_VERT, check_can_set_curbuf_forceit, swbuf_goto_win_with_buf, tabpage_index, win_T,
@@ -348,7 +347,7 @@ impl findtags_state_T {
     }
 }
 
-static mut nofile_fname: *mut c_char = ptr::null_mut();
+static mut nofile_fname: Option<std::ffi::CString> = None;
 static mut tagmatchname: Option<std::ffi::CString> = None;
 static mut ptag_entry: taggy_T = taggy_T {
     tagname: None,
@@ -454,8 +453,7 @@ pub unsafe fn do_tag(
         }
 
         let prev_num_matches = (*do_tag_matches).len() as c_int;
-        free_string_option(nofile_fname);
-        nofile_fname = ptr::null_mut();
+        nofile_fname = None;
 
         assert!(!tag.is_null());
         'end_do_tag: {
@@ -770,7 +768,9 @@ pub unsafe fn do_tag(
                     }
 
                     if cur_match >= do_tag_num_matches {
-                        if (type_ == DT_NEXT || type_ == DT_FIRST) && nofile_fname.is_null() {
+                        if (type_ == DT_NEXT || type_ == DT_FIRST)
+                            && (&raw const nofile_fname).as_ref().unwrap().is_none()
+                        {
                             if do_tag_num_matches == 1 {
                                 emsg(gettext(c"E427: There is only one matching tag".as_ptr()));
                             } else {
@@ -809,11 +809,13 @@ pub unsafe fn do_tag(
                         ptag_entry.cur_fnum = cur_fnum;
                     }
 
-                    if !nofile_fname.is_null() && error_cur_match != cur_match {
+                    if let Some(ref nf) = *(&raw const nofile_fname).as_ref().unwrap()
+                        && error_cur_match != cur_match
+                    {
                         smsg!(
                             0,
                             gettext(c"File \"%s\" does not exist".as_ptr()),
-                            nofile_fname,
+                            nf.as_ptr(),
                         );
                     }
 
@@ -888,7 +890,11 @@ pub unsafe fn do_tag(
                         }
                         semsg!(
                             gettext(c"E429: File \"%s\" does not exist".as_ptr()),
-                            nofile_fname,
+                            (&raw const nofile_fname)
+                                .as_ref()
+                                .unwrap()
+                                .as_ref()
+                                .map_or(c"".as_ptr(), |s| s.as_ptr()),
                         );
                     } else if use_tagstack && tagstackidx > (*curwin).w_tagstacklen {
                         tagstackidx = (*curwin).w_tagstackidx;
@@ -960,17 +966,7 @@ unsafe fn select_tag_match(
                 );
             }
             let fname = tag_full_fname(&mut tagp);
-            tv_dict_add_str(
-                d,
-                c"file".as_ptr(),
-                4,
-                if !fname.is_null() {
-                    fname.cast_const()
-                } else {
-                    c"".as_ptr()
-                },
-            );
-            xfree(fname.cast());
+            tv_dict_add_str(d, c"file".as_ptr(), 4, fname.as_ptr());
             tv_dict_add_bool(
                 d,
                 c"cur".as_ptr(),
@@ -1033,11 +1029,7 @@ unsafe fn add_llist_tags(tag: *mut c_char, matches: &[*mut c_char]) -> c_int {
             tag_name[len as usize] = NUL;
 
             let p = tag_full_fname(&mut tagp);
-            if p.is_null() {
-                continue;
-            }
-            xstrlcpy(fname, p, MAXPATHL);
-            xfree(p.cast());
+            xstrlcpy(fname, p.as_ptr(), MAXPATHL);
 
             let mut lnum: linenr_T = 0;
             if ascii_isdigit(*tagp.command) {
@@ -1134,10 +1126,9 @@ pub unsafe fn do_tags(_eap: *mut exarg_T) {
         for i in 0..tagstacklen {
             let entry = tagstack.add(i as usize);
             if let Some(ref tagname) = (*entry).tagname {
-                let name = fm_getname(&raw mut (*entry).fmark, 30);
-                if name.is_null() {
+                let Some(name) = fm_getname(&raw mut (*entry).fmark, 30) else {
                     continue;
-                }
+                };
 
                 msg_putchar(b'\n' as c_int);
                 let iobuf_ptr = (&raw mut IObuff).cast::<c_char>();
@@ -1157,7 +1148,7 @@ pub unsafe fn do_tags(_eap: *mut exarg_T) {
                 );
                 msg_outtrans(iobuf_ptr, 0, false);
                 msg_outtrans(
-                    name,
+                    name.as_ptr(),
                     if (*entry).fmark.fnum == (*curbuf).b_fnum {
                         HLF_D
                     } else {
@@ -1165,7 +1156,6 @@ pub unsafe fn do_tags(_eap: *mut exarg_T) {
                     },
                     false,
                 );
-                xfree(name.cast());
             }
         }
         if tagstackidx == tagstacklen {
@@ -1992,17 +1982,19 @@ unsafe fn findtags_match_tag(
 unsafe fn findtags_string_convert(st: *mut findtags_state_T) {
     unsafe {
         let st = &mut *st;
-        let conv_line = string_convert(&st.vimconv, st.lbuf.as_mut_ptr(), ptr::null_mut());
-        if conv_line.is_null() {
+        let Some(conv_line) = cstr_take(string_convert(
+            &st.vimconv,
+            st.lbuf.as_mut_ptr(),
+            ptr::null_mut(),
+        )) else {
             return;
-        }
+        };
 
-        let len = strlen(conv_line) + 1;
+        let len = conv_line.to_bytes_with_nul().len();
         if len > st.lbuf.len() {
             st.lbuf.resize(len, 0);
         }
-        strcpy(st.lbuf.as_mut_ptr(), conv_line);
-        xfree(conv_line.cast());
+        strcpy(st.lbuf.as_mut_ptr(), conv_line.as_ptr());
     }
 }
 
@@ -2304,7 +2296,7 @@ pub unsafe fn find_tags_vec(
     unsafe {
         let mut st = findtags_state_T::new();
         let mut retval: c_int;
-        let mut saved_pat: *mut c_char = ptr::null_mut();
+        let mut saved_pat: Option<std::ffi::CString> = None;
 
         let findall = mincount == MAXCOL || mincount == TAG_MANY;
         let has_re = (flags & TAG_REGEXP) != 0;
@@ -2339,9 +2331,12 @@ pub unsafe fn find_tags_vec(
             && ascii_isalpha(*pat.add((st.orgpat.len - 2) as usize))
             && ascii_isalpha(*pat.add((st.orgpat.len - 1) as usize))
         {
-            saved_pat = xstrnsave(pat, (st.orgpat.len - 3) as usize);
+            let keep = (st.orgpat.len - 3) as usize;
+            let cstr =
+                std::ffi::CString::new(std::slice::from_raw_parts(pat.cast::<u8>(), keep)).unwrap();
             st.help_lang_find = pat.add((st.orgpat.len - 2) as usize);
-            st.orgpat.pat = saved_pat;
+            st.orgpat.pat = cstr.as_ptr().cast_mut();
+            saved_pat = Some(cstr);
             st.orgpat.len -= 3;
         }
         if p_tl != 0 && (st.orgpat.len as OptInt) > p_tl {
@@ -2418,7 +2413,7 @@ pub unsafe fn find_tags_vec(
         findtags_copy_matches(&raw mut st, matches);
 
         (*curbuf).b_help = help_save;
-        xfree(saved_pat.cast());
+        drop(saved_pat);
 
         p_ic = save_p_ic;
 
@@ -2430,10 +2425,9 @@ pub unsafe fn found_tagfile_cb(fnames: &[*mut c_char], all: bool) -> bool {
     unsafe {
         let tf = &raw mut tag_fnames;
         for &fname in fnames {
-            let tag_fname = xstrdup(fname);
-            simplify_filename(tag_fname);
-            (*tf).push(CStr::from_ptr(tag_fname).to_owned());
-            xfree(tag_fname.cast());
+            let mut tag_fname = CStr::from_ptr(fname).to_owned().into_bytes_with_nul();
+            simplify_filename(tag_fname.as_mut_ptr().cast());
+            (*tf).push(CStr::from_ptr(tag_fname.as_ptr().cast()).to_owned());
 
             if !all {
                 break;
@@ -2693,7 +2687,7 @@ unsafe fn parse_match(mut lbuf: *mut c_char, tagp: &mut tagptrs_T) -> c_int {
     }
 }
 
-unsafe fn tag_full_fname(tagp: &mut tagptrs_T) -> *mut c_char {
+unsafe fn tag_full_fname(tagp: &mut tagptrs_T) -> std::ffi::CString {
     unsafe {
         let c = *tagp.fname_end;
         *tagp.fname_end = NUL;
@@ -2710,12 +2704,12 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
         }
 
         let mut pbuf_end: *mut c_char;
-        let mut tofree_fname: *mut c_char = ptr::null_mut();
+        let mut tofree_fname: Option<std::ffi::CString> = None;
         let mut tagp = tagptrs_T::default();
         let mut retval = FAIL;
         let mut getfile_result = GETFILE_UNUSED;
         let mut curwin_save: *mut win_T = ptr::null_mut();
-        let mut full_fname: *mut c_char = ptr::null_mut();
+        let mut full_fname: Option<std::ffi::CString> = None;
         let old_KeyTyped = KeyTyped;
         let l_g_do_tagpreview = g_do_tagpreview;
         let len = matching_line_len(lbuf_arg) + 1;
@@ -2758,13 +2752,13 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
                 }
             }
 
-            fname = expand_tag_fname(fname, tagp.tag_fname, true);
-            tofree_fname = fname;
+            let expanded = expand_tag_fname(fname, tagp.tag_fname, true);
+            fname = expanded.as_ptr().cast_mut();
+            tofree_fname = Some(expanded);
 
             if !os_path_exists(fname) && !has_autocmd(EVENT_BUFREADCMD, fname, ptr::null_mut()) {
                 retval = NOTAGFILE;
-                xfree(nofile_fname.cast());
-                nofile_fname = xstrdup(fname);
+                nofile_fname = tofree_fname.take();
                 break 'erret;
             }
 
@@ -2775,8 +2769,10 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
                 curwin_save = curwin;
 
                 if (*curwin).w_onebuf_opt.wo_pvw == 0 {
-                    full_fname = FullName_save(fname, false);
-                    fname = full_fname;
+                    full_fname = cstr_take(FullName_save(fname, false));
+                    fname = full_fname
+                        .as_ref()
+                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
                     prepare_tagpreview(true, *p_pvp != NUL);
                 }
@@ -3003,8 +2999,8 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
         }
 
         g_do_tagpreview = 0;
-        xfree(tofree_fname.cast());
-        xfree(full_fname.cast());
+        drop(tofree_fname);
+        drop(full_fname);
 
         retval
     }
@@ -3014,45 +3010,42 @@ unsafe fn expand_tag_fname(
     fname_arg: *mut c_char,
     tag_fname: *mut c_char,
     expand: bool,
-) -> *mut c_char {
+) -> std::ffi::CString {
     unsafe {
         let mut xpc: expand_T = expand_T::new();
 
-        let mut fname = to_slash_save(fname_arg);
+        let mut fname = cstr_take(to_slash_save(fname_arg)).unwrap_or_default();
 
-        if expand && path_has_wildcard(fname, true) && vim_strchr(fname, b'`' as c_int).is_null() {
+        if expand
+            && path_has_wildcard(fname.as_ptr(), true)
+            && vim_strchr(fname.as_ptr(), b'`' as c_int).is_null()
+        {
             xpc.xp_context = EXPAND_FILES;
-            let expanded_fname = ExpandOne(
+            let expanded_fname = cstr_take(ExpandOne(
                 &raw mut xpc,
-                fname,
+                fname.as_ptr().cast_mut(),
                 ptr::null_mut(),
                 WILD_LIST_NOTFOUND | WILD_SILENT,
                 WILD_EXPAND_FREE,
-            );
-            if !expanded_fname.is_null() {
-                xfree(fname.cast());
-                fname = expanded_fname;
+            ));
+            if let Some(exp) = expanded_fname {
+                fname = exp;
             }
         }
 
-        let retval: *mut c_char;
-        if (p_tr != 0 || (*curbuf).b_help) && !vim_isAbsName(fname) {
+        if (p_tr != 0 || (*curbuf).b_help) && !vim_isAbsName(fname.as_ptr()) {
             let p = path_tail(tag_fname);
             if p != tag_fname {
-                retval = xmalloc(MAXPATHL).cast::<c_char>();
-                strcpy(retval, tag_fname);
+                let mut retval = [0 as c_char; MAXPATHL];
+                strcpy(retval.as_mut_ptr(), tag_fname);
                 let off = p.offset_from(tag_fname) as usize;
-                xstrlcpy(retval.add(off), fname, MAXPATHL - off);
-                simplify_filename(retval);
-            } else {
-                retval = xstrdup(fname);
+                xstrlcpy(retval.as_mut_ptr().add(off), fname.as_ptr(), MAXPATHL - off);
+                simplify_filename(retval.as_mut_ptr());
+                return CStr::from_ptr(retval.as_ptr()).to_owned();
             }
-        } else {
-            retval = xstrdup(fname);
         }
 
-        xfree(fname.cast());
-        retval
+        fname
     }
 }
 
@@ -3069,11 +3062,10 @@ unsafe fn test_for_current(
             *fname_end = NUL;
             let fullname = expand_tag_fname(fname, tag_fname, true);
             retval = path_equal(
-                fullname,
+                fullname.as_ptr(),
                 buf_ffname,
                 (kPathCmpExpand | kPathCmpFull) as PathCmpFlags,
             );
-            xfree(fullname.cast());
             *fname_end = c;
         }
         c_int::from(retval)
@@ -3242,7 +3234,12 @@ pub unsafe fn get_tags(list: *mut list_T, pat: *mut c_char, buf_fname: *mut c_ch
 
             let full_fname = tag_full_fname(&mut tp);
             if add_tag_field(dict, c"name".as_ptr(), tp.tagname, tp.tagname_end) == FAIL
-                || add_tag_field(dict, c"filename".as_ptr(), full_fname, ptr::null()) == FAIL
+                || add_tag_field(
+                    dict,
+                    c"filename".as_ptr(),
+                    full_fname.as_ptr().cast_mut(),
+                    ptr::null(),
+                ) == FAIL
                 || add_tag_field(dict, c"cmd".as_ptr(), tp.command, tp.command_end) == FAIL
                 || add_tag_field(
                     dict,
@@ -3258,8 +3255,7 @@ pub unsafe fn get_tags(list: *mut list_T, pat: *mut c_char, buf_fname: *mut c_ch
             {
                 ret = FAIL;
             }
-
-            xfree(full_fname.cast());
+            drop(full_fname);
 
             if !tp.command_end.is_null() {
                 let mut p = tp.command_end.add(3);
@@ -3408,12 +3404,12 @@ unsafe fn tagstack_shift(wp: *mut win_T) {
 
 unsafe fn tagstack_push_item(
     wp: *mut win_T,
-    tagname: *mut c_char,
+    tagname: Option<std::ffi::CString>,
     cur_fnum: c_int,
     cur_match: c_int,
     mark: pos_T,
     fnum: c_int,
-    user_data: *mut c_char,
+    user_data: Option<std::ffi::CString>,
 ) {
     unsafe {
         let tagstack = (&raw mut (*wp).w_tagstack).cast::<taggy_T>();
@@ -3426,13 +3422,7 @@ unsafe fn tagstack_push_item(
 
         (*wp).w_tagstacklen += 1;
         let entry = tagstack.add(idx as usize);
-        (*entry).tagname = if tagname.is_null() {
-            None
-        } else {
-            let cstr = CStr::from_ptr(tagname).to_owned();
-            xfree(tagname.cast());
-            Some(cstr)
-        };
+        (*entry).tagname = tagname;
         (*entry).cur_fnum = cur_fnum;
         (*entry).cur_match = cur_match.max(0);
         (*entry).fmark.mark = mark;
@@ -3441,13 +3431,7 @@ unsafe fn tagstack_push_item(
             topline_offset: MAXLNUM,
             skipcol: 0,
         };
-        (*entry).user_data = if user_data.is_null() {
-            None
-        } else {
-            let cstr = CStr::from_ptr(user_data).to_owned();
-            xfree(user_data.cast());
-            Some(cstr)
-        };
+        (*entry).user_data = user_data;
     }
 }
 
@@ -3477,19 +3461,20 @@ unsafe fn tagstack_push_items(wp: *mut win_T, l: *mut list_T) {
                         false,
                     ) == OK
                     {
-                        let tagname = tv_dict_get_string(itemdict, c"tagname".as_ptr(), true);
+                        let tagname = tv_dict_get_string(itemdict, c"tagname".as_ptr(), false);
                         if !tagname.is_null() {
                             if mark.col > 0 {
                                 mark.col -= 1;
                             }
+                            let ud_ptr = tv_dict_get_string(itemdict, c"user_data".as_ptr(), false);
                             tagstack_push_item(
                                 wp,
-                                tagname,
+                                Some(CStr::from_ptr(tagname).to_owned()),
                                 tv_dict_get_number(itemdict, c"bufnr".as_ptr()) as c_int,
                                 tv_dict_get_number(itemdict, c"matchnr".as_ptr()) as c_int - 1,
                                 mark,
                                 fnum,
-                                tv_dict_get_string(itemdict, c"user_data".as_ptr(), true),
+                                (!ud_ptr.is_null()).then(|| CStr::from_ptr(ud_ptr).to_owned()),
                             );
                         }
                     }
