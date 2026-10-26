@@ -11,7 +11,7 @@ use crate::ex_docmd::{CMOD_KEEPPATTERNS, exarg_T};
 use crate::ex_getln::{get_cmdline_firstc, get_list_range};
 use crate::globals::*;
 use crate::math::{FAIL, OK};
-use crate::memory::{xfree, xmallocz, xstrdup, xstrlcpy};
+use crate::memory::{xmallocz, xstrdup, xstrlcpy};
 use crate::message::{
     message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts_title, semsg,
     trunc_string,
@@ -50,7 +50,7 @@ pub struct histentry_T {
     pub hisstr: Option<std::ffi::CString>,
     pub sep: c_char,
     pub timestamp: u64,
-    pub additional_data: *mut crate::search::AdditionalData,
+    pub additional_data: Option<crate::search::AdditionalData>,
 }
 
 impl histentry_T {
@@ -60,7 +60,7 @@ impl histentry_T {
             hisstr: None,
             sep: 0,
             timestamp: 0,
-            additional_data: std::ptr::null_mut(),
+            additional_data: None,
         }
     }
 
@@ -96,8 +96,6 @@ unsafe fn clear_hist_entry(hisptr: *mut histentry_T) {
 #[inline]
 unsafe fn hist_free_entry(hisptr: *mut histentry_T) {
     unsafe {
-        (*hisptr).hisstr = None;
-        xfree((*hisptr).additional_data.cast());
         clear_hist_entry(hisptr);
     }
 }
@@ -243,14 +241,13 @@ unsafe fn in_history(
             HISTORY[hist_type][last_i as usize] = HISTORY[hist_type][i as usize].clone();
             last_i = i;
         }
-        xfree(matched.additional_data.cast());
         HISNUM[hist_type] += 1;
         let dst = &mut HISTORY[hist_type][i as usize];
         dst.hisnum = HISNUM[hist_type];
         dst.hisstr = matched.hisstr;
         dst.sep = matched.sep;
         dst.timestamp = os_time();
-        dst.additional_data = std::ptr::null_mut();
+        dst.additional_data = None;
         true
     }
 }
@@ -331,7 +328,7 @@ pub unsafe fn add_to_history(
         hisptr.hisstr = Some(std::ffi::CString::new(&entry_bytes[..actual_len]).unwrap());
         hisptr.sep = sep as c_char;
         hisptr.timestamp = os_time();
-        hisptr.additional_data = std::ptr::null_mut();
+        hisptr.additional_data = None;
         HISNUM[htype] += 1;
         hisptr.hisnum = HISNUM[htype];
 

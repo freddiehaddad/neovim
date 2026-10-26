@@ -26,7 +26,7 @@ use crate::lua::executor::nlua_call_excmd;
 use crate::mbyte::{ptr2cells, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::mcursor::mc_replaying;
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len};
-use crate::memory::{cstr_take, xfree, xstrlcpy};
+use crate::memory::{cstr_take, xstrlcpy};
 use crate::message::{
     emsg, message_filtered, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts, msg_puts_title,
     semsg,
@@ -63,14 +63,13 @@ pub struct fmarkv_T {
     pub skipcol: i32,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct fmark_T {
     pub mark: pos_T,
     pub fnum: c_int,
     pub timestamp: u64,
     pub view: fmarkv_T,
-    pub additional_data: *mut crate::search::AdditionalData,
+    pub additional_data: Option<crate::search::AdditionalData>,
 }
 
 impl fmark_T {
@@ -86,7 +85,7 @@ impl fmark_T {
             topline_offset: 0,
             skipcol: 0,
         },
-        additional_data: ptr::null_mut(),
+        additional_data: None,
     };
 
     pub const fn new() -> Self {
@@ -214,14 +213,13 @@ unsafe fn set_fmark(fmarkp: *mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv
         (*fmarkp).fnum = fnum;
         (*fmarkp).timestamp = os_time();
         (*fmarkp).view = view;
-        (*fmarkp).additional_data = ptr::null_mut();
+        (*fmarkp).additional_data = None;
     }
 }
 
 #[inline]
 pub unsafe fn reset_fmark(fmarkp: *mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv_T) {
     unsafe {
-        free_fmark(*fmarkp);
         set_fmark(fmarkp, mark, fnum, view);
     }
 }
@@ -267,25 +265,15 @@ pub unsafe fn setmark(c: c_int) -> c_int {
     }
 }
 
-/// Free `fmark_T` item (`free_fmark`).
-pub unsafe fn free_fmark(fm: fmark_T) {
-    unsafe {
-        xfree(fm.additional_data.cast());
-    }
-}
-
 /// Free `xfmark_T` item (`free_xfmark`).
 pub unsafe fn free_xfmark(fm: &mut xfmark_T) {
-    unsafe {
-        fm.fname = None;
-        free_fmark(fm.fmark);
-    }
+    fm.fname = None;
+    fm.fmark.additional_data = None;
 }
 
 /// Free and clear `fmark_T` item (`clear_fmark`).
 pub unsafe fn clear_fmark(fm: *mut fmark_T, timestamp: Timestamp) {
     unsafe {
-        free_fmark(*fm);
         *fm = INIT_FMARK;
         (*fm).timestamp = timestamp;
     }
@@ -634,7 +622,7 @@ pub unsafe fn mark_get(
             fm = mark_get_local(buf, win, name);
         }
         if !fmp.is_null() && !fm.is_null() {
-            *fmp = *fm;
+            *fmp = (*fm).clone();
             return fmp;
         }
         fm
@@ -798,7 +786,7 @@ pub unsafe fn mark_move_to(mut fm: *mut fmark_T, flags: MarkMove) -> MarkMoveRes
         }
 
         if (*fm).fnum != (*curbuf).b_fnum {
-            MARK_MOVE_TO_FM_COPY = *fm;
+            MARK_MOVE_TO_FM_COPY = (*fm).clone();
             fm = &raw mut MARK_MOVE_TO_FM_COPY;
             res |= switch_to_mark_buf(fm, (flags & kMarkJumpList) == 0);
             if (res & kMarkMoveFailed) != 0 {
@@ -2096,7 +2084,7 @@ pub fn mark_buffer_iter(
     while let Some(m) = iter_mark {
         if m.mark.lnum != 0 {
             *name = mark_name;
-            *fm = *m;
+            *fm = m.clone();
             return Some(mark_name);
         }
         iter_mark = next_buffer_mark(buf, &mut mark_name);
@@ -2142,9 +2130,6 @@ pub unsafe fn mark_set_local(name: c_char, buf: *mut buf_T, fm: fmark_T, update:
         };
         if update && fm.timestamp <= (*fm_tgt).timestamp {
             return false;
-        }
-        if (*fm_tgt).mark.lnum != 0 {
-            free_fmark(*fm_tgt);
         }
         *fm_tgt = fm;
         true

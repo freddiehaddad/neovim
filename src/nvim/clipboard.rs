@@ -138,7 +138,7 @@ pub unsafe fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet:
                 }
                 reg.y_array.clear();
                 reg.y_allocated = false;
-                reg.additional_data = std::ptr::null_mut();
+                reg.additional_data = None;
                 reg.timestamp = 0;
                 if errmsg {
                     emsg(c"clipboard: provider returned invalid data".as_ptr());
@@ -191,7 +191,7 @@ pub unsafe fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet:
         reg.y_array = Vec::with_capacity(lines_len);
         reg.y_allocated = true;
         reg.y_width = 0;
-        reg.additional_data = std::ptr::null_mut();
+        reg.additional_data = None;
         reg.timestamp = 0;
 
         let mut li = if lines.is_null() {

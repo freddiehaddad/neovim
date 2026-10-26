@@ -296,7 +296,7 @@ static mut append_indent: c_int = 0;
 static mut old_sub: SubReplacementString = SubReplacementString {
     sub: None,
     timestamp: 0,
-    additional_data: ptr::null_mut(),
+    additional_data: None,
 };
 
 static mut global_need_beginline: bool = false;
@@ -3690,9 +3690,6 @@ pub unsafe fn sub_get_replacement(ret_sub: *mut SubReplacementString) {
 /// Set substitute string and timestamp.
 pub unsafe fn sub_set_replacement(sub: SubReplacementString) {
     unsafe {
-        if sub.additional_data != old_sub.additional_data {
-            xfree(old_sub.additional_data.cast());
-        }
         old_sub = sub;
     }
 }
@@ -3998,7 +3995,7 @@ unsafe fn do_sub(
                 sub_set_replacement(SubReplacementString {
                     sub: Some(CStr::from_ptr(sub).to_owned()),
                     timestamp: os_time(),
-                    additional_data: ptr::null_mut(),
+                    additional_data: None,
                 });
             }
         } else if (*eap).skip == 0 {
@@ -5076,7 +5073,7 @@ pub unsafe fn free_old_sub() {
         sub_set_replacement(SubReplacementString {
             sub: None,
             timestamp: 0,
-            additional_data: ptr::null_mut(),
+            additional_data: None,
         });
     }
 }

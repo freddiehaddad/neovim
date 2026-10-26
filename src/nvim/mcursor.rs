@@ -364,7 +364,7 @@ unsafe fn mc_sandbox_leave(sb: *mut McSandbox) {
 
 unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
     unsafe {
-        let mut ctx = cursors()[cursoridx];
+        let mut ctx = cursors()[cursoridx].clone();
         let (atom_keys, atom_type, atom_cmd, atom_cmd2, atom_remap) = {
             let ga = &raw const g_atoms;
             let a = &(*ga).as_slice()[atomidx];
@@ -594,7 +594,7 @@ unsafe fn mc_cleanup(dedupe: bool, primary: *const pos_T, keep_mark: u32) {
         let had_cursors = !cursors().is_empty();
         let mut n = 0;
         for i in 0..cursors().len() {
-            let mut ctx = cursors()[i];
+            let mut ctx = cursors()[i].clone();
             let buf = handle_get_buffer(ctx.buf);
             if buf.is_null()
                 || (ctx.mark != 0 && !extmark_get_pos(buf, mc_ns(), ctx.mark, &mut ctx.pos))
@@ -763,10 +763,10 @@ unsafe fn mc_ins_preview_rebase() {
         mc_region_mark_set(&raw mut mc_ins_span.region, (*curwin).w_cursor);
         mc_ins_regions_clear();
         for i in 0..cursors().len() {
-            let ctx = cursors()[i];
+            let ctx = &cursors()[i];
             let mut pos = INIT_POS;
             let mut mark = 0;
-            if mc_ctx_resolve(&ctx, &mut pos) && ctx.mark != mc_ins_span.origin.mcursor {
+            if mc_ctx_resolve(ctx, &mut pos) && ctx.mark != mc_ins_span.origin.mcursor {
                 mc_region_mark_set(&mut mark, pos);
                 ins_regions_mut().push(mark);
             }
@@ -1246,7 +1246,7 @@ pub unsafe fn mc_vsel_refresh() {
                 continue;
             }
             cursors_mut()[i].pos = pos;
-            let mut ctx = cursors()[i];
+            let mut ctx = cursors()[i].clone();
             ctx_load(&mut ctx, kCtxCursor | kCtxVisual | kCtxMarks, 0);
             check_cursor(curwin);
             Visual.active = false;
@@ -1899,10 +1899,12 @@ pub unsafe fn mc_ns_clearing(buf: *mut buf_T, ns_id: u32) {
             return;
         }
         for i in 0..cursors().len() {
-            let ctx = cursors()[i];
-            if ctx.buf == (*buf).b_fnum && ctx.mark != 0 {
-                let mut pos = ctx.pos;
-                extmark_get_pos(buf, mc_ns(), ctx.mark, &mut pos);
+            let (ctx_buf, ctx_mark, mut pos) = {
+                let ctx = &cursors()[i];
+                (ctx.buf, ctx.mark, ctx.pos)
+            };
+            if ctx_buf == (*buf).b_fnum && ctx_mark != 0 {
+                extmark_get_pos(buf, mc_ns(), ctx_mark, &mut pos);
                 cursors_mut()[i].pos = pos;
             }
         }
@@ -1939,12 +1941,15 @@ pub unsafe fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
                 );
             }
             for idx in 0..cursors().len() {
-                let ctx = cursors()[idx];
-                if ctx.buf != (*buf).b_fnum {
+                let (ctx_buf, ctx_pos) = {
+                    let ctx = &cursors()[idx];
+                    (ctx.buf, ctx.pos)
+                };
+                if ctx_buf != (*buf).b_fnum {
                     continue;
                 }
                 let mut mark: u32 = 0;
-                extmark_set_pos(buf, mc_last_ns(), &mut mark, ctx.pos, true, false, false);
+                extmark_set_pos(buf, mc_last_ns(), &mut mark, ctx_pos, true, false, false);
             }
         }
         mc_cleanup(false, ptr::null(), 0);

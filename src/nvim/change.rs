@@ -385,7 +385,8 @@ unsafe fn changed_common(
                     (*buf).b_changelistlen += 1;
                 }
             }
-            (*buf).b_changelist[((*buf).b_changelistlen - 1) as usize] = (*buf).b_last_change;
+            (*buf).b_changelist[((*buf).b_changelistlen - 1) as usize] =
+                (*buf).b_last_change.clone();
             if (*curwin).w_buffer == buf {
                 (*curwin).w_changelistidx = (*buf).b_changelistlen;
             }

@@ -92,7 +92,6 @@ pub enum MotionType {
     kMTBlockWise = 2,
 }
 
-#[repr(C)]
 #[derive(Clone, Debug)]
 pub struct yankreg_T {
     pub y_array: Vec<NvimString>,
@@ -100,13 +99,12 @@ pub struct yankreg_T {
     pub y_type: MotionType,
     pub y_width: c_int,
     pub timestamp: u64,
-    pub additional_data: *mut crate::search::AdditionalData,
+    pub additional_data: Option<crate::search::AdditionalData>,
 }
 
 impl Drop for yankreg_T {
     fn drop(&mut self) {
         unsafe {
-            xfree(self.additional_data.cast());
             for item in self.y_array.iter_mut().rev() {
                 api_clear_string(item);
             }
@@ -188,7 +186,7 @@ pub const EMPTY_YANKREG: yankreg_T = yankreg_T {
     y_type: MotionType::kMTCharWise,
     y_width: 0,
     timestamp: 0,
-    additional_data: ptr::null_mut(),
+    additional_data: None,
 };
 
 static mut expr_line: *mut c_char = ptr::null_mut();
@@ -544,7 +542,7 @@ pub unsafe fn copy_register(name: c_int) -> yankreg_T {
             y_type: reg.y_type,
             y_width: reg.y_width,
             timestamp: reg.timestamp,
-            additional_data: ptr::null_mut(),
+            additional_data: None,
         }
     }
 }
@@ -574,7 +572,7 @@ unsafe fn stuff_yank(regname: c_int, p: *mut c_char) -> c_int {
             *pp = cbuf_as_string(tmp, tmplen);
         } else {
             *reg = EMPTY_YANKREG;
-            reg.additional_data = ptr::null_mut();
+            reg.additional_data = None;
             reg.y_array = vec![cbuf_as_string(p, plen)];
             reg.y_allocated = true;
             reg.y_type = MotionType::kMTCharWise;
@@ -1169,7 +1167,7 @@ pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankre
             yanklines
         ];
         (*reg).y_allocated = true;
-        (*reg).additional_data = ptr::null_mut();
+        (*reg).additional_data = None;
         (*reg).timestamp = os_realtime() as u64;
 
         let mut y_idx: usize = 0;
@@ -2939,8 +2937,7 @@ unsafe fn str_to_reg(
             }
         }
         y_reg.y_type = yank_type;
-        xfree(y_reg.additional_data.cast());
-        y_reg.additional_data = ptr::null_mut();
+        y_reg.additional_data = None;
         y_reg.timestamp = os_realtime() as u64;
         if yank_type == MotionType::kMTBlockWise {
             y_reg.y_width = if blocklen == -1 {
@@ -3124,7 +3121,7 @@ pub unsafe fn prepare_yankreg_from_object(
             }
         }
 
-        (*reg).additional_data = ptr::null_mut();
+        (*reg).additional_data = None;
         (*reg).timestamp = 0;
         true
     }

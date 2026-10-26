@@ -1801,7 +1801,7 @@ pub unsafe fn did_set_buftype(args: *mut optset_T) -> *const c_char {
                     topline_offset: MAXLNUM,
                     skipcol: 0,
                 },
-                additional_data: ptr::null_mut(),
+                additional_data: None,
             };
         }
         if (*win).w_status_height != 0 || global_stl_height() != 0 {

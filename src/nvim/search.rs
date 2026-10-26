@@ -49,7 +49,7 @@ use crate::mbyte::{
     utf_ptr2char, utfc_ptr2len,
 };
 use crate::memline::{decl, inc, incl, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
-use crate::memory::{cstr_take, xfree, xstrlcpy};
+use crate::memory::{cstr_take, xstrlcpy};
 use crate::message::{
     emsg, give_warning, iemsg, messaging, msg, msg_check, msg_clr_eos, msg_end, msg_ext_set_kind,
     msg_home_replace, msg_outtrans, msg_prt_line, msg_putchar, msg_puts, msg_puts_hl,
@@ -89,7 +89,7 @@ use crate::api::vim::HLF_N;
 use crate::cmdexpand::{HLF_D, RE_LAST, SEARCH_NOOF, SEARCH_OPT, SEARCH_PEEK, SEARCH_START};
 use crate::eval::funcs::{RE_SEARCH, SEARCH_COL, SEARCH_END, SEARCH_KEEP, kMTLineWise};
 use crate::globals::IOSIZE;
-pub type AdditionalData = crate::msgpack_rpc::unpacker::AdditionalDataHeader;
+pub type AdditionalData = crate::msgpack_rpc::unpacker::AdditionalData;
 
 const SEARCH_STAT_DEF_TIMEOUT: c_int = 40;
 const SEARCH_STAT_BUF_LEN: usize = 16;
@@ -130,7 +130,7 @@ pub struct SearchPattern {
     pub no_scs: bool,
     pub timestamp: Timestamp,
     pub off: SearchOffset,
-    pub additional_data: *mut AdditionalData,
+    pub additional_data: Option<AdditionalData>,
 }
 
 impl SearchPattern {
@@ -141,7 +141,7 @@ impl SearchPattern {
             no_scs: false,
             timestamp: 0,
             off: SearchOffset::new(),
-            additional_data: ptr::null_mut(),
+            additional_data: None,
         }
     }
 
@@ -233,7 +233,7 @@ const EMPTY_SEARCH_PATTERN: SearchPattern = SearchPattern {
     no_scs: false,
     timestamp: 0,
     off: EMPTY_SEARCH_OFFSET,
-    additional_data: ptr::null_mut(),
+    additional_data: None,
 };
 
 static mut spats: [SearchPattern; 2] = [EMPTY_SEARCH_PATTERN, EMPTY_SEARCH_PATTERN];
@@ -394,7 +394,7 @@ pub unsafe fn save_re_pat(idx: c_int, pat: *mut c_char, patlen: usize, magic: c_
         spats[i].magic = magic != 0;
         spats[i].no_scs = Search.no_smartcase;
         spats[i].timestamp = os_time();
-        spats[i].additional_data = ptr::null_mut();
+        spats[i].additional_data = None;
         last_idx = idx;
         if p_hls != 0 {
             redraw_all_later(UPD_SOME_VALID);
@@ -442,8 +442,7 @@ pub unsafe fn restore_search_patterns() {
 unsafe fn free_spat(spat: *mut SearchPattern) {
     unsafe {
         (*spat).pat = None;
-        xfree((*spat).additional_data.cast());
-        (*spat).additional_data = ptr::null_mut();
+        (*spat).additional_data = None;
     }
 }
 
@@ -630,7 +629,7 @@ pub unsafe fn set_last_search_pat(s: *const c_char, idx: c_int, magic: c_int, se
             spats[i].pat = Some(CStr::from_ptr(s).to_owned());
         }
         spats[i].timestamp = os_time();
-        spats[i].additional_data = ptr::null_mut();
+        spats[i].additional_data = None;
         spats[i].magic = magic != 0;
         spats[i].no_scs = false;
         spats[i].off.dir = b'/' as c_char;

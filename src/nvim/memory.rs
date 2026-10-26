@@ -419,17 +419,6 @@ pub unsafe fn xstrndup(str_ptr: *const c_char, len: usize) -> *mut c_char {
     unsafe { xmemdupz(str_ptr.cast::<c_void>(), actual_len).cast::<c_char>() }
 }
 
-/// Duplicate `len` bytes from `data` (`xmemdup`).
-pub unsafe fn xmemdup(data: *const c_void, len: usize) -> *mut c_void {
-    let ret = unsafe { xmalloc(len).cast::<u8>() };
-    if len > 0 {
-        unsafe {
-            std::ptr::copy_nonoverlapping(data.cast::<u8>(), ret, len);
-        }
-    }
-    ret.cast::<c_void>()
-}
-
 /// Return true if C string `a` equals Rust string `b` (`strequal_str`).
 #[inline]
 pub unsafe fn strequal_str(a: *const c_char, b: &str) -> bool {

@@ -58,7 +58,7 @@ use crate::insexpand::clear_cpt_callbacks;
 use crate::main_init::getout;
 use crate::mapping::map_clear_mode;
 use crate::mark::{
-    WinInfo, clear_fmark, clrallmarks, fmark_T, fmarks_check_names, free_fmark, mark_adjust_buf,
+    WinInfo, clear_fmark, clrallmarks, fmark_T, fmarks_check_names, mark_adjust_buf,
     mark_forget_file, mark_jumplist_forget_file, mark_view_make, mark_view_restore,
     set_last_cursor, setpcmark,
 };
@@ -430,7 +430,7 @@ pub struct buf_T {
     pub b_s: synblock_T,
     pub b_signcols: BufSigncols,
     pub terminal: *mut Terminal,
-    pub additional_data: *mut crate::search::AdditionalData,
+    pub additional_data: Option<crate::search::AdditionalData>,
     pub b_mapped_ctrl_c: c_int,
     pub b_marktree: crate::marktree::MarkTree,
     pub b_extmark_ns: std::collections::BTreeMap<u32, u32>,
@@ -498,7 +498,7 @@ impl buf_T {
             b_orig_size: 0,
             b_orig_mode: 0,
             b_last_used: 0,
-            b_namedm: [fmark_T::ZERO; 26],
+            b_namedm: [const { fmark_T::ZERO }; 26],
             b_visual: crate::normal::visualinfo_T {
                 vi_start: ZERO_POS,
                 vi_end: ZERO_POS,
@@ -509,7 +509,7 @@ impl buf_T {
             b_last_cursor: fmark_T::ZERO,
             b_last_insert: fmark_T::ZERO,
             b_last_change: fmark_T::ZERO,
-            b_changelist: [fmark_T::ZERO; 100],
+            b_changelist: [const { fmark_T::ZERO }; 100],
             b_changelistlen: 0,
             b_new_change: false,
             b_chartab: [0; 4],
@@ -716,7 +716,7 @@ impl buf_T {
                 autom: false,
             },
             terminal: ptr::null_mut(),
-            additional_data: ptr::null_mut(),
+            additional_data: None,
             b_mapped_ctrl_c: 0,
             b_marktree: crate::marktree::MarkTree::new(),
             b_extmark_ns: std::collections::BTreeMap::new(),
@@ -858,7 +858,7 @@ static mut no_position: fmark_T = fmark_T {
     fnum: 0,
     timestamp: 0,
     view: INIT_FMARKV,
-    additional_data: ptr::null_mut(),
+    additional_data: None,
 };
 static mut lasttitle: *mut c_char = ptr::null_mut();
 static mut lasticon: *mut c_char = ptr::null_mut();
@@ -1695,8 +1695,7 @@ impl Drop for buf_T {
             self.b_start_fenc = None;
             self.b_localdir = None;
             self.b_prevdir = None;
-            xfree(self.additional_data.cast());
-            self.additional_data = ptr::null_mut();
+            self.additional_data = None;
             self.b_prompt_text = None;
             callback_free(&raw mut self.b_prompt_callback);
             callback_free(&raw mut self.b_prompt_interrupt);
@@ -1704,12 +1703,6 @@ impl Drop for buf_T {
             clear_fmark(&raw mut self.b_last_insert, 0);
             clear_fmark(&raw mut self.b_last_change, 0);
             clear_fmark(&raw mut self.b_prompt_start, 0);
-            for i in 0..NMARKS {
-                free_fmark(self.b_namedm[i]);
-            }
-            for i in 0..self.b_changelistlen as usize {
-                free_fmark(self.b_changelist[i]);
-            }
             self.b_changelistlen = 0;
         }
     }
@@ -1730,8 +1723,7 @@ unsafe fn free_buffer(buf: *mut buf_T) {
         unref_var_dict((*buf).b_vars);
         aubuflocal_remove(buf);
         if autocmd_busy {
-            xfree((*buf).additional_data.cast());
-            (*buf).additional_data = ptr::null_mut();
+            (*buf).additional_data = None;
             (*buf).b_prompt_text = None;
             callback_free(&raw mut (*buf).b_prompt_callback);
             callback_free(&raw mut (*buf).b_prompt_interrupt);
@@ -1739,12 +1731,6 @@ unsafe fn free_buffer(buf: *mut buf_T) {
             clear_fmark(&raw mut (*buf).b_last_insert, 0);
             clear_fmark(&raw mut (*buf).b_last_change, 0);
             clear_fmark(&raw mut (*buf).b_prompt_start, 0);
-            for i in 0..NMARKS {
-                free_fmark((*buf).b_namedm[i]);
-            }
-            for i in 0..(*buf).b_changelistlen as usize {
-                free_fmark((*buf).b_changelist[i]);
-            }
             (*buf).b_changelistlen = 0;
             (*buf).b_namedm.fill(fmark_T::new());
             (*buf).b_changelist.fill(fmark_T::new());

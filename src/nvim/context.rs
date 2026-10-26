@@ -138,8 +138,7 @@ const kCtxSwitchWin: c_int = 1;
 const kCtxSwitchBuf: c_int = 2;
 const kCtxSwitchDirs: c_int = 3;
 
-#[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Context {
     pub pos: pos_T,
     pub mark: u32,
@@ -182,7 +181,7 @@ pub const INIT_FMARK: fmark_T = fmark_T {
     fnum: 0,
     timestamp: 0,
     view: INIT_FMARKV,
-    additional_data: ptr::null_mut(),
+    additional_data: None,
 };
 
 pub const CONTEXT_INIT: Context = Context {
@@ -330,8 +329,8 @@ pub unsafe fn ctx_save(ctx: *mut Context, flags: CtxStateFlags) {
         if (flags & kCtxMarks) != 0 {
             (*ctx).op_start = (*curbuf).b_op_start;
             (*ctx).op_end = (*curbuf).b_op_end;
-            (*ctx).last_change = (*curbuf).b_last_change;
-            (*ctx).last_insert = (*curbuf).b_last_insert;
+            (*ctx).last_change = (*curbuf).b_last_change.clone();
+            (*ctx).last_insert = (*curbuf).b_last_insert.clone();
         }
         if (flags & (kCtxVisual | kCtxMarks)) != 0 {
             let pos = ctx_positions(ctx, flags);
@@ -441,8 +440,8 @@ pub unsafe fn ctx_load(ctx: *mut Context, flags: CtxStateFlags, loadflags: CtxLo
             if (flags & kCtxMarks) != 0 {
                 (*buf).b_op_start = (*ctx).op_start;
                 (*buf).b_op_end = (*ctx).op_end;
-                (*buf).b_last_change = (*ctx).last_change;
-                (*buf).b_last_insert = (*ctx).last_insert;
+                (*buf).b_last_change = (*ctx).last_change.clone();
+                (*buf).b_last_insert = (*ctx).last_insert.clone();
             }
         }
 

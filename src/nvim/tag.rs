@@ -363,7 +363,7 @@ static mut ptag_entry: taggy_T = taggy_T {
             topline_offset: MAXLNUM,
             skipcol: 0,
         },
-        additional_data: ptr::null_mut(),
+        additional_data: None,
     },
     cur_match: 0,
     cur_fnum: 0,
@@ -423,7 +423,7 @@ pub unsafe fn do_tag(
                 topline_offset: MAXLNUM,
                 skipcol: 0,
             },
-            additional_data: ptr::null_mut(),
+            additional_data: None,
         };
         let use_tagstack: bool;
         let mut skip_msg = false;
@@ -533,7 +533,7 @@ pub unsafe fn do_tag(
                             break 'end_do_tag;
                         }
 
-                        saved_fmark = (*tagstack.add(tagstackidx as usize)).fmark;
+                        saved_fmark = (*tagstack.add(tagstackidx as usize)).fmark.clone();
                         if saved_fmark.fnum != (*curbuf).b_fnum {
                             if buflist_getfile(
                                 saved_fmark.fnum,
@@ -625,7 +625,7 @@ pub unsafe fn do_tag(
                         ptag_entry.cur_fnum = cur_fnum;
                     }
                 } else {
-                    saved_fmark = (*tagstack.add(tagstackidx as usize)).fmark;
+                    saved_fmark = (*tagstack.add(tagstackidx as usize)).fmark.clone();
                     if save_pos {
                         (*tagstack.add(tagstackidx as usize)).fmark.mark = (*curwin).w_cursor;
                         (*tagstack.add(tagstackidx as usize)).fmark.fnum = (*curbuf).b_fnum;

@@ -28,7 +28,13 @@ const EXT_OBJECT_TYPE_MAX: c_int =
     (ObjectType::kObjectTypeTabpage as c_int) - EXT_OBJECT_TYPE_SHIFT;
 const K_UNPACK_TYPE_STRING_ARRAY: c_int = -1;
 
-pub type AdditionalDataBuilder = Vec<c_char>;
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct AdditionalData {
+    pub nitems: u32,
+    pub bytes: Vec<c_char>,
+}
+
+pub type AdditionalDataBuilder = Option<AdditionalData>;
 pub type StringArray = Vec<NvimString>;
 
 #[repr(C)]
@@ -92,13 +98,6 @@ impl Default for Unpacker {
     fn default() -> Self {
         Self::new()
     }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct AdditionalDataHeader {
-    pub nitems: u32,
-    pub nbytes: u32,
 }
 
 use crate::eval::funcs::{MPACK_EOF, MPACK_ERROR, MPACK_NOMEM};
@@ -994,39 +993,20 @@ pub unsafe fn push_additional_data(
     data: *const c_char,
     size: usize,
 ) {
-    let ad = unsafe { &mut *ad };
-    if ad.is_empty() {
-        let init = AdditionalDataHeader {
-            nitems: 0,
-            nbytes: 0,
-        };
+    let entry = unsafe { &mut *ad }.get_or_insert_with(AdditionalData::default);
+    entry.nitems += 1;
+    if !data.is_null() && size > 0 {
         unsafe {
-            let hdr_slice = std::slice::from_raw_parts(
-                (&raw const init).cast::<c_char>(),
-                std::mem::size_of::<AdditionalDataHeader>(),
-            );
-            ad.extend_from_slice(hdr_slice);
-        }
-    }
-    unsafe {
-        let header = ad.as_mut_ptr().cast::<AdditionalDataHeader>();
-        (*header).nitems += 1;
-        (*header).nbytes += size as u32;
-        if !data.is_null() && size > 0 {
-            ad.extend_from_slice(std::slice::from_raw_parts(data, size));
+            entry
+                .bytes
+                .extend_from_slice(std::slice::from_raw_parts(data, size));
         }
     }
 }
 
 #[inline]
-pub unsafe fn additional_data_take(ad: &mut AdditionalDataBuilder) -> *mut AdditionalDataHeader {
-    if ad.is_empty() {
-        std::ptr::null_mut()
-    } else {
-        let ptr = unsafe { crate::memory::xmemdup(ad.as_ptr().cast(), ad.len()) };
-        *ad = Vec::new();
-        ptr.cast()
-    }
+pub fn additional_data_take(ad: &mut AdditionalDataBuilder) -> Option<AdditionalData> {
+    ad.take()
 }
 
 /// Unpack a msgpack map into a `KeySet` struct (`unpack_keydict`).
@@ -1144,14 +1124,13 @@ mod tests {
 
     #[test]
     fn push_additional_data_populates_header_and_payload() {
-        let mut ad = AdditionalDataBuilder::new();
+        let mut ad = AdditionalDataBuilder::default();
         unsafe {
             push_additional_data(&mut ad, c"abc".as_ptr(), 3);
             push_additional_data(&mut ad, c"de".as_ptr(), 2);
-            let hdr = &*(ad.as_ptr().cast::<AdditionalDataHeader>());
+            let hdr = ad.as_ref().unwrap();
             assert_eq!(hdr.nitems, 2);
-            assert_eq!(hdr.nbytes, 5);
-            assert_eq!(ad.len(), std::mem::size_of::<AdditionalDataHeader>() + 5);
+            assert_eq!(hdr.bytes.len(), 5);
         }
     }
 

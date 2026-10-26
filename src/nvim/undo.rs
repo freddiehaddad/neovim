@@ -42,13 +42,13 @@ use crate::globals::*;
 use crate::input::beep_flush;
 use crate::input_cmdatom::{atom_did_global_op, atom_origin_pos};
 use crate::insert::beginline;
-use crate::mark::{fmark_T, free_fmark, mark_adjust, setpcmark};
+use crate::mark::{fmark_T, mark_adjust, setpcmark};
 use crate::mbyte::utfc_ptr2len;
 use crate::mcursor::mc_undo_time;
 #[cfg(unix)]
 use crate::memline::resolve_symlink;
 use crate::memline::{ml_append_flags, ml_delete, ml_get, ml_get_buf, ml_replace};
-use crate::memory::{cstr_take, time_to_bytes, xfree, xstrlcat};
+use crate::memory::{cstr_take, time_to_bytes, xstrlcat};
 use crate::message::{
     emsg, give_warning, iemsg, internal_error, messaging, msg, msg_end, msg_ext_set_kind,
     msg_putchar, msg_puts, msg_puts_hl, msg_start, semsg, smsg, smsg_keep, verb_msg, verbose_enter,
@@ -158,7 +158,7 @@ impl u_header_T {
             uh_cursor_after: pos_T::new(),
             uh_cursor_vcol: 0,
             uh_flags: 0,
-            uh_namedm: [fmark_T::new(); NMARKS],
+            uh_namedm: [const { fmark_T::new() }; NMARKS],
             uh_extmark: Vec::new(),
             uh_visual: visualinfo_T::new(),
             uh_time: 0,
@@ -321,8 +321,7 @@ unsafe fn get_undolevel(buf: *mut buf_T) -> OptInt {
 unsafe fn zero_fmark_additional_data(fmarks: *mut fmark_T) {
     unsafe {
         for i in 0..NMARKS {
-            xfree((*fmarks.add(i)).additional_data.cast());
-            (*fmarks.add(i)).additional_data = ptr::null_mut();
+            (*fmarks.add(i)).additional_data = None;
         }
     }
 }
@@ -442,7 +441,7 @@ pub unsafe fn u_savecommon(
                 });
 
             zero_fmark_additional_data((&raw mut (*buf).b_namedm).cast::<fmark_T>());
-            (*uhp).uh_namedm = (*buf).b_namedm;
+            (*uhp).uh_namedm = (*buf).b_namedm.clone();
             (*uhp).uh_visual = (*buf).b_visual;
 
             (*buf).b_u_newhead = uhp;
@@ -2095,7 +2094,7 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
         setpcmark();
 
         zero_fmark_additional_data((&raw mut (*curbuf).b_namedm).cast::<fmark_T>());
-        let namedm = (*curbuf).b_namedm;
+        let namedm = (*curbuf).b_namedm.clone();
         let visualinfo = (*curbuf).b_visual;
         (*curbuf).b_op_start.lnum = (*curbuf).b_ml.ml_line_count;
         (*curbuf).b_op_start.col = 0;
@@ -2255,10 +2254,9 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
             buf_updates_changedtick(curbuf);
         }
 
-        for (i, &nm) in namedm.iter().enumerate().take(NMARKS) {
+        for (i, nm) in namedm.into_iter().enumerate().take(NMARKS) {
             if (*curhead).uh_namedm[i].mark.lnum != 0 {
-                free_fmark((*curbuf).b_namedm[i]);
-                (*curbuf).b_namedm[i] = (*curhead).uh_namedm[i];
+                (*curbuf).b_namedm[i] = (*curhead).uh_namedm[i].clone();
             }
             if nm.mark.lnum != 0 {
                 (*curhead).uh_namedm[i] = nm;
