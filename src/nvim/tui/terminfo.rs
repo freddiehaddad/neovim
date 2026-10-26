@@ -2637,62 +2637,62 @@ pub unsafe fn terminfo_is_bsd_console(term: *const c_char) -> bool {
 
 pub unsafe fn terminfo_from_builtin(
     term: *const c_char,
-    termname: *mut *mut c_char,
+    termname: &mut Option<std::ffi::CString>,
 ) -> *const TerminfoEntry {
     unsafe {
         if strequal(term, c"ghostty".as_ptr()) || strequal(term, c"xterm-ghostty".as_ptr()) {
-            *termname = c"ghostty".as_ptr().cast_mut();
+            *termname = Some(c"ghostty".to_owned());
             &raw const GHOSTTY_TERMINFO
         } else if terminfo_is_term_family(term, c"xterm".as_ptr()) {
-            *termname = c"xterm".as_ptr().cast_mut();
+            *termname = Some(c"xterm".to_owned());
             &raw const XTERM_256COLOUR_TERMINFO
         } else if terminfo_is_term_family(term, c"screen".as_ptr()) {
-            *termname = c"screen".as_ptr().cast_mut();
+            *termname = Some(c"screen".to_owned());
             &raw const SCREEN_256COLOUR_TERMINFO
         } else if terminfo_is_term_family(term, c"tmux".as_ptr()) {
-            *termname = c"tmux".as_ptr().cast_mut();
+            *termname = Some(c"tmux".to_owned());
             &raw const TMUX_256COLOUR_TERMINFO
         } else if terminfo_is_term_family(term, c"rxvt".as_ptr()) {
-            *termname = c"rxvt".as_ptr().cast_mut();
+            *termname = Some(c"rxvt".to_owned());
             &raw const RXVT_256COLOUR_TERMINFO
         } else if terminfo_is_term_family(term, c"putty".as_ptr()) {
-            *termname = c"putty".as_ptr().cast_mut();
+            *termname = Some(c"putty".to_owned());
             &raw const PUTTY_256COLOUR_TERMINFO
         } else if terminfo_is_term_family(term, c"linux".as_ptr()) {
-            *termname = c"linux".as_ptr().cast_mut();
+            *termname = Some(c"linux".to_owned());
             &raw const LINUX_16COLOUR_TERMINFO
         } else if terminfo_is_term_family(term, c"interix".as_ptr()) {
-            *termname = c"interix".as_ptr().cast_mut();
+            *termname = Some(c"interix".to_owned());
             &raw const INTERIX_8COLOUR_TERMINFO
         } else if terminfo_is_term_family(term, c"iterm".as_ptr())
             || terminfo_is_term_family(term, c"iterm2".as_ptr())
             || terminfo_is_term_family(term, c"iTerm.app".as_ptr())
             || terminfo_is_term_family(term, c"iTerm2.app".as_ptr())
         {
-            *termname = c"iterm".as_ptr().cast_mut();
+            *termname = Some(c"iterm".to_owned());
             &raw const ITERM_256COLOUR_TERMINFO
         } else if terminfo_is_term_family(term, c"st".as_ptr()) {
-            *termname = c"st".as_ptr().cast_mut();
+            *termname = Some(c"st".to_owned());
             &raw const ST_256COLOUR_TERMINFO
         } else if terminfo_is_term_family(term, c"gnome".as_ptr())
             || terminfo_is_term_family(term, c"vte".as_ptr())
         {
-            *termname = c"vte".as_ptr().cast_mut();
+            *termname = Some(c"vte".to_owned());
             &raw const VTE_256COLOUR_TERMINFO
         } else if terminfo_is_term_family(term, c"cygwin".as_ptr()) {
-            *termname = c"cygwin".as_ptr().cast_mut();
+            *termname = Some(c"cygwin".to_owned());
             &raw const CYGWIN_TERMINFO
         } else if terminfo_is_term_family(term, c"win32con".as_ptr()) {
-            *termname = c"win32con".as_ptr().cast_mut();
+            *termname = Some(c"win32con".to_owned());
             &raw const WIN32CON_TERMINFO
         } else if terminfo_is_term_family(term, c"conemu".as_ptr()) {
-            *termname = c"conemu".as_ptr().cast_mut();
+            *termname = Some(c"conemu".to_owned());
             &raw const CONEMU_TERMINFO
         } else if terminfo_is_term_family(term, c"vtpcon".as_ptr()) {
-            *termname = c"vtpcon".as_ptr().cast_mut();
+            *termname = Some(c"vtpcon".to_owned());
             &raw const VTPCON_TERMINFO
         } else {
-            *termname = c"ansi".as_ptr().cast_mut();
+            *termname = Some(c"ansi".to_owned());
             &raw const ANSI_TERMINFO
         }
     }
@@ -2791,16 +2791,12 @@ const fn fmt_bool(val: bool) -> &'static str {
 
 pub unsafe fn terminfo_info_msg(
     ti: *const TerminfoEntry,
-    termname: *const c_char,
+    termname: Option<&CStr>,
     from_db: bool,
 ) -> Vec<u8> {
     unsafe {
         let mut data: Vec<u8> = Vec::new();
-        let termname_bytes = if termname.is_null() {
-            &b""[..]
-        } else {
-            CStr::from_ptr(termname).to_bytes()
-        };
+        let termname_bytes = termname.map_or(&b""[..], CStr::to_bytes);
 
         data.extend_from_slice(b"&term: ");
         data.extend_from_slice(termname_bytes);

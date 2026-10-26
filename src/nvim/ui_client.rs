@@ -48,7 +48,7 @@ use crate::highlight::KEYSET_OPTIDX_highlight__url;
 static mut tui: Option<Box<TUIData>> = None;
 static mut tui_width: c_int = 0;
 static mut tui_height: c_int = 0;
-static mut tui_term: *mut c_char = c"".as_ptr().cast_mut();
+static mut tui_term: Option<std::ffi::CString> = None;
 static mut tui_rgb: bool = false;
 
 #[inline]
@@ -124,7 +124,12 @@ pub unsafe fn ui_client_start_server(
 }
 
 /// Attaches this client to the UI channel, and sets its client info (`ui_client_attach`).
-pub unsafe fn ui_client_attach(width: c_int, height: c_int, term: *mut c_char, rgb: bool) {
+pub unsafe fn ui_client_attach(
+    width: c_int,
+    height: c_int,
+    term: Option<&std::ffi::CStr>,
+    rgb: bool,
+) {
     unsafe {
         let mut opts_items: [KeyValuePair; 9] = [KeyValuePair::new(); 9];
         let mut opts = Dict {
@@ -142,8 +147,8 @@ pub unsafe fn ui_client_attach(width: c_int, height: c_int, term: *mut c_char, r
         put_opt(c"rgb".as_ptr(), boolean_obj(rgb));
         put_opt(c"ext_linegrid".as_ptr(), boolean_obj(true));
         put_opt(c"ext_termcolors".as_ptr(), boolean_obj(true));
-        if !term.is_null() {
-            put_opt(c"term_name".as_ptr(), cstr_as_obj(term));
+        if let Some(term) = term {
+            put_opt(c"term_name".as_ptr(), cstr_as_obj(term.as_ptr()));
         }
         put_opt(
             c"term_colors".as_ptr(),
@@ -267,7 +272,12 @@ pub unsafe fn ui_client_run() -> ! {
             &raw mut tui_term,
             &raw mut tui_rgb,
         );
-        ui_client_attach(tui_width, tui_height, tui_term, tui_rgb);
+        ui_client_attach(
+            tui_width,
+            tui_height,
+            (&raw const tui_term).as_ref().unwrap().as_deref(),
+            tui_rgb,
+        );
 
         if os_env_exists(c"NVIM_LOG_FILE".as_ptr(), true) {
             logmsg!(
@@ -483,7 +493,12 @@ pub unsafe fn channel_connect_event(server_addr: std::ffi::CString) {
         }
 
         ui_client_channel_id = chan;
-        ui_client_attach(tui_width, tui_height, tui_term, tui_rgb);
+        ui_client_attach(
+            tui_width,
+            tui_height,
+            (&raw const tui_term).as_ref().unwrap().as_deref(),
+            tui_rgb,
+        );
 
         logmsg!(
             LOGLVL_INF,
@@ -609,7 +624,12 @@ pub unsafe fn ui_client_attach_to_restarted_server(error_restart: bool) {
         };
 
         ui_client_channel_id = chan_id;
-        ui_client_attach(tui_width, tui_height, tui_term, tui_rgb);
+        ui_client_attach(
+            tui_width,
+            tui_height,
+            (&raw const tui_term).as_ref().unwrap().as_deref(),
+            tui_rgb,
+        );
 
         logmsg!(
             LOGLVL_INF,

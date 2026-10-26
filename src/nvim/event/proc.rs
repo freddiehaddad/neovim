@@ -21,7 +21,7 @@ use crate::os::pty_proc::{
     pty_proc_close, pty_proc_close_master, pty_proc_flush_master, pty_proc_spawn, pty_proc_teardown,
 };
 use crate::os::time::os_hrtime;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_int;
 use std::ptr;
 
 const KILL_TIMEOUT_MS: u64 = 2000;
@@ -45,9 +45,9 @@ pub struct Proc {
     pub refcount: c_int,
     pub exit_signal: u8,
     pub stopped_time: u64,
-    pub cwd: *const c_char,
+    pub cwd: Option<std::ffi::CString>,
     pub argv: Vec<std::ffi::CString>,
-    pub exepath: *const c_char,
+    pub exepath: Option<std::ffi::CString>,
     pub env: *mut dict_T,
     pub r#in: Stream,
     pub out: RStream,
@@ -87,9 +87,9 @@ impl Proc {
             refcount: 0,
             exit_signal: 0,
             stopped_time: 0,
-            cwd: ptr::null(),
+            cwd: None,
             argv: Vec::new(),
-            exepath: ptr::null(),
+            exepath: None,
             env: ptr::null_mut(),
             r#in: Stream::new(),
             out: RStream::new(),

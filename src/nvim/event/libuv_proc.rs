@@ -114,11 +114,10 @@ use crate::event::r#loop::{uv_pipe, uv_process_get_pid, uv_spawn};
 #[inline]
 pub unsafe fn proc_get_exepath(proc_: *mut Proc) -> *const c_char {
     unsafe {
-        if !(*proc_).exepath.is_null() {
-            (*proc_).exepath
-        } else {
-            (*proc_).argv.as_slice()[0].as_ptr()
-        }
+        (*proc_)
+            .exepath
+            .as_ref()
+            .map_or_else(|| (*proc_).argv.as_slice()[0].as_ptr(), |s| s.as_ptr())
     }
 }
 
@@ -223,7 +222,7 @@ pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
         (*uvproc).uvopts.flags |= UV_PROCESS_WINDOWS_HIDE;
 
         (*uvproc).uvopts.exit_cb = Some(exit_cb);
-        (*uvproc).uvopts.cwd = (*proc_).cwd;
+        (*uvproc).uvopts.cwd = (*proc_).cwd.as_ref().map_or(ptr::null(), |s| s.as_ptr());
 
         (*uvproc).uvopts.stdio = (*uvproc).uvstdio.as_mut_ptr();
         (*uvproc).uvopts.stdio_count = 3;

@@ -528,12 +528,20 @@ pub unsafe fn channel_job_start(
         let ph = proc_ptr;
         let pt = proc_ptr;
         (*ph).argv = argv;
-        (*ph).exepath = exepath;
+        (*ph).exepath = if exepath.is_null() {
+            None
+        } else {
+            Some(CStr::from_ptr(exepath).to_owned())
+        };
         (*pt).cb = Some(channel_proc_exit_cb);
         (*pt).state_cb = Some(channel_proc_state_cb);
         (*pt).events = (*cp).events;
         (*pt).detach = detach;
-        (*ph).cwd = cwd;
+        (*ph).cwd = if cwd.is_null() {
+            None
+        } else {
+            Some(CStr::from_ptr(cwd).to_owned())
+        };
         (*ph).env = env;
         (*pt).overlapped = overlapped;
         #[cfg(windows)]
@@ -541,12 +549,10 @@ pub unsafe fn channel_job_start(
             (*pt).stdio_noinherit = true;
         }
 
-        let exe_str = if !(*ph).exepath.is_null() {
-            (*ph).exepath
-        } else {
-            (*ph).argv.as_slice()[0].as_ptr()
-        };
-        let cmd = CStr::from_ptr(exe_str).to_owned();
+        let cmd = (*ph)
+            .exepath
+            .clone()
+            .unwrap_or_else(|| (*ph).argv.as_slice()[0].clone());
 
         let (has_out, has_err) = if (*ph).r#type == kProcTypePty {
             (true, false)

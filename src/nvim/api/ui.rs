@@ -305,7 +305,6 @@ pub unsafe extern "C" fn nvim_ui_attach(
             pum_height: 0.0,
             pum_width: 0.0,
             term_name: None,
-            term_background: ptr::null_mut(),
             term_colors: 0,
             stdin_tty: false,
             stdout_tty: false,

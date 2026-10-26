@@ -74,7 +74,6 @@ pub struct RemoteUI {
     pub pum_height: f64,
     pub pum_width: f64,
     pub term_name: Option<std::ffi::CString>,
-    pub term_background: *mut c_char,
     pub term_colors: c_int,
     pub stdin_tty: bool,
     pub stdout_tty: bool,

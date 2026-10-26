@@ -155,7 +155,7 @@ pub struct TUIData {
     pub input: TermInput,
     pub write_loop: [u64; 256],
     pub ti: TerminfoEntry,
-    pub term: *mut c_char,
+    pub term: Option<std::ffi::CString>,
     pub output_handle: [u64; 80],
     pub out_isatty: bool,
     pub winch_handle: SignalWatcher,
@@ -224,7 +224,7 @@ impl TUIData {
             input: TermInput::new(),
             write_loop: [0; 256],
             ti: TerminfoEntry::new(),
-            term: ptr::null_mut(),
+            term: None,
             output_handle: [0; 80],
             out_isatty: false,
             winch_handle: SignalWatcher::new(),
@@ -363,7 +363,7 @@ pub unsafe fn tui_start(
     tui_out: *mut Option<Box<TUIData>>,
     width: *mut c_int,
     height: *mut c_int,
-    term: *mut *mut c_char,
+    term: *mut Option<std::ffi::CString>,
     rgb: *mut bool,
 ) {
     unsafe {
@@ -385,7 +385,7 @@ pub unsafe fn tui_start(
         loop_poll_events((&raw mut main_loop).cast::<Loop>(), 1);
         *width = (*tui).width;
         *height = (*tui).height;
-        *term = (*tui).term;
+        *term = (*tui).term.clone();
         *rgb = (*tui).rgb;
     }
 }
@@ -857,7 +857,7 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
         (*tui).input.tui_data = tui.cast();
 
         (*tui).ti_arena = ARENA_EMPTY;
-        assert!((*tui).term.is_null());
+        assert!((*tui).term.is_none());
 
         #[cfg(windows)]
         let mut term_cstr = os_getenv_cstr(c"TERM".as_ptr());
@@ -879,12 +879,12 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
             && !os_env_exists(c"NVIM_TERMDEFS".as_ptr(), false)
             && terminfo_from_database(&raw mut (*tui).ti, term, &raw mut (*tui).ti_arena)
         {
-            (*tui).term = arena_strdup(&raw mut (*tui).ti_arena, term);
+            (*tui).term = term_cstr.clone();
             (*tui).terminfo_found_in_db = true;
         }
 
         if !(*tui).terminfo_found_in_db {
-            let new_ti = terminfo_from_builtin(term, &raw mut (*tui).term);
+            let new_ti = terminfo_from_builtin(term, &mut (*tui).term);
             (*tui).ti = *new_ti;
         }
 
@@ -1113,7 +1113,7 @@ unsafe fn terminfo_stop(tui: *mut TUIData) {
         }
         arena_mem_free(arena_finish(&raw mut (*tui).ti_arena));
         (*tui).ti = TerminfoEntry::new();
-        (*tui).term = ptr::null_mut();
+        (*tui).term = None;
     }
 }
 
@@ -2260,7 +2260,7 @@ unsafe fn show_verbose_terminfo(tui: *mut TUIData) {
         };
         let mut str_bytes = terminfo_info_msg(
             &raw const (*tui).ti,
-            (*tui).term,
+            (*tui).term.as_deref(),
             (*tui).terminfo_found_in_db,
         );
         let str_val = NvimString {
@@ -2339,7 +2339,12 @@ unsafe fn tui_suspend_cb(tui: *mut TUIData) {
             tui_mouse_on(tui);
         }
         stream_set_blocking((*input).in_fd, false);
-        ui_client_attach((*tui).width, (*tui).height, (*tui).term, (*tui).rgb);
+        ui_client_attach(
+            (*tui).width,
+            (*tui).height,
+            (*tui).term.as_deref(),
+            (*tui).rgb,
+        );
     }
 }
 

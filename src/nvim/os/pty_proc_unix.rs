@@ -503,8 +503,8 @@ mod unix_impl {
 
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
-            if !(*hdr).cwd.is_null() {
-                let err = uv_chdir((*hdr).cwd);
+            if let Some(ref cwd) = (*hdr).cwd {
+                let err = uv_chdir(cwd.as_ptr());
                 if err != 0 {
                     logmsg!(
                         LOGLVL_ERR,
@@ -513,7 +513,7 @@ mod unix_impl {
                         line!() as c_int,
                         true,
                         c"chdir(%s) failed: %s".as_ptr(),
-                        (*hdr).cwd,
+                        cwd.as_ptr(),
                         uv_strerror(err),
                     );
                     _exit(122);

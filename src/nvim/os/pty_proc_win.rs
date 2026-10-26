@@ -266,8 +266,8 @@ mod win_impl {
                     );
                 }
 
-                if !(*hdr).cwd.is_null() {
-                    status = utf8_to_utf16((*hdr).cwd, -1, &mut cwd);
+                if let Some(ref hdr_cwd) = (*hdr).cwd {
+                    status = utf8_to_utf16(hdr_cwd.as_ptr(), -1, &mut cwd);
                     if status != 0 {
                         emsg = c"utf8_to_utf16(proc->cwd) failed".as_ptr();
                         break 'cleanup;
