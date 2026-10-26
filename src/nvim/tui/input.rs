@@ -30,7 +30,7 @@ use crate::tui::termkey::driver_ti::{
 };
 use crate::tui::termkey::termkey::{
     TERMKEY_CANON_DELBS, TERMKEY_FLAG_KEEPC0, TERMKEY_FLAG_NOSTART, TERMKEY_FLAG_UTF8,
-    TERMKEY_FORMAT_ALTISMETA, TERMKEY_FORMAT_WRAPBRACKET, TermKeyFormat, termkey_destroy,
+    TERMKEY_FORMAT_ALTISMETA, TERMKEY_FORMAT_WRAPBRACKET, TermKeyFormat,
     termkey_get_buffer_remaining, termkey_get_buffer_size, termkey_get_canonflags, termkey_getkey,
     termkey_getkey_force, termkey_hook_terminfo_getstr, termkey_interpret_string,
     termkey_new_abstract, termkey_push_bytes, termkey_set_buffer_size, termkey_set_canonflags,
@@ -76,7 +76,7 @@ pub struct TermInput {
     pub callbacks: TermInputCallbacks,
     pub key_encoding: KeyEncoding,
     pub ttimeoutlen: OptInt,
-    pub tk: *mut TermKey,
+    pub tk: Option<TermKey>,
     pub tk_ti_hook_fn: TermKeyTerminfoGetstrHook,
     pub timer_handle: [u64; 32],
     pub bg_query_timer: [u64; 32],
@@ -98,7 +98,7 @@ impl TermInput {
             },
             key_encoding: kKeyEncodingLegacy,
             ttimeoutlen: 0,
-            tk: ptr::null_mut(),
+            tk: None,
             tk_ti_hook_fn: None,
             timer_handle: [0; 32],
             bg_query_timer: [0; 32],
@@ -108,6 +108,16 @@ impl TermInput {
             key_buffer: [0; KEY_BUFFER_SIZE],
             key_buffer_len: 0,
         }
+    }
+
+    #[inline]
+    fn tk(&self) -> &TermKey {
+        self.tk.as_ref().unwrap()
+    }
+
+    #[inline]
+    fn tk_mut(&mut self) -> &mut TermKey {
+        self.tk.as_mut().unwrap()
     }
 }
 
@@ -217,12 +227,14 @@ pub unsafe fn tinput_init(input: *mut TermInput, loop_: *mut Loop, ti: *mut Term
             ti,
             TERMKEY_FLAG_UTF8 | TERMKEY_FLAG_NOSTART | TERMKEY_FLAG_KEEPC0,
         );
-        termkey_set_buffer_size((*input).tk, INPUT_BUFFER_SIZE);
-        termkey_hook_terminfo_getstr((*input).tk, (*input).tk_ti_hook_fn, input);
-        termkey_start((*input).tk);
+        let tk_hook = (*input).tk_ti_hook_fn;
+        let tk = (*input).tk_mut();
+        termkey_set_buffer_size(tk, INPUT_BUFFER_SIZE);
+        termkey_hook_terminfo_getstr(tk, tk_hook, input);
+        termkey_start(tk);
 
-        let curflags = termkey_get_canonflags((*input).tk);
-        termkey_set_canonflags((*input).tk, curflags | TERMKEY_CANON_DELBS);
+        let curflags = termkey_get_canonflags(tk);
+        termkey_set_canonflags(tk, curflags | TERMKEY_CANON_DELBS);
 
         {
             let th: *mut uv_timer_t = (&raw mut (*input).timer_handle).cast();
@@ -243,7 +255,7 @@ pub unsafe fn tinput_destroy(input: *mut TermInput) {
             uv_close((&raw mut (*input).bg_query_timer).cast(), None);
         }
         rstream_may_close(&raw mut (*input).read_stream);
-        termkey_destroy((*input).tk);
+        (*input).tk = None;
         (*input).loop_ = ptr::null_mut();
     }
 }
@@ -400,7 +412,7 @@ unsafe fn forward_modified_utf8(input: *mut TermInput, key: *mut TermKeyKey) {
             len = 5;
         } else if (*key).r#type != TERMKEY_TYPE_UNICODE {
             len = termkey_strfkey(
-                (*p).tk,
+                (*p).tk(),
                 buf.as_mut_ptr(),
                 buf.len(),
                 key,
@@ -414,7 +426,7 @@ unsafe fn forward_modified_utf8(input: *mut TermInput, key: *mut TermKeyKey) {
                 return;
             }
             len = termkey_strfkey(
-                (*p).tk,
+                (*p).tk(),
                 buf.as_mut_ptr(),
                 buf.len(),
                 key,
@@ -464,7 +476,7 @@ unsafe fn forward_mouse_event(input: *mut TermInput, key: *const TermKeyKey) {
         let mut ev: TermKeyMouseEvent = TERMKEY_MOUSE_UNKNOWN;
 
         termkey_interpret_mouse(
-            (*p).tk,
+            (*p).tk(),
             key,
             &raw mut ev,
             &raw mut button,
@@ -529,7 +541,7 @@ unsafe fn forward_mouse_event(input: *mut TermInput, key: *const TermKeyKey) {
 }
 
 #[inline]
-unsafe fn tk_getkey(tk: *mut TermKey, key: *mut TermKeyKey, force: bool) -> TermKeyResult {
+unsafe fn tk_getkey(tk: &mut TermKey, key: *mut TermKeyKey, force: bool) -> TermKeyResult {
     unsafe {
         if force {
             termkey_getkey_force(tk, key)
@@ -546,7 +558,7 @@ unsafe fn tk_getkeys(input: *mut TermInput, force: bool) {
         let mut result: TermKeyResult;
 
         loop {
-            result = tk_getkey((*p).tk, &raw mut key, force);
+            result = tk_getkey((*p).tk_mut(), &raw mut key, force);
             if result != TERMKEY_RES_KEY {
                 break;
             }
@@ -694,7 +706,7 @@ unsafe fn handle_term_response(input: *mut TermInput, key: *const TermKeyKey) {
     unsafe {
         let p = input;
         let mut str_ptr: *const c_char = ptr::null();
-        if termkey_interpret_string((*p).tk, key, &raw mut str_ptr) == TERMKEY_RES_KEY {
+        if termkey_interpret_string((*p).tk(), key, &raw mut str_ptr) == TERMKEY_RES_KEY {
             assert!(!str_ptr.is_null());
             let s_bytes = CStr::from_ptr(str_ptr).to_bytes();
 
@@ -769,7 +781,7 @@ unsafe fn handle_modereport(input: *mut TermInput, key: *const TermKeyKey) {
         let mut mode: c_int = 0;
         let mut value: c_int = 0;
         if termkey_interpret_modereport(
-            (*p).tk,
+            (*p).tk(),
             key,
             &raw mut initial,
             &raw mut mode,
@@ -791,7 +803,7 @@ unsafe fn handle_unknown_csi(input: *mut TermInput, key: *const TermKeyKey) {
         let mut nparams: usize = 16;
         let mut cmd: c_uint = 0;
         if termkey_interpret_csi(
-            (*p).tk,
+            (*p).tk(),
             key,
             params.as_mut_ptr(),
             &raw mut nparams,
@@ -964,16 +976,16 @@ unsafe fn handle_raw_buffer(
             }
 
             let to_use = count.min(size);
-            let remaining = termkey_get_buffer_remaining((*p).tk);
+            let remaining = termkey_get_buffer_remaining((*p).tk());
             if to_use > remaining {
                 let delta = to_use - remaining;
-                let bufsize = termkey_get_buffer_size((*p).tk);
-                if termkey_set_buffer_size((*p).tk, (bufsize + delta).max(bufsize * 2)) == 0 {
+                let bufsize = termkey_get_buffer_size((*p).tk());
+                if termkey_set_buffer_size((*p).tk_mut(), (bufsize + delta).max(bufsize * 2)) == 0 {
                     std::process::abort();
                 }
             }
 
-            let consumed = termkey_push_bytes((*p).tk, ptr, to_use);
+            let consumed = termkey_push_bytes((*p).tk_mut(), ptr, to_use);
             assert!(consumed <= to_use);
             ptr = ptr.add(consumed);
             size -= consumed;
@@ -985,12 +997,12 @@ unsafe fn handle_raw_buffer(
             }
         }
 
-        let tk_size = termkey_get_buffer_size((*p).tk);
-        let tk_remaining = termkey_get_buffer_remaining((*p).tk);
+        let tk_size = termkey_get_buffer_size((*p).tk());
+        let tk_remaining = termkey_get_buffer_remaining((*p).tk());
         let tk_count = tk_size - tk_remaining;
         if tk_count < INPUT_BUFFER_SIZE
             && tk_size > INPUT_BUFFER_SIZE
-            && termkey_set_buffer_size((*p).tk, INPUT_BUFFER_SIZE) == 0
+            && termkey_set_buffer_size((*p).tk_mut(), INPUT_BUFFER_SIZE) == 0
         {
             std::process::abort();
         }

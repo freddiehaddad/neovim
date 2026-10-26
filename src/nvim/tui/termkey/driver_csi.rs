@@ -214,7 +214,7 @@ fn parse_key_event(n: c_int) -> TermKeyEvent {
 }
 
 unsafe fn handle_csi_ss3_full(
-    _tk: *mut TermKey,
+    _tk: &mut TermKey,
     key: *mut TermKeyKey,
     cmd: c_int,
     params: *mut TermKeyCsiParam,
@@ -269,7 +269,7 @@ unsafe fn handle_csi_ss3_full(
 }
 
 unsafe fn handle_csifunc(
-    tk: *mut TermKey,
+    tk: &mut TermKey,
     key: *mut TermKeyKey,
     _cmd: c_int,
     params: *mut TermKeyCsiParam,
@@ -354,7 +354,7 @@ unsafe fn handle_csifunc(
 }
 
 unsafe fn handle_csi_u(
-    tk: *mut TermKey,
+    tk: &mut TermKey,
     key: *mut TermKeyKey,
     cmd: c_int,
     params: *mut TermKeyCsiParam,
@@ -410,7 +410,7 @@ unsafe fn handle_csi_u(
 }
 
 unsafe fn handle_csi_m(
-    _tk: *mut TermKey,
+    _tk: &mut TermKey,
     key: *mut TermKeyKey,
     mut cmd: c_int,
     params: *mut TermKeyCsiParam,
@@ -467,7 +467,7 @@ unsafe fn handle_csi_m(
 }
 
 pub unsafe fn termkey_interpret_mouse(
-    _tk: *mut TermKey,
+    _tk: &TermKey,
     key: *const TermKeyKey,
     event: *mut TermKeyMouseEvent,
     button: *mut c_int,
@@ -540,7 +540,7 @@ pub unsafe fn termkey_interpret_mouse(
 }
 
 unsafe fn handle_csi_R(
-    tk: *mut TermKey,
+    tk: &mut TermKey,
     key: *mut TermKeyKey,
     cmd: c_int,
     params: *mut TermKeyCsiParam,
@@ -581,7 +581,7 @@ unsafe fn handle_csi_R(
 
 #[cfg(test)]
 pub unsafe fn termkey_interpret_position(
-    _tk: *mut TermKey,
+    _tk: &TermKey,
     key: *const TermKeyKey,
     line: *mut c_int,
     col: *mut c_int,
@@ -596,7 +596,7 @@ pub unsafe fn termkey_interpret_position(
 }
 
 unsafe fn handle_csi_y(
-    _tk: *mut TermKey,
+    _tk: &mut TermKey,
     key: *mut TermKeyKey,
     cmd: c_int,
     params: *mut TermKeyCsiParam,
@@ -641,7 +641,7 @@ unsafe fn handle_csi_y(
 }
 
 pub unsafe fn termkey_interpret_modereport(
-    _tk: *mut TermKey,
+    _tk: &TermKey,
     key: *const TermKeyKey,
     initial: *mut c_int,
     mode: *mut c_int,
@@ -666,7 +666,7 @@ pub unsafe fn termkey_interpret_modereport(
 }
 
 unsafe fn parse_csi(
-    tk: *mut TermKey,
+    tk: &TermKey,
     introlen: usize,
     csi_len: *mut usize,
     params: *mut TermKeyCsiParam,
@@ -675,38 +675,38 @@ unsafe fn parse_csi(
 ) -> TermKeyResult {
     unsafe {
         let mut csi_end = introlen;
-        let buf = (*tk).buffer.as_ptr().add((*tk).buffstart);
+        let slice = &tk.buffer[tk.buffstart..tk.buffstart + tk.buffcount];
 
-        while csi_end < (*tk).buffcount {
-            let b = *buf.add(csi_end);
+        while csi_end < tk.buffcount {
+            let b = slice[csi_end];
             if (0x40..0x80).contains(&b) {
                 break;
             }
             csi_end += 1;
         }
 
-        if csi_end >= (*tk).buffcount {
+        if csi_end >= tk.buffcount {
             return TERMKEY_RES_AGAIN;
         }
 
-        let cmd = *buf.add(csi_end);
+        let cmd = slice[csi_end];
         *commandp = c_uint::from(cmd);
 
         let mut present = false;
         let mut argi = 0usize;
         let mut p = introlen;
 
-        if (*buf.add(p) >= b'<') && (*buf.add(p) <= b'?') {
-            *commandp |= c_uint::from(*buf.add(p)) << 8;
+        if (slice[p] >= b'<') && (slice[p] <= b'?') {
+            *commandp |= c_uint::from(slice[p]) << 8;
             p += 1;
         }
 
         while p < csi_end {
-            let c = *buf.add(p);
+            let c = slice[p];
 
             if (b'0'..b';').contains(&c) {
                 if !present {
-                    (*params.add(argi)).param = buf.add(p);
+                    (*params.add(argi)).param = &raw const slice[p];
                     present = true;
                 }
             } else if c == b';' {
@@ -715,7 +715,7 @@ unsafe fn parse_csi(
                     (*params.add(argi)).length = 0;
                 } else {
                     (*params.add(argi)).length =
-                        buf.add(p) as usize - (*params.add(argi)).param as usize;
+                        (&raw const slice[p]) as usize - (*params.add(argi)).param as usize;
                 }
                 present = false;
                 argi += 1;
@@ -731,7 +731,8 @@ unsafe fn parse_csi(
         }
 
         if present {
-            (*params.add(argi)).length = buf.add(p) as usize - (*params.add(argi)).param as usize;
+            (*params.add(argi)).length =
+                (&raw const slice[p]) as usize - (*params.add(argi)).param as usize;
             argi += 1;
         }
 
@@ -743,7 +744,7 @@ unsafe fn parse_csi(
 }
 
 pub unsafe fn termkey_interpret_csi(
-    tk: *mut TermKey,
+    tk: &TermKey,
     key: *const TermKeyKey,
     params: *mut TermKeyCsiParam,
     nparams: *mut usize,
@@ -751,7 +752,7 @@ pub unsafe fn termkey_interpret_csi(
 ) -> TermKeyResult {
     unsafe {
         let mut dummy: usize = 0;
-        if (*tk).hightide == 0 {
+        if tk.hightide == 0 {
             return TERMKEY_RES_NONE;
         }
         if (*key).r#type != TERMKEY_TYPE_UNKNOWN_CSI {
@@ -821,7 +822,7 @@ pub unsafe fn termkey_interpret_csi_param(
 }
 
 unsafe fn peekkey_csi_csi(
-    tk: *mut TermKey,
+    tk: &mut TermKey,
     introlen: usize,
     key: *mut TermKeyKey,
     force: c_int,
@@ -856,13 +857,13 @@ unsafe fn peekkey_csi_csi(
         }
 
         if cmd == b'M' as c_uint && nparams < 3 {
-            (*tk).buffstart += csi_len;
-            (*tk).buffcount -= csi_len;
+            tk.buffstart += csi_len;
+            tk.buffcount -= csi_len;
 
             let mouse_result = peekkey_mouse(tk, key, nbytep);
 
-            (*tk).buffstart -= csi_len;
-            (*tk).buffcount += csi_len;
+            tk.buffstart -= csi_len;
+            tk.buffcount += csi_len;
 
             if mouse_result == TERMKEY_RES_KEY {
                 *nbytep += csi_len;
@@ -891,7 +892,7 @@ unsafe fn peekkey_csi_csi(
             (*key).code.number = cmd as c_int;
             (*key).modifiers = 0;
 
-            (*tk).hightide = csi_len - introlen;
+            tk.hightide = csi_len - introlen;
             *nbytep = introlen;
             return TERMKEY_RES_KEY;
         }
@@ -902,25 +903,24 @@ unsafe fn peekkey_csi_csi(
 }
 
 unsafe fn peekkey_ss3(
-    tk: *mut TermKey,
+    tk: &mut TermKey,
     introlen: usize,
     key: *mut TermKeyKey,
     force: c_int,
     nbytep: *mut usize,
 ) -> TermKeyResult {
     unsafe {
-        if (*tk).buffcount < introlen + 1 {
+        if tk.buffcount < introlen + 1 {
             if force == 0 {
                 return TERMKEY_RES_AGAIN;
             }
             emit_codepoint(tk, b'O' as c_int, key);
             (*key).modifiers |= TERMKEY_KEYMOD_ALT;
-            *nbytep = (*tk).buffcount;
+            *nbytep = tk.buffcount;
             return TERMKEY_RES_KEY;
         }
 
-        let buf = &(*tk).buffer;
-        let cmd = buf[(*tk).buffstart + introlen];
+        let cmd = tk.buffer[tk.buffstart + introlen];
         if !(0x40..0x80).contains(&cmd) {
             return TERMKEY_RES_NONE;
         }
@@ -932,7 +932,7 @@ unsafe fn peekkey_ss3(
         (*key).modifiers = CSI_SS3S[idx].modifier_set;
 
         if (*key).code.sym == TERMKEY_SYM_UNKNOWN {
-            if ((*tk).flags & TERMKEY_FLAG_CONVERTKP) != 0 && SS3_KPALTS[idx] != 0 {
+            if (tk.flags & TERMKEY_FLAG_CONVERTKP) != 0 && SS3_KPALTS[idx] != 0 {
                 (*key).r#type = TERMKEY_TYPE_UNICODE;
                 (*key).code.codepoint = c_int::from(SS3_KPALTS[idx] as u8);
                 (*key).modifiers = 0;
@@ -956,7 +956,7 @@ unsafe fn peekkey_ss3(
 }
 
 unsafe fn peekkey_ctrlstring(
-    tk: *mut TermKey,
+    tk: &mut TermKey,
     introlen: usize,
     key: *mut TermKeyKey,
     _force: c_int,
@@ -964,38 +964,38 @@ unsafe fn peekkey_ctrlstring(
 ) -> TermKeyResult {
     unsafe {
         let mut str_end = introlen;
-        let buf = (*tk).buffer.as_ptr().add((*tk).buffstart);
+        let slice = &tk.buffer[tk.buffstart..tk.buffstart + tk.buffcount];
 
-        while str_end < (*tk).buffcount {
-            let b = *buf.add(str_end);
+        while str_end < tk.buffcount {
+            let b = slice[str_end];
             if b == 0x07 || b == 0x9c {
                 break;
             }
-            if b == 0x1b && (str_end + 1) < (*tk).buffcount && *buf.add(str_end + 1) == 0x5c {
+            if b == 0x1b && (str_end + 1) < tk.buffcount && slice[str_end + 1] == 0x5c {
                 break;
             }
             str_end += 1;
         }
 
-        if str_end >= (*tk).buffcount {
+        if str_end >= tk.buffcount {
             return TERMKEY_RES_AGAIN;
         }
 
         *nbytep = str_end + 1;
-        if *buf.add(str_end) == 0x1b {
+        if slice[str_end] == 0x1b {
             *nbytep += 1;
         }
 
         let len = str_end - introlen;
-        let saved_string = &mut (*tk).csi.saved_string;
+        let ctrl_type = slice[introlen - 1] & 0x1f;
+        let saved_string = &mut tk.csi.saved_string;
         saved_string.clear();
         saved_string.reserve(len + 1);
-        (*tk).csi.saved_string_id += 1;
+        tk.csi.saved_string_id += 1;
 
-        let src = buf.add(introlen).cast::<c_char>();
         let mut copied = 0usize;
-        while copied < len && *src.add(copied) != 0 {
-            saved_string.push(*src.add(copied));
+        while copied < len && tk.buffer[tk.buffstart + introlen + copied] != 0 {
+            saved_string.push(tk.buffer[tk.buffstart + introlen + copied] as c_char);
             copied += 1;
         }
         while copied <= len {
@@ -1003,7 +1003,6 @@ unsafe fn peekkey_ctrlstring(
             copied += 1;
         }
 
-        let ctrl_type = *buf.add(introlen - 1) & 0x1f;
         match ctrl_type {
             0x10 => {
                 (*key).r#type = TERMKEY_TYPE_DCS;
@@ -1019,7 +1018,7 @@ unsafe fn peekkey_ctrlstring(
             }
         }
 
-        (*key).code.number = (*tk).csi.saved_string_id;
+        (*key).code.number = tk.csi.saved_string_id;
         (*key).modifiers = 0;
 
         TERMKEY_RES_KEY
@@ -1027,28 +1026,28 @@ unsafe fn peekkey_ctrlstring(
 }
 
 pub unsafe fn peekkey_csi(
-    tk: *mut TermKey,
+    tk: &mut TermKey,
     key: *mut TermKeyKey,
     force: c_int,
     nbytep: *mut usize,
 ) -> TermKeyResult {
     unsafe {
-        if (*tk).buffcount == 0 {
-            return if (*tk).is_closed != 0 {
+        if tk.buffcount == 0 {
+            return if tk.is_closed != 0 {
                 TERMKEY_RES_EOF
             } else {
                 TERMKEY_RES_NONE
             };
         }
 
-        let buf = (*tk).buffer.as_ptr().add((*tk).buffstart);
+        let b0 = tk.buffer[tk.buffstart];
 
-        match *buf {
+        match b0 {
             0x1b => {
-                if (*tk).buffcount < 2 {
+                if tk.buffcount < 2 {
                     return TERMKEY_RES_NONE;
                 }
-                match *buf.add(1) {
+                match tk.buffer[tk.buffstart + 1] {
                     0x4f => peekkey_ss3(tk, 2, key, force, nbytep),
                     0x50 | 0x5d | 0x5f => peekkey_ctrlstring(tk, 2, key, force, nbytep),
                     0x5b => peekkey_csi_csi(tk, 2, key, force, nbytep),

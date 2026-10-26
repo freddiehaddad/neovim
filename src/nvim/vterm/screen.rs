@@ -416,11 +416,9 @@ impl VTermScreen {
 }
 
 #[inline]
-unsafe fn clearcell(screen: *const VTermScreen, cell: *mut ScreenCell) {
-    unsafe {
-        (*cell).schar = 0;
-        (*cell).pen = (*screen).pen;
-    }
+fn clearcell(screen: &VTermScreen, cell: &mut ScreenCell) {
+    cell.schar = 0;
+    cell.pen = screen.pen;
 }
 
 #[inline]
@@ -447,7 +445,7 @@ unsafe fn alloc_buffer(screen: *mut VTermScreen, rows: c_int, cols: c_int) -> Ve
         let mut new_buffer = vec![ScreenCell::default(); count];
 
         for cell in &mut new_buffer {
-            clearcell(screen, cell);
+            clearcell(&*screen, cell);
         }
 
         new_buffer
@@ -895,14 +893,12 @@ unsafe fn bell(screen: *mut VTermScreen) -> c_int {
     }
 }
 
-unsafe fn line_popcount(buffer: *mut ScreenCell, row: c_int, _rows: c_int, cols: c_int) -> c_int {
-    unsafe {
-        let mut col = cols - 1;
-        while col >= 0 && (*buffer.add((row * cols + col) as usize)).schar == 0 {
-            col -= 1;
-        }
-        col + 1
+fn line_popcount(buffer: &[ScreenCell], row: c_int, _rows: c_int, cols: c_int) -> c_int {
+    let mut col = cols - 1;
+    while col >= 0 && buffer[(row * cols + col) as usize].schar == 0 {
+        col -= 1;
     }
+    col + 1
 }
 
 unsafe fn resize_buffer(
@@ -917,14 +913,9 @@ unsafe fn resize_buffer(
         let old_rows = (*screen).rows;
         let old_cols = (*screen).cols;
 
-        let old_buffer = (&mut *screen).buffers[bufidx].as_mut_ptr();
-        let has_old_lineinfo = !(&*statefields).lineinfos[bufidx].is_empty();
-        let old_lineinfo = (&mut *statefields).lineinfos[bufidx].as_mut_ptr();
-
-        let mut new_buffer_vec = vec![ScreenCell::default(); (new_rows as usize) * (new_cols as usize)];
-        let new_buffer = new_buffer_vec.as_mut_ptr();
+        let mut new_buffer_vec =
+            vec![ScreenCell::default(); (new_rows as usize) * (new_cols as usize)];
         let mut new_lineinfo_vec = vec![VTermLineInfo::default(); new_rows as usize];
-        let new_lineinfo = new_lineinfo_vec.as_mut_ptr();
 
         let mut old_row = old_rows - 1;
         let mut new_row = new_rows - 1;
@@ -935,149 +926,154 @@ unsafe fn resize_buffer(
         let mut final_blank_row = new_rows;
         let do_reflow = (*screen).reflow() && (bufidx == BUFIDX_PRIMARY);
 
-        while old_row >= 0 {
-            let old_row_end = old_row;
-            while do_reflow
-                && has_old_lineinfo
-                && old_row > 0
-                && (*old_lineinfo.add(old_row as usize)).continuation()
-            {
-                old_row -= 1;
-            }
-            let old_row_start = old_row;
+        {
+            let old_buffer = &(&*screen).buffers[bufidx];
+            let old_lineinfo = &(&*statefields).lineinfos[bufidx];
+            let has_old_lineinfo = !old_lineinfo.is_empty();
 
-            let mut width: c_int = 0;
-            for row in old_row_start..=old_row_end {
-                if do_reflow
-                    && row < (old_rows - 1)
-                    && (*old_lineinfo.add((row + 1) as usize)).continuation()
+            while old_row >= 0 {
+                let old_row_end = old_row;
+                while do_reflow
+                    && has_old_lineinfo
+                    && old_row > 0
+                    && old_lineinfo[old_row as usize].continuation()
                 {
-                    width += old_cols;
-                } else {
-                    width += line_popcount(old_buffer, row, old_rows, old_cols);
+                    old_row -= 1;
                 }
-            }
+                let old_row_start = old_row;
 
-            if final_blank_row == (new_row + 1) && width == 0 {
-                final_blank_row = new_row;
-            }
+                let mut width: c_int = 0;
+                for row in old_row_start..=old_row_end {
+                    if do_reflow
+                        && row < (old_rows - 1)
+                        && old_lineinfo[(row + 1) as usize].continuation()
+                    {
+                        width += old_cols;
+                    } else {
+                        width += line_popcount(old_buffer, row, old_rows, old_cols);
+                    }
+                }
 
-            let new_height = if do_reflow {
-                if width != 0 {
-                    (width + new_cols - 1) / new_cols
+                if final_blank_row == (new_row + 1) && width == 0 {
+                    final_blank_row = new_row;
+                }
+
+                let new_height = if do_reflow {
+                    if width != 0 {
+                        (width + new_cols - 1) / new_cols
+                    } else {
+                        1
+                    }
                 } else {
                     1
-                }
-            } else {
-                1
-            };
+                };
 
-            let mut new_row_end = new_row;
-            let mut new_row_start = new_row - new_height + 1;
+                let mut new_row_end = new_row;
+                let mut new_row_start = new_row - new_height + 1;
 
-            old_row = old_row_start;
-            let mut old_col: c_int = 0;
+                old_row = old_row_start;
+                let mut old_col: c_int = 0;
 
-            let spare_rows = new_rows - final_blank_row;
+                let spare_rows = new_rows - final_blank_row;
 
-            if new_row_start < 0
-                && spare_rows >= 0
-                && (!active || new_cursor.row == -1 || (new_cursor.row - new_row_start) < new_rows)
-            {
-                let mut downwards = -new_row_start;
-                if downwards > spare_rows {
-                    downwards = spare_rows;
-                }
-                let rowcount = new_rows - downwards;
-
-                ptr::copy(
-                    new_buffer,
-                    new_buffer.add((downwards * new_cols) as usize),
-                    (rowcount as usize) * (new_cols as usize),
-                );
-                ptr::copy(
-                    new_lineinfo,
-                    new_lineinfo.add(downwards as usize),
-                    rowcount as usize,
-                );
-
-                new_row += downwards;
-                new_row_start += downwards;
-                new_row_end += downwards;
-
-                if new_cursor.row >= 0 {
-                    new_cursor.row += downwards;
-                }
-
-                final_blank_row += downwards;
-            }
-
-            if new_row_start < 0 {
-                if old_row_start <= old_cursor.row && old_cursor.row <= old_row_end {
-                    new_cursor.row = 0;
-                    new_cursor.col = old_cursor.col;
-                    if new_cursor.col >= new_cols {
-                        new_cursor.col = new_cols - 1;
-                    }
-                }
-                break;
-            }
-
-            new_row = new_row_start;
-            old_row = old_row_start;
-            while new_row <= new_row_end {
-                let mut count = if width >= new_cols { new_cols } else { width };
-                width -= count;
-
-                let mut new_col: c_int = 0;
-
-                while count != 0 {
-                    *new_buffer.add((new_row * new_cols + new_col) as usize) =
-                        *old_buffer.add((old_row * old_cols + old_col) as usize);
-
-                    if old_cursor.row == old_row && old_cursor.col == old_col {
-                        new_cursor.row = new_row;
-                        new_cursor.col = new_col;
-                    }
-
-                    old_col += 1;
-                    if old_col == old_cols {
-                        old_row += 1;
-
-                        if !do_reflow {
-                            new_col += 1;
-                            break;
-                        }
-                        old_col = 0;
-                    }
-
-                    new_col += 1;
-                    count -= 1;
-                }
-
-                if old_row <= old_row_end && old_cursor.row == old_row && old_cursor.col >= old_col
+                if new_row_start < 0
+                    && spare_rows >= 0
+                    && (!active
+                        || new_cursor.row == -1
+                        || (new_cursor.row - new_row_start) < new_rows)
                 {
-                    new_cursor.row = new_row;
-                    new_cursor.col = old_cursor.col - old_col + new_col;
-                    if new_cursor.col >= new_cols {
-                        new_cursor.col = new_cols - 1;
+                    let mut downwards = -new_row_start;
+                    if downwards > spare_rows {
+                        downwards = spare_rows;
                     }
-                }
+                    let rowcount = new_rows - downwards;
 
-                while new_col < new_cols {
-                    clearcell(
-                        screen,
-                        new_buffer.add((new_row * new_cols + new_col) as usize),
+                    new_buffer_vec.copy_within(
+                        0..(rowcount as usize) * (new_cols as usize),
+                        (downwards * new_cols) as usize,
                     );
-                    new_col += 1;
+                    new_lineinfo_vec.copy_within(0..rowcount as usize, downwards as usize);
+
+                    new_row += downwards;
+                    new_row_start += downwards;
+                    new_row_end += downwards;
+
+                    if new_cursor.row >= 0 {
+                        new_cursor.row += downwards;
+                    }
+
+                    final_blank_row += downwards;
                 }
 
-                (*new_lineinfo.add(new_row as usize)).set_continuation(new_row > new_row_start);
-                new_row += 1;
-            }
+                if new_row_start < 0 {
+                    if old_row_start <= old_cursor.row && old_cursor.row <= old_row_end {
+                        new_cursor.row = 0;
+                        new_cursor.col = old_cursor.col;
+                        if new_cursor.col >= new_cols {
+                            new_cursor.col = new_cols - 1;
+                        }
+                    }
+                    break;
+                }
 
-            old_row = old_row_start - 1;
-            new_row = new_row_start - 1;
+                new_row = new_row_start;
+                old_row = old_row_start;
+                while new_row <= new_row_end {
+                    let mut count = if width >= new_cols { new_cols } else { width };
+                    width -= count;
+
+                    let mut new_col: c_int = 0;
+
+                    while count != 0 {
+                        new_buffer_vec[(new_row * new_cols + new_col) as usize] =
+                            old_buffer[(old_row * old_cols + old_col) as usize];
+
+                        if old_cursor.row == old_row && old_cursor.col == old_col {
+                            new_cursor.row = new_row;
+                            new_cursor.col = new_col;
+                        }
+
+                        old_col += 1;
+                        if old_col == old_cols {
+                            old_row += 1;
+
+                            if !do_reflow {
+                                new_col += 1;
+                                break;
+                            }
+                            old_col = 0;
+                        }
+
+                        new_col += 1;
+                        count -= 1;
+                    }
+
+                    if old_row <= old_row_end
+                        && old_cursor.row == old_row
+                        && old_cursor.col >= old_col
+                    {
+                        new_cursor.row = new_row;
+                        new_cursor.col = old_cursor.col - old_col + new_col;
+                        if new_cursor.col >= new_cols {
+                            new_cursor.col = new_cols - 1;
+                        }
+                    }
+
+                    while new_col < new_cols {
+                        clearcell(
+                            &*screen,
+                            &mut new_buffer_vec[(new_row * new_cols + new_col) as usize],
+                        );
+                        new_col += 1;
+                    }
+
+                    new_lineinfo_vec[new_row as usize].set_continuation(new_row > new_row_start);
+                    new_row += 1;
+                }
+
+                old_row = old_row_start - 1;
+                new_row = new_row_start - 1;
+            }
         }
 
         if old_cursor.row <= old_row {
@@ -1107,8 +1103,8 @@ unsafe fn resize_buffer(
             && !(*screen).callbacks.is_null()
             && let Some(sb_popline) = (*(*screen).callbacks).sb_popline
         {
-            let sb_buf_ptr = (&mut *screen).sb_buffer.as_mut_ptr();
             while new_row >= 0 {
+                let sb_buf_ptr = (&mut *screen).sb_buffer.as_mut_ptr();
                 if sb_popline(old_cols, sb_buf_ptr, (*screen).cbdata) == 0 {
                     break;
                 }
@@ -1118,39 +1114,40 @@ unsafe fn resize_buffer(
                     col: 0,
                 };
                 while pos.col < old_cols && pos.col < new_cols {
-                    let src = &*sb_buf_ptr.add(pos.col as usize);
-                    let dst = new_buffer.add((pos.row * new_cols + pos.col) as usize);
+                    let src = &(&*screen).sb_buffer[pos.col as usize];
+                    let dst_idx = (pos.row * new_cols + pos.col) as usize;
+                    let dst = &mut new_buffer_vec[dst_idx];
 
-                    (*dst).schar = src.schar;
+                    dst.schar = src.schar;
 
-                    (*dst).pen.set_bold(src.attrs.bold());
-                    (*dst).pen.set_underline(src.attrs.underline());
-                    (*dst).pen.set_italic(src.attrs.italic());
-                    (*dst).pen.set_blink(src.attrs.blink());
-                    (*dst)
-                        .pen
+                    dst.pen.set_bold(src.attrs.bold());
+                    dst.pen.set_underline(src.attrs.underline());
+                    dst.pen.set_italic(src.attrs.italic());
+                    dst.pen.set_blink(src.attrs.blink());
+                    dst.pen
                         .set_reverse(src.attrs.reverse() ^ (*screen).global_reverse());
-                    (*dst).pen.set_conceal(src.attrs.conceal());
-                    (*dst).pen.set_strike(src.attrs.strike());
-                    (*dst).pen.set_font(src.attrs.font());
-                    (*dst).pen.set_small(src.attrs.small());
-                    (*dst).pen.set_baseline(src.attrs.baseline());
-                    (*dst).pen.set_dim(src.attrs.dim());
-                    (*dst).pen.set_overline(src.attrs.overline());
+                    dst.pen.set_conceal(src.attrs.conceal());
+                    dst.pen.set_strike(src.attrs.strike());
+                    dst.pen.set_font(src.attrs.font());
+                    dst.pen.set_small(src.attrs.small());
+                    dst.pen.set_baseline(src.attrs.baseline());
+                    dst.pen.set_dim(src.attrs.dim());
+                    dst.pen.set_overline(src.attrs.overline());
 
-                    (*dst).pen.fg = src.fg;
-                    (*dst).pen.bg = src.bg;
-                    (*dst).pen.uri = src.uri;
+                    dst.pen.fg = src.fg;
+                    dst.pen.bg = src.bg;
+                    dst.pen.uri = src.uri;
 
-                    if src.width == 2 && pos.col < (new_cols - 1) {
-                        (*dst.add(1)).schar = u32::MAX;
+                    let width = c_int::from(src.width);
+                    if width == 2 && pos.col < (new_cols - 1) {
+                        new_buffer_vec[dst_idx + 1].schar = u32::MAX;
                     }
-                    pos.col += c_int::from(src.width);
+                    pos.col += width;
                 }
                 while pos.col < new_cols {
                     clearcell(
-                        screen,
-                        new_buffer.add((pos.row * new_cols + pos.col) as usize),
+                        &*screen,
+                        &mut new_buffer_vec[(pos.row * new_cols + pos.col) as usize],
                     );
                     pos.col += 1;
                 }
@@ -1163,24 +1160,19 @@ unsafe fn resize_buffer(
         }
         if new_row >= 0 {
             let moverows = new_rows - new_row - 1;
-            ptr::copy(
-                new_buffer.add(((new_row + 1) * new_cols) as usize),
-                new_buffer,
-                (moverows as usize) * (new_cols as usize),
-            );
-            ptr::copy(
-                new_lineinfo.add((new_row + 1) as usize),
-                new_lineinfo,
-                moverows as usize,
-            );
+            let src_start = ((new_row + 1) * new_cols) as usize;
+            let count = (moverows as usize) * (new_cols as usize);
+            new_buffer_vec.copy_within(src_start..src_start + count, 0);
+            let li_start = (new_row + 1) as usize;
+            new_lineinfo_vec.copy_within(li_start..li_start + (moverows as usize), 0);
 
             new_cursor.row -= new_row + 1;
 
             for r in moverows..new_rows {
                 for col in 0..new_cols {
-                    clearcell(screen, new_buffer.add((r * new_cols + col) as usize));
+                    clearcell(&*screen, &mut new_buffer_vec[(r * new_cols + col) as usize]);
                 }
-                *new_lineinfo.add(r as usize) = VTermLineInfo { flags: 0 };
+                new_lineinfo_vec[r as usize] = VTermLineInfo { flags: 0 };
             }
         }
 

@@ -301,7 +301,7 @@ const KEYNAMES: &[KeyNameInit] = &[
 const EVNAMES: [&str; 4] = ["Unknown", "Press", "Drag", "Release"];
 
 pub unsafe fn termkey_interpret_string(
-    tk: *mut TermKey,
+    tk: &TermKey,
     key: *const TermKeyKey,
     strp: *mut *const c_char,
 ) -> TermKeyResult {
@@ -313,11 +313,11 @@ pub unsafe fn termkey_interpret_string(
             return TERMKEY_RES_NONE;
         }
 
-        if (*tk).csi.saved_string_id != (*key).code.number {
+        if tk.csi.saved_string_id != (*key).code.number {
             return TERMKEY_RES_NONE;
         }
 
-        *strp = (*tk).csi.saved_string.as_ptr();
+        *strp = tk.csi.saved_string.as_ptr();
         TERMKEY_RES_KEY
     }
 }
@@ -360,9 +360,9 @@ unsafe fn strpncmp_camel(
     }
 }
 
-pub unsafe fn termkey_new_abstract(term: *mut TerminfoEntry, flags: c_int) -> *mut TermKey {
+pub unsafe fn termkey_new_abstract(term: *mut TerminfoEntry, flags: c_int) -> Option<TermKey> {
     unsafe {
-        let tk = Box::into_raw(Box::new(TermKey {
+        let mut tk = TermKey {
             flags: 0,
             canonflags: 0,
             buffer: vec![0u8; 256],
@@ -382,59 +382,38 @@ pub unsafe fn termkey_new_abstract(term: *mut TerminfoEntry, flags: c_int) -> *m
             }; 32],
             ti: TermKeyTI::new(term),
             csi: TermKeyCsi::default(),
-        }));
+        };
 
-        termkey_set_flags(tk, flags);
+        termkey_set_flags(&mut tk, flags);
 
         for entry in KEYNAMES {
-            termkey_register_keyname(tk, entry.sym, entry.name.as_ptr());
+            termkey_register_keyname(&mut tk, entry.sym, entry.name.as_ptr());
         }
 
-        register_c0(tk, TERMKEY_SYM_TAB, 0x09, std::ptr::null());
-        register_c0(tk, TERMKEY_SYM_ENTER, 0x0d, std::ptr::null());
-        register_c0(tk, TERMKEY_SYM_ESCAPE, 0x1b, std::ptr::null());
+        register_c0(&mut tk, TERMKEY_SYM_TAB, 0x09, std::ptr::null());
+        register_c0(&mut tk, TERMKEY_SYM_ENTER, 0x0d, std::ptr::null());
+        register_c0(&mut tk, TERMKEY_SYM_ESCAPE, 0x1b, std::ptr::null());
 
-        if (flags & TERMKEY_FLAG_NOSTART) == 0 && termkey_start(tk) == 0 {
-            drop(Box::from_raw(tk));
-            return std::ptr::null_mut();
+        if (flags & TERMKEY_FLAG_NOSTART) == 0 && termkey_start(&mut tk) == 0 {
+            return None;
         }
 
-        tk
+        Some(tk)
     }
 }
 
-impl Drop for TermKey {
-    fn drop(&mut self) {
-        if self.is_started != 0 {
-            unsafe {
-                termkey_stop(self);
-            }
-        }
-    }
-}
-
-pub unsafe fn termkey_destroy(tk: *mut TermKey) {
-    if !tk.is_null() {
-        unsafe {
-            drop(Box::from_raw(tk));
-        }
-    }
-}
-
-pub unsafe fn termkey_hook_terminfo_getstr(
-    tk: *mut TermKey,
+pub fn termkey_hook_terminfo_getstr(
+    tk: &mut TermKey,
     hookfn: TermKeyTerminfoGetstrHook,
     data: *mut crate::tui::input::TermInput,
 ) {
-    unsafe {
-        (*tk).ti_getstr_hook = hookfn;
-        (*tk).ti_getstr_hook_data = data;
-    }
+    tk.ti_getstr_hook = hookfn;
+    tk.ti_getstr_hook_data = data;
 }
 
-pub unsafe fn termkey_start(tk: *mut TermKey) -> c_int {
+pub unsafe fn termkey_start(tk: &mut TermKey) -> c_int {
     unsafe {
-        if (*tk).is_started != 0 {
+        if tk.is_started != 0 {
             return 1;
         }
 
@@ -442,73 +421,64 @@ pub unsafe fn termkey_start(tk: *mut TermKey) -> c_int {
             return 0;
         }
 
-        (*tk).is_started = 1;
+        tk.is_started = 1;
         1
     }
 }
 
-pub unsafe fn termkey_stop(tk: *mut TermKey) -> c_int {
-    unsafe {
-        if (*tk).is_started == 0 {
-            return 1;
-        }
+#[cfg(test)]
+pub fn termkey_stop(tk: &mut TermKey) -> c_int {
+    if tk.is_started == 0 {
+        return 1;
+    }
 
-        (*tk).is_started = 0;
-        1
+    tk.is_started = 0;
+    1
+}
+
+pub fn termkey_set_flags(tk: &mut TermKey, newflags: c_int) {
+    tk.flags = newflags;
+    if (tk.flags & TERMKEY_FLAG_SPACESYMBOL) != 0 {
+        tk.canonflags |= TERMKEY_CANON_SPACESYMBOL;
+    } else {
+        tk.canonflags &= !TERMKEY_CANON_SPACESYMBOL;
     }
 }
 
-pub unsafe fn termkey_set_flags(tk: *mut TermKey, newflags: c_int) {
-    unsafe {
-        (*tk).flags = newflags;
-        if ((*tk).flags & TERMKEY_FLAG_SPACESYMBOL) != 0 {
-            (*tk).canonflags |= TERMKEY_CANON_SPACESYMBOL;
-        } else {
-            (*tk).canonflags &= !TERMKEY_CANON_SPACESYMBOL;
-        }
+pub const fn termkey_get_canonflags(tk: &TermKey) -> c_int {
+    tk.canonflags
+}
+
+pub fn termkey_set_canonflags(tk: &mut TermKey, flags: c_int) {
+    tk.canonflags = flags;
+    if (tk.canonflags & TERMKEY_CANON_SPACESYMBOL) != 0 {
+        tk.flags |= TERMKEY_FLAG_SPACESYMBOL;
+    } else {
+        tk.flags &= !TERMKEY_FLAG_SPACESYMBOL;
     }
 }
 
-pub unsafe fn termkey_get_canonflags(tk: *mut TermKey) -> c_int {
-    unsafe { (*tk).canonflags }
+pub fn termkey_get_buffer_size(tk: &TermKey) -> usize {
+    tk.buffer.len()
 }
 
-pub unsafe fn termkey_set_canonflags(tk: *mut TermKey, flags: c_int) {
-    unsafe {
-        (*tk).canonflags = flags;
-        if ((*tk).canonflags & TERMKEY_CANON_SPACESYMBOL) != 0 {
-            (*tk).flags |= TERMKEY_FLAG_SPACESYMBOL;
-        } else {
-            (*tk).flags &= !TERMKEY_FLAG_SPACESYMBOL;
-        }
-    }
+pub fn termkey_set_buffer_size(tk: &mut TermKey, size: usize) -> c_int {
+    tk.buffer.resize(size, 0);
+    1
 }
 
-pub unsafe fn termkey_get_buffer_size(tk: *mut TermKey) -> usize {
-    unsafe { (*tk).buffer.len() }
-}
-
-pub unsafe fn termkey_set_buffer_size(tk: *mut TermKey, size: usize) -> c_int {
-    unsafe {
-        (*tk).buffer.resize(size, 0);
-        1
-    }
-}
-
-pub unsafe fn termkey_get_buffer_remaining(tk: *mut TermKey) -> usize {
-    unsafe { (*tk).buffer.len() - (*tk).buffcount }
+pub fn termkey_get_buffer_remaining(tk: &TermKey) -> usize {
+    tk.buffer.len() - tk.buffcount
 }
 
 #[inline]
-unsafe fn eat_bytes(tk: *mut TermKey, count: usize) {
-    unsafe {
-        if count >= (*tk).buffcount {
-            (*tk).buffstart = 0;
-            (*tk).buffcount = 0;
-        } else {
-            (*tk).buffstart += count;
-            (*tk).buffcount -= count;
-        }
+fn eat_bytes(tk: &mut TermKey, count: usize) {
+    if count >= tk.buffcount {
+        tk.buffstart = 0;
+        tk.buffcount = 0;
+    } else {
+        tk.buffstart += count;
+        tk.buffcount -= count;
     }
 }
 
@@ -577,22 +547,22 @@ fn parse_utf8(bytes: &[u8], cp: &mut c_int, nbytep: &mut usize) -> TermKeyResult
     TERMKEY_RES_KEY
 }
 
-pub(crate) unsafe fn emit_codepoint(tk: *mut TermKey, codepoint: c_int, key: *mut TermKeyKey) {
+pub(crate) unsafe fn emit_codepoint(tk: &TermKey, codepoint: c_int, key: *mut TermKeyKey) {
     unsafe {
         if codepoint == 0 {
             (*key).r#type = TERMKEY_TYPE_KEYSYM;
             (*key).code.sym = TERMKEY_SYM_SPACE;
             (*key).modifiers = TERMKEY_KEYMOD_CTRL;
-        } else if codepoint < 0x20 && ((*tk).flags & TERMKEY_FLAG_KEEPC0) == 0 {
+        } else if codepoint < 0x20 && (tk.flags & TERMKEY_FLAG_KEEPC0) == 0 {
             (*key).code.codepoint = 0;
             (*key).modifiers = 0;
 
             let idx = codepoint as usize;
-            if ((*tk).flags & TERMKEY_FLAG_NOINTERPRET) == 0
-                && (*tk).c0[idx].sym != TERMKEY_SYM_UNKNOWN
+            if (tk.flags & TERMKEY_FLAG_NOINTERPRET) == 0
+                && tk.c0[idx].sym != TERMKEY_SYM_UNKNOWN
             {
-                (*key).code.sym = (*tk).c0[idx].sym;
-                (*key).modifiers |= (*tk).c0[idx].modifier_set;
+                (*key).code.sym = tk.c0[idx].sym;
+                (*key).modifiers |= tk.c0[idx].modifier_set;
             }
 
             if (*key).code.sym == 0 {
@@ -606,7 +576,7 @@ pub(crate) unsafe fn emit_codepoint(tk: *mut TermKey, codepoint: c_int, key: *mu
             } else {
                 (*key).r#type = TERMKEY_TYPE_KEYSYM;
             }
-        } else if codepoint == 0x7f && ((*tk).flags & TERMKEY_FLAG_NOINTERPRET) == 0 {
+        } else if codepoint == 0x7f && (tk.flags & TERMKEY_FLAG_NOINTERPRET) == 0 {
             (*key).r#type = TERMKEY_TYPE_KEYSYM;
             (*key).code.sym = TERMKEY_SYM_DEL;
             (*key).modifiers = 0;
@@ -632,9 +602,9 @@ pub(crate) unsafe fn emit_codepoint(tk: *mut TermKey, codepoint: c_int, key: *mu
     }
 }
 
-pub unsafe fn termkey_canonicalise(tk: *mut TermKey, key: *mut TermKeyKey) {
+pub unsafe fn termkey_canonicalise(tk: &TermKey, key: *mut TermKeyKey) {
     unsafe {
-        let flags = (*tk).canonflags;
+        let flags = tk.canonflags;
 
         if (flags & TERMKEY_CANON_SPACESYMBOL) != 0 {
             if (*key).r#type == TERMKEY_TYPE_UNICODE && (*key).code.codepoint == 0x20 {
@@ -657,7 +627,7 @@ pub unsafe fn termkey_canonicalise(tk: *mut TermKey, key: *mut TermKeyKey) {
 }
 
 unsafe fn peekkey(
-    tk: *mut TermKey,
+    tk: &mut TermKey,
     key: *mut TermKeyKey,
     force: c_int,
     nbytep: *mut usize,
@@ -665,26 +635,26 @@ unsafe fn peekkey(
     unsafe {
         let mut again = false;
 
-        if (*tk).is_started == 0 {
+        if tk.is_started == 0 {
             return TERMKEY_RES_ERROR;
         }
 
         (*key).event = TERMKEY_EVENT_PRESS;
 
-        if (*tk).hightide != 0 {
-            (*tk).buffstart += (*tk).hightide;
-            (*tk).buffcount -= (*tk).hightide;
-            (*tk).hightide = 0;
+        if tk.hightide != 0 {
+            tk.buffstart += tk.hightide;
+            tk.buffcount -= tk.hightide;
+            tk.hightide = 0;
         }
 
         for peek_fn in [peekkey_ti, peekkey_csi] {
             let ret = peek_fn(tk, key, force, nbytep);
             match ret {
                 TERMKEY_RES_KEY => {
-                    let halfsize = (*tk).buffer.len() / 2;
-                    if (*tk).buffstart > halfsize {
-                        (*tk).buffer.copy_within(halfsize..(halfsize * 2), 0);
-                        (*tk).buffstart -= halfsize;
+                    let halfsize = tk.buffer.len() / 2;
+                    if tk.buffstart > halfsize {
+                        tk.buffer.copy_within(halfsize..(halfsize * 2), 0);
+                        tk.buffstart -= halfsize;
                     }
                     return ret;
                 }
@@ -707,25 +677,24 @@ unsafe fn peekkey(
 }
 
 unsafe fn peekkey_simple(
-    tk: *mut TermKey,
+    tk: &mut TermKey,
     key: *mut TermKeyKey,
     force: c_int,
     nbytep: *mut usize,
 ) -> TermKeyResult {
     unsafe {
-        if (*tk).buffcount == 0 {
-            return if (*tk).is_closed != 0 {
+        if tk.buffcount == 0 {
+            return if tk.is_closed != 0 {
                 TERMKEY_RES_EOF
             } else {
                 TERMKEY_RES_NONE
             };
         }
 
-        let buf = &(*tk).buffer;
-        let b0 = buf[(*tk).buffstart];
+        let b0 = tk.buffer[tk.buffstart];
 
         if b0 == 0x1b {
-            if (*tk).buffcount == 1 {
+            if tk.buffcount == 1 {
                 if force == 0 {
                     return TERMKEY_RES_AGAIN;
                 }
@@ -734,13 +703,13 @@ unsafe fn peekkey_simple(
                 return TERMKEY_RES_KEY;
             }
 
-            (*tk).buffstart += 1;
-            (*tk).buffcount -= 1;
+            tk.buffstart += 1;
+            tk.buffcount -= 1;
 
             let metakey_result = peekkey(tk, key, force, nbytep);
 
-            (*tk).buffstart -= 1;
-            (*tk).buffcount += 1;
+            tk.buffstart -= 1;
+            tk.buffcount += 1;
 
             if metakey_result == TERMKEY_RES_KEY {
                 if (*key).event == TERMKEY_EVENT_REPEAT
@@ -763,12 +732,11 @@ unsafe fn peekkey_simple(
             emit_codepoint(tk, c_int::from(b0), key);
             *nbytep = 1;
             TERMKEY_RES_KEY
-        } else if ((*tk).flags & TERMKEY_FLAG_UTF8) != 0 {
+        } else if (tk.flags & TERMKEY_FLAG_UTF8) != 0 {
             let mut codepoint: c_int = 0;
-            let start = (*tk).buffstart;
-            let count = (*tk).buffcount;
-            let buf = &(*tk).buffer;
-            let slice = &buf[start..start + count];
+            let start = tk.buffstart;
+            let count = tk.buffcount;
+            let slice = &tk.buffer[start..start + count];
             let mut res = parse_utf8(slice, &mut codepoint, &mut *nbytep);
 
             if res == TERMKEY_RES_AGAIN && force != 0 {
@@ -794,20 +762,19 @@ unsafe fn peekkey_simple(
 }
 
 pub(crate) unsafe fn peekkey_mouse(
-    tk: *mut TermKey,
+    tk: &TermKey,
     key: *mut TermKeyKey,
     nbytep: *mut usize,
 ) -> TermKeyResult {
     unsafe {
-        if (*tk).buffcount < 3 {
+        if tk.buffcount < 3 {
             return TERMKEY_RES_AGAIN;
         }
 
-        let start = (*tk).buffstart;
-        let buf = &(*tk).buffer;
-        let b0 = buf[start];
-        let b1 = buf[start + 1];
-        let b2 = buf[start + 2];
+        let start = tk.buffstart;
+        let b0 = tk.buffer[start];
+        let b1 = tk.buffer[start + 1];
+        let b2 = tk.buffer[start + 2];
         (*key).r#type = TERMKEY_TYPE_MOUSE;
         (*key).code.mouse[0] = b0.wrapping_sub(0x20) as c_char;
         (*key).code.mouse[1] = b1.wrapping_sub(0x20) as c_char;
@@ -822,7 +789,7 @@ pub(crate) unsafe fn peekkey_mouse(
     }
 }
 
-pub unsafe fn termkey_getkey(tk: *mut TermKey, key: *mut TermKeyKey) -> TermKeyResult {
+pub unsafe fn termkey_getkey(tk: &mut TermKey, key: *mut TermKeyKey) -> TermKeyResult {
     unsafe {
         let mut nbytes: usize = 0;
         let ret = peekkey(tk, key, 0, &mut nbytes);
@@ -839,7 +806,7 @@ pub unsafe fn termkey_getkey(tk: *mut TermKey, key: *mut TermKeyKey) -> TermKeyR
     }
 }
 
-pub unsafe fn termkey_getkey_force(tk: *mut TermKey, key: *mut TermKeyKey) -> TermKeyResult {
+pub unsafe fn termkey_getkey_force(tk: &mut TermKey, key: *mut TermKeyKey) -> TermKeyResult {
     unsafe {
         let mut nbytes: usize = 0;
         let ret = peekkey(tk, key, 1, &mut nbytes);
@@ -852,76 +819,72 @@ pub unsafe fn termkey_getkey_force(tk: *mut TermKey, key: *mut TermKeyKey) -> Te
     }
 }
 
-pub unsafe fn termkey_push_bytes(tk: *mut TermKey, bytes: *const c_char, mut len: usize) -> usize {
+pub unsafe fn termkey_push_bytes(tk: &mut TermKey, bytes: *const c_char, mut len: usize) -> usize {
     unsafe {
-        if (*tk).buffstart != 0 {
-            let start = (*tk).buffstart;
-            let count = (*tk).buffcount;
-            (*tk).buffer.copy_within(start..start + count, 0);
-            (*tk).buffstart = 0;
+        if tk.buffstart != 0 {
+            let start = tk.buffstart;
+            let count = tk.buffcount;
+            tk.buffer.copy_within(start..start + count, 0);
+            tk.buffstart = 0;
         }
 
-        let buffsize = (*tk).buffer.len();
-        if (*tk).buffcount >= buffsize {
+        let buffsize = tk.buffer.len();
+        if tk.buffcount >= buffsize {
             return usize::MAX;
         }
 
-        if len > buffsize - (*tk).buffcount {
-            len = buffsize - (*tk).buffcount;
+        if len > buffsize - tk.buffcount {
+            len = buffsize - tk.buffcount;
         }
 
-        let dst = (*tk).buffer.as_mut_ptr().add((*tk).buffcount);
-        std::ptr::copy_nonoverlapping(bytes.cast::<u8>(), dst, len);
-        (*tk).buffcount += len;
+        if len > 0 {
+            let src = std::slice::from_raw_parts(bytes.cast::<u8>(), len);
+            tk.buffer[tk.buffcount..tk.buffcount + len].copy_from_slice(src);
+            tk.buffcount += len;
+        }
 
         len
     }
 }
 
-pub unsafe fn termkey_register_keyname(
-    tk: *mut TermKey,
+pub fn termkey_register_keyname(
+    tk: &mut TermKey,
     mut sym: TermKeySym,
     name: *const c_char,
 ) -> TermKeySym {
-    unsafe {
-        if sym == 0 {
-            sym = (*tk).keynames.len() as c_int;
-        }
-
-        let idx = sym as usize;
-        if idx >= (*tk).keynames.len() {
-            (*tk).keynames.resize(idx + 1, std::ptr::null());
-        }
-
-        let keynames = &mut (*tk).keynames;
-        keynames[idx] = name;
-        sym
+    if sym == 0 {
+        sym = tk.keynames.len() as c_int;
     }
+
+    let idx = sym as usize;
+    if idx >= tk.keynames.len() {
+        tk.keynames.resize(idx + 1, std::ptr::null());
+    }
+
+    tk.keynames[idx] = name;
+    sym
 }
 
-pub unsafe fn termkey_get_keyname(tk: *mut TermKey, sym: TermKeySym) -> *const c_char {
+pub fn termkey_get_keyname(tk: &TermKey, sym: TermKeySym) -> *const c_char {
     if sym == TERMKEY_SYM_UNKNOWN {
         return c"UNKNOWN".as_ptr();
     }
-    unsafe {
-        let keynames = &(*tk).keynames;
-        if sym >= 0 && (sym as usize) < keynames.len() {
-            keynames[sym as usize]
-        } else {
-            c"UNKNOWN".as_ptr()
-        }
+    if sym >= 0 && (sym as usize) < tk.keynames.len() {
+        tk.keynames[sym as usize]
+    } else {
+        c"UNKNOWN".as_ptr()
     }
 }
 
 #[cfg(test)]
 unsafe fn termkey_lookup_keyname_format(
-    tk: *mut TermKey,
+    tk: &TermKey,
     str_in: *const c_char,
     sym: *mut TermKeySym,
     format: TermKeyFormat,
 ) -> *const c_char {
     unsafe {
-        let keynames = &(*tk).keynames;
+        let keynames = &tk.keynames;
         *sym = 0;
         while (*sym as usize) < keynames.len() {
             let mut thiskey = keynames[*sym as usize];
@@ -954,24 +917,24 @@ unsafe fn termkey_lookup_keyname_format(
 
 #[cfg(test)]
 pub unsafe fn termkey_lookup_keyname(
-    tk: *mut TermKey,
+    tk: &TermKey,
     str_in: *const c_char,
     sym: *mut TermKeySym,
 ) -> *const c_char {
     unsafe { termkey_lookup_keyname_format(tk, str_in, sym, 0) }
 }
 
-unsafe fn register_c0(
-    tk: *mut TermKey,
+fn register_c0(
+    tk: &mut TermKey,
     sym: TermKeySym,
     ctrl: u8,
     name: *const c_char,
 ) -> TermKeySym {
-    unsafe { register_c0_full(tk, sym, 0, 0, ctrl, name) }
+    register_c0_full(tk, sym, 0, 0, ctrl, name)
 }
 
-unsafe fn register_c0_full(
-    tk: *mut TermKey,
+fn register_c0_full(
+    tk: &mut TermKey,
     mut sym: TermKeySym,
     modifier_set: c_int,
     modifier_mask: c_int,
@@ -981,16 +944,14 @@ unsafe fn register_c0_full(
     if ctrl >= 0x20 {
         return -1;
     }
-    unsafe {
-        if !name.is_null() {
-            sym = termkey_register_keyname(tk, sym, name);
-        }
-        let idx = usize::from(ctrl);
-        (*tk).c0[idx].sym = sym;
-        (*tk).c0[idx].modifier_set = modifier_set;
-        (*tk).c0[idx].modifier_mask = modifier_mask;
-        sym
+    if !name.is_null() {
+        sym = termkey_register_keyname(tk, sym, name);
     }
+    let idx = usize::from(ctrl);
+    tk.c0[idx].sym = sym;
+    tk.c0[idx].modifier_set = modifier_set;
+    tk.c0[idx].modifier_mask = modifier_mask;
+    sym
 }
 
 struct ModNames {
@@ -1076,7 +1037,7 @@ fn camel_to_spaces(src: &[u8]) -> Vec<u8> {
 }
 
 pub unsafe fn termkey_strfkey(
-    tk: *mut TermKey,
+    tk: &TermKey,
     buffer: *mut c_char,
     len: usize,
     key: *mut TermKeyKey,
@@ -1246,22 +1207,22 @@ mod tests {
         termkey_interpret_csi, termkey_interpret_position,
     };
 
-    unsafe fn push(tk: *mut TermKey, bytes: &[u8]) -> usize {
+    unsafe fn push(tk: &mut TermKey, bytes: &[u8]) -> usize {
         unsafe { termkey_push_bytes(tk, bytes.as_ptr().cast(), bytes.len()) }
     }
 
     #[test]
     fn base_getkey_flags_and_buffer_resize() {
         unsafe {
-            let tk = termkey_new_abstract(std::ptr::null_mut(), 0);
-            assert!(!tk.is_null());
+            let mut tk = termkey_new_abstract(std::ptr::null_mut(), 0).unwrap();
+            let tk = &mut tk;
             assert_eq!(termkey_get_buffer_size(tk), 256);
-            assert_eq!((*tk).is_started, 1);
+            assert_eq!(tk.is_started, 1);
 
             termkey_stop(tk);
-            assert_eq!((*tk).is_started, 0);
+            assert_eq!(tk.is_started, 0);
             termkey_start(tk);
-            assert_eq!((*tk).is_started, 1);
+            assert_eq!(tk.is_started, 1);
 
             let mut key = TermKeyKey::new();
             assert_eq!(termkey_get_buffer_remaining(tk), 256);
@@ -1317,15 +1278,14 @@ mod tests {
             assert_eq!(termkey_get_buffer_size(tk), 512);
             assert_eq!(termkey_get_buffer_remaining(tk), 511);
             assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
-
-            termkey_destroy(tk);
         }
     }
 
     #[test]
     fn utf8_decoding_invalid_continuations_and_partials() {
         unsafe {
-            let tk = termkey_new_abstract(std::ptr::null_mut(), TERMKEY_FLAG_UTF8);
+            let mut tk = termkey_new_abstract(std::ptr::null_mut(), TERMKEY_FLAG_UTF8).unwrap();
+            let tk = &mut tk;
             let mut key = TermKeyKey::new();
 
             for (bytes, expected_cp) in [
@@ -1369,15 +1329,14 @@ mod tests {
             push(tk, b"\x80");
             assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
             assert_eq!(key.code.codepoint, 0x10000);
-
-            termkey_destroy(tk);
         }
     }
 
     #[test]
     fn keyname_strfkey_and_canonicalise() {
         unsafe {
-            let tk = termkey_new_abstract(std::ptr::null_mut(), 0);
+            let mut tk = termkey_new_abstract(std::ptr::null_mut(), 0).unwrap();
+            let tk = &mut tk;
             let mut sym: TermKeySym = TERMKEY_SYM_UNKNOWN;
 
             assert!(termkey_lookup_keyname(tk, c"SomeUnknownKey".as_ptr(), &mut sym).is_null());
@@ -1467,15 +1426,14 @@ mod tests {
             termkey_canonicalise(tk, &mut k1);
             assert_eq!(k1.r#type, TERMKEY_TYPE_KEYSYM);
             assert_eq!(k1.code.sym, TERMKEY_SYM_SPACE);
-
-            termkey_destroy(tk);
         }
     }
 
     #[test]
     fn mouse_position_modereport_csi_and_dcs_osc() {
         unsafe {
-            let tk = termkey_new_abstract(std::ptr::null_mut(), 0);
+            let mut tk = termkey_new_abstract(std::ptr::null_mut(), 0).unwrap();
+            let tk = &mut tk;
             let mut key = TermKeyKey::new();
             let mut ev: TermKeyMouseEvent = TERMKEY_MOUSE_UNKNOWN;
             let mut button: c_int = 0;
@@ -1600,8 +1558,6 @@ mod tests {
             assert_eq!(key.r#type, TERMKEY_TYPE_UNICODE);
             assert_eq!(key.code.codepoint, i32::from(b'P'));
             assert_eq!(key.modifiers, TERMKEY_KEYMOD_ALT);
-
-            termkey_destroy(tk);
         }
     }
 }

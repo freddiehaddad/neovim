@@ -418,7 +418,7 @@ fn insert_seq(root: &mut TrieNode, seq: &[u8], info: keyinfo) {
 }
 
 unsafe fn try_load_terminfo_key(
-    tk: *mut TermKey,
+    tk: &TermKey,
     root: &mut TrieNode,
     fn_nr: bool,
     key: usize,
@@ -428,7 +428,7 @@ unsafe fn try_load_terminfo_key(
 ) -> bool {
     unsafe {
         let mut value: *const c_char = std::ptr::null();
-        let ti_ptr = (*tk).ti.ti;
+        let ti_ptr = tk.ti.ti;
 
         if !ti_ptr.is_null() {
             if !fn_nr {
@@ -439,8 +439,8 @@ unsafe fn try_load_terminfo_key(
             }
         }
 
-        if let Some(hook) = (*tk).ti_getstr_hook {
-            value = hook(name, value, (*tk).ti_getstr_hook_data);
+        if let Some(hook) = tk.ti_getstr_hook {
+            value = hook(name, value, tk.ti_getstr_hook_data);
         }
 
         if value.is_null() || value == (-1isize as *const c_char) || *value == 0 {
@@ -454,7 +454,7 @@ unsafe fn try_load_terminfo_key(
     }
 }
 
-unsafe fn load_terminfo(tk: *mut TermKey) {
+unsafe fn load_terminfo(tk: &mut TermKey) {
     unsafe {
         let mut root = TrieNode::new_arr(0, 0xff);
 
@@ -525,7 +525,7 @@ unsafe fn load_terminfo(tk: *mut TermKey) {
             }
         }
 
-        (*tk).ti.root = Some(Box::new(root.compress()));
+        tk.ti.root = Some(Box::new(root.compress()));
     }
 }
 
@@ -538,9 +538,9 @@ impl TermKeyTI {
     }
 }
 
-pub unsafe fn start_driver_ti(tk: *mut TermKey) -> c_int {
+pub unsafe fn start_driver_ti(tk: &mut TermKey) -> c_int {
     unsafe {
-        if (*tk).ti.root.is_none() {
+        if tk.ti.root.is_none() {
             load_terminfo(tk);
         }
         1
@@ -548,46 +548,45 @@ pub unsafe fn start_driver_ti(tk: *mut TermKey) -> c_int {
 }
 
 pub unsafe fn peekkey_ti(
-    tk: *mut TermKey,
+    tk: &mut TermKey,
     key: *mut TermKeyKey,
     force: c_int,
     nbytep: *mut usize,
 ) -> TermKeyResult {
     unsafe {
-        if (*tk).buffcount == 0 {
-            return if (*tk).is_closed != 0 {
+        if tk.buffcount == 0 {
+            return if tk.is_closed != 0 {
                 TERMKEY_RES_EOF
             } else {
                 TERMKEY_RES_NONE
             };
         }
 
-        let Some(mut p) = (*tk).ti.root.as_deref() else {
+        let Some(mut p) = tk.ti.root.as_deref() else {
             return TERMKEY_RES_NONE;
         };
 
         let mut pos = 0usize;
-        while pos < (*tk).buffcount {
-            let buf = &(*tk).buffer;
-            let b = buf[(*tk).buffstart + pos];
+        while pos < tk.buffcount {
+            let b = tk.buffer[tk.buffstart + pos];
             let Some(next) = p.lookup_next(b) else {
                 return TERMKEY_RES_NONE;
             };
             p = next;
             pos += 1;
 
-            let TrieNode::Key(k) = p else {
+            let TrieNode::Key(k) = *p else {
                 continue;
             };
 
             if k.r#type == TERMKEY_TYPE_MOUSE {
-                (*tk).buffstart += pos;
-                (*tk).buffcount -= pos;
+                tk.buffstart += pos;
+                tk.buffcount -= pos;
 
                 let mouse_result = peekkey_mouse(tk, key, nbytep);
 
-                (*tk).buffstart -= pos;
-                (*tk).buffcount += pos;
+                tk.buffstart -= pos;
+                tk.buffcount += pos;
 
                 if mouse_result == TERMKEY_RES_KEY {
                     *nbytep += pos;
@@ -615,7 +614,7 @@ pub unsafe fn peekkey_ti(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tui::termkey::termkey::{termkey_destroy, termkey_new_abstract};
+    use crate::tui::termkey::termkey::termkey_new_abstract;
 
     #[test]
     fn trie_insert_compress_and_lookup() {
@@ -638,9 +637,8 @@ mod tests {
         assert!(n2.lookup_next(b'Q').is_none());
 
         unsafe {
-            let tk = termkey_new_abstract(std::ptr::null_mut(), 0);
-            assert_eq!(start_driver_ti(tk), 1);
-            termkey_destroy(tk);
+            let mut tk = termkey_new_abstract(std::ptr::null_mut(), 0).unwrap();
+            assert_eq!(start_driver_ti(&mut tk), 1);
         }
     }
 }
