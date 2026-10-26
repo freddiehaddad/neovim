@@ -112,23 +112,13 @@ pub struct u_entry_T {
     pub ue_top: linenr_T,
     pub ue_bot: linenr_T,
     pub ue_lcount: linenr_T,
-    pub ue_array: Vec<*mut c_char>,
+    pub ue_array: Vec<std::ffi::CString>,
 }
 
 impl u_entry_T {
     #[inline]
     pub const fn ue_size(&self) -> linenr_T {
         self.ue_array.len() as linenr_T
-    }
-}
-
-impl Drop for u_entry_T {
-    fn drop(&mut self) {
-        unsafe {
-            for &line in self.ue_array.iter().rev() {
-                xfree(line.cast());
-            }
-        }
     }
 }
 
@@ -944,12 +934,12 @@ unsafe fn serialize_uep(bi: &mut bufinfo_T, uep: &u_entry_T) -> bool {
         undo_write_bytes(bi, uep.ue_lcount as u64, 4);
         undo_write_bytes(bi, uep.ue_size() as u64, 4);
 
-        for &line in &uep.ue_array {
-            let len = strlen(line);
+        for line in &uep.ue_array {
+            let len = line.as_bytes().len();
             if !undo_write_bytes(bi, len as u64, 4) {
                 return false;
             }
-            if len > 0 && !undo_write(bi, line.cast::<u8>(), len) {
+            if len > 0 && !undo_write(bi, line.as_ptr().cast_mut().cast::<u8>(), len) {
                 return false;
             }
         }
@@ -987,15 +977,13 @@ unsafe fn unserialize_uep(
 
         for _ in 0..size as usize {
             let line_len = undo_read_len(bi, c"line length".as_ptr(), file_name);
-            let line = if line_len < 0 {
-                ptr::null_mut()
-            } else {
-                undo_read_string(bi, line_len as usize)
-            };
-            if line.is_null() {
+            let Some(line) = (line_len >= 0)
+                .then(|| undo_read_string(bi, line_len as usize))
+                .flatten()
+            else {
                 *error = true;
                 return uep;
-            }
+            };
             uep.ue_array.push(line);
         }
         uep
@@ -1387,11 +1375,11 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 }
 
                 if str_len > 0 {
-                    line_ptr = undo_read_string(&mut bi, str_len as usize);
-                    if line_ptr.is_null() {
+                    let Some(s) = undo_read_string(&mut bi, str_len as usize) else {
                         corruption_error(c"truncated".as_ptr(), file_name);
                         break 'error;
-                    }
+                    };
+                    line_ptr = xstrdup(s.as_ptr());
                 }
                 let line_lnum = undo_read_4c(&mut bi) as linenr_T;
                 let line_colnr = undo_read_4c(&mut bi) as colnr_T;
@@ -1655,14 +1643,18 @@ unsafe fn undo_read(bi: &mut bufinfo_T, buffer: *mut u8, size: usize) -> bool {
     }
 }
 
-unsafe fn undo_read_string(bi: &mut bufinfo_T, len: usize) -> *mut c_char {
+unsafe fn undo_read_string(bi: &mut bufinfo_T, len: usize) -> Option<std::ffi::CString> {
     unsafe {
-        let ptr = xmallocz(len).cast::<c_char>();
-        if len > 0 && !undo_read(bi, ptr.cast::<u8>(), len) {
-            xfree(ptr.cast());
-            return ptr::null_mut();
+        if len == 0 {
+            return Some(std::ffi::CString::default());
         }
-        ptr
+        let mut buf = vec![0u8; len];
+        if !undo_read(bi, buf.as_mut_ptr(), len) {
+            return None;
+        }
+        let end = buf.iter().position(|&b| b == 0).unwrap_or(len);
+        buf.truncate(end);
+        std::ffi::CString::new(buf).ok()
     }
 }
 
@@ -2133,7 +2125,10 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
                 } else if top < newlnum {
                     let mut i: linenr_T = 0;
                     while i < newsize && i < oldsize {
-                        if strcmp((*uep).ue_array.as_slice()[i as usize], ml_get(top + 1 + i)) != 0
+                        if strcmp(
+                            (*uep).ue_array.as_slice()[i as usize].as_ptr(),
+                            ml_get(top + 1 + i),
+                        ) != 0
                         {
                             break;
                         }
@@ -2150,10 +2145,10 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
             }
 
             let mut empty_buffer = false;
-            let mut newarray: Vec<*mut c_char> = Vec::new();
+            let mut newarray: Vec<std::ffi::CString> = Vec::new();
 
             if oldsize > 0 {
-                newarray.resize(oldsize as usize, ptr::null_mut());
+                newarray.resize_with(oldsize as usize, std::ffi::CString::default);
                 let mut lnum = bot - 1;
                 let mut i = oldsize;
                 while {
@@ -2174,12 +2169,12 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
             if newsize != 0 {
                 for (i, line) in (*uep).ue_array.drain(..).enumerate() {
                     let lnum = top + i as linenr_T;
+                    let line_ptr = line.as_ptr().cast_mut();
                     if empty_buffer && lnum == 0 {
-                        ml_replace(1, line, true);
+                        ml_replace(1, line_ptr, true);
                     } else {
-                        ml_append_flags(lnum, line, 0, 0);
+                        ml_append_flags(lnum, line_ptr, 0, 0);
                     }
-                    xfree(line.cast());
                 }
             }
 
@@ -2607,7 +2602,7 @@ pub unsafe fn u_find_first_changed() {
         while lnum < (*curbuf).b_ml.ml_line_count && lnum <= uep.ue_size() {
             if strcmp(
                 ml_get_buf(curbuf, lnum),
-                uep.ue_array.as_slice()[(lnum - 1) as usize],
+                uep.ue_array.as_slice()[(lnum - 1) as usize].as_ptr(),
             ) != 0
             {
                 clearpos(&mut (*uhp).uh_cursor);
@@ -2806,7 +2801,7 @@ pub unsafe fn u_forget_unchanged(buf: *mut buf_T) {
         }
         for i in 0..(*uep).ue_size() {
             if strcmp(
-                (*uep).ue_array.as_slice()[i as usize],
+                (*uep).ue_array.as_slice()[i as usize].as_ptr(),
                 ml_get_buf(buf, (*uep).ue_top + 1 + i),
             ) != 0
             {
@@ -2874,7 +2869,7 @@ unsafe fn u_saveline(buf: *mut buf_T, lnum: linenr_T) {
         } else {
             (*buf).b_u_line_colnr = 0;
         }
-        (*buf).b_u_line_ptr = u_save_line_buf(buf, lnum);
+        (*buf).b_u_line_ptr = xstrdup(u_save_line_buf(buf, lnum).as_ptr());
     }
 }
 
@@ -2913,7 +2908,7 @@ pub unsafe fn u_undoline() {
             return;
         }
 
-        let oldp = u_save_line((*curbuf).b_u_line_lnum);
+        let oldp = xstrdup(u_save_line((*curbuf).b_u_line_lnum).as_ptr());
         ml_replace((*curbuf).b_u_line_lnum, (*curbuf).b_u_line_ptr, true);
         extmark_splice_cols(
             curbuf,
@@ -2937,12 +2932,12 @@ pub unsafe fn u_undoline() {
     }
 }
 
-unsafe fn u_save_line(lnum: linenr_T) -> *mut c_char {
+unsafe fn u_save_line(lnum: linenr_T) -> std::ffi::CString {
     unsafe { u_save_line_buf(curbuf, lnum) }
 }
 
-unsafe fn u_save_line_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char {
-    unsafe { xstrdup(ml_get_buf(buf, lnum)) }
+unsafe fn u_save_line_buf(buf: *mut buf_T, lnum: linenr_T) -> std::ffi::CString {
+    unsafe { CStr::from_ptr(ml_get_buf(buf, lnum)).to_owned() }
 }
 
 /// Check if the `'modified'` flag is set, or `'ff'` has changed.

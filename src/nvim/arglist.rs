@@ -81,15 +81,16 @@ impl alist_T {
 
 #[repr(C)]
 pub struct aentry_T {
-    pub ae_fname: *mut c_char,
+    pub ae_fname: Option<std::ffi::CString>,
     pub ae_fnum: c_int,
 }
 
-impl Drop for aentry_T {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.ae_fname.cast());
-        }
+impl aentry_T {
+    #[inline]
+    pub fn fname_ptr(&self) -> *mut c_char {
+        self.ae_fname
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
     }
 }
 
@@ -239,10 +240,9 @@ pub unsafe fn alist_add(al: *mut alist_T, fname: *mut c_char, set_fnum: c_int) {
         } else {
             0
         };
-        (*al).al_ga.push(aentry_T {
-            ae_fname: fname,
-            ae_fnum,
-        });
+        let ae_fname = Some(CStr::from_ptr(fname).to_owned());
+        xfree(fname.cast());
+        (*al).al_ga.push(aentry_T { ae_fname, ae_fnum });
 
         arglist_locked = false;
         (*wp).w_locked -= 1;
@@ -354,10 +354,10 @@ unsafe fn alist_add_list(mut files: Vec<*mut c_char>, mut after: c_int, will_edi
             let mut new_entries = Vec::with_capacity(files.len());
             for f in files {
                 let flags = BLN_LISTED | if will_edit { BLN_CURBUF } else { 0 };
-                new_entries.push(aentry_T {
-                    ae_fname: f,
-                    ae_fnum: buflist_add(f, flags),
-                });
+                let ae_fnum = buflist_add(f, flags);
+                let ae_fname = (!f.is_null()).then(|| CStr::from_ptr(f).to_owned());
+                xfree(f.cast());
+                new_entries.push(aentry_T { ae_fname, ae_fnum });
             }
             let pos = after as usize;
             (*al).al_ga.splice(pos..pos, new_entries);
@@ -572,9 +572,9 @@ pub unsafe fn ex_args(eap: *mut exarg_T) {
 
             for i in 0..gcount {
                 let ge = &*garglist().add(i);
-                if !ge.ae_fname.is_null() {
+                if ge.ae_fname.is_some() {
                     (*al).al_ga.push(aentry_T {
-                        ae_fname: xstrdup(ge.ae_fname),
+                        ae_fname: ge.ae_fname.clone(),
                         ae_fnum: ge.ae_fnum,
                     });
                 }
@@ -729,11 +729,12 @@ pub unsafe fn ex_argdedupe(_eap: *mut exarg_T) {
     unsafe {
         let mut i: c_int = 0;
         while i < argcount() {
-            let first_fullname = FullName_save((*arglist().add(i as usize)).ae_fname, false);
+            let first_fullname = FullName_save((*arglist().add(i as usize)).fname_ptr(), false);
 
             let mut j = i + 1;
             while j < argcount() {
-                let second_fullname = FullName_save((*arglist().add(j as usize)).ae_fname, false);
+                let second_fullname =
+                    FullName_save((*arglist().add(j as usize)).fname_ptr(), false);
                 let dup = path_equal(first_fullname, second_fullname, kPathCmpLiteral);
                 xfree(second_fullname.cast());
 
@@ -869,7 +870,7 @@ pub unsafe fn alist_name(aep: *mut aentry_T) -> *mut c_char {
     unsafe {
         let bp = buflist_findnr((*aep).ae_fnum);
         if bp.is_null() || (*bp).b_fname.is_null() {
-            (*aep).ae_fname
+            (*aep).fname_ptr()
         } else {
             (*bp).b_fname
         }

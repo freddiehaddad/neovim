@@ -126,19 +126,9 @@ impl Drop for vimmenu_T {
 
 #[repr(C)]
 struct menutrans_T {
-    from: *mut c_char,
-    from_noamp: *mut c_char,
-    to: *mut c_char,
-}
-
-impl Drop for menutrans_T {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.from.cast());
-            xfree(self.from_noamp.cast());
-            xfree(self.to.cast());
-        }
-    }
+    from: std::ffi::CString,
+    from_noamp: std::ffi::CString,
+    to: std::ffi::CString,
 }
 
 use crate::change::{MB_MAXCHAR, TAB};
@@ -1799,16 +1789,22 @@ pub unsafe fn ex_menutranslate(eap: *mut exarg_T) {
                 emsg(gettext(e_invarg.as_ptr()));
             } else {
                 from = xstrdup(from);
-                let from_noamp = menu_text(from, ptr::null_mut(), ptr::null_mut());
+                let from_noamp_raw = menu_text(from, ptr::null_mut(), ptr::null_mut());
                 to = xmemdupz(to.cast(), arg.offset_from(to) as usize).cast();
                 menu_translate_tab_and_shift(from);
                 menu_translate_tab_and_shift(to);
                 menu_unescape_name(from);
                 menu_unescape_name(to);
+                let from_cstr = CStr::from_ptr(from).to_owned();
+                let from_noamp_cstr = CStr::from_ptr(from_noamp_raw).to_owned();
+                let to_cstr = CStr::from_ptr(to).to_owned();
+                xfree(from.cast());
+                xfree(from_noamp_raw.cast());
+                xfree(to.cast());
                 menutrans.push(menutrans_T {
-                    from,
-                    from_noamp,
-                    to,
+                    from: from_cstr,
+                    from_noamp: from_noamp_cstr,
+                    to: to_cstr,
                 });
             }
         }
@@ -1836,8 +1832,9 @@ unsafe fn menutrans_lookup(name: *mut c_char, len: c_int) -> *mut c_char {
         let u_len = len as usize;
 
         for entry in menutrans {
-            if vim_strnicmp_asc(name, entry.from, u_len) == 0 && *entry.from.add(u_len) == NUL {
-                return entry.to;
+            let from_ptr = entry.from.as_ptr();
+            if vim_strnicmp_asc(name, from_ptr, u_len) == 0 && *from_ptr.add(u_len) == NUL {
+                return entry.to.as_ptr().cast_mut();
             }
         }
 
@@ -1846,9 +1843,9 @@ unsafe fn menutrans_lookup(name: *mut c_char, len: c_int) -> *mut c_char {
         let dname = menu_text(name, ptr::null_mut(), ptr::null_mut());
         *name.add(u_len) = c;
         for entry in menutrans {
-            if vim_stricmp(dname, entry.from_noamp) == 0 {
+            if vim_stricmp(dname, entry.from_noamp.as_ptr()) == 0 {
                 xfree(dname.cast());
-                return entry.to;
+                return entry.to.as_ptr().cast_mut();
             }
         }
         xfree(dname.cast());

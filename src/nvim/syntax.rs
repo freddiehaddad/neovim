@@ -397,32 +397,14 @@ impl Default for synpat_T {
 
 #[repr(C)]
 pub struct syn_cluster_T {
-    scl_name: *mut c_char,
-    scl_name_u: *mut c_char,
+    scl_name: std::ffi::CString,
+    scl_name_u: std::ffi::CString,
     scl_list: *mut i16,
-}
-
-impl syn_cluster_T {
-    pub const fn new() -> Self {
-        Self {
-            scl_name: ptr::null_mut(),
-            scl_name_u: ptr::null_mut(),
-            scl_list: ptr::null_mut(),
-        }
-    }
-}
-
-impl Default for syn_cluster_T {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl Drop for syn_cluster_T {
     fn drop(&mut self) {
         unsafe {
-            xfree(self.scl_name.cast());
-            xfree(self.scl_name_u.cast());
             xfree(self.scl_list.cast());
         }
     }
@@ -3416,7 +3398,7 @@ unsafe fn syn_list_cluster(id: c_int) {
 
         msg_putchar(b'\n' as c_int);
         let clp = syn_clstr(win_s(curwin)).offset(id as isize);
-        msg_outtrans((*clp).scl_name, 0, false);
+        msg_outtrans((*clp).scl_name.as_ptr(), 0, false);
 
         if msg_col >= endcol {
             endcol = msg_col + 1;
@@ -3455,7 +3437,7 @@ unsafe fn put_id_list(name: *const c_char, list: *const i16, hl_id: c_int) {
                 let scl_id = (*p - SYNID_CLUSTER) as isize;
                 msg_putchar(b'@' as c_int);
                 msg_outtrans(
-                    (*syn_clstr(win_s(curwin)).offset(scl_id)).scl_name,
+                    (*syn_clstr(win_s(curwin)).offset(scl_id)).scl_name.as_ptr(),
                     0,
                     false,
                 );
@@ -4435,7 +4417,7 @@ unsafe fn syn_scl_name2id(name: *const c_char) -> c_int {
         let mut i = (*win_s(curwin)).b_syn_clusters.len() as c_int - 1;
         while i >= 0 {
             let clp = syn_clstr(win_s(curwin)).offset(i as isize);
-            if !(*clp).scl_name_u.is_null() && strcmp(name_u, (*clp).scl_name_u) == 0 {
+            if strcmp(name_u, (*clp).scl_name_u.as_ptr()) == 0 {
                 break;
             }
             i -= 1;
@@ -4447,46 +4429,52 @@ unsafe fn syn_scl_name2id(name: *const c_char) -> c_int {
 
 unsafe fn syn_scl_namen2id(linep: *const c_char, len: c_int) -> c_int {
     unsafe {
-        let name = xstrnsave(linep, len as usize);
-        let id = syn_scl_name2id(name);
-        xfree(name.cast());
-        id
+        let bytes = std::slice::from_raw_parts(linep.cast::<u8>(), len as usize);
+        let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+        let name = std::ffi::CString::new(&bytes[..end]).unwrap();
+        syn_scl_name2id(name.as_ptr())
     }
 }
 
 unsafe fn syn_check_cluster(pp: *const c_char, len: c_int) -> c_int {
     unsafe {
-        let name = xstrnsave(pp, len as usize);
-        let mut id = syn_scl_name2id(name);
+        let bytes = std::slice::from_raw_parts(pp.cast::<u8>(), len as usize);
+        let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+        let name = std::ffi::CString::new(&bytes[..end]).unwrap();
+        let mut id = syn_scl_name2id(name.as_ptr());
         if id == 0 {
             id = syn_add_cluster(name);
-        } else {
-            xfree(name.cast());
         }
         id
     }
 }
 
-unsafe fn syn_add_cluster(name: *mut c_char) -> c_int {
+unsafe fn syn_add_cluster(name: std::ffi::CString) -> c_int {
     unsafe {
         let len = (*win_s(curwin)).b_syn_clusters.len() as c_int;
         if len >= MAX_CLUSTER_ID {
             emsg(gettext(c"E848: Too many syntax clusters".as_ptr()));
-            xfree(name.cast());
             return 0;
         }
+
+        let name_ptr = name.as_ptr();
+        let is_spell = vim_stricmp(name_ptr, c"Spell".as_ptr()) == 0;
+        let is_nospell = vim_stricmp(name_ptr, c"NoSpell".as_ptr()) == 0;
+        let raw_u = vim_strsave_up(name_ptr);
+        let scl_name_u = std::ffi::CStr::from_ptr(raw_u).to_owned();
+        xfree(raw_u.cast());
 
         let clusters = &mut (*win_s(curwin)).b_syn_clusters;
         clusters.push(syn_cluster_T {
             scl_name: name,
-            scl_name_u: vim_strsave_up(name),
+            scl_name_u,
             scl_list: ptr::null_mut(),
         });
 
-        if vim_stricmp(name, c"Spell".as_ptr()) == 0 {
+        if is_spell {
             (*win_s(curwin)).b_spell_cluster_id = len + SYNID_CLUSTER as c_int;
         }
-        if vim_stricmp(name, c"NoSpell".as_ptr()) == 0 {
+        if is_nospell {
             (*win_s(curwin)).b_nospell_cluster_id = len + SYNID_CLUSTER as c_int;
         }
 
@@ -5372,7 +5360,9 @@ pub unsafe fn get_syntax_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
                         xp_buf,
                         EXPAND_BUF_LEN,
                         c"@%s".as_ptr(),
-                        (*syn_clstr(win_s(curwin)).offset(idx as isize)).scl_name,
+                        (*syn_clstr(win_s(curwin)).offset(idx as isize))
+                            .scl_name
+                            .as_ptr(),
                     );
                     xp_buf
                 } else {
