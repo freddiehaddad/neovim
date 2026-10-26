@@ -4994,14 +4994,14 @@ unsafe fn eval_env_var(arg: *mut *mut c_char, rettv: *mut typval_T, evaluate: c_
 /// Builds a process argument vector from a Vimscript object (typval_T).
 pub unsafe fn tv_to_argv(
     cmd_tv: *mut typval_T,
-    cmd: *mut *const c_char,
+    cmd: Option<&mut std::ffi::CString>,
     executable: *mut bool,
-) -> Vec<*mut c_char> {
+) -> Vec<std::ffi::CString> {
     unsafe {
         if (*cmd_tv).v_type == VarType::VAR_STRING {
             let cmd_str = tv_get_string(cmd_tv);
-            if !cmd.is_null() {
-                *cmd = cmd_str;
+            if let Some(cmd_out) = cmd {
+                *cmd_out = CStr::from_ptr(cmd_str).to_owned();
             }
             return shell_build_argv(cmd_str, ptr::null());
         }
@@ -5043,7 +5043,7 @@ pub unsafe fn tv_to_argv(
         }
         let exe_cstr = exe_resolved.unwrap();
 
-        let mut argv = vec![ptr::null_mut::<c_char>(); (argc as usize) + 1];
+        let mut argv = Vec::with_capacity(argc as usize);
         let mut i: usize = 0;
         let mut arg = if argl.is_null() {
             ptr::null_mut()
@@ -5053,15 +5053,18 @@ pub unsafe fn tv_to_argv(
         while !arg.is_null() {
             let a = tv_get_string_chk(tv_list_item_tv(arg));
             if a.is_null() {
-                crate::path::clear_cstrings(&mut argv);
                 return Vec::new();
             }
-            argv[i] = xstrdup(if i == 0 { exe_cstr.as_ptr() } else { a });
+            argv.push(if i == 0 {
+                exe_cstr.clone()
+            } else {
+                CStr::from_ptr(a).to_owned()
+            });
             i += 1;
             arg = (*arg).li_next;
         }
-        if !cmd.is_null() {
-            *cmd = argv[0];
+        if let Some(cmd_out) = cmd {
+            *cmd_out = exe_cstr;
         }
 
         argv
@@ -5096,7 +5099,7 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
         };
 
         let mut executable = true;
-        let argv = tv_to_argv(argvars, ptr::null_mut(), &raw mut executable);
+        let argv = tv_to_argv(argvars, None, &raw mut executable);
         if argv.is_empty() {
             if !executable {
                 set_vim_var_nr(VV_SHELL_ERROR, -1);

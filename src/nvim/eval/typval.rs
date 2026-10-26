@@ -31,7 +31,7 @@ use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str};
 use crate::mbyte::{mb_strcmp_ic, string_convert, utf_char2bytes, utfc_ptr2len, vimconv_T};
 use crate::memory::{
-    Arena, strequal, xfree, xmalloc, xmallocz, xmemdupz, xstrdup, xstrlcpy, xstrndup,
+    Arena, cstr_from_bytes, strequal, xfree, xmallocz, xmemdupz, xstrdup, xstrlcpy, xstrndup,
 };
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
@@ -2912,10 +2912,10 @@ pub unsafe fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int)
 }
 
 /// Converts a dict to an environment.
-pub unsafe fn tv_dict_to_env(denv: *mut dict_T) -> Vec<*mut c_char> {
+pub unsafe fn tv_dict_to_env(denv: *mut dict_T) -> Vec<std::ffi::CString> {
     unsafe {
         let env_size = tv_dict_len_inline(denv) as usize;
-        let mut env = Vec::with_capacity(env_size + 1);
+        let mut env = Vec::with_capacity(env_size);
 
         if !denv.is_null() {
             let mut todo = (*denv).dv_hashtab.ht_used;
@@ -2926,21 +2926,18 @@ pub unsafe fn tv_dict_to_env(denv: *mut dict_T) -> Vec<*mut c_char> {
                     let var = tv_dict_hi2di(hi);
                     let str_ = tv_get_string(&raw const (*var).di_tv);
                     debug_assert!(!str_.is_null());
-                    let key_ptr = (*var).di_key.as_ptr();
-                    let key_len = strlen(key_ptr);
-                    let val_len = strlen(str_);
-                    let len = key_len + val_len + 2;
-                    let entry = xmalloc(len).cast::<c_char>();
-                    ptr::copy_nonoverlapping(key_ptr, entry, key_len);
-                    *entry.add(key_len) = b'=' as c_char;
-                    ptr::copy_nonoverlapping(str_, entry.add(key_len + 1), val_len + 1);
-                    env.push(entry);
+                    let key_bytes = CStr::from_ptr((*var).di_key.as_ptr()).to_bytes();
+                    let val_bytes = CStr::from_ptr(str_).to_bytes();
+                    let mut entry = Vec::with_capacity(key_bytes.len() + 1 + val_bytes.len());
+                    entry.extend_from_slice(key_bytes);
+                    entry.push(b'=');
+                    entry.extend_from_slice(val_bytes);
+                    env.push(cstr_from_bytes(&entry));
                 }
                 hi = hi.add(1);
             }
         }
 
-        env.push(ptr::null_mut());
         env
     }
 }

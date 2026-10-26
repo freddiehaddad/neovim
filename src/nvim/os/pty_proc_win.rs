@@ -274,7 +274,7 @@ mod win_impl {
                     }
                 }
 
-                let arg0 = (*hdr).argv.as_slice()[0];
+                let arg0 = (*hdr).argv.as_slice()[0].as_ptr();
                 let is_cmdexe = os_shell_is_cmdexe(arg0);
                 if is_cmdexe {
                     let mut path: Option<std::ffi::CString> = None;
@@ -368,7 +368,7 @@ mod win_impl {
                     line!() as c_int,
                     true,
                     c"pty_proc_spawn(%s): %s: error code: %d".as_ptr(),
-                    (*hdr).argv.as_slice()[0],
+                    (*hdr).argv.as_slice()[0].as_ptr(),
                     emsg,
                     status,
                 );
@@ -459,7 +459,7 @@ mod win_impl {
     }
 
     unsafe fn build_cmd_line(
-        argv: &[*mut c_char],
+        argv: &[std::ffi::CString],
         cmd_line: &mut Vec<u16>,
         is_cmdexe: bool,
     ) -> c_int {
@@ -467,10 +467,8 @@ mod win_impl {
             let mut utf8_cmd_line: Vec<c_char> = Vec::new();
             let mut arg_buf: Vec<c_char> = Vec::new();
 
-            for (argc, &arg_str) in argv.iter().enumerate() {
-                if arg_str.is_null() {
-                    break;
-                }
+            for (argc, arg_cstr) in argv.iter().enumerate() {
+                let arg_str = arg_cstr.as_ptr();
                 if argc > 0 {
                     utf8_cmd_line.push(b' ' as c_char);
                 }
@@ -483,7 +481,7 @@ mod win_impl {
                     let src_len = strlen(src);
                     utf8_cmd_line.extend_from_slice(std::slice::from_raw_parts(src, src_len));
                 } else {
-                    let buf_len = strlen(arg_str) * 2 + 3;
+                    let buf_len = arg_cstr.as_bytes().len() * 2 + 3;
                     arg_buf.resize(buf_len, 0);
                     quote_cmd_arg(arg_buf.as_mut_ptr(), buf_len, arg_str);
                     let quoted_len = strlen(arg_buf.as_ptr());
@@ -500,14 +498,11 @@ mod win_impl {
         unsafe {
             env_block.clear();
             let mut rc: c_int = 0;
-            let mut env = tv_dict_to_env(denv);
+            let env = tv_dict_to_env(denv);
             let mut str_utf16: Vec<u16> = Vec::new();
 
-            for &entry in &env {
-                if entry.is_null() {
-                    break;
-                }
-                rc = utf8_to_utf16(entry, -1, &mut str_utf16);
+            for entry in &env {
+                rc = utf8_to_utf16(entry.as_ptr(), -1, &mut str_utf16);
                 if rc != 0 {
                     env_block.clear();
                     break;
@@ -519,7 +514,6 @@ mod win_impl {
                 env_block.push(0);
             }
 
-            crate::path::clear_cstrings(&mut env);
             rc
         }
     }

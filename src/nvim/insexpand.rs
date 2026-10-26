@@ -114,7 +114,7 @@ use crate::strings::vim_strnicmp;
 use crate::strings::vim_strnicmp;
 use crate::strings::{
     atoi, gettext, memcmp, strcat, strchr, strcmp, strcpy, strlen, strncmp, strncpy, strrchr,
-    tolower, vim_snprintf, vim_strchr, vim_strsave_escaped, xstrnsave,
+    tolower, vim_snprintf, vim_strchr, vim_strsave_escaped,
 };
 use crate::tag::find_tags;
 use crate::textformat::auto_format;
@@ -1135,7 +1135,6 @@ unsafe fn ins_compl_add(
 
         ins_compl_del_pum();
 
-        let new_str = xstrnsave(str_ptr, len as usize);
         let cp_fname = if !fname.is_null() {
             Some(CStr::from_ptr(fname).to_owned())
         } else {
@@ -1157,7 +1156,7 @@ unsafe fn ins_compl_add(
         };
 
         let match_ = compl_T {
-            cp_str: cbuf_as_string(new_str, len as usize),
+            cp_str: crate::api::private::helpers::cstrn_as_string(str_ptr, len as usize),
             cp_text,
             cp_user_data,
             cp_fname,

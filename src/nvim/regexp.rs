@@ -29,7 +29,7 @@ use crate::os::input::fast_breakcheck;
 use crate::plines::{getvvcol, win_linetabsize};
 use crate::profile::{profile_passed_limit, proftime_T};
 pub(super) use crate::strings::{strcpy, strlen, strncmp, strncpy};
-use crate::strings::{tr, xstrnsave};
+use crate::strings::tr;
 use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
@@ -1587,7 +1587,8 @@ pub unsafe fn skip_regexp(startp: *mut c_char, delim: c_int, magic: c_int) -> *m
             startp,
             delim,
             magic,
-            ptr::null_mut(),
+            false,
+            None,
             ptr::null_mut(),
             ptr::null_mut(),
         )
@@ -1614,7 +1615,8 @@ pub unsafe fn skip_regexp_ex(
     mut startp: *mut c_char,
     dirc: c_int,
     magic: c_int,
-    newp: *mut *mut c_char,
+    in_place: bool,
+    mut copy_buf: Option<&mut Vec<c_char>>,
     dropped: *mut c_int,
     magic_val: *mut magic_T,
 ) -> *mut c_char {
@@ -1637,14 +1639,17 @@ pub unsafe fn skip_regexp_ex(
                     break;
                 }
             } else if *p == b'\\' as c_char && *p.add(1) != NUL as c_char {
-                if dirc == b'?' as c_int && !newp.is_null() && *p.add(1) == b'?' as c_char {
+                if dirc == b'?' as c_int && in_place && *p.add(1) == b'?' as c_char {
                     if startplen == 0 {
                         startplen = strlen(startp);
                     }
-                    if (*newp).is_null() {
-                        *newp = xstrnsave(startp, startplen);
-                        p = (*newp).add(p.offset_from(startp) as usize);
-                        startp = *newp;
+                    if let Some(buf) = copy_buf.as_deref_mut()
+                        && buf.is_empty()
+                    {
+                        let off = p.offset_from(startp) as usize;
+                        buf.extend_from_slice(std::slice::from_raw_parts(startp, startplen + 1));
+                        startp = buf.as_mut_ptr();
+                        p = startp.add(off);
                     }
                     if !dropped.is_null() {
                         *dropped += 1;

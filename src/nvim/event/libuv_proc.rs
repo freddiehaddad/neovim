@@ -74,7 +74,9 @@ pub struct LibuvProc {
     pub uv: UvProcessHandle,
     pub uvopts: uv_process_options_t,
     pub uvstdio: [uv_stdio_container_t; 4],
-    pub env_vec: Vec<*mut c_char>,
+    pub args_ptrs: Vec<*mut c_char>,
+    pub env_vec: Vec<std::ffi::CString>,
+    pub env_ptrs: Vec<*mut c_char>,
 }
 
 impl LibuvProc {
@@ -100,15 +102,9 @@ impl LibuvProc {
                     stream: ptr::null_mut(),
                 },
             }; 4],
+            args_ptrs: Vec::new(),
             env_vec: Vec::new(),
-        }
-    }
-}
-
-impl Drop for LibuvProc {
-    fn drop(&mut self) {
-        unsafe {
-            crate::path::clear_cstrings(&mut self.env_vec);
+            env_ptrs: Vec::new(),
         }
     }
 }
@@ -121,7 +117,7 @@ pub unsafe fn proc_get_exepath(proc_: *mut Proc) -> *const c_char {
         if !(*proc_).exepath.is_null() {
             (*proc_).exepath
         } else {
-            (*proc_).argv.as_slice()[0]
+            (*proc_).argv.as_slice()[0].as_ptr()
         }
     }
 }
@@ -201,15 +197,11 @@ pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
         let proc_: *mut Proc = &raw mut (*uvproc).proc_;
         let uv: *mut uv_handle_t = (&raw mut (*uvproc).uv).cast();
 
-        (*uvproc).uvopts.file = proc_get_exepath(proc_);
-        (*uvproc).uvopts.args = (*proc_).argv.as_mut_ptr();
-        (*uvproc).uvopts.flags = UV_PROCESS_WINDOWS_HIDE;
-
         #[cfg(windows)]
         {
-            if os_shell_is_cmdexe((*proc_).argv.as_slice()[0]) {
+            if os_shell_is_cmdexe((*proc_).argv.as_slice()[0].as_ptr()) {
                 (*uvproc).uvopts.flags |= UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS;
-                path_to_backslash((*proc_).argv.as_slice()[0]);
+                path_to_backslash((*proc_).argv.as_slice()[0].as_ptr().cast_mut());
             }
             if (*proc_).detach {
                 (*uvproc).uvopts.flags |= UV_PROCESS_DETACHED;
@@ -219,6 +211,16 @@ pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
         {
             (*uvproc).uvopts.flags |= UV_PROCESS_DETACHED;
         }
+
+        (*uvproc).args_ptrs = (*proc_)
+            .argv
+            .iter()
+            .map(|s| s.as_ptr().cast_mut())
+            .chain(std::iter::once(ptr::null_mut()))
+            .collect();
+        (*uvproc).uvopts.file = proc_get_exepath(proc_);
+        (*uvproc).uvopts.args = (*uvproc).args_ptrs.as_mut_ptr();
+        (*uvproc).uvopts.flags |= UV_PROCESS_WINDOWS_HIDE;
 
         (*uvproc).uvopts.exit_cb = Some(exit_cb);
         (*uvproc).uvopts.cwd = (*proc_).cwd;
@@ -239,7 +241,13 @@ pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
 
         if !(*proc_).env.is_null() {
             (*uvproc).env_vec = tv_dict_to_env((*proc_).env);
-            (*uvproc).uvopts.env = (*uvproc).env_vec.as_mut_ptr();
+            (*uvproc).env_ptrs = (*uvproc)
+                .env_vec
+                .iter()
+                .map(|s| s.as_ptr().cast_mut())
+                .chain(std::iter::once(ptr::null_mut()))
+                .collect();
+            (*uvproc).uvopts.env = (*uvproc).env_ptrs.as_mut_ptr();
         } else {
             (*uvproc).uvopts.env = ptr::null_mut();
         }
@@ -291,7 +299,8 @@ pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
             &raw const (*uvproc).uvopts,
         );
         if status != 0 {
-            crate::path::clear_cstrings(&mut (*uvproc).env_vec);
+            (*uvproc).env_ptrs.clear();
+            (*uvproc).env_vec.clear();
             (*uvproc).uvopts.env = ptr::null_mut();
         } else {
             (*proc_).pid = uv_process_get_pid(uv.cast());
@@ -319,7 +328,8 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
             cb(proc_);
         }
         let uvproc = proc_.cast::<LibuvProc>();
-        crate::path::clear_cstrings(&mut (*uvproc).env_vec);
+        (*uvproc).env_ptrs.clear();
+        (*uvproc).env_vec.clear();
         (*uvproc).uvopts.env = ptr::null_mut();
     }
 }

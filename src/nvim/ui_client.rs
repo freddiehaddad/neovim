@@ -23,7 +23,7 @@ use crate::globals::*;
 use crate::highlight::{HLATTRS_INIT, HlAttrs, KeyDict_highlight, dict2hlattrs};
 use crate::log::{LOGLVL_ERR, LOGLVL_INF, logmsg};
 use crate::main_init::os_exit;
-use crate::memory::{Arena, strequal, xstrdup};
+use crate::memory::{Arena, strequal};
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::msgpack_rpc::packer::Integer;
 use crate::msgpack_rpc::unpacker::GridLineEvent;
@@ -73,13 +73,12 @@ pub unsafe fn ui_client_start_server(
     argv: *mut *mut c_char,
 ) -> u64 {
     unsafe {
-        let mut args = Vec::with_capacity(2 + argc);
-        args.push(xstrdup(*argv));
-        args.push(xstrdup(c"--embed".as_ptr()));
+        let mut args = Vec::with_capacity(1 + argc);
+        args.push(std::ffi::CStr::from_ptr(*argv).to_owned());
+        args.push(c"--embed".to_owned());
         for i in 1..argc {
-            args.push(xstrdup(*argv.add(i)));
+            args.push(std::ffi::CStr::from_ptr(*argv.add(i)).to_owned());
         }
-        args.push(ptr::null_mut());
 
         let on_stdout = CallbackReader::none();
         let mut on_err = CallbackReader::none();

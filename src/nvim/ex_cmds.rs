@@ -4012,7 +4012,8 @@ unsafe fn do_sub(
                     cmd,
                     delimiter,
                     p_magic,
-                    &raw mut (*eap).arg,
+                    true,
+                    None,
                     ptr::null_mut(),
                     ptr::null_mut(),
                 );
@@ -4961,7 +4962,8 @@ pub unsafe fn ex_global(eap: *mut exarg_T) {
                 cmd,
                 (delim as u8) as c_int,
                 p_magic,
-                &raw mut (*eap).arg,
+                true,
+                None,
                 ptr::null_mut(),
                 ptr::null_mut(),
             );

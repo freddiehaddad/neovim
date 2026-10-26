@@ -4647,9 +4647,9 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             return;
         }
 
-        let mut cmd: *const c_char = ptr::null();
+        let mut cmd = std::ffi::CString::default();
         let mut executable = true;
-        let mut argv = tv_to_argv(argvars, &raw mut cmd, &raw mut executable);
+        let argv = tv_to_argv(argvars, Some(&mut cmd), &raw mut executable);
         if argv.is_empty() {
             (*rettv).vval.v_number = if executable { 0 } else { -1 };
             return;
@@ -4659,7 +4659,6 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             && (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
         {
             semsg!(gettext(e_invarg2.as_ptr()), c"expected dictionary".as_ptr());
-            crate::path::clear_cstrings(&mut argv);
             return;
         }
 
@@ -4704,7 +4703,6 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                     gettext(e_invarg2.as_ptr()),
                     c"'term' must be Boolean".as_ptr(),
                 );
-                crate::path::clear_cstrings(&mut argv);
                 return;
             }
 
@@ -4713,7 +4711,6 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                     gettext(e_invarg2.as_ptr()),
                     c"job cannot have both 'pty' and 'rpc' options set".as_ptr(),
                 );
-                crate::path::clear_cstrings(&mut argv);
                 return;
             }
 
@@ -4723,7 +4720,6 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                     gettext(e_invarg2.as_ptr()),
                     c"job cannot have both 'pty' and 'overlapped' options set".as_ptr(),
                 );
-                crate::path::clear_cstrings(&mut argv);
                 return;
             }
 
@@ -4735,7 +4731,6 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                         gettext(e_invarg2.as_ptr()),
                         c"expected valid directory".as_ptr(),
                     );
-                    crate::path::clear_cstrings(&mut argv);
                     return;
                 }
             }
@@ -4743,7 +4738,6 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             job_env = tv_dict_find(job_opts, c"env".as_ptr(), 3);
             if !job_env.is_null() && (*job_env).di_tv.v_type != VarType::VAR_DICT {
                 semsg!(gettext(e_invarg2.as_ptr()), c"env".as_ptr());
-                crate::path::clear_cstrings(&mut argv);
                 return;
             }
 
@@ -4753,7 +4747,6 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                 &raw mut on_stderr,
                 &raw mut on_exit,
             ) {
-                crate::path::clear_cstrings(&mut argv);
                 return;
             }
         }
@@ -4765,14 +4758,12 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         if term {
             if text_locked() {
                 text_locked_msg();
-                crate::path::clear_cstrings(&mut argv);
                 return;
             }
             if (*curbuf).b_changed != 0 {
                 emsg(gettext(
                     c"jobstart(...,{term=true}) requires unmodified buffer".as_ptr(),
                 ));
-                crate::path::clear_cstrings(&mut argv);
                 return;
             }
             if !(*curbuf).terminal.is_null() {
@@ -4781,7 +4772,6 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                         gettext(c"Terminal already connected to buffer %d".as_ptr()),
                         (*curbuf).b_fnum,
                     );
-                    crate::path::clear_cstrings(&mut argv);
                     return;
                 }
                 buf_close_terminal(curbuf);
@@ -4886,7 +4876,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                     c"term://%s//%d:%s".as_ptr(),
                     iobuff,
                     pid,
-                    cmd,
+                    cmd.as_ptr(),
                 );
 
                 setfname(buf, namebuff, ptr::null_mut(), true);

@@ -66,7 +66,7 @@ use crate::eval::funcs::{
 use crate::eval::typval::{
     BoolVarValue, Callback, EvalFuncData, TypvalVval, VarType, callback_free, list_T, tv_clear,
     tv_dict_add_str, tv_dict_alloc, tv_dict_get_string, tv_get_string, tv_list_alloc_ret,
-    tv_list_append_allocated_string, tv_list_copy, tv_list_find, tv_list_find_str, tv_list_free,
+    tv_list_append_string, tv_list_copy, tv_list_find, tv_list_find_str, tv_list_free,
     typval_T,
 };
 use crate::eval::userfunc::{
@@ -9211,7 +9211,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
         let l = get_vim_var_list(VV_ARGV);
         let argc = if l.is_null() { 0 } else { (*l).lv_len };
 
-        let mut argv_vec = Vec::<*mut c_char>::with_capacity((argc as usize) + 3);
+        let mut argv_vec = Vec::<std::ffi::CString>::with_capacity((argc as usize) + 2);
         let mut listen_arg: Option<std::ffi::CString> = None;
 
         let mut li = if l.is_null() {
@@ -9264,17 +9264,16 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
                     && !strequal(arg, c"--headless".as_ptr())
                     && !strequal(arg, c"-".as_ptr()))
             {
-                argv_vec.push(xstrdup(arg));
+                argv_vec.push(CStr::from_ptr(arg).to_owned());
                 if argv_vec.len() == 1 {
-                    argv_vec.push(xstrdup(c"--embed".as_ptr()));
+                    argv_vec.push(c"--embed".to_owned());
                     if no_ui {
-                        argv_vec.push(xstrdup(c"--headless".as_ptr()));
+                        argv_vec.push(c"--headless".to_owned());
                     }
                 }
             }
             li = (*li).li_next;
         }
-        argv_vec.push(ptr::null_mut());
 
         #[cfg(windows)]
         let server_stopped = {
@@ -12801,10 +12800,11 @@ unsafe fn ex_terminal(eap: *mut exarg_T) {
             let mut shell_tv: typval_T = typval_T::new();
             tv_list_alloc_ret(&raw mut shell_tv, 0);
             for arg in argv {
-                if arg.is_null() {
-                    break;
-                }
-                tv_list_append_allocated_string(shell_tv.vval.v_list, arg);
+                tv_list_append_string(
+                    shell_tv.vval.v_list,
+                    arg.as_ptr(),
+                    arg.as_bytes().len() as isize,
+                );
             }
             nlua_call_excmd(
                 c"vim._core.ex_cmd".as_ptr(),

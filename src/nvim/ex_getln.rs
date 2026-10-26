@@ -138,7 +138,7 @@ use crate::state::{
 };
 use crate::strings::{
     gettext, strcmp, strcpy, strlen, strncmp, strrchr, vim_strchr, vim_strnicmp,
-    vim_strsave_escaped, xstrnsave,
+    vim_strsave_escaped,
 };
 use crate::ui::{
     ui_busy_start, ui_busy_stop, ui_call_cmdline_block_append, ui_call_cmdline_block_hide,
@@ -589,7 +589,8 @@ pub unsafe fn parse_pattern_and_range(
             p,
             delim,
             c_int::from(*is_magic),
-            ptr::null_mut(),
+            false,
+            None,
             ptr::null_mut(),
             &raw mut magic,
         );
@@ -1978,7 +1979,7 @@ unsafe fn may_do_command_line_next_incsearch(
         let mut pat = ccline.cmdbuff.add(skiplen as usize);
         let mut dircp: *mut c_char = ptr::null_mut();
         let mut searchstr = pat;
-        let mut strcopy: *mut c_char = ptr::null_mut();
+        let mut strcopy: Vec<c_char> = Vec::new();
         let mut searchstrlen = patlen as usize;
         let mut offset = SearchOffset::new();
         let mut search_flags = SEARCH_NOOF;
@@ -1989,7 +1990,7 @@ unsafe fn may_do_command_line_next_incsearch(
             &raw mut patlen_s,
             search_delim,
             SEARCH_OPT,
-            &raw mut strcopy,
+            &mut strcopy,
             &raw mut searchstr,
             &raw mut searchstrlen,
             &raw mut dircp,
@@ -2085,7 +2086,6 @@ unsafe fn may_do_command_line_next_incsearch(
         } else {
             vim_beep(kOptBoFlagError);
         }
-        drop(cstr_take(strcopy));
         restore_last_search_pattern();
         FAIL
     }
@@ -2883,7 +2883,8 @@ unsafe fn empty_pattern(p: *mut c_char, len: usize, delim: c_int) -> bool {
                 p,
                 delim,
                 p_magic,
-                ptr::null_mut(),
+                false,
+                None,
                 ptr::null_mut(),
                 &raw mut magic_val,
             );
@@ -4738,17 +4739,19 @@ unsafe fn get_cmdline_type() -> c_int {
 }
 
 /// Get the current command line in allocated memory.
-unsafe fn get_cmdline_str() -> *mut c_char {
+unsafe fn get_cmdline_str() -> Option<std::ffi::CString> {
     unsafe {
         if cmdline_star > 0 {
-            return ptr::null_mut();
+            return None;
         }
         let p = get_ccline_ptr();
 
         if p.is_null() {
-            return ptr::null_mut();
+            return None;
         }
-        xstrnsave((*p).cmdbuff, (*p).cmdlen as usize)
+        let slice = std::slice::from_raw_parts((*p).cmdbuff.cast::<u8>(), (*p).cmdlen as usize);
+        let len = slice.iter().position(|&b| b == 0).unwrap_or(slice.len());
+        Some(crate::memory::cstr_from_bytes(&slice[..len]))
     }
 }
 
@@ -4840,8 +4843,12 @@ pub unsafe fn f_getcmdcompltype(
 /// `"getcmdline()"` function.
 pub unsafe fn f_getcmdline(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = get_cmdline_str();
+        if let Some(s) = get_cmdline_str() {
+            crate::eval::typval::tv_set_string_len(rettv, s.as_ptr(), s.as_bytes().len());
+        } else {
+            (*rettv).v_type = VarType::VAR_STRING;
+            (*rettv).vval.v_string = ptr::null_mut();
+        }
     }
 }
 

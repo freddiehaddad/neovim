@@ -31,7 +31,9 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::CP_UTF8;
 use crate::mbyte::{utf8len_tab_zero, utfc_ptr2len_len};
 use crate::memline::ml_append;
-use crate::memory::{cstr_take, xmalloc, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_take, xstrlcat, xstrlcpy};
+#[cfg(unix)]
+use crate::memory::{xmalloc, xstrdup};
 #[cfg(unix)]
 use crate::message::msg;
 use crate::message::{
@@ -55,11 +57,9 @@ use crate::path::{
     invocation_path_tail, path_has_wildcard, path_tail,
 };
 use crate::profile::{prof_child_enter, prof_child_exit, proftime_T};
-use crate::strings::{
-    gettext, strlen, vim_snprintf, vim_strnsave_unquoted, vim_strsave_escaped_ext,
-};
+use crate::strings::{gettext, vim_strnsave_unquoted, vim_strsave_escaped_ext};
 #[cfg(unix)]
-use crate::strings::{strcat, strcpy, strstr, vim_strchr};
+use crate::strings::{strcat, strcpy, strlen, strstr, vim_strchr};
 use crate::tag::tag_freematch;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush, ui_has};
 use std::ffi::{CStr, c_char, c_int};
@@ -554,13 +554,16 @@ pub unsafe fn os_expand_wildcards(
 
 /// Builds the argument vector for running the user-configured 'shell' (p_sh)
 /// with an optional command prefixed by 'shellcmdflag' (p_shcf).
-pub unsafe fn shell_build_argv(cmd: *const c_char, extra_args: *const c_char) -> Vec<*mut c_char> {
+pub unsafe fn shell_build_argv(
+    cmd: *const c_char,
+    extra_args: *const c_char,
+) -> Vec<std::ffi::CString> {
     unsafe {
-        let mut rv: Vec<*mut c_char> = Vec::new();
+        let mut rv: Vec<std::ffi::CString> = Vec::new();
         tokenize(p_sh, &mut rv);
 
         if !extra_args.is_null() {
-            rv.push(xstrdup(extra_args));
+            rv.push(CStr::from_ptr(extra_args).to_owned());
         }
 
         if !cmd.is_null() {
@@ -568,29 +571,25 @@ pub unsafe fn shell_build_argv(cmd: *const c_char, extra_args: *const c_char) ->
             rv.push(shell_xescape_xquote(cmd));
         }
 
-        rv.push(ptr::null_mut());
-        debug_assert!(!rv[0].is_null());
+        debug_assert!(!rv.is_empty());
 
         rv
     }
 }
 
 /// Joins shell arguments from `argv` into a fixed 256-byte string buffer.
-pub unsafe fn shell_argv_to_str(argv: &[*mut c_char]) -> [c_char; 256] {
+pub unsafe fn shell_argv_to_str(argv: &[std::ffi::CString]) -> [c_char; 256] {
     unsafe {
         let mut n: usize = 0;
         let maxsize: usize = 256;
         let mut rv: [c_char; 256] = [0; 256];
         let rv_ptr = rv.as_mut_ptr();
-        if argv.is_empty() || argv[0].is_null() {
+        if argv.is_empty() {
             return rv;
         }
-        for &arg in argv {
-            if arg.is_null() {
-                break;
-            }
+        for arg in argv {
             xstrlcat(rv_ptr, c"'".as_ptr(), maxsize);
-            xstrlcat(rv_ptr, arg, maxsize);
+            xstrlcat(rv_ptr, arg.as_ptr(), maxsize);
             n = xstrlcat(rv_ptr, c"' ".as_ptr(), maxsize);
             if n >= maxsize {
                 break;
@@ -782,7 +781,7 @@ pub unsafe fn get_cmd_output(
 
 /// os_system - synchronously execute a command in the shell
 pub unsafe fn os_system(
-    argv: Vec<*mut c_char>,
+    argv: Vec<std::ffi::CString>,
     input: *const c_char,
     len: usize,
     output: Option<&mut Vec<c_char>>,
@@ -791,7 +790,7 @@ pub unsafe fn os_system(
 }
 
 unsafe fn do_os_system(
-    argv: Vec<*mut c_char>,
+    argv: Vec<std::ffi::CString>,
     input: *const c_char,
     len: usize,
     output: Option<&mut Vec<c_char>>,
@@ -830,7 +829,7 @@ unsafe fn do_os_system(
         }
 
         let mut prog = [0 as c_char; MAXPATHL];
-        xstrlcpy(prog.as_mut_ptr(), argv[0], MAXPATHL);
+        xstrlcpy(prog.as_mut_ptr(), argv[0].as_ptr(), MAXPATHL);
 
         let mloop = main_loop_ptr();
         let mut uvproc = LibuvProc::new();
@@ -1103,7 +1102,7 @@ unsafe fn out_data_cb(
     }
 }
 
-unsafe fn tokenize(str_in: *const c_char, argv: &mut Vec<*mut c_char>) {
+unsafe fn tokenize(str_in: *const c_char, argv: &mut Vec<std::ffi::CString>) {
     unsafe {
         let mut p = str_in;
 
@@ -1219,10 +1218,10 @@ unsafe fn shell_write_cb(stream: *mut Stream, status: c_int) {
     }
 }
 
-unsafe fn shell_xescape_xquote(cmd: *const c_char) -> *mut c_char {
+unsafe fn shell_xescape_xquote(cmd: *const c_char) -> std::ffi::CString {
     unsafe {
         if *p_sxq == NUL {
-            return xstrdup(cmd);
+            return CStr::from_ptr(cmd).to_owned();
         }
 
         let sxq_bytes = CStr::from_ptr(p_sxq).to_bytes();
@@ -1231,19 +1230,26 @@ unsafe fn shell_xescape_xquote(cmd: *const c_char) -> *mut c_char {
         } else {
             None
         };
-        let ecmd = owned_ecmd.as_ref().map_or(cmd, |s| s.as_ptr());
-        let ncmd_size = strlen(ecmd) + sxq_bytes.len() * 2 + 1;
-        let ncmd: *mut c_char = xmalloc(ncmd_size).cast();
+        let ecmd_bytes = owned_ecmd
+            .as_ref()
+            .map_or_else(|| CStr::from_ptr(cmd).to_bytes(), |s| s.as_bytes());
+        let mut out = Vec::with_capacity(ecmd_bytes.len() + sxq_bytes.len() * 2);
 
         if sxq_bytes == b"(" {
-            vim_snprintf!(ncmd, ncmd_size, c"(%s)".as_ptr(), ecmd);
+            out.push(b'(');
+            out.extend_from_slice(ecmd_bytes);
+            out.push(b')');
         } else if sxq_bytes == b"\"(" {
-            vim_snprintf!(ncmd, ncmd_size, c"\"(%s)\"".as_ptr(), ecmd);
+            out.extend_from_slice(b"\"(");
+            out.extend_from_slice(ecmd_bytes);
+            out.extend_from_slice(b")\"");
         } else {
-            vim_snprintf!(ncmd, ncmd_size, c"%s%s%s".as_ptr(), p_sxq, ecmd, p_sxq);
+            out.extend_from_slice(sxq_bytes);
+            out.extend_from_slice(ecmd_bytes);
+            out.extend_from_slice(sxq_bytes);
         }
 
-        ncmd
+        crate::memory::cstr_from_bytes(&out)
     }
 }
 
@@ -1274,17 +1280,10 @@ mod tests {
             p_sxe = c"".as_ptr().cast_mut();
 
             let collect_argv = |cmd: *const c_char, extra: *const c_char| -> Vec<String> {
-                let mut res = shell_build_argv(cmd, extra);
-                let mut out = Vec::new();
-                for &arg in &res {
-                    if arg.is_null() {
-                        break;
-                    }
-                    let s = CStr::from_ptr(arg).to_str().unwrap().to_string();
-                    out.push(s);
-                }
-                crate::path::clear_cstrings(&mut res);
-                out
+                shell_build_argv(cmd, extra)
+                    .into_iter()
+                    .map(|arg| arg.into_string().unwrap())
+                    .collect()
             };
 
             assert_eq!(collect_argv(ptr::null(), ptr::null()), vec!["/bin/sh"]);
@@ -1339,12 +1338,7 @@ mod tests {
                 vec!["/bin/sh", "-c", "\"echo -n some text\""]
             );
 
-            let argv_arr: [*mut c_char; 4] = [
-                c"foo".as_ptr().cast_mut(),
-                c"".as_ptr().cast_mut(),
-                c"bar".as_ptr().cast_mut(),
-                ptr::null_mut(),
-            ];
+            let argv_arr = [c"foo".to_owned(), c"".to_owned(), c"bar".to_owned()];
             let s = shell_argv_to_str(&argv_arr);
             assert_eq!(
                 CStr::from_ptr(s.as_ptr()).to_str().unwrap(),

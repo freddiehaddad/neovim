@@ -459,7 +459,7 @@ unsafe fn close_cb(_stream: *mut Stream, data: StreamInternalData) {
 
 /// Starts a job and returns the associated channel.
 pub unsafe fn channel_job_start(
-    mut argv: Vec<*mut c_char>,
+    argv: Vec<std::ffi::CString>,
     exepath: *const c_char,
     on_stdout: CallbackReader,
     on_stderr: CallbackReader,
@@ -495,7 +495,7 @@ pub unsafe fn channel_job_start(
                         tv_dict_free(env);
                     }
                 }
-                crate::path::clear_cstrings(&mut argv);
+                drop(argv);
                 channel_destroy_early(chan);
                 *status_out = 0;
                 return ptr::null_mut();
@@ -544,7 +544,7 @@ pub unsafe fn channel_job_start(
         let exe_str = if !(*ph).exepath.is_null() {
             (*ph).exepath
         } else {
-            (*ph).argv.as_slice()[0]
+            (*ph).argv.as_slice()[0].as_ptr()
         };
         let cmd = CStr::from_ptr(exe_str).to_owned();
 
@@ -1266,15 +1266,15 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                     capacity: 0,
                 };
                 if !args.is_empty() {
-                    let n = args.iter().take_while(|&&p| !p.is_null()).count();
+                    let n = args.len();
                     argv = arena_array(arena, n);
-                    for &arg in &args[..n] {
+                    for arg in args {
                         add_c(
                             &mut argv,
                             Object {
                                 obj_type: ObjectType::kObjectTypeString,
                                 data: ObjectData {
-                                    string: cstr_as_string(arg),
+                                    string: cstr_as_string(arg.as_ptr()),
                                 },
                             },
                         );

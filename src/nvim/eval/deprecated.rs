@@ -11,7 +11,6 @@ use crate::eval::typval::{
 };
 use crate::ex_cmds::check_secure;
 use crate::globals::*;
-use crate::memory::xstrdup;
 use crate::message::{emsg, semsg};
 use std::ffi::{c_char, c_int};
 
@@ -77,17 +76,16 @@ pub unsafe fn f_rpcstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             return;
         }
 
-        let mut argv = Vec::with_capacity((argsl as usize) + 2);
-        argv.push(xstrdup(prog));
+        let mut argv = Vec::with_capacity((argsl as usize) + 1);
+        argv.push(std::ffi::CStr::from_ptr(prog).to_owned());
 
         if argsl > 0 && !args.is_null() {
             let mut li: *const listitem_T = (*args).lv_first;
             while !li.is_null() {
-                argv.push(xstrdup(tv_get_string(&(*li).li_tv)));
+                argv.push(std::ffi::CStr::from_ptr(tv_get_string(&(*li).li_tv)).to_owned());
                 li = (*li).li_next;
             }
         }
-        argv.push(std::ptr::null_mut());
 
         let chan = channel_job_start(
             argv,

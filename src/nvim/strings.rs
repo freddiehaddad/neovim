@@ -819,7 +819,10 @@ pub unsafe fn vim_strsave_escaped_ext(
     }
 }
 
-pub unsafe fn vim_strnsave_unquoted(string: *const c_char, length: usize) -> *mut c_char {
+pub unsafe fn vim_strnsave_unquoted(
+    string: *const c_char,
+    length: usize,
+) -> std::ffi::CString {
     unsafe {
         let mut ret_length: usize = 0;
         let mut inquote = false;
@@ -841,8 +844,7 @@ pub unsafe fn vim_strnsave_unquoted(string: *const c_char, length: usize) -> *mu
             p = p.add(1);
         }
 
-        let ret = xmallocz(ret_length).cast::<c_char>();
-        let mut rp = ret;
+        let mut ret = Vec::with_capacity(ret_length);
         inquote = false;
         p = string;
         while p < string_end {
@@ -854,16 +856,14 @@ pub unsafe fn vim_strnsave_unquoted(string: *const c_char, length: usize) -> *mu
                 && (*p.add(1) == b'\\' as c_char || *p.add(1) == b'"' as c_char)
             {
                 p = p.add(1);
-                *rp = *p;
-                rp = rp.add(1);
+                ret.push(*p as u8);
             } else {
-                *rp = *p;
-                rp = rp.add(1);
+                ret.push(*p as u8);
             }
             p = p.add(1);
         }
 
-        ret
+        crate::memory::cstr_from_bytes(&ret)
     }
 }
 
@@ -3714,8 +3714,7 @@ mod tests {
     fn vim_strnsave_unquoted_and_strrep_and_format_typeof_work() {
         unsafe {
             let unquoted = vim_strnsave_unquoted(c"\"/bin/sh\"".as_ptr(), 9);
-            assert_eq!(CStr::from_ptr(unquoted).to_str().unwrap(), "/bin/sh");
-            xfree(unquoted.cast());
+            assert_eq!(unquoted.to_str().unwrap(), "/bin/sh");
 
             let rep =
                 strrep(c"foo bar foo".as_ptr(), c"foo".as_ptr(), c"baz".as_ptr()).unwrap();
@@ -3851,8 +3850,7 @@ mod tests {
                 (c"/Program\"\\n\"Files/sh", 20, "/Program\\nFiles/sh"),
             ] {
                 let res = vim_strnsave_unquoted(s.as_ptr(), len);
-                assert_eq!(CStr::from_ptr(res).to_str().unwrap(), expected);
-                xfree(res.cast());
+                assert_eq!(res.to_str().unwrap(), expected);
             }
 
             let s_abc = c"abc";

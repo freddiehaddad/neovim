@@ -49,7 +49,7 @@ use crate::mbyte::{
     utf_ptr2char, utfc_ptr2len,
 };
 use crate::memline::{decl, inc, incl, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
-use crate::memory::{cstr_take, xstrlcpy};
+use crate::memory::xstrlcpy;
 use crate::message::{
     emsg, give_warning, iemsg, messaging, msg, msg_check, msg_clr_eos, msg_end, msg_ext_set_kind,
     msg_home_replace, msg_outtrans, msg_prt_line, msg_putchar, msg_puts, msg_puts_hl,
@@ -534,7 +534,8 @@ pub unsafe fn pat_has_uppercase(pat: *mut c_char) -> bool {
             pat,
             c_int::from(NUL),
             p_magic,
-            ptr::null_mut(),
+            false,
+            None,
             ptr::null_mut(),
             &raw mut magic_val,
         );
@@ -1138,7 +1139,7 @@ pub unsafe fn parse_search_pattern_offset(
     patlen: *mut usize,
     search_delim: c_int,
     options: c_int,
-    strcopy: *mut *mut c_char,
+    strcopy: &mut Vec<c_char>,
     searchstr: *mut *mut c_char,
     searchstrlen: *mut usize,
     dircp: *mut *mut c_char,
@@ -1150,7 +1151,7 @@ pub unsafe fn parse_search_pattern_offset(
         }
 
         let mut cmdlen: c_int = 0;
-        let ps = *strcopy;
+        let had_copy = !strcopy.is_empty();
 
         *searchstr = *pat;
         *searchstrlen = *patlen;
@@ -1160,16 +1161,18 @@ pub unsafe fn parse_search_pattern_offset(
             *pat,
             search_delim,
             p_magic,
-            strcopy,
+            true,
+            Some(strcopy),
             ptr::null_mut(),
             ptr::null_mut(),
         );
-        if *strcopy != ps {
-            let len = CStr::from_ptr(*strcopy).to_bytes().len();
+        if !had_copy && !strcopy.is_empty() {
+            let new_ptr = strcopy.as_mut_ptr();
+            let len = CStr::from_ptr(new_ptr).to_bytes().len();
             cmdlen += (*patlen).wrapping_sub(len) as c_int;
-            *pat = *strcopy;
+            *pat = new_ptr;
             *patlen = len;
-            *searchstr = *strcopy;
+            *searchstr = new_ptr;
             *searchstrlen = len;
         }
         if c_int::from(*p as u8) == search_delim {
@@ -1234,7 +1237,7 @@ pub unsafe fn do_search(
         let mut retval: c_int;
         let mut c: i64;
         let mut dircp: *mut c_char;
-        let mut strcopy: *mut c_char = ptr::null_mut();
+        let mut strcopy: Vec<c_char> = Vec::new();
         let mut msgbuf_vec: Vec<c_char> = Vec::new();
         let mut msgbuflen: usize = 0;
         let mut has_offset = false;
@@ -1309,7 +1312,7 @@ pub unsafe fn do_search(
                     &raw mut patlen,
                     search_delim,
                     options,
-                    &raw mut strcopy,
+                    &mut strcopy,
                     &raw mut searchstr,
                     &raw mut searchstrlen,
                     &raw mut dircp,
@@ -1623,7 +1626,6 @@ pub unsafe fn do_search(
         if (options & SEARCH_KEEP) != 0 || (cmdmod.cmod_flags & CMOD_KEEPPATTERNS) != 0 {
             spats[0].off = old_off;
         }
-        let _ = cstr_take(strcopy);
 
         retval
     }

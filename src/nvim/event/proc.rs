@@ -46,7 +46,7 @@ pub struct Proc {
     pub exit_signal: u8,
     pub stopped_time: u64,
     pub cwd: *const c_char,
-    pub argv: Vec<*mut c_char>,
+    pub argv: Vec<std::ffi::CString>,
     pub exepath: *const c_char,
     pub env: *mut dict_T,
     pub r#in: Stream,
@@ -121,14 +121,6 @@ impl Proc {
             finish_wait: ptr::null_mut(),
             #[cfg(windows)]
             proc_handle: ptr::null_mut(),
-        }
-    }
-}
-
-impl Drop for Proc {
-    fn drop(&mut self) {
-        unsafe {
-            crate::path::clear_cstrings(&mut self.argv);
         }
     }
 }

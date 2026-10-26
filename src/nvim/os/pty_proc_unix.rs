@@ -303,7 +303,18 @@ mod unix_impl {
             uv_disable_stdio_inheritance();
             let prog = proc_get_exepath(proc_);
             debug_assert!(!(*hdr).env.is_null());
-            let mut new_env = tv_dict_to_env((*hdr).env);
+            let new_env = tv_dict_to_env((*hdr).env);
+            let mut new_env_ptrs: Vec<*mut c_char> = new_env
+                .iter()
+                .map(|s| s.as_ptr().cast_mut())
+                .chain(std::iter::once(ptr::null_mut()))
+                .collect();
+            let argv_ptrs: Vec<*mut c_char> = (*hdr)
+                .argv
+                .iter()
+                .map(|s| s.as_ptr().cast_mut())
+                .chain(std::iter::once(ptr::null_mut()))
+                .collect();
             let mut master: c_int = -1;
             let pid = forkpty(
                 &raw mut master,
@@ -313,7 +324,6 @@ mod unix_impl {
             );
 
             if pid < 0 {
-                crate::path::clear_cstrings(&mut new_env);
                 let err = os_errno();
                 let status = -err;
                 logmsg!(
@@ -327,9 +337,11 @@ mod unix_impl {
                 );
                 return status;
             } else if pid == 0 {
-                init_child(ptyproc, prog, new_env.as_mut_ptr());
+                init_child(ptyproc, prog, argv_ptrs.as_ptr(), new_env_ptrs.as_mut_ptr());
             }
-            crate::path::clear_cstrings(&mut new_env);
+            drop(new_env_ptrs);
+            drop(new_env);
+            drop(argv_ptrs);
 
             let mut status: c_int;
             'error: {
@@ -476,6 +488,7 @@ mod unix_impl {
     unsafe fn init_child(
         ptyproc: *mut PtyProc,
         prog: *const c_char,
+        argv_ptrs: *const *mut c_char,
         new_env: *mut *mut c_char,
     ) -> ! {
         unsafe {
@@ -508,7 +521,7 @@ mod unix_impl {
             }
 
             *os_environ_ptr() = new_env;
-            execvp(prog, (*hdr).argv.as_ptr());
+            execvp(prog, argv_ptrs);
             let err = os_errno();
             logmsg!(
                 LOGLVL_ERR,
