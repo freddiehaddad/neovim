@@ -33,14 +33,14 @@ use crate::memline::{
     ml_append, ml_delete_buf, ml_delete_flags, ml_get, ml_get_buf, ml_get_buf_len, ml_replace,
     ml_replace_buf,
 };
-use crate::memory::{xfree, xmemdupz, xstrdup};
+use crate::memory::{cstr_take, xfree, xmemdupz, xstrdup};
 use crate::r#move::update_topline;
 use crate::path::path_with_url;
 use crate::sign::{buf_has_signs, get_buffer_signs};
 use crate::strings::concat_str;
 use crate::undo::{bufIsChanged, u_clearallandblockfree, u_save, u_savesub, u_sync};
 use crate::window::win_T;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_int};
 use std::ptr;
 
 use crate::charset::NUL;
@@ -181,7 +181,7 @@ unsafe fn set_buffer_lines(
 
         let mut l: *mut list_T = ptr::null_mut();
         let mut li: *mut listitem_T = ptr::null_mut();
-        let mut line: *mut c_char = ptr::null_mut();
+        let mut line: Option<std::ffi::CString> = None;
         if (*lines).v_type == VarType::VAR_LIST {
             l = (*lines).vval.v_list;
             if l.is_null() || tv_list_len(l) == 0 {
@@ -192,7 +192,7 @@ unsafe fn set_buffer_lines(
             }
             li = tv_list_first(l);
         } else {
-            line = typval_tostring(Some(&mut *lines), false);
+            line = cstr_take(typval_tostring(Some(&mut *lines), false));
         }
 
         loop {
@@ -200,13 +200,15 @@ unsafe fn set_buffer_lines(
                 if li.is_null() {
                     break;
                 }
-                xfree(line.cast());
-                line = typval_tostring(Some(&mut (*li).li_tv), false);
+                line = cstr_take(typval_tostring(Some(&mut (*li).li_tv), false));
                 li = (*li).li_next;
             }
 
             (*rettv).vval.v_number = 1; // FAIL
-            if line.is_null() || lnum > (*curbuf).b_ml.ml_line_count + 1 {
+            let Some(ref line_cstr) = line else {
+                break;
+            };
+            if lnum > (*curbuf).b_ml.ml_line_count + 1 {
                 break;
             }
 
@@ -217,8 +219,10 @@ unsafe fn set_buffer_lines(
 
             if !append && lnum <= (*curbuf).b_ml.ml_line_count {
                 let old_len = CStr::from_ptr(ml_get(lnum)).to_bytes().len() as c_int;
-                if u_savesub(lnum) == OK && ml_replace(lnum, line, true) == OK {
-                    let new_len = CStr::from_ptr(line).to_bytes().len() as c_int;
+                if u_savesub(lnum) == OK
+                    && ml_replace(lnum, line_cstr.as_ptr().cast_mut(), true) == OK
+                {
+                    let new_len = line_cstr.to_bytes().len() as c_int;
                     inserted_bytes(lnum, 0, old_len, new_len);
                     if is_curbuf && lnum == (*curwin).w_cursor.lnum {
                         check_cursor_col(curwin);
@@ -227,7 +231,7 @@ unsafe fn set_buffer_lines(
                 }
             } else if added > 0 || u_save(lnum - 1, lnum) == OK {
                 added += 1;
-                if ml_append(lnum - 1, line, 0, false) == OK {
+                if ml_append(lnum - 1, line_cstr.as_ptr().cast_mut(), 0, false) == OK {
                     (*rettv).vval.v_number = 0; // OK
                 }
             }
@@ -237,7 +241,7 @@ unsafe fn set_buffer_lines(
             }
             lnum += 1;
         }
-        xfree(line.cast());
+        drop(line);
 
         if added > 0 {
             appended_lines_mark(append_lnum, added);
@@ -1144,10 +1148,9 @@ pub unsafe fn f_prompt_setprompt(
                 );
                 cursor_col = new_prompt_len;
             } else {
-                let new_line = concat_str(new_prompt, old_line.add(mark_col as usize));
-                if ml_replace_buf(buf, prompt_lno, new_line, false, false) != OK {
-                    xfree(new_line.cast());
-                }
+                let new_line = cstr_take(concat_str(new_prompt, old_line.add(mark_col as usize)))
+                    .unwrap_or_default();
+                let _ = ml_replace_buf(buf, prompt_lno, new_line.as_ptr().cast_mut(), true, false);
                 extmark_splice_cols(
                     buf,
                     prompt_lno - 1,
@@ -1167,8 +1170,7 @@ pub unsafe fn f_prompt_setprompt(
             u_clearallandblockfree(buf);
         }
 
-        xfree((*buf).b_prompt_text.cast());
-        (*buf).b_prompt_text = xstrdup(new_prompt);
+        (*buf).b_prompt_text = Some(CStr::from_ptr(new_prompt).to_owned());
         (*buf).b_prompt_start.mark.col = new_prompt_len as colnr_T;
     }
 }

@@ -672,12 +672,13 @@ pub unsafe fn save_file_ff(buf: *mut buf_T) {
         (*buf).b_start_eol = (*buf).b_p_eol;
         (*buf).b_start_bomb = (*buf).b_p_bomb;
 
-        if (*buf).b_start_fenc.is_null()
-            || CStr::from_ptr((*buf).b_start_fenc).to_bytes()
-                != CStr::from_ptr((*buf).b_p_fenc).to_bytes()
+        let p_fenc_bytes = CStr::from_ptr((*buf).b_p_fenc).to_bytes();
+        if (*buf)
+            .b_start_fenc
+            .as_ref()
+            .is_none_or(|s| s.to_bytes() != p_fenc_bytes)
         {
-            xfree((*buf).b_start_fenc.cast());
-            (*buf).b_start_fenc = xstrdup((*buf).b_p_fenc);
+            (*buf).b_start_fenc = Some(CStr::from_ptr((*buf).b_p_fenc).to_owned());
         }
     }
 }
@@ -707,10 +708,10 @@ pub unsafe fn file_ff_differs(buf: *mut buf_T, ignore_empty: bool) -> bool {
         if (*buf).b_p_bin == 0 && (*buf).b_start_bomb != (*buf).b_p_bomb {
             return true;
         }
-        if (*buf).b_start_fenc.is_null() {
+        let Some(ref start_fenc) = (*buf).b_start_fenc else {
             return *(*buf).b_p_fenc != NUL;
-        }
-        CStr::from_ptr((*buf).b_start_fenc).to_bytes() != CStr::from_ptr((*buf).b_p_fenc).to_bytes()
+        };
+        start_fenc.to_bytes() != CStr::from_ptr((*buf).b_p_fenc).to_bytes()
     }
 }
 

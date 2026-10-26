@@ -412,7 +412,7 @@ pub struct buf_T {
     pub b_start_eof: c_int,
     pub b_start_eol: c_int,
     pub b_start_ffc: c_int,
-    pub b_start_fenc: *mut c_char,
+    pub b_start_fenc: Option<std::ffi::CString>,
     pub b_bad_char: c_int,
     pub b_start_bomb: c_int,
     pub b_bufvar: crate::eval::typval::ScopeDictDictItem,
@@ -421,7 +421,7 @@ pub struct buf_T {
     pub b_did_warn: bool,
     pub b_help: bool,
     pub b_spell: bool,
-    pub b_prompt_text: *mut c_char,
+    pub b_prompt_text: Option<std::ffi::CString>,
     pub b_prompt_callback: crate::eval::typval::Callback,
     pub b_prompt_interrupt: crate::eval::typval::Callback,
     pub b_prompt_append_new_line: bool,
@@ -693,7 +693,7 @@ impl buf_T {
             b_start_eof: 0,
             b_start_eol: 0,
             b_start_ffc: 0,
-            b_start_fenc: ptr::null_mut(),
+            b_start_fenc: None,
             b_bad_char: 0,
             b_start_bomb: 0,
             b_bufvar: crate::eval::typval::ScopeDictDictItem::new(),
@@ -702,7 +702,7 @@ impl buf_T {
             b_did_warn: false,
             b_help: false,
             b_spell: false,
-            b_prompt_text: ptr::null_mut(),
+            b_prompt_text: None,
             b_prompt_callback: crate::eval::typval::Callback::NONE,
             b_prompt_interrupt: crate::eval::typval::Callback::NONE,
             b_prompt_append_new_line: false,
@@ -1692,14 +1692,12 @@ impl Drop for buf_T {
             xfree(self.b_ffname.cast());
             self.b_ffname = ptr::null_mut();
             free_buf_options(self, true);
-            xfree(self.b_start_fenc.cast());
-            self.b_start_fenc = ptr::null_mut();
+            self.b_start_fenc = None;
             self.b_localdir = None;
             self.b_prevdir = None;
             xfree(self.additional_data.cast());
             self.additional_data = ptr::null_mut();
-            xfree(self.b_prompt_text.cast());
-            self.b_prompt_text = ptr::null_mut();
+            self.b_prompt_text = None;
             callback_free(&raw mut self.b_prompt_callback);
             callback_free(&raw mut self.b_prompt_interrupt);
             clear_fmark(&raw mut self.b_last_cursor, 0);
@@ -1734,8 +1732,7 @@ unsafe fn free_buffer(buf: *mut buf_T) {
         if autocmd_busy {
             xfree((*buf).additional_data.cast());
             (*buf).additional_data = ptr::null_mut();
-            xfree((*buf).b_prompt_text.cast());
-            (*buf).b_prompt_text = ptr::null_mut();
+            (*buf).b_prompt_text = None;
             callback_free(&raw mut (*buf).b_prompt_callback);
             callback_free(&raw mut (*buf).b_prompt_interrupt);
             clear_fmark(&raw mut (*buf).b_last_cursor, 0);
@@ -1792,8 +1789,7 @@ unsafe fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
         mc_buf_free(buf);
         map_clear_mode(buf, MAP_ALL_MODES, true, false);
         map_clear_mode(buf, MAP_ALL_MODES, true, true);
-        xfree((*buf).b_start_fenc.cast());
-        (*buf).b_start_fenc = ptr::null_mut();
+        (*buf).b_start_fenc = None;
         (*buf).b_localdir = None;
         (*buf).b_prevdir = None;
 
@@ -2897,7 +2893,7 @@ pub unsafe fn buflist_new(
 
         (*buf).b_prompt_callback = crate::eval::typval::Callback::NONE;
         (*buf).b_prompt_interrupt = crate::eval::typval::Callback::NONE;
-        (*buf).b_prompt_text = ptr::null_mut();
+        (*buf).b_prompt_text = None;
         (*buf).b_prompt_start = INIT_FMARK;
         (*buf).b_prompt_start.mark.col = 2;
         (*buf).b_prompt_append_new_line = true;

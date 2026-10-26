@@ -1082,13 +1082,20 @@ pub unsafe fn emsg_multiline(
                 return true;
             }
 
-            if in_assert_fails && emsg_assert_fails_msg.is_null() {
-                emsg_assert_fails_msg = xstrdup(s);
+            if in_assert_fails
+                && (&raw const emsg_assert_fails_msg)
+                    .as_ref()
+                    .unwrap()
+                    .is_none()
+            {
+                emsg_assert_fails_msg = Some(CStr::from_ptr(s).to_owned());
                 emsg_assert_fails_lnum = sourcing_lnum() as c_long;
-                xfree(emsg_assert_fails_context.cast());
                 let sname = sourcing_name();
-                emsg_assert_fails_context =
-                    xstrdup(if sname.is_null() { c"".as_ptr() } else { sname });
+                emsg_assert_fails_context = Some(if sname.is_null() {
+                    std::ffi::CString::default()
+                } else {
+                    CStr::from_ptr(sname).to_owned()
+                });
             }
 
             // set "v:errmsg", also when using ":silent! cmd"
