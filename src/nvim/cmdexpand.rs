@@ -1386,7 +1386,7 @@ pub type CmdlineColors = Vec<CmdlineColorChunk>;
 #[derive(Clone)]
 pub struct ColoredCmdline {
     pub prompt_id: c_uint,
-    pub cmdbuff: *mut c_char,
+    pub cmdbuff: Option<std::ffi::CString>,
     pub colors: CmdlineColors,
 }
 
@@ -1394,7 +1394,7 @@ impl ColoredCmdline {
     pub const fn new() -> Self {
         Self {
             prompt_id: 0,
-            cmdbuff: ptr::null_mut(),
+            cmdbuff: None,
             colors: Vec::new(),
         }
     }

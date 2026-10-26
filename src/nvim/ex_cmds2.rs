@@ -22,7 +22,7 @@ use crate::dialog::{
 use crate::errors::*;
 use crate::eval::eval_call_provider;
 use crate::eval::typval::{
-    tv_list_alloc, tv_list_append_allocated_string, tv_list_append_number, tv_list_append_string,
+    tv_list_alloc, tv_list_append_number, tv_list_append_string,
     varnumber_T,
 };
 use crate::eval::vars::{
@@ -840,11 +840,9 @@ pub unsafe fn ex_checktime(eap: *mut exarg_T) {
 unsafe fn script_host_execute(name: *const c_char, eap: *mut exarg_T) {
     unsafe {
         let mut len: usize = 0;
-        let script = script_get(eap, &raw mut len);
-
-        if !script.is_null() {
+        if let Some(script) = script_get(eap, &raw mut len) {
             let args = tv_list_alloc(3);
-            tv_list_append_allocated_string(args, script);
+            crate::eval::typval::tv_list_append_string(args, script.as_ptr(), -1);
             tv_list_append_number(args, (*eap).line1 as varnumber_T);
             tv_list_append_number(args, (*eap).line2 as varnumber_T);
 

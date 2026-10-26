@@ -95,7 +95,7 @@ use crate::mbyte::{
 };
 use crate::memline::{decl, incl};
 use crate::memory::{
-    Arena, arena_alloc, arena_finish, arena_mem_free, xfree, xmalloc, xmallocz, xmemdupz, xstrdup,
+    Arena, arena_alloc, arena_finish, arena_mem_free, cstr_take, xfree, xmalloc, xmallocz,
 };
 use crate::message::{
     emsg, msg, msg_check, msg_clr_eos, msg_cursor_goto, msg_grid_validate, msg_outtrans_len,
@@ -274,7 +274,7 @@ struct CommandLineState {
     c: c_int,
     gotesc: bool,
     do_abbr: bool,
-    lookfor: *mut c_char,
+    lookfor: Option<std::ffi::CString>,
     lookforlen: c_int,
     hiscnt: c_int,
     save_hiscnt: c_int,
@@ -285,8 +285,8 @@ struct CommandLineState {
     save_msg_scroll: c_int,
     save_State: c_int,
     prev_cmdpos: c_int,
-    prev_cmdbuff: *mut c_char,
-    save_p_icm: *mut c_char,
+    prev_cmdbuff: Option<std::ffi::CString>,
+    save_p_icm: Option<std::ffi::CString>,
     skip_pum_redraw: bool,
     some_key_typed: bool,
     ignore_drag_release: bool,
@@ -309,7 +309,7 @@ impl CommandLineState {
             c: 0,
             gotesc: false,
             do_abbr: false,
-            lookfor: ptr::null_mut(),
+            lookfor: None,
             lookforlen: 0,
             hiscnt: 0,
             save_hiscnt: 0,
@@ -320,8 +320,8 @@ impl CommandLineState {
             save_msg_scroll: 0,
             save_State: 0,
             prev_cmdpos: 0,
-            prev_cmdbuff: ptr::null_mut(),
-            save_p_icm: ptr::null_mut(),
+            prev_cmdbuff: None,
+            save_p_icm: None,
             skip_pum_redraw: false,
             some_key_typed: false,
             ignore_drag_release: false,
@@ -1030,7 +1030,7 @@ unsafe fn command_line_enter(
         state.prev_cmdpos = -1;
         state.ignore_drag_release = true;
         let s = &raw mut state;
-        (*s).save_p_icm = xstrdup(p_icm);
+        (*s).save_p_icm = Some(CStr::from_ptr(p_icm).to_owned());
         init_incsearch_state(&raw mut (*s).is_state);
         let mut save_ccline = CmdlineInfo::new();
         let mut did_save_ccline = false;
@@ -1296,7 +1296,16 @@ unsafe fn command_line_enter(
                 need_wait_return = false;
             }
 
-            set_option_direct(kOptInccommand, cstr_as_obj((*s).save_p_icm), 0, SID_NONE);
+            set_option_direct(
+                kOptInccommand,
+                cstr_as_obj(
+                    (*s).save_p_icm
+                        .as_ref()
+                        .map_or(c"".as_ptr(), |s| s.as_ptr()),
+                ),
+                0,
+                SID_NONE,
+            );
             State = (*s).save_State;
             if cmdpreview != save_cmdpreview {
                 cmdpreview = save_cmdpreview;
@@ -1310,9 +1319,8 @@ unsafe fn command_line_enter(
         }
 
         // theend:
-        xfree((*s).save_p_icm.cast());
-        xfree(ccline.last_colors.cmdbuff.cast());
-        ccline.last_colors.cmdbuff = ptr::null_mut();
+        (*s).save_p_icm = None;
+        ccline.last_colors.cmdbuff = None;
         let lc_colors = &raw mut ccline.last_colors.colors;
         *lc_colors = Vec::new();
 
@@ -1334,7 +1342,7 @@ unsafe fn command_line_enter(
             ccline.cmdbuff = ptr::null_mut();
         }
 
-        xfree((*s).prev_cmdbuff.cast());
+        (*s).prev_cmdbuff = None;
         p.cast::<u8>()
     }
 }
@@ -1344,8 +1352,7 @@ unsafe fn command_line_check(state: *mut VimState) -> c_int {
         let s = state.cast::<CommandLineState>();
 
         (*s).prev_cmdpos = ccline.cmdpos;
-        xfree((*s).prev_cmdbuff.cast());
-        (*s).prev_cmdbuff = ptr::null_mut();
+        (*s).prev_cmdbuff = None;
 
         redir_off = true;
         quit_more = false;
@@ -1358,7 +1365,7 @@ unsafe fn command_line_check(state: *mut VimState) -> c_int {
         may_trigger_safestate((*s).xpc.xp_numfiles <= 0);
 
         if !ccline.cmdbuff.is_null() {
-            (*s).prev_cmdbuff = xstrdup(ccline.cmdbuff);
+            (*s).prev_cmdbuff = Some(CStr::from_ptr(ccline.cmdbuff).to_owned());
         }
 
         if (*s).c == K_WILD && (*s).firstc != b'@' as c_int {
@@ -1400,15 +1407,14 @@ unsafe fn command_line_handle_ctrl_bsl(s: *mut CommandLineState) -> c_int {
             (*s).c = get_expr_register();
             if (*s).c == b'=' as c_int {
                 textlock += 1;
-                let p = get_expr_line();
+                let p = cstr_take(get_expr_line());
                 textlock -= 1;
 
-                if !p.is_null() {
-                    let len = strlen(p) as c_int;
+                if let Some(p) = p {
+                    let len = p.as_bytes().len() as c_int;
                     realloc_cmdbuff(len + 1);
                     ccline.cmdlen = len;
-                    strcpy(ccline.cmdbuff, p);
-                    xfree(p.cast());
+                    strcpy(ccline.cmdbuff, p.as_ptr());
 
                     ccline.cmdpos = ccline.cmdlen.min(new_cmdpos);
 
@@ -1728,7 +1734,7 @@ unsafe fn command_line_execute(state: *mut VimState, key: c_int) -> c_int {
             got_int = false;
         }
 
-        if !(*s).lookfor.is_null()
+        if (*s).lookfor.is_some()
             && (*s).c != K_S_DOWN
             && (*s).c != K_S_UP
             && (*s).c != K_DOWN
@@ -1741,8 +1747,7 @@ unsafe fn command_line_execute(state: *mut VimState, key: c_int) -> c_int {
             && (*s).c != K_RIGHT
             && ((*s).xpc.xp_numfiles > 0 || ((*s).c != Ctrl_P && (*s).c != Ctrl_N))
         {
-            xfree((*s).lookfor.cast());
-            (*s).lookfor = ptr::null_mut();
+            (*s).lookfor = None;
             (*s).lookforlen = 0;
         }
 
@@ -2088,7 +2093,7 @@ unsafe fn may_do_command_line_next_incsearch(
         } else {
             vim_beep(kOptBoFlagError);
         }
-        xfree(strcopy.cast());
+        drop(cstr_take(strcopy));
         restore_last_search_pattern();
         FAIL
     }
@@ -2317,11 +2322,15 @@ unsafe fn command_line_next_histidx(s: *mut CommandLineState, next_match: bool) 
                 break;
             }
 
+            let lookfor_ptr = (*s)
+                .lookfor
+                .as_ref()
+                .map_or(c"".as_ptr(), |s| s.as_ptr());
             if ((*s).c != K_UP && (*s).c != K_DOWN)
                 || (*s).hiscnt == (*s).save_hiscnt
                 || strncmp(
                     hist[(*s).hiscnt as usize].hisstr_ptr(),
-                    (*s).lookfor,
+                    lookfor_ptr,
                     (*s).lookforlen as usize,
                 ) == 0
             {
@@ -2341,9 +2350,10 @@ unsafe fn command_line_browse_history(s: *mut CommandLineState) -> c_int {
 
         (*s).save_hiscnt = (*s).hiscnt;
 
-        if (*s).lookfor.is_null() {
-            (*s).lookfor = xstrnsave(ccline.cmdbuff, ccline.cmdlen as usize);
-            *(*s).lookfor.add(ccline.cmdpos as usize) = NUL;
+        if (*s).lookfor.is_none() {
+            let prefix_len = ccline.cmdpos as usize;
+            let bytes = std::slice::from_raw_parts(ccline.cmdbuff.cast::<u8>(), prefix_len);
+            (*s).lookfor = Some(std::ffi::CString::new(bytes).unwrap_or_default());
             (*s).lookforlen = ccline.cmdpos;
         }
 
@@ -2362,9 +2372,13 @@ unsafe fn command_line_browse_history(s: *mut CommandLineState) -> c_int {
 
             dealloc_cmdbuff();
 
+            let lookfor_ptr = (*s)
+                .lookfor
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             (*s).xpc.xp_context = EXPAND_NOTHING;
             if (*s).hiscnt == get_hislen() {
-                p = (*s).lookfor;
+                p = lookfor_ptr;
                 plen = (*s).lookforlen;
             } else {
                 let entry = &get_histentry((*s).histype)[(*s).hiscnt as usize];
@@ -2373,7 +2387,7 @@ unsafe fn command_line_browse_history(s: *mut CommandLineState) -> c_int {
                 sep = entry.sep;
             }
 
-            if (*s).histype == HIST_SEARCH && p != (*s).lookfor && {
+            if (*s).histype == HIST_SEARCH && p != lookfor_ptr && {
                 old_firstc = (sep as u8) as c_int;
                 old_firstc != (*s).firstc
             } {
@@ -3124,7 +3138,12 @@ unsafe fn cmdpreview_may_show(_s: *mut CommandLineState) -> bool {
         let mut ea: exarg_T = exarg_T::new();
         let mut cmod: cmdmod_T = cmdmod_T::new();
         let mut cmdpreview_type: c_int;
-        let mut cmdline = xstrdup(ccline.cmdbuff);
+        let mut cmdline_vec: Vec<c_char> = CStr::from_ptr(ccline.cmdbuff)
+            .to_bytes_with_nul()
+            .iter()
+            .map(|&b| b as c_char)
+            .collect();
+        let mut cmdline = cmdline_vec.as_mut_ptr();
         let mut errormsg: *const c_char = ptr::null();
         emsg_off += 1;
         let parsed = parse_cmdline(
@@ -3136,13 +3155,11 @@ unsafe fn cmdpreview_may_show(_s: *mut CommandLineState) -> bool {
         );
         emsg_off -= 1;
         if !parsed {
-            xfree(cmdline.cast());
             return false;
         }
 
         if (ea.argt & EX_PREVIEW) == 0 {
             undo_cmdmod(&raw mut cmod);
-            xfree(cmdline.cast());
             return false;
         }
 
@@ -3219,7 +3236,7 @@ unsafe fn cmdpreview_may_show(_s: *mut CommandLineState) -> bool {
         emsg_silent -= 1;
         redrawcmdline();
 
-        xfree(cmdline.cast());
+        drop(cmdline_vec);
         cmdpreview_type != 0
     }
 }
@@ -3284,7 +3301,10 @@ unsafe fn command_line_changed(s: *mut CommandLineState) -> c_int {
 
         if !ccline.cmdbuff_replaced
             && (ccline.cmdpos != (*s).prev_cmdpos
-                || (!(*s).prev_cmdbuff.is_null() && strcmp((*s).prev_cmdbuff, ccline.cmdbuff) != 0))
+                || (*s)
+                    .prev_cmdbuff
+                    .as_ref()
+                    .is_some_and(|prev| strcmp(prev.as_ptr(), ccline.cmdbuff) != 0))
         {
             do_autocmd_cmdlinechanged(if (*s).firstc > 0 {
                 (*s).firstc
@@ -3699,8 +3719,10 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
         let ccline_colors = &raw mut (*colored_ccline).last_colors;
 
         if (*ccline_colors).prompt_id == (*colored_ccline).prompt_id
-            && !(*ccline_colors).cmdbuff.is_null()
-            && strcmp((*ccline_colors).cmdbuff, (*colored_ccline).cmdbuff) == 0
+            && (*ccline_colors)
+                .cmdbuff
+                .as_ref()
+                .is_some_and(|cb| strcmp(cb.as_ptr(), (*colored_ccline).cmdbuff) == 0)
         {
             return ret;
         }
@@ -3708,12 +3730,11 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
         (*ccline_colors).colors.clear();
 
         if (*colored_ccline).cmdbuff.is_null() || *(*colored_ccline).cmdbuff == NUL {
-            xfree((*ccline_colors).cmdbuff.cast());
-            (*ccline_colors).cmdbuff = ptr::null_mut();
+            (*ccline_colors).cmdbuff = None;
             return ret;
         }
 
-        let mut arg_allocated = false;
+        let mut arg_owned: Option<std::ffi::CString> = None;
         let mut arg = typval_T {
             v_type: VarType::VAR_STRING,
             v_lock: 0,
@@ -3771,12 +3792,13 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                     .add((*colored_ccline).cmdlen as usize)
                     != NUL
                 {
-                    arg_allocated = true;
-                    arg.vval.v_string = xmemdupz(
-                        (*colored_ccline).cmdbuff.cast(),
+                    let cstr = std::ffi::CString::new(std::slice::from_raw_parts(
+                        (*colored_ccline).cmdbuff.cast::<u8>(),
                         (*colored_ccline).cmdlen as usize,
-                    )
-                    .cast::<c_char>();
+                    ))
+                    .unwrap_or_default();
+                    arg.vval.v_string = cstr.as_ptr().cast_mut();
+                    arg_owned = Some(cstr);
                 }
 
                 getln_interrupted_highlight = false;
@@ -3964,17 +3986,16 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
         if can_free_cb {
             callback_free(&raw mut color_cb);
         }
-        xfree((*ccline_colors).cmdbuff.cast());
         (*ccline_colors).prompt_id = (*colored_ccline).prompt_id;
-        if arg_allocated {
-            (*ccline_colors).cmdbuff = arg.vval.v_string;
-        } else {
-            (*ccline_colors).cmdbuff = xmemdupz(
-                (*colored_ccline).cmdbuff.cast(),
-                (*colored_ccline).cmdlen as usize,
+        (*ccline_colors).cmdbuff = arg_owned.or_else(|| {
+            Some(
+                std::ffi::CString::new(std::slice::from_raw_parts(
+                    (*colored_ccline).cmdbuff.cast::<u8>(),
+                    (*colored_ccline).cmdlen as usize,
+                ))
+                .unwrap_or_default(),
             )
-            .cast::<c_char>();
-        }
+        });
         tv_clear(&raw mut tv);
         ret
     }
@@ -4380,6 +4401,10 @@ unsafe fn cmdline_paste(regname: c_int, literally: bool, remcr: bool) -> bool {
         let i = get_spec_reg(regname, &raw mut arg, &raw mut allocated, true);
         textlock -= 1;
 
+        let arg_owned = if allocated { cstr_take(arg) } else { None };
+        if let Some(ref ao) = arg_owned {
+            arg = ao.as_ptr().cast_mut();
+        }
         if i {
             if arg.is_null() {
                 return FAIL != 0;
@@ -4407,9 +4432,6 @@ unsafe fn cmdline_paste(regname: c_int, literally: bool, remcr: bool) -> bool {
             }
 
             cmdline_paste_str(p, literally);
-            if allocated {
-                xfree(arg.cast());
-            }
             return OK != 0;
         }
 
@@ -4639,9 +4661,11 @@ pub unsafe fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> *mut
             };
             let mut res = vim_strsave_escaped(fname, chars);
             if what == VSE_SHELL && csh_like_shell() != 0 {
-                let s = vim_strsave_escaped(res, c"!".as_ptr());
-                xfree(res.cast());
-                res = s;
+                let prev = cstr_take(res);
+                res = vim_strsave_escaped(
+                    prev.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
+                    c"!".as_ptr(),
+                );
             }
             res
         };
@@ -4741,15 +4765,15 @@ unsafe fn get_cmdline_str() -> *mut c_char {
 }
 
 /// Get the current command-line completion pattern.
-unsafe fn get_cmdline_completion_pattern() -> *mut c_char {
+unsafe fn get_cmdline_completion_pattern() -> Option<std::ffi::CString> {
     unsafe {
         if cmdline_star > 0 {
-            return ptr::null_mut();
+            return None;
         }
 
         let p = get_ccline_ptr();
         if p.is_null() || (*p).xpc.is_null() {
-            return ptr::null_mut();
+            return None;
         }
 
         let mut xp_context = (*(*p).xpc).xp_context;
@@ -4759,15 +4783,15 @@ unsafe fn get_cmdline_completion_pattern() -> *mut c_char {
             (*(*p).xpc).xp_context = EXPAND_NOTHING;
         }
         if xp_context == EXPAND_UNSUCCESSFUL {
-            return ptr::null_mut();
+            return None;
         }
 
         let compl_pat = (*(*p).xpc).xp_pattern;
         if compl_pat.is_null() {
-            return ptr::null_mut();
+            return None;
         }
 
-        xstrdup(compl_pat)
+        Some(CStr::from_ptr(compl_pat).to_owned())
     }
 }
 
@@ -4800,8 +4824,12 @@ unsafe fn get_cmdline_completion() -> Option<std::ffi::CString> {
 /// `"getcmdcomplpat()"` function.
 pub unsafe fn f_getcmdcomplpat(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = get_cmdline_completion_pattern();
+        crate::eval::typval::tv_set_string(
+            rettv,
+            get_cmdline_completion_pattern()
+                .as_ref()
+                .map_or(ptr::null(), |s| s.as_ptr()),
+        );
     }
 }
 
@@ -4845,12 +4873,14 @@ pub unsafe fn f_getcmdpos(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
 pub unsafe fn f_getcmdprompt(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let p = get_ccline_ptr();
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = if !p.is_null() && !(*p).cmdprompt.is_null() {
-            xstrdup((*p).cmdprompt)
-        } else {
-            ptr::null_mut()
-        };
+        crate::eval::typval::tv_set_string(
+            rettv,
+            if !p.is_null() && !(*p).cmdprompt.is_null() {
+                (*p).cmdprompt
+            } else {
+                ptr::null()
+            },
+        );
     }
 }
 
@@ -4873,9 +4903,8 @@ pub unsafe fn f_getcmdscreenpos(
 /// `"getcmdtype()"` function.
 pub unsafe fn f_getcmdtype(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = xmallocz(1).cast::<c_char>();
-        *(*rettv).vval.v_string = get_cmdline_type() as c_char;
+        let buf: [c_char; 2] = [get_cmdline_type() as c_char, 0];
+        crate::eval::typval::tv_set_string(rettv, buf.as_ptr());
     }
 }
 
@@ -5171,23 +5200,23 @@ pub unsafe fn is_in_cmdwin() -> bool {
 }
 
 /// Get script string.
-pub unsafe fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> *mut c_char {
+pub unsafe fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> Option<std::ffi::CString> {
     unsafe {
         let mut cmd = (*eap).arg;
 
         if *cmd != b'<' as c_char || *cmd.add(1) != b'<' as c_char || (*eap).ea_getline.is_none() {
             *lenp = strlen((*eap).arg);
             return if (*eap).skip != 0 {
-                ptr::null_mut()
+                None
             } else {
-                xmemdupz((*eap).arg.cast(), *lenp).cast::<c_char>()
+                Some(CStr::from_ptr((*eap).arg).to_owned())
             };
         }
         cmd = cmd.add(2);
 
         let l = heredoc_get(eap, cmd, true);
         if l.is_null() {
-            return ptr::null_mut();
+            return None;
         }
 
         let mut buf: Vec<u8> = if (*eap).skip == 0 {
@@ -5210,9 +5239,9 @@ pub unsafe fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> *mut c_char {
         *lenp = buf.len();
         tv_list_free(l);
         if (*eap).skip == 0 {
-            xmemdupz(buf.as_ptr().cast(), buf.len()).cast::<c_char>()
+            Some(std::ffi::CString::new(buf).unwrap_or_default())
         } else {
-            ptr::null_mut()
+            None
         }
     }
 }

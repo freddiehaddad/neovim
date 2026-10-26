@@ -8005,7 +8005,7 @@ unsafe fn ex_script_ni(eap: *mut exarg_T) {
             ex_ni(eap);
         } else {
             let mut len: usize = 0;
-            xfree(script_get(eap, &raw mut len).cast());
+            let _ = script_get(eap, &raw mut len);
         }
     }
 }

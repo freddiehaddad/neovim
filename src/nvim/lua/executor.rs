@@ -2345,7 +2345,7 @@ pub unsafe fn ex_lua(eap: *mut exarg_T) {
         }
 
         let mut len: usize = 0;
-        let raw_code = cstr_take(script_get(eap, &raw mut len));
+        let raw_code = script_get(eap, &raw mut len);
         let Some(raw_cstr) = raw_code else {
             return;
         };
