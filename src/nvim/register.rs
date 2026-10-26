@@ -318,7 +318,7 @@ pub unsafe fn get_expr_line() -> Option<std::ffi::CString> {
         }
 
         get_expr_line_nested += 1;
-        let rv = cstr_take(eval_to_string(expr_copy.as_ptr().cast_mut(), true, false));
+        let rv = eval_to_string(expr_copy.as_ptr().cast_mut(), true, false);
         get_expr_line_nested -= 1;
         rv
     }

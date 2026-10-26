@@ -8934,16 +8934,14 @@ pub unsafe fn get_command_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
 unsafe fn ex_colorscheme(eap: *mut exarg_T) {
     unsafe {
         if *(*eap).arg == NUL {
-            let expr = xstrdup(c"g:colors_name".as_ptr());
+            let mut expr = *b"g:colors_name\0";
             emsg_off += 1;
-            let p = eval_to_string(expr, false, false);
+            let p = eval_to_string(expr.as_mut_ptr().cast(), false, false);
             emsg_off -= 1;
-            xfree(expr.cast());
 
             msg_ext_set_kind(c"list_cmd".as_ptr());
-            if !p.is_null() {
-                let _ = msg(p, 0);
-                xfree(p.cast());
+            if let Some(ref p) = p {
+                let _ = msg(p.as_ptr(), 0);
             } else {
                 let _ = msg(c"default".as_ptr(), 0);
             }

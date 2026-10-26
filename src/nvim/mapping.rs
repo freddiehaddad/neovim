@@ -1737,7 +1737,7 @@ pub unsafe fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> Option<CString> {
                 api_clear_error(&mut err);
             }
         } else {
-            p = crate::memory::cstr_take(eval_to_string(expr_bytes.as_mut_ptr(), false, false));
+            p = eval_to_string(expr_bytes.as_mut_ptr(), false, false);
         }
         expr_map_lock -= 1;
         (*curwin).w_cursor = save_cursor;

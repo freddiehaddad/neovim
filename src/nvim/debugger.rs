@@ -761,22 +761,22 @@ unsafe fn debuggy_find(
                             && tv.vval.v_number == 0
                         {
                             line = true;
-                            DEBUG_OLDVAL = cstr_take(typval_tostring(Some(old_val), true));
+                            DEBUG_OLDVAL = Some(typval_tostring(Some(old_val), true));
                             let mut v = eval_expr_no_emsg(bp.dbg_name.as_ptr().cast_mut());
-                            DEBUG_NEWVAL = cstr_take(typval_tostring(v.as_mut(), true));
+                            DEBUG_NEWVAL = Some(typval_tostring(v.as_mut(), true));
                             tv_clear(old_val);
                             bp.dbg_val = v;
                         }
                         tv_clear(&raw mut tv);
                     } else {
-                        DEBUG_OLDVAL = cstr_take(typval_tostring(None, true));
+                        DEBUG_OLDVAL = Some(typval_tostring(None, true));
                         bp.dbg_val = Some(tv);
-                        DEBUG_NEWVAL = cstr_take(typval_tostring(bp.dbg_val.as_mut(), true));
+                        DEBUG_NEWVAL = Some(typval_tostring(bp.dbg_val.as_mut(), true));
                         line = true;
                     }
                 } else if let Some(ref mut old_val) = bp.dbg_val {
-                    DEBUG_OLDVAL = cstr_take(typval_tostring(Some(old_val), true));
-                    DEBUG_NEWVAL = cstr_take(typval_tostring(None, true));
+                    DEBUG_OLDVAL = Some(typval_tostring(Some(old_val), true));
+                    DEBUG_NEWVAL = Some(typval_tostring(None, true));
                     tv_clear(old_val);
                     bp.dbg_val = None;
                     line = true;

@@ -2707,8 +2707,7 @@ unsafe fn vim_regsub_both(
                     }
                     tv_clear(&raw mut rettv);
                 } else {
-                    *eval_slot =
-                        crate::memory::cstr_take(eval_to_string(source.add(2), true, false));
+                    *eval_slot = eval_to_string(source.add(2), true, false);
                 }
                 regsub_nesting -= 1;
 

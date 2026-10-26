@@ -33,7 +33,7 @@ use crate::highlight_group::{syn_id2attr, syn_name2id_len};
 use crate::keycodes::NL;
 use crate::mbyte::{ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_find_line_or_offset, ml_get_buf, ml_get_buf_len};
-use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_take, xmemdupz, xstrlcpy};
+use crate::memory::{Arena, arena_finish, arena_mem_free, xmemdupz, xstrlcpy};
 use crate::message::HLF_MSG;
 use crate::message::msg_clr_eos;
 use crate::mouse::{
@@ -1424,10 +1424,8 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 false,
             );
 
-            usefmt = eval_to_string_safe(fmt.add(2), use_sandbox, false);
-            if usefmt.is_null() {
-                usefmt = fmt;
-            }
+            owned_usefmt = eval_to_string_safe(fmt.add(2), use_sandbox, false);
+            usefmt = owned_usefmt.as_ref().map_or(fmt, |s| s.as_ptr().cast_mut());
 
             do_unlet(
                 c"g:statusline_winid".as_ptr(),
@@ -1899,7 +1897,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                             Visual.active = false;
                         }
 
-                        owned_str = cstr_take(eval_to_string_safe(out_p, use_sandbox, false));
+                        owned_str = eval_to_string_safe(out_p, use_sandbox, false);
                         str = owned_str
                             .as_ref()
                             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());

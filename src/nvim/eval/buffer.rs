@@ -192,7 +192,7 @@ unsafe fn set_buffer_lines(
             }
             li = tv_list_first(l);
         } else {
-            line = cstr_take(typval_tostring(Some(&mut *lines), false));
+            line = Some(typval_tostring(Some(&mut *lines), false));
         }
 
         loop {
@@ -200,7 +200,7 @@ unsafe fn set_buffer_lines(
                 if li.is_null() {
                     break;
                 }
-                line = cstr_take(typval_tostring(Some(&mut (*li).li_tv), false));
+                line = Some(typval_tostring(Some(&mut (*li).li_tv), false));
                 li = (*li).li_next;
             }
 

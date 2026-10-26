@@ -1105,10 +1105,10 @@ pub unsafe fn ex_throw(eap: *mut exarg_T) {
             eval_to_string_skip(arg, eap, (*eap).skip != 0)
         } else {
             emsg(gettext(e_argreq.as_ptr()));
-            ptr::null_mut()
+            None
         };
 
-        if let Some(val_cstr) = cstr_take(value)
+        if let Some(val_cstr) = value
             && (*eap).skip == 0
             && throw_exception(ExceptionValue::User(val_cstr), ptr::null_mut()) != FAIL
         {

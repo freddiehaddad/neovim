@@ -2248,11 +2248,11 @@ pub unsafe fn get_keymap_str(
         curbuf = (*wp).w_buffer;
         curwin = wp;
         emsg_skip += 1;
-        let s = cstr_take(eval_to_string(
+        let s = eval_to_string(
             c"b:keymap_name".as_ptr().cast_mut(),
             false,
             false,
-        ));
+        );
         let mut p: *const c_char = s.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
         emsg_skip -= 1;
         curbuf = old_curbuf;

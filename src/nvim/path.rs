@@ -1434,7 +1434,7 @@ unsafe fn expand_backtick(gap: &mut Vec<*mut c_char>, pat: *mut c_char, flags: c
         let cmd_ptr = cmd_vec.as_mut_ptr();
 
         let cmd_out: Option<std::ffi::CString> = if *cmd_ptr == b'=' as c_char {
-            cstr_take(eval_to_string(cmd_ptr.add(1), true, false))
+            eval_to_string(cmd_ptr.add(1), true, false)
         } else {
             get_cmd_output(
                 cmd_ptr,
