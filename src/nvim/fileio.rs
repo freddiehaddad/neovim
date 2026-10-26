@@ -50,11 +50,10 @@ use crate::mbyte::{
 use crate::mcursor::mc_buf_clear;
 use crate::memfile::{memfile_T, mf_fullname};
 use crate::memline::{
-    check_need_swap, ml_append, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_open,
+    check_need_swap, ml_append, ml_delete, ml_get, ml_get_buf, ml_get_len, ml_open,
 };
 use crate::memory::{
-    memchrsub, strequal, time_to_bytes, verbose_try_malloc, xfree, xmalloc, xmallocz, xmemdupz,
-    xstrdup, xstrlcat, xstrlcpy,
+    cstr_take, memchrsub, strequal, time_to_bytes, xfree, xmalloc, xstrdup, xstrlcat, xstrlcpy,
 };
 use crate::message::{
     emsg, msg, msg_check_for_delay, msg_clr_eos, msg_delay, msg_end, msg_may_trunc, msg_outtrans,
@@ -202,7 +201,7 @@ static MSG_IS_A_DIRECTORY: &CStr = c"is a directory";
 type DIR = c_void;
 
 static mut ALREADY_WARNED: bool = false;
-static mut VIM_TEMPDIR: *mut c_char = ptr::null_mut();
+static mut VIM_TEMPDIR: Option<std::ffi::CString> = None;
 #[cfg(unix)]
 static mut VIM_TEMPDIR_DP: *mut DIR = ptr::null_mut();
 
@@ -970,8 +969,8 @@ pub unsafe fn readfile(
         let mut read_buf_col: colnr_T = 0;
         let mut lnum = from;
         let mut ptr: *mut c_char = ptr::null_mut();
+        let mut buffer_vec: Vec<c_char> = Vec::new();
         let mut buffer: *mut c_char = ptr::null_mut();
-        let mut new_buffer: *mut c_char = ptr::null_mut();
         let mut line_start: *mut c_char = ptr::null_mut();
         let mut size: isize = 0;
         let mut p: *mut u8;
@@ -998,7 +997,7 @@ pub unsafe fn readfile(
         let mut illegal_byte: linenr_T = 0;
         let mut keep_dest_enc = false;
         let mut bad_char_behavior: c_int = BAD_REPLACE;
-        let mut tmpname: *mut c_char = ptr::null_mut();
+        let mut tmpname: Option<std::ffi::CString> = None;
         let mut fio_flags: c_int;
         let mut fenc: *mut c_char;
         let mut fenc_owned: Option<std::ffi::CString> = None;
@@ -1543,10 +1542,9 @@ pub unsafe fn readfile(
                         fenc_owned = None;
                         fenc = c"".as_ptr().cast_mut();
                     }
-                    if !tmpname.is_null() {
-                        os_remove(tmpname);
-                        xfree(tmpname.cast());
-                        tmpname = ptr::null_mut();
+                    if let Some(ref tn) = tmpname {
+                        os_remove(tn.as_ptr());
+                        tmpname = None;
                     }
                 }
 
@@ -1571,9 +1569,9 @@ pub unsafe fn readfile(
                         && iconv_fd == -1
                     {
                         did_iconv = false;
-                        if tmpname.is_null() {
+                        if tmpname.is_none() {
                             tmpname = readfile_charconvert(fname, fenc, &raw mut fd);
-                            if tmpname.is_null() {
+                            if tmpname.is_none() {
                                 advance_fenc = true;
                                 if fd < 0 {
                                     emsg(tr(c"E202: Conversion made file unreadable!".as_ptr()));
@@ -1621,24 +1619,14 @@ pub unsafe fn readfile(
                             *ptr = NL;
                             size = 1;
                         } else if !skip_read {
-                            while size >= 10 {
-                                new_buffer =
-                                    verbose_try_malloc((size as usize) + (linerest as usize) + 1)
-                                        .cast::<c_char>();
-                                if !new_buffer.is_null() {
-                                    break;
-                                }
-                                size /= 2;
-                            }
-                            if new_buffer.is_null() {
-                                error = true;
-                                break;
-                            }
+                            let mut new_buffer_vec: Vec<c_char> =
+                                vec![0; (size as usize) + (linerest as usize) + 1];
+                            let new_buffer = new_buffer_vec.as_mut_ptr();
                             if linerest != 0 {
                                 ptr::copy(ptr.offset(-linerest), new_buffer, linerest as usize);
                             }
-                            xfree(buffer.cast());
-                            buffer = new_buffer;
+                            buffer_vec = new_buffer_vec;
+                            buffer = buffer_vec.as_mut_ptr();
                             ptr = buffer.offset(linerest);
                             line_start = buffer;
 
@@ -1756,7 +1744,7 @@ pub unsafe fn readfile(
                         if filesize == 0
                             && (fio_flags == FIO_UCSBOM
                                 || ((*curbuf).b_p_bomb == 0
-                                    && tmpname.is_null()
+                                    && tmpname.is_none()
                                     && (*fenc == b'u' as c_char || *fenc == NUL)))
                         {
                             let mut blen: c_int = 0;
@@ -2409,7 +2397,7 @@ pub unsafe fn readfile(
             } else {
                 os_set_cloexec(fd);
             }
-            xfree(buffer.cast());
+            drop(buffer_vec);
 
             if read_stdin {
                 close(fd);
@@ -2425,9 +2413,8 @@ pub unsafe fn readfile(
                 }
             }
 
-            if !tmpname.is_null() {
-                os_remove(tmpname);
-                xfree(tmpname.cast());
+            if let Some(ref tn) = tmpname {
+                os_remove(tn.as_ptr());
             }
             no_wait_return -= 1;
 
@@ -2810,16 +2797,14 @@ unsafe fn readfile_linenr(linecnt: linenr_T, p: *mut c_char, endp: *const c_char
 
 /// Fill "*eap" to force the 'fileencoding', 'fileformat' and 'binary' to be
 /// equal to the buffer "buf".
-pub unsafe fn prep_exarg(eap: *mut exarg_T, buf: *const buf_T) {
+pub unsafe fn prep_exarg(eap: *mut exarg_T, buf: *const buf_T) -> std::ffi::CString {
     unsafe {
         let fenc_bytes = CStr::from_ptr((*buf).b_p_fenc).to_bytes();
-        let cmd_len = 15 + fenc_bytes.len();
-        let cmd = xmalloc(cmd_len).cast::<u8>();
-        let prefix = b"e ++enc=";
-        ptr::copy_nonoverlapping(prefix.as_ptr(), cmd, prefix.len());
-        ptr::copy_nonoverlapping(fenc_bytes.as_ptr(), cmd.add(prefix.len()), fenc_bytes.len());
-        *cmd.add(prefix.len() + fenc_bytes.len()) = 0;
-        (*eap).cmd = cmd.cast::<c_char>();
+        let mut cmd_vec = Vec::with_capacity(8 + fenc_bytes.len());
+        cmd_vec.extend_from_slice(b"e ++enc=");
+        cmd_vec.extend_from_slice(fenc_bytes);
+        let cmd_cstr = std::ffi::CString::new(cmd_vec).unwrap_or_default();
+        (*eap).cmd = cmd_cstr.as_ptr().cast_mut();
         (*eap).force_enc = 8;
         (*eap).bad_char = (*buf).b_bad_char;
         (*eap).force_ff = (*(*buf).b_p_ff as u8) as c_int;
@@ -2830,6 +2815,7 @@ pub unsafe fn prep_exarg(eap: *mut exarg_T, buf: *const buf_T) {
         };
         (*eap).read_edit = 0;
         (*eap).forceit = 0;
+        cmd_cstr
     }
 }
 
@@ -2891,33 +2877,35 @@ unsafe fn readfile_charconvert(
     fname: *mut c_char,
     fenc: *mut c_char,
     fdp: *mut c_int,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
         let mut errmsg: *mut c_char = ptr::null_mut();
 
-        let mut tmpname = vim_tempname();
-        if tmpname.is_null() {
-            errmsg = tr(c"Can't find temp file for conversion".as_ptr());
-        } else {
-            close(*fdp);
-            *fdp = -1;
-            if eval_charconvert(fenc, c"utf-8".as_ptr(), fname, tmpname) == FAIL {
-                errmsg = tr(c"Conversion with 'charconvert' failed".as_ptr());
+        let mut tmpname = cstr_take(vim_tempname());
+        match tmpname {
+            None => {
+                errmsg = tr(c"Can't find temp file for conversion".as_ptr());
             }
-            if errmsg.is_null() {
-                *fdp = os_open(tmpname, O_RDONLY, 0);
-                if *fdp < 0 {
-                    errmsg = tr(c"can't read output of 'charconvert'".as_ptr());
+            Some(ref tn) => {
+                close(*fdp);
+                *fdp = -1;
+                if eval_charconvert(fenc, c"utf-8".as_ptr(), fname, tn.as_ptr()) == FAIL {
+                    errmsg = tr(c"Conversion with 'charconvert' failed".as_ptr());
+                }
+                if errmsg.is_null() {
+                    *fdp = os_open(tn.as_ptr(), O_RDONLY, 0);
+                    if *fdp < 0 {
+                        errmsg = tr(c"can't read output of 'charconvert'".as_ptr());
+                    }
                 }
             }
         }
 
         if !errmsg.is_null() {
             msg(errmsg, 0);
-            if !tmpname.is_null() {
-                os_remove(tmpname);
-                xfree(tmpname.cast());
-                tmpname = ptr::null_mut();
+            if let Some(ref tn) = tmpname {
+                os_remove(tn.as_ptr());
+                tmpname = None;
             }
         }
 
@@ -3494,18 +3482,18 @@ pub unsafe fn get8ctime(fd: *mut FILE) -> time_t {
 }
 
 /// Reads a string of length "cnt" from "fd" into allocated memory.
-pub unsafe fn read_string(fd: *mut FILE, cnt: usize) -> *mut c_char {
+pub unsafe fn read_string(fd: *mut FILE, cnt: usize) -> Option<Vec<c_char>> {
     unsafe {
-        let str_ = xmallocz(cnt).cast::<c_char>();
-        for i in 0..cnt {
+        let mut buf: Vec<c_char> = Vec::with_capacity(cnt + 1);
+        for _ in 0..cnt {
             let c = fgetc(fd);
             if c == EOF {
-                xfree(str_.cast());
-                return ptr::null_mut();
+                return None;
             }
-            *str_.add(i) = c as c_char;
+            buf.push(c as c_char);
         }
-        str_
+        buf.push(0);
+        Some(buf)
     }
 }
 
@@ -3714,17 +3702,11 @@ unsafe fn move_lines(frombuf: *mut buf_T, tobuf: *mut buf_T) -> c_int {
 
         curbuf = tobuf;
         for lnum in 1..=(*frombuf).b_ml.ml_line_count {
-            let p = xmemdupz(
-                ml_get_buf(frombuf, lnum).cast(),
-                ml_get_buf_len(frombuf, lnum) as usize,
-            )
-            .cast::<c_char>();
-            if ml_append(lnum - 1, p, 0, false) == FAIL {
-                xfree(p.cast());
+            let p = CStr::from_ptr(ml_get_buf(frombuf, lnum)).to_owned();
+            if ml_append(lnum - 1, p.as_ptr().cast_mut(), 0, false) == FAIL {
                 retval = FAIL;
                 break;
             }
-            xfree(p.cast());
         }
 
         if retval != FAIL {
@@ -3897,14 +3879,14 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
         }
 
         if !mesg.is_null() {
-            let path = home_replace_save(buf, (*buf).b_fname);
+            let path = cstr_take(home_replace_save(buf, (*buf).b_fname)).unwrap_or_default();
             if !helpmesg {
                 mesg2 = c"".as_ptr().cast_mut();
             }
-            let tbufsize = strlen(path) + strlen(mesg) + strlen(mesg2) + 3;
+            let tbufsize = path.as_bytes().len() + strlen(mesg) + strlen(mesg2) + 3;
             let mut tbuf_vec = vec![0 as c_char; tbufsize];
             let tbuf = tbuf_vec.as_mut_ptr();
-            let tbuflen = vim_snprintf!(tbuf, tbufsize, mesg, path);
+            let tbuflen = vim_snprintf!(tbuf, tbufsize, mesg, path.as_ptr());
             set_vim_var_string(VV_WARNINGMSG, tbuf, tbuflen as isize);
             if can_reload {
                 if *mesg2 != NUL {
@@ -3957,7 +3939,7 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
             }
 
             drop(tbuf_vec);
-            xfree(path.cast());
+            drop(path);
         }
 
         if reload != RELOAD_NONE {
@@ -3997,9 +3979,11 @@ pub unsafe fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool
 
         mc_buf_clear(buf);
 
-        if !reload_options {
-            prep_exarg(&raw mut ea, buf);
-        }
+        let _ea_cmd = if !reload_options {
+            Some(prep_exarg(&raw mut ea, buf))
+        } else {
+            None
+        };
 
         let old_cursor = (*curwin).w_cursor;
         let old_topline = (*curwin).w_topline;
@@ -4074,7 +4058,7 @@ pub unsafe fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool
                 (*curbuf).b_mod_set = true;
             }
         }
-        xfree(ea.cmd.cast());
+        drop(_ea_cmd);
 
         if !savebuf.is_null() && bufref_valid(&raw mut bufref) {
             wipe_buffer(savebuf, false);
@@ -4350,11 +4334,11 @@ pub unsafe fn delete_recursive(name: *const c_char) -> c_int {
         let mut result: c_int = 0;
 
         if os_isrealdir(name) {
-            let exp = xstrdup(name);
+            let exp = CStr::from_ptr(name).to_owned();
             let mut entries: Vec<std::ffi::CString> = Vec::new();
-            if readdir_core(&mut entries, exp, ptr::null_mut(), None) == OK {
+            if readdir_core(&mut entries, exp.as_ptr(), ptr::null_mut(), None) == OK {
                 let namebuff_ptr = (&raw mut NameBuff).cast::<c_char>();
-                let len = vim_snprintf!(namebuff_ptr, MAXPATHL, c"%s/".as_ptr(), exp);
+                let len = vim_snprintf!(namebuff_ptr, MAXPATHL, c"%s/".as_ptr(), exp.as_ptr());
 
                 for entry in &entries {
                     vim_snprintf!(
@@ -4368,13 +4352,12 @@ pub unsafe fn delete_recursive(name: *const c_char) -> c_int {
                     }
                 }
                 drop(entries);
-                if os_rmdir(exp) != 0 {
+                if os_rmdir(exp.as_ptr()) != 0 {
                     result = -1;
                 }
             } else {
                 result = -1;
             }
-            xfree(exp.cast());
         } else {
             result = if os_remove(name) == 0 { 0 } else { -1 };
         }
@@ -4390,7 +4373,10 @@ unsafe fn vim_opentempdir() {
             return;
         }
 
-        let dp = opendir(VIM_TEMPDIR);
+        let Some(ref td) = *(&raw const VIM_TEMPDIR) else {
+            return;
+        };
+        let dp = opendir(td.as_ptr());
         if dp.is_null() {
             return;
         }
@@ -4415,17 +4401,20 @@ unsafe fn vim_closetempdir() {
 /// Delete the temp directory and all files it contains.
 pub unsafe fn vim_deltempdir() {
     unsafe {
-        if VIM_TEMPDIR.is_null() {
+        let Some(td) = (&raw mut VIM_TEMPDIR).as_mut().unwrap().take() else {
             return;
-        }
+        };
 
         #[cfg(unix)]
         vim_closetempdir();
 
-        *path_tail(VIM_TEMPDIR).sub(1) = NUL;
-        delete_recursive(VIM_TEMPDIR);
-        xfree(VIM_TEMPDIR.cast());
-        VIM_TEMPDIR = ptr::null_mut();
+        let mut td_vec: Vec<c_char> = td
+            .into_bytes_with_nul()
+            .into_iter()
+            .map(|b| b as c_char)
+            .collect();
+        *path_tail(td_vec.as_mut_ptr()).sub(1) = NUL;
+        delete_recursive(td_vec.as_ptr());
     }
 }
 
@@ -4433,8 +4422,13 @@ pub unsafe fn vim_deltempdir() {
 pub unsafe fn vim_gettempdir() -> *mut c_char {
     unsafe {
         static mut NOTFOUND: c_int = 0;
-        if VIM_TEMPDIR.is_null() || !os_isdir(VIM_TEMPDIR) {
-            if !VIM_TEMPDIR.is_null() {
+        let current_td = (&raw const VIM_TEMPDIR)
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .map_or(ptr::null(), |s| s.as_ptr());
+        if current_td.is_null() || !os_isdir(current_td) {
+            if !current_td.is_null() {
                 NOTFOUND += 1;
                 if NOTFOUND == 1 {
                     logmsg!(
@@ -4444,7 +4438,7 @@ pub unsafe fn vim_gettempdir() -> *mut c_char {
                         0,
                         true,
                         c"tempdir disappeared (antivirus or broken cleanup job?): %s".as_ptr(),
-                        VIM_TEMPDIR,
+                        current_td,
                     );
                 }
                 if NOTFOUND > 1 {
@@ -4453,22 +4447,23 @@ pub unsafe fn vim_gettempdir() -> *mut c_char {
                         NOTFOUND
                     );
                 }
-                xfree(VIM_TEMPDIR.cast());
-                VIM_TEMPDIR = ptr::null_mut();
+                VIM_TEMPDIR = None;
             }
             vim_mktempdir();
         }
-        VIM_TEMPDIR
+        (&raw const VIM_TEMPDIR)
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
     }
 }
 
 /// Sets Nvim's own temporary directory name to `tempdir`.
 unsafe fn vim_settempdir(tempdir: *mut c_char) -> bool {
     unsafe {
-        let buf = verbose_try_malloc(MAXPATHL + 2).cast::<c_char>();
-        if buf.is_null() {
-            return false;
-        }
+        let mut buf_vec: Vec<c_char> = vec![0; MAXPATHL + 2];
+        let buf = buf_vec.as_mut_ptr();
 
         vim_FullName(tempdir, buf, MAXPATHL, cfg!(windows));
 
@@ -4482,10 +4477,12 @@ unsafe fn vim_settempdir(tempdir: *mut c_char) -> bool {
             );
             buflen += sep_bytes.len() - 1;
         }
-        VIM_TEMPDIR = xmemdupz(buf.cast(), buflen).cast::<c_char>();
+        VIM_TEMPDIR = Some(
+            std::ffi::CString::new(std::slice::from_raw_parts(buf.cast::<u8>(), buflen))
+                .unwrap_or_default(),
+        );
         #[cfg(unix)]
         vim_opentempdir();
-        xfree(buf.cast());
         true
     }
 }
@@ -4503,14 +4500,14 @@ pub unsafe fn vim_tempname() -> *mut c_char {
         let mut templ: [c_char; TEMP_FILE_PATH_MAXLEN] = [0; TEMP_FILE_PATH_MAXLEN];
         let count = TEMP_COUNT;
         TEMP_COUNT += 1;
-        let itmplen = vim_snprintf!(
+        let _ = vim_snprintf!(
             templ.as_mut_ptr(),
             TEMP_FILE_PATH_MAXLEN,
             c"%s%llu".as_ptr(),
             tempdir,
             count,
         );
-        xmemdupz(templ.as_ptr().cast(), itmplen as usize).cast::<c_char>()
+        xstrdup(templ.as_ptr())
     }
 }
 
@@ -4563,19 +4560,19 @@ pub unsafe fn match_file_list(list: *mut c_char, sfname: *mut c_char, ffname: *m
             let mut buf: [c_char; MAXPATHL] = [0; MAXPATHL];
             copy_option_part(&raw mut p, buf.as_mut_ptr(), buf.len(), c",".as_ptr());
             let mut allow_dirs: c_char = 0;
-            let regpat = file_pat_to_reg_pat(buf.as_ptr(), ptr::null(), &raw mut allow_dirs, 0);
-            if regpat.is_null() {
+            let Some(regpat) =
+                file_pat_to_reg_pat(buf.as_ptr(), ptr::null(), &raw mut allow_dirs, 0)
+            else {
                 break;
-            }
+            };
             let matched = match_file_pat(
-                regpat,
+                regpat.as_ptr().cast_mut(),
                 ptr::null_mut(),
                 ffname,
                 sfname,
                 tail,
                 c_int::from(allow_dirs),
             );
-            xfree(regpat.cast());
             if matched {
                 return true;
             }
@@ -4591,7 +4588,7 @@ pub unsafe fn file_pat_to_reg_pat(
     mut pat_end: *const c_char,
     allow_dirs: *mut c_char,
     no_bslash: c_int,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
         if !allow_dirs.is_null() {
             *allow_dirs = 0;
@@ -4602,7 +4599,7 @@ pub unsafe fn file_pat_to_reg_pat(
         }
 
         if pat_end == pat {
-            return xstrdup(c"^$".as_ptr());
+            return Some(c"^$".to_owned());
         }
 
         let mut size: usize = 2;
@@ -4617,7 +4614,8 @@ pub unsafe fn file_pat_to_reg_pat(
             }
             p = p.add(1);
         }
-        let mut reg_pat = xmalloc(size + 1).cast::<c_char>();
+        let mut reg_pat_vec: Vec<c_char> = vec![0; size + 1];
+        let reg_pat = reg_pat_vec.as_mut_ptr();
 
         let mut i: usize = 0;
 
@@ -4783,10 +4781,9 @@ pub unsafe fn file_pat_to_reg_pat(
             } else {
                 emsg(tr(c"E220: Missing }.".as_ptr()));
             }
-            xfree(reg_pat.cast());
-            reg_pat = ptr::null_mut();
+            return None;
         }
-        reg_pat
+        Some(CStr::from_ptr(reg_pat).to_owned())
     }
 }
 
@@ -4948,9 +4945,7 @@ mod tests {
         unsafe {
             let check = |pat: &CStr, expected: &CStr| {
                 let res = file_pat_to_reg_pat(pat.as_ptr(), ptr::null(), ptr::null_mut(), 1);
-                assert!(!res.is_null());
-                assert_eq!(CStr::from_ptr(res), expected);
-                xfree(res.cast());
+                assert_eq!(res.as_deref(), Some(expected));
             };
             check(c"path", c"^path$");
             check(c"*path", c"path$");
@@ -4998,16 +4993,12 @@ mod tests {
                 .to_string();
             assert_eq!(dir1, dir2);
 
-            let f1_ptr = vim_tempname();
-            let f2_ptr = vim_tempname();
-            assert!(!f1_ptr.is_null());
-            assert!(!f2_ptr.is_null());
-            let f1 = CStr::from_ptr(f1_ptr).to_str().unwrap().to_string();
-            let f2 = CStr::from_ptr(f2_ptr).to_str().unwrap().to_string();
-            assert_ne!(f1, f2);
-            assert!(f1.starts_with(&dir1));
-            xfree(f1_ptr.cast());
-            xfree(f2_ptr.cast());
+            let f1 = cstr_take(vim_tempname()).unwrap();
+            let f2 = cstr_take(vim_tempname()).unwrap();
+            let f1_str = f1.to_str().unwrap().to_string();
+            let f2_str = f2.to_str().unwrap().to_string();
+            assert_ne!(f1_str, f2_str);
+            assert!(f1_str.starts_with(&dir1));
             vim_deltempdir();
         }
     }

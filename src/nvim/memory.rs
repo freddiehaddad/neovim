@@ -11,7 +11,7 @@ use crate::input::close_all_scripts;
 use crate::lua::executor::nlua_free_all_mem;
 use crate::main_init::preserve_exit;
 use crate::memfile::mf_release_all;
-use crate::message::{clear_sb_text, msg_hist_clear, reset_last_sourcing, semsg, set_keep_msg};
+use crate::message::{clear_sb_text, msg_hist_clear, reset_last_sourcing, set_keep_msg};
 use crate::option::free_all_options;
 use crate::option_vars::*;
 use crate::register::set_expr_line;
@@ -108,20 +108,6 @@ unsafe fn try_to_free_memory() {
     }
 }
 
-unsafe fn do_outofmem_msg(size: usize) {
-    unsafe {
-        if did_outofmem_msg {
-            return;
-        }
-        emsg_silent = 0;
-        did_outofmem_msg = true;
-        semsg!(
-            c"E342: Out of memory!  (allocating %llu bytes)".as_ptr(),
-            size as u64,
-        );
-    }
-}
-
 unsafe fn out_of_memory_exit() -> ! {
     unsafe { preserve_exit(e_outofmem.as_ptr()) }
 }
@@ -146,17 +132,6 @@ pub unsafe fn try_malloc(size: usize) -> *mut c_void {
         unsafe {
             try_to_free_memory();
             ret = raw_malloc(allocated_size);
-        }
-    }
-    ret
-}
-
-/// `try_malloc()` wrapper that reports E342 on failure (`verbose_try_malloc`).
-pub unsafe fn verbose_try_malloc(size: usize) -> *mut c_void {
-    let ret = unsafe { try_malloc(size) };
-    if ret.is_null() {
-        unsafe {
-            do_outofmem_msg(size);
         }
     }
     ret

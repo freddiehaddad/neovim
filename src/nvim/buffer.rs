@@ -3160,10 +3160,16 @@ pub unsafe fn buflist_findpat(
                 match_fnum = -1;
             }
         } else {
-            let pat = file_pat_to_reg_pat(pattern, pattern_end, ptr::null_mut(), 0);
-            if pat.is_null() {
+            let Some(pat_cstr) = file_pat_to_reg_pat(pattern, pattern_end, ptr::null_mut(), 0)
+            else {
                 return -1;
-            }
+            };
+            let mut pat_vec: Vec<c_char> = pat_cstr
+                .into_bytes_with_nul()
+                .into_iter()
+                .map(|b| b as c_char)
+                .collect();
+            let pat = pat_vec.as_mut_ptr();
             let patend = pat.add(strlen(pat).saturating_sub(1));
             let toggledollar = patend > pat && *patend == b'$' as c_char;
 
@@ -3184,7 +3190,6 @@ pub unsafe fn buflist_findpat(
                     let mut buf = lastbuf;
                     while !buf.is_null() {
                         if regmatch.regprog.is_null() {
-                            xfree(pat.cast());
                             return -1;
                         }
                         if (*buf).b_p_bl == find_listed
@@ -3226,8 +3231,6 @@ pub unsafe fn buflist_findpat(
                 }
                 find_listed = 0;
             }
-
-            xfree(pat.cast());
         }
 
         if match_fnum == -2 {
@@ -4934,7 +4937,7 @@ pub unsafe fn buf_contents_changed(buf: *mut buf_T) -> bool {
         }
 
         let mut ea: exarg_T = exarg_T::new();
-        prep_exarg(&raw mut ea, buf);
+        let _ea_cmd = prep_exarg(&raw mut ea, buf);
 
         let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), newbuf, 0);
@@ -4962,7 +4965,7 @@ pub unsafe fn buf_contents_changed(buf: *mut buf_T) -> bool {
                 }
             }
         }
-        xfree(ea.cmd.cast());
+        drop(_ea_cmd);
 
         ctx_restore(&raw mut aco);
 

@@ -1187,13 +1187,15 @@ pub unsafe fn f_globpath(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 pub unsafe fn f_glob2regpat(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let pat = tv_get_string_chk(argvars); // NULL on type error
-
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = if pat.is_null() {
-            ptr::null_mut()
+        let regpat = if pat.is_null() {
+            None
         } else {
             file_pat_to_reg_pat(pat, ptr::null(), ptr::null_mut(), 0)
         };
+        crate::eval::typval::tv_set_string(
+            rettv,
+            regpat.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+        );
     }
 }
 

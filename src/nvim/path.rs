@@ -672,7 +672,7 @@ unsafe fn do_path_expand(
         }
 
         let starts_with_dot = *s == b'.' as c_char;
-        let Some(pat) = cstr_take(file_pat_to_reg_pat(s, e, ptr::null_mut(), 0)) else {
+        let Some(pat) = file_pat_to_reg_pat(s, e, ptr::null_mut(), 0) else {
             return 0;
         };
 
@@ -947,12 +947,12 @@ unsafe fn uniquefy_paths(
         let mut file_pattern = Vec::with_capacity(len + 2);
         file_pattern.push(b'*' as c_char);
         file_pattern.extend_from_slice(std::slice::from_raw_parts(pattern, len + 1));
-        let Some(pat) = cstr_take(file_pat_to_reg_pat(
+        let Some(pat) = file_pat_to_reg_pat(
             file_pattern.as_ptr(),
             ptr::null(),
             ptr::null_mut(),
             0,
-        )) else {
+        ) else {
             return;
         };
         drop(file_pattern);

@@ -2337,12 +2337,12 @@ pub unsafe fn autocmd_register(
             let reg_prog = if is_buflocal {
                 ptr::null_mut()
             } else {
-                let reg_pat = cstr_take(file_pat_to_reg_pat(
+                let reg_pat = file_pat_to_reg_pat(
                     pat,
                     pat.add(patlen as usize),
                     &raw mut allow_dirs,
                     1,
-                ));
+                );
                 let prog = match reg_pat {
                     Some(ref rp) => vim_regcomp(rp.as_ptr().cast_mut(), RE_MAGIC | RE_NOBREAK),
                     None => ptr::null_mut(),

@@ -569,12 +569,12 @@ pub unsafe fn ex_breakadd(eap: *mut exarg_T) {
         bp.dbg_forceit = eap.forceit;
 
         if bp.dbg_type != DBG_EXPR {
-            let pat = cstr_take(file_pat_to_reg_pat(
+            let pat = file_pat_to_reg_pat(
                 bp.dbg_name.as_ptr(),
                 std::ptr::null(),
                 std::ptr::null_mut(),
                 0,
-            ));
+            );
             if let Some(ref pat) = pat {
                 bp.dbg_prog = vim_regcomp(pat.as_ptr(), RE_MAGIC + RE_STRING);
             }

@@ -20,7 +20,7 @@ use crate::mbyte::{
     vimconv_T,
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
-use crate::memory::{strequal, xfree, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_take, strequal, xmemcpyz, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, msg, msg_clr_eos, msg_outtrans_long, msg_puts, msg_start, semsg, smsg, verbose_enter,
     verbose_leave,
@@ -534,14 +534,12 @@ pub unsafe fn spell_load_file(
             res = 0;
             match n {
                 SN_INFO => {
-                    let raw = read_string(fd, len as usize);
-                    if raw.is_null() {
+                    let Some(raw) = read_string(fd, len as usize) else {
                         (*lp).sl_info = None;
                         fail = true;
                         break;
-                    }
-                    (*lp).sl_info = Some(CStr::from_ptr(raw).to_owned());
-                    xfree(raw.cast());
+                    };
+                    (*lp).sl_info = Some(CStr::from_ptr(raw.as_ptr()).to_owned());
                 }
                 SN_REGION => {
                     res = read_region_section(fd, lp, len);
@@ -550,14 +548,12 @@ pub unsafe fn spell_load_file(
                     res = read_charflags_section(fd);
                 }
                 SN_MIDWORD => {
-                    let raw = read_string(fd, len as usize);
-                    if raw.is_null() {
+                    let Some(raw) = read_string(fd, len as usize) else {
                         (*lp).sl_midword = None;
                         fail = true;
                         break;
-                    }
-                    (*lp).sl_midword = Some(CStr::from_ptr(raw).to_owned());
-                    xfree(raw.cast());
+                    };
+                    (*lp).sl_midword = Some(CStr::from_ptr(raw.as_ptr()).to_owned());
                 }
                 SN_PREFCOND => {
                     res = read_prefcond_section(fd, lp);
@@ -583,13 +579,11 @@ pub unsafe fn spell_load_file(
                     res = read_sofo_section(fd, lp);
                 }
                 SN_MAP => {
-                    let p = read_string(fd, len as usize);
-                    if p.is_null() {
+                    let Some(p) = read_string(fd, len as usize) else {
                         fail = true;
                         break;
-                    }
-                    set_map_str(lp, p);
-                    xfree(p.cast());
+                    };
+                    set_map_str(lp, p.as_ptr().cast_mut());
                 }
                 SN_WORDS => {
                     res = read_words_section(fd, lp, len);
@@ -610,14 +604,12 @@ pub unsafe fn spell_load_file(
                     (*lp).sl_nobreak = true;
                 }
                 SN_SYLLABLE => {
-                    let raw = read_string(fd, len as usize);
-                    if raw.is_null() {
+                    let Some(raw) = read_string(fd, len as usize) else {
                         (*lp).sl_syllable = None;
                         fail = true;
                         break;
-                    }
-                    (*lp).sl_syllable = Some(CStr::from_ptr(raw).to_owned());
-                    xfree(raw.cast());
+                    };
+                    (*lp).sl_syllable = Some(CStr::from_ptr(raw.as_ptr()).to_owned());
                     if init_syl_tab(lp) != OK {
                         fail = true;
                         break;
@@ -900,23 +892,27 @@ pub unsafe fn suggest_load_files() {
     }
 }
 
-unsafe fn read_cnt_string(fd: *mut FILE, cnt_bytes: c_int, cntp: *mut c_int) -> *mut c_char {
+unsafe fn read_cnt_string(
+    fd: *mut FILE,
+    cnt_bytes: c_int,
+    cntp: *mut c_int,
+) -> Option<Vec<c_char>> {
     unsafe {
         let mut cnt: c_int = 0;
         for _ in 0..cnt_bytes {
             let c = fgetc(fd);
             if c == EOF {
                 *cntp = SP_TRUNCERROR;
-                return ptr::null_mut();
+                return None;
             }
             cnt = ((cnt as c_uint) << 8).wrapping_add(c as c_uint) as c_int;
         }
         *cntp = cnt;
         if cnt == 0 {
-            return ptr::null_mut();
+            return None;
         }
         let str_ = read_string(fd, cnt as usize);
-        if str_.is_null() {
+        if str_.is_none() {
             *cntp = SP_OTHERERROR;
         }
         str_
@@ -950,18 +946,14 @@ unsafe fn read_charflags_section(fd: *mut FILE) -> c_int {
 
         let fol = read_cnt_string(fd, 2, &raw mut follen);
         if follen < 0 {
-            xfree(flags.cast());
             return follen;
         }
 
-        if !flags.is_null() && !fol.is_null() {
-            set_spell_charflags(flags, flagslen, fol);
+        if let (Some(flags), Some(fol)) = (&flags, &fol) {
+            set_spell_charflags(flags.as_ptr().cast_mut(), flagslen, fol.as_ptr().cast_mut());
         }
 
-        xfree(flags.cast());
-        xfree(fol.cast());
-
-        if flags.is_null() != fol.is_null() {
+        if flags.is_none() != fol.is_none() {
             return SP_FORMERROR;
         }
         0
@@ -1014,11 +1006,10 @@ unsafe fn read_rep_section(fd: *mut FILE, gap: &mut Vec<fromto_T>, first: *mut i
             if c < 0 {
                 return c;
             }
-            if c == 0 {
+            let Some(raw_from) = raw_from else {
                 return SP_FORMERROR;
-            }
-            let ft_from = CStr::from_ptr(raw_from).to_owned();
-            xfree(raw_from.cast());
+            };
+            let ft_from = CStr::from_ptr(raw_from.as_ptr()).to_owned();
             let raw_to = read_cnt_string(fd, 1, &raw mut c);
             if c <= 0 {
                 if c < 0 {
@@ -1026,8 +1017,9 @@ unsafe fn read_rep_section(fd: *mut FILE, gap: &mut Vec<fromto_T>, first: *mut i
                 }
                 return SP_FORMERROR;
             }
-            let ft_to = CStr::from_ptr(raw_to).to_owned();
-            xfree(raw_to.cast());
+            let ft_to = raw_to.map_or_else(std::ffi::CString::default, |v| {
+                CStr::from_ptr(v.as_ptr()).to_owned()
+            });
             gap.push(fromto_T { ft_from, ft_to });
         }
 
@@ -1142,12 +1134,9 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
             } else {
                 Vec::new()
             };
-            let sm_to_w = if !sm_to.is_null() {
-                let w = mb_str2wide(sm_to);
-                xfree(sm_to.cast());
-                w
-            } else {
-                Vec::new()
+            let sm_to_w = match sm_to {
+                Some(ref s) => mb_str2wide(s.as_ptr().cast_mut()),
+                None => Vec::new(),
             };
             let sm_rules = CStr::from_ptr(sm_rules_ptr).to_owned();
             gap.push(salitem_T {
@@ -1213,21 +1202,14 @@ unsafe fn read_sofo_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
 
         let to = read_cnt_string(fd, 2, &raw mut cnt);
         if cnt < 0 {
-            xfree(from.cast());
             return cnt;
         }
 
-        let res = if !from.is_null() && !to.is_null() {
-            set_sofo(slang, from, to)
-        } else if !from.is_null() || !to.is_null() {
-            SP_FORMERROR
-        } else {
-            0
-        };
-
-        xfree(from.cast());
-        xfree(to.cast());
-        res
+        match (from, to) {
+            (Some(from), Some(to)) => set_sofo(slang, from.as_ptr().cast_mut(), to.as_ptr().cast_mut()),
+            (None, None) => 0,
+            _ => SP_FORMERROR,
+        }
     }
 }
 
@@ -1283,9 +1265,9 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
                 if cnt < 0 {
                     return cnt;
                 }
-                let cstr = CStr::from_ptr(raw).to_owned();
-                xfree(raw.cast());
-                gap.push(cstr);
+                gap.push(raw.map_or_else(std::ffi::CString::default, |v| {
+                    CStr::from_ptr(v.as_ptr()).to_owned()
+                }));
                 todo -= cnt + 1;
             }
         }
@@ -1704,15 +1686,15 @@ pub unsafe fn spell_check_msm(value: *mut c_char, apply: bool) -> c_int {
 unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<afffile_T> {
     unsafe {
         let mut rline = [0 as c_char; MAXLINELEN];
-        let mut pc: *mut c_char = ptr::null_mut();
+        let mut pc_vec: Vec<c_char>;
         let mut items = [ptr::null_mut::<c_char>(); MAXITEMCNT];
         let mut lnum: c_int = 0;
         let mut cur_aff: *mut affheader_T = ptr::null_mut();
         let mut did_postpone_prefix = false;
         let mut aff_todo: c_int = 0;
-        let mut low: *mut c_char = ptr::null_mut();
-        let mut fol: *mut c_char = ptr::null_mut();
-        let mut upp: *mut c_char = ptr::null_mut();
+        let mut has_low = false;
+        let mut has_fol = false;
+        let mut has_upp = false;
         let mut found_map = false;
         let mut compminlen: c_int = 0;
         let mut compsylmax: c_int = 0;
@@ -1771,10 +1753,12 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                 continue;
             }
 
-            xfree(pc.cast());
             let line = if (*spin).si_conv.vc_type != CONV_NONE {
-                pc = string_convert(&(*spin).si_conv, rline.as_mut_ptr(), ptr::null_mut());
-                if pc.is_null() {
+                let Some(pc_cstr) = cstr_take(string_convert(
+                    &(*spin).si_conv,
+                    rline.as_mut_ptr(),
+                    ptr::null_mut(),
+                )) else {
                     smsg!(
                         0,
                         gettext(c"Conversion failure for word in %s line %d: %s".as_ptr()),
@@ -1783,10 +1767,14 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                         rline.as_ptr(),
                     );
                     continue;
-                }
-                pc
+                };
+                pc_vec = pc_cstr
+                    .into_bytes_with_nul()
+                    .into_iter()
+                    .map(|b| b as c_char)
+                    .collect();
+                pc_vec.as_mut_ptr()
             } else {
-                pc = ptr::null_mut();
                 rline.as_mut_ptr()
             };
 
@@ -2369,12 +2357,12 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                             }
                         }
                     }
-                } else if is_aff_rule(&items, itemcnt_i, c"FOL".as_ptr(), 2) && fol.is_null() {
-                    fol = xstrdup(items[1]);
-                } else if is_aff_rule(&items, itemcnt_i, c"LOW".as_ptr(), 2) && low.is_null() {
-                    low = xstrdup(items[1]);
-                } else if is_aff_rule(&items, itemcnt_i, c"UPP".as_ptr(), 2) && upp.is_null() {
-                    upp = xstrdup(items[1]);
+                } else if is_aff_rule(&items, itemcnt_i, c"FOL".as_ptr(), 2) && !has_fol {
+                    has_fol = true;
+                } else if is_aff_rule(&items, itemcnt_i, c"LOW".as_ptr(), 2) && !has_low {
+                    has_low = true;
+                } else if is_aff_rule(&items, itemcnt_i, c"UPP".as_ptr(), 2) && !has_upp {
+                    has_upp = true;
                 } else if is_aff_rule(&items, itemcnt_i, c"REP".as_ptr(), 2)
                     || is_aff_rule(&items, itemcnt_i, c"REPSAL".as_ptr(), 2)
                 {
@@ -2501,14 +2489,9 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
             }
         }
 
-        if !fol.is_null() || !low.is_null() || !upp.is_null() {
-            if (*spin).si_clear_chartab != 0 {
-                init_spell_chartab();
-                (*spin).si_clear_chartab = 0;
-            }
-            xfree(fol.cast());
-            xfree(low.cast());
-            xfree(upp.cast());
+        if (has_fol || has_low || has_upp) && (*spin).si_clear_chartab != 0 {
+            init_spell_chartab();
+            (*spin).si_clear_chartab = 0;
         }
 
         if compmax != 0 {
@@ -2595,7 +2578,6 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
             (*spin).si_midword = midword;
         }
 
-        xfree(pc.cast());
         fclose(fd);
         Some(aff)
     }
@@ -2957,10 +2939,13 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
             }
             line[l] = NUL;
 
-            let pc: *mut c_char;
+            let mut pc_vec: Vec<c_char>;
             let w = if (*spin).si_conv.vc_type != CONV_NONE {
-                pc = string_convert(&(*spin).si_conv, line.as_mut_ptr(), ptr::null_mut());
-                if pc.is_null() {
+                let Some(pc_cstr) = cstr_take(string_convert(
+                    &(*spin).si_conv,
+                    line.as_mut_ptr(),
+                    ptr::null_mut(),
+                )) else {
                     smsg!(
                         0,
                         gettext(c"Conversion failure for word in %s line %d: %s".as_ptr()),
@@ -2969,10 +2954,14 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
                         line.as_ptr(),
                     );
                     continue;
-                }
-                pc
+                };
+                pc_vec = pc_cstr
+                    .into_bytes_with_nul()
+                    .into_iter()
+                    .map(|b| b as c_char)
+                    .collect();
+                pc_vec.as_mut_ptr()
             } else {
-                pc = ptr::null_mut();
                 line.as_mut_ptr()
             };
 
@@ -2993,7 +2982,6 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
 
             if (*spin).si_ascii != 0 && has_non_ascii(w) {
                 non_ascii += 1;
-                xfree(pc.cast());
                 continue;
             }
 
@@ -3021,7 +3009,6 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
             let dw = getroom_save(spin, w);
             if dw.is_null() {
                 retval = FAIL;
-                xfree(pc.cast());
                 break;
             }
 
@@ -3066,7 +3053,6 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
                         == FAIL
                     {
                         retval = FAIL;
-                        xfree(pc.cast());
                         break;
                     }
                     pfxlen = totlen;
@@ -3077,7 +3063,6 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
                         == FAIL
                 {
                     retval = FAIL;
-                    xfree(pc.cast());
                     break;
                 }
             }
@@ -3127,8 +3112,6 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
                     retval = FAIL;
                 }
             }
-
-            xfree(pc.cast());
         }
 
         if duplicate > 0 {
@@ -3556,7 +3539,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
     unsafe {
         let mut lnum: linenr_T = 0;
         let mut rline = [0 as c_char; MAXLINELEN];
-        let mut pc: *mut c_char = ptr::null_mut();
+        let mut pc_vec: Vec<c_char>;
         let mut retval = OK;
         let mut did_word = false;
         let mut non_ascii: c_int = 0;
@@ -3592,10 +3575,12 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
             }
             rline[l] = NUL;
 
-            xfree(pc.cast());
             let mut line = if (*spin).si_conv.vc_type != CONV_NONE {
-                pc = string_convert(&(*spin).si_conv, rline.as_mut_ptr(), ptr::null_mut());
-                if pc.is_null() {
+                let Some(pc_cstr) = cstr_take(string_convert(
+                    &(*spin).si_conv,
+                    rline.as_mut_ptr(),
+                    ptr::null_mut(),
+                )) else {
                     smsg!(
                         0,
                         gettext(c"Conversion failure for word in %s line %d: %s".as_ptr()),
@@ -3604,10 +3589,14 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                         rline.as_ptr(),
                     );
                     continue;
-                }
-                pc
+                };
+                pc_vec = pc_cstr
+                    .into_bytes_with_nul()
+                    .into_iter()
+                    .map(|b| b as c_char)
+                    .collect();
+                pc_vec.as_mut_ptr()
             } else {
-                pc = ptr::null_mut();
                 rline.as_mut_ptr()
             };
 
@@ -3750,7 +3739,6 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
             did_word = true;
         }
 
-        xfree(pc.cast());
         fclose(fd);
 
         if (*spin).si_ascii != 0 && non_ascii > 0 {
@@ -5410,15 +5398,14 @@ unsafe fn init_spellfile() {
         let buf_len = MAXPATHL;
 
         if !aspath {
-            let xdg_path = get_xdg_home(XDGVarType::kXDGDataHome);
-            xstrlcpy(buf, xdg_path, buf_len);
-            xfree(xdg_path.cast());
+            let xdg_path = cstr_take(get_xdg_home(XDGVarType::kXDGDataHome)).unwrap_or_default();
+            xstrlcpy(buf, xdg_path.as_ptr(), buf_len);
 
             xstrlcat(buf, c"/site/spell".as_ptr(), buf_len);
 
             let mut failed_dir: *mut c_char = ptr::null_mut();
             if os_mkdir_recurse(buf, 0o755, &raw mut failed_dir, ptr::null_mut()) != 0 {
-                xfree(failed_dir.cast());
+                drop(cstr_take(failed_dir));
                 return;
             }
         } else {

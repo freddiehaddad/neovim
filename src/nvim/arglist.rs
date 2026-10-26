@@ -386,7 +386,7 @@ unsafe fn arglist_del_files(alist_ga: &[*mut c_char]) {
             if got_int {
                 break;
             }
-            let Some(p) = cstr_take(file_pat_to_reg_pat(orig_p, ptr::null(), ptr::null_mut(), 0))
+            let Some(p) = file_pat_to_reg_pat(orig_p, ptr::null(), ptr::null_mut(), 0)
             else {
                 break;
             };
