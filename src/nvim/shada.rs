@@ -3222,7 +3222,7 @@ pub unsafe fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int 
                 nomerge = true;
             } else {
                 did_open_reader = true;
-                if let Some(tn) = cstr_take(modname(fname, c".tmp.a".as_ptr(), false)) {
+                if let Some(tn) = modname(fname, c".tmp.a".as_ptr(), false) {
                     tempname_bytes = tn.into_bytes_with_nul();
                     let tempname = tempname_bytes.as_mut_ptr().cast::<c_char>();
                     let mut perm = os_getperm(fname) as c_int;

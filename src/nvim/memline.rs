@@ -34,7 +34,7 @@ use crate::memfile::{
     mf_free, mf_free_fnames, mf_get, mf_need_trans, mf_new, mf_new_page_size, mf_open,
     mf_open_file, mf_put, mf_set_dirty, mf_set_fnames, mf_sync, mf_trans_del, pmap_get_bhdr,
 };
-use crate::memory::{xfree, xmalloc, xmemdupz, xstpcpy, xstrdup, xstrlcpy};
+use crate::memory::{cstr_take, xfree, xmemdupz, xstpcpy, xstrlcpy};
 use crate::message::{
     emsg, iemsg, msg, msg_end, msg_ext_set_kind, msg_multiline, msg_outnum, msg_outtrans,
     msg_putchar, msg_puts, msg_puts_hl, msg_reset_scroll, msg_start, semsg, set_keep_msg, siemsg,
@@ -60,7 +60,6 @@ use crate::path::{
 };
 use crate::spell::spell_delete_wordlist;
 use crate::statusline::get_trans_bufname;
-use crate::strings::xstrnsave;
 use crate::strings::{gettext, strcmp, strlen, tr, vim_strchr};
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::bufIsChanged;
@@ -388,7 +387,7 @@ pub unsafe fn ml_open(buf: *mut buf_T) -> c_int {
 
         (*buf).b_may_swap = (*buf).terminal.is_null() && p_uc != 0 && (*buf).b_p_swf != 0;
 
-        (*buf).b_ml.ml_mfp_owned = mf_open(ptr::null_mut(), 0);
+        (*buf).b_ml.ml_mfp_owned = mf_open(None, 0);
         let Some(mfp_box) = (*buf).b_ml.ml_mfp_owned.as_deref_mut() else {
             (*buf).b_ml.ml_mfp = ptr::null_mut();
             return FAIL;
@@ -508,18 +507,16 @@ pub unsafe fn ml_setname(buf: *mut buf_T) {
                 &raw mut found_existing_dir,
             );
             if (*buf).b_ml.ml_mfp.cast::<memfile_T>() != mfp {
-                xfree(fname.cast());
                 return;
             }
             if dirp.is_null() {
                 break;
             }
-            if fname.is_null() {
+            let Some(fname) = fname else {
                 continue;
-            }
+            };
 
-            if path_equal(fname, mf_fname_ptr, kPathCmpLiteral) {
-                xfree(fname.cast());
+            if path_equal(fname.as_ptr(), mf_fname_ptr, kPathCmpLiteral) {
                 success = true;
                 break;
             }
@@ -528,14 +525,13 @@ pub unsafe fn ml_setname(buf: *mut buf_T) {
                 (*mfp).mf_fd = -1;
             }
 
-            if vim_rename(mf_fname_ptr, fname) == 0 {
+            if vim_rename(mf_fname_ptr, fname.as_ptr()) == 0 {
                 success = true;
                 mf_free_fnames(mfp);
                 mf_set_fnames(mfp, fname);
                 ml_upd_block0(buf, upd_block0_T::UB_SAME_DIR);
                 break;
             }
-            xfree(fname.cast());
         }
 
         if (*mfp).mf_fd == -1 {
@@ -579,8 +575,7 @@ pub unsafe fn ml_open_file(buf: *mut buf_T) {
         }
 
         if (*buf).b_spell {
-            let fname = vim_tempname();
-            if !fname.is_null() {
+            if let Some(fname) = cstr_take(vim_tempname()) {
                 mf_open_file(mfp, fname);
             }
             (*buf).b_may_swap = false;
@@ -600,15 +595,14 @@ pub unsafe fn ml_open_file(buf: *mut buf_T) {
                 &raw mut found_existing_dir,
             );
             if (*buf).b_ml.ml_mfp.cast::<memfile_T>() != mfp {
-                xfree(fname.cast());
                 return;
             }
             if dirp.is_null() {
                 break;
             }
-            if fname.is_null() {
+            let Some(fname) = fname else {
                 continue;
-            }
+            };
             if mf_open_file(mfp, fname) == OK {
                 (*mfp).mf_dirty = MF_DIRTY_YES_NOSYNC;
                 ml_upd_block0(buf, upd_block0_T::UB_SAME_DIR);
@@ -844,9 +838,9 @@ pub unsafe fn ml_recover(checkext: bool) {
     unsafe {
         let mut buf_box: Option<Box<buf_T>> = None;
         let mut mfp: *mut memfile_T = ptr::null_mut();
-        let mut fname_used: *mut c_char = ptr::null_mut();
+        let fname_used: Option<std::ffi::CString>;
         let mut hp: *mut bhdr_T = ptr::null_mut();
-        let mut b0_fenc: *mut c_char = ptr::null_mut();
+        let mut b0_fenc: Option<std::ffi::CString> = None;
         let directly: bool;
         let mut serious_error = true;
         let mut orig_file_status = NOTDONE;
@@ -870,7 +864,7 @@ pub unsafe fn ml_recover(checkext: bool) {
             && ascii_isalpha(*fname.add(len - 1) as c_int)
         {
             directly = true;
-            fname_used = xstrdup(fname);
+            fname_used = Some(CStr::from_ptr(fname).to_owned());
         } else {
             directly = false;
             let mut items_tv = typval_T::new();
@@ -881,14 +875,7 @@ pub unsafe fn ml_recover(checkext: bool) {
             if n_swaps == 0 {
                 tv_clear(&raw mut items_tv);
                 semsg!(tr(c"E305: No swap file found for %s"), fname);
-                ml_recover_theend(
-                    fname_used,
-                    mfp,
-                    hp,
-                    buf_box,
-                    serious_error,
-                    called_from_main,
-                );
+                ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
                 return;
             }
             if n_swaps > 1 {
@@ -900,30 +887,17 @@ pub unsafe fn ml_recover(checkext: bool) {
                     ptr::null_mut(),
                 );
                 tv_clear(&raw mut items_tv);
-                ml_recover_theend(
-                    fname_used,
-                    mfp,
-                    hp,
-                    buf_box,
-                    serious_error,
-                    called_from_main,
-                );
+                ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
                 return;
             }
-            fname_used = xstrdup((*tv_list_first(items_tv.vval.v_list)).li_tv.vval.v_string);
+            let first_str = (*tv_list_first(items_tv.vval.v_list)).li_tv.vval.v_string;
+            fname_used = (!first_str.is_null()).then(|| CStr::from_ptr(first_str).to_owned());
             tv_clear(&raw mut items_tv);
         }
-        if fname_used.is_null() {
-            ml_recover_theend(
-                fname_used,
-                mfp,
-                hp,
-                buf_box,
-                serious_error,
-                called_from_main,
-            );
+        let Some(fname_used) = fname_used else {
+            ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
             return;
-        }
+        };
         if called_from_main && ml_open(curbuf) == FAIL {
             getout(1);
         }
@@ -932,24 +906,15 @@ pub unsafe fn ml_recover(checkext: bool) {
         let buf: *mut buf_T = &raw mut *allocated_buf;
         buf_box = Some(allocated_buf);
 
-        let p = xstrdup(fname_used);
-        (*buf).b_ml.ml_mfp_owned = mf_open(fname_used, O_RDONLY);
+        (*buf).b_ml.ml_mfp_owned = mf_open(Some(fname_used.clone()), O_RDONLY);
         mfp = (*buf)
             .b_ml
             .ml_mfp_owned
             .as_deref_mut()
             .map_or(ptr::null_mut(), |m| &raw mut *m);
-        fname_used = p;
         if mfp.is_null() || (*mfp).mf_fd < 0 {
-            semsg!(tr(c"E306: Cannot open %s"), fname_used);
-            ml_recover_theend(
-                fname_used,
-                mfp,
-                hp,
-                buf_box,
-                serious_error,
-                called_from_main,
-            );
+            semsg!(tr(c"E306: Cannot open %s"), fname_used.as_ptr());
+            ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
             return;
         }
         (*buf).b_ml.ml_mfp = mfp.cast();
@@ -975,14 +940,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                 true,
             );
             msg_end();
-            ml_recover_theend(
-                fname_used,
-                mfp,
-                hp,
-                buf_box,
-                serious_error,
-                called_from_main,
-            );
+            ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
             return;
         }
         let mut b0p = (*hp).data_ptr().cast::<ZeroBlock>();
@@ -1009,14 +967,7 @@ pub unsafe fn ml_recover(checkext: bool) {
             msg_puts_hl(tr(c" cannot be used with this version of Nvim.\n"), 0, true);
             msg_puts_hl(tr(c"Use Vim version 3.0.\n"), 0, true);
             msg_end();
-            ml_recover_theend(
-                fname_used,
-                mfp,
-                hp,
-                buf_box,
-                serious_error,
-                called_from_main,
-            );
+            ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
             return;
         }
         if !ml_check_b0_id(b0p) {
@@ -1027,14 +978,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                     .as_ref()
                     .map_or(c"".as_ptr(), |s| s.as_ptr()),
             );
-            ml_recover_theend(
-                fname_used,
-                mfp,
-                hp,
-                buf_box,
-                serious_error,
-                called_from_main,
-            );
+            ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
             return;
         }
         if b0_magic_wrong(b0p) {
@@ -1053,14 +997,7 @@ pub unsafe fn ml_recover(checkext: bool) {
             msg_puts_hl((&raw const (*b0p).b0_hname).cast(), hl_id, true);
             msg_puts_hl(tr(c",\nor the file has been damaged."), hl_id, true);
             msg_end();
-            ml_recover_theend(
-                fname_used,
-                mfp,
-                hp,
-                buf_box,
-                serious_error,
-                called_from_main,
-            );
+            ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
             return;
         }
 
@@ -1084,14 +1021,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                     true,
                 );
                 msg_end();
-                ml_recover_theend(
-                    fname_used,
-                    mfp,
-                    hp,
-                    buf_box,
-                    serious_error,
-                    called_from_main,
-                );
+                ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
                 return;
             }
             let size: off_T = vim_lseek((*mfp).mf_fd, 0, SEEK_END);
@@ -1116,14 +1046,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                 MAXPATHL as c_int,
             );
             if setfname(curbuf, namebuff_ptr, ptr::null_mut(), true) == FAIL {
-                ml_recover_theend(
-                    fname_used,
-                    mfp,
-                    hp,
-                    buf_box,
-                    serious_error,
-                    called_from_main,
-                );
+                ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
                 return;
             }
         }
@@ -1175,7 +1098,13 @@ pub unsafe fn ml_recover(checkext: bool) {
             while p > fname_base && *p.offset(-1) != NUL {
                 p = p.offset(-1);
             }
-            b0_fenc = xstrnsave(p, fname_base.add(fnsize).offset_from(p) as usize);
+            let fenc_len = fname_base.add(fnsize).offset_from(p) as usize;
+            let fenc_bytes = std::slice::from_raw_parts(p.cast::<u8>(), fenc_len);
+            let end = fenc_bytes
+                .iter()
+                .position(|&b| b == 0)
+                .unwrap_or(fenc_bytes.len());
+            b0_fenc = Some(std::ffi::CString::new(&fenc_bytes[..end]).unwrap_or_default());
         }
 
         mf_put(mfp, hp, false, false);
@@ -1201,15 +1130,14 @@ pub unsafe fn ml_recover(checkext: bool) {
         if b0_ff != 0 {
             set_fileformat(b0_ff - 1, OPT_LOCAL);
         }
-        if !b0_fenc.is_null() {
+        if let Some(ref fenc) = b0_fenc {
             let fenc_obj = Object {
                 obj_type: ObjectType::kObjectTypeString,
                 data: ObjectData {
-                    string: cstr_as_string(b0_fenc),
+                    string: cstr_as_string(fenc.as_ptr()),
                 },
             };
             set_option_value_give_err(kOptFileencoding, fenc_obj, OPT_LOCAL);
-            xfree(b0_fenc.cast());
         }
         unchanged(curbuf, true, true);
 
@@ -1239,14 +1167,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                             .as_ref()
                             .map_or(c"".as_ptr(), |s| s.as_ptr()),
                     );
-                    ml_recover_theend(
-                        fname_used,
-                        mfp,
-                        hp,
-                        buf_box,
-                        serious_error,
-                        called_from_main,
-                    );
+                    ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
                     return;
                 }
                 error += 1;
@@ -1355,14 +1276,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                                     .as_ref()
                                     .map_or(c"".as_ptr(), |s| s.as_ptr()),
                             );
-                            ml_recover_theend(
-                                fname_used,
-                                mfp,
-                                hp,
-                                buf_box,
-                                serious_error,
-                                called_from_main,
-                            );
+                            ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
                             return;
                         }
                         error += 1;
@@ -1474,9 +1388,8 @@ pub unsafe fn ml_recover(checkext: bool) {
             }
         } else {
             for i_lnum in 1..=lnum {
-                let p_line = xstrnsave(ml_get(i_lnum), ml_get_len(i_lnum) as usize);
-                let cmp = strcmp(p_line, ml_get(i_lnum + lnum));
-                xfree(p_line.cast());
+                let p_line = CStr::from_ptr(ml_get(i_lnum)).to_owned();
+                let cmp = strcmp(p_line.as_ptr(), ml_get(i_lnum + lnum));
                 if cmp != 0 {
                     changed_internal(curbuf);
                     buf_inc_changedtick(curbuf);
@@ -1526,7 +1439,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                 );
             }
             msg_puts(tr(c"\nYou may want to delete the .swp file now."));
-            if swapfile_proc_running(b0p, fname_used) != 0 {
+            if swapfile_proc_running(b0p, fname_used.as_ptr().cast_mut()) != 0 {
                 msg_puts(tr(c"\nNote: process STILL RUNNING: "));
                 msg_outnum(char_to_long((&raw const (*b0p).b0_pid).cast()) as c_int);
             }
@@ -1537,19 +1450,11 @@ pub unsafe fn ml_recover(checkext: bool) {
         }
         redraw_curbuf_later(UPD_NOT_VALID);
 
-        ml_recover_theend(
-            fname_used,
-            mfp,
-            hp,
-            buf_box,
-            serious_error,
-            called_from_main,
-        );
+        ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
     }
 }
 
 unsafe fn ml_recover_theend(
-    fname_used: *mut c_char,
     mfp: *mut memfile_T,
     hp: *mut bhdr_T,
     mut buf: Option<Box<buf_T>>,
@@ -1558,7 +1463,6 @@ unsafe fn ml_recover_theend(
 ) {
     unsafe {
         msg_ext_skip_flush = false;
-        xfree(fname_used.cast());
         recoverymode = false;
         if !mfp.is_null() {
             if !hp.is_null() {
@@ -1591,7 +1495,6 @@ unsafe fn ml_recover_theend(
 /// Enumerate swapfiles for `fname`, appending each found path to `ret_list`.
 pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mut list_T) {
     unsafe {
-        let mut names = [ptr::null_mut::<c_char>(); 6];
         #[cfg(unix)]
         let mut fname_buf = [0 as c_char; MAXPATHL];
         let mut fname_res: *mut c_char = ptr::null_mut();
@@ -1612,53 +1515,31 @@ pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mu
             }
         }
 
+        let mut dir_name_vec: Vec<c_char> = vec![0; strlen(p_dir) + 1];
         let mut dir_name = NvimString {
-            data: xmalloc(strlen(p_dir) + 1).cast(),
+            data: dir_name_vec.as_mut_ptr(),
             size: 0,
         };
         let mut dirp = p_dir;
         while *dirp != NUL {
             dir_name.size = copy_option_part(&raw mut dirp, dir_name.data, 31000, c",".as_ptr());
 
-            let num_names: c_int;
+            let mut names_vec: Vec<std::ffi::CString> = Vec::with_capacity(6);
             if *dir_name.data == b'.' as c_char && *dir_name.data.add(1) == NUL {
                 if fname.is_null() {
-                    names[0] = xmemdupz(c"*.sw?".as_ptr().cast(), 5).cast();
-                    names[1] = xmemdupz(c".*.sw?".as_ptr().cast(), 6).cast();
-                    names[2] = xmemdupz(c".sw?".as_ptr().cast(), 4).cast();
-                    num_names = 3;
+                    names_vec.push(c"*.sw?".to_owned());
+                    names_vec.push(c".*.sw?".to_owned());
+                    names_vec.push(c".sw?".to_owned());
                 } else {
-                    num_names = recov_file_names((&raw mut names).cast(), fname_res, true);
+                    recov_file_names(&mut names_vec, fname_res, true);
                 }
             } else if fname.is_null() {
-                names[0] = concat_fnames(
-                    dir_name,
-                    NvimString {
-                        data: c"*.sw?".as_ptr().cast_mut(),
-                        size: 5,
-                    },
-                    true,
-                )
-                .data;
-                names[1] = concat_fnames(
-                    dir_name,
-                    NvimString {
-                        data: c".*.sw?".as_ptr().cast_mut(),
-                        size: 6,
-                    },
-                    true,
-                )
-                .data;
-                names[2] = concat_fnames(
-                    dir_name,
-                    NvimString {
-                        data: c".sw?".as_ptr().cast_mut(),
-                        size: 4,
-                    },
-                    true,
-                )
-                .data;
-                num_names = 3;
+                for pat in [c"*.sw?", c".*.sw?", c".sw?"] {
+                    let s = concat_fnames(dir_name, cstr_as_string(pat.as_ptr()), true);
+                    if let Some(cstr) = cstr_take(s.data) {
+                        names_vec.push(cstr);
+                    }
+                }
             } else {
                 let p = dir_name.data.add(dir_name.size);
                 let tail = if after_pathsep(dir_name.data, p) != 0
@@ -1668,31 +1549,33 @@ pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mu
                     make_percent_swname(dir_name.data, p, fname_res)
                 } else {
                     let t = path_tail(fname_res);
-                    concat_fnames(dir_name, cstr_as_string(t), true).data
+                    cstr_take(concat_fnames(dir_name, cstr_as_string(t), true).data)
                 };
-                num_names = recov_file_names((&raw mut names).cast(), tail, false);
-                xfree(tail.cast());
+                if let Some(ref tail) = tail {
+                    recov_file_names(&mut names_vec, tail.as_ptr().cast_mut(), false);
+                }
             }
 
             let mut files: Vec<*mut c_char> = Vec::new();
-            if num_names > 0 {
+            if !names_vec.is_empty() {
+                let mut name_ptrs: Vec<*mut c_char> =
+                    names_vec.iter().map(|s| s.as_ptr().cast_mut()).collect();
                 let _ = expand_wildcards_vec(
-                    num_names,
-                    (&raw mut names).cast(),
+                    name_ptrs.len() as c_int,
+                    name_ptrs.as_mut_ptr(),
                     &mut files,
                     EW_KEEPALL | EW_FILE | EW_SILENT,
                 );
             }
 
-            if *dirp == NUL && tv_list_len(ret_list) == 0 && files.is_empty() && !fname.is_null() {
-                let mut swapname = modname(fname_res, c".swp".as_ptr(), true);
-                if !swapname.is_null() {
-                    if os_path_exists(swapname) {
-                        files.push(swapname);
-                        swapname = ptr::null_mut();
-                    }
-                    xfree(swapname.cast());
-                }
+            if *dirp == NUL
+                && tv_list_len(ret_list) == 0
+                && files.is_empty()
+                && !fname.is_null()
+                && let Some(swapname) = modname(fname_res, c".swp".as_ptr(), true)
+                && os_path_exists(swapname.as_ptr())
+            {
+                files.push(crate::memory::xstrdup(swapname.as_ptr()));
             }
 
             if skip_curbuf && !(*curbuf).b_ml.ml_mfp.is_null() {
@@ -1712,12 +1595,7 @@ pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mu
             for f in files {
                 tv_list_append_allocated_string(ret_list, f);
             }
-
-            for name in names.iter().take(num_names as usize) {
-                xfree((*name).cast());
-            }
         }
-        xfree(dir_name.data.cast());
     }
 }
 
@@ -1726,19 +1604,21 @@ pub unsafe fn make_percent_swname(
     dir: *mut c_char,
     dir_end: *mut c_char,
     name: *const c_char,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
-        let fname = fix_fname(if !name.is_null() { name } else { c"".as_ptr() });
-        if fname.is_null() {
-            return ptr::null_mut();
-        }
+        let fname = cstr_take(fix_fname(if !name.is_null() { name } else { c"".as_ptr() }))?;
+        let mut fname_vec: Vec<c_char> = fname
+            .into_bytes_with_nul()
+            .into_iter()
+            .map(|b| b as c_char)
+            .collect();
+        let fname_ptr = fname_vec.as_mut_ptr();
 
         let mut file_info = FileInfo::new();
-        if !os_fileinfo2(fname, &raw mut file_info) {
-            xfree(fname.cast());
-            return ptr::null_mut();
+        if !os_fileinfo2(fname_ptr, &raw mut file_info) {
+            return None;
         }
-        let mut fixed_data = fname.add(file_info.root_off);
+        let mut fixed_data = fname_ptr.add(file_info.root_off);
         if file_info.r#type == kPathDeviceUNC {
             assert!(file_info.root_off >= 2);
             fixed_data = fixed_data.sub(2);
@@ -1766,8 +1646,7 @@ pub unsafe fn make_percent_swname(
             fixed_fname,
             true,
         );
-        xfree(fname.cast());
-        d.data
+        cstr_take(d.data)
     }
 }
 
@@ -2018,44 +1897,46 @@ unsafe fn swapfile_unchanged(fname: *mut c_char) -> bool {
     }
 }
 
-unsafe fn recov_file_names(names: *mut *mut c_char, path: *mut c_char, prepend_dot: bool) -> c_int {
+unsafe fn recov_file_names(
+    names: &mut Vec<std::ffi::CString>,
+    path: *mut c_char,
+    prepend_dot: bool,
+) {
     unsafe {
-        let mut num_names: c_int = 0;
         if prepend_dot {
-            *names.add(num_names as usize) = modname(path, c".sw?".as_ptr(), true);
-            if (*names.add(num_names as usize)).is_null() {
-                return num_names;
-            }
-            num_names += 1;
+            let Some(m) = modname(path, c".sw?".as_ptr(), true) else {
+                return;
+            };
+            names.push(m);
         }
 
-        *names.add(num_names as usize) = concat_fnames(
-            cstr_as_string(path),
-            NvimString {
-                data: c".sw?".as_ptr().cast_mut(),
-                size: 4,
-            },
-            false,
-        )
-        .data;
-        if num_names >= 1 {
-            let prev = *names.add((num_names - 1) as usize);
-            let cur = *names.add(num_names as usize);
-            let mut p = prev;
-            let i = strlen(prev) as isize - strlen(cur) as isize;
-            if i > 0 {
-                p = p.offset(i);
-            }
-            if strcmp(p, cur) != 0 {
-                num_names += 1;
+        let Some(cur) = cstr_take(
+            concat_fnames(
+                cstr_as_string(path),
+                NvimString {
+                    data: c".sw?".as_ptr().cast_mut(),
+                    size: 4,
+                },
+                false,
+            )
+            .data,
+        ) else {
+            return;
+        };
+        if let Some(prev) = names.last() {
+            let prev_bytes = prev.as_bytes();
+            let cur_bytes = cur.as_bytes();
+            let tail_prev = if prev_bytes.len() > cur_bytes.len() {
+                &prev_bytes[prev_bytes.len() - cur_bytes.len()..]
             } else {
-                xfree(cur.cast());
+                prev_bytes
+            };
+            if tail_prev != cur_bytes {
+                names.push(cur);
             }
         } else {
-            num_names += 1;
+            names.push(cur);
         }
-
-        num_names
     }
 }
 
@@ -3502,7 +3383,7 @@ pub unsafe fn makeswapname(
     _ffname: *mut c_char,
     _buf: *mut buf_T,
     dir_name: *mut c_char,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
         #[cfg(unix)]
         let mut fname_res = fname;
@@ -3521,39 +3402,32 @@ pub unsafe fn makeswapname(
         let len = strlen(dir_name);
         let s = dir_name.add(len);
         if after_pathsep(dir_name, s) != 0 && len > 1 && *s.offset(-1) == *s.offset(-2) {
-            let mut r: *mut c_char = ptr::null_mut();
-            let sw = make_percent_swname(dir_name, s, fname_res);
-            if !sw.is_null() {
-                r = modname(sw, c".swp".as_ptr(), false);
-                xfree(sw.cast());
-            }
-            return r;
+            let sw = make_percent_swname(dir_name, s, fname_res)?;
+            return modname(sw.as_ptr(), c".swp".as_ptr(), false);
         }
 
         let r = modname(
             fname_res,
             c".swp".as_ptr(),
             *dir_name == b'.' as c_char && *dir_name.add(1) == NUL,
-        );
-        if r.is_null() {
-            return ptr::null_mut();
-        }
+        )?;
 
-        let res = get_file_in_dir(r, dir_name);
-        xfree(r.cast());
-        res
+        get_file_in_dir(r.as_ptr().cast_mut(), dir_name)
     }
 }
 
 /// Get file name to use for swapfile or backup file.
-pub unsafe fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> *mut c_char {
+pub unsafe fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> Option<std::ffi::CString> {
     unsafe {
         let tail = cstr_as_string(path_tail(fname));
         let retval: NvimString;
 
         if *dname == b'.' as c_char && *dname.add(1) == NUL {
             let n = tail.data.offset_from(fname) as usize + tail.size;
-            return xmemdupz(fname.cast(), n).cast();
+            return Some(
+                std::ffi::CString::new(std::slice::from_raw_parts(fname.cast::<u8>(), n))
+                    .unwrap_or_default(),
+            );
         }
 
         let dname_len = strlen(dname);
@@ -3583,7 +3457,7 @@ pub unsafe fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> *mut c_
                 );
                 *tail.data = save_char;
                 retval = concat_fnames(tmp, tail, true);
-                xfree(tmp.data.cast());
+                drop(cstr_take(tmp.data));
             }
         } else {
             retval = concat_fnames(
@@ -3596,7 +3470,7 @@ pub unsafe fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> *mut c_
             );
         }
 
-        retval.data
+        cstr_take(retval.data)
     }
 }
 
@@ -3694,23 +3568,22 @@ unsafe fn findswapname(
     dirp: *mut *mut c_char,
     old_fname: *mut c_char,
     found_existing_dir: *mut bool,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
         let buf_fname = (*buf).b_fname;
         let dir_len = strlen(*dirp) + 1;
-        let dir_name = xmalloc(dir_len).cast::<c_char>();
+        let mut dir_name_vec: Vec<c_char> = vec![0; dir_len];
+        let dir_name = dir_name_vec.as_mut_ptr();
         copy_option_part(dirp, dir_name, dir_len, c",".as_ptr());
 
-        let mut fname = makeswapname(buf_fname, (*buf).b_ffname, buf, dir_name);
+        let mut fname_vec: Option<Vec<c_char>> = makeswapname(buf_fname, (*buf).b_ffname, buf, dir_name)
+            .map(|cstr| cstr.into_bytes_with_nul().into_iter().map(|b| b as c_char).collect());
 
-        loop {
-            if fname.is_null() {
-                break;
-            }
+        while let Some(ref mut fvec) = fname_vec {
+            let fname = fvec.as_mut_ptr();
             let n = strlen(fname);
             if n == 0 {
-                xfree(fname.cast());
-                fname = ptr::null_mut();
+                fname_vec = None;
                 break;
             }
             let mut file_info = FileInfo::new();
@@ -3809,15 +3682,17 @@ unsafe fn findswapname(
                     if choice == SEA_CHOICE_NONE {
                         no_wait_return += 1;
                         let mut msg_sb = Vec::<u8>::with_capacity(IOSIZE);
-                        let fhname = home_replace_save(ptr::null_mut(), fname);
-                        attention_message(buf, fname, fhname, &mut msg_sb);
+                        let fhname = cstr_take(home_replace_save(ptr::null_mut(), fname))
+                            .unwrap_or_default();
+                        let fhname_ptr = fhname.as_ptr().cast_mut();
+                        attention_message(buf, fname, fhname_ptr, &mut msg_sb);
 
                         got_int = false;
                         flush_buffers(FLUSH_TYPEAHEAD);
 
                         if swap_exists_action != SEA_NONE {
                             sb_push_cstr(&mut msg_sb, tr(c"Swap file \""));
-                            sb_push_cstr(&mut msg_sb, fhname);
+                            sb_push_cstr(&mut msg_sb, fhname_ptr);
                             sb_push_cstr(&mut msg_sb, tr(c"\" already exists!"));
                             msg_sb.push(0);
                             let run_but =
@@ -3856,7 +3731,6 @@ unsafe fn findswapname(
                             );
                         }
                         no_wait_return -= 1;
-                        xfree(fhname.cast());
                     }
 
                     match choice {
@@ -3895,8 +3769,7 @@ unsafe fn findswapname(
             if *fname.add(n - 1) == b'a' as c_char {
                 if *fname.add(n - 2) == b'a' as c_char {
                     emsg(tr(c"E326: Too many swap files found"));
-                    xfree(fname.cast());
-                    fname = ptr::null_mut();
+                    fname_vec = None;
                     break;
                 }
                 *fname.add(n - 2) -= 1;
@@ -3910,18 +3783,17 @@ unsafe fn findswapname(
         } else if !*found_existing_dir && **dirp == NUL {
             let mut failed_dir: *mut c_char = ptr::null_mut();
             let ret = os_mkdir_recurse(dir_name, 0o755, &raw mut failed_dir, ptr::null_mut());
+            let failed_dir = cstr_take(failed_dir);
             if ret != 0 {
                 semsg!(
                     tr(c"E303: Unable to create directory \"%s\" for swap file, recovery impossible: %s"),
-                    failed_dir,
+                    failed_dir.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
                     uv_strerror(ret),
                 );
-                xfree(failed_dir.cast());
             }
         }
 
-        xfree(dir_name.cast());
-        fname
+        fname_vec.map(|v| CStr::from_ptr(v.as_ptr()).to_owned())
     }
 }
 

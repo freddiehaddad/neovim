@@ -836,14 +836,14 @@ pub unsafe fn buf_get_backup_name(
         if dir_len > 1
             && after_pathsep(iobuf, p) != 0
             && *p.sub(1) == *p.sub(2)
-            && let Some(swname) = cstr_take(make_percent_swname(iobuf, p, fname))
+            && let Some(swname) = make_percent_swname(iobuf, p, fname)
         {
-            backup = cstr_take(modname(swname.as_ptr(), backup_ext, no_prepend_dot));
+            backup = modname(swname.as_ptr(), backup_ext, no_prepend_dot);
         }
         if backup.is_none()
-            && let Some(rootname) = cstr_take(get_file_in_dir(fname, iobuf))
+            && let Some(rootname) = get_file_in_dir(fname, iobuf)
         {
-            backup = cstr_take(modname(rootname.as_ptr(), backup_ext, no_prepend_dot));
+            backup = modname(rootname.as_ptr(), backup_ext, no_prepend_dot);
         }
         backup
     }
@@ -1948,7 +1948,7 @@ pub unsafe fn buf_write(
                     }
 
                     if *p_pm != 0 && dobackup {
-                        let org = cstr_take(modname(fname, p_pm, false));
+                        let org = modname(fname, p_pm, false);
                         if let Some(ref bk) = backup {
                             match org {
                                 None => {

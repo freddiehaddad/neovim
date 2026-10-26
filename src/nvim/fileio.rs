@@ -53,7 +53,7 @@ use crate::memline::{
     check_need_swap, ml_append, ml_delete, ml_get, ml_get_buf, ml_get_len, ml_open,
 };
 use crate::memory::{
-    cstr_take, memchrsub, strequal, time_to_bytes, xfree, xmalloc, xstrdup, xstrlcat, xstrlcpy,
+    cstr_take, memchrsub, strequal, time_to_bytes, xfree, xstrdup, xstrlcat, xstrlcpy,
 };
 use crate::message::{
     emsg, msg, msg_check_for_delay, msg_clr_eos, msg_delay, msg_end, msg_may_trunc, msg_outtrans,
@@ -3293,24 +3293,26 @@ pub unsafe fn modname(
     fname: *const c_char,
     ext: *const c_char,
     mut prepend_dot: bool,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
+        let mut retval_vec: Vec<c_char>;
         let retval: *mut c_char;
         let fnamelen: usize;
         let extlen = strlen(ext);
 
         if fname.is_null() || *fname == NUL {
-            retval = xmalloc(MAXPATHL + extlen + 3).cast::<c_char>();
+            retval_vec = vec![0; MAXPATHL + extlen + 3];
+            retval = retval_vec.as_mut_ptr();
             if os_dirname(retval, MAXPATHL) == FAIL || strlen(retval) == 0 {
-                xfree(retval.cast());
-                return ptr::null_mut();
+                return None;
             }
             add_pathsep(retval);
             fnamelen = strlen(retval);
             prepend_dot = false;
         } else {
             fnamelen = strlen(fname);
-            retval = xmalloc(fnamelen + extlen + 3).cast::<c_char>();
+            retval_vec = vec![0; fnamelen + extlen + 3];
+            retval = retval_vec.as_mut_ptr();
             ptr::copy_nonoverlapping(fname, retval, fnamelen + 1);
         }
 
@@ -3355,7 +3357,7 @@ pub unsafe fn modname(
                 *ptr = b'v' as c_char;
             }
         }
-        retval
+        Some(CStr::from_ptr(retval).to_owned())
     }
 }
 

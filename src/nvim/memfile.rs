@@ -95,7 +95,7 @@ pub fn pmap_get_bhdr(map: &std::collections::HashMap<i64, Box<bhdr_T>>, key: i64
 }
 
 /// Open a new or existing memory block file.
-pub unsafe fn mf_open(fname: *mut c_char, flags: c_int) -> Option<Box<memfile_T>> {
+pub unsafe fn mf_open(fname: Option<std::ffi::CString>, flags: c_int) -> Option<Box<memfile_T>> {
     unsafe {
         let mut mfp = Box::new(memfile_T {
             mf_fname: None,
@@ -114,7 +114,9 @@ pub unsafe fn mf_open(fname: *mut c_char, flags: c_int) -> Option<Box<memfile_T>
             mf_dirty: MF_DIRTY_NO,
         });
 
-        if !fname.is_null() && !mf_do_open(&raw mut *mfp, fname, flags) {
+        if let Some(fname) = fname
+            && !mf_do_open(&raw mut *mfp, fname, flags)
+        {
             return None;
         }
 
@@ -148,7 +150,7 @@ pub unsafe fn mf_open(fname: *mut c_char, flags: c_int) -> Option<Box<memfile_T>
 }
 
 /// Open a file for an existing memfile.
-pub unsafe fn mf_open_file(mfp: *mut memfile_T, fname: *mut c_char) -> c_int {
+pub unsafe fn mf_open_file(mfp: *mut memfile_T, fname: std::ffi::CString) -> c_int {
     unsafe {
         if mf_do_open(mfp, fname, O_RDWR | O_CREAT | O_EXCL) {
             (*mfp).mf_dirty = MF_DIRTY_YES;
@@ -612,15 +614,10 @@ pub unsafe fn mf_free_fnames(mfp: *mut memfile_T) {
 }
 
 /// Set the simple file name and the full file name of memfile's swapfile.
-pub unsafe fn mf_set_fnames(mfp: *mut memfile_T, fname: *mut c_char) {
+pub unsafe fn mf_set_fnames(mfp: *mut memfile_T, fname: std::ffi::CString) {
     unsafe {
-        if let Some(fname_cstr) = cstr_take(fname) {
-            (*mfp).mf_ffname = cstr_take(FullName_save(fname_cstr.as_ptr(), false));
-            (*mfp).mf_fname = Some(fname_cstr);
-        } else {
-            (*mfp).mf_fname = None;
-            (*mfp).mf_ffname = None;
-        }
+        (*mfp).mf_ffname = cstr_take(FullName_save(fname.as_ptr(), false));
+        (*mfp).mf_fname = Some(fname);
     }
 }
 
@@ -643,7 +640,7 @@ pub unsafe fn mf_need_trans(mfp: *mut memfile_T) -> bool {
     unsafe { (*mfp).mf_fname.is_some() && (*mfp).mf_neg_count > 0 }
 }
 
-unsafe fn mf_do_open(mfp: *mut memfile_T, fname: *mut c_char, mut flags: c_int) -> bool {
+unsafe fn mf_do_open(mfp: *mut memfile_T, fname: std::ffi::CString, mut flags: c_int) -> bool {
     unsafe {
         mf_set_fnames(mfp, fname);
         let fname_ptr = (*mfp).mf_fname.as_ref().unwrap().as_ptr();
@@ -680,7 +677,7 @@ mod tests {
     #[test]
     fn memory_only_memfile_allocates_gets_puts_and_frees_blocks() {
         unsafe {
-            let mut mfp_box = mf_open(ptr::null_mut(), 0).expect("mf_open failed");
+            let mut mfp_box = mf_open(None, 0).expect("mf_open failed");
             let mfp: *mut memfile_T = &raw mut *mfp_box;
             assert_eq!((*mfp).mf_page_size, 4096);
 

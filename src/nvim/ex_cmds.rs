@@ -2435,33 +2435,31 @@ pub unsafe fn check_overwrite(
                     let mut p = p_dir;
                     copy_option_part(&raw mut p, dir.as_mut_ptr(), MAXPATHL, c",".as_ptr());
                 }
-                let swapname = makeswapname(fname, ffname, curbuf, dir.as_mut_ptr());
-                if os_path_exists(swapname) {
+                if let Some(swapname) = makeswapname(fname, ffname, curbuf, dir.as_mut_ptr())
+                    && os_path_exists(swapname.as_ptr())
+                {
                     if p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                         let mut buff: [c_char; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
                         vim_snprintf!(
                             buff.as_mut_ptr(),
                             DIALOG_MSG_SIZE,
                             gettext(c"Swap file \"%s\" exists, overwrite anyway?".as_ptr()),
-                            swapname,
+                            swapname.as_ptr(),
                         );
                         if vim_dialog_yesno(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr(), 2)
                             != VIM_YES
                         {
-                            xfree(swapname.cast());
                             return FAIL;
                         }
                         (*eap).forceit = 1;
                     } else {
                         semsg!(
                             gettext(c"E768: Swap file exists: %s (:silent! overrides)".as_ptr()),
-                            swapname,
+                            swapname.as_ptr(),
                         );
-                        xfree(swapname.cast());
                         return FAIL;
                     }
                 }
-                xfree(swapname.cast());
             }
         }
         OK
