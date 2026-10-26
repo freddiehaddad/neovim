@@ -83,9 +83,9 @@ use crate::register::{
     reg_empty, yankreg_T,
 };
 use crate::search::{
-    AdditionalData, SearchOffset, SearchPattern, get_search_pattern, get_search_pattern_timestamp,
-    get_substitute_pattern, search_pattern_cleared, search_was_last_used, set_last_used_pattern,
-    set_search_pattern, set_substitute_pattern,
+    AdditionalData, SearchOffset, SearchPattern, get_search_pattern, get_search_pattern_ptr,
+    get_search_pattern_timestamp, get_substitute_pattern, search_pattern_cleared,
+    search_was_last_used, set_last_used_pattern, set_search_pattern, set_substitute_pattern,
 };
 use crate::strings::{gettext, vim_strchr};
 use std::cmp::Ordering;
@@ -1394,7 +1394,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                         } else {
                             get_search_pattern(&mut pat);
                         }
-                        if !pat.pat.is_null() && pat.timestamp >= cur_entry.timestamp {
+                        if pat.pat.is_some() && pat.timestamp >= cur_entry.timestamp {
                             shada_free_shada_entry(&mut cur_entry);
                             continue;
                         }
@@ -1409,8 +1409,8 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                             end: sp.place_cursor_at_end,
                             off: sp.offset,
                         },
-                        pat: sp.pat.data,
-                        patlen: sp.pat.size,
+                        pat: crate::memory::bytes_take(sp.pat.data, sp.pat.size)
+                            .map(|b| std::ffi::CString::new(b).unwrap_or_default()),
                         additional_data: cur_entry.additional_data,
                         timestamp: cur_entry.timestamp,
                     };
@@ -2495,7 +2495,7 @@ unsafe fn add_search_pattern(
     unsafe {
         let mut pat = SearchPattern::new();
         get_pattern(&mut pat);
-        if !pat.pat.is_null() {
+        if pat.pat.is_some() {
             let is_last_used = is_substitute_pattern ^ search_last_used;
             *ret_pse = ShadaEntry {
                 can_free_entry: false,
@@ -2523,7 +2523,7 @@ unsafe fn add_search_pattern(
                     is_last_used,
                     is_substitute_pattern,
                     highlighted: is_last_used && search_highlighted,
-                    pat: cstr_as_string(pat.pat),
+                    pat: cstr_as_string(get_search_pattern_ptr(is_substitute_pattern)),
                     search_backward: !is_substitute_pattern && pat.off.dir == (b'?' as c_char),
                 }),
                 additional_data: pat.additional_data,
