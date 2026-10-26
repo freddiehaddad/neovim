@@ -1138,13 +1138,12 @@ unsafe fn expand_rtp_entry(
             push_path(search_path, rtp_used, entry, after, pos_in_rtp);
         }
 
-        let mut files: Vec<*mut c_char> = Vec::new();
+        let mut files: Vec<std::ffi::CString> = Vec::new();
         let mut pat = [entry];
         if gen_expand_wildcards_vec(1, pat.as_mut_ptr(), &mut files, EW_DIR | EW_NOBREAK) == OK {
-            for &file in &files {
-                push_path(search_path, rtp_used, file, after, pos_in_rtp);
+            for file in &files {
+                push_path(search_path, rtp_used, file.as_ptr().cast_mut(), after, pos_in_rtp);
             }
-            crate::path::clear_cstrings(&mut files);
         }
     }
 }
@@ -1377,15 +1376,14 @@ unsafe fn gen_expand_wildcards_and_cb(
     callback: RuntimeCallback,
 ) -> c_int {
     unsafe {
-        let mut files: Vec<*mut c_char> = Vec::new();
+        let mut files: Vec<std::ffi::CString> = Vec::new();
 
         if gen_expand_wildcards_vec(num_pat, pats, &mut files, flags) != OK {
             return FAIL;
         }
 
-        callback.invoke(&files, all);
-
-        crate::path::clear_cstrings(&mut files);
+        let file_ptrs: Vec<*mut c_char> = files.iter().map(|s| s.as_ptr().cast_mut()).collect();
+        callback.invoke(&file_ptrs, all);
 
         OK
     }
@@ -1705,15 +1703,9 @@ pub unsafe fn add_pack_start_dirs() {
 
 unsafe fn pack_has_entries(buf: *mut c_char) -> bool {
     unsafe {
-        let mut files: Vec<*mut c_char> = Vec::new();
+        let mut files: Vec<std::ffi::CString> = Vec::new();
         let mut pat = [buf];
-        if gen_expand_wildcards_vec(1, pat.as_mut_ptr(), &mut files, EW_DIR) == OK {
-            let has_entries = !files.is_empty();
-            crate::path::clear_cstrings(&mut files);
-            has_entries
-        } else {
-            false
-        }
+        gen_expand_wildcards_vec(1, pat.as_mut_ptr(), &mut files, EW_DIR) == OK && !files.is_empty()
     }
 }
 

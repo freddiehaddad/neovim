@@ -81,7 +81,7 @@ use crate::math::{FAIL, OK};
 pub struct ff_stack_T {
     pub ffs_fix_path: NvimString,
     pub ffs_wc_path: NvimString,
-    pub ffs_filearray: Vec<*mut c_char>,
+    pub ffs_filearray: Vec<std::ffi::CString>,
     pub ffs_filearray_cur: usize,
     pub ffs_stage: c_int,
     pub ffs_level: c_int,
@@ -93,7 +93,6 @@ impl Drop for ff_stack_T {
         unsafe {
             api_clear_string(&mut self.ffs_fix_path);
             api_clear_string(&mut self.ffs_wc_path);
-            crate::path::clear_cstrings(&mut self.ffs_filearray);
         }
     }
 }
@@ -668,9 +667,7 @@ pub unsafe fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<s
                     }
 
                     if path_with_url(dirptrs[0]) != 0 {
-                        (*stackp).ffs_filearray = vec![crate::path::alloc_cstring_bytes(
-                            xstrnsave(dirptrs[0], file_path.size).as_bytes(),
-                        )];
+                        (*stackp).ffs_filearray = vec![xstrnsave(dirptrs[0], file_path.size)];
                     } else {
                         expand_wildcards_vec(
                             if dirptrs[1].is_null() { 1 } else { 2 },
@@ -692,11 +689,11 @@ pub unsafe fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<s
                 if (*stackp).ffs_stage == 0 {
                     if *rest_of_wildcards.data == NUL {
                         for i in (*stackp).ffs_filearray_cur..(*stackp).ffs_filearray.len() {
-                            let entry = (*stackp).ffs_filearray.as_slice()[i];
+                            let entry = (*stackp).ffs_filearray.as_slice()[i].as_ptr().cast_mut();
                             if path_with_url(entry) == 0 && !os_isdir(entry) {
                                 continue;
                             }
-                            let mut len = CStr::from_ptr(entry).to_bytes().len();
+                            let mut len = (*stackp).ffs_filearray.as_slice()[i].as_bytes().len();
                             if len + 1 + search_ctx.ffsc_file_to_search.size >= MAXPATHL {
                                 break 'upward;
                             }
@@ -778,7 +775,9 @@ pub unsafe fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<s
                         }
                     } else {
                         for i in (*stackp).ffs_filearray_cur..(*stackp).ffs_filearray.len() {
-                            let entry = (*stackp).ffs_filearray.as_slice()[i];
+                            let entry = (*stackp).ffs_filearray.as_slice()[i].as_ptr();
+                            let entry_len =
+                                (*stackp).ffs_filearray.as_slice()[i].as_bytes().len();
                             if !os_isdir(entry) {
                                 continue;
                             }
@@ -786,7 +785,7 @@ pub unsafe fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<s
                                 search_ctx,
                                 ff_create_stack_element(
                                     entry,
-                                    CStr::from_ptr(entry).to_bytes().len(),
+                                    entry_len,
                                     rest_of_wildcards.data,
                                     rest_of_wildcards.size,
                                     (*stackp).ffs_level - 1,
@@ -803,7 +802,8 @@ pub unsafe fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<s
                     && *(*stackp).ffs_wc_path.data.add(1) == b'*' as c_char
                 {
                     for i in (*stackp).ffs_filearray_cur..(*stackp).ffs_filearray.len() {
-                        let entry = (*stackp).ffs_filearray.as_slice()[i];
+                        let entry = (*stackp).ffs_filearray.as_slice()[i].as_ptr();
+                        let entry_len = (*stackp).ffs_filearray.as_slice()[i].as_bytes().len();
                         if path_equal(entry, (*stackp).ffs_fix_path.data, kPathCmpLiteral) {
                             continue;
                         }
@@ -814,7 +814,7 @@ pub unsafe fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<s
                             search_ctx,
                             ff_create_stack_element(
                                 entry,
-                                CStr::from_ptr(entry).to_bytes().len(),
+                                entry_len,
                                 (*stackp).ffs_wc_path.data,
                                 (*stackp).ffs_wc_path.size,
                                 (*stackp).ffs_level - 1,

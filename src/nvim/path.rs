@@ -45,6 +45,31 @@ pub unsafe fn clear_cstrings(strings: &mut Vec<*mut c_char>) {
     }
 }
 
+pub unsafe fn remove_duplicate_cstrings(fnames: &mut Vec<std::ffi::CString>) {
+    if fnames.is_empty() {
+        return;
+    }
+    unsafe {
+        fnames.sort_by(|a, b| {
+            let cmp = crate::strings::strcmp(a.as_ptr(), b.as_ptr());
+            if cmp < 0 {
+                Ordering::Less
+            } else if cmp > 0 {
+                Ordering::Greater
+            } else {
+                Ordering::Equal
+            }
+        });
+        let mut i = fnames.len() - 1;
+        while i > 0 {
+            if path_equal(fnames[i - 1].as_ptr(), fnames[i].as_ptr(), kPathCmpLiteral) {
+                fnames.remove(i);
+            }
+            i -= 1;
+        }
+    }
+}
+
 pub unsafe fn remove_duplicate_strings(fnames: &mut Vec<*mut c_char>) {
     if fnames.is_empty() {
         return;
@@ -626,12 +651,16 @@ unsafe fn scandir_next_with_dots(dir: *mut Directory) -> *const c_char {
     }
 }
 
-unsafe fn path_expand(gap: &mut Vec<*mut c_char>, path: *const c_char, flags: c_int) -> usize {
+unsafe fn path_expand(
+    gap: &mut Vec<std::ffi::CString>,
+    path: *const c_char,
+    flags: c_int,
+) -> usize {
     unsafe { do_path_expand(gap, path, 0, flags, false) }
 }
 
 unsafe fn do_path_expand(
-    gap: &mut Vec<*mut c_char>,
+    gap: &mut Vec<std::ffi::CString>,
     path: *const c_char,
     wildoff: usize,
     flags: c_int,
@@ -814,8 +843,8 @@ unsafe fn do_path_expand(
 
         let matches = gap.len() - start_len;
         if matches > 0 && !got_int {
-            gap[start_len..].sort_by(|&a, &b| {
-                let cmp = path_cmp(p_fic != 0, a, b, MAXPATHL);
+            gap[start_len..].sort_by(|a, b| {
+                let cmp = path_cmp(p_fic != 0, a.as_ptr(), b.as_ptr(), MAXPATHL);
                 if cmp < 0 {
                     Ordering::Less
                 } else if cmp > 0 {
@@ -847,15 +876,16 @@ unsafe fn find_previous_pathsep(path: *mut c_char, psep: *mut *mut c_char) -> c_
     }
 }
 
-unsafe fn is_unique(maybe_unique: *mut c_char, gap: &[*mut c_char], i: usize) -> bool {
+unsafe fn is_unique(maybe_unique: *mut c_char, gap: &[std::ffi::CString], i: usize) -> bool {
     unsafe {
         let candidate_len = CStr::from_ptr(maybe_unique).to_bytes().len();
 
-        for (j, &other) in gap.iter().enumerate() {
+        for (j, other_cstr) in gap.iter().enumerate() {
             if j == i {
                 continue;
             }
-            let other_path_len = CStr::from_ptr(other).to_bytes().len();
+            let other = other_cstr.as_ptr();
+            let other_path_len = other_cstr.as_bytes().len();
             if other_path_len < candidate_len {
                 continue;
             }
@@ -969,7 +999,7 @@ unsafe fn get_path_cutoff(fname: *mut c_char, gap: &[std::ffi::CString]) -> *mut
 }
 
 unsafe fn uniquefy_paths(
-    gap: &mut Vec<*mut c_char>,
+    gap: &mut Vec<std::ffi::CString>,
     pattern: *mut c_char,
     path_option: *mut c_char,
 ) {
@@ -977,7 +1007,7 @@ unsafe fn uniquefy_paths(
         let mut sort_again = false;
         let mut path_ga: Vec<std::ffi::CString> = Vec::new();
 
-        remove_duplicate_strings(gap);
+        remove_duplicate_cstrings(gap);
 
         let mut len = CStr::from_ptr(pattern).to_bytes().len();
         let mut file_pattern = Vec::with_capacity(len + 2);
@@ -1016,18 +1046,15 @@ unsafe fn uniquefy_paths(
             if got_int {
                 break;
             }
-            let path = gap[i];
+            let path = gap[i].as_ptr().cast_mut();
             let dir_end = gettail_dir(path);
 
-            len = CStr::from_ptr(path).to_bytes().len();
+            len = gap[i].as_bytes().len();
             let dir_len = dir_end.offset_from(path) as usize;
             let is_in_curdir =
                 path_cmp(p_fic != 0, curdir, path, dir_len) == 0 && *curdir.add(dir_len) == NUL;
             if is_in_curdir {
-                in_curdir[i] = Some(
-                    std::ffi::CString::new(std::slice::from_raw_parts(path.cast::<u8>(), len))
-                        .unwrap_or_default(),
-                );
+                in_curdir[i] = Some(gap[i].clone());
             }
 
             let path_cutoff = get_path_cutoff(path, &path_ga);
@@ -1040,8 +1067,7 @@ unsafe fn uniquefy_paths(
                 && is_unique(path_cutoff, gap, i)
             {
                 sort_again = true;
-                let cutoff_len = CStr::from_ptr(path_cutoff).to_bytes().len();
-                ptr::copy(path_cutoff, path, cutoff_len + 1);
+                gap[i] = CStr::from_ptr(path_cutoff).to_owned();
             } else {
                 let mut pathsep_p = path.add(len.saturating_sub(1));
                 while find_previous_pathsep(path, &mut pathsep_p) != 0 {
@@ -1052,23 +1078,27 @@ unsafe fn uniquefy_paths(
                         && candidate >= path_cutoff
                     {
                         sort_again = true;
-                        let move_len = path.add(len).offset_from(candidate) as usize + 1;
-                        ptr::copy(candidate, path, move_len);
+                        gap[i] = CStr::from_ptr(candidate).to_owned();
                         break;
                     }
                 }
             }
 
+            let path = gap[i].as_ptr().cast_mut();
             if path_is_absolute(path) {
                 let short_name = path_shorten_fname(path, curdir);
                 if !short_name.is_null() && short_name > path.add(1) {
+                    let rel_pathsize =
+                        1 + (PATHSEPSTR.len() - 1) + CStr::from_ptr(short_name).to_bytes().len() + 1;
+                    let mut rel_vec = vec![0 as c_char; rel_pathsize];
                     vim_snprintf!(
-                        path,
-                        MAXPATHL,
+                        rel_vec.as_mut_ptr(),
+                        rel_pathsize,
                         c".%s%s".as_ptr(),
                         PATHSEPSTR.as_ptr().cast::<c_char>(),
                         short_name,
                     );
+                    gap[i] = CStr::from_ptr(rel_vec.as_ptr()).to_owned();
                 }
             }
             os_breakcheck();
@@ -1088,9 +1118,7 @@ unsafe fn uniquefy_paths(
                 short_name = path;
             }
             if is_unique(short_name, gap, i) {
-                let new_p = alloc_cstring(short_name);
-                free_cstring(gap[i]);
-                gap[i] = new_p;
+                gap[i] = CStr::from_ptr(short_name).to_owned();
                 continue;
             }
 
@@ -1105,8 +1133,7 @@ unsafe fn uniquefy_paths(
                 short_name,
             );
 
-            free_cstring(gap[i]);
-            gap[i] = alloc_cstring(rel_vec.as_ptr());
+            gap[i] = CStr::from_ptr(rel_vec.as_ptr()).to_owned();
             sort_again = true;
             os_breakcheck();
         }
@@ -1114,7 +1141,7 @@ unsafe fn uniquefy_paths(
         vim_regfree(regmatch.regprog);
 
         if sort_again {
-            remove_duplicate_strings(gap);
+            remove_duplicate_cstrings(gap);
         }
     }
 }
@@ -1144,7 +1171,11 @@ pub unsafe fn gettail_dir(fname: *const c_char) -> *const c_char {
     }
 }
 
-unsafe fn expand_in_path(gap: &mut Vec<*mut c_char>, pattern: *mut c_char, flags: c_int) -> c_int {
+unsafe fn expand_in_path(
+    gap: &mut Vec<std::ffi::CString>,
+    pattern: *mut c_char,
+    flags: c_int,
+) -> c_int {
     unsafe {
         let mut path_ga: Vec<std::ffi::CString> = Vec::new();
         let path_option = if *(*curbuf).b_p_path == NUL {
@@ -1182,13 +1213,19 @@ unsafe fn expand_in_path(gap: &mut Vec<*mut c_char>, pattern: *mut c_char, flags
         if (flags & EW_ADDSLASH) != 0 {
             glob_flags |= WILD_ADD_SLASH;
         }
+        let mut raw_gap: Vec<*mut c_char> = Vec::new();
         globpath(
             paths.as_ptr().cast_mut(),
             pattern,
-            gap,
+            &mut raw_gap,
             glob_flags,
             (flags & EW_CDPATH) != 0,
         );
+        for p in raw_gap {
+            if let Some(s) = take_cstring(p) {
+                gap.push(s);
+            }
+        }
 
         gap.len() as c_int
     }
@@ -1251,7 +1288,7 @@ unsafe fn has_special_wildchar(mut p: *const c_char, flags: c_int) -> bool {
 pub unsafe fn gen_expand_wildcards_vec(
     num_pat: c_int,
     pat: *mut *mut c_char,
-    file: &mut Vec<*mut c_char>,
+    file: &mut Vec<std::ffi::CString>,
     flags: c_int,
 ) -> c_int {
     unsafe {
@@ -1298,7 +1335,7 @@ pub unsafe fn gen_expand_wildcards_vec(
                 add_pat = expand_backtick(file, p, flags);
                 if add_pat == -1 {
                     EXPAND_RECURSIVE = false;
-                    clear_cstrings(file);
+                    file.clear();
                     return FAIL;
                 }
             } else {
@@ -1309,7 +1346,7 @@ pub unsafe fn gen_expand_wildcards_vec(
                     #[cfg(unix)]
                     if has_env_var(p) || *p == b'~' as c_char {
                         drop(p_owned);
-                        clear_cstrings(file);
+                        file.clear();
                         let res =
                             os_expand_wildcards(num_pat, pat, file, flags | EW_KEEPDOLLAR);
                         EXPAND_RECURSIVE = false;
@@ -1370,7 +1407,7 @@ pub unsafe fn gen_expand_wildcards_vec(
 pub unsafe fn expand_wildcards_vec(
     num_pat: c_int,
     pat: *mut *mut c_char,
-    files: &mut Vec<*mut c_char>,
+    files: &mut Vec<std::ffi::CString>,
     flags: c_int,
 ) -> c_int {
     unsafe {
@@ -1381,24 +1418,17 @@ pub unsafe fn expand_wildcards_vec(
         }
 
         if *p_wig != NUL {
-            let mut i = 0;
-            while i < files.len() {
-                let fi = files[i];
+            files.retain(|fi_cstr| {
+                let fi = fi_cstr.as_ptr().cast_mut();
                 let ffname = FullName_save(fi, false).unwrap_or_default();
-                debug_assert!(!fi.is_null());
-                if match_file_list(p_wig, fi, ffname.as_ptr().cast_mut()) {
-                    free_cstring(fi);
-                    files.remove(i);
-                } else {
-                    i += 1;
-                }
-            }
+                !match_file_list(p_wig, fi, ffname.as_ptr().cast_mut())
+            });
         }
 
         if files.len() > 1 && !got_int {
             let mut non_suf_match = 0;
             for i in 0..files.len() {
-                let fi = files[i];
+                let fi = files[i].as_ptr().cast_mut();
                 if !match_suffix(fi) {
                     files[non_suf_match..=i].rotate_right(1);
                     non_suf_match += 1;
@@ -1424,7 +1454,11 @@ unsafe fn vim_backtick(p: *const c_char) -> bool {
     }
 }
 
-unsafe fn expand_backtick(gap: &mut Vec<*mut c_char>, pat: *mut c_char, flags: c_int) -> c_int {
+unsafe fn expand_backtick(
+    gap: &mut Vec<std::ffi::CString>,
+    pat: *mut c_char,
+    flags: c_int,
+) -> c_int {
     unsafe {
         let mut cnt: c_int = 0;
         let pat_len = CStr::from_ptr(pat).to_bytes().len();
@@ -1534,7 +1568,7 @@ pub unsafe fn path_to_slash_save(p: *const c_char) -> Option<std::ffi::CString> 
     }
 }
 
-pub unsafe fn addfile(gap: &mut Vec<*mut c_char>, f: *mut c_char, flags: c_int) {
+pub unsafe fn addfile(gap: &mut Vec<std::ffi::CString>, f: *mut c_char, flags: c_int) {
     unsafe {
         let mut file_info: FileInfo = FileInfo::new();
 
@@ -1572,7 +1606,7 @@ pub unsafe fn addfile(gap: &mut Vec<*mut c_char>, f: *mut c_char, flags: c_int) 
         if isdir && (flags & EW_ADDSLASH) != 0 {
             add_pathsep(buf.as_mut_ptr());
         }
-        gap.push(alloc_cstring(buf.as_ptr()));
+        gap.push(CStr::from_ptr(buf.as_ptr()).to_owned());
     }
 }
 
@@ -2058,7 +2092,7 @@ pub unsafe fn path_shorten_fname(full_path: *mut c_char, dir_name: *mut c_char) 
 
 pub unsafe fn expand_wildcards_eval(
     pat: *mut *mut c_char,
-    file: &mut Vec<*mut c_char>,
+    file: &mut Vec<std::ffi::CString>,
     flags: c_int,
 ) -> c_int {
     unsafe {
@@ -2106,7 +2140,7 @@ pub unsafe fn expand_wildcards_eval(
             && is_cur_alt_file
             && star_follows
         {
-            file.push(alloc_cstring_bytes(ep.as_bytes()));
+            file.push(ep);
             ret = OK;
         }
         drop(exp_pat_owned);

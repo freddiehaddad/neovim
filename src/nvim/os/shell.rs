@@ -114,7 +114,11 @@ unsafe extern "system" {
 }
 
 #[cfg(unix)]
-unsafe fn save_patterns(num_pat: c_int, pat: *mut *mut c_char, file: &mut Vec<*mut c_char>) {
+unsafe fn save_patterns(
+    num_pat: c_int,
+    pat: *mut *mut c_char,
+    file: &mut Vec<std::ffi::CString>,
+) {
     unsafe {
         file.clear();
         file.reserve(num_pat as usize);
@@ -125,7 +129,7 @@ unsafe fn save_patterns(num_pat: c_int, pat: *mut *mut c_char, file: &mut Vec<*m
                 .map(|&b| b as c_char)
                 .collect();
             backslash_halve(v.as_mut_ptr());
-            file.push(crate::path::alloc_cstring(v.as_ptr()));
+            file.push(CStr::from_ptr(v.as_ptr()).to_owned());
         }
     }
 }
@@ -159,7 +163,7 @@ unsafe fn have_dollars(num: c_int, file: *mut *mut c_char) -> bool {
 pub unsafe fn os_expand_wildcards(
     num_pat: c_int,
     pat: *mut *mut c_char,
-    file: &mut Vec<*mut c_char>,
+    file: &mut Vec<std::ffi::CString>,
     flags: c_int,
 ) -> c_int {
     const SH_VIMGLOB_FUNC: &CStr =
@@ -539,7 +543,7 @@ pub unsafe fn os_expand_wildcards(
             if dir {
                 add_pathsep(new_vec.as_mut_ptr());
             }
-            file.push(crate::path::alloc_cstring(new_vec.as_ptr()));
+            file.push(CStr::from_ptr(new_vec.as_ptr()).to_owned());
         }
         drop(buffer_vec);
 

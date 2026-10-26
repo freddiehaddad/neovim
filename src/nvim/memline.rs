@@ -16,7 +16,7 @@ use crate::dialog::do_dialog;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later};
 use crate::eval::typval::{
     dict_T, list_T, tv_clear, tv_dict_add_nr, tv_dict_add_str_len, tv_list_alloc_ret,
-    tv_list_append_allocated_string, tv_list_first, tv_list_len, typval_T,
+    tv_list_first, tv_list_len, typval_T,
 };
 use crate::eval::vars::{VV_SWAPCHOICE, VV_SWAPNAME, get_vim_var_str, set_vim_var_string};
 use crate::fileio::{
@@ -1550,7 +1550,7 @@ pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mu
                 }
             }
 
-            let mut files: Vec<*mut c_char> = Vec::new();
+            let mut files: Vec<std::ffi::CString> = Vec::new();
             if !names_vec.is_empty() {
                 let mut name_ptrs: Vec<*mut c_char> =
                     names_vec.iter().map(|s| s.as_ptr().cast_mut()).collect();
@@ -1570,14 +1570,7 @@ pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mu
             };
 
             if let Some(cur_p) = cur_mfp_fname {
-                files.retain(|&f| {
-                    if path_equal(cur_p, f, kPathCmpFull) {
-                        crate::path::free_cstring(f);
-                        false
-                    } else {
-                        true
-                    }
-                });
+                files.retain(|f| !path_equal(cur_p, f.as_ptr(), kPathCmpFull));
             }
 
             if *dirp == NUL
@@ -1592,7 +1585,11 @@ pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mu
             }
 
             for f in files {
-                tv_list_append_allocated_string(ret_list, f);
+                crate::eval::typval::tv_list_append_string(
+                    ret_list,
+                    f.as_ptr(),
+                    f.as_bytes().len() as isize,
+                );
             }
         }
     }

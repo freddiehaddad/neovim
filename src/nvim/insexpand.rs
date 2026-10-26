@@ -2020,7 +2020,7 @@ unsafe fn ins_compl_dictionaries(
     unsafe {
         let mut dict = dict_start;
         let mut regmatch: regmatch_T = regmatch_T::new();
-        let mut files: Vec<*mut c_char> = Vec::new();
+        let mut files: Vec<std::ffi::CString> = Vec::new();
         let mut count: c_int;
         let mut dir = compl_direction;
 
@@ -2092,15 +2092,17 @@ unsafe fn ins_compl_dictionaries(
                         &raw mut dir,
                     );
                 } else {
+                    let file_ptrs: Vec<*mut c_char> =
+                        files.iter().map(|s| s.as_ptr().cast_mut()).collect();
                     ins_compl_files(
-                        &files,
+                        &file_ptrs,
                         thesaurus,
                         flags,
                         &raw mut regmatch,
                         buf,
                         &raw mut dir,
                     );
-                    crate::path::clear_cstrings(&mut files);
+                    files.clear();
                 }
             }
             if flags != 0 {
@@ -4301,9 +4303,15 @@ unsafe fn get_next_filename_completion() {
             flags |= EW_PATH;
         }
         let mut pat_ptr = compl_pattern_ptr();
-        if expand_wildcards_vec(1, &raw mut pat_ptr, &mut matches, flags) != OK {
+        let mut cstr_matches: Vec<std::ffi::CString> = Vec::new();
+        if expand_wildcards_vec(1, &raw mut pat_ptr, &mut cstr_matches, flags) != OK {
             return;
         }
+        matches.extend(
+            cstr_matches
+                .into_iter()
+                .map(|s| crate::path::alloc_cstring_bytes(s.as_bytes())),
+        );
 
         tilde_replace(compl_pattern_ptr(), &mut matches);
         #[cfg(windows)]

@@ -4386,7 +4386,15 @@ unsafe fn expand_files_and_dirs(
             if (options & WILD_ICASE) != 0 {
                 flags |= EW_ICASE;
             }
-            expand_wildcards_eval(&raw mut pat, matches, flags)
+            let mut cstr_matches: Vec<std::ffi::CString> = Vec::new();
+            let r = expand_wildcards_eval(&raw mut pat, &mut cstr_matches, flags);
+            matches.clear();
+            matches.extend(
+                cstr_matches
+                    .into_iter()
+                    .map(|s| crate::path::alloc_cstring_bytes(s.as_bytes())),
+            );
+            r
         };
         drop(pat_owned);
         #[cfg(windows)]
@@ -5182,7 +5190,7 @@ unsafe fn expand_shellcmd_onedir(
     gap: &mut Vec<*mut c_char>,
 ) {
     unsafe {
-        let mut dir_matches: Vec<*mut c_char> = Vec::new();
+        let mut dir_matches: Vec<std::ffi::CString> = Vec::new();
         if expand_wildcards_vec(1, &raw mut pathed_pattern, &mut dir_matches, flags) != OK {
             return;
         }
@@ -5190,16 +5198,15 @@ unsafe fn expand_shellcmd_onedir(
         gap.reserve(dir_matches.len());
 
         for name in dir_matches {
-            let namelen = strlen(name);
+            let name_bytes = name.as_bytes();
+            let namelen = name_bytes.len();
 
             if namelen > pathlen {
-                let tail_bytes =
-                    std::slice::from_raw_parts(name.add(pathlen).cast::<u8>(), namelen - pathlen);
+                let tail_bytes = &name_bytes[pathlen..];
                 if found_ht.insert(tail_bytes.to_vec()) {
                     gap.push(crate::path::alloc_cstring_bytes(tail_bytes));
                 }
             }
-            crate::path::free_cstring(name);
         }
     }
 }

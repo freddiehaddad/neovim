@@ -4603,7 +4603,7 @@ unsafe fn put_node(
 /// ":mkspell [-ascii] addfile"
 pub unsafe fn ex_mkspell(eap: *mut exarg_T) {
     unsafe {
-        let mut fnames: Vec<*mut c_char> = Vec::new();
+        let mut fnames: Vec<std::ffi::CString> = Vec::new();
         let mut arg = (*eap).arg;
         let mut ascii = false;
 
@@ -4616,8 +4616,8 @@ pub unsafe fn ex_mkspell(eap: *mut exarg_T) {
             return;
         }
 
-        mkspell(&fnames, ascii, (*eap).forceit != 0, false);
-        crate::path::clear_cstrings(&mut fnames);
+        let fname_ptrs: Vec<*mut c_char> = fnames.iter().map(|s| s.as_ptr().cast_mut()).collect();
+        mkspell(&fname_ptrs, ascii, (*eap).forceit != 0, false);
     }
 }
 

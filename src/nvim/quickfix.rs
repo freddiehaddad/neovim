@@ -482,7 +482,7 @@ struct vgr_args_T {
     tomatch: c_int,
     spat: *mut c_char,
     flags: c_int,
-    fnames: Vec<*mut c_char>,
+    fnames: Vec<std::ffi::CString>,
     regmatch: regmmatch_T,
     qf_title: Option<std::ffi::CString>,
 }
@@ -503,14 +503,6 @@ impl vgr_args_T {
 impl Default for vgr_args_T {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Drop for vgr_args_T {
-    fn drop(&mut self) {
-        unsafe {
-            crate::path::clear_cstrings(&mut self.fnames);
-        }
     }
 }
 
@@ -5812,7 +5804,7 @@ unsafe fn vgr_process_files(
         let mut fi: usize = 0;
         let mut aborted = false;
         while fi < (*cmd_args).fnames.len() && !got_int && (*cmd_args).tomatch > 0 {
-            let fname_exp = (*cmd_args).fnames.as_slice()[fi];
+            let fname_exp = (*cmd_args).fnames.as_slice()[fi].as_ptr().cast_mut();
             let fname = path_try_shorten_fname(fname_exp);
             let now = os_time() as time_t;
             if now > seconds {
@@ -7706,18 +7698,19 @@ unsafe fn hgr_search_files_in_dir(
     lang: *const c_char,
 ) {
     unsafe {
-        let mut fnames: Vec<*mut c_char> = Vec::new();
+        let mut fnames: Vec<std::ffi::CString> = Vec::new();
 
         add_pathsep(dirname);
         c_strcat(dirname, c"doc/*.\\(txt\\|??x\\)".as_ptr());
         if gen_expand_wildcards_vec(1, &raw mut dirname, &mut fnames, EW_FILE | EW_SILENT) == OK
             && !fnames.is_empty()
         {
-            for &f in &fnames {
+            for f_cstr in &fnames {
                 if got_int {
                     break;
                 }
-                let flen = strlen(f);
+                let f = f_cstr.as_ptr().cast_mut();
+                let flen = f_cstr.as_bytes().len();
                 if !lang.is_null()
                     && flen >= 3
                     && vim_strnicmp_asc(lang, f.add(flen - 3), 2) != 0
@@ -7729,7 +7722,6 @@ unsafe fn hgr_search_files_in_dir(
 
                 hgr_search_file(qfl, f, p_regmatch);
             }
-            crate::path::clear_cstrings(&mut fnames);
         }
     }
 }

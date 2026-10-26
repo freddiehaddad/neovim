@@ -190,27 +190,21 @@ pub unsafe fn alist_new() {
 }
 
 /// Set the argument list for the current window (`alist_set`).
-unsafe fn alist_set(al: *mut alist_T, mut files: Vec<*mut c_char>, use_curbuf: c_int) {
+unsafe fn alist_set(al: *mut alist_T, files: Vec<CString>, use_curbuf: c_int) {
     unsafe {
         if check_arglist_locked() == FAIL {
-            crate::path::clear_cstrings(&mut files);
             return;
         }
 
         alist_clear(al);
         (*al).al_ga.reserve(files.len());
-        let mut iter = files.into_iter();
-        while let Some(fname) = iter.next() {
+        for fname in files {
             if got_int {
-                crate::path::free_cstring(fname);
-                for rest in iter {
-                    crate::path::free_cstring(rest);
-                }
                 break;
             }
 
-            if let Some(ae_fname) = crate::path::take_cstring(fname) {
-                alist_add(al, ae_fname, if use_curbuf != 0 { 2 } else { 1 });
+            if !fname.as_bytes().is_empty() {
+                alist_add(al, fname, if use_curbuf != 0 { 2 } else { 1 });
             }
             os_breakcheck();
         }
@@ -298,7 +292,7 @@ unsafe fn get_arglist(gap: &mut Vec<*mut c_char>, mut str_: *mut c_char, escaped
 /// Parse a list of arguments (file names), expand them and return in `fnames` (`get_arglist_exp`).
 pub unsafe fn get_arglist_exp(
     str_: *mut c_char,
-    fnames: &mut Vec<*mut c_char>,
+    fnames: &mut Vec<CString>,
     wig: bool,
 ) -> c_int {
     unsafe {
@@ -341,7 +335,7 @@ unsafe fn alist_check_arg_idx() {
 }
 
 /// Add `files[count]` to the arglist of the current window after arg `after` (`alist_add_list`).
-unsafe fn alist_add_list(mut files: Vec<*mut c_char>, mut after: c_int, will_edit: bool) {
+unsafe fn alist_add_list(files: Vec<CString>, mut after: c_int, will_edit: bool) {
     unsafe {
         let old_argcount = argcount();
         if check_arglist_locked() != FAIL {
@@ -354,7 +348,7 @@ unsafe fn alist_add_list(mut files: Vec<*mut c_char>, mut after: c_int, will_edi
             let mut new_entries = Vec::with_capacity(files.len());
             for f in files {
                 let flags = BLN_LISTED | if will_edit { BLN_CURBUF } else { 0 };
-                let ae_fname = crate::path::take_cstring(f);
+                let ae_fname = (!f.as_bytes().is_empty()).then_some(f);
                 let ae_fnum = buflist_add(
                     ae_fname
                         .as_ref()
@@ -370,8 +364,6 @@ unsafe fn alist_add_list(mut files: Vec<*mut c_char>, mut after: c_int, will_edi
             if old_argcount > 0 && (*wp).w_arg_idx >= after {
                 (*wp).w_arg_idx += count;
             }
-        } else {
-            crate::path::clear_cstrings(&mut files);
         }
     }
 }
@@ -425,7 +417,7 @@ unsafe fn arglist_del_files(alist_ga: &[*mut c_char]) {
 unsafe fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit: bool) -> c_int {
     unsafe {
         let mut new_ga: Vec<*mut c_char> = Vec::new();
-        let mut exp_files: Vec<*mut c_char> = Vec::new();
+        let mut exp_files: Vec<CString> = Vec::new();
         let mut arg_escaped = true;
 
         if check_arglist_locked() == FAIL {
@@ -453,7 +445,6 @@ unsafe fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit
             );
             drop(new_ga);
             if i == FAIL || exp_files.is_empty() {
-                crate::path::clear_cstrings(&mut exp_files);
                 emsg(gettext((&raw const e_nomatch).cast()));
                 return FAIL;
             }
