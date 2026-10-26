@@ -171,17 +171,17 @@ pub struct mparm_T {
     pub argc: c_int,
     pub argv: *mut *mut c_char,
 
-    pub use_vimrc: *mut c_char,
+    pub use_vimrc: Option<std::ffi::CString>,
     pub clean: bool,
 
     pub commands: Vec<std::ffi::CString>,
     pub pre_commands: Vec<std::ffi::CString>,
-    pub luaf: *mut c_char,
+    pub luaf: Option<std::ffi::CString>,
     pub lua_arg0: c_int,
 
     pub edit_type: c_int,
-    pub tagname: *mut c_char,
-    pub use_ef: *mut c_char,
+    pub tagname: Option<std::ffi::CString>,
+    pub use_ef: Option<std::ffi::CString>,
 
     pub exmode: bool,
     pub input_istext: bool,
@@ -193,11 +193,11 @@ pub struct mparm_T {
 
     pub diff_mode: c_int,
 
-    pub listen_addr: *mut c_char,
+    pub listen_addr: Option<std::ffi::CString>,
     pub remote: c_int,
-    pub server_addr: *mut c_char,
-    pub scriptin: *mut c_char,
-    pub scriptout: *mut c_char,
+    pub server_addr: Option<std::ffi::CString>,
+    pub scriptin: Option<std::ffi::CString>,
+    pub scriptout: Option<std::ffi::CString>,
     pub scriptout_append: bool,
     pub had_stdin_file: bool,
 }
@@ -207,15 +207,15 @@ impl mparm_T {
         Self {
             argc: 0,
             argv: ptr::null_mut(),
-            use_vimrc: ptr::null_mut(),
+            use_vimrc: None,
             clean: false,
             commands: Vec::new(),
             pre_commands: Vec::new(),
-            luaf: ptr::null_mut(),
+            luaf: None,
             lua_arg0: 0,
             edit_type: 0,
-            tagname: ptr::null_mut(),
-            use_ef: ptr::null_mut(),
+            tagname: None,
+            use_ef: None,
             exmode: false,
             input_istext: false,
             no_swap_file: 0,
@@ -223,11 +223,11 @@ impl mparm_T {
             window_count: 0,
             window_layout: 0,
             diff_mode: 0,
-            listen_addr: ptr::null_mut(),
+            listen_addr: None,
             remote: 0,
-            server_addr: ptr::null_mut(),
-            scriptin: ptr::null_mut(),
-            scriptout: ptr::null_mut(),
+            server_addr: None,
+            scriptin: None,
+            scriptout: None,
             scriptout_append: false,
             had_stdin_file: false,
         }
@@ -428,7 +428,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
 
         let stdin_type = uv_guess_handle(STDIN_FILENO);
         let stdio_rpc =
-            params.listen_addr.is_null() || stdin_type == UV_NAMED_PIPE || stdin_type == UV_TCP;
+            params.listen_addr.is_none() || stdin_type == UV_NAMED_PIPE || stdin_type == UV_TCP;
         if embedded_mode && stdio_rpc {
             let mut err: *const c_char = ptr::null();
             let on_data = CallbackReader::none();
@@ -453,10 +453,14 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
         let use_builtin_ui = has_term && !headless_mode && !embedded_mode && !silent_mode;
 
         if params.remote != 0 {
+            let server_addr_ptr = params
+                .server_addr
+                .as_ref()
+                .map_or(ptr::null(), |s| s.as_ptr());
             remote_request(
                 &raw mut params,
                 params.remote,
-                params.server_addr,
+                server_addr_ptr,
                 argc,
                 argv,
                 use_builtin_ui,
@@ -484,7 +488,12 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
         }
         assert!(ui_client_channel_id == 0 && !use_builtin_ui);
 
-        if !server_init(params.listen_addr) {
+        if !server_init(
+            params
+                .listen_addr
+                .as_ref()
+                .map_or(ptr::null(), |s| s.as_ptr()),
+        ) {
             #[cfg(windows)]
             if startup_stderr_fd >= 0 {
                 dup2(startup_stderr_fd, STDERR_FILENO);
@@ -557,12 +566,14 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
             params.edit_type = EDIT_STDIN;
         }
 
-        if !params.scriptin.is_null() && !open_scriptin(params.scriptin) {
+        if let Some(ref scriptin) = params.scriptin
+            && !open_scriptin(scriptin.as_ptr().cast_mut())
+        {
             os_exit(2);
         }
-        if !params.scriptout.is_null() {
+        if let Some(ref scriptout_name) = params.scriptout {
             scriptout = os_fopen(
-                params.scriptout,
+                scriptout_name.as_ptr(),
                 if params.scriptout_append {
                     c"ab".as_ptr()
                 } else {
@@ -575,7 +586,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
                     stderr,
                     gettext(c"Cannot open for script output: \"".as_ptr()),
                 );
-                fprintf!(stderr, c"%s\"\n".as_ptr(), params.scriptout);
+                fprintf!(stderr, c"%s\"\n".as_ptr(), scriptout_name.as_ptr());
                 os_exit(2);
             }
         }
@@ -583,7 +594,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
         nlua_init_defaults();
         time_msg_if_enabled(c"init default mappings & autocommands".as_ptr());
 
-        let vimrc_none = strequal(params.use_vimrc, c"NONE".as_ptr());
+        let vimrc_none = params.use_vimrc.as_deref() == Some(c"NONE");
 
         if vimrc_none && !params.clean {
             p_lpl = 0;
@@ -696,7 +707,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
 
         shorten_fnames(0);
 
-        handle_tag(params.tagname);
+        handle_tag(params.tagname.as_deref());
 
         if !params.commands.is_empty() {
             exe_commands(&raw mut params);
@@ -748,7 +759,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
             eval_has_provider(c"clipboard".as_ptr(), false);
         }
 
-        if !params.luaf.is_null() {
+        if let Some(ref luaf) = params.luaf {
             msg_scroll = 1;
             logmsg_str(
                 LOGLVL_DBG,
@@ -758,7 +769,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
                 true,
                 c"executing Lua -l script".as_ptr(),
             );
-            let lua_ok = nlua_exec_file(params.luaf);
+            let lua_ok = nlua_exec_file(luaf.as_ptr());
             time_msg_if_enabled(c"executing Lua -l script".as_ptr());
             if msg_didout {
                 msg_putchar(b'\n' as c_int);
@@ -1113,7 +1124,7 @@ unsafe fn server_connect(server_addr: *const c_char, errmsg: *mut *const c_char)
 unsafe fn remote_request(
     params: *mut mparm_T,
     remote_args: c_int,
-    server_addr: *mut c_char,
+    server_addr: *const c_char,
     argc: c_int,
     argv: *mut *mut c_char,
     ui_only: bool,
@@ -1293,7 +1304,7 @@ unsafe fn edit_stdin(parmp: *mut mparm_T) -> bool {
             && (!(*parmp).exmode || (*parmp).input_istext)
             && !stdin_isatty
             && (*parmp).edit_type <= EDIT_STDIN
-            && (*parmp).scriptin.is_null();
+            && (*parmp).scriptin.is_none();
         (*parmp).had_stdin_file || implicit
     }
 }
@@ -1384,7 +1395,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                             want_argument = true;
                             argv_idx += 11;
                         } else if strnicmp_ascii(sub, b"clean") {
-                            (*parmp).use_vimrc = c"NONE".as_ptr().cast_mut();
+                            (*parmp).use_vimrc = Some(c"NONE".to_owned());
                             (*parmp).clean = true;
                             set_option_value_give_err(
                                 kOptShadafile,
@@ -1460,7 +1471,8 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                         }
                         (*parmp).edit_type = EDIT_QF;
                         if *arg0.add(argv_idx as usize) != NUL {
-                            (*parmp).use_ef = arg0.add(argv_idx as usize);
+                            (*parmp).use_ef =
+                                Some(CStr::from_ptr(arg0.add(argv_idx as usize)).to_owned());
                             argv_idx = -1;
                         } else if argc > 1 {
                             want_argument = true;
@@ -1496,7 +1508,8 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                         }
                         (*parmp).edit_type = EDIT_TAG;
                         if *arg0.add(argv_idx as usize) != NUL {
-                            (*parmp).tagname = arg0.add(argv_idx as usize);
+                            (*parmp).tagname =
+                                Some(CStr::from_ptr(arg0.add(argv_idx as usize)).to_owned());
                             argv_idx = -1;
                         } else {
                             want_argument = true;
@@ -1598,14 +1611,14 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                                     .push(CStr::from_ptr(cur_arg).to_owned());
                             } else if strequal(prev_arg, c"--listen".as_ptr()) {
                                 to_slash_if_needed(cur_arg);
-                                (*parmp).listen_addr = cur_arg;
+                                (*parmp).listen_addr = Some(CStr::from_ptr(cur_arg).to_owned());
                             } else if strequal(prev_arg, c"--server".as_ptr()) {
                                 to_slash_if_needed(cur_arg);
-                                (*parmp).server_addr = cur_arg;
+                                (*parmp).server_addr = Some(CStr::from_ptr(cur_arg).to_owned());
                             }
                         }
                         b'q' => {
-                            (*parmp).use_ef = cur_arg;
+                            (*parmp).use_ef = Some(CStr::from_ptr(cur_arg).to_owned());
                         }
                         b'i' => {
                             set_option_value_give_err(kOptShadafile, cstr_as_obj(cur_arg), 0);
@@ -1615,8 +1628,8 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                             silent_mode = true;
                             p_verbose = 1;
                             (*parmp).no_swap_file = 1;
-                            if (*parmp).use_vimrc.is_null() {
-                                (*parmp).use_vimrc = c"NONE".as_ptr().cast_mut();
+                            if (*parmp).use_vimrc.is_none() {
+                                (*parmp).use_vimrc = Some(c"NONE".to_owned());
                             }
                             if p_shadafile.is_null() || *p_shadafile == NUL {
                                 set_option_value_give_err(
@@ -1625,7 +1638,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                                     0,
                                 );
                             }
-                            (*parmp).luaf = cur_arg;
+                            (*parmp).luaf = Some(CStr::from_ptr(cur_arg).to_owned());
                             argc -= 1;
                             if argc >= 0 {
                                 (*parmp).lua_arg0 = (*parmp).argc - argc;
@@ -1633,7 +1646,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                             }
                         }
                         b's' => {
-                            if !(*parmp).scriptin.is_null() {
+                            if (*parmp).scriptin.is_some() {
                                 vim_snprintf!(
                                     (&raw mut IObuff).cast(),
                                     IOSIZE,
@@ -1650,14 +1663,14 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                                 );
                                 os_exit(2);
                             }
-                            (*parmp).scriptin = cur_arg;
+                            (*parmp).scriptin = Some(CStr::from_ptr(cur_arg).to_owned());
                         }
                         b't' => {
-                            (*parmp).tagname = cur_arg;
+                            (*parmp).tagname = Some(CStr::from_ptr(cur_arg).to_owned());
                         }
                         b'u' => {
-                            (*parmp).use_vimrc = cur_arg;
                             to_slash_if_needed(cur_arg);
+                            (*parmp).use_vimrc = Some(CStr::from_ptr(cur_arg).to_owned());
                         }
                         b'U' => {}
                         b'w' | b'W' => {
@@ -1671,7 +1684,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                                 );
                                 argv_idx = -1;
                             } else {
-                                if !(*parmp).scriptout.is_null() {
+                                if (*parmp).scriptout.is_some() {
                                     vim_snprintf!(
                                         (&raw mut IObuff).cast(),
                                         IOSIZE,
@@ -1689,7 +1702,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                                     );
                                     os_exit(2);
                                 }
-                                (*parmp).scriptout = cur_arg;
+                                (*parmp).scriptout = Some(CStr::from_ptr(cur_arg).to_owned());
                                 (*parmp).scriptout_append = c == b'w';
                             }
                         }
@@ -1759,7 +1772,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
             }
         }
 
-        if embedded_mode && (silent_mode || !(*parmp).luaf.is_null()) {
+        if embedded_mode && (silent_mode || (*parmp).luaf.is_some()) {
             mainerr(
                 gettext(c"--embed conflicts with -es/-Es/-l".as_ptr()),
                 ptr::null(),
@@ -1805,10 +1818,10 @@ unsafe fn init_params(paramp: *mut mparm_T, argc: c_int, argv: *mut *mut c_char)
         (*paramp).argv = argv;
         (*paramp).use_debug_break_level = -1;
         (*paramp).window_count = -1;
-        (*paramp).listen_addr = ptr::null_mut();
-        (*paramp).server_addr = ptr::null_mut();
+        (*paramp).listen_addr = None;
+        (*paramp).server_addr = None;
         (*paramp).remote = 0;
-        (*paramp).luaf = ptr::null_mut();
+        (*paramp).luaf = None;
         (*paramp).lua_arg0 = -1;
     }
 }
@@ -1884,8 +1897,8 @@ unsafe fn set_window_layout(paramp: *mut mparm_T) {
 unsafe fn handle_quickfix(paramp: *mut mparm_T) {
     unsafe {
         if (*paramp).edit_type == EDIT_QF {
-            if !(*paramp).use_ef.is_null() {
-                set_option_direct(kOptErrorfile, cstr_as_obj((*paramp).use_ef), 0, SID_CARG);
+            if let Some(ref use_ef) = (*paramp).use_ef {
+                set_option_direct(kOptErrorfile, cstr_as_obj(use_ef.as_ptr()), 0, SID_CARG);
             }
             vim_snprintf!((&raw mut IObuff).cast(), IOSIZE, c"cfile %s".as_ptr(), p_ef);
             if qf_init(
@@ -1905,11 +1918,16 @@ unsafe fn handle_quickfix(paramp: *mut mparm_T) {
     }
 }
 
-unsafe fn handle_tag(tagname: *mut c_char) {
+unsafe fn handle_tag(tagname: Option<&CStr>) {
     unsafe {
-        if !tagname.is_null() {
+        if let Some(tagname) = tagname {
             swap_exists_did_quit = false;
-            vim_snprintf!((&raw mut IObuff).cast(), IOSIZE, c"ta %s".as_ptr(), tagname);
+            vim_snprintf!(
+                (&raw mut IObuff).cast(),
+                IOSIZE,
+                c"ta %s".as_ptr(),
+                tagname.as_ptr(),
+            );
             do_cmdline_cmd((&raw const IObuff).cast());
             time_msg_if_enabled(c"jumping to tag".as_ptr());
 
@@ -2220,7 +2238,7 @@ unsafe fn exe_pre_commands(parmp: *mut mparm_T) {
 unsafe fn exe_commands(parmp: *mut mparm_T) {
     unsafe {
         msg_scroll = 1;
-        if (*parmp).tagname.is_null() && (*curwin).w_cursor.lnum <= 1 {
+        if (*parmp).tagname.is_none() && (*curwin).w_cursor.lnum <= 1 {
             (*curwin).w_cursor.lnum = 0;
         }
         estack_push(ETYPE_ARGS, c"command line".as_ptr().cast_mut(), 0);
@@ -2437,15 +2455,19 @@ unsafe fn do_exrc_initialization() {
 
 unsafe fn source_startup_scripts(parmp: *const mparm_T) {
     unsafe {
-        if !(*parmp).use_vimrc.is_null() {
-            if strequal((*parmp).use_vimrc, c"NONE".as_ptr())
-                || strequal((*parmp).use_vimrc, c"NORC".as_ptr())
-            {
+        if let Some(ref use_vimrc) = (*parmp).use_vimrc {
+            if use_vimrc.as_c_str() == c"NONE" || use_vimrc.as_c_str() == c"NORC" {
                 // Do nothing.
-            } else if do_source((*parmp).use_vimrc, false, DOSO_NONE, ptr::null_mut()) != OK {
+            } else if do_source(
+                use_vimrc.as_ptr().cast_mut(),
+                false,
+                DOSO_NONE,
+                ptr::null_mut(),
+            ) != OK
+            {
                 semsg!(
                     gettext((&raw const e_cannot_read_from_str_2).cast()),
-                    (*parmp).use_vimrc,
+                    use_vimrc.as_ptr(),
                 );
             }
         } else if !silent_mode {
