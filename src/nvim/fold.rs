@@ -32,7 +32,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_adjust_cursor, ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::mcursor::mc_replaying;
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_replace_buf};
-use crate::memory::{xfree, xmalloc, xmemcpyz, xstrdup};
+use crate::memory::{cstr_take, xmemcpyz, xmemdupz};
 use crate::message::emsg;
 use crate::r#move::changed_window_setting;
 use crate::ops::skip_comment;
@@ -41,7 +41,7 @@ use crate::os::input::line_breakcheck;
 use crate::plines::plines_win_nofold;
 use crate::search::{FORWARD, linewhite};
 use crate::statusline::foldinfo_T;
-use crate::strings::{atoi, concat_str, gettext, strstr, vim_snprintf, vim_strchr};
+use crate::strings::{atoi, gettext, strstr, vim_snprintf, vim_strchr};
 use crate::syntax::syn_get_foldlevel;
 use crate::undo::u_save;
 use crate::window::win_T;
@@ -1335,7 +1335,8 @@ unsafe fn foldAddMarker(buf: *mut buf_T, pos: pos_T, marker: *const c_char, mark
 
         skip_comment(line, false, false, &mut line_is_comment);
         let cms_len = CStr::from_ptr(cms).to_bytes().len();
-        let newline = xmalloc(line_len + markerlen + cms_len + 1).cast::<c_char>();
+        let mut newline_vec = vec![0 as c_char; line_len + markerlen + cms_len + 1];
+        let newline = newline_vec.as_mut_ptr();
         ptr::copy_nonoverlapping(line, newline, line_len + 1);
         let added = if p.is_null() || line_is_comment {
             xmemcpyz(newline.add(line_len).cast(), marker.cast(), markerlen);
@@ -1352,7 +1353,7 @@ unsafe fn foldAddMarker(buf: *mut buf_T, pos: pos_T, marker: *const c_char, mark
             );
             markerlen + cms_len - 2
         };
-        ml_replace_buf(buf, lnum, newline, false, false);
+        ml_replace_buf(buf, lnum, newline, true, false);
         if added != 0 {
             extmark_splice_cols(
                 buf,
@@ -1430,13 +1431,14 @@ unsafe fn foldDelMarker(buf: *mut buf_T, lnum: linenr_T, marker: *const c_char, 
             }
             if u_save(lnum - 1, lnum + 1) == OK {
                 let orig_len = ml_get_buf_len(buf, lnum) as usize;
-                let newline = xmalloc(orig_len - len + 1).cast::<c_char>();
+                let mut newline_vec = vec![0 as c_char; orig_len - len + 1];
+                let newline = newline_vec.as_mut_ptr();
                 let before_len = (p as usize) - (line as usize);
                 ptr::copy_nonoverlapping(line, newline, before_len);
                 let after = p.add(len);
                 let after_len = CStr::from_ptr(after).to_bytes().len();
                 ptr::copy_nonoverlapping(after, newline.add(before_len), after_len + 1);
-                ml_replace_buf(buf, lnum, newline, false, false);
+                ml_replace_buf(buf, lnum, newline, true, false);
                 extmark_splice_cols(
                     buf,
                     lnum - 1,
@@ -1457,11 +1459,10 @@ pub unsafe fn get_foldtext(
     lnum: linenr_T,
     lnume: linenr_T,
     foldinfo: foldinfo_T,
-    buf: *mut c_char,
     vt: *mut VirtText,
-) -> *mut c_char {
+) -> std::ffi::CString {
     unsafe {
-        let mut text: *mut c_char = ptr::null_mut();
+        let mut text: Option<std::ffi::CString> = None;
         let save_did_emsg = did_emsg;
 
         if last_wp.is_null() || !ptr::eq(last_wp, wp) || fdt_last_lnum > lnum || fdt_last_lnum == 0
@@ -1503,12 +1504,11 @@ pub unsafe fn get_foldtext(
                     };
                     *vt = parse_virt_text(obj.data.array, &mut err, ptr::null_mut(), false);
                     if err.err_type == ErrorType::kErrorTypeNone {
-                        *buf = NUL;
-                        text = buf;
+                        text = Some(std::ffi::CString::default());
                     }
                     api_clear_error(&mut err);
                 } else if obj.obj_type == ObjectType::kObjectTypeString {
-                    text = obj.data.string.data;
+                    text = cstr_take(obj.data.string.data);
                     obj = Object {
                         obj_type: ObjectType::kObjectTypeNil,
                         data: ObjectData { integer: 0 },
@@ -1518,7 +1518,7 @@ pub unsafe fn get_foldtext(
 
                 emsg_off -= 1;
 
-                if text.is_null() || did_emsg != 0 {
+                if text.is_none() || did_emsg != 0 {
                     got_fdt_error = true;
                 }
 
@@ -1534,8 +1534,9 @@ pub unsafe fn get_foldtext(
                 did_emsg = save_did_emsg;
             }
 
-            if !text.is_null() {
-                let mut p = text;
+            if let Some(t) = text.take() {
+                let mut bytes = t.into_bytes_with_nul();
+                let mut p = bytes.as_mut_ptr().cast::<c_char>();
                 while *p != NUL {
                     let len = utfc_ptr2len(p);
                     if len > 1 {
@@ -1550,17 +1551,18 @@ pub unsafe fn get_foldtext(
                     }
                     p = p.add(1);
                 }
-                if *p != NUL {
-                    let new_p = transstr(text, true);
-                    xfree(text.cast());
-                    text = new_p;
-                }
+                text = if *p != NUL {
+                    cstr_take(transstr(bytes.as_ptr().cast::<c_char>(), true))
+                } else {
+                    Some(CStr::from_bytes_with_nul(&bytes).unwrap().to_owned())
+                };
             }
         }
-        if text.is_null() {
+        text.unwrap_or_else(|| {
+            let mut buf = [0 as c_char; FOLD_TEXT_LEN];
             let count = lnume - lnum + 1;
             vim_snprintf!(
-                buf,
+                buf.as_mut_ptr(),
                 FOLD_TEXT_LEN,
                 ngettext(
                     c"+--%3d line folded".as_ptr(),
@@ -1569,9 +1571,8 @@ pub unsafe fn get_foldtext(
                 ),
                 count,
             );
-            text = buf;
-        }
-        text
+            CStr::from_ptr(buf.as_ptr()).to_owned()
+        })
     }
 }
 
@@ -2802,12 +2803,14 @@ pub unsafe fn f_foldtext(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
                 + CStr::from_ptr(dashes).to_bytes().len()
                 + 20
                 + s_len;
-            let r = xmalloc(len).cast::<c_char>();
+            let mut r_vec = vec![0 as c_char; len];
+            let r = r_vec.as_mut_ptr();
             vim_snprintf!(r, len, txt, dashes, count);
             let r_len = CStr::from_ptr(r).to_bytes().len();
             ptr::copy_nonoverlapping(s, r.add(r_len), s_len + 1);
             foldtext_cleanup(r.add(r_len));
-            (*rettv).vval.v_string = r;
+            (*rettv).vval.v_string =
+                xmemdupz(r.cast(), CStr::from_ptr(r).to_bytes().len()).cast::<c_char>();
         }
     }
 }
@@ -2815,8 +2818,6 @@ pub unsafe fn f_foldtext(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
 /// "foldtextresult(lnum)" function
 pub unsafe fn f_foldtextresult(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let mut buf = [0 as c_char; FOLD_TEXT_LEN];
-
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval.v_string = ptr::null_mut();
         if fdt_result_entered {
@@ -2828,19 +2829,10 @@ pub unsafe fn f_foldtextresult(argvars: *mut typval_T, rettv: *mut typval_T, _fp
         let info = fold_info(curwin, lnum);
         if info.fi_lines > 0 {
             let mut vt: VirtText = Vec::new();
-            let mut text = get_foldtext(
-                curwin,
-                lnum,
-                lnum + info.fi_lines - 1,
-                info,
-                buf.as_mut_ptr(),
-                &mut vt,
-            );
-            if ptr::eq(text, buf.as_ptr()) {
-                text = xstrdup(text);
-            }
+            let mut text_bytes =
+                get_foldtext(curwin, lnum, lnum + info.fi_lines - 1, info, &mut vt).into_bytes();
             if !vt.is_empty() {
-                debug_assert_eq!(*text, NUL);
+                debug_assert!(text_bytes.is_empty());
                 let mut i: usize = 0;
                 while i < vt.len() {
                     let mut attr: c_int = 0;
@@ -2848,12 +2840,11 @@ pub unsafe fn f_foldtextresult(argvars: *mut typval_T, rettv: *mut typval_T, _fp
                     if new_text.is_null() {
                         break;
                     }
-                    let joined = concat_str(text, new_text);
-                    xfree(text.cast());
-                    text = joined;
+                    text_bytes.extend_from_slice(CStr::from_ptr(new_text).to_bytes());
                 }
             }
-            (*rettv).vval.v_string = text;
+            (*rettv).vval.v_string =
+                xmemdupz(text_bytes.as_ptr().cast(), text_bytes.len()).cast::<c_char>();
         }
 
         fdt_result_entered = false;

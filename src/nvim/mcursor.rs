@@ -56,7 +56,7 @@ use crate::marktree::{
     marktree_itr_current, marktree_itr_get, marktree_itr_next, mt_end,
 };
 use crate::memline::{dec, inc, ml_get_len, ml_region_text};
-use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xstrdup};
+use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_take};
 use crate::menu::save_state_T;
 use crate::r#move::{
     restore_viewstate, save_viewstate, set_topline, update_curswant, update_topline,
@@ -1066,17 +1066,16 @@ unsafe fn mc_ins_span_flush(ins: *const NvimString, commit: bool) {
     }
 }
 
-unsafe fn mc_reg_read(reg: c_int) -> *mut c_char {
+unsafe fn mc_reg_read(reg: c_int) -> std::ffi::CString {
     unsafe {
-        let s = get_reg_contents_str(reg, 0);
-        if s.is_null() {
-            return xstrdup(c"".as_ptr());
+        let Some(s) = cstr_take(get_reg_contents_str(reg, 0)) else {
+            return std::ffi::CString::default();
+        };
+        let mut bytes = s.into_bytes();
+        if bytes.last() == Some(&(NL as u8)) {
+            bytes.pop();
         }
-        let len = strlen(s);
-        if len > 0 && *s.add(len - 1) == NL as c_char {
-            *s.add(len - 1) = 0;
-        }
-        s
+        std::ffi::CString::new(bytes).unwrap_or_default()
     }
 }
 
@@ -1139,14 +1138,16 @@ unsafe fn mc_reg_gather() {
             while MC_REGS[idx] != 0 {
                 if gather[idx] {
                     let text = mc_reg_read(c_int::from(MC_REGS[idx]));
-                    if *text != 0 {
+                    let text_bytes = text.to_bytes();
+                    if !text_bytes.is_empty() {
                         if !joined[idx].is_empty() {
                             joined[idx].push(NL as c_char);
                         }
-                        let len = strlen(text);
-                        joined[idx].extend_from_slice(std::slice::from_raw_parts(text, len));
+                        joined[idx].extend_from_slice(std::slice::from_raw_parts(
+                            text.as_ptr(),
+                            text_bytes.len(),
+                        ));
                     }
-                    xfree(text.cast());
                 }
                 idx += 1;
             }
@@ -1220,11 +1221,18 @@ unsafe fn mc_vsel_mark(
 pub unsafe fn mc_vsel_refresh() {
     unsafe {
         mc_vsel_clear();
-        let span = atom_visual_span();
-        if span.data.is_null() || span.size == 0 || !mc_buf_has_cursors(curbuf) {
-            xfree(span.data.cast());
+        let raw_span = atom_visual_span();
+        let span_cstr = cstr_take(raw_span.data);
+        let Some(ref span_cstr) = span_cstr else {
+            return;
+        };
+        if raw_span.size == 0 || !mc_buf_has_cursors(curbuf) {
             return;
         }
+        let span = NvimString {
+            data: span_cstr.as_ptr().cast_mut(),
+            size: span_cstr.to_bytes().len(),
+        };
 
         let mut sb = McSandbox::new();
         mc_sandbox_enter(&mut sb, false);
@@ -1305,7 +1313,6 @@ pub unsafe fn mc_vsel_refresh() {
         unblock_on_key();
         unblock_autocmds();
         mc_sandbox_leave(&mut sb);
-        xfree(span.data.cast());
     }
 }
 

@@ -33,7 +33,7 @@ use crate::highlight_group::{syn_id2attr, syn_name2id_len};
 use crate::keycodes::NL;
 use crate::mbyte::{ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_find_line_or_offset, ml_get_buf, ml_get_buf_len};
-use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xmemdupz, xstrlcpy};
+use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_take, xmemdupz, xstrlcpy};
 use crate::message::HLF_MSG;
 use crate::message::msg_clr_eos;
 use crate::mouse::{
@@ -1823,6 +1823,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             let mut fillable = true;
             let mut num: c_int = -1;
             let mut str: *mut c_char = ptr::null_mut();
+            let mut owned_str: Option<std::ffi::CString> = None;
 
             let mut handle_stcsign = false;
             match opt {
@@ -1898,7 +1899,10 @@ pub unsafe extern "C" fn build_stl_str_hl(
                             Visual.active = false;
                         }
 
-                        str = eval_to_string_safe(out_p, use_sandbox, false);
+                        owned_str = cstr_take(eval_to_string_safe(out_p, use_sandbox, false));
+                        str = owned_str
+                            .as_ref()
+                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
                         curwin = save_curwin;
                         curbuf = save_curbuf;
@@ -1909,7 +1913,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
 
                         if !zeropad && !str.is_null() && *str != NUL && *skipdigits(str) == NUL {
                             num = atoi(str);
-                            xfree(str.cast());
+                            owned_str = None;
                             str = ptr::null_mut();
                             itemisflag = false;
                         }
@@ -1933,7 +1937,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                             new_bytes.extend_from_slice(str_bytes);
                             new_bytes.extend_from_slice(b"%}");
                             new_bytes.extend_from_slice(fmt_bytes);
-                            xfree(str.cast());
+                            drop(owned_str);
                             owned_usefmt = Some(std::ffi::CString::new(new_bytes).unwrap());
                             usefmt = owned_usefmt.as_ref().unwrap().as_ptr().cast_mut();
                             fmt_p = usefmt.add(parsed_usefmt);
@@ -2411,9 +2415,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 prevchar_isflag = false;
             }
 
-            if opt == STL_VIM_EXPR {
-                xfree(str.cast());
-            }
+            drop(owned_str);
 
             curitem += 1;
             if left_align_num {

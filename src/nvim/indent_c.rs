@@ -17,7 +17,6 @@ use crate::keycodes::get_special_key_code;
 use crate::math::{FAIL, OK, trim_to_int};
 use crate::mbyte::{mb_prevptr, mb_strnicmp, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_pos};
-use crate::memory::{xfree, xmalloc, xstrdup};
 use crate::option::{copy_option_part, skip_to_option_part};
 use crate::option_vars::*;
 use crate::plines::getvcol;
@@ -278,12 +277,17 @@ pub unsafe fn cin_is_cinword(mut line: *const c_char) -> bool {
     unsafe {
         let mut retval = false;
         let cinw_len = strlen((*curbuf).b_p_cinw) + 1;
-        let cinw_buf = xmalloc(cinw_len).cast::<c_char>();
+        let mut cinw_buf = vec![0 as c_char; cinw_len];
         line = skipwhite(line);
         let mut cinw = (*curbuf).b_p_cinw;
         while *cinw != NUL {
-            let len = copy_option_part(&raw mut cinw, cinw_buf, cinw_len, c",".as_ptr());
-            if strncmp(line, cinw_buf, len) == 0
+            let len = copy_option_part(
+                &raw mut cinw,
+                cinw_buf.as_mut_ptr(),
+                cinw_len,
+                c",".as_ptr(),
+            );
+            if strncmp(line, cinw_buf.as_ptr(), len) == 0
                 && (!vim_iswordc(*line.add(len) as u8 as c_int)
                     || (len > 0 && !vim_iswordc(*line.add(len - 1) as u8 as c_int)))
             {
@@ -291,7 +295,6 @@ pub unsafe fn cin_is_cinword(mut line: *const c_char) -> bool {
                 break;
             }
         }
-        xfree(cinw_buf.cast());
         retval
     }
 }
@@ -590,12 +593,17 @@ unsafe fn cin_isscopedecl(p: *const c_char) -> bool {
     unsafe {
         let s = cin_skipcomment(p);
         let cinsd_len = strlen((*curbuf).b_p_cinsd) + 1;
-        let cinsd_buf = xmalloc(cinsd_len).cast::<c_char>();
+        let mut cinsd_buf = vec![0 as c_char; cinsd_len];
         let mut found = false;
         let mut cinsd = (*curbuf).b_p_cinsd;
         while *cinsd != NUL {
-            let len = copy_option_part(&raw mut cinsd, cinsd_buf, cinsd_len, c",".as_ptr());
-            if strncmp(s, cinsd_buf, len) == 0 {
+            let len = copy_option_part(
+                &raw mut cinsd,
+                cinsd_buf.as_mut_ptr(),
+                cinsd_len,
+                c",".as_ptr(),
+            );
+            if strncmp(s, cinsd_buf.as_ptr(), len) == 0 {
                 let skip = cin_skipcomment(s.add(len));
                 if *skip == b':' as c_char && *skip.add(1) != b':' as c_char {
                     found = true;
@@ -603,7 +611,6 @@ unsafe fn cin_isscopedecl(p: *const c_char) -> bool {
                 }
             }
         }
-        xfree(cinsd_buf.cast());
         found
     }
 }
@@ -1653,7 +1660,10 @@ pub unsafe fn get_c_indent() -> c_int {
         if cur_curpos.lnum == 1 {
             return 0;
         }
-        let linecopy = xstrdup(ml_get(cur_curpos.lnum));
+        let mut linecopy_bytes = std::ffi::CStr::from_ptr(ml_get(cur_curpos.lnum))
+            .to_owned()
+            .into_bytes_with_nul();
+        let linecopy = linecopy_bytes.as_mut_ptr().cast::<c_char>();
         if (State & MODE_INSERT) != 0
             && ((*curwin).w_cursor.col as usize) < strlen(linecopy)
             && *linecopy.add((*curwin).w_cursor.col as usize) == b')' as c_char
@@ -2926,7 +2936,6 @@ pub unsafe fn get_c_indent() -> c_int {
             }
         }
         (*curwin).w_cursor = cur_curpos;
-        xfree(linecopy.cast());
         amount
     }
 }

@@ -30,7 +30,7 @@ use crate::drawscreen::{
 use crate::eval::typval::kCallbackNone;
 use crate::ex_getln::{disptick_T, hlf_T};
 use crate::extmark::{TriState, kFalse, kTrue};
-use crate::fold::{FOLD_TEXT_LEN, get_foldtext};
+use crate::fold::get_foldtext;
 use crate::globals::*;
 use crate::grid::{
     GridView, grid_adjust, grid_put_linebuf, linebuf_mirror, schar_T, schar_cells,
@@ -53,7 +53,7 @@ use crate::mbyte::{
     utf_ptr2StrCharInfo, utf_ptr2cells, utfc_ptr2len, utfc_ptr2schar,
 };
 use crate::memline::{gchar_pos, ml_get_buf, ml_get_buf_len};
-use crate::memory::{cstr_take, xstrlcpy};
+use crate::memory::xstrlcpy;
 use crate::r#move::{set_empty_rows, validate_virtcol, win_col_off, win_col_off2};
 use crate::option::get_showbreak_value;
 use crate::option_vars::*;
@@ -1420,8 +1420,6 @@ pub unsafe fn win_line(
         let mut area_active = false;
         let mut decor_need_recheck = false;
 
-        let mut buf_fold = [0 as c_char; FOLD_TEXT_LEN];
-        let buf_fold_ptr = (&raw mut buf_fold).cast::<c_char>();
         let mut fold_vt: VirtText = Vec::new();
         let mut foldtext_free: Option<std::ffi::CString> = None;
 
@@ -2380,18 +2378,11 @@ pub unsafe fn win_line(
                 if draw_folded && has_foldtext && wlv.n_extra == 0 && wlv.col == win_col_offset {
                     let v = ptr.offset_from(line) as c_int;
                     let lnume = lnum + foldinfo.fi_lines - 1;
-                    ptr::write_bytes(buf_fold_ptr, b' ', FOLD_TEXT_LEN);
-                    wlv.p_extra =
-                        get_foldtext(wp, lnum, lnume, foldinfo, buf_fold_ptr, &raw mut fold_vt);
-                    wlv.n_extra = CStr::from_ptr(wlv.p_extra).to_bytes().len() as c_int;
-
-                    if wlv.p_extra != buf_fold_ptr {
-                        debug_assert!(foldtext_free.is_none());
-                        foldtext_free = cstr_take(wlv.p_extra);
-                        wlv.p_extra = foldtext_free
-                            .as_ref()
-                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                    }
+                    debug_assert!(foldtext_free.is_none());
+                    let fdt = get_foldtext(wp, lnum, lnume, foldinfo, &raw mut fold_vt);
+                    wlv.n_extra = fdt.to_bytes().len() as c_int;
+                    foldtext_free = Some(fdt);
+                    wlv.p_extra = foldtext_free.as_ref().unwrap().as_ptr().cast_mut();
                     wlv.sc_extra = 0;
                     wlv.sc_final = 0;
 

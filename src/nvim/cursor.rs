@@ -12,7 +12,6 @@ use crate::mbyte::{utf_ClusterInfo, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2c
 use crate::memline::{
     dec, inc, ml_get_buf, ml_get_buf_len, ml_get_buf_mut, ml_get_len, ml_replace,
 };
-use crate::memory::xmallocz;
 use crate::r#move::{changed_cline_bef_curs, set_valid_virtcol, validate_virtcol, win_col_off};
 use crate::option::{get_sidescrolloff_value, get_ve_flags};
 use crate::option_vars::*;
@@ -249,11 +248,15 @@ unsafe fn coladvance2(
                     let newline_size = (idx as usize)
                         .checked_add(correct as usize)
                         .expect("STRICT_ADD overflow");
-                    let newline: *mut c_char = xmallocz(newline_size).cast();
-                    ptr::copy_nonoverlapping(line, newline, idx as usize);
-                    ptr::write_bytes(newline.add(idx as usize), b' ', correct as usize);
+                    let mut newline = vec![0 as c_char; newline_size + 1];
+                    ptr::copy_nonoverlapping(line, newline.as_mut_ptr(), idx as usize);
+                    ptr::write_bytes(
+                        newline.as_mut_ptr().add(idx as usize),
+                        b' ',
+                        correct as usize,
+                    );
 
-                    ml_replace((*pos).lnum, newline, false);
+                    ml_replace((*pos).lnum, newline.as_mut_ptr(), true);
                     inserted_bytes((*pos).lnum, idx, 0, correct);
                     idx += correct;
                     col = wcol;
@@ -266,20 +269,20 @@ unsafe fn coladvance2(
                     let alloc_n = ((linelen - 1) as usize)
                         .checked_add(csize as usize)
                         .expect("STRICT_ADD overflow");
-                    let newline: *mut c_char = xmallocz(alloc_n).cast();
-                    ptr::copy_nonoverlapping(line, newline, idx as usize);
-                    ptr::write_bytes(newline.add(idx as usize), b' ', csize as usize);
+                    let mut newline = vec![0 as c_char; alloc_n + 1];
+                    ptr::copy_nonoverlapping(line, newline.as_mut_ptr(), idx as usize);
+                    ptr::write_bytes(newline.as_mut_ptr().add(idx as usize), b' ', csize as usize);
                     let rest_n = (linelen as usize)
                         .checked_sub(idx as usize)
                         .and_then(|v| v.checked_sub(1))
                         .expect("STRICT_SUB underflow");
                     ptr::copy_nonoverlapping(
                         line.add(idx as usize + 1),
-                        newline.add((idx + csize) as usize),
+                        newline.as_mut_ptr().add((idx + csize) as usize),
                         rest_n,
                     );
 
-                    ml_replace((*pos).lnum, newline, false);
+                    ml_replace((*pos).lnum, newline.as_mut_ptr(), true);
                     inserted_bytes((*pos).lnum, idx, 1, csize);
                     idx += csize - 1 + correct;
                     col += correct;
