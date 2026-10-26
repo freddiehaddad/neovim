@@ -3,8 +3,8 @@
 use crate::api::private::validate::{Array, NvimString, Object, ObjectData, ObjectType};
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_free_luaref, nlua_funcref_str};
-use crate::memory::{xfree, xmalloc, xrealloc};
-use std::ffi::{CStr, c_char, c_int};
+use crate::memory::{xmalloc, xrealloc};
+use std::ffi::{c_char, c_int};
 
 pub const MPACK_ITEM_SIZE: usize = 9;
 pub(crate) const EXT_OBJECT_TYPE_SHIFT: c_int = ObjectType::kObjectTypeBuffer as c_int;
@@ -444,22 +444,24 @@ pub unsafe fn mpack_object_inner(
             let cur = &mut *current;
             match cur.obj_type {
                 ObjectType::kObjectTypeLuaRef => {
-                    let repr = nlua_funcref_str(cur.data.luaref, std::ptr::null_mut(), true);
+                    let repr = crate::memory::cstr_take(nlua_funcref_str(
+                        cur.data.luaref,
+                        std::ptr::null_mut(),
+                        true,
+                    ));
                     api_free_luaref(cur.data.luaref);
                     cur.data.luaref = LUA_NOREF;
-                    let s = if repr.is_null() {
-                        NvimString {
+                    let s = match repr {
+                        None => NvimString {
                             data: std::ptr::null_mut(),
                             size: 0,
-                        }
-                    } else {
-                        NvimString {
-                            data: repr,
-                            size: CStr::from_ptr(repr).to_bytes().len(),
-                        }
+                        },
+                        Some(ref cs) => NvimString {
+                            data: cs.as_ptr().cast_mut(),
+                            size: cs.to_bytes().len(),
+                        },
                     };
                     mpack_str(s, packer);
-                    xfree(repr.cast());
                 }
                 ObjectType::kObjectTypeUnset | ObjectType::kObjectTypeNil => {
                     mpack_nil(&mut (*packer).ptr);
@@ -597,12 +599,11 @@ mod tests {
                 &mut pb,
             );
             let out = packer_take_string(&mut pb);
-            let slice = std::slice::from_raw_parts(out.data.cast::<u8>(), out.size);
+            let slice = crate::memory::bytes_take(out.data, out.size).unwrap();
             assert_eq!(
                 slice,
                 &[0xe0, 0xd0, 0xdf, 42, 0xa5, b'h', b'e', b'l', b'l', b'o']
             );
-            xfree(out.data.cast());
         }
     }
 }

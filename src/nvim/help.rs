@@ -14,7 +14,7 @@ use crate::ex_docmd::{CMOD_KEEPALT, do_cmdline_cmd, exarg_T};
 use crate::fileio::fclose;
 use crate::globals::*;
 use crate::lua::executor::nlua_call_typval;
-use crate::memory::{xfree, xstrdup, xstrlcpy};
+use crate::memory::{cstr_take, xfree, xstrlcpy};
 use crate::message::{emsg, semsg, smsg};
 use crate::option::{OPT_LOCAL, OptInt, kOptBuftype, set_option_direct};
 use crate::option_vars::*;
@@ -101,7 +101,7 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
         }
 
         // ":help!" (bang, no args): DWIM help, resolve best tag at cursor via Lua.
-        let mut allocated_arg: *mut c_char = ptr::null_mut();
+        let mut allocated_arg: Option<std::ffi::CString> = None;
         if helpbang {
             let mut no_args = [typval_T {
                 v_type: VarType::VAR_UNKNOWN,
@@ -123,8 +123,8 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
                 && !rettv.vval.v_string.is_null()
                 && *rettv.vval.v_string != NUL
             {
-                allocated_arg = rettv.vval.v_string;
-                arg = allocated_arg;
+                allocated_arg = cstr_take(rettv.vval.v_string);
+                arg = allocated_arg.as_ref().unwrap().as_ptr().cast_mut();
             } else {
                 tv_clear(&raw mut rettv);
                 emsg(gettext((&raw const e_noident).cast()));
@@ -161,12 +161,11 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
             if n != FAIL {
                 crate::path::clear_cstrings(&mut matches);
             }
-            xfree(allocated_arg.cast());
             return;
         }
 
         // The first match (in the requested language) is the best match.
-        let tag = xstrdup(matches[i]);
+        let tag = CStr::from_ptr(matches[i]).to_owned();
         crate::path::clear_cstrings(&mut matches);
 
         // Re-use an existing help window or open a new one.
@@ -236,7 +235,14 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
             restart_edit = 0;
             KeyTyped = old_KeyTyped;
 
-            do_tag(ptr::null_mut(), tag, DT_HELP, 1, 0, true);
+            do_tag(
+                ptr::null_mut(),
+                tag.as_ptr().cast_mut(),
+                DT_HELP,
+                1,
+                0,
+                true,
+            );
 
             if empty_fnum != 0 && (*curbuf).b_fnum != empty_fnum {
                 let buf = buflist_findnr(empty_fnum);
@@ -252,9 +258,7 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
                 (*curwin).w_alt_fnum = alt_fnum;
             }
         }
-
-        xfree(tag.cast());
-        xfree(allocated_arg.cast());
+        drop(allocated_arg);
     }
 }
 

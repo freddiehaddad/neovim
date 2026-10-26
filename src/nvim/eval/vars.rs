@@ -719,12 +719,14 @@ pub unsafe fn garbage_collect_scriptvars(copyID: c_int) -> bool {
 }
 
 /// Set an internal variable to a string value.
-pub unsafe fn set_internal_string_var(name: *const c_char, value: *mut c_char) {
+pub unsafe fn set_internal_string_var(name: *const c_char, value: *const c_char) {
     unsafe {
         let mut tv = typval_T {
             v_type: VarType::VAR_STRING,
             v_lock: 0,
-            vval: TypvalVval { v_string: value },
+            vval: TypvalVval {
+                v_string: value.cast_mut(),
+            },
         };
 
         set_var(name, strlen(name), &raw mut tv, true);

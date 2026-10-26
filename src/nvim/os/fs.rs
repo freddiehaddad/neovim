@@ -13,7 +13,7 @@ use crate::globals::*;
 use crate::log::logmsg;
 #[cfg(windows)]
 use crate::mbyte::{mb_strnicmp, utf8_to_utf16, utf16_to_utf8};
-use crate::memory::{memcnt, xfree, xmalloc, xmemcpyz, xmemdupz, xstrchrnul, xstrlcpy};
+use crate::memory::{cstr_take, memcnt, xfree, xmalloc, xmemcpyz, xmemdupz, xstrchrnul, xstrlcpy};
 use crate::message::{emsg, semsg, smsg, verbose_enter, verbose_leave};
 #[cfg(windows)]
 use crate::option::copy_option_part;
@@ -1162,33 +1162,38 @@ pub unsafe fn os_copy_xattr(from_file: *const c_char, to_file: *const c_char) {
         if size <= 0 {
             return;
         }
-        let xattr_buf = xmalloc(size as usize).cast::<c_char>();
-        size = listxattr(from_file, xattr_buf, size as usize);
+        let mut xattr_buf = vec![0 as c_char; size as usize];
+        size = listxattr(from_file, xattr_buf.as_mut_ptr(), size as usize);
         let tsize = size;
 
         let ep = errno_ptr();
         *ep = 0;
 
         let mut max_vallen: isize = 0;
-        let mut val: *mut c_char = ptr::null_mut();
+        let mut val_buf: Vec<c_char> = Vec::new();
         let mut errmsg: *const c_char = ptr::null();
 
         'outer: for round in 0..2 {
-            let mut key = xattr_buf;
+            let mut key = xattr_buf.as_ptr();
             if round == 1 {
                 size = tsize;
             }
 
             while size > 0 {
+                let val_ptr = if round != 0 {
+                    val_buf.as_mut_ptr()
+                } else {
+                    ptr::null_mut()
+                };
                 let vallen = getxattr(
                     from_file,
                     key,
-                    val.cast(),
+                    val_ptr.cast(),
                     if round != 0 { max_vallen as usize } else { 0 },
                 );
                 if vallen >= 0
                     && round != 0
-                    && setxattr(to_file, key, val.cast(), vallen as usize, 0) == 0
+                    && setxattr(to_file, key, val_ptr.cast(), vallen as usize, 0) == 0
                 {
                 } else if *ep != 0 {
                     match *ep {
@@ -1221,11 +1226,9 @@ pub unsafe fn os_copy_xattr(from_file: *const c_char, to_file: *const c_char) {
             if round != 0 {
                 break;
             }
-            val = xmalloc((max_vallen as usize) + 1).cast::<c_char>();
+            val_buf = vec![0 as c_char; (max_vallen as usize) + 1];
         }
 
-        xfree(xattr_buf.cast());
-        xfree(val.cast());
         if !errmsg.is_null() {
             emsg(gettext(errmsg));
         }
@@ -1419,9 +1422,13 @@ pub unsafe fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
             *tail = NUL;
             let mut failed_dir: *mut c_char = ptr::null_mut();
             let r = os_mkdir_recurse(fname, mode, &raw mut failed_dir, ptr::null_mut());
+            let failed_dir = cstr_take(failed_dir);
             if r < 0 {
-                let _ = semsg!(gettext(e_mkdir.as_ptr()), failed_dir, uv_strerror(r));
-                xfree(failed_dir.cast());
+                let _ = semsg!(
+                    gettext(e_mkdir.as_ptr()),
+                    failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                    uv_strerror(r),
+                );
             }
             *tail = c;
             return r;

@@ -18,7 +18,7 @@ use crate::input::plain_vgetc;
 use crate::keycodes::{ESC, K_BS};
 use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP, do_map};
 use crate::mbyte::{mb_cptr2char_adv, utf_char2bytes, utf_iscomposing_first};
-use crate::memory::{xfree, xstrdup};
+use crate::memory::{cstr_take, xstrdup};
 use crate::message::{emsg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar, semsg};
 use crate::normal::add_to_showcmd;
 use crate::option_vars::*;
@@ -2146,13 +2146,7 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
         }
 
         if (*eap).skip != 0 {
-            loop {
-                let line = fgetline.call(0, 0, true);
-                if line.is_null() {
-                    break;
-                }
-                xfree(line.cast());
-            }
+            while cstr_take(fgetline.call(0, 0, true)).is_some() {}
             return;
         }
 
@@ -2163,12 +2157,8 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
 
         p_cpo = c"C".as_ptr().cast_mut();
 
-        loop {
-            let line = fgetline.call(0, 0, true);
-            if line.is_null() {
-                break;
-            }
-
+        while let Some(line_cstr) = cstr_take(fgetline.call(0, 0, true)) {
+            let line = line_cstr.as_ptr();
             let mut p = skipwhite(line);
             if *p != b'"' as c_char && *p != NUL {
                 let mut s = skiptowhite(p);
@@ -2190,7 +2180,6 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
                     (*curbuf).b_kmap_ga.push(kmap_T { from, to });
                 }
             }
-            xfree(line.cast());
         }
 
         for kp in &(*curbuf).b_kmap_ga {
@@ -2259,8 +2248,12 @@ pub unsafe fn get_keymap_str(
         curbuf = (*wp).w_buffer;
         curwin = wp;
         emsg_skip += 1;
-        let s = eval_to_string(c"b:keymap_name".as_ptr().cast_mut(), false, false);
-        let mut p: *const c_char = s;
+        let s = cstr_take(eval_to_string(
+            c"b:keymap_name".as_ptr().cast_mut(),
+            false,
+            false,
+        ));
+        let mut p: *const c_char = s.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
         emsg_skip -= 1;
         curbuf = old_curbuf;
         curwin = old_curwin;
@@ -2272,7 +2265,7 @@ pub unsafe fn get_keymap_str(
             }
         }
         let mut plen = vim_snprintf!(buf, len as usize, fmt, p);
-        xfree(s.cast());
+        drop(s);
         if plen < 0 || plen > len - 1 {
             *buf = NUL;
             plen = 0;

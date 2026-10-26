@@ -34,7 +34,7 @@ use crate::ex_getln::script_get;
 use crate::fileio::{buf_check_timestamp, check_timestamps};
 use crate::globals::*;
 use crate::mark::setpcmark;
-use crate::memory::{xfree, xstrdup};
+use crate::memory::xfree;
 use crate::message::{emsg, msg, msg_source, semsg, wait_return};
 use crate::r#move::validate_cursor;
 use crate::normal::do_check_scrollbind;
@@ -767,7 +767,7 @@ pub unsafe fn ex_listdo(eap: *mut exarg_T) {
 /// `:compiler[!] {name}` (`ex_compiler`).
 pub unsafe fn ex_compiler(eap: *mut exarg_T) {
     unsafe {
-        let mut old_cur_comp: *mut c_char = ptr::null_mut();
+        let mut old_cur_comp: Option<std::ffi::CString> = None;
 
         if *(*eap).arg == NUL {
             do_cmdline_cmd(c"echo globpath(&rtp, 'compiler/*.vim')".as_ptr());
@@ -782,9 +782,9 @@ pub unsafe fn ex_compiler(eap: *mut exarg_T) {
         if (*eap).forceit != 0 {
             do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet set <args>".as_ptr());
         } else {
-            old_cur_comp = get_var_value(c"g:current_compiler".as_ptr());
-            if !old_cur_comp.is_null() {
-                old_cur_comp = xstrdup(old_cur_comp);
+            let p = get_var_value(c"g:current_compiler".as_ptr());
+            if !p.is_null() {
+                old_cur_comp = Some(CStr::from_ptr(p).to_owned());
             }
             do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet setlocal <args>".as_ptr());
         }
@@ -810,9 +810,8 @@ pub unsafe fn ex_compiler(eap: *mut exarg_T) {
         }
 
         if (*eap).forceit == 0 {
-            if !old_cur_comp.is_null() {
-                set_internal_string_var(c"g:current_compiler".as_ptr(), old_cur_comp);
-                xfree(old_cur_comp.cast());
+            if let Some(ref old_comp) = old_cur_comp {
+                set_internal_string_var(c"g:current_compiler".as_ptr(), old_comp.as_ptr());
             } else {
                 do_unlet(c"g:current_compiler".as_ptr(), 18, true);
             }
