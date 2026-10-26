@@ -1853,7 +1853,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
                         let mut len = 0usize;
                         let s = lua_tolstring(lstate, -2, &mut len);
                         let idx = (*cur.obj).data.dict().size;
-                        (*cur.obj).data.dict().size += 1;
+                        (*cur.obj).data.dict_mut().size += 1;
                         let item = (*cur.obj).data.dict().items.add(idx);
                         (*item).key = cbuf_to_arena_str(arena, s, len);
                         stack.push(cur);
@@ -1871,7 +1871,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
                         continue;
                     }
                     let idx = (*cur.obj).data.array().size;
-                    (*cur.obj).data.array().size += 1;
+                    (*cur.obj).data.array_mut().size += 1;
                     lua_rawgeti(lstate, -1, (idx as c_int) + 1);
                     let item_ptr = (*cur.obj).data.array().items.add(idx);
                     stack.push(cur);
