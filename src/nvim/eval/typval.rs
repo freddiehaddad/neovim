@@ -8,7 +8,6 @@ use crate::eval::userfunc::{
 use crate::cursor::linenr_T;
 use crate::errors::*;
 
-use crate::api::private::validate::NvimString;
 use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, buf_T};
 use crate::eval::encode::{
     MPConvPartialStage, MPConvStackData, MPConvStackVal, encode_bool_var_names,
@@ -470,7 +469,7 @@ impl staticList10_T {
 #[repr(C)]
 pub struct DictWatcher {
     pub callback: Callback,
-    pub key_pattern: *mut c_char,
+    pub key_pattern: std::ffi::CString,
     pub key_pattern_len: usize,
     pub busy: bool,
     pub needs_free: bool,
@@ -480,7 +479,6 @@ impl Drop for DictWatcher {
     fn drop(&mut self) {
         unsafe {
             callback_free(&raw mut self.callback);
-            xfree(self.key_pattern.cast());
         }
     }
 }
@@ -554,12 +552,6 @@ struct ListSortItem {
 }
 
 type ListSorter = unsafe fn(&ListSortItem, &ListSortItem) -> c_int;
-
-#[repr(C)]
-struct Join {
-    s: NvimString,
-    tofree: *mut c_char,
-}
 
 pub static mut tv_in_free_unref_items: bool = false;
 
@@ -1622,7 +1614,7 @@ unsafe fn list_join_inner(
     gap: &mut Vec<c_char>,
     l: *mut list_T,
     sep: *const c_char,
-    join_vec: &mut Vec<Join>,
+    join_vec: &mut Vec<std::ffi::CString>,
 ) -> c_int {
     unsafe {
         let mut sumlen: usize = 0;
@@ -1633,17 +1625,11 @@ unsafe fn list_join_inner(
             if got_int {
                 break;
             }
-            let mut s = NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            };
-            s.data = encode_tv2echo(&raw mut (*item).li_tv, &raw mut s.size);
-            if s.data.is_null() {
-                return FAIL;
-            }
+            let mut size: usize = 0;
+            let s = encode_tv2echo(&raw mut (*item).li_tv, &raw mut size);
 
-            sumlen += s.size;
-            join_vec.push(Join { s, tofree: s.data });
+            sumlen += size;
+            join_vec.push(s);
 
             line_breakcheck();
             item = (*item).li_next;
@@ -1655,7 +1641,7 @@ unsafe fn list_join_inner(
         }
         gap.reserve(sumlen + 2);
 
-        for p in join_vec.iter() {
+        for s in join_vec.iter() {
             if got_int {
                 break;
             }
@@ -1664,8 +1650,12 @@ unsafe fn list_join_inner(
             } else if seplen > 0 {
                 gap.extend_from_slice(std::slice::from_raw_parts(sep, seplen));
             }
-            if !p.s.data.is_null() && p.s.size > 0 {
-                gap.extend_from_slice(std::slice::from_raw_parts(p.s.data, p.s.size));
+            let bytes = s.as_bytes();
+            if !bytes.is_empty() {
+                gap.extend_from_slice(std::slice::from_raw_parts(
+                    bytes.as_ptr().cast::<c_char>(),
+                    bytes.len(),
+                ));
             }
             line_breakcheck();
         }
@@ -1682,14 +1672,8 @@ pub unsafe fn tv_list_join(gap: &mut Vec<c_char>, l: *mut list_T, sep: *const c_
             return OK;
         }
 
-        let mut join_vec: Vec<Join> = Vec::with_capacity(len as usize);
-        let retval = list_join_inner(gap, l, sep, &mut join_vec);
-
-        for p in join_vec {
-            xfree(p.tofree.cast());
-        }
-
-        retval
+        let mut join_vec: Vec<std::ffi::CString> = Vec::with_capacity(len as usize);
+        list_join_inner(gap, l, sep, &mut join_vec)
     }
 }
 
@@ -1711,7 +1695,7 @@ pub unsafe fn f_join(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
         if !sep.is_null() {
             let mut out: Vec<c_char> = Vec::with_capacity(80);
             tv_list_join(&mut out, (*argvars).vval.v_list, sep);
-            (*rettv).vval.v_string = xmemdupz(out.as_ptr().cast(), out.len()).cast::<c_char>();
+            tv_set_string_len(rettv, out.as_ptr(), out.len());
         } else {
             (*rettv).vval.v_string = ptr::null_mut();
         }
@@ -1745,7 +1729,7 @@ pub unsafe fn f_list2str(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             li = (*li).li_next;
         }
 
-        (*rettv).vval.v_string = xmemdupz(out.as_ptr().cast(), out.len()).cast::<c_char>();
+        tv_set_string_len(rettv, out.as_ptr(), out.len());
     }
 }
 
@@ -1881,8 +1865,8 @@ unsafe fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool) 
             return res;
         }
 
-        let mut tofree1: *mut c_char = ptr::null_mut();
-        let mut tofree2: *mut c_char = ptr::null_mut();
+        let mut tofree1: Option<std::ffi::CString> = None;
+        let mut tofree2: Option<std::ffi::CString> = None;
         let mut p1: *mut c_char;
         let mut p2: *mut c_char;
 
@@ -1893,8 +1877,9 @@ unsafe fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool) 
                 p1 = (*tv1).vval.v_string;
             }
         } else {
-            tofree1 = encode_tv2string(tv1, ptr::null_mut());
-            p1 = tofree1;
+            let s1 = encode_tv2string(tv1, ptr::null_mut());
+            p1 = s1.as_ptr().cast_mut();
+            tofree1 = Some(s1);
         }
         if (*tv2).v_type == VarType::VAR_STRING {
             if (*tv1).v_type != VarType::VAR_STRING || (*SORTINFO).item_compare_numeric {
@@ -1903,8 +1888,9 @@ unsafe fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool) 
                 p2 = (*tv2).vval.v_string;
             }
         } else {
-            tofree2 = encode_tv2string(tv2, ptr::null_mut());
-            p2 = tofree2;
+            let s2 = encode_tv2string(tv2, ptr::null_mut());
+            p2 = s2.as_ptr().cast_mut();
+            tofree2 = Some(s2);
         }
         if p1.is_null() {
             p1 = c"".as_ptr().cast_mut();
@@ -1932,8 +1918,8 @@ unsafe fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool) 
             };
         }
 
-        xfree(tofree1.cast());
-        xfree(tofree2.cast());
+        drop(tofree1);
+        drop(tofree2);
 
         if res == 0 && !keep_zero {
             res = if si1.idx > si2.idx { 1 } else { -1 };
@@ -2037,12 +2023,7 @@ unsafe fn sort_compute_keys(ptrs: &mut [ListSortItem], info: *mut sortinfo_T) {
                     si.key = ListSortKey::Float(0.0);
                 } else {
                     let p = encode_tv2string(tv, ptr::null_mut());
-                    let f = if p.is_null() {
-                        0.0
-                    } else {
-                        strtod(p, ptr::null_mut())
-                    };
-                    xfree(p.cast());
+                    let f = strtod(p.as_ptr(), ptr::null_mut());
                     si.key = ListSortKey::Float(f);
                 }
             }
@@ -2442,7 +2423,10 @@ pub unsafe fn tv_dict_watcher_add(
             return;
         }
         (*dict).watchers.push(DictWatcher {
-            key_pattern: xmemdupz(key_pattern.cast(), key_pattern_len).cast::<c_char>(),
+            key_pattern: crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
+                key_pattern.cast::<u8>(),
+                key_pattern_len,
+            )),
             key_pattern_len,
             callback,
             busy: false,
@@ -2625,7 +2609,7 @@ pub unsafe fn tv_dict_watcher_remove(
             if matched_idx.is_none()
                 && tv_callback_equal(&raw const w.callback, &raw const callback)
                 && w.key_pattern_len == key_pattern_len
-                && std::slice::from_raw_parts(w.key_pattern.cast::<u8>(), key_pattern_len)
+                && w.key_pattern.as_bytes()
                     == std::slice::from_raw_parts(key_pattern.cast::<u8>(), key_pattern_len)
             {
                 matched_idx = Some(idx);
@@ -2652,10 +2636,11 @@ pub unsafe fn tv_dict_watcher_remove(
 unsafe fn tv_dict_watcher_matches(watcher: *const DictWatcher, key: *const c_char) -> bool {
     unsafe {
         let len = (*watcher).key_pattern_len;
-        if len > 0 && *(*watcher).key_pattern.add(len - 1) == b'*' as c_char {
-            strncmp(key, (*watcher).key_pattern, len - 1) == 0
+        let pat_ptr = (*watcher).key_pattern.as_ptr();
+        if len > 0 && *pat_ptr.add(len - 1) == b'*' as c_char {
+            strncmp(key, pat_ptr, len - 1) == 0
         } else {
-            strcmp(key, (*watcher).key_pattern) == 0
+            strcmp(key, pat_ptr) == 0
         }
     }
 }

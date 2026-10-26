@@ -53,7 +53,7 @@ use crate::lua::executor::{
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
 use crate::memory::{
-    cstr_from_bytes, cstr_take, cstr_to_cstring, entered_free_all_mem, xfree, xmemrchr, xstrdup,
+    cstr_from_bytes, cstr_to_cstring, entered_free_all_mem, xfree, xmemrchr, xstrdup,
     xstrlcpy,
 };
 use crate::message::{
@@ -564,7 +564,6 @@ pub unsafe fn get_lambda_tv(
         let mut varargs: c_int = 0;
         let old_eval_lavars = eval_lavars_used;
         let mut eval_lavars = false;
-        let mut tofree: *mut c_char = ptr::null_mut();
 
         let mut s = skipwhite((*arg).add(1));
         let mut ret = get_function_args(
@@ -589,11 +588,6 @@ pub unsafe fn get_lambda_tv(
             false,
         );
         if ret == FAIL || **arg != b'>' as c_char {
-            if !evalarg.is_null() && (*evalarg).eval_tofree.is_null() {
-                (*evalarg).eval_tofree = tofree;
-            } else {
-                xfree(tofree.cast());
-            }
             eval_lavars_used = old_eval_lavars;
             return FAIL;
         }
@@ -607,27 +601,13 @@ pub unsafe fn get_lambda_tv(
         ret = skip_expr(arg, evalarg);
         let end = *arg;
         if ret == FAIL {
-            if !evalarg.is_null() && (*evalarg).eval_tofree.is_null() {
-                (*evalarg).eval_tofree = tofree;
-            } else {
-                xfree(tofree.cast());
-            }
             eval_lavars_used = old_eval_lavars;
             return FAIL;
-        }
-        if !evalarg.is_null() {
-            tofree = (*evalarg).eval_tofree;
-            (*evalarg).eval_tofree = ptr::null_mut();
         }
 
         *arg = skipwhite(*arg);
         if **arg != b'}' as c_char {
             semsg!(gettext(c"E451: Expected }: %s".as_ptr()), *arg);
-            if !evalarg.is_null() && (*evalarg).eval_tofree.is_null() {
-                (*evalarg).eval_tofree = tofree;
-            } else {
-                xfree(tofree.cast());
-            }
             eval_lavars_used = old_eval_lavars;
             return FAIL;
         }
@@ -682,11 +662,6 @@ pub unsafe fn get_lambda_tv(
         }
 
         eval_lavars_used = old_eval_lavars;
-        if !evalarg.is_null() && (*evalarg).eval_tofree.is_null() {
-            (*evalarg).eval_tofree = tofree;
-        } else {
-            xfree(tofree.cast());
-        }
         OK
     }
 }
@@ -1419,22 +1394,20 @@ pub unsafe fn call_user_func(
                         msg_outnum((*arg_tv).vval.v_number as c_int);
                     } else {
                         emsg_off += 1;
-                        let tofree = cstr_take(encode_tv2string(arg_tv, ptr::null_mut()));
+                        let tf = encode_tv2string(arg_tv, ptr::null_mut());
                         emsg_off -= 1;
-                        if let Some(ref tf) = tofree {
-                            let mut s = tf.as_ptr().cast_mut();
-                            let mut buf = [0 as c_char; MSG_BUF_LEN];
-                            if vim_strsize(s) > MSG_BUF_CLEN {
-                                trunc_string(
-                                    s,
-                                    buf.as_mut_ptr(),
-                                    MSG_BUF_CLEN,
-                                    MSG_BUF_LEN as c_int,
-                                );
-                                s = buf.as_mut_ptr();
-                            }
-                            msg_puts(s);
+                        let mut s = tf.as_ptr().cast_mut();
+                        let mut buf = [0 as c_char; MSG_BUF_LEN];
+                        if vim_strsize(s) > MSG_BUF_CLEN {
+                            trunc_string(
+                                s,
+                                buf.as_mut_ptr(),
+                                MSG_BUF_CLEN,
+                                MSG_BUF_LEN as c_int,
+                            );
+                            s = buf.as_mut_ptr();
                         }
+                        msg_puts(s);
                     }
                 }
                 msg_puts(c")".as_ptr());
@@ -1538,16 +1511,14 @@ pub unsafe fn call_user_func(
             } else {
                 let mut buf = [0 as c_char; MSG_BUF_LEN];
                 emsg_off += 1;
-                let tofree = cstr_take(encode_tv2string((*fc).fc_rettv, ptr::null_mut()));
+                let tf = encode_tv2string((*fc).fc_rettv, ptr::null_mut());
                 emsg_off -= 1;
-                if let Some(ref tf) = tofree {
-                    let mut s = tf.as_ptr().cast_mut();
-                    if vim_strsize(s) > MSG_BUF_CLEN {
-                        trunc_string(s, buf.as_mut_ptr(), MSG_BUF_CLEN, MSG_BUF_LEN as c_int);
-                        s = buf.as_mut_ptr();
-                    }
-                    smsg!(0, gettext(c"%s returning %s".as_ptr()), sourcing_name(), s);
+                let mut s = tf.as_ptr().cast_mut();
+                if vim_strsize(s) > MSG_BUF_CLEN {
+                    trunc_string(s, buf.as_mut_ptr(), MSG_BUF_CLEN, MSG_BUF_LEN as c_int);
+                    s = buf.as_mut_ptr();
                 }
+                smsg!(0, gettext(c"%s returning %s".as_ptr()), sourcing_name(), s);
             }
             msg_puts(c"\n".as_ptr());
 
@@ -3578,7 +3549,6 @@ pub unsafe fn ex_return(eap: *mut exarg_T) {
 
         let mut evalarg = evalarg_T {
             eval_flags: if (*eap).skip != 0 { 0 } else { EVAL_EVALUATE },
-            eval_tofree: ptr::null_mut(),
         };
 
         if (*eap).skip != 0 {
@@ -3992,7 +3962,7 @@ pub unsafe fn get_return_cmd(rettv: Option<typval_T>) -> std::ffi::CString {
     unsafe {
         let mut tofree: Option<std::ffi::CString> = None;
         if let Some(mut tv) = rettv {
-            tofree = cstr_take(encode_tv2echo(&raw mut tv, ptr::null_mut()));
+            tofree = Some(encode_tv2echo(&raw mut tv, ptr::null_mut()));
         }
         let (s, slen) = if let Some(ref tf) = tofree {
             (tf.as_ptr(), tf.as_bytes().len())

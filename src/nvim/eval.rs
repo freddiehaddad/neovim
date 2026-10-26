@@ -430,7 +430,6 @@ pub unsafe fn fill_evalarg_from_eap(evalarg: *mut evalarg_T, _eap: *mut exarg_T,
     unsafe {
         *evalarg = evalarg_T {
             eval_flags: if skip { 0 } else { EVAL_EVALUATE },
-            eval_tofree: ptr::null_mut(),
         };
     }
 }
@@ -713,7 +712,7 @@ unsafe fn typval2string(tv: *mut typval_T, join_list: bool) -> Option<std::ffi::
             let bytes = std::slice::from_raw_parts(out.as_ptr().cast::<u8>(), out.len());
             return Some(cstr_from_bytes(bytes));
         } else if (*tv).v_type == VarType::VAR_LIST || (*tv).v_type == VarType::VAR_DICT {
-            return cstr_take(encode_tv2string(tv, ptr::null_mut()));
+            return Some(encode_tv2string(tv, ptr::null_mut()));
         }
         Some(cstr_to_cstring(tv_get_string(tv)))
     }
@@ -2134,24 +2133,7 @@ unsafe fn eval_func(
 }
 
 /// After using "evalarg" filled from "eap": free the memory.
-pub unsafe fn clear_evalarg(evalarg: *mut evalarg_T, eap: *mut exarg_T) {
-    unsafe {
-        if evalarg.is_null() {
-            return;
-        }
-
-        if !(*evalarg).eval_tofree.is_null() {
-            if !eap.is_null() {
-                xfree((*eap).cmdline_tofree.cast());
-                (*eap).cmdline_tofree = *(*eap).cmdlinep;
-                *(*eap).cmdlinep = (*evalarg).eval_tofree;
-            } else {
-                xfree((*evalarg).eval_tofree.cast());
-            }
-            (*evalarg).eval_tofree = ptr::null_mut();
-        }
-    }
-}
+pub unsafe fn clear_evalarg(_evalarg: *mut evalarg_T, _eap: *mut exarg_T) {}
 
 /// Handle zero level expression.
 pub unsafe fn eval0(
@@ -6680,9 +6662,9 @@ pub unsafe fn ex_echo(eap: *mut exarg_T) {
                 } else if (*eap).cmdidx == cmdidx_T::CMD_echo as c_int {
                     msg_puts_hl(c" ".as_ptr(), echo_hl_id, false);
                 }
-                let tofree = cstr_take(encode_tv2echo(&raw mut rettv, ptr::null_mut()));
+                let tofree = encode_tv2echo(&raw mut rettv, ptr::null_mut());
                 msg_multiline(
-                    cstr_as_string(tofree.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
+                    cstr_as_string(tofree.as_ptr()),
                     echo_hl_id,
                     true,
                     false,
@@ -6750,7 +6732,7 @@ pub unsafe fn ex_execute(eap: *mut exarg_T) {
                 let argstr = if (*eap).cmdidx == cmdidx_T::CMD_execute as c_int {
                     tv_get_string(&raw const rettv)
                 } else {
-                    argstr_owned = cstr_take(if rettv.v_type == VarType::VAR_STRING {
+                    argstr_owned = Some(if rettv.v_type == VarType::VAR_STRING {
                         encode_tv2echo(&raw mut rettv, ptr::null_mut())
                     } else {
                         encode_tv2string(&raw mut rettv, ptr::null_mut())
@@ -7466,7 +7448,7 @@ pub unsafe fn typval_tostring(arg: Option<&mut typval_T>, quotes: bool) -> std::
         if !quotes && arg.v_type == VarType::VAR_STRING {
             return cstr_to_cstring(arg.vval.v_string);
         }
-        cstr_take(encode_tv2string(arg, ptr::null_mut())).unwrap_or_default()
+        encode_tv2string(arg, ptr::null_mut())
     }
 }
 
@@ -7546,7 +7528,6 @@ mod tests {
             let mut rettv = tv_initial_value();
             let mut evalarg = evalarg_T {
                 eval_flags: EVAL_EVALUATE,
-                eval_tofree: ptr::null_mut(),
             };
             assert_eq!(
                 eval0(

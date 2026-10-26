@@ -19,7 +19,7 @@ use crate::hashtab::{hashitem_T, hashitem_empty};
 use crate::keycodes::{BS, CAR, NL, TAB};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_char2len, utf_printable, utf_ptr2char, utf_ptr2len};
-use crate::memory::{cstr_take, memchrsub, memcnt, xfree, xmemdupz, xmemscan};
+use crate::memory::{cstr_from_bytes, memchrsub, memcnt, xmemscan};
 use crate::message::{emsg, internal_error, semsg};
 use crate::msgpack_rpc::packer::{
     PackerBuffer, mpack_array, mpack_bin, mpack_bool, mpack_check_buffer, mpack_ext, mpack_float8,
@@ -123,15 +123,18 @@ pub unsafe fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usiz
                 } else {
                     CStr::from_ptr(str_ptr).to_bytes().len()
                 };
-                let new_str = crate::memory::xmallocz(li_len + line_length).cast::<c_char>();
+                let mut combined = vec![0 as c_char; li_len + line_length];
                 if !str_ptr.is_null() {
-                    std::ptr::copy_nonoverlapping(str_ptr, new_str, li_len);
-                    xfree(str_ptr.cast());
+                    std::ptr::copy_nonoverlapping(str_ptr, combined.as_mut_ptr(), li_len);
                 }
-                (*li).li_tv.vval.v_string = new_str;
-                let dst = new_str.add(li_len);
+                let dst = combined.as_mut_ptr().add(li_len);
                 std::ptr::copy_nonoverlapping(buf.cast::<u8>(), dst.cast::<u8>(), line_length);
                 memchrsub(dst.cast(), 0, NL as c_char, line_length);
+                crate::eval::typval::tv_set_string_len(
+                    &raw mut (*li).li_tv,
+                    combined.as_ptr(),
+                    combined.len(),
+                );
             }
             line_end = line_end.add(1);
         }
@@ -145,13 +148,23 @@ pub unsafe fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usiz
             )
             .cast_const()
             .cast::<c_char>();
-            let mut str_ptr: *mut c_char = std::ptr::null_mut();
             if line_end != line_start {
                 let line_length = (line_end as usize) - (line_start as usize);
-                str_ptr = xmemdupz(line_start.cast(), line_length).cast::<c_char>();
-                memchrsub(str_ptr.cast(), 0, NL as c_char, line_length);
+                let mut line_buf = vec![0 as c_char; line_length];
+                std::ptr::copy_nonoverlapping(
+                    line_start.cast::<u8>(),
+                    line_buf.as_mut_ptr().cast::<u8>(),
+                    line_length,
+                );
+                memchrsub(line_buf.as_mut_ptr().cast(), 0, NL as c_char, line_length);
+                crate::eval::typval::tv_list_append_string(
+                    list,
+                    line_buf.as_ptr(),
+                    line_length as isize,
+                );
+            } else {
+                tv_list_append_allocated_string(list, std::ptr::null_mut());
             }
-            tv_list_append_allocated_string(list, str_ptr);
             line_end = line_end.add(1);
         }
         if line_end == end {
@@ -354,12 +367,12 @@ unsafe fn conv_error(
                             v_string: (*hi_ptr).hi_key,
                         },
                     };
-                    let key = cstr_take(encode_tv2string(&mut key_tv, std::ptr::null_mut()));
+                    let key = encode_tv2string(&mut key_tv, std::ptr::null_mut());
                     vim_snprintf!(
                         iobuf.as_mut_ptr(),
                         iobuf.len(),
                         c"key %s".as_ptr(),
-                        key.as_ref().map_or(std::ptr::null(), |s| s.as_ptr()),
+                        key.as_ptr(),
                     );
                     buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
                 }
@@ -389,12 +402,12 @@ unsafe fn conv_error(
                         let first_item = tv_list_first((*prev_li).li_tv.vval.v_list);
                         assert!(!first_item.is_null());
                         let mut key_tv = (*first_item).li_tv;
-                        let key = cstr_take(encode_tv2echo(&mut key_tv, std::ptr::null_mut()));
+                        let key = encode_tv2echo(&mut key_tv, std::ptr::null_mut());
                         vim_snprintf!(
                             iobuf.as_mut_ptr(),
                             iobuf.len(),
                             c"key %s at index %i from special map".as_ptr(),
-                            key.as_ref().map_or(std::ptr::null(), |s| s.as_ptr()),
+                            key.as_ptr(),
                             idx,
                         );
                         buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
@@ -1732,7 +1745,7 @@ pub unsafe fn encode_vim_to_msgpack(
 }
 
 /// Return a string with the string representation of a variable (`encode_tv2string`).
-pub unsafe fn encode_tv2string(tv: *mut typval_T, len: *mut usize) -> *mut c_char {
+pub unsafe fn encode_tv2string(tv: *mut typval_T, len: *mut usize) -> std::ffi::CString {
     unsafe {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         let mut backend = EncodeBackend::Text {
@@ -1746,12 +1759,12 @@ pub unsafe fn encode_tv2string(tv: *mut typval_T, len: *mut usize) -> *mut c_cha
         if !len.is_null() {
             *len = ga.len();
         }
-        xmemdupz(ga.as_ptr().cast(), ga.len()).cast::<c_char>()
+        cstr_from_bytes(&ga)
     }
 }
 
 /// Return a string with the `:echo` representation of a variable (`encode_tv2echo`).
-pub unsafe fn encode_tv2echo(tv: *mut typval_T, len: *mut usize) -> *mut c_char {
+pub unsafe fn encode_tv2echo(tv: *mut typval_T, len: *mut usize) -> std::ffi::CString {
     unsafe {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         let tv_ref = &*tv;
@@ -1766,12 +1779,12 @@ pub unsafe fn encode_tv2echo(tv: *mut typval_T, len: *mut usize) -> *mut c_char 
         if !len.is_null() {
             *len = ga.len();
         }
-        xmemdupz(ga.as_ptr().cast(), ga.len()).cast::<c_char>()
+        cstr_from_bytes(&ga)
     }
 }
 
 /// Return a JSON string representation of a variable (`encode_tv2json`).
-pub unsafe fn encode_tv2json(tv: *mut typval_T, len: *mut usize) -> *mut c_char {
+pub unsafe fn encode_tv2json(tv: *mut typval_T, len: *mut usize) -> std::ffi::CString {
     unsafe {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         let mut backend = EncodeBackend::Text {
@@ -1787,7 +1800,7 @@ pub unsafe fn encode_tv2json(tv: *mut typval_T, len: *mut usize) -> *mut c_char 
         if !len.is_null() {
             *len = ga.len();
         }
-        xmemdupz(ga.as_ptr().cast(), ga.len()).cast::<c_char>()
+        cstr_from_bytes(&ga)
     }
 }
 

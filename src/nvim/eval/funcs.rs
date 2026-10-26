@@ -5137,8 +5137,10 @@ pub unsafe fn f_json_decode(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
 /// "json_encode()" function
 pub unsafe fn f_json_encode(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = encode_tv2json(argvars, ptr::null_mut());
+        crate::eval::typval::tv_set_string(
+            rettv,
+            encode_tv2json(argvars, ptr::null_mut()).as_ptr(),
+        );
     }
 }
 
@@ -5409,7 +5411,8 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
                             match_found = false;
                             break;
                         }
-                        tofree_owned = cstr_take(encode_tv2echo(&raw mut (*li).li_tv, ptr::null_mut()));
+                        tofree_owned =
+                            Some(encode_tv2echo(&raw mut (*li).li_tv, ptr::null_mut()));
                         expr = tofree_owned
                             .as_ref()
                             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());

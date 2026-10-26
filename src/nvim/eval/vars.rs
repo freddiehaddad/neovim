@@ -54,8 +54,7 @@ use crate::lua::executor::{nlua_funcref_str, nlua_set_sctx};
 use crate::math::{FAIL, OK};
 use crate::mbyte::utf_char2bytes;
 use crate::memory::{
-    cstr_from_bytes, cstr_take, cstr_to_cstring, strequal, xfree, xmalloc, xstrdup, xstrlcat,
-    xstrlcpy, xstrndup,
+    cstr_from_bytes, cstr_take, cstr_to_cstring, strequal, xfree, xstrdup, xstrlcat, xstrlcpy,
 };
 use crate::message::{
     emsg, internal_error, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind,
@@ -75,7 +74,7 @@ use crate::os::env::{
 use crate::register::{get_reg_contents_str, kGRegExprSrc, write_reg_contents};
 use crate::runtime::{new_script_item, script_autoload, script_item, scriptvar_T};
 use crate::search::set_search_direction;
-use crate::strings::{concat_str, gettext, strcmp, strlen, strncmp, vim_snprintf, vim_strchr};
+use crate::strings::{concat_str, gettext, strcmp, strlen, strncmp, vim_strchr};
 use crate::version::{highest_patch, min_vim_version};
 use crate::window::{
     find_tabpage, goto_tabpage_tp, prevwin_curwin, tabpage_T, valid_tabpage, win_T,
@@ -96,29 +95,17 @@ use crate::regexp::NUMBUFLEN;
 #[repr(C)]
 pub struct evalarg_T {
     pub eval_flags: c_int,
-    pub eval_tofree: *mut c_char,
 }
 
 impl evalarg_T {
     pub const fn new() -> Self {
-        Self {
-            eval_flags: 0,
-            eval_tofree: ptr::null_mut(),
-        }
+        Self { eval_flags: 0 }
     }
 }
 
 impl Default for evalarg_T {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Drop for evalarg_T {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.eval_tofree.cast());
-        }
     }
 }
 
@@ -1608,7 +1595,7 @@ unsafe fn list_arg_vars(
                                     }
                                 }
                             } else {
-                                let s = cstr_take(encode_tv2echo(&raw mut tv, ptr::null_mut()));
+                                let s = encode_tv2echo(&raw mut tv, ptr::null_mut());
                                 let used_name = if arg == arg_subsc { name } else { name_start };
                                 debug_assert!(!used_name.is_null());
                                 let name_size = if tofree
@@ -1624,7 +1611,7 @@ unsafe fn list_arg_vars(
                                     used_name,
                                     name_size,
                                     tv.v_type,
-                                    s.as_ref().map_or(c"".as_ptr(), |c| c.as_ptr()),
+                                    s.as_ptr(),
                                     first,
                                 );
                             }
@@ -2451,14 +2438,14 @@ pub unsafe fn set_vim_var_char(c: c_int) {
 pub unsafe fn set_vim_var_string(idx: VimVarIndex, val: *const c_char, len: isize) {
     unsafe {
         let tv = get_vim_var_tv(idx);
-        tv_clear(tv);
-        (*tv).v_type = VarType::VAR_STRING;
         if val.is_null() {
+            tv_clear(tv);
+            (*tv).v_type = VarType::VAR_STRING;
             (*tv).vval.v_string = ptr::null_mut();
         } else if len == -1 {
-            (*tv).vval.v_string = xstrdup(val);
+            crate::eval::typval::tv_set_string(tv, val);
         } else {
-            (*tv).vval.v_string = xstrndup(val, len as usize);
+            crate::eval::typval::tv_set_string_len(tv, val, len as usize);
         }
     }
 }
@@ -2534,146 +2521,48 @@ pub unsafe fn set_cmdarg(eap: *mut exarg_T, oldarg: *mut c_char) -> *mut c_char 
             return ptr::null_mut();
         }
 
-        let mut len: usize = 0;
+        let mut newval: Vec<u8> = Vec::new();
         if (*eap).force_bin == FORCE_BIN {
-            len += 6;
+            newval.extend_from_slice(b" ++bin");
         } else if (*eap).force_bin == FORCE_NOBIN {
-            len += 8;
+            newval.extend_from_slice(b" ++nobin");
         }
 
         if (*eap).read_edit != 0 {
-            len += 7;
+            newval.extend_from_slice(b" ++edit");
         }
 
         if (*eap).force_ff != 0 {
-            len += 10;
-        }
-        if (*eap).force_enc != 0 {
-            len += strlen((*eap).cmd.add((*eap).force_enc as usize)) + 7;
-        }
-        if (*eap).bad_char != 0 {
-            len += 11;
-        }
-        if (*eap).mkdir_p != 0 {
-            len += 4;
-        }
-
-        let newval_len = len + 1;
-        let newval = xmalloc(newval_len).cast::<c_char>();
-        let mut xlen: usize = 0;
-        let mut rc: c_int = 0;
-
-        if (*eap).force_bin == FORCE_BIN {
-            rc = vim_snprintf!(newval, newval_len, c" ++bin".as_ptr());
-        } else if (*eap).force_bin == FORCE_NOBIN {
-            rc = vim_snprintf!(newval, newval_len, c" ++nobin".as_ptr());
-        } else {
-            *newval = NUL;
-        }
-        if rc < 0 {
-            xfree(newval.cast());
-            xfree(oldval.cast());
-            (*tv).vval.v_string = oldarg;
-            return ptr::null_mut();
-        }
-        xlen += rc as usize;
-
-        if (*eap).read_edit != 0 {
-            rc = vim_snprintf!(newval.add(xlen), newval_len - xlen, c" ++edit".as_ptr());
-            if rc < 0 {
-                xfree(newval.cast());
-                xfree(oldval.cast());
-                (*tv).vval.v_string = oldarg;
-                return ptr::null_mut();
-            }
-            xlen += rc as usize;
-        }
-
-        if (*eap).force_ff != 0 {
-            let ff_str = if (*eap).force_ff == b'u' as c_int {
-                c"unix".as_ptr()
+            let ff_str: &[u8] = if (*eap).force_ff == b'u' as c_int {
+                b" ++ff=unix"
             } else if (*eap).force_ff == b'd' as c_int {
-                c"dos".as_ptr()
+                b" ++ff=dos"
             } else {
-                c"mac".as_ptr()
+                b" ++ff=mac"
             };
-            rc = vim_snprintf!(
-                newval.add(xlen),
-                newval_len - xlen,
-                c" ++ff=%s".as_ptr(),
-                ff_str,
-            );
-            if rc < 0 {
-                xfree(newval.cast());
-                xfree(oldval.cast());
-                (*tv).vval.v_string = oldarg;
-                return ptr::null_mut();
-            }
-            xlen += rc as usize;
+            newval.extend_from_slice(ff_str);
         }
         if (*eap).force_enc != 0 {
-            rc = vim_snprintf!(
-                newval.add(xlen),
-                newval_len - xlen,
-                c" ++enc=%s".as_ptr(),
-                (*eap).cmd.add((*eap).force_enc as usize),
-            );
-            if rc < 0 {
-                xfree(newval.cast());
-                xfree(oldval.cast());
-                (*tv).vval.v_string = oldarg;
-                return ptr::null_mut();
-            }
-            xlen += rc as usize;
+            newval.extend_from_slice(b" ++enc=");
+            let enc_ptr = (*eap).cmd.add((*eap).force_enc as usize);
+            newval.extend_from_slice(CStr::from_ptr(enc_ptr).to_bytes());
         }
 
         if (*eap).bad_char == BAD_KEEP {
-            rc = vim_snprintf!(newval.add(xlen), newval_len - xlen, c" ++bad=keep".as_ptr());
-            if rc < 0 {
-                xfree(newval.cast());
-                xfree(oldval.cast());
-                (*tv).vval.v_string = oldarg;
-                return ptr::null_mut();
-            }
-            xlen += rc as usize;
+            newval.extend_from_slice(b" ++bad=keep");
         } else if (*eap).bad_char == BAD_DROP {
-            rc = vim_snprintf!(newval.add(xlen), newval_len - xlen, c" ++bad=drop".as_ptr());
-            if rc < 0 {
-                xfree(newval.cast());
-                xfree(oldval.cast());
-                (*tv).vval.v_string = oldarg;
-                return ptr::null_mut();
-            }
-            xlen += rc as usize;
+            newval.extend_from_slice(b" ++bad=drop");
         } else if (*eap).bad_char != 0 {
-            rc = vim_snprintf!(
-                newval.add(xlen),
-                newval_len - xlen,
-                c" ++bad=%c".as_ptr(),
-                (*eap).bad_char,
-            );
-            if rc < 0 {
-                xfree(newval.cast());
-                xfree(oldval.cast());
-                (*tv).vval.v_string = oldarg;
-                return ptr::null_mut();
-            }
-            xlen += rc as usize;
+            newval.extend_from_slice(b" ++bad=");
+            newval.push((*eap).bad_char as u8);
         }
 
         if (*eap).mkdir_p != 0 {
-            rc = vim_snprintf!(newval.add(xlen), newval_len - xlen, c" ++p".as_ptr());
-            if rc < 0 {
-                xfree(newval.cast());
-                xfree(oldval.cast());
-                (*tv).vval.v_string = oldarg;
-                return ptr::null_mut();
-            }
-            xlen += rc as usize;
+            newval.extend_from_slice(b" ++p");
         }
-        debug_assert!(xlen <= newval_len);
 
-        (*tv).vval.v_string = newval;
+        (*tv).vval.v_string = ptr::null_mut();
+        crate::eval::typval::tv_set_string_len(tv, newval.as_ptr().cast::<c_char>(), newval.len());
         oldval
     }
 }
@@ -3013,13 +2902,13 @@ unsafe fn delete_var(ht: *mut hashtab_T, hi: *mut hashitem_T) {
 /// List the value of one internal variable.
 unsafe fn list_one_var(v: *mut dictitem_T, prefix: *const c_char, first: *mut c_int) {
     unsafe {
-        let s = cstr_take(encode_tv2echo(&raw mut (*v).di_tv, ptr::null_mut()));
+        let s = encode_tv2echo(&raw mut (*v).di_tv, ptr::null_mut());
         list_one_var_a(
             prefix,
             (*v).di_key.as_ptr(),
             strlen((*v).di_key.as_ptr()) as isize,
             (*v).di_tv.v_type,
-            s.as_ref().map_or(c"".as_ptr(), |c| c.as_ptr()),
+            s.as_ptr(),
             first,
         );
     }
@@ -3515,8 +3404,7 @@ unsafe fn opt_from_tv(
 
         if !is_tty_opt && ((*get_option(opt_idx)).flags & kOptFlagFunc) != 0 && tv_is_func(*tv) {
             let strval = encode_tv2string(tv, ptr::null_mut());
-            err = strval.is_null();
-            value = string_obj(cstr_as_string(strval));
+            value = crate::api::private::helpers::cstr_to_obj(strval.as_ptr());
         } else if option_has_bool || option_has_num {
             let n = if option_has_num {
                 tv_get_number_chk(tv, &raw mut err)

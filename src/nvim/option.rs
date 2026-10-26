@@ -5278,7 +5278,7 @@ unsafe fn opt_from_callback(cb: *mut Callback) -> Object {
                 callback_put(cb, &raw mut tv);
                 let str_ = encode_tv2string(&raw mut tv, ptr::null_mut());
                 tv_clear(&raw mut tv);
-                return cstr_as_obj(str_);
+                return cstr_to_obj(str_.as_ptr());
             }
             kCallbackNone => {}
             _ => {}

@@ -19,7 +19,7 @@ use crate::mbyte::{
     utf_char2bytes, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2cells, utf_ptr2char, utf_ptr2len,
     utfc_ptr2len,
 };
-use crate::memory::{xfree, xmalloc, xmallocz, xmemdupz, xmemscan, xstrchrnul, xstrlcpy};
+use crate::memory::{xmalloc, xmallocz, xmemdupz, xmemscan, xstrchrnul, xstrlcpy};
 use crate::message::{emsg, semsg};
 use crate::option::{csh_like_shell, fish_like_shell};
 #[cfg(windows)]
@@ -1269,7 +1269,7 @@ pub unsafe fn tv_nr(tvs: *mut typval_T, idxp: *mut c_int) -> varnumber_T {
 pub unsafe fn tv_str(
     tvs: *mut typval_T,
     idxp: *mut c_int,
-    tofree: *mut *mut c_char,
+    tofree: &mut Option<std::ffi::CString>,
 ) -> *const c_char {
     unsafe {
         let idx = (*idxp - 1) as usize;
@@ -1281,11 +1281,11 @@ pub unsafe fn tv_str(
             let tv = tvs.add(idx);
             if (*tv).v_type == VarType::VAR_STRING || (*tv).v_type == VarType::VAR_NUMBER {
                 s = tv_get_string_chk(tv);
-                *tofree = ptr::null_mut();
+                *tofree = None;
             } else {
                 let encoded = encode_tv2echo(tv, ptr::null_mut());
-                *tofree = encoded;
-                s = encoded;
+                s = encoded.as_ptr();
+                *tofree = Some(encoded);
             }
         }
         s
@@ -1959,7 +1959,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                 let uchar_arg: u8;
                 let mut number_of_zeros_to_pad: usize = 0;
                 let mut zero_padding_insertion_ind: usize = 0;
-                let mut tofree: *mut c_char = ptr::null_mut();
+                let mut tofree: Option<std::ffi::CString> = None;
                 let mut pos_arg: c_int = -1;
 
                 p = p.add(1);
@@ -2169,7 +2169,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                             }
                             b's' | b'S' => {
                                 str_arg = if !tvs.is_null() {
-                                    tv_str(tvs, &raw mut arg_idx, &raw mut tofree)
+                                    tv_str(tvs, &raw mut arg_idx, &mut tofree)
                                 } else {
                                     fmt_arg_val(fmt_args, &mut arg_idx)
                                         .as_ptr()
@@ -2704,7 +2704,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                     str_l += pn;
                 }
 
-                xfree(tofree.cast());
+                drop(tofree);
             }
         }
 
@@ -3158,8 +3158,10 @@ pub unsafe fn f_stridx(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
 
 pub unsafe fn f_string(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = encode_tv2string(argvars, ptr::null_mut());
+        crate::eval::typval::tv_set_string(
+            rettv,
+            encode_tv2string(argvars, ptr::null_mut()).as_ptr(),
+        );
     }
 }
 
@@ -3703,6 +3705,7 @@ pub unsafe fn f_trim(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::memory::xfree;
 
     #[test]
     fn vim_strnsave_unquoted_and_strrep_and_format_typeof_work() {

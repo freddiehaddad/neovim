@@ -330,7 +330,6 @@ pub struct exarg_T {
     pub nextcmd: *mut c_char,
     pub cmd: *mut c_char,
     pub cmdlinep: *mut *mut c_char,
-    pub cmdline_tofree: *mut c_char,
     pub cmdidx: c_int,
     pub argt: u32,
     pub skip: c_int,
@@ -368,7 +367,6 @@ impl exarg_T {
             nextcmd: ptr::null_mut(),
             cmd: ptr::null_mut(),
             cmdlinep: ptr::null_mut(),
-            cmdline_tofree: ptr::null_mut(),
             cmdidx: 0,
             argt: 0,
             skip: 0,
@@ -6768,7 +6766,6 @@ unsafe fn do_one_cmd(
         }
 
         ex_nesting_level -= 1;
-        xfree(ea.cmdline_tofree.cast());
 
         ea.nextcmd
     }

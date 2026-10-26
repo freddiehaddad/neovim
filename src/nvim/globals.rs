@@ -532,10 +532,7 @@ pub static mut screen_search_hl: match_T = match_T {
     tm: 0,
 };
 pub static mut search_hl_has_cursor_lnum: linenr_T = 0;
-pub static mut EVALARG_EVALUATE: evalarg_T = evalarg_T {
-    eval_flags: 1,
-    eval_tofree: ptr::null_mut(),
-};
+pub static mut EVALARG_EVALUATE: evalarg_T = evalarg_T { eval_flags: 1 };
 pub static mut curbuf_splice_pending: c_int = 0;
 pub static mut disable_fold_update: c_int = 0;
 pub static mut default_grid: ScreenGrid = SCREEN_GRID_INIT;
