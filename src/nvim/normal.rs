@@ -7722,7 +7722,13 @@ unsafe fn nv_put_opt(cap: *mut cmdarg_T, fix_indent: bool) {
         let savereg_ptr = savereg
             .as_mut()
             .map_or(ptr::null_mut(), |r| r as *mut yankreg_T);
-        do_put((*(*cap).oap).regname, savereg_ptr, dir, (*cap).count1, flags);
+        do_put(
+            (*(*cap).oap).regname,
+            savereg_ptr,
+            dir,
+            (*cap).count1,
+            flags,
+        );
         drop(savereg);
 
         if was_visual {

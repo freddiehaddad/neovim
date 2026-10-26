@@ -46,9 +46,7 @@ use crate::mark::{
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
-use crate::memory::{
-    ARENA_BLOCK_SIZE, strequal, xfree, xmalloc, xmemdup, xmemdupz, xstrdup,
-};
+use crate::memory::{ARENA_BLOCK_SIZE, strequal, xfree, xmalloc, xmemdup, xmemdupz, xstrdup};
 use crate::message::{semsg, siemsg, smsg, verbose_enter, verbose_leave};
 use crate::mpack::mpack_core::MPACK_OK;
 use crate::msgpack_rpc::packer::{
@@ -1350,23 +1348,24 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
         if srni_flags == 0 {
             return;
         }
-        let mut hms: [HistoryMergerState; HIST_COUNT] = std::array::from_fn(|_| HistoryMergerState {
-            hmll: HMLList {
-                entries: Vec::new(),
-                first: None,
-                last: None,
-                free_entry: None,
-                last_free_entry: 0,
-                size: 0,
-                num_entries: 0,
-                contained_entries: std::collections::HashMap::new(),
-            },
-            do_merge: false,
-            reading: false,
-            iter: None,
-            last_hist_entry: MISSING_ENTRY,
-            history_type: 0,
-        });
+        let mut hms: [HistoryMergerState; HIST_COUNT] =
+            std::array::from_fn(|_| HistoryMergerState {
+                hmll: HMLList {
+                    entries: Vec::new(),
+                    first: None,
+                    last: None,
+                    free_entry: None,
+                    last_free_entry: 0,
+                    size: 0,
+                    num_entries: 0,
+                    contained_entries: std::collections::HashMap::new(),
+                },
+                do_merge: false,
+                reading: false,
+                iter: None,
+                last_hist_entry: MISSING_ENTRY,
+                history_type: 0,
+            });
         if (srni_flags & kSDReadHistory) != 0 {
             for (i, hm) in hms.iter_mut().enumerate().take(HIST_COUNT) {
                 hms_init(hm, i as u8, p_hi as usize, true, true);
@@ -1376,8 +1375,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
         let mut cl_bufs: std::collections::HashSet<*mut buf_T> = std::collections::HashSet::new();
         let mut fname_bufs: std::collections::HashMap<Vec<u8>, *mut buf_T> =
             std::collections::HashMap::new();
-        let mut oldfiles_set: std::collections::HashSet<PathKey> =
-            std::collections::HashSet::new();
+        let mut oldfiles_set: std::collections::HashSet<PathKey> = std::collections::HashSet::new();
         if get_old_files && (oldfiles_list.is_null() || force) {
             oldfiles_list = tv_list_alloc(kListLenUnknown);
             set_vim_var_list(VV_OLDFILES, oldfiles_list);
@@ -1563,11 +1561,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                         if i > 0 && (*curwin).w_jumplistlen == (JUMPLISTSIZE as c_int) {
                             free_xfmark((*curwin).w_jumplist[0]);
                         }
-                        i = marklist_insert(
-                            &mut (*curwin).w_jumplist,
-                            (*curwin).w_jumplistlen,
-                            i,
-                        );
+                        i = marklist_insert(&mut (*curwin).w_jumplist, (*curwin).w_jumplistlen, i);
                         if i != -1 {
                             (*curwin).w_jumplist[i as usize] = fm;
                             if (*curwin).w_jumplistlen < (JUMPLISTSIZE as c_int) {
@@ -1662,11 +1656,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                         if i > 0 && (*buf).b_changelistlen == (JUMPLISTSIZE as c_int) {
                             free_fmark((*buf).b_changelist[0]);
                         }
-                        i = marklist_insert(
-                            &mut (*buf).b_changelist,
-                            (*buf).b_changelistlen,
-                            i,
-                        );
+                        i = marklist_insert(&mut (*buf).b_changelist, (*buf).b_changelistlen, i);
                         if i != -1 {
                             (*buf).b_changelist[i as usize] = fm;
                             if (*buf).b_changelistlen < (JUMPLISTSIZE as c_int) {
@@ -1832,7 +1822,10 @@ unsafe fn shada_pack_entry(
                 vardesc[prefix.len() + copy_len] = 0;
                 if encode_vim_to_msgpack(&mut sbuf, &raw mut gv.value, vardesc.as_ptr()) == FAIL {
                     ret = ShaDaWriteResult::kSDWriteIgnError;
-                    semsg!(gettext(c"E574: Failed to write variable %s".as_ptr()), gv.name);
+                    semsg!(
+                        gettext(c"E574: Failed to write variable %s".as_ptr()),
+                        gv.name
+                    );
                     xfree(sbuf.startptr.cast());
                     return ret;
                 }
@@ -2407,9 +2400,7 @@ unsafe fn ignore_buf(
 }
 
 #[inline]
-unsafe fn shada_get_buflist(
-    removable_bufs: &std::collections::HashSet<*mut buf_T>,
-) -> ShadaEntry {
+unsafe fn shada_get_buflist(removable_bufs: &std::collections::HashSet<*mut buf_T>) -> ShadaEntry {
     unsafe {
         let max_bufs = get_shada_parameter(b'%' as c_int);
         let mut buffers = Vec::new();
@@ -2545,7 +2536,8 @@ unsafe fn replace_numbered_mark(wms: *mut WriteMergerState, idx: usize, entry: S
         shada_free_shada_entry(&mut (*wms).numbered_marks[EXTRA_MARKS - 1]);
         for i in idx..(EXTRA_MARKS - 1) {
             if (*wms).numbered_marks[i].entry_type == ShadaEntryType::kSDItemGlobalMark {
-                (*wms).numbered_marks[i].data.filemark_mut().name = (b'0' + (i as u8) + 1) as c_char;
+                (*wms).numbered_marks[i].data.filemark_mut().name =
+                    (b'0' + (i as u8) + 1) as c_char;
             }
         }
         let base = (&raw mut (*wms).numbered_marks).cast::<ShadaEntry>();
@@ -3745,8 +3737,7 @@ unsafe fn shada_read_next_item(
                 match entry_type {
                     ShadaEntryType::kSDItemHeader => {}
                     ShadaEntryType::kSDItemSearchPattern => {
-                        let it: *mut KeyDict__shada_search_pat =
-                            (*entry).data.search_pattern_mut();
+                        let it: *mut KeyDict__shada_search_pat = (*entry).data.search_pattern_mut();
                         if !unpack_keydict(
                             it.cast(),
                             Some(shada_search_pat_get_field_cb),
@@ -4061,11 +4052,8 @@ unsafe fn shada_read_next_item(
                             }
                             gv.value = decode_string(binval.data, binval.size, is_blob, false);
                         } else {
-                            let status = unpack_typval(
-                                &mut read_ptr,
-                                &mut read_size,
-                                &raw mut gv.value,
-                            );
+                            let status =
+                                unpack_typval(&mut read_ptr, &mut read_size, &raw mut gv.value);
                             if status != MPACK_OK {
                                 semsg!(
                                     gettext(

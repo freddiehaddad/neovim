@@ -609,11 +609,8 @@ pub unsafe fn func_line_end(fcp: *mut funccall_T) {
             fp.uf_tml_count[idx] += 1;
             fp.uf_tml_start = profile_sub_wait(fp.uf_tml_wait, profile_end(fp.uf_tml_start));
             fp.uf_tml_total[idx] = profile_add(fp.uf_tml_total[idx], fp.uf_tml_start);
-            fp.uf_tml_self[idx] = profile_self(
-                fp.uf_tml_self[idx],
-                fp.uf_tml_start,
-                fp.uf_tml_children,
-            );
+            fp.uf_tml_self[idx] =
+                profile_self(fp.uf_tml_self[idx], fp.uf_tml_start, fp.uf_tml_children);
         }
         fp.uf_tml_idx = -1;
     }
@@ -639,53 +636,53 @@ unsafe fn func_dump_profile(fd: *mut FILE) {
                 } else {
                     fprintf!(fd, c"FUNCTION  %s()\n".as_ptr(), name_ptr);
                 }
-                    if (*fp).uf_script_ctx.sc_sid != 0 {
-                        let mut should_free = false;
-                        let p = get_scriptname((*fp).uf_script_ctx, &mut should_free);
-                        fprintf!(
-                            fd,
-                            c"    Defined: %s:%d\n".as_ptr(),
-                            p,
-                            (*fp).uf_script_ctx.sc_lnum,
-                        );
-                        if should_free {
-                            xfree(p.cast());
-                        }
-                    }
-                    if (*fp).uf_tm_count == 1 {
-                        fprintf!(fd, c"Called 1 time\n".as_ptr());
-                    } else {
-                        fprintf!(fd, c"Called %d times\n".as_ptr(), (*fp).uf_tm_count);
-                    }
+                if (*fp).uf_script_ctx.sc_sid != 0 {
+                    let mut should_free = false;
+                    let p = get_scriptname((*fp).uf_script_ctx, &mut should_free);
                     fprintf!(
                         fd,
-                        c"Total time: %s\n".as_ptr(),
-                        profile_msg((*fp).uf_tm_total),
+                        c"    Defined: %s:%d\n".as_ptr(),
+                        p,
+                        (*fp).uf_script_ctx.sc_lnum,
                     );
-                    fprintf!(
-                        fd,
-                        c" Self time: %s\n".as_ptr(),
-                        profile_msg((*fp).uf_tm_self),
-                    );
-                    fprintf!(fd, c"\n".as_ptr());
-                    fprintf!(fd, c"count  total (s)   self (s)\n".as_ptr());
+                    if should_free {
+                        xfree(p.cast());
+                    }
+                }
+                if (*fp).uf_tm_count == 1 {
+                    fprintf!(fd, c"Called 1 time\n".as_ptr());
+                } else {
+                    fprintf!(fd, c"Called %d times\n".as_ptr(), (*fp).uf_tm_count);
+                }
+                fprintf!(
+                    fd,
+                    c"Total time: %s\n".as_ptr(),
+                    profile_msg((*fp).uf_tm_total),
+                );
+                fprintf!(
+                    fd,
+                    c" Self time: %s\n".as_ptr(),
+                    profile_msg((*fp).uf_tm_self),
+                );
+                fprintf!(fd, c"\n".as_ptr());
+                fprintf!(fd, c"count  total (s)   self (s)\n".as_ptr());
 
-                    for i in 0..(*fp).uf_lines.len() as c_int {
-                        let line = (&(*fp).uf_lines)[i as usize];
-                        if line.is_null() {
-                            continue;
-                        }
-                        let idx = i as usize;
-                        prof_func_line(
-                            fd,
-                            (*fp).uf_tml_count.as_slice()[idx],
-                            &(*fp).uf_tml_total.as_slice()[idx],
-                            &(*fp).uf_tml_self.as_slice()[idx],
-                            true,
-                        );
-                        fprintf!(fd, c"%s\n".as_ptr(), line);
+                for i in 0..(*fp).uf_lines.len() as c_int {
+                    let line = (&(*fp).uf_lines)[i as usize];
+                    if line.is_null() {
+                        continue;
                     }
-                    fprintf!(fd, c"\n".as_ptr());
+                    let idx = i as usize;
+                    prof_func_line(
+                        fd,
+                        (*fp).uf_tml_count.as_slice()[idx],
+                        &(*fp).uf_tml_total.as_slice()[idx],
+                        &(*fp).uf_tml_self.as_slice()[idx],
+                        true,
+                    );
+                    fprintf!(fd, c"%s\n".as_ptr(), line);
+                }
+                fprintf!(fd, c"\n".as_ptr());
             }
         }
 

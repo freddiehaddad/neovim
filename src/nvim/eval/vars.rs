@@ -37,8 +37,8 @@ use crate::eval::{
     AUTOLOAD_CHAR, DICT_MAXNEST, FNE_CHECK_START, FNE_INCL_BR, GLV_QUIET, VAR_DEF_SCOPE,
     callback_call, clear_evalarg, eval_isnamec1, eval_lavars_used, eval_option, eval_to_string,
     eval0, eval1, fill_evalarg_from_eap, find_name_end, find_option_var_end, get_env_len, get_lval,
-    get_name_len, handle_subscript, kListLenUnknown, may_call_simple_func, num_divide,
-    num_modulus, partial_unref, set_ref_in_ht, set_var_lval, skip_expr, tv_dict_set_ret,
+    get_name_len, handle_subscript, kListLenUnknown, may_call_simple_func, num_divide, num_modulus,
+    partial_unref, set_ref_in_ht, set_var_lval, skip_expr, tv_dict_set_ret,
 };
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{check_nextcmd, ends_excmd, exarg_T};
@@ -74,9 +74,7 @@ use crate::os::env::{
 use crate::register::{get_reg_contents_str, kGRegExprSrc, write_reg_contents};
 use crate::runtime::{new_script_item, script_autoload, script_item, scriptvar_T};
 use crate::search::set_search_direction;
-use crate::strings::{
-    concat_str, gettext, strcmp, strlen, strncmp, vim_snprintf, vim_strchr,
-};
+use crate::strings::{concat_str, gettext, strcmp, strlen, strncmp, vim_snprintf, vim_strchr};
 use crate::version::{highest_patch, min_vim_version};
 use crate::window::{
     find_tabpage, goto_tabpage_tp, prevwin_curwin, tabpage_T, valid_tabpage, win_T,
@@ -913,10 +911,7 @@ pub unsafe fn restore_vimvar(idx: c_int, save_tv: *mut typval_T) {
             return;
         }
 
-        let hi = hash_find(
-            &raw const vimvardict.dv_hashtab,
-            (*p).vv_di.di_key.as_ptr(),
-        );
+        let hi = hash_find(&raw const vimvardict.dv_hashtab, (*p).vv_di.di_key.as_ptr());
         if hashitem_empty(&*hi) {
             internal_error(c"restore_vimvar()".as_ptr());
         } else {

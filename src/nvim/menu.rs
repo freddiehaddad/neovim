@@ -1225,11 +1225,7 @@ pub unsafe fn get_menu_names(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
                         TBUFFER_LEN,
                     );
                 } else {
-                    xstrlcpy(
-                        &raw mut GET_MENU_NAMES_TBUFFER[0],
-                        menu.dname,
-                        TBUFFER_LEN,
-                    );
+                    xstrlcpy(&raw mut GET_MENU_NAMES_TBUFFER[0], menu.dname, TBUFFER_LEN);
                     if menu.en_dname.is_null() {
                         GET_MENU_NAMES_ADVANCE = true;
                     }
@@ -1897,11 +1893,7 @@ unsafe fn menu_translate_tab_and_shift(arg_start: *mut c_char) -> *mut c_char {
 }
 
 /// Get the information about a menu item in mode `modes` (`menuitem_getinfo`).
-unsafe fn menuitem_getinfo(
-    menu: *const vimmenu_T,
-    modes: c_int,
-    dict: *mut dict_T,
-) {
+unsafe fn menuitem_getinfo(menu: *const vimmenu_T, modes: c_int, dict: *mut dict_T) {
     unsafe {
         tv_dict_add_str(dict, c"name".as_ptr(), 4, (*menu).name);
         tv_dict_add_str(dict, c"display".as_ptr(), 7, (*menu).dname);

@@ -525,8 +525,7 @@ unsafe fn mc_cascade() {
         'outer: for ai in 0..(*ga).len() {
             let atom = &mut (&mut *ga)[ai];
             if !atom.origin.buf.br_buf.is_null()
-                && (!bufref_valid(&raw mut atom.origin.buf)
-                    || atom.origin.buf.br_buf != curbuf)
+                && (!bufref_valid(&raw mut atom.origin.buf) || atom.origin.buf.br_buf != curbuf)
             {
                 continue;
             }
@@ -1114,7 +1113,10 @@ unsafe fn mc_reg_gather() {
         order.sort_by(|&a, &b| {
             let ca = &*a;
             let cb = &*b;
-            ca.pos.lnum.cmp(&cb.pos.lnum).then_with(|| ca.pos.col.cmp(&cb.pos.col))
+            ca.pos
+                .lnum
+                .cmp(&cb.pos.lnum)
+                .then_with(|| ca.pos.col.cmp(&cb.pos.col))
         });
 
         let mut save = CONTEXT_INIT;
@@ -1815,7 +1817,9 @@ pub unsafe fn mc_add(buf: *mut buf_T, pos: pos_T) -> *mut Context {
         let mut mark: u32 = 0;
         mc_mark_upd(buf, &mut mark, pos);
         if cursors().len() > count {
-            cursors_mut().last_mut().map_or(ptr::null_mut(), ptr::from_mut)
+            cursors_mut()
+                .last_mut()
+                .map_or(ptr::null_mut(), ptr::from_mut)
         } else {
             ptr::null_mut()
         }

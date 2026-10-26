@@ -56,9 +56,7 @@ use crate::mbyte::{
 };
 use crate::mcursor::mc_ins_cascading;
 use crate::memline::{decl, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace};
-use crate::memory::{
-    memchrsub, memcnt, xfree, xmalloc, xmallocz, xmemdupz, xstrdup,
-};
+use crate::memory::{memchrsub, memcnt, xfree, xmalloc, xmallocz, xmemdupz, xstrdup};
 use crate::message::{
     emsg, emsg_invreg, message_filtered, msg, msg_ext_set_kind, msg_outtrans_len, msg_putchar,
     msg_puts, msg_puts_hl, msg_puts_title, msgmore, semsg, smsg,
@@ -539,11 +537,7 @@ pub unsafe fn yank_register_mline(regname: c_int, reg: *mut *mut yankreg_T) -> b
 pub unsafe fn copy_register(name: c_int) -> yankreg_T {
     unsafe {
         let reg = &*get_yank_register(name, YREG_PASTE);
-        let y_array = reg
-            .y_array
-            .iter()
-            .map(|&s| copy_string_global(s))
-            .collect();
+        let y_array = reg.y_array.iter().map(|&s| copy_string_global(s)).collect();
         yankreg_T {
             y_array,
             y_allocated: reg.y_allocated,
@@ -847,10 +841,8 @@ pub unsafe fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent:
                             && *p.add(1) == b'\\' as c_char
                             && *p.add(2) == b' ' as c_char)
                     {
-                        str_ = execreg_line_continuation(
-                            reg.y_array.as_ptr().cast_mut(),
-                            &raw mut i,
-                        );
+                        str_ =
+                            execreg_line_continuation(reg.y_array.as_ptr().cast_mut(), &raw mut i);
                         free_str = true;
                     }
                 }

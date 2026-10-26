@@ -29,7 +29,6 @@ pub enum WBufferFinalizer {
 #[repr(C)]
 pub struct WBuffer {
     pub size: usize,
-    pub refcount: usize,
     pub data: *mut c_char,
     pub cb: WBufferFinalizer,
 }
@@ -85,7 +84,7 @@ struct UvWriteReq([u8; 256]);
 #[repr(C)]
 struct WRequest {
     stream: *mut Stream,
-    buffer: *mut WBuffer,
+    buffer: std::rc::Rc<WBuffer>,
     uv: UvWriteReq,
 }
 
@@ -110,12 +109,12 @@ pub unsafe fn wstream_set_write_cb(stream: *mut Stream, cb: stream_write_cb) {
     }
 }
 
-pub unsafe fn wstream_write(stream: *mut Stream, buffer: *mut WBuffer) -> c_int {
+pub unsafe fn wstream_write(stream: *mut Stream, buffer: std::rc::Rc<WBuffer>) -> c_int {
     unsafe {
         assert!((*stream).maxmem != 0);
         assert!(!(*stream).closed);
 
-        let uvbuf = uv_buf_t::new((*buffer).data, (*buffer).size);
+        let uvbuf = uv_buf_t::new(buffer.data, buffer.size);
 
         if (*stream).uvstream.is_null() {
             let mut req_buf = [0u64; 128];
@@ -133,7 +132,7 @@ pub unsafe fn wstream_write(stream: *mut Stream, buffer: *mut WBuffer) -> c_int 
             let req_result = uv_fs_get_result(req_ptr);
             uv_fs_req_cleanup(req_ptr);
 
-            wstream_release_wbuffer(buffer);
+            drop(buffer);
             assert!((*stream).write_cb.is_none());
 
             if req_result > 0 {
@@ -144,11 +143,10 @@ pub unsafe fn wstream_write(stream: *mut Stream, buffer: *mut WBuffer) -> c_int 
         }
 
         if (*stream).curmem > (*stream).maxmem {
-            wstream_release_wbuffer(buffer);
             return UV_ENOMEM;
         }
 
-        (*stream).curmem += (*buffer).size;
+        (*stream).curmem += buffer.size;
 
         let data = Box::into_raw(Box::new(WRequest {
             stream,
@@ -161,7 +159,6 @@ pub unsafe fn wstream_write(stream: *mut Stream, buffer: *mut WBuffer) -> c_int 
         let err = uv_write(uv_req, (*stream).uvstream, &uvbuf, 1, Some(write_cb));
         if err != 0 {
             let _ = Box::from_raw(data);
-            wstream_release_wbuffer(buffer);
             return err;
         }
 
@@ -170,29 +167,21 @@ pub unsafe fn wstream_write(stream: *mut Stream, buffer: *mut WBuffer) -> c_int 
     }
 }
 
-pub unsafe fn wstream_new_buffer(
+pub fn wstream_new_buffer(
     data: *mut c_char,
     size: usize,
-    refcount: usize,
     cb: WBufferFinalizer,
-) -> *mut WBuffer {
-    Box::into_raw(Box::new(WBuffer {
-        size,
-        refcount,
-        cb,
-        data,
-    }))
+) -> std::rc::Rc<WBuffer> {
+    std::rc::Rc::new(WBuffer { size, cb, data })
 }
 
 unsafe extern "C" fn write_cb(req: *mut uv_write_t, status: c_int) {
     unsafe {
-        let data = *req.cast::<*mut WRequest>();
-        let stream = (*data).stream;
-        let buffer = (*data).buffer;
+        let data = Box::from_raw(*req.cast::<*mut WRequest>());
+        let stream = data.stream;
 
-        (*stream).curmem -= (*buffer).size;
-
-        wstream_release_wbuffer(buffer);
+        (*stream).curmem -= data.buffer.size;
+        drop(data);
 
         if let Some(cb) = (*stream).write_cb {
             cb(stream, status);
@@ -202,17 +191,6 @@ unsafe extern "C" fn write_cb(req: *mut uv_write_t, status: c_int) {
 
         if (*stream).closed && (*stream).pending_reqs == 0 {
             stream_close_handle(stream);
-        }
-
-        let _ = Box::from_raw(data);
-    }
-}
-
-pub unsafe fn wstream_release_wbuffer(buffer: *mut WBuffer) {
-    unsafe {
-        (*buffer).refcount -= 1;
-        if (*buffer).refcount == 0 {
-            drop(Box::from_raw(buffer));
         }
     }
 }

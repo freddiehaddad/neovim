@@ -81,18 +81,15 @@ use crate::eval::window::{find_tabwin, find_win_by_nr_or_id, win_id2wp_tp};
 use crate::eval::{
     FNE_CHECK_START, GLV_NO_AUTOLOAD, GLV_READ_ONLY, TFN_NO_AUTOLOAD, TFN_QUIET, VARNUMBER_MAX,
     add_timer_info, add_timer_info_all, buf_byteidx_to_charidx, buf_charidx_to_byteidx,
-    callback_from_typval, common_job_callbacks, do_string_sub, eval_expr_to_bool,
-    eval_expr_typval, eval_expr_valid_arg, eval_has_provider, eval_option, eval1, find_job,
-    find_timer_by_nr, get_callback_depth, get_copyID, get_lval, kListLenMayKnow,
-    kListLenShouldKnow, kListLenUnknown, list2fpos, partial_name, save_tv_as_string,
-    script_host_eval, string2float, timer_due_cb, timer_start, timer_stop, timer_stop_all,
-    tv_dict_set_ret, tv_to_argv, var_item_copy, var2fpos,
+    callback_from_typval, common_job_callbacks, do_string_sub, eval_expr_to_bool, eval_expr_typval,
+    eval_expr_valid_arg, eval_has_provider, eval_option, eval1, find_job, find_timer_by_nr,
+    get_callback_depth, get_copyID, get_lval, kListLenMayKnow, kListLenShouldKnow, kListLenUnknown,
+    list2fpos, partial_name, save_tv_as_string, script_host_eval, string2float, timer_due_cb,
+    timer_start, timer_stop, timer_stop_all, tv_dict_set_ret, tv_to_argv, var_item_copy, var2fpos,
 };
 #[cfg(unix)]
 use crate::event::r#loop::uv_kill;
-use crate::event::r#loop::{
-    Loop, loop_closing_ptr, loop_poll_events, loop_queues, uv_strerror,
-};
+use crate::event::r#loop::{Loop, loop_closing_ptr, loop_poll_events, loop_queues, uv_strerror};
 use crate::event::multiqueue::{
     multiqueue_empty, multiqueue_free, multiqueue_new, multiqueue_process_events,
     multiqueue_replace_parent,
@@ -151,9 +148,7 @@ use crate::message::{
 use crate::r#move::{update_curswant, win_col_off};
 use crate::mpack::mpack_core::MPACK_OK;
 use crate::mpack::object::mpack_parser_t;
-use crate::msgpack_rpc::channel::{
-    find_channel, get_client_info, rpc_send_call, rpc_send_event,
-};
+use crate::msgpack_rpc::channel::{find_channel, get_client_info, rpc_send_call, rpc_send_event};
 use crate::msgpack_rpc::packer::{Integer, PackerBuffer, packer_string_buffer, packer_take_string};
 use crate::msgpack_rpc::server::{
     server_address_list, server_address_new, server_start, server_stop,
@@ -2273,7 +2268,8 @@ pub unsafe fn execute_common(argvars: *mut typval_T, rettv: *mut typval_T, arg_o
         }
 
         (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = xmemdupz(capture_local.as_ptr().cast(), capture_local.len()).cast();
+        (*rettv).vval.v_string =
+            xmemdupz(capture_local.as_ptr().cast(), capture_local.len()).cast();
 
         capture_ga = save_capture_ga;
     }
@@ -5888,12 +5884,7 @@ pub unsafe fn f_mode(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
     }
 }
 
-unsafe fn may_add_state_char(
-    buf: &mut [c_char],
-    len: &mut usize,
-    include: *const c_char,
-    c: u8,
-) {
+unsafe fn may_add_state_char(buf: &mut [c_char], len: &mut usize, include: *const c_char, c: u8) {
     unsafe {
         if include.is_null() || !vim_strchr(include, c_int::from(c)).is_null() {
             buf[*len] = c as c_char;
@@ -8255,11 +8246,7 @@ pub unsafe fn f_sha256(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
 
         if (*argvars).v_type == VarType::VAR_BLOB {
             let blob = (*argvars).vval.v_blob.cast::<blob_T>();
-            let slice: &[u8] = if !blob.is_null() {
-                &(*blob).bv_ga
-            } else {
-                &[]
-            };
+            let slice: &[u8] = if !blob.is_null() { &(*blob).bv_ga } else { &[] };
             let hex = sha256_hex(slice, None);
             (*rettv).vval.v_string = xmemdupz(hex.as_ptr().cast(), hex.len()).cast();
         } else {

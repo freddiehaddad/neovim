@@ -615,8 +615,7 @@ unsafe fn group_previous(xdf: *mut xdfile_t, g: &mut XdlGroup) -> c_int {
 unsafe fn group_slide_down(xdf: *mut xdfile_t, g: &mut XdlGroup, flags: c_long) -> c_int {
     unsafe {
         let recs = &(*xdf).recs;
-        if g.end < (*xdf).nrec
-            && recs_match(&recs[g.start as usize], &recs[g.end as usize], flags)
+        if g.end < (*xdf).nrec && recs_match(&recs[g.start as usize], &recs[g.end as usize], flags)
         {
             *(*xdf).rchg.offset(g.start as isize) = 0;
             g.start += 1;

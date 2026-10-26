@@ -16,10 +16,10 @@ use crate::charset::{
 use crate::cmdexpand::{EXPAND_MAPPINGS, EXPAND_NOTHING, MB_MAXBYTES, cmdline_fuzzy_complete};
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, nlua_clear_ref,
-    tv_check_for_dict_arg, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_dict_get_number,
-    tv_dict_get_string, tv_get_bool, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk,
-    tv_list_alloc_ret, tv_list_append_dict, typval_T,
+    EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, nlua_clear_ref, tv_check_for_dict_arg,
+    tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_dict_get_number, tv_dict_get_string,
+    tv_get_bool, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk, tv_list_alloc_ret,
+    tv_list_append_dict, typval_T,
 };
 use crate::eval::userfunc::{FC_LUAREF, find_func};
 use crate::eval::vars::{scid_T, set_vim_var_char};
@@ -232,7 +232,10 @@ const fn map_hash(mode: c_int, c1: u8) -> usize {
 use crate::keycodes::{k_second, k_third};
 
 /// Get the start of the hashed map list for "state" and first character "c".
-pub unsafe fn get_maphash_list(state: c_int, c: c_int) -> &'static [std::pin::Pin<Box<mapblock_T>>] {
+pub unsafe fn get_maphash_list(
+    state: c_int,
+    c: c_int,
+) -> &'static [std::pin::Pin<Box<mapblock_T>>] {
     unsafe {
         (&raw const maphash[map_hash(state, c as u8)])
             .as_ref()
@@ -788,11 +791,7 @@ unsafe fn buf_do_map(
                     if is_abbrev && maptype != MAPTYPE_UNMAP {
                         let mut same: c_int = -1;
                         let mut keys_unescaped = [0 as c_char; MAXMAPLEN + 1];
-                        xmemcpyz(
-                            keys_unescaped.as_mut_ptr().cast(),
-                            lhs.cast(),
-                            len as usize,
-                        );
+                        xmemcpyz(keys_unescaped.as_mut_ptr().cast(), lhs.cast(), len as usize);
                         let keys_unescaped_len = vim_unescape_ks(keys_unescaped.as_mut_ptr());
                         let mut p = keys_unescaped.as_ptr();
                         let end_p = p.add(keys_unescaped_len);
@@ -831,12 +830,7 @@ unsafe fn buf_do_map(
                     msg_start();
                 }
 
-                if args.unique
-                    && local
-                    && has_lhs
-                    && has_rhs
-                    && maptype != MAPTYPE_UNMAP
-                {
+                if args.unique && local && has_lhs && has_rhs && maptype != MAPTYPE_UNMAP {
                     let lhs_slice = std::slice::from_raw_parts(lhs.cast::<u8>(), len as usize);
                     for bucket in get_map_buckets(ptr::null(), is_abbrev) {
                         if got_int {
@@ -876,10 +870,8 @@ unsafe fn buf_do_map(
                                 } else {
                                     let n = mp.m_keylen;
                                     let cmp_len = n.min(len) as usize;
-                                    let mp_slice = std::slice::from_raw_parts(
-                                        mp.m_keys.cast::<u8>(),
-                                        cmp_len,
-                                    );
+                                    let mp_slice =
+                                        std::slice::from_raw_parts(mp.m_keys.cast::<u8>(), cmp_len);
                                     let lhs_slice =
                                         std::slice::from_raw_parts(lhs.cast::<u8>(), cmp_len);
                                     if mp_slice == lhs_slice {
@@ -1597,7 +1589,10 @@ pub unsafe fn check_abbr(
                 let mut qlen = (*cand).m_keylen;
                 let mut q = (*cand).m_keys;
 
-                if CStr::from_ptr((*cand).m_keys).to_bytes().contains(&K_SPECIAL) {
+                if CStr::from_ptr((*cand).m_keys)
+                    .to_bytes()
+                    .contains(&K_SPECIAL)
+                {
                     q = xstrdup((*cand).m_keys);
                     qlen = vim_unescape_ks(q) as c_int;
                 }

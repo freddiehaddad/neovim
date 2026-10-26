@@ -57,8 +57,8 @@ use crate::mbyte::{
     utf_ptr2cells, utf_ptr2char, utf_ptr2len, utf8len_tab, utfc_ptr2len, utfc_ptr2len_len,
 };
 use crate::memory::{
-    Arena, arena_alloc, strequal, xfree, xmalloc, xmemdupz, xmemrchr, xstrdup, xstrlcat,
-    xstrlcpy, xstrnlen,
+    Arena, arena_alloc, strequal, xfree, xmalloc, xmemdupz, xmemrchr, xstrdup, xstrlcat, xstrlcpy,
+    xstrnlen,
 };
 use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
 use crate::msgpack_rpc::packer::Integer;
@@ -671,11 +671,7 @@ pub unsafe fn msg_multihl(
             }
         }
 
-        let active_msg: &HlMessage = if hl_msg_updated {
-            &updated_msg
-        } else {
-            hl_msg
-        };
+        let active_msg: &HlMessage = if hl_msg_updated { &updated_msg } else { hl_msg };
 
         no_wait_return += 1;
         msg_start();
@@ -1464,9 +1460,7 @@ pub unsafe fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, msg_data: *mut
             .iter()
             .map(|chunk| Object {
                 obj_type: ObjectType::kObjectTypeString,
-                data: ObjectData {
-                    string: chunk.text,
-                },
+                data: ObjectData { string: chunk.text },
             })
             .collect();
         let messages = Array {

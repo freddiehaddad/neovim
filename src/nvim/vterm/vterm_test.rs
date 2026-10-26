@@ -127,11 +127,7 @@ unsafe fn push_frag_bytes(out: &mut Vec<u8>, frag: VTermStringFragment) {
     }
 }
 
-pub unsafe fn parser_text(
-    bytes: *const c_char,
-    len: usize,
-    _user: *mut VTermStateFull,
-) -> c_int {
+pub unsafe fn parser_text(bytes: *const c_char, len: usize, _user: *mut VTermStateFull) -> c_int {
     let mut out = b"text ".to_vec();
     let mut i = 0usize;
     unsafe {
@@ -479,11 +475,7 @@ const fn vterm_get_prop_type(prop: VTermProp) -> VTermValueType {
     }
 }
 
-pub unsafe fn state_settermprop<T>(
-    prop: VTermProp,
-    val: *mut VTermValue,
-    _user: *mut T,
-) -> c_int {
+pub unsafe fn state_settermprop<T>(prop: VTermProp, val: *mut VTermValue, _user: *mut T) -> c_int {
     unsafe {
         if !want_state_settermprop {
             return 1;
@@ -491,7 +483,11 @@ pub unsafe fn state_settermprop<T>(
         let mut out = Vec::new();
         let errcode = match vterm_get_prop_type(prop) {
             VTERM_VALUETYPE_BOOL => {
-                let s = if (*val).boolean() != 0 { "true" } else { "false" };
+                let s = if (*val).boolean() != 0 {
+                    "true"
+                } else {
+                    "false"
+                };
                 let _ = writeln!(out, "settermprop {prop} {s}");
                 1
             }

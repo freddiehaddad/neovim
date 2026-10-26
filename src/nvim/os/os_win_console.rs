@@ -360,8 +360,11 @@ pub unsafe fn os_title_reset() {
 pub unsafe fn os_tty_guess_term(term: *mut *const c_char, out_fd: c_int) {
     unsafe {
         let mut conemu_buf = [0 as c_char; 16];
-        let conemu_env =
-            os_getenv_buf(c"ConEmuANSI".as_ptr(), conemu_buf.as_mut_ptr(), conemu_buf.len());
+        let conemu_env = os_getenv_buf(
+            c"ConEmuANSI".as_ptr(),
+            conemu_buf.as_mut_ptr(),
+            conemu_buf.len(),
+        );
         let conemu_ansi = !conemu_env.is_null() && CStr::from_ptr(conemu_env).to_bytes() == b"ON";
         let mut vtp = false;
 

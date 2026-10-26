@@ -10,10 +10,11 @@ use crate::cmdexpand::{
 use crate::errors::*;
 use crate::eval::typval::{
     EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, blob_T, list_T, tv_blob_alloc_ret,
-    tv_blob_len, tv_check_for_nonempty_string_arg, tv_check_for_string_arg, tv_check_str_or_nr, tv_clear, tv_get_bool_chk, tv_get_number, tv_get_number_chk, tv_get_string,
-    tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk, tv_list_alloc_ret,
-    tv_list_append_owned_tv, tv_list_append_string, tv_list_first, tv_list_item_remove,
-    tv_list_len, tv_list_set_ret, typval_T, varnumber_T,
+    tv_blob_len, tv_check_for_nonempty_string_arg, tv_check_for_string_arg, tv_check_str_or_nr,
+    tv_clear, tv_get_bool_chk, tv_get_number, tv_get_number_chk, tv_get_string, tv_get_string_buf,
+    tv_get_string_buf_chk, tv_get_string_chk, tv_list_alloc_ret, tv_list_append_owned_tv,
+    tv_list_append_string, tv_list_first, tv_list_item_remove, tv_list_len, tv_list_set_ret,
+    typval_T, varnumber_T,
 };
 use crate::eval::userfunc::{add_defer, can_add_defer};
 use crate::eval::vars::{VV_VAL, prepare_vimvar, restore_vimvar, set_vim_var_string};
@@ -22,9 +23,7 @@ use crate::eval::{do_string_sub, eval_expr_typval};
 use crate::event::r#loop::uv_strerror;
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{do_chdir, vim_mkdir_emsg};
-use crate::file_search::{
-    FINDFILE_DIR, FINDFILE_FILE, ff_search_ctx_T, find_file_in_path_option,
-};
+use crate::file_search::{FINDFILE_DIR, FINDFILE_FILE, ff_search_ctx_T, find_file_in_path_option};
 #[cfg(not(windows))]
 use crate::fileio::readlink;
 use crate::fileio::{
@@ -1990,7 +1989,13 @@ unsafe fn write_data(fp: *mut FileDescriptor, data: *const c_char, len: usize) -
 }
 
 unsafe fn write_blob(fp: *mut FileDescriptor, blob: *const blob_T) -> bool {
-    unsafe { write_data(fp, (*blob).bv_ga.as_ptr().cast(), tv_blob_len(blob) as usize) }
+    unsafe {
+        write_data(
+            fp,
+            (*blob).bv_ga.as_ptr().cast(),
+            tv_blob_len(blob) as usize,
+        )
+    }
 }
 
 unsafe fn write_string(fp: *mut FileDescriptor, data: *const c_char) -> bool {

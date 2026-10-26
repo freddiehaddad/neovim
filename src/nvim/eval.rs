@@ -10,23 +10,22 @@ use crate::charset::{
 };
 use crate::eval::typval::{
     Callback, EvalFuncData, TV_CSTRING, TypvalVval, VAR_UNLOCKED, VarType, blob_T, callback_copy,
-    callback_free, callback_put, dict_T, dictitem_T, float_T, kCallbackExpr,
-    kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial, list_T, listitem_T,
-    listwatch_T, partial_T, tv_blob_alloc, tv_blob_alloc_ret, tv_blob_check_index,
-    tv_blob_check_range, tv_blob_copy, tv_blob_equal, tv_blob_get, tv_blob_len,
-    tv_blob_set_append, tv_blob_set_range, tv_blob_slice_or_index, tv_blob_unref, tv_check_lock,
-    tv_check_num,
-    tv_check_str, tv_clear, tv_copy, tv_dict_add, tv_dict_add_nr, tv_dict_alloc, tv_dict_copy,
-    tv_dict_equal, tv_dict_find, tv_dict_free, tv_dict_free_contents, tv_dict_get_callback,
-    tv_dict_get_number, tv_dict_hi2di, tv_dict_item_alloc, tv_dict_item_free, tv_dict_unref,
-    tv_dict_watcher_notify, tv_dict_wrong_func_name, tv_empty_string, tv_equal, tv_get_float,
-    tv_get_number, tv_get_number_chk, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk,
-    tv_get_string_chk, tv_in_free_unref_items, tv_initial_value, tv_is_func, tv_list_alloc,
-    tv_list_alloc_ret, tv_list_append_dict, tv_list_append_owned_tv, tv_list_append_string,
-    tv_list_assign_range, tv_list_check_range_index_one, tv_list_check_range_index_two,
-    tv_list_concat, tv_list_copy, tv_list_equal, tv_list_find, tv_list_find_nr, tv_list_first,
-    tv_list_free, tv_list_free_contents, tv_list_join, tv_list_last, tv_list_len, tv_list_ref,
-    tv_list_set_lock, tv_list_set_ret, tv_list_slice_or_index, tv_list_unref, tv_list_watch_add,
+    callback_free, callback_put, dict_T, dictitem_T, float_T, kCallbackExpr, kCallbackFuncref,
+    kCallbackLua, kCallbackNone, kCallbackPartial, list_T, listitem_T, listwatch_T, partial_T,
+    tv_blob_alloc, tv_blob_alloc_ret, tv_blob_check_index, tv_blob_check_range, tv_blob_copy,
+    tv_blob_equal, tv_blob_get, tv_blob_len, tv_blob_set_append, tv_blob_set_range,
+    tv_blob_slice_or_index, tv_blob_unref, tv_check_lock, tv_check_num, tv_check_str, tv_clear,
+    tv_copy, tv_dict_add, tv_dict_add_nr, tv_dict_alloc, tv_dict_copy, tv_dict_equal, tv_dict_find,
+    tv_dict_free, tv_dict_free_contents, tv_dict_get_callback, tv_dict_get_number, tv_dict_hi2di,
+    tv_dict_item_alloc, tv_dict_item_free, tv_dict_unref, tv_dict_watcher_notify,
+    tv_dict_wrong_func_name, tv_empty_string, tv_equal, tv_get_float, tv_get_number,
+    tv_get_number_chk, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk,
+    tv_in_free_unref_items, tv_initial_value, tv_is_func, tv_list_alloc, tv_list_alloc_ret,
+    tv_list_append_dict, tv_list_append_owned_tv, tv_list_append_string, tv_list_assign_range,
+    tv_list_check_range_index_one, tv_list_check_range_index_two, tv_list_concat, tv_list_copy,
+    tv_list_equal, tv_list_find, tv_list_find_nr, tv_list_first, tv_list_free,
+    tv_list_free_contents, tv_list_join, tv_list_last, tv_list_len, tv_list_ref, tv_list_set_lock,
+    tv_list_set_ret, tv_list_slice_or_index, tv_list_unref, tv_list_watch_add,
     tv_list_watch_remove, tv2bool, typval_T, value_check_lock, varnumber_T,
 };
 use crate::eval::vars::{
@@ -133,8 +132,8 @@ use crate::mbyte::{
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
-    Arena, arena_finish, arena_mem_free, memchrsub, strchrsub, strequal, strnequal, xfree,
-    xmalloc, xmemdupz, xstrdup, xstrndup,
+    Arena, arena_finish, arena_mem_free, memchrsub, strchrsub, strequal, strnequal, xfree, xmalloc,
+    xmemdupz, xstrdup, xstrndup,
 };
 use crate::msgpack_rpc::channel::find_channel;
 use crate::ops::set_ref_in_opfunc;
@@ -1751,7 +1750,9 @@ pub unsafe fn eval_for_line(
 ) -> Box<forinfo_T> {
     unsafe {
         let mut fi = Box::new(forinfo_T {
-            fi_lw: listwatch_T { lw_item: ptr::null_mut() },
+            fi_lw: listwatch_T {
+                lw_item: ptr::null_mut(),
+            },
             fi_list: ptr::null_mut(),
             fi_bi: 0,
             fi_byte_idx: 0,
@@ -5408,7 +5409,10 @@ unsafe fn set_ref_in_callback_reader(
 pub unsafe fn find_timer_by_nr(xx: varnumber_T) -> *mut timer_T {
     unsafe {
         let timers_ptr = &raw const timers;
-        (*timers_ptr).get(&(xx as u64)).copied().unwrap_or(ptr::null_mut())
+        (*timers_ptr)
+            .get(&(xx as u64))
+            .copied()
+            .unwrap_or(ptr::null_mut())
     }
 }
 
@@ -5418,9 +5422,19 @@ pub unsafe fn add_timer_info(rettv: *mut typval_T, timer: *mut timer_T) {
         let dict = tv_dict_alloc();
 
         tv_list_append_dict(list, dict);
-        tv_dict_add_nr(dict, c"id".as_ptr(), 2, varnumber_T::from((*timer).timer_id));
+        tv_dict_add_nr(
+            dict,
+            c"id".as_ptr(),
+            2,
+            varnumber_T::from((*timer).timer_id),
+        );
         tv_dict_add_nr(dict, c"time".as_ptr(), 4, (*timer).timeout);
-        tv_dict_add_nr(dict, c"paused".as_ptr(), 6, varnumber_T::from((*timer).paused));
+        tv_dict_add_nr(
+            dict,
+            c"paused".as_ptr(),
+            6,
+            varnumber_T::from((*timer).paused),
+        );
         tv_dict_add_nr(
             dict,
             c"repeat".as_ptr(),

@@ -16,8 +16,7 @@ use crate::eval::vars::MAXCOL;
 use crate::eval::vars::{before_set_vvar, get_vimvar_dict, scid_T};
 use crate::ex_docmd::CAR;
 use crate::ex_eval::{
-    discard_current_exception, except_T, free_global_msglist, get_error_exception_string,
-    msglist_T,
+    discard_current_exception, except_T, free_global_msglist, get_error_exception_string, msglist_T,
 };
 use crate::globals::*;
 use crate::highlight_group::{highlight_num_groups, syn_check_group, syn_id2name};
@@ -1198,8 +1197,8 @@ pub unsafe fn api_dict_to_keydict(
 
             let mem = retval.cast::<u8>().add((*field).ptr_off);
             let value = &raw mut (*dict.items.add(i)).value;
-            let field_type = ObjectType::from_raw((*field).key_type)
-                .unwrap_or(ObjectType::kObjectTypeUnset);
+            let field_type =
+                ObjectType::from_raw((*field).key_type).unwrap_or(ObjectType::kObjectTypeUnset);
 
             match field_type {
                 ObjectType::kObjectTypeNil => {
@@ -1351,8 +1350,8 @@ pub unsafe fn api_keydict_to_dict(
             }
 
             let mem = value.cast::<u8>().add((*field).ptr_off);
-            let field_type = ObjectType::from_raw((*field).key_type)
-                .unwrap_or(ObjectType::kObjectTypeUnset);
+            let field_type =
+                ObjectType::from_raw((*field).key_type).unwrap_or(ObjectType::kObjectTypeUnset);
             let val = match field_type {
                 ObjectType::kObjectTypeNil => *mem.cast::<Object>(),
                 ObjectType::kObjectTypeInteger => Object {
@@ -1431,8 +1430,8 @@ pub unsafe fn api_luarefs_free_keydict(dict: *mut OptKeySet, table: *mut KeySetL
         while !(*table.add(i)).str.is_null() {
             let field = table.add(i);
             let mem = dict.cast::<u8>().add((*field).ptr_off);
-            let field_type = ObjectType::from_raw((*field).key_type)
-                .unwrap_or(ObjectType::kObjectTypeUnset);
+            let field_type =
+                ObjectType::from_raw((*field).key_type).unwrap_or(ObjectType::kObjectTypeUnset);
             match field_type {
                 ObjectType::kObjectTypeNil => api_luarefs_free_object(*mem.cast::<Object>()),
                 ObjectType::kObjectTypeLuaRef => api_free_luaref(*mem.cast::<LuaRef>()),

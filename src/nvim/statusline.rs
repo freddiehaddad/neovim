@@ -1810,8 +1810,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         may_grow_stl_items_len!();
                         if stl_items!()[i as usize].type_ == StlItemType::HighlightCombining {
                             let mw = stl_items!()[i as usize].minwid;
-                            stl_items!()[curitem as usize].type_ =
-                                StlItemType::HighlightCombining;
+                            stl_items!()[curitem as usize].type_ = StlItemType::HighlightCombining;
                             stl_items!()[curitem as usize].start = out_p;
                             stl_items!()[curitem as usize].minwid = mw;
                             curitem += 1;
@@ -2180,8 +2179,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                             curr_hl_pos = curitem;
                             stl_items!()[curitem as usize].type_ = StlItemType::Highlight;
                         } else {
-                            stl_items!()[curitem as usize].type_ =
-                                StlItemType::HighlightCombining;
+                            stl_items!()[curitem as usize].type_ = StlItemType::HighlightCombining;
                         }
                         stl_items!()[curitem as usize].start = out_p;
                         stl_items!()[curitem as usize].minwid =
@@ -2247,12 +2245,12 @@ pub unsafe extern "C" fn build_stl_str_hl(
                                     buf_tmp.as_mut_ptr().add(signlen),
                                     sattr.text.as_mut_ptr(),
                                 );
-                                stl_items!()[curitem as usize].minwid =
-                                    -if (*stcp).sign_cul_id != 0 {
-                                        (*stcp).sign_cul_id
-                                    } else {
-                                        sattr.hl_id
-                                    };
+                                stl_items!()[curitem as usize].minwid = -if (*stcp).sign_cul_id != 0
+                                {
+                                    (*stcp).sign_cul_id
+                                } else {
+                                    sattr.hl_id
+                                };
                             } else {
                                 buf_tmp[signlen] = b' ' as c_char;
                                 signlen += 1;
@@ -2323,11 +2321,8 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     }
                     minwid = 0;
                     if foldsignitem >= 0 {
-                        let offset =
-                            out_p.offset_from(stl_items!()[foldsignitem as usize].start);
-                        for item in
-                            &mut stl_items!()[(foldsignitem as usize)..(curitem as usize)]
-                        {
+                        let offset = out_p.offset_from(stl_items!()[foldsignitem as usize].start);
+                        for item in &mut stl_items!()[(foldsignitem as usize)..(curitem as usize)] {
                             item.start = item.start.offset(offset);
                         }
                     }

@@ -1697,22 +1697,11 @@ pub unsafe fn marktree_restore_pair(b: &mut MarkTree, key: MTKey) {
         rawkey_mut(&mut itr).flags &= !MT_FLAG_ORPHANED;
         rawkey_mut(&mut end_itr).flags &= !MT_FLAG_ORPHANED;
 
-        marktree_intersect_pair(
-            b,
-            mt_lookup_key_side(key, false),
-            &mut itr,
-            &end_itr,
-            false,
-        );
+        marktree_intersect_pair(b, mt_lookup_key_side(key, false), &mut itr, &end_itr, false);
     }
 }
 
-pub unsafe fn marktree_itr_get(
-    b: &MarkTree,
-    row: i32,
-    col: c_int,
-    itr: &mut MarkTreeIter,
-) -> bool {
+pub unsafe fn marktree_itr_get(b: &MarkTree, row: i32, col: c_int, itr: &mut MarkTreeIter) -> bool {
     unsafe { marktree_itr_get_ext(b, MTPos { row, col }, itr, false, false, None, None) }
 }
 
@@ -2280,15 +2269,7 @@ pub unsafe fn marktree_splice(
 
         let mut oldbase = [MTPos { row: 0, col: 0 }; MT_MAX_DEPTH];
 
-        marktree_itr_get_ext(
-            b,
-            start,
-            &mut itr,
-            false,
-            true,
-            Some(&mut oldbase),
-            None,
-        );
+        marktree_itr_get_ext(b, start, &mut itr, false, true, Some(&mut oldbase), None);
         if itr.x.is_null() {
             return false;
         }
@@ -2349,14 +2330,7 @@ pub unsafe fn marktree_splice(
                         let base_lvl = oldbase[lvl];
                         unrelative(base_lvl, &mut oldbase[lvl + 1]);
                         rawkey_mut(&mut itr).pos = loc_start;
-                        marktree_itr_next_skip(
-                            b,
-                            &mut itr,
-                            false,
-                            false,
-                            Some(&mut oldbase),
-                            None,
-                        );
+                        marktree_itr_next_skip(b, &mut itr, false, false, Some(&mut oldbase), None);
                         break;
                     } else {
                         rawkey_mut(&mut itr).pos = loc_start;
@@ -2392,14 +2366,7 @@ pub unsafe fn marktree_splice(
                         let base_lvl = oldbase[lvl];
                         unrelative(base_lvl, &mut oldbase[lvl + 1]);
 
-                        marktree_itr_next_skip(
-                            b,
-                            &mut itr,
-                            false,
-                            false,
-                            Some(&mut oldbase),
-                            None,
-                        );
+                        marktree_itr_next_skip(b, &mut itr, false, false, Some(&mut oldbase), None);
                         break;
                     } else if itr.i < (*itr.x).n - 1 {
                         itr.i += 1;
@@ -2634,11 +2601,7 @@ pub unsafe fn marktree_get_altpos(
     unsafe { marktree_get_alt(b, mark, itr).pos }
 }
 
-pub unsafe fn marktree_get_alt(
-    b: &MarkTree,
-    mark: MTKey,
-    itr: Option<&mut MarkTreeIter>,
-) -> MTKey {
+pub unsafe fn marktree_get_alt(b: &MarkTree, mark: MTKey, itr: Option<&mut MarkTreeIter>) -> MTKey {
     if mt_paired(mark) {
         unsafe { marktree_lookup_ns(b, mark.ns, mark.id, !mt_end(mark), itr) }
     } else {
@@ -2718,13 +2681,7 @@ pub unsafe fn marktree_check(b: &MarkTree) {
         let mut dummy = MTPos { row: 0, col: 0 };
         let mut last_right = false;
 
-        let nkeys = marktree_check_node(
-            b,
-            b.root,
-            &mut dummy,
-            &mut last_right,
-            &b.meta_root,
-        );
+        let nkeys = marktree_check_node(b, b.root, &mut dummy, &mut last_right, &b.meta_root);
         assert_eq!(b.n_keys, nkeys);
         assert_eq!(b.n_keys, b.id2node.len());
     }
@@ -2900,12 +2857,7 @@ const fn mt_dbg_id(id: u64) -> u64 {
     (id >> 1) & 0xffffffff
 }
 
-unsafe fn mt_inspect_node(
-    out: &mut String,
-    keys: bool,
-    n: *mut MTNode,
-    off: MTPos,
-) {
+unsafe fn mt_inspect_node(out: &mut String, keys: bool, n: *mut MTNode, off: MTPos) {
     unsafe {
         out.push('[');
         if keys && !(*n).intersect.is_empty() {
@@ -3062,13 +3014,7 @@ mod tests {
             let mut nwout = wout.len();
             let mut ndout = dout.len();
             assert!(intersect_mov_test(
-                &x,
-                &y,
-                &w,
-                &mut wout,
-                &mut nwout,
-                &mut dout,
-                &mut ndout,
+                &x, &y, &w, &mut wout, &mut nwout, &mut dout, &mut ndout,
             ));
             assert_eq!(&wout[..nwout], &[0, 1, 4, 7, 10]);
             assert_eq!(ndout, 0);

@@ -19,9 +19,7 @@ use crate::mbyte::{
     utf_char2bytes, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2cells, utf_ptr2char, utf_ptr2len,
     utfc_ptr2len,
 };
-use crate::memory::{
-    xfree, xmalloc, xmallocz, xmemdupz, xmemscan, xstrchrnul, xstrlcpy,
-};
+use crate::memory::{xfree, xmalloc, xmallocz, xmemdupz, xmemscan, xstrchrnul, xstrlcpy};
 use crate::message::{emsg, semsg};
 use crate::option::{csh_like_shell, fish_like_shell};
 #[cfg(windows)]
@@ -1212,7 +1210,9 @@ pub unsafe fn sort_strings(files: &mut [*mut c_char]) {
     unsafe {
         if files.len() > 1 {
             files.sort_unstable_by(|&a, &b| {
-                CStr::from_ptr(a).to_bytes().cmp(CStr::from_ptr(b).to_bytes())
+                CStr::from_ptr(a)
+                    .to_bytes()
+                    .cmp(CStr::from_ptr(b).to_bytes())
             });
         }
     }

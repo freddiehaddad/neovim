@@ -1413,7 +1413,6 @@ unsafe fn ui_flush_buf(ui: *mut RemoteUI, incomplete_event: bool) {
         let buf = wstream_new_buffer(
             (*ui).packer.startptr,
             buf_pos(ui),
-            1,
             WBufferFinalizer::FreeBlock,
         );
         rpc_write_raw((*ui).channel_id, buf);

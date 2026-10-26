@@ -1620,10 +1620,7 @@ unsafe fn list_join_inner(
             }
 
             sumlen += s.size;
-            join_vec.push(Join {
-                s,
-                tofree: s.data,
-            });
+            join_vec.push(Join { s, tofree: s.data });
 
             line_breakcheck();
             item = (*item).li_next;
@@ -2686,12 +2683,7 @@ pub unsafe fn tv_dict_watcher_notify(
                 let mut rettv = tv_initial_value();
                 (&mut (*dict).watchers)[i].busy = true;
                 let mut cb = (&(*dict).watchers)[i].callback;
-                callback_call(
-                    &raw mut cb,
-                    3,
-                    argv.as_mut_ptr(),
-                    &raw mut rettv,
-                );
+                callback_call(&raw mut cb, 3, argv.as_mut_ptr(), &raw mut rettv);
                 let w = &mut (&mut (*dict).watchers)[i];
                 w.callback = cb;
                 w.busy = false;

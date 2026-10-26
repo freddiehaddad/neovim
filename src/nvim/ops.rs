@@ -391,12 +391,7 @@ unsafe fn get_new_sw_indent(left: bool, round: bool, mut amount: i64, sw_val: i6
     }
 }
 
-unsafe fn get_new_vts_indent(
-    left: bool,
-    round: bool,
-    amount: c_int,
-    vts_array: &[c_int],
-) -> i64 {
+unsafe fn get_new_vts_indent(left: bool, round: bool, amount: c_int, vts_array: &[c_int]) -> i64 {
     unsafe {
         let mut indent = i64::from(get_indent());
         let mut vtsi: c_int = 0;
@@ -1282,7 +1277,12 @@ unsafe fn op_replace(oap: *mut oparg_T, mut c: c_int) -> c_int {
                 if !after_p.is_empty() {
                     let cur_lnum = (*curwin).w_cursor.lnum;
                     (*curwin).w_cursor.lnum += 1;
-                    ml_append(cur_lnum, after_p.as_mut_ptr(), after_p.len() as c_int, false);
+                    ml_append(
+                        cur_lnum,
+                        after_p.as_mut_ptr(),
+                        after_p.len() as c_int,
+                        false,
+                    );
                     appended_lines_mark((*curwin).w_cursor.lnum, 1);
                     (*oap).end.lnum += 1;
                     after_p.clear();
@@ -3012,7 +3012,7 @@ pub unsafe fn do_addsub(
 
         if visual {
             (*curwin).w_cursor = save_cursor;
-        } else         if did_change {
+        } else if did_change {
             (*curwin).w_set_curswant = true;
         } else if virtual_active(curwin) {
             (*curwin).w_cursor.coladd = save_coladd;

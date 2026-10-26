@@ -285,7 +285,11 @@ pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
             (*uvproc).uvstdio[2].data.fd = STDERR_FILENO;
         }
 
-        let status = uv_spawn((*proc_).loop_.cast(), uv.cast(), &raw const (*uvproc).uvopts);
+        let status = uv_spawn(
+            (*proc_).loop_.cast(),
+            uv.cast(),
+            &raw const (*uvproc).uvopts,
+        );
         if status != 0 {
             crate::path::clear_cstrings(&mut (*uvproc).env_vec);
             (*uvproc).uvopts.env = ptr::null_mut();

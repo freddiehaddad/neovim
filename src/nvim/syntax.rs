@@ -671,10 +671,7 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
         }
         (*syn_block).b_sst_lasttick = display_tick;
 
-        if valid_state()
-            && current_lnum < lnum
-            && current_lnum < (*syn_buf).b_ml.ml_line_count
-        {
+        if valid_state() && current_lnum < lnum && current_lnum < (*syn_buf).b_ml.ml_line_count {
             syn_finish_line(false);
             if !current_state_stored {
                 current_lnum += 1;
@@ -1315,9 +1312,9 @@ unsafe fn store_current_state() -> Option<usize> {
                 (*syn_block).b_sst_array.remove(idx);
                 sp_idx = None;
             }
-        } else if sp_idx.is_none_or(|idx| {
-            (*syn_block).b_sst_array.as_slice()[idx].sst_lnum != current_lnum
-        }) {
+        } else if sp_idx
+            .is_none_or(|idx| (*syn_block).b_sst_array.as_slice()[idx].sst_lnum != current_lnum)
+        {
             if ((*syn_block).b_sst_array.len() as c_int) >= (*syn_block).b_sst_max {
                 syn_stack_cleanup();
                 sp_idx = syn_stack_find_entry(current_lnum);
@@ -2002,9 +1999,7 @@ unsafe fn syn_current_attr(
 
             if !syncing && !keep_state {
                 check_state_ends();
-                if !cur_state_empty()
-                    && *syn_getcurline().offset(current_col as isize) != NUL
-                {
+                if !cur_state_empty() && *syn_getcurline().offset(current_col as isize) != NUL {
                     current_col += 1;
                     check_state_ends();
                     current_col -= 1;
@@ -2728,20 +2723,12 @@ unsafe fn check_keyword_id(
         let mut kp: *const keyentry_T = ptr::null();
 
         if !(*syn_block).b_keywtab.is_empty() {
-            kp = match_keyword(
-                keyword.as_mut_ptr(),
-                &(*syn_block).b_keywtab,
-                cur_si,
-            );
+            kp = match_keyword(keyword.as_mut_ptr(), &(*syn_block).b_keywtab, cur_si);
         }
 
         if kp.is_null() && !(*syn_block).b_keywtab_ic.is_empty() {
             str_foldcase(kwp, kwlen, keyword.as_mut_ptr(), (MAXKEYWLEN + 1) as c_int);
-            kp = match_keyword(
-                keyword.as_mut_ptr(),
-                &(*syn_block).b_keywtab_ic,
-                cur_si,
-            );
+            kp = match_keyword(keyword.as_mut_ptr(), &(*syn_block).b_keywtab_ic, cur_si);
         }
 
         if !kp.is_null() {
@@ -3315,12 +3302,7 @@ unsafe fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
 
         if !syncing {
             did_header = syn_list_keywords(id, &(*win_s(curwin)).b_keywtab, false, hl_id);
-            did_header = syn_list_keywords(
-                id,
-                &(*win_s(curwin)).b_keywtab_ic,
-                did_header,
-                hl_id,
-            );
+            did_header = syn_list_keywords(id, &(*win_s(curwin)).b_keywtab_ic, did_header, hl_id);
         }
 
         let mut idx: c_int = 0;

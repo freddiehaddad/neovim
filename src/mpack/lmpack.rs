@@ -302,7 +302,9 @@ unsafe fn lmpack_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
             }
             MPACK_TOKEN_ARRAY | MPACK_TOKEN_MAP => {
                 lua_newtable(l);
-                (*node).data[0] = crate::mpack::object::mpack_data_t::Int(mpack_sintmax_t::from(lmpack_ref(l, (*unpacker).reg)));
+                (*node).data[0] = crate::mpack::object::mpack_data_t::Int(mpack_sintmax_t::from(
+                    lmpack_ref(l, (*unpacker).reg),
+                ));
             }
             _ => {}
         }
@@ -360,7 +362,9 @@ unsafe fn lmpack_parse_exit(parser: *mut mpack_parser_t, node: *mut mpack_node_t
                 debug_assert_eq!((*parent).tok.r#type, MPACK_TOKEN_MAP);
                 if (*parent).key_visited != 0 {
                     lua_pushvalue(l, -2);
-                    (*parent).data[1] = crate::mpack::object::mpack_data_t::Int(mpack_sintmax_t::from(lmpack_ref(l, (*unpacker).reg)));
+                    (*parent).data[1] = crate::mpack::object::mpack_data_t::Int(
+                        mpack_sintmax_t::from(lmpack_ref(l, (*unpacker).reg)),
+                    );
                 } else {
                     let key_ref = (*parent).data[1].i() as c_int;
                     lmpack_geti(l, (*unpacker).reg, key_ref);
@@ -572,7 +576,9 @@ unsafe fn lmpack_unparse_enter(parser: *mut mpack_parser_t, node: *mut mpack_nod
                 if (*parent).key_visited != 0 {
                     lmpack_unref(l, (*packer).reg, (*parent).data[1].i() as c_int);
                     lua_pushvalue(l, -2);
-                    (*parent).data[1] = crate::mpack::object::mpack_data_t::Int(mpack_sintmax_t::from(lmpack_ref(l, (*packer).reg)));
+                    (*parent).data[1] = crate::mpack::object::mpack_data_t::Int(
+                        mpack_sintmax_t::from(lmpack_ref(l, (*packer).reg)),
+                    );
                     lua_replace(l, -2);
                 } else {
                     lua_pop(l, 1);
@@ -675,7 +681,9 @@ unsafe fn lmpack_unparse_enter(parser: *mut mpack_parser_t, node: *mut mpack_nod
                         (*node).tok = mpack_pack_array(len);
                     } else {
                         (*node).tok = mpack_pack_map(len);
-                        (*node).data[1] = crate::mpack::object::mpack_data_t::Int(mpack_sintmax_t::from(LUA_REFNIL));
+                        (*node).data[1] = crate::mpack::object::mpack_data_t::Int(
+                            mpack_sintmax_t::from(LUA_REFNIL),
+                        );
                     }
                 }
                 LUA_TUSERDATA if lmpack_isnil(l, -1) => {
@@ -694,7 +702,9 @@ unsafe fn lmpack_unparse_enter(parser: *mut mpack_parser_t, node: *mut mpack_nod
             }
         }
 
-        (*node).data[0] = crate::mpack::object::mpack_data_t::Int(mpack_sintmax_t::from(lmpack_ref(l, (*packer).reg)));
+        (*node).data[0] = crate::mpack::object::mpack_data_t::Int(mpack_sintmax_t::from(
+            lmpack_ref(l, (*packer).reg),
+        ));
     }
 }
 
@@ -992,8 +1002,12 @@ unsafe extern "C-unwind" fn lmpack_session_reply(l: *mut lua_State) -> c_int {
             2,
             c"invalid request id".as_ptr(),
         );
-        let result =
-            mpack_rpc_reply(&raw mut (*session).session, &mut b, &mut bl, id as mpack_uint32_t);
+        let result = mpack_rpc_reply(
+            &raw mut (*session).session,
+            &mut b,
+            &mut bl,
+            id as mpack_uint32_t,
+        );
         debug_assert_eq!(result, MPACK_OK);
         lua_pushlstring(l, buf.as_ptr(), buf.len() - bl);
         1

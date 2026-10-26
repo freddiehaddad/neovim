@@ -653,8 +653,11 @@ unsafe fn is_executable_ext(name: *const c_char, abspath: *mut *mut c_char) -> b
         xstrlcpy(buf, name, MAXPATHL);
         let buf_end = xstrchrnul(buf, NUL);
         let mut pathext_buf = [0 as c_char; MAXPATHL];
-        let mut pathext: *const c_char =
-            os_getenv_buf(c"PATHEXT".as_ptr(), pathext_buf.as_mut_ptr(), pathext_buf.len());
+        let mut pathext: *const c_char = os_getenv_buf(
+            c"PATHEXT".as_ptr(),
+            pathext_buf.as_mut_ptr(),
+            pathext_buf.len(),
+        );
         if pathext.is_null() {
             pathext = c".com;.exe;.bat;.cmd".as_ptr();
         }

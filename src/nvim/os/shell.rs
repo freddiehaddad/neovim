@@ -116,11 +116,7 @@ unsafe extern "system" {
 }
 
 #[cfg(unix)]
-unsafe fn save_patterns(
-    num_pat: c_int,
-    pat: *mut *mut c_char,
-    file: &mut Vec<*mut c_char>,
-) {
+unsafe fn save_patterns(num_pat: c_int, pat: *mut *mut c_char, file: &mut Vec<*mut c_char>) {
     unsafe {
         file.clear();
         file.reserve(num_pat as usize);
@@ -896,7 +892,7 @@ unsafe fn do_os_system(
 
             if has_input {
                 let input_buffer =
-                    wstream_new_buffer(input.cast_mut(), len, 1, WBufferFinalizer::None);
+                    wstream_new_buffer(input.cast_mut(), len, WBufferFinalizer::None);
                 if wstream_write(s_in, input_buffer) != 0 {
                     proc_stop(proc_);
                     break 'end;

@@ -29,9 +29,7 @@ use crate::highlight::OptionalKeys;
 use crate::highlight_group::{syn_check_group, syn_get_final_id, syn_id2attr, syn_name2id};
 use crate::lua::converter::Boolean;
 use crate::lua::executor::{kRetObject, nlua_exec};
-use crate::marktree::{
-    DECOR_HIGHLIGHT_INLINE_INIT, DecorExt, DecorInlineData, MT_FLAG_DECOR_HL,
-};
+use crate::marktree::{DECOR_HIGHLIGHT_INLINE_INIT, DecorExt, DecorInlineData, MT_FLAG_DECOR_HL};
 use crate::memory::Arena;
 use crate::message::{emsg, msg, msg_end, msg_ext_no_fast};
 use crate::msgpack_rpc::packer::Integer;
@@ -894,7 +892,14 @@ pub unsafe extern "C" fn nvim_buf_set_option(
         if buf.is_null() {
             return;
         }
-        set_option_to(channel_id, OptTarget::Buf(buf), kOptScopeBuf, name, value, err);
+        set_option_to(
+            channel_id,
+            OptTarget::Buf(buf),
+            kOptScopeBuf,
+            name,
+            value,
+            err,
+        );
     }
 }
 
@@ -950,7 +955,14 @@ pub unsafe extern "C" fn nvim_win_set_option(
         if win.is_null() {
             return;
         }
-        set_option_to(channel_id, OptTarget::Win(win), kOptScopeWin, name, value, err);
+        set_option_to(
+            channel_id,
+            OptTarget::Win(win),
+            kOptScopeWin,
+            name,
+            value,
+            err,
+        );
     }
 }
 

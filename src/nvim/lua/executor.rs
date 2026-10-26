@@ -57,8 +57,8 @@ use crate::main_init::{getout, os_exit, preserve_exit};
 use crate::math::{FAIL, OK};
 use crate::memline::{ml_get_buf, ml_get_buf_len, ml_replace};
 use crate::memory::{
-    Arena, ArenaMem, arena_finish, arena_mem_free, strequal, xfree, xmalloc, xmallocz,
-    xmemdupz, xstrdup,
+    Arena, ArenaMem, arena_finish, arena_mem_free, strequal, xfree, xmalloc, xmallocz, xmemdupz,
+    xstrdup,
 };
 use crate::message::{
     emsg, msg_ext_no_fast, msg_multihl, msg_putchar, msg_use_printf, redirecting, semsg_multiline,
@@ -1398,7 +1398,8 @@ unsafe extern "C-unwind" fn nlua_common_free_all_mem(lstate: *mut lua_State) {
 pub unsafe fn nlua_print_event(data: *mut c_char, len: usize) {
     unsafe {
         msg_ext_no_fast();
-        let raw = msg_use_printf() != 0 && redirecting() == 0 && on_print.cb_type() == kCallbackNone;
+        let raw =
+            msg_use_printf() != 0 && redirecting() == 0 && on_print.cb_type() == kCallbackNone;
 
         let mut msg: HlMessage = vec![HlMessageChunk {
             text: NvimString {
@@ -1671,7 +1672,8 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             return 1;
         }
 
-        let mut vim_args: [typval_T; (MAX_FUNC_ARGS + 1) as usize] = [typval_T::new(); (MAX_FUNC_ARGS + 1) as usize];
+        let mut vim_args: [typval_T; (MAX_FUNC_ARGS + 1) as usize] =
+            [typval_T::new(); (MAX_FUNC_ARGS + 1) as usize];
         let mut i: usize = 0;
         let mut conv_failed = false;
         while (i as c_int) < nargs {

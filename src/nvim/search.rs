@@ -3576,11 +3576,8 @@ pub unsafe fn find_pattern_in_path(
                                         }
                                     } else {
                                         line = file_line;
-                                        if vim_fgets(
-                                            line,
-                                            LSIZE as c_int,
-                                            files[depth as usize].fp,
-                                        ) {
+                                        if vim_fgets(line, LSIZE as c_int, files[depth as usize].fp)
+                                        {
                                             skip_add = true;
                                         }
                                     }

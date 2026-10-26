@@ -31,10 +31,9 @@ use crate::eval::typval::{
     tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_add_tv,
     tv_dict_alloc, tv_dict_alloc_lock, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool,
     tv_dict_get_number, tv_dict_get_string, tv_dict_get_tv, tv_dict_item_alloc_len,
-    tv_dict_item_free, tv_dict_unref, tv_get_number_chk, tv_get_string_chk,
-    tv_initial_value, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_first,
-    tv_list_len, tv_list_ref, tv_list_unref,
-    typval_T, varnumber_T,
+    tv_dict_item_free, tv_dict_unref, tv_get_number_chk, tv_get_string_chk, tv_initial_value,
+    tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_first, tv_list_len, tv_list_ref,
+    tv_list_unref, typval_T, varnumber_T,
 };
 use crate::eval::vars::set_internal_string_var;
 use crate::eval::window::{find_win_by_nr_or_id, win_id2wp};
@@ -91,9 +90,7 @@ use crate::memfile::memfile_T;
 use crate::memline::{
     check_need_swap, ml_append_buf, ml_delete, ml_get_buf, ml_get_buf_len, ml_open,
 };
-use crate::memory::{
-    strequal, xfree, xmalloc, xmallocz, xmemdupz, xstrdup, xstrlcat, xstrlcpy,
-};
+use crate::memory::{strequal, xfree, xmalloc, xmallocz, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, internal_error, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_keep,
     msg_outtrans, msg_prt_line, msg_putchar, msg_puts, msg_puts_hl, msg_start, msg_strtrunc, semsg,
@@ -1269,11 +1266,7 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T) -> c_int {
         }
 
         if (*state).vc.vc_type != CONV_NONE && has_non_ascii((*state).linebuf) {
-            let line = string_convert(
-                &(*state).vc,
-                (*state).linebuf,
-                &raw mut (*state).linelen,
-            );
+            let line = string_convert(&(*state).vc, (*state).linebuf, &raw mut (*state).linelen);
             if !line.is_null() {
                 if (*state).linelen < IOSIZE {
                     xstrlcpy((*state).linebuf, line, (*state).linelen + 1);
@@ -1804,11 +1797,7 @@ unsafe fn qf_parse_fmt_m(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
         if len >= (*fields).errmsg.len() {
             (*fields).errmsg.resize(len + 1, 0);
         }
-        xstrlcpy(
-            (*fields).errmsg.as_mut_ptr(),
-            (*rmp).startp[midx],
-            len + 1,
-        );
+        xstrlcpy((*fields).errmsg.as_mut_ptr(), (*rmp).startp[midx], len + 1);
         QF_OK
     }
 }
@@ -2364,9 +2353,7 @@ unsafe fn qf_resize_stack_base(qi: *mut qf_info_T, n: c_int) {
             }
         }
 
-        (*qi)
-            .qf_lists
-            .resize_with(n as usize, qf_list_T::default);
+        (*qi).qf_lists.resize_with(n as usize, qf_list_T::default);
         (*qi).qf_maxcount = n;
 
         qf_update_buffer(qi, 0);
@@ -2422,9 +2409,7 @@ unsafe fn qf_alloc_stack(qfltype: qfltype_T, n: c_int) -> *mut qf_info_T {
         (*qi).qfl_type = qfltype;
         (*qi).qf_bufnr = INVALID_QFBUFNR;
         (*qi).qf_lists.clear();
-        (*qi)
-            .qf_lists
-            .resize_with(n as usize, qf_list_T::default);
+        (*qi).qf_lists.resize_with(n as usize, qf_list_T::default);
         (*qi).qf_maxcount = n;
 
         qi
@@ -4522,14 +4507,7 @@ unsafe fn qf_buf_add_line(
         }
 
         gap.push(NUL);
-        if ml_append_buf(
-            buf,
-            lnum,
-            gap.as_mut_ptr(),
-            gap.len() as colnr_T,
-            false,
-        ) == FAIL
-        {
+        if ml_append_buf(buf, lnum, gap.as_mut_ptr(), gap.len() as colnr_T, false) == FAIL {
             return FAIL;
         }
 
@@ -4591,12 +4569,7 @@ unsafe fn call_qftf_func(
     }
 }
 
-unsafe fn qf_fill_buffer(
-    qfl: *mut qf_list_T,
-    buf: *mut buf_T,
-    old_count: usize,
-    qf_winid: c_int,
-) {
+unsafe fn qf_fill_buffer(qfl: *mut qf_list_T, buf: *mut buf_T, old_count: usize, qf_winid: c_int) {
     unsafe {
         let old_KeyTyped = KeyTyped;
 
@@ -5890,11 +5863,8 @@ unsafe fn vgr_process_files(
                 duplicate_name = !buf.is_null();
                 using_dummy = true;
                 *redraw_for_dummy = true;
-                buf = vgr_load_dummy_buf(
-                    fname,
-                    dirname_start.as_mut_ptr(),
-                    dirname_now.as_mut_ptr(),
-                );
+                buf =
+                    vgr_load_dummy_buf(fname, dirname_start.as_mut_ptr(), dirname_now.as_mut_ptr());
             } else {
                 using_dummy = false;
             }

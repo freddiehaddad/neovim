@@ -16,9 +16,9 @@ use crate::message::semsg;
 #[cfg(unix)]
 use crate::os::env::os_getenv_buf;
 use crate::strings::vim_snprintf;
-use std::ffi::{CStr, CString, c_char, c_int};
 #[cfg(windows)]
 use std::ffi::c_void;
+use std::ffi::{CStr, CString, c_char, c_int};
 
 use crate::event::r#loop::uv_uid_t;
 

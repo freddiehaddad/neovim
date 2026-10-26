@@ -3877,7 +3877,8 @@ pub unsafe fn f_complete_info(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
 unsafe fn thesaurus_func_complete(type_: c_int) -> bool {
     unsafe {
         type_ == CTRL_X_THESAURUS
-            && ((*curbuf).b_p_tsrfu.cb_type() != kCallbackNone || p_tsrfu.cb_type() != kCallbackNone)
+            && ((*curbuf).b_p_tsrfu.cb_type() != kCallbackNone
+                || p_tsrfu.cb_type() != kCallbackNone)
     }
 }
 
@@ -5451,8 +5452,7 @@ pub unsafe fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
             }
         }
         let shown = compl_opt(compl_shown_idx);
-        compl_used_match =
-            !(match_at_original_text(shown) || (preinsert && !insert_prefix));
+        compl_used_match = !(match_at_original_text(shown) || (preinsert && !insert_prefix));
 
         let dict = ins_compl_dict_alloc(shown);
         set_vim_var_dict(VV_COMPLETED_ITEM, dict);
@@ -5591,10 +5591,14 @@ unsafe fn find_next_completion_match(
 
                 while compl_pending != 0 && compl_direction == compl_shows_dir && advance {
                     let cur_shown = compl_shown_idx.unwrap();
-                    if compl_pending > 0 && let Some(ni) = compl_next_idx(cur_shown) {
+                    if compl_pending > 0
+                        && let Some(ni) = compl_next_idx(cur_shown)
+                    {
                         compl_shown_idx = Some(ni);
                         compl_pending -= 1;
-                    } else if compl_pending < 0 && let Some(pi) = compl_prev_idx(cur_shown) {
+                    } else if compl_pending < 0
+                        && let Some(pi) = compl_prev_idx(cur_shown)
+                    {
                         compl_shown_idx = Some(pi);
                         compl_pending += 1;
                     } else {
@@ -6772,8 +6776,7 @@ unsafe fn remove_old_matches() {
 
         compl_preselect_idx =
             preselect_ptr.and_then(|p| list.iter().position(|m| ptr::eq(m.cp_str.data, p)));
-        compl_old_idx =
-            old_ptr.and_then(|p| list.iter().position(|m| ptr::eq(m.cp_str.data, p)));
+        compl_old_idx = old_ptr.and_then(|p| list.iter().position(|m| ptr::eq(m.cp_str.data, p)));
 
         if let Some(sp) = shown_ptr
             && let Some(new_shown) = list.iter().position(|m| ptr::eq(m.cp_str.data, sp))

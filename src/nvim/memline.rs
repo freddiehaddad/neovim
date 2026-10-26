@@ -54,8 +54,8 @@ use crate::os::users::os_get_username;
 #[cfg(unix)]
 use crate::path::path_is_absolute;
 use crate::path::{
-    EW_FILE, EW_KEEPALL, EW_SILENT, after_pathsep, concat_fnames, expand_wildcards_vec,
-    fix_fname, kPathCmpFull, kPathCmpLiteral, path_equal, path_tail, same_directory, shorten_dir,
+    EW_FILE, EW_KEEPALL, EW_SILENT, after_pathsep, concat_fnames, expand_wildcards_vec, fix_fname,
+    kPathCmpFull, kPathCmpLiteral, path_equal, path_tail, same_directory, shorten_dir,
     vim_FullName, vim_ispathsep,
 };
 use crate::spell::spell_delete_wordlist;
@@ -871,7 +871,14 @@ pub unsafe fn ml_recover(checkext: bool) {
             if n_swaps == 0 {
                 tv_clear(&raw mut items_tv);
                 semsg!(tr(c"E305: No swap file found for %s"), fname);
-                ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
+                ml_recover_theend(
+                    fname_used,
+                    mfp,
+                    hp,
+                    buf_box,
+                    serious_error,
+                    called_from_main,
+                );
                 return;
             }
             if n_swaps > 1 {
@@ -883,14 +890,28 @@ pub unsafe fn ml_recover(checkext: bool) {
                     ptr::null_mut(),
                 );
                 tv_clear(&raw mut items_tv);
-                ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
+                ml_recover_theend(
+                    fname_used,
+                    mfp,
+                    hp,
+                    buf_box,
+                    serious_error,
+                    called_from_main,
+                );
                 return;
             }
             fname_used = xstrdup((*tv_list_first(items_tv.vval.v_list)).li_tv.vval.v_string);
             tv_clear(&raw mut items_tv);
         }
         if fname_used.is_null() {
-            ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
+            ml_recover_theend(
+                fname_used,
+                mfp,
+                hp,
+                buf_box,
+                serious_error,
+                called_from_main,
+            );
             return;
         }
         if called_from_main && ml_open(curbuf) == FAIL {
@@ -906,7 +927,14 @@ pub unsafe fn ml_recover(checkext: bool) {
         fname_used = p;
         if mfp.is_null() || (*mfp).mf_fd < 0 {
             semsg!(tr(c"E306: Cannot open %s"), fname_used);
-            ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
+            ml_recover_theend(
+                fname_used,
+                mfp,
+                hp,
+                buf_box,
+                serious_error,
+                called_from_main,
+            );
             return;
         }
         (*buf).b_ml.ml_mfp = mfp.cast();
@@ -925,7 +953,14 @@ pub unsafe fn ml_recover(checkext: bool) {
                 true,
             );
             msg_end();
-            ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
+            ml_recover_theend(
+                fname_used,
+                mfp,
+                hp,
+                buf_box,
+                serious_error,
+                called_from_main,
+            );
             return;
         }
         let mut b0p = (*hp).data_ptr().cast::<ZeroBlock>();
@@ -945,7 +980,14 @@ pub unsafe fn ml_recover(checkext: bool) {
             msg_puts_hl(tr(c" cannot be used with this version of Nvim.\n"), 0, true);
             msg_puts_hl(tr(c"Use Vim version 3.0.\n"), 0, true);
             msg_end();
-            ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
+            ml_recover_theend(
+                fname_used,
+                mfp,
+                hp,
+                buf_box,
+                serious_error,
+                called_from_main,
+            );
             return;
         }
         if !ml_check_b0_id(b0p) {
@@ -953,7 +995,14 @@ pub unsafe fn ml_recover(checkext: bool) {
                 tr(c"E307: %s does not look like a Nvim swap file"),
                 (*mfp).mf_fname,
             );
-            ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
+            ml_recover_theend(
+                fname_used,
+                mfp,
+                hp,
+                buf_box,
+                serious_error,
+                called_from_main,
+            );
             return;
         }
         if b0_magic_wrong(b0p) {
@@ -965,7 +1014,14 @@ pub unsafe fn ml_recover(checkext: bool) {
             msg_puts_hl((&raw const (*b0p).b0_hname).cast(), hl_id, true);
             msg_puts_hl(tr(c",\nor the file has been damaged."), hl_id, true);
             msg_end();
-            ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
+            ml_recover_theend(
+                fname_used,
+                mfp,
+                hp,
+                buf_box,
+                serious_error,
+                called_from_main,
+            );
             return;
         }
 
@@ -982,7 +1038,14 @@ pub unsafe fn ml_recover(checkext: bool) {
                     true,
                 );
                 msg_end();
-                ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
+                ml_recover_theend(
+                    fname_used,
+                    mfp,
+                    hp,
+                    buf_box,
+                    serious_error,
+                    called_from_main,
+                );
                 return;
             }
             let size: off_T = vim_lseek((*mfp).mf_fd, 0, SEEK_END);
@@ -1007,7 +1070,14 @@ pub unsafe fn ml_recover(checkext: bool) {
                 MAXPATHL as c_int,
             );
             if setfname(curbuf, namebuff_ptr, ptr::null_mut(), true) == FAIL {
-                ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
+                ml_recover_theend(
+                    fname_used,
+                    mfp,
+                    hp,
+                    buf_box,
+                    serious_error,
+                    called_from_main,
+                );
                 return;
             }
         }
@@ -1119,7 +1189,14 @@ pub unsafe fn ml_recover(checkext: bool) {
             if hp.is_null() {
                 if bnum == 1 {
                     semsg!(tr(c"E309: Unable to read block 1 from %s"), (*mfp).mf_fname);
-                    ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
+                    ml_recover_theend(
+                        fname_used,
+                        mfp,
+                        hp,
+                        buf_box,
+                        serious_error,
+                        called_from_main,
+                    );
                     return;
                 }
                 error += 1;
@@ -1407,7 +1484,14 @@ pub unsafe fn ml_recover(checkext: bool) {
         }
         redraw_curbuf_later(UPD_NOT_VALID);
 
-        ml_recover_theend(fname_used, mfp, hp, buf_box, serious_error, called_from_main);
+        ml_recover_theend(
+            fname_used,
+            mfp,
+            hp,
+            buf_box,
+            serious_error,
+            called_from_main,
+        );
     }
 }
 
@@ -2433,11 +2517,7 @@ unsafe fn ml_append_int(
 
             let mut stack_idx = (*buf).b_ml.ml_stack_top - 1;
             while stack_idx >= 0 {
-                let ip = (*buf)
-                    .b_ml
-                    .ml_stack
-                    .as_mut_ptr()
-                    .add(stack_idx as usize);
+                let ip = (*buf).b_ml.ml_stack.as_mut_ptr().add(stack_idx as usize);
                 let pb_idx = (*ip).ip_index as usize;
                 hp = mf_get(mfp, (*ip).ip_bnum, 1);
                 if hp.is_null() {
@@ -2811,11 +2891,7 @@ unsafe fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int 
             let mut stack_idx = (*buf).b_ml.ml_stack_top - 1;
             while stack_idx >= 0 {
                 (*buf).b_ml.ml_stack_top = 0;
-                let ip = (*buf)
-                    .b_ml
-                    .ml_stack
-                    .as_mut_ptr()
-                    .add(stack_idx as usize);
+                let ip = (*buf).b_ml.ml_stack.as_mut_ptr().add(stack_idx as usize);
                 idx = (*ip).ip_index;
                 hp = mf_get(mfp, (*ip).ip_bnum, 1);
                 if hp.is_null() {

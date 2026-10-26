@@ -952,11 +952,7 @@ unsafe fn peephole(compst: *mut CompileState) {
     }
 }
 
-pub unsafe fn compile(
-    l: *mut lua_State,
-    p: *mut Pattern,
-    size: uint,
-) -> *mut Instruction {
+pub unsafe fn compile(l: *mut lua_State, p: *mut Pattern, size: uint) -> *mut Instruction {
     unsafe {
         let mut compst = CompileState { p, ncode: 0, L: l };
         let init_size = ((size / 2) + 2) as usize;

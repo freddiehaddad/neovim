@@ -16,11 +16,11 @@ use crate::cursor::{check_cursor, linenr_T, pos_T};
 use crate::drawscreen::{UPD_VALID, redraw_later};
 use crate::errors::*;
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, callback_free, dict_T, kCallbackNone, list_T,
-    tv_clear, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str,
-    tv_dict_add_str_len, tv_dict_alloc, tv_dict_alloc_lock, tv_dict_find, tv_dict_get_number,
-    tv_dict_get_string, tv_get_number, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
-    tv_list_append_number, tv_list_append_tv, tv_list_free, typval_T, varnumber_T,
+    TypvalVval, VAR_UNLOCKED, VarType, callback_free, dict_T, kCallbackNone, list_T, tv_clear,
+    tv_dict_add_bool, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len,
+    tv_dict_alloc, tv_dict_alloc_lock, tv_dict_find, tv_dict_get_number, tv_dict_get_string,
+    tv_get_number, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_number,
+    tv_list_append_tv, tv_list_free, typval_T, varnumber_T,
 };
 use crate::eval::vars::{VV_SWAPCOMMAND, set_vim_var_string};
 use crate::eval::{callback_call, list2fpos, set_ref_in_callback};
@@ -29,9 +29,7 @@ use crate::ex_docmd::{
     DT_FIRST, DT_JUMP, DT_LAST, DT_LTAG, DT_NEXT, DT_POP, DT_PREV, DT_SELECT, DT_TAG,
     do_cmdline_cmd, exarg_T, set_no_hlsearch,
 };
-use crate::file_search::{
-    FINDFILE_FILE, vim_findfile, vim_findfile_init, vim_findfile_stopdir,
-};
+use crate::file_search::{FINDFILE_FILE, vim_findfile, vim_findfile_init, vim_findfile_stopdir};
 use crate::fileio::{FILE, fclose, off_T, vim_fgets, vim_fseek, vim_ftell};
 use crate::fold::foldOpenCursor;
 use crate::globals::*;
@@ -58,8 +56,8 @@ use crate::optionstr::free_string_option;
 use crate::os::fs::{os_fopen, os_path_exists};
 use crate::os::input::{fast_breakcheck, line_breakcheck, os_breakcheck};
 use crate::path::{
-    FullName_save, PathCmpFlags, kPathCmpExpand, kPathCmpFull, path_equal,
-    path_has_wildcard, path_tail, simplify_filename, to_slash_save, vim_isAbsName,
+    FullName_save, PathCmpFlags, kPathCmpExpand, kPathCmpFull, path_equal, path_has_wildcard,
+    path_tail, simplify_filename, to_slash_save, vim_isAbsName,
 };
 use crate::quickfix::{CMDBUFFSIZE, kOptSwbFlagUsetab, set_errorlist};
 use crate::regexp::{
@@ -1583,11 +1581,7 @@ unsafe fn findtags_in_help_init(st: *mut findtags_state_T) -> bool {
         }
 
         if !st.help_lang_find.is_null()
-            && mb_strnicmp(
-                st.help_lang.as_ptr(),
-                st.help_lang_find,
-                MAXCOL as usize,
-            ) != 0
+            && mb_strnicmp(st.help_lang.as_ptr(), st.help_lang_find, MAXCOL as usize) != 0
         {
             return false;
         }
@@ -3126,11 +3120,7 @@ pub unsafe fn tagstack_clear_entry(item: *mut taggy_T) {
     }
 }
 
-pub unsafe fn expand_tags(
-    tagnames: bool,
-    pat: *mut c_char,
-    file: &mut Vec<*mut c_char>,
-) -> c_int {
+pub unsafe fn expand_tags(tagnames: bool, pat: *mut c_char, file: &mut Vec<*mut c_char>) -> c_int {
     unsafe {
         let mut name_buf: Vec<c_char> = Vec::with_capacity(100);
 

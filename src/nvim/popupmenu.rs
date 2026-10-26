@@ -41,9 +41,7 @@ use crate::keycodes::{
     K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_UP, NL,
 };
 use crate::mbyte::{mb_string2cells, mb_strnicmp, ptr2cells, utf_ptr2cells, utfc_ptr2len};
-use crate::memory::{
-    Arena, arena_finish, arena_mem_free, strequal, xfree, xstrdup,
-};
+use crate::memory::{Arena, arena_finish, arena_mem_free, strequal, xfree, xstrdup};
 use crate::menu::{execute_menu, get_menu_mode_flag, menu_find, menu_is_separator, vimmenu_T};
 use crate::message::emsg;
 use crate::mouse::mouse_find_win_outer;

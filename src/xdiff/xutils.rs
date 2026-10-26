@@ -7,8 +7,8 @@ use crate::strings::memchr;
 use crate::xdiff::xdiffi::xdl_do_diff;
 use crate::xdiff::{
     XDF_IGNORE_CR_AT_EOL, XDF_IGNORE_WHITESPACE, XDF_IGNORE_WHITESPACE_AT_EOL,
-    XDF_IGNORE_WHITESPACE_CHANGE, XDF_WHITESPACE_FLAGS, mmbuffer_t, mmfile_t, xdemitcb_t,
-    xdfenv_t, xdl_isspace, xpparam_t,
+    XDF_IGNORE_WHITESPACE_CHANGE, XDF_WHITESPACE_FLAGS, mmbuffer_t, mmfile_t, xdemitcb_t, xdfenv_t,
+    xdl_isspace, xpparam_t,
 };
 
 pub fn xdl_bogosqrt(mut n: c_long) -> c_long {

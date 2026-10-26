@@ -292,9 +292,7 @@ pub unsafe fn cause_errthrow(
 
         if !msg_list.is_null() {
             let list = &mut *msg_list;
-            if concat
-                && let Some(last) = list.last_mut()
-            {
+            if concat && let Some(last) = list.last_mut() {
                 let old_msg = last.msg;
                 let joined = crate::strings::concat_str(old_msg, mesg);
                 xfree(old_msg.cast());
@@ -391,10 +389,7 @@ enum ExceptionValue {
     User(*mut c_char),
 }
 
-pub unsafe fn get_error_exception_string(
-    mesg: *const c_char,
-    cmdname: *mut c_char,
-) -> *mut c_char {
+pub unsafe fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_char) -> *mut c_char {
     unsafe {
         let (ret, val) = if !cmdname.is_null() && *cmdname != NUL {
             let cmdlen = strlen(cmdname);

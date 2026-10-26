@@ -7,11 +7,11 @@ use crate::eval::funcs::PROCESS_ALL_ACCESS;
 use crate::event::r#loop::uv_kill;
 #[cfg(windows)]
 use crate::memory::Arena;
-#[cfg(windows)]
-use std::ffi::{CStr, c_char};
 use std::ffi::c_int;
 #[cfg(target_os = "windows")]
 use std::ffi::c_void;
+#[cfg(windows)]
+use std::ffi::{CStr, c_char};
 
 #[cfg(target_os = "windows")]
 use crate::api::private::validate::{Dict, NvimString};

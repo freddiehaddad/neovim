@@ -2008,11 +2008,7 @@ pub unsafe fn copy_jumplist(from: *mut win_T, to: *mut win_T) {
 }
 
 /// Iterate over jumplist items (`mark_jumplist_iter`).
-pub fn mark_jumplist_iter(
-    iter: Option<usize>,
-    win: &win_T,
-    fm: &mut xfmark_T,
-) -> Option<usize> {
+pub fn mark_jumplist_iter(iter: Option<usize>, win: &win_T, fm: &mut xfmark_T) -> Option<usize> {
     if iter.is_none() && win.w_jumplistlen == 0 {
         *fm = INIT_XFMARK;
         return None;

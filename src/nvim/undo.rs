@@ -921,7 +921,11 @@ unsafe fn unserialize_extmark(
         let type_ = undo_read_4c(bi) as UndoObjectType;
         if type_ == kExtmarkSplice {
             let mut splice = ExtmarkSplice::new();
-            if !undo_read(bi, (&raw mut splice).cast::<u8>(), size_of::<ExtmarkSplice>()) {
+            if !undo_read(
+                bi,
+                (&raw mut splice).cast::<u8>(),
+                size_of::<ExtmarkSplice>(),
+            ) {
                 return None;
             }
             Some(ExtmarkUndoObject::Splice(splice))
@@ -1467,7 +1471,8 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 }
 
                 for i in 0..(num_head - 1) {
-                    if (*uhp_table[i as usize].0).uh_seq == (*uhp_table[(i + 1) as usize].0).uh_seq {
+                    if (*uhp_table[i as usize].0).uh_seq == (*uhp_table[(i + 1) as usize].0).uh_seq
+                    {
                         corruption_error(c"duplicate uh_seq".as_ptr(), file_name);
                         break 'error;
                     }

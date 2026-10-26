@@ -53,8 +53,7 @@ use crate::lua::executor::{
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
 use crate::memory::{
-    entered_free_all_mem, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xmemrchr, xstrdup,
-    xstrlcpy,
+    entered_free_all_mem, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xmemrchr, xstrdup, xstrlcpy,
 };
 use crate::message::{
     emsg, iemsg, internal_error, message_filtered, msg_clr_eos, msg_ext_set_kind, msg_outnum,
@@ -66,9 +65,9 @@ use crate::os::env::expand_T;
 use crate::os::input::line_breakcheck;
 use crate::path::{kPathCmpLiteral, path_equal};
 use crate::profile::{
-    func_do_profile, func_line_end, func_line_start, funccall_T, prof_def_func,
-    profile_add, profile_end, profile_self, profile_start, profile_sub_wait, profile_zero,
-    proftime_T, script_prof_restore, script_prof_save,
+    func_do_profile, func_line_end, func_line_start, funccall_T, prof_def_func, profile_add,
+    profile_end, profile_self, profile_start, profile_sub_wait, profile_zero, proftime_T,
+    script_prof_restore, script_prof_save,
 };
 use crate::regexp::{
     NUMBUFLEN, RE_MAGIC, regmatch_T, skip_regexp, vim_regcomp, vim_regexec, vim_regfree,
@@ -568,8 +567,14 @@ pub unsafe fn get_lambda_tv(
         let mut tofree: *mut c_char = ptr::null_mut();
 
         let mut s = skipwhite((*arg).add(1));
-        let mut ret =
-            get_function_args(&raw mut s, b'-' as c_char, None, ptr::null_mut(), None, true);
+        let mut ret = get_function_args(
+            &raw mut s,
+            b'-' as c_char,
+            None,
+            ptr::null_mut(),
+            None,
+            true,
+        );
         if ret == FAIL || *s != b'>' as c_char {
             return NOTDONE;
         }
@@ -2513,8 +2518,7 @@ unsafe fn list_functions(regmatch: *mut regmatch_T) {
             let matches = if regmatch.is_null() {
                 !message_filtered(uf2hikey(fp)) && !func_name_refcount(uf2hikey(fp))
             } else {
-                !(*uf2hikey(fp) as u8).is_ascii_digit()
-                    && vim_regexec(regmatch, uf2hikey(fp), 0)
+                !(*uf2hikey(fp) as u8).is_ascii_digit() && vim_regexec(regmatch, uf2hikey(fp), 0)
             };
             if matches {
                 if list_func_head(fp, false, false) == FAIL {
@@ -4130,10 +4134,7 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
                     let pt_argc = (*ret_pt).pt_argv.len();
                     (*pt).pt_argv.resize(pt_argc, typval_T::new());
                     for i in 0..pt_argc {
-                        tv_copy(
-                            &(&(*ret_pt).pt_argv)[i],
-                            &raw mut (&mut (*pt).pt_argv)[i],
-                        );
+                        tv_copy(&(&(*ret_pt).pt_argv)[i], &raw mut (&mut (*pt).pt_argv)[i]);
                     }
                 }
                 partial_unref(ret_pt);

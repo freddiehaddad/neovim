@@ -31,9 +31,7 @@ use crate::fileio::fcntl;
 use crate::globals::*;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::api_free_luaref;
-use crate::memory::{
-    Arena, arena_finish, arena_mem_free, arena_memdupz, xfree, xmemdup, xstrdup,
-};
+use crate::memory::{Arena, arena_finish, arena_mem_free, arena_memdupz, xfree, xmemdup, xstrdup};
 use crate::message::semsg;
 pub use crate::msgpack_rpc::channel::Channel;
 use crate::msgpack_rpc::channel::{
@@ -836,7 +834,7 @@ pub unsafe fn channel_send(
             } else {
                 xmemdup(data.cast(), len).cast::<c_char>()
             };
-            let buf = wstream_new_buffer(buf_data, len, 1, WBufferFinalizer::Free);
+            let buf = wstream_new_buffer(buf_data, len, WBufferFinalizer::Free);
             return if wstream_write(in_stream, buf) == 0 {
                 len
             } else {
@@ -974,10 +972,8 @@ pub unsafe fn channel_reader_callbacks(chan: *mut Channel, reader: *mut Callback
             if (*reader).eof {
                 if !(*reader).self_dict.is_null() {
                     if tv_dict_find((*reader).self_dict, (*reader).reader_type, -1).is_null() {
-                        let data = buffer_to_tv_list(
-                            (*reader).buffer.as_ptr(),
-                            (*reader).buffer.len(),
-                        );
+                        let data =
+                            buffer_to_tv_list((*reader).buffer.as_ptr(), (*reader).buffer.len());
                         let type_len = CStr::from_ptr((*reader).reader_type).to_bytes().len();
                         let _ = tv_dict_add_list(
                             (*reader).self_dict,
@@ -1060,10 +1056,7 @@ unsafe fn channel_callback_call(chan: *mut Channel, reader: *mut CallbackReader)
         };
 
         let cb: *mut Callback = if !reader.is_null() {
-            let l = buffer_to_tv_list(
-                (*reader).buffer.as_ptr(),
-                (*reader).buffer.len(),
-            );
+            let l = buffer_to_tv_list((*reader).buffer.as_ptr(), (*reader).buffer.len());
             argv[1].v_type = VarType::VAR_LIST;
             argv[1].v_lock = VAR_UNLOCKED;
             argv[1].vval = TypvalVval { v_list: l };
@@ -1147,7 +1140,6 @@ unsafe fn term_write(buf: *const c_char, size: usize, chan: *mut Channel) {
         let wbuf = wstream_new_buffer(
             xmemdup(buf.cast(), size).cast::<c_char>(),
             size,
-            1,
             WBufferFinalizer::Free,
         );
         let _ = wstream_write(in_stream, wbuf);

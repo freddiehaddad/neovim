@@ -5840,8 +5840,7 @@ unsafe fn parse_count(eap: *mut exarg_T, errormsg: *mut *const c_char, validate:
                     let arglen0 = (*eap).arglens.as_slice()[0];
                     debug_assert!((*eap).arg >= arg0);
                     if ((*eap).arg as usize) < (arg0 as usize) + arglen0 {
-                        (*eap).arglens.as_mut_slice()[0] -=
-                            ((*eap).arg as usize) - (arg0 as usize);
+                        (*eap).arglens.as_mut_slice()[0] -= ((*eap).arg as usize) - (arg0 as usize);
                         (*eap).args.as_mut_slice()[0] = (*eap).arg;
                     } else {
                         shift_cmd_args(eap);
@@ -8360,8 +8359,7 @@ unsafe fn repl_cmdline(
             if offset >= arg_off {
                 *arg_j = new_cmdline.wrapping_add(arg_off);
             } else {
-                *arg_j =
-                    new_cmdline.wrapping_add(arg_off.wrapping_add(len).wrapping_sub(srclen));
+                *arg_j = new_cmdline.wrapping_add(arg_off.wrapping_add(len).wrapping_sub(srclen));
             }
         }
 

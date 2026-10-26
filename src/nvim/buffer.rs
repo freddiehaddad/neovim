@@ -113,10 +113,10 @@ use crate::undo::{u_clearallandblockfree, u_sync, undo_fmt_time};
 use crate::version::min_vim_version;
 use crate::window::{
     WSP_BELOW, WSP_ROOM, WSP_VERT, check_can_set_curbuf_forceit, check_colorcolumn, close_windows,
-    global_stl_height, goto_tabpage_tp, goto_tabpage_win, last_window,
-    lastwin_nofloating, one_window, reset_binding, swbuf_goto_win_with_buf, tabline_height,
-    tabpage_T, tabpage_index, update_cwd, win_T, win_close, win_enter, win_locked, win_move_after,
-    win_split, win_valid, win_valid_any_tab, window_layout_lock, window_layout_unlock,
+    global_stl_height, goto_tabpage_tp, goto_tabpage_win, last_window, lastwin_nofloating,
+    one_window, reset_binding, swbuf_goto_win_with_buf, tabline_height, tabpage_T, tabpage_index,
+    update_cwd, win_T, win_close, win_enter, win_locked, win_move_after, win_split, win_valid,
+    win_valid_any_tab, window_layout_lock, window_layout_unlock,
 };
 use crate::winfloat::{win_float_update_preview, win_set_minimal_style};
 use std::ffi::{CStr, c_char, c_int, c_uint};
@@ -2810,8 +2810,7 @@ pub unsafe fn buflist_new(
             buf = buf_T::alloc();
             (*buf).b_vars = tv_dict_alloc();
             init_var_dict((*buf).b_vars, (&raw mut (*buf).b_bufvar).cast(), VAR_SCOPE);
-            (*buf).changedtick_di.di_key =
-                b"changedtick\0".iter().map(|&b| b as c_char).collect();
+            (*buf).changedtick_di.di_key = b"changedtick\0".iter().map(|&b| b as c_char).collect();
             buf_init_changedtick(buf);
         }
 

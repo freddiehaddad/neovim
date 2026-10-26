@@ -8,9 +8,7 @@ use crate::charset::{
     skipwhite, vim_is_fname_char,
 };
 use crate::cursor::{colnr_T, get_cursor_line_len, get_cursor_line_ptr, linenr_T, pos_T};
-use crate::decoration::{
-    decor_redraw_col, decor_redraw_line, decor_redraw_reset,
-};
+use crate::decoration::{decor_redraw_col, decor_redraw_line, decor_redraw_reset};
 use crate::decoration_provider::decor_providers_invoke_spell;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later};
 use crate::errors::*;
@@ -51,9 +49,7 @@ use crate::regexp::{
 use crate::runtime::{DIP_ALL, RuntimeCallback, do_in_runtimepath};
 use crate::search::{BACKWARD, Direction, FORWARD, do_search, kShmSearch};
 use crate::spellfile::{MAXREGIONS, spell_load_file};
-use crate::spellsuggest::{
-    idx_T, langp_T, slang_T, spell_suggest_list, spelltab_T,
-};
+use crate::spellsuggest::{idx_T, langp_T, slang_T, spell_suggest_list, spelltab_T};
 use crate::strings::{
     concat_str, gettext, strcat, strcmp, strcpy, strlen, strncmp, strstr, vim_snprintf, vim_strchr,
     xstrnsave,
@@ -1594,9 +1590,7 @@ unsafe fn count_syllables(slang: *mut slang_T, word: *const c_char) -> c_int {
             }
             let mut len: c_int = 0;
             for syl in &(*slang).sl_syl_items {
-                if syl.sy_len > len
-                    && strncmp(p, syl.sy_chars.as_ptr(), syl.sy_len as usize) == 0
-                {
+                if syl.sy_len > len && strncmp(p, syl.sy_chars.as_ptr(), syl.sy_len as usize) == 0 {
                     len = syl.sy_len;
                 }
             }
@@ -1665,8 +1659,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                         lang_ptr.add((len - 4) as usize),
                         c".spl".as_ptr(),
                         kPathCmpLiteral as PathCmpFlags,
-                    )
-                {
+                    ) {
                     let p = vim_strchr(path_tail(lang_ptr), b'_' as c_int);
                     if !p.is_null()
                         && ascii_isalpha(*p.add(1))
@@ -2360,12 +2353,7 @@ pub unsafe fn eval_soundfold(word: *const c_char) -> *mut c_char {
             for lp in &(*w_s).b_langp {
                 if (*lp.lp_slang).has_sal() {
                     let mut sound: [c_char; MAXWLEN] = [0; MAXWLEN];
-                    spell_soundfold(
-                        lp.lp_slang,
-                        word.cast_mut(),
-                        false,
-                        (&raw mut sound).cast(),
-                    );
+                    spell_soundfold(lp.lp_slang, word.cast_mut(), false, (&raw mut sound).cast());
                     return xstrdup((&raw const sound).cast());
                 }
             }
@@ -3188,11 +3176,7 @@ pub unsafe fn spell_expand_check_cap(col: colnr_T) {
         spell_expand_need_cap = check_need_cap(curwin, (*curwin).w_cursor.lnum, col);
     }
 }
-pub unsafe fn expand_spelling(
-    _lnum: linenr_T,
-    pat: *mut c_char,
-    matches: &mut Vec<*mut c_char>,
-) {
+pub unsafe fn expand_spelling(_lnum: linenr_T, pat: *mut c_char, matches: &mut Vec<*mut c_char>) {
     unsafe {
         matches.clear();
         spell_suggest_list(matches, pat, 100, spell_expand_need_cap, true);

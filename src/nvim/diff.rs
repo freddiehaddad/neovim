@@ -243,7 +243,12 @@ unsafe fn diff_scan_start(tp: *mut tabpage_T, idx: c_int, lnum: linenr_T) -> usi
         0
     }
 }
-unsafe fn diff_scan_remember(tp: *mut tabpage_T, idx: c_int, lnum: linenr_T, dp_idx: Option<usize>) {
+unsafe fn diff_scan_remember(
+    tp: *mut tabpage_T,
+    idx: c_int,
+    lnum: linenr_T,
+    dp_idx: Option<usize>,
+) {
     unsafe {
         diff_finger_tp = tp;
         diff_finger_idx = idx;
@@ -433,8 +438,9 @@ unsafe fn diff_mark_adjust_tp(
             if dp_idx >= (*tp).tp_diffs.len() {
                 break;
             }
-            let last =
-                (&(*tp).tp_diffs)[dp_idx].df_lnum[idx] + (&(*tp).tp_diffs)[dp_idx].df_count[idx] - 1;
+            let last = (&(*tp).tp_diffs)[dp_idx].df_lnum[idx]
+                + (&(*tp).tp_diffs)[dp_idx].df_count[idx]
+                - 1;
             if last >= line1 - 1 {
                 if diff_busy {
                     if (&(*tp).tp_diffs)[dp_idx].df_lnum[idx] > line2 {
@@ -2687,9 +2693,8 @@ unsafe fn diff_refine_inline_char_highlight(
                         let next_lnum = (&(*curtab).tp_diffs)[di + 1].df_lnum;
                         let next_count = (&(*curtab).tp_diffs)[di + 1].df_count;
                         for i in 0..DB_COUNT {
-                            (&mut (*curtab).tp_diffs)[di].df_count[i] = next_lnum[i]
-                                + next_count[i]
-                                - (&(*curtab).tp_diffs)[di].df_lnum[i];
+                            (&mut (*curtab).tp_diffs)[di].df_count[i] =
+                                next_lnum[i] + next_count[i] - (&(*curtab).tp_diffs)[di].df_lnum[i];
                         }
                         diff_free(curtab, di + 1);
                         has_merged_gaps = true;
@@ -3628,10 +3633,7 @@ unsafe fn diff_get_corresponding_line_int(buf1: *mut buf_T, lnum1: linenr_T) -> 
         let mut baseline: linenr_T = 0;
         let idx1 = diff_buf_idx(buf1, curtab);
         let idx2 = diff_buf_idx(curbuf, curtab);
-        if idx1 == DB_COUNT as c_int
-            || idx2 == DB_COUNT as c_int
-            || (*curtab).tp_diffs.is_empty()
-        {
+        if idx1 == DB_COUNT as c_int || idx2 == DB_COUNT as c_int || (*curtab).tp_diffs.is_empty() {
             return lnum1;
         }
         if (*curtab).tp_diff_invalid != 0 {

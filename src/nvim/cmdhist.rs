@@ -161,14 +161,12 @@ pub unsafe fn init_history() {
 
                 if newlen > 0 {
                     if l2 > 0 {
-                        temp[..l2 as usize].copy_from_slice(
-                            &HISTORY[hist_type][i2 as usize..(i2 + l2) as usize],
-                        );
+                        temp[..l2 as usize]
+                            .copy_from_slice(&HISTORY[hist_type][i2 as usize..(i2 + l2) as usize]);
                     }
                     if l1 > 0 {
-                        temp[l2 as usize..(l2 + l1) as usize].copy_from_slice(
-                            &HISTORY[hist_type][i1 as usize..(i1 + l1) as usize],
-                        );
+                        temp[l2 as usize..(l2 + l1) as usize]
+                            .copy_from_slice(&HISTORY[hist_type][i1 as usize..(i1 + l1) as usize]);
                     }
                 }
 
@@ -784,11 +782,7 @@ pub unsafe fn hist_iter(
             return None;
         }
         let next = hiter + 1;
-        if next >= hislen {
-            Some(0)
-        } else {
-            Some(next)
-        }
+        if next >= hislen { Some(0) } else { Some(next) }
     }
 }
 

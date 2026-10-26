@@ -1338,11 +1338,7 @@ unsafe fn foldAddMarker(buf: *mut buf_T, pos: pos_T, marker: *const c_char, mark
         let newline = xmalloc(line_len + markerlen + cms_len + 1).cast::<c_char>();
         ptr::copy_nonoverlapping(line, newline, line_len + 1);
         let added = if p.is_null() || line_is_comment {
-            xmemcpyz(
-                newline.add(line_len).cast(),
-                marker.cast(),
-                markerlen,
-            );
+            xmemcpyz(newline.add(line_len).cast(), marker.cast(), markerlen);
             markerlen
         } else {
             ptr::copy_nonoverlapping(cms, newline.add(line_len), cms_len + 1);
@@ -2256,11 +2252,7 @@ unsafe fn foldRemove(gap: &mut Vec<fold_T>, top: linenr_T, bot: linenr_T) {
             let (found, idx) = foldFind(gap, top);
             if found && gap[idx].fd_top < top {
                 let fp_top = gap[idx].fd_top;
-                foldRemove(
-                    &mut gap[idx].fd_nested,
-                    top - fp_top,
-                    bot - fp_top,
-                );
+                foldRemove(&mut gap[idx].fd_nested, top - fp_top, bot - fp_top);
                 if gap[idx].fd_top + gap[idx].fd_len - 1 > bot {
                     foldSplit(gap, idx as c_int, top, bot);
                 } else {
@@ -2314,12 +2306,7 @@ const fn fold_end(fp: &fold_T) -> linenr_T {
 }
 
 /// Move folds within the inclusive range "line1" to "line2" to after "dest".
-pub unsafe fn foldMoveRange(
-    gap: &mut [fold_T],
-    line1: linenr_T,
-    line2: linenr_T,
-    dest: linenr_T,
-) {
+pub unsafe fn foldMoveRange(gap: &mut [fold_T], line1: linenr_T, line2: linenr_T, dest: linenr_T) {
     unsafe {
         let range_len = line2 - line1 + 1;
         let move_len = dest - line2;

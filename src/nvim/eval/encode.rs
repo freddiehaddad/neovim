@@ -9,9 +9,9 @@ use crate::eval::decode::{
     SURROGATE_LO_END, SURROGATE_LO_START,
 };
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, list_T, listitem_T, partial_T,
-    tv_blob_get, tv_blob_len, tv_dict_find, tv_list_append_allocated_string, tv_list_first,
-    tv_list_idx_of_item, tv_list_last, tv_list_len, typval_T,
+    TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, list_T, listitem_T, partial_T, tv_blob_get,
+    tv_blob_len, tv_dict_find, tv_list_append_allocated_string, tv_list_first, tv_list_idx_of_item,
+    tv_list_last, tv_list_len, typval_T,
 };
 use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists};
 use crate::eval::{get_copyID, partial_name};

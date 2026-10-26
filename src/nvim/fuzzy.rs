@@ -8,8 +8,8 @@ use crate::eval::callback_call;
 use crate::eval::decode::K_LIST_LEN_MAY_KNOW;
 use crate::eval::fs::K_LIST_LEN_UNKNOWN;
 use crate::eval::typval::{
-    Callback, EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, callback_free, list_T,
-    listitem_T, tv_check_for_nonnull_dict_arg, tv_clear, tv_dict_find, tv_dict_get_callback,
+    Callback, EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, callback_free, list_T, listitem_T,
+    tv_check_for_nonnull_dict_arg, tv_clear, tv_dict_find, tv_dict_get_callback,
     tv_dict_get_string, tv_dict_has_key, tv_dict_unref, tv_get_number_chk, tv_get_string,
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_number,
     tv_list_append_tv, tv_list_find, tv_list_len, typval_T,
@@ -392,10 +392,7 @@ pub unsafe fn fuzzy_match(
     }
 }
 
-unsafe fn fuzzy_match_item_compare(
-    item1: &fuzzyItem_T,
-    item2: &fuzzyItem_T,
-) -> std::cmp::Ordering {
+unsafe fn fuzzy_match_item_compare(item1: &fuzzyItem_T, item2: &fuzzyItem_T) -> std::cmp::Ordering {
     unsafe {
         let v1 = item1.score;
         let v2 = item2.score;
@@ -744,7 +741,10 @@ pub unsafe fn fuzzy_match_str(str_ptr: *mut c_char, pat: *const c_char) -> c_int
 }
 
 /// Fuzzy match positions of `pat` in `str` (`fuzzy_match_str_with_pos`).
-pub unsafe fn fuzzy_match_str_with_pos(str_ptr: *mut c_char, pat: *const c_char) -> Option<Vec<u32>> {
+pub unsafe fn fuzzy_match_str_with_pos(
+    str_ptr: *mut c_char,
+    pat: *const c_char,
+) -> Option<Vec<u32>> {
     unsafe {
         if str_ptr.is_null() || pat.is_null() {
             return None;

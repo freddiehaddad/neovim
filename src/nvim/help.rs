@@ -134,11 +134,7 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
 
         // Check if there is a match for the argument.
         let mut matches: Vec<*mut c_char> = Vec::new();
-        let mut n = find_help_tags(
-            arg,
-            &mut matches,
-            !eap.is_null() && (*eap).forceit != 0,
-        );
+        let mut n = find_help_tags(arg, &mut matches, !eap.is_null() && (*eap).forceit != 0);
 
         let mut i: usize = 0;
         if n != FAIL && !lang.is_null() {

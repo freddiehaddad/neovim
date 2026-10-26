@@ -519,8 +519,15 @@ unsafe fn load_terminfo(tk: &mut TermKey) {
                 modifier_mask: 0,
                 modifier_set: 0,
             };
-            if !try_load_terminfo_key(tk, &mut root, true, i - 1, false, name_buf.as_ptr(), fn_info)
-            {
+            if !try_load_terminfo_key(
+                tk,
+                &mut root,
+                true,
+                i - 1,
+                false,
+                name_buf.as_ptr(),
+                fn_info,
+            ) {
                 break;
             }
         }

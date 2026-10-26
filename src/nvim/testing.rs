@@ -4,12 +4,11 @@ use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE};
 use crate::errors::e_cant_read_file_str;
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
 use crate::eval::typval::{
-    EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType,
-    tv_check_for_float_or_nr_arg, tv_check_for_opt_number_arg, tv_check_for_opt_string_arg,
-    tv_check_for_opt_string_or_list_arg, tv_check_for_string_or_number_arg, tv_clear,
-    tv_dict_add_tv, tv_dict_alloc, tv_dict_find, tv_equal, tv_get_float, tv_get_number_chk,
-    tv_get_string, tv_get_string_buf_chk, tv_get_string_chk, tv_list_first, tv_list_last,
-    tv_list_len, typval_T,
+    EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, tv_check_for_float_or_nr_arg,
+    tv_check_for_opt_number_arg, tv_check_for_opt_string_arg, tv_check_for_opt_string_or_list_arg,
+    tv_check_for_string_or_number_arg, tv_clear, tv_dict_add_tv, tv_dict_alloc, tv_dict_find,
+    tv_equal, tv_get_float, tv_get_number_chk, tv_get_string, tv_get_string_buf_chk,
+    tv_get_string_chk, tv_list_first, tv_list_last, tv_list_len, typval_T,
 };
 use crate::eval::vars::{
     VV_ERRMSG, VV_EXCEPTION, VV_TESTING, assert_error, get_vim_var_nr, get_vim_var_str,

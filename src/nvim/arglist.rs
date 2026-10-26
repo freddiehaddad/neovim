@@ -1051,9 +1051,7 @@ unsafe fn arg_all_open_windows(aall: *mut arg_all_state_T, count: c_int) {
         let mut split_ret = OK;
         let mut i: c_int = 0;
         while i < count && !got_int {
-            if ptr::eq((*aall).alist, &raw const global_alist)
-                && i == gargcount() - 1
-            {
+            if ptr::eq((*aall).alist, &raw const global_alist) && i == gargcount() - 1 {
                 arg_had_last = true;
             }
             if (&*aall).opened[i as usize] > 0 {

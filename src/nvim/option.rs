@@ -86,8 +86,8 @@ use crate::keycodes::{
 };
 use crate::log::logmsg;
 
-use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str, nlua_set_sctx};
 use crate::highlight::HlAttrs;
+use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str, nlua_set_sctx};
 use crate::mapping::{langmap_init, put_escstr};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{enc_locale, utfc_ptr2len};
@@ -95,8 +95,7 @@ use crate::mcursor::{kOptFollow, mc_ins_replay_can_join};
 use crate::memfile::mf_close_file;
 use crate::memline::{ml_open_file, ml_open_files};
 use crate::memory::{
-    Arena, strequal, strnequal, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xstrdup,
-    xstrlcpy,
+    Arena, strequal, strnequal, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xstrdup, xstrlcpy,
 };
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar,
@@ -131,8 +130,8 @@ use crate::runtime::{
 use crate::spell::{compile_cap_prog, did_set_spell_option, init_spell_chartab, parse_spelllang};
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
-    concat_str, gettext, strchr, strcmp, strcpy, strlen, strncmp, strstr, tr,
-    vim_snprintf, vim_snprintf_safelen, vim_strchr, vim_strsave_escaped,
+    concat_str, gettext, strchr, strcmp, strcpy, strlen, strncmp, strstr, tr, vim_snprintf,
+    vim_snprintf_safelen, vim_strchr, vim_strsave_escaped,
 };
 use crate::syntax::synblock_T;
 use crate::tag::free_tagfunc_option;
@@ -5511,14 +5510,7 @@ pub unsafe fn optval_from_obj(
                 }
                 items.push(s_cstr.to_owned());
             }
-            join_cstrings(
-                &items,
-                if is_flaglist && !is_comma {
-                    b""
-                } else {
-                    b","
-                },
-            )
+            join_cstrings(&items, if is_flaglist && !is_comma { b"" } else { b"," })
         } else {
             let dict = o.data.dict;
             let mut items: Vec<std::ffi::CString> = Vec::with_capacity(dict.size);
@@ -5556,14 +5548,7 @@ pub unsafe fn optval_from_obj(
             if !items.is_empty() && (is_map || is_comma) {
                 items.sort_unstable();
             }
-            join_cstrings(
-                &items,
-                if is_flaglist && !is_comma {
-                    b""
-                } else {
-                    b","
-                },
-            )
+            join_cstrings(&items, if is_flaglist && !is_comma { b"" } else { b"," })
         };
 
         if op == OP_REMOVING && is_map && strchr(str_ptr, b':' as c_int).is_null() {

@@ -92,7 +92,8 @@ pub type VTermDcsFn<T = VTermStateFull> = unsafe fn(
 
 #[repr(C)]
 pub struct VTermParserCallbacks {
-    pub text: Option<unsafe fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> c_int>,
+    pub text:
+        Option<unsafe fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> c_int>,
     pub control: Option<unsafe fn(control: u8, user: *mut VTermStateFull) -> c_int>,
     pub escape:
         Option<unsafe fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> c_int>,

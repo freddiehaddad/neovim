@@ -22,9 +22,7 @@ use crate::memory::{xfree, xstrdup};
 use crate::message::{emsg, kZIndexMessages};
 use crate::mouse::mouse_find_win_inner;
 use crate::r#move::{textpos2screenpos, validate_cursor};
-use crate::option::{
-    OPT_LOCAL, OptTarget, kOptBufhidden, parse_winhl_opt, set_option_direct_for,
-};
+use crate::option::{OPT_LOCAL, OptTarget, kOptBufhidden, parse_winhl_opt, set_option_direct_for};
 use crate::option_vars::*;
 use crate::optionstr::{OptKeyDict_pvp, free_string_option, kOptPreviewpopup, opt_keyset};
 use crate::os::fs::{MAXPATHL, os_dirname};

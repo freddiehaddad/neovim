@@ -86,8 +86,8 @@ use crate::os::lang::{get_lang_arg, get_locales};
 use crate::os::users::{get_users, match_user};
 use crate::path::{
     EW_ADDSLASH, EW_ALLLINKS, EW_CDPATH, EW_DIR, EW_EXEC, EW_FILE, EW_ICASE, EW_KEEPALL,
-    EW_NOERROR, EW_NOTFOUND, EW_PATH, EW_SHELLCMD, EW_SILENT, after_pathsep,
-    expand_wildcards_eval, expand_wildcards_vec, match_suffix, path_is_absolute, path_tail,
+    EW_NOERROR, EW_NOTFOUND, EW_PATH, EW_SHELLCMD, EW_SILENT, after_pathsep, expand_wildcards_eval,
+    expand_wildcards_vec, match_suffix, path_is_absolute, path_tail,
 };
 use crate::popupmenu::{
     pum_clear, pum_display, pum_get_height, pum_undisplay, pum_visible, pumitem_T,
@@ -200,9 +200,7 @@ impl LineGetter {
                 Self::Func(cookie) => {
                     crate::eval::userfunc::get_func_line(c, cookie, indent, do_concat)
                 }
-                Self::Source(cookie) => {
-                    crate::runtime::getsourceline(c, cookie, indent, do_concat)
-                }
+                Self::Source(cookie) => crate::runtime::getsourceline(c, cookie, indent, do_concat),
                 Self::Loop(cookie) => crate::ex_docmd::get_loop_line(c, cookie, indent, do_concat),
                 Self::List(cookie) => {
                     crate::eval::funcs::get_list_line(c, cookie, indent, do_concat)
@@ -1366,7 +1364,6 @@ impl cmdidx_T {
     }
 }
 
-
 use crate::change::TAB;
 use crate::charset::NUL;
 #[cfg(unix)]
@@ -2462,7 +2459,12 @@ unsafe fn ExpandOne_start(
                 }
             } else {
                 let nfiles = (*xp).xp_numfiles as usize;
-                ExpandEscape(xp, str_arg, &mut (*xp).xp_files.as_mut_slice()[..nfiles], options);
+                ExpandEscape(
+                    xp,
+                    str_arg,
+                    &mut (*xp).xp_files.as_mut_slice()[..nfiles],
+                    options,
+                );
 
                 if mode != WILD_ALL && mode != WILD_ALL_KEEP && mode != WILD_LONGEST {
                     let mut non_suf_match = if (*xp).xp_numfiles != 0 {
@@ -2826,14 +2828,7 @@ pub unsafe fn showmatches(
         };
 
         if cmdline_compl_use_pum(display_wildmenu && !display_list) {
-            show_pum_matches(
-                ccline,
-                xp,
-                matches,
-                showtail,
-                noselect,
-                cmdline_unchanged,
-            );
+            show_pum_matches(ccline, xp, matches, showtail, noselect, cmdline_unchanged);
             if (*xp).xp_numfiles == -1 {
                 crate::path::clear_cstrings(&mut temp_matches);
                 free_xp_files_extra(xp);
@@ -2857,12 +2852,7 @@ pub unsafe fn showmatches(
         if got_int {
             got_int = false;
         } else if display_wildmenu && !display_list {
-            redraw_wildmenu(
-                xp,
-                matches,
-                if noselect { -1 } else { 0 },
-                showtail,
-            );
+            redraw_wildmenu(xp, matches, if noselect { -1 } else { 0 }, showtail);
         } else if display_list {
             let numMatches = matches.len() as c_int;
             let mut maxlen: c_int = 0;
@@ -2912,21 +2902,9 @@ pub unsafe fn showmatches(
 
         if display_wildmenu && display_list {
             if cmdline_compl_use_pum(true) {
-                show_pum_matches(
-                    ccline,
-                    xp,
-                    matches,
-                    showtail,
-                    noselect,
-                    cmdline_unchanged,
-                );
+                show_pum_matches(ccline, xp, matches, showtail, noselect, cmdline_unchanged);
             } else {
-                redraw_wildmenu(
-                    xp,
-                    matches,
-                    if noselect { -1 } else { 0 },
-                    showtail,
-                );
+                redraw_wildmenu(xp, matches, if noselect { -1 } else { 0 }, showtail);
             }
         }
 
@@ -5006,12 +4984,7 @@ unsafe fn ExpandFromContext(
         if (*xp).xp_context == EXPAND_COLORS {
             let mut directories: [*mut c_char; 2] =
                 [c"colors".as_ptr().cast_mut(), ptr::null_mut()];
-            return ExpandRTDir(
-                pat,
-                DIP_START + DIP_OPT,
-                matches,
-                directories.as_mut_ptr(),
-            );
+            return ExpandRTDir(pat, DIP_START + DIP_OPT, matches, directories.as_mut_ptr());
         }
         if (*xp).xp_context == EXPAND_COMPILER {
             let mut directories: [*mut c_char; 2] =
@@ -5243,11 +5216,7 @@ unsafe fn expand_shellcmd_onedir(
 }
 
 /// Complete a shell command.
-unsafe fn expand_shellcmd(
-    filepat: *mut c_char,
-    matches: &mut Vec<*mut c_char>,
-    flagsarg: c_int,
-) {
+unsafe fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<*mut c_char>, flagsarg: c_int) {
     unsafe {
         let mut path: *mut c_char = ptr::null_mut();
         matches.clear();

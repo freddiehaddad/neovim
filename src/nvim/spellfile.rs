@@ -16,8 +16,8 @@ use crate::fileio::{
 use crate::globals::*;
 use crate::mbyte::{
     convert_setup, enc_canonize, mb_charlen, mb_cptr2char_adv, mb_ptr_adv, mb_ptr_back,
-    mb_ptr2char_adv, string_convert, utf_char2bytes, utf_ptr2char, utf_valid_string,
-    utfc_ptr2len, vimconv_T,
+    mb_ptr2char_adv, string_convert, utf_char2bytes, utf_ptr2char, utf_valid_string, utfc_ptr2len,
+    vimconv_T,
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
 use crate::memory::{strequal, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
@@ -33,8 +33,8 @@ use crate::os::input::{fast_breakcheck, line_breakcheck, veryfast_breakcheck};
 use crate::os::stdpaths::{XDGVarType, get_xdg_home};
 use crate::os::time::{Timestamp, os_time, time_t};
 use crate::path::{
-    dir_of_file_exists, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail,
-    path_tail_with_sep, vim_ispathsep,
+    dir_of_file_exists, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail, path_tail_with_sep,
+    vim_ispathsep,
 };
 use crate::regexp::{
     RE_MAGIC, RE_STRICT, RE_STRING, regprog_T, vim_regcomp, vim_regexec_prog, vim_regfree,
@@ -647,26 +647,14 @@ pub unsafe fn spell_load_file(
         }
 
         if !fail && !check_someerror {
-            res = spell_read_tree(
-                fd,
-                &mut (*lp).sl_fbyts,
-                &mut (*lp).sl_fidxs,
-                false,
-                0,
-            );
+            res = spell_read_tree(fd, &mut (*lp).sl_fbyts, &mut (*lp).sl_fidxs, false, 0);
             if res != 0 {
                 check_someerror = true;
             }
         }
 
         if !fail && !check_someerror {
-            res = spell_read_tree(
-                fd,
-                &mut (*lp).sl_kbyts,
-                &mut (*lp).sl_kidxs,
-                false,
-                0,
-            );
+            res = spell_read_tree(fd, &mut (*lp).sl_kbyts, &mut (*lp).sl_kidxs, false, 0);
             if res != 0 {
                 check_someerror = true;
             }
@@ -1790,11 +1778,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
 
             xfree(pc.cast());
             let line = if (*spin).si_conv.vc_type != CONV_NONE {
-                pc = string_convert(
-                    &(*spin).si_conv,
-                    rline.as_mut_ptr(),
-                    ptr::null_mut(),
-                );
+                pc = string_convert(&(*spin).si_conv, rline.as_mut_ptr(), ptr::null_mut());
                 if pc.is_null() {
                     smsg!(
                         0,
@@ -2497,8 +2481,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                     && sofofrom.is_null()
                 {
                     sofofrom = getroom_save(spin, items[1]);
-                } else if is_aff_rule(&items, itemcnt_i, c"SOFOTO".as_ptr(), 2)
-                    && sofoto.is_null()
+                } else if is_aff_rule(&items, itemcnt_i, c"SOFOTO".as_ptr(), 2) && sofoto.is_null()
                 {
                     sofoto = getroom_save(spin, items[1]);
                 } else if strcmp(items[0], c"COMMON".as_ptr()) == 0 {
@@ -2634,9 +2617,7 @@ unsafe fn is_aff_rule(
 
 unsafe fn aff_process_flags(affile: &afffile_T, entry: &mut affentry_T) {
     unsafe {
-        if !entry.ae_flags.is_null()
-            && (affile.af_compforbid != 0 || affile.af_comppermit != 0)
-        {
+        if !entry.ae_flags.is_null() && (affile.af_compforbid != 0 || affile.af_comppermit != 0) {
             let mut p = entry.ae_flags;
             while *p != NUL {
                 let prevp = p;
@@ -2928,11 +2909,7 @@ unsafe fn sal_to_bool(s: *const c_char) -> bool {
     unsafe { strcmp(s, c"1".as_ptr()) == 0 || strcmp(s, c"true".as_ptr()) == 0 }
 }
 
-unsafe fn spell_read_dic(
-    spin: *mut spellinfo_T,
-    fname: *mut c_char,
-    affile: &afffile_T,
-) -> c_int {
+unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &afffile_T) -> c_int {
     unsafe {
         let mut ht: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
         let mut line = [0 as c_char; MAXLINELEN];
@@ -2983,11 +2960,7 @@ unsafe fn spell_read_dic(
 
             let pc: *mut c_char;
             let w = if (*spin).si_conv.vc_type != CONV_NONE {
-                pc = string_convert(
-                    &(*spin).si_conv,
-                    line.as_mut_ptr(),
-                    ptr::null_mut(),
-                );
+                pc = string_convert(&(*spin).si_conv, line.as_mut_ptr(), ptr::null_mut());
                 if pc.is_null() {
                     smsg!(
                         0,
@@ -3622,11 +3595,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
 
             xfree(pc.cast());
             let mut line = if (*spin).si_conv.vc_type != CONV_NONE {
-                pc = string_convert(
-                    &(*spin).si_conv,
-                    rline.as_mut_ptr(),
-                    ptr::null_mut(),
-                );
+                pc = string_convert(&(*spin).si_conv, rline.as_mut_ptr(), ptr::null_mut());
                 if pc.is_null() {
                     smsg!(
                         0,
@@ -4315,8 +4284,8 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
             fputc(SN_PREFCOND, fd);
             fputc(SNF_REQUIRED, fd);
 
-            let l = write_spell_prefcond(ptr::null_mut(), &(*spin).si_prefcond, &raw mut fwv)
-                as usize;
+            let l =
+                write_spell_prefcond(ptr::null_mut(), &(*spin).si_prefcond, &raw mut fwv) as usize;
             put_bytes(fd, l as u64, 4);
 
             write_spell_prefcond(fd, &(*spin).si_prefcond, &raw mut fwv);

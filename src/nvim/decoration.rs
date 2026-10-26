@@ -937,7 +937,9 @@ unsafe fn decor_state_pack(state: *mut DecorState) {
             fut_beg = cur_end;
             count = cur_end;
         } else if fut_beg != cur_end {
-            (*state).ranges_i.copy_within(fut_beg as usize..count as usize, cur_end as usize);
+            (*state)
+                .ranges_i
+                .copy_within(fut_beg as usize..count as usize, cur_end as usize);
             count = cur_end + (count - fut_beg);
             fut_beg = cur_end;
         }
@@ -1255,7 +1257,9 @@ pub unsafe fn decor_redraw_col_impl(
                 }
             }
 
-            (*state).ranges_i.copy_within(begin as usize..cur_end as usize, (begin + 1) as usize);
+            (*state)
+                .ranges_i
+                .copy_within(begin as usize..cur_end as usize, (begin + 1) as usize);
             (&mut (*state).ranges_i)[begin as usize] = index;
             cur_end += 1;
             fut_beg += 1;

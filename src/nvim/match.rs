@@ -1011,7 +1011,8 @@ pub unsafe fn f_getmatches(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
                         tv_list_append_number(l, llpos.len as varnumber_T);
                     }
                     let mut buf = [0 as c_char; 30];
-                    let len = vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d".as_ptr(), (i + 1) as c_int);
+                    let len =
+                        vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d".as_ptr(), (i + 1) as c_int);
                     tv_dict_add_list(dict, buf.as_ptr(), len as usize, l);
                 }
             } else {

@@ -14,9 +14,7 @@ use crate::mbyte::mb_isalpha;
 use crate::mbyte::{mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2len};
 #[cfg(windows)]
 use crate::memory::strchrsub;
-use crate::memory::{
-    xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xstrdup, xstrlcat, xstrlcpy,
-};
+use crate::memory::{xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
 use crate::option::copy_option_part;
 use crate::option_vars::*;
 use crate::os::env::{expand_env_esc, expand_env_save_opt, os_getenv, vim_env_iter};
@@ -1259,12 +1257,8 @@ pub unsafe fn gen_expand_wildcards_vec(
                         if has_env_var(p) || *p == b'~' as c_char {
                             xfree(p.cast());
                             clear_cstrings(file);
-                            let res = os_expand_wildcards(
-                                num_pat,
-                                pat,
-                                file,
-                                flags | EW_KEEPDOLLAR,
-                            );
+                            let res =
+                                os_expand_wildcards(num_pat, pat, file, flags | EW_KEEPDOLLAR);
                             EXPAND_RECURSIVE = false;
                             return res;
                         }
@@ -2372,10 +2366,7 @@ mod tests {
 
             let inv3 = invocation_path_tail(c"exe a/b\\c".as_ptr(), &mut len);
             assert_eq!(len, 3);
-            assert_eq!(
-                CStr::from_ptr(inv3).to_bytes(),
-                b"exe a/b\\c"
-            );
+            assert_eq!(CStr::from_ptr(inv3).to_bytes(), b"exe a/b\\c");
 
             let mut str_vec: Vec<*mut c_char> = Vec::new();
             let empty_concat = concat_cstrings(&str_vec, c",".as_ptr());

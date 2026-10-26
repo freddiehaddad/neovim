@@ -57,6 +57,7 @@ use crate::globals::*;
 use crate::grid::{
     ScreenGrid, get_win_by_grid_handle, schar_T, schar_cache_clear, schar_get, win_grid_alloc,
 };
+use crate::highlight::HlAttrs;
 use crate::highlight::{
     KeyDict_highlight, OptionalKeys, dict2hlattrs, highlight_use_hlstate, hl_check_ns,
     hl_get_attr_by_id, hl_inspect, hl_ns_get_attrs, ns_hl_def, win_check_ns_hl,
@@ -78,7 +79,6 @@ use crate::lua::executor::{
     api_free_luaref, kRetNilBool, kRetObject, nlua_call_ref, nlua_exec, nlua_get_global_ref_count,
     nlua_is_deferred_safe,
 };
-use crate::highlight::HlAttrs;
 use crate::mapping::{MAPTYPE_MAP, REMAP_NONE, REMAP_YES, keymap_array, modify_keymap};
 use crate::mark::mark_get_global;
 use crate::math::{FAIL, xpopcount};

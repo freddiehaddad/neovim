@@ -365,8 +365,7 @@ unsafe fn draw_virt_text(
         let mut totalWidthOfEolRightAlignedVirtText: c_int = 0;
 
         for i in 0..end {
-            let item: *mut DecorRange =
-                (*slots.add(*indices.add(i as usize) as usize)).range_mut();
+            let item: *mut DecorRange = (*slots.add(*indices.add(i as usize) as usize)).range_mut();
             if !((*item).start_row == (*state).row && decor_virt_pos(item)) {
                 continue;
             }
@@ -2804,7 +2803,8 @@ pub unsafe fn win_line(
                                     && (ptr.offset_from(line) as colnr_T) <= trailcol))
                         {
                             if in_multispace && !(*wp).w_p_lcs_chars.multispace.is_empty() {
-                                mb_schar = (*wp).w_p_lcs_chars.multispace.as_slice()[multispace_pos];
+                                mb_schar =
+                                    (*wp).w_p_lcs_chars.multispace.as_slice()[multispace_pos];
                                 multispace_pos += 1;
                                 if multispace_pos >= (*wp).w_p_lcs_chars.multispace.len() {
                                     multispace_pos = 0;
@@ -3250,8 +3250,7 @@ pub unsafe fn win_line(
                     }
 
                     for i in wlv.col..view_width {
-                        linebuf_vcol[(wlv.off + (i - wlv.col)) as usize] =
-                            wlv.vcol + (i - wlv.col);
+                        linebuf_vcol[(wlv.off + (i - wlv.col)) as usize] = wlv.vcol + (i - wlv.col);
                     }
 
                     if ((*wp).w_onebuf_opt.wo_cuc != 0

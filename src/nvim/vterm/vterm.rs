@@ -158,7 +158,9 @@ pub unsafe fn vterm_scroll_rect(
     downward: c_int,
     rightward: c_int,
     moverect: Option<unsafe fn(src: VTermRect, dest: VTermRect, user: *mut VTermScreen) -> c_int>,
-    eraserect: Option<unsafe fn(rect: VTermRect, selective: c_int, user: *mut VTermScreen) -> c_int>,
+    eraserect: Option<
+        unsafe fn(rect: VTermRect, selective: c_int, user: *mut VTermScreen) -> c_int,
+    >,
     user: *mut VTermScreen,
 ) {
     unsafe {

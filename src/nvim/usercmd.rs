@@ -2026,11 +2026,7 @@ unsafe fn arena_str_obj(arena: *mut Arena, bytes: &[u8]) -> Object {
 pub unsafe fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> Dict {
     unsafe {
         let u = &raw const ucmds;
-        let gap: &[ucmd_T] = if buf.is_null() {
-            &*u
-        } else {
-            &(*buf).b_ucmds
-        };
+        let gap: &[ucmd_T] = if buf.is_null() { &*u } else { &(*buf).b_ucmds };
 
         let mut rv = arena_dict(arena, gap.len());
         for cmd in gap {

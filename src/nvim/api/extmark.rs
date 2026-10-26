@@ -17,10 +17,10 @@ use crate::decoration::{
     DecorVirtTextData, HLGroupID, NS, VirtLine, VirtText, VirtTextChunk, decor_free, decor_put_sh,
     decor_put_vt, decor_range_add_sh, decor_range_add_virt, decor_sh_from_inline,
     decor_to_dict_legacy, hl_group_name, kHlModeUnknown, kSHConceal, kSHConcealLines,
-    kSHConcealOff, kSHHlEol, kSHIsSign, kSHSpellOff, kSHSpellOn, kSHUIWatched,
-    kSHUIWatchedOverlay, kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll, kVLOverflowTrunc,
-    kVLOverflowWrap, kVPosEndOfLine, kVPosEndOfLineRightAlign, kVPosInline, kVPosOverlay,
-    kVPosRightAlign, kVPosWinCol, kVTHide, kVTIsLines, kVTLinesAbove, kVTRepeatLinebreak,
+    kSHConcealOff, kSHHlEol, kSHIsSign, kSHSpellOff, kSHSpellOn, kSHUIWatched, kSHUIWatchedOverlay,
+    kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll, kVLOverflowTrunc, kVLOverflowWrap,
+    kVPosEndOfLine, kVPosEndOfLineRightAlign, kVPosInline, kVPosOverlay, kVPosRightAlign,
+    kVPosWinCol, kVTHide, kVTIsLines, kVTLinesAbove, kVTRepeatLinebreak,
 };
 use crate::decoration_provider::{decor_provider_clear, get_decor_provider, kDecorProviderActive};
 use crate::drawline::kHlModeBlend;

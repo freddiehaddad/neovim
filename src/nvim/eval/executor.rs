@@ -3,8 +3,8 @@
 
 use crate::errors::*;
 use crate::eval::typval::{
-    TypvalVval, VarType, tv_clear, tv_get_number, tv_get_string, tv_get_string_buf,
-    tv_list_extend, typval_T,
+    TypvalVval, VarType, tv_clear, tv_get_number, tv_get_string, tv_get_string_buf, tv_list_extend,
+    typval_T,
 };
 use crate::eval::{grow_string_tv, num_divide, num_modulus};
 use crate::math::{FAIL, OK};

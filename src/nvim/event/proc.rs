@@ -1,7 +1,7 @@
 //! Process spawning, waiting, stopping, and teardown (`src/nvim/event/proc.c`).
 
-pub use crate::event::libuv_proc::LibuvProc;
 use crate::eval::typval::dict_T;
+pub use crate::event::libuv_proc::LibuvProc;
 use crate::event::libuv_proc::{libuv_proc_close, libuv_proc_spawn};
 use crate::event::r#loop::{
     Loop, loop_children_kill_timer, loop_exit_delay_timer, loop_poll_events, loop_queues,

@@ -667,11 +667,7 @@ pub unsafe fn ex_listdo(eap: *mut exarg_T) {
 
                 i += 1;
                 if execute {
-                    do_cmdline(
-                        (*eap).arg,
-                        (*eap).ea_getline,
-                        DOCMD_VERBOSE + DOCMD_NOWAIT,
-                    );
+                    do_cmdline((*eap).arg, (*eap).ea_getline, DOCMD_VERBOSE + DOCMD_NOWAIT);
                 }
 
                 if (*eap).cmdidx == CMD_bufdo {

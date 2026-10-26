@@ -282,8 +282,6 @@ struct LineData {
     lnum_after: linenr_T,
 }
 
-
-
 static mut sort_lc: bool = false;
 static mut sort_ic: bool = false;
 static mut sort_nr: c_int = 0;
@@ -880,10 +878,7 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
                 let s = ml_get(get_lnum);
                 let bytelen: colnr_T = ml_get_len(get_lnum) + 1;
                 old_count += bytelen as bcount_t;
-                if !unique
-                    || i == 0
-                    || string_compare(s, sortbuf1) != 0
-                {
+                if !unique || i == 0 || string_compare(s, sortbuf1) != 0 {
                     strcpy(sortbuf1, s);
                     if ml_append(lnum, sortbuf1, 0, false) == FAIL {
                         break;
@@ -5173,7 +5168,6 @@ unsafe fn show_sub(
         let mut next_linenr: linenr_T;
 
         for &m in subresults {
-
             if !cmdpreview_buf.is_null() {
                 let mut p_start = lpos_T {
                     lnum: 0,

@@ -1942,7 +1942,8 @@ pub unsafe fn readfile(
                                     {
                                         if p == ptr.cast::<u8>() {
                                             if can_retry {
-                                                if p_ccv.cb_type() != kCallbackNone && iconv_fd != -1
+                                                if p_ccv.cb_type() != kCallbackNone
+                                                    && iconv_fd != -1
                                                 {
                                                     did_iconv = true;
                                                 } else {
@@ -1981,7 +1982,8 @@ pub unsafe fn readfile(
 
                                         if !(0xd800..=0xdbff).contains(&u16c) {
                                             if can_retry {
-                                                if p_ccv.cb_type() != kCallbackNone && iconv_fd != -1
+                                                if p_ccv.cb_type() != kCallbackNone
+                                                    && iconv_fd != -1
                                                 {
                                                     did_iconv = true;
                                                 } else {
@@ -2035,7 +2037,8 @@ pub unsafe fn readfile(
                                         u8c = utf_ptr2char(p.cast()) as c_uint;
                                         if len == 0 {
                                             if can_retry {
-                                                if p_ccv.cb_type() != kCallbackNone && iconv_fd != -1
+                                                if p_ccv.cb_type() != kCallbackNone
+                                                    && iconv_fd != -1
                                                 {
                                                     did_iconv = true;
                                                 } else {

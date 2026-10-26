@@ -96,16 +96,13 @@ unsafe fn perror_msg(msg: *const c_char) {
     }
 }
 
-  #[inline]
-  pub fn pmap_get_bhdr(
-      map: &std::collections::HashMap<i64, Box<bhdr_T>>,
-      key: i64,
-  ) -> *mut bhdr_T {
-      map.get(&key)
-          .map_or(ptr::null_mut(), |b| (&raw const **b).cast_mut())
-  }
+#[inline]
+pub fn pmap_get_bhdr(map: &std::collections::HashMap<i64, Box<bhdr_T>>, key: i64) -> *mut bhdr_T {
+    map.get(&key)
+        .map_or(ptr::null_mut(), |b| (&raw const **b).cast_mut())
+}
 
-  /// Open a new or existing memory block file.
+/// Open a new or existing memory block file.
 pub unsafe fn mf_open(fname: *mut c_char, flags: c_int) -> *mut memfile_T {
     unsafe {
         let mfp = Box::into_raw(Box::new(memfile_T {

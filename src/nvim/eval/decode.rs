@@ -4,10 +4,10 @@ use crate::charset::vim_str2nr;
 use crate::eval::encode::encode_list_write;
 use crate::eval::string2float;
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, list_T, tv_blob_alloc_ret, tv_clear,
-    tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc, tv_dict_item_alloc_len,
-    tv_list_alloc, tv_list_append_list, tv_list_append_number, tv_list_append_owned_tv,
-    tv_list_len, tv_list_ref, typval_T,
+    TypvalVval, VAR_UNLOCKED, VarType, list_T, tv_blob_alloc_ret, tv_clear, tv_dict_add,
+    tv_dict_alloc, tv_dict_find, tv_dict_item_alloc, tv_dict_item_alloc_len, tv_list_alloc,
+    tv_list_append_list, tv_list_append_number, tv_list_append_owned_tv, tv_list_len, tv_list_ref,
+    typval_T,
 };
 use crate::eval::vars::eval_msgpack_type_lists;
 use crate::hashtab::hashitem_empty;
@@ -1185,10 +1185,8 @@ unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
                 (*node).data[1] = mpack_data_t::List(list);
             }
             mpack_token_type_t::MPACK_TOKEN_MAP => {
-                (*node).data[1] = mpack_data_t::MapPairs(vec![
-                    [typval_T::new(); 2];
-                    (*node).tok.length as usize
-                ]);
+                (*node).data[1] =
+                    mpack_data_t::MapPairs(vec![[typval_T::new(); 2]; (*node).tok.length as usize]);
             }
             mpack_token_type_t::MPACK_TOKEN_NONE => std::process::abort(),
         }

@@ -18,10 +18,9 @@ use crate::eval::encode::{
     MPConvStackVal, encode_vim_list_to_buf,
 };
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, tv_blob_len,
-    tv_clear, tv_copy, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc_len,
-    tv_list_alloc, tv_list_append_list, tv_list_append_owned_tv, tv_list_first, tv_list_last,
-    tv_list_len, tv_list_ref, typval_T,
+    TypvalVval, VAR_UNLOCKED, VarType, tv_blob_len, tv_clear, tv_copy, tv_dict_add, tv_dict_alloc,
+    tv_dict_find, tv_dict_item_alloc_len, tv_list_alloc, tv_list_append_list,
+    tv_list_append_owned_tv, tv_list_first, tv_list_last, tv_list_len, tv_list_ref, typval_T,
 };
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
 use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists};
@@ -756,8 +755,11 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                             cur.tv,
                                             table_props.string_keys_num as isize,
                                         );
-                                        let val_di =
-                                            tv_dict_find((*cur.tv).vval.v_dict, c"_VAL".as_ptr(), 4);
+                                        let val_di = tv_dict_find(
+                                            (*cur.tv).vval.v_dict,
+                                            c"_VAL".as_ptr(),
+                                            4,
+                                        );
                                         assert!(!val_di.is_null());
                                         cur.tv = &mut (*val_di).di_tv;
                                         (*(*cur.tv).vval.v_list).lua_table_ref = table_ref;

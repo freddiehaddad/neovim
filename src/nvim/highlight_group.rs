@@ -30,11 +30,11 @@ use crate::ex_docmd::ends_excmd;
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::globals::*;
 use crate::highlight::{
-    HL_ALTFONT, HL_DEFAULT, HLATTRS_INIT, HLF_COUNT, HLF_INACTIVE, HLF_NONE,
+    HL_ALTFONT, HL_DEFAULT, HLATTRS_INIT, HLF_COUNT, HLF_INACTIVE, HLF_NONE, HlAttrs,
     KEYSET_OPTIDX_highlight__bg, KEYSET_OPTIDX_highlight__fg, KEYSET_OPTIDX_highlight__font,
     KEYSET_OPTIDX_highlight__sp, KEYSET_OPTIDX_highlight__update, KeyDict_highlight, OptionalKeys,
     RgbValue, hl_add_font_idx, hl_get_font, hl_get_syn_attr, hl_get_ui_attr, hlattrs2dict,
-    ns_get_hl, syn_attr2entry, HlAttrs,
+    ns_get_hl, syn_attr2entry,
 };
 use crate::lua::converter::Boolean;
 use crate::lua::executor::nlua_set_sctx;

@@ -29,7 +29,9 @@ use crate::eval::vars::{
 };
 use crate::eval::{callback_call, get_v_event, last_set_msg, restore_v_event};
 use crate::event::r#loop::{Loop, loop_queues};
-use crate::event::multiqueue::{Event, multiqueue_free, multiqueue_new_child, multiqueue_put_event};
+use crate::event::multiqueue::{
+    Event, multiqueue_free, multiqueue_new_child, multiqueue_put_event,
+};
 use crate::ex_docmd::{do_cmdline, ends_excmd, exarg_T, expand_sfile};
 use crate::ex_eval::{aborting, should_abort};
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
@@ -2347,12 +2349,8 @@ pub unsafe fn autocmd_register(
             let reg_prog = if is_buflocal {
                 ptr::null_mut()
             } else {
-                let reg_pat = file_pat_to_reg_pat(
-                    pat,
-                    pat.add(patlen as usize),
-                    &raw mut allow_dirs,
-                    1,
-                );
+                let reg_pat =
+                    file_pat_to_reg_pat(pat, pat.add(patlen as usize), &raw mut allow_dirs, 1);
                 let prog = if !reg_pat.is_null() {
                     vim_regcomp(reg_pat, RE_MAGIC | RE_NOBREAK)
                 } else {
@@ -2576,7 +2574,7 @@ pub unsafe fn aucmd_defer(
     data: *mut Object,
 ) {
     unsafe {
-        let evdata = Box::into_raw(Box::new(AutoCmdEvent {
+        let evdata = Box::new(AutoCmdEvent {
             event,
             fname: if !fname.is_null() {
                 xstrdup(fname)
@@ -2592,15 +2590,14 @@ pub unsafe fn aucmd_defer(
             buf: (*buf).b_fnum,
             eap,
             data: (!data.is_null()).then(|| copy_object(*data, ptr::null_mut())),
-        }));
+        });
 
         multiqueue_put_event(deferred_events, Event::AutoCmdDeferred(evdata));
     }
 }
 
-pub unsafe fn deferred_event(e: *mut AutoCmdEvent) {
+pub unsafe fn deferred_event(mut e: AutoCmdEvent) {
     unsafe {
-        let mut e = Box::from_raw(e);
         let event = e.event;
         let fname = e.fname;
         let fname_io = e.fname_io;

@@ -620,7 +620,10 @@ unsafe fn sign_define_by_name(
 unsafe fn sign_undefine_by_name(name: *const c_char) -> c_int {
     unsafe {
         let sm_ptr = &raw mut sign_map;
-        let Some(pos) = (*sm_ptr).iter().position(|sp| strcmp(sp.sn_name, name) == 0) else {
+        let Some(pos) = (*sm_ptr)
+            .iter()
+            .position(|sp| strcmp(sp.sn_name, name) == 0)
+        else {
             semsg!(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
             return FAIL;
         };
@@ -1270,9 +1273,9 @@ unsafe fn get_nth_sign_group_name(idx: c_int) -> *mut c_char {
     unsafe {
         let ns_ptr = &raw const sign_ns;
         let ns_slice = (*ns_ptr).as_slice();
-        ns_slice
-            .get(idx as usize)
-            .map_or(ptr::null_mut(), |&ns| describe_ns(ns as NS, c"".as_ptr()).cast_mut())
+        ns_slice.get(idx as usize).map_or(ptr::null_mut(), |&ns| {
+            describe_ns(ns as NS, c"".as_ptr()).cast_mut()
+        })
     }
 }
 

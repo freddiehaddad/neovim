@@ -39,11 +39,11 @@ use crate::highlight::{HLATTRS_INIT, HlAttrs};
 use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, g_min_log_level, logmsg};
 use crate::lua::executor::{kRetObject, nlua_exec};
 use crate::mbyte::{utf_ambiguous_width, utf_char2cells, utf_ptr2char};
+#[cfg(windows)]
+use crate::memory::xstrdup;
 use crate::memory::{
     Arena, arena_finish, arena_mem_free, arena_memdupz, arena_strdup, strequal, xfree,
 };
-#[cfg(windows)]
-use crate::memory::xstrdup;
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::option::OptInt;
 #[cfg(windows)]
@@ -2639,8 +2639,7 @@ pub unsafe fn tui_guess_size(tui: *mut TUIData) {
             let mut lines_buf = [0 as c_char; 32];
             let mut cols_buf = [0 as c_char; 32];
             let lines = os_getenv_buf(c"LINES".as_ptr(), lines_buf.as_mut_ptr(), lines_buf.len());
-            let columns =
-                os_getenv_buf(c"COLUMNS".as_ptr(), cols_buf.as_mut_ptr(), cols_buf.len());
+            let columns = os_getenv_buf(c"COLUMNS".as_ptr(), cols_buf.as_mut_ptr(), cols_buf.len());
             if parse_sscanf_int(lines, &mut height) && parse_sscanf_int(columns, &mut width) {
                 got_size = true;
             }

@@ -119,13 +119,15 @@ pub type VTermSetLineInfoFn = unsafe fn(
 
 #[repr(C)]
 pub struct VTermStateCallbacks {
-    pub putglyph:
-        Option<unsafe fn(info: *mut VTermGlyphInfo, pos: VTermPos, user: *mut VTermScreen) -> c_int>,
+    pub putglyph: Option<
+        unsafe fn(info: *mut VTermGlyphInfo, pos: VTermPos, user: *mut VTermScreen) -> c_int,
+    >,
     pub movecursor: Option<VTermMoveCursorFn>,
     pub scrollrect: Option<VTermScrollRectFn>,
     pub moverect:
         Option<unsafe fn(dest: VTermRect, src: VTermRect, user: *mut VTermScreen) -> c_int>,
-    pub erase: Option<unsafe fn(rect: VTermRect, selective: c_int, user: *mut VTermScreen) -> c_int>,
+    pub erase:
+        Option<unsafe fn(rect: VTermRect, selective: c_int, user: *mut VTermScreen) -> c_int>,
     pub initpen: Option<unsafe fn(user: *mut VTermScreen) -> c_int>,
     pub setpenattr:
         Option<unsafe fn(attr: VTermAttr, val: *mut VTermValue, user: *mut VTermScreen) -> c_int>,

@@ -352,8 +352,7 @@ pub unsafe fn vim_findfile_init(
         }
 
         if search_ctx.ffsc_start_dir.data.is_null() {
-            search_ctx.ffsc_start_dir =
-                copy_string(search_ctx.ffsc_fix_path, ptr::null_mut());
+            search_ctx.ffsc_start_dir = copy_string(search_ctx.ffsc_fix_path, ptr::null_mut());
             *search_ctx.ffsc_fix_path.data = NUL;
             search_ctx.ffsc_fix_path.size = 0;
         }
@@ -879,9 +878,7 @@ pub unsafe fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> *mut c_c
                     break;
                 }
 
-                if search_ctx.ffsc_start_dir.size + 1 + search_ctx.ffsc_fix_path.size
-                    >= MAXPATHL
-                {
+                if search_ctx.ffsc_start_dir.size + 1 + search_ctx.ffsc_fix_path.size >= MAXPATHL {
                     break;
                 }
                 let add_sep = after_pathsep(

@@ -50,6 +50,7 @@ use crate::event::time::{
 use crate::ex_docmd::do_cmdline;
 use crate::globals::*;
 use crate::grid::schar_get_adv;
+use crate::highlight::HlAttrs;
 use crate::highlight::{
     HL_BG_INDEXED, HL_FG_INDEXED, hl_add_url, hl_combine_attr, hl_get_term_attr,
 };
@@ -71,7 +72,6 @@ use crate::keycodes::{
     K_X1RELEASE, K_X2DRAG, K_X2MOUSE, K_X2RELEASE, K_ZERO, MOD_MASK_ALT, MOD_MASK_CTRL,
     MOD_MASK_SHIFT, TAB, unsimplify_key,
 };
-use crate::highlight::HlAttrs;
 use crate::mark::{kMarkAdjustTerm, mark_adjust_buf};
 use crate::mbyte::{mb_check_adjust_col, utf_ptr2char, utf_ptr2len};
 use crate::memline::{ml_append_buf, ml_delete_buf, ml_replace_buf};
@@ -406,9 +406,8 @@ impl Drop for TermRequestEvent {
     }
 }
 
-pub unsafe fn emit_termrequest(req: *mut TermRequestEvent) {
+pub unsafe fn emit_termrequest(req: Box<TermRequestEvent>) {
     unsafe {
-        let req = Box::from_raw(req);
         let buf_handle = req.buf_handle;
 
         let buf = handle_get_buffer(buf_handle);
@@ -418,10 +417,7 @@ pub unsafe fn emit_termrequest(req: *mut TermRequestEvent) {
         let term = (*buf).terminal.cast::<Terminal>();
 
         if (*term).sb_pending > 0 {
-            multiqueue_put_event(
-                (*term).pending.events,
-                Event::TermRequest(Box::into_raw(req)),
-            );
+            multiqueue_put_event((*term).pending.events, Event::TermRequest(req));
             return;
         }
 
@@ -526,7 +522,7 @@ unsafe fn schedule_termrequest(term: *mut Terminal) {
         (*term).pending.send = Some(pending_send.clone());
 
         let line = row_to_linenr(term, (*term).cursor.row);
-        let req = Box::into_raw(Box::new(TermRequestEvent {
+        let req = Box::new(TermRequestEvent {
             buf_handle: (*term).buf_handle,
             sequence: xmemdup(
                 (*term).termrequest_buffer.as_ptr().cast(),
@@ -539,7 +535,7 @@ unsafe fn schedule_termrequest(term: *mut Terminal) {
             col: (*term).cursor.col,
             sb_deleted: (*term).sb_deleted,
             terminator: (*term).termrequest_terminator,
-        }));
+        });
 
         multiqueue_put_event(
             (*loop_queues((&raw mut main_loop).cast())).events,
@@ -693,8 +689,7 @@ pub unsafe fn terminal_init() {
     unsafe {
         let timer = refresh_timer_ptr();
         time_watcher_init((&raw mut main_loop).cast(), timer, ptr::null_mut());
-        (*timer).events =
-            multiqueue_new_child((*loop_queues((&raw mut main_loop).cast())).events);
+        (*timer).events = multiqueue_new_child((*loop_queues((&raw mut main_loop).cast())).events);
     }
 }
 
@@ -808,8 +803,7 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
         vterm_state_set_termprop(state, VTERM_PROP_CURSORSHAPE, &mut cursor_shape);
 
         let mut cursor_blink = VTermValue::Boolean(c_int::from(
-            shape_table[SHAPE_IDX_TERM].blinkon != 0
-                && shape_table[SHAPE_IDX_TERM].blinkoff != 0,
+            shape_table[SHAPE_IDX_TERM].blinkon != 0 && shape_table[SHAPE_IDX_TERM].blinkoff != 0,
         ));
         vterm_state_set_termprop(state, VTERM_PROP_CURSORBLINK, &mut cursor_blink);
 
@@ -2101,11 +2095,8 @@ unsafe fn term_selection_set(
         }
 
         if frag.final_() {
-            let data = xmemdupz(
-                (*term).selection.as_ptr().cast(),
-                (*term).selection.len(),
-            )
-            .cast::<c_char>();
+            let data = xmemdupz((*term).selection.as_ptr().cast(), (*term).selection.len())
+                .cast::<c_char>();
             multiqueue_put_event(
                 (*loop_queues((&raw mut main_loop).cast())).events,
                 Event::TermClipboardSet { mask, data },

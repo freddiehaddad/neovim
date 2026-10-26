@@ -3197,10 +3197,7 @@ pub unsafe fn get_keystroke(events: *mut MultiQueue) -> c_int {
             n = buf[0] as c_int;
             if n == K_SPECIAL as c_int {
                 n = to_special(buf[1] as c_int, buf[2] as c_int);
-                if buf[1] == KS_MODIFIER
-                    || n == K_IGNORE
-                    || (is_mouse_key(n) && n != K_LEFTMOUSE)
-                {
+                if buf[1] == KS_MODIFIER || n == K_IGNORE || (is_mouse_key(n) && n != K_LEFTMOUSE) {
                     if buf[1] == KS_MODIFIER {
                         mod_mask = buf[2] as c_int;
                     }

@@ -1,15 +1,16 @@
 //! Multi-level queue for selective async event processing (`src/nvim/event/multiqueue.c`).
 
+use std::cell::Cell;
 use std::collections::VecDeque;
 use std::ffi::{c_char, c_int};
+use std::rc::Rc;
 
-#[derive(Clone, Copy)]
 pub enum Event {
     None,
-    Oneshot(*mut MulticastEvent),
+    Oneshot(Rc<Cell<Option<Box<Event>>>>),
     LoopDeferred {
         loop_: *mut crate::event::r#loop::Loop,
-        event: *mut Event,
+        event: Box<Event>,
     },
     TimeWatcher(*mut crate::event::time::TimeWatcher),
     TimeWatcherClose(*mut crate::event::time::TimeWatcher),
@@ -22,7 +23,7 @@ pub enum Event {
     ProcCloseHandles(*mut crate::event::proc::Proc),
     ProcClose(*mut crate::event::proc::Proc),
     ProcExit(c_int),
-    AutoCmdDeferred(*mut crate::autocmd::AutoCmdEvent),
+    AutoCmdDeferred(Box<crate::autocmd::AutoCmdEvent>),
     AutoCmdOptionSetModified {
         bufnr: c_int,
         new_val: bool,
@@ -35,10 +36,10 @@ pub enum Event {
         chan: *mut crate::channel::Channel,
         event: crate::autocmd::event_T,
     },
-    RpcRequest(*mut crate::msgpack_rpc::channel::RequestEvent),
+    RpcRequest(Box<crate::msgpack_rpc::channel::RequestEvent>),
     RpcInternalRead {
         channel: *mut crate::channel::Channel,
-        buffer: *mut crate::event::wstream::WBuffer,
+        buffer: Rc<crate::event::wstream::WBuffer>,
     },
     RpcClose(*mut crate::channel::Channel),
     NluaLuvError {
@@ -63,7 +64,7 @@ pub enum Event {
         count: usize,
         fd: c_int,
     },
-    TermRequest(*mut crate::terminal::TermRequestEvent),
+    TermRequest(Box<crate::terminal::TermRequestEvent>),
     TermStateChange(crate::msgpack_rpc::packer::handle_T),
     TermSyncFlush(crate::msgpack_rpc::packer::handle_T),
     TermClipboardSet {
@@ -91,9 +92,13 @@ impl Event {
         unsafe {
             match self {
                 Self::None => {}
-                Self::Oneshot(data) => multiqueue_oneshot_event(data),
+                Self::Oneshot(data) => {
+                    if let Some(ev) = data.take() {
+                        ev.dispatch();
+                    }
+                }
                 Self::LoopDeferred { loop_, event } => {
-                    crate::event::r#loop::loop_deferred_event(loop_, event);
+                    crate::event::r#loop::loop_deferred_event(loop_, *event);
                 }
                 Self::TimeWatcher(watcher) => crate::event::time::time_event(watcher),
                 Self::TimeWatcherClose(watcher) => crate::event::time::close_event(watcher),
@@ -105,7 +110,7 @@ impl Event {
                 Self::ProcCloseHandles(proc_) => crate::event::proc::proc_close_handles(proc_),
                 Self::ProcClose(proc_) => crate::event::proc::proc_close_event(proc_),
                 Self::ProcExit(status) => crate::event::proc::exit_event(status),
-                Self::AutoCmdDeferred(ev) => crate::autocmd::deferred_event(ev),
+                Self::AutoCmdDeferred(ev) => crate::autocmd::deferred_event(*ev),
                 Self::AutoCmdOptionSetModified { bufnr, new_val } => {
                     crate::autocmd::deferred_optionset_modified(bufnr, new_val);
                 }
@@ -116,7 +121,7 @@ impl Event {
                 Self::ChannelSetInfo { chan, event } => {
                     crate::channel::set_info_event(chan, event);
                 }
-                Self::RpcRequest(ev) => crate::msgpack_rpc::channel::request_event(ev),
+                Self::RpcRequest(ev) => crate::msgpack_rpc::channel::request_event(*ev),
                 Self::RpcInternalRead { channel, buffer } => {
                     crate::msgpack_rpc::channel::internal_read_event(channel, buffer);
                 }
@@ -163,7 +168,6 @@ impl Event {
     }
 }
 
-#[derive(Clone, Copy)]
 enum QueueEntry {
     Event(Event),
     Child(*mut MultiQueue),
@@ -175,12 +179,6 @@ pub struct MultiQueue {
     items: VecDeque<QueueEntry>,
     notify_loop: *mut crate::event::r#loop::Loop,
     size: usize,
-}
-
-pub struct MulticastEvent {
-    event: Event,
-    fired: bool,
-    refcount: c_int,
 }
 
 fn multiqueue_new_inner(
@@ -216,7 +214,7 @@ impl Drop for MultiQueue {
         unsafe {
             if !self.parent.is_null() && !self.items.is_empty() {
                 (*self.parent).items.retain(
-                    |entry| !matches!(*entry, QueueEntry::Child(child) if std::ptr::eq(child, self)),
+                    |entry| !matches!(entry, &QueueEntry::Child(child) if std::ptr::eq(child, self)),
                 );
             }
         }
@@ -256,7 +254,7 @@ unsafe fn multiqueue_remove(this: *mut MultiQueue) -> Event {
                     if let Some(pos) = parent
                         .items
                         .iter()
-                        .position(|e| matches!(*e, QueueEntry::Child(child) if child == this))
+                        .position(|e| matches!(e, &QueueEntry::Child(child) if child == this))
                     {
                         parent.items.remove(pos);
                     }
@@ -375,27 +373,9 @@ pub unsafe fn multiqueue_size(this: *mut MultiQueue) -> usize {
     unsafe { (*this).size }
 }
 
-unsafe fn multiqueue_oneshot_event(data: *mut MulticastEvent) {
-    unsafe {
-        if !(*data).fired {
-            (*data).fired = true;
-            (*data).event.dispatch();
-        }
-        (*data).refcount -= 1;
-        if (*data).refcount == 0 {
-            drop(Box::from_raw(data));
-        }
-    }
-}
-
-/// Create a one-shot multicast event safe to enqueue on `num` queues (`event_create_oneshot`).
-pub fn event_create_oneshot(ev: Event, num: c_int) -> Event {
-    let data = Box::into_raw(Box::new(MulticastEvent {
-        event: ev,
-        fired: false,
-        refcount: num,
-    }));
-    Event::Oneshot(data)
+/// Create a shared one-shot multicast event cell (`event_create_oneshot`).
+pub fn event_create_oneshot(ev: Event) -> Rc<Cell<Option<Box<Event>>>> {
+    Rc::new(Cell::new(Some(Box::new(ev))))
 }
 
 #[cfg(test)]

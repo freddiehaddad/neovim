@@ -2,13 +2,13 @@
 
 use crate::api::private::helpers::{
     SID_API_CLIENT, SID_LUA, add_c, api_clear_error, arena_array, arena_dict, arena_string,
-    boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, integer_obj, put_c,
-    static_cstr_as_string, string_obj,
+    boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, integer_obj, put_c, static_cstr_as_string,
+    string_obj,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
 use crate::autocmd::{
-    DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_SOURCECMD, EVENT_SOURCEPOST,
-    EVENT_SOURCEPRE, PROF_YES, apply_autocmds, has_autocmd, has_autocmd_fullname,
+    DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_SOURCECMD, EVENT_SOURCEPOST, EVENT_SOURCEPRE,
+    PROF_YES, apply_autocmds, has_autocmd, has_autocmd_fullname,
 };
 use crate::charset::{
     Ctrl_V, skip_to_newline, skiptowhite, skiptowhite_esc, skipwhite, skipwhite_len,
@@ -73,8 +73,8 @@ use crate::os::input::line_breakcheck;
 use crate::os::stdpaths::{XDGVarType, get_appname, stdpaths_get_xdg_var};
 use crate::path::{
     ENV_SEPCHAR, EW_DIR, EW_FILE, EW_NOBREAK, PATHSEP, add_pathsep, after_pathsep, append_path,
-    concat_fnames, fix_fname, gen_expand_wildcards_vec, get_past_head, kPathCmpLiteral, path_cmp, path_equal, path_tail, path_with_extension, to_slash, vim_ispathsep,
-    vim_ispathsep_nocolon,
+    concat_fnames, fix_fname, gen_expand_wildcards_vec, get_past_head, kPathCmpLiteral, path_cmp,
+    path_equal, path_tail, path_with_extension, to_slash, vim_ispathsep, vim_ispathsep_nocolon,
 };
 use crate::profile::{
     estack_T, prof_child_enter, prof_child_exit, profile_add, profile_end, profile_init,
@@ -873,11 +873,7 @@ unsafe fn runtime_search_path_unref() {
     }
 }
 
-unsafe fn do_in_cached_path(
-    name: *mut c_char,
-    flags: c_int,
-    callback: RuntimeCallback,
-) -> c_int {
+unsafe fn do_in_cached_path(name: *mut c_char, flags: c_int, callback: RuntimeCallback) -> c_int {
     unsafe {
         let mut did_one = false;
         let mut buf = [0 as c_char; MAXPATHL];
@@ -1635,8 +1631,7 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                     rsp.insert(
                         idx2,
                         SearchPathItem {
-                            path: xmemdupz(afterdir.data.cast(), afterdir.size)
-                                .cast::<c_char>(),
+                            path: xmemdupz(afterdir.data.cast(), afterdir.size).cast::<c_char>(),
                             after: true,
                             pack_inserted: true,
                             has_lua: kNone,
@@ -2267,11 +2262,7 @@ unsafe fn add_dir(
             let appname_len = CStr::from_ptr(appname).to_bytes().len();
             debug_assert!(appname_len < IOSIZE - 6);
             let iobuff = (&raw mut IObuff).cast::<c_char>();
-            xmemcpyz(
-                iobuff.cast(),
-                appname.cast(),
-                appname_len,
-            );
+            xmemcpyz(iobuff.cast(), appname.cast(), appname_len);
             #[cfg(windows)]
             if matches!(type_, XDGVarType::kXDGDataHome | XDGVarType::kXDGStateHome) {
                 xstrlcat(iobuff, c"-data".as_ptr(), IOSIZE);
@@ -2376,16 +2367,14 @@ pub unsafe fn runtimepath_default(clean_arg: bool) -> *mut c_char {
         if !vimruntime.is_null() {
             vimruntime_len = CStr::from_ptr(vimruntime).to_bytes().len();
             if vimruntime_len != 0 {
-                rtp_size += vimruntime_len
-                    + memcnt(vimruntime.cast(), b',' as c_char, vimruntime_len)
-                    + 1;
+                rtp_size +=
+                    vimruntime_len + memcnt(vimruntime.cast(), b',' as c_char, vimruntime_len) + 1;
             }
         }
         if !libdir.is_null() {
             libdir_len = CStr::from_ptr(libdir).to_bytes().len();
             if libdir_len != 0 {
-                rtp_size +=
-                    libdir_len + memcnt(libdir.cast(), b',' as c_char, libdir_len) + 1;
+                rtp_size += libdir_len + memcnt(libdir.cast(), b',' as c_char, libdir_len) + 1;
             }
         }
         rtp_size +=
@@ -2578,11 +2567,7 @@ unsafe fn fopen_noinh_readbin(filename: *const c_char) -> *mut FILE {
     }
 }
 
-unsafe fn concat_continued_line(
-    ga: &mut Vec<c_char>,
-    p: *const c_char,
-    mut len: usize,
-) -> bool {
+unsafe fn concat_continued_line(ga: &mut Vec<c_char>, p: *const c_char, mut len: usize) -> bool {
     unsafe {
         let line = skipwhite_len(p, len);
         len -= (line as usize) - (p as usize);
@@ -2688,8 +2673,10 @@ unsafe fn do_source_str_init(sp: *mut source_cookie_T, mut str_ptr: *const c_cha
         (*sp).buflines.clear();
         while *str_ptr != NUL {
             let eol = skip_to_newline(str_ptr);
-            let slice =
-                std::slice::from_raw_parts(str_ptr.cast::<u8>(), (eol as usize) - (str_ptr as usize));
+            let slice = std::slice::from_raw_parts(
+                str_ptr.cast::<u8>(),
+                (eol as usize) - (str_ptr as usize),
+            );
             (*sp)
                 .buflines
                 .push(std::ffi::CString::new(slice).unwrap_or_default());
@@ -3327,12 +3314,8 @@ pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
                 tv_dict_add_bool(d, c"autoload".as_ptr(), 8, kFalse);
 
                 if sid > 0 {
-                    let var_dict = tv_dict_copy(
-                        None,
-                        &mut (*si).sn_vars.sv_dict,
-                        true,
-                        get_copyID(),
-                    );
+                    let var_dict =
+                        tv_dict_copy(None, &mut (*si).sn_vars.sv_dict, true, get_copyID());
                     tv_dict_add_dict(d, c"variables".as_ptr(), 9, var_dict);
                     tv_dict_add_list(
                         d,
@@ -3493,10 +3476,7 @@ unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> *mut c_char {
 
             have_read = true;
 
-            if !(*sp).source_from_buf_or_str
-                && filled_chunk
-                && buf[len - 1] != b'\n' as c_char
-            {
+            if !(*sp).source_from_buf_or_str && filled_chunk && buf[len - 1] != b'\n' as c_char {
                 continue;
             }
 

@@ -57,13 +57,7 @@ unsafe fn get_rec(env: *const xdfenv_t, side: c_int, line: c_uint) -> xrecord_t 
 unsafe fn cmp_recs(xpp: *const xpparam_t, r1: &xrecord_t, r2: &xrecord_t) -> bool {
     unsafe {
         r1.ha == r2.ha
-            && xdl_recmatch(
-                r1.ptr,
-                r1.size,
-                r2.ptr,
-                r2.size,
-                (*xpp).flags as c_long,
-            ) != 0
+            && xdl_recmatch(r1.ptr, r1.size, r2.ptr, r2.size, (*xpp).flags as c_long) != 0
     }
 }
 

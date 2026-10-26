@@ -2,8 +2,8 @@
 
 use crate::event::multiqueue::{
     Event, MultiQueue, multiqueue_free, multiqueue_move_events, multiqueue_new,
-    multiqueue_new_child, multiqueue_process_events, multiqueue_purge_events,
-    multiqueue_put_event, multiqueue_size,
+    multiqueue_new_child, multiqueue_process_events, multiqueue_purge_events, multiqueue_put_event,
+    multiqueue_size,
 };
 use crate::log::{LOGLVL_ERR, log_uv_handles, logmsg};
 use crate::os::time::os_hrtime;
@@ -102,6 +102,7 @@ pub struct Loop {
     pub mutex: [u64; 16],
     pub recursive: c_int,
     pub closing: bool,
+    pub timeout_expired: bool,
 }
 
 impl Loop {
@@ -120,6 +121,7 @@ impl Loop {
             mutex: [0; 16],
             recursive: 0,
             closing: false,
+            timeout_expired: false,
         }
     }
 }
@@ -561,7 +563,8 @@ pub unsafe fn loop_init(loop_: *mut Loop) {
         let poll_timer = loop_poll_timer(loop_);
         uv_timer_init(loop_.cast(), poll_timer);
         uv_timer_init(loop_.cast(), loop_exit_delay_timer(loop_));
-        *poll_timer.cast::<*mut c_void>() = Box::into_raw(Box::new(false)).cast(); // "timeout expired" flag
+        (*loop_).timeout_expired = false;
+        *poll_timer.cast::<*mut bool>() = &raw mut (*loop_).timeout_expired;
     }
 }
 
@@ -622,21 +625,19 @@ pub unsafe fn loop_schedule_fast(loop_: *mut Loop, event: Event) {
 /// event is forwarded to `Loop.events`, instead of being processed immediately.
 pub unsafe fn loop_schedule_deferred(loop_: *mut Loop, event: Event) {
     unsafe {
-        let eventp = Box::into_raw(Box::new(event));
         loop_schedule_fast(
             loop_,
             Event::LoopDeferred {
                 loop_,
-                event: eventp,
+                event: Box::new(event),
             },
         );
     }
 }
 
-pub unsafe fn loop_deferred_event(loop_: *mut Loop, eventp: *mut Event) {
+pub unsafe fn loop_deferred_event(loop_: *mut Loop, event: Event) {
     unsafe {
-        multiqueue_put_event((*loop_).events, *eventp);
-        drop(Box::from_raw(eventp));
+        multiqueue_put_event((*loop_).events, event);
     }
 }
 
@@ -664,7 +665,7 @@ pub unsafe fn loop_close(loop_: *mut Loop, wait: bool) -> bool {
         uv_mutex_destroy(loop_mutex(loop_));
         uv_close(loop_children_watcher(loop_).cast(), None);
         uv_close(loop_children_kill_timer(loop_).cast(), None);
-        uv_close(loop_poll_timer(loop_).cast(), Some(timer_close_cb));
+        uv_close(loop_poll_timer(loop_).cast(), None);
         uv_close(loop_exit_delay_timer(loop_).cast(), None);
         uv_close(loop_async(loop_).cast(), None);
         let start = if wait { os_hrtime() } else { 0 };
@@ -748,15 +749,6 @@ unsafe extern "C" fn timer_cb(handle: *mut uv_timer_t) {
     unsafe {
         let timeout_expired = *handle.cast::<*mut bool>();
         *timeout_expired = true;
-    }
-}
-
-unsafe extern "C" fn timer_close_cb(handle: *mut uv_handle_t) {
-    unsafe {
-        let data = (*handle.cast::<*mut c_void>()).cast::<bool>();
-        if !data.is_null() {
-            drop(Box::from_raw(data));
-        }
     }
 }
 

@@ -56,13 +56,7 @@ unsafe fn xdl_classify_record(
         while let Some(idx) = rcrec_idx {
             let rcrec = &cf.rcrecs[idx];
             if rcrec.ha == rec.ha
-                && xdl_recmatch(
-                    rcrec.line,
-                    rcrec.size,
-                    rec.ptr,
-                    rec.size,
-                    cf.flags,
-                ) != 0
+                && xdl_recmatch(rcrec.line, rcrec.size, rec.ptr, rec.size, cf.flags) != 0
             {
                 break;
             }

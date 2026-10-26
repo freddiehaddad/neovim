@@ -3181,8 +3181,7 @@ pub unsafe fn f_iconv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
         if vimconv.vc_type == CONV_NONE {
             (*rettv).vval.v_string = xstrdup(str_);
         } else {
-            (*rettv).vval.v_string =
-                string_convert(&vimconv, str_.cast_mut(), ptr::null_mut());
+            (*rettv).vval.v_string = string_convert(&vimconv, str_.cast_mut(), ptr::null_mut());
         }
 
         xfree(from.cast());
@@ -3259,19 +3258,11 @@ pub unsafe fn convert_setup_ext(
             }
         }
 
-        if vcp.vc_type == CONV_NONE {
-            FAIL
-        } else {
-            OK
-        }
+        if vcp.vc_type == CONV_NONE { FAIL } else { OK }
     }
 }
 
-pub unsafe fn string_convert(
-    vcp: &vimconv_T,
-    ptr: *mut c_char,
-    lenp: *mut usize,
-) -> *mut c_char {
+pub unsafe fn string_convert(vcp: &vimconv_T, ptr: *mut c_char, lenp: *mut usize) -> *mut c_char {
     unsafe { string_convert_ext(vcp, ptr, lenp, ptr::null_mut()) }
 }
 

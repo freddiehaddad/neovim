@@ -558,9 +558,7 @@ pub(crate) unsafe fn emit_codepoint(tk: &TermKey, codepoint: c_int, key: *mut Te
             (*key).modifiers = 0;
 
             let idx = codepoint as usize;
-            if (tk.flags & TERMKEY_FLAG_NOINTERPRET) == 0
-                && tk.c0[idx].sym != TERMKEY_SYM_UNKNOWN
-            {
+            if (tk.flags & TERMKEY_FLAG_NOINTERPRET) == 0 && tk.c0[idx].sym != TERMKEY_SYM_UNKNOWN {
                 (*key).code.sym = tk.c0[idx].sym;
                 (*key).modifiers |= tk.c0[idx].modifier_set;
             }
@@ -924,12 +922,7 @@ pub unsafe fn termkey_lookup_keyname(
     unsafe { termkey_lookup_keyname_format(tk, str_in, sym, 0) }
 }
 
-fn register_c0(
-    tk: &mut TermKey,
-    sym: TermKeySym,
-    ctrl: u8,
-    name: *const c_char,
-) -> TermKeySym {
+fn register_c0(tk: &mut TermKey, sym: TermKeySym, ctrl: u8, name: *const c_char) -> TermKeySym {
     register_c0_full(tk, sym, 0, 0, ctrl, name)
 }
 

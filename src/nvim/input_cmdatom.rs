@@ -41,9 +41,7 @@ use crate::ops::{
 use crate::option_vars::*;
 use crate::register::reg_max_ts;
 use crate::state::{MODE_NORMAL, MODE_OP_PENDING, get_real_state};
-use crate::strings::{
-    concat_str, strchr, strlen, strncmp, vim_snprintf, vim_strchr,
-};
+use crate::strings::{concat_str, strchr, strlen, strncmp, vim_snprintf, vim_strchr};
 use crate::textformat::oparg_T;
 use crate::viml::parser::expressions::ESC;
 use crate::window::{win_T, win_valid};

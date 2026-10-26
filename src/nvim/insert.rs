@@ -68,8 +68,8 @@ use crate::indent_c::{cindent_on, do_c_expr_indent, in_cinkeys};
 use crate::input::{
     K_COMPLETE_DELAY, K_PASTE_START, char_avail, kInsNone, langmap_adjust, map_execute_lua,
     mb_byte2len_check, merge_modifiers, paste_repeat, plain_vgetc, prep_redo, redo_append_char,
-    redo_append_lit, redo_append_str, redo_keys, start_redo_ins, stop_redo_ins,
-    stuff_empty, stuffReadbuffLen, stuffRedoReadbuff, stuffcharReadbuff, vgetc, vpeekc, vungetc,
+    redo_append_lit, redo_append_str, redo_keys, start_redo_ins, stop_redo_ins, stuff_empty,
+    stuffReadbuffLen, stuffRedoReadbuff, stuffcharReadbuff, vgetc, vpeekc, vungetc,
 };
 use crate::input_cmdatom::CmdSpec;
 use crate::insexpand::{

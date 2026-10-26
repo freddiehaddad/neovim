@@ -592,7 +592,9 @@ pub unsafe fn get_mess_lang() -> *mut c_char {
     }
 }
 
-unsafe fn get_mess_env(#[cfg_attr(not(windows), allow(unused_variables))] buf: &mut [c_char; 64]) -> *mut c_char {
+unsafe fn get_mess_env(
+    #[cfg_attr(not(windows), allow(unused_variables))] buf: &mut [c_char; 64],
+) -> *mut c_char {
     unsafe {
         #[cfg(not(windows))]
         {

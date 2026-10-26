@@ -181,13 +181,7 @@ pub unsafe fn extmark_set(
             id = *ns;
         } else {
             let mut itr = MarkTreeIter::new();
-            let old_mark = marktree_lookup_ns(
-                &(*buf).b_marktree,
-                ns_id,
-                id,
-                false,
-                Some(&mut itr),
-            );
+            let old_mark = marktree_lookup_ns(&(*buf).b_marktree, ns_id, id, false, Some(&mut itr));
             if old_mark.id != 0 {
                 created = false;
                 if !no_undo
@@ -366,13 +360,7 @@ unsafe fn extmark_setraw(buf: *mut buf_T, mark: u64, row: c_int, col: colnr_T, r
 pub unsafe fn extmark_del_id(buf: *mut buf_T, ns_id: u32, id: u32) -> bool {
     unsafe {
         let mut itr = MarkTreeIter::new();
-        let key = marktree_lookup_ns(
-            &(*buf).b_marktree,
-            ns_id,
-            id,
-            false,
-            Some(&mut itr),
-        );
+        let key = marktree_lookup_ns(&(*buf).b_marktree, ns_id, id, false, Some(&mut itr));
         if key.id != 0 {
             extmark_del(buf, &mut itr, key, false);
         }

@@ -4491,10 +4491,7 @@ unsafe fn nfa_regmatch(
     }
 }
 
-unsafe fn finish_nfa_regmatch(
-    prog: *mut nfa_regprog_T,
-    list: &mut [nfa_list_T; 2],
-) -> c_int {
+unsafe fn finish_nfa_regmatch(prog: *mut nfa_regprog_T, list: &mut [nfa_list_T; 2]) -> c_int {
     unsafe {
         if (*prog).listbuf[0].is_empty() && !list[0].t.is_empty() && !list[1].t.is_empty() {
             (*prog).listbuf[0] = std::mem::take(&mut list[0].t);

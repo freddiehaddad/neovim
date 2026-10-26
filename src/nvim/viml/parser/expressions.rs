@@ -1527,9 +1527,12 @@ pub unsafe fn viml_pexpr_next_token(pstate: &mut ParserState, flags: c_int) -> L
                     } else {
                         exp_part -= frac_size;
                     }
-                    ret.data.num_mut().val = LexExprTokenNumVal::Floating(
-                        scale_number(significand_part, 10, exp_part, exp_negative),
-                    );
+                    ret.data.num_mut().val = LexExprTokenNumVal::Floating(scale_number(
+                        significand_part,
+                        10,
+                        exp_part,
+                        exp_negative,
+                    ));
                 } else {
                     let mut len: c_int = 0;
                     let mut prep: c_int = 0;
@@ -2784,7 +2787,8 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                             1,
                             hl_group!(is_invalid, c"NvimOptionSigil", c"NvimInvalidOptionSigil"),
                         );
-                        let scope_shift = if cur_token.data.opt().scope == kExprOptScopeUnspecified {
+                        let scope_shift = if cur_token.data.opt().scope == kExprOptScopeUnspecified
+                        {
                             0
                         } else {
                             2
@@ -3385,7 +3389,11 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                                 cur_token.len,
                                                 grp,
                                             );
-                                        } else if (*new_top_node).data.fig().type_guesses.allow_ident
+                                        } else if (*new_top_node)
+                                            .data
+                                            .fig()
+                                            .type_guesses
+                                            .allow_ident
                                         {
                                             (*new_top_node).r#type = kExprNodeCurlyBracesIdentifier;
                                             let grp = hl_group!(
@@ -3527,8 +3535,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                     n
                                 };
                                 if let Some(colors) = &pstate.colors {
-                                    (*cur_node).data.fig_mut().opening_hl_idx =
-                                        colors.len() - 1;
+                                    (*cur_node).data.fig_mut().opening_hl_idx = colors.len() - 1;
                                 }
                                 *top_node_p = cur_node;
                                 ast_stack.push(&mut (*cur_node).children);
@@ -3559,8 +3566,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                         prev_token,
                                     );
                                     if let Some(colors) = &pstate.colors {
-                                        (*cur_node).data.fig_mut().opening_hl_idx =
-                                            colors.len();
+                                        (*cur_node).data.fig_mut().opening_hl_idx = colors.len();
                                     }
                                     (*cur_node).data.fig_mut().type_guesses.allow_lambda = false;
                                     (*cur_node).data.fig_mut().type_guesses.allow_dict = false;
@@ -3742,7 +3748,8 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                     prev_token,
                                 );
                                 (*cur_node).data.var_mut().scope = scope;
-                                (*cur_node).data.var_mut().ident = pline.data.add(cur_token.start.col);
+                                (*cur_node).data.var_mut().ident =
+                                    pline.data.add(cur_token.start.col);
                                 (*cur_node).data.var_mut().ident_len = cur_token.len;
                                 want_node = ExprASTWantedNode::Operator;
                                 *new_top_node_p = cur_node;
@@ -4066,7 +4073,13 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                             prev_token,
                         );
                         *top_node_p = cur_node;
-                        parse_quoted_string(pstate, &mut *cur_node, cur_token, &ast_stack, is_invalid);
+                        parse_quoted_string(
+                            pstate,
+                            &mut *cur_node,
+                            cur_token,
+                            &ast_stack,
+                            is_invalid,
+                        );
                         want_node = ExprASTWantedNode::Operator;
                     }
                     kExprLexAssignment => {

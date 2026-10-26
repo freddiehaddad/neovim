@@ -409,7 +409,11 @@ unsafe fn mb_cptr_back(s: *const c_char, p: &mut *const c_char) {
 
 #[inline]
 unsafe fn was_banned(su: *mut suginfo_T, word: *const c_char) -> bool {
-    unsafe { (*su).su_banned.contains(std::ffi::CStr::from_ptr(word).to_bytes()) }
+    unsafe {
+        (*su)
+            .su_banned
+            .contains(std::ffi::CStr::from_ptr(word).to_bytes())
+    }
 }
 
 unsafe fn can_be_compound(
@@ -792,10 +796,9 @@ pub unsafe fn spell_suggest(count: c_int) {
                     repl_from = xstrnsave(sug.su_badptr, stp.st_orglen as usize);
                     repl_to = xstrdup(stp.st_word);
                 }
-                let p = xmalloc(
-                    strlen(line) - stp.st_orglen as usize + stp.st_wordlen as usize + 1,
-                )
-                .cast::<c_char>();
+                let p =
+                    xmalloc(strlen(line) - stp.st_orglen as usize + stp.st_wordlen as usize + 1)
+                        .cast::<c_char>();
                 let c = sug.su_badptr.offset_from(line) as c_int;
                 ptr::copy(line, p, c as usize);
                 strcpy(p.add(c as usize), stp.st_word);
@@ -817,12 +820,7 @@ pub unsafe fn spell_suggest(count: c_int) {
                 redo_append_char(ESC);
                 let _ = ml_replace((*curwin).w_cursor.lnum, p, false);
                 (*curwin).w_cursor.col = c;
-                inserted_bytes(
-                    (*curwin).w_cursor.lnum,
-                    c,
-                    stp.st_orglen,
-                    stp.st_wordlen,
-                );
+                inserted_bytes((*curwin).w_cursor.lnum, c, stp.st_orglen, stp.st_wordlen);
             } else {
                 (*curwin).w_cursor = prev_cursor;
             }
@@ -854,9 +852,7 @@ pub unsafe fn spell_suggest_list(
         gap.reserve(sug.su_ga.len());
         for stp in &sug.su_ga {
             let wcopy = xmalloc(
-                stp.st_wordlen as usize
-                    + strlen(sug.su_badptr.add(stp.st_orglen as usize))
-                    + 1,
+                stp.st_wordlen as usize + strlen(sug.su_badptr.add(stp.st_orglen as usize)) + 1,
             )
             .cast::<c_char>();
             strcpy(wcopy, stp.st_word);
@@ -1172,12 +1168,7 @@ unsafe fn try_deeper(
 ) -> bool {
     unsafe { depth < MAXWLEN - 1 && stack[depth].ts_score + add < (*su).su_maxscore }
 }
-unsafe fn suggest_trie_walk(
-    su: *mut suginfo_T,
-    lp: &langp_T,
-    fword: *mut c_char,
-    soundfold: bool,
-) {
+unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char, soundfold: bool) {
     unsafe {
         let mut tword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let mut stack: [trystate_T; MAXWLEN] = [trystate_T::default(); MAXWLEN];
@@ -2414,13 +2405,19 @@ unsafe fn score_combine(su: *mut suginfo_T) {
             let mut any = false;
             if let Some(cand) = old_ga.next() {
                 any = true;
-                if !ga.iter().any(|existing| strcmp(existing.st_word, cand.st_word) == 0) {
+                if !ga
+                    .iter()
+                    .any(|existing| strcmp(existing.st_word, cand.st_word) == 0)
+                {
                     ga.push(cand);
                 }
             }
             if let Some(cand) = old_sga.next() {
                 any = true;
-                if !ga.iter().any(|existing| strcmp(existing.st_word, cand.st_word) == 0) {
+                if !ga
+                    .iter()
+                    .any(|existing| strcmp(existing.st_word, cand.st_word) == 0)
+                {
                     ga.push(cand);
                 }
             }
@@ -2536,12 +2533,7 @@ unsafe fn suggest_try_soundalike_finish() {
         }
     }
 }
-unsafe fn add_sound_suggest(
-    su: *mut suginfo_T,
-    goodword: *mut c_char,
-    score: c_int,
-    lp: &langp_T,
-) {
+unsafe fn add_sound_suggest(su: *mut suginfo_T, goodword: *mut c_char, score: c_int, lp: &langp_T) {
     unsafe {
         let slang = lp.lp_slang;
         let mut theword: [c_char; MAXWLEN] = [0; MAXWLEN];

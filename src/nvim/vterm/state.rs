@@ -595,12 +595,7 @@ unsafe fn set_lineinfo(
         let callbacks = (*state).callbacks;
         let cb_ok = !callbacks.is_null()
             && (*callbacks).setlineinfo.is_some_and(|cb| {
-                cb(
-                    row,
-                    &raw const info,
-                    &raw const oldinfo,
-                    (*state).cbdata,
-                ) != 0
+                cb(row, &raw const info, &raw const oldinfo, (*state).cbdata) != 0
             });
 
         if cb_ok || force != 0 {
@@ -639,7 +634,12 @@ unsafe fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) 
             maxpoints
         };
         let bytes_slice = std::slice::from_raw_parts(bytes.cast::<u8>(), len);
-        (*encoding).decode(&mut codepoints[..cp_limit], &mut npoints, bytes_slice, &mut eaten);
+        (*encoding).decode(
+            &mut codepoints[..cp_limit],
+            &mut npoints,
+            bytes_slice,
+            &mut eaten,
+        );
 
         if npoints == 0 {
             return eaten as c_int;
@@ -2703,7 +2703,11 @@ pub unsafe fn vterm_state_set_termprop(
         match prop {
             VTERM_PROP_TITLE | VTERM_PROP_ICONNAME => 1,
             VTERM_PROP_CURSORVISIBLE => {
-                set_mode_bit(&mut (*state).mode, MODE_CURSOR_VISIBLE, (*val).boolean() != 0);
+                set_mode_bit(
+                    &mut (*state).mode,
+                    MODE_CURSOR_VISIBLE,
+                    (*val).boolean() != 0,
+                );
                 1
             }
             VTERM_PROP_CURSORBLINK => {
@@ -2750,7 +2754,11 @@ pub unsafe fn vterm_state_set_termprop(
                 1
             }
             VTERM_PROP_THEMEUPDATES => {
-                set_mode_bit(&mut (*state).mode, MODE_THEME_UPDATES, (*val).boolean() != 0);
+                set_mode_bit(
+                    &mut (*state).mode,
+                    MODE_THEME_UPDATES,
+                    (*val).boolean() != 0,
+                );
                 1
             }
             VTERM_PROP_SYNCOUTPUT => {
@@ -2782,10 +2790,7 @@ pub unsafe fn vterm_state_focus_out(state: *mut VTermStateFull) {
     }
 }
 
-pub fn vterm_state_get_lineinfo(
-    state: &VTermStateFull,
-    row: c_int,
-) -> &VTermLineInfo {
+pub fn vterm_state_get_lineinfo(state: &VTermStateFull, row: c_int) -> &VTermLineInfo {
     &state.lineinfo()[row as usize]
 }
 

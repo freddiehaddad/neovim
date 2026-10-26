@@ -2272,10 +2272,7 @@ pub unsafe fn did_set_diffopt(_args: *mut optset_T) -> *const c_char {
     }
 }
 
-pub unsafe fn expand_set_diffopt(
-    args: *mut optexpand_T,
-    matches: &mut Vec<*mut c_char>,
-) -> c_int {
+pub unsafe fn expand_set_diffopt(args: *mut optexpand_T, matches: &mut Vec<*mut c_char>) -> c_int {
     unsafe {
         let xp = (*args).oe_xp;
 
@@ -2365,10 +2362,7 @@ pub unsafe fn did_set_encoding(args: *mut optset_T) -> *const c_char {
     }
 }
 
-pub unsafe fn expand_set_encoding(
-    args: *mut optexpand_T,
-    matches: &mut Vec<*mut c_char>,
-) -> c_int {
+pub unsafe fn expand_set_encoding(args: *mut optexpand_T, matches: &mut Vec<*mut c_char>) -> c_int {
     unsafe { expand_set_opt_generic(args, Some(get_encoding_name), matches) }
 }
 
@@ -2786,10 +2780,7 @@ pub unsafe fn validate_mouse(args: *mut optset_T) -> *const c_char {
     }
 }
 
-pub unsafe fn expand_set_mouse(
-    args: *mut optexpand_T,
-    matches: &mut Vec<*mut c_char>,
-) -> c_int {
+pub unsafe fn expand_set_mouse(args: *mut optexpand_T, matches: &mut Vec<*mut c_char>) -> c_int {
     unsafe { expand_set_opt_listflag(args, MOUSE_ALL.as_ptr(), matches) }
 }
 

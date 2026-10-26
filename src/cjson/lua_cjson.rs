@@ -315,7 +315,6 @@ const fn init_char2escape() -> [*const c_char; 256] {
 
 const CHAR2ESCAPE: [*const c_char; 256] = init_char2escape();
 
-
 use crate::strings::{strncmp, strtoll};
 use std::process::abort;
 
@@ -455,7 +454,11 @@ unsafe fn lua_array_length(l: *mut lua_State, ctx: *mut json_encode_t) -> c_int 
     }
 }
 
-unsafe fn json_check_encode_depth(l: *mut lua_State, ctx: *mut json_encode_t, current_depth: c_int) {
+unsafe fn json_check_encode_depth(
+    l: *mut lua_State,
+    ctx: *mut json_encode_t,
+    current_depth: c_int,
+) {
     unsafe {
         if current_depth <= DEFAULT_ENCODE_MAX_DEPTH && lua_checkstack(l, 3) != 0 {
             return;
@@ -1497,18 +1500,12 @@ pub unsafe extern "C-unwind" fn lua_cjson_new(l: *mut lua_State) -> c_int {
     ];
 
     unsafe {
-        lua_pushlightuserdata(
-            l,
-            json_lightudata_mask(&raw const JSON_EMPTY_ARRAY).cast(),
-        );
+        lua_pushlightuserdata(l, json_lightudata_mask(&raw const JSON_EMPTY_ARRAY).cast());
         lua_rawget(l, LUA_REGISTRYINDEX);
         if lua_isnil(l, -1) {
             lua_pop(l, 1);
 
-            lua_pushlightuserdata(
-                l,
-                json_lightudata_mask(&raw const JSON_EMPTY_ARRAY).cast(),
-            );
+            lua_pushlightuserdata(l, json_lightudata_mask(&raw const JSON_EMPTY_ARRAY).cast());
             lua_newtable(l);
             lua_rawset(l, LUA_REGISTRYINDEX);
 

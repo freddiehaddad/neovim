@@ -883,8 +883,7 @@ pub unsafe fn ui_call_event(name: *mut c_char, args: Array) {
         let mut handled = false;
         let fast = msg_ext_fast && strcmp(c"msg_show".as_ptr(), name) == 0;
         let cbs_ptr = &raw const ui_event_cbs;
-        let entries: Vec<(u32, LuaRef)> =
-            (*cbs_ptr).iter().map(|(&k, v)| (k, v.cb)).collect();
+        let entries: Vec<(u32, LuaRef)> = (*cbs_ptr).iter().map(|(&k, v)| (k, v.cb)).collect();
         for (ns_id, cb_ref) in entries {
             if !(*cbs_ptr).contains_key(&ns_id) {
                 continue;

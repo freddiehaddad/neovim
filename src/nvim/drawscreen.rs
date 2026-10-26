@@ -295,9 +295,7 @@ pub unsafe fn screenclear() {
         msg_reset_scroll();
         msg_didany = false;
         msg_didout = false;
-        if *hl_attr_active.add(HLF_MSG) > 0
-            && msg_use_grid()
-            && grid_allocated(&raw const msg_grid)
+        if *hl_attr_active.add(HLF_MSG) > 0 && msg_use_grid() && grid_allocated(&raw const msg_grid)
         {
             grid_invalidate(&raw mut msg_grid);
             msg_grid_validate();
@@ -1531,8 +1529,7 @@ unsafe fn win_update(wp: *mut win_T) {
                     top_to_mod = true;
                 } else {
                     top_to_mod = (*wp).w_match_head.iter().any(|cur| {
-                        !cur.mit_match.regprog.is_null()
-                            && re_multiline(cur.mit_match.regprog) != 0
+                        !cur.mit_match.regprog.is_null() && re_multiline(cur.mit_match.regprog) != 0
                     });
                 }
             }
@@ -2187,8 +2184,7 @@ unsafe fn win_update(wp: *mut win_T) {
                             true,
                         ) > 0;
                         while !virt_below
-                            && w_lines_at(wp, idx as usize).wl_lastlnum
-                                < (*buf).b_ml.ml_line_count
+                            && w_lines_at(wp, idx as usize).wl_lastlnum < (*buf).b_ml.ml_line_count
                             && decor_conceal_line(
                                 wp,
                                 w_lines_at(wp, idx as usize).wl_lastlnum,

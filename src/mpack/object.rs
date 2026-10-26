@@ -5,8 +5,7 @@ use std::ptr;
 
 use crate::mpack::mpack_core::{
     MPACK_EOF, MPACK_ERROR, MPACK_OK, MPACK_TOKEN_CHUNK, MPACK_TOKEN_MAP, mpack_read,
-    mpack_sintmax_t, mpack_tokbuf_init, mpack_tokbuf_t, mpack_token_t, mpack_uint32_t,
-    mpack_write,
+    mpack_sintmax_t, mpack_tokbuf_init, mpack_tokbuf_t, mpack_token_t, mpack_uint32_t, mpack_write,
 };
 
 pub const MPACK_MAX_OBJECT_DEPTH: usize = 32;

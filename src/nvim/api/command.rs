@@ -1166,8 +1166,7 @@ pub unsafe extern "C" fn nvim_cmd(
                 while *ea.arg.add(0) == b'+' as c_char && *ea.arg.add(1) == b'+' as c_char {
                     let orig_arg = ea.arg;
                     let result = getargopt(&mut ea);
-                    if result == FAIL
-                        && !is_cmd_ni(crate::cmdexpand::cmdidx_T::from_raw(ea.cmdidx))
+                    if result == FAIL && !is_cmd_ni(crate::cmdexpand::cmdidx_T::from_raw(ea.cmdidx))
                     {
                         api_err_invalid(err, c"argument ".as_ptr(), orig_arg, 0, true);
                         break 'end;

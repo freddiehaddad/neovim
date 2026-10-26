@@ -3117,7 +3117,9 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                         NOTHING => {}
                         BACK => {
                             let bp = &raw mut backpos;
-                            let idx = if let Some(pos) = (*bp).iter().position(|item| item.bp_scan == scan) {
+                            let idx = if let Some(pos) =
+                                (*bp).iter().position(|item| item.bp_scan == scan)
+                            {
                                 if reg_save_equal(&raw const (*bp).as_slice()[pos].bp_pos) {
                                     status = RA_NOMATCH;
                                 }
@@ -3807,11 +3809,7 @@ unsafe fn regtry(
         rex.need_clear_subexpr = 1;
         rex.need_clear_zsubexpr = c_int::from((*prog).reghasz == REX_SET as u8);
 
-        if !regmatch(
-            (*prog).program.as_mut_ptr().add(1),
-            tm,
-            timed_out,
-        ) {
+        if !regmatch((*prog).program.as_mut_ptr().add(1), tm, timed_out) {
             return 0;
         }
 

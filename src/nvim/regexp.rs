@@ -9,8 +9,8 @@ use crate::cursor::{colnr_T, linenr_T, lpos_T, lt};
 use crate::errors::*;
 use crate::eval::eval_to_string;
 use crate::eval::typval::{
-    VarType, list_T, staticList10_T, tv_clear, tv_list_alloc, tv_list_append_string,
-    tv_list_first, tv_list_init_static10, tv_list_len, typval_T,
+    VarType, list_T, staticList10_T, tv_clear, tv_list_alloc, tv_list_append_string, tv_list_first,
+    tv_list_init_static10, tv_list_len, typval_T,
 };
 use crate::eval::userfunc::{funcexe_T, ufunc_T};
 use crate::globals::*;
