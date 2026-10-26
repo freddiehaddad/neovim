@@ -13,7 +13,7 @@ use crate::globals::*;
 use crate::log::logmsg;
 #[cfg(windows)]
 use crate::mbyte::{mb_strnicmp, utf8_to_utf16, utf16_to_utf8};
-use crate::memory::{cstr_take, memcnt, xfree, xmalloc, xmemcpyz, xmemdupz, xstrchrnul, xstrlcpy};
+use crate::memory::{cstr_take, memcnt, xmalloc, xmemcpyz, xstrchrnul, xstrdup, xstrlcpy};
 use crate::message::{emsg, semsg, smsg, verbose_enter, verbose_leave};
 #[cfg(windows)]
 use crate::option::copy_option_part;
@@ -1368,7 +1368,8 @@ pub unsafe fn os_mkdir_recurse(
 ) -> c_int {
     unsafe {
         let dirlen = strlen(dir);
-        let curdir = xmemdupz(dir.cast(), dirlen).cast::<c_char>();
+        let mut curdir_vec: Vec<c_char> = std::slice::from_raw_parts(dir, dirlen + 1).to_vec();
+        let curdir = curdir_vec.as_mut_ptr();
         let past_head = get_past_head(curdir);
         let mut e = curdir.add(dirlen);
         let real_end: *const c_char = e;
@@ -1397,13 +1398,12 @@ pub unsafe fn os_mkdir_recurse(
             }
             let ret = os_mkdir(curdir, mode);
             if ret != 0 {
-                *failed_dir = curdir;
+                *failed_dir = xstrdup(curdir);
                 return ret;
             } else if !created.is_null() && (*created).is_null() {
                 *created = FullName_save(curdir, false);
             }
         }
-        xfree(curdir.cast());
         0
     }
 }
@@ -1921,9 +1921,8 @@ mod tests {
             #[cfg(not(windows))]
             let tool = c"sh";
             assert!(os_can_exe(tool.as_ptr(), &raw mut abspath, true));
-            assert!(!abspath.is_null());
-            assert!(crate::path::path_is_absolute(abspath));
-            xfree(abspath.cast());
+            let abspath_cstr = cstr_take(abspath).unwrap();
+            assert!(crate::path::path_is_absolute(abspath_cstr.as_ptr()));
         }
     }
 
@@ -2050,8 +2049,7 @@ mod tests {
                 0
             );
             assert!(failed_dir.is_null());
-            assert!(!created_dir.is_null());
-            xfree(created_dir.cast());
+            let _ = cstr_take(created_dir).unwrap();
 
             // Cannot mkdir over an existing file
             let conflict = CString::new(format!("{renamed}/sub")).unwrap();
@@ -2064,8 +2062,7 @@ mod tests {
                 ),
                 0
             );
-            assert!(!failed_dir.is_null());
-            xfree(failed_dir.cast());
+            let _ = cstr_take(failed_dir).unwrap();
 
             assert_eq!(os_remove(renamed_c.as_ptr()), 0);
             assert_ne!(os_remove(renamed_c.as_ptr()), 0);

@@ -31,7 +31,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::CP_UTF8;
 use crate::mbyte::{utf8len_tab_zero, utfc_ptr2len_len};
 use crate::memline::ml_append;
-use crate::memory::{cstr_take, xfree, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{bytes_take, cstr_take, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
 #[cfg(unix)]
 use crate::message::msg;
 use crate::message::{
@@ -41,7 +41,7 @@ use crate::message::{
 };
 use crate::option_vars::*;
 #[cfg(windows)]
-use crate::os::env::{os_getenv, os_setenv, restore_env_var};
+use crate::os::env::{os_getenv_cstr, os_setenv, restore_env_var};
 use crate::os::fs::{MAXPATHL, os_fopen, os_remove};
 #[cfg(unix)]
 use crate::os::fs::{os_can_exe, os_isdir, os_path_exists};
@@ -652,9 +652,8 @@ pub unsafe fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_ch
         );
         drop(input);
 
-        if !output.is_null() {
-            write_output(output, nread, true);
-            xfree(output.cast());
+        if let Some(mut out_bytes) = bytes_take(output, nread) {
+            write_output(out_bytes.as_mut_ptr().cast(), nread, true);
         }
 
         if emsg_silent == 0 && exitcode != 0 && (opts & kShellOptSilent) == 0 {
@@ -809,7 +808,7 @@ unsafe fn do_os_system(
 
         #[cfg(windows)]
         let (oldval, old_output_cp, old_input_cp) = {
-            let ov = os_getenv(c"NoDefaultCurrentDirectoryInExePath".as_ptr());
+            let ov = os_getenv_cstr(c"NoDefaultCurrentDirectoryInExePath".as_ptr());
             os_setenv(
                 c"NoDefaultCurrentDirectoryInExePath".as_ptr(),
                 c"1".as_ptr(),
@@ -930,7 +929,7 @@ unsafe fn do_os_system(
 
         #[cfg(windows)]
         {
-            restore_env_var(c"NoDefaultCurrentDirectoryInExePath".as_ptr(), oldval, true);
+            restore_env_var(c"NoDefaultCurrentDirectoryInExePath".as_ptr(), oldval);
             SetConsoleOutputCP(old_output_cp);
             SetConsoleCP(old_input_cp);
         }
