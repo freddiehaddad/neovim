@@ -39,7 +39,7 @@ use crate::highlight::{HLATTRS_INIT, HlAttrs};
 use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, g_min_log_level, logmsg};
 use crate::lua::executor::{kRetObject, nlua_exec};
 use crate::mbyte::{utf_ambiguous_width, utf_char2cells, utf_ptr2char};
-use crate::memory::{Arena, arena_finish, arena_mem_free, arena_memdupz, arena_strdup, strequal};
+use crate::memory::{Arena, arena_finish, arena_mem_free, arena_memdupz, strequal};
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::option::OptInt;
 #[cfg(windows)]
@@ -108,18 +108,16 @@ const SIGSTOP: c_int = 17;
 const LINUXSET0C: &[u8] = b"\x1b[?0c";
 const LINUXSET1C: &[u8] = b"\x1b[?1c";
 
-const XTERM_SETAF_256_COLON: *const c_char =
-    c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38:5:%p1%d%;m".as_ptr();
-const XTERM_SETAB_256_COLON: *const c_char =
-    c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48:5:%p1%d%;m".as_ptr();
-const XTERM_SETAF_256: *const c_char =
-    c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m".as_ptr();
-const XTERM_SETAB_256: *const c_char =
-    c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m".as_ptr();
-const XTERM_SETAF_16: *const c_char =
-    c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e39%;m".as_ptr();
-const XTERM_SETAB_16: *const c_char =
-    c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e39%;m".as_ptr();
+const XTERM_SETAF_256_COLON: &CStr =
+    c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38:5:%p1%d%;m";
+const XTERM_SETAB_256_COLON: &CStr =
+    c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48:5:%p1%d%;m";
+const XTERM_SETAF_256: &CStr =
+    c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m";
+const XTERM_SETAB_256: &CStr =
+    c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m";
+const XTERM_SETAF_16: &CStr = c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e39%;m";
+const XTERM_SETAB_16: &CStr = c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e39%;m";
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -211,7 +209,6 @@ pub struct TUIData {
     pub rgb: bool,
     pub screen_or_tmux: bool,
     pub url: c_int,
-    pub ti_arena: Arena,
 }
 
 impl TUIData {
@@ -292,11 +289,6 @@ impl TUIData {
             rgb: false,
             screen_or_tmux: false,
             url: -1,
-            ti_arena: Arena {
-                cur_blk: ptr::null_mut(),
-                pos: 0,
-                size: 0,
-            },
         }
     }
 }
@@ -486,7 +478,7 @@ unsafe fn tui_query_extended_underline(tui: *mut TUIData) {
 
 pub unsafe fn tui_enable_extended_underline(tui: *mut TUIData) {
     unsafe {
-        terminfo_set_if_empty(tui, kTerm_set_underline_style, c"\x1b[4:%p1%dm".as_ptr());
+        terminfo_set_if_empty(tui, kTerm_set_underline_style, c"\x1b[4:%p1%dm");
         (*tui).can_set_underline_color = true;
     }
 }
@@ -764,12 +756,14 @@ unsafe fn apply_termdefs(tui: *mut TUIData) {
                     (*tui).ti.columns = val.data.integer() as c_int;
                 }
                 TermdefFieldTarget::Def(idx) => {
-                    (*tui).ti.defs[idx] =
-                        arena_strdup(&raw mut (*tui).ti_arena, val.data.string().data);
+                    (*tui).ti.defs[idx] = Some(std::borrow::Cow::Owned(
+                        CStr::from_ptr(val.data.string().data).to_owned(),
+                    ));
                 }
                 TermdefFieldTarget::KeyStr(idx) => {
-                    (*tui).ti.keys[idx][0] =
-                        arena_strdup(&raw mut (*tui).ti_arena, val.data.string().data);
+                    (*tui).ti.keys[idx][0] = Some(std::borrow::Cow::Owned(
+                        CStr::from_ptr(val.data.string().data).to_owned(),
+                    ));
                 }
                 TermdefFieldTarget::KeyArr(idx) => {
                     let arr = val.data.array();
@@ -781,8 +775,8 @@ unsafe fn apply_termdefs(tui: *mut TUIData) {
                         err_count += 1;
                         continue;
                     }
-                    (*tui).ti.keys[idx][0] = ptr::null();
-                    (*tui).ti.keys[idx][1] = ptr::null();
+                    (*tui).ti.keys[idx][0] = None;
+                    (*tui).ti.keys[idx][1] = None;
                     for key_map_idx in 0..arr.size {
                         let key_mapping = arr[key_map_idx];
                         if key_mapping.obj_type != ObjectType::kObjectTypeString {
@@ -793,13 +787,15 @@ unsafe fn apply_termdefs(tui: *mut TUIData) {
                             err_count += 1;
                             continue;
                         }
-                        (*tui).ti.keys[idx][key_map_idx] =
-                            arena_strdup(&raw mut (*tui).ti_arena, key_mapping.data.string().data);
+                        (*tui).ti.keys[idx][key_map_idx] = Some(std::borrow::Cow::Owned(
+                            CStr::from_ptr(key_mapping.data.string().data).to_owned(),
+                        ));
                     }
                 }
                 TermdefFieldTarget::FKey(idx) => {
-                    (*tui).ti.f_keys[idx] =
-                        arena_strdup(&raw mut (*tui).ti_arena, val.data.string().data);
+                    (*tui).ti.f_keys[idx] = Some(std::borrow::Cow::Owned(
+                        CStr::from_ptr(val.data.string().data).to_owned(),
+                    ));
                 }
             }
         }
@@ -856,7 +852,6 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
         (*tui).out_isatty = os_isatty((*tui).out_fd);
         (*tui).input.tui_data = tui.cast();
 
-        (*tui).ti_arena = ARENA_EMPTY;
         assert!((*tui).term.is_none());
 
         #[cfg(windows)]
@@ -877,15 +872,14 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
         (*tui).terminfo_found_in_db = false;
         if !term.is_null()
             && !os_env_exists(c"NVIM_TERMDEFS".as_ptr(), false)
-            && terminfo_from_database(&raw mut (*tui).ti, term, &raw mut (*tui).ti_arena)
+            && terminfo_from_database(&raw mut (*tui).ti, term)
         {
             (*tui).term = term_cstr.clone();
             (*tui).terminfo_found_in_db = true;
         }
 
         if !(*tui).terminfo_found_in_db {
-            let new_ti = terminfo_from_builtin(term, &mut (*tui).term);
-            (*tui).ti = *new_ti;
+            (*tui).ti = terminfo_from_builtin(term, &mut (*tui).term);
         }
 
         let colorterm_cstr = os_getenv_cstr(c"COLORTERM".as_ptr());
@@ -941,14 +935,14 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
         augment_terminfo(tui, term, vtev, konsolev, weztermv, iterm_env, nsterm);
         apply_termdefs(tui);
 
-        let has_set_underline_style = !(*tui).ti.defs[kTerm_set_underline_style].is_null();
-        (*tui).can_change_scroll_region = !(*tui).ti.defs[kTerm_change_scroll_region].is_null();
-        (*tui).can_set_lr_margin = !(*tui).ti.defs[kTerm_set_lr_margin].is_null();
-        (*tui).can_scroll = !(*tui).ti.defs[kTerm_delete_line].is_null()
-            && !(*tui).ti.defs[kTerm_parm_delete_line].is_null()
-            && !(*tui).ti.defs[kTerm_insert_line].is_null()
-            && !(*tui).ti.defs[kTerm_parm_insert_line].is_null();
-        (*tui).can_erase_chars = !(*tui).ti.defs[kTerm_erase_chars].is_null();
+        let has_set_underline_style = (*tui).ti.defs[kTerm_set_underline_style].is_some();
+        (*tui).can_change_scroll_region = (*tui).ti.defs[kTerm_change_scroll_region].is_some();
+        (*tui).can_set_lr_margin = (*tui).ti.defs[kTerm_set_lr_margin].is_some();
+        (*tui).can_scroll = (*tui).ti.defs[kTerm_delete_line].is_some()
+            && (*tui).ti.defs[kTerm_parm_delete_line].is_some()
+            && (*tui).ti.defs[kTerm_insert_line].is_some()
+            && (*tui).ti.defs[kTerm_parm_insert_line].is_some();
+        (*tui).can_erase_chars = (*tui).ti.defs[kTerm_erase_chars].is_some();
         (*tui).immediate_wrap_after_last_column = terminfo_is_term_family(term, c"conemu".as_ptr())
             || terminfo_is_term_family(term, c"cygwin".as_ptr())
             || terminfo_is_term_family(term, c"win32con".as_ptr())
@@ -1111,7 +1105,6 @@ unsafe fn terminfo_stop(tui: *mut TUIData) {
         if uv_loop_close(tui_write_loop(tui)) != 0 {
             std::process::abort();
         }
-        arena_mem_free(arena_finish(&raw mut (*tui).ti_arena));
         (*tui).ti = TerminfoEntry::new();
         (*tui).term = None;
     }
@@ -1312,7 +1305,7 @@ unsafe fn update_attrs(tui: *mut TUIData, attr_id: c_int) {
         let underdouble: bool;
         let underdotted: bool;
         let underdashed: bool;
-        if !(*tui).ti.defs[kTerm_set_underline_style].is_null() {
+        if (*tui).ti.defs[kTerm_set_underline_style].is_some() {
             let ul = attr & HL_UNDERLINE_MASK;
             underline = ul == HL_UNDERLINE;
             undercurl = ul == HL_UNDERCURL;
@@ -1329,7 +1322,7 @@ unsafe fn update_attrs(tui: *mut TUIData, attr_id: c_int) {
 
         let has_any_underline = undercurl || underline || underdouble || underdotted || underdashed;
 
-        if !(*tui).ti.defs[kTerm_set_attributes].is_null() {
+        if (*tui).ti.defs[kTerm_set_attributes].is_some() {
             if bold || dim || blink || reverse || underline || standout {
                 let mut params = [TPVAR {
                     num: 0,
@@ -1387,7 +1380,7 @@ unsafe fn update_attrs(tui: *mut TUIData, attr_id: c_int) {
             let seq = b"\x1b[53m";
             out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
         }
-        if !(*tui).ti.defs[kTerm_set_underline_style].is_null() {
+        if (*tui).ti.defs[kTerm_set_underline_style].is_some() {
             if undercurl {
                 terminfo_print_num1(tui, kTerm_set_underline_style, 3);
             }
@@ -2754,10 +2747,13 @@ unsafe fn terminfo_print(tui: *mut TUIData, what: TerminfoDef, params: *mut TPVA
             std::process::abort();
         }
 
-        let str_ = (*tui).ti.defs[what];
-        if str_.is_null() || *str_ == NUL {
+        let Some(ref str_cow) = (*tui).ti.defs[what] else {
+            return;
+        };
+        if str_cow.to_bytes().is_empty() {
             return;
         }
+        let str_ = str_cow.as_ptr();
 
         let buf_start = (*tui).buf.as_mut_ptr();
         let buf_end = buf_start.add((*tui).buf.len());
@@ -2787,17 +2783,17 @@ unsafe fn terminfo_print(tui: *mut TUIData, what: TerminfoDef, params: *mut TPVA
     }
 }
 
-unsafe fn terminfo_set_if_empty(tui: *mut TUIData, str_: TerminfoDef, val: *const c_char) {
+unsafe fn terminfo_set_if_empty(tui: *mut TUIData, str_: TerminfoDef, val: &'static CStr) {
     unsafe {
-        if (*tui).ti.defs[str_].is_null() {
-            (*tui).ti.defs[str_] = val;
+        if (*tui).ti.defs[str_].is_none() {
+            (*tui).ti.defs[str_] = Some(std::borrow::Cow::Borrowed(val));
         }
     }
 }
 
-unsafe fn terminfo_set_str(tui: *mut TUIData, str_: TerminfoDef, val: *const c_char) {
+unsafe fn terminfo_set_str(tui: *mut TUIData, str_: TerminfoDef, val: &'static CStr) {
     unsafe {
-        (*tui).ti.defs[str_] = val;
+        (*tui).ti.defs[str_] = Some(std::borrow::Cow::Borrowed(val));
     }
 }
 
@@ -2811,8 +2807,8 @@ unsafe fn term_has_truecolor(tui: *mut TUIData, colorterm: *const c_char) -> boo
             return true;
         }
 
-        !(*tui).ti.defs[kTerm_set_rgb_foreground].is_null()
-            && !(*tui).ti.defs[kTerm_set_rgb_background].is_null()
+        (*tui).ti.defs[kTerm_set_rgb_foreground].is_some()
+            && (*tui).ti.defs[kTerm_set_rgb_background].is_some()
     }
 }
 
@@ -2857,34 +2853,32 @@ unsafe fn patch_terminfo_bugs(
         let cygwin = terminfo_is_term_family(term, c"cygwin".as_ptr());
         let ghostty = terminfo_is_term_family(term, c"xterm-ghostty".as_ptr());
 
-        let mut fix_normal = (*tui).ti.defs[kTerm_cursor_normal];
-        if !fix_normal.is_null() {
-            let bytes = CStr::from_ptr(fix_normal).to_bytes();
-            if bytes.starts_with(b"\x1b[?12l") {
-                fix_normal = fix_normal.add(b"\x1b[?12l".len());
-                terminfo_set_str(tui, kTerm_cursor_normal, fix_normal);
+        if let Some(fix_normal) = (*tui).ti.defs[kTerm_cursor_normal].clone() {
+            let mut bytes = fix_normal.to_bytes();
+            let mut changed = false;
+            if let Some(rest) = bytes.strip_prefix(b"\x1b[?12l") {
+                bytes = rest;
+                changed = true;
             }
-            let bytes = CStr::from_ptr(fix_normal).to_bytes();
-            if linuxvt && bytes.ends_with(LINUXSET0C) {
-                let new_normal = arena_memdupz(
-                    &raw mut (*tui).ti_arena,
-                    fix_normal,
-                    bytes.len() - LINUXSET0C.len(),
-                );
-                terminfo_set_str(tui, kTerm_cursor_normal, new_normal);
+            if linuxvt
+                && let Some(rest) = bytes.strip_suffix(LINUXSET0C)
+            {
+                bytes = rest;
+                changed = true;
+            }
+            if changed {
+                (*tui).ti.defs[kTerm_cursor_normal] = Some(std::borrow::Cow::Owned(
+                    std::ffi::CString::new(bytes).unwrap(),
+                ));
             }
         }
-        let fix_invisible = (*tui).ti.defs[kTerm_cursor_invisible];
-        if !fix_invisible.is_null() {
-            let bytes = CStr::from_ptr(fix_invisible).to_bytes();
-            if linuxvt && bytes.ends_with(LINUXSET1C) {
-                let new_invisible = arena_memdupz(
-                    &raw mut (*tui).ti_arena,
-                    fix_invisible,
-                    bytes.len() - LINUXSET1C.len(),
-                );
-                terminfo_set_str(tui, kTerm_cursor_invisible, new_invisible);
-            }
+        if let Some(fix_invisible) = (*tui).ti.defs[kTerm_cursor_invisible].clone()
+            && linuxvt
+            && let Some(rest) = fix_invisible.to_bytes().strip_suffix(LINUXSET1C)
+        {
+            (*tui).ti.defs[kTerm_cursor_invisible] = Some(std::borrow::Cow::Owned(
+                std::ffi::CString::new(rest).unwrap(),
+            ));
         }
 
         if tmux || screen || kitty {
@@ -2893,43 +2887,43 @@ unsafe fn patch_terminfo_bugs(
 
         if xterm || hterm {
             if !hterm {
-                terminfo_set_if_empty(tui, kTerm_to_status_line, c"\x1b]0;".as_ptr());
-                terminfo_set_if_empty(tui, kTerm_from_status_line, c"\x07".as_ptr());
+                terminfo_set_if_empty(tui, kTerm_to_status_line, c"\x1b]0;");
+                terminfo_set_if_empty(tui, kTerm_from_status_line, c"\x07");
             }
-            terminfo_set_if_empty(tui, kTerm_enter_italics_mode, c"\x1b[3m".as_ptr());
-            terminfo_set_if_empty(tui, kTerm_set_lr_margin, c"\x1b[%i%p1%d;%p2%ds".as_ptr());
+            terminfo_set_if_empty(tui, kTerm_enter_italics_mode, c"\x1b[3m");
+            terminfo_set_if_empty(tui, kTerm_set_lr_margin, c"\x1b[%i%p1%d;%p2%ds");
             #[cfg(windows)]
             {
-                terminfo_set_str(tui, kTerm_cursor_down, c"\x1b[B".as_ptr());
+                terminfo_set_str(tui, kTerm_cursor_down, c"\x1b[B");
             }
         } else if rxvt {
-            terminfo_set_if_empty(tui, kTerm_enter_italics_mode, c"\x1b[3m".as_ptr());
-            terminfo_set_if_empty(tui, kTerm_to_status_line, c"\x1b]2".as_ptr());
-            terminfo_set_if_empty(tui, kTerm_from_status_line, c"\x07".as_ptr());
-            terminfo_set_str(tui, kTerm_enter_ca_mode, c"\x1b[?1049h".as_ptr());
-            terminfo_set_str(tui, kTerm_exit_ca_mode, c"\x1b[?1049l".as_ptr());
-            terminfo_set_str(tui, kTerm_reset_cursor_style, c"\x1b[2 q".as_ptr());
-            terminfo_set_str(tui, kTerm_set_cursor_style, c"\x1b[%p1%d q".as_ptr());
+            terminfo_set_if_empty(tui, kTerm_enter_italics_mode, c"\x1b[3m");
+            terminfo_set_if_empty(tui, kTerm_to_status_line, c"\x1b]2");
+            terminfo_set_if_empty(tui, kTerm_from_status_line, c"\x07");
+            terminfo_set_str(tui, kTerm_enter_ca_mode, c"\x1b[?1049h");
+            terminfo_set_str(tui, kTerm_exit_ca_mode, c"\x1b[?1049l");
+            terminfo_set_str(tui, kTerm_reset_cursor_style, c"\x1b[2 q");
+            terminfo_set_str(tui, kTerm_set_cursor_style, c"\x1b[%p1%d q");
         } else if screen {
-            terminfo_set_if_empty(tui, kTerm_to_status_line, c"\x1b_".as_ptr());
-            terminfo_set_if_empty(tui, kTerm_from_status_line, c"\x1b\\".as_ptr());
+            terminfo_set_if_empty(tui, kTerm_to_status_line, c"\x1b_");
+            terminfo_set_if_empty(tui, kTerm_from_status_line, c"\x1b\\");
         } else if tmux {
-            terminfo_set_if_empty(tui, kTerm_to_status_line, c"\x1b_".as_ptr());
-            terminfo_set_if_empty(tui, kTerm_from_status_line, c"\x1b\\".as_ptr());
-            terminfo_set_if_empty(tui, kTerm_enter_italics_mode, c"\x1b[3m".as_ptr());
+            terminfo_set_if_empty(tui, kTerm_to_status_line, c"\x1b_");
+            terminfo_set_if_empty(tui, kTerm_from_status_line, c"\x1b\\");
+            terminfo_set_if_empty(tui, kTerm_enter_italics_mode, c"\x1b[3m");
         } else if terminfo_is_term_family(term, c"interix".as_ptr()) {
-            terminfo_set_if_empty(tui, kTerm_carriage_return, c"\x0d".as_ptr());
+            terminfo_set_if_empty(tui, kTerm_carriage_return, c"\x0d");
         } else if linuxvt {
-            terminfo_set_if_empty(tui, kTerm_parm_up_cursor, c"\x1b[%p1%dA".as_ptr());
-            terminfo_set_if_empty(tui, kTerm_parm_down_cursor, c"\x1b[%p1%dB".as_ptr());
-            terminfo_set_if_empty(tui, kTerm_parm_right_cursor, c"\x1b[%p1%dC".as_ptr());
-            terminfo_set_if_empty(tui, kTerm_parm_left_cursor, c"\x1b[%p1%dD".as_ptr());
+            terminfo_set_if_empty(tui, kTerm_parm_up_cursor, c"\x1b[%p1%dA");
+            terminfo_set_if_empty(tui, kTerm_parm_down_cursor, c"\x1b[%p1%dB");
+            terminfo_set_if_empty(tui, kTerm_parm_right_cursor, c"\x1b[%p1%dC");
+            terminfo_set_if_empty(tui, kTerm_parm_left_cursor, c"\x1b[%p1%dD");
         } else if putty {
             // No bugs in the vanilla terminfo for our purposes.
         } else if iterm {
-            terminfo_set_str(tui, kTerm_enter_ca_mode, c"\x1b[?1049h".as_ptr());
-            terminfo_set_str(tui, kTerm_exit_ca_mode, c"\x1b[?1049l".as_ptr());
-            terminfo_set_if_empty(tui, kTerm_enter_italics_mode, c"\x1b[3m".as_ptr());
+            terminfo_set_str(tui, kTerm_enter_ca_mode, c"\x1b[?1049h");
+            terminfo_set_str(tui, kTerm_exit_ca_mode, c"\x1b[?1049l");
+            terminfo_set_if_empty(tui, kTerm_enter_italics_mode, c"\x1b[3m");
         } else if st {
             // No bugs in the vanilla terminfo for our purposes.
         }
@@ -2964,7 +2958,7 @@ unsafe fn patch_terminfo_bugs(
         }
 
         if st || (vte_version != 0 && vte_version < 3900) || konsolev != 0 {
-            (*tui).ti.defs[kTerm_reset_cursor_style] = ptr::null();
+            (*tui).ti.defs[kTerm_reset_cursor_style] = None;
         }
 
         if !bsdvt
@@ -2985,18 +2979,18 @@ unsafe fn patch_terminfo_bugs(
                 || ghostty
                 || (linuxvt && (!xterm_version.is_null() || !colorterm.is_null())))
         {
-            terminfo_set_str(tui, kTerm_set_cursor_style, c"\x1b[%p1%d q".as_ptr());
-            terminfo_set_str(tui, kTerm_reset_cursor_style, c"\x1b[0 q".as_ptr());
+            terminfo_set_str(tui, kTerm_set_cursor_style, c"\x1b[%p1%d q");
+            terminfo_set_str(tui, kTerm_reset_cursor_style, c"\x1b[0 q");
         } else if linuxvt {
             terminfo_set_str(
                 tui,
                 kTerm_set_cursor_style,
-                c"\x1b[?%?%p1%{2}%<%t%{8}%e%p1%{2}%=%t%{112}%e%p1%{3}%=%t%{4}%e%p1%{4}%=%t%{4}%e%p1%{5}%=%t%{2}%e%p1%{6}%=%t%{2}%e%{0}%;%dc".as_ptr(),
+                c"\x1b[?%?%p1%{2}%<%t%{8}%e%p1%{2}%=%t%{112}%e%p1%{3}%=%t%{4}%e%p1%{4}%=%t%{4}%e%p1%{5}%=%t%{2}%e%p1%{6}%=%t%{2}%e%{0}%;%dc",
             );
-            terminfo_set_str(tui, kTerm_reset_cursor_style, c"\x1b[?c".as_ptr());
+            terminfo_set_str(tui, kTerm_reset_cursor_style, c"\x1b[?c");
         } else if !bsdvt && xterm {
-            terminfo_set_if_empty(tui, kTerm_set_cursor_style, c"\x1b[%p1%d q".as_ptr());
-            terminfo_set_if_empty(tui, kTerm_reset_cursor_style, c"\x1b[2 q".as_ptr());
+            terminfo_set_if_empty(tui, kTerm_set_cursor_style, c"\x1b[%p1%d q");
+            terminfo_set_if_empty(tui, kTerm_reset_cursor_style, c"\x1b[2 q");
         }
     }
 }
@@ -3048,42 +3042,49 @@ unsafe fn augment_terminfo(
         let has_colon_rgb =
             !tmux && !screen && vte_version == 0 && (iterm || iterm_pretending_xterm || true_xterm);
 
-        if (*tui).ti.defs[kTerm_set_rgb_foreground].is_null() {
-            (*tui).ti.defs[kTerm_set_rgb_foreground] = if has_colon_rgb {
-                c"\x1b[38:2:%p1%d:%p2%d:%p3%dm".as_ptr()
-            } else {
-                c"\x1b[38;2;%p1%d;%p2%d;%p3%dm".as_ptr()
-            };
+        if (*tui).ti.defs[kTerm_set_rgb_foreground].is_none() {
+            (*tui).ti.defs[kTerm_set_rgb_foreground] = Some(std::borrow::Cow::Borrowed(
+                if has_colon_rgb {
+                    c"\x1b[38:2:%p1%d:%p2%d:%p3%dm"
+                } else {
+                    c"\x1b[38;2;%p1%d;%p2%d;%p3%dm"
+                },
+            ));
         }
-        if (*tui).ti.defs[kTerm_set_rgb_background].is_null() {
-            (*tui).ti.defs[kTerm_set_rgb_background] = if has_colon_rgb {
-                c"\x1b[48:2:%p1%d:%p2%d:%p3%dm".as_ptr()
-            } else {
-                c"\x1b[48;2;%p1%d;%p2%d;%p3%dm".as_ptr()
-            };
+        if (*tui).ti.defs[kTerm_set_rgb_background].is_none() {
+            (*tui).ti.defs[kTerm_set_rgb_background] = Some(std::borrow::Cow::Borrowed(
+                if has_colon_rgb {
+                    c"\x1b[48:2:%p1%d:%p2%d:%p3%dm"
+                } else {
+                    c"\x1b[48;2;%p1%d;%p2%d;%p3%dm"
+                },
+            ));
         }
 
-        if (*tui).ti.defs[kTerm_set_cursor_color].is_null() {
+        if (*tui).ti.defs[kTerm_set_cursor_color].is_none() {
             if iterm || iterm_pretending_xterm {
-                (*tui).ti.defs[kTerm_set_cursor_color] = if tmux {
-                    c"\x1bPtmux;\x1b\x1b]Pl%p1%06x\x1b\\\x1b\\".as_ptr()
-                } else {
-                    c"\x1b]Pl%p1%06x\x1b\\".as_ptr()
-                };
+                (*tui).ti.defs[kTerm_set_cursor_color] = Some(std::borrow::Cow::Borrowed(
+                    if tmux {
+                        c"\x1bPtmux;\x1b\x1b]Pl%p1%06x\x1b\\\x1b\\"
+                    } else {
+                        c"\x1b]Pl%p1%06x\x1b\\"
+                    },
+                ));
             } else if (xterm || hterm || rxvt || tmux || alacritty || st)
                 && (vte_version == 0 || vte_version >= 3900)
             {
-                (*tui).ti.defs[kTerm_set_cursor_color] = c"\x1b]12;%p1%s\x07".as_ptr();
+                (*tui).ti.defs[kTerm_set_cursor_color] =
+                    Some(std::borrow::Cow::Borrowed(c"\x1b]12;%p1%s\x07"));
             }
         }
-        if !(*tui).ti.defs[kTerm_set_cursor_color].is_null() {
+        if let Some(ref set_cursor_color) = (*tui).ti.defs[kTerm_set_cursor_color] {
             (*tui).set_cursor_color_as_str =
-                cstr_contains((*tui).ti.defs[kTerm_set_cursor_color], b"%s");
-            terminfo_set_if_empty(tui, kTerm_reset_cursor_color, c"\x1b]112\x07".as_ptr());
+                cstr_contains(set_cursor_color.as_ptr(), b"%s");
+            terminfo_set_if_empty(tui, kTerm_reset_cursor_color, c"\x1b]112\x07");
         }
 
-        if !(*tui).ti.defs[kTerm_to_status_line].is_null()
-            && !(*tui).ti.defs[kTerm_from_status_line].is_null()
+        if (*tui).ti.defs[kTerm_to_status_line].is_some()
+            && (*tui).ti.defs[kTerm_from_status_line].is_some()
         {
             (*tui).can_set_title = true;
         }
@@ -3099,7 +3100,7 @@ unsafe fn augment_terminfo(
             b"\x1b[?1004l"
         });
 
-        if (*tui).ti.defs[kTerm_set_underline_style].is_null() {
+        if (*tui).ti.defs[kTerm_set_underline_style].is_none() {
             let wezterm_ok = !weztermv.is_null()
                 && CStr::from_ptr(weztermv).to_bytes() > &b"20210203-095643"[..];
             if vte_version >= 5102 || konsolev >= 221170 || (*tui).ti.Su || wezterm_ok {
@@ -3154,12 +3155,11 @@ unsafe fn flush_buf(tui: *mut TUIData, finish: FlushBufFinish) {
             (*tui).sync_output_active = true;
         } else if !(*tui).sync_output_active && !(*tui).is_invisible {
             (*tui).is_invisible = true;
-            let str_ = (*tui).ti.defs[kTerm_cursor_invisible];
-            if !str_.is_null() {
+            if let Some(ref str_) = (*tui).ti.defs[kTerm_cursor_invisible] {
                 pre_len += terminfo_fmt(
                     pre.as_mut_ptr().add(pre_len),
                     pre.as_mut_ptr().add(pre.len()),
-                    str_,
+                    str_.as_ptr(),
                     null_params.as_mut_ptr(),
                 );
             }
@@ -3179,10 +3179,14 @@ unsafe fn flush_buf(tui: *mut TUIData, finish: FlushBufFinish) {
         if !(*tui).sync_output_active {
             let mut str_: *const c_char = ptr::null();
             if (*tui).is_invisible && !should_be_invisible {
-                str_ = (*tui).ti.defs[kTerm_cursor_normal];
+                str_ = (*tui).ti.defs[kTerm_cursor_normal]
+                    .as_deref()
+                    .map_or(ptr::null(), CStr::as_ptr);
                 (*tui).is_invisible = false;
             } else if !(*tui).is_invisible && should_be_invisible {
-                str_ = (*tui).ti.defs[kTerm_cursor_invisible];
+                str_ = (*tui).ti.defs[kTerm_cursor_invisible]
+                    .as_deref()
+                    .map_or(ptr::null(), CStr::as_ptr);
                 (*tui).is_invisible = true;
             }
             if !str_.is_null() {

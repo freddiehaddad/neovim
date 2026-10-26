@@ -1,11 +1,12 @@
 //! Built-in fallback terminfo entries and database loader (`src/nvim/tui/terminfo.c`).
 
 use crate::charset::{NUL, kv_transstr};
-use crate::memory::{Arena, arena_strdup, strequal};
+use crate::memory::strequal;
 use crate::strings::vim_snprintf;
 use crate::tui::termkey::driver_ti::{
     TerminfoEntry, kTermCount, kTermKeyCount, kTerminfoFuncKeyMax,
 };
+use std::borrow::Cow;
 use std::ffi::{CStr, c_char, c_int, c_long};
 use std::io::Read;
 use std::ptr;
@@ -610,11 +611,53 @@ pub enum unibi_string {
     unibi_string_end_,
 }
 
-unsafe impl Sync for TerminfoEntry {}
+#[derive(Clone, Copy)]
+struct BuiltinTerminfoEntry {
+    back_color_erase: bool,
+    Tc: bool,
+    RGB: bool,
+    Su: bool,
+    max_colors: c_int,
+    lines: c_int,
+    columns: c_int,
+    defs: [Option<&'static CStr>; kTermCount],
+    keys: [[Option<&'static CStr>; 2]; kTermKeyCount],
+    f_keys: [Option<&'static CStr>; kTerminfoFuncKeyMax],
+}
+
+impl BuiltinTerminfoEntry {
+    fn to_entry(&self) -> TerminfoEntry {
+        TerminfoEntry {
+            back_color_erase: self.back_color_erase,
+            Tc: self.Tc,
+            RGB: self.RGB,
+            Su: self.Su,
+            max_colors: self.max_colors,
+            lines: self.lines,
+            columns: self.columns,
+            defs: self.defs.map(|opt| opt.map(std::borrow::Cow::Borrowed)),
+            keys: self
+                .keys
+                .map(|pair| pair.map(|opt| opt.map(std::borrow::Cow::Borrowed))),
+            f_keys: self.f_keys.map(|opt| opt.map(std::borrow::Cow::Borrowed)),
+        }
+    }
+}
 
 impl TerminfoEntry {
     pub const fn new() -> Self {
-        empty_entry(false, 0, 0, 0)
+        Self {
+            back_color_erase: false,
+            Tc: false,
+            RGB: false,
+            Su: false,
+            max_colors: 0,
+            lines: 0,
+            columns: 0,
+            defs: [const { None }; kTermCount],
+            keys: [const { [None, None] }; kTermKeyCount],
+            f_keys: [const { None }; kTerminfoFuncKeyMax],
+        }
     }
 }
 
@@ -623,8 +666,8 @@ const fn empty_entry(
     max_colors: c_int,
     lines: c_int,
     columns: c_int,
-) -> TerminfoEntry {
-    TerminfoEntry {
+) -> BuiltinTerminfoEntry {
+    BuiltinTerminfoEntry {
         back_color_erase,
         Tc: false,
         RGB: false,
@@ -632,1347 +675,1338 @@ const fn empty_entry(
         max_colors,
         lines,
         columns,
-        defs: [ptr::null(); kTermCount],
-        keys: [[ptr::null(); 2]; kTermKeyCount],
-        f_keys: [ptr::null(); kTerminfoFuncKeyMax],
+        defs: [None; kTermCount],
+        keys: [[None; 2]; kTermKeyCount],
+        f_keys: [None; kTerminfoFuncKeyMax],
     }
 }
 
-static ANSI_TERMINFO: TerminfoEntry = {
+static ANSI_TERMINFO: BuiltinTerminfoEntry = {
     let mut e = empty_entry(false, 8, 24, 80);
-    e.defs[kTerm_carriage_return] = c"\r".as_ptr();
-    e.defs[kTerm_clear_screen] = c"\x1b[H\x1b[J".as_ptr();
-    e.defs[kTerm_clr_eol] = c"\x1b[K".as_ptr();
-    e.defs[kTerm_clr_eos] = c"\x1b[J".as_ptr();
-    e.defs[kTerm_cursor_address] = c"\x1b[%i%p1%d;%p2%dH".as_ptr();
-    e.defs[kTerm_cursor_down] = c"\x1b[B".as_ptr();
-    e.defs[kTerm_cursor_left] = c"\x1b[D".as_ptr();
-    e.defs[kTerm_cursor_home] = c"\x1b[H".as_ptr();
-    e.defs[kTerm_cursor_up] = c"\x1b[A".as_ptr();
-    e.defs[kTerm_cursor_right] = c"\x1b[C".as_ptr();
-    e.defs[kTerm_delete_line] = c"\x1b[M".as_ptr();
-    e.defs[kTerm_enter_blink_mode] = c"\x1b[5m".as_ptr();
-    e.defs[kTerm_enter_bold_mode] = c"\x1b[1m".as_ptr();
-    e.defs[kTerm_enter_reverse_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_secure_mode] = c"\x1b[8m".as_ptr();
-    e.defs[kTerm_enter_standout_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_underline_mode] = c"\x1b[4m".as_ptr();
-    e.defs[kTerm_erase_chars] = c"\x1b[%p1%dX".as_ptr();
-    e.defs[kTerm_exit_attribute_mode] = c"\x1b[0;10m".as_ptr();
-    e.defs[kTerm_insert_line] = c"\x1b[L".as_ptr();
-    e.defs[kTerm_parm_delete_line] = c"\x1b[%p1%dM".as_ptr();
-    e.defs[kTerm_parm_down_cursor] = c"\x1b[%p1%dB".as_ptr();
-    e.defs[kTerm_parm_insert_line] = c"\x1b[%p1%dL".as_ptr();
-    e.defs[kTerm_parm_left_cursor] = c"\x1b[%p1%dD".as_ptr();
-    e.defs[kTerm_parm_right_cursor] = c"\x1b[%p1%dC".as_ptr();
-    e.defs[kTerm_parm_up_cursor] = c"\x1b[%p1%dA".as_ptr();
-    e.defs[kTerm_set_a_background] = c"\x1b[4%p1%dm".as_ptr();
-    e.defs[kTerm_set_a_foreground] = c"\x1b[3%p1%dm".as_ptr();
+    e.defs[kTerm_carriage_return] = Some(c"\r");
+    e.defs[kTerm_clear_screen] = Some(c"\x1b[H\x1b[J");
+    e.defs[kTerm_clr_eol] = Some(c"\x1b[K");
+    e.defs[kTerm_clr_eos] = Some(c"\x1b[J");
+    e.defs[kTerm_cursor_address] = Some(c"\x1b[%i%p1%d;%p2%dH");
+    e.defs[kTerm_cursor_down] = Some(c"\x1b[B");
+    e.defs[kTerm_cursor_left] = Some(c"\x1b[D");
+    e.defs[kTerm_cursor_home] = Some(c"\x1b[H");
+    e.defs[kTerm_cursor_up] = Some(c"\x1b[A");
+    e.defs[kTerm_cursor_right] = Some(c"\x1b[C");
+    e.defs[kTerm_delete_line] = Some(c"\x1b[M");
+    e.defs[kTerm_enter_blink_mode] = Some(c"\x1b[5m");
+    e.defs[kTerm_enter_bold_mode] = Some(c"\x1b[1m");
+    e.defs[kTerm_enter_reverse_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_secure_mode] = Some(c"\x1b[8m");
+    e.defs[kTerm_enter_standout_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_underline_mode] = Some(c"\x1b[4m");
+    e.defs[kTerm_erase_chars] = Some(c"\x1b[%p1%dX");
+    e.defs[kTerm_exit_attribute_mode] = Some(c"\x1b[0;10m");
+    e.defs[kTerm_insert_line] = Some(c"\x1b[L");
+    e.defs[kTerm_parm_delete_line] = Some(c"\x1b[%p1%dM");
+    e.defs[kTerm_parm_down_cursor] = Some(c"\x1b[%p1%dB");
+    e.defs[kTerm_parm_insert_line] = Some(c"\x1b[%p1%dL");
+    e.defs[kTerm_parm_left_cursor] = Some(c"\x1b[%p1%dD");
+    e.defs[kTerm_parm_right_cursor] = Some(c"\x1b[%p1%dC");
+    e.defs[kTerm_parm_up_cursor] = Some(c"\x1b[%p1%dA");
+    e.defs[kTerm_set_a_background] = Some(c"\x1b[4%p1%dm");
+    e.defs[kTerm_set_a_foreground] = Some(c"\x1b[3%p1%dm");
     e.defs[kTerm_set_attributes] =
-        c"\x1b[0;10%?%p1%t;7%;%?%p2%t;4%;%?%p3%t;7%;%?%p4%t;5%;%?%p6%t;1%;%?%p7%t;8%;%?%p9%t;11%;m"
-            .as_ptr();
-    e.keys[kTermKey_backspace] = [c"\x08".as_ptr(), ptr::null()];
-    e.keys[kTermKey_btab] = [c"\x1b[Z".as_ptr(), ptr::null()];
-    e.keys[kTermKey_home] = [c"\x1b[H".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ic] = [c"\x1b[L".as_ptr(), ptr::null()];
-    e.keys[kTermKey_left] = [c"\x1b[D".as_ptr(), ptr::null()];
-    e.keys[kTermKey_right] = [c"\x1b[C".as_ptr(), ptr::null()];
+        Some(c"\x1b[0;10%?%p1%t;7%;%?%p2%t;4%;%?%p3%t;7%;%?%p4%t;5%;%?%p6%t;1%;%?%p7%t;8%;%?%p9%t;11%;m");
+    e.keys[kTermKey_backspace] = [Some(c"\x08"), None];
+    e.keys[kTermKey_btab] = [Some(c"\x1b[Z"), None];
+    e.keys[kTermKey_home] = [Some(c"\x1b[H"), None];
+    e.keys[kTermKey_ic] = [Some(c"\x1b[L"), None];
+    e.keys[kTermKey_left] = [Some(c"\x1b[D"), None];
+    e.keys[kTermKey_right] = [Some(c"\x1b[C"), None];
     e
 };
 
-static GHOSTTY_TERMINFO: TerminfoEntry = {
+static GHOSTTY_TERMINFO: BuiltinTerminfoEntry = {
     let mut e = empty_entry(true, 0x100, 24, 80);
-    e.defs[kTerm_carriage_return] = c"\r".as_ptr();
-    e.defs[kTerm_change_scroll_region] = c"\x1b[%i%p1%d;%p2%dr".as_ptr();
-    e.defs[kTerm_clear_screen] = c"\x1b[H\x1b[2J".as_ptr();
-    e.defs[kTerm_clr_eol] = c"\x1b[K".as_ptr();
-    e.defs[kTerm_clr_eos] = c"\x1b[J".as_ptr();
-    e.defs[kTerm_cursor_address] = c"\x1b[%i%p1%d;%p2%dH".as_ptr();
-    e.defs[kTerm_cursor_down] = c"\n".as_ptr();
-    e.defs[kTerm_cursor_invisible] = c"\x1b[?25l".as_ptr();
-    e.defs[kTerm_cursor_left] = c"\x08".as_ptr();
-    e.defs[kTerm_cursor_home] = c"\x1b[H".as_ptr();
-    e.defs[kTerm_cursor_normal] = c"\x1b[?12l\x1b[?25h".as_ptr();
-    e.defs[kTerm_cursor_up] = c"\x1b[A".as_ptr();
-    e.defs[kTerm_cursor_right] = c"\x1b[C".as_ptr();
-    e.defs[kTerm_delete_line] = c"\x1b[M".as_ptr();
-    e.defs[kTerm_enter_bold_mode] = c"\x1b[1m".as_ptr();
-    e.defs[kTerm_enter_ca_mode] = c"\x1b[?1049h".as_ptr();
-    e.defs[kTerm_enter_dim_mode] = c"\x1b[2m".as_ptr();
-    e.defs[kTerm_enter_italics_mode] = c"\x1b[3m".as_ptr();
-    e.defs[kTerm_enter_reverse_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_secure_mode] = c"\x1b[8m".as_ptr();
-    e.defs[kTerm_enter_standout_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_underline_mode] = c"\x1b[4m".as_ptr();
-    e.defs[kTerm_erase_chars] = c"\x1b[%p1%dX".as_ptr();
-    e.defs[kTerm_exit_attribute_mode] = c"\x1b(B\x1b[m".as_ptr();
-    e.defs[kTerm_exit_ca_mode] = c"\x1b[?1049l".as_ptr();
-    e.defs[kTerm_from_status_line] = c"\x07".as_ptr();
-    e.defs[kTerm_insert_line] = c"\x1b[L".as_ptr();
-    e.defs[kTerm_keypad_local] = c"\x1b[?1l\x1b>".as_ptr();
-    e.defs[kTerm_keypad_xmit] = c"\x1b[?1h\x1b=".as_ptr();
-    e.defs[kTerm_parm_delete_line] = c"\x1b[%p1%dM".as_ptr();
-    e.defs[kTerm_parm_down_cursor] = c"\x1b[%p1%dB".as_ptr();
-    e.defs[kTerm_parm_insert_line] = c"\x1b[%p1%dL".as_ptr();
-    e.defs[kTerm_parm_left_cursor] = c"\x1b[%p1%dD".as_ptr();
-    e.defs[kTerm_parm_right_cursor] = c"\x1b[%p1%dC".as_ptr();
-    e.defs[kTerm_parm_up_cursor] = c"\x1b[%p1%dA".as_ptr();
+    e.defs[kTerm_carriage_return] = Some(c"\r");
+    e.defs[kTerm_change_scroll_region] = Some(c"\x1b[%i%p1%d;%p2%dr");
+    e.defs[kTerm_clear_screen] = Some(c"\x1b[H\x1b[2J");
+    e.defs[kTerm_clr_eol] = Some(c"\x1b[K");
+    e.defs[kTerm_clr_eos] = Some(c"\x1b[J");
+    e.defs[kTerm_cursor_address] = Some(c"\x1b[%i%p1%d;%p2%dH");
+    e.defs[kTerm_cursor_down] = Some(c"\n");
+    e.defs[kTerm_cursor_invisible] = Some(c"\x1b[?25l");
+    e.defs[kTerm_cursor_left] = Some(c"\x08");
+    e.defs[kTerm_cursor_home] = Some(c"\x1b[H");
+    e.defs[kTerm_cursor_normal] = Some(c"\x1b[?12l\x1b[?25h");
+    e.defs[kTerm_cursor_up] = Some(c"\x1b[A");
+    e.defs[kTerm_cursor_right] = Some(c"\x1b[C");
+    e.defs[kTerm_delete_line] = Some(c"\x1b[M");
+    e.defs[kTerm_enter_bold_mode] = Some(c"\x1b[1m");
+    e.defs[kTerm_enter_ca_mode] = Some(c"\x1b[?1049h");
+    e.defs[kTerm_enter_dim_mode] = Some(c"\x1b[2m");
+    e.defs[kTerm_enter_italics_mode] = Some(c"\x1b[3m");
+    e.defs[kTerm_enter_reverse_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_secure_mode] = Some(c"\x1b[8m");
+    e.defs[kTerm_enter_standout_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_underline_mode] = Some(c"\x1b[4m");
+    e.defs[kTerm_erase_chars] = Some(c"\x1b[%p1%dX");
+    e.defs[kTerm_exit_attribute_mode] = Some(c"\x1b(B\x1b[m");
+    e.defs[kTerm_exit_ca_mode] = Some(c"\x1b[?1049l");
+    e.defs[kTerm_from_status_line] = Some(c"\x07");
+    e.defs[kTerm_insert_line] = Some(c"\x1b[L");
+    e.defs[kTerm_keypad_local] = Some(c"\x1b[?1l\x1b>");
+    e.defs[kTerm_keypad_xmit] = Some(c"\x1b[?1h\x1b=");
+    e.defs[kTerm_parm_delete_line] = Some(c"\x1b[%p1%dM");
+    e.defs[kTerm_parm_down_cursor] = Some(c"\x1b[%p1%dB");
+    e.defs[kTerm_parm_insert_line] = Some(c"\x1b[%p1%dL");
+    e.defs[kTerm_parm_left_cursor] = Some(c"\x1b[%p1%dD");
+    e.defs[kTerm_parm_right_cursor] = Some(c"\x1b[%p1%dC");
+    e.defs[kTerm_parm_up_cursor] = Some(c"\x1b[%p1%dA");
     e.defs[kTerm_set_a_background] =
-        c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m");
     e.defs[kTerm_set_a_foreground] =
-        c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m");
     e.defs[kTerm_set_attributes] =
-        c"%?%p9%t\x1b(0%e\x1b(B%;\x1b[0%?%p6%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p5%t;2%;%?%p7%t;8%;m"
-            .as_ptr();
-    e.defs[kTerm_set_lr_margin] = c"\x1b[?69h\x1b[%i%p1%d;%p2%ds".as_ptr();
-    e.defs[kTerm_to_status_line] = c"\x1b]2;".as_ptr();
-    e.defs[kTerm_reset_cursor_style] = c"\x1b[2 q".as_ptr();
-    e.defs[kTerm_set_cursor_style] = c"\x1b[%p1%d q".as_ptr();
-    e.defs[kTerm_enter_strikethrough_mode] = c"\x1b[9m".as_ptr();
-    e.defs[kTerm_set_underline_style] = c"\x1b[4:%p1%dm".as_ptr();
-    e.keys[kTermKey_backspace] = [c"\x7f".as_ptr(), ptr::null()];
-    e.keys[kTermKey_btab] = [c"\x1b[Z".as_ptr(), ptr::null()];
-    e.keys[kTermKey_dc] = [c"\x1b[3~".as_ptr(), c"\x1b[3;2~".as_ptr()];
-    e.keys[kTermKey_end] = [c"\x1bOF".as_ptr(), c"\x1b[1;2F".as_ptr()];
-    e.keys[kTermKey_home] = [c"\x1bOH".as_ptr(), c"\x1b[1;2H".as_ptr()];
-    e.keys[kTermKey_ic] = [c"\x1b[2~".as_ptr(), c"\x1b[2;2~".as_ptr()];
-    e.keys[kTermKey_npage] = [c"\x1b[6~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ppage] = [c"\x1b[5~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_left] = [c"\x1bOD".as_ptr(), c"\x1b[1;2D".as_ptr()];
-    e.keys[kTermKey_right] = [c"\x1bOC".as_ptr(), c"\x1b[1;2C".as_ptr()];
-    e.f_keys[0] = c"\x1bOP".as_ptr();
-    e.f_keys[1] = c"\x1bOQ".as_ptr();
-    e.f_keys[2] = c"\x1bOR".as_ptr();
-    e.f_keys[3] = c"\x1bOS".as_ptr();
-    e.f_keys[4] = c"\x1b[15~".as_ptr();
-    e.f_keys[5] = c"\x1b[17~".as_ptr();
-    e.f_keys[6] = c"\x1b[18~".as_ptr();
-    e.f_keys[7] = c"\x1b[19~".as_ptr();
-    e.f_keys[8] = c"\x1b[20~".as_ptr();
-    e.f_keys[9] = c"\x1b[21~".as_ptr();
-    e.f_keys[10] = c"\x1b[23~".as_ptr();
-    e.f_keys[11] = c"\x1b[24~".as_ptr();
-    e.f_keys[12] = c"\x1b[1;2P".as_ptr();
-    e.f_keys[13] = c"\x1b[1;2Q".as_ptr();
-    e.f_keys[14] = c"\x1b[1;2R".as_ptr();
-    e.f_keys[15] = c"\x1b[1;2S".as_ptr();
-    e.f_keys[16] = c"\x1b[15;2~".as_ptr();
-    e.f_keys[17] = c"\x1b[17;2~".as_ptr();
-    e.f_keys[18] = c"\x1b[18;2~".as_ptr();
-    e.f_keys[19] = c"\x1b[19;2~".as_ptr();
-    e.f_keys[20] = c"\x1b[20;2~".as_ptr();
-    e.f_keys[21] = c"\x1b[21;2~".as_ptr();
-    e.f_keys[22] = c"\x1b[23;2~".as_ptr();
-    e.f_keys[23] = c"\x1b[24;2~".as_ptr();
-    e.f_keys[24] = c"\x1b[1;5P".as_ptr();
-    e.f_keys[25] = c"\x1b[1;5Q".as_ptr();
-    e.f_keys[26] = c"\x1b[1;5R".as_ptr();
-    e.f_keys[27] = c"\x1b[1;5S".as_ptr();
-    e.f_keys[28] = c"\x1b[15;5~".as_ptr();
-    e.f_keys[29] = c"\x1b[17;5~".as_ptr();
-    e.f_keys[30] = c"\x1b[18;5~".as_ptr();
-    e.f_keys[31] = c"\x1b[19;5~".as_ptr();
-    e.f_keys[32] = c"\x1b[20;5~".as_ptr();
-    e.f_keys[33] = c"\x1b[21;5~".as_ptr();
-    e.f_keys[34] = c"\x1b[23;5~".as_ptr();
-    e.f_keys[35] = c"\x1b[24;5~".as_ptr();
-    e.f_keys[36] = c"\x1b[1;6P".as_ptr();
-    e.f_keys[37] = c"\x1b[1;6Q".as_ptr();
-    e.f_keys[38] = c"\x1b[1;6R".as_ptr();
-    e.f_keys[39] = c"\x1b[1;6S".as_ptr();
-    e.f_keys[40] = c"\x1b[15;6~".as_ptr();
-    e.f_keys[41] = c"\x1b[17;6~".as_ptr();
-    e.f_keys[42] = c"\x1b[18;6~".as_ptr();
-    e.f_keys[43] = c"\x1b[19;6~".as_ptr();
-    e.f_keys[44] = c"\x1b[20;6~".as_ptr();
-    e.f_keys[45] = c"\x1b[21;6~".as_ptr();
-    e.f_keys[46] = c"\x1b[23;6~".as_ptr();
-    e.f_keys[47] = c"\x1b[24;6~".as_ptr();
-    e.f_keys[48] = c"\x1b[1;3P".as_ptr();
-    e.f_keys[49] = c"\x1b[1;3Q".as_ptr();
-    e.f_keys[50] = c"\x1b[1;3R".as_ptr();
-    e.f_keys[51] = c"\x1b[1;3S".as_ptr();
-    e.f_keys[52] = c"\x1b[15;3~".as_ptr();
-    e.f_keys[53] = c"\x1b[17;3~".as_ptr();
-    e.f_keys[54] = c"\x1b[18;3~".as_ptr();
-    e.f_keys[55] = c"\x1b[19;3~".as_ptr();
-    e.f_keys[56] = c"\x1b[20;3~".as_ptr();
-    e.f_keys[57] = c"\x1b[21;3~".as_ptr();
-    e.f_keys[58] = c"\x1b[23;3~".as_ptr();
-    e.f_keys[59] = c"\x1b[24;3~".as_ptr();
-    e.f_keys[60] = c"\x1b[1;4P".as_ptr();
-    e.f_keys[61] = c"\x1b[1;4Q".as_ptr();
-    e.f_keys[62] = c"\x1b[1;4R".as_ptr();
+        Some(c"%?%p9%t\x1b(0%e\x1b(B%;\x1b[0%?%p6%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p5%t;2%;%?%p7%t;8%;m");
+    e.defs[kTerm_set_lr_margin] = Some(c"\x1b[?69h\x1b[%i%p1%d;%p2%ds");
+    e.defs[kTerm_to_status_line] = Some(c"\x1b]2;");
+    e.defs[kTerm_reset_cursor_style] = Some(c"\x1b[2 q");
+    e.defs[kTerm_set_cursor_style] = Some(c"\x1b[%p1%d q");
+    e.defs[kTerm_enter_strikethrough_mode] = Some(c"\x1b[9m");
+    e.defs[kTerm_set_underline_style] = Some(c"\x1b[4:%p1%dm");
+    e.keys[kTermKey_backspace] = [Some(c"\x7f"), None];
+    e.keys[kTermKey_btab] = [Some(c"\x1b[Z"), None];
+    e.keys[kTermKey_dc] = [Some(c"\x1b[3~"), Some(c"\x1b[3;2~")];
+    e.keys[kTermKey_end] = [Some(c"\x1bOF"), Some(c"\x1b[1;2F")];
+    e.keys[kTermKey_home] = [Some(c"\x1bOH"), Some(c"\x1b[1;2H")];
+    e.keys[kTermKey_ic] = [Some(c"\x1b[2~"), Some(c"\x1b[2;2~")];
+    e.keys[kTermKey_npage] = [Some(c"\x1b[6~"), None];
+    e.keys[kTermKey_ppage] = [Some(c"\x1b[5~"), None];
+    e.keys[kTermKey_left] = [Some(c"\x1bOD"), Some(c"\x1b[1;2D")];
+    e.keys[kTermKey_right] = [Some(c"\x1bOC"), Some(c"\x1b[1;2C")];
+    e.f_keys[0] = Some(c"\x1bOP");
+    e.f_keys[1] = Some(c"\x1bOQ");
+    e.f_keys[2] = Some(c"\x1bOR");
+    e.f_keys[3] = Some(c"\x1bOS");
+    e.f_keys[4] = Some(c"\x1b[15~");
+    e.f_keys[5] = Some(c"\x1b[17~");
+    e.f_keys[6] = Some(c"\x1b[18~");
+    e.f_keys[7] = Some(c"\x1b[19~");
+    e.f_keys[8] = Some(c"\x1b[20~");
+    e.f_keys[9] = Some(c"\x1b[21~");
+    e.f_keys[10] = Some(c"\x1b[23~");
+    e.f_keys[11] = Some(c"\x1b[24~");
+    e.f_keys[12] = Some(c"\x1b[1;2P");
+    e.f_keys[13] = Some(c"\x1b[1;2Q");
+    e.f_keys[14] = Some(c"\x1b[1;2R");
+    e.f_keys[15] = Some(c"\x1b[1;2S");
+    e.f_keys[16] = Some(c"\x1b[15;2~");
+    e.f_keys[17] = Some(c"\x1b[17;2~");
+    e.f_keys[18] = Some(c"\x1b[18;2~");
+    e.f_keys[19] = Some(c"\x1b[19;2~");
+    e.f_keys[20] = Some(c"\x1b[20;2~");
+    e.f_keys[21] = Some(c"\x1b[21;2~");
+    e.f_keys[22] = Some(c"\x1b[23;2~");
+    e.f_keys[23] = Some(c"\x1b[24;2~");
+    e.f_keys[24] = Some(c"\x1b[1;5P");
+    e.f_keys[25] = Some(c"\x1b[1;5Q");
+    e.f_keys[26] = Some(c"\x1b[1;5R");
+    e.f_keys[27] = Some(c"\x1b[1;5S");
+    e.f_keys[28] = Some(c"\x1b[15;5~");
+    e.f_keys[29] = Some(c"\x1b[17;5~");
+    e.f_keys[30] = Some(c"\x1b[18;5~");
+    e.f_keys[31] = Some(c"\x1b[19;5~");
+    e.f_keys[32] = Some(c"\x1b[20;5~");
+    e.f_keys[33] = Some(c"\x1b[21;5~");
+    e.f_keys[34] = Some(c"\x1b[23;5~");
+    e.f_keys[35] = Some(c"\x1b[24;5~");
+    e.f_keys[36] = Some(c"\x1b[1;6P");
+    e.f_keys[37] = Some(c"\x1b[1;6Q");
+    e.f_keys[38] = Some(c"\x1b[1;6R");
+    e.f_keys[39] = Some(c"\x1b[1;6S");
+    e.f_keys[40] = Some(c"\x1b[15;6~");
+    e.f_keys[41] = Some(c"\x1b[17;6~");
+    e.f_keys[42] = Some(c"\x1b[18;6~");
+    e.f_keys[43] = Some(c"\x1b[19;6~");
+    e.f_keys[44] = Some(c"\x1b[20;6~");
+    e.f_keys[45] = Some(c"\x1b[21;6~");
+    e.f_keys[46] = Some(c"\x1b[23;6~");
+    e.f_keys[47] = Some(c"\x1b[24;6~");
+    e.f_keys[48] = Some(c"\x1b[1;3P");
+    e.f_keys[49] = Some(c"\x1b[1;3Q");
+    e.f_keys[50] = Some(c"\x1b[1;3R");
+    e.f_keys[51] = Some(c"\x1b[1;3S");
+    e.f_keys[52] = Some(c"\x1b[15;3~");
+    e.f_keys[53] = Some(c"\x1b[17;3~");
+    e.f_keys[54] = Some(c"\x1b[18;3~");
+    e.f_keys[55] = Some(c"\x1b[19;3~");
+    e.f_keys[56] = Some(c"\x1b[20;3~");
+    e.f_keys[57] = Some(c"\x1b[21;3~");
+    e.f_keys[58] = Some(c"\x1b[23;3~");
+    e.f_keys[59] = Some(c"\x1b[24;3~");
+    e.f_keys[60] = Some(c"\x1b[1;4P");
+    e.f_keys[61] = Some(c"\x1b[1;4Q");
+    e.f_keys[62] = Some(c"\x1b[1;4R");
     e
 };
 
-static INTERIX_8COLOUR_TERMINFO: TerminfoEntry = {
+static INTERIX_8COLOUR_TERMINFO: BuiltinTerminfoEntry = {
     let mut e = empty_entry(true, 8, 25, 80);
-    e.defs[kTerm_carriage_return] = c"\r".as_ptr();
-    e.defs[kTerm_clear_screen] = c"\x1b[2J".as_ptr();
-    e.defs[kTerm_clr_eol] = c"\x1b[K".as_ptr();
-    e.defs[kTerm_clr_eos] = c"\x1b[J".as_ptr();
-    e.defs[kTerm_cursor_address] = c"\x1b[%i%p1%d;%p2%dH".as_ptr();
-    e.defs[kTerm_cursor_down] = c"\n".as_ptr();
-    e.defs[kTerm_cursor_left] = c"\x1b[D".as_ptr();
-    e.defs[kTerm_cursor_home] = c"\x1b[H".as_ptr();
-    e.defs[kTerm_cursor_up] = c"\x1b[A".as_ptr();
-    e.defs[kTerm_cursor_right] = c"\x1b[C".as_ptr();
-    e.defs[kTerm_delete_line] = c"\x1b[M".as_ptr();
-    e.defs[kTerm_enter_bold_mode] = c"\x1b[1m".as_ptr();
-    e.defs[kTerm_enter_ca_mode] = c"\x1b[s\x1b[1b".as_ptr();
-    e.defs[kTerm_enter_reverse_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_standout_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_underline_mode] = c"\x1b[4m".as_ptr();
-    e.defs[kTerm_exit_attribute_mode] = c"\x1b[0m".as_ptr();
-    e.defs[kTerm_exit_ca_mode] = c"\x1b[2b\x1b[u\r\x1b[K".as_ptr();
-    e.defs[kTerm_insert_line] = c"\x1b[L".as_ptr();
-    e.defs[kTerm_parm_delete_line] = c"\x1b[%p1%dM".as_ptr();
-    e.defs[kTerm_parm_down_cursor] = c"\x1b[%p1%dB".as_ptr();
-    e.defs[kTerm_parm_insert_line] = c"\x1b[%p1%dL".as_ptr();
-    e.defs[kTerm_parm_left_cursor] = c"\x1b[%p1%dD".as_ptr();
-    e.defs[kTerm_parm_right_cursor] = c"\x1b[%p1%dC".as_ptr();
-    e.defs[kTerm_parm_up_cursor] = c"\x1b[%p1%dA".as_ptr();
-    e.defs[kTerm_set_a_background] = c"\x1b[4%p1%dm".as_ptr();
-    e.defs[kTerm_set_a_foreground] = c"\x1b[3%p1%dm".as_ptr();
-    e.keys[kTermKey_backspace] = [c"\x08".as_ptr(), ptr::null()];
-    e.keys[kTermKey_btab] = [c"\x1b[Z".as_ptr(), ptr::null()];
-    e.keys[kTermKey_dc] = [c"\x7f".as_ptr(), ptr::null()];
-    e.keys[kTermKey_end] = [c"\x1b[U".as_ptr(), ptr::null()];
-    e.keys[kTermKey_home] = [c"\x1b[H".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ic] = [c"\x1b[L".as_ptr(), ptr::null()];
-    e.keys[kTermKey_npage] = [c"\x1b[T".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ppage] = [c"\x1b[S".as_ptr(), ptr::null()];
-    e.keys[kTermKey_left] = [c"\x1b[D".as_ptr(), c"\x1bF^".as_ptr()];
-    e.keys[kTermKey_right] = [c"\x1b[C".as_ptr(), c"\x1bF$".as_ptr()];
-    e.f_keys[0] = c"\x1bF1".as_ptr();
-    e.f_keys[1] = c"\x1bF2".as_ptr();
-    e.f_keys[2] = c"\x1bF3".as_ptr();
-    e.f_keys[3] = c"\x1bF4".as_ptr();
-    e.f_keys[4] = c"\x1bF5".as_ptr();
-    e.f_keys[5] = c"\x1bF6".as_ptr();
-    e.f_keys[6] = c"\x1bF7".as_ptr();
-    e.f_keys[7] = c"\x1bF8".as_ptr();
-    e.f_keys[8] = c"\x1bF9".as_ptr();
-    e.f_keys[9] = c"\x1bFA".as_ptr();
-    e.f_keys[10] = c"\x1bFB".as_ptr();
-    e.f_keys[11] = c"\x1bFC".as_ptr();
-    e.f_keys[12] = c"\x1bFD".as_ptr();
-    e.f_keys[13] = c"\x1bFE".as_ptr();
-    e.f_keys[14] = c"\x1bFF".as_ptr();
-    e.f_keys[15] = c"\x1bFG".as_ptr();
-    e.f_keys[16] = c"\x1bFH".as_ptr();
-    e.f_keys[17] = c"\x1bFI".as_ptr();
-    e.f_keys[18] = c"\x1bFJ".as_ptr();
-    e.f_keys[19] = c"\x1bFK".as_ptr();
-    e.f_keys[20] = c"\x1bFL".as_ptr();
-    e.f_keys[21] = c"\x1bFM".as_ptr();
-    e.f_keys[22] = c"\x1bFN".as_ptr();
-    e.f_keys[23] = c"\x1bFO".as_ptr();
-    e.f_keys[24] = c"\x1bFP".as_ptr();
-    e.f_keys[25] = c"\x1bFQ".as_ptr();
-    e.f_keys[26] = c"\x1bFR".as_ptr();
-    e.f_keys[27] = c"\x1bFS".as_ptr();
-    e.f_keys[28] = c"\x1bFT".as_ptr();
-    e.f_keys[29] = c"\x1bFU".as_ptr();
-    e.f_keys[30] = c"\x1bFV".as_ptr();
-    e.f_keys[31] = c"\x1bFW".as_ptr();
-    e.f_keys[32] = c"\x1bFX".as_ptr();
-    e.f_keys[33] = c"\x1bFY".as_ptr();
-    e.f_keys[34] = c"\x1bFZ".as_ptr();
-    e.f_keys[35] = c"\x1bFa".as_ptr();
-    e.f_keys[36] = c"\x1bFb".as_ptr();
-    e.f_keys[37] = c"\x1bFc".as_ptr();
-    e.f_keys[38] = c"\x1bFd".as_ptr();
-    e.f_keys[39] = c"\x1bFe".as_ptr();
-    e.f_keys[40] = c"\x1bFf".as_ptr();
-    e.f_keys[41] = c"\x1bFg".as_ptr();
-    e.f_keys[42] = c"\x1bFh".as_ptr();
-    e.f_keys[43] = c"\x1bFi".as_ptr();
-    e.f_keys[44] = c"\x1bFj".as_ptr();
-    e.f_keys[45] = c"\x1bFk".as_ptr();
-    e.f_keys[46] = c"\x1bFm".as_ptr();
-    e.f_keys[47] = c"\x1bFn".as_ptr();
-    e.f_keys[48] = c"\x1bFo".as_ptr();
-    e.f_keys[49] = c"\x1bFp".as_ptr();
-    e.f_keys[50] = c"\x1bFq".as_ptr();
-    e.f_keys[51] = c"\x1bFr".as_ptr();
-    e.f_keys[52] = c"\x1bFs".as_ptr();
-    e.f_keys[53] = c"\x1bFt".as_ptr();
-    e.f_keys[54] = c"\x1bFu".as_ptr();
-    e.f_keys[55] = c"\x1bFv".as_ptr();
-    e.f_keys[56] = c"\x1bFw".as_ptr();
-    e.f_keys[57] = c"\x1bFx".as_ptr();
-    e.f_keys[58] = c"\x1bFy".as_ptr();
-    e.f_keys[59] = c"\x1bFz".as_ptr();
+    e.defs[kTerm_carriage_return] = Some(c"\r");
+    e.defs[kTerm_clear_screen] = Some(c"\x1b[2J");
+    e.defs[kTerm_clr_eol] = Some(c"\x1b[K");
+    e.defs[kTerm_clr_eos] = Some(c"\x1b[J");
+    e.defs[kTerm_cursor_address] = Some(c"\x1b[%i%p1%d;%p2%dH");
+    e.defs[kTerm_cursor_down] = Some(c"\n");
+    e.defs[kTerm_cursor_left] = Some(c"\x1b[D");
+    e.defs[kTerm_cursor_home] = Some(c"\x1b[H");
+    e.defs[kTerm_cursor_up] = Some(c"\x1b[A");
+    e.defs[kTerm_cursor_right] = Some(c"\x1b[C");
+    e.defs[kTerm_delete_line] = Some(c"\x1b[M");
+    e.defs[kTerm_enter_bold_mode] = Some(c"\x1b[1m");
+    e.defs[kTerm_enter_ca_mode] = Some(c"\x1b[s\x1b[1b");
+    e.defs[kTerm_enter_reverse_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_standout_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_underline_mode] = Some(c"\x1b[4m");
+    e.defs[kTerm_exit_attribute_mode] = Some(c"\x1b[0m");
+    e.defs[kTerm_exit_ca_mode] = Some(c"\x1b[2b\x1b[u\r\x1b[K");
+    e.defs[kTerm_insert_line] = Some(c"\x1b[L");
+    e.defs[kTerm_parm_delete_line] = Some(c"\x1b[%p1%dM");
+    e.defs[kTerm_parm_down_cursor] = Some(c"\x1b[%p1%dB");
+    e.defs[kTerm_parm_insert_line] = Some(c"\x1b[%p1%dL");
+    e.defs[kTerm_parm_left_cursor] = Some(c"\x1b[%p1%dD");
+    e.defs[kTerm_parm_right_cursor] = Some(c"\x1b[%p1%dC");
+    e.defs[kTerm_parm_up_cursor] = Some(c"\x1b[%p1%dA");
+    e.defs[kTerm_set_a_background] = Some(c"\x1b[4%p1%dm");
+    e.defs[kTerm_set_a_foreground] = Some(c"\x1b[3%p1%dm");
+    e.keys[kTermKey_backspace] = [Some(c"\x08"), None];
+    e.keys[kTermKey_btab] = [Some(c"\x1b[Z"), None];
+    e.keys[kTermKey_dc] = [Some(c"\x7f"), None];
+    e.keys[kTermKey_end] = [Some(c"\x1b[U"), None];
+    e.keys[kTermKey_home] = [Some(c"\x1b[H"), None];
+    e.keys[kTermKey_ic] = [Some(c"\x1b[L"), None];
+    e.keys[kTermKey_npage] = [Some(c"\x1b[T"), None];
+    e.keys[kTermKey_ppage] = [Some(c"\x1b[S"), None];
+    e.keys[kTermKey_left] = [Some(c"\x1b[D"), Some(c"\x1bF^")];
+    e.keys[kTermKey_right] = [Some(c"\x1b[C"), Some(c"\x1bF$")];
+    e.f_keys[0] = Some(c"\x1bF1");
+    e.f_keys[1] = Some(c"\x1bF2");
+    e.f_keys[2] = Some(c"\x1bF3");
+    e.f_keys[3] = Some(c"\x1bF4");
+    e.f_keys[4] = Some(c"\x1bF5");
+    e.f_keys[5] = Some(c"\x1bF6");
+    e.f_keys[6] = Some(c"\x1bF7");
+    e.f_keys[7] = Some(c"\x1bF8");
+    e.f_keys[8] = Some(c"\x1bF9");
+    e.f_keys[9] = Some(c"\x1bFA");
+    e.f_keys[10] = Some(c"\x1bFB");
+    e.f_keys[11] = Some(c"\x1bFC");
+    e.f_keys[12] = Some(c"\x1bFD");
+    e.f_keys[13] = Some(c"\x1bFE");
+    e.f_keys[14] = Some(c"\x1bFF");
+    e.f_keys[15] = Some(c"\x1bFG");
+    e.f_keys[16] = Some(c"\x1bFH");
+    e.f_keys[17] = Some(c"\x1bFI");
+    e.f_keys[18] = Some(c"\x1bFJ");
+    e.f_keys[19] = Some(c"\x1bFK");
+    e.f_keys[20] = Some(c"\x1bFL");
+    e.f_keys[21] = Some(c"\x1bFM");
+    e.f_keys[22] = Some(c"\x1bFN");
+    e.f_keys[23] = Some(c"\x1bFO");
+    e.f_keys[24] = Some(c"\x1bFP");
+    e.f_keys[25] = Some(c"\x1bFQ");
+    e.f_keys[26] = Some(c"\x1bFR");
+    e.f_keys[27] = Some(c"\x1bFS");
+    e.f_keys[28] = Some(c"\x1bFT");
+    e.f_keys[29] = Some(c"\x1bFU");
+    e.f_keys[30] = Some(c"\x1bFV");
+    e.f_keys[31] = Some(c"\x1bFW");
+    e.f_keys[32] = Some(c"\x1bFX");
+    e.f_keys[33] = Some(c"\x1bFY");
+    e.f_keys[34] = Some(c"\x1bFZ");
+    e.f_keys[35] = Some(c"\x1bFa");
+    e.f_keys[36] = Some(c"\x1bFb");
+    e.f_keys[37] = Some(c"\x1bFc");
+    e.f_keys[38] = Some(c"\x1bFd");
+    e.f_keys[39] = Some(c"\x1bFe");
+    e.f_keys[40] = Some(c"\x1bFf");
+    e.f_keys[41] = Some(c"\x1bFg");
+    e.f_keys[42] = Some(c"\x1bFh");
+    e.f_keys[43] = Some(c"\x1bFi");
+    e.f_keys[44] = Some(c"\x1bFj");
+    e.f_keys[45] = Some(c"\x1bFk");
+    e.f_keys[46] = Some(c"\x1bFm");
+    e.f_keys[47] = Some(c"\x1bFn");
+    e.f_keys[48] = Some(c"\x1bFo");
+    e.f_keys[49] = Some(c"\x1bFp");
+    e.f_keys[50] = Some(c"\x1bFq");
+    e.f_keys[51] = Some(c"\x1bFr");
+    e.f_keys[52] = Some(c"\x1bFs");
+    e.f_keys[53] = Some(c"\x1bFt");
+    e.f_keys[54] = Some(c"\x1bFu");
+    e.f_keys[55] = Some(c"\x1bFv");
+    e.f_keys[56] = Some(c"\x1bFw");
+    e.f_keys[57] = Some(c"\x1bFx");
+    e.f_keys[58] = Some(c"\x1bFy");
+    e.f_keys[59] = Some(c"\x1bFz");
     e
 };
 
-static ITERM_256COLOUR_TERMINFO: TerminfoEntry = {
+static ITERM_256COLOUR_TERMINFO: BuiltinTerminfoEntry = {
     let mut e = empty_entry(true, 0x100, 24, 80);
-    e.defs[kTerm_carriage_return] = c"\r".as_ptr();
-    e.defs[kTerm_change_scroll_region] = c"\x1b[%i%p1%d;%p2%dr".as_ptr();
-    e.defs[kTerm_clear_screen] = c"\x1b[H\x1b[J".as_ptr();
-    e.defs[kTerm_clr_eol] = c"\x1b[K".as_ptr();
-    e.defs[kTerm_clr_eos] = c"\x1b[J".as_ptr();
-    e.defs[kTerm_cursor_address] = c"\x1b[%i%p1%d;%p2%dH".as_ptr();
-    e.defs[kTerm_cursor_down] = c"\n".as_ptr();
-    e.defs[kTerm_cursor_invisible] = c"\x1b[?25l".as_ptr();
-    e.defs[kTerm_cursor_left] = c"\x08".as_ptr();
-    e.defs[kTerm_cursor_home] = c"\x1b[H".as_ptr();
-    e.defs[kTerm_cursor_normal] = c"\x1b[?25h".as_ptr();
-    e.defs[kTerm_cursor_up] = c"\x1b[A".as_ptr();
-    e.defs[kTerm_cursor_right] = c"\x1b[C".as_ptr();
-    e.defs[kTerm_delete_line] = c"\x1b[M".as_ptr();
-    e.defs[kTerm_enter_blink_mode] = c"\x1b[5m".as_ptr();
-    e.defs[kTerm_enter_bold_mode] = c"\x1b[1m".as_ptr();
-    e.defs[kTerm_enter_ca_mode] = c"\x1b[?1049h\x1b[22;0;0t".as_ptr();
-    e.defs[kTerm_enter_dim_mode] = c"\x1b[2m".as_ptr();
-    e.defs[kTerm_enter_italics_mode] = c"\x1b[3m".as_ptr();
-    e.defs[kTerm_enter_reverse_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_standout_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_underline_mode] = c"\x1b[4m".as_ptr();
-    e.defs[kTerm_exit_attribute_mode] = c"\x1b[m\x0f".as_ptr();
-    e.defs[kTerm_exit_ca_mode] = c"\x1b[?1049l\x1b[23;0;0t".as_ptr();
-    e.defs[kTerm_from_status_line] = c"\x07".as_ptr();
-    e.defs[kTerm_insert_line] = c"\x1b[L".as_ptr();
-    e.defs[kTerm_keypad_local] = c"\x1b[?1l\x1b>".as_ptr();
-    e.defs[kTerm_keypad_xmit] = c"\x1b[?1h\x1b=".as_ptr();
-    e.defs[kTerm_parm_delete_line] = c"\x1b[%p1%dM".as_ptr();
-    e.defs[kTerm_parm_down_cursor] = c"\x1b[%p1%dB".as_ptr();
-    e.defs[kTerm_parm_insert_line] = c"\x1b[%p1%dL".as_ptr();
-    e.defs[kTerm_parm_left_cursor] = c"\x1b[%p1%dD".as_ptr();
-    e.defs[kTerm_parm_right_cursor] = c"\x1b[%p1%dC".as_ptr();
-    e.defs[kTerm_parm_up_cursor] = c"\x1b[%p1%dA".as_ptr();
+    e.defs[kTerm_carriage_return] = Some(c"\r");
+    e.defs[kTerm_change_scroll_region] = Some(c"\x1b[%i%p1%d;%p2%dr");
+    e.defs[kTerm_clear_screen] = Some(c"\x1b[H\x1b[J");
+    e.defs[kTerm_clr_eol] = Some(c"\x1b[K");
+    e.defs[kTerm_clr_eos] = Some(c"\x1b[J");
+    e.defs[kTerm_cursor_address] = Some(c"\x1b[%i%p1%d;%p2%dH");
+    e.defs[kTerm_cursor_down] = Some(c"\n");
+    e.defs[kTerm_cursor_invisible] = Some(c"\x1b[?25l");
+    e.defs[kTerm_cursor_left] = Some(c"\x08");
+    e.defs[kTerm_cursor_home] = Some(c"\x1b[H");
+    e.defs[kTerm_cursor_normal] = Some(c"\x1b[?25h");
+    e.defs[kTerm_cursor_up] = Some(c"\x1b[A");
+    e.defs[kTerm_cursor_right] = Some(c"\x1b[C");
+    e.defs[kTerm_delete_line] = Some(c"\x1b[M");
+    e.defs[kTerm_enter_blink_mode] = Some(c"\x1b[5m");
+    e.defs[kTerm_enter_bold_mode] = Some(c"\x1b[1m");
+    e.defs[kTerm_enter_ca_mode] = Some(c"\x1b[?1049h\x1b[22;0;0t");
+    e.defs[kTerm_enter_dim_mode] = Some(c"\x1b[2m");
+    e.defs[kTerm_enter_italics_mode] = Some(c"\x1b[3m");
+    e.defs[kTerm_enter_reverse_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_standout_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_underline_mode] = Some(c"\x1b[4m");
+    e.defs[kTerm_exit_attribute_mode] = Some(c"\x1b[m\x0f");
+    e.defs[kTerm_exit_ca_mode] = Some(c"\x1b[?1049l\x1b[23;0;0t");
+    e.defs[kTerm_from_status_line] = Some(c"\x07");
+    e.defs[kTerm_insert_line] = Some(c"\x1b[L");
+    e.defs[kTerm_keypad_local] = Some(c"\x1b[?1l\x1b>");
+    e.defs[kTerm_keypad_xmit] = Some(c"\x1b[?1h\x1b=");
+    e.defs[kTerm_parm_delete_line] = Some(c"\x1b[%p1%dM");
+    e.defs[kTerm_parm_down_cursor] = Some(c"\x1b[%p1%dB");
+    e.defs[kTerm_parm_insert_line] = Some(c"\x1b[%p1%dL");
+    e.defs[kTerm_parm_left_cursor] = Some(c"\x1b[%p1%dD");
+    e.defs[kTerm_parm_right_cursor] = Some(c"\x1b[%p1%dC");
+    e.defs[kTerm_parm_up_cursor] = Some(c"\x1b[%p1%dA");
     e.defs[kTerm_set_a_background] =
-        c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m");
     e.defs[kTerm_set_a_foreground] =
-        c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m");
     e.defs[kTerm_set_attributes] =
-        c"\x1b[0%?%p6%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;%?%p5%t;2%;m%?%p9%t^N%e\x0f%;"
-            .as_ptr();
-    e.defs[kTerm_to_status_line] = c"\x1b]2;".as_ptr();
-    e.defs[kTerm_enter_strikethrough_mode] = c"\x1b[9m".as_ptr();
-    e.defs[kTerm_set_underline_style] = c"\x1b[4:%p1%dm".as_ptr();
-    e.keys[kTermKey_backspace] = [c"\x7f".as_ptr(), ptr::null()];
-    e.keys[kTermKey_btab] = [c"\x1b[Z".as_ptr(), ptr::null()];
-    e.keys[kTermKey_dc] = [c"\x1b[3~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_end] = [c"\x1bOF".as_ptr(), c"\x1b[1;2F".as_ptr()];
-    e.keys[kTermKey_home] = [c"\x1bOH".as_ptr(), c"\x1b[1;2H".as_ptr()];
-    e.keys[kTermKey_npage] = [c"\x1b[6~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ppage] = [c"\x1b[5~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_left] = [c"\x1bOD".as_ptr(), c"\x1b[1;2D".as_ptr()];
-    e.keys[kTermKey_right] = [c"\x1bOC".as_ptr(), c"\x1b[1;2C".as_ptr()];
-    e.f_keys[0] = c"\x1bOP".as_ptr();
-    e.f_keys[1] = c"\x1bOQ".as_ptr();
-    e.f_keys[2] = c"\x1bOR".as_ptr();
-    e.f_keys[3] = c"\x1bOS".as_ptr();
-    e.f_keys[4] = c"\x1b[15~".as_ptr();
-    e.f_keys[5] = c"\x1b[17~".as_ptr();
-    e.f_keys[6] = c"\x1b[18~".as_ptr();
-    e.f_keys[7] = c"\x1b[19~".as_ptr();
-    e.f_keys[8] = c"\x1b[20~".as_ptr();
-    e.f_keys[9] = c"\x1b[21~".as_ptr();
-    e.f_keys[10] = c"\x1b[23~".as_ptr();
-    e.f_keys[11] = c"\x1b[24~".as_ptr();
-    e.f_keys[12] = c"\x1b[1;2P".as_ptr();
-    e.f_keys[13] = c"\x1b[1;2Q".as_ptr();
-    e.f_keys[14] = c"\x1b[1;2R".as_ptr();
-    e.f_keys[15] = c"\x1b[1;2S".as_ptr();
-    e.f_keys[16] = c"\x1b[15;2~".as_ptr();
-    e.f_keys[17] = c"\x1b[17;2~".as_ptr();
-    e.f_keys[18] = c"\x1b[18;2~".as_ptr();
-    e.f_keys[19] = c"\x1b[19;2~".as_ptr();
-    e.f_keys[20] = c"\x1b[20;2~".as_ptr();
-    e.f_keys[21] = c"\x1b[21;2~".as_ptr();
-    e.f_keys[22] = c"\x1b[23;2~".as_ptr();
-    e.f_keys[23] = c"\x1b[24;2~".as_ptr();
+        Some(c"\x1b[0%?%p6%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;%?%p5%t;2%;m%?%p9%t^N%e\x0f%;");
+    e.defs[kTerm_to_status_line] = Some(c"\x1b]2;");
+    e.defs[kTerm_enter_strikethrough_mode] = Some(c"\x1b[9m");
+    e.defs[kTerm_set_underline_style] = Some(c"\x1b[4:%p1%dm");
+    e.keys[kTermKey_backspace] = [Some(c"\x7f"), None];
+    e.keys[kTermKey_btab] = [Some(c"\x1b[Z"), None];
+    e.keys[kTermKey_dc] = [Some(c"\x1b[3~"), None];
+    e.keys[kTermKey_end] = [Some(c"\x1bOF"), Some(c"\x1b[1;2F")];
+    e.keys[kTermKey_home] = [Some(c"\x1bOH"), Some(c"\x1b[1;2H")];
+    e.keys[kTermKey_npage] = [Some(c"\x1b[6~"), None];
+    e.keys[kTermKey_ppage] = [Some(c"\x1b[5~"), None];
+    e.keys[kTermKey_left] = [Some(c"\x1bOD"), Some(c"\x1b[1;2D")];
+    e.keys[kTermKey_right] = [Some(c"\x1bOC"), Some(c"\x1b[1;2C")];
+    e.f_keys[0] = Some(c"\x1bOP");
+    e.f_keys[1] = Some(c"\x1bOQ");
+    e.f_keys[2] = Some(c"\x1bOR");
+    e.f_keys[3] = Some(c"\x1bOS");
+    e.f_keys[4] = Some(c"\x1b[15~");
+    e.f_keys[5] = Some(c"\x1b[17~");
+    e.f_keys[6] = Some(c"\x1b[18~");
+    e.f_keys[7] = Some(c"\x1b[19~");
+    e.f_keys[8] = Some(c"\x1b[20~");
+    e.f_keys[9] = Some(c"\x1b[21~");
+    e.f_keys[10] = Some(c"\x1b[23~");
+    e.f_keys[11] = Some(c"\x1b[24~");
+    e.f_keys[12] = Some(c"\x1b[1;2P");
+    e.f_keys[13] = Some(c"\x1b[1;2Q");
+    e.f_keys[14] = Some(c"\x1b[1;2R");
+    e.f_keys[15] = Some(c"\x1b[1;2S");
+    e.f_keys[16] = Some(c"\x1b[15;2~");
+    e.f_keys[17] = Some(c"\x1b[17;2~");
+    e.f_keys[18] = Some(c"\x1b[18;2~");
+    e.f_keys[19] = Some(c"\x1b[19;2~");
+    e.f_keys[20] = Some(c"\x1b[20;2~");
+    e.f_keys[21] = Some(c"\x1b[21;2~");
+    e.f_keys[22] = Some(c"\x1b[23;2~");
+    e.f_keys[23] = Some(c"\x1b[24;2~");
     e
 };
 
-static LINUX_16COLOUR_TERMINFO: TerminfoEntry = {
+static LINUX_16COLOUR_TERMINFO: BuiltinTerminfoEntry = {
     let mut e = empty_entry(true, 8, -1, -1);
-    e.defs[kTerm_carriage_return] = c"\r".as_ptr();
-    e.defs[kTerm_change_scroll_region] = c"\x1b[%i%p1%d;%p2%dr".as_ptr();
-    e.defs[kTerm_clear_screen] = c"\x1b[H\x1b[J".as_ptr();
-    e.defs[kTerm_clr_eol] = c"\x1b[K".as_ptr();
-    e.defs[kTerm_clr_eos] = c"\x1b[J".as_ptr();
-    e.defs[kTerm_cursor_address] = c"\x1b[%i%p1%d;%p2%dH".as_ptr();
-    e.defs[kTerm_cursor_down] = c"\n".as_ptr();
-    e.defs[kTerm_cursor_invisible] = c"\x1b[?25l\x1b[?1c".as_ptr();
-    e.defs[kTerm_cursor_left] = c"\x08".as_ptr();
-    e.defs[kTerm_cursor_home] = c"\x1b[H".as_ptr();
-    e.defs[kTerm_cursor_normal] = c"\x1b[?25h\x1b[?0c".as_ptr();
-    e.defs[kTerm_cursor_up] = c"\x1b[A".as_ptr();
-    e.defs[kTerm_cursor_right] = c"\x1b[C".as_ptr();
-    e.defs[kTerm_delete_line] = c"\x1b[M".as_ptr();
-    e.defs[kTerm_enter_blink_mode] = c"\x1b[5m".as_ptr();
-    e.defs[kTerm_enter_bold_mode] = c"\x1b[1m".as_ptr();
-    e.defs[kTerm_enter_dim_mode] = c"\x1b[2m".as_ptr();
-    e.defs[kTerm_enter_reverse_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_standout_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_underline_mode] = c"\x1b[4m".as_ptr();
-    e.defs[kTerm_erase_chars] = c"\x1b[%p1%dX".as_ptr();
-    e.defs[kTerm_exit_attribute_mode] = c"\x1b[m\x0f".as_ptr();
-    e.defs[kTerm_insert_line] = c"\x1b[L".as_ptr();
-    e.defs[kTerm_parm_delete_line] = c"\x1b[%p1%dM".as_ptr();
-    e.defs[kTerm_parm_down_cursor] = c"\x1b[%p1%dB".as_ptr();
-    e.defs[kTerm_parm_insert_line] = c"\x1b[%p1%dL".as_ptr();
-    e.defs[kTerm_parm_left_cursor] = c"\x1b[%p1%dD".as_ptr();
-    e.defs[kTerm_parm_right_cursor] = c"\x1b[%p1%dC".as_ptr();
-    e.defs[kTerm_parm_up_cursor] = c"\x1b[%p1%dA".as_ptr();
-    e.defs[kTerm_set_a_background] = c"\x1b[4%p1%dm".as_ptr();
-    e.defs[kTerm_set_a_foreground] = c"\x1b[3%p1%dm".as_ptr();
+    e.defs[kTerm_carriage_return] = Some(c"\r");
+    e.defs[kTerm_change_scroll_region] = Some(c"\x1b[%i%p1%d;%p2%dr");
+    e.defs[kTerm_clear_screen] = Some(c"\x1b[H\x1b[J");
+    e.defs[kTerm_clr_eol] = Some(c"\x1b[K");
+    e.defs[kTerm_clr_eos] = Some(c"\x1b[J");
+    e.defs[kTerm_cursor_address] = Some(c"\x1b[%i%p1%d;%p2%dH");
+    e.defs[kTerm_cursor_down] = Some(c"\n");
+    e.defs[kTerm_cursor_invisible] = Some(c"\x1b[?25l\x1b[?1c");
+    e.defs[kTerm_cursor_left] = Some(c"\x08");
+    e.defs[kTerm_cursor_home] = Some(c"\x1b[H");
+    e.defs[kTerm_cursor_normal] = Some(c"\x1b[?25h\x1b[?0c");
+    e.defs[kTerm_cursor_up] = Some(c"\x1b[A");
+    e.defs[kTerm_cursor_right] = Some(c"\x1b[C");
+    e.defs[kTerm_delete_line] = Some(c"\x1b[M");
+    e.defs[kTerm_enter_blink_mode] = Some(c"\x1b[5m");
+    e.defs[kTerm_enter_bold_mode] = Some(c"\x1b[1m");
+    e.defs[kTerm_enter_dim_mode] = Some(c"\x1b[2m");
+    e.defs[kTerm_enter_reverse_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_standout_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_underline_mode] = Some(c"\x1b[4m");
+    e.defs[kTerm_erase_chars] = Some(c"\x1b[%p1%dX");
+    e.defs[kTerm_exit_attribute_mode] = Some(c"\x1b[m\x0f");
+    e.defs[kTerm_insert_line] = Some(c"\x1b[L");
+    e.defs[kTerm_parm_delete_line] = Some(c"\x1b[%p1%dM");
+    e.defs[kTerm_parm_down_cursor] = Some(c"\x1b[%p1%dB");
+    e.defs[kTerm_parm_insert_line] = Some(c"\x1b[%p1%dL");
+    e.defs[kTerm_parm_left_cursor] = Some(c"\x1b[%p1%dD");
+    e.defs[kTerm_parm_right_cursor] = Some(c"\x1b[%p1%dC");
+    e.defs[kTerm_parm_up_cursor] = Some(c"\x1b[%p1%dA");
+    e.defs[kTerm_set_a_background] = Some(c"\x1b[4%p1%dm");
+    e.defs[kTerm_set_a_foreground] = Some(c"\x1b[3%p1%dm");
     e.defs[kTerm_set_attributes] =
-        c"\x1b[0;10%?%p1%t;7%;%?%p2%t;4%;%?%p3%t;7%;%?%p4%t;5%;%?%p5%t;2%;%?%p6%t;1%;m%?%p9%t^N%e\x0f%;"
-            .as_ptr();
-    e.keys[kTermKey_backspace] = [c"\x7f".as_ptr(), ptr::null()];
-    e.keys[kTermKey_btab] = [c"\x1b^I".as_ptr(), ptr::null()];
-    e.keys[kTermKey_dc] = [c"\x1b[3~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_end] = [c"\x1b[4~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_home] = [c"\x1b[1~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ic] = [c"\x1b[2~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_npage] = [c"\x1b[6~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ppage] = [c"\x1b[5~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_suspend] = [c"^Z".as_ptr(), ptr::null()];
-    e.keys[kTermKey_left] = [c"\x1b[D".as_ptr(), ptr::null()];
-    e.keys[kTermKey_right] = [c"\x1b[C".as_ptr(), ptr::null()];
-    e.f_keys[0] = c"\x1b[[A".as_ptr();
-    e.f_keys[1] = c"\x1b[[B".as_ptr();
-    e.f_keys[2] = c"\x1b[[C".as_ptr();
-    e.f_keys[3] = c"\x1b[[D".as_ptr();
-    e.f_keys[4] = c"\x1b[[E".as_ptr();
-    e.f_keys[5] = c"\x1b[17~".as_ptr();
-    e.f_keys[6] = c"\x1b[18~".as_ptr();
-    e.f_keys[7] = c"\x1b[19~".as_ptr();
-    e.f_keys[8] = c"\x1b[20~".as_ptr();
-    e.f_keys[9] = c"\x1b[21~".as_ptr();
-    e.f_keys[10] = c"\x1b[23~".as_ptr();
-    e.f_keys[11] = c"\x1b[24~".as_ptr();
-    e.f_keys[12] = c"\x1b[25~".as_ptr();
-    e.f_keys[13] = c"\x1b[26~".as_ptr();
-    e.f_keys[14] = c"\x1b[28~".as_ptr();
-    e.f_keys[15] = c"\x1b[29~".as_ptr();
-    e.f_keys[16] = c"\x1b[31~".as_ptr();
-    e.f_keys[17] = c"\x1b[32~".as_ptr();
-    e.f_keys[18] = c"\x1b[33~".as_ptr();
-    e.f_keys[19] = c"\x1b[34~".as_ptr();
+        Some(c"\x1b[0;10%?%p1%t;7%;%?%p2%t;4%;%?%p3%t;7%;%?%p4%t;5%;%?%p5%t;2%;%?%p6%t;1%;m%?%p9%t^N%e\x0f%;");
+    e.keys[kTermKey_backspace] = [Some(c"\x7f"), None];
+    e.keys[kTermKey_btab] = [Some(c"\x1b^I"), None];
+    e.keys[kTermKey_dc] = [Some(c"\x1b[3~"), None];
+    e.keys[kTermKey_end] = [Some(c"\x1b[4~"), None];
+    e.keys[kTermKey_home] = [Some(c"\x1b[1~"), None];
+    e.keys[kTermKey_ic] = [Some(c"\x1b[2~"), None];
+    e.keys[kTermKey_npage] = [Some(c"\x1b[6~"), None];
+    e.keys[kTermKey_ppage] = [Some(c"\x1b[5~"), None];
+    e.keys[kTermKey_suspend] = [Some(c"^Z"), None];
+    e.keys[kTermKey_left] = [Some(c"\x1b[D"), None];
+    e.keys[kTermKey_right] = [Some(c"\x1b[C"), None];
+    e.f_keys[0] = Some(c"\x1b[[A");
+    e.f_keys[1] = Some(c"\x1b[[B");
+    e.f_keys[2] = Some(c"\x1b[[C");
+    e.f_keys[3] = Some(c"\x1b[[D");
+    e.f_keys[4] = Some(c"\x1b[[E");
+    e.f_keys[5] = Some(c"\x1b[17~");
+    e.f_keys[6] = Some(c"\x1b[18~");
+    e.f_keys[7] = Some(c"\x1b[19~");
+    e.f_keys[8] = Some(c"\x1b[20~");
+    e.f_keys[9] = Some(c"\x1b[21~");
+    e.f_keys[10] = Some(c"\x1b[23~");
+    e.f_keys[11] = Some(c"\x1b[24~");
+    e.f_keys[12] = Some(c"\x1b[25~");
+    e.f_keys[13] = Some(c"\x1b[26~");
+    e.f_keys[14] = Some(c"\x1b[28~");
+    e.f_keys[15] = Some(c"\x1b[29~");
+    e.f_keys[16] = Some(c"\x1b[31~");
+    e.f_keys[17] = Some(c"\x1b[32~");
+    e.f_keys[18] = Some(c"\x1b[33~");
+    e.f_keys[19] = Some(c"\x1b[34~");
     e
 };
 
-static PUTTY_256COLOUR_TERMINFO: TerminfoEntry = {
+static PUTTY_256COLOUR_TERMINFO: BuiltinTerminfoEntry = {
     let mut e = empty_entry(true, 0x100, -1, -1);
-    e.defs[kTerm_carriage_return] = c"\r".as_ptr();
-    e.defs[kTerm_change_scroll_region] = c"\x1b[%i%p1%d;%p2%dr".as_ptr();
-    e.defs[kTerm_clear_screen] = c"\x1b[H\x1b[J".as_ptr();
-    e.defs[kTerm_clr_eol] = c"\x1b[K".as_ptr();
-    e.defs[kTerm_clr_eos] = c"\x1b[J".as_ptr();
-    e.defs[kTerm_cursor_address] = c"\x1b[%i%p1%d;%p2%dH".as_ptr();
-    e.defs[kTerm_cursor_down] = c"\x1bD".as_ptr();
-    e.defs[kTerm_cursor_invisible] = c"\x1b[?25l".as_ptr();
-    e.defs[kTerm_cursor_left] = c"\x08".as_ptr();
-    e.defs[kTerm_cursor_home] = c"\x1b[H".as_ptr();
-    e.defs[kTerm_cursor_normal] = c"\x1b[?25h".as_ptr();
-    e.defs[kTerm_cursor_up] = c"\x1bM".as_ptr();
-    e.defs[kTerm_cursor_right] = c"\x1b[C".as_ptr();
-    e.defs[kTerm_delete_line] = c"\x1b[M".as_ptr();
-    e.defs[kTerm_enter_blink_mode] = c"\x1b[5m".as_ptr();
-    e.defs[kTerm_enter_bold_mode] = c"\x1b[1m".as_ptr();
-    e.defs[kTerm_enter_ca_mode] = c"\x1b[?1049h".as_ptr();
-    e.defs[kTerm_enter_reverse_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_standout_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_underline_mode] = c"\x1b[4m".as_ptr();
-    e.defs[kTerm_erase_chars] = c"\x1b[%p1%dX".as_ptr();
-    e.defs[kTerm_exit_attribute_mode] = c"\x1b[m\x0f".as_ptr();
-    e.defs[kTerm_exit_ca_mode] = c"\x1b[?1049l".as_ptr();
-    e.defs[kTerm_from_status_line] = c"\x07".as_ptr();
-    e.defs[kTerm_insert_line] = c"\x1b[L".as_ptr();
-    e.defs[kTerm_keypad_local] = c"\x1b[?1l\x1b>".as_ptr();
-    e.defs[kTerm_keypad_xmit] = c"\x1b[?1h\x1b=".as_ptr();
-    e.defs[kTerm_parm_delete_line] = c"\x1b[%p1%dM".as_ptr();
-    e.defs[kTerm_parm_down_cursor] = c"\x1b[%p1%dB".as_ptr();
-    e.defs[kTerm_parm_insert_line] = c"\x1b[%p1%dL".as_ptr();
-    e.defs[kTerm_parm_left_cursor] = c"\x1b[%p1%dD".as_ptr();
-    e.defs[kTerm_parm_right_cursor] = c"\x1b[%p1%dC".as_ptr();
-    e.defs[kTerm_parm_up_cursor] = c"\x1b[%p1%dA".as_ptr();
+    e.defs[kTerm_carriage_return] = Some(c"\r");
+    e.defs[kTerm_change_scroll_region] = Some(c"\x1b[%i%p1%d;%p2%dr");
+    e.defs[kTerm_clear_screen] = Some(c"\x1b[H\x1b[J");
+    e.defs[kTerm_clr_eol] = Some(c"\x1b[K");
+    e.defs[kTerm_clr_eos] = Some(c"\x1b[J");
+    e.defs[kTerm_cursor_address] = Some(c"\x1b[%i%p1%d;%p2%dH");
+    e.defs[kTerm_cursor_down] = Some(c"\x1bD");
+    e.defs[kTerm_cursor_invisible] = Some(c"\x1b[?25l");
+    e.defs[kTerm_cursor_left] = Some(c"\x08");
+    e.defs[kTerm_cursor_home] = Some(c"\x1b[H");
+    e.defs[kTerm_cursor_normal] = Some(c"\x1b[?25h");
+    e.defs[kTerm_cursor_up] = Some(c"\x1bM");
+    e.defs[kTerm_cursor_right] = Some(c"\x1b[C");
+    e.defs[kTerm_delete_line] = Some(c"\x1b[M");
+    e.defs[kTerm_enter_blink_mode] = Some(c"\x1b[5m");
+    e.defs[kTerm_enter_bold_mode] = Some(c"\x1b[1m");
+    e.defs[kTerm_enter_ca_mode] = Some(c"\x1b[?1049h");
+    e.defs[kTerm_enter_reverse_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_standout_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_underline_mode] = Some(c"\x1b[4m");
+    e.defs[kTerm_erase_chars] = Some(c"\x1b[%p1%dX");
+    e.defs[kTerm_exit_attribute_mode] = Some(c"\x1b[m\x0f");
+    e.defs[kTerm_exit_ca_mode] = Some(c"\x1b[?1049l");
+    e.defs[kTerm_from_status_line] = Some(c"\x07");
+    e.defs[kTerm_insert_line] = Some(c"\x1b[L");
+    e.defs[kTerm_keypad_local] = Some(c"\x1b[?1l\x1b>");
+    e.defs[kTerm_keypad_xmit] = Some(c"\x1b[?1h\x1b=");
+    e.defs[kTerm_parm_delete_line] = Some(c"\x1b[%p1%dM");
+    e.defs[kTerm_parm_down_cursor] = Some(c"\x1b[%p1%dB");
+    e.defs[kTerm_parm_insert_line] = Some(c"\x1b[%p1%dL");
+    e.defs[kTerm_parm_left_cursor] = Some(c"\x1b[%p1%dD");
+    e.defs[kTerm_parm_right_cursor] = Some(c"\x1b[%p1%dC");
+    e.defs[kTerm_parm_up_cursor] = Some(c"\x1b[%p1%dA");
     e.defs[kTerm_set_a_background] =
-        c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m");
     e.defs[kTerm_set_a_foreground] =
-        c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m");
     e.defs[kTerm_set_attributes] =
-        c"\x1b[0%?%p1%p6%|%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;m%?%p9%t^N%e\x0f%;".as_ptr();
-    e.defs[kTerm_to_status_line] = c"\x1b]0;".as_ptr();
-    e.defs[kTerm_enter_strikethrough_mode] = c"\x1b[9m".as_ptr();
-    e.keys[kTermKey_backspace] = [c"\x7f".as_ptr(), ptr::null()];
-    e.keys[kTermKey_btab] = [c"\x1b[Z".as_ptr(), ptr::null()];
-    e.keys[kTermKey_dc] = [c"\x1b[3~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_end] = [c"\x1b[4~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_home] = [c"\x1b[1~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ic] = [c"\x1b[2~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_npage] = [c"\x1b[6~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ppage] = [c"\x1b[5~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_suspend] = [c"^Z".as_ptr(), ptr::null()];
-    e.keys[kTermKey_left] = [c"\x1bOD".as_ptr(), ptr::null()];
-    e.keys[kTermKey_right] = [c"\x1bOC".as_ptr(), ptr::null()];
-    e.f_keys[0] = c"\x1b[11~".as_ptr();
-    e.f_keys[1] = c"\x1b[12~".as_ptr();
-    e.f_keys[2] = c"\x1b[13~".as_ptr();
-    e.f_keys[3] = c"\x1b[14~".as_ptr();
-    e.f_keys[4] = c"\x1b[15~".as_ptr();
-    e.f_keys[5] = c"\x1b[17~".as_ptr();
-    e.f_keys[6] = c"\x1b[18~".as_ptr();
-    e.f_keys[7] = c"\x1b[19~".as_ptr();
-    e.f_keys[8] = c"\x1b[20~".as_ptr();
-    e.f_keys[9] = c"\x1b[21~".as_ptr();
-    e.f_keys[10] = c"\x1b[23~".as_ptr();
-    e.f_keys[11] = c"\x1b[24~".as_ptr();
-    e.f_keys[12] = c"\x1b[25~".as_ptr();
-    e.f_keys[13] = c"\x1b[26~".as_ptr();
-    e.f_keys[14] = c"\x1b[28~".as_ptr();
-    e.f_keys[15] = c"\x1b[29~".as_ptr();
-    e.f_keys[16] = c"\x1b[31~".as_ptr();
-    e.f_keys[17] = c"\x1b[32~".as_ptr();
-    e.f_keys[18] = c"\x1b[33~".as_ptr();
-    e.f_keys[19] = c"\x1b[34~".as_ptr();
+        Some(c"\x1b[0%?%p1%p6%|%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;m%?%p9%t^N%e\x0f%;");
+    e.defs[kTerm_to_status_line] = Some(c"\x1b]0;");
+    e.defs[kTerm_enter_strikethrough_mode] = Some(c"\x1b[9m");
+    e.keys[kTermKey_backspace] = [Some(c"\x7f"), None];
+    e.keys[kTermKey_btab] = [Some(c"\x1b[Z"), None];
+    e.keys[kTermKey_dc] = [Some(c"\x1b[3~"), None];
+    e.keys[kTermKey_end] = [Some(c"\x1b[4~"), None];
+    e.keys[kTermKey_home] = [Some(c"\x1b[1~"), None];
+    e.keys[kTermKey_ic] = [Some(c"\x1b[2~"), None];
+    e.keys[kTermKey_npage] = [Some(c"\x1b[6~"), None];
+    e.keys[kTermKey_ppage] = [Some(c"\x1b[5~"), None];
+    e.keys[kTermKey_suspend] = [Some(c"^Z"), None];
+    e.keys[kTermKey_left] = [Some(c"\x1bOD"), None];
+    e.keys[kTermKey_right] = [Some(c"\x1bOC"), None];
+    e.f_keys[0] = Some(c"\x1b[11~");
+    e.f_keys[1] = Some(c"\x1b[12~");
+    e.f_keys[2] = Some(c"\x1b[13~");
+    e.f_keys[3] = Some(c"\x1b[14~");
+    e.f_keys[4] = Some(c"\x1b[15~");
+    e.f_keys[5] = Some(c"\x1b[17~");
+    e.f_keys[6] = Some(c"\x1b[18~");
+    e.f_keys[7] = Some(c"\x1b[19~");
+    e.f_keys[8] = Some(c"\x1b[20~");
+    e.f_keys[9] = Some(c"\x1b[21~");
+    e.f_keys[10] = Some(c"\x1b[23~");
+    e.f_keys[11] = Some(c"\x1b[24~");
+    e.f_keys[12] = Some(c"\x1b[25~");
+    e.f_keys[13] = Some(c"\x1b[26~");
+    e.f_keys[14] = Some(c"\x1b[28~");
+    e.f_keys[15] = Some(c"\x1b[29~");
+    e.f_keys[16] = Some(c"\x1b[31~");
+    e.f_keys[17] = Some(c"\x1b[32~");
+    e.f_keys[18] = Some(c"\x1b[33~");
+    e.f_keys[19] = Some(c"\x1b[34~");
     e
 };
 
-static RXVT_256COLOUR_TERMINFO: TerminfoEntry = {
+static RXVT_256COLOUR_TERMINFO: BuiltinTerminfoEntry = {
     let mut e = empty_entry(true, 0x100, 24, 80);
-    e.defs[kTerm_carriage_return] = c"\r".as_ptr();
-    e.defs[kTerm_change_scroll_region] = c"\x1b[%i%p1%d;%p2%dr".as_ptr();
-    e.defs[kTerm_clear_screen] = c"\x1b[H\x1b[2J".as_ptr();
-    e.defs[kTerm_clr_eol] = c"\x1b[K".as_ptr();
-    e.defs[kTerm_clr_eos] = c"\x1b[J".as_ptr();
-    e.defs[kTerm_cursor_address] = c"\x1b[%i%p1%d;%p2%dH".as_ptr();
-    e.defs[kTerm_cursor_down] = c"\n".as_ptr();
-    e.defs[kTerm_cursor_invisible] = c"\x1b[?25l".as_ptr();
-    e.defs[kTerm_cursor_left] = c"\x08".as_ptr();
-    e.defs[kTerm_cursor_home] = c"\x1b[H".as_ptr();
-    e.defs[kTerm_cursor_normal] = c"\x1b[?25h".as_ptr();
-    e.defs[kTerm_cursor_up] = c"\x1b[A".as_ptr();
-    e.defs[kTerm_cursor_right] = c"\x1b[C".as_ptr();
-    e.defs[kTerm_delete_line] = c"\x1b[M".as_ptr();
-    e.defs[kTerm_enter_blink_mode] = c"\x1b[5m".as_ptr();
-    e.defs[kTerm_enter_bold_mode] = c"\x1b[1m".as_ptr();
-    e.defs[kTerm_enter_ca_mode] = c"\x1b7\x1b[?47h".as_ptr();
-    e.defs[kTerm_enter_reverse_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_standout_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_underline_mode] = c"\x1b[4m".as_ptr();
-    e.defs[kTerm_exit_attribute_mode] = c"\x1b[m\x0f".as_ptr();
-    e.defs[kTerm_exit_ca_mode] = c"\x1b[2J\x1b[?47l\x1b8".as_ptr();
-    e.defs[kTerm_insert_line] = c"\x1b[L".as_ptr();
-    e.defs[kTerm_keypad_local] = c"\x1b>".as_ptr();
-    e.defs[kTerm_keypad_xmit] = c"\x1b=".as_ptr();
-    e.defs[kTerm_parm_delete_line] = c"\x1b[%p1%dM".as_ptr();
-    e.defs[kTerm_parm_down_cursor] = c"\x1b[%p1%dB".as_ptr();
-    e.defs[kTerm_parm_insert_line] = c"\x1b[%p1%dL".as_ptr();
-    e.defs[kTerm_parm_left_cursor] = c"\x1b[%p1%dD".as_ptr();
-    e.defs[kTerm_parm_right_cursor] = c"\x1b[%p1%dC".as_ptr();
-    e.defs[kTerm_parm_up_cursor] = c"\x1b[%p1%dA".as_ptr();
+    e.defs[kTerm_carriage_return] = Some(c"\r");
+    e.defs[kTerm_change_scroll_region] = Some(c"\x1b[%i%p1%d;%p2%dr");
+    e.defs[kTerm_clear_screen] = Some(c"\x1b[H\x1b[2J");
+    e.defs[kTerm_clr_eol] = Some(c"\x1b[K");
+    e.defs[kTerm_clr_eos] = Some(c"\x1b[J");
+    e.defs[kTerm_cursor_address] = Some(c"\x1b[%i%p1%d;%p2%dH");
+    e.defs[kTerm_cursor_down] = Some(c"\n");
+    e.defs[kTerm_cursor_invisible] = Some(c"\x1b[?25l");
+    e.defs[kTerm_cursor_left] = Some(c"\x08");
+    e.defs[kTerm_cursor_home] = Some(c"\x1b[H");
+    e.defs[kTerm_cursor_normal] = Some(c"\x1b[?25h");
+    e.defs[kTerm_cursor_up] = Some(c"\x1b[A");
+    e.defs[kTerm_cursor_right] = Some(c"\x1b[C");
+    e.defs[kTerm_delete_line] = Some(c"\x1b[M");
+    e.defs[kTerm_enter_blink_mode] = Some(c"\x1b[5m");
+    e.defs[kTerm_enter_bold_mode] = Some(c"\x1b[1m");
+    e.defs[kTerm_enter_ca_mode] = Some(c"\x1b7\x1b[?47h");
+    e.defs[kTerm_enter_reverse_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_standout_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_underline_mode] = Some(c"\x1b[4m");
+    e.defs[kTerm_exit_attribute_mode] = Some(c"\x1b[m\x0f");
+    e.defs[kTerm_exit_ca_mode] = Some(c"\x1b[2J\x1b[?47l\x1b8");
+    e.defs[kTerm_insert_line] = Some(c"\x1b[L");
+    e.defs[kTerm_keypad_local] = Some(c"\x1b>");
+    e.defs[kTerm_keypad_xmit] = Some(c"\x1b=");
+    e.defs[kTerm_parm_delete_line] = Some(c"\x1b[%p1%dM");
+    e.defs[kTerm_parm_down_cursor] = Some(c"\x1b[%p1%dB");
+    e.defs[kTerm_parm_insert_line] = Some(c"\x1b[%p1%dL");
+    e.defs[kTerm_parm_left_cursor] = Some(c"\x1b[%p1%dD");
+    e.defs[kTerm_parm_right_cursor] = Some(c"\x1b[%p1%dC");
+    e.defs[kTerm_parm_up_cursor] = Some(c"\x1b[%p1%dA");
     e.defs[kTerm_set_a_background] =
-        c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m");
     e.defs[kTerm_set_a_foreground] =
-        c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m");
     e.defs[kTerm_set_attributes] =
-        c"\x1b[0%?%p6%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;m%?%p9%t^N%e\x0f%;".as_ptr();
-    e.keys[kTermKey_backspace] = [c"\x08".as_ptr(), ptr::null()];
-    e.keys[kTermKey_btab] = [c"\x1b[Z".as_ptr(), ptr::null()];
-    e.keys[kTermKey_dc] = [c"\x1b[3~".as_ptr(), c"\x1b[3$".as_ptr()];
-    e.keys[kTermKey_end] = [c"\x1b[8~".as_ptr(), c"\x1b[8$".as_ptr()];
-    e.keys[kTermKey_find] = [c"\x1b[1~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_home] = [c"\x1b[7~".as_ptr(), c"\x1b[7$".as_ptr()];
-    e.keys[kTermKey_ic] = [c"\x1b[2~".as_ptr(), c"\x1b[2$".as_ptr()];
-    e.keys[kTermKey_npage] = [c"\x1b[6~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ppage] = [c"\x1b[5~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_select] = [c"\x1b[4~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_left] = [c"\x1b[D".as_ptr(), c"\x1b[d".as_ptr()];
-    e.keys[kTermKey_right] = [c"\x1b[C".as_ptr(), c"\x1b[c".as_ptr()];
-    e.f_keys[0] = c"\x1b[11~".as_ptr();
-    e.f_keys[1] = c"\x1b[12~".as_ptr();
-    e.f_keys[2] = c"\x1b[13~".as_ptr();
-    e.f_keys[3] = c"\x1b[14~".as_ptr();
-    e.f_keys[4] = c"\x1b[15~".as_ptr();
-    e.f_keys[5] = c"\x1b[17~".as_ptr();
-    e.f_keys[6] = c"\x1b[18~".as_ptr();
-    e.f_keys[7] = c"\x1b[19~".as_ptr();
-    e.f_keys[8] = c"\x1b[20~".as_ptr();
-    e.f_keys[9] = c"\x1b[21~".as_ptr();
-    e.f_keys[10] = c"\x1b[23~".as_ptr();
-    e.f_keys[11] = c"\x1b[24~".as_ptr();
-    e.f_keys[12] = c"\x1b[25~".as_ptr();
-    e.f_keys[13] = c"\x1b[26~".as_ptr();
-    e.f_keys[14] = c"\x1b[28~".as_ptr();
-    e.f_keys[15] = c"\x1b[29~".as_ptr();
-    e.f_keys[16] = c"\x1b[31~".as_ptr();
-    e.f_keys[17] = c"\x1b[32~".as_ptr();
-    e.f_keys[18] = c"\x1b[33~".as_ptr();
-    e.f_keys[19] = c"\x1b[34~".as_ptr();
-    e.f_keys[20] = c"\x1b[23$".as_ptr();
-    e.f_keys[21] = c"\x1b[24$".as_ptr();
-    e.f_keys[22] = c"\x1b[11^".as_ptr();
-    e.f_keys[23] = c"\x1b[12^".as_ptr();
-    e.f_keys[24] = c"\x1b[13^".as_ptr();
-    e.f_keys[25] = c"\x1b[14^".as_ptr();
-    e.f_keys[26] = c"\x1b[15^".as_ptr();
-    e.f_keys[27] = c"\x1b[17^".as_ptr();
-    e.f_keys[28] = c"\x1b[18^".as_ptr();
-    e.f_keys[29] = c"\x1b[19^".as_ptr();
-    e.f_keys[30] = c"\x1b[20^".as_ptr();
-    e.f_keys[31] = c"\x1b[21^".as_ptr();
-    e.f_keys[32] = c"\x1b[23^".as_ptr();
-    e.f_keys[33] = c"\x1b[24^".as_ptr();
-    e.f_keys[34] = c"\x1b[25^".as_ptr();
-    e.f_keys[35] = c"\x1b[26^".as_ptr();
-    e.f_keys[36] = c"\x1b[28^".as_ptr();
-    e.f_keys[37] = c"\x1b[29^".as_ptr();
-    e.f_keys[38] = c"\x1b[31^".as_ptr();
-    e.f_keys[39] = c"\x1b[32^".as_ptr();
-    e.f_keys[40] = c"\x1b[33^".as_ptr();
-    e.f_keys[41] = c"\x1b[34^".as_ptr();
-    e.f_keys[42] = c"\x1b[23@".as_ptr();
-    e.f_keys[43] = c"\x1b[24@".as_ptr();
+        Some(c"\x1b[0%?%p6%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;m%?%p9%t^N%e\x0f%;");
+    e.keys[kTermKey_backspace] = [Some(c"\x08"), None];
+    e.keys[kTermKey_btab] = [Some(c"\x1b[Z"), None];
+    e.keys[kTermKey_dc] = [Some(c"\x1b[3~"), Some(c"\x1b[3$")];
+    e.keys[kTermKey_end] = [Some(c"\x1b[8~"), Some(c"\x1b[8$")];
+    e.keys[kTermKey_find] = [Some(c"\x1b[1~"), None];
+    e.keys[kTermKey_home] = [Some(c"\x1b[7~"), Some(c"\x1b[7$")];
+    e.keys[kTermKey_ic] = [Some(c"\x1b[2~"), Some(c"\x1b[2$")];
+    e.keys[kTermKey_npage] = [Some(c"\x1b[6~"), None];
+    e.keys[kTermKey_ppage] = [Some(c"\x1b[5~"), None];
+    e.keys[kTermKey_select] = [Some(c"\x1b[4~"), None];
+    e.keys[kTermKey_left] = [Some(c"\x1b[D"), Some(c"\x1b[d")];
+    e.keys[kTermKey_right] = [Some(c"\x1b[C"), Some(c"\x1b[c")];
+    e.f_keys[0] = Some(c"\x1b[11~");
+    e.f_keys[1] = Some(c"\x1b[12~");
+    e.f_keys[2] = Some(c"\x1b[13~");
+    e.f_keys[3] = Some(c"\x1b[14~");
+    e.f_keys[4] = Some(c"\x1b[15~");
+    e.f_keys[5] = Some(c"\x1b[17~");
+    e.f_keys[6] = Some(c"\x1b[18~");
+    e.f_keys[7] = Some(c"\x1b[19~");
+    e.f_keys[8] = Some(c"\x1b[20~");
+    e.f_keys[9] = Some(c"\x1b[21~");
+    e.f_keys[10] = Some(c"\x1b[23~");
+    e.f_keys[11] = Some(c"\x1b[24~");
+    e.f_keys[12] = Some(c"\x1b[25~");
+    e.f_keys[13] = Some(c"\x1b[26~");
+    e.f_keys[14] = Some(c"\x1b[28~");
+    e.f_keys[15] = Some(c"\x1b[29~");
+    e.f_keys[16] = Some(c"\x1b[31~");
+    e.f_keys[17] = Some(c"\x1b[32~");
+    e.f_keys[18] = Some(c"\x1b[33~");
+    e.f_keys[19] = Some(c"\x1b[34~");
+    e.f_keys[20] = Some(c"\x1b[23$");
+    e.f_keys[21] = Some(c"\x1b[24$");
+    e.f_keys[22] = Some(c"\x1b[11^");
+    e.f_keys[23] = Some(c"\x1b[12^");
+    e.f_keys[24] = Some(c"\x1b[13^");
+    e.f_keys[25] = Some(c"\x1b[14^");
+    e.f_keys[26] = Some(c"\x1b[15^");
+    e.f_keys[27] = Some(c"\x1b[17^");
+    e.f_keys[28] = Some(c"\x1b[18^");
+    e.f_keys[29] = Some(c"\x1b[19^");
+    e.f_keys[30] = Some(c"\x1b[20^");
+    e.f_keys[31] = Some(c"\x1b[21^");
+    e.f_keys[32] = Some(c"\x1b[23^");
+    e.f_keys[33] = Some(c"\x1b[24^");
+    e.f_keys[34] = Some(c"\x1b[25^");
+    e.f_keys[35] = Some(c"\x1b[26^");
+    e.f_keys[36] = Some(c"\x1b[28^");
+    e.f_keys[37] = Some(c"\x1b[29^");
+    e.f_keys[38] = Some(c"\x1b[31^");
+    e.f_keys[39] = Some(c"\x1b[32^");
+    e.f_keys[40] = Some(c"\x1b[33^");
+    e.f_keys[41] = Some(c"\x1b[34^");
+    e.f_keys[42] = Some(c"\x1b[23@");
+    e.f_keys[43] = Some(c"\x1b[24@");
     e
 };
 
-static SCREEN_256COLOUR_TERMINFO: TerminfoEntry = {
+static SCREEN_256COLOUR_TERMINFO: BuiltinTerminfoEntry = {
     let mut e = empty_entry(false, 0x100, 24, 80);
-    e.defs[kTerm_carriage_return] = c"\r".as_ptr();
-    e.defs[kTerm_change_scroll_region] = c"\x1b[%i%p1%d;%p2%dr".as_ptr();
-    e.defs[kTerm_clear_screen] = c"\x1b[H\x1b[J".as_ptr();
-    e.defs[kTerm_clr_eol] = c"\x1b[K".as_ptr();
-    e.defs[kTerm_clr_eos] = c"\x1b[J".as_ptr();
-    e.defs[kTerm_cursor_address] = c"\x1b[%i%p1%d;%p2%dH".as_ptr();
-    e.defs[kTerm_cursor_down] = c"\n".as_ptr();
-    e.defs[kTerm_cursor_invisible] = c"\x1b[?25l".as_ptr();
-    e.defs[kTerm_cursor_left] = c"\x08".as_ptr();
-    e.defs[kTerm_cursor_home] = c"\x1b[H".as_ptr();
-    e.defs[kTerm_cursor_normal] = c"\x1b[34h\x1b[?25h".as_ptr();
-    e.defs[kTerm_cursor_up] = c"\x1bM".as_ptr();
-    e.defs[kTerm_cursor_right] = c"\x1b[C".as_ptr();
-    e.defs[kTerm_delete_line] = c"\x1b[M".as_ptr();
-    e.defs[kTerm_enter_blink_mode] = c"\x1b[5m".as_ptr();
-    e.defs[kTerm_enter_bold_mode] = c"\x1b[1m".as_ptr();
-    e.defs[kTerm_enter_ca_mode] = c"\x1b[?1049h".as_ptr();
-    e.defs[kTerm_enter_dim_mode] = c"\x1b[2m".as_ptr();
-    e.defs[kTerm_enter_reverse_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_standout_mode] = c"\x1b[3m".as_ptr();
-    e.defs[kTerm_enter_underline_mode] = c"\x1b[4m".as_ptr();
-    e.defs[kTerm_exit_attribute_mode] = c"\x1b[m\x0f".as_ptr();
-    e.defs[kTerm_exit_ca_mode] = c"\x1b[?1049l".as_ptr();
-    e.defs[kTerm_insert_line] = c"\x1b[L".as_ptr();
-    e.defs[kTerm_keypad_local] = c"\x1b[?1l\x1b>".as_ptr();
-    e.defs[kTerm_keypad_xmit] = c"\x1b[?1h\x1b=".as_ptr();
-    e.defs[kTerm_parm_delete_line] = c"\x1b[%p1%dM".as_ptr();
-    e.defs[kTerm_parm_down_cursor] = c"\x1b[%p1%dB".as_ptr();
-    e.defs[kTerm_parm_insert_line] = c"\x1b[%p1%dL".as_ptr();
-    e.defs[kTerm_parm_left_cursor] = c"\x1b[%p1%dD".as_ptr();
-    e.defs[kTerm_parm_right_cursor] = c"\x1b[%p1%dC".as_ptr();
-    e.defs[kTerm_parm_up_cursor] = c"\x1b[%p1%dA".as_ptr();
+    e.defs[kTerm_carriage_return] = Some(c"\r");
+    e.defs[kTerm_change_scroll_region] = Some(c"\x1b[%i%p1%d;%p2%dr");
+    e.defs[kTerm_clear_screen] = Some(c"\x1b[H\x1b[J");
+    e.defs[kTerm_clr_eol] = Some(c"\x1b[K");
+    e.defs[kTerm_clr_eos] = Some(c"\x1b[J");
+    e.defs[kTerm_cursor_address] = Some(c"\x1b[%i%p1%d;%p2%dH");
+    e.defs[kTerm_cursor_down] = Some(c"\n");
+    e.defs[kTerm_cursor_invisible] = Some(c"\x1b[?25l");
+    e.defs[kTerm_cursor_left] = Some(c"\x08");
+    e.defs[kTerm_cursor_home] = Some(c"\x1b[H");
+    e.defs[kTerm_cursor_normal] = Some(c"\x1b[34h\x1b[?25h");
+    e.defs[kTerm_cursor_up] = Some(c"\x1bM");
+    e.defs[kTerm_cursor_right] = Some(c"\x1b[C");
+    e.defs[kTerm_delete_line] = Some(c"\x1b[M");
+    e.defs[kTerm_enter_blink_mode] = Some(c"\x1b[5m");
+    e.defs[kTerm_enter_bold_mode] = Some(c"\x1b[1m");
+    e.defs[kTerm_enter_ca_mode] = Some(c"\x1b[?1049h");
+    e.defs[kTerm_enter_dim_mode] = Some(c"\x1b[2m");
+    e.defs[kTerm_enter_reverse_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_standout_mode] = Some(c"\x1b[3m");
+    e.defs[kTerm_enter_underline_mode] = Some(c"\x1b[4m");
+    e.defs[kTerm_exit_attribute_mode] = Some(c"\x1b[m\x0f");
+    e.defs[kTerm_exit_ca_mode] = Some(c"\x1b[?1049l");
+    e.defs[kTerm_insert_line] = Some(c"\x1b[L");
+    e.defs[kTerm_keypad_local] = Some(c"\x1b[?1l\x1b>");
+    e.defs[kTerm_keypad_xmit] = Some(c"\x1b[?1h\x1b=");
+    e.defs[kTerm_parm_delete_line] = Some(c"\x1b[%p1%dM");
+    e.defs[kTerm_parm_down_cursor] = Some(c"\x1b[%p1%dB");
+    e.defs[kTerm_parm_insert_line] = Some(c"\x1b[%p1%dL");
+    e.defs[kTerm_parm_left_cursor] = Some(c"\x1b[%p1%dD");
+    e.defs[kTerm_parm_right_cursor] = Some(c"\x1b[%p1%dC");
+    e.defs[kTerm_parm_up_cursor] = Some(c"\x1b[%p1%dA");
     e.defs[kTerm_set_a_background] =
-        c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m");
     e.defs[kTerm_set_a_foreground] =
-        c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m");
     e.defs[kTerm_set_attributes] =
-        c"\x1b[0%?%p6%t;1%;%?%p1%t;3%;%?%p2%t;4%;%?%p3%t;7%;%?%p4%t;5%;%?%p5%t;2%;m%?%p9%t^N%e\x0f%;"
-            .as_ptr();
-    e.keys[kTermKey_backspace] = [c"\x7f".as_ptr(), ptr::null()];
-    e.keys[kTermKey_btab] = [c"\x1b[Z".as_ptr(), ptr::null()];
-    e.keys[kTermKey_dc] = [c"\x1b[3~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_end] = [c"\x1b[4~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_home] = [c"\x1b[1~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ic] = [c"\x1b[2~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_npage] = [c"\x1b[6~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ppage] = [c"\x1b[5~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_left] = [c"\x1bOD".as_ptr(), ptr::null()];
-    e.keys[kTermKey_right] = [c"\x1bOC".as_ptr(), ptr::null()];
-    e.f_keys[0] = c"\x1bOP".as_ptr();
-    e.f_keys[1] = c"\x1bOQ".as_ptr();
-    e.f_keys[2] = c"\x1bOR".as_ptr();
-    e.f_keys[3] = c"\x1bOS".as_ptr();
-    e.f_keys[4] = c"\x1b[15~".as_ptr();
-    e.f_keys[5] = c"\x1b[17~".as_ptr();
-    e.f_keys[6] = c"\x1b[18~".as_ptr();
-    e.f_keys[7] = c"\x1b[19~".as_ptr();
-    e.f_keys[8] = c"\x1b[20~".as_ptr();
-    e.f_keys[9] = c"\x1b[21~".as_ptr();
-    e.f_keys[10] = c"\x1b[23~".as_ptr();
-    e.f_keys[11] = c"\x1b[24~".as_ptr();
+        Some(c"\x1b[0%?%p6%t;1%;%?%p1%t;3%;%?%p2%t;4%;%?%p3%t;7%;%?%p4%t;5%;%?%p5%t;2%;m%?%p9%t^N%e\x0f%;");
+    e.keys[kTermKey_backspace] = [Some(c"\x7f"), None];
+    e.keys[kTermKey_btab] = [Some(c"\x1b[Z"), None];
+    e.keys[kTermKey_dc] = [Some(c"\x1b[3~"), None];
+    e.keys[kTermKey_end] = [Some(c"\x1b[4~"), None];
+    e.keys[kTermKey_home] = [Some(c"\x1b[1~"), None];
+    e.keys[kTermKey_ic] = [Some(c"\x1b[2~"), None];
+    e.keys[kTermKey_npage] = [Some(c"\x1b[6~"), None];
+    e.keys[kTermKey_ppage] = [Some(c"\x1b[5~"), None];
+    e.keys[kTermKey_left] = [Some(c"\x1bOD"), None];
+    e.keys[kTermKey_right] = [Some(c"\x1bOC"), None];
+    e.f_keys[0] = Some(c"\x1bOP");
+    e.f_keys[1] = Some(c"\x1bOQ");
+    e.f_keys[2] = Some(c"\x1bOR");
+    e.f_keys[3] = Some(c"\x1bOS");
+    e.f_keys[4] = Some(c"\x1b[15~");
+    e.f_keys[5] = Some(c"\x1b[17~");
+    e.f_keys[6] = Some(c"\x1b[18~");
+    e.f_keys[7] = Some(c"\x1b[19~");
+    e.f_keys[8] = Some(c"\x1b[20~");
+    e.f_keys[9] = Some(c"\x1b[21~");
+    e.f_keys[10] = Some(c"\x1b[23~");
+    e.f_keys[11] = Some(c"\x1b[24~");
     e
 };
 
-const fn set_std_63_fkeys(f_keys: &mut [*const c_char; kTerminfoFuncKeyMax]) {
-    f_keys[0] = c"\x1bOP".as_ptr();
-    f_keys[1] = c"\x1bOQ".as_ptr();
-    f_keys[2] = c"\x1bOR".as_ptr();
-    f_keys[3] = c"\x1bOS".as_ptr();
-    f_keys[4] = c"\x1b[15~".as_ptr();
-    f_keys[5] = c"\x1b[17~".as_ptr();
-    f_keys[6] = c"\x1b[18~".as_ptr();
-    f_keys[7] = c"\x1b[19~".as_ptr();
-    f_keys[8] = c"\x1b[20~".as_ptr();
-    f_keys[9] = c"\x1b[21~".as_ptr();
-    f_keys[10] = c"\x1b[23~".as_ptr();
-    f_keys[11] = c"\x1b[24~".as_ptr();
-    f_keys[12] = c"\x1b[1;2P".as_ptr();
-    f_keys[13] = c"\x1b[1;2Q".as_ptr();
-    f_keys[14] = c"\x1b[1;2R".as_ptr();
-    f_keys[15] = c"\x1b[1;2S".as_ptr();
-    f_keys[16] = c"\x1b[15;2~".as_ptr();
-    f_keys[17] = c"\x1b[17;2~".as_ptr();
-    f_keys[18] = c"\x1b[18;2~".as_ptr();
-    f_keys[19] = c"\x1b[19;2~".as_ptr();
-    f_keys[20] = c"\x1b[20;2~".as_ptr();
-    f_keys[21] = c"\x1b[21;2~".as_ptr();
-    f_keys[22] = c"\x1b[23;2~".as_ptr();
-    f_keys[23] = c"\x1b[24;2~".as_ptr();
-    f_keys[24] = c"\x1b[1;5P".as_ptr();
-    f_keys[25] = c"\x1b[1;5Q".as_ptr();
-    f_keys[26] = c"\x1b[1;5R".as_ptr();
-    f_keys[27] = c"\x1b[1;5S".as_ptr();
-    f_keys[28] = c"\x1b[15;5~".as_ptr();
-    f_keys[29] = c"\x1b[17;5~".as_ptr();
-    f_keys[30] = c"\x1b[18;5~".as_ptr();
-    f_keys[31] = c"\x1b[19;5~".as_ptr();
-    f_keys[32] = c"\x1b[20;5~".as_ptr();
-    f_keys[33] = c"\x1b[21;5~".as_ptr();
-    f_keys[34] = c"\x1b[23;5~".as_ptr();
-    f_keys[35] = c"\x1b[24;5~".as_ptr();
-    f_keys[36] = c"\x1b[1;6P".as_ptr();
-    f_keys[37] = c"\x1b[1;6Q".as_ptr();
-    f_keys[38] = c"\x1b[1;6R".as_ptr();
-    f_keys[39] = c"\x1b[1;6S".as_ptr();
-    f_keys[40] = c"\x1b[15;6~".as_ptr();
-    f_keys[41] = c"\x1b[17;6~".as_ptr();
-    f_keys[42] = c"\x1b[18;6~".as_ptr();
-    f_keys[43] = c"\x1b[19;6~".as_ptr();
-    f_keys[44] = c"\x1b[20;6~".as_ptr();
-    f_keys[45] = c"\x1b[21;6~".as_ptr();
-    f_keys[46] = c"\x1b[23;6~".as_ptr();
-    f_keys[47] = c"\x1b[24;6~".as_ptr();
-    f_keys[48] = c"\x1b[1;3P".as_ptr();
-    f_keys[49] = c"\x1b[1;3Q".as_ptr();
-    f_keys[50] = c"\x1b[1;3R".as_ptr();
-    f_keys[51] = c"\x1b[1;3S".as_ptr();
-    f_keys[52] = c"\x1b[15;3~".as_ptr();
-    f_keys[53] = c"\x1b[17;3~".as_ptr();
-    f_keys[54] = c"\x1b[18;3~".as_ptr();
-    f_keys[55] = c"\x1b[19;3~".as_ptr();
-    f_keys[56] = c"\x1b[20;3~".as_ptr();
-    f_keys[57] = c"\x1b[21;3~".as_ptr();
-    f_keys[58] = c"\x1b[23;3~".as_ptr();
-    f_keys[59] = c"\x1b[24;3~".as_ptr();
-    f_keys[60] = c"\x1b[1;4P".as_ptr();
-    f_keys[61] = c"\x1b[1;4Q".as_ptr();
-    f_keys[62] = c"\x1b[1;4R".as_ptr();
+const fn set_std_63_fkeys(f_keys: &mut [Option<&'static CStr>; kTerminfoFuncKeyMax]) {
+    f_keys[0] = Some(c"\x1bOP");
+    f_keys[1] = Some(c"\x1bOQ");
+    f_keys[2] = Some(c"\x1bOR");
+    f_keys[3] = Some(c"\x1bOS");
+    f_keys[4] = Some(c"\x1b[15~");
+    f_keys[5] = Some(c"\x1b[17~");
+    f_keys[6] = Some(c"\x1b[18~");
+    f_keys[7] = Some(c"\x1b[19~");
+    f_keys[8] = Some(c"\x1b[20~");
+    f_keys[9] = Some(c"\x1b[21~");
+    f_keys[10] = Some(c"\x1b[23~");
+    f_keys[11] = Some(c"\x1b[24~");
+    f_keys[12] = Some(c"\x1b[1;2P");
+    f_keys[13] = Some(c"\x1b[1;2Q");
+    f_keys[14] = Some(c"\x1b[1;2R");
+    f_keys[15] = Some(c"\x1b[1;2S");
+    f_keys[16] = Some(c"\x1b[15;2~");
+    f_keys[17] = Some(c"\x1b[17;2~");
+    f_keys[18] = Some(c"\x1b[18;2~");
+    f_keys[19] = Some(c"\x1b[19;2~");
+    f_keys[20] = Some(c"\x1b[20;2~");
+    f_keys[21] = Some(c"\x1b[21;2~");
+    f_keys[22] = Some(c"\x1b[23;2~");
+    f_keys[23] = Some(c"\x1b[24;2~");
+    f_keys[24] = Some(c"\x1b[1;5P");
+    f_keys[25] = Some(c"\x1b[1;5Q");
+    f_keys[26] = Some(c"\x1b[1;5R");
+    f_keys[27] = Some(c"\x1b[1;5S");
+    f_keys[28] = Some(c"\x1b[15;5~");
+    f_keys[29] = Some(c"\x1b[17;5~");
+    f_keys[30] = Some(c"\x1b[18;5~");
+    f_keys[31] = Some(c"\x1b[19;5~");
+    f_keys[32] = Some(c"\x1b[20;5~");
+    f_keys[33] = Some(c"\x1b[21;5~");
+    f_keys[34] = Some(c"\x1b[23;5~");
+    f_keys[35] = Some(c"\x1b[24;5~");
+    f_keys[36] = Some(c"\x1b[1;6P");
+    f_keys[37] = Some(c"\x1b[1;6Q");
+    f_keys[38] = Some(c"\x1b[1;6R");
+    f_keys[39] = Some(c"\x1b[1;6S");
+    f_keys[40] = Some(c"\x1b[15;6~");
+    f_keys[41] = Some(c"\x1b[17;6~");
+    f_keys[42] = Some(c"\x1b[18;6~");
+    f_keys[43] = Some(c"\x1b[19;6~");
+    f_keys[44] = Some(c"\x1b[20;6~");
+    f_keys[45] = Some(c"\x1b[21;6~");
+    f_keys[46] = Some(c"\x1b[23;6~");
+    f_keys[47] = Some(c"\x1b[24;6~");
+    f_keys[48] = Some(c"\x1b[1;3P");
+    f_keys[49] = Some(c"\x1b[1;3Q");
+    f_keys[50] = Some(c"\x1b[1;3R");
+    f_keys[51] = Some(c"\x1b[1;3S");
+    f_keys[52] = Some(c"\x1b[15;3~");
+    f_keys[53] = Some(c"\x1b[17;3~");
+    f_keys[54] = Some(c"\x1b[18;3~");
+    f_keys[55] = Some(c"\x1b[19;3~");
+    f_keys[56] = Some(c"\x1b[20;3~");
+    f_keys[57] = Some(c"\x1b[21;3~");
+    f_keys[58] = Some(c"\x1b[23;3~");
+    f_keys[59] = Some(c"\x1b[24;3~");
+    f_keys[60] = Some(c"\x1b[1;4P");
+    f_keys[61] = Some(c"\x1b[1;4Q");
+    f_keys[62] = Some(c"\x1b[1;4R");
 }
 
-static ST_256COLOUR_TERMINFO: TerminfoEntry = {
+static ST_256COLOUR_TERMINFO: BuiltinTerminfoEntry = {
     let mut e = empty_entry(true, 0x100, 24, 80);
-    e.defs[kTerm_carriage_return] = c"\r".as_ptr();
-    e.defs[kTerm_change_scroll_region] = c"\x1b[%i%p1%d;%p2%dr".as_ptr();
-    e.defs[kTerm_clear_screen] = c"\x1b[H\x1b[2J".as_ptr();
-    e.defs[kTerm_clr_eol] = c"\x1b[K".as_ptr();
-    e.defs[kTerm_clr_eos] = c"\x1b[J".as_ptr();
-    e.defs[kTerm_cursor_address] = c"\x1b[%i%p1%d;%p2%dH".as_ptr();
-    e.defs[kTerm_cursor_down] = c"\n".as_ptr();
-    e.defs[kTerm_cursor_invisible] = c"\x1b[?25l".as_ptr();
-    e.defs[kTerm_cursor_left] = c"\x08".as_ptr();
-    e.defs[kTerm_cursor_home] = c"\x1b[H".as_ptr();
-    e.defs[kTerm_cursor_normal] = c"\x1b[?25h".as_ptr();
-    e.defs[kTerm_cursor_up] = c"\x1b[A".as_ptr();
-    e.defs[kTerm_cursor_right] = c"\x1b[C".as_ptr();
-    e.defs[kTerm_delete_line] = c"\x1b[M".as_ptr();
-    e.defs[kTerm_enter_blink_mode] = c"\x1b[5m".as_ptr();
-    e.defs[kTerm_enter_bold_mode] = c"\x1b[1m".as_ptr();
-    e.defs[kTerm_enter_ca_mode] = c"\x1b[?1049h".as_ptr();
-    e.defs[kTerm_enter_dim_mode] = c"\x1b[2m".as_ptr();
-    e.defs[kTerm_enter_italics_mode] = c"\x1b[3m".as_ptr();
-    e.defs[kTerm_enter_reverse_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_secure_mode] = c"\x1b[8m".as_ptr();
-    e.defs[kTerm_enter_standout_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_underline_mode] = c"\x1b[4m".as_ptr();
-    e.defs[kTerm_erase_chars] = c"\x1b[%p1%dX".as_ptr();
-    e.defs[kTerm_exit_attribute_mode] = c"\x1b[0m".as_ptr();
-    e.defs[kTerm_exit_ca_mode] = c"\x1b[?1049l".as_ptr();
-    e.defs[kTerm_from_status_line] = c"\x07".as_ptr();
-    e.defs[kTerm_insert_line] = c"\x1b[L".as_ptr();
-    e.defs[kTerm_keypad_local] = c"\x1b[?1l\x1b>".as_ptr();
-    e.defs[kTerm_keypad_xmit] = c"\x1b[?1h\x1b=".as_ptr();
-    e.defs[kTerm_parm_delete_line] = c"\x1b[%p1%dM".as_ptr();
-    e.defs[kTerm_parm_down_cursor] = c"\x1b[%p1%dB".as_ptr();
-    e.defs[kTerm_parm_insert_line] = c"\x1b[%p1%dL".as_ptr();
-    e.defs[kTerm_parm_left_cursor] = c"\x1b[%p1%dD".as_ptr();
-    e.defs[kTerm_parm_right_cursor] = c"\x1b[%p1%dC".as_ptr();
-    e.defs[kTerm_parm_up_cursor] = c"\x1b[%p1%dA".as_ptr();
+    e.defs[kTerm_carriage_return] = Some(c"\r");
+    e.defs[kTerm_change_scroll_region] = Some(c"\x1b[%i%p1%d;%p2%dr");
+    e.defs[kTerm_clear_screen] = Some(c"\x1b[H\x1b[2J");
+    e.defs[kTerm_clr_eol] = Some(c"\x1b[K");
+    e.defs[kTerm_clr_eos] = Some(c"\x1b[J");
+    e.defs[kTerm_cursor_address] = Some(c"\x1b[%i%p1%d;%p2%dH");
+    e.defs[kTerm_cursor_down] = Some(c"\n");
+    e.defs[kTerm_cursor_invisible] = Some(c"\x1b[?25l");
+    e.defs[kTerm_cursor_left] = Some(c"\x08");
+    e.defs[kTerm_cursor_home] = Some(c"\x1b[H");
+    e.defs[kTerm_cursor_normal] = Some(c"\x1b[?25h");
+    e.defs[kTerm_cursor_up] = Some(c"\x1b[A");
+    e.defs[kTerm_cursor_right] = Some(c"\x1b[C");
+    e.defs[kTerm_delete_line] = Some(c"\x1b[M");
+    e.defs[kTerm_enter_blink_mode] = Some(c"\x1b[5m");
+    e.defs[kTerm_enter_bold_mode] = Some(c"\x1b[1m");
+    e.defs[kTerm_enter_ca_mode] = Some(c"\x1b[?1049h");
+    e.defs[kTerm_enter_dim_mode] = Some(c"\x1b[2m");
+    e.defs[kTerm_enter_italics_mode] = Some(c"\x1b[3m");
+    e.defs[kTerm_enter_reverse_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_secure_mode] = Some(c"\x1b[8m");
+    e.defs[kTerm_enter_standout_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_underline_mode] = Some(c"\x1b[4m");
+    e.defs[kTerm_erase_chars] = Some(c"\x1b[%p1%dX");
+    e.defs[kTerm_exit_attribute_mode] = Some(c"\x1b[0m");
+    e.defs[kTerm_exit_ca_mode] = Some(c"\x1b[?1049l");
+    e.defs[kTerm_from_status_line] = Some(c"\x07");
+    e.defs[kTerm_insert_line] = Some(c"\x1b[L");
+    e.defs[kTerm_keypad_local] = Some(c"\x1b[?1l\x1b>");
+    e.defs[kTerm_keypad_xmit] = Some(c"\x1b[?1h\x1b=");
+    e.defs[kTerm_parm_delete_line] = Some(c"\x1b[%p1%dM");
+    e.defs[kTerm_parm_down_cursor] = Some(c"\x1b[%p1%dB");
+    e.defs[kTerm_parm_insert_line] = Some(c"\x1b[%p1%dL");
+    e.defs[kTerm_parm_left_cursor] = Some(c"\x1b[%p1%dD");
+    e.defs[kTerm_parm_right_cursor] = Some(c"\x1b[%p1%dC");
+    e.defs[kTerm_parm_up_cursor] = Some(c"\x1b[%p1%dA");
     e.defs[kTerm_set_a_background] =
-        c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m");
     e.defs[kTerm_set_a_foreground] =
-        c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m");
     e.defs[kTerm_set_attributes] =
-        c"%?%p9%t\x1b(0%e\x1b(B%;\x1b[0%?%p6%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;%?%p5%t;2%;%?%p7%t;8%;m"
-            .as_ptr();
-    e.defs[kTerm_to_status_line] = c"\x1b]0;".as_ptr();
-    e.defs[kTerm_reset_cursor_style] = c"\x1b[2 q".as_ptr();
-    e.defs[kTerm_set_cursor_style] = c"\x1b[%p1%d q".as_ptr();
-    e.defs[kTerm_enter_strikethrough_mode] = c"\x1b[9m".as_ptr();
-    e.defs[kTerm_set_cursor_color] = c"\x1b]12;%p1%s\x07".as_ptr();
-    e.keys[kTermKey_backspace] = [c"\x7f".as_ptr(), ptr::null()];
-    e.keys[kTermKey_clear] = [c"\x1b[3;5~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_dc] = [c"\x1b[3~".as_ptr(), c"\x1b[3;2~".as_ptr()];
-    e.keys[kTermKey_end] = [c"\x1b[4~".as_ptr(), c"\x1b[1;2F".as_ptr()];
-    e.keys[kTermKey_home] = [c"\x1b[1~".as_ptr(), c"\x1b[1;2H".as_ptr()];
-    e.keys[kTermKey_ic] = [c"\x1b[2~".as_ptr(), c"\x1b[2;2~".as_ptr()];
-    e.keys[kTermKey_npage] = [c"\x1b[6~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ppage] = [c"\x1b[5~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_left] = [c"\x1bOD".as_ptr(), c"\x1b[1;2D".as_ptr()];
-    e.keys[kTermKey_right] = [c"\x1bOC".as_ptr(), c"\x1b[1;2C".as_ptr()];
+        Some(c"%?%p9%t\x1b(0%e\x1b(B%;\x1b[0%?%p6%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;%?%p5%t;2%;%?%p7%t;8%;m");
+    e.defs[kTerm_to_status_line] = Some(c"\x1b]0;");
+    e.defs[kTerm_reset_cursor_style] = Some(c"\x1b[2 q");
+    e.defs[kTerm_set_cursor_style] = Some(c"\x1b[%p1%d q");
+    e.defs[kTerm_enter_strikethrough_mode] = Some(c"\x1b[9m");
+    e.defs[kTerm_set_cursor_color] = Some(c"\x1b]12;%p1%s\x07");
+    e.keys[kTermKey_backspace] = [Some(c"\x7f"), None];
+    e.keys[kTermKey_clear] = [Some(c"\x1b[3;5~"), None];
+    e.keys[kTermKey_dc] = [Some(c"\x1b[3~"), Some(c"\x1b[3;2~")];
+    e.keys[kTermKey_end] = [Some(c"\x1b[4~"), Some(c"\x1b[1;2F")];
+    e.keys[kTermKey_home] = [Some(c"\x1b[1~"), Some(c"\x1b[1;2H")];
+    e.keys[kTermKey_ic] = [Some(c"\x1b[2~"), Some(c"\x1b[2;2~")];
+    e.keys[kTermKey_npage] = [Some(c"\x1b[6~"), None];
+    e.keys[kTermKey_ppage] = [Some(c"\x1b[5~"), None];
+    e.keys[kTermKey_left] = [Some(c"\x1bOD"), Some(c"\x1b[1;2D")];
+    e.keys[kTermKey_right] = [Some(c"\x1bOC"), Some(c"\x1b[1;2C")];
     set_std_63_fkeys(&mut e.f_keys);
     e
 };
 
-static TMUX_256COLOUR_TERMINFO: TerminfoEntry = {
+static TMUX_256COLOUR_TERMINFO: BuiltinTerminfoEntry = {
     let mut e = empty_entry(false, 0x100, 24, 80);
-    e.defs[kTerm_carriage_return] = c"\r".as_ptr();
-    e.defs[kTerm_change_scroll_region] = c"\x1b[%i%p1%d;%p2%dr".as_ptr();
-    e.defs[kTerm_clear_screen] = c"\x1b[H\x1b[J".as_ptr();
-    e.defs[kTerm_clr_eol] = c"\x1b[K".as_ptr();
-    e.defs[kTerm_clr_eos] = c"\x1b[J".as_ptr();
-    e.defs[kTerm_cursor_address] = c"\x1b[%i%p1%d;%p2%dH".as_ptr();
-    e.defs[kTerm_cursor_down] = c"\n".as_ptr();
-    e.defs[kTerm_cursor_invisible] = c"\x1b[?25l".as_ptr();
-    e.defs[kTerm_cursor_left] = c"\x08".as_ptr();
-    e.defs[kTerm_cursor_home] = c"\x1b[H".as_ptr();
-    e.defs[kTerm_cursor_normal] = c"\x1b[34h\x1b[?25h".as_ptr();
-    e.defs[kTerm_cursor_up] = c"\x1bM".as_ptr();
-    e.defs[kTerm_cursor_right] = c"\x1b[C".as_ptr();
-    e.defs[kTerm_delete_line] = c"\x1b[M".as_ptr();
-    e.defs[kTerm_enter_blink_mode] = c"\x1b[5m".as_ptr();
-    e.defs[kTerm_enter_bold_mode] = c"\x1b[1m".as_ptr();
-    e.defs[kTerm_enter_ca_mode] = c"\x1b[?1049h".as_ptr();
-    e.defs[kTerm_enter_dim_mode] = c"\x1b[2m".as_ptr();
-    e.defs[kTerm_enter_italics_mode] = c"\x1b[3m".as_ptr();
-    e.defs[kTerm_enter_reverse_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_secure_mode] = c"\x1b[8m".as_ptr();
-    e.defs[kTerm_enter_standout_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_underline_mode] = c"\x1b[4m".as_ptr();
-    e.defs[kTerm_exit_attribute_mode] = c"\x1b[m\x0f".as_ptr();
-    e.defs[kTerm_exit_ca_mode] = c"\x1b[?1049l".as_ptr();
-    e.defs[kTerm_from_status_line] = c"\x07".as_ptr();
-    e.defs[kTerm_insert_line] = c"\x1b[L".as_ptr();
-    e.defs[kTerm_keypad_local] = c"\x1b[?1l\x1b>".as_ptr();
-    e.defs[kTerm_keypad_xmit] = c"\x1b[?1h\x1b=".as_ptr();
-    e.defs[kTerm_parm_delete_line] = c"\x1b[%p1%dM".as_ptr();
-    e.defs[kTerm_parm_down_cursor] = c"\x1b[%p1%dB".as_ptr();
-    e.defs[kTerm_parm_insert_line] = c"\x1b[%p1%dL".as_ptr();
-    e.defs[kTerm_parm_left_cursor] = c"\x1b[%p1%dD".as_ptr();
-    e.defs[kTerm_parm_right_cursor] = c"\x1b[%p1%dC".as_ptr();
-    e.defs[kTerm_parm_up_cursor] = c"\x1b[%p1%dA".as_ptr();
+    e.defs[kTerm_carriage_return] = Some(c"\r");
+    e.defs[kTerm_change_scroll_region] = Some(c"\x1b[%i%p1%d;%p2%dr");
+    e.defs[kTerm_clear_screen] = Some(c"\x1b[H\x1b[J");
+    e.defs[kTerm_clr_eol] = Some(c"\x1b[K");
+    e.defs[kTerm_clr_eos] = Some(c"\x1b[J");
+    e.defs[kTerm_cursor_address] = Some(c"\x1b[%i%p1%d;%p2%dH");
+    e.defs[kTerm_cursor_down] = Some(c"\n");
+    e.defs[kTerm_cursor_invisible] = Some(c"\x1b[?25l");
+    e.defs[kTerm_cursor_left] = Some(c"\x08");
+    e.defs[kTerm_cursor_home] = Some(c"\x1b[H");
+    e.defs[kTerm_cursor_normal] = Some(c"\x1b[34h\x1b[?25h");
+    e.defs[kTerm_cursor_up] = Some(c"\x1bM");
+    e.defs[kTerm_cursor_right] = Some(c"\x1b[C");
+    e.defs[kTerm_delete_line] = Some(c"\x1b[M");
+    e.defs[kTerm_enter_blink_mode] = Some(c"\x1b[5m");
+    e.defs[kTerm_enter_bold_mode] = Some(c"\x1b[1m");
+    e.defs[kTerm_enter_ca_mode] = Some(c"\x1b[?1049h");
+    e.defs[kTerm_enter_dim_mode] = Some(c"\x1b[2m");
+    e.defs[kTerm_enter_italics_mode] = Some(c"\x1b[3m");
+    e.defs[kTerm_enter_reverse_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_secure_mode] = Some(c"\x1b[8m");
+    e.defs[kTerm_enter_standout_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_underline_mode] = Some(c"\x1b[4m");
+    e.defs[kTerm_exit_attribute_mode] = Some(c"\x1b[m\x0f");
+    e.defs[kTerm_exit_ca_mode] = Some(c"\x1b[?1049l");
+    e.defs[kTerm_from_status_line] = Some(c"\x07");
+    e.defs[kTerm_insert_line] = Some(c"\x1b[L");
+    e.defs[kTerm_keypad_local] = Some(c"\x1b[?1l\x1b>");
+    e.defs[kTerm_keypad_xmit] = Some(c"\x1b[?1h\x1b=");
+    e.defs[kTerm_parm_delete_line] = Some(c"\x1b[%p1%dM");
+    e.defs[kTerm_parm_down_cursor] = Some(c"\x1b[%p1%dB");
+    e.defs[kTerm_parm_insert_line] = Some(c"\x1b[%p1%dL");
+    e.defs[kTerm_parm_left_cursor] = Some(c"\x1b[%p1%dD");
+    e.defs[kTerm_parm_right_cursor] = Some(c"\x1b[%p1%dC");
+    e.defs[kTerm_parm_up_cursor] = Some(c"\x1b[%p1%dA");
     e.defs[kTerm_set_a_background] =
-        c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m");
     e.defs[kTerm_set_a_foreground] =
-        c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m");
     e.defs[kTerm_set_attributes] =
-        c"\x1b[0%?%p6%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;%?%p5%t;2%;%?%p7%t;8%;m%?%p9%t^N%e\x0f%;"
-            .as_ptr();
-    e.defs[kTerm_to_status_line] = c"\x1b]0;".as_ptr();
-    e.defs[kTerm_reset_cursor_style] = c"\x1b[2 q".as_ptr();
-    e.defs[kTerm_set_cursor_style] = c"\x1b[%p1%d q".as_ptr();
-    e.defs[kTerm_enter_strikethrough_mode] = c"\x1b[9m".as_ptr();
-    e.defs[kTerm_set_cursor_color] = c"\x1b]12;%p1%s\x07".as_ptr();
-    e.defs[kTerm_reset_cursor_color] = c"\x1b]112\x07".as_ptr();
-    e.defs[kTerm_set_underline_style] = c"\x1b[4:%p1%dm".as_ptr();
-    e.keys[kTermKey_backspace] = [c"\x7f".as_ptr(), ptr::null()];
-    e.keys[kTermKey_btab] = [c"\x1b[Z".as_ptr(), ptr::null()];
-    e.keys[kTermKey_dc] = [c"\x1b[3~".as_ptr(), c"\x1b[3;2~".as_ptr()];
-    e.keys[kTermKey_end] = [c"\x1b[4~".as_ptr(), c"\x1b[1;2F".as_ptr()];
-    e.keys[kTermKey_home] = [c"\x1b[1~".as_ptr(), c"\x1b[1;2H".as_ptr()];
-    e.keys[kTermKey_ic] = [c"\x1b[2~".as_ptr(), c"\x1b[2;2~".as_ptr()];
-    e.keys[kTermKey_npage] = [c"\x1b[6~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ppage] = [c"\x1b[5~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_left] = [c"\x1bOD".as_ptr(), c"\x1b[1;2D".as_ptr()];
-    e.keys[kTermKey_right] = [c"\x1bOC".as_ptr(), c"\x1b[1;2C".as_ptr()];
+        Some(c"\x1b[0%?%p6%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;%?%p5%t;2%;%?%p7%t;8%;m%?%p9%t^N%e\x0f%;");
+    e.defs[kTerm_to_status_line] = Some(c"\x1b]0;");
+    e.defs[kTerm_reset_cursor_style] = Some(c"\x1b[2 q");
+    e.defs[kTerm_set_cursor_style] = Some(c"\x1b[%p1%d q");
+    e.defs[kTerm_enter_strikethrough_mode] = Some(c"\x1b[9m");
+    e.defs[kTerm_set_cursor_color] = Some(c"\x1b]12;%p1%s\x07");
+    e.defs[kTerm_reset_cursor_color] = Some(c"\x1b]112\x07");
+    e.defs[kTerm_set_underline_style] = Some(c"\x1b[4:%p1%dm");
+    e.keys[kTermKey_backspace] = [Some(c"\x7f"), None];
+    e.keys[kTermKey_btab] = [Some(c"\x1b[Z"), None];
+    e.keys[kTermKey_dc] = [Some(c"\x1b[3~"), Some(c"\x1b[3;2~")];
+    e.keys[kTermKey_end] = [Some(c"\x1b[4~"), Some(c"\x1b[1;2F")];
+    e.keys[kTermKey_home] = [Some(c"\x1b[1~"), Some(c"\x1b[1;2H")];
+    e.keys[kTermKey_ic] = [Some(c"\x1b[2~"), Some(c"\x1b[2;2~")];
+    e.keys[kTermKey_npage] = [Some(c"\x1b[6~"), None];
+    e.keys[kTermKey_ppage] = [Some(c"\x1b[5~"), None];
+    e.keys[kTermKey_left] = [Some(c"\x1bOD"), Some(c"\x1b[1;2D")];
+    e.keys[kTermKey_right] = [Some(c"\x1bOC"), Some(c"\x1b[1;2C")];
     set_std_63_fkeys(&mut e.f_keys);
     e
 };
 
-static VTE_256COLOUR_TERMINFO: TerminfoEntry = {
+static VTE_256COLOUR_TERMINFO: BuiltinTerminfoEntry = {
     let mut e = empty_entry(true, 0x100, 24, 80);
-    e.defs[kTerm_carriage_return] = c"\r".as_ptr();
-    e.defs[kTerm_change_scroll_region] = c"\x1b[%i%p1%d;%p2%dr".as_ptr();
-    e.defs[kTerm_clear_screen] = c"\x1b[H\x1b[2J".as_ptr();
-    e.defs[kTerm_clr_eol] = c"\x1b[K".as_ptr();
-    e.defs[kTerm_clr_eos] = c"\x1b[J".as_ptr();
-    e.defs[kTerm_cursor_address] = c"\x1b[%i%p1%d;%p2%dH".as_ptr();
-    e.defs[kTerm_cursor_down] = c"\n".as_ptr();
-    e.defs[kTerm_cursor_invisible] = c"\x1b[?25l".as_ptr();
-    e.defs[kTerm_cursor_left] = c"\x08".as_ptr();
-    e.defs[kTerm_cursor_home] = c"\x1b[H".as_ptr();
-    e.defs[kTerm_cursor_normal] = c"\x1b[?25h".as_ptr();
-    e.defs[kTerm_cursor_up] = c"\x1b[A".as_ptr();
-    e.defs[kTerm_cursor_right] = c"\x1b[C".as_ptr();
-    e.defs[kTerm_delete_line] = c"\x1b[M".as_ptr();
-    e.defs[kTerm_enter_blink_mode] = c"\x1b[5m".as_ptr();
-    e.defs[kTerm_enter_bold_mode] = c"\x1b[1m".as_ptr();
-    e.defs[kTerm_enter_ca_mode] = c"\x1b[?1049h\x1b[22;0;0t".as_ptr();
-    e.defs[kTerm_enter_dim_mode] = c"\x1b[2m".as_ptr();
-    e.defs[kTerm_enter_italics_mode] = c"\x1b[3m".as_ptr();
-    e.defs[kTerm_enter_reverse_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_secure_mode] = c"\x1b[8m".as_ptr();
-    e.defs[kTerm_enter_standout_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_underline_mode] = c"\x1b[4m".as_ptr();
-    e.defs[kTerm_erase_chars] = c"\x1b[%p1%dX".as_ptr();
-    e.defs[kTerm_exit_attribute_mode] = c"\x1b[0m\x0f".as_ptr();
-    e.defs[kTerm_exit_ca_mode] = c"\x1b[?1049l\x1b[23;0;0t".as_ptr();
-    e.defs[kTerm_insert_line] = c"\x1b[L".as_ptr();
-    e.defs[kTerm_keypad_local] = c"\x1b[?1l\x1b>".as_ptr();
-    e.defs[kTerm_keypad_xmit] = c"\x1b[?1h\x1b=".as_ptr();
-    e.defs[kTerm_parm_delete_line] = c"\x1b[%p1%dM".as_ptr();
-    e.defs[kTerm_parm_down_cursor] = c"\x1b[%p1%dB".as_ptr();
-    e.defs[kTerm_parm_insert_line] = c"\x1b[%p1%dL".as_ptr();
-    e.defs[kTerm_parm_left_cursor] = c"\x1b[%p1%dD".as_ptr();
-    e.defs[kTerm_parm_right_cursor] = c"\x1b[%p1%dC".as_ptr();
-    e.defs[kTerm_parm_up_cursor] = c"\x1b[%p1%dA".as_ptr();
+    e.defs[kTerm_carriage_return] = Some(c"\r");
+    e.defs[kTerm_change_scroll_region] = Some(c"\x1b[%i%p1%d;%p2%dr");
+    e.defs[kTerm_clear_screen] = Some(c"\x1b[H\x1b[2J");
+    e.defs[kTerm_clr_eol] = Some(c"\x1b[K");
+    e.defs[kTerm_clr_eos] = Some(c"\x1b[J");
+    e.defs[kTerm_cursor_address] = Some(c"\x1b[%i%p1%d;%p2%dH");
+    e.defs[kTerm_cursor_down] = Some(c"\n");
+    e.defs[kTerm_cursor_invisible] = Some(c"\x1b[?25l");
+    e.defs[kTerm_cursor_left] = Some(c"\x08");
+    e.defs[kTerm_cursor_home] = Some(c"\x1b[H");
+    e.defs[kTerm_cursor_normal] = Some(c"\x1b[?25h");
+    e.defs[kTerm_cursor_up] = Some(c"\x1b[A");
+    e.defs[kTerm_cursor_right] = Some(c"\x1b[C");
+    e.defs[kTerm_delete_line] = Some(c"\x1b[M");
+    e.defs[kTerm_enter_blink_mode] = Some(c"\x1b[5m");
+    e.defs[kTerm_enter_bold_mode] = Some(c"\x1b[1m");
+    e.defs[kTerm_enter_ca_mode] = Some(c"\x1b[?1049h\x1b[22;0;0t");
+    e.defs[kTerm_enter_dim_mode] = Some(c"\x1b[2m");
+    e.defs[kTerm_enter_italics_mode] = Some(c"\x1b[3m");
+    e.defs[kTerm_enter_reverse_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_secure_mode] = Some(c"\x1b[8m");
+    e.defs[kTerm_enter_standout_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_underline_mode] = Some(c"\x1b[4m");
+    e.defs[kTerm_erase_chars] = Some(c"\x1b[%p1%dX");
+    e.defs[kTerm_exit_attribute_mode] = Some(c"\x1b[0m\x0f");
+    e.defs[kTerm_exit_ca_mode] = Some(c"\x1b[?1049l\x1b[23;0;0t");
+    e.defs[kTerm_insert_line] = Some(c"\x1b[L");
+    e.defs[kTerm_keypad_local] = Some(c"\x1b[?1l\x1b>");
+    e.defs[kTerm_keypad_xmit] = Some(c"\x1b[?1h\x1b=");
+    e.defs[kTerm_parm_delete_line] = Some(c"\x1b[%p1%dM");
+    e.defs[kTerm_parm_down_cursor] = Some(c"\x1b[%p1%dB");
+    e.defs[kTerm_parm_insert_line] = Some(c"\x1b[%p1%dL");
+    e.defs[kTerm_parm_left_cursor] = Some(c"\x1b[%p1%dD");
+    e.defs[kTerm_parm_right_cursor] = Some(c"\x1b[%p1%dC");
+    e.defs[kTerm_parm_up_cursor] = Some(c"\x1b[%p1%dA");
     e.defs[kTerm_set_a_background] =
-        c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m");
     e.defs[kTerm_set_a_foreground] =
-        c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m");
     e.defs[kTerm_set_attributes] =
-        c"\x1b[0%?%p6%t;1%;%?%p2%t;4%;%?%p4%t;5%;%?%p5%t;2%;%?%p7%t;8%;%?%p1%p3%|%t;7%;m%?%p9%t^N%e\x0f%;"
-            .as_ptr();
-    e.defs[kTerm_reset_cursor_style] = c"\x1b[1 q".as_ptr();
-    e.defs[kTerm_set_cursor_style] = c"\x1b[%p1%d q".as_ptr();
-    e.defs[kTerm_enter_strikethrough_mode] = c"\x1b[9m".as_ptr();
-    e.defs[kTerm_set_cursor_color] = c"\x1b]12;%p1%s\x07".as_ptr();
-    e.defs[kTerm_reset_cursor_color] = c"\x1b]112\x07".as_ptr();
-    e.defs[kTerm_set_underline_style] = c"\x1b[4:%p1%dm".as_ptr();
-    e.keys[kTermKey_backspace] = [c"\x7f".as_ptr(), ptr::null()];
-    e.keys[kTermKey_btab] = [c"\x1b[Z".as_ptr(), ptr::null()];
-    e.keys[kTermKey_dc] = [c"\x1b[3~".as_ptr(), c"\x1b[3;2~".as_ptr()];
-    e.keys[kTermKey_end] = [c"\x1bOF".as_ptr(), c"\x1b[1;2F".as_ptr()];
-    e.keys[kTermKey_find] = [c"\x1b[1~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_home] = [c"\x1bOH".as_ptr(), c"\x1b[1;2H".as_ptr()];
-    e.keys[kTermKey_ic] = [c"\x1b[2~".as_ptr(), c"\x1b[2;2~".as_ptr()];
-    e.keys[kTermKey_npage] = [c"\x1b[6~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ppage] = [c"\x1b[5~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_select] = [c"\x1b[4~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_left] = [c"\x1bOD".as_ptr(), c"\x1b[1;2D".as_ptr()];
-    e.keys[kTermKey_right] = [c"\x1bOC".as_ptr(), c"\x1b[1;2C".as_ptr()];
+        Some(c"\x1b[0%?%p6%t;1%;%?%p2%t;4%;%?%p4%t;5%;%?%p5%t;2%;%?%p7%t;8%;%?%p1%p3%|%t;7%;m%?%p9%t^N%e\x0f%;");
+    e.defs[kTerm_reset_cursor_style] = Some(c"\x1b[1 q");
+    e.defs[kTerm_set_cursor_style] = Some(c"\x1b[%p1%d q");
+    e.defs[kTerm_enter_strikethrough_mode] = Some(c"\x1b[9m");
+    e.defs[kTerm_set_cursor_color] = Some(c"\x1b]12;%p1%s\x07");
+    e.defs[kTerm_reset_cursor_color] = Some(c"\x1b]112\x07");
+    e.defs[kTerm_set_underline_style] = Some(c"\x1b[4:%p1%dm");
+    e.keys[kTermKey_backspace] = [Some(c"\x7f"), None];
+    e.keys[kTermKey_btab] = [Some(c"\x1b[Z"), None];
+    e.keys[kTermKey_dc] = [Some(c"\x1b[3~"), Some(c"\x1b[3;2~")];
+    e.keys[kTermKey_end] = [Some(c"\x1bOF"), Some(c"\x1b[1;2F")];
+    e.keys[kTermKey_find] = [Some(c"\x1b[1~"), None];
+    e.keys[kTermKey_home] = [Some(c"\x1bOH"), Some(c"\x1b[1;2H")];
+    e.keys[kTermKey_ic] = [Some(c"\x1b[2~"), Some(c"\x1b[2;2~")];
+    e.keys[kTermKey_npage] = [Some(c"\x1b[6~"), None];
+    e.keys[kTermKey_ppage] = [Some(c"\x1b[5~"), None];
+    e.keys[kTermKey_select] = [Some(c"\x1b[4~"), None];
+    e.keys[kTermKey_left] = [Some(c"\x1bOD"), Some(c"\x1b[1;2D")];
+    e.keys[kTermKey_right] = [Some(c"\x1bOC"), Some(c"\x1b[1;2C")];
     set_std_63_fkeys(&mut e.f_keys);
     e
 };
 
-static XTERM_256COLOUR_TERMINFO: TerminfoEntry = {
+static XTERM_256COLOUR_TERMINFO: BuiltinTerminfoEntry = {
     let mut e = empty_entry(true, 0x100, 24, 80);
-    e.defs[kTerm_carriage_return] = c"\r".as_ptr();
-    e.defs[kTerm_change_scroll_region] = c"\x1b[%i%p1%d;%p2%dr".as_ptr();
-    e.defs[kTerm_clear_screen] = c"\x1b[H\x1b[2J".as_ptr();
-    e.defs[kTerm_clr_eol] = c"\x1b[K".as_ptr();
-    e.defs[kTerm_clr_eos] = c"\x1b[J".as_ptr();
-    e.defs[kTerm_cursor_address] = c"\x1b[%i%p1%d;%p2%dH".as_ptr();
-    e.defs[kTerm_cursor_down] = c"\n".as_ptr();
-    e.defs[kTerm_cursor_invisible] = c"\x1b[?25l".as_ptr();
-    e.defs[kTerm_cursor_left] = c"\x08".as_ptr();
-    e.defs[kTerm_cursor_home] = c"\x1b[H".as_ptr();
-    e.defs[kTerm_cursor_normal] = c"\x1b[?12l\x1b[?25h".as_ptr();
-    e.defs[kTerm_cursor_up] = c"\x1b[A".as_ptr();
-    e.defs[kTerm_cursor_right] = c"\x1b[C".as_ptr();
-    e.defs[kTerm_delete_line] = c"\x1b[M".as_ptr();
-    e.defs[kTerm_enter_blink_mode] = c"\x1b[5m".as_ptr();
-    e.defs[kTerm_enter_bold_mode] = c"\x1b[1m".as_ptr();
-    e.defs[kTerm_enter_ca_mode] = c"\x1b[?1049h\x1b[22;0;0t".as_ptr();
-    e.defs[kTerm_enter_dim_mode] = c"\x1b[2m".as_ptr();
-    e.defs[kTerm_enter_italics_mode] = c"\x1b[3m".as_ptr();
-    e.defs[kTerm_enter_reverse_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_secure_mode] = c"\x1b[8m".as_ptr();
-    e.defs[kTerm_enter_standout_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_underline_mode] = c"\x1b[4m".as_ptr();
-    e.defs[kTerm_erase_chars] = c"\x1b[%p1%dX".as_ptr();
-    e.defs[kTerm_exit_attribute_mode] = c"\x1b(B\x1b[m".as_ptr();
-    e.defs[kTerm_exit_ca_mode] = c"\x1b[?1049l\x1b[23;0;0t".as_ptr();
-    e.defs[kTerm_insert_line] = c"\x1b[L".as_ptr();
-    e.defs[kTerm_keypad_local] = c"\x1b[?1l\x1b>".as_ptr();
-    e.defs[kTerm_keypad_xmit] = c"\x1b[?1h\x1b=".as_ptr();
-    e.defs[kTerm_parm_delete_line] = c"\x1b[%p1%dM".as_ptr();
-    e.defs[kTerm_parm_down_cursor] = c"\x1b[%p1%dB".as_ptr();
-    e.defs[kTerm_parm_insert_line] = c"\x1b[%p1%dL".as_ptr();
-    e.defs[kTerm_parm_left_cursor] = c"\x1b[%p1%dD".as_ptr();
-    e.defs[kTerm_parm_right_cursor] = c"\x1b[%p1%dC".as_ptr();
-    e.defs[kTerm_parm_up_cursor] = c"\x1b[%p1%dA".as_ptr();
+    e.defs[kTerm_carriage_return] = Some(c"\r");
+    e.defs[kTerm_change_scroll_region] = Some(c"\x1b[%i%p1%d;%p2%dr");
+    e.defs[kTerm_clear_screen] = Some(c"\x1b[H\x1b[2J");
+    e.defs[kTerm_clr_eol] = Some(c"\x1b[K");
+    e.defs[kTerm_clr_eos] = Some(c"\x1b[J");
+    e.defs[kTerm_cursor_address] = Some(c"\x1b[%i%p1%d;%p2%dH");
+    e.defs[kTerm_cursor_down] = Some(c"\n");
+    e.defs[kTerm_cursor_invisible] = Some(c"\x1b[?25l");
+    e.defs[kTerm_cursor_left] = Some(c"\x08");
+    e.defs[kTerm_cursor_home] = Some(c"\x1b[H");
+    e.defs[kTerm_cursor_normal] = Some(c"\x1b[?12l\x1b[?25h");
+    e.defs[kTerm_cursor_up] = Some(c"\x1b[A");
+    e.defs[kTerm_cursor_right] = Some(c"\x1b[C");
+    e.defs[kTerm_delete_line] = Some(c"\x1b[M");
+    e.defs[kTerm_enter_blink_mode] = Some(c"\x1b[5m");
+    e.defs[kTerm_enter_bold_mode] = Some(c"\x1b[1m");
+    e.defs[kTerm_enter_ca_mode] = Some(c"\x1b[?1049h\x1b[22;0;0t");
+    e.defs[kTerm_enter_dim_mode] = Some(c"\x1b[2m");
+    e.defs[kTerm_enter_italics_mode] = Some(c"\x1b[3m");
+    e.defs[kTerm_enter_reverse_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_secure_mode] = Some(c"\x1b[8m");
+    e.defs[kTerm_enter_standout_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_underline_mode] = Some(c"\x1b[4m");
+    e.defs[kTerm_erase_chars] = Some(c"\x1b[%p1%dX");
+    e.defs[kTerm_exit_attribute_mode] = Some(c"\x1b(B\x1b[m");
+    e.defs[kTerm_exit_ca_mode] = Some(c"\x1b[?1049l\x1b[23;0;0t");
+    e.defs[kTerm_insert_line] = Some(c"\x1b[L");
+    e.defs[kTerm_keypad_local] = Some(c"\x1b[?1l\x1b>");
+    e.defs[kTerm_keypad_xmit] = Some(c"\x1b[?1h\x1b=");
+    e.defs[kTerm_parm_delete_line] = Some(c"\x1b[%p1%dM");
+    e.defs[kTerm_parm_down_cursor] = Some(c"\x1b[%p1%dB");
+    e.defs[kTerm_parm_insert_line] = Some(c"\x1b[%p1%dL");
+    e.defs[kTerm_parm_left_cursor] = Some(c"\x1b[%p1%dD");
+    e.defs[kTerm_parm_right_cursor] = Some(c"\x1b[%p1%dC");
+    e.defs[kTerm_parm_up_cursor] = Some(c"\x1b[%p1%dA");
     e.defs[kTerm_set_a_background] =
-        c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m");
     e.defs[kTerm_set_a_foreground] =
-        c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m");
     e.defs[kTerm_set_attributes] =
-        c"%?%p9%t\x1b(0%e\x1b(B%;\x1b[0%?%p6%t;1%;%?%p5%t;2%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;%?%p7%t;8%;m"
-            .as_ptr();
-    e.defs[kTerm_set_lr_margin] = c"\x1b[?69h\x1b[%i%p1%d;%p2%ds".as_ptr();
-    e.defs[kTerm_reset_cursor_style] = c"\x1b[2 q".as_ptr();
-    e.defs[kTerm_set_cursor_style] = c"\x1b[%p1%d q".as_ptr();
-    e.defs[kTerm_enter_strikethrough_mode] = c"\x1b[9m".as_ptr();
-    e.defs[kTerm_set_cursor_color] = c"\x1b]12;%p1%s\x07".as_ptr();
-    e.defs[kTerm_reset_cursor_color] = c"\x1b]112\x07".as_ptr();
-    e.keys[kTermKey_backspace] = [c"\x08".as_ptr(), ptr::null()];
-    e.keys[kTermKey_beg] = [c"\x1bOE".as_ptr(), ptr::null()];
-    e.keys[kTermKey_btab] = [c"\x1b[Z".as_ptr(), ptr::null()];
-    e.keys[kTermKey_dc] = [c"\x1b[3~".as_ptr(), c"\x1b[3;2~".as_ptr()];
-    e.keys[kTermKey_end] = [c"\x1bOF".as_ptr(), c"\x1b[1;2F".as_ptr()];
-    e.keys[kTermKey_home] = [c"\x1bOH".as_ptr(), c"\x1b[1;2H".as_ptr()];
-    e.keys[kTermKey_ic] = [c"\x1b[2~".as_ptr(), c"\x1b[2;2~".as_ptr()];
-    e.keys[kTermKey_npage] = [c"\x1b[6~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ppage] = [c"\x1b[5~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_left] = [c"\x1bOD".as_ptr(), c"\x1b[1;2D".as_ptr()];
-    e.keys[kTermKey_right] = [c"\x1bOC".as_ptr(), c"\x1b[1;2C".as_ptr()];
+        Some(c"%?%p9%t\x1b(0%e\x1b(B%;\x1b[0%?%p6%t;1%;%?%p5%t;2%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;%?%p7%t;8%;m");
+    e.defs[kTerm_set_lr_margin] = Some(c"\x1b[?69h\x1b[%i%p1%d;%p2%ds");
+    e.defs[kTerm_reset_cursor_style] = Some(c"\x1b[2 q");
+    e.defs[kTerm_set_cursor_style] = Some(c"\x1b[%p1%d q");
+    e.defs[kTerm_enter_strikethrough_mode] = Some(c"\x1b[9m");
+    e.defs[kTerm_set_cursor_color] = Some(c"\x1b]12;%p1%s\x07");
+    e.defs[kTerm_reset_cursor_color] = Some(c"\x1b]112\x07");
+    e.keys[kTermKey_backspace] = [Some(c"\x08"), None];
+    e.keys[kTermKey_beg] = [Some(c"\x1bOE"), None];
+    e.keys[kTermKey_btab] = [Some(c"\x1b[Z"), None];
+    e.keys[kTermKey_dc] = [Some(c"\x1b[3~"), Some(c"\x1b[3;2~")];
+    e.keys[kTermKey_end] = [Some(c"\x1bOF"), Some(c"\x1b[1;2F")];
+    e.keys[kTermKey_home] = [Some(c"\x1bOH"), Some(c"\x1b[1;2H")];
+    e.keys[kTermKey_ic] = [Some(c"\x1b[2~"), Some(c"\x1b[2;2~")];
+    e.keys[kTermKey_npage] = [Some(c"\x1b[6~"), None];
+    e.keys[kTermKey_ppage] = [Some(c"\x1b[5~"), None];
+    e.keys[kTermKey_left] = [Some(c"\x1bOD"), Some(c"\x1b[1;2D")];
+    e.keys[kTermKey_right] = [Some(c"\x1bOC"), Some(c"\x1b[1;2C")];
     set_std_63_fkeys(&mut e.f_keys);
     e
 };
 
-static CYGWIN_TERMINFO: TerminfoEntry = {
+static CYGWIN_TERMINFO: BuiltinTerminfoEntry = {
     let mut e = empty_entry(false, 8, -1, -1);
-    e.defs[kTerm_carriage_return] = c"\r".as_ptr();
-    e.defs[kTerm_clear_screen] = c"\x1b[H\x1b[J".as_ptr();
-    e.defs[kTerm_clr_eol] = c"\x1b[K".as_ptr();
-    e.defs[kTerm_clr_eos] = c"\x1b[J".as_ptr();
-    e.defs[kTerm_cursor_address] = c"\x1b[%i%p1%d;%p2%dH".as_ptr();
-    e.defs[kTerm_cursor_down] = c"\x1b[B".as_ptr();
-    e.defs[kTerm_cursor_left] = c"\x08".as_ptr();
-    e.defs[kTerm_cursor_home] = c"\x1b[H".as_ptr();
-    e.defs[kTerm_cursor_up] = c"\x1b[A".as_ptr();
-    e.defs[kTerm_cursor_right] = c"\x1b[C".as_ptr();
-    e.defs[kTerm_delete_line] = c"\x1b[M".as_ptr();
-    e.defs[kTerm_enter_bold_mode] = c"\x1b[1m".as_ptr();
-    e.defs[kTerm_enter_ca_mode] = c"\x1b7\x1b[?47h".as_ptr();
-    e.defs[kTerm_enter_reverse_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_secure_mode] = c"\x1b[8m".as_ptr();
-    e.defs[kTerm_enter_standout_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_underline_mode] = c"\x1b[4m".as_ptr();
-    e.defs[kTerm_exit_attribute_mode] = c"\x1b[0;10m".as_ptr();
-    e.defs[kTerm_exit_ca_mode] = c"\x1b[2J\x1b[?47l\x1b8".as_ptr();
-    e.defs[kTerm_from_status_line] = c"\x07".as_ptr();
-    e.defs[kTerm_insert_line] = c"\x1b[L".as_ptr();
-    e.defs[kTerm_parm_delete_line] = c"\x1b[%p1%dM".as_ptr();
-    e.defs[kTerm_parm_down_cursor] = c"\x1b[%p1%dB".as_ptr();
-    e.defs[kTerm_parm_insert_line] = c"\x1b[%p1%dL".as_ptr();
-    e.defs[kTerm_parm_left_cursor] = c"\x1b[%p1%dD".as_ptr();
-    e.defs[kTerm_parm_right_cursor] = c"\x1b[%p1%dC".as_ptr();
-    e.defs[kTerm_parm_up_cursor] = c"\x1b[%p1%dA".as_ptr();
-    e.defs[kTerm_set_a_background] = c"\x1b[4%p1%dm".as_ptr();
-    e.defs[kTerm_set_a_foreground] = c"\x1b[3%p1%dm".as_ptr();
+    e.defs[kTerm_carriage_return] = Some(c"\r");
+    e.defs[kTerm_clear_screen] = Some(c"\x1b[H\x1b[J");
+    e.defs[kTerm_clr_eol] = Some(c"\x1b[K");
+    e.defs[kTerm_clr_eos] = Some(c"\x1b[J");
+    e.defs[kTerm_cursor_address] = Some(c"\x1b[%i%p1%d;%p2%dH");
+    e.defs[kTerm_cursor_down] = Some(c"\x1b[B");
+    e.defs[kTerm_cursor_left] = Some(c"\x08");
+    e.defs[kTerm_cursor_home] = Some(c"\x1b[H");
+    e.defs[kTerm_cursor_up] = Some(c"\x1b[A");
+    e.defs[kTerm_cursor_right] = Some(c"\x1b[C");
+    e.defs[kTerm_delete_line] = Some(c"\x1b[M");
+    e.defs[kTerm_enter_bold_mode] = Some(c"\x1b[1m");
+    e.defs[kTerm_enter_ca_mode] = Some(c"\x1b7\x1b[?47h");
+    e.defs[kTerm_enter_reverse_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_secure_mode] = Some(c"\x1b[8m");
+    e.defs[kTerm_enter_standout_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_underline_mode] = Some(c"\x1b[4m");
+    e.defs[kTerm_exit_attribute_mode] = Some(c"\x1b[0;10m");
+    e.defs[kTerm_exit_ca_mode] = Some(c"\x1b[2J\x1b[?47l\x1b8");
+    e.defs[kTerm_from_status_line] = Some(c"\x07");
+    e.defs[kTerm_insert_line] = Some(c"\x1b[L");
+    e.defs[kTerm_parm_delete_line] = Some(c"\x1b[%p1%dM");
+    e.defs[kTerm_parm_down_cursor] = Some(c"\x1b[%p1%dB");
+    e.defs[kTerm_parm_insert_line] = Some(c"\x1b[%p1%dL");
+    e.defs[kTerm_parm_left_cursor] = Some(c"\x1b[%p1%dD");
+    e.defs[kTerm_parm_right_cursor] = Some(c"\x1b[%p1%dC");
+    e.defs[kTerm_parm_up_cursor] = Some(c"\x1b[%p1%dA");
+    e.defs[kTerm_set_a_background] = Some(c"\x1b[4%p1%dm");
+    e.defs[kTerm_set_a_foreground] = Some(c"\x1b[3%p1%dm");
     e.defs[kTerm_set_attributes] =
-        c"\x1b[0;10%?%p1%t;7%;%?%p2%t;4%;%?%p3%t;7%;%?%p6%t;1%;%?%p7%t;8%;%?%p9%t;11%;m".as_ptr();
-    e.defs[kTerm_to_status_line] = c"\x1b];".as_ptr();
-    e.keys[kTermKey_backspace] = [c"\x08".as_ptr(), ptr::null()];
-    e.keys[kTermKey_dc] = [c"\x1b[3~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_end] = [c"\x1b[4~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_home] = [c"\x1b[1~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ic] = [c"\x1b[2~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_npage] = [c"\x1b[6~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ppage] = [c"\x1b[5~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_suspend] = [c"^Z".as_ptr(), ptr::null()];
-    e.keys[kTermKey_left] = [c"\x1b[D".as_ptr(), ptr::null()];
-    e.keys[kTermKey_right] = [c"\x1b[C".as_ptr(), ptr::null()];
-    e.f_keys[0] = c"\x1b[[A".as_ptr();
-    e.f_keys[1] = c"\x1b[[B".as_ptr();
-    e.f_keys[2] = c"\x1b[[C".as_ptr();
-    e.f_keys[3] = c"\x1b[[D".as_ptr();
-    e.f_keys[4] = c"\x1b[[E".as_ptr();
-    e.f_keys[5] = c"\x1b[17~".as_ptr();
-    e.f_keys[6] = c"\x1b[18~".as_ptr();
-    e.f_keys[7] = c"\x1b[19~".as_ptr();
-    e.f_keys[8] = c"\x1b[20~".as_ptr();
-    e.f_keys[9] = c"\x1b[21~".as_ptr();
-    e.f_keys[10] = c"\x1b[23~".as_ptr();
-    e.f_keys[11] = c"\x1b[24~".as_ptr();
-    e.f_keys[12] = c"\x1b[25~".as_ptr();
-    e.f_keys[13] = c"\x1b[26~".as_ptr();
-    e.f_keys[14] = c"\x1b[28~".as_ptr();
-    e.f_keys[15] = c"\x1b[29~".as_ptr();
-    e.f_keys[16] = c"\x1b[31~".as_ptr();
-    e.f_keys[17] = c"\x1b[32~".as_ptr();
-    e.f_keys[18] = c"\x1b[33~".as_ptr();
-    e.f_keys[19] = c"\x1b[34~".as_ptr();
+        Some(c"\x1b[0;10%?%p1%t;7%;%?%p2%t;4%;%?%p3%t;7%;%?%p6%t;1%;%?%p7%t;8%;%?%p9%t;11%;m");
+    e.defs[kTerm_to_status_line] = Some(c"\x1b];");
+    e.keys[kTermKey_backspace] = [Some(c"\x08"), None];
+    e.keys[kTermKey_dc] = [Some(c"\x1b[3~"), None];
+    e.keys[kTermKey_end] = [Some(c"\x1b[4~"), None];
+    e.keys[kTermKey_home] = [Some(c"\x1b[1~"), None];
+    e.keys[kTermKey_ic] = [Some(c"\x1b[2~"), None];
+    e.keys[kTermKey_npage] = [Some(c"\x1b[6~"), None];
+    e.keys[kTermKey_ppage] = [Some(c"\x1b[5~"), None];
+    e.keys[kTermKey_suspend] = [Some(c"^Z"), None];
+    e.keys[kTermKey_left] = [Some(c"\x1b[D"), None];
+    e.keys[kTermKey_right] = [Some(c"\x1b[C"), None];
+    e.f_keys[0] = Some(c"\x1b[[A");
+    e.f_keys[1] = Some(c"\x1b[[B");
+    e.f_keys[2] = Some(c"\x1b[[C");
+    e.f_keys[3] = Some(c"\x1b[[D");
+    e.f_keys[4] = Some(c"\x1b[[E");
+    e.f_keys[5] = Some(c"\x1b[17~");
+    e.f_keys[6] = Some(c"\x1b[18~");
+    e.f_keys[7] = Some(c"\x1b[19~");
+    e.f_keys[8] = Some(c"\x1b[20~");
+    e.f_keys[9] = Some(c"\x1b[21~");
+    e.f_keys[10] = Some(c"\x1b[23~");
+    e.f_keys[11] = Some(c"\x1b[24~");
+    e.f_keys[12] = Some(c"\x1b[25~");
+    e.f_keys[13] = Some(c"\x1b[26~");
+    e.f_keys[14] = Some(c"\x1b[28~");
+    e.f_keys[15] = Some(c"\x1b[29~");
+    e.f_keys[16] = Some(c"\x1b[31~");
+    e.f_keys[17] = Some(c"\x1b[32~");
+    e.f_keys[18] = Some(c"\x1b[33~");
+    e.f_keys[19] = Some(c"\x1b[34~");
     e
 };
 
-static WIN32CON_TERMINFO: TerminfoEntry = {
+static WIN32CON_TERMINFO: BuiltinTerminfoEntry = {
     let mut e = empty_entry(false, 8, -1, -1);
-    e.defs[kTerm_carriage_return] = c"\r".as_ptr();
-    e.defs[kTerm_clear_screen] = c"\x1b[H\x1b[J".as_ptr();
-    e.defs[kTerm_clr_eol] = c"\x1b[K".as_ptr();
-    e.defs[kTerm_clr_eos] = c"\x1b[J".as_ptr();
-    e.defs[kTerm_cursor_address] = c"\x1b[%i%p1%d;%p2%dH".as_ptr();
-    e.defs[kTerm_cursor_down] = c"\x1b[B".as_ptr();
-    e.defs[kTerm_cursor_left] = c"\x08".as_ptr();
-    e.defs[kTerm_cursor_home] = c"\x1b[H".as_ptr();
-    e.defs[kTerm_cursor_up] = c"\x1b[A".as_ptr();
-    e.defs[kTerm_cursor_right] = c"\x1b[C".as_ptr();
-    e.defs[kTerm_enter_bold_mode] = c"\x1b[1m".as_ptr();
-    e.defs[kTerm_enter_ca_mode] = c"\x1b7\x1b[?47h".as_ptr();
-    e.defs[kTerm_enter_reverse_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_standout_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_exit_attribute_mode] = c"\x1b[0m".as_ptr();
-    e.defs[kTerm_exit_ca_mode] = c"\x1b[2J\x1b[?47l\x1b8".as_ptr();
-    e.defs[kTerm_parm_down_cursor] = c"\x1b[%p1%dB".as_ptr();
-    e.defs[kTerm_parm_left_cursor] = c"\x1b[%p1%dD".as_ptr();
-    e.defs[kTerm_parm_right_cursor] = c"\x1b[%p1%dC".as_ptr();
-    e.defs[kTerm_parm_up_cursor] = c"\x1b[%p1%dA".as_ptr();
-    e.defs[kTerm_set_a_background] = c"\x1b[4%p1%dm".as_ptr();
-    e.defs[kTerm_set_a_foreground] = c"\x1b[3%p1%dm".as_ptr();
-    e.defs[kTerm_set_attributes] = c"\x1b[0%?%p1%t;7%;%?%p3%t;7%;%?%p6%t;1%;m".as_ptr();
-    e.defs[kTerm_reset_cursor_style] = c"\x1b[0 q".as_ptr();
-    e.defs[kTerm_set_cursor_style] = c"\x1b[%p1%d q".as_ptr();
-    e.keys[kTermKey_backspace] = [c"\x08".as_ptr(), ptr::null()];
-    e.keys[kTermKey_dc] = [c"\x1b[3~".as_ptr(), c"\x1b[3;2~".as_ptr()];
-    e.keys[kTermKey_end] = [c"\x1b[4~".as_ptr(), c"\x1b[4;2~".as_ptr()];
-    e.keys[kTermKey_home] = [c"\x1b[1~".as_ptr(), c"\x1b[1;2~".as_ptr()];
-    e.keys[kTermKey_ic] = [c"\x1b[2~".as_ptr(), c"\x1b[2;2~".as_ptr()];
-    e.keys[kTermKey_npage] = [c"\x1b[6~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ppage] = [c"\x1b[5~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_suspend] = [c"^Z".as_ptr(), ptr::null()];
-    e.keys[kTermKey_left] = [c"\x1b[D".as_ptr(), c"\x1b[1;2D".as_ptr()];
-    e.keys[kTermKey_right] = [c"\x1b[C".as_ptr(), c"\x1b[1;2C".as_ptr()];
-    e.f_keys[0] = c"\x1b[[A".as_ptr();
-    e.f_keys[1] = c"\x1b[[B".as_ptr();
-    e.f_keys[2] = c"\x1b[[C".as_ptr();
-    e.f_keys[3] = c"\x1b[[D".as_ptr();
-    e.f_keys[4] = c"\x1b[[E".as_ptr();
-    e.f_keys[5] = c"\x1b[17~".as_ptr();
-    e.f_keys[6] = c"\x1b[18~".as_ptr();
-    e.f_keys[7] = c"\x1b[19~".as_ptr();
-    e.f_keys[8] = c"\x1b[20~".as_ptr();
-    e.f_keys[9] = c"\x1b[21~".as_ptr();
-    e.f_keys[10] = c"\x1b[23~".as_ptr();
-    e.f_keys[11] = c"\x1b[24~".as_ptr();
-    e.f_keys[12] = c"\x1b[25~".as_ptr();
-    e.f_keys[13] = c"\x1b[26~".as_ptr();
-    e.f_keys[14] = c"\x1b[28~".as_ptr();
-    e.f_keys[15] = c"\x1b[29~".as_ptr();
-    e.f_keys[16] = c"\x1b[31~".as_ptr();
-    e.f_keys[17] = c"\x1b[32~".as_ptr();
-    e.f_keys[18] = c"\x1b[33~".as_ptr();
-    e.f_keys[19] = c"\x1b[34~".as_ptr();
-    e.f_keys[20] = c"\x1b[23$".as_ptr();
-    e.f_keys[21] = c"\x1b[24$".as_ptr();
-    e.f_keys[22] = c"\x1b[11^".as_ptr();
-    e.f_keys[23] = c"\x1b[12^".as_ptr();
-    e.f_keys[24] = c"\x1b[13^".as_ptr();
-    e.f_keys[25] = c"\x1b[14^".as_ptr();
-    e.f_keys[26] = c"\x1b[15^".as_ptr();
-    e.f_keys[27] = c"\x1b[17^".as_ptr();
-    e.f_keys[28] = c"\x1b[18^".as_ptr();
-    e.f_keys[29] = c"\x1b[19^".as_ptr();
-    e.f_keys[30] = c"\x1b[20^".as_ptr();
-    e.f_keys[31] = c"\x1b[21^".as_ptr();
-    e.f_keys[32] = c"\x1b[23^".as_ptr();
-    e.f_keys[33] = c"\x1b[24^".as_ptr();
-    e.f_keys[34] = c"\x1b[25^".as_ptr();
-    e.f_keys[35] = c"\x1b[26^".as_ptr();
-    e.f_keys[36] = c"\x1b[28^".as_ptr();
-    e.f_keys[37] = c"\x1b[29^".as_ptr();
-    e.f_keys[38] = c"\x1b[31^".as_ptr();
-    e.f_keys[40] = c"\x1b[32^".as_ptr();
-    e.f_keys[41] = c"\x1b[33^".as_ptr();
-    e.f_keys[42] = c"\x1b[34^".as_ptr();
-    e.f_keys[43] = c"\x1b[23@".as_ptr();
-    e.f_keys[44] = c"\x1b[24@".as_ptr();
+    e.defs[kTerm_carriage_return] = Some(c"\r");
+    e.defs[kTerm_clear_screen] = Some(c"\x1b[H\x1b[J");
+    e.defs[kTerm_clr_eol] = Some(c"\x1b[K");
+    e.defs[kTerm_clr_eos] = Some(c"\x1b[J");
+    e.defs[kTerm_cursor_address] = Some(c"\x1b[%i%p1%d;%p2%dH");
+    e.defs[kTerm_cursor_down] = Some(c"\x1b[B");
+    e.defs[kTerm_cursor_left] = Some(c"\x08");
+    e.defs[kTerm_cursor_home] = Some(c"\x1b[H");
+    e.defs[kTerm_cursor_up] = Some(c"\x1b[A");
+    e.defs[kTerm_cursor_right] = Some(c"\x1b[C");
+    e.defs[kTerm_enter_bold_mode] = Some(c"\x1b[1m");
+    e.defs[kTerm_enter_ca_mode] = Some(c"\x1b7\x1b[?47h");
+    e.defs[kTerm_enter_reverse_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_standout_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_exit_attribute_mode] = Some(c"\x1b[0m");
+    e.defs[kTerm_exit_ca_mode] = Some(c"\x1b[2J\x1b[?47l\x1b8");
+    e.defs[kTerm_parm_down_cursor] = Some(c"\x1b[%p1%dB");
+    e.defs[kTerm_parm_left_cursor] = Some(c"\x1b[%p1%dD");
+    e.defs[kTerm_parm_right_cursor] = Some(c"\x1b[%p1%dC");
+    e.defs[kTerm_parm_up_cursor] = Some(c"\x1b[%p1%dA");
+    e.defs[kTerm_set_a_background] = Some(c"\x1b[4%p1%dm");
+    e.defs[kTerm_set_a_foreground] = Some(c"\x1b[3%p1%dm");
+    e.defs[kTerm_set_attributes] = Some(c"\x1b[0%?%p1%t;7%;%?%p3%t;7%;%?%p6%t;1%;m");
+    e.defs[kTerm_reset_cursor_style] = Some(c"\x1b[0 q");
+    e.defs[kTerm_set_cursor_style] = Some(c"\x1b[%p1%d q");
+    e.keys[kTermKey_backspace] = [Some(c"\x08"), None];
+    e.keys[kTermKey_dc] = [Some(c"\x1b[3~"), Some(c"\x1b[3;2~")];
+    e.keys[kTermKey_end] = [Some(c"\x1b[4~"), Some(c"\x1b[4;2~")];
+    e.keys[kTermKey_home] = [Some(c"\x1b[1~"), Some(c"\x1b[1;2~")];
+    e.keys[kTermKey_ic] = [Some(c"\x1b[2~"), Some(c"\x1b[2;2~")];
+    e.keys[kTermKey_npage] = [Some(c"\x1b[6~"), None];
+    e.keys[kTermKey_ppage] = [Some(c"\x1b[5~"), None];
+    e.keys[kTermKey_suspend] = [Some(c"^Z"), None];
+    e.keys[kTermKey_left] = [Some(c"\x1b[D"), Some(c"\x1b[1;2D")];
+    e.keys[kTermKey_right] = [Some(c"\x1b[C"), Some(c"\x1b[1;2C")];
+    e.f_keys[0] = Some(c"\x1b[[A");
+    e.f_keys[1] = Some(c"\x1b[[B");
+    e.f_keys[2] = Some(c"\x1b[[C");
+    e.f_keys[3] = Some(c"\x1b[[D");
+    e.f_keys[4] = Some(c"\x1b[[E");
+    e.f_keys[5] = Some(c"\x1b[17~");
+    e.f_keys[6] = Some(c"\x1b[18~");
+    e.f_keys[7] = Some(c"\x1b[19~");
+    e.f_keys[8] = Some(c"\x1b[20~");
+    e.f_keys[9] = Some(c"\x1b[21~");
+    e.f_keys[10] = Some(c"\x1b[23~");
+    e.f_keys[11] = Some(c"\x1b[24~");
+    e.f_keys[12] = Some(c"\x1b[25~");
+    e.f_keys[13] = Some(c"\x1b[26~");
+    e.f_keys[14] = Some(c"\x1b[28~");
+    e.f_keys[15] = Some(c"\x1b[29~");
+    e.f_keys[16] = Some(c"\x1b[31~");
+    e.f_keys[17] = Some(c"\x1b[32~");
+    e.f_keys[18] = Some(c"\x1b[33~");
+    e.f_keys[19] = Some(c"\x1b[34~");
+    e.f_keys[20] = Some(c"\x1b[23$");
+    e.f_keys[21] = Some(c"\x1b[24$");
+    e.f_keys[22] = Some(c"\x1b[11^");
+    e.f_keys[23] = Some(c"\x1b[12^");
+    e.f_keys[24] = Some(c"\x1b[13^");
+    e.f_keys[25] = Some(c"\x1b[14^");
+    e.f_keys[26] = Some(c"\x1b[15^");
+    e.f_keys[27] = Some(c"\x1b[17^");
+    e.f_keys[28] = Some(c"\x1b[18^");
+    e.f_keys[29] = Some(c"\x1b[19^");
+    e.f_keys[30] = Some(c"\x1b[20^");
+    e.f_keys[31] = Some(c"\x1b[21^");
+    e.f_keys[32] = Some(c"\x1b[23^");
+    e.f_keys[33] = Some(c"\x1b[24^");
+    e.f_keys[34] = Some(c"\x1b[25^");
+    e.f_keys[35] = Some(c"\x1b[26^");
+    e.f_keys[36] = Some(c"\x1b[28^");
+    e.f_keys[37] = Some(c"\x1b[29^");
+    e.f_keys[38] = Some(c"\x1b[31^");
+    e.f_keys[40] = Some(c"\x1b[32^");
+    e.f_keys[41] = Some(c"\x1b[33^");
+    e.f_keys[42] = Some(c"\x1b[34^");
+    e.f_keys[43] = Some(c"\x1b[23@");
+    e.f_keys[44] = Some(c"\x1b[24@");
     e
 };
 
-static CONEMU_TERMINFO: TerminfoEntry = {
+static CONEMU_TERMINFO: BuiltinTerminfoEntry = {
     let mut e = empty_entry(true, 0x100, 24, 80);
-    e.defs[kTerm_carriage_return] = c"\r".as_ptr();
-    e.defs[kTerm_change_scroll_region] = c"\x1b[%i%p1%d;%p2%dr".as_ptr();
-    e.defs[kTerm_clear_screen] = c"\x1b[H\x1b[2J".as_ptr();
-    e.defs[kTerm_clr_eol] = c"\x1b[K".as_ptr();
-    e.defs[kTerm_clr_eos] = c"\x1b[J".as_ptr();
-    e.defs[kTerm_cursor_address] = c"\x1b[%i%p1%d;%p2%dH".as_ptr();
-    e.defs[kTerm_cursor_down] = c"\x1b[B".as_ptr();
-    e.defs[kTerm_cursor_invisible] = c"\x1b[?25l".as_ptr();
-    e.defs[kTerm_cursor_left] = c"\x08".as_ptr();
-    e.defs[kTerm_cursor_home] = c"\x1b[H".as_ptr();
-    e.defs[kTerm_cursor_normal] = c"\x1b[?25h".as_ptr();
-    e.defs[kTerm_cursor_up] = c"\x1b[A".as_ptr();
-    e.defs[kTerm_cursor_right] = c"\x1b[C".as_ptr();
-    e.defs[kTerm_delete_line] = c"\x1b[M".as_ptr();
-    e.defs[kTerm_enter_bold_mode] = c"\x1b[1m".as_ptr();
-    e.defs[kTerm_enter_ca_mode] = c"\x1b[?1049h".as_ptr();
-    e.defs[kTerm_enter_italics_mode] = c"\x1b[3m".as_ptr();
-    e.defs[kTerm_enter_reverse_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_standout_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_underline_mode] = c"\x1b[4m".as_ptr();
-    e.defs[kTerm_erase_chars] = c"\x1b[%p1%dX".as_ptr();
-    e.defs[kTerm_exit_attribute_mode] = c"\x1b[0m".as_ptr();
-    e.defs[kTerm_exit_ca_mode] = c"\x1b[?1049l".as_ptr();
-    e.defs[kTerm_insert_line] = c"\x1b[L".as_ptr();
-    e.defs[kTerm_parm_delete_line] = c"\x1b[%p1%dM".as_ptr();
-    e.defs[kTerm_parm_down_cursor] = c"\x1b[%p1%dB".as_ptr();
-    e.defs[kTerm_parm_insert_line] = c"\x1b[%p1%dL".as_ptr();
-    e.defs[kTerm_parm_left_cursor] = c"\x1b[%p1%dD".as_ptr();
-    e.defs[kTerm_parm_right_cursor] = c"\x1b[%p1%dC".as_ptr();
-    e.defs[kTerm_parm_up_cursor] = c"\x1b[%p1%dA".as_ptr();
-    e.defs[kTerm_set_a_background] = c"\x1b[48;5;%p1%dm".as_ptr();
-    e.defs[kTerm_set_a_foreground] = c"\x1b[38;5;%p1%dm".as_ptr();
-    e.defs[kTerm_set_attributes] = c"\x1b[0%?%p1%p3%|%t;7%;%?%p2%t;4%;%?%p6%t;1%;m".as_ptr();
-    e.defs[kTerm_reset_cursor_style] = c"\x1b[2 q".as_ptr();
-    e.defs[kTerm_set_cursor_style] = c"\x1b[%p1%d q".as_ptr();
-    e.keys[kTermKey_backspace] = [c"\x08".as_ptr(), ptr::null()];
-    e.keys[kTermKey_beg] = [c"\x1bOE".as_ptr(), ptr::null()];
-    e.keys[kTermKey_btab] = [c"\x1b[Z".as_ptr(), ptr::null()];
-    e.keys[kTermKey_dc] = [c"\x1b[3~".as_ptr(), c"\x1b[3;2~".as_ptr()];
-    e.keys[kTermKey_end] = [c"\x1b[4~".as_ptr(), c"\x1b[4;2~".as_ptr()];
-    e.keys[kTermKey_home] = [c"\x1b[1~".as_ptr(), c"\x1b[1;2~".as_ptr()];
-    e.keys[kTermKey_ic] = [c"\x1b[2~".as_ptr(), c"\x1b[2;2~".as_ptr()];
-    e.keys[kTermKey_npage] = [c"\x1b[6~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ppage] = [c"\x1b[5~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_left] = [c"\x1b[D".as_ptr(), c"\x1b[1;2D".as_ptr()];
-    e.keys[kTermKey_right] = [c"\x1b[C".as_ptr(), c"\x1b[1;2C".as_ptr()];
-    e.f_keys[0] = c"\x1b[[A".as_ptr();
-    e.f_keys[1] = c"\x1b[[B".as_ptr();
-    e.f_keys[2] = c"\x1b[[C".as_ptr();
-    e.f_keys[3] = c"\x1b[[D".as_ptr();
-    e.f_keys[4] = c"\x1b[[E".as_ptr();
-    e.f_keys[5] = c"\x1b[17~".as_ptr();
-    e.f_keys[6] = c"\x1b[18~".as_ptr();
-    e.f_keys[7] = c"\x1b[19~".as_ptr();
-    e.f_keys[8] = c"\x1b[20~".as_ptr();
-    e.f_keys[9] = c"\x1b[21~".as_ptr();
-    e.f_keys[10] = c"\x1b[23~".as_ptr();
-    e.f_keys[11] = c"\x1b[24~".as_ptr();
-    e.f_keys[12] = c"\x1b[25~".as_ptr();
-    e.f_keys[13] = c"\x1b[26~".as_ptr();
-    e.f_keys[14] = c"\x1b[28~".as_ptr();
-    e.f_keys[15] = c"\x1b[29~".as_ptr();
-    e.f_keys[16] = c"\x1b[31~".as_ptr();
-    e.f_keys[17] = c"\x1b[32~".as_ptr();
-    e.f_keys[18] = c"\x1b[33~".as_ptr();
-    e.f_keys[19] = c"\x1b[34~".as_ptr();
-    e.f_keys[20] = c"\x1b[23$".as_ptr();
-    e.f_keys[21] = c"\x1b[24$".as_ptr();
-    e.f_keys[22] = c"\x1b[11^".as_ptr();
-    e.f_keys[23] = c"\x1b[12^".as_ptr();
-    e.f_keys[24] = c"\x1b[13^".as_ptr();
-    e.f_keys[25] = c"\x1b[14^".as_ptr();
-    e.f_keys[26] = c"\x1b[15^".as_ptr();
-    e.f_keys[27] = c"\x1b[17^".as_ptr();
-    e.f_keys[28] = c"\x1b[18^".as_ptr();
-    e.f_keys[29] = c"\x1b[19^".as_ptr();
-    e.f_keys[30] = c"\x1b[20^".as_ptr();
-    e.f_keys[31] = c"\x1b[21^".as_ptr();
-    e.f_keys[32] = c"\x1b[23^".as_ptr();
-    e.f_keys[33] = c"\x1b[24^".as_ptr();
-    e.f_keys[34] = c"\x1b[25^".as_ptr();
-    e.f_keys[35] = c"\x1b[26^".as_ptr();
-    e.f_keys[36] = c"\x1b[28^".as_ptr();
-    e.f_keys[37] = c"\x1b[29^".as_ptr();
-    e.f_keys[38] = c"\x1b[31^".as_ptr();
-    e.f_keys[39] = c"\x1b[1;6S".as_ptr();
-    e.f_keys[40] = c"\x1b[32^".as_ptr();
-    e.f_keys[41] = c"\x1b[33^".as_ptr();
-    e.f_keys[42] = c"\x1b[34^".as_ptr();
-    e.f_keys[43] = c"\x1b[23@".as_ptr();
-    e.f_keys[44] = c"\x1b[24@".as_ptr();
+    e.defs[kTerm_carriage_return] = Some(c"\r");
+    e.defs[kTerm_change_scroll_region] = Some(c"\x1b[%i%p1%d;%p2%dr");
+    e.defs[kTerm_clear_screen] = Some(c"\x1b[H\x1b[2J");
+    e.defs[kTerm_clr_eol] = Some(c"\x1b[K");
+    e.defs[kTerm_clr_eos] = Some(c"\x1b[J");
+    e.defs[kTerm_cursor_address] = Some(c"\x1b[%i%p1%d;%p2%dH");
+    e.defs[kTerm_cursor_down] = Some(c"\x1b[B");
+    e.defs[kTerm_cursor_invisible] = Some(c"\x1b[?25l");
+    e.defs[kTerm_cursor_left] = Some(c"\x08");
+    e.defs[kTerm_cursor_home] = Some(c"\x1b[H");
+    e.defs[kTerm_cursor_normal] = Some(c"\x1b[?25h");
+    e.defs[kTerm_cursor_up] = Some(c"\x1b[A");
+    e.defs[kTerm_cursor_right] = Some(c"\x1b[C");
+    e.defs[kTerm_delete_line] = Some(c"\x1b[M");
+    e.defs[kTerm_enter_bold_mode] = Some(c"\x1b[1m");
+    e.defs[kTerm_enter_ca_mode] = Some(c"\x1b[?1049h");
+    e.defs[kTerm_enter_italics_mode] = Some(c"\x1b[3m");
+    e.defs[kTerm_enter_reverse_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_standout_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_underline_mode] = Some(c"\x1b[4m");
+    e.defs[kTerm_erase_chars] = Some(c"\x1b[%p1%dX");
+    e.defs[kTerm_exit_attribute_mode] = Some(c"\x1b[0m");
+    e.defs[kTerm_exit_ca_mode] = Some(c"\x1b[?1049l");
+    e.defs[kTerm_insert_line] = Some(c"\x1b[L");
+    e.defs[kTerm_parm_delete_line] = Some(c"\x1b[%p1%dM");
+    e.defs[kTerm_parm_down_cursor] = Some(c"\x1b[%p1%dB");
+    e.defs[kTerm_parm_insert_line] = Some(c"\x1b[%p1%dL");
+    e.defs[kTerm_parm_left_cursor] = Some(c"\x1b[%p1%dD");
+    e.defs[kTerm_parm_right_cursor] = Some(c"\x1b[%p1%dC");
+    e.defs[kTerm_parm_up_cursor] = Some(c"\x1b[%p1%dA");
+    e.defs[kTerm_set_a_background] = Some(c"\x1b[48;5;%p1%dm");
+    e.defs[kTerm_set_a_foreground] = Some(c"\x1b[38;5;%p1%dm");
+    e.defs[kTerm_set_attributes] = Some(c"\x1b[0%?%p1%p3%|%t;7%;%?%p2%t;4%;%?%p6%t;1%;m");
+    e.defs[kTerm_reset_cursor_style] = Some(c"\x1b[2 q");
+    e.defs[kTerm_set_cursor_style] = Some(c"\x1b[%p1%d q");
+    e.keys[kTermKey_backspace] = [Some(c"\x08"), None];
+    e.keys[kTermKey_beg] = [Some(c"\x1bOE"), None];
+    e.keys[kTermKey_btab] = [Some(c"\x1b[Z"), None];
+    e.keys[kTermKey_dc] = [Some(c"\x1b[3~"), Some(c"\x1b[3;2~")];
+    e.keys[kTermKey_end] = [Some(c"\x1b[4~"), Some(c"\x1b[4;2~")];
+    e.keys[kTermKey_home] = [Some(c"\x1b[1~"), Some(c"\x1b[1;2~")];
+    e.keys[kTermKey_ic] = [Some(c"\x1b[2~"), Some(c"\x1b[2;2~")];
+    e.keys[kTermKey_npage] = [Some(c"\x1b[6~"), None];
+    e.keys[kTermKey_ppage] = [Some(c"\x1b[5~"), None];
+    e.keys[kTermKey_left] = [Some(c"\x1b[D"), Some(c"\x1b[1;2D")];
+    e.keys[kTermKey_right] = [Some(c"\x1b[C"), Some(c"\x1b[1;2C")];
+    e.f_keys[0] = Some(c"\x1b[[A");
+    e.f_keys[1] = Some(c"\x1b[[B");
+    e.f_keys[2] = Some(c"\x1b[[C");
+    e.f_keys[3] = Some(c"\x1b[[D");
+    e.f_keys[4] = Some(c"\x1b[[E");
+    e.f_keys[5] = Some(c"\x1b[17~");
+    e.f_keys[6] = Some(c"\x1b[18~");
+    e.f_keys[7] = Some(c"\x1b[19~");
+    e.f_keys[8] = Some(c"\x1b[20~");
+    e.f_keys[9] = Some(c"\x1b[21~");
+    e.f_keys[10] = Some(c"\x1b[23~");
+    e.f_keys[11] = Some(c"\x1b[24~");
+    e.f_keys[12] = Some(c"\x1b[25~");
+    e.f_keys[13] = Some(c"\x1b[26~");
+    e.f_keys[14] = Some(c"\x1b[28~");
+    e.f_keys[15] = Some(c"\x1b[29~");
+    e.f_keys[16] = Some(c"\x1b[31~");
+    e.f_keys[17] = Some(c"\x1b[32~");
+    e.f_keys[18] = Some(c"\x1b[33~");
+    e.f_keys[19] = Some(c"\x1b[34~");
+    e.f_keys[20] = Some(c"\x1b[23$");
+    e.f_keys[21] = Some(c"\x1b[24$");
+    e.f_keys[22] = Some(c"\x1b[11^");
+    e.f_keys[23] = Some(c"\x1b[12^");
+    e.f_keys[24] = Some(c"\x1b[13^");
+    e.f_keys[25] = Some(c"\x1b[14^");
+    e.f_keys[26] = Some(c"\x1b[15^");
+    e.f_keys[27] = Some(c"\x1b[17^");
+    e.f_keys[28] = Some(c"\x1b[18^");
+    e.f_keys[29] = Some(c"\x1b[19^");
+    e.f_keys[30] = Some(c"\x1b[20^");
+    e.f_keys[31] = Some(c"\x1b[21^");
+    e.f_keys[32] = Some(c"\x1b[23^");
+    e.f_keys[33] = Some(c"\x1b[24^");
+    e.f_keys[34] = Some(c"\x1b[25^");
+    e.f_keys[35] = Some(c"\x1b[26^");
+    e.f_keys[36] = Some(c"\x1b[28^");
+    e.f_keys[37] = Some(c"\x1b[29^");
+    e.f_keys[38] = Some(c"\x1b[31^");
+    e.f_keys[39] = Some(c"\x1b[1;6S");
+    e.f_keys[40] = Some(c"\x1b[32^");
+    e.f_keys[41] = Some(c"\x1b[33^");
+    e.f_keys[42] = Some(c"\x1b[34^");
+    e.f_keys[43] = Some(c"\x1b[23@");
+    e.f_keys[44] = Some(c"\x1b[24@");
     e
 };
 
-static VTPCON_TERMINFO: TerminfoEntry = {
+static VTPCON_TERMINFO: BuiltinTerminfoEntry = {
     let mut e = empty_entry(true, 0x100, 24, 80);
-    e.defs[kTerm_carriage_return] = c"\r".as_ptr();
-    e.defs[kTerm_change_scroll_region] = c"\x1b[%i%p1%d;%p2%dr".as_ptr();
-    e.defs[kTerm_clear_screen] = c"\x1b[H\x1b[2J".as_ptr();
-    e.defs[kTerm_clr_eol] = c"\x1b[K".as_ptr();
-    e.defs[kTerm_clr_eos] = c"\x1b[J".as_ptr();
-    e.defs[kTerm_cursor_address] = c"\x1b[%i%p1%d;%p2%dH".as_ptr();
-    e.defs[kTerm_cursor_down] = c"\x1b[B".as_ptr();
-    e.defs[kTerm_cursor_invisible] = c"\x1b[?25l".as_ptr();
-    e.defs[kTerm_cursor_left] = c"\x08".as_ptr();
-    e.defs[kTerm_cursor_home] = c"\x1b[H".as_ptr();
-    e.defs[kTerm_cursor_normal] = c"\x1b[?12l\x1b[?25h".as_ptr();
-    e.defs[kTerm_cursor_up] = c"\x1b[A".as_ptr();
-    e.defs[kTerm_cursor_right] = c"\x1b[C".as_ptr();
-    e.defs[kTerm_delete_line] = c"\x1b[M".as_ptr();
-    e.defs[kTerm_enter_bold_mode] = c"\x1b[1m".as_ptr();
-    e.defs[kTerm_enter_ca_mode] = c"\x1b[?1049h".as_ptr();
-    e.defs[kTerm_enter_italics_mode] = c"\x1b[3m".as_ptr();
-    e.defs[kTerm_enter_reverse_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_standout_mode] = c"\x1b[7m".as_ptr();
-    e.defs[kTerm_enter_underline_mode] = c"\x1b[4m".as_ptr();
-    e.defs[kTerm_erase_chars] = c"\x1b[%p1%dX".as_ptr();
-    e.defs[kTerm_exit_attribute_mode] = c"\x1b[0m".as_ptr();
-    e.defs[kTerm_exit_ca_mode] = c"\x1b[?1049l".as_ptr();
-    e.defs[kTerm_from_status_line] = c"\x07".as_ptr();
-    e.defs[kTerm_insert_line] = c"\x1b[L".as_ptr();
-    e.defs[kTerm_parm_delete_line] = c"\x1b[%p1%dM".as_ptr();
-    e.defs[kTerm_parm_down_cursor] = c"\x1b[%p1%dB".as_ptr();
-    e.defs[kTerm_parm_insert_line] = c"\x1b[%p1%dL".as_ptr();
-    e.defs[kTerm_parm_left_cursor] = c"\x1b[%p1%dD".as_ptr();
-    e.defs[kTerm_parm_right_cursor] = c"\x1b[%p1%dC".as_ptr();
-    e.defs[kTerm_parm_up_cursor] = c"\x1b[%p1%dA".as_ptr();
+    e.defs[kTerm_carriage_return] = Some(c"\r");
+    e.defs[kTerm_change_scroll_region] = Some(c"\x1b[%i%p1%d;%p2%dr");
+    e.defs[kTerm_clear_screen] = Some(c"\x1b[H\x1b[2J");
+    e.defs[kTerm_clr_eol] = Some(c"\x1b[K");
+    e.defs[kTerm_clr_eos] = Some(c"\x1b[J");
+    e.defs[kTerm_cursor_address] = Some(c"\x1b[%i%p1%d;%p2%dH");
+    e.defs[kTerm_cursor_down] = Some(c"\x1b[B");
+    e.defs[kTerm_cursor_invisible] = Some(c"\x1b[?25l");
+    e.defs[kTerm_cursor_left] = Some(c"\x08");
+    e.defs[kTerm_cursor_home] = Some(c"\x1b[H");
+    e.defs[kTerm_cursor_normal] = Some(c"\x1b[?12l\x1b[?25h");
+    e.defs[kTerm_cursor_up] = Some(c"\x1b[A");
+    e.defs[kTerm_cursor_right] = Some(c"\x1b[C");
+    e.defs[kTerm_delete_line] = Some(c"\x1b[M");
+    e.defs[kTerm_enter_bold_mode] = Some(c"\x1b[1m");
+    e.defs[kTerm_enter_ca_mode] = Some(c"\x1b[?1049h");
+    e.defs[kTerm_enter_italics_mode] = Some(c"\x1b[3m");
+    e.defs[kTerm_enter_reverse_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_standout_mode] = Some(c"\x1b[7m");
+    e.defs[kTerm_enter_underline_mode] = Some(c"\x1b[4m");
+    e.defs[kTerm_erase_chars] = Some(c"\x1b[%p1%dX");
+    e.defs[kTerm_exit_attribute_mode] = Some(c"\x1b[0m");
+    e.defs[kTerm_exit_ca_mode] = Some(c"\x1b[?1049l");
+    e.defs[kTerm_from_status_line] = Some(c"\x07");
+    e.defs[kTerm_insert_line] = Some(c"\x1b[L");
+    e.defs[kTerm_parm_delete_line] = Some(c"\x1b[%p1%dM");
+    e.defs[kTerm_parm_down_cursor] = Some(c"\x1b[%p1%dB");
+    e.defs[kTerm_parm_insert_line] = Some(c"\x1b[%p1%dL");
+    e.defs[kTerm_parm_left_cursor] = Some(c"\x1b[%p1%dD");
+    e.defs[kTerm_parm_right_cursor] = Some(c"\x1b[%p1%dC");
+    e.defs[kTerm_parm_up_cursor] = Some(c"\x1b[%p1%dA");
     e.defs[kTerm_set_a_background] =
-        c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m");
     e.defs[kTerm_set_a_foreground] =
-        c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m".as_ptr();
+        Some(c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m");
     e.defs[kTerm_set_attributes] =
-        c"\x1b[0%?%p1%p3%|%t;7%;%?%p2%t;4%;%?%p6%t;1%;%?%p9%t;9%;m".as_ptr();
-    e.defs[kTerm_to_status_line] = c"\x1b]0;".as_ptr();
-    e.defs[kTerm_reset_cursor_style] = c"\x1b[2 q".as_ptr();
-    e.defs[kTerm_set_cursor_style] = c"\x1b[%p1%d q".as_ptr();
-    e.defs[kTerm_enter_strikethrough_mode] = c"\x1b[9m".as_ptr();
-    e.keys[kTermKey_backspace] = [c"\x08".as_ptr(), ptr::null()];
-    e.keys[kTermKey_beg] = [c"\x1bOE".as_ptr(), ptr::null()];
-    e.keys[kTermKey_btab] = [c"\x1b[Z".as_ptr(), ptr::null()];
-    e.keys[kTermKey_dc] = [c"\x1b[3~".as_ptr(), c"\x1b[3;2~".as_ptr()];
-    e.keys[kTermKey_end] = [c"\x1b[4~".as_ptr(), c"\x1b[4;2~".as_ptr()];
-    e.keys[kTermKey_home] = [c"\x1b[1~".as_ptr(), c"\x1b[1;2~".as_ptr()];
-    e.keys[kTermKey_ic] = [c"\x1b[2~".as_ptr(), c"\x1b[2;2~".as_ptr()];
-    e.keys[kTermKey_npage] = [c"\x1b[6~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_ppage] = [c"\x1b[5~".as_ptr(), ptr::null()];
-    e.keys[kTermKey_left] = [c"\x1b[D".as_ptr(), c"\x1b[1;2D".as_ptr()];
-    e.keys[kTermKey_right] = [c"\x1b[C".as_ptr(), c"\x1b[1;2C".as_ptr()];
-    e.f_keys[0] = c"\x1b[[A".as_ptr();
-    e.f_keys[1] = c"\x1b[[B".as_ptr();
-    e.f_keys[2] = c"\x1b[[C".as_ptr();
-    e.f_keys[3] = c"\x1b[[D".as_ptr();
-    e.f_keys[4] = c"\x1b[[E".as_ptr();
-    e.f_keys[5] = c"\x1b[17~".as_ptr();
-    e.f_keys[6] = c"\x1b[18~".as_ptr();
-    e.f_keys[7] = c"\x1b[19~".as_ptr();
-    e.f_keys[8] = c"\x1b[20~".as_ptr();
-    e.f_keys[9] = c"\x1b[21~".as_ptr();
-    e.f_keys[10] = c"\x1b[23~".as_ptr();
-    e.f_keys[11] = c"\x1b[24~".as_ptr();
-    e.f_keys[12] = c"\x1b[25~".as_ptr();
-    e.f_keys[13] = c"\x1b[26~".as_ptr();
-    e.f_keys[14] = c"\x1b[28~".as_ptr();
-    e.f_keys[15] = c"\x1b[29~".as_ptr();
-    e.f_keys[16] = c"\x1b[31~".as_ptr();
-    e.f_keys[17] = c"\x1b[32~".as_ptr();
-    e.f_keys[18] = c"\x1b[33~".as_ptr();
-    e.f_keys[19] = c"\x1b[34~".as_ptr();
-    e.f_keys[20] = c"\x1b[23$".as_ptr();
-    e.f_keys[21] = c"\x1b[24$".as_ptr();
-    e.f_keys[22] = c"\x1b[11^".as_ptr();
-    e.f_keys[23] = c"\x1b[12^".as_ptr();
-    e.f_keys[24] = c"\x1b[13^".as_ptr();
-    e.f_keys[25] = c"\x1b[14^".as_ptr();
-    e.f_keys[26] = c"\x1b[15^".as_ptr();
-    e.f_keys[27] = c"\x1b[17^".as_ptr();
-    e.f_keys[28] = c"\x1b[18^".as_ptr();
-    e.f_keys[29] = c"\x1b[19^".as_ptr();
-    e.f_keys[30] = c"\x1b[20^".as_ptr();
-    e.f_keys[31] = c"\x1b[21^".as_ptr();
-    e.f_keys[32] = c"\x1b[23^".as_ptr();
-    e.f_keys[33] = c"\x1b[24^".as_ptr();
-    e.f_keys[34] = c"\x1b[25^".as_ptr();
-    e.f_keys[35] = c"\x1b[26^".as_ptr();
-    e.f_keys[36] = c"\x1b[28^".as_ptr();
-    e.f_keys[37] = c"\x1b[29^".as_ptr();
-    e.f_keys[38] = c"\x1b[31^".as_ptr();
-    e.f_keys[39] = c"\x1b[1;6S".as_ptr();
-    e.f_keys[40] = c"\x1b[32^".as_ptr();
-    e.f_keys[41] = c"\x1b[33^".as_ptr();
-    e.f_keys[42] = c"\x1b[34^".as_ptr();
-    e.f_keys[43] = c"\x1b[23@".as_ptr();
-    e.f_keys[44] = c"\x1b[24@".as_ptr();
+        Some(c"\x1b[0%?%p1%p3%|%t;7%;%?%p2%t;4%;%?%p6%t;1%;%?%p9%t;9%;m");
+    e.defs[kTerm_to_status_line] = Some(c"\x1b]0;");
+    e.defs[kTerm_reset_cursor_style] = Some(c"\x1b[2 q");
+    e.defs[kTerm_set_cursor_style] = Some(c"\x1b[%p1%d q");
+    e.defs[kTerm_enter_strikethrough_mode] = Some(c"\x1b[9m");
+    e.keys[kTermKey_backspace] = [Some(c"\x08"), None];
+    e.keys[kTermKey_beg] = [Some(c"\x1bOE"), None];
+    e.keys[kTermKey_btab] = [Some(c"\x1b[Z"), None];
+    e.keys[kTermKey_dc] = [Some(c"\x1b[3~"), Some(c"\x1b[3;2~")];
+    e.keys[kTermKey_end] = [Some(c"\x1b[4~"), Some(c"\x1b[4;2~")];
+    e.keys[kTermKey_home] = [Some(c"\x1b[1~"), Some(c"\x1b[1;2~")];
+    e.keys[kTermKey_ic] = [Some(c"\x1b[2~"), Some(c"\x1b[2;2~")];
+    e.keys[kTermKey_npage] = [Some(c"\x1b[6~"), None];
+    e.keys[kTermKey_ppage] = [Some(c"\x1b[5~"), None];
+    e.keys[kTermKey_left] = [Some(c"\x1b[D"), Some(c"\x1b[1;2D")];
+    e.keys[kTermKey_right] = [Some(c"\x1b[C"), Some(c"\x1b[1;2C")];
+    e.f_keys[0] = Some(c"\x1b[[A");
+    e.f_keys[1] = Some(c"\x1b[[B");
+    e.f_keys[2] = Some(c"\x1b[[C");
+    e.f_keys[3] = Some(c"\x1b[[D");
+    e.f_keys[4] = Some(c"\x1b[[E");
+    e.f_keys[5] = Some(c"\x1b[17~");
+    e.f_keys[6] = Some(c"\x1b[18~");
+    e.f_keys[7] = Some(c"\x1b[19~");
+    e.f_keys[8] = Some(c"\x1b[20~");
+    e.f_keys[9] = Some(c"\x1b[21~");
+    e.f_keys[10] = Some(c"\x1b[23~");
+    e.f_keys[11] = Some(c"\x1b[24~");
+    e.f_keys[12] = Some(c"\x1b[25~");
+    e.f_keys[13] = Some(c"\x1b[26~");
+    e.f_keys[14] = Some(c"\x1b[28~");
+    e.f_keys[15] = Some(c"\x1b[29~");
+    e.f_keys[16] = Some(c"\x1b[31~");
+    e.f_keys[17] = Some(c"\x1b[32~");
+    e.f_keys[18] = Some(c"\x1b[33~");
+    e.f_keys[19] = Some(c"\x1b[34~");
+    e.f_keys[20] = Some(c"\x1b[23$");
+    e.f_keys[21] = Some(c"\x1b[24$");
+    e.f_keys[22] = Some(c"\x1b[11^");
+    e.f_keys[23] = Some(c"\x1b[12^");
+    e.f_keys[24] = Some(c"\x1b[13^");
+    e.f_keys[25] = Some(c"\x1b[14^");
+    e.f_keys[26] = Some(c"\x1b[15^");
+    e.f_keys[27] = Some(c"\x1b[17^");
+    e.f_keys[28] = Some(c"\x1b[18^");
+    e.f_keys[29] = Some(c"\x1b[19^");
+    e.f_keys[30] = Some(c"\x1b[20^");
+    e.f_keys[31] = Some(c"\x1b[21^");
+    e.f_keys[32] = Some(c"\x1b[23^");
+    e.f_keys[33] = Some(c"\x1b[24^");
+    e.f_keys[34] = Some(c"\x1b[25^");
+    e.f_keys[35] = Some(c"\x1b[26^");
+    e.f_keys[36] = Some(c"\x1b[28^");
+    e.f_keys[37] = Some(c"\x1b[29^");
+    e.f_keys[38] = Some(c"\x1b[31^");
+    e.f_keys[39] = Some(c"\x1b[1;6S");
+    e.f_keys[40] = Some(c"\x1b[32^");
+    e.f_keys[41] = Some(c"\x1b[33^");
+    e.f_keys[42] = Some(c"\x1b[34^");
+    e.f_keys[43] = Some(c"\x1b[23@");
+    e.f_keys[44] = Some(c"\x1b[24@");
     e
 };
 
@@ -2638,71 +2672,67 @@ pub unsafe fn terminfo_is_bsd_console(term: *const c_char) -> bool {
 pub unsafe fn terminfo_from_builtin(
     term: *const c_char,
     termname: &mut Option<std::ffi::CString>,
-) -> *const TerminfoEntry {
+) -> TerminfoEntry {
     unsafe {
         if strequal(term, c"ghostty".as_ptr()) || strequal(term, c"xterm-ghostty".as_ptr()) {
             *termname = Some(c"ghostty".to_owned());
-            &raw const GHOSTTY_TERMINFO
+            GHOSTTY_TERMINFO.to_entry()
         } else if terminfo_is_term_family(term, c"xterm".as_ptr()) {
             *termname = Some(c"xterm".to_owned());
-            &raw const XTERM_256COLOUR_TERMINFO
+            XTERM_256COLOUR_TERMINFO.to_entry()
         } else if terminfo_is_term_family(term, c"screen".as_ptr()) {
             *termname = Some(c"screen".to_owned());
-            &raw const SCREEN_256COLOUR_TERMINFO
+            SCREEN_256COLOUR_TERMINFO.to_entry()
         } else if terminfo_is_term_family(term, c"tmux".as_ptr()) {
             *termname = Some(c"tmux".to_owned());
-            &raw const TMUX_256COLOUR_TERMINFO
+            TMUX_256COLOUR_TERMINFO.to_entry()
         } else if terminfo_is_term_family(term, c"rxvt".as_ptr()) {
             *termname = Some(c"rxvt".to_owned());
-            &raw const RXVT_256COLOUR_TERMINFO
+            RXVT_256COLOUR_TERMINFO.to_entry()
         } else if terminfo_is_term_family(term, c"putty".as_ptr()) {
             *termname = Some(c"putty".to_owned());
-            &raw const PUTTY_256COLOUR_TERMINFO
+            PUTTY_256COLOUR_TERMINFO.to_entry()
         } else if terminfo_is_term_family(term, c"linux".as_ptr()) {
             *termname = Some(c"linux".to_owned());
-            &raw const LINUX_16COLOUR_TERMINFO
+            LINUX_16COLOUR_TERMINFO.to_entry()
         } else if terminfo_is_term_family(term, c"interix".as_ptr()) {
             *termname = Some(c"interix".to_owned());
-            &raw const INTERIX_8COLOUR_TERMINFO
+            INTERIX_8COLOUR_TERMINFO.to_entry()
         } else if terminfo_is_term_family(term, c"iterm".as_ptr())
             || terminfo_is_term_family(term, c"iterm2".as_ptr())
             || terminfo_is_term_family(term, c"iTerm.app".as_ptr())
             || terminfo_is_term_family(term, c"iTerm2.app".as_ptr())
         {
             *termname = Some(c"iterm".to_owned());
-            &raw const ITERM_256COLOUR_TERMINFO
+            ITERM_256COLOUR_TERMINFO.to_entry()
         } else if terminfo_is_term_family(term, c"st".as_ptr()) {
             *termname = Some(c"st".to_owned());
-            &raw const ST_256COLOUR_TERMINFO
+            ST_256COLOUR_TERMINFO.to_entry()
         } else if terminfo_is_term_family(term, c"gnome".as_ptr())
             || terminfo_is_term_family(term, c"vte".as_ptr())
         {
             *termname = Some(c"vte".to_owned());
-            &raw const VTE_256COLOUR_TERMINFO
+            VTE_256COLOUR_TERMINFO.to_entry()
         } else if terminfo_is_term_family(term, c"cygwin".as_ptr()) {
             *termname = Some(c"cygwin".to_owned());
-            &raw const CYGWIN_TERMINFO
+            CYGWIN_TERMINFO.to_entry()
         } else if terminfo_is_term_family(term, c"win32con".as_ptr()) {
             *termname = Some(c"win32con".to_owned());
-            &raw const WIN32CON_TERMINFO
+            WIN32CON_TERMINFO.to_entry()
         } else if terminfo_is_term_family(term, c"conemu".as_ptr()) {
             *termname = Some(c"conemu".to_owned());
-            &raw const CONEMU_TERMINFO
+            CONEMU_TERMINFO.to_entry()
         } else if terminfo_is_term_family(term, c"vtpcon".as_ptr()) {
             *termname = Some(c"vtpcon".to_owned());
-            &raw const VTPCON_TERMINFO
+            VTPCON_TERMINFO.to_entry()
         } else {
             *termname = Some(c"ansi".to_owned());
-            &raw const ANSI_TERMINFO
+            ANSI_TERMINFO.to_entry()
         }
     }
 }
 
-pub unsafe fn terminfo_from_database(
-    ti: *mut TerminfoEntry,
-    termname: *const c_char,
-    arena: *mut Arena,
-) -> bool {
+pub unsafe fn terminfo_from_database(ti: *mut TerminfoEntry, termname: *const c_char) -> bool {
     unsafe {
         let Some(ut) = unibi_from_term(termname) else {
             return false;
@@ -2734,9 +2764,9 @@ pub unsafe fn terminfo_from_database(
         for (i, &uni_id) in UNI_IDS.iter().enumerate() {
             let val = ut.get_str(uni_id);
             (*ti).defs[i] = if !val.is_null() {
-                arena_strdup(arena, val)
+                Some(Cow::Owned(CStr::from_ptr(val).to_owned()))
             } else {
-                ptr::null()
+                None
             };
         }
 
@@ -2747,9 +2777,9 @@ pub unsafe fn terminfo_from_database(
                 if !n.is_null() && strequal(n, name.as_ptr()) {
                     let data = ut.get_ext_str(val);
                     (*ti).defs[kTermExtOffset + i] = if !data.is_null() {
-                        arena_strdup(arena, data)
+                        Some(Cow::Owned(CStr::from_ptr(data).to_owned()))
                     } else {
-                        ptr::null()
+                        None
                     };
                     break;
                 }
@@ -2759,13 +2789,13 @@ pub unsafe fn terminfo_from_database(
         for (i, pair) in UNI_KEYS.iter().enumerate() {
             let val = ut.get_str(pair[0]);
             if !val.is_null() {
-                (*ti).keys[i][0] = arena_strdup(arena, val);
+                (*ti).keys[i][0] = Some(Cow::Owned(CStr::from_ptr(val).to_owned()));
                 if pair[1] != unibi_string::unibi_string_begin_ {
                     let sval = ut.get_str(pair[1]);
                     (*ti).keys[i][1] = if !sval.is_null() {
-                        arena_strdup(arena, sval)
+                        Some(Cow::Owned(CStr::from_ptr(sval).to_owned()))
                     } else {
-                        ptr::null()
+                        None
                     };
                 }
             }
@@ -2774,9 +2804,9 @@ pub unsafe fn terminfo_from_database(
         for (i, &fkey_id) in UNI_FKEYS.iter().enumerate() {
             let val = ut.get_str(fkey_id);
             (*ti).f_keys[i] = if !val.is_null() {
-                arena_strdup(arena, val)
+                Some(Cow::Owned(CStr::from_ptr(val).to_owned()))
             } else {
-                ptr::null()
+                None
             };
         }
 
@@ -2820,37 +2850,33 @@ pub unsafe fn terminfo_info_msg(
         data.extend_from_slice(header.as_bytes());
 
         for (i, &name) in STRING_NAMES.iter().enumerate() {
-            let s = (*ti).defs[i];
-            if !s.is_null() {
+            if let Some(ref s) = (*ti).defs[i] {
                 let prefix = format!("  {name:<31} = ");
                 data.extend_from_slice(prefix.as_bytes());
-                kv_transstr(&mut data, s, false);
+                kv_transstr(&mut data, s.as_ptr(), false);
                 data.push(b'\n');
             }
         }
 
         for (i, &name) in KEY_NAMES.iter().enumerate() {
-            let s = (*ti).keys[i][0];
-            if !s.is_null() {
+            if let Some(ref s) = (*ti).keys[i][0] {
                 let prefix = format!("  key_{name:<27} = ");
                 data.extend_from_slice(prefix.as_bytes());
-                kv_transstr(&mut data, s, false);
-                let ss = (*ti).keys[i][1];
-                if !ss.is_null() {
+                kv_transstr(&mut data, s.as_ptr(), false);
+                if let Some(ref ss) = (*ti).keys[i][1] {
                     let sprefix = format!(", key_s{name} = ");
                     data.extend_from_slice(sprefix.as_bytes());
-                    kv_transstr(&mut data, ss, false);
+                    kv_transstr(&mut data, ss.as_ptr(), false);
                 }
                 data.push(b'\n');
             }
         }
 
         for (i, &name) in FKEY_NAMES.iter().enumerate() {
-            let s = (*ti).f_keys[i];
-            if !s.is_null() {
+            if let Some(ref s) = (*ti).f_keys[i] {
                 let prefix = format!("  key_{name:<27} = ");
                 data.extend_from_slice(prefix.as_bytes());
-                kv_transstr(&mut data, s, false);
+                kv_transstr(&mut data, s.as_ptr(), false);
                 data.push(b'\n');
             }
         }

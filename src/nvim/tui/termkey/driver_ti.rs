@@ -119,7 +119,7 @@ pub const kTermKeyCount: usize = 16;
 pub const kTerminfoFuncKeyMax: usize = 63;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct TerminfoEntry {
     pub back_color_erase: bool,
     pub Tc: bool,
@@ -128,9 +128,9 @@ pub struct TerminfoEntry {
     pub max_colors: c_int,
     pub lines: c_int,
     pub columns: c_int,
-    pub defs: [*const c_char; kTermCount],
-    pub keys: [[*const c_char; 2]; kTermKeyCount],
-    pub f_keys: [*const c_char; kTerminfoFuncKeyMax],
+    pub defs: [Option<std::borrow::Cow<'static, CStr>>; kTermCount],
+    pub keys: [[Option<std::borrow::Cow<'static, CStr>>; 2]; kTermKeyCount],
+    pub f_keys: [Option<std::borrow::Cow<'static, CStr>>; kTerminfoFuncKeyMax],
 }
 
 #[repr(C)]
@@ -432,10 +432,14 @@ unsafe fn try_load_terminfo_key(
 
         if !ti_ptr.is_null() {
             if !fn_nr {
-                value = (*ti_ptr).keys[key][usize::from(shift)];
+                value = (*ti_ptr).keys[key][usize::from(shift)]
+                    .as_deref()
+                    .map_or(std::ptr::null(), CStr::as_ptr);
             } else {
                 debug_assert!(!shift);
-                value = (*ti_ptr).f_keys[key];
+                value = (*ti_ptr).f_keys[key]
+                    .as_deref()
+                    .map_or(std::ptr::null(), CStr::as_ptr);
             }
         }
 
