@@ -6042,7 +6042,7 @@ unsafe fn restore_start_dir(dirname_start: *mut c_char) {
         if strcmp(dirname_start, dirname_now.as_ptr()) != 0 {
             let mut ea: exarg_T = exarg_T::new();
             ea.arg = dirname_start;
-            ea.cmdidx = if (*curwin).w_localdir.is_null() {
+            ea.cmdidx = if (*curwin).w_localdir.is_none() {
                 CMD_cd
             } else {
                 CMD_lcd

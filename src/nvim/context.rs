@@ -23,7 +23,7 @@ use crate::extmark::{extmark_del_id, extmark_get_pos, extmark_set_pos};
 use crate::fileio::shorten_fnames;
 use crate::globals::*;
 use crate::mark::{fmark_T, fmarkv_T};
-use crate::memory::{Arena, strequal_str, xfree, xstrdup};
+use crate::memory::{Arena, strequal_str};
 use crate::msgpack_rpc::packer::handle_T;
 use crate::normal::visualinfo_T;
 use crate::option::buf_copy_options;
@@ -71,11 +71,11 @@ pub struct CtxSwitch {
     pub cs_target_old_pos: pos_T,
     pub cs_did_chdir: bool,
     pub cs_dirs_tab: handle_T,
-    pub cs_w_localdir: *mut c_char,
-    pub cs_b_localdir: *mut c_char,
-    pub cs_tp_localdir: *mut c_char,
-    pub cs_globaldir: *mut c_char,
-    pub cs_cwd: *mut c_char,
+    pub cs_w_localdir: Option<std::ffi::CString>,
+    pub cs_b_localdir: Option<std::ffi::CString>,
+    pub cs_tp_localdir: Option<std::ffi::CString>,
+    pub cs_globaldir: Option<std::ffi::CString>,
+    pub cs_cwd: Option<std::ffi::CString>,
     pub cs_apply_acd: bool,
 }
 
@@ -98,11 +98,11 @@ impl CtxSwitch {
             cs_target_old_pos: pos_T::new(),
             cs_did_chdir: false,
             cs_dirs_tab: 0,
-            cs_w_localdir: ptr::null_mut(),
-            cs_b_localdir: ptr::null_mut(),
-            cs_tp_localdir: ptr::null_mut(),
-            cs_globaldir: ptr::null_mut(),
-            cs_cwd: ptr::null_mut(),
+            cs_w_localdir: None,
+            cs_b_localdir: None,
+            cs_tp_localdir: None,
+            cs_globaldir: None,
+            cs_cwd: None,
             cs_apply_acd: false,
         }
     }
@@ -578,14 +578,10 @@ pub unsafe fn ctx_from_dict(dict: Dict, ctx: *mut Context, err: *mut Error) -> C
 
 unsafe fn ctx_win_dirs_save(cs: *mut CtxSwitch, cw_win: *mut win_T, buf: *mut buf_T) {
     unsafe {
-        xfree((*cw_win).w_localdir.cast());
-        (*cw_win).w_localdir = ptr::null_mut();
-        (*cs).cs_b_localdir = (*buf).b_localdir;
-        (*buf).b_localdir = ptr::null_mut();
-        (*cs).cs_tp_localdir = (*curtab).tp_localdir;
-        (*curtab).tp_localdir = ptr::null_mut();
-        (*cs).cs_globaldir = globaldir;
-        globaldir = ptr::null_mut();
+        (*cw_win).w_localdir = None;
+        (*cs).cs_b_localdir = (*buf).b_localdir.take();
+        (*cs).cs_tp_localdir = (*curtab).tp_localdir.take();
+        (*cs).cs_globaldir = (&raw mut globaldir).as_mut().unwrap().take();
     }
 }
 
@@ -601,10 +597,9 @@ unsafe fn ctx_localdirs_restore(
 
         let dirs_win = handle_get_window((*cs).cs_new_curwin);
         if !dirs_win.is_null() {
-            xfree((*dirs_win).w_localdir.cast());
-            (*dirs_win).w_localdir = (*cs).cs_w_localdir;
+            (*dirs_win).w_localdir = (*cs).cs_w_localdir.take();
         } else {
-            xfree((*cs).cs_w_localdir.cast());
+            (*cs).cs_w_localdir = None;
         }
 
         let b = if bufref_valid(&raw mut (*cs).cs_new_curbuf) {
@@ -612,28 +607,27 @@ unsafe fn ctx_localdirs_restore(
         } else {
             ptr::null_mut()
         };
-        if !b.is_null() && !(persist && !(*b).b_localdir.is_null()) {
-            xfree((*b).b_localdir.cast());
-            (*b).b_localdir = (*cs).cs_b_localdir;
+        if !b.is_null() && !(persist && (*b).b_localdir.is_some()) {
+            (*b).b_localdir = (*cs).cs_b_localdir.take();
         } else {
-            xfree((*cs).cs_b_localdir.cast());
+            (*cs).cs_b_localdir = None;
         }
 
-        if !tp.is_null() && !(persist && !(*tp).tp_localdir.is_null()) {
-            xfree((*tp).tp_localdir.cast());
-            (*tp).tp_localdir = (*cs).cs_tp_localdir;
+        if !tp.is_null() && !(persist && (*tp).tp_localdir.is_some()) {
+            (*tp).tp_localdir = (*cs).cs_tp_localdir.take();
         } else {
-            xfree((*cs).cs_tp_localdir.cast());
+            (*cs).cs_tp_localdir = None;
         }
 
-        if !cwp.is_null() && (did_chdir || !(*cwp).w_localdir.is_null()) {
+        if !cwp.is_null() && (did_chdir || (*cwp).w_localdir.is_some()) {
             update_cwd(kCdCauseWindow);
         }
 
-        if !(persist && (*cs).cs_globaldir.is_null() && !globaldir.is_null()) {
-            xfree(globaldir.cast());
-            globaldir = (*cs).cs_globaldir;
-            (*cs).cs_globaldir = ptr::null_mut();
+        if !(persist
+            && (*cs).cs_globaldir.is_none()
+            && (&raw const globaldir).as_ref().unwrap().is_some())
+        {
+            globaldir = (*cs).cs_globaldir.take();
         }
     }
 }
@@ -644,45 +638,32 @@ unsafe fn ctx_dirs_save(cs: *mut CtxSwitch, wp: *mut win_T, tp: *mut tabpage_T, 
             return;
         }
 
-        (*cs).cs_globaldir = if globaldir.is_null() {
-            ptr::null_mut()
-        } else {
-            xstrdup(globaldir)
-        };
+        (*cs).cs_globaldir = (&raw const globaldir).as_ref().unwrap().clone();
 
         if ((*cs).cs_flags & kCtxKeepDirs) != 0 {
             let target_buf = if !buf.is_null() { buf } else { (*wp).w_buffer };
             (*cs).cs_dirs_tab = (*tp).handle;
-            (*cs).cs_w_localdir = if (*wp).w_localdir.is_null() {
-                ptr::null_mut()
-            } else {
-                xstrdup((*wp).w_localdir)
-            };
-            (*cs).cs_b_localdir = if (*target_buf).b_localdir.is_null() {
-                ptr::null_mut()
-            } else {
-                xstrdup((*target_buf).b_localdir)
-            };
-            (*cs).cs_tp_localdir = if (*tp).tp_localdir.is_null() {
-                ptr::null_mut()
-            } else {
-                xstrdup((*tp).tp_localdir)
-            };
+            (*cs).cs_w_localdir = (*wp).w_localdir.clone();
+            (*cs).cs_b_localdir = (*target_buf).b_localdir.clone();
+            (*cs).cs_tp_localdir = (*tp).tp_localdir.clone();
         }
 
         let mut cwd = [0 as c_char; MAXPATHL];
         if (((*cs).cs_flags & kCtxKeepDirs) != 0 || curwin != wp)
             && os_dirname(cwd.as_mut_ptr(), MAXPATHL) == OK
         {
-            (*cs).cs_cwd = xstrdup(cwd.as_ptr());
+            (*cs).cs_cwd = Some(CStr::from_ptr(cwd.as_ptr()).to_owned());
         }
 
-        if !(*cs).cs_cwd.is_null() && p_acd != 0 {
+        if let Some(ref cs_cwd) = (*cs).cs_cwd
+            && p_acd != 0
+        {
+            let saved_cwd_bytes = cs_cwd.as_bytes().to_vec();
             do_autochdir();
             let mut autocwd = [0 as c_char; MAXPATHL];
             if os_dirname(autocwd.as_mut_ptr(), MAXPATHL) == OK {
                 (*cs).cs_apply_acd =
-                    CStr::from_ptr((*cs).cs_cwd) == CStr::from_ptr(autocwd.as_ptr());
+                    saved_cwd_bytes.as_slice() == CStr::from_ptr(autocwd.as_ptr()).to_bytes();
             }
         }
     }
@@ -705,24 +686,20 @@ unsafe fn ctx_dirs_restore(cs: *mut CtxSwitch) {
                 tp = (*tp).tp_next;
             }
             ctx_localdirs_restore(cs, ptr::null_mut(), dirs_tab, false);
-        } else if !(*cs).cs_cwd.is_null() && !CTX_DID_CHDIR {
-            xfree(globaldir.cast());
-            globaldir = (*cs).cs_globaldir;
-            (*cs).cs_globaldir = ptr::null_mut();
+        } else if (*cs).cs_cwd.is_some() && !CTX_DID_CHDIR {
+            globaldir = (*cs).cs_globaldir.take();
         }
-        xfree((*cs).cs_globaldir.cast());
-        (*cs).cs_globaldir = ptr::null_mut();
+        (*cs).cs_globaldir = None;
 
         if (*cs).cs_apply_acd {
             do_autochdir();
-        } else if !(*cs).cs_cwd.is_null()
+        } else if let Some(ref cs_cwd) = (*cs).cs_cwd
             && (((*cs).cs_flags & kCtxKeepDirs) != 0 || !CTX_DID_CHDIR)
         {
-            os_chdir((*cs).cs_cwd);
+            os_chdir(cs_cwd.as_ptr());
             shorten_fnames(1);
         }
-        xfree((*cs).cs_cwd.cast());
-        (*cs).cs_cwd = ptr::null_mut();
+        (*cs).cs_cwd = None;
     }
 }
 

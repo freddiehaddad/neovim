@@ -551,8 +551,8 @@ pub struct win_T {
     pub w_alist: Option<std::rc::Rc<std::cell::RefCell<crate::arglist::alist_T>>>,
     pub w_arg_idx: c_int,
     pub w_arg_idx_invalid: bool,
-    pub w_localdir: *mut c_char,
-    pub w_prevdir: *mut c_char,
+    pub w_localdir: Option<std::ffi::CString>,
+    pub w_prevdir: Option<std::ffi::CString>,
     pub w_onebuf_opt: winopt_T,
     pub w_allbuf_opt: winopt_T,
     pub w_p_cc_cols: Vec<c_int>,
@@ -752,8 +752,8 @@ impl win_T {
             w_alist: None,
             w_arg_idx: 0,
             w_arg_idx_invalid: false,
-            w_localdir: ptr::null_mut(),
-            w_prevdir: ptr::null_mut(),
+            w_localdir: None,
+            w_prevdir: None,
             w_onebuf_opt: winopt_T::ZERO,
             w_allbuf_opt: winopt_T::ZERO,
             w_p_cc_cols: Vec::new(),
@@ -833,8 +833,8 @@ pub struct tabpage_T {
     pub tp_snapshot: [Option<Box<SnapshotFrame>>; 3],
     pub tp_winvar: crate::eval::typval::ScopeDictDictItem,
     pub tp_vars: *mut dict_T,
-    pub tp_localdir: *mut c_char,
-    pub tp_prevdir: *mut c_char,
+    pub tp_localdir: Option<std::ffi::CString>,
+    pub tp_prevdir: Option<std::ffi::CString>,
 }
 
 impl tabpage_T {
@@ -858,8 +858,8 @@ impl tabpage_T {
             tp_snapshot: [None, None, None],
             tp_winvar: crate::eval::typval::ScopeDictDictItem::new(),
             tp_vars: ptr::null_mut(),
-            tp_localdir: ptr::null_mut(),
-            tp_prevdir: ptr::null_mut(),
+            tp_localdir: None,
+            tp_prevdir: None,
         }
     }
 }
@@ -2521,16 +2521,8 @@ pub unsafe fn win_init(newp: *mut win_T, oldp: *mut win_T, flags: c_int) {
         } else {
             copy_loclist_stack(oldp, newp);
         }
-        (*newp).w_localdir = if (*oldp).w_localdir.is_null() {
-            ptr::null_mut()
-        } else {
-            xstrdup((*oldp).w_localdir)
-        };
-        (*newp).w_prevdir = if (*oldp).w_prevdir.is_null() {
-            ptr::null_mut()
-        } else {
-            xstrdup((*oldp).w_prevdir)
-        };
+        (*newp).w_localdir = (*oldp).w_localdir.clone();
+        (*newp).w_prevdir = (*oldp).w_prevdir.clone();
 
         if *p_spk != b'c' as c_char {
             if *p_spk == b't' as c_char {
@@ -5138,8 +5130,6 @@ impl Drop for tabpage_T {
             if ptr::eq(self, lastused_tabpage) {
                 lastused_tabpage = ptr::null_mut();
             }
-            xfree(self.tp_localdir.cast());
-            xfree(self.tp_prevdir.cast());
         }
     }
 }
@@ -5179,11 +5169,7 @@ pub unsafe fn win_new_tabpage(
             lastwin = ptr::null_mut();
         }
 
-        (*newtp).tp_localdir = if !(*old_curtab).tp_localdir.is_null() {
-            xstrdup((*old_curtab).tp_localdir)
-        } else {
-            ptr::null_mut()
-        };
+        (*newtp).tp_localdir = (*old_curtab).tp_localdir.clone();
 
         curtab = newtp;
 
@@ -6126,20 +6112,20 @@ unsafe fn win_enter_ext(wp: *mut win_T, flags: c_int) {
 
 pub unsafe fn update_cwd(cause: CdCause) {
     unsafe {
-        let new_dir: *mut c_char;
+        let new_dir: Option<std::ffi::CString>;
         let scope: CdScope;
 
-        if !(*curbuf).b_localdir.is_null() {
-            new_dir = (*curbuf).b_localdir;
+        if let Some(ref d) = (*curbuf).b_localdir {
+            new_dir = Some(d.clone());
             scope = kCdScopeBuffer;
-        } else if !(*curwin).w_localdir.is_null() {
-            new_dir = (*curwin).w_localdir;
+        } else if let Some(ref d) = (*curwin).w_localdir {
+            new_dir = Some(d.clone());
             scope = kCdScopeWindow;
-        } else if !(*curtab).tp_localdir.is_null() {
-            new_dir = (*curtab).tp_localdir;
+        } else if let Some(ref d) = (*curtab).tp_localdir {
+            new_dir = Some(d.clone());
             scope = kCdScopeTabpage;
         } else {
-            new_dir = ptr::null_mut();
+            new_dir = None;
             scope = kCdScopeGlobal;
         }
 
@@ -6148,29 +6134,29 @@ pub unsafe fn update_cwd(cause: CdCause) {
             cwd[0] = NUL;
         }
 
-        if !new_dir.is_null() {
-            if globaldir.is_null() && cwd[0] != NUL {
-                globaldir = xstrdup(cwd.as_ptr());
+        if let Some(ref new_dir_cstr) = new_dir {
+            let new_dir_ptr = new_dir_cstr.as_ptr().cast_mut();
+            if (&raw const globaldir).as_ref().unwrap().is_none() && cwd[0] != NUL {
+                globaldir = Some(std::ffi::CStr::from_ptr(cwd.as_ptr()).to_owned());
             }
-            let dir_differs = !path_equal(new_dir, cwd.as_ptr(), kPathCmpLiteral);
+            let dir_differs = !path_equal(new_dir_ptr, cwd.as_ptr(), kPathCmpLiteral);
             if p_acd == 0 && dir_differs {
-                do_autocmd_dirchanged(new_dir, scope, cause, true);
+                do_autocmd_dirchanged(new_dir_ptr, scope, cause, true);
             }
-            if os_chdir(new_dir) == 0 && p_acd == 0 && dir_differs {
-                do_autocmd_dirchanged(new_dir, scope, cause, false);
+            if os_chdir(new_dir_ptr) == 0 && p_acd == 0 && dir_differs {
+                do_autocmd_dirchanged(new_dir_ptr, scope, cause, false);
             }
             last_chdir_reason = ptr::null_mut();
             shorten_fnames(1);
-        } else if !globaldir.is_null() {
-            let dir_differs = !path_equal(globaldir, cwd.as_ptr(), kPathCmpLiteral);
+        } else if let Some(gdir) = (&raw mut globaldir).as_mut().unwrap().take() {
+            let gdir_ptr = gdir.as_ptr().cast_mut();
+            let dir_differs = !path_equal(gdir_ptr, cwd.as_ptr(), kPathCmpLiteral);
             if p_acd == 0 && dir_differs {
-                do_autocmd_dirchanged(globaldir, kCdScopeGlobal, cause, true);
+                do_autocmd_dirchanged(gdir_ptr, kCdScopeGlobal, cause, true);
             }
-            if os_chdir(globaldir) == 0 && p_acd == 0 && dir_differs {
-                do_autocmd_dirchanged(globaldir, kCdScopeGlobal, cause, false);
+            if os_chdir(gdir_ptr) == 0 && p_acd == 0 && dir_differs {
+                do_autocmd_dirchanged(gdir_ptr, kCdScopeGlobal, cause, false);
             }
-            xfree(globaldir.cast());
-            globaldir = ptr::null_mut();
             last_chdir_reason = ptr::null_mut();
             shorten_fnames(1);
         }
@@ -6316,10 +6302,8 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         }
         (*wp).w_tagstacklen = 0;
 
-        xfree((*wp).w_localdir.cast());
-        (*wp).w_localdir = ptr::null_mut();
-        xfree((*wp).w_prevdir.cast());
-        (*wp).w_prevdir = ptr::null_mut();
+        (*wp).w_localdir = None;
+        (*wp).w_prevdir = None;
 
         stl_clear_click_defs(&mut (*wp).w_status_click_defs);
         stl_clear_click_defs(&mut (*wp).w_winbar_click_defs);
@@ -6391,10 +6375,8 @@ impl Drop for win_T {
             }
             self.w_tagstacklen = 0;
 
-            xfree(self.w_localdir.cast());
-            self.w_localdir = ptr::null_mut();
-            xfree(self.w_prevdir.cast());
-            self.w_prevdir = ptr::null_mut();
+            self.w_localdir = None;
+            self.w_prevdir = None;
 
             stl_clear_click_defs(&mut self.w_status_click_defs);
             stl_clear_click_defs(&mut self.w_winbar_click_defs);

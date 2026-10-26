@@ -443,8 +443,8 @@ pub struct buf_T {
     pub deleted_codepoints: usize,
     pub deleted_codeunits: usize,
     pub flush_count: c_int,
-    pub b_localdir: *mut c_char,
-    pub b_prevdir: *mut c_char,
+    pub b_localdir: Option<std::ffi::CString>,
+    pub b_prevdir: Option<std::ffi::CString>,
 }
 
 impl buf_T {
@@ -729,8 +729,8 @@ impl buf_T {
             deleted_codepoints: 0,
             deleted_codeunits: 0,
             flush_count: 0,
-            b_localdir: ptr::null_mut(),
-            b_prevdir: ptr::null_mut(),
+            b_localdir: None,
+            b_prevdir: None,
         }
     }
 
@@ -1694,10 +1694,8 @@ impl Drop for buf_T {
             free_buf_options(self, true);
             xfree(self.b_start_fenc.cast());
             self.b_start_fenc = ptr::null_mut();
-            xfree(self.b_localdir.cast());
-            self.b_localdir = ptr::null_mut();
-            xfree(self.b_prevdir.cast());
-            self.b_prevdir = ptr::null_mut();
+            self.b_localdir = None;
+            self.b_prevdir = None;
             xfree(self.additional_data.cast());
             self.additional_data = ptr::null_mut();
             xfree(self.b_prompt_text.cast());
@@ -1796,10 +1794,8 @@ unsafe fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
         map_clear_mode(buf, MAP_ALL_MODES, true, true);
         xfree((*buf).b_start_fenc.cast());
         (*buf).b_start_fenc = ptr::null_mut();
-        xfree((*buf).b_localdir.cast());
-        (*buf).b_localdir = ptr::null_mut();
-        xfree((*buf).b_prevdir.cast());
-        (*buf).b_prevdir = ptr::null_mut();
+        (*buf).b_localdir = None;
+        (*buf).b_prevdir = None;
 
         buf_free_callbacks(buf);
     }

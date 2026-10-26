@@ -581,7 +581,7 @@ const CMD_SIZE_I32: c_int = cmdidx_T::CMD_SIZE as c_int;
 static mut quitmore: c_int = 0;
 static mut cmdline_call_depth: c_int = 0;
 static mut dollar_command: [c_char; 2] = [b'$' as c_char, 0];
-static mut prev_dir: *mut c_char = ptr::null_mut();
+static mut prev_dir: Option<std::ffi::CString> = None;
 static mut filetype_detect: TriState = kNone;
 static mut filetype_plugin: TriState = kNone;
 static mut filetype_indent: TriState = kNone;
@@ -9331,7 +9331,11 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
             true,
             true,
             kChannelStdinPipe,
-            globaldir,
+            (&raw const globaldir)
+                .as_ref()
+                .unwrap()
+                .as_ref()
+                .map_or(ptr::null(), |s| s.as_ptr()),
             0,
             0,
             env,
@@ -10785,14 +10789,12 @@ unsafe fn ex_read(eap: *mut exarg_T) {
 
 pub unsafe fn free_cd_dir() {
     unsafe {
-        xfree(prev_dir.cast());
-        prev_dir = ptr::null_mut();
-        xfree(globaldir.cast());
-        globaldir = ptr::null_mut();
+        prev_dir = None;
+        globaldir = None;
     }
 }
 
-unsafe fn get_prevdir(scope: CdScope) -> *mut *mut c_char {
+unsafe fn get_prevdir(scope: CdScope) -> *mut Option<std::ffi::CString> {
     unsafe {
         match scope {
             kCdScopeTabpage => &raw mut (*curtab).tp_prevdir,
@@ -10806,22 +10808,19 @@ unsafe fn get_prevdir(scope: CdScope) -> *mut *mut c_char {
 unsafe fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
     unsafe {
         if scope == kCdScopeBuffer {
-            xfree((*curbuf).b_localdir.cast());
-            (*curbuf).b_localdir = ptr::null_mut();
+            (*curbuf).b_localdir = None;
         }
         if scope >= kCdScopeWindow {
-            xfree((*curwin).w_localdir.cast());
-            (*curwin).w_localdir = ptr::null_mut();
+            (*curwin).w_localdir = None;
         }
         if scope >= kCdScopeTabpage {
-            xfree((*curtab).tp_localdir.cast());
-            (*curtab).tp_localdir = ptr::null_mut();
+            (*curtab).tp_localdir = None;
         }
 
         if scope < kCdScopeGlobal {
-            let pdir = *get_prevdir(scope);
-            if globaldir.is_null() && !pdir.is_null() {
-                globaldir = xstrdup(pdir);
+            let pdir = &*get_prevdir(scope);
+            if (&raw const globaldir).as_ref().unwrap().is_none() && pdir.is_some() {
+                globaldir = pdir.clone();
             }
         }
 
@@ -10829,22 +10828,23 @@ unsafe fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
         if os_dirname(cwd.as_mut_ptr(), MAXPATHL) != OK {
             return;
         }
+        let cwd_cstr = std::ffi::CStr::from_ptr(cwd.as_ptr()).to_owned();
         match scope {
             kCdScopeGlobal => {
-                xfree(globaldir.cast());
-                globaldir = ptr::null_mut();
-                if !(*curbuf).b_localdir.is_null() {
-                    globaldir = xstrdup(cwd.as_ptr());
-                }
+                globaldir = if (*curbuf).b_localdir.is_some() {
+                    Some(cwd_cstr)
+                } else {
+                    None
+                };
             }
             kCdScopeTabpage => {
-                (*curtab).tp_localdir = xstrdup(cwd.as_ptr());
+                (*curtab).tp_localdir = Some(cwd_cstr);
             }
             kCdScopeBuffer => {
-                (*curbuf).b_localdir = xstrdup(cwd.as_ptr());
+                (*curbuf).b_localdir = Some(cwd_cstr);
             }
             kCdScopeWindow => {
-                (*curwin).w_localdir = xstrdup(cwd.as_ptr());
+                (*curwin).w_localdir = Some(cwd_cstr);
             }
             _ => std::process::abort(),
         }
@@ -10864,21 +10864,19 @@ pub unsafe fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
             return false;
         }
 
-        let mut pdir: *mut c_char;
         if strcmp(new_dir, c"-".as_ptr()) == 0 {
-            pdir = *get_prevdir(scope);
-            if pdir.is_null() {
+            let Some(ref prev) = *get_prevdir(scope) else {
                 let _ = emsg(gettext(c"E186: No previous directory".as_ptr()));
                 return false;
-            }
-            new_dir = pdir;
+            };
+            new_dir = prev.as_ptr().cast_mut();
         }
 
-        if os_dirname((&raw mut NameBuff).cast(), MAXPATHL) == OK {
-            pdir = xstrdup((&raw const NameBuff).cast());
+        let pdir = if os_dirname((&raw mut NameBuff).cast(), MAXPATHL) == OK {
+            Some(std::ffi::CStr::from_ptr((&raw const NameBuff).cast()).to_owned())
         } else {
-            pdir = ptr::null_mut();
-        }
+            None
+        };
 
         if *new_dir == NUL && p_cdh != 0 {
             expand_env(
@@ -10891,9 +10889,11 @@ pub unsafe fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
 
         new_dir = to_slash_save(new_dir);
 
-        let bcd_active = scope != kCdScopeBuffer && !(*curbuf).b_localdir.is_null();
+        let bcd_active = scope != kCdScopeBuffer && (*curbuf).b_localdir.is_some();
 
-        let dir_differs = pdir.is_null() || !path_equal(pdir, new_dir, kPathCmpLiteral);
+        let dir_differs = pdir
+            .as_ref()
+            .is_none_or(|p| !path_equal(p.as_ptr(), new_dir, kPathCmpLiteral));
         if dir_differs {
             if !bcd_active {
                 do_autocmd_dirchanged(new_dir, scope, kCdCauseManual, true);
@@ -10901,19 +10901,17 @@ pub unsafe fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
             if vim_chdir(new_dir) != 0 {
                 let _ = emsg(gettext(e_failed.as_ptr()));
                 xfree(new_dir.cast());
-                xfree(pdir.cast());
                 return false;
             }
         }
         xfree(new_dir.cast());
 
         let pp = get_prevdir(scope);
-        xfree((*pp).cast());
         *pp = pdir;
 
         post_chdir(scope, dir_differs && !bcd_active);
         if bcd_active {
-            os_chdir((*curbuf).b_localdir);
+            os_chdir((*curbuf).b_localdir.as_ref().unwrap().as_ptr());
             shorten_fnames(c_int::from(true));
         }
         ctx_did_chdir();
@@ -10931,11 +10929,10 @@ unsafe fn chdir_clear(scope: CdScope) {
         } else {
             &raw mut (*curtab).tp_localdir
         };
-        if (*localdir).is_null() {
+        if (*localdir).is_none() {
             return;
         }
-        xfree((*localdir).cast());
-        *localdir = ptr::null_mut();
+        *localdir = None;
         update_cwd(kCdCauseManual);
         ctx_did_chdir();
     }
@@ -10988,11 +10985,11 @@ unsafe fn ex_pwd(_eap: *mut exarg_T) {
             if p_verbose > 0 {
                 let context = if !last_chdir_reason.is_null() {
                     last_chdir_reason.cast_const()
-                } else if !(*curbuf).b_localdir.is_null() {
+                } else if (*curbuf).b_localdir.is_some() {
                     c"buffer".as_ptr()
-                } else if !(*curwin).w_localdir.is_null() {
+                } else if (*curwin).w_localdir.is_some() {
                     c"window".as_ptr()
-                } else if !(*curtab).tp_localdir.is_null() {
+                } else if (*curtab).tp_localdir.is_some() {
                     c"tabpage".as_ptr()
                 } else {
                     c"global".as_ptr()

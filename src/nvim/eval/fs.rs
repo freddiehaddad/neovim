@@ -493,11 +493,11 @@ pub unsafe fn f_chdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
                 semsg!(gettext(e_invargNval.as_ptr()), c"scope".as_ptr(), s);
                 return;
             }
-        } else if !(*curbuf).b_localdir.is_null() {
+        } else if (*curbuf).b_localdir.is_some() {
             scope = kCdScopeBuffer;
-        } else if !(*curwin).w_localdir.is_null() {
+        } else if (*curwin).w_localdir.is_some() {
             scope = kCdScopeWindow;
-        } else if !(*curtab).tp_localdir.is_null() {
+        } else if (*curtab).tp_localdir.is_some() {
             scope = kCdScopeTabpage;
         }
 
@@ -924,13 +924,19 @@ pub unsafe fn f_getcwd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
 
         let mut cur_scope = scope;
         if cur_scope == kCdScopeWindow {
-            from = (*win).w_localdir;
+            from = (*win)
+                .w_localdir
+                .as_ref()
+                .map_or(ptr::null(), |s| s.as_ptr());
             if from.is_null() {
                 cur_scope = kCdScopeTabpage;
             }
         }
         if cur_scope == kCdScopeTabpage {
-            from = (*tp).tp_localdir;
+            from = (*tp)
+                .tp_localdir
+                .as_ref()
+                .map_or(ptr::null(), |s| s.as_ptr());
             if from.is_null() {
                 cur_scope = kCdScopeBuffer;
             }
@@ -939,7 +945,10 @@ pub unsafe fn f_getcwd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
             // Only a buffer target reaches this with `scope` unchanged: a buffer belongs to no
             // particular window or tabpage, so it skips those and falls back to global dir.
             from = if scope == kCdScopeBuffer {
-                (*buf).b_localdir
+                (*buf)
+                    .b_localdir
+                    .as_ref()
+                    .map_or(ptr::null(), |s| s.as_ptr())
             } else {
                 ptr::null()
             };
@@ -948,8 +957,8 @@ pub unsafe fn f_getcwd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
             }
         }
         if cur_scope == kCdScopeGlobal {
-            if !globaldir.is_null() {
-                from = globaldir;
+            if let Some(ref gdir) = *(&raw const globaldir).as_ref().unwrap() {
+                from = gdir.as_ptr();
             } else {
                 cur_scope = kCdScopeInvalid;
             }
@@ -1215,13 +1224,13 @@ pub unsafe fn f_haslocaldir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
 
         match scope {
             kCdScopeWindow => {
-                (*rettv).vval.v_number = varnumber_T::from(!(*win).w_localdir.is_null());
+                (*rettv).vval.v_number = varnumber_T::from((*win).w_localdir.is_some());
             }
             kCdScopeBuffer => {
-                (*rettv).vval.v_number = varnumber_T::from(!(*buf).b_localdir.is_null());
+                (*rettv).vval.v_number = varnumber_T::from((*buf).b_localdir.is_some());
             }
             kCdScopeTabpage => {
-                (*rettv).vval.v_number = varnumber_T::from(!(*tp).tp_localdir.is_null());
+                (*rettv).vval.v_number = varnumber_T::from((*tp).tp_localdir.is_some());
             }
             kCdScopeGlobal => {
                 // The global scope never has a local directory

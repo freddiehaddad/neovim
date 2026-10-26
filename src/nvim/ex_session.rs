@@ -349,8 +349,8 @@ unsafe fn put_view(
                 &(*alist).al_ga,
                 ptr::eq(flagp, &raw mut vop_flags)
                     || (*flagp & kOptSsopFlagCurdir) == 0
-                    || !(*tp).tp_localdir.is_null()
-                    || !(*wp).w_localdir.is_null(),
+                    || (*tp).tp_localdir.is_some()
+                    || (*wp).w_localdir.is_some(),
                 flagp,
             ) == FAIL
             {
@@ -513,11 +513,11 @@ unsafe fn put_view(
             }
         }
 
-        if !(*wp).w_localdir.is_null()
+        if let Some(ref w_localdir) = (*wp).w_localdir
             && (!ptr::eq(flagp, &raw mut vop_flags) || (*flagp & kOptSsopFlagCurdir) != 0)
         {
             if fputs(c"lcd ".as_ptr(), fd) < 0
-                || ses_put_fname(fd, (*wp).w_localdir, flagp) == FAIL
+                || ses_put_fname(fd, w_localdir.as_ptr().cast_mut(), flagp) == FAIL
                 || !write_bytes(fd, b"\n")
             {
                 return FAIL;
@@ -648,11 +648,11 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
         } else if (ssop_flags & kOptSsopFlagCurdir) != 0 {
             let sname = home_replace_save(
                 ptr::null_mut(),
-                if !globaldir.is_null() {
-                    globaldir
-                } else {
-                    dirnow
-                },
+                (&raw const globaldir)
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .map_or(dirnow, |s| s.as_ptr().cast_mut()),
             );
             let fname_esc = ses_escape_fname(sname, &raw mut ssop_flags);
             if !write_fmt(fd, format!("cd {}\n", cstr_to_str(fname_esc))) {
@@ -717,8 +717,11 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
         if (ssop_flags & kOptSsopFlagCurdir) != 0 {
             let mut b = firstbuf;
             while !b.is_null() {
-                if (*b).b_localdir.is_null()
-                    || (*b).b_fname.is_null()
+                let Some(ref b_localdir) = (*b).b_localdir else {
+                    b = (*b).b_next;
+                    continue;
+                };
+                if (*b).b_fname.is_null()
                     || (*b).b_p_bl == 0
                     || (only_save_windows && (*b).b_nwindows == 0)
                     || ((*b).b_help && (ssop_flags & kOptSsopFlagHelp) == 0)
@@ -737,7 +740,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                         c"]==]), callback = function() vim.cmd.bcd({ [==[".as_ptr(),
                         fd,
                     ) < 0
-                    || fputs((*b).b_localdir, fd) < 0
+                    || fputs(b_localdir.as_ptr(), fd) < 0
                     || fputs(
                         c"]==], magic = { file = false, bar = false } }) end })\n".as_ptr(),
                         fd,
@@ -816,13 +819,16 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                 tab_topframe = topframe;
             }
 
-            if (ssop_flags & kOptSsopFlagCurdir) != 0 && !(*tp).tp_localdir.is_null() {
+            if (ssop_flags & kOptSsopFlagCurdir) != 0
+                && let Some(ref tp_localdir) = (*tp).tp_localdir
+            {
                 if need_tabnext && put_line(fd, c"tabnext".as_ptr().cast_mut()) == FAIL {
                     return FAIL;
                 }
                 need_tabnext = false;
                 if fputs(c"tcd ".as_ptr(), fd) < 0
-                    || ses_put_fname(fd, (*tp).tp_localdir, &raw mut ssop_flags) == FAIL
+                    || ses_put_fname(fd, tp_localdir.as_ptr().cast_mut(), &raw mut ssop_flags)
+                        == FAIL
                     || put_eol(fd) == FAIL
                 {
                     return FAIL;
@@ -1136,8 +1142,8 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
                         }
                     } else if *dirnow != NUL
                         && (ssop_flags & kOptSsopFlagCurdir) != 0
-                        && !globaldir.is_null()
-                        && os_chdir(globaldir) == 0
+                        && let Some(ref gdir) = *(&raw const globaldir).as_ref().unwrap()
+                        && os_chdir(gdir.as_ptr()) == 0
                     {
                         shorten_fnames(1);
                     }
@@ -1146,7 +1152,8 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
 
                     if *dirnow != NUL
                         && ((ssop_flags & kOptSsopFlagSesdir) != 0
-                            || ((ssop_flags & kOptSsopFlagCurdir) != 0 && !globaldir.is_null()))
+                            || ((ssop_flags & kOptSsopFlagCurdir) != 0
+                                && (&raw const globaldir).as_ref().unwrap().is_some()))
                     {
                         if os_chdir(dirnow) != 0 {
                             emsg(gettext(e_prev_dir.as_ptr()));
