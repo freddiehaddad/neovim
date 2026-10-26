@@ -1014,17 +1014,15 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                 rc_did_emsg = true;
                 return ptr::null_mut();
             } else if c == Magic(b'~' as c_int) {
-                if !reg_prev_sub.is_null() {
+                if let Some(prev_sub) = reg_prev_sub_ref() {
                     ret = regnode(EXACTLY);
-                    let mut lp = reg_prev_sub.cast::<u8>();
-                    while *lp != NUL {
-                        regc(*lp as c_int);
-                        lp = lp.add(1);
+                    for &b in prev_sub.to_bytes() {
+                        regc(b as c_int);
                     }
                     regc(NUL as c_int);
-                    if *reg_prev_sub != NUL as c_char {
+                    if !prev_sub.to_bytes().is_empty() {
                         *flagp |= HASWIDTH;
-                        if lp.offset_from(reg_prev_sub.cast::<u8>()) == 1 {
+                        if prev_sub.to_bytes().len() == 1 {
                             *flagp |= SIMPLE;
                         }
                     }
@@ -3273,11 +3271,11 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                             let no = (op - ZREF) as usize;
                             let ext_in = &raw const re_extmatch_in;
                             if let Some(ref em) = *ext_in
-                                && !em.matches[no].is_null()
+                                && let Some(ref m_cstr) = em.matches[no]
                             {
-                                let m = em.matches[no];
-                                let mut len = strlen(m.cast()) as c_int;
-                                if cstrncmp(m.cast(), rex.input.cast(), &raw mut len) != 0 {
+                                let m = m_cstr.as_ptr();
+                                let mut len = m_cstr.as_bytes().len() as c_int;
+                                if cstrncmp(m, rex.input.cast(), &raw mut len) != 0 {
                                     status = RA_NOMATCH;
                                 } else {
                                     rex.input = rex.input.add(len as usize);
@@ -3838,26 +3836,23 @@ unsafe fn regtry(
 
         if (*prog).reghasz == REX_SET as u8 {
             cleanup_zsubexpr();
-            let mut extmatch = reg_extmatch_T {
-                matches: [ptr::null_mut(); NSUBEXP],
-            };
+            let mut extmatch = reg_extmatch_T::default();
             for i in 0..NSUBEXP {
                 if REG_MULTI() {
                     let sz = *(&raw const reg_startzpos).cast::<lpos_T>().add(i);
                     let ez = *(&raw const reg_endzpos).cast::<lpos_T>().add(i);
                     if sz.lnum >= 0 && ez.lnum == sz.lnum && ez.col >= sz.col {
-                        extmatch.matches[i] = xstrnsave(
+                        extmatch.matches[i] = cstring_from_bytes(
                             reg_getline(sz.lnum).add(sz.col as usize),
                             (ez.col - sz.col) as usize,
-                        )
-                        .cast();
+                        );
                     }
                 } else {
                     let szp = *(&raw const reg_startzp).cast::<*mut u8>().add(i);
                     let ezp = *(&raw const reg_endzp).cast::<*mut u8>().add(i);
                     if !szp.is_null() && !ezp.is_null() {
                         extmatch.matches[i] =
-                            xstrnsave(szp.cast(), ezp.offset_from(szp) as usize).cast();
+                            cstring_from_bytes(szp.cast(), ezp.offset_from(szp) as usize);
                     }
                 }
             }
@@ -4025,9 +4020,9 @@ unsafe fn bt_regexec_both(
 
 unsafe fn finish_bt_regexec(retval: c_int, col: colnr_T) -> c_int {
     unsafe {
-        if reg_tofreelen > 400 {
-            xfree(reg_tofree.cast());
-            reg_tofree = ptr::null_mut();
+        let tf = &raw mut reg_tofree;
+        if (*tf).capacity() > 400 {
+            *tf = Vec::new();
         }
         let rs = &raw mut regstack;
         if (*rs).capacity() * 8 > REGSTACK_INITIAL as usize {

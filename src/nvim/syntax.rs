@@ -1428,13 +1428,13 @@ unsafe fn syn_stack_equal(sp: *const synstate_T) -> bool {
             let mut j: usize = 0;
             while j < NSUBEXP {
                 if bsx.matches[j] != six.matches[j] {
-                    if bsx.matches[j].is_null() || six.matches[j].is_null() {
+                    let (Some(bs_m), Some(si_m)) = (&bsx.matches[j], &six.matches[j]) else {
                         break;
-                    }
+                    };
                     if mb_strcmp_ic(
                         (*syn_items(syn_block).offset((*cur_si).si_idx as isize)).sp_ic != 0,
-                        bsx.matches[j].cast(),
-                        six.matches[j].cast(),
+                        bs_m.as_ptr(),
+                        si_m.as_ptr(),
                     ) != 0
                     {
                         break;

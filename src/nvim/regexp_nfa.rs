@@ -286,13 +286,13 @@ unsafe fn nfa_get_regstart(start: *mut nfa_state_T, depth: c_int) -> c_int {
     }
 }
 
-unsafe fn nfa_get_match_text(start: *mut nfa_state_T) -> *mut u8 {
+unsafe fn nfa_get_match_text(start: *mut nfa_state_T) -> Option<std::ffi::CString> {
     unsafe {
         let mut p = start;
         let mut len: usize = 0;
 
         if (*p).c != NFA_MOPEN {
-            return ptr::null_mut();
+            return None;
         }
         p = (*p).out;
         while (*p).c > 0 {
@@ -300,18 +300,19 @@ unsafe fn nfa_get_match_text(start: *mut nfa_state_T) -> *mut u8 {
             p = (*p).out;
         }
         if (*p).c != NFA_MCLOSE || (*(*p).out).c != NFA_MATCH {
-            return ptr::null_mut();
+            return None;
         }
 
-        let ret = xmalloc(len).cast::<u8>();
+        let mut ret = vec![0u8; len];
         p = (*(*start).out).out;
-        let mut s = ret;
+        let mut s = ret.as_mut_ptr();
         while (*p).c > 0 {
             s = s.add(utf_char2bytes((*p).c, s.cast()) as usize);
             p = (*p).out;
         }
-        *s = NUL;
-        ret
+        let actual_len = s as usize - ret.as_ptr() as usize;
+        ret.truncate(actual_len);
+        std::ffi::CString::new(ret).ok()
     }
 }
 
@@ -958,14 +959,15 @@ unsafe fn nfa_regatom() -> c_int {
                 semsg!(tr(e_misplaced.as_ptr()), no_Magic(c));
                 return FAIL;
             } else if c == Magic(b'~' as c_int) {
-                if reg_prev_sub.is_null() {
+                let Some(prev_sub) = reg_prev_sub_ref() else {
                     emsg(tr((&raw const e_nopresub).cast()));
                     return FAIL;
-                }
-                let mut lp = reg_prev_sub.cast::<u8>();
+                };
+                let start_ptr = prev_sub.as_ptr().cast::<u8>();
+                let mut lp = start_ptr;
                 while *lp != NUL {
                     EMIT(utf_ptr2char(lp.cast()));
-                    if lp != reg_prev_sub.cast::<u8>() {
+                    if lp != start_ptr {
                         EMIT(NFA_CONCAT);
                     }
                     lp = lp.add(utf_ptr2len(lp.cast()) as usize);
@@ -3152,13 +3154,13 @@ unsafe fn match_zref(subidx: c_int, bytelen: *mut c_int) -> bool {
             *bytelen = 0;
             return true;
         };
-        if em.matches[idx].is_null() {
+        let Some(ref m_cstr) = em.matches[idx] else {
             *bytelen = 0;
             return true;
-        }
-        let m = em.matches[idx];
-        let mut len = strlen(m.cast()) as c_int;
-        if cstrncmp(m.cast(), rex.input.cast(), &raw mut len) == 0 {
+        };
+        let m = m_cstr.as_ptr();
+        let mut len = m_cstr.as_bytes().len() as c_int;
+        if cstrncmp(m, rex.input.cast(), &raw mut len) == 0 {
             *bytelen = len;
             return true;
         }
@@ -3379,7 +3381,7 @@ unsafe fn skip_to_start(c: c_int, colp: *mut colnr_T) -> c_int {
     }
 }
 
-unsafe fn find_match_text(startcol: *mut colnr_T, regstart: c_int, match_text: *mut u8) -> c_int {
+unsafe fn find_match_text(startcol: *mut colnr_T, regstart: c_int, match_text: *const u8) -> c_int {
     unsafe {
         let mut col = *startcol;
         loop {
@@ -4569,9 +4571,7 @@ unsafe fn nfa_regtry(
 
         if (*prog).reghasz == REX_SET {
             cleanup_zsubexpr();
-            let mut extmatch = reg_extmatch_T {
-                matches: [ptr::null_mut(); NSUBEXP],
-            };
+            let mut extmatch = reg_extmatch_T::default();
             for i in 1..subs.synt.in_use as usize {
                 if REG_MULTI() {
                     let mpos = subs.synt.list.multi()[i];
@@ -4579,18 +4579,18 @@ unsafe fn nfa_regtry(
                         && mpos.start_lnum == mpos.end_lnum
                         && mpos.end_col >= mpos.start_col
                     {
-                        extmatch.matches[i] = xstrnsave(
+                        extmatch.matches[i] = cstring_from_bytes(
                             reg_getline(mpos.start_lnum).add(mpos.start_col as usize),
                             (mpos.end_col - mpos.start_col) as usize,
-                        )
-                        .cast();
+                        );
                     }
                 } else {
                     let lpos = subs.synt.list.line()[i];
                     if !lpos.start.is_null() && !lpos.end.is_null() {
-                        extmatch.matches[i] =
-                            xstrnsave(lpos.start.cast(), lpos.end.offset_from(lpos.start) as usize)
-                                .cast();
+                        extmatch.matches[i] = cstring_from_bytes(
+                            lpos.start.cast(),
+                            lpos.end.offset_from(lpos.start) as usize,
+                        );
                     }
                 }
             }
@@ -4665,8 +4665,11 @@ unsafe fn nfa_regexec_both(
             if skip_to_start((*prog).regstart, &raw mut col) == FAIL {
                 return 0;
             }
-            if !(*prog).match_text.is_null() && *(*prog).match_text != NUL && !rex.reg_icombine {
-                retval = find_match_text(&raw mut col, (*prog).regstart, (*prog).match_text);
+            if let Some(ref mt) = (*prog).match_text
+                && !mt.as_bytes().is_empty()
+                && !rex.reg_icombine
+            {
+                retval = find_match_text(&raw mut col, (*prog).regstart, mt.as_ptr().cast::<u8>());
                 if REG_MULTI() {
                     (*rex.reg_mmatch).rmm_matchcol = col;
                 } else {
@@ -4739,11 +4742,11 @@ pub(super) unsafe fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> Option<nfa_r
             start: ptr::null_mut(),
             reganch: 0,
             regstart: 0,
-            match_text: ptr::null_mut(),
+            match_text: None,
             has_zend: 0,
             has_backref: 0,
             reghasz: 0,
-            pattern: ptr::null_mut(),
+            pattern: std::ffi::CString::default(),
             nsubexp: 0,
             nstate: 0,
             listbuf: [Vec::new(), Vec::new()],
@@ -4767,7 +4770,7 @@ pub(super) unsafe fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> Option<nfa_r
         prog.regstart = nfa_get_regstart(prog.start, 0);
         prog.match_text = nfa_get_match_text(prog.start);
         prog.reghasz = re_has_z;
-        prog.pattern = xstrdup(expr.cast());
+        prog.pattern = CStr::from_ptr(expr.cast()).to_owned();
 
         cleanup_nfa_regcomp(Some(prog))
     }

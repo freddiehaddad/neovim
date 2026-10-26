@@ -300,18 +300,19 @@ impl Default for regmatch_T {
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub struct reg_extmatch_T {
-    pub matches: [*mut u8; NSUBEXP],
+    pub matches: [Option<std::ffi::CString>; NSUBEXP],
 }
 
-impl Drop for reg_extmatch_T {
-    fn drop(&mut self) {
-        for &m in &self.matches {
-            unsafe {
-                xfree(m.cast());
-            }
-        }
-    }
+#[inline]
+pub(super) unsafe fn cstring_from_bytes(
+    ptr: *const c_char,
+    len: usize,
+) -> Option<std::ffi::CString> {
+    let bytes = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len) };
+    let end = bytes.iter().position(|&b| b == 0).unwrap_or(len);
+    std::ffi::CString::new(&bytes[..end]).ok()
 }
 
 #[repr(C)]
@@ -362,24 +363,15 @@ pub(super) struct nfa_regprog_T {
     pub start: *mut nfa_state_T,
     pub reganch: c_int,
     pub regstart: c_int,
-    pub match_text: *mut u8,
+    pub match_text: Option<std::ffi::CString>,
     pub has_zend: c_int,
     pub has_backref: c_int,
     pub reghasz: c_int,
-    pub pattern: *mut c_char,
+    pub pattern: std::ffi::CString,
     pub nsubexp: c_int,
     pub nstate: c_int,
     pub listbuf: [Vec<nfa_thread_T>; 2],
     pub state: Vec<nfa_state_T>,
-}
-
-impl Drop for nfa_regprog_T {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.match_text.cast());
-            xfree(self.pattern.cast());
-        }
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -1181,8 +1173,13 @@ static DECOMP_TABLE: [decomp_T; 0xfb4f - 0xfb20 + 1] = [
 ];
 
 // Global work variables
-pub(super) static mut reg_prev_sub: *mut c_char = ptr::null_mut();
-pub(super) static mut reg_prev_sublen: usize = 0;
+pub(super) static mut reg_prev_sub: Option<std::ffi::CString> = None;
+
+#[inline]
+pub(super) unsafe fn reg_prev_sub_ref() -> Option<&'static CStr> {
+    let ptr = &raw const reg_prev_sub;
+    unsafe { (*ptr).as_deref() }
+}
 
 pub(super) static mut class_tab: [i16; 256] = [0; 256];
 static mut init_class_tab_done: bool = false;
@@ -1209,8 +1206,7 @@ static mut peekchr_after_slash: c_int = 0;
 
 pub(super) static mut reg_cpo_lit: c_int = 0;
 
-pub(super) static mut reg_tofree: *mut u8 = ptr::null_mut();
-pub(super) static mut reg_tofreelen: c_uint = 0;
+pub(super) static mut reg_tofree: Vec<u8> = Vec::new();
 
 pub(super) static mut rex: regexec_T = regexec_T {
     reg_match: ptr::null_mut(),
@@ -2229,17 +2225,16 @@ pub(super) unsafe fn match_with_backref(
             *bytelen = 0;
         }
         loop {
-            if rex.line != reg_tofree {
-                let mut len = strlen(rex.line.cast()) as c_int;
-                if reg_tofree.is_null() || len >= reg_tofreelen as c_int {
-                    len += 50;
-                    xfree(reg_tofree.cast());
-                    reg_tofree = xmalloc(len as usize).cast();
-                    reg_tofreelen = len as c_uint;
+            let tf = &raw mut reg_tofree;
+            if (*tf).is_empty() || rex.line != (*tf).as_mut_ptr() {
+                let len = strlen(rex.line.cast()) + 51;
+                let off = rex.input.offset_from(rex.line) as usize;
+                if (*tf).len() < len {
+                    (*tf).resize(len, 0);
                 }
-                strcpy(reg_tofree.cast(), rex.line.cast());
-                rex.input = reg_tofree.add(rex.input.offset_from(rex.line) as usize);
-                rex.line = reg_tofree;
+                strcpy((*tf).as_mut_ptr().cast(), rex.line.cast());
+                rex.line = (*tf).as_mut_ptr();
+                rex.input = rex.line.add(off);
             }
 
             let p = reg_getline(clnum);
@@ -2307,12 +2302,12 @@ unsafe fn mb_decompose(c: c_int, c1: *mut c_int, c2: *mut c_int, c3: *mut c_int)
     }
 }
 
-pub(super) unsafe fn cstrncmp(s1: *mut c_char, s2: *mut c_char, n: *mut c_int) -> c_int {
+pub(super) unsafe fn cstrncmp(s1: *const c_char, s2: *const c_char, n: *mut c_int) -> c_int {
     unsafe {
         let mut result = if !rex.reg_ic {
             strncmp(s1, s2, *n as usize)
         } else {
-            let mut p = s1;
+            let mut p = s1.cast_mut();
             let mut n2: c_int = 0;
             let mut n1 = *n;
             while n1 > 0 && *p != NUL as c_char {
@@ -2320,7 +2315,7 @@ pub(super) unsafe fn cstrncmp(s1: *mut c_char, s2: *mut c_char, n: *mut c_int) -
                 mb_ptr_adv(&raw mut p);
                 n2 += 1;
             }
-            p = s2;
+            p = s2.cast_mut();
             while n2 > 0 && *p != NUL as c_char {
                 n2 -= 1;
                 mb_ptr_adv(&raw mut p);
@@ -2440,9 +2435,13 @@ pub unsafe fn regtilde(source: *mut c_char, magic: c_int, preview: bool) -> *mut
                 }
                 newsublen -= tildelen;
                 let postfixlen = newsublen - prefixlen;
+                let prev_sub_ref = reg_prev_sub_ref();
+                let reg_prev_sublen = prev_sub_ref.map_or(0, |s| s.to_bytes().len());
                 let tmpsublen = prefixlen + reg_prev_sublen + postfixlen;
 
-                if tmpsublen > 0 && !reg_prev_sub.is_null() {
+                if tmpsublen > 0
+                    && let Some(prev_sub) = prev_sub_ref
+                {
                     if tmpsublen > MAXCOL as usize {
                         emsg(tr((&raw const e_resulting_text_too_long).cast()));
                         error = true;
@@ -2451,7 +2450,11 @@ pub unsafe fn regtilde(source: *mut c_char, magic: c_int, preview: bool) -> *mut
 
                     let tmpsub = xmalloc(tmpsublen + 1).cast::<c_char>();
                     ptr::copy_nonoverlapping(newsub, tmpsub, prefixlen);
-                    ptr::copy_nonoverlapping(reg_prev_sub, tmpsub.add(prefixlen), reg_prev_sublen);
+                    ptr::copy_nonoverlapping(
+                        prev_sub.as_ptr(),
+                        tmpsub.add(prefixlen),
+                        reg_prev_sublen,
+                    );
                     strcpy(tmpsub.add(prefixlen + reg_prev_sublen), postfix);
 
                     if newsub != source {
@@ -2481,14 +2484,11 @@ pub unsafe fn regtilde(source: *mut c_char, magic: c_int, preview: bool) -> *mut
 
         if !preview {
             newsublen = p.offset_from(newsub) as usize;
-            if newsublen == 0 {
-                xfree(reg_prev_sub.cast());
-                reg_prev_sub = ptr::null_mut();
+            reg_prev_sub = if newsublen == 0 {
+                None
             } else {
-                xfree(reg_prev_sub.cast());
-                reg_prev_sub = xstrnsave(newsub, newsublen);
-            }
-            reg_prev_sublen = newsublen;
+                cstring_from_bytes(newsub, newsublen)
+            };
         }
 
         newsub
@@ -3420,8 +3420,9 @@ pub unsafe fn free_regexp_stuff() {
         *rs = Vec::new();
         let bp = &raw mut backpos;
         *bp = Vec::new();
-        xfree(reg_tofree.cast());
-        xfree(reg_prev_sub.cast());
+        let tf = &raw mut reg_tofree;
+        *tf = Vec::new();
+        reg_prev_sub = None;
         let pv = &raw mut post_vec;
         *pv = Vec::new();
         let ns = &raw mut nfa_stack;
@@ -3478,10 +3479,10 @@ unsafe fn vim_regexec_string(
         {
             let save_p_re = p_re;
             let re_flags = (*(*rmp).regprog).re_flags as c_int;
-            let pat = xstrdup((*(*rmp).regprog).nfa_mut().pattern);
+            let prev_prog = (*rmp).regprog;
+            let pat = (*prev_prog).nfa_mut().pattern.as_ptr();
 
             p_re = OptInt::from(BACKTRACKING_ENGINE);
-            let prev_prog = (*rmp).regprog;
             report_re_switch(pat);
             (*rmp).regprog = vim_regcomp(pat, re_flags);
             if (*rmp).regprog.is_null() {
@@ -3496,7 +3497,6 @@ unsafe fn vim_regexec_string(
                 (*(*rmp).regprog).re_in_use = false;
             }
 
-            xfree(pat.cast());
             p_re = save_p_re;
         }
 
@@ -3571,10 +3571,10 @@ pub unsafe fn vim_regexec_multi(
         {
             let save_p_re = p_re;
             let re_flags = (*(*rmp).regprog).re_flags as c_int;
-            let pat = xstrdup((*(*rmp).regprog).nfa_mut().pattern);
+            let prev_prog = (*rmp).regprog;
+            let pat = (*prev_prog).nfa_mut().pattern.as_ptr();
 
             p_re = OptInt::from(BACKTRACKING_ENGINE);
-            let prev_prog = (*rmp).regprog;
 
             report_re_switch(pat);
             reg_do_extmatch = REX_ALL;
@@ -3597,7 +3597,6 @@ pub unsafe fn vim_regexec_multi(
                 (*(*rmp).regprog).re_in_use = false;
             }
 
-            xfree(pat.cast());
             p_re = save_p_re;
         }
 
