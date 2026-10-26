@@ -69,7 +69,7 @@ pub struct Proc {
     #[cfg(unix)]
     pub tty_fd: c_int,
     #[cfg(windows)]
-    pub conpty: *mut crate::os::pty_conpty_win::conpty_t,
+    pub conpty: Option<Box<crate::os::pty_conpty_win::conpty_t>>,
     #[cfg(windows)]
     pub finish_wait: crate::os::os_win_console::HANDLE,
     #[cfg(windows)]
@@ -116,7 +116,7 @@ impl Proc {
             #[cfg(unix)]
             tty_fd: 0,
             #[cfg(windows)]
-            conpty: ptr::null_mut(),
+            conpty: None,
             #[cfg(windows)]
             finish_wait: ptr::null_mut(),
             #[cfg(windows)]

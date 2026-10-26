@@ -33,8 +33,7 @@ use crate::event::proc::{Proc, PtyProc};
 use crate::event::stream::{Stream, uv_stream_t};
 #[cfg(windows)]
 use crate::os::pty_conpty_win::{
-    conpty_t, os_conpty_free, os_conpty_init, os_conpty_set_size, os_conpty_spawn,
-    os_has_conpty_working,
+    conpty_t, os_conpty_init, os_conpty_set_size, os_conpty_spawn, os_has_conpty_working,
 };
 
 #[cfg(any(test, windows))]
@@ -165,8 +164,10 @@ mod win_impl {
     }
 
     unsafe extern "C" fn os_conpty_free_thread(arg: *mut c_void) {
-        unsafe {
-            os_conpty_free(arg.cast());
+        if !arg.is_null() {
+            unsafe {
+                drop(Box::from_raw(arg.cast::<conpty_t>()));
+            }
         }
     }
 
@@ -185,9 +186,9 @@ mod win_impl {
             let r_out = &raw mut (*proc_).out;
             let r_fields = r_out;
             let ptail = pty_proc_win_tail(ptyproc);
-            if (*ptail).conpty.is_null() {
+            let Some(conpty) = (*ptail).conpty.take() else {
                 return;
-            }
+            };
             if (*r_fields).num_bytes == 0 {
                 TerminateProcess((*ptail).proc_handle, 0);
             }
@@ -195,13 +196,12 @@ mod win_impl {
             uv_thread_create(
                 &raw mut tid,
                 Some(os_conpty_free_thread),
-                (*ptail).conpty.cast(),
+                Box::into_raw(conpty).cast(),
             );
             while !(*r_fields).did_eof && WaitForSingleObject(tid as HANDLE, 0) == WAIT_TIMEOUT {
                 uv_run((*hdr).loop_.cast(), UV_RUN_ONCE);
             }
             uv_thread_detach(&raw mut tid);
-            (*ptail).conpty = ptr::null_mut();
         }
     }
 
@@ -216,7 +216,7 @@ mod win_impl {
             let r_err = &raw mut (*proc_).err;
 
             let mut status: c_int;
-            let mut conpty_object: *mut conpty_t = ptr::null_mut();
+            let mut conpty_object: Option<Box<conpty_t>> = None;
             let mut in_name: *mut c_char = ptr::null_mut();
             let mut out_name: *mut c_char = ptr::null_mut();
             let mut proc_handle: HANDLE = ptr::null_mut();
@@ -241,7 +241,7 @@ mod win_impl {
                     (*ptail).width,
                     (*ptail).height,
                 );
-                if conpty_object.is_null() {
+                if conpty_object.is_none() {
                     status = UV_ENOSYS;
                     break 'cleanup;
                 }
@@ -306,7 +306,7 @@ mod win_impl {
                 }
 
                 if !os_conpty_spawn(
-                    conpty_object,
+                    conpty_object.as_deref_mut().unwrap(),
                     &raw mut proc_handle,
                     if file.is_empty() {
                         ptr::null_mut()
@@ -352,9 +352,8 @@ mod win_impl {
                 }
 
                 (*r_out).s.before_close_cb = Some(pty_proc_close_console);
-                (*ptail).conpty = conpty_object;
+                (*ptail).conpty = conpty_object.take();
                 (*ptail).proc_handle = proc_handle;
-                conpty_object = ptr::null_mut();
                 proc_handle = ptr::null_mut();
             }
 
@@ -372,7 +371,7 @@ mod win_impl {
                 );
                 status = uv_translate_sys_error(status);
             }
-            os_conpty_free(conpty_object);
+            drop(conpty_object);
             xfree(in_name.cast());
             xfree(out_name.cast());
             if !proc_handle.is_null() {
@@ -391,7 +390,9 @@ mod win_impl {
     pub unsafe fn pty_proc_resize(ptyproc: *mut PtyProc, width: u16, height: u16) {
         unsafe {
             let ptail = pty_proc_win_tail(ptyproc);
-            os_conpty_set_size((*ptail).conpty, width, height);
+            if let Some(ref conpty) = (*ptail).conpty {
+                os_conpty_set_size(conpty, width, height);
+            }
         }
     }
 

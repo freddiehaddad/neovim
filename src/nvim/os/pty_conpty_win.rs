@@ -284,9 +284,9 @@ pub unsafe fn os_conpty_init(
     out_name: *mut *mut c_char,
     width: u16,
     height: u16,
-) -> *mut conpty_t {
+) -> Option<Box<conpty_t>> {
     unsafe {
-        let mut conpty_object = Box::into_raw(Box::new(conpty_t::new()));
+        let mut conpty_object = Box::new(conpty_t::new());
         let emsg: *const c_char;
         let in_read: HANDLE;
         let mut out_write: HANDLE = INVALID_HANDLE_VALUE;
@@ -346,19 +346,19 @@ pub unsafe fn os_conpty_init(
                 in_read,
                 out_write,
                 0,
-                &mut (*conpty_object).pty,
+                &mut conpty_object.pty,
             );
             if hr < 0 {
                 emsg = c"create pseudo console failed".as_ptr();
                 break 'init;
             }
 
-            (*conpty_object).si_ex.StartupInfo.cb = std::mem::size_of::<STARTUPINFOEXW>() as DWORD;
+            conpty_object.si_ex.StartupInfo.cb = std::mem::size_of::<STARTUPINFOEXW>() as DWORD;
             let mut bytes_required: usize = 0;
             InitializeProcThreadAttributeList(std::ptr::null_mut(), 1, 0, &mut bytes_required);
-            (*conpty_object).si_ex.lpAttributeList = xmalloc(bytes_required);
+            conpty_object.si_ex.lpAttributeList = xmalloc(bytes_required);
             if InitializeProcThreadAttributeList(
-                (*conpty_object).si_ex.lpAttributeList,
+                conpty_object.si_ex.lpAttributeList,
                 1,
                 0,
                 &mut bytes_required,
@@ -368,10 +368,10 @@ pub unsafe fn os_conpty_init(
                 break 'init;
             }
             if UpdateProcThreadAttribute(
-                (*conpty_object).si_ex.lpAttributeList,
+                conpty_object.si_ex.lpAttributeList,
                 0,
                 PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
-                (*conpty_object).pty,
+                conpty_object.pty,
                 std::mem::size_of::<HPCON>(),
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
@@ -388,7 +388,7 @@ pub unsafe fn os_conpty_init(
             if out_write != INVALID_HANDLE_VALUE {
                 CloseHandle(out_write);
             }
-            return conpty_object;
+            return Some(conpty_object);
         }
 
         logmsg!(
@@ -401,21 +401,20 @@ pub unsafe fn os_conpty_init(
             emsg,
             uv_translate_sys_error(GetLastError() as c_int),
         );
-        os_conpty_free(conpty_object);
-        conpty_object = std::ptr::null_mut();
+        drop(conpty_object);
         if in_read != INVALID_HANDLE_VALUE {
             CloseHandle(in_read);
         }
         if out_write != INVALID_HANDLE_VALUE {
             CloseHandle(out_write);
         }
-        conpty_object
+        None
     }
 }
 
 #[cfg(windows)]
 pub unsafe fn os_conpty_spawn(
-    conpty_object: *mut conpty_t,
+    conpty_object: &mut conpty_t,
     proc_handle: *mut HANDLE,
     name: *mut u16,
     cmd_line: *mut u16,
@@ -438,7 +437,7 @@ pub unsafe fn os_conpty_spawn(
             EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
             env.cast(),
             cwd,
-            &mut (*conpty_object).si_ex.StartupInfo,
+            &mut conpty_object.si_ex.StartupInfo,
             &mut pi,
         ) == 0
         {
@@ -450,7 +449,7 @@ pub unsafe fn os_conpty_spawn(
 }
 
 #[cfg(windows)]
-pub unsafe fn os_conpty_set_size(conpty_object: *mut conpty_t, width: u16, height: u16) {
+pub unsafe fn os_conpty_set_size(conpty_object: &conpty_t, width: u16, height: u16) {
     assert!(width <= i16::MAX as u16);
     assert!(height <= i16::MAX as u16);
     unsafe {
@@ -458,7 +457,7 @@ pub unsafe fn os_conpty_set_size(conpty_object: *mut conpty_t, width: u16, heigh
             X: width as i16,
             Y: height as i16,
         };
-        if (pResizePseudoConsole.unwrap_unchecked())((*conpty_object).pty, size) != S_OK {
+        if (pResizePseudoConsole.unwrap_unchecked())(conpty_object.pty, size) != S_OK {
             logmsg!(
                 LOGLVL_ERR,
                 std::ptr::null(),
@@ -489,22 +488,13 @@ impl Drop for conpty_t {
     }
 }
 
-#[cfg(windows)]
-pub unsafe fn os_conpty_free(conpty_object: *mut conpty_t) {
-    if !conpty_object.is_null() {
-        unsafe {
-            drop(Box::from_raw(conpty_object));
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     #[test]
-    fn conpty_free_handles_null() {
+    fn conpty_new_drops_cleanly() {
         #[cfg(windows)]
-        unsafe {
-            super::os_conpty_free(std::ptr::null_mut());
+        {
+            let _ = super::conpty_t::new();
         }
     }
 }

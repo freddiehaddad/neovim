@@ -244,8 +244,18 @@ static mut func_hashtab: std::collections::BTreeMap<Vec<u8>, *mut ufunc_T> =
     std::collections::BTreeMap::new();
 static mut func_hashtab_changed: c_int = 0;
 static mut funcargs: Vec<*mut typval_T> = Vec::new();
+struct OwnedFunccall(*mut funccall_T);
+
+impl Drop for OwnedFunccall {
+    fn drop(&mut self) {
+        unsafe {
+            drop(Box::from_raw(self.0));
+        }
+    }
+}
+
 static mut current_funccal: *mut funccall_T = ptr::null_mut();
-static mut previous_funccal: Vec<*mut funccall_T> = Vec::new();
+static mut previous_funccal: Vec<OwnedFunccall> = Vec::new();
 static mut funccal_stack: Vec<*mut funccall_T> = Vec::new();
 static mut lambda_name: [c_char; 8 + NUMBUFLEN] = [0; 8 + NUMBUFLEN];
 static mut lambda_no: c_int = 0;
@@ -1093,7 +1103,7 @@ unsafe fn cleanup_function_call(fc: *mut funccall_T) {
         } else {
             (*fc).fc_caller = ptr::null_mut();
             let pfc = &raw mut previous_funccal;
-            (*pfc).push(fc);
+            (*pfc).push(OwnedFunccall(fc));
 
             if want_garbage_collect {
                 made_copy = 0;
@@ -1123,9 +1133,8 @@ unsafe fn funccal_unref(fc: *mut funccall_T, fp: *mut ufunc_T, force: bool) {
             !fc_referenced(fc)
         } {
             let pfc = &raw mut previous_funccal;
-            if let Some(pos) = (*pfc).iter().position(|&item| item == fc) {
+            if let Some(pos) = (*pfc).iter().position(|item| item.0 == fc) {
                 (*pfc).remove(pos);
-                drop(Box::from_raw(fc));
                 return;
             }
         }
@@ -2994,7 +3003,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
         macro_rules! errret_2 {
             () => {{
                 if free_fp && !fp.is_null() {
-                    drop(Box::from_raw(fp));
+                    func_clear_free(fp, false);
                 } else if !fp.is_null() {
                     xfree((*fp).uf_name_exp.cast());
                     (*fp).uf_name_exp = ptr::null_mut();
@@ -3254,8 +3263,6 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                     if tv_dict_add(fudi.fd_dict, fudi.fd_di) == FAIL {
                         crate::eval::typval::tv_dict_item_free(fudi.fd_di);
                         xfree(func_name.cast());
-                        drop(Box::from_raw(fp));
-                        fp = ptr::null_mut();
                         erret!();
                     }
                 } else {
@@ -4173,10 +4180,9 @@ pub unsafe fn free_unref_funccal(copyID: c_int, testing: c_int) -> bool {
         let pfc = &raw mut previous_funccal;
         let mut i = 0usize;
         while i < (*pfc).len() {
-            let fc = (*pfc).as_slice()[i];
+            let fc = (*pfc).as_slice()[i].0;
             if can_free_funccal(fc, copyID) {
                 (*pfc).remove(i);
-                drop(Box::from_raw(fc));
                 did_free = true;
                 did_free_funccal = true;
             } else {
@@ -4387,7 +4393,8 @@ pub unsafe fn find_var_in_scoped_ht(
 pub unsafe fn set_ref_in_previous_funccal(copyID: c_int) -> bool {
     unsafe {
         let pfc = &raw const previous_funccal;
-        for &fc in (*pfc).as_slice() {
+        for item in (*pfc).as_slice() {
+            let fc = item.0;
             (*fc).fc_copyID = copyID + 1;
             if set_ref_in_ht(
                 &raw mut (*fc).fc_l_vars.dv_hashtab,
