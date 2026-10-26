@@ -10,7 +10,6 @@ use crate::event::r#loop::uv_err_name;
 use crate::ex_docmd::exarg_T;
 use crate::fileio::{FILE, fclose, fopen, fprintf, vim_fgets};
 use crate::globals::*;
-use crate::memory::cstr_take;
 use crate::message::{emsg, semsg};
 use crate::os::env::{expand_T, expand_env_save_opt};
 use crate::os::fs::os_fopen;
@@ -359,7 +358,7 @@ pub unsafe fn ex_profile(eap: *mut exarg_T) {
 
         let arg_bytes = CStr::from_ptr(arg).to_bytes();
         if len == 5 && &arg_bytes[..5] == b"start" && *e != 0 {
-            PROFILE_FNAME = cstr_take(expand_env_save_opt(e, true, std::ptr::null_mut()));
+            PROFILE_FNAME = Some(expand_env_save_opt(e, true, std::ptr::null_mut()));
             do_profiling = PROF_YES;
             profile_set_wait(profile_zero());
             set_vim_var_nr(VV_PROFILING, 1);

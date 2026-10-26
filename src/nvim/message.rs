@@ -2232,12 +2232,8 @@ pub unsafe fn msg_home_replace(fname: *const c_char) {
 
 unsafe fn msg_home_replace_hl(fname: *const c_char, hl_id: c_int) {
     unsafe {
-        let name = cstr_take(home_replace_save(ptr::null_mut(), fname));
-        msg_outtrans(
-            name.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-            hl_id,
-            false,
-        );
+        let name = home_replace_save(ptr::null_mut(), fname);
+        msg_outtrans(name.as_ptr(), hl_id, false);
     }
 }
 

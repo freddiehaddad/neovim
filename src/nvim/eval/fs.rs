@@ -133,12 +133,10 @@ pub unsafe fn modify_fname(
                         || *(*fnamep).add(1) == NUL)
                     && !(tilde_file && *(*fnamep).add(1) == NUL);
                 if tilde_cond {
-                    *fnamep = expand_env_save(*fnamep);
+                    let exp = expand_env_save(*fnamep);
+                    *fnamep = xstrdup(exp.as_ptr());
                     xfree((*bufp).cast()); // free any allocated file name
                     *bufp = *fnamep;
-                    if (*fnamep).is_null() {
-                        return -1;
-                    }
                 }
 
                 // When "/." or "/.." is used: force expansion to get rid of it.
@@ -197,7 +195,8 @@ pub unsafe fn modify_fname(
                 // Need full path first (use expand_env() to remove a "~/")
                 if !has_fullname && !has_homerelative {
                     if *(*fnamep) == b'~' as c_char {
-                        pbuf = expand_env_save(*fnamep);
+                        let exp = expand_env_save(*fnamep);
+                        pbuf = xstrdup(exp.as_ptr());
                         p = pbuf;
                     } else {
                         pbuf = FullName_save(*fnamep, false);

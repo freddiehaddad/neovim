@@ -2,18 +2,18 @@
 
 use crate::fileio::vim_gettempdir;
 use crate::globals::*;
-#[cfg(unix)]
-use crate::memory::xstrdup;
-use crate::memory::{xfree, xmemdupz};
+use crate::memory::cstr_from_bytes;
+#[cfg(windows)]
+use crate::memory::cstr_take;
 #[cfg(unix)]
 use crate::os::env::os_env_exists;
-use crate::os::env::{expand_env_save, os_getenv, os_getenv_buf};
+use crate::os::env::{expand_env_save, os_getenv_buf, os_getenv_cstr};
 #[cfg(windows)]
 use crate::os::fs::os_realpath;
 use crate::os::fs::{ENV_SEPCHAR, MAXPATHL, PATHSEP};
 #[cfg(windows)]
 use crate::path::path_to_slash;
-use crate::path::{concat_fnames_realloc, kPathCmpLiteral, path_equal, path_is_absolute};
+use crate::path::{concat_fnames_cstr, kPathCmpLiteral, path_equal, path_is_absolute};
 use std::ffi::{CStr, CString, c_char};
 
 #[repr(C)]
@@ -113,8 +113,8 @@ pub fn appname_is_valid() -> bool {
     true
 }
 
-unsafe fn xdg_remove_duplicate(ret: *mut c_char, sep: u8) -> *mut c_char {
-    let input_bytes = unsafe { CStr::from_ptr(ret).to_bytes() };
+unsafe fn xdg_remove_duplicate(ret: CString, sep: u8) -> Option<CString> {
+    let input_bytes = ret.as_bytes();
     let mut token_cstrs: Vec<CString> = Vec::new();
 
     for part in input_bytes.split(|&b| b == sep) {
@@ -132,12 +132,8 @@ unsafe fn xdg_remove_duplicate(ret: *mut c_char, sep: u8) -> *mut c_char {
         }
     }
 
-    unsafe {
-        xfree(ret.cast());
-    }
-
     if token_cstrs.is_empty() {
-        return std::ptr::null_mut();
+        return None;
     }
 
     let mut joined: Vec<u8> = Vec::new();
@@ -147,50 +143,53 @@ unsafe fn xdg_remove_duplicate(ret: *mut c_char, sep: u8) -> *mut c_char {
         }
         joined.extend_from_slice(tok.as_bytes());
     }
-    unsafe { xmemdupz(joined.as_ptr().cast(), joined.len()).cast::<c_char>() }
+    Some(cstr_from_bytes(&joined))
 }
 
-/// Return allocated XDG variable value for `idx` (`stdpaths_get_xdg_var`).
-pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> *mut c_char {
+/// Return owned XDG variable value for `idx` (`stdpaths_get_xdg_var`).
+pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
     unsafe {
         let i = idx as usize;
         let env = XDG_ENV_VARS[i].as_ptr();
         let fallback = XDG_DEFAULTS[i];
 
-        let mut env_val = os_getenv(env);
+        let mut env_val = os_getenv_cstr(env);
 
         #[cfg(target_os = "windows")]
         {
-            if env_val.is_null()
+            if env_val.is_none()
                 && let Some(def_env) = XDG_DEFAULTS_ENV_VARS[i]
             {
-                env_val = os_getenv(def_env.as_ptr());
+                env_val = os_getenv_cstr(def_env.as_ptr());
             }
-            if !env_val.is_null() && idx == XDGVarType::kXDGCacheHome {
-                let real_path = os_realpath(env_val, std::ptr::null_mut(), MAXPATHL);
-                if !real_path.is_null() {
-                    xfree(env_val.cast());
-                    env_val = real_path;
-                }
+            if let Some(ref ev) = env_val
+                && idx == XDGVarType::kXDGCacheHome
+                && let Some(real_path) = cstr_take(os_realpath(
+                    ev.as_ptr(),
+                    std::ptr::null_mut(),
+                    MAXPATHL,
+                ))
+            {
+                env_val = Some(real_path);
             }
         }
 
         #[cfg(not(target_os = "windows"))]
         {
-            if env_val.is_null() && os_env_exists(env, false) {
-                env_val = xstrdup(c"".as_ptr());
+            if env_val.is_none() && os_env_exists(env, false) {
+                env_val = Some(CString::default());
             }
         }
 
         #[cfg(windows)]
-        if !env_val.is_null() {
-            path_to_slash(env_val);
+        if let Some(ref ev) = env_val {
+            path_to_slash(ev.as_ptr().cast_mut());
         }
 
-        let mut ret: *mut c_char = if !env_val.is_null() {
+        let mut ret: Option<CString> = if env_val.is_some() {
             env_val
         } else if let Some(fb) = fallback {
-            expand_env_save(fb.as_ptr().cast_mut())
+            Some(expand_env_save(fb.as_ptr().cast_mut()))
         } else if idx == XDGVarType::kXDGRuntimeDir {
             let tempdir = vim_gettempdir();
             let raw = if tempdir.is_null() {
@@ -199,13 +198,15 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> *mut c_char {
                 CStr::from_ptr(tempdir).to_bytes()
             };
             let trimmed_len = if raw.len() >= 2 { raw.len() - 1 } else { 0 };
-            xmemdupz(raw.as_ptr().cast(), trimmed_len).cast::<c_char>()
+            Some(cstr_from_bytes(&raw[..trimmed_len]))
         } else {
-            std::ptr::null_mut()
+            None
         };
 
-        if matches!(idx, XDGVarType::kXDGDataDirs | XDGVarType::kXDGConfigDirs) && !ret.is_null() {
-            ret = xdg_remove_duplicate(ret, ENV_SEPCHAR);
+        if matches!(idx, XDGVarType::kXDGDataDirs | XDGVarType::kXDGConfigDirs)
+            && let Some(r) = ret
+        {
+            ret = xdg_remove_duplicate(r, ENV_SEPCHAR);
         }
 
         ret
@@ -213,11 +214,8 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> *mut c_char {
 }
 
 /// Return Nvim-specific XDG directory subpath (`get_xdg_home`).
-pub fn get_xdg_home(idx: XDGVarType) -> *mut c_char {
-    let dir = stdpaths_get_xdg_var(idx);
-    if dir.is_null() {
-        return std::ptr::null_mut();
-    }
+pub fn get_xdg_home(idx: XDGVarType) -> Option<CString> {
+    let dir = stdpaths_get_xdg_var(idx)?;
 
     let appname_bytes = unsafe { CStr::from_ptr(get_appname(false)).to_bytes() };
     let mut suffix = Vec::with_capacity(appname_bytes.len() + 6);
@@ -226,17 +224,18 @@ pub fn get_xdg_home(idx: XDGVarType) -> *mut c_char {
     if matches!(idx, XDGVarType::kXDGDataHome | XDGVarType::kXDGStateHome) {
         suffix.extend_from_slice(b"-data");
     }
-    suffix.push(0);
+    let suffix_cstr = cstr_from_bytes(&suffix);
 
-    unsafe { concat_fnames_realloc(dir, suffix.as_ptr().cast::<c_char>(), true) }
+    Some(unsafe { concat_fnames_cstr(dir.as_ptr(), suffix_cstr.as_ptr(), true) })
 }
 
 /// Return `$XDG_CONFIG_HOME/$NVIM_APPNAME/{fname}` (`stdpaths_user_conf_subpath`).
 ///
 /// # Safety
 /// `fname` must be a valid C string.
-pub unsafe fn stdpaths_user_conf_subpath(fname: *const c_char) -> *mut c_char {
-    unsafe { concat_fnames_realloc(get_xdg_home(XDGVarType::kXDGConfigHome), fname, true) }
+pub unsafe fn stdpaths_user_conf_subpath(fname: *const c_char) -> CString {
+    let home = get_xdg_home(XDGVarType::kXDGConfigHome).unwrap_or_default();
+    unsafe { concat_fnames_cstr(home.as_ptr(), fname, true) }
 }
 
 /// Return `$XDG_STATE_HOME/$NVIM_APPNAME/{fname}` with optional trailing path separators and
@@ -248,46 +247,31 @@ pub unsafe fn stdpaths_user_state_subpath(
     fname: *const c_char,
     trailing_pathseps: usize,
     escape_commas: bool,
-) -> *mut c_char {
-    let mut ret =
-        unsafe { concat_fnames_realloc(get_xdg_home(XDGVarType::kXDGStateHome), fname, true) };
-
-    let mut len = unsafe { CStr::from_ptr(ret).to_bytes().len() };
-    let mut numcommas = if escape_commas {
-        let bytes = unsafe { std::slice::from_raw_parts(ret.cast::<u8>(), len) };
+) -> CString {
+    let home = get_xdg_home(XDGVarType::kXDGStateHome).unwrap_or_default();
+    let ret = unsafe { concat_fnames_cstr(home.as_ptr(), fname, true) };
+    let bytes = ret.as_bytes();
+    let numcommas = if escape_commas {
         bytes.iter().filter(|&&b| b == b',').count()
     } else {
         0
     };
 
-    if numcommas > 0 || trailing_pathseps > 0 {
-        let mut newlen = len + numcommas + trailing_pathseps;
-        unsafe {
-            let new_ret = crate::memory::xmallocz(newlen).cast::<c_char>();
-            std::ptr::copy_nonoverlapping(ret, new_ret, len);
-            xfree(ret.cast());
-            ret = new_ret;
-            let p = ret.cast::<u8>();
-            if trailing_pathseps > 0 {
-                std::ptr::write_bytes(p.add(len + numcommas), PATHSEP as u8, trailing_pathseps);
-            }
-            newlen -= trailing_pathseps;
-
-            while numcommas > 0 && len > 0 {
-                newlen -= 1;
-                len -= 1;
-                let ch = *p.add(len);
-                *p.add(newlen) = ch;
-                if ch == b',' {
-                    newlen -= 1;
-                    *p.add(newlen) = b'\\';
-                    numcommas -= 1;
-                }
-            }
-        }
+    if numcommas == 0 && trailing_pathseps == 0 {
+        return ret;
     }
 
-    ret
+    let mut out = Vec::with_capacity(bytes.len() + numcommas + trailing_pathseps);
+    for &b in bytes {
+        if escape_commas && b == b',' {
+            out.push(b'\\');
+        }
+        out.push(b);
+    }
+    for _ in 0..trailing_pathseps {
+        out.push(PATHSEP as u8);
+    }
+    cstr_from_bytes(&out)
 }
 
 #[cfg(test)]
@@ -298,10 +282,9 @@ mod tests {
     fn state_subpath_escapes_commas_and_appends_separators() {
         unsafe {
             let p = stdpaths_user_state_subpath(c"a,b".as_ptr(), 2, true);
-            let s = CStr::from_ptr(p).to_bytes();
+            let s = p.as_bytes();
             let expected_suffix = [b'/', b'a', b'\\', b',', b'b', PATHSEP as u8, PATHSEP as u8];
             assert!(s.ends_with(&expected_suffix));
-            xfree(p.cast());
         }
     }
 }

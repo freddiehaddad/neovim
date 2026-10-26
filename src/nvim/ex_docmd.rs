@@ -8217,9 +8217,9 @@ pub unsafe fn expand_filename(
             if !vim_strchr(repl, b'$' as c_int).is_null()
                 || !vim_strchr(repl, b'~' as c_int).is_null()
             {
-                let l = repl;
-                repl = expand_env_save(repl);
-                xfree(l.cast());
+                let exp = expand_env_save(repl);
+                xfree(repl.cast());
+                repl = xstrdup(exp.as_ptr());
             }
 
             if (*eap).usefilter == 0
@@ -11479,12 +11479,7 @@ unsafe fn ex_redir(eap: *mut exarg_T) {
             close_redir();
 
             let fname = expand_env_save(arg);
-            if fname.is_null() {
-                return;
-            }
-
-            redir_fd = open_exfile(fname, (*eap).forceit, mode);
-            xfree(fname.cast());
+            redir_fd = open_exfile(fname.as_ptr().cast_mut(), (*eap).forceit, mode);
         } else if *arg == b'@' as c_char {
             close_redir();
             arg = arg.add(1);

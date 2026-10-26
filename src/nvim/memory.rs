@@ -347,6 +347,24 @@ pub unsafe fn xstrlcat(dst: *mut c_char, src: *const c_char, dsize: usize) -> us
     slen + dlen
 }
 
+/// Copy a NUL-terminated C string (or NULL) into an owned `CString`.
+pub unsafe fn cstr_to_cstring(ptr: *const c_char) -> CString {
+    if ptr.is_null() {
+        CString::default()
+    } else {
+        unsafe { CStr::from_ptr(ptr).to_owned() }
+    }
+}
+
+/// Copy a byte slice (truncating at any embedded NUL) into an owned `CString`.
+pub fn cstr_from_bytes(bytes: &[u8]) -> CString {
+    let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+    let mut v = Vec::with_capacity(end + 1);
+    v.extend_from_slice(&bytes[..end]);
+    v.push(0);
+    unsafe { CString::from_vec_with_nul_unchecked(v) }
+}
+
 /// Copy an `xmalloc`-allocated C string into an owned `CString` and free `ptr`.
 pub unsafe fn cstr_take(ptr: *mut c_char) -> Option<CString> {
     if ptr.is_null() {

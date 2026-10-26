@@ -486,6 +486,43 @@ pub unsafe fn concat_fnames(fname1: NvimString, fname2: NvimString, sep: bool) -
     }
 }
 
+pub unsafe fn concat_fnames_cstr(
+    fname1: *const c_char,
+    fname2: *const c_char,
+    sep: bool,
+) -> std::ffi::CString {
+    unsafe {
+        let len1 = if fname1.is_null() {
+            0
+        } else {
+            CStr::from_ptr(fname1).to_bytes().len()
+        };
+        let len2 = if fname2.is_null() {
+            0
+        } else {
+            CStr::from_ptr(fname2).to_bytes().len()
+        };
+        let mut buf = vec![0 as c_char; len1 + len2 + 3];
+        if len1 > 0 {
+            ptr::copy_nonoverlapping(fname1, buf.as_mut_ptr(), len1);
+        }
+        let mut len: usize = 0;
+        do_concat_fnames(
+            buf.as_mut_ptr(),
+            len1,
+            if fname2.is_null() {
+                c"".as_ptr()
+            } else {
+                fname2
+            },
+            len2,
+            sep,
+            &mut len,
+        );
+        crate::memory::cstr_to_cstring(buf.as_ptr())
+    }
+}
+
 pub unsafe fn concat_fnames_realloc(
     fname1: *mut c_char,
     fname2: *const c_char,
@@ -1266,18 +1303,17 @@ pub unsafe fn gen_expand_wildcards_vec(
                 }
             } else {
                 if (has_env_var(p) && (flags & EW_NOTENV) == 0) || *p == b'~' as c_char {
-                    p_owned = cstr_take(expand_env_save_opt(p, true, PATH_ESC_WILDCARDS.cast_mut()));
-                    if let Some(ref po) = p_owned {
-                        p = po.as_ptr().cast_mut();
-                        #[cfg(unix)]
-                        if has_env_var(p) || *p == b'~' as c_char {
-                            drop(p_owned);
-                            clear_cstrings(file);
-                            let res =
-                                os_expand_wildcards(num_pat, pat, file, flags | EW_KEEPDOLLAR);
-                            EXPAND_RECURSIVE = false;
-                            return res;
-                        }
+                    let po = expand_env_save_opt(p, true, PATH_ESC_WILDCARDS.cast_mut());
+                    p = po.as_ptr().cast_mut();
+                    p_owned = Some(po);
+                    #[cfg(unix)]
+                    if has_env_var(p) || *p == b'~' as c_char {
+                        drop(p_owned);
+                        clear_cstrings(file);
+                        let res =
+                            os_expand_wildcards(num_pat, pat, file, flags | EW_KEEPDOLLAR);
+                        EXPAND_RECURSIVE = false;
+                        return res;
                     }
                 }
 

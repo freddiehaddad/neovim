@@ -95,7 +95,7 @@ use crate::mcursor::{kOptFollow, mc_ins_replay_can_join};
 use crate::memfile::mf_close_file;
 use crate::memline::{ml_open_file, ml_open_files};
 use crate::memory::{
-    Arena, strequal, strnequal, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xstrdup, xstrlcpy,
+    Arena, strequal, strnequal, xfree, xmalloc, xmemcpyz, xmemdupz, xstrdup, xstrlcpy,
 };
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar,
@@ -710,11 +710,11 @@ unsafe fn set_init_default_shell() {
             let shell_ptr = shell.as_ptr();
             if !vim_strchr(shell_ptr, b' ' as c_int).is_null() {
                 let len = shell.as_bytes().len() + 3;
-                let cmd = xmalloc(len).cast::<c_char>();
-                vim_snprintf!(cmd, len, c"\"%s\"".as_ptr(), shell_ptr);
-                set_string_default(kOptShell, cmd, true);
+                let mut cmd = vec![0 as c_char; len];
+                vim_snprintf!(cmd.as_mut_ptr(), len, c"\"%s\"".as_ptr(), shell_ptr);
+                set_string_default(kOptShell, cmd.as_ptr());
             } else {
-                set_string_default(kOptShell, shell_ptr.cast_mut(), false);
+                set_string_default(kOptShell, shell_ptr);
             }
         }
     }
@@ -738,33 +738,28 @@ unsafe fn set_init_default_backupskip() {
 
         for &name in &names {
             #[cfg(unix)]
-            let mut mustfree = true;
+            let (p_owned, p, mut plen): (Option<std::ffi::CString>, *const c_char, usize) =
+                if *name == NUL {
+                    #[cfg(target_os = "macos")]
+                    {
+                        (None, c"/private/tmp".as_ptr(), "/private/tmp".len())
+                    }
+                    #[cfg(not(target_os = "macos"))]
+                    {
+                        (None, c"/tmp".as_ptr(), "/tmp".len())
+                    }
+                } else {
+                    let env = vim_getenv(name);
+                    let ptr = env.as_ref().map_or(ptr::null(), |s| s.as_ptr());
+                    (env, ptr, 0)
+                };
             #[cfg(not(unix))]
-            let mustfree = true;
-            let p: *mut c_char;
-            let mut plen: usize;
-            #[cfg(unix)]
-            if *name == NUL {
-                #[cfg(target_os = "macos")]
-                {
-                    p = c"/private/tmp".as_ptr().cast_mut();
-                    plen = "/private/tmp".len();
-                }
-                #[cfg(not(target_os = "macos"))]
-                {
-                    p = c"/tmp".as_ptr().cast_mut();
-                    plen = "/tmp".len();
-                }
-                mustfree = false;
-            } else {
-                p = vim_getenv(name);
-                plen = 0;
-            }
-            #[cfg(not(unix))]
-            {
-                p = vim_getenv(name);
-                plen = 0;
-            }
+            let (p_owned, p, mut plen): (Option<std::ffi::CString>, *const c_char, usize) = {
+                let env = vim_getenv(name);
+                let ptr = env.as_ref().map_or(ptr::null(), |s| s.as_ptr());
+                (env, ptr, 0)
+            };
+            let _ = &p_owned;
 
             if !p.is_null() && *p != NUL {
                 let mut has_trailing_path_sep = false;
@@ -812,13 +807,9 @@ unsafe fn set_init_default_backupskip() {
                     buf.push(NUL);
                 }
             }
-            if mustfree {
-                xfree(p.cast());
-            }
         }
         if !buf.is_empty() {
-            let default_str = xmemdupz(buf.as_ptr().cast(), buf.len() - 1).cast::<c_char>();
-            set_string_default(kOptBackupskip, default_str, true);
+            set_string_default(kOptBackupskip, buf.as_ptr());
         }
     }
 }
@@ -826,12 +817,13 @@ unsafe fn set_init_default_backupskip() {
 /// Initialize the 'cdpath' option to a default value.
 unsafe fn set_init_default_cdpath() {
     unsafe {
-        let cdpath = vim_getenv(c"CDPATH".as_ptr());
-        if cdpath.is_null() {
+        let Some(cdpath_cstr) = vim_getenv(c"CDPATH".as_ptr()) else {
             return;
-        }
+        };
+        let cdpath = cdpath_cstr.as_ptr();
 
-        let buf = xmalloc(2 * strlen(cdpath) + 2).cast::<c_char>();
+        let mut buf_vec = vec![0 as c_char; 2 * cdpath_cstr.as_bytes().len() + 2];
+        let buf = buf_vec.as_mut_ptr();
         *buf = b',' as c_char;
         let mut j: usize = 1;
         let mut i: usize = 0;
@@ -851,9 +843,7 @@ unsafe fn set_init_default_cdpath() {
             i += 1;
         }
         *buf.add(j) = NUL;
-        change_option_default(kOptCdpath, cstr_as_obj(buf));
-
-        xfree(cdpath.cast());
+        change_option_default(kOptCdpath, cstr_to_obj(buf));
     }
 }
 
@@ -899,36 +889,30 @@ pub unsafe fn set_init_1(clean_arg: bool) {
         set_init_default_cdpath();
 
         let raw_backupdir = stdpaths_user_state_subpath(c"backup".as_ptr(), 2, true);
-        let backupdir_len = strlen(raw_backupdir);
-        let backupdir = xmallocz(backupdir_len + 2).cast::<c_char>();
-        ptr::copy_nonoverlapping(b".,".as_ptr().cast::<c_char>(), backupdir, 2);
-        ptr::copy_nonoverlapping(raw_backupdir, backupdir.add(2), backupdir_len);
-        xfree(raw_backupdir.cast());
-        set_string_default(kOptBackupdir, backupdir, true);
+        let mut backupdir_bytes = Vec::with_capacity(raw_backupdir.as_bytes().len() + 2);
+        backupdir_bytes.extend_from_slice(b".,");
+        backupdir_bytes.extend_from_slice(raw_backupdir.as_bytes());
+        let backupdir = crate::memory::cstr_from_bytes(&backupdir_bytes);
+        set_string_default(kOptBackupdir, backupdir.as_ptr());
         set_string_default(
             kOptViewdir,
-            stdpaths_user_state_subpath(c"view".as_ptr(), 2, false),
-            true,
+            stdpaths_user_state_subpath(c"view".as_ptr(), 2, false).as_ptr(),
         );
         set_string_default(
             kOptDirectory,
-            stdpaths_user_state_subpath(c"swap".as_ptr(), 2, true),
-            true,
+            stdpaths_user_state_subpath(c"swap".as_ptr(), 2, true).as_ptr(),
         );
         set_string_default(
             kOptUndodir,
-            stdpaths_user_state_subpath(c"undo".as_ptr(), 2, true),
-            true,
+            stdpaths_user_state_subpath(c"undo".as_ptr(), 2, true).as_ptr(),
         );
         set_string_default(
             kOptPacklockfile,
-            stdpaths_user_conf_subpath(c"nvim-pack-lock.json".as_ptr()),
-            true,
+            stdpaths_user_conf_subpath(c"nvim-pack-lock.json".as_ptr()).as_ptr(),
         );
-        let rtp = runtimepath_default(clean_arg);
-        if !rtp.is_null() {
-            set_string_default(kOptRuntimepath, rtp, true);
-            set_string_default(kOptPackpath, rtp, false);
+        if let Some(rtp) = runtimepath_default(clean_arg) {
+            set_string_default(kOptRuntimepath, rtp.as_ptr());
+            set_string_default(kOptPackpath, rtp.as_ptr());
         }
 
         set_options_default(0);
@@ -1071,13 +1055,10 @@ unsafe fn set_options_default(opt_flags: c_int) {
 }
 
 /// Set the Vi-default value of a string option.
-unsafe fn set_string_default(opt_idx: OptIndex, val: *mut c_char, allocated: bool) {
+unsafe fn set_string_default(opt_idx: OptIndex, val: *const c_char) {
     unsafe {
         assert!(opt_idx != kOptInvalid);
-        change_option_default(
-            opt_idx,
-            cstr_as_obj(if allocated { val } else { xstrdup(val) }),
-        );
+        change_option_default(opt_idx, cstr_to_obj(val));
     }
 }
 
@@ -8319,15 +8300,10 @@ pub unsafe fn shortmess(x: c_int) -> bool {
 
 pub unsafe fn vimrc_found(fname: *mut c_char, envname: *mut c_char) {
     unsafe {
-        if !fname.is_null() && !envname.is_null() {
-            let mut p = vim_getenv(envname);
-            if p.is_null() {
-                p = FullName_save(fname, false);
-                if !p.is_null() {
-                    os_setenv(envname, p, 1);
-                    xfree(p.cast());
-                }
-            } else {
+        if !fname.is_null() && !envname.is_null() && vim_getenv(envname).is_none() {
+            let p = FullName_save(fname, false);
+            if !p.is_null() {
+                os_setenv(envname, p, 1);
                 xfree(p.cast());
             }
         }

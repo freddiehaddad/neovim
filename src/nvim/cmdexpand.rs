@@ -202,9 +202,8 @@ impl LineGetter {
                 }
                 Self::Source(cookie) => crate::runtime::getsourceline(c, cookie, indent, do_concat),
                 Self::Loop(cookie) => crate::ex_docmd::get_loop_line(c, cookie, indent, do_concat),
-                Self::List(cookie) => {
-                    crate::eval::funcs::get_list_line(c, cookie, indent, do_concat)
-                }
+                Self::List(cookie) => crate::eval::funcs::get_list_line(c, cookie, indent, do_concat)
+                    .map_or(ptr::null_mut(), |s| xstrdup(s.as_ptr())),
                 Self::LuaEx(cookie) => {
                     crate::lua::executor::nlua_ex_getline(c, cookie, indent, do_concat)
                 }
@@ -2746,14 +2745,9 @@ unsafe fn showmatches_oneline(
                 let match_j = matches[j as usize];
                 if (*xp).xp_numfiles != -1 {
                     let exp_path = expand_env_save_opt(match_j, true, ptr::null_mut());
-                    let path = if !exp_path.is_null() {
-                        exp_path
-                    } else {
-                        match_j
-                    };
+                    let path = exp_path.as_ptr().cast_mut();
                     let halved_slash = backslash_halve_save(path);
                     isdir = os_isdir(halved_slash);
-                    xfree(exp_path.cast());
                     if halved_slash != path {
                         xfree(halved_slash.cast());
                     }
@@ -5220,7 +5214,6 @@ unsafe fn expand_shellcmd_onedir(
 /// Complete a shell command.
 unsafe fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<*mut c_char>, flagsarg: c_int) {
     unsafe {
-        let mut path: *mut c_char = ptr::null_mut();
         matches.clear();
         let mut buf_vec = vec![0 as c_char; MAXPATHL];
         let buf = buf_vec.as_mut_ptr();
@@ -5228,7 +5221,9 @@ unsafe fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<*mut c_char>, 
         let mut did_curdir = false;
 
         let mut patlen = strlen(filepat);
-        let pat = xmemdupz(filepat.cast(), patlen).cast::<c_char>();
+        let mut pat_vec = vec![0 as c_char; patlen + 1];
+        xmemcpyz(pat_vec.as_mut_ptr().cast(), filepat.cast(), patlen);
+        let pat = pat_vec.as_mut_ptr();
         let mut e = pat.add(patlen);
         let mut s = pat;
         while *s != NUL {
@@ -5245,22 +5240,20 @@ unsafe fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<*mut c_char>, 
 
         flags |= EW_FILE | EW_EXEC | EW_SHELLCMD;
 
-        let mut mustfree = false;
-        if *pat == b'.' as c_char
+        let mut path_owned: Option<std::ffi::CString> = None;
+        let path: *mut c_char = if *pat == b'.' as c_char
             && (vim_ispathsep(*pat.add(1) as c_int)
                 || (*pat.add(1) == b'.' as c_char && vim_ispathsep(*pat.add(2) as c_int)))
         {
-            path = c".".as_ptr().cast_mut();
+            c".".as_ptr().cast_mut()
         } else {
             if !path_is_absolute(pat) {
-                path = vim_getenv(c"PATH".as_ptr());
+                path_owned = vim_getenv(c"PATH".as_ptr());
             }
-            if path.is_null() {
-                path = c"".as_ptr().cast_mut();
-            } else {
-                mustfree = true;
-            }
-        }
+            path_owned
+                .as_ref()
+                .map_or(c"".as_ptr().cast_mut(), |c| c.as_ptr().cast_mut())
+        };
 
         let mut found_ht: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
         s = path;
@@ -5317,11 +5310,6 @@ unsafe fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<*mut c_char>, 
                 e = e.add(1);
             }
             s = e;
-        }
-
-        xfree(pat.cast());
-        if mustfree {
-            xfree(path.cast());
         }
     }
 }

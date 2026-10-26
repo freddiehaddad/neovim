@@ -3324,7 +3324,8 @@ pub unsafe fn ExpandBufnames(
             }
 
             p = if (options & WILD_HOME_REPLACE) != 0 {
-                home_replace_save(buf, p)
+                let hr = home_replace_save(buf, p);
+                xstrdup(hr.as_ptr())
             } else {
                 xstrdup(p)
             };
@@ -3402,10 +3403,9 @@ unsafe fn fname_match(rmp: *mut regmatch_T, name: *mut c_char, ignore_case: bool
             match_ = name;
         } else if !(*rmp).regprog.is_null() {
             let p = home_replace_save(ptr::null_mut(), name);
-            if vim_regexec(rmp, p, 0) {
+            if vim_regexec(rmp, p.as_ptr().cast_mut(), 0) {
                 match_ = name;
             }
-            xfree(p.cast());
         }
 
         match_
@@ -3423,20 +3423,24 @@ pub unsafe fn buflist_findnr(mut nr: c_int) -> *mut buf_T {
     }
 }
 
-pub unsafe fn buflist_nr2name(n: c_int, fullname: c_int, helptail: c_int) -> *mut c_char {
+pub unsafe fn buflist_nr2name(
+    n: c_int,
+    fullname: c_int,
+    helptail: c_int,
+) -> Option<std::ffi::CString> {
     unsafe {
         let buf = buflist_findnr(n);
         if buf.is_null() {
-            return ptr::null_mut();
+            return None;
         }
-        home_replace_save(
+        Some(home_replace_save(
             if helptail != 0 { buf } else { ptr::null_mut() },
             if fullname != 0 {
                 (*buf).b_ffname
             } else {
                 (*buf).b_fname
             },
-        )
+        ))
     }
 }
 

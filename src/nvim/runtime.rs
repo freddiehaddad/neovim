@@ -2271,42 +2271,53 @@ unsafe fn add_dir(
     }
 }
 
-pub unsafe fn get_lib_dir() -> *mut c_char {
+pub unsafe fn get_lib_dir() -> Option<std::ffi::CString> {
     unsafe {
         if !default_lib_dir.is_null() && *default_lib_dir != NUL && os_isdir(default_lib_dir) {
-            return xstrdup(default_lib_dir);
+            return Some(crate::memory::cstr_to_cstring(default_lib_dir));
         }
 
         let mut exe_name = [0 as c_char; MAXPATHL];
         vim_get_prefix_from_exepath(exe_name.as_mut_ptr());
         if append_path(exe_name.as_mut_ptr(), c"lib/nvim".as_ptr(), MAXPATHL) == OK {
-            return xstrdup(exe_name.as_ptr());
+            return Some(crate::memory::cstr_to_cstring(exe_name.as_ptr()));
         }
-        ptr::null_mut()
+        None
     }
 }
 
 /// Determine the startup value for &runtimepath.
-pub unsafe fn runtimepath_default(clean_arg: bool) -> *mut c_char {
+pub unsafe fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
     unsafe {
         const SITE_SIZE: usize = 4;
         const AFTER_SIZE: usize = 5;
 
         let mut rtp_size: usize = 0;
-        let data_home = if clean_arg {
-            ptr::null_mut()
+        let data_home_cstr = if clean_arg {
+            None
         } else {
             stdpaths_get_xdg_var(XDGVarType::kXDGDataHome)
         };
-        let config_home = if clean_arg {
-            ptr::null_mut()
+        let config_home_cstr = if clean_arg {
+            None
         } else {
             stdpaths_get_xdg_var(XDGVarType::kXDGConfigHome)
         };
-        let libdir = get_lib_dir();
-        let data_dirs = stdpaths_get_xdg_var(XDGVarType::kXDGDataDirs);
-        let config_dirs = stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs);
-        let vimruntime = vim_getenv(c"VIMRUNTIME".as_ptr());
+        let libdir_cstr = get_lib_dir();
+        let data_dirs_cstr = stdpaths_get_xdg_var(XDGVarType::kXDGDataDirs);
+        let config_dirs_cstr = stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs);
+        let vimruntime_cstr = vim_getenv(c"VIMRUNTIME".as_ptr());
+
+        let data_home = data_home_cstr.as_ref().map_or(ptr::null(), |s| s.as_ptr());
+        let config_home = config_home_cstr
+            .as_ref()
+            .map_or(ptr::null(), |s| s.as_ptr());
+        let libdir = libdir_cstr.as_ref().map_or(ptr::null(), |s| s.as_ptr());
+        let data_dirs = data_dirs_cstr.as_ref().map_or(ptr::null(), |s| s.as_ptr());
+        let config_dirs = config_dirs_cstr
+            .as_ref()
+            .map_or(ptr::null(), |s| s.as_ptr());
+        let vimruntime = vimruntime_cstr.as_ref().map_or(ptr::null(), |s| s.as_ptr());
 
         let mut data_len: usize = 0;
         let mut config_len: usize = 0;
@@ -2314,8 +2325,8 @@ pub unsafe fn runtimepath_default(clean_arg: bool) -> *mut c_char {
         let mut libdir_len: usize = 0;
         let appname_len = CStr::from_ptr(get_appname(false)).to_bytes().len();
 
-        if !data_home.is_null() {
-            data_len = CStr::from_ptr(data_home).to_bytes().len();
+        if let Some(ref dh) = data_home_cstr {
+            data_len = dh.as_bytes().len();
             let nvim_data_size = if cfg!(windows) {
                 appname_len + 5
             } else {
@@ -2334,8 +2345,8 @@ pub unsafe fn runtimepath_default(clean_arg: bool) -> *mut c_char {
                     + 1;
             }
         }
-        if !config_home.is_null() {
-            config_len = CStr::from_ptr(config_home).to_bytes().len();
+        if let Some(ref ch) = config_home_cstr {
+            config_len = ch.as_bytes().len();
             if config_len != 0 {
                 rtp_size += (config_len
                     + memcnt(config_home.cast(), b',' as c_char, config_len)
@@ -2347,15 +2358,15 @@ pub unsafe fn runtimepath_default(clean_arg: bool) -> *mut c_char {
                     + 1;
             }
         }
-        if !vimruntime.is_null() {
-            vimruntime_len = CStr::from_ptr(vimruntime).to_bytes().len();
+        if let Some(ref vr) = vimruntime_cstr {
+            vimruntime_len = vr.as_bytes().len();
             if vimruntime_len != 0 {
                 rtp_size +=
                     vimruntime_len + memcnt(vimruntime.cast(), b',' as c_char, vimruntime_len) + 1;
             }
         }
-        if !libdir.is_null() {
-            libdir_len = CStr::from_ptr(libdir).to_bytes().len();
+        if let Some(ref ld) = libdir_cstr {
+            libdir_len = ld.as_bytes().len();
             if libdir_len != 0 {
                 rtp_size += libdir_len + memcnt(libdir.cast(), b',' as c_char, libdir_len) + 1;
             }
@@ -2364,9 +2375,9 @@ pub unsafe fn runtimepath_default(clean_arg: bool) -> *mut c_char {
             compute_double_env_sep_len(data_dirs, appname_len + 1 + SITE_SIZE + 1, AFTER_SIZE + 1);
         rtp_size += compute_double_env_sep_len(config_dirs, appname_len + 1, AFTER_SIZE + 1);
 
-        let mut rtp: *mut c_char = ptr::null_mut();
         if rtp_size != 0 {
-            rtp = xmalloc(rtp_size).cast::<c_char>();
+            let mut rtp_vec = vec![0 as c_char; rtp_size];
+            let rtp = rtp_vec.as_mut_ptr();
             let mut rtp_cur = rtp;
             rtp_cur = add_dir(
                 rtp_cur,
@@ -2458,16 +2469,10 @@ pub unsafe fn runtimepath_default(clean_arg: bool) -> *mut c_char {
             );
             *rtp_cur.sub(1) = NUL;
             debug_assert_eq!((rtp_cur as usize) - (rtp as usize), rtp_size);
+            Some(crate::memory::cstr_to_cstring(rtp))
+        } else {
+            None
         }
-
-        xfree(data_dirs.cast());
-        xfree(config_dirs.cast());
-        xfree(data_home.cast());
-        xfree(config_home.cast());
-        xfree(vimruntime.cast());
-        xfree(libdir.cast());
-
-        rtp
     }
 }
 
@@ -2746,11 +2751,7 @@ unsafe fn do_source_ext(
             fname_exp = xstrdup(fname);
         } else {
             let p = expand_env_save(fname);
-            if p.is_null() {
-                return retval;
-            }
-            fname_exp = fix_fname(p);
-            xfree(p.cast());
+            fname_exp = fix_fname(p.as_ptr());
             if fname_exp.is_null() {
                 return retval;
             }
@@ -3186,10 +3187,7 @@ pub unsafe fn get_scriptname(
                     );
                     iobuff
                 } else if home_replace {
-                    return Cow::Owned(
-                        crate::memory::cstr_take(home_replace_save(ptr::null_mut(), sname))
-                            .unwrap_or_default(),
-                    );
+                    return Cow::Owned(home_replace_save(ptr::null_mut(), sname));
                 } else {
                     sname
                 }

@@ -26,7 +26,7 @@ use crate::lua::executor::nlua_call_excmd;
 use crate::mbyte::{ptr2cells, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::mcursor::mc_replaying;
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len};
-use crate::memory::{cstr_take, xstrlcpy};
+use crate::memory::xstrlcpy;
 use crate::message::{
     emsg, message_filtered, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts, msg_puts_title,
     semsg,
@@ -1012,7 +1012,7 @@ pub unsafe fn fm_getname(fmark: *mut fmark_T, lead_len: c_int) -> Option<std::ff
         if (*fmark).fnum == (*curbuf).b_fnum {
             return Some(mark_line(&raw mut (*fmark).mark, lead_len));
         }
-        cstr_take(buflist_nr2name((*fmark).fnum, 0, 1))
+        buflist_nr2name((*fmark).fnum, 0, 1)
     }
 }
 
@@ -2344,7 +2344,7 @@ pub unsafe fn get_global_marks(l: *mut list_T) {
         for i in 0..(NMARKS + EXTRA_MARKS) {
             let fm = &*fm_base.add(i);
             let owned_name = if fm.fmark.fnum != 0 {
-                cstr_take(buflist_nr2name(fm.fmark.fnum, 1, 1))
+                buflist_nr2name(fm.fmark.fnum, 1, 1)
             } else {
                 None
             };

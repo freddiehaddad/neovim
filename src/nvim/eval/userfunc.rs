@@ -4094,7 +4094,10 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
                 } else if (*rettv).vval.v_partial.is_null() {
                     ptr::null_mut()
                 } else {
-                    (*(*rettv).vval.v_partial).pt_name
+                    (*(*rettv).vval.v_partial)
+                        .pt_name
+                        .as_ref()
+                        .map_or(ptr::null_mut(), |n| n.as_ptr().cast_mut())
                 };
             if fname.is_null() {
                 (*rettv).v_type = VarType::VAR_FUNC;
@@ -4119,12 +4122,12 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
             (*selfdict).dv_refcount += 1;
             (*pt).pt_auto = true;
             if (*rettv).v_type == VarType::VAR_FUNC || (*rettv).v_type == VarType::VAR_STRING {
-                (*pt).pt_name = (*rettv).vval.v_string;
+                (*pt).pt_name = crate::memory::cstr_take((*rettv).vval.v_string);
             } else {
                 let ret_pt = (*rettv).vval.v_partial;
-                if !(*ret_pt).pt_name.is_null() {
-                    (*pt).pt_name = xstrdup((*ret_pt).pt_name);
-                    func_ref((*pt).pt_name);
+                if let Some(ref ret_name) = (*ret_pt).pt_name {
+                    func_ref(ret_name.as_ptr().cast_mut());
+                    (*pt).pt_name = Some(ret_name.clone());
                 } else {
                     (*pt).pt_func = (*ret_pt).pt_func;
                     func_ptr_ref((*pt).pt_func);

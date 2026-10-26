@@ -16,7 +16,7 @@ use crate::mbyte::{utf_isalnum, utf_ptr2char, utf_ptr2len};
 use crate::mbyte::{utf_valid_string, utf16_to_utf8};
 #[cfg(any(windows, test))]
 use crate::memory::xstrlcat;
-use crate::memory::{cstr_take, xfree, xmalloc, xmemcpyz, xmemdupz, xmemrchr, xstrdup, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_take, cstr_to_cstring, xmemcpyz, xmemrchr, xstrlcpy};
 #[cfg(windows)]
 use crate::message::emsg;
 #[cfg(any(windows, test))]
@@ -231,7 +231,7 @@ pub unsafe fn env_name_len(p: *const c_char) -> usize {
     }
 }
 
-/// Like `os_getenv()`, but returns an owned `Option<CString>` without C heap allocations.
+/// Like `getenv()`, but returns `None` if the variable is empty, without C heap allocations.
 pub unsafe fn os_getenv_cstr(name: *const c_char) -> Option<std::ffi::CString> {
     unsafe {
         if !env_name_valid(name) {
@@ -241,51 +241,22 @@ pub unsafe fn os_getenv_cstr(name: *const c_char) -> Option<std::ffi::CString> {
         let mut buf = [0 as c_char; INIT_SIZE];
         let mut r = uv_os_getenv(name, buf.as_mut_ptr(), &raw mut size);
         let res = if r == UV_ENOBUFS {
-            let mut vec_buf = vec![0 as c_char; size];
+            let mut vec_buf = vec![0 as c_char; size + 1];
             r = uv_os_getenv(name, vec_buf.as_mut_ptr(), &raw mut size);
             if r != 0 || size == 0 || vec_buf[0] == NUL {
                 None
             } else {
                 let bytes = std::slice::from_raw_parts(vec_buf.as_ptr().cast::<u8>(), size);
-                Some(std::ffi::CStr::from_ptr(bytes.as_ptr().cast::<c_char>()).to_owned())
+                Some(cstr_from_bytes(bytes))
             }
         } else if r != 0 || size == 0 || buf[0] == NUL {
             None
         } else {
-            Some(std::ffi::CStr::from_ptr(buf.as_ptr()).to_owned())
+            let bytes = std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), size);
+            Some(cstr_from_bytes(bytes))
         };
         assert_ne!(r, UV_EINVAL);
         res
-    }
-}
-
-/// Like `getenv()`, but returns NULL if the variable is empty.
-pub unsafe fn os_getenv(name: *const c_char) -> *mut c_char {
-    unsafe {
-        if !env_name_valid(name) {
-            return ptr::null_mut();
-        }
-        {
-            let mut size = INIT_SIZE;
-            let mut buf = [0 as c_char; INIT_SIZE];
-            let mut r = uv_os_getenv(name, buf.as_mut_ptr(), &raw mut size);
-            let e: *mut c_char = if r == UV_ENOBUFS {
-                let ptr = xmalloc(size).cast::<c_char>();
-                r = uv_os_getenv(name, ptr, &raw mut size);
-                if r != 0 || size == 0 || *ptr == NUL {
-                    xfree(ptr.cast());
-                    ptr::null_mut()
-                } else {
-                    ptr
-                }
-            } else if r != 0 || size == 0 || buf[0] == NUL {
-                ptr::null_mut()
-            } else {
-                xmemdupz(buf.as_ptr().cast(), size).cast::<c_char>()
-            };
-            assert_ne!(r, UV_EINVAL);
-            e
-        }
     }
 }
 
@@ -591,7 +562,7 @@ pub unsafe fn free_homedir() {
 }
 
 /// Call `expand_env()` and store the result in an allocated string.
-pub unsafe fn expand_env_save(src: *mut c_char) -> *mut c_char {
+pub unsafe fn expand_env_save(src: *mut c_char) -> std::ffi::CString {
     unsafe { expand_env_save_opt(src, false, ptr::null_mut()) }
 }
 
@@ -600,11 +571,18 @@ pub unsafe fn expand_env_save_opt(
     src: *mut c_char,
     one: bool,
     esc_chars: *mut c_char,
-) -> *mut c_char {
+) -> std::ffi::CString {
     unsafe {
-        let p = xmalloc(MAXPATHL).cast::<c_char>();
-        let _ = expand_env_esc(src, p, MAXPATHL as c_int, esc_chars, one, ptr::null_mut());
-        p
+        let mut p = [0 as c_char; MAXPATHL];
+        let _ = expand_env_esc(
+            src,
+            p.as_mut_ptr(),
+            MAXPATHL as c_int,
+            esc_chars,
+            one,
+            ptr::null_mut(),
+        );
+        cstr_to_cstring(p.as_ptr())
     }
 }
 
@@ -693,9 +671,10 @@ pub unsafe fn expand_env_esc(
                             tail = tail.add(1);
                         }
                         *var = NUL;
-                        let raw = vim_getenv(dst);
-                        to_slash(raw);
-                        var_cstr = cstr_take(raw);
+                        var_cstr = vim_getenv(dst);
+                        if let Some(ref c) = var_cstr {
+                            to_slash(c.as_ptr().cast_mut());
+                        }
                         var = var_cstr
                             .as_ref()
                             .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
@@ -704,9 +683,10 @@ pub unsafe fn expand_env_esc(
                     #[cfg(windows)]
                     {
                         *var = NUL;
-                        let raw = vim_getenv(dst);
-                        to_slash(raw);
-                        var_cstr = cstr_take(raw);
+                        var_cstr = vim_getenv(dst);
+                        if let Some(ref c) = var_cstr {
+                            to_slash(c.as_ptr().cast_mut());
+                        }
                         var = var_cstr
                             .as_ref()
                             .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
@@ -918,40 +898,37 @@ pub unsafe fn vim_get_prefix_from_exepath(exe_name: *mut c_char) {
 }
 
 /// Vim `getenv()` wrapper with special handling of `$HOME`, `$VIM`, `$VIMRUNTIME`.
-pub unsafe fn vim_getenv(name: *const c_char) -> *mut c_char {
+pub unsafe fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
     unsafe {
         assert!(*get_vim_var_str(VV_PROGPATH) != NUL);
 
         #[cfg(windows)]
         if CStr::from_ptr(name).to_bytes() == b"HOME" {
-            return (&raw const HOMEDIR)
-                .as_ref()
-                .unwrap()
-                .as_ref()
-                .map_or(ptr::null_mut(), |s| xstrdup(s.as_ptr()));
+            return (&raw const HOMEDIR).as_ref().unwrap().clone();
         }
 
-        let kos_env_path = os_getenv(name);
+        let kos_env_path = os_getenv_cstr(name);
         #[cfg(windows)]
-        if striequal(name, c"VIMRUNTIME".as_ptr())
-            || striequal(name, c"PATH".as_ptr())
-            || striequal(name, c"CDPATH".as_ptr())
-            || striequal(name, c"TMPDIR".as_ptr())
-            || striequal(name, c"TMP".as_ptr())
-            || striequal(name, c"TEMP".as_ptr())
-            || striequal(name, c"VIM".as_ptr())
-            || striequal(name, c"MYVIMRC".as_ptr())
+        if let Some(ref c) = kos_env_path
+            && (striequal(name, c"VIMRUNTIME".as_ptr())
+                || striequal(name, c"PATH".as_ptr())
+                || striequal(name, c"CDPATH".as_ptr())
+                || striequal(name, c"TMPDIR".as_ptr())
+                || striequal(name, c"TMP".as_ptr())
+                || striequal(name, c"TEMP".as_ptr())
+                || striequal(name, c"VIM".as_ptr())
+                || striequal(name, c"MYVIMRC".as_ptr()))
         {
-            to_slash(kos_env_path);
+            to_slash(c.as_ptr().cast_mut());
         }
-        if !kos_env_path.is_null() {
+        if kos_env_path.is_some() {
             return kos_env_path;
         }
 
         let name_bytes = CStr::from_ptr(name).to_bytes();
         let vimruntime = name_bytes == b"VIMRUNTIME";
         if !vimruntime && name_bytes != b"VIM" {
-            return ptr::null_mut();
+            return None;
         }
 
         {
@@ -1029,9 +1006,9 @@ pub unsafe fn vim_getenv(name: *const c_char) -> *mut c_char {
                     let _ = os_setenv(c"VIM".as_ptr(), vim_path_cstr.as_ptr(), 1);
                     didset_vim = true;
                 }
-                xstrdup(vim_path_cstr.as_ptr())
+                Some(vim_path_cstr)
             } else {
-                ptr::null_mut()
+                None
             }
         }
     }
@@ -1068,15 +1045,16 @@ pub unsafe fn home_replace(
         };
 
         #[cfg(windows)]
-        let mut homedir_env_raw = os_getenv(c"HOME".as_ptr());
+        let mut homedir_env_cstr = os_getenv_cstr(c"HOME".as_ptr());
         #[cfg(not(windows))]
-        let homedir_env_raw = os_getenv(c"HOME".as_ptr());
+        let homedir_env_cstr = os_getenv_cstr(c"HOME".as_ptr());
         #[cfg(windows)]
-        if homedir_env_raw.is_null() {
-            homedir_env_raw = os_getenv(c"USERPROFILE".as_ptr());
+        if homedir_env_cstr.is_none() {
+            homedir_env_cstr = os_getenv_cstr(c"USERPROFILE".as_ptr());
         }
-        to_slash(homedir_env_raw);
-        let homedir_env_cstr = cstr_take(homedir_env_raw);
+        if let Some(ref c) = homedir_env_cstr {
+            to_slash(c.as_ptr().cast_mut());
+        }
         let homedir_env = homedir_env_cstr
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -1180,16 +1158,16 @@ pub unsafe fn home_replace(
     }
 }
 
-/// Like `home_replace`, store the replaced string in allocated memory.
-pub unsafe fn home_replace_save(buf: *mut buf_T, src: *const c_char) -> *mut c_char {
+/// Like `home_replace`, store the replaced string in an owned `CString`.
+pub unsafe fn home_replace_save(buf: *mut buf_T, src: *const c_char) -> std::ffi::CString {
     unsafe {
         let mut len: usize = 3;
         if !src.is_null() {
             len += strlen(src);
         }
-        let dst = xmalloc(len).cast::<c_char>();
-        let _ = home_replace(buf, src, dst, len, true);
-        dst
+        let mut dst = vec![0 as c_char; len];
+        let _ = home_replace(buf, src, dst.as_mut_ptr(), len, true);
+        cstr_to_cstring(dst.as_ptr())
     }
 }
 

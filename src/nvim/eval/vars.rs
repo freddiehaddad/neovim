@@ -54,7 +54,7 @@ use crate::lua::executor::{nlua_funcref_str, nlua_set_sctx};
 use crate::math::{FAIL, OK};
 use crate::mbyte::utf_char2bytes;
 use crate::memory::{
-    strequal, xfree, xmalloc, xmallocz, xmemdupz, xstrdup, xstrlcat, xstrlcpy, xstrndup,
+    strequal, xfree, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy, xstrndup,
 };
 use crate::message::{
     emsg, internal_error, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind,
@@ -641,7 +641,7 @@ pub unsafe fn evalvars_init() {
         set_vim_var_nr(VV_ECHOSPACE, varnumber_T::from(sc_col - 1));
 
         let mut vvlua_pt = partial_T::default();
-        vvlua_pt.pt_name = xmallocz(0).cast::<c_char>();
+        vvlua_pt.pt_name = Some(std::ffi::CString::default());
         vvlua_pt.pt_refcount = 1;
         let vvlua_partial = Box::into_raw(Box::new(vvlua_pt));
         set_vim_var_partial(VV_LUA, vvlua_partial);
@@ -1668,24 +1668,27 @@ unsafe fn ex_let_env(
         {
             emsg(gettext(E_LETUNEXP.as_ptr()));
         } else if !check_secure() {
-            let mut tofree: *mut c_char = ptr::null_mut();
+            let mut tofree: Option<std::ffi::CString> = None;
             let c1 = *name.add(len);
             *name.add(len) = NUL;
             let mut p = tv_get_string_chk(tv);
-            if !p.is_null() && !op.is_null() && *op == b'.' as c_char {
-                let s = vim_getenv(name);
-                if !s.is_null() {
-                    tofree = concat_str(s, p);
-                    p = tofree;
-                    xfree(s.cast());
-                }
+            if !p.is_null()
+                && !op.is_null()
+                && *op == b'.' as c_char
+                && let Some(s) = vim_getenv(name)
+            {
+                let mut bytes = Vec::from(s.as_bytes());
+                bytes.extend_from_slice(CStr::from_ptr(p).to_bytes());
+                let joined = crate::memory::cstr_from_bytes(&bytes);
+                p = joined.as_ptr();
+                tofree = Some(joined);
             }
             if !p.is_null() {
                 vim_setenv_ext(name, p);
                 arg_end = arg;
             }
             *name.add(len) = c1;
-            xfree(tofree.cast());
+            drop(tofree);
         }
         arg_end
     }

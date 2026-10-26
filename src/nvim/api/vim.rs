@@ -85,7 +85,7 @@ use crate::math::{FAIL, xpopcount};
 use crate::mbyte::{mb_string2cells, utfc_ptr2len, utfc_ptr2schar};
 use crate::memfile::memfile_T;
 use crate::memline::ml_open;
-use crate::memory::{Arena, arena_alloc, arena_strdup, cstr_take, memchrsub, strequal};
+use crate::memory::{Arena, arena_alloc, arena_strdup, memchrsub, strequal};
 use crate::message::{
     msg_ext_no_fast, msg_id_exists, msg_multihl, verbose_enter, verbose_leave, verbose_stop,
 };
@@ -1011,7 +1011,15 @@ pub unsafe extern "C" fn nvim_get_runtime_file(
 // DLLEXPORT String nvim__get_lib_dir(void) FUNC_API_RET_ALLOC;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim__get_lib_dir() -> NvimString {
-    unsafe { cstr_as_string(get_lib_dir()) }
+    unsafe {
+        get_lib_dir().map_or(
+            NvimString {
+                data: ptr::null_mut(),
+                size: 0,
+            },
+            |s| crate::api::private::helpers::cstr_to_string(s.as_ptr()),
+        )
+    }
 }
 
 /// Find files in runtime directories
@@ -2988,7 +2996,7 @@ pub unsafe extern "C" fn nvim_get_mark(
 
         let owned_filename = if (*mark).fmark.fnum != 0 {
             bufnr = (*mark).fmark.fnum;
-            cstr_take(buflist_nr2name(bufnr, 1, 1))
+            buflist_nr2name(bufnr, 1, 1)
         } else {
             bufnr = 0;
             None

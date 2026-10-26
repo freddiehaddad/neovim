@@ -3682,8 +3682,7 @@ unsafe fn findswapname(
                     if choice == SEA_CHOICE_NONE {
                         no_wait_return += 1;
                         let mut msg_sb = Vec::<u8>::with_capacity(IOSIZE);
-                        let fhname = cstr_take(home_replace_save(ptr::null_mut(), fname))
-                            .unwrap_or_default();
+                        let fhname = home_replace_save(ptr::null_mut(), fname);
                         let fhname_ptr = fhname.as_ptr().cast_mut();
                         attention_message(buf, fname, fhname_ptr, &mut msg_sb);
 

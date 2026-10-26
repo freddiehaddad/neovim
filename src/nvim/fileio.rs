@@ -3881,7 +3881,7 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
         }
 
         if !mesg.is_null() {
-            let path = cstr_take(home_replace_save(buf, (*buf).b_fname)).unwrap_or_default();
+            let path = home_replace_save(buf, (*buf).b_fname);
             if !helpmesg {
                 mesg2 = c"".as_ptr().cast_mut();
             }
@@ -4375,7 +4375,7 @@ unsafe fn vim_opentempdir() {
             return;
         }
 
-        let Some(ref td) = *(&raw const VIM_TEMPDIR) else {
+        let Some(ref td) = *(&raw const VIM_TEMPDIR).as_ref().unwrap() else {
             return;
         };
         let dp = opendir(td.as_ptr());

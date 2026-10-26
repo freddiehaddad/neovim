@@ -541,8 +541,8 @@ unsafe fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
             bp.dbg_name = CStr::from_ptr(p).to_owned();
             bp.dbg_val = eval_expr_no_emsg(bp.dbg_name.as_ptr().cast_mut());
         } else {
-            let q = cstr_take(expand_env_save(p))?;
-            let p_exp = cstr_take(expand_env_save(q.as_ptr().cast_mut()))?;
+            let q = expand_env_save(p);
+            let p_exp = expand_env_save(q.as_ptr().cast_mut());
             let raw_name = if *p_exp.as_ptr() as u8 != b'*' {
                 cstr_take(fix_fname(p_exp.as_ptr()))?
             } else {

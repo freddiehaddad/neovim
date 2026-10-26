@@ -1207,7 +1207,7 @@ unsafe fn convert_one_value(
                 };
                 let prefix: &[u8] = if !fun.is_null()
                     && !pt.is_null()
-                    && (*pt).pt_name.is_null()
+                    && (*pt).pt_name.is_none()
                     && ((*fun as u8).is_ascii_uppercase())
                 {
                     b"g:"

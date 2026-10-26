@@ -2083,10 +2083,9 @@ pub unsafe fn do_autocmd(eap: *mut exarg_T, arg_in: *mut c_char, forceit: c_int)
                 if !vim_strchr(pat, b'$' as c_int).is_null()
                     || !vim_strchr(pat, b'~' as c_int).is_null()
                 {
-                    envpat = cstr_take(expand_env_save(pat));
-                    if let Some(ref ep) = envpat {
-                        pat = ep.as_ptr().cast_mut();
-                    }
+                    let ep = expand_env_save(pat);
+                    pat = ep.as_ptr().cast_mut();
+                    envpat = Some(ep);
                 }
 
                 cmd = skipwhite(cmd);

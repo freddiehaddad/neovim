@@ -10,7 +10,7 @@ use crate::event::socket::{
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::globals::*;
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
-use crate::memory::{cstr_take, strequal, xstrdup, xstrlcpy};
+use crate::memory::{cstr_take, cstr_to_cstring, strequal, xstrlcpy};
 use crate::os::env::{os_env_exists, os_get_pid, os_getenv_cstr, os_unsetenv};
 use crate::os::stdpaths::get_appname;
 use crate::path::{fix_fname, to_slash, to_slash_save};
@@ -149,7 +149,7 @@ pub unsafe fn server_address_new(name: *const c_char) -> std::ffi::CString {
 
         #[cfg(not(windows))]
         let r = {
-            let dir = cstr_take(stdpaths_get_xdg_var(XDGVarType::kXDGRuntimeDir));
+            let dir = stdpaths_get_xdg_var(XDGVarType::kXDGRuntimeDir);
             get_appname(true);
             let app = if !name.is_null() {
                 name
@@ -308,11 +308,11 @@ pub unsafe fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bo
     }
 }
 
-pub unsafe fn server_address_list() -> Vec<*mut c_char> {
+pub unsafe fn server_address_list() -> Vec<std::ffi::CString> {
     unsafe {
         watchers_mut()
             .iter()
-            .map(|&watcher| xstrdup((*watcher).addr.as_ptr()))
+            .map(|&watcher| cstr_to_cstring((*watcher).addr.as_ptr()))
             .collect()
     }
 }

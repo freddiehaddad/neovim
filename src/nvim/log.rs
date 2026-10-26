@@ -13,7 +13,7 @@ use crate::os::env::{expand_env, os_get_pid, os_getenv_buf, os_setenv};
 use crate::os::fs::{os_isdir, os_mkdir_recurse};
 use crate::os::stdpaths::{get_xdg_home, stdpaths_user_state_subpath};
 use crate::os::time::{Tm, os_localtime, strftime};
-use crate::path::{concat_fnames_realloc, path_tail};
+use crate::path::{concat_fnames_cstr, path_tail};
 use crate::strings::strerror;
 use std::ffi::{CStr, c_char, c_int};
 use std::io::Write;
@@ -158,12 +158,13 @@ unsafe fn log_path_init() {
             if user_set {
                 os_setenv(c"__NVIM_LOG_FILE_WANT".as_ptr(), path_ptr, 1);
             }
-            let loghome = cstr_take(concat_fnames_realloc(
-                get_xdg_home(crate::os::stdpaths::XDGVarType::kXDGStateHome),
+            let state_home = get_xdg_home(crate::os::stdpaths::XDGVarType::kXDGStateHome)
+                .unwrap_or_default();
+            let loghome = concat_fnames_cstr(
+                state_home.as_ptr(),
                 c"logs".as_ptr(),
                 true,
-            ))
-            .unwrap_or_default();
+            );
             let mut failed_dir: *mut c_char = ptr::null_mut();
             let mut log_dir_failure: c_int = 0;
             if !os_isdir(loghome.as_ptr()) {
@@ -177,12 +178,11 @@ unsafe fn log_path_init() {
             drop(loghome);
             let failed_dir = cstr_take(failed_dir);
 
-            let defaultpath = cstr_take(stdpaths_user_state_subpath(
+            let defaultpath = stdpaths_user_state_subpath(
                 c"logs/nvim.log".as_ptr(),
                 0,
                 true,
-            ))
-            .unwrap_or_default();
+            );
             let mut len = xstrlcpy(path_ptr, defaultpath.as_ptr(), size);
             drop(defaultpath);
 

@@ -2,8 +2,8 @@
 
 use crate::api::private::converter::{object_to_vim, object_to_vim_take_luaref, vim_to_object};
 use crate::api::private::helpers::{
-    DI_FLAGS_LOCK, api_clear_error, api_free_object, api_free_string, api_metadata, cbuf_to_string,
-    cstr_as_string, dict_set_var,
+    DI_FLAGS_LOCK, api_clear_error, api_free_object, api_free_string, api_metadata, cstr_as_string,
+    dict_set_var,
 };
 use crate::api::private::validate::{
     Array, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
@@ -53,13 +53,13 @@ use crate::eval::typval::{
     tv_check_for_number_arg, tv_check_for_opt_bool_arg, tv_check_for_opt_dict_arg,
     tv_check_for_opt_number_arg, tv_check_for_string_arg, tv_check_for_string_or_func_arg,
     tv_check_for_string_or_list_arg, tv_check_num, tv_check_str_or_nr, tv_clear, tv_copy,
-    tv_dict_add_allocated_str, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str,
-    tv_dict_add_str_len, tv_dict_alloc, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool,
-    tv_dict_get_callback, tv_dict_get_number, tv_dict_get_number_def, tv_dict_get_string,
-    tv_dict_hi2di, tv_dict_item_remove, tv_dict_watcher_add, tv_dict_watcher_remove, tv_equal,
-    tv_get_bool, tv_get_bool_chk, tv_get_lnum, tv_get_lnum_buf, tv_get_number, tv_get_number_chk,
+    tv_dict_add_bool, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len,
+    tv_dict_alloc, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_dict_get_callback,
+    tv_dict_get_number, tv_dict_get_number_def, tv_dict_get_string, tv_dict_hi2di,
+    tv_dict_item_remove, tv_dict_watcher_add, tv_dict_watcher_remove, tv_equal, tv_get_bool,
+    tv_get_bool_chk, tv_get_lnum, tv_get_lnum_buf, tv_get_number, tv_get_number_chk,
     tv_get_string, tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk, tv_initial_value,
-    tv_is_func, tv_islocked, tv_list_alloc, tv_list_alloc_ret, tv_list_append_allocated_string,
+    tv_is_func, tv_islocked, tv_list_alloc, tv_list_alloc_ret,
     tv_list_append_dict, tv_list_append_list, tv_list_append_number, tv_list_append_owned_tv,
     tv_list_append_string, tv_list_append_tv, tv_list_copy, tv_list_extend, tv_list_find,
     tv_list_find_nr, tv_list_first, tv_list_flatten, tv_list_item_remove, tv_list_len, tv_list_ref,
@@ -137,8 +137,8 @@ use crate::memline::{
     recover_names, swapfile_dict,
 };
 use crate::memory::{
-    ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, free_block,
-    strequal, strnequal, xfree, xmalloc, xmallocz, xmemdupz, xstrdup,
+    ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, cstr_from_bytes,
+    cstr_take, cstr_to_cstring, free_block, strequal, strnequal,
 };
 use crate::menu::{get_menu_cmd_modes, menu_get};
 use crate::message::{
@@ -162,8 +162,8 @@ use crate::option_vars::*;
 use crate::optionstr::{OptIndex, free_string_option};
 use crate::os::dl::os_libcall;
 use crate::os::env::{
-    expand_T, expand_env_save, home_replace, os_env_exists, os_get_pid, os_getenv, vim_env_iter,
-    vim_getenv, vim_setenv_ext, vim_unsetenv_ext,
+    expand_T, expand_env_save, home_replace, os_env_exists, os_get_pid, os_getenv_cstr,
+    vim_env_iter, vim_getenv, vim_setenv_ext, vim_unsetenv_ext,
 };
 use crate::os::fs::{MAXPATHL, os_isdir, os_setperm};
 use crate::os::pty_proc::pty_proc_resize;
@@ -171,7 +171,7 @@ use crate::os::stdpaths::{XDGVarType, get_appname, get_xdg_home, stdpaths_get_xd
 use crate::os::time::{
     NS_PER_SEC, Tm, os_hrtime, os_localtime_r, os_strptime, os_time, strftime, time_t,
 };
-use crate::path::{ENV_SEPCHAR, concat_fnames_realloc, to_slash_save, vim_FullName};
+use crate::path::{ENV_SEPCHAR, concat_fnames_cstr, to_slash_save, vim_FullName};
 use crate::plines::{getvvcol, win_chartabsize};
 use crate::popupmenu::{pum_set_event_info, pum_visible};
 use crate::profile::{
@@ -1563,21 +1563,21 @@ pub unsafe fn f_call(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
         if func.is_null() || *func == NUL {
             return;
         }
-        let mut tofree: *mut c_char = ptr::null_mut();
+        let mut tofree: Option<std::ffi::CString> = None;
         if (*argvars).v_type == VarType::VAR_STRING {
             let mut p = func;
-            tofree = trans_function_name(
+            tofree = cstr_take(trans_function_name(
                 &raw mut p,
                 false,
                 TFN_INT | TFN_QUIET,
                 ptr::null_mut(),
                 ptr::null_mut(),
-            );
-            if tofree.is_null() {
+            ));
+            let Some(ref tf) = tofree else {
                 emsg_funcname(e_unknown_function_str.as_ptr(), func);
                 return;
-            }
-            func = tofree;
+            };
+            func = tf.as_ptr().cast_mut();
         }
 
         'done: {
@@ -1595,7 +1595,7 @@ pub unsafe fn f_call(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
         if owned {
             func_unref(func);
         }
-        xfree(tofree.cast());
+        drop(tofree);
     }
 }
 
@@ -2139,14 +2139,12 @@ pub unsafe fn f_escape(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
 /// "getenv()" function
 pub unsafe fn f_getenv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let p = vim_getenv(tv_get_string(argvars));
-        if p.is_null() {
+        let Some(p) = vim_getenv(tv_get_string(argvars)) else {
             (*rettv).v_type = VarType::VAR_SPECIAL;
             (*rettv).vval.v_special = kSpecialVarNull;
             return;
-        }
-        (*rettv).vval.v_string = p;
-        (*rettv).v_type = VarType::VAR_STRING;
+        };
+        crate::eval::typval::tv_set_string(rettv, p.as_ptr());
     }
 }
 
@@ -2183,19 +2181,19 @@ pub unsafe fn get_list_line(
     p: *mut GetListLineCookie,
     _indent: c_int,
     _do_concat: bool,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
         let item = (*p).li;
         if item.is_null() {
-            return ptr::null_mut();
+            return None;
         }
         let mut buf = [0 as c_char; NUMBUFLEN];
         let s = tv_get_string_buf_chk(&raw const (*item).li_tv, buf.as_mut_ptr());
         (*p).li = (*item).li_next;
         if s.is_null() {
-            ptr::null_mut()
+            None
         } else {
-            xstrdup(s)
+            Some(cstr_to_cstring(s))
         }
     }
 }
@@ -2268,9 +2266,11 @@ pub unsafe fn execute_common(argvars: *mut typval_T, rettv: *mut typval_T, arg_o
             msg_col = save_msg_col;
         }
 
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string =
-            xmemdupz(capture_local.as_ptr().cast(), capture_local.len()).cast();
+        crate::eval::typval::tv_set_string_len(
+            rettv,
+            capture_local.as_ptr().cast(),
+            capture_local.len(),
+        );
 
         capture_ga = save_capture_ga;
     }
@@ -2293,10 +2293,9 @@ pub unsafe fn f_exists(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
                 n = 1;
             } else {
                 let exp = expand_env_save(p.cast_mut());
-                if !exp.is_null() && *exp != b'$' as c_char {
+                if *exp.as_ptr() != b'$' as c_char {
                     n = 1;
                 }
-                xfree(exp.cast());
             }
         } else if *p == b'&' as c_char || *p == b'+' as c_char {
             n = c_int::from(eval_option(&raw mut p, ptr::null_mut(), true) == OK);
@@ -2361,11 +2360,11 @@ pub unsafe fn f_expand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
                 emsg(errormsg);
             }
             if (*rettv).v_type == VarType::VAR_LIST {
-                tv_list_alloc_ret(rettv, isize::from(!result.is_null()));
-                if !result.is_null() {
-                    tv_list_append_string((*rettv).vval.v_list, result, -1);
+                let result_owned = cstr_take(result);
+                tv_list_alloc_ret(rettv, isize::from(result_owned.is_some()));
+                if let Some(ref r) = result_owned {
+                    tv_list_append_string((*rettv).vval.v_list, r.as_ptr(), -1);
                 }
-                xfree(result.cast());
             } else {
                 (*rettv).vval.v_string = result;
             }
@@ -2442,8 +2441,12 @@ pub unsafe fn f_expandcmd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
             emsgoff = false;
         }
 
-        (*rettv).v_type = VarType::VAR_STRING;
-        let mut cmdstr = xstrdup(tv_get_string(argvars));
+        let arg_str = tv_get_string(argvars);
+        crate::eval::typval::tv_set_string(rettv, arg_str);
+        if *arg_str == NUL {
+            return;
+        }
+        let mut cmdstr = (*rettv).vval.v_string;
 
         let mut eap: exarg_T = exarg_T::new();
         eap.cmd = cmdstr;
@@ -2608,7 +2611,7 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
         let mut name: *mut c_char;
         let mut use_string = false;
         let mut arg_pt: *mut partial_T = ptr::null_mut();
-        let mut trans_name: *mut c_char = ptr::null_mut();
+        let mut trans_name_owned: Option<std::ffi::CString> = None;
 
         if (*argvars).v_type == VarType::VAR_FUNC {
             s = (*argvars).vval.v_string;
@@ -2623,16 +2626,19 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
 
         if (use_string && vim_strchr(s, AUTOLOAD_CHAR).is_null()) || is_funcref {
             name = s;
-            trans_name = save_function_name(
+            trans_name_owned = cstr_take(save_function_name(
                 &raw mut name,
                 false,
                 TFN_INT | TFN_QUIET | TFN_NO_AUTOLOAD | TFN_NO_DEREF,
                 ptr::null_mut(),
-            );
+            ));
             if *name != NUL {
                 s = ptr::null_mut();
             }
         }
+        let trans_name = trans_name_owned
+            .as_ref()
+            .map_or(ptr::null_mut(), |tn| tn.as_ptr().cast_mut());
         'theend: {
             if s.is_null()
                 || *s == NUL
@@ -2659,11 +2665,13 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
                 let mut dict_idx: usize = 0;
                 let mut arg_idx: usize = 0;
                 let mut list: *mut list_T = ptr::null_mut();
-                if strncmp(s, c"s:".as_ptr(), 2) == 0 || strncmp(s, c"<SID>".as_ptr(), 5) == 0 {
-                    name = get_scriptlocal_funcname(s);
+                let name_cstr = if strncmp(s, c"s:".as_ptr(), 2) == 0
+                    || strncmp(s, c"<SID>".as_ptr(), 5) == 0
+                {
+                    cstr_take(get_scriptlocal_funcname(s)).unwrap_or_default()
                 } else {
-                    name = xstrdup(s);
-                }
+                    cstr_to_cstring(s)
+                };
 
                 if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
                     if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
@@ -2676,7 +2684,6 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
                     }
                     if dict_idx > 0 {
                         if tv_check_for_dict_arg(argvars, dict_idx as c_int) == FAIL {
-                            xfree(name.cast());
                             break 'theend;
                         }
                         if (*argvars.add(dict_idx)).vval.v_dict.is_null() {
@@ -2689,7 +2696,6 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
                                 c"E923: Second argument of function() must be a list or a dict"
                                     .as_ptr(),
                             ));
-                            xfree(name.cast());
                             break 'theend;
                         }
                         list = (*argvars.add(arg_idx)).vval.v_list;
@@ -2697,7 +2703,6 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
                             arg_idx = 0;
                         } else if (tv_list_len(list) as usize) > MAX_FUNC_ARGS {
                             emsg_funcname(e_toomanyarg.as_ptr(), s);
-                            xfree(name.cast());
                             break 'theend;
                         }
                     }
@@ -2749,26 +2754,24 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
                     if !arg_pt.is_null() && !(*arg_pt).pt_func.is_null() {
                         (*pt).pt_func = (*arg_pt).pt_func;
                         func_ptr_ref((*pt).pt_func);
-                        xfree(name.cast());
                     } else if is_funcref {
                         (*pt).pt_func = find_func(trans_name);
                         func_ptr_ref((*pt).pt_func);
-                        xfree(name.cast());
                     } else {
-                        (*pt).pt_name = name;
-                        func_ref(name);
+                        func_ref(name_cstr.as_ptr().cast_mut());
+                        (*pt).pt_name = Some(name_cstr);
                     }
 
                     (*rettv).v_type = VarType::VAR_PARTIAL;
                     (*rettv).vval.v_partial = pt;
                 } else {
+                    crate::eval::typval::tv_set_string(rettv, name_cstr.as_ptr());
                     (*rettv).v_type = VarType::VAR_FUNC;
-                    (*rettv).vval.v_string = name;
-                    func_ref(name);
+                    func_ref((*rettv).vval.v_string);
                 }
             }
         }
-        xfree(trans_name.cast());
+        drop(trans_name_owned);
     }
 }
 
@@ -2837,34 +2840,34 @@ pub unsafe fn f_get(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFun
                 }
             }
         } else if tv_is_func(*argvars) {
-            let mut fref_pt = partial_T::default();
+            let mut fref_pt = std::mem::ManuallyDrop::new(partial_T::default());
             let pt: *mut partial_T = if (*argvars).v_type == VarType::VAR_PARTIAL {
                 (*argvars).vval.v_partial
             } else {
-                fref_pt.pt_name = (*argvars).vval.v_string;
-                &raw mut fref_pt
+                fref_pt.pt_name = Some(cstr_to_cstring((*argvars).vval.v_string));
+                &raw mut *fref_pt
             };
 
             if !pt.is_null() {
                 let what = tv_get_string(argvars.add(1));
                 if strcmp(what, c"func".as_ptr()) == 0 || strcmp(what, c"name".as_ptr()) == 0 {
                     let mut name = partial_name(pt);
+                    debug_assert!(!name.is_null());
+                    if *what == b'f' as c_char {
+                        func_ref(name);
+                    }
+                    if *what == b'n' as c_char
+                        && (*pt).pt_name.is_none()
+                        && !(*pt).pt_func.is_null()
+                    {
+                        name = printable_func_name((*pt).pt_func);
+                    }
+                    crate::eval::typval::tv_set_string(rettv, name);
                     (*rettv).v_type = if *what == b'f' as c_char {
                         VarType::VAR_FUNC
                     } else {
                         VarType::VAR_STRING
                     };
-                    debug_assert!(!name.is_null());
-                    if (*rettv).v_type == VarType::VAR_FUNC {
-                        func_ref(name);
-                    }
-                    if *what == b'n' as c_char
-                        && (*pt).pt_name.is_null()
-                        && !(*pt).pt_func.is_null()
-                    {
-                        name = printable_func_name((*pt).pt_func);
-                    }
-                    (*rettv).vval.v_string = xstrdup(name);
                 } else if strcmp(what, c"dict".as_ptr()) == 0 {
                     what_is_dict = true;
                     if !(*pt).pt_dict.is_null() {
@@ -3221,24 +3224,16 @@ pub unsafe fn f_getpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
     }
 }
 
-/// Convert from `block_def` to `NvimString`.
-unsafe fn block_def2str(bd: *const block_def) -> NvimString {
+/// Convert from `block_def` to a byte vector.
+unsafe fn block_def2str(bd: *const block_def) -> Vec<c_char> {
     unsafe {
         let startspaces = (*bd).startspaces as usize;
         let endspaces = (*bd).endspaces as usize;
         let textlen = (*bd).textlen as usize;
         let size = startspaces + endspaces + textlen;
-        let data = xmalloc(size + 1).cast::<c_char>();
-
-        ptr::write_bytes(data, b' ', startspaces);
-        let mut off = startspaces;
-        ptr::copy((*bd).textstart, data.add(off), textlen);
-        off += textlen;
-        ptr::write_bytes(data.add(off), b' ', endspaces);
-        off += endspaces;
-        *data.add(off) = NUL;
-
-        NvimString { data, size: off }
+        let mut data = vec![b' ' as c_char; size];
+        ptr::copy((*bd).textstart, data.as_mut_ptr().add(startspaces), textlen);
+        data
     }
 }
 
@@ -3402,12 +3397,17 @@ pub unsafe fn f_getregion(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
         }
 
         for lnum in p1.lnum..=p2.lnum {
-            let akt = if region_type == kMTBlockWise {
+            if region_type == kMTBlockWise {
                 let mut bd = block_def::new();
                 block_prep(&raw mut oa, &raw mut bd, lnum, false);
-                block_def2str(&raw const bd)
+                let akt = block_def2str(&raw const bd);
+                tv_list_append_string((*rettv).vval.v_list, akt.as_ptr(), akt.len() as isize);
             } else if region_type == kMTLineWise || (p1.lnum < lnum && lnum < p2.lnum) {
-                cbuf_to_string(ml_get(lnum), ml_get_len(lnum) as usize)
+                tv_list_append_string(
+                    (*rettv).vval.v_list,
+                    ml_get(lnum),
+                    ml_get_len(lnum) as isize,
+                );
             } else {
                 let mut bd = block_def::new();
                 charwise_block_prep(
@@ -3425,11 +3425,9 @@ pub unsafe fn f_getregion(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
                     lnum,
                     inclusive,
                 );
-                block_def2str(&raw const bd)
-            };
-
-            debug_assert!(!akt.data.is_null());
-            tv_list_append_allocated_string((*rettv).vval.v_list, akt.data);
+                let akt = block_def2str(&raw const bd);
+                tv_list_append_string((*rettv).vval.v_list, akt.as_ptr(), akt.len() as isize);
+            }
         }
 
         curbuf = save_curbuf;
@@ -3665,7 +3663,7 @@ pub unsafe fn f_getregtype(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
         let reg_type = get_reg_type(regname, &raw mut reglen);
         format_reg_type(reg_type, reglen, buf.as_mut_ptr(), buf.len());
 
-        (*rettv).vval.v_string = xstrdup(buf.as_ptr());
+        crate::eval::typval::tv_set_string(rettv, buf.as_ptr());
     }
 }
 
@@ -3791,8 +3789,7 @@ pub unsafe fn f_gettext(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
         if tv_check_for_nonempty_string_arg(argvars, 0) == FAIL {
             return;
         }
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = xstrdup(gettext((*argvars).vval.v_string));
+        crate::eval::typval::tv_set_string(rettv, gettext((*argvars).vval.v_string));
     }
 }
 
@@ -4451,14 +4448,14 @@ pub unsafe fn f_isnan(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
 pub unsafe fn f_id(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let len = vim_snprintf_typval_only(ptr::null_mut(), 0, c"%p".as_ptr(), argvars);
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = xmalloc((len as usize) + 1).cast();
+        let mut buf = vec![0 as c_char; (len as usize) + 1];
         vim_snprintf_typval_only(
-            (*rettv).vval.v_string,
+            buf.as_mut_ptr(),
             (len as usize) + 1,
             c"%p".as_ptr(),
             argvars,
         );
+        crate::eval::typval::tv_set_string_len(rettv, buf.as_ptr(), len as usize);
     }
 }
 
@@ -4634,11 +4631,10 @@ pub unsafe fn create_environment(
             for &req in REQUIRED_ENV_VARS {
                 let len = req.to_bytes().len();
                 let dv = tv_dict_find(env, req.as_ptr(), len as isize);
-                if dv.is_null() {
-                    let env_var = os_getenv(req.as_ptr());
-                    if !env_var.is_null() {
-                        tv_dict_add_allocated_str(env, req.as_ptr(), len, env_var);
-                    }
+                if dv.is_null()
+                    && let Some(env_var) = os_getenv_cstr(req.as_ptr())
+                {
+                    tv_dict_add_str(env, req.as_ptr(), len, env_var.as_ptr());
                 }
             }
         }
@@ -5329,7 +5325,7 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
         let mut match_found = false;
         let mut l: *mut list_T = ptr::null_mut();
         let mut idx: c_int = 0;
-        let mut tofree: *mut c_char = ptr::null_mut();
+        let mut tofree_owned: Option<std::ffi::CString> = None;
 
         let save_cpo = p_cpo;
         p_cpo = (&raw mut empty_string_option).cast();
@@ -5418,10 +5414,11 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
                             match_found = false;
                             break;
                         }
-                        xfree(tofree.cast());
-                        tofree = encode_tv2echo(&raw mut (*li).li_tv, ptr::null_mut());
-                        expr = tofree;
-                        str_ = tofree;
+                        tofree_owned = cstr_take(encode_tv2echo(&raw mut (*li).li_tv, ptr::null_mut()));
+                        expr = tofree_owned
+                            .as_ref()
+                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                        str_ = expr;
                         if str_.is_null() {
                             break;
                         }
@@ -5463,11 +5460,14 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
                             let li2 = (*li1).li_next;
                             let li3 = (*li2).li_next;
                             let li4 = (*li3).li_next;
-                            xfree((*li1).li_tv.vval.v_string.cast());
+                            tv_clear(&raw mut (*li1).li_tv);
 
                             let rd = regmatch.endp[0].offset_from(regmatch.startp[0]) as usize;
-                            (*li1).li_tv.vval.v_string =
-                                xmemdupz(regmatch.startp[0].cast(), rd).cast();
+                            crate::eval::typval::tv_set_string_len(
+                                &raw mut (*li1).li_tv,
+                                regmatch.startp[0],
+                                rd,
+                            );
                             (*li3).li_tv.vval.v_number =
                                 regmatch.startp[0].offset_from(expr) as varnumber_T;
                             (*li4).li_tv.vval.v_number =
@@ -5493,11 +5493,11 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
                             if !l.is_null() {
                                 tv_copy(&raw const (*li).li_tv, rettv);
                             } else {
-                                (*rettv).vval.v_string = xmemdupz(
-                                    regmatch.startp[0].cast(),
+                                crate::eval::typval::tv_set_string_len(
+                                    rettv,
+                                    regmatch.startp[0],
                                     regmatch.endp[0].offset_from(regmatch.startp[0]) as usize,
-                                )
-                                .cast();
+                                );
                             }
                         }
                         SomeMatchType::kSomeMatch | SomeMatchType::kSomeMatchEnd => {
@@ -5529,7 +5529,7 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
             tv_list_item_remove(ret_l, (*first).li_next);
         }
 
-        xfree(tofree.cast());
+        drop(tofree_owned);
         p_cpo = save_cpo;
     }
 }
@@ -5882,8 +5882,7 @@ pub unsafe fn f_mode(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
         if !non_zero_arg(argvars) {
             buf[1] = NUL;
         }
-        (*rettv).vval.v_string = xstrdup(buf.as_ptr());
-        (*rettv).v_type = VarType::VAR_STRING;
+        crate::eval::typval::tv_set_string(rettv, buf.as_ptr());
     }
 }
 
@@ -5929,12 +5928,12 @@ pub unsafe fn f_state(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
             may_add_state_char(&mut buf, &mut len, include, b's');
         }
 
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = if len == 0 {
-            ptr::null_mut()
+        if len == 0 {
+            (*rettv).v_type = VarType::VAR_STRING;
+            (*rettv).vval.v_string = ptr::null_mut();
         } else {
-            xmemdupz(buf.as_ptr().cast(), len).cast()
-        };
+            crate::eval::typval::tv_set_string_len(rettv, buf.as_ptr(), len);
+        }
     }
 }
 
@@ -6166,8 +6165,7 @@ pub unsafe fn f_nr2char(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
         let mut buf = [0 as c_char; MB_MAXCHAR];
         let len = utf_char2bytes(num as c_int, buf.as_mut_ptr());
 
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = xmemdupz(buf.as_ptr().cast(), len as usize).cast();
+        crate::eval::typval::tv_set_string_len(rettv, buf.as_ptr(), len as usize);
     }
 }
 
@@ -6220,9 +6218,9 @@ pub unsafe fn f_printf(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
         let fmt = tv_get_string_buf(argvars, buf.as_mut_ptr());
         let len = vim_snprintf_typval_only(ptr::null_mut(), 0, fmt, argvars.add(1));
         if did_emsg == 0 {
-            let s = xmalloc((len as usize) + 1).cast::<c_char>();
-            (*rettv).vval.v_string = s;
-            vim_snprintf_typval_only(s, (len as usize) + 1, fmt, argvars.add(1));
+            let mut s = vec![0 as c_char; (len as usize) + 1];
+            vim_snprintf_typval_only(s.as_mut_ptr(), (len as usize) + 1, fmt, argvars.add(1));
+            crate::eval::typval::tv_set_string_len(rettv, s.as_ptr(), len as usize);
         }
         did_emsg |= saved_did_emsg;
     }
@@ -6527,8 +6525,7 @@ pub unsafe fn f_getreginfo(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
 unsafe fn return_register(regname: c_int, rettv: *mut typval_T) {
     unsafe {
         let buf = [regname as c_char, NUL];
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = xmemdupz(buf.as_ptr().cast(), usize::from(buf[0] != NUL)).cast();
+        crate::eval::typval::tv_set_string_len(rettv, buf.as_ptr(), usize::from(buf[0] != NUL));
     }
 }
 
@@ -6608,7 +6605,7 @@ pub unsafe fn f_reltimestr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval.v_string = ptr::null_mut();
         if list2proftime(argvars, &raw mut tm) == OK {
-            (*rettv).vval.v_string = xstrdup(profile_msg(tm));
+            crate::eval::typval::tv_set_string(rettv, profile_msg(tm));
         }
     }
 }
@@ -6689,7 +6686,8 @@ unsafe fn repeat_string(str_tv: *mut typval_T, n: varnumber_T, rettv: *mut typva
             return;
         }
         let len = slen * (n as usize);
-        let r = xmallocz(len).cast::<c_char>();
+        let mut r_vec = vec![0 as c_char; len];
+        let r = r_vec.as_mut_ptr();
         ptr::copy(p, r, slen);
         let mut done = slen;
         while done < len {
@@ -6697,7 +6695,7 @@ unsafe fn repeat_string(str_tv: *mut typval_T, n: varnumber_T, rettv: *mut typva
             ptr::copy(r, r.add(done), copy_len);
             done += copy_len;
         }
-        (*rettv).vval.v_string = r;
+        crate::eval::typval::tv_set_string_len(rettv, r, len);
     }
 }
 
@@ -6778,12 +6776,11 @@ unsafe fn reduce_string(argvars: *mut typval_T, expr: *mut typval_T, rettv: *mut
             }
             len = utfc_ptr2len(p);
             *rettv = typval_T {
-                v_type: VarType::VAR_STRING,
+                v_type: VarType::VAR_UNKNOWN,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval {
-                    v_string: xmemdupz(p.cast(), len as usize).cast(),
-                },
+                vval: TypvalVval { v_number: 0 },
             };
+            crate::eval::typval::tv_set_string_len(rettv, p, len as usize);
             p = p.add(len as usize);
         } else if tv_check_for_string_arg(argvars, 2) == FAIL {
             return;
@@ -6796,13 +6793,7 @@ unsafe fn reduce_string(argvars: *mut typval_T, expr: *mut typval_T, rettv: *mut
             argv[0] = *rettv;
             (*rettv).v_type = VarType::VAR_UNKNOWN;
             len = utfc_ptr2len(p);
-            argv[1] = typval_T {
-                v_type: VarType::VAR_STRING,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval {
-                    v_string: xmemdupz(p.cast(), len as usize).cast(),
-                },
-            };
+            crate::eval::typval::tv_set_string_len(&raw mut argv[1], p, len as usize);
 
             let r = eval_expr_typval(expr, true, argv.as_mut_ptr(), 2, rettv);
             tv_clear(&raw mut argv[0]);
@@ -7401,7 +7392,7 @@ pub unsafe fn f_screenstring(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
             buf.as_mut_ptr(),
             grid_getchar(grid, row, col, ptr::null_mut()),
         );
-        (*rettv).vval.v_string = xstrdup(buf.as_ptr());
+        crate::eval::typval::tv_set_string(rettv, buf.as_ptr());
     }
 }
 
@@ -7768,7 +7759,7 @@ pub unsafe fn f_serverlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
         let mut addrs_tv = tv_initial_value();
         tv_list_alloc_ret(&raw mut addrs_tv, addrs.len() as isize);
         for addr in addrs {
-            tv_list_append_allocated_string(addrs_tv.vval.v_list, addr);
+            tv_list_append_string(addrs_tv.vval.v_list, addr.as_ptr(), -1);
         }
 
         let opts = if (*argvars).v_type != VarType::VAR_UNKNOWN {
@@ -7808,10 +7799,7 @@ pub unsafe fn f_serverstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
                 emsg(gettext(e_invarg.as_ptr()));
                 return;
             }
-            let slash = to_slash_save(tv_get_string(argvars));
-            let cstr = CStr::from_ptr(slash).to_owned();
-            xfree(slash.cast());
-            cstr
+            cstr_take(to_slash_save(tv_get_string(argvars))).unwrap_or_default()
         } else {
             server_address_new(ptr::null())
         };
@@ -7832,10 +7820,8 @@ pub unsafe fn f_serverstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
         }
 
         let mut addrs = server_address_list();
-        (*rettv).vval.v_string = addrs.pop().unwrap_or(ptr::null_mut());
-
-        for addr in addrs {
-            xfree(addr.cast());
+        if let Some(last) = addrs.pop() {
+            crate::eval::typval::tv_set_string(rettv, last.as_ptr());
         }
     }
 }
@@ -8144,7 +8130,7 @@ pub unsafe fn f_setreg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
             let len = tv_list_len(ll) as usize;
 
             let mut lstval: Vec<*const c_char> = Vec::with_capacity(len + 1);
-            let mut allocval: Vec<*mut c_char> = Vec::new();
+            let mut allocval: Vec<std::ffi::CString> = Vec::new();
 
             'free_lstval: {
                 let mut li = tv_list_first(ll);
@@ -8155,9 +8141,9 @@ pub unsafe fn f_setreg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
                         break 'free_lstval;
                     }
                     if ptr::eq(val, buf.as_ptr()) {
-                        let copied = xstrdup(val);
+                        let copied = cstr_to_cstring(val);
+                        val = copied.as_ptr();
                         allocval.push(copied);
-                        val = copied;
                     }
                     lstval.push(val);
                     li = (*li).li_next;
@@ -8173,9 +8159,7 @@ pub unsafe fn f_setreg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
                 );
             }
 
-            for ptr in allocval {
-                xfree(ptr.cast());
-            }
+            drop(allocval);
         } else if !regcontents.is_null() {
             let strval = tv_get_string_chk(regcontents);
             if strval.is_null() {
@@ -8254,7 +8238,7 @@ pub unsafe fn f_sha256(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
             let blob = (*argvars).vval.v_blob.cast::<blob_T>();
             let slice: &[u8] = if !blob.is_null() { &(*blob).bv_ga } else { &[] };
             let hex = sha256_hex(slice, None);
-            (*rettv).vval.v_string = xmemdupz(hex.as_ptr().cast(), hex.len()).cast();
+            crate::eval::typval::tv_set_string_len(rettv, hex.as_ptr().cast(), hex.len());
         } else {
             let p = tv_get_string(argvars);
             let len = strlen(p);
@@ -8264,7 +8248,7 @@ pub unsafe fn f_sha256(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
                 &[]
             };
             let hex = sha256_hex(slice, None);
-            (*rettv).vval.v_string = xmemdupz(hex.as_ptr().cast(), hex.len()).cast();
+            crate::eval::typval::tv_set_string_len(rettv, hex.as_ptr().cast(), hex.len());
         }
     }
 }
@@ -8312,7 +8296,7 @@ pub unsafe fn f_sockconnect(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
         }
 
         let mode = tv_get_string(argvars);
-        let address = to_slash_save(tv_get_string(argvars.add(1)));
+        let address = cstr_take(to_slash_save(tv_get_string(argvars.add(1)))).unwrap_or_default();
 
         'cleanup: {
             let tcp = if strcmp(mode, c"tcp".as_ptr()) == 0 {
@@ -8340,7 +8324,7 @@ pub unsafe fn f_sockconnect(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             }
 
             let mut error: *const c_char = ptr::null();
-            let id = channel_connect(tcp, address, rpc, on_data, 50, &raw mut error);
+            let id = channel_connect(tcp, address.as_ptr(), rpc, on_data, 50, &raw mut error);
             if !error.is_null() {
                 semsg!(gettext(c"connection failed: %s".as_ptr()), error);
             }
@@ -8349,7 +8333,7 @@ pub unsafe fn f_sockconnect(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             (*rettv).v_type = VarType::VAR_NUMBER;
         }
 
-        xfree(address.cast());
+        drop(address);
     }
 }
 
@@ -8605,26 +8589,25 @@ unsafe fn get_xdg_var_list(xdg: XDGVarType, rettv: *mut typval_T) {
         (*rettv).v_type = VarType::VAR_LIST;
         (*rettv).vval.v_list = list;
         tv_list_ref(list);
-        let dirs = stdpaths_get_xdg_var(xdg);
-        if dirs.is_null() {
+        let Some(dirs) = stdpaths_get_xdg_var(xdg) else {
             return;
-        }
+        };
         let mut iter: *const c_char = ptr::null();
         let appname = get_appname(false);
         loop {
             let mut dir_len: usize = 0;
             let mut dir: *const c_char = ptr::null();
-            iter = vim_env_iter(ENV_SEPCHAR, dirs, iter, &raw mut dir, &raw mut dir_len);
+            iter = vim_env_iter(ENV_SEPCHAR, dirs.as_ptr(), iter, &raw mut dir, &raw mut dir_len);
             if !dir.is_null() && dir_len > 0 {
-                let mut dir_with_nvim = xmemdupz(dir.cast(), dir_len).cast::<c_char>();
-                dir_with_nvim = concat_fnames_realloc(dir_with_nvim, appname, true);
-                tv_list_append_allocated_string(list, dir_with_nvim);
+                let dir_cstr =
+                    cstr_from_bytes(std::slice::from_raw_parts(dir.cast::<u8>(), dir_len));
+                let dir_with_nvim = concat_fnames_cstr(dir_cstr.as_ptr(), appname, true);
+                tv_list_append_string(list, dir_with_nvim.as_ptr(), -1);
             }
             if iter.is_null() {
                 break;
             }
         }
-        xfree(dirs.cast());
     }
 }
 
@@ -8640,21 +8623,30 @@ pub unsafe fn f_stdpath(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
         }
 
         if strequal(p, c"config".as_ptr()) {
-            (*rettv).vval.v_string = get_xdg_home(XDGVarType::kXDGConfigHome);
+            if let Some(s) = get_xdg_home(XDGVarType::kXDGConfigHome) {
+                crate::eval::typval::tv_set_string(rettv, s.as_ptr());
+            }
         } else if strequal(p, c"data".as_ptr()) {
-            (*rettv).vval.v_string = get_xdg_home(XDGVarType::kXDGDataHome);
+            if let Some(s) = get_xdg_home(XDGVarType::kXDGDataHome) {
+                crate::eval::typval::tv_set_string(rettv, s.as_ptr());
+            }
         } else if strequal(p, c"cache".as_ptr()) {
-            (*rettv).vval.v_string = get_xdg_home(XDGVarType::kXDGCacheHome);
+            if let Some(s) = get_xdg_home(XDGVarType::kXDGCacheHome) {
+                crate::eval::typval::tv_set_string(rettv, s.as_ptr());
+            }
         } else if strequal(p, c"state".as_ptr()) {
-            (*rettv).vval.v_string = get_xdg_home(XDGVarType::kXDGStateHome);
+            if let Some(s) = get_xdg_home(XDGVarType::kXDGStateHome) {
+                crate::eval::typval::tv_set_string(rettv, s.as_ptr());
+            }
         } else if strequal(p, c"log".as_ptr()) {
-            (*rettv).vval.v_string = concat_fnames_realloc(
-                get_xdg_home(XDGVarType::kXDGStateHome),
-                c"logs".as_ptr(),
-                true,
-            );
+            if let Some(state_home) = get_xdg_home(XDGVarType::kXDGStateHome) {
+                let log_dir = concat_fnames_cstr(state_home.as_ptr(), c"logs".as_ptr(), true);
+                crate::eval::typval::tv_set_string(rettv, log_dir.as_ptr());
+            }
         } else if strequal(p, c"run".as_ptr()) {
-            (*rettv).vval.v_string = stdpaths_get_xdg_var(XDGVarType::kXDGRuntimeDir);
+            if let Some(s) = stdpaths_get_xdg_var(XDGVarType::kXDGRuntimeDir) {
+                crate::eval::typval::tv_set_string(rettv, s.as_ptr());
+            }
         } else if strequal(p, c"config_dirs".as_ptr()) {
             get_xdg_var_list(XDGVarType::kXDGConfigDirs, rettv);
         } else if strequal(p, c"data_dirs".as_ptr()) {
@@ -8695,7 +8687,7 @@ pub unsafe fn f_strftime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         let mut curtime = Tm { _fields: [0; 16] };
         let curtime_ptr = os_localtime_r(&raw const seconds, &raw mut curtime);
         if curtime_ptr.is_null() {
-            (*rettv).vval.v_string = xstrdup(gettext(c"(Invalid)".as_ptr()));
+            crate::eval::typval::tv_set_string(rettv, gettext(c"(Invalid)".as_ptr()));
             return;
         }
 
@@ -8706,23 +8698,27 @@ pub unsafe fn f_strftime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         convert_setup(&mut conv, p_enc, enc_ptr);
+        let p_owned: Option<std::ffi::CString>;
         if conv.vc_type != CONV_NONE {
-            p = string_convert(&conv, p, ptr::null_mut());
+            p_owned = cstr_take(string_convert(&conv, p, ptr::null_mut()));
+            p = p_owned
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        } else {
+            p_owned = None;
         }
         let mut result_buf = [0 as c_char; 256];
         if p.is_null() || strftime(result_buf.as_mut_ptr(), result_buf.len(), p, curtime_ptr) == 0 {
             result_buf[0] = NUL;
         }
+        drop(p_owned);
 
-        if conv.vc_type != CONV_NONE {
-            xfree(p.cast());
-        }
         convert_setup(&mut conv, enc_ptr, p_enc);
         if conv.vc_type != CONV_NONE {
             (*rettv).vval.v_string =
                 string_convert(&conv, result_buf.as_mut_ptr(), ptr::null_mut());
         } else {
-            (*rettv).vval.v_string = xstrdup(result_buf.as_ptr());
+            crate::eval::typval::tv_set_string(rettv, result_buf.as_ptr());
         }
     }
 }
@@ -8745,8 +8741,14 @@ pub unsafe fn f_strptime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         convert_setup(&mut conv, p_enc, enc_ptr);
+        let fmt_owned: Option<std::ffi::CString>;
         if conv.vc_type != CONV_NONE {
-            fmt = string_convert(&conv, fmt, ptr::null_mut());
+            fmt_owned = cstr_take(string_convert(&conv, fmt, ptr::null_mut()));
+            fmt = fmt_owned
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        } else {
+            fmt_owned = None;
         }
         if fmt.is_null() || os_strptime(str_, fmt, &raw mut tmval).is_null() {
             (*rettv).vval.v_number = 0;
@@ -8754,9 +8756,7 @@ pub unsafe fn f_strptime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             let t = mktime(&raw mut tmval);
             (*rettv).vval.v_number = if t == -1 { 0 } else { t as varnumber_T };
         }
-        if conv.vc_type != CONV_NONE {
-            xfree(fmt.cast());
-        }
+        drop(fmt_owned);
     }
 }
 
@@ -8853,7 +8853,7 @@ pub unsafe fn f_swapname(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         if buf.is_null() || (*buf).b_ml.ml_mfp.is_null() {
             (*rettv).vval.v_string = ptr::null_mut();
         } else if let Some(ref mf_fname) = (*(*buf).b_ml.ml_mfp.cast::<memfile_T>()).mf_fname {
-            (*rettv).vval.v_string = xstrdup(mf_fname.as_ptr());
+            crate::eval::typval::tv_set_string(rettv, mf_fname.as_ptr());
         } else {
             (*rettv).vval.v_string = ptr::null_mut();
         }
@@ -8963,12 +8963,7 @@ pub unsafe fn f_synIDattr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
             _ => {}
         }
 
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = if p.is_null() {
-            ptr::null_mut()
-        } else {
-            xstrdup(p)
-        };
+        crate::eval::typval::tv_set_string(rettv, p);
     }
 }
 
@@ -9298,8 +9293,7 @@ pub unsafe fn f_virtcol(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
 pub unsafe fn f_visualmode(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let str_ = [(*curbuf).b_visual_mode_eval as c_char, NUL];
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = xstrdup(str_.as_ptr());
+        crate::eval::typval::tv_set_string(rettv, str_.as_ptr());
 
         if non_zero_arg(argvars) {
             (*curbuf).b_visual_mode_eval = 0;
@@ -9319,8 +9313,7 @@ pub unsafe fn f_wildmenumode(_argvars: *mut typval_T, rettv: *mut typval_T, _fpt
 /// "windowsversion()" function
 pub unsafe fn f_windowsversion(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = xstrdup((&raw const windowsVersion).cast());
+        crate::eval::typval::tv_set_string(rettv, (&raw const windowsVersion).cast());
     }
 }
 

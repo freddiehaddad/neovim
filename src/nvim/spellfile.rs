@@ -5398,7 +5398,7 @@ unsafe fn init_spellfile() {
         let buf_len = MAXPATHL;
 
         if !aspath {
-            let xdg_path = cstr_take(get_xdg_home(XDGVarType::kXDGDataHome)).unwrap_or_default();
+            let xdg_path = get_xdg_home(XDGVarType::kXDGDataHome).unwrap_or_default();
             xstrlcpy(buf, xdg_path.as_ptr(), buf_len);
 
             xstrlcat(buf, c"/site/spell".as_ptr(), buf_len);

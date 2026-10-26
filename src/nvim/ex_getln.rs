@@ -4696,7 +4696,7 @@ pub unsafe fn tilde_replace(orig_pat: *mut c_char, files: &mut [*mut c_char]) {
             for f in files {
                 let p = home_replace_save(ptr::null_mut(), *f);
                 xfree((*f).cast());
-                *f = p;
+                *f = crate::memory::xstrdup(p.as_ptr());
             }
         }
     }

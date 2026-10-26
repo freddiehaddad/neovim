@@ -2252,7 +2252,7 @@ unsafe fn exe_commands(parmp: *mut mparm_T) {
 
 unsafe fn do_system_initialization() {
     unsafe {
-        if let Some(config_dirs) = cstr_take(stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs)) {
+        if let Some(config_dirs) = stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs) {
             let mut iter: *const c_char = ptr::null();
             let appname = get_appname(false);
             let appname_bytes = CStr::from_ptr(appname).to_bytes();
@@ -2306,14 +2306,10 @@ unsafe fn do_user_initialization() -> bool {
             return do_exrc;
         }
 
-        let init_lua_path = cstr_take(stdpaths_user_conf_subpath(c"init.lua".as_ptr()));
-        let user_vimrc = cstr_take(stdpaths_user_conf_subpath(c"init.vim".as_ptr()));
-        let init_lua_ptr = init_lua_path
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        let user_vimrc_ptr = user_vimrc
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        let init_lua_path = stdpaths_user_conf_subpath(c"init.lua".as_ptr());
+        let user_vimrc = stdpaths_user_conf_subpath(c"init.vim".as_ptr());
+        let init_lua_ptr = init_lua_path.as_ptr().cast_mut();
+        let user_vimrc_ptr = user_vimrc.as_ptr().cast_mut();
 
         if os_path_exists(init_lua_ptr)
             && do_source(init_lua_ptr, true, DOSO_VIMRC, ptr::null_mut()) != 0
@@ -2339,7 +2335,7 @@ unsafe fn do_user_initialization() -> bool {
         }
         drop(user_vimrc);
 
-        if let Some(config_dirs) = cstr_take(stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs)) {
+        if let Some(config_dirs) = stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs) {
             let appname = get_appname(false);
             let appname_bytes = CStr::from_ptr(appname).to_bytes();
             let init_lua_suffix: [u8; 10] =

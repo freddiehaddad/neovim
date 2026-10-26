@@ -82,7 +82,7 @@ pub struct blob_T {
 pub struct partial_T {
     pub pt_refcount: c_int,
     pub pt_copyID: c_int,
-    pub pt_name: *mut c_char,
+    pub pt_name: Option<std::ffi::CString>,
     pub pt_func: *mut ufunc_T,
     pub pt_auto: bool,
     pub pt_argv: Vec<typval_T>,
@@ -94,7 +94,7 @@ impl Default for partial_T {
         Self {
             pt_refcount: 0,
             pt_copyID: 0,
-            pt_name: ptr::null_mut(),
+            pt_name: None,
             pt_func: ptr::null_mut(),
             pt_auto: false,
             pt_argv: Vec::new(),
@@ -110,9 +110,8 @@ impl Drop for partial_T {
                 tv_clear(tv);
             }
             tv_dict_unref(self.pt_dict);
-            if !self.pt_name.is_null() {
-                func_unref(self.pt_name);
-                xfree(self.pt_name.cast());
+            if let Some(ref name) = self.pt_name {
+                func_unref(name.as_ptr().cast_mut());
             } else {
                 crate::eval::userfunc::func_ptr_unref(self.pt_func.cast());
             }
@@ -624,6 +623,18 @@ pub unsafe fn tv_set_string(tv: *mut typval_T, s: *const c_char) {
             ptr::null_mut()
         } else {
             xstrdup(s)
+        };
+    }
+}
+
+#[inline]
+pub unsafe fn tv_set_string_len(tv: *mut typval_T, s: *const c_char, len: usize) {
+    unsafe {
+        (*tv).v_type = VarType::VAR_STRING;
+        (*tv).vval.v_string = if s.is_null() {
+            ptr::null_mut()
+        } else {
+            xmemdupz(s.cast(), len).cast()
         };
     }
 }
@@ -2567,7 +2578,7 @@ pub unsafe fn callback_to_string(cb: *mut Callback, arena: *mut Arena) -> *mut c
             }
             kCallbackPartial => {
                 let pt = (*cb).data.as_partial();
-                let s = CStr::from_ptr((*pt).pt_name).to_bytes();
+                let s = (*pt).pt_name.as_ref().map_or(&[][..], |n| n.as_bytes());
                 let prefix = b"<vim partial: ";
                 let suffix = b">";
                 let copy_len = s.len().min(MSGLEN - prefix.len() - suffix.len());

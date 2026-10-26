@@ -74,7 +74,7 @@ use crate::os::fs::{
 use crate::os::stdpaths::stdpaths_user_state_subpath;
 use crate::os::time::{Timestamp, os_time};
 use crate::path::{
-    concat_fnames_realloc, kPathCmpLiteral, path_cmp, path_equal, path_fold_char,
+    concat_fnames_cstr, kPathCmpLiteral, path_cmp, path_equal, path_fold_char,
     path_tail_with_sep, path_try_shorten_fname, vim_ispathsep, vim_ispathsep_nocolon,
 };
 use crate::regexp::{kMarkBufLocal, regtilde};
@@ -1701,8 +1701,8 @@ unsafe fn shada_get_default_file() -> *const c_char {
     unsafe {
         if (&raw const default_shada_file).as_ref().unwrap().is_none() {
             let shada_dir = stdpaths_user_state_subpath(c"shada".as_ptr(), 0, false);
-            default_shada_file = cstr_take(concat_fnames_realloc(
-                shada_dir,
+            default_shada_file = Some(concat_fnames_cstr(
+                shada_dir.as_ptr(),
                 c"main.shada".as_ptr(),
                 true,
             ));
@@ -4296,7 +4296,7 @@ unsafe fn shada_removable(name: *const c_char) -> bool {
     unsafe {
         let mut part = [0 as c_char; MAXPATHL + 1];
         let mut retval = false;
-        let new_name = cstr_take(home_replace_save(ptr::null_mut(), name)).unwrap_or_default();
+        let new_name = home_replace_save(ptr::null_mut(), name);
         let mut p = p_shada;
         while *p != 0 {
             copy_option_part(&mut p, part.as_mut_ptr(), part.len(), c", ".as_ptr());

@@ -4145,8 +4145,8 @@ pub unsafe fn eval_interp_string(
 pub unsafe fn partial_name(pt: *mut partial_T) -> *mut c_char {
     unsafe {
         if !pt.is_null() {
-            if !(*pt).pt_name.is_null() {
-                return (*pt).pt_name;
+            if let Some(ref name) = (*pt).pt_name {
+                return name.as_ptr().cast_mut();
             }
             if !(*pt).pt_func.is_null() {
                 let uf = (*pt).pt_func.cast::<ufunc_T>();
@@ -4702,7 +4702,14 @@ unsafe fn set_ref_in_item_partial(
 
         (*pt).pt_copyID = copyID;
 
-        let mut abort = set_ref_in_func((*pt).pt_name, (*pt).pt_func.cast(), copyID);
+        let mut abort = set_ref_in_func(
+            (*pt)
+                .pt_name
+                .as_ref()
+                .map_or(ptr::null_mut(), |n| n.as_ptr().cast_mut()),
+            (*pt).pt_func.cast(),
+            copyID,
+        );
 
         if !(*pt).pt_dict.is_null() {
             let mut dtv = typval_T {
@@ -4971,19 +4978,21 @@ unsafe fn eval_env_var(arg: *mut *mut c_char, rettv: *mut typval_T, evaluate: c_
             }
             let cc = *name.add(len as usize);
             *name.add(len as usize) = NUL;
-            let mut string = vim_getenv(name);
-            if string.is_null() || *string == NUL {
-                xfree(string.cast());
-                string = expand_env_save(name.sub(1));
-                if !string.is_null() && *string == b'$' as c_char {
-                    xfree(string.cast());
-                    string = ptr::null_mut();
+            let mut string = vim_getenv(name).filter(|s| !s.as_bytes().is_empty());
+            if string.is_none() {
+                let exp = expand_env_save(name.sub(1));
+                if *exp.as_ptr() != b'$' as c_char {
+                    string = Some(exp);
                 }
             }
             *name.add(len as usize) = cc;
-            (*rettv).v_type = VarType::VAR_STRING;
-            (*rettv).vval.v_string = string;
             (*rettv).v_lock = VAR_UNLOCKED;
+            if let Some(ref s) = string {
+                crate::eval::typval::tv_set_string(rettv, s.as_ptr());
+            } else {
+                (*rettv).v_type = VarType::VAR_STRING;
+                (*rettv).vval.v_string = ptr::null_mut();
+            }
         }
 
         OK
