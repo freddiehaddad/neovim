@@ -387,19 +387,11 @@ pub struct qf_info_T {
 
 #[repr(C)]
 struct efm_T {
-    prog: *mut regprog_T,
+    prog: Option<Box<regprog_T>>,
     addr: [c_char; FMT_PATTERNS],
     prefix: c_char,
     flags: c_char,
     conthere: c_int,
-}
-
-impl Drop for efm_T {
-    fn drop(&mut self) {
-        unsafe {
-            vim_regfree(self.prog);
-        }
-    }
 }
 
 #[repr(C)]
@@ -1058,7 +1050,7 @@ unsafe fn parse_efm_option(mut efm: *mut c_char) -> Vec<efm_T> {
         let mut errored = false;
         while *efm != NUL {
             let mut fmt_item = efm_T {
-                prog: ptr::null_mut(),
+                prog: None,
                 addr: [0; FMT_PATTERNS],
                 prefix: 0,
                 flags: 0,
@@ -1071,8 +1063,8 @@ unsafe fn parse_efm_option(mut efm: *mut c_char) -> Vec<efm_T> {
                 errored = true;
                 break;
             }
-            fmt_item.prog = vim_regcomp(fmtstr.as_ptr(), RE_MAGIC + RE_STRING);
-            if fmt_item.prog.is_null() {
+            fmt_item.prog = crate::regexp::vim_regcomp_box(fmtstr.as_ptr(), RE_MAGIC + RE_STRING);
+            if fmt_item.prog.is_none() {
                 errored = true;
                 break;
             }
@@ -1966,9 +1958,8 @@ unsafe fn qf_parse_get_fields(
 
         let mut regmatch: regmatch_T = regmatch_T::new();
         regmatch.rm_ic = true;
-        regmatch.regprog = (*fmt_ptr).prog;
+        regmatch.regprog = crate::regexp::regprog_as_ptr(&(*fmt_ptr).prog);
         let r = vim_regexec(&raw mut regmatch, linebuf, 0);
-        (*fmt_ptr).prog = regmatch.regprog;
         let mut status = QF_FAIL;
         if r {
             status = qf_parse_match(

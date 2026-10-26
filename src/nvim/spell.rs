@@ -42,10 +42,7 @@ use crate::os::input::line_breakcheck;
 #[cfg(windows)]
 use crate::path::path_to_slash;
 use crate::path::{PathCmpFlags, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail};
-use crate::regexp::{
-    MAXCOL, RE_MAGIC, regmatch_T, regprog_T, vim_regcomp, vim_regexec, vim_regexec_prog,
-    vim_regfree,
-};
+use crate::regexp::{MAXCOL, RE_MAGIC, regmatch_T, regprog_T, vim_regexec, vim_regexec_prog};
 use crate::runtime::{DIP_ALL, RuntimeCallback, do_in_runtimepath};
 use crate::search::{BACKWARD, Direction, FORWARD, do_search, kShmSearch};
 use crate::spellfile::{MAXREGIONS, spell_load_file};
@@ -278,7 +275,7 @@ pub unsafe fn spell_check(
                     }
                 }
             }
-            if !capcol.is_null() && *capcol == 0 && !(*w_s).b_cap_prog.is_null() {
+            if !capcol.is_null() && *capcol == 0 && (*w_s).b_cap_prog.is_some() {
                 let c = utf_ptr2char(ptr);
                 if !spell_isupper(c) {
                     wrongcaplen = mi.mi_fend.offset_from(ptr) as usize;
@@ -339,12 +336,11 @@ pub unsafe fn spell_check(
                     return nrlen;
                 }
             } else if !spell_iswordp_nmw(ptr, wp) {
-                if !capcol.is_null() && !(*w_s).b_cap_prog.is_null() {
+                if !capcol.is_null() && (*w_s).b_cap_prog.is_some() {
                     let mut regmatch = regmatch_T::new();
-                    regmatch.regprog = (*w_s).b_cap_prog.cast();
+                    regmatch.regprog = crate::regexp::regprog_as_ptr(&(*w_s).b_cap_prog);
                     regmatch.rm_ic = false;
                     let r = vim_regexec(&raw mut regmatch, ptr, 0);
-                    (*w_s).b_cap_prog = regmatch.regprog.cast();
                     if r {
                         *capcol = regmatch.endp[0].offset_from(ptr) as c_int;
                     }
@@ -546,7 +542,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                 continue;
             }
             let word_ends = if spell_iswordp(ptr.add(wlen as usize), (*mip).mi_win) {
-                if (*slang).sl_compprog.is_null() && !(*slang).sl_nobreak {
+                if (*slang).sl_compprog.is_none() && !(*slang).sl_nobreak {
                     continue;
                 }
                 false
@@ -834,7 +830,7 @@ pub unsafe fn match_checkcompoundpattern(
 pub unsafe fn can_compound(slang: *mut slang_T, word: *const c_char, flags: *const u8) -> bool {
     unsafe {
         let mut uflags: [c_char; MAXWLEN * 2] = [0; MAXWLEN * 2];
-        if (*slang).sl_compprog.is_null() {
+        if (*slang).sl_compprog.is_none() {
             return false;
         }
         let mut p = (&raw mut uflags).cast::<c_char>();
@@ -845,7 +841,7 @@ pub unsafe fn can_compound(slang: *mut slang_T, word: *const c_char, flags: *con
         }
         *p = NUL;
         p = (&raw mut uflags).cast();
-        if !vim_regexec_prog((&raw mut (*slang).sl_compprog).cast(), false, p, 0) {
+        if !vim_regexec_prog((*slang).sl_compprog.as_deref(), false, p, 0) {
             return false;
         }
         if (*slang).sl_compsylmax < MAXWLEN as c_int
@@ -921,9 +917,9 @@ pub unsafe fn valid_word_prefix(
             if (flags & WF_HAS_AFF) != 0 && (pidx & WF_PFX_NC) != 0 {
                 continue;
             }
-            let rp = &raw mut (&mut (*slang).sl_prefprog)[(((pidx as u32) >> 8) & 0xffff) as usize];
-            if !(*rp).is_null() {
-                if !vim_regexec_prog(rp, false, word, 0) {
+            let rp = &(&(*slang).sl_prefprog)[(((pidx as u32) >> 8) & 0xffff) as usize];
+            if rp.is_some() {
+                if !vim_regexec_prog(rp.as_deref(), false, word, 0) {
                     continue;
                 }
             } else if cond_req {
@@ -1414,7 +1410,7 @@ pub unsafe fn slang_alloc(lang: *mut c_char) -> Box<slang_T> {
             sl_compsylmax: MAXWLEN as c_int,
             sl_compoptions: 0,
             sl_comppat: Vec::new(),
-            sl_compprog: ptr::null_mut(),
+            sl_compprog: None,
             sl_comprules: None,
             sl_compstartflags: None,
             sl_compallflags: None,
@@ -1459,14 +1455,10 @@ pub unsafe fn slang_clear(lp: *mut slang_T) {
         (*lp).sl_repsal = Vec::new();
         (*lp).sl_sal = Vec::new();
         (*lp).sl_sofo_sal = Vec::new();
-        for prog in (*lp).sl_prefprog.drain(..) {
-            vim_regfree(prog);
-        }
         (*lp).sl_prefprog = Vec::new();
         (*lp).sl_info = None;
         (*lp).sl_midword = None;
-        vim_regfree((*lp).sl_compprog);
-        (*lp).sl_compprog = ptr::null_mut();
+        (*lp).sl_compprog = None;
         (*lp).sl_comprules = None;
         (*lp).sl_compstartflags = None;
         (*lp).sl_compallflags = None;
@@ -2198,7 +2190,7 @@ pub unsafe fn spell_casefold(
 pub unsafe fn check_need_cap(wp: *mut win_T, lnum: linenr_T, col: colnr_T) -> bool {
     unsafe {
         let w_s = (*wp).w_s.cast::<synblock_T>();
-        if (*w_s).b_cap_prog.is_null() {
+        if (*w_s).b_cap_prog.is_none() {
             return false;
         }
         let mut need_cap = false;
@@ -2229,7 +2221,7 @@ pub unsafe fn check_need_cap(wp: *mut win_T, lnum: linenr_T, col: colnr_T) -> bo
         }
         if endcol > 0 {
             let mut regmatch = regmatch_T::new();
-            regmatch.regprog = (*w_s).b_cap_prog.cast();
+            regmatch.regprog = crate::regexp::regprog_as_ptr(&(*w_s).b_cap_prog);
             regmatch.rm_ic = false;
             let mut p = line.add(endcol as usize);
             loop {
@@ -2244,7 +2236,6 @@ pub unsafe fn check_need_cap(wp: *mut win_T, lnum: linenr_T, col: colnr_T) -> bo
                     break;
                 }
             }
-            (*w_s).b_cap_prog = regmatch.regprog.cast();
         }
         drop(line_copy);
         need_cap
@@ -3294,17 +3285,19 @@ pub unsafe fn did_set_spell_option() -> *const c_char {
         errmsg
     }
 }
-pub unsafe fn compile_cap_prog(value: *const c_char, prog: *mut *mut regprog_T) -> *const c_char {
+pub unsafe fn compile_cap_prog(
+    value: *const c_char,
+    prog: &mut Option<Box<regprog_T>>,
+) -> *const c_char {
     unsafe {
-        let mut rp: *mut regprog_T = ptr::null_mut();
+        let mut rp: Option<Box<regprog_T>> = None;
         if !value.is_null() && *value != NUL {
             let re = concat_str(c"^".as_ptr(), value);
-            rp = vim_regcomp(re.as_ptr(), RE_MAGIC);
-            if rp.is_null() {
+            rp = crate::regexp::vim_regcomp_box(re.as_ptr(), RE_MAGIC);
+            if rp.is_none() {
                 return (&raw const e_invarg).cast();
             }
         }
-        vim_regfree(*prog);
         *prog = rp;
         ptr::null()
     }

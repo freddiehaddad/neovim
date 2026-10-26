@@ -2354,7 +2354,7 @@ unsafe fn didset_options() {
             spell_apply_sps(sps_flags, sps_limit);
         }
         let ws = (*curwin).w_s.cast::<synblock_T>();
-        compile_cap_prog((*ws).b_p_spc, (&raw mut (*ws).b_cap_prog).cast());
+        compile_cap_prog((*ws).b_p_spc, &mut (*ws).b_cap_prog);
         did_set_spell_option();
         did_set_cedit(ptr::null_mut());
         did_set_breakat(ptr::null_mut());
@@ -7617,7 +7617,7 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 (*buf).b_s.b_syn_isk = None;
                 (*buf).b_s.b_p_spc = alloc_string_option(p_spc);
                 copy_opt_sctx(buf, kBufOptSpellcapcheck);
-                compile_cap_prog((*buf).b_s.b_p_spc, (&raw mut (*buf).b_s.b_cap_prog).cast());
+                compile_cap_prog((*buf).b_s.b_p_spc, &mut (*buf).b_s.b_cap_prog);
                 (*buf).b_s.b_p_spf = alloc_string_option(p_spf);
                 copy_opt_sctx(buf, kBufOptSpellfile);
                 (*buf).b_s.b_p_spl = alloc_string_option(p_spl);

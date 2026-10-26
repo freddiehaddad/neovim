@@ -3402,6 +3402,24 @@ pub unsafe fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regp
     }
 }
 
+#[inline]
+pub unsafe fn vim_regcomp_box(expr_arg: *const c_char, re_flags: c_int) -> Option<Box<regprog_T>> {
+    unsafe {
+        let p = vim_regcomp(expr_arg, re_flags);
+        if p.is_null() {
+            None
+        } else {
+            Some(Box::from_raw(p))
+        }
+    }
+}
+
+#[inline]
+pub fn regprog_as_ptr(prog: &Option<Box<regprog_T>>) -> *mut regprog_T {
+    prog.as_deref()
+        .map_or(ptr::null_mut(), |p| ptr::from_ref(p).cast_mut())
+}
+
 /// Free a compiled regexp program, returned by `vim_regcomp()`.
 pub unsafe fn vim_regfree(prog: *mut regprog_T) {
     unsafe {
@@ -3481,11 +3499,9 @@ unsafe fn vim_regexec_string(
 
             p_re = OptInt::from(BACKTRACKING_ENGINE);
             report_re_switch(pat);
-            (*rmp).regprog = vim_regcomp(pat, re_flags);
-            if (*rmp).regprog.is_null() {
-                (*rmp).regprog = prev_prog;
-            } else {
-                vim_regfree(prev_prog);
+            let new_prog = vim_regcomp(pat, re_flags);
+            if !new_prog.is_null() {
+                *prev_prog = *Box::from_raw(new_prog);
                 (*(*rmp).regprog).re_in_use = true;
                 result = match (*(*rmp).regprog).engine {
                     RegProgEngine::Bt(_) => bt_regexec_nl(rmp, line.cast_mut().cast(), col, nl),
@@ -3507,22 +3523,20 @@ unsafe fn vim_regexec_string(
 }
 
 pub unsafe fn vim_regexec_prog(
-    prog: *mut *mut regprog_T,
+    prog: Option<&regprog_T>,
     ignore_case: bool,
     line: *const c_char,
     col: colnr_T,
 ) -> bool {
     unsafe {
         let mut regmatch = regmatch_T {
-            regprog: *prog,
+            regprog: prog.map_or(ptr::null_mut(), |p| ptr::from_ref(p).cast_mut()),
             startp: [ptr::null_mut(); NSUBEXP],
             endp: [ptr::null_mut(); NSUBEXP],
             rm_matchcol: 0,
             rm_ic: ignore_case,
         };
-        let r = vim_regexec_string(&raw mut regmatch, line, col, false);
-        *prog = regmatch.regprog;
-        r
+        vim_regexec_string(&raw mut regmatch, line, col, false)
     }
 }
 
@@ -3575,13 +3589,11 @@ pub unsafe fn vim_regexec_multi(
 
             report_re_switch(pat);
             reg_do_extmatch = REX_ALL;
-            (*rmp).regprog = vim_regcomp(pat, re_flags);
+            let new_prog = vim_regcomp(pat, re_flags);
             reg_do_extmatch = 0;
 
-            if (*rmp).regprog.is_null() {
-                (*rmp).regprog = prev_prog;
-            } else {
-                vim_regfree(prev_prog);
+            if !new_prog.is_null() {
+                *prev_prog = *Box::from_raw(new_prog);
                 (*(*rmp).regprog).re_in_use = true;
                 result = match (*(*rmp).regprog).engine {
                     RegProgEngine::Bt(_) => {

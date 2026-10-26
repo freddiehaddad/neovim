@@ -143,14 +143,14 @@ pub struct slang_T {
     pub sl_compsylmax: c_int,
     pub sl_compoptions: c_int,
     pub sl_comppat: Vec<std::ffi::CString>,
-    pub sl_compprog: *mut crate::regexp::regprog_T,
+    pub sl_compprog: Option<Box<crate::regexp::regprog_T>>,
     pub sl_comprules: Option<std::ffi::CString>,
     pub sl_compstartflags: Option<std::ffi::CString>,
     pub sl_compallflags: Option<std::ffi::CString>,
     pub sl_nobreak: bool,
     pub sl_syllable: Option<std::ffi::CString>,
     pub sl_syl_items: Vec<crate::spell::syl_item_T>,
-    pub sl_prefprog: Vec<*mut crate::regexp::regprog_T>,
+    pub sl_prefprog: Vec<Option<Box<crate::regexp::regprog_T>>>,
     pub sl_rep: Vec<fromto_T>,
     pub sl_rep_first: [i16; 256],
     pub sl_sal: Vec<salitem_T>,
@@ -1467,7 +1467,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                             ))
                             || was_banned(su, (&raw const preword).cast())
                         {
-                            if (*slang).sl_compprog.is_null() {
+                            if (*slang).sl_compprog.is_none() {
                                 continue;
                             }
                             goodword_ends = false;
@@ -1576,7 +1576,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                         let mut try_compound = false;
                         if !soundfold
                             && !(*slang).sl_nocompoundsugs
-                            && !(*slang).sl_compprog.is_null()
+                            && (*slang).sl_compprog.is_some()
                             && ((flags as u32) >> 24) != 0
                             && (stack[udepth].ts_twordlen - stack[udepth].ts_splitoff) as c_int
                                 >= (*slang).sl_compminlen

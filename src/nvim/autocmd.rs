@@ -58,7 +58,7 @@ use crate::os::input::line_breakcheck;
 use crate::os::time::{Timestamp, os_now};
 use crate::path::{FullName_save, path_tail, to_slash_save};
 use crate::profile::{prof_child_enter, prof_child_exit, proftime_T};
-use crate::regexp::{RE_MAGIC, RE_NOBREAK, vim_regcomp, vim_regfree};
+use crate::regexp::{RE_MAGIC, RE_NOBREAK};
 use crate::runtime::{ETYPE_AUCMD, SID_NONE, estack_pop, estack_push, exestack, sctx_T};
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::state::{MODE_INSERT, MODE_NORMAL_BUSY, get_mode, get_real_state, save_v_event_T};
@@ -76,19 +76,11 @@ pub(crate) const BUFLOCAL_PAT_LEN: usize = 25;
 #[repr(C)]
 pub struct AutoPat {
     pub pat: CString,
-    pub reg_prog: std::cell::Cell<*mut crate::regexp::regprog_T>,
+    pub reg_prog: Option<Box<crate::regexp::regprog_T>>,
     pub group: c_int,
     pub patlen: c_int,
     pub buflocal_nr: c_int,
     pub allow_dirs: c_char,
-}
-
-impl Drop for AutoPat {
-    fn drop(&mut self) {
-        unsafe {
-            vim_regfree(self.reg_prog.get());
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -2332,7 +2324,7 @@ pub unsafe fn autocmd_register(
         } else {
             let mut allow_dirs: c_char = 0;
             let reg_prog = if is_buflocal {
-                ptr::null_mut()
+                None
             } else {
                 let reg_pat = file_pat_to_reg_pat(
                     pat,
@@ -2341,10 +2333,12 @@ pub unsafe fn autocmd_register(
                     1,
                 );
                 let prog = match reg_pat {
-                    Some(ref rp) => vim_regcomp(rp.as_ptr().cast_mut(), RE_MAGIC | RE_NOBREAK),
-                    None => ptr::null_mut(),
+                    Some(ref rp) => {
+                        crate::regexp::vim_regcomp_box(rp.as_ptr().cast_mut(), RE_MAGIC | RE_NOBREAK)
+                    }
+                    None => None,
                 };
-                if reg_pat.is_none() || prog.is_null() {
+                if reg_pat.is_none() || prog.is_none() {
                     return FAIL;
                 }
                 prog
@@ -2379,7 +2373,7 @@ pub unsafe fn autocmd_register(
             let pat_slice = std::slice::from_raw_parts(pat.cast::<u8>(), patlen as usize);
             std::rc::Rc::new(AutoPat {
                 pat: CString::new(pat_slice).unwrap(),
-                reg_prog: std::cell::Cell::new(reg_prog),
+                reg_prog,
                 group: findgroup,
                 patlen,
                 buflocal_nr: if is_buflocal { buflocal_nr } else { 0 },
@@ -3251,7 +3245,6 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
                     continue;
                 }
                 let matches = if ap.buflocal_nr == 0 {
-                    let mut prog = ap.reg_prog.get();
                     let fname_ptr = (*apc)
                         .fname
                         .as_ref()
@@ -3265,16 +3258,14 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
                     } else {
                         path_tail(fname_ptr)
                     };
-                    let matched = match_file_pat(
+                    match_file_pat(
                         ptr::null_mut(),
-                        &raw mut prog,
+                        ap.reg_prog.as_deref(),
                         fname_ptr,
                         sfname_ptr,
                         tail_ptr,
                         c_int::from(ap.allow_dirs),
-                    );
-                    ap.reg_prog.set(prog);
-                    matched
+                    )
                 } else {
                     ap.buflocal_nr == (*apc).arg_bufnr
                 };
@@ -3515,17 +3506,14 @@ unsafe fn has_autocmd_ext(
         for ac in &*acs {
             if let Some(ref ap) = ac.pat {
                 let matched = if ap.buflocal_nr == 0 {
-                    let mut prog = ap.reg_prog.get();
-                    let m = match_file_pat(
+                    match_file_pat(
                         ptr::null_mut(),
-                        &raw mut prog,
+                        ap.reg_prog.as_deref(),
                         fname.as_ptr().cast_mut(),
                         sfname,
                         tail,
                         c_int::from(ap.allow_dirs),
-                    );
-                    ap.reg_prog.set(prog);
-                    m
+                    )
                 } else {
                     !buf.is_null() && ap.buflocal_nr == (*buf).b_fnum
                 };

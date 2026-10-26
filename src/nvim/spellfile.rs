@@ -36,9 +36,7 @@ use crate::path::{
     dir_of_file_exists, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail, path_tail_with_sep,
     vim_ispathsep,
 };
-use crate::regexp::{
-    RE_MAGIC, RE_STRICT, RE_STRING, regprog_T, vim_regcomp, vim_regexec_prog, vim_regfree,
-};
+use crate::regexp::{RE_MAGIC, RE_STRICT, RE_STRING, regprog_T, vim_regexec_prog};
 use crate::runtime::{ETYPE_SPELL, estack_pop, estack_push};
 use crate::spell::{
     MAXWLEN, SP_FORMERROR, WF_BANNED, WF_COMPROOT, WF_FIXCAP, WF_HAS_AFF, WF_KEEPCAP, WF_NEEDCOMP,
@@ -202,17 +200,9 @@ struct affentry_T {
     ae_add: *mut c_char,
     ae_flags: *mut c_char,
     ae_cond: *mut c_char,
-    ae_prog: *mut regprog_T,
+    ae_prog: Option<Box<regprog_T>>,
     ae_compforbid: c_char,
     ae_comppermit: c_char,
-}
-
-impl Drop for affentry_T {
-    fn drop(&mut self) {
-        unsafe {
-            vim_regfree(self.ae_prog);
-        }
-    }
 }
 
 #[repr(C)]
@@ -967,7 +957,7 @@ unsafe fn read_prefcond_section(fd: *mut FILE, lp: *mut slang_T) -> c_int {
             return SP_FORMERROR;
         }
 
-        (*lp).sl_prefprog.resize(cnt as usize, ptr::null_mut());
+        (*lp).sl_prefprog.resize_with(cnt as usize, || None);
 
         for i in 0..cnt {
             let n = fgetc(fd);
@@ -984,7 +974,7 @@ unsafe fn read_prefcond_section(fd: *mut FILE, lp: *mut slang_T) -> c_int {
                 }
                 buf[(n + 1) as usize] = NUL;
                 (*lp).sl_prefprog.as_mut_slice()[i as usize] =
-                    vim_regcomp(buf.as_ptr(), RE_MAGIC | RE_STRING);
+                    crate::regexp::vim_regcomp_box(buf.as_ptr(), RE_MAGIC | RE_STRING);
             }
         }
         0
@@ -1357,9 +1347,10 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
         (*slang).sl_compallflags = Some(std::ffi::CString::new(ap_vec).unwrap_or_default());
         (*slang).sl_comprules = crp_vec.map(|v| std::ffi::CString::new(v).unwrap_or_default());
 
-        (*slang).sl_compprog = vim_regcomp(pat, RE_MAGIC + RE_STRING + RE_STRICT);
+        (*slang).sl_compprog =
+            crate::regexp::vim_regcomp_box(pat, RE_MAGIC + RE_STRING + RE_STRICT);
         drop(pat_vec);
-        if (*slang).sl_compprog.is_null() {
+        if (*slang).sl_compprog.is_none() {
             return SP_FORMERROR;
         }
 
@@ -2198,7 +2189,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                         ae_add: ptr::null_mut(),
                         ae_flags: ptr::null_mut(),
                         ae_cond: ptr::null_mut(),
-                        ae_prog: ptr::null_mut(),
+                        ae_prog: None,
                         ae_compforbid: 0,
                         ae_comppermit: 0,
                     };
@@ -2237,9 +2228,11 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                                 },
                                 items[4],
                             );
-                            (*aff_entry).ae_prog =
-                                vim_regcomp(buf.as_ptr(), RE_MAGIC + RE_STRING + RE_STRICT);
-                            if (*aff_entry).ae_prog.is_null() {
+                            (*aff_entry).ae_prog = crate::regexp::vim_regcomp_box(
+                                buf.as_ptr(),
+                                RE_MAGIC + RE_STRING + RE_STRICT,
+                            );
+                            if (*aff_entry).ae_prog.is_none() {
                                 smsg!(
                                     0,
                                     gettext(c"Broken condition in %s line %d: %s".as_ptr()),
@@ -2288,9 +2281,11 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                                                     c"^%s".as_ptr(),
                                                     (*aff_entry).ae_cond,
                                                 );
-                                                vim_regfree((*aff_entry).ae_prog);
                                                 (*aff_entry).ae_prog =
-                                                    vim_regcomp(buf.as_ptr(), RE_MAGIC + RE_STRING);
+                                                    crate::regexp::vim_regcomp_box(
+                                                        buf.as_ptr(),
+                                                        RE_MAGIC + RE_STRING,
+                                                    );
                                             }
                                         }
                                     }
@@ -3263,8 +3258,8 @@ unsafe fn store_aff_word(
                             || !(*ae).ae_chop.is_null()
                             || !(*ae).ae_flags.is_null())
                             && ((*ae).ae_chop.is_null() || strlen((*ae).ae_chop) < wordlen)
-                            && ((*ae).ae_prog.is_null()
-                                || vim_regexec_prog(&raw mut (*ae).ae_prog, false, word, 0))
+                            && ((*ae).ae_prog.is_none()
+                                || vim_regexec_prog((*ae).ae_prog.as_deref(), false, word, 0))
                             && (((condit & CONDIT_CFIX) == 0)
                                 == ((condit & CONDIT_AFF) == 0
                                     || (*ae).ae_flags.is_null()

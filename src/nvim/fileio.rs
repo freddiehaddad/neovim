@@ -4507,11 +4507,11 @@ pub unsafe fn vim_tempname() -> Option<std::ffi::CString> {
     }
 }
 
-/// Tries matching a filename with a "pattern" ("prog" is NULL), or use the
+/// Tries matching a filename with a "pattern" ("prog" is None), or use the
 /// precompiled regprog "prog" ("pattern" is NULL).
 pub unsafe fn match_file_pat(
     pattern: *mut c_char,
-    prog: *mut *mut regprog_T,
+    prog: Option<&regprog_T>,
     fname: *mut c_char,
     sfname: *mut c_char,
     tail: *mut c_char,
@@ -4522,8 +4522,8 @@ pub unsafe fn match_file_pat(
         let mut result = false;
 
         regmatch.rm_ic = p_fic != 0;
-        regmatch.regprog = if !prog.is_null() {
-            *prog
+        regmatch.regprog = if let Some(prog) = prog {
+            ptr::from_ref(prog).cast_mut()
         } else {
             vim_regcomp(pattern, RE_MAGIC)
         };
@@ -4537,9 +4537,7 @@ pub unsafe fn match_file_pat(
             result = true;
         }
 
-        if !prog.is_null() {
-            *prog = regmatch.regprog;
-        } else {
+        if prog.is_none() {
             vim_regfree(regmatch.regprog);
         }
         result
@@ -4563,7 +4561,7 @@ pub unsafe fn match_file_list(list: *mut c_char, sfname: *mut c_char, ffname: *m
             };
             let matched = match_file_pat(
                 regpat.as_ptr().cast_mut(),
-                ptr::null_mut(),
+                None,
                 ffname,
                 sfname,
                 tail,

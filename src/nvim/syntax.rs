@@ -96,7 +96,7 @@ pub struct synblock_T {
     pub b_syn_sync_maxlines: i32,
     pub b_syn_sync_linebreaks: i32,
     pub b_syn_linecont_pat: Option<std::ffi::CString>,
-    pub b_syn_linecont_prog: *mut regprog_T,
+    pub b_syn_linecont_prog: Option<Box<regprog_T>>,
     pub b_syn_linecont_time: syn_time_T,
     pub b_syn_linecont_ic: c_int,
     pub b_syn_topgrp: c_int,
@@ -112,7 +112,7 @@ pub struct synblock_T {
     pub b_spell_ismw: [bool; 256],
     pub b_spell_ismw_mb: Option<std::ffi::CString>,
     pub b_p_spc: *mut c_char,
-    pub b_cap_prog: *mut regprog_T,
+    pub b_cap_prog: Option<Box<regprog_T>>,
     pub b_p_spf: *mut c_char,
     pub b_p_spl: *mut c_char,
     pub b_p_spo: *mut c_char,
@@ -143,7 +143,7 @@ impl synblock_T {
             b_syn_sync_maxlines: 0,
             b_syn_sync_linebreaks: 0,
             b_syn_linecont_pat: None,
-            b_syn_linecont_prog: ptr::null_mut(),
+            b_syn_linecont_prog: None,
             b_syn_linecont_time: syn_time_T {
                 total: 0,
                 slowest: 0,
@@ -164,7 +164,7 @@ impl synblock_T {
             b_spell_ismw: [false; 256],
             b_spell_ismw_mb: None,
             b_p_spc: ptr::null_mut(),
-            b_cap_prog: ptr::null_mut(),
+            b_cap_prog: None,
             b_p_spf: ptr::null_mut(),
             b_p_spl: ptr::null_mut(),
             b_p_spo: ptr::null_mut(),
@@ -342,7 +342,6 @@ pub struct synstate_T {
 }
 
 #[repr(C)]
-#[derive(Clone)]
 pub struct synpat_T {
     sp_type: c_char,
     sp_syncing: bool,
@@ -359,7 +358,7 @@ pub struct synpat_T {
     sp_next_list: SynIdList,
     sp_syn: sp_syn,
     sp_pattern: Option<std::ffi::CString>,
-    sp_prog: *mut regprog_T,
+    sp_prog: Option<Box<regprog_T>>,
     sp_time: syn_time_T,
 }
 
@@ -381,7 +380,7 @@ impl synpat_T {
             sp_next_list: None,
             sp_syn: sp_syn::new(),
             sp_pattern: None,
-            sp_prog: ptr::null_mut(),
+            sp_prog: None,
             sp_time: syn_time_T::new(),
         }
     }
@@ -974,7 +973,7 @@ unsafe fn restore_chartab(chartab: *const c_char) {
 
 unsafe fn syn_match_linecont(lnum: linenr_T) -> c_int {
     unsafe {
-        if (*syn_block).b_syn_linecont_prog.is_null() {
+        if (*syn_block).b_syn_linecont_prog.is_none() {
             return 0;
         }
 
@@ -983,14 +982,13 @@ unsafe fn syn_match_linecont(lnum: linenr_T) -> c_int {
         save_chartab(buf_chartab.as_mut_ptr());
 
         regmatch.rmm_ic = (*syn_block).b_syn_linecont_ic;
-        regmatch.regprog = (*syn_block).b_syn_linecont_prog;
+        regmatch.regprog = crate::regexp::regprog_as_ptr(&(*syn_block).b_syn_linecont_prog);
         let r = syn_regexec(
             &raw mut regmatch,
             lnum,
             0,
             &raw mut (*syn_block).b_syn_linecont_time,
         );
-        (*syn_block).b_syn_linecont_prog = regmatch.regprog;
 
         restore_chartab(buf_chartab.as_ptr());
         c_int::from(r)
@@ -1727,14 +1725,13 @@ unsafe fn syn_current_attr(
                                 }
 
                                 regmatch.rmm_ic = (*spp).sp_ic;
-                                regmatch.regprog = (*spp).sp_prog;
+                                regmatch.regprog = crate::regexp::regprog_as_ptr(&(*spp).sp_prog);
                                 let r = syn_regexec(
                                     &raw mut regmatch,
                                     current_lnum,
                                     lc_col,
                                     &raw mut (*spp).sp_time,
                                 );
-                                (*spp).sp_prog = regmatch.regprog;
                                 if !r {
                                     (*spp).sp_startcol = MAXCOL;
                                     idx -= 1;
@@ -2378,14 +2375,13 @@ unsafe fn find_endpos(
                 }
 
                 regmatch.rmm_ic = (*spp).sp_ic;
-                regmatch.regprog = (*spp).sp_prog;
+                regmatch.regprog = crate::regexp::regprog_as_ptr(&(*spp).sp_prog);
                 let r = syn_regexec(
                     &raw mut regmatch,
                     (*startpos).lnum,
                     lc_col,
                     &raw mut (*spp).sp_time,
                 );
-                (*spp).sp_prog = regmatch.regprog;
                 if r && (best_idx == -1 || regmatch.startpos[0].col < best_regmatch.startpos[0].col)
                 {
                     best_idx = idx;
@@ -2405,14 +2401,13 @@ unsafe fn find_endpos(
                     lc_col = 0;
                 }
                 regmatch.rmm_ic = (*spp_skip).sp_ic;
-                regmatch.regprog = (*spp_skip).sp_prog;
+                regmatch.regprog = crate::regexp::regprog_as_ptr(&(*spp_skip).sp_prog);
                 let r = syn_regexec(
                     &raw mut regmatch,
                     (*startpos).lnum,
                     lc_col,
                     &raw mut (*spp_skip).sp_time,
                 );
-                (*spp_skip).sp_prog = regmatch.regprog;
                 if r && regmatch.startpos[0].col <= best_regmatch.startpos[0].col {
                     syn_add_end_off(&raw mut pos, &raw mut regmatch, spp_skip, SPO_ME_OFF, 1);
 
@@ -2902,11 +2897,6 @@ pub unsafe fn syntax_clear(block: *mut synblock_T) {
         clear_keywtab(&mut (*block).b_keywtab);
         clear_keywtab(&mut (*block).b_keywtab_ic);
 
-        let mut i = (*block).b_syn_patterns.len() as c_int - 1;
-        while i >= 0 {
-            syn_clear_pattern(block, i);
-            i -= 1;
-        }
         (*block).b_syn_patterns = Vec::new();
 
         (*block).b_syn_clusters = Vec::new();
@@ -2918,8 +2908,7 @@ pub unsafe fn syntax_clear(block: *mut synblock_T) {
         (*block).b_syn_sync_maxlines = 0;
         (*block).b_syn_sync_linebreaks = 0;
 
-        vim_regfree((*block).b_syn_linecont_prog);
-        (*block).b_syn_linecont_prog = ptr::null_mut();
+        (*block).b_syn_linecont_prog = None;
         (*block).b_syn_linecont_pat = None;
         (*block).b_syn_folditems = 0;
         (*block).b_syn_isk = None;
@@ -2964,8 +2953,7 @@ unsafe fn syntax_sync_clear() {
         (*win_s(curwin)).b_syn_sync_maxlines = 0;
         (*win_s(curwin)).b_syn_sync_linebreaks = 0;
 
-        vim_regfree((*win_s(curwin)).b_syn_linecont_prog);
-        (*win_s(curwin)).b_syn_linecont_prog = ptr::null_mut();
+        (*win_s(curwin)).b_syn_linecont_prog = None;
         (*win_s(curwin)).b_syn_linecont_pat = None;
         (*win_s(curwin)).b_syn_isk = None;
 
@@ -2979,21 +2967,8 @@ unsafe fn syn_remove_pattern(block: *mut synblock_T, idx: c_int) {
         if ((*spp).sp_flags & HL_FOLD) != 0 {
             (*block).b_syn_folditems -= 1;
         }
-        syn_clear_pattern(block, idx);
         let pats = &mut (*block).b_syn_patterns;
         pats.remove(idx as usize);
-    }
-}
-
-unsafe fn syn_clear_pattern(block: *mut synblock_T, i: c_int) {
-    unsafe {
-        let items = syn_items(block);
-        let spp = items.offset(i as isize);
-        (*spp).sp_pattern = None;
-        vim_regfree((*spp).sp_prog);
-        (*spp).sp_cont_list = None;
-        (*spp).sp_next_list = None;
-        (*spp).sp_syn.cont_in_list = None;
     }
 }
 
@@ -4093,8 +4068,6 @@ unsafe fn syn_cmd_match(eap: *mut exarg_T, syncing: c_int) {
             }
         }
 
-        vim_regfree(item.sp_prog);
-
         if rest.is_null() {
             semsg!(gettext((&raw const e_invarg2).cast()), arg);
         }
@@ -4269,14 +4242,6 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
                     redraw_curbuf_later(UPD_SOME_VALID);
                     syn_stack_free_all(win_s(curwin));
                     success = true;
-                }
-            }
-        }
-
-        if !success {
-            for pat_vec in pat_ptrs.iter().take(ITEM_END + 1).skip(ITEM_START) {
-                for ppp in pat_vec {
-                    vim_regfree(ppp.pp_synp.sp_prog);
                 }
             }
         }
@@ -4500,11 +4465,11 @@ unsafe fn get_syn_pattern(arg: *mut c_char, ci: *mut synpat_T) -> *mut c_char {
 
         let cpo_save = p_cpo;
         p_cpo = (&raw mut empty_string_option).cast();
-        (*ci).sp_prog = vim_regcomp(pat_cstr.as_ptr(), RE_MAGIC);
+        (*ci).sp_prog = crate::regexp::vim_regcomp_box(pat_cstr.as_ptr(), RE_MAGIC);
         p_cpo = cpo_save;
         (*ci).sp_pattern = Some(pat_cstr);
 
-        if (*ci).sp_prog.is_null() {
+        if (*ci).sp_prog.is_none() {
             return ptr::null_mut();
         }
         (*ci).sp_ic = (*win_s(curwin)).b_syn_ic;
@@ -4663,11 +4628,12 @@ unsafe fn syn_cmd_sync(eap: *mut exarg_T, _syncing: c_int) {
 
                     let cpo_save = p_cpo;
                     p_cpo = (&raw mut empty_string_option).cast();
-                    (*win_s(curwin)).b_syn_linecont_prog = vim_regcomp(pat_cstr.as_ptr(), RE_MAGIC);
+                    (*win_s(curwin)).b_syn_linecont_prog =
+                        crate::regexp::vim_regcomp_box(pat_cstr.as_ptr(), RE_MAGIC);
                     p_cpo = cpo_save;
                     syn_clear_time(&raw mut (*win_s(curwin)).b_syn_linecont_time);
 
-                    if (*win_s(curwin)).b_syn_linecont_prog.is_null() {
+                    if (*win_s(curwin)).b_syn_linecont_prog.is_none() {
                         (*win_s(curwin)).b_syn_linecont_pat = None;
                         finished = true;
                         break;

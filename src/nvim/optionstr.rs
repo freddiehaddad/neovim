@@ -52,7 +52,7 @@ use crate::option::{
 };
 use crate::option_vars::*;
 use crate::os::env::{expand_T, vim_unsetenv_ext};
-use crate::regexp::{regmatch_T, regprog_T, vim_regexec, vim_regfree};
+use crate::regexp::{regmatch_T, regprog_T, vim_regexec};
 use crate::runtime::sctx_T;
 use crate::spell::{
     compile_cap_prog, did_set_spell_option, spell_reload, valid_spellfile, valid_spelllang,
@@ -127,7 +127,7 @@ pub enum OptSetPrep {
     Spellsuggest([c_int; 2]),
     Wildmode([u8; 4]),
     Encoding(std::ffi::CString),
-    SpellcapProg(*mut regprog_T),
+    SpellcapProg(Option<Box<regprog_T>>),
     Tabstop(Vec<colnr_T>),
 }
 
@@ -142,44 +142,25 @@ impl OptSetPrep {
 
     #[inline]
     pub fn take_encoding(&mut self) -> Option<std::ffi::CString> {
-        let mut old = std::mem::ManuallyDrop::new(std::mem::replace(self, Self::None));
-        match &mut *old {
-            Self::Encoding(s) => Some(std::mem::take(s)),
+        match std::mem::replace(self, Self::None) {
+            Self::Encoding(s) => Some(s),
             _ => None,
         }
     }
 
     #[inline]
-    pub fn take_spellcap_prog(&mut self) -> *mut regprog_T {
-        let old = std::mem::ManuallyDrop::new(std::mem::replace(self, Self::None));
-        match &*old {
-            Self::SpellcapProg(p) => *p,
-            _ => ptr::null_mut(),
+    pub fn take_spellcap_prog(&mut self) -> Option<Box<regprog_T>> {
+        match std::mem::replace(self, Self::None) {
+            Self::SpellcapProg(p) => p,
+            _ => None,
         }
     }
 
     #[inline]
     pub fn take_tabstop(&mut self) -> Vec<colnr_T> {
-        let mut old = std::mem::ManuallyDrop::new(std::mem::replace(self, Self::None));
-        match &mut *old {
-            Self::Tabstop(v) => std::mem::take(v),
+        match std::mem::replace(self, Self::None) {
+            Self::Tabstop(v) => v,
             _ => Vec::new(),
-        }
-    }
-}
-
-impl Drop for OptSetPrep {
-    fn drop(&mut self) {
-        unsafe {
-            match self {
-                Self::SpellcapProg(p) => vim_regfree(*p),
-                Self::None
-                | Self::Flags(_)
-                | Self::Encoding(_)
-                | Self::Spellsuggest(_)
-                | Self::Wildmode(_)
-                | Self::Tabstop(_) => {}
-            }
         }
     }
 }
@@ -3022,7 +3003,7 @@ pub unsafe fn did_set_signcolumn(args: *mut optset_T) -> *const c_char {
 /// Validate 'spellcapcheck' and prepare its regexp program.
 pub unsafe fn validate_spellcapcheck(args: *mut optset_T) -> *const c_char {
     unsafe {
-        let mut prog: *mut regprog_T = ptr::null_mut();
+        let mut prog: Option<Box<regprog_T>> = None;
         let mut err = Error::new();
         let save_emsg_silent = emsg_silent;
         let save_suppress_errthrow = suppress_errthrow;
@@ -3031,7 +3012,7 @@ pub unsafe fn validate_spellcapcheck(args: *mut optset_T) -> *const c_char {
 
         let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
-        let mut errmsg = compile_cap_prog((*args).os_newval.data.string().data, &raw mut prog);
+        let mut errmsg = compile_cap_prog((*args).os_newval.data.string().data, &mut prog);
         try_leave(&raw const tstate, &raw mut err);
 
         emsg_silent = save_emsg_silent;
@@ -3059,7 +3040,6 @@ pub unsafe fn did_set_spellcapcheck(args: *mut optset_T) -> *const c_char {
         }
         let win = (*args).os_win;
         let ws = (*win).w_s;
-        vim_regfree((*ws).b_cap_prog);
         (*ws).b_cap_prog = (*args).os_prep.take_spellcap_prog();
         ptr::null()
     }

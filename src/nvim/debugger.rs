@@ -15,7 +15,7 @@ use crate::math::OK;
 use crate::message::{emsg, msg, msg_starthere, semsg, smsg};
 use crate::os::env::{expand_env_save, home_replace};
 use crate::path::fix_fname;
-use crate::regexp::{RE_MAGIC, RE_STRING, vim_regcomp, vim_regexec_prog, vim_regfree};
+use crate::regexp::{RE_MAGIC, RE_STRING, vim_regcomp_box, vim_regexec_prog};
 use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
 use crate::strings::atoi;
 use std::ffi::{CStr, CString, c_char, c_int};
@@ -69,7 +69,7 @@ pub struct debuggy {
     pub dbg_nr: c_int,
     pub dbg_type: c_int,
     pub dbg_name: std::ffi::CString,
-    pub dbg_prog: *mut crate::regexp::regprog_T,
+    pub dbg_prog: Option<Box<crate::regexp::regprog_T>>,
     pub dbg_lnum: i32,
     pub dbg_forceit: c_int,
     pub dbg_val: Option<typval_T>,
@@ -82,7 +82,6 @@ impl Drop for debuggy {
             if let Some(ref mut val) = self.dbg_val {
                 tv_clear(val);
             }
-            vim_regfree(self.dbg_prog);
         }
     }
 }
@@ -480,7 +479,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
             dbg_nr: 0,
             dbg_type: 0,
             dbg_name: std::ffi::CString::default(),
-            dbg_prog: std::ptr::null_mut(),
+            dbg_prog: None,
             dbg_lnum: 0,
             dbg_forceit: 0,
             dbg_val: None,
@@ -576,9 +575,9 @@ pub unsafe fn ex_breakadd(eap: *mut exarg_T) {
                 0,
             );
             if let Some(ref pat) = pat {
-                bp.dbg_prog = vim_regcomp(pat.as_ptr(), RE_MAGIC + RE_STRING);
+                bp.dbg_prog = vim_regcomp_box(pat.as_ptr(), RE_MAGIC + RE_STRING);
             }
-            if pat.is_some() && !bp.dbg_prog.is_null() {
+            if pat.is_some() && bp.dbg_prog.is_some() {
                 if bp.dbg_lnum == 0 {
                     bp.dbg_lnum = 1;
                 }
@@ -746,7 +745,7 @@ unsafe fn debuggy_find(
             {
                 let prev_got_int = got_int;
                 got_int = false;
-                if vim_regexec_prog(&mut bp.dbg_prog, false, name, 0) {
+                if vim_regexec_prog(bp.dbg_prog.as_deref(), false, name, 0) {
                     lnum = bp.dbg_lnum;
                     if !fp.is_null() {
                         *fp = bp.dbg_forceit != 0;
