@@ -75,7 +75,7 @@ use crate::keycodes::{
 use crate::mark::{kMarkAdjustTerm, mark_adjust_buf};
 use crate::mbyte::{mb_check_adjust_col, utf_ptr2char, utf_ptr2len};
 use crate::memline::{ml_append_buf, ml_delete_buf, ml_replace_buf};
-use crate::memory::{strequal, xfree, xmemdup, xstrdup};
+use crate::memory::{strequal, xstrdup};
 use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, do_mousescroll, mouse_find_win_inner,
 };
@@ -389,8 +389,7 @@ const fn cstr_slice_as_string(bytes: &'static [u8]) -> NvimString {
 
 pub struct TermRequestEvent {
     pub buf_handle: handle_T,
-    pub sequence: *mut c_char,
-    pub sequence_length: usize,
+    pub sequence: Vec<c_char>,
     pub pending_send: std::rc::Rc<std::cell::RefCell<Vec<c_char>>>,
     pub row: c_int,
     pub col: c_int,
@@ -398,15 +397,7 @@ pub struct TermRequestEvent {
     pub terminator: VTermTerminator,
 }
 
-impl Drop for TermRequestEvent {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.sequence.cast());
-        }
-    }
-}
-
-pub unsafe fn emit_termrequest(req: Box<TermRequestEvent>) {
+pub unsafe fn emit_termrequest(mut req: Box<TermRequestEvent>) {
     unsafe {
         let buf_handle = req.buf_handle;
 
@@ -421,8 +412,12 @@ pub unsafe fn emit_termrequest(req: Box<TermRequestEvent>) {
             return;
         }
 
-        let sequence = req.sequence;
-        let sequence_length = req.sequence_length;
+        let sequence_length = req.sequence.len();
+        let sequence = if sequence_length == 0 {
+            c"".as_ptr().cast_mut()
+        } else {
+            req.sequence.as_mut_ptr()
+        };
         let row = req.row;
         let col = req.col;
         let sb_deleted = req.sb_deleted;
@@ -524,12 +519,7 @@ unsafe fn schedule_termrequest(term: *mut Terminal) {
         let line = row_to_linenr(term, (*term).cursor.row);
         let req = Box::new(TermRequestEvent {
             buf_handle: (*term).buf_handle,
-            sequence: xmemdup(
-                (*term).termrequest_buffer.as_ptr().cast(),
-                (*term).termrequest_buffer.len(),
-            )
-            .cast::<c_char>(),
-            sequence_length: (*term).termrequest_buffer.len(),
+            sequence: (*term).termrequest_buffer.clone(),
             pending_send,
             row: line,
             col: (*term).cursor.col,

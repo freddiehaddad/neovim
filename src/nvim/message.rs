@@ -114,17 +114,9 @@ pub(crate) const NIL_OBJ: Object = Object {
 /// Message history for `:messages`
 pub struct MessageHistoryEntry {
     pub msg: HlMessage,
-    pub kind: *mut c_char,
+    pub kind: Option<std::ffi::CString>,
     pub temp: bool,
     pub append: bool,
-}
-
-impl Drop for MessageHistoryEntry {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.kind.cast());
-        }
-    }
 }
 
 // To be able to scroll back at the "more" and "hit-enter" prompts we need to
@@ -1593,11 +1585,7 @@ unsafe fn msg_hist_add_multihl(msg: HlMessage, temp: bool) {
         }
         (*hist).push_back(MessageHistoryEntry {
             msg,
-            kind: if !msg_ext_kind.is_null() {
-                xstrdup(msg_ext_kind)
-            } else {
-                ptr::null_mut()
-            },
+            kind: (!msg_ext_kind.is_null()).then(|| CStr::from_ptr(msg_ext_kind).to_owned()),
             temp,
             append: msg_ext_append,
         });
@@ -1731,7 +1719,9 @@ pub unsafe fn ex_messages(eap: *mut exarg_T) {
                 entry.push(Object {
                     obj_type: ObjectType::kObjectTypeString,
                     data: ObjectData {
-                        string: cstr_to_string((*p).kind),
+                        string: cstr_to_string(
+                            (*p).kind.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
+                        ),
                     },
                 });
                 let mut content = Array::new();
@@ -1787,7 +1777,7 @@ pub unsafe fn ex_messages(eap: *mut exarg_T) {
                 msg_multihl(
                     NIL_OBJ,
                     &mut (*p).msg,
-                    (*p).kind,
+                    (*p).kind.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
                     false,
                     false,
                     ptr::null_mut(),

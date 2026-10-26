@@ -350,8 +350,8 @@ pub struct AutoPatCmd {
 #[repr(C)]
 pub struct AutoCmdEvent {
     pub event: event_T,
-    pub fname: *mut c_char,
-    pub fname_io: *mut c_char,
+    pub fname: Option<std::ffi::CString>,
+    pub fname_io: Option<std::ffi::CString>,
     pub buf: Buffer,
     pub group: c_int,
     pub eap: *mut exarg_T,
@@ -361,8 +361,6 @@ pub struct AutoCmdEvent {
 impl Drop for AutoCmdEvent {
     fn drop(&mut self) {
         unsafe {
-            xfree(self.fname.cast());
-            xfree(self.fname_io.cast());
             if let Some(data) = self.data.take() {
                 api_free_object(data);
             }
@@ -2576,16 +2574,8 @@ pub unsafe fn aucmd_defer(
     unsafe {
         let evdata = Box::new(AutoCmdEvent {
             event,
-            fname: if !fname.is_null() {
-                xstrdup(fname)
-            } else {
-                ptr::null_mut()
-            },
-            fname_io: if !fname_io.is_null() {
-                xstrdup(fname_io)
-            } else {
-                ptr::null_mut()
-            },
+            fname: (!fname.is_null()).then(|| CStr::from_ptr(fname).to_owned()),
+            fname_io: (!fname_io.is_null()).then(|| CStr::from_ptr(fname_io).to_owned()),
             group,
             buf: (*buf).b_fnum,
             eap,
@@ -2599,8 +2589,14 @@ pub unsafe fn aucmd_defer(
 pub unsafe fn deferred_event(mut e: AutoCmdEvent) {
     unsafe {
         let event = e.event;
-        let fname = e.fname;
-        let fname_io = e.fname_io;
+        let fname = e
+            .fname
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        let fname_io = e
+            .fname_io
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         let group = e.group;
         let eap = e.eap;
         let data = e.data.as_mut().map_or(ptr::null_mut(), |d| &raw mut *d);

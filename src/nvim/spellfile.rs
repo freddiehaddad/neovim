@@ -177,7 +177,7 @@ static mut compress_added: c_int = 500000;
 
 #[repr(C)]
 struct afffile_T {
-    af_enc: *mut c_char,
+    af_enc: Option<std::ffi::CString>,
     af_flagtype: c_int,
     af_rare: c_uint,
     af_keepcase: c_uint,
@@ -194,14 +194,6 @@ struct afffile_T {
     af_pref: std::collections::BTreeMap<Vec<u8>, affheader_T>,
     af_suff: std::collections::BTreeMap<Vec<u8>, affheader_T>,
     af_comp: std::collections::BTreeMap<Vec<u8>, compitem_T>,
-}
-
-impl Drop for afffile_T {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.af_enc.cast());
-        }
-    }
 }
 
 #[repr(C)]
@@ -1008,21 +1000,24 @@ unsafe fn read_rep_section(fd: *mut FILE, gap: &mut Vec<fromto_T>, first: *mut i
 
         while (gap.len() as c_int) < cnt {
             let mut c: c_int = 0;
-            let ft_from = read_cnt_string(fd, 1, &raw mut c);
+            let raw_from = read_cnt_string(fd, 1, &raw mut c);
             if c < 0 {
                 return c;
             }
             if c == 0 {
                 return SP_FORMERROR;
             }
-            let ft_to = read_cnt_string(fd, 1, &raw mut c);
+            let ft_from = CStr::from_ptr(raw_from).to_owned();
+            xfree(raw_from.cast());
+            let raw_to = read_cnt_string(fd, 1, &raw mut c);
             if c <= 0 {
-                xfree(ft_from.cast());
                 if c < 0 {
                     return c;
                 }
                 return SP_FORMERROR;
             }
+            let ft_to = CStr::from_ptr(raw_to).to_owned();
+            xfree(raw_to.cast());
             gap.push(fromto_T { ft_from, ft_to });
         }
 
@@ -1030,7 +1025,7 @@ unsafe fn read_rep_section(fd: *mut FILE, gap: &mut Vec<fromto_T>, first: *mut i
             *first.add(i) = -1;
         }
         for (i, ftp) in gap.iter().enumerate() {
-            let b = *ftp.ft_from as u8 as usize;
+            let b = ftp.ft_from.as_bytes()[0] as usize;
             if *first.add(b) == -1 {
                 *first.add(b) = i as i16;
             }
@@ -1749,7 +1744,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
         let do_mapline = (*spin).si_map.is_empty();
 
         let mut aff = afffile_T {
-            af_enc: ptr::null_mut(),
+            af_enc: None,
             af_flagtype: 0,
             af_rare: 0,
             af_keepcase: 0,
@@ -1824,16 +1819,25 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
 
             if itemcnt > 0 {
                 let itemcnt_i = itemcnt as c_int;
-                if is_aff_rule(&items, itemcnt_i, c"SET".as_ptr(), 2) && aff.af_enc.is_null() {
-                    aff.af_enc = enc_canonize(items[1]);
+                if is_aff_rule(&items, itemcnt_i, c"SET".as_ptr(), 2) && aff.af_enc.is_none() {
+                    let raw_enc = enc_canonize(items[1]);
+                    aff.af_enc = (!raw_enc.is_null()).then(|| {
+                        let c = CStr::from_ptr(raw_enc).to_owned();
+                        xfree(raw_enc.cast());
+                        c
+                    });
+                    let af_enc_ptr = aff
+                        .af_enc
+                        .as_ref()
+                        .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
                     if (*spin).si_ascii == 0
-                        && convert_setup(&mut (*spin).si_conv, aff.af_enc, p_enc) == FAIL
+                        && convert_setup(&mut (*spin).si_conv, af_enc_ptr, p_enc) == FAIL
                     {
                         smsg!(
                             0,
                             gettext(c"Conversion in %s not supported: from %s to %s".as_ptr()),
                             fname,
-                            aff.af_enc,
+                            af_enc_ptr,
                             p_enc,
                         );
                     }
@@ -2892,7 +2896,7 @@ unsafe fn add_fromto(
             word.as_mut_ptr(),
             MAXWLEN as c_int,
         );
-        let ft_from = xstrdup(word.as_ptr());
+        let ft_from = CStr::from_ptr(word.as_ptr()).to_owned();
         spell_casefold(
             curwin,
             to,
@@ -2900,7 +2904,7 @@ unsafe fn add_fromto(
             word.as_mut_ptr(),
             MAXWLEN as c_int,
         );
-        let ft_to = xstrdup(word.as_ptr());
+        let ft_to = CStr::from_ptr(word.as_ptr()).to_owned();
         gap.push(fromto_T { ft_from, ft_to });
     }
 }
@@ -4308,11 +4312,7 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
             }
 
             if round != 2 {
-                gap.sort_unstable_by(|p1, p2| {
-                    CStr::from_ptr(p1.ft_from)
-                        .to_bytes()
-                        .cmp(CStr::from_ptr(p2.ft_from).to_bytes())
-                });
+                gap.sort_unstable_by(|p1, p2| p1.ft_from.as_bytes().cmp(p2.ft_from.as_bytes()));
             }
 
             let sect_id = if round == 1 {
@@ -4327,8 +4327,8 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
 
             let mut l: usize = 2;
             for ftp in gap.iter() {
-                l += 1 + strlen(ftp.ft_from);
-                l += 1 + strlen(ftp.ft_to);
+                l += 1 + ftp.ft_from.as_bytes().len();
+                l += 1 + ftp.ft_to.as_bytes().len();
             }
             if round == 2 {
                 l += 1;
@@ -4352,7 +4352,11 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
             put_bytes(fd, gap.len() as u64, 2);
             for ftp in gap.iter() {
                 for rr in 1..=2 {
-                    let p = if rr == 1 { ftp.ft_from } else { ftp.ft_to };
+                    let p = if rr == 1 {
+                        ftp.ft_from.as_ptr()
+                    } else {
+                        ftp.ft_to.as_ptr()
+                    };
                     let slen = strlen(p);
                     fputc(slen as c_int, fd);
                     if slen > 0 {

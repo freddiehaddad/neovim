@@ -103,19 +103,9 @@ const SPS_BEST: c_int = 1;
 const SPS_FAST: c_int = 2;
 const SPS_DOUBLE: c_int = 4;
 const kOptBoFlagSpell: c_uint = 0x20000;
-#[repr(C)]
 pub struct fromto_T {
-    pub ft_from: *mut c_char,
-    pub ft_to: *mut c_char,
-}
-
-impl Drop for fromto_T {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.ft_from.cast());
-            xfree(self.ft_to.cast());
-        }
-    }
+    pub ft_from: std::ffi::CString,
+    pub ft_to: std::ffi::CString,
 }
 #[repr(C)]
 pub struct salitem_T {
@@ -2143,11 +2133,11 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                             let curi = stack[udepth].ts_curi;
                             stack[udepth].ts_curi += 1;
                             let ftp = &gap[curi as usize];
-                            if *ftp.ft_from != *p {
+                            if *ftp.ft_from.as_ptr() != *p {
                                 stack[udepth].ts_curi = gap.len() as i16;
                                 break;
                             }
-                            if strncmp(ftp.ft_from, p, strlen(ftp.ft_from)) == 0
+                            if strncmp(ftp.ft_from.as_ptr(), p, ftp.ft_from.as_bytes().len()) == 0
                                 && try_deeper(su, &stack, udepth, SCORE_REP)
                             {
                                 go_deeper(&mut stack, udepth, SCORE_REP);
@@ -2155,13 +2145,13 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                                 let old_fidx = stack[udepth].ts_fidx;
                                 depth += 1;
                                 udepth = depth as usize;
-                                fl = strlen(ftp.ft_from) as c_int;
-                                tl = strlen(ftp.ft_to) as c_int;
+                                fl = ftp.ft_from.as_bytes().len() as c_int;
+                                tl = ftp.ft_to.as_bytes().len() as c_int;
                                 if fl != tl {
                                     strmove(p.add(tl as usize), p.add(fl as usize));
                                     repextra += tl - fl;
                                 }
-                                ptr::copy(ftp.ft_to, p, tl as usize);
+                                ptr::copy(ftp.ft_to.as_ptr(), p, tl as usize);
                                 stack[udepth].ts_fidxtry = old_fidx + tl as u8;
                                 stack[udepth].ts_tcharlen = 0;
                                 break;
@@ -2181,14 +2171,14 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                         &(*lp.lp_replang).sl_rep
                     };
                     let ftp = &gap[(stack[udepth].ts_curi - 1) as usize];
-                    fl = strlen(ftp.ft_from) as c_int;
-                    tl = strlen(ftp.ft_to) as c_int;
+                    fl = ftp.ft_from.as_bytes().len() as c_int;
+                    tl = ftp.ft_to.as_bytes().len() as c_int;
                     let p = fword.add(stack[udepth].ts_fidx as usize);
                     if fl != tl {
                         strmove(p.add(fl as usize), p.add(tl as usize));
                         repextra -= tl - fl;
                     }
-                    ptr::copy(ftp.ft_from, p, fl as usize);
+                    ptr::copy(ftp.ft_from.as_ptr(), p, fl as usize);
                     stack[udepth].ts_state = state_T::STATE_REP;
                 }
                 state_T::STATE_FINAL => {
