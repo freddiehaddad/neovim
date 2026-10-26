@@ -49,8 +49,8 @@ use crate::mbyte::{
 };
 use crate::memline::ml_get;
 use crate::memory::{
-    Arena, cstr_from_bytes, cstr_take, cstr_to_cstring, memcnt, strequal, xfree, xmemcpyz,
-    xmemdupz, xstrdup, xstrlcat, xstrlcpy,
+    Arena, cstr_from_bytes, cstr_take, cstr_to_cstring, memcnt, strequal, xmemcpyz, xmemdupz,
+    xstrdup, xstrlcat, xstrlcpy,
 };
 #[cfg(windows)]
 use crate::message::msg_source;
@@ -2727,7 +2727,7 @@ unsafe fn do_source_ext(
 ) -> c_int {
     unsafe {
         let mut cookie = source_cookie_T::new();
-        let mut firstline: *mut u8 = ptr::null_mut();
+        let mut firstline: Option<std::ffi::CString> = None;
         let mut retval = FAIL;
         let save_debug_break_level = debug_break_level;
         let mut si: *mut scriptitem_T = ptr::null_mut();
@@ -2969,28 +2969,23 @@ unsafe fn do_source_ext(
             } else if !si.is_null() && (*si).sn_lua {
                 nlua_exec_file(fname_exp);
             } else {
-                firstline = getsourceline(0, &raw mut cookie, 0, true).cast::<u8>();
-                if !firstline.is_null()
-                    && CStr::from_ptr(firstline.cast::<c_char>()).to_bytes().len() >= 3
-                    && *firstline == 0xef
-                    && *firstline.add(1) == 0xbb
-                    && *firstline.add(2) == 0xbf
+                firstline = cstr_take(getsourceline(0, &raw mut cookie, 0, true));
+                if let Some(ref fl) = firstline
+                    && fl.to_bytes().starts_with(&[0xef, 0xbb, 0xbf])
                 {
-                    convert_setup(&mut cookie.conv, c"utf-8".as_ptr() as *mut c_char, p_enc);
-                    let p = string_convert(
-                        &cookie.conv,
-                        firstline.add(3).cast::<c_char>(),
-                        ptr::null_mut(),
-                    )
-                    .map_or_else(
-                        || xstrdup(firstline.add(3).cast::<c_char>()),
-                        |v| xstrdup(v.as_ptr().cast()),
+                    convert_setup(&mut cookie.conv, c"utf-8".as_ptr().cast_mut(), p_enc);
+                    let after_bom = fl.as_ptr().add(3).cast_mut();
+                    firstline = Some(
+                        string_convert(&cookie.conv, after_bom, ptr::null_mut()).map_or_else(
+                            || cstr_to_cstring(after_bom),
+                            |v| cstr_to_cstring(v.as_ptr().cast()),
+                        ),
                     );
-                    xfree(firstline.cast());
-                    firstline = p.cast::<u8>();
                 }
                 do_cmdline(
-                    firstline.cast::<c_char>(),
+                    firstline
+                        .as_ref()
+                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
                     LineGetter::Source(&raw mut cookie),
                     DOCMD_VERBOSE | DOCMD_NOWAIT | DOCMD_REPEAT,
                 );
@@ -3042,7 +3037,7 @@ unsafe fn do_source_ext(
             if l_do_profiling == PROF_YES {
                 prof_child_exit(&mut wait_start);
             }
-            xfree(firstline.cast());
+            drop(firstline);
             drop(cookie);
 
             if str_ptr.is_null() && trigger_source_post {
@@ -3379,18 +3374,17 @@ pub unsafe fn getsourceline(
             }
         }
 
-        let mut line = line_vec.map_or(ptr::null_mut(), |b| {
+        let line = line_vec.map_or(ptr::null_mut(), |b| {
             let len = b.len().saturating_sub(usize::from(b.last() == Some(&NUL)));
-            xmemdupz(b.as_ptr().cast(), len).cast::<c_char>()
+            if (*sp).conv.vc_type != CONV_NONE
+                && let Some(s) =
+                    string_convert(&(*sp).conv, b.as_ptr().cast_mut(), ptr::null_mut())
+            {
+                xstrdup(s.as_ptr().cast())
+            } else {
+                xmemdupz(b.as_ptr().cast(), len).cast::<c_char>()
+            }
         });
-
-        if !line.is_null()
-            && (*sp).conv.vc_type != CONV_NONE
-            && let Some(s) = string_convert(&(*sp).conv, line, ptr::null_mut())
-        {
-            xfree(line.cast());
-            line = xstrdup(s.as_ptr().cast());
-        }
 
         if !(*sp).source_from_buf_or_str
             && (*sp).breakpoint != 0

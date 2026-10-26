@@ -1,8 +1,6 @@
 //! Functions for command-line Ex commands (`src/nvim/ex_cmds.c`).
 
-use crate::api::private::helpers::{
-    api_clear_string, cbuf_as_string, cbuf_to_string, cstr_as_obj, cstr_as_string,
-};
+use crate::api::private::helpers::{cbuf_as_string, cbuf_to_string, cstr_as_obj, cstr_as_string};
 use crate::api::private::validate::NvimString;
 use crate::arglist::{
     CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, ML_EMPTY, check_arg_idx, do_argfile,
@@ -99,9 +97,7 @@ use crate::memline::{
     ml_find_line_or_offset, ml_firstmarked, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len,
     ml_replace, ml_replace_buf, ml_setmarked,
 };
-use crate::memory::{
-    cstr_from_bytes, cstr_take, cstr_to_cstring, xfree, xmalloc, xstrlcat, xstrlcpy,
-};
+use crate::memory::{cstr_from_bytes, cstr_take, cstr_to_cstring, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, message_filtered, messaging, msg, msg_check_for_delay, msg_clr_eos, msg_end,
     msg_ext_no_fast, msg_ext_set_kind, msg_multiline, msg_outtrans, msg_prt_line, msg_putchar,
@@ -2114,8 +2110,8 @@ pub unsafe fn rename_buffer(new_fname: *mut c_char) -> c_int {
                 (*curwin).w_alt_fnum = (*buf).b_fnum;
             }
         }
-        xfree(fname.cast());
-        xfree(sfname.cast());
+        drop(cstr_take(fname));
+        drop(cstr_take(sfname));
         apply_autocmds(
             EVENT_BUFFILEPOST,
             ptr::null_mut(),
@@ -2662,7 +2658,7 @@ pub unsafe fn getfile(
         let mut sfname = sfname_arg;
         let other: bool;
         let retval: c_int;
-        let mut free_me: *mut c_char = ptr::null_mut();
+        let mut free_me: Option<std::ffi::CString> = None;
 
         if text_locked() {
             return GETFILE_ERROR;
@@ -2674,7 +2670,10 @@ pub unsafe fn getfile(
         if fnum == 0 {
             fname_expand(curbuf, &raw mut ffname, &raw mut sfname);
             other = otherfile(ffname);
-            free_me = ffname;
+            free_me = cstr_take(ffname);
+            ffname = free_me
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         } else {
             other = fnum != (*curbuf).b_fnum;
         }
@@ -2730,7 +2729,7 @@ pub unsafe fn getfile(
             }
         }
 
-        xfree(free_me.cast());
+        drop(free_me);
         retval
     }
 }
@@ -3767,34 +3766,73 @@ unsafe fn sub_joining_lines(
     }
 }
 
-/// Allocate memory to store the replacement text for `:substitute`.
-unsafe fn sub_grow_buf(
-    new_start: *mut NvimString,
-    new_start_size: *mut usize,
-    mut needed_size: usize,
-) {
-    unsafe {
-        if (*new_start).data.is_null() {
-            *new_start_size = needed_size + 50;
-            (*new_start).data = xmalloc(*new_start_size).cast::<c_char>();
-            ptr::write_bytes((*new_start).data.cast::<u8>(), 0, *new_start_size);
-            (*new_start).size = 0;
-        } else {
-            needed_size += (*new_start).size;
-            if needed_size > *new_start_size {
-                let prev_new_start_size = *new_start_size;
-                *new_start_size = needed_size + 50;
-                let new_data = xmalloc(*new_start_size).cast::<c_char>();
-                ptr::copy_nonoverlapping((*new_start).data, new_data, prev_new_start_size);
-                ptr::write_bytes(
-                    new_data.add(prev_new_start_size).cast::<u8>(),
-                    0,
-                    *new_start_size - prev_new_start_size,
-                );
-                xfree((*new_start).data.cast());
-                (*new_start).data = new_data;
+#[derive(Default)]
+struct SubBuf {
+    vec: Option<Vec<c_char>>,
+    size: usize,
+}
+
+impl SubBuf {
+    const fn new() -> Self {
+        Self {
+            vec: None,
+            size: 0,
+        }
+    }
+
+    #[inline]
+    fn is_null(&self) -> bool {
+        self.vec.is_none()
+    }
+
+    #[inline]
+    fn data(&self) -> *mut c_char {
+        self.vec
+            .as_ref()
+            .map_or(ptr::null_mut(), |v| v.as_ptr().cast_mut())
+    }
+
+    #[inline]
+    fn clear(&mut self) {
+        self.vec = None;
+        self.size = 0;
+    }
+
+    #[inline]
+    unsafe fn from_cbuf(p: *const c_char, len: usize) -> Self {
+        let mut v = vec![0 as c_char; len + 1];
+        if len > 0 {
+            unsafe {
+                ptr::copy_nonoverlapping(p, v.as_mut_ptr(), len);
             }
         }
+        Self {
+            vec: Some(v),
+            size: len,
+        }
+    }
+
+    #[inline]
+    fn as_nvim_string(&self) -> NvimString {
+        NvimString {
+            data: self.data(),
+            size: self.size,
+        }
+    }
+}
+
+/// Allocate memory to store the replacement text for `:substitute`.
+fn sub_grow_buf(new_start: &mut SubBuf, new_start_size: &mut usize, mut needed_size: usize) {
+    if let Some(ref mut v) = new_start.vec {
+        needed_size += new_start.size;
+        if needed_size > *new_start_size {
+            *new_start_size = needed_size + 50;
+            v.resize(*new_start_size, 0);
+        }
+    } else {
+        *new_start_size = needed_size + 50;
+        new_start.vec = Some(vec![0; *new_start_size]);
+        new_start.size = 0;
     }
 }
 
@@ -3923,7 +3961,6 @@ unsafe fn do_sub(
         };
         let delimiter: c_int;
         let mut has_second_delim = false;
-        let mut sublen: usize;
         let mut got_quit = false;
         let mut got_match = false;
         let mut which_pat: c_int;
@@ -3931,7 +3968,7 @@ unsafe fn do_sub(
         let mut first_line: linenr_T = 0;
         let mut last_line: linenr_T = 0;
         let old_line_count = (*curbuf).b_ml.ml_line_count;
-        let mut sub_firstline: NvimString;
+        let mut sub_firstline: SubBuf;
         let mut endcolumn = false;
         let keeppatterns = (cmdmod.cmod_flags & CMOD_KEEPPATTERNS) != 0;
         let mut preview_lines = PreviewLines {
@@ -4106,10 +4143,7 @@ unsafe fn do_sub(
             regmatch.rmm_ic = 0;
         }
 
-        sub_firstline = NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
+        sub_firstline = SubBuf::new();
 
         debug_assert!(!sub.is_null());
 
@@ -4145,10 +4179,7 @@ unsafe fn do_sub(
                 let mut copycol: colnr_T = 0;
                 let mut matchcol: colnr_T = 0;
                 let mut prev_matchcol: colnr_T = MAXCOL;
-                let mut new_start = NvimString {
-                    data: ptr::null_mut(),
-                    size: 0,
-                };
+                let mut new_start = SubBuf::new();
                 let mut new_start_size: usize = 0;
                 let mut new_end: *mut c_char;
                 let mut did_sub = false;
@@ -4177,7 +4208,7 @@ unsafe fn do_sub(
                         lnum += regmatch.startpos[0].lnum;
                         sub_firstlnum += regmatch.startpos[0].lnum;
                         nmatch -= regmatch.startpos[0].lnum;
-                        api_clear_string(&mut sub_firstline);
+                        sub_firstline.clear();
                     }
 
                     current_match.start.lnum = sub_firstlnum;
@@ -4185,8 +4216,8 @@ unsafe fn do_sub(
                     if lnum > (*curbuf).b_ml.ml_line_count {
                         break;
                     }
-                    if sub_firstline.data.is_null() {
-                        sub_firstline = cbuf_to_string(
+                    if sub_firstline.is_null() {
+                        sub_firstline = SubBuf::from_cbuf(
                             ml_get(sub_firstlnum),
                             ml_get_len(sub_firstlnum) as usize,
                         );
@@ -4200,10 +4231,11 @@ unsafe fn do_sub(
                             && regmatch.endpos[0].lnum == 0
                             && matchcol == regmatch.endpos[0].col
                         {
-                            if *sub_firstline.data.add(matchcol as usize) == NUL {
+                            if *sub_firstline.data().add(matchcol as usize) == NUL {
                                 skip_match = true;
                             } else {
-                                matchcol += utfc_ptr2len(sub_firstline.data.add(matchcol as usize));
+                                matchcol +=
+                                    utfc_ptr2len(sub_firstline.data().add(matchcol as usize));
                             }
                             current_match.start.col = matchcol;
                             current_match.end.lnum = sub_firstlnum;
@@ -4255,12 +4287,12 @@ unsafe fn do_sub(
 
                                 p_lz = 0;
 
-                                if !new_start.data.is_null() {
+                                if !new_start.is_null() {
                                     orig_line =
                                         cbuf_to_string(ml_get(lnum), ml_get_len(lnum) as usize);
                                     let new_line = concat_str(
-                                        new_start.data,
-                                        sub_firstline.data.add(copycol as usize),
+                                        new_start.data(),
+                                        sub_firstline.data().add(copycol as usize),
                                     );
                                     let new_line_size =
                                         new_start.size + (sub_firstline.size - copycol as usize);
@@ -4381,8 +4413,7 @@ unsafe fn do_sub(
 
                             if nmatch > 1 {
                                 sub_firstlnum += nmatch - 1;
-                                xfree(sub_firstline.data.cast());
-                                sub_firstline = cbuf_to_string(
+                                sub_firstline = SubBuf::from_cbuf(
                                     ml_get(sub_firstlnum),
                                     ml_get_len(sub_firstlnum) as usize,
                                 );
@@ -4393,8 +4424,7 @@ unsafe fn do_sub(
                                 }
                             }
                             if skip_match {
-                                xfree(sub_firstline.data.cast());
-                                sub_firstline = cbuf_to_string(c"".as_ptr(), 0);
+                                sub_firstline = SubBuf::from_cbuf(c"".as_ptr(), 0);
                                 copycol = 0;
                             }
                             lnum += nmatch - 1;
@@ -4413,14 +4443,15 @@ unsafe fn do_sub(
                             let subflags_save = subflags;
 
                             textlock += 1;
-                            sublen = vim_regsub_multi(
+                            let sublen_i = vim_regsub_multi(
                                 &raw mut regmatch,
                                 sub_firstlnum - regmatch.startpos[0].lnum,
                                 sub,
-                                sub_firstline.data,
+                                sub_firstline.data(),
                                 0,
                                 REGSUB_BACKSLASH | if p_magic != 0 { REGSUB_MAGIC } else { 0 },
-                            ) as usize;
+                            );
+                            let mut sublen = sublen_i as usize;
                             textlock -= 1;
 
                             subflags = subflags_save;
@@ -4432,7 +4463,7 @@ unsafe fn do_sub(
 
                             let tmp: NvimString;
                             if nmatch == 1 {
-                                tmp = sub_firstline;
+                                tmp = sub_firstline.as_nvim_string();
                             } else {
                                 let lastlnum = sub_firstlnum + nmatch - 1;
                                 tmp =
@@ -4441,8 +4472,8 @@ unsafe fn do_sub(
                             }
                             let copy_len = (regmatch.startpos[0].col - copycol) as usize;
                             sub_grow_buf(
-                                &raw mut new_start,
-                                &raw mut new_start_size,
+                                &mut new_start,
+                                &mut new_start_size,
                                 copy_len
                                     + (tmp.size - regmatch.endpos[0].col as usize)
                                     + sublen
@@ -4450,13 +4481,13 @@ unsafe fn do_sub(
                             );
 
                             ptr::copy(
-                                sub_firstline.data.add(copycol as usize),
-                                new_start.data.add(new_start.size),
+                                sub_firstline.data().add(copycol as usize),
+                                new_start.data().add(new_start.size),
                                 copy_len,
                             );
                             new_start.size += copy_len;
 
-                            new_end = new_start.data.add(new_start.size);
+                            new_end = new_start.data().add(new_start.size);
 
                             if new_start_size - copy_len < sublen {
                                 sublen = new_start_size - copy_len - 1;
@@ -4489,8 +4520,7 @@ unsafe fn do_sub(
 
                             if nmatch > 1 {
                                 sub_firstlnum += nmatch - 1;
-                                xfree(sub_firstline.data.cast());
-                                sub_firstline = cbuf_to_string(
+                                sub_firstline = SubBuf::from_cbuf(
                                     ml_get(sub_firstlnum),
                                     ml_get_len(sub_firstlnum) as usize,
                                 );
@@ -4501,8 +4531,7 @@ unsafe fn do_sub(
                                 }
                             }
                             if skip_match {
-                                xfree(sub_firstline.data.cast());
-                                sub_firstline = cbuf_to_string(c"".as_ptr(), 0);
+                                sub_firstline = SubBuf::from_cbuf(c"".as_ptr(), 0);
                                 copycol = 0;
                             }
 
@@ -4520,15 +4549,16 @@ unsafe fn do_sub(
                             while *p1 != NUL {
                                 if *p1 == b'\\' as c_char && *p1.add(1) != NUL {
                                     sublen -= 1;
-                                    n = new_start.size - p1.offset_from(new_start.data) as usize;
+                                    n = new_start.size - p1.offset_from(new_start.data()) as usize;
                                     ptr::copy(p1.add(1), p1, n + 1);
                                     new_start.size -= 1;
                                     p1 = p1.add(1);
                                 } else if *p1 == CAR as c_char {
                                     if u_inssub(lnum) == OK {
-                                        let plen = (p1.offset_from(new_start.data) + 1) as colnr_T;
+                                        let plen =
+                                            (p1.offset_from(new_start.data()) + 1) as colnr_T;
                                         *p1 = NUL;
-                                        ml_append(lnum - 1, new_start.data, plen, false);
+                                        ml_append(lnum - 1, new_start.data(), plen, false);
                                         mark_adjust(lnum + 1, MAXLNUM, 1, 0, kExtmarkNOOP);
 
                                         if subflags.do_ask {
@@ -4544,9 +4574,9 @@ unsafe fn do_sub(
                                         line2 += 1;
                                         (*curwin).w_cursor.lnum += 1;
                                         n = new_start.size - plen as usize;
-                                        ptr::copy(p1.add(1), new_start.data, n + 1);
+                                        ptr::copy(p1.add(1), new_start.data(), n + 1);
                                         new_start.size = n;
-                                        p1 = new_start.data;
+                                        p1 = new_start.data();
                                     } else {
                                         p1 = p1.add(1);
                                     }
@@ -4587,7 +4617,7 @@ unsafe fn do_sub(
                         || got_quit
                         || lnum > line2
                         || !(subflags.do_all || do_again)
-                        || (*sub_firstline.data.add(matchcol as usize) == NUL
+                        || (*sub_firstline.data().add(matchcol as usize) == NUL
                             && nmatch <= 1
                             && re_multiline(regmatch.regprog) == 0);
                     nmatch = -1;
@@ -4608,10 +4638,10 @@ unsafe fn do_sub(
                         }
                         || regmatch.startpos[0].lnum > 0
                     {
-                        if !new_start.data.is_null() {
+                        if !new_start.is_null() {
                             strcpy(
-                                new_start.data.add(new_start.size),
-                                sub_firstline.data.add(copycol as usize),
+                                new_start.data().add(new_start.size),
+                                sub_firstline.data().add(copycol as usize),
                             );
                             new_start.size += sub_firstline.size - copycol as usize;
                             matchcol = sub_firstline.size as colnr_T - matchcol;
@@ -4620,7 +4650,7 @@ unsafe fn do_sub(
                             if u_savesub(lnum) != OK {
                                 break;
                             }
-                            ml_replace(lnum, new_start.data, true);
+                            ml_replace(lnum, new_start.data(), true);
 
                             for m in line_matches.drain(..) {
                                 extmark_splice(
@@ -4670,12 +4700,7 @@ unsafe fn do_sub(
                             }
 
                             sub_firstlnum = lnum;
-                            xfree(sub_firstline.data.cast());
-                            sub_firstline = new_start;
-                            new_start = NvimString {
-                                data: ptr::null_mut(),
-                                size: 0,
-                            };
+                            sub_firstline = std::mem::take(&mut new_start);
                             matchcol = sub_firstline.size as colnr_T - matchcol;
                             prev_matchcol = sub_firstline.size as colnr_T - prev_matchcol;
                             copycol = 0;
@@ -4708,8 +4733,8 @@ unsafe fn do_sub(
                 if did_sub {
                     sub_nlines += 1;
                 }
-                xfree(new_start.data.cast());
-                api_clear_string(&mut sub_firstline);
+                new_start.clear();
+                sub_firstline.clear();
             }
 
             line_breakcheck();
@@ -4731,7 +4756,7 @@ unsafe fn do_sub(
             buf_updates_send_changes(curbuf, first_line, num_added, num_removed);
         }
 
-        xfree(sub_firstline.data.cast());
+        drop(sub_firstline);
 
         if subflags.do_count {
             (*curwin).w_cursor = old_cursor;
