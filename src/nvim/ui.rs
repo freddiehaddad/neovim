@@ -43,7 +43,7 @@ use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::option::{kOptCmdheight, set_option_value, ui_refresh_options};
 use crate::option_vars::*;
 use crate::os::time::{os_hrtime, os_sleep};
-use crate::strings::{gettext, strcmp, vim_strchr};
+use crate::strings::{gettext, vim_strchr};
 use crate::ui_compositor::{
     ui_comp_attach, ui_comp_detach, ui_comp_get_grid_at_coord, ui_comp_grid_cursor_goto,
     ui_comp_grid_resize, ui_comp_grid_scroll, ui_comp_init, ui_comp_msg_set_pos, ui_comp_raw_line,
@@ -871,7 +871,7 @@ unsafe fn ui_attach_error(ns_id: u32, name: *const c_char, msg: *const c_char) {
     }
 }
 
-pub unsafe fn ui_call_event(name: *mut c_char, args: Array) {
+pub unsafe fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
     unsafe {
         let save_expr_map_lock = expr_map_lock;
         let save_textlock = textlock;
@@ -879,7 +879,7 @@ pub unsafe fn ui_call_event(name: *mut c_char, args: Array) {
         textlock = 0;
 
         let mut handled = false;
-        let fast = msg_ext_fast && strcmp(c"msg_show".as_ptr(), name) == 0;
+        let fast = msg_ext_fast && name == c"msg_show";
         let cbs_ptr = &raw const ui_event_cbs;
         let entries: Vec<(u32, LuaRef)> = (*cbs_ptr).iter().map(|(&k, v)| (k, v.cb)).collect();
         for (ns_id, cb_ref) in entries {
@@ -891,7 +891,7 @@ pub unsafe fn ui_call_event(name: *mut c_char, args: Array) {
             let res = nlua_call_ref_ctx(
                 fast,
                 cb_ref,
-                name,
+                name.as_ptr(),
                 args,
                 kRetNilBool,
                 ptr::null_mut(),
@@ -902,7 +902,7 @@ pub unsafe fn ui_call_event(name: *mut c_char, args: Array) {
                 handled = true;
             }
             if !matches!(err.err_type, ErrorType::kErrorTypeNone) {
-                ui_attach_error(ns_id, name, err.msg_ptr());
+                ui_attach_error(ns_id, name.as_ptr(), err.msg_ptr());
                 ui_remove_cb(ns_id, true);
             }
             api_clear_error(&raw mut err);
@@ -991,9 +991,9 @@ pub unsafe fn ui_remove_cb(ns_id: u32, checkerr: bool) {
 #[cfg(debug_assertions)]
 static mut UILOG_SEEN: usize = 0;
 #[cfg(debug_assertions)]
-static mut UILOG_LAST_EVENT: *const c_char = ptr::null();
+static mut UILOG_LAST_EVENT: Option<&'static std::ffi::CStr> = None;
 
-pub unsafe fn ui_log(funname: *const c_char) {
+pub unsafe fn ui_log(funname: &'static std::ffi::CStr) {
     #[cfg(not(debug_assertions))]
     let _ = funname;
     #[cfg(debug_assertions)]
@@ -1002,7 +1002,7 @@ pub unsafe fn ui_log(funname: *const c_char) {
             return;
         }
 
-        if UILOG_LAST_EVENT == funname {
+        if UILOG_LAST_EVENT == Some(funname) {
             UILOG_SEEN += 1;
         } else {
             if UILOG_SEEN > 0 {
@@ -1013,7 +1013,7 @@ pub unsafe fn ui_log(funname: *const c_char) {
                     -1,
                     true,
                     c"%s (+%zu times...)".as_ptr(),
-                    UILOG_LAST_EVENT,
+                    UILOG_LAST_EVENT.map_or(ptr::null(), |s| s.as_ptr()),
                     UILOG_SEEN,
                 );
             }
@@ -1024,15 +1024,11 @@ pub unsafe fn ui_log(funname: *const c_char) {
                 -1,
                 true,
                 c"%s".as_ptr(),
-                funname,
+                funname.as_ptr(),
             );
             UILOG_SEEN = 0;
-            UILOG_LAST_EVENT = funname;
+            UILOG_LAST_EVENT = Some(funname);
         }
-    }
-    #[cfg(not(debug_assertions))]
-    {
-        let _ = funname;
     }
 }
 
@@ -1070,7 +1066,7 @@ macro_rules! ui_call_loop {
                 }
             }
             if any_call {
-                ui_log($funname.as_ptr());
+                ui_log($funname);
             }
         }
     };
@@ -1259,7 +1255,7 @@ pub unsafe fn ui_call_grid_destroy(grid: Integer) {
             size: 1,
             capacity: 1,
         };
-        ui_call_event(c"grid_destroy".as_ptr().cast_mut(), args);
+        ui_call_event(c"grid_destroy", args);
         ENTERED = false;
     }
 }
@@ -1332,7 +1328,7 @@ pub unsafe fn ui_call_win_pos(
             size: 6,
             capacity: 6,
         };
-        ui_call_event(c"win_pos".as_ptr().cast_mut(), args);
+        ui_call_event(c"win_pos", args);
         ENTERED = false;
     }
 }
@@ -1374,7 +1370,7 @@ pub unsafe fn ui_call_win_float_pos(
             size: 11,
             capacity: 11,
         };
-        ui_call_event(c"win_float_pos".as_ptr().cast_mut(), args);
+        ui_call_event(c"win_float_pos", args);
         ENTERED = false;
     }
 }
@@ -1392,7 +1388,7 @@ pub unsafe fn ui_call_win_external_pos(grid: Integer, win: handle_T) {
             size: 2,
             capacity: 2,
         };
-        ui_call_event(c"win_external_pos".as_ptr().cast_mut(), args);
+        ui_call_event(c"win_external_pos", args);
         ENTERED = false;
     }
 }
@@ -1410,7 +1406,7 @@ pub unsafe fn ui_call_win_hide(grid: Integer) {
             size: 1,
             capacity: 1,
         };
-        ui_call_event(c"win_hide".as_ptr().cast_mut(), args);
+        ui_call_event(c"win_hide", args);
         ENTERED = false;
     }
 }
@@ -1428,7 +1424,7 @@ pub unsafe fn ui_call_win_close(grid: Integer) {
             size: 1,
             capacity: 1,
         };
-        ui_call_event(c"win_close".as_ptr().cast_mut(), args);
+        ui_call_event(c"win_close", args);
         ENTERED = false;
     }
 }
@@ -1514,7 +1510,7 @@ pub unsafe fn ui_call_win_extmark(
             size: 6,
             capacity: 6,
         };
-        ui_call_event(c"win_extmark".as_ptr().cast_mut(), args);
+        ui_call_event(c"win_extmark", args);
         ENTERED = false;
     }
 }
@@ -1544,7 +1540,7 @@ pub unsafe fn ui_call_popupmenu_show(
             size: 5,
             capacity: 5,
         };
-        ui_call_event(c"popupmenu_show".as_ptr().cast_mut(), args);
+        ui_call_event(c"popupmenu_show", args);
         ENTERED = false;
     }
 }
@@ -1556,7 +1552,7 @@ pub unsafe fn ui_call_popupmenu_hide() {
             return;
         }
         ENTERED = true;
-        ui_call_event(c"popupmenu_hide".as_ptr().cast_mut(), NOARGS_ARRAY);
+        ui_call_event(c"popupmenu_hide", NOARGS_ARRAY);
         ENTERED = false;
     }
 }
@@ -1574,7 +1570,7 @@ pub unsafe fn ui_call_popupmenu_select(selected: Integer) {
             size: 1,
             capacity: 1,
         };
-        ui_call_event(c"popupmenu_select".as_ptr().cast_mut(), args);
+        ui_call_event(c"popupmenu_select", args);
         ENTERED = false;
     }
 }
@@ -1602,7 +1598,7 @@ pub unsafe fn ui_call_tabline_update(
             size: 4,
             capacity: 4,
         };
-        ui_call_event(c"tabline_update".as_ptr().cast_mut(), args);
+        ui_call_event(c"tabline_update", args);
         ENTERED = false;
     }
 }
@@ -1636,7 +1632,7 @@ pub unsafe fn ui_call_cmdline_show(
             size: 7,
             capacity: 7,
         };
-        ui_call_event(c"cmdline_show".as_ptr().cast_mut(), args);
+        ui_call_event(c"cmdline_show", args);
         ENTERED = false;
     }
 }
@@ -1654,7 +1650,7 @@ pub unsafe fn ui_call_cmdline_pos(pos: Integer, level: Integer) {
             size: 2,
             capacity: 2,
         };
-        ui_call_event(c"cmdline_pos".as_ptr().cast_mut(), args);
+        ui_call_event(c"cmdline_pos", args);
         ENTERED = false;
     }
 }
@@ -1672,7 +1668,7 @@ pub unsafe fn ui_call_cmdline_special_char(c: NvimString, shift: bool, level: In
             size: 3,
             capacity: 3,
         };
-        ui_call_event(c"cmdline_special_char".as_ptr().cast_mut(), args);
+        ui_call_event(c"cmdline_special_char", args);
         ENTERED = false;
     }
 }
@@ -1690,7 +1686,7 @@ pub unsafe fn ui_call_cmdline_hide(level: Integer, abort: bool) {
             size: 2,
             capacity: 2,
         };
-        ui_call_event(c"cmdline_hide".as_ptr().cast_mut(), args);
+        ui_call_event(c"cmdline_hide", args);
         ENTERED = false;
     }
 }
@@ -1708,7 +1704,7 @@ pub unsafe fn ui_call_cmdline_block_show(lines: Array) {
             size: 1,
             capacity: 1,
         };
-        ui_call_event(c"cmdline_block_show".as_ptr().cast_mut(), args);
+        ui_call_event(c"cmdline_block_show", args);
         ENTERED = false;
     }
 }
@@ -1726,7 +1722,7 @@ pub unsafe fn ui_call_cmdline_block_append(lines: Array) {
             size: 1,
             capacity: 1,
         };
-        ui_call_event(c"cmdline_block_append".as_ptr().cast_mut(), args);
+        ui_call_event(c"cmdline_block_append", args);
         ENTERED = false;
     }
 }
@@ -1738,7 +1734,7 @@ pub unsafe fn ui_call_cmdline_block_hide() {
             return;
         }
         ENTERED = true;
-        ui_call_event(c"cmdline_block_hide".as_ptr().cast_mut(), NOARGS_ARRAY);
+        ui_call_event(c"cmdline_block_hide", NOARGS_ARRAY);
         ENTERED = false;
     }
 }
@@ -1772,7 +1768,7 @@ pub unsafe fn ui_call_msg_show(
             size: 7,
             capacity: 7,
         };
-        ui_call_event(c"msg_show".as_ptr().cast_mut(), args);
+        ui_call_event(c"msg_show", args);
         ENTERED = false;
     }
 }
@@ -1784,7 +1780,7 @@ pub unsafe fn ui_call_msg_clear() {
             return;
         }
         ENTERED = true;
-        ui_call_event(c"msg_clear".as_ptr().cast_mut(), NOARGS_ARRAY);
+        ui_call_event(c"msg_clear", NOARGS_ARRAY);
         ENTERED = false;
     }
 }
@@ -1802,7 +1798,7 @@ pub unsafe fn ui_call_msg_showcmd(content: Array) {
             size: 1,
             capacity: 1,
         };
-        ui_call_event(c"msg_showcmd".as_ptr().cast_mut(), args);
+        ui_call_event(c"msg_showcmd", args);
         ENTERED = false;
     }
 }
@@ -1820,7 +1816,7 @@ pub unsafe fn ui_call_msg_showmode(content: Array) {
             size: 1,
             capacity: 1,
         };
-        ui_call_event(c"msg_showmode".as_ptr().cast_mut(), args);
+        ui_call_event(c"msg_showmode", args);
         ENTERED = false;
     }
 }
@@ -1838,7 +1834,7 @@ pub unsafe fn ui_call_msg_ruler(content: Array) {
             size: 1,
             capacity: 1,
         };
-        ui_call_event(c"msg_ruler".as_ptr().cast_mut(), args);
+        ui_call_event(c"msg_ruler", args);
         ENTERED = false;
     }
 }
@@ -1856,7 +1852,7 @@ pub unsafe fn ui_call_msg_history_show(entries: Array, prev_cmd: bool) {
             size: 2,
             capacity: 2,
         };
-        ui_call_event(c"msg_history_show".as_ptr().cast_mut(), args);
+        ui_call_event(c"msg_history_show", args);
         ENTERED = false;
     }
 }

@@ -297,9 +297,7 @@ pub struct qf_list_T {
     pub qf_ctx: Option<typval_T>,
     pub qf_qftf_cb: Callback,
     pub qf_dir_stack: Vec<std::ffi::CString>,
-    pub qf_directory: *mut c_char,
     pub qf_file_stack: Vec<std::ffi::CString>,
-    pub qf_currfile: *mut c_char,
     pub qf_multiline: bool,
     pub qf_multiignore: bool,
     pub qf_multiscan: bool,
@@ -307,6 +305,20 @@ pub struct qf_list_T {
 }
 
 impl qf_list_T {
+    #[inline]
+    pub fn directory_ptr(&self) -> *mut c_char {
+        self.qf_dir_stack
+            .last()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    }
+
+    #[inline]
+    pub fn currfile_ptr(&self) -> *mut c_char {
+        self.qf_file_stack
+            .last()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    }
+
     #[inline]
     pub fn count(&self) -> c_int {
         self.qf_items.len() as c_int
@@ -345,9 +357,7 @@ impl Default for qf_list_T {
             qf_ctx: None,
             qf_qftf_cb: Callback::new(),
             qf_dir_stack: Vec::new(),
-            qf_directory: ptr::null_mut(),
             qf_file_stack: Vec::new(),
-            qf_currfile: ptr::null_mut(),
             qf_multiline: false,
             qf_multiignore: false,
             qf_multiscan: false,
@@ -727,17 +737,17 @@ unsafe fn qf_init_process_nextline(
             return status;
         }
 
-        let fname = if *(*fields).namebuf.as_ptr() != NUL || !(*qfl).qf_directory.is_null() {
+        let fname = if *(*fields).namebuf.as_ptr() != NUL || !(*qfl).qf_dir_stack.is_empty() {
             (*fields).namebuf.as_mut_ptr()
-        } else if !(*qfl).qf_currfile.is_null() && (*fields).valid {
-            (*qfl).qf_currfile
+        } else if !(*qfl).qf_file_stack.is_empty() && (*fields).valid {
+            (*qfl).currfile_ptr()
         } else {
             ptr::null_mut()
         };
 
         qf_add_entry(
             qfl,
-            (*qfl).qf_directory,
+            (*qfl).directory_ptr(),
             fname,
             (*fields).module.as_mut_ptr(),
             (*fields).bnr,
@@ -1984,16 +1994,13 @@ unsafe fn qf_parse_dir_pfx(idx: c_int, fields: *mut qffields_T, qfl: *mut qf_lis
                 emsg(gettext(c"E379: Missing or empty directory name".as_ptr()));
                 return QF_FAIL;
             }
-            (*qfl).qf_directory = qf_push_dir(
+            qf_push_dir(
                 (*fields).namebuf.as_mut_ptr(),
                 &mut (*qfl).qf_dir_stack,
                 false,
             );
-            if (*qfl).qf_directory.is_null() {
-                return QF_FAIL;
-            }
         } else if idx == c_int::from(b'X') {
-            (*qfl).qf_directory = qf_pop_dir(&mut (*qfl).qf_dir_stack);
+            qf_pop_dir(&mut (*qfl).qf_dir_stack);
         }
 
         QF_OK
@@ -2010,13 +2017,13 @@ unsafe fn qf_parse_file_pfx(
         (*fields).valid = false;
         if *(*fields).namebuf.as_ptr() == NUL || os_path_exists((*fields).namebuf.as_ptr()) {
             if *(*fields).namebuf.as_ptr() != NUL && idx == c_int::from(b'P') {
-                (*qfl).qf_currfile = qf_push_dir(
+                qf_push_dir(
                     (*fields).namebuf.as_mut_ptr(),
                     &mut (*qfl).qf_file_stack,
                     true,
                 );
             } else if idx == c_int::from(b'Q') {
-                (*qfl).qf_currfile = qf_pop_dir(&mut (*qfl).qf_file_stack);
+                qf_pop_dir(&mut (*qfl).qf_file_stack);
             }
             *(*fields).namebuf.as_mut_ptr() = NUL;
             if !tail.is_null() && *tail != NUL {
@@ -2081,15 +2088,15 @@ unsafe fn qf_parse_multiline_pfx(
                 (*qfprev).qf_end_col = (*fields).end_col;
             }
             if (*qfprev).qf_fnum == 0 {
-                let fname = if *(*fields).namebuf.as_ptr() != NUL || !(*qfl).qf_directory.is_null()
-                {
-                    (*fields).namebuf.as_mut_ptr()
-                } else if !(*qfl).qf_currfile.is_null() && (*fields).valid {
-                    (*qfl).qf_currfile
-                } else {
-                    ptr::null_mut()
-                };
-                (*qfprev).qf_fnum = qf_get_fnum(qfl, (*qfl).qf_directory, fname);
+                let fname =
+                    if *(*fields).namebuf.as_ptr() != NUL || !(*qfl).qf_dir_stack.is_empty() {
+                        (*fields).namebuf.as_mut_ptr()
+                    } else if !(*qfl).qf_file_stack.is_empty() && (*fields).valid {
+                        (*qfl).currfile_ptr()
+                    } else {
+                        ptr::null_mut()
+                    };
+                (*qfprev).qf_fnum = qf_get_fnum(qfl, (*qfl).directory_ptr(), fname);
             }
         }
         if idx == c_int::from(b'Z') {
@@ -2610,11 +2617,11 @@ unsafe fn qf_push_dir(
     dirbuf: *mut c_char,
     stack: &mut Vec<std::ffi::CString>,
     is_file_stack: bool,
-) -> *mut c_char {
+) {
     unsafe {
         if vim_isAbsName(dirbuf) || stack.is_empty() || is_file_stack {
             stack.push(CStr::from_ptr(dirbuf).to_owned());
-            return stack.last().unwrap().as_ptr().cast_mut();
+            return;
         }
 
         let dirbuf_len = strlen(dirbuf);
@@ -2641,15 +2648,11 @@ unsafe fn qf_push_dir(
             std::ffi::CString::new(slice).unwrap()
         });
         stack.push(cstr);
-        stack.last().unwrap().as_ptr().cast_mut()
     }
 }
 
-unsafe fn qf_pop_dir(stack: &mut Vec<std::ffi::CString>) -> *mut c_char {
+fn qf_pop_dir(stack: &mut Vec<std::ffi::CString>) {
     stack.pop();
-    stack
-        .last()
-        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
 }
 
 unsafe fn qf_guess_filepath(qfl: *mut qf_list_T, filename: *mut c_char) -> *mut c_char {
@@ -3827,9 +3830,7 @@ unsafe fn qf_free_items(qfl: *mut qf_list_T) {
         (*qfl).qf_nonevalid = true;
 
         (*qfl).qf_dir_stack.clear();
-        (*qfl).qf_directory = ptr::null_mut();
         (*qfl).qf_file_stack.clear();
-        (*qfl).qf_currfile = ptr::null_mut();
         (*qfl).qf_multiline = false;
         (*qfl).qf_multiignore = false;
         (*qfl).qf_multiscan = false;

@@ -79,7 +79,7 @@ pub struct RemoteUI {
     pub stdout_tty: bool,
     pub channel_id: u64,
     pub packer: PackerBuffer,
-    pub cur_event: *const c_char,
+    pub cur_event: Option<&'static std::ffi::CStr>,
     pub nevents_pos: *mut c_char,
     pub ncalls_pos: *mut c_char,
     pub nevents: u32,
