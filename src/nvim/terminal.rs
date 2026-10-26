@@ -75,14 +75,14 @@ use crate::keycodes::{
 use crate::mark::{kMarkAdjustTerm, mark_adjust_buf};
 use crate::mbyte::{mb_check_adjust_col, utf_ptr2char, utf_ptr2len};
 use crate::memline::{ml_append_buf, ml_delete_buf, ml_replace_buf};
-use crate::memory::{strequal, xstrdup};
+use crate::memory::strequal;
 use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, do_mousescroll, mouse_find_win_inner,
 };
 use crate::r#move::{curs_columns, set_topline, validate_cursor, win_col_off};
 use crate::msgpack_rpc::packer::handle_T;
 use crate::option_vars::*;
-use crate::optionstr::free_string_option;
+use crate::optionstr::{alloc_string_option, free_string_option};
 use crate::state::{
     MODE_TERMINAL, VimState, may_trigger_modechanged, save_v_event_T, state_enter,
     state_handle_k_event,
@@ -1089,7 +1089,7 @@ unsafe fn set_terminal_winopts(s: *mut TerminalState) {
         {
             if !strequal((*curwin).w_onebuf_opt.wo_culopt, c"number".as_ptr()) {
                 (*s).save_w_p_culopt = (*curwin).w_onebuf_opt.wo_culopt;
-                (*curwin).w_onebuf_opt.wo_culopt = xstrdup(c"number".as_ptr());
+                (*curwin).w_onebuf_opt.wo_culopt = alloc_string_option(c"number".as_ptr());
             }
             (*curwin).w_p_culopt_flags = kOptCuloptFlagNumber;
         } else {

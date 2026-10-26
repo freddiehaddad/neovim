@@ -37,7 +37,7 @@ use crate::mbyte::{
     utf_ptr2char, utfc_ptr2len,
 };
 use crate::memline::{ml_append, ml_delete, ml_get_buf, ml_get_buf_len};
-use crate::memory::{memchrsub, strequal, xstrdup};
+use crate::memory::{memchrsub, strequal};
 use crate::message::{emsg, semsg};
 use crate::r#move::{
     changed_line_abv_curs, changed_line_abv_curs_win, changed_window_setting, check_topfill,
@@ -46,7 +46,9 @@ use crate::r#move::{
 use crate::normal::check_scrollbind;
 use crate::option::{OptTarget, set_option_direct_for, set_option_value_give_err};
 use crate::option_vars::*;
-use crate::optionstr::{OptIndex, OptKeyDict_dip, free_string_option, opt_keyset};
+use crate::optionstr::{
+    OptIndex, OptKeyDict_dip, alloc_string_option, free_string_option, opt_keyset,
+};
 use crate::os::env::{os_env_exists, os_unsetenv};
 use crate::os::fs::{FileInfo, os_fileinfo, os_fileinfo_size, os_fopen, os_remove};
 use crate::os::shell::call_shell;
@@ -814,7 +816,7 @@ unsafe fn diff_write(
         }
         let save_ml_flags = (*buf).b_ml.ml_flags;
         let save_ff = (*buf).b_p_ff;
-        (*buf).b_p_ff = xstrdup(c"unix".as_ptr());
+        (*buf).b_p_ff = alloc_string_option(c"unix".as_ptr());
         let save_cmod_flags = cmdmod.cmod_flags != 0;
         cmdmod.cmod_flags |= CMOD_LOCKMARKS;
         if end < start {
@@ -1481,7 +1483,7 @@ pub unsafe fn diff_win_options(wp: *mut win_T, addbuf: bool) {
             if (*wp).w_onebuf_opt.wo_diff_saved != 0 {
                 free_string_option((*wp).w_onebuf_opt.wo_fdm_save);
             }
-            (*wp).w_onebuf_opt.wo_fdm_save = xstrdup((*wp).w_onebuf_opt.wo_fdm);
+            (*wp).w_onebuf_opt.wo_fdm_save = alloc_string_option((*wp).w_onebuf_opt.wo_fdm);
         }
         set_option_direct_for(
             kOptFoldmethod,
@@ -1496,17 +1498,12 @@ pub unsafe fn diff_win_options(wp: *mut win_T, addbuf: bool) {
             if (*wp).w_onebuf_opt.wo_diff_saved != 0 {
                 free_string_option((*wp).w_onebuf_opt.wo_fdc_save);
             }
-            (*wp).w_onebuf_opt.wo_fdc_save = xstrdup((*wp).w_onebuf_opt.wo_fdc);
+            (*wp).w_onebuf_opt.wo_fdc_save = alloc_string_option((*wp).w_onebuf_opt.wo_fdc);
         }
         free_string_option((*wp).w_onebuf_opt.wo_fdc);
-        (*wp).w_onebuf_opt.wo_fdc = xstrdup(c"2".as_ptr());
         debug_assert!(diff_foldcolumn >= 0 && diff_foldcolumn <= 9);
-        vim_snprintf!(
-            (*wp).w_onebuf_opt.wo_fdc,
-            strlen((*wp).w_onebuf_opt.wo_fdc) + 1,
-            c"%d".as_ptr(),
-            diff_foldcolumn,
-        );
+        let fdc_buf = [b'0' as c_char + (diff_foldcolumn as c_char), NUL];
+        (*wp).w_onebuf_opt.wo_fdc = alloc_string_option(fdc_buf.as_ptr());
         (*wp).w_onebuf_opt.wo_fen = 1;
         (*wp).w_onebuf_opt.wo_fdl = 0;
         foldUpdateAll(wp);
@@ -1550,14 +1547,14 @@ pub unsafe fn ex_diffoff(eap: *mut exarg_T) {
                     }
                     free_string_option((*wp).w_onebuf_opt.wo_fdm);
                     (*wp).w_onebuf_opt.wo_fdm =
-                        xstrdup(if *(*wp).w_onebuf_opt.wo_fdm_save != NUL {
+                        alloc_string_option(if *(*wp).w_onebuf_opt.wo_fdm_save != NUL {
                             (*wp).w_onebuf_opt.wo_fdm_save
                         } else {
                             c"manual".as_ptr()
                         });
                     free_string_option((*wp).w_onebuf_opt.wo_fdc);
                     (*wp).w_onebuf_opt.wo_fdc =
-                        xstrdup(if *(*wp).w_onebuf_opt.wo_fdc_save != NUL {
+                        alloc_string_option(if *(*wp).w_onebuf_opt.wo_fdc_save != NUL {
                             (*wp).w_onebuf_opt.wo_fdc_save
                         } else {
                             c"0".as_ptr()

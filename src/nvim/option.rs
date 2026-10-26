@@ -79,7 +79,7 @@ use crate::indent::{
 };
 use crate::indent_c::parse_cino;
 use crate::input_cmdatom::atom_follow_changed;
-use crate::insexpand::{VAR_STRING, kOptComplete, set_buflocal_cpt_callbacks};
+use crate::insexpand::{kOptComplete, set_buflocal_cpt_callbacks};
 use crate::keycodes::{
     FSK_KEEP_X_KEY, FSK_KEYCODE, FSK_SIMPLIFY, K_KENTER, K_ZERO, find_special_key,
     find_special_key_in_table, get_special_key_code, get_special_key_name, termcap2key,
@@ -94,9 +94,7 @@ use crate::mbyte::{enc_locale, utfc_ptr2len};
 use crate::mcursor::{kOptFollow, mc_ins_replay_can_join};
 use crate::memfile::mf_close_file;
 use crate::memline::{ml_open_file, ml_open_files};
-use crate::memory::{
-    Arena, strequal, strnequal, xfree, xmalloc, xmemcpyz, xmemdupz, xstrdup, xstrlcpy,
-};
+use crate::memory::{Arena, strequal, strnequal, xmemcpyz, xmemdupz, xstrdup, xstrlcpy};
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar,
     msg_puts, msg_puts_title, msg_source,
@@ -108,8 +106,9 @@ use crate::ops::free_operatorfunc_option;
 use crate::option_vars::*;
 use crate::optionstr::{
     CharBuf, CharsOption, OptIndex, OptScopeFlags, check_buf_options, check_illegal_path_names,
-    check_signcolumn, check_string_option, clear_string_option, did_set_breakat,
-    didset_string_options, free_string_option, opt_dict_schema, opt_strings_check, optexpand_T,
+    alloc_string_option, check_signcolumn, check_string_option, clear_string_option,
+    did_set_breakat, didset_string_options, free_string_option, opt_dict_schema,
+    opt_strings_check, optexpand_T,
     optset_T, set_chars_option, vimoption_T,
 };
 use crate::os::env::{
@@ -1211,19 +1210,22 @@ pub unsafe fn set_helplang_default(lang: *const c_char) {
         }
 
         free_string_option(p_hlg);
-        p_hlg = xmemdupz(lang.cast(), lang_len).cast::<c_char>();
+        let mut hlg_bytes = [
+            *lang as u8,
+            *lang.add(1) as u8,
+        ];
         if lang_len >= 5
-            && (*p_hlg.add(0) as u8).eq_ignore_ascii_case(&b'z')
-            && (*p_hlg.add(1) as u8).eq_ignore_ascii_case(&b'h')
-            && *p_hlg.add(2) == b'_' as c_char
+            && hlg_bytes[0].eq_ignore_ascii_case(&b'z')
+            && hlg_bytes[1].eq_ignore_ascii_case(&b'h')
+            && *lang.add(2) == b'_' as c_char
         {
-            *p_hlg.add(0) = (*p_hlg.add(3) as u8).to_ascii_lowercase() as c_char;
-            *p_hlg.add(1) = (*p_hlg.add(4) as u8).to_ascii_lowercase() as c_char;
-        } else if lang_len > 0 && *p_hlg == b'C' as c_char {
-            *p_hlg.add(0) = b'e' as c_char;
-            *p_hlg.add(1) = b'n' as c_char;
+            hlg_bytes[0] = (*lang.add(3) as u8).to_ascii_lowercase();
+            hlg_bytes[1] = (*lang.add(4) as u8).to_ascii_lowercase();
+        } else if lang_len > 0 && *lang == b'C' as c_char {
+            hlg_bytes[0] = b'e';
+            hlg_bytes[1] = b'n';
         }
-        *p_hlg.add(2) = NUL;
+        p_hlg = crate::memory::cstr_from_bytes(&hlg_bytes).into_raw();
     }
 }
 
@@ -1262,7 +1264,7 @@ unsafe fn stropt_copy_value(
     argp: *mut *mut c_char,
     op: set_op_T,
     flags: u32,
-) -> *mut c_char {
+) -> Vec<c_char> {
     unsafe {
         let mut arg = *argp;
 
@@ -1270,7 +1272,8 @@ unsafe fn stropt_copy_value(
         if op != OP_NONE {
             newlen += strlen(origval) + 1;
         }
-        let newval = xmalloc(newlen).cast::<c_char>();
+        let mut newval_vec: Vec<c_char> = vec![0; newlen];
+        let newval = newval_vec.as_mut_ptr();
         let mut s = newval;
 
         while *arg != NUL && !ascii_iswhite(*arg) {
@@ -1304,7 +1307,7 @@ unsafe fn stropt_copy_value(
         *s = NUL;
 
         *argp = arg;
-        newval
+        newval_vec
     }
 }
 
@@ -1312,24 +1315,21 @@ unsafe fn stropt_copy_value(
 unsafe fn stropt_expand_envvar(
     opt_idx: OptIndex,
     origval: *const c_char,
-    mut newval: *mut c_char,
+    newval: &mut Vec<c_char>,
     op: set_op_T,
-) -> *mut c_char {
+) {
     unsafe {
-        let s = option_expand(opt_idx, newval);
+        let s = option_expand(opt_idx, newval.as_mut_ptr());
         if s.is_null() {
-            return newval;
+            return;
         }
 
-        xfree(newval.cast());
         let mut newlen = (strlen(s) as u32) + 1;
         if op != OP_NONE {
             newlen += (strlen(origval) as u32) + 1;
         }
-        newval = xmalloc(newlen as usize).cast::<c_char>();
-        strcpy(newval, s);
-
-        newval
+        *newval = vec![0; newlen as usize];
+        strcpy(newval.as_mut_ptr(), s);
     }
 }
 
@@ -1612,7 +1612,7 @@ unsafe fn stropt_get_newval(
     varp: *mut c_void,
     origval: *const c_char,
     op_arg: *mut set_op_T,
-) -> *mut c_char {
+) -> std::ffi::CString {
     unsafe {
         let mut arg = *argp;
         let mut op = *op_arg;
@@ -1627,11 +1627,12 @@ unsafe fn stropt_get_newval(
             arg = c":help".as_ptr().cast_mut();
         }
 
-        let mut newval = stropt_copy_value(origval, &raw mut arg, op, flags);
+        let mut newval_vec = stropt_copy_value(origval, &raw mut arg, op, flags);
 
         if op == OP_NONE || (flags & kOptFlagComma) != 0 {
-            newval = stropt_expand_envvar(opt_idx, origval, newval, op);
+            stropt_expand_envvar(opt_idx, origval, &mut newval_vec, op);
         }
+        let newval = newval_vec.as_mut_ptr();
 
         if (flags & kOptFlagComma) != 0
             && (flags & kOptFlagColon) != 0
@@ -1672,7 +1673,7 @@ unsafe fn stropt_get_newval(
         *argp = arg;
         *op_arg = op;
 
-        newval
+        CStr::from_ptr(newval).to_owned()
     }
 }
 
@@ -1946,11 +1947,11 @@ pub unsafe fn get_option_newval(
             ObjectType::kObjectTypeString => {
                 let oldval_str = oldval.data.string.data;
                 let newval_str = stropt_get_newval(opt_idx, argp, varp, oldval_str, &raw mut op);
-                newval = cstr_as_obj(newval_str);
+                newval = cstr_to_obj(newval_str.as_ptr());
             }
             ObjectType::kObjectTypeLuaRef => {
                 let newval_str = stropt_get_newval(opt_idx, argp, varp, c"".as_ptr(), &raw mut op);
-                newval = cstr_as_obj(newval_str);
+                newval = cstr_to_obj(newval_str.as_ptr());
             }
             _ => std::process::abort(),
         }
@@ -3160,7 +3161,7 @@ pub unsafe fn did_set_paste(_args: *mut optset_T) -> *const c_char {
                 (*buf).b_p_vsts = (*buf)
                     .b_p_vsts_nopaste
                     .as_ref()
-                    .map_or(empty_opt, |s| xstrdup(s.as_ptr()));
+                    .map_or(empty_opt, |s| alloc_string_option(s.as_ptr()));
                 if !(*buf).b_p_vsts.is_null() && (*buf).b_p_vsts != empty_opt {
                     tabstop_set((*buf).b_p_vsts, &mut (*buf).b_p_vsts_array, ptr::null());
                 } else {
@@ -3187,7 +3188,7 @@ pub unsafe fn did_set_paste(_args: *mut optset_T) -> *const c_char {
             let vsts_np_ptr = &raw const P_VSTS_NOPASTE;
             p_vsts = (*vsts_np_ptr)
                 .as_ref()
-                .map_or(empty_opt, |s| xstrdup(s.as_ptr()));
+                .map_or(empty_opt, |s| alloc_string_option(s.as_ptr()));
         }
 
         OLD_P_PASTE = p_paste;
@@ -7248,7 +7249,7 @@ unsafe fn copy_option_val(val: *const c_char) -> *mut c_char {
         if ptr::eq(val, empty_opt) {
             empty_opt
         } else {
-            xstrdup(val)
+            alloc_string_option(val)
         }
     }
 }
@@ -7296,7 +7297,7 @@ pub unsafe fn copy_winopt(from: *mut winopt_T, to: *mut winopt_T) {
         (*to).wo_cole = (*from).wo_cole;
         (*to).wo_fdc = copy_option_val((*from).wo_fdc);
         (*to).wo_fdc_save = if (*from).wo_diff_saved != 0 {
-            xstrdup((*from).wo_fdc_save)
+            alloc_string_option((*from).wo_fdc_save)
         } else {
             empty_opt
         };
@@ -7308,7 +7309,7 @@ pub unsafe fn copy_winopt(from: *mut winopt_T, to: *mut winopt_T) {
         (*to).wo_fdl_save = (*from).wo_fdl_save;
         (*to).wo_fdm = copy_option_val((*from).wo_fdm);
         (*to).wo_fdm_save = if (*from).wo_diff_saved != 0 {
-            xstrdup((*from).wo_fdm_save)
+            alloc_string_option((*from).wo_fdm_save)
         } else {
             empty_opt
         };
@@ -7480,12 +7481,12 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 if !(*buf).b_p_initialized {
                     free_buf_options(buf, true);
                     (*buf).b_p_ro = 0;
-                    (*buf).b_p_fenc = xstrdup(p_fenc);
+                    (*buf).b_p_fenc = alloc_string_option(p_fenc);
                     (*buf).b_p_ff = match *p_ffs as u8 {
-                        b'm' => xstrdup(c"mac".as_ptr()),
-                        b'd' => xstrdup(c"dos".as_ptr()),
-                        b'u' => xstrdup(c"unix".as_ptr()),
-                        _ => xstrdup(p_ff),
+                        b'm' => alloc_string_option(c"mac".as_ptr()),
+                        b'd' => alloc_string_option(c"dos".as_ptr()),
+                        b'u' => alloc_string_option(c"unix".as_ptr()),
+                        _ => alloc_string_option(p_ff),
                     };
                     (*buf).b_p_bh = empty_opt;
                     (*buf).b_p_bt = empty_opt;
@@ -7531,13 +7532,13 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                     (*buf).b_p_swf = p_swf;
                     copy_opt_sctx(buf, kBufOptSwapfile);
                 }
-                (*buf).b_p_cpt = xstrdup(p_cpt);
+                (*buf).b_p_cpt = alloc_string_option(p_cpt);
                 copy_opt_sctx(buf, kBufOptComplete);
                 (*buf).b_p_cpt_flags = copy_opt_insecure(kBufOptComplete);
                 set_buflocal_cpt_callbacks(buf);
                 #[cfg(windows)]
                 {
-                    (*buf).b_p_csl = xstrdup(p_csl);
+                    (*buf).b_p_csl = alloc_string_option(p_csl);
                     copy_opt_sctx(buf, kBufOptCompleteslash);
                 }
                 callback_copy(&raw mut (*buf).b_p_cfu, &raw mut p_cfu);
@@ -7549,7 +7550,7 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 (*buf).b_p_sts = p_sts;
                 copy_opt_sctx(buf, kBufOptSofttabstop);
                 (*buf).b_p_sts_nopaste = P_STS_NOPASTE;
-                (*buf).b_p_vsts = xstrdup(p_vsts);
+                (*buf).b_p_vsts = alloc_string_option(p_vsts);
                 copy_opt_sctx(buf, kBufOptVarsofttabstop);
                 if !p_vsts.is_null() && p_vsts != empty_opt {
                     tabstop_set(p_vsts, &mut (*buf).b_p_vsts_array, ptr::null());
@@ -7558,17 +7559,17 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 }
                 let vsts_np_ptr = &raw const P_VSTS_NOPASTE;
                 (*buf).b_p_vsts_nopaste = (*vsts_np_ptr).clone();
-                (*buf).b_p_com = xstrdup(p_com);
+                (*buf).b_p_com = alloc_string_option(p_com);
                 copy_opt_sctx(buf, kBufOptComments);
-                (*buf).b_p_cms = xstrdup(p_cms);
+                (*buf).b_p_cms = alloc_string_option(p_cms);
                 copy_opt_sctx(buf, kBufOptCommentstring);
-                (*buf).b_p_fo = xstrdup(p_fo);
+                (*buf).b_p_fo = alloc_string_option(p_fo);
                 copy_opt_sctx(buf, kBufOptFormatoptions);
-                (*buf).b_p_flp = xstrdup(p_flp);
+                (*buf).b_p_flp = alloc_string_option(p_flp);
                 copy_opt_sctx(buf, kBufOptFormatlistpat);
-                (*buf).b_p_nf = xstrdup(p_nf);
+                (*buf).b_p_nf = alloc_string_option(p_nf);
                 copy_opt_sctx(buf, kBufOptNrformats);
-                (*buf).b_p_mps = xstrdup(p_mps);
+                (*buf).b_p_mps = alloc_string_option(p_mps);
                 copy_opt_sctx(buf, kBufOptMatchpairs);
                 (*buf).b_p_si = p_si;
                 copy_opt_sctx(buf, kBufOptSmartindent);
@@ -7577,19 +7578,19 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 copy_opt_sctx(buf, kBufOptCopyindent);
                 (*buf).b_p_cin = p_cin;
                 copy_opt_sctx(buf, kBufOptCindent);
-                (*buf).b_p_cink = xstrdup(p_cink);
+                (*buf).b_p_cink = alloc_string_option(p_cink);
                 copy_opt_sctx(buf, kBufOptCinkeys);
-                (*buf).b_p_cino = xstrdup(p_cino);
+                (*buf).b_p_cino = alloc_string_option(p_cino);
                 copy_opt_sctx(buf, kBufOptCinoptions);
-                (*buf).b_p_cinsd = xstrdup(p_cinsd);
+                (*buf).b_p_cinsd = alloc_string_option(p_cinsd);
                 copy_opt_sctx(buf, kBufOptCinscopedecls);
-                (*buf).b_p_lop = xstrdup(p_lop);
+                (*buf).b_p_lop = alloc_string_option(p_lop);
                 copy_opt_sctx(buf, kBufOptLispoptions);
 
                 (*buf).b_p_ft = empty_opt;
                 (*buf).b_p_pi = p_pi;
                 copy_opt_sctx(buf, kBufOptPreserveindent);
-                (*buf).b_p_cinw = xstrdup(p_cinw);
+                (*buf).b_p_cinw = alloc_string_option(p_cinw);
                 copy_opt_sctx(buf, kBufOptCinwords);
                 (*buf).b_p_lisp = p_lisp;
                 copy_opt_sctx(buf, kBufOptLisp);
@@ -7597,28 +7598,28 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 (*buf).b_p_smc = p_smc;
                 copy_opt_sctx(buf, kBufOptSynmaxcol);
                 (*buf).b_s.b_syn_isk = None;
-                (*buf).b_s.b_p_spc = xstrdup(p_spc);
+                (*buf).b_s.b_p_spc = alloc_string_option(p_spc);
                 copy_opt_sctx(buf, kBufOptSpellcapcheck);
                 compile_cap_prog((*buf).b_s.b_p_spc, (&raw mut (*buf).b_s.b_cap_prog).cast());
-                (*buf).b_s.b_p_spf = xstrdup(p_spf);
+                (*buf).b_s.b_p_spf = alloc_string_option(p_spf);
                 copy_opt_sctx(buf, kBufOptSpellfile);
-                (*buf).b_s.b_p_spl = xstrdup(p_spl);
+                (*buf).b_s.b_p_spl = alloc_string_option(p_spl);
                 copy_opt_sctx(buf, kBufOptSpelllang);
-                (*buf).b_s.b_p_spo = xstrdup(p_spo);
+                (*buf).b_s.b_p_spo = alloc_string_option(p_spo);
                 copy_opt_sctx(buf, kBufOptSpelloptions);
                 (*buf).b_s.b_p_spo_flags = spo_flags;
                 callback_copy(&raw mut (*buf).b_p_inde, &raw mut p_inde);
                 copy_opt_sctx(buf, kBufOptIndentexpr);
                 (*buf).b_p_inde_flags = copy_opt_insecure(kBufOptIndentexpr);
-                (*buf).b_p_indk = xstrdup(p_indk);
+                (*buf).b_p_indk = alloc_string_option(p_indk);
                 copy_opt_sctx(buf, kBufOptIndentkeys);
                 (*buf).b_p_fp = empty_opt;
                 callback_copy(&raw mut (*buf).b_p_fex, &raw mut p_fex);
                 copy_opt_sctx(buf, kBufOptFormatexpr);
                 (*buf).b_p_fex_flags = copy_opt_insecure(kBufOptFormatexpr);
-                (*buf).b_p_sua = xstrdup(p_sua);
+                (*buf).b_p_sua = alloc_string_option(p_sua);
                 copy_opt_sctx(buf, kBufOptSuffixesadd);
-                (*buf).b_p_keymap = xstrdup(p_keymap);
+                (*buf).b_p_keymap = alloc_string_option(p_keymap);
                 copy_opt_sctx(buf, kBufOptKeymap);
                 (*buf).b_kmap_state |= KEYMAP_INIT;
                 (*buf).b_p_iminsert = p_iminsert;
@@ -7654,7 +7655,7 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 (*buf).b_p_dia = empty_opt;
                 (*buf).b_p_tsr = empty_opt;
                 (*buf).b_p_tsrfu = Callback::NONE;
-                (*buf).b_p_qe = xstrdup(p_qe);
+                (*buf).b_p_qe = alloc_string_option(p_qe);
                 copy_opt_sctx(buf, kBufOptQuoteescape);
                 (*buf).b_p_udf = p_udf;
                 copy_opt_sctx(buf, kBufOptUndofile);
@@ -7669,12 +7670,12 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                         (*buf).b_p_vts_array.clear();
                     }
                 } else {
-                    (*buf).b_p_isk = xstrdup(p_isk);
+                    (*buf).b_p_isk = alloc_string_option(p_isk);
                     copy_opt_sctx(buf, kBufOptIskeyword);
                     did_isk = true;
                     (*buf).b_p_ts = p_ts;
                     copy_opt_sctx(buf, kBufOptTabstop);
-                    (*buf).b_p_vts = xstrdup(p_vts);
+                    (*buf).b_p_vts = alloc_string_option(p_vts);
                     copy_opt_sctx(buf, kBufOptVartabstop);
                     if !p_vts.is_null() && *p_vts != NUL && (*buf).b_p_vts_array.is_empty() {
                         tabstop_set(p_vts, &mut (*buf).b_p_vts_array, ptr::null());
@@ -8370,8 +8371,7 @@ pub unsafe fn option_set_callback_func(optval: *mut c_char, optcb: *mut Callback
             evaluated
         } else {
             let mut allocated = typval_T::new();
-            allocated.v_type = VAR_STRING;
-            allocated.vval.v_string = xstrdup(optval);
+            crate::eval::typval::tv_set_string(&raw mut allocated, optval);
             allocated
         };
 

@@ -37,7 +37,7 @@ use crate::mark::{fmark_T, fmarkv_T};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{enc_canonize, get_encoding_name, utf_ptr2char, utfc_ptr2len, utfc_ptr2schar};
 use crate::memline::ml_setflags;
-use crate::memory::{xfree, xmemcpyz, xmemdupz, xstrdup};
+use crate::memory::{cstr_take, cstr_to_cstring, xmemcpyz, xmemdupz, xstrdup};
 use crate::message::{kOptMessagesopt, msg_grid_validate, verbose_open, verbose_stop};
 use crate::r#move::validate_virtcol;
 use crate::msgpack_rpc::packer::Integer;
@@ -1100,11 +1100,15 @@ pub unsafe fn check_buf_options(buf: *mut buf_T) {
     }
 }
 
+pub unsafe fn alloc_string_option(s: *const c_char) -> *mut c_char {
+    unsafe { cstr_to_cstring(s).into_raw() }
+}
+
 /// Free the string allocated for an option.
 pub unsafe fn free_string_option(p: *mut c_char) {
     unsafe {
         if p != (&raw mut empty_string_option).cast::<c_char>() {
-            xfree(p.cast());
+            let _ = cstr_take(p);
         }
     }
 }
@@ -1113,7 +1117,7 @@ pub unsafe fn clear_string_option(pp: *mut *mut c_char) {
     unsafe {
         let empty = (&raw mut empty_string_option).cast::<c_char>();
         if *pp != empty {
-            xfree((*pp).cast());
+            let _ = cstr_take(*pp);
         }
         *pp = empty;
     }
@@ -1592,7 +1596,7 @@ pub unsafe fn did_set_background(args: *mut optset_T) -> *const c_char {
         {
             do_unlet(c"g:colors_name".as_ptr(), 13, true);
             free_string_option(p_bg);
-            p_bg = xstrdup(if dark {
+            p_bg = alloc_string_option(if dark {
                 c"dark".as_ptr()
             } else {
                 c"light".as_ptr()
@@ -2352,8 +2356,8 @@ pub unsafe fn did_set_encoding(args: *mut optset_T) -> *const c_char {
         }
 
         if let Some(prep_cstr) = (*args).os_prep.take_encoding() {
-            xfree((*varp).cast());
-            *varp = xstrdup(prep_cstr.as_ptr());
+            free_string_option(*varp);
+            *varp = prep_cstr.into_raw();
         }
         if ptr::eq(varp, &raw mut p_enc) {
             spell_reload();
@@ -3245,9 +3249,9 @@ unsafe fn did_set_statustabline_rulerformat(
             && (((*args).os_flags & OPT_GLOBAL) != 0 || ((*args).os_flags & OPT_LOCAL) == 0)
             && *s == NUL
         {
-            xfree((*varp).cast());
+            free_string_option(*varp);
             let def = get_option_default((*args).os_idx, (*args).os_flags);
-            *varp = xstrdup(def.data.string.data);
+            *varp = alloc_string_option(def.data.string.data);
             optval_free_read((*args).os_idx, def);
             s = *varp;
         }

@@ -18,13 +18,14 @@ use crate::errors::*;
 use crate::fileio::shorten_buf_fname;
 use crate::globals::*;
 use crate::grid::grid_adjust;
-use crate::memory::xstrdup;
 use crate::message::{emsg, kZIndexMessages};
 use crate::mouse::mouse_find_win_inner;
 use crate::r#move::{textpos2screenpos, validate_cursor};
 use crate::option::{OPT_LOCAL, OptTarget, kOptBufhidden, parse_winhl_opt, set_option_direct_for};
 use crate::option_vars::*;
-use crate::optionstr::{OptKeyDict_pvp, free_string_option, kOptPreviewpopup, opt_keyset};
+use crate::optionstr::{
+    OptKeyDict_pvp, alloc_string_option, free_string_option, kOptPreviewpopup, opt_keyset,
+};
 use crate::os::fs::{MAXPATHL, os_dirname};
 use crate::plines::{plines_m_win, win_max_displaywidth};
 use crate::strings::{concat_str, gettext};
@@ -153,18 +154,18 @@ pub unsafe fn win_set_minimal_style(wp: *mut win_T) {
         if (*wp).w_p_fcs_chars.eob != b' ' as u32 {
             let old = (*wp).w_onebuf_opt.wo_fcs;
             (*wp).w_onebuf_opt.wo_fcs = if *old == NUL {
-                xstrdup(c"eob: ".as_ptr())
+                alloc_string_option(c"eob: ".as_ptr())
             } else {
-                xstrdup(concat_str(old, c",eob: ".as_ptr()).as_ptr())
+                concat_str(old, c",eob: ".as_ptr()).into_raw()
             };
             free_string_option(old);
         }
 
         let old = (*wp).w_onebuf_opt.wo_winhl;
         (*wp).w_onebuf_opt.wo_winhl = if *old == NUL {
-            xstrdup(c"EndOfBuffer:".as_ptr())
+            alloc_string_option(c"EndOfBuffer:".as_ptr())
         } else {
-            xstrdup(concat_str(old, c",EndOfBuffer:".as_ptr()).as_ptr())
+            concat_str(old, c",EndOfBuffer:".as_ptr()).into_raw()
         };
         free_string_option(old);
         parse_winhl_opt(ptr::null(), wp);
@@ -173,19 +174,19 @@ pub unsafe fn win_set_minimal_style(wp: *mut win_T) {
         let scl_len = CStr::from_ptr((*wp).w_onebuf_opt.wo_scl).to_bytes().len();
         if *(*wp).w_onebuf_opt.wo_scl != b'a' as c_char || scl_len >= 8 {
             free_string_option((*wp).w_onebuf_opt.wo_scl);
-            (*wp).w_onebuf_opt.wo_scl = xstrdup(c"auto".as_ptr());
+            (*wp).w_onebuf_opt.wo_scl = alloc_string_option(c"auto".as_ptr());
         }
 
         // foldcolumn: use '0'
         if *(*wp).w_onebuf_opt.wo_fdc != b'0' as c_char {
             free_string_option((*wp).w_onebuf_opt.wo_fdc);
-            (*wp).w_onebuf_opt.wo_fdc = xstrdup(c"0".as_ptr());
+            (*wp).w_onebuf_opt.wo_fdc = alloc_string_option(c"0".as_ptr());
         }
 
         // colorcolumn: cleared
         if !(*wp).w_onebuf_opt.wo_cc.is_null() && *(*wp).w_onebuf_opt.wo_cc != NUL {
             free_string_option((*wp).w_onebuf_opt.wo_cc);
-            (*wp).w_onebuf_opt.wo_cc = xstrdup(c"".as_ptr());
+            (*wp).w_onebuf_opt.wo_cc = alloc_string_option(c"".as_ptr());
         }
 
         // statuscolumn: cleared

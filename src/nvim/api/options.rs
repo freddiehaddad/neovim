@@ -21,7 +21,7 @@ use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::globals::*;
 use crate::lua::converter::Boolean;
 use crate::memline::ml_open;
-use crate::memory::{Arena, arena_memdupz, strequal_str, xstrdup};
+use crate::memory::{Arena, arena_memdupz, strequal_str};
 use crate::option::{
     OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, OPT_GLOBAL, OPT_LOCAL, OptScope, OptTarget,
     PREFIX_NONE, copy_option_part, escape_option_str_cmdline, find_option, get_all_options_info,
@@ -307,7 +307,7 @@ unsafe fn do_ft_buf(filetype: *const c_char, aco: *mut CtxSwitch, err: *mut Erro
         *(get_option_varp_scope_from(kOptModeline, OPT_LOCAL, ftbuf, ptr::null_mut())
             as *mut c_int) = 0;
         *(get_option_varp_scope_from(kOptFiletype, OPT_LOCAL, ftbuf, ptr::null_mut())
-            as *mut *mut c_char) = xstrdup(filetype);
+            as *mut *mut c_char) = crate::optionstr::alloc_string_option(filetype);
 
         if !has_event(EVENT_FILETYPE) {
             return ftbuf;
