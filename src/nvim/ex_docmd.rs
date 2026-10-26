@@ -5511,7 +5511,7 @@ pub unsafe fn get_loop_line(
             let line = if !(*cp).lc_getline.is_none() {
                 (*cp).lc_getline.call(c, indent, do_concat)
             } else {
-                cstr_take(getcmdline(c, 0, indent, do_concat))
+                getcmdline(c, 0, indent, do_concat)
             };
             if let Some(ref l) = line {
                 store_loop_line(lines, l.as_ptr());

@@ -52,9 +52,7 @@ use crate::lua::executor::{
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
-use crate::memory::{
-    cstr_from_bytes, cstr_take, cstr_to_cstring, entered_free_all_mem, xmemrchr, xstrlcpy,
-};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, entered_free_all_mem, xmemrchr, xstrlcpy};
 use crate::message::{
     emsg, iemsg, internal_error, message_filtered, msg_clr_eos, msg_ext_set_kind, msg_outnum,
     msg_prt_line, msg_putchar, msg_puts, msg_start, semsg, smsg, swmsg, trunc_string,
@@ -2646,7 +2644,7 @@ unsafe fn get_function_body(
                 }
             } else {
                 line_to_free = if (*eap).ea_getline.is_none() {
-                    cstr_take(getcmdline(b':' as c_int, 0, indent, do_concat))
+                    getcmdline(b':' as c_int, 0, indent, do_concat)
                 } else {
                     (*eap).ea_getline.call(b':' as c_int, indent, do_concat)
                 };

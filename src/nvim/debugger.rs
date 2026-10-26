@@ -11,7 +11,7 @@ use crate::fileio::file_pat_to_reg_pat;
 use crate::globals::*;
 use crate::input::{restore_typeahead, save_typeahead, tasave_T};
 use crate::math::OK;
-use crate::memory::cstr_take;
+
 use crate::message::{emsg, msg, msg_starthere, semsg, smsg};
 use crate::os::env::{expand_env_save, home_replace};
 use crate::path::fix_fname;
@@ -249,7 +249,7 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
             let n = debug_break_level;
             debug_break_level = -1;
 
-            cmdline_cstr = cstr_take(getcmdline_prompt(
+            cmdline_cstr = getcmdline_prompt(
                 b'>' as c_int,
                 std::ptr::null(),
                 0,
@@ -258,7 +258,7 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
                 Callback::NONE,
                 false,
                 std::ptr::null_mut(),
-            ));
+            );
             let cmdline = cmdline_cstr
                 .as_ref()
                 .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());

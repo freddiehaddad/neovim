@@ -293,8 +293,7 @@ pub unsafe fn get_y_previous() -> *mut yankreg_T {
 
 pub unsafe fn get_expr_register() -> c_int {
     unsafe {
-        let new_line = cstr_take(getcmdline(c_int::from(b'='), 0, 0, true));
-        let Some(new_line) = new_line else {
+        let Some(new_line) = getcmdline(c_int::from(b'='), 0, 0, true) else {
             return 0;
         };
         if !new_line.as_bytes().is_empty() {

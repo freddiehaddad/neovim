@@ -1407,6 +1407,7 @@ impl ColoredCmdline {
 #[derive(Clone)]
 pub struct CmdlineInfo {
     pub cmdbuff: *mut c_char,
+    pub cmdbuff_vec: Vec<c_char>,
     pub cmdbufflen: c_int,
     pub cmdlen: c_int,
     pub cmdpos: c_int,
@@ -1437,6 +1438,7 @@ impl CmdlineInfo {
     pub const fn new() -> Self {
         Self {
             cmdbuff: ptr::null_mut(),
+            cmdbuff_vec: Vec::new(),
             cmdbufflen: 0,
             cmdlen: 0,
             cmdpos: 0,

@@ -94,9 +94,7 @@ use crate::mbyte::{
     utf8len_tab_zero, utfc_ptr2len,
 };
 use crate::memline::{decl, incl};
-use crate::memory::{
-    Arena, arena_alloc, arena_finish, arena_mem_free, cstr_take, xfree, xmalloc, xmallocz,
-};
+use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free, xfree, xmalloc};
 use crate::message::{
     emsg, msg, msg_check, msg_clr_eos, msg_cursor_goto, msg_grid_validate, msg_outtrans_len,
     msg_putchar, msg_puts_hl, msg_puts_len, msg_start, msg_starthere, sb_text_end_cmdline,
@@ -1016,7 +1014,7 @@ unsafe fn command_line_enter(
     count: c_int,
     indent: c_int,
     clear_ccline: bool,
-) -> *mut u8 {
+) -> Option<std::ffi::CString> {
     unsafe {
         cmdline_level += 1;
 
@@ -1329,7 +1327,11 @@ unsafe fn command_line_enter(
         let lc_colors = &raw mut ccline.last_colors.colors;
         *lc_colors = Vec::new();
 
-        let p = ccline.cmdbuff;
+        let ret = if !ccline.cmdbuff.is_null() {
+            Some(CStr::from_ptr(ccline.cmdbuff).to_owned())
+        } else {
+            None
+        };
 
         if ui_has(kUICmdline) {
             ui_ext_cmdline_hide((*s).gotesc);
@@ -1344,11 +1346,11 @@ unsafe fn command_line_enter(
         if did_save_ccline {
             restore_cmdline(&raw mut save_ccline);
         } else {
-            ccline.cmdbuff = ptr::null_mut();
+            dealloc_cmdbuff();
         }
 
         (*s).prev_cmdbuff = None;
-        p.cast::<u8>()
+        ret
     }
 }
 
@@ -3337,8 +3339,8 @@ pub unsafe fn getcmdline(
     count: c_int,
     indent: c_int,
     _do_concat: bool,
-) -> *mut c_char {
-    unsafe { command_line_enter(firstc, count, indent, true).cast::<c_char>() }
+) -> Option<std::ffi::CString> {
+    unsafe { command_line_enter(firstc, count, indent, true) }
 }
 
 /// Get a command line with a prompt.
@@ -3351,7 +3353,7 @@ pub unsafe fn getcmdline_prompt(
     highlight_callback: Callback,
     one_key: bool,
     mouse_used: *mut bool,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
         let msg_col_save = msg_col;
 
@@ -3380,7 +3382,7 @@ pub unsafe fn getcmdline_prompt(
         msg_silent = 0;
         cmd_silent = false;
 
-        let ret = command_line_enter(firstc, 1, 0, false).cast::<c_char>();
+        let ret = command_line_enter(firstc, 1, 0, false);
         ccline.redraw_state = kCmdRedrawNone;
 
         if did_save_ccline {
@@ -3582,7 +3584,7 @@ pub unsafe fn getexline(c: c_int, indent: c_int, do_concat: bool) -> Option<std:
             vgetc();
         }
 
-        cstr_take(getcmdline(c, 1, indent, do_concat))
+        getcmdline(c, 1, indent, do_concat)
     }
 }
 
@@ -3598,7 +3600,8 @@ pub unsafe fn cmdline_at_end() -> bool {
 /// Deallocate a command line buffer, updating the buffer size and length.
 unsafe fn dealloc_cmdbuff() {
     unsafe {
-        xfree(ccline.cmdbuff.cast());
+        let cb = &raw mut ccline.cmdbuff_vec;
+        *cb = Vec::new();
         ccline.cmdbuff = ptr::null_mut();
         ccline.cmdbufflen = 0;
         ccline.cmdlen = 0;
@@ -3614,22 +3617,31 @@ unsafe fn alloc_cmdbuff(mut len: c_int) {
             len += 20;
         }
 
-        ccline.cmdbuff = xmalloc(len as usize).cast::<c_char>();
+        let cb = &raw mut ccline.cmdbuff_vec;
+        *cb = vec![0; len as usize];
+        ccline.cmdbuff = (*cb).as_mut_ptr();
         ccline.cmdbufflen = len;
     }
 }
 
 /// Re-allocate the command line to length `len` + something extra.
-pub unsafe fn realloc_cmdbuff(len: c_int) {
+pub unsafe fn realloc_cmdbuff(mut len: c_int) {
     unsafe {
         if len < ccline.cmdbufflen {
             return;
         }
 
-        let p = ccline.cmdbuff;
+        if len < 80 {
+            len = 100;
+        } else {
+            len += 20;
+        }
 
-        alloc_cmdbuff(len);
-        ptr::copy(p, ccline.cmdbuff, ccline.cmdlen as usize);
+        let p = ccline.cmdbuff;
+        let cb = &raw mut ccline.cmdbuff_vec;
+        (*cb).resize(len as usize, 0);
+        ccline.cmdbuff = (*cb).as_mut_ptr();
+        ccline.cmdbufflen = len;
         *ccline.cmdbuff.add(ccline.cmdlen as usize) = NUL;
 
         if !ccline.xpc.is_null()
@@ -3643,8 +3655,6 @@ pub unsafe fn realloc_cmdbuff(len: c_int) {
                 (*ccline.xpc).xp_pattern = ccline.cmdbuff.add(i as usize);
             }
         }
-
-        xfree(p.cast());
     }
 }
 
@@ -4119,9 +4129,9 @@ unsafe fn ui_ext_cmdline_show(line: *mut CmdlineInfo) {
 pub unsafe fn ui_ext_cmdline_block_append(indent: usize, line: *const c_char) {
     unsafe {
         let line_len = strlen(line);
-        let buf = xmallocz(indent + line_len).cast::<c_char>();
-        ptr::write_bytes(buf.cast::<u8>(), b' ', indent);
-        ptr::copy_nonoverlapping(line, buf.add(indent), line_len);
+        let mut buf: Vec<c_char> = Vec::with_capacity(indent + line_len);
+        buf.resize(indent, b' ' as c_char);
+        buf.extend_from_slice(std::slice::from_raw_parts(line, line_len));
 
         let mut item = Array {
             size: 0,
@@ -4129,7 +4139,13 @@ pub unsafe fn ui_ext_cmdline_block_append(indent: usize, line: *const c_char) {
             items: ptr::null_mut(),
         };
         array_add(&mut item, integer_obj(0));
-        array_add(&mut item, cstr_as_obj(buf));
+        array_add(
+            &mut item,
+            string_obj(crate::api::private::helpers::cbuf_to_string(
+                buf.as_ptr(),
+                buf.len(),
+            )),
+        );
         array_add(&mut item, integer_obj(0));
         let mut content = Array {
             size: 0,
@@ -4651,7 +4667,7 @@ pub unsafe fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> *mut
             };
             let mut res = vim_strsave_escaped(fname, chars);
             if what == VSE_SHELL && csh_like_shell() != 0 {
-                let prev = cstr_take(res);
+                let prev = crate::memory::cstr_take(res);
                 res = vim_strsave_escaped(
                     prev.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
                     c"!".as_ptr(),
@@ -5381,7 +5397,7 @@ pub unsafe fn get_user_input(
         let save_ex_normal_busy = ex_normal_busy;
         ex_normal_busy = 0;
         atom_payload_start();
-        (*rettv).vval.v_string = getcmdline_prompt(
+        let res = getcmdline_prompt(
             if secret { NUL as c_int } else { b'@' as c_int },
             p,
             get_echo_hl_id(),
@@ -5397,7 +5413,13 @@ pub unsafe fn get_user_input(
         ex_normal_busy = save_ex_normal_busy;
         callback_free(&raw mut input_callback);
 
-        if (*rettv).vval.v_string.is_null() && !cancelreturn.is_null() {
+        if let Some(res_cstr) = res {
+            crate::eval::typval::tv_set_string_len(
+                rettv,
+                res_cstr.as_ptr(),
+                res_cstr.as_bytes().len(),
+            );
+        } else if !cancelreturn.is_null() {
             tv_copy(cancelreturn, rettv);
         }
 

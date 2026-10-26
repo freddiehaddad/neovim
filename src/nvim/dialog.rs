@@ -10,7 +10,7 @@ use crate::keycodes::{CAR, ESC};
 use crate::main_init::input_unanswerable;
 use crate::mapping::REMAP_YES;
 use crate::mbyte::{mb_tolower, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len};
-use crate::memory::cstr_take;
+
 use crate::message::{HLF_M, display_confirm_msg, msg_end_prompt, msg_putchar, set_keep_msg};
 use crate::mouse::setmouse;
 use crate::os::input::input_available;
@@ -266,7 +266,7 @@ pub unsafe fn prompt_for_input(
 
         no_mapping += 1;
         allow_keys += 1;
-        let resp = cstr_take(getcmdline_prompt(
+        let resp = getcmdline_prompt(
             -1,
             prompt_ptr,
             hl_id,
@@ -275,7 +275,7 @@ pub unsafe fn prompt_for_input(
             Callback::NONE,
             one_key,
             mouse_used,
-        ));
+        );
         allow_keys -= 1;
         no_mapping -= 1;
 

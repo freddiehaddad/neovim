@@ -5018,7 +5018,7 @@ unsafe fn nv_search(cap: *mut cmdarg_T) {
             return;
         }
 
-        (*cap).searchbuf = cstr_take(getcmdline((*cap).cmdchar, (*cap).count1, 0, true));
+        (*cap).searchbuf = getcmdline((*cap).cmdchar, (*cap).count1, 0, true);
 
         let Some(ref sbuf) = (*cap).searchbuf else {
             clearop(oap);
