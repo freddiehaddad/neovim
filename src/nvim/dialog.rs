@@ -10,7 +10,7 @@ use crate::keycodes::{CAR, ESC};
 use crate::main_init::input_unanswerable;
 use crate::mapping::REMAP_YES;
 use crate::mbyte::{mb_tolower, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len};
-use crate::memory::{xfree, xmalloc, xstrdup};
+use crate::memory::cstr_take;
 use crate::message::{HLF_M, display_confirm_msg, msg_end_prompt, msg_putchar, set_keep_msg};
 use crate::mouse::setmouse;
 use crate::os::input::input_available;
@@ -34,9 +34,9 @@ pub(crate) const VIM_DISCARDALL: c_int = 6;
 const HAS_HOTKEY_LEN: usize = 30;
 const HOTK_LEN: usize = 4;
 
-pub static mut confirm_msg: *mut c_char = std::ptr::null_mut();
+pub static mut confirm_msg: Option<std::ffi::CString> = None;
 
-pub static mut confirm_buttons: *mut c_char = std::ptr::null_mut();
+pub static mut confirm_buttons: Vec<c_char> = Vec::new();
 
 unsafe fn copy_char(from: *const c_char, to: *mut c_char, lowercase: bool) -> usize {
     unsafe {
@@ -55,7 +55,7 @@ unsafe fn console_dialog_alloc(
     message: *const c_char,
     buttons: *const c_char,
     has_hotkey: &mut [bool; HAS_HOTKEY_LEN],
-) -> *mut c_char {
+) -> Vec<c_char> {
     unsafe {
         let mut lenhotkey = HOTK_LEN;
         has_hotkey[0] = false;
@@ -86,7 +86,6 @@ unsafe fn console_dialog_alloc(
         }
 
         let msg_bytes = CStr::from_ptr(message).to_bytes();
-        let msg_len = msg_bytes.len() + 3;
         button_len += CStr::from_ptr(buttons).to_bytes().len() + 3;
         lenhotkey += 1;
 
@@ -94,22 +93,19 @@ unsafe fn console_dialog_alloc(
             button_len += 2;
         }
 
-        confirm_msg = xmalloc(msg_len).cast::<c_char>();
-        let dst = confirm_msg.cast::<u8>();
-        if ui_has(K_UI_MESSAGES) {
-            std::ptr::copy_nonoverlapping(msg_bytes.as_ptr(), dst, msg_bytes.len());
-            *dst.add(msg_bytes.len()) = 0;
+        confirm_msg = Some(if ui_has(K_UI_MESSAGES) {
+            CStr::from_ptr(message).to_owned()
         } else {
-            *dst = b'\n';
-            std::ptr::copy_nonoverlapping(msg_bytes.as_ptr(), dst.add(1), msg_bytes.len());
-            *dst.add(1 + msg_bytes.len()) = b'\n';
-            *dst.add(2 + msg_bytes.len()) = 0;
-        }
+            let mut v = Vec::with_capacity(msg_bytes.len() + 2);
+            v.push(b'\n');
+            v.extend_from_slice(msg_bytes);
+            v.push(b'\n');
+            std::ffi::CString::new(v).unwrap_or_default()
+        });
 
-        xfree(confirm_buttons.cast());
-        confirm_buttons = xmalloc(button_len).cast::<c_char>();
+        confirm_buttons = vec![0 as c_char; button_len];
 
-        xmalloc(lenhotkey).cast::<c_char>()
+        vec![0 as c_char; lenhotkey]
     }
 }
 
@@ -124,7 +120,7 @@ unsafe fn copy_confirm_hotkeys(
         *hotkeys_ptr.add(first_len) = 0;
 
         let mut first_hotkey = !has_hotkey[0];
-        let mut msgp = confirm_buttons;
+        let mut msgp = (&raw mut confirm_buttons).as_mut().unwrap().as_mut_ptr();
         let mut idx = 0usize;
         let mut r = buttons;
 
@@ -197,11 +193,11 @@ unsafe fn msg_show_console_dialog(
     message: *const c_char,
     buttons: *const c_char,
     dfltbutton: c_int,
-) -> *mut c_char {
+) -> Vec<c_char> {
     unsafe {
         let mut has_hotkey = [false; HAS_HOTKEY_LEN];
-        let hotk = console_dialog_alloc(message, buttons, &mut has_hotkey);
-        copy_confirm_hotkeys(buttons, dfltbutton, &has_hotkey, hotk);
+        let mut hotk = console_dialog_alloc(message, buttons, &mut has_hotkey);
+        copy_confirm_hotkeys(buttons, dfltbutton, &has_hotkey, hotk.as_mut_ptr());
         display_confirm_msg();
         hotk
     }
@@ -215,17 +211,18 @@ pub unsafe fn ask_yesno(str_ptr: *const c_char) -> c_int {
 
         let s_bytes = CStr::from_ptr(str_ptr).to_bytes();
         let suffix = b" (y/n)?\0";
-        let prompt = xmalloc(s_bytes.len() + suffix.len()).cast::<c_char>();
-        std::ptr::copy_nonoverlapping(s_bytes.as_ptr(), prompt.cast::<u8>(), s_bytes.len());
-        std::ptr::copy_nonoverlapping(
-            suffix.as_ptr(),
-            prompt.cast::<u8>().add(s_bytes.len()),
-            suffix.len(),
-        );
+        let mut prompt = Vec::with_capacity(s_bytes.len() + suffix.len());
+        prompt.extend_from_slice(s_bytes);
+        prompt.extend_from_slice(suffix);
 
         let mut r: c_int = b' ' as c_int;
         while r != (b'y' as c_int) && r != (b'n' as c_int) {
-            r = prompt_for_input(prompt, HLF_R, true, std::ptr::null_mut());
+            r = prompt_for_input(
+                prompt.as_mut_ptr().cast::<c_char>(),
+                HLF_R,
+                true,
+                std::ptr::null_mut(),
+            );
             if r == CTRL_C || r == ESC {
                 r = b'n' as c_int;
                 if !ui_has(K_UI_MESSAGES) {
@@ -238,7 +235,6 @@ pub unsafe fn ask_yesno(str_ptr: *const c_char) -> c_int {
         no_wait_return -= 1;
         State = save_state;
         setmouse();
-        xfree(prompt.cast());
         r
     }
 }
@@ -252,11 +248,7 @@ pub unsafe fn prompt_for_input(
 ) -> c_int {
     unsafe {
         let mut ret = if one_key { ESC } else { 0 };
-        let kmsg = if !keep_msg.is_null() {
-            xstrdup(keep_msg)
-        } else {
-            std::ptr::null_mut()
-        };
+        let kmsg = (!keep_msg.is_null()).then(|| CStr::from_ptr(keep_msg).to_owned());
 
         let prompt_ptr: *const c_char = if prompt.is_null() {
             if !mouse_used.is_null() && ui_mouse_has(K_MOUSE_COMMAND) {
@@ -274,7 +266,7 @@ pub unsafe fn prompt_for_input(
 
         no_mapping += 1;
         allow_keys += 1;
-        let resp = getcmdline_prompt(
+        let resp = cstr_take(getcmdline_prompt(
             -1,
             prompt_ptr,
             hl_id,
@@ -283,15 +275,15 @@ pub unsafe fn prompt_for_input(
             Callback::NONE,
             one_key,
             mouse_used,
-        );
+        ));
         allow_keys -= 1;
         no_mapping -= 1;
 
-        if !resp.is_null() {
+        if let Some(ref resp_cstr) = resp {
             if one_key {
-                ret = *resp as c_int;
+                ret = *resp_cstr.as_ptr() as c_int;
             } else {
-                let s = CStr::from_ptr(resp).to_string_lossy();
+                let s = resp_cstr.to_string_lossy();
                 let trimmed = s.trim_start();
                 let mut sign: c_int = 1;
                 let digits = if let Some(rest) = trimmed.strip_prefix('-') {
@@ -312,12 +304,10 @@ pub unsafe fn prompt_for_input(
                 }
                 ret = val.wrapping_mul(sign);
             }
-            xfree(resp.cast());
         }
 
-        if !kmsg.is_null() {
-            set_keep_msg(kmsg, keep_msg_hl_id);
-            xfree(kmsg.cast());
+        if let Some(ref kmsg_cstr) = kmsg {
+            set_keep_msg(kmsg_cstr.as_ptr(), keep_msg_hl_id);
         }
 
         ret
@@ -344,7 +334,8 @@ pub unsafe fn do_dialog(
         msg_silent = 0;
         no_wait_return += 1;
 
-        let hotkeys = msg_show_console_dialog(message, buttons, dfltbutton);
+        let hotkeys_vec = msg_show_console_dialog(message, buttons, dfltbutton);
+        let hotkeys = hotkeys_vec.as_ptr();
         let retval: c_int;
 
         loop {
@@ -353,7 +344,12 @@ pub unsafe fn do_dialog(
                 break;
             }
 
-            let mut c = prompt_for_input(confirm_buttons, HLF_M, true, std::ptr::null_mut());
+            let mut c = prompt_for_input(
+                (&raw mut confirm_buttons).as_mut().unwrap().as_mut_ptr(),
+                HLF_M,
+                true,
+                std::ptr::null_mut(),
+            );
             match c {
                 CAR | 0 => {
                     retval = dfltbutton;
@@ -395,9 +391,8 @@ pub unsafe fn do_dialog(
             }
         }
 
-        xfree(hotkeys.cast());
-        xfree(confirm_msg.cast());
-        confirm_msg = std::ptr::null_mut();
+        drop(hotkeys_vec);
+        confirm_msg = None;
 
         msg_silent = save_msg_silent;
         State = old_state;

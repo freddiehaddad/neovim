@@ -40,9 +40,7 @@ use crate::lua::converter::Boolean;
 use crate::lua::executor::nlua_set_sctx;
 use crate::math::OK;
 use crate::mbyte::{mb_stricmp, mb_strnicmp};
-use crate::memory::{
-    Arena, arena_finish, arena_mem_free, arena_memdupz, xfree, xmalloc, xmemrchr, xstrdup, xstrlcat,
-};
+use crate::memory::{Arena, arena_finish, arena_mem_free, arena_memdupz, xmemrchr, xstrlcat};
 use crate::message::{
     emsg, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind, msg_outtrans, msg_putchar,
     msg_puts_hl, msg_source, semsg,
@@ -113,7 +111,7 @@ pub struct color_name_table_T {
 unsafe impl Sync for color_name_table_T {}
 
 #[repr(C)]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 struct HlGroup {
     sg_name: *mut c_char,
     sg_name_u: *mut c_char,
@@ -136,7 +134,7 @@ struct HlGroup {
     sg_rgb_bg_idx: c_int,
     sg_rgb_sp_idx: c_int,
     sg_blend: c_int,
-    sg_font: *mut c_char,
+    sg_font: Option<std::ffi::CString>,
     sg_parent: c_int,
 }
 
@@ -164,7 +162,7 @@ impl HlGroup {
             sg_rgb_bg_idx: 0,
             sg_rgb_sp_idx: 0,
             sg_blend: 0,
-            sg_font: ptr::null_mut(),
+            sg_font: None,
             sg_parent: 0,
         }
     }
@@ -864,9 +862,8 @@ pub unsafe fn init_highlight(both: bool, reset: bool) {
     unsafe {
         let p = get_var_value(c"g:colors_name".as_ptr());
         if !p.is_null() {
-            let copy_p = xstrdup(p);
-            let okay = load_colors(copy_p) != 0;
-            xfree(copy_p.cast());
+            let copy_p = CStr::from_ptr(p).to_owned();
+            let okay = load_colors(copy_p.as_ptr().cast_mut()) != 0;
             if okay {
                 return;
             }
@@ -902,18 +899,12 @@ pub unsafe fn load_colors(name: *mut c_char) -> c_int {
 
         load_colors_recursive = true;
         let name_bytes = CStr::from_ptr(name).to_bytes();
-        let buflen = name_bytes.len() + 12;
-        let buf = xmalloc(buflen).cast::<u8>();
+        let mut buf = Vec::with_capacity(name_bytes.len() + 12);
         apply_autocmds(EVENT_COLORSCHEMEPRE, name, (*curbuf).b_fname, false, curbuf);
-        ptr::copy_nonoverlapping(b"colors/".as_ptr(), buf, 7);
-        ptr::copy_nonoverlapping(name_bytes.as_ptr(), buf.add(7), name_bytes.len());
-        ptr::copy_nonoverlapping(
-            c".*".as_ptr().cast::<u8>(),
-            buf.add(7 + name_bytes.len()),
-            3,
-        );
-        let retval = source_runtime_vim_lua(buf.cast::<c_char>(), DIP_START + DIP_OPT);
-        xfree(buf.cast());
+        buf.extend_from_slice(b"colors/");
+        buf.extend_from_slice(name_bytes);
+        buf.extend_from_slice(b".*\0");
+        let retval = source_runtime_vim_lua(buf.as_mut_ptr().cast::<c_char>(), DIP_START + DIP_OPT);
         if retval == OK {
             apply_autocmds(EVENT_COLORSCHEME, name, (*curbuf).b_fname, false, curbuf);
         }
@@ -1067,11 +1058,9 @@ pub unsafe fn set_hl_group(
         }
 
         if attrs.font >= 0 {
-            xfree(g.sg_font.cast());
-            g.sg_font = xstrdup(hl_get_font(attrs.font));
+            g.sg_font = Some(CStr::from_ptr(hl_get_font(attrs.font)).to_owned());
         } else if has_key((*dict).is_set__highlight_, KEYSET_OPTIDX_highlight__font) || !update {
-            xfree(g.sg_font.cast());
-            g.sg_font = ptr::null_mut();
+            g.sg_font = None;
         }
 
         g.sg_script_ctx = current_sctx;
@@ -1272,7 +1261,7 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
             return;
         }
 
-        let item_before = *hl_table().add(idx as usize);
+        let item_before = (*hl_table().add(idx as usize)).clone();
         let is_normal_group =
             CStr::from_ptr((*hl_table().add(idx as usize)).sg_name_u).to_bytes() == b"NORMAL";
 
@@ -1413,12 +1402,10 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                     if !init {
                         (*hl_table().add(idx as usize)).sg_set |= SG_GUI;
                     }
-                    if !(*hl_table().add(idx as usize)).sg_font.is_null() {
-                        xfree((*hl_table().add(idx as usize)).sg_font.cast());
-                        (*hl_table().add(idx as usize)).sg_font = ptr::null_mut();
-                    }
+                    (*hl_table().add(idx as usize)).sg_font = None;
                     if CStr::from_ptr(arg.as_ptr()).to_bytes() != b"NONE" {
-                        (*hl_table().add(idx as usize)).sg_font = xstrdup(arg.as_ptr());
+                        (*hl_table().add(idx as usize)).sg_font =
+                            Some(CStr::from_ptr(arg.as_ptr()).to_owned());
                     }
                 } else if *key_bytes == b"CTERMFG" || *key_bytes == b"CTERMBG" {
                     if !init || ((*hl_table().add(idx as usize)).sg_set & SG_CTERM) == 0 {
@@ -1613,9 +1600,6 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
 pub unsafe fn free_highlight() {
     unsafe {
         let ga = &raw mut highlight_ga;
-        for hlg in (*ga).drain(..) {
-            xfree(hlg.sg_font.cast());
-        }
         *ga = Vec::new();
         let unames_ptr = &raw mut highlight_unames;
         *unames_ptr = std::collections::BTreeMap::new();
@@ -1664,10 +1648,7 @@ unsafe fn highlight_clear(idx: c_int) {
         g.sg_rgb_bg_idx = kColorIdxNone;
         g.sg_rgb_sp_idx = kColorIdxNone;
         g.sg_blend = -1;
-        if !g.sg_font.is_null() {
-            xfree(g.sg_font.cast());
-            g.sg_font = ptr::null_mut();
-        }
+        g.sg_font = None;
         g.sg_link = g.sg_deflink;
         g.sg_script_ctx = g.sg_deflink_sctx;
     }
@@ -1754,7 +1735,14 @@ unsafe fn highlight_list_one(id: c_int) {
             c"blend".as_ptr(),
         );
 
-        didh = highlight_list_arg(id, didh, LIST_STRING, 0, sgp.sg_font, c"font".as_ptr());
+        didh = highlight_list_arg(
+            id,
+            didh,
+            LIST_STRING,
+            0,
+            sgp.sg_font.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+            c"font".as_ptr(),
+        );
 
         if sgp.sg_link != 0 && !got_int {
             syn_list_header(didh, 0, id, true);
@@ -2144,8 +2132,8 @@ unsafe fn set_hl_attr(idx: c_int) {
             -1
         };
         at_en.hl_blend = sgp.sg_blend;
-        if !sgp.sg_font.is_null() {
-            at_en.font = hl_add_font_idx(sgp.sg_font);
+        if let Some(ref font) = sgp.sg_font {
+            at_en.font = hl_add_font_idx(font.as_ptr());
         }
 
         sgp.sg_attr = hl_get_syn_attr(0, idx + 1, at_en);
@@ -2270,11 +2258,12 @@ unsafe fn syn_add_group(name: *const c_char, len: usize) -> c_int {
         hlg.sg_parent = scoped_parent;
         hlg.sg_cleared = true;
         vim_strup(hlg.sg_name_u);
+        let name_u_bytes = CStr::from_ptr(hlg.sg_name_u).to_bytes().to_vec();
         (*ga).push(hlg);
 
         let id = hl_len();
         let unames_ptr = &raw mut highlight_unames;
-        (*unames_ptr).insert(CStr::from_ptr(hlg.sg_name_u).to_bytes().to_vec(), id);
+        (*unames_ptr).insert(name_u_bytes, id);
 
         id
     }
@@ -2394,7 +2383,7 @@ unsafe fn combine_stl_hlt(
             (*hlt.add(dst)).sg_cterm = highlight_attr[hlf];
             (*hlt.add(dst)).sg_gui = highlight_attr[hlf];
         } else {
-            *hlt.add(dst) = *hlt.add((id_alt - 1) as usize);
+            *hlt.add(dst) = (*hlt.add((id_alt - 1) as usize)).clone();
         }
         (*hlt.add(dst)).sg_link = 0;
 

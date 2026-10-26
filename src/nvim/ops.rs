@@ -61,7 +61,7 @@ use crate::memline::{
     dec, decl, gchar_pos, inc, ml_append, ml_get, ml_get_buf_len, ml_get_buf_mut, ml_get_len,
     ml_get_pos, ml_get_pos_len, ml_replace, ml_replace_len,
 };
-use crate::memory::{xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz};
+use crate::memory::xmemcpyz;
 use crate::message::{emsg, internal_error, msg, msg_keep, msg_start, msgmore, smsg};
 use crate::mouse::setmouse;
 use crate::r#move::validate_virtcol;
@@ -488,6 +488,7 @@ unsafe fn shift_block(oap: *mut oparg_T, amount: c_int) {
         let oldp = get_cursor_line_ptr();
         let old_line_len = get_cursor_line_len();
 
+        let mut newp_vec: Vec<c_char>;
         let newp: *mut c_char;
         let startcol: c_int;
         let oldlen: c_int;
@@ -555,7 +556,8 @@ unsafe fn shift_block(oap: *mut oparg_T, amount: c_int) {
                 + tabs
                 + spaces
                 + (old_line_len - (bd.textstart.offset_from(oldp) as c_int));
-            newp = xmalloc((new_line_len as usize) + 1).cast();
+            newp_vec = vec![0 as c_char; (new_line_len as usize) + 1];
+            newp = newp_vec.as_mut_ptr();
             ptr::copy(oldp, newp, bd.textcol as usize);
             startcol = bd.textcol;
             oldlen = (bd.textstart.offset_from(old_textstart) as c_int) + col_pre;
@@ -640,7 +642,8 @@ unsafe fn shift_block(oap: *mut oparg_T, amount: c_int) {
             let new_line_len =
                 fixedlen + fill + (old_line_len - (non_white.offset_from(oldp) as c_int));
 
-            newp = xmalloc((new_line_len as usize) + 1).cast();
+            newp_vec = vec![0 as c_char; (new_line_len as usize) + 1];
+            newp = newp_vec.as_mut_ptr();
             startcol = fixedlen;
             oldlen = bd.textcol + (non_white.offset_from(bd.textstart) as c_int) - fixedlen;
             newlen = fill;
@@ -649,7 +652,8 @@ unsafe fn shift_block(oap: *mut oparg_T, amount: c_int) {
             strcpy(newp.add((fixedlen + fill) as usize), non_white);
             debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
         }
-        ml_replace((*curwin).w_cursor.lnum, newp, false);
+        ml_replace((*curwin).w_cursor.lnum, newp, true);
+        drop(newp_vec);
         changed_bytes((*curwin).w_cursor.lnum, bd.textcol);
         extmark_splice_cols(
             curbuf,
@@ -734,7 +738,8 @@ unsafe fn block_insert(
                 }
                 + (count as usize)
                 + 1;
-            let newp: *mut c_char = xmalloc(alloc_len).cast();
+            let mut newp_vec = vec![0 as c_char; alloc_len];
+            let newp: *mut c_char = newp_vec.as_mut_ptr();
 
             ptr::copy(oldp, newp, offset as usize);
             oldp = oldp.add(offset as usize);
@@ -766,7 +771,8 @@ unsafe fn block_insert(
             }
             strcpy(newp.add(offset as usize), oldp);
 
-            ml_replace(lnum, newp, false);
+            ml_replace(lnum, newp, true);
+            drop(newp_vec);
             extmark_splice_cols(
                 curbuf,
                 lnum - 1,
@@ -916,7 +922,8 @@ pub unsafe fn op_delete(oap: *mut oparg_T) -> c_int {
 
                     let n = bd.textlen - bd.startspaces - bd.endspaces;
                     let oldp = ml_get(lnum);
-                    let newp: *mut c_char = xmalloc(((ml_get_len(lnum) - n) as usize) + 1).cast();
+                    let mut newp_vec = vec![0 as c_char; ((ml_get_len(lnum) - n) as usize) + 1];
+                    let newp: *mut c_char = newp_vec.as_mut_ptr();
                     ptr::copy(oldp, newp, bd.textcol as usize);
                     ptr::write_bytes(
                         newp.add(bd.textcol as usize),
@@ -927,7 +934,8 @@ pub unsafe fn op_delete(oap: *mut oparg_T) -> c_int {
                         newp.add((bd.textcol + bd.startspaces + bd.endspaces) as usize),
                         oldp.add((bd.textcol + bd.textlen) as usize),
                     );
-                    ml_replace(lnum, newp, false);
+                    ml_replace(lnum, newp, true);
+                    drop(newp_vec);
 
                     extmark_splice_cols(
                         curbuf,
@@ -1246,7 +1254,8 @@ unsafe fn op_replace(oap: *mut oparg_T, mut c: c_int) -> c_int {
                         newp_size += (bd.endspaces + oldlen - bd.textcol - bd.textlen) as usize;
                     }
                 }
-                let newp: *mut c_char = xmallocz(newp_size).cast();
+                let mut newp_vec = vec![0 as c_char; newp_size + 1];
+                let newp: *mut c_char = newp_vec.as_mut_ptr();
                 ptr::copy(oldp, newp, bd.textcol as usize);
                 oldp = oldp.add((bd.textcol + bd.textlen) as usize);
                 ptr::write_bytes(newp.add(bd.textcol as usize), b' ', bd.startspaces as usize);
@@ -1271,7 +1280,8 @@ unsafe fn op_replace(oap: *mut oparg_T, mut c: c_int) -> c_int {
                     after_p.extend_from_slice(std::slice::from_raw_parts(oldp, col as usize));
                     newrows = 1;
                 }
-                ml_replace((*curwin).w_cursor.lnum, newp, false);
+                ml_replace((*curwin).w_cursor.lnum, newp, true);
+                drop(newp_vec);
                 curbuf_splice_pending += 1;
                 let baselnum = (*curwin).w_cursor.lnum;
                 if !after_p.is_empty() {
@@ -1708,11 +1718,13 @@ pub unsafe fn op_insert(oap: *mut oparg_T, count1: c_int) {
             len -= add;
             let ins_len = len - pre_textlen - offset;
             if pre_textlen >= 0 && ins_len > 0 {
-                let ins_text: *mut c_char = xmemdupz(firstline.cast(), ins_len as usize).cast();
+                let mut ins_text = Vec::with_capacity(ins_len as usize + 1);
+                ins_text.extend_from_slice(std::slice::from_raw_parts(firstline, ins_len as usize));
+                ins_text.push(NUL);
                 if u_save((*oap).start.lnum, (*oap).end.lnum + 1) == OK {
                     block_insert(
                         oap,
-                        ins_text,
+                        ins_text.as_ptr(),
                         ins_len as usize,
                         (*oap).op_type == OP_INSERT,
                         &raw mut bd,
@@ -1721,7 +1733,6 @@ pub unsafe fn op_insert(oap: *mut oparg_T, count1: c_int) {
 
                 (*curwin).w_cursor.col = (*oap).start.col;
                 check_cursor(curwin);
-                xfree(ins_text.cast());
             }
         }
     }
@@ -1806,13 +1817,14 @@ pub unsafe fn op_change(oap: *mut oparg_T) -> c_int {
                             vpos.coladd = 0;
                         }
                         let oldp = ml_get(linenr);
-                        let newp: *mut c_char = xmalloc(
+                        let mut newp_vec = vec![
+                            0 as c_char;
                             (ml_get_len(linenr) as usize)
                                 + (vpos.coladd as usize)
                                 + (ins_len as usize)
-                                + 1,
-                        )
-                        .cast();
+                                + 1
+                        ];
+                        let newp: *mut c_char = newp_vec.as_mut_ptr();
                         ptr::copy(oldp, newp, bd.textcol as usize);
                         let mut newlen = bd.textcol;
                         ptr::write_bytes(newp.add(newlen as usize), b' ', vpos.coladd as usize);
@@ -1824,7 +1836,8 @@ pub unsafe fn op_change(oap: *mut oparg_T) -> c_int {
                         );
                         newlen += ins_len;
                         strcpy(newp.add(newlen as usize), oldp.add(bd.textcol as usize));
-                        ml_replace(linenr, newp, false);
+                        ml_replace(linenr, newp, true);
+                        drop(newp_vec);
                         extmark_splice_cols(
                             curbuf,
                             linenr - 1,
@@ -2059,7 +2072,8 @@ pub unsafe fn do_join(
             let col = sumsize - currsize - c_int::from(*spaces.add(count - 1));
 
             let newp_len = sumsize as usize;
-            let newp: *mut c_char = xmallocz(newp_len).cast();
+            let mut newp_vec = vec![0 as c_char; newp_len + 1];
+            let newp: *mut c_char = newp_vec.as_mut_ptr();
             cend = newp.add(sumsize as usize);
 
             curbuf_splice_pending += 1;
@@ -2099,7 +2113,8 @@ pub unsafe fn do_join(
                 t -= 1;
             }
 
-            ml_replace_len((*curwin).w_cursor.lnum, newp, newp_len, false);
+            ml_replace_len((*curwin).w_cursor.lnum, newp, newp_len, true);
+            drop(newp_vec);
 
             if setmark && (cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
                 (*(*curwin).w_buffer).b_op_end.lnum = (*curwin).w_cursor.lnum;

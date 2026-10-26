@@ -2986,7 +2986,7 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
 
                     if p_more != 0 && lines_left == 0 && State != MODE_HITRETURN && !msg_no_more {
                         if do_more_prompt(NUL as c_int) {
-                            s = confirm_buttons;
+                            s = (&raw const confirm_buttons).as_ref().unwrap().as_ptr();
                         }
                         if quit_more {
                             return;
@@ -3788,7 +3788,9 @@ pub unsafe fn repeat_message() {
         if State == MODE_ASKMORE {
             msg_moremsg(true);
             msg_row = Rows - 1;
-        } else if (State & MODE_CMDLINE) != 0 && !confirm_msg.is_null() {
+        } else if (State & MODE_CMDLINE) != 0
+            && (&raw const confirm_msg).as_ref().unwrap().is_some()
+        {
             display_confirm_msg();
             msg_row = Rows - 1;
         } else if State == MODE_EXTERNCMD {
@@ -4209,9 +4211,9 @@ pub unsafe fn msg_advance(mut col: c_int) {
 pub unsafe fn display_confirm_msg() {
     unsafe {
         confirm_msg_used += 1;
-        if !confirm_msg.is_null() {
+        if let Some(ref msg) = *(&raw const confirm_msg).as_ref().unwrap() {
             msg_ext_set_kind(c"confirm".as_ptr());
-            msg_puts_hl(confirm_msg, HLF_M, false);
+            msg_puts_hl(msg.as_ptr(), HLF_M, false);
         }
         confirm_msg_used -= 1;
     }
