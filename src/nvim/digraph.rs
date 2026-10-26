@@ -18,7 +18,7 @@ use crate::input::plain_vgetc;
 use crate::keycodes::{ESC, K_BS};
 use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP, do_map};
 use crate::mbyte::{mb_cptr2char_adv, utf_char2bytes, utf_iscomposing_first};
-use crate::memory::{cstr_take, xstrdup};
+use crate::memory::cstr_take;
 use crate::message::{emsg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar, semsg};
 use crate::normal::add_to_showcmd;
 use crate::option_vars::*;
@@ -2015,7 +2015,7 @@ pub unsafe fn f_digraph_get(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
         let mut buf = [0 as c_char; NUMBUFLEN];
         let len = utf_char2bytes(code, buf.as_mut_ptr()) as usize;
         buf[len] = NUL;
-        (*rettv).vval.v_string = xstrdup(buf.as_ptr());
+        crate::eval::typval::tv_set_string_len(rettv, buf.as_ptr(), len);
     }
 }
 

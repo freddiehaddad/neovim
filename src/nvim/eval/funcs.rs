@@ -5152,7 +5152,10 @@ pub unsafe fn f_keytrans(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             return;
         }
         let escaped = vim_strsave_escape_ks((*argvars).vval.v_string);
-        (*rettv).vval.v_string = str2special_save(escaped.as_ptr(), true, 1);
+        crate::eval::typval::tv_set_string(
+            rettv,
+            str2special_save(escaped.as_ptr(), true, 1).as_ptr(),
+        );
     }
 }
 

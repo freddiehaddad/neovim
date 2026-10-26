@@ -2402,7 +2402,7 @@ pub unsafe fn str2special_save(
     str_: *const c_char,
     replace_spaces: bool,
     replace_others: TriState,
-) -> *mut c_char {
+) -> std::ffi::CString {
     unsafe {
         let mut buf: Vec<u8> = Vec::with_capacity(40);
         let mut p = str_;
@@ -2412,7 +2412,7 @@ pub unsafe fn str2special_save(
                 buf.extend_from_slice(CStr::from_ptr(s).to_bytes());
             }
         }
-        xmemdupz(buf.as_ptr().cast(), buf.len()).cast()
+        crate::memory::cstr_from_bytes(&buf)
     }
 }
 

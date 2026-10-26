@@ -5,7 +5,7 @@ use crate::charset::{Ctrl_V, ascii_isdigit, ascii_iswhite, getdigits_int, skipwh
 use crate::cursor::{check_cursor, gchar_cursor, pos_T};
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, VarType, dict_T, list_T, tv_dict_add_allocated_str, tv_dict_add_bool,
+    EvalFuncData, VarType, dict_T, list_T, tv_dict_add_bool,
     tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len,
     tv_dict_alloc, tv_dict_alloc_ret, tv_get_string_chk, tv_list_alloc, tv_list_append_dict,
     tv_list_append_string, typval_T,
@@ -751,11 +751,11 @@ unsafe fn menu_get_recursive(menu: *const vimmenu_T, modes: c_int) -> *mut dict_
                     let s_ptr = (*menu).strings[bit]
                         .as_ref()
                         .map_or(c"".as_ptr(), |s| s.as_ptr());
-                    tv_dict_add_allocated_str(
+                    tv_dict_add_str(
                         impl_dict,
                         c"rhs".as_ptr(),
                         3,
-                        str2special_save(s_ptr, false, kFalse),
+                        str2special_save(s_ptr, false, kFalse).as_ptr(),
                     );
                     tv_dict_add_nr(
                         impl_dict,
@@ -1917,11 +1917,11 @@ unsafe fn menuitem_getinfo(menu: *const vimmenu_T, modes: c_int, dict: *mut dict
                     if s.as_bytes().is_empty() {
                         tv_dict_add_str(dict, c"rhs".as_ptr(), 3, c"<Nop>".as_ptr());
                     } else {
-                        tv_dict_add_allocated_str(
+                        tv_dict_add_str(
                             dict,
                             c"rhs".as_ptr(),
                             3,
-                            str2special_save(s.as_ptr(), false, kFalse),
+                            str2special_save(s.as_ptr(), false, kFalse).as_ptr(),
                         );
                     }
                 }

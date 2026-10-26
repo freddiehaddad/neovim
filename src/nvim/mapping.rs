@@ -2305,9 +2305,12 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: *mut typval_T, exact: c_int)
         if !get_dict {
             if !rhs.is_null() {
                 if *rhs == NUL {
-                    (*rettv).vval.v_string = xstrdup(c"<Nop>".as_ptr());
+                    crate::eval::typval::tv_set_string(rettv, c"<Nop>".as_ptr());
                 } else {
-                    (*rettv).vval.v_string = str2special_save(rhs, false, kFalse);
+                    crate::eval::typval::tv_set_string(
+                        rettv,
+                        str2special_save(rhs, false, kFalse).as_ptr(),
+                    );
                 }
             } else if rhs_lua != LUA_NOREF {
                 (*rettv).vval.v_string = nlua_funcref_str((*mp).m_luaref, ptr::null_mut(), true);

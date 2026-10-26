@@ -14,7 +14,7 @@ use crate::eval::{get_copyID, partial_name};
 use crate::hashtab::{hashitem_T, hashitem_empty};
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::api_new_luaref;
-use crate::memory::{Arena, arena_memdupz, xstrdup};
+use crate::memory::{Arena, arena_memdupz};
 use std::ffi::{CStr, c_char, c_int};
 
 pub(crate) const K_SPECIAL_VAR_NULL: i64 = 0;
@@ -448,10 +448,8 @@ pub unsafe fn object_to_vim_take_luaref(
                 ref_id = api_new_luaref(ref_id);
             }
             let name = register_luafunc(ref_id);
+            crate::eval::typval::tv_set_string(tv_ref, name);
             tv_ref.v_type = VarType::VAR_FUNC;
-            tv_ref.vval = TypvalVval {
-                v_string: xstrdup(name),
-            };
         },
     }
 }

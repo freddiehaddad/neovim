@@ -31,7 +31,7 @@ use crate::highlight_group::syn_check_group;
 
 use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
 use crate::math::{FAIL, OK};
-use crate::memory::{Arena, arena_memdupz, xstrdup};
+use crate::memory::{Arena, arena_memdupz};
 use crate::message::{emsg, internal_error, semsg};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -795,8 +795,8 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                 LUA_TFUNCTION => {
                     let func = nlua_ref_global(lstate, -1);
                     let name = register_luafunc(func);
+                    crate::eval::typval::tv_set_string(cur.tv, name);
                     (*cur.tv).v_type = VarType::VAR_FUNC;
-                    (*cur.tv).vval.v_string = xstrdup(name);
                 }
                 LUA_TUSERDATA => {
                     nlua_pushref(lstate, (*nlua_global_refs).nil_ref);

@@ -321,23 +321,25 @@ pub(crate) unsafe fn langmap_adjust(c: &mut c_int, condition: bool) {
 }
 
 /// Gets the contents of the record buffer as a string (typeahead encoding) and clears the buffer.
-pub unsafe fn get_recorded() -> *mut c_char {
+pub unsafe fn get_recorded() -> std::ffi::CString {
     unsafe {
         let rb = &raw mut recordbuff;
-        let mut len = (*rb).len();
-        let p = xmemdupz((*rb).as_ptr().cast(), len).cast::<c_char>();
-        *rb = Vec::new();
+        let mut bytes: Vec<u8> = std::mem::take(&mut *rb)
+            .into_iter()
+            .map(|b| b as u8)
+            .collect();
+        let mut len = bytes.len();
 
         if len >= last_recorded_len {
             len -= last_recorded_len;
-            *p.add(len) = NUL as c_char;
+            bytes.truncate(len);
         }
 
-        if len > 0 && restart_edit != 0 && *p.add(len - 1) == Ctrl_O as c_char {
-            *p.add(len - 1) = NUL as c_char;
+        if len > 0 && restart_edit != 0 && bytes[len - 1] == Ctrl_O as u8 {
+            bytes.pop();
         }
 
-        p
+        crate::memory::cstr_from_bytes(&bytes)
     }
 }
 
@@ -2042,8 +2044,7 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow
             }
             assert!(i < 10);
             temp[i] = NUL as c_char;
-            (*rettv).v_type = VarType::VAR_STRING;
-            (*rettv).vval.v_string = xmemdupz(temp.as_ptr().cast(), i).cast();
+            crate::eval::typval::tv_set_string_len(rettv, temp.as_ptr(), i);
 
             if is_mouse_key(ni) {
                 let mut row = mouse_row;

@@ -534,14 +534,12 @@ pub unsafe fn copy_register(name: c_int) -> yankreg_T {
     }
 }
 
-unsafe fn stuff_yank(regname: c_int, p: *mut c_char) -> c_int {
+unsafe fn stuff_yank(regname: c_int, p: *const c_char) -> c_int {
     unsafe {
         if regname != 0 && !valid_yank_reg(regname, true) {
-            xfree(p.cast());
             return FAIL;
         }
         if regname == c_int::from(b'_') {
-            xfree(p.cast());
             return OK;
         }
 
@@ -554,13 +552,12 @@ unsafe fn stuff_yank(regname: c_int, p: *mut c_char) -> c_int {
             ptr::copy_nonoverlapping(pp.data, tmp, pp.size);
             ptr::copy_nonoverlapping(p, tmp.add(pp.size), plen);
             *tmp.add(tmplen) = NUL;
-            xfree(p.cast());
             xfree(pp.data.cast());
             *pp = cbuf_as_string(tmp, tmplen);
         } else {
             *reg = EMPTY_YANKREG;
             reg.additional_data = None;
-            reg.y_array = vec![cbuf_as_string(p, plen)];
+            reg.y_array = vec![cbuf_to_string(p, plen)];
             reg.y_allocated = true;
             reg.y_type = MotionType::kMTCharWise;
         }
@@ -595,11 +592,10 @@ pub unsafe fn do_record(c: c_int) -> c_int {
             let mut save_v_event: save_v_event_T = save_v_event_T::new();
             let dict = get_v_event(&raw mut save_v_event);
 
-            let p = get_recorded();
-            if !p.is_null() {
-                vim_unescape_ks(p);
-                tv_dict_add_str(dict, c"regcontents".as_ptr(), 11, p);
-            }
+            let mut p_vec = get_recorded().into_bytes_with_nul();
+            let p = p_vec.as_mut_ptr().cast::<c_char>();
+            vim_unescape_ks(p);
+            tv_dict_add_str(dict, c"regcontents".as_ptr(), 11, p);
 
             let mut buf = [0 as c_char; NUMBUFLEN + 2];
             buf[0] = do_record_regname as u8 as c_char;
@@ -622,13 +618,9 @@ pub unsafe fn do_record(c: c_int) -> c_int {
             } else {
                 msg(c"".as_ptr(), 0);
             }
-            if p.is_null() {
-                retval = FAIL;
-            } else {
-                let old_y_previous = y_previous;
-                retval = stuff_yank(do_record_regname, p);
-                y_previous = old_y_previous;
-            }
+            let old_y_previous = y_previous;
+            retval = stuff_yank(do_record_regname, p);
+            y_previous = old_y_previous;
         }
         retval
     }
