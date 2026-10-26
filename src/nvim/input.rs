@@ -1343,7 +1343,7 @@ unsafe fn gotchars(chars: *const u8, len: usize) {
                     (&raw const GOTCHARS_STATE.buf).cast::<c_char>(),
                     buflen,
                 ));
-                last_recorded_len += buflen;
+                last_recorded_len = last_recorded_len.wrapping_add(buflen);
             }
 
             atom_typed_add((&raw const GOTCHARS_STATE.buf).cast::<u8>(), buflen);
@@ -1375,7 +1375,7 @@ unsafe fn ungetchars(len: c_int, recorded: bool) {
         let rb = &raw mut recordbuff;
         if recorded && reg_recording != 0 && (*rb).len() >= len_u {
             (*rb).truncate((*rb).len() - len_u);
-            last_recorded_len -= len_u;
+            last_recorded_len = last_recorded_len.wrapping_sub(len_u);
         }
         atom_typed_del(len_u);
         let okb = &raw mut on_key_buf;
@@ -1737,7 +1737,7 @@ pub unsafe fn vgetc() -> c_int {
             vgetc_mod_mask = 0;
             vgetc_char = 0;
 
-            last_recorded_len -= LAST_VGETC_RECORDED_LEN;
+            last_recorded_len = last_recorded_len.wrapping_sub(LAST_VGETC_RECORDED_LEN);
 
             loop {
                 let mut did_inc = false;
@@ -2486,8 +2486,6 @@ unsafe fn handle_mapping(
         }
 
         if keylen >= 0 && keylen <= typebuf.tb_len {
-            let mut map_str: *mut c_char;
-
             if keylen > typebuf.tb_maplen && ((*mp).m_mode & MODE_LANGMAP) == 0 {
                 gotchars(
                     typebuf
@@ -2537,7 +2535,8 @@ unsafe fn handle_mapping(
                 0
             };
 
-            if save_m_expr {
+            let mut owned_map_str: Option<std::ffi::CString> = None;
+            let map_str: *mut c_char = if save_m_expr {
                 let save_vgetc_busy = vgetc_busy;
                 let save_may_garbage_collect = may_garbage_collect;
                 let prev_did_emsg = did_emsg;
@@ -2551,13 +2550,15 @@ unsafe fn handle_mapping(
                 } else {
                     None
                 };
-                map_str = eval_map_expr(mp, NUL);
+                owned_map_str = eval_map_expr(mp, NUL);
 
-                if map_str.is_null() || *map_str == NUL as c_char {
+                if owned_map_str
+                    .as_ref()
+                    .is_none_or(|s| s.to_bytes().is_empty())
+                {
                     if prev_did_emsg != did_emsg {
-                        xfree(map_str.cast());
-                        let buf: [u8; 4] = [K_SPECIAL, KS_EXTRA, KE_IGNORE, 0];
-                        map_str = xmemdupz(buf.as_ptr().cast(), 3).cast();
+                        owned_map_str =
+                            Some(std::ffi::CString::new([K_SPECIAL, KS_EXTRA, KE_IGNORE]).unwrap());
                         if (State & MODE_CMDLINE) != 0 {
                             msg_didout = true;
                             msg_row = msg_row.max(cmdline_row);
@@ -2570,9 +2571,12 @@ unsafe fn handle_mapping(
 
                 vgetc_busy = save_vgetc_busy;
                 may_garbage_collect = save_may_garbage_collect;
+                owned_map_str
+                    .as_ref()
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
             } else {
-                map_str = (*mp).m_str.as_ptr().cast_mut();
-            }
+                (*mp).m_str.as_ptr().cast_mut()
+            };
 
             let i = if map_str.is_null() {
                 FAIL
@@ -2606,12 +2610,9 @@ unsafe fn handle_mapping(
                     REMAP_YES
                 };
 
-                let res = ins_typebuf(map_str, noremap, 0, true, cmd_silent || save_m_silent);
-                if save_m_expr {
-                    xfree(map_str.cast());
-                }
-                res
+                ins_typebuf(map_str, noremap, 0, true, cmd_silent || save_m_silent)
             };
+            drop(owned_map_str);
             drop(save_m_keys);
             drop(save_alt_m_keys);
             *keylenp = keylen;

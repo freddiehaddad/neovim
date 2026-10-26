@@ -5156,8 +5156,7 @@ pub unsafe fn f_keytrans(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             return;
         }
         let escaped = vim_strsave_escape_ks((*argvars).vval.v_string);
-        (*rettv).vval.v_string = str2special_save(escaped, true, 1);
-        xfree(escaped.cast());
+        (*rettv).vval.v_string = str2special_save(escaped.as_ptr(), true, 1);
     }
 }
 

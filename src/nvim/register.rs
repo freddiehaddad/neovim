@@ -659,7 +659,12 @@ unsafe fn put_in_typebuf(s: *mut c_char, esc: bool, colon: bool, silent: c_int) 
             retval = ins_typebuf(c"\n".as_ptr().cast_mut(), REMAP_NONE, 0, true, is_silent);
         }
         if retval == OK {
-            let p = if esc { vim_strsave_escape_ks(s) } else { s };
+            let owned_p = if esc {
+                Some(vim_strsave_escape_ks(s))
+            } else {
+                None
+            };
+            let p = owned_p.as_ref().map_or(s, |cs| cs.as_ptr().cast_mut());
             if p.is_null() {
                 retval = FAIL;
             } else {
@@ -670,9 +675,6 @@ unsafe fn put_in_typebuf(s: *mut c_char, esc: bool, colon: bool, silent: c_int) 
                     true,
                     is_silent,
                 );
-            }
-            if esc {
-                xfree(p.cast());
             }
         }
         if colon && retval == OK {
@@ -850,8 +852,8 @@ pub unsafe fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent:
                 if free_str {
                     xfree(str_.cast());
                 }
-                retval = ins_typebuf(escaped, remap, 0, true, is_silent);
-                xfree(escaped.cast());
+                retval = ins_typebuf(escaped.as_ptr().cast_mut(), remap, 0, true, is_silent);
+                drop(escaped);
                 if retval == FAIL {
                     return FAIL;
                 }

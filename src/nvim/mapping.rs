@@ -1618,12 +1618,10 @@ pub unsafe fn check_abbr(
                         tb[j + newlen] = 0;
                         let escaped =
                             vim_strsave_escape_ks(tb.as_mut_ptr().add(j).cast::<c_char>());
-                        if !escaped.is_null() {
-                            newlen = CStr::from_ptr(escaped).to_bytes().len();
-                            ptr::copy(escaped.cast::<u8>(), tb.as_mut_ptr().add(j), newlen);
-                            j += newlen;
-                            xfree(escaped.cast());
-                        }
+                        let escaped_bytes = escaped.to_bytes();
+                        newlen = escaped_bytes.len();
+                        ptr::copy(escaped_bytes.as_ptr(), tb.as_mut_ptr().add(j), newlen);
+                        j += newlen;
                     }
                     tb[j] = 0;
                     ins_typebuf(
@@ -1639,17 +1637,17 @@ pub unsafe fn check_abbr(
                 let silent = (*mp).m_silent != 0;
                 let expr = (*mp).m_expr != 0;
 
+                let owned_s = if expr { eval_map_expr(mp, c) } else { None };
                 let s = if expr {
-                    eval_map_expr(mp, c)
+                    owned_s
+                        .as_ref()
+                        .map_or(ptr::null_mut(), |cs| cs.as_ptr().cast_mut())
                 } else {
                     (*mp).m_str.as_ptr().cast_mut()
                 };
                 if !s.is_null() {
                     ins_typebuf(s, noremap, 0, true, silent);
                     typebuf.tb_no_abbr_cnt += (CStr::from_ptr(s).to_bytes().len() + j + 1) as c_int;
-                    if expr {
-                        xfree(s.cast());
-                    }
                 }
 
                 tb[0] = Ctrl_H;
@@ -1668,14 +1666,17 @@ pub unsafe fn check_abbr(
 
 /// Evaluate the RHS of a mapping or abbreviations and take care of escaping
 /// special characters.
-pub unsafe fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> *mut c_char {
+pub unsafe fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> Option<CString> {
     unsafe {
-        let mut p: *mut c_char = ptr::null_mut();
-        let mut expr: *mut c_char = ptr::null_mut();
+        let mut p: Option<CString> = None;
+        let mut expr_bytes: Vec<c_char> = Vec::new();
 
         if (*mp).m_luaref == LUA_NOREF {
-            expr = xstrdup((*mp).m_str.as_ptr());
-            vim_unescape_ks(expr);
+            expr_bytes.extend_from_slice(std::slice::from_raw_parts(
+                (*mp).m_str.as_ptr(),
+                (*mp).m_str.to_bytes_with_nul().len(),
+            ));
+            vim_unescape_ks(expr_bytes.as_mut_ptr());
         }
 
         let replace_keycodes = (*mp).m_replace_keycodes;
@@ -1704,7 +1705,7 @@ pub unsafe fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> *mut c_char {
                 &mut err,
             );
             if ret.obj_type == ObjectType::kObjectTypeString {
-                p = string_to_cstr(ret.data.string);
+                p = crate::memory::cstr_take(string_to_cstr(ret.data.string));
             }
             api_free_object(ret);
             if err.err_type != ErrorType::kErrorTypeNone {
@@ -1712,35 +1713,30 @@ pub unsafe fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> *mut c_char {
                 api_clear_error(&mut err);
             }
         } else {
-            p = eval_to_string(expr, false, false);
-            xfree(expr.cast());
+            p = crate::memory::cstr_take(eval_to_string(expr_bytes.as_mut_ptr(), false, false));
         }
         expr_map_lock -= 1;
         (*curwin).w_cursor = save_cursor;
         msg_col = save_msg_col;
         msg_row = save_msg_row;
 
-        if p.is_null() {
-            return ptr::null_mut();
-        }
+        let p = p?;
 
-        let mut res: *mut c_char = ptr::null_mut();
         if replace_keycodes {
+            let mut res: *mut c_char = ptr::null_mut();
             replace_termcodes(
-                p,
-                CStr::from_ptr(p).to_bytes().len(),
+                p.as_ptr(),
+                p.to_bytes().len(),
                 &mut res,
                 0,
                 REPTERM_DO_LT,
                 ptr::null_mut(),
                 p_cpo,
             );
+            crate::memory::cstr_take(res)
         } else {
-            res = vim_strsave_escape_ks(p);
+            Some(vim_strsave_escape_ks(p.as_ptr()))
         }
-        xfree(p.cast());
-
-        res
     }
 }
 

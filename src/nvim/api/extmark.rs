@@ -44,12 +44,12 @@ use crate::marktree::{
 };
 use crate::mbyte::{mb_string2cells, utfc_ptr2schar};
 use crate::memline::ml_get_buf_len;
-use crate::memory::{Arena, strequal_str, xfree};
+use crate::memory::{Arena, cstr_take, strequal_str};
 use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::Integer;
 use crate::sign::init_sign_text;
 use crate::window::win_T;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::cursor::{colnr_T, linenr_T};
@@ -1104,10 +1104,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
             }
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__url) {
-                let raw = string_to_cstr((*opts).url);
-                let cstr = CStr::from_ptr(raw).to_owned();
-                xfree(raw.cast());
-                url = Some(cstr);
+                url = cstr_take(string_to_cstr((*opts).url));
                 has_hl = true;
             }
 
@@ -1666,17 +1663,16 @@ pub unsafe fn parse_virt_text(
                     }
                 }
 
-                let text = transstr(
+                let text_cstr = cstr_take(transstr(
                     if str_val.size > 0 {
                         str_val.data
                     } else {
                         c"".as_ptr()
                     },
                     untab,
-                );
-                w += mb_string2cells(text) as c_int;
-                let text_cstr = CStr::from_ptr(text).to_owned();
-                xfree(text.cast());
+                ))
+                .unwrap_or_default();
+                w += mb_string2cells(text_cstr.as_ptr()) as c_int;
 
                 virt_text.push(VirtTextChunk {
                     text: Some(text_cstr),

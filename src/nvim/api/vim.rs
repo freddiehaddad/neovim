@@ -85,7 +85,7 @@ use crate::math::{FAIL, xpopcount};
 use crate::mbyte::{mb_string2cells, utfc_ptr2len, utfc_ptr2schar};
 use crate::memfile::memfile_T;
 use crate::memline::ml_open;
-use crate::memory::{Arena, arena_alloc, arena_strdup, memchrsub, strequal, xfree};
+use crate::memory::{Arena, arena_alloc, arena_strdup, cstr_take, memchrsub, strequal};
 use crate::message::{
     msg_ext_no_fast, msg_id_exists, msg_multihl, verbose_enter, verbose_leave, verbose_stop,
 };
@@ -594,11 +594,14 @@ pub unsafe extern "C" fn nvim_feedkeys(keys: NvimString, mode: NvimString, escap
             return;
         }
 
-        let keys_esc = if escape_ks {
-            vim_strsave_escape_ks(keys.data)
+        let owned_keys_esc = if escape_ks {
+            Some(vim_strsave_escape_ks(keys.data))
         } else {
-            keys.data
+            None
         };
+        let keys_esc = owned_keys_esc
+            .as_ref()
+            .map_or(keys.data, |cs| cs.as_ptr().cast_mut());
         if lowlevel {
             input_enqueue_raw(keys_esc, CStr::from_ptr(keys_esc).to_bytes().len());
         } else {
@@ -613,10 +616,7 @@ pub unsafe extern "C" fn nvim_feedkeys(keys: NvimString, mode: NvimString, escap
                 typebuf_was_filled = true;
             }
         }
-
-        if escape_ks {
-            xfree(keys_esc.cast());
-        }
+        drop(owned_keys_esc);
 
         if execute {
             let save_msg_scroll = msg_scroll;
@@ -2983,28 +2983,29 @@ pub unsafe extern "C" fn nvim_get_mark(
 
         let mark = mark_get_global(false, c_int::from(*name.data));
         let pos = (*mark).fmark.mark;
-        let mut allocated = false;
         let mut bufnr: c_int;
         let mut filename: *mut c_char;
 
-        if (*mark).fmark.fnum != 0 {
+        let owned_filename = if (*mark).fmark.fnum != 0 {
             bufnr = (*mark).fmark.fnum;
-            filename = buflist_nr2name(bufnr, 1, 1);
-            allocated = true;
+            cstr_take(buflist_nr2name(bufnr, 1, 1))
         } else {
-            filename = (*mark).fname;
             bufnr = 0;
-        }
+            None
+        };
+        filename = if (*mark).fmark.fnum != 0 {
+            owned_filename
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+        } else {
+            (*mark).fname
+        };
 
         let exists = !filename.is_null();
         let row: Integer;
         let col: Integer;
 
         if !exists || pos.lnum <= 0 {
-            if allocated {
-                xfree(filename.cast());
-                allocated = false;
-            }
             filename = c"".as_ptr().cast_mut();
             bufnr = 0;
             row = 0;
@@ -3019,10 +3020,6 @@ pub unsafe extern "C" fn nvim_get_mark(
         add_c(&mut rv, integer_obj(col));
         add_c(&mut rv, integer_obj(Integer::from(bufnr)));
         add_c(&mut rv, cstr_to_arena_obj(arena, filename));
-
-        if allocated {
-            xfree(filename.cast());
-        }
 
         rv
     }

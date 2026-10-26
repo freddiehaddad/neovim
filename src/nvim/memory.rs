@@ -383,6 +383,17 @@ pub unsafe fn cstr_take(ptr: *mut c_char) -> Option<CString> {
     }
 }
 
+/// Copy `len` bytes from an `xmalloc`-allocated buffer into a `Vec<u8>` and free `ptr`.
+pub unsafe fn bytes_take(ptr: *mut c_char, len: usize) -> Option<Vec<u8>> {
+    if ptr.is_null() {
+        None
+    } else {
+        let v = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len).to_vec() };
+        unsafe { xfree(ptr.cast()) };
+        Some(v)
+    }
+}
+
 /// Duplicate a NUL-terminated C string using `xmalloc` (`xstrdup`).
 pub unsafe fn xstrdup(str_ptr: *const c_char) -> *mut c_char {
     let len = unsafe { CStr::from_ptr(str_ptr).to_bytes().len() };

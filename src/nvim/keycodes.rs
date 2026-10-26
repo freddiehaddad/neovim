@@ -10,7 +10,6 @@ use crate::globals::*;
 use crate::mbyte::{
     utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len, utfc_ptr2len, utfc_ptr2len_len,
 };
-use crate::memory::{xfree, xmalloc};
 use crate::message::emsg;
 use crate::strings::{vim_snprintf, vim_strchr};
 use std::ffi::{CStr, c_char, c_int, c_uint};
@@ -2700,8 +2699,13 @@ pub unsafe fn replace_termcodes(
         // Allocate space for the translation. Worst case a single character is
         // replaced by 6 bytes (shifted special key), plus a NUL at the end.
         let buf_len: usize = if allocated { from_len * 6 + 1 } else { 128 };
+        let mut temp_buf: Vec<c_char> = if allocated {
+            vec![0; buf_len]
+        } else {
+            Vec::new()
+        };
         let result: *mut c_char = if allocated {
-            xmalloc(buf_len).cast::<c_char>()
+            temp_buf.as_mut_ptr()
         } else {
             *bufp
         };
@@ -2843,7 +2847,6 @@ pub unsafe fn replace_termcodes(
 
         if allocated {
             *bufp = crate::memory::xmemdupz(result.cast(), dlen).cast::<c_char>();
-            xfree(result.cast());
         }
 
         *bufp
@@ -2874,11 +2877,11 @@ pub unsafe fn add_char2buf(c: c_int, s: *mut c_char) -> *mut c_char {
     }
 }
 
-/// Copy `p` to allocated memory, escaping `K_SPECIAL` (`vim_strsave_escape_ks`).
-pub unsafe fn vim_strsave_escape_ks(p: *mut c_char) -> *mut c_char {
+/// Copy `p` to an owned `CString`, escaping `K_SPECIAL` (`vim_strsave_escape_ks`).
+pub unsafe fn vim_strsave_escape_ks(p: *const c_char) -> std::ffi::CString {
     unsafe {
-        let res = xmalloc(CStr::from_ptr(p).to_bytes().len() * 4 + 1).cast::<c_char>();
-        let mut d = res;
+        let mut res = vec![0 as c_char; CStr::from_ptr(p).to_bytes().len() * 4 + 1];
+        let mut d = res.as_mut_ptr();
         let mut s = p;
         while *s != 0 {
             if *s as u8 == K_SPECIAL && *s.add(1) != 0 && *s.add(2) != 0 {
@@ -2900,7 +2903,7 @@ pub unsafe fn vim_strsave_escape_ks(p: *mut c_char) -> *mut c_char {
             }
         }
         *d = 0;
-        res
+        CStr::from_ptr(res.as_ptr()).to_owned()
     }
 }
 

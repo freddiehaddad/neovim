@@ -1378,10 +1378,9 @@ pub unsafe fn parse_bordertext(
                 *is_present = false;
                 return;
             }
-            let text = transstr(bordertext.data.string.data, true);
-            *width = mb_string2cells(text) as c_int;
-            let text_cstr = std::ffi::CStr::from_ptr(text).to_owned();
-            crate::memory::xfree(text.cast());
+            let text_cstr = crate::memory::cstr_take(transstr(bordertext.data.string.data, true))
+                .unwrap_or_default();
+            *width = mb_string2cells(text_cstr.as_ptr()) as c_int;
             chunks.clear();
             chunks.push(VirtTextChunk {
                 text: Some(text_cstr),

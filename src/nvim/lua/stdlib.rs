@@ -46,7 +46,7 @@ use crate::mbyte::{
     string_convert, utf_cp_bounds_len, utf_ptr2len_len, vimconv_T,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::xfree;
+use crate::memory::{bytes_take, cstr_take};
 use crate::message::str2special;
 use crate::msgpack_rpc::packer::handle_T;
 use crate::regexp::{
@@ -575,12 +575,12 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> c_int {
         let mut str_len: usize = 0;
         let str_ = lua_tolstring(lstate, 1, &raw mut str_len);
 
-        let from = enc_canonize(enc_skip(
+        let from = cstr_take(enc_canonize(enc_skip(
             lua_tolstring(lstate, 2, ptr::null_mut()).cast_mut(),
-        ));
-        let to = enc_canonize(enc_skip(
+        )));
+        let to = cstr_take(enc_canonize(enc_skip(
             lua_tolstring(lstate, 3, ptr::null_mut()).cast_mut(),
-        ));
+        )));
 
         let mut vimconv = vimconv_T {
             vc_type: CONV_NONE,
@@ -588,18 +588,24 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> c_int {
             vc_fd: ptr::null_mut(),
             vc_fail: false,
         };
-        let _ = convert_setup_ext(&mut vimconv, from, false, to, false);
+        let _ = convert_setup_ext(
+            &mut vimconv,
+            from.as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+            false,
+            to.as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+            false,
+        );
 
-        let ret = string_convert(&vimconv, str_.cast_mut(), &raw mut str_len);
+        let ret = bytes_take(
+            string_convert(&vimconv, str_.cast_mut(), &raw mut str_len),
+            str_len,
+        );
 
-        xfree(from.cast());
-        xfree(to.cast());
-
-        if ret.is_null() {
-            lua_pushnil(lstate);
-        } else {
-            lua_pushlstring(lstate, ret, str_len);
-            xfree(ret.cast());
+        match ret {
+            None => lua_pushnil(lstate),
+            Some(bytes) => lua_pushlstring(lstate, bytes.as_ptr().cast(), bytes.len()),
         }
 
         1
@@ -748,8 +754,8 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> c_int {
             return luaL_argerror(lstate, 1, c"string expected".as_ptr());
         }
 
-        let escaped = vim_strsave_escape_ks(lua_tostring(lstate, 1).cast_mut());
-        let mut p: *const c_char = escaped;
+        let escaped = vim_strsave_escape_ks(lua_tostring(lstate, 1));
+        let mut p: *const c_char = escaped.as_ptr();
 
         lua_newtable(lstate);
 
@@ -787,7 +793,6 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> c_int {
             lua_rawseti(lstate, -2, (lua_objlen(lstate, -2) as c_int) + 1);
         }
 
-        xfree(escaped.cast());
         1
     }
 }
