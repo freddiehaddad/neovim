@@ -5,14 +5,8 @@ use crate::fileio::getuid;
 use crate::math::FAIL;
 #[cfg(unix)]
 use crate::math::OK;
-#[cfg(windows)]
-use crate::mbyte::utf16_to_utf8;
-#[cfg(windows)]
-use crate::memory::xfree;
 #[cfg(unix)]
-use crate::memory::{xstrdup, xstrlcpy};
-#[cfg(windows)]
-use crate::message::semsg;
+use crate::memory::xstrlcpy;
 #[cfg(unix)]
 use crate::os::env::os_getenv_buf;
 use crate::strings::vim_snprintf;
@@ -98,6 +92,7 @@ unsafe extern "system" {
     fn NetApiBufferFree(buffer: *mut c_void) -> u32;
 }
 
+#[cfg(unix)]
 unsafe fn add_user(users: &mut Vec<CString>, user: *const c_char) {
     if user.is_null() || unsafe { *user == 0 } {
         return;
@@ -156,14 +151,21 @@ unsafe fn collect_usernames() -> Vec<CString> {
         ) == 0
         {
             for i in 0..nusers as usize {
-                let mut user: *mut c_char = std::ptr::null_mut();
-                let res = utf16_to_utf8((*uinfo.add(i)).usri0_name, -1, &mut user);
-                if res != 0 {
-                    semsg!(c"utf16_to_utf8 failed: %d".as_ptr(), res);
-                    break;
+                let name_ptr = (*uinfo.add(i)).usri0_name;
+                if !name_ptr.is_null() {
+                    let mut len = 0usize;
+                    while *name_ptr.add(len) != 0 {
+                        len += 1;
+                    }
+                    if len > 0 {
+                        let slice = std::slice::from_raw_parts(name_ptr, len);
+                        if let Ok(s) = String::from_utf16(slice)
+                            && let Ok(cstr) = CString::new(s)
+                        {
+                            users.push(cstr);
+                        }
+                    }
                 }
-                add_user(&mut users, user);
-                xfree(user.cast::<c_void>());
             }
             NetApiBufferFree(uinfo.cast::<c_void>());
         }
@@ -205,26 +207,26 @@ pub unsafe fn os_get_uname(uid: uv_uid_t, s: *mut c_char, len: usize) -> c_int {
     FAIL
 }
 
-/// Get the home directory for `name`, or null on failure (`os_get_userdir`).
+/// Get the home directory for `name`, or `None` on failure (`os_get_userdir`).
 ///
 /// # Safety
 /// `name` must be null or a valid C string.
 #[cfg_attr(not(unix), cfg(test))]
-pub unsafe fn os_get_userdir(name: *const c_char) -> *mut c_char {
+pub unsafe fn os_get_userdir(name: *const c_char) -> Option<CString> {
     #[cfg(unix)]
     unsafe {
         if name.is_null() || *name == 0 {
-            return std::ptr::null_mut();
+            return None;
         }
         let pw = getpwnam(name);
         if !pw.is_null() && !(*pw).pw_dir.is_null() {
-            return xstrdup((*pw).pw_dir);
+            return Some(CStr::from_ptr((*pw).pw_dir).to_owned());
         }
     }
     #[cfg(not(unix))]
     let _ = name;
 
-    std::ptr::null_mut()
+    None
 }
 
 /// Free cached usernames (`free_users`).
@@ -297,7 +299,7 @@ mod tests {
     #[test]
     fn get_usernames_null_returns_fail_and_uname_formats_fallback() {
         unsafe {
-            assert!(os_get_userdir(std::ptr::null()).is_null());
+            assert!(os_get_userdir(std::ptr::null()).is_none());
 
             let mut buf = [0 as c_char; 32];
             let res = os_get_uname(250 as uv_uid_t, buf.as_mut_ptr(), buf.len());
@@ -305,7 +307,7 @@ mod tests {
                 assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), "250");
             }
 
-            assert!(os_get_userdir(c"neovim_user_not_found_test".as_ptr()).is_null());
+            assert!(os_get_userdir(c"neovim_user_not_found_test".as_ptr()).is_none());
 
             let users = collect_usernames();
             assert!(users.iter().all(|u| !u.as_bytes().is_empty()));

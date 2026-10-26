@@ -383,15 +383,15 @@ pub unsafe fn os_unsetenv(name: *const c_char) -> c_int {
 }
 
 /// Copy name of the environment variable at `index` in the current environment variables block.
-pub unsafe fn os_getenvname_at_index(index: usize) -> *mut c_char {
+pub unsafe fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> {
     #[cfg(windows)]
     unsafe {
         let envstrings = GetEnvironmentStringsW();
         if envstrings.is_null() {
-            return ptr::null_mut();
+            return None;
         }
         let mut p = envstrings;
-        let mut name: *mut c_char = ptr::null_mut();
+        let mut name: Option<std::ffi::CString> = None;
         let mut i: usize = 0;
         loop {
             let l = wcslen(p);
@@ -399,20 +399,18 @@ pub unsafe fn os_getenvname_at_index(index: usize) -> *mut c_char {
                 break;
             }
             if i == index {
-                let mut utf8_str: *mut c_char = ptr::null_mut();
-                let conversion_result = utf16_to_utf8(p, -1, &raw mut utf8_str);
-                if conversion_result != 0 {
-                    semsg!(c"utf16_to_utf8 failed: %d".as_ptr(), conversion_result);
+                let slice = std::slice::from_raw_parts(p, l);
+                let Ok(utf8_str) = String::from_utf16(slice) else {
+                    semsg!(c"utf16_to_utf8 failed: %d".as_ptr(), 1);
                     break;
-                }
-                let start_off = usize::from(*utf8_str == b'=' as c_char);
-                let s_bytes = CStr::from_ptr(utf8_str.add(start_off)).to_bytes();
-                if let Some(pos) = s_bytes.iter().position(|&b| b == b'=') {
+                };
+                let bytes = utf8_str.as_bytes();
+                let start_off = usize::from(bytes.first() == Some(&b'='));
+                if let Some(pos) = bytes[start_off..].iter().position(|&b| b == b'=') {
                     let len = start_off + pos;
                     assert!(len > 0);
-                    name = xmemdupz(utf8_str.cast(), len).cast::<c_char>();
+                    name = std::ffi::CString::new(&bytes[..len]).ok();
                 }
-                xfree(utf8_str.cast());
                 break;
             }
             p = p.add(l + 1);
@@ -427,15 +425,15 @@ pub unsafe fn os_getenvname_at_index(index: usize) -> *mut c_char {
 
         for i in 0..=index {
             if (*env_arr.add(i)).is_null() {
-                return ptr::null_mut();
+                return None;
             }
         }
         let str_ptr = *env_arr.add(index);
         assert!(!str_ptr.is_null());
         let bytes = CStr::from_ptr(str_ptr).to_bytes();
-        let pos = bytes.iter().position(|&b| b == b'=').unwrap();
+        let pos = bytes.iter().position(|&b| b == b'=')?;
         assert!(pos > 0);
-        xmemdupz(str_ptr.cast(), pos).cast::<c_char>()
+        std::ffi::CString::new(&bytes[..pos]).ok()
     }
 }
 
@@ -512,27 +510,29 @@ pub unsafe fn init_homedir() {
         xfree(HOMEDIR.cast());
         HOMEDIR = ptr::null_mut();
 
-        let mut var = os_getenv(c"HOME".as_ptr());
-        let tofree = var;
+        let home_cstr = os_getenv_cstr(c"HOME".as_ptr());
+        let mut var: *mut c_char = home_cstr
+            .as_ref()
+            .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
 
         #[cfg(windows)]
         {
             if var.is_null() {
-                let homedrive = os_getenv(c"HOMEDRIVE".as_ptr());
-                let mut homepath = os_getenv(c"HOMEPATH".as_ptr());
-                if homepath.is_null() {
-                    homepath = xstrdup(PATHSEPSTR.as_ptr());
-                }
-                if !homedrive.is_null() && strlen(homedrive) + strlen(homepath) < MAXPATHL {
+                let homedrive = os_getenv_cstr(c"HOMEDRIVE".as_ptr());
+                let homepath = os_getenv_cstr(c"HOMEPATH".as_ptr());
+                let homepath_ptr = homepath
+                    .as_ref()
+                    .map_or(PATHSEPSTR.as_ptr(), |c| c.as_ptr());
+                if let Some(ref hd) = homedrive
+                    && hd.as_bytes().len() + strlen(homepath_ptr) < MAXPATHL
+                {
                     let buf = (&raw mut os_buf).cast::<c_char>();
-                    xstrlcpy(buf, homedrive, MAXPATHL);
-                    xstrlcat(buf, homepath, MAXPATHL);
+                    xstrlcpy(buf, hd.as_ptr(), MAXPATHL);
+                    xstrlcat(buf, homepath_ptr, MAXPATHL);
                     if *buf != NUL {
                         var = buf;
                     }
                 }
-                xfree(homepath.cast());
-                xfree(homedrive.cast());
             }
             if var.is_null() {
                 var = os_uv_homedir();
@@ -545,14 +545,13 @@ pub unsafe fn init_homedir() {
                     let buf = (&raw mut os_buf).cast::<c_char>();
                     let _ = xmemcpyz(buf.cast(), var.add(1).cast(), pos);
                     var = ptr::null_mut();
-                    let exp = os_getenv(buf);
-                    if !exp.is_null() {
-                        if *exp != NUL && strlen(exp) + strlen(p) < MAXPATHL {
-                            xstrlcpy(buf, exp, MAXPATHL);
-                            xstrlcat(buf, p.add(1), MAXPATHL);
-                            var = buf;
-                        }
-                        xfree(exp.cast());
+                    if let Some(exp) = os_getenv_cstr(buf)
+                        && !exp.as_bytes().is_empty()
+                        && exp.as_bytes().len() + strlen(p) < MAXPATHL
+                    {
+                        xstrlcpy(buf, exp.as_ptr(), MAXPATHL);
+                        xstrlcat(buf, p.add(1), MAXPATHL);
+                        var = buf;
                     }
                 }
             }
@@ -582,7 +581,6 @@ pub unsafe fn init_homedir() {
         if !var.is_null() {
             HOMEDIR = to_slash_save(var);
         }
-        xfree(tofree.cast());
     }
 }
 
@@ -655,6 +653,8 @@ pub unsafe fn expand_env_esc(
                 let mut mustfree = false;
                 let mut tail: *mut c_char;
                 let mut var: *mut c_char;
+                #[cfg(not(windows))]
+                let userdir_cstr: Option<std::ffi::CString>;
 
                 if *src != b'~' as c_char {
                     tail = src.add(1);
@@ -731,12 +731,14 @@ pub unsafe fn expand_env_esc(
                             tail = tail.add(1);
                         }
                         *var = NUL;
-                        var = if *dst == NUL {
-                            ptr::null_mut()
+                        if *dst == NUL {
+                            var = ptr::null_mut();
                         } else {
-                            os_get_userdir(dst.add(1))
-                        };
-                        mustfree = true;
+                            userdir_cstr = os_get_userdir(dst.add(1));
+                            var = userdir_cstr
+                                .as_ref()
+                                .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
+                        }
                     }
                     #[cfg(windows)]
                     {
@@ -1184,10 +1186,8 @@ pub unsafe fn home_replace_save(buf: *mut buf_T, src: *const c_char) -> *mut c_c
 pub unsafe fn get_env_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     assert!(idx >= 0);
     unsafe {
-        let envname = os_getenvname_at_index(idx as usize);
-        if !envname.is_null() {
-            xstrlcpy((*xp).xp_buf.as_mut_ptr(), envname, EXPAND_BUF_LEN);
-            xfree(envname.cast());
+        if let Some(envname) = os_getenvname_at_index(idx as usize) {
+            xstrlcpy((*xp).xp_buf.as_mut_ptr(), envname.as_ptr(), EXPAND_BUF_LEN);
             return (*xp).xp_buf.as_mut_ptr();
         }
         ptr::null_mut()
@@ -1207,26 +1207,23 @@ pub unsafe fn os_setenv_append_path(fname: *const c_char) -> bool {
         let buf = (&raw mut os_buf).cast::<c_char>();
         assert!((tail as usize) >= (fname as usize) && dirlen + 1 < MAXPATHL);
         let _ = xmemcpyz(buf.cast(), fname.cast(), dirlen);
-        let path = os_getenv(c"PATH".as_ptr());
-        let pathlen = if path.is_null() { 0 } else { strlen(path) };
+        let path_cstr = os_getenv_cstr(c"PATH".as_ptr());
+        let pathlen = path_cstr.as_ref().map_or(0, |c| c.as_bytes().len());
         let newlen = pathlen + dirlen + 2;
         let mut retval = false;
         if newlen < MAX_ENVPATHLEN {
-            let temp = xmalloc(newlen).cast::<c_char>();
-            if pathlen == 0 {
-                *temp = NUL;
-            } else {
-                xstrlcpy(temp, path, newlen);
-                if (*path.add(pathlen - 1) as u8) != ENV_SEPCHAR {
+            let mut temp_vec = vec![0 as c_char; newlen];
+            let temp = temp_vec.as_mut_ptr();
+            if let Some(ref path) = path_cstr {
+                xstrlcpy(temp, path.as_ptr(), newlen);
+                if path.as_bytes().last().copied() != Some(ENV_SEPCHAR) {
                     xstrlcat(temp, ENV_SEPSTR.as_ptr(), newlen);
                 }
             }
             xstrlcat(temp, buf, newlen);
             let _ = os_setenv(c"PATH".as_ptr(), temp, 1);
-            xfree(temp.cast());
             retval = true;
         }
-        xfree(path.cast());
         retval
     }
 }
@@ -1391,7 +1388,7 @@ mod tests {
             assert!(os_get_pid() > 0);
             os_get_hostname(buf.as_mut_ptr(), buf.len());
             assert!(!CStr::from_ptr(buf.as_ptr()).to_bytes().is_empty());
-            assert!(os_getenvname_at_index(usize::MAX).is_null());
+            assert!(os_getenvname_at_index(usize::MAX).is_none());
 
             assert!(os_shell_is_cmdexe(c"cmd.exe".as_ptr()));
             assert!(os_shell_is_cmdexe(c"CMD".as_ptr()));
