@@ -1064,24 +1064,20 @@ pub unsafe fn home_replace(
         if !homedir_env_mod.is_null() && *homedir_env_mod == b'~' as c_char {
             let mut usedlen: usize = 0;
             let mut flen = strlen(homedir_env_mod);
-            let mut fbuf: *mut c_char = ptr::null_mut();
+            let mut fbuf: Option<Vec<c_char>> = None;
             let _ = modify_fname(
                 c":p".as_ptr().cast_mut(),
                 false,
                 &raw mut usedlen,
                 &raw mut homedir_env_mod,
-                &raw mut fbuf,
+                &mut fbuf,
                 &raw mut flen,
                 false,
             );
             flen = strlen(homedir_env_mod);
             assert_ne!(homedir_env_mod, homedir_env);
-            if let Some(mod_cstr) = cstr_take(fbuf) {
-                homedir_env_mod_vec = mod_cstr
-                    .into_bytes_with_nul()
-                    .into_iter()
-                    .map(|b| b as c_char)
-                    .collect();
+            if let Some(mod_vec) = fbuf {
+                homedir_env_mod_vec = mod_vec;
                 homedir_env_mod = homedir_env_mod_vec.as_mut_ptr();
             }
             if flen > 0 && vim_ispathsep(c_int::from(*homedir_env_mod.add(flen - 1) as u8)) {

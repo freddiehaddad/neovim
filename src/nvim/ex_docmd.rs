@@ -12136,7 +12136,7 @@ pub unsafe fn eval_vars(
 ) -> *mut c_char {
     unsafe {
         let mut result: *mut c_char = c"".as_ptr().cast_mut();
-        let mut resultbuf: *mut c_char = ptr::null_mut();
+        let mut resultbuf: Option<Vec<c_char>> = None;
         let mut resultlen: usize;
         let mut valid = VALID_HEAD | VALID_PATH;
         let mut tilde_file = false;
@@ -12248,8 +12248,13 @@ pub unsafe fn eval_vars(
                         *errormsg = c"".as_ptr();
                         return ptr::null_mut();
                     };
-                    result = xstrdup(cfile.as_ptr());
-                    resultbuf = result;
+                    let mut v: Vec<c_char> = cfile
+                        .into_bytes_with_nul()
+                        .into_iter()
+                        .map(|b| b as c_char)
+                        .collect();
+                    result = v.as_mut_ptr();
+                    resultbuf = Some(v);
                 }
                 SPEC_AFILE => {
                     use_shellslash = !autocmd_fname_full;
@@ -12286,31 +12291,46 @@ pub unsafe fn eval_vars(
                 }
                 SPEC_SFILE => {
                     use_shellslash = true;
-                    result = estack_sfile(ESTACK_SFILE);
-                    if result.is_null() {
+                    let Some(sfile) = cstr_take(estack_sfile(ESTACK_SFILE)) else {
                         *errormsg = gettext(e_no_source_file_name_to_substitute_for_sfile.as_ptr());
                         return ptr::null_mut();
-                    }
-                    resultbuf = result;
+                    };
+                    let mut v: Vec<c_char> = sfile
+                        .into_bytes_with_nul()
+                        .into_iter()
+                        .map(|b| b as c_char)
+                        .collect();
+                    result = v.as_mut_ptr();
+                    resultbuf = Some(v);
                 }
                 SPEC_STACK => {
                     use_shellslash = true;
-                    result = estack_sfile(ESTACK_STACK);
-                    if result.is_null() {
+                    let Some(stack) = cstr_take(estack_sfile(ESTACK_STACK)) else {
                         *errormsg = gettext(e_no_call_stack_to_substitute_for_stack.as_ptr());
                         return ptr::null_mut();
-                    }
-                    resultbuf = result;
+                    };
+                    let mut v: Vec<c_char> = stack
+                        .into_bytes_with_nul()
+                        .into_iter()
+                        .map(|b| b as c_char)
+                        .collect();
+                    result = v.as_mut_ptr();
+                    resultbuf = Some(v);
                 }
                 SPEC_SCRIPT => {
                     use_shellslash = true;
-                    result = estack_sfile(ESTACK_SCRIPT);
-                    if result.is_null() {
+                    let Some(script) = cstr_take(estack_sfile(ESTACK_SCRIPT)) else {
                         *errormsg =
                             gettext(e_no_script_file_name_to_substitute_for_script.as_ptr());
                         return ptr::null_mut();
-                    }
-                    resultbuf = result;
+                    };
+                    let mut v: Vec<c_char> = script
+                        .into_bytes_with_nul()
+                        .into_iter()
+                        .map(|b| b as c_char)
+                        .collect();
+                    result = v.as_mut_ptr();
+                    resultbuf = Some(v);
                 }
                 SPEC_SLNUM => {
                     if (*sourcing_name_ptr()).is_null() || *sourcing_lnum_ptr() == 0 {
@@ -12365,7 +12385,7 @@ pub unsafe fn eval_vars(
                     tilde_file,
                     usedlen,
                     &raw mut result,
-                    &raw mut resultbuf,
+                    &mut resultbuf,
                     &raw mut resultlen,
                     use_shellslash,
                 );
@@ -12390,7 +12410,7 @@ pub unsafe fn eval_vars(
         } else {
             xmemdupz(result.cast(), resultlen).cast()
         };
-        xfree(resultbuf.cast());
+        drop(resultbuf);
         ret
     }
 }

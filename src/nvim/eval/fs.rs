@@ -12,9 +12,8 @@ use crate::eval::typval::{
     EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, blob_T, list_T, tv_blob_alloc_ret,
     tv_blob_len, tv_check_for_nonempty_string_arg, tv_check_for_string_arg, tv_check_str_or_nr,
     tv_clear, tv_get_bool_chk, tv_get_number, tv_get_number_chk, tv_get_string, tv_get_string_buf,
-    tv_get_string_buf_chk, tv_get_string_chk, tv_list_alloc_ret, tv_list_append_owned_tv,
-    tv_list_append_string, tv_list_first, tv_list_item_remove, tv_list_len, tv_list_set_ret,
-    typval_T, varnumber_T,
+    tv_get_string_buf_chk, tv_get_string_chk, tv_list_alloc_ret, tv_list_append_string,
+    tv_list_first, tv_list_item_remove, tv_list_len, tv_list_set_ret, typval_T, varnumber_T,
 };
 use crate::eval::userfunc::{add_defer, can_add_defer};
 use crate::eval::vars::{VV_VAL, prepare_vimvar, restore_vimvar, set_vim_var_string};
@@ -33,9 +32,7 @@ use crate::fileio::{
 use crate::globals::*;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_head_off, utfc_ptr2len};
-use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy};
-#[cfg(unix)]
-use crate::memory::{xmallocz, xstrlcat};
+use crate::memory::{cstr_from_bytes, cstr_take, cstr_to_cstring, xstrlcpy};
 use crate::message::{emsg, semsg};
 use crate::option_vars::*;
 use crate::os::env::{expand_T, expand_env_save, home_replace};
@@ -60,9 +57,7 @@ use crate::path::{
 #[cfg(windows)]
 use crate::path::{path_to_slash_save, slash_adjust};
 use crate::runtime::script_is_lua;
-#[cfg(unix)]
-use crate::strings::concat_str;
-use crate::strings::{gettext, strlen, vim_strchr, vim_strsave_shellescape, xstrnsave};
+use crate::strings::{gettext, strlen, vim_strchr, vim_strsave_shellescape};
 use crate::window::{find_tabpage, tabpage_T, win_T};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -97,13 +92,33 @@ fn s_ischr(m: u64) -> bool {
 /// *fnamep must be NUL terminated when called.  When returning, the length is
 /// determined by *fnamelen.
 /// Returns VALID_ flags or -1 for failure.
+#[inline]
+fn set_fname_buf(
+    fnamep: *mut *mut c_char,
+    bufp: &mut Option<Vec<c_char>>,
+    new_vec: Vec<c_char>,
+) {
+    unsafe {
+        *bufp = Some(new_vec);
+        *fnamep = bufp.as_mut().unwrap().as_mut_ptr();
+    }
+}
+
+#[inline]
+fn cstr_into_char_vec(s: std::ffi::CString) -> Vec<c_char> {
+    s.into_bytes_with_nul()
+        .into_iter()
+        .map(|b| b as c_char)
+        .collect()
+}
+
 /// When there is an error, *fnamep is set to NULL.
 pub unsafe fn modify_fname(
     src: *mut c_char,
     tilde_file: bool,
     usedlen: *mut usize,
     fnamep: *mut *mut c_char,
-    bufp: *mut *mut c_char,
+    bufp: &mut Option<Vec<c_char>>,
     fnamelen: *mut usize,
     use_shellslash: bool,
 ) -> c_int {
@@ -111,7 +126,7 @@ pub unsafe fn modify_fname(
         let mut valid: c_int = 0;
         let mut s: *mut c_char = ptr::null_mut();
         let mut p: *mut c_char;
-        let mut pbuf: *mut c_char;
+        let mut pbuf: Option<Vec<c_char>>;
         let mut dirname = [0 as c_char; MAXPATHL];
         let mut has_fullname = false;
         let mut has_homerelative = false;
@@ -134,9 +149,7 @@ pub unsafe fn modify_fname(
                     && !(tilde_file && *(*fnamep).add(1) == NUL);
                 if tilde_cond {
                     let exp = expand_env_save(*fnamep);
-                    *fnamep = xstrdup(exp.as_ptr());
-                    xfree((*bufp).cast()); // free any allocated file name
-                    *bufp = *fnamep;
+                    set_fname_buf(fnamep, bufp, cstr_into_char_vec(exp));
                 }
 
                 // When "/." or "/.." is used: force expansion to get rid of it.
@@ -160,20 +173,21 @@ pub unsafe fn modify_fname(
                     || (cfg!(windows)
                         && (*(*fnamep) == b'/' as c_char || *(*fnamep) == b'\\' as c_char))
                 {
-                    *fnamep = FullName_save(*fnamep, *p != NUL);
-                    xfree((*bufp).cast()); // free any allocated file name
-                    *bufp = *fnamep;
-                    if (*fnamep).is_null() {
+                    let Some(full) = cstr_take(FullName_save(*fnamep, *p != NUL)) else {
+                        *fnamep = ptr::null_mut();
+                        *bufp = None;
                         return -1;
-                    }
+                    };
+                    set_fname_buf(fnamep, bufp, cstr_into_char_vec(full));
                 }
 
                 // Append a path separator to a directory.
                 if os_isdir(*fnamep) {
                     // Make room for one or two extra characters.
-                    *fnamep = xstrnsave(*fnamep, strlen(*fnamep) + 2);
-                    xfree((*bufp).cast()); // free any allocated file name
-                    *bufp = *fnamep;
+                    let cur_len = strlen(*fnamep);
+                    let mut v = vec![0 as c_char; cur_len + 3];
+                    ptr::copy_nonoverlapping(*fnamep, v.as_mut_ptr(), cur_len + 1);
+                    set_fname_buf(fnamep, bufp, v);
                     add_pathsep(*fnamep);
                 }
             }
@@ -191,16 +205,19 @@ pub unsafe fn modify_fname(
                 if c == b'8' as c_int {
                     continue;
                 }
-                pbuf = ptr::null_mut();
+                pbuf = None;
                 // Need full path first (use expand_env() to remove a "~/")
                 if !has_fullname && !has_homerelative {
                     if *(*fnamep) == b'~' as c_char {
-                        let exp = expand_env_save(*fnamep);
-                        pbuf = xstrdup(exp.as_ptr());
-                        p = pbuf;
+                        let exp = cstr_into_char_vec(expand_env_save(*fnamep));
+                        p = exp.as_ptr().cast_mut();
+                        pbuf = Some(exp);
+                    } else if let Some(full) = cstr_take(FullName_save(*fnamep, false)) {
+                        let full_vec = cstr_into_char_vec(full);
+                        p = full_vec.as_ptr().cast_mut();
+                        pbuf = Some(full_vec);
                     } else {
-                        pbuf = FullName_save(*fnamep, false);
-                        p = pbuf;
+                        p = ptr::null_mut();
                     }
                 } else {
                     p = *fnamep;
@@ -214,10 +231,14 @@ pub unsafe fn modify_fname(
                     if c == b'.' as c_int {
                         os_dirname(dirname.as_mut_ptr(), MAXPATHL);
                         if has_homerelative {
-                            s = xstrdup(dirname.as_ptr());
-                            dirnamelen =
-                                home_replace(ptr::null(), s, dirname.as_mut_ptr(), MAXPATHL, true);
-                            xfree(s.cast());
+                            let s_cstr = cstr_to_cstring(dirname.as_ptr());
+                            dirnamelen = home_replace(
+                                ptr::null(),
+                                s_cstr.as_ptr(),
+                                dirname.as_mut_ptr(),
+                                MAXPATHL,
+                                true,
+                            );
                         }
 
                         if dirnamelen == 0 {
@@ -233,11 +254,8 @@ pub unsafe fn modify_fname(
                                     p = p.add(1);
                                 }
                                 *fnamep = p;
-                                if !pbuf.is_null() {
-                                    // free any allocated file name
-                                    xfree((*bufp).cast());
-                                    *bufp = pbuf;
-                                    pbuf = ptr::null_mut();
+                                if let Some(pb) = pbuf.take() {
+                                    *bufp = Some(pb);
                                 }
                             }
                         }
@@ -246,15 +264,13 @@ pub unsafe fn modify_fname(
                             home_replace(ptr::null(), p, dirname.as_mut_ptr(), MAXPATHL, true);
                         // Only replace it when it starts with '~'
                         if dirname[0] == b'~' as c_char {
-                            s = xmemdupz(dirname.as_ptr().cast(), dirnamelen).cast();
-                            debug_assert!(!s.is_null());
-                            *fnamep = s;
-                            xfree((*bufp).cast());
-                            *bufp = s;
+                            let mut v = vec![0 as c_char; dirnamelen + 1];
+                            ptr::copy_nonoverlapping(dirname.as_ptr(), v.as_mut_ptr(), dirnamelen);
+                            set_fname_buf(fnamep, bufp, v);
                             has_homerelative = true;
                         }
                     }
-                    xfree(pbuf.cast());
+                    drop(pbuf);
                 }
             }
 
@@ -283,10 +299,8 @@ pub unsafe fn modify_fname(
                 };
                 if *fnamelen == 0 {
                     // Result is empty.  Turn it into "." to make ":cd %:h" work.
-                    xfree((*bufp).cast());
-                    tail = xstrdup(c".".as_ptr());
-                    *fnamep = tail;
-                    *bufp = tail;
+                    set_fname_buf(fnamep, bufp, vec![b'.' as c_char, NUL]);
+                    tail = *fnamep;
                     s = *fnamep; // s pointed into the freed buffer.
                     *fnamelen = 1;
                 } else {
@@ -357,10 +371,9 @@ pub unsafe fn modify_fname(
 
             #[cfg(windows)]
             if !didit && use_shellslash && !(*fnamep).is_null() {
-                *fnamep = xstrdup(*fnamep);
-                slash_adjust(*fnamep);
-                xfree((*bufp).cast());
-                *bufp = *fnamep;
+                let mut v = cstr_into_char_vec(cstr_to_cstring(*fnamep));
+                slash_adjust(v.as_mut_ptr());
+                set_fname_buf(fnamep, bufp, v);
             }
             #[cfg(not(windows))]
             let _ = use_shellslash;
@@ -386,36 +399,38 @@ pub unsafe fn modify_fname(
                     // find end of pattern
                     p = vim_strchr(s, sep);
                     if !p.is_null() {
-                        let pat: *mut c_char =
-                            xmemdupz(s.cast(), (p as usize).wrapping_sub(s as usize)).cast();
+                        let pat = cstr_from_bytes(std::slice::from_raw_parts(
+                            s.cast::<u8>(),
+                            (p as usize).wrapping_sub(s as usize),
+                        ));
                         s = p.add(1);
                         // find end of substitution
                         p = vim_strchr(s, sep);
                         if !p.is_null() {
-                            let sub: *mut c_char =
-                                xmemdupz(s.cast(), (p as usize).wrapping_sub(s as usize)).cast();
-                            let str_copy: *mut c_char =
-                                xmemdupz((*fnamep).cast(), *fnamelen).cast();
+                            let sub = cstr_from_bytes(std::slice::from_raw_parts(
+                                s.cast::<u8>(),
+                                (p as usize).wrapping_sub(s as usize),
+                            ));
+                            let mut str_copy = vec![0 as c_char; *fnamelen + 1];
+                            if *fnamelen > 0 {
+                                ptr::copy_nonoverlapping(*fnamep, str_copy.as_mut_ptr(), *fnamelen);
+                            }
                             *usedlen = (p.add(1) as usize).wrapping_sub(src as usize);
                             let mut slen: usize = 0;
-                            s = do_string_sub(
-                                str_copy,
+                            let sub_res = cstr_take(do_string_sub(
+                                str_copy.as_mut_ptr(),
                                 *fnamelen,
-                                pat,
-                                sub,
+                                pat.as_ptr().cast_mut(),
+                                sub.as_ptr().cast_mut(),
                                 ptr::null_mut(),
-                                flags,
+                                flags.cast_mut(),
                                 &raw mut slen,
-                            );
-                            *fnamep = s;
+                            ))
+                            .unwrap_or_default();
                             *fnamelen = slen;
-                            xfree((*bufp).cast());
-                            *bufp = s;
+                            set_fname_buf(fnamep, bufp, cstr_into_char_vec(sub_res));
                             didit = true;
-                            xfree(sub.cast());
-                            xfree(str_copy.cast());
                         }
-                        xfree(pat.cast());
                     }
                     // after using ":s", repeat all the modifiers
                     if didit {
@@ -433,14 +448,13 @@ pub unsafe fn modify_fname(
                 if c != NUL as c_int {
                     *(*fnamep).add(*fnamelen) = NUL;
                 }
-                p = vim_strsave_shellescape(*fnamep, false, false);
+                let esc = cstr_take(vim_strsave_shellescape(*fnamep, false, false))
+                    .unwrap_or_default();
                 if c != NUL as c_int {
                     *(*fnamep).add(*fnamelen) = c as c_char;
                 }
-                xfree((*bufp).cast());
-                *fnamep = p;
-                *bufp = p;
-                *fnamelen = strlen(p);
+                *fnamelen = esc.as_bytes().len();
+                set_fname_buf(fnamep, bufp, cstr_into_char_vec(esc));
                 *usedlen += 2;
             }
 
@@ -468,13 +482,12 @@ pub unsafe fn f_chdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
         }
 
         // Return the current directory
-        let cwd: *mut c_char = xmalloc(MAXPATHL).cast();
-        if os_dirname(cwd, MAXPATHL) != FAIL {
+        let mut cwd = vec![0 as c_char; MAXPATHL];
+        if os_dirname(cwd.as_mut_ptr(), MAXPATHL) != FAIL {
             #[cfg(windows)]
-            slash_adjust(cwd);
-            (*rettv).vval.v_string = xstrdup(cwd);
+            slash_adjust(cwd.as_mut_ptr());
+            crate::eval::typval::tv_set_string(rettv, cwd.as_ptr());
         }
-        xfree(cwd.cast());
 
         let mut scope: c_int = kCdScopeGlobal;
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
@@ -502,7 +515,8 @@ pub unsafe fn f_chdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
 
         if !do_chdir((*argvars).vval.v_string, scope) {
             // Directory change failed
-            xfree((*rettv).vval.v_string.cast());
+            tv_clear(rettv);
+            (*rettv).v_type = VarType::VAR_STRING;
             (*rettv).vval.v_string = ptr::null_mut();
         }
     }
@@ -704,7 +718,10 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
         }
 
         if (*rettv).v_type == VarType::VAR_STRING {
-            (*rettv).vval.v_string = fresult.map_or(ptr::null_mut(), |s| xstrdup(s.as_ptr()));
+            crate::eval::typval::tv_set_string(
+                rettv,
+                fresult.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+            );
         }
     }
 }
@@ -726,7 +743,7 @@ pub unsafe fn f_findfile(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 /// "fnamemodify({fname}, {mods})" function
 pub unsafe fn f_fnamemodify(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let mut fbuf: *mut c_char = ptr::null_mut();
+        let mut fbuf: Option<Vec<c_char>> = None;
         let mut len: usize = 0;
         let mut buf = [0 as c_char; NUMBUFLEN];
         let mut fname = tv_get_string_chk(argvars).cast_mut();
@@ -735,15 +752,11 @@ pub unsafe fn f_fnamemodify(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             fname = ptr::null_mut();
         } else {
             #[cfg(windows)]
-            {
-                fbuf = path_to_slash_save(fname);
-            }
+            let initial_cstr = cstr_take(path_to_slash_save(fname)).unwrap_or_default();
             #[cfg(not(windows))]
-            {
-                fbuf = xstrdup(fname);
-            }
-            fname = fbuf;
-            len = strlen(fname);
+            let initial_cstr = cstr_to_cstring(fname);
+            len = initial_cstr.as_bytes().len();
+            set_fname_buf(&raw mut fname, &mut fbuf, cstr_into_char_vec(initial_cstr));
             if *mods != NUL {
                 let mut usedlen: usize = 0;
                 modify_fname(
@@ -751,20 +764,20 @@ pub unsafe fn f_fnamemodify(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
                     false,
                     &raw mut usedlen,
                     &raw mut fname,
-                    &raw mut fbuf,
+                    &mut fbuf,
                     &raw mut len,
                     false,
                 );
             }
         }
 
-        (*rettv).v_type = VarType::VAR_STRING;
         if fname.is_null() {
+            (*rettv).v_type = VarType::VAR_STRING;
             (*rettv).vval.v_string = ptr::null_mut();
         } else {
-            (*rettv).vval.v_string = xmemdupz(fname.cast(), len).cast();
+            crate::eval::typval::tv_set_string_len(rettv, fname, len);
         }
-        xfree(fbuf.cast());
+        drop(fbuf);
     }
 }
 
@@ -864,7 +877,7 @@ unsafe fn getcwd_scope_args(
                 *buf = find_buffer_by_handle(argv[kBufArg], &raw mut err);
                 if err.err_type != ErrorType::kErrorTypeNone {
                     emsg(gettext(c"E5007: Cannot find buffer number.".as_ptr()));
-                    xfree(err.msg.cast());
+                    drop(cstr_take(err.msg));
                     return false;
                 }
             }
@@ -916,7 +929,7 @@ pub unsafe fn f_getcwd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
         }
 
         let mut from: *const c_char = ptr::null(); // The local directory to copy.
-        let cwd: *mut c_char = xmalloc(MAXPATHL).cast();
+        let mut cwd = vec![0 as c_char; MAXPATHL];
 
         let mut cur_scope = scope;
         if cur_scope == kCdScopeWindow {
@@ -959,40 +972,39 @@ pub unsafe fn f_getcwd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
                 cur_scope = kCdScopeInvalid;
             }
         }
-        if cur_scope == kCdScopeInvalid && os_dirname(cwd, MAXPATHL) == FAIL {
+        if cur_scope == kCdScopeInvalid && os_dirname(cwd.as_mut_ptr(), MAXPATHL) == FAIL {
             from = c"".as_ptr(); // Return empty string on failure.
         }
 
         if !from.is_null() {
-            xstrlcpy(cwd, from, MAXPATHL);
+            xstrlcpy(cwd.as_mut_ptr(), from, MAXPATHL);
         }
 
-        (*rettv).vval.v_string = xstrdup(cwd);
         #[cfg(windows)]
-        slash_adjust((*rettv).vval.v_string);
-
-        xfree(cwd.cast());
+        slash_adjust(cwd.as_mut_ptr());
+        crate::eval::typval::tv_set_string(rettv, cwd.as_ptr());
     }
 }
 
 /// "getfperm({fname})" function
 pub unsafe fn f_getfperm(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let mut perm: *mut c_char = ptr::null_mut();
         let flags = [b'r' as c_char, b'w' as c_char, b'x' as c_char];
 
         let filename = tv_get_string(argvars);
         let file_perm = os_getperm(filename);
         if file_perm >= 0 {
-            perm = xstrdup(c"---------".as_ptr());
+            let mut perm = [b'-' as c_char; 9];
             for i in 0..9 {
                 if (file_perm & (1 << (8 - i))) != 0 {
-                    *perm.add(i) = flags[i % 3];
+                    perm[i] = flags[i % 3];
                 }
             }
+            crate::eval::typval::tv_set_string_len(rettv, perm.as_ptr(), 9);
+        } else {
+            (*rettv).v_type = VarType::VAR_STRING;
+            (*rettv).vval.v_string = ptr::null_mut();
         }
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = perm;
     }
 }
 
@@ -1037,11 +1049,8 @@ pub unsafe fn f_getftime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 /// "getftype({fname})" function
 pub unsafe fn f_getftype(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let mut type_str: *mut c_char = ptr::null_mut();
-
         let fname = tv_get_string(argvars);
 
-        (*rettv).v_type = VarType::VAR_STRING;
         let mut file_info = FileInfo::new();
         if os_fileinfo_link(fname, &raw mut file_info) {
             let mode = file_info.stat.st_mode;
@@ -1062,9 +1071,11 @@ pub unsafe fn f_getftype(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             } else {
                 c"other".as_ptr()
             };
-            type_str = xstrdup(t);
+            crate::eval::typval::tv_set_string(rettv, t);
+        } else {
+            (*rettv).v_type = VarType::VAR_STRING;
+            (*rettv).vval.v_string = ptr::null_mut();
         }
-        (*rettv).vval.v_string = type_str;
     }
 }
 
@@ -1167,7 +1178,7 @@ pub unsafe fn f_globpath(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 
             if (*rettv).v_type == VarType::VAR_STRING {
                 let joined = crate::path::concat_cstrings(&ga, c"\n".as_ptr());
-                (*rettv).vval.v_string = xstrdup(joined.as_ptr());
+                crate::eval::typval::tv_set_string(rettv, joined.as_ptr());
             } else {
                 tv_list_alloc_ret(rettv, ga.len() as isize);
                 for &s in &ga {
@@ -1304,8 +1315,12 @@ pub unsafe fn f_mkdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
                     },
                 );
                 if ret != 0 {
-                    semsg!(gettext(e_mkdir.as_ptr()), failed_dir, uv_strerror(ret));
-                    xfree(failed_dir.cast());
+                    let failed_owned = cstr_take(failed_dir);
+                    semsg!(
+                        gettext(e_mkdir.as_ptr()),
+                        failed_owned.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                        uv_strerror(ret),
+                    );
                     (*rettv).vval.v_number = varnumber_T::from(FAIL);
                     return;
                 }
@@ -1330,18 +1345,16 @@ pub unsafe fn f_mkdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
                     v_lock: VAR_UNLOCKED,
                     vval: TypvalVval { v_string: created },
                 },
-                typval_T {
-                    v_type: VarType::VAR_STRING,
-                    v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval {
-                        v_string: xstrdup(if defer_recurse {
-                            c"rf".as_ptr()
-                        } else {
-                            c"d".as_ptr()
-                        }),
-                    },
-                },
+                typval_T::new(),
             ];
+            crate::eval::typval::tv_set_string(
+                &raw mut tv[1],
+                if defer_recurse {
+                    c"rf".as_ptr()
+                } else {
+                    c"d".as_ptr()
+                },
+            );
             add_defer(c"delete".as_ptr().cast_mut(), 2, tv.as_mut_ptr());
         }
     }
@@ -1359,13 +1372,14 @@ pub unsafe fn f_pathshorten(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             }
         }
 
-        (*rettv).v_type = VarType::VAR_STRING;
         let p = tv_get_string_chk(argvars);
         if p.is_null() {
+            (*rettv).v_type = VarType::VAR_STRING;
             (*rettv).vval.v_string = ptr::null_mut();
         } else {
-            (*rettv).vval.v_string = xstrdup(p);
-            shorten_dir_len((*rettv).vval.v_string, trim_len);
+            let mut v = cstr_into_char_vec(cstr_to_cstring(p));
+            shorten_dir_len(v.as_mut_ptr(), trim_len);
+            crate::eval::typval::tv_set_string(rettv, v.as_ptr());
         }
     }
 }
@@ -1572,27 +1586,14 @@ unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: *mut typval_T, always
                             }
                         }
                     }
-                    let s: *mut c_char = if prev.is_empty() {
+                    if prev.is_empty() {
                         debug_assert!(len < c_int::MAX as usize);
-                        xmemdupz(start.cast(), len).cast()
+                        tv_list_append_string(l, start, len as isize);
                     } else {
-                        let prevlen = prev.len();
-                        let new_s: *mut c_char = xmalloc(prevlen + len + 1).cast();
-                        ptr::copy_nonoverlapping(prev.as_ptr(), new_s, prevlen);
-                        ptr::copy_nonoverlapping(start, new_s.add(prevlen), len);
-                        *new_s.add(prevlen + len) = NUL;
+                        prev.extend_from_slice(std::slice::from_raw_parts(start, len));
+                        tv_list_append_string(l, prev.as_ptr(), prev.len() as isize);
                         prev.clear();
-                        new_s
-                    };
-
-                    tv_list_append_owned_tv(
-                        l,
-                        typval_T {
-                            v_type: VarType::VAR_STRING,
-                            v_lock: VAR_UNLOCKED,
-                            vval: TypvalVval { v_string: s },
-                        },
-                    );
+                    }
 
                     start = p.add(1); // Step over newline.
                     if maxline < 0 {
@@ -1717,7 +1718,11 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             if v.is_null() && os_is_reparse_point_include(fname) {
                 v = os_realpath(fname, ptr::null_mut(), MAXPATHL + 1);
             }
-            (*rettv).vval.v_string = if v.is_null() { xstrdup(fname) } else { v };
+            if v.is_null() {
+                crate::eval::typval::tv_set_string(rettv, fname);
+            } else {
+                (*rettv).vval.v_string = v;
+            }
         }
         #[cfg(not(windows))]
         {
@@ -1725,7 +1730,8 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             let mut has_trailing_pathsep = false;
             let mut limit: c_int = 100;
 
-            let mut p = xstrdup(fname);
+            let mut p_vec = cstr_into_char_vec(cstr_to_cstring(fname));
+            let mut p = p_vec.as_mut_ptr();
 
             if *p == b'.' as c_char
                 && (vim_ispathsep(*p.add(1) as u8 as c_int)
@@ -1741,17 +1747,17 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             }
 
             let mut q = path_next_component(p).cast_mut();
-            let mut remain: *mut c_char = ptr::null_mut();
+            let mut remain_vec: Option<Vec<c_char>> = None;
             if *q != NUL {
                 // Separate the first path component in "p", and keep the
                 // remainder (beginning with the path separator).
-                remain = xstrdup(q.sub(1));
+                remain_vec = Some(cstr_into_char_vec(cstr_to_cstring(q.sub(1))));
                 *q.sub(1) = NUL;
             }
 
-            let buf: *mut c_char = xmallocz(MAXPATHL).cast();
+            let mut buf_vec = vec![0 as c_char; MAXPATHL + 1];
+            let buf = buf_vec.as_mut_ptr();
 
-            let mut cpy: *mut c_char;
             loop {
                 loop {
                     len = readlink(p, buf, MAXPATHL);
@@ -1763,17 +1769,14 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                     let old_limit = limit;
                     limit -= 1;
                     if old_limit == 0 {
-                        xfree(p.cast());
-                        xfree(remain.cast());
                         emsg(gettext(c"E655: Too many symbolic links (cycle?)".as_ptr()));
                         (*rettv).vval.v_string = ptr::null_mut();
-                        xfree(buf.cast());
                         return;
                     }
 
                     // Ensure that the result will have a trailing path separator
                     // if the argument has one.
-                    if remain.is_null() && has_trailing_pathsep {
+                    if remain_vec.is_none() && has_trailing_pathsep {
                         add_pathsep(buf);
                     }
 
@@ -1786,13 +1789,19 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                     };
                     q = path_next_component(start_comp).cast_mut();
                     if *q != NUL {
-                        cpy = remain;
-                        remain = if !remain.is_null() {
-                            concat_str(q.sub(1), remain)
-                        } else {
-                            xstrdup(q.sub(1))
-                        };
-                        xfree(cpy.cast());
+                        let head_bytes = CStr::from_ptr(q.sub(1)).to_bytes();
+                        let mut new_rem = Vec::with_capacity(
+                            head_bytes.len()
+                                + remain_vec.as_ref().map_or(0, |r| strlen(r.as_ptr()))
+                                + 1,
+                        );
+                        new_rem.extend(head_bytes.iter().map(|&b| b as c_char));
+                        if let Some(ref rem) = remain_vec {
+                            let rem_len = strlen(rem.as_ptr());
+                            new_rem.extend_from_slice(&rem[..rem_len]);
+                        }
+                        new_rem.push(NUL);
+                        remain_vec = Some(new_rem);
                         *q.sub(1) = NUL;
                     }
 
@@ -1807,30 +1816,31 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                         // symlink with the resolved name in the same directory.
                         let prefix_len = (q as usize) - (p as usize);
                         let buf_len = strlen(buf);
-                        let new_p: *mut c_char = xmallocz(prefix_len + buf_len).cast();
-                        ptr::copy_nonoverlapping(p, new_p, prefix_len);
-                        ptr::copy_nonoverlapping(buf, new_p.add(prefix_len), buf_len);
-                        xfree(p.cast());
-                        p = new_p;
+                        let mut new_p = vec![0 as c_char; prefix_len + buf_len + 1];
+                        ptr::copy_nonoverlapping(p, new_p.as_mut_ptr(), prefix_len);
+                        ptr::copy_nonoverlapping(buf, new_p.as_mut_ptr().add(prefix_len), buf_len);
+                        p_vec = new_p;
+                        p = p_vec.as_mut_ptr();
                     } else {
-                        xfree(p.cast());
-                        p = xstrdup(buf);
+                        p_vec = cstr_into_char_vec(cstr_to_cstring(buf));
+                        p = p_vec.as_mut_ptr();
                     }
                 }
 
-                if remain.is_null() {
+                let Some(ref mut rem_v) = remain_vec else {
                     break;
-                }
+                };
+                let remain = rem_v.as_mut_ptr();
 
                 // Append the first path component of "remain" to "p".
                 q = path_next_component(remain.add(1)).cast_mut();
                 len = (q as usize).wrapping_sub(remain as usize) as isize - isize::from(*q != NUL);
                 let p_len = strlen(p);
-                cpy = xmallocz(p_len + len as usize).cast();
-                ptr::copy_nonoverlapping(p, cpy, p_len + 1);
-                xstrlcat(cpy.add(p_len), remain, len as usize + 1);
-                xfree(p.cast());
-                p = cpy;
+                let mut new_p = vec![0 as c_char; p_len + len as usize + 1];
+                ptr::copy_nonoverlapping(p, new_p.as_mut_ptr(), p_len);
+                ptr::copy_nonoverlapping(remain, new_p.as_mut_ptr().add(p_len), len as usize);
+                p_vec = new_p;
+                p = p_vec.as_mut_ptr();
 
                 // Shorten "remain".
                 if *q != NUL {
@@ -1838,8 +1848,7 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                     let rem_len = strlen(rem_tail) + 1;
                     ptr::copy(rem_tail, remain, rem_len);
                 } else {
-                    xfree(remain.cast());
-                    remain = ptr::null_mut();
+                    remain_vec = None;
                 }
             }
 
@@ -1855,9 +1864,13 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                                 && (*p.add(2) == NUL || vim_ispathsep(*p.add(2) as u8 as c_int)))))
                 {
                     // Prepend "./".
-                    cpy = concat_str(c"./".as_ptr(), p);
-                    xfree(p.cast());
-                    p = cpy;
+                    let p_len = strlen(p);
+                    let mut new_p = vec![0 as c_char; p_len + 3];
+                    new_p[0] = b'.' as c_char;
+                    new_p[1] = b'/' as c_char;
+                    ptr::copy_nonoverlapping(p, new_p.as_mut_ptr().add(2), p_len);
+                    p_vec = new_p;
+                    p = p_vec.as_mut_ptr();
                 } else if !is_relative_to_current {
                     // Strip leading "./".
                     q = p;
@@ -1881,8 +1894,7 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                 }
             }
 
-            (*rettv).vval.v_string = p;
-            xfree(buf.cast());
+            crate::eval::typval::tv_set_string(rettv, p);
         }
 
         simplify_filename((*rettv).vval.v_string);
@@ -1893,9 +1905,9 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
 pub unsafe fn f_simplify(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let p = tv_get_string(argvars);
-        (*rettv).vval.v_string = xstrdup(p);
-        simplify_filename((*rettv).vval.v_string); // Simplify in place.
-        (*rettv).v_type = VarType::VAR_STRING;
+        let mut v = cstr_into_char_vec(cstr_to_cstring(p));
+        simplify_filename(v.as_mut_ptr()); // Simplify in place.
+        crate::eval::typval::tv_set_string(rettv, v.as_ptr());
     }
 }
 
