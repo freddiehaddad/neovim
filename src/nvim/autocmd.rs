@@ -2112,7 +2112,7 @@ pub unsafe fn do_autocmd(eap: *mut exarg_T, arg_in: *mut c_char, forceit: c_int)
                 }
 
                 if *cmd != NUL {
-                    cmd_owned = cstr_take(expand_sfile(cmd));
+                    cmd_owned = expand_sfile(cmd);
                     match cmd_owned {
                         Some(ref co) => cmd = co.as_ptr().cast_mut(),
                         None => break 'run,

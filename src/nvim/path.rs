@@ -30,7 +30,7 @@ use crate::os::shell::os_expand_wildcards;
 use crate::regexp::{
     RE_MAGIC, RE_NOBREAK, RE_STRING, regmatch_T, vim_regcomp, vim_regexec, vim_regfree,
 };
-use crate::strings::{concat_str, sort_strings, vim_snprintf, vim_strchr, vim_stricmp};
+use crate::strings::{sort_strings, vim_snprintf, vim_strchr, vim_stricmp};
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -2069,7 +2069,7 @@ pub unsafe fn expand_wildcards_eval(
 
         if is_cur_alt_file || *exp_pat == b'<' as c_char {
             emsg_off += 1;
-            eval_pat = cstr_take(eval_vars(
+            eval_pat = eval_vars(
                 exp_pat,
                 exp_pat,
                 &mut usedlen,
@@ -2077,14 +2077,17 @@ pub unsafe fn expand_wildcards_eval(
                 &mut ignored_msg,
                 ptr::null_mut(),
                 true,
-            ));
+            );
             emsg_off -= 1;
             if let Some(ref ep) = eval_pat {
-                star_follows = CStr::from_ptr(exp_pat.add(usedlen)).to_bytes() == b"*";
-                exp_pat_owned = cstr_take(concat_str(ep.as_ptr(), exp_pat.add(usedlen)));
-                exp_pat = exp_pat_owned
-                    .as_ref()
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                let tail_bytes = CStr::from_ptr(exp_pat.add(usedlen)).to_bytes();
+                star_follows = tail_bytes == b"*";
+                let mut joined = Vec::with_capacity(ep.as_bytes().len() + tail_bytes.len());
+                joined.extend_from_slice(ep.as_bytes());
+                joined.extend_from_slice(tail_bytes);
+                let cstr = crate::memory::cstr_from_bytes(&joined);
+                exp_pat = cstr.as_ptr().cast_mut();
+                exp_pat_owned = Some(cstr);
             }
         }
 

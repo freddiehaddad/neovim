@@ -146,8 +146,8 @@ use crate::mbyte::{get_encoding_name, mb_copy_char, utf_head_off, utfc_ptr2len};
 use crate::memfile::memfile_T;
 use crate::memline::{goto_byte, ml_clearmarked, ml_preserve, ml_recover, ml_setmarked};
 use crate::memory::{
-    ArenaMem, arena_mem_free, cstr_take, strequal, xfree, xmalloc, xmemdupz, xstrdup, xstrlcat,
-    xstrlcpy,
+    ArenaMem, arena_mem_free, cstr_from_bytes, cstr_take, cstr_to_cstring, strequal, xfree,
+    xmalloc, xstrdup, xstrlcat, xstrlcpy,
 };
 use crate::menu::{ex_emenu, ex_menu, ex_menutranslate, save_state_T};
 use crate::message::{
@@ -221,8 +221,8 @@ use crate::spellfile::{ex_mkspell, ex_spell};
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_TERMINAL};
 use crate::statusline::draw_tabline;
 use crate::strings::{
-    atoi, atol, concat_str, del_trailing_spaces, gettext, ngettext, strcat, strcmp, strcpy, strlen,
-    strmove, strncmp, strpbrk, strrchr, strrep, strstr, vim_snprintf, vim_strchr, vim_stricmp,
+    atoi, atol, del_trailing_spaces, gettext, ngettext, strcat, strcmp, strcpy, strlen, strmove,
+    strncmp, strpbrk, strrchr, strrep, strstr, vim_snprintf, vim_strchr, vim_stricmp,
     vim_strsave_escaped,
 };
 use crate::syntax::{ex_ownsyntax, ex_syntax, ex_syntime};
@@ -5407,7 +5407,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
 pub unsafe fn handle_did_throw() {
     unsafe {
         debug_assert!(!current_exception.is_null());
-        let mut p: *mut c_char = ptr::null_mut();
+        let mut p: Option<std::ffi::CString> = None;
         let mut messages: Vec<msglist_T> = Vec::new();
 
         match (*current_exception).r#type {
@@ -5418,7 +5418,7 @@ pub unsafe fn handle_did_throw() {
                     gettext(c"E605: Exception not caught: %s".as_ptr()),
                     (*current_exception).value.as_ptr(),
                 );
-                p = xstrdup((&raw const IObuff).cast());
+                p = Some(cstr_to_cstring((&raw const IObuff).cast()));
             }
             ET_ERROR => {
                 messages = std::mem::take(&mut (*current_exception).messages);
@@ -5450,9 +5450,8 @@ pub unsafe fn handle_did_throw() {
                     msg.multiline,
                 );
             }
-        } else if !p.is_null() {
-            let _ = emsg(p);
-            xfree(p.cast());
+        } else if let Some(ref p) = p {
+            let _ = emsg(p.as_ptr());
         }
         estack_pop();
         drop(throw_name);
@@ -6467,11 +6466,17 @@ unsafe fn do_one_cmd(
                 while ascii_isalnum(*cmdend) {
                     cmdend = cmdend.add(1);
                 }
-                let cmdname: *mut c_char =
-                    xmemdupz(ea.cmd.cast(), (cmdend as usize) - (ea.cmd as usize)).cast();
-                let ret =
-                    apply_autocmds(EVENT_CMDUNDEFINED, cmdname, cmdname, true, ptr::null_mut());
-                xfree(cmdname.cast());
+                let cmdname = cstr_from_bytes(std::slice::from_raw_parts(
+                    ea.cmd.cast::<u8>(),
+                    (cmdend as usize) - (ea.cmd as usize),
+                ));
+                let ret = apply_autocmds(
+                    EVENT_CMDUNDEFINED,
+                    cmdname.as_ptr().cast_mut(),
+                    cmdname.as_ptr().cast_mut(),
+                    true,
+                    ptr::null_mut(),
+                );
                 p = if ret && !aborting() {
                     find_ex_command(&raw mut ea, ptr::null_mut())
                 } else {
@@ -7581,11 +7586,14 @@ pub unsafe fn f_fullcommand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             return;
         }
 
-        (*rettv).vval.v_string = xstrdup(if ea.cmdidx < 0 {
-            get_user_command_name(ea.useridx, ea.cmdidx)
-        } else {
-            CMDNAMES[ea.cmdidx as usize].cmd_name
-        });
+        crate::eval::typval::tv_set_string(
+            rettv,
+            if ea.cmdidx < 0 {
+                get_user_command_name(ea.useridx, ea.cmdidx)
+            } else {
+                CMDNAMES[ea.cmdidx as usize].cmd_name
+            },
+        );
     }
 }
 
@@ -8197,7 +8205,7 @@ pub unsafe fn expand_filename(
 
             let mut srclen: usize = 0;
             let mut escaped: c_int = 0;
-            let mut repl = eval_vars(
+            let repl_owned = eval_vars(
                 p,
                 (*eap).arg,
                 &raw mut srclen,
@@ -8209,17 +8217,15 @@ pub unsafe fn expand_filename(
             if !(*errormsgp).is_null() {
                 return FAIL;
             }
-            if repl.is_null() {
+            let Some(mut repl_cstr) = repl_owned else {
                 p = p.add(srclen);
                 continue;
-            }
+            };
 
-            if !vim_strchr(repl, b'$' as c_int).is_null()
-                || !vim_strchr(repl, b'~' as c_int).is_null()
+            if !vim_strchr(repl_cstr.as_ptr(), b'$' as c_int).is_null()
+                || !vim_strchr(repl_cstr.as_ptr(), b'~' as c_int).is_null()
             {
-                let exp = expand_env_save(repl);
-                xfree(repl.cast());
-                repl = xstrdup(exp.as_ptr());
+                repl_cstr = expand_env_save(repl_cstr.as_ptr().cast_mut());
             }
 
             if (*eap).usefilter == 0
@@ -8239,12 +8245,14 @@ pub unsafe fn expand_filename(
                 #[cfg(not(windows))]
                 let esc_chars: *const c_char = escape_chars;
 
-                let mut l = repl;
+                let mut l = repl_cstr.as_ptr();
                 while *l != NUL {
                     if !vim_strchr(esc_chars, c_int::from(*l as u8)).is_null() {
-                        let new_repl = vim_strsave_escaped(repl, esc_chars);
-                        xfree(repl.cast());
-                        repl = new_repl;
+                        if let Some(new_repl) =
+                            cstr_take(vim_strsave_escaped(repl_cstr.as_ptr(), esc_chars))
+                        {
+                            repl_cstr = new_repl;
+                        }
                         break;
                     }
                     l = l.add(1);
@@ -8254,15 +8262,14 @@ pub unsafe fn expand_filename(
             if ((*eap).usefilter != 0
                 || (*eap).cmdidx == cmdidx_T::CMD_bang as c_int
                 || (*eap).cmdidx == cmdidx_T::CMD_terminal as c_int)
-                && !strpbrk(repl, c"!".as_ptr()).is_null()
+                && !strpbrk(repl_cstr.as_ptr(), c"!".as_ptr()).is_null()
+                && let Some(new_repl) =
+                    cstr_take(vim_strsave_escaped(repl_cstr.as_ptr(), c"!".as_ptr()))
             {
-                let l = vim_strsave_escaped(repl, c"!".as_ptr());
-                xfree(repl.cast());
-                repl = l;
+                repl_cstr = new_repl;
             }
 
-            p = repl_cmdline(eap, p, srclen, repl, cmdlinep);
-            xfree(repl.cast());
+            p = repl_cmdline(eap, p, srclen, repl_cstr.as_ptr().cast_mut(), cmdlinep);
         }
 
         if ((*eap).argt & EX_NOSPC) != 0 && (*eap).usefilter == 0 {
@@ -8307,18 +8314,22 @@ pub unsafe fn expand_filename(
                 if p_wic != 0 {
                     options += WILD_ICASE;
                 }
-                p = ExpandOne(
+                let Some(expanded) = cstr_take(ExpandOne(
                     &raw mut xpc,
                     (*eap).arg,
                     ptr::null_mut(),
                     options,
                     WILD_EXPAND_FREE,
-                );
-                if p.is_null() {
+                )) else {
                     return FAIL;
-                }
-                repl_cmdline(eap, (*eap).arg, strlen((*eap).arg), p, cmdlinep);
-                xfree(p.cast());
+                };
+                repl_cmdline(
+                    eap,
+                    (*eap).arg,
+                    strlen((*eap).arg),
+                    expanded.as_ptr().cast_mut(),
+                    cmdlinep,
+                );
             } else {
                 to_slash((*eap).arg);
             }
@@ -9454,8 +9465,10 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
                     emsg(c"restart failed: could not get listen address from new server".as_ptr());
                 break 'fail_2;
             }
-            let listen_addr: *mut c_char =
-                xmemdupz(result.data.string.data.cast(), result.data.string.size).cast();
+            let listen_addr = cstr_from_bytes(std::slice::from_raw_parts(
+                result.data.string.data.cast::<u8>(),
+                result.data.string.size,
+            ));
             arena_mem_free(result_mem);
             result_mem = ptr::null_mut();
 
@@ -9492,23 +9505,25 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
                     &raw mut err,
                 );
                 if error_set(&raw const err) {
-                    xfree(listen_addr.cast());
                     break 'fail_2;
                 }
                 arena_mem_free(result_mem);
                 result_mem = ptr::null_mut();
             }
 
-            remote_ui_restart(cstr_as_string(listen_addr));
+            remote_ui_restart(cstr_as_string(listen_addr.as_ptr()));
             ui_flush();
-            xfree(listen_addr.cast());
+            drop(listen_addr);
 
             set_vim_var_string(VV_EXITREASON, startreason, -1);
 
-            let mut quit_cmd_copy: *mut c_char = ptr::null_mut();
+            let mut quit_cmd_copy: Option<std::ffi::CString> = None;
             if (cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
-                quit_cmd_copy = concat_str(c"confirm ".as_ptr(), quit_cmd);
-                quit_cmd = quit_cmd_copy;
+                let mut bytes = Vec::from(&b"confirm "[..]);
+                bytes.extend_from_slice(CStr::from_ptr(quit_cmd).to_bytes());
+                let cstr = cstr_from_bytes(&bytes);
+                quit_cmd = cstr.as_ptr().cast_mut();
+                quit_cmd_copy = Some(cstr);
             }
             nvim_command(cstr_as_string(quit_cmd), &raw mut err);
 
@@ -9518,7 +9533,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
             } else if !exiting {
                 let _ = semsg!(e_restart_failed_cmd_no_quit.as_ptr(), quit_cmd);
             }
-            xfree(quit_cmd_copy.cast());
+            drop(quit_cmd_copy);
         }
 
         set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
@@ -10009,9 +10024,9 @@ unsafe fn findfunc_find_file(
     findarg: *mut c_char,
     findarg_len: usize,
     count: c_int,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
-        let mut ret_fname: *mut c_char = ptr::null_mut();
+        let mut ret_fname: Option<std::ffi::CString> = None;
         let cc = *findarg.add(findarg_len);
         *findarg.add(findarg_len) = NUL;
 
@@ -10031,9 +10046,10 @@ unsafe fn findfunc_find_file(
             if !li.is_null() {
                 let tv = &raw const (*li).li_tv;
                 if (*tv).v_type == VarType::VAR_STRING && !(*tv).vval.v_string.is_null() {
-                    ret_fname = xstrdup((*tv).vval.v_string);
+                    ret_fname = Some(cstr_to_cstring((*tv).vval.v_string));
                 } else if (*tv).v_type == VarType::VAR_DICT && !(*tv).vval.v_dict.is_null() {
-                    ret_fname = tv_dict_get_string((*tv).vval.v_dict, c"word".as_ptr(), true);
+                    ret_fname =
+                        cstr_take(tv_dict_get_string((*tv).vval.v_dict, c"word".as_ptr(), true));
                 }
             }
         }
@@ -10043,7 +10059,9 @@ unsafe fn findfunc_find_file(
         }
 
         *findarg.add(findarg_len) = cc;
-        to_slash(ret_fname);
+        if let Some(ref rf) = ret_fname {
+            to_slash(rf.as_ptr().cast_mut());
+        }
         ret_fname
     }
 }
@@ -10096,7 +10114,7 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
                 || (*eap).cmdidx == cmdidx_T::CMD_tabfind as c_int
             {
                 if (*get_findfunc()).cb_type() != kCallbackNone {
-                    fname = cstr_take(findfunc_find_file(
+                    fname = findfunc_find_file(
                         (*eap).arg,
                         strlen((*eap).arg),
                         if (*eap).addr_count > 0 {
@@ -10104,7 +10122,7 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
                         } else {
                             1
                         },
-                    ));
+                    );
                 } else {
                     let mut file_to_find: Option<std::ffi::CString> = None;
                     let mut search_ctx: Option<ff_search_ctx_T> = None;
@@ -10472,7 +10490,7 @@ unsafe fn ex_find(eap: *mut exarg_T) {
 
         let mut fname: Option<std::ffi::CString>;
         if (*get_findfunc()).cb_type() != kCallbackNone {
-                fname = cstr_take(findfunc_find_file(
+                fname = findfunc_find_file(
                     (*eap).arg,
                     strlen((*eap).arg),
                     if (*eap).addr_count > 0 {
@@ -10480,7 +10498,7 @@ unsafe fn ex_find(eap: *mut exarg_T) {
                     } else {
                         1
                     },
-                ));
+                );
             } else {
                 let mut file_to_find: Option<std::ffi::CString> = None;
                 let mut search_ctx: Option<ff_search_ctx_T> = None;
@@ -10884,7 +10902,8 @@ pub unsafe fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
             new_dir = (&raw mut NameBuff).cast();
         }
 
-        new_dir = to_slash_save(new_dir);
+        let new_dir_owned = cstr_take(to_slash_save(new_dir)).unwrap_or_default();
+        new_dir = new_dir_owned.as_ptr().cast_mut();
 
         let bcd_active = scope != kCdScopeBuffer && (*curbuf).b_localdir.is_some();
 
@@ -10897,11 +10916,10 @@ pub unsafe fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
             }
             if vim_chdir(new_dir) != 0 {
                 let _ = emsg(gettext(e_failed.as_ptr()));
-                xfree(new_dir.cast());
                 return false;
             }
         }
-        xfree(new_dir.cast());
+        drop(new_dir_owned);
 
         let pp = get_prevdir(scope);
         *pp = pdir;
@@ -11737,7 +11755,6 @@ unsafe fn ex_normal(eap: *mut exarg_T) {
             let _ = emsg(c"Can't re-enter normal mode from terminal mode".as_ptr());
             return;
         }
-        let mut arg: *mut c_char = ptr::null_mut();
 
         if expr_map_locked() {
             let _ = emsg(gettext(e_secure.as_ptr()));
@@ -11762,8 +11779,10 @@ unsafe fn ex_normal(eap: *mut exarg_T) {
             }
             p = p.add(1);
         }
+        let mut arg_vec: Option<Vec<c_char>> = None;
         if len > 0 {
-            arg = xmalloc(strlen((*eap).arg) + len + 1).cast();
+            let mut v = vec![0 as c_char; strlen((*eap).arg) + len + 1];
+            let arg = v.as_mut_ptr();
             len = 0;
             p = (*eap).arg;
             while *p != NUL {
@@ -11785,6 +11804,7 @@ unsafe fn ex_normal(eap: *mut exarg_T) {
                 *arg.add(len) = NUL;
                 p = p.add(1);
             }
+            arg_vec = Some(v);
         }
 
         ex_normal_busy += 1;
@@ -11800,7 +11820,9 @@ unsafe fn ex_normal(eap: *mut exarg_T) {
             }
 
             exec_normal_cmd(
-                if !arg.is_null() { arg } else { (*eap).arg },
+                arg_vec
+                    .as_ref()
+                    .map_or((*eap).arg, |v| v.as_ptr().cast_mut()),
                 if (*eap).forceit != 0 {
                     REMAP_NONE
                 } else {
@@ -11820,7 +11842,7 @@ unsafe fn ex_normal(eap: *mut exarg_T) {
 
         setmouse();
         ui_cursor_shape();
-        xfree(arg.cast());
+        drop(arg_vec);
     }
 }
 
@@ -12133,7 +12155,7 @@ pub unsafe fn eval_vars(
     errormsg: *mut *const c_char,
     escaped: *mut c_int,
     empty_is_error: bool,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
         let mut result: *mut c_char = c"".as_ptr().cast_mut();
         let mut resultbuf: Option<Vec<c_char>> = None;
@@ -12153,13 +12175,13 @@ pub unsafe fn eval_vars(
         let spec_idx = find_cmdline_var(src, usedlen);
         if spec_idx < 0 {
             *usedlen = 1;
-            return ptr::null_mut();
+            return None;
         }
 
         if (src as usize) > (srcstart as usize) && *src.sub(1) == b'\\' as c_char {
             *usedlen = 0;
             strmove(src.sub(1), src);
-            return ptr::null_mut();
+            return None;
         }
 
         if spec_idx == SPEC_CWORD || spec_idx == SPEC_CCWORD || spec_idx == SPEC_CEXPR {
@@ -12173,7 +12195,7 @@ pub unsafe fn eval_vars(
             resultlen = find_ident_under_cursor(&raw mut result, find_type, ptr::null_mut());
             if resultlen == 0 {
                 *errormsg = c"".as_ptr();
-                return ptr::null_mut();
+                return None;
             }
         } else {
             match spec_idx {
@@ -12211,13 +12233,13 @@ pub unsafe fn eval_vars(
                         if *src.add(1) == b'<' as c_char && i != 0 {
                             if *usedlen < 2 {
                                 *usedlen = 1;
-                                return ptr::null_mut();
+                                return None;
                             }
                             result =
                                 tv_list_find_str(get_vim_var_list(VV_OLDFILES), i - 1).cast_mut();
                             if result.is_null() {
                                 *errormsg = c"".as_ptr();
-                                return ptr::null_mut();
+                                return None;
                             }
                         } else {
                             if i == 0 && *src.add(1) == b'<' as c_char && *usedlen > 1 {
@@ -12228,7 +12250,7 @@ pub unsafe fn eval_vars(
                                 *errormsg = gettext(
                                     c"E194: No alternate file name to substitute for '#'".as_ptr(),
                                 );
-                                return ptr::null_mut();
+                                return None;
                             }
                             if !lnump.is_null() {
                                 *lnump = ECMD_LAST;
@@ -12246,7 +12268,7 @@ pub unsafe fn eval_vars(
                 SPEC_CFILE => {
                     let Some(cfile) = file_name_at_cursor(FNAME_MESS | FNAME_HYP, 1, ptr::null_mut()) else {
                         *errormsg = c"".as_ptr();
-                        return ptr::null_mut();
+                        return None;
                     };
                     let mut v: Vec<c_char> = cfile
                         .into_bytes_with_nul()
@@ -12260,15 +12282,15 @@ pub unsafe fn eval_vars(
                     use_shellslash = !autocmd_fname_full;
                     if !autocmd_fname.is_null() && !autocmd_fname_full {
                         autocmd_fname_full = true;
-                        let full = FullName_save(autocmd_fname, false);
-                        xstrlcpy(autocmd_fname, full, MAXPATHL);
-                        xfree(full.cast());
+                        if let Some(full) = cstr_take(FullName_save(autocmd_fname, false)) {
+                            xstrlcpy(autocmd_fname, full.as_ptr(), MAXPATHL);
+                        }
                     }
                     result = autocmd_fname;
                     if result.is_null() {
                         *errormsg =
                             gettext(e_no_autocommand_file_name_to_substitute_for_afile.as_ptr());
-                        return ptr::null_mut();
+                        return None;
                     }
                     result = path_try_shorten_fname(result);
                 }
@@ -12276,7 +12298,7 @@ pub unsafe fn eval_vars(
                     if autocmd_bufnr <= 0 {
                         *errormsg =
                             gettext(e_no_autocommand_buffer_number_to_substitute_for_abuf.as_ptr());
-                        return ptr::null_mut();
+                        return None;
                     }
                     let _ = vim_snprintf!(strbuf.as_mut_ptr(), 30, c"%d".as_ptr(), autocmd_bufnr);
                     result = strbuf.as_mut_ptr();
@@ -12286,14 +12308,14 @@ pub unsafe fn eval_vars(
                     if result.is_null() {
                         *errormsg =
                             gettext(e_no_autocommand_match_name_to_substitute_for_amatch.as_ptr());
-                        return ptr::null_mut();
+                        return None;
                     }
                 }
                 SPEC_SFILE => {
                     use_shellslash = true;
                     let Some(sfile) = estack_sfile(ESTACK_SFILE) else {
                         *errormsg = gettext(e_no_source_file_name_to_substitute_for_sfile.as_ptr());
-                        return ptr::null_mut();
+                        return None;
                     };
                     let mut v: Vec<c_char> = sfile
                         .into_bytes_with_nul()
@@ -12307,7 +12329,7 @@ pub unsafe fn eval_vars(
                     use_shellslash = true;
                     let Some(stack) = estack_sfile(ESTACK_STACK) else {
                         *errormsg = gettext(e_no_call_stack_to_substitute_for_stack.as_ptr());
-                        return ptr::null_mut();
+                        return None;
                     };
                     let mut v: Vec<c_char> = stack
                         .into_bytes_with_nul()
@@ -12322,7 +12344,7 @@ pub unsafe fn eval_vars(
                     let Some(script) = estack_sfile(ESTACK_SCRIPT) else {
                         *errormsg =
                             gettext(e_no_script_file_name_to_substitute_for_script.as_ptr());
-                        return ptr::null_mut();
+                        return None;
                     };
                     let mut v: Vec<c_char> = script
                         .into_bytes_with_nul()
@@ -12335,7 +12357,7 @@ pub unsafe fn eval_vars(
                 SPEC_SLNUM => {
                     if (*sourcing_name_ptr()).is_null() || *sourcing_lnum_ptr() == 0 {
                         *errormsg = gettext(e_no_line_number_to_use_for_slnum.as_ptr());
-                        return ptr::null_mut();
+                        return None;
                     }
                     let _ = vim_snprintf!(
                         strbuf.as_mut_ptr(),
@@ -12349,7 +12371,7 @@ pub unsafe fn eval_vars(
                     let sflnum = current_sctx.sc_lnum + *sourcing_lnum_ptr();
                     if sflnum == 0 {
                         *errormsg = gettext(e_no_line_number_to_use_for_sflnum.as_ptr());
-                        return ptr::null_mut();
+                        return None;
                     }
                     let _ = vim_snprintf!(strbuf.as_mut_ptr(), 30, c"%d".as_ptr(), sflnum as c_int);
                     result = strbuf.as_mut_ptr();
@@ -12357,7 +12379,7 @@ pub unsafe fn eval_vars(
                 SPEC_SID => {
                     if current_sctx.sc_sid <= 0 {
                         *errormsg = gettext(e_usingsid.as_ptr());
-                        return ptr::null_mut();
+                        return None;
                     }
                     let _ = vim_snprintf!(
                         strbuf.as_mut_ptr(),
@@ -12391,7 +12413,7 @@ pub unsafe fn eval_vars(
                 );
                 if result.is_null() {
                     *errormsg = c"".as_ptr();
-                    return ptr::null_mut();
+                    return None;
                 }
             }
         }
@@ -12406,29 +12428,37 @@ pub unsafe fn eval_vars(
                     *errormsg = gettext(c"E500: Evaluates to an empty string".as_ptr());
                 }
             }
-            ptr::null_mut()
+            None
         } else {
-            xmemdupz(result.cast(), resultlen).cast()
+            Some(cstr_from_bytes(std::slice::from_raw_parts(
+                result.cast::<u8>(),
+                resultlen,
+            )))
         };
         drop(resultbuf);
         ret
     }
 }
 
-pub unsafe fn expand_sfile(arg: *mut c_char) -> *mut c_char {
+pub unsafe fn expand_sfile(arg: *mut c_char) -> Option<std::ffi::CString> {
     unsafe {
-        let mut result = xstrdup(arg);
-        let mut p = result;
+        let mut result_vec: Vec<c_char> = cstr_to_cstring(arg)
+            .into_bytes_with_nul()
+            .into_iter()
+            .map(|b| b as c_char)
+            .collect();
+        let mut idx: usize = 0;
 
-        while *p != NUL {
+        while result_vec[idx] != NUL {
+            let p = result_vec.as_mut_ptr().add(idx);
             if strncmp(p, c"<sfile>".as_ptr(), 7) != 0 {
-                p = p.add(1);
+                idx += 1;
             } else {
                 let mut srclen: usize = 0;
                 let mut errormsg: *const c_char = ptr::null();
                 let repl = eval_vars(
                     p,
-                    result,
+                    result_vec.as_ptr(),
                     &raw mut srclen,
                     ptr::null_mut(),
                     &raw mut errormsg,
@@ -12439,28 +12469,25 @@ pub unsafe fn expand_sfile(arg: *mut c_char) -> *mut c_char {
                     if *errormsg != NUL {
                         let _ = emsg(errormsg);
                     }
-                    xfree(result.cast());
-                    return ptr::null_mut();
+                    return None;
                 }
-                if repl.is_null() {
-                    p = p.add(srclen);
+                let Some(repl_cstr) = repl else {
+                    idx += srclen;
                     continue;
-                }
-                let prefix_len = (p as usize) - (result as usize);
-                let len = strlen(result) - srclen + strlen(repl) + 1;
-                let newres: *mut c_char = xmalloc(len).cast();
-                ptr::copy_nonoverlapping(result, newres, prefix_len);
-                strcpy(newres.add(prefix_len), repl);
-                let cont_len = strlen(newres);
-                let _ = strcat(newres, p.add(srclen));
-                xfree(repl.cast());
-                xfree(result.cast());
-                result = newres;
-                p = newres.add(cont_len);
+                };
+                let repl_bytes = repl_cstr.as_bytes();
+                let tail_slice = &result_vec[(idx + srclen)..];
+                let mut new_vec =
+                    Vec::with_capacity(idx + repl_bytes.len() + tail_slice.len());
+                new_vec.extend_from_slice(&result_vec[..idx]);
+                new_vec.extend(repl_bytes.iter().map(|&b| b as c_char));
+                new_vec.extend_from_slice(tail_slice);
+                result_vec = new_vec;
+                idx += repl_bytes.len();
             }
         }
 
-        result
+        Some(cstr_to_cstring(result_vec.as_ptr()))
     }
 }
 

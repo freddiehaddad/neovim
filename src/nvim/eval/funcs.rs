@@ -2360,13 +2360,14 @@ pub unsafe fn f_expand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
                 emsg(errormsg);
             }
             if (*rettv).v_type == VarType::VAR_LIST {
-                let result_owned = cstr_take(result);
-                tv_list_alloc_ret(rettv, isize::from(result_owned.is_some()));
-                if let Some(ref r) = result_owned {
+                tv_list_alloc_ret(rettv, isize::from(result.is_some()));
+                if let Some(ref r) = result {
                     tv_list_append_string((*rettv).vval.v_list, r.as_ptr(), -1);
                 }
+            } else if let Some(ref r) = result {
+                crate::eval::typval::tv_set_string(rettv, r.as_ptr());
             } else {
-                (*rettv).vval.v_string = result;
+                (*rettv).vval.v_string = ptr::null_mut();
             }
         } else {
             if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
