@@ -416,18 +416,15 @@ pub unsafe fn modify_fname(
                                 ptr::copy_nonoverlapping(*fnamep, str_copy.as_mut_ptr(), *fnamelen);
                             }
                             *usedlen = (p.add(1) as usize).wrapping_sub(src as usize);
-                            let mut slen: usize = 0;
-                            let sub_res = cstr_take(do_string_sub(
+                            let sub_res = do_string_sub(
                                 str_copy.as_mut_ptr(),
                                 *fnamelen,
                                 pat.as_ptr().cast_mut(),
                                 sub.as_ptr().cast_mut(),
                                 ptr::null_mut(),
                                 flags.cast_mut(),
-                                &raw mut slen,
-                            ))
-                            .unwrap_or_default();
-                            *fnamelen = slen;
+                            );
+                            *fnamelen = sub_res.as_bytes().len();
                             set_fname_buf(fnamep, bufp, cstr_into_char_vec(sub_res));
                             didit = true;
                         }

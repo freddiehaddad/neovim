@@ -2846,7 +2846,7 @@ pub unsafe fn nlua_do_ucmd(cmd: *mut ucmd_T, eap: *mut exarg_T, preview: bool) -
     }
 }
 
-pub unsafe fn nlua_funcref_str(ref_: LuaRef, arena: *mut Arena, show_ref: bool) -> *mut c_char {
+pub unsafe fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
     unsafe {
         let lstate = GLOBAL_LSTATE;
         if lua_checkstack(lstate, 1) != 0 {
@@ -2866,11 +2866,7 @@ pub unsafe fn nlua_funcref_str(ref_: LuaRef, arena: *mut Arena, show_ref: bool) 
                     } else {
                         format!("<Lua {src_s}:{}>", ar.linedefined)
                     };
-                    return crate::memory::arena_memdupz(
-                        arena,
-                        formatted.as_ptr().cast(),
-                        formatted.len(),
-                    );
+                    return crate::memory::cstr_from_bytes(formatted.as_bytes());
                 }
             }
         }
@@ -2880,7 +2876,7 @@ pub unsafe fn nlua_funcref_str(ref_: LuaRef, arena: *mut Arena, show_ref: bool) 
         } else {
             "<Lua>".to_string()
         };
-        crate::memory::arena_memdupz(arena, formatted.as_ptr().cast(), formatted.len())
+        crate::memory::cstr_from_bytes(formatted.as_bytes())
     }
 }
 

@@ -133,7 +133,7 @@ use crate::mbyte::{
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
     Arena, arena_finish, arena_mem_free, cstr_from_bytes, cstr_take, cstr_to_cstring, memchrsub,
-    strchrsub, strequal, strnequal, xstrdup, xstrndup,
+    strchrsub, strequal, strnequal,
 };
 use crate::msgpack_rpc::channel::find_channel;
 use crate::ops::set_ref_in_opfunc;
@@ -5223,18 +5223,20 @@ pub unsafe fn callback_from_typval(callback: *mut Callback, arg: *const typval_T
                 let funcref = if (*arg).v_type == VarType::VAR_STRING
                     && let Some(sl) = get_scriptlocal_funcname(name)
                 {
-                    xstrdup(sl.as_ptr())
+                    sl
                 } else {
-                    xstrdup(name)
+                    cstr_to_cstring(name)
                 };
-                func_ref(funcref);
-                (*callback).data = crate::eval::typval::CallbackData::funcref(funcref);
+                let raw = funcref.into_raw();
+                func_ref(raw);
+                (*callback).data = crate::eval::typval::CallbackData::funcref(raw);
             }
         } else if is_lua_tbl {
             {
                 let name = nlua_register_table_as_callable(arg);
                 if !name.is_null() {
-                    (*callback).data = crate::eval::typval::CallbackData::funcref(xstrdup(name));
+                    (*callback).data =
+                        crate::eval::typval::CallbackData::funcref(cstr_to_cstring(name).into_raw());
                 } else {
                     r = FAIL;
                 }
@@ -6852,13 +6854,12 @@ pub unsafe fn last_set_msg(script_ctx: sctx_T) {
 /// Perform a substitution on "str" with pattern "pat" and substitute "sub".
 pub unsafe fn do_string_sub(
     str_: *mut c_char,
-    mut len: usize,
+    len: usize,
     pat: *mut c_char,
     sub: *mut c_char,
     expr: *mut typval_T,
     flags: *const c_char,
-    ret_len: *mut usize,
-) -> *mut c_char {
+) -> std::ffi::CString {
     unsafe {
         let mut regmatch: regmatch_T = regmatch_T::new();
         let mut out: Option<Vec<c_char>> = None;
@@ -6933,10 +6934,9 @@ pub unsafe fn do_string_sub(
         }
 
         let ret = if let Some(buf) = &out {
-            len = buf.len();
-            xstrndup(buf.as_ptr(), len)
+            cstr_from_bytes(std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), buf.len()))
         } else {
-            xstrndup(str_, len)
+            cstr_from_bytes(std::slice::from_raw_parts(str_.cast::<u8>(), len))
         };
         drop(out);
         let empty_opt = (&raw mut empty_string_option).cast::<c_char>();
@@ -6953,10 +6953,6 @@ pub unsafe fn do_string_sub(
                 set_option_value_give_err(kOptCpoptions, obj, 0);
             }
             free_string_option(save_cpo);
-        }
-
-        if !ret_len.is_null() {
-            *ret_len = len;
         }
 
         ret

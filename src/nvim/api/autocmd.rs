@@ -702,10 +702,14 @@ pub unsafe extern "C" fn nvim_get_autocmds(
                                     }
                                 }
                                 kCallbackFuncref | kCallbackPartial => {
+                                    let cb_str = callback_to_string(cb);
                                     put_c(
                                         &mut autocmd_info,
                                         c"callback",
-                                        string_obj(cstr_as_string(callback_to_string(cb, arena))),
+                                        string_obj(crate::api::private::helpers::arena_string(
+                                            arena,
+                                            cstr_as_string(cb_str.as_ptr()),
+                                        )),
                                     );
                                 }
                                 _ => {

@@ -44,7 +44,7 @@ use crate::lua::executor::{api_new_luaref, nlua_do_ucmd, nlua_funcref_str, nlua_
 use crate::mapping::set_context_in_map_cmd;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_copy_char, utfc_ptr2len};
-use crate::memory::{Arena, arena_memdupz, cstr_take};
+use crate::memory::{Arena, arena_memdupz};
 use crate::menu::set_context_in_menu_cmd;
 use crate::message::{
     emsg, message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_outtrans_special, msg_putchar,
@@ -784,12 +784,8 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                 msg_outtrans(&raw const IObuff[0], 0, false);
 
                 if cmd.uc_luaref != LUA_NOREF {
-                    let fn_str = cstr_take(nlua_funcref_str(cmd.uc_luaref, ptr::null_mut(), true));
-                    msg_puts_hl(
-                        fn_str.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                        HLF_8,
-                        false,
-                    );
+                    let fn_str = nlua_funcref_str(cmd.uc_luaref, true);
+                    msg_puts_hl(fn_str.as_ptr(), HLF_8, false);
                     if !cmd.uc_rep.as_bytes().is_empty() {
                         msg_puts(c"\n                                               ".as_ptr());
                     }

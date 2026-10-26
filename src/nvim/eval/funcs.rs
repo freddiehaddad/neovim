@@ -8824,14 +8824,18 @@ pub unsafe fn f_substitute(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
         if str_.is_null() || pat.is_null() || (sub.is_null() && expr.is_null()) || flg.is_null() {
             (*rettv).vval.v_string = ptr::null_mut();
         } else {
-            (*rettv).vval.v_string = do_string_sub(
+            let sub_res = do_string_sub(
                 str_.cast_mut(),
                 strlen(str_),
                 pat.cast_mut(),
                 sub.cast_mut(),
                 expr,
                 flg.cast_mut(),
-                ptr::null_mut(),
+            );
+            crate::eval::typval::tv_set_string_len(
+                rettv,
+                sub_res.as_ptr(),
+                sub_res.as_bytes().len(),
             );
         }
     }

@@ -437,12 +437,8 @@ unsafe fn showmap(mp: *mut mapblock_T, local: bool) {
         }
 
         if (*mp).m_luaref != LUA_NOREF {
-            let str_cstr = cstr_take(nlua_funcref_str((*mp).m_luaref, ptr::null_mut(), true));
-            msg_puts_hl(
-                str_cstr.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                HLF_8,
-                false,
-            );
+            let str_cstr = nlua_funcref_str((*mp).m_luaref, true);
+            msg_puts_hl(str_cstr.as_ptr(), HLF_8, false);
         } else if (*mp).m_str.as_bytes().is_empty() {
             msg_puts_hl(c"<Nop>".as_ptr(), HLF_8, false);
         } else {
@@ -2309,7 +2305,8 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: *mut typval_T, exact: c_int)
                     );
                 }
             } else if rhs_lua != LUA_NOREF {
-                (*rettv).vval.v_string = nlua_funcref_str((*mp).m_luaref, ptr::null_mut(), true);
+                let s = nlua_funcref_str((*mp).m_luaref, true);
+                crate::eval::typval::tv_set_string_len(rettv, s.as_ptr(), s.as_bytes().len());
             }
         } else if !mp.is_null() && (!rhs.is_null() || rhs_lua != LUA_NOREF) {
             let mut arena = Arena {

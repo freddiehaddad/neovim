@@ -24,7 +24,7 @@ use crate::eval::typval::{
     tv_is_func, tv_item_lock, tv_list_alloc,
     tv_list_append_string, tv_list_append_tv, tv_list_find_nr, tv_list_find_str, tv_list_first,
     tv_list_free, tv_list_item_remove, tv_list_len, tv_list_ref, tv_list_remove_items,
-    tv_list_set_lock, tv_list_set_ret, tv_list_unref, typval_T, value_check_lock, varnumber_T,
+    tv_list_set_lock, tv_list_set_ret, typval_T, value_check_lock, varnumber_T,
 };
 use crate::eval::userfunc::{
     find_hi_in_scoped_ht, find_var_in_scoped_ht, function_exists, get_current_funccal_dict,
@@ -52,9 +52,7 @@ use crate::hashtab::{
 use crate::lua::executor::{nlua_funcref_str, nlua_set_sctx};
 use crate::math::{FAIL, OK};
 use crate::mbyte::utf_char2bytes;
-use crate::memory::{
-    cstr_from_bytes, cstr_to_cstring, strequal, xfree, xstrdup, xstrlcat, xstrlcpy,
-};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, strequal, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, internal_error, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind,
     msg_outtrans, msg_putchar, msg_puts, msg_puts_len, msg_start, semsg,
@@ -656,12 +654,10 @@ pub unsafe fn evalvars_clear() {
         let vimvars_ptr = (&raw mut vimvars).cast::<VimVar>();
         for i in 0..VV_LEN {
             let p = vimvars_ptr.add(i);
-            if (*p).vv_di.di_tv.v_type == VarType::VAR_STRING {
-                xfree((*p).vv_di.di_tv.vval.v_string.cast());
-                (*p).vv_di.di_tv.vval.v_string = ptr::null_mut();
-            } else if (*p).vv_di.di_tv.v_type == VarType::VAR_LIST {
-                tv_list_unref((*p).vv_di.di_tv.vval.v_list);
-                (*p).vv_di.di_tv.vval.v_list = ptr::null_mut();
+            if (*p).vv_di.di_tv.v_type == VarType::VAR_STRING
+                || (*p).vv_di.di_tv.v_type == VarType::VAR_LIST
+            {
+                tv_clear(&raw mut (*p).vv_di.di_tv);
             }
             (*p).vv_di.di_key = Vec::new();
         }
@@ -2516,7 +2512,8 @@ pub unsafe fn set_cmdarg(eap: *mut exarg_T, oldarg: *mut c_char) -> *mut c_char 
         let tv = get_vim_var_tv(VV_CMDARG);
         let oldval = (*tv).vval.v_string;
         if eap.is_null() {
-            xfree(oldval.cast());
+            tv_clear(tv);
+            (*tv).v_type = VarType::VAR_STRING;
             (*tv).vval.v_string = oldarg;
             return ptr::null_mut();
         }
@@ -2982,14 +2979,12 @@ pub unsafe fn before_set_vvar(
             if watched {
                 tv_copy(&raw const (*di).di_tv, &raw mut oldtv);
             }
-            xfree((*di).di_tv.vval.v_string.cast());
-            (*di).di_tv.vval.v_string = ptr::null_mut();
+            tv_clear(&raw mut (*di).di_tv);
             if copy || (*tv).v_type != VarType::VAR_STRING {
                 let val = tv_get_string(tv);
-                if (*di).di_tv.vval.v_string.is_null() {
-                    (*di).di_tv.vval.v_string = xstrdup(val);
-                }
+                crate::eval::typval::tv_set_string(&raw mut (*di).di_tv, val);
             } else {
+                (*di).di_tv.v_type = VarType::VAR_STRING;
                 (*di).di_tv.vval.v_string = (*tv).vval.v_string;
                 (*tv).vval.v_string = ptr::null_mut();
             }
@@ -3493,16 +3488,24 @@ pub unsafe fn opt_to_tv(value: Object, numbool: bool) -> typval_T {
                 rettv.vval.v_number = value.data.integer;
             }
             ObjectType::kObjectTypeString => {
-                rettv.v_type = VarType::VAR_STRING;
-                rettv.vval.v_string = if !value.data.string.data.is_null() {
-                    xstrdup(value.data.string.data)
+                if !value.data.string.data.is_null() {
+                    crate::eval::typval::tv_set_string_len(
+                        &raw mut rettv,
+                        value.data.string.data,
+                        value.data.string.size,
+                    );
                 } else {
-                    ptr::null_mut()
-                };
+                    rettv.v_type = VarType::VAR_STRING;
+                    rettv.vval.v_string = ptr::null_mut();
+                }
             }
             ObjectType::kObjectTypeLuaRef => {
-                rettv.v_type = VarType::VAR_STRING;
-                rettv.vval.v_string = nlua_funcref_str(value.data.luaref, ptr::null_mut(), true);
+                let s = nlua_funcref_str(value.data.luaref, true);
+                crate::eval::typval::tv_set_string_len(
+                    &raw mut rettv,
+                    s.as_ptr(),
+                    s.as_bytes().len(),
+                );
             }
             _ => {
                 std::process::abort();

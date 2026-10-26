@@ -5226,7 +5226,8 @@ pub unsafe fn optval_own(opt_idx: OptIndex, value: Object) -> Object {
 unsafe fn optval_snapshot(value: Object) -> Object {
     unsafe {
         if value.obj_type == ObjectType::kObjectTypeLuaRef {
-            return cstr_as_obj(nlua_funcref_str(value.data.luaref, ptr::null_mut(), true));
+            let s = nlua_funcref_str(value.data.luaref, true);
+            return cstr_to_obj(s.as_ptr());
         }
         copy_object(value, ptr::null_mut())
     }
@@ -5278,11 +5279,11 @@ unsafe fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
                 } else if value.data.string.size > 0 {
                     let funcref =
                         if let Some(name) = get_scriptlocal_funcname(value.data.string.data) {
-                            xstrdup(name.as_ptr())
+                            name
                         } else {
-                            xstrdup(value.data.string.data)
+                            crate::memory::cstr_to_cstring(value.data.string.data)
                         };
-                    cb.data = crate::eval::typval::CallbackData::expr(funcref);
+                    cb.data = crate::eval::typval::CallbackData::expr(funcref.into_raw());
                 }
             }
             _ => {}
@@ -5397,10 +5398,7 @@ unsafe fn optval_to_cstr(o: Object, quote: bool) -> std::ffi::CString {
                 out.push(b'"');
                 crate::memory::cstr_from_bytes(&out)
             }
-            ObjectType::kObjectTypeLuaRef => {
-                crate::memory::cstr_take(nlua_funcref_str(o.data.luaref, ptr::null_mut(), false))
-                    .unwrap_or_default()
-            }
+            ObjectType::kObjectTypeLuaRef => nlua_funcref_str(o.data.luaref, false),
             _ => std::process::abort(),
         }
     }

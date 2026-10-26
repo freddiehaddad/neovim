@@ -31,7 +31,8 @@ use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str};
 use crate::mbyte::{mb_strcmp_ic, string_convert, utf_char2bytes, utfc_ptr2len, vimconv_T};
 use crate::memory::{
-    Arena, cstr_from_bytes, strequal, xfree, xmallocz, xmemdupz, xstrdup, xstrlcpy, xstrndup,
+    cstr_from_bytes, cstr_take, cstr_to_cstring, strequal, xfree, xmemdupz, xstrdup, xstrlcpy,
+    xstrndup,
 };
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
@@ -2460,7 +2461,7 @@ pub unsafe fn callback_free(callback: *mut Callback) {
             kCallbackFuncref => {
                 let funcref = (*callback).data.as_funcref();
                 func_unref(funcref);
-                xfree(funcref.cast());
+                let _ = cstr_take(funcref);
             }
             kCallbackPartial => {
                 partial_unref((*callback).data.as_partial());
@@ -2470,7 +2471,7 @@ pub unsafe fn callback_free(callback: *mut Callback) {
                 nlua_clear_ref(&mut luaref);
             }
             kCallbackExpr => {
-                xfree((*callback).data.as_funcref().cast());
+                let _ = cstr_take((*callback).data.as_funcref());
             }
             _ => {}
         }
@@ -2490,8 +2491,8 @@ pub unsafe fn callback_put(cb: *mut Callback, tv: *mut typval_T) {
             }
             kCallbackFuncref => {
                 let funcref = (*cb).data.as_funcref();
+                tv_set_string(tv, funcref);
                 (*tv).v_type = VarType::VAR_FUNC;
-                (*tv).vval.v_string = xstrdup(funcref);
                 func_ref((*tv).vval.v_string);
             }
             _ => {
@@ -2513,7 +2514,7 @@ pub unsafe fn callback_copy(dest: *mut Callback, src: *mut Callback) {
             }
             kCallbackFuncref => {
                 let funcref = (*src).data.as_funcref();
-                (*dest).data = CallbackData::funcref(xstrdup(funcref));
+                (*dest).data = CallbackData::funcref(cstr_to_cstring(funcref).into_raw());
                 func_ref(funcref);
             }
             kCallbackLua => {
@@ -2521,7 +2522,8 @@ pub unsafe fn callback_copy(dest: *mut Callback, src: *mut Callback) {
                 (*dest).data = CallbackData::lua(new_ref);
             }
             kCallbackExpr => {
-                (*dest).data = CallbackData::expr(xstrdup((*src).data.as_funcref()));
+                (*dest).data =
+                    CallbackData::expr(cstr_to_cstring((*src).data.as_funcref()).into_raw());
             }
             _ => {
                 (*dest).data = CallbackData::NONE;
@@ -2531,14 +2533,14 @@ pub unsafe fn callback_copy(dest: *mut Callback, src: *mut Callback) {
 }
 
 /// Generate a string description of a callback.
-pub unsafe fn callback_to_string(cb: *mut Callback, arena: *mut Arena) -> *mut c_char {
+pub unsafe fn callback_to_string(cb: *mut Callback) -> std::ffi::CString {
     unsafe {
         if (*cb).cb_type() == kCallbackLua {
-            return nlua_funcref_str((*cb).data.as_luaref(), arena.cast(), true);
+            return nlua_funcref_str((*cb).data.as_luaref(), true);
         }
 
         const MSGLEN: usize = 100;
-        let msg = xmallocz(MSGLEN).cast::<c_char>();
+        let mut msg: Vec<u8> = Vec::with_capacity(MSGLEN);
 
         match (*cb).cb_type() {
             kCallbackFuncref => {
@@ -2546,18 +2548,10 @@ pub unsafe fn callback_to_string(cb: *mut Callback, arena: *mut Arena) -> *mut c
                 let prefix = b"<vim function: ";
                 let suffix = b">";
                 let copy_len = s.len().min(MSGLEN - prefix.len() - suffix.len());
-                ptr::copy_nonoverlapping(prefix.as_ptr().cast::<c_char>(), msg, prefix.len());
-                ptr::copy_nonoverlapping(
-                    s.as_ptr().cast::<c_char>(),
-                    msg.add(prefix.len()),
-                    copy_len,
-                );
-                let after = prefix.len() + copy_len;
-                if after < MSGLEN {
-                    *msg.add(after) = b'>' as c_char;
-                    *msg.add((after + 1).min(MSGLEN)) = NUL;
-                } else {
-                    *msg.add(MSGLEN) = NUL;
+                msg.extend_from_slice(prefix);
+                msg.extend_from_slice(&s[..copy_len]);
+                if msg.len() < MSGLEN {
+                    msg.push(b'>');
                 }
             }
             kCallbackPartial => {
@@ -2566,25 +2560,15 @@ pub unsafe fn callback_to_string(cb: *mut Callback, arena: *mut Arena) -> *mut c
                 let prefix = b"<vim partial: ";
                 let suffix = b">";
                 let copy_len = s.len().min(MSGLEN - prefix.len() - suffix.len());
-                ptr::copy_nonoverlapping(prefix.as_ptr().cast::<c_char>(), msg, prefix.len());
-                ptr::copy_nonoverlapping(
-                    s.as_ptr().cast::<c_char>(),
-                    msg.add(prefix.len()),
-                    copy_len,
-                );
-                let after = prefix.len() + copy_len;
-                if after < MSGLEN {
-                    *msg.add(after) = b'>' as c_char;
-                    *msg.add((after + 1).min(MSGLEN)) = NUL;
-                } else {
-                    *msg.add(MSGLEN) = NUL;
+                msg.extend_from_slice(prefix);
+                msg.extend_from_slice(&s[..copy_len]);
+                if msg.len() < MSGLEN {
+                    msg.push(b'>');
                 }
             }
-            _ => {
-                *msg = NUL;
-            }
+            _ => {}
         }
-        msg
+        cstr_from_bytes(&msg)
     }
 }
 
@@ -2658,9 +2642,8 @@ pub unsafe fn tv_dict_watcher_notify(
         argv[0].v_type = VarType::VAR_DICT;
         argv[0].v_lock = VAR_UNLOCKED;
         argv[0].vval.v_dict = dict;
-        argv[1].v_type = VarType::VAR_STRING;
         argv[1].v_lock = VAR_UNLOCKED;
-        argv[1].vval.v_string = xstrdup(key);
+        tv_set_string(&raw mut argv[1], key);
         argv[2].v_type = VarType::VAR_DICT;
         argv[2].v_lock = VAR_UNLOCKED;
         let changes_dict = tv_dict_alloc();
@@ -3219,9 +3202,9 @@ pub unsafe fn tv_dict_add_func(
 ) -> c_int {
     unsafe {
         let item = tv_dict_item_alloc_len(key, key_len);
-        (*item).di_tv.v_type = VarType::VAR_FUNC;
         let name_ptr = (*fp).uf_name.as_ptr();
-        (*item).di_tv.vval.v_string = xmemdupz(name_ptr.cast(), (*fp).uf_namelen).cast::<c_char>();
+        tv_set_string_len(&raw mut (*item).di_tv, name_ptr, (*fp).uf_namelen);
+        (*item).di_tv.v_type = VarType::VAR_FUNC;
         func_ref((*item).di_tv.vval.v_string);
         if tv_dict_add(d, item) == FAIL {
             tv_dict_item_free(item);
@@ -3811,8 +3794,7 @@ unsafe fn tv_dict2list(argvars: *mut typval_T, rettv: *mut typval_T, what: DictL
 
                 match what {
                     DictListType::Keys => {
-                        tv_item.v_type = VarType::VAR_STRING;
-                        tv_item.vval.v_string = xstrdup(key_ptr);
+                        tv_set_string(&raw mut tv_item, key_ptr);
                     }
                     DictListType::Values => {
                         tv_copy(&raw const (*di).di_tv, &raw mut tv_item);

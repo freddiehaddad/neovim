@@ -445,22 +445,12 @@ pub unsafe fn mpack_object_inner(
             let cur = &mut *current;
             match cur.obj_type {
                 ObjectType::kObjectTypeLuaRef => {
-                    let repr = crate::memory::cstr_take(nlua_funcref_str(
-                        cur.data.luaref,
-                        std::ptr::null_mut(),
-                        true,
-                    ));
+                    let cs = nlua_funcref_str(cur.data.luaref, true);
                     api_free_luaref(cur.data.luaref);
                     cur.data.luaref = LUA_NOREF;
-                    let s = match repr {
-                        None => NvimString {
-                            data: std::ptr::null_mut(),
-                            size: 0,
-                        },
-                        Some(ref cs) => NvimString {
-                            data: cs.as_ptr().cast_mut(),
-                            size: cs.to_bytes().len(),
-                        },
+                    let s = NvimString {
+                        data: cs.as_ptr().cast_mut(),
+                        size: cs.to_bytes().len(),
                     };
                     mpack_str(s, packer);
                 }

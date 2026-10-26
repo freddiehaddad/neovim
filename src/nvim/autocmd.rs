@@ -42,7 +42,7 @@ use crate::insexpand::ins_compl_active;
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_set_sctx};
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strcmp_ic;
-use crate::memory::cstr_take;
+
 use crate::message::{
     emsg, give_warning, msg_advance, msg_clr_eos, msg_end, msg_ext_set_kind, msg_outtrans,
     msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, msg_start, semsg, smsg, verbose_enter,
@@ -3809,7 +3809,7 @@ pub unsafe fn aucmd_handler_to_string(ac: &mut AutoCmd) -> CString {
     unsafe {
         match &mut ac.handler {
             AutoCmdHandler::Cmd(cmd) => cmd.clone(),
-            AutoCmdHandler::Fn(cb) => cstr_take(callback_to_string(cb, ptr::null_mut())).unwrap_or_default(),
+            AutoCmdHandler::Fn(cb) => callback_to_string(cb),
             AutoCmdHandler::None => CString::default(),
         }
     }
