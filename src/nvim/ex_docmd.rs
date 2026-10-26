@@ -146,7 +146,8 @@ use crate::mbyte::{get_encoding_name, mb_copy_char, utf_head_off, utfc_ptr2len};
 use crate::memfile::memfile_T;
 use crate::memline::{goto_byte, ml_clearmarked, ml_preserve, ml_recover, ml_setmarked};
 use crate::memory::{
-    ArenaMem, arena_mem_free, strequal, xfree, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy,
+    ArenaMem, arena_mem_free, cstr_take, strequal, xfree, xmalloc, xmemdupz, xstrdup, xstrlcat,
+    xstrlcpy,
 };
 use crate::menu::{ex_emenu, ex_menu, ex_menutranslate, save_state_T};
 use crate::message::{
@@ -10078,7 +10079,7 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
     unsafe {
         set_browse_edit_arg(eap);
         let old_curwin = curwin;
-        let mut fname: *mut c_char = ptr::null_mut();
+        let mut fname: Option<std::ffi::CString> = None;
         let use_tab = (*eap).cmdidx == cmdidx_T::CMD_tabedit as c_int
             || (*eap).cmdidx == cmdidx_T::CMD_tabfind as c_int
             || (*eap).cmdidx == cmdidx_T::CMD_tabnew as c_int;
@@ -10097,7 +10098,7 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
                 || (*eap).cmdidx == cmdidx_T::CMD_tabfind as c_int
             {
                 if (*get_findfunc()).cb_type() != kCallbackNone {
-                    fname = findfunc_find_file(
+                    fname = cstr_take(findfunc_find_file(
                         (*eap).arg,
                         strlen((*eap).arg),
                         if (*eap).addr_count > 0 {
@@ -10105,7 +10106,7 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
                         } else {
                             1
                         },
-                    );
+                    ));
                 } else {
                     let mut file_to_find: Option<std::ffi::CString> = None;
                     let mut search_ctx: Option<ff_search_ctx_T> = None;
@@ -10119,10 +10120,10 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
                         &mut search_ctx,
                     );
                 }
-                if fname.is_null() {
+                let Some(ref f) = fname else {
                     break 'theend;
-                }
-                (*eap).arg = fname;
+                };
+                (*eap).arg = f.as_ptr().cast_mut();
             }
 
             if use_tab {
@@ -10174,7 +10175,7 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
             }
         }
 
-        xfree(fname.cast());
+        drop(fname);
     }
 }
 
@@ -10471,56 +10472,54 @@ unsafe fn ex_find(eap: *mut exarg_T) {
             return;
         }
 
-        let mut fname: *mut c_char;
+        let mut fname: Option<std::ffi::CString>;
         if (*get_findfunc()).cb_type() != kCallbackNone {
-            fname = findfunc_find_file(
-                (*eap).arg,
-                strlen((*eap).arg),
+                fname = cstr_take(findfunc_find_file(
+                    (*eap).arg,
+                    strlen((*eap).arg),
+                    if (*eap).addr_count > 0 {
+                        (*eap).line2
+                    } else {
+                        1
+                    },
+                ));
+            } else {
+                let mut file_to_find: Option<std::ffi::CString> = None;
+                let mut search_ctx: Option<ff_search_ctx_T> = None;
+                fname = find_file_in_path(
+                    (*eap).arg,
+                    strlen((*eap).arg),
+                    FNAME_MESS,
+                    c_int::from(true),
+                    (*curbuf).b_ffname,
+                    &mut file_to_find,
+                    &mut search_ctx,
+                );
                 if (*eap).addr_count > 0 {
-                    (*eap).line2
-                } else {
-                    1
-                },
-            );
-        } else {
-            let mut file_to_find: Option<std::ffi::CString> = None;
-            let mut search_ctx: Option<ff_search_ctx_T> = None;
-            fname = find_file_in_path(
-                (*eap).arg,
-                strlen((*eap).arg),
-                FNAME_MESS,
-                c_int::from(true),
-                (*curbuf).b_ffname,
-                &mut file_to_find,
-                &mut search_ctx,
-            );
-            if (*eap).addr_count > 0 {
-                let mut count = (*eap).line2;
-                while !fname.is_null() && {
-                    count -= 1;
-                    count > 0
-                } {
-                    xfree(fname.cast());
-                    fname = find_file_in_path(
-                        ptr::null_mut(),
-                        0,
-                        FNAME_MESS,
-                        c_int::from(false),
-                        (*curbuf).b_ffname,
-                        &mut file_to_find,
-                        &mut search_ctx,
-                    );
+                    let mut count = (*eap).line2;
+                    while fname.is_some() && {
+                        count -= 1;
+                        count > 0
+                    } {
+                        fname = find_file_in_path(
+                            ptr::null_mut(),
+                            0,
+                            FNAME_MESS,
+                            c_int::from(false),
+                            (*curbuf).b_ffname,
+                            &mut file_to_find,
+                            &mut search_ctx,
+                        );
+                    }
                 }
             }
-        }
 
-        if fname.is_null() {
-            return;
-        }
+            let Some(fname) = fname else {
+                return;
+            };
 
-        (*eap).arg = fname;
-        do_exedit(eap, ptr::null_mut());
-        xfree(fname.cast());
+            (*eap).arg = fname.as_ptr().cast_mut();
+            do_exedit(eap, ptr::null_mut());
     }
 }
 
@@ -12252,11 +12251,11 @@ pub unsafe fn eval_vars(
                     }
                 }
                 SPEC_CFILE => {
-                    result = file_name_at_cursor(FNAME_MESS | FNAME_HYP, 1, ptr::null_mut());
-                    if result.is_null() {
+                    let Some(cfile) = file_name_at_cursor(FNAME_MESS | FNAME_HYP, 1, ptr::null_mut()) else {
                         *errormsg = c"".as_ptr();
                         return ptr::null_mut();
-                    }
+                    };
+                    result = xstrdup(cfile.as_ptr());
                     resultbuf = result;
                 }
                 SPEC_AFILE => {

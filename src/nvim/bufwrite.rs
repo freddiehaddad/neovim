@@ -37,7 +37,7 @@ use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::mbyte::{enc_canonize, my_iconv_open, utf_ptr2char, utf_ptr2len_len};
 use crate::memline::{get_file_in_dir, make_percent_swname, ml_get_buf, ml_preserve, ml_timestamp};
-use crate::memory::{verbose_try_malloc, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_take, xmemcpyz, xstrlcat, xstrlcpy};
 use crate::message::{emsg, msg, msg_progress, msg_puts_hl, msg_with_id, semsg, set_keep_msg};
 use crate::option::{copy_option_part, get_bkc_flags, get_fileformat_force, shortmess};
 use crate::option_vars::*;
@@ -57,7 +57,7 @@ use crate::sha256::context_sha256_T;
 use crate::strings::{gettext, strlen, vim_snprintf, vim_snprintf_add, vim_strchr};
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
 use crate::undo::{curbufIsChanged, u_unchanged, u_update_save_nr, u_write_undo};
-use std::ffi::{c_char, c_int, c_uint};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::api::private::helpers::HLF_E;
@@ -73,7 +73,6 @@ const NL: u32 = b'\n' as u32;
 const NL_CHAR: c_char = b'\n' as c_char;
 const CAR_CHAR: c_char = b'\r' as c_char;
 
-const SMALLBUFSIZE: usize = 256;
 const ICONV_MULT: usize = 8;
 
 pub(crate) const NODE_WRITABLE: c_int = 1;
@@ -101,7 +100,7 @@ struct Error_T {
     num: *const c_char,
     msg: *mut c_char,
     arg: c_int,
-    alloc: bool,
+    owned_msg: Option<std::ffi::CString>,
 }
 
 #[repr(C)]
@@ -597,7 +596,7 @@ const fn set_err_num(num: *const c_char, msg: *const c_char) -> Error_T {
         num,
         msg: msg.cast_mut(),
         arg: 0,
-        alloc: false,
+        owned_msg: None,
     }
 }
 
@@ -607,7 +606,7 @@ const fn set_err(msg: *const c_char) -> Error_T {
         num: ptr::null(),
         msg: msg.cast_mut(),
         arg: 0,
-        alloc: false,
+        owned_msg: None,
     }
 }
 
@@ -617,7 +616,7 @@ const fn set_err_arg(msg: *const c_char, arg: c_int) -> Error_T {
         num: ptr::null(),
         msg: msg.cast_mut(),
         arg,
-        alloc: false,
+        owned_msg: None,
     }
 }
 
@@ -663,9 +662,7 @@ unsafe fn emit_err(e: *mut Error_T, msg_id: *const c_char) {
         } else {
             emsg(errmsg.as_ptr());
         }
-        if (*e).alloc {
-            xfree((*e).msg.cast());
-        }
+        (*e).owned_msg = None;
     }
 }
 
@@ -816,39 +813,37 @@ pub unsafe fn buf_get_backup_name(
     dirp: *mut *mut c_char,
     no_prepend_dot: bool,
     backup_ext: *mut c_char,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
-        let mut backup: *mut c_char = ptr::null_mut();
+        let mut backup: Option<std::ffi::CString> = None;
         let iobuf = (&raw mut IObuff).cast::<c_char>();
         let dir_len = copy_option_part(dirp, iobuf, IOSIZE, c",".as_ptr());
         let p = iobuf.add(dir_len);
         if **dirp == NUL && !os_isdir(iobuf) {
             let mut failed_dir: *mut c_char = ptr::null_mut();
             let ret = os_mkdir_recurse(iobuf, 0o755, &raw mut failed_dir, ptr::null_mut());
+            let failed_dir = cstr_take(failed_dir);
             if ret != 0 {
                 let _ = semsg!(
                     gettext(
                         c"E303: Unable to create directory \"%s\" for backup file: %s".as_ptr(),
                     ),
-                    failed_dir,
+                    failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                     uv_strerror(ret),
                 );
-                xfree(failed_dir.cast());
             }
         }
-        if dir_len > 1 && after_pathsep(iobuf, p) != 0 && *p.sub(1) == *p.sub(2) {
-            let swname = make_percent_swname(iobuf, p, fname);
-            if !swname.is_null() {
-                backup = modname(swname, backup_ext, no_prepend_dot);
-                xfree(swname.cast());
-            }
+        if dir_len > 1
+            && after_pathsep(iobuf, p) != 0
+            && *p.sub(1) == *p.sub(2)
+            && let Some(swname) = cstr_take(make_percent_swname(iobuf, p, fname))
+        {
+            backup = cstr_take(modname(swname.as_ptr(), backup_ext, no_prepend_dot));
         }
-        if backup.is_null() {
-            let rootname = get_file_in_dir(fname, iobuf);
-            if !rootname.is_null() {
-                backup = modname(rootname, backup_ext, no_prepend_dot);
-                xfree(rootname.cast());
-            }
+        if backup.is_none()
+            && let Some(rootname) = cstr_take(get_file_in_dir(fname, iobuf))
+        {
+            backup = cstr_take(modname(rootname.as_ptr(), backup_ext, no_prepend_dot));
         }
         backup
     }
@@ -864,7 +859,7 @@ unsafe fn buf_write_make_backup(
     file_readonly: bool,
     forceit: bool,
     backup_copyp: *mut bool,
-    backupp: *mut *mut c_char,
+    backupp: &mut Option<std::ffi::CString>,
     err: *mut Error_T,
 ) -> c_int {
     unsafe {
@@ -957,80 +952,84 @@ unsafe fn buf_write_make_backup(
                 while *dirp != 0 {
                     *backupp =
                         buf_get_backup_name(fname, &raw mut dirp, no_prepend_dot, backup_ext);
-                    if (*backupp).is_null() {
+                    let Some(bk_cstr) = backupp.take() else {
                         some_error = true;
                         break 'nobackup;
-                    }
+                    };
+                    let mut bk_vec: Vec<c_char> = bk_cstr
+                        .into_bytes_with_nul()
+                        .into_iter()
+                        .map(|b| b as c_char)
+                        .collect();
+                    let bk_ptr = bk_vec.as_mut_ptr();
+                    let mut keep_bk = true;
 
                     let mut file_info_new = FileInfo::new();
-                    if os_fileinfo(*backupp, &raw mut file_info_new) {
+                    if os_fileinfo(bk_ptr, &raw mut file_info_new) {
                         if os_fileinfo_id_equal(&raw const file_info_new, file_info_old) {
-                            xfree((*backupp).cast());
-                            *backupp = ptr::null_mut();
+                            keep_bk = false;
                         } else if p_bk == 0 {
-                            let blen = strlen(*backupp);
+                            let blen = strlen(bk_ptr);
                             let extlen = strlen(backup_ext);
                             let mut wp = if blen > extlen + 1 {
-                                (*backupp).add(blen - 1 - extlen)
+                                bk_ptr.add(blen - 1 - extlen)
                             } else {
-                                *backupp
+                                bk_ptr
                             };
-                            if (wp as usize) < (*backupp as usize) {
-                                wp = *backupp;
+                            if (wp as usize) < (bk_ptr as usize) {
+                                wp = bk_ptr;
                             }
                             *wp = b'z' as c_char;
                             while (*wp as u8) > b'a'
-                                && os_fileinfo(*backupp, &raw mut file_info_new)
+                                && os_fileinfo(bk_ptr, &raw mut file_info_new)
                             {
                                 *wp -= 1;
                             }
                             if (*wp as u8) == b'a' {
-                                xfree((*backupp).cast());
-                                *backupp = ptr::null_mut();
+                                keep_bk = false;
                             }
                         }
                     }
 
-                    if !(*backupp).is_null() {
-                        let _ = os_remove(*backupp);
-                        if os_copy(fname, *backupp, UV_FS_COPYFILE_FICLONE) != 0 {
+                    if keep_bk {
+                        let _ = os_remove(bk_ptr);
+                        if os_copy(fname, bk_ptr, UV_FS_COPYFILE_FICLONE) != 0 {
                             *err = set_err(gettext(
                                 c"E509: Cannot create backup file (add ! to override)".as_ptr(),
                             ));
-                            xfree((*backupp).cast());
-                            *backupp = ptr::null_mut();
                             continue;
                         }
 
-                        let _ = os_setperm(*backupp, perm & 0o777);
+                        let _ = os_setperm(bk_ptr, perm & 0o777);
 
                         #[cfg(not(windows))]
                         {
                             if file_info_new.stat.st_gid != (*file_info_old).stat.st_gid
                                 && os_chown(
-                                    *backupp,
+                                    bk_ptr,
                                     u32::MAX as uv_uid_t,
                                     (*file_info_old).stat.st_gid as uv_gid_t,
                                 ) != 0
                             {
-                                let _ = os_setperm(*backupp, (perm & 0o707) | ((perm & 0o7) << 3));
+                                let _ = os_setperm(bk_ptr, (perm & 0o707) | ((perm & 0o7) << 3));
                             }
                             let _ = os_file_settime(
-                                *backupp,
+                                bk_ptr,
                                 (*file_info_old).stat.st_atim.tv_sec as f64,
                                 (*file_info_old).stat.st_mtim.tv_sec as f64,
                             );
                         }
 
-                        os_set_acl(*backupp, acl);
-                        os_copy_xattr(fname, *backupp);
+                        os_set_acl(bk_ptr, acl);
+                        os_copy_xattr(fname, bk_ptr);
+                        *backupp = Some(CStr::from_ptr(bk_ptr).to_owned());
                         *err = set_err(ptr::null());
                         break;
                     }
                 }
             }
 
-            if (*backupp).is_null() && (*err).msg.is_null() {
+            if backupp.is_none() && (*err).msg.is_null() {
                 *err = set_err(gettext(
                     c"E509: Cannot create backup file (add ! to override)".as_ptr(),
                 ));
@@ -1051,35 +1050,40 @@ unsafe fn buf_write_make_backup(
             let mut dirp = p_bdir;
             while *dirp != 0 {
                 *backupp = buf_get_backup_name(fname, &raw mut dirp, no_prepend_dot, backup_ext);
-                if !(*backupp).is_null() && p_bk == 0 && os_path_exists(*backupp) {
-                    let blen = strlen(*backupp);
-                    let extlen = strlen(backup_ext);
-                    let mut p = if blen > extlen + 1 {
-                        (*backupp).add(blen - 1 - extlen)
-                    } else {
-                        *backupp
-                    };
-                    if (p as usize) < (*backupp as usize) {
-                        p = *backupp;
+                if let Some(bk_cstr) = backupp.take() {
+                    let mut bk_vec: Vec<c_char> = bk_cstr
+                        .into_bytes_with_nul()
+                        .into_iter()
+                        .map(|b| b as c_char)
+                        .collect();
+                    let bk_ptr = bk_vec.as_mut_ptr();
+                    let mut keep_bk = true;
+                    if p_bk == 0 && os_path_exists(bk_ptr) {
+                        let blen = strlen(bk_ptr);
+                        let extlen = strlen(backup_ext);
+                        let mut p = if blen > extlen + 1 {
+                            bk_ptr.add(blen - 1 - extlen)
+                        } else {
+                            bk_ptr
+                        };
+                        if (p as usize) < (bk_ptr as usize) {
+                            p = bk_ptr;
+                        }
+                        *p = b'z' as c_char;
+                        while (*p as u8) > b'a' && os_path_exists(bk_ptr) {
+                            *p -= 1;
+                        }
+                        if (*p as u8) == b'a' {
+                            keep_bk = false;
+                        }
                     }
-                    *p = b'z' as c_char;
-                    while (*p as u8) > b'a' && os_path_exists(*backupp) {
-                        *p -= 1;
-                    }
-                    if (*p as u8) == b'a' {
-                        xfree((*backupp).cast());
-                        *backupp = ptr::null_mut();
-                    }
-                }
-                if !(*backupp).is_null() {
-                    if vim_rename(fname, *backupp) == 0 {
+                    if keep_bk && vim_rename(fname, bk_ptr) == 0 {
+                        *backupp = Some(CStr::from_ptr(bk_ptr).to_owned());
                         break;
                     }
-                    xfree((*backupp).cast());
-                    *backupp = ptr::null_mut();
                 }
             }
-            if (*backupp).is_null() && !forceit {
+            if backupp.is_none() && !forceit {
                 *err = set_err(gettext(
                     c"E510: Can't make backup file (add ! to override)".as_ptr(),
                 ));
@@ -1199,12 +1203,18 @@ pub unsafe fn buf_write(
             return res;
         }
 
-        let fname_copy = xstrdup(fname);
-        let sfname_copy = xstrdup(sfname);
-        let ffname_copy = xstrdup(ffname);
-        fname = fname_copy;
-        sfname = sfname_copy;
-        ffname = ffname_copy;
+        let fname_copy = (!fname.is_null()).then(|| CStr::from_ptr(fname).to_owned());
+        let sfname_copy = (!sfname.is_null()).then(|| CStr::from_ptr(sfname).to_owned());
+        let ffname_copy = (!ffname.is_null()).then(|| CStr::from_ptr(ffname).to_owned());
+        fname = fname_copy
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        sfname = sfname_copy
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        ffname = ffname_copy
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
         if (cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0 {
             (*buf).b_op_start = orig_start;
@@ -1241,21 +1251,17 @@ pub unsafe fn buf_write(
         let write_tick = buf_get_changedtick(buf);
         msg_scroll = 0;
 
-        let mut smallbuf = [0 as c_char; SMALLBUFSIZE];
-        let mut buffer = verbose_try_malloc(WRITEBUFSIZE).cast::<c_char>();
-        let bufsize: c_int = if buffer.is_null() {
-            buffer = smallbuf.as_mut_ptr();
-            SMALLBUFSIZE as c_int
-        } else {
-            WRITEBUFSIZE as c_int
-        };
+        let mut buffer_vec: Vec<c_char> = vec![0; WRITEBUFSIZE];
+        let buffer = buffer_vec.as_mut_ptr();
+        let bufsize: c_int = WRITEBUFSIZE as c_int;
+        let mut conv_buf_vec: Vec<c_char> = Vec::new();
 
         let mut err = set_err(ptr::null());
         let mut perm: c_int = -1;
         let mut newfile = false;
         let mut device = false;
         let mut file_readonly = false;
-        let mut backup: *mut c_char = ptr::null_mut();
+        let mut backup: Option<std::ffi::CString> = None;
         let mut fenc_tofree: Option<std::ffi::CString> = None;
         let mut file_info_old = FileInfo::new();
         let mut acl: vim_acl_T = ptr::null_mut();
@@ -1306,7 +1312,7 @@ pub unsafe fn buf_write(
                         file_readonly,
                         forceit,
                         &raw mut backup_copy,
-                        &raw mut backup,
+                        &mut backup,
                         &raw mut err,
                     ) == FAIL
                 {
@@ -1340,9 +1346,10 @@ pub unsafe fn buf_write(
                 }
 
                 let mut wfname: *mut c_char = fname;
+                let mut wfname_owned: Option<std::ffi::CString> = None;
 
                 'restore_backup: {
-                    if reset_changed && !newfile && overwriting && !(exiting && !backup.is_null()) {
+                    if reset_changed && !newfile && overwriting && !(exiting && backup.is_some()) {
                         let fsync_opt = if (*buf).b_p_fs >= 0 {
                             (*buf).b_p_fs != 0
                         } else {
@@ -1376,11 +1383,8 @@ pub unsafe fn buf_write(
                                 } else {
                                     (bufsize as usize) * 4
                                 };
-                            write_info.bw_conv_buf =
-                                verbose_try_malloc(write_info.bw_conv_buflen).cast::<c_char>();
-                            if write_info.bw_conv_buf.is_null() {
-                                end = 0;
-                            }
+                            conv_buf_vec = vec![0; write_info.bw_conv_buflen];
+                            write_info.bw_conv_buf = conv_buf_vec.as_mut_ptr();
                         }
                     }
 
@@ -1389,19 +1393,19 @@ pub unsafe fn buf_write(
                             my_iconv_open(fenc, c"utf-8".as_ptr().cast_mut()) as iconv_t;
                         if write_info.bw_iconv_fd != -1 {
                             write_info.bw_conv_buflen = (bufsize as usize) * ICONV_MULT;
-                            write_info.bw_conv_buf =
-                                verbose_try_malloc(write_info.bw_conv_buflen).cast::<c_char>();
-                            if write_info.bw_conv_buf.is_null() {
-                                end = 0;
-                            }
+                            conv_buf_vec = vec![0; write_info.bw_conv_buflen];
+                            write_info.bw_conv_buf = conv_buf_vec.as_mut_ptr();
                             write_info.bw_first = 1;
                         } else if p_ccv.cb_type() != kCallbackNone {
-                            wfname = vim_tempname();
-                            if wfname.is_null() {
-                                err = set_err(gettext(
-                                    c"E214: Can't find temp file for writing".as_ptr(),
-                                ));
-                                break 'restore_backup;
+                            wfname_owned = cstr_take(vim_tempname());
+                            match wfname_owned {
+                                Some(ref wf) => wfname = wf.as_ptr().cast_mut(),
+                                None => {
+                                    err = set_err(gettext(
+                                        c"E214: Can't find temp file for writing".as_ptr(),
+                                    ));
+                                    break 'restore_backup;
+                                }
                             }
                         }
                     }
@@ -1713,11 +1717,14 @@ pub unsafe fn buf_write(
                         }
 
                         if !backup_copy {
-                            os_copy_xattr(backup, wfname);
+                            os_copy_xattr(
+                                backup.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                                wfname,
+                            );
                         }
 
                         #[cfg(not(windows))]
-                        if !backup.is_null() && !backup_copy {
+                        if backup.is_some() && !backup_copy {
                             let mut file_info = FileInfo::new();
                             if !os_fileinfo(wfname, &raw mut file_info)
                                 || file_info.stat.st_uid != file_info_old.stat.st_uid
@@ -1763,7 +1770,7 @@ pub unsafe fn buf_write(
                                 end = 0;
                             }
                             let _ = os_remove(wfname);
-                            xfree(wfname.cast());
+                            drop(wfname_owned.take());
                         }
                     }
 
@@ -1776,9 +1783,9 @@ pub unsafe fn buf_write(
                                             .as_ptr(),
                                     ));
                                 } else {
-                                    let alloc_msg = xmalloc(300).cast::<c_char>();
+                                    let mut alloc_msg: Vec<c_char> = vec![0; 300];
                                     let _ = vim_snprintf!(
-                                        alloc_msg,
+                                        alloc_msg.as_mut_ptr(),
                                         300,
                                         gettext(
                                             c"E513: Write error, conversion failed in line %d (make 'fenc' empty to override)"
@@ -1786,11 +1793,13 @@ pub unsafe fn buf_write(
                                         ),
                                         write_info.bw_conv_error_lnum,
                                     );
+                                    let owned = CStr::from_ptr(alloc_msg.as_ptr()).to_owned();
+                                    let msg_ptr = owned.as_ptr().cast_mut();
                                     err = Error_T {
                                         num: ptr::null(),
-                                        msg: alloc_msg,
+                                        msg: msg_ptr,
                                         arg: 0,
-                                        alloc: true,
+                                        owned_msg: Some(owned),
                                     };
                                 }
                             } else if got_int {
@@ -1802,16 +1811,16 @@ pub unsafe fn buf_write(
                             }
                         }
 
-                        if !backup.is_null() {
+                        if let Some(ref bk) = backup {
                             if backup_copy {
                                 if got_int {
                                     msg(gettext(e_interr.as_ptr()), 0);
                                     ui_flush();
                                 }
-                                if os_copy(backup, fname, UV_FS_COPYFILE_FICLONE) == 0 {
+                                if os_copy(bk.as_ptr(), fname, UV_FS_COPYFILE_FICLONE) == 0 {
                                     end = 1;
                                 }
-                            } else if vim_rename(backup, fname) == 0 {
+                            } else if vim_rename(bk.as_ptr(), fname) == 0 {
                                 end = 1;
                             }
                         }
@@ -1939,34 +1948,36 @@ pub unsafe fn buf_write(
                     }
 
                     if *p_pm != 0 && dobackup {
-                        let org = modname(fname, p_pm, false);
-                        if !backup.is_null() {
-                            if org.is_null() {
-                                emsg(gettext(
-                                    c"E205: Patchmode: can't save original file".as_ptr(),
-                                ));
-                            } else if !os_path_exists(org) {
-                                let _ = vim_rename(backup, org);
-                                xfree(backup.cast());
-                                backup = ptr::null_mut();
-                                #[cfg(not(windows))]
-                                {
-                                    let _ = os_file_settime(
-                                        org,
-                                        file_info_old.stat.st_atim.tv_sec as f64,
-                                        file_info_old.stat.st_mtim.tv_sec as f64,
-                                    );
+                        let org = cstr_take(modname(fname, p_pm, false));
+                        if let Some(ref bk) = backup {
+                            match org {
+                                None => {
+                                    emsg(gettext(
+                                        c"E205: Patchmode: can't save original file".as_ptr(),
+                                    ));
                                 }
+                                Some(ref org) if !os_path_exists(org.as_ptr()) => {
+                                    let _ = vim_rename(bk.as_ptr(), org.as_ptr());
+                                    backup = None;
+                                    #[cfg(not(windows))]
+                                    {
+                                        let _ = os_file_settime(
+                                            org.as_ptr(),
+                                            file_info_old.stat.st_atim.tv_sec as f64,
+                                            file_info_old.stat.st_mtim.tv_sec as f64,
+                                        );
+                                    }
+                                }
+                                Some(_) => {}
                             }
                         } else {
-                            let empty_fd = if org.is_null() {
-                                -1
-                            } else {
-                                os_open(
-                                    org,
+                            let empty_fd = match org {
+                                None => -1,
+                                Some(ref org) => os_open(
+                                    org.as_ptr(),
                                     O_CREAT | O_EXCL | O_NOFOLLOW,
                                     if perm < 0 { 0o666 } else { perm & 0o777 },
-                                )
+                                ),
                             };
                             if empty_fd < 0 {
                                 emsg(gettext(
@@ -1976,16 +1987,15 @@ pub unsafe fn buf_write(
                                 let _ = close(empty_fd);
                             }
                         }
-                        if !org.is_null() {
-                            let _ = os_setperm(org, os_getperm(fname) & 0o777);
-                            xfree(org.cast());
+                        if let Some(ref org) = org {
+                            let _ = os_setperm(org.as_ptr(), os_getperm(fname) & 0o777);
                         }
                     }
 
                     if p_bk == 0
-                        && !backup.is_null()
+                        && let Some(ref bk) = backup
                         && write_info.bw_conv_error == 0
-                        && os_remove(backup) != 0
+                        && os_remove(bk.as_ptr()) != 0
                     {
                         emsg(gettext(c"E207: Can't delete backup file".as_ptr()));
                     }
@@ -1993,24 +2003,24 @@ pub unsafe fn buf_write(
                     break 'nofail;
                 } // 'restore_backup
 
-                if !backup.is_null() && wfname == fname {
+                if let Some(ref bk) = backup
+                    && wfname == fname
+                {
                     if backup_copy {
                         if !os_path_exists(fname) {
-                            let _ = vim_rename(backup, fname);
+                            let _ = vim_rename(bk.as_ptr(), fname);
                         }
                         if os_path_exists(fname) {
-                            let _ = os_remove(backup);
+                            let _ = os_remove(bk.as_ptr());
                         }
                     } else {
-                        let _ = vim_rename(backup, fname);
+                        let _ = vim_rename(bk.as_ptr(), fname);
                     }
                 }
                 if !newfile && !os_path_exists(fname) {
                     end = 0;
                 }
-                if wfname != fname {
-                    xfree(wfname.cast());
-                }
+                drop(wfname_owned);
             } // 'fail
 
             no_wait_return -= 1;
@@ -2020,12 +2030,10 @@ pub unsafe fn buf_write(
             ui_busy_stop();
         }
 
-        xfree(backup.cast());
-        if !ptr::eq(buffer, smallbuf.as_ptr()) {
-            xfree(buffer.cast());
-        }
+        drop(backup);
+        drop(buffer_vec);
         drop(fenc_tofree);
-        xfree(write_info.bw_conv_buf.cast());
+        drop(conv_buf_vec);
         if write_info.bw_iconv_fd != -1 {
             let _ = call_iconv_close(write_info.bw_iconv_fd);
         }
@@ -2083,9 +2091,9 @@ pub unsafe fn buf_write(
 
         got_int |= prev_got_int;
 
-        xfree(fname_copy.cast());
-        xfree(sfname_copy.cast());
-        xfree(ffname_copy.cast());
+        drop(fname_copy);
+        drop(sfname_copy);
+        drop(ffname_copy);
 
         retval
     }

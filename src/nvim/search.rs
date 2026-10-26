@@ -3276,7 +3276,7 @@ pub unsafe fn find_pattern_in_path(
                     curr_fname
                 };
 
-                let raw_new_fname = if find_substr(inc_opt, b"\\zs") {
+                let mut new_fname_cstr = if find_substr(inc_opt, b"\\zs") {
                     find_file_name_in_path(
                         incl_regmatch.startp[0],
                         incl_regmatch.endp[0].offset_from(incl_regmatch.startp[0]) as usize,
@@ -3293,9 +3293,16 @@ pub unsafe fn find_pattern_in_path(
                         p_fname,
                         ptr::null_mut(),
                     )
-                };
-                to_slash(raw_new_fname);
-                let mut new_fname_cstr = cstr_take(raw_new_fname);
+                }
+                .map(|cstr| {
+                    let mut v: Vec<c_char> = cstr
+                        .into_bytes_with_nul()
+                        .into_iter()
+                        .map(|b| b as c_char)
+                        .collect();
+                    to_slash(v.as_mut_ptr());
+                    CStr::from_ptr(v.as_ptr()).to_owned()
+                });
                 let mut already_searched = false;
                 if let Some(ref nf) = new_fname_cstr {
                     let nf_ptr = nf.as_ptr().cast_mut();

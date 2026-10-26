@@ -626,7 +626,7 @@ pub unsafe fn f_filewritable(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
 
 unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: c_int) {
     unsafe {
-        let mut fresult: *mut c_char = ptr::null_mut();
+        let mut fresult: Option<std::ffi::CString> = None;
         let mut path = if *(*curbuf).b_p_path == NUL {
             p_path
         } else {
@@ -666,9 +666,6 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
             let mut search_ctx: Option<ff_search_ctx_T> = None;
 
             loop {
-                if (*rettv).v_type == VarType::VAR_STRING || (*rettv).v_type == VarType::VAR_LIST {
-                    xfree(fresult.cast());
-                }
                 fresult = find_file_in_path_option(
                     if first {
                         fname.cast_mut()
@@ -691,22 +688,24 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
                 );
                 first = false;
 
-                if !fresult.is_null() && (*rettv).v_type == VarType::VAR_LIST {
-                    tv_list_append_string((*rettv).vval.v_list, fresult, -1);
+                if let Some(ref res) = fresult
+                    && (*rettv).v_type == VarType::VAR_LIST
+                {
+                    tv_list_append_string((*rettv).vval.v_list, res.as_ptr(), -1);
                 }
 
                 let keep_going = (*rettv).v_type == VarType::VAR_LIST || {
                     count -= 1;
                     count > 0
                 };
-                if !keep_going || fresult.is_null() {
+                if !keep_going || fresult.is_none() {
                     break;
                 }
             }
         }
 
         if (*rettv).v_type == VarType::VAR_STRING {
-            (*rettv).vval.v_string = fresult;
+            (*rettv).vval.v_string = fresult.map_or(ptr::null_mut(), |s| xstrdup(s.as_ptr()));
         }
     }
 }

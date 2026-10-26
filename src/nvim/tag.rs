@@ -2453,7 +2453,7 @@ pub unsafe fn free_tag_stuff() {
 /// Get the next name of a tag file from the tag file list.
 pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) -> c_int {
     unsafe {
-        let mut fname: *mut c_char;
+        let mut fname: Option<std::ffi::CString>;
 
         if first != 0 {
             *tnp = tagname_T::new();
@@ -2508,7 +2508,7 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
         loop {
             if (*tnp).tn_did_filefind_init != 0 {
                 fname = vim_findfile((*tnp).tn_search_ctx.as_mut());
-                if !fname.is_null() {
+                if fname.is_some() {
                     break;
                 }
                 (*tnp).tn_did_filefind_init = 0;
@@ -2549,8 +2549,7 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
             }
         }
 
-        strcpy(buf, fname);
-        xfree(fname.cast());
+        strcpy(buf, fname.as_ref().unwrap().as_ptr());
         OK
     }
 }

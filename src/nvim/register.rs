@@ -1001,7 +1001,8 @@ pub unsafe fn get_spec_reg(
                     FNAME_MESS | FNAME_HYP | if regname == Ctrl_P { FNAME_EXP } else { 0 },
                     1,
                     ptr::null_mut(),
-                );
+                )
+                .map_or(ptr::null_mut(), |s| xstrdup(s.as_ptr()));
                 *allocated = true;
                 true
             }
