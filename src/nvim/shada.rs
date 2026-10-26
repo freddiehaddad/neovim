@@ -188,10 +188,9 @@ pub struct KeyDict__shada_search_pat {
     pub pat: NvimString,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct SubReplacementString {
-    pub sub: *mut c_char,
+    pub sub: Option<std::ffi::CString>,
     pub timestamp: Timestamp,
     pub additional_data: *mut AdditionalData,
 }
@@ -199,7 +198,7 @@ pub struct SubReplacementString {
 impl SubReplacementString {
     pub const fn new() -> Self {
         Self {
-            sub: ptr::null_mut(),
+            sub: None,
             timestamp: 0,
             additional_data: ptr::null_mut(),
         }
@@ -298,10 +297,9 @@ struct ShadaUnknownItem {
     contents: Vec<c_char>,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct ShadaSubString {
-    sub: *mut c_char,
+    sub: Option<std::ffi::CString>,
 }
 
 #[derive(Clone)]
@@ -429,9 +427,9 @@ impl ShadaEntryData {
     }
 
     #[inline]
-    const fn sub_string(&self) -> ShadaSubString {
+    const fn sub_string(&self) -> &ShadaSubString {
         match self {
-            Self::SubString(v) => *v,
+            Self::SubString(v) => v,
             _ => unreachable!(),
         }
     }
@@ -640,9 +638,7 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
             entry_type: ShadaEntryType::kSDItemSubString,
             can_free_entry: false,
             timestamp: 0,
-            data: ShadaEntryData::SubString(ShadaSubString {
-                sub: ptr::null_mut(),
-            }),
+            data: ShadaEntryData::SubString(ShadaSubString { sub: None }),
             additional_data: ptr::null_mut(),
         },
         ShadaEntryType::kSDItemHistoryEntry => ShadaEntry {
@@ -1447,18 +1443,29 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                     if !force {
                         let mut sub = SubReplacementString::new();
                         sub_get_replacement(&mut sub);
-                        if !sub.sub.is_null() && sub.timestamp >= cur_entry.timestamp {
+                        if sub.sub.is_some() && sub.timestamp >= cur_entry.timestamp {
                             shada_free_shada_entry(&mut cur_entry);
                             continue;
                         }
                     }
-                    let sub_ptr = cur_entry.data.sub_string().sub;
+                    let mut sub_bytes = cur_entry
+                        .data
+                        .sub_string_mut()
+                        .sub
+                        .take()
+                        .unwrap_or_default()
+                        .into_bytes_with_nul();
+                    let new_ptr = regtilde(sub_bytes.as_mut_ptr().cast(), p_magic, false);
+                    let final_sub = if new_ptr != sub_bytes.as_mut_ptr().cast() {
+                        cstr_take(new_ptr)
+                    } else {
+                        Some(CStr::from_ptr(sub_bytes.as_ptr().cast()).to_owned())
+                    };
                     sub_set_replacement(SubReplacementString {
-                        sub: sub_ptr,
+                        sub: final_sub,
                         timestamp: cur_entry.timestamp,
                         additional_data: cur_entry.additional_data,
                     });
-                    regtilde(sub_ptr, p_magic, false);
                 }
                 ShadaEntryType::kSDItemHistoryEntry => {
                     let ht = cur_entry.data.history_item().histtype as usize;
@@ -1871,7 +1878,17 @@ unsafe fn shada_pack_entry(
             ShadaEntryType::kSDItemSubString => {
                 let arr_size = 1 + additional_data_len(entry.additional_data);
                 mpack_array(&mut sbuf.ptr, arr_size);
-                mpack_bin(cstr_as_string(entry.data.sub_string().sub), &mut sbuf);
+                mpack_bin(
+                    cstr_as_string(
+                        entry
+                            .data
+                            .sub_string()
+                            .sub
+                            .as_ref()
+                            .map_or(ptr::null(), |s| s.as_ptr()),
+                    ),
+                    &mut sbuf,
+                );
                 dump_additional_data(entry.additional_data, &mut sbuf);
             }
             ShadaEntryType::kSDItemSearchPattern => {
@@ -2901,7 +2918,7 @@ unsafe fn shada_write(
 
                 let mut sub = SubReplacementString::new();
                 sub_get_replacement(&mut sub);
-                if !sub.sub.is_null() {
+                if sub.sub.is_some() {
                     (*wms).replacement = ShadaEntry {
                         can_free_entry: false,
                         entry_type: ShadaEntryType::kSDItemSubString,
@@ -3510,7 +3527,7 @@ unsafe fn shada_free_shada_entry(entry: *mut ShadaEntry) {
                 tv_clear(&mut (*entry).data.global_var_mut().value);
             }
             ShadaEntryType::kSDItemSubString => {
-                xfree((*entry).data.sub_string().sub.cast());
+                (*entry).data.sub_string_mut().sub = None;
             }
             ShadaEntryType::kSDItemBufferList => {
                 for b in (*entry).data.buffer_list_mut().buffers.drain(..) {
@@ -3636,7 +3653,7 @@ unsafe fn shada_read_next_item(
             let initial_fpos = (*sd_reader).bytes_read;
             let mut ad = AdditionalDataBuilder::new();
             let mut read_additional_array_elements: u32 = 0;
-            let mut error_alloc: *mut c_char = ptr::null_mut();
+            let mut error_alloc: Option<std::ffi::CString> = None;
 
             let mut mru_ret = msgpack_read_uint64(sd_reader, true, &mut type_u64);
             if mru_ret != ShaDaReadResult::kSDReadStatusSuccess {
@@ -3777,7 +3794,7 @@ unsafe fn shada_read_next_item(
                                         .as_ptr(),
                                 ),
                                 initial_fpos,
-                                error_alloc,
+                                error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                             );
                             (*it).pat = NvimString {
                                 data: ptr::null_mut(),
@@ -3819,7 +3836,7 @@ unsafe fn shada_read_next_item(
                                         .as_ptr(),
                                 ),
                                 initial_fpos,
-                                error_alloc,
+                                error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                             );
                             break 'parse_item false;
                         }
@@ -3904,7 +3921,7 @@ unsafe fn shada_read_next_item(
                                         .as_ptr(),
                                 ),
                                 initial_fpos,
-                                error_alloc,
+                                error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                             );
                             break 'parse_item false;
                         }
@@ -4122,7 +4139,13 @@ unsafe fn shada_read_next_item(
                             );
                             break 'parse_item false;
                         }
-                        (*entry).data.sub_string_mut().sub = xmemdupz_cstr(sub.data, sub.size);
+                        (*entry).data.sub_string_mut().sub = Some(
+                            std::ffi::CString::new(std::slice::from_raw_parts(
+                                sub.data.cast::<u8>(),
+                                sub.size,
+                            ))
+                            .unwrap_or_default(),
+                        );
                         read_additional_array_elements = (len as u32) - 1;
                     }
                     ShadaEntryType::kSDItemBufferList => {
@@ -4158,7 +4181,7 @@ unsafe fn shada_read_next_item(
                                                 .as_ptr(),
                                         ),
                                         initial_fpos,
-                                        error_alloc,
+                                        error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                                     );
                                     break 'parse_item false;
                                 }
@@ -4274,7 +4297,6 @@ unsafe fn shada_read_next_item(
                 (*entry).entry_type = entry_type;
                 shada_free_shada_entry(entry);
                 (*entry).entry_type = ShadaEntryType::kSDItemMissing;
-                xfree(error_alloc.cast());
             }
 
             drop(owned_buf);

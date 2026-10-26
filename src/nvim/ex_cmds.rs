@@ -289,12 +289,12 @@ static mut sort_rx: bool = false;
 static mut sort_flt: bool = false;
 static mut sort_abort: bool = false;
 
-static mut prevcmd: *mut c_char = ptr::null_mut();
+static mut prevcmd: Option<std::ffi::CString> = None;
 static mut global_need_msg_kind: bool = false;
 static mut append_indent: c_int = 0;
 
 static mut old_sub: SubReplacementString = SubReplacementString {
-    sub: ptr::null_mut(),
+    sub: None,
     timestamp: 0,
     additional_data: ptr::null_mut(),
 };
@@ -1379,14 +1379,14 @@ pub unsafe fn ex_copy(mut line1: linenr_T, mut line2: linenr_T, n: linenr_T) {
 
 pub unsafe fn free_prev_shellcmd() {
     unsafe {
-        xfree(prevcmd.cast());
+        prevcmd = None;
     }
 }
 
 /// Check that `prevcmd` is not NULL.
 unsafe fn prevcmd_is_set() -> bool {
     unsafe {
-        if prevcmd.is_null() {
+        if (&raw const prevcmd).as_ref().unwrap().is_none() {
             emsg(gettext(e_noprev.as_ptr()));
             return false;
         }
@@ -1406,8 +1406,7 @@ pub unsafe fn do_bang(
         let arg = (*eap).arg;
         let line1 = (*eap).line1;
         let line2 = (*eap).line2;
-        let mut newcmd: *mut c_char = ptr::null_mut();
-        let mut free_newcmd = false;
+        let mut newcmd: Vec<c_char> = Vec::new();
         let scroll_save = msg_scroll;
 
         if check_secure() {
@@ -1425,54 +1424,71 @@ pub unsafe fn do_bang(
         let mut trailarg = skipwhite(arg);
         loop {
             let mut len = strlen(trailarg) + 1;
-            if !newcmd.is_null() {
-                len += strlen(newcmd);
+            if !newcmd.is_empty() {
+                len += strlen(newcmd.as_ptr());
             }
             if ins_prevcmd {
                 if !prevcmd_is_set() {
-                    xfree(newcmd.cast());
                     return;
                 }
-                len += strlen(prevcmd);
+                len += (&raw const prevcmd)
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .to_bytes()
+                    .len();
             }
-            let t = xmalloc(len).cast::<c_char>();
-            *t = NUL;
-            if !newcmd.is_null() {
-                strcat(t, newcmd);
+            let mut t = vec![0 as c_char; len];
+            if !newcmd.is_empty() {
+                strcat(t.as_mut_ptr(), newcmd.as_ptr());
             }
             if ins_prevcmd {
-                strcat(t, prevcmd);
+                strcat(
+                    t.as_mut_ptr(),
+                    (&raw const prevcmd)
+                        .as_ref()
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_ptr(),
+                );
             }
-            let mut p = t.add(strlen(t));
-            strcat(t, trailarg);
-            xfree(newcmd.cast());
+            let mut p_idx = strlen(t.as_ptr());
+            strcat(t.as_mut_ptr(), trailarg);
             newcmd = t;
 
-            trailarg = ptr::null_mut();
-            while *p != NUL {
-                if *p == b'!' as c_char {
-                    if p > newcmd && *p.sub(1) == b'\\' as c_char {
-                        ptr::copy(p, p.sub(1), strlen(p) + 1);
+            let mut next_trail_off: Option<usize> = None;
+            while newcmd[p_idx] != NUL {
+                if newcmd[p_idx] == b'!' as c_char {
+                    if p_idx > 0 && newcmd[p_idx - 1] == b'\\' as c_char {
+                        let rest_len = strlen(newcmd.as_ptr().add(p_idx)) + 1;
+                        newcmd.copy_within(p_idx..(p_idx + rest_len), p_idx - 1);
                     } else {
-                        trailarg = p;
-                        *trailarg = NUL;
-                        trailarg = trailarg.add(1);
+                        newcmd[p_idx] = NUL;
+                        next_trail_off = Some(p_idx + 1);
                         ins_prevcmd = true;
                         break;
                     }
                 }
-                p = p.add(1);
+                p_idx += 1;
             }
-            if trailarg.is_null() {
+            let Some(off) = next_trail_off else {
                 break;
-            }
+            };
+            let rem_cstr = CStr::from_ptr(newcmd.as_ptr().add(off)).to_owned();
+            newcmd.truncate(off);
+            let rem_bytes = rem_cstr.to_bytes_with_nul();
+            let start = newcmd.len();
+            newcmd.extend_from_slice(std::slice::from_raw_parts(
+                rem_bytes.as_ptr().cast::<c_char>(),
+                rem_bytes.len(),
+            ));
+            trailarg = newcmd.as_mut_ptr().add(start);
         }
 
-        if strlen(newcmd) > 0 {
-            xfree(prevcmd.cast());
-            prevcmd = newcmd;
-        } else {
-            free_newcmd = true;
+        if strlen(newcmd.as_ptr()) > 0 {
+            prevcmd = Some(CStr::from_ptr(newcmd.as_ptr()).to_owned());
         }
 
         'theend: {
@@ -1481,22 +1497,32 @@ pub unsafe fn do_bang(
                     break 'theend;
                 }
 
-                let cmd = vim_strsave_escaped(prevcmd, c"%#".as_ptr());
-
-                redo_append_lit(cmd, -1);
-                xfree(cmd.cast());
+                let prev_ptr = (&raw const prevcmd)
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .as_ptr();
+                if let Some(cmd) = crate::memory::cstr_take(vim_strsave_escaped(
+                    prev_ptr.cast_mut(),
+                    c"%#".as_ptr(),
+                )) {
+                    redo_append_lit(cmd.as_ptr().cast_mut(), -1);
+                }
                 redo_append_str(c"\n".as_ptr(), 1);
                 bangredo = false;
             }
             if *p_shq != NUL {
-                if free_newcmd {
-                    xfree(newcmd.cast());
-                }
-                newcmd = xmalloc(strlen(prevcmd) + 2 * strlen(p_shq) + 1).cast::<c_char>();
-                strcpy(newcmd, p_shq);
-                strcat(newcmd, prevcmd);
-                strcat(newcmd, p_shq);
-                free_newcmd = true;
+                let prev_ptr = (&raw const prevcmd)
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .map_or(c"".as_ptr(), |s| s.as_ptr());
+                let qlen = strlen(prev_ptr) + 2 * strlen(p_shq) + 1;
+                newcmd = vec![0 as c_char; qlen];
+                strcpy(newcmd.as_mut_ptr(), p_shq);
+                strcat(newcmd.as_mut_ptr(), prev_ptr);
+                strcat(newcmd.as_mut_ptr(), p_shq);
             }
             if addr_count == 0 {
                 msg_start();
@@ -1504,13 +1530,13 @@ pub unsafe fn do_bang(
                 msg_ext_set_kind(c"shell_cmd".as_ptr());
                 msg_putchar(b':' as c_int);
                 msg_putchar(b'!' as c_int);
-                msg_outtrans(newcmd, 0, false);
+                msg_outtrans(newcmd.as_ptr(), 0, false);
                 msg_clr_eos();
                 ui_cursor_goto(msg_row, msg_col);
 
-                do_shell(newcmd, 0);
+                do_shell(newcmd.as_mut_ptr(), 0);
             } else {
-                do_filter(line1, line2, eap, newcmd, do_in, do_out);
+                do_filter(line1, line2, eap, newcmd.as_mut_ptr(), do_in, do_out);
                 apply_autocmds(
                     EVENT_SHELLFILTERPOST,
                     ptr::null_mut(),
@@ -1519,10 +1545,6 @@ pub unsafe fn do_bang(
                     curbuf,
                 );
             }
-        }
-
-        if free_newcmd {
-            xfree(newcmd.cast());
         }
     }
 }
@@ -3661,14 +3683,13 @@ pub unsafe fn check_secure() -> bool {
 /// Get old substitute replacement string.
 pub unsafe fn sub_get_replacement(ret_sub: *mut SubReplacementString) {
     unsafe {
-        *ret_sub = old_sub;
+        *ret_sub = (&raw const old_sub).as_ref().unwrap().clone();
     }
 }
 
 /// Set substitute string and timestamp.
 pub unsafe fn sub_set_replacement(sub: SubReplacementString) {
     unsafe {
-        xfree(old_sub.sub.cast());
         if sub.additional_data != old_sub.additional_data {
             xfree(old_sub.additional_data.cast());
         }
@@ -3975,21 +3996,21 @@ unsafe fn do_sub(
 
             if (*eap).skip == 0 && !keeppatterns && cmdpreview_ns <= 0 {
                 sub_set_replacement(SubReplacementString {
-                    sub: xstrdup(sub),
+                    sub: Some(CStr::from_ptr(sub).to_owned()),
                     timestamp: os_time(),
                     additional_data: ptr::null_mut(),
                 });
             }
         } else if (*eap).skip == 0 {
-            if old_sub.sub.is_null() {
+            let Some(ref old_sub_cstr) = *(&raw const old_sub.sub).as_ref().unwrap() else {
                 emsg(gettext(e_nopresub.as_ptr()));
                 return 0;
-            }
+            };
             pat = NvimString {
                 data: ptr::null_mut(),
                 size: 0,
             };
-            sub = xstrdup(old_sub.sub);
+            sub = xstrdup(old_sub_cstr.as_ptr());
             endcolumn = (*curwin).w_curswant == MAXCOL;
         }
 
@@ -5053,7 +5074,7 @@ pub unsafe fn global_exe(cmd: *mut c_char) {
 pub unsafe fn free_old_sub() {
     unsafe {
         sub_set_replacement(SubReplacementString {
-            sub: ptr::null_mut(),
+            sub: None,
             timestamp: 0,
             additional_data: ptr::null_mut(),
         });

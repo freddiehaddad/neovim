@@ -10,7 +10,7 @@ use crate::errors::*;
 use crate::eval::eval_to_string;
 use crate::eval::typval::{
     VarType, list_T, staticList10_T, tv_clear, tv_list_alloc, tv_list_append_string, tv_list_first,
-    tv_list_init_static10, tv_list_len, typval_T,
+    tv_list_init_static10, typval_T,
 };
 use crate::eval::userfunc::{funcexe_T, ufunc_T};
 use crate::globals::*;
@@ -22,7 +22,7 @@ use crate::mbyte::{
     utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len, utf_strnicmp, utfc_ptr2len,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{xfree, xmalloc, xmemcpyz, xstrdup};
+use crate::memory::{xfree, xmalloc, xmemcpyz};
 use crate::message::{emsg, iemsg, internal_error, msg_puts, semsg, verbose_enter, verbose_leave};
 use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
@@ -1251,7 +1251,8 @@ pub(super) static mut reg_endzp: [*mut u8; NSUBEXP] = [ptr::null_mut(); NSUBEXP]
 pub(super) static mut reg_startzpos: [lpos_T; NSUBEXP] = [lpos_T { lnum: 0, col: 0 }; NSUBEXP];
 pub(super) static mut reg_endzpos: [lpos_T; NSUBEXP] = [lpos_T { lnum: 0, col: 0 }; NSUBEXP];
 
-static mut eval_result: [*mut c_char; MAX_REGSUB_NESTING] = [ptr::null_mut(); MAX_REGSUB_NESTING];
+static mut eval_result: [Option<std::ffi::CString>; MAX_REGSUB_NESTING] =
+    [const { None }; MAX_REGSUB_NESTING];
 static mut regsub_nesting: usize = 0;
 
 pub(super) static mut had_endbrace: [u8; NSUBEXP] = [0; NSUBEXP];
@@ -2525,16 +2526,6 @@ unsafe fn fill_submatch_list(
     }
 }
 
-unsafe fn clear_submatch_list(sl: *mut staticList10_T) {
-    unsafe {
-        let mut li = (*sl).sl_list.lv_first;
-        while !li.is_null() {
-            xfree((*li).li_tv.vval.v_string.cast());
-            li = (*li).li_next;
-        }
-    }
-}
-
 pub unsafe fn vim_regsub(
     rmp: *mut regmatch_T,
     source: *mut c_char,
@@ -2629,27 +2620,25 @@ unsafe fn vim_regsub_both(
             return 0;
         }
         let nested = regsub_nesting;
-        let eval_slot = (&raw mut eval_result).cast::<*mut c_char>().add(nested);
+        let eval_slot = (&raw mut eval_result[nested]).as_mut().unwrap();
         let mut src = source;
         let mut dst = dest;
 
         if !expr.is_null() || (*source == b'\\' as c_char && *source.add(1) == b'=' as c_char) {
             if copy {
-                if !(*eval_slot).is_null() {
-                    let eval_len = strlen(*eval_slot);
+                if let Some(ref eval_cstr) = *eval_slot {
+                    let eval_len = eval_cstr.to_bytes().len();
                     if eval_len < destlen as usize {
-                        strcpy(dest, *eval_slot);
+                        strcpy(dest, eval_cstr.as_ptr());
                         dst = dst.add(eval_len);
-                        xfree((*eval_slot).cast());
-                        *eval_slot = ptr::null_mut();
+                        *eval_slot = None;
                     }
                 }
             } else {
                 let prev_can_f_submatch = can_f_submatch;
                 let mut rsm_save = regsubmatch_T::new();
 
-                xfree((*eval_slot).cast());
-                *eval_slot = ptr::null_mut();
+                *eval_slot = None;
 
                 if can_f_submatch {
                     rsm_save = rsm;
@@ -2705,28 +2694,26 @@ unsafe fn vim_regsub_both(
                             &raw mut funcexe,
                         );
                     }
-                    if tv_list_len(&raw const matchList.sl_list) > 0 {
-                        clear_submatch_list(&raw mut matchList);
-                    }
                     if rettv.v_type == VarType::VAR_UNKNOWN {
-                        *eval_slot = ptr::null_mut();
+                        *eval_slot = None;
                     } else {
                         let mut buf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
-                        *eval_slot =
-                            tv_get_string_buf_chk(&raw const rettv, buf.as_mut_ptr()).cast_mut();
-                        if !(*eval_slot).is_null() {
-                            *eval_slot = xstrdup(*eval_slot);
+                        let s = tv_get_string_buf_chk(&raw const rettv, buf.as_mut_ptr());
+                        if !s.is_null() {
+                            *eval_slot = Some(CStr::from_ptr(s).to_owned());
                         }
                     }
                     tv_clear(&raw mut rettv);
                 } else {
-                    *eval_slot = eval_to_string(source.add(2), true, false);
+                    *eval_slot =
+                        crate::memory::cstr_take(eval_to_string(source.add(2), true, false));
                 }
                 regsub_nesting -= 1;
 
-                if !(*eval_slot).is_null() {
+                if let Some(eval_cstr) = eval_slot.take() {
+                    let mut eval_bytes = eval_cstr.into_bytes_with_nul();
                     let mut had_backslash = false;
-                    let mut s = *eval_slot;
+                    let mut s = eval_bytes.as_mut_ptr().cast::<c_char>();
                     while *s != NUL as c_char {
                         if *s == NL as c_char && rsm.sm_line_lbr == 0 {
                             *s = CAR as c_char;
@@ -2739,12 +2726,19 @@ unsafe fn vim_regsub_both(
                         }
                         mb_ptr_adv(&raw mut s);
                     }
-                    if had_backslash && (flags & REGSUB_BACKSLASH) != 0 {
-                        let escaped = vim_strsave_escaped(*eval_slot, c"\\".as_ptr());
-                        xfree((*eval_slot).cast());
-                        *eval_slot = escaped;
-                    }
-                    dst = dst.add(strlen(*eval_slot));
+                    let final_cstr = if had_backslash && (flags & REGSUB_BACKSLASH) != 0 {
+                        crate::memory::cstr_take(vim_strsave_escaped(
+                            eval_bytes.as_ptr().cast(),
+                            c"\\".as_ptr(),
+                        ))
+                        .unwrap_or_default()
+                    } else {
+                        CStr::from_bytes_with_nul(&eval_bytes)
+                            .unwrap_or_default()
+                            .to_owned()
+                    };
+                    dst = dst.add(final_cstr.to_bytes().len());
+                    *eval_slot = Some(final_cstr);
                 }
 
                 can_f_submatch = prev_can_f_submatch;

@@ -8,7 +8,7 @@ use crate::api::private::validate::{
 use crate::globals::*;
 use crate::grid::schar_from_buf;
 use crate::lua::converter::{Boolean, FieldHashfn, OptKeySet};
-use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free, xstrdup};
+use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free};
 use crate::mpack::mpack_core::{
     MPACK_OK, mpack_read, mpack_rtoken, mpack_tokbuf_init, mpack_tokbuf_t, mpack_token_t,
     mpack_token_type_t,
@@ -1036,7 +1036,7 @@ pub unsafe fn unpack_keydict(
     ad: *mut AdditionalDataBuilder,
     data: *mut *const c_char,
     size: *mut usize,
-    error: *mut *mut c_char,
+    error: &mut Option<std::ffi::CString>,
 ) -> bool {
     unsafe {
         let ks = retval;
@@ -1044,30 +1044,30 @@ pub unsafe fn unpack_keydict(
 
         let result = mpack_rtoken(data, size, &mut tok);
         if result != 0 || tok.r#type != mpack_token_type_t::MPACK_TOKEN_MAP {
-            *error = xstrdup(c"is not a dict".as_ptr());
+            *error = Some(c"is not a dict".to_owned());
             return false;
         }
 
         let map_size = tok.length as usize;
         let hashy_fn = hashy.unwrap();
 
-        let alloc_key_error = |key: NvimString, suffix: &[u8]| -> *mut c_char {
+        let alloc_key_error = |key: NvimString, suffix: &[u8]| -> Option<std::ffi::CString> {
             let key_bytes = std::slice::from_raw_parts(key.data.cast::<u8>(), key.size);
             let mut out = Vec::with_capacity(4 + key.size + suffix.len());
             out.extend_from_slice(b"has ");
             out.extend_from_slice(key_bytes);
             out.extend_from_slice(suffix);
-            crate::memory::xmemdupz(out.as_ptr().cast(), out.len()).cast()
+            Some(std::ffi::CString::new(out).unwrap_or_default())
         };
 
         for _ in 0..map_size {
             let item_start = *data;
             let key = unpack_string(data, size);
             if key.data.is_null() {
-                *error = xstrdup(c"has key value which is not a string".as_ptr());
+                *error = Some(c"has key value which is not a string".to_owned());
                 return false;
             } else if key.size == 0 {
-                *error = xstrdup(c"has empty key".as_ptr());
+                *error = Some(c"has empty key".to_owned());
                 return false;
             }
             let field_ptr = hashy_fn(key.data, key.size);
@@ -1087,7 +1087,7 @@ pub unsafe fn unpack_keydict(
             assert!(field.opt_index >= 0);
             let flag = 1u64 << (field.opt_index as u32);
             if ((*ks).is_set_ & flag) != 0 {
-                *error = xstrdup(c"duplicate key".as_ptr());
+                *error = Some(c"duplicate key".to_owned());
                 return false;
             }
             (*ks).is_set_ |= flag;
