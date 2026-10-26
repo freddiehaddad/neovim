@@ -371,7 +371,7 @@ impl Unpacker {
             request_id: 0,
             method_name_len: 0,
             handler: MsgpackRpcRequestHandler {
-                name: std::ptr::null(),
+                name: c"",
                 r#fn: None,
                 fast: false,
                 ret_alloc: false,

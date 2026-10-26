@@ -247,14 +247,14 @@ impl LexExprTokenVar {
 #[derive(Clone, Copy)]
 pub struct LexExprTokenErr {
     pub r#type: LexExprTokenType,
-    pub msg: *const c_char,
+    pub msg: Option<&'static std::ffi::CStr>,
 }
 
 impl LexExprTokenErr {
     pub const fn new() -> Self {
         Self {
             r#type: 0,
-            msg: std::ptr::null(),
+            msg: None,
         }
     }
 }
@@ -1031,7 +1031,7 @@ impl ExprASTNode {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTError {
-    pub msg: *const c_char,
+    pub msg: Option<&'static std::ffi::CStr>,
     pub arg: *const c_char,
     pub arg_len: c_int,
 }
@@ -1434,7 +1434,7 @@ pub unsafe fn viml_pexpr_next_token(pstate: &mut ParserState, flags: c_int) -> L
                 }
                 ret.data.err_mut().r#type = kExprLexSpacing;
                 ret.data.err_mut().msg =
-                    c"E15: Invalid control character present in input: %.*s".as_ptr();
+                    Some(c"E15: Invalid control character present in input: %.*s");
             }
             b'0'..=b'9' => {
                 ret.data.num_mut().is_float = false;
@@ -1606,7 +1606,7 @@ pub unsafe fn viml_pexpr_next_token(pstate: &mut ParserState, flags: c_int) -> L
                 } else if bytes.len() == 1 || !ascii_isalpha(bytes[1]) {
                     ret.r#type = kExprLexInvalid;
                     ret.data.err_mut().r#type = kExprLexOption;
-                    ret.data.err_mut().msg = c"E112: Option name missing: %.*s".as_ptr();
+                    ret.data.err_mut().msg = Some(c"E112: Option name missing: %.*s");
                 } else {
                     ret.r#type = kExprLexOption;
                     let p_offset: usize =
@@ -1635,7 +1635,7 @@ pub unsafe fn viml_pexpr_next_token(pstate: &mut ParserState, flags: c_int) -> L
                         if ret.data.opt().len == 0 {
                             ret.r#type = kExprLexInvalid;
                             ret.data.err_mut().r#type = kExprLexOption;
-                            ret.data.err_mut().msg = c"E112: Option name missing: %.*s".as_ptr();
+                            ret.data.err_mut().msg = Some(c"E112: Option name missing: %.*s");
                         } else {
                             ret.len += ret.data.opt().len;
                         }
@@ -1752,7 +1752,7 @@ pub unsafe fn viml_pexpr_next_token(pstate: &mut ParserState, flags: c_int) -> L
             NUL | NL => {
                 if (flags & kELFlagForbidEOC) != 0 {
                     ret.r#type = kExprLexInvalid;
-                    ret.data.err_mut().msg = c"E15: Unexpected EOC character: %.*s".as_ptr();
+                    ret.data.err_mut().msg = Some(c"E15: Unexpected EOC character: %.*s");
                     ret.data.err_mut().r#type = kExprLexSpacing;
                 } else {
                     ret.r#type = kExprLexEOC;
@@ -1764,7 +1764,7 @@ pub unsafe fn viml_pexpr_next_token(pstate: &mut ParserState, flags: c_int) -> L
                     ret.r#type = kExprLexOr;
                 } else if (flags & kELFlagForbidEOC) != 0 {
                     ret.r#type = kExprLexInvalid;
-                    ret.data.err_mut().msg = c"E15: Unexpected EOC character: %.*s".as_ptr();
+                    ret.data.err_mut().msg = Some(c"E15: Unexpected EOC character: %.*s");
                     ret.data.err_mut().r#type = kExprLexOr;
                 } else {
                     ret.r#type = kExprLexEOC;
@@ -1774,7 +1774,7 @@ pub unsafe fn viml_pexpr_next_token(pstate: &mut ParserState, flags: c_int) -> L
                 ret.len = utfc_ptr2len_len(pline.data, pline.size as c_int) as usize;
                 ret.r#type = kExprLexInvalid;
                 ret.data.err_mut().r#type = kExprLexPlainIdentifier;
-                ret.data.err_mut().msg = c"E15: Unidentified character: %.*s".as_ptr();
+                ret.data.err_mut().msg = Some(c"E15: Unidentified character: %.*s");
             }
         }
 
@@ -1838,15 +1838,15 @@ const fn recol_pos(pos: ParserPosition, new_col: usize) -> ParserPosition {
 unsafe fn east_set_error(
     pstate: &ParserState,
     ret_ast_err: &mut ExprASTError,
-    msg: *const c_char,
+    msg: &'static std::ffi::CStr,
     start: ParserPosition,
 ) {
     unsafe {
-        if !ret_ast_err.msg.is_null() {
+        if ret_ast_err.msg.is_some() {
             return;
         }
         let pline = pstate.reader.lines.as_slice()[start.line];
-        ret_ast_err.msg = msg;
+        ret_ast_err.msg = Some(msg);
         ret_ast_err.arg_len = (pline.size - start.col) as c_int;
         ret_ast_err.arg = if pline.data.is_null() {
             std::ptr::null()
@@ -1924,7 +1924,7 @@ unsafe fn viml_pexpr_handle_bop(
                 east_set_error(
                     pstate,
                     ast_err,
-                    c"E15: Operator is not associative: %.*s".as_ptr(),
+                    c"E15: Operator is not associative: %.*s",
                     (*bop_node).start,
                 );
                 ret = false;
@@ -2360,7 +2360,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
     unsafe {
         let mut ast = ExprAST {
             err: ExprASTError {
-                msg: std::ptr::null(),
+                msg: None,
                 arg: std::ptr::null(),
                 arg_len: 0,
             },
@@ -2475,7 +2475,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                 east_set_error(
                                     pstate,
                                     &mut ast.err,
-                                    c"E15: Expected lambda arguments list or arrow: %.*s".as_ptr(),
+                                    c"E15: Expected lambda arguments list or arrow: %.*s",
                                     cur_token.start,
                                 );
                             } else {
@@ -2498,7 +2498,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                             east_set_error(
                                 pstate,
                                 &mut ast.err,
-                                c"E15: Expected value part of assignment lvalue: %.*s".as_ptr(),
+                                c"E15: Expected value part of assignment lvalue: %.*s",
                                 cur_token.start,
                             );
                             pt_stack.pop();
@@ -2520,7 +2520,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                             east_set_error(
                                 pstate,
                                 &mut ast.err,
-                                c"E15: Expected assignment operator or subscript: %.*s".as_ptr(),
+                                c"E15: Expected assignment operator or subscript: %.*s",
                                 cur_token.start,
                             );
                             pt_stack.pop();
@@ -2541,7 +2541,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                             east_set_error(
                                 pstate,
                                 &mut ast.err,
-                                c"E15: Missing operator: %.*s".as_ptr(),
+                                c"E15: Missing operator: %.*s",
                                 cur_token.start,
                             );
                             let cur_node =
@@ -2582,7 +2582,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                         east_set_error(
                             pstate,
                             &mut ast.err,
-                            cur_token.data.err().msg,
+                            cur_token.data.err().msg.unwrap(),
                             cur_token.start,
                         );
                         tok_type = cur_token.data.err().r#type;
@@ -2671,7 +2671,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                         want_node = ExprASTWantedNode::Value;
                     }
                     kExprLexOr => {
-                        add_value_if_missing!(c"E15: Unexpected or operator: %.*s".as_ptr());
+                        add_value_if_missing!(c"E15: Unexpected or operator: %.*s");
                         let cur_node = new_node_with_cur_pos(kExprNodeOr, cur_token, prev_token);
                         viml_parser_highlight(
                             pstate,
@@ -2688,7 +2688,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                         );
                     }
                     kExprLexAnd => {
-                        add_value_if_missing!(c"E15: Unexpected and operator: %.*s".as_ptr());
+                        add_value_if_missing!(c"E15: Unexpected and operator: %.*s");
                         let cur_node = new_node_with_cur_pos(kExprNodeAnd, cur_token, prev_token);
                         viml_parser_highlight(
                             pstate,
@@ -2706,7 +2706,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                     }
                     kExprLexMultiplication => {
                         add_value_if_missing!(
-                            c"E15: Unexpected multiplication-like operator: %.*s".as_ptr()
+                            c"E15: Unexpected multiplication-like operator: %.*s"
                         );
                         let cur_node = match cur_token.data.mul().r#type {
                             kExprLexMulMul => {
@@ -2833,7 +2833,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                             east_set_error(
                                 pstate,
                                 &mut ast.err,
-                                c"E15: Environment variable name missing".as_ptr(),
+                                c"E15: Environment variable name missing",
                                 cur_token.start,
                             );
                         }
@@ -2876,7 +2876,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                     }
                     kExprLexComparison => {
                         add_value_if_missing!(
-                            c"E15: Expected value, got comparison operator: %.*s".as_ptr()
+                            c"E15: Expected value, got comparison operator: %.*s"
                         );
                         let cur_node =
                             new_node_with_cur_pos(kExprNodeComparison, cur_token, prev_token);
@@ -2933,7 +2933,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                             east_set_error(
                                 pstate,
                                 &mut ast.err,
-                                c"E15: Expected value, got comma: %.*s".as_ptr(),
+                                c"E15: Expected value, got comma: %.*s",
                                 cur_token.start,
                             );
                             let cur_node =
@@ -2978,7 +2978,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                             east_set_error(
                                 pstate,
                                 &mut ast.err,
-                                c"E15: Comma outside of call, lambda or literal: %.*s".as_ptr(),
+                                c"E15: Comma outside of call, lambda or literal: %.*s",
                                 cur_token.start,
                             );
                         }
@@ -3021,7 +3021,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                     is_ternary = true;
                                     (**eastnode_p).data.ter_mut().got_colon = true;
                                     add_value_if_missing!(
-                                        c"E15: Expected value, got colon: %.*s".as_ptr()
+                                        c"E15: Expected value, got colon: %.*s"
                                     );
                                     ast_stack.push(&mut (*(**eastnode_p).children).next);
                                     valid_colon = true;
@@ -3062,7 +3062,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                 want_node = ExprASTWantedNode::Operator;
                             } else {
                                 add_value_if_missing!(
-                                    c"E15: Expected value, got colon: %.*s".as_ptr()
+                                    c"E15: Expected value, got colon: %.*s"
                                 );
                             }
                             let cur_node =
@@ -3090,12 +3090,11 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                 east_set_error(
                                     pstate,
                                     &mut ast.err,
-                                    c"E15: Colon outside of dictionary or ternary operator: %.*s"
-                                        .as_ptr(),
+                                    c"E15: Colon outside of dictionary or ternary operator: %.*s",
                                     cur_token.start,
                                 );
                             }
-                            add_value_if_missing!(c"E15: Expected value, got colon: %.*s".as_ptr());
+                            add_value_if_missing!(c"E15: Expected value, got colon: %.*s");
                             if is_ternary {
                                 viml_parser_highlight(
                                     pstate,
@@ -3147,7 +3146,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                 east_set_error(
                                     pstate,
                                     &mut ast.err,
-                                    c"E15: Unexpected closing figure brace: %.*s".as_ptr(),
+                                    c"E15: Unexpected closing figure brace: %.*s",
                                     cur_token.start,
                                 );
                                 viml_parser_highlight(
@@ -3167,8 +3166,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                         east_set_error(
                                             pstate,
                                             &mut ast.err,
-                                            c"E15: Expected value, got closing bracket: %.*s"
-                                                .as_ptr(),
+                                            c"E15: Expected value, got closing bracket: %.*s",
                                             cur_token.start,
                                         );
                                     }
@@ -3193,8 +3191,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                             east_set_error(
                                                 pstate,
                                                 &mut ast.err,
-                                                c"E475: Unable to assign to empty list: %.*s"
-                                                    .as_ptr(),
+                                                c"E475: Unable to assign to empty list: %.*s",
                                                 cur_token.start,
                                             );
                                         }
@@ -3222,7 +3219,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                         east_set_error(
                                             pstate,
                                             &mut ast.err,
-                                            c"E15: Unexpected closing figure brace: %.*s".as_ptr(),
+                                            c"E15: Unexpected closing figure brace: %.*s",
                                             cur_token.start,
                                         );
                                         viml_parser_highlight(
@@ -3261,7 +3258,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                 east_set_error(
                                     pstate,
                                     &mut ast.err,
-                                    c"E475: Nested lists not allowed when assigning: %.*s".as_ptr(),
+                                    c"E475: Nested lists not allowed when assigning: %.*s",
                                     cur_token.start,
                                 );
                             }
@@ -3323,7 +3320,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                 east_set_error(
                                     pstate,
                                     &mut ast.err,
-                                    c"E15: Unexpected closing figure brace: %.*s".as_ptr(),
+                                    c"E15: Unexpected closing figure brace: %.*s",
                                     cur_token.start,
                                 );
                                 viml_parser_highlight(
@@ -3346,8 +3343,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                         east_set_error(
                                             pstate,
                                             &mut ast.err,
-                                            c"E15: Expected value, got closing figure brace: %.*s"
-                                                .as_ptr(),
+                                            c"E15: Expected value, got closing figure brace: %.*s",
                                             cur_token.start,
                                         );
                                     }
@@ -3414,8 +3410,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                             east_set_error(
                                                 pstate,
                                                 &mut ast.err,
-                                                c"E15: Don't know what figure brace means: %.*s"
-                                                    .as_ptr(),
+                                                c"E15: Don't know what figure brace means: %.*s",
                                                 (*new_top_node).start,
                                             );
                                             let grp = hl_group!(
@@ -3472,7 +3467,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                         east_set_error(
                                             pstate,
                                             &mut ast.err,
-                                            c"E15: Unexpected closing figure brace: %.*s".as_ptr(),
+                                            c"E15: Unexpected closing figure brace: %.*s",
                                             cur_token.start,
                                         );
                                         viml_parser_highlight(
@@ -3626,7 +3621,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                 east_set_error(
                                     pstate,
                                     &mut ast.err,
-                                    c"E15: Unexpected arrow: %.*s".as_ptr(),
+                                    c"E15: Unexpected arrow: %.*s",
                                     cur_token.start,
                                 );
                                 *top_node_p =
@@ -3637,7 +3632,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                             east_set_error(
                                 pstate,
                                 &mut ast.err,
-                                c"E15: Arrow outside of lambda: %.*s".as_ptr(),
+                                c"E15: Arrow outside of lambda: %.*s",
                                 cur_token.start,
                             );
                             let cur_node =
@@ -3824,14 +3819,14 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                         *top_node_p = cur_node;
                     }
                     kExprLexDot => {
-                        add_value_if_missing!(c"E15: Unexpected dot: %.*s".as_ptr());
+                        add_value_if_missing!(c"E15: Unexpected dot: %.*s");
                         let cur_node = if prev_token.r#type == kExprLexSpacing {
                             if cur_pt == ExprASTParseType::Assignment {
                                 is_invalid = true;
                                 east_set_error(
                                     pstate,
                                     &mut ast.err,
-                                    c"E15: Cannot concatenate in assignments: %.*s".as_ptr(),
+                                    c"E15: Cannot concatenate in assignments: %.*s",
                                     cur_token.start,
                                 );
                             }
@@ -3885,7 +3880,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                     east_set_error(
                                         pstate,
                                         &mut ast.err,
-                                        c"E15: Expected value, got parenthesis: %.*s".as_ptr(),
+                                        c"E15: Expected value, got parenthesis: %.*s",
                                         cur_token.start,
                                     );
                                     let cur_node = new_node_with_cur_pos(
@@ -3942,7 +3937,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                 east_set_error(
                                     pstate,
                                     &mut ast.err,
-                                    c"E15: Unexpected closing parenthesis: %.*s".as_ptr(),
+                                    c"E15: Unexpected closing parenthesis: %.*s",
                                     cur_token.start,
                                 );
                                 viml_parser_highlight(
@@ -4020,7 +4015,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                     }
                     kExprLexQuestion => {
                         add_value_if_missing!(
-                            c"E15: Expected value, got question mark: %.*s".as_ptr()
+                            c"E15: Expected value, got question mark: %.*s"
                         );
                         let cur_node =
                             new_node_with_cur_pos(kExprNodeTernary, cur_token, prev_token);
@@ -4051,9 +4046,9 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                                 pstate,
                                 &mut ast.err,
                                 if is_double {
-                                    c"E114: Missing double quote: %.*s".as_ptr()
+                                    c"E114: Missing double quote: %.*s"
                                 } else {
-                                    c"E115: Missing single quote: %.*s".as_ptr()
+                                    c"E115: Missing single quote: %.*s"
                                 },
                                 cur_token.start,
                             );
@@ -4089,8 +4084,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                             east_set_error(
                                 pstate,
                                 &mut ast.err,
-                                c"E475: Expected closing bracket to end list assignment lvalue: %.*s"
-                                    .as_ptr(),
+                                c"E475: Expected closing bracket to end list assignment lvalue: %.*s",
                                 cur_token.start,
                             );
                         } else {
@@ -4098,11 +4092,11 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                             east_set_error(
                                 pstate,
                                 &mut ast.err,
-                                c"E15: Misplaced assignment: %.*s".as_ptr(),
+                                c"E15: Misplaced assignment: %.*s",
                                 cur_token.start,
                             );
                         }
-                        add_value_if_missing!(c"E15: Unexpected assignment: %.*s".as_ptr());
+                        add_value_if_missing!(c"E15: Unexpected assignment: %.*s");
                         let cur_node =
                             new_node_with_cur_pos(kExprNodeAssignment, cur_token, prev_token);
                         (*cur_node).data.ass_mut().r#type = cur_token.data.ass().r#type;
@@ -4152,12 +4146,12 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
             east_set_error(
                 pstate,
                 &mut ast.err,
-                c"E15: Expected value, got EOC: %.*s".as_ptr(),
+                c"E15: Expected value, got EOC: %.*s",
                 pstate.pos,
             );
         } else if ast_stack.len() != 1 {
             ast_stack.pop();
-            while ast.err.msg.is_null()
+            while ast.err.msg.is_none()
                 && let Some(node_p) = ast_stack.pop()
             {
                 let cur_node = *node_p;
@@ -4168,7 +4162,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                         east_set_error(
                             pstate,
                             &mut ast.err,
-                            c"E116: Missing closing parenthesis for function call: %.*s".as_ptr(),
+                            c"E116: Missing closing parenthesis for function call: %.*s",
                             (*cur_node).start,
                         );
                     }
@@ -4176,8 +4170,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                         east_set_error(
                             pstate,
                             &mut ast.err,
-                            c"E110: Missing closing parenthesis for nested expression: %.*s"
-                                .as_ptr(),
+                            c"E110: Missing closing parenthesis for nested expression: %.*s",
                             (*cur_node).start,
                         );
                     }
@@ -4185,7 +4178,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                         east_set_error(
                             pstate,
                             &mut ast.err,
-                            c"E697: Missing end of List ']': %.*s".as_ptr(),
+                            c"E697: Missing end of List ']': %.*s",
                             (*cur_node).start,
                         );
                     }
@@ -4193,7 +4186,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                         east_set_error(
                             pstate,
                             &mut ast.err,
-                            c"E723: Missing end of Dictionary '}': %.*s".as_ptr(),
+                            c"E723: Missing end of Dictionary '}': %.*s",
                             (*cur_node).start,
                         );
                     }
@@ -4201,7 +4194,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                         east_set_error(
                             pstate,
                             &mut ast.err,
-                            c"E15: Missing closing figure brace: %.*s".as_ptr(),
+                            c"E15: Missing closing figure brace: %.*s",
                             (*cur_node).start,
                         );
                     }
@@ -4209,7 +4202,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                         east_set_error(
                             pstate,
                             &mut ast.err,
-                            c"E15: Missing closing figure brace for lambda: %.*s".as_ptr(),
+                            c"E15: Missing closing figure brace for lambda: %.*s",
                             (*cur_node).start,
                         );
                     }
@@ -4229,7 +4222,7 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
                         east_set_error(
                             pstate,
                             &mut ast.err,
-                            c"E109: Missing ':' after '?': %.*s".as_ptr(),
+                            c"E109: Missing ':' after '?': %.*s",
                             (*cur_node).start,
                         );
                     }
@@ -4245,7 +4238,6 @@ pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAS
 mod tests {
     use super::*;
     use crate::viml::parser::parser::{ParserHighlight, ParserInputReader};
-    use std::ffi::CStr;
 
     unsafe fn with_pstate<R>(input: &[u8], f: impl FnOnce(&mut ParserState) -> R) -> R {
         let lines = [
@@ -4359,7 +4351,7 @@ mod tests {
             let t = lex_one(b"&g:", 0);
             assert_eq!(t.r#type, kExprLexInvalid);
             assert_eq!(
-                &CStr::from_ptr(t.data.err().msg).to_bytes()[4..],
+                &t.data.err().msg.unwrap().to_bytes()[4..],
                 b": Option name missing: %.*s"
             );
 
@@ -4401,7 +4393,7 @@ mod tests {
             // Binary precedence: 1 + 2 * 3
             with_pstate(b"1 + 2 * 3", |pstate| {
                 let ast = viml_pexpr_parse(pstate, 0);
-                assert!(ast.err.msg.is_null());
+                assert!(ast.err.msg.is_none());
                 assert!(!ast.root.is_null());
                 assert_eq!((*ast.root).r#type, kExprNodeBinaryPlus);
                 let left = (*ast.root).children;
@@ -4414,21 +4406,21 @@ mod tests {
             // Ternary, lambda, dictionary, list, call, subscript
             with_pstate(b"cond ? {x -> [x, {'k': f(x)[0]}]} : 0", |pstate| {
                 let ast = viml_pexpr_parse(pstate, 0);
-                assert!(ast.err.msg.is_null());
+                assert!(ast.err.msg.is_none());
                 assert_eq!((*ast.root).r#type, kExprNodeTernary);
             });
 
             // Assignment with kExprFlagsParseLet
             with_pstate(b"[a, b] = [1, 2]", |pstate| {
                 let ast = viml_pexpr_parse(pstate, kExprFlagsParseLet);
-                assert!(ast.err.msg.is_null());
+                assert!(ast.err.msg.is_none());
                 assert_eq!((*ast.root).r#type, kExprNodeAssignment);
                 assert_eq!((*ast.root).data.ass().r#type, kExprAsgnPlain);
             });
 
             with_pstate(b"a += 1", |pstate| {
                 let ast = viml_pexpr_parse(pstate, kExprFlagsParseLet);
-                assert!(ast.err.msg.is_null());
+                assert!(ast.err.msg.is_none());
                 assert_eq!((*ast.root).r#type, kExprNodeAssignment);
                 assert_eq!((*ast.root).data.ass().r#type, kExprAsgnAdd);
             });
@@ -4436,18 +4428,16 @@ mod tests {
             // Syntax errors report expected diagnostics
             with_pstate(b"1 + (2 * 3", |pstate| {
                 let ast = viml_pexpr_parse(pstate, 0);
-                assert!(!ast.err.msg.is_null());
                 assert_eq!(
-                    &CStr::from_ptr(ast.err.msg).to_bytes()[4..],
+                    &ast.err.msg.unwrap().to_bytes()[4..],
                     b": Missing closing parenthesis for nested expression: %.*s"
                 );
             });
 
             with_pstate(b"cond ? 1", |pstate| {
                 let ast = viml_pexpr_parse(pstate, 0);
-                assert!(!ast.err.msg.is_null());
                 assert_eq!(
-                    &CStr::from_ptr(ast.err.msg).to_bytes()[4..],
+                    &ast.err.msg.unwrap().to_bytes()[4..],
                     b": Missing ':' after '?': %.*s"
                 );
             });

@@ -598,7 +598,7 @@ pub unsafe extern "C" fn nvim_parse_expression(
 
         let east = viml_pexpr_parse(&mut pstate, pflags);
 
-        let ret_size = 2 + usize::from(!east.err.msg.is_null()) + usize::from(hl);
+        let ret_size = 2 + usize::from(east.err.msg.is_some()) + usize::from(hl);
         let mut ret = arena_dict(arena, ret_size);
         let parsed_len = if pstate.pos.line == 1 {
             parser_lines[0].size
@@ -607,9 +607,9 @@ pub unsafe extern "C" fn nvim_parse_expression(
         };
         put_c(&mut ret, c"len", integer_obj(parsed_len as Integer));
 
-        if !east.err.msg.is_null() {
+        if let Some(err_msg) = east.err.msg {
             let mut err_dict = arena_dict(arena, 2);
-            let msg_str = arena_string(arena, cstr_as_string(east.err.msg));
+            let msg_str = arena_string(arena, cstr_as_string(err_msg.as_ptr()));
             put_c(&mut err_dict, c"message", string_obj(msg_str));
             put_c(
                 &mut err_dict,

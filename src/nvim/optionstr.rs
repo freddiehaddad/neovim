@@ -220,8 +220,8 @@ pub type opt_expand_cb_T = Option<unsafe fn(*mut optexpand_T, &mut Vec<*mut c_ch
 
 #[repr(C)]
 pub struct vimoption_T {
-    pub fullname: *mut c_char,
-    pub shortname: *mut c_char,
+    pub fullname: &'static std::ffi::CStr,
+    pub shortname: Option<&'static std::ffi::CStr>,
     pub flags: u32,
     pub opt_type: ObjectType,
     pub scope_flags: OptScopeFlags,
