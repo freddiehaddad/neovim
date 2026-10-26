@@ -10,13 +10,13 @@ use crate::event::r#loop::uv_err_name;
 use crate::ex_docmd::exarg_T;
 use crate::fileio::{FILE, fclose, fopen, fprintf, vim_fgets};
 use crate::globals::*;
-use crate::memory::{xfree, xmalloc};
+use crate::memory::cstr_take;
 use crate::message::{emsg, semsg};
 use crate::os::env::{expand_T, expand_env_save_opt};
 use crate::os::fs::os_fopen;
 use crate::os::time::os_hrtime;
 use crate::runtime::{get_scriptname, script_id_valid, script_item, sourcing_lnum};
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, CString, c_char, c_int};
 
 pub type proftime_T = u64;
 
@@ -34,8 +34,8 @@ static mut G_START_TIME: proftime_T = 0;
 static mut G_PREV_TIME: proftime_T = 0;
 static mut PEXPAND_WHAT: i32 = PEXP_SUBCMD;
 
-static mut STARTUPTIME_BUF: *mut c_char = std::ptr::null_mut();
-static mut PROFILE_FNAME: *mut c_char = std::ptr::null_mut();
+static mut STARTUPTIME_BUF: Vec<c_char> = Vec::new();
+static mut PROFILE_FNAME: Option<CString> = None;
 static mut PROFILE_MSG_BUF: [c_char; 50] = [0; 50];
 
 const PEXPAND_CMDS: [&CStr; 7] = [
@@ -345,8 +345,7 @@ pub unsafe fn profile_reset() {
             }
         }
 
-        xfree(PROFILE_FNAME.cast());
-        PROFILE_FNAME = std::ptr::null_mut();
+        PROFILE_FNAME = None;
     }
 }
 
@@ -360,8 +359,7 @@ pub unsafe fn ex_profile(eap: *mut exarg_T) {
 
         let arg_bytes = CStr::from_ptr(arg).to_bytes();
         if len == 5 && &arg_bytes[..5] == b"start" && *e != 0 {
-            xfree(PROFILE_FNAME.cast());
-            PROFILE_FNAME = expand_env_save_opt(e, true, std::ptr::null_mut());
+            PROFILE_FNAME = cstr_take(expand_env_save_opt(e, true, std::ptr::null_mut()));
             do_profiling = PROF_YES;
             profile_set_wait(profile_zero());
             set_vim_var_nr(VV_PROFILING, 1);
@@ -646,17 +644,13 @@ unsafe fn func_dump_profile(fd: *mut FILE) {
                     fprintf!(fd, c"FUNCTION  %s()\n".as_ptr(), name_ptr);
                 }
                 if (*fp).uf_script_ctx.sc_sid != 0 {
-                    let mut should_free = false;
-                    let p = get_scriptname((*fp).uf_script_ctx, &mut should_free);
+                    let p = get_scriptname((*fp).uf_script_ctx, true);
                     fprintf!(
                         fd,
                         c"    Defined: %s:%d\n".as_ptr(),
-                        p,
+                        p.as_ptr(),
                         (*fp).uf_script_ctx.sc_lnum,
                     );
-                    if should_free {
-                        xfree(p.cast());
-                    }
                 }
                 if (*fp).uf_tm_count == 1 {
                     fprintf!(fd, c"Called 1 time\n".as_ptr());
@@ -828,13 +822,13 @@ unsafe fn script_dump_profile(fd: *mut FILE) {
 /// Dump the profiling info (`profile_dump`).
 pub unsafe fn profile_dump() {
     unsafe {
-        if PROFILE_FNAME.is_null() {
+        let Some(ref profile_fname) = *(&raw const PROFILE_FNAME).as_ref().unwrap() else {
             return;
-        }
+        };
 
-        let fd = os_fopen(PROFILE_FNAME, c"w".as_ptr());
+        let fd = os_fopen(profile_fname.as_ptr(), c"w".as_ptr());
         if fd.is_null() {
-            semsg!(e_notopen.as_ptr(), PROFILE_FNAME);
+            semsg!(e_notopen.as_ptr(), profile_fname.as_ptr());
         } else {
             script_dump_profile(fd);
             func_dump_profile(fd);
@@ -995,11 +989,15 @@ pub unsafe fn time_init(fname: *const c_char, proc_name: *const c_char) {
             eprint!("E484: Can't open file {fname_str}");
             return;
         }
-        STARTUPTIME_BUF = xmalloc(BUFSIZE + 1).cast::<c_char>();
-        let r = setvbuf(time_fd, STARTUPTIME_BUF, IOFBF, BUFSIZE + 1);
+        STARTUPTIME_BUF = vec![0; BUFSIZE + 1];
+        let r = setvbuf(
+            time_fd,
+            (&raw mut STARTUPTIME_BUF).as_mut().unwrap().as_mut_ptr(),
+            IOFBF,
+            BUFSIZE + 1,
+        );
         if r != 0 {
-            xfree(STARTUPTIME_BUF.cast());
-            STARTUPTIME_BUF = std::ptr::null_mut();
+            STARTUPTIME_BUF = Vec::new();
             fclose(time_fd);
             time_fd = std::ptr::null_mut();
             let err_str = CStr::from_ptr(uv_err_name(r)).to_string_lossy();
@@ -1020,14 +1018,13 @@ pub unsafe fn time_finish() {
         if time_fd.is_null() {
             return;
         }
-        assert!(!STARTUPTIME_BUF.is_null());
+        assert!(!(&raw const STARTUPTIME_BUF).as_ref().unwrap().is_empty());
         time_msg(c"--- NVIM STARTED ---\n".as_ptr(), std::ptr::null());
 
         fclose(time_fd);
         time_fd = std::ptr::null_mut();
 
-        xfree(STARTUPTIME_BUF.cast());
-        STARTUPTIME_BUF = std::ptr::null_mut();
+        STARTUPTIME_BUF = Vec::new();
     }
 }
 

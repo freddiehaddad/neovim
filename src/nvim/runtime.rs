@@ -513,7 +513,7 @@ unsafe fn stacktrace_push_item(
     fp: *mut ufunc_T,
     event: *const c_char,
     lnum: linenr_T,
-    filepath: *mut c_char,
+    filepath: *const c_char,
 ) {
     unsafe {
         let d = tv_dict_alloc_lock(VAR_FIXED);
@@ -551,21 +551,21 @@ pub unsafe fn stacktrace_create() -> *mut list_T {
                 let fp = entry.es_info.ufunc();
                 let sctx = (*fp).uf_script_ctx;
                 let filepath = if sctx.sc_sid > 0 {
-                    get_scriptname(sctx, ptr::null_mut())
+                    get_scriptname(sctx, false)
                 } else {
-                    c"".as_ptr() as *mut c_char
+                    std::borrow::Cow::Borrowed(c"")
                 };
                 lnum += sctx.sc_lnum;
-                stacktrace_push_item(l, fp, ptr::null(), lnum, filepath);
+                stacktrace_push_item(l, fp, ptr::null(), lnum, filepath.as_ptr());
             } else if entry.es_type == ETYPE_AUCMD {
                 let sctx = (*entry.es_info.aucmd()).script_ctx;
                 let filepath = if sctx.sc_sid > 0 {
-                    get_scriptname(sctx, ptr::null_mut())
+                    get_scriptname(sctx, false)
                 } else {
-                    c"".as_ptr() as *mut c_char
+                    std::borrow::Cow::Borrowed(c"")
                 };
                 lnum += sctx.sc_lnum;
-                stacktrace_push_item(l, ptr::null_mut(), entry.es_name, lnum, filepath);
+                stacktrace_push_item(l, ptr::null_mut(), entry.es_name, lnum, filepath.as_ptr());
             }
         }
         l
@@ -3149,15 +3149,15 @@ pub unsafe fn ex_scriptnames(eap: *mut exarg_T) {
     }
 }
 
-/// Get a pointer to a script name.
-pub unsafe fn get_scriptname(script_ctx: sctx_T, should_free: *mut bool) -> *mut c_char {
+/// Get a script name (`get_scriptname`).
+pub unsafe fn get_scriptname(
+    script_ctx: sctx_T,
+    home_replace: bool,
+) -> std::borrow::Cow<'static, CStr> {
+    use std::borrow::Cow;
     unsafe {
-        if !should_free.is_null() {
-            *should_free = false;
-        }
-
         let iobuff = (&raw mut IObuff).cast::<c_char>();
-        match script_ctx.sc_sid {
+        let ptr = match script_ctx.sc_sid {
             SID_MODELINE => gettext(c"modeline".as_ptr()),
             SID_CMDARG => gettext(c"--cmd argument".as_ptr()),
             SID_CARG => gettext(c"-c argument".as_ptr()),
@@ -3184,16 +3184,18 @@ pub unsafe fn get_scriptname(script_ctx: sctx_T, should_free: *mut bool) -> *mut
                         gettext(c"anonymous :source (script id %d)".as_ptr()),
                         script_ctx.sc_sid,
                     );
-                    return iobuff;
-                }
-                if !should_free.is_null() {
-                    *should_free = true;
-                    home_replace_save(ptr::null_mut(), sname)
+                    iobuff
+                } else if home_replace {
+                    return Cow::Owned(
+                        crate::memory::cstr_take(home_replace_save(ptr::null_mut(), sname))
+                            .unwrap_or_default(),
+                    );
                 } else {
                     sname
                 }
             }
-        }
+        };
+        Cow::Borrowed(CStr::from_ptr(ptr))
     }
 }
 

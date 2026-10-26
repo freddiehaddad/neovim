@@ -22,12 +22,11 @@ use crate::mbyte::{
     utfc_ptr2len,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{xfree, xstrdup};
 use crate::message::semsg;
 use crate::option_vars::*;
 use crate::search::FORWARD;
 use crate::strings::sort_slice_by;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, CString, c_char, c_int};
 
 pub const FUZZY_MATCH_MAX_LEN: usize = 1024;
 pub const FUZZY_SCORE_NONE: c_int = c_int::MIN;
@@ -56,16 +55,14 @@ pub struct fuzmatch_str_T {
     pub score: c_int,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct fuzzyItem_T {
     idx: c_int,
     item: *mut listitem_T,
     score: c_int,
     lmatchpos: *mut list_T,
     pat: *mut c_char,
-    itemstr: *mut c_char,
-    itemstr_allocated: bool,
+    itemstr: CString,
     startpos: c_int,
 }
 
@@ -318,8 +315,8 @@ pub unsafe fn fuzzy_match(
 
         *out_score = 0;
 
-        let save_pat = xstrdup(pat_arg);
-        let mut pat = save_pat;
+        let mut save_pat = CStr::from_ptr(pat_arg).to_owned().into_bytes_with_nul();
+        let mut pat = save_pat.as_mut_ptr().cast::<c_char>();
         let mut p = pat;
 
         loop {
@@ -387,7 +384,6 @@ pub unsafe fn fuzzy_match(
             p = p.add(1);
         }
 
-        xfree(save_pat.cast());
         num_matches != 0
     }
 }
@@ -402,7 +398,7 @@ unsafe fn fuzzy_match_item_compare(item1: &fuzzyItem_T, item2: &fuzzyItem_T) -> 
             let patlen = pat_bytes.len();
 
             let exact_match1 = if item1.startpos >= 0 {
-                let s1_ptr = item1.itemstr.add(item1.startpos as usize);
+                let s1_ptr = item1.itemstr.as_ptr().add(item1.startpos as usize);
                 let s1_len = CStr::from_ptr(s1_ptr).to_bytes().len();
                 s1_len >= patlen
                     && std::slice::from_raw_parts(s1_ptr.cast::<u8>(), patlen) == pat_bytes
@@ -411,7 +407,7 @@ unsafe fn fuzzy_match_item_compare(item1: &fuzzyItem_T, item2: &fuzzyItem_T) -> 
             };
 
             let exact_match2 = if item2.startpos >= 0 {
-                let s2_ptr = item2.itemstr.add(item2.startpos as usize);
+                let s2_ptr = item2.itemstr.as_ptr().add(item2.startpos as usize);
                 let s2_len = CStr::from_ptr(s2_ptr).to_bytes().len();
                 s2_len >= patlen
                     && std::slice::from_raw_parts(s2_ptr.cast::<u8>(), patlen) == pat_bytes
@@ -462,7 +458,6 @@ unsafe fn fuzzy_match_in_list(
             }
 
             let mut itemstr: *mut c_char = std::ptr::null_mut();
-            let mut itemstr_allocate = false;
             let mut rettv = typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: VAR_UNLOCKED,
@@ -496,7 +491,6 @@ unsafe fn fuzzy_match_in_list(
                         && rettv.v_type == VarType::VAR_STRING
                     {
                         itemstr = rettv.vval.v_string;
-                        itemstr_allocate = true;
                     }
                     tv_dict_unref(d);
                 }
@@ -513,11 +507,7 @@ unsafe fn fuzzy_match_in_list(
                     FUZZY_MATCH_MAX_LEN as c_int,
                 )
             {
-                let itemstr_copy = if itemstr_allocate {
-                    xstrdup(itemstr)
-                } else {
-                    itemstr
-                };
+                let itemstr_copy = CStr::from_ptr(itemstr).to_owned();
                 let mut match_positions_list: *mut list_T = std::ptr::null_mut();
 
                 if retmatchpos {
@@ -540,7 +530,6 @@ unsafe fn fuzzy_match_in_list(
                     pat: str_ptr,
                     startpos: matches[0] as c_int,
                     itemstr: itemstr_copy,
-                    itemstr_allocated: itemstr_allocate,
                     lmatchpos: match_positions_list,
                 });
 
@@ -587,9 +576,6 @@ unsafe fn fuzzy_match_in_list(
         }
 
         for cur in &items {
-            if cur.itemstr_allocated {
-                xfree(cur.itemstr.cast());
-            }
             assert!(cur.lmatchpos.is_null());
         }
     }
@@ -964,12 +950,12 @@ mod tests {
             let mut fm = [
                 fuzmatch_str_T {
                     idx: 0,
-                    str_ptr: xstrdup(c"<SNR>1_foo".as_ptr()),
+                    str_ptr: c"<SNR>1_foo".as_ptr().cast_mut(),
                     score: 100,
                 },
                 fuzmatch_str_T {
                     idx: 1,
-                    str_ptr: xstrdup(c"Bar".as_ptr()),
+                    str_ptr: c"Bar".as_ptr().cast_mut(),
                     score: 50,
                 },
             ];
@@ -977,7 +963,6 @@ mod tests {
             fuzzymatches_slice_to_strmatches(&mut fm, &mut matches, true);
             assert_eq!(CStr::from_ptr(matches[0]).to_bytes(), b"Bar");
             assert_eq!(CStr::from_ptr(matches[1]).to_bytes(), b"<SNR>1_foo");
-            crate::path::clear_cstrings(&mut matches);
         }
     }
 }

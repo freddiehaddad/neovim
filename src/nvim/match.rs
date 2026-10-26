@@ -20,7 +20,6 @@ use crate::globals::*;
 use crate::highlight_group::{syn_check_group, syn_id2attr, syn_id2name, syn_name2id};
 use crate::mbyte::{utf_char2bytes, utf_ptr2char, utfc_ptr2len};
 use crate::memline::ml_get_buf;
-use crate::memory::{xfree, xmemdupz};
 use crate::message::{emsg, semsg};
 use crate::option_vars::*;
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
@@ -1291,7 +1290,7 @@ pub unsafe fn f_matchdelete(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
 /// `:[N]match {group} {pattern}` (`ex_match`).
 pub unsafe fn ex_match(eap: *mut exarg_T) {
     unsafe {
-        let mut g: *mut c_char = ptr::null_mut();
+        let mut g = None;
         let end: *mut c_char;
 
         let id: c_int = if (*eap).line2 <= 3 {
@@ -1318,31 +1317,41 @@ pub unsafe fn ex_match(eap: *mut exarg_T) {
             } else {
                 let mut p = skiptowhite(arg);
                 if (*eap).skip == 0 {
-                    g = xmemdupz(arg.cast(), p.offset_from(arg) as usize).cast();
+                    g = Some(
+                        std::ffi::CString::new(std::slice::from_raw_parts(
+                            arg.cast::<u8>(),
+                            p.offset_from(arg) as usize,
+                        ))
+                        .unwrap_or_default(),
+                    );
                 }
                 p = skipwhite(p);
                 if *p == NUL {
-                    xfree(g.cast());
                     semsg!(gettext((&raw const e_invarg2).cast()), arg);
                     return;
                 }
                 end = skip_regexp(p.add(1), c_int::from(*p as u8), 1);
                 if (*eap).skip == 0 {
                     if *end != NUL && ends_excmd(c_int::from(*skipwhite(end.add(1)))) == 0 {
-                        xfree(g.cast());
                         (*eap).errmsg = ex_errmsg((&raw const e_trailing_arg).cast(), end);
                         return;
                     }
                     if *end != *p {
-                        xfree(g.cast());
                         semsg!(gettext((&raw const e_invarg2).cast()), p);
                         return;
                     }
 
                     let c = *end;
                     *end = NUL;
-                    match_add(curwin, g, p.add(1), 10, id, ptr::null_mut(), ptr::null());
-                    xfree(g.cast());
+                    match_add(
+                        curwin,
+                        g.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                        p.add(1),
+                        10,
+                        id,
+                        ptr::null_mut(),
+                        ptr::null(),
+                    );
                     *end = c;
                 }
             }

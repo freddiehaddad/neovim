@@ -14,7 +14,6 @@ use crate::insert::oneleft;
 use crate::mark::setpcmark;
 use crate::mbyte::{mb_prevptr, utf_class, utf_head_off, utfc_ptr2len};
 use crate::memline::{dec, decl, gchar_pos, inc, incl, ml_get, ml_get_len, ml_get_pos};
-use crate::memory::{xfree, xmalloc};
 use crate::r#move::adjust_skipcol;
 use crate::normal::{FM_FORWARD, lineempty, unadjust_for_sel};
 use crate::option_vars::*;
@@ -1201,35 +1200,20 @@ pub unsafe fn current_tagblock(oap: *mut oparg_T, count_arg: c_int, include: boo
             }
 
             let tag_bytes = std::slice::from_raw_parts(p.cast::<u8>(), len);
-            let spat_len = len + 39;
-            let spat = xmalloc(spat_len).cast::<u8>();
-            let epat_len = len + 9;
-            let epat = xmalloc(epat_len).cast::<u8>();
+            let mut spat = Vec::with_capacity(len + 39);
+            spat.extend_from_slice(b"<");
+            spat.extend_from_slice(tag_bytes);
+            spat.extend_from_slice(b"\\>\\%(\\_s\\_[^>]\\{-}\\_[^/]>\\|\\_s\\?>\\)\\c\0");
 
-            let spat_prefix = b"<";
-            let spat_suffix = b"\\>\\%(\\_s\\_[^>]\\{-}\\_[^/]>\\|\\_s\\?>\\)\\c\0";
-            ptr::copy_nonoverlapping(spat_prefix.as_ptr(), spat, spat_prefix.len());
-            ptr::copy_nonoverlapping(tag_bytes.as_ptr(), spat.add(spat_prefix.len()), len);
-            ptr::copy_nonoverlapping(
-                spat_suffix.as_ptr(),
-                spat.add(spat_prefix.len() + len),
-                spat_suffix.len(),
-            );
-
-            let epat_prefix = b"</";
-            let epat_suffix = b">\\c\0";
-            ptr::copy_nonoverlapping(epat_prefix.as_ptr(), epat, epat_prefix.len());
-            ptr::copy_nonoverlapping(tag_bytes.as_ptr(), epat.add(epat_prefix.len()), len);
-            ptr::copy_nonoverlapping(
-                epat_suffix.as_ptr(),
-                epat.add(epat_prefix.len() + len),
-                epat_suffix.len(),
-            );
+            let mut epat = Vec::with_capacity(len + 9);
+            epat.extend_from_slice(b"</");
+            epat.extend_from_slice(tag_bytes);
+            epat.extend_from_slice(b">\\c\0");
 
             let r = do_searchpair(
-                spat.cast::<c_char>(),
+                spat.as_ptr().cast::<c_char>(),
                 c"".as_ptr(),
-                epat.cast::<c_char>(),
+                epat.as_ptr().cast::<c_char>(),
                 FORWARD,
                 ptr::null(),
                 0,
@@ -1237,9 +1221,6 @@ pub unsafe fn current_tagblock(oap: *mut oparg_T, count_arg: c_int, include: boo
                 0,
                 0,
             );
-
-            xfree(spat.cast());
-            xfree(epat.cast());
 
             if r < 1 || lt((*curwin).w_cursor, old_end) {
                 count = 1;

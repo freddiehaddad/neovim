@@ -17,7 +17,7 @@ use crate::option_vars::*;
 use crate::register::set_expr_line;
 use crate::ui::ui_free_all_mem;
 use crate::ui_client::ui_client_free_all_mem;
-use std::ffi::{CStr, c_char, c_void};
+use std::ffi::{CStr, CString, c_char, c_void};
 
 pub const ARENA_BLOCK_SIZE: usize = 4096;
 const REUSE_MAX: usize = 4;
@@ -370,6 +370,17 @@ pub unsafe fn xstrlcat(dst: *mut c_char, src: *const c_char, dsize: usize) -> us
     }
 
     slen + dlen
+}
+
+/// Copy an `xmalloc`-allocated C string into an owned `CString` and free `ptr`.
+pub unsafe fn cstr_take(ptr: *mut c_char) -> Option<CString> {
+    if ptr.is_null() {
+        None
+    } else {
+        let s = unsafe { CStr::from_ptr(ptr).to_owned() };
+        unsafe { xfree(ptr.cast()) };
+        Some(s)
+    }
 }
 
 /// Duplicate a NUL-terminated C string using `xmalloc` (`xstrdup`).
