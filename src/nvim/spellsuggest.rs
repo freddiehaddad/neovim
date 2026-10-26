@@ -109,37 +109,24 @@ pub struct fromto_T {
 }
 #[repr(C)]
 pub struct salitem_T {
-    pub sm_lead: *mut c_char,
     pub sm_leadlen: c_int,
-    pub sm_oneof: *mut c_char,
-    pub sm_rules: *mut c_char,
-    pub sm_to: *mut c_char,
+    pub sm_rules: std::ffi::CString,
     pub sm_lead_w: Vec<c_int>,
     pub sm_oneof_w: Vec<c_int>,
     pub sm_to_w: Vec<c_int>,
 }
 
-impl Drop for salitem_T {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.sm_lead.cast());
-            xfree(self.sm_to.cast());
-        }
-    }
-}
 impl Drop for slang_T {
     fn drop(&mut self) {
         unsafe {
-            xfree(self.sl_name.cast());
-            xfree(self.sl_fname.cast());
             crate::spell::slang_clear(self);
         }
     }
 }
 #[repr(C)]
 pub struct slang_T {
-    pub sl_name: *mut c_char,
-    pub sl_fname: *mut c_char,
+    pub sl_name: Option<std::ffi::CString>,
+    pub sl_fname: Option<std::ffi::CString>,
     pub sl_add: bool,
     pub sl_fbyts: Vec<u8>,
     pub sl_fidxs: Vec<idx_T>,
@@ -147,21 +134,21 @@ pub struct slang_T {
     pub sl_kidxs: Vec<idx_T>,
     pub sl_pbyts: Vec<u8>,
     pub sl_pidxs: Vec<idx_T>,
-    pub sl_info: *mut c_char,
+    pub sl_info: Option<std::ffi::CString>,
     pub sl_regions: [c_char; MAXREGIONS * 2 + 1],
-    pub sl_midword: *mut c_char,
+    pub sl_midword: Option<std::ffi::CString>,
     pub sl_wordcount: std::collections::BTreeMap<Vec<u8>, u16>,
     pub sl_compmax: c_int,
     pub sl_compminlen: c_int,
     pub sl_compsylmax: c_int,
     pub sl_compoptions: c_int,
-    pub sl_comppat: Vec<*mut c_char>,
+    pub sl_comppat: Vec<std::ffi::CString>,
     pub sl_compprog: *mut crate::regexp::regprog_T,
     pub sl_comprules: *mut u8,
     pub sl_compstartflags: *mut u8,
     pub sl_compallflags: *mut u8,
     pub sl_nobreak: bool,
-    pub sl_syllable: *mut c_char,
+    pub sl_syllable: Option<std::ffi::CString>,
     pub sl_syl_items: Vec<crate::spell::syl_item_T>,
     pub sl_prefprog: Vec<*mut crate::regexp::regprog_T>,
     pub sl_rep: Vec<fromto_T>,

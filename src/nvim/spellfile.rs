@@ -469,7 +469,7 @@ pub unsafe fn spell_load_file(
 
         let mut owned_lp = if old_lp.is_null() {
             let mut new_lp = slang_alloc(lang);
-            new_lp.sl_fname = xstrdup(fname);
+            new_lp.sl_fname = Some(CStr::from_ptr(fname).to_owned());
             new_lp.sl_add = !strstr(path_tail(fname), SPL_FNAME_ADD).is_null();
             Some(new_lp)
         } else {
@@ -534,12 +534,14 @@ pub unsafe fn spell_load_file(
             res = 0;
             match n {
                 SN_INFO => {
-                    xfree((*lp).sl_info.cast());
-                    (*lp).sl_info = read_string(fd, len as usize);
-                    if (*lp).sl_info.is_null() {
+                    let raw = read_string(fd, len as usize);
+                    if raw.is_null() {
+                        (*lp).sl_info = None;
                         fail = true;
                         break;
                     }
+                    (*lp).sl_info = Some(CStr::from_ptr(raw).to_owned());
+                    xfree(raw.cast());
                 }
                 SN_REGION => {
                     res = read_region_section(fd, lp, len);
@@ -548,12 +550,14 @@ pub unsafe fn spell_load_file(
                     res = read_charflags_section(fd);
                 }
                 SN_MIDWORD => {
-                    xfree((*lp).sl_midword.cast());
-                    (*lp).sl_midword = read_string(fd, len as usize);
-                    if (*lp).sl_midword.is_null() {
+                    let raw = read_string(fd, len as usize);
+                    if raw.is_null() {
+                        (*lp).sl_midword = None;
                         fail = true;
                         break;
                     }
+                    (*lp).sl_midword = Some(CStr::from_ptr(raw).to_owned());
+                    xfree(raw.cast());
                 }
                 SN_PREFCOND => {
                     res = read_prefcond_section(fd, lp);
@@ -606,12 +610,14 @@ pub unsafe fn spell_load_file(
                     (*lp).sl_nobreak = true;
                 }
                 SN_SYLLABLE => {
-                    xfree((*lp).sl_syllable.cast());
-                    (*lp).sl_syllable = read_string(fd, len as usize);
-                    if (*lp).sl_syllable.is_null() {
+                    let raw = read_string(fd, len as usize);
+                    if raw.is_null() {
+                        (*lp).sl_syllable = None;
                         fail = true;
                         break;
                     }
+                    (*lp).sl_syllable = Some(CStr::from_ptr(raw).to_owned());
+                    xfree(raw.cast());
                     if init_syl_tab(lp) != OK {
                         fail = true;
                         break;
@@ -759,13 +765,21 @@ pub unsafe fn suggest_load_files() {
             if (*slang).sl_sugtime != 0 && !(*slang).sl_sugloaded {
                 (*slang).sl_sugloaded = true;
 
-                let dotp = strrchr((*slang).sl_fname, b'.' as c_int);
+                let Some(ref fname_cstr) = (*slang).sl_fname else {
+                    lpi += 1;
+                    continue;
+                };
+                let dotp = strrchr(fname_cstr.as_ptr(), b'.' as c_int);
                 if dotp.is_null() || !path_equal(dotp, c".spl".as_ptr(), kPathCmpLiteral) {
                     lpi += 1;
                     continue;
                 }
-                strcpy(dotp, c".sug".as_ptr());
-                let fd = os_fopen((*slang).sl_fname, c"r".as_ptr());
+                let prefix_len = dotp.offset_from(fname_cstr.as_ptr()) as usize;
+                let mut sug_bytes = fname_cstr.as_bytes()[..prefix_len].to_vec();
+                sug_bytes.extend_from_slice(b".sug");
+                let sug_fname = std::ffi::CString::new(sug_bytes).unwrap();
+                let sug_ptr = sug_fname.as_ptr();
+                let fd = os_fopen(sug_ptr, c"r".as_ptr());
                 if !fd.is_null() {
                     let mut ok = true;
                     for slot in buf.iter_mut().take(VIMSUGMAGICL) {
@@ -774,7 +788,7 @@ pub unsafe fn suggest_load_files() {
                     if strncmp(buf.as_ptr(), VIMSUGMAGIC.as_ptr().cast(), VIMSUGMAGICL) != 0 {
                         semsg!(
                             gettext(c"E778: This does not look like a .sug file: %s".as_ptr()),
-                            (*slang).sl_fname,
+                            sug_ptr,
                         );
                         ok = false;
                     }
@@ -783,7 +797,7 @@ pub unsafe fn suggest_load_files() {
                         if c < VIMSUGVERSION {
                             semsg!(
                                 gettext(c"E779: Old .sug file, needs to be updated: %s".as_ptr()),
-                                (*slang).sl_fname,
+                                sug_ptr,
                             );
                             ok = false;
                         } else if c > VIMSUGVERSION {
@@ -791,7 +805,7 @@ pub unsafe fn suggest_load_files() {
                                 gettext(
                                     c"E780: .sug file is for newer version of Vim: %s".as_ptr(),
                                 ),
-                                (*slang).sl_fname,
+                                sug_ptr,
                             );
                             ok = false;
                         }
@@ -802,7 +816,7 @@ pub unsafe fn suggest_load_files() {
                         if timestamp != (*slang).sl_sugtime {
                             semsg!(
                                 gettext(c"E781: .sug file doesn't match .spl file: %s".as_ptr()),
-                                (*slang).sl_fname,
+                                sug_ptr,
                             );
                             ok = false;
                         }
@@ -863,10 +877,7 @@ pub unsafe fn suggest_load_files() {
                         }
 
                         if someerror {
-                            semsg!(
-                                gettext(e_error_while_reading_sug_file_str),
-                                (*slang).sl_fname,
-                            );
+                            semsg!(gettext(e_error_while_reading_sug_file_str), sug_ptr);
                             slang_clear_sug(slang);
                         } else {
                             tree_count_words(
@@ -883,7 +894,6 @@ pub unsafe fn suggest_load_files() {
                     }
                     fclose(fd);
                 }
-                strcpy(dotp, c".spl".as_ptr());
             }
             lpi += 1;
         }
@@ -1060,22 +1070,13 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
 
         while (gap.len() as c_int) < cnt {
             let mut c: c_int = NUL as c_int;
-            let mut smp = salitem_T {
-                sm_lead: ptr::null_mut(),
-                sm_leadlen: 0,
-                sm_oneof: ptr::null_mut(),
-                sm_rules: ptr::null_mut(),
-                sm_to: ptr::null_mut(),
-                sm_lead_w: Vec::new(),
-                sm_oneof_w: Vec::new(),
-                sm_to_w: Vec::new(),
-            };
             let mut ccnt = fgetc(fd);
             if ccnt < 0 {
                 return SP_TRUNCERROR;
             }
-            let mut p = xmalloc(ccnt as usize + 2).cast::<c_char>();
-            smp.sm_lead = p;
+            let mut buf = vec![0 as c_char; ccnt as usize + 2];
+            let sm_lead = buf.as_mut_ptr();
+            let mut p = sm_lead;
 
             let mut i: c_int = 0;
             while i < ccnt {
@@ -1087,12 +1088,11 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
                 p = p.add(1);
                 i += 1;
             }
-            smp.sm_leadlen = p.offset_from(smp.sm_lead) as c_int;
             *p = NUL;
             p = p.add(1);
 
-            if c == b'(' as c_int {
-                smp.sm_oneof = p;
+            let sm_oneof = if c == b'(' as c_int {
+                let oneof = p;
                 i += 1;
                 while i < ccnt {
                     c = fgetc(fd);
@@ -1109,11 +1109,12 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
                 if i < ccnt {
                     c = fgetc(fd);
                 }
+                oneof
             } else {
-                smp.sm_oneof = ptr::null_mut();
-            }
+                ptr::null_mut()
+            };
 
-            smp.sm_rules = p;
+            let sm_rules_ptr = p;
             if i < ccnt {
                 *p = c as u8 as c_char;
                 p = p.add(1);
@@ -1129,33 +1130,41 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
             }
             *p = NUL;
 
-            smp.sm_to = read_cnt_string(fd, 1, &raw mut ccnt);
+            let sm_to = read_cnt_string(fd, 1, &raw mut ccnt);
             if ccnt < 0 {
                 return ccnt;
             }
 
-            smp.sm_lead_w = mb_str2wide(smp.sm_lead);
-            smp.sm_leadlen = mb_charlen(smp.sm_lead);
-            if !smp.sm_oneof.is_null() {
-                smp.sm_oneof_w = mb_str2wide(smp.sm_oneof);
-            }
-            if !smp.sm_to.is_null() {
-                smp.sm_to_w = mb_str2wide(smp.sm_to);
-            }
-            gap.push(smp);
+            let sm_lead_w = mb_str2wide(sm_lead);
+            let sm_leadlen = mb_charlen(sm_lead);
+            let sm_oneof_w = if !sm_oneof.is_null() {
+                mb_str2wide(sm_oneof)
+            } else {
+                Vec::new()
+            };
+            let sm_to_w = if !sm_to.is_null() {
+                let w = mb_str2wide(sm_to);
+                xfree(sm_to.cast());
+                w
+            } else {
+                Vec::new()
+            };
+            let sm_rules = CStr::from_ptr(sm_rules_ptr).to_owned();
+            gap.push(salitem_T {
+                sm_leadlen,
+                sm_rules,
+                sm_lead_w,
+                sm_oneof_w,
+                sm_to_w,
+            });
         }
 
         if !gap.is_empty() {
-            let p = xmalloc(1).cast::<c_char>();
-            *p = NUL;
             gap.push(salitem_T {
-                sm_lead: p,
-                sm_lead_w: mb_str2wide(p),
                 sm_leadlen: 0,
-                sm_oneof: ptr::null_mut(),
+                sm_rules: std::ffi::CString::default(),
+                sm_lead_w: mb_str2wide(c"".as_ptr()),
                 sm_oneof_w: Vec::new(),
-                sm_rules: p,
-                sm_to: ptr::null_mut(),
                 sm_to_w: Vec::new(),
             });
         }
@@ -1270,10 +1279,13 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
             gap.reserve(c as usize);
             while c > 0 {
                 c -= 1;
-                gap.push(read_cnt_string(fd, 1, &raw mut cnt));
+                let raw = read_cnt_string(fd, 1, &raw mut cnt);
                 if cnt < 0 {
                     return cnt;
                 }
+                let cstr = CStr::from_ptr(raw).to_owned();
+                xfree(raw.cast());
+                gap.push(cstr);
                 todo -= cnt + 1;
             }
         }
@@ -1643,7 +1655,11 @@ unsafe fn spell_reload_one(fname: *mut c_char, added_word: bool) {
         let len = (*langs).len();
         for i in (0..len).rev() {
             let slang: *mut slang_T = &raw mut *(*langs).as_mut_slice()[i];
-            if path_equal(fname, (*slang).sl_fname, kPathCmpExpand) {
+            if (*slang)
+                .sl_fname
+                .as_ref()
+                .is_some_and(|f| path_equal(fname, f.as_ptr(), kPathCmpExpand))
+            {
                 slang_clear(slang);
                 if spell_load_file(fname, ptr::null_mut(), slang, false).is_null() {
                     slang_clear(slang);
@@ -4656,13 +4672,17 @@ unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
         let mut slang = (*langs)
             .iter_mut()
             .rev()
-            .find(|s| path_equal(wfname, s.sl_fname, kPathCmpExpand))
+            .find(|s| {
+                s.sl_fname
+                    .as_ref()
+                    .is_some_and(|f| path_equal(wfname, f.as_ptr(), kPathCmpExpand))
+            })
             .map_or(ptr::null_mut(), |s| &raw mut **s);
         let mut temp_slang: Option<Box<slang_T>> = None;
         if slang.is_null() {
             spell_message(spin, gettext(c"Reading back spell file...".as_ptr()));
             let mut new_lp = slang_alloc(ptr::null_mut());
-            new_lp.sl_fname = xstrdup(wfname);
+            new_lp.sl_fname = Some(CStr::from_ptr(wfname).to_owned());
             new_lp.sl_add = !strstr(path_tail(wfname), SPL_FNAME_ADD).is_null();
             slang = spell_load_file(wfname, ptr::null_mut(), &raw mut *new_lp, false);
             if slang.is_null() {
@@ -5433,7 +5453,10 @@ unsafe fn init_spellfile() {
             lstart,
         );
 
-        let fname = (*(&(*win_s(curwin)).b_langp)[0].lp_slang).sl_fname;
+        let fname = (*(&(*win_s(curwin)).b_langp)[0].lp_slang)
+            .sl_fname
+            .as_ref()
+            .map_or(ptr::null(), |s| s.as_ptr());
         let enc_suffix =
             if !fname.is_null() && !strstr(path_tail(fname), c".ascii.".as_ptr()).is_null() {
                 c"ascii".as_ptr()
