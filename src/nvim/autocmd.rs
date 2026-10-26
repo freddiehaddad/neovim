@@ -42,7 +42,7 @@ use crate::insexpand::ins_compl_active;
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_set_sctx};
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strcmp_ic;
-use crate::memory::{cstr_take, xmallocz, xstrdup};
+use crate::memory::cstr_take;
 use crate::message::{
     emsg, give_warning, msg_advance, msg_clr_eos, msg_end, msg_ext_set_kind, msg_outtrans,
     msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, msg_start, semsg, smsg, verbose_enter,
@@ -3428,14 +3428,12 @@ pub unsafe fn getnextac(
     apc: *mut AutoPatCmd,
     _indent: c_int,
     _do_concat: bool,
-) -> *mut c_char {
+) -> Option<CString> {
     unsafe {
         let acs = &raw mut autocmds[(*apc).event as usize];
 
         aucmd_next(apc);
-        if (*apc).lastpat.is_none() {
-            return ptr::null_mut();
-        }
+        (*apc).lastpat.as_ref()?;
 
         assert!((*apc).auidx < (*acs).len());
         let auidx = (*apc).auidx;
@@ -3456,7 +3454,7 @@ pub unsafe fn getnextac(
         (*apc).script_ctx = current_sctx;
 
         let retval = match &ac.handler {
-            AutoCmdHandler::Cmd(cmd) => xstrdup(cmd.as_ptr()),
+            AutoCmdHandler::Cmd(cmd) => cmd.clone(),
             AutoCmdHandler::Fn(cb) => {
                 let cb = *cb;
                 let id = ac.id;
@@ -3467,7 +3465,7 @@ pub unsafe fn getnextac(
                     (&mut *acs)[auidx].pat = saved_pat;
                 }
                 oneshot = oneshot || rv;
-                xmallocz(0).cast::<c_char>()
+                CString::default()
             }
             AutoCmdHandler::None => {
                 let id = ac.id;
@@ -3478,7 +3476,7 @@ pub unsafe fn getnextac(
                     (&mut *acs)[auidx].pat = saved_pat;
                 }
                 oneshot = oneshot || rv;
-                xmallocz(0).cast::<c_char>()
+                CString::default()
             }
         };
 
@@ -3492,7 +3490,7 @@ pub unsafe fn getnextac(
             (*apc).auidx = usize::MAX;
         }
 
-        retval
+        Some(retval)
     }
 }
 

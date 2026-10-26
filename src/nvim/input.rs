@@ -54,7 +54,7 @@ use crate::mbyte::{
 };
 use crate::mcursor::mc_replaying;
 use crate::memline::ml_sync_all;
-use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_take, xmemdupz};
+use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_from_bytes};
 use crate::message::{emsg, internal_error, semsg, semsg_multiline};
 use crate::mouse::{is_mouse_key, mouse_comp_pos, mouse_find_win_inner};
 use crate::r#move::{validate_cursor, win_col_off};
@@ -1840,7 +1840,7 @@ pub unsafe fn vgetc() -> c_int {
         (*okb).push(NUL as c_char);
         if on_key_blocked == 0 && nlua_exec_on_key(c, (*okb).as_mut_ptr()) {
             if c == K_COMMAND {
-                let _ = cstr_take(getcmdkeycmd(NUL, 0, false));
+                let _ = getcmdkeycmd(NUL, 0, false);
             } else if c == K_LUA {
                 map_execute_lua(false, true);
             } else if c == K_PASTE_START {
@@ -3205,7 +3205,11 @@ pub unsafe fn get_keystroke(events: *mut MultiQueue) -> c_int {
 }
 
 /// Function passed to `do_cmdline()` to get the command after a `<Cmd>` key from typeahead.
-pub unsafe fn getcmdkeycmd(promptc: c_int, _indent: c_int, _do_concat: bool) -> *mut c_char {
+pub unsafe fn getcmdkeycmd(
+    promptc: c_int,
+    _indent: c_int,
+    _do_concat: bool,
+) -> Option<std::ffi::CString> {
     unsafe {
         let mut line: Vec<u8> = Vec::new();
         let mut c1: c_int = -1;
@@ -3264,13 +3268,13 @@ pub unsafe fn getcmdkeycmd(promptc: c_int, _indent: c_int, _do_concat: bool) -> 
         no_mapping -= 1;
 
         if aborted {
-            ptr::null_mut()
+            None
         } else {
-            let out = xmemdupz(line.as_ptr().cast(), line.len()).cast::<c_char>();
+            let out = cstr_from_bytes(&line);
             if promptc == b':' as c_int {
-                atom_cmdline_set(K_COMMAND, out, line.len());
+                atom_cmdline_set(K_COMMAND, out.as_ptr(), out.as_bytes().len());
             }
-            out
+            Some(out)
         }
     }
 }

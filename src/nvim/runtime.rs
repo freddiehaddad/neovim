@@ -49,8 +49,8 @@ use crate::mbyte::{
 };
 use crate::memline::ml_get;
 use crate::memory::{
-    Arena, cstr_from_bytes, cstr_take, cstr_to_cstring, memcnt, strequal, xmemcpyz, xmemdupz,
-    xstrdup, xstrlcat, xstrlcpy,
+    Arena, cstr_from_bytes, cstr_take, cstr_to_cstring, memcnt, strequal, xmemcpyz, xstrdup,
+    xstrlcat, xstrlcpy,
 };
 #[cfg(windows)]
 use crate::message::msg_source;
@@ -2969,7 +2969,7 @@ unsafe fn do_source_ext(
             } else if !si.is_null() && (*si).sn_lua {
                 nlua_exec_file(fname_exp);
             } else {
-                firstline = cstr_take(getsourceline(0, &raw mut cookie, 0, true));
+                firstline = getsourceline(0, &raw mut cookie, 0, true);
                 if let Some(ref fl) = firstline
                     && fl.to_bytes().starts_with(&[0xef, 0xbb, 0xbf])
                 {
@@ -3317,7 +3317,7 @@ pub unsafe fn getsourceline(
     sp: *mut source_cookie_T,
     _indent: c_int,
     do_concat: bool,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
         if (*sp).dbg_tick < debug_tick && !(*sp).source_from_buf_or_str {
             (*sp).breakpoint = dbg_find_breakpoint(true, (*sp).fname, sourcing_lnum());
@@ -3374,15 +3374,15 @@ pub unsafe fn getsourceline(
             }
         }
 
-        let line = line_vec.map_or(ptr::null_mut(), |b| {
+        let line = line_vec.map(|b| {
             let len = b.len().saturating_sub(usize::from(b.last() == Some(&NUL)));
             if (*sp).conv.vc_type != CONV_NONE
                 && let Some(s) =
                     string_convert(&(*sp).conv, b.as_ptr().cast_mut(), ptr::null_mut())
             {
-                xstrdup(s.as_ptr().cast())
+                cstr_to_cstring(s.as_ptr().cast())
             } else {
-                xmemdupz(b.as_ptr().cast(), len).cast::<c_char>()
+                cstr_from_bytes(std::slice::from_raw_parts(b.as_ptr().cast::<u8>(), len))
             }
         });
 

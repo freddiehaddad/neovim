@@ -53,8 +53,7 @@ use crate::lua::executor::{
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
 use crate::memory::{
-    cstr_from_bytes, cstr_to_cstring, entered_free_all_mem, xfree, xmemrchr, xstrdup,
-    xstrlcpy,
+    cstr_from_bytes, cstr_take, cstr_to_cstring, entered_free_all_mem, xmemrchr, xstrdup, xstrlcpy,
 };
 use crate::message::{
     emsg, iemsg, internal_error, message_filtered, msg_clr_eos, msg_ext_set_kind, msg_outnum,
@@ -2610,12 +2609,12 @@ unsafe fn get_function_body(
     eap: *mut exarg_T,
     newlines: &mut Vec<Option<std::ffi::CString>>,
     line_arg_in: *mut c_char,
-    line_to_free: *mut *mut c_char,
     show_block: bool,
 ) -> c_int {
     unsafe {
         let mut saved_wait_return = need_wait_return;
         let mut line_arg = line_arg_in;
+        let mut line_to_free: Option<std::ffi::CString> = None;
         let mut indent: c_int = 2;
         let mut nesting: c_int = 0;
         let mut skip_until: Option<std::ffi::CString> = None;
@@ -2646,13 +2645,14 @@ unsafe fn get_function_body(
                     line_arg = p.add(1);
                 }
             } else {
-                xfree((*line_to_free).cast());
-                theline = if (*eap).ea_getline.is_none() {
-                    getcmdline(b':' as c_int, 0, indent, do_concat)
+                line_to_free = if (*eap).ea_getline.is_none() {
+                    cstr_take(getcmdline(b':' as c_int, 0, indent, do_concat))
                 } else {
                     (*eap).ea_getline.call(b':' as c_int, indent, do_concat)
                 };
-                *line_to_free = theline;
+                theline = line_to_free
+                    .as_ref()
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             }
             if KeyTyped {
                 lines_left = Rows - 1;
@@ -2734,11 +2734,14 @@ unsafe fn get_function_body(
                             );
                         }
                         if !nextcmd.is_null() {
-                            (*eap).nextcmd = nextcmd;
-                            if !(*line_to_free).is_null() {
-                                xfree((*(*eap).cmdlinep).cast());
-                                *(*eap).cmdlinep = *line_to_free;
-                                *line_to_free = ptr::null_mut();
+                            if let Some(ref ltf) = line_to_free {
+                                let off = (nextcmd as usize) - (ltf.as_ptr() as usize);
+                                drop(cstr_take(*(*eap).cmdlinep));
+                                let dup = xstrdup(ltf.as_ptr());
+                                *(*eap).cmdlinep = dup;
+                                (*eap).nextcmd = dup.add(off);
+                            } else {
+                                (*eap).nextcmd = nextcmd;
                             }
                         }
                         break;
@@ -2906,7 +2909,6 @@ unsafe fn get_function_body(
 /// `:function`
 pub unsafe fn ex_function(eap: *mut exarg_T) {
     unsafe {
-        let mut line_to_free: *mut c_char = ptr::null_mut();
         let mut line_arg: *mut c_char = ptr::null_mut();
         let mut newargs: Vec<std::ffi::CString> = Vec::new();
         let mut default_args: Vec<std::ffi::CString> = Vec::new();
@@ -2956,7 +2958,6 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
 
         macro_rules! ret_free {
             () => {{
-                xfree(line_to_free.cast());
                 drop(name_owned);
                 did_emsg |= saved_did_emsg;
                 if show_block {
@@ -3120,13 +3121,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
 
         let sourcing_lnum_top = sourcing_lnum();
 
-        if get_function_body(
-            eap,
-            &mut newlines,
-            line_arg,
-            &raw mut line_to_free,
-            show_block,
-        ) == FAIL
+        if get_function_body(eap, &mut newlines, line_arg, show_block) == FAIL
             || (*eap).skip != 0
         {
             erret!();
@@ -3992,10 +3987,10 @@ pub unsafe fn get_func_line(
     fcp: *mut funccall_T,
     _indent: c_int,
     _do_concat: bool,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
         let fp = (*fcp).fc_func;
-        let retval: *mut c_char;
+        let retval: Option<std::ffi::CString>;
 
         if (*fcp).fc_dbg_tick != debug_tick {
             (*fcp).fc_breakpoint = dbg_find_breakpoint(false, uf2hikey(fp), sourcing_lnum());
@@ -4010,17 +4005,17 @@ pub unsafe fn get_func_line(
         if (((*fp).uf_flags & FC_ABORT) != 0 && did_emsg != 0 && !aborted_in_try())
             || (*fcp).fc_returned != 0
         {
-            retval = ptr::null_mut();
+            retval = None;
         } else {
             while (*fcp).fc_linenr < lines_len && lines[(*fcp).fc_linenr as usize].is_none() {
                 (*fcp).fc_linenr += 1;
             }
             if (*fcp).fc_linenr >= lines_len {
-                retval = ptr::null_mut();
+                retval = None;
             } else {
-                let line = lines[(*fcp).fc_linenr as usize].as_ref().unwrap().as_ptr();
+                let line = lines[(*fcp).fc_linenr as usize].clone();
                 (*fcp).fc_linenr += 1;
-                retval = xstrdup(line);
+                retval = line;
                 set_sourcing_lnum((*fcp).fc_linenr);
                 if do_profiling == PROF_YES {
                     func_line_start(fcp);

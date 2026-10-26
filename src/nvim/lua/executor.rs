@@ -56,9 +56,7 @@ use crate::lua::treesitter::nlua_treesitter_init;
 use crate::main_init::{getout, os_exit, preserve_exit};
 use crate::math::{FAIL, OK};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{
-    Arena, ArenaMem, arena_finish, arena_mem_free, strequal, xfree, xmemdupz, xstrdup,
-};
+use crate::memory::{Arena, ArenaMem, arena_finish, arena_mem_free, strequal, xfree, xmemdupz};
 use crate::message::{
     emsg, msg_ext_no_fast, msg_multihl, msg_putchar, msg_use_printf, redirecting, semsg_multiline,
 };
@@ -948,7 +946,7 @@ pub unsafe fn nlua_ex_getline(
     ecd: *mut ExDocmdCookie,
     _indent: c_int,
     _do_concat: bool,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
         let lstate = GLOBAL_LSTATE;
         nlua_pushref(lstate, (*ecd).getline);
@@ -957,16 +955,16 @@ pub unsafe fn nlua_ex_getline(
                 lstate,
                 gettext(c"Error executing Ex-mode line getter: %.*s".as_ptr()),
             );
-            return ptr::null_mut();
+            return None;
         }
         if lua_type(lstate, -1) != LUA_TSTRING {
             lua_pop(lstate, 1);
-            return ptr::null_mut();
+            return None;
         }
-        let line = xstrdup(lua_tostring(lstate, -1));
+        let line = crate::memory::cstr_to_cstring(lua_tostring(lstate, -1));
         lua_pop(lstate, 1);
         (*ecd).got_line = true;
-        line
+        Some(line)
     }
 }
 

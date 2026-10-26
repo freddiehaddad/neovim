@@ -53,7 +53,7 @@ use crate::lua::executor::{nlua_funcref_str, nlua_set_sctx};
 use crate::math::{FAIL, OK};
 use crate::mbyte::utf_char2bytes;
 use crate::memory::{
-    cstr_from_bytes, cstr_take, cstr_to_cstring, strequal, xfree, xstrdup, xstrlcat, xstrlcpy,
+    cstr_from_bytes, cstr_to_cstring, strequal, xfree, xstrdup, xstrlcat, xstrlcpy,
 };
 use crate::message::{
     emsg, internal_error, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind,
@@ -1113,7 +1113,7 @@ pub unsafe fn heredoc_get(
                 }
                 cur_line
             } else {
-                theline_owned = cstr_take((*eap).ea_getline.call(0, 0, false));
+                theline_owned = (*eap).ea_getline.call(0, 0, false);
                 let Some(ref tl) = theline_owned else {
                     if !script_get {
                         semsg!(gettext(E_MISSING_END_MARKER_STR.as_ptr()), marker);

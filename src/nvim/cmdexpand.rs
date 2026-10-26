@@ -188,10 +188,15 @@ impl LineGetter {
         }
     }
 
-    pub unsafe fn call(self, c: c_int, indent: c_int, do_concat: bool) -> *mut c_char {
+    pub unsafe fn call(
+        self,
+        c: c_int,
+        indent: c_int,
+        do_concat: bool,
+    ) -> Option<std::ffi::CString> {
         unsafe {
             match self {
-                Self::None => ptr::null_mut(),
+                Self::None => None,
                 Self::ExLine => crate::ex_getln::getexline(c, indent, do_concat),
                 Self::CmdKeyCmd => crate::input::getcmdkeycmd(c, indent, do_concat),
                 Self::AutoCmd(cookie) => crate::autocmd::getnextac(c, cookie, indent, do_concat),
@@ -200,8 +205,9 @@ impl LineGetter {
                 }
                 Self::Source(cookie) => crate::runtime::getsourceline(c, cookie, indent, do_concat),
                 Self::Loop(cookie) => crate::ex_docmd::get_loop_line(c, cookie, indent, do_concat),
-                Self::List(cookie) => crate::eval::funcs::get_list_line(c, cookie, indent, do_concat)
-                    .map_or(ptr::null_mut(), |s| xstrdup(s.as_ptr())),
+                Self::List(cookie) => {
+                    crate::eval::funcs::get_list_line(c, cookie, indent, do_concat)
+                }
                 Self::LuaEx(cookie) => {
                     crate::lua::executor::nlua_ex_getline(c, cookie, indent, do_concat)
                 }

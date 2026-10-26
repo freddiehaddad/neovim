@@ -97,7 +97,7 @@ use crate::memline::{
     ml_find_line_or_offset, ml_firstmarked, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len,
     ml_replace, ml_replace_buf, ml_setmarked,
 };
-use crate::memory::{cstr_from_bytes, cstr_take, cstr_to_cstring, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, message_filtered, messaging, msg, msg_check_for_delay, msg_clr_eos, msg_end,
     msg_ext_no_fast, msg_ext_set_kind, msg_multiline, msg_outtrans, msg_prt_line, msg_putchar,
@@ -3360,7 +3360,7 @@ unsafe fn get_append_line(eap: *mut exarg_T, indent: c_int) -> Option<Vec<c_char
                 true,
             );
             State = getline_State;
-            cstr_take(raw_line).map(|s| {
+            raw_line.map(|s| {
                 s.into_bytes_with_nul()
                     .into_iter()
                     .map(|b| b as c_char)

@@ -5106,14 +5106,14 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                     retval = FAIL;
                     break;
                 }
-                next_cmdline = fgetline.call(b':' as c_int, indent, true);
-                if next_cmdline.is_null() {
+                let Some(next_cstr) = fgetline.call(b':' as c_int, indent, true) else {
                     if KeyTyped && (flags & DOCMD_REPEAT) == 0 {
                         need_wait_return = false;
                     }
                     retval = FAIL;
                     break;
-                }
+                };
+                next_cmdline = xstrdup(next_cstr.as_ptr());
                 used_getline = true;
 
                 if ui_has(kUICmdline) && count > 0 && fgetline.is_exline() {
@@ -5465,21 +5465,21 @@ pub unsafe fn get_loop_line(
     cp: *mut loop_cookie,
     indent: c_int,
     do_concat: bool,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
         let lines = &mut (*cp).lines;
 
         if ((*cp).current_line + 1) as usize >= lines.len() {
             if (*cp).repeating != 0 {
-                return ptr::null_mut();
+                return None;
             }
             let line = if !(*cp).lc_getline.is_none() {
                 (*cp).lc_getline.call(c, indent, do_concat)
             } else {
-                getcmdline(c, 0, indent, do_concat)
+                cstr_take(getcmdline(c, 0, indent, do_concat))
             };
-            if !line.is_null() {
-                store_loop_line(lines, line);
+            if let Some(ref l) = line {
+                store_loop_line(lines, l.as_ptr());
                 (*cp).current_line += 1;
             }
             return line;
@@ -5489,7 +5489,7 @@ pub unsafe fn get_loop_line(
         (*cp).current_line += 1;
         let wp = &lines[(*cp).current_line as usize];
         *sourcing_lnum_ptr() = wp.lnum;
-        xstrdup(wp.line.as_ptr())
+        Some(wp.line.clone())
     }
 }
 

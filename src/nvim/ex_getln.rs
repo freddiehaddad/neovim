@@ -3574,13 +3574,13 @@ unsafe fn correct_screencol(idx: c_int, cells: c_int, col: *mut c_int) {
 }
 
 /// Get an Ex command line for the `:` command.
-pub unsafe fn getexline(c: c_int, indent: c_int, do_concat: bool) -> *mut c_char {
+pub unsafe fn getexline(c: c_int, indent: c_int, do_concat: bool) -> Option<std::ffi::CString> {
     unsafe {
         if exec_from_reg && vpeekc() == b':' as c_int {
             vgetc();
         }
 
-        getcmdline(c, 1, indent, do_concat)
+        cstr_take(getcmdline(c, 1, indent, do_concat))
     }
 }
 

@@ -18,7 +18,6 @@ use crate::input::plain_vgetc;
 use crate::keycodes::{ESC, K_BS};
 use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP, do_map};
 use crate::mbyte::{mb_cptr2char_adv, utf_char2bytes, utf_iscomposing_first};
-use crate::memory::cstr_take;
 use crate::message::{emsg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar, semsg};
 use crate::normal::add_to_showcmd;
 use crate::option_vars::*;
@@ -2146,7 +2145,7 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
         }
 
         if (*eap).skip != 0 {
-            while cstr_take(fgetline.call(0, 0, true)).is_some() {}
+            while fgetline.call(0, 0, true).is_some() {}
             return;
         }
 
@@ -2157,7 +2156,7 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
 
         p_cpo = c"C".as_ptr().cast_mut();
 
-        while let Some(line_cstr) = cstr_take(fgetline.call(0, 0, true)) {
+        while let Some(line_cstr) = fgetline.call(0, 0, true) {
             let line = line_cstr.as_ptr();
             let mut p = skipwhite(line);
             if *p != b'"' as c_char && *p != NUL {
