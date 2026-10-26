@@ -39,7 +39,7 @@ use crate::tui::tui::{
     tui_set_icon, tui_set_title, tui_start, tui_stop, tui_suspend, tui_ui_send, tui_update_menu,
     tui_visual_bell,
 };
-use std::ffi::{c_char, c_int};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub(crate) const UI_CLIENT_STDIN_FD: c_int = 3;
@@ -657,7 +657,7 @@ pub unsafe fn ui_client_free_all_mem() {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct UIClientHandler {
-    pub name: *const c_char,
+    pub name: &'static CStr,
     pub r#fn: Option<unsafe fn(args: Array)>,
 }
 
@@ -950,115 +950,115 @@ pub unsafe fn ui_client_event_grid_scroll(args: Array) {
 
 const EVENT_HANDLERS: [UIClientHandler; 28] = [
     UIClientHandler {
-        name: c"bell".as_ptr(),
+        name: c"bell",
         r#fn: Some(ui_client_event_bell),
     },
     UIClientHandler {
-        name: c"chdir".as_ptr(),
+        name: c"chdir",
         r#fn: Some(ui_client_event_chdir),
     },
     UIClientHandler {
-        name: c"flush".as_ptr(),
+        name: c"flush",
         r#fn: Some(ui_client_event_flush),
     },
     UIClientHandler {
-        name: c"connect".as_ptr(),
+        name: c"connect",
         r#fn: Some(ui_client_event_connect),
     },
     UIClientHandler {
-        name: c"restart".as_ptr(),
+        name: c"restart",
         r#fn: Some(ui_client_event_restart),
     },
     UIClientHandler {
-        name: c"suspend".as_ptr(),
+        name: c"suspend",
         r#fn: Some(ui_client_event_suspend),
     },
     UIClientHandler {
-        name: c"ui_send".as_ptr(),
+        name: c"ui_send",
         r#fn: Some(ui_client_event_ui_send),
     },
     UIClientHandler {
-        name: c"mouse_on".as_ptr(),
+        name: c"mouse_on",
         r#fn: Some(ui_client_event_mouse_on),
     },
     UIClientHandler {
-        name: c"set_icon".as_ptr(),
+        name: c"set_icon",
         r#fn: Some(ui_client_event_set_icon),
     },
     UIClientHandler {
-        name: c"busy_stop".as_ptr(),
+        name: c"busy_stop",
         r#fn: Some(ui_client_event_busy_stop),
     },
     UIClientHandler {
-        name: c"grid_line".as_ptr(),
+        name: c"grid_line",
         r#fn: Some(ui_client_event_grid_line),
     },
     UIClientHandler {
-        name: c"mouse_off".as_ptr(),
+        name: c"mouse_off",
         r#fn: Some(ui_client_event_mouse_off),
     },
     UIClientHandler {
-        name: c"set_title".as_ptr(),
+        name: c"set_title",
         r#fn: Some(ui_client_event_set_title),
     },
     UIClientHandler {
-        name: c"busy_start".as_ptr(),
+        name: c"busy_start",
         r#fn: Some(ui_client_event_busy_start),
     },
     UIClientHandler {
-        name: c"error_exit".as_ptr(),
+        name: c"error_exit",
         r#fn: Some(ui_client_event_error_exit),
     },
     UIClientHandler {
-        name: c"grid_clear".as_ptr(),
+        name: c"grid_clear",
         r#fn: Some(ui_client_event_grid_clear),
     },
     UIClientHandler {
-        name: c"option_set".as_ptr(),
+        name: c"option_set",
         r#fn: Some(ui_client_event_option_set),
     },
     UIClientHandler {
-        name: c"screenshot".as_ptr(),
+        name: c"screenshot",
         r#fn: Some(ui_client_event_screenshot),
     },
     UIClientHandler {
-        name: c"mode_change".as_ptr(),
+        name: c"mode_change",
         r#fn: Some(ui_client_event_mode_change),
     },
     UIClientHandler {
-        name: c"update_menu".as_ptr(),
+        name: c"update_menu",
         r#fn: Some(ui_client_event_update_menu),
     },
     UIClientHandler {
-        name: c"visual_bell".as_ptr(),
+        name: c"visual_bell",
         r#fn: Some(ui_client_event_visual_bell),
     },
     UIClientHandler {
-        name: c"grid_resize".as_ptr(),
+        name: c"grid_resize",
         r#fn: Some(ui_client_event_grid_resize),
     },
     UIClientHandler {
-        name: c"grid_scroll".as_ptr(),
+        name: c"grid_scroll",
         r#fn: Some(ui_client_event_grid_scroll),
     },
     UIClientHandler {
-        name: c"mode_info_set".as_ptr(),
+        name: c"mode_info_set",
         r#fn: Some(ui_client_event_mode_info_set),
     },
     UIClientHandler {
-        name: c"hl_attr_define".as_ptr(),
+        name: c"hl_attr_define",
         r#fn: Some(ui_client_event_hl_attr_define),
     },
     UIClientHandler {
-        name: c"grid_cursor_goto".as_ptr(),
+        name: c"grid_cursor_goto",
         r#fn: Some(ui_client_event_grid_cursor_goto),
     },
     UIClientHandler {
-        name: c"default_colors_set".as_ptr(),
+        name: c"default_colors_set",
         r#fn: Some(ui_client_event_default_colors_set),
     },
     UIClientHandler {
-        name: c"_set_restart_on_crash_exit".as_ptr(),
+        name: c"_set_restart_on_crash_exit",
         r#fn: Some(ui_client_event__set_restart_on_crash_exit),
     },
 ];
@@ -1120,9 +1120,7 @@ pub unsafe fn ui_client_handler_hash(str_in: *const c_char, len: usize) -> c_int
     if low < 0 {
         return -1;
     }
-    let target =
-        unsafe { std::slice::from_raw_parts(EVENT_HANDLERS[low as usize].name.cast::<u8>(), len) };
-    if bytes != target {
+    if bytes != EVENT_HANDLERS[low as usize].name.to_bytes() {
         return -1;
     }
     low as c_int
@@ -1137,7 +1135,7 @@ pub unsafe fn ui_client_get_redraw_handler(
         let hash = ui_client_handler_hash(name, name_len);
         if hash < 0 {
             return UIClientHandler {
-                name: ptr::null(),
+                name: c"",
                 r#fn: None,
             };
         }

@@ -54,7 +54,7 @@ impl ParserInputReader {
 pub struct ParserHighlightChunk {
     pub start: ParserPosition,
     pub end_col: usize,
-    pub group: *const c_char,
+    pub group: &'static std::ffi::CStr,
 }
 
 pub type ParserHighlight = Vec<ParserHighlightChunk>;

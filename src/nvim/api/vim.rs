@@ -2136,14 +2136,12 @@ pub unsafe extern "C" fn nvim_get_color_by_name(name: NvimString) -> Integer {
 pub unsafe extern "C" fn nvim_get_color_map(arena: *mut Arena) -> Dict {
     unsafe {
         let mut colors = arena_dict(arena, color_name_table.len());
-        let mut i = 0usize;
-        while !color_name_table[i].name.is_null() {
+        for entry in &color_name_table {
             put_c(
                 &mut colors,
-                color_name_table[i].name,
-                integer_obj(Integer::from(color_name_table[i].color)),
+                entry.name.as_ptr(),
+                integer_obj(Integer::from(entry.color)),
             );
-            i += 1;
         }
         colors
     }

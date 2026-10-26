@@ -68,7 +68,7 @@ pub struct CallbackReader {
     pub eof: bool,
     pub buffered: bool,
     pub fwd_err: bool,
-    pub reader_type: *const c_char,
+    pub reader_type: Option<&'static CStr>,
 }
 
 impl CallbackReader {
@@ -81,7 +81,7 @@ impl CallbackReader {
             eof: false,
             buffered: false,
             fwd_err: false,
-            reader_type: ptr::null(),
+            reader_type: None,
         }
     }
 }
@@ -416,9 +416,9 @@ pub unsafe fn channel_decref(chan: *mut Channel) {
     }
 }
 
-pub unsafe fn callback_reader_start(reader: *mut CallbackReader, r#type: *const c_char) {
+pub unsafe fn callback_reader_start(reader: *mut CallbackReader, r#type: &'static CStr) {
     unsafe {
-        (*reader).reader_type = r#type;
+        (*reader).reader_type = Some(r#type);
     }
 }
 
@@ -599,7 +599,7 @@ pub unsafe fn channel_job_start(
         if rpc {
             rpc_start(chan);
         } else if has_out {
-            callback_reader_start(&raw mut (*ct).on_data, c"stdout".as_ptr());
+            callback_reader_start(&raw mut (*ct).on_data, c"stdout");
             rstream_start(
                 &raw mut (*proc_ptr).out,
                 Some(on_channel_data),
@@ -608,7 +608,7 @@ pub unsafe fn channel_job_start(
         }
 
         if has_err {
-            callback_reader_start(&raw mut (*ct).on_stderr, c"stderr".as_ptr());
+            callback_reader_start(&raw mut (*ct).on_stderr, c"stderr");
             rstream_init(&raw mut (*proc_ptr).err);
             rstream_start(
                 &raw mut (*proc_ptr).err,
@@ -664,7 +664,7 @@ pub unsafe fn channel_connect(
             rpc_start(channel);
         } else {
             (*channel).on_data = on_output;
-            callback_reader_start(&raw mut (*channel).on_data, c"data".as_ptr());
+            callback_reader_start(&raw mut (*channel).on_data, c"data");
             rstream_start(
                 socket_stream,
                 Some(on_channel_data),
@@ -746,7 +746,7 @@ pub unsafe fn channel_from_stdio(
             rpc_start(channel);
         } else {
             (*channel).on_data = on_output;
-            callback_reader_start(&raw mut (*channel).on_data, c"stdin".as_ptr());
+            callback_reader_start(&raw mut (*channel).on_data, c"stdin");
             rstream_start(
                 stdio_in,
                 Some(on_channel_data),
@@ -936,20 +936,21 @@ pub unsafe fn channel_reader_callbacks(chan: *mut Channel, reader: *mut Callback
         if (*reader).buffered {
             if (*reader).eof {
                 if !(*reader).self_dict.is_null() {
-                    if tv_dict_find((*reader).self_dict, (*reader).reader_type, -1).is_null() {
+                    let reader_type = (*reader).reader_type.unwrap();
+                    if tv_dict_find((*reader).self_dict, reader_type.as_ptr(), -1).is_null() {
                         let data =
                             buffer_to_tv_list((*reader).buffer.as_ptr(), (*reader).buffer.len());
-                        let type_len = CStr::from_ptr((*reader).reader_type).to_bytes().len();
+                        let type_len = reader_type.to_bytes().len();
                         let _ = tv_dict_add_list(
                             (*reader).self_dict,
-                            (*reader).reader_type,
+                            reader_type.as_ptr(),
                             type_len,
                             data,
                         );
                     } else {
                         semsg!(
                             gettext(e_streamkey.as_ptr()),
-                            (*reader).reader_type,
+                            reader_type.as_ptr(),
                             (*chan).id,
                         );
                     }
@@ -1028,7 +1029,9 @@ unsafe fn channel_callback_call(chan: *mut Channel, reader: *mut CallbackReader)
             tv_list_ref(l);
             (*reader).buffer = Vec::new();
             argv[2].vval = TypvalVval {
-                v_string: (*reader).reader_type.cast_mut(),
+                v_string: (*reader)
+                    .reader_type
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
             };
             &raw mut (*reader).cb
         } else {

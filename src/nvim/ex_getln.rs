@@ -3700,7 +3700,7 @@ unsafe fn color_expr_cmdline(
             (*ret_ccline_colors).colors.push(CmdlineColorChunk {
                 start: chunk.start.col as c_int,
                 end: chunk.end_col as c_int,
-                hl_id: syn_name2id(chunk.group),
+                hl_id: syn_name2id(chunk.group.as_ptr()),
             });
             prev_end = chunk.end_col;
         }

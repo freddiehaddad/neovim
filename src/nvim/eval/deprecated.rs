@@ -197,6 +197,6 @@ mod tests {
         assert!(!r.eof);
         assert!(!r.buffered);
         assert!(!r.fwd_err);
-        assert!(r.reader_type.is_null());
+        assert!(r.reader_type.is_none());
     }
 }

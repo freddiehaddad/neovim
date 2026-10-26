@@ -637,7 +637,7 @@ pub unsafe fn ui_flush() {
                 .cast::<cursorentry_T>()
                 .add(idx as usize))
             .full_name;
-            ui_call_mode_change(cstr_as_string(full_name), Integer::from(idx));
+            ui_call_mode_change(cstr_as_string(full_name.as_ptr()), Integer::from(idx));
             pending_mode_update = false;
             ui_flush_cursor_was_obscured = cursor_obscured;
         }

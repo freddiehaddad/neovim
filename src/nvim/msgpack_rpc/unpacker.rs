@@ -386,7 +386,7 @@ impl Unpacker {
             nevents: 0,
             ncalls: 0,
             ui_handler: UIClientHandler {
-                name: std::ptr::null(),
+                name: c"",
                 r#fn: None,
             },
             grid_line_event: GridLineEvent {

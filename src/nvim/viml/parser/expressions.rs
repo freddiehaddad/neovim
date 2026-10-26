@@ -1299,7 +1299,7 @@ fn viml_parser_highlight(
     pstate: &mut ParserState,
     start: ParserPosition,
     len: usize,
-    group: *const c_char,
+    group: &'static std::ffi::CStr,
 ) {
     if len == 0 {
         return;
@@ -1955,9 +1955,9 @@ struct StringShift {
 macro_rules! hl_group {
     ($is_invalid:expr, $valid:literal, $invalid:literal) => {
         if $is_invalid {
-            $invalid.as_ptr()
+            $invalid
         } else {
-            $valid.as_ptr()
+            $valid
         }
     };
 }

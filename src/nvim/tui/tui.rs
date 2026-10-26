@@ -131,12 +131,12 @@ pub struct Rect {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct TerminfoExt {
-    pub enable_focus_reporting: *const c_char,
-    pub disable_focus_reporting: *const c_char,
-    pub reset_scroll_region: *const c_char,
-    pub enter_altfont_mode: *const c_char,
+    pub enable_focus_reporting: Option<&'static [u8]>,
+    pub disable_focus_reporting: Option<&'static [u8]>,
+    pub reset_scroll_region: Option<&'static [u8]>,
+    pub enter_altfont_mode: Option<&'static [u8]>,
 }
 
 #[repr(C)]
@@ -262,7 +262,7 @@ impl TUIData {
             modes_resize_events: false,
             screenshot: ptr::null_mut(),
             cursor_shapes: [cursorentry_T {
-                full_name: ptr::null(),
+                full_name: c"",
                 shape: CursorShape::SHAPE_BLOCK,
                 mshape: 0,
                 percentage: 0,
@@ -271,7 +271,7 @@ impl TUIData {
                 blinkoff: 0,
                 id: 0,
                 id_lm: 0,
-                name: ptr::null(),
+                name: c"",
                 used_for: 0,
             }; SHAPE_IDX_COUNT],
             clear_attrs: HLATTRS_INIT,
@@ -282,12 +282,7 @@ impl TUIData {
             can_clear_attr: false,
             showing_mode: 0,
             verbose: 0,
-            terminfo_ext: TerminfoExt {
-                enable_focus_reporting: ptr::null(),
-                disable_focus_reporting: ptr::null(),
-                reset_scroll_region: ptr::null(),
-                enter_altfont_mode: ptr::null(),
-            },
+            terminfo_ext: TerminfoExt::default(),
             can_set_title: false,
             can_set_underline_color: false,
             can_resize_screen: false,
@@ -857,8 +852,8 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
         (*tui).modes_resize_events = false;
         (*tui).modes_theme_updates = false;
         (*tui).showing_mode = SHAPE_IDX_N as ModeShape;
-        (*tui).terminfo_ext.enable_focus_reporting = ptr::null();
-        (*tui).terminfo_ext.disable_focus_reporting = ptr::null();
+        (*tui).terminfo_ext.enable_focus_reporting = None;
+        (*tui).terminfo_ext.disable_focus_reporting = None;
 
         (*tui).out_fd = STDOUT_FILENO;
         (*tui).out_isatty = os_isatty((*tui).out_fd);
@@ -1762,7 +1757,7 @@ unsafe fn set_scroll_region(tui: *mut TUIData, top: c_int, bot: c_int, left: c_i
 
 unsafe fn reset_scroll_region(tui: *mut TUIData, fullwidth: bool) {
     unsafe {
-        if !(*tui).terminfo_ext.reset_scroll_region.is_null() {
+        if (*tui).terminfo_ext.reset_scroll_region.is_some() {
             out_len(tui, (*tui).terminfo_ext.reset_scroll_region);
         } else {
             terminfo_print_num2(tui, kTerm_change_scroll_region, 0, (*tui).height - 1);
@@ -2681,10 +2676,10 @@ unsafe fn out(tui: *mut TUIData, str_: *const c_char, len: usize) {
     }
 }
 
-unsafe fn out_len(tui: *mut TUIData, str_: *const c_char) {
+unsafe fn out_len(tui: *mut TUIData, bytes: Option<&[u8]>) {
     unsafe {
-        if !str_.is_null() {
-            out(tui, str_, CStr::from_ptr(str_).to_bytes().len());
+        if let Some(bytes) = bytes {
+            out(tui, bytes.as_ptr().cast::<c_char>(), bytes.len());
         }
     }
 }
@@ -3043,10 +3038,10 @@ unsafe fn augment_terminfo(
         }
 
         if putty || xterm || hterm || rxvt {
-            (*tui).terminfo_ext.reset_scroll_region = c"\x1b[r".as_ptr();
+            (*tui).terminfo_ext.reset_scroll_region = Some(b"\x1b[r");
         }
 
-        (*tui).terminfo_ext.enter_altfont_mode = c"\x1b[11m".as_ptr();
+        (*tui).terminfo_ext.enter_altfont_mode = Some(b"\x1b[11m");
 
         let has_colon_rgb =
             !tmux && !screen && vte_version == 0 && (iterm || iterm_pretending_xterm || true_xterm);
@@ -3091,16 +3086,16 @@ unsafe fn augment_terminfo(
             (*tui).can_set_title = true;
         }
 
-        (*tui).terminfo_ext.enable_focus_reporting = if rxvt {
-            c"\x1b[?1004h\x1b]777;focus;on\x07".as_ptr()
+        (*tui).terminfo_ext.enable_focus_reporting = Some(if rxvt {
+            b"\x1b[?1004h\x1b]777;focus;on\x07"
         } else {
-            c"\x1b[?1004h".as_ptr()
-        };
-        (*tui).terminfo_ext.disable_focus_reporting = if rxvt {
-            c"\x1b[?1004l\x1b]777;focus;off\x07".as_ptr()
+            b"\x1b[?1004h"
+        });
+        (*tui).terminfo_ext.disable_focus_reporting = Some(if rxvt {
+            b"\x1b[?1004l\x1b]777;focus;off\x07"
         } else {
-            c"\x1b[?1004l".as_ptr()
-        };
+            b"\x1b[?1004l"
+        });
 
         if (*tui).ti.defs[kTerm_set_underline_style].is_null() {
             let wezterm_ok = !weztermv.is_null()

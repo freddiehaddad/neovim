@@ -43,7 +43,7 @@ pub enum CursorShape {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct cursorentry_T {
-    pub full_name: *const c_char,
+    pub full_name: &'static CStr,
     pub shape: CursorShape,
     pub mshape: c_int,
     pub percentage: c_int,
@@ -52,11 +52,9 @@ pub struct cursorentry_T {
     pub blinkoff: c_int,
     pub id: c_int,
     pub id_lm: c_int,
-    pub name: *const c_char,
+    pub name: &'static CStr,
     pub used_for: c_char,
 }
-
-unsafe impl Sync for cursorentry_T {}
 
 use crate::state::{
     MODE_CMDLINE, MODE_INSERT, MODE_SHOWMATCH, MODE_TERMINAL, REPLACE_FLAG, VREPLACE_FLAG,
@@ -71,7 +69,7 @@ const fn entry(
     used_for: c_char,
 ) -> cursorentry_T {
     cursorentry_T {
-        full_name: full_name.as_ptr(),
+        full_name,
         shape: CursorShape::SHAPE_BLOCK,
         mshape: 0,
         percentage: 0,
@@ -80,7 +78,7 @@ const fn entry(
         blinkoff,
         id: 0,
         id_lm: 0,
-        name: name.as_ptr(),
+        name,
         used_for,
     }
 }
@@ -151,7 +149,7 @@ pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
                     data: ObjectData {
-                        string: cstr_as_string(cur.full_name),
+                        string: cstr_as_string(cur.full_name.as_ptr()),
                     },
                 },
             );
@@ -161,7 +159,7 @@ pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
                     data: ObjectData {
-                        string: cstr_as_string(cur.name),
+                        string: cstr_as_string(cur.name.as_ptr()),
                     },
                 },
             );
@@ -337,7 +335,7 @@ pub unsafe fn parse_shape_opt(what: c_int) -> *const c_char {
                         } else {
                             idx = SHAPE_IDX_COUNT;
                             for (i, entry) in tbl.iter().enumerate() {
-                                if vim_strnicmp_asc(modep, entry.name, len) == 0 {
+                                if vim_strnicmp_asc(modep, entry.name.as_ptr(), len) == 0 {
                                     idx = i;
                                     break;
                                 }
@@ -464,8 +462,7 @@ pub unsafe fn cursor_mode_str2int(mode: *const c_char) -> c_int {
     let mode_bytes = unsafe { CStr::from_ptr(mode).to_bytes() };
     let tbl = unsafe { &*std::ptr::addr_of!(shape_table) };
     for (mode_idx, entry) in tbl.iter().enumerate() {
-        let full_bytes = unsafe { CStr::from_ptr(entry.full_name).to_bytes() };
-        if full_bytes == mode_bytes {
+        if entry.full_name.to_bytes() == mode_bytes {
             return mode_idx as c_int;
         }
     }

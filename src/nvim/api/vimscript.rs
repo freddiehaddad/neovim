@@ -626,7 +626,7 @@ pub unsafe extern "C" fn nvim_parse_expression(
                 add_c(&mut chunk_arr, integer_obj(chunk.start.line as Integer));
                 add_c(&mut chunk_arr, integer_obj(chunk.start.col as Integer));
                 add_c(&mut chunk_arr, integer_obj(chunk.end_col as Integer));
-                add_c(&mut chunk_arr, string_obj(cstr_as_string(chunk.group)));
+                add_c(&mut chunk_arr, string_obj(cstr_as_string(chunk.group.as_ptr())));
                 add_c(&mut hl_arr, array_obj(chunk_arr));
             }
             put_c(&mut ret, c"highlight", array_obj(hl_arr));

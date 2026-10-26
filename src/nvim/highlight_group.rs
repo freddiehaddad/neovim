@@ -105,10 +105,9 @@ pub struct KeyDict_get_highlight {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct color_name_table_T {
-    pub name: *const c_char,
+    pub name: &'static CStr,
     pub color: RgbValue,
 }
-unsafe impl Sync for color_name_table_T {}
 
 #[repr(C)]
 #[derive(Clone, PartialEq, Eq)]
@@ -2618,10 +2617,10 @@ pub unsafe fn name_to_color(name: *const c_char, idx: *mut c_int) -> RgbValue {
         }
 
         let mut lo: usize = 0;
-        let mut hi: usize = color_name_table.len() - 1;
+        let mut hi: usize = color_name_table.len();
         while lo < hi {
             let m = (lo + hi) / 2;
-            let cmp = mb_stricmp(name, color_name_table[m].name);
+            let cmp = mb_stricmp(name, color_name_table[m].name.as_ptr());
             if cmp < 0 {
                 hi = m;
             } else if cmp > 0 {
@@ -2640,7 +2639,7 @@ pub unsafe fn name_to_color(name: *const c_char, idx: *mut c_int) -> RgbValue {
 pub unsafe fn coloridx_to_name(idx: c_int, val: c_int, hexbuf: *mut c_char) -> *const c_char {
     unsafe {
         if idx >= 0 {
-            return color_name_table[idx as usize].name;
+            return color_name_table[idx as usize].name.as_ptr();
         }
         match idx {
             kColorIdxNone => ptr::null(),
@@ -2677,13 +2676,13 @@ pub unsafe fn name_to_ctermcolor(name: *const c_char) -> c_int {
 macro_rules! cname {
     ($name:literal, $r:expr, $g:expr, $b:expr) => {
         color_name_table_T {
-            name: $name.as_ptr(),
+            name: $name,
             color: rgb($r, $g, $b),
         }
     };
 }
 
-pub static color_name_table: [color_name_table_T; 708] = [
+pub static color_name_table: [color_name_table_T; 707] = [
     cname!(c"AliceBlue", 0xf0, 0xf8, 0xff),
     cname!(c"AntiqueWhite", 0xfa, 0xeb, 0xd7),
     cname!(c"AntiqueWhite1", 0xff, 0xef, 0xdb),
@@ -3391,10 +3390,6 @@ pub static color_name_table: [color_name_table_T; 708] = [
     cname!(c"Yellow3", 0xcd, 0xcd, 0x0),
     cname!(c"Yellow4", 0x8b, 0x8b, 0x0),
     cname!(c"YellowGreen", 0x9a, 0xcd, 0x32),
-    color_name_table_T {
-        name: ptr::null(),
-        color: 0,
-    },
 ];
 
 #[cfg(test)]
@@ -3403,10 +3398,9 @@ mod tests {
 
     #[test]
     fn color_name_table_is_sorted_and_terminated() {
-        assert!(color_name_table[707].name.is_null());
-        for i in 0..706 {
-            let a = unsafe { CStr::from_ptr(color_name_table[i].name).to_bytes() };
-            let b = unsafe { CStr::from_ptr(color_name_table[i + 1].name).to_bytes() };
+        for (i, pair) in color_name_table.windows(2).enumerate() {
+            let a = pair[0].name.to_bytes();
+            let b = pair[1].name.to_bytes();
             assert!(
                 a.to_ascii_lowercase() < b.to_ascii_lowercase(),
                 "Out of order at {i}: {:?} >= {:?}",
