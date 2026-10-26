@@ -6370,15 +6370,6 @@ impl Drop for win_T {
             self.w_localdir = None;
             self.w_prevdir = None;
 
-            stl_clear_click_defs(&mut self.w_status_click_defs);
-            stl_clear_click_defs(&mut self.w_winbar_click_defs);
-
-            for (_, lnum_click_defs) in std::mem::take(&mut self.w_statuscol_click_defs) {
-                for (_, mut row_click_defs) in lnum_click_defs {
-                    stl_clear_click_defs(&mut row_click_defs);
-                }
-            }
-
             free_jumplist(self);
         }
     }

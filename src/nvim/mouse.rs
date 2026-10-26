@@ -130,11 +130,11 @@ pub(crate) const kStlClickTabClose: c_int = 2;
 pub(crate) const kStlClickFuncRun: c_int = 3;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct StlClickDefinition {
     pub type_: c_int,
     pub tabnr: c_int,
-    pub func: *mut c_char,
+    pub func: Option<std::ffi::CString>,
 }
 
 impl StlClickDefinition {
@@ -142,7 +142,7 @@ impl StlClickDefinition {
         Self {
             type_: kStlClickDisabled,
             tabnr: 0,
-            func: ptr::null_mut(),
+            func: None,
         }
     }
 }
@@ -341,7 +341,10 @@ unsafe fn call_click_def_func(
 
         let mut rettv: typval_T = typval_T::new();
         call_vim_function(
-            (*click_defs.add(col as usize)).func,
+            (*click_defs.add(col as usize))
+                .func
+                .as_ref()
+                .map_or(c"".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut()),
             argv.len() as c_int,
             argv.as_mut_ptr(),
             &raw mut rettv,

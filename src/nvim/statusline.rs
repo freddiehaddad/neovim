@@ -33,9 +33,7 @@ use crate::highlight_group::{syn_id2attr, syn_name2id_len};
 use crate::keycodes::NL;
 use crate::mbyte::{ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_find_line_or_offset, ml_get_buf, ml_get_buf_len};
-use crate::memory::{
-    Arena, arena_finish, arena_mem_free, xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy,
-};
+use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xmemdupz, xstrlcpy};
 use crate::message::HLF_MSG;
 use crate::message::msg_clr_eos;
 use crate::mouse::{
@@ -134,7 +132,7 @@ enum NumberBase {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct StlClickRecord {
     pub def: StlClickDefinition,
     pub start: *const c_char,
@@ -199,10 +197,10 @@ pub enum StlItemType {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct stl_item_t {
     pub start: *mut c_char,
-    pub cmd: *mut c_char,
+    pub cmd: Option<std::ffi::CString>,
     pub minwid: c_int,
     pub maxwid: c_int,
     pub type_: StlItemType,
@@ -212,7 +210,7 @@ impl stl_item_t {
     pub const fn new() -> Self {
         Self {
             start: ptr::null_mut(),
-            cmd: ptr::null_mut(),
+            cmd: None,
             minwid: 0,
             maxwid: 0,
             type_: StlItemType::Disabled,
@@ -378,16 +376,7 @@ pub unsafe fn stl_connected(wp: *mut win_T) -> bool {
 
 /// Clear status line, window bar or tab page line click definition table.
 pub unsafe fn stl_clear_click_defs(defs: &mut [StlClickDefinition]) {
-    unsafe {
-        let mut prev_func: *mut c_char = ptr::null_mut();
-        for def in defs.iter_mut() {
-            if !def.func.is_null() && def.func != prev_func {
-                prev_func = def.func;
-                xfree(def.func.cast());
-            }
-            *def = StlClickDefinition::default();
-        }
-    }
+    defs.fill(StlClickDefinition::default());
 }
 
 /// Allocate or resize the click definitions array if needed.
@@ -420,7 +409,7 @@ pub unsafe fn stl_fill_click_defs(
         let mut cur_click_def = StlClickDefinition {
             type_: kStlClickDisabled,
             tabnr: 0,
-            func: ptr::null_mut(),
+            func: None,
         };
         let mut i: usize = 0;
         while !(*click_recs.add(i)).start.is_null() {
@@ -431,14 +420,12 @@ pub unsafe fn stl_fill_click_defs(
             debug_assert!(len <= width);
             if col < len {
                 while col < len {
-                    *click_defs.add(col as usize) = cur_click_def;
+                    *click_defs.add(col as usize) = cur_click_def.clone();
                     col += 1;
                 }
-            } else {
-                xfree(cur_click_def.func.cast());
             }
             buf = (*click_recs.add(i)).start;
-            cur_click_def = (*click_recs.add(i)).def;
+            cur_click_def = (*click_recs.add(i)).def.clone();
             if !tabline
                 && !(cur_click_def.type_ == kStlClickDisabled
                     || cur_click_def.type_ == kStlClickFuncRun)
@@ -449,11 +436,9 @@ pub unsafe fn stl_fill_click_defs(
         }
         if col < width {
             while col < width {
-                *click_defs.add(col as usize) = cur_click_def;
+                *click_defs.add(col as usize) = cur_click_def.clone();
                 col += 1;
             }
-        } else {
-            xfree(cur_click_def.func.cast());
         }
     }
 }
@@ -622,7 +607,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
             let p_crb_save = (*ewp).w_onebuf_opt.wo_crb;
             (*ewp).w_onebuf_opt.wo_crb = 0;
 
-            stl = xstrdup(stl);
+            let stl_cstr = CStr::from_ptr(stl).to_owned();
 
             let mut tabtab: *mut StlClickRecord = ptr::null_mut();
             build_stl_str_hl(
@@ -631,7 +616,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
                     data: buf.as_mut_ptr(),
                     size: buf.len(),
                 },
-                stl,
+                stl_cstr.as_ptr().cast_mut(),
                 opt_idx,
                 opt_scope,
                 fillchar,
@@ -647,7 +632,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
             );
             stl_fill_click_defs(click_defs, tabtab, buf.as_ptr(), maxwidth, wp.is_null());
 
-            xfree(stl.cast());
+            drop(stl_cstr);
             (*ewp).w_onebuf_opt.wo_crb = p_crb_save;
 
             let len = CStr::from_ptr(buf.as_ptr()).to_bytes().len();
@@ -1077,7 +1062,7 @@ pub unsafe fn draw_tabline() {
                     (*defs).as_mut_slice()[scol as usize] = StlClickDefinition {
                         type_: kStlClickTabSwitch,
                         tabnr: tabcount,
-                        func: ptr::null_mut(),
+                        func: None,
                     };
                     scol += 1;
                 }
@@ -1089,7 +1074,7 @@ pub unsafe fn draw_tabline() {
                 (*defs).as_mut_slice()[scol as usize] = StlClickDefinition {
                     type_: kStlClickTabSwitch,
                     tabnr: 0,
-                    func: ptr::null_mut(),
+                    func: None,
                 };
             }
 
@@ -1116,7 +1101,7 @@ pub unsafe fn draw_tabline() {
                 (*defs).as_mut_slice()[(Columns - 1) as usize] = StlClickDefinition {
                     type_: kStlClickTabClose,
                     tabnr: 999,
-                    func: ptr::null_mut(),
+                    func: None,
                 };
             }
 
@@ -1145,11 +1130,11 @@ pub unsafe fn build_statuscol_str(
 
         let mut clickrec: *mut StlClickRecord = ptr::null_mut();
         let buf_data = buf.data;
-        let stc = xstrdup((*wp).w_onebuf_opt.wo_stc);
+        let stc = CStr::from_ptr((*wp).w_onebuf_opt.wo_stc).to_owned();
         let width = build_stl_str_hl(
             wp,
             buf,
-            stc,
+            stc.as_ptr().cast_mut(),
             kOptStatuscolumn,
             OPT_LOCAL,
             0,
@@ -1159,7 +1144,7 @@ pub unsafe fn build_statuscol_str(
             &raw mut clickrec,
             stcp,
         );
-        xfree(stc.cast());
+        drop(stc);
 
         if !(*clickrec).start.is_null() {
             let clicks = (*wp).w_statuscol_click_defs.entry(lnum).or_default();
@@ -1221,8 +1206,7 @@ unsafe fn stl_truncate(
                 if stl_items[i as usize].start > trunc_p {
                     for j in i..*curitem {
                         if stl_items[j as usize].type_ == StlItemType::ClickFunc {
-                            xfree(stl_items[j as usize].cmd.cast());
-                            stl_items[j as usize].cmd = ptr::null_mut();
+                            stl_items[j as usize].cmd = None;
                         }
                     }
                     *curitem = i;
@@ -1376,6 +1360,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
         static mut curitem: c_int = 0;
 
         let mut buf_tmp: [c_char; TMPLEN] = [0; TMPLEN];
+        let mut owned_usefmt: Option<std::ffi::CString> = None;
         let mut usefmt = fmt;
         let save_redraw_not_allowed = redraw_not_allowed;
         let save_KeyTyped = KeyTyped;
@@ -1714,9 +1699,11 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 stl_items!()[curitem as usize].type_ = StlItemType::ClickFunc;
                 stl_items!()[curitem as usize].start = out_p;
                 stl_items!()[curitem as usize].cmd = if !tabtab.is_null() {
-                    xmemdupz(t.cast(), fmt_p.offset_from(t) as usize).cast()
+                    let slice =
+                        std::slice::from_raw_parts(t.cast::<u8>(), fmt_p.offset_from(t) as usize);
+                    Some(std::ffi::CString::new(slice).unwrap())
                 } else {
-                    ptr::null_mut()
+                    None
                 };
                 stl_items!()[curitem as usize].minwid = minwid;
                 fmt_p = fmt_p.add(1);
@@ -1934,28 +1921,21 @@ pub unsafe extern "C" fn build_stl_str_hl(
                             && evaldepth < MAX_STL_EVAL_DEPTH
                         {
                             let parsed_usefmt = block_start.offset_from(usefmt) as usize;
-                            let str_length = CStr::from_ptr(str).to_bytes().len();
-                            let fmt_length = CStr::from_ptr(fmt_p).to_bytes().len();
-                            let new_fmt_len = parsed_usefmt + str_length + fmt_length + 3;
-                            let new_fmt: *mut c_char = xmalloc(new_fmt_len).cast();
-                            let mut new_fmt_p = new_fmt;
-
-                            ptr::copy_nonoverlapping(usefmt, new_fmt_p, parsed_usefmt);
-                            new_fmt_p = new_fmt_p.add(parsed_usefmt);
-                            ptr::copy_nonoverlapping(str, new_fmt_p, str_length);
-                            new_fmt_p = new_fmt_p.add(str_length);
-                            *new_fmt_p = b'%' as c_char;
-                            *new_fmt_p.add(1) = b'}' as c_char;
-                            new_fmt_p = new_fmt_p.add(2);
-                            ptr::copy_nonoverlapping(fmt_p, new_fmt_p, fmt_length);
-                            new_fmt_p = new_fmt_p.add(fmt_length);
-                            *new_fmt_p = NUL;
-
-                            if usefmt != fmt {
-                                xfree(usefmt.cast());
-                            }
+                            let str_bytes = CStr::from_ptr(str).to_bytes();
+                            let fmt_bytes = CStr::from_ptr(fmt_p).to_bytes();
+                            let mut new_bytes = Vec::with_capacity(
+                                parsed_usefmt + str_bytes.len() + fmt_bytes.len() + 2,
+                            );
+                            new_bytes.extend_from_slice(std::slice::from_raw_parts(
+                                usefmt.cast::<u8>(),
+                                parsed_usefmt,
+                            ));
+                            new_bytes.extend_from_slice(str_bytes);
+                            new_bytes.extend_from_slice(b"%}");
+                            new_bytes.extend_from_slice(fmt_bytes);
                             xfree(str.cast());
-                            usefmt = new_fmt;
+                            owned_usefmt = Some(std::ffi::CString::new(new_bytes).unwrap());
+                            usefmt = owned_usefmt.as_ref().unwrap().as_ptr().cast_mut();
                             fmt_p = usefmt.add(parsed_usefmt);
                             evaldepth += 1;
                             stl_items!()[curitem as usize].type_ = StlItemType::Expression;
@@ -2445,10 +2425,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
         }
 
         *out_p = NUL;
-
-        if usefmt != fmt {
-            xfree(usefmt.cast());
-        }
+        drop(owned_usefmt);
 
         let mut width = vim_strsize(out.data);
         if maxwidth > 0 && width > maxwidth && (stcp.is_null() || width > MAX_STCWIDTH) {
@@ -2510,7 +2487,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
         if !tabtab.is_null() {
             *tabtab = stl_tabtab!().as_mut_ptr();
             let mut tab_idx: usize = 0;
-            for item in &stl_items!()[(evalstart as usize)..(curitem as usize)] {
+            for item in &mut stl_items!()[(evalstart as usize)..(curitem as usize)] {
                 if item.type_ == StlItemType::TabPage {
                     let rec = &mut stl_tabtab!()[tab_idx];
                     rec.start = item.start;
@@ -2527,14 +2504,14 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         }
                         rec.def.tabnr = tabnr;
                     }
-                    rec.def.func = ptr::null_mut();
+                    rec.def.func = None;
                     tab_idx += 1;
                 } else if item.type_ == StlItemType::ClickFunc {
                     let rec = &mut stl_tabtab!()[tab_idx];
                     rec.start = item.start;
                     rec.def.type_ = kStlClickFuncRun;
                     rec.def.tabnr = item.minwid;
-                    rec.def.func = item.cmd;
+                    rec.def.func = item.cmd.take();
                     tab_idx += 1;
                 }
             }
@@ -2542,7 +2519,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             rec.start = ptr::null();
             rec.def.type_ = kStlClickDisabled;
             rec.def.tabnr = 0;
-            rec.def.func = ptr::null_mut();
+            rec.def.func = None;
         }
 
         curitem = evalstart;
@@ -2570,11 +2547,10 @@ mod tests {
             let cdp = stl_alloc_click_defs(&mut defs, 4);
             assert!(!cdp.is_null());
             assert_eq!(defs.len(), 4);
-            let fn_str = xstrdup(c"MyClick".as_ptr());
-            defs[0].func = fn_str;
-            defs[1].func = fn_str;
+            defs[0].func = Some(c"MyClick".to_owned());
+            defs[1].func = Some(c"MyClick".to_owned());
             stl_clear_click_defs(&mut defs);
-            assert!(defs[0].func.is_null());
+            assert!(defs[0].func.is_none());
         }
     }
 
