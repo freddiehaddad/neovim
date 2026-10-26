@@ -3167,8 +3167,8 @@ pub unsafe fn f_getjumplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
                 5,
                 varnumber_T::from((*wp).w_jumplist[i].fmark.fnum),
             );
-            if !(*wp).w_jumplist[i].fname.is_null() {
-                tv_dict_add_str(d, c"filename".as_ptr(), 8, (*wp).w_jumplist[i].fname);
+            if let Some(ref fname) = (*wp).w_jumplist[i].fname {
+                tv_dict_add_str(d, c"filename".as_ptr(), 8, fname.as_ptr());
             }
         }
     }

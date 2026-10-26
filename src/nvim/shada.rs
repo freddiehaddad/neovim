@@ -45,7 +45,7 @@ use crate::mark::{
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
-use crate::memory::{ARENA_BLOCK_SIZE, cstr_take, strequal, xfree, xmemdupz, xstrdup};
+use crate::memory::{ARENA_BLOCK_SIZE, cstr_take, strequal, xfree, xstrdup};
 use crate::message::{semsg, siemsg, smsg, verbose_enter, verbose_leave};
 use crate::mpack::mpack_core::MPACK_OK;
 use crate::msgpack_rpc::packer::{
@@ -260,12 +260,11 @@ const kSDReadGlobalMarks: c_uint = 1 << (ShadaEntryType::kSDItemGlobalMark as u3
 const kSDReadLocalMarks: c_uint = 1 << (ShadaEntryType::kSDItemLocalMark as u32);
 const kSDReadChanges: c_uint = 1 << (ShadaEntryType::kSDItemChange as u32);
 
-#[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct ShadaFilemark {
     name: c_char,
     mark: pos_T,
-    fname: *mut c_char,
+    fname: Option<std::ffi::CString>,
 }
 
 #[derive(Clone)]
@@ -339,9 +338,9 @@ impl ShadaEntryData {
     }
 
     #[inline]
-    const fn filemark(&self) -> ShadaFilemark {
+    const fn filemark(&self) -> &ShadaFilemark {
         match self {
-            Self::Filemark(v) => *v,
+            Self::Filemark(v) => v,
             _ => unreachable!(),
         }
     }
@@ -688,7 +687,7 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
             data: ShadaEntryData::Filemark(ShadaFilemark {
                 name: b'"' as c_char,
                 mark: DEFAULT_POS,
-                fname: ptr::null_mut(),
+                fname: None,
             }),
             additional_data: ptr::null_mut(),
         },
@@ -699,7 +698,7 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
             data: ShadaEntryData::Filemark(ShadaFilemark {
                 name: NUL,
                 mark: DEFAULT_POS,
-                fname: ptr::null_mut(),
+                fname: None,
             }),
             additional_data: ptr::null_mut(),
         },
@@ -719,7 +718,7 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
             data: ShadaEntryData::Filemark(ShadaFilemark {
                 name: b'"' as c_char,
                 mark: DEFAULT_POS,
-                fname: ptr::null_mut(),
+                fname: None,
             }),
             additional_data: ptr::null_mut(),
         },
@@ -730,7 +729,7 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
             data: ShadaEntryData::Filemark(ShadaFilemark {
                 name: NUL,
                 mark: DEFAULT_POS,
-                fname: ptr::null_mut(),
+                fname: None,
             }),
             additional_data: ptr::null_mut(),
         },
@@ -764,11 +763,6 @@ unsafe fn file_fd(fp: *const FileDescriptor) -> c_int {
 }
 
 use crate::os::fileio::file_space;
-
-#[inline]
-unsafe fn xmemdupz_cstr(data: *const c_char, len: usize) -> *mut c_char {
-    unsafe { xmemdupz(data.cast(), len).cast::<c_char>() }
-}
 
 #[inline]
 const fn mark_local_index(name: c_char) -> c_int {
@@ -1281,31 +1275,24 @@ const fn marks_equal(a: pos_T, b: pos_T) -> bool {
     a.lnum == b.lnum && a.col == b.col
 }
 
-unsafe fn marklist_insert<T>(jumps: &mut [T; JUMPLISTSIZE], jl_len: c_int, mut i: c_int) -> c_int {
-    unsafe {
-        let ptr = jumps.as_mut_ptr();
-        if i > 0 {
-            if jl_len == (JUMPLISTSIZE as c_int) {
-                i -= 1;
-                if i > 0 {
-                    ptr::copy(ptr.add(1), ptr, i as usize);
-                }
-            } else if i != jl_len {
-                ptr::copy(
-                    ptr.add(i as usize),
-                    ptr.add((i + 1) as usize),
-                    (jl_len - i) as usize,
-                );
+fn marklist_insert<T>(jumps: &mut [T; JUMPLISTSIZE], jl_len: c_int, mut i: c_int) -> c_int {
+    if i > 0 {
+        if jl_len == (JUMPLISTSIZE as c_int) {
+            i -= 1;
+            if i > 0 {
+                jumps[..=i as usize].rotate_left(1);
             }
-        } else if i == 0 {
-            if jl_len == (JUMPLISTSIZE as c_int) {
-                return -1;
-            } else if jl_len > 0 {
-                ptr::copy(ptr, ptr.add(1), jl_len as usize);
-            }
+        } else if i != jl_len {
+            jumps[i as usize..=jl_len as usize].rotate_right(1);
         }
-        i
+    } else if i == 0 {
+        if jl_len == (JUMPLISTSIZE as c_int) {
+            return -1;
+        } else if jl_len > 0 {
+            jumps[..=jl_len as usize].rotate_right(1);
+        }
     }
+    i
 }
 
 unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
@@ -1528,20 +1515,26 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                     shada_free_shada_entry(&mut cur_entry);
                 }
                 ShadaEntryType::kSDItemJump | ShadaEntryType::kSDItemGlobalMark => {
-                    let fm_data = cur_entry.data.filemark();
-                    let buf = find_buffer(&mut fname_bufs, fm_data.fname);
+                    let fm_mark = cur_entry.data.filemark().mark;
+                    let fm_name = cur_entry.data.filemark().name;
+                    let fname_ptr = cur_entry
+                        .data
+                        .filemark()
+                        .fname
+                        .as_ref()
+                        .map_or(ptr::null(), |s| s.as_ptr());
+                    let buf = find_buffer(&mut fname_bufs, fname_ptr);
                     if !buf.is_null() {
-                        xfree(fm_data.fname.cast());
-                        cur_entry.data.filemark_mut().fname = ptr::null_mut();
+                        cur_entry.data.filemark_mut().fname = None;
                     }
                     let fm = xfmark_T {
                         fname: if buf.is_null() {
-                            cur_entry.data.filemark().fname
+                            cur_entry.data.filemark_mut().fname.take()
                         } else {
-                            ptr::null_mut()
+                            None
                         },
                         fmark: fmark_T {
-                            mark: fm_data.mark,
+                            mark: fm_mark,
                             fnum: if buf.is_null() { 0 } else { (*buf).b_fnum },
                             timestamp: cur_entry.timestamp,
                             view: INIT_FMARKV,
@@ -1549,18 +1542,17 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                         },
                     };
                     if cur_entry.entry_type == ShadaEntryType::kSDItemGlobalMark {
-                        if !mark_set_global(fm_data.name, fm, !force) {
+                        if !mark_set_global(fm_name, fm, !force) {
                             shada_free_shada_entry(&mut cur_entry);
                         }
                     } else {
                         let mut i = (*curwin).w_jumplistlen;
                         while i > 0 {
-                            let jl_entry = (*curwin).w_jumplist[(i - 1) as usize];
+                            let jl_entry = &(*curwin).w_jumplist[(i - 1) as usize];
                             if jl_entry.fmark.timestamp <= cur_entry.timestamp {
-                                if marks_equal(jl_entry.fmark.mark, fm_data.mark)
+                                if marks_equal(jl_entry.fmark.mark, fm_mark)
                                     && (if buf.is_null() {
-                                        !jl_entry.fname.is_null()
-                                            && strequal(fm.fname, jl_entry.fname)
+                                        jl_entry.fname.is_some() && fm.fname == jl_entry.fname
                                     } else {
                                         fm.fmark.fnum == jl_entry.fmark.fnum
                                     })
@@ -1572,7 +1564,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                             i -= 1;
                         }
                         if i > 0 && (*curwin).w_jumplistlen == (JUMPLISTSIZE as c_int) {
-                            free_xfmark((*curwin).w_jumplist[0]);
+                            free_xfmark(&mut (*curwin).w_jumplist[0]);
                         }
                         i = marklist_insert(&mut (*curwin).w_jumplist, (*curwin).w_jumplistlen, i);
                         if i != -1 {
@@ -1622,38 +1614,37 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                     shada_free_shada_entry(&mut cur_entry);
                 }
                 ShadaEntryType::kSDItemChange | ShadaEntryType::kSDItemLocalMark => {
-                    if get_old_files
-                        && !oldfiles_set.contains(&PathKey(cur_entry.data.filemark().fname))
-                    {
-                        let mut fname = cur_entry.data.filemark().fname;
-                        if want_marks {
-                            fname = xstrdup(fname);
-                        }
+                    let fname_ptr = cur_entry
+                        .data
+                        .filemark()
+                        .fname
+                        .as_ref()
+                        .map_or(ptr::null(), |s| s.as_ptr());
+                    if get_old_files && !oldfiles_set.contains(&PathKey(fname_ptr)) {
+                        let fname = xstrdup(fname_ptr);
                         oldfiles_set.insert(PathKey(fname));
                         tv_list_append_allocated_string(oldfiles_list, fname);
-                        if !want_marks {
-                            cur_entry.data.filemark_mut().fname = ptr::null_mut();
-                        }
                     }
                     if !want_marks {
                         shada_free_shada_entry(&mut cur_entry);
                         continue;
                     }
-                    let fm_data = cur_entry.data.filemark();
-                    let buf = find_buffer(&mut fname_bufs, fm_data.fname);
+                    let fm_mark = cur_entry.data.filemark().mark;
+                    let fm_name = cur_entry.data.filemark().name;
+                    let buf = find_buffer(&mut fname_bufs, fname_ptr);
                     if buf.is_null() {
                         shada_free_shada_entry(&mut cur_entry);
                         continue;
                     }
                     let fm = fmark_T {
-                        mark: fm_data.mark,
+                        mark: fm_mark,
                         fnum: (*buf).b_fnum,
                         timestamp: cur_entry.timestamp,
                         view: INIT_FMARKV,
                         additional_data: cur_entry.additional_data,
                     };
                     if cur_entry.entry_type == ShadaEntryType::kSDItemLocalMark {
-                        if !mark_set_local(fm_data.name, buf, fm, !force) {
+                        if !mark_set_local(fm_name, buf, fm, !force) {
                             shada_free_shada_entry(&mut cur_entry);
                             continue;
                         }
@@ -1663,7 +1654,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                         while i > 0 {
                             let jl_entry = (*buf).b_changelist[(i - 1) as usize];
                             if jl_entry.timestamp <= cur_entry.timestamp {
-                                if marks_equal(jl_entry.mark, fm_data.mark) {
+                                if marks_equal(jl_entry.mark, fm_mark) {
                                     i = -1;
                                 }
                                 break;
@@ -1683,7 +1674,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                             xfree(fm.additional_data.cast());
                         }
                     }
-                    xfree(fm_data.fname.cast());
+                    cur_entry.data.filemark_mut().fname = None;
                 }
             }
         }
@@ -1959,7 +1950,10 @@ unsafe fn shada_pack_entry(
                     + additional_data_len(entry.additional_data);
                 mpack_map(&mut sbuf.ptr, entry_map_size);
                 mpack_str(static_cstr_as_string(c"f"), &mut sbuf);
-                mpack_bin(cstr_as_string(fm.fname), &mut sbuf);
+                mpack_bin(
+                    cstr_as_string(fm.fname.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
+                    &mut sbuf,
+                );
                 if fm.mark.lnum != dfm.mark.lnum {
                     mpack_str(static_cstr_as_string(c"l"), &mut sbuf);
                     mpack_integer(&mut sbuf.ptr, i64::from(fm.mark.lnum));
@@ -2254,8 +2248,8 @@ unsafe fn shada_read_when_writing(
                     shada_free_shada_entry(&mut entry);
                 }
                 ShadaEntryType::kSDItemGlobalMark => {
-                    let fm_data = entry.data.filemark();
-                    let name = fm_data.name;
+                    let fm_mark = entry.data.filemark().mark;
+                    let name = entry.data.filemark().name;
                     if (name as u8).is_ascii_digit() {
                         let mut processed_mark = false;
                         for i in (1..=EXTRA_MARKS).rev() {
@@ -2266,8 +2260,8 @@ unsafe fn shada_read_when_writing(
                             if wms_entry.timestamp == entry.timestamp
                                 && wms_entry.additional_data.is_null()
                                 && entry.additional_data.is_null()
-                                && marks_equal(wms_entry.data.filemark().mark, fm_data.mark)
-                                && strequal(wms_entry.data.filemark().fname, fm_data.fname)
+                                && marks_equal(wms_entry.data.filemark().mark, fm_mark)
+                                && wms_entry.data.filemark().fname == entry.data.filemark().fname
                             {
                                 shada_free_shada_entry(&mut entry);
                                 processed_mark = true;
@@ -2312,12 +2306,24 @@ unsafe fn shada_read_when_writing(
                     }
                 }
                 ShadaEntryType::kSDItemChange | ShadaEntryType::kSDItemLocalMark => {
-                    let fm_data = entry.data.filemark();
-                    if shada_removable(fm_data.fname) {
+                    let fm_mark = entry.data.filemark().mark;
+                    let fm_name = entry.data.filemark().name;
+                    let fname_ptr = entry
+                        .data
+                        .filemark()
+                        .fname
+                        .as_ref()
+                        .map_or(ptr::null(), |s| s.as_ptr());
+                    if shada_removable(fname_ptr) {
                         shada_free_shada_entry(&mut entry);
                         continue;
                     }
-                    let fname_bytes = CStr::from_ptr(fm_data.fname).to_bytes().to_vec();
+                    let fname_bytes = entry
+                        .data
+                        .filemark()
+                        .fname
+                        .as_ref()
+                        .map_or_else(Vec::new, |s| s.to_bytes().to_vec());
                     let filemarks: *mut FileMarks = (*wms)
                         .file_marks
                         .entry(fname_bytes)
@@ -2326,7 +2332,7 @@ unsafe fn shada_read_when_writing(
                         (*filemarks).greatest_timestamp = entry.timestamp;
                     }
                     if entry.entry_type == ShadaEntryType::kSDItemLocalMark {
-                        let idx = mark_local_index(fm_data.name);
+                        let idx = mark_local_index(fm_name);
                         if idx < 0 {
                             let e = std::mem::replace(&mut entry, MISSING_ENTRY);
                             (*filemarks).additional_marks.push(e);
@@ -2345,11 +2351,7 @@ unsafe fn shada_read_when_writing(
                                 let mut buf = firstbuf;
                                 while !buf.is_null() {
                                     if !(*buf).b_ffname.is_null()
-                                        && path_equal(
-                                            fm_data.fname,
-                                            (*buf).b_ffname,
-                                            kPathCmpLiteral,
-                                        )
+                                        && path_equal(fname_ptr, (*buf).b_ffname, kPathCmpLiteral)
                                     {
                                         let mut fm = fmark_T::new();
                                         mark_get(
@@ -2357,7 +2359,7 @@ unsafe fn shada_read_when_writing(
                                             curwin,
                                             &mut fm,
                                             kMarkBufLocal,
-                                            c_int::from(fm_data.name),
+                                            c_int::from(fm_name),
                                         );
                                         if fm.timestamp >= entry.timestamp {
                                             set_wms = false;
@@ -2377,7 +2379,7 @@ unsafe fn shada_read_when_writing(
                         while i > 0 {
                             let jl_entry = &(*filemarks).changes[(i - 1) as usize];
                             if jl_entry.timestamp <= entry.timestamp {
-                                if marks_equal(jl_entry.data.filemark().mark, fm_data.mark) {
+                                if marks_equal(jl_entry.data.filemark().mark, fm_mark) {
                                     i = -1;
                                 }
                                 break;
@@ -2393,10 +2395,8 @@ unsafe fn shada_read_when_writing(
                             i,
                         );
                         if i != -1 {
-                            ptr::write(
-                                &raw mut (*filemarks).changes[i as usize],
-                                std::mem::replace(&mut entry, MISSING_ENTRY),
-                            );
+                            (*filemarks).changes[i as usize] =
+                                std::mem::replace(&mut entry, MISSING_ENTRY);
                             if (*filemarks).changes_size < JUMPLISTSIZE {
                                 (*filemarks).changes_size += 1;
                             }
@@ -2406,13 +2406,13 @@ unsafe fn shada_read_when_writing(
                     }
                 }
                 ShadaEntryType::kSDItemJump => {
-                    let fm_data = entry.data.filemark();
+                    let fm_mark = entry.data.filemark().mark;
                     let mut i = (*wms).jumps_size as c_int;
                     while i > 0 {
                         let jl_entry = &(*wms).jumps[(i - 1) as usize];
                         if jl_entry.timestamp <= entry.timestamp {
-                            if marks_equal(jl_entry.data.filemark().mark, fm_data.mark)
-                                && strequal(jl_entry.data.filemark().fname, fm_data.fname)
+                            if marks_equal(jl_entry.data.filemark().mark, fm_mark)
+                                && jl_entry.data.filemark().fname == entry.data.filemark().fname
                             {
                                 i = -1;
                             }
@@ -2425,10 +2425,7 @@ unsafe fn shada_read_when_writing(
                     }
                     i = marklist_insert(&mut (*wms).jumps, (*wms).jumps_size as c_int, i);
                     if i != -1 {
-                        ptr::write(
-                            &raw mut (*wms).jumps[i as usize],
-                            std::mem::replace(&mut entry, MISSING_ENTRY),
-                        );
+                        (*wms).jumps[i as usize] = std::mem::replace(&mut entry, MISSING_ENTRY);
                         if (*wms).jumps_size < JUMPLISTSIZE {
                             (*wms).jumps_size += 1;
                         }
@@ -2939,15 +2936,20 @@ unsafe fn shada_write(
                     if name == NUL {
                         break;
                     }
-                    let fname: *const c_char = if fm.fmark.fnum == 0 {
-                        assert!(!fm.fname.is_null());
-                        if shada_removable(fm.fname) {
+                    let fname: std::ffi::CString = if fm.fmark.fnum == 0 {
+                        let Some(f) = fm.fname.take() else {
+                            if global_mark_iter.is_none() {
+                                break;
+                            }
+                            continue;
+                        };
+                        if shada_removable(f.as_ptr()) {
                             if global_mark_iter.is_none() {
                                 break;
                             }
                             continue;
                         }
-                        fm.fname
+                        f
                     } else {
                         let buf = buflist_findnr(fm.fmark.fnum);
                         if buf.is_null()
@@ -2959,7 +2961,7 @@ unsafe fn shada_write(
                             }
                             continue;
                         }
-                        (*buf).b_ffname
+                        CStr::from_ptr((*buf).b_ffname).to_owned()
                     };
                     let entry = ShadaEntry {
                         can_free_entry: false,
@@ -2968,7 +2970,7 @@ unsafe fn shada_write(
                         data: ShadaEntryData::Filemark(ShadaFilemark {
                             mark: fm.fmark.mark,
                             name,
-                            fname: fname.cast_mut(),
+                            fname: Some(fname),
                         }),
                         additional_data: fm.fmark.additional_data,
                     };
@@ -2994,7 +2996,8 @@ unsafe fn shada_write(
                     if !ignore_buf(buf, &removable_bufs) {
                         let mut local_marks_iter: Option<c_char> = None;
                         let fname = (*buf).b_ffname;
-                        let fname_bytes = CStr::from_ptr(fname).to_bytes().to_vec();
+                        let fname_cstr = CStr::from_ptr(fname).to_owned();
+                        let fname_bytes = fname_cstr.to_bytes().to_vec();
                         let filemarks: *mut FileMarks = (*wms)
                             .file_marks
                             .entry(fname_bytes)
@@ -3014,7 +3017,7 @@ unsafe fn shada_write(
                                 data: ShadaEntryData::Filemark(ShadaFilemark {
                                     mark: fm.mark,
                                     name,
-                                    fname,
+                                    fname: Some(fname_cstr.clone()),
                                 }),
                                 additional_data: fm.additional_data,
                             };
@@ -3034,7 +3037,7 @@ unsafe fn shada_write(
                                 data: ShadaEntryData::Filemark(ShadaFilemark {
                                     name: NUL,
                                     mark: fm.mark,
-                                    fname,
+                                    fname: Some(fname_cstr.clone()),
                                 }),
                                 additional_data: fm.additional_data,
                             };
@@ -3070,7 +3073,7 @@ unsafe fn shada_write(
                         data: ShadaEntryData::Filemark(ShadaFilemark {
                             mark: (*curwin).w_cursor,
                             name: b'0' as c_char,
-                            fname: (*curbuf).b_ffname,
+                            fname: Some(CStr::from_ptr((*curbuf).b_ffname).to_owned()),
                         }),
                         additional_data: ptr::null_mut(),
                     },
@@ -3509,7 +3512,7 @@ unsafe fn shada_free_shada_entry(entry: *mut ShadaEntry) {
             | ShadaEntryType::kSDItemJump
             | ShadaEntryType::kSDItemGlobalMark
             | ShadaEntryType::kSDItemLocalMark => {
-                xfree((*entry).data.filemark().fname.cast());
+                (*entry).data.filemark_mut().fname = None;
             }
             ShadaEntryType::kSDItemSearchPattern => {
                 api_free_string((*entry).data.search_pattern().pat);
@@ -3863,11 +3866,19 @@ unsafe fn shada_read_next_item(
                             fm.mark.col = it.c as colnr_T;
                         }
                         if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX__shada_mark__f)) != 0 {
-                            fm.fname = xmemdupz_cstr(it.f.data, it.f.size);
+                            let mut bytes =
+                                std::slice::from_raw_parts(it.f.data.cast::<u8>(), it.f.size)
+                                    .to_vec();
+                            bytes.push(0);
                             #[cfg(windows)]
-                            path_to_slash(fm.fname);
+                            path_to_slash(bytes.as_mut_ptr().cast::<c_char>());
+                            fm.fname = Some(
+                                CStr::from_bytes_with_nul(&bytes)
+                                    .unwrap_or_default()
+                                    .to_owned(),
+                            );
                         }
-                        if fm.fname.is_null() {
+                        if fm.fname.is_none() {
                             semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: mark entry at position %llu is missing file name"
@@ -4375,12 +4386,12 @@ unsafe fn shada_init_jumps(
             }
             let fname = if fm.fmark.fnum == 0 {
                 fm.fname
-            } else if !buf.is_null() {
-                (*buf).b_ffname
+            } else if !buf.is_null() && !(*buf).b_ffname.is_null() {
+                Some(CStr::from_ptr((*buf).b_ffname).to_owned())
             } else {
-                ptr::null_mut()
+                None
             };
-            if fname.is_null() {
+            if fname.is_none() {
                 if jump_iter.is_none() {
                     break;
                 }

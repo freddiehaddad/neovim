@@ -768,7 +768,7 @@ impl win_T {
             w_vars: ptr::null_mut(),
             w_pcmark: ZERO_POS,
             w_prev_pcmark: ZERO_POS,
-            w_jumplist: [crate::mark::xfmark_T::ZERO; 100],
+            w_jumplist: [const { crate::mark::xfmark_T::ZERO }; 100],
             w_jumplistlen: 0,
             w_jumplistidx: 0,
             w_changelistidx: 0,

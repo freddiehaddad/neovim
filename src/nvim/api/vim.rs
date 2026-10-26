@@ -2998,7 +2998,7 @@ pub unsafe extern "C" fn nvim_get_mark(
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
         } else {
-            (*mark).fname
+            (*mark).fname_ptr()
         };
 
         let exists = !filename.is_null();

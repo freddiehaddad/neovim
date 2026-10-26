@@ -26,7 +26,7 @@ use crate::lua::executor::nlua_call_excmd;
 use crate::mbyte::{ptr2cells, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::mcursor::mc_replaying;
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len};
-use crate::memory::{cstr_take, xfree, xstrdup, xstrlcpy};
+use crate::memory::{cstr_take, xfree, xstrlcpy};
 use crate::message::{
     emsg, message_filtered, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts, msg_puts_title,
     semsg,
@@ -100,21 +100,27 @@ impl Default for fmark_T {
     }
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct xfmark_T {
     pub fmark: fmark_T,
-    pub fname: *mut c_char,
+    pub fname: Option<std::ffi::CString>,
 }
 
 impl xfmark_T {
     pub const ZERO: Self = Self {
         fmark: fmark_T::ZERO,
-        fname: ptr::null_mut(),
+        fname: None,
     };
 
     pub const fn new() -> Self {
         Self::ZERO
+    }
+
+    #[inline]
+    pub fn fname_ptr(&self) -> *mut c_char {
+        self.fname
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
     }
 }
 
@@ -183,7 +189,7 @@ pub(crate) const BUF_HAS_LL_ENTRY: c_int = 2;
 
 const INIT_XFMARK: xfmark_T = xfmark_T {
     fmark: INIT_FMARK,
-    fname: ptr::null_mut(),
+    fname: None,
 };
 
 static mut POS_TO_MARK_FMS: fmark_T = INIT_FMARK;
@@ -226,7 +232,7 @@ unsafe fn set_xfmark(
     mark: pos_T,
     fnum: c_int,
     view: fmarkv_T,
-    fname: *mut c_char,
+    fname: Option<std::ffi::CString>,
 ) {
     unsafe {
         (*xfmarkp).fname = fname;
@@ -240,10 +246,10 @@ unsafe fn reset_xfmark(
     mark: pos_T,
     fnum: c_int,
     view: fmarkv_T,
-    fname: *mut c_char,
+    fname: Option<std::ffi::CString>,
 ) {
     unsafe {
-        free_xfmark(*xfmarkp);
+        free_xfmark(&mut *xfmarkp);
         set_xfmark(xfmarkp, mark, fnum, view, fname);
     }
 }
@@ -269,9 +275,9 @@ pub unsafe fn free_fmark(fm: fmark_T) {
 }
 
 /// Free `xfmark_T` item (`free_xfmark`).
-pub unsafe fn free_xfmark(fm: xfmark_T) {
+pub unsafe fn free_xfmark(fm: &mut xfmark_T) {
     unsafe {
-        xfree(fm.fname.cast());
+        fm.fname = None;
         free_fmark(fm.fmark);
     }
 }
@@ -431,7 +437,7 @@ pub unsafe fn setmark_pos(c: c_int, pos: *mut pos_T, fnum: c_int, view_pt: *mut 
             } else {
                 (c - b'A' as c_int) as usize
             };
-            reset_xfmark(&raw mut namedfm[i], *pos, fnum, view, ptr::null_mut());
+            reset_xfmark(&raw mut namedfm[i], *pos, fnum, view, None);
             do_markset_autocmd(c as c_char, pos, buf);
             return OK;
         }
@@ -446,13 +452,14 @@ pub unsafe fn mark_jumplist_forget_file(wp: *mut win_T, fnum: c_int) {
         while i >= 0 {
             let idx = i as usize;
             if (*wp).w_jumplist[idx].fmark.fnum == fnum {
-                free_xfmark((*wp).w_jumplist[idx]);
+                free_xfmark(&mut (*wp).w_jumplist[idx]);
                 if (*wp).w_jumplistidx > i {
                     (*wp).w_jumplistidx -= 1;
                 }
+                let old_len = (*wp).w_jumplistlen as usize;
+                (&mut (*wp).w_jumplist)[idx..old_len].rotate_left(1);
+                (*wp).w_jumplist[old_len - 1] = xfmark_T::ZERO;
                 (*wp).w_jumplistlen -= 1;
-                let dst = &raw mut (*wp).w_jumplist[idx];
-                ptr::copy(dst.add(1), dst, ((*wp).w_jumplistlen - i) as usize);
             }
             i -= 1;
         }
@@ -508,21 +515,14 @@ pub unsafe fn setpcmark() {
         (*curwin).w_jumplistlen += 1;
         if (*curwin).w_jumplistlen > JUMPLISTSIZE {
             (*curwin).w_jumplistlen = JUMPLISTSIZE;
-            free_xfmark((*curwin).w_jumplist[0]);
-            let dst = &raw mut (*curwin).w_jumplist[0];
-            ptr::copy(dst.add(1), dst, (JUMPLISTSIZE - 1) as usize);
+            free_xfmark(&mut (*curwin).w_jumplist[0]);
+            (&mut (*curwin).w_jumplist)[..JUMPLISTSIZE as usize].rotate_left(1);
         }
         (*curwin).w_jumplistidx = (*curwin).w_jumplistlen;
         let fm = &raw mut (*curwin).w_jumplist[((*curwin).w_jumplistlen - 1) as usize];
 
         let view = mark_view_make(curwin, (*curwin).w_pcmark);
-        set_xfmark(
-            fm,
-            (*curwin).w_pcmark,
-            (*curbuf).b_fnum,
-            view,
-            ptr::null_mut(),
-        );
+        set_xfmark(fm, (*curwin).w_pcmark, (*curbuf).b_fnum, view, None);
     }
 }
 
@@ -902,13 +902,12 @@ pub unsafe fn getnextmark(startpos: *mut pos_T, dir: c_int, begin_line: c_int) -
 /// For an extended filemark: set the `fnum` from the `fname` (`fname2fnum`).
 unsafe fn fname2fnum(fm: *mut xfmark_T) {
     unsafe {
-        if (*fm).fname.is_null() {
+        let Some(ref fname_cstr) = (*fm).fname else {
             return;
-        }
+        };
+        let fname = fname_cstr.as_ptr();
 
-        if *(*fm).fname == b'~' as c_char
-            && vim_ispathsep_nocolon(c_int::from(*(*fm).fname.add(1) as u8))
-        {
+        if *fname == b'~' as c_char && vim_ispathsep_nocolon(c_int::from(*fname.add(1) as u8)) {
             let len = expand_env(
                 c"~/".as_ptr().cast_mut(),
                 &raw mut NameBuff[0],
@@ -916,11 +915,11 @@ unsafe fn fname2fnum(fm: *mut xfmark_T) {
             );
             xstrlcpy(
                 (&raw mut NameBuff[0]).add(len),
-                (*fm).fname.add(2),
+                fname.add(2),
                 MAXPATHL - len,
             );
         } else {
-            xstrlcpy(&raw mut NameBuff[0], (*fm).fname, MAXPATHL);
+            xstrlcpy(&raw mut NameBuff[0], fname, MAXPATHL);
         }
 
         os_dirname(&raw mut IObuff[0], IOSIZE);
@@ -955,12 +954,13 @@ pub unsafe fn fmarks_check_names(buf: *mut buf_T) {
 unsafe fn fmarks_check_one(fm: *mut xfmark_T, name: *mut c_char, buf: *mut buf_T) {
     unsafe {
         if (*fm).fmark.fnum == 0
-            && !(*fm).fname.is_null()
-            && path_equal(name, (*fm).fname, kPathCmpLiteral)
+            && (*fm)
+                .fname
+                .as_ref()
+                .is_some_and(|f| path_equal(name, f.as_ptr(), kPathCmpLiteral))
         {
             (*fm).fmark.fnum = (*buf).b_fnum;
-            xfree((*fm).fname.cast());
-            (*fm).fname = ptr::null_mut();
+            (*fm).fname = None;
         }
     }
 }
@@ -1159,8 +1159,7 @@ pub unsafe fn ex_delmarks(eap: *mut exarg_T) {
                             namedfm[n].fmark.mark.lnum = 0;
                             namedfm[n].fmark.fnum = 0;
                             namedfm[n].fmark.timestamp = timestamp;
-                            xfree(namedfm[n].fname.cast());
-                            namedfm[n].fname = ptr::null_mut();
+                            namedfm[n].fname = None;
                         }
                     }
                 } else {
@@ -1972,10 +1971,10 @@ pub unsafe fn cleanup_jumplist(wp: *mut win_T, loadfiles: bool) {
             };
 
             if mustfree {
-                xfree((*wp).w_jumplist[from_u].fname.cast());
+                (*wp).w_jumplist[from_u].fname = None;
             } else {
                 if to != from {
-                    (*wp).w_jumplist[to as usize] = (*wp).w_jumplist[from_u];
+                    (*wp).w_jumplist[to as usize] = (*wp).w_jumplist[from_u].clone();
                 }
                 to += 1;
             }
@@ -1986,11 +1985,11 @@ pub unsafe fn cleanup_jumplist(wp: *mut win_T, loadfiles: bool) {
         (*wp).w_jumplistlen = to;
 
         if loadfiles && (*wp).w_jumplistlen != 0 && (*wp).w_jumplistidx == (*wp).w_jumplistlen {
-            let fm_last = &(*wp).w_jumplist[((*wp).w_jumplistlen - 1) as usize];
-            if fm_last.fmark.fnum == (*curbuf).b_fnum
-                && fm_last.fmark.mark.lnum == (*wp).w_cursor.lnum
+            let last_idx = ((*wp).w_jumplistlen - 1) as usize;
+            if (*wp).w_jumplist[last_idx].fmark.fnum == (*curbuf).b_fnum
+                && (*wp).w_jumplist[last_idx].fmark.mark.lnum == (*wp).w_cursor.lnum
             {
-                xfree(fm_last.fname.cast());
+                (*wp).w_jumplist[last_idx].fname = None;
                 (*wp).w_jumplistlen -= 1;
                 (*wp).w_jumplistidx -= 1;
             }
@@ -2002,10 +2001,7 @@ pub unsafe fn cleanup_jumplist(wp: *mut win_T, loadfiles: bool) {
 pub unsafe fn copy_jumplist(from: *mut win_T, to: *mut win_T) {
     unsafe {
         for i in 0..((*from).w_jumplistlen as usize) {
-            (*to).w_jumplist[i] = (*from).w_jumplist[i];
-            if !(*from).w_jumplist[i].fname.is_null() {
-                (*to).w_jumplist[i].fname = xstrdup((*from).w_jumplist[i].fname);
-            }
+            (*to).w_jumplist[i] = (*from).w_jumplist[i].clone();
         }
         (*to).w_jumplistlen = (*from).w_jumplistlen;
         (*to).w_jumplistidx = (*from).w_jumplistidx;
@@ -2019,7 +2015,7 @@ pub fn mark_jumplist_iter(iter: Option<usize>, win: &win_T, fm: &mut xfmark_T) -
         return None;
     }
     let idx = iter.unwrap_or(0);
-    *fm = win.w_jumplist[idx];
+    *fm = win.w_jumplist[idx].clone();
     if idx + 1 >= win.w_jumplistlen as usize {
         None
     } else {
@@ -2048,7 +2044,7 @@ pub unsafe fn mark_global_iter(
         } else {
             (b'0' + (idx - NMARKS) as u8) as c_char
         };
-        *fm = marks[idx];
+        *fm = marks[idx].clone();
         idx += 1;
         while idx < NGLOBALMARKS {
             if marks[idx].fmark.mark.lnum != 0 {
@@ -2120,7 +2116,7 @@ pub unsafe fn mark_set_global(name: c_char, fm: xfmark_T, update: bool) -> bool 
             return false;
         }
         if (*fm_tgt).fmark.mark.lnum != 0 {
-            free_xfmark(*fm_tgt);
+            free_xfmark(&mut *fm_tgt);
         }
         *fm_tgt = fm;
         true
@@ -2159,7 +2155,7 @@ pub unsafe fn mark_set_local(name: c_char, buf: *mut buf_T, fm: fmark_T, update:
 pub unsafe fn free_jumplist(wp: *mut win_T) {
     unsafe {
         for i in 0..((*wp).w_jumplistlen as usize) {
-            free_xfmark((*wp).w_jumplist[i]);
+            free_xfmark(&mut (*wp).w_jumplist[i]);
         }
         (*wp).w_jumplistlen = 0;
     }
@@ -2184,7 +2180,7 @@ pub unsafe fn free_all_marks() {
         for i in 0..NGLOBALMARKS {
             let fm = fm_base.add(i);
             if (*fm).fmark.mark.lnum != 0 {
-                free_xfmark(*fm);
+                free_xfmark(&mut *fm);
             }
             *fm = INIT_XFMARK;
         }
@@ -2351,7 +2347,7 @@ pub unsafe fn get_buf_local_marks(buf: *const buf_T, l: *mut list_T) {
 /// Get a global mark (`get_raw_global_mark`).
 #[cfg(test)]
 pub unsafe fn get_raw_global_mark(name: c_char) -> xfmark_T {
-    unsafe { namedfm[mark_global_index(name) as usize] }
+    unsafe { namedfm[mark_global_index(name) as usize].clone() }
 }
 
 /// Get information about global marks (`get_global_marks`).
@@ -2372,7 +2368,7 @@ pub unsafe fn get_global_marks(l: *mut list_T) {
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
             } else {
-                fm.fname
+                fm.fname_ptr()
             };
             if !name.is_null() {
                 mname[1] = if i >= NMARKS {

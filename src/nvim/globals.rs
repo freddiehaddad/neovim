@@ -654,23 +654,7 @@ pub static mut nlua_global_refs: *mut nlua_ref_state_t = ptr::null_mut();
 pub static mut nlua_disable_preload: bool = false;
 pub static mut tslua_query_parse_count: u64 = 0;
 pub static mut repeat_luamap: c_int = 0;
-pub static mut namedfm: [xfmark_T; 36] = [xfmark_T {
-    fmark: crate::mark::fmark_T {
-        mark: pos_T {
-            lnum: 0,
-            col: 0,
-            coladd: 0,
-        },
-        fnum: 0,
-        timestamp: 0,
-        view: crate::mark::fmarkv_T {
-            topline_offset: 0,
-            skipcol: 0,
-        },
-        additional_data: ptr::null_mut(),
-    },
-    fname: ptr::null_mut(),
-}; 36];
+pub static mut namedfm: [xfmark_T; 36] = [const { xfmark_T::ZERO }; 36];
 pub static mut arena_alloc_count: usize = 0;
 pub static mut msg_ext_skip_flush: bool = false;
 pub static mut msg_ext_overwrite: bool = false;
