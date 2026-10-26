@@ -47,7 +47,7 @@ use crate::os::fs::{
     s_islnk, s_isreg, s_issock,
 };
 #[cfg(windows)]
-use crate::os::fs::{os_is_reparse_point_include, os_realpath, os_resolve_shortcut};
+use crate::os::fs::{os_is_reparse_point_include, os_realpath_cstr, os_resolve_shortcut};
 #[cfg(unix)]
 use crate::path::path_next_component;
 use crate::path::{
@@ -173,7 +173,7 @@ pub unsafe fn modify_fname(
                     || (cfg!(windows)
                         && (*(*fnamep) == b'/' as c_char || *(*fnamep) == b'\\' as c_char))
                 {
-                    let Some(full) = cstr_take(FullName_save(*fnamep, *p != NUL)) else {
+                    let Some(full) = FullName_save(*fnamep, *p != NUL) else {
                         *fnamep = ptr::null_mut();
                         *bufp = None;
                         return -1;
@@ -212,7 +212,7 @@ pub unsafe fn modify_fname(
                         let exp = cstr_into_char_vec(expand_env_save(*fnamep));
                         p = exp.as_ptr().cast_mut();
                         pbuf = Some(exp);
-                    } else if let Some(full) = cstr_take(FullName_save(*fnamep, false)) {
+                    } else if let Some(full) = FullName_save(*fnamep, false) {
                         let full_vec = cstr_into_char_vec(full);
                         p = full_vec.as_ptr().cast_mut();
                         pbuf = Some(full_vec);
@@ -568,7 +568,7 @@ pub unsafe fn f_executable(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
 
         // Check in $PATH and also check directly if there is a directory name
         (*rettv).vval.v_number =
-            varnumber_T::from(os_can_exe(tv_get_string(argvars), ptr::null_mut(), true));
+            varnumber_T::from(os_can_exe(tv_get_string(argvars), None, true));
     }
 }
 
@@ -579,17 +579,25 @@ pub unsafe fn f_exepath(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             return;
         }
 
-        let mut path: *mut c_char = ptr::null_mut();
+        let mut path: Option<std::ffi::CString> = None;
 
-        os_can_exe(tv_get_string(argvars), &raw mut path, true);
-
-        #[cfg(windows)]
-        if !path.is_null() {
-            slash_adjust(path);
-        }
+        os_can_exe(tv_get_string(argvars), Some(&mut path), true);
 
         (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = path;
+        if let Some(p) = path {
+            #[cfg(windows)]
+            {
+                let mut v = p.into_bytes_with_nul();
+                slash_adjust(v.as_mut_ptr().cast::<c_char>());
+                crate::eval::typval::tv_set_string(rettv, v.as_ptr().cast::<c_char>());
+            }
+            #[cfg(not(windows))]
+            {
+                crate::eval::typval::tv_set_string(rettv, p.as_ptr());
+            }
+        } else {
+            (*rettv).vval.v_string = ptr::null_mut();
+        }
     }
 }
 
@@ -752,7 +760,7 @@ pub unsafe fn f_fnamemodify(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             fname = ptr::null_mut();
         } else {
             #[cfg(windows)]
-            let initial_cstr = cstr_take(path_to_slash_save(fname)).unwrap_or_default();
+            let initial_cstr = path_to_slash_save(fname).unwrap_or_default();
             #[cfg(not(windows))]
             let initial_cstr = cstr_to_cstring(fname);
             len = initial_cstr.as_bytes().len();
@@ -1291,7 +1299,7 @@ pub unsafe fn f_mkdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
 
         let mut defer = false;
         let mut defer_recurse = false;
-        let mut created: *mut c_char = ptr::null_mut();
+        let mut created: Option<std::ffi::CString> = None;
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
             if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
                 prot = tv_get_number_chk(argvars.add(2), ptr::null_mut()) as c_int;
@@ -1307,22 +1315,17 @@ pub unsafe fn f_mkdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
             }
 
             if !vim_strchr(arg2, b'p' as c_int).is_null() {
-                let mut failed_dir: *mut c_char = ptr::null_mut();
+                let mut failed_dir: Option<std::ffi::CString> = None;
                 let ret = os_mkdir_recurse(
                     dir,
                     prot,
-                    &raw mut failed_dir,
-                    if defer || defer_recurse {
-                        &raw mut created
-                    } else {
-                        ptr::null_mut()
-                    },
+                    &mut failed_dir,
+                    (defer || defer_recurse).then_some(&mut created),
                 );
                 if ret != 0 {
-                    let failed_owned = cstr_take(failed_dir);
                     semsg!(
                         gettext(e_mkdir.as_ptr()),
-                        failed_owned.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                        failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                         uv_strerror(ret),
                     );
                     (*rettv).vval.v_number = varnumber_T::from(FAIL);
@@ -1337,20 +1340,14 @@ pub unsafe fn f_mkdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
 
         // Handle "D" and "R": deferred deletion of the created directory.
         if (*rettv).vval.v_number == varnumber_T::from(OK)
-            && created.is_null()
+            && created.is_none()
             && (defer || defer_recurse)
         {
             created = FullName_save(dir, false);
         }
-        if !created.is_null() {
-            let mut tv = [
-                typval_T {
-                    v_type: VarType::VAR_STRING,
-                    v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval { v_string: created },
-                },
-                typval_T::new(),
-            ];
+        if let Some(created_cstr) = created {
+            let mut tv = [typval_T::new(), typval_T::new()];
+            crate::eval::typval::tv_set_string(&raw mut tv[0], created_cstr.as_ptr());
             crate::eval::typval::tv_set_string(
                 &raw mut tv[1],
                 if defer_recurse {
@@ -1719,13 +1716,13 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
         #[cfg(windows)]
         {
             let mut v = os_resolve_shortcut(fname);
-            if v.is_null() && os_is_reparse_point_include(fname) {
-                v = os_realpath(fname, ptr::null_mut(), MAXPATHL + 1);
+            if v.is_none() && os_is_reparse_point_include(fname) {
+                v = os_realpath_cstr(fname, MAXPATHL + 1);
             }
-            if v.is_null() {
-                crate::eval::typval::tv_set_string(rettv, fname);
+            if let Some(resolved) = v {
+                crate::eval::typval::tv_set_string(rettv, resolved.as_ptr());
             } else {
-                (*rettv).vval.v_string = v;
+                crate::eval::typval::tv_set_string(rettv, fname);
             }
         }
         #[cfg(not(windows))]
@@ -2120,13 +2117,12 @@ pub unsafe fn f_writefile(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
                 );
             } else {
                 if defer {
-                    let mut tv = typval_T {
-                        v_type: VarType::VAR_STRING,
-                        v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval {
-                            v_string: FullName_save(fname, false),
-                        },
-                    };
+                    let mut tv = typval_T::new();
+                    if let Some(full) = FullName_save(fname, false) {
+                        crate::eval::typval::tv_set_string(&raw mut tv, full.as_ptr());
+                    } else {
+                        tv.v_type = VarType::VAR_STRING;
+                    }
                     add_defer(c"delete".as_ptr().cast_mut(), 1, &raw mut tv);
                 }
 

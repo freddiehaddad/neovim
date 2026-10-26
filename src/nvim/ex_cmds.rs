@@ -2227,7 +2227,7 @@ pub unsafe fn do_write(eap: *mut exarg_T) -> c_int {
                 other = false;
             } else {
                 fname = ffname;
-                free_fname = cstr_take(fix_fname(ffname));
+                free_fname = fix_fname(ffname);
                 if let Some(ref ff) = free_fname {
                     ffname = ff.as_ptr().cast_mut();
                 }
@@ -2827,7 +2827,7 @@ pub unsafe fn do_ecmd(
                         ffname = (*curbuf).b_ffname;
                         sfname = (*curbuf).b_fname;
                     }
-                    free_fname = cstr_take(fix_fname(ffname));
+                    free_fname = fix_fname(ffname);
                     if let Some(ref ff) = free_fname {
                         ffname = ff.as_ptr().cast_mut();
                     }

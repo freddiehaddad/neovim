@@ -138,7 +138,7 @@ use crate::memline::{
 };
 use crate::memory::{
     ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, cstr_from_bytes,
-    cstr_take, cstr_to_cstring, free_block, strequal, strnequal,
+    cstr_to_cstring, free_block, strequal, strnequal,
 };
 use crate::menu::{get_menu_cmd_modes, menu_get};
 use crate::message::{
@@ -7797,7 +7797,7 @@ pub unsafe fn f_serverstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
                 emsg(gettext(e_invarg.as_ptr()));
                 return;
             }
-            cstr_take(to_slash_save(tv_get_string(argvars))).unwrap_or_default()
+            to_slash_save(tv_get_string(argvars)).unwrap_or_default()
         } else {
             server_address_new(ptr::null())
         };
@@ -8294,7 +8294,7 @@ pub unsafe fn f_sockconnect(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
         }
 
         let mode = tv_get_string(argvars);
-        let address = cstr_take(to_slash_save(tv_get_string(argvars.add(1)))).unwrap_or_default();
+        let address = to_slash_save(tv_get_string(argvars.add(1))).unwrap_or_default();
 
         'cleanup: {
             let tcp = if strcmp(mode, c"tcp".as_ptr()) == 0 {

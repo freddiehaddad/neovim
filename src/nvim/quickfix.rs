@@ -2257,7 +2257,7 @@ unsafe fn qf_add_entry(
             buf = buflist_findnr(qfp.qf_fnum);
         }
         let fullname = if !fname.is_null() {
-            cstr_take(fix_fname(fname))
+            fix_fname(fname)
         } else {
             None
         };

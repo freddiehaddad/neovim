@@ -44,7 +44,7 @@ use crate::mark::{fm_getname, fmark_T, fmarkv_T, mark_view_make, mark_view_resto
 use crate::mbyte::{
     convert_setup, mb_ptr_adv, mb_strnicmp, string_convert, utfc_ptr2len, vimconv_T,
 };
-use crate::memory::{cstr_take, cstr_to_cstring, xmemcpyz, xmemdupz, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_to_cstring, xmemcpyz, xmemdupz, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, give_warning, msg, msg_delay, msg_outtrans, msg_putchar, msg_puts, msg_puts_title, semsg,
     smsg, verbose_enter, verbose_leave, wait_return,
@@ -2796,7 +2796,7 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
                 curwin_save = curwin;
 
                 if (*curwin).w_onebuf_opt.wo_pvw == 0 {
-                    full_fname = cstr_take(FullName_save(fname, false));
+                    full_fname = FullName_save(fname, false);
                     fname = full_fname
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -3041,7 +3041,7 @@ unsafe fn expand_tag_fname(
     unsafe {
         let mut xpc: expand_T = expand_T::new();
 
-        let mut fname = cstr_take(to_slash_save(fname_arg)).unwrap_or_default();
+        let mut fname = to_slash_save(fname_arg).unwrap_or_default();
 
         if expand
             && path_has_wildcard(fname.as_ptr(), true)

@@ -9209,7 +9209,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
         let argc = if l.is_null() { 0 } else { (*l).lv_len };
 
         let mut argv_vec = Vec::<*mut c_char>::with_capacity((argc as usize) + 3);
-        let mut listen_arg: *mut c_char = ptr::null_mut();
+        let mut listen_arg: Option<std::ffi::CString> = None;
 
         let mut li = if l.is_null() {
             ptr::null_mut()
@@ -9247,7 +9247,6 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
                         || !strstr(addr, c"/".as_ptr()).is_null()
                         || !strstr(addr, c"\\".as_ptr()).is_null()
                     {
-                        xfree(listen_arg.cast());
                         listen_arg = to_slash_save(addr);
                         #[cfg(windows)]
                         {
@@ -9276,7 +9275,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
 
         #[cfg(windows)]
         let server_stopped = {
-            if listen_arg.is_null() {
+            if listen_arg.is_none() {
                 let mut lua_err = error_init();
                 let rv = nlua_exec(
                     cstr_as_string(
@@ -9296,7 +9295,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
                     && rv.obj_type == ObjectType::kObjectTypeString
                     && rv.data.string.size > 0
                 {
-                    listen_arg = xstrdup(rv.data.string.data);
+                    listen_arg = Some(cstr_to_cstring(rv.data.string.data));
                 }
                 api_free_object(rv);
                 api_clear_error(&raw mut lua_err);
@@ -9304,8 +9303,8 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
             false
         };
         #[cfg(not(windows))]
-        let server_stopped = if !listen_arg.is_null() {
-            server_stop(listen_arg, true)
+        let server_stopped = if let Some(ref la) = listen_arg {
+            server_stop(la.as_ptr().cast_mut(), true)
         } else {
             false
         };
@@ -9354,10 +9353,10 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
         );
         if channel.is_null() {
             let _ = emsg(c"cannot create a channel job".as_ptr());
-            if server_stopped && server_start(listen_arg) != 0 {
-                let _ = semsg!(c"couldn't resume listening on %s".as_ptr(), listen_arg);
+            let la_ptr = listen_arg.as_ref().map_or(ptr::null(), |s| s.as_ptr());
+            if server_stopped && server_start(la_ptr) != 0 {
+                let _ = semsg!(c"couldn't resume listening on %s".as_ptr(), la_ptr);
             }
-            xfree(listen_arg.cast());
             return;
         }
 
@@ -9474,9 +9473,9 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
             result_mem = ptr::null_mut();
 
             #[cfg(windows)]
-            if !listen_arg.is_null() {
+            if let Some(ref la) = listen_arg {
                 let mut handoff_items =
-                    [cstr_as_obj(listen_arg), integer_obj(ui_active() as Integer)];
+                    [cstr_as_obj(la.as_ptr()), integer_obj(ui_active() as Integer)];
                 let handoff_params = Array {
                     items: handoff_items.as_mut_ptr(),
                     size: 2,
@@ -9570,10 +9569,10 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
             let _ = emsg(c"killing new nvim server failed".as_ptr());
         }
 
-        if server_stopped && server_start(listen_arg) != 0 {
-            let _ = semsg!(c"couldn't resume listening on %s".as_ptr(), listen_arg);
+        let la_ptr = listen_arg.as_ref().map_or(ptr::null(), |s| s.as_ptr());
+        if server_stopped && server_start(la_ptr) != 0 {
+            let _ = semsg!(c"couldn't resume listening on %s".as_ptr(), la_ptr);
         }
-        xfree(listen_arg.cast());
     }
 }
 
@@ -10903,7 +10902,7 @@ pub unsafe fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
             new_dir = (&raw mut NameBuff).cast();
         }
 
-        let new_dir_owned = cstr_take(to_slash_save(new_dir)).unwrap_or_default();
+        let new_dir_owned = to_slash_save(new_dir).unwrap_or_default();
         new_dir = new_dir_owned.as_ptr().cast_mut();
 
         let bcd_active = scope != kCdScopeBuffer && (*curbuf).b_localdir.is_some();
@@ -12283,7 +12282,7 @@ pub unsafe fn eval_vars(
                     use_shellslash = !autocmd_fname_full;
                     if !autocmd_fname.is_null() && !autocmd_fname_full {
                         autocmd_fname_full = true;
-                        if let Some(full) = cstr_take(FullName_save(autocmd_fname, false)) {
+                        if let Some(full) = FullName_save(autocmd_fname, false) {
                             xstrlcpy(autocmd_fname, full.as_ptr(), MAXPATHL);
                         }
                     }

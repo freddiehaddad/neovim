@@ -1,7 +1,7 @@
 //! File searching functions for `'path'`, `'tags'`, and `'cdpath'` options (`src/nvim/file_search.c`).
 
 use crate::api::private::helpers::{
-    api_clear_string, cbuf_to_string, copy_string, cstr_as_string, cstr_to_string,
+    api_clear_string, cbuf_to_string, copy_string, cstr_to_string,
 };
 use crate::api::private::validate::NvimString;
 use crate::autocmd::{EVENT_DIRCHANGED, EVENT_DIRCHANGEDPRE, apply_autocmds, has_event};
@@ -17,7 +17,7 @@ use crate::eval::vars::{VV_FNAME, set_vim_var_string};
 use crate::eval::{eval_expr_option_tv, get_v_event, restore_v_event};
 use crate::globals::*;
 use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2char, utfc_ptr2len};
-use crate::memory::{cstr_take, xmemcpyz, xstrlcpy};
+use crate::memory::{xmemcpyz, xstrlcpy};
 use crate::message::{emsg, semsg};
 use crate::normal::get_visual_text;
 use crate::option::{OPT_LOCAL, copy_option_part, was_set_insecurely};
@@ -216,8 +216,9 @@ pub unsafe fn vim_findfile_init(
             if !vim_isAbsName(rel_fname) && len + 1 < MAXPATHL {
                 xmemcpyz(ff_expand_buffer.data.cast(), rel_fname.cast(), len);
                 ff_expand_buffer.size = len;
+                let full = FullName_save(ff_expand_buffer.data, false).unwrap_or_default();
                 search_ctx.ffsc_start_dir =
-                    cstr_as_string(FullName_save(ff_expand_buffer.data, false));
+                    cbuf_to_string(full.as_ptr(), full.as_bytes().len());
             } else {
                 search_ctx.ffsc_start_dir = cbuf_to_string(rel_fname, len);
             }
@@ -265,7 +266,7 @@ pub unsafe fn vim_findfile_init(
                 let dir_str = if *helper != NUL && !vim_isAbsName(helper) && len + 1 < MAXPATHL {
                     xmemcpyz(ff_expand_buffer.data.cast(), helper.cast(), len);
                     ff_expand_buffer.size = len;
-                    cstr_take(FullName_save(helper, len != 0)).unwrap_or_default()
+                    FullName_save(helper, len != 0).unwrap_or_default()
                 } else {
                     std::ffi::CString::new(std::slice::from_raw_parts(helper.cast::<u8>(), len))
                         .unwrap_or_default()

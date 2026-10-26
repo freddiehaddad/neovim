@@ -1414,7 +1414,7 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
         p4 = p4.add(1);
         let c = *p4;
         *p4 = NUL;
-        let ffname_cstr = cstr_take(fix_fname(fname));
+        let ffname_cstr = fix_fname(fname);
         *p4 = c;
 
         let Some(ref ffname_owned) = ffname_cstr else {
@@ -1464,7 +1464,7 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
 
                 if insp.is_null() {
                     add_pathsep(buf.data);
-                    let Some(rtp_ffname) = cstr_take(fix_fname(buf.data)) else {
+                    let Some(rtp_ffname) = fix_fname(buf.data) else {
                         break 'block;
                     };
                     if path_cmp(p_fic != 0, rtp_ffname.as_ptr(), ffname, fname_len) == 0 {
@@ -1628,7 +1628,7 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
 
 unsafe fn load_pack_plugin(opt: bool, fname: *mut c_char) -> c_int {
     unsafe {
-        let ffname_cstr = cstr_take(fix_fname(fname)).unwrap_or_default();
+        let ffname_cstr = fix_fname(fname).unwrap_or_default();
         let ffname = ffname_cstr.as_ptr();
         let len = ffname_cstr.as_bytes().len() + 14;
         let mut pat_vec = vec![0 as c_char; len + 1];
@@ -2745,7 +2745,7 @@ unsafe fn do_source_ext(
             cstr_to_cstring(fname)
         } else {
             let p = expand_env_save(fname);
-            let Some(fe) = cstr_take(fix_fname(p.as_ptr())) else {
+            let Some(fe) = fix_fname(p.as_ptr()) else {
                 return retval;
             };
             if os_isdir(fe.as_ptr()) {

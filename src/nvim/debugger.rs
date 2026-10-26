@@ -544,7 +544,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
             let q = expand_env_save(p);
             let p_exp = expand_env_save(q.as_ptr().cast_mut());
             let raw_name = if *p_exp.as_ptr() as u8 != b'*' {
-                cstr_take(fix_fname(p_exp.as_ptr()))?
+                fix_fname(p_exp.as_ptr())?
             } else {
                 p_exp
             };

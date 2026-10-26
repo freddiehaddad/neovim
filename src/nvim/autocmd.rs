@@ -2953,7 +2953,7 @@ pub unsafe fn apply_autocmds_group(
                 }
                 Some(CStr::from_ptr(fname).to_owned())
             } else {
-                sfname_owned = cstr_take(to_slash_save(fname));
+                sfname_owned = to_slash_save(fname);
                 if event == EVENT_CMDATOM
                     || event == EVENT_CMDLINECHANGED
                     || event == EVENT_CMDLINEENTER
@@ -2988,9 +2988,9 @@ pub unsafe fn apply_autocmds_group(
                     || event == EVENT_WINSCROLLED
                 {
                     autocmd_fname_full = true;
-                    cstr_take(to_slash_save(fname))
+                    to_slash_save(fname)
                 } else {
-                    cstr_take(FullName_save(fname, false))
+                    FullName_save(fname, false)
                 }
             };
             let sfname = sfname_owned
@@ -3513,7 +3513,7 @@ unsafe fn has_autocmd_ext(
         let fname = if is_full {
             (!sfname.is_null()).then(|| CStr::from_ptr(sfname).to_owned())
         } else {
-            cstr_take(FullName_save(sfname, false))
+            FullName_save(sfname, false)
         };
         let Some(fname) = fname else {
             return false;

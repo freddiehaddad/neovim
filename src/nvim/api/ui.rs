@@ -2,7 +2,7 @@
 
 use crate::api::private::helpers::{
     api_clear_error, api_set_error, api_typename, arena_array, arena_dict, array_obj, boolean_obj,
-    cstr_as_string, dict_obj, error_set, integer_obj, string_obj, string_to_cstr, window_obj,
+    cstr_as_string, dict_obj, error_set, integer_obj, string_obj, window_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
@@ -585,14 +585,15 @@ unsafe fn ui_set_option(
                 );
                 return;
             }
-            set_tty_option(c"term".as_ptr(), string_to_cstr(value.data.string));
             let s = value.data.string;
             let slice = if s.data.is_null() || s.size == 0 {
                 &[][..]
             } else {
                 std::slice::from_raw_parts(s.data.cast::<u8>(), s.size)
             };
-            (*ui).term_name = Some(std::ffi::CString::new(slice).unwrap());
+            let term_cstr = std::ffi::CString::new(slice).unwrap();
+            set_tty_option(c"term".as_ptr(), Some(term_cstr.clone()));
+            (*ui).term_name = Some(term_cstr);
             return;
         }
 

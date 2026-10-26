@@ -37,7 +37,7 @@ use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::mbyte::{enc_canonize, my_iconv_open, utf_ptr2char, utf_ptr2len_len};
 use crate::memline::{get_file_in_dir, make_percent_swname, ml_get_buf, ml_preserve, ml_timestamp};
-use crate::memory::{cstr_take, xmemcpyz, xstrlcat, xstrlcpy};
+use crate::memory::{xmemcpyz, xstrlcat, xstrlcpy};
 use crate::message::{emsg, msg, msg_progress, msg_puts_hl, msg_with_id, semsg, set_keep_msg};
 use crate::option::{copy_option_part, get_bkc_flags, get_fileformat_force, shortmess};
 use crate::option_vars::*;
@@ -820,9 +820,8 @@ pub unsafe fn buf_get_backup_name(
         let dir_len = copy_option_part(dirp, iobuf, IOSIZE, c",".as_ptr());
         let p = iobuf.add(dir_len);
         if **dirp == NUL && !os_isdir(iobuf) {
-            let mut failed_dir: *mut c_char = ptr::null_mut();
-            let ret = os_mkdir_recurse(iobuf, 0o755, &raw mut failed_dir, ptr::null_mut());
-            let failed_dir = cstr_take(failed_dir);
+            let mut failed_dir: Option<std::ffi::CString> = None;
+            let ret = os_mkdir_recurse(iobuf, 0o755, &mut failed_dir, None);
             if ret != 0 {
                 let _ = semsg!(
                     gettext(

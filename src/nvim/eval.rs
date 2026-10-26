@@ -133,7 +133,7 @@ use crate::mbyte::{
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
     Arena, arena_finish, arena_mem_free, cstr_from_bytes, cstr_take, cstr_to_cstring, memchrsub,
-    strchrsub, strequal, strnequal, xfree, xstrdup, xstrndup,
+    strchrsub, strequal, strnequal, xstrdup, xstrndup,
 };
 use crate::msgpack_rpc::channel::find_channel;
 use crate::ops::set_ref_in_opfunc;
@@ -5026,8 +5026,8 @@ pub unsafe fn tv_to_argv(
         }
 
         let arg0 = tv_get_string_chk(tv_list_item_tv(tv_list_first(argl)));
-        let mut exe_resolved: *mut c_char = ptr::null_mut();
-        if arg0.is_null() || !os_can_exe(arg0, &raw mut exe_resolved, true) {
+        let mut exe_resolved: Option<std::ffi::CString> = None;
+        if arg0.is_null() || !os_can_exe(arg0, Some(&mut exe_resolved), true) {
             if !arg0.is_null() && !executable.is_null() {
                 let mut buf = [0 as c_char; IOSIZE];
                 vim_snprintf!(
@@ -5045,10 +5045,7 @@ pub unsafe fn tv_to_argv(
             }
             return Vec::new();
         }
-
-        if !cmd.is_null() {
-            *cmd = exe_resolved;
-        }
+        let exe_cstr = exe_resolved.unwrap();
 
         let mut argv = vec![ptr::null_mut::<c_char>(); (argc as usize) + 1];
         let mut i: usize = 0;
@@ -5061,15 +5058,15 @@ pub unsafe fn tv_to_argv(
             let a = tv_get_string_chk(tv_list_item_tv(arg));
             if a.is_null() {
                 crate::path::clear_cstrings(&mut argv);
-                xfree(exe_resolved.cast());
                 return Vec::new();
             }
-            argv[i] = xstrdup(a);
+            argv[i] = xstrdup(if i == 0 { exe_cstr.as_ptr() } else { a });
             i += 1;
             arg = (*arg).li_next;
         }
-        xfree(argv[0].cast());
-        argv[0] = exe_resolved;
+        if !cmd.is_null() {
+            *cmd = argv[0];
+        }
 
         argv
     }

@@ -71,7 +71,7 @@ use crate::memline::{
     ml_setname, ml_timestamp,
 };
 use crate::memory::{
-    cstr_from_bytes, cstr_take, cstr_to_cstring, entered_free_all_mem, xfree, xstrdup, xstrlcpy,
+    cstr_from_bytes, cstr_to_cstring, entered_free_all_mem, xfree, xstrdup, xstrlcpy,
 };
 use crate::message::{
     emsg, message_filtered, msg, msg_delay, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts,
@@ -352,7 +352,7 @@ pub struct buf_T {
     pub b_p_wm_nopaste: i64,
     pub b_p_vsts: *mut c_char,
     pub b_p_vsts_array: Vec<i32>,
-    pub b_p_vsts_nopaste: *mut c_char,
+    pub b_p_vsts_nopaste: Option<std::ffi::CString>,
     pub b_p_vts: *mut c_char,
     pub b_p_vts_array: Vec<i32>,
     pub b_p_keymap: *mut c_char,
@@ -633,7 +633,7 @@ impl buf_T {
             b_p_wm_nopaste: 0,
             b_p_vsts: ptr::null_mut(),
             b_p_vsts_array: Vec::new(),
-            b_p_vsts_nopaste: ptr::null_mut(),
+            b_p_vsts_nopaste: None,
             b_p_vts: ptr::null_mut(),
             b_p_vts_array: Vec::new(),
             b_p_keymap: ptr::null_mut(),
@@ -2926,8 +2926,7 @@ pub unsafe fn free_buf_options(buf: *mut buf_T, free_p_ff: bool) {
         clear_string_option(&raw mut (*buf).b_p_flp);
         clear_string_option(&raw mut (*buf).b_p_isk);
         clear_string_option(&raw mut (*buf).b_p_vsts);
-        xfree((*buf).b_p_vsts_nopaste.cast());
-        (*buf).b_p_vsts_nopaste = ptr::null_mut();
+        (*buf).b_p_vsts_nopaste = None;
         (*buf).b_p_vsts_array = Vec::new();
         clear_string_option(&raw mut (*buf).b_p_vts);
         (*buf).b_p_vts_array = Vec::new();
@@ -3101,7 +3100,7 @@ unsafe fn buflist_getfpos() {
 pub unsafe fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T {
     unsafe {
         let mut buf: *mut buf_T = ptr::null_mut();
-        if let Some(ffname) = cstr_take(FullName_save(fname, cfg!(unix))) {
+        if let Some(ffname) = FullName_save(fname, cfg!(unix)) {
             buf = buflist_findname(ffname.as_ptr().cast_mut());
         }
         buf
@@ -4404,7 +4403,7 @@ pub unsafe fn fname_expand(buf: *mut buf_T, ffname: *mut *mut c_char, sfname: *m
         if (*sfname).is_null() {
             *sfname = *ffname;
         }
-        *ffname = fix_fname(*ffname);
+        *ffname = fix_fname(*ffname).map_or(ptr::null_mut(), |s| xstrdup(s.as_ptr()));
         if (*ffname).is_null() {
             *sfname = ptr::null_mut();
             return;
@@ -4425,21 +4424,21 @@ pub unsafe fn fname_expand(buf: *mut buf_T, ffname: *mut *mut c_char, sfname: *m
             }
             let full = fix_fname(name);
             drop(name_vec);
-            if !full.is_null() {
+            if let Some(full_cstr) = full {
                 xfree((*ffname).cast());
-                *ffname = full;
+                *ffname = xstrdup(full_cstr.as_ptr());
             }
             *ffname = concat_fnames_realloc(*ffname, c"".as_ptr(), true);
         }
 
         #[cfg(windows)]
-        if (*buf).b_p_bin == 0 {
-            let rfname = os_resolve_shortcut(*ffname);
-            if !rfname.is_null() {
-                xfree((*ffname).cast());
-                *ffname = rfname;
-                *sfname = rfname;
-            }
+        if (*buf).b_p_bin == 0
+            && let Some(rfname_cstr) = os_resolve_shortcut(*ffname)
+        {
+            let rfname = xstrdup(rfname_cstr.as_ptr());
+            xfree((*ffname).cast());
+            *ffname = rfname;
+            *sfname = rfname;
         }
     }
 }

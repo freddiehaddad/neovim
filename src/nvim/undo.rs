@@ -621,15 +621,9 @@ pub unsafe fn u_get_undo_file_name(
 
                 let mut has_directory = os_isdir(dir_name.as_ptr());
                 if !has_directory && *dirp == NUL && !reading {
-                    let mut failed_dir: *mut c_char = ptr::null_mut();
-                    let ret = os_mkdir_recurse(
-                        dir_name.as_ptr(),
-                        0o755,
-                        &raw mut failed_dir,
-                        ptr::null_mut(),
-                    );
+                    let mut failed_dir: Option<std::ffi::CString> = None;
+                    let ret = os_mkdir_recurse(dir_name.as_ptr(), 0o755, &mut failed_dir, None);
                     if ret != 0 {
-                        let failed_dir = cstr_take(failed_dir);
                         semsg!(
                             gettext(
                                 c"E5003: Unable to create directory \"%s\" for undo file: %s"
@@ -3018,7 +3012,7 @@ pub unsafe fn f_undofile(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         let fname = tv_get_string(argvars);
 
         if *fname != NUL
-            && let Some(ffname) = cstr_take(FullName_save(fname, true))
+            && let Some(ffname) = FullName_save(fname, true)
             && let Some(ufile) = u_get_undo_file_name(ffname.as_ptr(), false)
         {
             crate::eval::typval::tv_set_string(rettv, ufile.as_ptr());

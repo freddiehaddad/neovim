@@ -13,7 +13,7 @@ use crate::globals::*;
 use crate::log::logmsg;
 #[cfg(windows)]
 use crate::mbyte::{mb_strnicmp, utf8_to_utf16, utf16_to_utf8};
-use crate::memory::{cstr_take, memcnt, xmalloc, xmemcpyz, xstrchrnul, xstrdup, xstrlcpy};
+use crate::memory::{cstr_to_cstring, memcnt, xmemcpyz, xstrchrnul, xstrlcpy};
 use crate::message::{emsg, semsg, smsg, verbose_enter, verbose_leave};
 #[cfg(windows)]
 use crate::option::copy_option_part;
@@ -590,7 +590,11 @@ pub unsafe fn os_exepath(buffer: *mut c_char, size: *mut usize) -> c_int {
 }
 
 /// Checks if the file `name` is executable.
-pub unsafe fn os_can_exe(name: *const c_char, abspath: *mut *mut c_char, use_path: bool) -> bool {
+pub unsafe fn os_can_exe(
+    name: *const c_char,
+    abspath: Option<&mut Option<std::ffi::CString>>,
+    use_path: bool,
+) -> bool {
     unsafe {
         if !use_path || gettail_dir(name) != name {
             #[cfg(windows)]
@@ -602,7 +606,10 @@ pub unsafe fn os_can_exe(name: *const c_char, abspath: *mut *mut c_char, use_pat
     }
 }
 
-unsafe fn is_executable(name: *const c_char, abspath: *mut *mut c_char) -> bool {
+unsafe fn is_executable(
+    name: *const c_char,
+    abspath: Option<&mut Option<std::ffi::CString>>,
+) -> bool {
     unsafe {
         let mode = os_getperm(name);
         if mode < 0 {
@@ -622,15 +629,18 @@ unsafe fn is_executable(name: *const c_char, abspath: *mut *mut c_char) -> bool 
             }
         };
 
-        if ok && !abspath.is_null() {
-            *abspath = save_abs_path(name);
+        if ok && let Some(out) = abspath {
+            *out = save_abs_path(name);
         }
         ok
     }
 }
 
 #[cfg(windows)]
-unsafe fn is_executable_ext(name: *const c_char, abspath: *mut *mut c_char) -> bool {
+unsafe fn is_executable_ext(
+    name: *const c_char,
+    mut abspath: Option<&mut Option<std::ffi::CString>>,
+) -> bool {
     unsafe {
         let sh_tail = CStr::from_ptr(path_tail(p_sh)).to_bytes();
         let has_sub =
@@ -663,7 +673,7 @@ unsafe fn is_executable_ext(name: *const c_char, abspath: *mut *mut c_char) -> b
         while *ext != 0 {
             if *ext == b'.' as c_char && (*ext.add(1) == NUL || (*ext.add(1) as u8) == ENV_SEPCHAR)
             {
-                if is_executable(name, abspath) {
+                if is_executable(name, abspath.as_deref_mut()) {
                     return true;
                 }
                 ext = ext.add(1);
@@ -678,8 +688,8 @@ unsafe fn is_executable_ext(name: *const c_char, abspath: *mut *mut c_char) -> b
             let ext_len = copy_option_part(&raw mut ext_end, buf_end, rem, ENV_SEPSTR.as_ptr());
             if ext_len != 0 {
                 let in_pathext = nameext_len == ext_len && mb_strnicmp(nameext, ext, ext_len) == 0;
-                if ((in_pathext || is_unix_shell) && is_executable(name, abspath))
-                    || is_executable(buf, abspath)
+                if ((in_pathext || is_unix_shell) && is_executable(name, abspath.as_deref_mut()))
+                    || is_executable(buf, abspath.as_deref_mut())
                 {
                     return true;
                 }
@@ -692,11 +702,17 @@ unsafe fn is_executable_ext(name: *const c_char, abspath: *mut *mut c_char) -> b
 
 #[cfg(not(windows))]
 #[inline]
-unsafe fn is_executable_ext(name: *const c_char, abspath: *mut *mut c_char) -> bool {
+unsafe fn is_executable_ext(
+    name: *const c_char,
+    abspath: Option<&mut Option<std::ffi::CString>>,
+) -> bool {
     unsafe { is_executable(name, abspath) }
 }
 
-unsafe fn is_executable_in_path(name: *const c_char, abspath: *mut *mut c_char) -> bool {
+unsafe fn is_executable_in_path(
+    name: *const c_char,
+    mut abspath: Option<&mut Option<std::ffi::CString>>,
+) -> bool {
     unsafe {
         let Some(path_env) = os_getenv_cstr(c"PATH".as_ptr()) else {
             return false;
@@ -734,7 +750,7 @@ unsafe fn is_executable_in_path(name: *const c_char, abspath: *mut *mut c_char) 
             let _ = xmemcpyz(buf.cast(), p.cast(), (e as usize) - (p as usize));
             let _ = append_path(buf, name, bufsize);
 
-            if is_executable_ext(buf, abspath) {
+            if is_executable_ext(buf, abspath.as_deref_mut()) {
                 rv = true;
                 break;
             }
@@ -1363,8 +1379,8 @@ pub unsafe fn os_mkdir(path: *const c_char, mode: i32) -> c_int {
 pub unsafe fn os_mkdir_recurse(
     dir: *const c_char,
     mode: i32,
-    failed_dir: *mut *mut c_char,
-    created: *mut *mut c_char,
+    failed_dir: &mut Option<std::ffi::CString>,
+    mut created: Option<&mut Option<std::ffi::CString>>,
 ) -> c_int {
     unsafe {
         let dirlen = strlen(dir);
@@ -1398,10 +1414,12 @@ pub unsafe fn os_mkdir_recurse(
             }
             let ret = os_mkdir(curdir, mode);
             if ret != 0 {
-                *failed_dir = xstrdup(curdir);
+                *failed_dir = Some(cstr_to_cstring(curdir));
                 return ret;
-            } else if !created.is_null() && (*created).is_null() {
-                *created = FullName_save(curdir, false);
+            } else if let Some(ref mut c_out) = created
+                && c_out.is_none()
+            {
+                **c_out = FullName_save(curdir, false);
             }
         }
         0
@@ -1420,9 +1438,8 @@ pub unsafe fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
             }
             let c = *tail;
             *tail = NUL;
-            let mut failed_dir: *mut c_char = ptr::null_mut();
-            let r = os_mkdir_recurse(fname, mode, &raw mut failed_dir, ptr::null_mut());
-            let failed_dir = cstr_take(failed_dir);
+            let mut failed_dir: Option<std::ffi::CString> = None;
+            let r = os_mkdir_recurse(fname, mode, &mut failed_dir, None);
             if r < 0 {
                 let _ = semsg!(
                     gettext(e_mkdir.as_ptr()),
@@ -1697,14 +1714,12 @@ pub unsafe fn os_fileid_equal(file_id_1: *const FileID, file_id_2: *const FileID
 }
 
 /// Return the canonicalized absolute pathname.
-pub unsafe fn os_realpath(name: *const c_char, mut buf: *mut c_char, len: usize) -> *mut c_char {
+pub unsafe fn os_realpath(name: *const c_char, buf: *mut c_char, len: usize) -> *mut c_char {
     unsafe {
+        assert!(!buf.is_null());
         let mut request: uv_fs_buf_t = [0; 80];
         let result = uv_fs_realpath(ptr::null_mut(), &raw mut request, name, ptr::null());
         if result == 0 {
-            if buf.is_null() {
-                buf = xmalloc(len).cast::<c_char>();
-            }
             xstrlcpy(buf, uv_fs_get_ptr(&raw const request).cast(), len);
             to_slash(buf);
         }
@@ -1713,19 +1728,31 @@ pub unsafe fn os_realpath(name: *const c_char, mut buf: *mut c_char, len: usize)
     }
 }
 
+#[cfg(any(windows, target_os = "macos"))]
+pub unsafe fn os_realpath_cstr(name: *const c_char, len: usize) -> Option<std::ffi::CString> {
+    unsafe {
+        let mut buf = vec![0 as c_char; len];
+        if os_realpath(name, buf.as_mut_ptr(), len).is_null() {
+            None
+        } else {
+            Some(cstr_to_cstring(buf.as_ptr()))
+        }
+    }
+}
+
 #[cfg(windows)]
-pub unsafe fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char {
+pub unsafe fn os_resolve_shortcut(fname: *const c_char) -> Option<std::ffi::CString> {
     #[cfg(windows)]
     unsafe {
         if fname.is_null() {
-            return ptr::null_mut();
+            return None;
         }
         let bytes = CStr::from_ptr(fname).to_bytes();
         if bytes.len() <= 4 || !bytes[bytes.len() - 4..].eq_ignore_ascii_case(b".lnk") {
-            return ptr::null_mut();
+            return None;
         }
 
-        let mut rfname: *mut c_char = ptr::null_mut();
+        let mut rfname: Option<std::ffi::CString> = None;
         let mut pslw: *mut IShellLinkW = ptr::null_mut();
         let mut ppf: *mut IPersistFile = ptr::null_mut();
 
@@ -1767,7 +1794,9 @@ pub unsafe fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char {
                             if r2 != 0 {
                                 semsg!(c"utf16_to_utf8 failed: %d".as_ptr(), r2);
                             } else if let Some(cstr) = rfname_cstr {
-                                rfname = xstrdup(cstr.as_ptr());
+                                let mut v = cstr.into_bytes_with_nul();
+                                to_slash(v.as_mut_ptr().cast::<c_char>());
+                                rfname = Some(std::ffi::CString::from_vec_with_nul(v).unwrap());
                             }
                         }
                     }
@@ -1783,13 +1812,12 @@ pub unsafe fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char {
         }
 
         CoUninitialize();
-        to_slash(rfname);
         rfname
     }
     #[cfg(not(windows))]
     {
         let _ = fname;
-        ptr::null_mut()
+        None
     }
 }
 
@@ -1909,22 +1937,22 @@ mod tests {
             #[cfg(not(windows))]
             assert_eq!(os_nodetype(c"/dev/stderr".as_ptr()), NODE_WRITABLE);
 
-            let mut abspath: *mut c_char = ptr::null_mut();
-            assert!(!os_can_exe(c".".as_ptr(), &raw mut abspath, true));
-            assert!(abspath.is_null());
+            let mut abspath: Option<CString> = None;
+            assert!(!os_can_exe(c".".as_ptr(), Some(&mut abspath), true));
+            assert!(abspath.is_none());
             assert!(!os_can_exe(
                 c"does-not-exist.file".as_ptr(),
-                &raw mut abspath,
+                Some(&mut abspath),
                 true
             ));
-            assert!(abspath.is_null());
+            assert!(abspath.is_none());
 
             #[cfg(windows)]
             let tool = c"cmd";
             #[cfg(not(windows))]
             let tool = c"sh";
-            assert!(os_can_exe(tool.as_ptr(), &raw mut abspath, true));
-            let abspath_cstr = cstr_take(abspath).unwrap();
+            assert!(os_can_exe(tool.as_ptr(), Some(&mut abspath), true));
+            let abspath_cstr = abspath.unwrap();
             assert!(crate::path::path_is_absolute(abspath_cstr.as_ptr()));
         }
     }
@@ -2039,33 +2067,28 @@ mod tests {
             assert_eq!(os_rename(fpath_c.as_ptr(), renamed_c.as_ptr()), FAIL);
 
             // os_mkdir_recurse & os_rmdir
-            let mut failed_dir: *mut c_char = ptr::null_mut();
-            let mut created_dir: *mut c_char = ptr::null_mut();
+            let mut failed_dir: Option<CString> = None;
+            let mut created_dir: Option<CString> = None;
             let nested = CString::new(format!("{base}/nested/1/2///")).unwrap();
             assert_eq!(
                 os_mkdir_recurse(
                     nested.as_ptr(),
                     0o700,
-                    &raw mut failed_dir,
-                    &raw mut created_dir
+                    &mut failed_dir,
+                    Some(&mut created_dir)
                 ),
                 0
             );
-            assert!(failed_dir.is_null());
-            let _ = cstr_take(created_dir).unwrap();
+            assert!(failed_dir.is_none());
+            assert!(created_dir.is_some());
 
             // Cannot mkdir over an existing file
             let conflict = CString::new(format!("{renamed}/sub")).unwrap();
             assert_ne!(
-                os_mkdir_recurse(
-                    conflict.as_ptr(),
-                    0o700,
-                    &raw mut failed_dir,
-                    ptr::null_mut()
-                ),
+                os_mkdir_recurse(conflict.as_ptr(), 0o700, &mut failed_dir, None),
                 0
             );
-            let _ = cstr_take(failed_dir).unwrap();
+            assert!(failed_dir.is_some());
 
             assert_eq!(os_remove(renamed_c.as_ptr()), 0);
             assert_ne!(os_remove(renamed_c.as_ptr()), 0);

@@ -273,14 +273,17 @@ mod win_impl {
                 let arg0 = (*hdr).argv.as_slice()[0];
                 let is_cmdexe = os_shell_is_cmdexe(arg0);
                 if is_cmdexe {
-                    let mut path: *mut c_char = ptr::null_mut();
-                    if !os_can_exe(arg0, &raw mut path, true) {
+                    let mut path: Option<std::ffi::CString> = None;
+                    if !os_can_exe(arg0, Some(&mut path), true) {
                         status = UV_ENOENT;
                         emsg = c"executable not found".as_ptr();
                         break 'cleanup;
                     }
-                    status = utf8_to_utf16(path, -1, &mut file);
-                    xfree(path.cast());
+                    status = utf8_to_utf16(
+                        path.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                        -1,
+                        &mut file,
+                    );
                     if status != 0 {
                         emsg = c"utf8_to_utf16(proc->argv[0]) failed".as_ptr();
                         break 'cleanup;

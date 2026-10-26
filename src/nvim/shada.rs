@@ -45,7 +45,7 @@ use crate::mark::{
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
-use crate::memory::{ARENA_BLOCK_SIZE, cstr_take, strequal, xfree, xstrdup};
+use crate::memory::{ARENA_BLOCK_SIZE, strequal, xfree, xstrdup};
 use crate::message::{semsg, siemsg, smsg, verbose_enter, verbose_leave};
 use crate::mpack::mpack_core::MPACK_OK;
 use crate::msgpack_rpc::packer::{
@@ -3283,9 +3283,8 @@ pub unsafe fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int 
                 let tail_save = *tail;
                 *tail = NUL;
                 if !os_isdir(fname) {
-                    let mut failed_dir: *mut c_char = ptr::null_mut();
-                    let ret = os_mkdir_recurse(fname, 0o700, &mut failed_dir, ptr::null_mut());
-                    let failed_dir = cstr_take(failed_dir);
+                    let mut failed_dir: Option<std::ffi::CString> = None;
+                    let ret = os_mkdir_recurse(fname, 0o700, &mut failed_dir, None);
                     if ret != 0 {
                         semsg!(
                             gettext(

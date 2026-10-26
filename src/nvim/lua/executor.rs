@@ -57,7 +57,7 @@ use crate::main_init::{getout, os_exit, preserve_exit};
 use crate::math::{FAIL, OK};
 use crate::memline::{ml_get_buf, ml_get_buf_len, ml_replace};
 use crate::memory::{
-    Arena, ArenaMem, arena_finish, arena_mem_free, cstr_take, strequal, xfree, xmemdupz, xstrdup,
+    Arena, ArenaMem, arena_finish, arena_mem_free, strequal, xfree, xmemdupz, xstrdup,
 };
 use crate::message::{
     emsg, msg_ext_no_fast, msg_multihl, msg_putchar, msg_use_printf, redirecting, semsg_multiline,
@@ -2742,7 +2742,7 @@ pub unsafe fn nlua_set_sctx(current: *mut sctx_T) {
             found = true;
             break;
         }
-        if found && let Some(source_path) = cstr_take(fix_fname(info.source.add(1))) {
+        if found && let Some(source_path) = fix_fname(info.source.add(1)) {
             let mut sid = find_script_by_name(source_path.as_ptr().cast_mut());
             if sid <= 0 {
                 let si: *mut scriptitem_T = new_script_item(Some(source_path), &raw mut sid);

@@ -550,7 +550,7 @@ pub unsafe fn init_homedir() {
         }
 
         if !var.is_null() {
-            HOMEDIR = cstr_take(to_slash_save(var));
+            HOMEDIR = to_slash_save(var);
         }
     }
 }

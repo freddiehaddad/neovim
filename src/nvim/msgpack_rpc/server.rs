@@ -10,7 +10,7 @@ use crate::event::socket::{
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::globals::*;
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
-use crate::memory::{cstr_take, cstr_to_cstring, strequal, xstrlcpy};
+use crate::memory::{cstr_to_cstring, strequal, xstrlcpy};
 use crate::os::env::{os_env_exists, os_get_pid, os_getenv_cstr, os_unsetenv};
 use crate::os::stdpaths::get_appname;
 use crate::path::{fix_fname, to_slash, to_slash_save};
@@ -49,9 +49,7 @@ pub unsafe fn server_init(mut listen_addr: *const c_char) -> bool {
             if os_env_exists(ENV_LISTEN.as_ptr(), true) {
                 user_arg = kFalse;
                 let raw = os_getenv_cstr(ENV_LISTEN.as_ptr());
-                owned_addr = cstr_take(to_slash_save(
-                    raw.as_ref().map_or(ptr::null(), |c| c.as_ptr()),
-                ));
+                owned_addr = to_slash_save(raw.as_ref().map_or(ptr::null(), |c| c.as_ptr()));
             } else {
                 user_arg = kNone;
                 owned_addr = Some(server_address_new(ptr::null()));
@@ -184,9 +182,9 @@ pub unsafe fn server_address_new(name: *const c_char) -> std::ffi::CString {
 
 pub unsafe fn server_owns_pipe_address(address: *const c_char) -> bool {
     unsafe {
-        let path = cstr_take(fix_fname(address));
+        let path = fix_fname(address);
         for &watcher in watchers_mut().iter() {
-            let addr = cstr_take(fix_fname((*watcher).addr.as_ptr()));
+            let addr = fix_fname((*watcher).addr.as_ptr());
             if path == addr {
                 return true;
             }

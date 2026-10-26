@@ -130,7 +130,7 @@ use crate::runtime::{
 use crate::spell::{compile_cap_prog, did_set_spell_option, init_spell_chartab, parse_spelllang};
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
-    concat_str, gettext, strchr, strcmp, strcpy, strlen, strncmp, strstr, tr, vim_snprintf,
+    gettext, strchr, strcmp, strcpy, strlen, strncmp, strstr, tr, vim_snprintf,
     vim_snprintf_safelen, vim_strchr, vim_strsave_escaped,
 };
 use crate::syntax::synblock_T;
@@ -496,8 +496,8 @@ const E_CANNOT_HAVE_MORE_THAN_HUNDRED_QUICKFIX: *const c_char =
     c"E1543: Cannot have more than a hundred quickfix/location lists".as_ptr();
 const W_ARABIC: *const c_char = c"W17: Arabic requires UTF-8, do ':set encoding=utf-8'".as_ptr();
 
-static mut P_TERM: *mut c_char = ptr::null_mut();
-static mut P_TTYTYPE: *mut c_char = ptr::null_mut();
+static mut P_TERM: Option<std::ffi::CString> = None;
+static mut P_TTYTYPE: Option<std::ffi::CString> = None;
 
 // Saved values for when 'bin' is set.
 static mut P_ET_NOBIN: c_int = 0;
@@ -511,7 +511,7 @@ static mut P_ET_NOPASTE: c_int = 0;
 static mut P_STS_NOPASTE: OptInt = 0;
 static mut P_TW_NOPASTE: OptInt = 0;
 static mut P_WM_NOPASTE: OptInt = 0;
-static mut P_VSTS_NOPASTE: *mut c_char = ptr::null_mut();
+static mut P_VSTS_NOPASTE: Option<std::ffi::CString> = None;
 
 // Saved values inside did_set_paste.
 static mut OLD_P_PASTE: c_int = 0;
@@ -666,24 +666,22 @@ unsafe fn optval_type_name(t: ObjectType) -> *const c_char {
 }
 
 #[inline]
-unsafe fn join_cstrings(items: &[std::ffi::CString], sep: &[u8]) -> *mut c_char {
-    unsafe {
-        if items.is_empty() {
-            return xstrdup(c"".as_ptr());
-        }
-        let mut total = sep.len() * (items.len() - 1);
-        for item in items {
-            total += item.to_bytes().len();
-        }
-        let mut out: Vec<u8> = Vec::with_capacity(total);
-        for (i, item) in items.iter().enumerate() {
-            if i > 0 {
-                out.extend_from_slice(sep);
-            }
-            out.extend_from_slice(item.to_bytes());
-        }
-        xmemdupz(out.as_ptr().cast(), out.len()).cast()
+unsafe fn join_cstrings(items: &[std::ffi::CString], sep: &[u8]) -> std::ffi::CString {
+    if items.is_empty() {
+        return std::ffi::CString::default();
     }
+    let mut total = sep.len() * (items.len() - 1);
+    for item in items {
+        total += item.to_bytes().len();
+    }
+    let mut out: Vec<u8> = Vec::with_capacity(total);
+    for (i, item) in items.iter().enumerate() {
+        if i > 0 {
+            out.extend_from_slice(sep);
+        }
+        out.extend_from_slice(item.to_bytes());
+    }
+    crate::memory::cstr_from_bytes(&out)
 }
 
 #[inline]
@@ -1122,10 +1120,8 @@ pub unsafe fn free_all_options() {
         free_tagfunc_option();
         free_findfunc_option();
         fenc_default = None;
-        xfree(P_TERM.cast());
-        P_TERM = ptr::null_mut();
-        xfree(P_TTYTYPE.cast());
-        P_TTYTYPE = ptr::null_mut();
+        P_TERM = None;
+        P_TTYTYPE = None;
     }
 }
 
@@ -1514,10 +1510,10 @@ unsafe fn stropt_handle_keymatch(
             return false;
         }
 
-        let newval_copy = xstrdup(newval);
+        let newval_copy = crate::memory::cstr_to_cstring(newval);
         strcpy(newval, origval);
 
-        let mut item_start = newval_copy;
+        let mut item_start = newval_copy.as_ptr().cast_mut();
         loop {
             let p = vim_strchr(item_start, b',' as c_int);
             let item_len = if p.is_null() {
@@ -1579,7 +1575,6 @@ unsafe fn stropt_handle_keymatch(
             item_start = p.add(1);
         }
 
-        xfree(newval_copy.cast());
         true
     }
 }
@@ -3095,14 +3090,11 @@ pub unsafe fn did_set_paste(_args: *mut optset_T) -> *const c_char {
                     (*buf).b_p_sts_nopaste = (*buf).b_p_sts;
                     (*buf).b_p_ai_nopaste = (*buf).b_p_ai;
                     (*buf).b_p_et_nopaste = (*buf).b_p_et;
-                    if !(*buf).b_p_vsts_nopaste.is_null() {
-                        xfree((*buf).b_p_vsts_nopaste.cast());
-                    }
                     (*buf).b_p_vsts_nopaste =
                         if !(*buf).b_p_vsts.is_null() && (*buf).b_p_vsts != empty_opt {
-                            xstrdup((*buf).b_p_vsts)
+                            Some(crate::memory::cstr_to_cstring((*buf).b_p_vsts))
                         } else {
-                            ptr::null_mut()
+                            None
                         };
                     buf = (*buf).b_next;
                 }
@@ -3116,13 +3108,10 @@ pub unsafe fn did_set_paste(_args: *mut optset_T) -> *const c_char {
                 P_STS_NOPASTE = p_sts;
                 P_TW_NOPASTE = p_tw;
                 P_WM_NOPASTE = p_wm;
-                if !P_VSTS_NOPASTE.is_null() {
-                    xfree(P_VSTS_NOPASTE.cast());
-                }
                 P_VSTS_NOPASTE = if !p_vsts.is_null() && p_vsts != empty_opt {
-                    xstrdup(p_vsts)
+                    Some(crate::memory::cstr_to_cstring(p_vsts))
                 } else {
-                    ptr::null_mut()
+                    None
                 };
             }
 
@@ -3168,11 +3157,10 @@ pub unsafe fn did_set_paste(_args: *mut optset_T) -> *const c_char {
                 if !(*buf).b_p_vsts.is_null() {
                     free_string_option((*buf).b_p_vsts);
                 }
-                (*buf).b_p_vsts = if !(*buf).b_p_vsts_nopaste.is_null() {
-                    xstrdup((*buf).b_p_vsts_nopaste)
-                } else {
-                    empty_opt
-                };
+                (*buf).b_p_vsts = (*buf)
+                    .b_p_vsts_nopaste
+                    .as_ref()
+                    .map_or(empty_opt, |s| xstrdup(s.as_ptr()));
                 if !(*buf).b_p_vsts.is_null() && (*buf).b_p_vsts != empty_opt {
                     tabstop_set((*buf).b_p_vsts, &mut (*buf).b_p_vsts_array, ptr::null());
                 } else {
@@ -3196,11 +3184,10 @@ pub unsafe fn did_set_paste(_args: *mut optset_T) -> *const c_char {
             if !p_vsts.is_null() {
                 free_string_option(p_vsts);
             }
-            p_vsts = if !P_VSTS_NOPASTE.is_null() {
-                xstrdup(P_VSTS_NOPASTE)
-            } else {
-                empty_opt
-            };
+            let vsts_np_ptr = &raw const P_VSTS_NOPASTE;
+            p_vsts = (*vsts_np_ptr)
+                .as_ref()
+                .map_or(empty_opt, |s| xstrdup(s.as_ptr()));
         }
 
         OLD_P_PASTE = p_paste;
@@ -3879,53 +3866,44 @@ pub unsafe fn is_tty_option(name: *const c_char) -> bool {
 /// Get value of TTY option.
 pub unsafe fn get_tty_option(name: *const c_char) -> Object {
     unsafe {
-        let mut value: *mut c_char = ptr::null_mut();
-
         if strequal(name, c"t_Co".as_ptr()) {
             if t_colors <= 1 {
-                value = xstrdup(c"".as_ptr());
+                cstr_to_obj(c"".as_ptr())
             } else {
-                value = xmalloc(NUMBUFLEN).cast::<c_char>();
-                vim_snprintf!(value, NUMBUFLEN, c"%d".as_ptr(), t_colors);
+                let mut value = [0 as c_char; NUMBUFLEN];
+                vim_snprintf!(value.as_mut_ptr(), NUMBUFLEN, c"%d".as_ptr(), t_colors);
+                cstr_to_obj(value.as_ptr())
             }
         } else if strequal(name, c"term".as_ptr()) {
-            value = if !P_TERM.is_null() {
-                xstrdup(P_TERM)
-            } else {
-                xstrdup(c"nvim".as_ptr())
-            };
+            let term_ptr = &raw const P_TERM;
+            cstr_to_obj(
+                (*term_ptr)
+                    .as_ref()
+                    .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
+            )
         } else if strequal(name, c"ttytype".as_ptr()) {
-            value = if !P_TTYTYPE.is_null() {
-                xstrdup(P_TTYTYPE)
-            } else {
-                xstrdup(c"nvim".as_ptr())
-            };
+            let tty_ptr = &raw const P_TTYTYPE;
+            cstr_to_obj(
+                (*tty_ptr)
+                    .as_ref()
+                    .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
+            )
         } else if is_tty_option(name) {
-            value = xstrdup(c"".as_ptr());
-        }
-
-        if value.is_null() {
-            nil_obj()
+            cstr_to_obj(c"".as_ptr())
         } else {
-            cstr_as_obj(value)
+            nil_obj()
         }
     }
 }
 
-pub unsafe fn set_tty_option(name: *const c_char, value: *mut c_char) -> bool {
+pub unsafe fn set_tty_option(name: *const c_char, value: Option<std::ffi::CString>) -> bool {
     unsafe {
         if strequal(name, c"term".as_ptr()) {
-            if !P_TERM.is_null() {
-                xfree(P_TERM.cast());
-            }
             P_TERM = value;
             return true;
         }
 
         if strequal(name, c"ttytype".as_ptr()) {
-            if !P_TTYTYPE.is_null() {
-                xfree(P_TTYTYPE.cast());
-            }
             P_TTYTYPE = value;
             return true;
         }
@@ -5386,36 +5364,42 @@ unsafe fn set_option_varp(opt_idx: OptIndex, varp: *mut c_void, value: Object) {
     }
 }
 
-/// Gets the string form of an option value. Caller must free the result.
-unsafe fn optval_to_cstr(o: Object, quote: bool) -> *mut c_char {
+/// Gets the string form of an option value.
+unsafe fn optval_to_cstr(o: Object, quote: bool) -> std::ffi::CString {
     unsafe {
         match o.obj_type {
-            ObjectType::kObjectTypeUnset | ObjectType::kObjectTypeNil => xstrdup(c"".as_ptr()),
-            ObjectType::kObjectTypeBoolean => xstrdup(if o.data.boolean {
-                c"true".as_ptr()
-            } else {
-                c"false".as_ptr()
-            }),
+            ObjectType::kObjectTypeUnset | ObjectType::kObjectTypeNil => {
+                std::ffi::CString::default()
+            }
+            ObjectType::kObjectTypeBoolean => {
+                if o.data.boolean {
+                    c"true".to_owned()
+                } else {
+                    c"false".to_owned()
+                }
+            }
             ObjectType::kObjectTypeInteger => {
-                let s = format!("{}\0", o.data.integer);
-                xmemdupz(s.as_ptr().cast(), s.len() - 1).cast::<c_char>()
+                let s = format!("{}", o.data.integer);
+                crate::memory::cstr_from_bytes(s.as_bytes())
             }
             ObjectType::kObjectTypeString => {
+                let slice = if o.data.string.data.is_null() || o.data.string.size == 0 {
+                    &[][..]
+                } else {
+                    std::slice::from_raw_parts(o.data.string.data.cast::<u8>(), o.data.string.size)
+                };
                 if !quote {
-                    return xmemdupz(o.data.string.data.cast(), o.data.string.size)
-                        .cast::<c_char>();
+                    return crate::memory::cstr_from_bytes(slice);
                 }
-                let buf = xmalloc(o.data.string.size + 3).cast::<c_char>();
-                vim_snprintf!(
-                    buf,
-                    o.data.string.size + 3,
-                    c"\"%s\"".as_ptr(),
-                    o.data.string.data,
-                );
-                buf
+                let mut out = Vec::with_capacity(slice.len() + 2);
+                out.push(b'"');
+                out.extend_from_slice(slice);
+                out.push(b'"');
+                crate::memory::cstr_from_bytes(&out)
             }
             ObjectType::kObjectTypeLuaRef => {
-                nlua_funcref_str(o.data.luaref, ptr::null_mut(), false)
+                crate::memory::cstr_take(nlua_funcref_str(o.data.luaref, ptr::null_mut(), false))
+                    .unwrap_or_default()
             }
             _ => std::process::abort(),
         }
@@ -5469,8 +5453,8 @@ pub unsafe fn optval_from_obj(
             _ => {}
         }
 
-        let mut str_ptr: *mut c_char = if o.obj_type == ObjectType::kObjectTypeString {
-            xstrdup(o.data.string.data)
+        let mut str_cstr: std::ffi::CString = if o.obj_type == ObjectType::kObjectTypeString {
+            crate::memory::cstr_to_cstring(o.data.string.data)
         } else if o.obj_type == ObjectType::kObjectTypeArray {
             let mut items: Vec<std::ffi::CString> = Vec::with_capacity(o.data.array.size);
             for ai in 0..o.data.array.size {
@@ -5499,16 +5483,20 @@ pub unsafe fn optval_from_obj(
                         items.push(CStr::from_ptr(k.data).to_owned());
                     }
                 } else if v.obj_type == ObjectType::kObjectTypeString {
-                    let kv = concat_str(k.data, c":".as_ptr());
-                    let full = concat_str(kv, v.data.string.data);
-                    items.push(CStr::from_ptr(full).to_owned());
-                    xfree(kv.cast());
-                    xfree(full.cast());
+                    let k_bytes = CStr::from_ptr(k.data).to_bytes();
+                    let v_bytes = CStr::from_ptr(v.data.string.data).to_bytes();
+                    let mut kv = Vec::with_capacity(k_bytes.len() + 1 + v_bytes.len());
+                    kv.extend_from_slice(k_bytes);
+                    kv.push(b':');
+                    kv.extend_from_slice(v_bytes);
+                    items.push(crate::memory::cstr_from_bytes(&kv));
                 } else if v.obj_type == ObjectType::kObjectTypeInteger {
-                    let num_s = format!(":{}\0", v.data.integer);
-                    let kv = concat_str(k.data, num_s.as_ptr().cast());
-                    items.push(CStr::from_ptr(kv).to_owned());
-                    xfree(kv.cast());
+                    let k_bytes = CStr::from_ptr(k.data).to_bytes();
+                    let num_s = format!(":{}", v.data.integer);
+                    let mut kv = Vec::with_capacity(k_bytes.len() + num_s.len());
+                    kv.extend_from_slice(k_bytes);
+                    kv.extend_from_slice(num_s.as_bytes());
+                    items.push(crate::memory::cstr_from_bytes(&kv));
                 } else if v.obj_type == ObjectType::kObjectTypeBoolean
                     || v.obj_type == ObjectType::kObjectTypeNil
                 {
@@ -5526,13 +5514,13 @@ pub unsafe fn optval_from_obj(
             join_cstrings(&items, if is_flaglist && !is_comma { b"" } else { b"," })
         };
 
-        if op == OP_REMOVING && is_map && strchr(str_ptr, b':' as c_int).is_null() {
-            let with_colon = concat_str(str_ptr, c":".as_ptr());
-            xfree(str_ptr.cast());
-            str_ptr = with_colon;
+        if op == OP_REMOVING && is_map && strchr(str_cstr.as_ptr(), b':' as c_int).is_null() {
+            let mut bytes = str_cstr.into_bytes();
+            bytes.push(b':');
+            str_cstr = std::ffi::CString::new(bytes).unwrap();
         }
 
-        cstr_as_obj(str_ptr)
+        cstr_to_obj(str_cstr.as_ptr())
     }
 }
 
@@ -5828,11 +5816,10 @@ pub unsafe fn validate_and_prepare_option_value(args: *mut optset_T) -> *const c
                     (*opt).fullname,
                     type_str,
                     optval_type_name(optval_type(*newval)),
-                    rep,
+                    rep.as_ptr(),
                 );
                 (*errbuf).data.cast_const()
             };
-            xfree(rep.cast());
         } else if (*newval).obj_type == ObjectType::kObjectTypeInteger {
             errmsg = validate_num_option(opt_idx, &raw mut (*newval).data.integer, win, errbuf);
         }
@@ -7571,11 +7558,8 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 } else {
                     (*buf).b_p_vsts_array.clear();
                 }
-                (*buf).b_p_vsts_nopaste = if !P_VSTS_NOPASTE.is_null() {
-                    xstrdup(P_VSTS_NOPASTE)
-                } else {
-                    ptr::null_mut()
-                };
+                let vsts_np_ptr = &raw const P_VSTS_NOPASTE;
+                (*buf).b_p_vsts_nopaste = (*vsts_np_ptr).clone();
                 (*buf).b_p_com = xstrdup(p_com);
                 copy_opt_sctx(buf, kBufOptComments);
                 (*buf).b_p_cms = xstrdup(p_cms);
@@ -8179,8 +8163,9 @@ pub unsafe fn ExpandSettingSubtract(
                 return FAIL;
             }
 
-            let option_copy = xstrdup(option_val);
-            let mut next_val = option_copy;
+            let mut option_copy =
+                crate::memory::cstr_to_cstring(option_val).into_bytes_with_nul();
+            let mut next_val = option_copy.as_mut_ptr().cast::<c_char>();
 
             matches.clear();
 
@@ -8208,7 +8193,6 @@ pub unsafe fn ExpandSettingSubtract(
                 }
             }
 
-            xfree(option_copy.cast());
             return OK;
         } else if (option_flags & kOptFlagFlagList) != 0 {
             if *(*xp).xp_pattern != NUL {
@@ -8271,8 +8255,7 @@ unsafe fn optval_fmt(opt_idx: OptIndex, opt_flags: c_int) {
 
         let o = opt_from_varp(opt_idx, varp);
         let s = optval_to_cstr(o, false);
-        xstrlcpy(namebuf_ptr, s, MAXPATHL);
-        xfree(s.cast());
+        xstrlcpy(namebuf_ptr, s.as_ptr(), MAXPATHL);
         optval_free_read(opt_idx, o);
     }
 }
@@ -8300,12 +8283,12 @@ pub unsafe fn shortmess(x: c_int) -> bool {
 
 pub unsafe fn vimrc_found(fname: *mut c_char, envname: *mut c_char) {
     unsafe {
-        if !fname.is_null() && !envname.is_null() && vim_getenv(envname).is_none() {
-            let p = FullName_save(fname, false);
-            if !p.is_null() {
-                os_setenv(envname, p, 1);
-                xfree(p.cast());
-            }
+        if !fname.is_null()
+            && !envname.is_null()
+            && vim_getenv(envname).is_none()
+            && let Some(p) = FullName_save(fname, false)
+        {
+            os_setenv(envname, p.as_ptr(), 1);
         }
     }
 }

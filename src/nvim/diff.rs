@@ -1275,7 +1275,7 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
             }
             #[cfg(unix)]
             {
-                fullname = cstr_take(crate::path::FullName_save((*eap).arg, false));
+                fullname = crate::path::FullName_save((*eap).arg, false);
                 esc_name = cstr_take(vim_strsave_shellescape(
                     fullname
                         .as_ref()

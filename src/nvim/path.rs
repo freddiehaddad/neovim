@@ -14,7 +14,9 @@ use crate::mbyte::mb_isalpha;
 use crate::mbyte::{mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2len};
 #[cfg(windows)]
 use crate::memory::strchrsub;
-use crate::memory::{cstr_take, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
+#[cfg(not(unix))]
+use crate::memory::cstr_from_bytes;
+use crate::memory::{cstr_to_cstring, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
 use crate::option::copy_option_part;
 use crate::option_vars::*;
 use crate::os::env::{expand_env_esc, expand_env_save_opt, os_getenv_cstr, vim_env_iter};
@@ -160,14 +162,18 @@ pub unsafe fn to_slash(p: *mut c_char) {
 }
 
 #[inline]
-pub unsafe fn to_slash_save(p: *const c_char) -> *mut c_char {
+pub unsafe fn to_slash_save(p: *const c_char) -> Option<std::ffi::CString> {
     #[cfg(windows)]
     unsafe {
         path_to_slash_save(p)
     }
     #[cfg(not(windows))]
     unsafe {
-        xstrdup(p)
+        if p.is_null() {
+            None
+        } else {
+            Some(cstr_to_cstring(p))
+        }
     }
 }
 
@@ -561,9 +567,9 @@ pub unsafe fn add_pathsep(p: *mut c_char) -> bool {
     }
 }
 
-pub unsafe fn FullName_save(fname: *const c_char, force: bool) -> *mut c_char {
+pub unsafe fn FullName_save(fname: *const c_char, force: bool) -> Option<std::ffi::CString> {
     if fname.is_null() {
-        return ptr::null_mut();
+        return None;
     }
 
     unsafe {
@@ -571,11 +577,11 @@ pub unsafe fn FullName_save(fname: *const c_char, force: bool) -> *mut c_char {
         if vim_FullName(fname, buf.as_mut_ptr(), MAXPATHL, force) == FAIL {
             return to_slash_save(fname);
         }
-        xstrdup(buf.as_ptr())
+        Some(cstr_to_cstring(buf.as_ptr()))
     }
 }
 
-pub unsafe fn save_abs_path(name: *const c_char) -> *mut c_char {
+pub unsafe fn save_abs_path(name: *const c_char) -> Option<std::ffi::CString> {
     unsafe {
         if !path_is_absolute(name) {
             return FullName_save(name, true);
@@ -1384,7 +1390,7 @@ pub unsafe fn expand_wildcards_vec(
             let mut i = 0;
             while i < files.len() {
                 let fi = files[i];
-                let ffname = cstr_take(FullName_save(fi, false)).unwrap_or_default();
+                let ffname = FullName_save(fi, false).unwrap_or_default();
                 debug_assert!(!fi.is_null());
                 if match_file_list(p_wig, fi, ffname.as_ptr().cast_mut()) {
                     xfree(fi.cast());
@@ -1522,11 +1528,15 @@ pub unsafe fn path_to_slash(p: *mut c_char) -> *mut c_char {
 }
 
 #[cfg(windows)]
-pub unsafe fn path_to_slash_save(p: *const c_char) -> *mut c_char {
+pub unsafe fn path_to_slash_save(p: *const c_char) -> Option<std::ffi::CString> {
     if p.is_null() {
-        ptr::null_mut()
+        None
     } else {
-        unsafe { path_to_slash(xstrdup(p)) }
+        unsafe {
+            let mut bytes = cstr_to_cstring(p).into_bytes_with_nul();
+            path_to_slash(bytes.as_mut_ptr().cast::<c_char>());
+            Some(std::ffi::CString::from_vec_with_nul(bytes).unwrap())
+        }
     }
 }
 
@@ -1557,10 +1567,7 @@ pub unsafe fn addfile(gap: &mut Vec<*mut c_char>, f: *mut c_char, flags: c_int) 
             return;
         }
 
-        if !isdir
-            && (flags & EW_EXEC) != 0
-            && !os_can_exe(f, ptr::null_mut(), (flags & EW_SHELLCMD) == 0)
-        {
+        if !isdir && (flags & EW_EXEC) != 0 && !os_can_exe(f, None, (flags & EW_SHELLCMD) == 0) {
             return;
         }
 
@@ -1824,13 +1831,16 @@ pub unsafe fn vim_FullName(
     }
 }
 
-pub unsafe fn fix_fname(fname: *const c_char) -> *mut c_char {
+pub unsafe fn fix_fname(fname: *const c_char) -> Option<std::ffi::CString> {
     #[cfg(unix)]
     unsafe {
         FullName_save(fname, true)
     }
     #[cfg(not(unix))]
     unsafe {
+        if fname.is_null() {
+            return None;
+        }
         if !vim_isAbsName(fname)
             || str_contains(fname, b"..")
             || str_contains(fname, b"//")
@@ -1841,9 +1851,12 @@ pub unsafe fn fix_fname(fname: *const c_char) -> *mut c_char {
             return FullName_save(fname, false);
         }
 
-        let res = to_slash_save(fname);
-        path_fix_case(res);
-        res
+        let mut bytes = to_slash_save(fname)?.into_bytes_with_nul();
+        path_fix_case(bytes.as_mut_ptr().cast::<c_char>());
+        let len = CStr::from_ptr(bytes.as_ptr().cast::<c_char>())
+            .to_bytes()
+            .len();
+        Some(cstr_from_bytes(&bytes[..len]))
     }
 }
 
@@ -2325,7 +2338,7 @@ pub unsafe fn path_guess_exepath(argv0: *const c_char, buf: *mut c_char, bufsize
                     xmemcpyz(namebuff.cast(), dir.cast(), dir_len);
                     xstrlcat(namebuff, PATHSEPSTR.as_ptr().cast::<c_char>(), MAXPATHL);
                     xstrlcat(namebuff, argv0, MAXPATHL);
-                    if os_can_exe(namebuff, ptr::null_mut(), false) {
+                    if os_can_exe(namebuff, None, false) {
                         xstrlcpy(buf, namebuff, bufsize);
                         to_slash(buf);
                         return;

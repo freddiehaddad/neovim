@@ -526,7 +526,7 @@ pub unsafe fn os_expand_wildcards(
 
             if !dir
                 && (flags & EW_EXEC) != 0
-                && !os_can_exe(entry, ptr::null_mut(), (flags & EW_SHELLCMD) == 0)
+                && !os_can_exe(entry, None, (flags & EW_SHELLCMD) == 0)
             {
                 continue;
             }

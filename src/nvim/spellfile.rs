@@ -20,7 +20,7 @@ use crate::mbyte::{
     vimconv_T,
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
-use crate::memory::{cstr_take, strequal, xmemcpyz, xstrlcat, xstrlcpy};
+use crate::memory::{strequal, xmemcpyz, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, msg, msg_clr_eos, msg_outtrans_long, msg_puts, msg_start, semsg, smsg, verbose_enter,
     verbose_leave,
@@ -5391,9 +5391,8 @@ unsafe fn init_spellfile() {
 
             xstrlcat(buf, c"/site/spell".as_ptr(), buf_len);
 
-            let mut failed_dir: *mut c_char = ptr::null_mut();
-            if os_mkdir_recurse(buf, 0o755, &raw mut failed_dir, ptr::null_mut()) != 0 {
-                drop(cstr_take(failed_dir));
+            let mut failed_dir: Option<std::ffi::CString> = None;
+            if os_mkdir_recurse(buf, 0o755, &mut failed_dir, None) != 0 {
                 return;
             }
         } else {

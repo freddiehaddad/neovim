@@ -1606,7 +1606,7 @@ pub unsafe fn make_percent_swname(
     name: *const c_char,
 ) -> Option<std::ffi::CString> {
     unsafe {
-        let fname = cstr_take(fix_fname(if !name.is_null() { name } else { c"".as_ptr() }))?;
+        let fname = fix_fname(if !name.is_null() { name } else { c"".as_ptr() })?;
         let mut fname_vec: Vec<c_char> = fname
             .into_bytes_with_nul()
             .into_iter()
@@ -3780,9 +3780,8 @@ unsafe fn findswapname(
         if os_isdir(dir_name) {
             *found_existing_dir = true;
         } else if !*found_existing_dir && **dirp == NUL {
-            let mut failed_dir: *mut c_char = ptr::null_mut();
-            let ret = os_mkdir_recurse(dir_name, 0o755, &raw mut failed_dir, ptr::null_mut());
-            let failed_dir = cstr_take(failed_dir);
+            let mut failed_dir: Option<std::ffi::CString> = None;
+            let ret = os_mkdir_recurse(dir_name, 0o755, &mut failed_dir, None);
             if ret != 0 {
                 semsg!(
                     tr(c"E303: Unable to create directory \"%s\" for swap file, recovery impossible: %s"),

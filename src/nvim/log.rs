@@ -7,7 +7,7 @@ use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str};
 use crate::event::r#loop::{uv_mutex_lock, uv_mutex_unlock, uv_strerror};
 use crate::fileio::{EOF, FILE, fclose, fflush, fopen, fprintf, fputc};
 use crate::globals::*;
-use crate::memory::{cstr_take, entered_free_all_mem, xstrlcpy};
+use crate::memory::{entered_free_all_mem, xstrlcpy};
 use crate::message::msg_schedule_semsg;
 use crate::os::env::{expand_env, os_get_pid, os_getenv_buf, os_setenv};
 use crate::os::fs::{os_isdir, os_mkdir_recurse};
@@ -165,18 +165,13 @@ unsafe fn log_path_init() {
                 c"logs".as_ptr(),
                 true,
             );
-            let mut failed_dir: *mut c_char = ptr::null_mut();
+            let mut failed_dir: Option<std::ffi::CString> = None;
             let mut log_dir_failure: c_int = 0;
             if !os_isdir(loghome.as_ptr()) {
-                log_dir_failure = os_mkdir_recurse(
-                    loghome.as_ptr(),
-                    0o700,
-                    &raw mut failed_dir,
-                    ptr::null_mut(),
-                );
+                log_dir_failure =
+                    os_mkdir_recurse(loghome.as_ptr(), 0o700, &mut failed_dir, None);
             }
             drop(loghome);
-            let failed_dir = cstr_take(failed_dir);
 
             let defaultpath = stdpaths_user_state_subpath(
                 c"logs/nvim.log".as_ptr(),

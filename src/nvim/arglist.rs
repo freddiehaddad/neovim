@@ -660,7 +660,7 @@ pub unsafe fn do_argfile(eap: *mut exarg_T, argn: c_int) {
         } else {
             let mut other = true;
             if buf_hide(curbuf) {
-                let p = cstr_take(fix_fname(alist_name(arglist().add(argn as usize))));
+                let p = fix_fname(alist_name(arglist().add(argn as usize)));
                 other = otherfile(
                     p.as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
@@ -733,20 +733,15 @@ pub unsafe fn ex_argdedupe(_eap: *mut exarg_T) {
     unsafe {
         let mut i: c_int = 0;
         while i < argcount() {
-            let first_fullname = cstr_take(FullName_save(
-                (*arglist().add(i as usize)).fname_ptr(),
-                false,
-            ));
+            let first_fullname = FullName_save((*arglist().add(i as usize)).fname_ptr(), false);
             let first_ptr = first_fullname
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
             let mut j = i + 1;
             while j < argcount() {
-                let second_fullname = cstr_take(FullName_save(
-                    (*arglist().add(j as usize)).fname_ptr(),
-                    false,
-                ));
+                let second_fullname =
+                    FullName_save((*arglist().add(j as usize)).fname_ptr(), false);
                 let second_ptr = second_fullname
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());

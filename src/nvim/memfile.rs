@@ -6,7 +6,7 @@ use crate::event::r#loop::loop_recursive_ptr;
 use crate::fileio::{SEEK_END, SEEK_SET, close, off_T, read_eintr, vim_lseek, write_eintr};
 use crate::globals::*;
 use crate::memline::{MFS_FLUSH, ml_get_buf, ml_open_file};
-use crate::memory::cstr_take;
+
 use crate::message::{emsg, iemsg, semsg};
 use crate::os::fs::{
     FileInfo, O_CREAT, O_EXCL, O_NOFOLLOW, O_RDWR, O_TRUNC, os_fileinfo_blocksize, os_fileinfo_fd,
@@ -616,7 +616,7 @@ pub unsafe fn mf_free_fnames(mfp: *mut memfile_T) {
 /// Set the simple file name and the full file name of memfile's swapfile.
 pub unsafe fn mf_set_fnames(mfp: *mut memfile_T, fname: std::ffi::CString) {
     unsafe {
-        (*mfp).mf_ffname = cstr_take(FullName_save(fname.as_ptr(), false));
+        (*mfp).mf_ffname = FullName_save(fname.as_ptr(), false);
         (*mfp).mf_fname = Some(fname);
     }
 }
