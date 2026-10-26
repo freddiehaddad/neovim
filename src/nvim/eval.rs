@@ -1162,9 +1162,10 @@ unsafe fn get_lval_dict_item(
                 return GLV_FAIL;
             }
             if len == -1 {
-                (*lp).ll_newkey = xstrdup(key);
+                (*lp).ll_newkey = Some(CStr::from_ptr(key).to_owned());
             } else {
-                (*lp).ll_newkey = xmemdupz(key.cast(), len as usize).cast();
+                let slice = std::slice::from_raw_parts(key.cast::<u8>(), len as usize);
+                (*lp).ll_newkey = Some(std::ffi::CString::new(slice).unwrap());
             }
             *key_end = p;
             return GLV_STOP;
@@ -1503,10 +1504,10 @@ pub unsafe fn get_lval(
                 return ptr::null_mut();
             }
 
-            (*lp).ll_exp_name =
-                make_expanded_name(name, expr_start.cast_mut(), expr_end.cast_mut(), p);
-            (*lp).ll_name = (*lp).ll_exp_name;
-            if (*lp).ll_exp_name.is_null() {
+            let raw_exp = make_expanded_name(name, expr_start.cast_mut(), expr_end.cast_mut(), p);
+            if raw_exp.is_null() {
+                (*lp).ll_exp_name = None;
+                (*lp).ll_name = ptr::null();
                 if !aborting() && !quiet {
                     {
                         emsg_severe = true;
@@ -1516,7 +1517,11 @@ pub unsafe fn get_lval(
                 }
                 (*lp).ll_name_len = 0;
             } else {
-                (*lp).ll_name_len = strlen((*lp).ll_name);
+                let cstr = CStr::from_ptr(raw_exp).to_owned();
+                xfree(raw_exp.cast());
+                (*lp).ll_name_len = cstr.as_bytes().len();
+                (*lp).ll_exp_name = Some(cstr);
+                (*lp).ll_name = (*lp).ll_exp_name.as_ref().unwrap().as_ptr();
             }
         } else {
             (*lp).ll_name = name;
@@ -1652,7 +1657,7 @@ pub unsafe fn set_var_lval(
             }
             *endp = cc;
         } else if value_check_lock(
-            if (*lp).ll_newkey.is_null() {
+            if (*lp).ll_newkey.is_none() {
                 (*(*lp).ll_tv).v_lock
             } else {
                 (*(*(*lp).ll_tv).vval.v_dict).dv_lock
@@ -1687,17 +1692,17 @@ pub unsafe fn set_var_lval(
             }
 
             let mut skip_assign = false;
-            if !(*lp).ll_newkey.is_null() {
+            if let Some(ref newkey) = (*lp).ll_newkey {
+                let newkey_ptr = newkey.as_ptr();
                 if !op.is_null() && *op != b'=' as c_char {
-                    semsg!(gettext((&raw const e_dictkey).cast()), (*lp).ll_newkey);
+                    semsg!(gettext((&raw const e_dictkey).cast()), newkey_ptr);
                     return;
                 }
-                if tv_dict_wrong_func_name((*(*lp).ll_tv).vval.v_dict, rettv, (*lp).ll_newkey) != 0
-                {
+                if tv_dict_wrong_func_name((*(*lp).ll_tv).vval.v_dict, rettv, newkey_ptr) != 0 {
                     return;
                 }
 
-                let di = tv_dict_item_alloc((*lp).ll_newkey);
+                let di = tv_dict_item_alloc(newkey_ptr);
                 if tv_dict_add((*(*lp).ll_tv).vval.v_dict, di) == FAIL {
                     tv_dict_item_free(di);
                     return;
@@ -1728,8 +1733,8 @@ pub unsafe fn set_var_lval(
 
             if watched {
                 if oldtv.v_type == VarType::VAR_UNKNOWN {
-                    debug_assert!(!(*lp).ll_newkey.is_null());
-                    tv_dict_watcher_notify(dict, (*lp).ll_newkey, (*lp).ll_tv, ptr::null_mut());
+                    let newkey_ptr = (*lp).ll_newkey.as_ref().unwrap().as_ptr();
+                    tv_dict_watcher_notify(dict, newkey_ptr, (*lp).ll_tv, ptr::null_mut());
                 } else {
                     let di_ = (*lp).ll_di;
                     let key_ptr = (*di_).di_key.as_ptr();

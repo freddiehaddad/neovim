@@ -56,7 +56,7 @@ use crate::marktree::{
     marktree_itr_current, marktree_itr_get, marktree_itr_next, mt_end,
 };
 use crate::memline::{dec, inc, ml_get_len, ml_region_text};
-use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xmemdupz, xstrdup};
+use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xstrdup};
 use crate::menu::save_state_T;
 use crate::r#move::{
     restore_viewstate, save_viewstate, set_topline, update_curswant, update_topline,
@@ -368,7 +368,13 @@ unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
         let (atom_keys, atom_type, atom_cmd, atom_cmd2, atom_remap) = {
             let ga = &raw const g_atoms;
             let a = &(*ga).as_slice()[atomidx];
-            (a.keys, a.r#type, a.spec.cmd, a.spec.cmd2, a.remap)
+            (
+                a.keys.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
+                a.r#type,
+                a.spec.cmd,
+                a.spec.cmd2,
+                a.remap,
+            )
         };
 
         if handle_get_buffer(ctx.buf) != curbuf {
@@ -693,12 +699,12 @@ unsafe fn mc_ins_restore_state(saved: *const McInsSaved) {
     }
 }
 
-unsafe fn mc_ins_span_push(keys: *mut c_char, text: *mut c_char) {
+unsafe fn mc_ins_span_push(keys: std::ffi::CString, text: Option<std::ffi::CString>) {
     unsafe {
         let cascade = mc_buf_has_cursors(curbuf);
         let mut atom = CmdAtom::new();
         atom.r#type = kAInsertSpan;
-        atom.keys = keys;
+        atom.keys = Some(keys);
         atom.text = text;
         atom.origin = mc_ins_span.origin;
         atom_push_raw(cascade, &mut atom);
@@ -966,8 +972,8 @@ pub unsafe fn mc_ins_cascade() {
                 ));
                 keys.push(ESC);
                 mc_ins_span.done_len = ins.size;
-                let keys_ptr = xmemdupz(keys.as_ptr().cast(), keys.len()).cast();
-                mc_ins_span_push(keys_ptr, ptr::null_mut());
+                let keys_slice = std::slice::from_raw_parts(keys.as_ptr().cast::<u8>(), keys.len());
+                mc_ins_span_push(std::ffi::CString::new(keys_slice).unwrap(), None);
                 mc_ins_preview_rebase();
             }
         } else if !ins.data.is_null() && ins.size < mc_ins_span.done_len {
@@ -1043,13 +1049,17 @@ unsafe fn mc_ins_span_flush(ins: *const NvimString, commit: bool) {
             keys.push(ESC);
         }
         let text = if commit && dlen > 1 {
-            xmemdupz((*ins).data.add(mc_ins_span.done_len).cast(), dlen - 1).cast()
+            let text_slice = std::slice::from_raw_parts(
+                (*ins).data.add(mc_ins_span.done_len).cast::<u8>(),
+                dlen - 1,
+            );
+            Some(std::ffi::CString::new(text_slice).unwrap())
         } else {
-            ptr::null_mut()
+            None
         };
         mc_ins_span.done_len = (*ins).size;
-        let keys_ptr = xmemdupz(keys.as_ptr().cast(), keys.len()).cast();
-        mc_ins_span_push(keys_ptr, text);
+        let keys_slice = std::slice::from_raw_parts(keys.as_ptr().cast::<u8>(), keys.len());
+        mc_ins_span_push(std::ffi::CString::new(keys_slice).unwrap(), text);
         if !commit {
             mc_ins_preview_rebase();
         }

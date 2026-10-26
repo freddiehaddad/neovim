@@ -4414,8 +4414,8 @@ pub unsafe fn f_islocked(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                 }
             } else if lv.ll_range {
                 emsg(gettext(c"E786: Range not allowed".as_ptr()));
-            } else if !lv.ll_newkey.is_null() {
-                semsg!(gettext(e_dictkey.as_ptr()), lv.ll_newkey);
+            } else if let Some(ref newkey) = lv.ll_newkey {
+                semsg!(gettext(e_dictkey.as_ptr()), newkey.as_ptr());
             } else if !lv.ll_list.is_null() {
                 (*rettv).vval.v_number =
                     varnumber_T::from(tv_islocked(&raw const (*lv.ll_li).li_tv));

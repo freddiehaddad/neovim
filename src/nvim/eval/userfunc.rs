@@ -150,10 +150,10 @@ pub(crate) const MSG_BUF_LEN: usize = 480;
 const MSG_BUF_CLEN: c_int = (MSG_BUF_LEN / 6) as c_int;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct funcdict_T {
     pub fd_dict: *mut dict_T,
-    pub fd_newkey: *mut c_char,
+    pub fd_newkey: Option<std::ffi::CString>,
     pub fd_di: *mut dictitem_T,
 }
 
@@ -161,7 +161,7 @@ impl funcdict_T {
     pub const fn new() -> Self {
         Self {
             fd_dict: ptr::null_mut(),
-            fd_newkey: ptr::null_mut(),
+            fd_newkey: None,
             fd_di: ptr::null_mut(),
         }
     }
@@ -2230,11 +2230,7 @@ pub unsafe fn trans_function_name(
         let mut lv: lval_T = lval_T::new();
 
         if !fdp.is_null() {
-            *fdp = funcdict_T {
-                fd_dict: ptr::null_mut(),
-                fd_newkey: ptr::null_mut(),
-                fd_di: ptr::null_mut(),
-            };
+            *fdp = funcdict_T::new();
         }
         let mut start: *const c_char = *pp;
 
@@ -2283,8 +2279,7 @@ pub unsafe fn trans_function_name(
         if !lv.ll_tv.is_null() {
             if !fdp.is_null() {
                 (*fdp).fd_dict = lv.ll_dict;
-                (*fdp).fd_newkey = lv.ll_newkey;
-                lv.ll_newkey = ptr::null_mut();
+                (*fdp).fd_newkey = lv.ll_newkey.take();
                 (*fdp).fd_di = lv.ll_di;
             }
             if (*lv.ll_tv).v_type == VarType::VAR_FUNC && !(*lv.ll_tv).vval.v_string.is_null() {
@@ -2313,7 +2308,7 @@ pub unsafe fn trans_function_name(
             } else {
                 if !skip
                     && (flags & TFN_QUIET) == 0
-                    && (fdp.is_null() || lv.ll_dict.is_null() || (*fdp).fd_newkey.is_null())
+                    && (fdp.is_null() || lv.ll_dict.is_null() || (*fdp).fd_newkey.is_none())
                 {
                     emsg(gettext(E_FUNCREF.as_ptr()));
                 } else {
@@ -2329,16 +2324,17 @@ pub unsafe fn trans_function_name(
             return name;
         }
 
-        if !lv.ll_exp_name.is_null() {
-            len = strlen(lv.ll_exp_name) as c_int;
+        if let Some(ref exp_name) = lv.ll_exp_name {
+            let exp_ptr = exp_name.as_ptr().cast_mut();
+            len = exp_name.as_bytes().len() as c_int;
             name = deref_func_name(
-                lv.ll_exp_name,
+                exp_ptr,
                 &raw mut len,
                 partial,
                 (flags & TFN_NO_AUTOLOAD) != 0,
                 ptr::null_mut(),
             );
-            if name == lv.ll_exp_name {
+            if name == exp_ptr {
                 name = ptr::null_mut();
             }
         } else if (flags & TFN_NO_DEREF) == 0 {
@@ -2367,10 +2363,10 @@ pub unsafe fn trans_function_name(
             return name;
         }
 
-        if !lv.ll_exp_name.is_null() {
-            len = strlen(lv.ll_exp_name) as c_int;
+        if let Some(ref exp_name) = lv.ll_exp_name {
+            len = exp_name.as_bytes().len() as c_int;
             if lead <= 2
-                && lv.ll_name == lv.ll_exp_name.cast_const()
+                && lv.ll_name == exp_name.as_ptr()
                 && lv.ll_name_len >= 2
                 && strncmp(lv.ll_name, c"s:".as_ptr(), 2) == 0
             {
@@ -2395,7 +2391,11 @@ pub unsafe fn trans_function_name(
             lead = 0;
         } else if lead > 0 {
             lead = 3;
-            if (!lv.ll_exp_name.is_null() && eval_fname_sid(lv.ll_exp_name)) || eval_fname_sid(*pp)
+            if lv
+                .ll_exp_name
+                .as_ref()
+                .is_some_and(|s| eval_fname_sid(s.as_ptr()))
+                || eval_fname_sid(*pp)
             {
                 if current_sctx.sc_sid <= 0 {
                     emsg(gettext(e_usingsid.as_ptr()));
@@ -2499,11 +2499,7 @@ pub unsafe fn save_function_name(
             getdigits(&raw mut p, false, 0);
             saved = xmemdupz((*name).cast(), p.offset_from(*name) as usize).cast();
             if !fudi.is_null() {
-                *fudi = funcdict_T {
-                    fd_dict: ptr::null_mut(),
-                    fd_newkey: ptr::null_mut(),
-                    fd_di: ptr::null_mut(),
-                };
+                *fudi = funcdict_T::new();
             }
         } else {
             saved = trans_function_name(&raw mut p, skip, flags, fudi, ptr::null_mut());
@@ -2966,10 +2962,9 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
         let paren = !vim_strchr(p, b'(' as c_int).is_null();
         if name.is_null() && (fudi.fd_dict.is_null() || !paren) && (*eap).skip == 0 {
             if !aborting() {
-                if !fudi.fd_newkey.is_null() {
-                    semsg!(gettext(e_dictkey.as_ptr()), fudi.fd_newkey);
+                if let Some(ref newkey) = fudi.fd_newkey {
+                    semsg!(gettext(e_dictkey.as_ptr()), newkey.as_ptr());
                 }
-                xfree(fudi.fd_newkey.cast());
                 return;
             }
             (*eap).skip = 1;
@@ -2981,7 +2976,6 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
         macro_rules! ret_free {
             () => {{
                 xfree(line_to_free.cast());
-                xfree(fudi.fd_newkey.cast());
                 xfree(name.cast());
                 did_emsg |= saved_did_emsg;
                 if show_block {
@@ -3037,14 +3031,18 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
         p = skipwhite(p.add(1));
 
         if (*eap).skip == 0 {
+            let fudi_newkey_ptr = fudi
+                .fd_newkey
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             let arg = if !name.is_null() {
                 name
             } else {
-                fudi.fd_newkey
+                fudi_newkey_ptr
             };
             if !arg.is_null() && (fudi.fd_di.is_null() || !tv_is_func((*fudi.fd_di).di_tv)) {
                 let mut name_base = arg;
-                if arg != fudi.fd_newkey {
+                if arg != fudi_newkey_ptr {
                     if *arg as u8 == K_SPECIAL {
                         name_base = vim_strchr(arg, b'_' as c_int);
                         if name_base.is_null() {
@@ -3126,7 +3124,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
 
         if KeyTyped {
             if (*eap).skip == 0 && (*eap).forceit == 0 {
-                if !fudi.fd_dict.is_null() && fudi.fd_newkey.is_null() {
+                if !fudi.fd_dict.is_null() && fudi.fd_newkey.is_none() {
                     emsg(gettext(E_FUNCDICT.as_ptr()));
                 } else if !name.is_null() && !find_func(name).is_null() {
                     emsg_funcname(E_FUNCEXTS.as_ptr(), name);
@@ -3204,7 +3202,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
             let mut numbuf = [0 as c_char; NUMBUFLEN];
 
             fp = ptr::null_mut();
-            if fudi.fd_newkey.is_null() && (*eap).forceit == 0 {
+            if fudi.fd_newkey.is_none() && (*eap).forceit == 0 {
                 emsg(gettext(E_FUNCDICT.as_ptr()));
                 erret!();
             }
@@ -3259,7 +3257,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                 let func_name = xmemdupz(name.cast(), namelen).cast::<c_char>();
 
                 if fudi.fd_di.is_null() {
-                    fudi.fd_di = tv_dict_item_alloc(fudi.fd_newkey);
+                    fudi.fd_di = tv_dict_item_alloc(fudi.fd_newkey.as_ref().unwrap().as_ptr());
                     if tv_dict_add(fudi.fd_dict, fudi.fd_di) == FAIL {
                         crate::eval::typval::tv_dict_item_free(fudi.fd_di);
                         xfree(func_name.cast());
@@ -3417,7 +3415,6 @@ pub unsafe fn ex_delfunction(eap: *mut exarg_T) {
             &raw mut fudi,
             ptr::null_mut(),
         );
-        xfree(fudi.fd_newkey.cast());
         if name.is_null() {
             if !fudi.fd_dict.is_null() && (*eap).skip == 0 {
                 emsg(gettext(E_FUNCREF.as_ptr()));
@@ -3869,9 +3866,8 @@ pub unsafe fn ex_call(eap: *mut exarg_T) {
             &raw mut fudi,
             &raw mut partial,
         );
-        if !fudi.fd_newkey.is_null() {
-            semsg!(gettext(e_dictkey.as_ptr()), fudi.fd_newkey);
-            xfree(fudi.fd_newkey.cast());
+        if let Some(ref newkey) = fudi.fd_newkey {
+            semsg!(gettext(e_dictkey.as_ptr()), newkey.as_ptr());
         }
         if tofree.is_null() {
             return;

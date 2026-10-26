@@ -125,7 +125,7 @@ impl Drop for evalarg_T {
 pub struct lval_T {
     pub ll_name: *const c_char,
     pub ll_name_len: usize,
-    pub ll_exp_name: *mut c_char,
+    pub ll_exp_name: Option<std::ffi::CString>,
     pub ll_tv: *mut typval_T,
     pub ll_li: *mut listitem_T,
     pub ll_list: *mut list_T,
@@ -135,7 +135,7 @@ pub struct lval_T {
     pub ll_n2: c_int,
     pub ll_dict: *mut dict_T,
     pub ll_di: *mut dictitem_T,
-    pub ll_newkey: *mut c_char,
+    pub ll_newkey: Option<std::ffi::CString>,
     pub ll_blob: *mut blob_T,
 }
 
@@ -144,7 +144,7 @@ impl lval_T {
         Self {
             ll_name: ptr::null(),
             ll_name_len: 0,
-            ll_exp_name: ptr::null_mut(),
+            ll_exp_name: None,
             ll_tv: ptr::null_mut(),
             ll_li: ptr::null_mut(),
             ll_list: ptr::null_mut(),
@@ -154,7 +154,7 @@ impl lval_T {
             ll_n2: 0,
             ll_dict: ptr::null_mut(),
             ll_di: ptr::null_mut(),
-            ll_newkey: ptr::null_mut(),
+            ll_newkey: None,
             ll_blob: ptr::null_mut(),
         }
     }
@@ -164,15 +164,6 @@ impl Default for lval_T {
     #[inline]
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Drop for lval_T {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.ll_exp_name.cast());
-            xfree(self.ll_newkey.cast());
-        }
     }
 }
 
