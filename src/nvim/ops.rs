@@ -3503,16 +3503,12 @@ unsafe fn op_function(oap: *const oparg_T) {
                 typval_T {
                     v_type: VarType::VAR_STRING,
                     v_lock: 0,
-                    vval: TypvalVval {
-                        v_string: mode_str.cast_mut(),
-                    },
+                    vval: TypvalVval::String(mode_str.cast_mut()),
                 },
                 typval_T {
                     v_type: VarType::VAR_UNKNOWN,
                     v_lock: 0,
-                    vval: TypvalVval {
-                        v_string: ptr::null_mut(),
-                    },
+                    vval: TypvalVval::String(ptr::null_mut()),
                 },
             ];
 

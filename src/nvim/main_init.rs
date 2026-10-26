@@ -611,7 +611,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
         if recoverymode && fname.is_null() {
             let mut items_tv = crate::eval::typval::typval_T::new();
             tv_list_alloc_ret(&raw mut items_tv, 0);
-            recover_names(ptr::null_mut(), false, items_tv.vval.v_list);
+            recover_names(ptr::null_mut(), false, items_tv.vval.v_list());
             let mut lua_args = [items_tv, crate::eval::typval::typval_T::new()];
             nlua_call_typval(
                 c"vim._core.swapfile".as_ptr(),

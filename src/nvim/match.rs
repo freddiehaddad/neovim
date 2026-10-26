@@ -226,7 +226,7 @@ unsafe fn match_add(
                 let mut error = false;
 
                 if (*li).li_tv.v_type == VarType::VAR_LIST {
-                    let subl = (*li).li_tv.vval.v_list;
+                    let subl = (*li).li_tv.vval.v_list();
                     let mut subli = tv_list_first(subl);
                     if subli.is_null() {
                         semsg!(
@@ -275,11 +275,11 @@ unsafe fn match_add(
                     m.mit_pos[i].col = col;
                     m.mit_pos[i].len = len;
                 } else if (*li).li_tv.v_type == VarType::VAR_NUMBER {
-                    if (*li).li_tv.vval.v_number <= 0 {
+                    if (*li).li_tv.vval.v_number() <= 0 {
                         li = (*li).li_next;
                         continue;
                     }
-                    m.mit_pos[i].lnum = (*li).li_tv.vval.v_number as linenr_T;
+                    m.mit_pos[i].lnum = (*li).li_tv.vval.v_number() as linenr_T;
                     m.mit_pos[i].col = 0;
                     m.mit_pos[i].len = 0;
                 } else {
@@ -951,12 +951,12 @@ unsafe fn matchadd_dict_arg(
             return FAIL;
         }
 
-        let di = tv_dict_find((*tv).vval.v_dict, c"conceal".as_ptr(), 7);
+        let di = tv_dict_find((*tv).vval.v_dict(), c"conceal".as_ptr(), 7);
         if !di.is_null() {
             *conceal_char = tv_get_string(&raw const (*di).di_tv);
         }
 
-        let di = tv_dict_find((*tv).vval.v_dict, c"window".as_ptr(), 6);
+        let di = tv_dict_find((*tv).vval.v_dict(), c"window".as_ptr(), 6);
         if di.is_null() {
             return OK;
         }
@@ -1033,7 +1033,7 @@ pub unsafe fn f_getmatches(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
                 tv_dict_add_str_len(dict, c"conceal".as_ptr(), 7, buf.as_ptr(), buflen);
             }
 
-            tv_list_append_dict((*rettv).vval.v_list, dict);
+            tv_list_append_dict((*rettv).vval.v_list(), dict);
         }
     }
 }
@@ -1044,7 +1044,7 @@ pub unsafe fn f_setmatches(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
         let mut s: *mut list_T = ptr::null_mut();
         let win = get_optional_window(argvars, 1);
 
-        (*rettv).vval.v_number = -1;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
         if (*argvars).v_type != VarType::VAR_LIST {
             emsg(gettext((&raw const e_listreq).cast()));
             return;
@@ -1053,11 +1053,11 @@ pub unsafe fn f_setmatches(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
             return;
         }
 
-        let l = (*argvars).vval.v_list;
+        let l = (*argvars).vval.v_list();
         let mut li_idx: c_int = 0;
         let mut li = tv_list_first(l);
         while !li.is_null() {
-            if (*li).li_tv.v_type != VarType::VAR_DICT || (*li).li_tv.vval.v_dict.is_null() {
+            if (*li).li_tv.v_type != VarType::VAR_DICT || (*li).li_tv.vval.v_dict().is_null() {
                 semsg!(
                     gettext(
                         c"E474: List item %d is either not a dictionary or an empty one".as_ptr(),
@@ -1066,7 +1066,7 @@ pub unsafe fn f_setmatches(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
                 );
                 return;
             }
-            let d = (*li).li_tv.vval.v_dict;
+            let d = (*li).li_tv.vval.v_dict();
             if tv_dict_find(d, c"group".as_ptr(), 5).is_null()
                 || (tv_dict_find(d, c"pattern".as_ptr(), 7).is_null()
                     && tv_dict_find(d, c"pos1".as_ptr(), 4).is_null())
@@ -1088,7 +1088,7 @@ pub unsafe fn f_setmatches(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
         let mut li = tv_list_first(l);
         while !li.is_null() {
             let mut i: c_int = 0;
-            let d = (*li).li_tv.vval.v_dict;
+            let d = (*li).li_tv.vval.v_dict();
             let di = tv_dict_find(d, c"pattern".as_ptr(), 7);
             if di.is_null() {
                 if s.is_null() {
@@ -1139,7 +1139,7 @@ pub unsafe fn f_setmatches(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
             li = (*li).li_next;
         }
         if !match_add_failed {
-            (*rettv).vval.v_number = 0;
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
         }
     }
 }
@@ -1157,7 +1157,7 @@ pub unsafe fn f_matchadd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         let mut conceal_char: *const c_char = ptr::null();
         let mut win = curwin;
 
-        (*rettv).vval.v_number = -1;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
 
         if grp.is_null() || pat.is_null() {
             return;
@@ -1185,15 +1185,14 @@ pub unsafe fn f_matchadd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             return;
         }
 
-        (*rettv).vval.v_number =
-            match_add(win, grp, pat, prio, id, ptr::null_mut(), conceal_char) as varnumber_T;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(match_add(win, grp, pat, prio, id, ptr::null_mut(), conceal_char) as varnumber_T);
     }
 }
 
 /// `matchaddpos()` function (`f_matchaddpos`).
 pub unsafe fn f_matchaddpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_number = -1;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
 
         let mut buf = [0 as c_char; NUMBUFLEN];
         let group = tv_get_string_buf_chk(argvars, buf.as_mut_ptr());
@@ -1209,7 +1208,7 @@ pub unsafe fn f_matchaddpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             return;
         }
 
-        let l = (*argvars.add(1)).vval.v_list;
+        let l = (*argvars.add(1)).vval.v_list();
         if tv_list_len(l) == 0 {
             return;
         }
@@ -1244,8 +1243,7 @@ pub unsafe fn f_matchaddpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             return;
         }
 
-        (*rettv).vval.v_number =
-            match_add(win, group, ptr::null(), prio, id, l, conceal_char) as varnumber_T;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(match_add(win, group, ptr::null(), prio, id, l, conceal_char) as varnumber_T);
     }
 }
 
@@ -1259,17 +1257,17 @@ pub unsafe fn f_matcharg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         if (1..=3).contains(&id) {
             let m = get_match(curwin, id);
             if !m.is_null() {
-                tv_list_append_string((*rettv).vval.v_list, syn_id2name((*m).mit_hlg_id), -1);
+                tv_list_append_string((*rettv).vval.v_list(), syn_id2name((*m).mit_hlg_id), -1);
                 tv_list_append_string(
-                    (*rettv).vval.v_list,
+                    (*rettv).vval.v_list(),
                     (*m).mit_pattern
                         .as_ref()
                         .map_or(ptr::null(), |p| p.as_ptr()),
                     -1,
                 );
             } else {
-                tv_list_append_string((*rettv).vval.v_list, ptr::null(), 0);
-                tv_list_append_string((*rettv).vval.v_list, ptr::null(), 0);
+                tv_list_append_string((*rettv).vval.v_list(), ptr::null(), 0);
+                tv_list_append_string((*rettv).vval.v_list(), ptr::null(), 0);
             }
         }
     }
@@ -1279,11 +1277,11 @@ pub unsafe fn f_matcharg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 pub unsafe fn f_matchdelete(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let win = get_optional_window(argvars, 1);
-        (*rettv).vval.v_number = if win.is_null() {
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(if win.is_null() {
             -1
         } else {
             match_delete(win, tv_get_number(argvars) as c_int, true) as varnumber_T
-        };
+        });
     }
 }
 

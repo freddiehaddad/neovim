@@ -592,7 +592,7 @@ unsafe fn select_spell_suggestion(sug: *mut suginfo_T) {
         let mut items_tv = typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,
-            vval: TypvalVval { v_number: 0 },
+            vval: TypvalVval::Number(0),
         };
         tv_list_alloc_ret(&raw mut items_tv, (*sug).su_ga.len() as isize);
         for stp in &(*sug).su_ga {
@@ -631,9 +631,9 @@ unsafe fn select_spell_suggestion(sug: *mut suginfo_T) {
             let mut item = typval_T {
                 v_type: VarType::VAR_DICT,
                 v_lock: 0,
-                vval: TypvalVval { v_dict: d },
+                vval: TypvalVval::Dict(d),
             };
-            tv_list_append_tv(items_tv.vval.v_list, &raw mut item);
+            tv_list_append_tv(items_tv.vval.v_list(), &raw mut item);
         }
         let bad_cstr = CString::new(std::slice::from_raw_parts(
             (*sug).su_badptr.cast::<u8>(),
@@ -643,7 +643,7 @@ unsafe fn select_spell_suggestion(sug: *mut suginfo_T) {
         let mut bad_tv = typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,
-            vval: TypvalVval { v_number: 0 },
+            vval: TypvalVval::Number(0),
         };
         tv_set_string(&raw mut bad_tv, bad_cstr.as_ptr());
         let mut lua_args = [
@@ -652,7 +652,7 @@ unsafe fn select_spell_suggestion(sug: *mut suginfo_T) {
             typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
-                vval: TypvalVval { v_number: 0 },
+                vval: TypvalVval::Number(0),
             },
         ];
         nlua_call_typval(
@@ -976,7 +976,7 @@ unsafe fn spell_suggest_expr(su: *mut suginfo_T, expr: *mut c_char) {
             let mut li: *mut listitem_T = (*list).lv_first;
             while !li.is_null() {
                 if (*li).li_tv.v_type == VarType::VAR_LIST {
-                    let score = get_spellword((*li).li_tv.vval.v_list, &raw mut p);
+                    let score = get_spellword((*li).li_tv.vval.v_list(), &raw mut p);
                     if score >= 0 && score <= (*su).su_maxscore {
                         add_suggestion(
                             su,

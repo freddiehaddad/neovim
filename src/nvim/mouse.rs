@@ -314,28 +314,22 @@ unsafe fn call_click_def_func(
             typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_FIXED,
-                vval: TypvalVval {
-                    v_number: varnumber_T::from((*click_defs.add(col as usize)).tabnr),
-                },
+                vval: TypvalVval::Number(varnumber_T::from((*click_defs.add(col as usize)).tabnr)),
             },
             typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_FIXED,
-                vval: TypvalVval { v_number: clicks },
+                vval: TypvalVval::Number(clicks),
             },
             typval_T {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_FIXED,
-                vval: TypvalVval {
-                    v_string: btn_str.cast_mut(),
-                },
+                vval: TypvalVval::String(btn_str.cast_mut()),
             },
             typval_T {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_FIXED,
-                vval: TypvalVval {
-                    v_string: mod_str.as_mut_ptr(),
-                },
+                vval: TypvalVval::String(mod_str.as_mut_ptr()),
             },
         ];
 
@@ -2178,7 +2172,7 @@ pub unsafe fn f_getmousepos(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr
         let mut coladd: colnr_T = 0;
 
         tv_dict_alloc_ret(rettv);
-        let d = (*rettv).vval.v_dict;
+        let d = (*rettv).vval.v_dict();
 
         tv_dict_add_nr(
             d,

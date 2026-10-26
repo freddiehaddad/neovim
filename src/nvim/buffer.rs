@@ -885,7 +885,7 @@ unsafe fn curbuf_is_changed() -> bool {
 
 #[inline]
 pub unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
+    unsafe { (*buf).changedtick_di.di_tv.vval.v_number() }
 }
 
 #[inline]
@@ -2747,9 +2747,7 @@ unsafe fn buf_init_changedtick(buf: *mut buf_T) {
         (*buf).changedtick_di.di_tv = typval_T {
             v_type: VarType::VAR_NUMBER,
             v_lock: VAR_FIXED,
-            vval: TypvalVval {
-                v_number: buf_get_changedtick(buf),
-            },
+            vval: TypvalVval::Number(buf_get_changedtick(buf)),
         };
         (*buf).changedtick_di.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
         tv_dict_add((*buf).b_vars, (&raw mut (*buf).changedtick_di).cast());
@@ -5091,7 +5089,7 @@ pub unsafe fn buf_set_changedtick(buf: *mut buf_T, changedtick: varnumber_T) {
         debug_assert!(changedtick_di == (&raw mut (*buf).changedtick_di).cast());
         let _ = changedtick_di;
 
-        (*buf).changedtick_di.di_tv.vval.v_number = changedtick;
+        (*buf).changedtick_di.di_tv.vval = crate::eval::typval::TypvalVval::Number(changedtick);
 
         if tv_dict_is_watched((*buf).b_vars) {
             (*buf).b_locked += 1;

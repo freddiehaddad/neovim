@@ -3743,14 +3743,12 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
         let mut arg = typval_T {
             v_type: VarType::VAR_STRING,
             v_lock: 0,
-            vval: TypvalVval {
-                v_string: (*colored_ccline).cmdbuff,
-            },
+            vval: TypvalVval::String((*colored_ccline).cmdbuff),
         };
         let mut tv = typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,
-            vval: TypvalVval { v_number: 0 },
+            vval: TypvalVval::Number(0),
         };
 
         let mut color_cb = Callback::NONE;
@@ -3802,7 +3800,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                         (*colored_ccline).cmdlen as usize,
                     ))
                     .unwrap_or_default();
-                    arg.vval.v_string = cstr.as_ptr().cast_mut();
+                    arg.vval = crate::eval::typval::TypvalVval::String(cstr.as_ptr().cast_mut());
                     arg_owned = Some(cstr);
                 }
 
@@ -3833,7 +3831,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                     printed_errmsg = true;
                     break 'color_cmdline_error;
                 }
-                let v_list = tv.vval.v_list;
+                let v_list = tv.vval.v_list();
                 if v_list.is_null() {
                     break 'color_cmdline_end;
                 }
@@ -3853,7 +3851,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                         printed_errmsg = true;
                         break 'color_cmdline_error;
                     }
-                    let l = (*li_tv).vval.v_list;
+                    let l = (*li_tv).vval.v_list();
                     if tv_list_len(l) != 3 {
                         msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
@@ -4854,7 +4852,7 @@ pub unsafe fn f_getcmdline(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             crate::eval::typval::tv_set_string_len(rettv, s.as_ptr(), s.as_bytes().len());
         } else {
             (*rettv).v_type = VarType::VAR_STRING;
-            (*rettv).vval.v_string = ptr::null_mut();
+            (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
     }
 }
@@ -4863,11 +4861,11 @@ pub unsafe fn f_getcmdline(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
 pub unsafe fn f_getcmdpos(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let p = get_ccline_ptr();
-        (*rettv).vval.v_number = if !p.is_null() {
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(if !p.is_null() {
             ((*p).cmdpos + 1) as varnumber_T
         } else {
             0
-        };
+        });
     }
 }
 
@@ -4894,11 +4892,11 @@ pub unsafe fn f_getcmdscreenpos(
 ) {
     unsafe {
         let p = get_ccline_ptr();
-        (*rettv).vval.v_number = if !p.is_null() {
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(if !p.is_null() {
             ((*p).cmdspos + 1) as varnumber_T
         } else {
             0
-        };
+        });
     }
 }
 
@@ -4979,7 +4977,7 @@ pub unsafe fn f_setcmdline(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
             }
         }
 
-        (*rettv).vval.v_number = set_cmdline_str(tv_get_string(argvars), pos) as varnumber_T;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(set_cmdline_str(tv_get_string(argvars), pos) as varnumber_T);
     }
 }
 
@@ -4989,7 +4987,7 @@ pub unsafe fn f_setcmdpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
         let pos = (tv_get_number(argvars) - 1) as c_int;
 
         if pos >= 0 {
-            (*rettv).vval.v_number = set_cmdline_pos(pos) as varnumber_T;
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(set_cmdline_pos(pos) as varnumber_T);
         }
     }
 }
@@ -5099,32 +5097,26 @@ unsafe fn cmdwin_invoke(action: *const c_char, firstc: c_int, content: *mut c_ch
             typval_T {
                 v_type: VarType::VAR_STRING,
                 v_lock: 0,
-                vval: TypvalVval {
-                    v_string: fc.as_mut_ptr(),
-                },
+                vval: TypvalVval::String(fc.as_mut_ptr()),
             },
             typval_T {
                 v_type: VarType::VAR_STRING,
                 v_lock: 0,
-                vval: TypvalVval {
-                    v_string: if !content.is_null() {
-                        content
-                    } else {
-                        c"".as_ptr().cast_mut()
-                    },
-                },
+                vval: TypvalVval::String(if !content.is_null() {
+                    content
+                } else {
+                    c"".as_ptr().cast_mut()
+                }),
             },
             typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: 0,
-                vval: TypvalVval {
-                    v_number: (pos + 1) as varnumber_T,
-                },
+                vval: TypvalVval::Number((pos + 1) as varnumber_T),
             },
             typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
-                vval: TypvalVval { v_number: 0 },
+                vval: TypvalVval::Number(0),
             },
         ];
         nlua_call_typval(
@@ -5257,7 +5249,7 @@ pub unsafe fn get_user_input(
 ) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = ptr::null_mut();
+        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         if cmdpreview {
             return;
@@ -5269,7 +5261,7 @@ pub unsafe fn get_user_input(
         let mut cancelreturn_strarg2 = typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,
-            vval: TypvalVval { v_number: 0 },
+            vval: TypvalVval::Number(0),
         };
         let mut xp_name: *const c_char = ptr::null();
         let mut input_callback: Callback = Callback::new();
@@ -5283,7 +5275,7 @@ pub unsafe fn get_user_input(
                 emsg(gettext(c"E5050: {opts} must be the only argument".as_ptr()));
                 return;
             }
-            let dict = (*argvars).vval.v_dict;
+            let dict = (*argvars).vval.v_dict();
             prompt = tv_dict_get_string_buf_chk(
                 dict,
                 c"prompt".as_ptr(),
@@ -5342,7 +5334,7 @@ pub unsafe fn get_user_input(
                     }
                     if inputdialog {
                         cancelreturn_strarg2.v_type = VarType::VAR_STRING;
-                        cancelreturn_strarg2.vval.v_string = strarg2.cast_mut();
+                        cancelreturn_strarg2.vval = crate::eval::typval::TypvalVval::String(strarg2.cast_mut());
                         cancelreturn = &raw mut cancelreturn_strarg2;
                     } else {
                         xp_name = strarg2;

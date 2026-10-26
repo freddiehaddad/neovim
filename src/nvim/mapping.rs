@@ -2086,7 +2086,7 @@ pub unsafe fn f_hasmapto(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             m
         };
 
-        (*rettv).vval.v_number = i64::from(map_to_exists(name, mode, abbr));
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(i64::from(map_to_exists(name, mode, abbr)));
     }
 }
 
@@ -2194,7 +2194,7 @@ unsafe fn mapblock_fill_dict(
 unsafe fn get_maparg(argvars: *mut typval_T, rettv: *mut typval_T, exact: c_int) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = ptr::null_mut();
+        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         let keys = tv_get_string(argvars) as *mut c_char;
         if *keys == NUL {
@@ -2369,7 +2369,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
         let dict_only = (*argvars).v_type == VarType::VAR_DICT;
 
         let (which, is_abbr, d) = if dict_only {
-            let d = (*argvars).vval.v_dict;
+            let d = (*argvars).vval.v_dict();
             let which = tv_dict_get_string(d, c"mode".as_ptr());
             let is_abbr = tv_dict_get_bool(d, c"abbr".as_ptr(), -1) as c_int;
             if which.is_null() || is_abbr < 0 {
@@ -2386,7 +2386,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
             if tv_check_for_dict_arg(argvars, 2) == FAIL {
                 return;
             }
-            let d = (*argvars.add(2)).vval.v_dict;
+            let d = (*argvars.add(2)).vval.v_dict();
             (which, is_abbr, d)
         };
         let mode = get_map_mode_string(which, is_abbr != 0);
@@ -2402,7 +2402,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
         let mut rhs_lua: LuaRef = LUA_NOREF;
         let callback_di = tv_dict_find(d, c"callback".as_ptr(), 8);
         if !callback_di.is_null() && (*callback_di).di_tv.v_type == VarType::VAR_FUNC {
-            let fp = find_func((*callback_di).di_tv.vval.v_string);
+            let fp = find_func((*callback_di).di_tv.vval.v_string());
             if !fp.is_null() && ((*fp).uf_flags & FC_LUAREF) != 0 {
                 rhs_lua = api_new_luaref((*fp).uf_luaref);
                 orig_rhs = c"".as_ptr();
@@ -2551,12 +2551,12 @@ pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                     let mut d = typval_T {
                         v_type: VarType::VAR_UNKNOWN,
                         v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval { v_number: 0 },
+                        vval: TypvalVval::Number(0),
                     };
                     let mut dobj = dict_obj(dict);
                     object_to_vim_take_luaref(&mut dobj, &mut d, true, ptr::null_mut());
                     debug_assert!(d.v_type == VarType::VAR_DICT);
-                    tv_list_append_dict((*rettv).vval.v_list, d.vval.v_dict);
+                    tv_list_append_dict((*rettv).vval.v_list(), d.vval.v_dict());
                     arena_mem_free(arena_finish(&mut arena));
                 }
             }

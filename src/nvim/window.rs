@@ -6586,9 +6586,7 @@ unsafe fn make_win_info_dict(
             let mut tv = typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval {
-                    v_number: i64::from(val),
-                },
+                vval: TypvalVval::Number(i64::from(val)),
             };
             if tv_dict_add_tv(d, key.as_ptr(), key.to_bytes().len(), &raw mut tv) == FAIL {
                 tv_dict_unref(d);
@@ -6635,9 +6633,7 @@ unsafe fn check_window_scroll_resize(
                     let tv = typval_T {
                         v_type: VarType::VAR_NUMBER,
                         v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval {
-                            v_number: i64::from((*wp).handle),
-                        },
+                        vval: TypvalVval::Number(i64::from((*wp).handle)),
                     };
                     tv_list_append_owned_tv(winlist, tv);
                 } else if !size_count.is_null() {

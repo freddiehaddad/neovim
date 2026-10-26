@@ -78,7 +78,7 @@ unsafe fn convert_one_value(
     let tv = unsafe { &mut *tv };
     match tv.v_type {
         VarType::VAR_STRING => {
-            let s = unsafe { tv.vval.v_string };
+            let s = tv.vval.v_string();
             let len = if s.is_null() {
                 0
             } else {
@@ -87,21 +87,21 @@ unsafe fn convert_one_value(
             stack.push(unsafe { cbuf_to_string_obj(arena, reuse_strdata, s, len) });
         }
         VarType::VAR_NUMBER => {
-            let n = unsafe { tv.vval.v_number };
+            let n = tv.vval.v_number();
             stack.push(Object {
                 obj_type: ObjectType::kObjectTypeInteger,
                 data: ObjectData::Integer(n),
             });
         }
         VarType::VAR_FLOAT => {
-            let f = unsafe { tv.vval.v_float };
+            let f = tv.vval.v_float();
             stack.push(Object {
                 obj_type: ObjectType::kObjectTypeFloat,
                 data: ObjectData::Floating(f),
             });
         }
         VarType::VAR_BLOB => {
-            let blob = unsafe { tv.vval.v_blob };
+            let blob = tv.vval.v_blob();
             let (data, len) = if blob.is_null() || unsafe { (*blob).bv_ga.is_empty() } {
                 (c"".as_ptr(), 0usize)
             } else {
@@ -110,7 +110,7 @@ unsafe fn convert_one_value(
             stack.push(unsafe { cbuf_to_string_obj(arena, reuse_strdata, data, len) });
         }
         VarType::VAR_FUNC => {
-            let fun = unsafe { tv.vval.v_string };
+            let fun = tv.vval.v_string();
             let obj = unsafe {
                 if !fun.is_null() {
                     let fp = find_func(fun);
@@ -129,7 +129,7 @@ unsafe fn convert_one_value(
             stack.push(obj);
         }
         VarType::VAR_PARTIAL => {
-            let pt = unsafe { tv.vval.v_partial };
+            let pt = tv.vval.v_partial();
             let fun = if pt.is_null() {
                 std::ptr::null()
             } else {
@@ -153,7 +153,7 @@ unsafe fn convert_one_value(
             stack.push(obj);
         }
         VarType::VAR_LIST => {
-            let list = unsafe { tv.vval.v_list };
+            let list = tv.vval.v_list();
             if list.is_null() || unsafe { (*list).lv_len == 0 } {
                 stack.push(Object {
                     obj_type: ObjectType::kObjectTypeArray,
@@ -186,7 +186,7 @@ unsafe fn convert_one_value(
             }
         }
         VarType::VAR_BOOL => {
-            let b = unsafe { tv.vval.v_bool == K_BOOL_VAR_TRUE as c_int };
+            let b = tv.vval.v_bool() == K_BOOL_VAR_TRUE as c_int;
             stack.push(Object {
                 obj_type: ObjectType::kObjectTypeBoolean,
                 data: ObjectData::Boolean(b),
@@ -196,7 +196,7 @@ unsafe fn convert_one_value(
             stack.push(nil_obj());
         }
         VarType::VAR_DICT => {
-            let dict = unsafe { tv.vval.v_dict };
+            let dict = tv.vval.v_dict();
             if dict.is_null() || unsafe { (*dict).dv_hashtab.ht_used == 0 } {
                 stack.push(Object {
                     obj_type: ObjectType::kObjectTypeDict,
@@ -373,16 +373,12 @@ pub unsafe fn object_to_vim_take_luaref(
     match obj.obj_type {
         ObjectType::kObjectTypeUnset | ObjectType::kObjectTypeNil => {
             tv_ref.v_type = VarType::VAR_SPECIAL;
-            tv_ref.vval = TypvalVval {
-                v_number: K_SPECIAL_VAR_NULL,
-            };
+            tv_ref.vval = TypvalVval::Number(K_SPECIAL_VAR_NULL);
         }
         ObjectType::kObjectTypeBoolean => {
             let b = obj.data.boolean();
             tv_ref.v_type = VarType::VAR_BOOL;
-            tv_ref.vval = TypvalVval {
-                v_number: if b { K_BOOL_VAR_TRUE } else { K_BOOL_VAR_FALSE },
-            };
+            tv_ref.vval = TypvalVval::Number(if b { K_BOOL_VAR_TRUE } else { K_BOOL_VAR_FALSE });
         }
         ObjectType::kObjectTypeBuffer
         | ObjectType::kObjectTypeWindow
@@ -390,12 +386,12 @@ pub unsafe fn object_to_vim_take_luaref(
         | ObjectType::kObjectTypeInteger => {
             let n = obj.data.integer();
             tv_ref.v_type = VarType::VAR_NUMBER;
-            tv_ref.vval = TypvalVval { v_number: n };
+            tv_ref.vval = TypvalVval::Number(n);
         }
         ObjectType::kObjectTypeFloat => {
             let f = obj.data.floating();
             tv_ref.v_type = VarType::VAR_FLOAT;
-            tv_ref.vval = TypvalVval { v_float: f };
+            tv_ref.vval = TypvalVval::Float(f);
         }
         ObjectType::kObjectTypeString => {
             let s = obj.data.string();
@@ -408,7 +404,7 @@ pub unsafe fn object_to_vim_take_luaref(
                 let mut li_tv = typval_T {
                     v_type: VarType::VAR_UNKNOWN,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval { v_number: 0 },
+                    vval: TypvalVval::Number(0),
                 };
                 object_to_vim_take_luaref(arr.items.add(i), &mut li_tv, take_luaref, _err);
                 tv_list_append_owned_tv(list, li_tv);
@@ -417,7 +413,7 @@ pub unsafe fn object_to_vim_take_luaref(
                 (*list).lv_refcount += 1;
             }
             tv_ref.v_type = VarType::VAR_LIST;
-            tv_ref.vval = TypvalVval { v_list: list };
+            tv_ref.vval = TypvalVval::List(list);
         },
         ObjectType::kObjectTypeDict => unsafe {
             let d = obj.data.dict();
@@ -430,7 +426,7 @@ pub unsafe fn object_to_vim_take_luaref(
             }
             (*dict).dv_refcount += 1;
             tv_ref.v_type = VarType::VAR_DICT;
-            tv_ref.vval = TypvalVval { v_dict: dict };
+            tv_ref.vval = TypvalVval::Dict(dict);
         },
         ObjectType::kObjectTypeLuaRef => unsafe {
             let mut ref_id = obj.data.luaref();
@@ -458,7 +454,7 @@ mod tests {
         let mut tv = typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,
-            vval: TypvalVval { v_number: 0 },
+            vval: TypvalVval::Number(0),
         };
         unsafe {
             object_to_vim(
@@ -470,7 +466,7 @@ mod tests {
                 std::ptr::null_mut(),
             );
             assert_eq!(tv.v_type, VarType::VAR_NUMBER);
-            assert_eq!(tv.vval.v_number, 99);
+            assert_eq!(tv.vval.v_number(), 99);
 
             let obj = vim_to_object(&mut tv, std::ptr::null_mut(), false);
             assert_eq!(obj.obj_type, ObjectType::kObjectTypeInteger);
@@ -480,9 +476,7 @@ mod tests {
             let mut null_list = typval_T {
                 v_type: VarType::VAR_LIST,
                 v_lock: 0,
-                vval: TypvalVval {
-                    v_list: std::ptr::null_mut(),
-                },
+                vval: TypvalVval::List(std::ptr::null_mut()),
             };
             let arr_obj = vim_to_object(&mut null_list, std::ptr::null_mut(), false);
             assert_eq!(arr_obj.obj_type, ObjectType::kObjectTypeArray);
@@ -491,9 +485,7 @@ mod tests {
             let mut null_dict = typval_T {
                 v_type: VarType::VAR_DICT,
                 v_lock: 0,
-                vval: TypvalVval {
-                    v_dict: std::ptr::null_mut(),
-                },
+                vval: TypvalVval::Dict(std::ptr::null_mut()),
             };
             let dict_obj = vim_to_object(&mut null_dict, std::ptr::null_mut(), false);
             assert_eq!(dict_obj.obj_type, ObjectType::kObjectTypeDict);
@@ -505,7 +497,7 @@ mod tests {
             let mut list_tv = typval_T {
                 v_type: VarType::VAR_LIST,
                 v_lock: 0,
-                vval: TypvalVval { v_list: list },
+                vval: TypvalVval::List(list),
             };
             tv_list_append_owned_tv(list, list_tv);
             let cyc_obj = vim_to_object(&mut list_tv, std::ptr::null_mut(), false);

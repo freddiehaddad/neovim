@@ -309,7 +309,7 @@ const fn make_vimvar(name: &'static CStr, v_type: VarType, flags: c_char) -> Vim
             di_tv: typval_T {
                 v_type,
                 v_lock: 0,
-                vval: TypvalVval { v_number: 0 },
+                vval: TypvalVval::Number(0),
             },
             di_flags: 0,
             di_key: Vec::new(),
@@ -338,7 +338,7 @@ const fn empty_scope_var() -> ScopeDictDictItem {
         di_tv: typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,
-            vval: TypvalVval { v_number: 0 },
+            vval: TypvalVval::Number(0),
         },
         di_flags: 0,
         di_key: Vec::new(),
@@ -580,7 +580,7 @@ pub unsafe fn evalvars_init() {
             (*di).di_tv = typval_T {
                 v_type: VarType::VAR_LIST,
                 v_lock: 0,
-                vval: TypvalVval { v_list: type_list },
+                vval: TypvalVval::List(type_list),
             };
             *(&raw mut eval_msgpack_type_lists)
                 .cast::<*const list_T>()
@@ -707,9 +707,7 @@ pub unsafe fn set_internal_string_var(name: *const c_char, value: *const c_char)
         let mut tv = typval_T {
             v_type: VarType::VAR_STRING,
             v_lock: 0,
-            vval: TypvalVval {
-                v_string: value.cast_mut(),
-            },
+            vval: TypvalVval::String(value.cast_mut()),
         };
 
         set_var(name, strlen(name), &raw mut tv, true);
@@ -833,7 +831,7 @@ pub unsafe fn eval_spell_expr(badword: *mut c_char, expr: *mut c_char) -> *mut l
             if rettv.v_type != VarType::VAR_LIST {
                 tv_clear(&raw mut rettv);
             } else {
-                list = rettv.vval.v_list;
+                list = rettv.vval.v_list();
             }
         }
 
@@ -871,7 +869,7 @@ pub unsafe fn prepare_vimvar(idx: c_int, save_tv: *mut typval_T) {
     unsafe {
         let p = (&raw mut vimvars).cast::<VimVar>().add(idx as usize);
         *save_tv = (*p).vv_di.di_tv;
-        (*p).vv_di.di_tv.vval.v_string = ptr::null_mut();
+        (*p).vv_di.di_tv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         if (*p).vv_di.di_tv.v_type == VarType::VAR_UNKNOWN {
             hash_add(&raw mut vimvardict.dv_hashtab, &raw mut (*p).vv_di);
         }
@@ -1311,7 +1309,7 @@ pub unsafe fn ex_let_vars(
             emsg(gettext(e_listreq.as_ptr()));
             return FAIL;
         }
-        let l = (*tv).vval.v_list;
+        let l = (*tv).vval.v_list();
 
         let len = tv_list_len(l);
         if semicolon == 0 && var_count < len {
@@ -1352,7 +1350,7 @@ pub unsafe fn ex_let_vars(
 
                 ltv.v_type = VarType::VAR_LIST;
                 ltv.v_lock = VAR_UNLOCKED;
-                ltv.vval.v_list = rest_list;
+                ltv.vval = crate::eval::typval::TypvalVval::List(rest_list);
                 tv_list_ref(rest_list);
 
                 arg = ex_let_one(
@@ -1467,7 +1465,7 @@ pub unsafe fn list_hashtable_vars(
 
                 if empty != 0
                     || (*di).di_tv.v_type != VarType::VAR_STRING
-                    || !(*di).di_tv.vval.v_string.is_null()
+                    || !(*di).di_tv.vval.v_string().is_null()
                 {
                     list_one_var(di, prefix, first);
                 }
@@ -2107,7 +2105,7 @@ pub unsafe fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> c
                     d = &raw mut vimvardict;
                 } else {
                     let di = find_var_in_ht(ht, *name as u8 as c_int, c"".as_ptr(), 0, 0);
-                    d = (*di).di_tv.vval.v_dict;
+                    d = (*di).di_tv.vval.v_dict();
                 }
                 if d.is_null() {
                     internal_error(c"do_unlet()".as_ptr());
@@ -2268,15 +2266,15 @@ pub unsafe fn get_vim_var_tv(idx: VimVarIndex) -> *mut typval_T {
 }
 
 pub unsafe fn get_vim_var_nr(idx: VimVarIndex) -> varnumber_T {
-    unsafe { (*get_vim_var_tv(idx)).vval.v_number }
+    unsafe { (*get_vim_var_tv(idx)).vval.v_number() }
 }
 
 pub unsafe fn get_vim_var_list(idx: VimVarIndex) -> *mut list_T {
-    unsafe { (*get_vim_var_tv(idx)).vval.v_list }
+    unsafe { (*get_vim_var_tv(idx)).vval.v_list() }
 }
 
 pub unsafe fn get_vim_var_dict(idx: VimVarIndex) -> *mut dict_T {
-    unsafe { (*get_vim_var_tv(idx)).vval.v_dict }
+    unsafe { (*get_vim_var_tv(idx)).vval.v_dict() }
 }
 
 pub unsafe fn get_vim_var_str(idx: VimVarIndex) -> *mut c_char {
@@ -2284,7 +2282,7 @@ pub unsafe fn get_vim_var_str(idx: VimVarIndex) -> *mut c_char {
 }
 
 pub unsafe fn get_vim_var_partial(idx: VimVarIndex) -> *mut partial_T {
-    unsafe { (*get_vim_var_tv(idx)).vval.v_partial }
+    unsafe { (*get_vim_var_tv(idx)).vval.v_partial() }
 }
 
 /// Function to concatenate a prefix and a variable name.
@@ -2400,7 +2398,7 @@ pub unsafe fn set_vim_var_nr(idx: VimVarIndex, val: varnumber_T) {
     unsafe {
         let tv = get_vim_var_tv(idx);
         tv_clear(tv);
-        (*tv).vval.v_number = val;
+        (*tv).vval = crate::eval::typval::TypvalVval::Number(val);
     }
 }
 
@@ -2409,7 +2407,7 @@ pub unsafe fn set_vim_var_bool(idx: VimVarIndex, val: BoolVarValue) {
         let tv = get_vim_var_tv(idx);
         tv_clear(tv);
         (*tv).v_type = VarType::VAR_BOOL;
-        (*tv).vval.v_bool = val;
+        (*tv).vval = crate::eval::typval::TypvalVval::Bool(val);
     }
 }
 
@@ -2418,7 +2416,7 @@ pub unsafe fn set_vim_var_special(idx: VimVarIndex, val: SpecialVarValue) {
         let tv = get_vim_var_tv(idx);
         tv_clear(tv);
         (*tv).v_type = VarType::VAR_SPECIAL;
-        (*tv).vval.v_special = val;
+        (*tv).vval = crate::eval::typval::TypvalVval::Special(val);
     }
 }
 
@@ -2437,7 +2435,7 @@ pub unsafe fn set_vim_var_string(idx: VimVarIndex, val: *const c_char, len: isiz
         if val.is_null() {
             tv_clear(tv);
             (*tv).v_type = VarType::VAR_STRING;
-            (*tv).vval.v_string = ptr::null_mut();
+            (*tv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         } else if len == -1 {
             crate::eval::typval::tv_set_string(tv, val);
         } else {
@@ -2451,7 +2449,7 @@ pub unsafe fn set_vim_var_list(idx: VimVarIndex, val: *mut list_T) {
         let tv = get_vim_var_tv(idx);
         tv_clear(tv);
         (*tv).v_type = VarType::VAR_LIST;
-        (*tv).vval.v_list = val;
+        (*tv).vval = crate::eval::typval::TypvalVval::List(val);
         if !val.is_null() {
             tv_list_ref(val);
         }
@@ -2463,7 +2461,7 @@ pub unsafe fn set_vim_var_dict(idx: VimVarIndex, val: *mut dict_T) {
         let tv = get_vim_var_tv(idx);
         tv_clear(tv);
         (*tv).v_type = VarType::VAR_DICT;
-        (*tv).vval.v_dict = val;
+        (*tv).vval = crate::eval::typval::TypvalVval::Dict(val);
         if val.is_null() {
             return;
         }
@@ -2476,7 +2474,7 @@ pub unsafe fn set_vim_var_dict(idx: VimVarIndex, val: *mut dict_T) {
 pub unsafe fn set_vim_var_partial(idx: VimVarIndex, val: *mut partial_T) {
     unsafe {
         let tv = get_vim_var_tv(idx);
-        (*tv).vval.v_partial = val;
+        (*tv).vval = crate::eval::typval::TypvalVval::Partial(val);
     }
 }
 
@@ -2489,7 +2487,7 @@ pub unsafe fn set_reg_var(c: c_int) {
             regname[0] = c as u8 as c_char;
         }
         let tv = get_vim_var_tv(VV_REG);
-        if (*tv).vval.v_string.is_null() || *(*tv).vval.v_string as c_int != c {
+        if (*tv).vval.v_string().is_null() || *(*tv).vval.v_string() as c_int != c {
             set_vim_var_string(VV_REG, regname.as_ptr(), 1);
         }
     }
@@ -2499,10 +2497,10 @@ pub unsafe fn v_exception(oldval: *mut c_char) -> *mut c_char {
     unsafe {
         let tv = get_vim_var_tv(VV_EXCEPTION);
         if oldval.is_null() {
-            return (*tv).vval.v_string;
+            return (*tv).vval.v_string();
         }
 
-        (*tv).vval.v_string = oldval;
+        (*tv).vval = crate::eval::typval::TypvalVval::String(oldval);
         ptr::null_mut()
     }
 }
@@ -2510,11 +2508,11 @@ pub unsafe fn v_exception(oldval: *mut c_char) -> *mut c_char {
 pub unsafe fn set_cmdarg(eap: *mut exarg_T, oldarg: *mut c_char) -> *mut c_char {
     unsafe {
         let tv = get_vim_var_tv(VV_CMDARG);
-        let oldval = (*tv).vval.v_string;
+        let oldval = (*tv).vval.v_string();
         if eap.is_null() {
             tv_clear(tv);
             (*tv).v_type = VarType::VAR_STRING;
-            (*tv).vval.v_string = oldarg;
+            (*tv).vval = crate::eval::typval::TypvalVval::String(oldarg);
             return ptr::null_mut();
         }
 
@@ -2558,7 +2556,7 @@ pub unsafe fn set_cmdarg(eap: *mut exarg_T, oldarg: *mut c_char) -> *mut c_char 
             newval.extend_from_slice(b" ++p");
         }
 
-        (*tv).vval.v_string = ptr::null_mut();
+        (*tv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         crate::eval::typval::tv_set_string_len(tv, newval.as_ptr().cast::<c_char>(), newval.len());
         oldval
     }
@@ -2568,10 +2566,10 @@ pub unsafe fn v_throwpoint(oldval: *mut c_char) -> *mut c_char {
     unsafe {
         let tv = get_vim_var_tv(VV_THROWPOINT);
         if oldval.is_null() {
-            return (*tv).vval.v_string;
+            return (*tv).vval.v_string();
         }
 
-        (*tv).vval.v_string = oldval;
+        (*tv).vval = crate::eval::typval::TypvalVval::String(oldval);
         ptr::null_mut()
     }
 }
@@ -2579,10 +2577,10 @@ pub unsafe fn v_throwpoint(oldval: *mut c_char) -> *mut c_char {
 pub unsafe fn set_vcount(count: i64, count1: i64, set_prevcount: bool) {
     unsafe {
         if set_prevcount {
-            (*get_vim_var_tv(VV_PREVCOUNT)).vval.v_number = get_vim_var_nr(VV_COUNT);
+            (*get_vim_var_tv(VV_PREVCOUNT)).vval = crate::eval::typval::TypvalVval::Number(get_vim_var_nr(VV_COUNT));
         }
-        (*get_vim_var_tv(VV_COUNT)).vval.v_number = count;
-        (*get_vim_var_tv(VV_COUNT1)).vval.v_number = count1;
+        (*get_vim_var_tv(VV_COUNT)).vval = crate::eval::typval::TypvalVval::Number(count);
+        (*get_vim_var_tv(VV_COUNT1)).vval = crate::eval::typval::TypvalVval::Number(count1);
     }
 }
 
@@ -2837,7 +2835,7 @@ pub unsafe fn init_var_dict(dict: *mut dict_T, dict_var: *mut ScopeDictDictItem,
         (*dict).dv_scope = scope;
         (*dict).dv_refcount = DO_NOT_FREE_CNT;
         (*dict).dv_copyID = 0;
-        (*dict_var).di_tv.vval.v_dict = dict;
+        (*dict_var).di_tv.vval = crate::eval::typval::TypvalVval::Dict(dict);
         (*dict_var).di_tv.v_type = VarType::VAR_DICT;
         (*dict_var).di_tv.v_lock = VAR_FIXED;
         (*dict_var).di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
@@ -2985,8 +2983,8 @@ pub unsafe fn before_set_vvar(
                 crate::eval::typval::tv_set_string(&raw mut (*di).di_tv, val);
             } else {
                 (*di).di_tv.v_type = VarType::VAR_STRING;
-                (*di).di_tv.vval.v_string = (*tv).vval.v_string;
-                (*tv).vval.v_string = ptr::null_mut();
+                (*di).di_tv.vval = crate::eval::typval::TypvalVval::String((*tv).vval.v_string());
+                (*tv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
             }
             if watched {
                 tv_dict_watcher_notify(
@@ -3003,15 +3001,15 @@ pub unsafe fn before_set_vvar(
             if watched {
                 tv_copy(&raw const (*di).di_tv, &raw mut oldtv);
             }
-            (*di).di_tv.vval.v_number = tv_get_number(tv);
+            (*di).di_tv.vval = crate::eval::typval::TypvalVval::Number(tv_get_number(tv));
             if strcmp(varname, c"searchforward".as_ptr()) == 0 {
-                set_search_direction(if (*di).di_tv.vval.v_number != 0 {
+                set_search_direction(if (*di).di_tv.vval.v_number() != 0 {
                     b'/' as c_int
                 } else {
                     b'?' as c_int
                 });
             } else if strcmp(varname, c"hlsearch".as_ptr()) == 0 {
-                Search.no_hlsearch = (*di).di_tv.vval.v_number == 0;
+                Search.no_hlsearch = (*di).di_tv.vval.v_number() == 0;
                 redraw_all_later(UPD_SOME_VALID);
             }
             if watched {
@@ -3280,7 +3278,7 @@ unsafe fn get_var_from(
         emsg_off += 1;
 
         (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = ptr::null_mut();
+        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         if !varname.is_null()
             && !tp.is_null()
@@ -3408,20 +3406,20 @@ unsafe fn opt_from_tv(
             };
             if !err && (*tv).v_type == VarType::VAR_STRING && n == 0 {
                 let mut idx: usize = 0;
-                while !(*tv).vval.v_string.is_null()
-                    && *(*tv).vval.v_string.add(idx) == b'0' as c_char
+                while !(*tv).vval.v_string().is_null()
+                    && *(*tv).vval.v_string().add(idx) == b'0' as c_char
                 {
                     idx += 1;
                 }
-                if idx == 0 || *(*tv).vval.v_string.add(idx) != NUL {
+                if idx == 0 || *(*tv).vval.v_string().add(idx) != NUL {
                     err = true;
                     semsg!(
                         gettext(c"E521: Number required: &%s = '%s'".as_ptr()),
                         option,
-                        if (*tv).vval.v_string.is_null() {
+                        if (*tv).vval.v_string().is_null() {
                             c"".as_ptr()
                         } else {
-                            (*tv).vval.v_string
+                            (*tv).vval.v_string()
                         },
                     );
                 }
@@ -3457,35 +3455,33 @@ pub unsafe fn opt_to_tv(value: Object, numbool: bool) -> typval_T {
         let mut rettv = typval_T {
             v_type: VarType::VAR_SPECIAL,
             v_lock: 0,
-            vval: TypvalVval {
-                v_special: kSpecialVarNull,
-            },
+            vval: TypvalVval::Special(kSpecialVarNull),
         };
 
         match value.obj_type {
             ObjectType::kObjectTypeUnset => {
                 if numbool {
                     rettv.v_type = VarType::VAR_NUMBER;
-                    rettv.vval.v_number = varnumber_T::from(kNone);
+                    rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(kNone));
                 }
             }
             ObjectType::kObjectTypeNil => {}
             ObjectType::kObjectTypeBoolean => {
                 if numbool {
                     rettv.v_type = VarType::VAR_NUMBER;
-                    rettv.vval.v_number = varnumber_T::from(value.data.boolean());
+                    rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(value.data.boolean()));
                 } else {
                     rettv.v_type = VarType::VAR_BOOL;
-                    rettv.vval.v_bool = if value.data.boolean() {
+                    rettv.vval = crate::eval::typval::TypvalVval::Bool(if value.data.boolean() {
                         kBoolVarTrue
                     } else {
                         kBoolVarFalse
-                    };
+                    });
                 }
             }
             ObjectType::kObjectTypeInteger => {
                 rettv.v_type = VarType::VAR_NUMBER;
-                rettv.vval.v_number = value.data.integer();
+                rettv.vval = crate::eval::typval::TypvalVval::Number(value.data.integer());
             }
             ObjectType::kObjectTypeString => {
                 if !value.data.string().data.is_null() {
@@ -3496,7 +3492,7 @@ pub unsafe fn opt_to_tv(value: Object, numbool: bool) -> typval_T {
                     );
                 } else {
                     rettv.v_type = VarType::VAR_STRING;
-                    rettv.vval.v_string = ptr::null_mut();
+                    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                 }
             }
             ObjectType::kObjectTypeLuaRef => {
@@ -3607,7 +3603,7 @@ pub unsafe fn assert_error(buf: &[u8]) {
     unsafe {
         let tv = get_vim_var_tv(VV_ERRORS);
 
-        if (*tv).v_type != VarType::VAR_LIST || (*tv).vval.v_list.is_null() {
+        if (*tv).v_type != VarType::VAR_LIST || (*tv).vval.v_list().is_null() {
             set_vim_var_list(VV_ERRORS, tv_list_alloc(1));
         }
         tv_list_append_string(
@@ -3692,9 +3688,7 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
         let mut tv = typval_T {
             v_type: VarType::VAR_STRING,
             v_lock: 0,
-            vval: TypvalVval {
-                v_string: c"".as_ptr().cast_mut(),
-            },
+            vval: TypvalVval::String(c"".as_ptr().cast_mut()),
         };
         if append {
             set_var_lval(
@@ -3760,9 +3754,7 @@ pub unsafe fn var_redir_stop() {
                 let mut tv = typval_T {
                     v_type: VarType::VAR_STRING,
                     v_lock: 0,
-                    vval: TypvalVval {
-                        v_string: (*buf).as_mut_ptr(),
-                    },
+                    vval: TypvalVval::String((*buf).as_mut_ptr()),
                 };
                 let vn_ptr = (&raw const redir_varname)
                     .as_ref()

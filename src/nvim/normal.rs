@@ -5474,31 +5474,27 @@ unsafe fn nv_brackets(cap: *mut cmdarg_T) {
                     typval_T {
                         v_type: VarType::VAR_BOOL,
                         v_lock: 0,
-                        vval: TypvalVval {
-                            v_bool: if (*cap).cmdchar == b']' as c_int {
-                                kBoolVarTrue
-                            } else {
-                                kBoolVarFalse
-                            },
-                        },
+                        vval: TypvalVval::Bool(if (*cap).cmdchar == b']' as c_int {
+                            kBoolVarTrue
+                        } else {
+                            kBoolVarFalse
+                        }),
                     },
                     typval_T {
                         v_type: VarType::VAR_NUMBER,
                         v_lock: 0,
-                        vval: TypvalVval {
-                            v_number: varnumber_T::from((*cap).count1),
-                        },
+                        vval: TypvalVval::Number(varnumber_T::from((*cap).count1)),
                     },
                     typval_T {
                         v_type: VarType::VAR_UNKNOWN,
                         v_lock: 0,
-                        vval: TypvalVval { v_number: 0 },
+                        vval: TypvalVval::Number(0),
                     },
                 ];
                 let mut rettv = typval_T {
                     v_type: VarType::VAR_UNKNOWN,
                     v_lock: 0,
-                    vval: TypvalVval { v_number: 0 },
+                    vval: TypvalVval::Number(0),
                 };
                 nlua_call_typval(
                     c"vim._core.mcursor".as_ptr(),
@@ -5506,7 +5502,7 @@ unsafe fn nv_brackets(cap: *mut cmdarg_T) {
                     tv_args.as_mut_ptr(),
                     &raw mut rettv,
                 );
-                if rettv.v_type != VarType::VAR_BOOL || rettv.vval.v_bool != kBoolVarTrue {
+                if rettv.v_type != VarType::VAR_BOOL || rettv.vval.v_bool() != kBoolVarTrue {
                     clearopbeep((*cap).oap);
                 }
                 tv_clear(&raw mut rettv);
@@ -6632,7 +6628,7 @@ unsafe fn nv_g_cmd(cap: *mut cmdarg_T) {
                     let mut tv_args: [typval_T; 1] = [typval_T {
                         v_type: VarType::VAR_UNKNOWN,
                         v_lock: 0,
-                        vval: TypvalVval { v_number: 0 },
+                        vval: TypvalVval::Number(0),
                     }];
                     nlua_call_typval(
                         c"vim._core.mcursor".as_ptr(),
@@ -7483,32 +7479,26 @@ unsafe fn nv_q(cap: *mut cmdarg_T) {
                 typval_T {
                     v_type: VarType::VAR_STRING,
                     v_lock: 0,
-                    vval: TypvalVval {
-                        v_string: fc.as_mut_ptr(),
-                    },
+                    vval: TypvalVval::String(fc.as_mut_ptr()),
                 },
                 typval_T {
                     v_type: VarType::VAR_STRING,
                     v_lock: 0,
-                    vval: TypvalVval {
-                        v_string: if insert_range {
-                            c"'<,'>".as_ptr().cast_mut()
-                        } else {
-                            c"".as_ptr().cast_mut()
-                        },
-                    },
+                    vval: TypvalVval::String(if insert_range {
+                        c"'<,'>".as_ptr().cast_mut()
+                    } else {
+                        c"".as_ptr().cast_mut()
+                    }),
                 },
                 typval_T {
                     v_type: VarType::VAR_NUMBER,
                     v_lock: 0,
-                    vval: TypvalVval {
-                        v_number: if insert_range { 5 } else { 1 },
-                    },
+                    vval: TypvalVval::Number(if insert_range { 5 } else { 1 }),
                 },
                 typval_T {
                     v_type: VarType::VAR_UNKNOWN,
                     v_lock: 0,
-                    vval: TypvalVval { v_number: 0 },
+                    vval: TypvalVval::Number(0),
                 },
             ];
             nlua_call_typval(

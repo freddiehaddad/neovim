@@ -671,9 +671,7 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
                 value: typval_T {
                     v_type: VarType::VAR_UNKNOWN,
                     v_lock: 0,
-                    vval: TypvalVval {
-                        v_string: ptr::null_mut(),
-                    },
+                    vval: TypvalVval::String(ptr::null_mut()),
                 },
             }),
             additional_data: None,
@@ -1619,7 +1617,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                         .map_or(ptr::null(), |s| s.as_ptr());
                     if get_old_files && !oldfiles_set.contains(&PathKey(fname_ptr)) {
                         crate::eval::typval::tv_list_append_string(oldfiles_list, fname_ptr, -1);
-                        oldfiles_set.insert(PathKey((*(*oldfiles_list).lv_last).li_tv.vval.v_string));
+                        oldfiles_set.insert(PathKey((*(*oldfiles_list).lv_last).li_tv.vval.v_string()));
                     }
                     if !want_marks {
                         shada_free_shada_entry(&mut cur_entry);
@@ -2804,7 +2802,7 @@ unsafe fn shada_write(
                             skip = true;
                         }
                         VarType::VAR_DICT => {
-                            let di = vartv.vval.v_dict;
+                            let di = vartv.vval.v_dict();
                             let copy_id = get_copyID();
                             if !set_ref_in_ht(&mut (*di).dv_hashtab, copy_id, ptr::null_mut())
                                 && copy_id == (*di).dv_copyID
@@ -2814,7 +2812,7 @@ unsafe fn shada_write(
                             }
                         }
                         VarType::VAR_LIST => {
-                            let l = vartv.vval.v_list;
+                            let l = vartv.vval.v_list();
                             let copy_id = get_copyID();
                             if !set_ref_in_list_items(l, copy_id, ptr::null_mut())
                                 && copy_id == (*l).lv_copyID

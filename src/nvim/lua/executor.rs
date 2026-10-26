@@ -1538,14 +1538,12 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
             typval_T {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_FIXED,
-                vval: TypvalVval {
-                    v_string: c"lua_debug> ".as_ptr().cast_mut(),
-                },
+                vval: TypvalVval::String(c"lua_debug> ".as_ptr().cast_mut()),
             },
             typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
-                vval: TypvalVval { v_number: 0 },
+                vval: TypvalVval::Number(0),
             },
         ];
         loop {
@@ -1558,7 +1556,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
                     (&raw mut IObuff).cast(),
                     IOSIZE,
                     c"lua_debug> %s".as_ptr(),
-                    input.vval.v_string,
+                    input.vval.v_string(),
                 );
                 ui_ext_cmdline_block_append(0, (&raw const IObuff).cast());
             } else {
@@ -1566,9 +1564,9 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
             }
 
             if input.v_type != VarType::VAR_STRING
-                || input.vval.v_string.is_null()
-                || *input.vval.v_string == NUL
-                || CStr::from_ptr(input.vval.v_string) == c"cont"
+                || input.vval.v_string().is_null()
+                || *input.vval.v_string() == NUL
+                || CStr::from_ptr(input.vval.v_string()) == c"cont"
             {
                 tv_clear(&raw mut input);
                 if ui_has(kUICmdline) {
@@ -1577,10 +1575,10 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
                 return 0;
             }
 
-            let len = CStr::from_ptr(input.vval.v_string).to_bytes().len();
+            let len = CStr::from_ptr(input.vval.v_string()).to_bytes().len();
             if luaL_loadbuffer(
                 lstate,
-                input.vval.v_string,
+                input.vval.v_string(),
                 len,
                 c"=(debug command)".as_ptr(),
             ) != 0
@@ -1982,7 +1980,7 @@ unsafe fn nlua_exec_typval(
         if check_secure() {
             if !ret_tv.is_null() {
                 (*ret_tv).v_type = VarType::VAR_NUMBER;
-                (*ret_tv).vval.v_number = 0;
+                (*ret_tv).vval = crate::eval::typval::TypvalVval::Number(0);
             }
             return;
         }
@@ -2591,9 +2589,9 @@ unsafe extern "C-unwind" fn nlua_is_thread(lstate: *mut lua_State) -> c_int {
 pub unsafe fn nlua_is_table_from_lua(arg: *const typval_T) -> bool {
     unsafe {
         if (*arg).v_type == VarType::VAR_DICT {
-            (*(*arg).vval.v_dict).lua_table_ref != LUA_NOREF
+            (*(*arg).vval.v_dict()).lua_table_ref != LUA_NOREF
         } else if (*arg).v_type == VarType::VAR_LIST {
-            (*(*arg).vval.v_list).lua_table_ref != LUA_NOREF
+            (*(*arg).vval.v_list()).lua_table_ref != LUA_NOREF
         } else {
             false
         }
@@ -2603,9 +2601,9 @@ pub unsafe fn nlua_is_table_from_lua(arg: *const typval_T) -> bool {
 pub unsafe fn nlua_register_table_as_callable(arg: *const typval_T) -> *mut c_char {
     unsafe {
         let table_ref = if (*arg).v_type == VarType::VAR_DICT {
-            (*(*arg).vval.v_dict).lua_table_ref
+            (*(*arg).vval.v_dict()).lua_table_ref
         } else if (*arg).v_type == VarType::VAR_LIST {
-            (*(*arg).vval.v_list).lua_table_ref
+            (*(*arg).vval.v_list()).lua_table_ref
         } else {
             LUA_NOREF
         };

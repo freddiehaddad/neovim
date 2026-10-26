@@ -461,16 +461,16 @@ unsafe fn fuzzy_match_in_list(
             let mut rettv = typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval { v_number: 0 },
+                vval: TypvalVval::Number(0),
             };
 
             let tv = &(*li).li_tv;
             if tv.v_type == VarType::VAR_STRING {
-                itemstr = tv.vval.v_string;
+                itemstr = tv.vval.v_string();
             } else if tv.v_type == VarType::VAR_DICT
                 && (!key.is_null() || (*item_cb).cb_type() != K_CALLBACK_NONE)
             {
-                let d = tv.vval.v_dict;
+                let d = tv.vval.v_dict();
                 if !key.is_null() {
                     itemstr = tv_dict_get_string(d, key);
                 } else {
@@ -479,18 +479,18 @@ unsafe fn fuzzy_match_in_list(
                         typval_T {
                             v_type: VarType::VAR_DICT,
                             v_lock: VAR_UNLOCKED,
-                            vval: TypvalVval { v_dict: d },
+                            vval: TypvalVval::Dict(d),
                         },
                         typval_T {
                             v_type: VarType::VAR_UNKNOWN,
                             v_lock: VAR_UNLOCKED,
-                            vval: TypvalVval { v_number: 0 },
+                            vval: TypvalVval::Number(0),
                         },
                     ];
                     if callback_call(item_cb, 1, argv.as_mut_ptr(), &mut rettv)
                         && rettv.v_type == VarType::VAR_STRING
                     {
-                        itemstr = rettv.vval.v_string;
+                        itemstr = rettv.vval.v_string();
                     }
                     tv_dict_unref(d);
                 }
@@ -544,8 +544,8 @@ unsafe fn fuzzy_match_in_list(
 
             let mut retlist = if retmatchpos {
                 let first_li = tv_list_find(fmatchlist, 0);
-                assert!(!first_li.is_null() && !(*first_li).li_tv.vval.v_list.is_null());
-                (*first_li).li_tv.vval.v_list
+                assert!(!first_li.is_null() && !(*first_li).li_tv.vval.v_list().is_null());
+                (*first_li).li_tv.vval.v_list()
             } else {
                 fmatchlist
             };
@@ -557,8 +557,8 @@ unsafe fn fuzzy_match_in_list(
 
             if retmatchpos {
                 let pos_li = tv_list_find(fmatchlist, -2);
-                assert!(!pos_li.is_null() && !(*pos_li).li_tv.vval.v_list.is_null());
-                retlist = (*pos_li).li_tv.vval.v_list;
+                assert!(!pos_li.is_null() && !(*pos_li).li_tv.vval.v_list().is_null());
+                retlist = (*pos_li).li_tv.vval.v_list();
 
                 for cur in &mut items {
                     assert!(!cur.lmatchpos.is_null());
@@ -567,8 +567,8 @@ unsafe fn fuzzy_match_in_list(
                 }
 
                 let score_li = tv_list_find(fmatchlist, -1);
-                assert!(!score_li.is_null() && !(*score_li).li_tv.vval.v_list.is_null());
-                retlist = (*score_li).li_tv.vval.v_list;
+                assert!(!score_li.is_null() && !(*score_li).li_tv.vval.v_list().is_null());
+                retlist = (*score_li).li_tv.vval.v_list();
                 for cur in &items {
                     tv_list_append_number(retlist, cur.score as i64);
                 }
@@ -587,7 +587,7 @@ unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: *mut typval_T, retmatch
         let arg1 = &*argvars.add(1);
         let arg2 = &*argvars.add(2);
 
-        if arg0.v_type != VarType::VAR_LIST || arg0.vval.v_list.is_null() {
+        if arg0.v_type != VarType::VAR_LIST || arg0.vval.v_list().is_null() {
             semsg!(
                 e_listarg.as_ptr(),
                 if retmatchpos {
@@ -598,7 +598,7 @@ unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: *mut typval_T, retmatch
             );
             return;
         }
-        if arg1.v_type != VarType::VAR_STRING || arg1.vval.v_string.is_null() {
+        if arg1.v_type != VarType::VAR_STRING || arg1.vval.v_string().is_null() {
             semsg!(e_invarg2.as_ptr(), tv_get_string(arg1));
             return;
         }
@@ -613,12 +613,12 @@ unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: *mut typval_T, retmatch
                 return;
             }
 
-            let d = arg2.vval.v_dict;
+            let d = arg2.vval.v_dict();
             let di_key = tv_dict_find(d, c"key".as_ptr(), -1);
             if !di_key.is_null() {
                 if (*di_key).di_tv.v_type != VarType::VAR_STRING
-                    || (*di_key).di_tv.vval.v_string.is_null()
-                    || *(*di_key).di_tv.vval.v_string == 0
+                    || (*di_key).di_tv.vval.v_string().is_null()
+                    || *(*di_key).di_tv.vval.v_string() == 0
                 {
                     semsg!(
                         e_invargNval.as_ptr(),
@@ -649,7 +649,7 @@ unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: *mut typval_T, retmatch
         }
 
         tv_list_alloc_ret(rettv, if retmatchpos { 3 } else { K_LIST_LEN_UNKNOWN });
-        let out_list = (*rettv).vval.v_list;
+        let out_list = (*rettv).vval.v_list();
         if retmatchpos {
             tv_list_append_list(out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
             tv_list_append_list(out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
@@ -657,7 +657,7 @@ unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: *mut typval_T, retmatch
         }
 
         fuzzy_match_in_list(
-            arg0.vval.v_list,
+            arg0.vval.v_list(),
             tv_get_string(arg1).cast_mut(),
             matchseq,
             key,

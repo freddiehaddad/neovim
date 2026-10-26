@@ -1399,9 +1399,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             let mut tv = typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: 0,
-                vval: TypvalVval {
-                    v_number: varnumber_T::from((*wp).handle),
-                },
+                vval: TypvalVval::Number(varnumber_T::from((*wp).handle)),
             };
             set_var(
                 c"g:statusline_winid".as_ptr(),

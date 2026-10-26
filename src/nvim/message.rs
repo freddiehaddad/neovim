@@ -3408,14 +3408,12 @@ unsafe fn msg_puts_printf(str_: *const c_char, maxlen: isize) {
             let mut argv = [typval_T {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval {
-                    v_string: str_.cast_mut(),
-                },
+                vval: TypvalVval::String(str_.cast_mut()),
             }];
             let mut rettv = typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval { v_number: 0 },
+                vval: TypvalVval::Number(0),
             };
             callback_call(&raw mut on_print, 1, argv.as_mut_ptr(), &raw mut rettv);
             tv_clear(&raw mut rettv);

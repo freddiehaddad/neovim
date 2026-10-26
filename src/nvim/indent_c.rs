@@ -3199,10 +3199,10 @@ pub unsafe fn f_cindent(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
         let lnum = tv_get_lnum(argvars);
         if lnum >= 1 && lnum <= (*curbuf).b_ml.ml_line_count {
             (*curwin).w_cursor.lnum = lnum;
-            (*rettv).vval.v_number = get_c_indent() as i64;
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(get_c_indent() as i64);
             (*curwin).w_cursor = pos;
         } else {
-            (*rettv).vval.v_number = -1;
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
         }
     }
 }

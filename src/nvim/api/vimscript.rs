@@ -395,7 +395,7 @@ pub unsafe extern "C" fn nvim_call_dict_function(
         }
 
         'body: {
-            let self_dict = rettv.vval.v_dict;
+            let self_dict = rettv.vval.v_dict();
             if rettv.v_type != VarType::VAR_DICT || self_dict.is_null() {
                 api_set_error!(
                     err,
@@ -436,7 +436,7 @@ pub unsafe extern "C" fn nvim_call_dict_function(
                     );
                     break 'body;
                 }
-                let s = (*di).di_tv.vval.v_string;
+                let s = (*di).di_tv.vval.v_string();
                 fn_name = NvimString {
                     data: s,
                     size: CStr::from_ptr(s).to_bytes().len(),

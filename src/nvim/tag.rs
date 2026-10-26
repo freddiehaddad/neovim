@@ -930,7 +930,7 @@ unsafe fn select_tag_match(
         let mut items_tv = typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval { v_number: 0 },
+            vval: TypvalVval::Number(0),
         };
         tv_list_alloc_ret(&raw mut items_tv, matches.len() as isize);
 
@@ -980,19 +980,19 @@ unsafe fn select_tag_match(
             let mut item = typval_T {
                 v_type: VarType::VAR_DICT,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval { v_dict: d },
+                vval: TypvalVval::Dict(d),
             };
-            tv_list_append_tv(items_tv.vval.v_list, &raw mut item);
+            tv_list_append_tv(items_tv.vval.v_list(), &raw mut item);
         }
 
         let extra_d = tv_dict_alloc();
-        tv_dict_add_list(extra_d, c"items".as_ptr(), 5, items_tv.vval.v_list);
-        (*items_tv.vval.v_list).lv_refcount += 1;
+        tv_dict_add_list(extra_d, c"items".as_ptr(), 5, items_tv.vval.v_list());
+        (*items_tv.vval.v_list()).lv_refcount += 1;
         tv_dict_add_str(extra_d, c"tagname".as_ptr(), 7, name);
         let mut extra_tv = typval_T {
             v_type: VarType::VAR_DICT,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval { v_dict: extra_d },
+            vval: TypvalVval::Dict(extra_d),
         };
 
         nlua_call_excmd(
@@ -1267,12 +1267,12 @@ unsafe fn find_tagfunc_tags(
         let mut args = [typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval { v_number: 0 },
+            vval: TypvalVval::Number(0),
         }; 4];
         let mut rettv = typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval { v_number: 0 },
+            vval: TypvalVval::Number(0),
         };
         let mut flagString = [0 as c_char; 4];
         let mut tag: *mut taggy_T = ptr::null_mut();
@@ -1291,9 +1291,9 @@ unsafe fn find_tagfunc_tags(
         }
 
         args[0].v_type = VarType::VAR_STRING;
-        args[0].vval.v_string = pat;
+        args[0].vval = crate::eval::typval::TypvalVval::String(pat);
         args[1].v_type = VarType::VAR_STRING;
-        args[1].vval.v_string = flagString.as_mut_ptr();
+        args[1].vval = crate::eval::typval::TypvalVval::String(flagString.as_mut_ptr());
 
         let d = tv_dict_alloc_lock(VAR_FIXED);
         if (flags & TAG_INS_COMP) == 0
@@ -1308,7 +1308,7 @@ unsafe fn find_tagfunc_tags(
 
         (*d).dv_refcount += 1;
         args[2].v_type = VarType::VAR_DICT;
-        args[2].vval.v_dict = d;
+        args[2].vval = crate::eval::typval::TypvalVval::Dict(d);
         args[3].v_type = VarType::VAR_UNKNOWN;
 
         vim_snprintf!(
@@ -1350,16 +1350,16 @@ unsafe fn find_tagfunc_tags(
         if result == FAIL {
             return FAIL;
         }
-        if rettv.v_type == VarType::VAR_SPECIAL && rettv.vval.v_special == kSpecialVarNull {
+        if rettv.v_type == VarType::VAR_SPECIAL && rettv.vval.v_special() == kSpecialVarNull {
             tv_clear(&raw mut rettv);
             return NOTDONE;
         }
-        if rettv.v_type != VarType::VAR_LIST || rettv.vval.v_list.is_null() {
+        if rettv.v_type != VarType::VAR_LIST || rettv.vval.v_list().is_null() {
             tv_clear(&raw mut rettv);
             emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC.as_ptr()));
             return FAIL;
         }
-        let taglist = rettv.vval.v_list;
+        let taglist = rettv.vval.v_list();
 
         let mut li = (*taglist).lv_first;
         while !li.is_null() {
@@ -1376,7 +1376,7 @@ unsafe fn find_tagfunc_tags(
             }
 
             let mut len: usize = 2;
-            let item_dict = (*li).li_tv.vval.v_dict;
+            let item_dict = (*li).li_tv.vval.v_dict();
             if !item_dict.is_null() {
                 let mut todo = (*item_dict).dv_hashtab.ht_used;
                 let mut hi = (*item_dict).dv_hashtab.ht_array;
@@ -1387,18 +1387,18 @@ unsafe fn find_tagfunc_tags(
                         let dict_key = (*hi).hi_key;
                         let tv = &raw mut (*di).di_tv;
 
-                        if (*tv).v_type == VarType::VAR_STRING && !(*tv).vval.v_string.is_null() {
-                            len += strlen((*tv).vval.v_string) + 1;
+                        if (*tv).v_type == VarType::VAR_STRING && !(*tv).vval.v_string().is_null() {
+                            len += strlen((*tv).vval.v_string()) + 1;
                             if strcmp(dict_key, c"name".as_ptr()) == 0 {
-                                res_name = (*tv).vval.v_string;
+                                res_name = (*tv).vval.v_string();
                             } else if strcmp(dict_key, c"filename".as_ptr()) == 0 {
-                                res_fname = (*tv).vval.v_string;
+                                res_fname = (*tv).vval.v_string();
                             } else if strcmp(dict_key, c"cmd".as_ptr()) == 0 {
-                                res_cmd = (*tv).vval.v_string;
+                                res_cmd = (*tv).vval.v_string();
                             } else {
                                 has_extra = true;
                                 if strcmp(dict_key, c"kind".as_ptr()) == 0 {
-                                    res_kind = (*tv).vval.v_string;
+                                    res_kind = (*tv).vval.v_string();
                                 } else {
                                     len += strlen(dict_key) + 1;
                                 }
@@ -1483,7 +1483,7 @@ unsafe fn find_tagfunc_tags(
                                 let tv = &raw mut (*di).di_tv;
 
                                 if (*tv).v_type == VarType::VAR_STRING
-                                    && !(*tv).vval.v_string.is_null()
+                                    && !(*tv).vval.v_string().is_null()
                                     && strcmp(dict_key, c"name".as_ptr()) != 0
                                     && strcmp(dict_key, c"filename".as_ptr()) != 0
                                     && strcmp(dict_key, c"cmd".as_ptr()) != 0
@@ -1495,7 +1495,7 @@ unsafe fn find_tagfunc_tags(
                                     p = p.add(strlen(p));
                                     strcpy(p, c":".as_ptr());
                                     p = p.add(strlen(p));
-                                    strcpy(p, (*tv).vval.v_string);
+                                    strcpy(p, (*tv).vval.v_string());
                                     p = p.add(strlen(p));
                                 }
                             }
@@ -3473,8 +3473,8 @@ unsafe fn tagstack_push_items(wp: *mut win_T, l: *mut list_T) {
             (*l).lv_first
         };
         while !li.is_null() {
-            if (*li).li_tv.v_type == VarType::VAR_DICT && !(*li).li_tv.vval.v_dict.is_null() {
-                let itemdict = (*li).li_tv.vval.v_dict;
+            if (*li).li_tv.v_type == VarType::VAR_DICT && !(*li).li_tv.vval.v_dict().is_null() {
+                let itemdict = (*li).li_tv.vval.v_dict();
                 let di = tv_dict_find(itemdict, c"from".as_ptr(), -1);
                 if !di.is_null() {
                     let mut mark = pos_T {
@@ -3537,7 +3537,7 @@ pub unsafe fn set_tagstack(wp: *mut win_T, d: *const dict_T, action: c_int) -> c
                 emsg(gettext((&raw const e_listreq).cast()));
                 return FAIL;
             }
-            l = (*di_items).di_tv.vval.v_list;
+            l = (*di_items).di_tv.vval.v_list();
         }
 
         let di_curidx = tv_dict_find(d, c"curidx".as_ptr(), -1);

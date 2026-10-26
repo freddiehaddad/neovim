@@ -5310,9 +5310,9 @@ unsafe fn call_user_expand_func<R>(
         args[1].v_type = VarType::VAR_STRING;
         args[2].v_type = VarType::VAR_NUMBER;
         args[3].v_type = VarType::VAR_UNKNOWN;
-        args[0].vval.v_string = pat.as_ptr().cast_mut();
-        args[1].vval.v_string = (*xp).xp_line;
-        args[2].vval.v_number = i64::from((*xp).xp_col);
+        args[0].vval = crate::eval::typval::TypvalVval::String(pat.as_ptr().cast_mut());
+        args[1].vval = crate::eval::typval::TypvalVval::String((*xp).xp_line);
+        args[2].vval = crate::eval::typval::TypvalVval::Number(i64::from((*xp).xp_col));
 
         current_sctx = (*xp).xp_script_ctx;
 
@@ -5431,13 +5431,13 @@ pub unsafe fn expand_process_user_list(
                 let mut info: Option<std::ffi::CString> = None;
 
                 if (*tv).v_type == VarType::VAR_STRING {
-                    if (*tv).vval.v_string.is_null() {
+                    if (*tv).vval.v_string().is_null() {
                         li = (*li).li_next;
                         continue;
                     }
-                    p = cstr_to_cstring((*tv).vval.v_string);
-                } else if (*tv).v_type == VarType::VAR_DICT && !(*tv).vval.v_dict.is_null() {
-                    let d = (*tv).vval.v_dict;
+                    p = cstr_to_cstring((*tv).vval.v_string());
+                } else if (*tv).v_type == VarType::VAR_DICT && !(*tv).vval.v_dict().is_null() {
+                    let d = (*tv).vval.v_dict();
                     let word = tv_dict_get_string(d, c"word".as_ptr());
                     if word.is_null() {
                         li = (*li).li_next;
@@ -5499,7 +5499,7 @@ unsafe fn ExpandUserLua(xp: *mut expand_T, matches: &mut Vec<CString>) -> c_int 
             return FAIL;
         }
 
-        let retlist = rettv.vval.v_list;
+        let retlist = rettv.vval.v_list();
         expand_process_user_list(retlist, matches, xp);
         tv_list_unref(retlist);
         OK
@@ -5939,7 +5939,7 @@ pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
         tv_list_alloc_ret(rettv, xpc.xp_numfiles as isize);
 
         for f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
-            tv_list_append_string((*rettv).vval.v_list, f.as_ptr(), f.as_bytes().len() as isize);
+            tv_list_append_string((*rettv).vval.v_list(), f.as_ptr(), f.as_bytes().len() as isize);
         }
     }
 }
@@ -5952,7 +5952,7 @@ pub unsafe fn f_getcompletiontype(
 ) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = ptr::null_mut();
+        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         if tv_check_for_string_arg(argvars, 0) == FAIL {
             return;
@@ -5995,7 +5995,7 @@ pub unsafe fn f_cmdcomplete_info(
         let orig_ptr = &raw const cmdline_orig;
         let orig_ref = (*orig_ptr).as_ref();
 
-        let retdict = (*rettv).vval.v_dict;
+        let retdict = (*rettv).vval.v_dict();
         let mut ret = tv_dict_add_str_len(
             retdict,
             c"cmdline_orig".as_ptr(),

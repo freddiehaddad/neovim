@@ -1229,7 +1229,7 @@ pub unsafe extern "C" fn nvim_buf_get_changedtick(buf: Buffer, err: *mut Error) 
         if b.is_null() {
             return -1;
         }
-        (*b).changedtick_di.di_tv.vval.v_number
+        (*b).changedtick_di.di_tv.vval.v_number()
     }
 }
 

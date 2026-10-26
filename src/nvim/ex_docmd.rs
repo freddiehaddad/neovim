@@ -7594,7 +7594,7 @@ pub unsafe fn f_fullcommand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
         let mut name = tv_get_string(argvars).cast_mut();
 
         (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = ptr::null_mut();
+        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         while *name == b':' as c_char {
             name = name.add(1);
@@ -9158,7 +9158,7 @@ unsafe fn ex_exmode(_eap: *mut exarg_T) {
         let mut args = [typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,
-            vval: TypvalVval { v_number: 0 },
+            vval: TypvalVval::Number(0),
         }];
         nlua_call_typval(
             c"vim._core.exmode".as_ptr(),
@@ -9186,7 +9186,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
             let mut extra_tv = typval_T {
                 v_type: VarType::VAR_DICT,
                 v_lock: 0,
-                vval: TypvalVval { v_dict: extra_d },
+                vval: TypvalVval::Dict(extra_d),
             };
             nlua_call_excmd(
                 c"vim._core.server".as_ptr(),
@@ -9970,19 +9970,17 @@ unsafe fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut lis
             typval_T {
                 v_type: VarType::VAR_STRING,
                 v_lock: 0,
-                vval: TypvalVval { v_string: pat },
+                vval: TypvalVval::String(pat),
             },
             typval_T {
                 v_type: VarType::VAR_BOOL,
                 v_lock: 0,
-                vval: TypvalVval {
-                    v_bool: cmdcomplete,
-                },
+                vval: TypvalVval::Bool(cmdcomplete),
             },
             typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
-                vval: TypvalVval { v_number: 0 },
+                vval: TypvalVval::Number(0),
             },
         ];
 
@@ -10003,7 +10001,7 @@ unsafe fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut lis
         let mut retlist: *mut list_T = ptr::null_mut();
         if retval {
             if rettv.v_type == VarType::VAR_LIST {
-                retlist = tv_list_copy(None, rettv.vval.v_list, false, get_copyID());
+                retlist = tv_list_copy(None, rettv.vval.v_list(), false, get_copyID());
             } else {
                 let _ = emsg(gettext(e_invalid_return_type_from_findfunc.as_ptr()));
             }
@@ -10065,11 +10063,11 @@ unsafe fn findfunc_find_file(
             let li = tv_list_find(fname_list, count - 1);
             if !li.is_null() {
                 let tv = &raw const (*li).li_tv;
-                if (*tv).v_type == VarType::VAR_STRING && !(*tv).vval.v_string.is_null() {
-                    ret_fname = Some(cstr_to_cstring((*tv).vval.v_string));
-                } else if (*tv).v_type == VarType::VAR_DICT && !(*tv).vval.v_dict.is_null() {
+                if (*tv).v_type == VarType::VAR_STRING && !(*tv).vval.v_string().is_null() {
+                    ret_fname = Some(cstr_to_cstring((*tv).vval.v_string()));
+                } else if (*tv).v_type == VarType::VAR_DICT && !(*tv).vval.v_dict().is_null() {
                     ret_fname =
-                        crate::eval::typval::tv_dict_get_cstring((*tv).vval.v_dict, c"word".as_ptr());
+                        crate::eval::typval::tv_dict_get_cstring((*tv).vval.v_dict(), c"word".as_ptr());
                 }
             }
         }
@@ -12817,7 +12815,7 @@ unsafe fn ex_terminal(eap: *mut exarg_T) {
             tv_list_alloc_ret(&raw mut shell_tv, 0);
             for arg in argv {
                 tv_list_append_string(
-                    shell_tv.vval.v_list,
+                    shell_tv.vval.v_list(),
                     arg.as_ptr(),
                     arg.as_bytes().len() as isize,
                 );

@@ -2515,9 +2515,9 @@ unsafe fn fill_submatch_list(
             return argskip;
         }
 
-        tv_list_init_static10((*listarg).vval.v_list.cast::<staticList10_T>());
+        tv_list_init_static10((*listarg).vval.v_list().cast::<staticList10_T>());
 
-        let mut li = tv_list_first((*listarg).vval.v_list);
+        let mut li = tv_list_first((*listarg).vval.v_list());
         for i in 0..10 {
             let s = (*rsm.sm_match).startp[i];
             if s.is_null() || (*rsm.sm_match).endp[i].is_null() {
@@ -2664,9 +2664,9 @@ unsafe fn vim_regsub_both(
                     let mut rettv: typval_T = typval_T::new();
                     let mut matchList = staticList10_T::new();
                     rettv.v_type = VarType::VAR_STRING;
-                    rettv.vval.v_string = ptr::null_mut();
+                    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                     argv[0].v_type = VarType::VAR_LIST;
-                    argv[0].vval.v_list = &raw mut matchList.sl_list;
+                    argv[0].vval = crate::eval::typval::TypvalVval::List(&raw mut matchList.sl_list);
                     let mut funcexe = funcexe_T {
                         fe_argv_func: Some(fill_submatch_list),
                         fe_firstline: 0,
@@ -2679,7 +2679,7 @@ unsafe fn vim_regsub_both(
                         fe_found_var: false,
                     };
                     if (*expr).v_type == VarType::VAR_FUNC {
-                        let s = (*expr).vval.v_string;
+                        let s = (*expr).vval.v_string();
                         call_func(
                             s,
                             -1,
@@ -2689,7 +2689,7 @@ unsafe fn vim_regsub_both(
                             &raw mut funcexe,
                         );
                     } else if (*expr).v_type == VarType::VAR_PARTIAL {
-                        let partial = (*expr).vval.v_partial;
+                        let partial = (*expr).vval.v_partial();
                         let s = partial_name(partial);
                         funcexe.fe_partial = partial;
                         call_func(

@@ -1448,7 +1448,7 @@ unsafe fn sign_define_multiple(l: *const list_T, retlist: *mut list_T) {
             if (*li).li_tv.v_type == VarType::VAR_DICT {
                 retval = sign_define_from_dict(
                     ptr::null_mut(),
-                    (*li).li_tv.vval.v_dict.cast::<dict_T>(),
+                    (*li).li_tv.vval.v_dict().cast::<dict_T>(),
                 );
             } else {
                 emsg(gettext(e_dictreq.as_ptr()));
@@ -1465,11 +1465,11 @@ pub unsafe fn f_sign_define(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             && (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN
         {
             tv_list_alloc_ret(rettv, kListLenMayKnow);
-            sign_define_multiple((*argvars).vval.v_list, (*rettv).vval.v_list);
+            sign_define_multiple((*argvars).vval.v_list(), (*rettv).vval.v_list());
             return;
         }
 
-        (*rettv).vval.v_number = -1;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
 
         let name = tv_get_string_chk(argvars).cast_mut();
         if name.is_null() {
@@ -1481,11 +1481,11 @@ pub unsafe fn f_sign_define(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
         }
 
         let d = if (*argvars.add(1)).v_type == VarType::VAR_DICT {
-            (*argvars.add(1)).vval.v_dict.cast::<dict_T>()
+            (*argvars.add(1)).vval.v_dict().cast::<dict_T>()
         } else {
             ptr::null_mut()
         };
-        (*rettv).vval.v_number = i64::from(sign_define_from_dict(name, d));
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_define_from_dict(name, d)));
     }
 }
 
@@ -1496,12 +1496,12 @@ pub unsafe fn f_sign_getdefined(argvars: *mut typval_T, rettv: *mut typval_T, _f
         if (*argvars).v_type == VarType::VAR_UNKNOWN {
             let sm_ptr = &raw mut sign_map;
             for sp in &mut *sm_ptr {
-                tv_list_append_dict((*rettv).vval.v_list, sign_get_info_dict(sp));
+                tv_list_append_dict((*rettv).vval.v_list(), sign_get_info_dict(sp));
             }
         } else {
             let sp = pmap_get_sign(tv_get_string(argvars));
             if !sp.is_null() {
-                tv_list_append_dict((*rettv).vval.v_list, sign_get_info_dict(sp));
+                tv_list_append_dict((*rettv).vval.v_list(), sign_get_info_dict(sp));
             }
         }
     }
@@ -1527,7 +1527,7 @@ pub unsafe fn f_sign_getplaced(argvars: *mut typval_T, rettv: *mut typval_T, _fp
                 if tv_check_for_nonnull_dict_arg(argvars, 1) == FAIL {
                     return;
                 }
-                let dict = (*argvars.add(1)).vval.v_dict.cast::<dict_T>();
+                let dict = (*argvars.add(1)).vval.v_dict().cast::<dict_T>();
                 let di_lnum = tv_dict_find(dict, c"lnum".as_ptr(), -1);
                 if !di_lnum.is_null() {
                     lnum = tv_get_lnum(&raw const (*di_lnum).di_tv);
@@ -1556,13 +1556,13 @@ pub unsafe fn f_sign_getplaced(argvars: *mut typval_T, rettv: *mut typval_T, _fp
             }
         }
 
-        sign_get_placed(buf, lnum, sign_id, group, (*rettv).vval.v_list);
+        sign_get_placed(buf, lnum, sign_id, group, (*rettv).vval.v_list());
     }
 }
 
 pub unsafe fn f_sign_jump(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_number = -1;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
 
         let mut notanum = false;
         let id = tv_get_number_chk(argvars, &raw mut notanum) as c_int;
@@ -1587,7 +1587,7 @@ pub unsafe fn f_sign_jump(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
             return;
         }
 
-        (*rettv).vval.v_number = i64::from(sign_jump(id, group, buf));
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_jump(id, group, buf)));
     }
 }
 
@@ -1695,22 +1695,22 @@ pub unsafe fn f_sign_place(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
     unsafe {
         let mut dict: *mut dict_T = ptr::null_mut();
 
-        (*rettv).vval.v_number = -1;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
 
         if (*argvars.add(4)).v_type != VarType::VAR_UNKNOWN {
             if tv_check_for_nonnull_dict_arg(argvars, 4) == FAIL {
                 return;
             }
-            dict = (*argvars.add(4)).vval.v_dict.cast::<dict_T>();
+            dict = (*argvars.add(4)).vval.v_dict().cast::<dict_T>();
         }
 
-        (*rettv).vval.v_number = i64::from(sign_place_from_dict(
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_place_from_dict(
             argvars,
             argvars.add(1),
             argvars.add(2),
             argvars.add(3),
             dict,
-        ));
+        )));
     }
 }
 
@@ -1723,7 +1723,7 @@ pub unsafe fn f_sign_placelist(argvars: *mut typval_T, rettv: *mut typval_T, _fp
             return;
         }
 
-        let l = (*argvars).vval.v_list;
+        let l = (*argvars).vval.v_list();
         if !l.is_null() {
             let mut li = (*l).lv_first;
             while !li.is_null() {
@@ -1734,12 +1734,12 @@ pub unsafe fn f_sign_placelist(argvars: *mut typval_T, rettv: *mut typval_T, _fp
                         ptr::null_mut(),
                         ptr::null_mut(),
                         ptr::null_mut(),
-                        (*li).li_tv.vval.v_dict.cast::<dict_T>(),
+                        (*li).li_tv.vval.v_dict().cast::<dict_T>(),
                     );
                 } else {
                     emsg(gettext(e_dictreq.as_ptr()));
                 }
-                tv_list_append_number((*rettv).vval.v_list, i64::from(sign_id));
+                tv_list_append_number((*rettv).vval.v_list(), i64::from(sign_id));
                 li = (*li).li_next;
             }
         }
@@ -1770,22 +1770,22 @@ pub unsafe fn f_sign_undefine(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
             && (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN
         {
             tv_list_alloc_ret(rettv, kListLenMayKnow);
-            sign_undefine_multiple((*argvars).vval.v_list, (*rettv).vval.v_list);
+            sign_undefine_multiple((*argvars).vval.v_list(), (*rettv).vval.v_list());
             return;
         }
 
-        (*rettv).vval.v_number = -1;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
 
         if (*argvars).v_type == VarType::VAR_UNKNOWN {
             free_signs();
-            (*rettv).vval.v_number = 0;
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
         } else {
             let name = tv_get_string_chk(argvars);
             if name.is_null() {
                 return;
             }
             if sign_undefine_by_name(name) == OK {
-                (*rettv).vval.v_number = 0;
+                (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
             }
         }
     }
@@ -1829,7 +1829,7 @@ pub unsafe fn f_sign_unplace(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
     unsafe {
         let mut dict: *mut dict_T = ptr::null_mut();
 
-        (*rettv).vval.v_number = -1;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
 
         if tv_check_for_string_arg(argvars, 0) == FAIL
             || tv_check_for_opt_dict_arg(argvars, 1) == FAIL
@@ -1838,10 +1838,10 @@ pub unsafe fn f_sign_unplace(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
         }
 
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
-            dict = (*argvars.add(1)).vval.v_dict.cast::<dict_T>();
+            dict = (*argvars.add(1)).vval.v_dict().cast::<dict_T>();
         }
 
-        (*rettv).vval.v_number = i64::from(sign_unplace_from_dict(argvars, dict));
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_unplace_from_dict(argvars, dict)));
     }
 }
 
@@ -1858,7 +1858,7 @@ pub unsafe fn f_sign_unplacelist(
             return;
         }
 
-        let l = (*argvars).vval.v_list;
+        let l = (*argvars).vval.v_list();
         if !l.is_null() {
             let mut li = (*l).lv_first;
             while !li.is_null() {
@@ -1866,12 +1866,12 @@ pub unsafe fn f_sign_unplacelist(
                 if (*li).li_tv.v_type == VarType::VAR_DICT {
                     retval = sign_unplace_from_dict(
                         ptr::null_mut(),
-                        (*li).li_tv.vval.v_dict.cast::<dict_T>(),
+                        (*li).li_tv.vval.v_dict().cast::<dict_T>(),
                     );
                 } else {
                     emsg(gettext(e_dictreq.as_ptr()));
                 }
-                tv_list_append_number((*rettv).vval.v_list, i64::from(retval));
+                tv_list_append_number((*rettv).vval.v_list(), i64::from(retval));
                 li = (*li).li_next;
             }
         }

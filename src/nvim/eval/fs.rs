@@ -465,7 +465,7 @@ pub unsafe fn modify_fname(
 pub unsafe fn f_chdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = ptr::null_mut();
+        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         if check_secure() {
             return;
@@ -509,11 +509,11 @@ pub unsafe fn f_chdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
             scope = kCdScopeTabpage;
         }
 
-        if !do_chdir((*argvars).vval.v_string, scope) {
+        if !do_chdir((*argvars).vval.v_string(), scope) {
             // Directory change failed
             tv_clear(rettv);
             (*rettv).v_type = VarType::VAR_STRING;
-            (*rettv).vval.v_string = ptr::null_mut();
+            (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
     }
 }
@@ -521,7 +521,7 @@ pub unsafe fn f_chdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
 /// "delete()" function
 pub unsafe fn f_delete(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_number = -1;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
         if check_secure() {
             return;
         }
@@ -542,13 +542,13 @@ pub unsafe fn f_delete(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
         let flags_bytes = CStr::from_ptr(flags).to_bytes();
         if flags_bytes.is_empty() {
             // delete a file
-            (*rettv).vval.v_number = if os_remove(name) == 0 { 0 } else { -1 };
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(if os_remove(name) == 0 { 0 } else { -1 });
         } else if flags_bytes == b"d" {
             // delete an empty directory
-            (*rettv).vval.v_number = if os_rmdir(name) == 0 { 0 } else { -1 };
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(if os_rmdir(name) == 0 { 0 } else { -1 });
         } else if flags_bytes == b"rf" {
             // delete a directory recursively
-            (*rettv).vval.v_number = varnumber_T::from(delete_recursive(name));
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(delete_recursive(name)));
         } else {
             semsg!(gettext(e_invexpr2.as_ptr()), flags);
         }
@@ -563,8 +563,7 @@ pub unsafe fn f_executable(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
         }
 
         // Check in $PATH and also check directly if there is a directory name
-        (*rettv).vval.v_number =
-            varnumber_T::from(os_can_exe(tv_get_string(argvars), None, true));
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(os_can_exe(tv_get_string(argvars), None, true)));
     }
 }
 
@@ -592,7 +591,7 @@ pub unsafe fn f_exepath(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                 crate::eval::typval::tv_set_string(rettv, p.as_ptr());
             }
         } else {
-            (*rettv).vval.v_string = ptr::null_mut();
+            (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
     }
 }
@@ -600,7 +599,7 @@ pub unsafe fn f_exepath(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
 /// "filecopy()" function
 pub unsafe fn f_filecopy(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_number = 0;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
 
         if check_secure()
             || tv_check_for_string_arg(argvars, 0) == FAIL
@@ -615,9 +614,9 @@ pub unsafe fn f_filecopy(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         if os_fileinfo_link(from, &raw mut from_info)
             && (s_isreg(from_info.stat.st_mode) || s_islnk(from_info.stat.st_mode))
         {
-            (*rettv).vval.v_number = varnumber_T::from(
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(
                 vim_copyfile(tv_get_string(argvars), tv_get_string(argvars.add(1))) == OK,
-            );
+            ));
         }
     }
 }
@@ -626,8 +625,7 @@ pub unsafe fn f_filecopy(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 pub unsafe fn f_filereadable(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let p = tv_get_string(argvars);
-        (*rettv).vval.v_number =
-            varnumber_T::from(*p != NUL && !os_isdir(p) && os_file_is_readable(p));
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(*p != NUL && !os_isdir(p) && os_file_is_readable(p)));
     }
 }
 
@@ -637,7 +635,7 @@ pub unsafe fn f_filereadable(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
 pub unsafe fn f_filewritable(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let filename = tv_get_string(argvars);
-        (*rettv).vval.v_number = varnumber_T::from(os_file_is_writable(filename));
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(os_file_is_writable(filename)));
     }
 }
 
@@ -653,7 +651,7 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
         let mut first = true;
         let mut error = false;
 
-        (*rettv).vval.v_string = ptr::null_mut();
+        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         (*rettv).v_type = VarType::VAR_STRING;
 
         let fname = tv_get_string(argvars);
@@ -708,7 +706,7 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
                 if let Some(ref res) = fresult
                     && (*rettv).v_type == VarType::VAR_LIST
                 {
-                    tv_list_append_string((*rettv).vval.v_list, res.as_ptr(), -1);
+                    tv_list_append_string((*rettv).vval.v_list(), res.as_ptr(), -1);
                 }
 
                 let keep_going = (*rettv).v_type == VarType::VAR_LIST || {
@@ -777,7 +775,7 @@ pub unsafe fn f_fnamemodify(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
 
         if fname.is_null() {
             (*rettv).v_type = VarType::VAR_STRING;
-            (*rettv).vval.v_string = ptr::null_mut();
+            (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         } else {
             crate::eval::typval::tv_set_string_len(rettv, fname, len);
         }
@@ -816,7 +814,7 @@ unsafe fn getcwd_scope_args(
                 emsg(gettext(e_invarg.as_ptr()));
                 return false;
             }
-            argv[argc] = (*argvars.add(argc)).vval.v_number as c_int;
+            argv[argc] = (*argvars.add(argc)).vval.v_number() as c_int;
             // It is an error for the scope number to be less than `-1`.
             if argv[argc] < -1 {
                 emsg(gettext(e_invarg.as_ptr()));
@@ -915,7 +913,7 @@ pub unsafe fn f_getcwd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
         let mut buf: *mut buf_T = ptr::null_mut();
 
         (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = ptr::null_mut();
+        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         // Without arguments (kCdScopeInvalid), the effective working directory is returned.
         if !getcwd_scope_args(
@@ -1004,7 +1002,7 @@ pub unsafe fn f_getfperm(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             crate::eval::typval::tv_set_string_len(rettv, perm.as_ptr(), 9);
         } else {
             (*rettv).v_type = VarType::VAR_STRING;
-            (*rettv).vval.v_string = ptr::null_mut();
+            (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
     }
 }
@@ -1018,17 +1016,17 @@ pub unsafe fn f_getfsize(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         if os_fileinfo(fname, &raw mut file_info) {
             let filesize = os_fileinfo_size(&raw const file_info);
             if s_isdir(file_info.stat.st_mode) {
-                (*rettv).vval.v_number = 0;
+                (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
             } else {
-                (*rettv).vval.v_number = filesize as varnumber_T;
+                (*rettv).vval = crate::eval::typval::TypvalVval::Number(filesize as varnumber_T);
 
                 // non-perfect check for overflow
-                if (*rettv).vval.v_number as u64 != filesize {
-                    (*rettv).vval.v_number = -2;
+                if (*rettv).vval.v_number() as u64 != filesize {
+                    (*rettv).vval = crate::eval::typval::TypvalVval::Number(-2);
                 }
             }
         } else {
-            (*rettv).vval.v_number = -1;
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
         }
     }
 }
@@ -1040,9 +1038,9 @@ pub unsafe fn f_getftime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 
         let mut file_info = FileInfo::new();
         if os_fileinfo(fname, &raw mut file_info) {
-            (*rettv).vval.v_number = file_info.stat.st_mtim.tv_sec as varnumber_T;
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(file_info.stat.st_mtim.tv_sec as varnumber_T);
         } else {
-            (*rettv).vval.v_number = -1;
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
         }
     }
 }
@@ -1075,7 +1073,7 @@ pub unsafe fn f_getftype(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             crate::eval::typval::tv_set_string(rettv, t);
         } else {
             (*rettv).v_type = VarType::VAR_STRING;
-            (*rettv).vval.v_string = ptr::null_mut();
+            (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
     }
 }
@@ -1120,7 +1118,7 @@ pub unsafe fn f_glob(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
                 ) {
                     crate::eval::typval::tv_set_string(rettv, exp.as_ptr());
                 } else {
-                    (*rettv).vval.v_string = ptr::null_mut();
+                    (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                 }
             } else {
                 ExpandOne(
@@ -1133,14 +1131,14 @@ pub unsafe fn f_glob(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
                 tv_list_alloc_ret(rettv, xpc.xp_numfiles as isize);
                 for f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
                     tv_list_append_string(
-                        (*rettv).vval.v_list,
+                        (*rettv).vval.v_list(),
                         f.as_ptr(),
                         f.as_bytes().len() as isize,
                     );
                 }
             }
         } else {
-            (*rettv).vval.v_string = ptr::null_mut();
+            (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
     }
 }
@@ -1192,14 +1190,14 @@ pub unsafe fn f_globpath(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                 tv_list_alloc_ret(rettv, ga.len() as isize);
                 for s in &ga {
                     tv_list_append_string(
-                        (*rettv).vval.v_list,
+                        (*rettv).vval.v_list(),
                         s.as_ptr(),
                         s.as_bytes().len() as isize,
                     );
                 }
             }
         } else {
-            (*rettv).vval.v_string = ptr::null_mut();
+            (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
     }
 }
@@ -1229,7 +1227,7 @@ pub unsafe fn f_haslocaldir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
         let mut buf: *mut buf_T = ptr::null_mut();
 
         (*rettv).v_type = VarType::VAR_NUMBER;
-        (*rettv).vval.v_number = 0;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
 
         // Without arguments, default to window scope.
         if !getcwd_scope_args(
@@ -1245,13 +1243,13 @@ pub unsafe fn f_haslocaldir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
 
         match scope {
             kCdScopeWindow => {
-                (*rettv).vval.v_number = varnumber_T::from((*win).w_localdir.is_some());
+                (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from((*win).w_localdir.is_some()));
             }
             kCdScopeBuffer => {
-                (*rettv).vval.v_number = varnumber_T::from((*buf).b_localdir.is_some());
+                (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from((*buf).b_localdir.is_some()));
             }
             kCdScopeTabpage => {
-                (*rettv).vval.v_number = varnumber_T::from((*tp).tp_localdir.is_some());
+                (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from((*tp).tp_localdir.is_some()));
             }
             kCdScopeGlobal => {
                 // The global scope never has a local directory
@@ -1264,14 +1262,14 @@ pub unsafe fn f_haslocaldir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
 /// "isabsolutepath()" function
 pub unsafe fn f_isabsolutepath(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_number = varnumber_T::from(path_is_absolute(tv_get_string(argvars)));
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(path_is_absolute(tv_get_string(argvars))));
     }
 }
 
 /// "isdirectory()" function
 pub unsafe fn f_isdirectory(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_number = varnumber_T::from(os_isdir(tv_get_string(argvars)));
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(os_isdir(tv_get_string(argvars))));
     }
 }
 
@@ -1280,7 +1278,7 @@ pub unsafe fn f_mkdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
     unsafe {
         let mut prot: c_int = 0o755;
 
-        (*rettv).vval.v_number = varnumber_T::from(FAIL);
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(FAIL));
         if check_secure() {
             return;
         }
@@ -1327,18 +1325,18 @@ pub unsafe fn f_mkdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
                         failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                         uv_strerror(ret),
                     );
-                    (*rettv).vval.v_number = varnumber_T::from(FAIL);
+                    (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(FAIL));
                     return;
                 }
-                (*rettv).vval.v_number = varnumber_T::from(OK);
+                (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(OK));
             }
         }
-        if (*rettv).vval.v_number == varnumber_T::from(FAIL) {
-            (*rettv).vval.v_number = varnumber_T::from(vim_mkdir_emsg(dir, prot));
+        if (*rettv).vval.v_number() == varnumber_T::from(FAIL) {
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(vim_mkdir_emsg(dir, prot)));
         }
 
         // Handle "D" and "R": deferred deletion of the created directory.
-        if (*rettv).vval.v_number == varnumber_T::from(OK)
+        if (*rettv).vval.v_number() == varnumber_T::from(OK)
             && created.is_none()
             && (defer || defer_recurse)
         {
@@ -1375,7 +1373,7 @@ pub unsafe fn f_pathshorten(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
         let p = tv_get_string_chk(argvars);
         if p.is_null() {
             (*rettv).v_type = VarType::VAR_STRING;
-            (*rettv).vval.v_string = ptr::null_mut();
+            (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         } else {
             let mut v = cstr_into_char_vec(cstr_to_cstring(p));
             shorten_dir_len(v.as_mut_ptr(), trim_len);
@@ -1390,7 +1388,7 @@ unsafe fn readdir_checkitem(expr: *mut typval_T, name: *const c_char) -> varnumb
         let tv_init = typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval { v_number: 0 },
+            vval: TypvalVval::Number(0),
         };
         let mut argv = [tv_init; 2];
         let mut retval: varnumber_T = 0;
@@ -1404,7 +1402,7 @@ unsafe fn readdir_checkitem(expr: *mut typval_T, name: *const c_char) -> varnumb
         prepare_vimvar(VV_VAL, &raw mut save_val);
         set_vim_var_string(VV_VAL, name, -1);
         argv[0].v_type = VarType::VAR_STRING;
-        argv[0].vval.v_string = name.cast_mut();
+        argv[0].vval = crate::eval::typval::TypvalVval::String(name.cast_mut());
 
         let mut rettv = tv_init;
         if eval_expr_typval(expr, false, argv.as_mut_ptr(), 1, &raw mut rettv) != FAIL {
@@ -1436,7 +1434,7 @@ pub unsafe fn f_readdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
         let ret = readdir_core(&mut entries, path, expr, Some(readdir_checkitem));
         if ret == OK {
             for entry in &entries {
-                tv_list_append_string((*rettv).vval.v_list, entry.as_ptr(), -1);
+                tv_list_append_string((*rettv).vval.v_list(), entry.as_ptr(), -1);
             }
         }
     }
@@ -1451,7 +1449,7 @@ unsafe fn read_blob(
     size_arg: off_T,
 ) -> c_int {
     unsafe {
-        let blob = (*rettv).vval.v_blob;
+        let blob = (*rettv).vval.v_blob();
         let mut file_info = FileInfo::new();
         if !os_fileinfo_fd(fileno(fd), &raw mut file_info) {
             return FAIL; // can't read the file, error
@@ -1489,8 +1487,8 @@ unsafe fn read_blob(
         bv.resize(size as usize, 0);
         if fread(bv.as_mut_ptr().cast(), 1, bv.len(), fd) < bv.len() {
             // An empty blob is returned on error.
-            crate::eval::typval::tv_blob_unref((*rettv).vval.v_blob);
-            (*rettv).vval.v_blob = ptr::null_mut();
+            crate::eval::typval::tv_blob_unref((*rettv).vval.v_blob());
+            (*rettv).vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
             return FAIL;
         }
         OK
@@ -1560,7 +1558,7 @@ unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: *mut typval_T, always
             return;
         }
 
-        let l = (*rettv).vval.v_list;
+        let l = (*rettv).vval.v_list();
         let buf_ptr = buf.as_mut_ptr();
 
         while maxline < 0 || i64::from(tv_list_len(l)) < maxline {
@@ -1696,13 +1694,13 @@ pub unsafe fn f_readfile(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 pub unsafe fn f_rename(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if check_secure() {
-            (*rettv).vval.v_number = -1;
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
         } else {
             let mut buf = [0 as c_char; NUMBUFLEN];
-            (*rettv).vval.v_number = varnumber_T::from(vim_rename(
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(vim_rename(
                 tv_get_string(argvars),
                 tv_get_string_buf(argvars.add(1), buf.as_mut_ptr()),
-            ));
+            )));
         }
     }
 }
@@ -1770,7 +1768,7 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                     limit -= 1;
                     if old_limit == 0 {
                         emsg(gettext(c"E655: Too many symbolic links (cycle?)".as_ptr()));
-                        (*rettv).vval.v_string = ptr::null_mut();
+                        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                         return;
                     }
 
@@ -1897,7 +1895,7 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             crate::eval::typval::tv_set_string(rettv, p);
         }
 
-        simplify_filename((*rettv).vval.v_string);
+        simplify_filename((*rettv).vval.v_string());
     }
 }
 
@@ -1918,7 +1916,7 @@ pub unsafe fn f_tempname(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
             crate::eval::typval::tv_set_string(rettv, tn.as_ptr());
         } else {
             (*rettv).v_type = VarType::VAR_STRING;
-            (*rettv).vval.v_string = ptr::null_mut();
+            (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
     }
 }
@@ -2029,14 +2027,14 @@ unsafe fn write_string(fp: *mut FileDescriptor, data: *const c_char) -> bool {
 /// "writefile()" function
 pub unsafe fn f_writefile(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_number = -1;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
 
         if check_secure() {
             return;
         }
 
         if (*argvars).v_type == VarType::VAR_LIST {
-            let mut li = tv_list_first((*argvars).vval.v_list);
+            let mut li = tv_list_first((*argvars).vval.v_list());
             while !li.is_null() {
                 if !tv_check_str_or_nr(&raw const (*li).li_tv) {
                     return;
@@ -2126,15 +2124,15 @@ pub unsafe fn f_writefile(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
                 }
 
                 let write_ok = if (*argvars).v_type == VarType::VAR_BLOB {
-                    (*argvars).vval.v_blob.is_null()
-                        || write_blob(&raw mut fp, (*argvars).vval.v_blob)
+                    (*argvars).vval.v_blob().is_null()
+                        || write_blob(&raw mut fp, (*argvars).vval.v_blob())
                 } else if (*argvars).v_type == VarType::VAR_STRING {
-                    write_string(&raw mut fp, (*argvars).vval.v_string)
+                    write_string(&raw mut fp, (*argvars).vval.v_string())
                 } else {
-                    write_list(&raw mut fp, (*argvars).vval.v_list, binary)
+                    write_list(&raw mut fp, (*argvars).vval.v_list(), binary)
                 };
                 if write_ok {
-                    (*rettv).vval.v_number = 0;
+                    (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
                 }
                 error = file_close(&raw mut fp, do_fsync);
                 if error != 0 {
@@ -2152,7 +2150,7 @@ pub unsafe fn f_writefile(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
 /// "browse(save, title, initdir, default)" function
 pub unsafe fn f_browse(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_string = ptr::null_mut();
+        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         (*rettv).v_type = VarType::VAR_STRING;
     }
 }

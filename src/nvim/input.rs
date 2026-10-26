@@ -1931,7 +1931,7 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow
 
         let arg1 = argvars.add(1);
         if (*argvars).v_type != VarType::VAR_UNKNOWN && (*arg1).v_type == VarType::VAR_DICT {
-            let d = (*arg1).vval.v_dict;
+            let d = (*arg1).vval.v_dict();
 
             if allow_number {
                 allow_number = tv_dict_get_bool(d, c"number".as_ptr(), 1) != 0;
@@ -1979,7 +1979,7 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow
             }
 
             if (*argvars).v_type == VarType::VAR_UNKNOWN
-                || ((*argvars).v_type == VarType::VAR_NUMBER && (*argvars).vval.v_number == -1)
+                || ((*argvars).v_type == VarType::VAR_NUMBER && (*argvars).vval.v_number() == -1)
             {
                 if !char_avail() {
                     ui_flush();
@@ -2073,7 +2073,7 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow
         } else if !allow_number {
             (*rettv).v_type = VarType::VAR_STRING;
         } else {
-            (*rettv).vval.v_number = n;
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(n);
         }
     }
 }
@@ -2095,7 +2095,7 @@ pub unsafe fn f_getcharstr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
 /// `"getcharmod()"` function.
 pub unsafe fn f_getcharmod(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_number = varnumber_T::from(mod_mask);
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(mod_mask));
     }
 }
 

@@ -758,7 +758,7 @@ unsafe fn debuggy_find(
                 if let Some(mut tv) = eval_expr_no_emsg(bp.dbg_name.as_ptr().cast_mut()) {
                     if let Some(ref mut old_val) = bp.dbg_val {
                         if typval_compare(&raw mut tv, old_val, EXPR_IS, false) == OK
-                            && tv.vval.v_number == 0
+                            && tv.vval.v_number() == 0
                         {
                             line = true;
                             DEBUG_OLDVAL = Some(typval_tostring(Some(old_val), true));

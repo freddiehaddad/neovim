@@ -549,7 +549,7 @@ pub unsafe fn f_gettabinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
                 continue;
             }
             let d = get_tabpage_info(tp, tpnr);
-            tv_list_append_dict((*rettv).vval.v_list, d);
+            tv_list_append_dict((*rettv).vval.v_list(), d);
             if !tparg.is_null() {
                 return;
             }
@@ -586,7 +586,7 @@ pub unsafe fn f_getwininfo(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
                     continue;
                 }
                 let d = get_win_info(wp, tabnr, if has_winnr { winnr } else { 0 });
-                tv_list_append_dict((*rettv).vval.v_list, d);
+                tv_list_append_dict((*rettv).vval.v_list(), d);
                 if !wparg.is_null() {
                     return;
                 }
@@ -601,22 +601,22 @@ pub unsafe fn f_getwininfo(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
 pub unsafe fn f_getwinpos(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, 2);
-        tv_list_append_number((*rettv).vval.v_list, -1);
-        tv_list_append_number((*rettv).vval.v_list, -1);
+        tv_list_append_number((*rettv).vval.v_list(), -1);
+        tv_list_append_number((*rettv).vval.v_list(), -1);
     }
 }
 
 /// `getwinposx()` function (`f_getwinposx`).
 pub unsafe fn f_getwinposx(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_number = -1;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
     }
 }
 
 /// `getwinposy()` function (`f_getwinposy`).
 pub unsafe fn f_getwinposy(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_number = -1;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
     }
 }
 
@@ -644,7 +644,7 @@ pub unsafe fn f_tabpagenr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
         } else {
             nr = tabpage_index(curtab);
         }
-        (*rettv).vval.v_number = nr as varnumber_T;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(nr as varnumber_T);
     }
 }
 
@@ -657,7 +657,7 @@ pub unsafe fn f_tabpagewinnr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
         } else {
             get_winnr(tp, argvars.add(1))
         };
-        (*rettv).vval.v_number = nr as varnumber_T;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(nr as varnumber_T);
     }
 }
 
@@ -665,7 +665,7 @@ pub unsafe fn f_tabpagewinnr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
 pub unsafe fn f_win_execute(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = ptr::null_mut();
+        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         let id = tv_get_number(argvars) as c_int;
         let mut tp: *mut tabpage_T = ptr::null_mut();
@@ -692,14 +692,14 @@ pub unsafe fn f_win_execute(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
 pub unsafe fn f_win_findbuf(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
-        win_findbuf(argvars, (*rettv).vval.v_list);
+        win_findbuf(argvars, (*rettv).vval.v_list());
     }
 }
 
 /// `win_getid()` function (`f_win_getid`).
 pub unsafe fn f_win_getid(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_number = win_getid(argvars) as varnumber_T;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(win_getid(argvars) as varnumber_T);
     }
 }
 
@@ -708,7 +708,7 @@ pub unsafe fn f_win_gotoid(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
     unsafe {
         let id = tv_get_number(argvars) as c_int;
         if (*curwin).handle == id {
-            (*rettv).vval.v_number = 1;
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(1);
             return;
         }
 
@@ -724,7 +724,7 @@ pub unsafe fn f_win_gotoid(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
                         end_visual_mode();
                     }
                     goto_tabpage_win(tp, wp);
-                    (*rettv).vval.v_number = 1;
+                    (*rettv).vval = crate::eval::typval::TypvalVval::Number(1);
                     return;
                 }
                 wp = (*wp).w_next;
@@ -744,7 +744,7 @@ pub unsafe fn f_win_id2tabwin(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
 /// `win_id2win()` function (`f_win_id2win`).
 pub unsafe fn f_win_id2win(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_number = win_id2win(argvars) as varnumber_T;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(win_id2win(argvars) as varnumber_T);
     }
 }
 
@@ -755,7 +755,7 @@ pub unsafe fn f_win_move_separator(
     _fptr: EvalFuncData,
 ) {
     unsafe {
-        (*rettv).vval.v_number = 0;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
 
         let wp = find_win_by_nr_or_id(argvars);
         if wp.is_null() || (*wp).w_floating {
@@ -768,7 +768,7 @@ pub unsafe fn f_win_move_separator(
 
         let offset = tv_get_number(argvars.add(1)) as c_int;
         win_drag_vsep_line(wp, offset);
-        (*rettv).vval.v_number = 1;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(1);
     }
 }
 
@@ -779,7 +779,7 @@ pub unsafe fn f_win_move_statusline(
     _fptr: EvalFuncData,
 ) {
     unsafe {
-        (*rettv).vval.v_number = 0;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
 
         let wp = find_win_by_nr_or_id(argvars);
         if wp.is_null() || (*wp).w_floating {
@@ -792,7 +792,7 @@ pub unsafe fn f_win_move_statusline(
 
         let offset = tv_get_number(argvars.add(1)) as c_int;
         win_drag_status_line(wp, offset);
-        (*rettv).vval.v_number = 1;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(1);
     }
 }
 
@@ -802,7 +802,7 @@ pub unsafe fn f_win_screenpos(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
         tv_list_alloc_ret(rettv, 2);
         let wp = find_win_by_nr_or_id(argvars);
         tv_list_append_number(
-            (*rettv).vval.v_list,
+            (*rettv).vval.v_list(),
             if wp.is_null() {
                 0
             } else {
@@ -810,7 +810,7 @@ pub unsafe fn f_win_screenpos(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
             },
         );
         tv_list_append_number(
-            (*rettv).vval.v_list,
+            (*rettv).vval.v_list(),
             if wp.is_null() {
                 0
             } else {
@@ -827,7 +827,7 @@ pub unsafe fn f_win_splitmove(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
         let targetwin = find_win_by_nr_or_id(argvars.add(1));
         let oldwin = curwin;
 
-        (*rettv).vval.v_number = -1;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
 
         if wp.is_null()
             || targetwin.is_null()
@@ -848,7 +848,7 @@ pub unsafe fn f_win_splitmove(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
                 return;
             }
 
-            let d = (*argvars.add(2)).vval.v_dict;
+            let d = (*argvars.add(2)).vval.v_dict();
             if tv_dict_get_bool(d, c"vertical".as_ptr(), 0) != 0 {
                 flags |= WSP_VERT;
             }
@@ -873,7 +873,7 @@ pub unsafe fn f_win_splitmove(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
 
         if curwin == targetwin && win_valid(wp) {
             if win_splitmove(wp, size, flags) == OK {
-                (*rettv).vval.v_number = 0;
+                (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
             }
         } else {
             emsg(gettext((&raw const e_auabort).cast()));
@@ -931,11 +931,11 @@ pub unsafe fn f_getcmdwintype(_argvars: *mut typval_T, rettv: *mut typval_T, _fp
 pub unsafe fn f_winbufnr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let wp = find_win_by_nr_or_id(argvars);
-        (*rettv).vval.v_number = if wp.is_null() {
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
             -1
         } else {
             (*(*wp).w_buffer).b_fnum as varnumber_T
-        };
+        });
     }
 }
 
@@ -943,7 +943,7 @@ pub unsafe fn f_winbufnr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 pub unsafe fn f_wincol(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         validate_cursor(curwin);
-        (*rettv).vval.v_number = ((*curwin).w_wcol + 1) as varnumber_T;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(((*curwin).w_wcol + 1) as varnumber_T);
     }
 }
 
@@ -951,11 +951,11 @@ pub unsafe fn f_wincol(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
 pub unsafe fn f_winheight(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let wp = find_win_by_nr_or_id(argvars);
-        (*rettv).vval.v_number = if wp.is_null() {
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
             -1
         } else {
             (*wp).w_view_height as varnumber_T
-        };
+        });
     }
 }
 
@@ -974,7 +974,7 @@ pub unsafe fn f_winlayout(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
             found
         };
 
-        get_framelayout((*tp).tp_topframe.cast(), (*rettv).vval.v_list, true);
+        get_framelayout((*tp).tp_topframe.cast(), (*rettv).vval.v_list(), true);
     }
 }
 
@@ -982,14 +982,14 @@ pub unsafe fn f_winlayout(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
 pub unsafe fn f_winline(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         validate_cursor(curwin);
-        (*rettv).vval.v_number = ((*curwin).w_wrow + 1) as varnumber_T;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(((*curwin).w_wrow + 1) as varnumber_T);
     }
 }
 
 /// `winnr()` function (`f_winnr`).
 pub unsafe fn f_winnr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_number = get_winnr(curtab, argvars) as varnumber_T;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(get_winnr(curtab, argvars) as varnumber_T);
     }
 }
 
@@ -1027,7 +1027,7 @@ pub unsafe fn f_winrestview(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr
             return;
         }
 
-        let dict = (*argvars).vval.v_dict;
+        let dict = (*argvars).vval.v_dict();
         let di = tv_dict_find(dict, c"lnum".as_ptr(), 4);
         if !di.is_null() {
             (*curwin).w_cursor.lnum = tv_get_number(&raw const (*di).di_tv) as linenr_T;
@@ -1081,7 +1081,7 @@ pub unsafe fn f_winrestview(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr
 pub unsafe fn f_winsaveview(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_dict_alloc_ret(rettv);
-        let dict = (*rettv).vval.v_dict;
+        let dict = (*rettv).vval.v_dict();
 
         tv_dict_add_nr(
             dict,
@@ -1117,10 +1117,10 @@ pub unsafe fn f_winsaveview(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr
 pub unsafe fn f_winwidth(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let wp = find_win_by_nr_or_id(argvars);
-        (*rettv).vval.v_number = if wp.is_null() {
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
             -1
         } else {
             (*wp).w_view_width as varnumber_T
-        };
+        });
     }
 }

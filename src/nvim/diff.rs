@@ -3822,8 +3822,7 @@ pub(crate) unsafe fn xdiff_out(
 }
 pub unsafe fn f_diff_filler(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_number =
-            diff_check_fill(curwin, tv_get_lnum(argvars)).max(0) as varnumber_T;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(diff_check_fill(curwin, tv_get_lnum(argvars)).max(0) as varnumber_T);
     }
 }
 pub unsafe fn f_diff_hlID(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
@@ -3902,7 +3901,7 @@ pub unsafe fn f_diff_hlID(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
                 }
             }
         }
-        (*rettv).vval.v_number = f_diff_hlid_hlID as varnumber_T;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(f_diff_hlid_hlID as varnumber_T);
     }
 }
 #[cfg(test)]

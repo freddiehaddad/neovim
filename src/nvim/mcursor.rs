@@ -280,7 +280,7 @@ pub unsafe fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
 }
 
 pub unsafe fn mc_replaying() -> bool {
-    unsafe { (*get_vim_var_tv(VV_CASCADING)).vval.v_bool == kBoolVarTrue }
+    unsafe { (*get_vim_var_tv(VV_CASCADING)).vval.v_bool() == kBoolVarTrue }
 }
 
 unsafe fn mc_mark_upd(buf: *mut buf_T, mark: *mut u32, pos: pos_T) {
@@ -1390,14 +1390,12 @@ unsafe fn mc_lua_enable(enable: bool) {
             typval_T {
                 v_type: VarType::VAR_BOOL,
                 v_lock: 0,
-                vval: TypvalVval {
-                    v_bool: if enable { kBoolVarTrue } else { kBoolVarFalse },
-                },
+                vval: TypvalVval::Bool(if enable { kBoolVarTrue } else { kBoolVarFalse }),
             },
             typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
-                vval: TypvalVval { v_number: 0 },
+                vval: TypvalVval::Number(0),
             },
         ];
         nlua_call_typval(
@@ -1766,14 +1764,12 @@ pub unsafe fn mc_counter(count1: c_long) {
             typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: 0,
-                vval: TypvalVval {
-                    v_number: count1 as varnumber_T,
-                },
+                vval: TypvalVval::Number(count1 as varnumber_T),
             },
             typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
-                vval: TypvalVval { v_number: 0 },
+                vval: TypvalVval::Number(0),
             },
         ];
         nlua_call_typval(

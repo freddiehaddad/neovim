@@ -2725,11 +2725,11 @@ unsafe fn foldclosed_both(argvars: *mut typval_T, rettv: *mut typval_T, end: boo
             let mut first: linenr_T = 0;
             let mut last: linenr_T = 0;
             if hasFoldingWin(curwin, lnum, &mut first, &mut last, false, ptr::null_mut()) {
-                (*rettv).vval.v_number = varnumber_T::from(if end { last } else { first });
+                (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(if end { last } else { first }));
                 return;
             }
         }
-        (*rettv).vval.v_number = -1;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
     }
 }
 
@@ -2752,7 +2752,7 @@ pub unsafe fn f_foldlevel(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
     unsafe {
         let lnum = tv_get_lnum(argvars);
         if lnum >= 1 && lnum <= (*curbuf).b_ml.ml_line_count {
-            (*rettv).vval.v_number = varnumber_T::from(foldLevel(lnum));
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(foldLevel(lnum)));
         }
     }
 }
@@ -2761,7 +2761,7 @@ pub unsafe fn f_foldlevel(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
 pub unsafe fn f_foldtext(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = ptr::null_mut();
+        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         let foldstart = get_vim_var_nr(VV_FOLDSTART) as linenr_T;
         let foldend = get_vim_var_nr(VV_FOLDEND) as linenr_T;
@@ -2812,7 +2812,7 @@ pub unsafe fn f_foldtext(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
 pub unsafe fn f_foldtextresult(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = ptr::null_mut();
+        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         if fdt_result_entered {
             return;
         }

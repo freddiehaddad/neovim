@@ -3035,7 +3035,7 @@ pub unsafe fn f_undotree(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             return;
         }
 
-        let dict = (*rettv).vval.v_dict;
+        let dict = (*rettv).vval.v_dict();
 
         tv_dict_add_nr(
             dict,

@@ -3163,7 +3163,7 @@ unsafe fn iconv_string(
 pub unsafe fn f_iconv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = ptr::null_mut();
+        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         let str_ = tv_get_string(argvars);
         let mut buf1 = [0 as c_char; NUMBUFLEN];
@@ -3419,18 +3419,18 @@ unsafe fn cw_value(c: c_int) -> c_int {
 unsafe fn first_list_number(l: *const list_T) -> varnumber_T {
     unsafe {
         let li = tv_list_first(l);
-        (*li).li_tv.vval.v_number
+        (*li).li_tv.vval.v_number()
     }
 }
 
 pub unsafe fn f_setcellwidths(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        if (*argvars).v_type != VarType::VAR_LIST || (*argvars).vval.v_list.is_null() {
+        if (*argvars).v_type != VarType::VAR_LIST || (*argvars).vval.v_list().is_null() {
             emsg((&raw const e_listreq).cast::<c_char>());
             return;
         }
 
-        let l = (*argvars).vval.v_list;
+        let l = (*argvars).vval.v_list();
         let table_size = tv_list_len(l) as usize;
         let mut table: Vec<cw_interval_T> = Vec::with_capacity(table_size);
         if table_size != 0 {
@@ -3439,12 +3439,12 @@ pub unsafe fn f_setcellwidths(argvars: *mut typval_T, _rettv: *mut typval_T, _fp
             let mut li: *const listitem_T = (*l).lv_first;
             while !li.is_null() {
                 let li_tv = &(*li).li_tv;
-                if li_tv.v_type != VarType::VAR_LIST || li_tv.vval.v_list.is_null() {
+                if li_tv.v_type != VarType::VAR_LIST || li_tv.vval.v_list().is_null() {
                     semsg!(E_LIST_ITEM_NR_IS_NOT_LIST.as_ptr(), item);
                     return;
                 }
 
-                let li_l = li_tv.vval.v_list;
+                let li_l = li_tv.vval.v_list();
                 ptrs.push(li_l);
                 let mut lili: *const listitem_T = tv_list_first(li_l);
                 let mut i = 0;
@@ -3455,15 +3455,15 @@ pub unsafe fn f_setcellwidths(argvars: *mut typval_T, _rettv: *mut typval_T, _fp
                         break;
                     }
                     if i == 0 {
-                        n1 = lili_tv.vval.v_number;
+                        n1 = lili_tv.vval.v_number();
                         if n1 < 0x80 {
                             emsg(E_ONLY_VALUES_OF_0X80_AND_HIGHER_SUPPORTED.as_ptr());
                             return;
                         }
-                    } else if i == 1 && lili_tv.vval.v_number < n1 {
+                    } else if i == 1 && lili_tv.vval.v_number() < n1 {
                         semsg!(E_LIST_ITEM_NR_RANGE_INVALID.as_ptr(), item);
                         return;
-                    } else if i == 2 && (lili_tv.vval.v_number < 1 || lili_tv.vval.v_number > 2) {
+                    } else if i == 2 && (lili_tv.vval.v_number() < 1 || lili_tv.vval.v_number() > 2) {
                         semsg!(E_LIST_ITEM_NR_CELL_WIDTH_INVALID.as_ptr(), item);
                         return;
                     }
@@ -3484,7 +3484,7 @@ pub unsafe fn f_setcellwidths(argvars: *mut typval_T, _rettv: *mut typval_T, _fp
 
             for (idx, &li_l) in ptrs.iter().enumerate() {
                 let lili0 = tv_list_first(li_l);
-                let n1 = (*lili0).li_tv.vval.v_number;
+                let n1 = (*lili0).li_tv.vval.v_number();
                 if idx > 0 && n1 <= table[idx - 1].last {
                     semsg!(E_OVERLAPPING_RANGES_FOR_NR.as_ptr(), n1 as usize);
                     return;
@@ -3493,8 +3493,8 @@ pub unsafe fn f_setcellwidths(argvars: *mut typval_T, _rettv: *mut typval_T, _fp
                 let lili2 = (*lili1).li_next;
                 table.push(cw_interval_T {
                     first: n1,
-                    last: (*lili1).li_tv.vval.v_number,
-                    width: (*lili2).li_tv.vval.v_number as c_char,
+                    last: (*lili1).li_tv.vval.v_number(),
+                    width: (*lili2).li_tv.vval.v_number() as c_char,
                 });
             }
         }
@@ -3524,17 +3524,17 @@ pub unsafe fn f_getcellwidths(_argvars: *mut typval_T, rettv: *mut typval_T, _fp
             tv_list_append_number(entry, entry_data.first);
             tv_list_append_number(entry, entry_data.last);
             tv_list_append_number(entry, varnumber_T::from(entry_data.width));
-            tv_list_append_list((*rettv).vval.v_list, entry);
+            tv_list_append_list((*rettv).vval.v_list(), entry);
         }
     }
 }
 
 pub unsafe fn f_charclass(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        if tv_check_for_string_arg(argvars, 0) == FAIL || (*argvars).vval.v_string.is_null() {
+        if tv_check_for_string_arg(argvars, 0) == FAIL || (*argvars).vval.v_string().is_null() {
             return;
         }
-        (*rettv).vval.v_number = varnumber_T::from(mb_get_class((*argvars).vval.v_string));
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(mb_get_class((*argvars).vval.v_string())));
     }
 }
 

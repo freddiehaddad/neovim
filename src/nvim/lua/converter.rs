@@ -612,11 +612,11 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                 typval_T {
                                     v_type: VarType::VAR_UNKNOWN,
                                     v_lock: VAR_UNLOCKED,
-                                    vval: TypvalVval { v_number: 0 },
+                                    vval: TypvalVval::Number(0),
                                 },
                             );
                             stack.push(cur);
-                            tv_list_append_list((*cur.tv).vval.v_list, kv_pair);
+                            tv_list_append_list((*cur.tv).vval.v_list(), kv_pair);
                             let last = tv_list_last(kv_pair);
                             cur = TVPopStackItem {
                                 tv: &mut (*last).li_tv,
@@ -627,7 +627,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                             };
                         } else {
                             let di = tv_dict_item_alloc_len(s, len);
-                            if tv_dict_add((*cur.tv).vval.v_dict, di) == FAIL {
+                            if tv_dict_add((*cur.tv).vval.v_dict(), di) == FAIL {
                                 std::process::abort();
                             }
                             stack.push(cur);
@@ -644,7 +644,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                         continue;
                     }
                 } else {
-                    let list = (*cur.tv).vval.v_list;
+                    let list = (*cur.tv).vval.v_list();
                     if (tv_list_len(list) as usize) == cur.list_len {
                         lua_pop(lstate, 1);
                         continue;
@@ -655,7 +655,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                         typval_T {
                             v_type: VarType::VAR_UNKNOWN,
                             v_lock: VAR_UNLOCKED,
-                            vval: TypvalVval { v_number: 0 },
+                            vval: TypvalVval::Number(0),
                         },
                     );
                     stack.push(cur);
@@ -673,21 +673,21 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
             *cur.tv = typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval { v_number: 0 },
+                vval: TypvalVval::Number(0),
             };
 
             match lua_type(lstate, -1) {
                 LUA_TNIL => {
                     (*cur.tv).v_type = VarType::VAR_SPECIAL;
-                    (*cur.tv).vval.v_number = K_SPECIAL_VAR_NULL;
+                    (*cur.tv).vval = crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
                 }
                 LUA_TBOOLEAN => {
                     (*cur.tv).v_type = VarType::VAR_BOOL;
-                    (*cur.tv).vval.v_number = if lua_toboolean(lstate, -1) != 0 {
+                    (*cur.tv).vval = crate::eval::typval::TypvalVval::Number(if lua_toboolean(lstate, -1) != 0 {
                         K_BOOL_VAR_TRUE
                     } else {
                         K_BOOL_VAR_FALSE
-                    };
+                    });
                 }
                 LUA_TSTRING => {
                     let mut len = 0usize;
@@ -701,10 +701,10 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                         || ((n as i64) as lua_Number) != n
                     {
                         (*cur.tv).v_type = VarType::VAR_FLOAT;
-                        (*cur.tv).vval.v_float = n;
+                        (*cur.tv).vval = crate::eval::typval::TypvalVval::Float(n);
                     } else {
                         (*cur.tv).v_type = VarType::VAR_NUMBER;
-                        (*cur.tv).vval.v_number = n as i64;
+                        (*cur.tv).vval = crate::eval::typval::TypvalVval::Number(n as i64);
                     }
                 }
                 LUA_TTABLE => {
@@ -733,7 +733,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                 (*l).lua_table_ref = table_ref;
                                 tv_list_ref(l);
                                 (*cur.tv).v_type = VarType::VAR_LIST;
-                                (*cur.tv).vval.v_list = l;
+                                (*cur.tv).vval = crate::eval::typval::TypvalVval::List(l);
                                 cur.list_len = table_props.maxidx;
                                 if table_props.maxidx != 0 {
                                     cur.container = true;
@@ -747,7 +747,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                     (*d).dv_refcount += 1;
                                     (*d).lua_table_ref = table_ref;
                                     (*cur.tv).v_type = VarType::VAR_DICT;
-                                    (*cur.tv).vval.v_dict = d;
+                                    (*cur.tv).vval = crate::eval::typval::TypvalVval::Dict(d);
                                 } else {
                                     cur.special = table_props.has_string_with_nul;
                                     if table_props.has_string_with_nul {
@@ -756,20 +756,20 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                             table_props.string_keys_num as isize,
                                         );
                                         let val_di = tv_dict_find(
-                                            (*cur.tv).vval.v_dict,
+                                            (*cur.tv).vval.v_dict(),
                                             c"_VAL".as_ptr(),
                                             4,
                                         );
                                         assert!(!val_di.is_null());
                                         cur.tv = &mut (*val_di).di_tv;
-                                        (*(*cur.tv).vval.v_list).lua_table_ref = table_ref;
+                                        (*(*cur.tv).vval.v_list()).lua_table_ref = table_ref;
                                         cur.list_len = table_props.string_keys_num;
                                     } else {
                                         let d = tv_dict_alloc();
                                         (*d).dv_refcount += 1;
                                         (*d).lua_table_ref = table_ref;
                                         (*cur.tv).v_type = VarType::VAR_DICT;
-                                        (*cur.tv).vval.v_dict = d;
+                                        (*cur.tv).vval = crate::eval::typval::TypvalVval::Dict(d);
                                     }
                                     cur.container = true;
                                     cur.idx = lua_gettop(lstate);
@@ -779,7 +779,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                             }
                             ObjectType::kObjectTypeFloat => {
                                 (*cur.tv).v_type = VarType::VAR_FLOAT;
-                                (*cur.tv).vval.v_float = table_props.val;
+                                (*cur.tv).vval = crate::eval::typval::TypvalVval::Float(table_props.val);
                             }
                             ObjectType::kObjectTypeNil => {
                                 emsg(
@@ -804,7 +804,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                     lua_pop(lstate, 1);
                     if is_nil {
                         (*cur.tv).v_type = VarType::VAR_SPECIAL;
-                        (*cur.tv).vval.v_number = K_SPECIAL_VAR_NULL;
+                        (*cur.tv).vval = crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
                     } else {
                         emsg(c"E5101: Cannot convert given Lua type".as_ptr());
                         ret = false;
@@ -825,7 +825,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
             *ret_tv = typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval { v_number: 0 },
+                vval: TypvalVval::Number(0),
             };
             lua_pop(lstate, lua_gettop(lstate) - initial_size + 1);
         }
@@ -931,7 +931,7 @@ unsafe fn lua_convert_one_value(
         let tv_ref = &mut *tv;
         match tv_ref.v_type {
             VarType::VAR_STRING => {
-                let s = tv_ref.vval.v_string;
+                let s = tv_ref.vval.v_string();
                 let len = if s.is_null() {
                     0
                 } else {
@@ -940,13 +940,13 @@ unsafe fn lua_convert_one_value(
                 lua_pushlstring(lstate, s, len);
             }
             VarType::VAR_NUMBER => {
-                lua_pushnumber(lstate, tv_ref.vval.v_number as lua_Number);
+                lua_pushnumber(lstate, tv_ref.vval.v_number() as lua_Number);
             }
             VarType::VAR_FLOAT => {
-                lua_pushnumber(lstate, tv_ref.vval.v_float);
+                lua_pushnumber(lstate, tv_ref.vval.v_float());
             }
             VarType::VAR_BLOB => {
-                let blob = tv_ref.vval.v_blob;
+                let blob = tv_ref.vval.v_blob();
                 let len = tv_blob_len(blob) as usize;
                 let data = if !blob.is_null() && !(*blob).bv_ga.is_empty() {
                     (*blob).bv_ga.as_ptr().cast::<c_char>()
@@ -956,7 +956,7 @@ unsafe fn lua_convert_one_value(
                 lua_pushlstring(lstate, data, len);
             }
             VarType::VAR_FUNC => {
-                let fun = tv_ref.vval.v_string;
+                let fun = tv_ref.vval.v_string();
                 if !fun.is_null() {
                     let fp = find_func(fun);
                     if !fp.is_null() && ((*fp).uf_flags & FC_LUAREF) != 0 {
@@ -969,7 +969,7 @@ unsafe fn lua_convert_one_value(
                 }
             }
             VarType::VAR_PARTIAL => {
-                let pt = tv_ref.vval.v_partial;
+                let pt = tv_ref.vval.v_partial();
                 let fun = if pt.is_null() {
                     std::ptr::null_mut()
                 } else {
@@ -987,7 +987,7 @@ unsafe fn lua_convert_one_value(
                 }
             }
             VarType::VAR_LIST => {
-                let list = tv_ref.vval.v_list;
+                let list = tv_ref.vval.v_list();
                 if list.is_null() || tv_list_len(list) == 0 {
                     lua_createtable(lstate, 0, 0);
                 } else {
@@ -1018,16 +1018,16 @@ unsafe fn lua_convert_one_value(
             VarType::VAR_BOOL => {
                 lua_pushboolean(
                     lstate,
-                    c_int::from(tv_ref.vval.v_bool == K_BOOL_VAR_TRUE as c_int),
+                    c_int::from(tv_ref.vval.v_bool() == K_BOOL_VAR_TRUE as c_int),
                 );
             }
             VarType::VAR_SPECIAL => {
-                if tv_ref.vval.v_special == K_SPECIAL_VAR_NULL as c_int {
+                if tv_ref.vval.v_special() == K_SPECIAL_VAR_NULL as c_int {
                     lua_conv_nil(lstate);
                 }
             }
             VarType::VAR_DICT => {
-                let dict = tv_ref.vval.v_dict;
+                let dict = tv_ref.vval.v_dict();
                 if dict.is_null() || (*dict).dv_hashtab.ht_used == 0 {
                     lua_conv_empty_dict(lstate);
                     return OK;
@@ -1040,7 +1040,7 @@ unsafe fn lua_convert_one_value(
                         if !val_di.is_null() {
                             let mut mp_idx = NUM_MSGPACK_TYPES;
                             for (i, tl) in { eval_msgpack_type_lists }.into_iter().enumerate() {
-                                if (*type_di).di_tv.vval.v_list.cast_const() == tl {
+                                if (*type_di).di_tv.vval.v_list().cast_const() == tl {
                                     mp_idx = i;
                                     break;
                                 }
@@ -1055,36 +1055,36 @@ unsafe fn lua_convert_one_value(
                                         if (*val_di).di_tv.v_type == VarType::VAR_NUMBER {
                                             lua_pushboolean(
                                                 lstate,
-                                                c_int::from((*val_di).di_tv.vval.v_number != 0),
+                                                c_int::from((*val_di).di_tv.vval.v_number() != 0),
                                             );
                                             handled_special = true;
                                         }
                                     }
                                     K_MP_INTEGER => {
                                         if (*val_di).di_tv.v_type == VarType::VAR_LIST {
-                                            let val_list = (*val_di).di_tv.vval.v_list;
+                                            let val_list = (*val_di).di_tv.vval.v_list();
                                             if tv_list_len(val_list) == 4 {
                                                 let sign_li = tv_list_first(val_list);
                                                 let highest_li = (*sign_li).li_next;
                                                 let high_li = (*highest_li).li_next;
                                                 let low_li = tv_list_last(val_list);
                                                 if (*sign_li).li_tv.v_type == VarType::VAR_NUMBER
-                                                    && (*sign_li).li_tv.vval.v_number != 0
+                                                    && (*sign_li).li_tv.vval.v_number() != 0
                                                     && (*highest_li).li_tv.v_type
                                                         == VarType::VAR_NUMBER
-                                                    && (*highest_li).li_tv.vval.v_number >= 0
+                                                    && (*highest_li).li_tv.vval.v_number() >= 0
                                                     && (*high_li).li_tv.v_type
                                                         == VarType::VAR_NUMBER
-                                                    && (*high_li).li_tv.vval.v_number >= 0
+                                                    && (*high_li).li_tv.vval.v_number() >= 0
                                                     && (*low_li).li_tv.v_type == VarType::VAR_NUMBER
-                                                    && (*low_li).li_tv.vval.v_number >= 0
+                                                    && (*low_li).li_tv.vval.v_number() >= 0
                                                 {
-                                                    let sign = (*sign_li).li_tv.vval.v_number;
+                                                    let sign = (*sign_li).li_tv.vval.v_number();
                                                     let highest =
-                                                        (*highest_li).li_tv.vval.v_number as u64;
+                                                        (*highest_li).li_tv.vval.v_number() as u64;
                                                     let high =
-                                                        (*high_li).li_tv.vval.v_number as u64;
-                                                    let low = (*low_li).li_tv.vval.v_number as u64;
+                                                        (*high_li).li_tv.vval.v_number() as u64;
+                                                    let low = (*low_li).li_tv.vval.v_number() as u64;
                                                     let number =
                                                         (highest << 62) | (high << 31) | low;
                                                     if sign > 0 {
@@ -1106,14 +1106,14 @@ unsafe fn lua_convert_one_value(
                                     }
                                     K_MP_FLOAT => {
                                         if (*val_di).di_tv.v_type == VarType::VAR_FLOAT {
-                                            lua_pushnumber(lstate, (*val_di).di_tv.vval.v_float);
+                                            lua_pushnumber(lstate, (*val_di).di_tv.vval.v_float());
                                             handled_special = true;
                                         }
                                     }
                                     K_MP_STRING => {
                                         if (*val_di).di_tv.v_type == VarType::VAR_LIST
                                             && let Some(buf) =
-                                                encode_vim_list_to_buf((*val_di).di_tv.vval.v_list)
+                                                encode_vim_list_to_buf((*val_di).di_tv.vval.v_list())
                                         {
                                             lua_pushlstring(lstate, buf.as_ptr(), buf.len());
                                             handled_special = true;
@@ -1121,7 +1121,7 @@ unsafe fn lua_convert_one_value(
                                     }
                                     K_MP_ARRAY => {
                                         if (*val_di).di_tv.v_type == VarType::VAR_LIST {
-                                            let val_list = (*val_di).di_tv.vval.v_list;
+                                            let val_list = (*val_di).di_tv.vval.v_list();
                                             let saved_copy_id = (*val_list).lv_copyID;
                                             let csr = lua_check_self_reference(
                                                 lstate,
@@ -1151,7 +1151,7 @@ unsafe fn lua_convert_one_value(
                                     }
                                     K_MP_MAP => {
                                         if (*val_di).di_tv.v_type == VarType::VAR_LIST {
-                                            let val_list = (*val_di).di_tv.vval.v_list;
+                                            let val_list = (*val_di).di_tv.vval.v_list();
                                             if val_list.is_null() || tv_list_len(val_list) == 0 {
                                                 lua_conv_empty_dict(lstate);
                                                 handled_special = true;
@@ -1160,7 +1160,7 @@ unsafe fn lua_convert_one_value(
                                                 let mut li = tv_list_first(val_list);
                                                 while !li.is_null() {
                                                     if (*li).li_tv.v_type != VarType::VAR_LIST
-                                                        || tv_list_len((*li).li_tv.vval.v_list) != 2
+                                                        || tv_list_len((*li).li_tv.vval.v_list()) != 2
                                                     {
                                                         all_pairs = false;
                                                         break;
@@ -1200,15 +1200,15 @@ unsafe fn lua_convert_one_value(
                                         }
                                     }
                                     K_MP_EXT if (*val_di).di_tv.v_type == VarType::VAR_LIST => {
-                                        let val_list = (*val_di).di_tv.vval.v_list;
+                                        let val_list = (*val_di).di_tv.vval.v_list();
                                         if tv_list_len(val_list) == 2 {
                                             let first = tv_list_first(val_list);
                                             let last = tv_list_last(val_list);
                                             if (*first).li_tv.v_type == VarType::VAR_NUMBER
                                                 && (i8::MIN as i64..=i8::MAX as i64)
-                                                    .contains(&(*first).li_tv.vval.v_number)
+                                                    .contains(&(*first).li_tv.vval.v_number())
                                                 && (*last).li_tv.v_type == VarType::VAR_LIST
-                                                && encode_vim_list_to_buf((*last).li_tv.vval.v_list)
+                                                && encode_vim_list_to_buf((*last).li_tv.vval.v_list())
                                                     .is_some()
                                             {
                                                 lua_conv_nil(lstate);
@@ -1242,7 +1242,7 @@ unsafe fn lua_convert_one_value(
                         saved_copy_id,
                         data: MPConvStackData::Dict {
                             dict,
-                            dictp: std::ptr::addr_of_mut!(tv_ref.vval.v_dict),
+                            dictp: tv_ref.vval.v_dict_mut(),
                             hi: (*dict).dv_hashtab.ht_array,
                             todo: (*dict).dv_hashtab.ht_used,
                         },
@@ -1320,7 +1320,7 @@ unsafe fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: *mut typval_T) -> c_
                     } else if li != tv_list_first(list) {
                         lua_rawset(lstate, -3);
                     }
-                    let kv_pair = (*li).li_tv.vval.v_list;
+                    let kv_pair = (*li).li_tv.vval.v_list();
                     let first_item = tv_list_first(kv_pair);
                     if lua_convert_one_value(
                         lstate,

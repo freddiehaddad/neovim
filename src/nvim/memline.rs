@@ -866,8 +866,8 @@ pub unsafe fn ml_recover(checkext: bool) {
             directly = false;
             let mut items_tv = typval_T::new();
             tv_list_alloc_ret(&raw mut items_tv, 0);
-            recover_names(fname, true, items_tv.vval.v_list);
-            let n_swaps = tv_list_len(items_tv.vval.v_list);
+            recover_names(fname, true, items_tv.vval.v_list());
+            let n_swaps = tv_list_len(items_tv.vval.v_list());
 
             if n_swaps == 0 {
                 tv_clear(&raw mut items_tv);
@@ -887,7 +887,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                 ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
                 return;
             }
-            let first_str = (*tv_list_first(items_tv.vval.v_list)).li_tv.vval.v_string;
+            let first_str = (*tv_list_first(items_tv.vval.v_list())).li_tv.vval.v_string();
             fname_used = (!first_str.is_null()).then(|| CStr::from_ptr(first_str).to_owned());
             tv_clear(&raw mut items_tv);
         }

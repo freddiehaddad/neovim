@@ -3254,12 +3254,12 @@ unsafe fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callb
         args[0].v_type = VAR_NUMBER;
         args[1].v_type = VAR_STRING;
         args[2].v_type = VAR_UNKNOWN;
-        args[0].vval.v_number = 0;
-        args[1].vval.v_string = if !base.is_null() {
+        args[0].vval = crate::eval::typval::TypvalVval::Number(0);
+        args[1].vval = crate::eval::typval::TypvalVval::String(if !base.is_null() {
             base
         } else {
             c"".as_ptr().cast_mut()
-        };
+        });
 
         let pos = (*curwin).w_cursor;
         textlock += 1;
@@ -3274,10 +3274,10 @@ unsafe fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callb
         if called {
             match rettv.v_type {
                 VAR_LIST => {
-                    matchlist = rettv.vval.v_list;
+                    matchlist = rettv.vval.v_list();
                 }
                 VAR_DICT => {
-                    matchdict = rettv.vval.v_dict;
+                    matchdict = rettv.vval.v_dict();
                 }
                 _ => {
                     tv_clear(&raw mut rettv);
@@ -3331,8 +3331,8 @@ unsafe fn ins_compl_add_tv(tv: *mut typval_T, dir: Direction, fast: bool) -> c_i
         let mut user_data: typval_T = typval_T::new();
         user_data.v_type = VAR_UNKNOWN;
 
-        if (*tv).v_type == VAR_DICT && !(*tv).vval.v_dict.is_null() {
-            let d = (*tv).vval.v_dict;
+        if (*tv).v_type == VAR_DICT && !(*tv).vval.v_dict().is_null() {
+            let d = (*tv).vval.v_dict();
             word = tv_dict_get_string(d, c"word".as_ptr());
             cptext[CPT_ABBR] = crate::eval::typval::tv_dict_get_cstring(d, c"abbr".as_ptr());
             cptext[CPT_MENU] = crate::eval::typval::tv_dict_get_cstring(d, c"menu".as_ptr());
@@ -3411,7 +3411,7 @@ unsafe fn ins_compl_add_dict(dict: *mut dict_T) {
         compl_opt_refresh_always = false;
         let di_refresh = tv_dict_find(dict, c"refresh".as_ptr(), 7);
         if !di_refresh.is_null() && (*di_refresh).di_tv.v_type == VAR_STRING {
-            let v = (*di_refresh).di_tv.vval.v_string;
+            let v = (*di_refresh).di_tv.vval.v_string();
             if !v.is_null() && strcmp(v, c"always".as_ptr()) == 0 {
                 compl_opt_refresh_always = true;
             }
@@ -3419,7 +3419,7 @@ unsafe fn ins_compl_add_dict(dict: *mut dict_T) {
 
         let di_words = tv_dict_find(dict, c"words".as_ptr(), 5);
         if !di_words.is_null() && (*di_words).di_tv.v_type == VAR_LIST {
-            ins_compl_add_list((*di_words).di_tv.vval.v_list);
+            ins_compl_add_list((*di_words).di_tv.vval.v_list());
         }
     }
 }
@@ -3550,7 +3550,7 @@ pub unsafe fn f_complete(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: E
         } else {
             let startcol = tv_get_number_chk(argvars, ptr::null_mut()) as colnr_T;
             if startcol > 0 {
-                set_completion(startcol - 1, (*argvars.add(1)).vval.v_list);
+                set_completion(startcol - 1, (*argvars.add(1)).vval.v_list());
             }
         }
     }
@@ -3558,7 +3558,7 @@ pub unsafe fn f_complete(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: E
 
 pub unsafe fn f_complete_add(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_number = varnumber_T::from(ins_compl_add_tv(argvars, 0, false));
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(ins_compl_add_tv(argvars, 0, false)));
     }
 }
 
@@ -3567,7 +3567,7 @@ pub unsafe fn f_complete_check(_argvars: *mut typval_T, rettv: *mut typval_T, _f
         let saved = RedrawingDisabled;
         RedrawingDisabled = 0;
         ins_compl_check_keys(0, true);
-        (*rettv).vval.v_number = varnumber_T::from(ins_compl_interrupted());
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(ins_compl_interrupted()));
         RedrawingDisabled = saved;
     }
 }
@@ -3894,9 +3894,9 @@ pub unsafe fn f_complete_info(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
                 emsg(gettext((&raw const e_listreq).cast()));
                 return;
             }
-            what_list = (*argvars).vval.v_list;
+            what_list = (*argvars).vval.v_list();
         }
-        get_complete_info(what_list, (*rettv).vval.v_dict);
+        get_complete_info(what_list, (*rettv).vval.v_dict());
     }
 }
 
@@ -6149,8 +6149,8 @@ unsafe fn get_userdefined_compl_info(
         args[0].v_type = VAR_NUMBER;
         args[1].v_type = VAR_STRING;
         args[2].v_type = VAR_UNKNOWN;
-        args[0].vval.v_number = 1;
-        args[1].vval.v_string = c"".as_ptr().cast_mut();
+        args[0].vval = crate::eval::typval::TypvalVval::Number(1);
+        args[1].vval = crate::eval::typval::TypvalVval::String(c"".as_ptr().cast_mut());
 
         let pos = (*curwin).w_cursor;
         textlock += 1;
@@ -6943,7 +6943,7 @@ unsafe fn cpt_compl_refresh() {
 pub unsafe fn f_preinserted(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if ins_compl_preinsert_effect() {
-            (*rettv).vval.v_number = 1;
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(1);
         }
     }
 }

@@ -18,14 +18,14 @@ unsafe fn tv_op_blob(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
         return FAIL;
     }
 
-    let b2 = unsafe { tv2.vval.v_blob };
+    let b2 = tv2.vval.v_blob();
     if b2.is_null() {
         return OK;
     }
 
-    let b1 = unsafe { tv1.vval.v_blob };
+    let b1 = tv1.vval.v_blob();
     if b1.is_null() {
-        tv1.vval.v_blob = b2;
+        tv1.vval = crate::eval::typval::TypvalVval::Blob(b2);
         unsafe {
             (*b2).bv_refcount += 1;
         }
@@ -52,14 +52,14 @@ unsafe fn tv_op_list(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
         return FAIL;
     }
 
-    let l2 = unsafe { tv2.vval.v_list };
+    let l2 = tv2.vval.v_list();
     if l2.is_null() {
         return OK;
     }
 
-    let l1 = unsafe { tv1.vval.v_list };
+    let l1 = tv1.vval.v_list();
     if l1.is_null() {
-        tv1.vval.v_list = l2;
+        tv1.vval = crate::eval::typval::TypvalVval::List(l2);
         unsafe {
             (*l2).lv_refcount += 1;
         }
@@ -80,7 +80,7 @@ unsafe fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
         if op == b'%' {
             return FAIL;
         }
-        let rhs = unsafe { tv2.vval.v_float };
+        let rhs = tv2.vval.v_float();
         match op {
             b'+' => f += rhs,
             b'-' => f -= rhs,
@@ -92,7 +92,7 @@ unsafe fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
             tv_clear(tv1);
         }
         tv1.v_type = VarType::VAR_FLOAT;
-        tv1.vval = TypvalVval { v_float: f };
+        tv1.vval = TypvalVval::Float(f);
     } else {
         let rhs = unsafe { tv_get_number(tv2) };
 
@@ -112,7 +112,7 @@ unsafe fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
             tv_clear(tv1);
         }
         tv1.v_type = VarType::VAR_NUMBER;
-        tv1.vval = TypvalVval { v_number: n };
+        tv1.vval = TypvalVval::Number(n);
     }
 
     OK
@@ -161,19 +161,17 @@ unsafe fn tv_op_float(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
     }
 
     let f = if tv2.v_type == VarType::VAR_FLOAT {
-        unsafe { tv2.vval.v_float }
+        tv2.vval.v_float()
     } else {
         (unsafe { tv_get_number(tv2) }) as f64
     };
 
-    unsafe {
-        match op {
-            b'+' => tv1.vval.v_float += f,
-            b'-' => tv1.vval.v_float -= f,
-            b'*' => tv1.vval.v_float *= f,
-            b'/' => tv1.vval.v_float /= f,
-            _ => {}
-        }
+    match op {
+        b'+' => *tv1.vval.v_float_mut() += f,
+        b'-' => *tv1.vval.v_float_mut() -= f,
+        b'*' => *tv1.vval.v_float_mut() *= f,
+        b'/' => *tv1.vval.v_float_mut() /= f,
+        _ => {}
     }
 
     OK
@@ -228,18 +226,18 @@ mod tests {
         let mut tv1 = typval_T {
             v_type: VarType::VAR_NUMBER,
             v_lock: 0,
-            vval: TypvalVval { v_number: 10 },
+            vval: TypvalVval::Number(10),
         };
         let tv2 = typval_T {
             v_type: VarType::VAR_NUMBER,
             v_lock: 0,
-            vval: TypvalVval { v_number: 5 },
+            vval: TypvalVval::Number(5),
         };
         unsafe {
             assert_eq!(eexe_mod_op(&mut tv1, &tv2, c"+".as_ptr()), OK);
-            assert_eq!(tv1.vval.v_number, 15);
+            assert_eq!(tv1.vval.v_number(), 15);
             assert_eq!(eexe_mod_op(&mut tv1, &tv2, c"*".as_ptr()), OK);
-            assert_eq!(tv1.vval.v_number, 75);
+            assert_eq!(tv1.vval.v_number(), 75);
         }
     }
 }

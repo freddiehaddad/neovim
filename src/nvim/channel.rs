@@ -1017,32 +1017,24 @@ unsafe fn channel_callback_call(chan: *mut Channel, reader: *mut CallbackReader)
         let mut argv: [typval_T; 4] = [typval_T::new(); 4];
         argv[0].v_type = VarType::VAR_NUMBER;
         argv[0].v_lock = VAR_UNLOCKED;
-        argv[0].vval = TypvalVval {
-            v_number: (*cp).id as varnumber_T,
-        };
+        argv[0].vval = TypvalVval::Number((*cp).id as varnumber_T);
 
         let cb: *mut Callback = if !reader.is_null() {
             let l = buffer_to_tv_list((*reader).buffer.as_ptr(), (*reader).buffer.len());
             argv[1].v_type = VarType::VAR_LIST;
             argv[1].v_lock = VAR_UNLOCKED;
-            argv[1].vval = TypvalVval { v_list: l };
+            argv[1].vval = TypvalVval::List(l);
             tv_list_ref(l);
             (*reader).buffer = Vec::new();
-            argv[2].vval = TypvalVval {
-                v_string: (*reader)
+            argv[2].vval = TypvalVval::String((*reader)
                     .reader_type
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
-            };
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()));
             &raw mut (*reader).cb
         } else {
             argv[1].v_type = VarType::VAR_NUMBER;
             argv[1].v_lock = VAR_UNLOCKED;
-            argv[1].vval = TypvalVval {
-                v_number: varnumber_T::from((*ct).exit_status),
-            };
-            argv[2].vval = TypvalVval {
-                v_string: c"exit".as_ptr().cast_mut(),
-            };
+            argv[1].vval = TypvalVval::Number(varnumber_T::from((*ct).exit_status));
+            argv[2].vval = TypvalVval::String(c"exit".as_ptr().cast_mut());
             &raw mut (*ct).on_exit
         };
 
@@ -1056,7 +1048,7 @@ unsafe fn channel_callback_call(chan: *mut Channel, reader: *mut CallbackReader)
         }
 
         if !reader.is_null() {
-            tv_list_unref(argv[1].vval.v_list);
+            tv_list_unref(argv[1].vval.v_list());
         }
     }
 }
@@ -1182,7 +1174,7 @@ pub unsafe fn set_info_event(chan: *mut Channel, event: event_T) {
             ptr::null_mut(),
         );
         assert_eq!(retval.v_type, VarType::VAR_DICT);
-        let _ = tv_dict_add_dict(dict, c"info".as_ptr(), 4, retval.vval.v_dict);
+        let _ = tv_dict_add_dict(dict, c"info".as_ptr(), 4, retval.vval.v_dict());
         tv_dict_set_keys_readonly(dict);
 
         let _ = apply_autocmds(event, ptr::null_mut(), ptr::null_mut(), true, curbuf);

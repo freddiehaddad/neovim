@@ -576,7 +576,7 @@ unsafe fn store_session_globals(fd: *mut FILE) -> c_int {
                 } else if (*this_var).di_tv.v_type == VarType::VAR_FLOAT
                     && var_flavour(key_ptr) == VAR_FLAVOUR_SESSION
                 {
-                    let mut f = (*this_var).di_tv.vval.v_float;
+                    let mut f = (*this_var).di_tv.vval.v_float();
                     let sign = if f < 0.0 {
                         f = -f;
                         '-'

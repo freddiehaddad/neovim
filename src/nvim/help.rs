@@ -106,12 +106,12 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
             let mut no_args = [typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
-                vval: TypvalVval { v_number: 0 },
+                vval: TypvalVval::Number(0),
             }];
             let mut rettv = typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
-                vval: TypvalVval { v_number: 0 },
+                vval: TypvalVval::Number(0),
             };
             nlua_call_typval(
                 c"vim._core.help".as_ptr(),
@@ -120,10 +120,10 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
                 &raw mut rettv,
             );
             if rettv.v_type == VarType::VAR_STRING
-                && !rettv.vval.v_string.is_null()
-                && *rettv.vval.v_string != NUL
+                && !rettv.vval.v_string().is_null()
+                && *rettv.vval.v_string() != NUL
             {
-                allocated_arg = crate::memory::take_cstring(rettv.vval.v_string);
+                allocated_arg = crate::memory::take_cstring(rettv.vval.v_string());
                 arg = allocated_arg.as_ref().unwrap().as_ptr().cast_mut();
             } else {
                 tv_clear(&raw mut rettv);
@@ -347,20 +347,18 @@ pub unsafe fn find_help_tags(
             typval_T {
                 v_type: VarType::VAR_STRING,
                 v_lock: 0,
-                vval: TypvalVval {
-                    v_string: arg.cast_mut(),
-                },
+                vval: TypvalVval::String(arg.cast_mut()),
             },
             typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
-                vval: TypvalVval { v_number: 0 },
+                vval: TypvalVval::Number(0),
             },
         ];
         let mut rettv = typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,
-            vval: TypvalVval { v_number: 0 },
+            vval: TypvalVval::Number(0),
         };
         nlua_call_typval(
             c"vim._core.help".as_ptr(),
@@ -368,11 +366,11 @@ pub unsafe fn find_help_tags(
             tv_args.as_mut_ptr(),
             &raw mut rettv,
         );
-        if rettv.v_type != VarType::VAR_STRING || rettv.vval.v_string.is_null() {
+        if rettv.v_type != VarType::VAR_STRING || rettv.vval.v_string().is_null() {
             tv_clear(&raw mut rettv);
             return FAIL;
         }
-        xstrlcpy((&raw mut IObuff).cast(), rettv.vval.v_string, IOSIZE);
+        xstrlcpy((&raw mut IObuff).cast(), rettv.vval.v_string(), IOSIZE);
         tv_clear(&raw mut rettv);
 
         matches.clear();
@@ -496,7 +494,7 @@ pub unsafe fn get_local_additions() {
         let mut no_args = [typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,
-            vval: TypvalVval { v_number: 0 },
+            vval: TypvalVval::Number(0),
         }];
         nlua_call_typval(
             c"vim._core.help".as_ptr(),
@@ -537,34 +535,28 @@ pub unsafe fn ex_helptags(eap: *mut exarg_T) {
                 typval_T {
                     v_type: VarType::VAR_SPECIAL,
                     v_lock: 0,
-                    vval: TypvalVval {
-                        v_special: kSpecialVarNull,
-                    },
+                    vval: TypvalVval::Special(kSpecialVarNull),
                 }
             } else {
                 typval_T {
                     v_type: VarType::VAR_STRING,
                     v_lock: 0,
-                    vval: TypvalVval {
-                        v_string: (*eap).arg,
-                    },
+                    vval: TypvalVval::String((*eap).arg),
                 }
             },
             typval_T {
                 v_type: VarType::VAR_BOOL,
                 v_lock: 0,
-                vval: TypvalVval {
-                    v_number: if add_help_tags {
-                        kBoolVarTrue
-                    } else {
-                        kBoolVarFalse
-                    },
-                },
+                vval: TypvalVval::Number(if add_help_tags {
+                    kBoolVarTrue
+                } else {
+                    kBoolVarFalse
+                }),
             },
             typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
-                vval: TypvalVval { v_number: 0 },
+                vval: TypvalVval::Number(0),
             },
         ];
         nlua_call_typval(

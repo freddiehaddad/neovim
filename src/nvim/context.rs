@@ -474,7 +474,7 @@ unsafe fn array_to_string(array: Array, err: *mut Error) -> Vec<u8> {
         object_to_vim(array_obj(array), &mut list_tv, err);
 
         assert_eq!(list_tv.v_type, VarType::VAR_LIST);
-        if let Some(buf) = encode_vim_list_to_buf(list_tv.vval.v_list) {
+        if let Some(buf) = encode_vim_list_to_buf(list_tv.vval.v_list()) {
             sbuf = buf.into_iter().map(|c| c as u8).collect();
         } else {
             api_set_error!(

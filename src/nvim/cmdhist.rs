@@ -503,7 +503,7 @@ unsafe fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
 /// `"histadd()"` function (`f_histadd`).
 pub unsafe fn f_histadd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval.v_number = 0;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
         if check_secure() {
             return;
         }
@@ -531,7 +531,7 @@ pub unsafe fn f_histadd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             false,
             0,
         );
-        (*rettv).vval.v_number = 1;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(1);
     }
 }
 
@@ -554,7 +554,7 @@ pub unsafe fn f_histdel(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                 del_history_entry(htype, pat.cast_mut())
             }
         };
-        (*rettv).vval.v_number = n as i64;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(n as i64);
     }
 }
 
@@ -592,11 +592,11 @@ pub unsafe fn f_histnr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
         } else {
             get_histtype(histname, CStr::from_ptr(histname).to_bytes().len(), false)
         };
-        (*rettv).vval.v_number = if htype != HIST_INVALID {
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(if htype != HIST_INVALID {
             get_history_idx(htype) as i64
         } else {
             HIST_INVALID as i64
-        };
+        });
     }
 }
 

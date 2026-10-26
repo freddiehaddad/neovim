@@ -31,7 +31,7 @@ const fn callback_reader_init() -> CallbackReader {
 pub unsafe fn f_rpcstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_NUMBER;
-        (*rettv).vval.v_number = 0;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
 
         if check_secure() {
             return;
@@ -49,7 +49,7 @@ pub unsafe fn f_rpcstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         let mut args: *mut list_T = std::ptr::null_mut();
         let mut argsl: c_int = 0;
         if arg1.v_type == VarType::VAR_LIST {
-            args = arg1.vval.v_list;
+            args = arg1.vval.v_list();
             argsl = if args.is_null() { 0 } else { (*args).lv_len };
             let mut i = 0 as c_int;
             let mut li: *const listitem_T = if args.is_null() {
@@ -70,7 +70,7 @@ pub unsafe fn f_rpcstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             }
         }
 
-        let prog = arg0.vval.v_string;
+        let prog = arg0.vval.v_string();
         if prog.is_null() || *prog == 0 {
             emsg(e_api_spawn_failed.as_ptr());
             return;
@@ -102,7 +102,7 @@ pub unsafe fn f_rpcstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             0,
             0,
             std::ptr::null_mut(),
-            std::ptr::addr_of_mut!((*rettv).vval.v_number),
+            (*rettv).vval.v_number_mut(),
         );
         if !chan.is_null() {
             channel_create_event(chan, std::ptr::null());
@@ -114,7 +114,7 @@ pub unsafe fn f_rpcstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 pub unsafe fn f_rpcstop(argvars: *mut typval_T, rettv: *mut typval_T, fptr: EvalFuncData) {
     unsafe {
         (*rettv).v_type = VarType::VAR_NUMBER;
-        (*rettv).vval.v_number = 0;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
 
         if check_secure() {
             return;
@@ -126,13 +126,13 @@ pub unsafe fn f_rpcstop(argvars: *mut typval_T, rettv: *mut typval_T, fptr: Eval
             return;
         }
 
-        let id = arg0.vval.v_number as u64;
+        let id = arg0.vval.v_number() as u64;
         if !find_job(id, false).is_null() {
             f_jobstop(argvars, rettv, fptr);
         } else {
             let mut error: *const c_char = std::ptr::null();
             let closed = channel_close(id, K_CHANNEL_PART_RPC, &mut error);
-            (*rettv).vval.v_number = i64::from(closed);
+            (*rettv).vval = crate::eval::typval::TypvalVval::Number(i64::from(closed));
             if !closed {
                 emsg(error);
             }
@@ -151,7 +151,7 @@ pub unsafe fn f_last_buffer_nr(_argvars: *mut typval_T, rettv: *mut typval_T, _f
             }
             buf = (*buf).b_next;
         }
-        (*rettv).vval.v_number = n as i64;
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(n as i64);
     }
 }
 
@@ -167,7 +167,7 @@ pub unsafe fn f_termopen(argvars: *mut typval_T, rettv: *mut typval_T, fptr: Eva
         if arg1.v_type == VarType::VAR_UNKNOWN {
             must_free = true;
             arg1.v_type = VarType::VAR_DICT;
-            arg1.vval.v_dict = tv_dict_alloc();
+            arg1.vval = crate::eval::typval::TypvalVval::Dict(tv_dict_alloc());
         }
 
         if arg1.v_type != VarType::VAR_DICT {
@@ -175,7 +175,7 @@ pub unsafe fn f_termopen(argvars: *mut typval_T, rettv: *mut typval_T, fptr: Eva
             return;
         }
 
-        let dict = arg1.vval.v_dict;
+        let dict = arg1.vval.v_dict();
         tv_dict_add_bool(dict, c"term".as_ptr(), 4, K_BOOL_VAR_TRUE as c_int);
         f_jobstart(argvars, rettv, fptr);
         if must_free {

@@ -3032,7 +3032,7 @@ pub unsafe fn f_searchcount(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             if tv_check_for_nonnull_dict_arg(argvars, 0) == FAIL {
                 return;
             }
-            let dict: *mut dict_T = (*argvars.add(0)).vval.v_dict;
+            let dict: *mut dict_T = (*argvars.add(0)).vval.v_dict();
             let mut di: *mut dictitem_T = tv_dict_find(dict, c"timeout".as_ptr(), -1);
             if !di.is_null() {
                 timeout = tv_get_number_chk(&raw const (*di).di_tv, &raw mut error) as c_int;
@@ -3061,14 +3061,14 @@ pub unsafe fn f_searchcount(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
                     semsg!(tr(e_invarg2.as_ptr()), c"pos".as_ptr());
                     return;
                 }
-                if tv_list_len((*di).di_tv.vval.v_list) != 3 {
+                if tv_list_len((*di).di_tv.vval.v_list()) != 3 {
                     semsg!(
                         tr(e_invarg2.as_ptr()),
                         c"List format should be [lnum, col, off]".as_ptr(),
                     );
                     return;
                 }
-                let mut li: *mut listitem_T = tv_list_find((*di).di_tv.vval.v_list, 0);
+                let mut li: *mut listitem_T = tv_list_find((*di).di_tv.vval.v_list(), 0);
                 if !li.is_null() {
                     pos.lnum =
                         tv_get_number_chk(&raw const (*li).li_tv, &raw mut error) as linenr_T;
@@ -3076,7 +3076,7 @@ pub unsafe fn f_searchcount(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
                         return;
                     }
                 }
-                li = tv_list_find((*di).di_tv.vval.v_list, 1);
+                li = tv_list_find((*di).di_tv.vval.v_list(), 1);
                 if !li.is_null() {
                     pos.col =
                         tv_get_number_chk(&raw const (*li).li_tv, &raw mut error) as colnr_T - 1;
@@ -3084,7 +3084,7 @@ pub unsafe fn f_searchcount(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
                         return;
                     }
                 }
-                li = tv_list_find((*di).di_tv.vval.v_list, 2);
+                li = tv_list_find((*di).di_tv.vval.v_list(), 2);
                 if !li.is_null() {
                     pos.coladd =
                         tv_get_number_chk(&raw const (*li).li_tv, &raw mut error) as colnr_T;
@@ -3120,31 +3120,31 @@ pub unsafe fn f_searchcount(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             );
 
             tv_dict_add_nr(
-                (*rettv).vval.v_dict,
+                (*rettv).vval.v_dict(),
                 c"current".as_ptr(),
                 7,
                 varnumber_T::from(stat.cur),
             );
             tv_dict_add_nr(
-                (*rettv).vval.v_dict,
+                (*rettv).vval.v_dict(),
                 c"total".as_ptr(),
                 5,
                 varnumber_T::from(stat.cnt),
             );
             tv_dict_add_nr(
-                (*rettv).vval.v_dict,
+                (*rettv).vval.v_dict(),
                 c"exact_match".as_ptr(),
                 11,
                 varnumber_T::from(stat.exact_match),
             );
             tv_dict_add_nr(
-                (*rettv).vval.v_dict,
+                (*rettv).vval.v_dict(),
                 c"incomplete".as_ptr(),
                 10,
                 varnumber_T::from(stat.incomplete),
             );
             tv_dict_add_nr(
-                (*rettv).vval.v_dict,
+                (*rettv).vval.v_dict(),
                 c"maxcount".as_ptr(),
                 8,
                 varnumber_T::from(stat.last_maxcount),

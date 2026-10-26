@@ -61,8 +61,8 @@ unsafe fn create_special_dict(rettv: *mut typval_T, mp_type: usize, val: typval_
         let type_di = tv_dict_item_alloc_len(c"_TYPE".as_ptr(), 5);
         (*type_di).di_tv.v_type = VarType::VAR_LIST;
         (*type_di).di_tv.v_lock = VAR_UNLOCKED;
-        (*type_di).di_tv.vval.v_list = eval_msgpack_type_lists[mp_type].cast_mut();
-        tv_list_ref((*type_di).di_tv.vval.v_list);
+        (*type_di).di_tv.vval = crate::eval::typval::TypvalVval::List(eval_msgpack_type_lists[mp_type].cast_mut());
+        tv_list_ref((*type_di).di_tv.vval.v_list());
         tv_dict_add(dict, type_di);
 
         let val_di = tv_dict_item_alloc_len(c"_VAL".as_ptr(), 4);
@@ -72,7 +72,7 @@ unsafe fn create_special_dict(rettv: *mut typval_T, mp_type: usize, val: typval_
         *rettv = typval_T {
             v_type: VarType::VAR_DICT,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval { v_dict: dict },
+            vval: TypvalVval::Dict(dict),
         };
     }
 }
@@ -88,7 +88,7 @@ pub unsafe fn decode_create_map_special_dict(ret_tv: *mut typval_T, len: isize) 
             typval_T {
                 v_type: VarType::VAR_LIST,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval { v_list: list },
+                vval: TypvalVval::List(list),
             },
         );
         list
@@ -115,7 +115,7 @@ pub unsafe fn decode_string(
         let mut tv = typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval { v_number: 0 },
+            vval: TypvalVval::Number(0),
         };
         unsafe {
             let b = &mut *tv_blob_alloc_ret(&mut tv);
@@ -131,9 +131,7 @@ pub unsafe fn decode_string(
     let mut tv = typval_T {
         v_type: VarType::VAR_STRING,
         v_lock: VAR_UNLOCKED,
-        vval: TypvalVval {
-            v_string: std::ptr::null_mut(),
-        },
+        vval: TypvalVval::String(std::ptr::null_mut()),
     };
     if !s.is_null() {
         unsafe {
@@ -159,7 +157,7 @@ unsafe fn json_decoder_pop(
     let mut last_container = *container_stack.last().unwrap();
     let mut val_location = *pp;
     if obj.val.v_type == last_container.container.v_type
-        && unsafe { std::ptr::eq(obj.val.vval.v_list, last_container.container.vval.v_list) }
+        && std::ptr::eq(obj.val.vval.v_list(), last_container.container.vval.v_list())
     {
         container_stack.pop();
         val_location = last_container.s;
@@ -168,7 +166,7 @@ unsafe fn json_decoder_pop(
 
     unsafe {
         if last_container.container.v_type == VarType::VAR_LIST {
-            if tv_list_len(last_container.container.vval.v_list) != 0 && !obj.didcomma {
+            if tv_list_len(last_container.container.vval.v_list()) != 0 && !obj.didcomma {
                 semsg!(
                     c"E474: Expected comma before list item: %s".as_ptr(),
                     val_location,
@@ -178,7 +176,7 @@ unsafe fn json_decoder_pop(
                 return FAIL;
             }
             assert!(last_container.special_val.is_null());
-            tv_list_append_owned_tv(last_container.container.vval.v_list, obj.val);
+            tv_list_append_owned_tv(last_container.container.vval.v_list(), obj.val);
         } else if last_container.stack_index + 2 == stack.len() {
             if !obj.didcolon {
                 semsg!(
@@ -191,10 +189,10 @@ unsafe fn json_decoder_pop(
             }
             let mut key = stack.pop().unwrap();
             if last_container.special_val.is_null() {
-                assert!(!(key.is_special_string || key.val.vval.v_string.is_null()));
-                let obj_di = tv_dict_item_alloc(key.val.vval.v_string);
+                assert!(!(key.is_special_string || key.val.vval.v_string().is_null()));
+                let obj_di = tv_dict_item_alloc(key.val.vval.v_string());
                 tv_clear(&mut key.val);
-                let dict = last_container.container.vval.v_dict;
+                let dict = last_container.container.vval.v_dict();
                 if tv_dict_add(dict, obj_di) == FAIL {
                     std::process::abort();
                 }
@@ -212,7 +210,7 @@ unsafe fn json_decoder_pop(
                 tv_clear(&mut v);
                 return FAIL;
             } else if !obj.didcomma && last_container.special_val.is_null() {
-                let dict = last_container.container.vval.v_dict;
+                let dict = last_container.container.vval.v_dict();
                 if (*dict).dv_hashtab.ht_used != 0 {
                     semsg!(
                         c"E474: Expected comma before dictionary key: %s".as_ptr(),
@@ -223,11 +221,11 @@ unsafe fn json_decoder_pop(
                     return FAIL;
                 }
             }
-            let dict = last_container.container.vval.v_dict;
+            let dict = last_container.container.vval.v_dict();
             if last_container.special_val.is_null()
                 && (obj.is_special_string
-                    || obj.val.vval.v_string.is_null()
-                    || !tv_dict_find(dict, obj.val.vval.v_string, -1).is_null())
+                    || obj.val.vval.v_string().is_null()
+                    || !tv_dict_find(dict, obj.val.vval.v_string(), -1).is_null())
             {
                 let mut v = obj.val;
                 tv_clear(&mut v);
@@ -572,7 +570,7 @@ unsafe fn parse_json_number(
         let mut tv = typval_T {
             v_type: VarType::VAR_NUMBER,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval { v_number: 0 },
+            vval: TypvalVval::Number(0),
         };
         let exp_num_len = (p as usize) - (s as usize);
         if !fracs.is_null() || !exps.is_null() {
@@ -588,7 +586,7 @@ unsafe fn parse_json_number(
                 );
             }
             tv.v_type = VarType::VAR_FLOAT;
-            tv.vval = TypvalVval { v_float: flt };
+            tv.vval = TypvalVval::Float(flt);
         } else {
             let mut nr: i64 = 0;
             let mut num_len: c_int = 0;
@@ -612,7 +610,7 @@ unsafe fn parse_json_number(
                     exp_num_len,
                 );
             }
-            tv.vval = TypvalVval { v_number: nr };
+            tv.vval = TypvalVval::Number(nr);
         }
 
         if json_decoder_pop(
@@ -747,10 +745,10 @@ pub unsafe fn json_decode_string(
                         let last_container = *container_stack.last().unwrap();
                         let is_empty_cont = if last_container.special_val.is_null() {
                             if last_container.container.v_type == VarType::VAR_DICT {
-                                let d = last_container.container.vval.v_dict;
+                                let d = last_container.container.vval.v_dict();
                                 (*d).dv_hashtab.ht_used == 0
                             } else {
-                                tv_list_len(last_container.container.vval.v_list) == 0
+                                tv_list_len(last_container.container.vval.v_list()) == 0
                             }
                         } else {
                             tv_list_len(last_container.special_val) == 0
@@ -824,9 +822,7 @@ pub unsafe fn json_decode_string(
                         let tv = typval_T {
                             v_type: VarType::VAR_SPECIAL,
                             v_lock: VAR_UNLOCKED,
-                            vval: TypvalVval {
-                                v_number: K_SPECIAL_VAR_NULL,
-                            },
+                            vval: TypvalVval::Number(K_SPECIAL_VAR_NULL),
                         };
                         if json_decoder_pop(
                             ValuesStackItem {
@@ -860,9 +856,7 @@ pub unsafe fn json_decode_string(
                         let tv = typval_T {
                             v_type: VarType::VAR_BOOL,
                             v_lock: VAR_UNLOCKED,
-                            vval: TypvalVval {
-                                v_number: K_BOOL_VAR_TRUE,
-                            },
+                            vval: TypvalVval::Number(K_BOOL_VAR_TRUE),
                         };
                         if json_decoder_pop(
                             ValuesStackItem {
@@ -896,9 +890,7 @@ pub unsafe fn json_decode_string(
                         let tv = typval_T {
                             v_type: VarType::VAR_BOOL,
                             v_lock: VAR_UNLOCKED,
-                            vval: TypvalVval {
-                                v_number: K_BOOL_VAR_FALSE,
-                            },
+                            vval: TypvalVval::Number(K_BOOL_VAR_FALSE),
                         };
                         if json_decoder_pop(
                             ValuesStackItem {
@@ -963,7 +955,7 @@ pub unsafe fn json_decode_string(
                         let tv = typval_T {
                             v_type: VarType::VAR_LIST,
                             v_lock: VAR_UNLOCKED,
-                            vval: TypvalVval { v_list: list },
+                            vval: TypvalVval::List(list),
                         };
                         container_stack.push(JsonContainerStackItem {
                             stack_index: stack.len(),
@@ -982,7 +974,7 @@ pub unsafe fn json_decode_string(
                         let mut tv = typval_T {
                             v_type: VarType::VAR_UNKNOWN,
                             v_lock: VAR_UNLOCKED,
-                            vval: TypvalVval { v_number: 0 },
+                            vval: TypvalVval::Number(0),
                         };
                         let mut val_list: *mut list_T = std::ptr::null_mut();
                         if next_map_special {
@@ -994,7 +986,7 @@ pub unsafe fn json_decode_string(
                             tv = typval_T {
                                 v_type: VarType::VAR_DICT,
                                 v_lock: VAR_UNLOCKED,
-                                vval: TypvalVval { v_dict: dict },
+                                vval: TypvalVval::Dict(dict),
                             };
                         }
                         container_stack.push(JsonContainerStackItem {
@@ -1056,9 +1048,7 @@ unsafe fn positive_integer_to_special_typval(rettv: *mut typval_T, val: u64) {
             *rettv = typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval {
-                    v_number: val as i64,
-                },
+                vval: TypvalVval::Number(val as i64),
             };
         } else {
             let list = tv_list_alloc(4);
@@ -1069,7 +1059,7 @@ unsafe fn positive_integer_to_special_typval(rettv: *mut typval_T, val: u64) {
                 typval_T {
                     v_type: VarType::VAR_LIST,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval { v_list: list },
+                    vval: TypvalVval::List(list),
                 },
             );
             tv_list_append_number(list, 1);
@@ -1093,7 +1083,7 @@ unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
                         typval_T {
                             v_type: VarType::VAR_UNKNOWN,
                             v_lock: 0,
-                            vval: TypvalVval { v_number: 0 },
+                            vval: TypvalVval::Number(0),
                         },
                     );
                 }
@@ -1122,9 +1112,7 @@ unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
                 *result = typval_T {
                     v_type: VarType::VAR_SPECIAL,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval {
-                        v_number: K_SPECIAL_VAR_NULL,
-                    },
+                    vval: TypvalVval::Number(K_SPECIAL_VAR_NULL),
                 };
             }
             mpack_token_type_t::MPACK_TOKEN_BOOLEAN => {
@@ -1132,18 +1120,14 @@ unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
                 *result = typval_T {
                     v_type: VarType::VAR_BOOL,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval {
-                        v_number: if b { K_BOOL_VAR_TRUE } else { K_BOOL_VAR_FALSE },
-                    },
+                    vval: TypvalVval::Number(if b { K_BOOL_VAR_TRUE } else { K_BOOL_VAR_FALSE }),
                 };
             }
             mpack_token_type_t::MPACK_TOKEN_SINT => {
                 *result = typval_T {
                     v_type: VarType::VAR_NUMBER,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval {
-                        v_number: mpack_unpack_sint((*node).tok),
-                    },
+                    vval: TypvalVval::Number(mpack_unpack_sint((*node).tok)),
                 };
             }
             mpack_token_type_t::MPACK_TOKEN_UINT => {
@@ -1153,9 +1137,7 @@ unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
                 *result = typval_T {
                     v_type: VarType::VAR_FLOAT,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval {
-                        v_float: mpack_unpack_float_fast((*node).tok),
-                    },
+                    vval: TypvalVval::Float(mpack_unpack_float_fast((*node).tok)),
                 };
             }
             mpack_token_type_t::MPACK_TOKEN_BIN
@@ -1178,7 +1160,7 @@ unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
                 *result = typval_T {
                     v_type: VarType::VAR_LIST,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval { v_list: list },
+                    vval: TypvalVval::List(list),
                 };
                 (*node).data[1] = mpack_data_t::List(list);
             }
@@ -1234,7 +1216,7 @@ unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_
                     typval_T {
                         v_type: VarType::VAR_LIST,
                         v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval { v_list: list },
+                        vval: TypvalVval::List(list),
                     },
                 );
                 encode_list_write(
@@ -1249,8 +1231,8 @@ unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_
                 let mut can_be_dict = items[..len].iter().all(|pair| {
                     let key = &pair[0];
                     key.v_type == VarType::VAR_STRING
-                        && !key.vval.v_string.is_null()
-                        && *key.vval.v_string != 0
+                        && !key.vval.v_string().is_null()
+                        && *key.vval.v_string() != 0
                 });
 
                 if can_be_dict {
@@ -1259,10 +1241,10 @@ unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_
                     *result = typval_T {
                         v_type: VarType::VAR_DICT,
                         v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval { v_dict: dict },
+                        vval: TypvalVval::Dict(dict),
                     };
                     for pair in &items[..len] {
-                        let key = pair[0].vval.v_string;
+                        let key = pair[0].vval.v_string();
                         let keylen = CStr::from_ptr(key).to_bytes().len();
                         let di = crate::eval::typval::tv_dict_item_alloc_len(key, keylen);
                         if tv_dict_add(dict, di) == FAIL {
@@ -1273,7 +1255,7 @@ unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_
                                     todo -= 1;
                                     let d = crate::eval::typval::tv_dict_hi2di(hi);
                                     (*d).di_tv.v_type = VarType::VAR_SPECIAL;
-                                    (*d).di_tv.vval.v_number = K_SPECIAL_VAR_NULL;
+                                    (*d).di_tv.vval = crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
                                 }
                                 hi = hi.add(1);
                             }
@@ -1351,7 +1333,7 @@ mod tests {
         unsafe {
             let mut tv = decode_string(c"hello".as_ptr(), 5, false, false);
             assert_eq!(tv.v_type, VarType::VAR_STRING);
-            assert_eq!(CStr::from_ptr(tv.vval.v_string).to_str().unwrap(), "hello");
+            assert_eq!(CStr::from_ptr(tv.vval.v_string()).to_str().unwrap(), "hello");
             tv_clear(&raw mut tv);
         }
     }
@@ -1366,7 +1348,7 @@ mod tests {
             let mut rettv = typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval { v_number: 0 },
+                vval: TypvalVval::Number(0),
             };
 
             for &(s, len) in &[
@@ -1423,7 +1405,7 @@ mod tests {
 
             assert_eq!(json_decode_string(c"true".as_ptr(), 4, &mut rettv), OK);
             assert_eq!(rettv.v_type, VarType::VAR_BOOL);
-            assert_eq!(rettv.vval.v_bool, K_BOOL_VAR_TRUE as c_int);
+            assert_eq!(rettv.vval.v_bool(), K_BOOL_VAR_TRUE as c_int);
             tv_clear(&mut rettv);
 
             crate::globals::emsg_skip -= 1;

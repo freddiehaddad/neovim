@@ -133,13 +133,13 @@ pub unsafe fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet:
             };
 
         if result.v_type != VarType::VAR_LIST {
-            if result.v_type == VarType::VAR_NUMBER && result.vval.v_number == 0 {
+            if result.v_type == VarType::VAR_NUMBER && result.vval.v_number() == 0 {
                 errmsg = false;
             }
             return fail_cleanup(reg, errmsg, target);
         }
 
-        let res = result.vval.v_list;
+        let res = result.vval.v_list();
         let res_len = if res.is_null() { 0 } else { (*res).lv_len };
         let lines: *mut list_T;
 
@@ -147,12 +147,12 @@ pub unsafe fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet:
             && !(*res).lv_first.is_null()
             && (*(*res).lv_first).li_tv.v_type == VarType::VAR_LIST
         {
-            lines = (*(*res).lv_first).li_tv.vval.v_list;
+            lines = (*(*res).lv_first).li_tv.vval.v_list();
             let last_li = (*res).lv_last;
             if last_li.is_null() || (*last_li).li_tv.v_type != VarType::VAR_STRING {
                 return fail_cleanup(reg, errmsg, target);
             }
-            let regtype = (*last_li).li_tv.vval.v_string;
+            let regtype = (*last_li).li_tv.vval.v_string();
             if regtype.is_null() || CStr::from_ptr(regtype).to_bytes().len() > 1 {
                 return fail_cleanup(reg, errmsg, target);
             }
@@ -188,7 +188,7 @@ pub unsafe fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet:
             if (*li).li_tv.v_type != VarType::VAR_STRING {
                 return fail_cleanup(reg, errmsg, target);
             }
-            let s = (*li).li_tv.vval.v_string;
+            let s = (*li).li_tv.vval.v_string();
             reg.y_array
                 .push(cstr_to_string(if s.is_null() { c"".as_ptr() } else { s }));
             li = (*li).li_next;
