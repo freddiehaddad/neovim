@@ -1714,7 +1714,7 @@ pub unsafe fn spell_check_msm(value: *mut c_char, apply: bool) -> c_int {
     }
 }
 
-unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut afffile_T {
+unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<afffile_T> {
     unsafe {
         let mut rline = [0 as c_char; MAXLINELEN];
         let mut pc: *mut c_char = ptr::null_mut();
@@ -1740,7 +1740,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
         let fd = os_fopen(fname, c"r".as_ptr());
         if fd.is_null() {
             semsg!(gettext((&raw const e_notopen).cast()), fname);
-            return ptr::null_mut();
+            return None;
         }
 
         vim_snprintf!(
@@ -1756,7 +1756,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
         let do_sal = (*spin).si_sal.is_empty();
         let do_mapline = (*spin).si_map.is_empty();
 
-        let aff = Box::into_raw(Box::new(afffile_T {
+        let mut aff = afffile_T {
             af_enc: ptr::null_mut(),
             af_flagtype: 0,
             af_rare: 0,
@@ -1774,7 +1774,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
             af_pref: std::collections::BTreeMap::new(),
             af_suff: std::collections::BTreeMap::new(),
             af_comp: std::collections::BTreeMap::new(),
-        }));
+        };
 
         while !vim_fgets(rline.as_mut_ptr(), MAXLINELEN as c_int, fd) && !got_int {
             line_breakcheck();
@@ -1836,31 +1836,29 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
 
             if itemcnt > 0 {
                 let itemcnt_i = itemcnt as c_int;
-                if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"SET".as_ptr(), 2)
-                    && (*aff).af_enc.is_null()
-                {
-                    (*aff).af_enc = enc_canonize(items[1]);
+                if is_aff_rule(&items, itemcnt_i, c"SET".as_ptr(), 2) && aff.af_enc.is_null() {
+                    aff.af_enc = enc_canonize(items[1]);
                     if (*spin).si_ascii == 0
-                        && convert_setup(&mut (*spin).si_conv, (*aff).af_enc, p_enc) == FAIL
+                        && convert_setup(&mut (*spin).si_conv, aff.af_enc, p_enc) == FAIL
                     {
                         smsg!(
                             0,
                             gettext(c"Conversion in %s not supported: from %s to %s".as_ptr()),
                             fname,
-                            (*aff).af_enc,
+                            aff.af_enc,
                             p_enc,
                         );
                     }
                     (*spin).si_conv.vc_fail = true;
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"FLAG".as_ptr(), 2)
-                    && (*aff).af_flagtype == AFT_CHAR
+                } else if is_aff_rule(&items, itemcnt_i, c"FLAG".as_ptr(), 2)
+                    && aff.af_flagtype == AFT_CHAR
                 {
                     if strcmp(items[1], c"long".as_ptr()) == 0 {
-                        (*aff).af_flagtype = AFT_LONG;
+                        aff.af_flagtype = AFT_LONG;
                     } else if strcmp(items[1], c"num".as_ptr()) == 0 {
-                        (*aff).af_flagtype = AFT_NUM;
+                        aff.af_flagtype = AFT_NUM;
                     } else if strcmp(items[1], c"caplong".as_ptr()) == 0 {
-                        (*aff).af_flagtype = AFT_CAPLONG;
+                        aff.af_flagtype = AFT_CAPLONG;
                     } else {
                         smsg!(
                             0,
@@ -1870,17 +1868,17 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             items[1],
                         );
                     }
-                    if (*aff).af_rare != 0
-                        || (*aff).af_keepcase != 0
-                        || (*aff).af_bad != 0
-                        || (*aff).af_needaffix != 0
-                        || (*aff).af_circumfix != 0
-                        || (*aff).af_needcomp != 0
-                        || (*aff).af_comproot != 0
-                        || (*aff).af_nosuggest != 0
+                    if aff.af_rare != 0
+                        || aff.af_keepcase != 0
+                        || aff.af_bad != 0
+                        || aff.af_needaffix != 0
+                        || aff.af_circumfix != 0
+                        || aff.af_needcomp != 0
+                        || aff.af_comproot != 0
+                        || aff.af_nosuggest != 0
                         || !compflags.is_null()
-                        || !(*aff).af_suff.is_empty()
-                        || !(*aff).af_pref.is_empty()
+                        || !aff.af_suff.is_empty()
+                        || !aff.af_pref.is_empty()
                     {
                         smsg!(
                             0,
@@ -1910,57 +1908,53 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                     strcat(p_info, c" ".as_ptr());
                     strcat(p_info, items[1]);
                     (*spin).si_info = p_info;
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"MIDWORD".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"MIDWORD".as_ptr(), 2)
                     && midword.is_null()
                 {
                     midword = getroom_save(spin, items[1]);
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"TRY".as_ptr(), 2) {
+                } else if is_aff_rule(&items, itemcnt_i, c"TRY".as_ptr(), 2) {
                     // ignored
-                } else if (is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"RAR".as_ptr(), 2)
-                    || is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"RARE".as_ptr(), 2))
-                    && (*aff).af_rare == 0
+                } else if (is_aff_rule(&items, itemcnt_i, c"RAR".as_ptr(), 2)
+                    || is_aff_rule(&items, itemcnt_i, c"RARE".as_ptr(), 2))
+                    && aff.af_rare == 0
                 {
-                    (*aff).af_rare = affitem2flag((*aff).af_flagtype, items[1], fname, lnum);
-                } else if (is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"KEP".as_ptr(), 2)
-                    || is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"KEEPCASE".as_ptr(), 2))
-                    && (*aff).af_keepcase == 0
+                    aff.af_rare = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
+                } else if (is_aff_rule(&items, itemcnt_i, c"KEP".as_ptr(), 2)
+                    || is_aff_rule(&items, itemcnt_i, c"KEEPCASE".as_ptr(), 2))
+                    && aff.af_keepcase == 0
                 {
-                    (*aff).af_keepcase = affitem2flag((*aff).af_flagtype, items[1], fname, lnum);
-                } else if (is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"BAD".as_ptr(), 2)
-                    || is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"FORBIDDENWORD".as_ptr(), 2))
-                    && (*aff).af_bad == 0
+                    aff.af_keepcase = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
+                } else if (is_aff_rule(&items, itemcnt_i, c"BAD".as_ptr(), 2)
+                    || is_aff_rule(&items, itemcnt_i, c"FORBIDDENWORD".as_ptr(), 2))
+                    && aff.af_bad == 0
                 {
-                    (*aff).af_bad = affitem2flag((*aff).af_flagtype, items[1], fname, lnum);
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"NEEDAFFIX".as_ptr(), 2)
-                    && (*aff).af_needaffix == 0
+                    aff.af_bad = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
+                } else if is_aff_rule(&items, itemcnt_i, c"NEEDAFFIX".as_ptr(), 2)
+                    && aff.af_needaffix == 0
                 {
-                    (*aff).af_needaffix = affitem2flag((*aff).af_flagtype, items[1], fname, lnum);
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"CIRCUMFIX".as_ptr(), 2)
-                    && (*aff).af_circumfix == 0
+                    aff.af_needaffix = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
+                } else if is_aff_rule(&items, itemcnt_i, c"CIRCUMFIX".as_ptr(), 2)
+                    && aff.af_circumfix == 0
                 {
-                    (*aff).af_circumfix = affitem2flag((*aff).af_flagtype, items[1], fname, lnum);
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"NOSUGGEST".as_ptr(), 2)
-                    && (*aff).af_nosuggest == 0
+                    aff.af_circumfix = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
+                } else if is_aff_rule(&items, itemcnt_i, c"NOSUGGEST".as_ptr(), 2)
+                    && aff.af_nosuggest == 0
                 {
-                    (*aff).af_nosuggest = affitem2flag((*aff).af_flagtype, items[1], fname, lnum);
-                } else if (is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"NEEDCOMPOUND".as_ptr(), 2)
-                    || is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"ONLYINCOMPOUND".as_ptr(), 2))
-                    && (*aff).af_needcomp == 0
+                    aff.af_nosuggest = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
+                } else if (is_aff_rule(&items, itemcnt_i, c"NEEDCOMPOUND".as_ptr(), 2)
+                    || is_aff_rule(&items, itemcnt_i, c"ONLYINCOMPOUND".as_ptr(), 2))
+                    && aff.af_needcomp == 0
                 {
-                    (*aff).af_needcomp = affitem2flag((*aff).af_flagtype, items[1], fname, lnum);
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"COMPOUNDROOT".as_ptr(), 2)
-                    && (*aff).af_comproot == 0
+                    aff.af_needcomp = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDROOT".as_ptr(), 2)
+                    && aff.af_comproot == 0
                 {
-                    (*aff).af_comproot = affitem2flag((*aff).af_flagtype, items[1], fname, lnum);
-                } else if is_aff_rule(
-                    items.as_mut_ptr(),
-                    itemcnt_i,
-                    c"COMPOUNDFORBIDFLAG".as_ptr(),
-                    2,
-                ) && (*aff).af_compforbid == 0
+                    aff.af_comproot = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDFORBIDFLAG".as_ptr(), 2)
+                    && aff.af_compforbid == 0
                 {
-                    (*aff).af_compforbid = affitem2flag((*aff).af_flagtype, items[1], fname, lnum);
-                    if !(*aff).af_pref.is_empty() {
+                    aff.af_compforbid = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
+                    if !aff.af_pref.is_empty() {
                         smsg!(
                             0,
                             gettext(
@@ -1971,15 +1965,11 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             lnum,
                         );
                     }
-                } else if is_aff_rule(
-                    items.as_mut_ptr(),
-                    itemcnt_i,
-                    c"COMPOUNDPERMITFLAG".as_ptr(),
-                    2,
-                ) && (*aff).af_comppermit == 0
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDPERMITFLAG".as_ptr(), 2)
+                    && aff.af_comppermit == 0
                 {
-                    (*aff).af_comppermit = affitem2flag((*aff).af_flagtype, items[1], fname, lnum);
-                    if !(*aff).af_pref.is_empty() {
+                    aff.af_comppermit = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
+                    if !aff.af_pref.is_empty() {
                         smsg!(
                             0,
                             gettext(
@@ -1990,14 +1980,14 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             lnum,
                         );
                     }
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"COMPOUNDFLAG".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDFLAG".as_ptr(), 2)
                     && compflags.is_null()
                 {
                     let p_cf = getroom(spin, strlen(items[1]) + 2, false).cast::<c_char>();
                     strcpy(p_cf, items[1]);
                     strcat(p_cf, c"+".as_ptr());
                     compflags = p_cf;
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"COMPOUNDRULES".as_ptr(), 2) {
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDRULES".as_ptr(), 2) {
                     if atoi(items[1]) == 0 {
                         smsg!(
                             0,
@@ -2007,7 +1997,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             items[1],
                         );
                     }
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"COMPOUNDRULE".as_ptr(), 2) {
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDRULE".as_ptr(), 2) {
                     if !compflags.is_null() || *skipdigits(items[1]) != NUL {
                         let mut l = strlen(items[1]) + 1;
                         if !compflags.is_null() {
@@ -2021,12 +2011,8 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                         strcat(p_cf, items[1]);
                         compflags = p_cf;
                     }
-                } else if is_aff_rule(
-                    items.as_mut_ptr(),
-                    itemcnt_i,
-                    c"COMPOUNDWORDMAX".as_ptr(),
-                    2,
-                ) && compmax == 0
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDWORDMAX".as_ptr(), 2)
+                    && compmax == 0
                 {
                     compmax = atoi(items[1]);
                     if compmax == 0 {
@@ -2038,7 +2024,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             items[1],
                         );
                     }
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"COMPOUNDMIN".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDMIN".as_ptr(), 2)
                     && compminlen == 0
                 {
                     compminlen = atoi(items[1]);
@@ -2051,7 +2037,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             items[1],
                         );
                     }
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"COMPOUNDSYLMAX".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDSYLMAX".as_ptr(), 2)
                     && compsylmax == 0
                 {
                     compsylmax = atoi(items[1]);
@@ -2064,40 +2050,15 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             items[1],
                         );
                     }
-                } else if is_aff_rule(
-                    items.as_mut_ptr(),
-                    itemcnt_i,
-                    c"CHECKCOMPOUNDDUP".as_ptr(),
-                    1,
-                ) {
+                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDDUP".as_ptr(), 1) {
                     compoptions |= COMP_CHECKDUP;
-                } else if is_aff_rule(
-                    items.as_mut_ptr(),
-                    itemcnt_i,
-                    c"CHECKCOMPOUNDREP".as_ptr(),
-                    1,
-                ) {
+                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDREP".as_ptr(), 1) {
                     compoptions |= COMP_CHECKREP;
-                } else if is_aff_rule(
-                    items.as_mut_ptr(),
-                    itemcnt_i,
-                    c"CHECKCOMPOUNDCASE".as_ptr(),
-                    1,
-                ) {
+                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDCASE".as_ptr(), 1) {
                     compoptions |= COMP_CHECKCASE;
-                } else if is_aff_rule(
-                    items.as_mut_ptr(),
-                    itemcnt_i,
-                    c"CHECKCOMPOUNDTRIPLE".as_ptr(),
-                    1,
-                ) {
+                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDTRIPLE".as_ptr(), 1) {
                     compoptions |= COMP_CHECKTRIPLE;
-                } else if is_aff_rule(
-                    items.as_mut_ptr(),
-                    itemcnt_i,
-                    c"CHECKCOMPOUNDPATTERN".as_ptr(),
-                    2,
-                ) {
+                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDPATTERN".as_ptr(), 2) {
                     if atoi(items[1]) == 0 {
                         smsg!(
                             0,
@@ -2107,12 +2068,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             items[1],
                         );
                     }
-                } else if is_aff_rule(
-                    items.as_mut_ptr(),
-                    itemcnt_i,
-                    c"CHECKCOMPOUNDPATTERN".as_ptr(),
-                    3,
-                ) {
+                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDPATTERN".as_ptr(), 3) {
                     let gap = &mut (*spin).si_comppat;
                     let mut i: usize = 0;
                     while i + 1 < gap.len() {
@@ -2125,23 +2081,22 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                         gap.push(getroom_save(spin, items[1]));
                         gap.push(getroom_save(spin, items[2]));
                     }
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"SYLLABLE".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"SYLLABLE".as_ptr(), 2)
                     && syllable.is_null()
                 {
                     syllable = getroom_save(spin, items[1]);
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"NOBREAK".as_ptr(), 1) {
+                } else if is_aff_rule(&items, itemcnt_i, c"NOBREAK".as_ptr(), 1) {
                     (*spin).si_nobreak = 1;
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"NOSPLITSUGS".as_ptr(), 1) {
+                } else if is_aff_rule(&items, itemcnt_i, c"NOSPLITSUGS".as_ptr(), 1) {
                     (*spin).si_nosplitsugs = 1;
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"NOCOMPOUNDSUGS".as_ptr(), 1)
-                {
+                } else if is_aff_rule(&items, itemcnt_i, c"NOCOMPOUNDSUGS".as_ptr(), 1) {
                     (*spin).si_nocompoundsugs = 1;
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"NOSUGFILE".as_ptr(), 1) {
+                } else if is_aff_rule(&items, itemcnt_i, c"NOSUGFILE".as_ptr(), 1) {
                     (*spin).si_nosugfile = 1;
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"PFXPOSTPONE".as_ptr(), 1) {
-                    (*aff).af_pfxpostpone = 1;
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"IGNOREEXTRA".as_ptr(), 1) {
-                    (*aff).af_ignoreextra = true;
+                } else if is_aff_rule(&items, itemcnt_i, c"PFXPOSTPONE".as_ptr(), 1) {
+                    aff.af_pfxpostpone = 1;
+                } else if is_aff_rule(&items, itemcnt_i, c"IGNOREEXTRA".as_ptr(), 1) {
+                    aff.af_ignoreextra = true;
                 } else if (strcmp(items[0], c"PFX".as_ptr()) == 0
                     || strcmp(items[0], c"SFX".as_ptr()) == 0)
                     && aff_todo == 0
@@ -2151,9 +2106,9 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                     let mut key = [0 as c_char; AH_KEY_LEN];
 
                     let tp = if *items[0] == b'P' as c_char {
-                        &mut (*aff).af_pref
+                        &mut aff.af_pref
                     } else {
-                        &mut (*aff).af_suff
+                        &mut aff.af_suff
                     };
 
                     xstrlcpy(key.as_mut_ptr(), items[1], AH_KEY_LEN);
@@ -2182,18 +2137,18 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             );
                         }
                     } else {
-                        let ah_flag = affitem2flag((*aff).af_flagtype, items[1], fname, lnum);
+                        let ah_flag = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
                         if ah_flag == 0 || strlen(items[1]) >= AH_KEY_LEN {
                             break;
                         }
-                        if ah_flag == (*aff).af_bad
-                            || ah_flag == (*aff).af_rare
-                            || ah_flag == (*aff).af_keepcase
-                            || ah_flag == (*aff).af_needaffix
-                            || ah_flag == (*aff).af_circumfix
-                            || ah_flag == (*aff).af_nosuggest
-                            || ah_flag == (*aff).af_needcomp
-                            || ah_flag == (*aff).af_comproot
+                        if ah_flag == aff.af_bad
+                            || ah_flag == aff.af_rare
+                            || ah_flag == aff.af_keepcase
+                            || ah_flag == aff.af_needaffix
+                            || ah_flag == aff.af_circumfix
+                            || ah_flag == aff.af_nosuggest
+                            || ah_flag == aff.af_needcomp
+                            || ah_flag == aff.af_comproot
                         {
                             smsg!(
                                 0,
@@ -2225,8 +2180,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                         (*cur_aff).ah_follows = 0;
                     }
 
-                    if itemcnt > lasti && !(*aff).af_ignoreextra && *items[lasti] != b'#' as c_char
-                    {
+                    if itemcnt > lasti && !aff.af_ignoreextra && *items[lasti] != b'#' as c_char {
                         smsg!(0, gettext(e_afftrailing), fname, lnum, items[lasti]);
                     }
 
@@ -2241,7 +2195,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                         );
                     }
 
-                    if *items[0] == b'P' as c_char && (*aff).af_pfxpostpone != 0 {
+                    if *items[0] == b'P' as c_char && aff.af_pfxpostpone != 0 {
                         if (*cur_aff).ah_newID == 0 {
                             check_renumber(spin);
                             (*spin).si_newprefID += 1;
@@ -2288,7 +2242,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                         if !(*aff_entry).ae_flags.is_null() {
                             *(*aff_entry).ae_flags = NUL;
                             (*aff_entry).ae_flags = (*aff_entry).ae_flags.add(1);
-                            aff_process_flags(aff, aff_entry);
+                            aff_process_flags(&aff, &mut *aff_entry);
                         }
                     }
 
@@ -2326,7 +2280,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                         }
 
                         if *items[0] == b'P' as c_char
-                            && (*aff).af_pfxpostpone != 0
+                            && aff.af_pfxpostpone != 0
                             && (*aff_entry).ae_flags.is_null()
                         {
                             let mut upper = false;
@@ -2428,20 +2382,14 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             }
                         }
                     }
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"FOL".as_ptr(), 2)
-                    && fol.is_null()
-                {
+                } else if is_aff_rule(&items, itemcnt_i, c"FOL".as_ptr(), 2) && fol.is_null() {
                     fol = xstrdup(items[1]);
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"LOW".as_ptr(), 2)
-                    && low.is_null()
-                {
+                } else if is_aff_rule(&items, itemcnt_i, c"LOW".as_ptr(), 2) && low.is_null() {
                     low = xstrdup(items[1]);
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"UPP".as_ptr(), 2)
-                    && upp.is_null()
-                {
+                } else if is_aff_rule(&items, itemcnt_i, c"UPP".as_ptr(), 2) && upp.is_null() {
                     upp = xstrdup(items[1]);
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"REP".as_ptr(), 2)
-                    || is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"REPSAL".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"REP".as_ptr(), 2)
+                    || is_aff_rule(&items, itemcnt_i, c"REPSAL".as_ptr(), 2)
                 {
                     if !(*items[1] as u8).is_ascii_digit() {
                         smsg!(
@@ -2485,7 +2433,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             items[2],
                         );
                     }
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"MAP".as_ptr(), 2) {
+                } else if is_aff_rule(&items, itemcnt_i, c"MAP".as_ptr(), 2) {
                     if !found_map {
                         found_map = true;
                         if !(*items[1] as u8).is_ascii_digit() {
@@ -2524,7 +2472,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                         }
                         si_map.push(b'/' as c_char);
                     }
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"SAL".as_ptr(), 3) {
+                } else if is_aff_rule(&items, itemcnt_i, c"SAL".as_ptr(), 3) {
                     if do_sal {
                         if strcmp(items[1], c"followup".as_ptr()) == 0 {
                             (*spin).si_followup = c_int::from(sal_to_bool(items[2]));
@@ -2541,11 +2489,11 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             add_fromto(spin, &mut (*spin).si_sal, items[1], to_s);
                         }
                     }
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"SOFOFROM".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"SOFOFROM".as_ptr(), 2)
                     && sofofrom.is_null()
                 {
                     sofofrom = getroom_save(spin, items[1]);
-                } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"SOFOTO".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"SOFOTO".as_ptr(), 2)
                     && sofoto.is_null()
                 {
                     sofoto = getroom_save(spin, items[1]);
@@ -2613,7 +2561,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
         }
 
         if !compflags.is_null() {
-            process_compflags(spin, aff, compflags);
+            process_compflags(spin, &mut aff, compflags);
         }
 
         if (*spin).si_newcompID < (*spin).si_newprefID {
@@ -2663,47 +2611,47 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
 
         xfree(pc.cast());
         fclose(fd);
-        aff
+        Some(aff)
     }
 }
 
 unsafe fn is_aff_rule(
-    items: *mut *mut c_char,
+    items: &[*mut c_char],
     itemcnt: c_int,
     rulename: *const c_char,
     mincount: c_int,
 ) -> bool {
     unsafe {
-        strcmp(*items, rulename) == 0
+        strcmp(items[0], rulename) == 0
             && (itemcnt == mincount
-                || (itemcnt > mincount && *(*items.offset(mincount as isize)) == b'#' as c_char))
+                || (itemcnt > mincount && *items[mincount as usize] == b'#' as c_char))
     }
 }
 
-unsafe fn aff_process_flags(affile: *mut afffile_T, entry: *mut affentry_T) {
+unsafe fn aff_process_flags(affile: &afffile_T, entry: &mut affentry_T) {
     unsafe {
-        if !(*entry).ae_flags.is_null()
-            && ((*affile).af_compforbid != 0 || (*affile).af_comppermit != 0)
+        if !entry.ae_flags.is_null()
+            && (affile.af_compforbid != 0 || affile.af_comppermit != 0)
         {
-            let mut p = (*entry).ae_flags;
+            let mut p = entry.ae_flags;
             while *p != NUL {
                 let prevp = p;
-                let flag = get_affitem((*affile).af_flagtype, &raw mut p);
-                if flag == (*affile).af_comppermit || flag == (*affile).af_compforbid {
+                let flag = get_affitem(affile.af_flagtype, &raw mut p);
+                if flag == affile.af_comppermit || flag == affile.af_compforbid {
                     ptr::copy(p, prevp, strlen(p) + 1);
                     p = prevp;
-                    if flag == (*affile).af_comppermit {
-                        (*entry).ae_comppermit = 1;
+                    if flag == affile.af_comppermit {
+                        entry.ae_comppermit = 1;
                     } else {
-                        (*entry).ae_compforbid = 1;
+                        entry.ae_compforbid = 1;
                     }
                 }
-                if (*affile).af_flagtype == AFT_NUM && *p == b',' as c_char {
+                if affile.af_flagtype == AFT_NUM && *p == b',' as c_char {
                     p = p.add(1);
                 }
             }
-            if *(*entry).ae_flags == NUL {
-                (*entry).ae_flags = ptr::null_mut();
+            if *entry.ae_flags == NUL {
+                entry.ae_flags = ptr::null_mut();
             }
         }
     }
@@ -2787,7 +2735,7 @@ unsafe fn get_affitem(flagtype: c_int, pp: *mut *mut c_char) -> c_uint {
     }
 }
 
-unsafe fn process_compflags(spin: *mut spellinfo_T, aff: *mut afffile_T, compflags: *mut c_char) {
+unsafe fn process_compflags(spin: *mut spellinfo_T, aff: &mut afffile_T, compflags: *mut c_char) {
     unsafe {
         let mut key = [0 as c_char; AH_KEY_LEN];
 
@@ -2811,7 +2759,7 @@ unsafe fn process_compflags(spin: *mut spellinfo_T, aff: *mut afffile_T, compfla
                 cur = cur.add(1);
             } else {
                 let prevp = cur;
-                let flag = get_affitem((*aff).af_flagtype, &raw mut cur);
+                let flag = get_affitem(aff.af_flagtype, &raw mut cur);
                 if flag != 0 {
                     xmemcpyz(
                         key.as_mut_ptr().cast(),
@@ -2819,7 +2767,7 @@ unsafe fn process_compflags(spin: *mut spellinfo_T, aff: *mut afffile_T, compfla
                         cur.offset_from(prevp) as usize,
                     );
                     let key_bytes = std::ffi::CStr::from_ptr(key.as_ptr()).to_bytes();
-                    let id = if let Some(ci) = (*aff).af_comp.get(key_bytes) {
+                    let id = if let Some(ci) = aff.af_comp.get(key_bytes) {
                         ci.ci_newID
                     } else {
                         let mut ci = compitem_T {
@@ -2838,13 +2786,13 @@ unsafe fn process_compflags(spin: *mut spellinfo_T, aff: *mut afffile_T, compfla
                             }
                         }
                         ci.ci_newID = new_id;
-                        (*aff).af_comp.insert(key_bytes.to_vec(), ci);
+                        aff.af_comp.insert(key_bytes.to_vec(), ci);
                         new_id
                     };
                     *tp = id as u8;
                     tp = tp.add(1);
                 }
-                if (*aff).af_flagtype == AFT_NUM && *cur == b',' as c_char {
+                if aff.af_flagtype == AFT_NUM && *cur == b',' as c_char {
                     cur = cur.add(1);
                 }
             }
@@ -2945,7 +2893,7 @@ unsafe fn aff_check_string(spinval: *const c_char, affval: *const c_char, name: 
 }
 
 unsafe fn add_fromto(
-    spin: *mut spellinfo_T,
+    _spin: *mut spellinfo_T,
     gap: &mut Vec<fromto_T>,
     from: *mut c_char,
     to: *mut c_char,
@@ -2959,7 +2907,7 @@ unsafe fn add_fromto(
             word.as_mut_ptr(),
             MAXWLEN as c_int,
         );
-        let ft_from = getroom_save(spin, word.as_mut_ptr());
+        let ft_from = xstrdup(word.as_ptr());
         spell_casefold(
             curwin,
             to,
@@ -2967,7 +2915,7 @@ unsafe fn add_fromto(
             word.as_mut_ptr(),
             MAXWLEN as c_int,
         );
-        let ft_to = getroom_save(spin, word.as_mut_ptr());
+        let ft_to = xstrdup(word.as_ptr());
         gap.push(fromto_T { ft_from, ft_to });
     }
 }
@@ -2979,7 +2927,7 @@ unsafe fn sal_to_bool(s: *const c_char) -> bool {
 unsafe fn spell_read_dic(
     spin: *mut spellinfo_T,
     fname: *mut c_char,
-    affile: *mut afffile_T,
+    affile: &afffile_T,
 ) -> c_int {
     unsafe {
         let mut ht: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
@@ -3131,13 +3079,13 @@ unsafe fn spell_read_dic(
             if !afflist.is_null() {
                 flags |= get_affix_flags(affile, afflist);
 
-                if (*affile).af_needaffix != 0
-                    && flag_in_afflist((*affile).af_flagtype, afflist, (*affile).af_needaffix)
+                if affile.af_needaffix != 0
+                    && flag_in_afflist(affile.af_flagtype, afflist, affile.af_needaffix)
                 {
                     need_affix = true;
                 }
 
-                if (*affile).af_pfxpostpone != 0 {
+                if affile.af_pfxpostpone != 0 {
                     if get_pfxlist(affile, afflist, store_afflist.as_mut_ptr(), &raw mut totlen)
                         == FAIL
                     {
@@ -3176,8 +3124,8 @@ unsafe fn spell_read_dic(
                     dw,
                     afflist,
                     affile,
-                    &(*affile).af_suff,
-                    Some(&(*affile).af_pref),
+                    &affile.af_suff,
+                    Some(&affile.af_pref),
                     CONDIT_SUF,
                     flags,
                     store_afflist.as_mut_ptr(),
@@ -3192,7 +3140,7 @@ unsafe fn spell_read_dic(
                     dw,
                     afflist,
                     affile,
-                    &(*affile).af_pref,
+                    &affile.af_pref,
                     None,
                     CONDIT_SUF,
                     flags,
@@ -3229,37 +3177,33 @@ unsafe fn spell_read_dic(
     }
 }
 
-unsafe fn get_affix_flags(affile: *mut afffile_T, afflist: *mut c_char) -> c_int {
+unsafe fn get_affix_flags(affile: &afffile_T, afflist: *mut c_char) -> c_int {
     unsafe {
         let mut flags: c_int = 0;
 
-        if (*affile).af_keepcase != 0
-            && flag_in_afflist((*affile).af_flagtype, afflist, (*affile).af_keepcase)
+        if affile.af_keepcase != 0
+            && flag_in_afflist(affile.af_flagtype, afflist, affile.af_keepcase)
         {
             flags |= WF_KEEPCAP | WF_FIXCAP;
         }
-        if (*affile).af_rare != 0
-            && flag_in_afflist((*affile).af_flagtype, afflist, (*affile).af_rare)
-        {
+        if affile.af_rare != 0 && flag_in_afflist(affile.af_flagtype, afflist, affile.af_rare) {
             flags |= WF_RARE;
         }
-        if (*affile).af_bad != 0
-            && flag_in_afflist((*affile).af_flagtype, afflist, (*affile).af_bad)
-        {
+        if affile.af_bad != 0 && flag_in_afflist(affile.af_flagtype, afflist, affile.af_bad) {
             flags |= WF_BANNED;
         }
-        if (*affile).af_needcomp != 0
-            && flag_in_afflist((*affile).af_flagtype, afflist, (*affile).af_needcomp)
+        if affile.af_needcomp != 0
+            && flag_in_afflist(affile.af_flagtype, afflist, affile.af_needcomp)
         {
             flags |= WF_NEEDCOMP;
         }
-        if (*affile).af_comproot != 0
-            && flag_in_afflist((*affile).af_flagtype, afflist, (*affile).af_comproot)
+        if affile.af_comproot != 0
+            && flag_in_afflist(affile.af_flagtype, afflist, affile.af_comproot)
         {
             flags |= WF_COMPROOT;
         }
-        if (*affile).af_nosuggest != 0
-            && flag_in_afflist((*affile).af_flagtype, afflist, (*affile).af_nosuggest)
+        if affile.af_nosuggest != 0
+            && flag_in_afflist(affile.af_flagtype, afflist, affile.af_nosuggest)
         {
             flags |= WF_NOSUGGEST;
         }
@@ -3268,7 +3212,7 @@ unsafe fn get_affix_flags(affile: *mut afffile_T, afflist: *mut c_char) -> c_int
 }
 
 unsafe fn get_pfxlist(
-    affile: *mut afffile_T,
+    affile: &afffile_T,
     afflist: *mut c_char,
     store_afflist: *mut c_char,
     cntp: *mut c_int,
@@ -3279,21 +3223,21 @@ unsafe fn get_pfxlist(
         let mut p = afflist;
         while *p != NUL {
             let prevp = p;
-            if get_affitem((*affile).af_flagtype, &raw mut p) != 0 {
+            if get_affitem(affile.af_flagtype, &raw mut p) != 0 {
                 xmemcpyz(
                     key.as_mut_ptr().cast(),
                     prevp.cast(),
                     p.offset_from(prevp) as usize,
                 );
                 let key_bytes = std::ffi::CStr::from_ptr(key.as_ptr()).to_bytes();
-                if let Some(ah) = (*affile).af_pref.get(key_bytes) {
+                if let Some(ah) = affile.af_pref.get(key_bytes) {
                     let id = ah.ah_newID;
                     if id != 0 && store_afflist_add(store_afflist, cntp, id) == FAIL {
                         return FAIL;
                     }
                 }
             }
-            if (*affile).af_flagtype == AFT_NUM && *p == b',' as c_char {
+            if affile.af_flagtype == AFT_NUM && *p == b',' as c_char {
                 p = p.add(1);
             }
         }
@@ -3302,7 +3246,7 @@ unsafe fn get_pfxlist(
 }
 
 unsafe fn get_compflags(
-    affile: *mut afffile_T,
+    affile: &afffile_T,
     afflist: *mut c_char,
     store_afflist: *mut c_char,
     cntp: *mut c_int,
@@ -3313,20 +3257,20 @@ unsafe fn get_compflags(
         let mut p = afflist;
         while *p != NUL {
             let prevp = p;
-            if get_affitem((*affile).af_flagtype, &raw mut p) != 0 {
+            if get_affitem(affile.af_flagtype, &raw mut p) != 0 {
                 xmemcpyz(
                     key.as_mut_ptr().cast(),
                     prevp.cast(),
                     p.offset_from(prevp) as usize,
                 );
                 let key_bytes = std::ffi::CStr::from_ptr(key.as_ptr()).to_bytes();
-                if let Some(ci) = (*affile).af_comp.get(key_bytes)
+                if let Some(ci) = affile.af_comp.get(key_bytes)
                     && store_afflist_add(store_afflist, cntp, ci.ci_newID) == FAIL
                 {
                     return FAIL;
                 }
             }
-            if (*affile).af_flagtype == AFT_NUM && *p == b',' as c_char {
+            if affile.af_flagtype == AFT_NUM && *p == b',' as c_char {
                 p = p.add(1);
             }
         }
@@ -3338,7 +3282,7 @@ unsafe fn store_aff_word(
     spin: *mut spellinfo_T,
     word: *mut c_char,
     afflist: *mut c_char,
-    affile: *mut afffile_T,
+    affile: &afffile_T,
     ht: &std::collections::BTreeMap<Vec<u8>, affheader_T>,
     xht: Option<&std::collections::BTreeMap<Vec<u8>, affheader_T>>,
     condit: c_int,
@@ -3359,12 +3303,12 @@ unsafe fn store_aff_word(
             }
             {
                 if ((condit & CONDIT_COMB) == 0 || ah.ah_combine != 0)
-                    && flag_in_afflist((*affile).af_flagtype, afflist, ah.ah_flag)
+                    && flag_in_afflist(affile.af_flagtype, afflist, ah.ah_flag)
                 {
                     for ae_ref in &ah.ah_entries {
                         let ae: *mut affentry_T = (&raw const *ae_ref).cast_mut();
                         if (xht.is_some()
-                            || (*affile).af_pfxpostpone == 0
+                            || affile.af_pfxpostpone == 0
                             || !(*ae).ae_chop.is_null()
                             || !(*ae).ae_flags.is_null())
                             && ((*ae).ae_chop.is_null() || strlen((*ae).ae_chop) < wordlen)
@@ -3374,9 +3318,9 @@ unsafe fn store_aff_word(
                                 == ((condit & CONDIT_AFF) == 0
                                     || (*ae).ae_flags.is_null()
                                     || !flag_in_afflist(
-                                        (*affile).af_flagtype,
+                                        affile.af_flagtype,
                                         (*ae).ae_flags,
-                                        (*affile).af_circumfix,
+                                        affile.af_circumfix,
                                     )))
                         {
                             if xht.is_none() {
@@ -3418,21 +3362,21 @@ unsafe fn store_aff_word(
                             if !(*ae).ae_flags.is_null() {
                                 use_flags |= get_affix_flags(affile, (*ae).ae_flags);
 
-                                if (*affile).af_needaffix != 0
+                                if affile.af_needaffix != 0
                                     && flag_in_afflist(
-                                        (*affile).af_flagtype,
+                                        affile.af_flagtype,
                                         (*ae).ae_flags,
-                                        (*affile).af_needaffix,
+                                        affile.af_needaffix,
                                     )
                                 {
                                     need_affix = true;
                                 }
 
-                                if (*affile).af_circumfix != 0
+                                if affile.af_circumfix != 0
                                     && flag_in_afflist(
-                                        (*affile).af_flagtype,
+                                        affile.af_flagtype,
                                         (*ae).ae_flags,
-                                        (*affile).af_circumfix,
+                                        affile.af_circumfix,
                                     )
                                 {
                                     use_condit |= CONDIT_CFIX;
@@ -3441,11 +3385,10 @@ unsafe fn store_aff_word(
                                     }
                                 }
 
-                                if (*affile).af_pfxpostpone != 0 || !(*spin).si_compflags.is_null()
-                                {
+                                if affile.af_pfxpostpone != 0 || !(*spin).si_compflags.is_null() {
                                     let mut listlen: c_int = 0;
 
-                                    if (*affile).af_pfxpostpone != 0 {
+                                    if affile.af_pfxpostpone != 0 {
                                         if get_pfxlist(
                                             affile,
                                             (*ae).ae_flags,
@@ -3581,7 +3524,7 @@ unsafe fn store_aff_word(
                                     newword.as_mut_ptr(),
                                     (*ae).ae_flags,
                                     affile,
-                                    &(*affile).af_suff,
+                                    &affile.af_suff,
                                     xht,
                                     next_condit,
                                     use_flags,
@@ -5043,7 +4986,7 @@ unsafe fn mkspell(fnames: &[*mut c_char], ascii: bool, over_write: bool, added_w
     unsafe {
         let mut fname_buf = [0 as c_char; MAXPATHL];
         let mut wfname_buf = [0 as c_char; MAXPATHL];
-        let mut afile = [ptr::null_mut::<afffile_T>(); MAXREGIONS];
+        let mut afile: [Option<afffile_T>; MAXREGIONS] = [const { None }; MAXREGIONS];
         let mut error = false;
         let mut spin = spellinfo_T::default();
 
@@ -5123,7 +5066,7 @@ unsafe fn mkspell(fnames: &[*mut c_char], ascii: bool, over_write: bool, added_w
 
             let mut region_ok = true;
             for (i, slot) in afile.iter_mut().enumerate().take(incount as usize) {
-                *slot = ptr::null_mut();
+                *slot = None;
 
                 if incount > 1 {
                     let in_i = innames[i];
@@ -5159,13 +5102,13 @@ unsafe fn mkspell(fnames: &[*mut c_char], ascii: bool, over_write: bool, added_w
                     vim_snprintf!(fname, MAXPATHL, c"%s.aff".as_ptr(), in_i);
                     if os_path_exists(fname) {
                         afile[i] = spell_read_aff(&raw mut spin, fname);
-                        if afile[i].is_null() {
-                            error = true;
-                        } else {
+                        if let Some(ref aff) = afile[i] {
                             vim_snprintf!(fname, MAXPATHL, c"%s.dic".as_ptr(), in_i);
-                            if spell_read_dic(&raw mut spin, fname, afile[i]) == FAIL {
+                            if spell_read_dic(&raw mut spin, fname, aff) == FAIL {
                                 error = true;
                             }
+                        } else {
+                            error = true;
                         }
                     } else if spell_read_wordfile(&raw mut spin, in_i) == FAIL {
                         error = true;
@@ -5216,10 +5159,8 @@ unsafe fn mkspell(fnames: &[*mut c_char], ascii: bool, over_write: bool, added_w
 
                 spin.si_commonwords.clear();
 
-                for &af in afile.iter().take(incount as usize) {
-                    if !af.is_null() {
-                        drop(Box::from_raw(af));
-                    }
+                for slot in afile.iter_mut().take(incount as usize) {
+                    *slot = None;
                 }
 
                 spin.si_blocks.clear();

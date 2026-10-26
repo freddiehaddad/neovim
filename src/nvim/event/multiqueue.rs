@@ -73,7 +73,11 @@ pub enum Event {
     TInputDone,
     UiRefresh,
     UiClientConnect(*mut c_char),
-    CmdwinOpen(*mut crate::ex_getln::CmdwinOpenArgs),
+    CmdwinOpen {
+        firstc: c_int,
+        content: *mut c_char,
+        pos: c_int,
+    },
     #[cfg(test)]
     Test(usize),
 }
@@ -147,7 +151,11 @@ impl Event {
                 Self::TInputDone => crate::tui::input::tinput_done_event(),
                 Self::UiRefresh => crate::ui::ui_refresh_event(),
                 Self::UiClientConnect(addr) => crate::ui_client::channel_connect_event(addr),
-                Self::CmdwinOpen(args) => crate::ex_getln::open_cmdwin_event(args),
+                Self::CmdwinOpen {
+                    firstc,
+                    content,
+                    pos,
+                } => crate::ex_getln::open_cmdwin_event(firstc, content, pos),
                 #[cfg(test)]
                 Self::Test(_) => {}
             }

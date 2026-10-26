@@ -408,21 +408,6 @@ struct CpInfo {
     save_view: Vec<c_int>,
 }
 
-#[repr(C)]
-pub struct CmdwinOpenArgs {
-    firstc: c_int,
-    content: *mut c_char,
-    pos: c_int,
-}
-
-impl Drop for CmdwinOpenArgs {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.content.cast());
-        }
-    }
-}
-
 /// Last value of `prompt_id`, incremented when doing new prompt.
 static mut last_prompt_id: c_uint = 0;
 
@@ -5127,10 +5112,10 @@ pub unsafe fn cmdwin_do_action(action: *const c_char) {
 }
 
 /// Deferred event: opens cmdwin after the cmdline-reader unwinds.
-pub unsafe fn open_cmdwin_event(a: *mut CmdwinOpenArgs) {
+pub unsafe fn open_cmdwin_event(firstc: c_int, content: *mut c_char, pos: c_int) {
     unsafe {
-        cmdwin_invoke(c"open".as_ptr(), (*a).firstc, (*a).content, (*a).pos);
-        drop(Box::from_raw(a));
+        cmdwin_invoke(c"open".as_ptr(), firstc, content, pos);
+        xfree(content.cast());
     }
 }
 
@@ -5156,15 +5141,18 @@ unsafe fn open_cmdwin() -> c_int {
         } else {
             ptr::null_mut()
         };
-        let a = Box::into_raw(Box::new(CmdwinOpenArgs {
-            firstc: ft,
-            pos: ccline.cmdpos,
-            content,
-        }));
+        let pos = ccline.cmdpos;
         ccline.cmdlen = 0;
         ccline.cmdpos = 0;
 
-        loop_schedule_deferred((&raw mut main_loop).cast(), Event::CmdwinOpen(a));
+        loop_schedule_deferred(
+            (&raw mut main_loop).cast(),
+            Event::CmdwinOpen {
+                firstc: ft,
+                content,
+                pos,
+            },
+        );
         Ctrl_C
     }
 }

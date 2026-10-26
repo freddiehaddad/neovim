@@ -85,7 +85,7 @@ pub struct cstack_T {
     pub cs_pending: [c_char; CSTACK_LEN],
     pub cs_rettv: [*mut typval_T; CSTACK_LEN],
     pub cs_exception: [*mut except_T; CSTACK_LEN],
-    pub cs_forinfo: [*mut forinfo_T; CSTACK_LEN],
+    pub cs_forinfo: [Option<Box<forinfo_T>>; CSTACK_LEN],
     pub cs_line: [c_int; CSTACK_LEN],
     pub cs_idx: c_int,
     pub cs_looplevel: c_int,
@@ -101,7 +101,7 @@ impl Default for cstack_T {
             cs_pending: [0; CSTACK_LEN],
             cs_rettv: [ptr::null_mut(); CSTACK_LEN],
             cs_exception: [ptr::null_mut(); CSTACK_LEN],
-            cs_forinfo: [ptr::null_mut(); CSTACK_LEN],
+            cs_forinfo: [const { None }; CSTACK_LEN],
             cs_line: [0; CSTACK_LEN],
             cs_idx: -1,
             cs_looplevel: 0,
@@ -985,26 +985,25 @@ pub unsafe fn ex_while(eap: *mut exarg_T) {
             } else {
                 let mut evalarg = evalarg_T::new();
                 fill_evalarg_from_eap(&mut evalarg, eap, skip);
-                let fi = if ((*cstack).cs_lflags & CSL_HAD_LOOP) != 0 {
+                if ((*cstack).cs_lflags & CSL_HAD_LOOP) != 0 {
                     error = false;
-                    (*cstack).cs_forinfo[idx]
                 } else {
                     let fi = eval_for_line((*eap).arg, &mut error, eap, &mut evalarg);
-                    (*cstack).cs_forinfo[idx] = fi;
-                    fi
-                };
+                    (&mut (*cstack).cs_forinfo)[idx] = Some(fi);
+                }
 
-                let res = if !error && !fi.is_null() && !skip {
-                    next_for_item(fi, (*eap).arg)
+                let res = if !error && !skip {
+                    if let Some(fi) = (&mut (*cstack).cs_forinfo)[idx].as_deref_mut() {
+                        next_for_item(fi, (*eap).arg)
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 };
 
                 if !res {
-                    if !fi.is_null() {
-                        drop(Box::from_raw(fi));
-                    }
-                    (*cstack).cs_forinfo[idx] = ptr::null_mut();
+                    (&mut (*cstack).cs_forinfo)[idx] = None;
                 }
                 clear_evalarg(&mut evalarg, eap);
                 res
@@ -1680,10 +1679,7 @@ pub unsafe fn rewind_conditionals(
                 *cond_level -= 1;
             }
             if ((*cstack).cs_flags[cur_idx] & CSF_FOR) != 0 {
-                let fi = (*cstack).cs_forinfo[cur_idx];
-                if !fi.is_null() {
-                    drop(Box::from_raw(fi));
-                }
+                (&mut (*cstack).cs_forinfo)[cur_idx] = None;
             }
             (*cstack).cs_idx -= 1;
         }
