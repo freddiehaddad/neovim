@@ -1398,21 +1398,16 @@ pub unsafe fn mc_mark_at(buf: *mut buf_T, pos: pos_T, skip: u32) -> u32 {
             return 0;
         }
         let mut itr: MarkTreeIter = MarkTreeIter::new();
-        marktree_itr_get(
-            &raw mut (*buf).b_marktree,
-            pos.lnum - 1,
-            pos.col,
-            &mut itr,
-        );
+        marktree_itr_get(&(*buf).b_marktree, pos.lnum - 1, pos.col, &mut itr);
         loop {
-            let k = marktree_itr_current(&mut itr);
+            let k = marktree_itr_current(&itr);
             if k.id == 0 || k.pos.row != pos.lnum - 1 || k.pos.col != pos.col {
                 break;
             }
             if k.ns == mc_ns() && !mt_end(k) && k.id != skip {
                 return k.id;
             }
-            if !marktree_itr_next(&raw mut (*buf).b_marktree, &mut itr) {
+            if !marktree_itr_next(&(*buf).b_marktree, &mut itr) {
                 break;
             }
         }

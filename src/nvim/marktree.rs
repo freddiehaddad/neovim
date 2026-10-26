@@ -1,7 +1,7 @@
 //! B-tree data structure for storing marks at `(row, col)` positions and updating them
 //! to arbitrary text changes (`src/nvim/marktree.c`).
 
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 use std::fmt::Write as _;
 
 use crate::api::private::validate::NvimString;
@@ -22,7 +22,7 @@ pub const kMTMetaSignText: usize = 3;
 pub const kMTMetaConcealLines: usize = 4;
 pub const kMTMetaCount: usize = 5;
 
-pub type MetaFilter = *const u32;
+pub type MetaFilter = [u32; kMTMetaCount];
 
 pub const MT_FLAG_REAL: u16 = 1 << 0;
 pub const MT_FLAG_END: u16 = 1 << 1;
@@ -454,30 +454,32 @@ fn key_cmp(a: MTKey, b: MTKey) -> c_int {
 }
 
 #[inline]
-unsafe fn node_ptr(x: *mut MTNode) -> *mut *mut MTNode {
+unsafe fn node_inner<'a>(x: *mut MTNode) -> &'a mut mtnode_inner_s {
     unsafe {
         (*x).inner
             .as_deref_mut()
-            .expect("node_ptr called on leaf node")
-            .i_ptr
-            .as_mut_ptr()
+            .expect("node_inner called on leaf node")
     }
 }
 
 #[inline]
-unsafe fn node_meta(x: *mut MTNode) -> *mut [u32; kMTMetaCount] {
-    unsafe {
-        (*x).inner
-            .as_deref_mut()
-            .expect("node_meta called on leaf node")
-            .i_meta
-            .as_mut_ptr()
-    }
+unsafe fn node_ptr<'a>(x: *mut MTNode) -> &'a mut [*mut MTNode; 2 * MT_BRANCH_FACTOR] {
+    unsafe { &mut node_inner(x).i_ptr }
 }
 
 #[inline]
-unsafe fn rawkey(itr: *mut MarkTreeIter) -> *mut MTKey {
-    unsafe { (*(*itr).x).key.as_mut_ptr().add((*itr).i as usize) }
+unsafe fn node_meta<'a>(x: *mut MTNode) -> &'a mut [[u32; kMTMetaCount]; 2 * MT_BRANCH_FACTOR] {
+    unsafe { &mut node_inner(x).i_meta }
+}
+
+#[inline]
+unsafe fn rawkey(itr: &MarkTreeIter) -> &MTKey {
+    unsafe { &(*itr.x).key[itr.i as usize] }
+}
+
+#[inline]
+unsafe fn rawkey_mut(itr: &mut MarkTreeIter) -> &mut MTKey {
+    unsafe { &mut (*itr.x).key[itr.i as usize] }
 }
 
 #[inline]
@@ -512,28 +514,21 @@ unsafe fn marktree_getp_aux(x: *const MTNode, k: MTKey, match_out: Option<&mut b
 }
 
 #[inline]
-unsafe fn refkey(b: *mut MarkTree, x: *mut MTNode, i: c_int) {
+unsafe fn refkey(b: &mut MarkTree, x: *mut MTNode, i: c_int) {
     unsafe {
         let key_id = mt_lookup_key((*x).key[i as usize]);
-        (*b).id2node.insert(key_id, x);
+        b.id2node.insert(key_id, x);
     }
 }
 
 #[inline]
-unsafe fn id2node(b: *mut MarkTree, id: u64) -> *mut MTNode {
-    unsafe {
-        (*b).id2node
-            .get(&id)
-            .copied()
-            .unwrap_or(std::ptr::null_mut())
-    }
+fn id2node(b: &MarkTree, id: u64) -> *mut MTNode {
+    b.id2node.get(&id).copied().unwrap_or(std::ptr::null_mut())
 }
 
-unsafe fn split_node(b: *mut MarkTree, x: *mut MTNode, i: c_int, next: MTKey) {
+unsafe fn split_node(b: &mut MarkTree, x: *mut MTNode, i: c_int, next: MTKey) {
     unsafe {
-        let x_ptr = node_ptr(x);
-        let x_meta = node_meta(x);
-        let y = *x_ptr.add(i as usize);
+        let y = node_ptr(x)[i as usize];
         let z = marktree_alloc_node(b, (*y).level != 0);
         (*z).level = (*y).level;
         (*z).n = T - 1;
@@ -552,7 +547,7 @@ unsafe fn split_node(b: *mut MarkTree, x: *mut MTNode, i: c_int, next: MTKey) {
                 let k = (*y).key[j];
                 let pi_end = pseudo_index_for_id(b, mt_lookup_id(k.ns, k.id, true), true);
                 if mt_start(k) && pi_end > pi && mt_lookup_key(k) != last_start {
-                    intersect_node(b, z, mt_lookup_id(k.ns, k.id, false));
+                    intersect_node(z, mt_lookup_id(k.ns, k.id, false));
                 }
             }
 
@@ -560,28 +555,21 @@ unsafe fn split_node(b: *mut MarkTree, x: *mut MTNode, i: c_int, next: MTKey) {
                 let k = (*y).key[j];
                 let pi_start = pseudo_index_for_id(b, mt_lookup_id(k.ns, k.id, false), true);
                 if mt_end(k) && pi_start > 0 && pi_start < pi {
-                    intersect_node(b, y, mt_lookup_id(k.ns, k.id, false));
+                    intersect_node(y, mt_lookup_id(k.ns, k.id, false));
                 }
             }
         }
 
-        std::ptr::copy_nonoverlapping(
-            (*y).key.as_ptr().add(T_USIZE),
-            (*z).key.as_mut_ptr(),
-            T_USIZE - 1,
-        );
+        (&mut (*z).key)[..(T_USIZE - 1)].copy_from_slice(&(&(*y).key)[T_USIZE..(2 * T_USIZE - 1)]);
         for j in 0..(T - 1) {
             refkey(b, z, j);
         }
         if (*y).level != 0 {
-            let y_ptr = node_ptr(y);
-            let y_meta = node_meta(y);
-            let z_ptr = node_ptr(z);
-            let z_meta = node_meta(z);
-            std::ptr::copy_nonoverlapping(y_ptr.add(T_USIZE), z_ptr, T_USIZE);
-            std::ptr::copy_nonoverlapping(y_meta.add(T_USIZE), z_meta, T_USIZE);
-            for j in 0..T_USIZE {
-                let child = *z_ptr.add(j);
+            let y_inner = node_inner(y);
+            let z_inner = node_inner(z);
+            z_inner.i_ptr[..T_USIZE].copy_from_slice(&y_inner.i_ptr[T_USIZE..(2 * T_USIZE)]);
+            z_inner.i_meta[..T_USIZE].copy_from_slice(&y_inner.i_meta[T_USIZE..(2 * T_USIZE)]);
+            for (j, &child) in z_inner.i_ptr[..T_USIZE].iter().enumerate() {
                 (*child).parent = z;
                 (*child).p_idx = j as i16;
             }
@@ -589,33 +577,30 @@ unsafe fn split_node(b: *mut MarkTree, x: *mut MTNode, i: c_int, next: MTKey) {
         (*y).n = T - 1;
         let i_usize = i as usize;
         let count_after = ((*x).n - i) as usize;
-        std::ptr::copy(x_ptr.add(i_usize + 1), x_ptr.add(i_usize + 2), count_after);
-        std::ptr::copy(
-            x_meta.add(i_usize + 1),
-            x_meta.add(i_usize + 2),
-            count_after,
-        );
-        *x_ptr.add(i_usize + 1) = z;
-        meta_describe_node((*x_meta.add(i_usize + 1)).as_mut_ptr(), z);
+        let x_inner = node_inner(x);
+        x_inner
+            .i_ptr
+            .copy_within((i_usize + 1)..(i_usize + 1 + count_after), i_usize + 2);
+        x_inner
+            .i_meta
+            .copy_within((i_usize + 1)..(i_usize + 1 + count_after), i_usize + 2);
+        x_inner.i_ptr[i_usize + 1] = z;
+        meta_describe_node(&mut x_inner.i_meta[i_usize + 1], z);
         (*z).parent = x;
-        for j in (i + 1)..((*x).n + 2) {
-            (**x_ptr.add(j as usize)).p_idx = j as i16;
+        for j in (i_usize + 1)..((*x).n as usize + 2) {
+            (*x_inner.i_ptr[j]).p_idx = j as i16;
         }
-        std::ptr::copy(
-            (*x).key.as_ptr().add(i_usize),
-            (*x).key.as_mut_ptr().add(i_usize + 1),
-            count_after,
-        );
+        (*x).key
+            .copy_within(i_usize..(i_usize + count_after), i_usize + 1);
 
         // move key to internal layer:
         (*x).key[i_usize] = (*y).key[T_USIZE - 1];
         refkey(b, x, i);
         (*x).n += 1;
 
-        let mut meta_inc = [0u32; kMTMetaCount];
-        meta_describe_key(meta_inc.as_mut_ptr(), (*x).key[i_usize]);
+        let meta_inc = meta_describe_key((*x).key[i_usize]);
         for (m, &inc) in meta_inc.iter().enumerate() {
-            (*x_meta.add(i_usize))[m] -= (*x_meta.add(i_usize + 1))[m] + inc;
+            x_inner.i_meta[i_usize][m] -= x_inner.i_meta[i_usize + 1][m] + inc;
         }
 
         let x_key_pos = (*x).key[i_usize].pos;
@@ -634,23 +619,24 @@ unsafe fn split_node(b: *mut MarkTree, x: *mut MTNode, i: c_int, next: MTKey) {
     }
 }
 
-unsafe fn marktree_putp_aux(b: *mut MarkTree, x: *mut MTNode, mut k: MTKey, meta_inc: *const u32) {
+unsafe fn marktree_putp_aux(
+    b: &mut MarkTree,
+    x: *mut MTNode,
+    mut k: MTKey,
+    meta_inc: &[u32; kMTMetaCount],
+) {
     unsafe {
         let mut i = marktree_getp_aux(x, k, None) + 1;
         if (*x).level == 0 {
             if i != (*x).n {
-                std::ptr::copy(
-                    (*x).key.as_ptr().add(i as usize),
-                    (*x).key.as_mut_ptr().add(i as usize + 1),
-                    ((*x).n - i) as usize,
-                );
+                (*x).key
+                    .copy_within(i as usize..(*x).n as usize, i as usize + 1);
             }
             (*x).key[i as usize] = k;
             refkey(b, x, i);
             (*x).n += 1;
         } else {
-            let x_ptr = node_ptr(x);
-            if (**x_ptr.add(i as usize)).n == 2 * T - 1 {
+            if (*node_ptr(x)[i as usize]).n == 2 * T - 1 {
                 split_node(b, x, i, k);
                 if key_cmp(k, (*x).key[i as usize]) > 0 {
                     i += 1;
@@ -659,17 +645,18 @@ unsafe fn marktree_putp_aux(b: *mut MarkTree, x: *mut MTNode, mut k: MTKey, meta
             if i > 0 {
                 relative((*x).key[i as usize - 1].pos, &mut k.pos);
             }
-            marktree_putp_aux(b, *x_ptr.add(i as usize), k, meta_inc);
+            let child = node_ptr(x)[i as usize];
+            marktree_putp_aux(b, child, k, meta_inc);
             let x_meta = node_meta(x);
             for m in 0..kMTMetaCount {
-                (*x_meta.add(i as usize))[m] += *meta_inc.add(m);
+                x_meta[i as usize][m] += meta_inc[m];
             }
         }
     }
 }
 
 pub unsafe fn marktree_put(
-    b: *mut MarkTree,
+    b: &mut MarkTree,
     mut key: MTKey,
     end_row: c_int,
     end_col: c_int,
@@ -698,10 +685,10 @@ pub unsafe fn marktree_put(
             marktree_put_key(b, end_key);
             let mut itr = MarkTreeIter::new();
             let mut end_itr = MarkTreeIter::new();
-            marktree_lookup(b, mt_lookup_key(key), &mut itr);
-            marktree_lookup(b, mt_lookup_key(end_key), &mut end_itr);
+            marktree_lookup(b, mt_lookup_key(key), Some(&mut itr));
+            marktree_lookup(b, mt_lookup_key(end_key), Some(&mut end_itr));
 
-            marktree_intersect_pair(b, mt_lookup_key(key), &mut itr, &mut end_itr, false);
+            marktree_intersect_pair(b, mt_lookup_key(key), &mut itr, &end_itr, false);
         }
     }
 }
@@ -710,7 +697,7 @@ fn intersection_has(x: &Intersection, id: u64) -> bool {
     x.binary_search(&id).is_ok()
 }
 
-unsafe fn intersect_node(_b: *mut MarkTree, x: *mut MTNode, id: u64) {
+unsafe fn intersect_node(x: *mut MTNode, id: u64) {
     debug_assert_eq!(id & MARKTREE_END_FLAG, 0);
     unsafe {
         let pos = (*x).intersect.partition_point(|&item| item < id);
@@ -718,7 +705,7 @@ unsafe fn intersect_node(_b: *mut MarkTree, x: *mut MTNode, id: u64) {
     }
 }
 
-unsafe fn unintersect_node(_b: *mut MarkTree, x: *mut MTNode, id: u64, strict: bool) {
+unsafe fn unintersect_node(x: *mut MTNode, id: u64, strict: bool) {
     debug_assert_eq!(id & MARKTREE_END_FLAG, 0);
     unsafe {
         match (*x).intersect.binary_search(&id) {
@@ -735,25 +722,25 @@ unsafe fn unintersect_node(_b: *mut MarkTree, x: *mut MTNode, id: u64, strict: b
 }
 
 pub unsafe fn marktree_intersect_pair(
-    b: *mut MarkTree,
+    b: &mut MarkTree,
     id: u64,
-    itr: *mut MarkTreeIter,
-    end_itr: *mut MarkTreeIter,
+    itr: &mut MarkTreeIter,
+    end_itr: &MarkTreeIter,
     delete: bool,
 ) {
     unsafe {
-        let maxlvl = (*itr).lvl.min((*end_itr).lvl);
-        let iat = |it: *const MarkTreeIter, l: c_int, q: c_int| -> c_int {
-            if l == (*it).lvl {
-                (*it).i + q
+        let maxlvl = itr.lvl.min(end_itr.lvl);
+        let iat = |it: &MarkTreeIter, l: c_int, q: c_int| -> c_int {
+            if l == it.lvl {
+                it.i + q
             } else {
-                (*it).s[l as usize].i
+                it.s[l as usize].i
             }
         };
         let mut lvl = 0;
         while lvl < maxlvl {
-            let si = (*itr).s[lvl as usize].i;
-            let ei = (*end_itr).s[lvl as usize].i;
+            let si = itr.s[lvl as usize].i;
+            let ei = end_itr.s[lvl as usize].i;
             if si > ei {
                 return;
             } else if si < ei {
@@ -765,92 +752,84 @@ pub unsafe fn marktree_intersect_pair(
             return;
         }
 
-        while !(*itr).x.is_null() {
+        while !itr.x.is_null() {
             let mut skip = false;
-            if (*itr).x == (*end_itr).x {
-                if (*(*itr).x).level == 0 || (*itr).i >= (*end_itr).i {
+            if itr.x == end_itr.x {
+                if (*itr.x).level == 0 || itr.i >= end_itr.i {
                     break;
                 } else {
                     skip = true;
                 }
-            } else if (*itr).lvl > lvl || iat(itr, lvl, 1) < iat(end_itr, lvl, 1) {
+            } else if itr.lvl > lvl || iat(itr, lvl, 1) < iat(end_itr, lvl, 1) {
                 skip = true;
             } else {
                 lvl += 1;
             }
 
-            if skip && (*(*itr).x).level != 0 {
-                let x = *node_ptr((*itr).x).add(((*itr).i + 1) as usize);
+            if skip && (*itr.x).level != 0 {
+                let x = node_ptr(itr.x)[(itr.i + 1) as usize];
                 if delete {
-                    unintersect_node(b, x, id, true);
+                    unintersect_node(x, id, true);
                 } else {
-                    intersect_node(b, x, id);
+                    intersect_node(x, id);
                 }
             }
-            marktree_itr_next_skip(b, itr, skip, true, std::ptr::null_mut(), std::ptr::null());
+            marktree_itr_next_skip(b, itr, skip, true, None, None);
         }
     }
 }
 
-unsafe fn marktree_alloc_node(b: *mut MarkTree, internal: bool) -> *mut MTNode {
-    unsafe {
-        let inner = if internal {
-            Some(Box::new(mtnode_inner_s {
-                i_ptr: [std::ptr::null_mut(); 2 * MT_BRANCH_FACTOR],
-                i_meta: [[0; kMTMetaCount]; 2 * MT_BRANCH_FACTOR],
-            }))
-        } else {
-            None
-        };
-        let x = Box::into_raw(Box::new(MTNode {
-            n: 0,
-            level: 0,
-            p_idx: 0,
-            intersect: Vec::new(),
-            parent: std::ptr::null_mut(),
-            key: [MT_INVALID_KEY; 2 * MT_BRANCH_FACTOR - 1],
-            inner,
-        }));
-        (*b).n_nodes += 1;
-        x
+fn marktree_alloc_node(b: &mut MarkTree, internal: bool) -> *mut MTNode {
+    let inner = if internal {
+        Some(Box::new(mtnode_inner_s {
+            i_ptr: [std::ptr::null_mut(); 2 * MT_BRANCH_FACTOR],
+            i_meta: [[0; kMTMetaCount]; 2 * MT_BRANCH_FACTOR],
+        }))
+    } else {
+        None
+    };
+    let x = Box::into_raw(Box::new(MTNode {
+        n: 0,
+        level: 0,
+        p_idx: 0,
+        intersect: Vec::new(),
+        parent: std::ptr::null_mut(),
+        key: [MT_INVALID_KEY; 2 * MT_BRANCH_FACTOR - 1],
+        inner,
+    }));
+    b.n_nodes += 1;
+    x
+}
+
+#[inline]
+fn meta_describe_key_inc(meta_inc: &mut [u32; kMTMetaCount], key: MTKey) {
+    if !mt_end(key) && !mt_invalid(key) {
+        meta_inc[kMTMetaInline] += u32::from((key.flags & MT_FLAG_DECOR_VIRT_TEXT_INLINE) != 0);
+        meta_inc[kMTMetaLines] += u32::from((key.flags & MT_FLAG_DECOR_VIRT_LINES) != 0);
+        meta_inc[kMTMetaSignHL] += u32::from((key.flags & MT_FLAG_DECOR_SIGNHL) != 0);
+        meta_inc[kMTMetaSignText] += u32::from((key.flags & MT_FLAG_DECOR_SIGNTEXT) != 0);
+        meta_inc[kMTMetaConcealLines] += u32::from((key.flags & MT_FLAG_DECOR_CONCEAL_LINES) != 0);
     }
 }
 
 #[inline]
-unsafe fn meta_describe_key_inc(meta_inc: *mut u32, k: *const MTKey) {
-    unsafe {
-        let key = *k;
-        if !mt_end(key) && !mt_invalid(key) {
-            *meta_inc.add(kMTMetaInline) +=
-                u32::from((key.flags & MT_FLAG_DECOR_VIRT_TEXT_INLINE) != 0);
-            *meta_inc.add(kMTMetaLines) += u32::from((key.flags & MT_FLAG_DECOR_VIRT_LINES) != 0);
-            *meta_inc.add(kMTMetaSignHL) += u32::from((key.flags & MT_FLAG_DECOR_SIGNHL) != 0);
-            *meta_inc.add(kMTMetaSignText) += u32::from((key.flags & MT_FLAG_DECOR_SIGNTEXT) != 0);
-            *meta_inc.add(kMTMetaConcealLines) +=
-                u32::from((key.flags & MT_FLAG_DECOR_CONCEAL_LINES) != 0);
-        }
-    }
+fn meta_describe_key(k: MTKey) -> [u32; kMTMetaCount] {
+    let mut meta_inc = [0u32; kMTMetaCount];
+    meta_describe_key_inc(&mut meta_inc, k);
+    meta_inc
 }
 
-#[inline]
-unsafe fn meta_describe_key(meta_inc: *mut u32, k: MTKey) {
+unsafe fn meta_describe_node(meta_node: &mut [u32; kMTMetaCount], x: *mut MTNode) {
     unsafe {
-        std::slice::from_raw_parts_mut(meta_inc, kMTMetaCount).fill(0);
-        meta_describe_key_inc(meta_inc, &k);
-    }
-}
-
-unsafe fn meta_describe_node(meta_node: *mut u32, x: *mut MTNode) {
-    unsafe {
-        std::slice::from_raw_parts_mut(meta_node, kMTMetaCount).fill(0);
+        meta_node.fill(0);
         for i in 0..(*x).n as usize {
-            meta_describe_key_inc(meta_node, &(*x).key[i]);
+            meta_describe_key_inc(meta_node, (*x).key[i]);
         }
         if (*x).level != 0 {
             let x_meta = node_meta(x);
-            for i in 0..((*x).n as usize + 1) {
+            for child_meta in &x_meta[..((*x).n as usize + 1)] {
                 for m in 0..kMTMetaCount {
-                    *meta_node.add(m) += (*x_meta.add(i))[m];
+                    meta_node[m] += child_meta[m];
                 }
             }
         }
@@ -858,53 +837,50 @@ unsafe fn meta_describe_node(meta_node: *mut u32, x: *mut MTNode) {
 }
 
 #[inline]
-unsafe fn meta_has(meta_count: *const u32, meta_filter: MetaFilter) -> bool {
-    unsafe {
-        let mut count = 0u32;
-        for m in 0..kMTMetaCount {
-            count += *meta_count.add(m) & *meta_filter.add(m);
-        }
-        count > 0
+fn meta_has(meta_count: &[u32; kMTMetaCount], meta_filter: &MetaFilter) -> bool {
+    let mut count = 0u32;
+    for m in 0..kMTMetaCount {
+        count += meta_count[m] & meta_filter[m];
     }
+    count > 0
 }
 
-pub unsafe fn marktree_put_key(b: *mut MarkTree, mut k: MTKey) {
+pub unsafe fn marktree_put_key(b: &mut MarkTree, mut k: MTKey) {
     unsafe {
         k.flags |= MT_FLAG_REAL;
-        if (*b).root.is_null() {
-            (*b).root = marktree_alloc_node(b, true);
+        if b.root.is_null() {
+            b.root = marktree_alloc_node(b, true);
         }
-        let mut r = (*b).root;
+        let mut r = b.root;
         if (*r).n == 2 * T - 1 {
             let s = marktree_alloc_node(b, true);
-            (*b).root = s;
+            b.root = s;
             (*s).level = (*r).level + 1;
             (*s).n = 0;
-            *node_ptr(s) = r;
-            let s_meta0 = &mut *node_meta(s);
-            s_meta0[..kMTMetaCount].copy_from_slice(&(*b).meta_root);
+            let s_inner = node_inner(s);
+            s_inner.i_ptr[0] = r;
+            s_inner.i_meta[0] = b.meta_root;
             (*r).parent = s;
             (*r).p_idx = 0;
             split_node(b, s, 0, k);
             r = s;
         }
 
-        let mut meta_inc = [0u32; kMTMetaCount];
-        meta_describe_key(meta_inc.as_mut_ptr(), k);
-        marktree_putp_aux(b, r, k, meta_inc.as_ptr());
+        let meta_inc = meta_describe_key(k);
+        marktree_putp_aux(b, r, k, &meta_inc);
         for (m, &inc) in meta_inc.iter().enumerate() {
-            (*b).meta_root[m] += inc;
+            b.meta_root[m] += inc;
         }
-        (*b).n_keys += 1;
+        b.n_keys += 1;
     }
 }
 
-pub unsafe fn marktree_del_itr(b: *mut MarkTree, itr: *mut MarkTreeIter, rev: bool) -> u64 {
+pub unsafe fn marktree_del_itr(b: &mut MarkTree, itr: &mut MarkTreeIter, rev: bool) -> u64 {
     unsafe {
         let mut adjustment = 0;
 
-        let cur = (*itr).x;
-        let curi = (*itr).i;
+        let cur = itr.x;
+        let curi = itr.i;
         let id = mt_lookup_key((*cur).key[curi as usize]);
 
         let raw = *rawkey(itr);
@@ -913,18 +889,18 @@ pub unsafe fn marktree_del_itr(b: *mut MarkTree, itr: *mut MarkTreeIter, rev: bo
             other = mt_lookup_key_side(raw, !mt_end(raw));
 
             let mut other_itr = MarkTreeIter::new();
-            marktree_lookup(b, other, &mut other_itr);
-            (*rawkey(&mut other_itr)).flags |= MT_FLAG_ORPHANED;
+            marktree_lookup(b, other, Some(&mut other_itr));
+            rawkey_mut(&mut other_itr).flags |= MT_FLAG_ORPHANED;
             if mt_start(raw) {
                 let mut this_itr = *itr;
-                marktree_intersect_pair(b, id, &mut this_itr, &mut other_itr, true);
+                marktree_intersect_pair(b, id, &mut this_itr, &other_itr, true);
             } else {
                 marktree_intersect_pair(b, other, &mut other_itr, itr, true);
             }
         }
 
         // 2.
-        if (*(*itr).x).level != 0 {
+        if (*itr.x).level != 0 {
             if rev {
                 std::process::abort();
             } else {
@@ -934,27 +910,23 @@ pub unsafe fn marktree_del_itr(b: *mut MarkTree, itr: *mut MarkTreeIter, rev: bo
         }
 
         // 3.
-        let mut x = (*itr).x;
+        let mut x = itr.x;
         debug_assert_eq!((*x).level, 0);
-        let mut intkey = (*x).key[(*itr).i as usize];
+        let mut intkey = (*x).key[itr.i as usize];
 
-        let mut meta_inc = [0u32; kMTMetaCount];
-        meta_describe_key(meta_inc.as_mut_ptr(), intkey);
-        if (*x).n > (*itr).i + 1 {
-            std::ptr::copy(
-                (*x).key.as_ptr().add((*itr).i as usize + 1),
-                (*x).key.as_mut_ptr().add((*itr).i as usize),
-                ((*x).n - (*itr).i - 1) as usize,
-            );
+        let mut meta_inc = meta_describe_key(intkey);
+        if (*x).n > itr.i + 1 {
+            (*x).key
+                .copy_within((itr.i as usize + 1)..(*x).n as usize, itr.i as usize);
         }
         (*x).n -= 1;
 
-        (*b).n_keys -= 1;
-        (*b).id2node.remove(&id);
+        b.n_keys -= 1;
+        b.id2node.remove(&id);
 
         // 4.
         if adjustment == -1 {
-            let mut ilvl = (*itr).lvl - 1;
+            let mut ilvl = itr.lvl - 1;
             let mut lnode = x;
             let mut start_id = 0u64;
             let mut did_bubble = false;
@@ -966,25 +938,25 @@ pub unsafe fn marktree_del_itr(b: *mut MarkTree, itr: *mut MarkTreeIter, rev: bo
                 if ilvl < 0 {
                     std::process::abort();
                 }
-                let i = (*itr).s[ilvl as usize].i;
+                let i = itr.s[ilvl as usize].i;
                 let p_ptr = node_ptr(p);
-                debug_assert_eq!(*p_ptr.add(i as usize), lnode);
+                debug_assert_eq!(p_ptr[i as usize], lnode);
                 if i > 0 {
                     unrelative((*p).key[i as usize - 1].pos, &mut intkey.pos);
                 }
 
-                if p != cur && start_id != 0 && intersection_has(&(**p_ptr).intersect, start_id) {
+                if p != cur && start_id != 0 && intersection_has(&(*p_ptr[0]).intersect, start_id) {
                     let last = c_int::from(lnode != x);
-                    for k in 0..((*p).n + last) {
-                        unintersect_node(b, *p_ptr.add(k as usize), start_id, true);
+                    for &child in &p_ptr[..((*p).n + last) as usize] {
+                        unintersect_node(child, start_id, true);
                     }
-                    intersect_node(b, p, start_id);
+                    intersect_node(p, start_id);
                     did_bubble = true;
                 }
 
                 let p_meta = node_meta(p);
                 for (m, &inc) in meta_inc.iter().enumerate() {
-                    (*p_meta.add((*lnode).p_idx as usize))[m] -= inc;
+                    p_meta[(*lnode).p_idx as usize][m] -= inc;
                 }
 
                 lnode = p;
@@ -995,94 +967,94 @@ pub unsafe fn marktree_del_itr(b: *mut MarkTree, itr: *mut MarkTreeIter, rev: bo
             }
 
             let mut deleted = (*cur).key[curi as usize];
-            meta_describe_key(meta_inc.as_mut_ptr(), deleted);
+            meta_inc = meta_describe_key(deleted);
             (*cur).key[curi as usize] = intkey;
             refkey(b, cur, curi);
             if mt_end((*cur).key[curi as usize]) && !did_bubble {
                 let pi = pseudo_index(x, 0);
                 let pi_start = pseudo_index_for_id(b, start_id, true);
                 if pi_start > 0 && pi_start < pi {
-                    intersect_node(b, x, start_id);
+                    intersect_node(x, start_id);
                 }
             }
 
             relative(intkey.pos, &mut deleted.pos);
-            let mut y = *node_ptr(cur).add(curi as usize + 1);
+            let mut y = node_ptr(cur)[curi as usize + 1];
             if deleted.pos.row != 0 || deleted.pos.col != 0 {
                 while !y.is_null() {
                     for k in 0..(*y).n as usize {
                         unrelative(deleted.pos, &mut (*y).key[k].pos);
                     }
                     y = if (*y).level != 0 {
-                        *node_ptr(y)
+                        node_ptr(y)[0]
                     } else {
                         std::ptr::null_mut()
                     };
                 }
             }
-            (*itr).i -= 1;
+            itr.i -= 1;
         }
 
         let mut lnode = cur;
         while !(*lnode).parent.is_null() {
-            let p_meta = node_meta((*lnode).parent).add((*lnode).p_idx as usize);
+            let p_meta = &mut node_meta((*lnode).parent)[(*lnode).p_idx as usize];
             for (m, &inc) in meta_inc.iter().enumerate() {
-                (*p_meta)[m] -= inc;
+                p_meta[m] -= inc;
             }
             lnode = (*lnode).parent;
         }
         for (m, &inc) in meta_inc.iter().enumerate() {
-            debug_assert!((*b).meta_root[m] >= inc);
-            (*b).meta_root[m] -= inc;
+            debug_assert!(b.meta_root[m] >= inc);
+            b.meta_root[m] -= inc;
         }
 
         // 5.
         let mut itr_dirty = false;
-        let mut rlvl = (*itr).lvl - 1;
+        let mut rlvl = itr.lvl - 1;
         let mut lasti_is_itr_i = true;
         let mut lasti_lvl: usize = 0;
-        let mut ppos = (*itr).pos;
-        while x != (*b).root {
+        let mut ppos = itr.pos;
+        while x != b.root {
             debug_assert!(rlvl >= 0);
             let p = (*x).parent;
             if (*x).n >= T - 1 {
                 break;
             }
-            let pi = (*itr).s[rlvl as usize].i;
+            let pi = itr.s[rlvl as usize].i;
             let p_ptr = node_ptr(p);
-            debug_assert_eq!(*p_ptr.add(pi as usize), x);
+            debug_assert_eq!(p_ptr[pi as usize], x);
             if pi > 0 {
                 ppos.row -= (*p).key[pi as usize - 1].pos.row;
-                ppos.col = (*itr).s[rlvl as usize].oldcol;
+                ppos.col = itr.s[rlvl as usize].oldcol;
             }
 
-            if pi > 0 && (**p_ptr.add(pi as usize - 1)).n > T - 1 {
+            if pi > 0 && (*p_ptr[pi as usize - 1]).n > T - 1 {
                 if lasti_is_itr_i {
-                    (*itr).i += 1;
+                    itr.i += 1;
                 } else {
-                    (*itr).s[lasti_lvl].i += 1;
+                    itr.s[lasti_lvl].i += 1;
                 }
                 itr_dirty = true;
                 pivot_right(b, ppos, p, pi - 1);
                 break;
-            } else if pi < (*p).n && (**p_ptr.add(pi as usize + 1)).n > T - 1 {
+            } else if pi < (*p).n && (*p_ptr[pi as usize + 1]).n > T - 1 {
                 pivot_left(b, ppos, p, pi);
                 break;
             } else if pi > 0 {
-                debug_assert_eq!((**p_ptr.add(pi as usize - 1)).n, T - 1);
+                debug_assert_eq!((*p_ptr[pi as usize - 1]).n, T - 1);
                 if lasti_is_itr_i {
-                    (*itr).i += T;
+                    itr.i += T;
                 } else {
-                    (*itr).s[lasti_lvl].i += T;
+                    itr.s[lasti_lvl].i += T;
                 }
                 x = merge_node(b, p, pi - 1);
                 if lasti_is_itr_i {
-                    (*itr).x = x;
+                    itr.x = x;
                 }
-                (*itr).s[rlvl as usize].i -= 1;
+                itr.s[rlvl as usize].i -= 1;
                 itr_dirty = true;
             } else {
-                debug_assert!(pi < (*p).n && (**p_ptr.add(pi as usize + 1)).n == T - 1);
+                debug_assert!(pi < (*p).n && (*p_ptr[pi as usize + 1]).n == T - 1);
                 merge_node(b, p, pi);
             }
             lasti_is_itr_i = false;
@@ -1092,39 +1064,35 @@ pub unsafe fn marktree_del_itr(b: *mut MarkTree, itr: *mut MarkTreeIter, rev: bo
         }
 
         // 6.
-        if (*(*b).root).n == 0 {
-            if (*itr).lvl > 0 {
-                std::ptr::copy(
-                    (*itr).s.as_ptr().add(1),
-                    (*itr).s.as_mut_ptr(),
-                    ((*itr).lvl - 1) as usize,
-                );
-                (*itr).lvl -= 1;
+        if (*b.root).n == 0 {
+            if itr.lvl > 0 {
+                itr.s.copy_within(1..itr.lvl as usize, 0);
+                itr.lvl -= 1;
             }
-            if (*(*b).root).level != 0 {
-                let oldroot = (*b).root;
-                (*b).root = *node_ptr(oldroot);
-                let oldroot_meta = *node_meta(oldroot);
+            if (*b.root).level != 0 {
+                let oldroot = b.root;
+                b.root = node_ptr(oldroot)[0];
+                let oldroot_meta = node_meta(oldroot)[0];
                 for (m, &meta_val) in oldroot_meta.iter().enumerate() {
-                    debug_assert_eq!((*b).meta_root[m], meta_val);
+                    debug_assert_eq!(b.meta_root[m], meta_val);
                 }
 
-                (*(*b).root).parent = std::ptr::null_mut();
+                (*b.root).parent = std::ptr::null_mut();
                 marktree_free_node(b, oldroot);
             } else {
-                (*itr).x = std::ptr::null_mut();
+                itr.x = std::ptr::null_mut();
             }
         }
 
-        if !(*itr).x.is_null() && itr_dirty {
+        if !itr.x.is_null() && itr_dirty {
             marktree_itr_fix_pos(b, itr);
         }
 
         if adjustment == -1 {
             marktree_itr_next(b, itr);
             marktree_itr_next(b, itr);
-        } else if !(*itr).x.is_null() && (*itr).i >= (*(*itr).x).n {
-            debug_assert_eq!((*(*itr).x).level, 0);
+        } else if !itr.x.is_null() && itr.i >= (*itr.x).n {
+            debug_assert_eq!((*itr.x).level, 0);
             marktree_itr_next(b, itr);
         }
 
@@ -1132,22 +1100,20 @@ pub unsafe fn marktree_del_itr(b: *mut MarkTree, itr: *mut MarkTreeIter, rev: bo
     }
 }
 
-pub unsafe fn marktree_revise_meta(b: *mut MarkTree, itr: *mut MarkTreeIter, old_key: MTKey) {
+pub unsafe fn marktree_revise_meta(b: &mut MarkTree, itr: &MarkTreeIter, old_key: MTKey) {
     unsafe {
-        let mut meta_old = [0u32; kMTMetaCount];
-        let mut meta_new = [0u32; kMTMetaCount];
-        meta_describe_key(meta_old.as_mut_ptr(), old_key);
-        meta_describe_key(meta_new.as_mut_ptr(), *rawkey(itr));
+        let meta_old = meta_describe_key(old_key);
+        let meta_new = meta_describe_key(*rawkey(itr));
 
         if meta_old == meta_new {
             return;
         }
 
-        let mut lnode = (*itr).x;
+        let mut lnode = itr.x;
         while !(*lnode).parent.is_null() {
-            let meta_p = node_meta((*lnode).parent).add((*lnode).p_idx as usize);
+            let meta_p = &mut node_meta((*lnode).parent)[(*lnode).p_idx as usize];
             for m in 0..kMTMetaCount {
-                (*meta_p)[m] = (*meta_p)[m]
+                meta_p[m] = meta_p[m]
                     .wrapping_add(meta_new[m])
                     .wrapping_sub(meta_old[m]);
             }
@@ -1155,7 +1121,7 @@ pub unsafe fn marktree_revise_meta(b: *mut MarkTree, itr: *mut MarkTreeIter, old
         }
 
         for m in 0..kMTMetaCount {
-            (*b).meta_root[m] = (*b).meta_root[m]
+            b.meta_root[m] = b.meta_root[m]
                 .wrapping_add(meta_new[m])
                 .wrapping_sub(meta_old[m]);
         }
@@ -1264,50 +1230,33 @@ fn intersect_mov(
 }
 
 #[cfg(test)]
-pub unsafe fn intersect_mov_test(
-    x: *const u64,
-    nx: usize,
-    y: *const u64,
-    ny: usize,
-    win: *const u64,
-    nwin: usize,
-    wout: *mut u64,
-    nwout: *mut usize,
-    dout: *mut u64,
-    ndout: *mut usize,
+pub fn intersect_mov_test(
+    x: &[u64],
+    y: &[u64],
+    win: &[u64],
+    wout: &mut [u64],
+    nwout: &mut usize,
+    dout: &mut [u64],
+    ndout: &mut usize,
 ) -> bool {
-    unsafe {
-        let xi = if nx == 0 {
-            Vec::new()
-        } else {
-            std::slice::from_raw_parts(x, nx).to_vec()
-        };
-        let mut yi = if ny == 0 {
-            Vec::new()
-        } else {
-            std::slice::from_raw_parts(y, ny).to_vec()
-        };
-        let mut w = if nwin == 0 {
-            Vec::new()
-        } else {
-            std::slice::from_raw_parts(win, nwin).to_vec()
-        };
-        let mut d = Vec::new();
+    let xi = x.to_vec();
+    let mut yi = y.to_vec();
+    let mut w = win.to_vec();
+    let mut d = Vec::new();
 
-        intersect_mov(&xi, &mut yi, &mut w, &mut d);
+    intersect_mov(&xi, &mut yi, &mut w, &mut d);
 
-        if w.len() > *nwout || d.len() > *ndout {
-            return false;
-        }
-
-        std::ptr::copy_nonoverlapping(w.as_ptr(), wout, w.len());
-        *nwout = w.len();
-
-        std::ptr::copy_nonoverlapping(d.as_ptr(), dout, d.len());
-        *ndout = d.len();
-
-        true
+    if w.len() > *nwout || d.len() > *ndout {
+        return false;
     }
+
+    wout[..w.len()].copy_from_slice(&w);
+    *nwout = w.len();
+
+    dout[..d.len()].copy_from_slice(&d);
+    *ndout = d.len();
+
+    true
 }
 
 fn intersect_common(i: &mut Intersection, x: &Intersection, y: &Intersection) {
@@ -1384,25 +1333,24 @@ unsafe fn bubble_up(x: *mut MTNode) {
         let x_ptr = node_ptr(x);
         intersect_common(
             &mut xi,
-            &(**x_ptr).intersect,
-            &(**x_ptr.add((*x).n as usize)).intersect,
+            &(*x_ptr[0]).intersect,
+            &(*x_ptr[(*x).n as usize]).intersect,
         );
         if !xi.is_empty() {
-            for i in 0..((*x).n as usize + 1) {
-                intersect_sub(&mut (**x_ptr.add(i)).intersect, &xi);
+            for &child in &x_ptr[..((*x).n as usize + 1)] {
+                intersect_sub(&mut (*child).intersect, &xi);
             }
             intersect_add(&mut (*x).intersect, &xi);
         }
     }
 }
 
-unsafe fn merge_node(b: *mut MarkTree, p: *mut MTNode, i: c_int) -> *mut MTNode {
+unsafe fn merge_node(b: &mut MarkTree, p: *mut MTNode, i: c_int) -> *mut MTNode {
     unsafe {
         let i_usize = i as usize;
-        let p_ptr = node_ptr(p);
-        let p_meta = node_meta(p);
-        let x = *p_ptr.add(i_usize);
-        let y = *p_ptr.add(i_usize + 1);
+        let p_inner = node_inner(p);
+        let x = p_inner.i_ptr[i_usize];
+        let y = p_inner.i_ptr[i_usize + 1];
         let mut mi = Vec::new();
 
         intersect_merge(&mut mi, &mut (*x).intersect, &mut (*y).intersect);
@@ -1415,52 +1363,50 @@ unsafe fn merge_node(b: *mut MarkTree, p: *mut MTNode, i: c_int) -> *mut MTNode 
             relative((*p).key[i_usize - 1].pos, &mut (*x).key[xn].pos);
         }
 
-        let mut meta_inc = [0u32; kMTMetaCount];
-        meta_describe_key(meta_inc.as_mut_ptr(), (*x).key[xn]);
+        let meta_inc = meta_describe_key((*x).key[xn]);
 
-        std::ptr::copy((*y).key.as_ptr(), (*x).key.as_mut_ptr().add(xn + 1), yn);
+        (&mut (*x).key)[(xn + 1)..(xn + 1 + yn)].copy_from_slice(&(&(*y).key)[..yn]);
         let mid_pos = (*x).key[xn].pos;
         for k in 0..(*y).n {
             refkey(b, x, (*x).n + 1 + k);
             unrelative(mid_pos, &mut (*x).key[xn + 1 + k as usize].pos);
         }
         if (*x).level != 0 {
-            let x_ptr = node_ptr(x);
-            let x_meta = node_meta(x);
-            let y_ptr = node_ptr(y);
-            let y_meta = node_meta(y);
-            std::ptr::copy(y_ptr, x_ptr.add(xn + 1), yn + 1);
-            std::ptr::copy(y_meta, x_meta.add(xn + 1), yn + 1);
-            for k in 0..(xn + 1) {
+            let x_inner = node_inner(x);
+            let y_inner = node_inner(y);
+            x_inner.i_ptr[(xn + 1)..(xn + 2 + yn)].copy_from_slice(&y_inner.i_ptr[..(yn + 1)]);
+            x_inner.i_meta[(xn + 1)..(xn + 2 + yn)].copy_from_slice(&y_inner.i_meta[..(yn + 1)]);
+            for &child in &x_inner.i_ptr[..(xn + 1)] {
                 for &id in &(*x).intersect {
-                    intersect_node(b, *x_ptr.add(k), id);
+                    intersect_node(child, id);
                 }
             }
             for ky in 0..(yn + 1) {
                 let k = xn + ky + 1;
-                let child = *x_ptr.add(k);
+                let child = x_inner.i_ptr[k];
                 (*child).parent = x;
                 (*child).p_idx = k as i16;
                 for &id in &(*y).intersect {
-                    intersect_node(b, child, id);
+                    intersect_node(child, id);
                 }
             }
         }
         (*x).n += (*y).n + 1;
         for (m, &inc) in meta_inc.iter().enumerate() {
-            (*p_meta.add(i_usize))[m] += (*p_meta.add(i_usize + 1))[m] + inc;
+            p_inner.i_meta[i_usize][m] += p_inner.i_meta[i_usize + 1][m] + inc;
         }
 
         let rem = ((*p).n - i - 1) as usize;
-        std::ptr::copy(
-            (*p).key.as_ptr().add(i_usize + 1),
-            (*p).key.as_mut_ptr().add(i_usize),
-            rem,
-        );
-        std::ptr::copy(p_ptr.add(i_usize + 2), p_ptr.add(i_usize + 1), rem);
-        std::ptr::copy(p_meta.add(i_usize + 2), p_meta.add(i_usize + 1), rem);
-        for j in (i + 1)..(*p).n {
-            (**p_ptr.add(j as usize)).p_idx = j as i16;
+        (*p).key
+            .copy_within((i_usize + 1)..(i_usize + 1 + rem), i_usize);
+        p_inner
+            .i_ptr
+            .copy_within((i_usize + 2)..(i_usize + 2 + rem), i_usize + 1);
+        p_inner
+            .i_meta
+            .copy_within((i_usize + 2)..(i_usize + 2 + rem), i_usize + 1);
+        for j in (i_usize + 1)..(*p).n as usize {
+            (*p_inner.i_ptr[j]).p_idx = j as i16;
         }
         (*p).n -= 1;
         marktree_free_node(b, y);
@@ -1471,22 +1417,20 @@ unsafe fn merge_node(b: *mut MarkTree, p: *mut MTNode, i: c_int) -> *mut MTNode 
     }
 }
 
-unsafe fn pivot_right(b: *mut MarkTree, _p_pos: MTPos, p: *mut MTNode, i: c_int) {
+unsafe fn pivot_right(b: &mut MarkTree, _p_pos: MTPos, p: *mut MTNode, i: c_int) {
     unsafe {
         let i_usize = i as usize;
-        let p_ptr = node_ptr(p);
-        let p_meta = node_meta(p);
-        let x = *p_ptr.add(i_usize);
-        let y = *p_ptr.add(i_usize + 1);
+        let p_inner = node_inner(p);
+        let x = p_inner.i_ptr[i_usize];
+        let y = p_inner.i_ptr[i_usize + 1];
         let yn = (*y).n as usize;
-        std::ptr::copy((*y).key.as_ptr(), (*y).key.as_mut_ptr().add(1), yn);
+        (*y).key.copy_within(0..yn, 1);
         if (*y).level != 0 {
-            let y_ptr = node_ptr(y);
-            let y_meta = node_meta(y);
-            std::ptr::copy(y_ptr, y_ptr.add(1), yn + 1);
-            std::ptr::copy(y_meta, y_meta.add(1), yn + 1);
-            for j in 1..((*y).n + 2) {
-                (**y_ptr.add(j as usize)).p_idx = j as i16;
+            let y_inner = node_inner(y);
+            y_inner.i_ptr.copy_within(0..(yn + 1), 1);
+            y_inner.i_meta.copy_within(0..(yn + 1), 1);
+            for (j, &child) in y_inner.i_ptr.iter().enumerate().take(yn + 2).skip(1) {
+                (*child).p_idx = j as i16;
             }
         }
 
@@ -1495,29 +1439,26 @@ unsafe fn pivot_right(b: *mut MarkTree, _p_pos: MTPos, p: *mut MTNode, i: c_int)
         (*p).key[i_usize] = (*x).key[(*x).n as usize - 1];
         refkey(b, p, i);
 
-        let mut meta_inc_y = [0u32; kMTMetaCount];
-        meta_describe_key(meta_inc_y.as_mut_ptr(), (*y).key[0]);
-        let mut meta_inc_x = [0u32; kMTMetaCount];
-        meta_describe_key(meta_inc_x.as_mut_ptr(), (*p).key[i_usize]);
+        let meta_inc_y = meta_describe_key((*y).key[0]);
+        let meta_inc_x = meta_describe_key((*p).key[i_usize]);
 
         for m in 0..kMTMetaCount {
-            (*p_meta.add(i_usize + 1))[m] += meta_inc_y[m];
-            (*p_meta.add(i_usize))[m] -= meta_inc_x[m];
+            p_inner.i_meta[i_usize + 1][m] += meta_inc_y[m];
+            p_inner.i_meta[i_usize][m] -= meta_inc_x[m];
         }
 
         if (*x).level != 0 {
-            let x_ptr = node_ptr(x);
-            let x_meta = node_meta(x);
-            let y_ptr = node_ptr(y);
-            let y_meta = node_meta(y);
-            *y_ptr = *x_ptr.add((*x).n as usize);
-            *y_meta = *x_meta.add((*x).n as usize);
+            let x_inner = node_inner(x);
+            let y_inner = node_inner(y);
+            let xn = (*x).n as usize;
+            y_inner.i_ptr[0] = x_inner.i_ptr[xn];
+            y_inner.i_meta[0] = x_inner.i_meta[xn];
             for m in 0..kMTMetaCount {
-                (*p_meta.add(i_usize + 1))[m] += (*y_meta)[m];
-                (*p_meta.add(i_usize))[m] -= (*y_meta)[m];
+                p_inner.i_meta[i_usize + 1][m] += y_inner.i_meta[0][m];
+                p_inner.i_meta[i_usize][m] -= y_inner.i_meta[0][m];
             }
-            (**y_ptr).parent = y;
-            (**y_ptr).p_idx = 0;
+            (*y_inner.i_ptr[0]).parent = y;
+            (*y_inner.i_ptr[0]).p_idx = 0;
         }
         (*x).n -= 1;
         (*y).n += 1;
@@ -1538,12 +1479,12 @@ unsafe fn pivot_right(b: *mut MarkTree, _p_pos: MTPos, p: *mut MTNode, i: c_int)
             intersect_mov(
                 &(*x).intersect,
                 &mut (*y).intersect,
-                &mut (**y_ptr).intersect,
+                &mut (*y_ptr[0]).intersect,
                 &mut d,
             );
             if !d.is_empty() {
-                for yi in 1..((*y).n as usize + 1) {
-                    intersect_add(&mut (**y_ptr.add(yi)).intersect, &d);
+                for &child in &y_ptr[1..((*y).n as usize + 1)] {
+                    intersect_add(&mut (*child).intersect, &d);
                 }
             }
 
@@ -1554,24 +1495,23 @@ unsafe fn pivot_right(b: *mut MarkTree, _p_pos: MTPos, p: *mut MTNode, i: c_int)
                 let start_id = mt_lookup_key_side((*p).key[i_usize], false);
                 let pi_start = pseudo_index_for_id(b, start_id, true);
                 if pi_start > 0 && pi_start < pi {
-                    intersect_node(b, x, start_id);
+                    intersect_node(x, start_id);
                 }
             }
 
             if mt_start((*y).key[0]) {
-                unintersect_node(b, y, mt_lookup_key((*y).key[0]), false);
+                unintersect_node(y, mt_lookup_key((*y).key[0]), false);
             }
         }
     }
 }
 
-unsafe fn pivot_left(b: *mut MarkTree, _p_pos: MTPos, p: *mut MTNode, i: c_int) {
+unsafe fn pivot_left(b: &mut MarkTree, _p_pos: MTPos, p: *mut MTNode, i: c_int) {
     unsafe {
         let i_usize = i as usize;
-        let p_ptr = node_ptr(p);
-        let p_meta = node_meta(p);
-        let x = *p_ptr.add(i_usize);
-        let y = *p_ptr.add(i_usize + 1);
+        let p_inner = node_inner(p);
+        let x = p_inner.i_ptr[i_usize];
+        let y = p_inner.i_ptr[i_usize + 1];
 
         let y0_pos = (*y).key[0].pos;
         for k in 1..(*y).n as usize {
@@ -1590,37 +1530,32 @@ unsafe fn pivot_left(b: *mut MarkTree, _p_pos: MTPos, p: *mut MTNode, i: c_int) 
         (*p).key[i_usize] = (*y).key[0];
         refkey(b, p, i);
 
-        let mut meta_inc_x = [0u32; kMTMetaCount];
-        meta_describe_key(meta_inc_x.as_mut_ptr(), (*x).key[xn]);
-        let mut meta_inc_y = [0u32; kMTMetaCount];
-        meta_describe_key(meta_inc_y.as_mut_ptr(), (*p).key[i_usize]);
+        let meta_inc_x = meta_describe_key((*x).key[xn]);
+        let meta_inc_y = meta_describe_key((*p).key[i_usize]);
         for m in 0..kMTMetaCount {
-            (*p_meta.add(i_usize))[m] += meta_inc_x[m];
-            (*p_meta.add(i_usize + 1))[m] -= meta_inc_y[m];
+            p_inner.i_meta[i_usize][m] += meta_inc_x[m];
+            p_inner.i_meta[i_usize + 1][m] -= meta_inc_y[m];
         }
 
         if (*x).level != 0 {
-            let x_ptr = node_ptr(x);
-            let x_meta = node_meta(x);
-            let y_ptr = node_ptr(y);
-            let y_meta = node_meta(y);
-            *x_ptr.add(xn + 1) = *y_ptr;
-            *x_meta.add(xn + 1) = *y_meta;
+            let x_inner = node_inner(x);
+            let y_inner = node_inner(y);
+            x_inner.i_ptr[xn + 1] = y_inner.i_ptr[0];
+            x_inner.i_meta[xn + 1] = y_inner.i_meta[0];
             for m in 0..kMTMetaCount {
-                (*p_meta.add(i_usize + 1))[m] -= (*y_meta)[m];
-                (*p_meta.add(i_usize))[m] += (*y_meta)[m];
+                p_inner.i_meta[i_usize + 1][m] -= y_inner.i_meta[0][m];
+                p_inner.i_meta[i_usize][m] += y_inner.i_meta[0][m];
             }
-            (**x_ptr.add(xn + 1)).parent = x;
-            (**x_ptr.add(xn + 1)).p_idx = (xn + 1) as i16;
+            (*x_inner.i_ptr[xn + 1]).parent = x;
+            (*x_inner.i_ptr[xn + 1]).p_idx = (xn + 1) as i16;
         }
-        std::ptr::copy((*y).key.as_ptr().add(1), (*y).key.as_mut_ptr(), yn - 1);
+        (*y).key.copy_within(1..yn, 0);
         if (*y).level != 0 {
-            let y_ptr = node_ptr(y);
-            let y_meta = node_meta(y);
-            std::ptr::copy(y_ptr.add(1), y_ptr, yn);
-            std::ptr::copy(y_meta.add(1), y_meta, yn);
-            for j in 0..yn {
-                (**y_ptr.add(j)).p_idx = j as i16;
+            let y_inner = node_inner(y);
+            y_inner.i_ptr.copy_within(1..(yn + 1), 0);
+            y_inner.i_meta.copy_within(1..(yn + 1), 0);
+            for (j, &child) in y_inner.i_ptr[..yn].iter().enumerate() {
+                (*child).p_idx = j as i16;
             }
         }
         (*x).n += 1;
@@ -1632,12 +1567,12 @@ unsafe fn pivot_left(b: *mut MarkTree, _p_pos: MTPos, p: *mut MTNode, i: c_int) 
             intersect_mov(
                 &(*y).intersect,
                 &mut (*x).intersect,
-                &mut (**x_ptr.add((*x).n as usize)).intersect,
+                &mut (*x_ptr[(*x).n as usize]).intersect,
                 &mut d,
             );
             if !d.is_empty() {
-                for xi in 0..(*x).n as usize {
-                    intersect_add(&mut (**x_ptr.add(xi)).intersect, &d);
+                for &child in &x_ptr[..(*x).n as usize] {
+                    intersect_add(&mut (*child).intersect, &d);
                 }
             }
 
@@ -1648,13 +1583,12 @@ unsafe fn pivot_left(b: *mut MarkTree, _p_pos: MTPos, p: *mut MTNode, i: c_int) 
                 let end_id = mt_lookup_key_side((*p).key[i_usize], true);
                 let pi_end = pseudo_index_for_id(b, end_id, true);
                 if pi_end > pi {
-                    intersect_node(b, y, mt_lookup_key((*p).key[i_usize]));
+                    intersect_node(y, mt_lookup_key((*p).key[i_usize]));
                 }
             }
 
             if mt_end((*x).key[(*x).n as usize - 1]) {
                 unintersect_node(
-                    b,
                     x,
                     mt_lookup_key_side((*x).key[(*x).n as usize - 1], false),
                     false,
@@ -1664,48 +1598,49 @@ unsafe fn pivot_left(b: *mut MarkTree, _p_pos: MTPos, p: *mut MTNode, i: c_int) 
     }
 }
 
-pub unsafe fn marktree_clear(b: *mut MarkTree) {
+pub unsafe fn marktree_clear(b: &mut MarkTree) {
     unsafe {
-        if !(*b).root.is_null() {
-            marktree_free_subtree(b, (*b).root);
-            (*b).root = std::ptr::null_mut();
+        if !b.root.is_null() {
+            let root = b.root;
+            marktree_free_subtree(b, root);
+            b.root = std::ptr::null_mut();
         }
-        (*b).id2node.clear();
-        (*b).n_keys = 0;
-        (*b).meta_root = [0; kMTMetaCount];
-        debug_assert_eq!((*b).n_nodes, 0);
+        b.id2node.clear();
+        b.n_keys = 0;
+        b.meta_root = [0; kMTMetaCount];
+        debug_assert_eq!(b.n_nodes, 0);
     }
 }
 
-pub unsafe fn marktree_free_subtree(b: *mut MarkTree, x: *mut MTNode) {
+pub unsafe fn marktree_free_subtree(b: &mut MarkTree, x: *mut MTNode) {
     unsafe {
         if (*x).level != 0 {
             let x_ptr = node_ptr(x);
-            for i in 0..((*x).n as usize + 1) {
-                marktree_free_subtree(b, *x_ptr.add(i));
+            for &child in &x_ptr[..((*x).n as usize + 1)] {
+                marktree_free_subtree(b, child);
             }
         }
         marktree_free_node(b, x);
     }
 }
 
-unsafe fn marktree_free_node(b: *mut MarkTree, x: *mut MTNode) {
+unsafe fn marktree_free_node(b: &mut MarkTree, x: *mut MTNode) {
     unsafe {
         drop(Box::from_raw(x));
-        (*b).n_nodes -= 1;
+        b.n_nodes -= 1;
     }
 }
 
-pub unsafe fn marktree_move(b: *mut MarkTree, itr: *mut MarkTreeIter, row: c_int, col: c_int) {
+pub unsafe fn marktree_move(b: &mut MarkTree, itr: &mut MarkTreeIter, row: c_int, col: c_int) {
     unsafe {
         let mut key = *rawkey(itr);
-        let x = (*itr).x;
+        let x = itr.x;
         if (*x).level == 0 {
             let mut internal = false;
             let mut newpos = MTPos { row, col };
             if !(*x).parent.is_null() {
-                if pos_less((*itr).pos, newpos) {
-                    relative((*itr).pos, &mut newpos);
+                if pos_less(itr.pos, newpos) {
+                    relative(itr.pos, &mut newpos);
                     if pos_less(newpos, (*x).key[(*x).n as usize - 1].pos) {
                         internal = true;
                     }
@@ -1724,21 +1659,15 @@ pub unsafe fn marktree_move(b: *mut MarkTree, itr: *mut MarkTreeIter, row: c_int
                 if !matched {
                     new_i += 1;
                 }
-                if new_i == (*itr).i {
-                    (*x).key[(*itr).i as usize].pos = newpos;
-                } else if new_i < (*itr).i {
-                    std::ptr::copy(
-                        (*x).key.as_ptr().add(new_i as usize),
-                        (*x).key.as_mut_ptr().add(new_i as usize + 1),
-                        ((*itr).i - new_i) as usize,
-                    );
+                if new_i == itr.i {
+                    (*x).key[itr.i as usize].pos = newpos;
+                } else if new_i < itr.i {
+                    (*x).key
+                        .copy_within(new_i as usize..itr.i as usize, new_i as usize + 1);
                     (*x).key[new_i as usize] = key;
                 } else {
-                    std::ptr::copy(
-                        (*x).key.as_ptr().add((*itr).i as usize + 1),
-                        (*x).key.as_mut_ptr().add((*itr).i as usize),
-                        (new_i - (*itr).i - 1) as usize,
-                    );
+                    (*x).key
+                        .copy_within((itr.i as usize + 1)..new_i as usize, itr.i as usize);
                     (*x).key[new_i as usize - 1] = key;
                 }
                 return;
@@ -1752,63 +1681,53 @@ pub unsafe fn marktree_move(b: *mut MarkTree, itr: *mut MarkTreeIter, row: c_int
         if other != 0 {
             marktree_restore_pair(b, key);
         }
-        (*itr).x = std::ptr::null_mut();
+        itr.x = std::ptr::null_mut();
     }
 }
 
-pub unsafe fn marktree_restore_pair(b: *mut MarkTree, key: MTKey) {
+pub unsafe fn marktree_restore_pair(b: &mut MarkTree, key: MTKey) {
     unsafe {
         let mut itr = MarkTreeIter::new();
         let mut end_itr = MarkTreeIter::new();
-        marktree_lookup(b, mt_lookup_key_side(key, false), &mut itr);
-        marktree_lookup(b, mt_lookup_key_side(key, true), &mut end_itr);
+        marktree_lookup(b, mt_lookup_key_side(key, false), Some(&mut itr));
+        marktree_lookup(b, mt_lookup_key_side(key, true), Some(&mut end_itr));
         if itr.x.is_null() || end_itr.x.is_null() {
             return;
         }
-        (*rawkey(&mut itr)).flags &= !MT_FLAG_ORPHANED;
-        (*rawkey(&mut end_itr)).flags &= !MT_FLAG_ORPHANED;
+        rawkey_mut(&mut itr).flags &= !MT_FLAG_ORPHANED;
+        rawkey_mut(&mut end_itr).flags &= !MT_FLAG_ORPHANED;
 
         marktree_intersect_pair(
             b,
             mt_lookup_key_side(key, false),
             &mut itr,
-            &mut end_itr,
+            &end_itr,
             false,
         );
     }
 }
 
 pub unsafe fn marktree_itr_get(
-    b: *mut MarkTree,
+    b: &MarkTree,
     row: i32,
     col: c_int,
-    itr: *mut MarkTreeIter,
+    itr: &mut MarkTreeIter,
 ) -> bool {
-    unsafe {
-        marktree_itr_get_ext(
-            b,
-            MTPos { row, col },
-            itr,
-            false,
-            false,
-            std::ptr::null_mut(),
-            std::ptr::null(),
-        )
-    }
+    unsafe { marktree_itr_get_ext(b, MTPos { row, col }, itr, false, false, None, None) }
 }
 
 pub unsafe fn marktree_itr_get_ext(
-    b: *mut MarkTree,
+    b: &MarkTree,
     p: MTPos,
-    itr: *mut MarkTreeIter,
+    itr: &mut MarkTreeIter,
     last: bool,
     gravity: bool,
-    oldbase: *mut MTPos,
-    meta_filter: MetaFilter,
+    mut oldbase: Option<&mut [MTPos; MT_MAX_DEPTH]>,
+    meta_filter: Option<&MetaFilter>,
 ) -> bool {
     unsafe {
-        if (*b).n_keys == 0 {
-            (*itr).x = std::ptr::null_mut();
+        if b.n_keys == 0 {
+            itr.x = std::ptr::null_mut();
             return false;
         }
 
@@ -1825,45 +1744,44 @@ pub unsafe fn marktree_itr_get_ext(
             },
             decor_data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
         };
-        (*itr).pos = MTPos { row: 0, col: 0 };
-        (*itr).x = (*b).root;
-        (*itr).lvl = 0;
-        if !oldbase.is_null() {
-            *oldbase.add((*itr).lvl as usize) = (*itr).pos;
+        itr.pos = MTPos { row: 0, col: 0 };
+        itr.x = b.root;
+        itr.lvl = 0;
+        if let Some(ref mut ob) = oldbase {
+            ob[itr.lvl as usize] = itr.pos;
         }
         loop {
-            (*itr).i = marktree_getp_aux((*itr).x, k, None) + 1;
+            itr.i = marktree_getp_aux(itr.x, k, None) + 1;
 
-            if (*(*itr).x).level == 0 {
+            if (*itr.x).level == 0 {
                 break;
             }
-            if !meta_filter.is_null() {
-                let x_meta = node_meta((*itr).x);
-                if !meta_has((*x_meta.add((*itr).i as usize)).as_ptr(), meta_filter) {
-                    break;
-                }
+            if let Some(mf) = meta_filter
+                && !meta_has(&node_meta(itr.x)[itr.i as usize], mf)
+            {
+                break;
             }
 
-            let lvl = (*itr).lvl as usize;
-            (*itr).s[lvl].i = (*itr).i;
-            (*itr).s[lvl].oldcol = (*itr).pos.col;
+            let lvl = itr.lvl as usize;
+            itr.s[lvl].i = itr.i;
+            itr.s[lvl].oldcol = itr.pos.col;
 
-            if (*itr).i > 0 {
-                let prev_pos = (*(*itr).x).key[(*itr).i as usize - 1].pos;
-                compose(&mut (*itr).pos, prev_pos);
+            if itr.i > 0 {
+                let prev_pos = (*itr.x).key[itr.i as usize - 1].pos;
+                compose(&mut itr.pos, prev_pos);
                 relative(prev_pos, &mut k.pos);
             }
-            (*itr).x = *node_ptr((*itr).x).add((*itr).i as usize);
-            (*itr).lvl += 1;
-            if !oldbase.is_null() {
-                *oldbase.add((*itr).lvl as usize) = (*itr).pos;
+            itr.x = node_ptr(itr.x)[itr.i as usize];
+            itr.lvl += 1;
+            if let Some(ref mut ob) = oldbase {
+                ob[itr.lvl as usize] = itr.pos;
             }
         }
 
         if last {
             marktree_itr_prev(b, itr)
-        } else if (*itr).i >= (*(*itr).x).n {
-            marktree_itr_next_skip(b, itr, true, false, std::ptr::null_mut(), std::ptr::null())
+        } else if itr.i >= (*itr.x).n {
+            marktree_itr_next_skip(b, itr, true, false, None, None)
         } else {
             true
         }
@@ -1871,95 +1789,97 @@ pub unsafe fn marktree_itr_get_ext(
 }
 
 #[cfg(test)]
-pub unsafe fn marktree_itr_first(b: *mut MarkTree, itr: *mut MarkTreeIter) -> bool {
+pub unsafe fn marktree_itr_first(b: &MarkTree, itr: &mut MarkTreeIter) -> bool {
     unsafe {
-        if (*b).n_keys == 0 {
-            (*itr).x = std::ptr::null_mut();
+        if b.n_keys == 0 {
+            itr.x = std::ptr::null_mut();
             return false;
         }
 
-        (*itr).x = (*b).root;
-        (*itr).i = 0;
-        (*itr).lvl = 0;
-        (*itr).pos = MTPos { row: 0, col: 0 };
-        while (*(*itr).x).level > 0 {
-            let lvl = (*itr).lvl as usize;
-            (*itr).s[lvl].i = 0;
-            (*itr).s[lvl].oldcol = 0;
-            (*itr).lvl += 1;
-            (*itr).x = *node_ptr((*itr).x);
+        itr.x = b.root;
+        itr.i = 0;
+        itr.lvl = 0;
+        itr.pos = MTPos { row: 0, col: 0 };
+        while (*itr.x).level > 0 {
+            let lvl = itr.lvl as usize;
+            itr.s[lvl].i = 0;
+            itr.s[lvl].oldcol = 0;
+            itr.lvl += 1;
+            itr.x = node_ptr(itr.x)[0];
         }
         true
     }
 }
 
-pub unsafe fn marktree_itr_next(b: *mut MarkTree, itr: *mut MarkTreeIter) -> bool {
-    unsafe { marktree_itr_next_skip(b, itr, false, false, std::ptr::null_mut(), std::ptr::null()) }
+pub unsafe fn marktree_itr_next(b: &MarkTree, itr: &mut MarkTreeIter) -> bool {
+    unsafe { marktree_itr_next_skip(b, itr, false, false, None, None) }
 }
 
 unsafe fn marktree_itr_next_skip(
-    _b: *mut MarkTree,
-    itr: *mut MarkTreeIter,
+    _b: &MarkTree,
+    itr: &mut MarkTreeIter,
     mut skip: bool,
     preload: bool,
-    oldbase: *mut MTPos,
-    meta_filter: MetaFilter,
+    mut oldbase: Option<&mut [MTPos; MT_MAX_DEPTH]>,
+    meta_filter: Option<&MetaFilter>,
 ) -> bool {
     unsafe {
-        if (*itr).x.is_null() {
+        if itr.x.is_null() {
             return false;
         }
-        (*itr).i += 1;
-        if !meta_filter.is_null() && (*(*itr).x).level > 0 {
-            let x_meta = node_meta((*itr).x);
-            if !meta_has((*x_meta.add((*itr).i as usize)).as_ptr(), meta_filter) {
-                skip = true;
-            }
+        itr.i += 1;
+        if let Some(mf) = meta_filter
+            && (*itr.x).level > 0
+            && !meta_has(&node_meta(itr.x)[itr.i as usize], mf)
+        {
+            skip = true;
         }
-        if (*(*itr).x).level == 0 || skip {
-            if preload && (*(*itr).x).level == 0 && skip {
-                (*itr).i = (*(*itr).x).n;
-            } else if (*itr).i < (*(*itr).x).n {
+        if (*itr.x).level == 0 || skip {
+            if preload && (*itr.x).level == 0 && skip {
+                itr.i = (*itr.x).n;
+            } else if itr.i < (*itr.x).n {
                 return true;
             }
-            while (*itr).i >= (*(*itr).x).n {
-                (*itr).x = (*(*itr).x).parent;
-                if (*itr).x.is_null() {
+            while itr.i >= (*itr.x).n {
+                itr.x = (*itr.x).parent;
+                if itr.x.is_null() {
                     return false;
                 }
-                (*itr).lvl -= 1;
-                let lvl = (*itr).lvl as usize;
-                (*itr).i = (*itr).s[lvl].i;
-                if (*itr).i > 0 {
-                    (*itr).pos.row -= (*(*itr).x).key[(*itr).i as usize - 1].pos.row;
-                    (*itr).pos.col = (*itr).s[lvl].oldcol;
+                itr.lvl -= 1;
+                let lvl = itr.lvl as usize;
+                itr.i = itr.s[lvl].i;
+                if itr.i > 0 {
+                    itr.pos.row -= (*itr.x).key[itr.i as usize - 1].pos.row;
+                    itr.pos.col = itr.s[lvl].oldcol;
                 }
             }
         } else {
-            while (*(*itr).x).level > 0 {
-                let lvl = (*itr).lvl as usize;
-                if (*itr).i > 0 {
-                    (*itr).s[lvl].oldcol = (*itr).pos.col;
-                    compose(&mut (*itr).pos, (*(*itr).x).key[(*itr).i as usize - 1].pos);
+            while (*itr.x).level > 0 {
+                let lvl = itr.lvl as usize;
+                if itr.i > 0 {
+                    itr.s[lvl].oldcol = itr.pos.col;
+                    compose(&mut itr.pos, (*itr.x).key[itr.i as usize - 1].pos);
                 }
-                if !oldbase.is_null() && (*itr).i == 0 {
-                    *oldbase.add(lvl + 1) = *oldbase.add(lvl);
+                if let Some(ref mut ob) = oldbase
+                    && itr.i == 0
+                {
+                    ob[lvl + 1] = ob[lvl];
                 }
-                (*itr).s[lvl].i = (*itr).i;
-                let child = *node_ptr((*itr).x).add((*itr).i as usize);
-                debug_assert_eq!((*child).parent, (*itr).x);
-                (*itr).lvl += 1;
-                (*itr).x = child;
-                if preload && (*(*itr).x).level != 0 {
-                    (*itr).i = -1;
+                itr.s[lvl].i = itr.i;
+                let child = node_ptr(itr.x)[itr.i as usize];
+                debug_assert_eq!((*child).parent, itr.x);
+                itr.lvl += 1;
+                itr.x = child;
+                if preload && (*itr.x).level != 0 {
+                    itr.i = -1;
                     break;
                 }
-                (*itr).i = 0;
-                if !meta_filter.is_null() && (*(*itr).x).level != 0 {
-                    let x_meta = node_meta((*itr).x);
-                    if !meta_has((*x_meta).as_ptr(), meta_filter) {
-                        break;
-                    }
+                itr.i = 0;
+                if let Some(mf) = meta_filter
+                    && (*itr.x).level != 0
+                    && !meta_has(&node_meta(itr.x)[0], mf)
+                {
+                    break;
                 }
             }
         }
@@ -1968,16 +1888,16 @@ unsafe fn marktree_itr_next_skip(
 }
 
 pub unsafe fn marktree_itr_get_filter(
-    b: *mut MarkTree,
+    b: &MarkTree,
     row: i32,
     col: c_int,
     stop_row: c_int,
     stop_col: c_int,
-    meta_filter: MetaFilter,
-    itr: *mut MarkTreeIter,
+    meta_filter: &MetaFilter,
+    itr: &mut MarkTreeIter,
 ) -> bool {
     unsafe {
-        if !meta_has((*b).meta_root.as_ptr(), meta_filter) {
+        if !meta_has(&b.meta_root, meta_filter) {
             return false;
         }
         if !marktree_itr_get_ext(
@@ -1986,8 +1906,8 @@ pub unsafe fn marktree_itr_get_filter(
             itr,
             false,
             false,
-            std::ptr::null_mut(),
-            meta_filter,
+            None,
+            Some(meta_filter),
         ) {
             return false;
         }
@@ -1996,40 +1916,40 @@ pub unsafe fn marktree_itr_get_filter(
 }
 
 pub unsafe fn marktree_itr_step_out_filter(
-    b: *mut MarkTree,
-    itr: *mut MarkTreeIter,
-    meta_filter: MetaFilter,
+    b: &MarkTree,
+    itr: &mut MarkTreeIter,
+    meta_filter: &MetaFilter,
 ) -> bool {
     unsafe {
-        if !meta_has((*b).meta_root.as_ptr(), meta_filter) {
-            (*itr).x = std::ptr::null_mut();
+        if !meta_has(&b.meta_root, meta_filter) {
+            itr.x = std::ptr::null_mut();
             return false;
         }
 
-        while !(*itr).x.is_null() && !(*(*itr).x).parent.is_null() {
-            let parent = (*(*itr).x).parent;
-            let p_idx = (*(*itr).x).p_idx as usize;
-            if meta_has((*node_meta(parent).add(p_idx)).as_ptr(), meta_filter) {
+        while !itr.x.is_null() && !(*itr.x).parent.is_null() {
+            let parent = (*itr.x).parent;
+            let p_idx = (*itr.x).p_idx as usize;
+            if meta_has(&node_meta(parent)[p_idx], meta_filter) {
                 return true;
             }
 
-            (*itr).i = (*(*itr).x).n;
-            marktree_itr_next_skip(b, itr, true, false, std::ptr::null_mut(), std::ptr::null());
+            itr.i = (*itr.x).n;
+            marktree_itr_next_skip(b, itr, true, false, None, None);
         }
 
-        !(*itr).x.is_null()
+        !itr.x.is_null()
     }
 }
 
 pub unsafe fn marktree_itr_next_filter(
-    b: *mut MarkTree,
-    itr: *mut MarkTreeIter,
+    b: &MarkTree,
+    itr: &mut MarkTreeIter,
     stop_row: c_int,
     stop_col: c_int,
-    meta_filter: MetaFilter,
+    meta_filter: &MetaFilter,
 ) -> bool {
     unsafe {
-        if !marktree_itr_next_skip(b, itr, false, false, std::ptr::null_mut(), meta_filter) {
+        if !marktree_itr_next_skip(b, itr, false, false, None, Some(meta_filter)) {
             return false;
         }
         marktree_itr_check_filter(b, itr, stop_row, stop_col, meta_filter)
@@ -2037,11 +1957,11 @@ pub unsafe fn marktree_itr_next_filter(
 }
 
 unsafe fn marktree_itr_check_filter(
-    b: *mut MarkTree,
-    itr: *mut MarkTreeIter,
+    b: &MarkTree,
+    itr: &mut MarkTreeIter,
     stop_row: c_int,
     stop_col: c_int,
-    meta_filter: MetaFilter,
+    meta_filter: &MetaFilter,
 ) -> bool {
     unsafe {
         let stop_pos = MTPos {
@@ -2051,12 +1971,12 @@ unsafe fn marktree_itr_check_filter(
 
         let mut key_filter = 0u32;
         for (m, &mm) in META_MAP.iter().enumerate() {
-            key_filter |= mm & *meta_filter.add(m);
+            key_filter |= mm & meta_filter[m];
         }
 
         loop {
             if pos_leq(stop_pos, marktree_itr_pos(itr)) {
-                (*itr).x = std::ptr::null_mut();
+                itr.x = std::ptr::null_mut();
                 return false;
             }
 
@@ -2065,67 +1985,67 @@ unsafe fn marktree_itr_check_filter(
                 return true;
             }
 
-            if !marktree_itr_next_skip(b, itr, false, false, std::ptr::null_mut(), meta_filter) {
+            if !marktree_itr_next_skip(b, itr, false, false, None, Some(meta_filter)) {
                 return false;
             }
         }
     }
 }
 
-pub unsafe fn marktree_itr_prev(_b: *mut MarkTree, itr: *mut MarkTreeIter) -> bool {
+pub unsafe fn marktree_itr_prev(_b: &MarkTree, itr: &mut MarkTreeIter) -> bool {
     unsafe {
-        if (*itr).x.is_null() {
+        if itr.x.is_null() {
             return false;
         }
-        if (*(*itr).x).level == 0 {
-            (*itr).i -= 1;
-            if (*itr).i >= 0 {
+        if (*itr.x).level == 0 {
+            itr.i -= 1;
+            if itr.i >= 0 {
                 return true;
             }
-            while (*itr).i < 0 {
-                (*itr).x = (*(*itr).x).parent;
-                if (*itr).x.is_null() {
+            while itr.i < 0 {
+                itr.x = (*itr.x).parent;
+                if itr.x.is_null() {
                     return false;
                 }
-                (*itr).lvl -= 1;
-                let lvl = (*itr).lvl as usize;
-                (*itr).i = (*itr).s[lvl].i - 1;
-                if (*itr).i >= 0 {
-                    (*itr).pos.row -= (*(*itr).x).key[(*itr).i as usize].pos.row;
-                    (*itr).pos.col = (*itr).s[lvl].oldcol;
+                itr.lvl -= 1;
+                let lvl = itr.lvl as usize;
+                itr.i = itr.s[lvl].i - 1;
+                if itr.i >= 0 {
+                    itr.pos.row -= (*itr.x).key[itr.i as usize].pos.row;
+                    itr.pos.col = itr.s[lvl].oldcol;
                 }
             }
         } else {
-            while (*(*itr).x).level > 0 {
-                let lvl = (*itr).lvl as usize;
-                if (*itr).i > 0 {
-                    (*itr).s[lvl].oldcol = (*itr).pos.col;
-                    compose(&mut (*itr).pos, (*(*itr).x).key[(*itr).i as usize - 1].pos);
+            while (*itr.x).level > 0 {
+                let lvl = itr.lvl as usize;
+                if itr.i > 0 {
+                    itr.s[lvl].oldcol = itr.pos.col;
+                    compose(&mut itr.pos, (*itr.x).key[itr.i as usize - 1].pos);
                 }
-                (*itr).s[lvl].i = (*itr).i;
-                let child = *node_ptr((*itr).x).add((*itr).i as usize);
-                debug_assert_eq!((*child).parent, (*itr).x);
-                (*itr).x = child;
-                (*itr).i = (*(*itr).x).n;
-                (*itr).lvl += 1;
+                itr.s[lvl].i = itr.i;
+                let child = node_ptr(itr.x)[itr.i as usize];
+                debug_assert_eq!((*child).parent, itr.x);
+                itr.x = child;
+                itr.i = (*itr.x).n;
+                itr.lvl += 1;
             }
-            (*itr).i -= 1;
+            itr.i -= 1;
         }
         true
     }
 }
 
-pub unsafe fn marktree_itr_pos(itr: *mut MarkTreeIter) -> MTPos {
+pub unsafe fn marktree_itr_pos(itr: &MarkTreeIter) -> MTPos {
     unsafe {
-        let mut pos = (*rawkey(itr)).pos;
-        unrelative((*itr).pos, &mut pos);
+        let mut pos = rawkey(itr).pos;
+        unrelative(itr.pos, &mut pos);
         pos
     }
 }
 
-pub unsafe fn marktree_itr_current(itr: *mut MarkTreeIter) -> MTKey {
+pub unsafe fn marktree_itr_current(itr: &MarkTreeIter) -> MTKey {
     unsafe {
-        if !(*itr).x.is_null() {
+        if !itr.x.is_null() {
             let mut key = *rawkey(itr);
             key.pos = marktree_itr_pos(itr);
             key
@@ -2136,107 +2056,105 @@ pub unsafe fn marktree_itr_current(itr: *mut MarkTreeIter) -> MTKey {
 }
 
 #[inline]
-unsafe fn itr_eq(itr1: *mut MarkTreeIter, itr2: *mut MarkTreeIter) -> bool {
+unsafe fn itr_eq(itr1: &MarkTreeIter, itr2: &MarkTreeIter) -> bool {
     unsafe { std::ptr::eq(rawkey(itr1), rawkey(itr2)) }
 }
 
 pub unsafe fn marktree_itr_get_overlap(
-    b: *mut MarkTree,
+    b: &MarkTree,
     row: c_int,
     col: c_int,
-    itr: *mut MarkTreeIter,
+    itr: &mut MarkTreeIter,
 ) -> bool {
-    unsafe {
-        if (*b).n_keys == 0 {
-            (*itr).x = std::ptr::null_mut();
-            return false;
-        }
-
-        (*itr).x = (*b).root;
-        (*itr).i = -1;
-        (*itr).lvl = 0;
-        (*itr).pos = MTPos { row: 0, col: 0 };
-        (*itr).intersect_pos = MTPos { row, col };
-        (*itr).intersect_pos_x = MTPos { row, col };
-        (*itr).intersect_idx = 0;
-        true
+    if b.n_keys == 0 {
+        itr.x = std::ptr::null_mut();
+        return false;
     }
+
+    itr.x = b.root;
+    itr.i = -1;
+    itr.lvl = 0;
+    itr.pos = MTPos { row: 0, col: 0 };
+    itr.intersect_pos = MTPos { row, col };
+    itr.intersect_pos_x = MTPos { row, col };
+    itr.intersect_idx = 0;
+    true
 }
 
 pub unsafe fn marktree_itr_step_overlap(
-    b: *mut MarkTree,
-    itr: *mut MarkTreeIter,
-    pair: *mut MTPair,
+    b: &MarkTree,
+    itr: &mut MarkTreeIter,
+    pair: &mut MTPair,
 ) -> bool {
     unsafe {
-        while (*itr).i == -1 {
-            if (*itr).intersect_idx < (*(*itr).x).intersect.len() {
-                let id = (*(*itr).x).intersect.as_slice()[(*itr).intersect_idx];
-                (*itr).intersect_idx += 1;
+        while itr.i == -1 {
+            if itr.intersect_idx < (*itr.x).intersect.len() {
+                let id = (*itr.x).intersect.as_slice()[itr.intersect_idx];
+                itr.intersect_idx += 1;
                 *pair = mtpair_from(
-                    marktree_lookup(b, id, std::ptr::null_mut()),
-                    marktree_lookup(b, id | MARKTREE_END_FLAG, std::ptr::null_mut()),
+                    marktree_lookup(b, id, None),
+                    marktree_lookup(b, id | MARKTREE_END_FLAG, None),
                 );
                 return true;
             }
 
-            if (*(*itr).x).level == 0 {
-                (*itr).i = 0;
-                (*itr).s[(*itr).lvl as usize].i = 0;
+            if (*itr.x).level == 0 {
+                itr.i = 0;
+                itr.s[itr.lvl as usize].i = 0;
                 break;
             }
 
             let k = MTKey {
-                pos: (*itr).intersect_pos_x,
+                pos: itr.intersect_pos_x,
                 ns: 0,
                 id: 0,
                 flags: 0,
                 decor_data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
             };
-            (*itr).i = marktree_getp_aux((*itr).x, k, None) + 1;
+            itr.i = marktree_getp_aux(itr.x, k, None) + 1;
 
-            let lvl = (*itr).lvl as usize;
-            (*itr).s[lvl].i = (*itr).i;
-            (*itr).s[lvl].oldcol = (*itr).pos.col;
+            let lvl = itr.lvl as usize;
+            itr.s[lvl].i = itr.i;
+            itr.s[lvl].oldcol = itr.pos.col;
 
-            if (*itr).i > 0 {
-                let prev_pos = (*(*itr).x).key[(*itr).i as usize - 1].pos;
-                compose(&mut (*itr).pos, prev_pos);
-                relative(prev_pos, &mut (*itr).intersect_pos_x);
+            if itr.i > 0 {
+                let prev_pos = (*itr.x).key[itr.i as usize - 1].pos;
+                compose(&mut itr.pos, prev_pos);
+                relative(prev_pos, &mut itr.intersect_pos_x);
             }
-            (*itr).x = *node_ptr((*itr).x).add((*itr).i as usize);
-            (*itr).lvl += 1;
-            (*itr).i = -1;
-            (*itr).intersect_idx = 0;
+            itr.x = node_ptr(itr.x)[itr.i as usize];
+            itr.lvl += 1;
+            itr.i = -1;
+            itr.intersect_idx = 0;
         }
 
-        while (*itr).i < (*(*itr).x).n && pos_less((*rawkey(itr)).pos, (*itr).intersect_pos_x) {
-            let mut k = (*(*itr).x).key[(*itr).i as usize];
-            (*itr).i += 1;
-            (*itr).s[(*itr).lvl as usize].i = (*itr).i;
+        while itr.i < (*itr.x).n && pos_less(rawkey(itr).pos, itr.intersect_pos_x) {
+            let mut k = (*itr.x).key[itr.i as usize];
+            itr.i += 1;
+            itr.s[itr.lvl as usize].i = itr.i;
             if mt_start(k) {
-                let end = marktree_lookup(b, mt_lookup_id(k.ns, k.id, true), std::ptr::null_mut());
-                if pos_less(end.pos, (*itr).intersect_pos) {
+                let end = marktree_lookup(b, mt_lookup_id(k.ns, k.id, true), None);
+                if pos_less(end.pos, itr.intersect_pos) {
                     continue;
                 }
 
-                unrelative((*itr).pos, &mut k.pos);
+                unrelative(itr.pos, &mut k.pos);
                 *pair = mtpair_from(k, end);
                 return true;
             }
         }
 
-        while (*itr).i < (*(*itr).x).n {
-            let mut k = (*(*itr).x).key[(*itr).i as usize];
-            (*itr).i += 1;
+        while itr.i < (*itr.x).n {
+            let mut k = (*itr.x).key[itr.i as usize];
+            itr.i += 1;
             if mt_end(k) {
                 let id = mt_lookup_id(k.ns, k.id, false);
-                if id2node(b, id) == (*itr).x {
+                if id2node(b, id) == itr.x {
                     continue;
                 }
-                unrelative((*itr).pos, &mut k.pos);
-                let start = marktree_lookup(b, id, std::ptr::null_mut());
-                if pos_leq((*itr).intersect_pos, start.pos) {
+                unrelative(itr.pos, &mut k.pos);
+                let start = marktree_lookup(b, id, None);
+                if pos_leq(itr.intersect_pos, start.pos) {
                     continue;
                 }
                 *pair = mtpair_from(start, k);
@@ -2244,9 +2162,9 @@ pub unsafe fn marktree_itr_step_overlap(
             }
         }
 
-        (*itr).i = (*itr).s[(*itr).lvl as usize].i;
-        debug_assert!((*itr).i >= 0);
-        if (*itr).i >= (*(*itr).x).n {
+        itr.i = itr.s[itr.lvl as usize].i;
+        debug_assert!(itr.i >= 0);
+        if itr.i >= (*itr.x).n {
             marktree_itr_next(b, itr);
         }
 
@@ -2254,12 +2172,7 @@ pub unsafe fn marktree_itr_step_overlap(
     }
 }
 
-unsafe fn check_damage(
-    _b: *mut MarkTree,
-    damage: &mut MTDamageMap,
-    itr1: *mut MarkTreeIter,
-    itr2: *mut MarkTreeIter,
-) {
+unsafe fn check_damage(damage: &mut MTDamageMap, itr1: &MarkTreeIter, itr2: &MarkTreeIter) {
     unsafe {
         let start_id = mt_lookup_key_side(*rawkey(itr1), false);
         let p = damage.entry(start_id).or_default();
@@ -2270,53 +2183,51 @@ unsafe fn check_damage(
         };
         debug_assert!(me.new.is_null());
         *me = MTDamage {
-            old: (*itr1).x,
-            new: (*itr2).x,
-            old_i: (*itr1).i,
-            new_i: (*itr2).i,
+            old: itr1.x,
+            new: itr2.x,
+            old_i: itr1.i,
+            new_i: itr2.i,
         };
     }
 }
 
 unsafe fn swap_keys(
-    b: *mut MarkTree,
-    itr1: *mut MarkTreeIter,
-    itr2: *mut MarkTreeIter,
+    b: &mut MarkTree,
+    itr1: &mut MarkTreeIter,
+    itr2: &mut MarkTreeIter,
     damage: &mut MTDamageMap,
 ) {
     unsafe {
-        if (*(*itr1).x).level != 0 || (*itr1).x != (*itr2).x {
+        if (*itr1.x).level != 0 || itr1.x != itr2.x {
             if mt_paired(*rawkey(itr1)) {
-                check_damage(b, damage, itr1, itr2);
+                check_damage(damage, itr1, itr2);
             }
             if mt_paired(*rawkey(itr2)) {
-                check_damage(b, damage, itr2, itr1);
+                check_damage(damage, itr2, itr1);
             }
         }
 
-        if (*itr1).x != (*itr2).x {
-            let mut meta_inc_1 = [0u32; kMTMetaCount];
-            meta_describe_key(meta_inc_1.as_mut_ptr(), *rawkey(itr1));
-            let mut meta_inc_2 = [0u32; kMTMetaCount];
-            meta_describe_key(meta_inc_2.as_mut_ptr(), *rawkey(itr2));
+        if itr1.x != itr2.x {
+            let meta_inc_1 = meta_describe_key(*rawkey(itr1));
+            let meta_inc_2 = meta_describe_key(*rawkey(itr2));
 
             if meta_inc_1 != meta_inc_2 {
-                let mut x1 = (*itr1).x;
-                let mut x2 = (*itr2).x;
+                let mut x1 = itr1.x;
+                let mut x2 = itr2.x;
                 while x1 != x2 {
                     if (*x1).level <= (*x2).level {
-                        let meta_node = node_meta((*x1).parent).add((*x1).p_idx as usize);
+                        let meta_node = &mut node_meta((*x1).parent)[(*x1).p_idx as usize];
                         for m in 0..kMTMetaCount {
-                            (*meta_node)[m] = (*meta_node)[m]
+                            meta_node[m] = meta_node[m]
                                 .wrapping_add(meta_inc_2[m])
                                 .wrapping_sub(meta_inc_1[m]);
                         }
                         x1 = (*x1).parent;
                     }
                     if (*x2).level < (*x1).level {
-                        let meta_node = node_meta((*x2).parent).add((*x2).p_idx as usize);
+                        let meta_node = &mut node_meta((*x2).parent)[(*x2).p_idx as usize];
                         for m in 0..kMTMetaCount {
-                            (*meta_node)[m] = (*meta_node)[m]
+                            meta_node[m] = meta_node[m]
                                 .wrapping_add(meta_inc_1[m])
                                 .wrapping_sub(meta_inc_2[m]);
                         }
@@ -2328,17 +2239,17 @@ unsafe fn swap_keys(
 
         let key1 = *rawkey(itr1);
         let key2 = *rawkey(itr2);
-        *rawkey(itr1) = key2;
-        (*rawkey(itr1)).pos = key1.pos;
-        *rawkey(itr2) = key1;
-        (*rawkey(itr2)).pos = key2.pos;
-        refkey(b, (*itr1).x, (*itr1).i);
-        refkey(b, (*itr2).x, (*itr2).i);
+        *rawkey_mut(itr1) = key2;
+        rawkey_mut(itr1).pos = key1.pos;
+        *rawkey_mut(itr2) = key1;
+        rawkey_mut(itr2).pos = key2.pos;
+        refkey(b, itr1.x, itr1.i);
+        refkey(b, itr2.x, itr2.i);
     }
 }
 
 pub unsafe fn marktree_splice(
-    b: *mut MarkTree,
+    b: &mut MarkTree,
     start_line: i32,
     start_col: c_int,
     old_extent_line: c_int,
@@ -2375,8 +2286,8 @@ pub unsafe fn marktree_splice(
             &mut itr,
             false,
             true,
-            oldbase.as_mut_ptr(),
-            std::ptr::null(),
+            Some(&mut oldbase),
+            None,
         );
         if itr.x.is_null() {
             return false;
@@ -2387,21 +2298,13 @@ pub unsafe fn marktree_splice(
         };
 
         if may_delete {
-            let ipos = marktree_itr_pos(&mut itr);
+            let ipos = marktree_itr_pos(&itr);
             if !pos_leq(old_extent, ipos)
                 || (old_extent.row == ipos.row
                     && old_extent.col == ipos.col
-                    && !mt_right(*rawkey(&mut itr)))
+                    && !mt_right(*rawkey(&itr)))
             {
-                marktree_itr_get_ext(
-                    b,
-                    old_extent,
-                    &mut enditr,
-                    true,
-                    true,
-                    std::ptr::null_mut(),
-                    std::ptr::null(),
-                );
+                marktree_itr_get_ext(b, old_extent, &mut enditr, true, true, None, None);
                 debug_assert!(!enditr.x.is_null());
             } else {
                 may_delete = false;
@@ -2420,43 +2323,43 @@ pub unsafe fn marktree_splice(
                 relative(oldbase[itr.lvl as usize], &mut loc_old);
 
                 loop {
-                    if !pos_leq((*rawkey(&mut itr)).pos, loc_old) {
+                    if !pos_leq(rawkey(&itr).pos, loc_old) {
                         break 'outer1;
                     }
 
-                    if mt_right(*rawkey(&mut itr)) {
-                        while !itr_eq(&mut itr, &mut enditr) && mt_right(*rawkey(&mut enditr)) {
+                    if mt_right(*rawkey(&itr)) {
+                        while !itr_eq(&itr, &enditr) && mt_right(*rawkey(&enditr)) {
                             marktree_itr_prev(b, &mut enditr);
                         }
-                        if !mt_right(*rawkey(&mut enditr)) {
+                        if !mt_right(*rawkey(&enditr)) {
                             swap_keys(b, &mut itr, &mut enditr, &mut damage);
                         } else {
                             break 'outer1;
                         }
                     }
 
-                    if itr_eq(&mut itr, &mut enditr) {
+                    if itr_eq(&itr, &enditr) {
                         past_right = true;
                     }
 
                     moved = true;
                     if (*itr.x).level != 0 {
                         let lvl = itr.lvl as usize;
-                        oldbase[lvl + 1] = (*rawkey(&mut itr)).pos;
+                        oldbase[lvl + 1] = rawkey(&itr).pos;
                         let base_lvl = oldbase[lvl];
                         unrelative(base_lvl, &mut oldbase[lvl + 1]);
-                        (*rawkey(&mut itr)).pos = loc_start;
+                        rawkey_mut(&mut itr).pos = loc_start;
                         marktree_itr_next_skip(
                             b,
                             &mut itr,
                             false,
                             false,
-                            oldbase.as_mut_ptr(),
-                            std::ptr::null(),
+                            Some(&mut oldbase),
+                            None,
                         );
                         break;
                     } else {
-                        (*rawkey(&mut itr)).pos = loc_start;
+                        rawkey_mut(&mut itr).pos = loc_start;
                         if itr.i < (*itr.x).n - 1 {
                             itr.i += 1;
                             if !past_right {
@@ -2476,12 +2379,12 @@ pub unsafe fn marktree_splice(
                 relative(oldbase[itr.lvl as usize], &mut limit);
 
                 loop {
-                    if pos_leq(limit, (*rawkey(&mut itr)).pos) {
+                    if pos_leq(limit, rawkey(&itr).pos) {
                         break 'outer2;
                     }
 
-                    let oldpos = (*rawkey(&mut itr)).pos;
-                    (*rawkey(&mut itr)).pos = loc_new;
+                    let oldpos = rawkey(&itr).pos;
+                    rawkey_mut(&mut itr).pos = loc_new;
                     moved = true;
                     if (*itr.x).level != 0 {
                         let lvl = itr.lvl as usize;
@@ -2494,8 +2397,8 @@ pub unsafe fn marktree_splice(
                             &mut itr,
                             false,
                             false,
-                            oldbase.as_mut_ptr(),
-                            std::ptr::null(),
+                            Some(&mut oldbase),
+                            None,
                         );
                         break;
                     } else if itr.i < (*itr.x).n - 1 {
@@ -2509,64 +2412,58 @@ pub unsafe fn marktree_splice(
         }
 
         while !itr.x.is_null() {
-            unrelative(oldbase[itr.lvl as usize], &mut (*rawkey(&mut itr)).pos);
-            let realrow = (*rawkey(&mut itr)).pos.row;
+            unrelative(oldbase[itr.lvl as usize], &mut rawkey_mut(&mut itr).pos);
+            let realrow = rawkey(&itr).pos.row;
             debug_assert!(realrow >= old_extent.row);
             let mut done = false;
             if realrow == old_extent.row {
                 if delta.col != 0 {
-                    (*rawkey(&mut itr)).pos.col += delta.col;
+                    rawkey_mut(&mut itr).pos.col += delta.col;
                 }
             } else if same_line {
                 done = true;
             }
             if delta.row != 0 {
-                (*rawkey(&mut itr)).pos.row += delta.row;
+                rawkey_mut(&mut itr).pos.row += delta.row;
                 moved = true;
             }
-            relative(itr.pos, &mut (*rawkey(&mut itr)).pos);
+            let itr_pos = itr.pos;
+            relative(itr_pos, &mut rawkey_mut(&mut itr).pos);
             if done {
                 break;
             }
-            marktree_itr_next_skip(
-                b,
-                &mut itr,
-                true,
-                false,
-                std::ptr::null_mut(),
-                std::ptr::null(),
-            );
+            marktree_itr_next_skip(b, &mut itr, true, false, None, None);
         }
 
         for (start_id, d) in damage {
             if !d.start.old.is_null() && !d.end.old.is_null() {
-                marktree_itr_set_node(b, &mut itr, d.start.old, d.start.old_i);
-                marktree_itr_set_node(b, &mut enditr, d.end.old, d.end.old_i);
-                marktree_intersect_pair(b, start_id, &mut itr, &mut enditr, true);
-                marktree_itr_set_node(b, &mut itr, d.start.new, d.start.new_i);
-                marktree_itr_set_node(b, &mut enditr, d.end.new, d.end.new_i);
-                marktree_intersect_pair(b, start_id, &mut itr, &mut enditr, false);
+                marktree_itr_set_node(b, Some(&mut itr), d.start.old, d.start.old_i);
+                marktree_itr_set_node(b, Some(&mut enditr), d.end.old, d.end.old_i);
+                marktree_intersect_pair(b, start_id, &mut itr, &enditr, true);
+                marktree_itr_set_node(b, Some(&mut itr), d.start.new, d.start.new_i);
+                marktree_itr_set_node(b, Some(&mut enditr), d.end.new, d.end.new_i);
+                marktree_intersect_pair(b, start_id, &mut itr, &enditr, false);
             } else if !d.start.old.is_null() {
                 let mut endpos = MarkTreeIter::new();
-                marktree_lookup(b, start_id | MARKTREE_END_FLAG, &mut endpos);
+                marktree_lookup(b, start_id | MARKTREE_END_FLAG, Some(&mut endpos));
                 if !endpos.x.is_null() {
-                    marktree_itr_set_node(b, &mut itr, d.start.old, d.start.old_i);
+                    marktree_itr_set_node(b, Some(&mut itr), d.start.old, d.start.old_i);
                     enditr = endpos;
-                    marktree_intersect_pair(b, start_id, &mut itr, &mut enditr, true);
-                    marktree_itr_set_node(b, &mut itr, d.start.new, d.start.new_i);
+                    marktree_intersect_pair(b, start_id, &mut itr, &enditr, true);
+                    marktree_itr_set_node(b, Some(&mut itr), d.start.new, d.start.new_i);
                     enditr = endpos;
-                    marktree_intersect_pair(b, start_id, &mut itr, &mut enditr, false);
+                    marktree_intersect_pair(b, start_id, &mut itr, &enditr, false);
                 }
             } else if !d.end.old.is_null() {
                 let mut startpos = MarkTreeIter::new();
-                marktree_lookup(b, start_id, &mut startpos);
+                marktree_lookup(b, start_id, Some(&mut startpos));
                 if !startpos.x.is_null() {
                     itr = startpos;
-                    marktree_itr_set_node(b, &mut enditr, d.end.old, d.end.old_i);
-                    marktree_intersect_pair(b, start_id, &mut itr, &mut enditr, true);
+                    marktree_itr_set_node(b, Some(&mut enditr), d.end.old, d.end.old_i);
+                    marktree_intersect_pair(b, start_id, &mut itr, &enditr, true);
                     itr = startpos;
-                    marktree_itr_set_node(b, &mut enditr, d.end.new, d.end.new_i);
-                    marktree_intersect_pair(b, start_id, &mut itr, &mut enditr, false);
+                    marktree_itr_set_node(b, Some(&mut enditr), d.end.new, d.end.new_i);
+                    marktree_intersect_pair(b, start_id, &mut itr, &enditr, false);
                 }
             }
         }
@@ -2576,7 +2473,7 @@ pub unsafe fn marktree_splice(
 }
 
 pub unsafe fn marktree_move_region(
-    b: *mut MarkTree,
+    b: &mut MarkTree,
     start_row: c_int,
     start_col: colnr_T,
     extent_row: c_int,
@@ -2596,18 +2493,10 @@ pub unsafe fn marktree_move_region(
         let mut end = size;
         unrelative(start, &mut end);
         let mut itr = MarkTreeIter::new();
-        marktree_itr_get_ext(
-            b,
-            start,
-            &mut itr,
-            false,
-            true,
-            std::ptr::null_mut(),
-            std::ptr::null(),
-        );
+        marktree_itr_get_ext(b, start, &mut itr, false, true, None, None);
         let mut saved: Vec<MTKey> = Vec::new();
         while !itr.x.is_null() {
-            let mut k = marktree_itr_current(&mut itr);
+            let mut k = marktree_itr_current(&itr);
             if !pos_leq(k.pos, end) || (k.pos.row == end.row && k.pos.col == end.col && mt_right(k))
             {
                 break;
@@ -2635,11 +2524,11 @@ pub unsafe fn marktree_move_region(
 }
 
 pub unsafe fn marktree_lookup_ns(
-    b: *mut MarkTree,
+    b: &MarkTree,
     ns: u32,
     id: u32,
     end: bool,
-    itr: *mut MarkTreeIter,
+    itr: Option<&mut MarkTreeIter>,
 ) -> MTKey {
     unsafe { marktree_lookup(b, mt_lookup_id(ns, id, end), itr) }
 }
@@ -2660,7 +2549,7 @@ unsafe fn pseudo_index(mut x: *mut MTNode, mut i: c_int) -> u64 {
     }
 }
 
-unsafe fn pseudo_index_for_id(b: *mut MarkTree, id: u64, sloppy: bool) -> u64 {
+unsafe fn pseudo_index_for_id(b: &MarkTree, id: u64, sloppy: bool) -> u64 {
     unsafe {
         let n = id2node(b, id);
         if n.is_null() {
@@ -2685,12 +2574,12 @@ unsafe fn pseudo_index_for_id(b: *mut MarkTree, id: u64, sloppy: bool) -> u64 {
     }
 }
 
-pub unsafe fn marktree_lookup(b: *mut MarkTree, id: u64, itr: *mut MarkTreeIter) -> MTKey {
+pub unsafe fn marktree_lookup(b: &MarkTree, id: u64, itr: Option<&mut MarkTreeIter>) -> MTKey {
     unsafe {
         let n = id2node(b, id);
         if n.is_null() {
-            if !itr.is_null() {
-                (*itr).x = std::ptr::null_mut();
+            if let Some(itr) = itr {
+                itr.x = std::ptr::null_mut();
             }
             return MT_INVALID_KEY;
         }
@@ -2705,43 +2594,51 @@ pub unsafe fn marktree_lookup(b: *mut MarkTree, id: u64, itr: *mut MarkTreeIter)
 }
 
 pub unsafe fn marktree_itr_set_node(
-    b: *mut MarkTree,
-    itr: *mut MarkTreeIter,
+    b: &MarkTree,
+    mut itr: Option<&mut MarkTreeIter>,
     mut n: *mut MTNode,
     mut i: c_int,
 ) -> MTKey {
     unsafe {
         let mut key = (*n).key[i as usize];
-        if !itr.is_null() {
-            (*itr).i = i;
-            (*itr).x = n;
-            (*itr).lvl = c_int::from((*(*b).root).level - (*n).level);
+        if let Some(ref mut itr) = itr {
+            itr.i = i;
+            itr.x = n;
+            itr.lvl = c_int::from((*b.root).level - (*n).level);
         }
         while !(*n).parent.is_null() {
             let p = (*n).parent;
             i = c_int::from((*n).p_idx);
-            debug_assert_eq!(*node_ptr(p).add(i as usize), n);
+            debug_assert_eq!(node_ptr(p)[i as usize], n);
 
-            if !itr.is_null() {
-                (*itr).s[((*(*b).root).level - (*p).level) as usize].i = i;
+            if let Some(ref mut itr) = itr {
+                itr.s[((*b.root).level - (*p).level) as usize].i = i;
             }
             if i > 0 {
                 unrelative((*p).key[i as usize - 1].pos, &mut key.pos);
             }
             n = p;
         }
-        if !itr.is_null() {
+        if let Some(itr) = itr {
             marktree_itr_fix_pos(b, itr);
         }
         key
     }
 }
 
-pub unsafe fn marktree_get_altpos(b: *mut MarkTree, mark: MTKey, itr: *mut MarkTreeIter) -> MTPos {
+pub unsafe fn marktree_get_altpos(
+    b: &MarkTree,
+    mark: MTKey,
+    itr: Option<&mut MarkTreeIter>,
+) -> MTPos {
     unsafe { marktree_get_alt(b, mark, itr).pos }
 }
 
-pub unsafe fn marktree_get_alt(b: *mut MarkTree, mark: MTKey, itr: *mut MarkTreeIter) -> MTKey {
+pub unsafe fn marktree_get_alt(
+    b: &MarkTree,
+    mark: MTKey,
+    itr: Option<&mut MarkTreeIter>,
+) -> MTKey {
     if mt_paired(mark) {
         unsafe { marktree_lookup_ns(b, mark.ns, mark.id, !mt_end(mark), itr) }
     } else {
@@ -2749,26 +2646,26 @@ pub unsafe fn marktree_get_alt(b: *mut MarkTree, mark: MTKey, itr: *mut MarkTree
     }
 }
 
-unsafe fn marktree_itr_fix_pos(b: *mut MarkTree, itr: *mut MarkTreeIter) {
+unsafe fn marktree_itr_fix_pos(b: &MarkTree, itr: &mut MarkTreeIter) {
     unsafe {
-        (*itr).pos = MTPos { row: 0, col: 0 };
-        let mut x = (*b).root;
-        for lvl in 0..(*itr).lvl as usize {
-            (*itr).s[lvl].oldcol = (*itr).pos.col;
-            let i = (*itr).s[lvl].i;
+        itr.pos = MTPos { row: 0, col: 0 };
+        let mut x = b.root;
+        for lvl in 0..itr.lvl as usize {
+            itr.s[lvl].oldcol = itr.pos.col;
+            let i = itr.s[lvl].i;
             if i > 0 {
-                compose(&mut (*itr).pos, (*x).key[i as usize - 1].pos);
+                compose(&mut itr.pos, (*x).key[i as usize - 1].pos);
             }
             debug_assert!((*x).level != 0);
-            x = *node_ptr(x).add(i as usize);
+            x = node_ptr(x)[i as usize];
         }
-        debug_assert_eq!(x, (*itr).x);
+        debug_assert_eq!(x, itr.x);
     }
 }
 
 #[cfg(test)]
 pub unsafe fn marktree_put_test(
-    b: *mut MarkTree,
+    b: &mut MarkTree,
     ns: u32,
     id: u32,
     row: c_int,
@@ -2796,25 +2693,25 @@ pub unsafe fn marktree_put_test(
 }
 
 #[cfg(test)]
-pub unsafe fn marktree_del_pair_test(b: *mut MarkTree, ns: u32, id: u32) {
+pub unsafe fn marktree_del_pair_test(b: &mut MarkTree, ns: u32, id: u32) {
     unsafe {
         let mut itr = MarkTreeIter::new();
-        marktree_lookup_ns(b, ns, id, false, &mut itr);
+        marktree_lookup_ns(b, ns, id, false, Some(&mut itr));
 
         let other = marktree_del_itr(b, &mut itr, false);
         assert!(other != 0);
-        marktree_lookup(b, other, &mut itr);
+        marktree_lookup(b, other, Some(&mut itr));
         marktree_del_itr(b, &mut itr, false);
     }
 }
 
 #[cfg(test)]
-pub unsafe fn marktree_check(b: *mut MarkTree) {
+pub unsafe fn marktree_check(b: &MarkTree) {
     unsafe {
-        if (*b).root.is_null() {
-            assert_eq!((*b).n_keys, 0);
-            assert_eq!((*b).n_nodes, 0);
-            assert_eq!((*b).id2node.len(), 0);
+        if b.root.is_null() {
+            assert_eq!(b.n_keys, 0);
+            assert_eq!(b.n_nodes, 0);
+            assert_eq!(b.id2node.len(), 0);
             return;
         }
 
@@ -2823,46 +2720,42 @@ pub unsafe fn marktree_check(b: *mut MarkTree) {
 
         let nkeys = marktree_check_node(
             b,
-            (*b).root,
+            b.root,
             &mut dummy,
             &mut last_right,
-            (*b).meta_root.as_ptr(),
+            &b.meta_root,
         );
-        assert_eq!((*b).n_keys, nkeys);
-        assert_eq!((*b).n_keys, (*b).id2node.len());
+        assert_eq!(b.n_keys, nkeys);
+        assert_eq!(b.n_keys, b.id2node.len());
     }
 }
 
 #[cfg(test)]
 pub unsafe fn marktree_check_node(
-    b: *mut MarkTree,
+    b: &MarkTree,
     x: *mut MTNode,
-    last: *mut MTPos,
-    last_right: *mut bool,
-    meta_node_ref: *const u32,
+    last: &mut MTPos,
+    last_right: &mut bool,
+    meta_node_ref: &[u32; kMTMetaCount],
 ) -> usize {
     unsafe {
         assert!((*x).n < 2 * T);
-        assert!((*x).n >= if x != (*b).root { T - 1 } else { 0 });
+        assert!((*x).n >= if x != b.root { T - 1 } else { 0 });
         let mut n_keys = (*x).n as usize;
 
         for i in 0..(*x).n as usize {
             if (*x).level != 0 {
-                n_keys += marktree_check_node(
-                    b,
-                    *node_ptr(x).add(i),
-                    last,
-                    last_right,
-                    (*node_meta(x).add(i)).as_ptr(),
-                );
+                let child = node_ptr(x)[i];
+                let child_meta = node_meta(x)[i];
+                n_keys += marktree_check_node(b, child, last, last_right, &child_meta);
             } else {
                 *last = MTPos { row: 0, col: 0 };
             }
             if i > 0 {
-                unrelative((*x).key[i - 1].pos, &mut *last);
+                unrelative((*x).key[i - 1].pos, last);
             }
             assert!(pos_leq(*last, (*x).key[i].pos));
-            if (*last).row == (*x).key[i].pos.row && (*last).col == (*x).key[i].pos.col {
+            if last.row == (*x).key[i].pos.row && last.col == (*x).key[i].pos.col {
                 assert!(!*last_right || mt_right((*x).key[i]));
             }
             *last_right = mt_right((*x).key[i]);
@@ -2872,23 +2765,19 @@ pub unsafe fn marktree_check_node(
 
         if (*x).level != 0 {
             let xn = (*x).n as usize;
-            n_keys += marktree_check_node(
-                b,
-                *node_ptr(x).add(xn),
-                last,
-                last_right,
-                (*node_meta(x).add(xn)).as_ptr(),
-            );
-            unrelative((*x).key[xn - 1].pos, &mut *last);
+            let child = node_ptr(x)[xn];
+            let child_meta = node_meta(x)[xn];
+            n_keys += marktree_check_node(b, child, last, last_right, &child_meta);
+            unrelative((*x).key[xn - 1].pos, last);
 
             let x_ptr = node_ptr(x);
             for i in 0..(xn + 1) {
-                let child = *x_ptr.add(i);
+                let child = x_ptr[i];
                 assert_eq!((*child).parent, x);
                 assert_eq!((*child).p_idx as usize, i);
                 assert_eq!((*child).level, (*x).level - 1);
-                for j in 0..i {
-                    assert_ne!(child, *x_ptr.add(j));
+                for &prev in &x_ptr[..i] {
+                    assert_ne!(child, prev);
                 }
             }
         } else if (*x).n > 0 {
@@ -2896,32 +2785,30 @@ pub unsafe fn marktree_check_node(
         }
 
         let mut meta_node = [0u32; kMTMetaCount];
-        meta_describe_node(meta_node.as_mut_ptr(), x);
-        for (m, &val) in meta_node.iter().enumerate() {
-            assert_eq!(*meta_node_ref.add(m), val);
-        }
+        meta_describe_node(&mut meta_node, x);
+        assert_eq!(&meta_node, meta_node_ref);
 
         n_keys
     }
 }
 
 #[cfg(test)]
-pub unsafe fn marktree_check_intersections(b: *mut MarkTree) -> bool {
+pub unsafe fn marktree_check_intersections(b: &mut MarkTree) -> bool {
     unsafe {
-        if (*b).root.is_null() {
+        if b.root.is_null() {
             return true;
         }
         let mut checked: PMapPtr = PMapPtr::new();
 
         // 1. move x->intersect to checked[x] and reinit x->intersect
-        mt_recurse_nodes((*b).root, &mut checked);
+        mt_recurse_nodes(b.root, &mut checked);
 
         // 2. iterate over all marks. for each START mark of a pair,
         // intersect the nodes between the pair
         let mut itr = MarkTreeIter::new();
         marktree_itr_first(b, &mut itr);
         loop {
-            let mark = marktree_itr_current(&mut itr);
+            let mark = marktree_itr_current(&itr);
             if mark.pos.row < 0 {
                 break;
             }
@@ -2930,13 +2817,13 @@ pub unsafe fn marktree_check_intersections(b: *mut MarkTree) -> bool {
                 let mut start_itr = itr;
                 let mut end_itr = MarkTreeIter::new();
                 let end_id = mt_lookup_id(mark.ns, mark.id, true);
-                let k = marktree_lookup(b, end_id, &mut end_itr);
+                let k = marktree_lookup(b, end_id, Some(&mut end_itr));
                 if k.pos.row >= 0 {
                     marktree_intersect_pair(
                         b,
                         mt_lookup_key(mark),
                         &mut start_itr,
-                        &mut end_itr,
+                        &end_itr,
                         false,
                     );
                 }
@@ -2947,7 +2834,7 @@ pub unsafe fn marktree_check_intersections(b: *mut MarkTree) -> bool {
 
         // 3. for each node check if the recreated intersection
         // matches the old checked[x] intersection.
-        mt_recurse_nodes_compare((*b).root, &checked)
+        mt_recurse_nodes_compare(b.root, &checked)
     }
 }
 
@@ -2960,8 +2847,8 @@ pub unsafe fn mt_recurse_nodes(x: *mut MTNode, checked: &mut PMapPtr) {
 
         if (*x).level != 0 {
             let x_ptr = node_ptr(x);
-            for i in 0..((*x).n as usize + 1) {
-                mt_recurse_nodes(*x_ptr.add(i), checked);
+            for &child in &x_ptr[..((*x).n as usize + 1)] {
+                mt_recurse_nodes(child, checked);
             }
         }
     }
@@ -2977,8 +2864,8 @@ pub unsafe fn mt_recurse_nodes_compare(x: *mut MTNode, checked: &PMapPtr) -> boo
 
         if (*x).level != 0 {
             let x_ptr = node_ptr(x);
-            for i in 0..((*x).n as usize + 1) {
-                if !mt_recurse_nodes_compare(*x_ptr.add(i), checked) {
+            for &child in &x_ptr[..((*x).n as usize + 1)] {
+                if !mt_recurse_nodes_compare(child, checked) {
                     return false;
                 }
             }
@@ -2988,17 +2875,17 @@ pub unsafe fn mt_recurse_nodes_compare(x: *mut MTNode, checked: &PMapPtr) -> boo
     }
 }
 
-pub unsafe fn mt_inspect(b: *mut MarkTree, keys: bool, dot: bool) -> NvimString {
+pub unsafe fn mt_inspect(b: &MarkTree, keys: bool, dot: bool) -> NvimString {
     unsafe {
         let mut out = String::new();
         let p = MTPos { row: 0, col: 0 };
-        if !(*b).root.is_null() {
+        if !b.root.is_null() {
             if dot {
                 out.push_str("digraph D {\n\n");
-                mt_inspect_dotfile_node(b, &mut out, (*b).root, p, std::ptr::null());
+                mt_inspect_dotfile_node(&mut out, b.root, p, None);
                 out.push_str("\n}");
             } else {
-                mt_inspect_node(b, &mut out, keys, (*b).root, p);
+                mt_inspect_node(&mut out, keys, b.root, p);
             }
         }
         NvimString {
@@ -3014,7 +2901,6 @@ const fn mt_dbg_id(id: u64) -> u64 {
 }
 
 unsafe fn mt_inspect_node(
-    _b: *mut MarkTree,
     out: &mut String,
     keys: bool,
     n: *mut MTNode,
@@ -3030,7 +2916,7 @@ unsafe fn mt_inspect_node(
             out.push_str("},");
         }
         if (*n).level != 0 {
-            mt_inspect_node(_b, out, keys, *node_ptr(n), off);
+            mt_inspect_node(out, keys, node_ptr(n)[0], off);
         }
         for i in 0..(*n).n as usize {
             let mut p = (*n).key[i].pos;
@@ -3048,7 +2934,7 @@ unsafe fn mt_inspect_node(
                 }
             }
             if (*n).level != 0 {
-                mt_inspect_node(_b, out, keys, *node_ptr(n).add(i + 1), p);
+                mt_inspect_node(out, keys, node_ptr(n)[i + 1], p);
             } else {
                 out.push(',');
             }
@@ -3058,33 +2944,20 @@ unsafe fn mt_inspect_node(
 }
 
 unsafe fn mt_inspect_dotfile_node(
-    _b: *mut MarkTree,
     out: &mut String,
     n: *mut MTNode,
     off: MTPos,
-    parent: *const c_char,
+    parent: Option<&str>,
 ) {
     unsafe {
-        let mut namebuf = [0 as c_char; 64];
-        let name_str = if !parent.is_null() {
-            let p_str = CStr::from_ptr(parent).to_string_lossy();
-            let s = format!(
+        let name_str = if let Some(p_str) = parent {
+            format!(
                 "{}_{}{}",
                 p_str,
                 (b'a' + (*n).level as u8) as char,
                 (*n).p_idx
-            );
-            let bytes = s.as_bytes();
-            let copy_len = bytes.len().min(63);
-            std::ptr::copy_nonoverlapping(
-                bytes.as_ptr().cast::<c_char>(),
-                namebuf.as_mut_ptr(),
-                copy_len,
-            );
-            namebuf[copy_len] = 0;
-            s
+            )
         } else {
-            std::ptr::copy_nonoverlapping(c"MTNode".as_ptr(), namebuf.as_mut_ptr(), 7);
             "MTNode".to_string()
         };
 
@@ -3113,18 +2986,17 @@ unsafe fn mt_inspect_dotfile_node(
             }
         }
         out.push_str("</td></tr>\n    </table>\n>];\n");
-        if !parent.is_null() {
-            let p_str = CStr::from_ptr(parent).to_string_lossy();
+        if let Some(p_str) = parent {
             let _ = writeln!(out, "  {p_str} -> {name_str}");
         }
         if (*n).level != 0 {
-            mt_inspect_dotfile_node(_b, out, *node_ptr(n), off, namebuf.as_ptr());
+            mt_inspect_dotfile_node(out, node_ptr(n)[0], off, Some(&name_str));
         }
         for i in 0..(*n).n as usize {
             let mut p = (*n).key[i].pos;
             unrelative(off, &mut p);
             if (*n).level != 0 {
-                mt_inspect_dotfile_node(_b, out, *node_ptr(n).add(i + 1), p, namebuf.as_ptr());
+                mt_inspect_dotfile_node(out, node_ptr(n)[i + 1], p, Some(&name_str));
             }
         }
     }
@@ -3152,19 +3024,19 @@ mod tests {
                     i % 3 == 0,
                 );
             }
-            marktree_check(&mut tree);
+            marktree_check(&tree);
             assert!(marktree_check_intersections(&mut tree));
 
             marktree_splice(&mut tree, 2, 1, 1, 2, 3, 4);
-            marktree_check(&mut tree);
+            marktree_check(&tree);
             assert!(marktree_check_intersections(&mut tree));
 
             marktree_del_pair_test(&mut tree, 1, 5);
-            marktree_check(&mut tree);
+            marktree_check(&tree);
             assert!(marktree_check_intersections(&mut tree));
 
             marktree_clear(&mut tree);
-            marktree_check(&mut tree);
+            marktree_check(&tree);
 
             let mut id = 0u32;
             for i in 1..=50 {
@@ -3173,13 +3045,13 @@ mod tests {
                     marktree_put_test(&mut tree, 10, id, j, i, (i % 2) > 0, -1, -1, false, false);
                 }
             }
-            marktree_check(&mut tree);
+            marktree_check(&tree);
             marktree_splice(&mut tree, 2, 2, 0, 5, 1, 2);
-            marktree_check(&mut tree);
+            marktree_check(&tree);
             marktree_splice(&mut tree, 30, 2, 15, 5, 1, 2);
-            marktree_check(&mut tree);
+            marktree_check(&tree);
             marktree_clear(&mut tree);
-            marktree_check(&mut tree);
+            marktree_check(&tree);
 
             // intersect_mov_test
             let x = [1u64, 3, 4, 6, 7, 9];
@@ -3190,15 +3062,12 @@ mod tests {
             let mut nwout = wout.len();
             let mut ndout = dout.len();
             assert!(intersect_mov_test(
-                x.as_ptr(),
-                x.len(),
-                y.as_ptr(),
-                y.len(),
-                w.as_ptr(),
-                w.len(),
-                wout.as_mut_ptr(),
+                &x,
+                &y,
+                &w,
+                &mut wout,
                 &mut nwout,
-                dout.as_mut_ptr(),
+                &mut dout,
                 &mut ndout,
             ));
             assert_eq!(&wout[..nwout], &[0, 1, 4, 7, 10]);

@@ -202,13 +202,13 @@ pub unsafe fn init_charsize_arg(
 
         if lnum > 0
             && marktree_itr_get_filter(
-                &raw mut (*(*wp).w_buffer).b_marktree,
+                &(*(*wp).w_buffer).b_marktree,
                 lnum - 1,
                 0,
                 lnum,
                 0,
-                INLINE_FILTER.as_ptr(),
-                &raw mut (*csarg).iter,
+                &INLINE_FILTER,
+                &mut (*csarg).iter,
             )
         {
             (*csarg).virt_row = lnum - 1;
@@ -246,7 +246,7 @@ pub unsafe fn init_charsize_arg_skip_cur_text(
 
 unsafe fn inline_virt_text_width(
     wp: *mut win_T,
-    iter: *mut MarkTreeIter,
+    iter: &mut MarkTreeIter,
     row: c_int,
     col: c_int,
 ) -> c_int {
@@ -271,13 +271,7 @@ unsafe fn inline_virt_text_width(
                     vt = (*vt).next;
                 }
             }
-            marktree_itr_next_filter(
-                &raw mut (*buf).b_marktree,
-                iter,
-                row + 1,
-                0,
-                INLINE_FILTER.as_ptr(),
-            );
+            marktree_itr_next_filter(&(*buf).b_marktree, iter, row + 1, 0, &INLINE_FILTER);
         }
         width
     }
@@ -319,7 +313,7 @@ pub unsafe fn charsize_regular(
             let mut tab_size = size;
             let col = cur.offset_from(line) as c_int;
             loop {
-                let mark = marktree_itr_current(&raw mut (*csarg).iter);
+                let mark = marktree_itr_current(&(*csarg).iter);
                 if mark.pos.row != (*csarg).virt_row || mark.pos.col > col {
                     break;
                 } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
@@ -351,11 +345,11 @@ pub unsafe fn charsize_regular(
                     }
                 }
                 marktree_itr_next_filter(
-                    &raw mut (*(*wp).w_buffer).b_marktree,
-                    &raw mut (*csarg).iter,
+                    &(*(*wp).w_buffer).b_marktree,
+                    &mut (*csarg).iter,
                     (*csarg).virt_row + 1,
                     0,
-                    INLINE_FILTER.as_ptr(),
+                    &INLINE_FILTER,
                 );
             }
         }
@@ -496,17 +490,17 @@ pub unsafe fn charsize_regular(
                 let col = s.offset_from(line) as c_int;
                 if has_virt < 0 {
                     has_virt = c_int::from(marktree_itr_get_filter(
-                        &raw mut (*buf).b_marktree,
+                        &(*buf).b_marktree,
                         (*csarg).virt_row,
                         col,
                         (*csarg).virt_row + 1,
                         0,
-                        INLINE_FILTER.as_ptr(),
-                        &raw mut virt_iter,
+                        &INLINE_FILTER,
+                        &mut virt_iter,
                     ));
                 }
                 let virt_width = if has_virt != 0 {
-                    inline_virt_text_width(wp, &raw mut virt_iter, (*csarg).virt_row, col)
+                    inline_virt_text_width(wp, &mut virt_iter, (*csarg).virt_row, col)
                 } else {
                     0
                 };
