@@ -165,7 +165,6 @@ impl DecorRangeData {
     }
 }
 
-#[derive(Clone, Copy)]
 pub struct DecorRange {
     pub start_row: c_int,
     pub start_col: c_int,
@@ -179,7 +178,24 @@ pub struct DecorRange {
     pub draw_col: c_int,
 }
 
-#[derive(Clone, Copy)]
+impl Drop for DecorRange {
+    fn drop(&mut self) {
+        if self.owned {
+            unsafe {
+                match self.data {
+                    DecorRangeData::Vt(vt) | DecorRangeData::VirtLines(vt) => {
+                        if !vt.is_null() {
+                            drop(Box::from_raw(vt));
+                        }
+                    }
+                    DecorRangeData::Sh(sh) => xfree(sh.url.cast_mut().cast()),
+                    DecorRangeData::Ui(_) => {}
+                }
+            }
+        }
+    }
+}
+
 pub enum DecorRangeSlot {
     Occupied(DecorRange),
     Free(c_int),
@@ -383,20 +399,15 @@ pub struct DecorVirtText {
     pub col: c_int,
     pub pos: VirtTextPos,
     pub data: DecorVirtTextData,
-    pub next: *mut DecorVirtText,
+    pub next: Option<Box<DecorVirtText>>,
 }
 
-impl Drop for DecorVirtText {
-    fn drop(&mut self) {
-        let mut next = self.next;
-        self.next = ptr::null_mut();
-        while !next.is_null() {
-            unsafe {
-                let mut boxed = Box::from_raw(next);
-                next = boxed.next;
-                boxed.next = ptr::null_mut();
-            }
-        }
+impl DecorVirtText {
+    #[inline]
+    pub fn next_ptr(&mut self) -> *mut DecorVirtText {
+        self.next
+            .as_deref_mut()
+            .map_or(ptr::null_mut(), |n| &raw mut *n)
     }
 }
 
@@ -526,7 +537,7 @@ pub unsafe fn decor_redraw(
                     };
                     changed_lines_invalidate_buf(buf, vt_lnum, vt_col, vt_lnum + 1, 0);
                 }
-                vt = (*vt).next;
+                vt = (*vt).next_ptr();
             }
 
             let items = &raw const decor_items;
@@ -584,7 +595,7 @@ pub unsafe fn decor_put_sh(item: DecorSignHighlight) -> u32 {
 }
 
 pub unsafe fn decor_put_vt(mut vt: DecorVirtText, next: *mut DecorVirtText) -> *mut DecorVirtText {
-    vt.next = next;
+    vt.next = (!next.is_null()).then(|| unsafe { Box::from_raw(next) });
     Box::into_raw(Box::new(vt))
 }
 
@@ -838,7 +849,7 @@ pub unsafe fn decor_find_virttext(buf: *mut buf_T, row: c_int, ns_id: u64) -> *m
             } else if !mt_invalid(mark) {
                 let mut decor = mt_decor_virt(mark);
                 while !decor.is_null() && ((*decor).flags & kVTIsLines) != 0 {
-                    decor = (*decor).next;
+                    decor = (*decor).next_ptr();
                 }
                 if (ns_id == 0 || ns_id == u64::from(mark.ns)) && !decor.is_null() {
                     return decor;
@@ -854,19 +865,6 @@ pub unsafe fn decor_redraw_reset(wp: *mut win_T, state: *mut DecorState) -> bool
     unsafe {
         (*state).row = -1;
         (*state).win = wp;
-
-        let beg_pos = [0, (*state).future_begin];
-        let end_pos = [(*state).current_end, (*state).ranges_i.len() as c_int];
-
-        for pos_i in 0..2 {
-            for i in beg_pos[pos_i]..end_pos[pos_i] {
-                let slot_idx = (&(*state).ranges_i)[i as usize] as usize;
-                let r = (&mut (*state).slots)[slot_idx].range_mut();
-                if r.owned && r.data.is_vt() {
-                    drop(Box::from_raw(r.data.vt()));
-                }
-            }
-        }
 
         (*state).slots.clear();
         (*state).ranges_i.clear();
@@ -993,7 +991,7 @@ unsafe fn decor_range_add_from_inline(
             let mut vt = decor.data.ext().vt;
             while !vt.is_null() {
                 decor_range_add_virt(state, start_row, start_col, end_row, end_col, vt, owned);
-                vt = (*vt).next;
+                vt = (*vt).next_ptr();
             }
             let items = &raw mut decor_items;
             let mut idx = decor.data.ext().sh_idx;
@@ -1024,6 +1022,8 @@ unsafe fn decor_range_add_from_inline(
 
 unsafe fn decor_range_insert(state: *mut DecorState, mut range: DecorRange) {
     unsafe {
+        let row = range.start_row;
+        let col = range.start_col;
         range.ordering = (*state).new_range_ordering;
         (*state).new_range_ordering += 1;
 
@@ -1037,9 +1037,6 @@ unsafe fn decor_range_insert(state: *mut DecorState, mut range: DecorRange) {
             index = (*state).slots.len() as c_int;
             (*state).slots.push(DecorRangeSlot::Occupied(range));
         }
-
-        let row = range.start_row;
-        let col = range.start_col;
 
         let count = (*state).ranges_i.len() as c_int;
 
@@ -1114,41 +1111,59 @@ pub unsafe fn decor_range_add_sh(
             return;
         }
 
-        let mut range = DecorRange {
-            start_row,
-            start_col,
-            end_row,
-            end_col,
-            ordering: 0,
-            priority_internal: (DecorPriorityInternal::from((*sh).priority) << 16)
-                + DecorPriorityInternal::from(subpriority),
-            owned,
-            data: DecorRangeData::Sh(*sh),
-            attr_id: 0,
-            draw_col: -10,
-        };
+        let priority_internal = (DecorPriorityInternal::from((*sh).priority) << 16)
+            + DecorPriorityInternal::from(subpriority);
 
         if (*sh).hl_id != 0
             || !(*sh).url.is_null()
             || ((*sh).flags & (kSHConcealOff | kSHConceal | kSHSpellOn | kSHSpellOff)) != 0
         {
-            if (*sh).hl_id != 0 {
-                range.attr_id = syn_id2attr((*sh).hl_id);
-            }
-            decor_range_insert(state, range);
+            let attr_id = if (*sh).hl_id != 0 {
+                syn_id2attr((*sh).hl_id)
+            } else {
+                0
+            };
+            decor_range_insert(
+                state,
+                DecorRange {
+                    start_row,
+                    start_col,
+                    end_row,
+                    end_col,
+                    ordering: 0,
+                    priority_internal,
+                    owned,
+                    data: DecorRangeData::Sh(*sh),
+                    attr_id,
+                    draw_col: -10,
+                },
+            );
         }
 
         if ((*sh).flags & kSHUIWatched) != 0 {
-            range.data = DecorRangeData::Ui(DecorRangeUI {
-                ns_id: ns,
-                mark_id,
-                pos: if ((*sh).flags & kSHUIWatchedOverlay) != 0 {
-                    kVPosOverlay
-                } else {
-                    kVPosEndOfLine
+            decor_range_insert(
+                state,
+                DecorRange {
+                    start_row,
+                    start_col,
+                    end_row,
+                    end_col,
+                    ordering: 0,
+                    priority_internal,
+                    owned: false,
+                    data: DecorRangeData::Ui(DecorRangeUI {
+                        ns_id: ns,
+                        mark_id,
+                        pos: if ((*sh).flags & kSHUIWatchedOverlay) != 0 {
+                            kVPosOverlay
+                        } else {
+                            kVPosEndOfLine
+                        },
+                    }),
+                    attr_id: 0,
+                    draw_col: -10,
                 },
-            });
-            decor_range_insert(state, range);
+            );
         }
     }
 }
@@ -1342,14 +1357,6 @@ pub unsafe fn decor_redraw_col_impl(
                 (&mut (*state).ranges_i)[new_cur_end as usize] = index;
                 new_cur_end += 1;
             } else {
-                if (*r).owned {
-                    match (*r).data {
-                        DecorRangeData::Vt(vt) => drop(Box::from_raw(vt)),
-                        DecorRangeData::Sh(sh) => xfree(sh.url.cast_mut().cast()),
-                        _ => {}
-                    }
-                }
-
                 let fi = &raw mut (*state).free_slot_i;
                 *slot = DecorRangeSlot::Free(*fi);
                 *fi = index;
@@ -1792,7 +1799,7 @@ pub unsafe fn decor_virt_lines(
                             }
                         }
                     }
-                    vt = (*vt).next;
+                    vt = (*vt).next_ptr();
                 }
             }
 
@@ -1826,7 +1833,7 @@ pub unsafe fn decor_to_dict_legacy(
                 } else {
                     virt_text = vt;
                 }
-                vt = (*vt).next;
+                vt = (*vt).next_ptr();
             }
 
             let items = &raw const decor_items;
@@ -2017,7 +2024,7 @@ pub unsafe fn decor_type_flags(decor: DecorInline) -> u16 {
                 } else {
                     kExtmarkVirtText
                 };
-                vt = (*vt).next;
+                vt = (*vt).next_ptr();
             }
             let items = &raw const decor_items;
             let mut idx = decor.data.ext().sh_idx;

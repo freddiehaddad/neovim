@@ -1,8 +1,8 @@
 //! Functions for command-line commands (`src/nvim/ex_cmds2.c`).
 
 use crate::arglist::{
-    CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, CMD_argdo, ML_EMPTY, aentry_T, alist_T,
-    do_argfile, editing_arg_idx, ex_all, ex_rewind, set_arglist,
+    CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, CMD_argdo, ML_EMPTY, aentry_T, do_argfile,
+    editing_arg_idx, ex_all, ex_rewind, set_arglist,
 };
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_VERBOSE, EVENT_SYNTAX, apply_autocmds, au_event_disable, au_event_restore,
@@ -78,12 +78,12 @@ const E_COMPILER_NOT_SUPPORTED_STR: &CStr = c"E666: Compiler not supported: %s";
 
 #[inline]
 unsafe fn curwin_argcount() -> c_int {
-    unsafe { (*((*curwin).w_alist.cast::<alist_T>())).al_ga.len() as c_int }
+    unsafe { crate::arglist::argcount() }
 }
 
 #[inline]
 unsafe fn curwin_arglist() -> *mut aentry_T {
-    unsafe { (*((*curwin).w_alist.cast::<alist_T>())).al_ga.as_mut_ptr() }
+    unsafe { crate::arglist::arglist() }
 }
 
 pub unsafe fn ex_ruby(eap: *mut exarg_T) {

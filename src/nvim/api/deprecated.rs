@@ -323,7 +323,7 @@ pub unsafe extern "C" fn nvim_buf_set_virtual_text(
                 col: 0,
                 pos: kVPosEndOfLine,
                 data: DecorVirtTextData::VirtText(virt_text),
-                next: ptr::null_mut(),
+                next: None,
             },
             ptr::null_mut(),
         );

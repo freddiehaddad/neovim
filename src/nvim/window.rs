@@ -10,7 +10,6 @@ use crate::api::win_config::{
     kFloatRelativeLaststatus, kFloatRelativeTabline, kFloatRelativeWindow, kUIMultigrid,
     kWinStyleMinimal,
 };
-use crate::arglist::alist_unlink;
 use crate::autocmd::{
     AUGROUP_ALL, EVENT_BUFENTER, EVENT_BUFLEAVE, EVENT_TABCLOSED, EVENT_TABCLOSEDPRE,
     EVENT_TABENTER, EVENT_TABLEAVE, EVENT_TABMOVED, EVENT_TABNEW, EVENT_TABNEWENTERED,
@@ -436,6 +435,7 @@ pub struct win_T {
     pub handle: handle_T,
     pub w_buffer: *mut buf_T,
     pub w_s: *mut crate::syntax::synblock_T,
+    pub w_s_owned: Option<Box<crate::syntax::synblock_T>>,
     pub w_ns_hl: c_int,
     pub w_ns_hl_winhl: c_int,
     pub w_ns_hl_active: c_int,
@@ -548,7 +548,7 @@ pub struct win_T {
     pub w_stl_visual_mode: c_int,
     pub w_stl_visual_pos: pos_T,
     pub w_alt_fnum: c_int,
-    pub w_alist: *mut crate::arglist::alist_T,
+    pub w_alist: Option<std::rc::Rc<std::cell::RefCell<crate::arglist::alist_T>>>,
     pub w_arg_idx: c_int,
     pub w_arg_idx_invalid: bool,
     pub w_localdir: *mut c_char,
@@ -605,6 +605,7 @@ impl win_T {
             handle: 0,
             w_buffer: ptr::null_mut(),
             w_s: ptr::null_mut(),
+            w_s_owned: None,
             w_ns_hl: 0,
             w_ns_hl_winhl: 0,
             w_ns_hl_active: 0,
@@ -748,7 +749,7 @@ impl win_T {
             w_stl_visual_mode: 0,
             w_stl_visual_pos: ZERO_POS,
             w_alt_fnum: 0,
-            w_alist: ptr::null_mut(),
+            w_alist: None,
             w_arg_idx: 0,
             w_arg_idx_invalid: false,
             w_localdir: ptr::null_mut(),
@@ -2556,8 +2557,7 @@ pub unsafe fn win_init(newp: *mut win_T, oldp: *mut win_T, flags: c_int) {
 
 unsafe fn win_init_some(newp: *mut win_T, oldp: *mut win_T) {
     unsafe {
-        (*newp).w_alist = (*oldp).w_alist;
-        (*(*newp).w_alist).al_refcount += 1;
+        (*newp).w_alist = (*oldp).w_alist.clone();
         (*newp).w_arg_idx = (*oldp).w_arg_idx;
 
         win_copy_options(oldp, newp);
@@ -5055,7 +5055,7 @@ unsafe fn win_alloc_firstwin(oldwin: *mut win_T) -> c_int {
             (*curwin).w_buffer = curbuf;
             (*curwin).w_s = &raw mut (*curbuf).b_s;
             (*curbuf).b_nwindows = 1;
-            (*curwin).w_alist = &raw mut global_alist;
+            (*curwin).w_alist = None;
             curwin_init();
         } else {
             win_init(curwin, oldwin, 0);
@@ -6274,7 +6274,7 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         (*map_ptr).remove(&(*wp).handle);
         clearFolding(wp);
 
-        alist_unlink((*wp).w_alist.cast());
+        (*wp).w_alist = None;
 
         block_autocmds();
 

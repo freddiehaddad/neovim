@@ -268,7 +268,7 @@ unsafe fn inline_virt_text_width(
                     if ((*vt).flags & kVTIsLines) == 0 && (*vt).pos == kVPosInline {
                         width += (*vt).width;
                     }
-                    vt = (*vt).next;
+                    vt = (*vt).next_ptr();
                 }
             }
             marktree_itr_next_filter(&(*buf).b_marktree, iter, row + 1, 0, &INLINE_FILTER);
@@ -341,7 +341,7 @@ pub unsafe fn charsize_regular(
                                 size += tab_size;
                             }
                         }
-                        vt = (*vt).next;
+                        vt = (*vt).next_ptr();
                     }
                 }
                 marktree_itr_next_filter(

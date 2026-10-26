@@ -6,7 +6,6 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
-use crate::arglist::alist_T;
 use crate::buffer::{
     BLN_LISTED, JUMPLISTSIZE, NMARKS, bt_quickfix, bt_terminal, buf_T, buflist_findnr, buflist_new,
     buflist_setfpos,
@@ -1317,7 +1316,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
             (flags & kShaDaGetOldfiles) != 0 && (force || tv_list_len(oldfiles_list) == 0);
         let want_marks = (flags & kShaDaWantMarks) != 0;
         let no_opt = (flags & kShaDaNoOpt) != 0;
-        let argcount = (*(*curwin).w_alist.cast::<alist_T>()).al_ga.len() as c_int;
+        let argcount = crate::arglist::argcount();
         let srni_flags: c_uint = (if (flags & kShaDaWantInfo) != 0 {
             kSDReadUndisableableData
                 | kSDReadRegisters

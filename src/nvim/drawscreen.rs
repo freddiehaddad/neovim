@@ -180,7 +180,7 @@ static mut suspended_virt_text: DecorVirtText = DecorVirtText {
     col: 0,
     pos: kVPosWinCol,
     data: DecorVirtTextData::empty(),
-    next: ptr::null_mut(),
+    next: None,
 };
 
 #[inline]

@@ -4384,7 +4384,7 @@ pub unsafe fn get_rel_pos(wp: *mut win_T, buf: *mut c_char, buflen: c_int) -> c_
 /// Append `(2 of 8)` to `buf[]`, if editing more than one file.
 pub unsafe fn append_arg_number(wp: *mut win_T, buf: *mut c_char, buflen: usize) -> c_int {
     unsafe {
-        let argcount = (*(*curwin).w_alist).al_ga.len() as c_int;
+        let argcount = crate::arglist::argcount();
         if argcount <= 1 {
             return 0;
         }

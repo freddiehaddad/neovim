@@ -67,7 +67,6 @@ const E_WINDOW_LAYOUT_CHANGED_UNEXPECTEDLY: &CStr = c"E249: Window layout change
 #[repr(C)]
 pub struct alist_T {
     pub al_ga: Vec<aentry_T>,
-    pub al_refcount: c_int,
     pub id: c_int,
 }
 
@@ -75,7 +74,6 @@ impl alist_T {
     pub const fn new() -> Self {
         Self {
             al_ga: Vec::new(),
-            al_refcount: 0,
             id: 0,
         }
     }
@@ -97,6 +95,7 @@ impl Drop for aentry_T {
 
 struct arg_all_state_T {
     alist: *mut alist_T,
+    local_alist: Option<std::rc::Rc<std::cell::RefCell<alist_T>>>,
     had_tab: c_int,
     keep_tabs: bool,
     forceit: bool,
@@ -109,8 +108,13 @@ struct arg_all_state_T {
 static mut arglist_locked: bool = false;
 
 #[inline]
-unsafe fn win_alist(wp: *const win_T) -> *mut alist_T {
-    unsafe { (*wp).w_alist }
+pub unsafe fn win_alist(wp: *const win_T) -> *mut alist_T {
+    unsafe {
+        (*wp)
+            .w_alist
+            .as_ref()
+            .map_or(&raw mut global_alist, |rc| rc.as_ptr())
+    }
 }
 
 #[inline]
@@ -129,7 +133,7 @@ unsafe fn wargcount(wp: *const win_T) -> c_int {
 }
 
 #[inline]
-unsafe fn arglist() -> *mut aentry_T {
+pub unsafe fn arglist() -> *mut aentry_T {
     unsafe { warglist(curwin) }
 }
 
@@ -173,35 +177,14 @@ pub unsafe fn alist_clear(al: *mut alist_T) {
     }
 }
 
-/// Init an argument list (`alist_init`).
-pub unsafe fn alist_init(al: *mut alist_T) {
-    unsafe {
-        ptr::write(&raw mut (*al).al_ga, Vec::new());
-    }
-}
-
-/// Remove a reference from an argument list (`alist_unlink`).
-pub unsafe fn alist_unlink(al: *mut alist_T) {
-    unsafe {
-        if !ptr::eq(al, &raw const global_alist) {
-            (*al).al_refcount -= 1;
-            if (*al).al_refcount <= 0 {
-                drop(Box::from_raw(al));
-            }
-        }
-    }
-}
-
 /// Create a new argument list and use it for the current window (`alist_new`).
 pub unsafe fn alist_new() {
     unsafe {
         max_alist_id += 1;
-        let al = Box::into_raw(Box::new(alist_T {
+        (*curwin).w_alist = Some(std::rc::Rc::new(std::cell::RefCell::new(alist_T {
             al_ga: Vec::new(),
-            al_refcount: 1,
             id: max_alist_id,
-        }));
-        (*curwin).w_alist = al;
+        })));
     }
 }
 
@@ -347,7 +330,7 @@ unsafe fn alist_check_arg_idx() {
         while !tp.is_null() {
             let mut win = first_win_in_tab(tp);
             while !win.is_null() {
-                if (*win).w_alist == (*curwin).w_alist {
+                if win_alist(win) == win_alist(curwin) {
                     check_arg_idx(win);
                 }
                 win = (*win).w_next;
@@ -551,9 +534,8 @@ pub unsafe fn ex_args(eap: *mut exarg_T) {
             if check_arglist_locked() == FAIL {
                 return;
             }
-            alist_unlink(win_alist(curwin));
             if (*eap).cmdidx == CMD_argglobal {
-                (*curwin).w_alist = &raw mut global_alist;
+                (*curwin).w_alist = None;
             } else {
                 alist_new();
             }
@@ -970,9 +952,7 @@ unsafe fn arg_all_close_unused_windows(aall: *mut arg_all_state_T) {
                                 }
 
                                 if win_alist(wp) != al {
-                                    alist_unlink(win_alist(wp));
-                                    (*wp).w_alist = al;
-                                    (*al).al_refcount += 1;
+                                    (*wp).w_alist = aall_ref.local_alist.clone();
                                 }
                                 break;
                             }
@@ -1143,6 +1123,7 @@ unsafe fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
 
         let mut aall = arg_all_state_T {
             alist: win_alist(curwin),
+            local_alist: (*curwin).w_alist.clone(),
             had_tab: cmdmod.cmod_tab,
             keep_tabs,
             forceit: forceit != 0,
@@ -1152,7 +1133,6 @@ unsafe fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
             new_curtab: ptr::null_mut(),
         };
 
-        (*aall.alist).al_refcount += 1;
         arglist_locked = true;
 
         let new_lu_tp = curtab;
@@ -1174,7 +1154,7 @@ unsafe fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
 
         arg_all_open_windows(&raw mut aall, count);
 
-        alist_unlink(aall.alist);
+        drop(aall.local_alist.take());
         arglist_locked = prev_arglist_locked;
 
         autocmd_no_enter -= 1;
@@ -1354,7 +1334,6 @@ mod tests {
     fn alist_init_and_clear_work() {
         unsafe {
             let mut al = alist_T::new();
-            alist_init(&raw mut al);
             assert!(al.al_ga.is_empty());
             alist_clear(&raw mut al);
             assert!(al.al_ga.is_empty());

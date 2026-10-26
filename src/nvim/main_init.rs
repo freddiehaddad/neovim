@@ -7,7 +7,7 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::api::ui::remote_ui_wait_for_attach;
-use crate::arglist::{alist_add, alist_init, alist_name, gargcount, garglist};
+use crate::arglist::{alist_add, alist_name, gargcount, garglist};
 use crate::autocmd::{
     EVENT_BUFENTER, EVENT_BUFUNLOAD, EVENT_BUFWINLEAVE, EVENT_VIMENTER, EVENT_VIMLEAVE,
     EVENT_VIMLEAVEPRE, apply_autocmds, autocmd_init, block_autocmds, is_autocmd_blocked,
@@ -375,7 +375,6 @@ unsafe fn early_init(paramp: *mut mparm_T) {
         win_alloc_first();
         time_msg_if_enabled(c"init first window".as_ptr());
 
-        alist_init(&raw mut global_alist);
         global_alist.id = 0;
 
         init_homedir();
@@ -2658,7 +2657,6 @@ pub(crate) unsafe fn ensure_test_editor_init() {
         init_locale();
         set_init_tablocal();
         win_alloc_first();
-        alist_init(&raw mut global_alist);
         global_alist.id = 0;
         init_homedir();
         set_init_1(true);

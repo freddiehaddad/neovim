@@ -747,7 +747,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
             col: 0,
             pos: kVPosEndOfLine,
             data: DecorVirtTextData::empty(),
-            next: ptr::null_mut(),
+            next: None,
         };
         let mut virt_lines = DecorVirtText {
             flags: kVTIsLines,
@@ -757,7 +757,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
             col: 0,
             pos: kVPosEndOfLine,
             data: DecorVirtTextData::empty_lines(),
-            next: ptr::null_mut(),
+            next: None,
         };
         let mut url: *mut c_char = ptr::null_mut();
         let mut has_hl = false;

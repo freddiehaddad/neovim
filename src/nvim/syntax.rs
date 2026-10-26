@@ -2979,8 +2979,8 @@ impl Drop for synblock_T {
 /// Get rid of ownsyntax for window "wp".
 pub unsafe fn reset_synblock(wp: *mut win_T) {
     unsafe {
-        if win_s(wp) != &raw mut (*(*wp).w_buffer).b_s {
-            drop(Box::from_raw((*wp).w_s));
+        if (*wp).w_s_owned.is_some() {
+            (*wp).w_s_owned = None;
             (*wp).w_s = &raw mut (*(*wp).w_buffer).b_s;
         }
     }
@@ -5204,14 +5204,16 @@ pub unsafe fn ex_syntax(eap: *mut exarg_T) {
 pub unsafe fn ex_ownsyntax(eap: *mut exarg_T) {
     unsafe {
         if win_s(curwin) == &raw mut (*(*curwin).w_buffer).b_s {
-            let new_s = Box::into_raw(Box::new(synblock_T::new()));
-            (*curwin).w_s = new_s;
+            let mut new_s = Box::new(synblock_T::new());
+            let new_s_ptr: *mut synblock_T = &raw mut *new_s;
+            (*curwin).w_s_owned = Some(new_s);
+            (*curwin).w_s = new_s_ptr;
             (*curwin).w_onebuf_opt.wo_spell = 0;
-            clear_string_option(&raw mut (*new_s).b_p_spc);
-            clear_string_option(&raw mut (*new_s).b_p_spf);
-            clear_string_option(&raw mut (*new_s).b_p_spl);
-            clear_string_option(&raw mut (*new_s).b_p_spo);
-            clear_string_option(&raw mut (*new_s).b_syn_isk);
+            clear_string_option(&raw mut (*new_s_ptr).b_p_spc);
+            clear_string_option(&raw mut (*new_s_ptr).b_p_spf);
+            clear_string_option(&raw mut (*new_s_ptr).b_p_spl);
+            clear_string_option(&raw mut (*new_s_ptr).b_p_spo);
+            clear_string_option(&raw mut (*new_s_ptr).b_syn_isk);
         }
 
         let mut old_value = get_var_value(c"b:current_syntax".as_ptr());

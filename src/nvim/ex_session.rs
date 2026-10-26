@@ -1,6 +1,6 @@
 //! Functions for creating a session file (`:mkexrc`, `:mkvimrc`, `:mkview`, `:mksession`) (`src/nvim/ex_session.c`).
 
-use crate::arglist::{aentry_T, alist_T, alist_name};
+use crate::arglist::{aentry_T, alist_name};
 use crate::autocmd::{EVENT_SESSIONWRITEPOST, EVENT_SESSIONWRITEPRE, apply_autocmds};
 use crate::buffer::{bt_help, bt_nofilename, bt_normal, bt_terminal, buf_T, buflist_findnr};
 use crate::charset::{NUL, ascii_isdigit};
@@ -337,12 +337,12 @@ unsafe fn put_view(
         let mut do_cursor =
             ptr::eq(flagp, &raw mut ssop_flags) || (*flagp & kOptSsopFlagCursor) != 0;
 
-        if ptr::eq((*wp).w_alist.cast::<alist_T>(), &raw const global_alist) {
+        if (*wp).w_alist.is_none() {
             if put_line(fd, c"argglobal".as_ptr().cast_mut()) == FAIL {
                 return FAIL;
             }
         } else {
-            let alist = (*wp).w_alist.cast::<alist_T>();
+            let alist = crate::arglist::win_alist(wp);
             if ses_arglist(
                 fd,
                 c"arglocal".as_ptr(),
@@ -358,7 +358,7 @@ unsafe fn put_view(
             }
         }
 
-        let wargcount = (*(*wp).w_alist.cast::<alist_T>()).al_ga.len() as c_int;
+        let wargcount = (*crate::arglist::win_alist(wp)).al_ga.len() as c_int;
         if (*wp).w_arg_idx != current_arg_idx
             && (*wp).w_arg_idx < wargcount
             && ptr::eq(flagp, &raw mut ssop_flags)
