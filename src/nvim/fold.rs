@@ -32,7 +32,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_adjust_cursor, ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::mcursor::mc_replaying;
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_replace_buf};
-use crate::memory::{cstr_take, xmemcpyz, xmemdupz};
+use crate::memory::{cstr_take, xmemcpyz};
 use crate::message::emsg;
 use crate::r#move::changed_window_setting;
 use crate::ops::skip_comment;
@@ -2809,8 +2809,7 @@ pub unsafe fn f_foldtext(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
             let r_len = CStr::from_ptr(r).to_bytes().len();
             ptr::copy_nonoverlapping(s, r.add(r_len), s_len + 1);
             foldtext_cleanup(r.add(r_len));
-            (*rettv).vval.v_string =
-                xmemdupz(r.cast(), CStr::from_ptr(r).to_bytes().len()).cast::<c_char>();
+            crate::eval::typval::tv_set_string_len(rettv, r, CStr::from_ptr(r).to_bytes().len());
         }
     }
 }
@@ -2843,8 +2842,11 @@ pub unsafe fn f_foldtextresult(argvars: *mut typval_T, rettv: *mut typval_T, _fp
                     text_bytes.extend_from_slice(CStr::from_ptr(new_text).to_bytes());
                 }
             }
-            (*rettv).vval.v_string =
-                xmemdupz(text_bytes.as_ptr().cast(), text_bytes.len()).cast::<c_char>();
+            crate::eval::typval::tv_set_string_len(
+                rettv,
+                text_bytes.as_ptr().cast(),
+                text_bytes.len(),
+            );
         }
 
         fdt_result_entered = false;

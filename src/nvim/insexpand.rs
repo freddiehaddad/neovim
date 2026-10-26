@@ -1156,7 +1156,7 @@ unsafe fn ins_compl_add(
         };
 
         let match_ = compl_T {
-            cp_str: crate::api::private::helpers::cstrn_as_string(str_ptr, len as usize),
+            cp_str: crate::api::private::helpers::cbuf_to_string(str_ptr, len as usize),
             cp_text,
             cp_user_data,
             cp_fname,

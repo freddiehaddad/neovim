@@ -471,42 +471,42 @@ unsafe fn set_maparg_lhs_rhs(
 ) -> bool {
     unsafe {
         mapargs.rhs_lua = rhs_lua;
-        let mut lhs_buf = [0 as c_char; 128];
 
         let mut did_simplify = false;
         let flags = REPTERM_FROM_PART | REPTERM_DO_LT;
-        let mut bufarg = lhs_buf.as_mut_ptr();
-        let mut replaced = replace_termcodes(
+        let Some(replaced) = replace_termcodes(
             orig_lhs,
             orig_lhs_len,
-            &mut bufarg,
+            true,
             0,
             flags,
             &mut did_simplify,
             cpo_val,
-        );
-        if replaced.is_null() {
+        ) else {
             return false;
-        }
-        mapargs.lhs_len = CStr::from_ptr(replaced).to_bytes().len();
-        xstrlcpy(mapargs.lhs.as_mut_ptr(), replaced, mapargs.lhs.len());
+        };
+        mapargs.lhs_len = replaced.as_bytes().len();
+        xstrlcpy(
+            mapargs.lhs.as_mut_ptr(),
+            replaced.as_ptr(),
+            mapargs.lhs.len(),
+        );
         if did_simplify {
-            replaced = replace_termcodes(
+            let Some(alt_replaced) = replace_termcodes(
                 orig_lhs,
                 orig_lhs_len,
-                &mut bufarg,
+                true,
                 0,
                 flags | REPTERM_NO_SIMPLIFY,
                 ptr::null_mut(),
                 cpo_val,
-            );
-            if replaced.is_null() {
+            ) else {
                 return false;
-            }
-            mapargs.alt_lhs_len = CStr::from_ptr(replaced).to_bytes().len();
+            };
+            mapargs.alt_lhs_len = alt_replaced.as_bytes().len();
             xstrlcpy(
                 mapargs.alt_lhs.as_mut_ptr(),
-                replaced,
+                alt_replaced.as_ptr(),
                 mapargs.alt_lhs.len(),
             );
         } else {
@@ -541,17 +541,16 @@ unsafe fn set_maparg_rhs(
                 mapargs.rhs_len = 0;
                 mapargs.rhs_is_noop = true;
             } else {
-                let mut rhs_buf: *mut c_char = ptr::null_mut();
-                let replaced = replace_termcodes(
+                let replaced_cstr = replace_termcodes(
                     orig_rhs,
                     orig_rhs_len,
-                    &mut rhs_buf,
+                    false,
                     sid,
                     REPTERM_DO_LT,
                     ptr::null_mut(),
                     cpo_val,
-                );
-                let replaced_cstr = cstr_take(replaced).unwrap_or_default();
+                )
+                .unwrap_or_default();
                 mapargs.rhs_len = replaced_cstr.as_bytes().len();
                 mapargs.rhs_is_noop = orig_rhs_len != 0 && mapargs.rhs_len == 0;
                 mapargs.rhs = Some(replaced_cstr);
@@ -1223,16 +1222,16 @@ pub unsafe fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: bool, abbr: bo
 pub unsafe fn map_to_exists(str_ptr: *const c_char, modechars: *const c_char, abbr: bool) -> bool {
     unsafe {
         let mut mode: c_int = 0;
-        let mut buf: *mut c_char = ptr::null_mut();
         let rhs = replace_termcodes(
             str_ptr,
             CStr::from_ptr(str_ptr).to_bytes().len(),
-            &mut buf,
+            false,
             0,
             REPTERM_DO_LT,
             ptr::null_mut(),
             p_cpo,
-        );
+        )
+        .unwrap_or_default();
 
         let mode_bytes = CStr::from_ptr(modechars).to_bytes();
         if mode_bytes.contains(&b'n') {
@@ -1260,9 +1259,7 @@ pub unsafe fn map_to_exists(str_ptr: *const c_char, modechars: *const c_char, ab
             mode |= MODE_CMDLINE;
         }
 
-        let retval = map_to_exists_mode(rhs, mode, abbr);
-        let _ = cstr_take(buf);
-        retval
+        map_to_exists_mode(rhs.as_ptr(), mode, abbr)
     }
 }
 
@@ -1747,17 +1744,15 @@ pub unsafe fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> Option<CString> {
         let p = p?;
 
         if replace_keycodes {
-            let mut res: *mut c_char = ptr::null_mut();
             replace_termcodes(
                 p.as_ptr(),
                 p.to_bytes().len(),
-                &mut res,
+                false,
                 0,
                 REPTERM_DO_LT,
                 ptr::null_mut(),
                 p_cpo,
-            );
-            crate::memory::cstr_take(res)
+            )
         } else {
             Some(vim_strsave_escape_ks(p.as_ptr()))
         }
@@ -2250,8 +2245,6 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: *mut typval_T, exact: c_int)
             return;
         }
 
-        let mut keys_buf: *mut c_char = ptr::null_mut();
-        let mut alt_keys_buf: *mut c_char = ptr::null_mut();
         let mut did_simplify = false;
         let flags = REPTERM_FROM_PART | REPTERM_DO_LT;
         let mut which_mut = which as *mut c_char;
@@ -2261,17 +2254,18 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: *mut typval_T, exact: c_int)
         let keys_simplified = replace_termcodes(
             keys,
             keys_len,
-            &mut keys_buf,
+            false,
             0,
             flags,
             &mut did_simplify,
             p_cpo,
-        );
+        )
+        .unwrap_or_default();
         let mut mp: *mut mapblock_T = ptr::null_mut();
         let mut buffer_local: c_int = 0;
         let mut rhs_lua: LuaRef = LUA_NOREF;
         let mut rhs = check_map(
-            keys_simplified,
+            keys_simplified.as_ptr().cast_mut(),
             mode,
             exact,
             0,
@@ -2280,18 +2274,20 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: *mut typval_T, exact: c_int)
             &mut buffer_local,
             &mut rhs_lua,
         );
+        let alt_keys;
         if did_simplify {
-            replace_termcodes(
+            alt_keys = replace_termcodes(
                 keys,
                 keys_len,
-                &mut alt_keys_buf,
+                false,
                 0,
                 flags | REPTERM_NO_SIMPLIFY,
                 ptr::null_mut(),
                 p_cpo,
-            );
+            )
+            .unwrap_or_default();
             rhs = check_map(
-                alt_keys_buf,
+                alt_keys.as_ptr().cast_mut(),
                 mode,
                 exact,
                 0,
@@ -2324,7 +2320,7 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: *mut typval_T, exact: c_int)
             let dict = mapblock_fill_dict(
                 mp,
                 if did_simplify {
-                    keys_simplified
+                    keys_simplified.as_ptr()
                 } else {
                     ptr::null()
                 },
@@ -2339,9 +2335,6 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: *mut typval_T, exact: c_int)
         } else {
             tv_dict_alloc_ret(rettv);
         }
-
-        let _ = cstr_take(keys_buf);
-        let _ = cstr_take(alt_keys_buf);
     }
 }
 
@@ -2547,7 +2540,6 @@ pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                         continue;
                     }
 
-                    let mut keys_buf: *mut c_char = ptr::null_mut();
                     let mut did_simplify = false;
 
                     let mut arena = Arena {
@@ -2556,19 +2548,24 @@ pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                         size: 0,
                     };
                     let lhs = str2special_arena((*mp).m_keys.as_ptr(), true, kFalse, &mut arena);
-                    replace_termcodes(
+                    let keys_buf = replace_termcodes(
                         lhs,
                         CStr::from_ptr(lhs).to_bytes().len(),
-                        &mut keys_buf,
+                        false,
                         0,
                         flags,
                         &mut did_simplify,
                         p_cpo,
-                    );
+                    )
+                    .unwrap_or_default();
 
                     let dict = mapblock_fill_dict(
                         mp,
-                        if did_simplify { keys_buf } else { ptr::null() },
+                        if did_simplify {
+                            keys_buf.as_ptr()
+                        } else {
+                            ptr::null()
+                        },
                         buffer_local,
                         abbr,
                         true,
@@ -2584,7 +2581,6 @@ pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                     debug_assert!(d.v_type == VarType::VAR_DICT);
                     tv_list_append_dict((*rettv).vval.v_list, d.vval.v_dict);
                     arena_mem_free(arena_finish(&mut arena));
-                    let _ = cstr_take(keys_buf);
                 }
             }
         }

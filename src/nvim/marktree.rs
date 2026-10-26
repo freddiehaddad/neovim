@@ -1,11 +1,11 @@
 //! B-tree data structure for storing marks at `(row, col)` positions and updating them
 //! to arbitrary text changes (`src/nvim/marktree.c`).
 
-use std::ffi::{c_char, c_int};
+use std::ffi::c_int;
 use std::fmt::Write as _;
 
 use crate::api::private::validate::NvimString;
-use crate::memory::xmemdupz;
+use crate::api::private::helpers::cbuf_to_string;
 
 use crate::cursor::colnr_T;
 
@@ -2845,10 +2845,7 @@ pub unsafe fn mt_inspect(b: &MarkTree, keys: bool, dot: bool) -> NvimString {
                 mt_inspect_node(&mut out, keys, b.root, p);
             }
         }
-        NvimString {
-            data: xmemdupz(out.as_ptr().cast(), out.len()).cast::<c_char>(),
-            size: out.len(),
-        }
+        cbuf_to_string(out.as_ptr().cast(), out.len())
     }
 }
 

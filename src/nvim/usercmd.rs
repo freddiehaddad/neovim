@@ -1108,18 +1108,16 @@ pub unsafe fn uc_add_command(
     unsafe {
         let mut cmd: *mut ucmd_T = ptr::null_mut();
         let mut cmp: c_int = 1;
-        let mut rep_buf: *mut c_char = ptr::null_mut();
-
-        replace_termcodes(
+        let rep_cstr = replace_termcodes(
             rep,
             CStr::from_ptr(rep).to_bytes().len(),
-            &raw mut rep_buf,
+            false,
             0,
             0,
             ptr::null_mut(),
             p_cpo,
-        );
-        let rep_cstr = cstr_take(rep_buf).unwrap_or_else(|| CStr::from_ptr(rep).to_owned());
+        )
+        .unwrap_or_else(|| CStr::from_ptr(rep).to_owned());
 
         let u = &raw mut ucmds;
         let gap: &mut Vec<ucmd_T> = if (flags & UC_BUFFER) != 0 {

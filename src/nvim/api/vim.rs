@@ -9,7 +9,7 @@ use crate::api::private::converter::vim_to_object;
 use crate::api::private::helpers::{
     ArrayBuilder, HlMessageChunk, TryState, add_c, api_metadata, api_set_error, api_set_sctx,
     api_typename, arena_array, arena_dict, arena_take_arraybuilder, array_obj, boolean_obj,
-    buffer_obj, copy_array, copy_dict, copy_object, copy_string, cstr_as_obj, cstr_as_string,
+    buffer_obj, cbuf_to_string, copy_array, copy_dict, copy_object, copy_string, cstr_as_obj,
     cstr_to_arena_obj, dict_get_value, dict_obj, dict_set_var, error_set, find_buffer_by_handle,
     find_tab_by_handle, find_window_by_handle, get_default_stl_hl, integer_obj, nil_obj,
     parse_hl_msg, put_c, set_mark, static_cstr_as_string, string_obj, string_to_array, tabpage_obj,
@@ -825,17 +825,17 @@ pub unsafe extern "C" fn nvim_replace_termcodes(
     }
 
     unsafe {
-        let mut ptr_out: *mut c_char = ptr::null_mut();
-        replace_termcodes(
+        let out = replace_termcodes(
             str_.data,
             str_.size,
-            &mut ptr_out,
+            false,
             0,
             flags,
             ptr::null_mut(),
             p_cpo,
-        );
-        cstr_as_string(ptr_out)
+        )
+        .unwrap_or_default();
+        cbuf_to_string(out.as_ptr(), out.as_bytes().len())
     }
 }
 

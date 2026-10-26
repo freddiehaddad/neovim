@@ -3,7 +3,7 @@
 use crate::api::private::helpers::{
     add_c, api_free_array, arena_array, arena_dict, arena_string, cstr_as_string, put_c,
 };
-use crate::api::private::validate::{Array, NvimString, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
 use crate::buffer::{
     append_arg_number, bt_quickfix, buf_T, buf_spname, calc_percentage, get_rel_pos, kUIMessages,
 };
@@ -33,7 +33,7 @@ use crate::highlight_group::{syn_id2attr, syn_name2id_len};
 use crate::keycodes::NL;
 use crate::mbyte::{ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_find_line_or_offset, ml_get_buf, ml_get_buf_len};
-use crate::memory::{Arena, arena_finish, arena_mem_free, xmemdupz, xstrlcpy};
+use crate::memory::{Arena, arena_finish, arena_mem_free, xstrlcpy};
 use crate::message::HLF_MSG;
 use crate::message::msg_clr_eos;
 use crate::mouse::{
@@ -673,10 +673,10 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
                     chunk.push(Object {
                         obj_type: ObjectType::kObjectTypeString,
                         data: ObjectData {
-                            string: NvimString {
-                                data: xmemdupz(transbuf.as_ptr().cast(), tsize).cast(),
-                                size: tsize,
-                            },
+                            string: crate::api::private::helpers::cbuf_to_string(
+                                transbuf.as_ptr(),
+                                tsize,
+                            ),
                         },
                     });
                     chunk.push(Object {

@@ -56,10 +56,7 @@ use crate::mbyte::{
     mb_string2cells_len, mb_unescape, ptr2cells, utf_char2bytes, utf_char2cells, utf_head_off,
     utf_ptr2cells, utf_ptr2char, utf_ptr2len, utf8len_tab, utfc_ptr2len, utfc_ptr2len_len,
 };
-use crate::memory::{
-    Arena, arena_alloc, strequal, xfree, xmemdupz, xmemrchr, xstrlcat, xstrlcpy,
-    xstrnlen,
-};
+use crate::memory::{Arena, arena_alloc, strequal, xmemrchr, xstrlcat, xstrlcpy, xstrnlen};
 use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::shortmess;
@@ -1418,10 +1415,7 @@ unsafe fn msg_hist_add(mut s: *const c_char, len: c_int, hl_id: c_int) {
         if size == 0 {
             return;
         }
-        let text = NvimString {
-            data: xmemdupz(s.cast(), size).cast(),
-            size,
-        };
+        let text = crate::api::private::helpers::cbuf_to_string(s, size);
 
         let msg = vec![HlMessageChunk { text, hl_id }];
         msg_hist_add_multihl(msg, false);
@@ -2852,10 +2846,10 @@ unsafe fn msg_ext_emit_chunk() {
         });
         msg_ext_last_attr = -1;
         let last_chunk = &raw mut msg_ext_last_chunk;
-        let text = NvimString {
-            data: xmemdupz((*last_chunk).as_ptr().cast(), (*last_chunk).len()).cast(),
-            size: (*last_chunk).len(),
-        };
+        let text = crate::api::private::helpers::cbuf_to_string(
+            (*last_chunk).as_ptr().cast(),
+            (*last_chunk).len(),
+        );
         *last_chunk = Vec::new();
         chunk.push(Object {
             obj_type: ObjectType::kObjectTypeString,
@@ -3906,13 +3900,19 @@ pub unsafe fn msg_ext_ui_flush() {
                 let mut msg = HlMessage::new();
                 for i in 0..tofree.size {
                     let chunk = (*tofree.items.add(i)).data.array.items;
+                    let text = std::mem::replace(
+                        &mut (*chunk.add(1)).data.string,
+                        NvimString {
+                            data: ptr::null_mut(),
+                            size: 0,
+                        },
+                    );
                     msg.push(HlMessageChunk {
-                        text: (*chunk.add(1)).data.string,
+                        text,
                         hl_id: (*chunk.add(2)).data.integer as c_int,
                     });
-                    xfree(chunk.cast());
                 }
-                xfree(tofree.items.cast());
+                api_free_array(tofree);
                 msg_hist_add_multihl(msg, true);
             }
             msg_ext_overwrite = false;

@@ -19,7 +19,7 @@ use crate::globals::*;
 use crate::input::{REMAP_SCRIPT, ins_typebuf, tasave_T};
 use crate::keycodes::{REPTERM_DO_LT, replace_termcodes};
 use crate::mbyte::{utf_char2bytes, utfc_ptr2len};
-use crate::memory::{cstr_take, xstrlcpy};
+use crate::memory::xstrlcpy;
 use crate::message::{
     emsg, msg_outnum, msg_outtrans, msg_outtrans_special, msg_putchar, msg_puts, msg_puts_hl,
     msg_puts_title, semsg, str2special_save,
@@ -353,21 +353,22 @@ pub unsafe fn ex_menu(eap: *mut exarg_T) {
                 return;
             }
 
-            let mut map_buf: *mut c_char = ptr::null_mut();
-            if vim_stricmp(map_to, c"<nop>".as_ptr()) == 0 {
+            let map_buf_owned = if vim_stricmp(map_to, c"<nop>".as_ptr()) == 0 {
                 map_to = c"".as_ptr().cast_mut();
+                None
             } else if (modes & MENU_TIP_MODE) == 0 {
-                map_to = replace_termcodes(
+                replace_termcodes(
                     map_to,
                     CStr::from_ptr(map_to).to_bytes().len(),
-                    &raw mut map_buf,
+                    false,
                     0,
                     REPTERM_DO_LT,
                     ptr::null_mut(),
                     p_cpo,
-                );
-            }
-            let map_buf_owned = cstr_take(map_buf);
+                )
+            } else {
+                None
+            };
             if let Some(ref mb) = map_buf_owned {
                 map_to = mb.as_ptr().cast_mut();
             }

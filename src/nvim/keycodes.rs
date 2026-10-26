@@ -2680,12 +2680,12 @@ pub unsafe fn get_mouse_button(code: c_int, is_click: *mut bool, is_drag: *mut b
 pub unsafe fn replace_termcodes(
     from: *const c_char,
     from_len: usize,
-    bufp: *mut *mut c_char,
+    buf_limit: bool,
     sid_arg: scid_T,
     flags: c_int,
     did_simplify: *mut bool,
     cpo_val: *const c_char,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
         let mut dlen: usize = 0;
         let end_exclusive = from.add(from_len);
@@ -2694,28 +2694,18 @@ pub unsafe fn replace_termcodes(
         let do_backslash = vim_strchr(cpo_val, K_CPO_BSLASH).is_null();
         let do_special = (flags & REPTERM_NO_SPECIAL) == 0;
 
-        let allocated = (*bufp).is_null();
-
         // Allocate space for the translation. Worst case a single character is
         // replaced by 6 bytes (shifted special key), plus a NUL at the end.
-        let buf_len: usize = if allocated { from_len * 6 + 1 } else { 128 };
-        let mut temp_buf: Vec<c_char> = if allocated {
-            vec![0; buf_len]
-        } else {
-            Vec::new()
-        };
-        let result: *mut c_char = if allocated {
-            temp_buf.as_mut_ptr()
-        } else {
-            *bufp
-        };
+        let buf_len: usize = if buf_limit { 128 } else { from_len * 6 + 1 };
+        let mut temp_buf: Vec<c_char> = vec![0; buf_len];
+        let result: *mut c_char = temp_buf.as_mut_ptr();
 
         let mut src = from;
 
         // Copy each byte from *from to result[dlen]
         while (src as usize) < (end_exclusive as usize) {
-            if !allocated && dlen + 64 > buf_len {
-                return std::ptr::null_mut();
+            if buf_limit && dlen + 64 > buf_len {
+                return None;
             }
             let rem = (end_exclusive as usize) - (src as usize);
 
@@ -2845,11 +2835,10 @@ pub unsafe fn replace_termcodes(
         }
         *result.add(dlen) = 0;
 
-        if allocated {
-            *bufp = crate::memory::xmemdupz(result.cast(), dlen).cast::<c_char>();
-        }
-
-        *bufp
+        Some(crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
+            result.cast::<u8>(),
+            dlen,
+        )))
     }
 }
 
