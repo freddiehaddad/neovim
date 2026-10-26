@@ -53,7 +53,7 @@ use crate::lua::executor::{
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
 use crate::memory::{
-    entered_free_all_mem, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xmemrchr, xstrdup, xstrlcpy,
+    entered_free_all_mem, xfree, xmalloc, xmallocz, xmemdupz, xmemrchr, xstrdup, xstrlcpy,
 };
 use crate::message::{
     emsg, iemsg, internal_error, message_filtered, msg_clr_eos, msg_ext_set_kind, msg_outnum,
@@ -94,9 +94,9 @@ pub struct ufunc_T {
     pub uf_flags: c_int,
     pub uf_calls: c_int,
     pub uf_cleared: bool,
-    pub uf_args: Vec<*mut c_char>,
-    pub uf_def_args: Vec<*mut c_char>,
-    pub uf_lines: Vec<*mut c_char>,
+    pub uf_args: Vec<std::ffi::CString>,
+    pub uf_def_args: Vec<std::ffi::CString>,
+    pub uf_lines: Vec<Option<std::ffi::CString>>,
     pub uf_profiling: c_int,
     pub uf_prof_initialized: c_int,
     pub uf_luaref: c_int,
@@ -306,7 +306,7 @@ unsafe fn func_hashtab_add(fp: *mut ufunc_T) -> c_int {
 
 #[inline]
 unsafe fn funcarg(fp: *const ufunc_T, j: c_int) -> *mut c_char {
-    unsafe { (&(*fp).uf_args)[j as usize] }
+    unsafe { (&(*fp).uf_args)[j as usize].as_ptr().cast_mut() }
 }
 
 /// Return the function hash table.
@@ -322,7 +322,7 @@ pub unsafe fn func_tbl_get() -> &'static mut std::collections::BTreeMap<Vec<u8>,
 /// When something is wrong return "arg".
 unsafe fn one_function_arg(
     arg: *mut c_char,
-    newargs: Option<&mut Vec<*mut c_char>>,
+    newargs: Option<&mut Vec<std::ffi::CString>>,
     skip: bool,
 ) -> *mut c_char {
     unsafe {
@@ -344,24 +344,20 @@ unsafe fn one_function_arg(
         }
 
         if let Some(newargs) = newargs {
-            let c = *p;
-            *p = NUL;
-            let arg_copy = xstrdup(arg);
+            let arg_slice = std::slice::from_raw_parts(arg.cast::<u8>(), len as usize);
+            let arg_copy = std::ffi::CString::new(arg_slice).unwrap();
 
             // Check for duplicate argument name.
-            for &existing in newargs.iter() {
-                if strcmp(existing, arg_copy) == 0 {
+            for existing in newargs.iter() {
+                if existing.as_bytes() == arg_copy.as_bytes() {
                     semsg!(
                         gettext(c"E853: Duplicate argument name: %s".as_ptr()),
-                        arg_copy,
+                        arg_copy.as_ptr(),
                     );
-                    xfree(arg_copy.cast());
                     return arg;
                 }
             }
             newargs.push(arg_copy);
-
-            *p = c;
         }
 
         p
@@ -372,9 +368,9 @@ unsafe fn one_function_arg(
 unsafe fn get_function_args(
     argp: *mut *mut c_char,
     endchar: c_char,
-    mut newargs: Option<&mut Vec<*mut c_char>>,
+    mut newargs: Option<&mut Vec<std::ffi::CString>>,
     varargs: *mut c_int,
-    mut default_args: Option<&mut Vec<*mut c_char>>,
+    mut default_args: Option<&mut Vec<std::ffi::CString>>,
     skip: bool,
 ) -> c_int {
     unsafe {
@@ -407,18 +403,18 @@ unsafe fn get_function_args(
                     any_default = true;
                     p = skipwhite(p).add(1);
                     p = skipwhite(p);
-                    let mut expr = p;
+                    let expr = p;
                     if eval1(&raw mut p, &raw mut rettv, ptr::null_mut()) != FAIL {
                         while p > expr && ascii_iswhite(*p.sub(1) as c_int) {
                             p = p.sub(1);
                         }
-                        let c = *p;
-                        *p = NUL;
-                        expr = xstrdup(expr);
                         if let Some(default_args) = default_args.as_deref_mut() {
-                            default_args.push(expr);
+                            let expr_slice = std::slice::from_raw_parts(
+                                expr.cast::<u8>(),
+                                p.offset_from(expr) as usize,
+                            );
+                            default_args.push(std::ffi::CString::new(expr_slice).unwrap());
                         }
-                        *p = c;
                     } else {
                         mustend = true;
                     }
@@ -437,10 +433,10 @@ unsafe fn get_function_args(
                             p,
                         );
                         if let Some(newargs) = newargs.as_deref_mut() {
-                            crate::path::clear_cstrings(newargs);
+                            newargs.clear();
                         }
                         if let Some(default_args) = default_args.as_deref_mut() {
-                            crate::path::clear_cstrings(default_args);
+                            default_args.clear();
                         }
                         return FAIL;
                     }
@@ -462,10 +458,10 @@ unsafe fn get_function_args(
         }
         if *p != endchar {
             if let Some(newargs) = newargs {
-                crate::path::clear_cstrings(newargs);
+                newargs.clear();
             }
             if let Some(default_args) = default_args {
-                crate::path::clear_cstrings(default_args);
+                default_args.clear();
             }
             return FAIL;
         }
@@ -564,7 +560,7 @@ pub unsafe fn get_lambda_tv(
 ) -> c_int {
     unsafe {
         let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
-        let mut newargs: Vec<*mut c_char> = Vec::new();
+        let mut newargs: Vec<std::ffi::CString> = Vec::new();
         let mut pt: *mut partial_T = ptr::null_mut();
         let mut varargs: c_int = 0;
         let old_eval_lavars = eval_lavars_used;
@@ -594,7 +590,6 @@ pub unsafe fn get_lambda_tv(
             false,
         );
         if ret == FAIL || **arg != b'>' as c_char {
-            crate::path::clear_cstrings(&mut newargs);
             xfree(pt.cast());
             if !evalarg.is_null() && (*evalarg).eval_tofree.is_null() {
                 (*evalarg).eval_tofree = tofree;
@@ -614,7 +609,6 @@ pub unsafe fn get_lambda_tv(
         ret = skip_expr(arg, evalarg);
         let end = *arg;
         if ret == FAIL {
-            crate::path::clear_cstrings(&mut newargs);
             xfree(pt.cast());
             if !evalarg.is_null() && (*evalarg).eval_tofree.is_null() {
                 (*evalarg).eval_tofree = tofree;
@@ -632,7 +626,6 @@ pub unsafe fn get_lambda_tv(
         *arg = skipwhite(*arg);
         if **arg != b'}' as c_char {
             semsg!(gettext(c"E451: Expected }: %s".as_ptr()), *arg);
-            crate::path::clear_cstrings(&mut newargs);
             xfree(pt.cast());
             if !evalarg.is_null() && (*evalarg).eval_tofree.is_null() {
                 (*evalarg).eval_tofree = tofree;
@@ -652,14 +645,14 @@ pub unsafe fn get_lambda_tv(
             pt = Box::into_raw(Box::new(partial_T::default()));
 
             let expr_len = end.offset_from(start) as usize;
-            let len = 7 + expr_len + 1;
-            let p = xmalloc(len).cast::<c_char>();
-            let newlines = vec![p];
-            strcpy(p, c"return ".as_ptr());
-            xmemcpyz(p.add(7).cast(), start.cast(), expr_len);
-            if strstr(p.add(7), c"a:".as_ptr()).is_null() {
+            let mut line_bytes = Vec::with_capacity(7 + expr_len);
+            line_bytes.extend_from_slice(b"return ");
+            line_bytes.extend_from_slice(std::slice::from_raw_parts(start.cast::<u8>(), expr_len));
+            let line_cstr = std::ffi::CString::new(line_bytes).unwrap();
+            if strstr(line_cstr.as_ptr().add(7), c"a:".as_ptr()).is_null() {
                 flags |= FC_NOARGS;
             }
+            let newlines = vec![Some(line_cstr)];
 
             let newlines_len = newlines.len() as c_int;
             (*fp).uf_refcount = 1;
@@ -1157,9 +1150,9 @@ unsafe fn func_remove(fp: *mut ufunc_T) -> bool {
 
 unsafe fn func_clear_items(fp: *mut ufunc_T) {
     unsafe {
-        crate::path::clear_cstrings(&mut (*fp).uf_args);
-        crate::path::clear_cstrings(&mut (*fp).uf_def_args);
-        crate::path::clear_cstrings(&mut (*fp).uf_lines);
+        (*fp).uf_args.clear();
+        (*fp).uf_def_args.clear();
+        (*fp).uf_lines.clear();
 
         if ((*fp).uf_flags & FC_LUAREF) != 0 {
             api_free_luaref((*fp).uf_luaref);
@@ -1346,7 +1339,9 @@ pub unsafe fn call_user_func(
                     def_rettv.v_type = VarType::VAR_NUMBER;
                     def_rettv.vval.v_number = -1;
 
-                    let mut default_expr = (&(*fp).uf_def_args)[(ai + uf_def_args_len) as usize];
+                    let mut default_expr = (&(*fp).uf_def_args)[(ai + uf_def_args_len) as usize]
+                        .as_ptr()
+                        .cast_mut();
                     if eval1(
                         &raw mut default_expr,
                         &raw mut def_rettv,
@@ -1483,7 +1478,12 @@ pub unsafe fn call_user_func(
         if default_arg_err && (((*fp).uf_flags & FC_ABORT) != 0 || trylevel > 0) {
             did_emsg = 1;
         } else if islambda {
-            let mut p = (&(*fp).uf_lines)[0].add(7);
+            let mut p = (&(*fp).uf_lines)[0]
+                .as_ref()
+                .unwrap()
+                .as_ptr()
+                .add(7)
+                .cast_mut();
             ex_nesting_level += 1;
             eval1(&raw mut p, rettv, &raw mut EVALARG_EVALUATE);
             ex_nesting_level -= 1;
@@ -2178,7 +2178,9 @@ unsafe fn list_func_head(fp: *mut ufunc_T, indent: bool, force: bool) -> c_int {
             msg_puts(funcarg(fp, j));
             if j >= uf_args_len - uf_def_args_len {
                 msg_puts(c" = ".as_ptr());
-                msg_puts((&(*fp).uf_def_args)[(j - uf_args_len + uf_def_args_len) as usize]);
+                msg_puts(
+                    (&(*fp).uf_def_args)[(j - uf_args_len + uf_def_args_len) as usize].as_ptr(),
+                );
             }
             j += 1;
         }
@@ -2587,11 +2589,11 @@ unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char
 
         let mut j = 0;
         while j < (*fp).uf_lines.len() as c_int && !got_int {
-            let line = (&(*fp).uf_lines)[j as usize];
-            if line.is_null() {
+            let Some(ref line_cstr) = (&(*fp).uf_lines)[j as usize] else {
                 j += 1;
                 continue;
-            }
+            };
+            let line = line_cstr.as_ptr();
             msg_putchar(b'\n' as c_int);
             if (*eap).forceit == 0 {
                 msg_outnum(j + 1);
@@ -2627,7 +2629,7 @@ unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char
 
 unsafe fn get_function_body(
     eap: *mut exarg_T,
-    newlines: &mut Vec<*mut c_char>,
+    newlines: &mut Vec<Option<std::ffi::CString>>,
     line_arg_in: *mut c_char,
     line_to_free: *mut *mut c_char,
     show_block: bool,
@@ -2637,10 +2639,10 @@ unsafe fn get_function_body(
         let mut line_arg = line_arg_in;
         let mut indent: c_int = 2;
         let mut nesting: c_int = 0;
-        let mut skip_until: *mut c_char = ptr::null_mut();
+        let mut skip_until: Option<std::ffi::CString> = None;
         let mut ret = FAIL;
         let mut is_heredoc = false;
-        let mut heredoc_trimmed: *mut c_char = ptr::null_mut();
+        let mut heredoc_trimmed: Option<std::ffi::CString> = None;
         let mut heredoc_trimmedlen: usize = 0;
         let mut do_concat = true;
 
@@ -2677,16 +2679,14 @@ unsafe fn get_function_body(
                 lines_left = Rows - 1;
             }
             if theline.is_null() {
-                if !skip_until.is_null() {
+                if let Some(ref marker) = skip_until {
                     semsg!(
                         gettext(E_MISSING_HEREDOC_END_MARKER_STR.as_ptr()),
-                        skip_until,
+                        marker.as_ptr(),
                     );
                 } else {
                     emsg(gettext(c"E126: Missing :endfunction".as_ptr()));
                 }
-                xfree(skip_until.cast());
-                xfree(heredoc_trimmed.cast());
                 need_wait_return |= saved_wait_return;
                 return ret;
             }
@@ -2703,12 +2703,14 @@ unsafe fn get_function_body(
                 sourcing_lnum_off = 0;
             }
 
-            if !skip_until.is_null() {
-                if heredoc_trimmed.is_null()
+            if let Some(ref marker) = skip_until {
+                if heredoc_trimmed.is_none()
                     || (is_heredoc && skipwhite(theline) == theline)
-                    || strncmp(theline, heredoc_trimmed, heredoc_trimmedlen) == 0
+                    || heredoc_trimmed
+                        .as_ref()
+                        .is_some_and(|ht| strncmp(theline, ht.as_ptr(), heredoc_trimmedlen) == 0)
                 {
-                    p = if heredoc_trimmed.is_null() {
+                    p = if heredoc_trimmed.is_none() {
                         theline
                     } else if is_heredoc {
                         if skipwhite(theline) == theline {
@@ -2719,11 +2721,9 @@ unsafe fn get_function_body(
                     } else {
                         theline.add(heredoc_trimmedlen)
                     };
-                    if strcmp(p, skip_until) == 0 {
-                        xfree(skip_until.cast());
-                        skip_until = ptr::null_mut();
-                        xfree(heredoc_trimmed.cast());
-                        heredoc_trimmed = ptr::null_mut();
+                    if strcmp(p, marker.as_ptr()) == 0 {
+                        skip_until = None;
+                        heredoc_trimmed = None;
                         heredoc_trimmedlen = 0;
                         do_concat = true;
                         is_heredoc = false;
@@ -2804,7 +2804,7 @@ unsafe fn get_function_body(
                         || *p == b'|' as c_char
                         || ascii_iswhite_nl_or_nul(*p as c_int))
                 {
-                    skip_until = xmemdupz(c".".as_ptr().cast(), 1).cast();
+                    skip_until = Some(c".".to_owned());
                 } else {
                     p = tp;
                 }
@@ -2836,13 +2836,18 @@ unsafe fn get_function_body(
                     {
                         p = skipwhite(p.add(4));
                         heredoc_trimmedlen = skipwhite(theline).offset_from(theline) as usize;
-                        heredoc_trimmed = xmemdupz(theline.cast(), heredoc_trimmedlen).cast();
+                        let slice =
+                            std::slice::from_raw_parts(theline.cast::<u8>(), heredoc_trimmedlen);
+                        heredoc_trimmed = Some(std::ffi::CString::new(slice).unwrap());
                     }
                     if *p == NUL {
-                        skip_until = xmemdupz(c".".as_ptr().cast(), 1).cast();
+                        skip_until = Some(c".".to_owned());
                     } else {
-                        skip_until =
-                            xmemdupz(p.cast(), skiptowhite(p).offset_from(p) as usize).cast();
+                        let slice = std::slice::from_raw_parts(
+                            p.cast::<u8>(),
+                            skiptowhite(p).offset_from(p) as usize,
+                        );
+                        skip_until = Some(std::ffi::CString::new(slice).unwrap());
                     }
                     do_concat = false;
                     is_heredoc = true;
@@ -2882,12 +2887,17 @@ unsafe fn get_function_body(
                             if has_trim {
                                 heredoc_trimmedlen =
                                     skipwhite(theline).offset_from(theline) as usize;
-                                heredoc_trimmed =
-                                    xmemdupz(theline.cast(), heredoc_trimmedlen).cast();
+                                let slice = std::slice::from_raw_parts(
+                                    theline.cast::<u8>(),
+                                    heredoc_trimmedlen,
+                                );
+                                heredoc_trimmed = Some(std::ffi::CString::new(slice).unwrap());
                             }
-                            xfree(skip_until.cast());
-                            skip_until =
-                                xmemdupz(p.cast(), skiptowhite(p).offset_from(p) as usize).cast();
+                            let slice = std::slice::from_raw_parts(
+                                p.cast::<u8>(),
+                                skiptowhite(p).offset_from(p) as usize,
+                            );
+                            skip_until = Some(std::ffi::CString::new(slice).unwrap());
                             do_concat = false;
                             is_heredoc = true;
                         }
@@ -2895,12 +2905,11 @@ unsafe fn get_function_body(
                 }
             }
 
-            p = xstrdup(theline);
-            newlines.push(p);
+            newlines.push(Some(CStr::from_ptr(theline).to_owned()));
 
             while sourcing_lnum_off > 0 {
                 sourcing_lnum_off -= 1;
-                newlines.push(ptr::null_mut());
+                newlines.push(None);
             }
 
             if !line_arg.is_null() && *line_arg == NUL {
@@ -2912,8 +2921,6 @@ unsafe fn get_function_body(
             ret = OK;
         }
 
-        xfree(skip_until.cast());
-        xfree(heredoc_trimmed.cast());
         need_wait_return |= saved_wait_return;
         ret
     }
@@ -2924,9 +2931,9 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
     unsafe {
         let mut line_to_free: *mut c_char = ptr::null_mut();
         let mut line_arg: *mut c_char = ptr::null_mut();
-        let mut newargs: Vec<*mut c_char> = Vec::new();
-        let mut default_args: Vec<*mut c_char> = Vec::new();
-        let mut newlines: Vec<*mut c_char> = Vec::new();
+        let mut newargs: Vec<std::ffi::CString> = Vec::new();
+        let mut default_args: Vec<std::ffi::CString> = Vec::new();
+        let mut newlines: Vec<Option<std::ffi::CString>> = Vec::new();
         let mut varargs: c_int = 0;
         let mut flags: c_int = 0;
         let mut fp: *mut ufunc_T = ptr::null_mut();
@@ -2981,9 +2988,6 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
 
         macro_rules! errret_keep {
             () => {{
-                crate::path::clear_cstrings(&mut newargs);
-                crate::path::clear_cstrings(&mut default_args);
-                crate::path::clear_cstrings(&mut newlines);
                 ret_free!();
             }};
         }
@@ -4028,13 +4032,13 @@ pub unsafe fn get_func_line(
         {
             retval = ptr::null_mut();
         } else {
-            while (*fcp).fc_linenr < lines_len && lines[(*fcp).fc_linenr as usize].is_null() {
+            while (*fcp).fc_linenr < lines_len && lines[(*fcp).fc_linenr as usize].is_none() {
                 (*fcp).fc_linenr += 1;
             }
             if (*fcp).fc_linenr >= lines_len {
                 retval = ptr::null_mut();
             } else {
-                let line = lines[(*fcp).fc_linenr as usize];
+                let line = lines[(*fcp).fc_linenr as usize].as_ref().unwrap().as_ptr();
                 (*fcp).fc_linenr += 1;
                 retval = xstrdup(line);
                 set_sourcing_lnum((*fcp).fc_linenr);

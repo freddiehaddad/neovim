@@ -2007,27 +2007,29 @@ unsafe fn cmdline_pum_create(
                 .xp_files_abbr
                 .as_slice()
                 .get(i)
-                .copied()
-                .filter(|p| !p.is_null())
-                .unwrap_or_else(|| show_match(matches, i, showtail));
+                .and_then(|opt| opt.as_ref())
+                .map_or_else(
+                    || show_match(matches, i, showtail),
+                    |s| s.as_ptr().cast_mut(),
+                );
             let pum_info = (*xp)
                 .xp_files_info
                 .as_slice()
                 .get(i)
-                .copied()
-                .unwrap_or(ptr::null_mut());
+                .and_then(|opt| opt.as_ref())
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             let pum_extra = (*xp)
                 .xp_files_menu
                 .as_slice()
                 .get(i)
-                .copied()
-                .unwrap_or(ptr::null_mut());
+                .and_then(|opt| opt.as_ref())
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             let pum_kind = (*xp)
                 .xp_files_kind
                 .as_slice()
                 .get(i)
-                .copied()
-                .unwrap_or(ptr::null_mut());
+                .and_then(|opt| opt.as_ref())
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             items.push(pumitem_T {
                 pum_text,
                 pum_kind,
@@ -2543,10 +2545,10 @@ unsafe fn find_longest_match(xp: *mut expand_T, options: c_int) -> *mut c_char {
 
 pub unsafe fn free_xp_files_extra(xp: *mut expand_T) {
     unsafe {
-        crate::path::clear_cstrings(&mut (*xp).xp_files_abbr);
-        crate::path::clear_cstrings(&mut (*xp).xp_files_kind);
-        crate::path::clear_cstrings(&mut (*xp).xp_files_menu);
-        crate::path::clear_cstrings(&mut (*xp).xp_files_info);
+        (*xp).xp_files_abbr.clear();
+        (*xp).xp_files_kind.clear();
+        (*xp).xp_files_menu.clear();
+        (*xp).xp_files_info.clear();
     }
 }
 
@@ -5451,21 +5453,31 @@ pub unsafe fn expand_process_user_list(
 ) {
     unsafe {
         matches.clear();
-        let mut ga_abbr: Vec<*mut c_char> = Vec::new();
-        let mut ga_kind: Vec<*mut c_char> = Vec::new();
-        let mut ga_menu: Vec<*mut c_char> = Vec::new();
-        let mut ga_info: Vec<*mut c_char> = Vec::new();
+        let mut ga_abbr: Vec<Option<std::ffi::CString>> = Vec::new();
+        let mut ga_kind: Vec<Option<std::ffi::CString>> = Vec::new();
+        let mut ga_menu: Vec<Option<std::ffi::CString>> = Vec::new();
+        let mut ga_info: Vec<Option<std::ffi::CString>> = Vec::new();
         let mut have_extra = false;
+
+        let take_opt_cstr = |raw: *mut c_char| -> Option<std::ffi::CString> {
+            if raw.is_null() {
+                None
+            } else {
+                let cstr = CStr::from_ptr(raw).to_owned();
+                xfree(raw.cast());
+                Some(cstr)
+            }
+        };
 
         if !retlist.is_null() {
             let mut li = (*retlist).lv_first;
             while !li.is_null() {
                 let tv = &raw const (*li).li_tv;
                 let p: *mut c_char;
-                let mut abbr: *mut c_char = ptr::null_mut();
-                let mut kind: *mut c_char = ptr::null_mut();
-                let mut menu: *mut c_char = ptr::null_mut();
-                let mut info: *mut c_char = ptr::null_mut();
+                let mut abbr: Option<std::ffi::CString> = None;
+                let mut kind: Option<std::ffi::CString> = None;
+                let mut menu: Option<std::ffi::CString> = None;
+                let mut info: Option<std::ffi::CString> = None;
 
                 if (*tv).v_type == VarType::VAR_STRING {
                     if (*tv).vval.v_string.is_null() {
@@ -5481,11 +5493,11 @@ pub unsafe fn expand_process_user_list(
                         continue;
                     }
                     p = xstrdup(word);
-                    abbr = tv_dict_get_string(d, c"abbr".as_ptr(), true);
-                    kind = tv_dict_get_string(d, c"kind".as_ptr(), true);
-                    menu = tv_dict_get_string(d, c"menu".as_ptr(), true);
-                    info = tv_dict_get_string(d, c"info".as_ptr(), true);
-                    if !abbr.is_null() || !kind.is_null() || !menu.is_null() || !info.is_null() {
+                    abbr = take_opt_cstr(tv_dict_get_string(d, c"abbr".as_ptr(), true));
+                    kind = take_opt_cstr(tv_dict_get_string(d, c"kind".as_ptr(), true));
+                    menu = take_opt_cstr(tv_dict_get_string(d, c"menu".as_ptr(), true));
+                    info = take_opt_cstr(tv_dict_get_string(d, c"info".as_ptr(), true));
+                    if abbr.is_some() || kind.is_some() || menu.is_some() || info.is_some() {
                         have_extra = true;
                     }
                 } else {
@@ -5508,11 +5520,6 @@ pub unsafe fn expand_process_user_list(
             (*xp).xp_files_kind = ga_kind;
             (*xp).xp_files_menu = ga_menu;
             (*xp).xp_files_info = ga_info;
-        } else {
-            crate::path::clear_cstrings(&mut ga_abbr);
-            crate::path::clear_cstrings(&mut ga_kind);
-            crate::path::clear_cstrings(&mut ga_menu);
-            crate::path::clear_cstrings(&mut ga_info);
         }
     }
 }

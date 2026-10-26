@@ -589,7 +589,7 @@ pub unsafe fn func_line_start(fcp: *mut funccall_T) {
 
         if fp.uf_profiling != 0 && slnum >= 1 && slnum <= fp.uf_lines.len() as c_int {
             fp.uf_tml_idx = slnum - 1;
-            while fp.uf_tml_idx > 0 && fp.uf_lines[fp.uf_tml_idx as usize].is_null() {
+            while fp.uf_tml_idx > 0 && fp.uf_lines[fp.uf_tml_idx as usize].is_none() {
                 fp.uf_tml_idx -= 1;
             }
             fp.uf_tml_execed = 0;
@@ -677,10 +677,9 @@ unsafe fn func_dump_profile(fd: *mut FILE) {
                 fprintf!(fd, c"count  total (s)   self (s)\n".as_ptr());
 
                 for i in 0..(*fp).uf_lines.len() as c_int {
-                    let line = (&(*fp).uf_lines)[i as usize];
-                    if line.is_null() {
+                    let Some(ref line) = (&(*fp).uf_lines)[i as usize] else {
                         continue;
-                    }
+                    };
                     let idx = i as usize;
                     prof_func_line(
                         fd,
@@ -689,7 +688,7 @@ unsafe fn func_dump_profile(fd: *mut FILE) {
                         &(*fp).uf_tml_self.as_slice()[idx],
                         true,
                     );
-                    fprintf!(fd, c"%s\n".as_ptr(), line);
+                    fprintf!(fd, c"%s\n".as_ptr(), line.as_ptr());
                 }
                 fprintf!(fd, c"\n".as_ptr());
             }

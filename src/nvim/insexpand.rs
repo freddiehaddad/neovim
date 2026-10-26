@@ -4404,17 +4404,17 @@ unsafe fn get_next_cmdline_completion() {
                 let mut cptext: [*mut c_char; CPT_COUNT] = [ptr::null_mut(); CPT_COUNT];
 
                 let cxp = &raw const compl_xp;
-                if let Some(&abbr) = (*cxp).xp_files_abbr.as_slice().get(i) {
-                    cptext[CPT_ABBR] = abbr;
+                if let Some(Some(abbr)) = (*cxp).xp_files_abbr.as_slice().get(i) {
+                    cptext[CPT_ABBR] = abbr.as_ptr().cast_mut();
                 }
-                if let Some(&kind) = (*cxp).xp_files_kind.as_slice().get(i) {
-                    cptext[CPT_KIND] = kind;
+                if let Some(Some(kind)) = (*cxp).xp_files_kind.as_slice().get(i) {
+                    cptext[CPT_KIND] = kind.as_ptr().cast_mut();
                 }
-                if let Some(&menu) = (*cxp).xp_files_menu.as_slice().get(i) {
-                    cptext[CPT_MENU] = menu;
+                if let Some(Some(menu)) = (*cxp).xp_files_menu.as_slice().get(i) {
+                    cptext[CPT_MENU] = menu.as_ptr().cast_mut();
                 }
-                if let Some(&info) = (*cxp).xp_files_info.as_slice().get(i) {
-                    cptext[CPT_INFO] = info;
+                if let Some(Some(info)) = (*cxp).xp_files_info.as_slice().get(i) {
+                    cptext[CPT_INFO] = info.as_ptr().cast_mut();
                 }
 
                 add_r = ins_compl_add(
