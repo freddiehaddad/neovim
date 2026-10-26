@@ -76,7 +76,7 @@ use crate::register::{
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::shada::shada_encode_regs;
 use crate::state::{MODE_INSERT, virtual_active};
-use crate::strings::{strchr, strlen, strncmp, vim_snprintf};
+use crate::strings::{strchr, strncmp, vim_snprintf};
 use crate::textformat::{InsState, oparg_T};
 use crate::undo::{u_forget_unchanged, u_header_T, u_save};
 use std::ffi::{c_char, c_int, c_long};
@@ -136,7 +136,7 @@ struct McInsSpan {
     frame: u64,
     done_len: usize,
     region: u32,
-    vsel: *const c_char,
+    vsel: Option<std::ffi::CString>,
 }
 
 struct McStart {
@@ -163,7 +163,7 @@ static mut mc_ins_span: McInsSpan = McInsSpan {
     frame: 0,
     done_len: 0,
     region: 0,
-    vsel: ptr::null(),
+    vsel: None,
 };
 
 static mut mc_start: McStart = McStart {
@@ -641,7 +641,7 @@ pub unsafe fn mc_ins_cascade_start(
     cascade: bool,
     origin: CmdOrigin,
     root_frame: u64,
-    vsel: *const c_char,
+    vsel: Option<std::ffi::CString>,
 ) {
     unsafe {
         if mc_replaying() {
@@ -956,23 +956,20 @@ pub unsafe fn mc_ins_cascade() {
 
         if mc_ins_span.first {
             if !Ins.did_ai && !ins.data.is_null() && ins.size > 0 {
-                let mut keys: Vec<c_char> = Vec::new();
+                let mut keys: Vec<u8> = Vec::new();
                 let mut skip = 0;
-                if !mc_ins_span.vsel.is_null() {
+                if let Some(vsel) = (&raw mut mc_ins_span.vsel).as_mut().unwrap().take() {
                     assert!(ins.size >= 2 && strncmp(ins.data, c"1v".as_ptr(), 2) == 0);
-                    let vsel_len = strlen(mc_ins_span.vsel);
-                    keys.extend_from_slice(std::slice::from_raw_parts(mc_ins_span.vsel, vsel_len));
+                    keys.extend_from_slice(vsel.to_bytes());
                     skip = 2;
-                    mc_ins_span.vsel = ptr::null();
                 }
                 keys.extend_from_slice(std::slice::from_raw_parts(
-                    ins.data.add(skip),
+                    ins.data.add(skip).cast::<u8>(),
                     ins.size - skip,
                 ));
-                keys.push(ESC);
+                keys.push(ESC as u8);
                 mc_ins_span.done_len = ins.size;
-                let keys_slice = std::slice::from_raw_parts(keys.as_ptr().cast::<u8>(), keys.len());
-                mc_ins_span_push(std::ffi::CString::new(keys_slice).unwrap(), None);
+                mc_ins_span_push(std::ffi::CString::new(keys).unwrap(), None);
                 mc_ins_preview_rebase();
             }
         } else if !ins.data.is_null() && ins.size < mc_ins_span.done_len {
@@ -1325,7 +1322,7 @@ pub unsafe fn mc_ins_commit() -> bool {
         let active = mc_ins_span.active;
         let ins_cascaded = active && !mc_ins_span.first;
         mc_ins_span.active = false;
-        mc_ins_span.vsel = ptr::null();
+        mc_ins_span.vsel = None;
 
         if ins_cascaded
             && let Some(ins_cstr) = redo_keys(ptr::null())

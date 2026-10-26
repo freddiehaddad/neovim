@@ -552,60 +552,60 @@ static mut P_PASTE_DEP_OPTS: [c_int; 11] = [
 ];
 
 struct ShellRule {
-    pat: *const c_char,
-    shcf: *const c_char,
-    sp: *const c_char,
-    srr: *const c_char,
-    sxq: *const c_char,
+    pat: &'static CStr,
+    shcf: Option<&'static CStr>,
+    sp: Option<&'static CStr>,
+    srr: Option<&'static CStr>,
+    sxq: Option<&'static CStr>,
 }
 
 #[cfg(windows)]
 const SHELL_RULES: [ShellRule; 4] = [
     ShellRule {
-        pat: c"cmd".as_ptr(),
-        shcf: c"/s /c".as_ptr(),
-        sp: ptr::null(),
-        srr: ptr::null(),
-        sxq: c"\"".as_ptr(),
+        pat: c"cmd",
+        shcf: Some(c"/s /c"),
+        sp: None,
+        srr: None,
+        sxq: Some(c"\""),
     },
     ShellRule {
-        pat: c"powershell".as_ptr(),
-        shcf: c"-Command".as_ptr(),
-        sp: ptr::null(),
-        srr: ptr::null(),
-        sxq: ptr::null(),
+        pat: c"powershell",
+        shcf: Some(c"-Command"),
+        sp: None,
+        srr: None,
+        sxq: None,
     },
     ShellRule {
-        pat: c"csh".as_ptr(),
-        shcf: ptr::null(),
-        sp: c"|& tee".as_ptr(),
-        srr: c">&".as_ptr(),
-        sxq: ptr::null(),
+        pat: c"csh",
+        shcf: None,
+        sp: Some(c"|& tee"),
+        srr: Some(c">&"),
+        sxq: None,
     },
     ShellRule {
-        pat: c"sh".as_ptr(),
-        shcf: ptr::null(),
-        sp: c"2>&1| tee".as_ptr(),
-        srr: c">%s 2>&1".as_ptr(),
-        sxq: ptr::null(),
+        pat: c"sh",
+        shcf: None,
+        sp: Some(c"2>&1| tee"),
+        srr: Some(c">%s 2>&1"),
+        sxq: None,
     },
 ];
 
 #[cfg(not(windows))]
 const SHELL_RULES: [ShellRule; 2] = [
     ShellRule {
-        pat: c"csh".as_ptr(),
-        shcf: ptr::null(),
-        sp: c"|& tee".as_ptr(),
-        srr: c">&".as_ptr(),
-        sxq: ptr::null(),
+        pat: c"csh",
+        shcf: None,
+        sp: Some(c"|& tee"),
+        srr: Some(c">&"),
+        sxq: None,
     },
     ShellRule {
-        pat: c"sh".as_ptr(),
-        shcf: ptr::null(),
-        sp: c"2>&1| tee".as_ptr(),
-        srr: c">%s 2>&1".as_ptr(),
-        sxq: ptr::null(),
+        pat: c"sh",
+        shcf: None,
+        sp: Some(c"2>&1| tee"),
+        srr: Some(c">%s 2>&1"),
+        sxq: None,
     },
 ];
 
@@ -1152,12 +1152,15 @@ pub unsafe fn set_init_2(_headless: bool) {
     }
 }
 
-unsafe fn change_option_and_default_if_unset(idx: OptIndex, val: *const c_char) {
+unsafe fn change_option_and_default_if_unset(idx: OptIndex, val: Option<&'static CStr>) {
     unsafe {
-        if val.is_null() || ((*get_option(idx)).flags & kOptFlagWasSet) != 0 {
+        let Some(val) = val else {
+            return;
+        };
+        if ((*get_option(idx)).flags & kOptFlagWasSet) != 0 {
             return;
         }
-        let optval = cstr_as_obj(val);
+        let optval = cstr_as_obj(val.as_ptr());
         set_option_direct(idx, optval, 0, SID_NONE);
         change_option_default(idx, copy_object(optval, ptr::null_mut()));
     }
@@ -1173,7 +1176,7 @@ pub unsafe fn set_init_3() {
         let p = invocation_path_tail(p_sh, &raw mut len);
         xmemcpyz(name.as_mut_ptr().cast(), p.cast(), len);
         for (i, rule) in SHELL_RULES.iter().enumerate() {
-            if c_strstr(name.as_ptr(), rule.pat).is_null() {
+            if c_strstr(name.as_ptr(), rule.pat.as_ptr()).is_null() {
                 continue;
             }
             change_option_and_default_if_unset(kOptShellcmdflag, rule.shcf);

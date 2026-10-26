@@ -1739,7 +1739,7 @@ pub unsafe fn atom_ins_start(
             session.typed && count <= 1 && !repl && !vblock && reexec,
             session.origin,
             (*root_frame()).id,
-            session.vsel.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+            session.vsel.clone(),
         );
 
         session

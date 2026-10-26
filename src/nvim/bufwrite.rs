@@ -97,10 +97,9 @@ use crate::os::fs::UV_ENOTSUP;
 
 #[repr(C)]
 struct Error_T {
-    num: *const c_char,
-    msg: *mut c_char,
+    num: Option<&'static CStr>,
+    msg: Option<std::ffi::CString>,
     arg: c_int,
-    owned_msg: Option<std::ffi::CString>,
 }
 
 #[repr(C)]
@@ -591,61 +590,79 @@ unsafe fn buf_write_do_post_autocmds(
 }
 
 #[inline]
-const fn set_err_num(num: *const c_char, msg: *const c_char) -> Error_T {
-    Error_T {
-        num,
-        msg: msg.cast_mut(),
-        arg: 0,
-        owned_msg: None,
+unsafe fn set_err_num(num: &'static CStr, msg: *const c_char) -> Error_T {
+    unsafe {
+        Error_T {
+            num: Some(num),
+            msg: if msg.is_null() {
+                None
+            } else {
+                Some(CStr::from_ptr(msg).to_owned())
+            },
+            arg: 0,
+        }
     }
 }
 
 #[inline]
-const fn set_err(msg: *const c_char) -> Error_T {
-    Error_T {
-        num: ptr::null(),
-        msg: msg.cast_mut(),
-        arg: 0,
-        owned_msg: None,
+unsafe fn set_err(msg: *const c_char) -> Error_T {
+    unsafe {
+        Error_T {
+            num: None,
+            msg: if msg.is_null() {
+                None
+            } else {
+                Some(CStr::from_ptr(msg).to_owned())
+            },
+            arg: 0,
+        }
     }
 }
 
 #[inline]
-const fn set_err_arg(msg: *const c_char, arg: c_int) -> Error_T {
-    Error_T {
-        num: ptr::null(),
-        msg: msg.cast_mut(),
-        arg,
-        owned_msg: None,
+unsafe fn set_err_arg(msg: *const c_char, arg: c_int) -> Error_T {
+    unsafe {
+        Error_T {
+            num: None,
+            msg: if msg.is_null() {
+                None
+            } else {
+                Some(CStr::from_ptr(msg).to_owned())
+            },
+            arg,
+        }
     }
 }
 
 unsafe fn emit_err(e: *mut Error_T, msg_id: *const c_char) {
     unsafe {
         let mut errmsg = [0 as c_char; IOSIZE];
-        if !(*e).num.is_null() && (*e).arg != 0 {
-            let _ = vim_snprintf!(
-                errmsg.as_mut_ptr(),
-                IOSIZE,
-                c"%s: %s%s: %s".as_ptr(),
-                (*e).num,
-                (&raw const IObuff).cast::<c_char>(),
-                (*e).msg,
-                uv_strerror((*e).arg),
-            );
-        } else if !(*e).num.is_null() {
-            let _ = vim_snprintf!(
-                errmsg.as_mut_ptr(),
-                IOSIZE,
-                c"%s: %s%s".as_ptr(),
-                (*e).num,
-                (&raw const IObuff).cast::<c_char>(),
-                (*e).msg,
-            );
+        let msg_ptr = (*e).msg.as_ref().map_or(c"".as_ptr(), |m| m.as_ptr());
+        if let Some(num) = (*e).num {
+            if (*e).arg != 0 {
+                let _ = vim_snprintf!(
+                    errmsg.as_mut_ptr(),
+                    IOSIZE,
+                    c"%s: %s%s: %s".as_ptr(),
+                    num.as_ptr(),
+                    (&raw const IObuff).cast::<c_char>(),
+                    msg_ptr,
+                    uv_strerror((*e).arg),
+                );
+            } else {
+                let _ = vim_snprintf!(
+                    errmsg.as_mut_ptr(),
+                    IOSIZE,
+                    c"%s: %s%s".as_ptr(),
+                    num.as_ptr(),
+                    (&raw const IObuff).cast::<c_char>(),
+                    msg_ptr,
+                );
+            }
         } else if (*e).arg != 0 {
-            let _ = vim_snprintf!(errmsg.as_mut_ptr(), IOSIZE, (*e).msg, uv_strerror((*e).arg));
+            let _ = vim_snprintf!(errmsg.as_mut_ptr(), IOSIZE, msg_ptr, uv_strerror((*e).arg));
         } else {
-            xstrlcpy(errmsg.as_mut_ptr(), (*e).msg, IOSIZE);
+            xstrlcpy(errmsg.as_mut_ptr(), msg_ptr, IOSIZE);
         }
 
         if !msg_id.is_null() {
@@ -662,7 +679,7 @@ unsafe fn emit_err(e: *mut Error_T, msg_id: *const c_char) {
         } else {
             emsg(errmsg.as_ptr());
         }
-        (*e).owned_msg = None;
+        (*e).msg = None;
     }
 }
 
@@ -685,14 +702,14 @@ unsafe fn get_fileinfo_os(
             if !s_isreg((*file_info_old).stat.st_mode) {
                 if s_isdir((*file_info_old).stat.st_mode) {
                     {
-                        *err = set_err_num(c"E502".as_ptr(), gettext(c"is a directory".as_ptr()));
+                        *err = set_err_num(c"E502", gettext(c"is a directory".as_ptr()));
                     }
                     return FAIL;
                 }
                 if os_nodetype(fname) != NODE_WRITABLE {
                     {
                         *err = set_err_num(
-                            c"E503".as_ptr(),
+                            c"E503",
                             gettext(c"is not a file or writable device".as_ptr()),
                         );
                     }
@@ -726,7 +743,7 @@ unsafe fn get_fileinfo_os(
         if nodetype == NODE_OTHER {
             {
                 *err = set_err_num(
-                    c"E503".as_ptr(),
+                    c"E503",
                     gettext(c"is not a file or writable device".as_ptr()),
                 );
             }
@@ -742,7 +759,7 @@ unsafe fn get_fileinfo_os(
                 *newfile = true;
             } else if os_isdir(fname) {
                 {
-                    *err = set_err_num(c"E502".as_ptr(), gettext(c"is a directory".as_ptr()));
+                    *err = set_err_num(c"E502", gettext(c"is a directory".as_ptr()));
                 }
                 return FAIL;
             }
@@ -788,12 +805,12 @@ unsafe fn get_fileinfo(
             if !forceit && *readonly {
                 if !vim_strchr(p_cpo, kCpoFwrite).is_null() {
                     *err = set_err_num(
-                        c"E504".as_ptr(),
+                        c"E504",
                         gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')".as_ptr()),
                     );
                 } else {
                     *err = set_err_num(
-                        c"E505".as_ptr(),
+                        c"E505",
                         gettext(c"is read-only (add ! to override)".as_ptr()),
                     );
                 }
@@ -1028,19 +1045,19 @@ unsafe fn buf_write_make_backup(
                 }
             }
 
-            if backupp.is_none() && (*err).msg.is_null() {
+            if backupp.is_none() && (*err).msg.is_none() {
                 *err = set_err(gettext(
                     c"E509: Cannot create backup file (add ! to override)".as_ptr(),
                 ));
             }
-            if (some_error || !(*err).msg.is_null()) && !forceit {
+            if (some_error || (*err).msg.is_some()) && !forceit {
                 return FAIL;
             }
             *err = set_err(ptr::null());
         } else {
             if file_readonly && !vim_strchr(p_cpo, kCpoFwrite).is_null() {
                 *err = set_err_num(
-                    c"E504".as_ptr(),
+                    c"E504",
                     gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')".as_ptr()),
                 );
                 return FAIL;
@@ -1455,7 +1472,7 @@ pub unsafe fn buf_write(
                                 if fd >= 0 {
                                     break;
                                 }
-                                if err.msg.is_null() {
+                                if err.msg.is_none() {
                                     #[cfg(not(windows))]
                                     {
                                         let mut file_info = FileInfo::new();
@@ -1774,7 +1791,7 @@ pub unsafe fn buf_write(
                     }
 
                     if end == 0 {
-                        if err.msg.is_null() {
+                        if err.msg.is_none() {
                             if write_info.bw_conv_error != 0 {
                                 if write_info.bw_conv_error_lnum == 0 {
                                     err = set_err(gettext(
@@ -1792,13 +1809,10 @@ pub unsafe fn buf_write(
                                         ),
                                         write_info.bw_conv_error_lnum,
                                     );
-                                    let owned = CStr::from_ptr(alloc_msg.as_ptr()).to_owned();
-                                    let msg_ptr = owned.as_ptr().cast_mut();
                                     err = Error_T {
-                                        num: ptr::null(),
-                                        msg: msg_ptr,
+                                        num: None,
+                                        msg: Some(CStr::from_ptr(alloc_msg.as_ptr()).to_owned()),
                                         arg: 0,
-                                        owned_msg: Some(owned),
                                     };
                                 }
                             } else if got_int {
@@ -2038,7 +2052,7 @@ pub unsafe fn buf_write(
         }
         os_free_acl(acl);
 
-        if !err.msg.is_null() {
+        if err.msg.is_some() {
             add_quoted_fname((&raw mut IObuff).cast(), IOSIZE - 100, buf, msgname);
             emit_err(
                 &raw mut err,

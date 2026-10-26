@@ -203,7 +203,7 @@ pub struct TermKey {
     pub ti_getstr_hook_data: *mut crate::tui::input::TermInput,
     pub is_closed: c_char,
     pub is_started: c_char,
-    pub keynames: Vec<*const c_char>,
+    pub keynames: Vec<Option<&'static CStr>>,
     pub c0: [keyinfo; 32],
     pub ti: TermKeyTI,
     pub csi: crate::tui::termkey::driver_csi::TermKeyCsi,

@@ -373,7 +373,7 @@ pub unsafe fn termkey_new_abstract(term: *mut TerminfoEntry, flags: c_int) -> Op
             ti_getstr_hook_data: std::ptr::null_mut(),
             is_closed: 0,
             is_started: 0,
-            keynames: vec![std::ptr::null(); 64],
+            keynames: vec![None; 64],
             c0: [keyinfo {
                 r#type: 0,
                 sym: TERMKEY_SYM_NONE,
@@ -387,12 +387,12 @@ pub unsafe fn termkey_new_abstract(term: *mut TerminfoEntry, flags: c_int) -> Op
         termkey_set_flags(&mut tk, flags);
 
         for entry in KEYNAMES {
-            termkey_register_keyname(&mut tk, entry.sym, entry.name.as_ptr());
+            termkey_register_keyname(&mut tk, entry.sym, Some(entry.name));
         }
 
-        register_c0(&mut tk, TERMKEY_SYM_TAB, 0x09, std::ptr::null());
-        register_c0(&mut tk, TERMKEY_SYM_ENTER, 0x0d, std::ptr::null());
-        register_c0(&mut tk, TERMKEY_SYM_ESCAPE, 0x1b, std::ptr::null());
+        register_c0(&mut tk, TERMKEY_SYM_TAB, 0x09, None);
+        register_c0(&mut tk, TERMKEY_SYM_ENTER, 0x0d, None);
+        register_c0(&mut tk, TERMKEY_SYM_ESCAPE, 0x1b, None);
 
         if (flags & TERMKEY_FLAG_NOSTART) == 0 && termkey_start(&mut tk) == 0 {
             return None;
@@ -848,7 +848,7 @@ pub unsafe fn termkey_push_bytes(tk: &mut TermKey, bytes: *const c_char, mut len
 pub fn termkey_register_keyname(
     tk: &mut TermKey,
     mut sym: TermKeySym,
-    name: *const c_char,
+    name: Option<&'static CStr>,
 ) -> TermKeySym {
     if sym == 0 {
         sym = tk.keynames.len() as c_int;
@@ -856,7 +856,7 @@ pub fn termkey_register_keyname(
 
     let idx = sym as usize;
     if idx >= tk.keynames.len() {
-        tk.keynames.resize(idx + 1, std::ptr::null());
+        tk.keynames.resize(idx + 1, None);
     }
 
     tk.keynames[idx] = name;
@@ -868,7 +868,7 @@ pub fn termkey_get_keyname(tk: &TermKey, sym: TermKeySym) -> *const c_char {
         return c"UNKNOWN".as_ptr();
     }
     if sym >= 0 && (sym as usize) < tk.keynames.len() {
-        tk.keynames[sym as usize]
+        tk.keynames[sym as usize].map_or(std::ptr::null(), CStr::as_ptr)
     } else {
         c"UNKNOWN".as_ptr()
     }
@@ -885,16 +885,16 @@ unsafe fn termkey_lookup_keyname_format(
         let keynames = &tk.keynames;
         *sym = 0;
         while (*sym as usize) < keynames.len() {
-            let mut thiskey = keynames[*sym as usize];
-            if !thiskey.is_null() {
-                let len = CStr::from_ptr(thiskey).to_bytes().len();
+            if let Some(key_cstr) = keynames[*sym as usize] {
+                let mut thiskey = key_cstr.as_ptr();
+                let key_bytes = key_cstr.to_bytes();
+                let len = key_bytes.len();
                 if (format & TERMKEY_FORMAT_LOWERSPACE) != 0 {
                     let mut thisstr = str_in;
                     if strpncmp_camel(&mut thisstr, &mut thiskey, len) == 0 {
                         return thisstr;
                     }
                 } else {
-                    let key_bytes = std::slice::from_raw_parts(thiskey.cast::<u8>(), len);
                     let mut matched = true;
                     for (i, &kb) in key_bytes.iter().enumerate() {
                         if *str_in.add(i) as u8 != kb {
@@ -922,7 +922,12 @@ pub unsafe fn termkey_lookup_keyname(
     unsafe { termkey_lookup_keyname_format(tk, str_in, sym, 0) }
 }
 
-fn register_c0(tk: &mut TermKey, sym: TermKeySym, ctrl: u8, name: *const c_char) -> TermKeySym {
+fn register_c0(
+    tk: &mut TermKey,
+    sym: TermKeySym,
+    ctrl: u8,
+    name: Option<&'static CStr>,
+) -> TermKeySym {
     register_c0_full(tk, sym, 0, 0, ctrl, name)
 }
 
@@ -932,12 +937,12 @@ fn register_c0_full(
     modifier_set: c_int,
     modifier_mask: c_int,
     ctrl: u8,
-    name: *const c_char,
+    name: Option<&'static CStr>,
 ) -> TermKeySym {
     if ctrl >= 0x20 {
         return -1;
     }
-    if !name.is_null() {
+    if name.is_some() {
         sym = termkey_register_keyname(tk, sym, name);
     }
     let idx = usize::from(ctrl);

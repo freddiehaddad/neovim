@@ -297,14 +297,14 @@ const E_CANNOT_USE_HEREDOC_HERE: &CStr = c"E991: Cannot use =<< here";
 
 #[repr(C)]
 struct VimVar {
-    vv_name: *const c_char,
+    vv_name: &'static CStr,
     vv_di: dictitem_T,
     vv_flags: c_char,
 }
 
 const fn make_vimvar(name: &'static CStr, v_type: VarType, flags: c_char) -> VimVar {
     VimVar {
-        vv_name: name.as_ptr(),
+        vv_name: name,
         vv_di: dictitem_T {
             di_tv: typval_T {
                 v_type,
@@ -551,7 +551,7 @@ pub unsafe fn evalvars_init() {
                 (*p).vv_di.di_flags = DI_FLAGS_FIX;
             }
 
-            let name_bytes = CStr::from_ptr((*p).vv_name).to_bytes_with_nul();
+            let name_bytes = (*p).vv_name.to_bytes_with_nul();
             (*p).vv_di.di_key.clear();
             (*p).vv_di
                 .di_key
@@ -2253,6 +2253,7 @@ pub unsafe fn get_vim_var_name(idx: VimVarIndex) -> *mut c_char {
     unsafe {
         (*(&raw const vimvars).cast::<VimVar>().add(idx as usize))
             .vv_name
+            .as_ptr()
             .cast_mut()
     }
 }
