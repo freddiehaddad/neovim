@@ -13,7 +13,6 @@ use crate::eval::vars::eval_msgpack_type_lists;
 use crate::hashtab::hashitem_empty;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len};
-use crate::memory::xmemdupz;
 use crate::message::{emsg, semsg};
 use crate::mpack::object::mpack_data_t;
 use std::ffi::{CStr, c_char, c_int};
@@ -129,16 +128,19 @@ pub unsafe fn decode_string(
     }
 
     let _ = use_blob;
-    let str_ptr = if s.is_null() {
-        std::ptr::null_mut()
-    } else {
-        unsafe { xmemdupz(s.cast(), len).cast::<c_char>() }
-    };
-    typval_T {
+    let mut tv = typval_T {
         v_type: VarType::VAR_STRING,
         v_lock: VAR_UNLOCKED,
-        vval: TypvalVval { v_string: str_ptr },
+        vval: TypvalVval {
+            v_string: std::ptr::null_mut(),
+        },
+    };
+    if !s.is_null() {
+        unsafe {
+            crate::eval::typval::tv_set_string_len(&raw mut tv, s, len);
+        }
     }
+    tv
 }
 
 unsafe fn json_decoder_pop(

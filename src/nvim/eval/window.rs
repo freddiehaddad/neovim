@@ -11,11 +11,11 @@ use crate::eval::typval::{
     tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc, tv_dict_alloc_ret, tv_dict_find,
     tv_dict_get_bool, tv_dict_get_number, tv_get_bool, tv_get_number, tv_get_number_chk,
     tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_list,
-    tv_list_append_number, tv_list_append_string, tv_set_string, typval_T, varnumber_T,
+    tv_list_append_number, tv_list_append_string, tv_set_string, tv_set_string_len, typval_T,
+    varnumber_T,
 };
 use crate::ex_getln::text_or_buf_locked;
 use crate::globals::*;
-use crate::memory::xmemdupz;
 use crate::message::{emsg, semsg};
 use crate::r#move::{
     changed_window_setting, check_topfill, restore_viewstate, save_viewstate, set_topline,
@@ -1016,8 +1016,7 @@ pub unsafe fn f_winrestcmd(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             }
         }
 
-        (*rettv).vval.v_string = xmemdupz(buf.as_ptr().cast(), buf.len()).cast();
-        (*rettv).v_type = VarType::VAR_STRING;
+        tv_set_string_len(rettv, buf.as_ptr().cast::<c_char>(), buf.len());
     }
 }
 

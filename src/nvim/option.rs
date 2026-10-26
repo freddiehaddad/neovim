@@ -8044,12 +8044,15 @@ pub unsafe fn ExpandSettings(
 }
 
 /// Escape an option value that can be used on the command-line with :set.
-pub unsafe fn escape_option_str_cmdline(var_arg: *mut c_char) -> *mut c_char {
+pub unsafe fn escape_option_str_cmdline(var_arg: *mut c_char) -> std::ffi::CString {
     unsafe {
-        let buf = vim_strsave_escaped(var_arg, escape_chars);
+        let buf_cstr =
+            crate::memory::cstr_take(vim_strsave_escaped(var_arg, escape_chars)).unwrap_or_default();
 
         #[cfg(windows)]
         {
+            let mut bytes = buf_cstr.into_bytes_with_nul();
+            let buf = bytes.as_mut_ptr().cast::<c_char>();
             let mut var = buf;
             while *var != NUL {
                 if *var == b'\\' as c_char
@@ -8065,8 +8068,13 @@ pub unsafe fn escape_option_str_cmdline(var_arg: *mut c_char) -> *mut c_char {
                 }
                 var = var.add(utfc_ptr2len(var) as usize);
             }
+            let len = CStr::from_ptr(buf).to_bytes().len();
+            crate::memory::cstr_from_bytes(&bytes[..len])
         }
-        buf
+        #[cfg(not(windows))]
+        {
+            buf_cstr
+        }
     }
 }
 
@@ -8095,7 +8103,7 @@ pub unsafe fn ExpandOldSetting(matches: &mut Vec<*mut c_char>) -> c_int {
             c"".as_ptr().cast_mut()
         };
 
-        matches.push(escape_option_str_cmdline(var));
+        matches.push(xstrdup(escape_option_str_cmdline(var).as_ptr()));
         OK
     }
 }
@@ -8129,12 +8137,9 @@ pub unsafe fn ExpandStringSetting(
 
         optval_fmt(EXPAND_OPTION_IDX, EXPAND_OPTION_FLAGS);
         let buf = escape_option_str_cmdline((&raw mut NameBuff).cast::<c_char>());
-        args.oe_opt_value = buf;
+        args.oe_opt_value = buf.as_ptr().cast_mut();
 
-        let num_ret = expand_cb(&raw mut args, matches);
-
-        xfree(buf.cast());
-        num_ret
+        expand_cb(&raw mut args, matches)
     }
 }
 
@@ -8185,7 +8190,7 @@ pub unsafe fn ExpandSettingSubtract(
 
                 if *item != NUL && vim_regexec(regmatch.cast(), item, 0) {
                     let buf = escape_option_str_cmdline(item);
-                    matches.push(buf);
+                    matches.push(xstrdup(buf.as_ptr()));
                 }
 
                 if next_val.is_null() {

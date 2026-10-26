@@ -1,9 +1,9 @@
 //! Functions for calling external native shared libraries (`src/nvim/os/dl.c`).
 
 use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
-use crate::memory::xstrdup;
+use crate::memory::cstr_to_cstring;
 use crate::message::semsg;
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{CString, c_char, c_int, c_void};
 
 #[repr(C)]
 pub struct UvLib {
@@ -20,7 +20,7 @@ pub unsafe fn os_libcall(
     funcname: *const c_char,
     argv: *const c_char,
     argi: c_int,
-    str_out: *mut *mut c_char,
+    str_out: Option<&mut Option<CString>>,
     int_out: *mut c_int,
 ) -> bool {
     if libname.is_null() || funcname.is_null() {
@@ -45,7 +45,7 @@ pub unsafe fn os_libcall(
             return false;
         }
 
-        if !str_out.is_null() {
+        if let Some(out) = str_out {
             let res: *const c_char = if !argv.is_null() {
                 let sfn: unsafe extern "C" fn(*const c_char) -> *const c_char =
                     std::mem::transmute(fn_ptr);
@@ -56,10 +56,10 @@ pub unsafe fn os_libcall(
             };
 
             let addr = res as isize;
-            *str_out = if !res.is_null() && addr != 1 && addr != -1 {
-                xstrdup(res)
+            *out = if !res.is_null() && addr != 1 && addr != -1 {
+                Some(cstr_to_cstring(res))
             } else {
-                std::ptr::null_mut()
+                None
             };
         } else if !int_out.is_null() {
             *int_out = if !argv.is_null() {
@@ -88,7 +88,7 @@ mod tests {
                 c"fn".as_ptr(),
                 std::ptr::null(),
                 0,
-                std::ptr::null_mut(),
+                None,
                 std::ptr::null_mut()
             ));
             assert!(!os_libcall(
@@ -96,7 +96,7 @@ mod tests {
                 std::ptr::null(),
                 std::ptr::null(),
                 0,
-                std::ptr::null_mut(),
+                None,
                 std::ptr::null_mut()
             ));
         }

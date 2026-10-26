@@ -21,7 +21,7 @@ use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::globals::*;
 use crate::lua::converter::Boolean;
 use crate::memline::ml_open;
-use crate::memory::{Arena, arena_memdupz, strequal_str, xfree, xstrdup};
+use crate::memory::{Arena, arena_memdupz, strequal_str, xstrdup};
 use crate::option::{
     OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, OPT_GLOBAL, OPT_LOCAL, OptScope, OptTarget,
     PREFIX_NONE, copy_option_part, escape_option_str_cmdline, find_option, get_all_options_info,
@@ -34,7 +34,7 @@ use crate::option::{
 };
 use crate::strings::{strchr, strlen};
 use crate::window::close_windows;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::highlight::OptionalKeys;
@@ -693,12 +693,11 @@ pub unsafe extern "C" fn nvim_set_option_value(
                 ObjectType::kObjectTypeUnset | ObjectType::kObjectTypeNil => {}
                 ObjectType::kObjectTypeString => {
                     let optval_escaped = escape_option_str_cmdline(optval_right.data.string.data);
-                    let escaped_bytes = CStr::from_ptr(optval_escaped).to_bytes();
+                    let escaped_bytes = optval_escaped.as_bytes();
                     let mut buf_bytes = Vec::with_capacity(1 + escaped_bytes.len());
                     buf_bytes.push(b'=');
                     buf_bytes.extend_from_slice(escaped_bytes);
                     argp = arena_memdupz(arena, buf_bytes.as_ptr().cast(), buf_bytes.len());
-                    xfree(optval_escaped.cast());
                 }
                 ObjectType::kObjectTypeInteger => {
                     let s = format!("={}", optval_right.data.integer);

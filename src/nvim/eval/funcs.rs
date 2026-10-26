@@ -5212,19 +5212,28 @@ unsafe fn libcall_common(argvars: *mut typval_T, rettv: *mut typval_T, out_type:
         };
         let int_in = (*argvars.add(2)).vval.v_number as c_int;
 
-        let str_out = if out_type == VarType::VAR_STRING {
-            &raw mut (*rettv).vval.v_string
-        } else {
-            ptr::null_mut()
-        };
+        let mut str_out: Option<std::ffi::CString> = None;
         let mut int_out: c_int = 0;
 
-        let success = os_libcall(libname, funcname, str_in, int_in, str_out, &raw mut int_out);
+        let success = os_libcall(
+            libname,
+            funcname,
+            str_in,
+            int_in,
+            (out_type == VarType::VAR_STRING).then_some(&mut str_out),
+            &raw mut int_out,
+        );
         if !success {
             semsg!(gettext(e_libcall.as_ptr()), funcname);
             return;
         }
-        if out_type == VarType::VAR_NUMBER {
+        if out_type == VarType::VAR_STRING {
+            if let Some(s) = str_out {
+                crate::eval::typval::tv_set_string(rettv, s.as_ptr());
+            } else {
+                (*rettv).vval.v_string = ptr::null_mut();
+            }
+        } else if out_type == VarType::VAR_NUMBER {
             (*rettv).vval.v_number = varnumber_T::from(int_out);
         }
     }

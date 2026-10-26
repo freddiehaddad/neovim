@@ -33,7 +33,6 @@ use crate::memline::{
     ml_append, ml_delete_buf, ml_delete_flags, ml_get, ml_get_buf, ml_get_buf_len, ml_replace,
     ml_replace_buf,
 };
-use crate::memory::xmemdupz;
 use crate::r#move::update_topline;
 use crate::path::path_with_url;
 use crate::sign::{buf_has_signs, get_buffer_signs};
@@ -908,17 +907,15 @@ unsafe fn get_buffer_lines(
                 );
                 start += 1;
             }
+        } else if start >= 1 && start <= (*buf).b_ml.ml_line_count {
+            crate::eval::typval::tv_set_string_len(
+                rettv,
+                ml_get_buf(buf, start),
+                ml_get_buf_len(buf, start) as usize,
+            );
         } else {
             (*rettv).v_type = VarType::VAR_STRING;
-            (*rettv).vval.v_string = if start >= 1 && start <= (*buf).b_ml.ml_line_count {
-                xmemdupz(
-                    ml_get_buf(buf, start).cast(),
-                    ml_get_buf_len(buf, start) as usize,
-                )
-                .cast()
-            } else {
-                ptr::null_mut()
-            };
+            (*rettv).vval.v_string = ptr::null_mut();
         }
     }
 }

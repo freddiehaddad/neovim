@@ -25,9 +25,9 @@ use crate::eval::typval::{
 use crate::globals::*;
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_new_luaref, nlua_ref_is_function};
-use crate::memory::{Arena, arena_memdupz, xfree, xstrndup};
+use crate::memory::{Arena, arena_memdupz, cstr_from_bytes};
 use crate::msgpack_rpc::packer::Integer;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, CString, c_char, c_int};
 
 use crate::api::tabpage::Buffer;
 use crate::highlight::OptionalKeys;
@@ -826,7 +826,8 @@ pub unsafe extern "C" fn nvim_create_autocmd(
     unsafe {
         let mut autocmd_id: i64 = -1;
         let mut desc: *const c_char = std::ptr::null();
-        let mut handler_cmd: *mut c_char = std::ptr::null_mut();
+        let mut handler_cmd: Option<CString> = None;
+        let mut funcref_cstr: Option<CString> = None;
         let mut handler_fn = Callback::NONE;
 
         'body: {
@@ -861,10 +862,13 @@ pub unsafe extern "C" fn nvim_create_autocmd(
                         callback.data.luaref = LUA_NOREF;
                     }
                     ObjectType::kObjectTypeString => {
-                        handler_fn.data = crate::eval::typval::CallbackData::funcref(xstrndup(
-                            callback.data.string.data,
+                        let s = cstr_from_bytes(std::slice::from_raw_parts(
+                            callback.data.string.data.cast::<u8>(),
                             callback.data.string.size,
                         ));
+                        handler_fn.data =
+                            crate::eval::typval::CallbackData::funcref(s.as_ptr().cast_mut());
+                        funcref_cstr = Some(s);
                     }
                     _ => {
                         api_err_exp(
@@ -877,7 +881,10 @@ pub unsafe extern "C" fn nvim_create_autocmd(
                     }
                 }
             } else if has_command {
-                handler_cmd = xstrndup((*opts).command.data, (*opts).command.size);
+                handler_cmd = Some(cstr_from_bytes(std::slice::from_raw_parts(
+                    (*opts).command.data.cast::<u8>(),
+                    (*opts).command.size,
+                )));
             } else {
                 api_err_req(err, c"'command' or 'callback'".as_ptr());
                 break 'body;
@@ -959,7 +966,9 @@ pub unsafe extern "C" fn nvim_create_autocmd(
                         (*opts).once,
                         (*opts).nested,
                         desc.cast_mut(),
-                        handler_cmd,
+                        handler_cmd
+                            .as_ref()
+                            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut()),
                         &mut handler_fn,
                     );
                     current_sctx = save_current_sctx;
@@ -976,9 +985,7 @@ pub unsafe extern "C" fn nvim_create_autocmd(
             }
         }
 
-        if !handler_cmd.is_null() {
-            xfree(handler_cmd.cast());
-        } else {
+        if handler_cmd.is_none() && funcref_cstr.is_none() {
             callback_free(&mut handler_fn);
         }
 

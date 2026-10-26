@@ -23,7 +23,6 @@ use crate::globals::*;
 use crate::hashtab::{hash_lock, hash_unlock, hashitem_empty};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_strnicmp, utf_ptr2len, utfc_ptr2len};
-use crate::memory::xmemdupz;
 use crate::message::{emsg, semsg};
 use crate::strings::reverse_text;
 use std::ffi::{CStr, c_char, c_int};
@@ -274,13 +273,8 @@ unsafe fn filter_map_string(
         let mut p = str_ptr;
         while *p != 0 {
             let len = utfc_ptr2len(p) as usize;
-            let mut tv = typval_T {
-                v_type: VarType::VAR_STRING,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval {
-                    v_string: xmemdupz(p.cast(), len).cast::<c_char>(),
-                },
-            };
+            let mut tv = typval_T::new();
+            crate::eval::typval::tv_set_string_len(&raw mut tv, p, len);
 
             set_vim_var_nr(VV_KEY, idx);
             let mut newtv = typval_T {
@@ -315,7 +309,7 @@ unsafe fn filter_map_string(
             idx += 1;
             p = p.add(len);
         }
-        (*rettv).vval.v_string = xmemdupz(out.as_ptr().cast(), out.len()).cast::<c_char>();
+        crate::eval::typval::tv_set_string_len(rettv, out.as_ptr().cast::<c_char>(), out.len());
     }
 }
 
