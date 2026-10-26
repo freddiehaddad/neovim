@@ -1797,7 +1797,7 @@ pub unsafe extern "C" fn nvim__buf_stats(buf: Buffer, arena: *mut Arena, err: *m
         put_c(
             &mut rv,
             c"virt_blocks",
-            integer_obj((*b).b_marktree[0].meta_root[kMTMetaLines] as Integer),
+            integer_obj((*b).b_marktree.meta_root[kMTMetaLines] as Integer),
         );
 
         let uhp = if !(*b).b_u_curhead.is_null() {

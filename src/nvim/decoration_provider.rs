@@ -217,7 +217,7 @@ pub unsafe fn decor_providers_invoke_spell(
 /// Return whether a provider placed any marks in the callback (`decor_providers_invoke_conceal_line`).
 pub unsafe fn decor_providers_invoke_conceal_line(wp: *mut win_T, row: c_int) -> bool {
     unsafe {
-        let keys = (*(*wp).w_buffer).b_marktree[0].n_keys;
+        let keys = (*(*wp).w_buffer).b_marktree.n_keys;
         let mut i = 0usize;
         while i < providers_mut().len() {
             let p = &providers_mut()[i];
@@ -244,7 +244,7 @@ pub unsafe fn decor_providers_invoke_conceal_line(wp: *mut win_T, row: c_int) ->
             }
             i += 1;
         }
-        (*(*wp).w_buffer).b_marktree[0].n_keys > keys
+        (*(*wp).w_buffer).b_marktree.n_keys > keys
     }
 }
 

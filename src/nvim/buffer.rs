@@ -432,7 +432,7 @@ pub struct buf_T {
     pub terminal: *mut Terminal,
     pub additional_data: *mut crate::search::AdditionalData,
     pub b_mapped_ctrl_c: c_int,
-    pub b_marktree: [crate::marktree::MarkTree; 1],
+    pub b_marktree: crate::marktree::MarkTree,
     pub b_extmark_ns: std::collections::BTreeMap<u32, u32>,
     pub b_prev_line_count: c_int,
     pub update_channels: Vec<u64>,
@@ -718,7 +718,7 @@ impl buf_T {
             terminal: ptr::null_mut(),
             additional_data: ptr::null_mut(),
             b_mapped_ctrl_c: 0,
-            b_marktree: [crate::marktree::MarkTree::new()],
+            b_marktree: crate::marktree::MarkTree::new(),
             b_extmark_ns: std::collections::BTreeMap::new(),
             b_prev_line_count: 0,
             update_channels: Vec::new(),
@@ -886,7 +886,7 @@ pub unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
 
 #[inline]
 pub unsafe fn buf_meta_total(b: *const buf_T, m: usize) -> u32 {
-    unsafe { (*b).b_marktree[0].meta_root[m] }
+    unsafe { (*b).b_marktree.meta_root[m] }
 }
 
 #[inline]

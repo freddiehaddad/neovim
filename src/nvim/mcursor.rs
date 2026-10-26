@@ -1399,7 +1399,7 @@ pub unsafe fn mc_mark_at(buf: *mut buf_T, pos: pos_T, skip: u32) -> u32 {
         }
         let mut itr: MarkTreeIter = MarkTreeIter::new();
         marktree_itr_get(
-            (*buf).b_marktree.as_mut_ptr(),
+            &raw mut (*buf).b_marktree,
             pos.lnum - 1,
             pos.col,
             &mut itr,
@@ -1412,7 +1412,7 @@ pub unsafe fn mc_mark_at(buf: *mut buf_T, pos: pos_T, skip: u32) -> u32 {
             if k.ns == mc_ns() && !mt_end(k) && k.id != skip {
                 return k.id;
             }
-            if !marktree_itr_next((*buf).b_marktree.as_mut_ptr(), &mut itr) {
+            if !marktree_itr_next(&raw mut (*buf).b_marktree, &mut itr) {
                 break;
             }
         }

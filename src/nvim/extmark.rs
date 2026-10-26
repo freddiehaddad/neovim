@@ -182,7 +182,7 @@ pub unsafe fn extmark_set(
         } else {
             let mut itr = MarkTreeIter::new();
             let old_mark = marktree_lookup_ns(
-                (*buf).b_marktree.as_mut_ptr(),
+                &raw mut (*buf).b_marktree,
                 ns_id,
                 id,
                 false,
@@ -215,13 +215,13 @@ pub unsafe fn extmark_set(
                         (*itr.x).key[itr.i as usize].flags |= flags;
                         (*itr.x).key[itr.i as usize].decor_data = decor.data;
                         marktree_revise_meta(
-                            (*buf).b_marktree.as_mut_ptr(),
+                            &raw mut (*buf).b_marktree,
                             &raw mut itr,
                             old_mark,
                         );
                         revised_in_place = true;
                     } else {
-                        marktree_del_itr((*buf).b_marktree.as_mut_ptr(), &raw mut itr, false);
+                        marktree_del_itr(&raw mut (*buf).b_marktree, &raw mut itr, false);
                         if !mt_invalid(old_mark) {
                             buf_decor_remove(
                                 buf,
@@ -249,7 +249,7 @@ pub unsafe fn extmark_set(
             };
 
             marktree_put(
-                (*buf).b_marktree.as_mut_ptr(),
+                &raw mut (*buf).b_marktree,
                 mark,
                 end_row,
                 end_col,
@@ -301,7 +301,7 @@ pub unsafe fn extmark_set(
 unsafe fn extmark_setraw(buf: *mut buf_T, mark: u64, row: c_int, col: colnr_T, revive: bool) {
     unsafe {
         let mut itr = MarkTreeIter::new();
-        let key = marktree_lookup((*buf).b_marktree.as_mut_ptr(), mark, &raw mut itr);
+        let key = marktree_lookup(&raw mut (*buf).b_marktree, mark, &raw mut itr);
         let move_ = key.pos.row != row || key.pos.col != col;
         let invalid = revive && mt_invalid(key);
         if key.pos.row < 0 || (!move_ && !invalid) {
@@ -315,13 +315,13 @@ unsafe fn extmark_setraw(buf: *mut buf_T, mark: u64, row: c_int, col: colnr_T, r
         let mut row1: c_int = 0;
         let mut row2: c_int = 0;
         let mut altitr = itr;
-        let alt = marktree_get_alt((*buf).b_marktree.as_mut_ptr(), key, &raw mut altitr);
+        let alt = marktree_get_alt(&raw mut (*buf).b_marktree, key, &raw mut altitr);
 
         if invalid {
             (*itr.x).key[itr.i as usize].flags &= !MT_FLAG_INVALID;
             (*altitr.x).key[altitr.i as usize].flags &= !MT_FLAG_INVALID;
             marktree_revise_meta(
-                (*buf).b_marktree.as_mut_ptr(),
+                &raw mut (*buf).b_marktree,
                 if mt_end(key) {
                     &raw mut altitr
                 } else {
@@ -345,7 +345,7 @@ unsafe fn extmark_setraw(buf: *mut buf_T, mark: u64, row: c_int, col: colnr_T, r
         }
 
         if move_ {
-            marktree_move((*buf).b_marktree.as_mut_ptr(), &raw mut itr, row, col);
+            marktree_move(&raw mut (*buf).b_marktree, &raw mut itr, row, col);
         }
 
         if invalid {
@@ -375,7 +375,7 @@ pub unsafe fn extmark_del_id(buf: *mut buf_T, ns_id: u32, id: u32) -> bool {
     unsafe {
         let mut itr = MarkTreeIter::new();
         let key = marktree_lookup_ns(
-            (*buf).b_marktree.as_mut_ptr(),
+            &raw mut (*buf).b_marktree,
             ns_id,
             id,
             false,
@@ -394,14 +394,14 @@ pub unsafe fn extmark_del(buf: *mut buf_T, itr: *mut MarkTreeIter, mut key: MTKe
         debug_assert!(key.pos.row >= 0);
 
         let mut key2 = key;
-        let other = marktree_del_itr((*buf).b_marktree.as_mut_ptr(), itr, false);
+        let other = marktree_del_itr(&raw mut (*buf).b_marktree, itr, false);
         if other != 0 {
-            key2 = marktree_lookup((*buf).b_marktree.as_mut_ptr(), other, itr);
+            key2 = marktree_lookup(&raw mut (*buf).b_marktree, other, itr);
             debug_assert!(key2.pos.row >= 0);
-            marktree_del_itr((*buf).b_marktree.as_mut_ptr(), itr, false);
+            marktree_del_itr(&raw mut (*buf).b_marktree, itr, false);
             if restore {
                 marktree_itr_get(
-                    (*buf).b_marktree.as_mut_ptr(),
+                    &raw mut (*buf).b_marktree,
                     key.pos.row,
                     key.pos.col,
                     itr,
@@ -456,7 +456,7 @@ pub unsafe fn extmark_clear(
         let mut marks_cleared_all = l_row == 0 && l_col == 0;
 
         let mut itr = MarkTreeIter::new();
-        marktree_itr_get((*buf).b_marktree.as_mut_ptr(), l_row, l_col, &raw mut itr);
+        marktree_itr_get(&raw mut (*buf).b_marktree, l_row, l_col, &raw mut itr);
         loop {
             let mark = marktree_itr_current(&raw mut itr);
             if mark.pos.row < 0
@@ -472,7 +472,7 @@ pub unsafe fn extmark_clear(
                 marks_cleared_any = true;
                 extmark_del(buf, &raw mut itr, mark, true);
             } else {
-                marktree_itr_next((*buf).b_marktree.as_mut_ptr(), &raw mut itr);
+                marktree_itr_next(&raw mut (*buf).b_marktree, &raw mut itr);
             }
         }
 
@@ -510,7 +510,7 @@ pub unsafe fn extmark_get(
         let mut itr = MarkTreeIter::new();
 
         if overlap {
-            if !marktree_itr_get_overlap((*buf).b_marktree.as_mut_ptr(), l_row, l_col, &raw mut itr)
+            if !marktree_itr_get_overlap(&raw mut (*buf).b_marktree, l_row, l_col, &raw mut itr)
             {
                 return array;
             }
@@ -518,7 +518,7 @@ pub unsafe fn extmark_get(
             while (array.len() as i64) < amount {
                 let mut pair = MTPair::new();
                 if !marktree_itr_step_overlap(
-                    (*buf).b_marktree.as_mut_ptr(),
+                    &raw mut (*buf).b_marktree,
                     &raw mut itr,
                     &raw mut pair,
                 ) {
@@ -528,7 +528,7 @@ pub unsafe fn extmark_get(
             }
         } else {
             marktree_itr_get_ext(
-                (*buf).b_marktree.as_mut_ptr(),
+                &raw mut (*buf).b_marktree,
                 MTPos {
                     row: l_row,
                     col: l_col,
@@ -550,10 +550,10 @@ pub unsafe fn extmark_get(
                 break;
             }
             if !mt_end(mark) {
-                let end = marktree_get_alt((*buf).b_marktree.as_mut_ptr(), mark, ptr::null_mut());
+                let end = marktree_get_alt(&raw mut (*buf).b_marktree, mark, ptr::null_mut());
                 push_mark(&raw mut array, ns_id, type_filter, mtpair_from(mark, end));
             }
-            marktree_itr_next((*buf).b_marktree.as_mut_ptr(), &raw mut itr);
+            marktree_itr_next(&raw mut (*buf).b_marktree, &raw mut itr);
         }
         array
     }
@@ -587,7 +587,7 @@ unsafe fn push_mark(
 pub unsafe fn extmark_from_id(buf: *mut buf_T, ns_id: u32, id: u32) -> MTPair {
     unsafe {
         let mark = marktree_lookup_ns(
-            (*buf).b_marktree.as_mut_ptr(),
+            &raw mut (*buf).b_marktree,
             ns_id,
             id,
             false,
@@ -597,7 +597,7 @@ pub unsafe fn extmark_from_id(buf: *mut buf_T, ns_id: u32, id: u32) -> MTPair {
             return mtpair_from(mark, mark);
         }
         debug_assert!(mark.pos.row >= 0);
-        let end = marktree_get_alt((*buf).b_marktree.as_mut_ptr(), mark, ptr::null_mut());
+        let end = marktree_get_alt(&raw mut (*buf).b_marktree, mark, ptr::null_mut());
 
         mtpair_from(mark, end)
     }
@@ -656,7 +656,7 @@ pub unsafe fn extmark_get_pos(buf: *mut buf_T, ns_id: u32, id: u32, pos: *mut po
 pub unsafe fn extmark_free_all(buf: *mut buf_T) {
     unsafe {
         let mut itr = MarkTreeIter::new();
-        marktree_itr_get((*buf).b_marktree.as_mut_ptr(), 0, 0, &raw mut itr);
+        marktree_itr_get(&raw mut (*buf).b_marktree, 0, 0, &raw mut itr);
         loop {
             let mark = marktree_itr_current(&raw mut itr);
             if mark.pos.row < 0 {
@@ -667,10 +667,10 @@ pub unsafe fn extmark_free_all(buf: *mut buf_T) {
                 decor_free(mt_decor(mark));
             }
 
-            marktree_itr_next((*buf).b_marktree.as_mut_ptr(), &raw mut itr);
+            marktree_itr_next(&raw mut (*buf).b_marktree, &raw mut itr);
         }
 
-        marktree_clear((*buf).b_marktree.as_mut_ptr());
+        marktree_clear(&raw mut (*buf).b_marktree);
 
         (*buf).b_signcols.max = 0;
         (*buf).b_signcols.count = [0; 9];
@@ -692,7 +692,7 @@ pub unsafe fn extmark_splice_delete(
 ) {
     unsafe {
         let mut itr = MarkTreeIter::new();
-        marktree_itr_get((*buf).b_marktree.as_mut_ptr(), l_row, l_col, &raw mut itr);
+        marktree_itr_get(&raw mut (*buf).b_marktree, l_row, l_col, &raw mut itr);
         loop {
             let mark = marktree_itr_current(&raw mut itr);
             if mark.pos.row < 0 || mark.pos.row > u_row {
@@ -714,7 +714,7 @@ pub unsafe fn extmark_splice_delete(
             if !only_copy && !mt_invalid(mark) && mt_invalidate(mark) && !mt_end(mark) {
                 let mut enditr = itr;
                 let endpos =
-                    marktree_get_altpos((*buf).b_marktree.as_mut_ptr(), mark, &raw mut enditr);
+                    marktree_get_altpos(&raw mut (*buf).b_marktree, mark, &raw mut enditr);
                 if (!mt_paired(mark) && mark.pos.row < u_row)
                     || (mt_paired(mark)
                         && (mark.pos.row > l_row
@@ -729,7 +729,7 @@ pub unsafe fn extmark_splice_delete(
                         invalidated = true;
                         (*itr.x).key[itr.i as usize].flags |= MT_FLAG_INVALID;
                         (*enditr.x).key[enditr.i as usize].flags |= MT_FLAG_INVALID;
-                        marktree_revise_meta((*buf).b_marktree.as_mut_ptr(), &raw mut itr, mark);
+                        marktree_revise_meta(&raw mut (*buf).b_marktree, &raw mut itr, mark);
                         buf_decor_remove(
                             buf,
                             mark.pos.row,
@@ -754,7 +754,7 @@ pub unsafe fn extmark_splice_delete(
                 (*uvp).push(ExtmarkUndoObject::SavePos(pos));
             }
 
-            marktree_itr_next((*buf).b_marktree.as_mut_ptr(), &raw mut itr);
+            marktree_itr_next(&raw mut (*buf).b_marktree, &raw mut itr);
         }
     }
 }
@@ -975,7 +975,7 @@ pub unsafe fn extmark_splice_impl(
         }
 
         marktree_splice(
-            (*buf).b_marktree.as_mut_ptr(),
+            &raw mut (*buf).b_marktree,
             start_row,
             start_col,
             old_row,
@@ -1098,7 +1098,7 @@ pub unsafe fn extmark_move_region(
         buf_signcols_count_range(buf, row1, row2, 0, kTrue);
 
         marktree_move_region(
-            (*buf).b_marktree.as_mut_ptr(),
+            &raw mut (*buf).b_marktree,
             start_row,
             start_col,
             extent_row,

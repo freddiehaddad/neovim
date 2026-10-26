@@ -1711,7 +1711,7 @@ pub unsafe extern "C" fn nvim__buf_debug_extmarks(
                 size: 0,
             };
         }
-        mt_inspect((*b).b_marktree.as_mut_ptr(), keys, dot)
+        mt_inspect(&raw mut (*b).b_marktree, keys, dot)
     }
 }
 

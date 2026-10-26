@@ -104,14 +104,13 @@ unsafe fn comp_botline(wp: *mut win_T) {
     unsafe {
         check_cursor_moved(wp);
 
-        let w_lines = (*wp).w_lines.as_mut_ptr();
         let use_cache = redrawing()
             && !(*(*wp).w_buffer).b_mod_set
             && dollar_vcol == -1
             && (*wp).w_skipcol == 0
             && !win_may_fill(wp)
             && (*wp).w_lines_valid > 0
-            && (*w_lines).wl_lnum <= (*wp).w_topline;
+            && (&(*wp).w_lines)[0].wl_lnum <= (*wp).w_topline;
 
         let (mut lnum, mut done) = if ((*wp).w_valid & VALID_CROW) != 0 {
             ((*wp).w_cursor.lnum, (*wp).w_cline_row)
@@ -121,7 +120,7 @@ unsafe fn comp_botline(wp: *mut win_T) {
 
         let mut i: c_int = 0;
         if use_cache {
-            while i < (*wp).w_lines_valid && (*w_lines.add(i as usize)).wl_lnum < lnum {
+            while i < (*wp).w_lines_valid && (&(*wp).w_lines)[i as usize].wl_lnum < lnum {
                 i += 1;
             }
         }
@@ -129,12 +128,12 @@ unsafe fn comp_botline(wp: *mut win_T) {
         while lnum <= (*(*wp).w_buffer).b_ml.ml_line_count {
             let mut valid = false;
             if use_cache && i < (*wp).w_lines_valid {
-                let wl = w_lines.add(i as usize);
-                if (*wl).wl_lnum < lnum || !(*wl).wl_valid {
+                let wl = (&(*wp).w_lines)[i as usize];
+                if wl.wl_lnum < lnum || !wl.wl_valid {
                     i += 1;
                     continue;
                 }
-                if (*wl).wl_lnum == lnum {
+                if wl.wl_lnum == lnum {
                     valid = true;
                 } else {
                     i -= 1;
@@ -143,10 +142,10 @@ unsafe fn comp_botline(wp: *mut win_T) {
             let mut last = lnum;
             let mut folded = false;
             let n = if valid {
-                let wl = w_lines.add(i as usize);
-                folded = (*wl).wl_folded;
-                last = (*wl).wl_lastlnum;
-                c_int::from((*wl).wl_size)
+                let wl = (&(*wp).w_lines)[i as usize];
+                folded = wl.wl_folded;
+                last = wl.wl_lastlnum;
+                c_int::from(wl.wl_size)
             } else {
                 plines_correct_topline(wp, lnum, &raw mut last, true, &raw mut folded)
             };
@@ -742,39 +741,39 @@ pub unsafe fn validate_cursor(wp: *mut win_T) {
 /// Compute `wp->w_cline_row` and `wp->w_cline_height`, based on `wp->w_topline`.
 unsafe fn curs_rows(wp: *mut win_T) {
     unsafe {
-        let w_lines = (*wp).w_lines.as_mut_ptr();
-        let all_invalid =
-            !redrawing() || (*wp).w_lines_valid == 0 || (*w_lines).wl_lnum > (*wp).w_topline;
+        let all_invalid = !redrawing()
+            || (*wp).w_lines_valid == 0
+            || (&(*wp).w_lines)[0].wl_lnum > (*wp).w_topline;
         let mut i: c_int = 0;
         (*wp).w_cline_row = 0;
         let mut lnum = (*wp).w_topline;
         while lnum < (*wp).w_cursor.lnum {
             let mut valid = false;
             if !all_invalid && i < (*wp).w_lines_valid {
-                let wl = w_lines.add(i as usize);
-                if (*wl).wl_lnum < lnum || !(*wl).wl_valid {
+                let wl = (&(*wp).w_lines)[i as usize];
+                if wl.wl_lnum < lnum || !wl.wl_valid {
                     i += 1;
                     continue;
                 }
-                if (*wl).wl_lnum == lnum {
+                if wl.wl_lnum == lnum {
                     if !(*(*wp).w_buffer).b_mod_set
-                        || (*wl).wl_lastlnum < (*wp).w_cursor.lnum
-                        || (*(*wp).w_buffer).b_mod_top > (*wl).wl_lastlnum + 1
+                        || wl.wl_lastlnum < (*wp).w_cursor.lnum
+                        || (*(*wp).w_buffer).b_mod_top > wl.wl_lastlnum + 1
                     {
                         valid = true;
                     }
-                } else if (*wl).wl_lnum > lnum {
+                } else if wl.wl_lnum > lnum {
                     i -= 1;
                 }
             }
             if valid && (lnum != (*wp).w_topline || ((*wp).w_skipcol == 0 && !win_may_fill(wp))) {
-                let wl = w_lines.add(i as usize);
-                lnum = (*wl).wl_lastlnum + 1;
+                let wl = (&(*wp).w_lines)[i as usize];
+                lnum = wl.wl_lastlnum + 1;
                 if lnum > (*wp).w_cursor.lnum {
                     i += 1;
                     break;
                 }
-                (*wp).w_cline_row += c_int::from((*wl).wl_size);
+                (*wp).w_cline_row += c_int::from(wl.wl_size);
             } else {
                 let mut last = lnum;
                 let mut folded = false;
@@ -795,8 +794,8 @@ unsafe fn curs_rows(wp: *mut win_T) {
             if all_invalid
                 || i == (*wp).w_lines_valid
                 || (i < (*wp).w_lines_valid
-                    && (!(*w_lines.add(i as usize)).wl_valid
-                        || (*w_lines.add(i as usize)).wl_lnum != (*wp).w_cursor.lnum))
+                    && (!(&(*wp).w_lines)[i as usize].wl_valid
+                        || (&(*wp).w_lines)[i as usize].wl_lnum != (*wp).w_cursor.lnum))
             {
                 (*wp).w_cline_height = plines_win_full(
                     wp,
@@ -811,8 +810,9 @@ unsafe fn curs_rows(wp: *mut win_T) {
                 (*wp).w_cline_folded =
                     hasFolding(wp, (*wp).w_cursor.lnum, ptr::null_mut(), ptr::null_mut());
             } else {
-                (*wp).w_cline_height = c_int::from((*w_lines.add(i as usize)).wl_size);
-                (*wp).w_cline_folded = (*w_lines.add(i as usize)).wl_folded;
+                let wl = (&(*wp).w_lines)[i as usize];
+                (*wp).w_cline_height = c_int::from(wl.wl_size);
+                (*wp).w_cline_folded = wl.wl_folded;
             }
         }
 

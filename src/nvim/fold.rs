@@ -847,15 +847,14 @@ pub unsafe fn foldInitWin(new_win: *mut win_T) {
 /// Find an entry in the win->w_lines[] array for buffer line "lnum".
 pub unsafe fn find_wl_entry(win: *mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
-        let w_lines = (*win).w_lines.as_ptr();
-        for i in 0..(*win).w_lines_valid {
-            let wl = &*w_lines.add(i as usize);
+        let valid_len = (*win).w_lines_valid.max(0) as usize;
+        for (i, wl) in (&(*win).w_lines)[..valid_len].iter().enumerate() {
             if wl.wl_valid {
                 if lnum < wl.wl_lnum {
                     return -1;
                 }
                 if lnum <= wl.wl_foldend {
-                    return i;
+                    return i as c_int;
                 }
             }
         }

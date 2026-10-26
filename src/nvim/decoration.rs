@@ -212,7 +212,7 @@ impl DecorRangeSlot {
 }
 
 pub struct DecorState {
-    pub itr: [MarkTreeIter; 1],
+    pub itr: MarkTreeIter,
     pub slots: Vec<DecorRangeSlot>,
     pub ranges_i: Vec<c_int>,
     pub current_end: c_int,
@@ -237,7 +237,7 @@ pub struct DecorState {
 impl DecorState {
     pub const fn new() -> Self {
         Self {
-            itr: [MarkTreeIter::new()],
+            itr: MarkTreeIter::new(),
             slots: Vec::new(),
             ranges_i: Vec::new(),
             current_end: 0,
@@ -829,10 +829,10 @@ pub unsafe fn next_virt_text_chunk(
 
 pub unsafe fn decor_find_virttext(buf: *mut buf_T, row: c_int, ns_id: u64) -> *mut DecorVirtText {
     unsafe {
-        let mut itr: [MarkTreeIter; 1] = [MarkTreeIter::new(); 1];
-        marktree_itr_get((*buf).b_marktree.as_mut_ptr(), row, 0, itr.as_mut_ptr());
+        let mut itr = MarkTreeIter::new();
+        marktree_itr_get(&raw mut (*buf).b_marktree, row, 0, &raw mut itr);
         loop {
-            let mark = marktree_itr_current(itr.as_mut_ptr());
+            let mark = marktree_itr_current(&raw mut itr);
             if mark.pos.row < 0 || mark.pos.row > row {
                 break;
             } else if !mt_invalid(mark) {
@@ -844,7 +844,7 @@ pub unsafe fn decor_find_virttext(buf: *mut buf_T, row: c_int, ns_id: u64) -> *m
                     return decor;
                 }
             }
-            marktree_itr_next((*buf).b_marktree.as_mut_ptr(), itr.as_mut_ptr());
+            marktree_itr_next(&raw mut (*buf).b_marktree, &raw mut itr);
         }
         ptr::null_mut()
     }
@@ -855,18 +855,15 @@ pub unsafe fn decor_redraw_reset(wp: *mut win_T, state: *mut DecorState) -> bool
         (*state).row = -1;
         (*state).win = wp;
 
-        let indices = (*state).ranges_i.as_mut_ptr();
-        let slots = (*state).slots.as_mut_ptr();
-
         let beg_pos = [0, (*state).future_begin];
         let end_pos = [(*state).current_end, (*state).ranges_i.len() as c_int];
 
         for pos_i in 0..2 {
             for i in beg_pos[pos_i]..end_pos[pos_i] {
-                let r: *mut DecorRange =
-                    (*slots.add(*indices.add(i as usize) as usize)).range_mut();
-                if (*r).owned && (*r).data.is_vt() {
-                    drop(Box::from_raw((*r).data.vt()));
+                let slot_idx = (&(*state).ranges_i)[i as usize] as usize;
+                let r = (&mut (*state).slots)[slot_idx].range_mut();
+                if r.owned && r.data.is_vt() {
+                    drop(Box::from_raw(r.data.vt()));
                 }
             }
         }
@@ -878,7 +875,7 @@ pub unsafe fn decor_redraw_reset(wp: *mut win_T, state: *mut DecorState) -> bool
         (*state).future_begin = 0;
         (*state).new_range_ordering = 0;
 
-        (*(*wp).w_buffer).b_marktree[0].n_keys != 0
+        (*(*wp).w_buffer).b_marktree.n_keys != 0
     }
 }
 
@@ -903,18 +900,18 @@ pub unsafe fn decor_redraw_start(wp: *mut win_T, top_row: c_int, state: *mut Dec
         (*state).itr_valid = true;
 
         if !marktree_itr_get_overlap(
-            (*buf).b_marktree.as_mut_ptr(),
+            &raw mut (*buf).b_marktree,
             top_row,
             0,
-            (*state).itr.as_mut_ptr(),
+            &raw mut (*state).itr,
         ) {
             return false;
         }
         let mut pair: MTPair = MTPair::new();
 
         while marktree_itr_step_overlap(
-            (*buf).b_marktree.as_mut_ptr(),
-            (*state).itr.as_mut_ptr(),
+            &raw mut (*buf).b_marktree,
+            &raw mut (*state).itr,
             &raw mut pair,
         ) {
             let m = pair.start;
@@ -949,12 +946,7 @@ unsafe fn decor_state_pack(state: *mut DecorState) {
             fut_beg = cur_end;
             count = cur_end;
         } else if fut_beg != cur_end {
-            let indices = (*state).ranges_i.as_mut_ptr();
-            ptr::copy(
-                indices.add(fut_beg as usize),
-                indices.add(cur_end as usize),
-                (count - fut_beg) as usize,
-            );
+            (*state).ranges_i.copy_within(fut_beg as usize..count as usize, cur_end as usize);
             count = cur_end + (count - fut_beg);
             fut_beg = cur_end;
         }
@@ -972,10 +964,10 @@ pub unsafe fn decor_redraw_line(wp: *mut win_T, row: c_int, state: *mut DecorSta
             decor_redraw_start(wp, row, state);
         } else if !(*state).itr_valid {
             marktree_itr_get(
-                (*(*wp).w_buffer).b_marktree.as_mut_ptr(),
+                &raw mut (*(*wp).w_buffer).b_marktree,
                 row,
                 0,
-                (*state).itr.as_mut_ptr(),
+                &raw mut (*state).itr,
             );
             (*state).itr_valid = true;
         }
@@ -992,7 +984,7 @@ pub unsafe fn decor_has_more_decorations(state: *mut DecorState, row: c_int) -> 
             return true;
         }
 
-        let k = marktree_itr_current((*state).itr.as_mut_ptr());
+        let k = marktree_itr_current(&raw mut (*state).itr);
         k.pos.row >= 0 && k.pos.row <= row
     }
 }
@@ -1062,17 +1054,16 @@ unsafe fn decor_range_insert(state: *mut DecorState, range: *mut DecorRange) {
         let col = (*range).start_col;
 
         let count = (*state).ranges_i.len() as c_int;
-        let slots = (*state).slots.as_ptr();
 
         let mut begin = (*state).future_begin;
         let mut end = count;
         while begin < end {
             let mid = begin + ((end - begin) >> 1);
-            let mid_idx = (*state).ranges_i.as_slice()[mid as usize];
-            let mr: *const DecorRange = (*slots.add(mid_idx as usize)).range();
+            let mid_idx = (&(*state).ranges_i)[mid as usize] as usize;
+            let mr = (&(*state).slots)[mid_idx].range();
 
-            let mrow = (*mr).start_row;
-            let mcol = (*mr).start_col;
+            let mrow = mr.start_row;
+            let mcol = mr.start_col;
             if mrow < row || (mrow == row && mcol <= col) {
                 begin = mid + 1;
                 if mrow == row && mcol == col {
@@ -1199,11 +1190,10 @@ pub unsafe fn decor_init_draw_col(win_col: c_int, hidden: bool, item: *mut Decor
 pub unsafe fn decor_recheck_draw_col(win_col: c_int, hidden: bool, state: *mut DecorState) {
     unsafe {
         let end = (*state).current_end;
-        let indices = (*state).ranges_i.as_ptr();
-        let slots = (*state).slots.as_mut_ptr();
 
         for i in 0..end {
-            let r: *mut DecorRange = (*slots.add(*indices.add(i as usize) as usize)).range_mut();
+            let slot_idx = (&(*state).ranges_i)[i as usize] as usize;
+            let r: *mut DecorRange = (&mut (*state).slots)[slot_idx].range_mut();
             if (*r).draw_col == -3 {
                 decor_init_draw_col(win_col, hidden, r);
             }
@@ -1225,7 +1215,7 @@ pub unsafe fn decor_redraw_col_impl(
         let mut col_last = max_col_last;
 
         loop {
-            let mark = marktree_itr_current((*state).itr.as_mut_ptr());
+            let mark = marktree_itr_current(&raw mut (*state).itr);
             if mark.pos.row < 0 || mark.pos.row > row {
                 break;
             } else if mark.pos.row == row && mark.pos.col > col {
@@ -1235,7 +1225,7 @@ pub unsafe fn decor_redraw_col_impl(
 
             if !mt_invalid(mark) && !mt_end(mark) && mt_decor_any(mark) && ns_in_win(mark.ns, wp) {
                 let endpos =
-                    marktree_get_altpos((*buf).b_marktree.as_mut_ptr(), mark, ptr::null_mut());
+                    marktree_get_altpos(&raw mut (*buf).b_marktree, mark, ptr::null_mut());
                 decor_range_add_from_inline(
                     state,
                     mark.pos.row,
@@ -1249,33 +1239,30 @@ pub unsafe fn decor_redraw_col_impl(
                 );
             }
 
-            marktree_itr_next((*buf).b_marktree.as_mut_ptr(), (*state).itr.as_mut_ptr());
+            marktree_itr_next(&raw mut (*buf).b_marktree, &raw mut (*state).itr);
         }
-
-        let indices = (*state).ranges_i.as_mut_ptr();
-        let slots = (*state).slots.as_mut_ptr();
 
         let mut count = (*state).ranges_i.len() as c_int;
         let mut cur_end = (*state).current_end;
         let mut fut_beg = (*state).future_begin;
 
         while fut_beg < count {
-            let index = *indices.add(fut_beg as usize);
-            let r: *const DecorRange = (*slots.add(index as usize)).range();
-            if (*r).start_row > row || ((*r).start_row == row && (*r).start_col > col) {
+            let index = (&(*state).ranges_i)[fut_beg as usize];
+            let r = (&(*state).slots)[index as usize].range();
+            if r.start_row > row || (r.start_row == row && r.start_col > col) {
                 break;
             }
-            let ordering = (*r).ordering;
-            let priority = (*r).priority_internal;
+            let ordering = r.ordering;
+            let priority = r.priority_internal;
 
             let mut begin: c_int = 0;
             let mut end = cur_end;
             while begin < end {
                 let mid = begin + ((end - begin) >> 1);
-                let mi = *indices.add(mid as usize);
-                let mr: *const DecorRange = (*slots.add(mi as usize)).range();
-                if (*mr).priority_internal < priority
-                    || ((*mr).priority_internal == priority && (*mr).ordering < ordering)
+                let mi = (&(*state).ranges_i)[mid as usize] as usize;
+                let mr = (&(*state).slots)[mi].range();
+                if mr.priority_internal < priority
+                    || (mr.priority_internal == priority && mr.ordering < ordering)
                 {
                     begin = mid + 1;
                 } else {
@@ -1283,17 +1270,17 @@ pub unsafe fn decor_redraw_col_impl(
                 }
             }
 
-            let item = indices.add(begin as usize);
-            ptr::copy(item, item.add(1), (cur_end - begin) as usize);
-            *item = index;
+            (*state).ranges_i.copy_within(begin as usize..cur_end as usize, (begin + 1) as usize);
+            (&mut (*state).ranges_i)[begin as usize] = index;
             cur_end += 1;
             fut_beg += 1;
         }
 
         if fut_beg < count {
-            let r: *const DecorRange = (*slots.add(*indices.add(fut_beg as usize) as usize)).range();
-            if (*r).start_row == row {
-                col_last = col_last.min((*r).start_col - 1);
+            let r_idx = (&(*state).ranges_i)[fut_beg as usize] as usize;
+            let r = (&(*state).slots)[r_idx].range();
+            if r.start_row == row {
+                col_last = col_last.min(r.start_col - 1);
             }
         }
 
@@ -1307,8 +1294,8 @@ pub unsafe fn decor_redraw_col_impl(
         let mut spell: TriState = kNone;
 
         for i in 0..cur_end {
-            let index = *indices.add(i as usize);
-            let slot = slots.add(index as usize);
+            let index = (&(*state).ranges_i)[i as usize];
+            let slot = &raw mut (&mut (*state).slots)[index as usize];
             let r: *mut DecorRange = (*slot).range_mut();
 
             let keep: bool;
@@ -1363,7 +1350,7 @@ pub unsafe fn decor_redraw_col_impl(
             }
 
             if keep {
-                *indices.add(new_cur_end as usize) = index;
+                (&mut (*state).ranges_i)[new_cur_end as usize] = index;
                 new_cur_end += 1;
             } else {
                 if (*r).owned {
@@ -1418,26 +1405,26 @@ pub unsafe fn decor_conceal_line(wp: *mut win_T, row: c_int, check_cursor: bool)
         }
 
         let mut pair: MTPair = MTPair::new();
-        let mut itr: [MarkTreeIter; 1] = [MarkTreeIter::new(); 1];
-        let b = (*(*wp).w_buffer).b_marktree.as_mut_ptr();
-        marktree_itr_get_overlap(b, row, 0, itr.as_mut_ptr());
-        while marktree_itr_step_overlap(b, itr.as_mut_ptr(), &raw mut pair) {
+        let mut itr = MarkTreeIter::new();
+        let b = &raw mut (*(*wp).w_buffer).b_marktree;
+        marktree_itr_get_overlap(b, row, 0, &raw mut itr);
+        while marktree_itr_step_overlap(b, &raw mut itr, &raw mut pair) {
             if mt_conceal_lines(pair.start) && ns_in_win(pair.start.ns, wp) {
                 return true;
             }
         }
 
-        marktree_itr_step_out_filter(b, itr.as_mut_ptr(), CONCEAL_FILTER.as_ptr());
+        marktree_itr_step_out_filter(b, &raw mut itr, CONCEAL_FILTER.as_ptr());
 
-        while !itr[0].x.is_null() {
-            let mark = marktree_itr_current(itr.as_mut_ptr());
+        while !itr.x.is_null() {
+            let mark = marktree_itr_current(&raw mut itr);
             if mark.pos.row > row {
                 break;
             }
             if mt_conceal_lines(mark) && ns_in_win(mark.ns, wp) {
                 return true;
             }
-            marktree_itr_next_filter(b, itr.as_mut_ptr(), row + 1, 0, CONCEAL_FILTER.as_ptr());
+            marktree_itr_next_filter(b, &raw mut itr, row + 1, 0, CONCEAL_FILTER.as_ptr());
         }
 
         decor_providers_invoke_conceal_line(wp, row)
@@ -1495,12 +1482,12 @@ pub unsafe fn decor_redraw_signs(
 
         let mut pair: MTPair = MTPair::new();
         let mut num_text: c_int = 0;
-        let mut itr: [MarkTreeIter; 1] = [MarkTreeIter::new(); 1];
+        let mut itr = MarkTreeIter::new();
         let mut signs: Vec<SignItem> = Vec::new();
-        let b = (*buf).b_marktree.as_mut_ptr();
+        let b = &raw mut (*buf).b_marktree;
 
-        marktree_itr_get_overlap(b, row, 0, itr.as_mut_ptr());
-        while marktree_itr_step_overlap(b, itr.as_mut_ptr(), &raw mut pair) {
+        marktree_itr_get_overlap(b, row, 0, &raw mut itr);
+        while marktree_itr_step_overlap(b, &raw mut itr, &raw mut pair) {
             if !mt_invalid(pair.start) && mt_decor_sign(pair.start) && ns_in_win(pair.start.ns, wp)
             {
                 let sh = decor_find_sign(mt_decor(pair.start));
@@ -1512,10 +1499,10 @@ pub unsafe fn decor_redraw_signs(
             }
         }
 
-        marktree_itr_step_out_filter(b, itr.as_mut_ptr(), SIGN_FILTER.as_ptr());
+        marktree_itr_step_out_filter(b, &raw mut itr, SIGN_FILTER.as_ptr());
 
-        while !itr[0].x.is_null() {
-            let mark = marktree_itr_current(itr.as_mut_ptr());
+        while !itr.x.is_null() {
+            let mark = marktree_itr_current(&raw mut itr);
             if mark.pos.row != row {
                 break;
             }
@@ -1525,7 +1512,7 @@ pub unsafe fn decor_redraw_signs(
                 signs.push(SignItem { sh, id: mark.id });
             }
 
-            marktree_itr_next_filter(b, itr.as_mut_ptr(), row + 1, 0, SIGN_FILTER.as_ptr());
+            marktree_itr_next_filter(b, &raw mut itr, row + 1, 0, SIGN_FILTER.as_ptr());
         }
 
         if !signs.is_empty() {
@@ -1592,12 +1579,12 @@ pub unsafe fn buf_signcols_count_range(
         }
 
         let mut count = vec![0 as c_int; (row2 + 1 - row1) as usize];
-        let mut itr: [MarkTreeIter; 1] = [MarkTreeIter::new(); 1];
+        let mut itr = MarkTreeIter::new();
         let mut pair: MTPair = MTPair::new();
-        let b = (*buf).b_marktree.as_mut_ptr();
+        let b = &raw mut (*buf).b_marktree;
 
-        marktree_itr_get_overlap(b, row1, 0, itr.as_mut_ptr());
-        while marktree_itr_step_overlap(b, itr.as_mut_ptr(), &raw mut pair) {
+        marktree_itr_get_overlap(b, row1, 0, &raw mut itr);
+        while marktree_itr_step_overlap(b, &raw mut itr, &raw mut pair) {
             if (pair.start.flags & MT_FLAG_DECOR_SIGNTEXT) != 0 && !mt_invalid(pair.start) {
                 for i in row1..=row2.min(pair.end_pos.row) {
                     count[(i - row1) as usize] += 1;
@@ -1605,10 +1592,10 @@ pub unsafe fn buf_signcols_count_range(
             }
         }
 
-        marktree_itr_step_out_filter(b, itr.as_mut_ptr(), SIGNTEXT_FILTER.as_ptr());
+        marktree_itr_step_out_filter(b, &raw mut itr, SIGNTEXT_FILTER.as_ptr());
 
-        while !itr[0].x.is_null() {
-            let mark = marktree_itr_current(itr.as_mut_ptr());
+        while !itr.x.is_null() {
+            let mark = marktree_itr_current(&raw mut itr);
             if mark.pos.row > row2 {
                 break;
             }
@@ -1619,7 +1606,7 @@ pub unsafe fn buf_signcols_count_range(
                 }
             }
 
-            marktree_itr_next_filter(b, itr.as_mut_ptr(), row2 + 1, 0, SIGNTEXT_FILTER.as_ptr());
+            marktree_itr_next_filter(b, &raw mut itr, row2 + 1, 0, SIGNTEXT_FILTER.as_ptr());
         }
 
         for &c_val in &count {
@@ -1666,12 +1653,11 @@ pub unsafe fn decor_redraw_eol(
         (*state).eol_col = eol_col;
 
         let count = (*state).current_end;
-        let indices = (*state).ranges_i.as_ptr();
-        let slots = (*state).slots.as_ptr();
 
         let mut has_virt_pos = false;
         for i in 0..count {
-            let r: *const DecorRange = (*slots.add(*indices.add(i as usize) as usize)).range();
+            let slot_idx = (&(*state).ranges_i)[i as usize] as usize;
+            let r: *const DecorRange = (&(*state).slots)[slot_idx].range();
             has_virt_pos |= (*r).start_row == (*state).row && decor_virt_pos(r);
 
             if (*r).data.is_sh() && ((*r).data.sh().flags & kSHHlEol) != 0 {
@@ -1760,8 +1746,8 @@ pub unsafe fn decor_virt_lines(
             return 0;
         }
 
-        let mut itr: [MarkTreeIter; 1] = [MarkTreeIter::new(); 1];
-        let b = (*buf).b_marktree.as_mut_ptr();
+        let mut itr = MarkTreeIter::new();
+        let b = &raw mut (*buf).b_marktree;
         if !marktree_itr_get_filter(
             b,
             (start_row - 1).max(0),
@@ -1769,7 +1755,7 @@ pub unsafe fn decor_virt_lines(
             end_row,
             0,
             LINES_FILTER.as_ptr(),
-            itr.as_mut_ptr(),
+            &raw mut itr,
         ) {
             return 0;
         }
@@ -1778,7 +1764,7 @@ pub unsafe fn decor_virt_lines(
 
         let mut n_virt_lines: c_int = 0;
         loop {
-            let mark = marktree_itr_current(itr.as_mut_ptr());
+            let mark = marktree_itr_current(&raw mut itr);
             let mut vt = mt_decor_virt(mark);
             if !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
                 while !vt.is_null() {
@@ -1821,7 +1807,7 @@ pub unsafe fn decor_virt_lines(
                 }
             }
 
-            if !marktree_itr_next_filter(b, itr.as_mut_ptr(), end_row, 0, LINES_FILTER.as_ptr()) {
+            if !marktree_itr_next_filter(b, &raw mut itr, end_row, 0, LINES_FILTER.as_ptr()) {
                 break;
             }
         }

@@ -48,7 +48,7 @@ pub struct CharsizeArg {
     pub cur_text_width_left: c_int,
     pub cur_text_width_right: c_int,
     pub max_head_vcol: c_int,
-    pub iter: [MarkTreeIter; 1],
+    pub iter: MarkTreeIter,
 }
 
 impl CharsizeArg {
@@ -63,7 +63,7 @@ impl CharsizeArg {
             cur_text_width_left: 0,
             cur_text_width_right: 0,
             max_head_vcol: 0,
-            iter: [MarkTreeIter::new(); 1],
+            iter: MarkTreeIter::new(),
         }
     }
 }
@@ -202,13 +202,13 @@ pub unsafe fn init_charsize_arg(
 
         if lnum > 0
             && marktree_itr_get_filter(
-                (*(*wp).w_buffer).b_marktree.as_mut_ptr(),
+                &raw mut (*(*wp).w_buffer).b_marktree,
                 lnum - 1,
                 0,
                 lnum,
                 0,
                 INLINE_FILTER.as_ptr(),
-                (*csarg).iter.as_mut_ptr(),
+                &raw mut (*csarg).iter,
             )
         {
             (*csarg).virt_row = lnum - 1;
@@ -236,7 +236,7 @@ pub unsafe fn init_charsize_arg_skip_cur_text(
     unsafe {
         let mut cstype = init_charsize_arg(csarg, wp, 0, line);
         (*csarg).skip_cur_text = true;
-        if lnum > 0 && (*(*wp).w_buffer).b_marktree[0].meta_root[kMTMetaInline] > 0 {
+        if lnum > 0 && (*(*wp).w_buffer).b_marktree.meta_root[kMTMetaInline] > 0 {
             (*csarg).virt_row = lnum - 1;
             cstype = kCharsizeRegular;
         }
@@ -272,7 +272,7 @@ unsafe fn inline_virt_text_width(
                 }
             }
             marktree_itr_next_filter(
-                (*buf).b_marktree.as_mut_ptr(),
+                &raw mut (*buf).b_marktree,
                 iter,
                 row + 1,
                 0,
@@ -319,7 +319,7 @@ pub unsafe fn charsize_regular(
             let mut tab_size = size;
             let col = cur.offset_from(line) as c_int;
             loop {
-                let mark = marktree_itr_current((*csarg).iter.as_mut_ptr());
+                let mark = marktree_itr_current(&raw mut (*csarg).iter);
                 if mark.pos.row != (*csarg).virt_row || mark.pos.col > col {
                     break;
                 } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
@@ -351,8 +351,8 @@ pub unsafe fn charsize_regular(
                     }
                 }
                 marktree_itr_next_filter(
-                    (*(*wp).w_buffer).b_marktree.as_mut_ptr(),
-                    (*csarg).iter.as_mut_ptr(),
+                    &raw mut (*(*wp).w_buffer).b_marktree,
+                    &raw mut (*csarg).iter,
                     (*csarg).virt_row + 1,
                     0,
                     INLINE_FILTER.as_ptr(),
@@ -479,7 +479,7 @@ pub unsafe fn charsize_regular(
                 }
             }
 
-            let mut virt_iter: [MarkTreeIter; 1] = [MarkTreeIter::new(); 1];
+            let mut virt_iter = MarkTreeIter::new();
             let mut has_virt = if (*csarg).virt_row < 0 { 0 } else { -1 };
 
             let mut vcol2 = vcol;
@@ -496,17 +496,17 @@ pub unsafe fn charsize_regular(
                 let col = s.offset_from(line) as c_int;
                 if has_virt < 0 {
                     has_virt = c_int::from(marktree_itr_get_filter(
-                        (*buf).b_marktree.as_mut_ptr(),
+                        &raw mut (*buf).b_marktree,
                         (*csarg).virt_row,
                         col,
                         (*csarg).virt_row + 1,
                         0,
                         INLINE_FILTER.as_ptr(),
-                        virt_iter.as_mut_ptr(),
+                        &raw mut virt_iter,
                     ));
                 }
                 let virt_width = if has_virt != 0 {
-                    inline_virt_text_width(wp, virt_iter.as_mut_ptr(), (*csarg).virt_row, col)
+                    inline_virt_text_width(wp, &raw mut virt_iter, (*csarg).virt_row, col)
                 } else {
                     0
                 };
@@ -906,7 +906,7 @@ pub unsafe fn getvcols(
 pub unsafe fn win_may_fill(wp: *mut win_T) -> bool {
     unsafe {
         ((*wp).w_onebuf_opt.wo_diff != 0 && diffopt_filler())
-            || (*(*wp).w_buffer).b_marktree[0].meta_root[kMTMetaLines] != 0
+            || (*(*wp).w_buffer).b_marktree.meta_root[kMTMetaLines] != 0
     }
 }
 

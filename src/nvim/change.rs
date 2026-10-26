@@ -233,10 +233,9 @@ unsafe fn changed_lines_invalidate_win(
     xtra: linenr_T,
 ) {
     unsafe {
-        let w_lines = (*wp).w_lines.as_mut_ptr();
         if (*wp).w_cursor.lnum <= lnum {
             let i = find_wl_entry(wp, lnum);
-            if i >= 0 && (*wp).w_cursor.lnum > (*w_lines.add(i as usize)).wl_lnum {
+            if i >= 0 && (*wp).w_cursor.lnum > (&(*wp).w_lines)[i as usize].wl_lnum {
                 changed_line_abv_curs_win(wp);
             }
         }
@@ -262,19 +261,19 @@ unsafe fn changed_lines_invalidate_win(
             lnume += 1;
         }
 
-        for i in 0..(*wp).w_lines_valid {
-            let wl = w_lines.add(i as usize);
-            if (*wl).wl_valid {
-                if (*wl).wl_lnum >= lnum {
-                    if i == 0 || (*wl).wl_lnum < lnume {
-                        (*wl).wl_valid = false;
+        let valid_len = (*wp).w_lines_valid.max(0) as usize;
+        for (i, wl) in (&mut (*wp).w_lines)[..valid_len].iter_mut().enumerate() {
+            if wl.wl_valid {
+                if wl.wl_lnum >= lnum {
+                    if i == 0 || wl.wl_lnum < lnume {
+                        wl.wl_valid = false;
                     } else if xtra != 0 {
-                        (*wl).wl_lnum += xtra;
-                        (*wl).wl_foldend += xtra;
-                        (*wl).wl_lastlnum += xtra;
+                        wl.wl_lnum += xtra;
+                        wl.wl_foldend += xtra;
+                        wl.wl_lastlnum += xtra;
                     }
-                } else if (*wl).wl_lastlnum >= lnum {
-                    (*wl).wl_valid = false;
+                } else if wl.wl_lastlnum >= lnum {
+                    wl.wl_valid = false;
                 }
             }
         }
@@ -581,7 +580,7 @@ pub unsafe fn changed_lines_redraw_buf(
     xtra: linenr_T,
 ) {
     unsafe {
-        if xtra != 0 && (*buf).b_marktree[0].n_keys > 0 {
+        if xtra != 0 && (*buf).b_marktree.n_keys > 0 {
             lnume += 1 + c_int::from(xtra < 0 && buf_meta_total(buf, kMTMetaLines) != 0);
         }
 
