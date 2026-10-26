@@ -223,8 +223,6 @@ const PC_STATUS_RIGHT: c_int = 1;
 const PC_STATUS_LEFT: c_int = 2;
 const PC_STATUS_SET: c_int = 3;
 
-pub(crate) const ML_ALLOCATED: c_int = 0x10;
-
 #[repr(C)]
 struct InsertState {
     state: VimState,

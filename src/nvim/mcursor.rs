@@ -77,7 +77,7 @@ use crate::register::{
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::shada::shada_encode_regs;
 use crate::state::{MODE_INSERT, virtual_active};
-use crate::strings::{memcmp, strchr, strlen, strncmp, vim_snprintf};
+use crate::strings::{strchr, strlen, strncmp, vim_snprintf};
 use crate::textformat::{InsState, oparg_T};
 use crate::undo::{u_forget_unchanged, u_header_T, u_save};
 use std::ffi::{c_char, c_int, c_long};
@@ -1000,9 +1000,7 @@ pub unsafe fn mc_ins_cascade() {
                 let mut fre = INIT_POS;
                 mc_region_range(fp, &mut frs, &mut fre);
                 let cur = ml_region_text(curbuf, frs, fre);
-                update = cur.size != text.size
-                    || (text.size > 0 && memcmp(cur.data.cast(), text.data.cast(), text.size) != 0);
-                api_free_string(cur);
+                update = cur != text;
             }
             if update && (ins_compl_active() || pum_visible()) {
                 for &id in ins_regions() {
@@ -1020,9 +1018,12 @@ pub unsafe fn mc_ins_cascade() {
                 }
             }
             if update {
-                mc_ins_preview_set(&text);
+                let text_str = NvimString {
+                    data: text.as_ptr().cast::<c_char>().cast_mut(),
+                    size: text.len(),
+                };
+                mc_ins_preview_set(&text_str);
             }
-            api_free_string(text);
         }
         drop(ins_cstr);
     }

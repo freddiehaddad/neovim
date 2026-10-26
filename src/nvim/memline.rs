@@ -34,7 +34,7 @@ use crate::memfile::{
     mf_free, mf_free_fnames, mf_get, mf_need_trans, mf_new, mf_new_page_size, mf_open,
     mf_open_file, mf_put, mf_set_dirty, mf_set_fnames, mf_sync, mf_trans_del, pmap_get_bhdr,
 };
-use crate::memory::{cstr_take, xfree, xmemdupz, xstpcpy, xstrlcpy};
+use crate::memory::{cstr_take, xstpcpy, xstrlcpy};
 use crate::message::{
     emsg, iemsg, msg, msg_end, msg_ext_set_kind, msg_multiline, msg_outnum, msg_outtrans,
     msg_putchar, msg_puts, msg_puts_hl, msg_reset_scroll, msg_start, semsg, set_keep_msg, siemsg,
@@ -77,6 +77,7 @@ pub struct memline_T {
     pub ml_line_textlen: c_int,
     pub ml_line_lnum: i32,
     pub ml_line_ptr: *mut c_char,
+    pub ml_line_buf: Vec<c_char>,
     pub ml_line_offset: usize,
     pub ml_line_offset_ff: c_int,
     pub ml_locked: *mut crate::memfile::bhdr_T,
@@ -99,6 +100,7 @@ impl memline_T {
             ml_line_textlen: 0,
             ml_line_lnum: 0,
             ml_line_ptr: ptr::null_mut(),
+            ml_line_buf: Vec::new(),
             ml_line_offset: 0,
             ml_line_offset_ff: 0,
             ml_locked: ptr::null_mut(),
@@ -325,7 +327,6 @@ use crate::ex_docmd::{CMOD_NOSWAPFILE, FLUSH_TYPEAHEAD};
 use crate::fileio::readlink;
 use crate::fileio::{close, vim_lseek};
 use crate::globals::IOSIZE;
-use crate::insert::ML_ALLOCATED;
 use crate::math::{FAIL, OK};
 use crate::option::OPT_LOCAL;
 use crate::os::fs::MAXPATHL;
@@ -651,11 +652,7 @@ pub unsafe fn ml_close(buf: *mut buf_T, del_file: c_int) {
             return;
         }
         mf_close((*buf).b_ml.ml_mfp_owned.take(), del_file != 0);
-        if (*buf).b_ml.ml_line_lnum != 0
-            && ((*buf).b_ml.ml_flags & (ML_LINE_DIRTY | ML_ALLOCATED)) != 0
-        {
-            xfree((*buf).b_ml.ml_line_ptr.cast());
-        }
+        (*buf).b_ml.ml_line_buf = Vec::new();
         (*buf).b_ml.ml_stack = Vec::new();
         (*buf).b_ml.ml_chunksize = Vec::new();
         (*buf).b_ml.ml_mfp = ptr::null_mut();
@@ -1568,28 +1565,33 @@ pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mu
                 );
             }
 
+            let cur_mfp_fname = if skip_curbuf && !(*curbuf).b_ml.ml_mfp.is_null() {
+                let cur_mfp = (*curbuf).b_ml.ml_mfp.cast::<memfile_T>();
+                (*cur_mfp).mf_fname.as_ref().map(|p| p.as_ptr())
+            } else {
+                None
+            };
+
+            if let Some(cur_p) = cur_mfp_fname {
+                files.retain(|&f| {
+                    if path_equal(cur_p, f, kPathCmpFull) {
+                        drop(cstr_take(f));
+                        false
+                    } else {
+                        true
+                    }
+                });
+            }
+
             if *dirp == NUL
                 && tv_list_len(ret_list) == 0
                 && files.is_empty()
                 && !fname.is_null()
                 && let Some(swapname) = modname(fname_res, c".swp".as_ptr(), true)
                 && os_path_exists(swapname.as_ptr())
+                && cur_mfp_fname.is_none_or(|cur_p| !path_equal(cur_p, swapname.as_ptr(), kPathCmpFull))
             {
-                files.push(crate::memory::xstrdup(swapname.as_ptr()));
-            }
-
-            if skip_curbuf && !(*curbuf).b_ml.ml_mfp.is_null() {
-                let cur_mfp = (*curbuf).b_ml.ml_mfp.cast::<memfile_T>();
-                if let Some(ref p) = (*cur_mfp).mf_fname {
-                    files.retain(|&f| {
-                        if path_equal(p.as_ptr(), f, kPathCmpFull) {
-                            xfree(f.cast());
-                            false
-                        } else {
-                            true
-                        }
-                    });
-                }
+                crate::eval::typval::tv_list_append_string(ret_list, swapname.as_ptr(), -1);
             }
 
             for f in files {
@@ -2081,8 +2083,8 @@ pub unsafe fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T {
     }
 }
 
-/// Gets the charwise NL-joined text of range `[start, end)` as an allocated `String`.
-pub unsafe fn ml_region_text(buf: *mut buf_T, start: pos_T, end: pos_T) -> NvimString {
+/// Gets the charwise NL-joined text of range `[start, end)` as a `Vec<u8>`.
+pub unsafe fn ml_region_text(buf: *mut buf_T, start: pos_T, end: pos_T) -> Vec<u8> {
     unsafe {
         let mut sb = Vec::<u8>::new();
         for lnum in start.lnum..=end.lnum {
@@ -2107,11 +2109,7 @@ pub unsafe fn ml_region_text(buf: *mut buf_T, start: pos_T, end: pos_T) -> NvimS
                 sb.push(NL as u8);
             }
         }
-        let data = xmemdupz(sb.as_ptr().cast(), sb.len()).cast();
-        NvimString {
-            data,
-            size: sb.len(),
-        }
+        sb
     }
 }
 
@@ -2176,7 +2174,7 @@ unsafe fn ml_get_buf_impl(buf: *mut buf_T, mut lnum: linenr_T, will_change: bool
             (*buf).b_ml.ml_line_ptr = dp.cast::<c_char>().add(start as usize);
             (*buf).b_ml.ml_line_textlen = (end - start) as colnr_T;
             (*buf).b_ml.ml_line_lnum = lnum;
-            (*buf).b_ml.ml_flags &= !(ML_LINE_DIRTY | ML_ALLOCATED);
+            (*buf).b_ml.ml_flags &= !ML_LINE_DIRTY;
         }
         if will_change {
             (*buf).b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
@@ -2731,10 +2729,18 @@ pub unsafe fn ml_replace_buf_len(
             return FAIL;
         }
 
-        if copy {
+        let new_buf = if copy {
             assert!(!noalloc);
-            line = xmemdupz(line.cast(), len_arg).cast();
-        }
+            let mut v = Vec::with_capacity(len_arg + 1);
+            if len_arg > 0 {
+                v.extend_from_slice(std::slice::from_raw_parts(line, len_arg));
+            }
+            v.push(NUL);
+            Some(v)
+        } else {
+            assert!(noalloc);
+            None
+        };
 
         if (*buf).b_ml.ml_line_lnum != lnum {
             ml_flush_line(buf, false);
@@ -2745,8 +2751,11 @@ pub unsafe fn ml_replace_buf_len(
             ml_add_deleted_len_buf(buf, old_line, -1);
         }
 
-        if ((*buf).b_ml.ml_flags & (ML_LINE_DIRTY | ML_ALLOCATED)) != 0 {
-            xfree((*buf).b_ml.ml_line_ptr.cast());
+        if let Some(mut v) = new_buf {
+            line = v.as_mut_ptr();
+            (*buf).b_ml.ml_line_buf = v;
+        } else {
+            (*buf).b_ml.ml_line_buf.clear();
         }
 
         (*buf).b_ml.ml_line_ptr = line;
@@ -2764,11 +2773,11 @@ pub unsafe fn ml_replace_buf_len(
 /// Replace the in-memory dirty line buffer in `buf` with `bytes` (without trailing NUL).
 pub unsafe fn ml_replace_dirty_line(buf: *mut buf_T, bytes: &[c_char], clear_empty: bool) {
     unsafe {
-        let newp: *mut c_char = xmemdupz(bytes.as_ptr().cast(), bytes.len()).cast();
-        if ((*buf).b_ml.ml_flags & (ML_LINE_DIRTY | ML_ALLOCATED)) != 0 {
-            xfree((*buf).b_ml.ml_line_ptr.cast());
-        }
-        (*buf).b_ml.ml_line_ptr = newp;
+        let mut new_buf = Vec::with_capacity(bytes.len() + 1);
+        new_buf.extend_from_slice(bytes);
+        new_buf.push(NUL);
+        (*buf).b_ml.ml_line_ptr = new_buf.as_mut_ptr();
+        (*buf).b_ml.ml_line_buf = new_buf;
         (*buf).b_ml.ml_line_textlen = (bytes.len() as colnr_T) + 1;
         (*buf).b_ml.ml_flags |= ML_LINE_DIRTY;
         if clear_empty {
@@ -3034,7 +3043,16 @@ unsafe fn ml_flush_line(buf: *mut buf_T, noalloc: bool) {
             (*buf).flush_count += 1;
 
             let lnum = (*buf).b_ml.ml_line_lnum;
-            let new_line = (*buf).b_ml.ml_line_ptr;
+            let owned_line = if noalloc {
+                Vec::new()
+            } else {
+                std::mem::take(&mut (*buf).b_ml.ml_line_buf)
+            };
+            let new_line = if noalloc {
+                (*buf).b_ml.ml_line_ptr
+            } else {
+                owned_line.as_ptr().cast_mut()
+            };
 
             let hp = ml_find_line(buf, lnum, ML_FIND);
             if hp.is_null() {
@@ -3090,17 +3108,12 @@ unsafe fn ml_flush_line(buf: *mut buf_T, noalloc: bool) {
                     let _ = ml_delete_int(buf, lnum, 0);
                 }
             }
-            if !noalloc {
-                xfree(new_line.cast());
-            }
+            drop(owned_line);
 
             ml_flush_entered = false;
-        } else if ((*buf).b_ml.ml_flags & ML_ALLOCATED) != 0 {
-            assert!(!noalloc);
-            xfree((*buf).b_ml.ml_line_ptr.cast());
         }
 
-        (*buf).b_ml.ml_flags &= !(ML_LINE_DIRTY | ML_ALLOCATED);
+        (*buf).b_ml.ml_flags &= !ML_LINE_DIRTY;
         (*buf).b_ml.ml_line_lnum = 0;
         (*buf).b_ml.ml_line_offset = 0;
     }

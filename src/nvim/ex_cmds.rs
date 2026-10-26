@@ -1,6 +1,6 @@
 //! Functions for command-line Ex commands (`src/nvim/ex_cmds.c`).
 
-use crate::api::private::helpers::{cbuf_as_string, cbuf_to_string, cstr_as_obj, cstr_as_string};
+use crate::api::private::helpers::{cbuf_as_string, cstr_as_obj, cstr_as_string};
 use crate::api::private::validate::NvimString;
 use crate::arglist::{
     CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, ML_EMPTY, check_arg_idx, do_argfile,
@@ -4260,10 +4260,7 @@ unsafe fn do_sub(
                             }
 
                             while subflags.do_ask {
-                                let mut orig_line = NvimString {
-                                    data: ptr::null_mut(),
-                                    size: 0,
-                                };
+                                let mut orig_line = SubBuf::new();
                                 let mut len_change: c_int = 0;
                                 let save_p_lz = p_lz;
                                 let save_p_fen = (*curwin).w_onebuf_opt.wo_fen;
@@ -4276,7 +4273,7 @@ unsafe fn do_sub(
 
                                 if !new_start.is_null() {
                                     orig_line =
-                                        cbuf_to_string(ml_get(lnum), ml_get_len(lnum) as usize);
+                                        SubBuf::from_cbuf(ml_get(lnum), ml_get_len(lnum) as usize);
                                     let new_line = concat_str(
                                         new_start.data(),
                                         sub_firstline.data().add(copycol as usize),
@@ -4332,8 +4329,13 @@ unsafe fn do_sub(
                                 p_lz = save_p_lz;
                                 RedrawingDisabled = temp;
 
-                                if !orig_line.data.is_null() {
-                                    ml_replace(lnum, orig_line.data, false);
+                                if !orig_line.is_null() {
+                                    crate::memline::ml_replace_len(
+                                        lnum,
+                                        orig_line.data(),
+                                        orig_line.size,
+                                        true,
+                                    );
                                 }
 
                                 need_wait_return = false;

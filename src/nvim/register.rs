@@ -1784,10 +1784,12 @@ pub unsafe fn do_put(
                     tail_vec.push(0);
                     ml_append((*curwin).w_cursor.lnum, tail_vec.as_mut_ptr(), 0, false);
 
-                    let head_ptr = xmalloc((split_pos as usize) + 1).cast::<c_char>();
-                    ptr::copy_nonoverlapping(get_cursor_line_ptr(), head_ptr, split_pos as usize);
-                    *head_ptr.add(split_pos as usize) = NUL;
-                    ml_replace((*curwin).w_cursor.lnum, head_ptr, false);
+                    crate::memline::ml_replace_len(
+                        (*curwin).w_cursor.lnum,
+                        get_cursor_line_ptr(),
+                        split_pos as usize,
+                        true,
+                    );
                     nr_lines += 1;
                     dir = FORWARD;
 
@@ -2031,7 +2033,8 @@ pub unsafe fn do_put(
                     totlen = (count as usize) * ((yanklen + spaces) as usize)
                         + (bd.startspaces as usize)
                         + (bd.endspaces as usize);
-                    let newp = xmalloc(totlen + (oldlen as usize) + 1).cast::<c_char>();
+                    let mut newp_vec = vec![0 as c_char; totlen + (oldlen as usize) + 1];
+                    let newp = newp_vec.as_mut_ptr();
 
                     ptr_ = newp;
                     ptr::copy(oldp, ptr_, bd.textcol as usize);
@@ -2062,7 +2065,8 @@ pub unsafe fn do_put(
                         ptr_,
                         columns as usize,
                     );
-                    ml_replace((*curwin).w_cursor.lnum, newp, false);
+                    ml_replace((*curwin).w_cursor.lnum, newp, true);
+                    drop(newp_vec);
                     extmark_splice_cols(
                         curbuf,
                         (*curwin).w_cursor.lnum - 1,
@@ -2175,7 +2179,8 @@ pub unsafe fn do_put(
                                 }
                                 continue;
                             }
-                            let newp = xmalloc(totlen + (oldlen as usize) + 1).cast::<c_char>();
+                            let mut newp_vec = vec![0 as c_char; totlen + (oldlen as usize) + 1];
+                            let newp = newp_vec.as_mut_ptr();
                             ptr::copy(oldp, newp, col as usize);
                             let mut ptr_ = newp.add(col as usize);
                             for _ in 0..(count as usize) {
@@ -2183,9 +2188,10 @@ pub unsafe fn do_put(
                                 ptr_ = ptr_.add(yanklen as usize);
                             }
                             ptr::copy(oldp.add(col as usize), ptr_, ((oldlen - col) as usize) + 1);
-                            ml_replace(lnum, newp, false);
+                            ml_replace(lnum, newp, true);
 
                             first_byte_off = utf_head_off(newp, ptr_.sub(1));
+                            drop(newp_vec);
 
                             if lnum == (*curwin).w_cursor.lnum {
                                 changed_cline_bef_curs(curwin);
@@ -2253,15 +2259,17 @@ pub unsafe fn do_put(
                                 drop(append_vec);
 
                                 let oldp = ml_get(lnum);
-                                let newp = xmalloc((col as usize) + (yanklen as usize) + 1)
-                                    .cast::<c_char>();
+                                let mut newp_vec =
+                                    vec![0 as c_char; (col as usize) + (yanklen as usize) + 1];
+                                let newp = newp_vec.as_mut_ptr();
                                 ptr::copy(oldp, newp, col as usize);
                                 ptr::copy(
                                     (*y_array).data,
                                     newp.add(col as usize),
                                     (yanklen as usize) + 1,
                                 );
-                                ml_replace(lnum, newp, false);
+                                ml_replace(lnum, newp, true);
+                                drop(newp_vec);
 
                                 (*curwin).w_cursor.lnum = lnum;
                                 i = 1;

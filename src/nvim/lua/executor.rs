@@ -55,7 +55,7 @@ use crate::lua::stdlib::nlua_state_add_stdlib;
 use crate::lua::treesitter::nlua_treesitter_init;
 use crate::main_init::{getout, os_exit, preserve_exit};
 use crate::math::{FAIL, OK};
-use crate::memline::{ml_get_buf, ml_get_buf_len, ml_replace};
+use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
     Arena, ArenaMem, arena_finish, arena_mem_free, strequal, xfree, xmemdupz, xstrdup,
 };
@@ -2446,13 +2446,21 @@ pub unsafe fn ex_luado(eap: *mut exarg_T) {
             if lua_isstring(lstate, -1) != 0 {
                 let mut new_line_len: usize = 0;
                 let new_line = lua_tolstring(lstate, -1, &raw mut new_line_len);
-                let new_line_transformed = xmemdupz(new_line.cast(), new_line_len).cast::<c_char>();
-                for i in 0..new_line_len {
-                    if *new_line_transformed.add(i) == NUL {
-                        *new_line_transformed.add(i) = b'\n' as c_char;
+                let mut new_line_vec = vec![0 as c_char; new_line_len + 1];
+                if new_line_len > 0 {
+                    ptr::copy_nonoverlapping(new_line, new_line_vec.as_mut_ptr(), new_line_len);
+                }
+                for b in &mut new_line_vec[..new_line_len] {
+                    if *b == NUL {
+                        *b = b'\n' as c_char;
                     }
                 }
-                ml_replace(l, new_line_transformed, false);
+                crate::memline::ml_replace_len(
+                    l,
+                    new_line_vec.as_mut_ptr(),
+                    new_line_len,
+                    true,
+                );
                 inserted_bytes(l, 0, old_line_len, new_line_len as c_int);
             }
             lua_pop(lstate, 1);
