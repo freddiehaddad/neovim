@@ -6379,10 +6379,18 @@ unsafe fn qf_get_list_from_lines(
         }
 
         let l = tv_list_alloc(kListLenMayKnow);
-        let qi = qf_alloc_stack(QFLT_INTERNAL, 1);
+        let mut qi = qf_info_T {
+            qf_refcount: 1,
+            qf_listcount: 0,
+            qf_curlist: 0,
+            qf_maxcount: 1,
+            qf_lists: vec![qf_list_T::default()],
+            qfl_type: QFLT_INTERNAL,
+            qf_bufnr: INVALID_QFBUFNR,
+        };
 
         if qf_init_ext(
-            qi,
+            &raw mut qi,
             0,
             ptr::null(),
             ptr::null_mut(),
@@ -6395,10 +6403,8 @@ unsafe fn qf_get_list_from_lines(
             ptr::null_mut(),
         ) > 0
         {
-            get_errorlist(qi, ptr::null_mut(), 0, 0, l);
+            get_errorlist(&raw mut qi, ptr::null_mut(), 0, 0, l);
         }
-
-        drop(Box::from_raw(qi));
 
         tv_dict_add_list(retdict, c"items".as_ptr(), 5, l);
         OK

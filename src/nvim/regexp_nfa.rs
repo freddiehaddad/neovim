@@ -3147,11 +3147,16 @@ unsafe fn match_zref(subidx: c_int, bytelen: *mut c_int) -> bool {
     unsafe {
         cleanup_zsubexpr();
         let idx = subidx as usize;
-        if re_extmatch_in.is_null() || (*re_extmatch_in).matches[idx].is_null() {
+        let ext_in = &raw const re_extmatch_in;
+        let Some(ref em) = *ext_in else {
+            *bytelen = 0;
+            return true;
+        };
+        if em.matches[idx].is_null() {
             *bytelen = 0;
             return true;
         }
-        let m = (*re_extmatch_in).matches[idx];
+        let m = em.matches[idx];
         let mut len = strlen(m.cast()) as c_int;
         if cstrncmp(m.cast(), rex.input.cast(), &raw mut len) == 0 {
             *bytelen = len;
@@ -4563,12 +4568,13 @@ unsafe fn nfa_regtry(
             }
         }
 
-        unref_extmatch(re_extmatch_out);
-        re_extmatch_out = ptr::null_mut();
+        re_extmatch_out = None;
 
         if (*prog).reghasz == REX_SET {
             cleanup_zsubexpr();
-            re_extmatch_out = make_extmatch();
+            let mut extmatch = reg_extmatch_T {
+                matches: [ptr::null_mut(); NSUBEXP],
+            };
             for i in 1..subs.synt.in_use as usize {
                 if REG_MULTI() {
                     let mpos = subs.synt.list.multi()[i];
@@ -4576,7 +4582,7 @@ unsafe fn nfa_regtry(
                         && mpos.start_lnum == mpos.end_lnum
                         && mpos.end_col >= mpos.start_col
                     {
-                        (*re_extmatch_out).matches[i] = xstrnsave(
+                        extmatch.matches[i] = xstrnsave(
                             reg_getline(mpos.start_lnum).add(mpos.start_col as usize),
                             (mpos.end_col - mpos.start_col) as usize,
                         )
@@ -4585,12 +4591,13 @@ unsafe fn nfa_regtry(
                 } else {
                     let lpos = subs.synt.list.line()[i];
                     if !lpos.start.is_null() && !lpos.end.is_null() {
-                        (*re_extmatch_out).matches[i] =
+                        extmatch.matches[i] =
                             xstrnsave(lpos.start.cast(), lpos.end.offset_from(lpos.start) as usize)
                                 .cast();
                     }
                 }
             }
+            re_extmatch_out = Some(std::rc::Rc::new(extmatch));
         }
 
         1 + rex.lnum

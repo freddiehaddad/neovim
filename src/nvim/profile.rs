@@ -58,7 +58,7 @@ pub struct sn_prl_T {
 
 #[repr(C)]
 pub struct scriptitem_T {
-    pub sn_vars: *mut crate::runtime::scriptvar_T,
+    pub sn_vars: Box<crate::runtime::scriptvar_T>,
     pub sn_name: *mut c_char,
     pub sn_lua: bool,
     pub sn_prof_on: bool,

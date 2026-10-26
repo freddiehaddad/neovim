@@ -331,9 +331,6 @@ use crate::viml::parser::parser::CONV_NONE;
 impl Drop for scriptitem_T {
     fn drop(&mut self) {
         unsafe {
-            if !self.sn_vars.is_null() {
-                drop(Box::from_raw(self.sn_vars));
-            }
             xfree(self.sn_name.cast());
         }
     }
@@ -2614,7 +2611,7 @@ pub unsafe fn new_script_item(name: *mut c_char, sid_out: *mut scid_T) -> *mut s
         let items = &raw mut script_items;
         while ((*items).len() as scid_T) < sid {
             (*items).push(scriptitem_T {
-                sn_vars: ptr::null_mut(),
+                sn_vars: new_script_vars(),
                 sn_name: ptr::null_mut(),
                 sn_lua: false,
                 sn_prof_on: false,
@@ -2633,9 +2630,6 @@ pub unsafe fn new_script_item(name: *mut c_char, sid_out: *mut scid_T) -> *mut s
                 sn_prl_idx: 0,
                 sn_prl_execed: 0,
             });
-            let cur_sid = (*items).len() as scid_T;
-
-            new_script_vars(cur_sid);
         }
         let item = script_item(sid);
         (*item).sn_name = name;
@@ -3335,7 +3329,7 @@ pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
                 if sid > 0 {
                     let var_dict = tv_dict_copy(
                         None,
-                        &mut (*(*si).sn_vars).sv_dict,
+                        &mut (*si).sn_vars.sv_dict,
                         true,
                         get_copyID(),
                     );

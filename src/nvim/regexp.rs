@@ -280,7 +280,6 @@ impl Default for regmatch_T {
 
 #[repr(C)]
 pub struct reg_extmatch_T {
-    pub refcnt: i16,
     pub matches: [*mut u8; NSUBEXP],
 }
 
@@ -2078,33 +2077,6 @@ pub(super) unsafe fn reg_getline_len(lnum: linenr_T) -> colnr_T {
         let mut length: colnr_T = 0;
         reg_getline_common(lnum, RGLF_LENGTH, ptr::null_mut(), &raw mut length);
         length
-    }
-}
-
-pub(super) unsafe fn make_extmatch() -> *mut reg_extmatch_T {
-    Box::into_raw(Box::new(reg_extmatch_T {
-        refcnt: 1,
-        matches: [ptr::null_mut(); NSUBEXP],
-    }))
-}
-
-pub unsafe fn ref_extmatch(em: *mut reg_extmatch_T) -> *mut reg_extmatch_T {
-    unsafe {
-        if !em.is_null() {
-            (*em).refcnt += 1;
-        }
-        em
-    }
-}
-
-pub unsafe fn unref_extmatch(em: *mut reg_extmatch_T) {
-    unsafe {
-        if !em.is_null() {
-            (*em).refcnt -= 1;
-            if (*em).refcnt <= 0 {
-                drop(Box::from_raw(em));
-            }
-        }
     }
 }
 

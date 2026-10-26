@@ -43,9 +43,9 @@ use crate::profile::{
     profile_zero, proftime_T,
 };
 use crate::regexp::{
-    MAXCOL, NSUBEXP, RE_MAGIC, REX_SET, REX_USE, ref_extmatch, reg_extmatch_T, regmatch_T,
-    regmmatch_T, regprog_T, skip_regexp, unref_extmatch, vim_regcomp, vim_regcomp_had_eol,
-    vim_regexec, vim_regexec_multi, vim_regfree,
+    MAXCOL, NSUBEXP, RE_MAGIC, REX_SET, REX_USE, reg_extmatch_T, regmatch_T, regmmatch_T,
+    regprog_T, skip_regexp, vim_regcomp, vim_regcomp_had_eol, vim_regexec, vim_regexec_multi,
+    vim_regfree,
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{
@@ -329,15 +329,7 @@ pub struct bufstate_T {
     pub bs_flags: c_int,
     pub bs_seqnr: c_int,
     pub bs_cchar: c_int,
-    pub bs_extmatch: *mut reg_extmatch_T,
-}
-
-impl Drop for bufstate_T {
-    fn drop(&mut self) {
-        unsafe {
-            unref_extmatch(self.bs_extmatch);
-        }
-    }
+    pub bs_extmatch: Option<std::rc::Rc<reg_extmatch_T>>,
 }
 
 #[repr(C)]
@@ -455,7 +447,7 @@ struct stateitem_T {
     si_cchar: c_int,
     si_cont_list: *mut i16,
     si_next_list: *mut i16,
-    si_extmatch: *mut reg_extmatch_T,
+    si_extmatch: Option<std::rc::Rc<reg_extmatch_T>>,
 }
 
 impl stateitem_T {
@@ -478,7 +470,7 @@ impl stateitem_T {
             si_cchar: 0,
             si_cont_list: ptr::null_mut(),
             si_next_list: ptr::null_mut(),
-            si_extmatch: ptr::null_mut(),
+            si_extmatch: None,
         }
     }
 }
@@ -486,14 +478,6 @@ impl stateitem_T {
 impl Default for stateitem_T {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Drop for stateitem_T {
-    fn drop(&mut self) {
-        unsafe {
-            unref_extmatch(self.si_extmatch);
-        }
     }
 }
 
@@ -576,7 +560,7 @@ static mut next_match_flags: c_int = 0;
 static mut next_match_eos_pos: lpos_T = lpos_T { lnum: 0, col: 0 };
 static mut next_match_eoe_pos: lpos_T = lpos_T { lnum: 0, col: 0 };
 static mut next_match_end_idx: c_int = 0;
-static mut next_match_extmatch: *mut reg_extmatch_T = ptr::null_mut();
+static mut next_match_extmatch: Option<std::rc::Rc<reg_extmatch_T>> = None;
 
 static mut syn_win: *mut win_T = ptr::null_mut();
 static mut syn_buf: *mut buf_T = ptr::null_mut();
@@ -1365,7 +1349,7 @@ unsafe fn store_current_state() -> Option<usize> {
                     bs_flags: (*cur_si).si_flags,
                     bs_seqnr: (*cur_si).si_seqnr,
                     bs_cchar: (*cur_si).si_cchar,
-                    bs_extmatch: ref_extmatch((*cur_si).si_extmatch),
+                    bs_extmatch: (*cur_si).si_extmatch.clone(),
                 });
             }
             sp.sst_next_flags = current_next_flags;
@@ -1394,7 +1378,7 @@ unsafe fn load_current_state(from: *const synstate_T) {
                 item.si_flags = b.bs_flags;
                 item.si_seqnr = b.bs_seqnr;
                 item.si_cchar = b.bs_cchar;
-                item.si_extmatch = ref_extmatch(b.bs_extmatch);
+                item.si_extmatch = b.bs_extmatch.clone();
                 if keepend_level < 0 && (item.si_flags & HL_KEEPEND) != 0 {
                     keepend_level = i_c;
                 }
@@ -1429,29 +1413,31 @@ unsafe fn syn_stack_equal(sp: *const synstate_T) -> bool {
         let mut i = cur_state_len() - 1;
         while i >= 0 {
             let cur_si = cur_state_at(i);
-            let b = bp.offset(i as isize);
-            if (*b).bs_idx != (*cur_si).si_idx {
+            let b = &*bp.offset(i as isize);
+            if b.bs_idx != (*cur_si).si_idx {
                 break;
             }
-            if (*b).bs_extmatch == (*cur_si).si_extmatch {
+            if match (&b.bs_extmatch, &(*cur_si).si_extmatch) {
+                (None, None) => true,
+                (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
+                _ => false,
+            } {
                 i -= 1;
                 continue;
             }
-            let bsx = (*b).bs_extmatch;
-            let six = (*cur_si).si_extmatch;
-            if bsx.is_null() || six.is_null() {
+            let (Some(bsx), Some(six)) = (&b.bs_extmatch, &(*cur_si).si_extmatch) else {
                 break;
-            }
+            };
             let mut j: usize = 0;
             while j < NSUBEXP {
-                if (*bsx).matches[j] != (*six).matches[j] {
-                    if (*bsx).matches[j].is_null() || (*six).matches[j].is_null() {
+                if bsx.matches[j] != six.matches[j] {
+                    if bsx.matches[j].is_null() || six.matches[j].is_null() {
                         break;
                     }
                     if mb_strcmp_ic(
                         (*syn_items(syn_block).offset((*cur_si).si_idx as isize)).sp_ic != 0,
-                        (*bsx).matches[j].cast(),
-                        (*six).matches[j].cast(),
+                        bsx.matches[j].cast(),
+                        six.matches[j].cast(),
                     ) != 0
                     {
                         break;
@@ -1626,7 +1612,7 @@ unsafe fn syn_current_attr(
         let mut found_match: bool;
         let mut regmatch: regmmatch_T = regmmatch_T::new();
         let mut pos = lpos_T { lnum: 0, col: 0 };
-        let mut cur_extmatch: *mut reg_extmatch_T = ptr::null_mut();
+        let mut cur_extmatch: Option<std::rc::Rc<reg_extmatch_T>> = None;
         let mut buf_chartab = [0 as c_char; 32];
 
         let mut keep_next_list: bool;
@@ -1839,9 +1825,7 @@ unsafe fn syn_current_attr(
                                     0,
                                 );
 
-                                unref_extmatch(cur_extmatch);
-                                cur_extmatch = re_extmatch_out;
-                                re_extmatch_out = ptr::null_mut();
+                                cur_extmatch = (&raw mut re_extmatch_out).replace(None);
 
                                 flags = 0;
                                 eoe_pos.lnum = 0;
@@ -1861,7 +1845,7 @@ unsafe fn syn_current_attr(
                                         &raw mut flags,
                                         &raw mut eoe_pos,
                                         &raw mut end_idx,
-                                        cur_extmatch,
+                                        cur_extmatch.clone(),
                                     );
                                     if endpos.lnum == 0 {
                                         idx -= 1;
@@ -1907,9 +1891,7 @@ unsafe fn syn_current_attr(
                                 next_match_eos_pos = eos_pos;
                                 next_match_eoe_pos = eoe_pos;
                                 next_match_end_idx = end_idx;
-                                unref_extmatch(next_match_extmatch);
-                                next_match_extmatch = cur_extmatch;
-                                cur_extmatch = ptr::null_mut();
+                                next_match_extmatch = cur_extmatch.take();
                             }
                             idx -= 1;
                         }
@@ -2048,9 +2030,8 @@ unsafe fn syn_current_attr(
 
         drop(zero_width_next_ga);
 
-        unref_extmatch(re_extmatch_out);
-        re_extmatch_out = ptr::null_mut();
-        unref_extmatch(cur_extmatch);
+        re_extmatch_out = None;
+        drop(cur_extmatch);
 
         current_attr
     }
@@ -2092,7 +2073,8 @@ unsafe fn push_next_match() -> *mut stateitem_T {
             (*cur_si).si_flags |= (*cur_state_at(len - 2)).si_flags & HL_CONCEAL;
         }
         (*cur_si).si_next_list = (*spp).sp_next_list;
-        (*cur_si).si_extmatch = ref_extmatch(next_match_extmatch);
+        let next_ext = &raw const next_match_extmatch;
+        (*cur_si).si_extmatch = (*next_ext).clone();
         if (*spp).sp_type == SPTYPE_START && ((*spp).sp_flags & HL_ONELINE) == 0 {
             update_si_end(cur_si, next_match_m_endpos.col, true);
             check_keepend();
@@ -2331,7 +2313,7 @@ unsafe fn update_si_end(sip: *mut stateitem_T, startcol: c_int, force: bool) {
             &raw mut (*sip).si_flags,
             &raw mut end_endpos,
             &raw mut end_idx,
-            (*sip).si_extmatch,
+            (*sip).si_extmatch.clone(),
         );
 
         if endpos.lnum == 0 {
@@ -2383,7 +2365,7 @@ unsafe fn find_endpos(
     flagsp: *mut c_int,
     end_endpos: *mut lpos_T,
     end_idx: *mut c_int,
-    start_ext: *mut reg_extmatch_T,
+    start_ext: Option<std::rc::Rc<reg_extmatch_T>>,
 ) {
     unsafe {
         if idx < 0 {
@@ -2411,8 +2393,7 @@ unsafe fn find_endpos(
             ptr::null_mut()
         };
 
-        unref_extmatch(re_extmatch_in);
-        re_extmatch_in = ref_extmatch(start_ext);
+        re_extmatch_in = start_ext;
 
         let mut matchcol = (*startpos).col;
         let start_idx = idx;
@@ -2547,8 +2528,7 @@ unsafe fn find_endpos(
 
         restore_chartab(buf_chartab.as_ptr());
 
-        unref_extmatch(re_extmatch_in);
-        re_extmatch_in = ptr::null_mut();
+        re_extmatch_in = None;
     }
 }
 

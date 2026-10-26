@@ -3283,9 +3283,11 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                         x if (ZREF + 1..=ZREF + 9).contains(&x) => {
                             cleanup_zsubexpr();
                             let no = (op - ZREF) as usize;
-                            if !re_extmatch_in.is_null() && !(*re_extmatch_in).matches[no].is_null()
+                            let ext_in = &raw const re_extmatch_in;
+                            if let Some(ref em) = *ext_in
+                                && !em.matches[no].is_null()
                             {
-                                let m = (*re_extmatch_in).matches[no];
+                                let m = em.matches[no];
                                 let mut len = strlen(m.cast()) as c_int;
                                 if cstrncmp(m.cast(), rex.input.cast(), &raw mut len) != 0 {
                                     status = RA_NOMATCH;
@@ -3848,18 +3850,19 @@ unsafe fn regtry(
             }
         }
 
-        unref_extmatch(re_extmatch_out);
-        re_extmatch_out = ptr::null_mut();
+        re_extmatch_out = None;
 
         if (*prog).reghasz == REX_SET as u8 {
             cleanup_zsubexpr();
-            re_extmatch_out = make_extmatch();
+            let mut extmatch = reg_extmatch_T {
+                matches: [ptr::null_mut(); NSUBEXP],
+            };
             for i in 0..NSUBEXP {
                 if REG_MULTI() {
                     let sz = *(&raw const reg_startzpos).cast::<lpos_T>().add(i);
                     let ez = *(&raw const reg_endzpos).cast::<lpos_T>().add(i);
                     if sz.lnum >= 0 && ez.lnum == sz.lnum && ez.col >= sz.col {
-                        (*re_extmatch_out).matches[i] = xstrnsave(
+                        extmatch.matches[i] = xstrnsave(
                             reg_getline(sz.lnum).add(sz.col as usize),
                             (ez.col - sz.col) as usize,
                         )
@@ -3869,11 +3872,12 @@ unsafe fn regtry(
                     let szp = *(&raw const reg_startzp).cast::<*mut u8>().add(i);
                     let ezp = *(&raw const reg_endzp).cast::<*mut u8>().add(i);
                     if !szp.is_null() && !ezp.is_null() {
-                        (*re_extmatch_out).matches[i] =
+                        extmatch.matches[i] =
                             xstrnsave(szp.cast(), ezp.offset_from(szp) as usize).cast();
                     }
                 }
             }
+            re_extmatch_out = Some(std::rc::Rc::new(extmatch));
         }
         1 + rex.lnum
     }
