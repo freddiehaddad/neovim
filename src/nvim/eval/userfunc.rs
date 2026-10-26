@@ -53,7 +53,8 @@ use crate::lua::executor::{
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
 use crate::memory::{
-    entered_free_all_mem, xfree, xmalloc, xmallocz, xmemdupz, xmemrchr, xstrdup, xstrlcpy,
+    cstr_from_bytes, cstr_take, cstr_to_cstring, entered_free_all_mem, xfree, xmemrchr, xstrdup,
+    xstrlcpy,
 };
 use crate::message::{
     emsg, iemsg, internal_error, message_filtered, msg_clr_eos, msg_ext_set_kind, msg_outnum,
@@ -78,8 +79,7 @@ use crate::runtime::{
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::strings::{
-    concat_str, gettext, memchr, strchr, strcmp, strcpy, strlen, strncmp, strstr, vim_snprintf,
-    vim_strchr, xstrnsave,
+    gettext, memchr, strchr, strcmp, strcpy, strlen, strncmp, strstr, vim_snprintf, vim_strchr,
 };
 use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int};
@@ -561,7 +561,6 @@ pub unsafe fn get_lambda_tv(
     unsafe {
         let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
         let mut newargs: Vec<std::ffi::CString> = Vec::new();
-        let mut pt: *mut partial_T = ptr::null_mut();
         let mut varargs: c_int = 0;
         let old_eval_lavars = eval_lavars_used;
         let mut eval_lavars = false;
@@ -590,7 +589,6 @@ pub unsafe fn get_lambda_tv(
             false,
         );
         if ret == FAIL || **arg != b'>' as c_char {
-            xfree(pt.cast());
             if !evalarg.is_null() && (*evalarg).eval_tofree.is_null() {
                 (*evalarg).eval_tofree = tofree;
             } else {
@@ -609,7 +607,6 @@ pub unsafe fn get_lambda_tv(
         ret = skip_expr(arg, evalarg);
         let end = *arg;
         if ret == FAIL {
-            xfree(pt.cast());
             if !evalarg.is_null() && (*evalarg).eval_tofree.is_null() {
                 (*evalarg).eval_tofree = tofree;
             } else {
@@ -626,7 +623,6 @@ pub unsafe fn get_lambda_tv(
         *arg = skipwhite(*arg);
         if **arg != b'}' as c_char {
             semsg!(gettext(c"E451: Expected }: %s".as_ptr()), *arg);
-            xfree(pt.cast());
             if !evalarg.is_null() && (*evalarg).eval_tofree.is_null() {
                 (*evalarg).eval_tofree = tofree;
             } else {
@@ -642,7 +638,7 @@ pub unsafe fn get_lambda_tv(
 
             let name = get_lambda_name();
             let fp = alloc_ufunc(name.data, name.size);
-            pt = Box::into_raw(Box::new(partial_T::default()));
+            let pt = Box::into_raw(Box::new(partial_T::default()));
 
             let expr_len = end.offset_from(start) as usize;
             let mut line_bytes = Vec::with_capacity(7 + expr_len);
@@ -747,17 +743,19 @@ pub unsafe fn deref_func_name(
 /// Give an error message with a function name. Handle `<SNR>` things.
 pub unsafe fn emsg_funcname(errmsg: *const c_char, name: *const c_char) {
     unsafe {
-        let mut p = name.cast_mut();
+        let mut p_owned: Option<std::ffi::CString> = None;
+        let mut p = name;
 
         if *name as u8 == K_SPECIAL && *name.add(1) != NUL && *name.add(2) != NUL {
-            p = concat_str(c"<SNR>".as_ptr(), name.add(3));
+            let mut bytes = Vec::from(&b"<SNR>"[..]);
+            bytes.extend_from_slice(CStr::from_ptr(name.add(3)).to_bytes());
+            let joined = cstr_from_bytes(&bytes);
+            p = joined.as_ptr();
+            p_owned = Some(joined);
         }
 
         semsg!(gettext(errmsg), p);
-
-        if p.cast_const() != name {
-            xfree(p.cast());
-        }
+        drop(p_owned);
     }
 }
 
@@ -873,7 +871,7 @@ unsafe fn eval_fname_sid(name: *const c_char) -> bool {
 unsafe fn fname_trans_sid(
     name: *const c_char,
     fname_buf: *mut c_char,
-    tofree: *mut *mut c_char,
+    tofree: &mut Option<std::ffi::CString>,
     error: *mut c_int,
 ) -> *mut c_char {
     unsafe {
@@ -904,16 +902,18 @@ unsafe fn fname_trans_sid(
             strcpy(fname_buf.add(fname_buflen), script_name);
             fname_buf
         } else {
-            let fname = xmalloc(fnamelen + 1).cast::<c_char>();
-            *tofree = fname;
+            let mut fname_vec = vec![0 as c_char; fnamelen + 1];
             vim_snprintf!(
-                fname,
+                fname_vec.as_mut_ptr(),
                 fnamelen + 1,
                 c"%s%s".as_ptr(),
                 fname_buf,
                 script_name,
             );
-            fname
+            let cstr = cstr_to_cstring(fname_vec.as_ptr());
+            let ptr = cstr.as_ptr().cast_mut();
+            *tofree = Some(cstr);
+            ptr
         }
     }
 }
@@ -935,20 +935,20 @@ pub unsafe fn get_func_arity(
             *varargs = false;
         } else {
             let mut fname_buf = [0 as c_char; FLEN_FIXED + 1];
-            let mut tofree: *mut c_char = ptr::null_mut();
+            let mut tofree: Option<std::ffi::CString> = None;
             let mut error = FCERR_NONE;
 
             let fname = fname_trans_sid(
                 name,
                 fname_buf.as_mut_ptr(),
-                &raw mut tofree,
+                &mut tofree,
                 &raw mut error,
             );
             let mut ufunc: *mut ufunc_T = ptr::null_mut();
             if error == FCERR_NONE {
                 ufunc = find_func(fname);
             }
-            xfree(tofree.cast());
+            drop(tofree);
 
             if ufunc.is_null() {
                 return FAIL;
@@ -1419,10 +1419,10 @@ pub unsafe fn call_user_func(
                         msg_outnum((*arg_tv).vval.v_number as c_int);
                     } else {
                         emsg_off += 1;
-                        let tofree = encode_tv2string(arg_tv, ptr::null_mut());
+                        let tofree = cstr_take(encode_tv2string(arg_tv, ptr::null_mut()));
                         emsg_off -= 1;
-                        if !tofree.is_null() {
-                            let mut s = tofree;
+                        if let Some(ref tf) = tofree {
+                            let mut s = tf.as_ptr().cast_mut();
                             let mut buf = [0 as c_char; MSG_BUF_LEN];
                             if vim_strsize(s) > MSG_BUF_CLEN {
                                 trunc_string(
@@ -1434,7 +1434,6 @@ pub unsafe fn call_user_func(
                                 s = buf.as_mut_ptr();
                             }
                             msg_puts(s);
-                            xfree(tofree.cast());
                         }
                     }
                 }
@@ -1539,16 +1538,15 @@ pub unsafe fn call_user_func(
             } else {
                 let mut buf = [0 as c_char; MSG_BUF_LEN];
                 emsg_off += 1;
-                let mut s = encode_tv2string((*fc).fc_rettv, ptr::null_mut());
-                let tofree = s;
+                let tofree = cstr_take(encode_tv2string((*fc).fc_rettv, ptr::null_mut()));
                 emsg_off -= 1;
-                if !s.is_null() {
+                if let Some(ref tf) = tofree {
+                    let mut s = tf.as_ptr().cast_mut();
                     if vim_strsize(s) > MSG_BUF_CLEN {
                         trunc_string(s, buf.as_mut_ptr(), MSG_BUF_CLEN, MSG_BUF_LEN as c_int);
                         s = buf.as_mut_ptr();
                     }
                     smsg!(0, gettext(c"%s returning %s".as_ptr()), sourcing_name(), s);
-                    xfree(tofree.cast());
                 }
             }
             msg_puts(c"\n".as_ptr());
@@ -1904,9 +1902,9 @@ pub unsafe fn call_func(
         let mut error = FCERR_NONE;
         let mut fp: *mut ufunc_T = ptr::null_mut();
         let mut fname_buf = [0 as c_char; FLEN_FIXED + 1];
-        let mut tofree: *mut c_char = ptr::null_mut();
+        let mut tofree: Option<std::ffi::CString> = None;
         let mut fname: *mut c_char = ptr::null_mut();
-        let mut name: *mut c_char = ptr::null_mut();
+        let mut name_owned: Option<std::ffi::CString> = None;
         let mut argcount = argcount_in;
         let mut argvars = argvars_in;
         let mut selfdict = (*funcexe).fe_selfdict;
@@ -1924,13 +1922,17 @@ pub unsafe fn call_func(
             fp = (*partial).pt_func;
         }
         if fp.is_null() {
-            name = xmemdupz(funcname.cast(), len as usize).cast();
+            let nm = cstr_from_bytes(std::slice::from_raw_parts(
+                funcname.cast::<u8>(),
+                len as usize,
+            ));
             fname = fname_trans_sid(
-                name,
+                nm.as_ptr(),
                 fname_buf.as_mut_ptr(),
-                &raw mut tofree,
+                &mut tofree,
                 &raw mut error,
             );
+            name_owned = Some(nm);
         }
 
         if !(*funcexe).fe_doesrange.is_null() {
@@ -1987,8 +1989,7 @@ pub unsafe fn call_func(
                     );
                     nlua_call_vlua(funcname, len as usize, argvars, argcount, rettv);
                 } else {
-                    xfree(name.cast());
-                    name = ptr::null_mut();
+                    name_owned = None;
                     funcname = c"v:lua".as_ptr();
                 }
             } else if !fp.is_null() || !builtin_function(rfname, -1) {
@@ -2037,7 +2038,7 @@ pub unsafe fn call_func(
         if !aborting() {
             user_func_error(
                 error,
-                if !name.is_null() { name } else { funcname },
+                name_owned.as_ref().map_or(funcname, |nm| nm.as_ptr()),
                 (*funcexe).fe_found_var,
             );
         }
@@ -2047,8 +2048,8 @@ pub unsafe fn call_func(
             tv_clear(&raw mut argv[(argv_clear + argv_base) as usize]);
         }
 
-        xfree(tofree.cast());
-        xfree(name.cast());
+        drop(tofree);
+        drop(name_owned);
 
         ret
     }
@@ -2077,15 +2078,15 @@ pub unsafe fn call_simple_func(funcname: *const c_char, len: usize, rettv: *mut 
         (*rettv).v_type = VarType::VAR_NUMBER;
         (*rettv).vval.v_number = 0;
 
-        let name = xstrnsave(funcname, len);
+        let name = cstr_from_bytes(std::slice::from_raw_parts(funcname.cast::<u8>(), len));
 
         let mut error = FCERR_NONE;
-        let mut tofree: *mut c_char = ptr::null_mut();
+        let mut tofree: Option<std::ffi::CString> = None;
         let mut fname_buf = [0 as c_char; FLEN_FIXED + 1];
         let fname = fname_trans_sid(
-            name,
+            name.as_ptr(),
             fname_buf.as_mut_ptr(),
-            &raw mut tofree,
+            &mut tofree,
             &raw mut error,
         );
 
@@ -2116,9 +2117,8 @@ pub unsafe fn call_simple_func(funcname: *const c_char, len: usize, rettv: *mut 
             }
         }
 
-        user_func_error(error, name, false);
-        xfree(tofree.cast());
-        xfree(name.cast());
+        user_func_error(error, name.as_ptr(), false);
+        drop(tofree);
 
         ret
     }
@@ -2219,7 +2219,7 @@ pub unsafe fn trans_function_name(
     flags: c_int,
     fdp: *mut funcdict_T,
     partial: *mut *mut partial_T,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
         let mut name: *mut c_char = ptr::null_mut();
         let mut len: c_int;
@@ -2236,7 +2236,10 @@ pub unsafe fn trans_function_name(
         {
             *pp = (*pp).add(3);
             len = get_id_len(pp.cast::<*const c_char>()) + 3;
-            return xmemdupz(start.cast(), len as usize).cast();
+            return Some(cstr_from_bytes(std::slice::from_raw_parts(
+                start.cast::<u8>(),
+                len as usize,
+            )));
         }
 
         let mut lead = eval_fname_script(start);
@@ -2258,7 +2261,7 @@ pub unsafe fn trans_function_name(
             if !skip {
                 emsg(gettext(c"E129: Function name required".as_ptr()));
             }
-            return name;
+            return None;
         }
         if end.is_null() || (!lv.ll_tv.is_null() && (lead > 2 || lv.ll_range)) {
             if !aborting() {
@@ -2269,7 +2272,7 @@ pub unsafe fn trans_function_name(
                 *pp =
                     find_name_end(start, ptr::null_mut(), ptr::null_mut(), FNE_INCL_BR).cast_mut();
             }
-            return name;
+            return None;
         }
 
         if !lv.ll_tv.is_null() {
@@ -2278,8 +2281,9 @@ pub unsafe fn trans_function_name(
                 (*fdp).fd_newkey = lv.ll_newkey.take();
                 (*fdp).fd_di = lv.ll_di;
             }
+            let mut res: Option<std::ffi::CString> = None;
             if (*lv.ll_tv).v_type == VarType::VAR_FUNC && !(*lv.ll_tv).vval.v_string.is_null() {
-                name = xstrdup((*lv.ll_tv).vval.v_string);
+                res = Some(cstr_to_cstring((*lv.ll_tv).vval.v_string));
                 *pp = end.cast_mut();
             } else if (*lv.ll_tv).v_type == VarType::VAR_PARTIAL
                 && !(*lv.ll_tv).vval.v_partial.is_null()
@@ -2289,35 +2293,34 @@ pub unsafe fn trans_function_name(
                     len = check_luafunc_name(end.add(1), true);
                     if len == 0 {
                         semsg!(e_invexpr2.as_ptr(), c"v:lua".as_ptr());
-                        return name;
+                        return None;
                     }
-                    name = xmallocz(len as usize).cast();
-                    ptr::copy_nonoverlapping(end.add(1), name, len as usize);
+                    res = Some(cstr_from_bytes(std::slice::from_raw_parts(
+                        end.add(1).cast::<u8>(),
+                        len as usize,
+                    )));
                     *pp = end.cast_mut().add(1 + len as usize);
                 } else {
-                    name = xstrdup(partial_name(pt));
+                    res = Some(cstr_to_cstring(partial_name(pt)));
                     *pp = end.cast_mut();
                 }
                 if !partial.is_null() {
                     *partial = pt;
                 }
+            } else if !skip
+                && (flags & TFN_QUIET) == 0
+                && (fdp.is_null() || lv.ll_dict.is_null() || (*fdp).fd_newkey.is_none())
+            {
+                emsg(gettext(E_FUNCREF.as_ptr()));
             } else {
-                if !skip
-                    && (flags & TFN_QUIET) == 0
-                    && (fdp.is_null() || lv.ll_dict.is_null() || (*fdp).fd_newkey.is_none())
-                {
-                    emsg(gettext(E_FUNCREF.as_ptr()));
-                } else {
-                    *pp = end.cast_mut();
-                }
-                name = ptr::null_mut();
+                *pp = end.cast_mut();
             }
-            return name;
+            return res;
         }
 
         if lv.ll_name.is_null() {
             *pp = end.cast_mut();
-            return name;
+            return None;
         }
 
         if let Some(ref exp_name) = lv.ll_exp_name {
@@ -2347,16 +2350,15 @@ pub unsafe fn trans_function_name(
             }
         }
         if !name.is_null() {
-            name = xstrdup(name);
             *pp = end.cast_mut();
             if strncmp(name, c"<SNR>".as_ptr(), 5) == 0 {
-                *name.add(0) = K_SPECIAL as c_char;
-                *name.add(1) = KS_EXTRA as c_char;
-                *name.add(2) = KE_SNR as c_char;
-                let tail_len = strlen(name.add(5)) + 1;
-                ptr::copy(name.add(5), name.add(3), tail_len);
+                let tail = CStr::from_ptr(name.add(5)).to_bytes();
+                let mut bytes = Vec::with_capacity(3 + tail.len());
+                bytes.extend_from_slice(&[K_SPECIAL, KS_EXTRA, KE_SNR]);
+                bytes.extend_from_slice(tail);
+                return Some(cstr_from_bytes(&bytes));
             }
-            return name;
+            return Some(cstr_to_cstring(name));
         }
 
         if let Some(ref exp_name) = lv.ll_exp_name {
@@ -2395,7 +2397,7 @@ pub unsafe fn trans_function_name(
             {
                 if current_sctx.sc_sid <= 0 {
                     emsg(gettext(e_usingsid.as_ptr()));
-                    return name;
+                    return None;
                 }
                 sid_buflen = vim_snprintf!(
                     sid_buf.as_mut_ptr(),
@@ -2410,7 +2412,7 @@ pub unsafe fn trans_function_name(
                 gettext(c"E128: Function name must start with a capital or \"s:\": %s".as_ptr()),
                 start,
             );
-            return name;
+            return None;
         }
 
         if !skip && (flags & TFN_QUIET) == 0 && (flags & TFN_NO_DEREF) == 0 {
@@ -2420,41 +2422,44 @@ pub unsafe fn trans_function_name(
                     gettext(c"E884: Function name cannot contain a colon: %s".as_ptr()),
                     start,
                 );
-                return name;
+                return None;
             }
         }
 
-        name = xmalloc(len as usize + lead as usize + 1).cast();
+        let mut bytes = Vec::with_capacity(len as usize + lead as usize);
         if !skip && lead > 0 {
-            *name.add(0) = K_SPECIAL as c_char;
-            *name.add(1) = KS_EXTRA as c_char;
-            *name.add(2) = KE_SNR as c_char;
+            bytes.extend_from_slice(&[K_SPECIAL, KS_EXTRA, KE_SNR]);
             if sid_buflen > 0 {
-                ptr::copy_nonoverlapping(sid_buf.as_ptr(), name.add(3), sid_buflen);
+                bytes.extend_from_slice(std::slice::from_raw_parts(
+                    sid_buf.as_ptr().cast::<u8>(),
+                    sid_buflen,
+                ));
             }
         }
-        ptr::copy(lv.ll_name, name.add(lead as usize), len as usize);
-        *name.add((lead + len) as usize) = NUL;
+        bytes.extend_from_slice(std::slice::from_raw_parts(
+            lv.ll_name.cast::<u8>(),
+            len as usize,
+        ));
         *pp = end.cast_mut();
 
-        name
+        Some(cstr_from_bytes(&bytes))
     }
 }
 
-pub unsafe fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut c_char {
+pub unsafe fn get_scriptlocal_funcname(funcname: *mut c_char) -> Option<std::ffi::CString> {
     unsafe {
         if funcname.is_null() {
-            return ptr::null_mut();
+            return None;
         }
 
         if strncmp(funcname, c"s:".as_ptr(), 2) != 0 && strncmp(funcname, c"<SID>".as_ptr(), 5) != 0
         {
-            return ptr::null_mut();
+            return None;
         }
 
         if !crate::runtime::script_id_valid(current_sctx.sc_sid) {
             emsg(gettext(e_usingsid.as_ptr()));
-            return ptr::null_mut();
+            return None;
         }
 
         let mut sid_buf = [0 as c_char; 25];
@@ -2466,16 +2471,16 @@ pub unsafe fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut c_char {
         ) as usize;
         let off = if *funcname == b's' as c_char { 2 } else { 5 };
         let newnamesize = sid_buflen + strlen(funcname.add(off)) + 1;
-        let newname = xmalloc(newnamesize).cast::<c_char>();
+        let mut newname = vec![0 as c_char; newnamesize];
         vim_snprintf!(
-            newname,
+            newname.as_mut_ptr(),
             newnamesize,
             c"%s%s".as_ptr(),
             sid_buf.as_ptr(),
             funcname.add(off),
         );
 
-        newname
+        Some(cstr_to_cstring(newname.as_ptr()))
     }
 }
 
@@ -2485,15 +2490,18 @@ pub unsafe fn save_function_name(
     skip: bool,
     flags: c_int,
     fudi: *mut funcdict_T,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
         let mut p = *name;
-        let saved: *mut c_char;
+        let saved: Option<std::ffi::CString>;
 
         if strncmp(p, c"<lambda>".as_ptr(), 8) == 0 {
             p = p.add(8);
             getdigits(&raw mut p, false, 0);
-            saved = xmemdupz((*name).cast(), p.offset_from(*name) as usize).cast();
+            saved = Some(cstr_from_bytes(std::slice::from_raw_parts(
+                (*name).cast::<u8>(),
+                p.offset_from(*name) as usize,
+            )));
             if !fudi.is_null() {
                 *fudi = funcdict_T::new();
             }
@@ -2781,10 +2789,8 @@ unsafe fn get_function_body(
                         p = skipwhite(p.add(1));
                     }
                     p = p.add(eval_fname_script(p) as usize);
-                    xfree(
-                        trans_function_name(&raw mut p, true, 0, ptr::null_mut(), ptr::null_mut())
-                            .cast(),
-                    );
+                    let _ =
+                        trans_function_name(&raw mut p, true, 0, ptr::null_mut(), ptr::null_mut());
                     if *skipwhite(p) == b'(' as c_char {
                         if nesting == MAX_FUNC_NESTING - 1 {
                             emsg(gettext(E_FUNCTION_NESTING_TOO_DEEP.as_ptr()));
@@ -2958,8 +2964,11 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
         }
 
         let mut p = (*eap).arg;
-        let mut name =
+        let mut name_owned =
             save_function_name(&raw mut p, (*eap).skip != 0, TFN_NO_AUTOLOAD, &raw mut fudi);
+        let mut name = name_owned
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         let paren = !vim_strchr(p, b'(' as c_int).is_null();
         if name.is_null() && (fudi.fd_dict.is_null() || !paren) && (*eap).skip == 0 {
             if !aborting() {
@@ -2977,7 +2986,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
         macro_rules! ret_free {
             () => {{
                 xfree(line_to_free.cast());
-                xfree(name.cast());
+                drop(name_owned);
                 did_emsg |= saved_did_emsg;
                 if show_block {
                     ui_ext_cmdline_block_leave();
@@ -3186,7 +3195,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                     overwrite = true;
                 } else {
                     let exp_name = (*fp).uf_name_exp.take();
-                    xfree(name.cast());
+                    name_owned = None;
                     name = ptr::null_mut();
                     func_clear_items(fp);
                     (*fp).uf_name_exp = exp_name;
@@ -3210,11 +3219,15 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                 erret!();
             }
 
-            xfree(name.cast());
             func_nr += 1;
             namelen =
                 vim_snprintf!(numbuf.as_mut_ptr(), NUMBUFLEN, c"%d".as_ptr(), func_nr) as usize;
-            name = xmemdupz(numbuf.as_ptr().cast(), namelen).cast();
+            let nm = cstr_from_bytes(std::slice::from_raw_parts(
+                numbuf.as_ptr().cast::<u8>(),
+                namelen,
+            ));
+            name = nm.as_ptr().cast_mut();
+            name_owned = Some(nm);
         }
 
         if fp.is_null() {
@@ -3222,16 +3235,17 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                 let mut j = FAIL;
                 let sname = sourcing_name();
                 if !sname.is_null() {
-                    let scriptname = autoload_name(name, strlen(name));
-                    p = vim_strchr(scriptname, b'/' as c_int);
-                    let plen = strlen(p) as c_int;
-                    let slen = strlen(sname) as c_int;
-                    if slen > plen
-                        && path_equal(p, sname.add((slen - plen) as usize), kPathCmpLiteral)
-                    {
-                        j = OK;
+                    let scriptname = cstr_take(autoload_name(name, strlen(name)));
+                    if let Some(ref sn) = scriptname {
+                        p = vim_strchr(sn.as_ptr(), b'/' as c_int);
+                        let plen = strlen(p) as c_int;
+                        let slen = strlen(sname) as c_int;
+                        if slen > plen
+                            && path_equal(p, sname.add((slen - plen) as usize), kPathCmpLiteral)
+                        {
+                            j = OK;
+                        }
                     }
-                    xfree(scriptname.cast());
                 }
                 if j == FAIL {
                     semsg!(
@@ -3250,20 +3264,21 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
             fp = alloc_ufunc(name, namelen);
 
             if !fudi.fd_dict.is_null() {
-                let func_name = xmemdupz(name.cast(), namelen).cast::<c_char>();
-
                 if fudi.fd_di.is_null() {
                     fudi.fd_di = tv_dict_item_alloc(fudi.fd_newkey.as_ref().unwrap().as_ptr());
                     if tv_dict_add(fudi.fd_dict, fudi.fd_di) == FAIL {
                         crate::eval::typval::tv_dict_item_free(fudi.fd_di);
-                        xfree(func_name.cast());
                         erret!();
                     }
                 } else {
                     tv_clear(&raw mut (*fudi.fd_di).di_tv);
                 }
+                crate::eval::typval::tv_set_string_len(
+                    &raw mut (*fudi.fd_di).di_tv,
+                    name,
+                    namelen,
+                );
                 (*fudi.fd_di).di_tv.v_type = VarType::VAR_FUNC;
-                (*fudi.fd_di).di_tv.vval.v_string = func_name;
 
                 flags |= FC_DICT;
             }
@@ -3340,10 +3355,11 @@ pub unsafe fn function_exists(name: *const c_char, no_deref: bool) -> bool {
         let p = trans_function_name(&raw mut nm, false, flag, ptr::null_mut(), ptr::null_mut());
         nm = skipwhite(nm);
 
-        if !p.is_null() && (*nm == NUL || *nm == b'(' as c_char) {
-            n = translated_function_exists(p);
+        if let Some(ref p) = p
+            && (*nm == NUL || *nm == b'(' as c_char)
+        {
+            n = translated_function_exists(p.as_ptr());
         }
-        xfree(p.cast());
         n
     }
 }
@@ -3404,21 +3420,21 @@ pub unsafe fn ex_delfunction(eap: *mut exarg_T) {
         let mut fudi = funcdict_T::new();
 
         let mut p = (*eap).arg;
-        let name = trans_function_name(
+        let name_owned = trans_function_name(
             &raw mut p,
             (*eap).skip != 0,
             0,
             &raw mut fudi,
             ptr::null_mut(),
         );
-        if name.is_null() {
+        let Some(ref name_cstr) = name_owned else {
             if !fudi.fd_dict.is_null() && (*eap).skip == 0 {
                 emsg(gettext(E_FUNCREF.as_ptr()));
             }
             return;
-        }
+        };
+        let name = name_cstr.as_ptr();
         if ends_excmd(*skipwhite(p) as c_int) == 0 {
-            xfree(name.cast());
             semsg!(gettext(e_trailing_arg.as_ptr()), p);
             return;
         }
@@ -3431,13 +3447,12 @@ pub unsafe fn ex_delfunction(eap: *mut exarg_T) {
             if (*eap).skip == 0 {
                 semsg!(gettext(e_invarg2.as_ptr()), (*eap).arg);
             }
-            xfree(name.cast());
             return;
         }
         if (*eap).skip == 0 {
             fp = find_func(name);
         }
-        xfree(name.cast());
+        drop(name_owned);
 
         if (*eap).skip == 0 {
             if fp.is_null() {
@@ -3752,14 +3767,12 @@ pub unsafe fn can_add_defer() -> bool {
 
 pub unsafe fn add_defer(name: *mut c_char, argcount_arg: c_int, argvars: *mut typval_T) {
     unsafe {
-        let saved_name = xstrdup(name);
+        let dr_name_cstr = cstr_to_cstring(name);
         let argcount = argcount_arg as usize;
         let mut dr_argvars = vec![typval_T::new(); argcount + 1];
         for (i, slot) in dr_argvars.iter_mut().enumerate().take(argcount) {
             *slot = *argvars.add(i);
         }
-        let dr_name_cstr = CStr::from_ptr(saved_name).to_owned();
-        xfree(saved_name.cast());
         (*current_funccal).fc_defer.push(defer_T {
             dr_name: Some(dr_name_cstr),
             dr_argvars,
@@ -3855,7 +3868,7 @@ pub unsafe fn ex_call(eap: *mut exarg_T) {
             return;
         }
 
-        let tofree = trans_function_name(
+        let tofree_owned = trans_function_name(
             &raw mut arg,
             false,
             TFN_INT,
@@ -3865,15 +3878,16 @@ pub unsafe fn ex_call(eap: *mut exarg_T) {
         if let Some(ref newkey) = fudi.fd_newkey {
             semsg!(gettext(e_dictkey.as_ptr()), newkey.as_ptr());
         }
-        if tofree.is_null() {
+        let Some(ref tofree_cstr) = tofree_owned else {
             return;
-        }
+        };
+        let tofree = tofree_cstr.as_ptr();
 
         if !fudi.fd_dict.is_null() {
             (*fudi.fd_dict).dv_refcount += 1;
         }
 
-        let mut len = strlen(tofree) as c_int;
+        let mut len = tofree_cstr.as_bytes().len() as c_int;
         let mut found_var = false;
         let name = deref_func_name(
             tofree,
@@ -3892,7 +3906,6 @@ pub unsafe fn ex_call(eap: *mut exarg_T) {
         if *startarg != b'(' as c_char {
             semsg!(gettext(e_missingparen.as_ptr()), (*eap).arg);
             tv_dict_unref(fudi.fd_dict);
-            xfree(tofree.cast());
             return;
         }
 
@@ -3932,7 +3945,7 @@ pub unsafe fn ex_call(eap: *mut exarg_T) {
         clear_evalarg(&raw mut evalarg, eap);
 
         tv_dict_unref(fudi.fd_dict);
-        xfree(tofree.cast());
+        drop(tofree_owned);
     }
 }
 
@@ -3977,21 +3990,17 @@ pub unsafe fn do_return(
 }
 
 /// Generate a return command for producing the value of `rettv`.
-pub unsafe fn get_return_cmd(rettv: Option<typval_T>) -> *mut c_char {
+pub unsafe fn get_return_cmd(rettv: Option<typval_T>) -> std::ffi::CString {
     unsafe {
-        let mut s: *mut c_char = ptr::null_mut();
-        let mut tofree: *mut c_char = ptr::null_mut();
-        let mut slen = 0usize;
-
+        let mut tofree: Option<std::ffi::CString> = None;
         if let Some(mut tv) = rettv {
-            s = encode_tv2echo(&raw mut tv, ptr::null_mut());
-            tofree = s;
+            tofree = cstr_take(encode_tv2echo(&raw mut tv, ptr::null_mut()));
         }
-        if s.is_null() {
-            s = c"".as_ptr().cast_mut();
+        let (s, slen) = if let Some(ref tf) = tofree {
+            (tf.as_ptr(), tf.as_bytes().len())
         } else {
-            slen = strlen(s);
-        }
+            (c"".as_ptr(), 0)
+        };
 
         let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
         xstrlcpy(iobuff_ptr, c":return ".as_ptr(), IOSIZE);
@@ -4001,8 +4010,11 @@ pub unsafe fn get_return_cmd(rettv: Option<typval_T>) -> *mut c_char {
             strcpy(iobuff_ptr.add(IOSIZE - 4), c"...".as_ptr());
             iobuff_len = IOSIZE - 1;
         }
-        xfree(tofree.cast());
-        xstrnsave(iobuff_ptr, iobuff_len)
+        drop(tofree);
+        cstr_from_bytes(std::slice::from_raw_parts(
+            iobuff_ptr.cast::<u8>(),
+            iobuff_len,
+        ))
     }
 }
 
@@ -4103,15 +4115,14 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
                 (*rettv).v_type = VarType::VAR_FUNC;
                 (*rettv).vval.v_string = ptr::null_mut();
             } else {
-                let mut tofree: *mut c_char = ptr::null_mut();
+                let mut tofree: Option<std::ffi::CString> = None;
                 fname = fname_trans_sid(
                     fname,
                     fname_buf.as_mut_ptr(),
-                    &raw mut tofree,
+                    &mut tofree,
                     &raw mut error,
                 );
                 fp = find_func(fname);
-                xfree(tofree.cast());
             }
         }
 
@@ -4485,7 +4496,7 @@ pub unsafe fn set_ref_in_func(name: *mut c_char, fp_in: *mut ufunc_T, copyID: c_
         let mut fp = fp_in;
         let mut error = FCERR_NONE;
         let mut fname_buf = [0 as c_char; FLEN_FIXED + 1];
-        let mut tofree: *mut c_char = ptr::null_mut();
+        let mut tofree: Option<std::ffi::CString> = None;
         let mut abort = false;
         if name.is_null() && fp_in.is_null() {
             return false;
@@ -4495,7 +4506,7 @@ pub unsafe fn set_ref_in_func(name: *mut c_char, fp_in: *mut ufunc_T, copyID: c_
             let fname = fname_trans_sid(
                 name,
                 fname_buf.as_mut_ptr(),
-                &raw mut tofree,
+                &mut tofree,
                 &raw mut error,
             );
             fp = find_func(fname);
@@ -4507,7 +4518,7 @@ pub unsafe fn set_ref_in_func(name: *mut c_char, fp_in: *mut ufunc_T, copyID: c_
                 fc = (*(*fc).fc_func).uf_scoped;
             }
         }
-        xfree(tofree.cast());
+        drop(tofree);
         abort
     }
 }

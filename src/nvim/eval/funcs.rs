@@ -1566,13 +1566,13 @@ pub unsafe fn f_call(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
         let mut tofree: Option<std::ffi::CString> = None;
         if (*argvars).v_type == VarType::VAR_STRING {
             let mut p = func;
-            tofree = cstr_take(trans_function_name(
+            tofree = trans_function_name(
                 &raw mut p,
                 false,
                 TFN_INT | TFN_QUIET,
                 ptr::null_mut(),
                 ptr::null_mut(),
-            ));
+            );
             let Some(ref tf) = tofree else {
                 emsg_funcname(e_unknown_function_str.as_ptr(), func);
                 return;
@@ -2626,12 +2626,12 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
 
         if (use_string && vim_strchr(s, AUTOLOAD_CHAR).is_null()) || is_funcref {
             name = s;
-            trans_name_owned = cstr_take(save_function_name(
+            trans_name_owned = save_function_name(
                 &raw mut name,
                 false,
                 TFN_INT | TFN_QUIET | TFN_NO_AUTOLOAD | TFN_NO_DEREF,
                 ptr::null_mut(),
-            ));
+            );
             if *name != NUL {
                 s = ptr::null_mut();
             }
@@ -2668,7 +2668,7 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
                 let name_cstr = if strncmp(s, c"s:".as_ptr(), 2) == 0
                     || strncmp(s, c"<SID>".as_ptr(), 5) == 0
                 {
-                    cstr_take(get_scriptlocal_funcname(s)).unwrap_or_default()
+                    get_scriptlocal_funcname(s).unwrap_or_default()
                 } else {
                     cstr_to_cstring(s)
                 };

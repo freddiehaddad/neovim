@@ -5298,12 +5298,12 @@ unsafe fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
                 if !is_expr {
                     option_set_callback_func(value.data.string.data, &raw mut cb);
                 } else if value.data.string.size > 0 {
-                    let name = get_scriptlocal_funcname(value.data.string.data);
-                    let funcref = if !name.is_null() {
-                        name
-                    } else {
-                        xstrdup(value.data.string.data)
-                    };
+                    let funcref =
+                        if let Some(name) = get_scriptlocal_funcname(value.data.string.data) {
+                            xstrdup(name.as_ptr())
+                        } else {
+                            xstrdup(value.data.string.data)
+                        };
                     cb.data = crate::eval::typval::CallbackData::expr(funcref);
                 }
             }

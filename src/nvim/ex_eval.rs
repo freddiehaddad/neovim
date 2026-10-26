@@ -730,7 +730,7 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
                     PendingVal::Return(tv) => tv,
                     _ => None,
                 };
-                s_owned = cstr_take(get_return_cmd(rettv));
+                s_owned = Some(get_return_cmd(rettv));
                 s_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr())
             }
             _ => {

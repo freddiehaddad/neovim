@@ -5248,13 +5248,13 @@ pub unsafe fn callback_from_typval(callback: *mut Callback, arg: *const typval_T
             } else if *name == NUL {
                 *callback = Callback::NONE;
             } else {
-                let mut funcref: *mut c_char = ptr::null_mut();
-                if (*arg).v_type == VarType::VAR_STRING {
-                    funcref = get_scriptlocal_funcname(name);
-                }
-                if funcref.is_null() {
-                    funcref = xstrdup(name);
-                }
+                let funcref = if (*arg).v_type == VarType::VAR_STRING
+                    && let Some(sl) = get_scriptlocal_funcname(name)
+                {
+                    xstrdup(sl.as_ptr())
+                } else {
+                    xstrdup(name)
+                };
                 func_ref(funcref);
                 (*callback).data = crate::eval::typval::CallbackData::funcref(funcref);
             }
