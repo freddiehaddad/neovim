@@ -92,7 +92,8 @@ use crate::option::{
 use crate::option_vars::*;
 use crate::optionstr::OptIndex;
 use crate::os::env::{
-    env_init, init_homedir, os_get_pid, os_getenv, os_getenv_buf, os_hint_priority, vim_env_iter,
+    env_init, init_homedir, os_get_pid, os_getenv_buf, os_getenv_cstr, os_hint_priority,
+    vim_env_iter,
 };
 #[cfg(windows)]
 use crate::os::env::{os_homedir, os_setenv_append_path};
@@ -2483,22 +2484,20 @@ unsafe fn source_startup_scripts(parmp: *const mparm_T) {
 
 unsafe fn execute_env(env: *mut c_char) -> c_int {
     unsafe {
-        let initstr = os_getenv(env);
-        if initstr.is_null() {
+        let Some(initstr) = os_getenv_cstr(env) else {
             return FAIL;
-        }
+        };
 
         estack_push(ETYPE_ENV, env, 0);
         let save_current_sctx = current_sctx;
         current_sctx.sc_sid = SID_ENV;
         current_sctx.sc_seq = 0;
         current_sctx.sc_lnum = 0;
-        do_cmdline_cmd(initstr);
+        do_cmdline_cmd(initstr.as_ptr());
 
         estack_pop();
         current_sctx = save_current_sctx;
 
-        xfree(initstr.cast());
         OK
     }
 }

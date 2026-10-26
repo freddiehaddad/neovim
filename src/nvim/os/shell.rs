@@ -723,19 +723,16 @@ pub unsafe fn get_cmd_output(
     cmd: *mut c_char,
     infile: *mut c_char,
     flags: c_int,
-    ret_len: *mut usize,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
-        let mut buffer: *mut c_char = ptr::null_mut();
-
         if check_secure() {
-            return ptr::null_mut();
+            return None;
         }
 
         let tempname = vim_tempname();
         if tempname.is_null() {
             emsg(gettext(e_notmp.as_ptr()));
-            return ptr::null_mut();
+            return None;
         }
 
         let command = make_filter_cmd(cmd, infile, tempname, false);
@@ -751,6 +748,7 @@ pub unsafe fn get_cmd_output(
         xfree(command.cast());
 
         let fd = os_fopen(tempname, c"rb".as_ptr());
+        let mut result: Option<std::ffi::CString> = None;
 
         'done: {
             if fd.is_null() || fseek(fd, 0, SEEK_END) == -1 {
@@ -768,28 +766,24 @@ pub unsafe fn get_cmd_output(
             }
 
             let len = len_l as usize;
-            buffer = xmalloc(len + 1).cast();
-            let i = fread(buffer.cast(), 1, len, fd);
+            let mut buffer = vec![0u8; len];
+            let i = fread(buffer.as_mut_ptr().cast(), 1, len, fd);
             fclose(fd);
             if i != len {
                 semsg!(gettext(e_cant_read_file_str.as_ptr()), tempname);
-                xfree(buffer.cast());
-                buffer = ptr::null_mut();
-            } else if ret_len.is_null() {
-                for idx in 0..len {
-                    if *buffer.add(idx) == NUL {
-                        *buffer.add(idx) = 1;
+            } else {
+                for b in &mut buffer {
+                    if *b == 0 {
+                        *b = 1;
                     }
                 }
-                *buffer.add(len) = NUL;
-            } else {
-                *ret_len = len;
+                result = Some(std::ffi::CString::from_vec_unchecked(buffer));
             }
         }
 
         os_remove(tempname);
         xfree(tempname.cast());
-        buffer
+        result
     }
 }
 

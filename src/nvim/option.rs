@@ -113,7 +113,7 @@ use crate::optionstr::{
     optset_T, set_chars_option, vimoption_T,
 };
 use crate::os::env::{
-    expand_T, expand_env_esc, home_replace, os_env_exists, os_getenv, os_setenv, vim_getenv,
+    expand_T, expand_env_esc, home_replace, os_env_exists, os_getenv_cstr, os_setenv, vim_getenv,
 };
 use crate::os::input::os_breakcheck;
 use crate::os::lang::{get_mess_lang, lang_init};
@@ -706,17 +706,16 @@ pub unsafe fn set_init_tablocal() {
 /// Initialize the 'shell' option to a default value.
 unsafe fn set_init_default_shell() {
     unsafe {
-        let shell = os_getenv(c"SHELL".as_ptr());
-        if !shell.is_null() {
-            if !vim_strchr(shell, b' ' as c_int).is_null() {
-                let len = strlen(shell) + 3;
+        if let Some(shell) = os_getenv_cstr(c"SHELL".as_ptr()) {
+            let shell_ptr = shell.as_ptr();
+            if !vim_strchr(shell_ptr, b' ' as c_int).is_null() {
+                let len = shell.as_bytes().len() + 3;
                 let cmd = xmalloc(len).cast::<c_char>();
-                vim_snprintf!(cmd, len, c"\"%s\"".as_ptr(), shell);
+                vim_snprintf!(cmd, len, c"\"%s\"".as_ptr(), shell_ptr);
                 set_string_default(kOptShell, cmd, true);
             } else {
-                set_string_default(kOptShell, shell, false);
+                set_string_default(kOptShell, shell_ptr.cast_mut(), false);
             }
-            xfree(shell.cast());
         }
     }
 }

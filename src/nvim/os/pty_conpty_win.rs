@@ -9,10 +9,7 @@ use crate::os::env::os_get_pid;
 #[cfg(windows)]
 use crate::os::os_win_console::INVALID_HANDLE_VALUE;
 #[cfg(windows)]
-use std::ffi::{c_char, c_int, c_long, c_void};
-
-#[cfg(windows)]
-use crate::memory::{xfree, xmalloc, xstrdup};
+use std::ffi::{CString, c_char, c_int, c_long, c_void};
 
 #[cfg(windows)]
 use crate::os::os_win_console::{BOOL, DWORD, HANDLE};
@@ -105,6 +102,7 @@ pub struct STARTUPINFOEXW {
 pub struct conpty_t {
     pub pty: HPCON,
     pub si_ex: STARTUPINFOEXW,
+    pub attr_list: Vec<u8>,
 }
 
 #[cfg(windows)]
@@ -135,6 +133,7 @@ impl conpty_t {
                 },
                 lpAttributeList: std::ptr::null_mut(),
             },
+            attr_list: Vec::new(),
         }
     }
 }
@@ -280,8 +279,8 @@ pub unsafe fn os_dyn_conpty_init() -> TriState {
 
 #[cfg(windows)]
 pub unsafe fn os_conpty_init(
-    in_name: *mut *mut c_char,
-    out_name: *mut *mut c_char,
+    in_name: &mut Option<CString>,
+    out_name: &mut Option<CString>,
     width: u16,
     height: u16,
 ) -> Option<Box<conpty_t>> {
@@ -299,12 +298,14 @@ pub unsafe fn os_conpty_init(
 
         let pid = os_get_pid();
         let count = CONPTY_COUNT;
-        let in_pipe_str = format!("\\\\.\\pipe\\nvim-term-in-{pid}-{count}\0");
-        *in_name = xstrdup(in_pipe_str.as_ptr().cast());
+        let in_pipe_cstr =
+            CString::new(format!("\\\\.\\pipe\\nvim-term-in-{pid}-{count}")).unwrap();
+        let in_pipe_ptr = in_pipe_cstr.as_ptr();
+        *in_name = Some(in_pipe_cstr);
 
         'init: {
             in_read = CreateNamedPipeA(
-                *in_name,
+                in_pipe_ptr,
                 mode,
                 PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
                 1,
@@ -318,10 +319,12 @@ pub unsafe fn os_conpty_init(
                 break 'init;
             }
 
-            let out_pipe_str = format!("\\\\.\\pipe\\nvim-term-out-{pid}-{count}\0");
-            *out_name = xstrdup(out_pipe_str.as_ptr().cast());
+            let out_pipe_cstr =
+                CString::new(format!("\\\\.\\pipe\\nvim-term-out-{pid}-{count}")).unwrap();
+            let out_pipe_ptr = out_pipe_cstr.as_ptr();
+            *out_name = Some(out_pipe_cstr);
             out_write = CreateNamedPipeA(
-                *out_name,
+                out_pipe_ptr,
                 mode,
                 PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
                 1,
@@ -356,7 +359,8 @@ pub unsafe fn os_conpty_init(
             conpty_object.si_ex.StartupInfo.cb = std::mem::size_of::<STARTUPINFOEXW>() as DWORD;
             let mut bytes_required: usize = 0;
             InitializeProcThreadAttributeList(std::ptr::null_mut(), 1, 0, &mut bytes_required);
-            conpty_object.si_ex.lpAttributeList = xmalloc(bytes_required);
+            conpty_object.attr_list = vec![0u8; bytes_required];
+            conpty_object.si_ex.lpAttributeList = conpty_object.attr_list.as_mut_ptr().cast();
             if InitializeProcThreadAttributeList(
                 conpty_object.si_ex.lpAttributeList,
                 1,
@@ -364,6 +368,7 @@ pub unsafe fn os_conpty_init(
                 &mut bytes_required,
             ) == 0
             {
+                conpty_object.si_ex.lpAttributeList = std::ptr::null_mut();
                 emsg = c"InitializeProcThreadAttributeList failed".as_ptr();
                 break 'init;
             }
@@ -477,7 +482,6 @@ impl Drop for conpty_t {
         unsafe {
             if !self.si_ex.lpAttributeList.is_null() {
                 DeleteProcThreadAttributeList(self.si_ex.lpAttributeList);
-                xfree(self.si_ex.lpAttributeList);
             }
             if !self.pty.is_null()
                 && let Some(close_fn) = pClosePseudoConsole

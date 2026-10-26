@@ -13,14 +13,12 @@ use crate::globals::*;
 use crate::log::logmsg;
 #[cfg(windows)]
 use crate::mbyte::{mb_strnicmp, utf8_to_utf16, utf16_to_utf8};
-#[cfg(windows)]
-use crate::memory::xmallocz;
-use crate::memory::{memcnt, xfree, xmalloc, xmemcpyz, xmemdupz, xstrchrnul, xstrdup, xstrlcpy};
+use crate::memory::{memcnt, xfree, xmalloc, xmemcpyz, xmemdupz, xstrchrnul, xstrlcpy};
 use crate::message::{emsg, semsg, smsg, verbose_enter, verbose_leave};
 #[cfg(windows)]
 use crate::option::copy_option_part;
 use crate::option_vars::*;
-use crate::os::env::os_getenv;
+use crate::os::env::os_getenv_cstr;
 #[cfg(windows)]
 use crate::os::env::{os_env_exists, os_getenv_buf};
 use crate::path::{
@@ -700,31 +698,34 @@ unsafe fn is_executable_ext(name: *const c_char, abspath: *mut *mut c_char) -> b
 
 unsafe fn is_executable_in_path(name: *const c_char, abspath: *mut *mut c_char) -> bool {
     unsafe {
-        let path_env = os_getenv(c"PATH".as_ptr());
-        if path_env.is_null() {
+        let Some(path_env) = os_getenv_cstr(c"PATH".as_ptr()) else {
             return false;
-        }
+        };
 
         #[cfg(windows)]
-        let path = {
+        let path_vec: Vec<c_char> = {
             let sh_tail = CStr::from_ptr(path_tail(p_sh)).to_bytes();
+            let env_bytes = path_env.as_bytes_with_nul();
             if !os_env_exists(c"NoDefaultCurrentDirectoryInExePath".as_ptr(), false)
                 && sh_tail.windows(7).any(|w| w == b"cmd.exe")
             {
-                let pathlen = strlen(path_env);
-                let p = xmallocz(pathlen + 2).cast::<c_char>();
-                ptr::copy_nonoverlapping(b".;".as_ptr().cast::<c_char>(), p, 2);
-                ptr::copy_nonoverlapping(path_env, p.add(2), pathlen);
-                p
+                let mut v = Vec::with_capacity(env_bytes.len() + 2);
+                v.push(b'.' as c_char);
+                v.push(b';' as c_char);
+                v.extend(env_bytes.iter().map(|&b| b as c_char));
+                v
             } else {
-                xstrdup(path_env)
+                env_bytes.iter().map(|&b| b as c_char).collect()
             }
         };
+        #[cfg(windows)]
+        let path = path_vec.as_ptr();
         #[cfg(not(windows))]
-        let path = xstrdup(path_env);
+        let path = path_env.as_ptr();
 
         let bufsize = strlen(name) + strlen(path) + 2;
-        let buf = xmalloc(bufsize).cast::<c_char>();
+        let mut buf_vec = vec![0 as c_char; bufsize];
+        let buf = buf_vec.as_mut_ptr();
 
         let mut p = path;
         let mut rv = false;
@@ -743,9 +744,6 @@ unsafe fn is_executable_in_path(name: *const c_char, abspath: *mut *mut c_char) 
             p = e.add(1);
         }
 
-        xfree(buf.cast());
-        xfree(path.cast());
-        xfree(path_env.cast());
         rv
     }
 }

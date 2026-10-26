@@ -5,7 +5,7 @@ use crate::globals::*;
 #[cfg(windows)]
 use crate::log::{LOGLVL_INF, LOGLVL_WRN, logmsg};
 #[cfg(windows)]
-use crate::os::env::{os_getenv, os_getenv_buf};
+use crate::os::env::{os_getenv_buf, os_getenv_cstr};
 #[cfg(windows)]
 use crate::os::fs::os_path_exists;
 #[cfg(windows)]
@@ -14,9 +14,6 @@ use crate::strings::vim_snprintf;
 use crate::ui::ui_active;
 #[cfg(windows)]
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
-
-#[cfg(windows)]
-use crate::memory::xfree;
 
 #[cfg(windows)]
 pub type HANDLE = *mut c_void;
@@ -307,10 +304,14 @@ pub unsafe fn os_icon_init() {
             return;
         }
 
-        let vimruntime = os_getenv(c"VIMRUNTIME".as_ptr());
-        if !vimruntime.is_null() {
+        if let Some(vimruntime) = os_getenv_cstr(c"VIMRUNTIME".as_ptr()) {
             let namebuff = std::ptr::addr_of_mut!(NameBuff).cast::<c_char>();
-            vim_snprintf!(namebuff, MAXPATHL, c"%s/neovim.ico".as_ptr(), vimruntime);
+            vim_snprintf!(
+                namebuff,
+                MAXPATHL,
+                c"%s/neovim.ico".as_ptr(),
+                vimruntime.as_ptr()
+            );
             if !os_path_exists(namebuff) {
                 logmsg!(
                     LOGLVL_WRN,
@@ -335,7 +336,6 @@ pub unsafe fn os_icon_init() {
                 H_ORIG_ICON =
                     SendMessageA(H_WND, WM_SETICON, ICON_BIG, h_vim_icon as LPARAM) as HICON;
             }
-            xfree(vimruntime.cast());
         }
     }
 }

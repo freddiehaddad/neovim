@@ -767,23 +767,19 @@ pub unsafe fn ex_language(eap: *mut exarg_T) {
 #[cfg(not(windows))]
 unsafe fn find_locales() -> Vec<CString> {
     unsafe {
-        let locale_a = get_cmd_output(
+        let Some(locale_a) = get_cmd_output(
             c"locale -a".as_ptr().cast_mut(),
             ptr::null_mut(),
             kShellOptSilent,
-            ptr::null_mut(),
-        );
-        if locale_a.is_null() {
+        ) else {
             return Vec::new();
-        }
-        let out = CStr::from_ptr(locale_a)
-            .to_bytes()
+        };
+        locale_a
+            .as_bytes()
             .split(|&b| b == b'\n')
             .filter(|line| !line.is_empty())
             .filter_map(|line| CString::new(line).ok())
-            .collect();
-        xfree(locale_a.cast());
-        out
+            .collect()
     }
 }
 

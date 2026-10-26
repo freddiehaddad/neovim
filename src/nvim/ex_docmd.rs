@@ -174,7 +174,7 @@ use crate::option::{
 use crate::option_vars::*;
 use crate::optionstr::{check_ff_value, free_string_option, get_fileformat_name};
 use crate::os::env::{
-    expand_T, expand_env, expand_env_esc, expand_env_save, home_replace, os_getenv,
+    expand_T, expand_env, expand_env_esc, expand_env_save, home_replace, os_getenv_cstr,
 };
 use crate::os::fs::{os_chdir, os_dirname, os_fopen, os_mkdir, os_path_exists};
 use crate::os::input::{line_breakcheck, os_breakcheck};
@@ -12716,20 +12716,18 @@ unsafe fn ex_checkhealth(eap: *mut exarg_T) {
             return;
         }
 
-        let vimruntime_env = os_getenv(c"VIMRUNTIME".as_ptr());
-        if vimruntime_env.is_null() {
+        let Some(vimruntime_env) = os_getenv_cstr(c"VIMRUNTIME".as_ptr()) else {
             let _ = emsg(gettext(c"E5009: $VIMRUNTIME is empty or unset".as_ptr()));
+            return;
+        };
+        let rtp_ok = !strstr(p_rtp, vimruntime_env.as_ptr()).is_null();
+        if rtp_ok {
+            let _ = semsg!(
+                gettext(c"E5009: Invalid $VIMRUNTIME: %s".as_ptr()),
+                vimruntime_env.as_ptr(),
+            );
         } else {
-            let rtp_ok = !strstr(p_rtp, vimruntime_env).is_null();
-            if rtp_ok {
-                let _ = semsg!(
-                    gettext(c"E5009: Invalid $VIMRUNTIME: %s".as_ptr()),
-                    vimruntime_env,
-                );
-            } else {
-                let _ = emsg(gettext(c"E5009: Invalid 'runtimepath'".as_ptr()));
-            }
-            xfree(vimruntime_env.cast());
+            let _ = emsg(gettext(c"E5009: Invalid 'runtimepath'".as_ptr()));
         }
     }
 }

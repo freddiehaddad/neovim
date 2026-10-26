@@ -11,7 +11,7 @@ use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::globals::*;
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
 use crate::memory::{strequal, xfree, xstrdup, xstrlcpy};
-use crate::os::env::{os_env_exists, os_get_pid, os_getenv, os_unsetenv};
+use crate::os::env::{os_env_exists, os_get_pid, os_getenv_cstr, os_unsetenv};
 use crate::os::stdpaths::get_appname;
 use crate::path::{fix_fname, to_slash, to_slash_save};
 use crate::strings::{strcmp, strlen, strstr, vim_snprintf};
@@ -48,9 +48,9 @@ pub unsafe fn server_init(mut listen_addr: *const c_char) -> bool {
         if listen_addr.is_null() || *listen_addr == 0 {
             if os_env_exists(ENV_LISTEN.as_ptr(), true) {
                 user_arg = kFalse;
-                let raw = os_getenv(ENV_LISTEN.as_ptr());
-                listen_addr = to_slash_save(raw).cast_const();
-                xfree(raw.cast());
+                let raw = os_getenv_cstr(ENV_LISTEN.as_ptr());
+                listen_addr =
+                    to_slash_save(raw.as_ref().map_or(ptr::null(), |c| c.as_ptr())).cast_const();
             } else {
                 user_arg = kNone;
                 listen_addr = server_address_new(ptr::null()).cast_const();

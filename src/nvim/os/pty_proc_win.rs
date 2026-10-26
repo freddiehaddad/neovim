@@ -217,8 +217,8 @@ mod win_impl {
 
             let mut status: c_int;
             let mut conpty_object: Option<Box<conpty_t>> = None;
-            let mut in_name: *mut c_char = ptr::null_mut();
-            let mut out_name: *mut c_char = ptr::null_mut();
+            let mut in_name: Option<std::ffi::CString> = None;
+            let mut out_name: Option<std::ffi::CString> = None;
             let mut proc_handle: HANDLE = ptr::null_mut();
             let mut in_req: *mut uv_connect_t = ptr::null_mut();
             let mut out_req: *mut uv_connect_t = ptr::null_mut();
@@ -235,12 +235,8 @@ mod win_impl {
                     status = UV_ENOSYS;
                     break 'cleanup;
                 }
-                conpty_object = os_conpty_init(
-                    &raw mut in_name,
-                    &raw mut out_name,
-                    (*ptail).width,
-                    (*ptail).height,
-                );
+                conpty_object =
+                    os_conpty_init(&mut in_name, &mut out_name, (*ptail).width, (*ptail).height);
                 if conpty_object.is_none() {
                     status = UV_ENOSYS;
                     break 'cleanup;
@@ -251,7 +247,7 @@ mod win_impl {
                     uv_pipe_connect(
                         in_req,
                         (&raw mut (*s_in).uv).cast(),
-                        in_name,
+                        in_name.as_ref().unwrap().as_ptr(),
                         Some(pty_proc_connect_cb),
                     );
                 }
@@ -261,7 +257,7 @@ mod win_impl {
                     uv_pipe_connect(
                         out_req,
                         (&raw mut (*r_out).s.uv).cast(),
-                        out_name,
+                        out_name.as_ref().unwrap().as_ptr(),
                         Some(pty_proc_connect_cb),
                     );
                 }
@@ -372,8 +368,8 @@ mod win_impl {
                 status = uv_translate_sys_error(status);
             }
             drop(conpty_object);
-            xfree(in_name.cast());
-            xfree(out_name.cast());
+            drop(in_name);
+            drop(out_name);
             if !proc_handle.is_null() {
                 CloseHandle(proc_handle);
             }

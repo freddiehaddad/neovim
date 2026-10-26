@@ -17,7 +17,7 @@ use crate::memory::strchrsub;
 use crate::memory::{xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
 use crate::option::copy_option_part;
 use crate::option_vars::*;
-use crate::os::env::{expand_env_esc, expand_env_save_opt, os_getenv, vim_env_iter};
+use crate::os::env::{expand_env_esc, expand_env_save_opt, os_getenv_cstr, vim_env_iter};
 use crate::os::fs::{
     Directory, FileID, FileInfo, MAXPATHL, os_can_exe, os_closedir, os_dirname,
     os_file_is_readable, os_fileid, os_fileid_equal, os_fileinfo, os_fileinfo_id_equal,
@@ -1382,28 +1382,36 @@ unsafe fn expand_backtick(gap: &mut Vec<*mut c_char>, pat: *mut c_char, flags: c
     unsafe {
         let mut cnt: c_int = 0;
         let pat_len = CStr::from_ptr(pat).to_bytes().len();
-        let mut cmd = xmemdupz(pat.add(1).cast(), pat_len - 2).cast::<c_char>();
+        let mut cmd_vec: Vec<c_char> = std::slice::from_raw_parts(pat.add(1), pat_len - 2).to_vec();
+        cmd_vec.push(NUL);
+        let cmd_ptr = cmd_vec.as_mut_ptr();
 
-        let buffer = if *cmd == b'=' as c_char {
-            eval_to_string(cmd.add(1), true, false)
+        let mut eval_buf: *mut c_char = ptr::null_mut();
+        let mut cmd_out: Option<std::ffi::CString> = None;
+        let buffer: *mut c_char = if *cmd_ptr == b'=' as c_char {
+            eval_buf = eval_to_string(cmd_ptr.add(1), true, false);
+            eval_buf
         } else {
-            get_cmd_output(
-                cmd,
+            cmd_out = get_cmd_output(
+                cmd_ptr,
                 ptr::null_mut(),
                 if (flags & EW_SILENT) != 0 {
                     kShellOptSilent
                 } else {
                     0
                 },
-                ptr::null_mut(),
-            )
+            );
+            match cmd_out.as_mut() {
+                Some(c) => c.as_ptr().cast_mut(),
+                None => ptr::null_mut(),
+            }
         };
-        xfree(cmd.cast());
+        drop(cmd_vec);
         if buffer.is_null() {
             return -1;
         }
 
-        cmd = buffer;
+        let mut cmd = buffer;
         while *cmd != NUL {
             cmd = skipwhite(cmd);
             let mut p = cmd;
@@ -1423,7 +1431,8 @@ unsafe fn expand_backtick(gap: &mut Vec<*mut c_char>, pat: *mut c_char, flags: c
             }
         }
 
-        xfree(buffer.cast());
+        xfree(eval_buf.cast());
+        drop(cmd_out);
         cnt
     }
 }
@@ -2238,46 +2247,49 @@ pub unsafe fn path_is_absolute(fname: *const c_char) -> bool {
 
 pub unsafe fn path_guess_exepath(argv0: *const c_char, buf: *mut c_char, bufsize: usize) {
     unsafe {
-        let path = os_getenv(c"PATH".as_ptr());
+        let path_cstr = os_getenv_cstr(c"PATH".as_ptr());
         let argv0_bytes = CStr::from_ptr(argv0).to_bytes();
 
-        if path.is_null() || path_is_absolute(argv0) {
+        if path_is_absolute(argv0) {
             xstrlcpy(buf, argv0, bufsize);
-        } else if *argv0 == b'.' as c_char || argv0_bytes.contains(&(PATHSEP as u8)) {
-            if os_dirname(buf, MAXPATHL) != OK {
-                *buf = NUL;
+        } else if let Some(ref path_cstr) = path_cstr {
+            if *argv0 == b'.' as c_char || argv0_bytes.contains(&(PATHSEP as u8)) {
+                if os_dirname(buf, MAXPATHL) != OK {
+                    *buf = NUL;
+                }
+                xstrlcat(buf, PATHSEPSTR.as_ptr().cast::<c_char>(), bufsize);
+                xstrlcat(buf, argv0, bufsize);
+            } else {
+                let path = path_cstr.as_ptr();
+                let namebuff = (&raw mut NameBuff).cast::<c_char>();
+                let mut iter: *const c_char = ptr::null();
+                loop {
+                    let mut dir: *const c_char = ptr::null();
+                    let mut dir_len: usize = 0;
+                    iter = vim_env_iter(ENV_SEPCHAR, path, iter, &mut dir, &mut dir_len);
+                    if dir.is_null() || dir_len == 0 {
+                        break;
+                    }
+                    if dir_len + 1 > MAXPATHL {
+                        continue;
+                    }
+                    xmemcpyz(namebuff.cast(), dir.cast(), dir_len);
+                    xstrlcat(namebuff, PATHSEPSTR.as_ptr().cast::<c_char>(), MAXPATHL);
+                    xstrlcat(namebuff, argv0, MAXPATHL);
+                    if os_can_exe(namebuff, ptr::null_mut(), false) {
+                        xstrlcpy(buf, namebuff, bufsize);
+                        to_slash(buf);
+                        return;
+                    }
+                    if iter.is_null() {
+                        break;
+                    }
+                }
+                xstrlcpy(buf, argv0, bufsize);
             }
-            xstrlcat(buf, PATHSEPSTR.as_ptr().cast::<c_char>(), bufsize);
-            xstrlcat(buf, argv0, bufsize);
         } else {
-            let namebuff = (&raw mut NameBuff).cast::<c_char>();
-            let mut iter: *const c_char = ptr::null();
-            loop {
-                let mut dir: *const c_char = ptr::null();
-                let mut dir_len: usize = 0;
-                iter = vim_env_iter(ENV_SEPCHAR, path, iter, &mut dir, &mut dir_len);
-                if dir.is_null() || dir_len == 0 {
-                    break;
-                }
-                if dir_len + 1 > MAXPATHL {
-                    continue;
-                }
-                xmemcpyz(namebuff.cast(), dir.cast(), dir_len);
-                xstrlcat(namebuff, PATHSEPSTR.as_ptr().cast::<c_char>(), MAXPATHL);
-                xstrlcat(namebuff, argv0, MAXPATHL);
-                if os_can_exe(namebuff, ptr::null_mut(), false) {
-                    xstrlcpy(buf, namebuff, bufsize);
-                    to_slash(buf);
-                    xfree(path.cast());
-                    return;
-                }
-                if iter.is_null() {
-                    break;
-                }
-            }
             xstrlcpy(buf, argv0, bufsize);
         }
-        xfree(path.cast());
     }
 }
 
