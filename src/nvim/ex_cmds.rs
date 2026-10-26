@@ -4107,12 +4107,9 @@ unsafe fn do_sub(
             let p = xstrdup(sub);
             xfree(sub.cast());
             sub = p;
-        } else {
-            let p = regtilde(sub, p_magic, cmdpreview_ns > 0);
-            if p != sub {
-                xfree(sub.cast());
-                sub = p;
-            }
+        } else if let Some(new_sub) = regtilde(sub, p_magic, cmdpreview_ns > 0) {
+            xfree(sub.cast());
+            sub = xstrdup(new_sub.as_ptr());
         }
 
         let mut line2 = (*eap).line2;

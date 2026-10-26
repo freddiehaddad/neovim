@@ -10,7 +10,7 @@ use crate::errors::*;
 use crate::eval::eval_to_string;
 use crate::eval::typval::{
     VarType, list_T, staticList10_T, tv_clear, tv_list_alloc, tv_list_append_string, tv_list_first,
-    tv_list_init_static10, typval_T,
+    tv_list_init_static10, tv_set_string, typval_T,
 };
 use crate::eval::userfunc::{funcexe_T, ufunc_T};
 use crate::globals::*;
@@ -22,7 +22,7 @@ use crate::mbyte::{
     utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len, utf_strnicmp, utfc_ptr2len,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{xfree, xmalloc, xmemcpyz};
+use crate::memory::xmemcpyz;
 use crate::message::{emsg, iemsg, internal_error, msg_puts, semsg, verbose_enter, verbose_leave};
 use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
@@ -2411,8 +2411,14 @@ unsafe fn do_lower(d: *mut c_int, c: c_int) {
 }
 
 /// Replace tildes in the pattern by the old pattern.
-pub unsafe fn regtilde(source: *mut c_char, magic: c_int, preview: bool) -> *mut c_char {
+/// Returns `Some(CString)` if a new string was allocated, or `None` if `source` was modified in place.
+pub unsafe fn regtilde(
+    source: *mut c_char,
+    magic: c_int,
+    preview: bool,
+) -> Option<std::ffi::CString> {
     unsafe {
+        let mut newsub_vec: Option<Vec<c_char>> = None;
         let mut newsub = source;
         let mut newsublen: usize = 0;
         let mut tilde: [c_char; 3] = [b'~' as c_char, NUL as c_char, NUL as c_char];
@@ -2449,7 +2455,8 @@ pub unsafe fn regtilde(source: *mut c_char, magic: c_int, preview: bool) -> *mut
                         break;
                     }
 
-                    let tmpsub = xmalloc(tmpsublen + 1).cast::<c_char>();
+                    let mut tmpsub_vec: Vec<c_char> = vec![0; tmpsublen + 1];
+                    let tmpsub = tmpsub_vec.as_mut_ptr();
                     ptr::copy_nonoverlapping(newsub, tmpsub, prefixlen);
                     ptr::copy_nonoverlapping(
                         prev_sub.as_ptr(),
@@ -2458,10 +2465,8 @@ pub unsafe fn regtilde(source: *mut c_char, magic: c_int, preview: bool) -> *mut
                     );
                     strcpy(tmpsub.add(prefixlen + reg_prev_sublen), postfix);
 
-                    if newsub != source {
-                        xfree(newsub.cast());
-                    }
-                    newsub = tmpsub;
+                    newsub_vec = Some(tmpsub_vec);
+                    newsub = newsub_vec.as_mut().unwrap().as_mut_ptr();
                     newsublen = tmpsublen;
                     p = newsub.add(prefixlen + reg_prev_sublen);
                 } else {
@@ -2477,10 +2482,7 @@ pub unsafe fn regtilde(source: *mut c_char, magic: c_int, preview: bool) -> *mut
         }
 
         if error {
-            if newsub != source {
-                xfree(newsub.cast());
-            }
-            return source;
+            return None;
         }
 
         if !preview {
@@ -2492,7 +2494,7 @@ pub unsafe fn regtilde(source: *mut c_char, magic: c_int, preview: bool) -> *mut
             };
         }
 
-        newsub
+        newsub_vec.map(|v| CStr::from_ptr(v.as_ptr()).to_owned())
     }
 }
 
@@ -2512,14 +2514,14 @@ unsafe fn fill_submatch_list(
 
         let mut li = tv_list_first((*listarg).vval.v_list);
         for i in 0..10 {
-            let mut s = (*rsm.sm_match).startp[i];
+            let s = (*rsm.sm_match).startp[i];
             if s.is_null() || (*rsm.sm_match).endp[i].is_null() {
-                s = ptr::null_mut();
+                tv_set_string(&raw mut (*li).li_tv, ptr::null());
             } else {
-                s = xstrnsave(s, (*rsm.sm_match).endp[i].offset_from(s) as usize);
+                let len = (*rsm.sm_match).endp[i].offset_from(s) as usize;
+                let cs = cstring_from_bytes(s, len).unwrap_or_default();
+                tv_set_string(&raw mut (*li).li_tv, cs.as_ptr());
             }
-            (*li).li_tv.v_type = VarType::VAR_STRING;
-            (*li).li_tv.vval.v_string = s;
             li = (*li).li_next;
         }
         argskip + 1
@@ -3024,11 +3026,12 @@ unsafe fn reg_getline_submatch_len(lnum: linenr_T) -> colnr_T {
     }
 }
 
-pub unsafe fn reg_submatch(no: c_int) -> *mut c_char {
+pub unsafe fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
     unsafe {
+        let mut retval_vec: Vec<c_char>;
         let mut retval: *mut c_char = ptr::null_mut();
         if !can_f_submatch || no < 0 {
-            return ptr::null_mut();
+            return None;
         }
         let no = no as usize;
 
@@ -3036,7 +3039,7 @@ pub unsafe fn reg_submatch(no: c_int) -> *mut c_char {
             for round in 1..=2 {
                 let mut lnum = (*rsm.sm_mmatch).startpos[no].lnum;
                 if lnum < 0 || (*rsm.sm_mmatch).endpos[no].lnum < 0 {
-                    return ptr::null_mut();
+                    return None;
                 }
 
                 let mut s = reg_getline_submatch(lnum);
@@ -3088,19 +3091,19 @@ pub unsafe fn reg_submatch(no: c_int) -> *mut c_char {
                 }
 
                 if retval.is_null() {
-                    retval = xmalloc(len as usize).cast();
+                    retval_vec = vec![0; len as usize];
+                    retval = retval_vec.as_mut_ptr();
                 }
             }
+            (!retval.is_null()).then(|| CStr::from_ptr(retval).to_owned())
         } else {
             let s = (*rsm.sm_match).startp[no];
             if s.is_null() || (*rsm.sm_match).endp[no].is_null() {
-                retval = ptr::null_mut();
+                None
             } else {
-                retval = xstrnsave(s, (*rsm.sm_match).endp[no].offset_from(s) as usize);
+                cstring_from_bytes(s, (*rsm.sm_match).endp[no].offset_from(s) as usize)
             }
         }
-
-        retval
     }
 }
 

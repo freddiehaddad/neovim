@@ -54,7 +54,7 @@ use crate::mbyte::{
 };
 use crate::mcursor::mc_replaying;
 use crate::memline::ml_sync_all;
-use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xmalloc, xmemdupz};
+use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_take, xmemdupz};
 use crate::message::{emsg, internal_error, semsg, semsg_multiline};
 use crate::mouse::{is_mouse_key, mouse_comp_pos, mouse_find_win_inner};
 use crate::r#move::{validate_cursor, win_col_off};
@@ -193,17 +193,7 @@ pub struct tasave_T {
 impl tasave_T {
     pub const fn new() -> Self {
         Self {
-            save_typebuf: typebuf_T {
-                tb_buf: ptr::null_mut(),
-                tb_noremap: ptr::null_mut(),
-                tb_buflen: 0,
-                tb_off: 0,
-                tb_len: 0,
-                tb_maplen: 0,
-                tb_silent: 0,
-                tb_no_abbr_cnt: 0,
-                tb_change_cnt: 0,
-            },
+            save_typebuf: typebuf_T::ZERO,
             ungot: UngotKey {
                 c: 0,
                 mod_mask: 0,
@@ -282,17 +272,7 @@ static mut KeyNoremap: c_int = 0;
 static mut typebuf_init: [u8; TYPELEN_INIT] = [0; TYPELEN_INIT];
 static mut noremapbuf_init: [u8; TYPELEN_INIT] = [0; TYPELEN_INIT];
 static mut last_recorded_len: usize = 0;
-static mut saved_typebuf: [typebuf_T; NSCRIPT] = [typebuf_T {
-    tb_buf: ptr::null_mut(),
-    tb_noremap: ptr::null_mut(),
-    tb_buflen: 0,
-    tb_off: 0,
-    tb_len: 0,
-    tb_maplen: 0,
-    tb_silent: 0,
-    tb_no_abbr_cnt: 0,
-    tb_change_cnt: 0,
-}; NSCRIPT];
+static mut saved_typebuf: [typebuf_T; NSCRIPT] = [const { typebuf_T::ZERO }; NSCRIPT];
 static mut no_reduce_keys: c_int = 0;
 
 static mut GOTCHARS_STATE: gotchars_state_T = gotchars_state_T::new();
@@ -1079,8 +1059,10 @@ pub unsafe fn ins_typebuf(
                 return FAIL;
             }
             let newlen = typebuf.tb_len + extra;
-            let s1 = xmalloc(newlen as usize).cast::<u8>();
-            let s2 = xmalloc(newlen as usize).cast::<u8>();
+            let mut s1_vec = vec![0u8; newlen as usize];
+            let mut s2_vec = vec![0u8; newlen as usize];
+            let s1 = s1_vec.as_mut_ptr();
+            let s2 = s2_vec.as_mut_ptr();
             typebuf.tb_buflen = newlen;
 
             ptr::copy(
@@ -1100,10 +1082,8 @@ pub unsafe fn ins_typebuf(
                 s1.add((newoff + offset + addlen) as usize),
                 bytes as usize,
             );
-            if typebuf.tb_buf != (&raw mut typebuf_init).cast::<u8>() {
-                xfree(typebuf.tb_buf.cast());
-            }
             typebuf.tb_buf = s1;
+            typebuf.tb_buf_owned = s1_vec;
 
             ptr::copy(
                 typebuf.tb_noremap.add(typebuf.tb_off as usize),
@@ -1115,10 +1095,8 @@ pub unsafe fn ins_typebuf(
                 s2.add((newoff + offset + addlen) as usize),
                 (typebuf.tb_len - offset) as usize,
             );
-            if typebuf.tb_noremap != (&raw mut noremapbuf_init).cast::<u8>() {
-                xfree(typebuf.tb_noremap.cast());
-            }
             typebuf.tb_noremap = s2;
+            typebuf.tb_noremap_owned = s2_vec;
 
             typebuf.tb_off = newoff;
         }
@@ -1396,8 +1374,12 @@ pub unsafe fn may_sync_undo() {
 
 unsafe fn alloc_typebuf() {
     unsafe {
-        typebuf.tb_buf = xmalloc(TYPELEN_INIT).cast::<u8>();
-        typebuf.tb_noremap = xmalloc(TYPELEN_INIT).cast::<u8>();
+        let mut b1 = vec![0u8; TYPELEN_INIT];
+        let mut b2 = vec![0u8; TYPELEN_INIT];
+        typebuf.tb_buf = b1.as_mut_ptr();
+        typebuf.tb_noremap = b2.as_mut_ptr();
+        typebuf.tb_buf_owned = b1;
+        typebuf.tb_noremap_owned = b2;
         typebuf.tb_buflen = TYPELEN_INIT as c_int;
         typebuf.tb_off = (MAXMAPLEN + 4) as c_int;
         typebuf.tb_len = 0;
@@ -1417,13 +1399,13 @@ unsafe fn free_typebuf() {
         if typebuf.tb_buf == (&raw mut typebuf_init).cast::<u8>() {
             internal_error(c"Free typebuf 1".as_ptr());
         } else {
-            xfree(typebuf.tb_buf.cast());
+            typebuf.tb_buf_owned = Vec::new();
             typebuf.tb_buf = ptr::null_mut();
         }
         if typebuf.tb_noremap == (&raw mut noremapbuf_init).cast::<u8>() {
             internal_error(c"Free typebuf 2".as_ptr());
         } else {
-            xfree(typebuf.tb_noremap.cast());
+            typebuf.tb_noremap_owned = Vec::new();
             typebuf.tb_noremap = ptr::null_mut();
         }
     }
@@ -1433,9 +1415,10 @@ unsafe fn save_typebuf() {
     unsafe {
         assert!(curscript >= 0);
         init_typebuf();
-        *(&raw mut saved_typebuf)
-            .cast::<typebuf_T>()
-            .add(curscript as usize) = typebuf;
+        let prev_cnt = typebuf.tb_change_cnt;
+        saved_typebuf[curscript as usize] =
+            std::mem::replace((&raw mut typebuf).as_mut().unwrap(), typebuf_T::ZERO);
+        typebuf.tb_change_cnt = prev_cnt;
         alloc_typebuf();
     }
 }
@@ -1447,7 +1430,10 @@ unsafe fn can_get_ungot() -> bool {
 /// Save all three kinds of typeahead, so that the user must type at a prompt.
 pub unsafe fn save_typeahead(tp: *mut tasave_T) {
     unsafe {
-        (*tp).save_typebuf = typebuf;
+        let prev_cnt = typebuf.tb_change_cnt;
+        (*tp).save_typebuf =
+            std::mem::replace((&raw mut typebuf).as_mut().unwrap(), typebuf_T::ZERO);
+        typebuf.tb_change_cnt = prev_cnt;
         alloc_typebuf();
         (*tp).ungot = ungot;
         ungot.c = -1;
@@ -1463,7 +1449,7 @@ pub unsafe fn save_typeahead(tp: *mut tasave_T) {
 pub unsafe fn restore_typeahead(tp: *mut tasave_T) {
     unsafe {
         free_typebuf();
-        typebuf = (*tp).save_typebuf;
+        typebuf = std::mem::replace(&mut (*tp).save_typebuf, typebuf_T::ZERO);
         ungot = (*tp).ungot;
 
         let rb1 = &raw mut readbuf1;
@@ -1541,9 +1527,10 @@ unsafe fn closescript() {
     unsafe {
         assert!(curscript >= 0);
         free_typebuf();
-        typebuf = *(&raw const saved_typebuf)
-            .cast::<typebuf_T>()
-            .add(curscript as usize);
+        typebuf = std::mem::replace(
+            &mut (&raw mut saved_typebuf).as_mut().unwrap()[curscript as usize],
+            typebuf_T::ZERO,
+        );
 
         let scriptin_ptr = (&raw mut scriptin)
             .cast::<FileDescriptor>()
@@ -1865,7 +1852,7 @@ pub unsafe fn vgetc() -> c_int {
         (*okb).push(NUL as c_char);
         if on_key_blocked == 0 && nlua_exec_on_key(c, (*okb).as_mut_ptr()) {
             if c == K_COMMAND {
-                xfree(getcmdkeycmd(NUL, 0, false).cast());
+                let _ = cstr_take(getcmdkeycmd(NUL, 0, false));
             } else if c == K_LUA {
                 map_execute_lua(false, true);
             } else if c == K_PASTE_START {

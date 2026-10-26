@@ -1441,12 +1441,8 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                         .take()
                         .unwrap_or_default()
                         .into_bytes_with_nul();
-                    let new_ptr = regtilde(sub_bytes.as_mut_ptr().cast(), p_magic, false);
-                    let final_sub = if new_ptr != sub_bytes.as_mut_ptr().cast() {
-                        cstr_take(new_ptr)
-                    } else {
-                        Some(CStr::from_ptr(sub_bytes.as_ptr().cast()).to_owned())
-                    };
+                    let final_sub = regtilde(sub_bytes.as_mut_ptr().cast(), p_magic, false)
+                        .or_else(|| Some(CStr::from_ptr(sub_bytes.as_ptr().cast()).to_owned()));
                     sub_set_replacement(SubReplacementString {
                         sub: final_sub,
                         timestamp: cur_entry.timestamp,

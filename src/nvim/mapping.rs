@@ -116,9 +116,10 @@ impl Drop for mapblock_T {
     }
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct typebuf_T {
+    pub tb_buf_owned: Vec<u8>,
+    pub tb_noremap_owned: Vec<u8>,
     pub tb_buf: *mut u8,
     pub tb_noremap: *mut u8,
     pub tb_buflen: c_int,
@@ -128,6 +129,22 @@ pub struct typebuf_T {
     pub tb_silent: c_int,
     pub tb_no_abbr_cnt: c_int,
     pub tb_change_cnt: c_int,
+}
+
+impl typebuf_T {
+    pub const ZERO: Self = Self {
+        tb_buf_owned: Vec::new(),
+        tb_noremap_owned: Vec::new(),
+        tb_buf: ptr::null_mut(),
+        tb_noremap: ptr::null_mut(),
+        tb_buflen: 0,
+        tb_off: 0,
+        tb_len: 0,
+        tb_maplen: 0,
+        tb_silent: 0,
+        tb_no_abbr_cnt: 0,
+        tb_change_cnt: 0,
+    };
 }
 
 use crate::autocmd::HLF_8;

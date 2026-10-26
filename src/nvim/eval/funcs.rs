@@ -8778,8 +8778,12 @@ pub unsafe fn f_submatch(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             }
         }
         if ret_list == 0 {
-            (*rettv).v_type = VarType::VAR_STRING;
-            (*rettv).vval.v_string = reg_submatch(no);
+            crate::eval::typval::tv_set_string(
+                rettv,
+                reg_submatch(no)
+                    .as_ref()
+                    .map_or(ptr::null(), |s| s.as_ptr()),
+            );
         } else {
             (*rettv).v_type = VarType::VAR_LIST;
             (*rettv).vval.v_list = reg_submatch_list(no);

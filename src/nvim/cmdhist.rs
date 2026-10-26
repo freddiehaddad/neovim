@@ -4,14 +4,14 @@ use crate::charset::vim_strsize;
 use crate::errors::{e_trailing_arg, e_val_too_large};
 use crate::eval::typval::{
     EvalFuncData, VarType, tv_get_number, tv_get_number_chk, tv_get_string_buf, tv_get_string_chk,
-    typval_T,
+    tv_set_string, typval_T,
 };
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{CMOD_KEEPPATTERNS, exarg_T};
 use crate::ex_getln::{get_cmdline_firstc, get_list_range};
 use crate::globals::*;
 use crate::math::{FAIL, OK};
-use crate::memory::{xmallocz, xstrdup, xstrlcpy};
+use crate::memory::xstrlcpy;
 use crate::message::{
     message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts_title, semsg,
     trunc_string,
@@ -563,7 +563,7 @@ pub unsafe fn f_histget(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
     unsafe {
         let str_ptr = tv_get_string_chk(argvars);
         if str_ptr.is_null() {
-            (*rettv).vval.v_string = std::ptr::null_mut();
+            tv_set_string(rettv, std::ptr::null());
         } else {
             let htype = get_histtype(str_ptr, CStr::from_ptr(str_ptr).to_bytes().len(), false);
             let arg1 = &*argvars.add(1);
@@ -574,13 +574,12 @@ pub unsafe fn f_histget(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             };
             let idx = calc_hist_idx(htype, req_idx);
             if idx < 0 {
-                (*rettv).vval.v_string = xmallocz(0).cast::<c_char>();
+                tv_set_string(rettv, c"".as_ptr());
             } else {
                 let entry = &HISTORY[htype as usize][idx as usize];
-                (*rettv).vval.v_string = xstrdup(entry.hisstr_ptr());
+                tv_set_string(rettv, entry.hisstr_ptr());
             }
         }
-        (*rettv).v_type = VarType::VAR_STRING;
     }
 }
 

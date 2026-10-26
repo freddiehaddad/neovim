@@ -345,17 +345,7 @@ pub static mut os_buf: [c_char; MAXPATHL] = [0 as c_char; MAXPATHL];
 pub static mut RedrawingDisabled: c_int = 0;
 pub static mut readonlymode: bool = false;
 pub static mut recoverymode: bool = false;
-pub static mut typebuf: typebuf_T = typebuf_T {
-    tb_buf: ptr::null_mut(),
-    tb_noremap: ptr::null_mut(),
-    tb_buflen: 0,
-    tb_off: 0,
-    tb_len: 0,
-    tb_maplen: 0,
-    tb_silent: 0,
-    tb_no_abbr_cnt: 0,
-    tb_change_cnt: 0,
-};
+pub static mut typebuf: typebuf_T = typebuf_T::ZERO;
 pub static mut typebuf_was_empty: bool = false;
 pub static mut ex_normal_busy: c_int = 0;
 pub static mut expr_map_lock: c_int = 0;
