@@ -5223,20 +5223,19 @@ pub unsafe fn callback_from_typval(callback: *mut Callback, arg: *const typval_T
                 let funcref = if (*arg).v_type == VarType::VAR_STRING
                     && let Some(sl) = get_scriptlocal_funcname(name)
                 {
-                    sl
+                    crate::path::alloc_cstring_bytes(sl.as_bytes())
                 } else {
-                    cstr_to_cstring(name)
+                    crate::path::alloc_cstring(name)
                 };
-                let raw = funcref.into_raw();
-                func_ref(raw);
-                (*callback).data = crate::eval::typval::CallbackData::funcref(raw);
+                func_ref(funcref);
+                (*callback).data = crate::eval::typval::CallbackData::funcref(funcref);
             }
         } else if is_lua_tbl {
             {
                 let name = nlua_register_table_as_callable(arg);
                 if !name.is_null() {
                     (*callback).data =
-                        crate::eval::typval::CallbackData::funcref(cstr_to_cstring(name).into_raw());
+                        crate::eval::typval::CallbackData::funcref(crate::path::alloc_cstring(name));
                 } else {
                     r = FAIL;
                 }

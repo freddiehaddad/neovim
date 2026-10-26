@@ -55,16 +55,8 @@ impl Default for Arena {
     }
 }
 
-unsafe extern "C" {
-    #[link_name = "malloc"]
-    fn crt_malloc(size: usize) -> *mut c_void;
-    #[link_name = "free"]
-    fn crt_free(ptr: *mut c_void);
-    #[link_name = "calloc"]
-    fn crt_calloc(count: usize, size: usize) -> *mut c_void;
-    #[link_name = "realloc"]
-    fn crt_realloc(ptr: *mut c_void, size: usize) -> *mut c_void;
-}
+const ALLOC_ALIGN: usize = 16;
+const HEADER_SIZE: usize = 16;
 
 /// Indicates that `free_all_mem` function was or is running.
 pub static mut entered_free_all_mem: bool = false;
@@ -74,23 +66,76 @@ static mut ARENA_REUSE_HEAD: *mut ConsumedBlk = std::ptr::null_mut();
 static mut ARENA_REUSE_COUNT: usize = 0;
 
 #[inline]
+fn layout_with_header(size: usize) -> Option<std::alloc::Layout> {
+    let total = HEADER_SIZE.checked_add(size.max(1))?;
+    std::alloc::Layout::from_size_align(total, ALLOC_ALIGN).ok()
+}
+
+#[inline]
 unsafe fn raw_malloc(size: usize) -> *mut c_void {
-    unsafe { crt_malloc(size) }
+    let Some(layout) = layout_with_header(size) else {
+        return std::ptr::null_mut();
+    };
+    let base = unsafe { std::alloc::alloc(layout) };
+    if base.is_null() {
+        return std::ptr::null_mut();
+    }
+    unsafe {
+        std::ptr::write(base.cast::<usize>(), layout.size());
+        base.add(HEADER_SIZE).cast::<c_void>()
+    }
 }
 
 #[inline]
 unsafe fn raw_free(ptr: *mut c_void) {
-    unsafe { crt_free(ptr) }
+    if ptr.is_null() {
+        return;
+    }
+    unsafe {
+        let base = ptr.cast::<u8>().sub(HEADER_SIZE);
+        let total_size = std::ptr::read(base.cast::<usize>());
+        let layout = std::alloc::Layout::from_size_align_unchecked(total_size, ALLOC_ALIGN);
+        std::alloc::dealloc(base, layout);
+    }
 }
 
 #[inline]
 unsafe fn raw_calloc(count: usize, size: usize) -> *mut c_void {
-    unsafe { crt_calloc(count, size) }
+    let Some(byte_size) = count.checked_mul(size) else {
+        return std::ptr::null_mut();
+    };
+    let Some(layout) = layout_with_header(byte_size) else {
+        return std::ptr::null_mut();
+    };
+    let base = unsafe { std::alloc::alloc_zeroed(layout) };
+    if base.is_null() {
+        return std::ptr::null_mut();
+    }
+    unsafe {
+        std::ptr::write(base.cast::<usize>(), layout.size());
+        base.add(HEADER_SIZE).cast::<c_void>()
+    }
 }
 
 #[inline]
 unsafe fn raw_realloc(ptr: *mut c_void, size: usize) -> *mut c_void {
-    unsafe { crt_realloc(ptr, size) }
+    if ptr.is_null() {
+        return unsafe { raw_malloc(size) };
+    }
+    let Some(new_layout) = layout_with_header(size) else {
+        return std::ptr::null_mut();
+    };
+    unsafe {
+        let old_base = ptr.cast::<u8>().sub(HEADER_SIZE);
+        let old_total = std::ptr::read(old_base.cast::<usize>());
+        let old_layout = std::alloc::Layout::from_size_align_unchecked(old_total, ALLOC_ALIGN);
+        let new_base = std::alloc::realloc(old_base, old_layout, new_layout.size());
+        if new_base.is_null() {
+            return std::ptr::null_mut();
+        }
+        std::ptr::write(new_base.cast::<usize>(), new_layout.size());
+        new_base.add(HEADER_SIZE).cast::<c_void>()
+    }
 }
 
 unsafe fn try_to_free_memory() {

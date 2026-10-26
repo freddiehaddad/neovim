@@ -1225,7 +1225,7 @@ pub unsafe fn set_helplang_default(lang: *const c_char) {
             hlg_bytes[0] = b'e';
             hlg_bytes[1] = b'n';
         }
-        p_hlg = crate::memory::cstr_from_bytes(&hlg_bytes).into_raw();
+        p_hlg = crate::path::alloc_cstring_bytes(&hlg_bytes);
     }
 }
 
@@ -5280,11 +5280,11 @@ unsafe fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
                 } else if value.data.string.size > 0 {
                     let funcref =
                         if let Some(name) = get_scriptlocal_funcname(value.data.string.data) {
-                            name
+                            crate::path::alloc_cstring_bytes(name.as_bytes())
                         } else {
-                            crate::memory::cstr_to_cstring(value.data.string.data)
+                            crate::path::alloc_cstring(value.data.string.data)
                         };
-                    cb.data = crate::eval::typval::CallbackData::expr(funcref.into_raw());
+                    cb.data = crate::eval::typval::CallbackData::expr(funcref);
                 }
             }
             _ => {}
@@ -8101,7 +8101,9 @@ pub unsafe fn ExpandOldSetting(matches: &mut Vec<*mut c_char>) -> c_int {
             c"".as_ptr().cast_mut()
         };
 
-        matches.push(escape_option_str_cmdline(var).into_raw());
+        matches.push(crate::path::alloc_cstring_bytes(
+            escape_option_str_cmdline(var).as_bytes(),
+        ));
         OK
     }
 }
@@ -8188,7 +8190,7 @@ pub unsafe fn ExpandSettingSubtract(
 
                 if *item != NUL && vim_regexec(regmatch.cast(), item, 0) {
                     let buf = escape_option_str_cmdline(item);
-                    matches.push(buf.into_raw());
+                    matches.push(crate::path::alloc_cstring_bytes(buf.as_bytes()));
                 }
 
                 if next_val.is_null() {

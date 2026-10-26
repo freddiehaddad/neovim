@@ -1779,31 +1779,41 @@ unsafe fn wildescape(xp: *mut expand_T, str_arg: *const c_char, files: &mut [*mu
                     } else {
                         c" ".as_ptr()
                     };
-                    let p = vim_strsave_escaped(*file_slot, pat).into_raw();
+                    let p = crate::path::alloc_cstring_bytes(
+                        vim_strsave_escaped(*file_slot, pat).as_bytes(),
+                    );
                     crate::path::free_cstring(*file_slot);
                     *file_slot = p;
                     #[cfg(windows)]
                     {
-                        let p2 = vim_strsave_escaped(*file_slot, c" ".as_ptr()).into_raw();
+                        let p2 = crate::path::alloc_cstring_bytes(
+                            vim_strsave_escaped(*file_slot, c" ".as_ptr()).as_bytes(),
+                        );
                         crate::path::free_cstring(*file_slot);
                         *file_slot = p2;
                     }
                 } else if ((*xp).xp_backslash & XP_BS_COMMA) != 0
                     && !vim_strchr(*file_slot, b',' as c_int).is_null()
                 {
-                    let p = vim_strsave_escaped(*file_slot, c",".as_ptr()).into_raw();
+                    let p = crate::path::alloc_cstring_bytes(
+                        vim_strsave_escaped(*file_slot, c",".as_ptr()).as_bytes(),
+                    );
                     crate::path::free_cstring(*file_slot);
                     *file_slot = p;
                 }
 
                 #[cfg(windows)]
-                let p = vim_strsave_fnameescape(*file_slot, vse_what).into_raw();
+                let p = crate::path::alloc_cstring_bytes(
+                    vim_strsave_fnameescape(*file_slot, vse_what).as_bytes(),
+                );
                 #[cfg(not(windows))]
-                let p = vim_strsave_fnameescape(
-                    *file_slot,
-                    if (*xp).xp_shell { VSE_SHELL } else { vse_what },
-                )
-                .into_raw();
+                let p = crate::path::alloc_cstring_bytes(
+                    vim_strsave_fnameescape(
+                        *file_slot,
+                        if (*xp).xp_shell { VSE_SHELL } else { vse_what },
+                    )
+                    .as_bytes(),
+                );
                 crate::path::free_cstring(*file_slot);
                 *file_slot = p;
 
@@ -1823,7 +1833,9 @@ unsafe fn wildescape(xp: *mut expand_T, str_arg: *const c_char, files: &mut [*mu
             }
         } else if (*xp).xp_context == EXPAND_TAGS {
             for file_slot in files.iter_mut() {
-                let p = vim_strsave_escaped(*file_slot, c"\\|\"".as_ptr()).into_raw();
+                let p = crate::path::alloc_cstring_bytes(
+                    vim_strsave_escaped(*file_slot, c"\\|\"".as_ptr()).as_bytes(),
+                );
                 crate::path::free_cstring(*file_slot);
                 *file_slot = p;
             }
@@ -5106,7 +5118,9 @@ pub unsafe fn ExpandGeneric(
             }
 
             str_item = if escaped {
-                vim_strsave_escaped(str_item, c" \t\\.".as_ptr()).into_raw()
+                crate::path::alloc_cstring_bytes(
+                    vim_strsave_escaped(str_item, c" \t\\.".as_ptr()).as_bytes(),
+                )
             } else {
                 crate::path::alloc_cstring(str_item)
             };
@@ -6330,7 +6344,7 @@ unsafe fn expand_pattern_in_buf(
                 }
             }
             if !dup {
-                matches.push(match_cstr.into_raw());
+                matches.push(crate::path::alloc_cstring_bytes(match_cstr.as_bytes()));
                 if matches.len() as c_int > TAG_MANY {
                     break;
                 }

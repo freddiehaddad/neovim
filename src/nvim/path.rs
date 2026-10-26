@@ -37,12 +37,13 @@ use std::ptr;
 
 #[inline]
 pub unsafe fn alloc_cstring(s: *const c_char) -> *mut c_char {
-    unsafe { cstr_to_cstring(s).into_raw() }
+    unsafe { crate::memory::xstrdup(s) }
 }
 
 #[inline]
 pub fn alloc_cstring_bytes(bytes: &[u8]) -> *mut c_char {
-    cstr_from_bytes(bytes).into_raw()
+    let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+    unsafe { crate::memory::xmemdupz(bytes.as_ptr().cast(), end).cast::<c_char>() }
 }
 
 #[inline]
@@ -50,14 +51,16 @@ pub unsafe fn take_cstring(p: *mut c_char) -> Option<std::ffi::CString> {
     if p.is_null() {
         None
     } else {
-        Some(unsafe { std::ffi::CString::from_raw(p) })
+        let s = unsafe { CStr::from_ptr(p).to_owned() };
+        unsafe { crate::memory::xfree(p.cast()) };
+        Some(s)
     }
 }
 
 #[inline]
 pub unsafe fn free_cstring(p: *mut c_char) {
     unsafe {
-        drop(take_cstring(p));
+        crate::memory::xfree(p.cast());
     }
 }
 
@@ -2130,7 +2133,7 @@ pub unsafe fn expand_wildcards_eval(
             && is_cur_alt_file
             && star_follows
         {
-            file.push(ep.into_raw());
+            file.push(alloc_cstring_bytes(ep.as_bytes()));
             ret = OK;
         }
         drop(exp_pat_owned);

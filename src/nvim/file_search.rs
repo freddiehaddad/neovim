@@ -668,8 +668,9 @@ pub unsafe fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<s
                     }
 
                     if path_with_url(dirptrs[0]) != 0 {
-                        (*stackp).ffs_filearray =
-                            vec![xstrnsave(dirptrs[0], file_path.size).into_raw()];
+                        (*stackp).ffs_filearray = vec![crate::path::alloc_cstring_bytes(
+                            xstrnsave(dirptrs[0], file_path.size).as_bytes(),
+                        )];
                     } else {
                         expand_wildcards_vec(
                             if dirptrs[1].is_null() { 1 } else { 2 },

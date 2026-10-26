@@ -3236,7 +3236,7 @@ pub unsafe fn expand_spelling(_lnum: linenr_T, pat: *mut c_char, matches: &mut V
     unsafe {
         matches.clear();
         for s in spell_suggest_list(pat, 100, spell_expand_need_cap, true) {
-            matches.push(s.into_raw());
+            matches.push(crate::path::alloc_cstring_bytes(s.as_bytes()));
         }
     }
 }

@@ -2513,7 +2513,7 @@ pub unsafe fn callback_copy(dest: *mut Callback, src: *mut Callback) {
             }
             kCallbackFuncref => {
                 let funcref = (*src).data.as_funcref();
-                (*dest).data = CallbackData::funcref(cstr_to_cstring(funcref).into_raw());
+                (*dest).data = CallbackData::funcref(crate::path::alloc_cstring(funcref));
                 func_ref(funcref);
             }
             kCallbackLua => {
@@ -2522,7 +2522,7 @@ pub unsafe fn callback_copy(dest: *mut Callback, src: *mut Callback) {
             }
             kCallbackExpr => {
                 (*dest).data =
-                    CallbackData::expr(cstr_to_cstring((*src).data.as_funcref()).into_raw());
+                    CallbackData::expr(crate::path::alloc_cstring((*src).data.as_funcref()));
             }
             _ => {
                 (*dest).data = CallbackData::NONE;

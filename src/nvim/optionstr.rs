@@ -37,7 +37,7 @@ use crate::mark::{fmark_T, fmarkv_T};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{enc_canonize, get_encoding_name, utf_ptr2char, utfc_ptr2len, utfc_ptr2schar};
 use crate::memline::ml_setflags;
-use crate::memory::{cstr_to_cstring, xmemcpyz};
+use crate::memory::xmemcpyz;
 use crate::message::{kOptMessagesopt, msg_grid_validate, verbose_open, verbose_stop};
 use crate::r#move::validate_virtcol;
 use crate::msgpack_rpc::packer::Integer;
@@ -1101,7 +1101,7 @@ pub unsafe fn check_buf_options(buf: *mut buf_T) {
 }
 
 pub unsafe fn alloc_string_option(s: *const c_char) -> *mut c_char {
-    unsafe { cstr_to_cstring(s).into_raw() }
+    unsafe { crate::path::alloc_cstring(s) }
 }
 
 /// Free the string allocated for an option.
@@ -2357,7 +2357,7 @@ pub unsafe fn did_set_encoding(args: *mut optset_T) -> *const c_char {
 
         if let Some(prep_cstr) = (*args).os_prep.take_encoding() {
             free_string_option(*varp);
-            *varp = prep_cstr.into_raw();
+            *varp = alloc_string_option(prep_cstr.as_ptr());
         }
         if ptr::eq(varp, &raw mut p_enc) {
             spell_reload();

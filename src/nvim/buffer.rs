@@ -3366,7 +3366,7 @@ pub unsafe fn ExpandBufnames(
             }
 
             p = if (options & WILD_HOME_REPLACE) != 0 {
-                home_replace_save(buf, p).into_raw()
+                crate::path::alloc_cstring_bytes(home_replace_save(buf, p).as_bytes())
             } else {
                 crate::path::alloc_cstring(p)
             };

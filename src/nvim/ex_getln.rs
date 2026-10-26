@@ -4681,12 +4681,12 @@ pub unsafe fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> std:
     }
 }
 
-/// Put a backslash before the file name in `pp`, which is an allocated `CString::into_raw()`.
+/// Put a backslash before the file name in `pp`, which is an allocated `alloc_cstring`.
 pub unsafe fn escape_fname(pp: *mut *mut c_char) {
     unsafe {
         if let Some(mut s) = crate::path::take_cstring(*pp) {
             escape_fname_cstr(&mut s);
-            *pp = s.into_raw();
+            *pp = crate::path::alloc_cstring_bytes(s.as_bytes());
         }
     }
 }
@@ -4707,7 +4707,7 @@ pub unsafe fn tilde_replace(orig_pat: *mut c_char, files: &mut [*mut c_char]) {
             for f in files {
                 let p = home_replace_save(ptr::null_mut(), *f);
                 crate::path::free_cstring(*f);
-                *f = p.into_raw();
+                *f = crate::path::alloc_cstring_bytes(p.as_bytes());
             }
         }
     }

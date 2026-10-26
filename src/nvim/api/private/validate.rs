@@ -2,7 +2,7 @@
 
 use std::ffi::{CStr, c_char, c_int};
 
-use crate::memory::{xmallocz, xrealloc};
+use crate::memory::xrealloc;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -264,13 +264,8 @@ pub const fn object_typename(t: ObjectType) -> &'static str {
 unsafe fn set_error_str(err: *mut Error, err_type: ErrorType, msg: &str) {
     let bytes = msg.as_bytes();
     let len = bytes.len().min((1024 * 1024) - 1);
-    let buf = unsafe { xmallocz(len).cast::<u8>() };
     unsafe {
-        if len > 0 {
-            std::ptr::copy_nonoverlapping(bytes.as_ptr(), buf, len);
-        }
-        *buf.add(len) = 0;
-        (*err).msg = buf.cast::<c_char>();
+        (*err).msg = crate::path::alloc_cstring_bytes(&bytes[..len]);
         (*err).err_type = err_type;
     }
 }
@@ -441,7 +436,7 @@ pub unsafe fn api_err_range(err: *mut Error, name: *const c_char) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::memory::xfree;
+    use crate::api::private::helpers::api_clear_error;
 
     #[test]
     fn formats_validation_error_messages() {
@@ -457,7 +452,7 @@ mod tests {
                 CStr::from_ptr(err.msg).to_str().unwrap(),
                 "Invalid 'col': -1"
             );
-            xfree(err.msg.cast());
+            api_clear_error(&mut err);
 
             api_err_exp(
                 &mut err,
@@ -469,21 +464,21 @@ mod tests {
                 CStr::from_ptr(err.msg).to_str().unwrap(),
                 "Invalid buffer id: expected Integer, got String"
             );
-            xfree(err.msg.cast());
+            api_clear_error(&mut err);
 
             api_err_required(&mut err, c"width".as_ptr());
             assert_eq!(
                 CStr::from_ptr(err.msg).to_str().unwrap(),
                 "Required: 'width'"
             );
-            xfree(err.msg.cast());
+            api_clear_error(&mut err);
 
             api_err_conflict(&mut err, c"row".as_ptr(), c"win".as_ptr());
             assert_eq!(
                 CStr::from_ptr(err.msg).to_str().unwrap(),
                 "Conflict: 'row' not allowed with 'win'"
             );
-            xfree(err.msg.cast());
+            api_clear_error(&mut err);
         }
     }
 }

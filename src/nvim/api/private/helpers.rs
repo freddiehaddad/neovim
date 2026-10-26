@@ -214,7 +214,7 @@ pub struct HlMessageChunk {
 impl Drop for HlMessageChunk {
     fn drop(&mut self) {
         unsafe {
-            xfree(self.text.data.cast());
+            api_free_string(self.text);
         }
     }
 }
@@ -224,7 +224,7 @@ use crate::api::vim::HlMessage;
 pub unsafe fn api_set_error_str(err: *mut Error, err_type: ErrorType, msg: *const c_char) {
     unsafe {
         debug_assert!(!matches!(err_type, ErrorType::kErrorTypeNone));
-        (*err).msg = xstrdup(msg);
+        (*err).msg = crate::path::alloc_cstring(msg);
         (*err).err_type = err_type;
     }
 }
@@ -241,9 +241,9 @@ macro_rules! api_set_error {
         {
             let len = $crate::strings::vim_snprintf!(std::ptr::null_mut(), 0, fmt_ptr, $($arg),+);
             let bufsize = ((len.max(0) as usize) + 1).min(1024 * 1024);
-            let buf = $crate::memory::xmalloc(bufsize).cast::<std::ffi::c_char>();
-            $crate::strings::vim_snprintf!(buf, bufsize, fmt_ptr, $($arg),+);
-            (*err_ptr).msg = buf;
+            let mut buf = vec![0 as std::ffi::c_char; bufsize];
+            $crate::strings::vim_snprintf!(buf.as_mut_ptr(), bufsize, fmt_ptr, $($arg),+);
+            (*err_ptr).msg = $crate::path::alloc_cstring(buf.as_ptr());
             (*err_ptr).err_type = et;
         }
     }};
@@ -300,7 +300,7 @@ pub const fn error_init() -> Error {
 #[inline]
 pub unsafe fn api_clear_string(s: *mut NvimString) {
     unsafe {
-        xfree((*s).data.cast());
+        api_free_string(*s);
         (*s).data = ptr::null_mut();
         (*s).size = 0;
     }
@@ -977,7 +977,7 @@ pub unsafe fn api_clear_error(value: *mut Error) {
         if !error_set(value) {
             return;
         }
-        xfree((*value).msg.cast());
+        crate::path::free_cstring((*value).msg);
         (*value).msg = ptr::null_mut();
         (*value).err_type = ErrorType::kErrorTypeNone;
     }
