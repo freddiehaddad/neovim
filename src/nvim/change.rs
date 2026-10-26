@@ -43,7 +43,7 @@ use crate::memline::{
     ml_add_deleted_len, ml_append, ml_delete_flags, ml_get, ml_get_buf, ml_get_len,
     ml_line_alloced, ml_open_file, ml_replace, ml_setflags,
 };
-use crate::memory::{xfree, xmalloc, xmallocz, xmemcpyz, xstrdup};
+use crate::memory::{cstr_take, xmemcpyz};
 use crate::message::{
     msg_clr_eos, msg_delay, msg_end, msg_ext_set_kind, msg_puts_hl, msg_source, msg_start, siemsg,
     wait_return,
@@ -58,7 +58,7 @@ use crate::plines::{getvcol, linetabsize_eol, win_chartabsize};
 use crate::search::{BACKWARD, FORWARD, findmatch, linewhite, showmatch};
 use crate::spell::spell_check_window;
 use crate::state::{MODE_INSERT, REPLACE_FLAG, VREPLACE_FLAG, virtual_active};
-use crate::strings::{concat_str, strcat, tr, vim_strchr, xstrnsave};
+use crate::strings::{concat_str, strcat, tr, vim_strchr};
 use crate::textformat::{comp_textwidth, has_format_option};
 use crate::ui::{ui_active, ui_has};
 use crate::undo::{curbufIsChanged, u_clearline, u_save_cursor, u_savedel};
@@ -796,7 +796,8 @@ pub unsafe fn ins_char_bytes(buf: *mut c_char, charlen: usize) {
             replace_push(oldp.add(col), oldlen);
         }
 
-        let newp: *mut c_char = xmalloc(linelen + newlen - oldlen).cast();
+        let mut newp_vec = vec![0 as c_char; linelen + newlen - oldlen];
+        let newp = newp_vec.as_mut_ptr();
 
         if col > 0 {
             ptr::copy_nonoverlapping(oldp, newp, col);
@@ -817,7 +818,8 @@ pub unsafe fn ins_char_bytes(buf: *mut c_char, charlen: usize) {
             *p.add(i) = b' ' as c_char;
         }
 
-        ml_replace(lnum, newp, false);
+        ml_replace(lnum, newp, true);
+        drop(newp_vec);
         inserted_bytes(lnum, col as colnr_T, oldlen as c_int, newlen as c_int);
 
         if p_sm != 0 && (State & MODE_INSERT) != 0 && msg_silent == 0 && !ins_compl_active() {
@@ -843,7 +845,8 @@ pub unsafe fn ins_str(s: *mut c_char, slen: usize) {
         let oldp = ml_get(lnum);
         let oldlen = ml_get_len(lnum);
 
-        let newp: *mut c_char = xmalloc(oldlen as usize + slen + 1).cast();
+        let mut newp_vec = vec![0 as c_char; oldlen as usize + slen + 1];
+        let newp = newp_vec.as_mut_ptr();
         if col > 0 {
             ptr::copy_nonoverlapping(oldp, newp, col as usize);
         }
@@ -855,7 +858,8 @@ pub unsafe fn ins_str(s: *mut c_char, slen: usize) {
             newp.add(col as usize + slen),
             bytes as usize,
         );
-        ml_replace(lnum, newp, false);
+        ml_replace(lnum, newp, true);
+        drop(newp_vec);
         inserted_bytes(lnum, col, 0, slen as c_int);
         (*curwin).w_cursor.col += slen as colnr_T;
     }
@@ -950,11 +954,13 @@ pub unsafe fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bo
         let newlen = oldlen - count;
 
         let alloc_newp = ml_line_alloced() == 0;
+        let mut newp_vec: Vec<c_char> = Vec::new();
         let newp: *mut c_char = if !alloc_newp {
             ml_add_deleted_len((*curbuf).b_ml.ml_line_ptr, oldlen as isize);
             oldp
         } else {
-            let p: *mut c_char = xmallocz(newlen as usize).cast();
+            newp_vec = vec![0 as c_char; newlen as usize + 1];
+            let p = newp_vec.as_mut_ptr();
             ptr::copy_nonoverlapping(oldp, p, col as usize);
             p
         };
@@ -964,10 +970,11 @@ pub unsafe fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bo
             movelen as usize,
         );
         if alloc_newp {
-            ml_replace(lnum, newp, false);
+            ml_replace(lnum, newp, true);
         } else {
             (*curbuf).b_ml.ml_line_textlen = newlen + 1;
         }
+        drop(newp_vec);
 
         inserted_bytes(lnum, col, count, 0);
 
@@ -983,7 +990,7 @@ pub unsafe fn open_line(
     did_do_comment: *mut bool,
 ) -> bool {
     unsafe {
-        let mut next_line: *mut c_char = ptr::null_mut();
+        let mut next_line_vec: Vec<c_char> = Vec::new();
         let mut p_extra: *mut c_char = ptr::null_mut();
         let mut less_cols: colnr_T = 0;
         let mut less_cols_off: colnr_T = 0;
@@ -996,7 +1003,7 @@ pub unsafe fn open_line(
         let mut comment_start: c_int = 0;
         let mut lead_flags: *mut c_char = ptr::null_mut();
         let mut leader: *mut c_char = ptr::null_mut();
-        let mut allocated: *mut c_char = ptr::null_mut();
+        let mut allocated_vec: Vec<c_char> = Vec::new();
         let mut saved_char: c_char = NUL;
         let do_si = may_do_si();
         let mut no_si = false;
@@ -1006,16 +1013,21 @@ pub unsafe fn open_line(
         let lnum = (*curwin).w_cursor.lnum;
         let mincol = (*curwin).w_cursor.col + 1;
 
-        let mut saved_line = xstrnsave(get_cursor_line_ptr(), get_cursor_line_len() as usize);
+        let mut saved_line_vec =
+            std::slice::from_raw_parts(get_cursor_line_ptr(), get_cursor_line_len() as usize + 1)
+                .to_vec();
+        let saved_line = saved_line_vec.as_mut_ptr();
 
         if (State & VREPLACE_FLAG) != 0 {
             if (*curwin).w_cursor.lnum < orig_line_count {
-                next_line = xstrnsave(
-                    ml_get((*curwin).w_cursor.lnum + 1),
-                    ml_get_len((*curwin).w_cursor.lnum + 1) as usize,
-                );
+                let next_lnum = (*curwin).w_cursor.lnum + 1;
+                next_line_vec = std::slice::from_raw_parts(
+                    ml_get(next_lnum),
+                    ml_get_len(next_lnum) as usize + 1,
+                )
+                .to_vec();
             } else {
-                next_line = xstrdup(c"".as_ptr());
+                next_line_vec = vec![NUL];
             }
 
             replace_push_nul();
@@ -1358,8 +1370,8 @@ pub unsafe fn open_line(
                     + second_line_indent.max(0)
                     + 1;
                 debug_assert!(bytes >= 0);
-                leader = xmalloc(bytes as usize).cast();
-                allocated = leader;
+                allocated_vec = vec![0 as c_char; bytes as usize];
+                leader = allocated_vec.as_mut_ptr();
 
                 xmemcpyz(leader.cast(), saved_line.cast(), lead_len as usize);
 
@@ -1604,7 +1616,7 @@ pub unsafe fn open_line(
         curbuf_splice_pending += 1;
         let old_cursor = (*curwin).w_cursor;
         let old_cmod_flags = cmdmod.cmod_flags;
-        let mut prompt_moved: *mut c_char = ptr::null_mut();
+        let mut prompt_moved: Option<std::ffi::CString> = None;
 
         if dir == BACKWARD {
             if bt_prompt(curbuf) && (*curwin).w_cursor.lnum == (*curbuf).b_prompt_start.mark.lnum {
@@ -1620,8 +1632,10 @@ pub unsafe fn open_line(
                     ptr::copy(prompt_line.add(prompt_len), prompt_line, rem_len);
                     cmdmod.cmod_flags |= CMOD_LOCKMARKS;
                     ml_replace((*curwin).w_cursor.lnum, prompt_line, true);
-                    prompt_moved = concat_str(prompt, p_extra);
-                    p_extra = prompt_moved;
+                    prompt_moved = cstr_take(concat_str(prompt, p_extra));
+                    p_extra = prompt_moved
+                        .as_ref()
+                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 }
             }
             (*curwin).w_cursor.lnum -= 1;
@@ -1698,7 +1712,7 @@ pub unsafe fn open_line(
                     if trunc_line && (flags & OPENLINE_KEEPTRAIL) == 0 {
                         truncate_spaces(saved_line, (*curwin).w_cursor.col as usize);
                     }
-                    ml_replace((*curwin).w_cursor.lnum, saved_line, false);
+                    ml_replace((*curwin).w_cursor.lnum, saved_line, true);
 
                     let new_len = CStr::from_ptr(saved_line).to_bytes().len() as c_int;
 
@@ -1715,7 +1729,6 @@ pub unsafe fn open_line(
                         cols_spliced = (*curwin).w_cursor.col - new_len;
                     }
 
-                    saved_line = ptr::null_mut();
                     if did_append {
                         let cols_added = mincol - 1 + less_cols_off - less_cols;
                         extmark_splice(
@@ -1812,23 +1825,25 @@ pub unsafe fn open_line(
             }
 
             if (State & VREPLACE_FLAG) != 0 {
-                p_extra = xstrnsave(get_cursor_line_ptr(), get_cursor_line_len() as usize);
-                ml_replace((*curwin).w_cursor.lnum, next_line, false);
+                let mut extra_vec = std::slice::from_raw_parts(
+                    get_cursor_line_ptr(),
+                    get_cursor_line_len() as usize + 1,
+                )
+                .to_vec();
+                ml_replace((*curwin).w_cursor.lnum, next_line_vec.as_mut_ptr(), true);
                 (*curwin).w_cursor.col = 0;
                 (*curwin).w_cursor.coladd = 0;
-                ins_bytes(p_extra);
-                xfree(p_extra.cast());
-                next_line = ptr::null_mut();
+                ins_bytes(extra_vec.as_mut_ptr());
             }
 
             retval = true;
         }
 
         (*curbuf).b_p_pi = saved_pi;
-        xfree(saved_line.cast());
-        xfree(next_line.cast());
-        xfree(allocated.cast());
-        xfree(prompt_moved.cast());
+        drop(saved_line_vec);
+        drop(next_line_vec);
+        drop(allocated_vec);
+        drop(prompt_moved);
         cmdmod.cmod_flags = old_cmod_flags;
         retval
     }
@@ -1840,14 +1855,18 @@ pub unsafe fn truncate_line(fixpos: c_int) {
         let lnum = (*curwin).w_cursor.lnum;
         let col = (*curwin).w_cursor.col;
         let old_line = ml_get(lnum);
-        let newp = if col == 0 {
-            xstrdup(c"".as_ptr())
+        let mut newp_vec: Vec<c_char> = if col == 0 {
+            vec![NUL]
         } else {
-            xstrnsave(old_line, col as usize)
+            let mut v = Vec::with_capacity(col as usize + 1);
+            v.extend_from_slice(std::slice::from_raw_parts(old_line, col as usize));
+            v.push(NUL);
+            v
         };
         let deleted = ml_get_len(lnum) - col;
 
-        ml_replace(lnum, newp, false);
+        ml_replace(lnum, newp_vec.as_mut_ptr(), true);
+        drop(newp_vec);
         inserted_bytes(lnum, (*curwin).w_cursor.col, deleted, 0);
 
         if fixpos != 0 && (*curwin).w_cursor.col > 0 {
