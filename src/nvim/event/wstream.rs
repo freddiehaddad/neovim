@@ -19,10 +19,10 @@ const UV_ENOMEM: c_int = -12;
 
 pub type uv_write_t = c_void;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub enum WBufferFinalizer {
     None,
-    Free,
+    Vec(Vec<c_char>),
     FreeBlock,
 }
 
@@ -37,8 +37,7 @@ impl Drop for WBuffer {
     fn drop(&mut self) {
         unsafe {
             match self.cb {
-                WBufferFinalizer::None => {}
-                WBufferFinalizer::Free => crate::memory::xfree(self.data.cast()),
+                WBufferFinalizer::None | WBufferFinalizer::Vec(_) => {}
                 WBufferFinalizer::FreeBlock => crate::memory::free_block(self.data),
             }
         }
@@ -173,6 +172,16 @@ pub fn wstream_new_buffer(
     cb: WBufferFinalizer,
 ) -> std::rc::Rc<WBuffer> {
     std::rc::Rc::new(WBuffer { size, cb, data })
+}
+
+pub fn wstream_new_vec_buffer(mut buf: Vec<c_char>) -> std::rc::Rc<WBuffer> {
+    let size = buf.len();
+    let data = buf.as_mut_ptr();
+    std::rc::Rc::new(WBuffer {
+        size,
+        data,
+        cb: WBufferFinalizer::Vec(buf),
+    })
 }
 
 unsafe extern "C" fn write_cb(req: *mut uv_write_t, status: c_int) {

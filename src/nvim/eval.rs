@@ -5088,12 +5088,9 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
             return;
         }
 
-        let mut input_len: isize = 0;
-        let input = save_tv_as_string(argvars.add(1), &raw mut input_len, false, false);
-        if input_len < 0 {
-            debug_assert!(input.is_null());
+        let Some(input) = save_tv_as_string(argvars.add(1), false, false) else {
             return;
-        }
+        };
 
         let mut executable = true;
         let argv = tv_to_argv(argvars, ptr::null_mut(), &raw mut executable);
@@ -5101,17 +5098,19 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
             if !executable {
                 set_vim_var_nr(VV_SHELL_ERROR, -1);
             }
-            xfree(input.cast());
             return;
         }
 
         if p_verbose > 3 {
             let cmdstr = shell_argv_to_str(&argv);
             verbose_enter_scroll();
-            smsg!(0, gettext(c"Executing command: \"%s\"".as_ptr()), cmdstr);
+            smsg!(
+                0,
+                gettext(c"Executing command: \"%s\"".as_ptr()),
+                cmdstr.as_ptr()
+            );
             msg_puts(c"\n\n".as_ptr());
             verbose_leave_scroll();
-            xfree(cmdstr.cast());
         }
 
         if profiling {
@@ -5122,8 +5121,12 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
         let mut res: *mut c_char = ptr::null_mut();
         let status = os_system(
             argv,
-            input,
-            input_len as usize,
+            if input.is_empty() {
+                ptr::null()
+            } else {
+                input.as_ptr()
+            },
+            input.len(),
             &raw mut res,
             &raw mut nread,
         );
@@ -5132,7 +5135,7 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
             prof_child_exit(&raw mut wait_time);
         }
 
-        xfree(input.cast());
+        drop(input);
 
         set_vim_var_nr(VV_SHELL_ERROR, varnumber_T::from(status));
 
@@ -5601,92 +5604,79 @@ pub unsafe fn timer_teardown() {
     }
 }
 
-/// Saves a typval_T as a string.
-pub unsafe fn save_tv_as_string(
-    tv: *mut typval_T,
-    len: *mut isize,
-    endnl: bool,
-    crlf: bool,
-) -> *mut c_char {
+/// Saves a typval_T as a string buffer (`None` on error, `Some(vec)` on success).
+pub unsafe fn save_tv_as_string(tv: *mut typval_T, endnl: bool, crlf: bool) -> Option<Vec<c_char>> {
     unsafe {
-        *len = 0;
         if (*tv).v_type == VarType::VAR_UNKNOWN {
-            return ptr::null_mut();
+            return Some(Vec::new());
         }
 
         if (*tv).v_type != VarType::VAR_LIST && (*tv).v_type != VarType::VAR_NUMBER {
             let ret = tv_get_string_chk(tv);
             if !ret.is_null() {
-                *len = strlen(ret) as isize;
-                return xmemdupz(ret.cast(), *len as usize).cast();
+                let len = strlen(ret);
+                let mut vec = Vec::with_capacity(len);
+                if len > 0 {
+                    vec.extend_from_slice(std::slice::from_raw_parts(ret, len));
+                }
+                return Some(vec);
             } else {
-                *len = -1;
-                return ptr::null_mut();
+                return None;
             }
         }
 
         if (*tv).v_type == VarType::VAR_NUMBER {
             let buf = buflist_findnr((*tv).vval.v_number as c_int);
+            let mut total_len: usize = 0;
             if !buf.is_null() {
                 for lnum in 1..=(*buf).b_ml.ml_line_count {
                     let mut p = ml_get_buf(buf, lnum);
                     while *p != NUL {
-                        *len += 1;
+                        total_len += 1;
                         p = p.add(1);
                     }
-                    *len += 1;
+                    total_len += 1;
                 }
             } else {
                 semsg!(gettext((&raw const e_nobufnr).cast()), (*tv).vval.v_number);
-                *len = -1;
-                return ptr::null_mut();
+                return None;
             }
 
-            if *len == 0 {
-                return ptr::null_mut();
+            if total_len == 0 {
+                return Some(Vec::new());
             }
 
-            let ret = xmalloc((*len as usize) + 1).cast::<c_char>();
-            let mut end = ret;
+            let mut ret = Vec::with_capacity(total_len);
             for lnum in 1..=(*buf).b_ml.ml_line_count {
                 let mut p = ml_get_buf(buf, lnum);
                 while *p != NUL {
-                    *end = if *p == b'\n' as c_char { NUL } else { *p };
-                    end = end.add(1);
+                    ret.push(if *p == b'\n' as c_char { NUL } else { *p });
                     p = p.add(1);
                 }
-                *end = b'\n' as c_char;
-                end = end.add(1);
+                ret.push(b'\n' as c_char);
             }
-            *end = NUL;
-            *len = (end as isize) - (ret as isize);
-            return ret;
+            return Some(ret);
         }
 
         debug_assert!((*tv).v_type == VarType::VAR_LIST);
         let list = (*tv).vval.v_list;
-        let sep_len = if crlf { 2isize } else { 1isize };
+        let sep_len = if crlf { 2usize } else { 1usize };
+        let mut total_len: usize = 0;
         let mut li = if list.is_null() {
             ptr::null_mut()
         } else {
             (*list).lv_first
         };
         while !li.is_null() {
-            *len += (strlen(tv_get_string(tv_list_item_tv(li))) as isize) + sep_len;
+            total_len += strlen(tv_get_string(tv_list_item_tv(li))) + sep_len;
             li = (*li).li_next;
         }
 
-        if *len == 0 {
-            return ptr::null_mut();
+        if total_len == 0 {
+            return Some(Vec::new());
         }
 
-        let extra = if endnl {
-            if crlf { 2usize } else { 1usize }
-        } else {
-            0usize
-        };
-        let ret = xmalloc((*len as usize) + extra).cast::<c_char>();
-        let mut end = ret;
+        let mut ret = Vec::with_capacity(total_len);
         li = if list.is_null() {
             ptr::null_mut()
         } else {
@@ -5695,23 +5685,18 @@ pub unsafe fn save_tv_as_string(
         while !li.is_null() {
             let mut s = tv_get_string(tv_list_item_tv(li));
             while *s != NUL {
-                *end = if *s == b'\n' as c_char { NUL } else { *s };
-                end = end.add(1);
+                ret.push(if *s == b'\n' as c_char { NUL } else { *s });
                 s = s.add(1);
             }
             if endnl || !tv_list_item_next(list, li).is_null() {
                 if crlf {
-                    *end = b'\r' as c_char;
-                    end = end.add(1);
+                    ret.push(b'\r' as c_char);
                 }
-                *end = b'\n' as c_char;
-                end = end.add(1);
+                ret.push(b'\n' as c_char);
             }
             li = (*li).li_next;
         }
-        *end = NUL;
-        *len = (end as isize) - (ret as isize);
-        ret
+        Some(ret)
     }
 }
 

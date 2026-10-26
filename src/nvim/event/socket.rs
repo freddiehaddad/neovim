@@ -11,7 +11,7 @@ use crate::event::stream::{
     Stream, StreamInternalData, UV_TCP, stream_init, stream_may_close, uv_pipe_t, uv_stream_t,
 };
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
-use crate::memory::{xfree, xstrdup, xstrlcpy};
+use crate::memory::xstrlcpy;
 use crate::os::fs::{UV_EINVAL, UV_ENOENT, os_path_exists, os_remove};
 use crate::os::time::os_hrtime;
 use crate::path::path_tail;
@@ -513,11 +513,13 @@ pub unsafe fn socket_connect(
         let addr_req_ptr = (&raw mut addr_req).cast::<uv_getaddrinfo_t>();
         *getaddrinfo_req_addrinfo_ptr(addr_req_ptr) = ptr::null_mut();
         let mut cur_addrinfo: *const addrinfo = ptr::null();
-        let mut addr: *mut c_char = ptr::null_mut();
+        let mut addr_buf: Vec<c_char> = Vec::new();
 
         'cleanup: {
             if is_tcp {
-                addr = xstrdup(address);
+                let addr_slice = std::slice::from_raw_parts(address, strlen(address) + 1);
+                addr_buf.extend_from_slice(addr_slice);
+                let addr = addr_buf.as_mut_ptr();
                 let host_end = strrchr(addr, b':' as c_int);
                 if host_end.is_null() {
                     *error = gettext(c"tcp address must be host:port".as_ptr());
@@ -589,7 +591,7 @@ pub unsafe fn socket_connect(
 
         (*fields).internal_close_cb = None;
         (*fields).internal_data = StreamInternalData::NONE;
-        xfree(addr.cast());
+        drop(addr_buf);
         uv_freeaddrinfo((*getaddrinfo_req_addrinfo_ptr(addr_req_ptr)).cast());
         success
     }

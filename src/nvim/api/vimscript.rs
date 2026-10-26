@@ -697,7 +697,8 @@ unsafe fn expr_ast_node_to_obj(node: &ExprASTNode, arena: *mut Arena) -> Object 
 
         match nt {
             kExprNodeDoubleQuotedString | kExprNodeSingleQuotedString => {
-                let str_obj = cbuf_to_arena_obj(arena, node.data.str().value, node.data.str().size);
+                let str_obj =
+                    cbuf_to_arena_obj(arena, node.data.str().value_ptr(), node.data.str().size);
                 put_c(&mut ret_node, c"svalue", str_obj);
             }
             kExprNodeOption => {

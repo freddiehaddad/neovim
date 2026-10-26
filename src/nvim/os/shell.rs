@@ -580,13 +580,13 @@ pub unsafe fn shell_build_argv(cmd: *const c_char, extra_args: *const c_char) ->
     }
 }
 
-/// Joins shell arguments from `argv` into a new string.
-pub unsafe fn shell_argv_to_str(argv: &[*mut c_char]) -> *mut c_char {
+/// Joins shell arguments from `argv` into a fixed 256-byte string buffer.
+pub unsafe fn shell_argv_to_str(argv: &[*mut c_char]) -> [c_char; 256] {
     unsafe {
         let mut n: usize = 0;
         let maxsize: usize = 256;
-        let rv: *mut c_char = xmalloc(maxsize).cast();
-        *rv = NUL;
+        let mut rv: [c_char; 256] = [0; 256];
+        let rv_ptr = rv.as_mut_ptr();
         if argv.is_empty() || argv[0].is_null() {
             return rv;
         }
@@ -594,20 +594,20 @@ pub unsafe fn shell_argv_to_str(argv: &[*mut c_char]) -> *mut c_char {
             if arg.is_null() {
                 break;
             }
-            xstrlcat(rv, c"'".as_ptr(), maxsize);
-            xstrlcat(rv, arg, maxsize);
-            n = xstrlcat(rv, c"' ".as_ptr(), maxsize);
+            xstrlcat(rv_ptr, c"'".as_ptr(), maxsize);
+            xstrlcat(rv_ptr, arg, maxsize);
+            n = xstrlcat(rv_ptr, c"' ".as_ptr(), maxsize);
             if n >= maxsize {
                 break;
             }
         }
         if n < maxsize {
-            *rv.add(n - 1) = NUL;
+            rv[n - 1] = NUL;
         } else {
-            *rv.add(maxsize - 4) = b'.' as c_char;
-            *rv.add(maxsize - 3) = b'.' as c_char;
-            *rv.add(maxsize - 2) = b'.' as c_char;
-            *rv.add(maxsize - 1) = NUL;
+            rv[maxsize - 4] = b'.' as c_char;
+            rv[maxsize - 3] = b'.' as c_char;
+            rv[maxsize - 2] = b'.' as c_char;
+            rv[maxsize - 1] = NUL;
         }
         rv
     }
@@ -1380,8 +1380,10 @@ mod tests {
                 ptr::null_mut(),
             ];
             let s = shell_argv_to_str(&argv_arr);
-            assert_eq!(CStr::from_ptr(s).to_str().unwrap(), "'foo' '' 'bar'");
-            xfree(s.cast());
+            assert_eq!(
+                CStr::from_ptr(s.as_ptr()).to_str().unwrap(),
+                "'foo' '' 'bar'"
+            );
 
             p_sh = save_sh;
             p_shcf = save_shcf;

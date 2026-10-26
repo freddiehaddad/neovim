@@ -5,7 +5,6 @@ use crate::charset::{
 };
 use crate::keycodes::{FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, NUL, trans_special};
 use crate::mbyte::{mb_copy_char, utf_char2bytes, utf_char2len, utfc_ptr2len_len};
-use crate::memory::{xfree, xmalloc, xmallocz};
 use crate::viml::parser::parser::{
     ParserHighlightChunk, ParserLine, ParserPosition, ParserState, viml_parser_get_remaining_line,
 };
@@ -689,17 +688,26 @@ impl ExprASTNodeFlt {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Default)]
 pub struct ExprASTNodeStr {
-    pub value: *mut c_char,
+    pub value: Vec<c_char>,
     pub size: usize,
 }
 
 impl ExprASTNodeStr {
     pub const fn new() -> Self {
         Self {
-            value: std::ptr::null_mut(),
+            value: Vec::new(),
             size: 0,
+        }
+    }
+
+    #[inline]
+    pub fn value_ptr(&self) -> *const c_char {
+        if self.value.is_empty() {
+            std::ptr::null()
+        } else {
+            self.value.as_ptr()
         }
     }
 }
@@ -758,7 +766,7 @@ impl ExprASTNodeAss {
     }
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub enum ExprASTNodeData {
     #[default]
     None,
@@ -1005,20 +1013,6 @@ pub struct ExprASTNode {
     pub start: ParserPosition,
     pub len: usize,
     pub data: ExprASTNodeData,
-}
-
-impl Drop for ExprASTNode {
-    fn drop(&mut self) {
-        if (self.r#type == kExprNodeDoubleQuotedString
-            || self.r#type == kExprNodeSingleQuotedString)
-            && let ExprASTNodeData::Str(s) = &mut self.data
-        {
-            unsafe {
-                xfree(s.value.cast());
-            }
-            s.value = std::ptr::null_mut();
-        }
-    }
 }
 
 impl ExprASTNode {
@@ -2012,10 +2006,10 @@ unsafe fn parse_quoted_string(
             }
             node.data.str_mut().size = size;
             if size == 0 {
-                node.data.str_mut().value = std::ptr::null_mut();
+                node.data.str_mut().value = Vec::new();
             } else {
-                let mut v_p = xmallocz(size).cast::<c_char>();
-                node.data.str_mut().value = v_p;
+                let mut buf = vec![0 as c_char; size + 1];
+                let mut v_p = buf.as_mut_ptr();
                 p = s.add(1);
                 while (p as usize) < (e as usize) {
                     let rem = e as usize - p as usize;
@@ -2030,6 +2024,7 @@ unsafe fn parse_quoted_string(
                     *v_p.sub(1) = b'\'' as c_char;
                     p = chunk_e.add(2);
                 }
+                node.data.str_mut().value = buf;
             }
         } else {
             viml_parser_highlight(
@@ -2102,11 +2097,11 @@ unsafe fn parse_quoted_string(
                 p = p.add(1);
             }
             if size == 0 {
-                node.data.str_mut().value = std::ptr::null_mut();
+                node.data.str_mut().value = Vec::new();
                 node.data.str_mut().size = 0;
             } else {
-                let mut v_p = xmalloc(size).cast::<c_char>();
-                node.data.str_mut().value = v_p;
+                let mut buf = vec![0 as c_char; size];
+                let mut v_p = buf.as_mut_ptr();
                 p = s.add(1);
                 while (p as usize) < (e as usize) {
                     let rem = e as usize - p as usize;
@@ -2256,7 +2251,10 @@ unsafe fn parse_quoted_string(
                         });
                     }
                 }
-                node.data.str_mut().size = v_p as usize - node.data.str().value as usize;
+                let actual_len = v_p as usize - buf.as_ptr() as usize;
+                buf.truncate(actual_len);
+                node.data.str_mut().size = actual_len;
+                node.data.str_mut().value = buf;
             }
         }
         if pstate.colors.is_some() {

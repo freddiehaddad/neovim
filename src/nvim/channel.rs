@@ -23,15 +23,13 @@ use crate::event::rstream::{
 };
 use crate::event::socket::{SocketWatcher, socket_connect, socket_watcher_accept};
 use crate::event::stream::{Stream, StreamCbData, StreamInternalData, stream_may_close};
-use crate::event::wstream::{
-    WBufferFinalizer, wstream_init, wstream_init_fd, wstream_new_buffer, wstream_write,
-};
+use crate::event::wstream::{wstream_init, wstream_init_fd, wstream_new_vec_buffer, wstream_write};
 #[cfg(not(windows))]
 use crate::fileio::fcntl;
 use crate::globals::*;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::api_free_luaref;
-use crate::memory::{Arena, arena_finish, arena_mem_free, arena_memdupz, xfree, xmemdup, xstrdup};
+use crate::memory::{Arena, arena_finish, arena_mem_free, arena_memdupz, xfree, xstrdup};
 use crate::message::semsg;
 pub use crate::msgpack_rpc::channel::Channel;
 use crate::msgpack_rpc::channel::{
@@ -757,95 +755,59 @@ pub unsafe fn channel_from_stdio(
     }
 }
 
-pub unsafe fn channel_send(
-    id: u64,
-    data: *mut c_char,
-    len: usize,
-    data_owned: bool,
-    error: *mut *const c_char,
-) -> usize {
+pub unsafe fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> usize {
     unsafe {
         let chan = find_channel(id);
-        let mut written: usize = 0;
+        let len = data.len();
 
-        'retfree: {
-            if chan.is_null() {
-                {
-                    *error = gettext(e_invchan.as_ptr());
-                }
-                break 'retfree;
+        if chan.is_null() {
+            *error = gettext(e_invchan.as_ptr());
+            return 0;
+        }
+
+        let cp = chan;
+        let ct = chan;
+
+        if (*cp).streamtype == kChannelStreamStderr {
+            if (*chan).err_closed {
+                *error = gettext(c"Can't send data to closed stream".as_ptr());
+                return 0;
             }
+            let wres = os_write(STDERR_FILENO, data.as_ptr(), len, false);
+            return if wres >= 0 { wres as usize } else { 0 };
+        }
 
-            let cp = chan;
-            let ct = chan;
-
-            if (*cp).streamtype == kChannelStreamStderr {
-                if (*chan).err_closed {
-                    {
-                        *error = gettext(c"Can't send data to closed stream".as_ptr());
-                    }
-                    break 'retfree;
-                }
-                {
-                    let wres = os_write(STDERR_FILENO, data, len, false);
-                    if wres >= 0 {
-                        written = wres as usize;
-                    }
-                }
-                break 'retfree;
-            }
-
-            if (*cp).streamtype == kChannelStreamInternal {
-                if (*ct).is_rpc {
-                    {
-                        *error = gettext(c"Can't send raw data to rpc channel".as_ptr());
-                    }
-                    break 'retfree;
-                }
-                let internal = &raw mut (*chan).internal;
-                if (*ct).term.is_null() || (*internal).closed {
-                    {
-                        *error = gettext(c"Can't send data to closed stream".as_ptr());
-                    }
-                    break 'retfree;
-                }
-                terminal_receive((*ct).term, data, len);
-                written = len;
-                break 'retfree;
-            }
-
-            let in_stream = channel_instream(chan);
-            if (*in_stream).closed {
-                {
-                    *error = gettext(c"Can't send data to closed stream".as_ptr());
-                }
-                break 'retfree;
-            }
-
+        if (*cp).streamtype == kChannelStreamInternal {
             if (*ct).is_rpc {
-                {
-                    *error = gettext(c"Can't send raw data to rpc channel".as_ptr());
-                }
-                break 'retfree;
+                *error = gettext(c"Can't send raw data to rpc channel".as_ptr());
+                return 0;
             }
-
-            let buf_data = if data_owned {
-                data
-            } else {
-                xmemdup(data.cast(), len).cast::<c_char>()
-            };
-            let buf = wstream_new_buffer(buf_data, len, WBufferFinalizer::Free);
-            return if wstream_write(in_stream, buf) == 0 {
-                len
-            } else {
-                0
-            };
+            let internal = &raw mut (*chan).internal;
+            if (*ct).term.is_null() || (*internal).closed {
+                *error = gettext(c"Can't send data to closed stream".as_ptr());
+                return 0;
+            }
+            terminal_receive((*ct).term, data.as_ptr(), len);
+            return len;
         }
 
-        if data_owned {
-            xfree(data.cast());
+        let in_stream = channel_instream(chan);
+        if (*in_stream).closed {
+            *error = gettext(c"Can't send data to closed stream".as_ptr());
+            return 0;
         }
-        written
+
+        if (*ct).is_rpc {
+            *error = gettext(c"Can't send raw data to rpc channel".as_ptr());
+            return 0;
+        }
+
+        let buf = wstream_new_vec_buffer(data);
+        if wstream_write(in_stream, buf) == 0 {
+            len
+        } else {
+            0
+        }
     }
 }
 
@@ -1137,11 +1099,12 @@ unsafe fn term_write(buf: *const c_char, size: usize, chan: *mut Channel) {
         if (*in_stream).closed {
             return;
         }
-        let wbuf = wstream_new_buffer(
-            xmemdup(buf.cast(), size).cast::<c_char>(),
-            size,
-            WBufferFinalizer::Free,
-        );
+        let data = if size == 0 {
+            Vec::new()
+        } else {
+            std::slice::from_raw_parts(buf, size).to_vec()
+        };
+        let wbuf = wstream_new_vec_buffer(data);
         let _ = wstream_write(in_stream, wbuf);
     }
 }

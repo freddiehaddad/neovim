@@ -1822,13 +1822,7 @@ pub unsafe extern "C" fn nvim_open_term(
 
         if !contents.is_empty() {
             let mut error: *const c_char = ptr::null();
-            channel_send(
-                (*prefix).id,
-                contents.as_mut_ptr(),
-                contents.len(),
-                false,
-                &mut error,
-            );
+            channel_send((*prefix).id, contents, &mut error);
             if !error.is_null() {
                 api_set_error!(err, ErrorType::kErrorTypeValidation, c"%s".as_ptr(), error);
             }
@@ -1860,7 +1854,8 @@ pub unsafe extern "C" fn nvim_chan_send(chan: Integer, data: NvimString, err: *m
     }
     unsafe {
         let mut error: *const c_char = ptr::null();
-        channel_send(chan as u64, data.data, data.size, false, &mut error);
+        let buf = std::slice::from_raw_parts(data.data.cast_const(), data.size).to_vec();
+        channel_send(chan as u64, buf, &mut error);
         if !error.is_null() {
             api_set_error!(err, ErrorType::kErrorTypeValidation, c"%s".as_ptr(), error);
         }

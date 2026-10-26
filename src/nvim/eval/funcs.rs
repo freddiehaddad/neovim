@@ -138,7 +138,7 @@ use crate::memline::{
 };
 use crate::memory::{
     ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, free_block,
-    strequal, strnequal, xfree, xmalloc, xmallocz, xmemdup, xmemdupz, xstrdup,
+    strequal, strnequal, xfree, xmalloc, xmallocz, xmemdupz, xstrdup,
 };
 use crate::menu::{get_menu_cmd_modes, menu_get};
 use crate::message::{
@@ -1669,8 +1669,6 @@ pub unsafe fn f_chansend(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             return;
         }
 
-        let mut input_len: isize = 0;
-        let mut input: *mut c_char = ptr::null_mut();
         let id = (*argvars).vval.v_number as u64;
         #[cfg(not(windows))]
         let crlf = false;
@@ -1680,22 +1678,25 @@ pub unsafe fn f_chansend(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             !chan.is_null() && !(*chan).term.is_null()
         };
 
-        if (*argvars.add(1)).v_type == VarType::VAR_BLOB {
+        let input = if (*argvars.add(1)).v_type == VarType::VAR_BLOB {
             let b = (*argvars.add(1)).vval.v_blob.cast::<blob_T>();
-            input_len = tv_blob_len(b) as isize;
-            if input_len > 0 {
-                input = xmemdup((*b).bv_ga.as_ptr().cast(), input_len as usize).cast();
+            let input_len = tv_blob_len(b) as usize;
+            if input_len == 0 {
+                return;
             }
+            std::slice::from_raw_parts((*b).bv_ga.as_ptr().cast::<c_char>(), input_len).to_vec()
         } else {
-            input = save_tv_as_string(argvars.add(1), &raw mut input_len, false, crlf);
-        }
+            let Some(vec) = save_tv_as_string(argvars.add(1), false, crlf) else {
+                return;
+            };
+            if vec.is_empty() {
+                return;
+            }
+            vec
+        };
 
-        if input.is_null() {
-            return;
-        }
         let mut error: *const c_char = ptr::null();
-        (*rettv).vval.v_number =
-            channel_send(id, input, input_len as usize, true, &raw mut error) as varnumber_T;
+        (*rettv).vval.v_number = channel_send(id, input, &raw mut error) as varnumber_T;
         if !error.is_null() {
             emsg(error);
         }
