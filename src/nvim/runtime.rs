@@ -280,20 +280,13 @@ impl Drop for source_cookie_T {
 }
 
 #[repr(C)]
+#[derive(Clone)]
 struct SearchPathItem {
-    path: *mut c_char,
+    path: std::ffi::CString,
     after: bool,
     pack_inserted: bool,
     has_lua: TriState,
     pos_in_rtp: usize,
-}
-
-impl Drop for SearchPathItem {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.path.cast());
-        }
-    }
 }
 
 type RuntimeSearchPath = Vec<SearchPathItem>;
@@ -327,14 +320,6 @@ use crate::extmark::{kFalse, kNone, kTrue};
 use crate::os::fs::MAXPATHL;
 use crate::version::default_lib_dir;
 use crate::viml::parser::parser::CONV_NONE;
-
-impl Drop for scriptitem_T {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.sn_name.cast());
-        }
-    }
-}
 
 #[inline]
 pub unsafe fn script_item(id: scid_T) -> *mut scriptitem_T {
@@ -456,7 +441,7 @@ pub unsafe fn estack_sfile(which: estack_arg_T) -> *mut c_char {
                         &(*entry.es_info.aucmd()).script_ctx
                     };
                     return if def_ctx.sc_sid > 0 {
-                        xstrdup((*script_item(def_ctx.sc_sid)).sn_name)
+                        xstrdup((*script_item(def_ctx.sc_sid)).name_ptr())
                     } else {
                         ptr::null_mut()
                     };
@@ -847,20 +832,8 @@ unsafe fn runtime_search_path_get_cached() -> *mut [SearchPathItem] {
     }
 }
 
-unsafe fn copy_runtime_search_path(src: &[SearchPathItem]) -> RuntimeSearchPath {
-    unsafe {
-        let mut dst = Vec::with_capacity(src.len());
-        for item in src {
-            dst.push(SearchPathItem {
-                path: xstrdup(item.path),
-                after: item.after,
-                pack_inserted: item.pack_inserted,
-                has_lua: item.has_lua,
-                pos_in_rtp: item.pos_in_rtp,
-            });
-        }
-        dst
-    }
+fn copy_runtime_search_path(src: &[SearchPathItem]) -> RuntimeSearchPath {
+    src.to_vec()
 }
 
 unsafe fn runtime_search_path_unref() {
@@ -893,8 +866,8 @@ unsafe fn do_in_cached_path(name: *mut c_char, flags: c_int, callback: RuntimeCa
         let do_all = (flags & DIP_ALL) != 0;
 
         for item in path {
-            let item_path = item.path;
-            let buflen = CStr::from_ptr(item_path).to_bytes().len();
+            let item_path = item.path.as_ptr().cast_mut();
+            let buflen = item.path.as_bytes().len();
 
             if (flags & (DIP_NOAFTER | DIP_AFTER)) != 0
                 && ((item.after && (flags & DIP_NOAFTER) != 0)
@@ -974,7 +947,7 @@ pub unsafe fn runtime_inspect(arena: *mut Arena) -> Array {
 
         for item in rsp {
             let mut entry = arena_dict(arena, 5);
-            put_c(&mut entry, c"path", cstr_as_obj(item.path));
+            put_c(&mut entry, c"path", cstr_as_obj(item.path.as_ptr()));
             if item.after {
                 put_c(&mut entry, c"after", boolean_obj(true));
             }
@@ -1046,7 +1019,8 @@ unsafe fn runtime_get_named_common(
         for item in path.iter_mut() {
             if lua {
                 if item.has_lua == kNone {
-                    let size = vim_snprintf!(buf, buf_len, c"%s/lua/".as_ptr(), item.path) as usize;
+                    let size = vim_snprintf!(buf, buf_len, c"%s/lua/".as_ptr(), item.path.as_ptr())
+                        as usize;
                     item.has_lua = TriState::from(size < buf_len && os_isdir(buf));
                 }
                 if item.has_lua == kFalse {
@@ -1061,7 +1035,7 @@ unsafe fn runtime_get_named_common(
                         buf,
                         buf_len,
                         c"%s/%s".as_ptr(),
-                        item.path,
+                        item.path.as_ptr(),
                         pat_item.data.string.data,
                     ) as usize;
                     if size < buf_len && os_file_is_readable(buf) {
@@ -1138,7 +1112,7 @@ unsafe fn push_path(
     unsafe {
         if rtp_used.insert(CStr::from_ptr(entry).to_bytes().to_vec()) {
             search_path.push(SearchPathItem {
-                path: xstrdup(entry),
+                path: CStr::from_ptr(entry).to_owned(),
                 after,
                 pack_inserted: false,
                 has_lua: kNone,
@@ -1608,10 +1582,15 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                 for item in &mut rsp[idx1..] {
                     item.pos_in_rtp += fname_len + 1;
                 }
+                let fname_bytes = std::slice::from_raw_parts(fname.cast::<u8>(), fname_len);
+                let fname_end = fname_bytes
+                    .iter()
+                    .position(|&b| b == 0)
+                    .unwrap_or(fname_bytes.len());
                 rsp.insert(
                     idx1,
                     SearchPathItem {
-                        path: xmemdupz(fname.cast(), fname_len).cast::<c_char>(),
+                        path: std::ffi::CString::new(&fname_bytes[..fname_end]).unwrap(),
                         after: false,
                         pack_inserted: true,
                         has_lua: kNone,
@@ -1628,10 +1607,16 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                     for item in &mut rsp[idx2..] {
                         item.pos_in_rtp += afterdir.size + 1;
                     }
+                    let after_bytes =
+                        std::slice::from_raw_parts(afterdir.data.cast::<u8>(), afterdir.size);
+                    let after_end = after_bytes
+                        .iter()
+                        .position(|&b| b == 0)
+                        .unwrap_or(after_bytes.len());
                     rsp.insert(
                         idx2,
                         SearchPathItem {
-                            path: xmemdupz(afterdir.data.cast(), afterdir.size).cast::<c_char>(),
+                            path: std::ffi::CString::new(&after_bytes[..after_end]).unwrap(),
                             after: true,
                             pack_inserted: true,
                             has_lua: kNone,
@@ -2586,7 +2571,10 @@ unsafe fn concat_continued_line(ga: &mut Vec<c_char>, p: *const c_char, mut len:
 }
 
 /// Create a new script item and allocate script-local vars.
-pub unsafe fn new_script_item(name: *mut c_char, sid_out: *mut scid_T) -> *mut scriptitem_T {
+pub unsafe fn new_script_item(
+    name: Option<std::ffi::CString>,
+    sid_out: *mut scid_T,
+) -> *mut scriptitem_T {
     unsafe {
         last_current_SID += 1;
         let sid = last_current_SID;
@@ -2597,7 +2585,7 @@ pub unsafe fn new_script_item(name: *mut c_char, sid_out: *mut scid_T) -> *mut s
         while ((*items).len() as scid_T) < sid {
             (*items).push(scriptitem_T {
                 sn_vars: new_script_vars(),
-                sn_name: ptr::null_mut(),
+                sn_name: None,
                 sn_lua: false,
                 sn_prof_on: false,
                 sn_pr_force: false,
@@ -2748,7 +2736,7 @@ unsafe fn do_source_ext(
         let mut wait_start: proftime_T = 0;
         let mut trigger_source_post = false;
 
-        let mut fname_exp: *mut c_char;
+        let fname_exp: *mut c_char;
         if fname.is_null() {
             debug_assert!(str_ptr.is_null());
             fname_exp = do_source_buffer_init(&mut cookie, eap, ex_lua);
@@ -2900,9 +2888,8 @@ unsafe fn do_source_ext(
             if sid > 0 {
                 si = script_item(sid);
             } else if str_ptr.is_null() {
-                si = new_script_item(fname_exp, &mut sid);
+                si = new_script_item(Some(CStr::from_ptr(fname_exp).to_owned()), &mut sid);
                 (*si).sn_lua = path_with_extension(fname_exp, c"lua".as_ptr());
-                fname_exp = xstrdup((*si).sn_name);
                 if !ret_sid.is_null() {
                     *ret_sid = sid;
                 }
@@ -2917,7 +2904,7 @@ unsafe fn do_source_ext(
             estack_push(
                 ETYPE_SCRIPT,
                 if !si.is_null() {
-                    (*si).sn_name
+                    (*si).name_ptr()
                 } else {
                     fname_exp
                 },
@@ -2926,7 +2913,7 @@ unsafe fn do_source_ext(
 
             if l_do_profiling == PROF_YES && !si.is_null() {
                 let mut forceit = false;
-                if !(*si).sn_prof_on && has_profiling(true, (*si).sn_name, &mut forceit) {
+                if !(*si).sn_prof_on && has_profiling(true, (*si).name_ptr(), &mut forceit) {
                     profile_init(si);
                     (*si).sn_pr_force = forceit;
                 }
@@ -3112,7 +3099,9 @@ pub unsafe fn find_script_by_name(name: *mut c_char) -> c_int {
         let mut sid = script_items_len();
         while sid > 0 {
             let si = script_item(sid);
-            if !(*si).sn_name.is_null() && path_equal((*si).sn_name, name, kPathCmpLiteral) {
+            if let Some(ref sn) = (*si).sn_name
+                && path_equal(sn.as_ptr().cast_mut(), name, kPathCmpLiteral)
+            {
                 return sid;
             }
             sid -= 1;
@@ -3131,7 +3120,7 @@ pub unsafe fn ex_scriptnames(eap: *mut exarg_T) {
                 emsg(gettext(e_invarg.as_ptr()));
             } else {
                 if (*eap).addr_count > 0 {
-                    (*eap).arg = (*script_item((*eap).line2)).sn_name;
+                    (*eap).arg = (*script_item((*eap).line2)).name_ptr();
                 } else {
                     expand_env((*eap).arg, namebuff, MAXPATHL as c_int);
                     (*eap).arg = namebuff;
@@ -3146,8 +3135,8 @@ pub unsafe fn ex_scriptnames(eap: *mut exarg_T) {
         let mut i = 1;
         while i <= script_items_len() && !got_int {
             let si = script_item(i);
-            if !(*si).sn_name.is_null() {
-                home_replace(ptr::null_mut(), (*si).sn_name, namebuff, MAXPATHL, true);
+            if let Some(ref sn) = (*si).sn_name {
+                home_replace(ptr::null_mut(), sn.as_ptr(), namebuff, MAXPATHL, true);
                 vim_snprintf!(iobuff, IOSIZE, c"%3d: %s".as_ptr(), i, namebuff);
                 if !message_filtered(iobuff) {
                     if msg_col > 0 {
@@ -3189,7 +3178,7 @@ pub unsafe fn get_scriptname(script_ctx: sctx_T, should_free: *mut bool) -> *mut
             }
             SID_STR => gettext(c"anonymous :source".as_ptr()),
             _ => {
-                let sname = (*script_item(script_ctx.sc_sid)).sn_name;
+                let sname = (*script_item(script_ctx.sc_sid)).name_ptr();
                 if sname.is_null() {
                     vim_snprintf!(
                         iobuff,
@@ -3303,12 +3292,12 @@ pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
         while (i == sid || sid <= 0) && i <= varnumber_T::from(script_items_len()) {
             let si = script_item(i as scid_T);
 
-            if !(*si).sn_name.is_null()
-                && (!filterpat || vim_regexec(&mut regmatch, (*si).sn_name, 0))
+            if let Some(ref sn) = (*si).sn_name
+                && (!filterpat || vim_regexec(&mut regmatch, sn.as_ptr(), 0))
             {
                 let d = tv_dict_alloc();
                 tv_list_append_dict(l, d);
-                tv_dict_add_str(d, c"name".as_ptr(), 4, (*si).sn_name);
+                tv_dict_add_str(d, c"name".as_ptr(), 4, sn.as_ptr());
                 tv_dict_add_nr(d, c"sid".as_ptr(), 3, i);
                 tv_dict_add_nr(d, c"version".as_ptr(), 7, 1);
                 tv_dict_add_bool(d, c"autoload".as_ptr(), 8, kFalse);

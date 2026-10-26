@@ -2896,7 +2896,7 @@ unsafe fn find_var_ht_dict(
         {
             nlua_set_sctx(&raw mut current_sctx);
             if current_sctx.sc_sid == SID_STR || current_sctx.sc_sid == SID_LUA {
-                new_script_item(ptr::null_mut(), &raw mut current_sctx.sc_sid);
+                new_script_item(None, &raw mut current_sctx.sc_sid);
             }
             *d = &raw mut (*script_sv(current_sctx.sc_sid)).sv_dict;
         }

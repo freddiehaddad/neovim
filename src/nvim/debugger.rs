@@ -11,7 +11,7 @@ use crate::fileio::file_pat_to_reg_pat;
 use crate::globals::*;
 use crate::input::{restore_typeahead, save_typeahead, tasave_T};
 use crate::math::OK;
-use crate::memory::{xfree, xmalloc, xstrdup};
+use crate::memory::{xfree, xmalloc};
 use crate::message::{emsg, msg, msg_starthere, semsg, smsg};
 use crate::os::env::{expand_env_save, home_replace};
 use crate::path::fix_fname;
@@ -68,7 +68,7 @@ unsafe fn dbg_vec_mut(is_prof: bool) -> &'static mut Vec<debuggy> {
 pub struct debuggy {
     pub dbg_nr: c_int,
     pub dbg_type: c_int,
-    pub dbg_name: *mut c_char,
+    pub dbg_name: std::ffi::CString,
     pub dbg_prog: *mut crate::regexp::regprog_T,
     pub dbg_lnum: i32,
     pub dbg_forceit: c_int,
@@ -79,7 +79,6 @@ pub struct debuggy {
 impl Drop for debuggy {
     fn drop(&mut self) {
         unsafe {
-            xfree(self.dbg_name.cast());
             if let Some(ref mut val) = self.dbg_val {
                 tv_clear(val);
             }
@@ -480,7 +479,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
         let mut bp = debuggy {
             dbg_nr: 0,
             dbg_type: 0,
-            dbg_name: std::ptr::null_mut(),
+            dbg_name: std::ffi::CString::default(),
             dbg_prog: std::ptr::null_mut(),
             dbg_lnum: 0,
             dbg_forceit: 0,
@@ -532,12 +531,15 @@ unsafe fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
             } else {
                 p
             };
-            bp.dbg_name = xstrdup(name_src);
+            bp.dbg_name = CStr::from_ptr(name_src).to_owned();
         } else if here {
-            bp.dbg_name = xstrdup((*curbuf).b_ffname);
+            if (*curbuf).b_ffname.is_null() {
+                return None;
+            }
+            bp.dbg_name = CStr::from_ptr((*curbuf).b_ffname).to_owned();
         } else if bp.dbg_type == DBG_EXPR {
-            bp.dbg_name = xstrdup(p);
-            bp.dbg_val = eval_expr_no_emsg(bp.dbg_name);
+            bp.dbg_name = CStr::from_ptr(p).to_owned();
+            bp.dbg_val = eval_expr_no_emsg(bp.dbg_name.as_ptr().cast_mut());
         } else {
             let q = expand_env_save(p);
             if q.is_null() {
@@ -548,17 +550,20 @@ unsafe fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
             if p_exp.is_null() {
                 return None;
             }
-            if *p_exp as u8 != b'*' {
-                bp.dbg_name = fix_fname(p_exp);
+            let raw_name = if *p_exp as u8 != b'*' {
+                let fixed = fix_fname(p_exp);
                 xfree(p_exp.cast());
+                fixed
             } else {
-                bp.dbg_name = p_exp;
+                p_exp
+            };
+            if raw_name.is_null() {
+                return None;
             }
+            bp.dbg_name = CStr::from_ptr(raw_name).to_owned();
+            xfree(raw_name.cast());
         }
 
-        if bp.dbg_name.is_null() {
-            return None;
-        }
         Some(bp)
     }
 }
@@ -577,7 +582,12 @@ pub unsafe fn ex_breakadd(eap: *mut exarg_T) {
         bp.dbg_forceit = eap.forceit;
 
         if bp.dbg_type != DBG_EXPR {
-            let pat = file_pat_to_reg_pat(bp.dbg_name, std::ptr::null(), std::ptr::null_mut(), 0);
+            let pat = file_pat_to_reg_pat(
+                bp.dbg_name.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null_mut(),
+                0,
+            );
             if !pat.is_null() {
                 bp.dbg_prog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
                 xfree(pat.cast());
@@ -642,10 +652,9 @@ pub unsafe fn ex_breakdel(eap: *mut exarg_T) {
             let Some(bp) = dbg_parsearg(eap.arg, is_prof) else {
                 return;
             };
-            let bp_name_bytes = CStr::from_ptr(bp.dbg_name).to_bytes();
             for (i, bpi) in gap.iter().enumerate() {
                 if bp.dbg_type == bpi.dbg_type
-                    && CStr::from_ptr(bpi.dbg_name).to_bytes() == bp_name_bytes
+                    && bpi.dbg_name == bp.dbg_name
                     && (bp.dbg_lnum == bpi.dbg_lnum
                         || (bp.dbg_lnum == 0 && (best_lnum == 0 || bpi.dbg_lnum < best_lnum)))
                 {
@@ -691,7 +700,7 @@ pub unsafe fn ex_breaklist(_eap: *mut exarg_T) {
             if bp.dbg_type == DBG_FILE {
                 home_replace(
                     std::ptr::null(),
-                    bp.dbg_name,
+                    bp.dbg_name.as_ptr(),
                     namebuf.as_mut_ptr(),
                     MAXPATHL,
                     true,
@@ -704,7 +713,7 @@ pub unsafe fn ex_breaklist(_eap: *mut exarg_T) {
                     c"file".as_ptr()
                 };
                 let name = if bp.dbg_type == DBG_FUNC {
-                    bp.dbg_name.cast_const()
+                    bp.dbg_name.as_ptr()
                 } else {
                     namebuf.as_ptr()
                 };
@@ -712,7 +721,7 @@ pub unsafe fn ex_breaklist(_eap: *mut exarg_T) {
                 let fmt_str = format!("%3d  %s %s  line {lnum}\0");
                 smsg!(0, fmt_str.as_ptr().cast::<c_char>(), bp.dbg_nr, kind, name);
             } else {
-                smsg!(0, c"%3d  expr %s".as_ptr(), bp.dbg_nr, bp.dbg_name);
+                smsg!(0, c"%3d  expr %s".as_ptr(), bp.dbg_nr, bp.dbg_name.as_ptr());
             }
         }
     }
@@ -759,7 +768,7 @@ unsafe fn debuggy_find(
                 got_int |= prev_got_int;
             } else if bp.dbg_type == DBG_EXPR {
                 let mut line = false;
-                if let Some(mut tv) = eval_expr_no_emsg(bp.dbg_name) {
+                if let Some(mut tv) = eval_expr_no_emsg(bp.dbg_name.as_ptr().cast_mut()) {
                     if let Some(ref mut old_val) = bp.dbg_val {
                         if typval_compare(&raw mut tv, old_val, EXPR_IS, false) == OK
                             && tv.vval.v_number == 0
@@ -767,7 +776,7 @@ unsafe fn debuggy_find(
                             line = true;
                             xfree(DEBUG_OLDVAL.cast());
                             DEBUG_OLDVAL = typval_tostring(Some(old_val), true);
-                            let mut v = eval_expr_no_emsg(bp.dbg_name);
+                            let mut v = eval_expr_no_emsg(bp.dbg_name.as_ptr().cast_mut());
                             xfree(DEBUG_NEWVAL.cast());
                             DEBUG_NEWVAL = typval_tostring(v.as_mut(), true);
                             tv_clear(old_val);

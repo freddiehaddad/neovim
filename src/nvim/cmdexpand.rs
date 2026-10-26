@@ -4471,7 +4471,7 @@ unsafe fn get_scriptnames_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
 
         let si = script_item(idx + 1);
         let name_buff = (&raw mut NameBuff).cast::<c_char>();
-        home_replace(ptr::null(), (*si).sn_name, name_buff, MAXPATHL, true);
+        home_replace(ptr::null(), (*si).name_ptr(), name_buff, MAXPATHL, true);
         name_buff
     }
 }

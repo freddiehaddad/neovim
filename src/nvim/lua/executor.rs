@@ -2745,12 +2745,12 @@ pub unsafe fn nlua_set_sctx(current: *mut sctx_T) {
         if found {
             let source_path = fix_fname(info.source.add(1));
             let mut sid = find_script_by_name(source_path);
-            if sid > 0 {
-                xfree(source_path.cast());
-            } else {
-                let si: *mut scriptitem_T = new_script_item(source_path, &raw mut sid);
+            if sid <= 0 {
+                let si: *mut scriptitem_T =
+                    new_script_item(Some(CStr::from_ptr(source_path).to_owned()), &raw mut sid);
                 (*si).sn_lua = true;
             }
+            xfree(source_path.cast());
             (*current).sc_sid = sid;
             (*current).sc_seq = -1;
             (*current).sc_lnum = info.currentline;

@@ -59,7 +59,7 @@ pub struct sn_prl_T {
 #[repr(C)]
 pub struct scriptitem_T {
     pub sn_vars: Box<crate::runtime::scriptvar_T>,
-    pub sn_name: *mut c_char,
+    pub sn_name: Option<std::ffi::CString>,
     pub sn_lua: bool,
     pub sn_prof_on: bool,
     pub sn_pr_force: bool,
@@ -76,6 +76,15 @@ pub struct scriptitem_T {
     pub sn_prl_wait: proftime_T,
     pub sn_prl_idx: i32,
     pub sn_prl_execed: c_int,
+}
+
+impl scriptitem_T {
+    #[inline]
+    pub fn name_ptr(&self) -> *mut c_char {
+        self.sn_name
+            .as_ref()
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    }
 }
 
 use crate::autocmd::PROF_YES;
@@ -754,7 +763,7 @@ unsafe fn script_dump_profile(fd: *mut FILE) {
         for id in 1..=crate::runtime::script_items_len() {
             let si = script_item(id);
             if (*si).sn_prof_on {
-                fprintf!(fd, c"SCRIPT  %s\n".as_ptr(), (*si).sn_name);
+                fprintf!(fd, c"SCRIPT  %s\n".as_ptr(), (*si).name_ptr());
                 if (*si).sn_pr_count == 1 {
                     fprintf!(fd, c"Sourced 1 time\n".as_ptr());
                 } else {
@@ -773,7 +782,7 @@ unsafe fn script_dump_profile(fd: *mut FILE) {
                 fprintf!(fd, c"\n".as_ptr());
                 fprintf!(fd, c"count  total (s)   self (s)\n".as_ptr());
 
-                let sfd = os_fopen((*si).sn_name, c"r".as_ptr());
+                let sfd = os_fopen((*si).name_ptr(), c"r".as_ptr());
                 if sfd.is_null() {
                     fprintf!(fd, c"Cannot open file!\n".as_ptr());
                 } else {
