@@ -2,7 +2,7 @@
 
 use crate::api::extmark::parse_virt_text;
 use crate::api::private::helpers::{api_clear_error, api_free_object};
-use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Error, ErrorType, ObjectType};
 use crate::buffer::{MAXLNUM, buf_T};
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::change::{TAB, changed_lines};
@@ -32,7 +32,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_adjust_cursor, ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::mcursor::mc_replaying;
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_replace_buf};
-use crate::memory::{cstr_take, xmemcpyz};
+use crate::memory::xmemcpyz;
 use crate::message::emsg;
 use crate::r#move::changed_window_setting;
 use crate::ops::skip_comment;
@@ -1496,7 +1496,7 @@ pub unsafe fn get_foldtext(
 
                 emsg_off += 1;
 
-                let mut obj = eval_foldtext(wp);
+                let obj = eval_foldtext(wp);
                 if obj.obj_type == ObjectType::kObjectTypeArray {
                     let mut err = Error {
                         err_type: ErrorType::kErrorTypeNone,
@@ -1508,11 +1508,8 @@ pub unsafe fn get_foldtext(
                     }
                     api_clear_error(&mut err);
                 } else if obj.obj_type == ObjectType::kObjectTypeString {
-                    text = cstr_take(obj.data.string.data);
-                    obj = Object {
-                        obj_type: ObjectType::kObjectTypeNil,
-                        data: ObjectData { integer: 0 },
-                    };
+                    text = (!obj.data.string.data.is_null())
+                        .then(|| CStr::from_ptr(obj.data.string.data).to_owned());
                 }
                 api_free_object(obj);
 

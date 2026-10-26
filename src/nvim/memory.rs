@@ -365,28 +365,6 @@ pub fn cstr_from_bytes(bytes: &[u8]) -> CString {
     unsafe { CString::from_vec_with_nul_unchecked(v) }
 }
 
-/// Copy an `xmalloc`-allocated C string into an owned `CString` and free `ptr`.
-pub unsafe fn cstr_take(ptr: *mut c_char) -> Option<CString> {
-    if ptr.is_null() {
-        None
-    } else {
-        let s = unsafe { CStr::from_ptr(ptr).to_owned() };
-        unsafe { xfree(ptr.cast()) };
-        Some(s)
-    }
-}
-
-/// Copy `len` bytes from an `xmalloc`-allocated buffer into a `Vec<u8>` and free `ptr`.
-pub unsafe fn bytes_take(ptr: *mut c_char, len: usize) -> Option<Vec<u8>> {
-    if ptr.is_null() {
-        None
-    } else {
-        let v = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len).to_vec() };
-        unsafe { xfree(ptr.cast()) };
-        Some(v)
-    }
-}
-
 /// Duplicate a NUL-terminated C string using `xmalloc` (`xstrdup`).
 pub unsafe fn xstrdup(str_ptr: *const c_char) -> *mut c_char {
     let len = unsafe { CStr::from_ptr(str_ptr).to_bytes().len() };
@@ -404,12 +382,6 @@ pub unsafe fn xmemrchr(src: *const c_void, c: u8, len: usize) -> *mut c_void {
     } else {
         std::ptr::null_mut()
     }
-}
-
-/// Duplicate up to `len` bytes of `str_ptr` (`xstrndup`).
-pub unsafe fn xstrndup(str_ptr: *const c_char, len: usize) -> *mut c_char {
-    let actual_len = unsafe { xstrnlen(str_ptr, len) };
-    unsafe { xmemdupz(str_ptr.cast::<c_void>(), actual_len).cast::<c_char>() }
 }
 
 /// Return true if C string `a` equals Rust string `b` (`strequal_str`).

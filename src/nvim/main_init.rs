@@ -73,7 +73,7 @@ use crate::math::{FAIL, OK};
 use crate::mcursor::mc_init;
 use crate::memfile::memfile_T;
 use crate::memline::{ml_close_all, ml_close_notmod, ml_recover, ml_sync_all, recover_names};
-use crate::memory::{cstr_take, entered_free_all_mem, free_all_mem, strequal, striequal_str};
+use crate::memory::{entered_free_all_mem, free_all_mem, strequal, striequal_str};
 use crate::message::{msg_putchar, semsg, wait_return};
 use crate::mouse::setmouse;
 use crate::r#move::update_topline;
@@ -1734,15 +1734,13 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                     && !os_isdir(alist_name(garglist()))
                 {
                     let tail = path_tail(alist_name(garglist()));
-                    let ret =
+                    let joined =
                         concat_fnames(cstr_as_string(p_vec.as_ptr()), cstr_as_string(tail), true);
-                    if let Some(joined) = cstr_take(ret.data) {
-                        p_vec = joined
-                            .as_bytes_with_nul()
-                            .iter()
-                            .map(|&b| b as c_char)
-                            .collect();
-                    }
+                    p_vec = joined
+                        .as_bytes_with_nul()
+                        .iter()
+                        .map(|&b| b as c_char)
+                        .collect();
                 }
 
                 if CASE_INSENSITIVE_FILENAME {

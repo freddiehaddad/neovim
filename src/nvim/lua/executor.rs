@@ -56,7 +56,7 @@ use crate::lua::treesitter::nlua_treesitter_init;
 use crate::main_init::{getout, os_exit, preserve_exit};
 use crate::math::{FAIL, OK};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{Arena, ArenaMem, arena_finish, arena_mem_free, strequal, xmemdupz};
+use crate::memory::{Arena, ArenaMem, arena_finish, arena_mem_free, strequal};
 use crate::message::{
     emsg, msg_ext_no_fast, msg_multihl, msg_putchar, msg_use_printf, redirecting, semsg_multiline,
 };
@@ -1399,19 +1399,13 @@ unsafe extern "C-unwind" fn nlua_common_free_all_mem(lstate: *mut lua_State) {
     }
 }
 
-pub unsafe fn nlua_print_event(data: *mut c_char, len: usize) {
+pub unsafe fn nlua_print_event(text: NvimString) {
     unsafe {
         msg_ext_no_fast();
         let raw =
             msg_use_printf() != 0 && redirecting() == 0 && on_print.cb_type() == kCallbackNone;
 
-        let mut msg: HlMessage = vec![HlMessageChunk {
-            text: NvimString {
-                data,
-                size: len.saturating_sub(1),
-            },
-            hl_id: 0,
-        }];
+        let mut msg: HlMessage = vec![HlMessageChunk { text, hl_id: 0 }];
         let mut needs_clear = false;
         msg_multihl(
             OBJECT_NIL,
@@ -1464,8 +1458,8 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
             lua_pop(lstate, 1);
             curargidx += 1;
         }
-        let msg_len = msg_vec.len() + 1;
-        let msg_data: *mut c_char = xmemdupz(msg_vec.as_ptr().cast(), msg_vec.len()).cast();
+        let msg_str =
+            crate::api::private::helpers::cbuf_to_string(msg_vec.as_ptr(), msg_vec.len());
         drop(msg_vec);
 
         lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim.thread".as_ptr());
@@ -1475,22 +1469,13 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
         if is_thread {
             loop_schedule_deferred(
                 (&raw mut main_loop).cast(),
-                Event::NluaPrint {
-                    data: msg_data,
-                    len: msg_len,
-                },
+                Event::NluaPrint(msg_str),
             );
         } else if IN_FAST_CALLBACK != 0 {
             let queues = loop_queues((&raw mut main_loop).cast());
-            put_event(
-                (*queues).events,
-                Event::NluaPrint {
-                    data: msg_data,
-                    len: msg_len,
-                },
-            );
+            put_event((*queues).events, Event::NluaPrint(msg_str));
         } else {
-            nlua_print_event(msg_data, msg_len);
+            nlua_print_event(msg_str);
         }
         0
     }

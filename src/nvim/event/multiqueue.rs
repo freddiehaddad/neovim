@@ -50,10 +50,7 @@ pub enum Event {
         cb: crate::lua::converter::LuaRef,
         ns_id: u32,
     },
-    NluaPrint {
-        data: *mut c_char,
-        len: usize,
-    },
+    NluaPrint(crate::api::private::validate::NvimString),
     MsgSemsg(CString),
     MsgSemsgMultiline(CString),
     CursorHold,
@@ -131,8 +128,8 @@ impl Event {
                 Self::NluaSchedule { cb, ns_id } => {
                     crate::lua::executor::nlua_schedule_event(cb, ns_id);
                 }
-                Self::NluaPrint { data, len } => {
-                    crate::lua::executor::nlua_print_event(data, len);
+                Self::NluaPrint(text) => {
+                    crate::lua::executor::nlua_print_event(text);
                 }
                 Self::MsgSemsg(s) => crate::message::msg_semsg_event(s),
                 Self::MsgSemsgMultiline(s) => crate::message::msg_semsg_multiline_event(s),

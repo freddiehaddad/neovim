@@ -48,7 +48,7 @@ use crate::mcursor::mc_undo_time;
 #[cfg(unix)]
 use crate::memline::resolve_symlink;
 use crate::memline::{ml_append_flags, ml_delete, ml_get, ml_get_buf, ml_replace};
-use crate::memory::{cstr_take, time_to_bytes, xstrlcat};
+use crate::memory::{time_to_bytes, xstrlcat};
 use crate::message::{
     emsg, give_warning, iemsg, internal_error, messaging, msg, msg_end, msg_ext_set_kind,
     msg_putchar, msg_puts, msg_puts_hl, msg_start, semsg, smsg, smsg_keep, verb_msg, verbose_enter,
@@ -656,7 +656,7 @@ pub unsafe fn u_get_undo_file_name(
                         data: munged_vec.as_mut_ptr(),
                         size: ffname_len,
                     };
-                    undo_file_name = cstr_take(concat_fnames(dir_str, munged_name, true).data);
+                    undo_file_name = Some(concat_fnames(dir_str, munged_name, true));
                 }
             }
 

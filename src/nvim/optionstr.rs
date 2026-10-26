@@ -37,7 +37,7 @@ use crate::mark::{fmark_T, fmarkv_T};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{enc_canonize, get_encoding_name, utf_ptr2char, utfc_ptr2len, utfc_ptr2schar};
 use crate::memline::ml_setflags;
-use crate::memory::{cstr_take, cstr_to_cstring, xmemcpyz};
+use crate::memory::{cstr_to_cstring, xmemcpyz};
 use crate::message::{kOptMessagesopt, msg_grid_validate, verbose_open, verbose_stop};
 use crate::r#move::validate_virtcol;
 use crate::msgpack_rpc::packer::Integer;
@@ -1108,7 +1108,7 @@ pub unsafe fn alloc_string_option(s: *const c_char) -> *mut c_char {
 pub unsafe fn free_string_option(p: *mut c_char) {
     unsafe {
         if p != (&raw mut empty_string_option).cast::<c_char>() {
-            let _ = cstr_take(p);
+            crate::path::free_cstring(p);
         }
     }
 }
@@ -1117,7 +1117,7 @@ pub unsafe fn clear_string_option(pp: *mut *mut c_char) {
     unsafe {
         let empty = (&raw mut empty_string_option).cast::<c_char>();
         if *pp != empty {
-            let _ = cstr_take(*pp);
+            crate::path::free_cstring(*pp);
         }
         *pp = empty;
     }

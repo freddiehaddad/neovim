@@ -46,9 +46,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_prevptr, mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
-use crate::memory::{
-    Arena, arena_alloc, arena_finish, arena_mem_free, cstr_take, xmemcpyz, xstrlcpy,
-};
+use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free, xmemcpyz, xstrlcpy};
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_outtrans,
     msg_outtrans_special, msg_putchar, msg_puts, msg_puts_hl, msg_start, semsg, semsg_multiline,
@@ -1476,7 +1474,7 @@ pub unsafe fn ExpandMappings(
                 };
 
                 if !match_found {
-                    let _ = cstr_take(p);
+                    crate::path::free_cstring(p);
                     continue;
                 }
 
@@ -1520,7 +1518,7 @@ pub unsafe fn ExpandMappings(
                     write_idx += 1;
                     matches[write_idx] = matches[read_idx];
                 } else {
-                    let _ = cstr_take(matches[read_idx]);
+                    crate::path::free_cstring(matches[read_idx]);
                 }
             }
             matches.truncate(write_idx + 1);
@@ -1721,7 +1719,7 @@ pub unsafe fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> Option<CString> {
                 &mut err,
             );
             if ret.obj_type == ObjectType::kObjectTypeString {
-                p = crate::memory::cstr_take(string_to_cstr(ret.data.string));
+                p = Some(string_to_cstr(ret.data.string));
             }
             api_free_object(ret);
             if err.err_type != ErrorType::kErrorTypeNone {
@@ -2446,7 +2444,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
         args.silent = tv_dict_get_number(d, c"silent".as_ptr()) != 0;
         args.nowait = tv_dict_get_number(d, c"nowait".as_ptr()) != 0;
         args.replace_keycodes = tv_dict_get_number(d, c"replace_keycodes".as_ptr()) != 0;
-        args.desc = cstr_take(tv_dict_get_string(d, c"desc".as_ptr(), true));
+        args.desc = crate::eval::typval::tv_dict_get_cstring(d, c"desc".as_ptr());
 
         let sid = tv_dict_get_number(d, c"sid".as_ptr()) as scid_T;
         let lnum = tv_dict_get_number(d, c"lnum".as_ptr()) as linenr_T;
@@ -2880,7 +2878,7 @@ pub unsafe fn modify_keymap(
                 (*opts).callback = LUA_NOREF;
             }
             if has_key((*opts).is_set__keymap_, KEYSET_OPTIDX_keymap__desc) {
-                parsed_args.desc = cstr_take(string_to_cstr((*opts).desc));
+                parsed_args.desc = Some(string_to_cstr((*opts).desc));
             }
         }
         parsed_args.buffer = !global;

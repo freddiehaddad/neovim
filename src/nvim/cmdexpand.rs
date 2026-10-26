@@ -5462,10 +5462,10 @@ pub unsafe fn expand_process_user_list(
                         continue;
                     }
                     p = crate::path::alloc_cstring(word);
-                    abbr = crate::memory::cstr_take(tv_dict_get_string(d, c"abbr".as_ptr(), true));
-                    kind = crate::memory::cstr_take(tv_dict_get_string(d, c"kind".as_ptr(), true));
-                    menu = crate::memory::cstr_take(tv_dict_get_string(d, c"menu".as_ptr(), true));
-                    info = crate::memory::cstr_take(tv_dict_get_string(d, c"info".as_ptr(), true));
+                    abbr = crate::eval::typval::tv_dict_get_cstring(d, c"abbr".as_ptr());
+                    kind = crate::eval::typval::tv_dict_get_cstring(d, c"kind".as_ptr());
+                    menu = crate::eval::typval::tv_dict_get_cstring(d, c"menu".as_ptr());
+                    info = crate::eval::typval::tv_dict_get_cstring(d, c"info".as_ptr());
                     if abbr.is_some() || kind.is_some() || menu.is_some() || info.is_some() {
                         have_extra = true;
                     }

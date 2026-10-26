@@ -14,7 +14,7 @@ use crate::mbyte::mb_isalpha;
 use crate::mbyte::{mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2len};
 #[cfg(windows)]
 use crate::memory::strchrsub;
-use crate::memory::{cstr_from_bytes, cstr_take, cstr_to_cstring, xmemcpyz, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, xmemcpyz, xstrlcat, xstrlcpy};
 use crate::option::copy_option_part;
 use crate::option_vars::*;
 use crate::os::env::{expand_env_esc, expand_env_save_opt, os_getenv_cstr, vim_env_iter};
@@ -46,9 +46,18 @@ pub fn alloc_cstring_bytes(bytes: &[u8]) -> *mut c_char {
 }
 
 #[inline]
+pub unsafe fn take_cstring(p: *mut c_char) -> Option<std::ffi::CString> {
+    if p.is_null() {
+        None
+    } else {
+        Some(unsafe { std::ffi::CString::from_raw(p) })
+    }
+}
+
+#[inline]
 pub unsafe fn free_cstring(p: *mut c_char) {
     unsafe {
-        let _ = cstr_take(p);
+        drop(take_cstring(p));
     }
 }
 
@@ -488,20 +497,31 @@ unsafe fn do_concat_fnames(
     }
 }
 
-pub unsafe fn concat_fnames(fname1: NvimString, fname2: NvimString, sep: bool) -> NvimString {
+pub unsafe fn concat_fnames(
+    fname1: NvimString,
+    fname2: NvimString,
+    sep: bool,
+) -> std::ffi::CString {
     unsafe {
         let mut buf = vec![0 as c_char; fname1.size + usize::from(sep) + fname2.size + 1];
-        ptr::copy(fname1.data, buf.as_mut_ptr(), fname1.size + 1);
+        if fname1.size > 0 {
+            ptr::copy(fname1.data, buf.as_mut_ptr(), fname1.size);
+        }
+        *buf.as_mut_ptr().add(fname1.size) = NUL;
         let mut size: usize = 0;
         do_concat_fnames(
             buf.as_mut_ptr(),
             fname1.size,
-            fname2.data,
+            if fname2.data.is_null() {
+                c"".as_ptr()
+            } else {
+                fname2.data
+            },
             fname2.size,
             sep,
             &mut size,
         );
-        crate::api::private::helpers::cbuf_to_string(buf.as_ptr(), size)
+        cstr_from_bytes(std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), size))
     }
 }
 

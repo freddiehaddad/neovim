@@ -78,7 +78,7 @@ use crate::mbyte::{
     utfc_ptr2len,
 };
 use crate::memline::{dec, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
-use crate::memory::{cstr_take, strequal, xstrlcpy};
+use crate::memory::{strequal, xstrlcpy};
 use crate::message::{
     emsg, internal_error, msg, msg_clr_cmdline, msg_delay, msg_ext_set_kind, msg_progress, semsg,
 };
@@ -3333,11 +3333,11 @@ unsafe fn ins_compl_add_tv(tv: *mut typval_T, dir: Direction, fast: bool) -> c_i
         if (*tv).v_type == VAR_DICT && !(*tv).vval.v_dict.is_null() {
             let d = (*tv).vval.v_dict;
             word = tv_dict_get_string(d, c"word".as_ptr(), false);
-            cptext[CPT_ABBR] = cstr_take(tv_dict_get_string(d, c"abbr".as_ptr(), true));
-            cptext[CPT_MENU] = cstr_take(tv_dict_get_string(d, c"menu".as_ptr(), true));
-            cptext[CPT_KIND] = cstr_take(tv_dict_get_string(d, c"kind".as_ptr(), true));
-            cptext[CPT_INFO] = cstr_take(tv_dict_get_string(d, c"info".as_ptr(), true));
-            commit_chars = cstr_take(tv_dict_get_string(d, c"commit_chars".as_ptr(), true));
+            cptext[CPT_ABBR] = crate::eval::typval::tv_dict_get_cstring(d, c"abbr".as_ptr());
+            cptext[CPT_MENU] = crate::eval::typval::tv_dict_get_cstring(d, c"menu".as_ptr());
+            cptext[CPT_KIND] = crate::eval::typval::tv_dict_get_cstring(d, c"kind".as_ptr());
+            cptext[CPT_INFO] = crate::eval::typval::tv_dict_get_cstring(d, c"info".as_ptr());
+            commit_chars = crate::eval::typval::tv_dict_get_cstring(d, c"commit_chars".as_ptr());
 
             let user_abbr_hlname = tv_dict_get_string(d, c"abbr_hlgroup".as_ptr(), false);
             user_hl[0] = get_user_highlight_id(user_abbr_hlname);

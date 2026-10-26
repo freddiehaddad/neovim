@@ -44,7 +44,7 @@ use crate::marktree::{
 };
 use crate::mbyte::{mb_string2cells, utfc_ptr2schar};
 use crate::memline::ml_get_buf_len;
-use crate::memory::{Arena, cstr_take, strequal_str};
+use crate::memory::{Arena, strequal_str};
 use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::Integer;
 use crate::sign::init_sign_text;
@@ -1104,7 +1104,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
             }
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__url) {
-                url = cstr_take(string_to_cstr((*opts).url));
+                url = Some(string_to_cstr((*opts).url));
                 has_hl = true;
             }
 

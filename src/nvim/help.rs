@@ -14,7 +14,7 @@ use crate::ex_docmd::{CMOD_KEEPALT, do_cmdline_cmd, exarg_T};
 use crate::fileio::fclose;
 use crate::globals::*;
 use crate::lua::executor::nlua_call_typval;
-use crate::memory::{cstr_take, xstrlcpy};
+use crate::memory::xstrlcpy;
 use crate::message::{emsg, semsg, smsg};
 use crate::option::{OPT_LOCAL, OptInt, kOptBuftype, set_option_direct};
 use crate::option_vars::*;
@@ -123,7 +123,7 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
                 && !rettv.vval.v_string.is_null()
                 && *rettv.vval.v_string != NUL
             {
-                allocated_arg = cstr_take(rettv.vval.v_string);
+                allocated_arg = crate::path::take_cstring(rettv.vval.v_string);
                 arg = allocated_arg.as_ref().unwrap().as_ptr().cast_mut();
             } else {
                 tv_clear(&raw mut rettv);

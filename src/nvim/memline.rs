@@ -34,7 +34,7 @@ use crate::memfile::{
     mf_free, mf_free_fnames, mf_get, mf_need_trans, mf_new, mf_new_page_size, mf_open,
     mf_open_file, mf_put, mf_set_dirty, mf_set_fnames, mf_sync, mf_trans_del, pmap_get_bhdr,
 };
-use crate::memory::{cstr_take, xstpcpy, xstrlcpy};
+use crate::memory::{xstpcpy, xstrlcpy};
 use crate::message::{
     emsg, iemsg, msg, msg_end, msg_ext_set_kind, msg_multiline, msg_outnum, msg_outtrans,
     msg_putchar, msg_puts, msg_puts_hl, msg_reset_scroll, msg_start, semsg, set_keep_msg, siemsg,
@@ -1532,10 +1532,7 @@ pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mu
                 }
             } else if fname.is_null() {
                 for pat in [c"*.sw?", c".*.sw?", c".sw?"] {
-                    let s = concat_fnames(dir_name, cstr_as_string(pat.as_ptr()), true);
-                    if let Some(cstr) = cstr_take(s.data) {
-                        names_vec.push(cstr);
-                    }
+                    names_vec.push(concat_fnames(dir_name, cstr_as_string(pat.as_ptr()), true));
                 }
             } else {
                 let p = dir_name.data.add(dir_name.size);
@@ -1546,7 +1543,7 @@ pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mu
                     make_percent_swname(dir_name.data, p, fname_res)
                 } else {
                     let t = path_tail(fname_res);
-                    cstr_take(concat_fnames(dir_name, cstr_as_string(t), true).data)
+                    Some(concat_fnames(dir_name, cstr_as_string(t), true))
                 };
                 if let Some(ref tail) = tail {
                     recov_file_names(&mut names_vec, tail.as_ptr().cast_mut(), false);
@@ -1575,7 +1572,7 @@ pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mu
             if let Some(cur_p) = cur_mfp_fname {
                 files.retain(|&f| {
                     if path_equal(cur_p, f, kPathCmpFull) {
-                        drop(cstr_take(f));
+                        crate::path::free_cstring(f);
                         false
                     } else {
                         true
@@ -1640,15 +1637,14 @@ pub unsafe fn make_percent_swname(
 
         let last_sep = dir_end.offset(-1);
         *last_sep = NUL;
-        let d = concat_fnames(
+        Some(concat_fnames(
             NvimString {
                 data: dir,
                 size: last_sep.offset_from(dir) as usize,
             },
             fixed_fname,
             true,
-        );
-        cstr_take(d.data)
+        ))
     }
 }
 
@@ -1912,19 +1908,14 @@ unsafe fn recov_file_names(
             names.push(m);
         }
 
-        let Some(cur) = cstr_take(
-            concat_fnames(
-                cstr_as_string(path),
-                NvimString {
-                    data: c".sw?".as_ptr().cast_mut(),
-                    size: 4,
-                },
-                false,
-            )
-            .data,
-        ) else {
-            return;
-        };
+        let cur = concat_fnames(
+            cstr_as_string(path),
+            NvimString {
+                data: c".sw?".as_ptr().cast_mut(),
+                size: 4,
+            },
+            false,
+        );
         if let Some(prev) = names.last() {
             let prev_bytes = prev.as_bytes();
             let cur_bytes = cur.as_bytes();
@@ -3433,7 +3424,6 @@ pub unsafe fn makeswapname(
 pub unsafe fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> Option<std::ffi::CString> {
     unsafe {
         let tail = cstr_as_string(path_tail(fname));
-        let retval: NvimString;
 
         if *dname == b'.' as c_char && *dname.add(1) == NUL {
             let n = tail.data.offset_from(fname) as usize + tail.size;
@@ -3444,16 +3434,16 @@ pub unsafe fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> Option<
         }
 
         let dname_len = strlen(dname);
-        if *dname == b'.' as c_char && vim_ispathsep(*dname.add(1) as u8 as c_int) {
+        let retval = if *dname == b'.' as c_char && vim_ispathsep(*dname.add(1) as u8 as c_int) {
             if tail.data == fname {
-                retval = concat_fnames(
+                concat_fnames(
                     NvimString {
                         data: dname.add(2),
                         size: dname_len - 2,
                     },
                     tail,
                     true,
-                );
+                )
             } else {
                 let save_char = *tail.data;
                 *tail.data = NUL;
@@ -3469,21 +3459,20 @@ pub unsafe fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> Option<
                     true,
                 );
                 *tail.data = save_char;
-                retval = concat_fnames(tmp, tail, true);
-                drop(cstr_take(tmp.data));
+                concat_fnames(cstr_as_string(tmp.as_ptr()), tail, true)
             }
         } else {
-            retval = concat_fnames(
+            concat_fnames(
                 NvimString {
                     data: dname,
                     size: dname_len,
                 },
                 tail,
                 true,
-            );
-        }
+            )
+        };
 
-        cstr_take(retval.data)
+        Some(retval)
     }
 }
 

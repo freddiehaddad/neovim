@@ -19,7 +19,7 @@ use crate::ex_getln::gotocmdline;
 use crate::fileio::file_pat_to_reg_pat;
 use crate::globals::*;
 use crate::mark::{setmark, setpcmark};
-use crate::memory::cstr_take;
+
 use crate::message::{emsg, semsg};
 use crate::normal::reset_VIsual_and_resel;
 use crate::option_vars::*;
@@ -202,14 +202,14 @@ unsafe fn alist_set(al: *mut alist_T, mut files: Vec<*mut c_char>, use_curbuf: c
         let mut iter = files.into_iter();
         while let Some(fname) = iter.next() {
             if got_int {
-                let _ = cstr_take(fname);
+                crate::path::free_cstring(fname);
                 for rest in iter {
-                    let _ = cstr_take(rest);
+                    crate::path::free_cstring(rest);
                 }
                 break;
             }
 
-            if let Some(ae_fname) = cstr_take(fname) {
+            if let Some(ae_fname) = crate::path::take_cstring(fname) {
                 alist_add(al, ae_fname, if use_curbuf != 0 { 2 } else { 1 });
             }
             os_breakcheck();
@@ -354,7 +354,7 @@ unsafe fn alist_add_list(mut files: Vec<*mut c_char>, mut after: c_int, will_edi
             let mut new_entries = Vec::with_capacity(files.len());
             for f in files {
                 let flags = BLN_LISTED | if will_edit { BLN_CURBUF } else { 0 };
-                let ae_fname = cstr_take(f);
+                let ae_fname = crate::path::take_cstring(f);
                 let ae_fnum = buflist_add(
                     ae_fname
                         .as_ref()

@@ -1,9 +1,6 @@
 //! Quickfix and location list commands and functions (`src/nvim/quickfix.c`).
 
-use crate::api::private::helpers::{
-    boolean_obj, cbuf_as_string, copy_string, cstr_as_obj, cstr_as_string,
-};
-use crate::api::private::validate::NvimString;
+use crate::api::private::helpers::{boolean_obj, cbuf_as_string, cstr_as_obj, cstr_as_string};
 use crate::arglist::{ML_EMPTY, get_arglist_exp};
 use crate::autocmd::{
     EVENT_BUFREADPOST, EVENT_BUFWINENTER, EVENT_FILETYPE, EVENT_QUICKFIXCMDPOST,
@@ -90,7 +87,7 @@ use crate::memfile::memfile_T;
 use crate::memline::{
     check_need_swap, ml_append_buf, ml_delete, ml_get_buf, ml_get_buf_len, ml_open,
 };
-use crate::memory::{cstr_take, strequal, xstrlcat, xstrlcpy};
+use crate::memory::{strequal, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, internal_error, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_keep,
     msg_outtrans, msg_prt_line, msg_putchar, msg_puts, msg_puts_hl, msg_start, msg_strtrunc, semsg,
@@ -2565,48 +2562,43 @@ unsafe fn qf_get_fnum(
     fname: *mut c_char,
 ) -> c_int {
     unsafe {
-        let mut ptr_str = NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
+        let mut ptr_cstr: Option<std::ffi::CString> = None;
         if fname.is_null() || *fname == NUL {
             return 0;
         }
 
         let fname_str = cstr_as_string(fname);
-        let bufname = if !directory.is_null() && !vim_isAbsName(fname) {
-            ptr_str = concat_fnames(cstr_as_string(directory), fname_str, true);
-            if !os_path_exists(ptr_str.data) {
-                drop(cstr_take(ptr_str.data));
+        let bufname_ptr = if !directory.is_null() && !vim_isAbsName(fname) {
+            let mut joined = concat_fnames(cstr_as_string(directory), fname_str, true);
+            if !os_path_exists(joined.as_ptr()) {
                 directory = qf_guess_filepath(qfl, fname);
-                if !directory.is_null() {
-                    ptr_str = concat_fnames(cstr_as_string(directory), fname_str, true);
+                joined = if !directory.is_null() {
+                    concat_fnames(cstr_as_string(directory), fname_str, true)
                 } else {
-                    ptr_str = copy_string(fname_str, ptr::null_mut());
-                }
+                    CStr::from_ptr(fname).to_owned()
+                };
             }
-            ptr_str
+            let p = joined.as_ptr().cast_mut();
+            ptr_cstr = Some(joined);
+            p
         } else {
-            fname_str
+            fname
         };
         #[cfg(windows)]
-        path_to_slash(bufname.data);
+        path_to_slash(bufname_ptr);
 
         let same_as_last = (&raw const qf_last_bufname)
             .as_ref()
             .unwrap()
             .as_ref()
-            .is_some_and(|last| strcmp(bufname.data, last.as_ptr()) == 0);
+            .is_some_and(|last| strcmp(bufname_ptr, last.as_ptr()) == 0);
         let buf = if same_as_last && bufref_valid(&raw mut qf_last_bufref) {
-            drop(cstr_take(ptr_str.data));
+            drop(ptr_cstr);
             qf_last_bufref.br_buf
         } else {
-            let b = buflist_new(bufname.data, ptr::null_mut(), 0, BLN_NOOPT);
-            qf_last_bufname = if bufname.data == ptr_str.data {
-                cstr_take(ptr_str.data)
-            } else {
-                Some(CStr::from_ptr(bufname.data).to_owned())
-            };
+            let b = buflist_new(bufname_ptr, ptr::null_mut(), 0, BLN_NOOPT);
+            qf_last_bufname =
+                ptr_cstr.or_else(|| Some(CStr::from_ptr(bufname_ptr).to_owned()));
             set_bufref(&raw mut qf_last_bufref, b);
             b
         };
@@ -2637,12 +2629,11 @@ unsafe fn qf_push_dir(
         let mut found_idx: Option<usize> = None;
         let mut new_dirname: Option<std::ffi::CString> = None;
         for i in (0..stack.len()).rev() {
-            let dirname = concat_fnames(
+            let dirname_cstr = concat_fnames(
                 cstr_as_string(stack[i].as_ptr()),
                 cbuf_as_string(dirbuf, dirbuf_len),
                 true,
             );
-            let dirname_cstr = cstr_take(dirname.data).unwrap_or_default();
             if os_isdir(dirname_cstr.as_ptr()) {
                 found_idx = Some(i);
                 new_dirname = Some(dirname_cstr);
@@ -2680,8 +2671,7 @@ unsafe fn qf_guess_filepath(qfl: *mut qf_list_T, filename: *mut c_char) -> *mut 
         let mut found_idx: Option<usize> = None;
         let filename_str = cstr_as_string(filename);
         for i in (0..top_idx).rev() {
-            let fullname = concat_fnames(cstr_as_string(stack[i].as_ptr()), filename_str, true);
-            let fullname_cstr = cstr_take(fullname.data).unwrap_or_default();
+            let fullname_cstr = concat_fnames(cstr_as_string(stack[i].as_ptr()), filename_str, true);
             if os_path_exists(fullname_cstr.as_ptr()) {
                 found_idx = Some(i);
                 break;
@@ -6721,8 +6711,8 @@ unsafe fn qf_add_entry_from_dict(
             did_bufnr_emsg = false;
         }
 
-        let filename = cstr_take(tv_dict_get_string(d, c"filename".as_ptr(), true));
-        let module = cstr_take(tv_dict_get_string(d, c"module".as_ptr(), true));
+        let filename = crate::eval::typval::tv_dict_get_cstring(d, c"filename".as_ptr());
+        let module = crate::eval::typval::tv_dict_get_cstring(d, c"module".as_ptr());
         let mut bufnum = tv_dict_get_number(d, c"bufnr".as_ptr()) as c_int;
         let lnum = tv_dict_get_number(d, c"lnum".as_ptr()) as linenr_T;
         let end_lnum = tv_dict_get_number(d, c"end_lnum".as_ptr()) as linenr_T;
@@ -6731,8 +6721,8 @@ unsafe fn qf_add_entry_from_dict(
         let vcol = tv_dict_get_number(d, c"vcol".as_ptr()) as c_char;
         let nr = tv_dict_get_number(d, c"nr".as_ptr()) as c_int;
         let type_ = tv_dict_get_string(d, c"type".as_ptr(), false);
-        let pattern = cstr_take(tv_dict_get_string(d, c"pattern".as_ptr(), true));
-        let text = cstr_take(tv_dict_get_string(d, c"text".as_ptr(), true)).unwrap_or_default();
+        let pattern = crate::eval::typval::tv_dict_get_cstring(d, c"pattern".as_ptr());
+        let text = crate::eval::typval::tv_dict_get_cstring(d, c"text".as_ptr()).unwrap_or_default();
         let mut user_data: typval_T = typval_T::new();
         user_data.v_type = VarType::VAR_UNKNOWN;
         tv_dict_get_tv(d, c"user_data".as_ptr(), &raw mut user_data);
@@ -7027,7 +7017,7 @@ unsafe fn qf_setprop_title(
             return FAIL;
         }
 
-        (*qfl).qf_title = cstr_take(tv_dict_get_string(what, c"title".as_ptr(), true));
+        (*qfl).qf_title = crate::eval::typval::tv_dict_get_cstring(what, c"title".as_ptr());
         if qf_idx == (*qi).qf_curlist {
             qf_update_win_titlevar(qi);
         }

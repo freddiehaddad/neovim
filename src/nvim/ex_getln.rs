@@ -4684,7 +4684,7 @@ pub unsafe fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> std:
 /// Put a backslash before the file name in `pp`, which is an allocated `CString::into_raw()`.
 pub unsafe fn escape_fname(pp: *mut *mut c_char) {
     unsafe {
-        if let Some(mut s) = crate::memory::cstr_take(*pp) {
+        if let Some(mut s) = crate::path::take_cstring(*pp) {
             escape_fname_cstr(&mut s);
             *pp = s.into_raw();
         }

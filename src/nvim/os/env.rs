@@ -16,7 +16,7 @@ use crate::mbyte::{utf_isalnum, utf_ptr2char, utf_ptr2len};
 use crate::mbyte::{utf_valid_string, utf16_to_utf8};
 #[cfg(any(windows, test))]
 use crate::memory::xstrlcat;
-use crate::memory::{cstr_from_bytes, cstr_take, cstr_to_cstring, xmemcpyz, xmemrchr, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, xmemcpyz, xmemrchr, xstrlcpy};
 #[cfg(windows)]
 use crate::message::emsg;
 #[cfg(any(windows, test))]
@@ -807,7 +807,7 @@ unsafe fn vim_runtime_dir(vimdir: *const c_char) -> Option<std::ffi::CString> {
             return None;
         }
         let vimdir_len = strlen(vimdir);
-        let p = concat_fnames(
+        let p_cstr = concat_fnames(
             NvimString {
                 data: vimdir.cast_mut(),
                 size: vimdir_len,
@@ -818,7 +818,6 @@ unsafe fn vim_runtime_dir(vimdir: *const c_char) -> Option<std::ffi::CString> {
             },
             true,
         );
-        let p_cstr = cstr_take(p.data)?;
         os_isdir(p_cstr.as_ptr()).then_some(p_cstr)
     }
 }

@@ -27,7 +27,7 @@ use crate::mark::setmark_pos;
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
     Arena, ArenaMem, arena_alloc, arena_finish, arena_memdupz, memchrsub, xfree, xmemdupz, xstrdup,
-    xstrndup, xstrnlen,
+    xstrnlen,
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::msgpack_rpc::unpacker::unpack;
@@ -699,8 +699,15 @@ pub unsafe fn cstr_to_string(str_: *const c_char) -> NvimString {
     }
 }
 
-pub unsafe fn string_to_cstr(str_: NvimString) -> *mut c_char {
-    unsafe { xstrndup(str_.data, str_.size) }
+pub unsafe fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
+    unsafe {
+        let slice = if str_.data.is_null() || str_.size == 0 {
+            &[]
+        } else {
+            std::slice::from_raw_parts(str_.data.cast::<u8>(), str_.size)
+        };
+        crate::memory::cstr_from_bytes(slice)
+    }
 }
 
 pub unsafe fn cbuf_to_string(buf: *const c_char, size: usize) -> NvimString {
@@ -4389,8 +4396,7 @@ mod tests {
             let s = cstr_to_string(c"hello".as_ptr());
             assert_eq!(s.size, 5);
             let cstr = string_to_cstr(s);
-            assert_eq!(CStr::from_ptr(cstr).to_str().unwrap(), "hello");
-            xfree(cstr.cast());
+            assert_eq!(cstr.to_str().unwrap(), "hello");
             api_free_string(s);
 
             let raw = api_metadata_raw();

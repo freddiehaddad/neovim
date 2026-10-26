@@ -32,7 +32,7 @@ use crate::fileio::{
 use crate::globals::*;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_head_off, utfc_ptr2len};
-use crate::memory::{cstr_from_bytes, cstr_take, cstr_to_cstring, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcpy};
 use crate::message::{emsg, semsg};
 use crate::option_vars::*;
 use crate::os::env::{expand_T, expand_env_save, home_replace};
@@ -881,7 +881,7 @@ unsafe fn getcwd_scope_args(
                 *buf = find_buffer_by_handle(argv[kBufArg], &raw mut err);
                 if err.err_type != ErrorType::kErrorTypeNone {
                     emsg(gettext(c"E5007: Cannot find buffer number.".as_ptr()));
-                    drop(cstr_take(err.msg));
+                    crate::api::private::helpers::api_clear_error(&raw mut err);
                     return false;
                 }
             }

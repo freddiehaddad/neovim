@@ -21,7 +21,7 @@ use crate::eval::typval::{
     EvalFuncData, ScopeDictDictItem, TypvalVval, VAR_LOCKED, VarType, dict_T, list_T,
     tv_check_for_opt_dict_arg, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_func,
     tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_alloc, tv_dict_alloc_lock,
-    tv_dict_copy, tv_dict_find, tv_dict_get_string, tv_get_number_chk, tv_get_string,
+    tv_dict_copy, tv_dict_find, tv_get_number_chk, tv_get_string,
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_string,
     tv_list_append_tv, typval_T, varnumber_T,
 };
@@ -49,8 +49,7 @@ use crate::mbyte::{
 };
 use crate::memline::ml_get;
 use crate::memory::{
-    Arena, cstr_from_bytes, cstr_take, cstr_to_cstring, memcnt, strequal, xmemcpyz, xstrlcat,
-    xstrlcpy,
+    Arena, cstr_from_bytes, cstr_to_cstring, memcnt, strequal, xmemcpyz, xstrlcat, xstrlcpy,
 };
 #[cfg(windows)]
 use crate::message::msg_source;
@@ -3269,7 +3268,7 @@ pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
                     return;
                 }
             } else {
-                pat_owned = cstr_take(tv_dict_get_string(arg_dict, c"name".as_ptr(), true));
+                pat_owned = crate::eval::typval::tv_dict_get_cstring(arg_dict, c"name".as_ptr());
                 if let Some(ref pat) = pat_owned {
                     regmatch.regprog = vim_regcomp(pat.as_ptr(), RE_MAGIC + RE_STRING);
                 }

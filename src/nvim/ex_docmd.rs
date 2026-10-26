@@ -65,7 +65,7 @@ use crate::eval::funcs::{
 };
 use crate::eval::typval::{
     BoolVarValue, Callback, EvalFuncData, TypvalVval, VarType, callback_free, list_T, tv_clear,
-    tv_dict_add_str, tv_dict_alloc, tv_dict_get_string, tv_get_string, tv_list_alloc_ret,
+    tv_dict_add_str, tv_dict_alloc, tv_get_string, tv_list_alloc_ret,
     tv_list_append_string, tv_list_copy, tv_list_find, tv_list_find_str, tv_list_free,
     typval_T,
 };
@@ -146,8 +146,7 @@ use crate::mbyte::{get_encoding_name, mb_copy_char, utf_head_off, utfc_ptr2len};
 use crate::memfile::memfile_T;
 use crate::memline::{goto_byte, ml_clearmarked, ml_preserve, ml_recover, ml_setmarked};
 use crate::memory::{
-    ArenaMem, arena_mem_free, cstr_from_bytes, cstr_take, cstr_to_cstring, strequal, xstrlcat,
-    xstrlcpy,
+    ArenaMem, arena_mem_free, cstr_from_bytes, cstr_to_cstring, strequal, xstrlcat, xstrlcpy,
 };
 use crate::menu::{ex_emenu, ex_menu, ex_menutranslate, save_state_T};
 use crate::message::{
@@ -10082,7 +10081,7 @@ unsafe fn findfunc_find_file(
                     ret_fname = Some(cstr_to_cstring((*tv).vval.v_string));
                 } else if (*tv).v_type == VarType::VAR_DICT && !(*tv).vval.v_dict.is_null() {
                     ret_fname =
-                        cstr_take(tv_dict_get_string((*tv).vval.v_dict, c"word".as_ptr(), true));
+                        crate::eval::typval::tv_dict_get_cstring((*tv).vval.v_dict, c"word".as_ptr());
                 }
             }
         }

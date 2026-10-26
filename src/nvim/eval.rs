@@ -132,8 +132,8 @@ use crate::mbyte::{
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
-    Arena, arena_finish, arena_mem_free, cstr_from_bytes, cstr_take, cstr_to_cstring, memchrsub,
-    strchrsub, strequal, strnequal,
+    Arena, arena_finish, arena_mem_free, cstr_from_bytes, cstr_to_cstring, memchrsub, strchrsub,
+    strequal, strnequal,
 };
 use crate::msgpack_rpc::channel::find_channel;
 use crate::ops::set_ref_in_opfunc;
@@ -3260,7 +3260,7 @@ unsafe fn eval_method(
                     }
                     ret = FAIL;
                 } else if ref_tv.v_type == VarType::VAR_FUNC && !ref_tv.vval.v_string.is_null() {
-                    let tf = cstr_take(ref_tv.vval.v_string).unwrap_or_default();
+                    let tf = crate::path::take_cstring(ref_tv.vval.v_string).unwrap_or_default();
                     ref_tv.vval.v_string = ptr::null_mut();
                     len = tf.as_bytes().len() as c_int;
                     name = tf.as_ptr().cast_mut();

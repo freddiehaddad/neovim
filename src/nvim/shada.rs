@@ -1407,8 +1407,14 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                             end: sp.place_cursor_at_end,
                             off: sp.offset,
                         },
-                        pat: crate::memory::bytes_take(sp.pat.data, sp.pat.size)
-                            .map(|b| std::ffi::CString::new(b).unwrap_or_default()),
+                        pat: (!sp.pat.data.is_null()).then(|| {
+                            let s = crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
+                                sp.pat.data.cast::<u8>(),
+                                sp.pat.size,
+                            ));
+                            api_free_string(sp.pat);
+                            s
+                        }),
                         additional_data: cur_entry.additional_data.take(),
                         timestamp: cur_entry.timestamp,
                     };

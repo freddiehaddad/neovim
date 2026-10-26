@@ -30,10 +30,7 @@ use crate::hashtab::{
 use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str};
 use crate::mbyte::{mb_strcmp_ic, string_convert, utf_char2bytes, utfc_ptr2len, vimconv_T};
-use crate::memory::{
-    cstr_from_bytes, cstr_take, cstr_to_cstring, strequal, xfree, xmemdupz, xstrdup, xstrlcpy,
-    xstrndup,
-};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, strequal, xstrlcpy};
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
 use crate::strings::{
@@ -615,7 +612,7 @@ pub unsafe fn tv_set_string(tv: *mut typval_T, s: *const c_char) {
         (*tv).vval.v_string = if s.is_null() {
             ptr::null_mut()
         } else {
-            xstrdup(s)
+            crate::path::alloc_cstring(s)
         };
     }
 }
@@ -627,7 +624,7 @@ pub unsafe fn tv_set_string_len(tv: *mut typval_T, s: *const c_char, len: usize)
         (*tv).vval.v_string = if s.is_null() {
             ptr::null_mut()
         } else {
-            xmemdupz(s.cast(), len).cast()
+            crate::path::alloc_cstring_bytes(std::slice::from_raw_parts(s.cast::<u8>(), len))
         };
     }
 }
@@ -1156,9 +1153,12 @@ pub unsafe fn tv_list_append_string(l: *mut list_T, str_: *const c_char, len: is
         let v_string = if str_.is_null() {
             ptr::null_mut()
         } else if len >= 0 {
-            xmemdupz(str_.cast(), len as usize).cast::<c_char>()
+            crate::path::alloc_cstring_bytes(std::slice::from_raw_parts(
+                str_.cast::<u8>(),
+                len as usize,
+            ))
         } else {
-            xstrdup(str_)
+            crate::path::alloc_cstring(str_)
         };
         tv_list_append_owned_tv(
             l,
@@ -1408,8 +1408,7 @@ pub unsafe fn tv_list_flatten(
                     };
                     tv_list_flatten(list, sub_first, i64::from((*itemlist).lv_len), maxdepth - 1);
                 }
-                tv_clear(&raw mut (*item).li_tv);
-                xfree(item.cast());
+                drop(Box::from_raw(item));
             }
 
             done += 1;
@@ -1757,8 +1756,8 @@ pub unsafe fn tv_list_remove(
             semsg!(tr(e_list_index_out_of_range_nr.as_ptr()), idx);
         } else if (*argvars.add(2)).v_type == VarType::VAR_UNKNOWN {
             tv_list_drop_items(l, item, item);
-            *rettv = (*item).li_tv;
-            xfree(item.cast());
+            *rettv = std::mem::replace(&mut (*item).li_tv, tv_initial_value());
+            drop(Box::from_raw(item));
         } else {
             let end = tv_get_number_chk(argvars.add(2), &raw mut error);
             if error {
@@ -2461,7 +2460,7 @@ pub unsafe fn callback_free(callback: *mut Callback) {
             kCallbackFuncref => {
                 let funcref = (*callback).data.as_funcref();
                 func_unref(funcref);
-                let _ = cstr_take(funcref);
+                crate::path::free_cstring(funcref);
             }
             kCallbackPartial => {
                 partial_unref((*callback).data.as_partial());
@@ -2471,7 +2470,7 @@ pub unsafe fn callback_free(callback: *mut Callback) {
                 nlua_clear_ref(&mut luaref);
             }
             kCallbackExpr => {
-                let _ = cstr_take((*callback).data.as_funcref());
+                crate::path::free_cstring((*callback).data.as_funcref());
             }
             _ => {}
         }
@@ -2925,13 +2924,29 @@ pub unsafe fn tv_dict_to_env(denv: *mut dict_T) -> Vec<std::ffi::CString> {
     }
 }
 
+/// Get an owned `CString` item from a dictionary.
+pub unsafe fn tv_dict_get_cstring(
+    d: *const dict_T,
+    key: *const c_char,
+) -> Option<std::ffi::CString> {
+    unsafe {
+        static mut NUMBUF: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
+        let s = tv_dict_get_string_buf(d, key, (&raw mut NUMBUF).cast::<c_char>());
+        if s.is_null() {
+            None
+        } else {
+            Some(cstr_to_cstring(s))
+        }
+    }
+}
+
 /// Get a string item from a dictionary.
 pub unsafe fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char {
     unsafe {
         static mut NUMBUF: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
         let s = tv_dict_get_string_buf(d, key, (&raw mut NUMBUF).cast::<c_char>());
         if save && !s.is_null() {
-            return xstrdup(s);
+            return crate::path::alloc_cstring(s);
         }
         s.cast_mut()
     }
@@ -3166,9 +3181,12 @@ pub unsafe fn tv_dict_add_str_len(
         let s = if val.is_null() {
             ptr::null_mut()
         } else if len < 0 {
-            xstrdup(val)
+            crate::path::alloc_cstring(val)
         } else {
-            xstrndup(val, len as usize)
+            crate::path::alloc_cstring_bytes(std::slice::from_raw_parts(
+                val.cast::<u8>(),
+                len as usize,
+            ))
         };
         tv_dict_add_allocated_str(d, key, key_len, s)
     }
@@ -3941,7 +3959,7 @@ unsafe fn nothing_conv_func_start(tv: *mut typval_T, fun: *mut c_char) -> c_int 
         } else {
             func_unref(fun);
             if !ptr::eq(fun.cast_const(), tv_empty_string) {
-                xfree(fun.cast());
+                crate::path::free_cstring(fun);
             }
             (*tv).vval.v_string = ptr::null_mut();
         }
@@ -4054,7 +4072,7 @@ unsafe fn nothing_convert_one_value(
     unsafe {
         match (*tv).v_type {
             VarType::VAR_STRING => {
-                xfree((*tv).vval.v_string.cast());
+                crate::path::free_cstring((*tv).vval.v_string);
                 (*tv).vval.v_string = ptr::null_mut();
                 (*tv).v_lock = VAR_UNLOCKED;
             }
@@ -4323,7 +4341,7 @@ pub unsafe fn tv_copy(from: *const typval_T, to: *mut typval_T) {
             }
             VarType::VAR_STRING | VarType::VAR_FUNC => {
                 if !(*from).vval.v_string.is_null() {
-                    (*to).vval.v_string = xstrdup((*from).vval.v_string);
+                    (*to).vval.v_string = crate::path::alloc_cstring((*from).vval.v_string);
                     if (*from).v_type == VarType::VAR_FUNC {
                         func_ref((*to).vval.v_string);
                     }
@@ -5279,7 +5297,7 @@ mod tests {
             let l2 = tv_list_alloc(0);
             (*l2).lv_refcount = 1;
             tv_list_append_string(l2, c"hello".as_ptr(), 5);
-            tv_list_append_allocated_string(l2, xstrdup(c"world".as_ptr()));
+            tv_list_append_allocated_string(l2, crate::path::alloc_cstring(c"world".as_ptr()));
             let mut tv_ins = typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_UNLOCKED,
@@ -5341,7 +5359,12 @@ mod tests {
             assert_eq!(tv_dict_add_float(d, c"flt".as_ptr(), 3, 3.5), OK);
             assert_eq!(tv_dict_add_str(d, c"str".as_ptr(), 3, c"bar".as_ptr()), OK);
             assert_eq!(
-                tv_dict_add_allocated_str(d, c"alloc".as_ptr(), 5, xstrdup(c"baz".as_ptr())),
+                tv_dict_add_allocated_str(
+                    d,
+                    c"alloc".as_ptr(),
+                    5,
+                    crate::path::alloc_cstring(c"baz".as_ptr()),
+                ),
                 OK
             );
             assert!(tv_dict_has_key(d, c"foo".as_ptr()));
@@ -5355,9 +5378,8 @@ mod tests {
                 CStr::from_ptr(tv_dict_get_string(d, c"str".as_ptr(), false)).to_bytes(),
                 b"bar"
             );
-            let saved = tv_dict_get_string(d, c"foo".as_ptr(), true);
-            assert_eq!(CStr::from_ptr(saved).to_bytes(), b"42");
-            xfree(saved.cast());
+            let saved = tv_dict_get_cstring(d, c"foo".as_ptr()).unwrap();
+            assert_eq!(saved.as_bytes(), b"42");
 
             assert_eq!(
                 CStr::from_ptr(tv_dict_get_string_buf_chk(
@@ -5437,7 +5459,7 @@ mod tests {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval {
-                    v_string: xstrdup(c"hello".as_ptr()),
+                    v_string: crate::path::alloc_cstring(c"hello".as_ptr()),
                 },
             };
             assert!(tv_check_str_or_nr(&raw const tv_str));
