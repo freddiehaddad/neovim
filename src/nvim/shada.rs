@@ -19,8 +19,7 @@ use crate::cursor::{colnr_T, linenr_T, pos_T};
 use crate::eval::decode::{decode_string, unpack_typval};
 use crate::eval::encode::encode_vim_to_msgpack;
 use crate::eval::typval::{
-    TypvalVval, VarType, tv_clear, tv_copy, tv_dict_hi2di, tv_list_alloc,
-    tv_list_append_allocated_string, tv_list_len, typval_T,
+    TypvalVval, VarType, tv_clear, tv_copy, tv_dict_hi2di, tv_list_alloc, tv_list_len, typval_T,
 };
 use crate::eval::vars::{
     VAR_TYPE_BLOB, VV_OLDFILES, get_globvar_ht, get_vim_var_list, set_vim_var_list,
@@ -45,7 +44,7 @@ use crate::mark::{
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
-use crate::memory::{ARENA_BLOCK_SIZE, strequal, xfree, xstrdup};
+use crate::memory::{ARENA_BLOCK_SIZE, strequal};
 use crate::message::{semsg, siemsg, smsg, verbose_enter, verbose_leave};
 use crate::mpack::mpack_core::MPACK_OK;
 use crate::msgpack_rpc::packer::{
@@ -1613,9 +1612,8 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                         .as_ref()
                         .map_or(ptr::null(), |s| s.as_ptr());
                     if get_old_files && !oldfiles_set.contains(&PathKey(fname_ptr)) {
-                        let fname = xstrdup(fname_ptr);
-                        oldfiles_set.insert(PathKey(fname));
-                        tv_list_append_allocated_string(oldfiles_list, fname);
+                        crate::eval::typval::tv_list_append_string(oldfiles_list, fname_ptr, -1);
+                        oldfiles_set.insert(PathKey((*(*oldfiles_list).lv_last).li_tv.vval.v_string));
                     }
                     if !want_marks {
                         shada_free_shada_entry(&mut cur_entry);
@@ -1837,7 +1835,6 @@ unsafe fn shada_pack_entry(
                         gettext(c"E574: Failed to write variable %s".as_ptr()),
                         gv_name_ptr
                     );
-                    xfree(sbuf.startptr.cast());
                     return ret;
                 }
                 if is_blob {
@@ -2030,7 +2027,7 @@ unsafe fn shada_pack_entry(
         }
 
         let packed = packer_take_string(&mut sbuf);
-        if max_kbyte == 0 || packed.size <= max_kbyte * 1024 {
+        if max_kbyte == 0 || packed.len() <= max_kbyte * 1024 {
             shada_check_buffer(packer);
             if entry.entry_type == ShadaEntryType::kSDItemUnknown {
                 mpack_uint64(&mut (*packer).ptr, entry.data.unknown_item().item_type);
@@ -2038,17 +2035,15 @@ unsafe fn shada_pack_entry(
                 mpack_uint64(&mut (*packer).ptr, entry.entry_type as i32 as u64);
             }
             mpack_uint64(&mut (*packer).ptr, entry.timestamp);
-            if packed.size > 0 {
-                mpack_uint64(&mut (*packer).ptr, packed.size as u64);
-                mpack_raw(packed.data, packed.size, packer);
+            if !packed.is_empty() {
+                mpack_uint64(&mut (*packer).ptr, packed.len() as u64);
+                mpack_raw(packed.as_ptr().cast::<c_char>(), packed.len(), packer);
             }
             if (*packer).anyint != 0 {
-                xfree(sbuf.startptr.cast());
                 return ret;
             }
         }
         ret = ShaDaWriteResult::kSDWriteSuccessful;
-        xfree(sbuf.startptr.cast());
         ret
     }
 }
@@ -2627,6 +2622,7 @@ unsafe fn packer_buffer_for_file(file: *mut FileDescriptor) -> PackerBuffer {
             anydata: crate::msgpack_rpc::packer::PackerData::File(file),
             anyint: 0,
             packer_flush: Some(flush_file_buffer),
+            owned_buf: Vec::new(),
         }
     }
 }
@@ -4392,8 +4388,8 @@ unsafe fn shada_init_jumps(
     }
 }
 
-/// Gets registers as a msgpack-encoded string, in shada format (`shada_encode_regs`).
-pub unsafe fn shada_encode_regs(scale_ts: bool, since: Timestamp) -> NvimString {
+/// Gets registers as a msgpack-encoded byte buffer, in shada format (`shada_encode_regs`).
+pub unsafe fn shada_encode_regs(scale_ts: bool, since: Timestamp) -> Vec<u8> {
     unsafe {
         let mut wms = WriteMergerState::new();
         shada_initialize_registers(&raw mut *wms, -1, scale_ts);
@@ -4411,8 +4407,8 @@ pub unsafe fn shada_encode_regs(scale_ts: bool, since: Timestamp) -> NvimString 
     }
 }
 
-/// Gets the jumplist as a msgpack-encoded string, in shada format (`shada_encode_jumps`).
-pub unsafe fn shada_encode_jumps() -> NvimString {
+/// Gets the jumplist as a msgpack-encoded byte buffer, in shada format (`shada_encode_jumps`).
+pub unsafe fn shada_encode_jumps() -> Vec<u8> {
     unsafe {
         let mut removable_bufs: std::collections::HashSet<*mut buf_T> =
             std::collections::HashSet::new();
@@ -4430,8 +4426,8 @@ pub unsafe fn shada_encode_jumps() -> NvimString {
     }
 }
 
-/// Gets the buffer-list as a msgpack-encoded string, in shada format (`shada_encode_buflist`).
-pub unsafe fn shada_encode_buflist() -> NvimString {
+/// Gets the buffer-list as a msgpack-encoded byte buffer, in shada format (`shada_encode_buflist`).
+pub unsafe fn shada_encode_buflist() -> Vec<u8> {
     unsafe {
         let mut removable_bufs: std::collections::HashSet<*mut buf_T> =
             std::collections::HashSet::new();
@@ -4446,8 +4442,8 @@ pub unsafe fn shada_encode_buflist() -> NvimString {
     }
 }
 
-/// Gets global Vimscript variables as a msgpack-encoded string, in shada format (`shada_encode_gvars`).
-pub unsafe fn shada_encode_gvars() -> NvimString {
+/// Gets global Vimscript variables as a msgpack-encoded byte buffer, in shada format (`shada_encode_gvars`).
+pub unsafe fn shada_encode_gvars() -> Vec<u8> {
     unsafe {
         let mut packer = packer_string_buffer();
         let mut var_iter: Option<usize> = None;
@@ -4495,14 +4491,18 @@ pub unsafe fn shada_encode_gvars() -> NvimString {
     }
 }
 
-/// Read ShaDa from String (`shada_read_string`).
-pub unsafe fn shada_read_string(string: NvimString, flags: c_int) {
-    if string.size == 0 {
+/// Read ShaDa from byte slice (`shada_read_string`).
+pub unsafe fn shada_read_string(bytes: &[u8], flags: c_int) {
+    if bytes.is_empty() {
         return;
     }
     unsafe {
         let mut sd_reader = FileDescriptor::new();
-        file_open_buffer(&mut sd_reader, string.data, string.size);
+        file_open_buffer(
+            &mut sd_reader,
+            bytes.as_ptr().cast::<c_char>().cast_mut(),
+            bytes.len(),
+        );
         shada_read(&mut sd_reader, flags);
         close_file(&mut sd_reader);
     }

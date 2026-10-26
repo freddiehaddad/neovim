@@ -1,6 +1,6 @@
 //! Functions for managing registers (`src/nvim/register.c`).
 
-use crate::api::private::helpers::{api_clear_string, cbuf_as_string, cbuf_to_string};
+use crate::api::private::helpers::{api_clear_string, cbuf_to_string};
 use crate::api::private::validate::NvimString;
 use crate::autocmd::{
     EVENT_RECORDINGENTER, EVENT_RECORDINGLEAVE, EVENT_TEXTPUTPOST, EVENT_TEXTPUTPRE,
@@ -56,7 +56,7 @@ use crate::mbyte::{
 };
 use crate::mcursor::mc_ins_cascading;
 use crate::memline::{decl, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace};
-use crate::memory::{cstr_take, memchrsub, memcnt, xfree, xmalloc, xmallocz};
+use crate::memory::{cstr_take, memchrsub, memcnt};
 use crate::message::{
     emsg, emsg_invreg, message_filtered, msg, msg_ext_set_kind, msg_outtrans_len, msg_putchar,
     msg_puts, msg_puts_hl, msg_puts_title, msgmore, semsg, smsg,
@@ -548,12 +548,11 @@ unsafe fn stuff_yank(regname: c_int, p: *const c_char) -> c_int {
         if is_append_register(regname) && reg.y_allocated && !reg.y_array.is_empty() {
             let pp = reg.y_array.last_mut().unwrap();
             let tmplen = pp.size + plen;
-            let tmp = xmalloc(tmplen + 1).cast::<c_char>();
-            ptr::copy_nonoverlapping(pp.data, tmp, pp.size);
-            ptr::copy_nonoverlapping(p, tmp.add(pp.size), plen);
-            *tmp.add(tmplen) = NUL;
-            xfree(pp.data.cast());
-            *pp = cbuf_as_string(tmp, tmplen);
+            let mut tmp = vec![0 as c_char; tmplen + 1];
+            ptr::copy_nonoverlapping(pp.data, tmp.as_mut_ptr(), pp.size);
+            ptr::copy_nonoverlapping(p, tmp.as_mut_ptr().add(pp.size), plen);
+            api_clear_string(pp);
+            *pp = cbuf_to_string(tmp.as_ptr(), tmplen);
         } else {
             *reg = EMPTY_YANKREG;
             reg.additional_data = None;
@@ -1096,9 +1095,8 @@ unsafe fn yank_copy_line(
         }
         let size = (*bd).startspaces + (*bd).endspaces + (*bd).textlen;
         assert!(size >= 0);
-        let mut pnew = xmallocz(size as usize).cast::<c_char>();
-        let dst = &mut (&mut *reg).y_array[y_idx];
-        dst.data = pnew;
+        let mut buf_vec = vec![0 as c_char; (size as usize) + 1];
+        let mut pnew = buf_vec.as_mut_ptr();
         ptr::write_bytes(pnew.cast::<u8>(), b' ', (*bd).startspaces as usize);
         pnew = pnew.add((*bd).startspaces as usize);
         ptr::copy((*bd).textstart, pnew, (*bd).textlen as usize);
@@ -1113,7 +1111,8 @@ unsafe fn yank_copy_line(
             }
         }
         *pnew = NUL;
-        dst.size = (pnew as usize) - (dst.data as usize);
+        let out_size = (pnew as usize) - (buf_vec.as_ptr() as usize);
+        (&mut *reg).y_array[y_idx] = cbuf_to_string(buf_vec.as_ptr(), out_size);
     }
 }
 
@@ -1217,16 +1216,16 @@ pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankre
             {
                 let last_old = *curr_reg.y_array.last().unwrap();
                 let first_new = new_reg.y_array[0];
-                let pnew = xmalloc(last_old.size + first_new.size + 1).cast::<c_char>();
-                ptr::copy_nonoverlapping(last_old.data, pnew, last_old.size);
+                let mut pnew = vec![0 as c_char; last_old.size + first_new.size + 1];
+                ptr::copy_nonoverlapping(last_old.data, pnew.as_mut_ptr(), last_old.size);
                 ptr::copy_nonoverlapping(
                     first_new.data,
-                    pnew.add(last_old.size),
+                    pnew.as_mut_ptr().add(last_old.size),
                     first_new.size + 1,
                 );
-                xfree(last_old.data.cast());
-                *curr_reg.y_array.last_mut().unwrap() =
-                    cbuf_as_string(pnew, last_old.size + first_new.size);
+                let last_slot = curr_reg.y_array.last_mut().unwrap();
+                api_clear_string(last_slot);
+                *last_slot = cbuf_to_string(pnew.as_ptr(), last_old.size + first_new.size);
                 api_clear_string(&mut new_reg.y_array[0]);
                 y_idx = 1;
             } else {
@@ -2915,21 +2914,24 @@ unsafe fn str_to_reg(
                 } else {
                     0
                 };
-                let s = xmallocz(line_len + extra).cast::<c_char>();
+                let s_len = extra + line_len;
+                let mut s_vec = vec![0 as c_char; s_len + 1];
                 if extra > 0 {
-                    ptr::copy_nonoverlapping(y_reg.y_array.last().unwrap().data, s, extra);
+                    ptr::copy_nonoverlapping(
+                        y_reg.y_array.last().unwrap().data,
+                        s_vec.as_mut_ptr(),
+                        extra,
+                    );
                 }
                 if line_len > 0 {
-                    ptr::copy_nonoverlapping(start, s.add(extra), line_len);
+                    ptr::copy_nonoverlapping(start, s_vec.as_mut_ptr().add(extra), line_len);
                 }
-                let s_len = extra + line_len;
-
-                let new_str = cbuf_as_string(s, s_len);
-                memchrsub(new_str.data.cast(), NUL, b'\n' as c_char, s_len);
+                memchrsub(s_vec.as_mut_ptr().cast(), NUL, b'\n' as c_char, s_len);
+                let new_str = cbuf_to_string(s_vec.as_ptr(), s_len);
 
                 if append {
                     let last = y_reg.y_array.last_mut().unwrap();
-                    xfree(last.data.cast());
+                    api_clear_string(last);
                     *last = new_str;
                     append = false;
                 } else {

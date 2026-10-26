@@ -1,12 +1,11 @@
 //! Clipboard register handling (`src/nvim/clipboard.c`).
 
-use crate::api::private::validate::NvimString;
+use crate::api::private::helpers::{api_clear_string, cstr_to_string};
 use crate::eval::typval::{
     VarType, list_T, tv_list_alloc, tv_list_append_list, tv_list_append_string,
 };
 use crate::eval::{eval_call_provider, eval_has_provider};
 use crate::mcursor::mc_replaying;
-use crate::memory::{xfree, xstrdup};
 use crate::message::{emsg, msg, redirecting};
 use crate::option_vars::*;
 use crate::register::{
@@ -26,14 +25,6 @@ static mut CLIPBOARD_NEEDS_UPDATE: bool = false;
 static mut CLIPBOARD_DIDWARN: bool = false;
 
 const MSG_NO_CLIP: &CStr = c"clipboard: No provider. Try \":checkhealth\" or \":h clipboard\".";
-
-#[inline]
-unsafe fn cstr_to_nvim_string(s: *const c_char) -> NvimString {
-    let ptr = if s.is_null() { c"".as_ptr() } else { s };
-    let len = unsafe { CStr::from_ptr(ptr).to_bytes().len() };
-    let data = unsafe { xstrdup(ptr) };
-    NvimString { data, size: len }
-}
 
 /// Determine if register `*name` should be used as a clipboard (`adjust_clipboard_name`).
 pub unsafe fn adjust_clipboard_name(
@@ -133,13 +124,7 @@ pub unsafe fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet:
 
         let fail_cleanup =
             |reg: &mut yankreg_T, errmsg: bool, target: *mut *mut yankreg_T| -> bool {
-                for item in &mut reg.y_array {
-                    xfree(item.data.cast());
-                }
-                reg.y_array.clear();
-                reg.y_allocated = false;
-                reg.additional_data = None;
-                reg.timestamp = 0;
+                *reg = EMPTY_YANKREG;
                 if errmsg {
                     emsg(c"clipboard: provider returned invalid data".as_ptr());
                 }
@@ -204,14 +189,16 @@ pub unsafe fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet:
                 return fail_cleanup(reg, errmsg, target);
             }
             let s = (*li).li_tv.vval.v_string;
-            reg.y_array.push(cstr_to_nvim_string(s));
+            reg.y_array
+                .push(cstr_to_string(if s.is_null() { c"".as_ptr() } else { s }));
             li = (*li).li_next;
         }
 
         if reg.y_array.last().is_some_and(|last| last.size == 0) {
             if reg.y_type != MotionType::kMTCharWise {
-                let popped = reg.y_array.pop().unwrap();
-                xfree(popped.data.cast());
+                if let Some(mut popped) = reg.y_array.pop() {
+                    api_clear_string(&raw mut popped);
+                }
                 if reg.y_type == MotionType::kMTUnknown {
                     reg.y_type = MotionType::kMTLineWise;
                 }

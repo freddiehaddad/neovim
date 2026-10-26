@@ -2,8 +2,7 @@
 
 use crate::api::private::converter::{object_to_vim, object_to_vim_take_luaref, vim_to_object};
 use crate::api::private::helpers::{
-    DI_FLAGS_LOCK, api_clear_error, api_free_object, api_free_string, api_metadata, cstr_as_string,
-    dict_set_var,
+    DI_FLAGS_LOCK, api_clear_error, api_free_object, api_metadata, cstr_as_string, dict_set_var,
 };
 use crate::api::private::validate::{
     Array, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
@@ -5974,20 +5973,15 @@ pub unsafe fn f_msgpackdump(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             && strequal(tv_get_string(argvars.add(1)), c"B".as_ptr())
         {
             let b = &mut *tv_blob_alloc_ret(rettv);
-            if !data.data.is_null() && data.size > 0 {
-                b.bv_ga.extend_from_slice(std::slice::from_raw_parts(
-                    data.data.cast::<u8>(),
-                    data.size,
-                ));
+            if !data.is_empty() {
+                b.bv_ga.extend_from_slice(&data);
             }
-            api_free_string(data);
         } else {
             encode_list_write(
                 tv_list_alloc_ret(rettv, kListLenMayKnow),
-                data.data,
-                data.size,
+                data.as_ptr().cast::<c_char>(),
+                data.len(),
             );
-            api_free_string(data);
         }
     }
 }

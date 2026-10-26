@@ -3,8 +3,7 @@
 use crate::api::buffer::{LUA_INTERNAL_CALL, nvim_buf_set_text};
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::helpers::{
-    api_clear_error, api_free_string, boolean_obj, cstr_as_string,
-    static_cstr_as_string, string_to_array,
+    api_clear_error, boolean_obj, cstr_as_string, static_cstr_as_string, string_to_array,
 };
 use crate::api::private::validate::{Error, ErrorType, NvimString};
 use crate::api::vim::nvim_feedkeys;
@@ -327,7 +326,7 @@ unsafe fn mc_sandbox_enter(sb: *mut McSandbox, save_regs: bool) {
 
 unsafe fn mc_sandbox_leave(sb: *mut McSandbox) {
     unsafe {
-        if !(*sb).primary.regs.data.is_null() {
+        if !(*sb).primary.regs.is_empty() {
             ctx_load(&mut (*sb).primary, kCtxRegs, 0);
         }
         restore_redobuff(&mut (*sb).redo);
@@ -394,7 +393,7 @@ unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
             if reg_max_ts(false) >= mc_start.time {
                 ctx_load(&raw mut mc_start.ctx, kCtxRegs, 0);
             }
-            if !ctx.regs.data.is_null() {
+            if !ctx.regs.is_empty() {
                 ctx_load(&mut ctx, kCtxRegs, kCtxMergeReg);
             }
             regs_ts = reg_max_ts(false);
@@ -472,7 +471,6 @@ unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
         }
 
         if wrote_regs {
-            api_free_string(ctx.regs);
             ctx.regs = shada_encode_regs(false, mc_start.time);
         }
         ctx_save(
@@ -1116,12 +1114,11 @@ unsafe fn mc_reg_gather() {
         let mut order: Vec<*mut Context> = Vec::new();
         order.push(&mut primary);
         for ctx in cursors_mut().iter_mut() {
-            if ctx.regs.size > 0 && handle_get_buffer(ctx.buf) == curbuf {
+            if !ctx.regs.is_empty() && handle_get_buffer(ctx.buf) == curbuf {
                 order.push(ctx);
             }
         }
         if order.len() == 1 {
-            api_free_string(primary.regs);
             return;
         }
         order.sort_by(|&a, &b| {
@@ -1157,7 +1154,7 @@ unsafe fn mc_reg_gather() {
                 idx += 1;
             }
         }
-        api_free_string(primary.regs);
+        drop(primary);
         ctx_load(&mut save, kCtxRegs, 0);
         ctx_free(&mut save);
 

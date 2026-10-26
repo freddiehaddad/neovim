@@ -4,8 +4,8 @@ use crate::api::extmark::nvim_create_namespace;
 
 use crate::api::private::converter::object_to_vim;
 use crate::api::private::helpers::{
-    api_clear_error, api_free_array, api_free_string, api_set_error, arena_dict, array_obj,
-    copy_array, copy_object, error_set, put_c, static_cstr_as_string, string_obj, string_to_array,
+    api_clear_error, api_free_array, api_set_error, arena_dict, array_obj, copy_array, copy_object,
+    error_set, put_c, static_cstr_as_string, string_obj, string_to_array,
 };
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, ObjectType};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
@@ -151,10 +151,10 @@ pub struct Context {
     pub last_insert: fmark_T,
     pub pos_marks: [u32; 6],
     pub buf: handle_T,
-    pub regs: NvimString,
-    pub jumps: NvimString,
-    pub bufs: NvimString,
-    pub gvars: NvimString,
+    pub regs: Vec<u8>,
+    pub jumps: Vec<u8>,
+    pub bufs: Vec<u8>,
+    pub gvars: Vec<u8>,
     pub funcs: Array,
 }
 
@@ -201,22 +201,10 @@ pub const CONTEXT_INIT: Context = Context {
     last_insert: INIT_FMARK,
     pos_marks: [0; 6],
     buf: 0,
-    regs: NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    },
-    jumps: NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    },
-    bufs: NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    },
-    gvars: NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    },
+    regs: Vec::new(),
+    jumps: Vec::new(),
+    bufs: Vec::new(),
+    gvars: Vec::new(),
     funcs: Array::new(),
 };
 
@@ -299,10 +287,6 @@ pub unsafe fn ctx_free(ctx: *mut Context) {
                 }
             }
         }
-        api_free_string((*ctx).regs);
-        api_free_string((*ctx).jumps);
-        api_free_string((*ctx).bufs);
-        api_free_string((*ctx).gvars);
         api_free_array((*ctx).funcs);
         *ctx = CONTEXT_INIT;
     }
@@ -452,28 +436,28 @@ pub unsafe fn ctx_load(ctx: *mut Context, flags: CtxStateFlags, loadflags: CtxLo
                 }
             }
             shada_read_string(
-                (*ctx).regs,
+                &(*ctx).regs,
                 kShaDaWantInfo | kShaDaForceit | kShaDaNanos | kShaDaNoHistory,
             );
         }
 
         if (flags & kCtxJumps) != 0 {
             shada_read_string(
-                (*ctx).jumps,
+                &(*ctx).jumps,
                 kShaDaWantInfo | kShaDaForceit | kShaDaNoHistory,
             );
         }
 
         if (flags & kCtxBufs) != 0 {
             shada_read_string(
-                (*ctx).bufs,
+                &(*ctx).bufs,
                 kShaDaWantInfo | kShaDaForceit | kShaDaNoHistory | kShaDaNoOpt,
             );
         }
 
         if (flags & kCtxGVars) != 0 {
             shada_read_string(
-                (*ctx).gvars,
+                &(*ctx).gvars,
                 kShaDaWantInfo | kShaDaForceit | kShaDaNoHistory | kShaDaNoOpt,
             );
         }
@@ -486,23 +470,15 @@ pub unsafe fn ctx_load(ctx: *mut Context, flags: CtxStateFlags, loadflags: CtxLo
     }
 }
 
-unsafe fn array_to_string(array: Array, err: *mut Error) -> NvimString {
+unsafe fn array_to_string(array: Array, err: *mut Error) -> Vec<u8> {
     unsafe {
-        let mut sbuf = NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
+        let mut sbuf = Vec::new();
         let mut list_tv: typval_T = typval_T::new();
         object_to_vim(array_obj(array), &mut list_tv, err);
 
         assert_eq!(list_tv.v_type, VarType::VAR_LIST);
         if let Some(buf) = encode_vim_list_to_buf(list_tv.vval.v_list) {
-            if !buf.is_empty() {
-                sbuf = crate::api::private::helpers::cbuf_as_string(
-                    buf.as_ptr().cast_mut(),
-                    buf.len(),
-                );
-            }
+            sbuf = buf.into_iter().map(|c| c as u8).collect();
         } else {
             api_set_error!(
                 err,
@@ -520,26 +496,30 @@ unsafe fn array_to_string(array: Array, err: *mut Error) -> NvimString {
 pub unsafe fn ctx_to_dict(ctx: *mut Context, arena: *mut Arena) -> Dict {
     unsafe {
         assert!(!ctx.is_null());
+        let as_str = |v: &[u8]| NvimString {
+            data: v.as_ptr().cast::<c_char>().cast_mut(),
+            size: v.len(),
+        };
         let mut rv = arena_dict(arena, 5);
         put_c(
             &mut rv,
             c"regs",
-            array_obj(string_to_array((*ctx).regs, false, arena)),
+            array_obj(string_to_array(as_str(&(*ctx).regs), false, arena)),
         );
         put_c(
             &mut rv,
             c"jumps",
-            array_obj(string_to_array((*ctx).jumps, false, arena)),
+            array_obj(string_to_array(as_str(&(*ctx).jumps), false, arena)),
         );
         put_c(
             &mut rv,
             c"bufs",
-            array_obj(string_to_array((*ctx).bufs, false, arena)),
+            array_obj(string_to_array(as_str(&(*ctx).bufs), false, arena)),
         );
         put_c(
             &mut rv,
             c"gvars",
-            array_obj(string_to_array((*ctx).gvars, false, arena)),
+            array_obj(string_to_array(as_str(&(*ctx).gvars), false, arena)),
         );
         put_c(
             &mut rv,

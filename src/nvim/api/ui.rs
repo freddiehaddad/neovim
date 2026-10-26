@@ -313,14 +313,7 @@ pub unsafe extern "C" fn nvim_ui_attach(
             stdin_tty: false,
             stdout_tty: false,
             channel_id,
-            packer: crate::msgpack_rpc::packer::PackerBuffer {
-                startptr: ptr::null_mut(),
-                ptr: ptr::null_mut(),
-                endptr: ptr::null_mut(),
-                packer_flush: None,
-                anydata: crate::msgpack_rpc::packer::PackerData::NONE,
-                anyint: 0,
-            },
+            packer: crate::msgpack_rpc::packer::PackerBuffer::new(),
             cur_event: ptr::null(),
             nevents_pos: ptr::null_mut(),
             ncalls_pos: ptr::null_mut(),
@@ -374,6 +367,7 @@ pub unsafe extern "C" fn nvim_ui_attach(
             packer_flush: Some(ui_flush_callback),
             anydata: crate::msgpack_rpc::packer::PackerData::Ui(ui),
             anyint: 0,
+            owned_buf: Vec::new(),
         };
         (*ui).wildmenu_active = false;
 

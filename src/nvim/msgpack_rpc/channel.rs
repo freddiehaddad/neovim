@@ -99,7 +99,9 @@ pub struct RemoteUI {
 impl Drop for RemoteUI {
     fn drop(&mut self) {
         unsafe {
-            crate::memory::xfree(self.packer.startptr.cast());
+            if !self.packer.startptr.is_null() {
+                free_block(self.packer.startptr);
+            }
         }
     }
 }
@@ -903,14 +905,7 @@ unsafe fn serialize_request(
     args: Array,
 ) {
     unsafe {
-        let mut packer = PackerBuffer {
-            startptr: ptr::null_mut(),
-            ptr: ptr::null_mut(),
-            endptr: ptr::null_mut(),
-            anydata: crate::msgpack_rpc::packer::PackerData::NONE,
-            anyint: 0,
-            packer_flush: None,
-        };
+        let mut packer = PackerBuffer::new();
         packer_buffer_init_channels(chans, nchans, &raw mut packer);
 
         mpack_array(&raw mut packer.ptr, if request_id != 0 { 4 } else { 3 });
@@ -973,14 +968,7 @@ pub unsafe fn serialize_response(
             return;
         }
 
-        let mut packer = PackerBuffer {
-            startptr: ptr::null_mut(),
-            ptr: ptr::null_mut(),
-            endptr: ptr::null_mut(),
-            anydata: crate::msgpack_rpc::packer::PackerData::NONE,
-            anyint: 0,
-            packer_flush: None,
-        };
+        let mut packer = PackerBuffer::new();
         packer_buffer_init_channels(&raw mut channel, 1, &raw mut packer);
 
         mpack_array(&raw mut packer.ptr, 4);

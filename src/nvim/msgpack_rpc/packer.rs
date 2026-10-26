@@ -3,7 +3,6 @@
 use crate::api::private::validate::{Array, NvimString, Object, ObjectData, ObjectType};
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_free_luaref, nlua_funcref_str};
-use crate::memory::{xmalloc, xrealloc};
 use std::ffi::{c_char, c_int};
 
 pub const MPACK_ITEM_SIZE: usize = 9;
@@ -50,7 +49,7 @@ impl PackerData {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct PackerBuffer {
     pub startptr: *mut c_char,
     pub ptr: *mut c_char,
@@ -58,6 +57,7 @@ pub struct PackerBuffer {
     pub anydata: PackerData,
     pub anyint: i64,
     pub packer_flush: PackerBufferFlush,
+    pub owned_buf: Vec<c_char>,
 }
 
 impl PackerBuffer {
@@ -69,6 +69,7 @@ impl PackerBuffer {
             anydata: PackerData::None,
             anyint: 0,
             packer_flush: None,
+            owned_buf: Vec::new(),
         }
     }
 }
@@ -548,15 +549,17 @@ unsafe fn flush_string_buffer(buffer: *mut PackerBuffer) {
     let new_capacity = 2 * current_capacity;
     let len = (b.ptr as usize) - (b.startptr as usize);
 
-    b.startptr = unsafe { xrealloc(b.startptr.cast(), new_capacity).cast::<c_char>() };
+    b.owned_buf.resize(new_capacity, 0);
+    b.startptr = b.owned_buf.as_mut_ptr();
     b.ptr = unsafe { b.startptr.add(len) };
     b.endptr = unsafe { b.startptr.add(new_capacity) };
 }
 
-/// Create a growable `PackerBuffer` backed by `xmalloc` (`packer_string_buffer`).
+/// Create a growable `PackerBuffer` backed by `Vec<c_char>` (`packer_string_buffer`).
 pub fn packer_string_buffer() -> PackerBuffer {
     const INITIAL_SIZE: usize = 64;
-    let alloc = unsafe { xmalloc(INITIAL_SIZE).cast::<c_char>() };
+    let mut owned_buf = vec![0 as c_char; INITIAL_SIZE];
+    let alloc = owned_buf.as_mut_ptr();
     PackerBuffer {
         startptr: alloc,
         ptr: alloc,
@@ -564,19 +567,24 @@ pub fn packer_string_buffer() -> PackerBuffer {
         anydata: PackerData::NONE,
         anyint: 0,
         packer_flush: Some(flush_string_buffer),
+        owned_buf,
     }
 }
 
-/// Extract the packed `String` from a `packer_string_buffer` (`packer_take_string`).
+/// Extract the packed bytes from a `packer_string_buffer` (`packer_take_string`).
 ///
 /// # Safety
 /// `buffer` must be a valid pointer to a `PackerBuffer` created by `packer_string_buffer`.
-pub unsafe fn packer_take_string(buffer: *mut PackerBuffer) -> NvimString {
-    let b = unsafe { &*buffer };
-    NvimString {
-        data: b.startptr,
-        size: (b.ptr as usize) - (b.startptr as usize),
-    }
+pub unsafe fn packer_take_string(buffer: *mut PackerBuffer) -> Vec<u8> {
+    let b = unsafe { &mut *buffer };
+    let len = (b.ptr as usize) - (b.startptr as usize);
+    let vec = std::mem::take(&mut b.owned_buf);
+    b.startptr = std::ptr::null_mut();
+    b.ptr = std::ptr::null_mut();
+    b.endptr = std::ptr::null_mut();
+    let mut bytes: Vec<u8> = vec.into_iter().map(|c| c as u8).collect();
+    bytes.truncate(len);
+    bytes
 }
 
 #[cfg(test)]
@@ -598,8 +606,7 @@ mod tests {
                 },
                 &mut pb,
             );
-            let out = packer_take_string(&mut pb);
-            let slice = crate::memory::bytes_take(out.data, out.size).unwrap();
+            let slice = packer_take_string(&mut pb);
             assert_eq!(
                 slice,
                 &[0xe0, 0xd0, 0xdf, 42, 0xa5, b'h', b'e', b'l', b'l', b'o']
