@@ -531,7 +531,7 @@ pub unsafe fn vterm_keyboard_unichar(vt: *mut VTerm, mut c: u32, mut mod_: VTerm
             return;
         }
 
-        let state: *const VTermStateFull = (*vt).state;
+        let state: *const VTermStateFull = (*vt).state_ptr();
         if vterm_state_get_key_encoding_disambiguate(state) {
             if (u32::from(b'A')..=u32::from(b'Z')).contains(&c) {
                 c += u32::from(b'a' - b'A');
@@ -626,7 +626,7 @@ pub unsafe fn vterm_keyboard_key(vt: *mut VTerm, key: VTermKey, mod_: VTermModif
         return;
     }
     unsafe {
-        let state: *const VTermStateFull = (*vt).state;
+        let state: *const VTermStateFull = (*vt).state_ptr();
         let disambiguate = vterm_state_get_key_encoding_disambiguate(state);
 
         let mut k = if key < VTERM_KEY_FUNCTION_0 {
@@ -711,7 +711,7 @@ pub unsafe fn vterm_keyboard_key(vt: *mut VTerm, key: VTermKey, mod_: VTermModif
 
 pub unsafe fn vterm_keyboard_start_paste(vt: *mut VTerm) {
     unsafe {
-        let state: *const VTermStateFull = (*vt).state;
+        let state: *const VTermStateFull = (*vt).state_ptr();
         if ((*state).mode & MODE_BRACKETPASTE_BIT) != 0 {
             vterm_push_output_ctrl_bytes(vt, C1_CSI, b"200~");
         }
@@ -720,7 +720,7 @@ pub unsafe fn vterm_keyboard_start_paste(vt: *mut VTerm) {
 
 pub unsafe fn vterm_keyboard_end_paste(vt: *mut VTerm) {
     unsafe {
-        let state: *const VTermStateFull = (*vt).state;
+        let state: *const VTermStateFull = (*vt).state_ptr();
         if ((*state).mode & MODE_BRACKETPASTE_BIT) != 0 {
             vterm_push_output_ctrl_bytes(vt, C1_CSI, b"201~");
         }

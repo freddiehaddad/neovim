@@ -1316,18 +1316,18 @@ static STATE_CBS: VTermStateCallbacks = VTermStateCallbacks {
     sb_clear: Some(sb_clear),
 };
 
-unsafe fn screen_new(vt: *mut VTerm) -> *mut VTermScreen {
+unsafe fn screen_new(vt: *mut VTerm) -> Option<Box<VTermScreen>> {
     unsafe {
         let state = vterm_obtain_state(vt);
         if state.is_null() {
-            return ptr::null_mut();
+            return None;
         }
 
         let mut rows: c_int = 0;
         let mut cols: c_int = 0;
         vterm_get_size(vt, &raw mut rows, &raw mut cols);
 
-        let screen = Box::into_raw(Box::new(VTermScreen {
+        let mut screen = Box::new(VTermScreen {
             vt,
             state,
             callbacks: ptr::null(),
@@ -1354,16 +1354,17 @@ unsafe fn screen_new(vt: *mut VTerm) -> *mut VTermScreen {
             bufidx: BUFIDX_PRIMARY,
             sb_buffer: vec![VTermScreenCell::default(); cols as usize],
             pen: ScreenPen::default(),
-        }));
+        });
 
-        (*screen).set_global_reverse(0);
-        (*screen).set_reflow(false);
+        screen.set_global_reverse(0);
+        screen.set_reflow(false);
 
-        (&mut *screen).buffers[BUFIDX_PRIMARY] = alloc_buffer(screen, rows, cols);
+        let screen_ptr: *mut VTermScreen = &raw mut *screen;
+        screen.buffers[BUFIDX_PRIMARY] = alloc_buffer(screen_ptr, rows, cols);
 
-        vterm_state_set_callbacks((*screen).state, &raw const STATE_CBS, screen);
+        vterm_state_set_callbacks(screen.state, &raw const STATE_CBS, screen_ptr);
 
-        screen
+        Some(screen)
     }
 }
 
@@ -1429,12 +1430,10 @@ pub unsafe fn vterm_screen_get_cell(
 
 pub unsafe fn vterm_obtain_screen(vt: *mut VTerm) -> *mut VTermScreen {
     unsafe {
-        if !(*vt).screen.is_null() {
-            return (*vt).screen;
+        if (*vt).screen.is_none() {
+            (*vt).screen = screen_new(vt);
         }
-        let screen = screen_new(vt);
-        (*vt).screen = screen;
-        screen
+        (*vt).screen_mut_ptr()
     }
 }
 

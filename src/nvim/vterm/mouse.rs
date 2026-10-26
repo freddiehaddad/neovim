@@ -135,8 +135,8 @@ pub struct VTerm {
     pub parser: VTermParser,
     pub outfunc: VTermOutputCallback,
     pub outdata: *mut Terminal,
-    pub state: *mut VTermStateFull,
-    pub screen: *mut crate::vterm::screen::VTermScreen,
+    pub screen: Option<Box<crate::vterm::screen::VTermScreen>>,
+    pub state: Option<Box<VTermStateFull>>,
 }
 
 impl VTerm {
@@ -148,30 +148,36 @@ impl VTerm {
             parser: VTermParser::new(),
             outfunc: None,
             outdata: std::ptr::null_mut(),
-            state: std::ptr::null_mut(),
-            screen: std::ptr::null_mut(),
+            screen: None,
+            state: None,
         }
+    }
+
+    #[inline]
+    pub fn state_mut_ptr(&mut self) -> *mut VTermStateFull {
+        self.state
+            .as_deref_mut()
+            .map_or(std::ptr::null_mut(), |s| &raw mut *s)
+    }
+
+    #[inline]
+    pub fn state_ptr(&self) -> *const VTermStateFull {
+        self.state
+            .as_deref()
+            .map_or(std::ptr::null(), |s| &raw const *s)
+    }
+
+    #[inline]
+    pub fn screen_mut_ptr(&mut self) -> *mut crate::vterm::screen::VTermScreen {
+        self.screen
+            .as_deref_mut()
+            .map_or(std::ptr::null_mut(), |s| &raw mut *s)
     }
 }
 
 impl Default for VTerm {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Drop for VTerm {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.screen.is_null() {
-                drop(Box::from_raw(self.screen));
-                self.screen = std::ptr::null_mut();
-            }
-            if !self.state.is_null() {
-                drop(Box::from_raw(self.state));
-                self.state = std::ptr::null_mut();
-            }
-        }
     }
 }
 
@@ -248,7 +254,7 @@ unsafe fn output_mouse(
 
 pub unsafe fn vterm_mouse_move(vt: *mut VTerm, row: c_int, col: c_int, mod_: VTermModifier) {
     unsafe {
-        let state = (*vt).state;
+        let state = (*vt).state_mut_ptr();
 
         if col == (*state).mouse_col && row == (*state).mouse_row {
             return;
@@ -281,7 +287,7 @@ pub unsafe fn vterm_mouse_button(
     mod_: VTermModifier,
 ) {
     unsafe {
-        let state = (*vt).state;
+        let state = (*vt).state_mut_ptr();
 
         let old_buttons = (*state).mouse_buttons;
 

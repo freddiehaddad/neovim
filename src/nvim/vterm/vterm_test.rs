@@ -938,7 +938,7 @@ mod tests {
         vterm_state_set_unrecognised_fallbacks,
     };
     use crate::vterm::vterm::{
-        vterm_free, vterm_new, vterm_output_set_callback, vterm_set_size, vterm_set_utf8,
+        vterm_new, vterm_output_set_callback, vterm_set_size, vterm_set_utf8,
     };
     use std::ffi::CStr;
 
@@ -1050,6 +1050,8 @@ mod tests {
         r: bool,
     }
 
+    static mut TEST_VT: Option<Box<std::cell::UnsafeCell<VTerm>>> = None;
+
     unsafe fn init() -> *mut VTerm {
         unsafe {
             crate::option_vars::p_emoji = 1;
@@ -1062,10 +1064,18 @@ mod tests {
             want_state_settermprop = false;
             want_state_scrollback = false;
             want_screen_scrollback = false;
-            let vt = vterm_new(25, 80);
+            let cell = Box::new(std::cell::UnsafeCell::new(vterm_new(25, 80)));
+            let vt = cell.get();
+            TEST_VT = Some(cell);
             vterm_output_set_callback(vt, Some(term_output), ptr::null_mut());
             vterm_set_utf8(vt, 1);
             vt
+        }
+    }
+
+    unsafe fn vterm_free(_vt: *mut VTerm) {
+        unsafe {
+            TEST_VT = None;
         }
     }
 

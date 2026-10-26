@@ -19,7 +19,7 @@ use crate::vterm::state::{VT_MODE_CTRL8BIT, VT_MODE_UTF8};
 pub type VTermOutputCallback = Option<unsafe fn(s: *const c_char, len: usize, user: *mut Terminal)>;
 
 /// Create a new `VTerm` instance of size `rows` x `cols` (`vterm_new`).
-pub unsafe fn vterm_new(rows: c_int, cols: c_int) -> *mut VTerm {
+pub fn vterm_new(rows: c_int, cols: c_int) -> VTerm {
     let mut vt = VTerm::new();
     vt.rows = rows;
     vt.cols = cols;
@@ -29,16 +29,7 @@ pub unsafe fn vterm_new(rows: c_int, cols: c_int) -> *mut VTerm {
     vt.parser.emit_nul = false;
     vt.outfunc = None;
     vt.outdata = ptr::null_mut();
-
-    Box::into_raw(Box::new(vt))
-}
-
-pub unsafe fn vterm_free(vt: *mut VTerm) {
-    if !vt.is_null() {
-        unsafe {
-            drop(Box::from_raw(vt));
-        }
-    }
+    vt
 }
 
 pub unsafe fn vterm_get_size(vt: *const VTerm, rowsp: *mut c_int, colsp: *mut c_int) {

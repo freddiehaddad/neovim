@@ -343,11 +343,11 @@ unsafe fn erase(state: *mut VTermStateFull, rect: VTermRect, selective: c_int) {
     }
 }
 
-unsafe fn vterm_state_new(vt: *mut VTerm) -> *mut VTermStateFull {
+unsafe fn vterm_state_new(vt: *mut VTerm) -> Box<VTermStateFull> {
     unsafe {
         let rows = (*vt).rows;
         let cols = (*vt).cols;
-        let state = Box::into_raw(Box::new(VTermStateFull {
+        let mut state = Box::new(VTermStateFull {
             vt,
             callbacks: ptr::null(),
             cbdata: ptr::null_mut(),
@@ -406,12 +406,12 @@ unsafe fn vterm_state_new(vt: *mut VTerm) -> *mut VTermStateFull {
                     size: 1,
                 },
             ],
-        }));
+        });
 
-        vterm_state_newpen(state);
+        vterm_state_newpen(&raw mut *state);
 
         if let Some(utf8_enc) = vterm_lookup_encoding(VTermEncodingType::ENC_UTF8, b'u' as c_char) {
-            (*state).encoding_utf8.init(utf8_enc);
+            state.encoding_utf8.init(utf8_enc);
         }
 
         state
@@ -2561,16 +2561,12 @@ static PARSER_CALLBACKS: VTermParserCallbacks = VTermParserCallbacks {
 
 pub unsafe fn vterm_obtain_state(vt: *mut VTerm) -> *mut VTermStateFull {
     unsafe {
-        if !(*vt).state.is_null() {
-            return (*vt).state;
+        if (*vt).state.is_none() {
+            (*vt).state = Some(vterm_state_new(vt));
+            let state = (*vt).state_mut_ptr();
+            vterm_parser_set_callbacks(vt, &raw const PARSER_CALLBACKS, state);
         }
-
-        let state = vterm_state_new(vt);
-        (*vt).state = state;
-
-        vterm_parser_set_callbacks(vt, &raw const PARSER_CALLBACKS, state);
-
-        state
+        (*vt).state_mut_ptr()
     }
 }
 
