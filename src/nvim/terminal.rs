@@ -791,10 +791,9 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
         vterm_output_set_callback((*term).vt, Some(term_output_callback), term);
 
         vterm_state_set_selection_callbacks(
-            state,
+            &mut *state,
             &raw const VTERM_SELECTION_CALLBACKS,
             term,
-            ptr::null_mut(),
             SELECTIONBUF_SIZE,
         );
 

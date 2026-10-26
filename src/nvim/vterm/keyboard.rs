@@ -70,12 +70,10 @@ pub struct VTermStateTmp {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 pub struct VTermStateSelection {
     pub callbacks: *const crate::vterm::state::VTermSelectionCallbacks,
     pub user: *mut Terminal,
-    pub buffer: *mut c_char,
-    pub buflen: usize,
+    pub buffer: Vec<c_char>,
 }
 
 #[repr(C)]
@@ -102,7 +100,6 @@ pub struct VTermStateFull {
     pub scrollregion_right: c_int,
     pub tabstops: Vec<u8>,
     pub lineinfos: [Vec<crate::vterm::screen::VTermLineInfo>; 2],
-    pub lineinfo: *mut crate::vterm::screen::VTermLineInfo,
     pub mouse_col: c_int,
     pub mouse_row: c_int,
     pub mouse_buttons: c_int,
@@ -129,8 +126,29 @@ pub struct VTermStateFull {
     pub saved: VTermStateSaved,
     pub tmp: VTermStateTmp,
     pub selection: VTermStateSelection,
-    pub selection_owned_buffer: Vec<c_char>,
     pub key_encoding_stacks: [VTermKeyEncodingStack; 2],
+}
+
+impl VTermStateFull {
+    #[inline]
+    pub fn lineinfo(&self) -> &[crate::vterm::screen::VTermLineInfo] {
+        let idx = if (self.mode & MODE_ALT_SCREEN_BIT) != 0 {
+            BUFIDX_ALTSCREEN
+        } else {
+            BUFIDX_PRIMARY
+        };
+        &self.lineinfos[idx]
+    }
+
+    #[inline]
+    pub fn lineinfo_mut(&mut self) -> &mut [crate::vterm::screen::VTermLineInfo] {
+        let idx = if (self.mode & MODE_ALT_SCREEN_BIT) != 0 {
+            BUFIDX_ALTSCREEN
+        } else {
+            BUFIDX_PRIMARY
+        };
+        &mut self.lineinfos[idx]
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

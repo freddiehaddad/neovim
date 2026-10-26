@@ -213,8 +213,7 @@ unsafe fn scrollregion_right(state: *const VTermStateFull) -> c_int {
 #[inline]
 unsafe fn rowwidth(state: *const VTermStateFull, row: c_int) -> c_int {
     unsafe {
-        let lineinfo = (*state).lineinfo;
-        if (*lineinfo.add(row as usize)).doublewidth() != 0 {
+        if (*state).lineinfo()[row as usize].doublewidth() != 0 {
             (*state).cols / 2
         } else {
             (*state).cols
@@ -284,8 +283,7 @@ unsafe fn set_tmp_selection_recvpartial(state: *mut VTermStateFull, val: u32) {
 
 unsafe fn putglyph(state: *mut VTermStateFull, schar: schar_T, width: c_int, pos: VTermPos) {
     unsafe {
-        let lineinfo = (*state).lineinfo;
-        let li = *lineinfo.add(pos.row as usize);
+        let li = (*state).lineinfo()[pos.row as usize];
         let flags = ((*state).protected_cell & 0x01)
             | ((li.doublewidth() & 0x01) << 1)
             | ((li.doubleheight() & 0x03) << 2);
@@ -327,10 +325,11 @@ unsafe fn updatecursor(state: *mut VTermStateFull, oldpos: *const VTermPos, canc
 unsafe fn erase(state: *mut VTermStateFull, rect: VTermRect, selective: c_int) {
     unsafe {
         if rect.end_col == (*state).cols {
-            let lineinfo = (*state).lineinfo;
+            let rows = (*state).rows;
+            let lineinfo = (*state).lineinfo_mut();
             let mut row = rect.start_row + 1;
-            while row < rect.end_row + 1 && row < (*state).rows {
-                (*lineinfo.add(row as usize)).set_continuation(false);
+            while row < rect.end_row + 1 && row < rows {
+                lineinfo[row as usize].set_continuation(false);
                 row += 1;
             }
         }
@@ -367,7 +366,6 @@ unsafe fn vterm_state_new(vt: *mut VTerm) -> *mut VTermStateFull {
                 vec![VTermLineInfo::default(); rows as usize],
                 vec![VTermLineInfo::default(); rows as usize],
             ],
-            lineinfo: ptr::null_mut(),
             mouse_col: 0,
             mouse_row: 0,
             mouse_buttons: 0,
@@ -396,10 +394,8 @@ unsafe fn vterm_state_new(vt: *mut VTerm) -> *mut VTermStateFull {
             selection: VTermStateSelection {
                 callbacks: ptr::null(),
                 user: ptr::null_mut(),
-                buffer: ptr::null_mut(),
-                buflen: 0,
+                buffer: Vec::new(),
             },
-            selection_owned_buffer: Vec::new(),
             key_encoding_stacks: [
                 crate::vterm::keyboard::VTermKeyEncodingStack {
                     items: [0; 16],
@@ -413,7 +409,6 @@ unsafe fn vterm_state_new(vt: *mut VTerm) -> *mut VTermStateFull {
         }));
 
         vterm_state_newpen(state);
-        (*state).lineinfo = (*state).lineinfos[BUFIDX_PRIMARY].as_mut_ptr();
 
         if let Some(utf8_enc) = vterm_lookup_encoding(VTermEncodingType::ENC_UTF8, b'u' as c_char) {
             (*state).encoding_utf8.init(utf8_enc);
@@ -450,26 +445,22 @@ unsafe fn scroll(
 
         // Update lineinfo if full line
         if rect.start_col == 0 && rect.end_col == (*state).cols && rightward == 0 {
-            let height = rect.end_row - rect.start_row - downward.abs();
-            let lineinfo = (*state).lineinfo;
+            let height = (rect.end_row - rect.start_row - downward.abs()) as usize;
+            let lineinfo = (*state).lineinfo_mut();
 
             if downward > 0 {
-                ptr::copy(
-                    lineinfo.add((rect.start_row + downward) as usize),
-                    lineinfo.add(rect.start_row as usize),
-                    height as usize,
-                );
+                let src_start = (rect.start_row + downward) as usize;
+                let dst_start = rect.start_row as usize;
+                lineinfo.copy_within(src_start..src_start + height, dst_start);
                 for row in (rect.end_row - downward)..rect.end_row {
-                    *lineinfo.add(row as usize) = VTermLineInfo::default();
+                    lineinfo[row as usize] = VTermLineInfo::default();
                 }
             } else {
-                ptr::copy(
-                    lineinfo.add(rect.start_row as usize),
-                    lineinfo.add((rect.start_row - downward) as usize),
-                    height as usize,
-                );
+                let src_start = rect.start_row as usize;
+                let dst_start = (rect.start_row - downward) as usize;
+                lineinfo.copy_within(src_start..src_start + height, dst_start);
                 for row in rect.start_row..(rect.start_row - downward) {
-                    *lineinfo.add(row as usize) = VTermLineInfo::default();
+                    lineinfo[row as usize] = VTermLineInfo::default();
                 }
             }
         }
@@ -584,8 +575,8 @@ unsafe fn set_lineinfo(
     dhl: c_int,
 ) {
     unsafe {
-        let lineinfo = (*state).lineinfo;
-        let mut info = *lineinfo.add(row as usize);
+        let oldinfo = (*state).lineinfo()[row as usize];
+        let mut info = oldinfo;
 
         if dwl == DWL_OFF {
             info.set_doublewidth(DWL_OFF as u32);
@@ -607,13 +598,13 @@ unsafe fn set_lineinfo(
                 cb(
                     row,
                     &raw const info,
-                    lineinfo.add(row as usize),
+                    &raw const oldinfo,
                     (*state).cbdata,
                 ) != 0
             });
 
         if cb_ok || force != 0 {
-            *lineinfo.add(row as usize) = info;
+            (*state).lineinfo_mut()[row as usize] = info;
         }
     }
 }
@@ -708,8 +699,8 @@ unsafe fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) 
                 linefeed(state);
                 (*state).pos.col = 0;
                 (*state).at_phantom = 0;
-                let lineinfo = (*state).lineinfo;
-                (*lineinfo.add((*state).pos.row as usize)).set_continuation(true);
+                let row = (*state).pos.row as usize;
+                (*state).lineinfo_mut()[row].set_continuation(true);
             }
 
             if ((*state).mode & MODE_INSERT) != 0 && !recombine {
@@ -2178,7 +2169,7 @@ unsafe fn osc_selection(state: *mut VTermStateFull, frag: VTermStringFragment) {
             && let Some(set_cb) = (*sel_callbacks).set
         {
             let mut bufcur: usize = 0;
-            let mut buffer = (*state).selection.buffer;
+            let buflen = (*state).selection.buffer.len();
 
             let mut x: u32 = 0;
             let mut n: c_int = 0;
@@ -2190,17 +2181,15 @@ unsafe fn osc_selection(state: *mut VTermStateFull, frag: VTermStringFragment) {
                 set_tmp_selection_recvpartial(state, 0);
             }
 
-            while ((*state).selection.buflen - bufcur) >= 3 && frag_len != 0 {
+            while (buflen - bufcur) >= 3 && frag_len != 0 {
                 if (*frag_str as u8) == b'=' {
                     if n == 2 {
-                        *buffer = ((x >> 4) & 0xff) as c_char;
-                        buffer = buffer.add(1);
+                        (&mut (*state).selection.buffer)[bufcur] = ((x >> 4) & 0xff) as c_char;
                         bufcur += 1;
                     }
                     if n == 3 {
-                        *buffer = ((x >> 10) & 0xff) as c_char;
-                        *buffer.add(1) = ((x >> 2) & 0xff) as c_char;
-                        buffer = buffer.add(2);
+                        (&mut (*state).selection.buffer)[bufcur] = ((x >> 10) & 0xff) as c_char;
+                        (&mut (*state).selection.buffer)[bufcur + 1] = ((x >> 2) & 0xff) as c_char;
                         bufcur += 2;
                     }
 
@@ -2235,21 +2224,20 @@ unsafe fn osc_selection(state: *mut VTermStateFull, frag: VTermStringFragment) {
                     frag_len -= 1;
 
                     if n == 4 {
-                        *buffer = ((x >> 16) & 0xff) as c_char;
-                        *buffer.add(1) = ((x >> 8) & 0xff) as c_char;
-                        *buffer.add(2) = (x & 0xff) as c_char;
+                        (&mut (*state).selection.buffer)[bufcur] = ((x >> 16) & 0xff) as c_char;
+                        (&mut (*state).selection.buffer)[bufcur + 1] = ((x >> 8) & 0xff) as c_char;
+                        (&mut (*state).selection.buffer)[bufcur + 2] = (x & 0xff) as c_char;
 
-                        buffer = buffer.add(3);
                         bufcur += 3;
                         x = 0;
                         n = 0;
                     }
                 }
 
-                if frag_len == 0 || ((*state).selection.buflen - bufcur) < 3 {
+                if frag_len == 0 || (buflen - bufcur) < 3 {
                     if bufcur != 0 {
                         let chunk_frag = VTermStringFragment::new(
-                            (*state).selection.buffer,
+                            (*state).selection.buffer.as_ptr(),
                             bufcur,
                             tmp_selection_state(state) == SELECTION_SET_INITIAL,
                             frag_final && frag_len == 0,
@@ -2263,7 +2251,6 @@ unsafe fn osc_selection(state: *mut VTermStateFull, frag: VTermStringFragment) {
                         set_tmp_selection_state(state, SELECTION_SET);
                     }
 
-                    buffer = (*state).selection.buffer;
                     bufcur = 0;
                 }
             }
@@ -2535,13 +2522,6 @@ unsafe fn on_resize(rows: c_int, cols: c_int, state: *mut VTermStateFull) -> c_i
             }
         }
 
-        state_ref.lineinfo = state_ref.lineinfos[if (state_ref.mode & MODE_ALT_SCREEN) != 0 {
-            BUFIDX_ALTSCREEN
-        } else {
-            BUFIDX_PRIMARY
-        }]
-        .as_mut_ptr();
-
         if (*state).at_phantom != 0 && (*state).pos.col < cols - 1 {
             (*state).at_phantom = 0;
             (*state).pos.col += 1;
@@ -2745,13 +2725,6 @@ pub unsafe fn vterm_state_set_termprop(
             VTERM_PROP_ALTSCREEN => {
                 let state_ref = &mut *state;
                 set_mode_bit(&mut state_ref.mode, MODE_ALT_SCREEN, (*val).boolean() != 0);
-                state_ref.lineinfo = state_ref.lineinfos[if (state_ref.mode & MODE_ALT_SCREEN) != 0
-                {
-                    BUFIDX_ALTSCREEN
-                } else {
-                    BUFIDX_PRIMARY
-                }]
-                .as_mut_ptr();
                 if ((*state).mode & MODE_ALT_SCREEN) != 0 {
                     let rect = VTermRect {
                         start_row: 0,
@@ -2813,34 +2786,22 @@ pub unsafe fn vterm_state_focus_out(state: *mut VTermStateFull) {
     }
 }
 
-pub unsafe fn vterm_state_get_lineinfo(
-    state: *const VTermStateFull,
+pub fn vterm_state_get_lineinfo(
+    state: &VTermStateFull,
     row: c_int,
-) -> *const VTermLineInfo {
-    unsafe { (*state).lineinfo.add(row as usize) }
+) -> &VTermLineInfo {
+    &state.lineinfo()[row as usize]
 }
 
-pub unsafe fn vterm_state_set_selection_callbacks(
-    state: *mut VTermStateFull,
+pub fn vterm_state_set_selection_callbacks(
+    state: &mut VTermStateFull,
     callbacks: *const VTermSelectionCallbacks,
     user: *mut Terminal,
-    mut buffer: *mut c_char,
     buflen: usize,
 ) {
-    unsafe {
-        let state_ref = &mut *state;
-        if buflen != 0 && buffer.is_null() {
-            state_ref.selection_owned_buffer = vec![0 as c_char; buflen];
-            buffer = state_ref.selection_owned_buffer.as_mut_ptr();
-        } else {
-            state_ref.selection_owned_buffer.clear();
-        }
-
-        state_ref.selection.callbacks = callbacks;
-        state_ref.selection.user = user;
-        state_ref.selection.buffer = buffer;
-        state_ref.selection.buflen = buflen;
-    }
+    state.selection.callbacks = callbacks;
+    state.selection.user = user;
+    state.selection.buffer = vec![0 as c_char; buflen];
 }
 
 #[cfg(test)]

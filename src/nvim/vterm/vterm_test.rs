@@ -1080,9 +1080,8 @@ mod tests {
             let state = vterm_obtain_state(vt);
             vterm_state_set_callbacks(state, &raw const STATE_CBS, ptr::null_mut());
             vterm_state_set_selection_callbacks(
-                state,
+                &mut *state,
                 &raw const SELECTION_CBS,
-                ptr::null_mut(),
                 ptr::null_mut(),
                 16,
             );
@@ -1181,7 +1180,7 @@ mod tests {
         state: *const VTermStateFull,
     ) {
         unsafe {
-            let info = &*vterm_state_get_lineinfo(state, row);
+            let info = vterm_state_get_lineinfo(&*state, row);
             assert_eq!(info.doublewidth() == 1, exp_dwl);
             assert_eq!(info.doubleheight() == 1, exp_dhl);
             assert_eq!(info.continuation(), exp_cont);
