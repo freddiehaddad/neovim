@@ -5333,7 +5333,6 @@ unsafe fn set_option_varp(opt_idx: OptIndex, varp: *mut c_void, value: Object) {
     unsafe {
         let opt = get_option(opt_idx);
         if (*opt).immutable {
-            optval_free(value);
             return;
         }
 
