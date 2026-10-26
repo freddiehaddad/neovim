@@ -1941,7 +1941,7 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow
 
             simplify = tv_dict_get_bool(d, c"simplify".as_ptr(), 1) != 0;
 
-            let cursor_str = tv_dict_get_string(d, c"cursor".as_ptr(), false);
+            let cursor_str = tv_dict_get_string(d, c"cursor".as_ptr());
             if !cursor_str.is_null() {
                 if strcmp(cursor_str, c"hide".as_ptr()) != 0
                     && strcmp(cursor_str, c"keep".as_ptr()) != 0

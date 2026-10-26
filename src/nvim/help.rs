@@ -123,7 +123,7 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
                 && !rettv.vval.v_string.is_null()
                 && *rettv.vval.v_string != NUL
             {
-                allocated_arg = crate::path::take_cstring(rettv.vval.v_string);
+                allocated_arg = crate::memory::take_cstring(rettv.vval.v_string);
                 arg = allocated_arg.as_ref().unwrap().as_ptr().cast_mut();
             } else {
                 tv_clear(&raw mut rettv);

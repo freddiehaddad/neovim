@@ -3282,7 +3282,7 @@ unsafe fn getregionpos(
                 c"exclusive".as_ptr(),
                 c_int::from(*p_sel == b'e' as c_char),
             ) != 0;
-            type_str = tv_dict_get_string(d, c"type".as_ptr(), false);
+            type_str = tv_dict_get_string(d, c"type".as_ptr());
             if type_str.is_null() {
                 type_str = default_type.as_mut_ptr();
             }
@@ -4696,7 +4696,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             clear_env = tv_dict_get_number(job_opts, c"clear_env".as_ptr()) != 0;
             overlapped = tv_dict_get_number(job_opts, c"overlapped".as_ptr()) != 0;
 
-            let s = tv_dict_get_string(job_opts, c"stdin".as_ptr(), false);
+            let s = tv_dict_get_string(job_opts, c"stdin".as_ptr());
             if !s.is_null() {
                 if strncmp(s, c"null".as_ptr(), NUMBUFLEN) == 0 {
                     stdin_mode = kChannelStdinNull;
@@ -4733,7 +4733,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                 return;
             }
 
-            let new_cwd = tv_dict_get_string(job_opts, c"cwd".as_ptr(), false);
+            let new_cwd = tv_dict_get_string(job_opts, c"cwd".as_ptr());
             if !new_cwd.is_null() && *new_cwd != NUL {
                 cwd = new_cwd;
                 if !os_isdir(cwd) {
@@ -4804,7 +4804,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 
         if pty {
             if term_name.is_null() {
-                term_name = tv_dict_get_string(job_opts, c"TERM".as_ptr(), false);
+                term_name = tv_dict_get_string(job_opts, c"TERM".as_ptr());
             }
             if term_name.is_null() {
                 term_name = c"ansi".as_ptr();
@@ -7918,7 +7918,7 @@ pub unsafe fn f_setcharsearch(argvars: *mut typval_T, _rettv: *mut typval_T, _fp
             return;
         }
 
-        let csearch = tv_dict_get_string(d, c"char".as_ptr(), false);
+        let csearch = tv_dict_get_string(d, c"char".as_ptr());
         if !csearch.is_null() {
             let c = utf_ptr2char(csearch);
             set_last_csearch(c, csearch, utfc_ptr2len(csearch));
@@ -8077,7 +8077,7 @@ pub unsafe fn f_setreg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
                 regcontents = &raw const (*di).di_tv;
             }
 
-            let mut stropt = tv_dict_get_string(d, c"regtype".as_ptr(), false);
+            let mut stropt = tv_dict_get_string(d, c"regtype".as_ptr());
             if !stropt.is_null() {
                 let ret = get_yank_type(&raw mut stropt, &raw mut yank_type, &raw mut block_len);
                 stropt = stropt.add(1);
@@ -8088,7 +8088,7 @@ pub unsafe fn f_setreg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
             }
 
             if regname == b'"' as c_char {
-                stropt = tv_dict_get_string(d, c"points_to".as_ptr(), false);
+                stropt = tv_dict_get_string(d, c"points_to".as_ptr());
                 if !stropt.is_null() {
                     pointreg = *stropt;
                     regname = pointreg;

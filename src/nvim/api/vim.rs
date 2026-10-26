@@ -949,11 +949,15 @@ pub unsafe extern "C" fn nvim__runtime_inspect(arena: *mut Arena) -> Array {
     unsafe { runtime_inspect(arena) }
 }
 
-pub unsafe fn find_runtime_cb(fnames: &[*mut c_char], all: bool, c: *mut RuntimeCookie) -> bool {
+pub unsafe fn find_runtime_cb(
+    fnames: &[std::ffi::CString],
+    all: bool,
+    c: *mut RuntimeCookie,
+) -> bool {
     unsafe {
         let cookie = &mut *c;
-        for &fname in fnames {
-            cookie.rv.push(cstr_to_arena_obj(cookie.arena, fname));
+        for fname in fnames {
+            cookie.rv.push(cstr_to_arena_obj(cookie.arena, fname.as_ptr()));
             if !all {
                 return true;
             }

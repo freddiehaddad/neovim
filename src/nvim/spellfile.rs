@@ -4616,8 +4616,7 @@ pub unsafe fn ex_mkspell(eap: *mut exarg_T) {
             return;
         }
 
-        let fname_ptrs: Vec<*mut c_char> = fnames.iter().map(|s| s.as_ptr().cast_mut()).collect();
-        mkspell(&fname_ptrs, ascii, (*eap).forceit != 0, false);
+        mkspell(&fnames, ascii, (*eap).forceit != 0, false);
     }
 }
 
@@ -4940,7 +4939,12 @@ unsafe fn sug_write(spin: *mut spellinfo_T, fname: *mut c_char) {
     }
 }
 
-unsafe fn mkspell(fnames: &[*mut c_char], ascii: bool, over_write: bool, added_word: bool) {
+unsafe fn mkspell(
+    fnames: &[std::ffi::CString],
+    ascii: bool,
+    over_write: bool,
+    added_word: bool,
+) {
     unsafe {
         let mut fname_buf = [0 as c_char; MAXPATHL];
         let mut wfname_buf = [0 as c_char; MAXPATHL];
@@ -4962,8 +4966,9 @@ unsafe fn mkspell(fnames: &[*mut c_char], ascii: bool, over_write: bool, added_w
 
         let wfname = wfname_buf.as_mut_ptr();
 
-        if let Some(&f0) = fnames.first() {
-            let len = strlen(f0);
+        if let Some(f0_cstr) = fnames.first() {
+            let f0 = f0_cstr.as_ptr();
+            let len = f0_cstr.as_bytes().len();
             if fcount == 1 && len > 4 && strcmp(f0.add(len - 4), c".add".as_ptr()) == 0 {
                 incount = 1;
                 vim_snprintf!(wfname, MAXPATHL, c"%s.spl".as_ptr(), f0);
@@ -5027,8 +5032,8 @@ unsafe fn mkspell(fnames: &[*mut c_char], ascii: bool, over_write: bool, added_w
                 *slot = None;
 
                 if incount > 1 {
-                    let in_i = innames[i];
-                    let len = strlen(in_i);
+                    let in_i = innames[i].as_ptr();
+                    let len = innames[i].as_bytes().len();
                     if strlen(path_tail(in_i)) < 5 || *in_i.add(len - 3) != b'_' as c_char {
                         semsg!(gettext(c"E755: Invalid region in %s".as_ptr()), in_i);
                         region_ok = false;
@@ -5053,7 +5058,7 @@ unsafe fn mkspell(fnames: &[*mut c_char], ascii: bool, over_write: bool, added_w
 
                 let mut i: usize = 0;
                 while (i as c_int) < incount && !error {
-                    let in_i = innames[i];
+                    let in_i = innames[i].as_ptr().cast_mut();
                     spin.si_conv.vc_type = CONV_NONE;
                     spin.si_region = 1 << i;
 
@@ -5352,7 +5357,12 @@ pub unsafe fn spell_add_word(
         }
 
         if !fd.is_null() {
-            mkspell(&[fname], false, true, true);
+            mkspell(
+                &[CStr::from_ptr(fname).to_owned()],
+                false,
+                true,
+                true,
+            );
 
             if !buf.is_null() {
                 buf_reload(buf, (*buf).b_orig_mode, false);

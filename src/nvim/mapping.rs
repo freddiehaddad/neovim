@@ -2370,7 +2370,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
 
         let (which, is_abbr, d) = if dict_only {
             let d = (*argvars).vval.v_dict;
-            let which = tv_dict_get_string(d, c"mode".as_ptr(), false);
+            let which = tv_dict_get_string(d, c"mode".as_ptr());
             let is_abbr = tv_dict_get_bool(d, c"abbr".as_ptr(), -1) as c_int;
             if which.is_null() || is_abbr < 0 {
                 emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT.as_ptr()));
@@ -2395,10 +2395,10 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
             return;
         }
 
-        let lhs = tv_dict_get_string(d, c"lhs".as_ptr(), false);
-        let lhsraw = tv_dict_get_string(d, c"lhsraw".as_ptr(), false);
-        let lhsrawalt = tv_dict_get_string(d, c"lhsrawalt".as_ptr(), false);
-        let mut orig_rhs = tv_dict_get_string(d, c"rhs".as_ptr(), false) as *const c_char;
+        let lhs = tv_dict_get_string(d, c"lhs".as_ptr());
+        let lhsraw = tv_dict_get_string(d, c"lhsraw".as_ptr());
+        let lhsrawalt = tv_dict_get_string(d, c"lhsrawalt".as_ptr());
+        let mut orig_rhs = tv_dict_get_string(d, c"rhs".as_ptr()) as *const c_char;
         let mut rhs_lua: LuaRef = LUA_NOREF;
         let callback_di = tv_dict_find(d, c"callback".as_ptr(), 8);
         if !callback_di.is_null() && (*callback_di).di_tv.v_type == VarType::VAR_FUNC {

@@ -35,8 +35,6 @@ use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-pub use crate::memory::{alloc_cstring, alloc_cstring_bytes, free_cstring, take_cstring};
-
 pub unsafe fn remove_duplicate_strings(fnames: &mut Vec<std::ffi::CString>) {
     if fnames.is_empty() {
         return;

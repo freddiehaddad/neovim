@@ -6712,7 +6712,7 @@ unsafe fn qf_add_entry_from_dict(
         let end_col = tv_dict_get_number(d, c"end_col".as_ptr()) as c_int;
         let vcol = tv_dict_get_number(d, c"vcol".as_ptr()) as c_char;
         let nr = tv_dict_get_number(d, c"nr".as_ptr()) as c_int;
-        let type_ = tv_dict_get_string(d, c"type".as_ptr(), false);
+        let type_ = tv_dict_get_string(d, c"type".as_ptr());
         let pattern = crate::eval::typval::tv_dict_get_cstring(d, c"pattern".as_ptr());
         let text = crate::eval::typval::tv_dict_get_cstring(d, c"text".as_ptr()).unwrap_or_default();
         let mut user_data: typval_T = typval_T::new();

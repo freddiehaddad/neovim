@@ -2429,11 +2429,11 @@ pub unsafe fn find_tags(
     }
 }
 
-pub unsafe fn found_tagfile_cb(fnames: &[*mut c_char], all: bool) -> bool {
+pub unsafe fn found_tagfile_cb(fnames: &[std::ffi::CString], all: bool) -> bool {
     unsafe {
         let tf = &raw mut tag_fnames;
-        for &fname in fnames {
-            let mut tag_fname = CStr::from_ptr(fname).to_owned().into_bytes_with_nul();
+        for fname in fnames {
+            let mut tag_fname = fname.clone().into_bytes_with_nul();
             simplify_filename(tag_fname.as_mut_ptr().cast());
             (*tf).push(CStr::from_ptr(tag_fname.as_ptr().cast()).to_owned());
 
@@ -3491,12 +3491,12 @@ unsafe fn tagstack_push_items(wp: *mut win_T, l: *mut list_T) {
                         false,
                     ) == OK
                     {
-                        let tagname = tv_dict_get_string(itemdict, c"tagname".as_ptr(), false);
+                        let tagname = tv_dict_get_string(itemdict, c"tagname".as_ptr());
                         if !tagname.is_null() {
                             if mark.col > 0 {
                                 mark.col -= 1;
                             }
-                            let ud_ptr = tv_dict_get_string(itemdict, c"user_data".as_ptr(), false);
+                            let ud_ptr = tv_dict_get_string(itemdict, c"user_data".as_ptr());
                             tagstack_push_item(
                                 wp,
                                 Some(CStr::from_ptr(tagname).to_owned()),

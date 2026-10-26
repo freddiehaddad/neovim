@@ -2083,7 +2083,7 @@ unsafe fn ins_compl_dictionaries(
             } else if count > 0 {
                 if flags == DICT_EXACT {
                     ins_compl_files(
-                        &[dict],
+                        &[CStr::from_ptr(dict).to_owned()],
                         thesaurus,
                         flags,
                         &raw mut regmatch,
@@ -2091,10 +2091,8 @@ unsafe fn ins_compl_dictionaries(
                         &raw mut dir,
                     );
                 } else {
-                    let file_ptrs: Vec<*mut c_char> =
-                        files.iter().map(|s| s.as_ptr().cast_mut()).collect();
                     ins_compl_files(
-                        &file_ptrs,
+                        &files,
                         thesaurus,
                         flags,
                         &raw mut regmatch,
@@ -2161,7 +2159,7 @@ unsafe fn thesaurus_add_words_in_line(
 }
 
 unsafe fn ins_compl_files(
-    files: &[*mut c_char],
+    files: &[std::ffi::CString],
     thesaurus: bool,
     flags: c_int,
     regmatch: *mut regmatch_T,
@@ -2180,7 +2178,8 @@ unsafe fn ins_compl_files(
             0
         };
 
-        for &file in files {
+        for file_cstr in files {
+            let file = file_cstr.as_ptr().cast_mut();
             if got_int || ins_compl_interrupted() {
                 break;
             }
@@ -3334,17 +3333,17 @@ unsafe fn ins_compl_add_tv(tv: *mut typval_T, dir: Direction, fast: bool) -> c_i
 
         if (*tv).v_type == VAR_DICT && !(*tv).vval.v_dict.is_null() {
             let d = (*tv).vval.v_dict;
-            word = tv_dict_get_string(d, c"word".as_ptr(), false);
+            word = tv_dict_get_string(d, c"word".as_ptr());
             cptext[CPT_ABBR] = crate::eval::typval::tv_dict_get_cstring(d, c"abbr".as_ptr());
             cptext[CPT_MENU] = crate::eval::typval::tv_dict_get_cstring(d, c"menu".as_ptr());
             cptext[CPT_KIND] = crate::eval::typval::tv_dict_get_cstring(d, c"kind".as_ptr());
             cptext[CPT_INFO] = crate::eval::typval::tv_dict_get_cstring(d, c"info".as_ptr());
             commit_chars = crate::eval::typval::tv_dict_get_cstring(d, c"commit_chars".as_ptr());
 
-            let user_abbr_hlname = tv_dict_get_string(d, c"abbr_hlgroup".as_ptr(), false);
+            let user_abbr_hlname = tv_dict_get_string(d, c"abbr_hlgroup".as_ptr());
             user_hl[0] = get_user_highlight_id(user_abbr_hlname);
 
-            let user_kind_hlname = tv_dict_get_string(d, c"kind_hlgroup".as_ptr(), false);
+            let user_kind_hlname = tv_dict_get_string(d, c"kind_hlgroup".as_ptr());
             user_hl[1] = get_user_highlight_id(user_kind_hlname);
 
             tv_dict_get_tv(d, c"user_data".as_ptr(), &raw mut user_data);
@@ -3355,7 +3354,7 @@ unsafe fn ins_compl_add_tv(tv: *mut typval_T, dir: Direction, fast: bool) -> c_i
             dup = tv_dict_get_number(d, c"dup".as_ptr()) != 0;
             empty = tv_dict_get_number(d, c"empty".as_ptr()) != 0;
             preselect = tv_dict_get_number(d, c"preselect".as_ptr()) != 0;
-            if !tv_dict_get_string(d, c"equal".as_ptr(), false).is_null()
+            if !tv_dict_get_string(d, c"equal".as_ptr()).is_null()
                 && tv_dict_get_number(d, c"equal".as_ptr()) != 0
             {
                 flags |= CP_EQUAL;

@@ -1491,11 +1491,15 @@ pub unsafe fn slang_clear_sug(lp: *mut slang_T) {
         (*lp).sl_sugtime = 0;
     }
 }
-pub unsafe fn spell_load_cb(fnames: &[*mut c_char], all: bool, slp: *mut spelload_T) -> bool {
+pub unsafe fn spell_load_cb(
+    fnames: &[std::ffi::CString],
+    all: bool,
+    slp: *mut spelload_T,
+) -> bool {
     unsafe {
-        for &fname in fnames {
+        for fname in fnames {
             let slang = spell_load_file(
-                fname,
+                fname.as_ptr().cast_mut(),
                 (&raw mut (*slp).sl_lang).cast(),
                 ptr::null_mut(),
                 false,

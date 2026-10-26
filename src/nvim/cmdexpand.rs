@@ -5442,7 +5442,7 @@ pub unsafe fn expand_process_user_list(
                     p = cstr_to_cstring((*tv).vval.v_string);
                 } else if (*tv).v_type == VarType::VAR_DICT && !(*tv).vval.v_dict.is_null() {
                     let d = (*tv).vval.v_dict;
-                    let word = tv_dict_get_string(d, c"word".as_ptr(), false);
+                    let word = tv_dict_get_string(d, c"word".as_ptr());
                     if word.is_null() {
                         li = (*li).li_next;
                         continue;

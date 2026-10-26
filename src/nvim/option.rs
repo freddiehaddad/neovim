@@ -1225,7 +1225,7 @@ pub unsafe fn set_helplang_default(lang: *const c_char) {
             hlg_bytes[0] = b'e';
             hlg_bytes[1] = b'n';
         }
-        p_hlg = crate::path::alloc_cstring_bytes(&hlg_bytes);
+        p_hlg = crate::memory::alloc_cstring_bytes(&hlg_bytes);
     }
 }
 

@@ -1125,7 +1125,7 @@ pub unsafe fn f_setmatches(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
                 ptr::null()
             };
             if i == 0 {
-                let pat = tv_dict_get_string(d, c"pattern".as_ptr(), false);
+                let pat = tv_dict_get_string(d, c"pattern".as_ptr());
                 if match_add(win, group, pat, priority, id, ptr::null_mut(), conceal) != id {
                     match_add_failed = true;
                 }

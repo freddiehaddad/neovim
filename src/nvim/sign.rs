@@ -1409,7 +1409,7 @@ pub unsafe fn set_context_in_sign_cmd(xp: *mut expand_T, arg: *mut c_char) {
 unsafe fn sign_define_from_dict(mut name: *mut c_char, dict: *mut dict_T) -> c_int {
     unsafe {
         if name.is_null() {
-            name = tv_dict_get_string(dict, c"name".as_ptr(), false);
+            name = tv_dict_get_string(dict, c"name".as_ptr());
             if name.is_null() || *name == NUL {
                 return -1;
             }
@@ -1424,12 +1424,12 @@ unsafe fn sign_define_from_dict(mut name: *mut c_char, dict: *mut dict_T) -> c_i
         let mut prio: c_int = -1;
 
         if !dict.is_null() {
-            icon = tv_dict_get_string(dict, c"icon".as_ptr(), false);
-            linehl = tv_dict_get_string(dict, c"linehl".as_ptr(), false);
-            text = tv_dict_get_string(dict, c"text".as_ptr(), false);
-            texthl = tv_dict_get_string(dict, c"texthl".as_ptr(), false);
-            culhl = tv_dict_get_string(dict, c"culhl".as_ptr(), false);
-            numhl = tv_dict_get_string(dict, c"numhl".as_ptr(), false);
+            icon = tv_dict_get_string(dict, c"icon".as_ptr());
+            linehl = tv_dict_get_string(dict, c"linehl".as_ptr());
+            text = tv_dict_get_string(dict, c"text".as_ptr());
+            texthl = tv_dict_get_string(dict, c"texthl".as_ptr());
+            culhl = tv_dict_get_string(dict, c"culhl".as_ptr());
+            numhl = tv_dict_get_string(dict, c"numhl".as_ptr());
             prio = tv_dict_get_number_def(dict, c"priority".as_ptr(), -1) as c_int;
         }
 
@@ -1798,7 +1798,7 @@ unsafe fn sign_unplace_from_dict(group_tv: *mut typval_T, dict: *mut dict_T) -> 
         let mut group = if !group_tv.is_null() {
             tv_get_string(group_tv).cast_mut()
         } else {
-            tv_dict_get_string(dict, c"group".as_ptr(), false)
+            tv_dict_get_string(dict, c"group".as_ptr())
         };
         if !group.is_null() && *group == NUL {
             group = ptr::null_mut();
