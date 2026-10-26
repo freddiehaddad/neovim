@@ -1110,18 +1110,22 @@ pub unsafe fn f_glob(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
                 options += WILD_ICASE;
             }
             if (*rettv).v_type == VarType::VAR_STRING {
-                (*rettv).vval.v_string = ExpandOne(
+                if let Some(exp) = ExpandOne(
                     &raw mut xpc,
                     tv_get_string(argvars).cast_mut(),
-                    ptr::null_mut(),
+                    None,
                     options,
                     WILD_ALL,
-                );
+                ) {
+                    crate::eval::typval::tv_set_string(rettv, exp.as_ptr());
+                } else {
+                    (*rettv).vval.v_string = ptr::null_mut();
+                }
             } else {
                 ExpandOne(
                     &raw mut xpc,
                     tv_get_string(argvars).cast_mut(),
-                    ptr::null_mut(),
+                    None,
                     options,
                     WILD_ALL_KEEP,
                 );

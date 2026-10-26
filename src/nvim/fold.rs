@@ -1552,7 +1552,7 @@ pub unsafe fn get_foldtext(
                     p = p.add(1);
                 }
                 text = if *p != NUL {
-                    cstr_take(transstr(bytes.as_ptr().cast::<c_char>(), true))
+                    Some(transstr(bytes.as_ptr().cast::<c_char>(), true))
                 } else {
                     Some(CStr::from_bytes_with_nul(&bytes).unwrap().to_owned())
                 };

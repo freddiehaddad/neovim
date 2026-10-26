@@ -894,16 +894,16 @@ pub unsafe fn call_func_retstr(
     func: *const c_char,
     argc: c_int,
     argv: *mut typval_T,
-) -> *mut c_char {
+) -> Option<std::ffi::CString> {
     unsafe {
         let mut rettv = tv_initial_value();
         if call_vim_function(func, argc, argv, &raw mut rettv) == FAIL {
-            return ptr::null_mut();
+            return None;
         }
 
-        let retval = xstrdup(tv_get_string(&raw const rettv));
+        let retval = cstr_to_cstring(tv_get_string(&raw const rettv));
         tv_clear(&raw mut rettv);
-        retval
+        Some(retval)
     }
 }
 

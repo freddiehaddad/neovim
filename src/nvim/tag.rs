@@ -3048,14 +3048,13 @@ unsafe fn expand_tag_fname(
             && vim_strchr(fname.as_ptr(), b'`' as c_int).is_null()
         {
             xpc.xp_context = EXPAND_FILES;
-            let expanded_fname = cstr_take(ExpandOne(
+            if let Some(exp) = ExpandOne(
                 &raw mut xpc,
                 fname.as_ptr().cast_mut(),
-                ptr::null_mut(),
+                None,
                 WILD_LIST_NOTFOUND | WILD_SILENT,
                 WILD_EXPAND_FREE,
-            ));
-            if let Some(exp) = expanded_fname {
+            ) {
                 fname = exp;
             }
         }

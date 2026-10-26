@@ -1378,8 +1378,7 @@ pub unsafe fn parse_bordertext(
                 *is_present = false;
                 return;
             }
-            let text_cstr = crate::memory::cstr_take(transstr(bordertext.data.string.data, true))
-                .unwrap_or_default();
+            let text_cstr = transstr(bordertext.data.string.data, true);
             *width = mb_string2cells(text_cstr.as_ptr()) as c_int;
             chunks.clear();
             chunks.push(VirtTextChunk {

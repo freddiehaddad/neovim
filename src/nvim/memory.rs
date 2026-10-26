@@ -732,8 +732,8 @@ pub unsafe fn free_all_mem() {
         }
         clear_sb_text(true);
 
-        xfree(last_cmdline.cast());
-        xfree(new_last_cmdline.cast());
+        last_cmdline = None;
+        new_last_cmdline = None;
         set_keep_msg(std::ptr::null(), 0);
 
         p_hi = 0;

@@ -3607,13 +3607,13 @@ unsafe fn add_keyword(
     unsafe {
         let mut name_folded = [0 as c_char; MAXKEYWLEN + 1];
         let (name_ic, name_iclen): (*const c_char, usize) = if (*win_s(curwin)).b_syn_ic != 0 {
-            let folded = str_foldcase(
+            str_foldcase(
                 name,
                 namelen as c_int,
                 name_folded.as_mut_ptr(),
                 (MAXKEYWLEN + 1) as c_int,
             );
-            (folded, strlen(folded))
+            (name_folded.as_ptr(), strlen(name_folded.as_ptr()))
         } else {
             (name, namelen)
         };

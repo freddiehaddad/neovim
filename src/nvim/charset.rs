@@ -8,11 +8,11 @@ use crate::mbyte::{
     utf_char2cells, utf_char2len, utf_class_tab, utf_printable, utf_ptr2StrCharInfo, utf_ptr2char,
     utf_ptr2len, utf8len_tab, utfc_ptr2len,
 };
-use crate::memory::{xmalloc, xstrchrnul};
+use crate::memory::{cstr_from_bytes, xstrchrnul};
 use crate::option::{get_fileformat, skip_to_option_part};
 use crate::option_vars::*;
 use crate::path::path_has_wildcard;
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
+use std::ffi::{CStr, CString, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
 use crate::change::TAB;
@@ -462,12 +462,12 @@ pub unsafe fn transstr_buf(
     }
 }
 
-pub unsafe fn transstr(s: *const c_char, untab: bool) -> *mut c_char {
+pub unsafe fn transstr(s: *const c_char, untab: bool) -> CString {
     unsafe {
         let len = transstr_len(s, untab) + 1;
-        let buf: *mut c_char = xmalloc(len).cast();
-        transstr_buf(s, -1, buf, len, untab);
-        buf
+        let mut buf = vec![0 as c_char; len];
+        let written = transstr_buf(s, -1, buf.as_mut_ptr(), len, untab);
+        cstr_from_bytes(std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), written))
     }
 }
 
@@ -496,7 +496,7 @@ pub unsafe fn str_foldcase(
     orglen: c_int,
     buf: *mut c_char,
     buflen: c_int,
-) -> *mut c_char {
+) -> Option<CString> {
     unsafe {
         let mut vec: Vec<c_char> = Vec::new();
         let mut len = orglen;
@@ -562,11 +562,13 @@ pub unsafe fn str_foldcase(
         }
 
         if buf.is_null() {
-            let out = xmalloc(vec.len()).cast::<c_char>();
-            ptr::copy_nonoverlapping(vec.as_ptr(), out, vec.len());
-            out
+            let out_len = CStr::from_ptr(vec.as_ptr()).to_bytes().len();
+            Some(cstr_from_bytes(std::slice::from_raw_parts(
+                vec.as_ptr().cast::<u8>(),
+                out_len,
+            )))
         } else {
-            buf
+            None
         }
     }
 }
@@ -1255,23 +1257,19 @@ pub unsafe fn backslash_halve(mut p: *mut c_char) {
     }
 }
 
-pub unsafe fn backslash_halve_save(mut p: *const c_char) -> *mut c_char {
+pub unsafe fn backslash_halve_save(mut p: *const c_char) -> CString {
     unsafe {
-        let res: *mut c_char = xmalloc(CStr::from_ptr(p).to_bytes().len() + 1).cast();
-        let mut dst = res;
+        let mut res = Vec::with_capacity(CStr::from_ptr(p).to_bytes().len());
         while *p != NUL {
             if rem_backslash(p) {
-                *dst = *p.add(1);
-                dst = dst.add(1);
+                res.push(*p.add(1) as u8);
                 p = p.add(2);
             } else {
-                *dst = *p;
-                dst = dst.add(1);
+                res.push(*p as u8);
                 p = p.add(1);
             }
         }
-        *dst = NUL;
-        res
+        cstr_from_bytes(&res)
     }
 }
 

@@ -1076,7 +1076,7 @@ pub unsafe fn mb_strup_buf(src: *const c_char, dst: *mut c_char) -> usize {
     }
 }
 
-pub unsafe fn strcase_save(orig: *const c_char, upper: bool) -> *mut c_char {
+pub unsafe fn strcase_save(orig: *const c_char, upper: bool) -> std::ffi::CString {
     unsafe {
         let orig_len = CStr::from_ptr(orig).to_bytes().len();
         let mut res = Vec::<c_char>::with_capacity(orig_len + 1);
@@ -1096,7 +1096,10 @@ pub unsafe fn strcase_save(orig: *const c_char, upper: bool) -> *mut c_char {
             p = p.add(char_info.len as usize);
         }
 
-        xmemdupz(res.as_ptr().cast(), res.len()).cast::<c_char>()
+        crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
+            res.as_ptr().cast::<u8>(),
+            res.len(),
+        ))
     }
 }
 
@@ -3435,8 +3438,10 @@ pub unsafe fn f_strridx(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
 
 pub unsafe fn f_strtrans(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = transstr(tv_get_string(argvars), true);
+        crate::eval::typval::tv_set_string(
+            rettv,
+            transstr(tv_get_string(argvars), true).as_ptr(),
+        );
     }
 }
 
@@ -3515,15 +3520,19 @@ pub unsafe fn f_utf16idx(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 
 pub unsafe fn f_tolower(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = strcase_save(tv_get_string(argvars), false);
+        crate::eval::typval::tv_set_string(
+            rettv,
+            strcase_save(tv_get_string(argvars), false).as_ptr(),
+        );
     }
 }
 
 pub unsafe fn f_toupper(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = strcase_save(tv_get_string(argvars), true);
+        crate::eval::typval::tv_set_string(
+            rettv,
+            strcase_save(tv_get_string(argvars), true).as_ptr(),
+        );
     }
 }
 
@@ -3862,10 +3871,8 @@ mod tests {
             let overlong = c"\xc1\x81";
             let up = strcase_save(overlong.as_ptr(), true);
             let lo = strcase_save(overlong.as_ptr(), false);
-            assert_eq!(CStr::from_ptr(up).to_str().unwrap(), "A");
-            assert_eq!(CStr::from_ptr(lo).to_str().unwrap(), "a");
-            xfree(up.cast());
-            xfree(lo.cast());
+            assert_eq!(up.to_str().unwrap(), "A");
+            assert_eq!(lo.to_str().unwrap(), "a");
 
             for (inp, exp) in [
                 (b"\0" as &[u8], b"" as &[u8]),

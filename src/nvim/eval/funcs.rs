@@ -2382,21 +2382,15 @@ pub unsafe fn f_expand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
                     options += WILD_ICASE;
                 }
                 if (*rettv).v_type == VarType::VAR_STRING {
-                    (*rettv).vval.v_string = ExpandOne(
-                        &raw mut xpc,
-                        s.cast_mut(),
-                        ptr::null_mut(),
-                        options,
-                        WILD_ALL,
-                    );
+                    if let Some(exp) =
+                        ExpandOne(&raw mut xpc, s.cast_mut(), None, options, WILD_ALL)
+                    {
+                        crate::eval::typval::tv_set_string(rettv, exp.as_ptr());
+                    } else {
+                        (*rettv).vval.v_string = ptr::null_mut();
+                    }
                 } else {
-                    ExpandOne(
-                        &raw mut xpc,
-                        s.cast_mut(),
-                        ptr::null_mut(),
-                        options,
-                        WILD_ALL_KEEP,
-                    );
+                    ExpandOne(&raw mut xpc, s.cast_mut(), None, options, WILD_ALL_KEEP);
                     tv_list_alloc_ret(rettv, xpc.xp_numfiles as isize);
                     for &f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
                         tv_list_append_string((*rettv).vval.v_list, f, -1);

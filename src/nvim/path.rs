@@ -1340,9 +1340,8 @@ pub unsafe fn gen_expand_wildcards_vec(
             }
 
             if add_pat == -1 || (add_pat == 0 && (flags & EW_NOTFOUND) != 0) {
-                let t_raw = backslash_halve_save(p);
-                let t_owned = if t_raw != p { cstr_take(t_raw) } else { None };
-                let t = t_owned.as_ref().map_or(p, |s| s.as_ptr().cast_mut());
+                let t_owned = backslash_halve_save(p);
+                let t = t_owned.as_ptr().cast_mut();
                 if (flags & EW_NOTFOUND) != 0 {
                     addfile(file, t, flags | EW_DIR | EW_FILE);
                 } else {

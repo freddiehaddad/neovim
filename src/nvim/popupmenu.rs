@@ -924,9 +924,7 @@ pub unsafe fn pum_redraw() {
                         if saved != NUL {
                             *p = NUL;
                         }
-                        let mut st_bytes = cstr_take(transstr(s, true))
-                            .unwrap_or_default()
-                            .into_bytes_with_nul();
+                        let mut st_bytes = transstr(s, true).into_bytes_with_nul();
                         let st = st_bytes.as_mut_ptr().cast::<c_char>();
                         if saved != NUL {
                             *p = saved;

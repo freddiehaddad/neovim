@@ -712,10 +712,6 @@ pub unsafe fn cbuf_to_string(buf: *const c_char, size: usize) -> NvimString {
     }
 }
 
-pub unsafe fn cstrn_to_string(str_: *const c_char, maxsize: usize) -> NvimString {
-    unsafe { cbuf_to_string(str_, xstrnlen(str_, maxsize)) }
-}
-
 pub unsafe fn cstrn_as_string(str_: *const c_char, maxsize: usize) -> NvimString {
     unsafe {
         if str_.is_null() {

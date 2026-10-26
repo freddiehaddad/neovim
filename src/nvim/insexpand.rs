@@ -291,7 +291,6 @@ const fn empty_nvim_string() -> NvimString {
     }
 }
 
-use crate::api::private::helpers::cstr_as_string;
 use crate::mbyte::{mb_ptr_adv, utf_byte2len};
 use crate::path::vim_ispathsep;
 
@@ -472,7 +471,34 @@ static mut compl_restarting: bool = false;
 static mut compl_started: bool = false;
 static mut ctrl_x_mode: c_int = CTRL_X_NORMAL;
 static mut compl_matches: c_int = 0;
-static mut compl_pattern: NvimString = empty_nvim_string();
+static mut compl_pattern: Option<std::ffi::CString> = None;
+
+#[inline]
+unsafe fn compl_pattern_ptr() -> *mut c_char {
+    unsafe {
+        let p = &raw const compl_pattern;
+        (*p).as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    }
+}
+
+#[inline]
+unsafe fn compl_pattern_len() -> usize {
+    unsafe {
+        let p = &raw const compl_pattern;
+        (*p).as_ref().map_or(0, |s| s.to_bytes().len())
+    }
+}
+
+#[inline]
+unsafe fn set_compl_pattern_bytes(ptr: *const c_char, len: usize) {
+    unsafe {
+        compl_pattern = Some(crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
+            ptr.cast::<u8>(),
+            len,
+        )));
+    }
+}
 static mut cpt_compl_pattern: NvimString = empty_nvim_string();
 static mut compl_direction: Direction = FORWARD;
 static mut compl_shows_dir: Direction = FORWARD;
@@ -2303,7 +2329,7 @@ pub unsafe fn find_line_end(ptr: *mut c_char) -> *mut c_char {
 
 unsafe fn ins_compl_free() {
     unsafe {
-        api_clear_string(&raw mut compl_pattern);
+        compl_pattern = None;
         api_clear_string(&raw mut compl_leader);
 
         let list = &raw mut compl_list;
@@ -2336,7 +2362,7 @@ pub unsafe fn ins_compl_clear() {
         compl_longest_end_col = 0;
         compl_curr_win = ptr::null_mut();
         compl_curr_buf = ptr::null_mut();
-        api_clear_string(&raw mut compl_pattern);
+        compl_pattern = None;
         api_clear_string(&raw mut compl_leader);
         edit_submode_extra = ptr::null_mut();
         let extmarks = &raw mut compl_orig_extmarks;
@@ -4047,9 +4073,9 @@ unsafe fn process_next_cpt_value(
 unsafe fn get_next_include_file_completion(compl_type: c_int) {
     unsafe {
         find_pattern_in_path(
-            compl_pattern.data,
+            compl_pattern_ptr(),
             compl_direction,
-            compl_pattern.size,
+            compl_pattern_len(),
             false,
             false,
             if compl_type == CTRL_X_PATH_DEFINES && (compl_cont_status & CONT_SOL) == 0 {
@@ -4070,7 +4096,7 @@ unsafe fn get_next_include_file_completion(compl_type: c_int) {
 unsafe fn get_next_dict_tsr_completion(compl_type: c_int, dict: *mut c_char, dict_f: c_int) {
     unsafe {
         if thesaurus_func_complete(compl_type) {
-            expand_by_function(compl_type, compl_pattern.data, ptr::null_mut());
+            expand_by_function(compl_type, compl_pattern_ptr(), ptr::null_mut());
         } else {
             let dict_arg = if !dict.is_null() {
                 dict
@@ -4087,7 +4113,7 @@ unsafe fn get_next_dict_tsr_completion(compl_type: c_int, dict: *mut c_char, dic
             };
             ins_compl_dictionaries(
                 dict_arg,
-                compl_pattern.data,
+                compl_pattern_ptr(),
                 if !dict.is_null() { dict_f } else { 0 },
                 compl_type == CTRL_X_THESAURUS,
             );
@@ -4098,12 +4124,12 @@ unsafe fn get_next_dict_tsr_completion(compl_type: c_int, dict: *mut c_char, dic
 unsafe fn get_next_tag_completion() {
     unsafe {
         let save_p_ic = p_ic;
-        p_ic = ignorecase(compl_pattern.data);
+        p_ic = ignorecase(compl_pattern_ptr());
 
         g_tag_at_cursor = true;
         let mut matches: Vec<Vec<c_char>> = Vec::new();
         if find_tags(
-            compl_pattern.data,
+            compl_pattern_ptr(),
             &mut matches,
             TAG_REGEXP
                 | TAG_NAMES
@@ -4249,8 +4275,7 @@ unsafe fn get_next_filename_completion() {
             }
             let last_sep = strrchr(leader, PATHSEP as c_int);
             if last_sep.is_null() {
-                api_clear_string(&raw mut compl_pattern);
-                compl_pattern = cbuf_to_string(c"*".as_ptr(), 1);
+                compl_pattern = Some(c"*".to_owned());
             } else if *last_sep.add(1) == NUL {
                 in_fuzzy_collect = false;
             } else {
@@ -4264,17 +4289,17 @@ unsafe fn get_next_filename_completion() {
                     path_len as c_int,
                     leader,
                 );
-                api_clear_string(&raw mut compl_pattern);
-                compl_pattern = cbuf_to_string(path_with_wildcard.as_ptr(), path_len + 1);
+                set_compl_pattern_bytes(path_with_wildcard.as_ptr(), path_len + 1);
 
                 leader = last_sep.add(1);
                 leader_len -= path_len;
             }
         }
 
+        let mut pat_ptr = compl_pattern_ptr();
         if expand_wildcards_vec(
             1,
-            &raw mut compl_pattern.data,
+            &raw mut pat_ptr,
             &mut matches,
             EW_FILE | EW_DIR | EW_ADDSLASH | EW_SILENT,
         ) != OK
@@ -4282,7 +4307,7 @@ unsafe fn get_next_filename_completion() {
             return;
         }
 
-        tilde_replace(compl_pattern.data, &mut matches);
+        tilde_replace(compl_pattern_ptr(), &mut matches);
         #[cfg(windows)]
         {
             if (*(*curbuf).b_p_csl == NUL && p_ssl == 0) || *(*curbuf).b_p_csl == b'b' as c_char {
@@ -4372,8 +4397,8 @@ unsafe fn get_next_cmdline_completion() {
         let mut matches: Vec<*mut c_char> = Vec::new();
         if expand_cmdline(
             &raw mut compl_xp,
-            compl_pattern.data,
-            compl_pattern.size as c_int,
+            compl_pattern_ptr(),
+            compl_pattern_len() as c_int,
             &mut matches,
         ) == EXPAND_OK
         {
@@ -4428,7 +4453,7 @@ unsafe fn get_next_cmdline_completion() {
 unsafe fn get_next_spell_completion(lnum: linenr_T) {
     unsafe {
         let mut matches: Vec<*mut c_char> = Vec::new();
-        expand_spelling(lnum, compl_pattern.data, &mut matches);
+        expand_spelling(lnum, compl_pattern_ptr(), &mut matches);
         if !matches.is_empty() {
             ins_compl_add_matches(&mut matches, p_ic);
         }
@@ -4569,7 +4594,7 @@ unsafe fn get_next_default_completion(
                     (*st).ins_buf,
                     (*st).cur_match_pos,
                     compl_direction,
-                    compl_pattern.data,
+                    compl_pattern_ptr(),
                 );
             } else {
                 found_new_match = searchit(
@@ -4578,8 +4603,8 @@ unsafe fn get_next_default_completion(
                     (*st).cur_match_pos,
                     ptr::null_mut(),
                     compl_direction,
-                    compl_pattern.data,
-                    compl_pattern.size,
+                    compl_pattern_ptr(),
+                    compl_pattern_len(),
                     1,
                     SEARCH_KEEP + SEARCH_NFMSG,
                     RE_LAST,
@@ -4831,11 +4856,11 @@ unsafe fn get_next_completion_match(
                 if ctrl_x_mode_normal() {
                     get_cpt_func_completion_matches((*st).func_cb);
                 } else {
-                    expand_by_function(type_, compl_pattern.data, ptr::null_mut());
+                    expand_by_function(type_, compl_pattern_ptr(), ptr::null_mut());
                 }
             }
             CTRL_X_OMNI => {
-                expand_by_function(type_, compl_pattern.data, ptr::null_mut());
+                expand_by_function(type_, compl_pattern_ptr(), ptr::null_mut());
             }
             CTRL_X_SPELL => {
                 get_next_spell_completion((*st).first_match_pos.lnum);
@@ -5110,7 +5135,7 @@ unsafe fn ins_compl_get_exp(ini: *mut pos_T) -> c_int {
                 &raw mut start_pos,
             ));
 
-            if compl_pattern.data.is_null() {
+            if compl_pattern_ptr().is_null() {
                 break;
             }
 
@@ -5894,14 +5919,14 @@ unsafe fn get_normal_compl_info(
                 compl_length = curs_col - startcol;
             }
             if p_ic != 0 {
-                compl_pattern = cstr_as_string(str_foldcase(
+                compl_pattern = str_foldcase(
                     line.add(compl_col as usize),
                     compl_length,
                     ptr::null_mut(),
                     0,
-                ));
+                );
             } else {
-                compl_pattern = cbuf_to_string(line.add(compl_col as usize), compl_length as usize);
+                set_compl_pattern_bytes(line.add(compl_col as usize), compl_length as usize);
             }
         } else if compl_status_adding() {
             let mut prefix = c"\\<".as_ptr();
@@ -5924,11 +5949,11 @@ unsafe fn get_normal_compl_info(
                 line.add(compl_col as usize),
                 compl_length,
             );
-            compl_pattern = cbuf_to_string(pat_vec.as_ptr(), n - 1);
+            set_compl_pattern_bytes(pat_vec.as_ptr(), n - 1);
         } else {
             startcol -= 1;
             if startcol < 0 || !vim_iswordp(mb_prevptr(line, line.add((startcol + 1) as usize))) {
-                compl_pattern = cbuf_to_string(c"\\<\\k\\k".as_ptr(), 6);
+                compl_pattern = Some(c"\\<\\k\\k".to_owned());
                 compl_col += curs_col;
                 compl_length = 0;
                 compl_from_nonkeyword = true;
@@ -5954,7 +5979,7 @@ unsafe fn get_normal_compl_info(
                     strcpy(pat_vec.as_mut_ptr(), c"\\<".as_ptr());
                     quote_meta(pat_vec.as_mut_ptr().add(2), line.add(compl_col as usize), 1);
                     strcat(pat_vec.as_mut_ptr(), c"\\k".as_ptr());
-                    compl_pattern = cbuf_to_string(pat_vec.as_ptr(), strlen(pat_vec.as_ptr()));
+                    set_compl_pattern_bytes(pat_vec.as_ptr(), strlen(pat_vec.as_ptr()));
                 } else {
                     let n = quote_meta(ptr::null_mut(), line.add(compl_col as usize), compl_length)
                         as usize
@@ -5966,7 +5991,7 @@ unsafe fn get_normal_compl_info(
                         line.add(compl_col as usize),
                         compl_length,
                     );
-                    compl_pattern = cbuf_to_string(pat_vec.as_ptr(), n - 1);
+                    set_compl_pattern_bytes(pat_vec.as_ptr(), n - 1);
                 }
             }
         }
@@ -5988,14 +6013,14 @@ unsafe fn get_wholeline_compl_info(line: *mut c_char, curs_col: colnr_T) -> c_in
             compl_length = 0;
         }
         if p_ic != 0 {
-            compl_pattern = cstr_as_string(str_foldcase(
+            compl_pattern = str_foldcase(
                 line.add(compl_col as usize),
                 compl_length,
                 ptr::null_mut(),
                 0,
-            ));
+            );
         } else {
-            compl_pattern = cbuf_to_string(line.add(compl_col as usize), compl_length as usize);
+            set_compl_pattern_bytes(line.add(compl_col as usize), compl_length as usize);
         }
 
         OK
@@ -6039,7 +6064,7 @@ unsafe fn get_filename_compl_info(
 
         compl_col += startcol;
         compl_length = curs_col - startcol;
-        compl_pattern = cstr_as_string(addstar(
+        compl_pattern = Some(addstar(
             line.add(compl_col as usize),
             compl_length as usize,
             EXPAND_FILES,
@@ -6051,11 +6076,11 @@ unsafe fn get_filename_compl_info(
 
 unsafe fn get_cmdline_compl_info(line: *mut c_char, curs_col: colnr_T) -> c_int {
     unsafe {
-        compl_pattern = cbuf_to_string(line, curs_col as usize);
+        set_compl_pattern_bytes(line, curs_col as usize);
         set_cmd_context(
             &raw mut compl_xp,
-            compl_pattern.data,
-            compl_pattern.size as c_int,
+            compl_pattern_ptr(),
+            compl_pattern_len() as c_int,
             curs_col,
             0,
         );
@@ -6065,7 +6090,7 @@ unsafe fn get_cmdline_compl_info(line: *mut c_char, curs_col: colnr_T) -> c_int 
         if compl_xp.xp_context == EXPAND_UNSUCCESSFUL || compl_xp.xp_context == EXPAND_NOTHING {
             compl_col = curs_col;
         } else {
-            compl_col = compl_xp.xp_pattern.offset_from(compl_pattern.data) as colnr_T;
+            compl_col = compl_xp.xp_pattern.offset_from(compl_pattern_ptr()) as colnr_T;
         }
         compl_length = curs_col - compl_col;
 
@@ -6094,7 +6119,7 @@ unsafe fn set_compl_globals(mut startcol: c_int, curs_col: colnr_T, is_cpt_compl
             let line = ml_get((*curwin).w_cursor.lnum);
             let len = curs_col - startcol;
 
-            compl_pattern = cbuf_to_string(line.add(startcol as usize), len as usize);
+            set_compl_pattern_bytes(line.add(startcol as usize), len as usize);
             compl_col = startcol;
             compl_length = len;
         }
@@ -6199,7 +6224,7 @@ unsafe fn get_spell_compl_info(startcol: c_int, curs_col: colnr_T) -> c_int {
             compl_length = curs_col - compl_col;
         }
         let line = ml_get((*curwin).w_cursor.lnum);
-        compl_pattern = cbuf_to_string(line.add(compl_col as usize), compl_length as usize);
+        set_compl_pattern_bytes(line.add(compl_col as usize), compl_length as usize);
 
         OK
     }
@@ -6385,7 +6410,7 @@ unsafe fn ins_compl_start() -> c_int {
             None,
         ) != OK
         {
-            api_clear_string(&raw mut compl_pattern);
+            compl_pattern = None;
             api_clear_string(&raw mut compl_orig_text);
             let extmarks = &raw mut compl_orig_extmarks;
             (*extmarks).clear();

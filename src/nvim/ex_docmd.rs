@@ -5092,7 +5092,11 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
 
                 if count == 1 && fgetline.is_exline() {
                     if ui_has(kUICmdline) {
-                        ui_ext_cmdline_block_append(0, last_cmdline);
+                        let last_cmd_ptr = &raw const last_cmdline;
+                        ui_ext_cmdline_block_append(
+                            0,
+                            (*last_cmd_ptr).as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                        );
                         did_block = true;
                     }
                     msg_didout = true;
@@ -5178,10 +5182,11 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                 xfree(cmdline_copy.cast());
                 cmdline_copy = ptr::null_mut();
 
-                if fgetline.is_exline() && !new_last_cmdline.is_null() {
-                    xfree(last_cmdline.cast());
-                    last_cmdline = new_last_cmdline;
-                    new_last_cmdline = ptr::null_mut();
+                let new_last_ptr = &raw mut new_last_cmdline;
+                if fgetline.is_exline()
+                    && let Some(new_cmd) = (*new_last_ptr).take()
+                {
+                    last_cmdline = Some(new_cmd);
                 }
             } else {
                 strmove(cmdline_copy, next_cmdline);
@@ -8313,13 +8318,13 @@ pub unsafe fn expand_filename(
                 if p_wic != 0 {
                     options += WILD_ICASE;
                 }
-                let Some(expanded) = cstr_take(ExpandOne(
+                let Some(expanded) = ExpandOne(
                     &raw mut xpc,
                     (*eap).arg,
-                    ptr::null_mut(),
+                    None,
                     options,
                     WILD_EXPAND_FREE,
-                )) else {
+                ) else {
                     return FAIL;
                 };
                 repl_cmdline(

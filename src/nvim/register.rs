@@ -765,14 +765,14 @@ pub unsafe fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent:
         }
 
         if regname == c_int::from(b':') {
-            if last_cmdline.is_null() {
+            let last_cmd_ptr = &raw const last_cmdline;
+            let Some(last_cmd) = (*last_cmd_ptr).as_ref() else {
                 emsg(gettext(e_nolastcmd.as_ptr()));
                 return FAIL;
-            }
-            xfree(new_last_cmdline.cast());
-            new_last_cmdline = ptr::null_mut();
+            };
+            new_last_cmdline = None;
             let p = cstr_take(vim_strsave_escaped_ext(
-                last_cmdline,
+                last_cmd.as_ptr(),
                 c"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f".as_ptr(),
                 Ctrl_V as u8 as c_char,
                 false,
@@ -964,10 +964,14 @@ pub unsafe fn get_spec_reg(
                 true
             }
             x if x == c_int::from(b':') => {
-                if last_cmdline.is_null() && errmsg {
+                let last_cmd_ref_ptr = &raw const last_cmdline;
+                let last_cmd_ptr = (*last_cmd_ref_ptr)
+                    .as_ref()
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                if last_cmd_ptr.is_null() && errmsg {
                     emsg(gettext(e_nolastcmd.as_ptr()));
                 }
-                *argp = last_cmdline;
+                *argp = last_cmd_ptr;
                 true
             }
             x if x == c_int::from(b'/') => {
@@ -2610,13 +2614,14 @@ pub unsafe fn ex_display(eap: *mut exarg_T) {
             dis_msg(p, true);
         }
 
-        if !last_cmdline.is_null()
+        let last_cmd_ptr = &raw const last_cmdline;
+        if let Some(last_cmd) = (*last_cmd_ptr).as_ref()
             && (arg.is_null() || !vim_strchr(arg, c_int::from(b':')).is_null())
             && !got_int
-            && !message_filtered(last_cmdline)
+            && !message_filtered(last_cmd.as_ptr())
         {
             msg_puts(c"\n  c  \":   ".as_ptr());
-            dis_msg(last_cmdline, false);
+            dis_msg(last_cmd.as_ptr(), false);
         }
 
         if !(*curbuf).b_fname.is_null()

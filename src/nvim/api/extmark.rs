@@ -1663,15 +1663,14 @@ pub unsafe fn parse_virt_text(
                     }
                 }
 
-                let text_cstr = cstr_take(transstr(
+                let text_cstr = transstr(
                     if str_val.size > 0 {
                         str_val.data
                     } else {
                         c"".as_ptr()
                     },
                     untab,
-                ))
-                .unwrap_or_default();
+                );
                 w += mb_string2cells(text_cstr.as_ptr()) as c_int;
 
                 virt_text.push(VirtTextChunk {

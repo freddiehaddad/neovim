@@ -1262,8 +1262,12 @@ unsafe fn command_line_enter(
                         },
                     );
                     if (*s).firstc == b':' as c_int {
-                        xfree(new_last_cmdline.cast());
-                        new_last_cmdline = xstrnsave(ccline.cmdbuff, ccline.cmdlen as usize);
+                        new_last_cmdline = Some(crate::memory::cstr_from_bytes(
+                            std::slice::from_raw_parts(
+                                ccline.cmdbuff.cast::<u8>(),
+                                ccline.cmdlen as usize,
+                            ),
+                        ));
                     }
                 }
 
@@ -1512,13 +1516,7 @@ unsafe fn command_line_wildchar_complete(s: *mut CommandLineState) -> c_int {
             if got_int {
                 vpeekc();
                 got_int = false;
-                ExpandOne(
-                    &raw mut (*s).xpc,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    0,
-                    WILD_FREE,
-                );
+                ExpandOne(&raw mut (*s).xpc, ptr::null_mut(), None, 0, WILD_FREE);
                 (*s).xpc.xp_context = EXPAND_NOTHING;
                 return CMDLINE_CHANGED;
             }
@@ -1624,13 +1622,7 @@ unsafe fn command_line_end_wildmenu(s: *mut CommandLineState, key_is_wc: bool, c
             cmdline_pum_remove(c != -1 && (*s).skip_pum_redraw);
         }
         if (*s).xpc.xp_numfiles != -1 {
-            ExpandOne(
-                &raw mut (*s).xpc,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                0,
-                WILD_FREE,
-            );
+            ExpandOne(&raw mut (*s).xpc, ptr::null_mut(), None, 0, WILD_FREE);
         }
         (*s).did_wild_list = false;
         if p_wmnu == 0 || (c != K_UP && c != K_DOWN) {
