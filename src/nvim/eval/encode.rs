@@ -19,7 +19,7 @@ use crate::hashtab::{hashitem_T, hashitem_empty};
 use crate::keycodes::{BS, CAR, NL, TAB};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_char2len, utf_printable, utf_ptr2char, utf_ptr2len};
-use crate::memory::{memchrsub, memcnt, xfree, xmalloc, xmemdupz, xmemscan};
+use crate::memory::{cstr_take, memchrsub, memcnt, xfree, xmemdupz, xmemscan};
 use crate::message::{emsg, internal_error, semsg};
 use crate::msgpack_rpc::packer::{
     PackerBuffer, mpack_array, mpack_bin, mpack_bool, mpack_check_buffer, mpack_ext, mpack_float8,
@@ -238,18 +238,14 @@ pub unsafe fn encode_read_from_list(
     }
 }
 
-/// Convert `readfile()`-style list to a `char *` buffer with length (`encode_vim_list_to_buf`).
-pub unsafe fn encode_vim_list_to_buf(
-    list: *const list_T,
-    ret_len: *mut usize,
-    ret_buf: *mut *mut c_char,
-) -> bool {
+/// Convert `readfile()`-style list to a `Vec<c_char>` buffer (`encode_vim_list_to_buf`).
+pub unsafe fn encode_vim_list_to_buf(list: *const list_T) -> Option<Vec<c_char>> {
     let mut len = 0usize;
     let mut li = unsafe { tv_list_first(list) };
     while !li.is_null() {
         let tv = unsafe { &(*li).li_tv };
         if tv.v_type != VarType::VAR_STRING {
-            return false;
+            return None;
         }
         len += 1;
         let s = unsafe { tv.vval.v_string };
@@ -259,26 +255,18 @@ pub unsafe fn encode_vim_list_to_buf(
         li = unsafe { (*li).li_next };
     }
     len = len.saturating_sub(1);
-    unsafe {
-        *ret_len = len;
-    }
     if len == 0 {
-        unsafe {
-            *ret_buf = std::ptr::null_mut();
-        }
-        return true;
+        return Some(Vec::new());
     }
     let mut lrstate = unsafe { encode_init_lrstate(list) };
-    let buf = unsafe { xmalloc(len).cast::<c_char>() };
+    let mut buf = vec![0 as c_char; len];
     let mut read_bytes = 0usize;
-    if unsafe { encode_read_from_list(&mut lrstate, buf, len, &mut read_bytes) } != OK {
+    if unsafe { encode_read_from_list(&mut lrstate, buf.as_mut_ptr(), len, &mut read_bytes) } != OK
+    {
         std::process::abort();
     }
     assert_eq!(len, read_bytes);
-    unsafe {
-        *ret_buf = buf;
-    }
-    true
+    Some(buf)
 }
 
 /// Check whether given key can be used in `json_encode()` (`encode_check_json_key`).
@@ -366,9 +354,13 @@ unsafe fn conv_error(
                             v_string: (*hi_ptr).hi_key,
                         },
                     };
-                    let key = encode_tv2string(&mut key_tv, std::ptr::null_mut());
-                    vim_snprintf!(iobuf.as_mut_ptr(), iobuf.len(), c"key %s".as_ptr(), key);
-                    xfree(key.cast());
+                    let key = cstr_take(encode_tv2string(&mut key_tv, std::ptr::null_mut()));
+                    vim_snprintf!(
+                        iobuf.as_mut_ptr(),
+                        iobuf.len(),
+                        c"key %s".as_ptr(),
+                        key.as_ref().map_or(std::ptr::null(), |s| s.as_ptr()),
+                    );
                     buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
                 }
                 MPConvStackData::List { list, li } | MPConvStackData::Pairs { list, li } => {
@@ -397,15 +389,14 @@ unsafe fn conv_error(
                         let first_item = tv_list_first((*prev_li).li_tv.vval.v_list);
                         assert!(!first_item.is_null());
                         let mut key_tv = (*first_item).li_tv;
-                        let key = encode_tv2echo(&mut key_tv, std::ptr::null_mut());
+                        let key = cstr_take(encode_tv2echo(&mut key_tv, std::ptr::null_mut()));
                         vim_snprintf!(
                             iobuf.as_mut_ptr(),
                             iobuf.len(),
                             c"key %s at index %i from special map".as_ptr(),
-                            key,
+                            key.as_ref().map_or(std::ptr::null(), |s| s.as_ptr()),
                             idx,
                         );
-                        xfree(key.cast());
                         buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
                     }
                 }
@@ -1352,21 +1343,16 @@ unsafe fn convert_one_value(
                                         }
                                     }
                                     K_MP_STRING => {
-                                        if (*val_di).di_tv.v_type == VarType::VAR_LIST {
-                                            let mut len = 0usize;
-                                            let mut buf: *mut c_char = std::ptr::null_mut();
-                                            if encode_vim_list_to_buf(
-                                                (*val_di).di_tv.vval.v_list,
-                                                &mut len,
-                                                &mut buf,
-                                            ) {
-                                                let res = backend.conv_str_string(buf, len);
-                                                xfree(buf.cast());
-                                                if res == FAIL {
-                                                    return FAIL;
-                                                }
-                                                handled_special = true;
+                                        if (*val_di).di_tv.v_type == VarType::VAR_LIST
+                                            && let Some(buf) =
+                                                encode_vim_list_to_buf((*val_di).di_tv.vval.v_list)
+                                        {
+                                            let res =
+                                                backend.conv_str_string(buf.as_ptr(), buf.len());
+                                            if res == FAIL {
+                                                return FAIL;
                                             }
+                                            handled_special = true;
                                         }
                                     }
                                     K_MP_ARRAY => {
@@ -1450,23 +1436,20 @@ unsafe fn convert_one_value(
                                                 && (i8::MIN as i64..=i8::MAX as i64)
                                                     .contains(&(*first).li_tv.vval.v_number)
                                                 && (*last).li_tv.v_type == VarType::VAR_LIST
+                                                && let Some(mut buf) = encode_vim_list_to_buf(
+                                                    (*last).li_tv.vval.v_list,
+                                                )
                                             {
                                                 let ext_type = (*first).li_tv.vval.v_number as i8;
-                                                let mut len = 0usize;
-                                                let mut buf: *mut c_char = std::ptr::null_mut();
-                                                if encode_vim_list_to_buf(
-                                                    (*last).li_tv.vval.v_list,
-                                                    &mut len,
-                                                    &mut buf,
-                                                ) {
-                                                    let res =
-                                                        backend.conv_ext_string(buf, len, ext_type);
-                                                    xfree(buf.cast());
-                                                    if res == FAIL {
-                                                        return FAIL;
-                                                    }
-                                                    handled_special = true;
+                                                let res = backend.conv_ext_string(
+                                                    buf.as_mut_ptr(),
+                                                    buf.len(),
+                                                    ext_type,
+                                                );
+                                                if res == FAIL {
+                                                    return FAIL;
                                                 }
+                                                handled_special = true;
                                             }
                                         }
                                     }
@@ -1854,14 +1837,11 @@ mod tests {
             lv_lock: 0,
             lua_table_ref: -2,
         };
-        let mut len = 0usize;
-        let mut buf: *mut c_char = std::ptr::null_mut();
         unsafe {
-            assert!(encode_vim_list_to_buf(&list, &mut len, &mut buf));
-            assert_eq!(len, 5);
-            let slice = std::slice::from_raw_parts(buf.cast::<u8>(), len);
+            let buf = encode_vim_list_to_buf(&list).unwrap();
+            assert_eq!(buf.len(), 5);
+            let slice = std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), buf.len());
             assert_eq!(slice, b"a\0b\nc");
-            xfree(buf.cast());
         }
         li1.li_tv.v_type = VarType::VAR_UNKNOWN;
         li2.li_tv.v_type = VarType::VAR_UNKNOWN;

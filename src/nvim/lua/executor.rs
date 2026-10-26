@@ -57,7 +57,7 @@ use crate::main_init::{getout, os_exit, preserve_exit};
 use crate::math::{FAIL, OK};
 use crate::memline::{ml_get_buf, ml_get_buf_len, ml_replace};
 use crate::memory::{
-    Arena, ArenaMem, arena_finish, arena_mem_free, strequal, xfree, xmemdupz, xstrdup,
+    Arena, ArenaMem, arena_finish, arena_mem_free, cstr_take, strequal, xfree, xmemdupz, xstrdup,
 };
 use crate::message::{
     emsg, msg_ext_no_fast, msg_multihl, msg_putchar, msg_use_printf, redirecting, semsg_multiline,
@@ -2345,26 +2345,26 @@ pub unsafe fn ex_lua(eap: *mut exarg_T) {
         }
 
         let mut len: usize = 0;
-        let raw_code = script_get(eap, &raw mut len);
-        if (*eap).skip != 0 || raw_code.is_null() {
-            xfree(raw_code.cast());
+        let raw_code = cstr_take(script_get(eap, &raw mut len));
+        let Some(raw_cstr) = raw_code else {
+            return;
+        };
+        if (*eap).skip != 0 {
             return;
         }
 
-        let code_cstr = if (*eap).cmdidx == CMD_equal || *raw_code == b'=' as c_char {
+        let code_cstr = if (*eap).cmdidx == CMD_equal || *raw_cstr.as_ptr() == b'=' as c_char {
             let off: usize = if (*eap).cmdidx == CMD_equal { 0 } else { 1 };
-            let body = std::slice::from_raw_parts(raw_code.add(off).cast::<u8>(), len - off);
+            let body =
+                std::slice::from_raw_parts(raw_cstr.as_ptr().add(off).cast::<u8>(), len - off);
             let mut buf = Vec::with_capacity(18 + body.len());
             buf.extend_from_slice(b"vim._print(true, ");
             buf.extend_from_slice(body);
             buf.push(b')');
-            xfree(raw_code.cast());
             len = buf.len();
             std::ffi::CString::new(buf).unwrap()
         } else {
-            let cstr = CStr::from_ptr(raw_code).to_owned();
-            xfree(raw_code.cast());
-            cstr
+            raw_cstr
         };
 
         nlua_exec_typval(
@@ -2742,15 +2742,12 @@ pub unsafe fn nlua_set_sctx(current: *mut sctx_T) {
             found = true;
             break;
         }
-        if found {
-            let source_path = fix_fname(info.source.add(1));
-            let mut sid = find_script_by_name(source_path);
+        if found && let Some(source_path) = cstr_take(fix_fname(info.source.add(1))) {
+            let mut sid = find_script_by_name(source_path.as_ptr().cast_mut());
             if sid <= 0 {
-                let si: *mut scriptitem_T =
-                    new_script_item(Some(CStr::from_ptr(source_path).to_owned()), &raw mut sid);
+                let si: *mut scriptitem_T = new_script_item(Some(source_path), &raw mut sid);
                 (*si).sn_lua = true;
             }
-            xfree(source_path.cast());
             (*current).sc_sid = sid;
             (*current).sc_seq = -1;
             (*current).sc_lnum = info.currentline;
@@ -2857,14 +2854,14 @@ pub unsafe fn nlua_funcref_str(ref_: LuaRef, arena: *mut Arena, show_ref: bool) 
                     && *ar.source == b'@' as c_char
                     && ar.linedefined >= 0
                 {
-                    let src = home_replace_save(ptr::null_mut(), ar.source.add(1));
-                    let src_s = CStr::from_ptr(src).to_string_lossy();
+                    let src = cstr_take(home_replace_save(ptr::null_mut(), ar.source.add(1)))
+                        .unwrap_or_default();
+                    let src_s = src.to_string_lossy();
                     let formatted = if show_ref {
                         format!("<Lua {ref_}: {src_s}:{}>", ar.linedefined)
                     } else {
                         format!("<Lua {src_s}:{}>", ar.linedefined)
                     };
-                    xfree(src.cast());
                     return crate::memory::arena_memdupz(
                         arena,
                         formatted.as_ptr().cast(),

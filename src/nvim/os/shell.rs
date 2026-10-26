@@ -31,7 +31,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::CP_UTF8;
 use crate::mbyte::{utf8len_tab_zero, utfc_ptr2len_len};
 use crate::memline::ml_append;
-use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_take, xfree, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
 #[cfg(unix)]
 use crate::message::msg;
 use crate::message::{
@@ -198,11 +198,11 @@ pub unsafe fn os_expand_wildcards(
             }
         }
 
-        let tempname = vim_tempname();
-        if tempname.is_null() {
+        let Some(tempname_cstr) = cstr_take(vim_tempname()) else {
             emsg(gettext(e_notmp.as_ptr()));
             return FAIL;
-        }
+        };
+        let tempname = tempname_cstr.as_ptr();
 
         if num_pat == 1 && **pat == b'`' as c_char {
             let pat0_len = strlen(*pat);
@@ -368,7 +368,6 @@ pub unsafe fn os_expand_wildcards(
 
         if res != 0 {
             os_remove(tempname);
-            xfree(tempname.cast());
             if (flags & EW_SILENT) == 0 {
                 msg_putchar(b'\n' as c_int);
                 cmdline_row = Rows - 1;
@@ -392,7 +391,6 @@ pub unsafe fn os_expand_wildcards(
                 msg(gettext(e_wildexpand.as_ptr()), 0);
                 msg_start();
             }
-            xfree(tempname.cast());
             if (flags & EW_NOTFOUND) != 0 {
                 save_patterns(num_pat, pat, file);
                 return OK;
@@ -401,13 +399,11 @@ pub unsafe fn os_expand_wildcards(
         }
         let fseek_res = fseek(fd, 0, SEEK_END);
         if fseek_res < 0 {
-            xfree(tempname.cast());
             fclose(fd);
             return FAIL;
         }
         let templen = ftell(fd) as i64;
         if templen < 0 {
-            xfree(tempname.cast());
             fclose(fd);
             return FAIL;
         }
@@ -420,10 +416,9 @@ pub unsafe fn os_expand_wildcards(
         os_remove(tempname);
         if readlen != len {
             semsg!(gettext(e_cant_read_file_str.as_ptr()), tempname);
-            xfree(tempname.cast());
             return FAIL;
         }
-        xfree(tempname.cast());
+        drop(tempname_cstr);
 
         let mut count: c_int = 0;
         if shell_style == STYLE_ECHO {
@@ -729,23 +724,25 @@ pub unsafe fn get_cmd_output(
             return None;
         }
 
-        let tempname = vim_tempname();
-        if tempname.is_null() {
+        let Some(tempname_cstr) = cstr_take(vim_tempname()) else {
             emsg(gettext(e_notmp.as_ptr()));
             return None;
-        }
+        };
+        let tempname = tempname_cstr.as_ptr().cast_mut();
 
-        let command = make_filter_cmd(cmd, infile, tempname, false);
+        let command = cstr_take(make_filter_cmd(cmd, infile, tempname, false));
 
         no_check_timestamps += 1;
         call_shell(
-            command,
+            command
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
             kShellOptDoOut | kShellOptExpand | flags,
             ptr::null_mut(),
         );
         no_check_timestamps -= 1;
 
-        xfree(command.cast());
+        drop(command);
 
         let fd = os_fopen(tempname, c"rb".as_ptr());
         let mut result: Option<std::ffi::CString> = None;
@@ -782,7 +779,7 @@ pub unsafe fn get_cmd_output(
         }
 
         os_remove(tempname);
-        xfree(tempname.cast());
+        drop(tempname_cstr);
         result
     }
 }
@@ -1245,10 +1242,12 @@ unsafe fn shell_xescape_xquote(cmd: *const c_char) -> *mut c_char {
         }
 
         let sxq_bytes = CStr::from_ptr(p_sxq).to_bytes();
-        let mut ecmd = cmd;
-        if *p_sxe != NUL && sxq_bytes == b"(" {
-            ecmd = vim_strsave_escaped_ext(cmd, p_sxe, b'^' as c_char, false);
-        }
+        let owned_ecmd = if *p_sxe != NUL && sxq_bytes == b"(" {
+            cstr_take(vim_strsave_escaped_ext(cmd, p_sxe, b'^' as c_char, false))
+        } else {
+            None
+        };
+        let ecmd = owned_ecmd.as_ref().map_or(cmd, |s| s.as_ptr());
         let ncmd_size = strlen(ecmd) + sxq_bytes.len() * 2 + 1;
         let ncmd: *mut c_char = xmalloc(ncmd_size).cast();
 
@@ -1258,10 +1257,6 @@ unsafe fn shell_xescape_xquote(cmd: *const c_char) -> *mut c_char {
             vim_snprintf!(ncmd, ncmd_size, c"\"(%s)\"".as_ptr(), ecmd);
         } else {
             vim_snprintf!(ncmd, ncmd_size, c"%s%s%s".as_ptr(), p_sxq, ecmd, p_sxq);
-        }
-
-        if ecmd != cmd {
-            xfree(ecmd.cast_mut().cast());
         }
 
         ncmd

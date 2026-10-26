@@ -497,7 +497,14 @@ unsafe fn array_to_string(array: Array, err: *mut Error) -> NvimString {
         object_to_vim(array_obj(array), &mut list_tv, err);
 
         assert_eq!(list_tv.v_type, VarType::VAR_LIST);
-        if !encode_vim_list_to_buf(list_tv.vval.v_list, &mut sbuf.size, &mut sbuf.data) {
+        if let Some(buf) = encode_vim_list_to_buf(list_tv.vval.v_list) {
+            if !buf.is_empty() {
+                sbuf = crate::api::private::helpers::cbuf_as_string(
+                    buf.as_ptr().cast_mut(),
+                    buf.len(),
+                );
+            }
+        } else {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,

@@ -5105,18 +5105,19 @@ pub unsafe fn f_json_decode(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
     unsafe {
         let mut numbuf = [0 as c_char; NUMBUFLEN];
         let s: *const c_char;
-        let mut tofree: *mut c_char = ptr::null_mut();
-        let mut len: usize = 0;
+        let mut owned_buf: Vec<c_char> = Vec::new();
+        let len: usize;
         if (*argvars).v_type == VarType::VAR_LIST {
-            if !encode_vim_list_to_buf((*argvars).vval.v_list, &raw mut len, &raw mut tofree) {
+            let Some(buf) = encode_vim_list_to_buf((*argvars).vval.v_list) else {
                 emsg(gettext(c"E474: Failed to convert list to string".as_ptr()));
                 return;
-            }
-            if tofree.is_null() {
-                debug_assert!(len == 0);
+            };
+            len = buf.len();
+            owned_buf = buf;
+            if owned_buf.is_empty() {
                 s = c"".as_ptr();
             } else {
-                s = tofree;
+                s = owned_buf.as_ptr();
             }
         } else {
             s = tv_get_string_buf_chk(argvars, numbuf.as_mut_ptr());
@@ -5136,7 +5137,7 @@ pub unsafe fn f_json_decode(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             (*rettv).vval.v_number = 0;
         }
         debug_assert!((*rettv).v_type != VarType::VAR_UNKNOWN);
-        xfree(tofree.cast());
+        drop(owned_buf);
     }
 }
 

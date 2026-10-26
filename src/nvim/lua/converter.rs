@@ -31,7 +31,7 @@ use crate::highlight_group::syn_check_group;
 
 use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
 use crate::math::{FAIL, OK};
-use crate::memory::{Arena, arena_memdupz, xfree, xstrdup};
+use crate::memory::{Arena, arena_memdupz, xstrdup};
 use crate::message::{emsg, internal_error, semsg};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -1111,18 +1111,12 @@ unsafe fn lua_convert_one_value(
                                         }
                                     }
                                     K_MP_STRING => {
-                                        if (*val_di).di_tv.v_type == VarType::VAR_LIST {
-                                            let mut len = 0usize;
-                                            let mut buf: *mut c_char = std::ptr::null_mut();
-                                            if encode_vim_list_to_buf(
-                                                (*val_di).di_tv.vval.v_list,
-                                                &mut len,
-                                                &mut buf,
-                                            ) {
-                                                lua_pushlstring(lstate, buf, len);
-                                                xfree(buf.cast::<c_void>());
-                                                handled_special = true;
-                                            }
+                                        if (*val_di).di_tv.v_type == VarType::VAR_LIST
+                                            && let Some(buf) =
+                                                encode_vim_list_to_buf((*val_di).di_tv.vval.v_list)
+                                        {
+                                            lua_pushlstring(lstate, buf.as_ptr(), buf.len());
+                                            handled_special = true;
                                         }
                                     }
                                     K_MP_ARRAY => {
@@ -1214,18 +1208,11 @@ unsafe fn lua_convert_one_value(
                                                 && (i8::MIN as i64..=i8::MAX as i64)
                                                     .contains(&(*first).li_tv.vval.v_number)
                                                 && (*last).li_tv.v_type == VarType::VAR_LIST
+                                                && encode_vim_list_to_buf((*last).li_tv.vval.v_list)
+                                                    .is_some()
                                             {
-                                                let mut len = 0usize;
-                                                let mut buf: *mut c_char = std::ptr::null_mut();
-                                                if encode_vim_list_to_buf(
-                                                    (*last).li_tv.vval.v_list,
-                                                    &mut len,
-                                                    &mut buf,
-                                                ) {
-                                                    lua_conv_nil(lstate);
-                                                    xfree(buf.cast::<c_void>());
-                                                    handled_special = true;
-                                                }
+                                                lua_conv_nil(lstate);
+                                                handled_special = true;
                                             }
                                         }
                                     }
