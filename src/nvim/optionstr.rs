@@ -1065,7 +1065,7 @@ pub unsafe fn check_buf_options(buf: *mut buf_T) {
         check_string_option(&raw mut (*buf).b_p_nf);
         check_string_option(&raw mut (*buf).b_p_qe);
         check_string_option(&raw mut (*buf).b_p_syn);
-        check_string_option(&raw mut (*buf).b_s.b_syn_isk);
+        (*buf).b_s.b_syn_isk = None;
         check_string_option(&raw mut (*buf).b_s.b_p_spc);
         check_string_option(&raw mut (*buf).b_s.b_p_spf);
         check_string_option(&raw mut (*buf).b_s.b_p_spl);

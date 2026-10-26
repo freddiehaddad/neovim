@@ -7633,7 +7633,7 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 (*buf).b_p_syn = empty_opt;
                 (*buf).b_p_smc = p_smc;
                 copy_opt_sctx(buf, kBufOptSynmaxcol);
-                (*buf).b_s.b_syn_isk = empty_opt;
+                (*buf).b_s.b_syn_isk = None;
                 (*buf).b_s.b_p_spc = xstrdup(p_spc);
                 copy_opt_sctx(buf, kBufOptSpellcapcheck);
                 compile_cap_prog((*buf).b_s.b_p_spc, (&raw mut (*buf).b_s.b_cap_prog).cast());
