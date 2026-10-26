@@ -20,7 +20,7 @@ use crate::mbyte::{
     vimconv_T,
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
-use crate::memory::{strequal, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{strequal, xfree, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, msg, msg_clr_eos, msg_outtrans_long, msg_puts, msg_start, semsg, smsg, verbose_enter,
     verbose_leave,
@@ -42,11 +42,11 @@ use crate::regexp::{
 use crate::runtime::{ETYPE_SPELL, estack_pop, estack_push};
 use crate::spell::{
     MAXWLEN, SP_FORMERROR, WF_BANNED, WF_COMPROOT, WF_FIXCAP, WF_HAS_AFF, WF_KEEPCAP, WF_NEEDCOMP,
-    WF_NOCOMPAFT, WF_NOCOMPBEF, WF_RARE, WF_REGION, WFP_NC, byte_in_str, captype,
-    clear_spell_chartab, close_spellbuf, count_common_word, did_set_spelltab, e_format, first_lang,
-    init_spell_chartab, init_syl_tab, int_wordlist, onecap_copy, open_spellbuf, parse_spelllang,
-    slang_alloc, slang_clear, slang_clear_sug, spell_casefold, spell_enc, spell_soundfold,
-    spell_toupper, spelltab,
+    WF_NOCOMPAFT, WF_NOCOMPBEF, WF_RARE, WF_REGION, WFP_NC, captype, clear_spell_chartab,
+    close_spellbuf, count_common_word, did_set_spelltab, e_format, first_lang, init_spell_chartab,
+    init_syl_tab, int_wordlist, onecap_copy, open_spellbuf, parse_spelllang, slang_alloc,
+    slang_clear, slang_clear_sug, spell_casefold, spell_enc, spell_soundfold, spell_toupper,
+    spelltab,
 };
 use crate::spellsuggest::{fromto_T, idx_T, salitem_T, slang_T, spelltab_T};
 use crate::strings::{
@@ -1301,16 +1301,9 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
         let mut pat_vec = vec![0 as c_char; patsize];
         let pat = pat_vec.as_mut_ptr();
 
-        let mut cp = xmalloc(flagsize).cast::<u8>();
-        (*slang).sl_compstartflags = cp;
-        *cp = 0;
-
-        let mut ap = xmalloc(flagsize).cast::<u8>();
-        (*slang).sl_compallflags = ap;
-        *ap = 0;
-
-        let mut crp = xmalloc(flagsize).cast::<u8>();
-        (*slang).sl_comprules = crp;
+        let mut cp_vec = Vec::with_capacity(flagsize);
+        let mut ap_vec = Vec::with_capacity(flagsize);
+        let mut crp_vec: Option<Vec<u8>> = Some(Vec::with_capacity(flagsize));
 
         let mut pp = pat;
         *pp = b'^' as c_char;
@@ -1328,12 +1321,8 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
                 return SP_TRUNCERROR;
             }
 
-            if vim_strchr(c"?*+[]/".as_ptr(), c).is_null()
-                && !byte_in_str((*slang).sl_compallflags, c)
-            {
-                *ap = c as u8;
-                ap = ap.add(1);
-                *ap = 0;
+            if vim_strchr(c"?*+[]/".as_ptr(), c).is_null() && !ap_vec.contains(&(c as u8)) {
+                ap_vec.push(c as u8);
             }
 
             if atstart != 0 {
@@ -1342,10 +1331,8 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
                 } else if c == b']' as c_int {
                     atstart = 0;
                 } else {
-                    if !byte_in_str((*slang).sl_compstartflags, c) {
-                        *cp = c as u8;
-                        cp = cp.add(1);
-                        *cp = 0;
+                    if !cp_vec.contains(&(c as u8)) {
+                        cp_vec.push(c as u8);
                     }
                     if atstart == 1 {
                         atstart = 0;
@@ -1353,14 +1340,11 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
                 }
             }
 
-            if !crp.is_null() {
+            if let Some(ref mut crp) = crp_vec {
                 if c == b'?' as c_int || c == b'+' as c_int || c == b'*' as c_int {
-                    xfree((*slang).sl_comprules.cast());
-                    (*slang).sl_comprules = ptr::null_mut();
-                    crp = ptr::null_mut();
+                    crp_vec = None;
                 } else {
-                    *crp = c as u8;
-                    crp = crp.add(1);
+                    crp.push(c as u8);
                 }
             }
 
@@ -1387,9 +1371,9 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
         pp = pp.add(1);
         *pp = NUL;
 
-        if !crp.is_null() {
-            *crp = 0;
-        }
+        (*slang).sl_compstartflags = Some(std::ffi::CString::new(cp_vec).unwrap_or_default());
+        (*slang).sl_compallflags = Some(std::ffi::CString::new(ap_vec).unwrap_or_default());
+        (*slang).sl_comprules = crp_vec.map(|v| std::ffi::CString::new(v).unwrap_or_default());
 
         (*slang).sl_compprog = vim_regcomp(pat, RE_MAGIC + RE_STRING + RE_STRICT);
         drop(pat_vec);
@@ -5234,13 +5218,19 @@ pub unsafe fn spell_add_word(
         }
 
         let fname: *mut c_char = if idx == 0 {
-            if int_wordlist.is_null() {
-                int_wordlist = vim_tempname();
-                if int_wordlist.is_null() {
+            if (&raw const int_wordlist).as_ref().unwrap().is_none() {
+                int_wordlist = crate::memory::cstr_take(vim_tempname());
+                if (&raw const int_wordlist).as_ref().unwrap().is_none() {
                     return;
                 }
             }
-            int_wordlist
+            (&raw const int_wordlist)
+                .as_ref()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .as_ptr()
+                .cast_mut()
         } else {
             if *(*win_s(curwin)).b_p_spf == NUL {
                 init_spellfile();

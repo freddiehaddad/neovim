@@ -8403,7 +8403,7 @@ pub unsafe fn f_soundfold(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         let s = tv_get_string(argvars);
-        (*rettv).vval.v_string = eval_soundfold(s);
+        crate::eval::typval::tv_set_string(rettv, eval_soundfold(s).as_ptr());
     }
 }
 

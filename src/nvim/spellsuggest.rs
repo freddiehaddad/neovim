@@ -144,9 +144,9 @@ pub struct slang_T {
     pub sl_compoptions: c_int,
     pub sl_comppat: Vec<std::ffi::CString>,
     pub sl_compprog: *mut crate::regexp::regprog_T,
-    pub sl_comprules: *mut u8,
-    pub sl_compstartflags: *mut u8,
-    pub sl_compallflags: *mut u8,
+    pub sl_comprules: Option<std::ffi::CString>,
+    pub sl_compstartflags: Option<std::ffi::CString>,
+    pub sl_compallflags: Option<std::ffi::CString>,
     pub sl_nobreak: bool,
     pub sl_syllable: Option<std::ffi::CString>,
     pub sl_syl_items: Vec<crate::spell::syl_item_T>,
@@ -392,17 +392,20 @@ unsafe fn can_be_compound(
     flag: c_int,
 ) -> bool {
     unsafe {
+        let flags_cstr = if (*sp).ts_complen == (*sp).ts_compsplit {
+            &(*slang).sl_compstartflags
+        } else {
+            &(*slang).sl_compallflags
+        };
         if !byte_in_str(
-            if (*sp).ts_complen == (*sp).ts_compsplit {
-                (*slang).sl_compstartflags
-            } else {
-                (*slang).sl_compallflags
-            },
+            flags_cstr
+                .as_ref()
+                .map_or(ptr::null(), |s| s.as_ptr().cast()),
             flag,
         ) {
             return false;
         }
-        if !(*slang).sl_comprules.is_null() && (*sp).ts_complen > (*sp).ts_compsplit {
+        if (*slang).sl_comprules.is_some() && (*sp).ts_complen > (*sp).ts_compsplit {
             let complen = (*sp).ts_complen as usize;
             *compflags.add(complen) = flag as u8;
             *compflags.add(complen + 1) = 0;

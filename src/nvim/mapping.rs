@@ -47,7 +47,8 @@ use crate::mbyte::{
     mb_prevptr, mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
 use crate::memory::{
-    Arena, arena_alloc, arena_finish, arena_mem_free, xfree, xmemcpyz, xmemdupz, xstrdup, xstrlcpy,
+    Arena, arena_alloc, arena_finish, arena_mem_free, cstr_take, xmemcpyz, xmemdupz, xstrdup,
+    xstrlcpy,
 };
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_outtrans,
@@ -436,9 +437,12 @@ unsafe fn showmap(mp: *mut mapblock_T, local: bool) {
         }
 
         if (*mp).m_luaref != LUA_NOREF {
-            let str_ptr = nlua_funcref_str((*mp).m_luaref, ptr::null_mut(), true);
-            msg_puts_hl(str_ptr, HLF_8, false);
-            xfree(str_ptr.cast());
+            let str_cstr = cstr_take(nlua_funcref_str((*mp).m_luaref, ptr::null_mut(), true));
+            msg_puts_hl(
+                str_cstr.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                HLF_8,
+                false,
+            );
         } else if (*mp).m_str.as_bytes().is_empty() {
             msg_puts_hl(c"<Nop>".as_ptr(), HLF_8, false);
         } else {
@@ -547,8 +551,7 @@ unsafe fn set_maparg_rhs(
                     ptr::null_mut(),
                     cpo_val,
                 );
-                let replaced_cstr = CStr::from_ptr(replaced).to_owned();
-                xfree(replaced.cast());
+                let replaced_cstr = cstr_take(replaced).unwrap_or_default();
                 mapargs.rhs_len = replaced_cstr.as_bytes().len();
                 mapargs.rhs_is_noop = orig_rhs_len != 0 && mapargs.rhs_len == 0;
                 mapargs.rhs = Some(replaced_cstr);
@@ -1258,7 +1261,7 @@ pub unsafe fn map_to_exists(str_ptr: *const c_char, modechars: *const c_char, ab
         }
 
         let retval = map_to_exists_mode(rhs, mode, abbr);
-        xfree(buf.cast());
+        let _ = cstr_take(buf);
         retval
     }
 }
@@ -1481,7 +1484,7 @@ pub unsafe fn ExpandMappings(
                 };
 
                 if !match_found {
-                    xfree(p.cast());
+                    let _ = cstr_take(p);
                     continue;
                 }
 
@@ -1525,7 +1528,7 @@ pub unsafe fn ExpandMappings(
                     write_idx += 1;
                     matches[write_idx] = matches[read_idx];
                 } else {
-                    xfree(matches[read_idx].cast());
+                    let _ = cstr_take(matches[read_idx]);
                 }
             }
             matches.truncate(write_idx + 1);
@@ -1594,19 +1597,23 @@ pub unsafe fn check_abbr(
             for cand in (*curbuf).b_first_abbr.iter().chain(first_abbr_slice) {
                 let cand: *mut mapblock_T = (&raw const **cand).cast_mut();
                 let mut qlen = (*cand).m_keylen;
+                let mut q_vec: Vec<c_char>;
                 let mut q = (*cand).m_keys.as_ptr().cast_mut();
 
                 if (*cand).m_keys.as_bytes().contains(&K_SPECIAL) {
-                    q = xstrdup((*cand).m_keys.as_ptr());
+                    q_vec = (*cand)
+                        .m_keys
+                        .as_bytes_with_nul()
+                        .iter()
+                        .map(|&b| b as c_char)
+                        .collect();
+                    q = q_vec.as_mut_ptr();
                     qlen = vim_unescape_ks(q) as c_int;
                 }
                 let match_found = ((*cand).m_mode & State) != 0
                     && qlen == len
                     && std::slice::from_raw_parts(q.cast::<u8>(), len as usize)
                         == std::slice::from_raw_parts(ptr_arg.cast::<u8>(), len as usize);
-                if !ptr::eq(q, (*cand).m_keys.as_ptr()) {
-                    xfree(q.cast());
-                }
                 if match_found {
                     mp = cand;
                     break;
@@ -2330,8 +2337,8 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: *mut typval_T, exact: c_int)
             tv_dict_alloc_ret(rettv);
         }
 
-        xfree(keys_buf.cast());
-        xfree(alt_keys_buf.cast());
+        let _ = cstr_take(keys_buf);
+        let _ = cstr_take(alt_keys_buf);
     }
 }
 
@@ -2447,14 +2454,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
         args.silent = tv_dict_get_number(d, c"silent".as_ptr()) != 0;
         args.nowait = tv_dict_get_number(d, c"nowait".as_ptr()) != 0;
         args.replace_keycodes = tv_dict_get_number(d, c"replace_keycodes".as_ptr()) != 0;
-        let desc_ptr = tv_dict_get_string(d, c"desc".as_ptr(), true);
-        args.desc = if desc_ptr.is_null() {
-            None
-        } else {
-            let cstr = CStr::from_ptr(desc_ptr).to_owned();
-            xfree(desc_ptr.cast());
-            Some(cstr)
-        };
+        args.desc = cstr_take(tv_dict_get_string(d, c"desc".as_ptr(), true));
 
         let sid = tv_dict_get_number(d, c"sid".as_ptr()) as scid_T;
         let lnum = tv_dict_get_number(d, c"lnum".as_ptr()) as linenr_T;
@@ -2581,7 +2581,7 @@ pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                     debug_assert!(d.v_type == VarType::VAR_DICT);
                     tv_list_append_dict((*rettv).vval.v_list, d.vval.v_dict);
                     arena_mem_free(arena_finish(&mut arena));
-                    xfree(keys_buf.cast());
+                    let _ = cstr_take(keys_buf);
                 }
             }
         }
@@ -2885,10 +2885,7 @@ pub unsafe fn modify_keymap(
                 (*opts).callback = LUA_NOREF;
             }
             if has_key((*opts).is_set__keymap_, KEYSET_OPTIDX_keymap__desc) {
-                let desc_ptr = string_to_cstr((*opts).desc);
-                let cstr = CStr::from_ptr(desc_ptr).to_owned();
-                xfree(desc_ptr.cast());
-                parsed_args.desc = Some(cstr);
+                parsed_args.desc = cstr_take(string_to_cstr((*opts).desc));
             }
         }
         parsed_args.buffer = !global;
