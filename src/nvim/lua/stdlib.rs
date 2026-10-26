@@ -46,7 +46,7 @@ use crate::mbyte::{
     string_convert, utf_cp_bounds_len, utf_ptr2len_len, vimconv_T,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{bytes_take, cstr_take};
+use crate::memory::bytes_take;
 use crate::message::str2special;
 use crate::msgpack_rpc::packer::handle_T;
 use crate::regexp::{
@@ -575,12 +575,12 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> c_int {
         let mut str_len: usize = 0;
         let str_ = lua_tolstring(lstate, 1, &raw mut str_len);
 
-        let from = cstr_take(enc_canonize(enc_skip(
+        let from = enc_canonize(enc_skip(
             lua_tolstring(lstate, 2, ptr::null_mut()).cast_mut(),
-        )));
-        let to = cstr_take(enc_canonize(enc_skip(
+        ));
+        let to = enc_canonize(enc_skip(
             lua_tolstring(lstate, 3, ptr::null_mut()).cast_mut(),
-        )));
+        ));
 
         let mut vimconv = vimconv_T {
             vc_type: CONV_NONE,
@@ -590,11 +590,9 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> c_int {
         };
         let _ = convert_setup_ext(
             &mut vimconv,
-            from.as_ref()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+            from.as_ptr().cast_mut(),
             false,
-            to.as_ref()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+            to.as_ptr().cast_mut(),
             false,
         );
 

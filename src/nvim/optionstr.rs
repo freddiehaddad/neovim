@@ -2331,9 +2331,7 @@ pub unsafe fn validate_encoding(args: *mut optset_T) -> *const c_char {
             }
         }
 
-        let value = enc_canonize((*args).os_newval.data.string.data);
-        let value_cstr = CStr::from_ptr(value).to_owned();
-        xfree(value.cast());
+        let value_cstr = enc_canonize((*args).os_newval.data.string.data);
         let is_not_utf8 = value_cstr.as_bytes() != b"utf-8";
         (*args).os_prep = OptSetPrep::Encoding(value_cstr);
         if (*args).os_idx == kOptEncoding && is_not_utf8 {

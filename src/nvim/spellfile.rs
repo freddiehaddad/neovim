@@ -1836,12 +1836,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
             if itemcnt > 0 {
                 let itemcnt_i = itemcnt as c_int;
                 if is_aff_rule(&items, itemcnt_i, c"SET".as_ptr(), 2) && aff.af_enc.is_none() {
-                    let raw_enc = enc_canonize(items[1]);
-                    aff.af_enc = (!raw_enc.is_null()).then(|| {
-                        let c = CStr::from_ptr(raw_enc).to_owned();
-                        xfree(raw_enc.cast());
-                        c
-                    });
+                    aff.af_enc = Some(enc_canonize(items[1]));
                     let af_enc_ptr = aff
                         .af_enc
                         .as_ref()
@@ -3659,7 +3654,8 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                         line = line.add(9);
                         let enc = enc_canonize(line);
                         if (*spin).si_ascii == 0
-                            && convert_setup(&mut (*spin).si_conv, enc, p_enc) == FAIL
+                            && convert_setup(&mut (*spin).si_conv, enc.as_ptr().cast_mut(), p_enc)
+                                == FAIL
                         {
                             smsg!(
                                 0,
@@ -3669,7 +3665,6 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                                 p_enc,
                             );
                         }
-                        xfree(enc.cast());
                         (*spin).si_conv.vc_fail = true;
                     }
                     continue;

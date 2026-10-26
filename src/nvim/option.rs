@@ -883,11 +883,7 @@ unsafe fn set_init_expand_env() {
 /// Initialize the encoding used for "default" in 'fileencodings'.
 unsafe fn set_init_fenc_default() {
     unsafe {
-        let mut p = enc_locale();
-        if p.is_null() {
-            p = xmemdupz(c"utf-8".as_ptr().cast(), "utf-8".len()).cast::<c_char>();
-        }
-        fenc_default = p;
+        fenc_default = Some(enc_locale().unwrap_or_else(|| c"utf-8".to_owned()));
     }
 }
 
@@ -1144,8 +1140,7 @@ pub unsafe fn free_all_options() {
         free_operatorfunc_option();
         free_tagfunc_option();
         free_findfunc_option();
-        xfree(fenc_default.cast());
-        fenc_default = ptr::null_mut();
+        fenc_default = None;
         xfree(P_TERM.cast());
         P_TERM = ptr::null_mut();
         xfree(P_TTYTYPE.cast());

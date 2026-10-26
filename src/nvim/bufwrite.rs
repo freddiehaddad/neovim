@@ -1256,7 +1256,7 @@ pub unsafe fn buf_write(
         let mut device = false;
         let mut file_readonly = false;
         let mut backup: *mut c_char = ptr::null_mut();
-        let mut fenc_tofree: *mut c_char = ptr::null_mut();
+        let mut fenc_tofree: Option<std::ffi::CString> = None;
         let mut file_info_old = FileInfo::new();
         let mut acl: vim_acl_T = ptr::null_mut();
 
@@ -1357,8 +1357,9 @@ pub unsafe fn buf_write(
 
                     let fenc: *mut c_char = if !eap.is_null() && (*eap).force_enc != 0 {
                         let e = enc_canonize((*eap).cmd.add((*eap).force_enc as usize));
-                        fenc_tofree = e;
-                        e
+                        let ptr = e.as_ptr().cast_mut();
+                        fenc_tofree = Some(e);
+                        ptr
                     } else {
                         (*buf).b_p_fenc
                     };
@@ -2023,7 +2024,7 @@ pub unsafe fn buf_write(
         if !ptr::eq(buffer, smallbuf.as_ptr()) {
             xfree(buffer.cast());
         }
-        xfree(fenc_tofree.cast());
+        drop(fenc_tofree);
         xfree(write_info.bw_conv_buf.cast());
         if write_info.bw_iconv_fd != -1 {
             let _ = call_iconv_close(write_info.bw_iconv_fd);

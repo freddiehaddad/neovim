@@ -1001,7 +1001,7 @@ pub unsafe fn readfile(
         let mut tmpname: *mut c_char = ptr::null_mut();
         let mut fio_flags: c_int;
         let mut fenc: *mut c_char;
-        let mut fenc_alloced = false;
+        let mut fenc_owned: Option<std::ffi::CString> = None;
         let mut fenc_next: *mut c_char = ptr::null_mut();
         let mut advance_fenc = false;
         let mut real_size: c_int = 0;
@@ -1471,22 +1471,20 @@ pub unsafe fn readfile(
             }
 
             if !eap.is_null() && (*eap).force_enc != 0 {
-                fenc = enc_canonize((*eap).cmd.add((*eap).force_enc as usize));
-                fenc_alloced = true;
+                fenc_owned = Some(enc_canonize((*eap).cmd.add((*eap).force_enc as usize)));
+                fenc = fenc_owned.as_ref().unwrap().as_ptr().cast_mut();
                 keep_dest_enc = true;
             } else if (*curbuf).b_p_bin != 0 {
                 fenc = c"".as_ptr().cast_mut();
-                fenc_alloced = false;
             } else if (*curbuf).b_help {
                 fenc_next = c"latin1".as_ptr().cast_mut();
                 fenc = c"utf-8".as_ptr().cast_mut();
-                fenc_alloced = false;
             } else if *p_fencs == NUL {
                 fenc = (*curbuf).b_p_fenc;
-                fenc_alloced = false;
             } else {
                 fenc_next = p_fencs;
-                fenc = next_fenc(&raw mut fenc_next, &raw mut fenc_alloced);
+                fenc_owned = Some(next_fenc(&raw mut fenc_next));
+                fenc = fenc_owned.as_ref().unwrap().as_ptr().cast_mut();
             }
 
             'retry: loop {
@@ -1536,21 +1534,14 @@ pub unsafe fn readfile(
                     if !eap.is_null() && (*eap).force_enc != 0 {
                         notconverted = true;
                         conv_error = 0;
-                        if fenc_alloced {
-                            xfree(fenc.cast());
-                        }
+                        fenc_owned = None;
                         fenc = c"".as_ptr().cast_mut();
-                        fenc_alloced = false;
+                    } else if !fenc_next.is_null() {
+                        fenc_owned = Some(next_fenc(&raw mut fenc_next));
+                        fenc = fenc_owned.as_ref().unwrap().as_ptr().cast_mut();
                     } else {
-                        if fenc_alloced {
-                            xfree(fenc.cast());
-                        }
-                        if !fenc_next.is_null() {
-                            fenc = next_fenc(&raw mut fenc_next, &raw mut fenc_alloced);
-                        } else {
-                            fenc = c"".as_ptr().cast_mut();
-                            fenc_alloced = false;
-                        }
+                        fenc_owned = None;
+                        fenc = c"".as_ptr().cast_mut();
                     }
                     if !tmpname.is_null() {
                         os_remove(tmpname);
@@ -1797,11 +1788,8 @@ pub unsafe fn readfile(
                                 if ccname.is_null() {
                                     advance_fenc = true;
                                 } else {
-                                    if fenc_alloced {
-                                        xfree(fenc.cast());
-                                    }
+                                    fenc_owned = None;
                                     fenc = ccname.cast_mut();
-                                    fenc_alloced = false;
                                 }
                                 skip_read = true;
                                 continue 'retry;
@@ -2411,9 +2399,7 @@ pub unsafe fn readfile(
                 save_file_ff(curbuf);
                 set_option_direct(kOptFileencoding, cstr_as_obj(fenc), OPT_LOCAL, 0);
             }
-            if fenc_alloced {
-                xfree(fenc.cast());
-            }
+            drop(fenc_owned);
             if iconv_fd != -1 {
                 call_iconv_close(iconv_fd);
             }
@@ -2875,34 +2861,29 @@ pub unsafe fn set_forced_fenc(eap: *mut exarg_T) {
         }
 
         let fenc = enc_canonize((*eap).cmd.add((*eap).force_enc as usize));
-        set_option_direct(kOptFileencoding, cstr_as_obj(fenc), OPT_LOCAL, 0);
-        xfree(fenc.cast());
+        set_option_direct(kOptFileencoding, cstr_as_obj(fenc.as_ptr()), OPT_LOCAL, 0);
     }
 }
 
 /// Find next fileencoding to use from 'fileencodings'.
-unsafe fn next_fenc(pp: *mut *mut c_char, alloced: *mut bool) -> *mut c_char {
+unsafe fn next_fenc(pp: *mut *mut c_char) -> std::ffi::CString {
     unsafe {
-        *alloced = false;
         if **pp == NUL {
             *pp = ptr::null_mut();
-            return c"".as_ptr().cast_mut();
+            return std::ffi::CString::default();
         }
         let p = vim_strchr(*pp, b',' as c_int);
-        let r = if p.is_null() {
+        if p.is_null() {
             let res = enc_canonize(*pp);
             *pp = (*pp).add(strlen(*pp));
             res
         } else {
             let len = p.offset_from(*pp) as usize;
-            let tmp = xmemdupz((*pp).cast(), len).cast::<c_char>();
+            let tmp = std::ffi::CString::new(std::slice::from_raw_parts((*pp).cast::<u8>(), len))
+                .unwrap_or_default();
             *pp = p.add(1);
-            let res = enc_canonize(tmp);
-            xfree(tmp.cast());
-            res
-        };
-        *alloced = true;
-        r
+            enc_canonize(tmp.as_ptr())
+        }
     }
 }
 

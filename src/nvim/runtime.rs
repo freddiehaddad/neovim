@@ -3546,17 +3546,15 @@ pub unsafe fn ex_scriptencoding(eap: *mut exarg_T) {
             return;
         };
 
+        let name_owned: Option<std::ffi::CString>;
         let name = if *(*eap).arg != NUL {
-            enc_canonize((*eap).arg)
+            name_owned = Some(enc_canonize((*eap).arg));
+            name_owned.as_ref().unwrap().as_ptr().cast_mut()
         } else {
             (*eap).arg
         };
 
         convert_setup(&mut (*sp).conv, name, p_enc);
-
-        if !ptr::eq(name, (*eap).arg) {
-            xfree(name.cast());
-        }
     }
 }
 

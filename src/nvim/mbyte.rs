@@ -2708,7 +2708,7 @@ pub unsafe fn utf_find_illegal() {
             vc_fd: ptr::null_mut(),
             vc_fail: false,
         };
-        let mut tofree: *mut c_char = ptr::null_mut();
+        let mut tofree: Option<std::ffi::CString> = None;
 
         if (enc_canon_props((*curbuf).b_p_fenc) & ENC_8BIT) != 0 {
             convert_setup(&mut vimconv, p_enc, (*curbuf).b_p_fenc);
@@ -2718,12 +2718,11 @@ pub unsafe fn utf_find_illegal() {
         'search: loop {
             let mut p = get_cursor_pos_ptr();
             if vimconv.vc_type != CONV_NONE {
-                xfree(tofree.cast());
-                tofree = string_convert(&vimconv, p, ptr::null_mut());
-                if tofree.is_null() {
+                tofree = crate::memory::cstr_take(string_convert(&vimconv, p, ptr::null_mut()));
+                let Some(ref tf) = tofree else {
                     break;
-                }
-                p = tofree;
+                };
+                p = tf.as_ptr().cast_mut();
             }
 
             while *p != NUL {
@@ -2732,7 +2731,7 @@ pub unsafe fn utf_find_illegal() {
                     if vimconv.vc_type == CONV_NONE {
                         (*curwin).w_cursor.col += p.offset_from(get_cursor_pos_ptr()) as colnr_T;
                     } else {
-                        len = p.offset_from(tofree) as c_int;
+                        len = p.offset_from(tofree.as_ref().unwrap().as_ptr()) as c_int;
                         let mut cur_p = get_cursor_pos_ptr();
                         while *cur_p != NUL && len > 0 {
                             len -= 1;
@@ -2755,12 +2754,10 @@ pub unsafe fn utf_find_illegal() {
             (*curwin).w_cursor.col = 0;
         }
 
-        if vimconv.vc_type != CONV_NONE && tofree.is_null() {
+        if vimconv.vc_type != CONV_NONE && tofree.is_none() {
             (*curwin).w_cursor = pos;
             beep_flush();
         }
-
-        xfree(tofree.cast());
     }
 }
 
@@ -2927,14 +2924,19 @@ unsafe fn enc_alias_search(name: *const c_char) -> c_int {
     -1
 }
 
-pub unsafe fn enc_canonize(enc: *mut c_char) -> *mut c_char {
+pub unsafe fn enc_canonize(enc: *const c_char) -> std::ffi::CString {
     unsafe {
         let enc_bytes = CStr::from_ptr(enc).to_bytes();
         if enc_bytes == b"default" {
-            return xstrdup(fenc_default);
+            return (&raw const fenc_default)
+                .as_ref()
+                .unwrap()
+                .clone()
+                .unwrap_or_default();
         }
 
-        let mut r = xmalloc(enc_bytes.len() + 3).cast::<c_char>();
+        let mut r_vec: Vec<c_char> = vec![0; enc_bytes.len() + 3];
+        let r = r_vec.as_mut_ptr();
         let mut p = r;
         for &b in enc_bytes {
             *p = if b == b'_' {
@@ -2977,15 +2979,14 @@ pub unsafe fn enc_canonize(enc: *mut c_char) -> *mut c_char {
         } else {
             let i = enc_alias_search(p);
             if i >= 0 {
-                xfree(r.cast());
-                r = xstrdup(ENC_CANON_TABLE[i as usize].name.as_ptr());
+                return ENC_CANON_TABLE[i as usize].name.to_owned();
             }
         }
-        r
+        CStr::from_ptr(r).to_owned()
     }
 }
 
-pub unsafe fn enc_locale() -> *mut c_char {
+pub unsafe fn enc_locale() -> Option<std::ffi::CString> {
     unsafe {
         #[cfg(unix)]
         let mut s: *const c_char = nl_langinfo(CODESET);
@@ -3007,7 +3008,7 @@ pub unsafe fn enc_locale() -> *mut c_char {
         }
 
         if s.is_null() {
-            return ptr::null_mut();
+            return None;
         }
 
         let mut buf = [0 as c_char; 50];
@@ -3033,7 +3034,7 @@ pub unsafe fn enc_locale() -> *mut c_char {
                     0
                 };
                 buf[6] = NUL;
-                return enc_canonize(buf.as_mut_ptr());
+                return Some(enc_canonize(buf.as_ptr()));
             }
             s = p.add(1);
         }
@@ -3052,7 +3053,7 @@ pub unsafe fn enc_locale() -> *mut c_char {
         }
         buf[i] = NUL;
 
-        enc_canonize(buf.as_mut_ptr())
+        Some(enc_canonize(buf.as_ptr()))
     }
 }
 
@@ -3176,16 +3177,17 @@ pub unsafe fn f_iconv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
             vc_fd: ptr::null_mut(),
             vc_fail: false,
         };
-        convert_setup(&mut vimconv, from, to);
+        convert_setup(
+            &mut vimconv,
+            from.as_ptr().cast_mut(),
+            to.as_ptr().cast_mut(),
+        );
 
         if vimconv.vc_type == CONV_NONE {
             (*rettv).vval.v_string = xstrdup(str_);
         } else {
             (*rettv).vval.v_string = string_convert(&vimconv, str_.cast_mut(), ptr::null_mut());
         }
-
-        xfree(from.cast());
-        xfree(to.cast());
     }
 }
 
