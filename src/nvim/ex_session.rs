@@ -374,7 +374,10 @@ unsafe fn put_view(
             if bt_help((*wp).w_buffer) {
                 let mut curtag: *const c_char = c"".as_ptr();
                 if 0 < (*wp).w_tagstackidx && (*wp).w_tagstackidx <= (*wp).w_tagstacklen {
-                    curtag = (*wp).w_tagstack[((*wp).w_tagstackidx - 1) as usize].tagname;
+                    curtag = (*wp).w_tagstack[((*wp).w_tagstackidx - 1) as usize]
+                        .tagname
+                        .as_ref()
+                        .map_or(c"".as_ptr(), |s| s.as_ptr());
                 }
 
                 if put_line(fd, c"enew | setl bt=help".as_ptr().cast_mut()) == FAIL

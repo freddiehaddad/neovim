@@ -69,7 +69,7 @@ use crate::main_init::getout;
 use crate::mark::{copy_jumplist, free_jumplist, setmark, setpcmark};
 use crate::r#match::clear_matches;
 use crate::math::{FAIL, OK};
-use crate::memory::{xfree, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{xfree, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, iemsg, internal_error, kZIndexMessages, msg, msg_clr_eos_force, msg_grid_validate,
     msg_ui_flush, semsg, set_keep_msg,
@@ -774,7 +774,7 @@ impl win_T {
             w_changelistidx: 0,
             w_match_head: Vec::new(),
             w_next_match_id: 0,
-            w_tagstack: [crate::tag::taggy_T::ZERO; 20],
+            w_tagstack: [const { crate::tag::taggy_T::ZERO }; 20],
             w_tagstackidx: 0,
             w_tagstacklen: 0,
             w_grid: GridView {
@@ -1471,9 +1471,10 @@ pub unsafe fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 if len == 0 {
                     return;
                 }
-                ptr = xmemdupz(ptr.cast(), len).cast();
+                let pat = std::ffi::CString::new(std::slice::from_raw_parts(ptr.cast::<u8>(), len))
+                    .unwrap();
                 find_pattern_in_path(
-                    ptr,
+                    pat.as_ptr().cast_mut(),
                     0,
                     len,
                     true,
@@ -1486,7 +1487,6 @@ pub unsafe fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     false,
                     false,
                 );
-                xfree(ptr.cast());
                 (*curwin).w_set_curswant = true;
             }
             c if c == K_KENTER || c == CAR => {
@@ -2534,14 +2534,7 @@ pub unsafe fn win_init(newp: *mut win_T, oldp: *mut win_T, flags: c_int) {
         }
 
         for i in 0..(*oldp).w_tagstacklen as usize {
-            let tag = &raw mut (*newp).w_tagstack[i];
-            *tag = (*oldp).w_tagstack[i];
-            if !(*tag).tagname.is_null() {
-                (*tag).tagname = xstrdup((*tag).tagname);
-            }
-            if !(*tag).user_data.is_null() {
-                (*tag).user_data = xstrdup((*tag).user_data);
-            }
+            (*newp).w_tagstack[i] = (*oldp).w_tagstack[i].clone();
         }
         (*newp).w_tagstackidx = (*oldp).w_tagstackidx;
         (*newp).w_tagstacklen = (*oldp).w_tagstacklen;

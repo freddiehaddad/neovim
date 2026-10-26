@@ -41,7 +41,6 @@ use crate::path::{kPathCmpLiteral, path_equal, path_shorten_fname, vim_ispathsep
 use crate::plines::linetabsize_eol;
 use crate::quickfix::qf_mark_adjust;
 use crate::strings::{gettext, xstrnsave};
-use crate::tag::tagstack_clear_entry;
 use crate::textformat::oparg_T;
 use crate::textobject::{findpar, findsent};
 use crate::undo::u_update_named_mark;
@@ -469,13 +468,13 @@ pub unsafe fn mark_forget_file(wp: *mut win_T, fnum: c_int) {
         while i >= 0 {
             let idx = i as usize;
             if (*wp).w_tagstack[idx].fmark.fnum == fnum {
-                tagstack_clear_entry(&raw mut (*wp).w_tagstack[idx]);
+                let old_len = (*wp).w_tagstacklen as usize;
+                (&mut (*wp).w_tagstack)[idx..old_len].rotate_left(1);
+                (*wp).w_tagstack[old_len - 1] = crate::tag::taggy_T::ZERO;
                 if (*wp).w_tagstackidx > i {
                     (*wp).w_tagstackidx -= 1;
                 }
                 (*wp).w_tagstacklen -= 1;
-                let dst = &raw mut (*wp).w_tagstack[idx];
-                ptr::copy(dst.add(1), dst, ((*wp).w_tagstacklen - i) as usize);
             }
             i -= 1;
         }
