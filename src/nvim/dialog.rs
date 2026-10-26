@@ -248,7 +248,7 @@ pub unsafe fn prompt_for_input(
 ) -> c_int {
     unsafe {
         let mut ret = if one_key { ESC } else { 0 };
-        let kmsg = (!keep_msg.is_null()).then(|| CStr::from_ptr(keep_msg).to_owned());
+        let kmsg = (&raw const keep_msg).as_ref().unwrap().clone();
 
         let prompt_ptr: *const c_char = if prompt.is_null() {
             if !mouse_used.is_null() && ui_mouse_has(K_MOUSE_COMMAND) {

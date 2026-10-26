@@ -17,7 +17,7 @@ use crate::globals::*;
 use crate::hashtab::hashitem_empty;
 use crate::mapping::makemap;
 use crate::mbyte::utfc_ptr2len;
-use crate::memory::{xfree, xmalloc, xmemcpyz};
+use crate::memory::{cstr_take, xmemcpyz};
 use crate::message::{emsg, semsg};
 use crate::option::{OPT_GLOBAL, OPT_LOCAL, makefoldset, makeset};
 use crate::option_vars::*;
@@ -27,7 +27,7 @@ use crate::path::{add_pathsep, vim_FullName, vim_ispathsep};
 use crate::runtime::{DOSO_NONE, do_source};
 use crate::strings::{gettext, vim_strsave_escaped};
 use crate::window::{frame_T, tabpage_T, tabpage_index, win_T};
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{CStr, CString, c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::api::win_config::FR_COL;
@@ -245,28 +245,25 @@ unsafe fn ses_arglist(
     flagp: *mut c_uint,
 ) -> c_int {
     unsafe {
-        let mut buf: *mut c_char = ptr::null_mut();
-
         if !write_fmt(fd, format!("{}\n%argdel\n", cstr_to_str(cmd))) {
             return FAIL;
         }
+        let mut buf: Vec<c_char> = if fullname {
+            vec![0; MAXPATHL]
+        } else {
+            Vec::new()
+        };
         for entry in gap {
             let mut s = alist_name((&raw const *entry).cast_mut());
             if !s.is_null() {
                 if fullname {
-                    buf = xmalloc(MAXPATHL).cast();
-                    vim_FullName(s, buf, MAXPATHL, false);
-                    s = buf;
+                    vim_FullName(s, buf.as_mut_ptr(), MAXPATHL, false);
+                    s = buf.as_mut_ptr();
                 }
                 let fname_esc = ses_escape_fname(s, flagp);
-                if !write_fmt(fd, format!("$argadd {}\n", cstr_to_str(fname_esc))) {
-                    xfree(fname_esc.cast());
-                    xfree(buf.cast());
+                if !write_fmt(fd, format!("$argadd {}\n", cstr_to_str(fname_esc.as_ptr()))) {
                     return FAIL;
                 }
-                xfree(fname_esc.cast());
-                xfree(buf.cast());
-                buf = ptr::null_mut();
             }
         }
         OK
@@ -297,11 +294,16 @@ unsafe fn ses_fname(fd: *mut FILE, buf: *mut buf_T, flagp: *mut c_uint, add_eol:
     }
 }
 
-unsafe fn ses_escape_fname(name: *mut c_char, _flagp: *mut c_uint) -> *mut c_char {
+unsafe fn ses_escape_fname(name: *mut c_char, _flagp: *mut c_uint) -> CString {
     unsafe {
-        let sname = home_replace_save(ptr::null_mut(), name);
+        let mut sname_vec: Vec<c_char> = cstr_take(home_replace_save(ptr::null_mut(), name))
+            .unwrap_or_default()
+            .into_bytes_with_nul()
+            .into_iter()
+            .map(|b| b as c_char)
+            .collect();
 
-        let mut p = sname;
+        let mut p = sname_vec.as_mut_ptr();
         while *p != NUL {
             if *p == b'\\' as c_char {
                 *p = b'/' as c_char;
@@ -309,18 +311,14 @@ unsafe fn ses_escape_fname(name: *mut c_char, _flagp: *mut c_uint) -> *mut c_cha
             p = p.add(utfc_ptr2len(p) as usize);
         }
 
-        let res = vim_strsave_fnameescape(sname, VSE_NONE);
-        xfree(sname.cast());
-        res
+        cstr_take(vim_strsave_fnameescape(sname_vec.as_ptr(), VSE_NONE)).unwrap_or_default()
     }
 }
 
 unsafe fn ses_put_fname(fd: *mut FILE, name: *mut c_char, flagp: *mut c_uint) -> c_int {
     unsafe {
         let p = ses_escape_fname(name, flagp);
-        let retval = if fputs(p, fd) < 0 { FAIL } else { OK };
-        xfree(p.cast());
-        retval
+        if fputs(p.as_ptr(), fd) < 0 { FAIL } else { OK }
     }
 }
 
@@ -384,36 +382,31 @@ unsafe fn put_view(
                     || !write_fmt(fd, format!("help {}", cstr_to_str(curtag)))
                     || put_eol(fd) == FAIL
                 {
-                    xfree(fname_esc.cast());
                     return FAIL;
                 }
             } else if !(*(*wp).w_buffer).b_ffname.is_null()
                 && (!bt_nofilename((*wp).w_buffer) || !(*(*wp).w_buffer).terminal.is_null())
             {
-                let fesc = cstr_to_str(fname_esc);
+                let fesc = cstr_to_str(fname_esc.as_ptr());
                 if !write_fmt(
                     fd,
                     format!(
                         "if bufexists(fnamemodify(\"{fesc}\", \":p\")) | buffer {fesc} | else | edit {fesc} | endif\nif &buftype ==# 'terminal'\n  silent file {fesc}\nendif\n"
                     ),
                 ) {
-                    xfree(fname_esc.cast());
                     return FAIL;
                 }
             } else {
                 if put_line(fd, c"enew".as_ptr().cast_mut()) == FAIL {
-                    xfree(fname_esc.cast());
                     return FAIL;
                 }
                 if !(*(*wp).w_buffer).b_ffname.is_null()
-                    && !write_fmt(fd, format!("file {}\n", cstr_to_str(fname_esc)))
+                    && !write_fmt(fd, format!("file {}\n", cstr_to_str(fname_esc.as_ptr())))
                 {
-                    xfree(fname_esc.cast());
                     return FAIL;
                 }
                 do_cursor = false;
             }
-            xfree(fname_esc.cast());
         }
 
         if (*wp).w_alt_fnum != 0 {
@@ -547,11 +540,17 @@ unsafe fn store_session_globals(fd: *mut FILE) -> c_int {
                     || (*this_var).di_tv.v_type == VarType::VAR_STRING)
                     && var_flavour(key_ptr) == VAR_FLAVOUR_SESSION
                 {
-                    let p = vim_strsave_escaped(
+                    let p = cstr_take(vim_strsave_escaped(
                         tv_get_string(&raw const (*this_var).di_tv),
                         c"\\\"\n\r".as_ptr(),
-                    );
-                    let mut t = p;
+                    ))
+                    .unwrap_or_default();
+                    let mut p_vec: Vec<c_char> = p
+                        .into_bytes_with_nul()
+                        .into_iter()
+                        .map(|b| b as c_char)
+                        .collect();
+                    let mut t = p_vec.as_mut_ptr();
                     while *t != NUL {
                         if *t == b'\n' as c_char {
                             *t = b'n' as c_char;
@@ -570,14 +569,12 @@ unsafe fn store_session_globals(fd: *mut FILE) -> c_int {
                         format!(
                             "let {} = {quote}{}{quote}",
                             cstr_to_str(key_ptr),
-                            cstr_to_str(p)
+                            cstr_to_str(p_vec.as_ptr())
                         ),
                     ) || put_eol(fd) == FAIL
                     {
-                        xfree(p.cast());
                         return FAIL;
                     }
-                    xfree(p.cast());
                 } else if (*this_var).di_tv.v_type == VarType::VAR_FLOAT
                     && var_flavour(key_ptr) == VAR_FLAVOUR_SESSION
                 {
@@ -649,22 +646,19 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                 return FAIL;
             }
         } else if (ssop_flags & kOptSsopFlagCurdir) != 0 {
-            let sname = home_replace_save(
+            let sname = cstr_take(home_replace_save(
                 ptr::null_mut(),
                 (&raw const globaldir)
                     .as_ref()
                     .unwrap()
                     .as_ref()
                     .map_or(dirnow, |s| s.as_ptr().cast_mut()),
-            );
-            let fname_esc = ses_escape_fname(sname, &raw mut ssop_flags);
-            if !write_fmt(fd, format!("cd {}\n", cstr_to_str(fname_esc))) {
-                xfree(fname_esc.cast());
-                xfree(sname.cast());
+            ))
+            .unwrap_or_default();
+            let fname_esc = ses_escape_fname(sname.as_ptr().cast_mut(), &raw mut ssop_flags);
+            if !write_fmt(fd, format!("cd {}\n", cstr_to_str(fname_esc.as_ptr()))) {
                 return FAIL;
             }
-            xfree(fname_esc.cast());
-            xfree(sname.cast());
         }
 
         if !write_bytes(
@@ -1034,15 +1028,13 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
 
 pub unsafe fn ex_loadview(eap: *mut exarg_T) {
     unsafe {
-        let fname = get_view_file(*(*eap).arg);
-        if fname.is_null() {
+        let Some(fname) = get_view_file(*(*eap).arg) else {
             return;
-        }
+        };
 
-        if do_source(fname, false, DOSO_NONE, ptr::null_mut()) == FAIL {
-            semsg!(gettext(e_notopen.as_ptr()), fname);
+        if do_source(fname.as_ptr().cast_mut(), false, DOSO_NONE, ptr::null_mut()) == FAIL {
+            semsg!(gettext(e_notopen.as_ptr()), fname.as_ptr());
         }
-        xfree(fname.cast());
     }
 }
 
@@ -1050,7 +1042,7 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
     unsafe {
         let mut view_session = false;
         let mut using_vdir = false;
-        let mut view_file: *mut c_char = ptr::null_mut();
+        let mut view_file: Option<CString> = None;
 
         if (*eap).cmdidx == CMD_mksession || (*eap).cmdidx == CMD_mkview {
             view_session = true;
@@ -1064,11 +1056,11 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
                 || (ascii_isdigit(*(*eap).arg as c_int) && *(*eap).arg.add(1) == NUL))
         {
             (*eap).forceit = 1;
-            fname = get_view_file(*(*eap).arg);
-            if fname.is_null() {
+            let Some(vf) = get_view_file(*(*eap).arg) else {
                 return;
-            }
-            view_file = fname;
+            };
+            fname = vf.as_ptr().cast_mut();
+            view_file = Some(vf);
             using_vdir = true;
         } else if *(*eap).arg != NUL {
             fname = (*eap).arg;
@@ -1134,7 +1126,8 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
                     failed = true;
                 }
                 if (*eap).cmdidx == CMD_mksession {
-                    let dirnow: *mut c_char = xmalloc(MAXPATHL).cast();
+                    let mut dirnow_vec: Vec<c_char> = vec![0; MAXPATHL];
+                    let dirnow = dirnow_vec.as_mut_ptr();
 
                     if os_dirname(dirnow, MAXPATHL) == FAIL || os_chdir(dirnow) != 0 {
                         *dirnow = NUL;
@@ -1163,7 +1156,6 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
                         }
                         shorten_fnames(1);
                     }
-                    xfree(dirnow.cast());
                 } else {
                     failed |= put_view(fd, curwin, curtab, !using_vdir, flagp, -1) == FAIL;
                 }
@@ -1191,15 +1183,14 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
             if failed {
                 emsg(gettext(e_write.as_ptr()));
             } else if (*eap).cmdidx == CMD_mksession {
-                let tbuf: *mut c_char = xmalloc(MAXPATHL).cast();
-                if vim_FullName(fname, tbuf, MAXPATHL, false) == OK {
-                    set_vim_var_string(VV_THIS_SESSION, tbuf, -1);
+                let mut tbuf: Vec<c_char> = vec![0; MAXPATHL];
+                if vim_FullName(fname, tbuf.as_mut_ptr(), MAXPATHL, false) == OK {
+                    set_vim_var_string(VV_THIS_SESSION, tbuf.as_ptr(), -1);
                 }
-                xfree(tbuf.cast());
             }
         }
 
-        xfree(view_file.cast());
+        drop(view_file);
 
         if (*eap).cmdidx == CMD_mksession {
             apply_autocmds(
@@ -1213,13 +1204,14 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
     }
 }
 
-unsafe fn get_view_file(c: c_char) -> *mut c_char {
+unsafe fn get_view_file(c: c_char) -> Option<CString> {
     unsafe {
         if (*curbuf).b_ffname.is_null() {
             emsg(gettext(e_noname.as_ptr()));
-            return ptr::null_mut();
+            return None;
         }
-        let sname = home_replace_save(ptr::null_mut(), (*curbuf).b_ffname);
+        let sname_cstr = cstr_take(home_replace_save(ptr::null_mut(), (*curbuf).b_ffname))?;
+        let sname = sname_cstr.as_ptr();
 
         let mut len: usize = 0;
         let mut p = sname;
@@ -1229,9 +1221,10 @@ unsafe fn get_view_file(c: c_char) -> *mut c_char {
             }
             p = p.add(1);
         }
-        let sname_len = CStr::from_ptr(sname).to_bytes().len();
+        let sname_len = sname_cstr.as_bytes().len();
         let vdir_len = CStr::from_ptr(p_vdir).to_bytes().len();
-        let retval: *mut c_char = xmalloc(sname_len + len + vdir_len + 9).cast();
+        let mut retval_vec: Vec<c_char> = vec![0; sname_len + len + vdir_len + 9];
+        let retval = retval_vec.as_mut_ptr();
         ptr::copy_nonoverlapping(p_vdir, retval, vdir_len + 1);
         add_pathsep(retval);
         let mut s = retval.add(CStr::from_ptr(retval).to_bytes().len());
@@ -1267,8 +1260,7 @@ unsafe fn get_view_file(c: c_char) -> *mut c_char {
         s = s.add(2);
         xmemcpyz(s.cast(), b".vim".as_ptr().cast(), 4);
 
-        xfree(sname.cast());
-        retval
+        Some(CStr::from_ptr(retval).to_owned())
     }
 }
 

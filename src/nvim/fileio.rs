@@ -2605,8 +2605,7 @@ pub unsafe fn readfile(
 
                     msg_add_lines(c_int::from(c), linecnt, filesize);
 
-                    xfree(keep_msg.cast());
-                    keep_msg = ptr::null_mut();
+                    keep_msg = None;
                     p = ptr::null_mut();
                     msg_scrolled_ign = true;
 

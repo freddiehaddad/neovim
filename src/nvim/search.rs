@@ -1399,7 +1399,7 @@ pub unsafe fn do_search(
                         ptr::copy(off_buf_ptr, msgbuf.add(plen + 1), off_len);
                     }
 
-                    if let Some(trunc) = cstr_take(msg_strtrunc(msgbuf, 1)) {
+                    if let Some(trunc) = msg_strtrunc(msgbuf, 1) {
                         msgbuflen = trunc.as_bytes().len();
                         msgbuf_vec = trunc
                             .into_bytes_with_nul()

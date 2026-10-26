@@ -5534,13 +5534,10 @@ unsafe fn vgr_init_regmatch(regmatch: *mut regmmatch_T, s: *mut c_char) {
 unsafe fn vgr_display_fname(fname: *mut c_char) {
     unsafe {
         msg_start();
-        let p = msg_strtrunc(fname, 1);
-        if p.is_null() {
-            msg_outtrans(fname, 0, false);
-        } else {
-            msg_outtrans(p, 0, false);
-            xfree(p.cast());
-        }
+        match msg_strtrunc(fname, 1) {
+            Some(p) => msg_outtrans(p.as_ptr(), 0, false),
+            None => msg_outtrans(fname, 0, false),
+        };
         msg_clr_eos();
         msg_didout = false;
         msg_nowait = true;

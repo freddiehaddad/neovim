@@ -57,7 +57,7 @@ use crate::mbyte::{
     utf_ptr2cells, utf_ptr2char, utf_ptr2len, utf8len_tab, utfc_ptr2len, utfc_ptr2len_len,
 };
 use crate::memory::{
-    Arena, arena_alloc, strequal, xfree, xmalloc, xmemdupz, xmemrchr, xstrdup, xstrlcat, xstrlcpy,
+    Arena, arena_alloc, cstr_take, strequal, xfree, xmemdupz, xmemrchr, xstrlcat, xstrlcpy,
     xstrnlen,
 };
 use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
@@ -185,7 +185,7 @@ static mut MSG_KEEP_ENTERED: c_int = 0;
 // Remember the last sourcing name/lnum used in an error message, so that it
 // isn't printed each time when it didn't change.
 static mut last_sourcing_lnum: c_int = 0;
-static mut last_sourcing_name: *mut c_char = ptr::null_mut();
+static mut last_sourcing_name: Option<std::ffi::CString> = None;
 
 static mut MSG_SOURCE_RECURSIVE: bool = false;
 
@@ -749,8 +749,13 @@ pub unsafe fn msg_keep(mut s: *const c_char, hl_id: c_int, keep: bool, multiline
 
         // Add message to history unless it's a multihl, repeated kept or truncated message.
         let hist = &raw const msg_hist;
+        let keep_msg_ptr = (&raw const keep_msg)
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .map_or(ptr::null(), |k| k.as_ptr());
         if is_multihl == 0
-            && (s != keep_msg.cast_const()
+            && (s != keep_msg_ptr
                 || (*s != b'<' as c_char
                     && (*hist).back().is_some_and(|last| {
                         CStr::from_ptr(s) != CStr::from_ptr(last.msg.as_slice()[0].text.data)
@@ -764,8 +769,8 @@ pub unsafe fn msg_keep(mut s: *const c_char, hl_id: c_int, keep: bool, multiline
         }
         // Truncate the message if needed.
         let buf = msg_strtrunc(s, 0);
-        if !buf.is_null() {
-            s = buf;
+        if let Some(ref buf) = buf {
+            s = buf.as_ptr();
         }
 
         let mut need_clear = true;
@@ -788,7 +793,7 @@ pub unsafe fn msg_keep(mut s: *const c_char, hl_id: c_int, keep: bool, multiline
 
         need_fileinfo = false;
 
-        xfree(buf.cast());
+        drop(buf);
         MSG_KEEP_ENTERED -= 1;
         retval
     }
@@ -796,13 +801,9 @@ pub unsafe fn msg_keep(mut s: *const c_char, hl_id: c_int, keep: bool, multiline
 
 /// Truncate a string such that it can be printed without causing a scroll.
 ///
-/// @return  an allocated string or NULL when no truncating is done.
-///
 /// @param force  always truncate
-pub unsafe fn msg_strtrunc(s: *const c_char, force: c_int) -> *mut c_char {
+pub unsafe fn msg_strtrunc(s: *const c_char, force: c_int) -> Option<std::ffi::CString> {
     unsafe {
-        let mut buf: *mut c_char = ptr::null_mut();
-
         // May truncate message to avoid a hit-return prompt
         if (msg_scroll == 0
             && !need_wait_return
@@ -828,11 +829,12 @@ pub unsafe fn msg_strtrunc(s: *const c_char, force: c_int) -> *mut c_char {
                 // may have up to 18 bytes per cell (6 per char, up to two
                 // composing chars)
                 let buflen = (room + 2) * 18;
-                buf = xmalloc(buflen as usize).cast();
-                trunc_string(s, buf, room, buflen);
+                let mut buf: Vec<c_char> = vec![0; buflen as usize];
+                trunc_string(s, buf.as_mut_ptr(), room, buflen);
+                return Some(CStr::from_ptr(buf.as_ptr()).to_owned());
             }
         }
-        buf
+        None
     }
 }
 
@@ -930,8 +932,7 @@ pub unsafe fn trunc_string(s: *const c_char, buf: *mut c_char, room_in: c_int, b
 /// for the next error message;
 pub unsafe fn reset_last_sourcing() {
     unsafe {
-        xfree(last_sourcing_name.cast());
-        last_sourcing_name = ptr::null_mut();
+        last_sourcing_name = None;
         last_sourcing_lnum = 0;
     }
 }
@@ -941,8 +942,8 @@ unsafe fn other_sourcing_name() -> bool {
     unsafe {
         let sname = sourcing_name();
         if have_sourcing_info() && !sname.is_null() {
-            if !last_sourcing_name.is_null() {
-                return CStr::from_ptr(sname) != CStr::from_ptr(last_sourcing_name);
+            if let Some(ref last) = *(&raw const last_sourcing_name).as_ref().unwrap() {
+                return CStr::from_ptr(sname) != last.as_c_str();
             }
             return true;
         }
@@ -951,49 +952,40 @@ unsafe fn other_sourcing_name() -> bool {
 }
 
 /// Get the message about the source, as used for an error message
-///
-/// @return [allocated] String with room for one more character. NULL when no
-///                     message is to be given.
-unsafe fn get_emsg_source() -> *mut c_char {
+unsafe fn get_emsg_source() -> Option<std::ffi::CString> {
     unsafe {
         let mut sname = sourcing_name();
         if have_sourcing_info() && !sname.is_null() && other_sourcing_name() {
-            let tofree = estack_sfile(ESTACK_NONE);
-            if !tofree.is_null() {
-                sname = tofree;
+            let tofree = cstr_take(estack_sfile(ESTACK_NONE));
+            if let Some(ref tf) = tofree {
+                sname = tf.as_ptr().cast_mut();
             }
 
             let p = gettext(c"Error in %s:".as_ptr());
             let buf_len =
                 CStr::from_ptr(sname).to_bytes().len() + CStr::from_ptr(p).to_bytes().len() + 1;
-            let buf = xmalloc(buf_len).cast::<c_char>();
-            vim_snprintf!(buf, buf_len, p, sname);
-            xfree(tofree.cast());
-            return buf;
+            let mut buf_vec: Vec<c_char> = vec![0; buf_len];
+            vim_snprintf!(buf_vec.as_mut_ptr(), buf_len, p, sname);
+            return Some(CStr::from_ptr(buf_vec.as_ptr()).to_owned());
         }
-        ptr::null_mut()
+        None
     }
 }
 
 /// Get the message about the source lnum, as used for an error message.
-///
-/// @return [allocated] String with room for one more character. NULL when no
-///                     message is to be given.
-unsafe fn get_emsg_lnum() -> *mut c_char {
+unsafe fn get_emsg_lnum() -> Option<std::ffi::CString> {
     unsafe {
         let sname = sourcing_name();
         let slnum = sourcing_lnum();
-        // lnum is 0 when executing a command from the command line
-        // argument, we don't want a line number then
         if !sname.is_null() && (other_sourcing_name() || slnum != last_sourcing_lnum) && slnum != 0
         {
             let p = gettext(c"line %4d:".as_ptr());
             let buf_len = 20 + CStr::from_ptr(p).to_bytes().len();
-            let buf = xmalloc(buf_len).cast::<c_char>();
-            vim_snprintf!(buf, buf_len, p, slnum);
-            return buf;
+            let mut buf_vec: Vec<c_char> = vec![0; buf_len];
+            vim_snprintf!(buf_vec.as_mut_ptr(), buf_len, p, slnum);
+            return Some(CStr::from_ptr(buf_vec.as_ptr()).to_owned());
         }
-        ptr::null_mut()
+        None
     }
 }
 
@@ -1002,33 +994,26 @@ unsafe fn get_emsg_lnum() -> *mut c_char {
 /// is only displayed if it changed.
 pub unsafe fn msg_source(hl_id: c_int) {
     unsafe {
-        // Bail out if something called here causes an error.
         if MSG_SOURCE_RECURSIVE {
             return;
         }
         MSG_SOURCE_RECURSIVE = true;
 
         no_wait_return += 1;
-        let mut p = get_emsg_source();
-        if !p.is_null() {
-            msg_scroll = 1; // this will take more than one line
-            msg(p, hl_id);
-            xfree(p.cast());
+        if let Some(p) = get_emsg_source() {
+            msg_scroll = 1;
+            msg(p.as_ptr(), hl_id);
         }
-        p = get_emsg_lnum();
-        if !p.is_null() {
-            msg(p, HLF_N);
-            xfree(p.cast());
-            last_sourcing_lnum = sourcing_lnum(); // only once for each line
+        if let Some(p) = get_emsg_lnum() {
+            msg(p.as_ptr(), HLF_N);
+            last_sourcing_lnum = sourcing_lnum();
         }
 
-        // remember the last sourcing name printed, also when it's empty
         let sname = sourcing_name();
         if sname.is_null() || other_sourcing_name() {
-            xfree(last_sourcing_name.cast());
-            last_sourcing_name = ptr::null_mut();
+            last_sourcing_name = None;
             if !sname.is_null() {
-                last_sourcing_name = xstrdup(sname);
+                last_sourcing_name = Some(CStr::from_ptr(sname).to_owned());
                 if redirecting() == 0 {
                     msg_putchar_hl(NL, hl_id);
                 }
@@ -1109,19 +1094,15 @@ pub unsafe fn emsg_multiline(
             if emsg_silent != 0 {
                 if !emsg_noredir {
                     msg_start();
-                    let mut p = get_emsg_source();
-                    if !p.is_null() {
-                        let p_len = CStr::from_ptr(p).to_bytes().len();
-                        *p.add(p_len) = NL as c_char;
-                        redir_write(p, (p_len + 1) as isize);
-                        xfree(p.cast());
+                    if let Some(p) = get_emsg_source() {
+                        let p_len = p.as_bytes().len();
+                        redir_write(p.as_ptr(), p_len as isize);
+                        redir_write(c"\n".as_ptr(), 1);
                     }
-                    p = get_emsg_lnum();
-                    if !p.is_null() {
-                        let p_len = CStr::from_ptr(p).to_bytes().len();
-                        *p.add(p_len) = NL as c_char;
-                        redir_write(p, (p_len + 1) as isize);
-                        xfree(p.cast());
+                    if let Some(p) = get_emsg_lnum() {
+                        let p_len = p.as_bytes().len();
+                        redir_write(p.as_ptr(), p_len as isize);
+                        redir_write(c"\n".as_ptr(), 1);
                     }
                     redir_write(s, CStr::from_ptr(s).to_bytes().len() as isize);
                 }
@@ -1997,11 +1978,10 @@ pub unsafe fn wait_return(redraw: c_int) {
         emsg_on_display = false;
         lines_left = -1;
         reset_last_sourcing();
-        if !keep_msg.is_null()
-            && vim_strsize(keep_msg) >= (Rows - cmdline_row - 1) * Columns + sc_col
-        {
-            xfree(keep_msg.cast());
-            keep_msg = ptr::null_mut();
+        if (&raw const keep_msg).as_ref().unwrap().as_ref().is_some_and(
+            |km| vim_strsize(km.as_ptr()) >= (Rows - cmdline_row - 1) * Columns + sc_col,
+        ) {
+            keep_msg = None;
         }
 
         if tmpState == MODE_SETWSIZE {
@@ -2047,11 +2027,10 @@ pub unsafe fn set_keep_msg(s: *const c_char, hl_id: c_int) {
             return;
         }
 
-        xfree(keep_msg.cast());
         if !s.is_null() && msg_silent == 0 {
-            keep_msg = xstrdup(s);
+            keep_msg = Some(CStr::from_ptr(s).to_owned());
         } else {
-            keep_msg = ptr::null_mut();
+            keep_msg = None;
         }
         keep_msg_more = false;
         keep_msg_hl_id = hl_id;
@@ -2069,7 +2048,7 @@ pub unsafe fn msgmore(n: c_int) {
             return;
         }
 
-        if !keep_msg.is_null() && !keep_msg_more {
+        if (&raw const keep_msg).as_ref().unwrap().is_some() && !keep_msg_more {
             return;
         }
 
@@ -2153,8 +2132,7 @@ pub unsafe fn msg_start() {
         msg_row = msg_row.max(cmdline_row);
 
         if msg_silent == 0 {
-            xfree(keep_msg.cast());
-            keep_msg = ptr::null_mut();
+            keep_msg = None;
             need_fileinfo = false;
         }
 
@@ -2254,9 +2232,12 @@ pub unsafe fn msg_home_replace(fname: *const c_char) {
 
 unsafe fn msg_home_replace_hl(fname: *const c_char, hl_id: c_int) {
     unsafe {
-        let name = home_replace_save(ptr::null_mut(), fname);
-        msg_outtrans(name, hl_id, false);
-        xfree(name.cast());
+        let name = cstr_take(home_replace_save(ptr::null_mut(), fname));
+        msg_outtrans(
+            name.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+            hl_id,
+            false,
+        );
     }
 }
 
@@ -3254,13 +3235,14 @@ unsafe fn inc_msg_scrolled() {
     unsafe {
         if *get_vim_var_str(VV_SCROLLSTART) == NUL {
             let sname = sourcing_name();
-            let mut tofree: *mut c_char = ptr::null_mut();
+            let mut tofree_vec: Vec<c_char>;
 
             let p = if sname.is_null() {
                 cstr_as_string(gettext(c"Unknown".as_ptr()))
             } else {
                 let tofreesize = CStr::from_ptr(sname).to_bytes().len() + 40;
-                tofree = xmalloc(tofreesize).cast();
+                tofree_vec = vec![0; tofreesize];
+                let tofree = tofree_vec.as_mut_ptr();
                 let size = vim_snprintf_safelen!(
                     tofree,
                     tofreesize,
@@ -3271,7 +3253,6 @@ unsafe fn inc_msg_scrolled() {
                 NvimString { data: tofree, size }
             };
             set_vim_var_string(VV_SCROLLSTART, p.data, p.size as isize);
-            xfree(tofree.cast());
         }
         msg_scrolled += 1;
         set_must_redraw(UPD_VALID);
@@ -4169,8 +4150,7 @@ pub unsafe fn give_warning(message: *const c_char, hl: bool, hist: bool) {
         no_wait_return += 1;
 
         set_vim_var_string(VV_WARNINGMSG, message, -1);
-        xfree(keep_msg.cast());
-        keep_msg = ptr::null_mut();
+        keep_msg = None;
         if hl {
             keep_msg_hl_id = HLF_W;
         } else {

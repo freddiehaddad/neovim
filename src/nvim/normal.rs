@@ -1791,15 +1791,18 @@ unsafe fn normal_redraw_mode_message(_s: *mut NormalState) {
             State = MODE_INSERT;
         }
 
-        if must_redraw != 0 && !keep_msg.is_null() && !emsg_on_display {
-            let kmsg = keep_msg;
-            keep_msg = ptr::null_mut();
+        if must_redraw != 0
+            && (&raw const keep_msg).as_ref().unwrap().is_some()
+            && !emsg_on_display
+        {
+            let kmsg = (&raw mut keep_msg).as_mut().unwrap().take();
             setcursor();
             update_screen();
-            keep_msg = kmsg;
-
-            let kmsg_cstr = CStr::from_ptr(keep_msg).to_owned();
-            msg(kmsg_cstr.as_ptr(), keep_msg_hl_id);
+            if let Some(kmsg_cstr) = kmsg {
+                let ptr = kmsg_cstr.as_ptr();
+                keep_msg = Some(kmsg_cstr.clone());
+                msg(ptr, keep_msg_hl_id);
+            }
         }
         setcursor();
         ui_cursor_shape();
@@ -2421,8 +2424,7 @@ unsafe fn normal_redraw(_s: *mut NormalState) {
 
         (*curbuf).b_last_used = os_time() as time_t;
 
-        if !keep_msg.is_null() {
-            let p = CStr::from_ptr(keep_msg).to_owned();
+        if let Some(p) = (&raw const keep_msg).as_ref().unwrap().clone() {
             msg_hist_off = true;
             msg(p.as_ptr(), keep_msg_hl_id);
             msg_hist_off = false;
