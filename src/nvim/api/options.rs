@@ -21,7 +21,7 @@ use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::globals::*;
 use crate::lua::converter::Boolean;
 use crate::memline::ml_open;
-use crate::memory::{Arena, arena_memdupz, strequal_str, xfree, xmalloc, xstrdup};
+use crate::memory::{Arena, arena_memdupz, strequal_str, xfree, xstrdup};
 use crate::option::{
     OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, OPT_GLOBAL, OPT_LOCAL, OptScope, OptTarget,
     PREFIX_NONE, copy_option_part, escape_option_str_cmdline, find_option, get_all_options_info,
@@ -519,7 +519,8 @@ pub unsafe extern "C" fn nvim__option_to_object(
                 arena_array(arena, nparts)
             };
             let str_len = strlen(str_ptr);
-            let item = xmalloc(str_len + 1).cast::<c_char>();
+            let mut item_buf = vec![0 as c_char; str_len + 1];
+            let item = item_buf.as_mut_ptr();
             p = str_ptr;
             while *p != NUL {
                 copy_option_part(&raw mut p, item, str_len + 1, c",".as_ptr().cast_mut());
@@ -547,7 +548,6 @@ pub unsafe extern "C" fn nvim__option_to_object(
                 };
                 put_c(&mut d, key.data, v);
             }
-            xfree(item.cast());
             if as_map { dict_obj(d) } else { array_obj(a) }
         }
     }

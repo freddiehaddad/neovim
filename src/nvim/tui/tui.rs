@@ -39,16 +39,12 @@ use crate::highlight::{HLATTRS_INIT, HlAttrs};
 use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, g_min_log_level, logmsg};
 use crate::lua::executor::{kRetObject, nlua_exec};
 use crate::mbyte::{utf_ambiguous_width, utf_char2cells, utf_ptr2char};
-#[cfg(windows)]
-use crate::memory::xstrdup;
-use crate::memory::{
-    Arena, arena_finish, arena_mem_free, arena_memdupz, arena_strdup, strequal, xfree,
-};
+use crate::memory::{Arena, arena_finish, arena_mem_free, arena_memdupz, arena_strdup, strequal};
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::option::OptInt;
 #[cfg(windows)]
 use crate::os::env::os_setenv;
-use crate::os::env::{os_env_exists, os_getenv, os_getenv_buf};
+use crate::os::env::{os_env_exists, os_getenv_buf, os_getenv_cstr};
 #[cfg(not(windows))]
 use crate::os::fs::UV_EINTR;
 use crate::os::input::os_isatty;
@@ -872,18 +868,19 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
         assert!((*tui).term.is_null());
 
         #[cfg(windows)]
-        let mut term = os_getenv(c"TERM".as_ptr());
+        let mut term_cstr = os_getenv_cstr(c"TERM".as_ptr());
         #[cfg(not(windows))]
-        let term = os_getenv(c"TERM".as_ptr());
+        let term_cstr = os_getenv_cstr(c"TERM".as_ptr());
         #[cfg(windows)]
         {
             let mut guessed_term: *const c_char = ptr::null();
             os_tty_guess_term(&raw mut guessed_term, (*tui).out_fd);
-            if term.is_null() && !guessed_term.is_null() {
-                term = xstrdup(guessed_term);
+            if term_cstr.is_none() && !guessed_term.is_null() {
+                term_cstr = Some(CStr::from_ptr(guessed_term).to_owned());
                 os_setenv(c"TERM".as_ptr(), guessed_term, 1);
             }
         }
+        let term = term_cstr.as_ref().map_or(ptr::null(), |c| c.as_ptr());
 
         (*tui).terminfo_found_in_db = false;
         if !term.is_null()
@@ -899,13 +896,23 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
             (*tui).ti = *new_ti;
         }
 
-        let colorterm = os_getenv(c"COLORTERM".as_ptr());
-        let termprg = os_getenv(c"TERM_PROGRAM".as_ptr());
-        let vte_version_env = os_getenv(c"VTE_VERSION".as_ptr());
-        let konsolev_env = os_getenv(c"KONSOLE_VERSION".as_ptr());
-        let term_program_version_env = os_getenv(c"TERM_PROGRAM_VERSION".as_ptr());
+        let colorterm_cstr = os_getenv_cstr(c"COLORTERM".as_ptr());
+        let termprg_cstr = os_getenv_cstr(c"TERM_PROGRAM".as_ptr());
+        let vte_version_cstr = os_getenv_cstr(c"VTE_VERSION".as_ptr());
+        let konsolev_cstr = os_getenv_cstr(c"KONSOLE_VERSION".as_ptr());
+        let term_program_version_cstr = os_getenv_cstr(c"TERM_PROGRAM_VERSION".as_ptr());
 
-        let mut vte_version_end = vte_version_env;
+        let colorterm = colorterm_cstr.as_ref().map_or(ptr::null(), |c| c.as_ptr());
+        let termprg = termprg_cstr.as_ref().map_or(ptr::null(), |c| c.as_ptr());
+        let vte_version_env = vte_version_cstr
+            .as_ref()
+            .map_or(ptr::null(), |c| c.as_ptr());
+        let konsolev_env = konsolev_cstr.as_ref().map_or(ptr::null(), |c| c.as_ptr());
+        let term_program_version_env = term_program_version_cstr
+            .as_ref()
+            .map_or(ptr::null(), |c| c.as_ptr());
+
+        let mut vte_version_end = vte_version_env.cast_mut();
         let vtev = if !vte_version_env.is_null() {
             getdigits_int(&raw mut vte_version_end, false, 0)
         } else {
@@ -917,7 +924,7 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
         let konsole = terminfo_is_term_family(term, c"konsole".as_ptr())
             || os_env_exists(c"KONSOLE_PROFILE_NAME".as_ptr(), true)
             || os_env_exists(c"KONSOLE_DBUS_SESSION".as_ptr(), true);
-        let mut konsolev_end = konsolev_env;
+        let mut konsolev_end = konsolev_env.cast_mut();
         let konsolev = if !konsolev_env.is_null() {
             getdigits_int(&raw mut konsolev_end, false, 0)
         } else if konsole {
@@ -1054,13 +1061,6 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
             }
         }
         flush_buf(tui, FlushBufFinish::kFlushBufFinal);
-
-        xfree(term.cast());
-        xfree(colorterm.cast());
-        xfree(termprg.cast());
-        xfree(vte_version_env.cast());
-        xfree(konsolev_env.cast());
-        xfree(term_program_version_env.cast());
     }
 }
 
@@ -2266,11 +2266,15 @@ unsafe fn show_verbose_terminfo(tui: *mut TUIData) {
             size: 2,
             capacity: 2,
         };
-        let str_val = terminfo_info_msg(
+        let mut str_bytes = terminfo_info_msg(
             &raw const (*tui).ti,
             (*tui).term,
             (*tui).terminfo_found_in_db,
         );
+        let str_val = NvimString {
+            data: str_bytes.as_mut_ptr().cast(),
+            size: str_bytes.len(),
+        };
         let mut info_items = [string_obj(str_val)];
         let info = Array {
             items: info_items.as_mut_ptr(),
@@ -2308,7 +2312,7 @@ unsafe fn show_verbose_terminfo(tui: *mut TUIData) {
             capacity: 3,
         };
         rpc_send_event(ui_client_channel_id, c"nvim_echo".as_ptr(), args);
-        xfree(str_val.data.cast());
+        drop(str_bytes);
     }
 }
 
@@ -2825,7 +2829,10 @@ unsafe fn patch_terminfo_bugs(
     nsterm: bool,
 ) {
     unsafe {
-        let xterm_version = os_getenv(c"XTERM_VERSION".as_ptr());
+        let xterm_version_cstr = os_getenv_cstr(c"XTERM_VERSION".as_ptr());
+        let xterm_version = xterm_version_cstr
+            .as_ref()
+            .map_or(ptr::null(), |c| c.as_ptr());
         let xterm = terminfo_is_term_family(term, c"xterm".as_ptr()) || nsterm;
         let hterm = terminfo_is_term_family(term, c"hterm".as_ptr());
         let kitty = terminfo_is_term_family(term, c"xterm-kitty".as_ptr());
@@ -2994,8 +3001,6 @@ unsafe fn patch_terminfo_bugs(
             terminfo_set_if_empty(tui, kTerm_set_cursor_style, c"\x1b[%p1%d q".as_ptr());
             terminfo_set_if_empty(tui, kTerm_reset_cursor_style, c"\x1b[2 q".as_ptr());
         }
-
-        xfree(xterm_version.cast());
     }
 }
 
@@ -3009,7 +3014,10 @@ unsafe fn augment_terminfo(
     nsterm: bool,
 ) {
     unsafe {
-        let xterm_version = os_getenv(c"XTERM_VERSION".as_ptr());
+        let xterm_version_cstr = os_getenv_cstr(c"XTERM_VERSION".as_ptr());
+        let xterm_version = xterm_version_cstr
+            .as_ref()
+            .map_or(ptr::null(), |c| c.as_ptr());
         let xterm = terminfo_is_term_family(term, c"xterm".as_ptr()) || nsterm;
         let hterm = terminfo_is_term_family(term, c"hterm".as_ptr());
         let bsdvt = terminfo_is_bsd_console(term);
@@ -3109,8 +3117,6 @@ unsafe fn augment_terminfo(
         } else {
             (*tui).input.key_encoding = kKeyEncodingXterm;
         }
-
-        xfree(xterm_version.cast());
     }
 }
 

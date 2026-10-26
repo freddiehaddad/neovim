@@ -231,6 +231,34 @@ pub unsafe fn env_name_len(p: *const c_char) -> usize {
     }
 }
 
+/// Like `os_getenv()`, but returns an owned `Option<CString>` without C heap allocations.
+pub unsafe fn os_getenv_cstr(name: *const c_char) -> Option<std::ffi::CString> {
+    unsafe {
+        if !env_name_valid(name) {
+            return None;
+        }
+        let mut size = INIT_SIZE;
+        let mut buf = [0 as c_char; INIT_SIZE];
+        let mut r = uv_os_getenv(name, buf.as_mut_ptr(), &raw mut size);
+        let res = if r == UV_ENOBUFS {
+            let mut vec_buf = vec![0 as c_char; size];
+            r = uv_os_getenv(name, vec_buf.as_mut_ptr(), &raw mut size);
+            if r != 0 || size == 0 || vec_buf[0] == NUL {
+                None
+            } else {
+                let bytes = std::slice::from_raw_parts(vec_buf.as_ptr().cast::<u8>(), size);
+                Some(std::ffi::CStr::from_ptr(bytes.as_ptr().cast::<c_char>()).to_owned())
+            }
+        } else if r != 0 || size == 0 || buf[0] == NUL {
+            None
+        } else {
+            Some(std::ffi::CStr::from_ptr(buf.as_ptr()).to_owned())
+        };
+        assert_ne!(r, UV_EINVAL);
+        res
+    }
+}
+
 /// Like `getenv()`, but returns NULL if the variable is empty.
 pub unsafe fn os_getenv(name: *const c_char) -> *mut c_char {
     unsafe {
@@ -271,12 +299,11 @@ pub unsafe fn os_getenv_buf(name: *const c_char, buf: *mut c_char, bufsize: usiz
             let mut size = bufsize;
             let mut r = uv_os_getenv(name, buf, &raw mut size);
             if r == UV_ENOBUFS {
-                let e = xmalloc(size).cast::<c_char>();
-                r = uv_os_getenv(name, e, &raw mut size);
-                if r == 0 && size != 0 && *e != NUL {
-                    let _ = xmemcpyz(buf.cast(), e.cast(), bufsize.min(size) - 1);
+                let mut e = vec![0 as c_char; size];
+                r = uv_os_getenv(name, e.as_mut_ptr(), &raw mut size);
+                if r == 0 && size != 0 && e[0] != NUL {
+                    let _ = xmemcpyz(buf.cast(), e.as_ptr().cast(), bufsize.min(size) - 1);
                 }
-                xfree(e.cast());
             }
             assert_ne!(r, UV_EINVAL);
 

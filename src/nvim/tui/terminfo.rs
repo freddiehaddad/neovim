@@ -1,8 +1,7 @@
 //! Built-in fallback terminfo entries and database loader (`src/nvim/tui/terminfo.c`).
 
-use crate::api::private::validate::NvimString;
 use crate::charset::{NUL, kv_transstr};
-use crate::memory::{Arena, arena_strdup, strequal, xmemdupz};
+use crate::memory::{Arena, arena_strdup, strequal};
 use crate::strings::vim_snprintf;
 use crate::tui::termkey::driver_ti::{
     TerminfoEntry, kTermCount, kTermKeyCount, kTerminfoFuncKeyMax,
@@ -2562,14 +2561,7 @@ fn unibi_from_dirs(list: &str, term: &str) -> Option<UnibiTerm> {
 
 unsafe fn get_env_str(name: &CStr) -> Option<String> {
     unsafe {
-        let p = crate::os::env::os_getenv(name.as_ptr());
-        if p.is_null() {
-            None
-        } else {
-            let s = CStr::from_ptr(p).to_string_lossy().into_owned();
-            crate::memory::xfree(p.cast());
-            Some(s)
-        }
+        crate::os::env::os_getenv_cstr(name.as_ptr()).map(|c| c.to_string_lossy().into_owned())
     }
 }
 
@@ -2708,7 +2700,7 @@ pub unsafe fn terminfo_from_builtin(
 
 pub unsafe fn terminfo_from_database(
     ti: *mut TerminfoEntry,
-    termname: *mut c_char,
+    termname: *const c_char,
     arena: *mut Arena,
 ) -> bool {
     unsafe {
@@ -2801,7 +2793,7 @@ pub unsafe fn terminfo_info_msg(
     ti: *const TerminfoEntry,
     termname: *const c_char,
     from_db: bool,
-) -> NvimString {
+) -> Vec<u8> {
     unsafe {
         let mut data: Vec<u8> = Vec::new();
         let termname_bytes = if termname.is_null() {
@@ -2867,10 +2859,7 @@ pub unsafe fn terminfo_info_msg(
             }
         }
 
-        NvimString {
-            data: xmemdupz(data.as_ptr().cast(), data.len()).cast(),
-            size: data.len(),
-        }
+        data
     }
 }
 

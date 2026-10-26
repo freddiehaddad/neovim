@@ -37,9 +37,7 @@ use crate::memline::{
     ML_LINE_DIRTY, ml_append_buf, ml_delete_buf, ml_find_line_or_offset, ml_get_buf,
     ml_get_buf_len, ml_replace_buf,
 };
-use crate::memory::{
-    Arena, arena_alloc, arena_allocz, arena_memdupz, memchrsub, strchrsub, xfree, xmemdupz,
-};
+use crate::memory::{Arena, arena_alloc, arena_allocz, arena_memdupz, memchrsub, strchrsub};
 use crate::r#move::{changed_cline_bef_curs, invalidate_botline_win, update_topline};
 use crate::msgpack_rpc::packer::Integer;
 use crate::ops::get_region_bytecount;
@@ -1947,10 +1945,9 @@ unsafe fn push_linestr(
     unsafe {
         if !lstate.is_null() {
             if !s.is_null() && replace_nl && CStr::from_ptr(s).to_bytes().contains(&b'\n') {
-                let tmp = xmemdupz(s.cast(), len).cast::<c_char>();
-                strchrsub(tmp, NL, NUL);
-                lua_pushlstring(lstate, tmp, len);
-                xfree(tmp.cast());
+                let mut tmp: Vec<c_char> = std::slice::from_raw_parts(s, len + 1).to_vec();
+                strchrsub(tmp.as_mut_ptr(), NL, NUL);
+                lua_pushlstring(lstate, tmp.as_ptr(), len);
             } else {
                 lua_pushlstring(lstate, s, len);
             }
