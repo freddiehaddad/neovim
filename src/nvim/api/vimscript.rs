@@ -684,7 +684,7 @@ unsafe fn expr_ast_node_to_obj(node: &ExprASTNode, arena: *mut Arena) -> Object 
         put_c(
             &mut ret_node,
             c"type",
-            string_obj(cstr_as_string(east_node_type_tab.0[nt as usize])),
+            string_obj(cstr_as_string(east_node_type_tab[nt as usize].as_ptr())),
         );
         let mut start_array = arena_array(arena, 2);
         add_c(&mut start_array, integer_obj(node.start.line as Integer));
@@ -748,13 +748,16 @@ unsafe fn expr_ast_node_to_obj(node: &ExprASTNode, arena: *mut Arena) -> Object 
                     &mut ret_node,
                     c"cmp_type",
                     string_obj(cstr_as_string(
-                        eltkn_cmp_type_tab.0[node.data.cmp().r#type as usize],
+                        eltkn_cmp_type_tab[node.data.cmp().r#type as usize].as_ptr(),
                     )),
                 );
                 put_c(
                     &mut ret_node,
                     c"ccs_strategy",
-                    string_obj(cstr_as_string(ccs_tab.0[node.data.cmp().ccs as usize])),
+                    string_obj(cstr_as_string(
+                        ccs_tab[node.data.cmp().ccs as usize]
+                            .map_or(std::ptr::null(), |s| s.as_ptr()),
+                    )),
                 );
                 put_c(&mut ret_node, c"invert", boolean_obj(node.data.cmp().inv));
             }
@@ -778,7 +781,7 @@ unsafe fn expr_ast_node_to_obj(node: &ExprASTNode, arena: *mut Arena) -> Object 
                         size: 0,
                     }
                 } else {
-                    cstr_as_string(expr_asgn_type_tab.0[asgn_type as usize])
+                    cstr_as_string(expr_asgn_type_tab[asgn_type as usize].as_ptr())
                 };
                 put_c(&mut ret_node, c"augmentation", string_obj(str_val));
             }

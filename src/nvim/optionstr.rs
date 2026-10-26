@@ -449,42 +449,42 @@ static mut lcs_chars: lcs_chars_T = lcs_chars_T::new();
 
 static BRIOPT_TABLE: [KeySetLink; 6] = [
     KeySetLink {
-        str: c"min".as_ptr().cast_mut(),
+        str: Some(c"min"),
         ptr_off: std::mem::offset_of!(OptKeyDict_briopt, min),
         key_type: ObjectType::kObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"sbr".as_ptr().cast_mut(),
+        str: Some(c"sbr"),
         ptr_off: std::mem::offset_of!(OptKeyDict_briopt, sbr),
         key_type: ObjectType::kObjectTypeBoolean as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"list".as_ptr().cast_mut(),
+        str: Some(c"list"),
         ptr_off: std::mem::offset_of!(OptKeyDict_briopt, list),
         key_type: ObjectType::kObjectTypeInteger as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"shift".as_ptr().cast_mut(),
+        str: Some(c"shift"),
         ptr_off: std::mem::offset_of!(OptKeyDict_briopt, shift),
         key_type: ObjectType::kObjectTypeInteger as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"column".as_ptr().cast_mut(),
+        str: Some(c"column"),
         ptr_off: std::mem::offset_of!(OptKeyDict_briopt, column),
         key_type: ObjectType::kObjectTypeInteger as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: ptr::null_mut(),
+        str: None,
         ptr_off: 0,
         key_type: ObjectType::kObjectTypeNil as c_int,
         opt_index: -1,
@@ -494,140 +494,140 @@ static BRIOPT_TABLE: [KeySetLink; 6] = [
 
 static DIP_TABLE: [KeySetLink; 20] = [
     KeySetLink {
-        str: c"icase".as_ptr().cast_mut(),
+        str: Some(c"icase"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, icase),
         key_type: ObjectType::kObjectTypeBoolean as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"iblank".as_ptr().cast_mut(),
+        str: Some(c"iblank"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, iblank),
         key_type: ObjectType::kObjectTypeBoolean as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"filler".as_ptr().cast_mut(),
+        str: Some(c"filler"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, filler),
         key_type: ObjectType::kObjectTypeBoolean as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"anchor".as_ptr().cast_mut(),
+        str: Some(c"anchor"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, anchor),
         key_type: ObjectType::kObjectTypeBoolean as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"inline".as_ptr().cast_mut(),
+        str: Some(c"inline"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, inline_),
         key_type: ObjectType::kObjectTypeString as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"iwhite".as_ptr().cast_mut(),
+        str: Some(c"iwhite"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, iwhite),
         key_type: ObjectType::kObjectTypeBoolean as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"context".as_ptr().cast_mut(),
+        str: Some(c"context"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, context),
         key_type: ObjectType::kObjectTypeInteger as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"closeoff".as_ptr().cast_mut(),
+        str: Some(c"closeoff"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, closeoff),
         key_type: ObjectType::kObjectTypeBoolean as c_int,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"internal".as_ptr().cast_mut(),
+        str: Some(c"internal"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, internal),
         key_type: ObjectType::kObjectTypeBoolean as c_int,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"vertical".as_ptr().cast_mut(),
+        str: Some(c"vertical"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, vertical),
         key_type: ObjectType::kObjectTypeBoolean as c_int,
         opt_index: 10,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"linematch".as_ptr().cast_mut(),
+        str: Some(c"linematch"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, linematch),
         key_type: ObjectType::kObjectTypeInteger as c_int,
         opt_index: 11,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"hiddenoff".as_ptr().cast_mut(),
+        str: Some(c"hiddenoff"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, hiddenoff),
         key_type: ObjectType::kObjectTypeBoolean as c_int,
         opt_index: 12,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"algorithm".as_ptr().cast_mut(),
+        str: Some(c"algorithm"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, algorithm),
         key_type: ObjectType::kObjectTypeString as c_int,
         opt_index: 13,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"iwhiteall".as_ptr().cast_mut(),
+        str: Some(c"iwhiteall"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, iwhiteall),
         key_type: ObjectType::kObjectTypeBoolean as c_int,
         opt_index: 14,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"iwhiteeol".as_ptr().cast_mut(),
+        str: Some(c"iwhiteeol"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, iwhiteeol),
         key_type: ObjectType::kObjectTypeBoolean as c_int,
         opt_index: 15,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"foldcolumn".as_ptr().cast_mut(),
+        str: Some(c"foldcolumn"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, foldcolumn),
         key_type: ObjectType::kObjectTypeInteger as c_int,
         opt_index: 16,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"horizontal".as_ptr().cast_mut(),
+        str: Some(c"horizontal"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, horizontal),
         key_type: ObjectType::kObjectTypeBoolean as c_int,
         opt_index: 17,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"followwrap".as_ptr().cast_mut(),
+        str: Some(c"followwrap"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, followwrap),
         key_type: ObjectType::kObjectTypeBoolean as c_int,
         opt_index: 18,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"indent-heuristic".as_ptr().cast_mut(),
+        str: Some(c"indent-heuristic"),
         ptr_off: std::mem::offset_of!(OptKeyDict_dip, indent_heuristic),
         key_type: ObjectType::kObjectTypeBoolean as c_int,
         opt_index: 19,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: ptr::null_mut(),
+        str: None,
         ptr_off: 0,
         key_type: ObjectType::kObjectTypeNil as c_int,
         opt_index: -1,
@@ -637,56 +637,56 @@ static DIP_TABLE: [KeySetLink; 20] = [
 
 static MOPT_TABLE: [KeySetLink; 8] = [
     KeySetLink {
-        str: c"wait".as_ptr().cast_mut(),
+        str: Some(c"wait"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, wait),
         key_type: ObjectType::kObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"pager".as_ptr().cast_mut(),
+        str: Some(c"pager"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, pager),
         key_type: ObjectType::kObjectTypeString as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"history".as_ptr().cast_mut(),
+        str: Some(c"history"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, history),
         key_type: ObjectType::kObjectTypeInteger as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"timeout".as_ptr().cast_mut(),
+        str: Some(c"timeout"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, timeout),
         key_type: ObjectType::kObjectTypeInteger as c_int,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"progress".as_ptr().cast_mut(),
+        str: Some(c"progress"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, progress),
         key_type: ObjectType::kObjectTypeString as c_int,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"hit-enter".as_ptr().cast_mut(),
+        str: Some(c"hit-enter"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, hit_enter),
         key_type: ObjectType::kObjectTypeBoolean as c_int,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"maxheight".as_ptr().cast_mut(),
+        str: Some(c"maxheight"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mopt, maxheight),
         key_type: ObjectType::kObjectTypeInteger as c_int,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: ptr::null_mut(),
+        str: None,
         ptr_off: 0,
         key_type: ObjectType::kObjectTypeNil as c_int,
         opt_index: -1,
@@ -696,21 +696,21 @@ static MOPT_TABLE: [KeySetLink; 8] = [
 
 static MOUSESCROLL_TABLE: [KeySetLink; 3] = [
     KeySetLink {
-        str: c"hor".as_ptr().cast_mut(),
+        str: Some(c"hor"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mousescroll, hor),
         key_type: ObjectType::kObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"ver".as_ptr().cast_mut(),
+        str: Some(c"ver"),
         ptr_off: std::mem::offset_of!(OptKeyDict_mousescroll, ver),
         key_type: ObjectType::kObjectTypeInteger as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: ptr::null_mut(),
+        str: None,
         ptr_off: 0,
         key_type: ObjectType::kObjectTypeNil as c_int,
         opt_index: -1,
@@ -720,28 +720,28 @@ static MOUSESCROLL_TABLE: [KeySetLink; 3] = [
 
 static PVP_TABLE: [KeySetLink; 4] = [
     KeySetLink {
-        str: c"width".as_ptr().cast_mut(),
+        str: Some(c"width"),
         ptr_off: std::mem::offset_of!(OptKeyDict_pvp, width),
         key_type: ObjectType::kObjectTypeInteger as c_int,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"border".as_ptr().cast_mut(),
+        str: Some(c"border"),
         ptr_off: std::mem::offset_of!(OptKeyDict_pvp, border),
         key_type: ObjectType::kObjectTypeString as c_int,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: c"height".as_ptr().cast_mut(),
+        str: Some(c"height"),
         ptr_off: std::mem::offset_of!(OptKeyDict_pvp, height),
         key_type: ObjectType::kObjectTypeInteger as c_int,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
-        str: ptr::null_mut(),
+        str: None,
         ptr_off: 0,
         key_type: ObjectType::kObjectTypeNil as c_int,
         opt_index: -1,
@@ -780,7 +780,7 @@ unsafe fn briopt_hash(str_arg: *const c_char, len: usize) -> isize {
             6 => 4,
             _ => -1,
         };
-        if low < 0 || c_memcmp(str_arg, BRIOPT_TABLE[low as usize].str, len) != 0 {
+        if low < 0 || c_memcmp(str_arg, BRIOPT_TABLE[low as usize].str.unwrap().as_ptr(), len) != 0 {
             return -1;
         }
         low
@@ -834,7 +834,7 @@ unsafe fn dip_hash(str_arg: *const c_char, len: usize) -> isize {
             _ => (0, 0),
         };
         for (i, entry) in DIP_TABLE.iter().enumerate().take(high).skip(low) {
-            if c_memcmp(str_arg, entry.str, len) == 0 {
+            if c_memcmp(str_arg, entry.str.unwrap().as_ptr(), len) == 0 {
                 return i as isize;
             }
         }
@@ -871,7 +871,7 @@ unsafe fn mopt_hash(str_arg: *const c_char, len: usize) -> isize {
             },
             _ => -1,
         };
-        if low < 0 || c_memcmp(str_arg, MOPT_TABLE[low as usize].str, len) != 0 {
+        if low < 0 || c_memcmp(str_arg, MOPT_TABLE[low as usize].str.unwrap().as_ptr(), len) != 0 {
             return -1;
         }
         low
@@ -899,7 +899,13 @@ unsafe fn mousescroll_hash(str_arg: *const c_char, len: usize) -> isize {
             },
             _ => -1,
         };
-        if low < 0 || c_memcmp(str_arg, MOUSESCROLL_TABLE[low as usize].str, len) != 0 {
+        if low < 0
+            || c_memcmp(
+                str_arg,
+                MOUSESCROLL_TABLE[low as usize].str.unwrap().as_ptr(),
+                len,
+            ) != 0
+        {
             return -1;
         }
         low
@@ -931,7 +937,7 @@ unsafe fn pvp_hash(str_arg: *const c_char, len: usize) -> isize {
             },
             _ => -1,
         };
-        if low < 0 || c_memcmp(str_arg, PVP_TABLE[low as usize].str, len) != 0 {
+        if low < 0 || c_memcmp(str_arg, PVP_TABLE[low as usize].str.unwrap().as_ptr(), len) != 0 {
             return -1;
         }
         low

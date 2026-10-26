@@ -1185,6 +1185,7 @@ pub unsafe fn api_dict_to_keydict(
                 (*retval).is_set_ |= 1u64 << (*field).opt_index;
             }
 
+            let field_name = (*field).str.map_or(ptr::null(), |s| s.as_ptr());
             let mem = retval.cast::<u8>().add((*field).ptr_off);
             let value = &raw mut (*dict.items.add(i)).value;
             let field_type =
@@ -1208,7 +1209,7 @@ pub unsafe fn api_dict_to_keydict(
                         if (*value).obj_type != ObjectType::kObjectTypeInteger {
                             api_err_exp(
                                 err,
-                                (*field).str,
+                                field_name,
                                 api_typename(ObjectType::kObjectTypeInteger),
                                 api_typename((*value).obj_type),
                             );
@@ -1226,7 +1227,7 @@ pub unsafe fn api_dict_to_keydict(
                     } else {
                         api_err_exp(
                             err,
-                            (*field).str,
+                            field_name,
                             api_typename(ObjectType::kObjectTypeFloat),
                             api_typename((*value).obj_type),
                         );
@@ -1234,7 +1235,7 @@ pub unsafe fn api_dict_to_keydict(
                     }
                 }
                 ObjectType::kObjectTypeBoolean => {
-                    *mem.cast::<Boolean>() = api_object_to_bool(*value, (*field).str, false, err);
+                    *mem.cast::<Boolean>() = api_object_to_bool(*value, field_name, false, err);
                     if error_set(err) {
                         return false;
                     }
@@ -1243,7 +1244,7 @@ pub unsafe fn api_dict_to_keydict(
                     if (*value).obj_type != ObjectType::kObjectTypeString {
                         api_err_exp(
                             err,
-                            (*field).str,
+                            field_name,
                             api_typename(ObjectType::kObjectTypeString),
                             api_typename((*value).obj_type),
                         );
@@ -1255,7 +1256,7 @@ pub unsafe fn api_dict_to_keydict(
                     if (*value).obj_type != ObjectType::kObjectTypeArray {
                         api_err_exp(
                             err,
-                            (*field).str,
+                            field_name,
                             api_typename(ObjectType::kObjectTypeArray),
                             api_typename((*value).obj_type),
                         );
@@ -1278,7 +1279,7 @@ pub unsafe fn api_dict_to_keydict(
                     } else {
                         api_err_exp(
                             err,
-                            (*field).str,
+                            field_name,
                             api_typename(field_type),
                             api_typename((*value).obj_type),
                         );
@@ -1295,7 +1296,7 @@ pub unsafe fn api_dict_to_keydict(
                     } else {
                         api_err_exp(
                             err,
-                            (*field).str,
+                            field_name,
                             api_typename(field_type),
                             api_typename((*value).obj_type),
                         );
@@ -1328,7 +1329,7 @@ pub unsafe fn api_keydict_to_dict(
     unsafe {
         let mut rv = arena_dict(arena, max_size);
         let mut i: usize = 0;
-        while !(*table.add(i)).str.is_null() {
+        while let Some(field_str) = (*table.add(i)).str {
             let field = table.add(i);
             let mut is_set = true;
             if (*field).opt_index >= 0 {
@@ -1379,7 +1380,7 @@ pub unsafe fn api_keydict_to_dict(
             };
 
             *rv.items.add(rv.size) = KeyValuePair {
-                key: cstr_as_string((*field).str),
+                key: cstr_as_string(field_str.as_ptr()),
                 value: val,
             };
             rv.size += 1;
@@ -1403,7 +1404,7 @@ pub unsafe fn api_luarefs_free_object(value: Object) {
 pub unsafe fn api_luarefs_free_keydict(dict: *mut OptKeySet, table: *mut KeySetLink) {
     unsafe {
         let mut i: usize = 0;
-        while !(*table.add(i)).str.is_null() {
+        while (*table.add(i)).str.is_some() {
             let field = table.add(i);
             let mem = dict.cast::<u8>().add((*field).ptr_off);
             let field_type =

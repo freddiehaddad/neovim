@@ -209,7 +209,7 @@ impl Default for funcexe_T {
 
 #[repr(C)]
 pub struct EvalFuncDef {
-    pub name: *mut c_char,
+    pub name: Option<&'static std::ffi::CStr>,
     pub min_argc: u8,
     pub max_argc: u8,
     pub base_arg: u8,
@@ -217,8 +217,6 @@ pub struct EvalFuncDef {
     pub func: VimLFunc,
     pub data: EvalFuncData,
 }
-
-unsafe impl Sync for EvalFuncDef {}
 
 #[repr(C)]
 pub(crate) struct defer_T {

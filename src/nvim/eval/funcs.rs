@@ -447,11 +447,11 @@ pub unsafe fn get_function_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
 
         GET_FUNC_NAME_INTIDX += 1;
         let fdef = eval_func_def_at(GET_FUNC_NAME_INTIDX);
-        let key = (*fdef).name;
-        if key.is_null() {
+        let Some(key_cstr) = (*fdef).name else {
             return ptr::null_mut();
-        }
-        let key_len = strlen(key);
+        };
+        let key = key_cstr.as_ptr();
+        let key_len = key_cstr.to_bytes().len();
         let iobuff = (&raw mut IObuff).cast::<c_char>();
         ptr::copy_nonoverlapping(key, iobuff, key_len);
         *iobuff.add(key_len) = b'(' as c_char;
@@ -1177,7 +1177,7 @@ pub unsafe fn check_internal_func(fdef: *const EvalFuncDef, argcount: c_int) -> 
             return c_int::from((*fdef).base_arg);
         };
 
-        let name = (*fdef).name;
+        let name = (*fdef).name.map_or(ptr::null(), |s| s.as_ptr());
         if res == FCERR_TOOMANY {
             semsg!(gettext(e_toomanyarg.as_ptr()), name);
         } else {
@@ -9414,7 +9414,7 @@ macro_rules! viml_fn {
 
 static FUNCTIONS: [EvalFuncDef; 643] = [
     EvalFuncDef {
-        name: c"id".as_ptr().cast_mut(),
+        name: Some(c"id"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -9423,7 +9423,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"or".as_ptr().cast_mut(),
+        name: Some(c"or"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -9432,7 +9432,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"tr".as_ptr().cast_mut(),
+        name: Some(c"tr"),
         min_argc: 3,
         max_argc: 3,
         base_arg: 1,
@@ -9441,7 +9441,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"abs".as_ptr().cast_mut(),
+        name: Some(c"abs"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9450,7 +9450,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"add".as_ptr().cast_mut(),
+        name: Some(c"add"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -9459,7 +9459,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"and".as_ptr().cast_mut(),
+        name: Some(c"and"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -9468,7 +9468,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"col".as_ptr().cast_mut(),
+        name: Some(c"col"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -9477,7 +9477,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"cos".as_ptr().cast_mut(),
+        name: Some(c"cos"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9486,7 +9486,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::FloatOp(f64::cos),
     },
     EvalFuncDef {
-        name: c"exp".as_ptr().cast_mut(),
+        name: Some(c"exp"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9495,7 +9495,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::FloatOp(f64::exp),
     },
     EvalFuncDef {
-        name: c"get".as_ptr().cast_mut(),
+        name: Some(c"get"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -9504,7 +9504,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"has".as_ptr().cast_mut(),
+        name: Some(c"has"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -9513,7 +9513,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"len".as_ptr().cast_mut(),
+        name: Some(c"len"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9522,7 +9522,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"log".as_ptr().cast_mut(),
+        name: Some(c"log"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9531,7 +9531,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::FloatOp(f64::ln),
     },
     EvalFuncDef {
-        name: c"map".as_ptr().cast_mut(),
+        name: Some(c"map"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -9540,7 +9540,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"max".as_ptr().cast_mut(),
+        name: Some(c"max"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9549,7 +9549,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"min".as_ptr().cast_mut(),
+        name: Some(c"min"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9558,7 +9558,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"pow".as_ptr().cast_mut(),
+        name: Some(c"pow"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -9567,7 +9567,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"sin".as_ptr().cast_mut(),
+        name: Some(c"sin"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9576,7 +9576,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::FloatOp(f64::sin),
     },
     EvalFuncDef {
-        name: c"tan".as_ptr().cast_mut(),
+        name: Some(c"tan"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9585,7 +9585,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::FloatOp(f64::tan),
     },
     EvalFuncDef {
-        name: c"xor".as_ptr().cast_mut(),
+        name: Some(c"xor"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -9594,7 +9594,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"hlID".as_ptr().cast_mut(),
+        name: Some(c"hlID"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9603,7 +9603,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"glob".as_ptr().cast_mut(),
+        name: Some(c"glob"),
         min_argc: 1,
         max_argc: 4,
         base_arg: 1,
@@ -9612,7 +9612,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"argc".as_ptr().cast_mut(),
+        name: Some(c"argc"),
         min_argc: 0,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -9621,7 +9621,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"fmod".as_ptr().cast_mut(),
+        name: Some(c"fmod"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -9630,7 +9630,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"rand".as_ptr().cast_mut(),
+        name: Some(c"rand"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -9639,7 +9639,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"line".as_ptr().cast_mut(),
+        name: Some(c"line"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -9648,7 +9648,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"mode".as_ptr().cast_mut(),
+        name: Some(c"mode"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -9657,7 +9657,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"type".as_ptr().cast_mut(),
+        name: Some(c"type"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9666,7 +9666,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"cosh".as_ptr().cast_mut(),
+        name: Some(c"cosh"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9675,7 +9675,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::FloatOp(f64::cosh),
     },
     EvalFuncDef {
-        name: c"sinh".as_ptr().cast_mut(),
+        name: Some(c"sinh"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9684,7 +9684,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::FloatOp(f64::sinh),
     },
     EvalFuncDef {
-        name: c"tanh".as_ptr().cast_mut(),
+        name: Some(c"tanh"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9693,7 +9693,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::FloatOp(f64::tanh),
     },
     EvalFuncDef {
-        name: c"call".as_ptr().cast_mut(),
+        name: Some(c"call"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -9702,7 +9702,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"ceil".as_ptr().cast_mut(),
+        name: Some(c"ceil"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9711,7 +9711,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::FloatOp(f64::ceil),
     },
     EvalFuncDef {
-        name: c"eval".as_ptr().cast_mut(),
+        name: Some(c"eval"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9720,7 +9720,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"trim".as_ptr().cast_mut(),
+        name: Some(c"trim"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -9729,7 +9729,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"asin".as_ptr().cast_mut(),
+        name: Some(c"asin"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9738,7 +9738,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::FloatOp(f64::asin),
     },
     EvalFuncDef {
-        name: c"atan".as_ptr().cast_mut(),
+        name: Some(c"atan"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9747,7 +9747,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::FloatOp(f64::atan),
     },
     EvalFuncDef {
-        name: c"join".as_ptr().cast_mut(),
+        name: Some(c"join"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -9756,7 +9756,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"uniq".as_ptr().cast_mut(),
+        name: Some(c"uniq"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -9765,7 +9765,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"acos".as_ptr().cast_mut(),
+        name: Some(c"acos"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9774,7 +9774,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::FloatOp(f64::acos),
     },
     EvalFuncDef {
-        name: c"keys".as_ptr().cast_mut(),
+        name: Some(c"keys"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9783,7 +9783,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"sort".as_ptr().cast_mut(),
+        name: Some(c"sort"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -9792,7 +9792,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"sqrt".as_ptr().cast_mut(),
+        name: Some(c"sqrt"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9801,7 +9801,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::FloatOp(f64::sqrt),
     },
     EvalFuncDef {
-        name: c"wait".as_ptr().cast_mut(),
+        name: Some(c"wait"),
         min_argc: 2,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -9810,7 +9810,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"argv".as_ptr().cast_mut(),
+        name: Some(c"argv"),
         min_argc: 0,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -9819,7 +9819,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"copy".as_ptr().cast_mut(),
+        name: Some(c"copy"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9828,7 +9828,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"match".as_ptr().cast_mut(),
+        name: Some(c"match"),
         min_argc: 2,
         max_argc: 4,
         base_arg: 1,
@@ -9837,7 +9837,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"range".as_ptr().cast_mut(),
+        name: Some(c"range"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -9846,7 +9846,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"iconv".as_ptr().cast_mut(),
+        name: Some(c"iconv"),
         min_argc: 3,
         max_argc: 3,
         base_arg: 1,
@@ -9855,7 +9855,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"chdir".as_ptr().cast_mut(),
+        name: Some(c"chdir"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -9864,7 +9864,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"winnr".as_ptr().cast_mut(),
+        name: Some(c"winnr"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -9873,7 +9873,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"mkdir".as_ptr().cast_mut(),
+        name: Some(c"mkdir"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -9882,7 +9882,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"floor".as_ptr().cast_mut(),
+        name: Some(c"floor"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9891,7 +9891,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::FloatOp(f64::floor),
     },
     EvalFuncDef {
-        name: c"slice".as_ptr().cast_mut(),
+        name: Some(c"slice"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -9900,7 +9900,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"empty".as_ptr().cast_mut(),
+        name: Some(c"empty"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9909,7 +9909,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"index".as_ptr().cast_mut(),
+        name: Some(c"index"),
         min_argc: 2,
         max_argc: 4,
         base_arg: 1,
@@ -9918,7 +9918,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"input".as_ptr().cast_mut(),
+        name: Some(c"input"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -9927,7 +9927,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"count".as_ptr().cast_mut(),
+        name: Some(c"count"),
         min_argc: 2,
         max_argc: 4,
         base_arg: 1,
@@ -9936,7 +9936,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"log10".as_ptr().cast_mut(),
+        name: Some(c"log10"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9945,7 +9945,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::FloatOp(f64::log10),
     },
     EvalFuncDef {
-        name: c"round".as_ptr().cast_mut(),
+        name: Some(c"round"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9954,7 +9954,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::FloatOp(f64::round),
     },
     EvalFuncDef {
-        name: c"split".as_ptr().cast_mut(),
+        name: Some(c"split"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -9963,7 +9963,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"srand".as_ptr().cast_mut(),
+        name: Some(c"srand"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -9972,7 +9972,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"trunc".as_ptr().cast_mut(),
+        name: Some(c"trunc"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9981,7 +9981,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::FloatOp(f64::trunc),
     },
     EvalFuncDef {
-        name: c"isinf".as_ptr().cast_mut(),
+        name: Some(c"isinf"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9990,7 +9990,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"isnan".as_ptr().cast_mut(),
+        name: Some(c"isnan"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -9999,7 +9999,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"atan2".as_ptr().cast_mut(),
+        name: Some(c"atan2"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -10008,7 +10008,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"items".as_ptr().cast_mut(),
+        name: Some(c"items"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10017,7 +10017,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"state".as_ptr().cast_mut(),
+        name: Some(c"state"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -10026,7 +10026,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"bufnr".as_ptr().cast_mut(),
+        name: Some(c"bufnr"),
         min_argc: 0,
         max_argc: 2,
         base_arg: 1,
@@ -10035,7 +10035,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"synID".as_ptr().cast_mut(),
+        name: Some(c"synID"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -10044,7 +10044,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"sha256".as_ptr().cast_mut(),
+        name: Some(c"sha256"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10053,7 +10053,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"append".as_ptr().cast_mut(),
+        name: Some(c"append"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 2,
@@ -10062,7 +10062,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"bufadd".as_ptr().cast_mut(),
+        name: Some(c"bufadd"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10071,7 +10071,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"expand".as_ptr().cast_mut(),
+        name: Some(c"expand"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -10080,7 +10080,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"extend".as_ptr().cast_mut(),
+        name: Some(c"extend"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -10089,7 +10089,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getcwd".as_ptr().cast_mut(),
+        name: Some(c"getcwd"),
         min_argc: 0,
         max_argc: 3,
         base_arg: 1,
@@ -10098,7 +10098,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getpid".as_ptr().cast_mut(),
+        name: Some(c"getpid"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -10107,7 +10107,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"jobpid".as_ptr().cast_mut(),
+        name: Some(c"jobpid"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -10116,7 +10116,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"browse".as_ptr().cast_mut(),
+        name: Some(c"browse"),
         min_argc: 4,
         max_argc: 4,
         base_arg: BASE_NONE,
@@ -10125,7 +10125,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"delete".as_ptr().cast_mut(),
+        name: Some(c"delete"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -10134,7 +10134,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"escape".as_ptr().cast_mut(),
+        name: Some(c"escape"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -10143,7 +10143,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"reduce".as_ptr().cast_mut(),
+        name: Some(c"reduce"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -10152,7 +10152,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"remove".as_ptr().cast_mut(),
+        name: Some(c"remove"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -10161,7 +10161,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"rename".as_ptr().cast_mut(),
+        name: Some(c"rename"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -10170,7 +10170,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"printf".as_ptr().cast_mut(),
+        name: Some(c"printf"),
         min_argc: 1,
         max_argc: MAX_FUNC_ARGS as u8,
         base_arg: 2,
@@ -10179,7 +10179,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getreg".as_ptr().cast_mut(),
+        name: Some(c"getreg"),
         min_argc: 0,
         max_argc: 3,
         base_arg: 1,
@@ -10188,7 +10188,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"maparg".as_ptr().cast_mut(),
+        name: Some(c"maparg"),
         min_argc: 1,
         max_argc: 4,
         base_arg: 1,
@@ -10197,7 +10197,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"setreg".as_ptr().cast_mut(),
+        name: Some(c"setreg"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 2,
@@ -10206,7 +10206,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"string".as_ptr().cast_mut(),
+        name: Some(c"string"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10215,7 +10215,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"search".as_ptr().cast_mut(),
+        name: Some(c"search"),
         min_argc: 1,
         max_argc: 5,
         base_arg: 1,
@@ -10224,7 +10224,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"pyeval".as_ptr().cast_mut(),
+        name: Some(c"pyeval"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10233,7 +10233,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"wincol".as_ptr().cast_mut(),
+        name: Some(c"wincol"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -10242,7 +10242,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"system".as_ptr().cast_mut(),
+        name: Some(c"system"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -10251,7 +10251,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"strlen".as_ptr().cast_mut(),
+        name: Some(c"strlen"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10260,7 +10260,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"cursor".as_ptr().cast_mut(),
+        name: Some(c"cursor"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -10269,7 +10269,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"filter".as_ptr().cast_mut(),
+        name: Some(c"filter"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -10278,7 +10278,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"histnr".as_ptr().cast_mut(),
+        name: Some(c"histnr"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10287,7 +10287,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"str2nr".as_ptr().cast_mut(),
+        name: Some(c"str2nr"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -10296,7 +10296,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"exists".as_ptr().cast_mut(),
+        name: Some(c"exists"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10305,7 +10305,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getpos".as_ptr().cast_mut(),
+        name: Some(c"getpos"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10314,7 +10314,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"setpos".as_ptr().cast_mut(),
+        name: Some(c"setpos"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 2,
@@ -10323,7 +10323,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"values".as_ptr().cast_mut(),
+        name: Some(c"values"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10332,7 +10332,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"indent".as_ptr().cast_mut(),
+        name: Some(c"indent"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10341,7 +10341,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"insert".as_ptr().cast_mut(),
+        name: Some(c"insert"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -10350,7 +10350,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"invert".as_ptr().cast_mut(),
+        name: Some(c"invert"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10359,7 +10359,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"mapset".as_ptr().cast_mut(),
+        name: Some(c"mapset"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -10368,7 +10368,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"repeat".as_ptr().cast_mut(),
+        name: Some(c"repeat"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -10377,7 +10377,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getenv".as_ptr().cast_mut(),
+        name: Some(c"getenv"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10386,7 +10386,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"setenv".as_ptr().cast_mut(),
+        name: Some(c"setenv"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 2,
@@ -10395,7 +10395,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"mapnew".as_ptr().cast_mut(),
+        name: Some(c"mapnew"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -10404,7 +10404,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"argidx".as_ptr().cast_mut(),
+        name: Some(c"argidx"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -10413,7 +10413,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"stridx".as_ptr().cast_mut(),
+        name: Some(c"stridx"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -10422,7 +10422,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"bufload".as_ptr().cast_mut(),
+        name: Some(c"bufload"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10431,7 +10431,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"bufname".as_ptr().cast_mut(),
+        name: Some(c"bufname"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -10440,7 +10440,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"byteidx".as_ptr().cast_mut(),
+        name: Some(c"byteidx"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -10449,7 +10449,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"char2nr".as_ptr().cast_mut(),
+        name: Some(c"char2nr"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -10458,7 +10458,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"charcol".as_ptr().cast_mut(),
+        name: Some(c"charcol"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -10467,7 +10467,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"charidx".as_ptr().cast_mut(),
+        name: Some(c"charidx"),
         min_argc: 2,
         max_argc: 4,
         base_arg: 1,
@@ -10476,7 +10476,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"cindent".as_ptr().cast_mut(),
+        name: Some(c"cindent"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10485,7 +10485,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"confirm".as_ptr().cast_mut(),
+        name: Some(c"confirm"),
         min_argc: 1,
         max_argc: 4,
         base_arg: 1,
@@ -10494,7 +10494,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"environ".as_ptr().cast_mut(),
+        name: Some(c"environ"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -10503,7 +10503,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::LuaFunc(c"f_environ"),
     },
     EvalFuncDef {
-        name: c"execute".as_ptr().cast_mut(),
+        name: Some(c"execute"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -10512,7 +10512,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"exepath".as_ptr().cast_mut(),
+        name: Some(c"exepath"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10521,7 +10521,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"finddir".as_ptr().cast_mut(),
+        name: Some(c"finddir"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -10530,7 +10530,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"flatten".as_ptr().cast_mut(),
+        name: Some(c"flatten"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -10539,7 +10539,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"foreach".as_ptr().cast_mut(),
+        name: Some(c"foreach"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -10548,7 +10548,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"funcref".as_ptr().cast_mut(),
+        name: Some(c"funcref"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -10557,7 +10557,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getchar".as_ptr().cast_mut(),
+        name: Some(c"getchar"),
         min_argc: 0,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -10566,7 +10566,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getline".as_ptr().cast_mut(),
+        name: Some(c"getline"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -10575,7 +10575,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"gettext".as_ptr().cast_mut(),
+        name: Some(c"gettext"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10584,7 +10584,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"has_key".as_ptr().cast_mut(),
+        name: Some(c"has_key"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -10593,7 +10593,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"histadd".as_ptr().cast_mut(),
+        name: Some(c"histadd"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 2,
@@ -10602,7 +10602,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"histdel".as_ptr().cast_mut(),
+        name: Some(c"histdel"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -10611,7 +10611,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"histget".as_ptr().cast_mut(),
+        name: Some(c"histget"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -10620,7 +10620,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"indexof".as_ptr().cast_mut(),
+        name: Some(c"indexof"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -10629,7 +10629,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"jobsend".as_ptr().cast_mut(),
+        name: Some(c"jobsend"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -10638,7 +10638,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"jobstop".as_ptr().cast_mut(),
+        name: Some(c"jobstop"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -10647,7 +10647,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"jobwait".as_ptr().cast_mut(),
+        name: Some(c"jobwait"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -10656,7 +10656,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"libcall".as_ptr().cast_mut(),
+        name: Some(c"libcall"),
         min_argc: 3,
         max_argc: 3,
         base_arg: 3,
@@ -10665,7 +10665,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"luaeval".as_ptr().cast_mut(),
+        name: Some(c"luaeval"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -10674,7 +10674,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"maplist".as_ptr().cast_mut(),
+        name: Some(c"maplist"),
         min_argc: 0,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -10683,7 +10683,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nr2char".as_ptr().cast_mut(),
+        name: Some(c"nr2char"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -10692,7 +10692,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"py3eval".as_ptr().cast_mut(),
+        name: Some(c"py3eval"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10701,7 +10701,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"pyxeval".as_ptr().cast_mut(),
+        name: Some(c"pyxeval"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10710,7 +10710,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"readdir".as_ptr().cast_mut(),
+        name: Some(c"readdir"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -10719,7 +10719,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"reltime".as_ptr().cast_mut(),
+        name: Some(c"reltime"),
         min_argc: 0,
         max_argc: 2,
         base_arg: 1,
@@ -10728,7 +10728,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"resolve".as_ptr().cast_mut(),
+        name: Some(c"resolve"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10737,7 +10737,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"reverse".as_ptr().cast_mut(),
+        name: Some(c"reverse"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10746,7 +10746,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"rpcstop".as_ptr().cast_mut(),
+        name: Some(c"rpcstop"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -10755,7 +10755,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"setline".as_ptr().cast_mut(),
+        name: Some(c"setline"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 2,
@@ -10764,7 +10764,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"stdpath".as_ptr().cast_mut(),
+        name: Some(c"stdpath"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -10773,7 +10773,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"strpart".as_ptr().cast_mut(),
+        name: Some(c"strpart"),
         min_argc: 2,
         max_argc: 4,
         base_arg: 1,
@@ -10782,7 +10782,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"strridx".as_ptr().cast_mut(),
+        name: Some(c"strridx"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -10791,7 +10791,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"taglist".as_ptr().cast_mut(),
+        name: Some(c"taglist"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -10800,7 +10800,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"tolower".as_ptr().cast_mut(),
+        name: Some(c"tolower"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10809,7 +10809,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"toupper".as_ptr().cast_mut(),
+        name: Some(c"toupper"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10818,7 +10818,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"virtcol".as_ptr().cast_mut(),
+        name: Some(c"virtcol"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -10827,7 +10827,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"winline".as_ptr().cast_mut(),
+        name: Some(c"winline"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -10836,7 +10836,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"utf16idx".as_ptr().cast_mut(),
+        name: Some(c"utf16idx"),
         min_argc: 2,
         max_argc: 4,
         base_arg: 1,
@@ -10845,7 +10845,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"str2list".as_ptr().cast_mut(),
+        name: Some(c"str2list"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -10854,7 +10854,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"api_info".as_ptr().cast_mut(),
+        name: Some(c"api_info"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -10863,7 +10863,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"float2nr".as_ptr().cast_mut(),
+        name: Some(c"float2nr"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10872,7 +10872,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"globpath".as_ptr().cast_mut(),
+        name: Some(c"globpath"),
         min_argc: 2,
         max_argc: 5,
         base_arg: 2,
@@ -10881,7 +10881,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"winbufnr".as_ptr().cast_mut(),
+        name: Some(c"winbufnr"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10890,7 +10890,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"function".as_ptr().cast_mut(),
+        name: Some(c"function"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -10899,7 +10899,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"jobclose".as_ptr().cast_mut(),
+        name: Some(c"jobclose"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -10908,7 +10908,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"mapcheck".as_ptr().cast_mut(),
+        name: Some(c"mapcheck"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -10917,7 +10917,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"matchadd".as_ptr().cast_mut(),
+        name: Some(c"matchadd"),
         min_argc: 2,
         max_argc: 5,
         base_arg: 1,
@@ -10926,7 +10926,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"matcharg".as_ptr().cast_mut(),
+        name: Some(c"matcharg"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -10935,7 +10935,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"matchend".as_ptr().cast_mut(),
+        name: Some(c"matchend"),
         min_argc: 2,
         max_argc: 4,
         base_arg: 1,
@@ -10944,7 +10944,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"matchstr".as_ptr().cast_mut(),
+        name: Some(c"matchstr"),
         min_argc: 2,
         max_argc: 4,
         base_arg: 1,
@@ -10953,7 +10953,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"strchars".as_ptr().cast_mut(),
+        name: Some(c"strchars"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -10962,7 +10962,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"feedkeys".as_ptr().cast_mut(),
+        name: Some(c"feedkeys"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -10971,7 +10971,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"findfile".as_ptr().cast_mut(),
+        name: Some(c"findfile"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -10980,7 +10980,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"foldtext".as_ptr().cast_mut(),
+        name: Some(c"foldtext"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -10989,7 +10989,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"readblob".as_ptr().cast_mut(),
+        name: Some(c"readblob"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -10998,7 +10998,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"readfile".as_ptr().cast_mut(),
+        name: Some(c"readfile"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -11007,7 +11007,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"filecopy".as_ptr().cast_mut(),
+        name: Some(c"filecopy"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -11016,7 +11016,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getfperm".as_ptr().cast_mut(),
+        name: Some(c"getfperm"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11025,7 +11025,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getfsize".as_ptr().cast_mut(),
+        name: Some(c"getfsize"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11034,7 +11034,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getftime".as_ptr().cast_mut(),
+        name: Some(c"getftime"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11043,7 +11043,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getftype".as_ptr().cast_mut(),
+        name: Some(c"getftype"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11052,7 +11052,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"setfperm".as_ptr().cast_mut(),
+        name: Some(c"setfperm"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -11061,7 +11061,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"strftime".as_ptr().cast_mut(),
+        name: Some(c"strftime"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -11070,7 +11070,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"tagfiles".as_ptr().cast_mut(),
+        name: Some(c"tagfiles"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -11079,7 +11079,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"perleval".as_ptr().cast_mut(),
+        name: Some(c"perleval"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11088,7 +11088,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"hasmapto".as_ptr().cast_mut(),
+        name: Some(c"hasmapto"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -11097,7 +11097,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim__id".as_ptr().cast_mut(),
+        name: Some(c"nvim__id"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -11106,7 +11106,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[1]),
     },
     EvalFuncDef {
-        name: c"nvim_cmd".as_ptr().cast_mut(),
+        name: Some(c"nvim_cmd"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -11115,7 +11115,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[2]),
     },
     EvalFuncDef {
-        name: c"nvim_put".as_ptr().cast_mut(),
+        name: Some(c"nvim_put"),
         min_argc: 4,
         max_argc: 4,
         base_arg: BASE_NONE,
@@ -11124,7 +11124,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[3]),
     },
     EvalFuncDef {
-        name: c"submatch".as_ptr().cast_mut(),
+        name: Some(c"submatch"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -11133,7 +11133,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"termopen".as_ptr().cast_mut(),
+        name: Some(c"termopen"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -11142,7 +11142,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"changenr".as_ptr().cast_mut(),
+        name: Some(c"changenr"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -11151,7 +11151,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"chansend".as_ptr().cast_mut(),
+        name: Some(c"chansend"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -11160,7 +11160,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"islocked".as_ptr().cast_mut(),
+        name: Some(c"islocked"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11169,7 +11169,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"undofile".as_ptr().cast_mut(),
+        name: Some(c"undofile"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11178,7 +11178,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"undotree".as_ptr().cast_mut(),
+        name: Some(c"undotree"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -11187,7 +11187,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"complete".as_ptr().cast_mut(),
+        name: Some(c"complete"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 2,
@@ -11196,7 +11196,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"deepcopy".as_ptr().cast_mut(),
+        name: Some(c"deepcopy"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -11205,7 +11205,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"simplify".as_ptr().cast_mut(),
+        name: Some(c"simplify"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11214,7 +11214,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"strptime".as_ptr().cast_mut(),
+        name: Some(c"strptime"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -11223,7 +11223,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"swapinfo".as_ptr().cast_mut(),
+        name: Some(c"swapinfo"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11232,7 +11232,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"swapname".as_ptr().cast_mut(),
+        name: Some(c"swapname"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11241,7 +11241,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"tempname".as_ptr().cast_mut(),
+        name: Some(c"tempname"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -11250,7 +11250,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"jobstart".as_ptr().cast_mut(),
+        name: Some(c"jobstart"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -11259,7 +11259,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"rpcstart".as_ptr().cast_mut(),
+        name: Some(c"rpcstart"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -11268,7 +11268,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"synstack".as_ptr().cast_mut(),
+        name: Some(c"synstack"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -11277,7 +11277,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"hostname".as_ptr().cast_mut(),
+        name: Some(c"hostname"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -11286,7 +11286,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::LuaFunc(c"f_hostname"),
     },
     EvalFuncDef {
-        name: c"keytrans".as_ptr().cast_mut(),
+        name: Some(c"keytrans"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11295,7 +11295,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"list2str".as_ptr().cast_mut(),
+        name: Some(c"list2str"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -11304,7 +11304,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"strtrans".as_ptr().cast_mut(),
+        name: Some(c"strtrans"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11313,7 +11313,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"menu_get".as_ptr().cast_mut(),
+        name: Some(c"menu_get"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -11322,7 +11322,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"bufwinid".as_ptr().cast_mut(),
+        name: Some(c"bufwinid"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11331,7 +11331,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"bufwinnr".as_ptr().cast_mut(),
+        name: Some(c"bufwinnr"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11340,7 +11340,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"strwidth".as_ptr().cast_mut(),
+        name: Some(c"strwidth"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11349,7 +11349,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"winwidth".as_ptr().cast_mut(),
+        name: Some(c"winwidth"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11358,7 +11358,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"hlexists".as_ptr().cast_mut(),
+        name: Some(c"hlexists"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11367,7 +11367,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"rubyeval".as_ptr().cast_mut(),
+        name: Some(c"rubyeval"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11376,7 +11376,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"blob2list".as_ptr().cast_mut(),
+        name: Some(c"blob2list"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11385,7 +11385,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"byte2line".as_ptr().cast_mut(),
+        name: Some(c"byte2line"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11394,7 +11394,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"line2byte".as_ptr().cast_mut(),
+        name: Some(c"line2byte"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11403,7 +11403,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"list2blob".as_ptr().cast_mut(),
+        name: Some(c"list2blob"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11412,7 +11412,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"synIDattr".as_ptr().cast_mut(),
+        name: Some(c"synIDattr"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -11421,7 +11421,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"diff_hlID".as_ptr().cast_mut(),
+        name: Some(c"diff_hlID"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -11430,7 +11430,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"menu_info".as_ptr().cast_mut(),
+        name: Some(c"menu_info"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -11439,7 +11439,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_echo".as_ptr().cast_mut(),
+        name: Some(c"nvim_echo"),
         min_argc: 2,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -11448,7 +11448,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[7]),
     },
     EvalFuncDef {
-        name: c"nvim_eval".as_ptr().cast_mut(),
+        name: Some(c"nvim_eval"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -11457,7 +11457,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[9]),
     },
     EvalFuncDef {
-        name: c"nvim_exec".as_ptr().cast_mut(),
+        name: Some(c"nvim_exec"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -11466,7 +11466,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[10]),
     },
     EvalFuncDef {
-        name: c"sign_jump".as_ptr().cast_mut(),
+        name: Some(c"sign_jump"),
         min_argc: 3,
         max_argc: 3,
         base_arg: 1,
@@ -11475,7 +11475,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"gettabvar".as_ptr().cast_mut(),
+        name: Some(c"gettabvar"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -11484,7 +11484,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"libcallnr".as_ptr().cast_mut(),
+        name: Some(c"libcallnr"),
         min_argc: 3,
         max_argc: 3,
         base_arg: 3,
@@ -11493,7 +11493,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"settabvar".as_ptr().cast_mut(),
+        name: Some(c"settabvar"),
         min_argc: 3,
         max_argc: 3,
         base_arg: 3,
@@ -11502,7 +11502,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"tabpagenr".as_ptr().cast_mut(),
+        name: Some(c"tabpagenr"),
         min_argc: 0,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -11511,7 +11511,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"winlayout".as_ptr().cast_mut(),
+        name: Some(c"winlayout"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -11520,7 +11520,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"chanclose".as_ptr().cast_mut(),
+        name: Some(c"chanclose"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -11529,7 +11529,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"charclass".as_ptr().cast_mut(),
+        name: Some(c"charclass"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11538,7 +11538,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"searchpos".as_ptr().cast_mut(),
+        name: Some(c"searchpos"),
         min_argc: 1,
         max_argc: 5,
         base_arg: 1,
@@ -11547,7 +11547,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"wordcount".as_ptr().cast_mut(),
+        name: Some(c"wordcount"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -11556,7 +11556,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"soundfold".as_ptr().cast_mut(),
+        name: Some(c"soundfold"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11565,7 +11565,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getregion".as_ptr().cast_mut(),
+        name: Some(c"getregion"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -11574,7 +11574,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"jobresize".as_ptr().cast_mut(),
+        name: Some(c"jobresize"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -11583,7 +11583,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"screencol".as_ptr().cast_mut(),
+        name: Some(c"screencol"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -11592,7 +11592,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"screenpos".as_ptr().cast_mut(),
+        name: Some(c"screenpos"),
         min_argc: 3,
         max_argc: 3,
         base_arg: 1,
@@ -11601,7 +11601,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"screenrow".as_ptr().cast_mut(),
+        name: Some(c"screenrow"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -11610,7 +11610,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"winheight".as_ptr().cast_mut(),
+        name: Some(c"winheight"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11619,7 +11619,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"writefile".as_ptr().cast_mut(),
+        name: Some(c"writefile"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -11628,7 +11628,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getqflist".as_ptr().cast_mut(),
+        name: Some(c"getqflist"),
         min_argc: 0,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -11637,7 +11637,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"setqflist".as_ptr().cast_mut(),
+        name: Some(c"setqflist"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -11646,7 +11646,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"str2float".as_ptr().cast_mut(),
+        name: Some(c"str2float"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11655,7 +11655,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"win_getid".as_ptr().cast_mut(),
+        name: Some(c"win_getid"),
         min_argc: 0,
         max_argc: 2,
         base_arg: 1,
@@ -11664,7 +11664,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"matchlist".as_ptr().cast_mut(),
+        name: Some(c"matchlist"),
         min_argc: 2,
         max_argc: 4,
         base_arg: 1,
@@ -11673,7 +11673,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"arglistid".as_ptr().cast_mut(),
+        name: Some(c"arglistid"),
         min_argc: 0,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -11682,7 +11682,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"buflisted".as_ptr().cast_mut(),
+        name: Some(c"buflisted"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11691,7 +11691,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getwinpos".as_ptr().cast_mut(),
+        name: Some(c"getwinpos"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -11700,7 +11700,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getwinvar".as_ptr().cast_mut(),
+        name: Some(c"getwinvar"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -11709,7 +11709,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"setwinvar".as_ptr().cast_mut(),
+        name: Some(c"setwinvar"),
         min_argc: 3,
         max_argc: 3,
         base_arg: 3,
@@ -11718,7 +11718,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"foldlevel".as_ptr().cast_mut(),
+        name: Some(c"foldlevel"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11727,7 +11727,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"localtime".as_ptr().cast_mut(),
+        name: Some(c"localtime"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -11736,7 +11736,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getcmdpos".as_ptr().cast_mut(),
+        name: Some(c"getcmdpos"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -11745,7 +11745,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"setcmdpos".as_ptr().cast_mut(),
+        name: Some(c"setcmdpos"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11754,7 +11754,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"expandcmd".as_ptr().cast_mut(),
+        name: Some(c"expandcmd"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -11763,7 +11763,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"extendnew".as_ptr().cast_mut(),
+        name: Some(c"extendnew"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -11772,7 +11772,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"bufloaded".as_ptr().cast_mut(),
+        name: Some(c"bufloaded"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11781,7 +11781,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"rpcnotify".as_ptr().cast_mut(),
+        name: Some(c"rpcnotify"),
         min_argc: 2,
         max_argc: MAX_FUNC_ARGS as u8,
         base_arg: BASE_NONE,
@@ -11790,7 +11790,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"stdioopen".as_ptr().cast_mut(),
+        name: Some(c"stdioopen"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -11799,7 +11799,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"interrupt".as_ptr().cast_mut(),
+        name: Some(c"interrupt"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -11808,7 +11808,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"browsedir".as_ptr().cast_mut(),
+        name: Some(c"browsedir"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -11817,7 +11817,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"inputlist".as_ptr().cast_mut(),
+        name: Some(c"inputlist"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11826,7 +11826,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"inputsave".as_ptr().cast_mut(),
+        name: Some(c"inputsave"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -11835,7 +11835,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getbufvar".as_ptr().cast_mut(),
+        name: Some(c"getbufvar"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -11844,7 +11844,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getcurpos".as_ptr().cast_mut(),
+        name: Some(c"getcurpos"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -11853,7 +11853,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"setbufvar".as_ptr().cast_mut(),
+        name: Some(c"setbufvar"),
         min_argc: 3,
         max_argc: 3,
         base_arg: 3,
@@ -11862,7 +11862,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"bufexists".as_ptr().cast_mut(),
+        name: Some(c"bufexists"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11871,7 +11871,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"timer_info".as_ptr().cast_mut(),
+        name: Some(c"timer_info"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -11880,7 +11880,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"timer_stop".as_ptr().cast_mut(),
+        name: Some(c"timer_stop"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11889,7 +11889,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getcharmod".as_ptr().cast_mut(),
+        name: Some(c"getcharmod"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -11898,7 +11898,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getcharpos".as_ptr().cast_mut(),
+        name: Some(c"getcharpos"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11907,7 +11907,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getcharstr".as_ptr().cast_mut(),
+        name: Some(c"getcharstr"),
         min_argc: 0,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -11916,7 +11916,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"setcharpos".as_ptr().cast_mut(),
+        name: Some(c"setcharpos"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 2,
@@ -11925,7 +11925,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"strcharlen".as_ptr().cast_mut(),
+        name: Some(c"strcharlen"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11934,7 +11934,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"debugbreak".as_ptr().cast_mut(),
+        name: Some(c"debugbreak"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -11943,7 +11943,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"gettabinfo".as_ptr().cast_mut(),
+        name: Some(c"gettabinfo"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -11952,7 +11952,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getloclist".as_ptr().cast_mut(),
+        name: Some(c"getloclist"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -11961,7 +11961,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"setloclist".as_ptr().cast_mut(),
+        name: Some(c"setloclist"),
         min_argc: 2,
         max_argc: 4,
         base_arg: 2,
@@ -11970,7 +11970,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getcmdline".as_ptr().cast_mut(),
+        name: Some(c"getcmdline"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -11979,7 +11979,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getcmdtype".as_ptr().cast_mut(),
+        name: Some(c"getcmdtype"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -11988,7 +11988,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"setcmdline".as_ptr().cast_mut(),
+        name: Some(c"setcmdline"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -11997,7 +11997,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"win_id2win".as_ptr().cast_mut(),
+        name: Some(c"win_id2win"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12006,7 +12006,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"flattennew".as_ptr().cast_mut(),
+        name: Some(c"flattennew"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -12015,7 +12015,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_exec2".as_ptr().cast_mut(),
+        name: Some(c"nvim_exec2"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -12024,7 +12024,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[11]),
     },
     EvalFuncDef {
-        name: c"pum_getpos".as_ptr().cast_mut(),
+        name: Some(c"pum_getpos"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -12033,7 +12033,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getbufinfo".as_ptr().cast_mut(),
+        name: Some(c"getbufinfo"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -12042,7 +12042,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getbufline".as_ptr().cast_mut(),
+        name: Some(c"getbufline"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -12051,7 +12051,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"matchfuzzy".as_ptr().cast_mut(),
+        name: Some(c"matchfuzzy"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -12060,7 +12060,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"setbufline".as_ptr().cast_mut(),
+        name: Some(c"setbufline"),
         min_argc: 3,
         max_argc: 3,
         base_arg: 3,
@@ -12069,7 +12069,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getreginfo".as_ptr().cast_mut(),
+        name: Some(c"getreginfo"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -12078,7 +12078,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getregtype".as_ptr().cast_mut(),
+        name: Some(c"getregtype"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -12087,7 +12087,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"searchdecl".as_ptr().cast_mut(),
+        name: Some(c"searchdecl"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -12096,7 +12096,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"searchpair".as_ptr().cast_mut(),
+        name: Some(c"searchpair"),
         min_argc: 3,
         max_argc: 7,
         base_arg: BASE_NONE,
@@ -12105,7 +12105,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_input".as_ptr().cast_mut(),
+        name: Some(c"nvim_input"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -12114,7 +12114,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[12]),
     },
     EvalFuncDef {
-        name: c"substitute".as_ptr().cast_mut(),
+        name: Some(c"substitute"),
         min_argc: 4,
         max_argc: 4,
         base_arg: 1,
@@ -12123,7 +12123,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"foldclosed".as_ptr().cast_mut(),
+        name: Some(c"foldclosed"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12132,7 +12132,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"visualmode".as_ptr().cast_mut(),
+        name: Some(c"visualmode"),
         min_argc: 0,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -12141,7 +12141,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"reltimestr".as_ptr().cast_mut(),
+        name: Some(c"reltimestr"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12150,7 +12150,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"systemlist".as_ptr().cast_mut(),
+        name: Some(c"systemlist"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -12159,7 +12159,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getwininfo".as_ptr().cast_mut(),
+        name: Some(c"getwininfo"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -12168,7 +12168,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getwinposx".as_ptr().cast_mut(),
+        name: Some(c"getwinposx"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -12177,7 +12177,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getwinposy".as_ptr().cast_mut(),
+        name: Some(c"getwinposy"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -12186,7 +12186,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"lispindent".as_ptr().cast_mut(),
+        name: Some(c"lispindent"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12195,7 +12195,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"screenattr".as_ptr().cast_mut(),
+        name: Some(c"screenattr"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -12204,7 +12204,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"screenchar".as_ptr().cast_mut(),
+        name: Some(c"screenchar"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -12213,7 +12213,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"win_gotoid".as_ptr().cast_mut(),
+        name: Some(c"win_gotoid"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12222,7 +12222,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_paste".as_ptr().cast_mut(),
+        name: Some(c"nvim_paste"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -12231,7 +12231,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[13]),
     },
     EvalFuncDef {
-        name: c"sign_place".as_ptr().cast_mut(),
+        name: Some(c"sign_place"),
         min_argc: 4,
         max_argc: 5,
         base_arg: 1,
@@ -12240,7 +12240,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"rpcrequest".as_ptr().cast_mut(),
+        name: Some(c"rpcrequest"),
         min_argc: 2,
         max_argc: MAX_FUNC_ARGS as u8,
         base_arg: BASE_NONE,
@@ -12249,7 +12249,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"foreground".as_ptr().cast_mut(),
+        name: Some(c"foreground"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -12258,7 +12258,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"serverlist".as_ptr().cast_mut(),
+        name: Some(c"serverlist"),
         min_argc: 0,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -12267,7 +12267,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"serverstop".as_ptr().cast_mut(),
+        name: Some(c"serverstop"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -12276,7 +12276,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"pumvisible".as_ptr().cast_mut(),
+        name: Some(c"pumvisible"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -12285,7 +12285,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"winrestcmd".as_ptr().cast_mut(),
+        name: Some(c"winrestcmd"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -12294,7 +12294,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"executable".as_ptr().cast_mut(),
+        name: Some(c"executable"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12303,7 +12303,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getmatches".as_ptr().cast_mut(),
+        name: Some(c"getmatches"),
         min_argc: 0,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -12312,7 +12312,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"setmatches".as_ptr().cast_mut(),
+        name: Some(c"setmatches"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -12321,7 +12321,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"strgetchar".as_ptr().cast_mut(),
+        name: Some(c"strgetchar"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -12330,7 +12330,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"synIDtrans".as_ptr().cast_mut(),
+        name: Some(c"synIDtrans"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12339,7 +12339,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"shiftwidth".as_ptr().cast_mut(),
+        name: Some(c"shiftwidth"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -12348,7 +12348,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim__stats".as_ptr().cast_mut(),
+        name: Some(c"nvim__stats"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -12357,7 +12357,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[19]),
     },
     EvalFuncDef {
-        name: c"timer_pause".as_ptr().cast_mut(),
+        name: Some(c"timer_pause"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -12366,7 +12366,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"timer_start".as_ptr().cast_mut(),
+        name: Some(c"timer_start"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -12375,7 +12375,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"matchaddpos".as_ptr().cast_mut(),
+        name: Some(c"matchaddpos"),
         min_argc: 2,
         max_argc: 5,
         base_arg: 1,
@@ -12384,7 +12384,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"strcharpart".as_ptr().cast_mut(),
+        name: Some(c"strcharpart"),
         min_argc: 2,
         max_argc: 4,
         base_arg: 1,
@@ -12393,7 +12393,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"haslocaldir".as_ptr().cast_mut(),
+        name: Some(c"haslocaldir"),
         min_argc: 0,
         max_argc: 3,
         base_arg: 1,
@@ -12402,7 +12402,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"msgpackdump".as_ptr().cast_mut(),
+        name: Some(c"msgpackdump"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -12411,7 +12411,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"byteidxcomp".as_ptr().cast_mut(),
+        name: Some(c"byteidxcomp"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -12420,7 +12420,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"inputdialog".as_ptr().cast_mut(),
+        name: Some(c"inputdialog"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -12429,7 +12429,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"json_decode".as_ptr().cast_mut(),
+        name: Some(c"json_decode"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12438,7 +12438,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"matchdelete".as_ptr().cast_mut(),
+        name: Some(c"matchdelete"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -12447,7 +12447,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"sign_define".as_ptr().cast_mut(),
+        name: Some(c"sign_define"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -12456,7 +12456,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"fnameescape".as_ptr().cast_mut(),
+        name: Some(c"fnameescape"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12465,7 +12465,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"isdirectory".as_ptr().cast_mut(),
+        name: Some(c"isdirectory"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12474,7 +12474,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"json_encode".as_ptr().cast_mut(),
+        name: Some(c"json_encode"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12483,7 +12483,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"shellescape".as_ptr().cast_mut(),
+        name: Some(c"shellescape"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -12492,7 +12492,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"win_gettype".as_ptr().cast_mut(),
+        name: Some(c"win_gettype"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -12501,7 +12501,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"diff_filler".as_ptr().cast_mut(),
+        name: Some(c"diff_filler"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12510,7 +12510,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"strutf16len".as_ptr().cast_mut(),
+        name: Some(c"strutf16len"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -12519,7 +12519,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"gettagstack".as_ptr().cast_mut(),
+        name: Some(c"gettagstack"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -12528,7 +12528,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_get_hl".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_hl"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -12537,7 +12537,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[14]),
     },
     EvalFuncDef {
-        name: c"settagstack".as_ptr().cast_mut(),
+        name: Some(c"settagstack"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 2,
@@ -12546,7 +12546,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"pathshorten".as_ptr().cast_mut(),
+        name: Some(c"pathshorten"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -12555,7 +12555,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"searchcount".as_ptr().cast_mut(),
+        name: Some(c"searchcount"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -12564,7 +12564,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"highlightID".as_ptr().cast_mut(),
+        name: Some(c"highlightID"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12573,7 +12573,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"win_findbuf".as_ptr().cast_mut(),
+        name: Some(c"win_findbuf"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12582,7 +12582,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"fnamemodify".as_ptr().cast_mut(),
+        name: Some(c"fnamemodify"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -12591,7 +12591,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getjumplist".as_ptr().cast_mut(),
+        name: Some(c"getjumplist"),
         min_argc: 0,
         max_argc: 2,
         base_arg: 1,
@@ -12600,7 +12600,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getfontname".as_ptr().cast_mut(),
+        name: Some(c"getfontname"),
         min_argc: 0,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -12609,7 +12609,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_notify".as_ptr().cast_mut(),
+        name: Some(c"nvim_notify"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -12618,7 +12618,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[18]),
     },
     EvalFuncDef {
-        name: c"screenchars".as_ptr().cast_mut(),
+        name: Some(c"screenchars"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -12627,7 +12627,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"fullcommand".as_ptr().cast_mut(),
+        name: Some(c"fullcommand"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12636,7 +12636,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"sockconnect".as_ptr().cast_mut(),
+        name: Some(c"sockconnect"),
         min_argc: 2,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -12645,7 +12645,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"virtcol2col".as_ptr().cast_mut(),
+        name: Some(c"virtcol2col"),
         min_argc: 3,
         max_argc: 3,
         base_arg: 1,
@@ -12654,7 +12654,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"digraph_get".as_ptr().cast_mut(),
+        name: Some(c"digraph_get"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12663,7 +12663,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"digraph_set".as_ptr().cast_mut(),
+        name: Some(c"digraph_set"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -12672,7 +12672,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"buffer_name".as_ptr().cast_mut(),
+        name: Some(c"buffer_name"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -12681,7 +12681,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getmarklist".as_ptr().cast_mut(),
+        name: Some(c"getmarklist"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -12690,7 +12690,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"glob2regpat".as_ptr().cast_mut(),
+        name: Some(c"glob2regpat"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12699,7 +12699,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"serverstart".as_ptr().cast_mut(),
+        name: Some(c"serverstart"),
         min_argc: 0,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -12708,7 +12708,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"wildtrigger".as_ptr().cast_mut(),
+        name: Some(c"wildtrigger"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -12717,7 +12717,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"inputsecret".as_ptr().cast_mut(),
+        name: Some(c"inputsecret"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -12726,7 +12726,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"matchstrpos".as_ptr().cast_mut(),
+        name: Some(c"matchstrpos"),
         min_argc: 2,
         max_argc: 4,
         base_arg: 1,
@@ -12735,7 +12735,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_set_hl".as_ptr().cast_mut(),
+        name: Some(c"nvim_set_hl"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -12744,7 +12744,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[15]),
     },
     EvalFuncDef {
-        name: c"preinserted".as_ptr().cast_mut(),
+        name: Some(c"preinserted"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -12753,7 +12753,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"winrestview".as_ptr().cast_mut(),
+        name: Some(c"winrestview"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12762,7 +12762,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"assert_true".as_ptr().cast_mut(),
+        name: Some(c"assert_true"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -12771,7 +12771,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getmousepos".as_ptr().cast_mut(),
+        name: Some(c"getmousepos"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -12780,7 +12780,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"winsaveview".as_ptr().cast_mut(),
+        name: Some(c"winsaveview"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -12789,7 +12789,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"win_execute".as_ptr().cast_mut(),
+        name: Some(c"win_execute"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 2,
@@ -12798,7 +12798,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim__ns_get".as_ptr().cast_mut(),
+        name: Some(c"nvim__ns_get"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -12807,7 +12807,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[29]),
     },
     EvalFuncDef {
-        name: c"nvim__ns_set".as_ptr().cast_mut(),
+        name: Some(c"nvim__ns_set"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -12816,7 +12816,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[30]),
     },
     EvalFuncDef {
-        name: c"nvim__redraw".as_ptr().cast_mut(),
+        name: Some(c"nvim__redraw"),
         min_argc: 0,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -12825,7 +12825,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[25]),
     },
     EvalFuncDef {
-        name: c"nvim__unpack".as_ptr().cast_mut(),
+        name: Some(c"nvim__unpack"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -12834,7 +12834,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[28]),
     },
     EvalFuncDef {
-        name: c"gettabwinvar".as_ptr().cast_mut(),
+        name: Some(c"gettabwinvar"),
         min_argc: 3,
         max_argc: 4,
         base_arg: 1,
@@ -12843,7 +12843,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"matchbufline".as_ptr().cast_mut(),
+        name: Some(c"matchbufline"),
         min_argc: 4,
         max_argc: 5,
         base_arg: 1,
@@ -12852,7 +12852,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"settabwinvar".as_ptr().cast_mut(),
+        name: Some(c"settabwinvar"),
         min_argc: 4,
         max_argc: 4,
         base_arg: 4,
@@ -12861,7 +12861,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"spellbadword".as_ptr().cast_mut(),
+        name: Some(c"spellbadword"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -12870,7 +12870,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"msgpackparse".as_ptr().cast_mut(),
+        name: Some(c"msgpackparse"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -12879,7 +12879,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_command".as_ptr().cast_mut(),
+        name: Some(c"nvim_command"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -12888,7 +12888,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[27]),
     },
     EvalFuncDef {
-        name: c"getcmdprompt".as_ptr().cast_mut(),
+        name: Some(c"getcmdprompt"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -12897,7 +12897,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_del_var".as_ptr().cast_mut(),
+        name: Some(c"nvim_del_var"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -12906,7 +12906,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[26]),
     },
     EvalFuncDef {
-        name: c"complete_add".as_ptr().cast_mut(),
+        name: Some(c"complete_add"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12915,7 +12915,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"filereadable".as_ptr().cast_mut(),
+        name: Some(c"filereadable"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -12924,7 +12924,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"reg_recorded".as_ptr().cast_mut(),
+        name: Some(c"reg_recorded"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -12933,7 +12933,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"wildmenumode".as_ptr().cast_mut(),
+        name: Some(c"wildmenumode"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -12942,7 +12942,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getregionpos".as_ptr().cast_mut(),
+        name: Some(c"getregionpos"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -12951,7 +12951,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_get_var".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_var"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -12960,7 +12960,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[31]),
     },
     EvalFuncDef {
-        name: c"tabpagewinnr".as_ptr().cast_mut(),
+        name: Some(c"tabpagewinnr"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -12969,7 +12969,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"eventhandler".as_ptr().cast_mut(),
+        name: Some(c"eventhandler"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -12978,7 +12978,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"did_filetype".as_ptr().cast_mut(),
+        name: Some(c"did_filetype"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -12987,7 +12987,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"swapfilelist".as_ptr().cast_mut(),
+        name: Some(c"swapfilelist"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -12996,7 +12996,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"clearmatches".as_ptr().cast_mut(),
+        name: Some(c"clearmatches"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -13005,7 +13005,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"reltimefloat".as_ptr().cast_mut(),
+        name: Some(c"reltimefloat"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13014,7 +13014,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"screenstring".as_ptr().cast_mut(),
+        name: Some(c"screenstring"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -13023,7 +13023,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"synconcealed".as_ptr().cast_mut(),
+        name: Some(c"synconcealed"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -13032,7 +13032,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nextnonblank".as_ptr().cast_mut(),
+        name: Some(c"nextnonblank"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13041,7 +13041,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"prevnonblank".as_ptr().cast_mut(),
+        name: Some(c"prevnonblank"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13050,7 +13050,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"filewritable".as_ptr().cast_mut(),
+        name: Some(c"filewritable"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13059,7 +13059,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"inputrestore".as_ptr().cast_mut(),
+        name: Some(c"inputrestore"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13068,7 +13068,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"matchstrlist".as_ptr().cast_mut(),
+        name: Some(c"matchstrlist"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -13077,7 +13077,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_set_var".as_ptr().cast_mut(),
+        name: Some(c"nvim_set_var"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -13086,7 +13086,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[32]),
     },
     EvalFuncDef {
-        name: c"spellsuggest".as_ptr().cast_mut(),
+        name: Some(c"spellsuggest"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -13095,7 +13095,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"assert_beeps".as_ptr().cast_mut(),
+        name: Some(c"assert_beeps"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13104,7 +13104,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"assert_equal".as_ptr().cast_mut(),
+        name: Some(c"assert_equal"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 2,
@@ -13113,7 +13113,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"assert_fails".as_ptr().cast_mut(),
+        name: Some(c"assert_fails"),
         min_argc: 1,
         max_argc: 5,
         base_arg: 1,
@@ -13122,7 +13122,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"assert_false".as_ptr().cast_mut(),
+        name: Some(c"assert_false"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -13131,7 +13131,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"assert_match".as_ptr().cast_mut(),
+        name: Some(c"assert_match"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 2,
@@ -13140,7 +13140,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_ui_send".as_ptr().cast_mut(),
+        name: Some(c"nvim_ui_send"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13149,7 +13149,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[22]),
     },
     EvalFuncDef {
-        name: c"sign_unplace".as_ptr().cast_mut(),
+        name: Some(c"sign_unplace"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -13158,7 +13158,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim__id_dict".as_ptr().cast_mut(),
+        name: Some(c"nvim__id_dict"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13167,7 +13167,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[37]),
     },
     EvalFuncDef {
-        name: c"timer_stopall".as_ptr().cast_mut(),
+        name: Some(c"timer_stopall"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13176,7 +13176,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getchangelist".as_ptr().cast_mut(),
+        name: Some(c"getchangelist"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -13185,7 +13185,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getcharsearch".as_ptr().cast_mut(),
+        name: Some(c"getcharsearch"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13194,7 +13194,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getstacktrace".as_ptr().cast_mut(),
+        name: Some(c"getstacktrace"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13203,7 +13203,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"setcharsearch".as_ptr().cast_mut(),
+        name: Some(c"setcharsearch"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13212,7 +13212,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_chan_set".as_ptr().cast_mut(),
+        name: Some(c"nvim_chan_set"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -13221,7 +13221,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[40]),
     },
     EvalFuncDef {
-        name: c"win_screenpos".as_ptr().cast_mut(),
+        name: Some(c"win_screenpos"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13230,7 +13230,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"appendbufline".as_ptr().cast_mut(),
+        name: Some(c"appendbufline"),
         min_argc: 3,
         max_argc: 3,
         base_arg: 3,
@@ -13239,7 +13239,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getcmdwintype".as_ptr().cast_mut(),
+        name: Some(c"getcmdwintype"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13248,7 +13248,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_del_mark".as_ptr().cast_mut(),
+        name: Some(c"nvim_del_mark"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13257,7 +13257,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[45]),
     },
     EvalFuncDef {
-        name: c"win_id2tabwin".as_ptr().cast_mut(),
+        name: Some(c"win_id2tabwin"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13266,7 +13266,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"complete_info".as_ptr().cast_mut(),
+        name: Some(c"complete_info"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -13275,7 +13275,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"deletebufline".as_ptr().cast_mut(),
+        name: Some(c"deletebufline"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -13284,7 +13284,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"reg_recording".as_ptr().cast_mut(),
+        name: Some(c"reg_recording"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13293,7 +13293,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getbufoneline".as_ptr().cast_mut(),
+        name: Some(c"getbufoneline"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -13302,7 +13302,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"matchfuzzypos".as_ptr().cast_mut(),
+        name: Some(c"matchfuzzypos"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -13311,7 +13311,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_feedkeys".as_ptr().cast_mut(),
+        name: Some(c"nvim_feedkeys"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -13320,7 +13320,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[51]),
     },
     EvalFuncDef {
-        name: c"nvim_get_mark".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_mark"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -13329,7 +13329,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[46]),
     },
     EvalFuncDef {
-        name: c"nvim_get_mode".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_mode"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13338,7 +13338,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[38]),
     },
     EvalFuncDef {
-        name: c"nvim_get_proc".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_proc"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13347,7 +13347,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[43]),
     },
     EvalFuncDef {
-        name: c"nvim_get_vvar".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_vvar"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13356,7 +13356,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[34]),
     },
     EvalFuncDef {
-        name: c"searchpairpos".as_ptr().cast_mut(),
+        name: Some(c"searchpairpos"),
         min_argc: 3,
         max_argc: 7,
         base_arg: BASE_NONE,
@@ -13365,7 +13365,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"foldclosedend".as_ptr().cast_mut(),
+        name: Some(c"foldclosedend"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13374,7 +13374,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getcellwidths".as_ptr().cast_mut(),
+        name: Some(c"getcellwidths"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13383,7 +13383,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_list_uis".as_ptr().cast_mut(),
+        name: Some(c"nvim_list_uis"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13392,7 +13392,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[41]),
     },
     EvalFuncDef {
-        name: c"setcellwidths".as_ptr().cast_mut(),
+        name: Some(c"setcellwidths"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13401,7 +13401,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getcompletion".as_ptr().cast_mut(),
+        name: Some(c"getcompletion"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -13410,7 +13410,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_open_win".as_ptr().cast_mut(),
+        name: Some(c"nvim_open_win"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -13419,7 +13419,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[42]),
     },
     EvalFuncDef {
-        name: c"win_splitmove".as_ptr().cast_mut(),
+        name: Some(c"win_splitmove"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -13428,7 +13428,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"buffer_exists".as_ptr().cast_mut(),
+        name: Some(c"buffer_exists"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13437,7 +13437,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"buffer_number".as_ptr().cast_mut(),
+        name: Some(c"buffer_number"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -13446,7 +13446,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"file_readable".as_ptr().cast_mut(),
+        name: Some(c"file_readable"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13455,7 +13455,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getscriptinfo".as_ptr().cast_mut(),
+        name: Some(c"getscriptinfo"),
         min_argc: 0,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13464,7 +13464,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_set_vvar".as_ptr().cast_mut(),
+        name: Some(c"nvim_set_vvar"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -13473,7 +13473,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[35]),
     },
     EvalFuncDef {
-        name: c"nvim_strwidth".as_ptr().cast_mut(),
+        name: Some(c"nvim_strwidth"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13482,7 +13482,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[47]),
     },
     EvalFuncDef {
-        name: c"assert_nobeep".as_ptr().cast_mut(),
+        name: Some(c"assert_nobeep"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13491,7 +13491,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"assert_report".as_ptr().cast_mut(),
+        name: Some(c"assert_report"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13500,7 +13500,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"sign_undefine".as_ptr().cast_mut(),
+        name: Some(c"sign_undefine"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -13509,7 +13509,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_win_hide".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_hide"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13518,7 +13518,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[39]),
     },
     EvalFuncDef {
-        name: c"reg_executing".as_ptr().cast_mut(),
+        name: Some(c"reg_executing"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13527,7 +13527,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim__id_array".as_ptr().cast_mut(),
+        name: Some(c"nvim__id_array"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13536,7 +13536,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[53]),
     },
     EvalFuncDef {
-        name: c"nvim__id_float".as_ptr().cast_mut(),
+        name: Some(c"nvim__id_float"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13545,7 +13545,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[54]),
     },
     EvalFuncDef {
-        name: c"dictwatcheradd".as_ptr().cast_mut(),
+        name: Some(c"dictwatcheradd"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -13554,7 +13554,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"dictwatcherdel".as_ptr().cast_mut(),
+        name: Some(c"dictwatcherdel"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -13563,7 +13563,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"last_buffer_nr".as_ptr().cast_mut(),
+        name: Some(c"last_buffer_nr"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13572,7 +13572,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getcmdcomplpat".as_ptr().cast_mut(),
+        name: Some(c"getcmdcomplpat"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13581,7 +13581,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"complete_check".as_ptr().cast_mut(),
+        name: Some(c"complete_check"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13590,7 +13590,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"foldtextresult".as_ptr().cast_mut(),
+        name: Some(c"foldtextresult"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13599,7 +13599,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_err_write".as_ptr().cast_mut(),
+        name: Some(c"nvim_err_write"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13608,7 +13608,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[56]),
     },
     EvalFuncDef {
-        name: c"garbagecollect".as_ptr().cast_mut(),
+        name: Some(c"garbagecollect"),
         min_argc: 0,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13617,7 +13617,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_get_hl_ns".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_hl_ns"),
         min_argc: 0,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13626,7 +13626,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[59]),
     },
     EvalFuncDef {
-        name: c"sign_getplaced".as_ptr().cast_mut(),
+        name: Some(c"sign_getplaced"),
         min_argc: 0,
         max_argc: 2,
         base_arg: 1,
@@ -13635,7 +13635,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"tabpagebuflist".as_ptr().cast_mut(),
+        name: Some(c"tabpagebuflist"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -13644,7 +13644,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_list_bufs".as_ptr().cast_mut(),
+        name: Some(c"nvim_list_bufs"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13653,7 +13653,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[60]),
     },
     EvalFuncDef {
-        name: c"nvim_list_wins".as_ptr().cast_mut(),
+        name: Some(c"nvim_list_wins"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13662,7 +13662,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[61]),
     },
     EvalFuncDef {
-        name: c"isabsolutepath".as_ptr().cast_mut(),
+        name: Some(c"isabsolutepath"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13671,7 +13671,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_open_term".as_ptr().cast_mut(),
+        name: Some(c"nvim_open_term"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -13680,7 +13680,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[62]),
     },
     EvalFuncDef {
-        name: c"nvim_out_write".as_ptr().cast_mut(),
+        name: Some(c"nvim_out_write"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13689,7 +13689,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[63]),
     },
     EvalFuncDef {
-        name: c"nvim_parse_cmd".as_ptr().cast_mut(),
+        name: Some(c"nvim_parse_cmd"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -13698,7 +13698,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[64]),
     },
     EvalFuncDef {
-        name: c"sign_placelist".as_ptr().cast_mut(),
+        name: Some(c"sign_placelist"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13707,7 +13707,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_set_hl_ns".as_ptr().cast_mut(),
+        name: Some(c"nvim_set_hl_ns"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13716,7 +13716,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[68]),
     },
     EvalFuncDef {
-        name: c"assert_inrange".as_ptr().cast_mut(),
+        name: Some(c"assert_inrange"),
         min_argc: 3,
         max_argc: 4,
         base_arg: 3,
@@ -13725,7 +13725,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_win_close".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_close"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -13734,7 +13734,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[72]),
     },
     EvalFuncDef {
-        name: c"windowsversion".as_ptr().cast_mut(),
+        name: Some(c"windowsversion"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13743,7 +13743,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim__buf_stats".as_ptr().cast_mut(),
+        name: Some(c"nvim__buf_stats"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13752,7 +13752,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[100]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_attach".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_attach"),
         min_argc: 2,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -13761,7 +13761,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[83]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_delete".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_delete"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -13770,7 +13770,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[84]),
     },
     EvalFuncDef {
-        name: c"nvim_create_buf".as_ptr().cast_mut(),
+        name: Some(c"nvim_create_buf"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -13779,7 +13779,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[82]),
     },
     EvalFuncDef {
-        name: c"getcmdcompltype".as_ptr().cast_mut(),
+        name: Some(c"getcmdcompltype"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13788,7 +13788,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getcmdscreenpos".as_ptr().cast_mut(),
+        name: Some(c"getcmdscreenpos"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13797,7 +13797,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_del_keymap".as_ptr().cast_mut(),
+        name: Some(c"nvim_del_keymap"),
         min_argc: 2,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -13806,7 +13806,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[91]),
     },
     EvalFuncDef {
-        name: c"nvim_get_keymap".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_keymap"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13815,7 +13815,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[96]),
     },
     EvalFuncDef {
-        name: c"nvim_get_option".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_option"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13824,7 +13824,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[97]),
     },
     EvalFuncDef {
-        name: c"sign_getdefined".as_ptr().cast_mut(),
+        name: Some(c"sign_getdefined"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -13833,7 +13833,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_list_chans".as_ptr().cast_mut(),
+        name: Some(c"nvim_list_chans"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -13842,7 +13842,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[95]),
     },
     EvalFuncDef {
-        name: c"digraph_getlist".as_ptr().cast_mut(),
+        name: Some(c"digraph_getlist"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -13851,7 +13851,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"digraph_setlist".as_ptr().cast_mut(),
+        name: Some(c"digraph_setlist"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13860,7 +13860,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_set_keymap".as_ptr().cast_mut(),
+        name: Some(c"nvim_set_keymap"),
         min_argc: 3,
         max_argc: 4,
         base_arg: BASE_NONE,
@@ -13869,7 +13869,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[98]),
     },
     EvalFuncDef {
-        name: c"nvim_set_option".as_ptr().cast_mut(),
+        name: Some(c"nvim_set_option"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -13878,7 +13878,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[99]),
     },
     EvalFuncDef {
-        name: c"strdisplaywidth".as_ptr().cast_mut(),
+        name: Some(c"strdisplaywidth"),
         min_argc: 1,
         max_argc: 2,
         base_arg: 1,
@@ -13887,7 +13887,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"assert_notequal".as_ptr().cast_mut(),
+        name: Some(c"assert_notequal"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 2,
@@ -13896,7 +13896,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"assert_notmatch".as_ptr().cast_mut(),
+        name: Some(c"assert_notmatch"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 2,
@@ -13905,7 +13905,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"prompt_getinput".as_ptr().cast_mut(),
+        name: Some(c"prompt_getinput"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13914,7 +13914,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_win_resize".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_resize"),
         min_argc: 3,
         max_argc: 4,
         base_arg: BASE_NONE,
@@ -13923,7 +13923,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[92]),
     },
     EvalFuncDef {
-        name: c"highlight_exists".as_ptr().cast_mut(),
+        name: Some(c"highlight_exists"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13932,7 +13932,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_del_autocmd".as_ptr().cast_mut(),
+        name: Some(c"nvim_del_autocmd"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13941,7 +13941,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[108]),
     },
     EvalFuncDef {
-        name: c"sign_unplacelist".as_ptr().cast_mut(),
+        name: Some(c"sign_unplacelist"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -13950,7 +13950,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"assert_exception".as_ptr().cast_mut(),
+        name: Some(c"assert_exception"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -13959,7 +13959,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"getcursorcharpos".as_ptr().cast_mut(),
+        name: Some(c"getcursorcharpos"),
         min_argc: 0,
         max_argc: 1,
         base_arg: 1,
@@ -13968,7 +13968,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_get_context".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_context"),
         min_argc: 0,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -13977,7 +13977,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[109]),
     },
     EvalFuncDef {
-        name: c"setcursorcharpos".as_ptr().cast_mut(),
+        name: Some(c"setcursorcharpos"),
         min_argc: 1,
         max_argc: 3,
         base_arg: 1,
@@ -13986,7 +13986,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_buf_del_var".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_del_var"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -13995,7 +13995,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[124]),
     },
     EvalFuncDef {
-        name: c"nvim_win_del_var".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_del_var"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14004,7 +14004,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[111]),
     },
     EvalFuncDef {
-        name: c"nvim__screenshot".as_ptr().cast_mut(),
+        name: Some(c"nvim__screenshot"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14013,7 +14013,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[121]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_get_var".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_get_var"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14022,7 +14022,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[125]),
     },
     EvalFuncDef {
-        name: c"nvim_win_get_buf".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_get_buf"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14031,7 +14031,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[112]),
     },
     EvalFuncDef {
-        name: c"nvim_win_get_var".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_get_var"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14040,7 +14040,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[113]),
     },
     EvalFuncDef {
-        name: c"prompt_appendbuf".as_ptr().cast_mut(),
+        name: Some(c"prompt_appendbuf"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 2,
@@ -14049,7 +14049,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_buf_set_var".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_set_var"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -14058,7 +14058,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[126]),
     },
     EvalFuncDef {
-        name: c"nvim_win_set_buf".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_set_buf"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14067,7 +14067,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[114]),
     },
     EvalFuncDef {
-        name: c"nvim_win_set_var".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_set_var"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -14076,7 +14076,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[115]),
     },
     EvalFuncDef {
-        name: c"cmdcomplete_info".as_ptr().cast_mut(),
+        name: Some(c"cmdcomplete_info"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -14085,7 +14085,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_input_mouse".as_ptr().cast_mut(),
+        name: Some(c"nvim_input_mouse"),
         min_argc: 6,
         max_argc: 6,
         base_arg: BASE_NONE,
@@ -14094,7 +14094,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[116]),
     },
     EvalFuncDef {
-        name: c"prompt_getprompt".as_ptr().cast_mut(),
+        name: Some(c"prompt_getprompt"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -14103,7 +14103,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"prompt_setprompt".as_ptr().cast_mut(),
+        name: Some(c"prompt_setprompt"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -14112,7 +14112,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"assert_equalfile".as_ptr().cast_mut(),
+        name: Some(c"assert_equalfile"),
         min_argc: 2,
         max_argc: 3,
         base_arg: 1,
@@ -14121,7 +14121,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim__cmdwin_set".as_ptr().cast_mut(),
+        name: Some(c"nvim__cmdwin_set"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14130,7 +14130,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[107]),
     },
     EvalFuncDef {
-        name: c"nvim_err_writeln".as_ptr().cast_mut(),
+        name: Some(c"nvim_err_writeln"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14139,7 +14139,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[119]),
     },
     EvalFuncDef {
-        name: c"nvim__get_lib_dir".as_ptr().cast_mut(),
+        name: Some(c"nvim__get_lib_dir"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -14148,7 +14148,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[137]),
     },
     EvalFuncDef {
-        name: c"nvim__get_runtime".as_ptr().cast_mut(),
+        name: Some(c"nvim__get_runtime"),
         min_argc: 2,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -14157,7 +14157,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[146]),
     },
     EvalFuncDef {
-        name: c"nvim_load_context".as_ptr().cast_mut(),
+        name: Some(c"nvim_load_context"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14166,7 +14166,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[140]),
     },
     EvalFuncDef {
-        name: c"nvim_open_tabpage".as_ptr().cast_mut(),
+        name: Some(c"nvim_open_tabpage"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -14175,7 +14175,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[134]),
     },
     EvalFuncDef {
-        name: c"nvim_get_autocmds".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_autocmds"),
         min_argc: 0,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14184,7 +14184,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[153]),
     },
     EvalFuncDef {
-        name: c"nvim_get_commands".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_commands"),
         min_argc: 0,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14193,7 +14193,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[156]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_del_mark".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_del_mark"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14202,7 +14202,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[129]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_get_mark".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_get_mark"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14211,7 +14211,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[130]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_get_name".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_get_name"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14220,7 +14220,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[131]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_get_text".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_get_text"),
         min_argc: 5,
         max_argc: 6,
         base_arg: BASE_NONE,
@@ -14229,7 +14229,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[138]),
     },
     EvalFuncDef {
-        name: c"nvim_get_hl_by_id".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_hl_by_id"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14238,7 +14238,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[128]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_is_valid".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_is_valid"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14247,7 +14247,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[150]),
     },
     EvalFuncDef {
-        name: c"nvim_win_is_valid".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_is_valid"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14256,7 +14256,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[151]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_set_mark".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_set_mark"),
         min_argc: 4,
         max_argc: 5,
         base_arg: BASE_NONE,
@@ -14265,7 +14265,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[132]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_set_name".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_set_name"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14274,7 +14274,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[133]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_set_text".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_set_text"),
         min_argc: 6,
         max_argc: 6,
         base_arg: BASE_NONE,
@@ -14283,7 +14283,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[139]),
     },
     EvalFuncDef {
-        name: c"getcompletiontype".as_ptr().cast_mut(),
+        name: Some(c"getcompletiontype"),
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
@@ -14292,7 +14292,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim__complete_set".as_ptr().cast_mut(),
+        name: Some(c"nvim__complete_set"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14301,7 +14301,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[172]),
     },
     EvalFuncDef {
-        name: c"nvim__inspect_cell".as_ptr().cast_mut(),
+        name: Some(c"nvim__inspect_cell"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -14310,7 +14310,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[173]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_get_lines".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_get_lines"),
         min_argc: 4,
         max_argc: 4,
         base_arg: BASE_NONE,
@@ -14319,7 +14319,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[168]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_is_loaded".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_is_loaded"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14328,7 +14328,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[170]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_set_lines".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_set_lines"),
         min_argc: 5,
         max_argc: 5,
         base_arg: BASE_NONE,
@@ -14337,7 +14337,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[175]),
     },
     EvalFuncDef {
-        name: c"nvim_call_function".as_ptr().cast_mut(),
+        name: Some(c"nvim_call_function"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14346,7 +14346,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[160]),
     },
     EvalFuncDef {
-        name: c"nvim_exec_autocmds".as_ptr().cast_mut(),
+        name: Some(c"nvim_exec_autocmds"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14355,7 +14355,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[161]),
     },
     EvalFuncDef {
-        name: c"nvim_get_chan_info".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_chan_info"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14364,7 +14364,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[163]),
     },
     EvalFuncDef {
-        name: c"nvim_get_color_map".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_color_map"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -14373,7 +14373,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[164]),
     },
     EvalFuncDef {
-        name: c"nvim_list_tabpages".as_ptr().cast_mut(),
+        name: Some(c"nvim_list_tabpages"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -14382,7 +14382,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[162]),
     },
     EvalFuncDef {
-        name: c"win_move_separator".as_ptr().cast_mut(),
+        name: Some(c"win_move_separator"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -14391,7 +14391,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"prompt_setcallback".as_ptr().cast_mut(),
+        name: Some(c"prompt_setcallback"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -14400,7 +14400,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_win_get_width".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_get_width"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14409,7 +14409,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[169]),
     },
     EvalFuncDef {
-        name: c"nvim_win_set_hl_ns".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_set_hl_ns"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14418,7 +14418,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[176]),
     },
     EvalFuncDef {
-        name: c"nvim_win_set_width".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_set_width"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14427,7 +14427,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[177]),
     },
     EvalFuncDef {
-        name: c"nvim_get_hl_by_name".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_hl_by_name"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14436,7 +14436,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[180]),
     },
     EvalFuncDef {
-        name: c"nvim_set_hl_ns_fast".as_ptr().cast_mut(),
+        name: Some(c"nvim_set_hl_ns_fast"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14445,7 +14445,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[181]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_line_count".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_line_count"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14454,7 +14454,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[182]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_del_keymap".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_del_keymap"),
         min_argc: 3,
         max_argc: 4,
         base_arg: BASE_NONE,
@@ -14463,7 +14463,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[183]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_get_keymap".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_get_keymap"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14472,7 +14472,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[184]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_set_keymap".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_set_keymap"),
         min_argc: 4,
         max_argc: 5,
         base_arg: BASE_NONE,
@@ -14481,7 +14481,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[185]),
     },
     EvalFuncDef {
-        name: c"nvim_win_get_height".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_get_height"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14490,7 +14490,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[186]),
     },
     EvalFuncDef {
-        name: c"nvim_win_set_height".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_set_height"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14499,7 +14499,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[187]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_get_offset".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_get_offset"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14508,7 +14508,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[188]),
     },
     EvalFuncDef {
-        name: c"nvim_create_augroup".as_ptr().cast_mut(),
+        name: Some(c"nvim_create_augroup"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14517,7 +14517,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[189]),
     },
     EvalFuncDef {
-        name: c"nvim_clear_autocmds".as_ptr().cast_mut(),
+        name: Some(c"nvim_clear_autocmds"),
         min_argc: 0,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14526,7 +14526,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[192]),
     },
     EvalFuncDef {
-        name: c"nvim_win_get_config".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_get_config"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14535,7 +14535,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[193]),
     },
     EvalFuncDef {
-        name: c"nvim_win_set_config".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_set_config"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14544,7 +14544,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[194]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_get_option".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_get_option"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14553,7 +14553,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[195]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_set_option".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_set_option"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -14562,7 +14562,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[196]),
     },
     EvalFuncDef {
-        name: c"nvim_get_namespaces".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_namespaces"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -14571,7 +14571,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[197]),
     },
     EvalFuncDef {
-        name: c"nvim_win_get_option".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_get_option"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14580,7 +14580,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[198]),
     },
     EvalFuncDef {
-        name: c"nvim_win_set_option".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_set_option"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -14589,7 +14589,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[199]),
     },
     EvalFuncDef {
-        name: c"prompt_setinterrupt".as_ptr().cast_mut(),
+        name: Some(c"prompt_setinterrupt"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -14598,7 +14598,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"win_move_statusline".as_ptr().cast_mut(),
+        name: Some(c"win_move_statusline"),
         min_argc: 2,
         max_argc: 2,
         base_arg: 1,
@@ -14607,7 +14607,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_create_autocmd".as_ptr().cast_mut(),
+        name: Some(c"nvim_create_autocmd"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14616,7 +14616,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[200]),
     },
     EvalFuncDef {
-        name: c"test_write_list_log".as_ptr().cast_mut(),
+        name: Some(c"test_write_list_log"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14625,7 +14625,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_buf_get_number".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_get_number"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14634,7 +14634,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[201]),
     },
     EvalFuncDef {
-        name: c"nvim_command_output".as_ptr().cast_mut(),
+        name: Some(c"nvim_command_output"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14643,7 +14643,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[202]),
     },
     EvalFuncDef {
-        name: c"nvim_win_get_cursor".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_get_cursor"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14652,7 +14652,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[203]),
     },
     EvalFuncDef {
-        name: c"nvim_win_get_number".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_get_number"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14661,7 +14661,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[204]),
     },
     EvalFuncDef {
-        name: c"nvim_win_set_cursor".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_set_cursor"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14670,7 +14670,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[205]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_del_extmark".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_del_extmark"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -14679,7 +14679,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[206]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_set_extmark".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_set_extmark"),
         min_argc: 4,
         max_argc: 5,
         base_arg: BASE_NONE,
@@ -14688,7 +14688,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[207]),
     },
     EvalFuncDef {
-        name: c"nvim_win_get_tabpage".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_get_tabpage"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14697,7 +14697,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[208]),
     },
     EvalFuncDef {
-        name: c"nvim_get_current_buf".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_current_buf"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -14706,7 +14706,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[209]),
     },
     EvalFuncDef {
-        name: c"nvim_set_current_buf".as_ptr().cast_mut(),
+        name: Some(c"nvim_set_current_buf"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14715,7 +14715,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[210]),
     },
     EvalFuncDef {
-        name: c"nvim_set_current_dir".as_ptr().cast_mut(),
+        name: Some(c"nvim_set_current_dir"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14724,7 +14724,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[211]),
     },
     EvalFuncDef {
-        name: c"nvim_win_text_height".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_text_height"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14733,7 +14733,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[213]),
     },
     EvalFuncDef {
-        name: c"nvim_eval_statusline".as_ptr().cast_mut(),
+        name: Some(c"nvim_eval_statusline"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14742,7 +14742,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[214]),
     },
     EvalFuncDef {
-        name: c"nvim_get_option_info".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_option_info"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14751,7 +14751,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[218]),
     },
     EvalFuncDef {
-        name: c"nvim_tabpage_del_var".as_ptr().cast_mut(),
+        name: Some(c"nvim_tabpage_del_var"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14760,7 +14760,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[221]),
     },
     EvalFuncDef {
-        name: c"nvim_tabpage_get_var".as_ptr().cast_mut(),
+        name: Some(c"nvim_tabpage_get_var"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14769,7 +14769,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[222]),
     },
     EvalFuncDef {
-        name: c"nvim_tabpage_set_var".as_ptr().cast_mut(),
+        name: Some(c"nvim_tabpage_set_var"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -14778,7 +14778,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[223]),
     },
     EvalFuncDef {
-        name: c"nvim_get_current_win".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_current_win"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -14787,7 +14787,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[224]),
     },
     EvalFuncDef {
-        name: c"nvim_set_current_win".as_ptr().cast_mut(),
+        name: Some(c"nvim_set_current_win"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14796,7 +14796,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[225]),
     },
     EvalFuncDef {
-        name: c"nvim_tabpage_get_win".as_ptr().cast_mut(),
+        name: Some(c"nvim_tabpage_get_win"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14805,7 +14805,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[226]),
     },
     EvalFuncDef {
-        name: c"nvim_tabpage_set_win".as_ptr().cast_mut(),
+        name: Some(c"nvim_tabpage_set_win"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14814,7 +14814,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[227]),
     },
     EvalFuncDef {
-        name: c"nvim_tabpage_is_valid".as_ptr().cast_mut(),
+        name: Some(c"nvim_tabpage_is_valid"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14823,7 +14823,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[244]),
     },
     EvalFuncDef {
-        name: c"nvim_del_current_line".as_ptr().cast_mut(),
+        name: Some(c"nvim_del_current_line"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -14832,7 +14832,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[232]),
     },
     EvalFuncDef {
-        name: c"nvim_get_current_line".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_current_line"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -14841,7 +14841,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[235]),
     },
     EvalFuncDef {
-        name: c"nvim_set_current_line".as_ptr().cast_mut(),
+        name: Some(c"nvim_set_current_line"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14850,7 +14850,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[242]),
     },
     EvalFuncDef {
-        name: c"nvim_parse_expression".as_ptr().cast_mut(),
+        name: Some(c"nvim_parse_expression"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -14859,7 +14859,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[239]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_get_commands".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_get_commands"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14868,7 +14868,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[229]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_get_extmarks".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_get_extmarks"),
         min_argc: 4,
         max_argc: 5,
         base_arg: BASE_NONE,
@@ -14877,7 +14877,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[230]),
     },
     EvalFuncDef {
-        name: c"nvim_win_get_position".as_ptr().cast_mut(),
+        name: Some(c"nvim_win_get_position"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14886,7 +14886,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[245]),
     },
     EvalFuncDef {
-        name: c"nvim_get_option_info2".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_option_info2"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14895,7 +14895,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[236]),
     },
     EvalFuncDef {
-        name: c"nvim_get_option_value".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_option_value"),
         min_argc: 1,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14904,7 +14904,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[237]),
     },
     EvalFuncDef {
-        name: c"nvim_set_option_value".as_ptr().cast_mut(),
+        name: Some(c"nvim_set_option_value"),
         min_argc: 2,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -14913,7 +14913,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[243]),
     },
     EvalFuncDef {
-        name: c"nvim_get_runtime_file".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_runtime_file"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -14922,7 +14922,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[238]),
     },
     EvalFuncDef {
-        name: c"nvim__runtime_inspect".as_ptr().cast_mut(),
+        name: Some(c"nvim__runtime_inspect"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -14931,7 +14931,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[228]),
     },
     EvalFuncDef {
-        name: c"nvim_create_namespace".as_ptr().cast_mut(),
+        name: Some(c"nvim_create_namespace"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14940,7 +14940,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[231]),
     },
     EvalFuncDef {
-        name: c"nvim_del_user_command".as_ptr().cast_mut(),
+        name: Some(c"nvim_del_user_command"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14949,7 +14949,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[233]),
     },
     EvalFuncDef {
-        name: c"nvim_replace_termcodes".as_ptr().cast_mut(),
+        name: Some(c"nvim_replace_termcodes"),
         min_argc: 4,
         max_argc: 4,
         base_arg: BASE_NONE,
@@ -14958,7 +14958,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[255]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_add_highlight".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_add_highlight"),
         min_argc: 6,
         max_argc: 6,
         base_arg: BASE_NONE,
@@ -14967,7 +14967,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[252]),
     },
     EvalFuncDef {
-        name: c"nvim_tabpage_list_wins".as_ptr().cast_mut(),
+        name: Some(c"nvim_tabpage_list_wins"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14976,7 +14976,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[256]),
     },
     EvalFuncDef {
-        name: c"nvim_get_hl_id_by_name".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_hl_id_by_name"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14985,7 +14985,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[260]),
     },
     EvalFuncDef {
-        name: c"nvim_get_color_by_name".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_color_by_name"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -14994,7 +14994,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[259]),
     },
     EvalFuncDef {
-        name: c"nvim_get_proc_children".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_proc_children"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -15003,7 +15003,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[254]),
     },
     EvalFuncDef {
-        name: c"nvim_del_augroup_by_id".as_ptr().cast_mut(),
+        name: Some(c"nvim_del_augroup_by_id"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -15012,7 +15012,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[246]),
     },
     EvalFuncDef {
-        name: c"nvim_call_dict_function".as_ptr().cast_mut(),
+        name: Some(c"nvim_call_dict_function"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -15021,7 +15021,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[261]),
     },
     EvalFuncDef {
-        name: c"test_garbagecollect_now".as_ptr().cast_mut(),
+        name: Some(c"test_garbagecollect_now"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -15030,7 +15030,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::None,
     },
     EvalFuncDef {
-        name: c"nvim_list_runtime_paths".as_ptr().cast_mut(),
+        name: Some(c"nvim_list_runtime_paths"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -15039,7 +15039,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[264]),
     },
     EvalFuncDef {
-        name: c"nvim_tabpage_get_number".as_ptr().cast_mut(),
+        name: Some(c"nvim_tabpage_get_number"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -15048,7 +15048,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[265]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_get_changedtick".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_get_changedtick"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -15057,7 +15057,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[267]),
     },
     EvalFuncDef {
-        name: c"nvim_get_current_tabpage".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_current_tabpage"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -15066,7 +15066,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[268]),
     },
     EvalFuncDef {
-        name: c"nvim_set_current_tabpage".as_ptr().cast_mut(),
+        name: Some(c"nvim_set_current_tabpage"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -15075,7 +15075,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[269]),
     },
     EvalFuncDef {
-        name: c"nvim_del_augroup_by_name".as_ptr().cast_mut(),
+        name: Some(c"nvim_del_augroup_by_name"),
         min_argc: 1,
         max_argc: 1,
         base_arg: BASE_NONE,
@@ -15084,7 +15084,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[270]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_clear_highlight".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_clear_highlight"),
         min_argc: 4,
         max_argc: 4,
         base_arg: BASE_NONE,
@@ -15093,7 +15093,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[271]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_clear_namespace".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_clear_namespace"),
         min_argc: 4,
         max_argc: 4,
         base_arg: BASE_NONE,
@@ -15102,7 +15102,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[272]),
     },
     EvalFuncDef {
-        name: c"nvim_create_user_command".as_ptr().cast_mut(),
+        name: Some(c"nvim_create_user_command"),
         min_argc: 2,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -15111,7 +15111,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[273]),
     },
     EvalFuncDef {
-        name: c"nvim__buf_debug_extmarks".as_ptr().cast_mut(),
+        name: Some(c"nvim__buf_debug_extmarks"),
         min_argc: 3,
         max_argc: 3,
         base_arg: BASE_NONE,
@@ -15120,7 +15120,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[274]),
     },
     EvalFuncDef {
-        name: c"nvim_get_all_options_info".as_ptr().cast_mut(),
+        name: Some(c"nvim_get_all_options_info"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -15129,7 +15129,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[275]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_del_user_command".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_del_user_command"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -15138,7 +15138,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[276]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_set_virtual_text".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_set_virtual_text"),
         min_argc: 4,
         max_argc: 5,
         base_arg: BASE_NONE,
@@ -15147,7 +15147,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[277]),
     },
     EvalFuncDef {
-        name: c"nvim__set_restart_on_crash".as_ptr().cast_mut(),
+        name: Some(c"nvim__set_restart_on_crash"),
         min_argc: 2,
         max_argc: 2,
         base_arg: BASE_NONE,
@@ -15156,7 +15156,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[278]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_get_extmark_by_id".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_get_extmark_by_id"),
         min_argc: 3,
         max_argc: 4,
         base_arg: BASE_NONE,
@@ -15165,7 +15165,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[279]),
     },
     EvalFuncDef {
-        name: c"nvim_select_popupmenu_item".as_ptr().cast_mut(),
+        name: Some(c"nvim_select_popupmenu_item"),
         min_argc: 3,
         max_argc: 4,
         base_arg: BASE_NONE,
@@ -15174,7 +15174,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[280]),
     },
     EvalFuncDef {
-        name: c"nvim__invalidate_glyph_cache".as_ptr().cast_mut(),
+        name: Some(c"nvim__invalidate_glyph_cache"),
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -15183,7 +15183,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[281]),
     },
     EvalFuncDef {
-        name: c"nvim_buf_create_user_command".as_ptr().cast_mut(),
+        name: Some(c"nvim_buf_create_user_command"),
         min_argc: 3,
         max_argc: 4,
         base_arg: BASE_NONE,
@@ -15192,7 +15192,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[282]),
     },
     EvalFuncDef {
-        name: ptr::null_mut(),
+        name: None,
         min_argc: 0,
         max_argc: 0,
         base_arg: BASE_NONE,
@@ -15245,17 +15245,21 @@ mod tests {
     fn find_internal_func_hash_resolves_builtin_functions() {
         unsafe {
             for (idx, fdef) in FUNCTIONS[..FUNCTIONS.len() - 1].iter().enumerate() {
-                let name = CStr::from_ptr(fdef.name).to_bytes();
-                assert_eq!(find_internal_func_hash(fdef.name, name.len()), idx as c_int);
+                let fdef_name = fdef.name.unwrap();
+                let name = fdef_name.to_bytes();
                 assert_eq!(
-                    find_internal_func(fdef.name),
+                    find_internal_func_hash(fdef_name.as_ptr(), name.len()),
+                    idx as c_int
+                );
+                assert_eq!(
+                    find_internal_func(fdef_name.as_ptr()),
                     eval_func_def_at(idx as c_int)
                 );
             }
             assert!(
                 (*eval_func_def_at((FUNCTIONS.len() - 1) as c_int))
                     .name
-                    .is_null()
+                    .is_none()
             );
             assert_eq!(
                 find_internal_func_hash(c"not_a_builtin_fn".as_ptr(), 16),

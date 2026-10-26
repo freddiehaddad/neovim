@@ -164,14 +164,12 @@ pub struct OptKeySet {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct KeySetLink {
-    pub str: *mut c_char,
+    pub str: Option<&'static CStr>,
     pub ptr_off: usize,
     pub key_type: c_int,
     pub opt_index: c_int,
     pub is_hlgroup: bool,
 }
-
-unsafe impl Sync for KeySetLink {}
 
 pub type FieldHashfn = Option<unsafe fn(str: *const c_char, len: usize) -> *const KeySetLink>;
 
@@ -2185,7 +2183,9 @@ pub unsafe fn nlua_pop_keydict(
             }
 
             if error_set(err) {
-                *err_opt = field.str;
+                *err_opt = field
+                    .str
+                    .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 break;
             }
         }
@@ -2202,7 +2202,7 @@ pub unsafe extern "C-unwind" fn nlua_push_keydict(
     unsafe {
         lua_createtable(L, 0, 0);
         let mut i = 0usize;
-        while !(*table.add(i)).str.is_null() {
+        while let Some(field_str) = (*table.add(i)).str {
             let field = &*table.add(i);
             let mut is_set = true;
             if field.opt_index >= 0 {
@@ -2214,7 +2214,7 @@ pub unsafe extern "C-unwind" fn nlua_push_keydict(
             }
 
             let mem = value.cast::<u8>().add(field.ptr_off);
-            lua_pushstring(L, field.str);
+            lua_pushstring(L, field_str.as_ptr());
             if field.key_type == (ObjectType::kObjectTypeNil as c_int) {
                 nlua_push_Object(L, mem.cast::<Object>(), 0);
             } else if field.key_type == (ObjectType::kObjectTypeInteger as c_int) {

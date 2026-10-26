@@ -225,8 +225,6 @@ impl Default for LexExprTokenOpt {
     }
 }
 
-unsafe impl Sync for LexExprTokenOpt {}
-
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct LexExprTokenVar {
@@ -264,8 +262,6 @@ impl Default for LexExprTokenErr {
         Self::new()
     }
 }
-
-unsafe impl Sync for LexExprTokenErr {}
 
 #[derive(Clone, Copy)]
 pub enum LexExprTokenNumVal {
@@ -454,10 +450,9 @@ impl LexExprTokenData {
 
     #[inline]
     pub fn opt(&self) -> &LexExprTokenOpt {
-        static EMPTY: LexExprTokenOpt = LexExprTokenOpt::new();
         match self {
             Self::Opt(v) => v,
-            _ => &EMPTY,
+            _ => &const { LexExprTokenOpt::new() },
         }
     }
 
@@ -494,10 +489,9 @@ impl LexExprTokenData {
 
     #[inline]
     pub fn err(&self) -> &LexExprTokenErr {
-        static EMPTY: LexExprTokenErr = LexExprTokenErr::new();
         match self {
             Self::Err(v) => v,
-            _ => &EMPTY,
+            _ => &const { LexExprTokenErr::new() },
         }
     }
 
@@ -631,8 +625,6 @@ impl ExprASTNodeVar {
     }
 }
 
-unsafe impl Sync for ExprASTNodeVar {}
-
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeTer {
@@ -712,8 +704,6 @@ impl ExprASTNodeStr {
     }
 }
 
-unsafe impl Sync for ExprASTNodeStr {}
-
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeOpt {
@@ -732,8 +722,6 @@ impl ExprASTNodeOpt {
     }
 }
 
-unsafe impl Sync for ExprASTNodeOpt {}
-
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeEnv {
@@ -749,8 +737,6 @@ impl ExprASTNodeEnv {
         }
     }
 }
-
-unsafe impl Sync for ExprASTNodeEnv {}
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -826,10 +812,9 @@ impl ExprASTNodeData {
 
     #[inline]
     pub fn var(&self) -> &ExprASTNodeVar {
-        static EMPTY: ExprASTNodeVar = ExprASTNodeVar::new();
         match self {
             Self::Var(v) => v,
-            _ => &EMPTY,
+            _ => &const { ExprASTNodeVar::new() },
         }
     }
 
@@ -946,10 +931,9 @@ impl ExprASTNodeData {
 
     #[inline]
     pub fn opt(&self) -> &ExprASTNodeOpt {
-        static EMPTY: ExprASTNodeOpt = ExprASTNodeOpt::new();
         match self {
             Self::Opt(v) => v,
-            _ => &EMPTY,
+            _ => &const { ExprASTNodeOpt::new() },
         }
     }
 
@@ -966,10 +950,9 @@ impl ExprASTNodeData {
 
     #[inline]
     pub fn env(&self) -> &ExprASTNodeEnv {
-        static EMPTY: ExprASTNodeEnv = ExprASTNodeEnv::new();
         match self {
             Self::Env(v) => v,
-            _ => &EMPTY,
+            _ => &const { ExprASTNodeEnv::new() },
         }
     }
 
@@ -1115,76 +1098,72 @@ enum ExprOpAssociativity {
     Right,
 }
 
-#[repr(transparent)]
-pub struct SyncCStrArray<const N: usize>(pub [*const c_char; N]);
-unsafe impl<const N: usize> Sync for SyncCStrArray<N> {}
+pub static eltkn_cmp_type_tab: [&std::ffi::CStr; 5] = [
+    c"Equal",
+    c"Matches",
+    c"Greater",
+    c"GreaterOrEqual",
+    c"Identical",
+];
 
-pub static eltkn_cmp_type_tab: SyncCStrArray<5> = SyncCStrArray([
-    c"Equal".as_ptr(),
-    c"Matches".as_ptr(),
-    c"Greater".as_ptr(),
-    c"GreaterOrEqual".as_ptr(),
-    c"Identical".as_ptr(),
-]);
+pub static expr_asgn_type_tab: [&std::ffi::CStr; 4] = [
+    c"Plain",
+    c"Add",
+    c"Subtract",
+    c"Concat",
+];
 
-pub static expr_asgn_type_tab: SyncCStrArray<4> = SyncCStrArray([
-    c"Plain".as_ptr(),
-    c"Add".as_ptr(),
-    c"Subtract".as_ptr(),
-    c"Concat".as_ptr(),
-]);
-
-const fn build_ccs_tab() -> [*const c_char; 64] {
-    let mut tab = [std::ptr::null(); 64];
-    tab[kCCStrategyUseOption as usize] = c"UseOption".as_ptr();
-    tab[kCCStrategyMatchCase as usize] = c"MatchCase".as_ptr();
-    tab[kCCStrategyIgnoreCase as usize] = c"IgnoreCase".as_ptr();
+const fn build_ccs_tab() -> [Option<&'static std::ffi::CStr>; 64] {
+    let mut tab = [None; 64];
+    tab[kCCStrategyUseOption as usize] = Some(c"UseOption");
+    tab[kCCStrategyMatchCase as usize] = Some(c"MatchCase");
+    tab[kCCStrategyIgnoreCase as usize] = Some(c"IgnoreCase");
     tab
 }
 
-pub static ccs_tab: SyncCStrArray<64> = SyncCStrArray(build_ccs_tab());
+pub static ccs_tab: [Option<&std::ffi::CStr>; 64] = build_ccs_tab();
 
-pub static east_node_type_tab: SyncCStrArray<39> = SyncCStrArray([
-    c"Missing".as_ptr(),
-    c"OpMissing".as_ptr(),
-    c"Ternary".as_ptr(),
-    c"TernaryValue".as_ptr(),
-    c"Register".as_ptr(),
-    c"Subscript".as_ptr(),
-    c"ListLiteral".as_ptr(),
-    c"UnaryPlus".as_ptr(),
-    c"BinaryPlus".as_ptr(),
-    c"Nested".as_ptr(),
-    c"Call".as_ptr(),
-    c"PlainIdentifier".as_ptr(),
-    c"PlainKey".as_ptr(),
-    c"ComplexIdentifier".as_ptr(),
-    c"UnknownFigure".as_ptr(),
-    c"Lambda".as_ptr(),
-    c"DictLiteral".as_ptr(),
-    c"CurlyBracesIdentifier".as_ptr(),
-    c"Comma".as_ptr(),
-    c"Colon".as_ptr(),
-    c"Arrow".as_ptr(),
-    c"Comparison".as_ptr(),
-    c"Concat".as_ptr(),
-    c"ConcatOrSubscript".as_ptr(),
-    c"Integer".as_ptr(),
-    c"Float".as_ptr(),
-    c"SingleQuotedString".as_ptr(),
-    c"DoubleQuotedString".as_ptr(),
-    c"Or".as_ptr(),
-    c"And".as_ptr(),
-    c"UnaryMinus".as_ptr(),
-    c"BinaryMinus".as_ptr(),
-    c"Not".as_ptr(),
-    c"Multiplication".as_ptr(),
-    c"Division".as_ptr(),
-    c"Mod".as_ptr(),
-    c"Option".as_ptr(),
-    c"Environment".as_ptr(),
-    c"Assignment".as_ptr(),
-]);
+pub static east_node_type_tab: [&std::ffi::CStr; 39] = [
+    c"Missing",
+    c"OpMissing",
+    c"Ternary",
+    c"TernaryValue",
+    c"Register",
+    c"Subscript",
+    c"ListLiteral",
+    c"UnaryPlus",
+    c"BinaryPlus",
+    c"Nested",
+    c"Call",
+    c"PlainIdentifier",
+    c"PlainKey",
+    c"ComplexIdentifier",
+    c"UnknownFigure",
+    c"Lambda",
+    c"DictLiteral",
+    c"CurlyBracesIdentifier",
+    c"Comma",
+    c"Colon",
+    c"Arrow",
+    c"Comparison",
+    c"Concat",
+    c"ConcatOrSubscript",
+    c"Integer",
+    c"Float",
+    c"SingleQuotedString",
+    c"DoubleQuotedString",
+    c"Or",
+    c"And",
+    c"UnaryMinus",
+    c"BinaryMinus",
+    c"Not",
+    c"Multiplication",
+    c"Division",
+    c"Mod",
+    c"Option",
+    c"Environment",
+    c"Assignment",
+];
 
 pub static node_maxchildren: [u8; 39] = [
     0, // kExprNodeMissing
