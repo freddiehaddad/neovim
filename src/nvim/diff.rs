@@ -37,7 +37,7 @@ use crate::mbyte::{
     utf_ptr2char, utfc_ptr2len,
 };
 use crate::memline::{ml_append, ml_delete, ml_get_buf, ml_get_buf_len};
-use crate::memory::{memchrsub, strequal, xfree, xmalloc, xstrdup};
+use crate::memory::{cstr_take, memchrsub, strequal, xstrdup};
 use crate::message::{emsg, semsg};
 use crate::r#move::{
     changed_line_abv_curs, changed_line_abv_curs_win, changed_window_setting, check_topfill,
@@ -52,7 +52,7 @@ use crate::os::fs::{FileInfo, os_fileinfo, os_fileinfo_size, os_fopen, os_remove
 use crate::os::shell::call_shell;
 use crate::strings::{
     atol, gettext, strcat, strcmp, strcpy, strlen, strncmp, tolower, vim_snprintf, vim_strchr,
-    vim_strsave_shellescape, xstrnsave,
+    vim_strsave_shellescape,
 };
 use crate::ui::vim_beep;
 use crate::undo::{u_save, u_sync};
@@ -146,6 +146,7 @@ pub struct diffline_T {
 struct diffin_T {
     din_fname: Option<CString>,
     din_mmfile: mmfile_t,
+    din_buf: Vec<c_char>,
 }
 #[repr(C)]
 pub(crate) struct diffout_T {
@@ -602,10 +603,11 @@ unsafe fn diff_check_unchanged(tp: *mut tabpage_T, dp_idx: usize) {
                 if dir == BACKWARD {
                     off_org = (&(*tp).tp_diffs)[dp_idx].df_count[i_org] - 1;
                 }
-                let line_org = xstrdup(ml_get_buf(
+                let line_org = CStr::from_ptr(ml_get_buf(
                     (*tp).tp_diffbuf[i_org],
                     (&(*tp).tp_diffs)[dp_idx].df_lnum[i_org] + off_org,
-                ));
+                ))
+                .to_owned();
                 let mut i_new = i_org + 1;
                 while i_new < DB_COUNT {
                     if (*tp).tp_diffbuf[i_new].is_null() {
@@ -619,7 +621,7 @@ unsafe fn diff_check_unchanged(tp: *mut tabpage_T, dp_idx: usize) {
                         break;
                     }
                     if diff_cmp(
-                        line_org,
+                        line_org.as_ptr(),
                         ml_get_buf(
                             (*tp).tp_diffbuf[i_new],
                             (&(*tp).tp_diffs)[dp_idx].df_lnum[i_new] + off_new,
@@ -630,7 +632,6 @@ unsafe fn diff_check_unchanged(tp: *mut tabpage_T, dp_idx: usize) {
                     }
                     i_new += 1;
                 }
-                xfree(line_org.cast());
                 if i_new != DB_COUNT {
                     break;
                 }
@@ -712,8 +713,9 @@ unsafe fn clear_diffin(din: &mut diffin_T) {
         if let Some(ref fname) = din.din_fname {
             let _ = os_remove(fname.as_ptr());
         } else {
-            xfree(din.din_mmfile.ptr.cast());
+            din.din_buf = Vec::new();
             din.din_mmfile.ptr = ptr::null_mut();
+            din.din_mmfile.size = 0;
         }
     }
 }
@@ -729,6 +731,7 @@ unsafe fn clear_diffout(dout: &mut diffout_T) {
 unsafe fn diff_write_buffer(
     buf: *mut buf_T,
     m: *mut mmfile_t,
+    backing: &mut Vec<c_char>,
     start: linenr_T,
     mut end: linenr_T,
 ) -> c_int {
@@ -737,6 +740,7 @@ unsafe fn diff_write_buffer(
             end = (*buf).b_ml.ml_line_count;
         }
         if ((*buf).b_ml.ml_flags & ML_EMPTY) != 0 || end < start {
+            *backing = Vec::new();
             (*m).ptr = ptr::null_mut();
             (*m).size = 0;
             return OK;
@@ -745,7 +749,8 @@ unsafe fn diff_write_buffer(
         for lnum in start..=end {
             len += ml_get_buf_len(buf, lnum) as usize + 1;
         }
-        let ptr = xmalloc(len).cast::<c_char>();
+        *backing = vec![0; len];
+        let ptr = backing.as_mut_ptr();
         (*m).ptr = ptr;
         (*m).size = len as c_int;
         len = 0;
@@ -799,7 +804,7 @@ unsafe fn diff_write(
 ) -> c_int {
     unsafe {
         let Some(ref din_fname) = (*din).din_fname else {
-            return diff_write_buffer(buf, &raw mut (*din).din_mmfile, start, end);
+            return diff_write_buffer(buf, &raw mut (*din).din_mmfile, &mut (*din).din_buf, start, end);
         };
         if frames_locked() {
             return FAIL;
@@ -837,16 +842,7 @@ unsafe fn diff_write(
 }
 unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T) {
     unsafe {
-        let take_tempname = || {
-            let raw = vim_tempname();
-            if raw.is_null() {
-                None
-            } else {
-                let cstr = CStr::from_ptr(raw).to_owned();
-                xfree(raw.cast());
-                Some(cstr)
-            }
-        };
+        let take_tempname = || cstr_take(vim_tempname());
         'theend: {
             if (*dio).dio_internal != 0 {
                 (*dio).dio_diff.dout_ga.clear();
@@ -1012,6 +1008,7 @@ pub unsafe fn ex_diffupdate(eap: *mut exarg_T) {
                         ptr: ptr::null_mut(),
                         size: 0,
                     },
+                    din_buf: Vec::new(),
                 },
                 dio_new: diffin_T {
                     din_fname: None,
@@ -1019,6 +1016,7 @@ pub unsafe fn ex_diffupdate(eap: *mut exarg_T) {
                         ptr: ptr::null_mut(),
                         size: 0,
                     },
+                    din_buf: Vec::new(),
                 },
                 dio_diff: diffout_T {
                     dout_fname: None,
@@ -1189,7 +1187,8 @@ unsafe fn diff_file(dio: *mut diffio_T) -> c_int {
             return diff_file_internal(dio);
         }
         let len = strlen(tmp_orig) + strlen(tmp_new) + strlen(tmp_diff) + strlen(p_srr) + 27;
-        let cmd = xmalloc(len).cast::<c_char>();
+        let mut cmd_vec: Vec<c_char> = vec![0; len];
+        let cmd = cmd_vec.as_mut_ptr();
         if os_env_exists(c"DIFF_OPTIONS".as_ptr(), true) {
             let _ = os_unsetenv(c"DIFF_OPTIONS".as_ptr());
         }
@@ -1239,24 +1238,26 @@ unsafe fn diff_file(dio: *mut diffio_T) -> c_int {
             ptr::null_mut(),
         );
         crate::autocmd::unblock_autocmds();
-        xfree(cmd.cast());
         OK
     }
 }
 pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
     unsafe {
-        let mut buf: *mut c_char = ptr::null_mut();
+        let mut buf_vec: Vec<c_char>;
         let old_curwin = curwin;
-        let mut newname: *mut c_char = ptr::null_mut();
-        let mut esc_name: *mut c_char = ptr::null_mut();
+        let mut newname_vec: Vec<c_char>;
+        let esc_name: Option<CString>;
         #[cfg(unix)]
-        let mut fullname: *mut c_char = ptr::null_mut();
-        let tmp_orig = vim_tempname();
-        let tmp_new = vim_tempname();
+        let fullname: Option<CString>;
+        let tmp_orig_owned = cstr_take(vim_tempname());
+        let tmp_new_owned = cstr_take(vim_tempname());
         'theend: {
-            if tmp_orig.is_null() || tmp_new.is_null() {
+            let (Some(tmp_orig_cstr), Some(tmp_new_cstr)) = (&tmp_orig_owned, &tmp_new_owned)
+            else {
                 break 'theend;
-            }
+            };
+            let tmp_orig = tmp_orig_cstr.as_ptr().cast_mut();
+            let tmp_new = tmp_new_cstr.as_ptr().cast_mut();
             if buf_write(
                 curbuf,
                 tmp_orig,
@@ -1274,23 +1275,25 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
             }
             #[cfg(unix)]
             {
-                fullname = crate::path::FullName_save((*eap).arg, false);
-                esc_name = vim_strsave_shellescape(
-                    if !fullname.is_null() {
-                        fullname
-                    } else {
-                        (*eap).arg
-                    },
+                fullname = cstr_take(crate::path::FullName_save((*eap).arg, false));
+                esc_name = cstr_take(vim_strsave_shellescape(
+                    fullname
+                        .as_ref()
+                        .map_or((*eap).arg, |s| s.as_ptr().cast_mut()),
                     true,
                     true,
-                );
+                ));
             }
             #[cfg(not(unix))]
             {
-                esc_name = vim_strsave_shellescape((*eap).arg, true, true);
+                esc_name = cstr_take(vim_strsave_shellescape((*eap).arg, true, true));
             }
-            let buflen = strlen(tmp_orig) + strlen(esc_name) + strlen(tmp_new) + 16;
-            buf = xmalloc(buflen).cast::<c_char>();
+            let esc_ptr = esc_name
+                .as_ref()
+                .map_or(c"".as_ptr(), |s| s.as_ptr());
+            let buflen = strlen(tmp_orig) + strlen(esc_ptr) + strlen(tmp_new) + 16;
+            buf_vec = vec![0; buflen];
+            let buf = buf_vec.as_mut_ptr();
             #[cfg(unix)]
             let mut dirbuf: [c_char; MAXPATHL] = [0; MAXPATHL];
             #[cfg(unix)]
@@ -1312,11 +1315,9 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
                 #[cfg(unix)]
                 eval_patch(
                     tmp_orig,
-                    if !fullname.is_null() {
-                        fullname
-                    } else {
-                        (*eap).arg
-                    },
+                    fullname
+                        .as_ref()
+                        .map_or((*eap).arg, |s| s.as_ptr().cast_mut()),
                     tmp_new,
                 );
                 #[cfg(not(unix))]
@@ -1328,7 +1329,7 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
                     c"patch -o %s %s < %s".as_ptr(),
                     tmp_new,
                     tmp_orig,
-                    esc_name,
+                    esc_ptr,
                 );
                 crate::autocmd::block_autocmds();
                 call_shell(buf, kShellOptFilter, ptr::null_mut());
@@ -1353,9 +1354,13 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
             if !info_ok || filesize == 0 {
                 emsg(gettext(c"E816: Cannot read patch output".as_ptr()));
             } else {
+                let mut newname: *mut c_char = ptr::null_mut();
                 if !(*curbuf).b_fname.is_null() {
-                    newname = xstrnsave((*curbuf).b_fname, strlen((*curbuf).b_fname) + 4);
-                    strcat(newname, c".new".as_ptr());
+                    let fname_len = strlen((*curbuf).b_fname);
+                    newname_vec = vec![0; fname_len + 5];
+                    strcpy(newname_vec.as_mut_ptr(), (*curbuf).b_fname);
+                    strcat(newname_vec.as_mut_ptr(), c".new".as_ptr());
+                    newname = newname_vec.as_mut_ptr();
                 }
                 cmdmod.cmod_tab = 0;
                 if win_split(
@@ -1384,19 +1389,12 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
                 }
             }
         }
-        if !tmp_orig.is_null() {
-            let _ = os_remove(tmp_orig);
+        if let Some(ref tmp_orig) = tmp_orig_owned {
+            let _ = os_remove(tmp_orig.as_ptr());
         }
-        xfree(tmp_orig.cast());
-        if !tmp_new.is_null() {
-            let _ = os_remove(tmp_new);
+        if let Some(ref tmp_new) = tmp_new_owned {
+            let _ = os_remove(tmp_new.as_ptr());
         }
-        xfree(tmp_new.cast());
-        xfree(newname.cast());
-        xfree(buf.cast());
-        #[cfg(unix)]
-        xfree(fullname.cast());
-        xfree(esc_name.cast());
     }
 }
 pub unsafe fn ex_diffsplit(eap: *mut exarg_T) {
@@ -2005,6 +2003,7 @@ unsafe fn run_linematch_algorithm(dp_idx: usize) {
             ptr: ptr::null_mut(),
             size: 0,
         }; DB_COUNT];
+        let mut diffbufs_vec: [Vec<c_char>; DB_COUNT] = [const { Vec::new() }; DB_COUNT];
         let mut diff_length: [c_int; DB_COUNT] = [0; DB_COUNT];
         let mut ndiffs: usize = 0;
         let dp_lnum = (&(*curtab).tp_diffs)[dp_idx].df_lnum;
@@ -2015,6 +2014,7 @@ unsafe fn run_linematch_algorithm(dp_idx: usize) {
                     diff_write_buffer(
                         (*curtab).tp_diffbuf[i],
                         &raw mut diffbufs_mm[ndiffs],
+                        &mut diffbufs_vec[ndiffs],
                         dp_lnum[i],
                         dp_lnum[i] + dp_count[i] - 1,
                     );
@@ -2029,10 +2029,7 @@ unsafe fn run_linematch_algorithm(dp_idx: usize) {
         let diffbuf_refs: Vec<&mmfile_t> = diffbufs_mm[..ndiffs].iter().collect();
         let iwhite = (diff_flags & (DIFF_IWHITEALL | DIFF_IWHITE)) != 0;
         let decisions = linematch_nbuffers(&diffbuf_refs, &diff_length[..ndiffs], iwhite);
-        for mm in diffbufs_mm.iter_mut().take(ndiffs) {
-            xfree(mm.ptr.cast());
-            mm.ptr = ptr::null_mut();
-        }
+        drop(diffbufs_vec);
         apply_linematch_results(dp_idx, &decisions);
     }
 }
@@ -2174,15 +2171,15 @@ unsafe fn diff_equal_entry(dp: *const diff_T, idx1: usize, idx2: usize) -> bool 
             return false;
         }
         for i in 0..(*dp).df_count[idx1] {
-            let line = xstrdup(ml_get_buf(
+            let line = CStr::from_ptr(ml_get_buf(
                 (*curtab).tp_diffbuf[idx1],
                 (*dp).df_lnum[idx1] + i,
-            ));
+            ))
+            .to_owned();
             let cmp = diff_cmp(
-                line,
+                line.as_ptr(),
                 ml_get_buf((*curtab).tp_diffbuf[idx2], (*dp).df_lnum[idx2] + i),
             );
-            xfree(line.cast());
             if cmp != 0 {
                 return false;
             }
@@ -2577,11 +2574,14 @@ unsafe fn diff_find_change_simple(
     endp: *mut c_int,
 ) -> bool {
     unsafe {
-        let line_org = if (diff_flags & DIFF_INLINE_NONE) != 0 {
-            ptr::null_mut()
+        let line_org_owned = if (diff_flags & DIFF_INLINE_NONE) != 0 {
+            None
         } else {
-            xstrdup(ml_get_buf((*wp).w_buffer, lnum))
+            Some(CStr::from_ptr(ml_get_buf((*wp).w_buffer, lnum)).to_owned())
         };
+        let line_org = line_org_owned
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         let mut added = true;
         let off = lnum - (*dp).df_lnum[idx];
         for i in 0..DB_COUNT {
@@ -2660,7 +2660,7 @@ unsafe fn diff_find_change_simple(
                 }
             }
         }
-        xfree(line_org.cast());
+        drop(line_org_owned);
         added
     }
 }
@@ -2837,6 +2837,7 @@ unsafe fn diff_find_change_inline_diff(dp_idx: usize) {
                     ptr: ptr::null_mut(),
                     size: 0,
                 },
+                din_buf: Vec::new(),
             },
             dio_new: diffin_T {
                 din_fname: None,
@@ -2844,6 +2845,7 @@ unsafe fn diff_find_change_inline_diff(dp_idx: usize) {
                     ptr: ptr::null_mut(),
                     size: 0,
                 },
+                din_buf: Vec::new(),
             },
             dio_diff: diffout_T {
                 dout_fname: None,
@@ -3499,9 +3501,9 @@ unsafe fn diffgetput(
                     if nr > (*(*curtab).tp_diffbuf[idx_from]).b_ml.ml_line_count {
                         break;
                     }
-                    let p = xstrdup(ml_get_buf((*curtab).tp_diffbuf[idx_from], nr));
-                    let _ = ml_append(lnum + i - 1, p, 0, false);
-                    xfree(p.cast());
+                    let p = CStr::from_ptr(ml_get_buf((*curtab).tp_diffbuf[idx_from], nr))
+                        .to_owned();
+                    let _ = ml_append(lnum + i - 1, p.as_ptr().cast_mut(), 0, false);
                     added += 1;
                     if buf_empty && (*curbuf).b_ml.ml_line_count == 2 {
                         buf_empty = false;
