@@ -724,13 +724,41 @@ pub unsafe fn tv_list_set_ret(tv: *mut typval_T, l: *mut list_T) {
 }
 
 #[inline]
+pub unsafe fn tv_alloc_string(s: *const c_char) -> *mut c_char {
+    unsafe { CStr::from_ptr(s).to_owned().into_raw() }
+}
+
+#[inline]
+pub fn tv_alloc_string_bytes(bytes: &[u8]) -> *mut c_char {
+    crate::memory::cstr_from_bytes(bytes).into_raw()
+}
+
+#[inline]
+pub unsafe fn tv_free_string(p: *mut c_char) {
+    if !p.is_null() {
+        unsafe {
+            drop(std::ffi::CString::from_raw(p));
+        }
+    }
+}
+
+#[inline]
+pub unsafe fn tv_take_string(p: *mut c_char) -> Option<std::ffi::CString> {
+    if p.is_null() {
+        None
+    } else {
+        Some(unsafe { std::ffi::CString::from_raw(p) })
+    }
+}
+
+#[inline]
 pub unsafe fn tv_set_string(tv: *mut typval_T, s: *const c_char) {
     unsafe {
         (*tv).v_type = VarType::VAR_STRING;
         (*tv).vval = crate::eval::typval::TypvalVval::String(if s.is_null() {
             ptr::null_mut()
         } else {
-            crate::memory::alloc_cstring(s)
+            tv_alloc_string(s)
         });
     }
 }
@@ -742,7 +770,7 @@ pub unsafe fn tv_set_string_len(tv: *mut typval_T, s: *const c_char, len: usize)
         (*tv).vval = crate::eval::typval::TypvalVval::String(if s.is_null() {
             ptr::null_mut()
         } else {
-            crate::memory::alloc_cstring_bytes(std::slice::from_raw_parts(s.cast::<u8>(), len))
+            tv_alloc_string_bytes(std::slice::from_raw_parts(s.cast::<u8>(), len))
         });
     }
 }
@@ -1271,12 +1299,9 @@ pub unsafe fn tv_list_append_string(l: *mut list_T, str_: *const c_char, len: is
         let v_string = if str_.is_null() {
             ptr::null_mut()
         } else if len >= 0 {
-            crate::memory::alloc_cstring_bytes(std::slice::from_raw_parts(
-                str_.cast::<u8>(),
-                len as usize,
-            ))
+            tv_alloc_string_bytes(std::slice::from_raw_parts(str_.cast::<u8>(), len as usize))
         } else {
-            crate::memory::alloc_cstring(str_)
+            tv_alloc_string(str_)
         };
         tv_list_append_owned_tv(
             l,
@@ -1284,20 +1309,6 @@ pub unsafe fn tv_list_append_string(l: *mut list_T, str_: *const c_char, len: is
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::String(v_string),
-            },
-        );
-    }
-}
-
-/// Append given string to the list.
-pub unsafe fn tv_list_append_allocated_string(l: *mut list_T, str_: *mut c_char) {
-    unsafe {
-        tv_list_append_owned_tv(
-            l,
-            typval_T {
-                v_type: VarType::VAR_STRING,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::String(str_),
             },
         );
     }
@@ -3290,28 +3301,13 @@ pub unsafe fn tv_dict_add_str_len(
         let s = if val.is_null() {
             ptr::null_mut()
         } else if len < 0 {
-            crate::memory::alloc_cstring(val)
+            tv_alloc_string(val)
         } else {
-            crate::memory::alloc_cstring_bytes(std::slice::from_raw_parts(
-                val.cast::<u8>(),
-                len as usize,
-            ))
+            tv_alloc_string_bytes(std::slice::from_raw_parts(val.cast::<u8>(), len as usize))
         };
-        tv_dict_add_allocated_str(d, key, key_len, s)
-    }
-}
-
-/// Add a string entry to dictionary.
-pub unsafe fn tv_dict_add_allocated_str(
-    d: *mut dict_T,
-    key: *const c_char,
-    key_len: usize,
-    val: *mut c_char,
-) -> c_int {
-    unsafe {
         let item = tv_dict_item_alloc_len(key, key_len);
         (*item).di_tv.v_type = VarType::VAR_STRING;
-        (*item).di_tv.vval = crate::eval::typval::TypvalVval::String(val);
+        (*item).di_tv.vval = crate::eval::typval::TypvalVval::String(s);
         if tv_dict_add(d, item) == FAIL {
             tv_dict_item_free(item);
             return FAIL;
@@ -4068,7 +4064,7 @@ unsafe fn nothing_conv_func_start(tv: *mut typval_T, fun: *mut c_char) -> c_int 
         } else {
             func_unref(fun);
             if !ptr::eq(fun.cast_const(), tv_empty_string) {
-                crate::memory::free_cstring(fun);
+                tv_free_string(fun);
             }
             (*tv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
@@ -4181,7 +4177,7 @@ unsafe fn nothing_convert_one_value(
     unsafe {
         match (*tv).v_type {
             VarType::VAR_STRING => {
-                crate::memory::free_cstring((*tv).vval.v_string());
+                tv_free_string((*tv).vval.v_string());
                 (*tv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                 (*tv).v_lock = VAR_UNLOCKED;
             }
@@ -4450,7 +4446,8 @@ pub unsafe fn tv_copy(from: *const typval_T, to: *mut typval_T) {
             }
             VarType::VAR_STRING | VarType::VAR_FUNC => {
                 if !(*from).vval.v_string().is_null() {
-                    (*to).vval = crate::eval::typval::TypvalVval::String(crate::memory::alloc_cstring((*from).vval.v_string()));
+                    (*to).vval =
+                        crate::eval::typval::TypvalVval::String(tv_alloc_string((*from).vval.v_string()));
                     if (*from).v_type == VarType::VAR_FUNC {
                         func_ref((*to).vval.v_string());
                     }
@@ -5406,7 +5403,7 @@ mod tests {
             let l2 = tv_list_alloc(0);
             (*l2).lv_refcount = 1;
             tv_list_append_string(l2, c"hello".as_ptr(), 5);
-            tv_list_append_allocated_string(l2, crate::memory::alloc_cstring(c"world".as_ptr()));
+            tv_list_append_string(l2, c"world".as_ptr(), -1);
             let mut tv_ins = typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_UNLOCKED,
@@ -5468,12 +5465,7 @@ mod tests {
             assert_eq!(tv_dict_add_float(d, c"flt".as_ptr(), 3, 3.5), OK);
             assert_eq!(tv_dict_add_str(d, c"str".as_ptr(), 3, c"bar".as_ptr()), OK);
             assert_eq!(
-                tv_dict_add_allocated_str(
-                    d,
-                    c"alloc".as_ptr(),
-                    5,
-                    crate::memory::alloc_cstring(c"baz".as_ptr()),
-                ),
+                tv_dict_add_str_len(d, c"alloc".as_ptr(), 5, c"baz".as_ptr(), -1),
                 OK
             );
             assert!(tv_dict_has_key(d, c"foo".as_ptr()));
@@ -5567,7 +5559,7 @@ mod tests {
             let mut tv_str = typval_T {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::String(crate::memory::alloc_cstring(c"hello".as_ptr())),
+                vval: TypvalVval::String(tv_alloc_string(c"hello".as_ptr())),
             };
             assert!(tv_check_str_or_nr(&raw const tv_str));
             assert!(tv_check_num(&raw const tv));

@@ -1082,14 +1082,18 @@ pub unsafe fn check_buf_options(buf: *mut buf_T) {
 }
 
 pub unsafe fn alloc_string_option(s: *const c_char) -> *mut c_char {
-    unsafe { crate::memory::alloc_cstring(s) }
+    unsafe { CStr::from_ptr(s).to_owned().into_raw() }
+}
+
+pub fn alloc_string_option_bytes(bytes: &[u8]) -> *mut c_char {
+    crate::memory::cstr_from_bytes(bytes).into_raw()
 }
 
 /// Free the string allocated for an option.
 pub unsafe fn free_string_option(p: *mut c_char) {
     unsafe {
-        if p != (&raw mut empty_string_option).cast::<c_char>() {
-            crate::memory::free_cstring(p);
+        if !p.is_null() && p != (&raw mut empty_string_option).cast::<c_char>() {
+            drop(std::ffi::CString::from_raw(p));
         }
     }
 }
@@ -1097,8 +1101,8 @@ pub unsafe fn free_string_option(p: *mut c_char) {
 pub unsafe fn clear_string_option(pp: *mut *mut c_char) {
     unsafe {
         let empty = (&raw mut empty_string_option).cast::<c_char>();
-        if *pp != empty {
-            crate::memory::free_cstring(*pp);
+        if !(*pp).is_null() && *pp != empty {
+            drop(std::ffi::CString::from_raw(*pp));
         }
         *pp = empty;
     }

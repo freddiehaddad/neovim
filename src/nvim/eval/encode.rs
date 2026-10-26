@@ -10,7 +10,7 @@ use crate::eval::decode::{
 };
 use crate::eval::typval::{
     TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, list_T, listitem_T, partial_T, tv_blob_get,
-    tv_blob_len, tv_dict_find, tv_list_append_allocated_string, tv_list_first, tv_list_idx_of_item,
+    tv_blob_len, tv_dict_find, tv_list_append_string, tv_list_first, tv_list_idx_of_item,
     tv_list_last, tv_list_len, typval_T,
 };
 use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists};
@@ -163,12 +163,12 @@ pub unsafe fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usiz
                     line_length as isize,
                 );
             } else {
-                tv_list_append_allocated_string(list, std::ptr::null_mut());
+                tv_list_append_string(list, std::ptr::null(), 0);
             }
             line_end = line_end.add(1);
         }
         if line_end == end {
-            tv_list_append_allocated_string(list, std::ptr::null_mut());
+            tv_list_append_string(list, std::ptr::null(), 0);
         }
     }
 }

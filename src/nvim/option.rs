@@ -1106,12 +1106,15 @@ pub unsafe fn free_all_options() {
             let opt = get_option(opt_idx);
             let hidden = is_option_hidden(opt_idx);
 
-            if option_is_global_only(opt_idx) || hidden {
-                if !hidden {
-                    optval_free(opt_from_varp(opt_idx, (*opt).var));
+            if !hidden
+                && !(*opt).var.is_null()
+                && (option_is_global_only(opt_idx) || !option_is_window_local(opt_idx))
+            {
+                if is_callback_option(opt_idx) {
+                    callback_free((*opt).var.cast::<Callback>());
+                } else if option_has_type(opt_idx, ObjectType::kObjectTypeString) {
+                    crate::optionstr::clear_string_option((*opt).var.cast::<*mut c_char>());
                 }
-            } else if !option_is_window_local(opt_idx) {
-                optval_free(opt_from_varp(opt_idx, (*opt).var));
             }
             optval_free((*opt).def_val);
         }
@@ -1225,7 +1228,7 @@ pub unsafe fn set_helplang_default(lang: *const c_char) {
             hlg_bytes[0] = b'e';
             hlg_bytes[1] = b'n';
         }
-        p_hlg = crate::memory::alloc_cstring_bytes(&hlg_bytes);
+        p_hlg = crate::optionstr::alloc_string_option_bytes(&hlg_bytes);
     }
 }
 

@@ -265,26 +265,7 @@ pub unsafe fn alloc_cstring(str_ptr: *const c_char) -> *mut c_char {
     unsafe { alloc_cstring_len(str_ptr, len) }
 }
 
-/// Allocate a NUL-terminated C string from `bytes` (up to any interior NUL).
-#[inline]
-pub fn alloc_cstring_bytes(bytes: &[u8]) -> *mut c_char {
-    let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
-    unsafe { alloc_cstring_len(bytes.as_ptr().cast::<c_char>(), end) }
-}
-
-/// Take ownership of an `alloc_cstring`-allocated buffer as a `CString` and free the raw buffer.
-#[inline]
-pub unsafe fn take_cstring(p: *mut c_char) -> Option<CString> {
-    if p.is_null() {
-        None
-    } else {
-        let s = unsafe { CStr::from_ptr(p).to_owned() };
-        unsafe { raw_dealloc(p.cast::<c_void>()) };
-        Some(s)
-    }
-}
-
-/// Free a C string allocated by `alloc_cstring` / `alloc_cstring_len` / `alloc_cstring_bytes`.
+/// Free a C string allocated by `alloc_cstring` / `alloc_cstring_len`.
 #[inline]
 pub unsafe fn free_cstring(p: *mut c_char) {
     unsafe {

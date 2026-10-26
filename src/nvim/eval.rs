@@ -3254,7 +3254,7 @@ unsafe fn eval_method(
                     }
                     ret = FAIL;
                 } else if ref_tv.v_type == VarType::VAR_FUNC && !ref_tv.vval.v_string().is_null() {
-                    let tf = crate::memory::take_cstring(ref_tv.vval.v_string()).unwrap_or_default();
+                    let tf = crate::eval::typval::tv_take_string(ref_tv.vval.v_string()).unwrap_or_default();
                     ref_tv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                     len = tf.as_bytes().len() as c_int;
                     name = tf.as_ptr().cast_mut();

@@ -4095,7 +4095,7 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
             (*selfdict).dv_refcount += 1;
             (*pt).pt_auto = true;
             if (*rettv).v_type == VarType::VAR_FUNC || (*rettv).v_type == VarType::VAR_STRING {
-                (*pt).pt_name = crate::memory::take_cstring((*rettv).vval.v_string());
+                (*pt).pt_name = crate::eval::typval::tv_take_string((*rettv).vval.v_string());
             } else {
                 let ret_pt = (*rettv).vval.v_partial();
                 if let Some(ref ret_name) = (*ret_pt).pt_name {
