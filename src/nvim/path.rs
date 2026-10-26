@@ -35,34 +35,7 @@ use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-#[inline]
-pub unsafe fn alloc_cstring(s: *const c_char) -> *mut c_char {
-    unsafe { crate::memory::xstrdup(s) }
-}
-
-#[inline]
-pub fn alloc_cstring_bytes(bytes: &[u8]) -> *mut c_char {
-    let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
-    unsafe { crate::memory::xmemdupz(bytes.as_ptr().cast(), end).cast::<c_char>() }
-}
-
-#[inline]
-pub unsafe fn take_cstring(p: *mut c_char) -> Option<std::ffi::CString> {
-    if p.is_null() {
-        None
-    } else {
-        let s = unsafe { CStr::from_ptr(p).to_owned() };
-        unsafe { crate::memory::xfree(p.cast()) };
-        Some(s)
-    }
-}
-
-#[inline]
-pub unsafe fn free_cstring(p: *mut c_char) {
-    unsafe {
-        crate::memory::xfree(p.cast());
-    }
-}
+pub use crate::memory::{alloc_cstring, alloc_cstring_bytes, free_cstring, take_cstring};
 
 pub unsafe fn clear_cstrings(strings: &mut Vec<*mut c_char>) {
     unsafe {

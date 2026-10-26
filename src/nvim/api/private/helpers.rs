@@ -26,8 +26,8 @@ use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::mark::setmark_pos;
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
-    Arena, ArenaMem, arena_alloc, arena_finish, arena_memdupz, memchrsub, xfree, xmemdupz, xstrdup,
-    xstrnlen,
+    Arena, ArenaMem, alloc_cstring, alloc_cstring_len, arena_alloc, arena_finish, arena_memdupz,
+    free_cstring, free_items, memchrsub, xstrnlen,
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::msgpack_rpc::unpacker::unpack;
@@ -693,7 +693,7 @@ pub unsafe fn cstr_to_string(str_: *const c_char) -> NvimString {
         }
         let len = CStr::from_ptr(str_).to_bytes().len();
         NvimString {
-            data: xmemdupz(str_.cast(), len).cast(),
+            data: alloc_cstring_len(str_, len),
             size: len,
         }
     }
@@ -713,7 +713,7 @@ pub unsafe fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
 pub unsafe fn cbuf_to_string(buf: *const c_char, size: usize) -> NvimString {
     unsafe {
         NvimString {
-            data: xmemdupz(buf.cast(), size).cast(),
+            data: alloc_cstring_len(buf, size),
             size,
         }
     }
@@ -876,7 +876,7 @@ pub unsafe fn buf_get_text(
 
 pub unsafe fn api_free_string(value: NvimString) {
     unsafe {
-        xfree(value.data.cast());
+        free_cstring(value.data);
     }
 }
 
@@ -912,7 +912,7 @@ pub unsafe fn arena_string(arena: *mut Arena, str_: NvimString) -> NvimString {
                 data: if !arena.is_null() {
                     c"".as_ptr().cast_mut()
                 } else {
-                    xstrdup(c"".as_ptr())
+                    alloc_cstring(c"".as_ptr())
                 },
                 size: 0,
             }
@@ -957,7 +957,7 @@ pub unsafe fn api_free_array(value: Array) {
         for i in 0..value.size {
             api_free_object(*value.items.add(i));
         }
-        xfree(value.items.cast());
+        free_items(value.items);
     }
 }
 
@@ -968,7 +968,7 @@ pub unsafe fn api_free_dict(value: Dict) {
             api_free_string(item.key);
             api_free_object(item.value);
         }
-        xfree(value.items.cast());
+        free_items(value.items);
     }
 }
 

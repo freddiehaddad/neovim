@@ -20,7 +20,7 @@ use crate::lua::converter::{
     luaL_newmetatable, luaL_ref, luaL_register, luaL_unref,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{strequal, xcalloc, xfree, xmalloc, xrealloc, xstrlcpy};
+use crate::memory::{raw_alloc, raw_calloc, raw_dealloc, raw_realloc, strequal, xstrlcpy};
 use crate::msgpack_rpc::packer::handle_T;
 use crate::os::dl::UvLib;
 use crate::os::time::os_hrtime;
@@ -1224,7 +1224,7 @@ unsafe extern "C-unwind" fn parser_parse(L: *mut lua_State) -> c_int {
         push_tree(L, new_tree);
         push_ranges(L, changed, n_ranges as usize, include_bytes);
 
-        xfree(changed.cast::<c_void>());
+        ts_free(changed.cast::<c_void>());
         2
     }
 }
@@ -1501,7 +1501,7 @@ unsafe extern "C-unwind" fn tree_get_ranges(L: *mut lua_State) -> c_int {
         let ranges = ts_tree_included_ranges((*ud).tree, &mut len);
 
         push_ranges(L, ranges, len as usize, include_bytes);
-        xfree(ranges.cast::<c_void>());
+        ts_free(ranges.cast::<c_void>());
         1
     }
 }
@@ -1732,7 +1732,7 @@ unsafe extern "C-unwind" fn node_sexpr(L: *mut lua_State) -> c_int {
         let node = node_check(L, 1);
         let allocated = ts_node_string(node);
         lua_pushstring(L, allocated);
-        xfree(allocated.cast::<c_void>());
+        ts_free(allocated.cast::<c_void>());
         1
     }
 }
@@ -2448,19 +2448,19 @@ unsafe fn build_meta(L: *mut lua_State, tname: *const c_char, meta: *const luaL_
 }
 
 unsafe extern "C" fn ts_malloc(size: usize) -> *mut c_void {
-    unsafe { xmalloc(size) }
+    unsafe { raw_alloc(size) }
 }
 
 unsafe extern "C" fn ts_calloc(count: usize, size: usize) -> *mut c_void {
-    unsafe { xcalloc(count, size) }
+    unsafe { raw_calloc(count, size) }
 }
 
 unsafe extern "C" fn ts_realloc(ptr: *mut c_void, size: usize) -> *mut c_void {
-    unsafe { xrealloc(ptr, size) }
+    unsafe { raw_realloc(ptr, size) }
 }
 
 unsafe extern "C" fn ts_free(ptr: *mut c_void) {
-    unsafe { xfree(ptr) }
+    unsafe { raw_dealloc(ptr) }
 }
 
 unsafe fn tslua_init(L: *mut lua_State) {

@@ -2,7 +2,7 @@
 
 use std::ffi::{CStr, c_char, c_int};
 
-use crate::memory::xrealloc;
+use crate::memory::realloc_items;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -119,13 +119,7 @@ impl Array {
             } else {
                 8
             };
-            self.items = unsafe {
-                xrealloc(
-                    self.items.cast(),
-                    std::mem::size_of::<Object>() * self.capacity,
-                )
-                .cast::<Object>()
-            };
+            self.items = unsafe { realloc_items(self.items, self.capacity) };
         }
         unsafe {
             std::ptr::write(self.items.add(self.size), value);
@@ -167,13 +161,7 @@ impl Dict {
             } else {
                 8
             };
-            self.items = unsafe {
-                xrealloc(
-                    self.items.cast(),
-                    std::mem::size_of::<KeyValuePair>() * self.capacity,
-                )
-                .cast::<KeyValuePair>()
-            };
+            self.items = unsafe { realloc_items(self.items, self.capacity) };
         }
         unsafe {
             std::ptr::write(self.items.add(self.size), value);
