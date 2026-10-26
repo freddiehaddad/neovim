@@ -1,10 +1,9 @@
 //! Input engine command-atom policy layer (`src/nvim/input_cmdatom.c`).
 
 use crate::api::private::helpers::{
-    api_free_dict, api_free_string, array_obj, boolean_obj, cstr_as_obj, cstr_to_obj,
-    cstr_to_string, dict_obj, integer_obj,
+    api_free_dict, array_obj, boolean_obj, cstr_to_obj, cstr_to_string, dict_obj, integer_obj,
 };
-use crate::api::private::validate::{Array, Dict, KeyValuePair, NvimString, Object};
+use crate::api::private::validate::{Array, Dict, KeyValuePair, Object};
 use crate::autocmd::{AUGROUP_ALL, EVENT_CMDATOM, aucmd_defer, has_event};
 use crate::buffer::{buf_T, buf_get_changedtick, bufref_T, bufref_valid, set_bufref};
 use crate::charset::is_special;
@@ -30,7 +29,7 @@ use crate::mcursor::{
     mc_buf_has_cursors, mc_clock_edge, mc_following, mc_ins_cascade_start, mc_ins_cascaded,
     mc_ins_commit, mc_mark_at, mc_replaying, mc_vsel_clear, mc_vsel_refresh,
 };
-use crate::memory::{xfree, xmemdupz, xstrdup};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, xfree};
 use crate::normal::{
     NV_JUMP, NV_LANG, NV_MOTION, NV_NCH_ARG, REPLACE_CR_NCHAR, VisualState, nv_is,
 };
@@ -41,7 +40,7 @@ use crate::ops::{
 use crate::option_vars::*;
 use crate::register::reg_max_ts;
 use crate::state::{MODE_NORMAL, MODE_OP_PENDING, get_real_state};
-use crate::strings::{concat_str, strchr, strlen, vim_snprintf, vim_strchr};
+use crate::strings::{strchr, strlen, vim_snprintf, vim_strchr};
 use crate::textformat::oparg_T;
 use crate::viml::parser::expressions::ESC;
 use crate::window::{win_T, win_valid};
@@ -249,12 +248,12 @@ impl Default for CmdOrigin {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct InsSession {
     pub origin: CmdOrigin,
     pub typed: bool,
     pub vis: VisualIns,
-    pub vsel: *mut c_char,
+    pub vsel: Option<std::ffi::CString>,
 }
 
 #[repr(C)]
@@ -548,25 +547,16 @@ pub unsafe fn atom_origin_pos(buf: *mut buf_T) -> pos_T {
     }
 }
 
-unsafe fn atom_redo_keys(spec: &CmdSpec) -> *mut c_char {
+unsafe fn atom_redo_keys(spec: &CmdSpec) -> std::ffi::CString {
     unsafe {
         assert!(!mc_replaying());
-        let keys = redo_keys(spec).data;
-        assert!(!keys.is_null());
-        keys
+        redo_keys(spec).expect("atom_redo_keys must be non-empty")
     }
 }
 
 unsafe fn atom_from_redo(r#type: CmdAtomType) -> CmdAtom {
     unsafe {
-        let keys = redo_keys(ptr::null());
-        let keys_cstr = if keys.data.is_null() {
-            None
-        } else {
-            let cstr = std::ffi::CStr::from_ptr(keys.data).to_owned();
-            xfree(keys.data.cast());
-            Some(cstr)
-        };
+        let keys_cstr = redo_keys(ptr::null());
         let mut atom = CmdAtom::new();
         atom.r#type = r#type;
         atom.spec = redo_spec();
@@ -577,9 +567,7 @@ unsafe fn atom_from_redo(r#type: CmdAtomType) -> CmdAtom {
 
 unsafe fn atom_from_spec(r#type: CmdAtomType, spec: CmdSpec) -> CmdAtom {
     unsafe {
-        let keys = atom_redo_keys(&spec);
-        let keys_cstr = std::ffi::CStr::from_ptr(keys).to_owned();
-        xfree(keys.cast());
+        let keys_cstr = atom_redo_keys(&spec);
         let mut atom = CmdAtom::new();
         atom.r#type = r#type;
         atom.spec = spec;
@@ -655,7 +643,7 @@ unsafe fn atom_from_frame(ca: *mut cmdarg_T, frame: *mut CmdFrame) -> CmdAtom {
     }
 }
 
-unsafe fn atoms_concat_keys(atoms: &[CmdAtom], from: usize) -> NvimString {
+unsafe fn atoms_concat_keys(atoms: &[CmdAtom], from: usize) -> std::ffi::CString {
     unsafe {
         let mut keys: Vec<c_char> = Vec::new();
         for atom in &atoms[from..] {
@@ -663,27 +651,26 @@ unsafe fn atoms_concat_keys(atoms: &[CmdAtom], from: usize) -> NvimString {
                 sb_concat(&mut keys, k.as_ptr());
             }
         }
-        let len = keys.len();
-        let data = xmemdupz(keys.as_ptr().cast(), len).cast();
-        NvimString { data, size: len }
+        let bytes = std::slice::from_raw_parts(keys.as_ptr().cast::<u8>(), keys.len());
+        cstr_from_bytes(bytes)
     }
 }
 
-unsafe fn atom_key_name(c: c_int) -> *mut c_char {
+unsafe fn atom_key_name(c: c_int) -> std::ffi::CString {
     unsafe {
         if c == NUL || c == K_LUA {
-            return xstrdup(c"".as_ptr());
+            return std::ffi::CString::default();
         }
         if is_special(c) || c < b' ' as c_int {
-            return xstrdup(get_special_key_name(c, 0));
+            return cstr_to_cstring(get_special_key_name(c, 0));
         }
         if c == DEL {
-            return xstrdup(c"<Del>".as_ptr());
+            return c"<Del>".to_owned();
         }
         let mut buf = [0 as c_char; MB_MAXBYTES + 1];
         let n = utf_char2bytes(c, buf.as_mut_ptr()) as usize;
         buf[n] = 0;
-        xstrdup(buf.as_ptr())
+        cstr_to_cstring(buf.as_ptr())
     }
 }
 
@@ -698,22 +685,17 @@ unsafe fn atom_dict(atom: *const CmdAtom) -> Dict {
             force_buf.as_ptr()
         };
 
-        let mut op = atom_key_name(spec.op);
+        let mut op_bytes = atom_key_name(spec.op).into_bytes();
         if spec.op_extra != NUL {
-            let extra = atom_key_name(spec.op_extra);
-            let joined = crate::strings::concat_str(op, extra);
-            xfree(op.cast());
-            xfree(extra.cast());
-            op = joined;
+            op_bytes.extend_from_slice(atom_key_name(spec.op_extra).as_bytes());
         }
-        let mut cmd = atom_key_name(spec.cmd);
+        let op = cstr_from_bytes(&op_bytes);
+
+        let mut cmd_bytes = atom_key_name(spec.cmd).into_bytes();
         if spec.cmd2 != NUL {
-            let cmd2 = atom_key_name(spec.cmd2);
-            let joined = crate::strings::concat_str(cmd, cmd2);
-            xfree(cmd.cast());
-            xfree(cmd2.cast());
-            cmd = joined;
+            cmd_bytes.extend_from_slice(atom_key_name(spec.cmd2).as_bytes());
         }
+        let cmd = cstr_from_bytes(&cmd_bytes);
 
         let mut d = Dict {
             items: ptr::null_mut(),
@@ -721,16 +703,12 @@ unsafe fn atom_dict(atom: *const CmdAtom) -> Dict {
             capacity: 0,
         };
         let cmdarg = atom_key_name(spec.cmdarg);
-        if !cmdarg.is_null() && *cmdarg != 0 {
-            dict_put(&mut d, c"cmdarg", cstr_as_obj(cmdarg));
-        } else {
-            xfree(cmdarg.cast());
+        if !cmdarg.as_bytes().is_empty() {
+            dict_put(&mut d, c"cmdarg", cstr_to_obj(cmdarg.as_ptr()));
         }
         dict_put(&mut d, c"changed", boolean_obj((*atom).changed));
-        if *cmd != 0 {
-            dict_put(&mut d, c"cmd", cstr_as_obj(cmd));
-        } else {
-            xfree(cmd.cast());
+        if !cmd.as_bytes().is_empty() {
+            dict_put(&mut d, c"cmd", cstr_to_obj(cmd.as_ptr()));
         }
         if spec.count > 0 {
             dict_put(&mut d, c"count", integer_obj(spec.count as _));
@@ -759,10 +737,8 @@ unsafe fn atom_dict(atom: *const CmdAtom) -> Dict {
         if *force != 0 {
             dict_put(&mut d, c"motionforce", cstr_to_obj(force));
         }
-        if *op != 0 {
-            dict_put(&mut d, c"operator", cstr_as_obj(op));
-        } else {
-            xfree(op.cast());
+        if !op.as_bytes().is_empty() {
+            dict_put(&mut d, c"operator", cstr_to_obj(op.as_ptr()));
         }
         if spec.regname != 0 {
             dict_put(&mut d, c"reg", cstr_to_obj(regname.as_ptr()));
@@ -997,9 +973,7 @@ unsafe fn atom_composite_end() {
             atom.lhs = Some(lhs);
             atom.remap = remap;
         } else {
-            let keys = atoms_concat_keys(&*comp_atoms, 0);
-            let keys_cstr = std::ffi::CStr::from_ptr(keys.data).to_owned();
-            xfree(keys.data.cast());
+            let keys_cstr = atoms_concat_keys(&*comp_atoms, 0);
             atom = CmdAtom::new();
             atom.r#type = kAComp;
             atom.keys = Some(keys_cstr);
@@ -1333,8 +1307,7 @@ pub unsafe fn atom_stuff_start(cap: *const cmdarg_T) {
             return;
         }
         let lhs = atom_redo_keys(&atom_cmd_spec(cap));
-        atom_composite_start(lhs, strlen(lhs));
-        xfree(lhs.cast());
+        atom_composite_start(lhs.as_ptr(), lhs.as_bytes().len());
     }
 }
 
@@ -1358,9 +1331,10 @@ pub unsafe fn atom_map_start(lhs: *const c_char, len: usize, peeked: bool) {
         let op = get_vim_var_str(VV_OP);
         if get_real_state() == MODE_OP_PENDING && *op != 0 {
             assert!(*lhs.add(len) == 0);
-            let full = concat_str(op, lhs);
-            atom_composite_start(full, strlen(full));
-            xfree(full.cast());
+            let mut full_bytes = Vec::from(std::ffi::CStr::from_ptr(op).to_bytes());
+            full_bytes.extend_from_slice(std::slice::from_raw_parts(lhs.cast::<u8>(), len));
+            let full = cstr_from_bytes(&full_bytes);
+            atom_composite_start(full.as_ptr(), full.as_bytes().len());
             typed.map_start = (*typed_keys).len();
             return;
         }
@@ -1415,29 +1389,21 @@ pub unsafe fn atom_visual_redoable() -> bool {
     }
 }
 
-pub unsafe fn atom_visual_span() -> NvimString {
+pub unsafe fn atom_visual_span() -> Option<std::ffi::CString> {
     unsafe {
         if !atom_visual_replayable() {
-            return NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            };
+            return None;
         }
         let v_atoms = &raw const vatom.atoms;
         let tail = atoms_concat_keys(&*v_atoms, vatom.done);
         if vatom.done == 0 {
-            return tail;
+            return Some(tail);
         }
 
-        let mut keys: Vec<c_char> = Vec::with_capacity(2 + tail.size);
-        sb_concat(&mut keys, c"gv".as_ptr());
-        if !tail.data.is_null() && tail.size > 0 {
-            keys.extend_from_slice(std::slice::from_raw_parts(tail.data, tail.size));
-        }
-        let len = keys.len();
-        let data = xmemdupz(keys.as_ptr().cast(), len).cast();
-        api_free_string(tail);
-        NvimString { data, size: len }
+        let mut keys: Vec<u8> = Vec::with_capacity(2 + tail.as_bytes().len());
+        keys.extend_from_slice(b"gv");
+        keys.extend_from_slice(tail.as_bytes());
+        Some(cstr_from_bytes(&keys))
     }
 }
 
@@ -1459,60 +1425,51 @@ unsafe fn atom_visual_span_flush() {
         if !edited {
             return;
         }
-        let span = atom_visual_span();
-        let span_cstr = std::ffi::CStr::from_ptr(span.data).to_owned();
-        xfree(span.data.cast());
+        let span_cstr = atom_visual_span();
         vatom.done = (*v_atoms).len();
         let ga = &raw mut g_atoms;
         let mut atom = CmdAtom::new();
         atom.r#type = kAVisualSpan;
-        atom.keys = Some(span_cstr);
+        atom.keys = span_cstr;
         atom.origin = vatom.origin;
         (*ga).push(atom);
     }
 }
 
 unsafe fn atom_visual_end_suffix(
-    suffix: *mut c_char,
+    suffix: Option<std::ffi::CString>,
     spec: *const CmdSpec,
     redoable: bool,
 ) -> bool {
     unsafe {
         if mc_replaying() || atom_suppressed {
-            xfree(suffix.cast());
             return false;
         }
         let origin = vatom.origin;
         let v_atoms = &raw mut vatom.atoms;
-        let replayable = !suffix.is_null() && atom_visual_replayable();
+        let replayable = suffix.is_some() && atom_visual_replayable();
         let v = if replayable {
-            atoms_concat_keys(&*v_atoms, 0)
+            Some(atoms_concat_keys(&*v_atoms, 0))
         } else {
-            NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            }
+            None
         };
         let prepped =
-            redoable && !spec.is_null() && !suffix.is_null() && (replayable || (*spec).op != NUL);
+            redoable && !spec.is_null() && suffix.is_some() && (replayable || (*spec).op != NUL);
 
         if prepped {
             let use_redo_keys = atom_visual_redoable();
-            prep_redo_visual(
-                if use_redo_keys {
-                    v.data.cast_const()
-                } else {
-                    c"1v".as_ptr()
-                },
-                if use_redo_keys { v.size } else { 2 },
-                CmdSpec::default(),
-            );
-            redo_append_str(suffix, -1);
+            let (redo_ptr, redo_len) = if use_redo_keys && let Some(ref vc) = v {
+                (vc.as_ptr(), vc.as_bytes().len())
+            } else {
+                (c"1v".as_ptr(), 2)
+            };
+            prep_redo_visual(redo_ptr, redo_len, CmdSpec::default());
+            if let Some(ref suf) = suffix {
+                redo_append_str(suf.as_ptr(), -1);
+            }
         }
 
         if is_child_frame() {
-            xfree(v.data.cast());
-            xfree(suffix.cast());
             return prepped;
         }
 
@@ -1520,18 +1477,17 @@ unsafe fn atom_visual_end_suffix(
             let emit = (vatom.state & kVatomVoid) != 0
                 && atom_visual_typed()
                 && !spec.is_null()
-                && !suffix.is_null()
+                && suffix.is_some()
                 && atom_is_user_cmd();
             let mut label: Option<std::ffi::CString> = None;
             if emit {
                 let collected = atoms_concat_keys(&*v_atoms, 0);
-                let raw_label = concat_str(collected.data, suffix);
-                xfree(collected.data.cast());
-                let cstr = std::ffi::CStr::from_ptr(raw_label).to_owned();
-                xfree(raw_label.cast());
-                label = Some(cstr);
+                let mut bytes = Vec::from(collected.as_bytes());
+                if let Some(ref suf) = suffix {
+                    bytes.extend_from_slice(suf.as_bytes());
+                }
+                label = Some(cstr_from_bytes(&bytes));
             }
-            xfree(suffix.cast());
             atom_visual_reset();
             if emit {
                 let mut staged_atom = CmdAtom::new();
@@ -1546,16 +1502,15 @@ unsafe fn atom_visual_end_suffix(
         }
 
         if !atom_is_user_cmd() || !atom_visual_typed() {
-            xfree(v.data.cast());
-            xfree(suffix.cast());
             atom_visual_reset();
             return prepped;
         }
 
-        let raw_keys = concat_str(v.data, suffix);
-        xfree(v.data.cast());
-        let keys_cstr = std::ffi::CStr::from_ptr(raw_keys).to_owned();
-        xfree(raw_keys.cast());
+        let mut keys_bytes = Vec::from(v.as_ref().map_or(&[][..], |vc| vc.as_bytes()));
+        if let Some(ref suf) = suffix {
+            keys_bytes.extend_from_slice(suf.as_bytes());
+        }
+        let keys_cstr = cstr_from_bytes(&keys_bytes);
         let mut atom = CmdAtom::new();
         atom.r#type = kAVisual;
         if !spec.is_null() {
@@ -1564,26 +1519,20 @@ unsafe fn atom_visual_end_suffix(
         atom.keys = Some(keys_cstr);
         atom.origin = origin;
         if !spec.is_null() {
-            let suffix_cstr = std::ffi::CStr::from_ptr(suffix).to_owned();
-            xfree(suffix.cast());
             let mut op_atom = CmdAtom::new();
             op_atom.r#type = kAOperator;
             op_atom.spec = (*spec).without_body();
-            op_atom.keys = Some(suffix_cstr);
+            op_atom.keys = suffix;
             op_atom.origin = (*cur_frame).origin;
             (*v_atoms).push(op_atom);
-        } else {
-            xfree(suffix.cast());
         }
         atom.cascaded = vatom.done > 0;
         if atom.cascaded && vatom.done < (*v_atoms).len() {
-            let span = atom_visual_span();
-            let span_cstr = std::ffi::CStr::from_ptr(span.data).to_owned();
-            xfree(span.data.cast());
+            let span_cstr = atom_visual_span();
             let ga = &raw mut g_atoms;
             let mut span_atom = CmdAtom::new();
             span_atom.r#type = kAVisualSpan;
-            span_atom.keys = Some(span_cstr);
+            span_atom.keys = span_cstr;
             span_atom.origin = origin;
             (*ga).push(span_atom);
         }
@@ -1600,7 +1549,7 @@ pub unsafe fn atom_visual_end(spec: CmdSpec, redoable: bool) -> bool {
             return false;
         }
         let suffix = atom_redo_keys(&spec);
-        atom_visual_end_suffix(suffix, &spec, redoable)
+        atom_visual_end_suffix(Some(suffix), &spec, redoable)
     }
 }
 
@@ -1646,7 +1595,7 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: *mut cmdarg_T, redo_yank: 
                     },
                     0,
                 ];
-                atom_visual_end_suffix(xstrdup(suffix.as_ptr()), &spec, redoable);
+                atom_visual_end_suffix(Some(cstr_to_cstring(suffix.as_ptr())), &spec, redoable);
             } else {
                 spec.cmdarg = if (*oap).op_type == OP_REPLACE {
                     (*cap).nchar
@@ -1728,18 +1677,16 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: *mut cmdarg_T, redo_yank: 
                 let v = if atom_visual_redoable() {
                     atom_visual_span()
                 } else {
-                    NvimString {
-                        data: ptr::null_mut(),
-                        size: 0,
-                    }
+                    None
+                };
+                let (v_ptr, v_len) = if let Some(ref vc) = v {
+                    (vc.as_ptr(), vc.as_bytes().len())
+                } else {
+                    (c"1v".as_ptr(), 2)
                 };
                 prep_redo_visual(
-                    if !v.data.is_null() {
-                        v.data.cast_const()
-                    } else {
-                        c"1v".as_ptr()
-                    },
-                    if !v.data.is_null() { v.size } else { 2 },
+                    v_ptr,
+                    v_len,
                     CmdSpec {
                         regname: (*oap).regname,
                         op: get_op_char((*oap).op_type),
@@ -1747,7 +1694,6 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: *mut cmdarg_T, redo_yank: 
                         ..CmdSpec::default()
                     },
                 );
-                xfree(v.data.cast());
             }
         }
     }
@@ -1768,15 +1714,15 @@ pub unsafe fn atom_ins_start(
             } else {
                 (*cur_frame).origin
             },
-            vsel: ptr::null_mut(),
+            vsel: None,
         };
 
         if vis != kVInsNone && !mc_replaying() && !is_child_frame() {
             if vis == kVInsOther && atom_visual_replayable() && !atom_visual_redoable() {
-                session.vsel = atom_visual_span().data;
+                session.vsel = atom_visual_span();
                 session.origin = vatom.origin;
             }
-            if vis == kVInsKeys || !session.vsel.is_null() {
+            if vis == kVInsKeys || session.vsel.is_some() {
                 session.typed = atom_visual_replayable() && atom_visual_typed();
             }
             atom_visual_reset();
@@ -1788,13 +1734,13 @@ pub unsafe fn atom_ins_start(
             || cmd == b'v' as c_int;
         let reexec = vis == kVInsNone
             || vis == kVInsKeys
-            || !session.vsel.is_null()
+            || session.vsel.is_some()
             || (vis == kVInsMotion && (*cur_frame).payload_start == usize::MAX);
         mc_ins_cascade_start(
             session.typed && count <= 1 && !repl && !vblock && reexec,
             session.origin,
             (*root_frame()).id,
-            session.vsel,
+            session.vsel.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
         );
 
         session
@@ -1807,34 +1753,30 @@ pub unsafe fn atom_ins_end(session: *mut InsSession, busy: bool) {
         let user_input = (*session).typed || maptick != (*session).origin.maptick;
 
         if mc_replaying() {
-            xfree((*session).vsel.cast());
-            (*session).vsel = ptr::null_mut();
+            (*session).vsel = None;
             return;
         }
         if mc_ins_commit() {
             if has_event(EVENT_CMDATOM) && !atom_composite_active() {
                 atom_ins_push(session, false);
             }
-            xfree((*session).vsel.cast());
-            (*session).vsel = ptr::null_mut();
+            (*session).vsel = None;
             return;
         }
         if !user_input
             || busy
             || restart_edit != 0
             || !atom_buf_has_consumers()
-            || (visual && (*session).vis != kVInsKeys && (*session).vsel.is_null())
+            || (visual && (*session).vis != kVInsKeys && (*session).vsel.is_none())
         {
             if user_input && (busy || restart_edit != 0) && atom_composite_active() {
                 composite.lossy = true;
             }
-            xfree((*session).vsel.cast());
-            (*session).vsel = ptr::null_mut();
+            (*session).vsel = None;
             return;
         }
         atom_ins_push(session, mc_buf_has_cursors(curbuf));
-        xfree((*session).vsel.cast());
-        (*session).vsel = ptr::null_mut();
+        (*session).vsel = None;
     }
 }
 
@@ -1845,14 +1787,13 @@ unsafe fn atom_ins_push(session: *const InsSession, cascade: bool) {
         } else {
             kAInsert
         });
-        if !(*session).vsel.is_null()
+        if let Some(ref vsel) = (*session).vsel
             && let Some(ref cur_keys) = atom.keys
         {
             assert!(cur_keys.as_bytes().starts_with(b"1v"));
-            let raw_keys = concat_str((*session).vsel, cur_keys.as_ptr().add(2));
-            let cstr = std::ffi::CStr::from_ptr(raw_keys).to_owned();
-            xfree(raw_keys.cast());
-            atom.keys = Some(cstr);
+            let mut bytes = Vec::from(vsel.as_bytes());
+            bytes.extend_from_slice(&cur_keys.as_bytes()[2..]);
+            atom.keys = Some(cstr_from_bytes(&bytes));
         }
         let Some(ref cur_keys) = atom.keys else {
             return;
@@ -1988,12 +1929,16 @@ unsafe fn atom_capture_cmd(ca: *mut cmdarg_T, old: *mut CmdFrame) -> bool {
             let v_atoms = &raw const vatom.atoms;
             if let Some(suffix) = own.keys.take() {
                 drop(own);
-                atom_visual_end_suffix(xstrdup(suffix.as_ptr()), ptr::null(), false);
+                atom_visual_end_suffix(Some(suffix), ptr::null(), false);
             } else if user && atom_visual_replayable() && !(*v_atoms).is_empty() {
                 let suffix: [c_char; 2] = [ESC as c_char, 0];
-                atom_visual_end_suffix(xstrdup(suffix.as_ptr()), ptr::null(), false);
+                atom_visual_end_suffix(
+                    Some(cstr_to_cstring(suffix.as_ptr())),
+                    ptr::null(),
+                    false,
+                );
             } else {
-                atom_visual_end_suffix(ptr::null_mut(), ptr::null(), false);
+                atom_visual_end_suffix(None, ptr::null(), false);
             }
         }
 

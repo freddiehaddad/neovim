@@ -3,7 +3,7 @@
 use crate::api::buffer::{LUA_INTERNAL_CALL, nvim_buf_set_text};
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::helpers::{
-    api_clear_error, api_free_string, boolean_obj, cstr_as_string, cstr_to_string,
+    api_clear_error, api_free_string, boolean_obj, cstr_as_string,
     static_cstr_as_string, string_to_array,
 };
 use crate::api::private::validate::{Error, ErrorType, NvimString};
@@ -56,7 +56,7 @@ use crate::marktree::{
     marktree_itr_current, marktree_itr_get, marktree_itr_next, mt_end,
 };
 use crate::memline::{dec, inc, ml_get_len, ml_region_text};
-use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_take};
+use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::menu::save_state_T;
 use crate::r#move::{
     restore_viewstate, save_viewstate, set_topline, update_curswant, update_topline,
@@ -922,8 +922,7 @@ pub unsafe fn mc_ins_cascade_restart() {
             return;
         }
         let ins = redo_keys(ptr::null());
-        mc_ins_span.done_len = ins.size;
-        api_free_string(ins);
+        mc_ins_span.done_len = ins.as_ref().map_or(0, |s| s.as_bytes().len());
         mc_ins_preview_rebase();
     }
 }
@@ -952,8 +951,13 @@ pub unsafe fn mc_ins_cascade() {
 
         let mut start = INIT_POS;
         let mut end = INIT_POS;
-        let ins = redo_keys(ptr::null());
-        assert!(!ins.data.is_null() || ins.size == 0);
+        let ins_cstr = redo_keys(ptr::null());
+        let ins = NvimString {
+            data: ins_cstr
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+            size: ins_cstr.as_ref().map_or(0, |s| s.as_bytes().len()),
+        };
 
         if mc_ins_span.first {
             if !Ins.did_ai && !ins.data.is_null() && ins.size > 0 {
@@ -1020,7 +1024,7 @@ pub unsafe fn mc_ins_cascade() {
             }
             api_free_string(text);
         }
-        api_free_string(ins);
+        drop(ins_cstr);
     }
 }
 
@@ -1221,12 +1225,10 @@ unsafe fn mc_vsel_mark(
 pub unsafe fn mc_vsel_refresh() {
     unsafe {
         mc_vsel_clear();
-        let raw_span = atom_visual_span();
-        let span_cstr = cstr_take(raw_span.data);
-        let Some(ref span_cstr) = span_cstr else {
+        let Some(span_cstr) = atom_visual_span() else {
             return;
         };
-        if raw_span.size == 0 || !mc_buf_has_cursors(curbuf) {
+        if span_cstr.as_bytes().is_empty() || !mc_buf_has_cursors(curbuf) {
             return;
         }
         let span = NvimString {
@@ -1330,15 +1332,16 @@ pub unsafe fn mc_ins_commit() -> bool {
         mc_ins_span.active = false;
         mc_ins_span.vsel = ptr::null();
 
-        if ins_cascaded {
-            let ins = redo_keys(ptr::null());
-            if !ins.data.is_null()
-                && ins.size > mc_ins_span.done_len
-                && *ins.data.add(ins.size - 1) == ESC
-            {
+        if ins_cascaded
+            && let Some(ins_cstr) = redo_keys(ptr::null())
+        {
+            let ins = NvimString {
+                data: ins_cstr.as_ptr().cast_mut(),
+                size: ins_cstr.as_bytes().len(),
+            };
+            if ins.size > mc_ins_span.done_len && *ins.data.add(ins.size - 1) == ESC {
                 mc_ins_span_flush(&ins, true);
             }
-            api_free_string(ins);
         }
 
         if mc_ins_span.region != 0 {
@@ -1687,25 +1690,26 @@ pub unsafe fn mc_zq(oap: *mut oparg_T, cap: *mut cmdarg_T, origin: pos_T) {
         let mut first = INIT_POS;
         let mut spec = atom_cmd_spec(cap);
         spec.regname = 0;
-        let keys = if search {
-            cstr_to_string(c"/\n".as_ptr())
+        let keys_cstr = if search {
+            c"/\n".to_owned()
         } else {
-            redo_keys(&spec)
+            redo_keys(&spec).unwrap_or_default()
         };
+        let keys_data = keys_cstr.as_ptr().cast_mut();
         if !(*oap).from_visual && search {
             first = mc_zq_target(primary, true, (*oap).motion_type, ptr::null_mut()).vi_start;
             if first.lnum != 0 {
-                placed = mc_zq_run(keys.data, search, (*oap).motion_type, bounds[1], first);
+                placed = mc_zq_run(keys_data, search, (*oap).motion_type, bounds[1], first);
             }
         } else if !blockwise {
             if mc_zq_first(
-                keys.data,
+                keys_data,
                 search,
                 (*oap).motion_type,
                 bounds.as_ptr(),
                 &mut first,
             ) {
-                placed = mc_zq_run(keys.data, search, (*oap).motion_type, bounds[1], first);
+                placed = mc_zq_run(keys_data, search, (*oap).motion_type, bounds[1], first);
             }
         } else {
             for lnum in bounds[0].lnum..=bounds[1].lnum {
@@ -1728,7 +1732,7 @@ pub unsafe fn mc_zq(oap: *mut oparg_T, cap: *mut cmdarg_T, origin: pos_T) {
                 }
                 let mut step = INIT_POS;
                 if mc_zq_first(
-                    keys.data,
+                    keys_data,
                     search,
                     (*oap).motion_type,
                     line.as_ptr(),
@@ -1737,12 +1741,12 @@ pub unsafe fn mc_zq(oap: *mut oparg_T, cap: *mut cmdarg_T, origin: pos_T) {
                     if first.lnum == 0 {
                         first = step;
                     }
-                    placed += mc_zq_run(keys.data, search, (*oap).motion_type, line[1], step);
+                    placed += mc_zq_run(keys_data, search, (*oap).motion_type, line[1], step);
                 }
             }
         }
 
-        api_free_string(keys);
+        drop(keys_cstr);
         restore_search_patterns();
         restore_viewstate(curwin, &view);
 

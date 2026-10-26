@@ -388,27 +388,8 @@ unsafe fn redo_chars(spec: *const CmdSpec, buf: &mut Vec<c_char>, arg_meta: bool
     }
 }
 
-unsafe fn sb_take_string(buf: &mut Vec<c_char>) -> NvimString {
-    unsafe {
-        if buf.is_empty() {
-            *buf = Vec::new();
-            return NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            };
-        }
-        let len = buf.len();
-        let items = xmemdupz(buf.as_ptr().cast(), len).cast();
-        *buf = Vec::new();
-        NvimString {
-            data: items,
-            size: len,
-        }
-    }
-}
-
 /// Gets `spec` (or current pending change, if `spec` is NULL), composed into a "redo" keyseq.
-pub unsafe fn redo_keys(spec: *const CmdSpec) -> NvimString {
+pub unsafe fn redo_keys(spec: *const CmdSpec) -> Option<std::ffi::CString> {
     unsafe {
         let spec = if !spec.is_null() {
             spec
@@ -423,7 +404,12 @@ pub unsafe fn redo_keys(spec: *const CmdSpec) -> NvimString {
         } else {
             redo_chars(spec, &mut buf, false);
         }
-        sb_take_string(&mut buf)
+        if buf.is_empty() {
+            None
+        } else {
+            let bytes = std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), buf.len());
+            Some(crate::memory::cstr_from_bytes(bytes))
+        }
     }
 }
 

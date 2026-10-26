@@ -110,7 +110,7 @@ use crate::mcursor::{mc_ins_cascade, mc_ins_cascade_restart, mc_ins_join, mc_ins
 use crate::memline::{
     gchar_pos, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace, ml_replace_dirty_line,
 };
-use crate::memory::{cstr_take, strnequal};
+use crate::memory::strnequal;
 use crate::message::{emsg, msg_check_for_delay};
 use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, ins_mouse, ins_mousescroll, setmouse,
@@ -515,8 +515,7 @@ unsafe fn insert_enter(s: *mut InsertState) {
         do_digraph(-1);
 
         let redo = redo_keys(ptr::null());
-        Ins.new_insert_skip = redo.size as c_int;
-        let _ = cstr_take(redo.data);
+        Ins.new_insert_skip = redo.as_ref().map_or(0, |s| s.as_bytes().len() as c_int);
 
         old_indent = 0;
 
@@ -2104,8 +2103,7 @@ pub unsafe fn stop_arrow() -> c_int {
                 mc_ins_cascade_restart();
             } else {
                 let redo = redo_keys(ptr::null());
-                Ins.new_insert_skip = redo.size as c_int;
-                let _ = cstr_take(redo.data);
+                Ins.new_insert_skip = redo.as_ref().map_or(0, |s| s.as_bytes().len() as c_int);
             }
         } else if Ins.need_undo && u_save_cursor() == OK {
             if lt((*curwin).w_cursor, Ins.start) {
@@ -2130,12 +2128,10 @@ unsafe fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
         stop_redo_ins();
         replace_stack = Vec::new();
 
-        let redo = redo_keys(ptr::null());
-        let redo_cstr = cstr_take(redo.data);
-        let added = if redo_cstr.is_none() {
-            0
-        } else {
-            (redo.size as c_int) - Ins.new_insert_skip
+        let redo_cstr = redo_keys(ptr::null());
+        let added = match redo_cstr {
+            None => 0,
+            Some(ref s) => (s.as_bytes().len() as c_int) - Ins.new_insert_skip,
         };
         if Ins.did_restart_edit == 0 || added > 0 {
             last_insert = redo_cstr;
