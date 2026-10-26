@@ -41,7 +41,7 @@ use crate::keycodes::{
     K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_UP, NL,
 };
 use crate::mbyte::{mb_string2cells, mb_strnicmp, ptr2cells, utf_ptr2cells, utfc_ptr2len};
-use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_take, strequal};
+use crate::memory::{Arena, arena_finish, arena_mem_free, strequal};
 use crate::menu::{execute_menu, get_menu_mode_flag, menu_find, menu_is_separator, vimmenu_T};
 use crate::message::emsg;
 use crate::mouse::mouse_find_win_outer;
@@ -941,9 +941,7 @@ pub unsafe fn pum_redraw() {
                         };
 
                         if PUM_RL {
-                            let mut rt_bytes = cstr_take(reverse_text(st))
-                                .unwrap_or_default()
-                                .into_bytes_with_nul();
+                            let mut rt_bytes = reverse_text(st).into_bytes_with_nul();
                             let mut rt = rt_bytes.as_mut_ptr().cast::<c_char>();
                             let mut cells = mb_string2cells(rt) as c_int;
                             let pad = if next_isempty { 0 } else { 2 };

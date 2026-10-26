@@ -26,7 +26,7 @@ use crate::mbyte::{
     mb_ptr_adv, mb_ptr_back, mb_strcmp_ic, utf_head_off, utf_ptr2char, utfc_ptr2len,
 };
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
-use crate::memory::{cstr_take, xmemcpyz};
+use crate::memory::xmemcpyz;
 use crate::message::{
     emsg, msg, msg_advance, msg_ext_set_kind, msg_outnum, msg_outtrans, msg_outtrans_len,
     msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg,
@@ -4141,7 +4141,7 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
             while *key_end != NUL && !ascii_iswhite(*key_end) && *key_end != b'=' as c_char {
                 key_end = key_end.add(1);
             }
-            key = cstr_take(vim_strnsave_up(rest, key_end.offset_from(rest) as usize));
+            key = Some(vim_strnsave_up(rest, key_end.offset_from(rest) as usize));
             let key_ptr = key.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
             let item = if strcmp(key_ptr, c"MATCHGROUP".as_ptr()) == 0 {
                 ITEM_MATCHGROUP
@@ -4344,7 +4344,7 @@ fn syn_combine_list(clstr1: &mut SynIdList, clstr2: &mut SynIdList, list_op: c_i
 
 unsafe fn syn_scl_name2id(name: *const c_char) -> c_int {
     unsafe {
-        let name_u = cstr_take(vim_strsave_up(name)).unwrap_or_default();
+        let name_u = vim_strsave_up(name);
         let mut i = (*win_s(curwin)).b_syn_clusters.len() as c_int - 1;
         while i >= 0 {
             let clp = syn_clstr(win_s(curwin)).offset(i as isize);
@@ -4390,7 +4390,7 @@ unsafe fn syn_add_cluster(name: std::ffi::CString) -> c_int {
         let name_ptr = name.as_ptr();
         let is_spell = vim_stricmp(name_ptr, c"Spell".as_ptr()) == 0;
         let is_nospell = vim_stricmp(name_ptr, c"NoSpell".as_ptr()) == 0;
-        let scl_name_u = cstr_take(vim_strsave_up(name_ptr)).unwrap_or_default();
+        let scl_name_u = vim_strsave_up(name_ptr);
 
         let clusters = &mut (*win_s(curwin)).b_syn_clusters;
         clusters.push(syn_cluster_T {
@@ -4583,7 +4583,10 @@ unsafe fn syn_cmd_sync(eap: *mut exarg_T, _syncing: c_int) {
         while ends_excmd(*arg_start as c_int) == 0 {
             let mut arg_end = skiptowhite(arg_start);
             let mut next_arg = skipwhite(arg_end);
-            key_owned = cstr_take(vim_strnsave_up(arg_start, arg_end.offset_from(arg_start) as usize));
+            key_owned = Some(vim_strnsave_up(
+                arg_start,
+                arg_end.offset_from(arg_start) as usize,
+            ));
             let key = key_owned.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
             if strcmp(key, c"CCOMMENT".as_ptr()) == 0 {
                 if (*eap).skip == 0 {

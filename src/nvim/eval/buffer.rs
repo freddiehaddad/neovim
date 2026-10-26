@@ -33,7 +33,7 @@ use crate::memline::{
     ml_append, ml_delete_buf, ml_delete_flags, ml_get, ml_get_buf, ml_get_buf_len, ml_replace,
     ml_replace_buf,
 };
-use crate::memory::{cstr_take, xmemdupz};
+use crate::memory::xmemdupz;
 use crate::r#move::update_topline;
 use crate::path::path_with_url;
 use crate::sign::{buf_has_signs, get_buffer_signs};
@@ -470,17 +470,13 @@ pub unsafe fn f_prompt_appendbuf(
                     let li = tv_list_first(l);
                     let str_ = tv_get_string(&raw const (*li).li_tv);
                     let new_str = concat_str(text, str_);
-                    tv_clear(&raw mut (*li).li_tv);
-                    (*li).li_tv.v_type = VarType::VAR_STRING;
-                    (*li).li_tv.vval.v_string = new_str;
+                    crate::eval::typval::tv_set_string(&raw mut (*li).li_tv, new_str.as_ptr());
                     did_concat = true;
                 }
             } else if (*lines).v_type == VarType::VAR_STRING {
                 let str_ = tv_get_string(lines);
                 let new_str = concat_str(text, str_);
-                tv_clear(lines);
-                (*lines).v_type = VarType::VAR_STRING;
-                (*lines).vval.v_string = new_str;
+                crate::eval::typval::tv_set_string(lines, new_str.as_ptr());
             }
         }
 
@@ -1146,8 +1142,7 @@ pub unsafe fn f_prompt_setprompt(
                 );
                 cursor_col = new_prompt_len;
             } else {
-                let new_line = cstr_take(concat_str(new_prompt, old_line.add(mark_col as usize)))
-                    .unwrap_or_default();
+                let new_line = concat_str(new_prompt, old_line.add(mark_col as usize));
                 let _ = ml_replace_buf(buf, prompt_lno, new_line.as_ptr().cast_mut(), true, false);
                 extmark_splice_cols(
                     buf,

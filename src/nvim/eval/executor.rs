@@ -132,9 +132,7 @@ unsafe fn tv_op_string(tv1: &mut typval_T, tv2: &typval_T) -> c_int {
 
         let tvs = tv_get_string(tv1);
         let s = concat_str(tvs, s2);
-        tv_clear(tv1);
-        tv1.v_type = VarType::VAR_STRING;
-        tv1.vval = TypvalVval { v_string: s };
+        crate::eval::typval::tv_set_string(tv1, s.as_ptr());
     }
 
     OK

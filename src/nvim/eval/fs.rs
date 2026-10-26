@@ -448,8 +448,7 @@ pub unsafe fn modify_fname(
                 if c != NUL as c_int {
                     *(*fnamep).add(*fnamelen) = NUL;
                 }
-                let esc = cstr_take(vim_strsave_shellescape(*fnamep, false, false))
-                    .unwrap_or_default();
+                let esc = vim_strsave_shellescape(*fnamep, false, false);
                 if c != NUL as c_int {
                     *(*fnamep).add(*fnamelen) = c as c_char;
                 }

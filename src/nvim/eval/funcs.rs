@@ -8255,8 +8255,10 @@ pub unsafe fn f_sha256(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
 pub unsafe fn f_shellescape(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let do_special = non_zero_arg(argvars.add(1));
-        (*rettv).vval.v_string =
-            vim_strsave_shellescape(tv_get_string(argvars), do_special, do_special);
+        crate::eval::typval::tv_set_string(
+            rettv,
+            vim_strsave_shellescape(tv_get_string(argvars), do_special, do_special).as_ptr(),
+        );
         (*rettv).v_type = VarType::VAR_STRING;
     }
 }

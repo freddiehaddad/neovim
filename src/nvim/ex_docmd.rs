@@ -221,9 +221,8 @@ use crate::spellfile::{ex_mkspell, ex_spell};
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_TERMINAL};
 use crate::statusline::draw_tabline;
 use crate::strings::{
-    atoi, atol, del_trailing_spaces, gettext, ngettext, strcat, strcmp, strcpy, strlen, strmove,
-    strncmp, strpbrk, strrchr, strrep, strstr, vim_snprintf, vim_strchr, vim_stricmp,
-    vim_strsave_escaped,
+    atoi, atol, del_trailing_spaces, gettext, ngettext, strcmp, strcpy, strlen, strmove, strncmp,
+    strpbrk, strrchr, strrep, strstr, vim_snprintf, vim_strchr, vim_stricmp, vim_strsave_escaped,
 };
 use crate::syntax::{ex_ownsyntax, ex_syntax, ex_syntime};
 use crate::tag::{do_tag, do_tags};
@@ -8163,13 +8162,17 @@ pub unsafe fn replace_makeprg(
 
             arg = skipwhite(arg);
 
-            let mut new_cmdline = strrep(program, c"$*".as_ptr(), arg);
-            if new_cmdline.is_null() {
-                new_cmdline = xmalloc(strlen(program) + strlen(arg) + 2).cast();
-                strcpy(new_cmdline, program);
-                let _ = strcat(new_cmdline, c" ".as_ptr());
-                let _ = strcat(new_cmdline, arg);
-            }
+            let new_cmdline = if let Some(rep) = strrep(program, c"$*".as_ptr(), arg) {
+                xstrdup(rep.as_ptr())
+            } else {
+                let prog_b = CStr::from_ptr(program).to_bytes();
+                let arg_b = CStr::from_ptr(arg).to_bytes();
+                let mut combined = Vec::with_capacity(prog_b.len() + 1 + arg_b.len());
+                combined.extend_from_slice(prog_b);
+                combined.push(b' ');
+                combined.extend_from_slice(arg_b);
+                xstrdup(cstr_from_bytes(&combined).as_ptr())
+            };
 
             msg_make(arg);
 

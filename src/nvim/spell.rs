@@ -28,7 +28,7 @@ use crate::mbyte::{
 use crate::memline::{
     ml_append, ml_close, ml_delete, ml_get_buf, ml_get_buf_len, ml_open, ml_open_file, ml_replace,
 };
-use crate::memory::{cstr_take, xmemcpyz, xstrdup, xstrlcpy};
+use crate::memory::{xmemcpyz, xstrdup, xstrlcpy};
 use crate::message::{
     emsg, give_warning, msg_end, msg_ext_set_kind, msg_putchar, msg_puts, msg_start, semsg, smsg,
 };
@@ -2213,7 +2213,7 @@ pub unsafe fn check_need_cap(wp: *mut win_T, lnum: linenr_T, col: colnr_T) -> bo
                 if *skipwhite(line) == NUL {
                     need_cap = true;
                 } else {
-                    line_copy = cstr_take(concat_str(line, c" ".as_ptr()));
+                    line_copy = Some(concat_str(line, c" ".as_ptr()));
                     line = line_copy
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -3293,8 +3293,8 @@ pub unsafe fn compile_cap_prog(value: *const c_char, prog: *mut *mut regprog_T) 
     unsafe {
         let mut rp: *mut regprog_T = ptr::null_mut();
         if !value.is_null() && *value != NUL {
-            let re = cstr_take(concat_str(c"^".as_ptr(), value));
-            rp = vim_regcomp(re.as_ref().map_or(ptr::null(), |s| s.as_ptr()), RE_MAGIC);
+            let re = concat_str(c"^".as_ptr(), value);
+            rp = vim_regcomp(re.as_ptr(), RE_MAGIC);
             if rp.is_null() {
                 return (&raw const e_invarg).cast();
             }

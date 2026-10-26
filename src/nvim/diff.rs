@@ -37,7 +37,7 @@ use crate::mbyte::{
     utf_ptr2char, utfc_ptr2len,
 };
 use crate::memline::{ml_append, ml_delete, ml_get_buf, ml_get_buf_len};
-use crate::memory::{cstr_take, memchrsub, strequal, xstrdup};
+use crate::memory::{memchrsub, strequal, xstrdup};
 use crate::message::{emsg, semsg};
 use crate::r#move::{
     changed_line_abv_curs, changed_line_abv_curs_win, changed_window_setting, check_topfill,
@@ -1276,7 +1276,7 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
             #[cfg(unix)]
             {
                 fullname = crate::path::FullName_save((*eap).arg, false);
-                esc_name = cstr_take(vim_strsave_shellescape(
+                esc_name = Some(vim_strsave_shellescape(
                     fullname
                         .as_ref()
                         .map_or((*eap).arg, |s| s.as_ptr().cast_mut()),
@@ -1286,7 +1286,7 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
             }
             #[cfg(not(unix))]
             {
-                esc_name = cstr_take(vim_strsave_shellescape((*eap).arg, true, true));
+                esc_name = Some(vim_strsave_shellescape((*eap).arg, true, true));
             }
             let esc_ptr = esc_name
                 .as_ref()

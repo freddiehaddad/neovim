@@ -4536,12 +4536,11 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
         } else if cmdchar == b'K' as c_int && !kp_help {
             let ptr_cstr = std::ffi::CString::new(std::slice::from_raw_parts(ptr.cast::<u8>(), n))
                 .unwrap_or_default();
-            let p = cstr_take(if kp_ex {
-                vim_strsave_fnameescape(ptr_cstr.as_ptr(), VSE_NONE)
+            let p = if kp_ex {
+                cstr_take(vim_strsave_fnameescape(ptr_cstr.as_ptr(), VSE_NONE)).unwrap_or_default()
             } else {
                 vim_strsave_shellescape(ptr_cstr.as_ptr(), true, true)
-            })
-            .unwrap_or_default();
+            };
             let plen = p.to_bytes().len();
             buf_vec.resize(buflen + plen + 1, 0);
             strcpy(buf_vec.as_mut_ptr().add(buflen), p.as_ptr());

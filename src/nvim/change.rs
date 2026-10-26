@@ -43,7 +43,7 @@ use crate::memline::{
     ml_add_deleted_len, ml_append, ml_delete_flags, ml_get, ml_get_buf, ml_get_len,
     ml_line_alloced, ml_open_file, ml_replace, ml_setflags,
 };
-use crate::memory::{cstr_take, xmemcpyz};
+use crate::memory::xmemcpyz;
 use crate::message::{
     msg_clr_eos, msg_delay, msg_end, msg_ext_set_kind, msg_puts_hl, msg_source, msg_start, siemsg,
     wait_return,
@@ -1633,7 +1633,7 @@ pub unsafe fn open_line(
                     ptr::copy(prompt_line.add(prompt_len), prompt_line, rem_len);
                     cmdmod.cmod_flags |= CMOD_LOCKMARKS;
                     ml_replace((*curwin).w_cursor.lnum, prompt_line, true);
-                    prompt_moved = cstr_take(concat_str(prompt, p_extra));
+                    prompt_moved = Some(concat_str(prompt, p_extra));
                     p_extra = prompt_moved
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());

@@ -155,7 +155,7 @@ pub unsafe fn win_set_minimal_style(wp: *mut win_T) {
             (*wp).w_onebuf_opt.wo_fcs = if *old == NUL {
                 xstrdup(c"eob: ".as_ptr())
             } else {
-                concat_str(old, c",eob: ".as_ptr())
+                xstrdup(concat_str(old, c",eob: ".as_ptr()).as_ptr())
             };
             free_string_option(old);
         }
@@ -164,7 +164,7 @@ pub unsafe fn win_set_minimal_style(wp: *mut win_T) {
         (*wp).w_onebuf_opt.wo_winhl = if *old == NUL {
             xstrdup(c"EndOfBuffer:".as_ptr())
         } else {
-            concat_str(old, c",EndOfBuffer:".as_ptr())
+            xstrdup(concat_str(old, c",EndOfBuffer:".as_ptr()).as_ptr())
         };
         free_string_option(old);
         parse_winhl_opt(ptr::null(), wp);

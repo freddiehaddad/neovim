@@ -15,7 +15,7 @@ use crate::eval::{
 };
 use crate::ex_docmd::{ends_excmd, exarg_T, find_nextcmd, handle_did_throw, modifier_len};
 use crate::globals::*;
-use crate::memory::{cstr_take, xstrlcpy};
+use crate::memory::xstrlcpy;
 use crate::message::{emsg, internal_error, msg_puts, semsg, smsg, verbose_enter, verbose_leave};
 use crate::option_vars::*;
 use crate::regexp::{
@@ -746,8 +746,7 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
                         mesg,
                         gettext(c"Exception".as_ptr()),
                     );
-                    mesg_owned =
-                        cstr_take(concat_str(ptr::addr_of!(IObuff).cast(), c": %s".as_ptr()));
+                    mesg_owned = Some(concat_str(ptr::addr_of!(IObuff).cast(), c": %s".as_ptr()));
                     mesg = mesg_owned
                         .as_ref()
                         .map_or(ptr::null_mut(), |cs| cs.as_ptr().cast_mut());

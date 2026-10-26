@@ -1,8 +1,7 @@
 //! Functions for dealing with Vimscript variables (`src/nvim/eval/vars.c`).
 
 use crate::api::private::helpers::{
-    DI_FLAGS_FIX, DI_FLAGS_LOCK, DI_FLAGS_RO, SID_LUA, cstr_as_string, cstr_to_string, nil_obj,
-    string_obj, tv_dict_is_watched,
+    DI_FLAGS_FIX, DI_FLAGS_LOCK, DI_FLAGS_RO, SID_LUA, cstr_to_string, nil_obj, string_obj, tv_dict_is_watched,
 };
 use crate::api::private::validate::{Object, ObjectType};
 use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, VAR_SCOPE, buf_T};
@@ -1797,7 +1796,8 @@ unsafe fn ex_let_option(
 
                 if !curval_data.is_null() && !newval_data.is_null() {
                     let newval_old = newval;
-                    newval = string_obj(cstr_as_string(concat_str(curval_data, newval_data)));
+                    let joined = concat_str(curval_data, newval_data);
+                    newval = crate::api::private::helpers::cstr_to_obj(joined.as_ptr());
                     optval_free(newval_old);
                 }
             }

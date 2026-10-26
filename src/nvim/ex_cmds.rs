@@ -4258,18 +4258,21 @@ unsafe fn do_sub(
                                 if !new_start.data.is_null() {
                                     orig_line =
                                         cbuf_to_string(ml_get(lnum), ml_get_len(lnum) as usize);
-                                    let new_line = NvimString {
-                                        data: concat_str(
-                                            new_start.data,
-                                            sub_firstline.data.add(copycol as usize),
-                                        ),
-                                        size: new_start.size
-                                            + (sub_firstline.size - copycol as usize),
-                                    };
+                                    let new_line = concat_str(
+                                        new_start.data,
+                                        sub_firstline.data.add(copycol as usize),
+                                    );
+                                    let new_line_size =
+                                        new_start.size + (sub_firstline.size - copycol as usize);
 
-                                    len_change = new_line.size as c_int - orig_line.size as c_int;
+                                    len_change = new_line_size as c_int - orig_line.size as c_int;
                                     (*curwin).w_cursor.col += len_change;
-                                    ml_replace(lnum, new_line.data, false);
+                                    crate::memline::ml_replace_len(
+                                        lnum,
+                                        new_line.as_ptr().cast_mut(),
+                                        new_line_size,
+                                        true,
+                                    );
                                 }
 
                                 Search.match_lines =

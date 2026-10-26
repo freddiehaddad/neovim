@@ -19,7 +19,7 @@ use crate::mbyte::{
     utf_char2bytes, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2cells, utf_ptr2char, utf_ptr2len,
     utfc_ptr2len,
 };
-use crate::memory::{xmalloc, xmallocz, xmemdupz, xmemscan, xstrchrnul, xstrlcpy};
+use crate::memory::{xmalloc, xmallocz, xmemscan, xstrchrnul, xstrlcpy};
 use crate::message::{emsg, semsg};
 use crate::option::{csh_like_shell, fish_like_shell};
 #[cfg(windows)]
@@ -871,7 +871,7 @@ pub unsafe fn vim_strsave_shellescape(
     string: *const c_char,
     do_special: bool,
     do_newline: bool,
-) -> *mut c_char {
+) -> std::ffi::CString {
     unsafe {
         let csh_like = csh_like_shell() != 0;
         let fish_like = fish_like_shell();
@@ -909,7 +909,8 @@ pub unsafe fn vim_strsave_shellescape(
             p = p.add(utfc_ptr2len(p) as usize);
         }
 
-        let escaped_string = xmalloc(length).cast::<c_char>();
+        let mut escaped_vec = vec![0 as c_char; length];
+        let escaped_string = escaped_vec.as_mut_ptr();
         let mut d = escaped_string;
 
         *d = if use_double_quote {
@@ -978,25 +979,32 @@ pub unsafe fn vim_strsave_shellescape(
             b'\'' as c_char
         };
         *d.add(1) = NUL;
-
-        escaped_string
+        let out_len = d.offset_from(escaped_string) as usize + 1;
+        crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
+            escaped_string.cast::<u8>(),
+            out_len,
+        ))
     }
 }
 
-pub unsafe fn vim_strsave_up(string: *const c_char) -> *mut c_char {
+pub unsafe fn vim_strsave_up(string: *const c_char) -> std::ffi::CString {
     unsafe {
         let len = CStr::from_ptr(string).to_bytes().len();
-        let p1 = xmalloc(len + 1).cast::<c_char>();
-        vim_strcpy_up(p1, string);
-        p1
+        let mut buf = vec![0 as c_char; len + 1];
+        vim_strcpy_up(buf.as_mut_ptr(), string);
+        crate::memory::cstr_from_bytes(std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), len))
     }
 }
 
-pub unsafe fn vim_strnsave_up(string: *const c_char, len: usize) -> *mut c_char {
+pub unsafe fn vim_strnsave_up(string: *const c_char, len: usize) -> std::ffi::CString {
     unsafe {
-        let p1 = xmalloc(len + 1).cast::<c_char>();
-        vim_strncpy_up(p1, string, len);
-        p1
+        let mut buf = vec![0 as c_char; len + 1];
+        vim_strncpy_up(buf.as_mut_ptr(), string, len);
+        let out_len = CStr::from_ptr(buf.as_ptr()).to_bytes().len();
+        crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
+            buf.as_ptr().cast::<u8>(),
+            out_len,
+        ))
     }
 }
 
@@ -1236,15 +1244,14 @@ pub unsafe fn has_non_ascii(s: *const c_char) -> bool {
     }
 }
 
-pub unsafe fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char {
+pub unsafe fn concat_str(str1: *const c_char, str2: *const c_char) -> std::ffi::CString {
     unsafe {
         let b1 = CStr::from_ptr(str1).to_bytes();
         let b2 = CStr::from_ptr(str2).to_bytes();
-        let dest = xmalloc(b1.len() + b2.len() + 1).cast::<u8>();
-        ptr::copy_nonoverlapping(b1.as_ptr(), dest, b1.len());
-        ptr::copy_nonoverlapping(b2.as_ptr(), dest.add(b1.len()), b2.len());
-        *dest.add(b1.len() + b2.len()) = 0;
-        dest.cast()
+        let mut dest = Vec::with_capacity(b1.len() + b2.len());
+        dest.extend_from_slice(b1);
+        dest.extend_from_slice(b2);
+        crate::memory::cstr_from_bytes(&dest)
     }
 }
 
@@ -2823,31 +2830,34 @@ pub unsafe fn vim_snprintf_typval_only(
     unsafe { vim_vsnprintf_typval_inner(str_out, str_m, fmt, tvs, &[]) }
 }
 
-pub unsafe fn reverse_text(s: *mut c_char) -> *mut c_char {
+pub unsafe fn reverse_text(s: *mut c_char) -> std::ffi::CString {
     unsafe {
         let len = CStr::from_ptr(s).to_bytes().len();
-        let rev = xmalloc(len + 1).cast::<c_char>();
+        let mut rev = vec![0u8; len];
         let mut s_i: usize = 0;
         let mut rev_i: usize = len;
         while s_i < len {
             let mb_len = utfc_ptr2len(s.add(s_i)) as usize;
             rev_i -= mb_len;
-            ptr::copy(s.add(s_i), rev.add(rev_i), mb_len);
+            ptr::copy(s.add(s_i).cast::<u8>(), rev.as_mut_ptr().add(rev_i), mb_len);
             s_i += mb_len;
         }
-        *rev.add(len) = NUL;
-        rev
+        crate::memory::cstr_from_bytes(&rev)
     }
 }
 
-pub unsafe fn strrep(src: *const c_char, what: *const c_char, rep: *const c_char) -> *mut c_char {
+pub unsafe fn strrep(
+    src: *const c_char,
+    what: *const c_char,
+    rep: *const c_char,
+) -> Option<std::ffi::CString> {
     unsafe {
         let src_bytes = CStr::from_ptr(src).to_bytes();
         let what_bytes = CStr::from_ptr(what).to_bytes();
         let rep_bytes = CStr::from_ptr(rep).to_bytes();
 
         if what_bytes.is_empty() {
-            return ptr::null_mut();
+            return None;
         }
 
         let mut count: usize = 0;
@@ -2865,32 +2875,27 @@ pub unsafe fn strrep(src: *const c_char, what: *const c_char, rep: *const c_char
         }
 
         if count == 0 {
-            return ptr::null_mut();
+            return None;
         }
 
         let total_len = (src_bytes.len() + count * rep_bytes.len()) - count * what_bytes.len();
-        let ret = xmalloc(total_len + 1).cast::<u8>();
-        let mut dst = ret;
+        let mut ret = Vec::with_capacity(total_len);
         let mut cur: usize = 0;
         while cur + what_bytes.len() <= src_bytes.len() {
             if let Some(rel) = src_bytes[cur..]
                 .windows(what_bytes.len())
                 .position(|w| w == what_bytes)
             {
-                ptr::copy_nonoverlapping(src_bytes.as_ptr().add(cur), dst, rel);
-                dst = dst.add(rel);
-                ptr::copy_nonoverlapping(rep_bytes.as_ptr(), dst, rep_bytes.len());
-                dst = dst.add(rep_bytes.len());
+                ret.extend_from_slice(&src_bytes[cur..cur + rel]);
+                ret.extend_from_slice(rep_bytes);
                 cur += rel + what_bytes.len();
             } else {
                 break;
             }
         }
-        let rem = src_bytes.len() - cur;
-        ptr::copy_nonoverlapping(src_bytes.as_ptr().add(cur), dst, rem);
-        *dst.add(rem) = 0;
+        ret.extend_from_slice(&src_bytes[cur..]);
 
-        ret.cast()
+        Some(crate::memory::cstr_from_bytes(&ret))
     }
 }
 
@@ -3336,8 +3341,7 @@ pub unsafe fn f_strcharpart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             len = (slen as c_int) - nbyte;
         }
 
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = xmemdupz(p.add(nbyte as usize).cast(), len as usize).cast();
+        crate::eval::typval::tv_set_string_len(rettv, p.add(nbyte as usize), len as usize);
     }
 }
 
@@ -3379,8 +3383,7 @@ pub unsafe fn f_strpart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             len = off - n;
         }
 
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = xmemdupz(p.add(n as usize).cast(), len as usize).cast();
+        crate::eval::typval::tv_set_string_len(rettv, p.add(n as usize), len as usize);
     }
 }
 
@@ -3607,7 +3610,7 @@ pub unsafe fn f_tr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFunc
             in_str = in_str.add(inlen);
         }
 
-        (*rettv).vval.v_string = xmemdupz(out.as_ptr().cast(), out.len()).cast();
+        crate::eval::typval::tv_set_string_len(rettv, out.as_ptr(), out.len());
     }
 }
 
@@ -3698,7 +3701,7 @@ pub unsafe fn f_trim(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
                 tail = prev;
             }
         }
-        (*rettv).vval.v_string = xstrnsave(head, tail.offset_from(head) as usize);
+        crate::eval::typval::tv_set_string_len(rettv, head, tail.offset_from(head) as usize);
     }
 }
 
@@ -3714,13 +3717,12 @@ mod tests {
             assert_eq!(CStr::from_ptr(unquoted).to_str().unwrap(), "/bin/sh");
             xfree(unquoted.cast());
 
-            let rep = strrep(c"foo bar foo".as_ptr(), c"foo".as_ptr(), c"baz".as_ptr());
-            assert_eq!(CStr::from_ptr(rep).to_str().unwrap(), "baz bar baz");
-            xfree(rep.cast());
+            let rep =
+                strrep(c"foo bar foo".as_ptr(), c"foo".as_ptr(), c"baz".as_ptr()).unwrap();
+            assert_eq!(rep.to_str().unwrap(), "baz bar baz");
 
             let cat = concat_str(c"hello ".as_ptr(), c"world".as_ptr());
-            assert_eq!(CStr::from_ptr(cat).to_str().unwrap(), "hello world");
-            xfree(cat.cast());
+            assert_eq!(cat.to_str().unwrap(), "hello world");
 
             assert_eq!(vim_strnicmp_asc(c"AbC".as_ptr(), c"aBc".as_ptr(), 3), 0);
             assert!(!has_non_ascii(c"ascii".as_ptr()));
@@ -3886,8 +3888,7 @@ mod tests {
                 (b"ab\xc2\0", b"\xc2ba"),
             ] {
                 let rev = reverse_text(inp.as_ptr().cast_mut().cast());
-                assert_eq!(CStr::from_ptr(rev).to_bytes(), exp);
-                xfree(rev.cast());
+                assert_eq!(rev.as_bytes(), exp);
             }
         }
     }
