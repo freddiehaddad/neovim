@@ -7806,13 +7806,16 @@ pub unsafe fn f_serverstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
                 emsg(gettext(e_invarg.as_ptr()));
                 return;
             }
-            to_slash_save(tv_get_string(argvars))
+            let slash = to_slash_save(tv_get_string(argvars));
+            let cstr = CStr::from_ptr(slash).to_owned();
+            xfree(slash.cast());
+            cstr
         } else {
             server_address_new(ptr::null())
         };
 
-        let result = server_start(address);
-        xfree(address.cast());
+        let result = server_start(address.as_ptr());
+        drop(address);
 
         if result != 0 {
             semsg!(

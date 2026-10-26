@@ -57,8 +57,7 @@ use crate::main_init::{getout, os_exit, preserve_exit};
 use crate::math::{FAIL, OK};
 use crate::memline::{ml_get_buf, ml_get_buf_len, ml_replace};
 use crate::memory::{
-    Arena, ArenaMem, arena_finish, arena_mem_free, strequal, xfree, xmalloc, xmallocz, xmemdupz,
-    xstrdup,
+    Arena, ArenaMem, arena_finish, arena_mem_free, strequal, xfree, xmemdupz, xstrdup,
 };
 use crate::message::{
     emsg, msg_ext_no_fast, msg_multihl, msg_putchar, msg_use_printf, redirecting, semsg_multiline,
@@ -2346,28 +2345,30 @@ pub unsafe fn ex_lua(eap: *mut exarg_T) {
         }
 
         let mut len: usize = 0;
-        let mut code = script_get(eap, &raw mut len);
-        if (*eap).skip != 0 || code.is_null() {
-            xfree(code.cast());
+        let raw_code = script_get(eap, &raw mut len);
+        if (*eap).skip != 0 || raw_code.is_null() {
+            xfree(raw_code.cast());
             return;
         }
 
-        if (*eap).cmdidx == CMD_equal || *code == b'=' as c_char {
+        let code_cstr = if (*eap).cmdidx == CMD_equal || *raw_code == b'=' as c_char {
             let off: usize = if (*eap).cmdidx == CMD_equal { 0 } else { 1 };
-            len += 18 - off;
-            let code_buf = xmallocz(len).cast::<c_char>();
-            vim_snprintf!(
-                code_buf,
-                len + 1,
-                c"vim._print(true, %s)".as_ptr(),
-                code.add(off),
-            );
-            xfree(code.cast());
-            code = code_buf;
-        }
+            let body = std::slice::from_raw_parts(raw_code.add(off).cast::<u8>(), len - off);
+            let mut buf = Vec::with_capacity(18 + body.len());
+            buf.extend_from_slice(b"vim._print(true, ");
+            buf.extend_from_slice(body);
+            buf.push(b')');
+            xfree(raw_code.cast());
+            len = buf.len();
+            std::ffi::CString::new(buf).unwrap()
+        } else {
+            let cstr = CStr::from_ptr(raw_code).to_owned();
+            xfree(raw_code.cast());
+            cstr
+        };
 
         nlua_exec_typval(
-            code,
+            code_cstr.as_ptr(),
             len,
             c":lua".as_ptr(),
             ptr::null_mut(),
@@ -2375,7 +2376,6 @@ pub unsafe fn ex_lua(eap: *mut exarg_T) {
             false,
             ptr::null_mut(),
         );
-        xfree(code.cast());
     }
 }
 
@@ -2898,15 +2898,17 @@ pub unsafe fn nlua_init_defaults() {
 
 pub unsafe fn nlua_func_exists(lua_funcname: *const c_char) -> bool {
     unsafe {
-        let length = CStr::from_ptr(lua_funcname).to_bytes().len() + 8;
-        let str_ = xmalloc(length).cast::<c_char>();
-        vim_snprintf!(str_, length, c"return %s".as_ptr(), lua_funcname);
+        let fname_bytes = CStr::from_ptr(lua_funcname).to_bytes();
+        let mut str_bytes = Vec::with_capacity(7 + fname_bytes.len());
+        str_bytes.extend_from_slice(b"return ");
+        str_bytes.extend_from_slice(fname_bytes);
+        let str_cstr = std::ffi::CString::new(str_bytes).unwrap();
         let mut args_items: [Object; 1] = [Object {
             obj_type: ObjectType::kObjectTypeString,
             data: ObjectData {
                 string: NvimString {
-                    data: str_,
-                    size: length - 1,
+                    data: str_cstr.as_ptr().cast_mut(),
+                    size: str_cstr.as_bytes().len(),
                 },
             },
         }];
@@ -2933,7 +2935,7 @@ pub unsafe fn nlua_func_exists(lua_funcname: *const c_char) -> bool {
             ptr::null_mut(),
             &raw mut err,
         );
-        xfree(str_.cast());
+        drop(str_cstr);
 
         api_clear_error(&raw mut err);
         result.obj_type == ObjectType::kObjectTypeBoolean && result.data.boolean

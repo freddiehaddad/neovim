@@ -777,7 +777,9 @@ pub unsafe fn ui_array(arena: *mut Arena) -> Array {
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
                     data: ObjectData {
-                        string: cstr_as_string((*ui).term_name),
+                        string: cstr_as_string(
+                            (*ui).term_name.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                        ),
                     },
                 },
             );

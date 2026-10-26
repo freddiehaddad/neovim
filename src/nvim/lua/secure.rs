@@ -7,9 +7,8 @@ use crate::lua::converter::{
     lua_settable, lua_settop, lua_toboolean, lua_tolstring,
 };
 use crate::lua::executor::{get_global_lstate, nlua_error, nlua_pcall};
-use crate::memory::{xfree, xmemdupz};
 use crate::message::{semsg, smsg};
-use std::ffi::{CStr, c_char};
+use std::ffi::{CStr, CString, c_char};
 
 use crate::ex_docmd::exarg_T;
 
@@ -70,18 +69,17 @@ pub unsafe fn ex_trust(eap: *mut exarg_T) {
         let arg = (*eap).arg;
         let p = skiptowhite(arg);
         let arg1_len = (p as usize) - (arg as usize);
-        let arg1 = xmemdupz(arg.cast(), arg1_len).cast::<c_char>();
+        let arg1 = CString::new(std::slice::from_raw_parts(arg.cast::<u8>(), arg1_len)).unwrap();
         let mut action = c"allow".as_ptr();
         let mut path = skipwhite(p);
 
-        let arg1_bytes = CStr::from_ptr(arg1).to_bytes();
+        let arg1_bytes = arg1.as_bytes();
         if arg1_bytes == b"++deny" {
             action = c"deny".as_ptr();
         } else if arg1_bytes == b"++remove" {
             action = c"remove".as_ptr();
         } else if !arg1_bytes.is_empty() {
-            semsg!(e_invarg2.as_ptr(), arg1);
-            xfree(arg1.cast());
+            semsg!(e_invarg2.as_ptr(), arg1.as_ptr());
             return;
         }
 
@@ -90,7 +88,6 @@ pub unsafe fn ex_trust(eap: *mut exarg_T) {
         }
 
         nlua_trust(action, path);
-        xfree(arg1.cast());
     }
 }
 

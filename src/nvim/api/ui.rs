@@ -307,7 +307,7 @@ pub unsafe extern "C" fn nvim_ui_attach(
             pum_col: -1.0,
             pum_height: 0.0,
             pum_width: 0.0,
-            term_name: ptr::null_mut(),
+            term_name: None,
             term_background: ptr::null_mut(),
             term_colors: 0,
             stdin_tty: false,
@@ -586,7 +586,13 @@ unsafe fn ui_set_option(
                 return;
             }
             set_tty_option(c"term".as_ptr(), string_to_cstr(value.data.string));
-            (*ui).term_name = string_to_cstr(value.data.string);
+            let s = value.data.string;
+            let slice = if s.data.is_null() || s.size == 0 {
+                &[][..]
+            } else {
+                std::slice::from_raw_parts(s.data.cast::<u8>(), s.size)
+            };
+            (*ui).term_name = Some(std::ffi::CString::new(slice).unwrap());
             return;
         }
 

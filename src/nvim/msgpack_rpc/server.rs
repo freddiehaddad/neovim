@@ -41,7 +41,7 @@ unsafe fn watchers_mut() -> &'static mut Vec<*mut SocketWatcher> {
 pub unsafe fn server_init(mut listen_addr: *const c_char) -> bool {
     unsafe {
         let mut ok = true;
-        let mut must_free = false;
+        let mut owned_addr: Option<std::ffi::CString> = None;
         let mut user_arg: TriState = kTrue;
         watchers = Vec::new();
 
@@ -49,13 +49,15 @@ pub unsafe fn server_init(mut listen_addr: *const c_char) -> bool {
             if os_env_exists(ENV_LISTEN.as_ptr(), true) {
                 user_arg = kFalse;
                 let raw = os_getenv_cstr(ENV_LISTEN.as_ptr());
-                listen_addr =
-                    to_slash_save(raw.as_ref().map_or(ptr::null(), |c| c.as_ptr())).cast_const();
+                let slash = to_slash_save(raw.as_ref().map_or(ptr::null(), |c| c.as_ptr()));
+                let cstr = std::ffi::CStr::from_ptr(slash).to_owned();
+                xfree(slash.cast());
+                owned_addr = Some(cstr);
             } else {
                 user_arg = kNone;
-                listen_addr = server_address_new(ptr::null()).cast_const();
+                owned_addr = Some(server_address_new(ptr::null()));
             }
-            must_free = true;
+            listen_addr = owned_addr.as_ref().unwrap().as_ptr();
         }
 
         let rv = server_start(listen_addr);
@@ -98,9 +100,7 @@ pub unsafe fn server_init(mut listen_addr: *const c_char) -> bool {
             os_unsetenv(ENV_LISTEN.as_ptr());
         }
 
-        if must_free {
-            xfree(listen_addr.cast_mut().cast());
-        }
+        drop(owned_addr);
 
         ok
     }
@@ -124,7 +124,7 @@ pub unsafe fn server_teardown() {
     }
 }
 
-pub unsafe fn server_address_new(name: *const c_char) -> *mut c_char {
+pub unsafe fn server_address_new(name: *const c_char) -> std::ffi::CString {
     unsafe {
         let mut fmt: [c_char; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
         let cur_count = server_addr_count;
@@ -181,7 +181,7 @@ pub unsafe fn server_address_new(name: *const c_char) -> *mut c_char {
                 fmt.as_ptr(),
             );
         }
-        xstrdup(fmt.as_ptr())
+        std::ffi::CStr::from_ptr(fmt.as_ptr()).to_owned()
     }
 }
 
@@ -220,15 +220,15 @@ pub unsafe fn server_start(addr: *const c_char) -> c_int {
             && strstr(addr, c"/".as_ptr()).is_null()
             && strstr(addr, c"\\".as_ptr()).is_null();
         let addr_gen = if isname {
-            server_address_new(addr)
+            Some(server_address_new(addr))
         } else {
-            ptr::null_mut()
+            None
         };
         let watcher = Box::into_raw(Box::new(SocketWatcher::new()));
-        let endpoint = if isname { addr_gen.cast_const() } else { addr };
+        let endpoint = addr_gen.as_ref().map_or(addr, |s| s.as_ptr());
         let mut result =
             socket_watcher_init(ptr::addr_of_mut!(main_loop).cast(), watcher, endpoint);
-        xfree(addr_gen.cast());
+        drop(addr_gen);
         if result < 0 {
             let _ = Box::from_raw(watcher);
             return result;

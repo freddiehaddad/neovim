@@ -73,7 +73,7 @@ pub struct RemoteUI {
     pub pum_col: f64,
     pub pum_height: f64,
     pub pum_width: f64,
-    pub term_name: *mut c_char,
+    pub term_name: Option<std::ffi::CString>,
     pub term_background: *mut c_char,
     pub term_colors: c_int,
     pub stdin_tty: bool,
@@ -100,7 +100,6 @@ impl Drop for RemoteUI {
     fn drop(&mut self) {
         unsafe {
             crate::memory::xfree(self.packer.startptr.cast());
-            crate::memory::xfree(self.term_name.cast());
         }
     }
 }
