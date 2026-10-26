@@ -184,8 +184,8 @@ pub static mut spelltab: spelltab_T = spelltab_T {
 };
 pub static mut did_set_spelltab: bool = false;
 pub static mut e_format: *mut c_char = c"E759: Format error in spell file".as_ptr().cast_mut();
-pub static mut repl_from: *mut c_char = ptr::null_mut();
-pub static mut repl_to: *mut c_char = ptr::null_mut();
+pub static mut repl_from: Option<std::ffi::CString> = None;
+pub static mut repl_to: Option<std::ffi::CString> = None;
 static mut parse_spelllang_recursive: bool = false;
 static mut spell_expand_need_cap: bool = false;
 #[inline]
@@ -2001,10 +2001,8 @@ pub unsafe fn spell_free_all() {
         }
         first_lang = Vec::new();
         spell_delete_wordlist();
-        xfree(repl_to.cast());
-        repl_to = ptr::null_mut();
-        xfree(repl_from.cast());
-        repl_from = ptr::null_mut();
+        repl_to = None;
+        repl_from = None;
     }
 }
 pub unsafe fn spell_reload() {
@@ -2241,17 +2239,23 @@ pub unsafe fn ex_spellrepall(_eap: *mut exarg_T) {
         let pos = (*curwin).w_cursor;
         let save_ws = p_ws;
         let mut prev_lnum: linenr_T = 0;
-        if repl_from.is_null() || repl_to.is_null() {
+        let (Some(repl_from_cstr), Some(repl_to_cstr)) = (
+            (&raw const repl_from).as_ref().unwrap().as_ref(),
+            (&raw const repl_to).as_ref().unwrap().as_ref(),
+        ) else {
             emsg(gettext(c"E752: No previous spell replacement".as_ptr()));
             return;
-        }
-        let repl_from_len = strlen(repl_from);
-        let repl_to_len = strlen(repl_to);
+        };
+        let repl_from_ptr = repl_from_cstr.as_ptr();
+        let repl_to_ptr = repl_to_cstr.as_ptr();
+        let repl_from_len = repl_from_cstr.as_bytes().len();
+        let repl_to_len = repl_to_cstr.as_bytes().len();
         let addlen = repl_to_len as i64 - repl_from_len as i64;
         let frompatsize = repl_from_len + 7;
-        let frompat = xmalloc(frompatsize).cast::<c_char>();
+        let mut frompat_vec: Vec<c_char> = vec![0; frompatsize];
+        let frompat = frompat_vec.as_mut_ptr();
         let frompatlen =
-            vim_snprintf!(frompat, frompatsize, c"\\V\\<%s\\>".as_ptr(), repl_from) as usize;
+            vim_snprintf!(frompat, frompatsize, c"\\V\\<%s\\>".as_ptr(), repl_from_ptr,) as usize;
         p_ws = 0;
         sub_nsubs = 0;
         sub_nlines = 0;
@@ -2276,16 +2280,17 @@ pub unsafe fn ex_spellrepall(_eap: *mut exarg_T) {
             if addlen <= 0
                 || strncmp(
                     line.add((*curwin).w_cursor.col as usize),
-                    repl_to,
+                    repl_to_ptr,
                     repl_to_len,
                 ) != 0
             {
-                let p =
-                    xmalloc((get_cursor_line_len() as i64 + addlen + 1) as usize).cast::<c_char>();
+                let mut p_vec: Vec<c_char> =
+                    vec![0; (get_cursor_line_len() as i64 + addlen + 1) as usize];
+                let p = p_vec.as_mut_ptr();
                 ptr::copy(line, p, (*curwin).w_cursor.col as usize);
-                strcpy(p.add((*curwin).w_cursor.col as usize), repl_to);
+                strcpy(p.add((*curwin).w_cursor.col as usize), repl_to_ptr);
                 strcat(p, line.add((*curwin).w_cursor.col as usize + repl_from_len));
-                let _ = ml_replace((*curwin).w_cursor.lnum, p, false);
+                let _ = ml_replace((*curwin).w_cursor.lnum, p, true);
                 inserted_bytes(
                     (*curwin).w_cursor.lnum,
                     (*curwin).w_cursor.col,
@@ -2302,9 +2307,8 @@ pub unsafe fn ex_spellrepall(_eap: *mut exarg_T) {
         }
         p_ws = save_ws;
         (*curwin).w_cursor = pos;
-        xfree(frompat.cast());
         if sub_nsubs == 0 {
-            semsg!(gettext(c"E753: Not found: %s".as_ptr()), repl_from);
+            semsg!(gettext(c"E753: Not found: %s".as_ptr()), repl_from_ptr);
         } else {
             do_sub_msg(false);
         }
@@ -3219,7 +3223,9 @@ pub unsafe fn spell_expand_check_cap(col: colnr_T) {
 pub unsafe fn expand_spelling(_lnum: linenr_T, pat: *mut c_char, matches: &mut Vec<*mut c_char>) {
     unsafe {
         matches.clear();
-        spell_suggest_list(matches, pat, 100, spell_expand_need_cap, true);
+        for s in spell_suggest_list(pat, 100, spell_expand_need_cap, true) {
+            matches.push(xstrdup(s.as_ptr()));
+        }
     }
 }
 pub unsafe fn valid_spelllang(val: *const c_char) -> bool {

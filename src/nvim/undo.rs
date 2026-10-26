@@ -48,7 +48,7 @@ use crate::mcursor::mc_undo_time;
 #[cfg(unix)]
 use crate::memline::resolve_symlink;
 use crate::memline::{ml_append_flags, ml_delete, ml_get, ml_get_buf, ml_replace};
-use crate::memory::{time_to_bytes, xfree, xmalloc, xmallocz, xstrdup, xstrlcat};
+use crate::memory::{cstr_take, time_to_bytes, xfree, xstrlcat};
 use crate::message::{
     emsg, give_warning, iemsg, internal_error, messaging, msg, msg_end, msg_ext_set_kind,
     msg_putchar, msg_puts, msg_puts_hl, msg_start, semsg, smsg, smsg_keep, verb_msg, verbose_enter,
@@ -171,8 +171,7 @@ impl u_header_T {
     }
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct UndoCheckpoint {
     pub uc_oldhead: *mut u_header_T,
     pub uc_newhead: *mut u_header_T,
@@ -184,7 +183,7 @@ pub struct UndoCheckpoint {
     pub uc_seq_cur: c_int,
     pub uc_time_cur: time_t,
     pub uc_save_nr_cur: c_int,
-    pub uc_line_ptr: *mut c_char,
+    pub uc_line_ptr: Option<std::ffi::CString>,
     pub uc_line_lnum: linenr_T,
     pub uc_line_colnr: colnr_T,
     pub uc_undolevels: OptInt,
@@ -204,7 +203,7 @@ impl UndoCheckpoint {
             uc_seq_cur: 0,
             uc_time_cur: 0,
             uc_save_nr_cur: 0,
-            uc_line_ptr: ptr::null_mut(),
+            uc_line_ptr: None,
             uc_line_lnum: 0,
             uc_line_colnr: 0,
             uc_undolevels: 0,
@@ -568,14 +567,17 @@ pub unsafe fn u_compute_hash(buf: *mut buf_T, hash: *mut u8) {
 }
 
 /// Return an allocated string of the full path of the target undofile.
-pub unsafe fn u_get_undo_file_name(buf_ffname: *const c_char, reading: bool) -> *mut c_char {
+pub unsafe fn u_get_undo_file_name(
+    buf_ffname: *const c_char,
+    reading: bool,
+) -> Option<std::ffi::CString> {
     unsafe {
         #[cfg(unix)]
         let mut ffname = buf_ffname;
         #[cfg(not(unix))]
         let ffname = buf_ffname;
         if ffname.is_null() {
-            return ptr::null_mut();
+            return None;
         }
 
         #[cfg(unix)]
@@ -588,11 +590,8 @@ pub unsafe fn u_get_undo_file_name(buf_ffname: *const c_char, reading: bool) -> 
         }
 
         let mut dir_name = [0 as c_char; MAXPATHL + 1];
-        let mut munged_name = NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
-        let mut undo_file_name: *mut c_char = ptr::null_mut();
+        let mut munged_vec: Vec<c_char> = Vec::new();
+        let mut undo_file_name: Option<std::ffi::CString> = None;
 
         let ffname_len = strlen(ffname);
         let mut dirp = p_udir;
@@ -604,13 +603,15 @@ pub unsafe fn u_get_undo_file_name(buf_ffname: *const c_char, reading: bool) -> 
                 c",".as_ptr(),
             );
             if dir_len == 1 && dir_name[0] == b'.' as c_char {
-                undo_file_name = xmalloc(ffname_len + 6).cast::<c_char>();
-                ptr::copy(ffname, undo_file_name, ffname_len + 1);
-                let tail = path_tail(undo_file_name);
-                let tail_len = ffname_len - (tail.offset_from(undo_file_name) as usize);
+                let mut ufn_vec: Vec<c_char> = vec![0; ffname_len + 6];
+                let ufn = ufn_vec.as_mut_ptr();
+                ptr::copy(ffname, ufn, ffname_len + 1);
+                let tail = path_tail(ufn);
+                let tail_len = ffname_len - (tail.offset_from(ufn) as usize);
                 ptr::copy(tail, tail.add(1), tail_len + 1);
                 *tail = b'.' as c_char;
                 ptr::copy(c".un~".as_ptr(), tail.add(tail_len + 1), 5);
+                undo_file_name = Some(std::ffi::CStr::from_ptr(ufn).to_owned());
             } else {
                 dir_name[dir_len] = NUL;
 
@@ -629,28 +630,24 @@ pub unsafe fn u_get_undo_file_name(buf_ffname: *const c_char, reading: bool) -> 
                         ptr::null_mut(),
                     );
                     if ret != 0 {
+                        let failed_dir = cstr_take(failed_dir);
                         semsg!(
                             gettext(
                                 c"E5003: Unable to create directory \"%s\" for undo file: %s"
                                     .as_ptr(),
                             ),
-                            failed_dir,
+                            failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                             uv_strerror(ret),
                         );
-                        xfree(failed_dir.cast());
                     } else {
                         has_directory = true;
                     }
                 }
                 if has_directory {
-                    if munged_name.data.is_null() {
-                        let d = xmallocz(ffname_len).cast::<c_char>();
-                        ptr::copy_nonoverlapping(ffname, d, ffname_len);
-                        munged_name = NvimString {
-                            data: d,
-                            size: ffname_len,
-                        };
-                        let mut p = munged_name.data;
+                    if munged_vec.is_empty() {
+                        munged_vec = vec![0; ffname_len + 1];
+                        ptr::copy_nonoverlapping(ffname, munged_vec.as_mut_ptr(), ffname_len);
+                        let mut p = munged_vec.as_mut_ptr();
                         while *p != NUL {
                             if vim_ispathsep(*p as c_int) {
                                 *p = b'%' as c_char;
@@ -662,18 +659,22 @@ pub unsafe fn u_get_undo_file_name(buf_ffname: *const c_char, reading: bool) -> 
                         data: dir_name.as_mut_ptr(),
                         size: dir_len,
                     };
-                    undo_file_name = concat_fnames(dir_str, munged_name, true).data;
+                    let munged_name = NvimString {
+                        data: munged_vec.as_mut_ptr(),
+                        size: ffname_len,
+                    };
+                    undo_file_name = cstr_take(concat_fnames(dir_str, munged_name, true).data);
                 }
             }
 
-            if !undo_file_name.is_null() && (!reading || os_path_exists(undo_file_name)) {
+            if let Some(ref ufn) = undo_file_name
+                && (!reading || os_path_exists(ufn.as_ptr()))
+            {
                 break;
             }
-            xfree(undo_file_name.cast());
-            undo_file_name = ptr::null_mut();
+            undo_file_name = None;
         }
 
-        xfree(munged_name.data.cast());
         undo_file_name
     }
 }
@@ -704,13 +705,24 @@ unsafe fn serialize_header(bi: &mut bufinfo_T, hash: *mut u8) -> bool {
         }
 
         undo_write_bytes(bi, (*buf).b_ml.ml_line_count as u64, 4);
-        let len = if !(*buf).b_u_line_ptr.is_null() {
-            strlen((*buf).b_u_line_ptr)
-        } else {
-            0
-        };
+        let len = (*buf)
+            .b_u_line_ptr
+            .as_ref()
+            .map_or(0, |s| s.as_bytes().len());
         undo_write_bytes(bi, len as u64, 4);
-        if len > 0 && !undo_write(bi, (*buf).b_u_line_ptr.cast::<u8>(), len) {
+        if len > 0
+            && !undo_write(
+                bi,
+                (*buf)
+                    .b_u_line_ptr
+                    .as_ref()
+                    .unwrap()
+                    .as_ptr()
+                    .cast_mut()
+                    .cast(),
+                len,
+            )
+        {
             return false;
         }
         undo_write_bytes(bi, (*buf).b_u_line_lnum as u64, 4);
@@ -1027,9 +1039,10 @@ unsafe fn unserialize_visualinfo(bi: &mut bufinfo_T, info: *mut visualinfo_T) {
 /// Write the undo tree in an undo file.
 pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, hash: *mut u8) {
     unsafe {
+        let f_owned: Option<std::ffi::CString>;
         let file_name = if name.is_null() {
-            let f = u_get_undo_file_name((*buf).b_ffname, false);
-            if f.is_null() {
+            f_owned = u_get_undo_file_name((*buf).b_ffname, false);
+            let Some(ref f) = f_owned else {
                 if p_verbose > 0 {
                     verbose_enter();
                     smsg!(
@@ -1040,8 +1053,8 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
                     verbose_leave();
                 }
                 return;
-            }
-            f
+            };
+            f.as_ptr().cast_mut()
         } else {
             name.cast_mut()
         };
@@ -1110,7 +1123,7 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
                 os_remove(file_name);
             }
 
-            if (*buf).b_u_numhead == 0 && (*buf).b_u_line_ptr.is_null() {
+            if (*buf).b_u_numhead == 0 && (*buf).b_u_line_ptr.is_none() {
                 if p_verbose > 0 {
                     verb_msg(gettext(
                         c"Skipping undo file write, nothing to undo".as_ptr(),
@@ -1224,10 +1237,6 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
                 os_free_acl(acl);
             }
         }
-
-        if file_name.cast_const() != name {
-            xfree(file_name.cast());
-        }
     }
 }
 
@@ -1257,14 +1266,16 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
         #[cfg(not(unix))]
         let _ = orig_name;
         let mut uhp_table: Vec<(Box<u_header_T>, [c_int; 4])> = Vec::new();
-        let mut line_ptr: *mut c_char = ptr::null_mut();
+        let mut line_ptr: Option<std::ffi::CString> = None;
         let mut num_read_uhps: c_int = 0;
 
+        let f_owned: Option<std::ffi::CString>;
         let file_name = if name.is_null() {
-            let f = u_get_undo_file_name((*curbuf).b_ffname, true);
-            if f.is_null() {
+            f_owned = u_get_undo_file_name((*curbuf).b_ffname, true);
+            let Some(ref f_cstr) = f_owned else {
                 return;
-            }
+            };
+            let f = f_cstr.as_ptr().cast_mut();
 
             #[cfg(unix)]
             {
@@ -1284,7 +1295,6 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                         );
                         verbose_leave();
                     }
-                    xfree(f.cast());
                     return;
                 }
             }
@@ -1379,7 +1389,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                         corruption_error(c"truncated".as_ptr(), file_name);
                         break 'error;
                     };
-                    line_ptr = xstrdup(s.as_ptr());
+                    line_ptr = Some(s);
                 }
                 let line_lnum = undo_read_4c(&mut bi) as linenr_T;
                 let line_colnr = undo_read_4c(&mut bi) as colnr_T;
@@ -1549,15 +1559,12 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 break 'theend;
             }
 
-            xfree(line_ptr.cast());
+            drop(line_ptr);
             drop(uhp_table);
         }
 
         if !fp.is_null() {
             fclose(fp);
-        }
-        if file_name != name {
-            xfree(file_name.cast());
         }
     }
 }
@@ -2825,7 +2832,7 @@ pub unsafe fn u_clearall(buf: *mut buf_T) {
         (*buf).b_u_curhead = ptr::null_mut();
         (*buf).b_u_synced = true;
         (*buf).b_u_numhead = 0;
-        (*buf).b_u_line_ptr = ptr::null_mut();
+        (*buf).b_u_line_ptr = None;
         (*buf).b_u_line_lnum = 0;
     }
 }
@@ -2842,7 +2849,7 @@ pub unsafe fn u_blockfree(buf: *mut buf_T) {
             );
             assert!((*buf).b_u_oldhead != previous_oldhead);
         }
-        xfree((*buf).b_u_line_ptr.cast());
+        (*buf).b_u_line_ptr = None;
     }
 }
 
@@ -2869,19 +2876,18 @@ unsafe fn u_saveline(buf: *mut buf_T, lnum: linenr_T) {
         } else {
             (*buf).b_u_line_colnr = 0;
         }
-        (*buf).b_u_line_ptr = xstrdup(u_save_line_buf(buf, lnum).as_ptr());
+        (*buf).b_u_line_ptr = Some(u_save_line_buf(buf, lnum));
     }
 }
 
 /// Clear the line saved for the `"U"` command.
 pub unsafe fn u_clearline(buf: *mut buf_T) {
     unsafe {
-        if (*buf).b_u_line_ptr.is_null() {
+        if (*buf).b_u_line_ptr.is_none() {
             return;
         }
 
-        xfree((*buf).b_u_line_ptr.cast());
-        (*buf).b_u_line_ptr = ptr::null_mut();
+        (*buf).b_u_line_ptr = None;
         (*buf).b_u_line_lnum = 0;
     }
 }
@@ -2889,7 +2895,7 @@ pub unsafe fn u_clearline(buf: *mut buf_T) {
 /// Implementation of the `"U"` command.
 pub unsafe fn u_undoline() {
     unsafe {
-        if (*curbuf).b_u_line_ptr.is_null()
+        if (*curbuf).b_u_line_ptr.is_none()
             || (*curbuf).b_u_line_lnum > (*curbuf).b_ml.ml_line_count
         {
             beep_flush();
@@ -2908,19 +2914,20 @@ pub unsafe fn u_undoline() {
             return;
         }
 
-        let oldp = xstrdup(u_save_line((*curbuf).b_u_line_lnum).as_ptr());
-        ml_replace((*curbuf).b_u_line_lnum, (*curbuf).b_u_line_ptr, true);
+        let oldp = u_save_line((*curbuf).b_u_line_lnum);
+        let new_line = (*curbuf).b_u_line_ptr.as_ref().unwrap();
+        let new_line_len = new_line.as_bytes().len() as colnr_T;
+        ml_replace((*curbuf).b_u_line_lnum, new_line.as_ptr().cast_mut(), true);
         extmark_splice_cols(
             curbuf,
             (*curbuf).b_u_line_lnum - 1,
             0,
-            strlen(oldp) as colnr_T,
-            strlen((*curbuf).b_u_line_ptr) as colnr_T,
+            oldp.as_bytes().len() as colnr_T,
+            new_line_len,
             kExtmarkUndo,
         );
         changed_bytes((*curbuf).b_u_line_lnum, 0);
-        xfree((*curbuf).b_u_line_ptr.cast());
-        (*curbuf).b_u_line_ptr = oldp;
+        (*curbuf).b_u_line_ptr = Some(oldp);
 
         let t = (*curbuf).b_u_line_colnr;
         if (*curwin).w_cursor.lnum == (*curbuf).b_u_line_lnum {
@@ -3009,17 +3016,14 @@ unsafe fn u_eval_tree(buf: *mut buf_T, first_uhp: *const u_header_T) -> *mut lis
 /// `"undofile(name)"` function.
 pub unsafe fn f_undofile(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
+        crate::eval::typval::tv_set_string(rettv, ptr::null());
         let fname = tv_get_string(argvars);
 
-        if *fname == NUL {
-            (*rettv).vval.v_string = ptr::null_mut();
-        } else {
-            let ffname = FullName_save(fname, true);
-            if !ffname.is_null() {
-                (*rettv).vval.v_string = u_get_undo_file_name(ffname, false);
-            }
-            xfree(ffname.cast());
+        if *fname != NUL
+            && let Some(ffname) = cstr_take(FullName_save(fname, true))
+            && let Some(ufile) = u_get_undo_file_name(ffname.as_ptr(), false)
+        {
+            crate::eval::typval::tv_set_string(rettv, ufile.as_ptr());
         }
     }
 }
@@ -3139,7 +3143,7 @@ pub unsafe fn u_checkpoint(uc: *mut UndoCheckpoint, buf: *mut buf_T) {
         (*uc).uc_seq_cur = (*buf).b_u_seq_cur;
         (*uc).uc_time_cur = (*buf).b_u_time_cur;
         (*uc).uc_save_nr_cur = (*buf).b_u_save_nr_cur;
-        (*uc).uc_line_ptr = (*buf).b_u_line_ptr;
+        (*uc).uc_line_ptr = (*buf).b_u_line_ptr.take();
         (*uc).uc_line_lnum = (*buf).b_u_line_lnum;
         (*uc).uc_line_colnr = (*buf).b_u_line_colnr;
         (*uc).uc_undolevels = (*buf).b_p_ul;
@@ -3186,7 +3190,7 @@ pub unsafe fn u_rollback(uc: *mut UndoCheckpoint, buf: *mut buf_T) {
         (*buf).b_u_seq_cur = (*uc).uc_seq_cur;
         (*buf).b_u_time_cur = (*uc).uc_time_cur;
         (*buf).b_u_save_nr_cur = (*uc).uc_save_nr_cur;
-        (*buf).b_u_line_ptr = (*uc).uc_line_ptr;
+        (*buf).b_u_line_ptr = (*uc).uc_line_ptr.take();
         (*buf).b_u_line_lnum = (*uc).uc_line_lnum;
         (*buf).b_u_line_colnr = (*uc).uc_line_colnr;
         if (*buf).b_u_curhead.is_null() {
@@ -3265,10 +3269,8 @@ mod tests {
 
             // Write undo file to undodir
             u_write_undo(ptr::null(), false, buf, hash.as_mut_ptr());
-            let ufile_ptr = u_get_undo_file_name((*buf).b_ffname, false);
-            assert!(!ufile_ptr.is_null());
-            let ufile = CStr::from_ptr(ufile_ptr).to_str().unwrap().to_owned();
-            xfree(ufile_ptr.cast());
+            let ufile_cstr = u_get_undo_file_name((*buf).b_ffname, false).unwrap();
+            let ufile = ufile_cstr.to_str().unwrap().to_owned();
             assert!(std::path::Path::new(&ufile).exists());
             let _ = std::fs::remove_file(&ufile);
 

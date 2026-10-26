@@ -342,8 +342,7 @@ impl Default for CommandLineState {
     }
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct CpBufInfo {
     buf: *mut buf_T,
     save_b_p_ma: c_int,

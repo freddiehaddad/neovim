@@ -8473,7 +8473,7 @@ pub unsafe fn f_spellbadword(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
 /// "spellsuggest()" function
 pub unsafe fn f_spellsuggest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let mut ga: Vec<*mut c_char> = Vec::new();
+        let mut ga: Vec<std::ffi::CString> = Vec::new();
         let wo_spell_save = (*curwin).w_onebuf_opt.wo_spell;
 
         if (*curwin).w_onebuf_opt.wo_spell == 0 {
@@ -8508,12 +8508,16 @@ pub unsafe fn f_spellsuggest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
                 maxcount = 25;
             }
 
-            spell_suggest_list(&mut ga, str_.cast_mut(), maxcount, need_capital, false);
+            ga = spell_suggest_list(str_.cast_mut(), maxcount, need_capital, false);
         }
 
         tv_list_alloc_ret(rettv, ga.len() as isize);
-        for p in ga {
-            tv_list_append_allocated_string((*rettv).vval.v_list, p);
+        for s in ga {
+            tv_list_append_string(
+                (*rettv).vval.v_list,
+                s.as_ptr(),
+                s.as_bytes().len() as isize,
+            );
         }
         (*curwin).w_onebuf_opt.wo_spell = wo_spell_save;
     }
