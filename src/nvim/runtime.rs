@@ -395,8 +395,8 @@ pub unsafe fn estack_push(type_: etype_T, name: *mut c_char, lnum: linenr_T) -> 
 /// Add a user function to the execution stack.
 pub unsafe fn estack_push_ufunc(ufunc: *mut ufunc_T, lnum: linenr_T) {
     unsafe {
-        let name = if !(*ufunc).uf_name_exp.is_null() {
-            (*ufunc).uf_name_exp
+        let name = if let Some(ref exp) = (*ufunc).uf_name_exp {
+            exp.as_ptr().cast_mut()
         } else {
             (*ufunc).uf_name.as_mut_ptr()
         };
@@ -3228,8 +3228,8 @@ unsafe fn get_script_local_funcs(sid: scid_T) -> *mut list_T {
 
         for &fp in functbl.values() {
             if (*fp).uf_script_ctx.sc_sid == sid {
-                let name = if !(*fp).uf_name_exp.is_null() {
-                    (*fp).uf_name_exp
+                let name = if let Some(ref exp) = (*fp).uf_name_exp {
+                    exp.as_ptr()
                 } else {
                     (*fp).uf_name.as_ptr()
                 };

@@ -306,10 +306,10 @@ unsafe fn mb_ptr_adv_const(p: *mut *const c_char) {
 #[repr(C)]
 pub struct compl_T {
     pub cp_str: NvimString,
-    pub cp_text: [*mut c_char; CPT_COUNT],
+    pub cp_text: [Option<std::ffi::CString>; CPT_COUNT],
     pub cp_user_data: typval_T,
-    pub cp_fname: *mut c_char,
-    pub cp_commit_chars: *mut c_char,
+    pub cp_fname: Option<std::ffi::CString>,
+    pub cp_commit_chars: Option<std::ffi::CString>,
     pub cp_flags: c_int,
     pub cp_number: c_int,
     pub cp_order: c_int,
@@ -338,10 +338,7 @@ impl Drop for compl_T {
                 }
             }
             api_clear_string(&raw mut self.cp_str);
-            xfree(self.cp_fname.cast());
-            free_cptext(self.cp_text.as_ptr());
             tv_clear(&raw mut self.cp_user_data);
-            xfree(self.cp_commit_chars.cast());
         }
     }
 }
@@ -855,8 +852,10 @@ pub unsafe fn ins_compl_commit_char(c: c_int) -> bool {
         let shown = compl_opt(compl_shown_idx);
         !shown.is_null()
             && !match_at_original_text(shown)
-            && !(*shown).cp_commit_chars.is_null()
-            && !vim_strchr((*shown).cp_commit_chars, c).is_null()
+            && (*shown)
+                .cp_commit_chars
+                .as_ref()
+                .is_some_and(|s| !vim_strchr(s.as_ptr(), c).is_null())
     }
 }
 
@@ -1135,11 +1134,11 @@ unsafe fn ins_compl_add(
 
         let new_str = xstrnsave(str_ptr, len as usize);
         let cp_fname = if !fname.is_null() {
-            xstrdup(fname)
+            Some(CStr::from_ptr(fname).to_owned())
         } else {
-            ptr::null_mut()
+            None
         };
-        let mut cp_text = [ptr::null_mut(); CPT_COUNT];
+        let mut cp_text = [const { None }; CPT_COUNT];
         if !cptext.is_null() {
             for (slot, i) in cp_text.iter_mut().zip(0..CPT_COUNT) {
                 let s = *cptext.add(i);
@@ -1147,12 +1146,20 @@ unsafe fn ins_compl_add(
                     continue;
                 }
                 if *s != NUL {
-                    *slot = if cptext_allocated { s } else { xstrdup(s) };
-                } else if cptext_allocated {
+                    *slot = Some(CStr::from_ptr(s).to_owned());
+                }
+                if cptext_allocated {
                     xfree(s.cast());
                 }
             }
         }
+        let cp_commit_chars = if commit_chars.is_null() {
+            None
+        } else {
+            let cstr = CStr::from_ptr(commit_chars).to_owned();
+            xfree(commit_chars.cast());
+            Some(cstr)
+        };
         let cp_user_data = if !user_data.is_null() {
             *user_data
         } else {
@@ -1164,7 +1171,7 @@ unsafe fn ins_compl_add(
             cp_text,
             cp_user_data,
             cp_fname,
-            cp_commit_chars: commit_chars,
+            cp_commit_chars,
             cp_flags: flags,
             cp_number: if (flags & CP_ORIGINAL_TEXT) != 0 {
                 0
@@ -1845,18 +1852,23 @@ unsafe fn ins_compl_build_pum() -> c_int {
                 if !match_limit_exceeded {
                     comp.cp_in_match_array = true;
                     items.push(pumitem_T {
-                        pum_text: if !comp.cp_text[CPT_ABBR].is_null() {
-                            comp.cp_text[CPT_ABBR]
-                        } else {
-                            comp.cp_str.data
-                        },
-                        pum_kind: comp.cp_text[CPT_KIND],
-                        pum_extra: if !comp.cp_text[CPT_MENU].is_null() {
-                            comp.cp_text[CPT_MENU]
-                        } else {
-                            comp.cp_fname
-                        },
-                        pum_info: comp.cp_text[CPT_INFO],
+                        pum_text: comp.cp_text[CPT_ABBR]
+                            .as_ref()
+                            .map_or(comp.cp_str.data, |s| s.as_ptr().cast_mut()),
+                        pum_kind: comp.cp_text[CPT_KIND]
+                            .as_ref()
+                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+                        pum_extra: comp.cp_text[CPT_MENU].as_ref().map_or_else(
+                            || {
+                                comp.cp_fname
+                                    .as_ref()
+                                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                            },
+                            |s| s.as_ptr().cast_mut(),
+                        ),
+                        pum_info: comp.cp_text[CPT_INFO]
+                            .as_ref()
+                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
                         pum_cpt_source_idx: comp.cp_cpt_source_idx,
                         pum_user_abbr_hlattr: get_user_highlight_attr(comp.cp_user_abbr_hl_id),
                         pum_user_kind_hlattr: get_user_highlight_attr(comp.cp_user_kind_hl_id),
@@ -1944,7 +1956,9 @@ pub unsafe fn ins_compl_show_pum() {
             for (i, item) in (*arr).iter().enumerate() {
                 let pum_text = item.pum_text;
                 if ptr::eq(pum_text, (*shown).cp_str.data)
-                    || ptr::eq(pum_text, (*shown).cp_text[CPT_ABBR])
+                    || (*shown).cp_text[CPT_ABBR]
+                        .as_ref()
+                        .is_some_and(|s| ptr::eq(pum_text, s.as_ptr()))
                 {
                     cur = i as c_int;
                     break;
@@ -3651,19 +3665,44 @@ unsafe fn fill_complete_info_dict(di: *mut dict_T, match_: *mut compl_T, add_mat
             (*match_).cp_str.data,
             (*match_).cp_str.size as c_int,
         );
-        tv_dict_add_str(di, c"abbr".as_ptr(), 4, (*match_).cp_text[CPT_ABBR]);
+        tv_dict_add_str(
+            di,
+            c"abbr".as_ptr(),
+            4,
+            (*match_).cp_text[CPT_ABBR]
+                .as_ref()
+                .map_or(ptr::null(), |s| s.as_ptr()),
+        );
         tv_dict_add_str(
             di,
             c"menu".as_ptr(),
             4,
-            if !(*match_).cp_text[CPT_MENU].is_null() {
-                (*match_).cp_text[CPT_MENU]
-            } else {
-                (*match_).cp_fname
-            },
+            (*match_).cp_text[CPT_MENU].as_ref().map_or_else(
+                || {
+                    (*match_)
+                        .cp_fname
+                        .as_ref()
+                        .map_or(ptr::null(), |s| s.as_ptr())
+                },
+                |s| s.as_ptr(),
+            ),
         );
-        tv_dict_add_str(di, c"kind".as_ptr(), 4, (*match_).cp_text[CPT_KIND]);
-        tv_dict_add_str(di, c"info".as_ptr(), 4, (*match_).cp_text[CPT_INFO]);
+        tv_dict_add_str(
+            di,
+            c"kind".as_ptr(),
+            4,
+            (*match_).cp_text[CPT_KIND]
+                .as_ref()
+                .map_or(ptr::null(), |s| s.as_ptr()),
+        );
+        tv_dict_add_str(
+            di,
+            c"info".as_ptr(),
+            4,
+            (*match_).cp_text[CPT_INFO]
+                .as_ref()
+                .map_or(ptr::null(), |s| s.as_ptr()),
+        );
         tv_dict_add_str(
             di,
             c"abbr_hlgroup".as_ptr(),
@@ -3690,8 +3729,8 @@ unsafe fn fill_complete_info_dict(di: *mut dict_T, match_: *mut compl_T, add_mat
         if (*match_).cp_preselect {
             tv_dict_add_nr(di, c"preselect".as_ptr(), 9, 1);
         }
-        if !(*match_).cp_commit_chars.is_null() {
-            tv_dict_add_str(di, c"commit_chars".as_ptr(), 12, (*match_).cp_commit_chars);
+        if let Some(ref commit_chars) = (*match_).cp_commit_chars {
+            tv_dict_add_str(di, c"commit_chars".as_ptr(), 12, commit_chars.as_ptr());
         }
         if (*match_).cp_user_data.v_type == VAR_UNKNOWN {
             tv_dict_add_str_len(di, c"user_data".as_ptr(), 9, c"".as_ptr(), 0);
@@ -5471,7 +5510,11 @@ unsafe fn ins_compl_show_filename() {
         }
 
         let shown = compl_opt(compl_shown_idx);
-        let mut s = (*shown).cp_fname;
+        let fname_ptr = (*shown)
+            .cp_fname
+            .as_ref()
+            .map_or(c"".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut());
+        let mut s = fname_ptr;
         let mut e = s;
         while *e != NUL {
             space -= ptr2cells(e);
@@ -5489,7 +5532,7 @@ unsafe fn ins_compl_show_filename() {
                 IOSIZE,
                 c"%s %s%s".as_ptr(),
                 lead,
-                if s > (*shown).cp_fname {
+                if s > fname_ptr {
                     c"<".as_ptr()
                 } else {
                     c"".as_ptr()
@@ -5714,7 +5757,7 @@ unsafe fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: 
             compl_enter_selects = !insert_match && !(*arr).is_empty();
         }
 
-        if !(*shown).cp_fname.is_null() {
+        if (*shown).cp_fname.is_some() {
             ins_compl_show_filename();
         }
 

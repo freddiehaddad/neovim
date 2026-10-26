@@ -115,7 +115,7 @@ pub struct ufunc_T {
     pub uf_script_ctx: crate::runtime::sctx_T,
     pub uf_refcount: c_int,
     pub uf_scoped: *mut crate::profile::funccall_T,
-    pub uf_name_exp: *mut c_char,
+    pub uf_name_exp: Option<std::ffi::CString>,
     pub uf_namelen: usize,
     pub uf_name: Vec<c_char>,
 }
@@ -225,14 +225,13 @@ unsafe impl Sync for EvalFuncDef {}
 
 #[repr(C)]
 pub(crate) struct defer_T {
-    pub(crate) dr_name: *mut c_char,
+    pub(crate) dr_name: Option<std::ffi::CString>,
     pub(crate) dr_argvars: Vec<typval_T>,
 }
 
 impl Drop for defer_T {
     fn drop(&mut self) {
         unsafe {
-            xfree(self.dr_name.cast());
             for tv in self.dr_argvars.iter_mut().rev() {
                 tv_clear(tv);
             }
@@ -541,20 +540,16 @@ unsafe fn alloc_ufunc(name: *const c_char, namelen: usize) -> *mut ufunc_T {
             uf_script_ctx: crate::runtime::sctx_T::new(),
             uf_refcount: 0,
             uf_scoped: ptr::null_mut(),
-            uf_name_exp: ptr::null_mut(),
+            uf_name_exp: None,
             uf_namelen: namelen,
             uf_name: name_vec,
         }));
 
         if *name as u8 == K_SPECIAL {
-            let exp_len = namelen + 3;
-            (*fp).uf_name_exp = xmalloc(exp_len).cast();
-            vim_snprintf!(
-                (*fp).uf_name_exp,
-                exp_len,
-                c"<SNR>%s".as_ptr(),
-                uf2hikey(fp).add(3),
-            );
+            let mut bytes = Vec::with_capacity(namelen + 2);
+            bytes.extend_from_slice(b"<SNR>");
+            bytes.extend_from_slice(CStr::from_ptr(uf2hikey(fp).add(3)).to_bytes());
+            (*fp).uf_name_exp = Some(std::ffi::CString::new(bytes).unwrap());
         }
 
         fp
@@ -1199,7 +1194,6 @@ impl Drop for ufunc_T {
             if (self.uf_flags & (FC_DELETED | FC_REMOVED)) == 0 {
                 func_remove(self);
             }
-            xfree(self.uf_name_exp.cast());
         }
     }
 }
@@ -2132,8 +2126,8 @@ pub unsafe fn call_simple_func(funcname: *const c_char, len: usize, rettv: *mut 
 
 pub unsafe fn printable_func_name(fp: *mut ufunc_T) -> *mut c_char {
     unsafe {
-        if !(*fp).uf_name_exp.is_null() {
-            (*fp).uf_name_exp
+        if let Some(ref exp) = (*fp).uf_name_exp {
+            exp.as_ptr().cast_mut()
         } else {
             uf2hikey(fp)
         }
@@ -2168,8 +2162,8 @@ unsafe fn list_func_head(fp: *mut ufunc_T, indent: bool, force: bool) -> c_int {
         } else {
             c"function ".as_ptr()
         });
-        if !(*fp).uf_name_exp.is_null() {
-            msg_puts((*fp).uf_name_exp);
+        if let Some(ref exp) = (*fp).uf_name_exp {
+            msg_puts(exp.as_ptr());
         } else {
             msg_puts(uf2hikey(fp));
         }
@@ -2999,8 +2993,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                 if free_fp && !fp.is_null() {
                     func_clear_free(fp, false);
                 } else if !fp.is_null() {
-                    xfree((*fp).uf_name_exp.cast());
-                    (*fp).uf_name_exp = ptr::null_mut();
+                    (*fp).uf_name_exp = None;
                 }
                 errret_keep!();
             }};
@@ -3188,10 +3181,9 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                     fp = ptr::null_mut();
                     overwrite = true;
                 } else {
-                    let exp_name = (*fp).uf_name_exp;
+                    let exp_name = (*fp).uf_name_exp.take();
                     xfree(name.cast());
                     name = ptr::null_mut();
-                    (*fp).uf_name_exp = ptr::null_mut();
                     func_clear_items(fp);
                     (*fp).uf_name_exp = exp_name;
                     (*fp).uf_profiling = 0;
@@ -3762,8 +3754,10 @@ pub unsafe fn add_defer(name: *mut c_char, argcount_arg: c_int, argvars: *mut ty
         for (i, slot) in dr_argvars.iter_mut().enumerate().take(argcount) {
             *slot = *argvars.add(i);
         }
+        let dr_name_cstr = CStr::from_ptr(saved_name).to_owned();
+        xfree(saved_name.cast());
         (*current_funccal).fc_defer.push(defer_T {
-            dr_name: saved_name,
+            dr_name: Some(dr_name_cstr),
             dr_argvars,
         });
     }
@@ -3775,10 +3769,10 @@ unsafe fn handle_defer_one(funccal: *mut funccall_T) {
         while idx >= 0 {
             let dr = &mut (&mut (*funccal).fc_defer)[idx as usize];
 
-            if dr.dr_name.is_null() {
+            let Some(name_cstr) = dr.dr_name.take() else {
                 idx -= 1;
                 continue;
-            }
+            };
 
             let mut funcexe = funcexe_T::new();
             funcexe.fe_evaluate = true;
@@ -3786,8 +3780,6 @@ unsafe fn handle_defer_one(funccal: *mut funccall_T) {
             let mut rettv: typval_T = typval_T::new();
             rettv.v_type = VarType::VAR_UNKNOWN;
 
-            let name = dr.dr_name;
-            dr.dr_name = ptr::null_mut();
             let argcount = (dr.dr_argvars.len() - 1) as c_int;
 
             let mut estate = exception_state_T::new();
@@ -3795,7 +3787,7 @@ unsafe fn handle_defer_one(funccal: *mut funccall_T) {
             exception_state_clear();
 
             call_func(
-                name,
+                name_cstr.as_ptr(),
                 -1,
                 &raw mut rettv,
                 argcount,
@@ -3806,7 +3798,7 @@ unsafe fn handle_defer_one(funccal: *mut funccall_T) {
             exception_state_restore(&raw mut estate);
 
             tv_clear(&raw mut rettv);
-            xfree(name.cast());
+            drop(name_cstr);
             let mut i = argcount - 1;
             while i >= 0 {
                 let dr = &mut (&mut (*funccal).fc_defer)[idx as usize];
