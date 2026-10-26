@@ -64,8 +64,8 @@ impl bhdr_T {
 
 #[repr(C)]
 pub struct memfile_T {
-    pub mf_fname: *mut c_char,
-    pub mf_ffname: *mut c_char,
+    pub mf_fname: Option<std::ffi::CString>,
+    pub mf_ffname: Option<std::ffi::CString>,
     pub mf_fd: c_int,
     pub mf_flags: c_int,
     pub mf_reopen: bool,
@@ -78,14 +78,6 @@ pub struct memfile_T {
     pub mf_infile_count: blocknr_T,
     pub mf_page_size: c_uint,
     pub mf_dirty: mfdirty_T,
-}
-
-impl Drop for memfile_T {
-    fn drop(&mut self) {
-        unsafe {
-            mf_free_fnames(self);
-        }
-    }
 }
 
 #[inline]
@@ -106,8 +98,8 @@ pub fn pmap_get_bhdr(map: &std::collections::HashMap<i64, Box<bhdr_T>>, key: i64
 pub unsafe fn mf_open(fname: *mut c_char, flags: c_int) -> Option<Box<memfile_T>> {
     unsafe {
         let mut mfp = Box::new(memfile_T {
-            mf_fname: ptr::null_mut(),
-            mf_ffname: ptr::null_mut(),
+            mf_fname: None,
+            mf_ffname: None,
             mf_fd: -1,
             mf_flags: 0,
             mf_reopen: false,
@@ -176,8 +168,8 @@ pub unsafe fn mf_close(mfp: Option<Box<memfile_T>>, del_file: bool) {
         if mfp.mf_fd >= 0 && close(mfp.mf_fd) < 0 {
             emsg(gettext(e_swapclose.as_ptr()));
         }
-        if del_file && !mfp.mf_fname.is_null() {
-            os_remove(mfp.mf_fname);
+        if del_file && let Some(ref fname) = mfp.mf_fname {
+            os_remove(fname.as_ptr());
         }
 
         drop(mfp);
@@ -203,8 +195,8 @@ pub unsafe fn mf_close_file(buf: *mut buf_T, getlines: bool) {
         }
         (*mfp).mf_fd = -1;
 
-        if !(*mfp).mf_fname.is_null() {
-            os_remove((*mfp).mf_fname);
+        if let Some(ref fname) = (*mfp).mf_fname {
+            os_remove(fname.as_ptr());
             mf_free_fnames(mfp);
         }
     }
@@ -526,8 +518,11 @@ unsafe fn mf_write(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
                         let _ = close((*mfp).mf_fd);
                     }
                     {
-                        (*mfp).mf_fd =
-                            os_open((*mfp).mf_fname, (*mfp).mf_flags, S_IREAD | S_IWRITE);
+                        (*mfp).mf_fd = os_open(
+                            (*mfp).mf_fname.as_ref().unwrap().as_ptr(),
+                            (*mfp).mf_flags,
+                            S_IREAD | S_IWRITE,
+                        );
                     }
                     (*mfp).mf_reopen = (*mfp).mf_fd < 0;
                 }
@@ -611,19 +606,29 @@ pub unsafe fn mf_trans_del(mfp: *mut memfile_T, old_nr: blocknr_T) -> blocknr_T 
 /// Frees `mf_fname` and `mf_ffname`.
 pub unsafe fn mf_free_fnames(mfp: *mut memfile_T) {
     unsafe {
-        xfree((*mfp).mf_fname.cast());
-        (*mfp).mf_fname = ptr::null_mut();
-        xfree((*mfp).mf_ffname.cast());
-        (*mfp).mf_ffname = ptr::null_mut();
+        (*mfp).mf_fname = None;
+        (*mfp).mf_ffname = None;
     }
 }
 
 /// Set the simple file name and the full file name of memfile's swapfile.
 pub unsafe fn mf_set_fnames(mfp: *mut memfile_T, fname: *mut c_char) {
     unsafe {
-        (*mfp).mf_fname = fname;
-        {
-            (*mfp).mf_ffname = FullName_save((*mfp).mf_fname, false);
+        if fname.is_null() {
+            (*mfp).mf_fname = None;
+            (*mfp).mf_ffname = None;
+        } else {
+            let fname_cstr = std::ffi::CStr::from_ptr(fname).to_owned();
+            xfree(fname.cast());
+            let raw_ff = FullName_save(fname_cstr.as_ptr(), false);
+            (*mfp).mf_ffname = if raw_ff.is_null() {
+                None
+            } else {
+                let cstr = std::ffi::CStr::from_ptr(raw_ff).to_owned();
+                xfree(raw_ff.cast());
+                Some(cstr)
+            };
+            (*mfp).mf_fname = Some(fname_cstr);
         }
     }
 }
@@ -634,29 +639,27 @@ pub unsafe fn mf_fullname(mfp: *mut memfile_T) {
         return;
     }
     unsafe {
-        if (*mfp).mf_fname.is_null() || (*mfp).mf_ffname.is_null() {
+        if (*mfp).mf_fname.is_none() || (*mfp).mf_ffname.is_none() {
             return;
         }
 
-        xfree((*mfp).mf_fname.cast());
-        (*mfp).mf_fname = (*mfp).mf_ffname;
-        (*mfp).mf_ffname = ptr::null_mut();
+        (*mfp).mf_fname = (*mfp).mf_ffname.take();
     }
 }
 
 /// Return true if there are any translations pending for memfile.
 pub unsafe fn mf_need_trans(mfp: *mut memfile_T) -> bool {
-    unsafe { !(*mfp).mf_fname.is_null() && (*mfp).mf_neg_count > 0 }
+    unsafe { (*mfp).mf_fname.is_some() && (*mfp).mf_neg_count > 0 }
 }
 
 unsafe fn mf_do_open(mfp: *mut memfile_T, fname: *mut c_char, mut flags: c_int) -> bool {
     unsafe {
         mf_set_fnames(mfp, fname);
-        assert!(!(*mfp).mf_fname.is_null());
+        let fname_ptr = (*mfp).mf_fname.as_ref().unwrap().as_ptr();
 
         {
             let mut file_info = FileInfo::new();
-            if (flags & O_CREAT) != 0 && os_fileinfo_link((*mfp).mf_fname, &raw mut file_info) {
+            if (flags & O_CREAT) != 0 && os_fileinfo_link(fname_ptr, &raw mut file_info) {
                 (*mfp).mf_fd = -1;
                 emsg(gettext(
                     c"E300: Swap file already exists (symlink attack?)".as_ptr(),
@@ -664,7 +667,7 @@ unsafe fn mf_do_open(mfp: *mut memfile_T, fname: *mut c_char, mut flags: c_int) 
             } else {
                 flags |= O_NOFOLLOW;
                 (*mfp).mf_flags = flags;
-                (*mfp).mf_fd = os_open((*mfp).mf_fname, flags, S_IREAD | S_IWRITE);
+                (*mfp).mf_fd = os_open(fname_ptr, flags, S_IREAD | S_IWRITE);
             }
         }
 

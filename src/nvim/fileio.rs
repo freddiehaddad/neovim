@@ -1305,8 +1305,11 @@ pub unsafe fn readfile(
                 #[cfg(unix)]
                 {
                     let mfp = (*curbuf).b_ml.ml_mfp.cast::<memfile_T>();
-                    if swap_mode > 0 && !mfp.is_null() && !(*mfp).mf_fname.is_null() {
-                        let swap_fname = (*mfp).mf_fname;
+                    if swap_mode > 0
+                        && !mfp.is_null()
+                        && let Some(ref swap_fname) = (*mfp).mf_fname
+                    {
+                        let swap_fname = swap_fname.as_ptr();
                         if (swap_mode & 0o44) == 0o40 {
                             let mut swap_info: FileInfo = FileInfo::new();
                             if os_fileinfo(swap_fname, &raw mut swap_info)

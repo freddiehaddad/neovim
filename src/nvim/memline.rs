@@ -497,10 +497,14 @@ pub unsafe fn ml_setname(buf: *mut buf_T) {
             if *dirp == NUL {
                 break;
             }
+            let mf_fname_ptr = (*mfp)
+                .mf_fname
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             let fname = findswapname(
                 buf,
                 &raw mut dirp,
-                (*mfp).mf_fname,
+                mf_fname_ptr,
                 &raw mut found_existing_dir,
             );
             if (*buf).b_ml.ml_mfp.cast::<memfile_T>() != mfp {
@@ -514,7 +518,7 @@ pub unsafe fn ml_setname(buf: *mut buf_T) {
                 continue;
             }
 
-            if path_equal(fname, (*mfp).mf_fname, kPathCmpLiteral) {
+            if path_equal(fname, mf_fname_ptr, kPathCmpLiteral) {
                 xfree(fname.cast());
                 success = true;
                 break;
@@ -524,7 +528,7 @@ pub unsafe fn ml_setname(buf: *mut buf_T) {
                 (*mfp).mf_fd = -1;
             }
 
-            if vim_rename((*mfp).mf_fname, fname) == 0 {
+            if vim_rename(mf_fname_ptr, fname) == 0 {
                 success = true;
                 mf_free_fnames(mfp);
                 mf_set_fnames(mfp, fname);
@@ -535,7 +539,7 @@ pub unsafe fn ml_setname(buf: *mut buf_T) {
         }
 
         if (*mfp).mf_fd == -1 {
-            (*mfp).mf_fd = os_open((*mfp).mf_fname, O_RDWR, 0);
+            (*mfp).mf_fd = os_open((*mfp).mf_fname.as_ref().unwrap().as_ptr(), O_RDWR, 0);
             if (*mfp).mf_fd < 0 {
                 emsg(tr(c"E301: Oops, lost the swap file!!!"));
                 return;
@@ -617,7 +621,7 @@ pub unsafe fn ml_open_file(buf: *mut buf_T) {
             }
         }
 
-        if *p_dir != NUL && (*mfp).mf_fname.is_null() {
+        if *p_dir != NUL && (*mfp).mf_fname.is_none() {
             need_wait_return = true;
             no_wait_return += 1;
             let sp = buf_spname(buf);
@@ -793,7 +797,11 @@ unsafe fn set_b0_fname(b0p: *mut ZeroBlock, buf: *mut buf_T) {
 unsafe fn set_b0_dir_flag(b0p: *mut ZeroBlock, buf: *mut buf_T) {
     unsafe {
         let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
-        if same_directory((*mfp).mf_fname, (*buf).b_ffname) {
+        let mf_fname_ptr = (*mfp)
+            .mf_fname
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        if same_directory(mf_fname_ptr, (*buf).b_ffname) {
             (*b0p).set_flags((*b0p).flags() | B0_SAME_DIR);
         } else {
             (*b0p).set_flags((*b0p).flags() & !B0_SAME_DIR);
@@ -953,7 +961,14 @@ pub unsafe fn ml_recover(checkext: bool) {
         if hp.is_null() {
             msg_start();
             msg_puts_hl(tr(c"Unable to read block 0 from "), hl_id, true);
-            msg_outtrans((*mfp).mf_fname, hl_id, true);
+            msg_outtrans(
+                (*mfp)
+                    .mf_fname
+                    .as_ref()
+                    .map_or(c"".as_ptr(), |s| s.as_ptr()),
+                hl_id,
+                true,
+            );
             msg_puts_hl(
                 tr(c"\nMaybe no changes were made or Nvim did not update the swap file."),
                 hl_id,
@@ -983,7 +998,14 @@ pub unsafe fn ml_recover(checkext: bool) {
             ]
         {
             msg_start();
-            msg_outtrans((*mfp).mf_fname, 0, true);
+            msg_outtrans(
+                (*mfp)
+                    .mf_fname
+                    .as_ref()
+                    .map_or(c"".as_ptr(), |s| s.as_ptr()),
+                0,
+                true,
+            );
             msg_puts_hl(tr(c" cannot be used with this version of Nvim.\n"), 0, true);
             msg_puts_hl(tr(c"Use Vim version 3.0.\n"), 0, true);
             msg_end();
@@ -1000,7 +1022,10 @@ pub unsafe fn ml_recover(checkext: bool) {
         if !ml_check_b0_id(b0p) {
             semsg!(
                 tr(c"E307: %s does not look like a Nvim swap file"),
-                (*mfp).mf_fname,
+                (*mfp)
+                    .mf_fname
+                    .as_ref()
+                    .map_or(c"".as_ptr(), |s| s.as_ptr()),
             );
             ml_recover_theend(
                 fname_used,
@@ -1014,7 +1039,14 @@ pub unsafe fn ml_recover(checkext: bool) {
         }
         if b0_magic_wrong(b0p) {
             msg_start();
-            msg_outtrans((*mfp).mf_fname, hl_id, true);
+            msg_outtrans(
+                (*mfp)
+                    .mf_fname
+                    .as_ref()
+                    .map_or(c"".as_ptr(), |s| s.as_ptr()),
+                hl_id,
+                true,
+            );
             msg_puts_hl(tr(c" cannot be used on this computer.\n"), hl_id, true);
             msg_puts_hl(tr(c"The file was created on "), hl_id, true);
             (*b0p).b0_fname[0] = NUL;
@@ -1038,7 +1070,14 @@ pub unsafe fn ml_recover(checkext: bool) {
             mf_new_page_size(mfp, b0_page_size);
             if (*mfp).mf_page_size < previous_page_size {
                 msg_start();
-                msg_outtrans((*mfp).mf_fname, hl_id, true);
+                msg_outtrans(
+                    (*mfp)
+                        .mf_fname
+                        .as_ref()
+                        .map_or(c"".as_ptr(), |s| s.as_ptr()),
+                    hl_id,
+                    true,
+                );
                 msg_puts_hl(
                     tr(c" has been damaged (page size is smaller than minimum value).\n"),
                     hl_id,
@@ -1091,13 +1130,11 @@ pub unsafe fn ml_recover(checkext: bool) {
 
         msg_ext_set_kind(c"wmsg".as_ptr());
         msg_ext_skip_flush = true;
-        home_replace(
-            ptr::null_mut(),
-            (*mfp).mf_fname,
-            namebuff_ptr,
-            MAXPATHL,
-            true,
-        );
+        let mf_fname_ptr = (*mfp)
+            .mf_fname
+            .as_ref()
+            .map_or(c"".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut());
+        home_replace(ptr::null_mut(), mf_fname_ptr, namebuff_ptr, MAXPATHL, true);
         smsg!(0, tr(c"Using swap file \"%s\""), namebuff_ptr);
 
         let sp = buf_spname(curbuf);
@@ -1122,7 +1159,7 @@ pub unsafe fn ml_recover(checkext: bool) {
         let mtime = char_to_long((&raw const (*b0p).b0_mtime).cast()) as i64;
         if !(*curbuf).b_ffname.is_null()
             && os_fileinfo((*curbuf).b_ffname, &raw mut org_file_info)
-            && ((os_fileinfo((*mfp).mf_fname, &raw mut swp_file_info)
+            && ((os_fileinfo(mf_fname_ptr, &raw mut swp_file_info)
                 && org_file_info.stat.st_mtim.tv_sec > swp_file_info.stat.st_mtim.tv_sec)
                 || mtime != org_file_info.stat.st_mtim.tv_sec as _)
         {
@@ -1195,7 +1232,13 @@ pub unsafe fn ml_recover(checkext: bool) {
             hp = mf_get(mfp, bnum, page_count);
             if hp.is_null() {
                 if bnum == 1 {
-                    semsg!(tr(c"E309: Unable to read block 1 from %s"), (*mfp).mf_fname);
+                    semsg!(
+                        tr(c"E309: Unable to read block 1 from %s"),
+                        (*mfp)
+                            .mf_fname
+                            .as_ref()
+                            .map_or(c"".as_ptr(), |s| s.as_ptr()),
+                    );
                     ml_recover_theend(
                         fname_used,
                         mfp,
@@ -1307,7 +1350,10 @@ pub unsafe fn ml_recover(checkext: bool) {
                         if bnum == 1 {
                             semsg!(
                                 tr(c"E310: Block 1 ID wrong (%s not a .swp file?)"),
-                                (*mfp).mf_fname,
+                                (*mfp)
+                                    .mf_fname
+                                    .as_ref()
+                                    .map_or(c"".as_ptr(), |s| s.as_ptr()),
                             );
                             ml_recover_theend(
                                 fname_used,
@@ -1651,10 +1697,9 @@ pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mu
 
             if skip_curbuf && !(*curbuf).b_ml.ml_mfp.is_null() {
                 let cur_mfp = (*curbuf).b_ml.ml_mfp.cast::<memfile_T>();
-                let p = (*cur_mfp).mf_fname;
-                if !p.is_null() {
+                if let Some(ref p) = (*cur_mfp).mf_fname {
                     files.retain(|&f| {
-                        if path_equal(p, f, kPathCmpFull) {
+                        if path_equal(p.as_ptr(), f, kPathCmpFull) {
                             xfree(f.cast());
                             false
                         } else {
@@ -2020,7 +2065,7 @@ pub unsafe fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool) 
         let mut buf = firstbuf;
         while !buf.is_null() {
             let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
-            if mfp.is_null() || (*mfp).mf_fname.is_null() {
+            if mfp.is_null() || (*mfp).mf_fname.is_none() {
                 buf = (*buf).b_next;
                 continue;
             }
@@ -2067,7 +2112,7 @@ pub unsafe fn ml_preserve(buf: *mut buf_T, message: bool, do_fsync: bool) {
         let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
         let got_int_save = got_int;
 
-        if mfp.is_null() || (*mfp).mf_fname.is_null() {
+        if mfp.is_null() || (*mfp).mf_fname.is_none() {
             if message {
                 emsg(tr(c"E313: Cannot preserve, there is no swap file"));
             }

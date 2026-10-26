@@ -5751,12 +5751,12 @@ unsafe fn vgr_jump_to_match(
 unsafe fn existing_swapfile(buf: *const buf_T) -> bool {
     unsafe {
         let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
-        if !mfp.is_null() && !(*mfp).mf_fname.is_null() {
-            let fname = (*mfp).mf_fname;
-            let len = strlen(fname);
-            if len >= 2 {
-                return *fname.add(len - 1) != b'p' as c_char
-                    || *fname.add(len - 2) != b'w' as c_char;
+        if !mfp.is_null()
+            && let Some(ref mf_fname) = (*mfp).mf_fname
+        {
+            let bytes = mf_fname.as_bytes();
+            if bytes.len() >= 2 {
+                return !bytes.ends_with(b"wp");
             }
             return true;
         }

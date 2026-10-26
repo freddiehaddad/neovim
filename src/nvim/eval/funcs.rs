@@ -8837,13 +8837,12 @@ pub unsafe fn f_swapname(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         let buf = tv_get_buf(argvars, 0);
-        if buf.is_null()
-            || (*buf).b_ml.ml_mfp.is_null()
-            || (*(*buf).b_ml.ml_mfp.cast::<memfile_T>()).mf_fname.is_null()
-        {
+        if buf.is_null() || (*buf).b_ml.ml_mfp.is_null() {
             (*rettv).vval.v_string = ptr::null_mut();
+        } else if let Some(ref mf_fname) = (*(*buf).b_ml.ml_mfp.cast::<memfile_T>()).mf_fname {
+            (*rettv).vval.v_string = xstrdup(mf_fname.as_ptr());
         } else {
-            (*rettv).vval.v_string = xstrdup((*(*buf).b_ml.ml_mfp.cast::<memfile_T>()).mf_fname);
+            (*rettv).vval.v_string = ptr::null_mut();
         }
     }
 }

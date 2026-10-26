@@ -1056,7 +1056,7 @@ pub unsafe fn preserve_exit(errmsg: *const c_char) -> ! {
         let mut buf = firstbuf;
         while !buf.is_null() {
             let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
-            if !mfp.is_null() && !(*mfp).mf_fname.is_null() {
+            if !mfp.is_null() && (*mfp).mf_fname.is_some() {
                 if !errmsg.is_null() {
                     fprintf!(stderr, c"Nvim: preserving files...\n".as_ptr());
                 }

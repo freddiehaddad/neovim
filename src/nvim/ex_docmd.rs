@@ -10678,10 +10678,12 @@ unsafe fn ex_popup(eap: *mut exarg_T) {
 unsafe fn ex_swapname(_eap: *mut exarg_T) {
     unsafe {
         let mfp = (*curbuf).b_ml.ml_mfp.cast::<memfile_T>();
-        if mfp.is_null() || (*mfp).mf_fname.is_null() {
+        if mfp.is_null() {
             let _ = msg(gettext(c"No swap file".as_ptr()), 0);
+        } else if let Some(ref mf_fname) = (*mfp).mf_fname {
+            let _ = msg(mf_fname.as_ptr(), 0);
         } else {
-            let _ = msg((*mfp).mf_fname, 0);
+            let _ = msg(gettext(c"No swap file".as_ptr()), 0);
         }
     }
 }
