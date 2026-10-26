@@ -3425,13 +3425,10 @@ pub unsafe fn tv_dict_copy(
                 let key_ptr = (*di).di_key.as_mut_ptr();
                 let new_di = if let Some(conv) = conv.filter(|c| c.vc_type != CONV_NONE) {
                     let mut len = strlen(key_ptr);
-                    let key = string_convert(conv, key_ptr, &raw mut len);
-                    if key.is_null() {
-                        tv_dict_item_alloc_len(key_ptr, len)
+                    if let Some(key) = string_convert(conv, key_ptr, &raw mut len) {
+                        tv_dict_item_alloc_len(key.as_ptr().cast(), len)
                     } else {
-                        let item = tv_dict_item_alloc_len(key, len);
-                        xfree(key.cast());
-                        item
+                        tv_dict_item_alloc_len(key_ptr, len)
                     }
                 } else {
                     tv_dict_item_alloc(key_ptr)

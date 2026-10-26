@@ -46,7 +46,6 @@ use crate::mbyte::{
     string_convert, utf_cp_bounds_len, utf_ptr2len_len, vimconv_T,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::bytes_take;
 use crate::message::str2special;
 use crate::msgpack_rpc::packer::handle_T;
 use crate::regexp::{
@@ -596,14 +595,11 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> c_int {
             false,
         );
 
-        let ret = bytes_take(
-            string_convert(&vimconv, str_.cast_mut(), &raw mut str_len),
-            str_len,
-        );
+        let ret = string_convert(&vimconv, str_.cast_mut(), &raw mut str_len);
 
         match ret {
             None => lua_pushnil(lstate),
-            Some(bytes) => lua_pushlstring(lstate, bytes.as_ptr().cast(), bytes.len()),
+            Some(bytes) => lua_pushlstring(lstate, bytes.as_ptr().cast(), str_len),
         }
 
         1

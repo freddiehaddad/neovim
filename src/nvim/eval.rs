@@ -6578,13 +6578,14 @@ pub unsafe fn var_item_copy(
                 if (*from).vval.v_string.is_null() {
                     tv_copy(from, to);
                 } else {
-                    (*to).v_type = VarType::VAR_STRING;
-                    (*to).v_lock = VAR_UNLOCKED;
-                    (*to).vval.v_string =
-                        string_convert(conv, (*from).vval.v_string, ptr::null_mut());
-                    if (*to).vval.v_string.is_null() {
-                        (*to).vval.v_string = xstrdup((*from).vval.v_string);
+                    if let Some(conv_bytes) =
+                        string_convert(conv, (*from).vval.v_string, ptr::null_mut())
+                    {
+                        crate::eval::typval::tv_set_string(to, conv_bytes.as_ptr().cast());
+                    } else {
+                        crate::eval::typval::tv_set_string(to, (*from).vval.v_string);
                     }
+                    (*to).v_lock = VAR_UNLOCKED;
                 }
             }
             VarType::VAR_LIST => {

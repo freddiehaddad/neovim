@@ -1,7 +1,6 @@
 //! VimL parser input reader and state lifecycle (`src/nvim/viml/parser/parser.c`).
 
 use crate::mbyte::{string_convert, vimconv_T};
-use crate::memory::xfree;
 use std::ffi::{c_char, c_int};
 
 pub const CONV_NONE: c_int = 0;
@@ -30,6 +29,7 @@ impl ParserPosition {
 pub struct ParserInputReader {
     pub cursor: *const ParserLine,
     pub lines: Vec<ParserLine>,
+    pub owned_lines: Vec<Vec<u8>>,
     pub conv: vimconv_T,
 }
 
@@ -38,24 +38,13 @@ impl ParserInputReader {
         Self {
             cursor,
             lines: Vec::new(),
+            owned_lines: Vec::new(),
             conv: vimconv_T {
                 vc_type: CONV_NONE,
                 vc_factor: 1,
                 vc_fd: std::ptr::null_mut(),
                 vc_fail: false,
             },
-        }
-    }
-}
-
-impl Drop for ParserInputReader {
-    fn drop(&mut self) {
-        for pline in self.lines.drain(..) {
-            if pline.allocated {
-                unsafe {
-                    xfree(pline.data.cast_mut().cast());
-                }
-            }
         }
     }
 }
@@ -94,14 +83,13 @@ unsafe fn viml_preader_get_line(preader: &mut ParserInputReader, ret_pline: &mut
         let mut cpline = ParserLine {
             data: std::ptr::null(),
             size: pline.size,
-            allocated: true,
+            allocated: false,
         };
-        cpline.data =
-            unsafe { string_convert(&preader.conv, pline.data.cast_mut(), &mut cpline.size) };
-        if pline.allocated {
-            unsafe {
-                xfree(pline.data.cast_mut().cast());
-            }
+        if let Some(conv_bytes) =
+            unsafe { string_convert(&preader.conv, pline.data.cast_mut(), &mut cpline.size) }
+        {
+            cpline.data = conv_bytes.as_ptr().cast::<c_char>();
+            preader.owned_lines.push(conv_bytes);
         }
         pline = cpline;
     }

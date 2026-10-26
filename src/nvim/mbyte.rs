@@ -20,7 +20,6 @@ use crate::grid::{CharBoundsOff, schar_T, schar_from_buf};
 use crate::input::beep_flush;
 use crate::mark::mark_mb_adjustpos;
 use crate::memline::ml_get_buf;
-use crate::memory::{xfree, xmalloc, xstrdup};
 use crate::message::{emsg, msg, semsg};
 use crate::r#move::changed_window_setting_all;
 use crate::option_vars::*;
@@ -2216,7 +2215,11 @@ pub unsafe fn utf8_to_utf16(utf8: *const c_char, utf8len: c_int, utf16: &mut Vec
 }
 
 #[cfg(windows)]
-pub unsafe fn utf16_to_utf8(utf16: *const u16, utf16len: c_int, utf8: *mut *mut c_char) -> c_int {
+pub unsafe fn utf16_to_utf8(
+    utf16: *const u16,
+    utf16len: c_int,
+    utf8: &mut Option<std::ffi::CString>,
+) -> c_int {
     unsafe {
         let mut bufsize = WideCharToMultiByte(
             CP_UTF8,
@@ -2229,28 +2232,28 @@ pub unsafe fn utf16_to_utf8(utf16: *const u16, utf16len: c_int, utf8: *mut *mut 
             ptr::null_mut(),
         );
         if bufsize == 0 {
-            *utf8 = ptr::null_mut();
+            *utf8 = None;
             return uv_translate_sys_error(GetLastError() as c_int);
         }
 
-        *utf8 = xmalloc((bufsize as usize) + 1).cast::<c_char>();
+        let mut vec = vec![0 as c_char; (bufsize as usize) + 1];
         bufsize = WideCharToMultiByte(
             CP_UTF8,
             0,
             utf16,
             utf16len,
-            *utf8,
+            vec.as_mut_ptr(),
             bufsize,
             ptr::null(),
             ptr::null_mut(),
         );
         if bufsize == 0 {
-            xfree((*utf8).cast());
-            *utf8 = ptr::null_mut();
+            *utf8 = None;
             return uv_translate_sys_error(GetLastError() as c_int);
         }
 
-        *(*utf8).add(bufsize as usize) = NUL;
+        vec[bufsize as usize] = NUL;
+        *utf8 = Some(crate::memory::cstr_to_cstring(vec.as_ptr()));
         0
     }
 }
@@ -2708,7 +2711,7 @@ pub unsafe fn utf_find_illegal() {
             vc_fd: ptr::null_mut(),
             vc_fail: false,
         };
-        let mut tofree: Option<std::ffi::CString> = None;
+        let mut tofree: Option<Vec<u8>> = None;
 
         if (enc_canon_props((*curbuf).b_p_fenc) & ENC_8BIT) != 0 {
             convert_setup(&mut vimconv, p_enc, (*curbuf).b_p_fenc);
@@ -2718,11 +2721,11 @@ pub unsafe fn utf_find_illegal() {
         'search: loop {
             let mut p = get_cursor_pos_ptr();
             if vimconv.vc_type != CONV_NONE {
-                tofree = crate::memory::cstr_take(string_convert(&vimconv, p, ptr::null_mut()));
+                tofree = string_convert(&vimconv, p, ptr::null_mut());
                 let Some(ref tf) = tofree else {
                     break;
                 };
-                p = tf.as_ptr().cast_mut();
+                p = tf.as_ptr().cast::<c_char>().cast_mut();
             }
 
             while *p != NUL {
@@ -2731,7 +2734,9 @@ pub unsafe fn utf_find_illegal() {
                     if vimconv.vc_type == CONV_NONE {
                         (*curwin).w_cursor.col += p.offset_from(get_cursor_pos_ptr()) as colnr_T;
                     } else {
-                        len = p.offset_from(tofree.as_ref().unwrap().as_ptr()) as c_int;
+                        len = p.offset_from(
+                            tofree.as_ref().unwrap().as_ptr().cast::<c_char>(),
+                        ) as c_int;
                         let mut cur_p = get_cursor_pos_ptr();
                         while *cur_p != NUL && len > 0 {
                             len -= 1;
@@ -3093,26 +3098,22 @@ unsafe fn iconv_string(
     slen: usize,
     unconvlenp: *mut usize,
     resultlenp: *mut usize,
-) -> *mut c_char {
+) -> Option<Vec<u8>> {
     unsafe {
         let mut to: *mut c_char;
         let mut len = 0usize;
         let mut done = 0usize;
-        let mut result: *mut c_char = ptr::null_mut();
+        let mut result_vec: Vec<u8> = Vec::new();
 
         let mut from = str_;
         let mut fromlen = slen;
         loop {
             if len == 0 || os_errno() == ICONV_E2BIG {
                 len = len + fromlen * 2 + 40;
-                let p = xmalloc(len).cast::<c_char>();
-                if done > 0 {
-                    ptr::copy_nonoverlapping(result, p, done);
-                }
-                xfree(result.cast());
-                result = p;
+                result_vec.resize(len, 0);
             }
 
+            let result = result_vec.as_mut_ptr().cast::<c_char>();
             to = result.add(done);
             let mut tolen = len - done - 2;
             if call_iconv(
@@ -3124,6 +3125,7 @@ unsafe fn iconv_string(
             ) != usize::MAX
             {
                 *to = NUL;
+                done = to.offset_from(result) as usize;
                 break;
             }
 
@@ -3131,6 +3133,7 @@ unsafe fn iconv_string(
             if !vcp.vc_fail && !unconvlenp.is_null() && err == ICONV_EINVAL {
                 *to = NUL;
                 *unconvlenp = fromlen;
+                done = to.offset_from(result) as usize;
                 break;
             } else if !vcp.vc_fail && (err == ICONV_EILSEQ || err == ICONV_EINVAL) {
                 *to = b'?' as c_char;
@@ -3143,17 +3146,17 @@ unsafe fn iconv_string(
                 from = from.add(l);
                 fromlen -= l;
             } else if err != ICONV_E2BIG {
-                xfree(result.cast());
-                result = ptr::null_mut();
-                break;
+                return None;
             }
             done = to.offset_from(result) as usize;
         }
 
-        if !resultlenp.is_null() && !result.is_null() {
-            *resultlenp = to.offset_from(result) as usize;
+        result_vec.truncate(done);
+        result_vec.push(0);
+        if !resultlenp.is_null() {
+            *resultlenp = done;
         }
-        result
+        Some(result_vec)
     }
 }
 
@@ -3184,9 +3187,10 @@ pub unsafe fn f_iconv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
         );
 
         if vimconv.vc_type == CONV_NONE {
-            (*rettv).vval.v_string = xstrdup(str_);
-        } else {
-            (*rettv).vval.v_string = string_convert(&vimconv, str_.cast_mut(), ptr::null_mut());
+            crate::eval::typval::tv_set_string(rettv, str_);
+        } else if let Some(conv_bytes) = string_convert(&vimconv, str_.cast_mut(), ptr::null_mut())
+        {
+            crate::eval::typval::tv_set_string(rettv, conv_bytes.as_ptr().cast());
         }
     }
 }
@@ -3264,7 +3268,11 @@ pub unsafe fn convert_setup_ext(
     }
 }
 
-pub unsafe fn string_convert(vcp: &vimconv_T, ptr: *mut c_char, lenp: *mut usize) -> *mut c_char {
+pub unsafe fn string_convert(
+    vcp: &vimconv_T,
+    ptr: *mut c_char,
+    lenp: *mut usize,
+) -> Option<Vec<u8>> {
     unsafe { string_convert_ext(vcp, ptr, lenp, ptr::null_mut()) }
 }
 
@@ -3273,7 +3281,7 @@ pub unsafe fn string_convert_ext(
     ptr: *mut c_char,
     lenp: *mut usize,
     unconvlenp: *mut usize,
-) -> *mut c_char {
+) -> Option<Vec<u8>> {
     unsafe {
         let len = if lenp.is_null() {
             CStr::from_ptr(ptr).to_bytes().len()
@@ -3281,33 +3289,30 @@ pub unsafe fn string_convert_ext(
             *lenp
         };
         if len == 0 {
-            return xstrdup(c"".as_ptr());
+            return Some(vec![0]);
         }
 
-        let mut retval: *mut u8 = ptr::null_mut();
         match vcp.vc_type {
             CONV_TO_UTF8 => {
-                retval = xmalloc(len * 2 + 1).cast::<u8>();
-                let mut d = retval;
+                let mut out: Vec<u8> = Vec::with_capacity(len * 2 + 1);
                 for i in 0..len {
                     let c = *ptr.add(i).cast::<u8>();
                     if c < 0x80 {
-                        *d = c;
-                        d = d.add(1);
+                        out.push(c);
                     } else {
-                        *d = 0xc0 + (c >> 6);
-                        *d.add(1) = 0x80 + (c & 0x3f);
-                        d = d.add(2);
+                        out.push(0xc0 + (c >> 6));
+                        out.push(0x80 + (c & 0x3f));
                     }
                 }
-                *d = 0;
                 if !lenp.is_null() {
-                    *lenp = d.offset_from(retval) as usize;
+                    *lenp = out.len();
                 }
+                out.push(0);
+                Some(out)
             }
             CONV_9_TO_UTF8 => {
-                retval = xmalloc(len * 3 + 1).cast::<u8>();
-                let mut d = retval;
+                let mut out: Vec<u8> = Vec::with_capacity(len * 3 + 1);
+                let mut ch_buf = [0 as c_char; MB_MAXCHAR as usize];
                 for i in 0..len {
                     let c = match *ptr.add(i).cast::<u8>() {
                         0xa4 => 0x20ac,
@@ -3320,36 +3325,36 @@ pub unsafe fn string_convert_ext(
                         0xbe => 0x0178,
                         b => c_int::from(b),
                     };
-                    let n = utf_char2bytes(c, d.cast::<c_char>());
-                    d = d.add(n as usize);
+                    let n = utf_char2bytes(c, ch_buf.as_mut_ptr()) as usize;
+                    out.extend_from_slice(std::slice::from_raw_parts(
+                        ch_buf.as_ptr().cast::<u8>(),
+                        n,
+                    ));
                 }
-                *d = 0;
                 if !lenp.is_null() {
-                    *lenp = d.offset_from(retval) as usize;
+                    *lenp = out.len();
                 }
+                out.push(0);
+                Some(out)
             }
             CONV_TO_LATIN1 | CONV_TO_LATIN9 => {
-                retval = xmalloc(len + 1).cast::<u8>();
-                let mut d = retval;
+                let mut out: Vec<u8> = Vec::with_capacity(len + 1);
                 let mut i = 0usize;
                 while i < len {
                     let l = utf_ptr2len_len(ptr.add(i), (len - i) as c_int);
                     if l == 0 {
-                        *d = 0;
-                        d = d.add(1);
+                        out.push(0);
                     } else if l == 1 {
                         let b = *ptr.add(i).cast::<u8>();
                         let l_w = usize::from(utf8len_tab_zero[b as usize]);
                         if l_w == 0 {
-                            xfree(retval.cast());
-                            return ptr::null_mut();
+                            return None;
                         }
                         if !unconvlenp.is_null() && l_w > len - i {
                             *unconvlenp = len - i;
                             break;
                         }
-                        *d = b;
-                        d = d.add(1);
+                        out.push(b);
                     } else {
                         let mut c = utf_ptr2char(ptr.add(i));
                         if vcp.vc_type == CONV_TO_LATIN9 {
@@ -3368,17 +3373,13 @@ pub unsafe fn string_convert_ext(
                         }
                         if !utf_iscomposing_legacy(c) {
                             if c < 0x100 {
-                                *d = c as u8;
-                                d = d.add(1);
+                                out.push(c as u8);
                             } else if vcp.vc_fail {
-                                xfree(retval.cast());
-                                return ptr::null_mut();
+                                return None;
                             } else {
-                                *d = 0xbf;
-                                d = d.add(1);
+                                out.push(0xbf);
                                 if utf_char2cells(c) > 1 {
-                                    *d = b'?';
-                                    d = d.add(1);
+                                    out.push(b'?');
                                 }
                             }
                         }
@@ -3386,18 +3387,15 @@ pub unsafe fn string_convert_ext(
                     }
                     i += 1;
                 }
-                *d = 0;
                 if !lenp.is_null() {
-                    *lenp = d.offset_from(retval) as usize;
+                    *lenp = out.len();
                 }
+                out.push(0);
+                Some(out)
             }
-            CONV_ICONV => {
-                retval = iconv_string(vcp, ptr, len, unconvlenp, lenp).cast::<u8>();
-            }
-            _ => {}
+            CONV_ICONV => iconv_string(vcp, ptr, len, unconvlenp, lenp),
+            _ => None,
         }
-
-        retval.cast::<c_char>()
     }
 }
 

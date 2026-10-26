@@ -1263,20 +1263,20 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T) -> c_int {
 
         if (*state).vc.vc_type != CONV_NONE
             && has_non_ascii((*state).linebuf)
-            && let Some(line) = cstr_take(string_convert(
+            && let Some(line) = string_convert(
                 &(*state).vc,
                 (*state).linebuf,
                 &raw mut (*state).linelen,
-            ))
+            )
         {
             if (*state).linelen < IOSIZE {
-                xstrlcpy((*state).linebuf, line.as_ptr(), (*state).linelen + 1);
+                xstrlcpy((*state).linebuf, line.as_ptr().cast(), (*state).linelen + 1);
             } else {
                 let cap = ((*state).linelen + 1).min(LINE_MAXLEN);
                 if (*state).growbuf.len() < cap {
                     (*state).growbuf.resize(cap, 0);
                 }
-                xstrlcpy((*state).growbuf.as_mut_ptr(), line.as_ptr(), cap);
+                xstrlcpy((*state).growbuf.as_mut_ptr(), line.as_ptr().cast(), cap);
                 (*state).linebuf = (*state).growbuf.as_mut_ptr();
             }
         }

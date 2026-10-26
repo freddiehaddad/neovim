@@ -8699,12 +8699,12 @@ pub unsafe fn f_strftime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         convert_setup(&mut conv, p_enc, enc_ptr);
-        let p_owned: Option<std::ffi::CString>;
+        let p_owned: Option<Vec<u8>>;
         if conv.vc_type != CONV_NONE {
-            p_owned = cstr_take(string_convert(&conv, p, ptr::null_mut()));
+            p_owned = string_convert(&conv, p, ptr::null_mut());
             p = p_owned
                 .as_ref()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast::<c_char>().cast_mut());
         } else {
             p_owned = None;
         }
@@ -8716,8 +8716,13 @@ pub unsafe fn f_strftime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 
         convert_setup(&mut conv, enc_ptr, p_enc);
         if conv.vc_type != CONV_NONE {
-            (*rettv).vval.v_string =
-                string_convert(&conv, result_buf.as_mut_ptr(), ptr::null_mut());
+            if let Some(conv_bytes) =
+                string_convert(&conv, result_buf.as_mut_ptr(), ptr::null_mut())
+            {
+                crate::eval::typval::tv_set_string(rettv, conv_bytes.as_ptr().cast());
+            } else {
+                (*rettv).vval.v_string = ptr::null_mut();
+            }
         } else {
             crate::eval::typval::tv_set_string(rettv, result_buf.as_ptr());
         }
@@ -8742,12 +8747,12 @@ pub unsafe fn f_strptime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         convert_setup(&mut conv, p_enc, enc_ptr);
-        let fmt_owned: Option<std::ffi::CString>;
+        let fmt_owned: Option<Vec<u8>>;
         if conv.vc_type != CONV_NONE {
-            fmt_owned = cstr_take(string_convert(&conv, fmt, ptr::null_mut()));
+            fmt_owned = string_convert(&conv, fmt, ptr::null_mut());
             fmt = fmt_owned
                 .as_ref()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast::<c_char>().cast_mut());
         } else {
             fmt_owned = None;
         }

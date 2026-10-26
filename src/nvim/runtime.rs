@@ -2977,14 +2977,15 @@ unsafe fn do_source_ext(
                     && *firstline.add(2) == 0xbf
                 {
                     convert_setup(&mut cookie.conv, c"utf-8".as_ptr() as *mut c_char, p_enc);
-                    let mut p = string_convert(
+                    let p = string_convert(
                         &cookie.conv,
                         firstline.add(3).cast::<c_char>(),
                         ptr::null_mut(),
+                    )
+                    .map_or_else(
+                        || xstrdup(firstline.add(3).cast::<c_char>()),
+                        |v| xstrdup(v.as_ptr().cast()),
                     );
-                    if p.is_null() {
-                        p = xstrdup(firstline.add(3).cast::<c_char>());
-                    }
                     xfree(firstline.cast());
                     firstline = p.cast::<u8>();
                 }
@@ -3383,12 +3384,12 @@ pub unsafe fn getsourceline(
             xmemdupz(b.as_ptr().cast(), len).cast::<c_char>()
         });
 
-        if !line.is_null() && (*sp).conv.vc_type != CONV_NONE {
-            let s = string_convert(&(*sp).conv, line, ptr::null_mut());
-            if !s.is_null() {
-                xfree(line.cast());
-                line = s;
-            }
+        if !line.is_null()
+            && (*sp).conv.vc_type != CONV_NONE
+            && let Some(s) = string_convert(&(*sp).conv, line, ptr::null_mut())
+        {
+            xfree(line.cast());
+            line = xstrdup(s.as_ptr().cast());
         }
 
         if !(*sp).source_from_buf_or_str

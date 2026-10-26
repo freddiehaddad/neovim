@@ -10,7 +10,7 @@ use crate::eval::vars::{
 use crate::ex_docmd::exarg_T;
 use crate::globals::*;
 use crate::mbyte::{convert_setup, mb_strnicmp, string_convert, vimconv_T};
-use crate::memory::{bytes_take, xstrlcpy};
+use crate::memory::xstrlcpy;
 use crate::message::{semsg, smsg};
 use crate::option::set_helplang_default;
 use crate::os::env::{expand_T, os_getenv_buf, os_setenv};
@@ -322,16 +322,14 @@ unsafe fn convert_mo_bytes_to_utf8(bytes: &[u8], charset: Option<&[u8]>) -> Vec<
             && vc.vc_type != 0
         {
             let mut len = bytes.len();
-            if let Some(slice) = unsafe {
-                bytes_take(
-                    string_convert(
-                        &vc,
-                        bytes.as_ptr().cast::<c_char>().cast_mut(),
-                        &raw mut len,
-                    ),
-                    len,
+            if let Some(mut slice) = unsafe {
+                string_convert(
+                    &vc,
+                    bytes.as_ptr().cast::<c_char>().cast_mut(),
+                    &raw mut len,
                 )
             } {
+                slice.truncate(len);
                 return slice;
             }
         }

@@ -1991,19 +1991,19 @@ unsafe fn findtags_match_tag(
 unsafe fn findtags_string_convert(st: *mut findtags_state_T) {
     unsafe {
         let st = &mut *st;
-        let Some(conv_line) = cstr_take(string_convert(
+        let Some(conv_line) = string_convert(
             &st.vimconv,
             st.lbuf.as_mut_ptr(),
             ptr::null_mut(),
-        )) else {
+        ) else {
             return;
         };
 
-        let len = conv_line.to_bytes_with_nul().len();
+        let len = conv_line.len();
         if len > st.lbuf.len() {
             st.lbuf.resize(len, 0);
         }
-        strcpy(st.lbuf.as_mut_ptr(), conv_line.as_ptr());
+        strcpy(st.lbuf.as_mut_ptr(), conv_line.as_ptr().cast());
     }
 }
 

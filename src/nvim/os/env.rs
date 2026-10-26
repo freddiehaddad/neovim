@@ -438,13 +438,13 @@ pub unsafe fn os_get_hostname(hostname: *mut c_char, size: usize) {
         }
         host_utf16[host_wsize as usize] = 0;
 
-        let mut host_utf8: *mut c_char = ptr::null_mut();
-        let conversion_result = utf16_to_utf8(host_utf16.as_ptr(), -1, &raw mut host_utf8);
+        let mut host_utf8: Option<std::ffi::CString> = None;
+        let conversion_result = utf16_to_utf8(host_utf16.as_ptr(), -1, &mut host_utf8);
         if conversion_result != 0 {
             semsg!(c"utf16_to_utf8 failed: %d".as_ptr(), conversion_result);
             return;
         }
-        if let Some(host_cstr) = cstr_take(host_utf8) {
+        if let Some(host_cstr) = host_utf8 {
             xstrlcpy(hostname, host_cstr.as_ptr(), size);
         }
     }

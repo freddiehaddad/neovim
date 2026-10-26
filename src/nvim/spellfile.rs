@@ -1754,11 +1754,11 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
             }
 
             let line = if (*spin).si_conv.vc_type != CONV_NONE {
-                let Some(pc_cstr) = cstr_take(string_convert(
+                let Some(pc_bytes) = string_convert(
                     &(*spin).si_conv,
                     rline.as_mut_ptr(),
                     ptr::null_mut(),
-                )) else {
+                ) else {
                     smsg!(
                         0,
                         gettext(c"Conversion failure for word in %s line %d: %s".as_ptr()),
@@ -1768,11 +1768,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                     );
                     continue;
                 };
-                pc_vec = pc_cstr
-                    .into_bytes_with_nul()
-                    .into_iter()
-                    .map(|b| b as c_char)
-                    .collect();
+                pc_vec = pc_bytes.into_iter().map(|b| b as c_char).collect();
                 pc_vec.as_mut_ptr()
             } else {
                 rline.as_mut_ptr()
@@ -2941,11 +2937,11 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
 
             let mut pc_vec: Vec<c_char>;
             let w = if (*spin).si_conv.vc_type != CONV_NONE {
-                let Some(pc_cstr) = cstr_take(string_convert(
+                let Some(pc_bytes) = string_convert(
                     &(*spin).si_conv,
                     line.as_mut_ptr(),
                     ptr::null_mut(),
-                )) else {
+                ) else {
                     smsg!(
                         0,
                         gettext(c"Conversion failure for word in %s line %d: %s".as_ptr()),
@@ -2955,11 +2951,7 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
                     );
                     continue;
                 };
-                pc_vec = pc_cstr
-                    .into_bytes_with_nul()
-                    .into_iter()
-                    .map(|b| b as c_char)
-                    .collect();
+                pc_vec = pc_bytes.into_iter().map(|b| b as c_char).collect();
                 pc_vec.as_mut_ptr()
             } else {
                 line.as_mut_ptr()
@@ -3576,11 +3568,11 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
             rline[l] = NUL;
 
             let mut line = if (*spin).si_conv.vc_type != CONV_NONE {
-                let Some(pc_cstr) = cstr_take(string_convert(
+                let Some(pc_bytes) = string_convert(
                     &(*spin).si_conv,
                     rline.as_mut_ptr(),
                     ptr::null_mut(),
-                )) else {
+                ) else {
                     smsg!(
                         0,
                         gettext(c"Conversion failure for word in %s line %d: %s".as_ptr()),
@@ -3590,11 +3582,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                     );
                     continue;
                 };
-                pc_vec = pc_cstr
-                    .into_bytes_with_nul()
-                    .into_iter()
-                    .map(|b| b as c_char)
-                    .collect();
+                pc_vec = pc_bytes.into_iter().map(|b| b as c_char).collect();
                 pc_vec.as_mut_ptr()
             } else {
                 rline.as_mut_ptr()

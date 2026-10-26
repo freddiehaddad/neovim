@@ -5120,11 +5120,10 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                 }
 
                 if (flags & DOCMD_KEEPLINE) != 0 {
-                    xfree(repeat_cmdline.cast());
                     if count == 0 {
-                        repeat_cmdline = xstrdup(next_cmdline);
+                        repeat_cmdline = Some(cstr_to_cstring(next_cmdline));
                     } else {
-                        repeat_cmdline = ptr::null_mut();
+                        repeat_cmdline = None;
                     }
                 }
             } else if cmdline_copy.is_null() {

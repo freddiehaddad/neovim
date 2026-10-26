@@ -1762,9 +1762,12 @@ pub unsafe fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char {
                             0,
                         );
                         if hr4 == 0 && wsz[0] != 0 {
-                            let r2 = utf16_to_utf8(wsz.as_ptr(), -1, &raw mut rfname);
+                            let mut rfname_cstr: Option<std::ffi::CString> = None;
+                            let r2 = utf16_to_utf8(wsz.as_ptr(), -1, &mut rfname_cstr);
                             if r2 != 0 {
                                 semsg!(c"utf16_to_utf8 failed: %d".as_ptr(), r2);
+                            } else if let Some(cstr) = rfname_cstr {
+                                rfname = xstrdup(cstr.as_ptr());
                             }
                         }
                     }

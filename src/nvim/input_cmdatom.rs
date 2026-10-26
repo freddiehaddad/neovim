@@ -29,7 +29,7 @@ use crate::mcursor::{
     mc_buf_has_cursors, mc_clock_edge, mc_following, mc_ins_cascade_start, mc_ins_cascaded,
     mc_ins_commit, mc_mark_at, mc_replaying, mc_vsel_clear, mc_vsel_refresh,
 };
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, xfree};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring};
 use crate::normal::{
     NV_JUMP, NV_LANG, NV_MOTION, NV_NCH_ARG, REPLACE_CR_NCHAR, VisualState, nv_is,
 };
@@ -1634,17 +1634,16 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: *mut cmdarg_T, redo_yank: 
                 }
                 redo_append_str(c"\n".as_ptr(), 1);
             } else if excmd {
-                if repeat_cmdline.is_null() {
-                    redo_new(CmdSpec::default());
-                } else {
+                let rc = (&raw mut repeat_cmdline).as_mut().unwrap().take();
+                if let Some(ref rc) = rc {
                     if (*cap).cmdchar == b':' as c_int {
-                        redo_append_lit(repeat_cmdline, -1);
+                        redo_append_lit(rc.as_ptr(), -1);
                     } else {
-                        redo_append_spec(repeat_cmdline);
+                        redo_append_spec(rc.as_ptr());
                     }
                     redo_append_str(c"\n".as_ptr(), 1);
-                    xfree(repeat_cmdline.cast());
-                    repeat_cmdline = ptr::null_mut();
+                } else {
+                    redo_new(CmdSpec::default());
                 }
             } else if (*cap).cmdchar == K_LUA {
                 let mut lua_id = [0 as c_char; NUMBUFLEN];
