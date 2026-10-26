@@ -20,7 +20,7 @@ use crate::globals::*;
 use crate::highlight_group::{syn_check_group, syn_id2attr, syn_id2name, syn_name2id};
 use crate::mbyte::{utf_char2bytes, utf_ptr2char, utfc_ptr2len};
 use crate::memline::ml_get_buf;
-use crate::memory::{xfree, xmemdupz, xstrdup};
+use crate::memory::{xfree, xmemdupz};
 use crate::message::{emsg, semsg};
 use crate::option_vars::*;
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
@@ -96,7 +96,7 @@ pub struct llpos_T {
 pub struct matchitem_T {
     pub mit_id: c_int,
     pub mit_priority: c_int,
-    pub mit_pattern: *mut c_char,
+    pub mit_pattern: Option<std::ffi::CString>,
     pub mit_match: regmmatch_T,
     pub mit_pos: Vec<llpos_T>,
     pub mit_pos_cur: c_int,
@@ -111,7 +111,6 @@ impl Drop for matchitem_T {
     fn drop(&mut self) {
         unsafe {
             vim_regfree(self.mit_match.regprog);
-            xfree(self.mit_pattern.cast());
         }
     }
 }
@@ -188,11 +187,7 @@ unsafe fn match_add(
         let mut m = matchitem_T {
             mit_id: id,
             mit_priority: prio,
-            mit_pattern: if pat.is_null() {
-                ptr::null_mut()
-            } else {
-                xstrdup(pat)
-            },
+            mit_pattern: (!pat.is_null()).then(|| CStr::from_ptr(pat).to_owned()),
             mit_match: regmmatch_T {
                 regprog,
                 startpos: [crate::cursor::lpos_T { lnum: 0, col: 0 }; 10],
@@ -1016,7 +1011,12 @@ pub unsafe fn f_getmatches(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
                     tv_dict_add_list(dict, buf.as_ptr(), len as usize, l);
                 }
             } else {
-                tv_dict_add_str(dict, c"pattern".as_ptr(), 7, cur.mit_pattern);
+                tv_dict_add_str(
+                    dict,
+                    c"pattern".as_ptr(),
+                    7,
+                    cur.mit_pattern.as_ref().map_or(ptr::null(), |p| p.as_ptr()),
+                );
             }
             tv_dict_add_str(dict, c"group".as_ptr(), 5, syn_id2name(cur.mit_hlg_id));
             tv_dict_add_nr(
@@ -1261,7 +1261,13 @@ pub unsafe fn f_matcharg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             let m = get_match(curwin, id);
             if !m.is_null() {
                 tv_list_append_string((*rettv).vval.v_list, syn_id2name((*m).mit_hlg_id), -1);
-                tv_list_append_string((*rettv).vval.v_list, (*m).mit_pattern, -1);
+                tv_list_append_string(
+                    (*rettv).vval.v_list,
+                    (*m).mit_pattern
+                        .as_ref()
+                        .map_or(ptr::null(), |p| p.as_ptr()),
+                    -1,
+                );
             } else {
                 tv_list_append_string((*rettv).vval.v_list, ptr::null(), 0);
                 tv_list_append_string((*rettv).vval.v_list, ptr::null(), 0);

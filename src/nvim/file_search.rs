@@ -100,32 +100,16 @@ impl Drop for ff_stack_T {
 
 #[repr(C)]
 pub struct ff_visited_T {
-    pub ffv_wc_path: *mut c_char,
+    pub ffv_wc_path: Option<std::ffi::CString>,
     pub file_id_valid: bool,
     pub file_id: FileID,
     pub ffv_fname: Vec<c_char>,
 }
 
-impl Drop for ff_visited_T {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.ffv_wc_path.cast());
-        }
-    }
-}
-
 #[repr(C)]
 pub struct ff_visited_list_hdr_T {
-    pub ffvl_filename: *mut c_char,
+    pub ffvl_filename: std::ffi::CString,
     pub ffvl_visited_list: Vec<ff_visited_T>,
-}
-
-impl Drop for ff_visited_list_hdr_T {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.ffvl_filename.cast());
-        }
-    }
 }
 
 #[repr(C)]
@@ -939,15 +923,20 @@ unsafe fn ff_get_visited_list(
     list_headp: &mut Vec<ff_visited_list_hdr_T>,
 ) -> usize {
     unsafe {
-        if let Some(pos) = list_headp
-            .iter()
-            .position(|item| path_equal(filename, item.ffvl_filename, kPathCmpLiteral))
-        {
+        if let Some(pos) = list_headp.iter().position(|item| {
+            path_equal(
+                filename,
+                item.ffvl_filename.as_ptr().cast_mut(),
+                kPathCmpLiteral,
+            )
+        }) {
             return pos;
         }
 
+        let bytes = std::slice::from_raw_parts(filename.cast::<u8>(), filenamelen);
+        let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
         list_headp.push(ff_visited_list_hdr_T {
-            ffvl_filename: xmemdupz(filename.cast(), filenamelen).cast(),
+            ffvl_filename: std::ffi::CString::new(&bytes[..end]).unwrap(),
             ffvl_visited_list: Vec::new(),
         });
         list_headp.len() - 1
@@ -1025,7 +1014,12 @@ unsafe fn ff_check_visited(
                 || (!url
                     && vp.file_id_valid
                     && os_fileid_equal(&raw const vp.file_id, &raw const file_id)))
-                && ff_wc_equal(vp.ffv_wc_path, wc_path)
+                && ff_wc_equal(
+                    vp.ffv_wc_path
+                        .as_ref()
+                        .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut()),
+                    wc_path,
+                )
             {
                 return FAIL;
             }
@@ -1041,11 +1035,11 @@ unsafe fn ff_check_visited(
             ));
         }
 
-        let ffv_wc_path = if !wc_path.is_null() {
-            xmemdupz(wc_path.cast(), wc_pathlen).cast()
-        } else {
-            ptr::null_mut()
-        };
+        let ffv_wc_path = (!wc_path.is_null()).then(|| {
+            let bytes = std::slice::from_raw_parts(wc_path.cast::<u8>(), wc_pathlen);
+            let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+            std::ffi::CString::new(&bytes[..end]).unwrap()
+        });
 
         visited_list.push(ff_visited_T {
             ffv_wc_path,

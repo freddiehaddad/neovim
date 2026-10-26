@@ -40,7 +40,7 @@ use crate::marktree::{
     mt_decor, mt_decor_sign, mt_end,
 };
 use crate::mbyte::{utf_ptr2cells, utfc_ptr2len, utfc_ptr2schar};
-use crate::memory::{xfree, xstrdup};
+use crate::memory::xstrdup;
 use crate::message::{
     emsg, msg_outtrans, msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg, smsg,
 };
@@ -71,23 +71,14 @@ const EXP_SIGN_GROUPS: c_int = 6;
 
 #[repr(C)]
 pub struct sign_T {
-    pub sn_name: *mut c_char,
-    pub sn_icon: *mut c_char,
+    pub sn_name: std::ffi::CString,
+    pub sn_icon: Option<std::ffi::CString>,
     pub sn_text: [schar_T; SIGN_WIDTH],
     pub sn_line_hl: c_int,
     pub sn_text_hl: c_int,
     pub sn_cul_hl: c_int,
     pub sn_num_hl: c_int,
     pub sn_priority: c_int,
-}
-
-impl Drop for sign_T {
-    fn drop(&mut self) {
-        unsafe {
-            xfree(self.sn_name.cast());
-            xfree(self.sn_icon.cast());
-        }
-    }
 }
 
 use crate::api::ui::MAX_SCHAR_SIZE;
@@ -123,7 +114,7 @@ unsafe fn pmap_get_sign(name: *const c_char) -> *mut sign_T {
     unsafe {
         let sm_ptr = &raw mut sign_map;
         for sp in &mut *sm_ptr {
-            if strcmp(sp.sn_name, name) == 0 {
+            if strcmp(sp.sn_name.as_ptr(), name) == 0 {
                 return sp;
             }
         }
@@ -195,7 +186,7 @@ unsafe fn buf_set_sign(
 
         sign.flags |= kSHIsSign;
         sign.text = (*sp).sn_text;
-        sign.sign_name = xstrdup((*sp).sn_name);
+        sign.sign_name = xstrdup((*sp).sn_name.as_ptr());
         sign.hl_id = (*sp).sn_text_hl;
         sign.line_hl_id = (*sp).sn_line_hl;
         sign.number_hl_id = (*sp).sn_num_hl;
@@ -547,8 +538,8 @@ unsafe fn sign_define_by_name(
         let sp = if new_sign {
             let sm_ptr = &raw mut sign_map;
             (*sm_ptr).push(sign_T {
-                sn_name: xstrdup(name),
-                sn_icon: ptr::null_mut(),
+                sn_name: CStr::from_ptr(name).to_owned(),
+                sn_icon: None,
                 sn_text: [0; SIGN_WIDTH],
                 sn_line_hl: 0,
                 sn_text_hl: 0,
@@ -562,9 +553,14 @@ unsafe fn sign_define_by_name(
         };
 
         if !icon.is_null() {
-            xfree((*sp).sn_icon.cast());
-            (*sp).sn_icon = xstrdup(icon);
-            backslash_halve((*sp).sn_icon);
+            let mut icon_vec = CStr::from_ptr(icon).to_bytes_with_nul().to_vec();
+            backslash_halve(icon_vec.as_mut_ptr().cast());
+            let end = icon_vec
+                .iter()
+                .position(|&b| b == 0)
+                .unwrap_or(icon_vec.len());
+            icon_vec.truncate(end);
+            (*sp).sn_icon = Some(std::ffi::CString::new(icon_vec).unwrap());
         }
 
         if !text.is_null() && init_sign_text(sp, (*sp).sn_text.as_mut_ptr(), text) == FAIL {
@@ -622,7 +618,7 @@ unsafe fn sign_undefine_by_name(name: *const c_char) -> c_int {
         let sm_ptr = &raw mut sign_map;
         let Some(pos) = (*sm_ptr)
             .iter()
-            .position(|sp| strcmp(sp.sn_name, name) == 0)
+            .position(|sp| strcmp(sp.sn_name.as_ptr(), name) == 0)
         else {
             semsg!(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
             return FAIL;
@@ -634,10 +630,10 @@ unsafe fn sign_undefine_by_name(name: *const c_char) -> c_int {
 
 unsafe fn sign_list_defined(sp: *mut sign_T) {
     unsafe {
-        smsg!(0, c"sign %s".as_ptr(), (*sp).sn_name);
-        if !(*sp).sn_icon.is_null() {
+        smsg!(0, c"sign %s".as_ptr(), (*sp).sn_name.as_ptr());
+        if let Some(ref icon) = (*sp).sn_icon {
             msg_puts(c" icon=".as_ptr());
-            msg_outtrans((*sp).sn_icon, 0, false);
+            msg_outtrans(icon.as_ptr(), 0, false);
             msg_puts(gettext(c" (not supported)".as_ptr()));
         }
         if (*sp).sn_text[0] != 0 {
@@ -1102,10 +1098,10 @@ unsafe fn sign_get_info_dict(sp: *mut sign_T) -> *mut dict_T {
     unsafe {
         let d = tv_dict_alloc();
 
-        tv_dict_add_str(d, c"name".as_ptr(), 4, (*sp).sn_name);
+        tv_dict_add_str(d, c"name".as_ptr(), 4, (*sp).sn_name.as_ptr());
 
-        if !(*sp).sn_icon.is_null() {
-            tv_dict_add_str(d, c"icon".as_ptr(), 4, (*sp).sn_icon);
+        if let Some(ref icon) = (*sp).sn_icon {
+            tv_dict_add_str(d, c"icon".as_ptr(), 4, icon.as_ptr());
         }
         if (*sp).sn_text[0] != 0 {
             let mut buf = [0 as c_char; SIGN_WIDTH * MAX_SCHAR_SIZE];
@@ -1260,7 +1256,7 @@ unsafe fn get_nth_sign_name(idx: c_int) -> *mut c_char {
         if let Ok(idx_usize) = usize::try_from(idx)
             && let Some(sp) = (*sm_ptr).as_slice().get(idx_usize)
         {
-            return sp.sn_name;
+            return sp.sn_name.as_ptr().cast_mut();
         }
         ptr::null_mut()
     }

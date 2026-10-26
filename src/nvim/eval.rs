@@ -261,7 +261,7 @@ pub struct forinfo_T {
     fi_list: *mut list_T,
     fi_bi: c_int,
     fi_blob: *mut blob_T,
-    fi_string: *mut c_char,
+    fi_string: Option<std::ffi::CString>,
     fi_byte_idx: c_int,
 }
 
@@ -1757,7 +1757,7 @@ pub unsafe fn eval_for_line(
             fi_bi: 0,
             fi_byte_idx: 0,
             fi_blob: ptr::null_mut(),
-            fi_string: ptr::null_mut(),
+            fi_string: None,
             fi_varcount: 0,
             fi_semicolon: 0,
         });
@@ -1811,10 +1811,12 @@ pub unsafe fn eval_for_line(
                     tv_clear(&raw mut tv);
                 } else if tv.v_type == VarType::VAR_STRING {
                     fi.fi_byte_idx = 0;
-                    fi.fi_string = tv.vval.v_string;
-                    if fi.fi_string.is_null() {
-                        fi.fi_string = xstrdup(c"".as_ptr());
-                    }
+                    fi.fi_string = Some(if tv.vval.v_string.is_null() {
+                        std::ffi::CString::default()
+                    } else {
+                        CStr::from_ptr(tv.vval.v_string).to_owned()
+                    });
+                    tv_clear(&raw mut tv);
                 } else {
                     emsg(gettext(E_STRING_LIST_OR_BLOB_REQUIRED.as_ptr()));
                     tv_clear(&raw mut tv);
@@ -1855,8 +1857,9 @@ pub unsafe fn next_for_item(fi: &mut forinfo_T, arg: *mut c_char) -> bool {
             ) == OK;
         }
 
-        if !fi.fi_string.is_null() {
-            let len = utfc_ptr2len(fi.fi_string.add(fi.fi_byte_idx as usize));
+        if let Some(ref fi_str) = fi.fi_string {
+            let str_ptr = fi_str.as_ptr();
+            let len = utfc_ptr2len(str_ptr.add(fi.fi_byte_idx as usize));
             if len == 0 {
                 return false;
             }
@@ -1864,11 +1867,8 @@ pub unsafe fn next_for_item(fi: &mut forinfo_T, arg: *mut c_char) -> bool {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_FIXED,
                 vval: TypvalVval {
-                    v_string: xmemdupz(
-                        fi.fi_string.add(fi.fi_byte_idx as usize).cast(),
-                        len as usize,
-                    )
-                    .cast(),
+                    v_string: xmemdupz(str_ptr.add(fi.fi_byte_idx as usize).cast(), len as usize)
+                        .cast(),
                 },
             };
             fi.fi_byte_idx += len;
@@ -1910,8 +1910,6 @@ impl Drop for forinfo_T {
                 tv_list_unref(self.fi_list);
             } else if !self.fi_blob.is_null() {
                 tv_blob_unref(self.fi_blob);
-            } else {
-                xfree(self.fi_string.cast());
             }
         }
     }
