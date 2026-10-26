@@ -369,14 +369,15 @@ unsafe fn cstr_contains(haystack: *const c_char, needle: &[u8]) -> bool {
 }
 
 pub unsafe fn tui_start(
-    tui_p: *mut *mut TUIData,
+    tui_out: *mut Option<Box<TUIData>>,
     width: *mut c_int,
     height: *mut c_int,
     term: *mut *mut c_char,
     rgb: *mut bool,
 ) {
     unsafe {
-        let tui = Box::into_raw(Box::new(TUIData::new()));
+        *tui_out = Some(Box::new(TUIData::new()));
+        let tui: *mut TUIData = &raw mut **(*tui_out).as_mut().unwrap();
 
         signal_watcher_init((*tui).loop_, tui_winch_handle(tui), tui);
         signal_watcher_start(tui_winch_handle(tui), Some(sigwinch_cb), SIGWINCH);
@@ -390,7 +391,6 @@ pub unsafe fn tui_start(
         *timer.cast::<*mut TUIData>() = tui;
         uv_timer_start(timer, Some(after_startup_cb), 100, 0);
 
-        *tui_p = tui;
         loop_poll_events((&raw mut main_loop).cast::<Loop>(), 1);
         *width = (*tui).width;
         *height = (*tui).height;
@@ -1242,12 +1242,12 @@ pub unsafe fn tui_is_stopped(tui: *mut TUIData) -> bool {
     unsafe { (*tui).stopped }
 }
 
-pub unsafe fn tui_free_all_mem(tui: *mut TUIData) {
+pub unsafe fn tui_free_all_mem(tui: Option<Box<TUIData>>) {
     unsafe {
         let urls_ptr = &raw mut urls;
         *urls_ptr = Vec::new();
 
-        drop(Box::from_raw(tui));
+        drop(tui);
     }
 }
 

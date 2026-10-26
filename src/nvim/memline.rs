@@ -71,6 +71,7 @@ use std::ptr;
 pub struct memline_T {
     pub ml_line_count: i32,
     pub ml_mfp: *mut crate::memfile::memfile_T,
+    pub ml_mfp_owned: Option<Box<crate::memfile::memfile_T>>,
     pub ml_stack: Vec<infoptr_T>,
     pub ml_stack_top: c_int,
     pub ml_flags: c_int,
@@ -92,6 +93,7 @@ impl memline_T {
         Self {
             ml_line_count: 0,
             ml_mfp: ptr::null_mut(),
+            ml_mfp_owned: None,
             ml_stack: Vec::new(),
             ml_stack_top: 0,
             ml_flags: 0,
@@ -386,13 +388,13 @@ pub unsafe fn ml_open(buf: *mut buf_T) -> c_int {
 
         (*buf).b_may_swap = (*buf).terminal.is_null() && p_uc != 0 && (*buf).b_p_swf != 0;
 
-        let mfp = mf_open(ptr::null_mut(), 0);
-        if mfp.is_null() {
+        (*buf).b_ml.ml_mfp_owned = mf_open(ptr::null_mut(), 0);
+        let Some(mfp_box) = (*buf).b_ml.ml_mfp_owned.as_deref_mut() else {
             (*buf).b_ml.ml_mfp = ptr::null_mut();
             return FAIL;
-        }
-
-        (*buf).b_ml.ml_mfp = mfp.cast();
+        };
+        let mfp: *mut memfile_T = &raw mut *mfp_box;
+        (*buf).b_ml.ml_mfp = mfp;
         (*buf).b_ml.ml_flags = ML_EMPTY;
         (*buf).b_ml.ml_line_count = 1;
 
@@ -470,7 +472,7 @@ unsafe fn ml_open_error(buf: *mut buf_T, mfp: *mut memfile_T, hp: *mut bhdr_T) -
             if !hp.is_null() {
                 mf_put(mfp, hp, false, false);
             }
-            mf_close(mfp, true);
+            mf_close((*buf).b_ml.ml_mfp_owned.take(), true);
         }
         (*buf).b_ml.ml_mfp = ptr::null_mut();
         FAIL
@@ -650,7 +652,7 @@ pub unsafe fn ml_close(buf: *mut buf_T, del_file: c_int) {
         if (*buf).b_ml.ml_mfp.is_null() {
             return;
         }
-        mf_close((*buf).b_ml.ml_mfp.cast(), del_file != 0);
+        mf_close((*buf).b_ml.ml_mfp_owned.take(), del_file != 0);
         if (*buf).b_ml.ml_line_lnum != 0
             && ((*buf).b_ml.ml_flags & (ML_LINE_DIRTY | ML_ALLOCATED)) != 0
         {
@@ -923,7 +925,12 @@ pub unsafe fn ml_recover(checkext: bool) {
         buf_box = Some(allocated_buf);
 
         let p = xstrdup(fname_used);
-        mfp = mf_open(fname_used, O_RDONLY);
+        (*buf).b_ml.ml_mfp_owned = mf_open(fname_used, O_RDONLY);
+        mfp = (*buf)
+            .b_ml
+            .ml_mfp_owned
+            .as_deref_mut()
+            .map_or(ptr::null_mut(), |m| &raw mut *m);
         fname_used = p;
         if mfp.is_null() || (*mfp).mf_fd < 0 {
             semsg!(tr(c"E306: Cannot open %s"), fname_used);
@@ -1499,7 +1506,7 @@ unsafe fn ml_recover_theend(
     fname_used: *mut c_char,
     mfp: *mut memfile_T,
     hp: *mut bhdr_T,
-    buf: Option<Box<buf_T>>,
+    mut buf: Option<Box<buf_T>>,
     serious_error: bool,
     called_from_main: bool,
 ) {
@@ -1511,7 +1518,7 @@ unsafe fn ml_recover_theend(
             if !hp.is_null() {
                 mf_put(mfp, hp, false, false);
             }
-            mf_close(mfp, false);
+            mf_close(buf.as_mut().and_then(|b| b.b_ml.ml_mfp_owned.take()), false);
         }
         drop(buf);
         if serious_error && called_from_main {

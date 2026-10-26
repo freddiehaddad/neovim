@@ -45,11 +45,21 @@ use std::ptr;
 pub(crate) const UI_CLIENT_STDIN_FD: c_int = 3;
 use crate::highlight::KEYSET_OPTIDX_highlight__url;
 
-pub static mut tui: *mut TUIData = ptr::null_mut();
+static mut tui: Option<Box<TUIData>> = None;
 static mut tui_width: c_int = 0;
 static mut tui_height: c_int = 0;
 static mut tui_term: *mut c_char = c"".as_ptr().cast_mut();
 static mut tui_rgb: bool = false;
+
+#[inline]
+unsafe fn tui_ptr() -> *mut TUIData {
+    unsafe {
+        let ptr = &raw mut tui;
+        (*ptr)
+            .as_deref_mut()
+            .map_or(ptr::null_mut(), |t| &raw mut *t)
+    }
+}
 
 static mut restart_args: Array = ARRAY_INIT;
 static mut restart_pending: bool = false;
@@ -288,8 +298,9 @@ pub unsafe fn ui_client_run() -> ! {
 pub unsafe fn ui_client_stop() {
     unsafe {
         ui_client_attached = false;
-        if !tui_is_stopped(tui) {
-            tui_stop(tui);
+        let t = tui_ptr();
+        if !tui_is_stopped(t) {
+            tui_stop(t);
         }
     }
 }
@@ -353,7 +364,7 @@ pub unsafe fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
             &raw mut err,
         );
         if (dict.is_set__highlight_ & (1u64 << KEYSET_OPTIDX_highlight__url)) != 0 {
-            attrs.url = tui_add_url(tui, dict.url.data);
+            attrs.url = tui_add_url(tui_ptr(), dict.url.data);
         }
         attrs
     }
@@ -380,7 +391,7 @@ pub unsafe fn ui_client_event_grid_resize(args: Array) {
         let grid = (*args.items).data.integer;
         let width = (*args.items.add(1)).data.integer;
         let height = (*args.items.add(2)).data.integer;
-        tui_grid_resize(tui, grid, width, height);
+        tui_grid_resize(tui_ptr(), grid, width, height);
 
         let cols = width as usize;
         let char_buf = &raw const grid_line_buf_char;
@@ -407,7 +418,7 @@ pub unsafe fn ui_client_event_raw_line(g: *mut GridLineEvent) {
         let char_buf = &raw mut grid_line_buf_char;
         let attr_buf = &raw mut grid_line_buf_attr;
         tui_raw_line(
-            tui,
+            tui_ptr(),
             Integer::from(grid),
             Integer::from(row),
             Integer::from(startcol),
@@ -631,7 +642,8 @@ pub unsafe fn ui_client_event_error_exit(args: Array) {
 
 pub unsafe fn ui_client_free_all_mem() {
     unsafe {
-        tui_free_all_mem(tui);
+        let tui_out = &raw mut tui;
+        tui_free_all_mem((*tui_out).take());
         grid_line_buf_char = Vec::new();
         grid_line_buf_attr = Vec::new();
     }
@@ -671,7 +683,7 @@ pub unsafe fn ui_client_event_mode_info_set(args: Array) {
             return;
         }
         tui_mode_info_set(
-            tui,
+            tui_ptr(),
             (*args.items).data.boolean,
             (*args.items.add(1)).data.array,
         );
@@ -680,31 +692,31 @@ pub unsafe fn ui_client_event_mode_info_set(args: Array) {
 
 pub unsafe fn ui_client_event_update_menu(_args: Array) {
     unsafe {
-        tui_update_menu(tui);
+        tui_update_menu(tui_ptr());
     }
 }
 
 pub unsafe fn ui_client_event_busy_start(_args: Array) {
     unsafe {
-        tui_busy_start(tui);
+        tui_busy_start(tui_ptr());
     }
 }
 
 pub unsafe fn ui_client_event_busy_stop(_args: Array) {
     unsafe {
-        tui_busy_stop(tui);
+        tui_busy_stop(tui_ptr());
     }
 }
 
 pub unsafe fn ui_client_event_mouse_on(_args: Array) {
     unsafe {
-        tui_mouse_on(tui);
+        tui_mouse_on(tui_ptr());
     }
 }
 
 pub unsafe fn ui_client_event_mouse_off(_args: Array) {
     unsafe {
-        tui_mouse_off(tui);
+        tui_mouse_off(tui_ptr());
     }
 }
 
@@ -721,7 +733,7 @@ pub unsafe fn ui_client_event_mode_change(args: Array) {
             return;
         }
         tui_mode_change(
-            tui,
+            tui_ptr(),
             (*args.items).data.string,
             (*args.items.add(1)).data.integer,
         );
@@ -730,25 +742,25 @@ pub unsafe fn ui_client_event_mode_change(args: Array) {
 
 pub unsafe fn ui_client_event_bell(_args: Array) {
     unsafe {
-        tui_bell(tui);
+        tui_bell(tui_ptr());
     }
 }
 
 pub unsafe fn ui_client_event_visual_bell(_args: Array) {
     unsafe {
-        tui_visual_bell(tui);
+        tui_visual_bell(tui_ptr());
     }
 }
 
 pub unsafe fn ui_client_event_flush(_args: Array) {
     unsafe {
-        tui_flush(tui);
+        tui_flush(tui_ptr());
     }
 }
 
 pub unsafe fn ui_client_event_suspend(_args: Array) {
     unsafe {
-        tui_suspend(tui);
+        tui_suspend(tui_ptr());
     }
 }
 
@@ -758,7 +770,7 @@ pub unsafe fn ui_client_event_set_title(args: Array) {
             log_ui_event_err(c"ui_client_event_set_title".as_ptr(), c"set_title".as_ptr());
             return;
         }
-        tui_set_title(tui, (*args.items).data.string);
+        tui_set_title(tui_ptr(), (*args.items).data.string);
     }
 }
 
@@ -768,7 +780,7 @@ pub unsafe fn ui_client_event_set_icon(args: Array) {
             log_ui_event_err(c"ui_client_event_set_icon".as_ptr(), c"set_icon".as_ptr());
             return;
         }
-        tui_set_icon(tui, (*args.items).data.string);
+        tui_set_icon(tui_ptr(), (*args.items).data.string);
     }
 }
 
@@ -781,7 +793,7 @@ pub unsafe fn ui_client_event_screenshot(args: Array) {
             );
             return;
         }
-        tui_screenshot(tui, (*args.items).data.string);
+        tui_screenshot(tui_ptr(), (*args.items).data.string);
     }
 }
 
@@ -794,7 +806,7 @@ pub unsafe fn ui_client_event_option_set(args: Array) {
             );
             return;
         }
-        tui_option_set(tui, (*args.items).data.string, *args.items.add(1));
+        tui_option_set(tui_ptr(), (*args.items).data.string, *args.items.add(1));
     }
 }
 
@@ -804,7 +816,7 @@ pub unsafe fn ui_client_event_chdir(args: Array) {
             log_ui_event_err(c"ui_client_event_chdir".as_ptr(), c"chdir".as_ptr());
             return;
         }
-        tui_chdir(tui, (*args.items).data.string);
+        tui_chdir(tui_ptr(), (*args.items).data.string);
     }
 }
 
@@ -814,7 +826,7 @@ pub unsafe fn ui_client_event_ui_send(args: Array) {
             log_ui_event_err(c"ui_client_event_ui_send".as_ptr(), c"ui_send".as_ptr());
             return;
         }
-        tui_ui_send(tui, (*args.items).data.string);
+        tui_ui_send(tui_ptr(), (*args.items).data.string);
     }
 }
 
@@ -834,7 +846,7 @@ pub unsafe fn ui_client_event_default_colors_set(args: Array) {
             return;
         }
         tui_default_colors_set(
-            tui,
+            tui_ptr(),
             (*args.items).data.integer,
             (*args.items.add(1)).data.integer,
             (*args.items.add(2)).data.integer,
@@ -862,7 +874,7 @@ pub unsafe fn ui_client_event_hl_attr_define(args: Array) {
         let arg_2 = ui_client_dict2hlattrs((*args.items.add(1)).data.dict, true);
         let arg_3 = ui_client_dict2hlattrs((*args.items.add(2)).data.dict, false);
         let arg_4 = (*args.items.add(3)).data.array;
-        tui_hl_attr_define(tui, arg_1, arg_2, arg_3, arg_4);
+        tui_hl_attr_define(tui_ptr(), arg_1, arg_2, arg_3, arg_4);
     }
 }
 
@@ -875,7 +887,7 @@ pub unsafe fn ui_client_event_grid_clear(args: Array) {
             );
             return;
         }
-        tui_grid_clear(tui, (*args.items).data.integer);
+        tui_grid_clear(tui_ptr(), (*args.items).data.integer);
     }
 }
 
@@ -893,7 +905,7 @@ pub unsafe fn ui_client_event_grid_cursor_goto(args: Array) {
             return;
         }
         tui_grid_cursor_goto(
-            tui,
+            tui_ptr(),
             (*args.items).data.integer,
             (*args.items.add(1)).data.integer,
             (*args.items.add(2)).data.integer,
@@ -919,7 +931,7 @@ pub unsafe fn ui_client_event_grid_scroll(args: Array) {
             return;
         }
         tui_grid_scroll(
-            tui,
+            tui_ptr(),
             (*args.items).data.integer,
             (*args.items.add(1)).data.integer,
             (*args.items.add(2)).data.integer,

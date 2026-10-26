@@ -103,9 +103,9 @@ pub fn pmap_get_bhdr(map: &std::collections::HashMap<i64, Box<bhdr_T>>, key: i64
 }
 
 /// Open a new or existing memory block file.
-pub unsafe fn mf_open(fname: *mut c_char, flags: c_int) -> *mut memfile_T {
+pub unsafe fn mf_open(fname: *mut c_char, flags: c_int) -> Option<Box<memfile_T>> {
     unsafe {
-        let mfp = Box::into_raw(Box::new(memfile_T {
+        let mut mfp = Box::new(memfile_T {
             mf_fname: ptr::null_mut(),
             mf_ffname: ptr::null_mut(),
             mf_fd: -1,
@@ -120,41 +120,38 @@ pub unsafe fn mf_open(fname: *mut c_char, flags: c_int) -> *mut memfile_T {
             mf_infile_count: 0,
             mf_page_size: MEMFILE_PAGE_SIZE,
             mf_dirty: MF_DIRTY_NO,
-        }));
+        });
 
-        if !fname.is_null() && !mf_do_open(mfp, fname, flags) {
-            drop(Box::from_raw(mfp));
-            return ptr::null_mut();
+        if !fname.is_null() && !mf_do_open(&raw mut *mfp, fname, flags) {
+            return None;
         }
 
-        if (*mfp).mf_fd >= 0 {
+        if mfp.mf_fd >= 0 {
             let mut file_info = FileInfo::new();
-            if os_fileinfo_fd((*mfp).mf_fd, &raw mut file_info) {
+            if os_fileinfo_fd(mfp.mf_fd, &raw mut file_info) {
                 let blocksize = os_fileinfo_blocksize(&raw const file_info);
                 if (u64::from(MIN_SWAP_PAGE_SIZE)..=MAX_SWAP_PAGE_SIZE).contains(&blocksize) {
-                    (*mfp).mf_page_size = blocksize as c_uint;
+                    mfp.mf_page_size = blocksize as c_uint;
                 }
             }
         }
 
         let size: off_T;
-        if (*mfp).mf_fd < 0 || (flags & (O_TRUNC | O_EXCL)) != 0 || {
-            size = vim_lseek((*mfp).mf_fd, 0, SEEK_END);
+        if mfp.mf_fd < 0 || (flags & (O_TRUNC | O_EXCL)) != 0 || {
+            size = vim_lseek(mfp.mf_fd, 0, SEEK_END);
             size <= 0
         } {
-            (*mfp).mf_blocknr_max = 0;
+            mfp.mf_blocknr_max = 0;
         } else {
-            assert!(
-                (*mfp).mf_page_size > 0 && i64::from((*mfp).mf_page_size - 1) <= i64::MAX - size
-            );
-            (*mfp).mf_blocknr_max =
-                (size + i64::from((*mfp).mf_page_size) - 1) / i64::from((*mfp).mf_page_size);
+            assert!(mfp.mf_page_size > 0 && i64::from(mfp.mf_page_size - 1) <= i64::MAX - size);
+            mfp.mf_blocknr_max =
+                (size + i64::from(mfp.mf_page_size) - 1) / i64::from(mfp.mf_page_size);
         }
-        (*mfp).mf_blocknr_min = -1;
-        (*mfp).mf_neg_count = 0;
-        (*mfp).mf_infile_count = (*mfp).mf_blocknr_max;
+        mfp.mf_blocknr_min = -1;
+        mfp.mf_neg_count = 0;
+        mfp.mf_infile_count = mfp.mf_blocknr_max;
 
-        mfp
+        Some(mfp)
     }
 }
 
@@ -171,19 +168,19 @@ pub unsafe fn mf_open_file(mfp: *mut memfile_T, fname: *mut c_char) -> c_int {
 }
 
 /// Close a memory file and optionally delete the associated file.
-pub unsafe fn mf_close(mfp: *mut memfile_T, del_file: bool) {
-    if mfp.is_null() {
+pub unsafe fn mf_close(mfp: Option<Box<memfile_T>>, del_file: bool) {
+    let Some(mfp) = mfp else {
         return;
-    }
+    };
     unsafe {
-        if (*mfp).mf_fd >= 0 && close((*mfp).mf_fd) < 0 {
+        if mfp.mf_fd >= 0 && close(mfp.mf_fd) < 0 {
             emsg(gettext(e_swapclose.as_ptr()));
         }
-        if del_file && !(*mfp).mf_fname.is_null() {
-            os_remove((*mfp).mf_fname);
+        if del_file && !mfp.mf_fname.is_null() {
+            os_remove(mfp.mf_fname);
         }
 
-        drop(Box::from_raw(mfp));
+        drop(mfp);
     }
 }
 
@@ -689,8 +686,8 @@ mod tests {
     #[test]
     fn memory_only_memfile_allocates_gets_puts_and_frees_blocks() {
         unsafe {
-            let mfp = mf_open(ptr::null_mut(), 0);
-            assert!(!mfp.is_null());
+            let mut mfp_box = mf_open(ptr::null_mut(), 0).expect("mf_open failed");
+            let mfp: *mut memfile_T = &raw mut *mfp_box;
             assert_eq!((*mfp).mf_page_size, 4096);
 
             let hp1 = mf_new(mfp, true, 1);
@@ -704,7 +701,7 @@ mod tests {
             mf_put(mfp, hp2, false, false);
             mf_free(mfp, hp2);
 
-            mf_close(mfp, false);
+            mf_close(Some(mfp_box), false);
         }
     }
 
