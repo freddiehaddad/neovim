@@ -364,7 +364,7 @@ pub unsafe extern "C" fn nvim_parse_cmd(
         let name = if ea.cmdidx == CMD_SIZE {
             c"".as_ptr()
         } else if let Some(cmd) = cmd {
-            cmd.uc_name
+            cmd.uc_name.as_ptr()
         } else {
             get_command_name(ptr::null_mut(), ea.cmdidx)
         };
@@ -1391,7 +1391,7 @@ pub unsafe extern "C" fn nvim_buf_del_user_command(buf: Buffer, name: NvimString
         let name_bytes = CStr::from_ptr(name.data).to_bytes();
         if let Some(i) = (*gap)
             .iter()
-            .position(|cmd| CStr::from_ptr(cmd.uc_name).to_bytes() == name_bytes)
+            .position(|cmd| cmd.uc_name.as_bytes() == name_bytes)
         {
             let _ = (*gap).remove(i);
             return;

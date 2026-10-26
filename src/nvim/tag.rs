@@ -141,7 +141,7 @@ const MT_NAMES: [&CStr; MT_COUNT / 2] = [
 /// Structure used for `get_tagfname()`.
 #[repr(C)]
 pub struct tagname_T {
-    pub tn_tags: *mut c_char,
+    pub tn_tags: Option<std::ffi::CString>,
     pub tn_np: *mut c_char,
     pub tn_did_filefind_init: c_int,
     pub tn_hf_idx: c_int,
@@ -151,7 +151,7 @@ pub struct tagname_T {
 impl tagname_T {
     pub const fn new() -> Self {
         Self {
-            tn_tags: ptr::null_mut(),
+            tn_tags: None,
             tn_np: ptr::null_mut(),
             tn_did_filefind_init: 0,
             tn_hf_idx: 0,
@@ -169,7 +169,6 @@ impl Default for tagname_T {
 impl Drop for tagname_T {
     fn drop(&mut self) {
         unsafe {
-            xfree(self.tn_tags.cast());
             let tf = &raw mut tag_fnames;
             (*tf).clear();
         }
@@ -2491,12 +2490,13 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
         }
 
         if first != 0 {
-            (*tnp).tn_tags = xstrdup(if *(*curbuf).b_p_tags != NUL {
+            let src = if *(*curbuf).b_p_tags != NUL {
                 (*curbuf).b_p_tags
             } else {
                 p_tags
-            });
-            (*tnp).tn_np = (*tnp).tn_tags;
+            };
+            (*tnp).tn_tags = Some(CStr::from_ptr(src).to_owned());
+            (*tnp).tn_np = (*tnp).tn_tags.as_ref().unwrap().as_ptr().cast_mut();
         }
 
         loop {

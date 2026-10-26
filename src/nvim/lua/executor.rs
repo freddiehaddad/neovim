@@ -2773,7 +2773,7 @@ pub unsafe fn nlua_do_ucmd(cmd: *mut ucmd_T, eap: *mut exarg_T, preview: bool) -
         lua_newtable(lstate);
         nlua_push_eap(lstate, eap, &raw const cmdmod);
 
-        lua_pushstring(lstate, (*cmd).uc_name);
+        lua_pushstring(lstate, (*cmd).uc_name.as_ptr());
         lua_setfield(lstate, -2, c"name".as_ptr());
 
         if (*eap).addr_count == 0 {

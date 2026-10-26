@@ -2352,7 +2352,7 @@ unsafe fn handle_mapping(
                 .chain(get_maphash_list(local_State, tb_b1))
             {
                 let cand: *mut mapblock_T = (&raw const **cand).cast_mut();
-                let mut key_iter: *const u8 = (*cand).m_keys.cast::<u8>().cast_const();
+                let mut key_iter: *const u8 = (*cand).m_keys.as_ptr().cast::<u8>();
 
                 if char_iter(&raw mut key_iter, 0) == tb_c1
                     && ((*cand).m_mode & local_State) != 0
@@ -2361,7 +2361,8 @@ unsafe fn handle_mapping(
                     let mut nomap = nolmaplen;
                     let mut modifiers: c_int = 0;
                     let mut tmp_tb_iter = tb_iter;
-                    let mut mlen = key_iter.offset_from((*cand).m_keys.cast::<u8>()) as c_int;
+                    let mut mlen =
+                        key_iter.offset_from((*cand).m_keys.as_ptr().cast::<u8>()) as c_int;
                     let mut tb_mlen =
                         (tmp_tb_iter.offset_from(typebuf.tb_buf) as c_int) - typebuf.tb_off;
 
@@ -2392,7 +2393,7 @@ unsafe fn handle_mapping(
                             break;
                         }
 
-                        mlen = key_iter.offset_from((*cand).m_keys.cast::<u8>()) as c_int;
+                        mlen = key_iter.offset_from((*cand).m_keys.as_ptr().cast::<u8>()) as c_int;
                         tb_mlen =
                             (tmp_tb_iter.offset_from(typebuf.tb_buf) as c_int) - typebuf.tb_off;
                     }
@@ -2400,7 +2401,7 @@ unsafe fn handle_mapping(
                     keylen = (*cand).m_keylen;
                     if mlen == keylen || (mlen == typebuf.tb_len && typebuf.tb_len < keylen) {
                         let mut s = typebuf.tb_noremap.add(typebuf.tb_off as usize);
-                        let m_keys_u8 = (*cand).m_keys.cast::<u8>();
+                        let m_keys_u8 = (*cand).m_keys.as_ptr().cast::<u8>();
                         if *s == RM_SCRIPT
                             && (*m_keys_u8 != K_SPECIAL
                                 || *m_keys_u8.add(1) != KS_EXTRA
@@ -2494,7 +2495,7 @@ unsafe fn handle_mapping(
                         .add((typebuf.tb_off + typebuf.tb_maplen) as usize),
                     (keylen - typebuf.tb_maplen) as usize,
                 );
-                atom_map_start((*mp).m_keys, (*mp).m_keylen as usize, !advance);
+                atom_map_start((*mp).m_keys.as_ptr(), (*mp).m_keylen as usize, !advance);
             }
 
             cmd_silent = typebuf.tb_silent > 0;
@@ -2528,8 +2529,8 @@ unsafe fn handle_mapping(
             let save_m_expr = (*mp).m_expr != 0;
             let save_m_noremap = (*mp).m_noremap;
             let save_m_silent = (*mp).m_silent != 0;
-            let mut save_m_keys: *mut c_char = ptr::null_mut();
-            let mut save_alt_m_keys: *mut c_char = ptr::null_mut();
+            let mut save_m_keys: Option<std::ffi::CString> = None;
+            let mut save_alt_m_keys: Option<std::ffi::CString> = None;
             let save_alt_m_keylen = if !(*mp).m_alt.is_null() {
                 (*(*mp).m_alt).m_keylen
             } else {
@@ -2544,11 +2545,11 @@ unsafe fn handle_mapping(
                 vgetc_busy = 0;
                 may_garbage_collect = false;
 
-                save_m_keys = xmemdupz((*mp).m_keys.cast(), (*mp).m_keylen as usize).cast();
+                save_m_keys = Some((*mp).m_keys.clone());
                 save_alt_m_keys = if !(*mp).m_alt.is_null() {
-                    xmemdupz((*(*mp).m_alt).m_keys.cast(), save_alt_m_keylen as usize).cast()
+                    Some((*(*mp).m_alt).m_keys.clone())
                 } else {
-                    ptr::null_mut()
+                    None
                 };
                 map_str = eval_map_expr(mp, NUL);
 
@@ -2570,7 +2571,7 @@ unsafe fn handle_mapping(
                 vgetc_busy = save_vgetc_busy;
                 may_garbage_collect = save_may_garbage_collect;
             } else {
-                map_str = (*mp).m_str;
+                map_str = (*mp).m_str.as_ptr().cast_mut();
             }
 
             let i = if map_str.is_null() {
@@ -2583,15 +2584,20 @@ unsafe fn handle_mapping(
                 let noremap = if save_m_noremap != REMAP_YES {
                     save_m_noremap
                 } else if if save_m_expr {
-                    strncmp(map_str, save_m_keys, keylen as usize) == 0
-                        || (!save_alt_m_keys.is_null()
-                            && strncmp(map_str, save_alt_m_keys, save_alt_m_keylen as usize) == 0)
+                    strncmp(
+                        map_str,
+                        save_m_keys.as_ref().unwrap().as_ptr(),
+                        keylen as usize,
+                    ) == 0
+                        || save_alt_m_keys.as_ref().is_some_and(|alt| {
+                            strncmp(map_str, alt.as_ptr(), save_alt_m_keylen as usize) == 0
+                        })
                 } else {
-                    strncmp(map_str, (*mp).m_keys, keylen as usize) == 0
+                    strncmp(map_str, (*mp).m_keys.as_ptr(), keylen as usize) == 0
                         || (!(*mp).m_alt.is_null()
                             && strncmp(
                                 map_str,
-                                (*(*mp).m_alt).m_keys,
+                                (*(*mp).m_alt).m_keys.as_ptr(),
                                 (*(*mp).m_alt).m_keylen as usize,
                             ) == 0)
                 } {
@@ -2606,8 +2612,8 @@ unsafe fn handle_mapping(
                 }
                 res
             };
-            xfree(save_m_keys.cast());
-            xfree(save_alt_m_keys.cast());
+            drop(save_m_keys);
+            drop(save_alt_m_keys);
             *keylenp = keylen;
             if i == FAIL {
                 return map_result_T::map_result_fail as c_int;

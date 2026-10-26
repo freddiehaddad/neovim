@@ -221,7 +221,7 @@ impl scriptvar_T {
 
 pub struct source_cookie_T {
     fp: *mut FILE,
-    nextline: *mut c_char,
+    nextline: Option<Vec<c_char>>,
     sourcing_lnum: linenr_T,
     finished: bool,
     source_from_buf_or_str: bool,
@@ -242,7 +242,7 @@ impl source_cookie_T {
     const fn new() -> Self {
         Self {
             fp: ptr::null_mut(),
-            nextline: ptr::null_mut(),
+            nextline: None,
             sourcing_lnum: 0,
             finished: false,
             source_from_buf_or_str: false,
@@ -273,8 +273,6 @@ impl Drop for source_cookie_T {
                 fclose(self.fp);
                 self.fp = ptr::null_mut();
             }
-            xfree(self.nextline.cast());
-            self.nextline = ptr::null_mut();
         }
     }
 }
@@ -3339,49 +3337,57 @@ pub unsafe fn getsourceline(
             script_line_end();
         }
         set_sourcing_lnum((*sp).sourcing_lnum + 1);
-        let mut line = if (*sp).finished || (!(*sp).source_from_buf_or_str && (*sp).fp.is_null()) {
-            ptr::null_mut()
-        } else if (*sp).nextline.is_null() {
-            get_one_sourceline(sp)
-        } else {
-            let l = (*sp).nextline;
-            (*sp).nextline = ptr::null_mut();
-            (*sp).sourcing_lnum += 1;
-            l
-        };
-        if !line.is_null() && do_profiling == PROF_YES {
+        let mut line_vec =
+            if (*sp).finished || (!(*sp).source_from_buf_or_str && (*sp).fp.is_null()) {
+                None
+            } else if let Some(next) = (*sp).nextline.take() {
+                (*sp).sourcing_lnum += 1;
+                Some(next)
+            } else {
+                get_one_sourceline(sp)
+            };
+        if line_vec.is_some() && do_profiling == PROF_YES {
             script_line_start();
         }
 
-        if !line.is_null() && do_concat && vim_strchr(p_cpo, kCpoConcat).is_null() {
+        if let Some(ref mut buf) = line_vec
+            && do_concat
+            && vim_strchr(p_cpo, kCpoConcat).is_null()
+        {
             (*sp).sourcing_lnum -= 1;
 
             (*sp).nextline = get_one_sourceline(sp);
-            if !(*sp).nextline.is_null() {
-                let p = skipwhite((*sp).nextline);
+            if let Some(ref next) = (*sp).nextline {
+                let p = skipwhite(next.as_ptr());
                 if *p == b'\\' as c_char
                     || (*p == b'"' as c_char
                         && *p.add(1) == b'\\' as c_char
                         && *p.add(2) == b' ' as c_char)
                 {
-                    let line_len = CStr::from_ptr(line).to_bytes().len();
-                    let mut buf: Vec<c_char> = Vec::with_capacity(400);
-                    buf.extend_from_slice(std::slice::from_raw_parts(line, line_len));
-                    while !(*sp).nextline.is_null()
+                    if buf.last() == Some(&NUL) {
+                        buf.pop();
+                    }
+                    buf.reserve(400);
+                    while let Some(ref next) = (*sp).nextline
                         && concat_continued_line(
-                            &mut buf,
-                            (*sp).nextline,
-                            CStr::from_ptr((*sp).nextline).to_bytes().len(),
+                            buf,
+                            next.as_ptr(),
+                            CStr::from_ptr(next.as_ptr()).to_bytes().len(),
                         )
                     {
-                        xfree((*sp).nextline.cast());
                         (*sp).nextline = get_one_sourceline(sp);
                     }
-                    xfree(line.cast());
-                    line = xmemdupz(buf.as_ptr().cast(), buf.len()).cast::<c_char>();
+                    if buf.last() != Some(&NUL) {
+                        buf.push(NUL);
+                    }
                 }
             }
         }
+
+        let mut line = line_vec.map_or(ptr::null_mut(), |b| {
+            let len = b.len().saturating_sub(usize::from(b.last() == Some(&NUL)));
+            xmemdupz(b.as_ptr().cast(), len).cast::<c_char>()
+        });
 
         if !line.is_null() && (*sp).conv.vc_type != CONV_NONE {
             let s = string_convert(&(*sp).conv, line, ptr::null_mut());
@@ -3404,7 +3410,7 @@ pub unsafe fn getsourceline(
     }
 }
 
-unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> *mut c_char {
+unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> Option<Vec<c_char>> {
     unsafe {
         let mut buf: Vec<c_char> = Vec::with_capacity(250);
         let mut have_read = false;
@@ -3513,13 +3519,13 @@ unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> *mut c_char {
         }
 
         if have_read {
-            if buf.last() == Some(&NUL) {
-                buf.pop();
+            if buf.last() != Some(&NUL) {
+                buf.push(NUL);
             }
-            return xmemdupz(buf.as_ptr().cast(), buf.len()).cast::<c_char>();
+            return Some(buf);
         }
 
-        ptr::null_mut()
+        None
     }
 }
 

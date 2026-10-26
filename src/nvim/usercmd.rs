@@ -60,34 +60,30 @@ use crate::strings::{
 use crate::window::{
     WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT, prevwin_curwin, tabpage_index,
 };
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
 
 pub(crate) const UC_BUFFER: c_int = 1;
 
 #[repr(C)]
 pub struct ucmd_T {
-    pub uc_name: *mut c_char,
+    pub uc_name: CString,
     pub uc_argt: u32,
-    pub uc_rep: *mut c_char,
+    pub uc_rep: CString,
     pub uc_def: i64,
     pub uc_compl: c_int,
     pub uc_addr_type: cmd_addr_T,
     pub uc_script_ctx: crate::runtime::sctx_T,
-    pub uc_compl_arg: *mut c_char,
+    pub uc_compl_arg: Option<CString>,
     pub uc_compl_luaref: LuaRef,
     pub uc_preview_luaref: LuaRef,
     pub uc_luaref: LuaRef,
-    pub uc_desc: *mut c_char,
+    pub uc_desc: Option<CString>,
 }
 
 impl Drop for ucmd_T {
     fn drop(&mut self) {
         unsafe {
-            xfree(self.uc_name.cast());
-            xfree(self.uc_rep.cast());
-            xfree(self.uc_compl_arg.cast());
-            xfree(self.uc_desc.cast());
             nlua_clear_ref(&mut self.uc_compl_luaref);
             nlua_clear_ref(&mut self.uc_luaref);
             nlua_clear_ref(&mut self.uc_preview_luaref);
@@ -96,20 +92,20 @@ impl Drop for ucmd_T {
 }
 
 impl ucmd_T {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
-            uc_name: ptr::null_mut(),
+            uc_name: CString::default(),
             uc_argt: 0,
-            uc_rep: ptr::null_mut(),
+            uc_rep: CString::default(),
             uc_def: 0,
             uc_compl: 0,
             uc_addr_type: 0,
             uc_script_ctx: crate::runtime::sctx_T::new(),
-            uc_compl_arg: ptr::null_mut(),
+            uc_compl_arg: None,
             uc_compl_luaref: 0,
             uc_preview_luaref: 0,
             uc_luaref: 0,
-            uc_desc: ptr::null_mut(),
+            uc_desc: None,
         }
     }
 }
@@ -259,7 +255,7 @@ pub unsafe fn find_ucmd(
             while (j as usize) < gap.len() {
                 let uc = &gap[j as usize];
                 let mut cp = (*eap).cmd;
-                let mut np = uc.uc_name;
+                let mut np = uc.uc_name.as_ptr();
                 let mut k: c_int = 0;
                 while k < len && *np != NUL && {
                     let c1 = *cp;
@@ -299,7 +295,10 @@ pub unsafe fn find_ucmd(
                         }
                         if !xp.is_null() {
                             (*xp).xp_luaref = uc.uc_compl_luaref;
-                            (*xp).xp_arg = uc.uc_compl_arg;
+                            (*xp).xp_arg = uc
+                                .uc_compl_arg
+                                .as_ref()
+                                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
                             (*xp).xp_script_ctx = uc.uc_script_ctx;
                             (*xp).xp_script_ctx.sc_lnum += sourcing_lnum();
                         }
@@ -449,17 +448,17 @@ pub unsafe fn get_user_commands(_xp: *mut expand_T, mut idx: c_int) -> *mut c_ch
         let b_len = (*buf).b_ucmds.len() as c_int;
 
         if idx < b_len {
-            return (&(*buf).b_ucmds)[idx as usize].uc_name;
+            return (&(*buf).b_ucmds)[idx as usize].uc_name.as_ptr().cast_mut();
         }
 
         idx -= b_len;
         let u = &raw const ucmds;
         let u_len = (*u).len() as c_int;
         if idx < u_len {
-            let name = (&*u)[idx as usize].uc_name;
+            let name = (&*u)[idx as usize].uc_name.as_ptr().cast_mut();
 
             for cmd in &(*buf).b_ucmds {
-                if strcmp(name, cmd.uc_name) == 0 {
+                if strcmp(name, cmd.uc_name.as_ptr()) == 0 {
                     return c"".as_ptr().cast_mut();
                 }
             }
@@ -475,12 +474,12 @@ pub unsafe fn get_user_command_name(idx: c_int, cmdidx: c_int) -> *mut c_char {
         let u = &raw const ucmds;
         let u_len = (*u).len() as c_int;
         if cmdidx == CMD_USER && idx < u_len {
-            return (&*u)[idx as usize].uc_name;
+            return (&*u)[idx as usize].uc_name.as_ptr().cast_mut();
         }
         if cmdidx == CMD_USER_BUF {
             let buf = (*prevwin_curwin()).w_buffer;
             if (idx as usize) < (*buf).b_ucmds.len() {
-                return (&(*buf).b_ucmds)[idx as usize].uc_name;
+                return (&(*buf).b_ucmds)[idx as usize].uc_name.as_ptr().cast_mut();
             }
         }
         ptr::null_mut()
@@ -613,7 +612,9 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                 let cmd = &gap[i as usize];
                 let a = cmd.uc_argt;
 
-                if strncmp(name, cmd.uc_name, name_len) != 0 || message_filtered(cmd.uc_name) {
+                if strncmp(name, cmd.uc_name.as_ptr(), name_len) != 0
+                    || message_filtered(cmd.uc_name.as_ptr())
+                {
                     i += 1;
                     continue;
                 }
@@ -650,8 +651,8 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                     msg_puts(c"    ".as_ptr().add(4 - len));
                 }
 
-                msg_outtrans(cmd.uc_name, HLF_D, false);
-                len = CStr::from_ptr(cmd.uc_name).to_bytes().len() + 4;
+                msg_outtrans(cmd.uc_name.as_ptr(), HLF_D, false);
+                len = cmd.uc_name.as_bytes().len() + 4;
 
                 if len < 21 {
                     const SPACES: &CStr = c"                 ";
@@ -792,13 +793,13 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                     let fn_str = nlua_funcref_str(cmd.uc_luaref, ptr::null_mut(), true);
                     msg_puts_hl(fn_str, HLF_8, false);
                     xfree(fn_str.cast());
-                    if *cmd.uc_rep != NUL {
+                    if !cmd.uc_rep.as_bytes().is_empty() {
                         msg_puts(c"\n                                               ".as_ptr());
                     }
                 }
 
                 msg_outtrans_special(
-                    cmd.uc_rep,
+                    cmd.uc_rep.as_ptr(),
                     false,
                     if name_len == 0 { Columns - 47 } else { 0 },
                 );
@@ -1132,8 +1133,8 @@ pub unsafe fn uc_add_command(
         let mut i: c_int = 0;
         while (i as usize) < gap.len() {
             cmd = &raw mut gap[i as usize];
-            let len = CStr::from_ptr((*cmd).uc_name).to_bytes().len();
-            cmp = strncmp(name, (*cmd).uc_name, name_len);
+            let len = (*cmd).uc_name.as_bytes().len();
+            cmp = strncmp(name, (*cmd).uc_name.as_ptr(), name_len);
             if cmp == 0 {
                 if name_len < len {
                     cmp = -1;
@@ -1159,12 +1160,9 @@ pub unsafe fn uc_add_command(
                     return FAIL;
                 }
 
-                xfree((*cmd).uc_rep.cast());
-                (*cmd).uc_rep = ptr::null_mut();
-                xfree((*cmd).uc_compl_arg.cast());
-                (*cmd).uc_compl_arg = ptr::null_mut();
-                xfree((*cmd).uc_desc.cast());
-                (*cmd).uc_desc = ptr::null_mut();
+                (*cmd).uc_rep = CString::default();
+                (*cmd).uc_compl_arg = None;
+                (*cmd).uc_desc = None;
                 nlua_clear_ref(&mut (*cmd).uc_luaref);
                 nlua_clear_ref(&mut (*cmd).uc_compl_luaref);
                 nlua_clear_ref(&mut (*cmd).uc_preview_luaref);
@@ -1178,18 +1176,19 @@ pub unsafe fn uc_add_command(
         }
 
         if cmp != 0 {
-            let p = xstrnsave(name, name_len);
+            let name_slice = std::slice::from_raw_parts(name.cast::<u8>(), name_len);
             let mut empty_ucmd = ucmd_T::new();
-            empty_ucmd.uc_name = p;
+            empty_ucmd.uc_name = CString::new(name_slice).unwrap();
             gap.insert(i as usize, empty_ucmd);
             cmd = &raw mut gap[i as usize];
         }
 
-        (*cmd).uc_rep = rep_buf;
+        (*cmd).uc_rep = CStr::from_ptr(rep_buf).to_owned();
+        xfree(rep_buf.cast());
         (*cmd).uc_desc = if !desc.is_null() && *desc != NUL {
-            xstrdup(desc)
+            Some(CStr::from_ptr(desc).to_owned())
         } else {
-            ptr::null_mut()
+            None
         };
         (*cmd).uc_argt = argt;
         (*cmd).uc_def = def;
@@ -1197,7 +1196,13 @@ pub unsafe fn uc_add_command(
         (*cmd).uc_script_ctx = current_sctx;
         (*cmd).uc_script_ctx.sc_lnum += sourcing_lnum();
         nlua_set_sctx(&raw mut (*cmd).uc_script_ctx);
-        (*cmd).uc_compl_arg = compl_arg;
+        (*cmd).uc_compl_arg = if compl_arg.is_null() {
+            None
+        } else {
+            let cstr = CStr::from_ptr(compl_arg).to_owned();
+            xfree(compl_arg.cast());
+            Some(cstr)
+        };
         (*cmd).uc_compl_luaref = compl_luaref;
         (*cmd).uc_preview_luaref = preview_luaref;
         (*cmd).uc_addr_type = addr_type;
@@ -1314,7 +1319,7 @@ pub unsafe fn ex_delcommand(eap: *mut exarg_T) {
         loop {
             i = 0;
             while (i as usize) < gap.len() {
-                res = strcmp(arg, gap[i as usize].uc_name);
+                res = strcmp(arg, gap[i as usize].uc_name.as_ptr());
                 if res <= 0 {
                     break;
                 }
@@ -1912,7 +1917,7 @@ pub unsafe fn do_ucmd(eap: *mut exarg_T, preview: bool) -> c_int {
 
         let mut buf: *mut c_char = ptr::null_mut();
         loop {
-            let mut p = (*cmd).uc_rep;
+            let mut p = (*cmd).uc_rep.as_ptr().cast_mut();
             let mut q = buf;
             let mut totlen: usize = 0;
 
@@ -2033,9 +2038,17 @@ pub unsafe fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> Dict {
             let mut arg_ch: u8 = 0;
             let mut d = arena_dict(arena, 16);
 
-            put_c(&mut d, c"name".as_ptr(), cstr_as_obj(cmd.uc_name));
-            put_c(&mut d, c"definition".as_ptr(), cstr_as_obj(cmd.uc_rep));
-            put_c(&mut d, c"desc".as_ptr(), cstr_as_obj(cmd.uc_desc));
+            put_c(&mut d, c"name".as_ptr(), cstr_as_obj(cmd.uc_name.as_ptr()));
+            put_c(
+                &mut d,
+                c"definition".as_ptr(),
+                cstr_as_obj(cmd.uc_rep.as_ptr()),
+            );
+            put_c(
+                &mut d,
+                c"desc".as_ptr(),
+                cstr_as_obj(cmd.uc_desc.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
+            );
             put_c(
                 &mut d,
                 c"script_id".as_ptr(),
@@ -2115,10 +2128,9 @@ pub unsafe fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> Dict {
             put_c(
                 &mut d,
                 c"complete_arg".as_ptr(),
-                if cmd.uc_compl_arg.is_null() {
-                    nil_obj()
-                } else {
-                    cstr_as_obj(cmd.uc_compl_arg)
+                match &cmd.uc_compl_arg {
+                    Some(arg) => cstr_as_obj(arg.as_ptr()),
+                    None => nil_obj(),
                 },
             );
 
@@ -2160,7 +2172,7 @@ pub unsafe fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> Dict {
             }
             put_c(&mut d, c"addr".as_ptr(), obj);
 
-            put_c(&mut rv, cmd.uc_name, dict_obj(d));
+            put_c(&mut rv, cmd.uc_name.as_ptr(), dict_obj(d));
         }
         let _ = size_of::<KeyValuePair>();
         rv
