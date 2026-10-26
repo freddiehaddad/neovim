@@ -233,7 +233,7 @@ unsafe extern "C-unwind" fn lmpack_unpacker_new(l: *mut lua_State) -> c_int {
                 string_buffer: Vec::new(),
             },
         );
-        mpack_parser_init(&raw mut (*rv).parser, 0);
+        mpack_parser_init(&mut (*rv).parser, 0);
         (*rv).parser.data = mpack_data_t::LmpackUnpacker(rv);
         luaL_getmetatable(l, UNPACKER_META_NAME.as_ptr());
         lua_setmetatable(l, -2);
@@ -401,7 +401,7 @@ unsafe fn lmpack_unpacker_unpack_str(
             (*unpacker).unpacking = 0;
 
             if rv == MPACK_NOMEM {
-                mpack_parser_grow(&raw mut (*unpacker).parser);
+                mpack_parser_grow(&mut (*unpacker).parser);
             } else {
                 break;
             }
@@ -489,7 +489,7 @@ unsafe extern "C-unwind" fn lmpack_packer_new(l: *mut lua_State) -> c_int {
                 is_bin_fn: LUA_NOREF,
             },
         );
-        mpack_parser_init(&raw mut (*rv).parser, 0);
+        mpack_parser_init(&mut (*rv).parser, 0);
         (*rv).parser.data = mpack_data_t::LmpackPacker(rv);
         luaL_getmetatable(l, PACKER_META_NAME.as_ptr());
         lua_setmetatable(l, -2);
@@ -746,7 +746,7 @@ unsafe extern "C-unwind" fn lmpack_packer_pack(l: *mut lua_State) -> c_int {
             (*packer).packing = 0;
 
             if result == MPACK_NOMEM {
-                mpack_parser_grow(&raw mut (*packer).parser);
+                mpack_parser_grow(&mut (*packer).parser);
             }
 
             luaL_addsize(&mut buffer, bl_init - bl);
@@ -961,7 +961,7 @@ unsafe extern "C-unwind" fn lmpack_session_request(l: *mut lua_State) -> c_int {
 
         let mut result: c_int;
         loop {
-            result = mpack_rpc_request(&raw mut (*session).session, &mut b, &mut bl, data);
+            result = mpack_rpc_request(&raw mut (*session).session, &mut b, &mut bl, data.clone());
             if result == MPACK_NOMEM {
                 mpack_rpc_session_grow(&raw mut (*session).session);
             } else {
@@ -1044,7 +1044,7 @@ unsafe extern "C-unwind" fn lmpack_unpack(l: *mut lua_State) -> c_int {
             mtdict: 0,
             string_buffer: Vec::new(),
         };
-        mpack_parser_init(&raw mut unpacker.parser, 0);
+        mpack_parser_init(&mut unpacker.parser, 0);
         unpacker.parser.data = mpack_data_t::LmpackUnpacker(&raw mut unpacker);
 
         lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME.as_ptr());
@@ -1095,7 +1095,7 @@ unsafe extern "C-unwind" fn lmpack_pack(l: *mut lua_State) -> c_int {
             is_bin: 0,
             is_bin_fn: LUA_NOREF,
         };
-        mpack_parser_init(&raw mut packer.parser, 0);
+        mpack_parser_init(&mut packer.parser, 0);
         packer.parser.data = mpack_data_t::LmpackPacker(&raw mut packer);
 
         lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME.as_ptr());

@@ -13,15 +13,16 @@ pub const MPACK_MAX_OBJECT_DEPTH: usize = 32;
 pub const MPACK_EXCEPTION: c_int = -1;
 pub const MPACK_NOMEM: c_int = MPACK_ERROR + 1;
 
-#[derive(Copy, Clone)]
+#[derive(Clone, Default)]
 pub enum mpack_data_t {
+    #[default]
     Null,
     Int(mpack_sintmax_t),
     LmpackUnpacker(*mut crate::mpack::lmpack::LmpackUnpacker),
     LmpackPacker(*mut crate::mpack::lmpack::Packer),
     Typval(*mut crate::eval::typval::typval_T),
     List(*mut crate::eval::typval::list_T),
-    MapPairs(*mut [crate::eval::typval::typval_T; 2]),
+    MapPairs(Vec<[crate::eval::typval::typval_T; 2]>),
     Bytes(*mut u8),
     Unpacker(*mut crate::msgpack_rpc::unpacker::Unpacker),
     Object(*mut crate::api::private::validate::Object),
@@ -33,86 +34,88 @@ impl mpack_data_t {
     }
 
     #[inline]
-    pub const fn i(self) -> mpack_sintmax_t {
-        match self {
+    pub const fn i(&self) -> mpack_sintmax_t {
+        match *self {
             Self::Int(i) => i,
             _ => 0,
         }
     }
 
     #[inline]
-    pub const fn lmpack_unpacker(self) -> *mut crate::mpack::lmpack::LmpackUnpacker {
-        match self {
+    pub const fn lmpack_unpacker(&self) -> *mut crate::mpack::lmpack::LmpackUnpacker {
+        match *self {
             Self::LmpackUnpacker(p) => p,
             _ => ptr::null_mut(),
         }
     }
 
     #[inline]
-    pub const fn lmpack_packer(self) -> *mut crate::mpack::lmpack::Packer {
-        match self {
+    pub const fn lmpack_packer(&self) -> *mut crate::mpack::lmpack::Packer {
+        match *self {
             Self::LmpackPacker(p) => p,
             _ => ptr::null_mut(),
         }
     }
 
     #[inline]
-    pub const fn typval(self) -> *mut crate::eval::typval::typval_T {
-        match self {
+    pub const fn typval(&self) -> *mut crate::eval::typval::typval_T {
+        match *self {
             Self::Typval(p) => p,
             _ => ptr::null_mut(),
         }
     }
 
     #[inline]
-    pub const fn list(self) -> *mut crate::eval::typval::list_T {
-        match self {
+    pub const fn list(&self) -> *mut crate::eval::typval::list_T {
+        match *self {
             Self::List(p) => p,
             _ => ptr::null_mut(),
         }
     }
 
     #[inline]
-    pub const fn map_pairs(self) -> *mut [crate::eval::typval::typval_T; 2] {
+    pub fn map_pairs_mut(&mut self) -> &mut [[crate::eval::typval::typval_T; 2]] {
         match self {
-            Self::MapPairs(p) => p,
-            _ => ptr::null_mut(),
+            Self::MapPairs(v) => v.as_mut_slice(),
+            _ => &mut [],
         }
     }
 
     #[inline]
-    pub const fn bytes(self) -> *mut u8 {
-        match self {
+    pub fn take_map_pairs(&mut self) -> Vec<[crate::eval::typval::typval_T; 2]> {
+        match std::mem::take(self) {
+            Self::MapPairs(v) => v,
+            _ => Vec::new(),
+        }
+    }
+
+    #[inline]
+    pub const fn bytes(&self) -> *mut u8 {
+        match *self {
             Self::Bytes(p) => p,
             _ => ptr::null_mut(),
         }
     }
 
     #[inline]
-    pub const fn unpacker(self) -> *mut crate::msgpack_rpc::unpacker::Unpacker {
-        match self {
+    pub const fn unpacker(&self) -> *mut crate::msgpack_rpc::unpacker::Unpacker {
+        match *self {
             Self::Unpacker(p) => p,
             _ => ptr::null_mut(),
         }
     }
 
     #[inline]
-    pub const fn object(self) -> *mut crate::api::private::validate::Object {
-        match self {
+    pub const fn object(&self) -> *mut crate::api::private::validate::Object {
+        match *self {
             Self::Object(p) => p,
             _ => ptr::null_mut(),
         }
     }
 }
 
-impl Default for mpack_data_t {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct mpack_node_t {
     pub tok: mpack_token_t,
     pub pos: usize,
@@ -126,7 +129,7 @@ impl mpack_node_t {
             tok: mpack_token_t::new(),
             pos: 0,
             key_visited: 0,
-            data: [mpack_data_t::new(); 2],
+            data: [mpack_data_t::new(), mpack_data_t::new()],
         }
     }
 }
@@ -181,35 +184,31 @@ pub unsafe fn mpack_parent_node(n: *mut mpack_node_t) -> *mut mpack_node_t {
     }
 }
 
-pub unsafe fn mpack_parser_init(parser: *mut mpack_parser_t, capacity: mpack_uint32_t) {
+pub fn mpack_parser_init(parser: &mut mpack_parser_t, capacity: mpack_uint32_t) {
     unsafe {
-        let parser = &mut *parser;
         mpack_tokbuf_init(&raw mut parser.tokbuf);
-        parser.data = mpack_data_t::Null;
-        parser.capacity = if capacity != 0 {
-            capacity
-        } else {
-            MPACK_MAX_OBJECT_DEPTH as mpack_uint32_t
-        };
-        parser.size = 0;
-        parser.exiting = 0;
-        parser.items.clear();
-        parser
-            .items
-            .resize((parser.capacity as usize) + 1, mpack_node_t::new());
-        parser.items[0].pos = usize::MAX;
-        parser.status = 0;
     }
+    parser.data = mpack_data_t::Null;
+    parser.capacity = if capacity != 0 {
+        capacity
+    } else {
+        MPACK_MAX_OBJECT_DEPTH as mpack_uint32_t
+    };
+    parser.size = 0;
+    parser.exiting = 0;
+    parser.items.clear();
+    parser
+        .items
+        .resize((parser.capacity as usize) + 1, mpack_node_t::new());
+    parser.items[0].pos = usize::MAX;
+    parser.status = 0;
 }
 
-pub unsafe fn mpack_parser_grow(parser: *mut mpack_parser_t) {
-    unsafe {
-        let p = &mut *parser;
-        let new_capacity = p.capacity * 2;
-        p.items
-            .resize((new_capacity as usize) + 1, mpack_node_t::new());
-        p.capacity = new_capacity;
-    }
+pub fn mpack_parser_grow(p: &mut mpack_parser_t) {
+    let new_capacity = p.capacity * 2;
+    p.items
+        .resize((new_capacity as usize) + 1, mpack_node_t::new());
+    p.capacity = new_capacity;
 }
 
 pub unsafe fn mpack_parse_tok(
@@ -224,7 +223,7 @@ pub unsafe fn mpack_parse_tok(
         }
 
         if (*parser).exiting == 0 {
-            if mpack_parser_full(parser) {
+            if mpack_parser_full(&*parser) {
                 return MPACK_NOMEM;
             }
             let n = mpack_parser_push(parser);
@@ -272,7 +271,7 @@ pub unsafe fn mpack_unparse_tok(
         }
 
         if (*parser).exiting == 0 {
-            if mpack_parser_full(parser) {
+            if mpack_parser_full(&*parser) {
                 return MPACK_NOMEM;
             }
             let n = mpack_parser_push(parser);
@@ -400,14 +399,15 @@ pub unsafe fn mpack_unparse(
 }
 
 #[inline]
-unsafe fn mpack_parser_full(parser: *mut mpack_parser_t) -> bool {
-    unsafe { (*parser).size == (*parser).capacity }
+const fn mpack_parser_full(parser: &mpack_parser_t) -> bool {
+    parser.size == parser.capacity
 }
 
 unsafe fn mpack_parser_push(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
     unsafe {
         debug_assert!((*parser).size < (*parser).capacity);
-        let top = (*parser).items.as_mut_ptr().add(((*parser).size as usize) + 1);
+        let top_idx = ((*parser).size as usize) + 1;
+        let top = &raw mut (&mut (*parser).items)[top_idx];
         (*top).data[0] = mpack_data_t::Null;
         (*top).data[1] = mpack_data_t::Null;
         (*top).pos = 0;
@@ -420,7 +420,8 @@ unsafe fn mpack_parser_push(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
 unsafe fn mpack_parser_pop(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
     unsafe {
         debug_assert!((*parser).size != 0);
-        let top = (*parser).items.as_mut_ptr().add((*parser).size as usize);
+        let top_idx = (*parser).size as usize;
+        let top = &raw mut (&mut (*parser).items)[top_idx];
 
         if (*top).tok.r#type > MPACK_TOKEN_CHUNK && (*top).pos < ((*top).tok.length as usize) {
             return ptr::null_mut();

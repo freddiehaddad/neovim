@@ -44,14 +44,14 @@ impl Default for mpack_rpc_header_t {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct mpack_rpc_message_t {
     pub id: mpack_uint32_t,
     pub data: mpack_data_t,
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct mpack_rpc_slot_s {
     pub used: c_int,
     pub msg: mpack_rpc_message_t,
@@ -187,7 +187,7 @@ pub unsafe fn mpack_rpc_request_tok(
             loop {
                 let msg = mpack_rpc_message_t {
                     id: (*session).request_id,
-                    data,
+                    data: data.clone(),
                 };
                 (*session).send = mpack_rpc_request_hdr();
                 (*session).send.toks[2].r#type = MPACK_TOKEN_UINT;
@@ -302,7 +302,7 @@ pub unsafe fn mpack_rpc_request(
         let mut tok = mpack_token_t::new();
         while status != 0 && *buflen != 0 {
             if (*session).writer.plen == 0 {
-                status = mpack_rpc_request_tok(session, &mut tok, data);
+                status = mpack_rpc_request_tok(session, &mut tok, data.clone());
             }
             if status == MPACK_NOMEM {
                 break;
@@ -432,7 +432,7 @@ unsafe fn mpack_rpc_pop(session: *mut mpack_rpc_session_t, msg: *mut mpack_rpc_m
             return 0;
         };
 
-        *msg = slots[idx].msg;
+        *msg = slots[idx].msg.clone();
         slots[idx].used = 0;
         1
     }

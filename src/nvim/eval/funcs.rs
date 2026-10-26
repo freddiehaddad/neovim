@@ -6033,7 +6033,7 @@ unsafe fn msgpackparse_unpack_list(list: *const list_T, ret_list: *mut list_T) {
 
         let mut cur_item = tv_initial_value();
         let mut parser = mpack_parser_t::new(0);
-        mpack_parser_init(&raw mut parser, 0);
+        mpack_parser_init(&mut parser, 0);
         parser.data = crate::mpack::object::mpack_data_t::Typval(&raw mut cur_item);
 
         let mut status = MPACK_OK;
@@ -6057,7 +6057,7 @@ unsafe fn msgpackparse_unpack_list(list: *const list_T, ret_list: *mut list_T) {
 
                 let mut ptr_ = buf.cast::<c_char>().cast_const();
                 while buf_size != 0 {
-                    status = mpack_parse_typval(&raw mut parser, &raw mut ptr_, &raw mut buf_size);
+                    status = mpack_parse_typval(&mut parser, &raw mut ptr_, &raw mut buf_size);
                     if status == MPACK_OK {
                         tv_list_append_owned_tv(ret_list, cur_item);
                         cur_item.v_type = VarType::VAR_UNKNOWN;
@@ -6080,7 +6080,7 @@ unsafe fn msgpackparse_unpack_list(list: *const list_T, ret_list: *mut list_T) {
             }
 
             if status != MPACK_OK {
-                typval_parser_error_free(&raw mut parser);
+                typval_parser_error_free(&mut parser);
                 emsg_mpack_error(status);
             }
         }
