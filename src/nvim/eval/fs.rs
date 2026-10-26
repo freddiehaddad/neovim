@@ -1131,8 +1131,12 @@ pub unsafe fn f_glob(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
                     WILD_ALL_KEEP,
                 );
                 tv_list_alloc_ret(rettv, xpc.xp_numfiles as isize);
-                for &f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
-                    tv_list_append_string((*rettv).vval.v_list, f, -1);
+                for f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
+                    tv_list_append_string(
+                        (*rettv).vval.v_list,
+                        f.as_ptr(),
+                        f.as_bytes().len() as isize,
+                    );
                 }
             }
         } else {
@@ -1172,7 +1176,7 @@ pub unsafe fn f_globpath(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         let mut buf1 = [0 as c_char; NUMBUFLEN];
         let file = tv_get_string_buf_chk(argvars.add(1), buf1.as_mut_ptr());
         if !file.is_null() && !error {
-            let mut ga: Vec<*mut c_char> = Vec::new();
+            let mut ga: Vec<std::ffi::CString> = Vec::new();
             globpath(
                 tv_get_string(argvars).cast_mut(),
                 file.cast_mut(),
@@ -1186,12 +1190,14 @@ pub unsafe fn f_globpath(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                 crate::eval::typval::tv_set_string(rettv, joined.as_ptr());
             } else {
                 tv_list_alloc_ret(rettv, ga.len() as isize);
-                for &s in &ga {
-                    tv_list_append_string((*rettv).vval.v_list, s.cast_const(), -1);
+                for s in &ga {
+                    tv_list_append_string(
+                        (*rettv).vval.v_list,
+                        s.as_ptr(),
+                        s.as_bytes().len() as isize,
+                    );
                 }
             }
-
-            crate::path::clear_cstrings(&mut ga);
         } else {
             (*rettv).vval.v_string = ptr::null_mut();
         }

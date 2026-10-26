@@ -48,10 +48,10 @@ const SCORE_MATCH_DOT: f64 = 0.6;
 const K_CALLBACK_NONE: c_int = 0;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct fuzmatch_str_T {
     pub idx: c_int,
-    pub str_ptr: *mut c_char,
+    pub str_cstr: CString,
     pub score: c_int,
 }
 
@@ -690,8 +690,8 @@ fn fuzzy_match_str_compare(f1: &fuzmatch_str_T, f2: &fuzmatch_str_T) -> std::cmp
 }
 
 unsafe fn fuzzy_match_func_compare(f1: &fuzmatch_str_T, f2: &fuzmatch_str_T) -> c_int {
-    let b1 = unsafe { *f1.str_ptr as u8 };
-    let b2 = unsafe { *f2.str_ptr as u8 };
+    let b1 = f1.str_cstr.as_bytes().first().copied().unwrap_or(0);
+    let b2 = f2.str_cstr.as_bytes().first().copied().unwrap_or(0);
 
     if b1 != b'<' && b2 == b'<' {
         return -1;
@@ -920,10 +920,10 @@ pub unsafe fn search_for_fuzzy_match(
     }
 }
 
-/// Sort `fuzmatch` by score and copy strings into `matches`.
+/// Sort `fuzmatch` by score and move strings into `matches`.
 pub unsafe fn fuzzymatches_slice_to_strmatches(
     fuzmatch: &mut [fuzmatch_str_T],
-    matches: &mut Vec<*mut c_char>,
+    matches: &mut Vec<CString>,
     funcsort: bool,
 ) {
     unsafe {
@@ -935,7 +935,7 @@ pub unsafe fn fuzzymatches_slice_to_strmatches(
                 fuzmatch.sort_unstable_by(fuzzy_match_str_compare);
             }
 
-            matches.extend(fuzmatch.iter().map(|item| item.str_ptr));
+            matches.extend(fuzmatch.iter_mut().map(|item| std::mem::take(&mut item.str_cstr)));
         }
     }
 }
@@ -950,19 +950,19 @@ mod tests {
             let mut fm = [
                 fuzmatch_str_T {
                     idx: 0,
-                    str_ptr: c"<SNR>1_foo".as_ptr().cast_mut(),
+                    str_cstr: c"<SNR>1_foo".to_owned(),
                     score: 100,
                 },
                 fuzmatch_str_T {
                     idx: 1,
-                    str_ptr: c"Bar".as_ptr().cast_mut(),
+                    str_cstr: c"Bar".to_owned(),
                     score: 50,
                 },
             ];
-            let mut matches: Vec<*mut c_char> = Vec::new();
+            let mut matches: Vec<CString> = Vec::new();
             fuzzymatches_slice_to_strmatches(&mut fm, &mut matches, true);
-            assert_eq!(CStr::from_ptr(matches[0]).to_bytes(), b"Bar");
-            assert_eq!(CStr::from_ptr(matches[1]).to_bytes(), b"<SNR>1_foo");
+            assert_eq!(matches[0].as_bytes(), b"Bar");
+            assert_eq!(matches[1].as_bytes(), b"<SNR>1_foo");
         }
     }
 }

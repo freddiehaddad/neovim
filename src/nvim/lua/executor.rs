@@ -321,7 +321,7 @@ pub static mut active_lstate: *mut lua_State = ptr::null_mut();
 
 static mut REQUIRE_REF: LuaRef = LUA_REFNIL;
 static mut MAIN_THREAD: uv_thread_t = 0;
-static mut EXPAND_RESULT_ARRAY: Vec<*mut c_char> = Vec::new();
+static mut EXPAND_RESULT_ARRAY: Vec<std::ffi::CString> = Vec::new();
 
 use crate::api::buffer::LUA_INTERNAL_CALL;
 use crate::api::private::dispatch::nlua_add_api_functions;
@@ -2546,7 +2546,6 @@ pub unsafe fn nlua_expand_pat(xp: *mut expand_T) {
         if !error_set(&raw const err) && prefix_len <= patlen {
             let completions = nlua_pop_Array(lstate, &raw mut arena, &raw mut err);
             if !error_set(&raw const err) {
-                crate::path::clear_cstrings(&mut *er);
                 *er = Vec::with_capacity(completions.size);
 
                 let mut all_strings = true;
@@ -2556,7 +2555,7 @@ pub unsafe fn nlua_expand_pat(xp: *mut expand_T) {
                         all_strings = false;
                         break;
                     }
-                    (*er).push(crate::path::alloc_cstring_bytes(std::slice::from_raw_parts(
+                    (*er).push(crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
                         v.data.string.data.cast::<u8>(),
                         v.data.string.size,
                     )));
@@ -2571,13 +2570,12 @@ pub unsafe fn nlua_expand_pat(xp: *mut expand_T) {
         }
 
         if status == FAIL {
-            crate::path::clear_cstrings(&mut *er);
-            *er = Vec::new();
+            (*er).clear();
         }
     }
 }
 
-pub unsafe fn nlua_expand_get_matches(results: &mut Vec<*mut c_char>) -> c_int {
+pub unsafe fn nlua_expand_get_matches(results: &mut Vec<std::ffi::CString>) -> c_int {
     unsafe {
         let er = &raw mut EXPAND_RESULT_ARRAY;
         *results = std::mem::take(&mut *er);

@@ -1205,15 +1205,9 @@ pub unsafe fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char {
     }
 }
 
-pub unsafe fn sort_strings(files: &mut [*mut c_char]) {
-    unsafe {
-        if files.len() > 1 {
-            files.sort_unstable_by(|&a, &b| {
-                CStr::from_ptr(a)
-                    .to_bytes()
-                    .cmp(CStr::from_ptr(b).to_bytes())
-            });
-        }
+pub fn sort_strings(files: &mut [std::ffi::CString]) {
+    if files.len() > 1 {
+        files.sort_unstable();
     }
 }
 

@@ -1864,7 +1864,7 @@ unsafe fn ExpandRTDir_int(
     pat_len: usize,
     flags: c_int,
     keep_ext: bool,
-    gap: &mut Vec<*mut c_char>,
+    gap: &mut Vec<std::ffi::CString>,
     dirnames: *mut *mut c_char,
 ) {
     unsafe {
@@ -1971,9 +1971,9 @@ unsafe fn ExpandRTDir_int(
         }
 
         for slot in gap.iter_mut() {
-            let match_ptr = *slot;
+            let match_ptr = slot.as_ptr().cast_mut();
             let mut s = match_ptr;
-            let mut e = s.add(CStr::from_ptr(s).to_bytes().len());
+            let mut e = s.add(slot.as_bytes().len());
             if (e as usize) - (s as usize) > 4 && !keep_ext {
                 let tail4 = std::slice::from_raw_parts(e.sub(4).cast::<u8>(), 4);
                 if tail4.eq_ignore_ascii_case(b".vim") || tail4.eq_ignore_ascii_case(b".lua") {
@@ -1999,10 +1999,8 @@ unsafe fn ExpandRTDir_int(
             }
             s = s.add(1);
             let copy_len = (e as usize) - (s as usize);
-            let new_p =
-                crate::path::alloc_cstring_bytes(std::slice::from_raw_parts(s.cast::<u8>(), copy_len));
-            crate::path::free_cstring(match_ptr);
-            *slot = new_p;
+            *slot =
+                crate::memory::cstr_from_bytes(std::slice::from_raw_parts(s.cast::<u8>(), copy_len));
         }
 
         if gap.is_empty() {
@@ -2017,7 +2015,7 @@ unsafe fn ExpandRTDir_int(
 pub unsafe fn ExpandRTDir(
     pat: *mut c_char,
     flags: c_int,
-    file: &mut Vec<*mut c_char>,
+    file: &mut Vec<std::ffi::CString>,
     dirnames: *mut *mut c_char,
 ) -> c_int {
     unsafe {
@@ -2041,7 +2039,10 @@ pub unsafe fn ExpandRTDir(
 }
 
 /// Handle command line completion for :runtime command.
-pub unsafe fn expand_runtime_cmd(pat: *mut c_char, matches: &mut Vec<*mut c_char>) -> c_int {
+pub unsafe fn expand_runtime_cmd(
+    pat: *mut c_char,
+    matches: &mut Vec<std::ffi::CString>,
+) -> c_int {
     unsafe {
         matches.clear();
 
@@ -2061,7 +2062,7 @@ pub unsafe fn expand_runtime_cmd(pat: *mut c_char, matches: &mut Vec<*mut c_char
             let pat_slice = std::slice::from_raw_parts(pat.cast::<u8>(), pat_len);
             for wv in &where_values {
                 if wv.to_bytes().starts_with(pat_slice) {
-                    matches.push(crate::path::alloc_cstring(wv.as_ptr()));
+                    matches.push((*wv).to_owned());
                 }
             }
         }
@@ -2075,7 +2076,7 @@ pub unsafe fn expand_runtime_cmd(pat: *mut c_char, matches: &mut Vec<*mut c_char
 }
 
 /// Expand loadplugin names: 'packpath'/pack/*/opt/{pat}
-pub unsafe fn ExpandPackAddDir(pat: *mut c_char, file: &mut Vec<*mut c_char>) -> c_int {
+pub unsafe fn ExpandPackAddDir(pat: *mut c_char, file: &mut Vec<std::ffi::CString>) -> c_int {
     unsafe {
         file.clear();
         let pat_len = CStr::from_ptr(pat).to_bytes().len();
@@ -2090,11 +2091,8 @@ pub unsafe fn ExpandPackAddDir(pat: *mut c_char, file: &mut Vec<*mut c_char>) ->
         drop(s_vec);
 
         for slot in file.iter_mut() {
-            let match_ptr = *slot;
-            let tail = path_tail(match_ptr);
-            let new_p = crate::path::alloc_cstring(tail);
-            crate::path::free_cstring(match_ptr);
-            *slot = new_p;
+            let tail = path_tail(slot.as_ptr());
+            *slot = CStr::from_ptr(tail).to_owned();
         }
 
         if file.is_empty() {

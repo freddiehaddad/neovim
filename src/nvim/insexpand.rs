@@ -1428,18 +1428,18 @@ unsafe fn ins_compl_longest_match(match_: *mut compl_T) {
 }
 
 /// Add an array of matches to the list of matches. Frees matches[].
-unsafe fn ins_compl_add_matches(matches: &mut Vec<*mut c_char>, icase: c_int) {
+unsafe fn ins_compl_add_matches(matches: &mut Vec<std::ffi::CString>, icase: c_int) {
     unsafe {
         let mut add_r = OK;
         let mut dir = compl_direction;
 
-        for &m in matches.iter() {
+        for m in matches.drain(..) {
             if add_r == FAIL {
                 break;
             }
             add_r = ins_compl_add(
-                m,
-                -1,
+                m.as_ptr().cast_mut(),
+                m.as_bytes().len() as c_int,
                 ptr::null_mut(),
                 [const { None }; CPT_COUNT],
                 ptr::null_mut(),
@@ -1455,7 +1455,6 @@ unsafe fn ins_compl_add_matches(matches: &mut Vec<*mut c_char>, icase: c_int) {
                 dir = FORWARD;
             }
         }
-        crate::path::clear_cstrings(matches);
     }
 }
 
@@ -4262,9 +4261,9 @@ unsafe fn fuzzy_longest_match() {
 
 unsafe fn get_next_filename_completion() {
     unsafe {
-        let mut matches: Vec<*mut c_char> = Vec::new();
+        let mut matches: Vec<std::ffi::CString> = Vec::new();
         let mut leader = ins_compl_leader();
-        let mut leader_len = ins_compl_leader_len();
+        let leader_len = ins_compl_leader_len();
         let mut in_fuzzy_collect = cot_fuzzy() && leader_len > 0;
         let need_collect_bests = in_fuzzy_collect && compl_get_longest;
         let mut max_score: c_int = 0;
@@ -4294,7 +4293,6 @@ unsafe fn get_next_filename_completion() {
                 set_compl_pattern_bytes(path_with_wildcard.as_ptr(), path_len + 1);
 
                 leader = last_sep.add(1);
-                leader_len -= path_len;
             }
         }
 
@@ -4303,27 +4301,22 @@ unsafe fn get_next_filename_completion() {
             flags |= EW_PATH;
         }
         let mut pat_ptr = compl_pattern_ptr();
-        let mut cstr_matches: Vec<std::ffi::CString> = Vec::new();
-        if expand_wildcards_vec(1, &raw mut pat_ptr, &mut cstr_matches, flags) != OK {
+        if expand_wildcards_vec(1, &raw mut pat_ptr, &mut matches, flags) != OK {
             return;
         }
-        matches.extend(
-            cstr_matches
-                .into_iter()
-                .map(|s| crate::path::alloc_cstring_bytes(s.as_bytes())),
-        );
 
         tilde_replace(compl_pattern_ptr(), &mut matches);
         #[cfg(windows)]
         {
             if (*(*curbuf).b_p_csl == NUL && p_ssl == 0) || *(*curbuf).b_p_csl == b'b' as c_char {
-                for &match_ptr in &matches {
-                    let mut ptr = match_ptr;
-                    while *ptr != NUL {
-                        if *ptr == b'/' as c_char {
-                            *ptr = b'\\' as c_char;
-                        }
-                        ptr = ptr.add(1);
+                for slot in &mut matches {
+                    if slot.as_bytes().contains(&b'/') {
+                        let bytes: Vec<u8> = slot
+                            .as_bytes()
+                            .iter()
+                            .map(|&b| if b == b'/' { b'\\' } else { b })
+                            .collect();
+                        *slot = crate::memory::cstr_from_bytes(&bytes);
                     }
                 }
             }
@@ -4333,8 +4326,8 @@ unsafe fn get_next_filename_completion() {
             let mut fuzzy_indices: Vec<c_int> = Vec::with_capacity(10);
             let mut compl_fuzzy_scores = vec![0 as c_int; matches.len()];
 
-            for (i, &ptr) in matches.iter().enumerate() {
-                let score = fuzzy_match_str(ptr, leader);
+            for (i, m) in matches.iter().enumerate() {
+                let score = fuzzy_match_str(m.as_ptr().cast_mut(), leader);
                 if score != FUZZY_SCORE_NONE {
                     fuzzy_indices.push(i as c_int);
                     compl_fuzzy_scores[i] = score;
@@ -4350,11 +4343,11 @@ unsafe fn get_next_filename_completion() {
 
                 for (i, &idx_c) in fuzzy_indices.iter().enumerate() {
                     let idx = idx_c as usize;
-                    let match_ = matches[idx];
+                    let match_ = &matches[idx];
                     let current_score = compl_fuzzy_scores[idx];
                     if ins_compl_add(
-                        match_,
-                        -1,
+                        match_.as_ptr().cast_mut(),
+                        match_.as_bytes().len() as c_int,
                         ptr::null_mut(),
                         [const { None }; CPT_COUNT],
                         ptr::null_mut(),
@@ -4380,10 +4373,6 @@ unsafe fn get_next_filename_completion() {
                         max_score = current_score;
                     }
                 }
-
-                crate::path::clear_cstrings(&mut matches);
-            } else if leader_len > 0 {
-                crate::path::clear_cstrings(&mut matches);
             }
 
             if compl_num_bests > 0 && compl_get_longest {
@@ -4400,7 +4389,7 @@ unsafe fn get_next_filename_completion() {
 
 unsafe fn get_next_cmdline_completion() {
     unsafe {
-        let mut matches: Vec<*mut c_char> = Vec::new();
+        let mut matches: Vec<std::ffi::CString> = Vec::new();
         if expand_cmdline(
             &raw mut compl_xp,
             compl_pattern_ptr(),
@@ -4411,7 +4400,7 @@ unsafe fn get_next_cmdline_completion() {
             let mut add_r = OK;
             let mut dir = compl_direction;
 
-            for (i, &match_i) in matches.iter().enumerate() {
+            for (i, match_i) in matches.iter().enumerate() {
                 if add_r == FAIL {
                     break;
                 }
@@ -4433,8 +4422,8 @@ unsafe fn get_next_cmdline_completion() {
                 }
 
                 add_r = ins_compl_add(
-                    match_i,
-                    -1,
+                    match_i.as_ptr().cast_mut(),
+                    match_i.as_bytes().len() as c_int,
                     ptr::null_mut(),
                     cptext,
                     ptr::null_mut(),
@@ -4450,7 +4439,6 @@ unsafe fn get_next_cmdline_completion() {
                     dir = FORWARD;
                 }
             }
-            crate::path::clear_cstrings(&mut matches);
             free_xp_files_extra(&raw mut compl_xp);
         }
     }
@@ -4458,7 +4446,7 @@ unsafe fn get_next_cmdline_completion() {
 
 unsafe fn get_next_spell_completion(lnum: linenr_T) {
     unsafe {
-        let mut matches: Vec<*mut c_char> = Vec::new();
+        let mut matches: Vec<std::ffi::CString> = Vec::new();
         expand_spelling(lnum, compl_pattern_ptr(), &mut matches);
         if !matches.is_empty() {
             ins_compl_add_matches(&mut matches, p_ic);

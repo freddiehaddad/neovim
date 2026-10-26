@@ -7965,7 +7965,7 @@ pub unsafe fn set_context_in_set_cmd(xp: *mut expand_T, mut arg: *mut c_char, op
 unsafe fn match_str(
     str_arg: *mut c_char,
     regmatch: *mut regmatch_T,
-    matches: &mut Vec<*mut c_char>,
+    matches: &mut Vec<std::ffi::CString>,
     fuzzy: bool,
     fuzzystr: *const c_char,
     fuzmatch: &mut Vec<fuzmatch_str_T>,
@@ -7973,7 +7973,7 @@ unsafe fn match_str(
     unsafe {
         if !fuzzy {
             if vim_regexec(regmatch.cast(), str_arg, 0) {
-                matches.push(crate::path::alloc_cstring(str_arg));
+                matches.push(CStr::from_ptr(str_arg).to_owned());
                 return true;
             }
         } else {
@@ -7982,7 +7982,7 @@ unsafe fn match_str(
                 let idx = fuzmatch.len() as c_int;
                 fuzmatch.push(fuzmatch_str_T {
                     idx,
-                    str_ptr: crate::path::alloc_cstring(str_arg),
+                    str_cstr: CStr::from_ptr(str_arg).to_owned(),
                     score,
                 });
                 return true;
@@ -7996,7 +7996,7 @@ pub unsafe fn ExpandSettings(
     xp: *mut expand_T,
     regmatch: *mut regmatch_T,
     fuzzystr: *mut c_char,
-    matches: &mut Vec<*mut c_char>,
+    matches: &mut Vec<std::ffi::CString>,
     can_fuzzy: bool,
 ) -> c_int {
     unsafe {
@@ -8031,7 +8031,7 @@ pub unsafe fn ExpandSettings(
                     .shortname
                     .is_some_and(|s| vim_regexec(regmatch.cast(), s.as_ptr(), 0))
             {
-                matches.push(crate::path::alloc_cstring(str_ptr));
+                matches.push((*opt).fullname.to_owned());
             }
         }
 
@@ -8078,7 +8078,7 @@ pub unsafe fn escape_option_str_cmdline(var_arg: *mut c_char) -> std::ffi::CStri
 }
 
 /// Expansion handler for :set= when we just want to fill in with the existing value.
-pub unsafe fn ExpandOldSetting(matches: &mut Vec<*mut c_char>) -> c_int {
+pub unsafe fn ExpandOldSetting(matches: &mut Vec<std::ffi::CString>) -> c_int {
     unsafe {
         matches.clear();
 
@@ -8102,9 +8102,7 @@ pub unsafe fn ExpandOldSetting(matches: &mut Vec<*mut c_char>) -> c_int {
             c"".as_ptr().cast_mut()
         };
 
-        matches.push(crate::path::alloc_cstring_bytes(
-            escape_option_str_cmdline(var).as_bytes(),
-        ));
+        matches.push(escape_option_str_cmdline(var));
         OK
     }
 }
@@ -8113,7 +8111,7 @@ pub unsafe fn ExpandOldSetting(matches: &mut Vec<*mut c_char>) -> c_int {
 pub unsafe fn ExpandStringSetting(
     xp: *mut expand_T,
     regmatch: *mut regmatch_T,
-    matches: &mut Vec<*mut c_char>,
+    matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
     unsafe {
         if EXPAND_OPTION_IDX == kOptInvalid {
@@ -8148,7 +8146,7 @@ pub unsafe fn ExpandStringSetting(
 pub unsafe fn ExpandSettingSubtract(
     xp: *mut expand_T,
     regmatch: *mut regmatch_T,
-    matches: &mut Vec<*mut c_char>,
+    matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
     unsafe {
         if EXPAND_OPTION_IDX == kOptInvalid
@@ -8190,8 +8188,7 @@ pub unsafe fn ExpandSettingSubtract(
                 }
 
                 if *item != NUL && vim_regexec(regmatch.cast(), item, 0) {
-                    let buf = escape_option_str_cmdline(item);
-                    matches.push(crate::path::alloc_cstring_bytes(buf.as_bytes()));
+                    matches.push(escape_option_str_cmdline(item));
                 }
 
                 if next_val.is_null() {
@@ -8212,7 +8209,7 @@ pub unsafe fn ExpandSettingSubtract(
 
             matches.clear();
             matches.reserve_exact(num_flags + 1);
-            matches.push(crate::path::alloc_cstring_bytes(std::slice::from_raw_parts(
+            matches.push(crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
                 option_val.cast::<u8>(),
                 num_flags,
             )));
@@ -8220,7 +8217,7 @@ pub unsafe fn ExpandSettingSubtract(
             if num_flags > 1 {
                 let mut flag = option_val;
                 while *flag != NUL {
-                    matches.push(crate::path::alloc_cstring_bytes(&[*flag as u8]));
+                    matches.push(crate::memory::cstr_from_bytes(&[*flag as u8]));
                     flag = flag.add(1);
                 }
             }

@@ -3232,12 +3232,13 @@ pub unsafe fn spell_expand_check_cap(col: colnr_T) {
         spell_expand_need_cap = check_need_cap(curwin, (*curwin).w_cursor.lnum, col);
     }
 }
-pub unsafe fn expand_spelling(_lnum: linenr_T, pat: *mut c_char, matches: &mut Vec<*mut c_char>) {
+pub unsafe fn expand_spelling(
+    _lnum: linenr_T,
+    pat: *mut c_char,
+    matches: &mut Vec<std::ffi::CString>,
+) {
     unsafe {
-        matches.clear();
-        for s in spell_suggest_list(pat, 100, spell_expand_need_cap, true) {
-            matches.push(crate::path::alloc_cstring_bytes(s.as_bytes()));
-        }
+        *matches = spell_suggest_list(pat, 100, spell_expand_need_cap, true);
     }
 }
 pub unsafe fn valid_spelllang(val: *const c_char) -> bool {

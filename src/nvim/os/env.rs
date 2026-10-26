@@ -72,7 +72,7 @@ pub struct expand_T {
     pub xp_col: c_int,
     pub xp_selected: c_int,
     pub xp_orig: Option<std::ffi::CString>,
-    pub xp_files: Vec<*mut c_char>,
+    pub xp_files: Vec<std::ffi::CString>,
     pub xp_files_abbr: Vec<Option<std::ffi::CString>>,
     pub xp_files_kind: Vec<Option<std::ffi::CString>>,
     pub xp_files_menu: Vec<Option<std::ffi::CString>>,

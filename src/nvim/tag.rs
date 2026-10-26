@@ -2429,29 +2429,6 @@ pub unsafe fn find_tags(
     }
 }
 
-/// `find_tags_vec()` - search for tags in tags files (for `ExpandGeneric` callers).
-pub unsafe fn find_tags_vec(
-    pat: *mut c_char,
-    matches: &mut Vec<*mut c_char>,
-    flags: c_int,
-    mincount: c_int,
-    buf_ffname: *mut c_char,
-) -> c_int {
-    unsafe {
-        let mut raw_matches: Vec<Vec<c_char>> = Vec::new();
-        let ret = find_tags(pat, &mut raw_matches, flags, mincount, buf_ffname);
-        matches.clear();
-        matches.reserve_exact(raw_matches.len());
-        for m in raw_matches {
-            matches.push(crate::memory::alloc_cstring_len(
-                m.as_ptr(),
-                m.len().saturating_sub(1),
-            ));
-        }
-        ret
-    }
-}
-
 pub unsafe fn found_tagfile_cb(fnames: &[*mut c_char], all: bool) -> bool {
     unsafe {
         let tf = &raw mut tag_fnames;
@@ -3163,7 +3140,11 @@ pub unsafe fn tag_listfiles_extra(idx: usize) -> Option<(*const c_char, *const c
     }
 }
 
-pub unsafe fn expand_tags(tagnames: bool, pat: *mut c_char, file: &mut Vec<*mut c_char>) -> c_int {
+pub unsafe fn expand_tags(
+    tagnames: bool,
+    pat: *mut c_char,
+    file: &mut Vec<std::ffi::CString>,
+) -> c_int {
     unsafe {
         let extra_flag = if tagnames { TAG_NAMES } else { 0 };
         let mut raw_matches: Vec<Vec<c_char>> = Vec::new();
@@ -3191,10 +3172,7 @@ pub unsafe fn expand_tags(tagnames: bool, pat: *mut c_char, file: &mut Vec<*mut 
             file.reserve_exact(raw_matches.len());
             if tagnames {
                 for m in raw_matches {
-                    file.push(crate::path::alloc_cstring_bytes(std::slice::from_raw_parts(
-                        m.as_ptr().cast::<u8>(),
-                        m.len().saturating_sub(1),
-                    )));
+                    file.push(CStr::from_ptr(m.as_ptr()).to_owned());
                 }
             } else {
                 (*extra).reserve_exact(raw_matches.len());
@@ -3202,7 +3180,7 @@ pub unsafe fn expand_tags(tagnames: bool, pat: *mut c_char, file: &mut Vec<*mut 
                     let mut t_p = tagptrs_T::default();
                     parse_match(m.as_mut_ptr(), &mut t_p);
                     let len = t_p.tagname_end.offset_from(t_p.tagname) as usize;
-                    file.push(crate::path::alloc_cstring_bytes(std::slice::from_raw_parts(
+                    file.push(crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
                         t_p.tagname.cast::<u8>(),
                         len,
                     )));

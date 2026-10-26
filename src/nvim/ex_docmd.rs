@@ -8636,7 +8636,7 @@ pub unsafe fn expand_argopt(
     pat: *mut c_char,
     xp: *mut expand_T,
     rmp: *mut regmatch_T,
-    matches: &mut Vec<*mut c_char>,
+    matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
     unsafe {
         if (*xp).xp_pattern > (*xp).xp_line && *(*xp).xp_pattern.sub(1) == b'=' as c_char {
@@ -8665,7 +8665,7 @@ pub unsafe fn expand_argopt(
         if (*xp).xp_pattern_len == 2
             && strncmp((*xp).xp_pattern, c"ff".as_ptr(), (*xp).xp_pattern_len) == 0
         {
-            *matches = vec![crate::path::alloc_cstring(c"fileformat=".as_ptr())];
+            *matches = vec![c"fileformat=".to_owned()];
             return OK;
         }
 
@@ -10019,7 +10019,7 @@ unsafe fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut lis
 pub unsafe fn expand_findfunc(
     xp: *mut expand_T,
     pat: *mut c_char,
-    files: &mut Vec<*mut c_char>,
+    files: &mut Vec<std::ffi::CString>,
 ) -> c_int {
     unsafe {
         files.clear();

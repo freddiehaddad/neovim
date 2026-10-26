@@ -1274,7 +1274,7 @@ pub unsafe fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) ->
     }
 }
 
-unsafe fn translate_mapping(str_in: *const c_char, cpo_val: *const c_char) -> *mut c_char {
+unsafe fn translate_mapping(str_in: *const c_char, cpo_val: *const c_char) -> CString {
     unsafe {
         let mut str_ptr = str_in.cast::<u8>();
         let mut buf: Vec<u8> = Vec::with_capacity(40);
@@ -1325,7 +1325,7 @@ unsafe fn translate_mapping(str_in: *const c_char, cpo_val: *const c_char) -> *m
             }
             str_ptr = str_ptr.add(1);
         }
-        crate::path::alloc_cstring_bytes(&buf)
+        crate::memory::cstr_from_bytes(&buf)
     }
 }
 
@@ -1402,27 +1402,28 @@ pub unsafe fn set_context_in_map_cmd(
 pub unsafe fn ExpandMappings(
     pat: *mut c_char,
     regmatch: *mut regmatch_T,
-    matches: &mut Vec<*mut c_char>,
+    matches: &mut Vec<CString>,
 ) -> c_int {
     unsafe {
         let fuzzy = cmdline_fuzzy_complete(pat);
 
         matches.clear();
 
-        let mut str_matches: Vec<*mut c_char> = Vec::new();
+        let mut str_matches: Vec<CString> = Vec::new();
         let mut fuz_matches: Vec<fuzmatch_str_T> = Vec::new();
 
         for i in 0..7 {
-            let p: *const c_char = match i {
-                0 => c"<silent>".as_ptr(),
-                1 => c"<unique>".as_ptr(),
-                2 => c"<script>".as_ptr(),
-                3 => c"<expr>".as_ptr(),
-                4 if !expand_buffer => c"<buffer>".as_ptr(),
-                5 => c"<nowait>".as_ptr(),
-                6 => c"<special>".as_ptr(),
+            let p_cstr: &CStr = match i {
+                0 => c"<silent>",
+                1 => c"<unique>",
+                2 => c"<script>",
+                3 => c"<expr>",
+                4 if !expand_buffer => c"<buffer>",
+                5 => c"<nowait>",
+                6 => c"<special>",
                 _ => continue,
             };
+            let p = p_cstr.as_ptr();
 
             let mut score: c_int = 0;
             let match_found = if !fuzzy {
@@ -1440,11 +1441,11 @@ pub unsafe fn ExpandMappings(
                 let idx = fuz_matches.len() as c_int;
                 fuz_matches.push(fuzmatch_str_T {
                     idx,
-                    str_ptr: crate::path::alloc_cstring(p),
+                    str_cstr: p_cstr.to_owned(),
                     score,
                 });
             } else {
-                str_matches.push(crate::path::alloc_cstring(p));
+                str_matches.push(p_cstr.to_owned());
             }
         }
 
@@ -1460,10 +1461,8 @@ pub unsafe fn ExpandMappings(
                     continue;
                 }
 
-                let p = translate_mapping((*mp).m_keys.as_ptr().cast_mut(), p_cpo);
-                if p.is_null() {
-                    continue;
-                }
+                let p_cstr = translate_mapping((*mp).m_keys.as_ptr().cast_mut(), p_cpo);
+                let p = p_cstr.as_ptr().cast_mut();
 
                 let mut score: c_int = 0;
                 let match_found = if !fuzzy {
@@ -1474,7 +1473,6 @@ pub unsafe fn ExpandMappings(
                 };
 
                 if !match_found {
-                    crate::path::free_cstring(p);
                     continue;
                 }
 
@@ -1482,11 +1480,11 @@ pub unsafe fn ExpandMappings(
                     let idx = fuz_matches.len() as c_int;
                     fuz_matches.push(fuzmatch_str_T {
                         idx,
-                        str_ptr: p,
+                        str_cstr: p_cstr,
                         score,
                     });
                 } else {
-                    str_matches.push(p);
+                    str_matches.push(p_cstr);
                 }
             }
         }
@@ -1509,19 +1507,7 @@ pub unsafe fn ExpandMappings(
             if !fuzzy {
                 sort_strings(matches);
             }
-
-            let mut write_idx: usize = 0;
-            for read_idx in 1..matches.len() {
-                if CStr::from_ptr(matches[write_idx]).to_bytes()
-                    != CStr::from_ptr(matches[read_idx]).to_bytes()
-                {
-                    write_idx += 1;
-                    matches[write_idx] = matches[read_idx];
-                } else {
-                    crate::path::free_cstring(matches[read_idx]);
-                }
-            }
-            matches.truncate(write_idx + 1);
+            matches.dedup();
         }
 
         if matches.is_empty() { FAIL } else { OK }

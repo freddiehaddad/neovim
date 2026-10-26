@@ -21,7 +21,7 @@ use crate::option_vars::*;
 use crate::optionstr::{OptIndex, check_buf_options};
 use crate::os::fs::os_fopen;
 use crate::strings::gettext;
-use crate::tag::{do_tag, find_tags_vec};
+use crate::tag::{do_tag, find_tags};
 use crate::window::{
     WSP_BOT, WSP_HELP, WSP_TOP, win_T, win_close, win_enter, win_setheight, win_split,
 };
@@ -133,15 +133,14 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
         }
 
         // Check if there is a match for the argument.
-        let mut matches: Vec<*mut c_char> = Vec::new();
+        let mut matches: Vec<std::ffi::CString> = Vec::new();
         let mut n = find_help_tags(arg, &mut matches, !eap.is_null() && (*eap).forceit != 0);
 
         let mut i: usize = 0;
         if n != FAIL && !lang.is_null() {
             let lang_bytes = CStr::from_ptr(lang).to_bytes();
             while i < matches.len() {
-                let m = matches[i];
-                let m_bytes = CStr::from_ptr(m).to_bytes();
+                let m_bytes = matches[i].as_bytes();
                 let len = m_bytes.len();
                 if len > 3
                     && m_bytes[len - 3] == b'@'
@@ -158,15 +157,12 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
             } else {
                 semsg!(gettext(c"E149: No help for %s".as_ptr()), arg);
             }
-            if n != FAIL {
-                crate::path::clear_cstrings(&mut matches);
-            }
             return;
         }
 
         // The first match (in the requested language) is the best match.
-        let tag = CStr::from_ptr(matches[i]).to_owned();
-        crate::path::clear_cstrings(&mut matches);
+        let tag = matches.swap_remove(i);
+        drop(matches);
 
         // Re-use an existing help window or open a new one.
         let mut early_ret = false;
@@ -327,21 +323,23 @@ pub unsafe fn help_heuristic(
     }
 }
 
-unsafe fn help_compare(&str1: &*mut c_char, &str2: &*mut c_char) -> std::cmp::Ordering {
+unsafe fn help_compare(str1: &[c_char], str2: &[c_char]) -> std::cmp::Ordering {
     unsafe {
-        let b1 = CStr::from_ptr(str1).to_bytes();
-        let b2 = CStr::from_ptr(str2).to_bytes();
-        let p1 = CStr::from_ptr(str1.add(b1.len() + 1)).to_bytes();
-        let p2 = CStr::from_ptr(str2.add(b2.len() + 1)).to_bytes();
+        let p1 = str1.as_ptr();
+        let p2 = str2.as_ptr();
+        let b1 = CStr::from_ptr(p1).to_bytes();
+        let b2 = CStr::from_ptr(p2).to_bytes();
+        let pri1 = CStr::from_ptr(p1.add(b1.len() + 1)).to_bytes();
+        let pri2 = CStr::from_ptr(p2.add(b2.len() + 1)).to_bytes();
 
-        p1.cmp(p2).then_with(|| b1.cmp(b2))
+        pri1.cmp(pri2).then_with(|| b1.cmp(b2))
     }
 }
 
 /// Find all help tags matching `arg`, sort them and return in `matches` (`find_help_tags`).
 pub unsafe fn find_help_tags(
     arg: *const c_char,
-    matches: &mut Vec<*mut c_char>,
+    matches: &mut Vec<std::ffi::CString>,
     keep_lang: bool,
 ) -> c_int {
     unsafe {
@@ -382,20 +380,21 @@ pub unsafe fn find_help_tags(
         if keep_lang {
             flags |= TAG_KEEP_LANG;
         }
-        if find_tags_vec(
+        let mut raw_matches: Vec<Vec<c_char>> = Vec::new();
+        if find_tags(
             (&raw mut IObuff).cast(),
-            matches,
+            &mut raw_matches,
             flags,
             crate::regexp::MAXCOL,
             ptr::null_mut(),
         ) == OK
-            && !matches.is_empty()
+            && !raw_matches.is_empty()
         {
-            matches.sort_unstable_by(|a, b| help_compare(a, b));
-            while matches.len() > TAG_MANY as usize {
-                if let Some(p) = matches.pop() {
-                    crate::path::free_cstring(p);
-                }
+            raw_matches.sort_unstable_by(|a, b| help_compare(a, b));
+            raw_matches.truncate(TAG_MANY as usize);
+            matches.reserve_exact(raw_matches.len());
+            for m in raw_matches {
+                matches.push(CStr::from_ptr(m.as_ptr()).to_owned());
             }
         }
         OK
@@ -403,7 +402,7 @@ pub unsafe fn find_help_tags(
 }
 
 /// Cleanup matches for help tags (`cleanup_help_tags`).
-pub unsafe fn cleanup_help_tags(file: &mut [*mut c_char]) {
+pub unsafe fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
     unsafe {
         let mut buf = [0u8; 3];
         let has_default_lang =
@@ -415,17 +414,16 @@ pub unsafe fn cleanup_help_tags(file: &mut [*mut c_char]) {
         }
 
         for i in 0..file.len() {
-            let fi_ptr = file[i];
-            let fi_bytes = CStr::from_ptr(fi_ptr).to_bytes();
+            let fi_bytes = file[i].as_bytes();
             if fi_bytes.len() <= 3 {
                 continue;
             }
             let len = fi_bytes.len() - 3;
             if &fi_bytes[len..] == b"@en" {
                 let mut found_other = false;
-                for (j, &fj_ptr) in file.iter().enumerate() {
+                for (j, fj) in file.iter().enumerate() {
                     if j != i {
-                        let fj_bytes = CStr::from_ptr(fj_ptr).to_bytes();
+                        let fj_bytes = fj.as_bytes();
                         if fj_bytes.len() == len + 3 && fi_bytes[..=len] == fj_bytes[..=len] {
                             found_other = true;
                             break;
@@ -433,25 +431,20 @@ pub unsafe fn cleanup_help_tags(file: &mut [*mut c_char]) {
                     }
                 }
                 if !found_other {
-                    let new_p = crate::path::alloc_cstring_bytes(&fi_bytes[..len]);
-                    crate::path::free_cstring(fi_ptr);
-                    file[i] = new_p;
+                    file[i] = crate::memory::cstr_from_bytes(&fi_bytes[..len]);
                 }
             }
         }
 
         if has_default_lang {
             for slot in file.iter_mut() {
-                let fi_ptr = *slot;
-                let fi_bytes = CStr::from_ptr(fi_ptr).to_bytes();
+                let fi_bytes = slot.as_bytes();
                 if fi_bytes.len() <= 3 {
                     continue;
                 }
                 let len = fi_bytes.len() - 3;
                 if fi_bytes[len..] == buf {
-                    let new_p = crate::path::alloc_cstring_bytes(&fi_bytes[..len]);
-                    crate::path::free_cstring(fi_ptr);
-                    *slot = new_p;
+                    *slot = crate::memory::cstr_from_bytes(&fi_bytes[..len]);
                 }
             }
         }

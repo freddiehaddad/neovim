@@ -848,7 +848,7 @@ use crate::search::FORWARD;
 #[repr(C)]
 struct bufmatch_T {
     buf: *mut buf_T,
-    match_: *mut c_char,
+    match_: std::ffi::CString,
 }
 
 static mut buf_free_count: c_int = 0;
@@ -3296,7 +3296,7 @@ unsafe fn buf_time_compare(buf1: *const buf_T, buf2: *const buf_T) -> std::cmp::
 /// Find all buffer names that match.
 pub unsafe fn ExpandBufnames(
     pat: *mut c_char,
-    file: &mut Vec<*mut c_char>,
+    file: &mut Vec<std::ffi::CString>,
     options: c_int,
 ) -> c_int {
     unsafe {
@@ -3365,23 +3365,26 @@ pub unsafe fn ExpandBufnames(
                 continue;
             }
 
-            p = if (options & WILD_HOME_REPLACE) != 0 {
-                crate::path::alloc_cstring_bytes(home_replace_save(buf, p).as_bytes())
+            let p_cstr = if (options & WILD_HOME_REPLACE) != 0 {
+                home_replace_save(buf, p)
             } else {
-                crate::path::alloc_cstring(p)
+                cstr_to_cstring(p)
             };
 
             if !fuzzy {
                 if use_matches {
-                    matches.push(bufmatch_T { buf, match_: p });
+                    matches.push(bufmatch_T {
+                        buf,
+                        match_: p_cstr,
+                    });
                 } else {
-                    file.push(p);
+                    file.push(p_cstr);
                 }
             } else {
                 let idx = fuzmatch.len() as c_int;
                 fuzmatch.push(fuzmatch_str_T {
                     idx,
-                    str_ptr: p,
+                    str_cstr: p_cstr,
                     score,
                 });
             }
@@ -3401,12 +3404,14 @@ pub unsafe fn ExpandBufnames(
 
                 file.reserve_exact(matches.len());
                 if matches[0].buf == curbuf {
-                    for item in matches.iter().skip(1) {
+                    let mut iter = matches.into_iter();
+                    let first = iter.next().unwrap();
+                    for item in iter {
                         file.push(item.match_);
                     }
-                    file.push(matches[0].match_);
+                    file.push(first.match_);
                 } else {
-                    for item in &matches {
+                    for item in matches {
                         file.push(item.match_);
                     }
                 }

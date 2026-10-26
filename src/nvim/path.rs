@@ -37,29 +37,12 @@ use std::ptr;
 
 pub use crate::memory::{alloc_cstring, alloc_cstring_bytes, free_cstring, take_cstring};
 
-pub unsafe fn clear_cstrings(strings: &mut Vec<*mut c_char>) {
-    unsafe {
-        for p in strings.drain(..) {
-            free_cstring(p);
-        }
-    }
-}
-
-pub unsafe fn remove_duplicate_cstrings(fnames: &mut Vec<std::ffi::CString>) {
+pub unsafe fn remove_duplicate_strings(fnames: &mut Vec<std::ffi::CString>) {
     if fnames.is_empty() {
         return;
     }
     unsafe {
-        fnames.sort_by(|a, b| {
-            let cmp = crate::strings::strcmp(a.as_ptr(), b.as_ptr());
-            if cmp < 0 {
-                Ordering::Less
-            } else if cmp > 0 {
-                Ordering::Greater
-            } else {
-                Ordering::Equal
-            }
-        });
+        sort_strings(fnames);
         let mut i = fnames.len() - 1;
         while i > 0 {
             if path_equal(fnames[i - 1].as_ptr(), fnames[i].as_ptr(), kPathCmpLiteral) {
@@ -70,24 +53,10 @@ pub unsafe fn remove_duplicate_cstrings(fnames: &mut Vec<std::ffi::CString>) {
     }
 }
 
-pub unsafe fn remove_duplicate_strings(fnames: &mut Vec<*mut c_char>) {
-    if fnames.is_empty() {
-        return;
-    }
-    unsafe {
-        sort_strings(fnames);
-        let mut i = fnames.len() - 1;
-        while i > 0 {
-            if path_equal(fnames[i - 1], fnames[i], kPathCmpLiteral) {
-                let dup = fnames.remove(i);
-                free_cstring(dup);
-            }
-            i -= 1;
-        }
-    }
-}
-
-pub unsafe fn concat_cstrings(strings: &[*mut c_char], sep: *const c_char) -> std::ffi::CString {
+pub unsafe fn concat_cstrings(
+    strings: &[std::ffi::CString],
+    sep: *const c_char,
+) -> std::ffi::CString {
     let nelem = strings.len();
     if nelem == 0 {
         return std::ffi::CString::default();
@@ -95,12 +64,12 @@ pub unsafe fn concat_cstrings(strings: &[*mut c_char], sep: *const c_char) -> st
     unsafe {
         let sep_bytes = CStr::from_ptr(sep).to_bytes();
         let mut len = (nelem - 1) * sep_bytes.len();
-        for &s in strings {
-            len += CStr::from_ptr(s).to_bytes().len();
+        for s in strings {
+            len += s.as_bytes().len();
         }
         let mut out: Vec<u8> = Vec::with_capacity(len);
-        for (i, &s) in strings.iter().enumerate() {
-            let bytes = CStr::from_ptr(s).to_bytes();
+        for (i, s) in strings.iter().enumerate() {
+            let bytes = s.as_bytes();
             if !bytes.is_empty() {
                 out.extend_from_slice(bytes);
             }
@@ -1007,7 +976,7 @@ unsafe fn uniquefy_paths(
         let mut sort_again = false;
         let mut path_ga: Vec<std::ffi::CString> = Vec::new();
 
-        remove_duplicate_cstrings(gap);
+        remove_duplicate_strings(gap);
 
         let mut len = CStr::from_ptr(pattern).to_bytes().len();
         let mut file_pattern = Vec::with_capacity(len + 2);
@@ -1141,7 +1110,7 @@ unsafe fn uniquefy_paths(
         vim_regfree(regmatch.regprog);
 
         if sort_again {
-            remove_duplicate_cstrings(gap);
+            remove_duplicate_strings(gap);
         }
     }
 }
@@ -1213,19 +1182,13 @@ unsafe fn expand_in_path(
         if (flags & EW_ADDSLASH) != 0 {
             glob_flags |= WILD_ADD_SLASH;
         }
-        let mut raw_gap: Vec<*mut c_char> = Vec::new();
         globpath(
             paths.as_ptr().cast_mut(),
             pattern,
-            &mut raw_gap,
+            gap,
             glob_flags,
             (flags & EW_CDPATH) != 0,
         );
-        for p in raw_gap {
-            if let Some(s) = take_cstring(p) {
-                gap.push(s);
-            }
-        }
 
         gap.len() as c_int
     }
@@ -2470,18 +2433,17 @@ mod tests {
             assert_eq!(len, 3);
             assert_eq!(CStr::from_ptr(inv3).to_bytes(), b"exe a/b\\c");
 
-            let mut str_vec: Vec<*mut c_char> = Vec::new();
+            let mut str_vec: Vec<std::ffi::CString> = Vec::new();
             let empty_concat = concat_cstrings(&str_vec, c",".as_ptr());
             assert_eq!(empty_concat.to_str().unwrap(), "");
 
             for w in [c"ccc", c"aaa", c"bbb", c"aaa", c"ccc"] {
-                str_vec.push(alloc_cstring(w.as_ptr()));
+                str_vec.push(w.to_owned());
             }
             remove_duplicate_strings(&mut str_vec);
             assert_eq!(str_vec.len(), 3);
             let joined = concat_cstrings(&str_vec, c",".as_ptr());
             assert_eq!(joined.to_str().unwrap(), "aaa,bbb,ccc");
-            clear_cstrings(&mut str_vec);
         }
     }
 
