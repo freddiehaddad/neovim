@@ -41,15 +41,6 @@ pub struct KeyDict_exec_opts {
 use crate::eval::funcs::MAX_FUNC_ARGS;
 use crate::math::{FAIL, OK};
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct ExprASTConvStackItem {
-    node_p: *mut *mut ExprASTNode,
-    ret_node_p: *mut Object,
-}
-
-type ExprASTConvStack = Vec<ExprASTConvStackItem>;
-
 static mut EVAL_RECURSIVE: c_int = 0;
 static mut CALL_FUNC_RECURSIVE: c_int = 0;
 
@@ -608,7 +599,7 @@ pub unsafe extern "C" fn nvim_parse_expression(
             colors: hl.then(ParserHighlight::new),
         };
 
-        let mut east = viml_pexpr_parse(&mut pstate, pflags);
+        let east = viml_pexpr_parse(&mut pstate, pflags);
 
         let ret_size = 2 + usize::from(!east.err.msg.is_null()) + usize::from(hl);
         let mut ret = arena_dict(arena, ret_size);
@@ -644,199 +635,159 @@ pub unsafe extern "C" fn nvim_parse_expression(
             put_c(&mut ret, c"highlight", array_obj(hl_arr));
         }
 
-        let mut ast = nil_obj();
-        let mut ast_conv_stack: ExprASTConvStack = vec![ExprASTConvStackItem {
-            node_p: &mut east.root,
-            ret_node_p: &mut ast,
-        }];
-
-        while let Some(&cur_item) = ast_conv_stack.last() {
-            let node = *cur_item.node_p;
-            if node.is_null() {
-                debug_assert_eq!(ast_conv_stack.len(), 1);
-                ast_conv_stack.pop();
-            } else {
-                if (*cur_item.ret_node_p).obj_type == ObjectType::kObjectTypeNil {
-                    let nt = (*node).r#type;
-                    let items_size = 3
-                        + usize::from(!(*node).children.is_null())
-                        + usize::from(nt == kExprNodeOption || nt == kExprNodePlainIdentifier)
-                        + usize::from(
-                            nt == kExprNodeOption
-                                || nt == kExprNodePlainIdentifier
-                                || nt == kExprNodePlainKey
-                                || nt == kExprNodeEnvironment,
-                        )
-                        + usize::from(nt == kExprNodeRegister)
-                        + 3 * usize::from(nt == kExprNodeComparison)
-                        + usize::from(nt == kExprNodeInteger)
-                        + usize::from(nt == kExprNodeFloat)
-                        + usize::from(
-                            nt == kExprNodeDoubleQuotedString || nt == kExprNodeSingleQuotedString,
-                        )
-                        + usize::from(nt == kExprNodeAssignment);
-                    let ret_node = arena_dict(arena, items_size);
-                    *cur_item.ret_node_p = dict_obj(ret_node);
-                }
-                let ret_node = &mut (*cur_item.ret_node_p).data.dict;
-                if !(*node).children.is_null() {
-                    let num_children = 1 + usize::from(!(*(*node).children).next.is_null());
-                    let mut children_array = arena_array(arena, num_children);
-                    for _ in 0..num_children {
-                        add_c(&mut children_array, nil_obj());
-                    }
-                    put_c(ret_node, c"children", array_obj(children_array));
-                    ast_conv_stack.push(ExprASTConvStackItem {
-                        node_p: &mut (*node).children,
-                        ret_node_p: children_array.items,
-                    });
-                } else if !(*node).next.is_null() {
-                    debug_assert!(ast_conv_stack.len() > 1);
-                    ast_conv_stack.push(ExprASTConvStackItem {
-                        node_p: &mut (*node).next,
-                        ret_node_p: cur_item.ret_node_p.add(1),
-                    });
-                } else {
-                    ast_conv_stack.pop();
-                    put_c(
-                        ret_node,
-                        c"type",
-                        string_obj(cstr_as_string(
-                            east_node_type_tab.0[(*node).r#type as usize],
-                        )),
-                    );
-                    let mut start_array = arena_array(arena, 2);
-                    add_c(&mut start_array, integer_obj((*node).start.line as Integer));
-                    add_c(&mut start_array, integer_obj((*node).start.col as Integer));
-                    put_c(ret_node, c"start", array_obj(start_array));
-                    put_c(ret_node, c"len", integer_obj((*node).len as Integer));
-
-                    match (*node).r#type {
-                        kExprNodeDoubleQuotedString | kExprNodeSingleQuotedString => {
-                            let str_obj = cbuf_to_arena_obj(
-                                arena,
-                                (*node).data.str().value,
-                                (*node).data.str().size,
-                            );
-                            put_c(ret_node, c"svalue", str_obj);
-                        }
-                        kExprNodeOption => {
-                            put_c(
-                                ret_node,
-                                c"scope",
-                                integer_obj(i64::from((*node).data.opt().scope)),
-                            );
-                            put_c(
-                                ret_node,
-                                c"ident",
-                                cbuf_to_arena_obj(
-                                    arena,
-                                    (*node).data.opt().ident,
-                                    (*node).data.opt().ident_len,
-                                ),
-                            );
-                        }
-                        kExprNodePlainIdentifier => {
-                            put_c(
-                                ret_node,
-                                c"scope",
-                                integer_obj(i64::from((*node).data.var().scope)),
-                            );
-                            put_c(
-                                ret_node,
-                                c"ident",
-                                cbuf_to_arena_obj(
-                                    arena,
-                                    (*node).data.var().ident,
-                                    (*node).data.var().ident_len,
-                                ),
-                            );
-                        }
-                        kExprNodePlainKey => {
-                            put_c(
-                                ret_node,
-                                c"ident",
-                                cbuf_to_arena_obj(
-                                    arena,
-                                    (*node).data.var().ident,
-                                    (*node).data.var().ident_len,
-                                ),
-                            );
-                        }
-                        kExprNodeEnvironment => {
-                            put_c(
-                                ret_node,
-                                c"ident",
-                                cbuf_to_arena_obj(
-                                    arena,
-                                    (*node).data.env().ident,
-                                    (*node).data.env().ident_len,
-                                ),
-                            );
-                        }
-                        kExprNodeRegister => {
-                            put_c(
-                                ret_node,
-                                c"name",
-                                integer_obj(i64::from((*node).data.reg().name)),
-                            );
-                        }
-                        kExprNodeComparison => {
-                            put_c(
-                                ret_node,
-                                c"cmp_type",
-                                string_obj(cstr_as_string(
-                                    eltkn_cmp_type_tab.0[(*node).data.cmp().r#type as usize],
-                                )),
-                            );
-                            put_c(
-                                ret_node,
-                                c"ccs_strategy",
-                                string_obj(cstr_as_string(
-                                    ccs_tab.0[(*node).data.cmp().ccs as usize],
-                                )),
-                            );
-                            put_c(ret_node, c"invert", boolean_obj((*node).data.cmp().inv));
-                        }
-                        kExprNodeFloat => {
-                            put_c(ret_node, c"fvalue", float_obj((*node).data.flt().value));
-                        }
-                        kExprNodeInteger => {
-                            let v = (*node).data.num().value;
-                            let iv = if v > API_INTEGER_MAX {
-                                API_INTEGER_MAX as Integer
-                            } else {
-                                v as Integer
-                            };
-                            put_c(ret_node, c"ivalue", integer_obj(iv));
-                        }
-                        kExprNodeAssignment => {
-                            let asgn_type = (*node).data.ass().r#type;
-                            let str_val = if asgn_type == kExprAsgnPlain {
-                                NvimString {
-                                    data: std::ptr::null_mut(),
-                                    size: 0,
-                                }
-                            } else {
-                                cstr_as_string(expr_asgn_type_tab.0[asgn_type as usize])
-                            };
-                            put_c(ret_node, c"augmentation", string_obj(str_val));
-                        }
-                        _ => {}
-                    }
-                    debug_assert_eq!(
-                        (*cur_item.ret_node_p).data.dict.size,
-                        (*cur_item.ret_node_p).data.dict.capacity
-                    );
-                    drop(Box::from_raw(*cur_item.node_p));
-                    *cur_item.node_p = std::ptr::null_mut();
-                }
-            }
-        }
+        let ast = if east.root.is_null() {
+            nil_obj()
+        } else {
+            expr_ast_node_to_obj(&*east.root, arena)
+        };
         put_c(&mut ret, c"ast", ast);
 
         debug_assert_eq!(ret.size, ret.capacity);
         ret
+    }
+}
+
+unsafe fn expr_ast_node_to_obj(node: &ExprASTNode, arena: *mut Arena) -> Object {
+    unsafe {
+        let nt = node.r#type;
+        let items_size = 3
+            + usize::from(!node.children.is_null())
+            + usize::from(nt == kExprNodeOption || nt == kExprNodePlainIdentifier)
+            + usize::from(
+                nt == kExprNodeOption
+                    || nt == kExprNodePlainIdentifier
+                    || nt == kExprNodePlainKey
+                    || nt == kExprNodeEnvironment,
+            )
+            + usize::from(nt == kExprNodeRegister)
+            + 3 * usize::from(nt == kExprNodeComparison)
+            + usize::from(nt == kExprNodeInteger)
+            + usize::from(nt == kExprNodeFloat)
+            + usize::from(nt == kExprNodeDoubleQuotedString || nt == kExprNodeSingleQuotedString)
+            + usize::from(nt == kExprNodeAssignment);
+        let mut ret_node = arena_dict(arena, items_size);
+
+        if !node.children.is_null() {
+            let first_child = &*node.children;
+            let num_children = 1 + usize::from(!first_child.next.is_null());
+            let mut children_array = arena_array(arena, num_children);
+            add_c(
+                &mut children_array,
+                expr_ast_node_to_obj(first_child, arena),
+            );
+            if !first_child.next.is_null() {
+                add_c(
+                    &mut children_array,
+                    expr_ast_node_to_obj(&*first_child.next, arena),
+                );
+            }
+            put_c(&mut ret_node, c"children", array_obj(children_array));
+        }
+
+        put_c(
+            &mut ret_node,
+            c"type",
+            string_obj(cstr_as_string(east_node_type_tab.0[nt as usize])),
+        );
+        let mut start_array = arena_array(arena, 2);
+        add_c(&mut start_array, integer_obj(node.start.line as Integer));
+        add_c(&mut start_array, integer_obj(node.start.col as Integer));
+        put_c(&mut ret_node, c"start", array_obj(start_array));
+        put_c(&mut ret_node, c"len", integer_obj(node.len as Integer));
+
+        match nt {
+            kExprNodeDoubleQuotedString | kExprNodeSingleQuotedString => {
+                let str_obj = cbuf_to_arena_obj(arena, node.data.str().value, node.data.str().size);
+                put_c(&mut ret_node, c"svalue", str_obj);
+            }
+            kExprNodeOption => {
+                put_c(
+                    &mut ret_node,
+                    c"scope",
+                    integer_obj(i64::from(node.data.opt().scope)),
+                );
+                put_c(
+                    &mut ret_node,
+                    c"ident",
+                    cbuf_to_arena_obj(arena, node.data.opt().ident, node.data.opt().ident_len),
+                );
+            }
+            kExprNodePlainIdentifier => {
+                put_c(
+                    &mut ret_node,
+                    c"scope",
+                    integer_obj(i64::from(node.data.var().scope)),
+                );
+                put_c(
+                    &mut ret_node,
+                    c"ident",
+                    cbuf_to_arena_obj(arena, node.data.var().ident, node.data.var().ident_len),
+                );
+            }
+            kExprNodePlainKey => {
+                put_c(
+                    &mut ret_node,
+                    c"ident",
+                    cbuf_to_arena_obj(arena, node.data.var().ident, node.data.var().ident_len),
+                );
+            }
+            kExprNodeEnvironment => {
+                put_c(
+                    &mut ret_node,
+                    c"ident",
+                    cbuf_to_arena_obj(arena, node.data.env().ident, node.data.env().ident_len),
+                );
+            }
+            kExprNodeRegister => {
+                put_c(
+                    &mut ret_node,
+                    c"name",
+                    integer_obj(i64::from(node.data.reg().name)),
+                );
+            }
+            kExprNodeComparison => {
+                put_c(
+                    &mut ret_node,
+                    c"cmp_type",
+                    string_obj(cstr_as_string(
+                        eltkn_cmp_type_tab.0[node.data.cmp().r#type as usize],
+                    )),
+                );
+                put_c(
+                    &mut ret_node,
+                    c"ccs_strategy",
+                    string_obj(cstr_as_string(ccs_tab.0[node.data.cmp().ccs as usize])),
+                );
+                put_c(&mut ret_node, c"invert", boolean_obj(node.data.cmp().inv));
+            }
+            kExprNodeFloat => {
+                put_c(&mut ret_node, c"fvalue", float_obj(node.data.flt().value));
+            }
+            kExprNodeInteger => {
+                let v = node.data.num().value;
+                let iv = if v > API_INTEGER_MAX {
+                    API_INTEGER_MAX as Integer
+                } else {
+                    v as Integer
+                };
+                put_c(&mut ret_node, c"ivalue", integer_obj(iv));
+            }
+            kExprNodeAssignment => {
+                let asgn_type = node.data.ass().r#type;
+                let str_val = if asgn_type == kExprAsgnPlain {
+                    NvimString {
+                        data: std::ptr::null_mut(),
+                        size: 0,
+                    }
+                } else {
+                    cstr_as_string(expr_asgn_type_tab.0[asgn_type as usize])
+                };
+                put_c(&mut ret_node, c"augmentation", string_obj(str_val));
+            }
+            _ => {}
+        }
+        debug_assert_eq!(ret_node.size, ret_node.capacity);
+        dict_obj(ret_node)
     }
 }
 

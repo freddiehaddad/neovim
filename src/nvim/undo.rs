@@ -154,8 +154,8 @@ pub struct u_header_T {
 }
 
 impl u_header_T {
-    unsafe fn alloc() -> *mut Self {
-        Box::into_raw(Box::new(Self {
+    fn new() -> Self {
+        Self {
             uh_next: ptr::null_mut(),
             uh_prev: ptr::null_mut(),
             uh_alt_next: ptr::null_mut(),
@@ -173,7 +173,11 @@ impl u_header_T {
             uh_visual: visualinfo_T::new(),
             uh_time: 0,
             uh_save_nr: 0,
-        }))
+        }
+    }
+
+    unsafe fn alloc() -> *mut Self {
+        Box::into_raw(Box::new(Self::new()))
     }
 }
 
@@ -793,39 +797,37 @@ unsafe fn serialize_uhp(bi: &mut bufinfo_T, uhp: *mut u_header_T) -> bool {
 unsafe fn unserialize_uhp(
     bi: &mut bufinfo_T,
     file_name: *const c_char,
-) -> (*mut u_header_T, [c_int; 4]) {
+) -> Option<(Box<u_header_T>, [c_int; 4])> {
     unsafe {
-        let uhp = u_header_T::alloc();
+        let mut uhp = Box::new(u_header_T::new());
         let seqs = [
             undo_read_4c(bi),
             undo_read_4c(bi),
             undo_read_4c(bi),
             undo_read_4c(bi),
         ];
-        (*uhp).uh_seq = undo_read_4c(bi);
-        if (*uhp).uh_seq <= 0 {
+        uhp.uh_seq = undo_read_4c(bi);
+        if uhp.uh_seq <= 0 {
             corruption_error(c"uh_seq".as_ptr(), file_name);
-            drop(Box::from_raw(uhp));
-            return (ptr::null_mut(), [0; 4]);
+            return None;
         }
-        unserialize_pos(bi, &raw mut (*uhp).uh_cursor);
-        (*uhp).uh_cursor_vcol = undo_read_4c(bi);
-        (*uhp).uh_flags = undo_read_2c(bi);
+        unserialize_pos(bi, &raw mut uhp.uh_cursor);
+        uhp.uh_cursor_vcol = undo_read_4c(bi);
+        uhp.uh_flags = undo_read_2c(bi);
         let cur_timestamp: Timestamp = os_time();
         for i in 0..NMARKS {
-            unserialize_pos(bi, &raw mut (*uhp).uh_namedm[i].mark);
-            (*uhp).uh_namedm[i].timestamp = cur_timestamp;
-            (*uhp).uh_namedm[i].fnum = 0;
+            unserialize_pos(bi, &raw mut uhp.uh_namedm[i].mark);
+            uhp.uh_namedm[i].timestamp = cur_timestamp;
+            uhp.uh_namedm[i].fnum = 0;
         }
-        unserialize_visualinfo(bi, &raw mut (*uhp).uh_visual);
-        (*uhp).uh_time = undo_read_time(bi);
+        unserialize_visualinfo(bi, &raw mut uhp.uh_visual);
+        uhp.uh_time = undo_read_time(bi);
 
         loop {
             let mut len = undo_read_byte(bi);
             if len == EOF {
                 corruption_error(c"truncated".as_ptr(), file_name);
-                drop(Box::from_raw(uhp));
-                return (ptr::null_mut(), [0; 4]);
+                return None;
             }
             if len == 0 {
                 break;
@@ -833,7 +835,7 @@ unsafe fn unserialize_uhp(
             let what = undo_read_byte(bi);
             match what {
                 UHP_SAVE_NR => {
-                    (*uhp).uh_save_nr = undo_read_4c(bi);
+                    uhp.uh_save_nr = undo_read_4c(bi);
                 }
                 _ => {
                     while {
@@ -850,35 +852,29 @@ unsafe fn unserialize_uhp(
         while c == UF_ENTRY_MAGIC {
             let mut error = false;
             let uep = unserialize_uep(bi, &mut error, file_name);
-            (*uhp).uh_entries.push(uep);
+            uhp.uh_entries.push(uep);
             if error {
-                drop(Box::from_raw(uhp));
-                return (ptr::null_mut(), [0; 4]);
+                return None;
             }
             c = undo_read_2c(bi);
         }
         if c != UF_ENTRY_END_MAGIC {
             corruption_error(c"entry end".as_ptr(), file_name);
-            drop(Box::from_raw(uhp));
-            return (ptr::null_mut(), [0; 4]);
+            return None;
         }
 
         c = undo_read_2c(bi);
         while c == UF_ENTRY_MAGIC {
-            let Some(extup) = unserialize_extmark(bi, file_name) else {
-                drop(Box::from_raw(uhp));
-                return (ptr::null_mut(), [0; 4]);
-            };
-            (*uhp).uh_extmark.push(extup);
+            let extup = unserialize_extmark(bi, file_name)?;
+            uhp.uh_extmark.push(extup);
             c = undo_read_2c(bi);
         }
         if c != UF_ENTRY_END_MAGIC {
             corruption_error(c"entry end".as_ptr(), file_name);
-            drop(Box::from_raw(uhp));
-            return (ptr::null_mut(), [0; 4]);
+            return None;
         }
 
-        (uhp, seqs)
+        Some((uhp, seqs))
     }
 }
 
@@ -1272,7 +1268,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
     unsafe {
         #[cfg(not(unix))]
         let _ = orig_name;
-        let mut uhp_table: Vec<(*mut u_header_T, [c_int; 4])> = Vec::new();
+        let mut uhp_table: Vec<(Box<u_header_T>, [c_int; 4])> = Vec::new();
         let mut line_ptr: *mut c_char = ptr::null_mut();
         let mut num_read_uhps: c_int = 0;
 
@@ -1438,7 +1434,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 }
 
                 if num_head > 0 {
-                    uhp_table = vec![(ptr::null_mut(), [0; 4]); num_head as usize];
+                    uhp_table.reserve(num_head as usize);
                 }
 
                 let mut c = undo_read_2c(&mut bi);
@@ -1448,11 +1444,10 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                         break 'error;
                     }
 
-                    let (uhp, seqs) = unserialize_uhp(&mut bi, file_name);
-                    if uhp.is_null() {
+                    let Some(entry) = unserialize_uhp(&mut bi, file_name) else {
                         break 'error;
-                    }
-                    uhp_table[num_read_uhps as usize] = (uhp, seqs);
+                    };
+                    uhp_table.push(entry);
                     num_read_uhps += 1;
                     c = undo_read_2c(&mut bi);
                 }
@@ -1467,48 +1462,52 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 }
 
                 if num_head > 0 {
-                    uhp_table.sort_unstable_by_key(|&(u, _)| (*u).uh_seq);
+                    uhp_table.sort_unstable_by_key(|(u, _)| u.uh_seq);
                 }
 
                 for i in 0..(num_head - 1) {
-                    if (*uhp_table[i as usize].0).uh_seq == (*uhp_table[(i + 1) as usize].0).uh_seq
-                    {
+                    if uhp_table[i as usize].0.uh_seq == uhp_table[(i + 1) as usize].0.uh_seq {
                         corruption_error(c"duplicate uh_seq".as_ptr(), file_name);
                         break 'error;
                     }
                 }
+
+                let uhp_ptrs: Vec<(*mut u_header_T, [c_int; 4])> = uhp_table
+                    .into_iter()
+                    .map(|(b, seqs)| (Box::into_raw(b), seqs))
+                    .collect();
 
                 let mut old_idx: c_int = -1;
                 let mut new_idx: c_int = -1;
                 let mut cur_idx: c_int = -1;
                 for i in 0..num_head {
                     let (uhp, [next_seq, prev_seq, alt_next_seq, alt_prev_seq]) =
-                        uhp_table[i as usize];
+                        uhp_ptrs[i as usize];
 
-                    let fidx_next = uhp_table_find(&uhp_table, next_seq);
+                    let fidx_next = uhp_table_find(&uhp_ptrs, next_seq);
                     (*uhp).uh_next = if fidx_next >= 0 && fidx_next != i {
-                        uhp_table[fidx_next as usize].0
+                        uhp_ptrs[fidx_next as usize].0
                     } else {
                         ptr::null_mut()
                     };
 
-                    let fidx_prev = uhp_table_find(&uhp_table, prev_seq);
+                    let fidx_prev = uhp_table_find(&uhp_ptrs, prev_seq);
                     (*uhp).uh_prev = if fidx_prev >= 0 && fidx_prev != i {
-                        uhp_table[fidx_prev as usize].0
+                        uhp_ptrs[fidx_prev as usize].0
                     } else {
                         ptr::null_mut()
                     };
 
-                    let fidx_anext = uhp_table_find(&uhp_table, alt_next_seq);
+                    let fidx_anext = uhp_table_find(&uhp_ptrs, alt_next_seq);
                     (*uhp).uh_alt_next = if fidx_anext >= 0 && fidx_anext != i {
-                        uhp_table[fidx_anext as usize].0
+                        uhp_ptrs[fidx_anext as usize].0
                     } else {
                         ptr::null_mut()
                     };
 
-                    let fidx_aprev = uhp_table_find(&uhp_table, alt_prev_seq);
+                    let fidx_aprev = uhp_table_find(&uhp_ptrs, alt_prev_seq);
                     (*uhp).uh_alt_prev = if fidx_aprev >= 0 && fidx_aprev != i {
-                        uhp_table[fidx_aprev as usize].0
+                        uhp_ptrs[fidx_aprev as usize].0
                     } else {
                         ptr::null_mut()
                     };
@@ -1528,17 +1527,17 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 (*curbuf).b_u_oldhead = if old_idx < 0 {
                     ptr::null_mut()
                 } else {
-                    uhp_table[old_idx as usize].0
+                    uhp_ptrs[old_idx as usize].0
                 };
                 (*curbuf).b_u_newhead = if new_idx < 0 {
                     ptr::null_mut()
                 } else {
-                    uhp_table[new_idx as usize].0
+                    uhp_ptrs[new_idx as usize].0
                 };
                 (*curbuf).b_u_curhead = if cur_idx < 0 {
                     ptr::null_mut()
                 } else {
-                    uhp_table[cur_idx as usize].0
+                    uhp_ptrs[cur_idx as usize].0
                 };
                 (*curbuf).b_u_line_ptr = line_ptr;
                 (*curbuf).b_u_line_lnum = line_lnum;
@@ -1563,11 +1562,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
             }
 
             xfree(line_ptr.cast());
-            for &(p, _) in &uhp_table[..num_read_uhps as usize] {
-                if !p.is_null() {
-                    drop(Box::from_raw(p));
-                }
-            }
+            drop(uhp_table);
         }
 
         if !fp.is_null() {

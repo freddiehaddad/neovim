@@ -804,6 +804,15 @@ impl win_T {
 pub type StcClick = Vec<crate::mouse::StlClickDefinition>;
 pub type StcClicks = std::collections::BTreeMap<c_int, StcClick>;
 
+pub struct SnapshotFrame {
+    pub fr_layout: c_char,
+    pub fr_width: c_int,
+    pub fr_height: c_int,
+    pub fr_next: Option<Box<SnapshotFrame>>,
+    pub fr_child: Option<Box<SnapshotFrame>>,
+    pub fr_win: *mut win_T,
+}
+
 #[repr(C)]
 pub struct tabpage_T {
     pub handle: handle_T,
@@ -821,7 +830,7 @@ pub struct tabpage_T {
     pub tp_diffbuf: [*mut buf_T; 8],
     pub tp_diff_invalid: c_int,
     pub tp_diff_update: c_int,
-    pub tp_snapshot: [*mut frame_T; 3],
+    pub tp_snapshot: [Option<Box<SnapshotFrame>>; 3],
     pub tp_winvar: crate::eval::typval::ScopeDictDictItem,
     pub tp_vars: *mut dict_T,
     pub tp_localdir: *mut c_char,
@@ -846,7 +855,7 @@ impl tabpage_T {
             tp_diffbuf: [ptr::null_mut(); 8],
             tp_diff_invalid: 1,
             tp_diff_update: 0,
-            tp_snapshot: [ptr::null_mut(); 3],
+            tp_snapshot: [None, None, None],
             tp_winvar: crate::eval::typval::ScopeDictDictItem::new(),
             tp_vars: ptr::null_mut(),
             tp_localdir: ptr::null_mut(),
@@ -8240,106 +8249,89 @@ pub unsafe fn reset_lnums() {
 
 pub unsafe fn make_snapshot(idx: c_int) {
     unsafe {
-        clear_snapshot(curtab, idx);
-        make_snapshot_rec(topframe, &raw mut (*curtab).tp_snapshot[idx as usize]);
+        (*curtab).tp_snapshot[idx as usize] = Some(make_snapshot_rec(topframe));
     }
 }
 
-unsafe fn make_snapshot_rec(fr: *mut frame_T, frp: *mut *mut frame_T) {
+unsafe fn make_snapshot_rec(fr: *mut frame_T) -> Box<SnapshotFrame> {
     unsafe {
-        *frp = Box::into_raw(Box::new(frame_T {
+        Box::new(SnapshotFrame {
             fr_layout: (*fr).fr_layout,
             fr_width: (*fr).fr_width,
             fr_height: (*fr).fr_height,
-            ..frame_T::new()
-        }));
-        if !(*fr).fr_next.is_null() {
-            make_snapshot_rec((*fr).fr_next, &raw mut (**frp).fr_next);
-        }
-        if !(*fr).fr_child.is_null() {
-            make_snapshot_rec((*fr).fr_child, &raw mut (**frp).fr_child);
-        }
-        if (*fr).fr_layout == FR_LEAF && ptr::eq((*fr).fr_win, curwin) {
-            (**frp).fr_win = curwin;
-        }
+            fr_next: (!(*fr).fr_next.is_null()).then(|| make_snapshot_rec((*fr).fr_next)),
+            fr_child: (!(*fr).fr_child.is_null()).then(|| make_snapshot_rec((*fr).fr_child)),
+            fr_win: if (*fr).fr_layout == FR_LEAF && ptr::eq((*fr).fr_win, curwin) {
+                curwin
+            } else {
+                ptr::null_mut()
+            },
+        })
     }
 }
 
 unsafe fn clear_snapshot(tp: *mut tabpage_T, idx: c_int) {
     unsafe {
-        clear_snapshot_rec((*tp).tp_snapshot[idx as usize]);
-        (*tp).tp_snapshot[idx as usize] = ptr::null_mut();
+        (*tp).tp_snapshot[idx as usize] = None;
     }
 }
 
-unsafe fn clear_snapshot_rec(fr: *mut frame_T) {
-    unsafe {
-        if fr.is_null() {
-            return;
+fn get_snapshot_curwin_rec(ft: &SnapshotFrame) -> *mut win_T {
+    if let Some(ref next) = ft.fr_next {
+        let wp = get_snapshot_curwin_rec(next);
+        if !wp.is_null() {
+            return wp;
         }
-        clear_snapshot_rec((*fr).fr_next);
-        clear_snapshot_rec((*fr).fr_child);
-        drop(Box::from_raw(fr));
     }
-}
-
-unsafe fn get_snapshot_curwin_rec(ft: *mut frame_T) -> *mut win_T {
-    unsafe {
-        if !(*ft).fr_next.is_null() {
-            let wp = get_snapshot_curwin_rec((*ft).fr_next);
-            if !wp.is_null() {
-                return wp;
-            }
+    if let Some(ref child) = ft.fr_child {
+        let wp = get_snapshot_curwin_rec(child);
+        if !wp.is_null() {
+            return wp;
         }
-        if !(*ft).fr_child.is_null() {
-            let wp = get_snapshot_curwin_rec((*ft).fr_child);
-            if !wp.is_null() {
-                return wp;
-            }
-        }
-        (*ft).fr_win
     }
+    ft.fr_win
 }
 
 unsafe fn get_snapshot_curwin(idx: c_int) -> *mut win_T {
     unsafe {
-        let sn = (*curtab).tp_snapshot[idx as usize];
-        if sn.is_null() {
+        let Some(ref sn) = (*curtab).tp_snapshot[idx as usize] else {
             return ptr::null_mut();
-        }
+        };
         get_snapshot_curwin_rec(sn)
     }
 }
 
 pub unsafe fn restore_snapshot(idx: c_int, close_curwin: c_int) {
     unsafe {
-        let sn = (*curtab).tp_snapshot[idx as usize];
-        if !sn.is_null()
-            && (*sn).fr_width == (*topframe).fr_width
-            && (*sn).fr_height == (*topframe).fr_height
-            && check_snapshot_rec(sn, topframe) == OK
+        if let Some(sn) = (*curtab).tp_snapshot[idx as usize].take()
+            && sn.fr_width == (*topframe).fr_width
+            && sn.fr_height == (*topframe).fr_height
+            && check_snapshot_rec(&sn, topframe) == OK
         {
-            let wp = restore_snapshot_rec(sn, topframe);
+            let wp = restore_snapshot_rec(&sn, topframe);
             win_comp_pos();
             if !wp.is_null() && close_curwin != 0 {
                 win_goto(wp);
             }
             redraw_all_later(UPD_NOT_VALID);
         }
-        clear_snapshot(curtab, idx);
     }
 }
 
-unsafe fn check_snapshot_rec(sn: *mut frame_T, fr: *mut frame_T) -> c_int {
+unsafe fn check_snapshot_rec(sn: &SnapshotFrame, fr: *mut frame_T) -> c_int {
     unsafe {
-        if (*sn).fr_layout != (*fr).fr_layout
-            || (*sn).fr_next.is_null() != (*fr).fr_next.is_null()
-            || (*sn).fr_child.is_null() != (*fr).fr_child.is_null()
-            || (!(*sn).fr_next.is_null()
-                && check_snapshot_rec((*sn).fr_next, (*fr).fr_next) == FAIL)
-            || (!(*sn).fr_child.is_null()
-                && check_snapshot_rec((*sn).fr_child, (*fr).fr_child) == FAIL)
-            || (!(*sn).fr_win.is_null() && !win_valid((*sn).fr_win))
+        if sn.fr_layout != (*fr).fr_layout
+            || sn.fr_next.is_none() != (*fr).fr_next.is_null()
+            || sn.fr_child.is_none() != (*fr).fr_child.is_null()
+            || (sn
+                .fr_next
+                .as_deref()
+                .is_some_and(|next| check_snapshot_rec(next, (*fr).fr_next) == FAIL))
+            || (sn
+                .fr_child
+                .as_deref()
+                .is_some_and(|child| check_snapshot_rec(child, (*fr).fr_child) == FAIL))
+            || (!sn.fr_win.is_null() && !win_valid(sn.fr_win))
         {
             FAIL
         } else {
@@ -8348,25 +8340,25 @@ unsafe fn check_snapshot_rec(sn: *mut frame_T, fr: *mut frame_T) -> c_int {
     }
 }
 
-unsafe fn restore_snapshot_rec(sn: *mut frame_T, fr: *mut frame_T) -> *mut win_T {
+unsafe fn restore_snapshot_rec(sn: &SnapshotFrame, fr: *mut frame_T) -> *mut win_T {
     unsafe {
         let mut wp: *mut win_T = ptr::null_mut();
 
-        (*fr).fr_height = (*sn).fr_height;
-        (*fr).fr_width = (*sn).fr_width;
+        (*fr).fr_height = sn.fr_height;
+        (*fr).fr_width = sn.fr_width;
         if (*fr).fr_layout == FR_LEAF {
             frame_new_height(fr, (*fr).fr_height, false, false, false);
             frame_new_width(fr, (*fr).fr_width, false, false);
-            wp = (*sn).fr_win;
+            wp = sn.fr_win;
         }
-        if !(*sn).fr_next.is_null() {
-            let wp2 = restore_snapshot_rec((*sn).fr_next, (*fr).fr_next);
+        if let Some(ref next) = sn.fr_next {
+            let wp2 = restore_snapshot_rec(next, (*fr).fr_next);
             if !wp2.is_null() {
                 wp = wp2;
             }
         }
-        if !(*sn).fr_child.is_null() {
-            let wp2 = restore_snapshot_rec((*sn).fr_child, (*fr).fr_child);
+        if let Some(ref child) = sn.fr_child {
+            let wp2 = restore_snapshot_rec(child, (*fr).fr_child);
             if !wp2.is_null() {
                 wp = wp2;
             }
