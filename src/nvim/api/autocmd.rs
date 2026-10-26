@@ -609,14 +609,13 @@ pub unsafe extern "C" fn nvim_get_autocmds(
 
                 let acs = au_get_autocmds_for_event(event as event_T);
                 for ac in acs {
-                    let ap = ac.pat;
-                    if ap.is_null() {
+                    let Some(ref ap) = ac.pat else {
                         continue;
-                    }
+                    };
                     if id != -1 && ac.id != i64::from(id) {
                         continue;
                     }
-                    if group != 0 && (*ap).group != group {
+                    if group != 0 && ap.group != group {
                         continue;
                     }
 
@@ -635,9 +634,9 @@ pub unsafe extern "C" fn nvim_get_autocmds(
                                 );
                                 pat = pattern_buflocal.as_ptr();
                             }
-                            if !(*ap).pat.is_null()
+                            if !ap.pat.is_null()
                                 && !pat.is_null()
-                                && CStr::from_ptr((*ap).pat).to_bytes()
+                                && CStr::from_ptr(ap.pat).to_bytes()
                                     == CStr::from_ptr(pat).to_bytes()
                             {
                                 passed = true;
@@ -651,16 +650,16 @@ pub unsafe extern "C" fn nvim_get_autocmds(
 
                     let mut autocmd_info = arena_dict(arena, 12);
 
-                    if (*ap).group != AUGROUP_DEFAULT {
+                    if ap.group != AUGROUP_DEFAULT {
                         put_c(
                             &mut autocmd_info,
                             c"group",
-                            integer_obj(i64::from((*ap).group)),
+                            integer_obj(i64::from(ap.group)),
                         );
                         put_c(
                             &mut autocmd_info,
                             c"group_name",
-                            string_obj(cstr_as_string(augroup_name((*ap).group))),
+                            string_obj(cstr_as_string(augroup_name(ap.group))),
                         );
                     }
 
@@ -725,7 +724,7 @@ pub unsafe extern "C" fn nvim_get_autocmds(
                     put_c(
                         &mut autocmd_info,
                         c"pattern",
-                        string_obj(cstr_as_string((*ap).pat)),
+                        string_obj(cstr_as_string(ap.pat)),
                     );
                     put_c(
                         &mut autocmd_info,
@@ -734,17 +733,17 @@ pub unsafe extern "C" fn nvim_get_autocmds(
                     );
                     put_c(&mut autocmd_info, c"once", boolean_obj(ac.once));
 
-                    if (*ap).buflocal_nr != 0 {
+                    if ap.buflocal_nr != 0 {
                         put_c(&mut autocmd_info, c"buflocal", boolean_obj(true));
                         put_c(
                             &mut autocmd_info,
                             c"buf",
-                            integer_obj(i64::from((*ap).buflocal_nr)),
+                            integer_obj(i64::from(ap.buflocal_nr)),
                         );
                         put_c(
                             &mut autocmd_info,
                             c"buffer",
-                            integer_obj(i64::from((*ap).buflocal_nr)),
+                            integer_obj(i64::from(ap.buflocal_nr)),
                         );
                     } else {
                         put_c(&mut autocmd_info, c"buflocal", boolean_obj(false));
