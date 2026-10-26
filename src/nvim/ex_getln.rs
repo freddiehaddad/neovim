@@ -3075,7 +3075,7 @@ unsafe fn cmdpreview_prepare() -> CpInfo {
         }
 
         cpinfo.save_hls = p_hls != 0;
-        cpinfo.save_cmdmod = cmdmod;
+        cpinfo.save_cmdmod = ptr::replace(&raw mut cmdmod, cmdmod_T::new());
         win_size_save(&mut cpinfo.save_view);
         save_search_patterns();
 
@@ -3118,7 +3118,7 @@ unsafe fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
             update_topline(win);
         }
 
-        cmdmod = cpinfo.save_cmdmod;
+        cmdmod = std::mem::take(&mut cpinfo.save_cmdmod);
         p_hls = c_int::from(cpinfo.save_hls);
         restore_search_patterns();
         win_size_restore(&cpinfo.save_view);
@@ -3141,6 +3141,7 @@ unsafe fn cmdpreview_may_show(_s: *mut CommandLineState) -> bool {
         emsg_off += 1;
         let parsed = parse_cmdline(
             &raw mut cmdline,
+            &raw mut cmdline_vec,
             &raw mut ea,
             &raw mut cmod,
             &raw mut errormsg,

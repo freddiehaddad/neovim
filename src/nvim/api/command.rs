@@ -8,7 +8,7 @@ use crate::api::private::helpers::{
     add_c, api_dict_to_keydict, api_set_error, api_typename, arena_array, arena_dict, arena_string,
     boolean_obj, cbuf_to_arena_str, cstr_as_string, cstrn_as_string, dict_obj, error_set,
     find_buffer_by_handle, has_key, integer_obj, put_c, static_cstr_as_string, string_obj,
-    string_to_cstr, try_wrap, with_script_context,
+    try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectType, api_err_exp, api_err_invalid,
@@ -34,7 +34,7 @@ use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::mbyte::mb_islower;
-use crate::memory::{Arena, arena_alloc, arena_memdupz, strequal_str, xfree, xmemdupz};
+use crate::memory::{Arena, arena_alloc, arena_memdupz, cstr_from_bytes, strequal_str};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::{RE_MAGIC, vim_regcomp};
 use crate::register::valid_yank_reg;
@@ -303,9 +303,17 @@ pub unsafe extern "C" fn nvim_parse_cmd(
         let mut ea: exarg_T = exarg_T::new();
         let mut cmod: cmdmod_T = cmdmod_T::new();
         let mut cmdline = arena_memdupz(arena, str_val.data, str_val.size);
+        let mut cmdline_buf: Vec<c_char> = Vec::new();
         let mut errormsg: *const c_char = ptr::null();
 
-        if !parse_cmdline(&mut cmdline, &mut ea, &mut cmod, &mut errormsg, false) {
+        if !parse_cmdline(
+            &mut cmdline,
+            &mut cmdline_buf,
+            &mut ea,
+            &mut cmod,
+            &mut errormsg,
+            false,
+        ) {
             if !errormsg.is_null() {
                 api_set_error!(
                     err,
@@ -449,7 +457,12 @@ pub unsafe extern "C" fn nvim_parse_cmd(
         put_c(
             &mut filter,
             c"pattern",
-            string_obj(cstr_to_arena_str(arena, cmod.cmod_filter_pat)),
+            string_obj(cstr_to_arena_str(
+                arena,
+                cmod.cmod_filter_pat
+                    .as_ref()
+                    .map_or(ptr::null(), |s| s.as_ptr()),
+            )),
         );
         put_c(&mut filter, c"force", boolean_obj(cmod.cmod_filter_force));
         put_c(&mut mods, c"filter", dict_obj(filter));
@@ -616,6 +629,7 @@ pub unsafe extern "C" fn nvim_cmd(
     unsafe {
         let mut ea: exarg_T = exarg_T::new();
         let mut cmod: cmdmod_T = cmdmod_T::new();
+        let mut cmdline_buf: Vec<c_char> = Vec::new();
         let mut cmdline: *mut c_char = ptr::null_mut();
         let mut errormsg: *const c_char = ptr::null();
         let mut args = Array::new();
@@ -860,8 +874,15 @@ pub unsafe extern "C" fn nvim_cmd(
                 }
             }
 
-            build_cmdline_str(&mut cmdline, &mut ea, args);
-            if !parse_cmdline(&mut cmdline, &mut ea, &mut cmod, &mut errormsg, true) {
+            build_cmdline_str(&mut cmdline_buf, &mut cmdline, &mut ea, args);
+            if !parse_cmdline(
+                &mut cmdline,
+                &mut cmdline_buf,
+                &mut ea,
+                &mut cmod,
+                &mut errormsg,
+                true,
+            ) {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
@@ -1052,9 +1073,12 @@ pub unsafe extern "C" fn nvim_cmd(
                     ) {
                         cmod.cmod_filter_force = filter.force;
                         if *filter.pattern.data != NUL || cmod.cmod_filter_force {
-                            cmod.cmod_filter_pat = string_to_cstr(filter.pattern);
-                            cmod.cmod_filter_regmatch.regprog =
-                                vim_regcomp(cmod.cmod_filter_pat, RE_MAGIC);
+                            let pat = cstr_from_bytes(std::slice::from_raw_parts(
+                                filter.pattern.data.cast::<u8>(),
+                                filter.pattern.size,
+                            ));
+                            cmod.cmod_filter_regmatch.regprog = vim_regcomp(pat.as_ptr(), RE_MAGIC);
+                            cmod.cmod_filter_pat = Some(pat);
                         }
                     }
                 }
@@ -1216,7 +1240,7 @@ pub unsafe extern "C" fn nvim_cmd(
             }
         }
 
-        xfree(cmdline.cast());
+        drop(cmdline_buf);
         retv
     }
 }
@@ -1235,31 +1259,43 @@ unsafe fn string_iswhite(str_val: NvimString) -> bool {
     }
 }
 
-unsafe fn build_cmdline_str(cmdlinep: *mut *mut c_char, eap: *mut exarg_T, args: Array) {
+unsafe fn build_cmdline_str(
+    cmdline_buf: &mut Vec<c_char>,
+    cmdlinep: *mut *mut c_char,
+    eap: *mut exarg_T,
+    args: Array,
+) {
     unsafe {
-        let mut cmdline: Vec<u8> = Vec::with_capacity(32);
+        cmdline_buf.clear();
+        cmdline_buf.reserve(32);
 
         if ((*eap).argt & EX_RANGE) != 0 {
             if (*eap).addr_count == 1 {
                 let s = (*eap).line2.to_string();
-                cmdline.extend_from_slice(s.as_bytes());
+                cmdline_buf.extend(s.as_bytes().iter().map(|&b| b as c_char));
             } else if (*eap).addr_count > 1 {
                 let s = format!("{},{}", (*eap).line1, (*eap).line2);
-                cmdline.extend_from_slice(s.as_bytes());
+                cmdline_buf.extend(s.as_bytes().iter().map(|&b| b as c_char));
             }
         }
 
-        cmdline.extend_from_slice(CStr::from_ptr((*eap).cmd).to_bytes());
+        cmdline_buf.extend(
+            CStr::from_ptr((*eap).cmd)
+                .to_bytes()
+                .iter()
+                .map(|&b| b as c_char),
+        );
 
         for i in 0..args.size {
             let s = (*args.items.add(i)).data.string;
-            cmdline.push(b' ');
+            cmdline_buf.push(b' ' as c_char);
             if s.size > 0 {
-                cmdline.extend_from_slice(std::slice::from_raw_parts(s.data.cast::<u8>(), s.size));
+                cmdline_buf.extend_from_slice(std::slice::from_raw_parts(s.data, s.size));
             }
         }
+        cmdline_buf.push(NUL);
 
-        *cmdlinep = xmemdupz(cmdline.as_ptr().cast(), cmdline.len()).cast();
+        *cmdlinep = cmdline_buf.as_mut_ptr();
     }
 }
 

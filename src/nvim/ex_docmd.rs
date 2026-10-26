@@ -146,8 +146,8 @@ use crate::mbyte::{get_encoding_name, mb_copy_char, utf_head_off, utfc_ptr2len};
 use crate::memfile::memfile_T;
 use crate::memline::{goto_byte, ml_clearmarked, ml_preserve, ml_recover, ml_setmarked};
 use crate::memory::{
-    ArenaMem, arena_mem_free, cstr_from_bytes, cstr_take, cstr_to_cstring, strequal, xfree,
-    xmalloc, xstrdup, xstrlcat, xstrlcpy,
+    ArenaMem, arena_mem_free, cstr_from_bytes, cstr_take, cstr_to_cstring, strequal, xstrdup,
+    xstrlcat, xstrlcpy,
 };
 use crate::menu::{ex_emenu, ex_menu, ex_menutranslate, save_state_T};
 use crate::message::{
@@ -173,7 +173,7 @@ use crate::option::{
     set_option_direct, set_option_value_give_err,
 };
 use crate::option_vars::*;
-use crate::optionstr::{check_ff_value, free_string_option, get_fileformat_name};
+use crate::optionstr::{check_ff_value, get_fileformat_name};
 use crate::os::env::{
     expand_T, expand_env, expand_env_esc, expand_env_save, home_replace, os_getenv_cstr,
 };
@@ -329,6 +329,7 @@ pub struct exarg_T {
     pub nextcmd: *mut c_char,
     pub cmd: *mut c_char,
     pub cmdlinep: *mut *mut c_char,
+    pub cmdline_buf: *mut Vec<c_char>,
     pub cmdidx: c_int,
     pub argt: u32,
     pub skip: c_int,
@@ -366,6 +367,7 @@ impl exarg_T {
             nextcmd: ptr::null_mut(),
             cmd: ptr::null_mut(),
             cmdlinep: ptr::null_mut(),
+            cmdline_buf: ptr::null_mut(),
             cmdidx: 0,
             argt: 0,
             skip: 0,
@@ -397,6 +399,20 @@ impl exarg_T {
             },
         }
     }
+
+    pub unsafe fn set_cmdline_vec(&mut self, cmdlinep: *mut *mut c_char, new_buf: Vec<c_char>) {
+        unsafe {
+            debug_assert!(!self.cmdline_buf.is_null());
+            *self.cmdline_buf = new_buf;
+            let new_ptr = (*self.cmdline_buf).as_mut_ptr();
+            if !cmdlinep.is_null() {
+                *cmdlinep = new_ptr;
+            }
+            if !self.cmdlinep.is_null() {
+                *self.cmdlinep = new_ptr;
+            }
+        }
+    }
 }
 
 impl Default for exarg_T {
@@ -407,16 +423,16 @@ impl Default for exarg_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct cmdmod_T {
     pub cmod_flags: c_int,
     pub cmod_split: c_int,
     pub cmod_tab: c_int,
-    pub cmod_filter_pat: *mut c_char,
+    pub cmod_filter_pat: Option<std::ffi::CString>,
     pub cmod_filter_regmatch: regmatch_T,
     pub cmod_filter_force: bool,
     pub cmod_verbose: c_int,
-    pub cmod_save_ei: *mut c_char,
+    pub cmod_save_ei: Option<std::ffi::CString>,
     pub cmod_did_sandbox: c_int,
     pub cmod_verbose_save: i64,
     pub cmod_save_msg_silent: c_int,
@@ -430,11 +446,11 @@ impl cmdmod_T {
             cmod_flags: 0,
             cmod_split: 0,
             cmod_tab: 0,
-            cmod_filter_pat: ptr::null_mut(),
+            cmod_filter_pat: None,
             cmod_filter_regmatch: regmatch_T::new(),
             cmod_filter_force: false,
             cmod_verbose: 0,
-            cmod_save_ei: ptr::null_mut(),
+            cmod_save_ei: None,
             cmod_did_sandbox: 0,
             cmod_verbose_save: 0,
             cmod_save_msg_silent: 0,
@@ -4959,6 +4975,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
 
     unsafe {
         let mut next_cmdline: *mut c_char;
+        let mut cmdline_buf: Vec<c_char> = Vec::new();
         let mut cmdline_copy: *mut c_char = ptr::null_mut();
         let mut used_getline = false;
         let mut msg_didout_before_start = false;
@@ -5034,7 +5051,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
             }
 
             if cstack.cs_looplevel > 0 && (current_line as usize) < cmd_loop_cookie.lines.len() {
-                xfree(cmdline_copy.cast());
+                cmdline_buf.clear();
                 cmdline_copy = ptr::null_mut();
 
                 if let Some(fcp) = func_cookie {
@@ -5113,7 +5130,13 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                     retval = FAIL;
                     break;
                 };
-                next_cmdline = xstrdup(next_cstr.as_ptr());
+                let bytes = next_cstr.as_bytes_with_nul();
+                cmdline_buf.clear();
+                cmdline_buf.extend_from_slice(std::slice::from_raw_parts(
+                    bytes.as_ptr().cast::<c_char>(),
+                    bytes.len(),
+                ));
+                next_cmdline = cmdline_buf.as_mut_ptr();
                 used_getline = true;
 
                 if ui_has(kUICmdline) && count > 0 && fgetline.is_exline() {
@@ -5122,13 +5145,19 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
 
                 if (flags & DOCMD_KEEPLINE) != 0 {
                     if count == 0 {
-                        repeat_cmdline = Some(cstr_to_cstring(next_cmdline));
+                        repeat_cmdline = Some(next_cstr);
                     } else {
                         repeat_cmdline = None;
                     }
                 }
             } else if cmdline_copy.is_null() {
-                next_cmdline = xstrdup(next_cmdline);
+                let bytes = CStr::from_ptr(next_cmdline).to_bytes_with_nul();
+                cmdline_buf.clear();
+                cmdline_buf.extend_from_slice(std::slice::from_raw_parts(
+                    bytes.as_ptr().cast::<c_char>(),
+                    bytes.len(),
+                ));
+                next_cmdline = cmdline_buf.as_mut_ptr();
             }
             cmdline_copy = next_cmdline;
 
@@ -5168,7 +5197,13 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
             }
 
             recursive += 1;
-            next_cmdline = do_one_cmd(&raw mut cmdline_copy, flags, &raw mut cstack, cmd_getline);
+            next_cmdline = do_one_cmd(
+                &raw mut cmdline_copy,
+                &raw mut cmdline_buf,
+                flags,
+                &raw mut cstack,
+                cmd_getline,
+            );
             recursive -= 1;
 
             if using_loop_cookie {
@@ -5176,7 +5211,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
             }
 
             if next_cmdline.is_null() {
-                xfree(cmdline_copy.cast());
+                cmdline_buf.clear();
                 cmdline_copy = ptr::null_mut();
 
                 let new_last_ptr = &raw mut new_last_cmdline;
@@ -5284,7 +5319,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
             }
         }
 
-        xfree(cmdline_copy.cast());
+        drop(cmdline_buf);
         did_emsg_syntax = false;
         drop(cmd_loop_cookie);
 
@@ -5911,6 +5946,7 @@ pub fn cmd_has_expr_args(cmdidx: cmdidx_T) -> bool {
 
 pub unsafe fn parse_cmdline(
     cmdline: *mut *mut c_char,
+    cmdline_buf: *mut Vec<c_char>,
     eap: *mut exarg_T,
     cmod: *mut cmdmod_T,
     errormsg: *mut *const c_char,
@@ -5927,6 +5963,7 @@ pub unsafe fn parse_cmdline(
         (*eap).line2 = 1;
         (*eap).cmd = *cmdline;
         (*eap).cmdlinep = cmdline;
+        (*eap).cmdline_buf = cmdline_buf;
 
         let orig_cmd = (*eap).cmd;
         let result = if skipmods {
@@ -6171,8 +6208,7 @@ pub unsafe fn execute_cmd(eap: *mut exarg_T, cmod: *mut cmdmod_T, preview: bool)
         }
 
         let mut errormsg: *const c_char = ptr::null();
-        let save_cmdmod = cmdmod;
-        cmdmod = *cmod;
+        let save_cmdmod = ptr::replace(&raw mut cmdmod, std::mem::take(&mut *cmod));
 
         apply_cmdmod(&raw mut cmdmod);
 
@@ -6379,6 +6415,7 @@ unsafe fn skip_cmd(eap: *const exarg_T) -> bool {
 
 unsafe fn do_one_cmd(
     cmdlinep: *mut *mut c_char,
+    cmdline_buf: *mut Vec<c_char>,
     flags: c_int,
     cstack: *mut cstack_T,
     fgetline: LineGetter,
@@ -6397,7 +6434,7 @@ unsafe fn do_one_cmd(
             quitmore -= 1;
         }
 
-        let save_cmdmod = cmdmod;
+        let save_cmdmod = ptr::replace(&raw mut cmdmod, cmdmod_T::new());
 
         'doend: {
             if *(*cmdlinep) == b'#' as c_char && *(*cmdlinep).add(1) == b'!' as c_char {
@@ -6406,6 +6443,7 @@ unsafe fn do_one_cmd(
 
             ea.cmd = *cmdlinep;
             ea.cmdlinep = cmdlinep;
+            ea.cmdline_buf = cmdline_buf;
             ea.ea_getline = fgetline;
             ea.cstack = cstack.cast();
 
@@ -6918,7 +6956,7 @@ pub unsafe fn parse_command_modifiers(
                         break;
                     }
                     if !skip_only {
-                        (*cmod).cmod_filter_pat = xstrdup(reg_pat);
+                        (*cmod).cmod_filter_pat = Some(cstr_to_cstring(reg_pat));
                         (*cmod).cmod_filter_regmatch.regprog = vim_regcomp(reg_pat, RE_MAGIC);
                         if (*cmod).cmod_filter_regmatch.regprog.is_null() {
                             break;
@@ -7099,8 +7137,8 @@ pub unsafe fn apply_cmdmod(cmod: *mut cmdmod_T) {
             (*cmod).cmod_did_esilent += 1;
         }
 
-        if ((*cmod).cmod_flags & CMOD_NOAUTOCMD) != 0 && (*cmod).cmod_save_ei.is_null() {
-            (*cmod).cmod_save_ei = xstrdup(p_ei);
+        if ((*cmod).cmod_flags & CMOD_NOAUTOCMD) != 0 && (*cmod).cmod_save_ei.is_none() {
+            (*cmod).cmod_save_ei = Some(cstr_to_cstring(p_ei));
             set_option_direct(kOptEventignore, cstr_as_obj(c"all".as_ptr()), 0, SID_NONE);
         }
     }
@@ -7118,18 +7156,11 @@ pub unsafe fn undo_cmdmod(cmod: *mut cmdmod_T) {
             (*cmod).cmod_did_sandbox = 0;
         }
 
-        if !(*cmod).cmod_save_ei.is_null() {
-            set_option_direct(
-                kOptEventignore,
-                cstr_as_obj((*cmod).cmod_save_ei),
-                0,
-                SID_NONE,
-            );
-            free_string_option((*cmod).cmod_save_ei);
-            (*cmod).cmod_save_ei = ptr::null_mut();
+        if let Some(save_ei) = (*cmod).cmod_save_ei.take() {
+            set_option_direct(kOptEventignore, cstr_as_obj(save_ei.as_ptr()), 0, SID_NONE);
         }
 
-        xfree((*cmod).cmod_filter_pat.cast());
+        (*cmod).cmod_filter_pat = None;
         vim_regfree((*cmod).cmod_filter_regmatch.regprog);
 
         if (*cmod).cmod_save_msg_silent > 0 {
@@ -8162,23 +8193,26 @@ pub unsafe fn replace_makeprg(
 
             arg = skipwhite(arg);
 
-            let new_cmdline = if let Some(rep) = strrep(program, c"$*".as_ptr(), arg) {
-                xstrdup(rep.as_ptr())
+            let new_buf: Vec<c_char> = if let Some(rep) = strrep(program, c"$*".as_ptr(), arg) {
+                rep.into_bytes_with_nul()
+                    .into_iter()
+                    .map(|b| b as c_char)
+                    .collect()
             } else {
                 let prog_b = CStr::from_ptr(program).to_bytes();
                 let arg_b = CStr::from_ptr(arg).to_bytes();
-                let mut combined = Vec::with_capacity(prog_b.len() + 1 + arg_b.len());
-                combined.extend_from_slice(prog_b);
-                combined.push(b' ');
-                combined.extend_from_slice(arg_b);
-                xstrdup(cstr_from_bytes(&combined).as_ptr())
+                let mut combined = Vec::with_capacity(prog_b.len() + 1 + arg_b.len() + 1);
+                combined.extend(prog_b.iter().map(|&b| b as c_char));
+                combined.push(b' ' as c_char);
+                combined.extend(arg_b.iter().map(|&b| b as c_char));
+                combined.push(NUL);
+                combined
             };
 
             msg_make(arg);
 
-            xfree((*cmdlinep).cast());
-            *cmdlinep = new_cmdline;
-            arg = new_cmdline;
+            (*eap).set_cmdline_vec(cmdlinep, new_buf);
+            arg = *cmdlinep;
         }
         arg
     }
@@ -8352,13 +8386,17 @@ unsafe fn repl_cmdline(
     unsafe {
         let len = strlen(repl);
         let offset = (src as usize) - ((*cmdlinep) as usize);
-        let mut i = offset + strlen(src.add(srclen)) + len + 3;
-        if !(*eap).nextcmd.is_null() {
-            i += strlen((*eap).nextcmd);
-        }
-        let new_cmdline: *mut c_char = xmalloc(i).cast();
+        let tail_len = strlen(src.add(srclen));
+        let nextcmd_len = if !(*eap).nextcmd.is_null() {
+            strlen((*eap).nextcmd)
+        } else {
+            0
+        };
+        let total = offset + tail_len + len + 3 + nextcmd_len;
+        let mut new_buf: Vec<c_char> = vec![0; total];
+        let new_cmdline = new_buf.as_mut_ptr();
 
-        i = offset;
+        let mut i = offset;
         ptr::copy_nonoverlapping(*cmdlinep, new_cmdline, i);
         ptr::copy_nonoverlapping(repl, new_cmdline.add(i), len);
         i += len;
@@ -8390,8 +8428,7 @@ unsafe fn repl_cmdline(
             (*eap).do_ecmd_cmd = new_cmdline
                 .wrapping_add(((*eap).do_ecmd_cmd as usize).wrapping_sub((*cmdlinep) as usize));
         }
-        xfree((*cmdlinep).cast());
-        *cmdlinep = new_cmdline;
+        (*eap).set_cmdline_vec(cmdlinep, new_buf);
 
         src
     }

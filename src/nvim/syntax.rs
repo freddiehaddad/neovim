@@ -507,7 +507,7 @@ static mut current_flags: c_int = 0;
 static mut current_seqnr: c_int = 0;
 static mut current_sub_char: c_int = 0;
 
-static mut syn_cmdlinep: *mut *mut c_char = ptr::null_mut();
+
 static mut current_syn_inc_tag: c_int = 0;
 static mut running_syn_inc_tag: c_int = 0;
 static mut keepend_level: c_int = -1;
@@ -3862,7 +3862,7 @@ unsafe fn syn_cmd_include(eap: *mut exarg_T, _syncing: c_int) {
             || path_is_absolute((*eap).arg)
         {
             source = true;
-            if expand_filename(eap, syn_cmdlinep, &raw mut errormsg) == FAIL {
+            if expand_filename(eap, (*eap).cmdlinep, &raw mut errormsg) == FAIL {
                 if !errormsg.is_null() {
                     emsg(errormsg);
                 }
@@ -5067,7 +5067,6 @@ const SUBCOMMANDS: [(*const c_char, SubcmdFn); 19] = [
 pub unsafe fn ex_syntax(eap: *mut exarg_T) {
     unsafe {
         let arg = (*eap).arg;
-        syn_cmdlinep = (*eap).cmdlinep;
 
         let mut subcmd_end = arg;
         while ascii_isalpha(*subcmd_end) {

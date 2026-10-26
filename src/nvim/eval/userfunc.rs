@@ -53,7 +53,7 @@ use crate::lua::executor::{
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
 use crate::memory::{
-    cstr_from_bytes, cstr_take, cstr_to_cstring, entered_free_all_mem, xmemrchr, xstrdup, xstrlcpy,
+    cstr_from_bytes, cstr_take, cstr_to_cstring, entered_free_all_mem, xmemrchr, xstrlcpy,
 };
 use crate::message::{
     emsg, iemsg, internal_error, message_filtered, msg_clr_eos, msg_ext_set_kind, msg_outnum,
@@ -2736,10 +2736,13 @@ unsafe fn get_function_body(
                         if !nextcmd.is_null() {
                             if let Some(ref ltf) = line_to_free {
                                 let off = (nextcmd as usize) - (ltf.as_ptr() as usize);
-                                drop(cstr_take(*(*eap).cmdlinep));
-                                let dup = xstrdup(ltf.as_ptr());
-                                *(*eap).cmdlinep = dup;
-                                (*eap).nextcmd = dup.add(off);
+                                let new_buf: Vec<c_char> = ltf
+                                    .as_bytes_with_nul()
+                                    .iter()
+                                    .map(|&b| b as c_char)
+                                    .collect();
+                                (*eap).set_cmdline_vec((*eap).cmdlinep, new_buf);
+                                (*eap).nextcmd = (*(*eap).cmdlinep).add(off);
                             } else {
                                 (*eap).nextcmd = nextcmd;
                             }

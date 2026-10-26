@@ -15,7 +15,7 @@ use crate::eval::{clear_evalarg, eval0};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
 use crate::lua::converter::Boolean;
-use crate::memory::{Arena, xmemdupz};
+use crate::memory::Arena;
 use crate::msgpack_rpc::packer::Integer;
 use crate::runtime::do_source_str;
 use crate::viml::parser::expressions::{
@@ -145,10 +145,7 @@ pub unsafe fn exec_impl(
             } else {
                 &capture_local[..]
             };
-            return NvimString {
-                data: xmemdupz(slice.as_ptr().cast(), slice.len()).cast(),
-                size: slice.len(),
-            };
+            return crate::api::private::helpers::cbuf_to_string(slice.as_ptr(), slice.len());
         }
 
         NvimString {

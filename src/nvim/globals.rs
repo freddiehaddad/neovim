@@ -310,27 +310,7 @@ pub static mut ins_at_eol: bool = false;
 pub static mut no_abbr: bool = true;
 pub static mut mapped_ctrl_c: c_int = 0;
 pub static mut ctrl_c_interrupts: bool = true;
-pub static mut cmdmod: cmdmod_T = cmdmod_T {
-    cmod_flags: 0,
-    cmod_split: 0,
-    cmod_tab: 0,
-    cmod_filter_pat: ptr::null_mut(),
-    cmod_filter_regmatch: crate::regexp::regmatch_T {
-        regprog: ptr::null_mut(),
-        startp: [ptr::null_mut(); crate::regexp::NSUBEXP],
-        endp: [ptr::null_mut(); crate::regexp::NSUBEXP],
-        rm_matchcol: 0,
-        rm_ic: false,
-    },
-    cmod_filter_force: false,
-    cmod_verbose: 0,
-    cmod_save_ei: ptr::null_mut(),
-    cmod_did_sandbox: 0,
-    cmod_verbose_save: 0,
-    cmod_save_msg_silent: 0,
-    cmod_save_msg_scroll: 0,
-    cmod_did_esilent: 0,
-};
+pub static mut cmdmod: cmdmod_T = cmdmod_T::new();
 pub static mut msg_silent: c_int = 0;
 pub static mut emsg_silent: c_int = 0;
 pub static mut emsg_noredir: bool = false;

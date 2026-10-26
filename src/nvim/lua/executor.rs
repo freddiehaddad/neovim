@@ -477,11 +477,10 @@ unsafe fn nlua_push_cmdmod(lstate: *mut lua_State, cmod: *const cmdmod_T) {
         lua_newtable(lstate);
         lua_pushstring(
             lstate,
-            if !(*cmod).cmod_filter_pat.is_null() {
-                (*cmod).cmod_filter_pat
-            } else {
-                c"".as_ptr()
-            },
+            (*cmod)
+                .cmod_filter_pat
+                .as_ref()
+                .map_or(c"".as_ptr(), |s| s.as_ptr()),
         );
         lua_setfield(lstate, -2, c"pattern".as_ptr());
         lua_pushboolean(lstate, c_int::from((*cmod).cmod_filter_force));

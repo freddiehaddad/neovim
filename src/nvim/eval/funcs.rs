@@ -2436,15 +2436,22 @@ pub unsafe fn f_expandcmd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
         }
 
         let arg_str = tv_get_string(argvars);
-        crate::eval::typval::tv_set_string(rettv, arg_str);
         if *arg_str == NUL {
+            crate::eval::typval::tv_set_string(rettv, arg_str);
             return;
         }
-        let mut cmdstr = (*rettv).vval.v_string;
+        let mut cmdline_buf: Vec<c_char> = CStr::from_ptr(arg_str)
+            .to_bytes_with_nul()
+            .iter()
+            .map(|&b| b as c_char)
+            .collect();
+        let mut cmdstr = cmdline_buf.as_mut_ptr();
 
         let mut eap: exarg_T = exarg_T::new();
         eap.cmd = cmdstr;
         eap.arg = cmdstr;
+        eap.cmdlinep = &raw mut cmdstr;
+        eap.cmdline_buf = &raw mut cmdline_buf;
         eap.usefilter = 0;
         eap.nextcmd = ptr::null_mut();
         eap.cmdidx = cmdidx_T::CMD_USER as c_int;
@@ -2464,7 +2471,7 @@ pub unsafe fn f_expandcmd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
             emsg_off -= 1;
         }
 
-        (*rettv).vval.v_string = cmdstr;
+        crate::eval::typval::tv_set_string(rettv, cmdstr);
     }
 }
 

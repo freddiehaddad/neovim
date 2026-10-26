@@ -676,8 +676,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
         if log_level >= 0 {
             g_min_log_level = log_level;
         }
-        let save_cmdmod = cmdmod;
-        cmdmod = crate::ex_docmd::cmdmod_T::new();
+        let save_cmdmod = ptr::replace(&raw mut cmdmod, crate::ex_docmd::cmdmod_T::new());
         cmdmod.cmod_flags = flags;
         apply_cmdmod(&raw mut cmdmod);
 
