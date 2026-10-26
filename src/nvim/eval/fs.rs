@@ -1167,7 +1167,8 @@ pub unsafe fn f_globpath(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             );
 
             if (*rettv).v_type == VarType::VAR_STRING {
-                (*rettv).vval.v_string = crate::path::concat_cstrings(&ga, c"\n".as_ptr());
+                let joined = crate::path::concat_cstrings(&ga, c"\n".as_ptr());
+                (*rettv).vval.v_string = xstrdup(joined.as_ptr());
             } else {
                 tv_list_alloc_ret(rettv, ga.len() as isize);
                 for &s in &ga {
