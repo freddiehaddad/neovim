@@ -5120,8 +5120,7 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
             prof_child_enter(&raw mut wait_time);
         }
 
-        let mut nread: usize = 0;
-        let mut res: *mut c_char = ptr::null_mut();
+        let mut res: Vec<c_char> = Vec::new();
         let status = os_system(
             argv,
             if input.is_empty() {
@@ -5130,8 +5129,7 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
                 input.as_ptr()
             },
             input.len(),
-            &raw mut res,
-            &raw mut nread,
+            Some(&mut res),
         );
 
         if profiling {
@@ -5142,7 +5140,7 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
 
         set_vim_var_nr(VV_SHELL_ERROR, varnumber_T::from(status));
 
-        if res.is_null() {
+        if res.is_empty() {
             if retlist {
                 tv_list_alloc_ret(rettv, 0);
             } else {
@@ -5152,37 +5150,33 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
         }
 
         if retlist {
-            let res_owned = cstr_take(res);
             let mut keepempty: c_int = 0;
             if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
                 && (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
             {
                 keepempty = tv_get_number(argvars.add(2)) as c_int;
             }
-            (*rettv).vval.v_list = string_to_list(
-                res_owned.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                nread,
-                keepempty != 0,
-            );
+            (*rettv).vval.v_list = string_to_list(res.as_ptr(), res.len(), keepempty != 0);
             tv_list_ref((*rettv).vval.v_list);
             (*rettv).v_type = VarType::VAR_LIST;
         } else {
-            memchrsub(res.cast(), NUL, 1, nread);
+            let nread = res.len();
+            memchrsub(res.as_mut_ptr().cast(), NUL, 1, nread);
             #[cfg(windows)]
             {
-                let mut d = res;
-                let mut s = res;
-                while *s != NUL {
-                    if *s == CAR && *s.add(1) == NL {
-                        s = s.add(1);
+                let mut d = 0usize;
+                let mut s = 0usize;
+                while s < nread {
+                    if res[s] == CAR && s + 1 < nread && res[s + 1] == NL {
+                        s += 1;
                     }
-                    *d = *s;
-                    d = d.add(1);
-                    s = s.add(1);
+                    res[d] = res[s];
+                    d += 1;
+                    s += 1;
                 }
-                *d = NUL;
+                res.truncate(d);
             }
-            (*rettv).vval.v_string = res;
+            crate::eval::typval::tv_set_string_len(rettv, res.as_ptr(), res.len());
         }
     }
 }

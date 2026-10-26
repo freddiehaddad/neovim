@@ -31,7 +31,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::CP_UTF8;
 use crate::mbyte::{utf8len_tab_zero, utfc_ptr2len_len};
 use crate::memline::ml_append;
-use crate::memory::{bytes_take, cstr_take, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_take, xmalloc, xstrdup, xstrlcat, xstrlcpy};
 #[cfg(unix)]
 use crate::message::msg;
 use crate::message::{
@@ -612,8 +612,8 @@ pub unsafe fn shell_argv_to_str(argv: &[*mut c_char]) -> [c_char; 256] {
 pub unsafe fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_char) -> c_int {
     unsafe {
         let mut input: Vec<c_char> = Vec::new();
-        let mut output: *mut c_char = ptr::null_mut();
-        let mut output_ptr: *mut *mut c_char = ptr::null_mut();
+        let mut output: Vec<c_char> = Vec::new();
+        let mut want_output = false;
         let current_state = State;
         let mut forward_output = true;
 
@@ -629,14 +629,13 @@ pub unsafe fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_ch
             }
 
             if (opts & kShellOptRead) != 0 {
-                output_ptr = &raw mut output;
+                want_output = true;
                 forward_output = false;
             } else if (opts & kShellOptDoOut) != 0 {
                 forward_output = false;
             }
         }
 
-        let mut nread: usize = 0;
         let exitcode = do_os_system(
             shell_build_argv(cmd, extra_args),
             if input.is_empty() {
@@ -645,15 +644,15 @@ pub unsafe fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_ch
                 input.as_ptr()
             },
             input.len(),
-            output_ptr,
-            &raw mut nread,
+            want_output.then_some(&mut output),
             emsg_silent != 0,
             forward_output,
         );
         drop(input);
 
-        if let Some(mut out_bytes) = bytes_take(output, nread) {
-            write_output(out_bytes.as_mut_ptr().cast(), nread, true);
+        if !output.is_empty() {
+            let nread = output.len();
+            write_output(output.as_mut_ptr(), nread, true);
         }
 
         if emsg_silent == 0 && exitcode != 0 && (opts & kShellOptSilent) == 0 {
@@ -786,18 +785,16 @@ pub unsafe fn os_system(
     argv: Vec<*mut c_char>,
     input: *const c_char,
     len: usize,
-    output: *mut *mut c_char,
-    nread: *mut usize,
+    output: Option<&mut Vec<c_char>>,
 ) -> c_int {
-    unsafe { do_os_system(argv, input, len, output, nread, true, false) }
+    unsafe { do_os_system(argv, input, len, output, true, false) }
 }
 
 unsafe fn do_os_system(
     argv: Vec<*mut c_char>,
     input: *const c_char,
     len: usize,
-    output: *mut *mut c_char,
-    nread: *mut usize,
+    output: Option<&mut Vec<c_char>>,
     silent: bool,
     forward_output: bool,
 ) -> c_int {
@@ -825,13 +822,10 @@ unsafe fn do_os_system(
 
         let mut buf: Vec<c_char> = Vec::new();
         let mut data_cb: stream_read_cb = Some(system_data_cb);
-        if !nread.is_null() {
-            *nread = 0;
-        }
 
         if forward_output {
             data_cb = Some(out_data_cb);
-        } else if output.is_null() {
+        } else if output.is_none() {
             data_cb = None;
         }
 
@@ -909,15 +903,8 @@ unsafe fn do_os_system(
 
             ui_busy_stop();
 
-            if !output.is_null() {
-                debug_assert!(!nread.is_null());
-                if buf.is_empty() {
-                    *output = ptr::null_mut();
-                    *nread = 0;
-                } else {
-                    *nread = buf.len();
-                    *output = xmemdupz(buf.as_ptr().cast(), buf.len()).cast();
-                }
+            if let Some(out) = output {
+                *out = buf;
             }
 
             debug_assert!(multiqueue_empty(events));

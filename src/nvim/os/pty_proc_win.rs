@@ -8,8 +8,6 @@ use crate::event::r#loop::{Loop, loop_schedule_fast, uv_req_size, uv_run, uv_tra
 use crate::log::logmsg;
 #[cfg(windows)]
 use crate::mbyte::utf8_to_utf16;
-#[cfg(windows)]
-use crate::memory::{xfree, xmalloc};
 #[cfg(any(test, windows))]
 use crate::memory::{xstrlcat, xstrlcpy};
 #[cfg(windows)]
@@ -220,6 +218,8 @@ mod win_impl {
             let mut in_name: Option<std::ffi::CString> = None;
             let mut out_name: Option<std::ffi::CString> = None;
             let mut proc_handle: HANDLE = ptr::null_mut();
+            let mut in_req_buf: Option<Vec<u64>> = None;
+            let mut out_req_buf: Option<Vec<u64>> = None;
             let mut in_req: *mut uv_connect_t = ptr::null_mut();
             let mut out_req: *mut uv_connect_t = ptr::null_mut();
             let mut file: Vec<u16> = Vec::new();
@@ -243,7 +243,9 @@ mod win_impl {
                 }
 
                 if !(*s_in).closed {
-                    in_req = xmalloc(uv_req_size(UV_CONNECT)).cast();
+                    let mut buf = vec![0u64; uv_req_size(UV_CONNECT).div_ceil(8)];
+                    in_req = buf.as_mut_ptr().cast();
+                    in_req_buf = Some(buf);
                     uv_pipe_connect(
                         in_req,
                         (&raw mut (*s_in).uv).cast(),
@@ -253,7 +255,9 @@ mod win_impl {
                 }
 
                 if !(*r_out).s.closed {
-                    out_req = xmalloc(uv_req_size(UV_CONNECT)).cast();
+                    let mut buf = vec![0u64; uv_req_size(UV_CONNECT).div_ceil(8)];
+                    out_req = buf.as_mut_ptr().cast();
+                    out_req_buf = Some(buf);
                     uv_pipe_connect(
                         out_req,
                         (&raw mut (*r_out).s.uv).cast(),
@@ -376,8 +380,8 @@ mod win_impl {
             if !proc_handle.is_null() {
                 CloseHandle(proc_handle);
             }
-            xfree(in_req.cast());
-            xfree(out_req.cast());
+            drop(in_req_buf);
+            drop(out_req_buf);
             status
         }
     }
