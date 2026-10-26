@@ -7191,7 +7191,12 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
 
             current_sctx = provider_caller_scope.script_ctx;
             let es = &raw mut exestack;
-            (*es).push(provider_caller_scope.es_entry);
+            (*es).push(
+                (&raw const provider_caller_scope.es_entry)
+                    .as_ref()
+                    .unwrap()
+                    .clone(),
+            );
             autocmd_fname = provider_caller_scope.autocmd_fname;
             autocmd_match = provider_caller_scope.autocmd_match;
             autocmd_fname_full = provider_caller_scope.autocmd_fname_full;

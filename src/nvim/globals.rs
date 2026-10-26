@@ -150,7 +150,7 @@ pub static mut provider_caller_scope: caller_scope = caller_scope {
     },
     es_entry: crate::profile::estack_T {
         es_lnum: 0,
-        es_name: ptr::null_mut(),
+        es_name: None,
         es_type: 0,
         es_info: crate::profile::EStackInfo::None,
     },

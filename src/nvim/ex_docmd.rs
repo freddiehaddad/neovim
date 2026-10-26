@@ -207,7 +207,7 @@ use crate::runtime::{
     DIP_ALL, ESTACK_SCRIPT, ESTACK_SFILE, ESTACK_STACK, ETYPE_EXCEPT, SID_NONE, do_finish,
     estack_pop, estack_push, estack_sfile, ex_finish, ex_options, ex_packadd, ex_packloadall,
     ex_runtime, ex_scriptencoding, ex_scriptnames, ex_source, exestack, source_breakpoint,
-    source_dbg_tick, source_finished, source_level, source_runtime,
+    source_dbg_tick, source_finished, source_level, source_runtime, sourcing_name,
 };
 use crate::search::{
     do_search, find_pattern_in_path, restore_last_search_pattern, save_last_search_pattern,
@@ -4827,14 +4827,6 @@ const CMDIDXS2: [[u8; 26]; 26] = [
 ];
 
 #[inline]
-unsafe fn sourcing_name_ptr() -> *mut *mut c_char {
-    unsafe {
-        let es = &raw mut exestack;
-        &raw mut (*es).last_mut().unwrap().es_name
-    }
-}
-
-#[inline]
 unsafe fn sourcing_lnum_ptr() -> *mut linenr_T {
     unsafe {
         let es = &raw mut exestack;
@@ -5012,7 +5004,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
             breakpoint = func_breakpoint(fcp);
             dbg_tick = func_dbg_tick(fcp);
         } else if let Some(sp) = source_cookie {
-            fname = *sourcing_name_ptr();
+            fname = sourcing_name();
             breakpoint = source_breakpoint(sp);
             dbg_tick = source_dbg_tick(sp);
         }
@@ -5189,7 +5181,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                 did_inc = true;
             }
 
-            if (p_verbose >= 15 && !(*sourcing_name_ptr()).is_null()) || p_verbose >= 16 {
+            if (p_verbose >= 15 && !sourcing_name().is_null()) || p_verbose >= 16 {
                 msg_verbose_cmd(*sourcing_lnum_ptr(), cmdline_copy);
             }
 
@@ -12373,7 +12365,7 @@ pub unsafe fn eval_vars(
                     resultbuf = Some(v);
                 }
                 SPEC_SLNUM => {
-                    if (*sourcing_name_ptr()).is_null() || *sourcing_lnum_ptr() == 0 {
+                    if sourcing_name().is_null() || *sourcing_lnum_ptr() == 0 {
                         *errormsg = gettext(e_no_line_number_to_use_for_slnum.as_ptr());
                         return None;
                     }

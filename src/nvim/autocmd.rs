@@ -324,13 +324,11 @@ const E_AUTOCOMMAND_NESTING_TOO_DEEP: &CStr = c"E218: Autocommand nesting too de
 #[repr(C)]
 pub struct AutoPatCmd {
     pub lastpat: Option<std::rc::Rc<AutoPat>>,
-    pub es_name_owned: Option<std::ffi::CString>,
     pub auidx: usize,
     pub ausize: usize,
-    pub afile_orig: *mut c_char,
-    pub fname: *mut c_char,
-    pub sfname: *mut c_char,
-    pub tail: *mut c_char,
+    pub afile_orig: Option<std::ffi::CString>,
+    pub fname: Option<std::ffi::CString>,
+    pub sfname: Option<std::ffi::CString>,
     pub group: c_int,
     pub event: event_T,
     pub script_ctx: sctx_T,
@@ -2921,9 +2919,6 @@ pub unsafe fn apply_autocmds_group(
             } else {
                 None
             };
-            let afile_orig = afile_orig_owned
-                .as_ref()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             autocmd_fname_full = false;
 
             autocmd_bufnr = if buf.is_null() { 0 } else { (*buf).b_fnum };
@@ -2987,9 +2982,6 @@ pub unsafe fn apply_autocmds_group(
                     FullName_save(fname, false)
                 }
             };
-            let sfname = sfname_owned
-                .as_ref()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             fname = fname_owned
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -3017,7 +3009,7 @@ pub unsafe fn apply_autocmds_group(
 
             RedrawingDisabled += 1;
 
-            estack_push(ETYPE_AUCMD, ptr::null_mut(), 0);
+            estack_push(ETYPE_AUCMD, ptr::null(), 0);
 
             let save_current_sctx = current_sctx;
 
@@ -3044,18 +3036,14 @@ pub unsafe fn apply_autocmds_group(
                 (*curbuf).b_did_filetype = true;
             }
 
-            let tail = path_tail(fname);
-
             let acs = &raw const autocmds[event as usize];
             let mut patcmd = AutoPatCmd {
                 lastpat: None,
-                es_name_owned: None,
                 auidx: 0,
                 ausize: (*acs).len(),
-                afile_orig,
-                fname,
-                sfname,
-                tail,
+                afile_orig: afile_orig_owned,
+                fname: fname_owned,
+                sfname: sfname_owned,
                 group,
                 event,
                 script_ctx: sctx_T {
@@ -3119,8 +3107,6 @@ pub unsafe fn apply_autocmds_group(
             filechangeshell_busy = false;
             autocmd_nested = save_autocmd_nested;
             estack_pop();
-            drop(patcmd);
-            drop(afile_orig_owned);
             drop(autocmd_fname_buf);
             autocmd_fname = save_autocmd_fname;
             autocmd_fname_full = save_autocmd_fname_full;
@@ -3133,8 +3119,7 @@ pub unsafe fn apply_autocmds_group(
                 prof_child_exit(&raw mut wait_time);
             }
             KeyTyped = save_KeyTyped;
-            drop(fname_owned);
-            drop(sfname_owned);
+            drop(patcmd);
             apply_autocmds_nesting -= 1;
 
             if !autocmd_busy {
@@ -3267,12 +3252,25 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
                 }
                 let matches = if ap.buflocal_nr == 0 {
                     let mut prog = ap.reg_prog.get();
+                    let fname_ptr = (*apc)
+                        .fname
+                        .as_ref()
+                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                    let sfname_ptr = (*apc)
+                        .sfname
+                        .as_ref()
+                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                    let tail_ptr = if fname_ptr.is_null() {
+                        ptr::null_mut()
+                    } else {
+                        path_tail(fname_ptr)
+                    };
                     let matched = match_file_pat(
                         ptr::null_mut(),
                         &raw mut prog,
-                        (*apc).fname,
-                        (*apc).sfname,
-                        (*apc).tail,
+                        fname_ptr,
+                        sfname_ptr,
+                        tail_ptr,
                         c_int::from(ap.allow_dirs),
                     );
                     ap.reg_prog.set(prog);
@@ -3290,15 +3288,13 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
                 let pat_str = ap.pat.to_string_lossy();
                 let formatted = format!("{name_str} Autocommands for \"{pat_str}\"");
                 let name_cstr = CString::new(formatted).unwrap_or_default();
-                let namep = name_cstr.as_ptr().cast_mut();
                 if p_verbose >= 8 {
                     verbose_enter();
-                    smsg!(0, tr(c"Executing %s"), namep);
+                    smsg!(0, tr(c"Executing %s"), name_cstr.as_ptr());
                     verbose_leave();
                 }
 
-                (*apc).es_name_owned = Some(name_cstr);
-                entry.es_name = namep;
+                entry.es_name = Some(name_cstr);
                 entry.es_info = crate::profile::EStackInfo::AuCmd(apc);
             }
 
@@ -3309,9 +3305,8 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
             return;
         }
 
-        entry.es_name = ptr::null_mut();
+        entry.es_name = None;
         entry.es_info = crate::profile::EStackInfo::None;
-        (*apc).es_name_owned = None;
 
         (*apc).lastpat = None;
         (*apc).auidx = usize::MAX;
@@ -3347,7 +3342,12 @@ unsafe fn au_callback(
             size += 1;
             data_items[size] = KeyValuePair {
                 key: static_cstr_as_string(c"file"),
-                value: cstr_as_obj((*apc).afile_orig),
+                value: cstr_as_obj(
+                    (*apc)
+                        .afile_orig
+                        .as_ref()
+                        .map_or(ptr::null(), |s| s.as_ptr()),
+                ),
             };
             size += 1;
             data_items[size] = KeyValuePair {

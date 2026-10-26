@@ -118,12 +118,21 @@ impl EStackInfo {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct estack_T {
     pub es_lnum: i32,
-    pub es_name: *mut c_char,
+    pub es_name: Option<std::ffi::CString>,
     pub es_type: c_int,
     pub es_info: EStackInfo,
+}
+
+impl estack_T {
+    #[inline]
+    pub fn name_ptr(&self) -> *mut c_char {
+        self.es_name
+            .as_ref()
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    }
 }
 
 #[repr(C)]

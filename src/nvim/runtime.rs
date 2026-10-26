@@ -342,7 +342,7 @@ pub unsafe fn script_id_valid(id: scid_T) -> bool {
 pub unsafe fn sourcing_name() -> *mut c_char {
     unsafe {
         let es = &raw const exestack;
-        (*es).last().unwrap().es_name
+        (*es).last().unwrap().name_ptr()
     }
 }
 
@@ -369,7 +369,7 @@ pub unsafe fn estack_init() {
         (*es).reserve(10);
         (*es).push(estack_T {
             es_type: ETYPE_TOP,
-            es_name: ptr::null_mut(),
+            es_name: None,
             es_lnum: 0,
             es_info: crate::profile::EStackInfo::None,
         });
@@ -377,12 +377,16 @@ pub unsafe fn estack_init() {
 }
 
 /// Add an item to the execution stack.
-pub unsafe fn estack_push(type_: etype_T, name: *mut c_char, lnum: linenr_T) -> *mut estack_T {
+pub unsafe fn estack_push(type_: etype_T, name: *const c_char, lnum: linenr_T) -> *mut estack_T {
     unsafe {
         let es = &raw mut exestack;
         (*es).push(estack_T {
             es_type: type_,
-            es_name: name,
+            es_name: if name.is_null() {
+                None
+            } else {
+                Some(CStr::from_ptr(name).to_owned())
+            },
             es_lnum: lnum,
             es_info: crate::profile::EStackInfo::None,
         });
@@ -394,9 +398,9 @@ pub unsafe fn estack_push(type_: etype_T, name: *mut c_char, lnum: linenr_T) -> 
 pub unsafe fn estack_push_ufunc(ufunc: *mut ufunc_T, lnum: linenr_T) {
     unsafe {
         let name = if let Some(ref exp) = (*ufunc).uf_name_exp {
-            exp.as_ptr().cast_mut()
+            exp.as_ptr()
         } else {
-            (*ufunc).uf_name.as_mut_ptr()
+            (*ufunc).uf_name.as_ptr()
         };
         let entry = estack_push(ETYPE_UFUNC, name, lnum);
         if !entry.is_null() {
@@ -421,11 +425,7 @@ pub unsafe fn estack_sfile(which: estack_arg_T) -> Option<std::ffi::CString> {
         let es = &raw const exestack;
         let last_entry = (*es).last().unwrap();
         if which == ESTACK_SFILE && last_entry.es_type != ETYPE_UFUNC {
-            return if !last_entry.es_name.is_null() {
-                Some(cstr_to_cstring(last_entry.es_name))
-            } else {
-                None
-            };
+            return last_entry.es_name.clone();
         }
 
         if which == ESTACK_SCRIPT {
@@ -442,7 +442,7 @@ pub unsafe fn estack_sfile(which: estack_arg_T) -> Option<std::ffi::CString> {
                         None
                     };
                 } else if entry.es_type == ETYPE_SCRIPT {
-                    return Some(cstr_to_cstring(entry.es_name));
+                    return entry.es_name.clone();
                 }
             }
             return None;
@@ -452,9 +452,9 @@ pub unsafe fn estack_sfile(which: estack_arg_T) -> Option<std::ffi::CString> {
         let mut last_type = ETYPE_SCRIPT;
         let es_len = (*es).len();
         for (idx, entry) in (*es).iter().enumerate() {
-            if !entry.es_name.is_null() {
+            if let Some(ref entry_name) = entry.es_name {
                 let mut type_name = static_cstr_as_string(c"");
-                let es_name = cstr_as_string(entry.es_name);
+                let es_name = cstr_as_string(entry_name.as_ptr());
                 if entry.es_type != last_type {
                     match entry.es_type {
                         ETYPE_SCRIPT => type_name = static_cstr_as_string(c"script "),
@@ -545,7 +545,7 @@ pub unsafe fn stacktrace_create() -> *mut list_T {
             let mut lnum = entry.es_lnum;
 
             if entry.es_type == ETYPE_SCRIPT {
-                stacktrace_push_item(l, ptr::null_mut(), ptr::null(), lnum, entry.es_name);
+                stacktrace_push_item(l, ptr::null_mut(), ptr::null(), lnum, entry.name_ptr());
             } else if entry.es_type == ETYPE_UFUNC {
                 let fp = entry.es_info.ufunc();
                 let sctx = (*fp).uf_script_ctx;
@@ -564,7 +564,13 @@ pub unsafe fn stacktrace_create() -> *mut list_T {
                     std::borrow::Cow::Borrowed(c"")
                 };
                 lnum += sctx.sc_lnum;
-                stacktrace_push_item(l, ptr::null_mut(), entry.es_name, lnum, filepath.as_ptr());
+                stacktrace_push_item(
+                    l,
+                    ptr::null_mut(),
+                    entry.name_ptr(),
+                    lnum,
+                    filepath.as_ptr(),
+                );
             }
         }
         l

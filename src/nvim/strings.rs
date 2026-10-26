@@ -996,19 +996,6 @@ pub unsafe fn vim_strnsave_up(string: *const c_char, len: usize) -> std::ffi::CS
     }
 }
 
-pub unsafe fn vim_strup(mut p: *mut c_char) {
-    unsafe {
-        loop {
-            let c = *p as u8;
-            if c == 0 {
-                break;
-            }
-            *p = c.to_ascii_uppercase() as c_char;
-            p = p.add(1);
-        }
-    }
-}
-
 pub unsafe fn vim_strcpy_up(mut dst: *mut c_char, mut src: *const c_char) {
     unsafe {
         loop {

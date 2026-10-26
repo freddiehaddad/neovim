@@ -293,7 +293,7 @@ impl Drop for timer_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct caller_scope {
     pub script_ctx: sctx_T,
     pub es_entry: crate::profile::estack_T,
@@ -7040,19 +7040,18 @@ pub unsafe fn eval_call_provider(
             provider,
         );
 
-        let saved_provider_caller_scope = provider_caller_scope;
-        {
-            let es = &raw const exestack;
-            provider_caller_scope = caller_scope {
-                script_ctx: current_sctx,
-                es_entry: *(*es).last().unwrap(),
-                autocmd_fname,
-                autocmd_match,
-                autocmd_fname_full,
-                autocmd_bufnr,
-                funccalp: get_current_funccal().cast(),
-            };
-        }
+        let es = &raw const exestack;
+        let new_scope = caller_scope {
+            script_ctx: current_sctx,
+            es_entry: (*es).last().unwrap().clone(),
+            autocmd_fname,
+            autocmd_match,
+            autocmd_fname_full,
+            autocmd_bufnr,
+            funccalp: get_current_funccal().cast(),
+        };
+        let saved_provider_caller_scope =
+            std::mem::replace(&mut *(&raw mut provider_caller_scope), new_scope);
         save_funccal();
         {
             provider_call_nesting += 1;
