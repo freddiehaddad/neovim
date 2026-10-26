@@ -69,7 +69,7 @@ use crate::main_init::getout;
 use crate::mark::{copy_jumplist, free_jumplist, setmark, setpcmark};
 use crate::r#match::clear_matches;
 use crate::math::{FAIL, OK};
-use crate::memory::{xfree, xstrlcat, xstrlcpy};
+use crate::memory::{xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, iemsg, internal_error, kZIndexMessages, msg, msg_clr_eos_force, msg_grid_validate,
     msg_ui_flush, semsg, set_keep_msg,
@@ -1108,8 +1108,8 @@ unsafe fn do_window_gotofile(nchar: c_int, Prenum1: c_int) {
         }
 
         let mut lnum: linenr_T = -1;
-        let ptr = grab_file_name(Prenum1, &raw mut lnum);
-        if !ptr.is_null() {
+        if let Some(fname_cstr) = grab_file_name(Prenum1, &raw mut lnum) {
+            let ptr = fname_cstr.as_ptr().cast_mut();
             let oldtab = curtab;
             let oldwin = curwin;
             setpcmark();
@@ -1148,7 +1148,6 @@ unsafe fn do_window_gotofile(nchar: c_int, Prenum1: c_int) {
                 check_cursor_lnum(curwin);
                 beginline(BL_SOL | BL_FIX);
             }
-            xfree(ptr.cast());
         }
     }
 }

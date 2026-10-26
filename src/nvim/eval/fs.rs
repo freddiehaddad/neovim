@@ -662,7 +662,7 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
         }
 
         if *fname != NUL && !error {
-            let mut file_to_find: *mut c_char = ptr::null_mut();
+            let mut file_to_find: Option<std::ffi::CString> = None;
             let mut search_ctx: Option<ff_search_ctx_T> = None;
 
             loop {
@@ -686,7 +686,7 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
                     } else {
                         (*curbuf).b_p_sua
                     },
-                    &raw mut file_to_find,
+                    &mut file_to_find,
                     &mut search_ctx,
                 );
                 first = false;
@@ -703,8 +703,6 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
                     break;
                 }
             }
-
-            xfree(file_to_find.cast());
         }
 
         if (*rettv).v_type == VarType::VAR_STRING {

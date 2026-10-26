@@ -4652,16 +4652,17 @@ pub unsafe fn get_visual_text(cap: *mut cmdarg_T, pp: *mut *mut c_char, lenp: *m
         } else {
             if lt((*curwin).w_cursor, Visual.start) {
                 *pp = ml_get_pos(&raw const (*curwin).w_cursor);
-                *lenp = (Visual.start.col as usize) - ((*curwin).w_cursor.col as usize) + 1;
+                *lenp = (Visual.start.col - (*curwin).w_cursor.col + 1) as usize;
             } else {
                 *pp = ml_get_pos(&raw const Visual.start);
-                *lenp = ((*curwin).w_cursor.col as usize) - (Visual.start.col as usize) + 1;
+                *lenp = ((*curwin).w_cursor.col - Visual.start.col + 1) as usize;
             }
             if **pp == NUL {
                 *lenp = 0;
             }
             if *lenp > 0 {
-                *lenp += (utfc_ptr2len((*pp).add(*lenp - 1)) - 1) as usize;
+                *lenp =
+                    (*lenp).wrapping_add_signed((utfc_ptr2len((*pp).add(*lenp - 1)) - 1) as isize);
             }
         }
         reset_VIsual_and_resel();
@@ -4950,9 +4951,8 @@ unsafe fn nv_gotofile(cap: *mut cmdarg_T) {
             return;
         }
 
-        let ptr = grab_file_name((*cap).count1, &raw mut lnum);
-
-        if !ptr.is_null() {
+        if let Some(fname_cstr) = grab_file_name((*cap).count1, &raw mut lnum) {
+            let ptr = fname_cstr.as_ptr().cast_mut();
             if curbufIsChanged() && (*curbuf).b_nwindows <= 1 && !buf_hide(curbuf) {
                 autowrite(curbuf, false);
             }
@@ -4973,7 +4973,6 @@ unsafe fn nv_gotofile(cap: *mut cmdarg_T) {
                 check_cursor_lnum(curwin);
                 beginline(BL_SOL | BL_FIX);
             }
-            xfree(ptr.cast());
         } else {
             clearop((*cap).oap);
         }

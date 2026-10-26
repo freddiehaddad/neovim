@@ -10107,7 +10107,7 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
                         },
                     );
                 } else {
-                    let mut file_to_find: *mut c_char = ptr::null_mut();
+                    let mut file_to_find: Option<std::ffi::CString> = None;
                     let mut search_ctx: Option<ff_search_ctx_T> = None;
                     fname = find_file_in_path(
                         (*eap).arg,
@@ -10115,10 +10115,9 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
                         FNAME_MESS,
                         c_int::from(true),
                         (*curbuf).b_ffname,
-                        &raw mut file_to_find,
+                        &mut file_to_find,
                         &mut search_ctx,
                     );
-                    xfree(file_to_find.cast());
                 }
                 if fname.is_null() {
                     break 'theend;
@@ -10484,7 +10483,7 @@ unsafe fn ex_find(eap: *mut exarg_T) {
                 },
             );
         } else {
-            let mut file_to_find: *mut c_char = ptr::null_mut();
+            let mut file_to_find: Option<std::ffi::CString> = None;
             let mut search_ctx: Option<ff_search_ctx_T> = None;
             fname = find_file_in_path(
                 (*eap).arg,
@@ -10492,7 +10491,7 @@ unsafe fn ex_find(eap: *mut exarg_T) {
                 FNAME_MESS,
                 c_int::from(true),
                 (*curbuf).b_ffname,
-                &raw mut file_to_find,
+                &mut file_to_find,
                 &mut search_ctx,
             );
             if (*eap).addr_count > 0 {
@@ -10508,12 +10507,11 @@ unsafe fn ex_find(eap: *mut exarg_T) {
                         FNAME_MESS,
                         c_int::from(false),
                         (*curbuf).b_ffname,
-                        &raw mut file_to_find,
+                        &mut file_to_find,
                         &mut search_ctx,
                     );
                 }
             }
-            xfree(file_to_find.cast());
         }
 
         if fname.is_null() {
