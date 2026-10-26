@@ -29,7 +29,7 @@ use crate::fileio::fcntl;
 use crate::globals::*;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::api_free_luaref;
-use crate::memory::{Arena, arena_finish, arena_mem_free, arena_memdupz, xfree, xstrdup};
+use crate::memory::{Arena, arena_finish, arena_mem_free, arena_memdupz};
 use crate::message::semsg;
 pub use crate::msgpack_rpc::channel::Channel;
 use crate::msgpack_rpc::channel::{
@@ -546,7 +546,7 @@ pub unsafe fn channel_job_start(
         } else {
             (*ph).argv.as_slice()[0]
         };
-        let cmd = xstrdup(exe_str);
+        let cmd = CStr::from_ptr(exe_str).to_owned();
 
         let (has_out, has_err) = if (*ph).r#type == kProcTypePty {
             (true, false)
@@ -570,18 +570,21 @@ pub unsafe fn channel_job_start(
         let status = proc_spawn(proc_ptr, has_in, has_out, has_err);
         if status != 0 {
             {
-                semsg!(gettext(e_jobspawn.as_ptr()), uv_strerror(status), cmd);
+                semsg!(
+                    gettext(e_jobspawn.as_ptr()),
+                    uv_strerror(status),
+                    cmd.as_ptr(),
+                );
                 if !(*ph).env.is_null() {
                     tv_dict_free((*ph).env);
                 }
             }
-            xfree(cmd.cast());
             channel_destroy_early(chan);
             *status_out = varnumber_T::from((*ph).status);
             return ptr::null_mut();
         }
 
-        xfree(cmd.cast());
+        drop(cmd);
         if !(*ph).env.is_null() {
             tv_dict_free((*ph).env);
         }

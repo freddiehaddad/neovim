@@ -30,7 +30,7 @@ use crate::marktree::{
     mt_end, mt_invalid,
 };
 use crate::mbyte::{utf_ptr2cells, utfc_ptr2len};
-use crate::memory::{Arena, xfree};
+use crate::memory::Arena;
 use crate::r#move::{changed_window_setting, win_col_off};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::MAXCOL;
@@ -79,19 +79,19 @@ pub(crate) const kVTLinesAbove: u8 = 4;
 pub(crate) const kVTRepeatLinebreak: u8 = 8;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct DecorSignHighlight {
     pub flags: u16,
     pub priority: DecorPriority,
     pub hl_id: c_int,
     pub text: [u32; 2],
-    pub sign_name: *mut c_char,
+    pub sign_name: Option<std::ffi::CString>,
     pub sign_add_id: c_int,
     pub number_hl_id: c_int,
     pub line_hl_id: c_int,
     pub cursorline_hl_id: c_int,
     pub next: u32,
-    pub url: *const c_char,
+    pub url: Option<std::ffi::CString>,
 }
 
 pub const DECOR_SIGN_HIGHLIGHT_INIT: DecorSignHighlight = DecorSignHighlight {
@@ -99,13 +99,13 @@ pub const DECOR_SIGN_HIGHLIGHT_INIT: DecorSignHighlight = DecorSignHighlight {
     priority: crate::marktree::DECOR_PRIORITY_BASE,
     hl_id: 0,
     text: [0, 0],
-    sign_name: ptr::null_mut(),
+    sign_name: None,
     sign_add_id: 0,
     number_hl_id: 0,
     line_hl_id: 0,
     cursorline_hl_id: 0,
     next: DECOR_ID_INVALID,
-    url: ptr::null(),
+    url: None,
 };
 
 #[repr(C)]
@@ -116,7 +116,7 @@ pub struct DecorRangeUI {
     pub pos: VirtTextPos,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum DecorRangeData {
     Sh(DecorSignHighlight),
     Vt(*mut DecorVirtText),
@@ -149,17 +149,17 @@ impl DecorRangeData {
     }
 
     #[inline]
-    pub const fn vt(self) -> *mut DecorVirtText {
+    pub const fn vt(&self) -> *mut DecorVirtText {
         match self {
-            Self::Vt(vt) | Self::VirtLines(vt) => vt,
+            Self::Vt(vt) | Self::VirtLines(vt) => *vt,
             _ => ptr::null_mut(),
         }
     }
 
     #[inline]
-    pub const fn ui(self) -> DecorRangeUI {
+    pub const fn ui(&self) -> DecorRangeUI {
         match self {
-            Self::Ui(ui) => ui,
+            Self::Ui(ui) => *ui,
             _ => unreachable!(),
         }
     }
@@ -182,14 +182,10 @@ impl Drop for DecorRange {
     fn drop(&mut self) {
         if self.owned {
             unsafe {
-                match self.data {
-                    DecorRangeData::Vt(vt) | DecorRangeData::VirtLines(vt) => {
-                        if !vt.is_null() {
-                            drop(Box::from_raw(vt));
-                        }
-                    }
-                    DecorRangeData::Sh(sh) => xfree(sh.url.cast_mut().cast()),
-                    DecorRangeData::Ui(_) => {}
+                if let DecorRangeData::Vt(vt) | DecorRangeData::VirtLines(vt) = self.data
+                    && !vt.is_null()
+                {
+                    drop(Box::from_raw(vt));
                 }
             }
         }
@@ -519,9 +515,10 @@ pub unsafe fn decor_redraw(
             let items = &raw const decor_items;
             let mut idx = decor.data.ext().sh_idx;
             while idx != DECOR_ID_INVALID {
-                let sh = (*items).as_slice()[idx as usize];
-                decor_redraw_sh(buf, row1, row2, sh);
-                idx = sh.next;
+                let sh = &(*items).as_slice()[idx as usize];
+                let next = sh.next;
+                decor_redraw_sh(buf, row1, row2, sh.clone());
+                idx = next;
             }
         } else {
             decor_redraw_sh(buf, row1, row2, decor_sh_from_inline(decor.data.hl()));
@@ -532,7 +529,7 @@ pub unsafe fn decor_redraw(
 pub unsafe fn decor_redraw_sh(buf: *mut buf_T, row1: c_int, row2: c_int, sh: DecorSignHighlight) {
     unsafe {
         if (sh.hl_id != 0
-            || !sh.url.is_null()
+            || sh.url.is_some()
             || (sh.flags & (kSHIsSign | kSHSpellOn | kSHSpellOff | kSHConceal | kSHConcealOff))
                 != 0)
             && row2 >= row1
@@ -582,13 +579,13 @@ pub unsafe fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighl
         priority: item.priority,
         hl_id: item.hl_id,
         text: [item.conceal_char, 0],
-        sign_name: ptr::null_mut(),
+        sign_name: None,
         sign_add_id: 0,
         number_hl_id: 0,
         line_hl_id: 0,
         cursorline_hl_id: 0,
         next: DECOR_ID_INVALID,
-        url: ptr::null(),
+        url: None,
     }
 }
 
@@ -733,15 +730,9 @@ unsafe fn decor_free_sh(first_idx: u32) {
         let mut idx = first_idx;
         while idx != DECOR_ID_INVALID {
             let sh = &mut (&mut *items)[idx as usize];
-            if (sh.flags & kSHIsSign) != 0 {
-                xfree(sh.sign_name.cast());
-                sh.sign_name = ptr::null_mut();
-            }
+            sh.sign_name = None;
             sh.flags = 0;
-            if !sh.url.is_null() {
-                xfree(sh.url.cast_mut().cast());
-                sh.url = ptr::null();
-            }
+            sh.url = None;
             if sh.next == DECOR_ID_INVALID {
                 sh.next = decor_freelist;
                 decor_freelist = first_idx;
@@ -1094,7 +1085,7 @@ pub unsafe fn decor_range_add_sh(
             + DecorPriorityInternal::from(subpriority);
 
         if (*sh).hl_id != 0
-            || !(*sh).url.is_null()
+            || (*sh).url.is_some()
             || ((*sh).flags & (kSHConcealOff | kSHConceal | kSHSpellOn | kSHSpellOff)) != 0
         {
             let attr_id = if (*sh).hl_id != 0 {
@@ -1112,7 +1103,7 @@ pub unsafe fn decor_range_add_sh(
                     ordering: 0,
                     priority_internal,
                     owned,
-                    data: DecorRangeData::Sh(*sh),
+                    data: DecorRangeData::Sh((*sh).clone()),
                     attr_id,
                     draw_col: -10,
                 },
@@ -1318,8 +1309,8 @@ pub unsafe fn decor_redraw_col_impl(
                     } else if ((*r).data.sh().flags & kSHSpellOff) != 0 {
                         spell = kFalse;
                     }
-                    if !(*r).data.sh().url.is_null() {
-                        attr = hl_add_url(attr, (*r).data.sh().url);
+                    if let Some(ref url) = (*r).data.sh().url {
+                        attr = hl_add_url(attr, url.as_ptr());
                     }
                 }
             }
@@ -1798,8 +1789,9 @@ pub unsafe fn decor_to_dict_legacy(
     arena: *mut Arena,
 ) {
     unsafe {
-        let mut sh_hl = DECOR_SIGN_HIGHLIGHT_INIT;
-        let mut sh_sign = DECOR_SIGN_HIGHLIGHT_INIT;
+        let inline_sh;
+        let mut sh_hl = &DECOR_SIGN_HIGHLIGHT_INIT;
+        let mut sh_sign = &DECOR_SIGN_HIGHLIGHT_INIT;
         let mut virt_text: *mut DecorVirtText = ptr::null_mut();
         let mut virt_lines: *mut DecorVirtText = ptr::null_mut();
         let mut priority: i32 = -1;
@@ -1818,16 +1810,18 @@ pub unsafe fn decor_to_dict_legacy(
             let items = &raw const decor_items;
             let mut idx = decor.data.ext().sh_idx;
             while idx != DECOR_ID_INVALID {
-                let sh = (*items).as_slice()[idx as usize];
+                let sh = &(*items).as_slice()[idx as usize];
+                let next = sh.next;
                 if (sh.flags & kSHIsSign) != 0 {
                     sh_sign = sh;
                 } else {
                     sh_hl = sh;
                 }
-                idx = sh.next;
+                idx = next;
             }
         } else {
-            sh_hl = decor_sh_from_inline(decor.data.hl());
+            inline_sh = decor_sh_from_inline(decor.data.hl());
+            sh_hl = &inline_sh;
         }
 
         if sh_hl.hl_id != 0 {
@@ -1874,8 +1868,8 @@ pub unsafe fn decor_to_dict_legacy(
             put_c(&mut *dict, c"ui_watched".as_ptr(), boolean_obj(true));
         }
 
-        if !sh_hl.url.is_null() {
-            put_c(&mut *dict, c"url".as_ptr(), cstr_as_obj(sh_hl.url));
+        if let Some(ref url) = sh_hl.url {
+            put_c(&mut *dict, c"url".as_ptr(), cstr_as_obj(url.as_ptr()));
         }
 
         if !virt_text.is_null() {
@@ -1952,7 +1946,7 @@ pub unsafe fn decor_to_dict_legacy(
         if (sh_sign.flags & kSHIsSign) != 0 {
             if sh_sign.text[0] != 0 {
                 let mut buf = [0 as c_char; SIGN_WIDTH * MAX_SCHAR_SIZE];
-                describe_sign_text(buf.as_mut_ptr(), sh_sign.text.as_mut_ptr());
+                describe_sign_text(buf.as_mut_ptr(), sh_sign.text.as_ptr().cast_mut());
                 put_c(
                     &mut *dict,
                     c"sign_text".as_ptr(),
@@ -1960,11 +1954,11 @@ pub unsafe fn decor_to_dict_legacy(
                 );
             }
 
-            if !sh_sign.sign_name.is_null() {
+            if let Some(ref sign_name) = sh_sign.sign_name {
                 put_c(
                     &mut *dict,
                     c"sign_name".as_ptr(),
-                    cstr_as_obj(sh_sign.sign_name),
+                    cstr_as_obj(sign_name.as_ptr()),
                 );
             }
 
@@ -2008,7 +2002,7 @@ pub unsafe fn decor_type_flags(decor: DecorInline) -> u16 {
             let items = &raw const decor_items;
             let mut idx = decor.data.ext().sh_idx;
             while idx != DECOR_ID_INVALID {
-                let sh = (*items).as_slice()[idx as usize];
+                let sh = &(*items).as_slice()[idx as usize];
                 type_flags |= if (sh.flags & kSHIsSign) != 0 {
                     kExtmarkSign
                 } else {

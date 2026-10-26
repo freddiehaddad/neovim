@@ -40,7 +40,6 @@ use crate::marktree::{
     mt_decor, mt_decor_sign, mt_end,
 };
 use crate::mbyte::{utf_ptr2cells, utfc_ptr2len, utfc_ptr2schar};
-use crate::memory::xstrdup;
 use crate::message::{
     emsg, msg_outtrans, msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg, smsg,
 };
@@ -151,11 +150,11 @@ unsafe fn group_get_ns(group: *const c_char) -> i64 {
 
 unsafe fn sign_get_name(sh: *mut DecorSignHighlight) -> *const c_char {
     unsafe {
-        let name = (*sh).sign_name;
-        if name.is_null() {
-            c"".as_ptr()
-        } else if !pmap_get_sign(name).is_null() {
-            name
+        let Some(ref name) = (*sh).sign_name else {
+            return c"".as_ptr();
+        };
+        if !pmap_get_sign(name.as_ptr()).is_null() {
+            name.as_ptr()
         } else {
             c"[Deleted]".as_ptr()
         }
@@ -186,7 +185,7 @@ unsafe fn buf_set_sign(
 
         sign.flags |= kSHIsSign;
         sign.text = (*sp).sn_text;
-        sign.sign_name = xstrdup((*sp).sn_name.as_ptr());
+        sign.sign_name = Some((*sp).sn_name.clone());
         sign.hl_id = (*sp).sn_text_hl;
         sign.line_hl_id = (*sp).sn_line_hl;
         sign.number_hl_id = (*sp).sn_num_hl;
@@ -402,7 +401,7 @@ unsafe fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
                         groupbuf[0] = NUL;
 
                         let sh = decor_find_sign(mt_decor(mark));
-                        if !(*sh).sign_name.is_null() {
+                        if (*sh).sign_name.is_some() {
                             vim_snprintf!(
                                 namebuf.as_mut_ptr(),
                                 MSG_BUF_LEN,
@@ -590,7 +589,11 @@ unsafe fn sign_define_by_name(
             let mut did_redraw = false;
             let items = &raw mut decor_items;
             for sh in (*items).iter_mut() {
-                if !sh.sign_name.is_null() && strcmp(sh.sign_name, name) == 0 {
+                if sh
+                    .sign_name
+                    .as_ref()
+                    .is_some_and(|sn| strcmp(sn.as_ptr(), name) == 0)
+                {
                     sh.text = (*sp).sn_text;
                     sh.hl_id = (*sp).sn_text_hl;
                     sh.line_hl_id = (*sp).sn_line_hl;

@@ -759,7 +759,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
             data: DecorVirtTextData::empty_lines(),
             next: None,
         };
-        let mut url: *mut c_char = ptr::null_mut();
+        let mut url: Option<std::ffi::CString> = None;
         let mut has_hl = false;
         let mut has_hl_multiple = false;
 
@@ -1104,7 +1104,10 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
             }
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__url) {
-                url = string_to_cstr((*opts).url);
+                let raw = string_to_cstr((*opts).url);
+                let cstr = CStr::from_ptr(raw).to_owned();
+                xfree(raw.cast());
+                url = Some(cstr);
                 has_hl = true;
             }
 
@@ -1212,7 +1215,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                 }
                 if has_hl {
                     let mut sh = decor_sh_from_inline(hl);
-                    sh.url = url;
+                    sh.url = url.take();
                     decor_range_add_sh(
                         &raw mut decor_state,
                         r,
@@ -1252,8 +1255,6 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                 let mut decor_indexed: u32 = DECOR_ID_INVALID;
 
                 if (sign.flags & kSHIsSign) != 0 {
-                    sign.next = decor_indexed;
-                    decor_indexed = decor_put_sh(sign);
                     if sign.text[0] != 0 {
                         decor_flags |= MT_FLAG_DECOR_SIGNTEXT;
                     }
@@ -1261,6 +1262,8 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                     {
                         decor_flags |= MT_FLAG_DECOR_SIGNHL;
                     }
+                    sign.next = decor_indexed;
+                    decor_indexed = decor_put_sh(sign);
                 }
 
                 if has_hl_multiple {
@@ -1290,12 +1293,12 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                 };
                 if !decor_alloc.is_null()
                     || decor_indexed != DECOR_ID_INVALID
-                    || !url.is_null()
+                    || url.is_some()
                     || schar_high(hl.conceal_char)
                 {
                     if has_hl {
                         let mut sh = decor_sh_from_inline(hl);
-                        sh.url = url;
+                        sh.url = url.take();
                         sh.next = decor_indexed;
                         decor_indexed = decor_put_sh(sh);
                     }
@@ -1342,9 +1345,6 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
             return i64::from(id);
         }
 
-        if !url.is_null() {
-            xfree(url.cast());
-        }
         0
     }
 }
