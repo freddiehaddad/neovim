@@ -22,7 +22,7 @@ pub(crate) const K_BOOL_VAR_FALSE: i64 = 0;
 pub(crate) const K_BOOL_VAR_TRUE: i64 = 1;
 
 #[inline]
-unsafe fn cbuf_to_string_obj(
+fn cbuf_to_string_obj(
     arena: *mut Arena,
     reuse_strdata: bool,
     data: *const c_char,
@@ -67,7 +67,7 @@ enum ConvStackEntry {
     },
 }
 
-unsafe fn convert_one_value(
+fn convert_one_value(
     stack: &mut Vec<Object>,
     mpstack: &mut Vec<ConvStackEntry>,
     arena: *mut Arena,
@@ -84,7 +84,7 @@ unsafe fn convert_one_value(
             } else {
                 unsafe { CStr::from_ptr(s).to_bytes().len() }
             };
-            stack.push(unsafe { cbuf_to_string_obj(arena, reuse_strdata, s, len) });
+            stack.push(cbuf_to_string_obj(arena, reuse_strdata, s, len));
         }
         VarType::VAR_NUMBER => {
             let n = tv.vval.v_number();
@@ -107,7 +107,7 @@ unsafe fn convert_one_value(
             } else {
                 unsafe { ((*blob).bv_ga.as_ptr().cast::<c_char>(), (*blob).bv_ga.len()) }
             };
-            stack.push(unsafe { cbuf_to_string_obj(arena, reuse_strdata, data, len) });
+            stack.push(cbuf_to_string_obj(arena, reuse_strdata, data, len));
         }
         VarType::VAR_FUNC => {
             let fun = tv.vval.v_string();
@@ -263,7 +263,7 @@ fn pop_into_parent_dict(stack: &mut Vec<Object>) {
 }
 
 /// Recursively convert a Vimscript `typval_T` into an API `Object` (`vim_to_object`).
-pub unsafe fn vim_to_object(obj: *mut typval_T, arena: *mut Arena, reuse_strdata: bool) -> Object {
+pub fn vim_to_object(obj: *mut typval_T, arena: *mut Arena, reuse_strdata: bool) -> Object {
     unsafe {
         let copy_id = get_copyID();
         let mut stack: Vec<Object> = Vec::with_capacity(4);
@@ -351,15 +351,13 @@ pub unsafe fn vim_to_object(obj: *mut typval_T, arena: *mut Arena, reuse_strdata
 }
 
 /// Convert an API `Object` into a Vimscript `typval_T` (`object_to_vim`).
-pub unsafe fn object_to_vim(mut obj: Object, tv: *mut typval_T, err: &mut Error) {
-    unsafe {
-        object_to_vim_take_luaref(&mut obj, tv, false, err);
-    }
+pub fn object_to_vim(mut obj: Object, tv: *mut typval_T, err: &mut Error) {
+    object_to_vim_take_luaref(&mut obj, tv, false, err);
 }
 
 /// Convert an API `Object` into a Vimscript `typval_T`, optionally consuming nested `LuaRef`s
 /// (`object_to_vim_take_luaref`).
-pub unsafe fn object_to_vim_take_luaref(
+pub fn object_to_vim_take_luaref(
     obj: *mut Object,
     tv: *mut typval_T,
     take_luaref: bool,

@@ -175,7 +175,7 @@ pub struct KeyDict_get_commands {
 }
 
 #[inline]
-unsafe fn cstr_to_arena_str(arena: *mut Arena, str_ptr: *const c_char) -> NvimString {
+fn cstr_to_arena_str(arena: *mut Arena, str_ptr: *const c_char) -> NvimString {
     unsafe {
         if str_ptr.is_null() {
             NvimString {
@@ -212,7 +212,7 @@ pub fn is_user_cmdidx<T: CmdIdxVal>(cmdidx: T) -> bool {
     cmdidx.check_user_cmd()
 }
 
-unsafe fn parse_map_cmd(arg_str: *const c_char, arena: *mut Arena) -> Array {
+fn parse_map_cmd(arg_str: *const c_char, arena: *mut Arena) -> Array {
     unsafe {
         let mut args = arena_array(arena, 2);
 
@@ -1260,7 +1260,7 @@ fn string_iswhite(str_val: NvimString) -> bool {
     }
 }
 
-unsafe fn build_cmdline_str(
+fn build_cmdline_str(
     cmdline_buf: &mut Vec<c_char>,
     cmdlinep: *mut *mut c_char,
     eap: &mut exarg_T,

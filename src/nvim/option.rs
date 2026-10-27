@@ -1083,10 +1083,8 @@ fn set_options_default(opt_flags: c_int) {
 
 /// Set the Vi-default value of a string option.
 unsafe fn set_string_default(opt_idx: OptIndex, val: *const c_char) {
-    unsafe {
-        assert!(opt_idx != kOptInvalid);
+    assert!(opt_idx != kOptInvalid);
         change_option_default(opt_idx, cstr_to_obj(val));
-    }
 }
 
 /// For an option value that contains comma separated items, find "newval" in "origval".
@@ -5194,23 +5192,19 @@ fn optval_is_owned(opt_idx: OptIndex) -> bool {
 }
 
 pub fn optval_own(opt_idx: OptIndex, value: Object) -> Object {
-    unsafe {
-        if optval_is_owned(opt_idx) {
+    if optval_is_owned(opt_idx) {
             value
         } else {
             copy_object(value, ptr::null_mut())
         }
-    }
 }
 
 fn optval_snapshot(value: Object) -> Object {
-    unsafe {
-        if value.obj_type == ObjectType::kObjectTypeLuaRef {
+    if value.obj_type == ObjectType::kObjectTypeLuaRef {
             let s = nlua_funcref_str(value.data.luaref(), true);
             return cstr_to_obj(s.as_ptr());
         }
         copy_object(value, ptr::null_mut())
-    }
 }
 
 unsafe fn optval_snapshot_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
@@ -6037,8 +6031,7 @@ pub fn set_option_direct(
     opt_flags: c_int,
     set_sid: scid_T,
 ) {
-    unsafe {
-        if is_option_hidden(opt_idx) {
+    if is_option_hidden(opt_idx) {
             return;
         }
 
@@ -6052,7 +6045,6 @@ pub fn set_option_direct(
             None,
         );
         assert!(errmsg.is_null());
-    }
 }
 
 /// Set option value directly for buffer / window, without processing any side effects.

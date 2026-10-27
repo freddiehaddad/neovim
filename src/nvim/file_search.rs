@@ -90,10 +90,8 @@ pub struct ff_stack_T {
 
 impl Drop for ff_stack_T {
     fn drop(&mut self) {
-        unsafe {
-            api_clear_string(&mut self.ffs_fix_path);
+        api_clear_string(&mut self.ffs_fix_path);
             api_clear_string(&mut self.ffs_wc_path);
-        }
     }
 }
 
@@ -1057,8 +1055,7 @@ unsafe fn ff_create_stack_element(
     level: c_int,
     star_star_empty: c_int,
 ) -> ff_stack_T {
-    unsafe {
-        if fix_part.is_null() {
+    if fix_part.is_null() {
             fix_part = EMPTY_C.as_ptr();
             fix_partlen = 0;
         }
@@ -1079,7 +1076,6 @@ unsafe fn ff_create_stack_element(
             ffs_level: level,
             ffs_star_star_empty: star_star_empty,
         }
-    }
 }
 
 fn ff_push(search_ctx: &mut ff_search_ctx_T, stack_elem: ff_stack_T) {
@@ -1091,8 +1087,7 @@ fn ff_pop(search_ctx: &mut ff_search_ctx_T) -> Option<ff_stack_T> {
 }
 
 fn ff_clear(search_ctx: &mut ff_search_ctx_T) {
-    unsafe {
-        search_ctx.ffsc_stack.clear();
+    search_ctx.ffsc_stack.clear();
         search_ctx.ffsc_stopdirs_v.clear();
 
         api_clear_string(&mut search_ctx.ffsc_file_to_search);
@@ -1100,7 +1095,6 @@ fn ff_clear(search_ctx: &mut ff_search_ctx_T) {
         api_clear_string(&mut search_ctx.ffsc_fix_path);
         api_clear_string(&mut search_ctx.ffsc_wc_path);
         search_ctx.ffsc_level = 0;
-    }
 }
 
 unsafe fn ff_path_in_stoplist(

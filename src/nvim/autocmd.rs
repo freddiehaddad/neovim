@@ -2050,11 +2050,9 @@ pub unsafe fn au_event_disable(what: *mut c_char) -> std::ffi::CString {
 }
 
 pub fn au_event_restore(old_ei: Option<std::ffi::CString>) {
-    unsafe {
-        if let Some(old_ei) = old_ei {
+    if let Some(old_ei) = old_ei {
             set_option_direct(kOptEventignore, cstr_as_obj(old_ei.as_ptr()), 0, SID_NONE);
         }
-    }
 }
 
 pub unsafe fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
@@ -3226,15 +3224,13 @@ pub unsafe extern "C" fn block_autocmds() {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn unblock_autocmds() {
-    unsafe {
-        au_st().autocmd_blocked -= 1;
+    au_st().autocmd_blocked -= 1;
 
         if !is_autocmd_blocked() && au_st().termresponse_changed && has_event(EVENT_TERMRESPONSE) {
             let sequence = cstr_to_string(get_vim_var_str(VV_TERMRESPONSE));
             do_termresponse_autocmd(sequence, au_st().termresponse_chan_id);
             api_free_string(sequence);
         }
-    }
 }
 
 pub fn is_autocmd_blocked() -> bool {

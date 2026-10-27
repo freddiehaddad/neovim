@@ -103,11 +103,9 @@ pub struct yankreg_T {
 
 impl Drop for yankreg_T {
     fn drop(&mut self) {
-        unsafe {
-            for item in self.y_array.iter_mut().rev() {
+        for item in self.y_array.iter_mut().rev() {
                 api_clear_string(item);
             }
-        }
     }
 }
 
@@ -293,7 +291,7 @@ fn copy_string_global(s: NvimString) -> NvimString {
             size: 0,
         }
     } else {
-        unsafe { cbuf_to_string(s.data, s.size) }
+        cbuf_to_string(s.data, s.size)
     }
 }
 

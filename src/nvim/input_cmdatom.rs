@@ -395,12 +395,10 @@ pub unsafe fn sb_concat(sb: &mut Vec<c_char>, s: *const c_char) {
 
 #[inline]
 fn dict_put(d: &mut Dict, key: &CStr, value: Object) {
-    unsafe {
-        d.push(KeyValuePair {
+    d.push(KeyValuePair {
             key: cstr_to_string(key.as_ptr()),
             value,
         });
-    }
 }
 
 use crate::api::private::helpers::array_add;

@@ -2026,13 +2026,11 @@ pub fn decor_type_flags(decor: DecorInline) -> u16 {
 }
 
 pub fn hl_group_name(hl_id: c_int, hl_name: bool) -> Object {
-    unsafe {
-        if hl_name {
+    if hl_name {
             cstr_as_obj(syn_id2name(hl_id))
         } else {
             integer_obj(Integer::from(hl_id))
         }
-    }
 }
 
 #[cfg(test)]

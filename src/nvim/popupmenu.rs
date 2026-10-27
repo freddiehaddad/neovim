@@ -1934,8 +1934,7 @@ pub unsafe fn pum_make_popup(path_name: *const c_char, use_mouse_pos: c_int) {
 }
 
 pub fn pum_pos_ui_flush(force: bool) {
-    unsafe {
-        if force
+    if force
             || (ui_has(kUIMultigrid)
                 && pum().is_drawn
                 && !pum().external
@@ -1963,5 +1962,4 @@ pub fn pum_pos_ui_flush(force: bool) {
             );
             g_st().pum_grid.pending_comp_index_update = false;
         }
-    }
 }

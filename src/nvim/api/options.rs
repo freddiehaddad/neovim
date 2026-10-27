@@ -64,7 +64,7 @@ pub struct KeyDict_option {
     pub dry_run: Boolean,
 }
 
-unsafe fn validate_option_value_args(
+fn validate_option_value_args(
     opts: *mut KeyDict_option,
     name: *mut c_char,
     allow_tab: bool,
@@ -253,7 +253,7 @@ unsafe fn validate_option_value_args(
     }
 }
 
-unsafe fn do_ft_buf(filetype: *const c_char, aco: &mut CtxSwitch, err: &mut Error) -> *mut buf_T {
+fn do_ft_buf(filetype: *const c_char, aco: &mut CtxSwitch, err: &mut Error) -> *mut buf_T {
     unsafe {
         if filetype.is_null() {
             return ptr::null_mut();

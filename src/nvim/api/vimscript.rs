@@ -65,16 +65,14 @@ fn api_vims_st() -> &'static mut ApiVimscriptState {
 use crate::api::private::helpers::cstr_to_string;
 
 #[inline]
-unsafe fn cbuf_to_arena_obj(arena: *mut Arena, s: *const c_char, len: usize) -> Object {
-    unsafe {
-        string_obj(arena_string(
+fn cbuf_to_arena_obj(arena: *mut Arena, s: *const c_char, len: usize) -> Object {
+    string_obj(arena_string(
             arena,
             NvimString {
                 data: s.cast_mut(),
                 size: len,
             },
         ))
-    }
 }
 
 /// Executes Vimscript (multiline block of Ex commands), like anonymous
@@ -250,7 +248,7 @@ pub unsafe extern "C" fn nvim_eval(expr: NvimString, arena: *mut Arena, err: &mu
     }
 }
 
-unsafe fn call_function_impl(
+fn call_function_impl(
     channel_id: u64,
     fn_name: NvimString,
     args: Array,
@@ -347,7 +345,7 @@ pub unsafe extern "C" fn nvim_call_function(
     arena: *mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe { call_function_impl(channel_id, fn_name, args, std::ptr::null_mut(), arena, err) }
+    call_function_impl(channel_id, fn_name, args, std::ptr::null_mut(), arena, err)
 }
 
 /// Calls a Vimscript |Dictionary-function| with the given arguments.
@@ -660,9 +658,8 @@ pub unsafe extern "C" fn nvim_parse_expression(
     }
 }
 
-unsafe fn expr_ast_node_to_obj(node: &ExprASTNode, arena: *mut Arena) -> Object {
-    unsafe {
-        let nt = node.r#type;
+fn expr_ast_node_to_obj(node: &ExprASTNode, arena: *mut Arena) -> Object {
+    let nt = node.r#type;
         let items_size = 3
             + usize::from(node.children.is_some())
             + usize::from(nt == kExprNodeOption || nt == kExprNodePlainIdentifier)
@@ -804,7 +801,6 @@ unsafe fn expr_ast_node_to_obj(node: &ExprASTNode, arena: *mut Arena) -> Object 
         }
         debug_assert_eq!(ret_node.size, ret_node.capacity);
         dict_obj(ret_node)
-    }
 }
 
 #[cfg(test)]
@@ -813,13 +809,11 @@ mod tests {
 
     #[test]
     fn cstr_as_string_handles_null_and_non_null() {
-        unsafe {
-            let empty = cstr_as_string(std::ptr::null());
+        let empty = cstr_as_string(std::ptr::null());
             assert!(empty.data.is_null());
             assert_eq!(empty.size, 0);
 
             let s = cstr_as_string(c"echo 1".as_ptr());
             assert_eq!(s.size, 6);
-        }
     }
 }

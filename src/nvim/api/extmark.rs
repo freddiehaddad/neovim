@@ -169,7 +169,7 @@ pub struct KeyDict_ns_opts {
 }
 
 #[inline]
-pub unsafe fn ns_in_win(ns_id: u32, wp: *mut win_T) -> bool {
+pub fn ns_in_win(ns_id: u32, wp: *mut win_T) -> bool {
     unsafe {
         let local_ptr = &raw const g_st().namespace_localscope;
         if !(*local_ptr).contains(&ns_id) {
@@ -250,7 +250,7 @@ pub unsafe extern "C" fn nvim_get_namespaces(arena: *mut Arena) -> Dict {
 }
 
 // DLLEXPORT const char *describe_ns(NS ns_id, const char *unknown);
-pub unsafe fn describe_ns(ns_id: NS, unknown: *const c_char) -> *const c_char {
+pub fn describe_ns(ns_id: NS, unknown: *const c_char) -> *const c_char {
     unsafe {
         let ns_ptr = &raw const g_st().namespace_ids;
         for (name, id) in &*ns_ptr {
@@ -271,9 +271,8 @@ pub fn ns_initialized(ns: u32) -> bool {
 }
 
 // DLLEXPORT Array virt_text_to_array(VirtText vt, bool hl_name, Arena *arena);
-pub unsafe fn virt_text_to_array(vt: &[VirtTextChunk], hl_name: bool, arena: *mut Arena) -> Array {
-    unsafe {
-        let mut chunks = arena_array(arena, vt.len());
+pub fn virt_text_to_array(vt: &[VirtTextChunk], hl_name: bool, arena: *mut Arena) -> Array {
+    let mut chunks = arena_array(arena, vt.len());
         let mut i = 0usize;
         while i < vt.len() {
             let mut j = i;
@@ -309,10 +308,9 @@ pub unsafe fn virt_text_to_array(vt: &[VirtTextChunk], hl_name: bool, arena: *mu
             i += 1;
         }
         chunks
-    }
 }
 
-unsafe fn extmark_to_array(
+fn extmark_to_array(
     extmark: MTPair,
     id: bool,
     add_dict: bool,
@@ -1535,7 +1533,7 @@ pub unsafe extern "C" fn nvim_set_decoration_provider(
     }
 }
 
-unsafe fn extmark_get_index_from_obj(
+fn extmark_get_index_from_obj(
     buf: *mut buf_T,
     ns_id: Integer,
     obj: Object,
@@ -1600,7 +1598,7 @@ unsafe fn extmark_get_index_from_obj(
 }
 
 // DLLEXPORT VirtText parse_virt_text(Array chunks, Error *err, int *width, bool untab);
-pub unsafe fn parse_virt_text(
+pub fn parse_virt_text(
     chunks: Array,
     err: &mut Error,
     width: *mut c_int,

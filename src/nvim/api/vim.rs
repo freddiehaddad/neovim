@@ -288,11 +288,9 @@ fn api_vim_st() -> &'static mut ApiVimState {
 }
 
 #[inline]
-unsafe fn validate_int(cond: bool, name: *const c_char, val: i64, err: &mut Error) -> bool {
+fn validate_int(cond: bool, name: *const c_char, val: i64, err: &mut Error) -> bool {
     if !cond {
-        unsafe {
-            api_err_invalid(err, name, ptr::null(), val, false);
-        }
+        api_err_invalid(err, name, ptr::null(), val, false);
         false
     } else {
         true
@@ -300,11 +298,9 @@ unsafe fn validate_int(cond: bool, name: *const c_char, val: i64, err: &mut Erro
 }
 
 #[inline]
-unsafe fn validate_s(cond: bool, name: *const c_char, val: *const c_char, err: &mut Error) -> bool {
+fn validate_s(cond: bool, name: *const c_char, val: *const c_char, err: &mut Error) -> bool {
     if !cond {
-        unsafe {
-            api_err_invalid(err, name, val, 0, true);
-        }
+        api_err_invalid(err, name, val, 0, true);
         false
     } else {
         true
@@ -312,11 +308,9 @@ unsafe fn validate_s(cond: bool, name: *const c_char, val: *const c_char, err: &
 }
 
 #[inline]
-unsafe fn validate_r(cond: bool, name: *const c_char, err: &mut Error) -> bool {
+fn validate_r(cond: bool, name: *const c_char, err: &mut Error) -> bool {
     if !cond {
-        unsafe {
-            api_err_required(err, name);
-        }
+        api_err_required(err, name);
         false
     } else {
         true
@@ -324,11 +318,9 @@ unsafe fn validate_r(cond: bool, name: *const c_char, err: &mut Error) -> bool {
 }
 
 #[inline]
-unsafe fn validate_range(cond: bool, name: *const c_char, err: &mut Error) -> bool {
+fn validate_range(cond: bool, name: *const c_char, err: &mut Error) -> bool {
     if !cond {
-        unsafe {
-            api_err_invalid(err, name, c"out of range".as_ptr(), 0, false);
-        }
+        api_err_invalid(err, name, c"out of range".as_ptr(), 0, false);
         false
     } else {
         true
@@ -336,16 +328,14 @@ unsafe fn validate_range(cond: bool, name: *const c_char, err: &mut Error) -> bo
 }
 
 #[inline]
-unsafe fn validate_t(
+fn validate_t(
     name: *const c_char,
     expected_t: ObjectType,
     actual_t: ObjectType,
     err: &mut Error,
 ) -> bool {
     if expected_t != actual_t {
-        unsafe {
-            api_err_exp(err, name, api_typename(expected_t), api_typename(actual_t));
-        }
+        api_err_exp(err, name, api_typename(expected_t), api_typename(actual_t));
         false
     } else {
         true
@@ -531,14 +521,12 @@ pub unsafe extern "C" fn nvim_get_hl_ns(opts: *mut KeyDict_get_ns, err: &mut Err
 // DLLEXPORT void nvim_set_hl_ns(Integer ns_id, Error *err) FUNC_API_SINCE(10);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_set_hl_ns(ns_id: Integer, err: &mut Error) {
-    unsafe {
-        if !validate_int(ns_id >= 0, c"namespace".as_ptr(), ns_id, err) {
+    if !validate_int(ns_id >= 0, c"namespace".as_ptr(), ns_id, err) {
             return;
         }
         g_st().ns_hl_global = ns_id as NS;
         hl_check_ns();
         redraw_all_later(UPD_NOT_VALID);
-    }
 }
 
 /// Set active namespace for highlights defined with |nvim_set_hl()| while redrawing.
@@ -1005,15 +993,13 @@ pub unsafe extern "C" fn nvim_get_runtime_file(
 // DLLEXPORT String nvim__get_lib_dir(void) FUNC_API_RET_ALLOC;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim__get_lib_dir() -> NvimString {
-    unsafe {
-        get_lib_dir().map_or(
+    get_lib_dir().map_or(
             NvimString {
                 data: ptr::null_mut(),
                 size: 0,
             },
             |s| crate::api::private::helpers::cstr_to_string(s.as_ptr()),
         )
-    }
 }
 
 /// Find files in runtime directories
@@ -1229,7 +1215,7 @@ pub unsafe extern "C" fn nvim_get_vvar(
     arena: *mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe { dict_get_value(get_vimvar_dict(), name, arena, err) }
+    dict_get_value(get_vimvar_dict(), name, arena, err)
 }
 
 /// Sets a v: variable, if it is not readonly.
@@ -2071,8 +2057,7 @@ pub unsafe extern "C" fn nvim_get_color_by_name(name: NvimString) -> Integer {
 // DLLEXPORT DictOf(Integer) nvim_get_color_map(Arena *arena) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_color_map(arena: *mut Arena) -> Dict {
-    unsafe {
-        let mut colors = arena_dict(arena, color_name_table.len());
+    let mut colors = arena_dict(arena, color_name_table.len());
         for entry in &color_name_table {
             put_c(
                 &mut colors,
@@ -2081,7 +2066,6 @@ pub unsafe extern "C" fn nvim_get_color_map(arena: *mut Arena) -> Dict {
             );
         }
         colors
-    }
 }
 
 /// Gets a map (msgpack encoding) of the current editor state:
@@ -2282,13 +2266,11 @@ pub unsafe extern "C" fn nvim_del_keymap(
 //   FUNC_API_REMOTE_ONLY;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_api_info(channel_id: u64, arena: *mut Arena) -> Array {
-    unsafe {
-        let mut rv = arena_array(arena, 2);
+    let mut rv = arena_array(arena, 2);
         assert!(channel_id <= (i64::MAX as u64));
         add_c(&mut rv, integer_obj(channel_id as i64));
         add_c(&mut rv, api_metadata());
         rv
-    }
 }
 
 /// Self-identifies the client, and sets optional flags on the channel. Defines the `client` object
@@ -2513,7 +2495,7 @@ pub unsafe extern "C" fn nvim_list_chans(arena: *mut Arena) -> Array {
 // DLLEXPORT Object nvim__id(Object obj, Arena *arena);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim__id(obj: Object, arena: *mut Arena) -> Object {
-    unsafe { copy_object(obj, arena) }
+    copy_object(obj, arena)
 }
 
 /// Returns array given as argument.
@@ -2527,7 +2509,7 @@ pub unsafe extern "C" fn nvim__id(obj: Object, arena: *mut Arena) -> Object {
 // DLLEXPORT Array nvim__id_array(Array arr, Arena *arena);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim__id_array(arr: Array, arena: *mut Arena) -> Array {
-    unsafe { copy_array(arr, arena) }
+    copy_array(arr, arena)
 }
 
 /// Returns dict given as argument.
@@ -2541,7 +2523,7 @@ pub unsafe extern "C" fn nvim__id_array(arr: Array, arena: *mut Arena) -> Array 
 // DLLEXPORT Dict nvim__id_dict(Dict dct, Arena *arena);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim__id_dict(dct: Dict, arena: *mut Arena) -> Dict {
-    unsafe { copy_dict(dct, arena) }
+    copy_dict(dct, arena)
 }
 
 /// Returns floating-point value given as argument.
@@ -2564,8 +2546,7 @@ pub extern "C" fn nvim__id_float(flt: Float) -> Float {
 // DLLEXPORT Dict nvim__stats(Arena *arena);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim__stats(arena: *mut Arena) -> Dict {
-    unsafe {
-        let mut rv = arena_dict(arena, 6);
+    let mut rv = arena_dict(arena, 6);
         put_c(&mut rv, c"fsync".as_ptr(), integer_obj(g_st().g_stats.fsync));
         put_c(
             &mut rv,
@@ -2589,7 +2570,6 @@ pub unsafe extern "C" fn nvim__stats(arena: *mut Arena) -> Dict {
             integer_obj(g_st().tslua_query_parse_count as Integer),
         );
         rv
-    }
 }
 
 /// Gets a list of dictionaries representing attached UIs.

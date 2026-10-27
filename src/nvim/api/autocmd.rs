@@ -138,35 +138,27 @@ fn api_au_st() -> &'static mut ApiAutocmdState {
 }
 
 #[inline]
-unsafe fn api_err_con(err: &mut Error, name: *const c_char, name2: *const c_char) {
-    unsafe {
-        api_err_conflict(err, name, name2);
-    }
+fn api_err_con(err: &mut Error, name: *const c_char, name2: *const c_char) {
+    api_err_conflict(err, name, name2);
 }
 
 #[inline]
-unsafe fn api_err_inv(err: &mut Error, name: *const c_char, val_s: *const c_char) {
-    unsafe {
-        api_err_invalid(err, name, val_s, 0, true);
-    }
+fn api_err_inv(err: &mut Error, name: *const c_char, val_s: *const c_char) {
+    api_err_invalid(err, name, val_s, 0, true);
 }
 
 #[inline]
-unsafe fn api_err_int(err: &mut Error, name: *const c_char, val_n: i64) {
-    unsafe {
-        api_err_invalid(err, name, std::ptr::null(), val_n, false);
-    }
+fn api_err_int(err: &mut Error, name: *const c_char, val_n: i64) {
+    api_err_invalid(err, name, std::ptr::null(), val_n, false);
 }
 
 #[inline]
-unsafe fn api_err_req(err: &mut Error, name: *const c_char) {
-    unsafe {
-        api_err_required(err, name);
-    }
+fn api_err_req(err: &mut Error, name: *const c_char) {
+    api_err_required(err, name);
 }
 
 #[inline]
-unsafe fn format_buflocal_arena(arena: *mut Arena, handle: c_int) -> NvimString {
+fn format_buflocal_arena(arena: *mut Arena, handle: c_int) -> NvimString {
     let s = format!("<buffer={handle}>");
     unsafe {
         let data = arena_memdupz(arena, s.as_ptr().cast(), s.len());
@@ -177,15 +169,14 @@ unsafe fn format_buflocal_arena(arena: *mut Arena, handle: c_int) -> NvimString 
     }
 }
 
-unsafe fn unpack_string_or_array(
+fn unpack_string_or_array(
     v: Object,
     k: *const c_char,
     required: bool,
     arena: *mut Arena,
     err: &mut Error,
 ) -> Array {
-    unsafe {
-        if v.obj_type == ObjectType::kObjectTypeString {
+    if v.obj_type == ObjectType::kObjectTypeString {
             let mut arr = arena_array(arena, 1);
             add_c(&mut arr, v);
             arr
@@ -213,7 +204,6 @@ unsafe fn unpack_string_or_array(
                 capacity: 0,
             }
         }
-    }
 }
 
 fn get_augroup_from_object(group: Object, err: &mut Error) -> c_int {
@@ -254,7 +244,7 @@ fn get_augroup_from_object(group: Object, err: &mut Error) -> c_int {
     }
 }
 
-unsafe fn get_patterns_from_pattern_or_buf(
+fn get_patterns_from_pattern_or_buf(
     pattern: Object,
     has_buf: bool,
     buf: Buffer,
@@ -341,7 +331,7 @@ unsafe fn get_patterns_from_pattern_or_buf(
     }
 }
 
-unsafe fn clear_autocmd(
+fn clear_autocmd(
     event: event_T,
     pat: *const c_char,
     au_group: c_int,
@@ -1011,8 +1001,7 @@ pub unsafe extern "C" fn nvim_create_autocmd(
 // DLLEXPORT void nvim_del_autocmd(Integer id, Error *err) FUNC_API_SINCE(9);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_del_autocmd(id: Integer, err: &mut Error) {
-    unsafe {
-        if id <= 0 {
+    if id <= 0 {
             api_err_int(err, c"autocmd id".as_ptr(), id);
             return;
         }
@@ -1023,7 +1012,6 @@ pub unsafe extern "C" fn nvim_del_autocmd(id: Integer, err: &mut Error) {
                 c"Failed to delete autocmd".as_ptr(),
             );
         }
-    }
 }
 
 /// Clears all autocommands matching the {opts} query. To delete autocmds see |nvim_del_autocmd()|.
@@ -1191,12 +1179,10 @@ pub unsafe extern "C" fn nvim_create_augroup(
 // DLLEXPORT void nvim_del_augroup_by_id(Integer id, Error *err) FUNC_API_SINCE(9);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_del_augroup_by_id(id: Integer, err: &mut Error) {
-    unsafe {
-        let mut tstate = TryState::new();
+    let mut tstate = TryState::new();
         try_enter(&mut tstate);
         augroup_del_by_id(id as c_int);
         try_leave(&tstate, err);
-    }
 }
 
 /// Delete an autocommand group by name.

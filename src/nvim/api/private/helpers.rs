@@ -152,8 +152,8 @@ pub const fn static_cstr_as_string(s: &'static CStr) -> NvimString {
 }
 
 #[inline]
-pub unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    unsafe { string_obj(cstr_as_string(s)) }
+pub fn cstr_as_obj(s: *const c_char) -> Object {
+    string_obj(cstr_as_string(s))
 }
 
 #[inline]
@@ -209,7 +209,7 @@ impl Drop for HlMessageChunk {
 
 use crate::api::vim::HlMessage;
 
-pub unsafe fn api_set_error_str(err: &mut Error, err_type: ErrorType, msg: *const c_char) {
+pub fn api_set_error_str(err: &mut Error, err_type: ErrorType, msg: *const c_char) {
     unsafe {
         debug_assert!(!matches!(err_type, ErrorType::kErrorTypeNone));
         err.msg = Some(CStr::from_ptr(msg).to_owned());
@@ -249,33 +249,29 @@ pub const fn static_cstr_as_obj(s: &'static CStr) -> Object {
 }
 
 #[inline]
-pub unsafe fn cstr_to_obj(s: *const c_char) -> Object {
-    unsafe { string_obj(cstr_to_string(s)) }
+pub fn cstr_to_obj(s: *const c_char) -> Object {
+    string_obj(cstr_to_string(s))
 }
 
 #[inline]
-pub unsafe fn cstr_to_arena_obj(arena: *mut Arena, s: *const c_char) -> Object {
-    unsafe { string_obj(arena_string(arena, cstr_as_string(s))) }
+pub fn cstr_to_arena_obj(arena: *mut Arena, s: *const c_char) -> Object {
+    string_obj(arena_string(arena, cstr_as_string(s)))
 }
 
 #[inline]
 pub fn try_wrap<F: FnOnce()>(err: &mut Error, f: F) {
-    unsafe {
-        let mut tstate = TryState::new();
+    let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         f();
         try_leave(&tstate, err);
-    }
 }
 
 #[inline]
 pub fn try_wrap_err<F: FnOnce(&mut Error)>(err: &mut Error, f: F) {
-    unsafe {
-        let mut tstate = TryState::new();
+    let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         f(err);
         try_leave(&tstate, err);
-    }
 }
 
 #[inline]
@@ -291,7 +287,7 @@ pub const fn error_init() -> Error {
 }
 
 #[inline]
-pub unsafe fn api_clear_string(s: *mut NvimString) {
+pub fn api_clear_string(s: *mut NvimString) {
     unsafe {
         api_free_string(*s);
         (*s).data = ptr::null_mut();
@@ -300,7 +296,7 @@ pub unsafe fn api_clear_string(s: *mut NvimString) {
 }
 
 #[inline]
-pub unsafe fn tv_dict_is_watched(d: *const dict_T) -> bool {
+pub fn tv_dict_is_watched(d: *const dict_T) -> bool {
     unsafe { !d.is_null() && !(*d).watchers.is_empty() }
 }
 
@@ -311,14 +307,14 @@ pub trait IntoDictKey {
 impl IntoDictKey for *const c_char {
     #[inline]
     unsafe fn into_dict_key(self) -> NvimString {
-        unsafe { cstr_as_string(self) }
+        cstr_as_string(self)
     }
 }
 
 impl IntoDictKey for *mut c_char {
     #[inline]
     unsafe fn into_dict_key(self) -> NvimString {
-        unsafe { cstr_as_string(self) }
+        cstr_as_string(self)
     }
 }
 
@@ -342,7 +338,7 @@ pub fn put_c<K: IntoDictKey>(dict: &mut Dict, key: K, val: Object) {
 }
 
 #[inline]
-pub unsafe fn cbuf_to_arena_str(arena: *mut Arena, buf: *const c_char, len: usize) -> NvimString {
+pub fn cbuf_to_arena_str(arena: *mut Arena, buf: *const c_char, len: usize) -> NvimString {
     let ptr = if buf.is_null() { c"".as_ptr() } else { buf };
     unsafe {
         NvimString {
@@ -358,7 +354,7 @@ pub fn error_set(e: &Error) -> bool {
 }
 
 /// Start block that may cause Vimscript exceptions while evaluating another code (`try_enter`).
-pub unsafe fn try_enter(tstate: *mut TryState) {
+pub fn try_enter(tstate: *mut TryState) {
     unsafe {
         let ml = &raw mut g_st().msg_list;
         let saved_msg_list = (*ml).replace(Vec::new());
@@ -459,7 +455,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
 }
 
 /// Recursively expands a vimscript value in a dict (`dict_get_value`).
-pub unsafe fn dict_get_value(
+pub fn dict_get_value(
     dict: *mut dict_T,
     key: NvimString,
     arena: *mut Arena,
@@ -535,7 +531,7 @@ pub fn dict_check_writable(
 }
 
 /// Set a value in a scope dict (`dict_set_var`).
-pub unsafe fn dict_set_var(
+pub fn dict_set_var(
     dict: &mut dict_T,
     key: NvimString,
     value: Object,
@@ -682,7 +678,7 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut tabpage_T {
     }
 }
 
-pub unsafe fn cstr_to_string(str_: *const c_char) -> NvimString {
+pub fn cstr_to_string(str_: *const c_char) -> NvimString {
     unsafe {
         if str_.is_null() {
             return NvimString {
@@ -709,7 +705,7 @@ pub fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
     }
 }
 
-pub unsafe fn cbuf_to_string(buf: *const c_char, size: usize) -> NvimString {
+pub fn cbuf_to_string(buf: *const c_char, size: usize) -> NvimString {
     unsafe {
         NvimString {
             data: alloc_cstring_len(buf, size),
@@ -718,7 +714,7 @@ pub unsafe fn cbuf_to_string(buf: *const c_char, size: usize) -> NvimString {
     }
 }
 
-pub unsafe fn cstrn_as_string(str_: *const c_char, maxsize: usize) -> NvimString {
+pub fn cstrn_as_string(str_: *const c_char, maxsize: usize) -> NvimString {
     unsafe {
         if str_.is_null() {
             return NvimString {
@@ -733,7 +729,7 @@ pub unsafe fn cstrn_as_string(str_: *const c_char, maxsize: usize) -> NvimString
     }
 }
 
-pub unsafe fn cstr_as_string(str_: *const c_char) -> NvimString {
+pub fn cstr_as_string(str_: *const c_char) -> NvimString {
     unsafe {
         if str_.is_null() {
             return NvimString {
@@ -748,7 +744,7 @@ pub unsafe fn cstr_as_string(str_: *const c_char) -> NvimString {
     }
 }
 
-pub unsafe fn string_to_array(input: NvimString, crlf: bool, arena: *mut Arena) -> Array {
+pub fn string_to_array(input: NvimString, crlf: bool, arena: *mut Arena) -> Array {
     unsafe {
         let mut ret = ArrayBuilder::new();
 
@@ -821,7 +817,7 @@ pub fn normalize_index(
         index + 1
 }
 
-pub unsafe fn buf_get_text(
+pub fn buf_get_text(
     buf: *mut buf_T,
     lnum: i64,
     mut start_col: i64,
@@ -877,7 +873,7 @@ pub fn api_free_string(value: NvimString) {
     }
 }
 
-pub unsafe fn arena_array(arena: *mut Arena, max_size: usize) -> Array {
+pub fn arena_array(arena: *mut Arena, max_size: usize) -> Array {
     unsafe {
         Array {
             size: 0,
@@ -887,7 +883,7 @@ pub unsafe fn arena_array(arena: *mut Arena, max_size: usize) -> Array {
     }
 }
 
-pub unsafe fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict {
+pub fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict {
     unsafe {
         Dict {
             size: 0,
@@ -897,7 +893,7 @@ pub unsafe fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict {
     }
 }
 
-pub unsafe fn arena_string(arena: *mut Arena, str_: NvimString) -> NvimString {
+pub fn arena_string(arena: *mut Arena, str_: NvimString) -> NvimString {
     unsafe {
         if str_.size != 0 {
             NvimString {
@@ -917,7 +913,7 @@ pub unsafe fn arena_string(arena: *mut Arena, str_: NvimString) -> NvimString {
     }
 }
 
-pub unsafe fn arena_take_arraybuilder(arena: *mut Arena, arr: &mut ArrayBuilder) -> Array {
+pub fn arena_take_arraybuilder(arena: *mut Arena, arr: &mut ArrayBuilder) -> Array {
     unsafe {
         let len = arr.len();
         let mut ret = arena_array(arena, len);
@@ -974,7 +970,7 @@ pub fn api_clear_error(value: &mut Error) {
     value.err_type = ErrorType::kErrorTypeNone;
 }
 
-pub unsafe fn copy_string(str_: NvimString, arena: *mut Arena) -> NvimString {
+pub fn copy_string(str_: NvimString, arena: *mut Arena) -> NvimString {
     unsafe {
         if !str_.data.is_null() {
             NvimString {
@@ -990,7 +986,7 @@ pub unsafe fn copy_string(str_: NvimString, arena: *mut Arena) -> NvimString {
     }
 }
 
-pub unsafe fn copy_array(array: Array, arena: *mut Arena) -> Array {
+pub fn copy_array(array: Array, arena: *mut Arena) -> Array {
     unsafe {
         let mut rv = arena_array(arena, array.size);
         for i in 0..array.size {
@@ -1001,7 +997,7 @@ pub unsafe fn copy_array(array: Array, arena: *mut Arena) -> Array {
     }
 }
 
-pub unsafe fn copy_dict(dict: Dict, arena: *mut Arena) -> Dict {
+pub fn copy_dict(dict: Dict, arena: *mut Arena) -> Dict {
     unsafe {
         let mut rv = arena_dict(arena, dict.size);
         for i in 0..dict.size {
@@ -1017,9 +1013,8 @@ pub unsafe fn copy_dict(dict: Dict, arena: *mut Arena) -> Dict {
     }
 }
 
-pub unsafe fn copy_object(obj: Object, arena: *mut Arena) -> Object {
-    unsafe {
-        match obj.obj_type {
+pub fn copy_object(obj: Object, arena: *mut Arena) -> Object {
+    match obj.obj_type {
             ObjectType::kObjectTypeUnset
             | ObjectType::kObjectTypeBuffer
             | ObjectType::kObjectTypeTabpage
@@ -1045,17 +1040,15 @@ pub unsafe fn copy_object(obj: Object, arena: *mut Arena) -> Object {
                 data: ObjectData::LuaRef(api_new_luaref(obj.data.luaref())),
             },
         }
-    }
 }
 
-pub unsafe fn api_object_to_bool(
+pub fn api_object_to_bool(
     obj: Object,
     what: *const c_char,
     nil_value: bool,
     err: &mut Error,
 ) -> bool {
-    unsafe {
-        match obj.obj_type {
+    match obj.obj_type {
             ObjectType::kObjectTypeBoolean => obj.data.boolean(),
             ObjectType::kObjectTypeInteger => obj.data.integer() != 0,
             ObjectType::kObjectTypeNil => nil_value,
@@ -1064,10 +1057,9 @@ pub unsafe fn api_object_to_bool(
                 false
             }
         }
-    }
 }
 
-pub unsafe fn object_to_hl_id(obj: Object, what: *const c_char, err: &mut Error) -> c_int {
+pub fn object_to_hl_id(obj: Object, what: *const c_char, err: &mut Error) -> c_int {
     unsafe {
         match obj.obj_type {
             ObjectType::kObjectTypeString => {
@@ -1158,7 +1150,7 @@ pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
     }
 }
 
-pub unsafe fn api_dict_to_keydict(
+pub fn api_dict_to_keydict(
     retval: *mut OptKeySet,
     hashy: FieldHashfn,
     mut dict: Dict,
@@ -1321,7 +1313,7 @@ pub unsafe fn api_dict_to_keydict(
     }
 }
 
-pub unsafe fn api_keydict_to_dict(
+pub fn api_keydict_to_dict(
     value: *mut OptKeySet,
     table: *mut KeySetLink,
     max_size: usize,
@@ -1400,7 +1392,7 @@ pub fn api_luarefs_free_object(value: Object) {
         }
 }
 
-pub unsafe fn api_luarefs_free_keydict(dict: *mut OptKeySet, table: *mut KeySetLink) {
+pub fn api_luarefs_free_keydict(dict: *mut OptKeySet, table: *mut KeySetLink) {
     unsafe {
         let mut i: usize = 0;
         while (*table.add(i)).str.is_some() {
@@ -1431,7 +1423,7 @@ pub fn api_luarefs_free_dict(value: Dict) {
         }
 }
 
-pub unsafe fn set_mark(
+pub fn set_mark(
     mut buf: *mut buf_T,
     name: NvimString,
     line: Integer,
@@ -1496,7 +1488,7 @@ pub unsafe fn set_mark(
     }
 }
 
-pub unsafe fn get_default_stl_hl(
+pub fn get_default_stl_hl(
     wp: *mut win_T,
     use_winbar: bool,
     stc_hl_id: c_int,
@@ -4205,7 +4197,7 @@ fn mpack_push_array(out: &mut Vec<u8>, len: usize) {
     }
 }
 
-pub unsafe fn api_get_packed_metadata(len: *mut usize) -> *const u8 {
+pub fn api_get_packed_metadata(len: *mut usize) -> *const u8 {
     let bytes = PACKED_API_METADATA.get_or_init(|| {
         let mut out = Vec::with_capacity(32768);
         out.push(0x86); // fixmap(6)
@@ -4339,8 +4331,7 @@ pub fn api_metadata() -> Object {
 }
 
 pub fn api_metadata_raw() -> NvimString {
-    unsafe {
-        let mut len: usize = 0;
+    let mut len: usize = 0;
         let ptr = api_get_packed_metadata(&mut len)
             .cast::<c_char>()
             .cast_mut();
@@ -4348,7 +4339,6 @@ pub fn api_metadata_raw() -> NvimString {
             data: ptr,
             size: len,
         }
-    }
 }
 
 #[cfg(test)]

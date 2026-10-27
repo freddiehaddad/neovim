@@ -527,7 +527,7 @@ pub unsafe extern "C" fn nvim_open_win(
     }
 }
 
-unsafe fn win_split_dir(win: *mut win_T) -> WinSplit {
+fn win_split_dir(win: *mut win_T) -> WinSplit {
     unsafe {
         if (*win).w_frame.is_null() || (*(*win).w_frame).fr_parent.is_null() {
             return kWinSplitLeft;
@@ -563,7 +563,7 @@ const fn win_split_flags(split: WinSplit, toplevel: bool) -> c_int {
     flags
 }
 
-unsafe fn win_can_move_tp(wp: *mut win_T, tp: &mut tabpage_T, err: &mut Error) -> bool {
+fn win_can_move_tp(wp: *mut win_T, tp: &mut tabpage_T, err: &mut Error) -> bool {
     unsafe {
         if one_window(wp, if &raw mut *tp == g_st().curtab { ptr::null_mut() } else { &raw mut *tp }) {
             api_set_error!(
@@ -605,7 +605,7 @@ unsafe fn win_can_move_tp(wp: *mut win_T, tp: &mut tabpage_T, err: &mut Error) -
     }
 }
 
-unsafe fn win_find_altwin(win: *mut win_T, tp: &mut tabpage_T) -> *mut win_T {
+fn win_find_altwin(win: *mut win_T, tp: &mut tabpage_T) -> *mut win_T {
     unsafe {
         let tp_arg = if ptr::eq(tp, g_st().curtab) { ptr::null_mut() } else { &raw mut *tp };
         if (*win).w_floating {
@@ -617,7 +617,7 @@ unsafe fn win_find_altwin(win: *mut win_T, tp: &mut tabpage_T) -> *mut win_T {
     }
 }
 
-unsafe fn win_config_split(
+fn win_config_split(
     win: *mut win_T,
     config: &KeyDict_win_config,
     fconfig: &mut WinConfig,
@@ -901,7 +901,7 @@ unsafe fn win_config_split(
     }
 }
 
-unsafe fn win_config_float_tp(
+fn win_config_float_tp(
     win: *mut win_T,
     config: &KeyDict_win_config,
     fconfig: &WinConfig,
@@ -1084,14 +1084,13 @@ pub unsafe extern "C" fn nvim_win_set_config(
     }
 }
 
-unsafe fn config_put_bordertext(
+fn config_put_bordertext(
     config: &mut KeyDict_win_config,
     fconfig: &WinConfig,
     bordertext_type: BorderTextType,
     arena: *mut Arena,
 ) {
-    unsafe {
-        let (vt, align) = match bordertext_type {
+    let (vt, align) = match bordertext_type {
             kBorderTextTitle => (&fconfig.title_chunks, fconfig.title_pos),
             _ => (&fconfig.footer_chunks, fconfig.footer_pos),
         };
@@ -1115,7 +1114,6 @@ unsafe fn config_put_bordertext(
             config.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__footer_pos;
             config.footer_pos = cstr_as_string(pos);
         }
-    }
 }
 
 /// Gets window config as a dict which can be passed to |nvim_open_win()| as the `config` parameter.
@@ -1250,7 +1248,7 @@ pub unsafe extern "C" fn nvim_win_get_config(
     }
 }
 
-unsafe fn parse_float_anchor(anchor: NvimString, out: *mut FloatAnchor) -> bool {
+fn parse_float_anchor(anchor: NvimString, out: *mut FloatAnchor) -> bool {
     unsafe {
         if anchor.size == 0 {
             *out = 0;
@@ -1271,7 +1269,7 @@ unsafe fn parse_float_anchor(anchor: NvimString, out: *mut FloatAnchor) -> bool 
     }
 }
 
-unsafe fn parse_float_relative(relative: NvimString, out: *mut FloatRelative) -> bool {
+fn parse_float_relative(relative: NvimString, out: *mut FloatRelative) -> bool {
     unsafe {
         let str_ptr = relative.data;
         if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"editor")) {
@@ -1293,7 +1291,7 @@ unsafe fn parse_float_relative(relative: NvimString, out: *mut FloatRelative) ->
     }
 }
 
-unsafe fn parse_config_split(split: NvimString, out: *mut WinSplit) -> bool {
+fn parse_config_split(split: NvimString, out: *mut WinSplit) -> bool {
     unsafe {
         let str_ptr = split.data;
         if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"left")) {
@@ -1394,7 +1392,7 @@ pub fn parse_bordertext(
     }
 }
 
-unsafe fn parse_bordertext_pos(
+fn parse_bordertext_pos(
     wp: *mut win_T,
     bordertext_pos: NvimString,
     bordertext_type: BorderTextType,
@@ -1441,7 +1439,7 @@ unsafe fn parse_bordertext_pos(
 }
 
 // DLLEXPORT void parse_border_style(Object style, WinConfig *fconfig, Error *err);
-pub unsafe fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: &mut Error) {
+pub fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: &mut Error) {
     unsafe {
         const DEFAULTS_CHARS: [[&str; 8]; 6] = [
             ["╔", "═", "╗", "║", "╝", "═", "╚", "║"],
@@ -1590,7 +1588,7 @@ pub unsafe fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: &m
     }
 }
 
-unsafe fn generate_api_error(wp: *mut win_T, attribute: *const c_char, err: &mut Error) {
+fn generate_api_error(wp: *mut win_T, attribute: *const c_char, err: &mut Error) {
     unsafe {
         if !wp.is_null() && (*wp).w_floating {
             api_set_error!(
@@ -1607,7 +1605,7 @@ unsafe fn generate_api_error(wp: *mut win_T, attribute: *const c_char, err: &mut
 
 /// Parses a border style name or custom (comma-separated) style.
 // DLLEXPORT bool parse_winborder(WinConfig *fconfig, char *border_opt, Error *err);
-pub unsafe fn parse_winborder(
+pub fn parse_winborder(
     fconfig: *mut WinConfig,
     border_opt: *mut c_char,
     err: &mut Error,
@@ -1644,7 +1642,7 @@ pub unsafe fn parse_winborder(
     }
 }
 
-unsafe fn parse_win_config(
+fn parse_win_config(
     wp: *mut win_T,
     config: &mut KeyDict_win_config,
     fconfig: &mut WinConfig,

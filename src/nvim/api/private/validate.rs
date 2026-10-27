@@ -445,7 +445,7 @@ fn set_error_str(err: &mut Error, err_type: ErrorType, msg: &str) {
 }
 
 #[inline]
-unsafe fn cstr_lossy<'a>(ptr: *const c_char) -> std::borrow::Cow<'a, str> {
+fn cstr_lossy<'a>(ptr: *const c_char) -> std::borrow::Cow<'a, str> {
     unsafe { CStr::from_ptr(ptr).to_string_lossy() }
 }
 
@@ -453,14 +453,14 @@ unsafe fn cstr_lossy<'a>(ptr: *const c_char) -> std::borrow::Cow<'a, str> {
 ///
 /// # Safety
 /// `err` and `name` must be valid pointers, and `val_s` must be null or a valid C string.
-pub unsafe fn api_err_invalid(
+pub fn api_err_invalid(
     err: &mut Error,
     name: *const c_char,
     val_s: *const c_char,
     val_n: i64,
     quote_val: bool,
 ) {
-    let name_str = unsafe { cstr_lossy(name) };
+    let name_str = cstr_lossy(name);
     let has_space = name_str.as_bytes().contains(&b' ');
 
     let msg = if !val_s.is_null() && unsafe { *val_s == 0 } {
@@ -476,7 +476,7 @@ pub unsafe fn api_err_invalid(
             format!("Invalid '{name_str}': {val_n}")
         }
     } else {
-        let val_str = unsafe { cstr_lossy(val_s) };
+        let val_str = cstr_lossy(val_s);
         match (has_space, quote_val) {
             (true, true) => format!("Invalid {name_str}: '{val_str}'"),
             (true, false) => format!("Invalid {name_str}: {val_str}"),
@@ -492,14 +492,14 @@ pub unsafe fn api_err_invalid(
 ///
 /// # Safety
 /// `err`, `name`, and `expected` must be valid pointers; `actual` must be null or a valid C string.
-pub unsafe fn api_err_exp(
+pub fn api_err_exp(
     err: &mut Error,
     name: *const c_char,
     expected: *const c_char,
     actual: *const c_char,
 ) {
-    let name_str = unsafe { cstr_lossy(name) };
-    let exp_str = unsafe { cstr_lossy(expected) };
+    let name_str = cstr_lossy(name);
+    let exp_str = cstr_lossy(expected);
     let has_space = name_str.as_bytes().contains(&b' ');
 
     let msg = if actual.is_null() {
@@ -509,7 +509,7 @@ pub unsafe fn api_err_exp(
             format!("Invalid '{name_str}': expected {exp_str}")
         }
     } else {
-        let act_str = unsafe { cstr_lossy(actual) };
+        let act_str = cstr_lossy(actual);
         if has_space {
             format!("Invalid {name_str}: expected {exp_str}, got {act_str}")
         } else {
@@ -524,8 +524,8 @@ pub unsafe fn api_err_exp(
 ///
 /// # Safety
 /// `err` and `name` must be valid pointers.
-pub unsafe fn api_err_required(err: &mut Error, name: *const c_char) {
-    let name_str = unsafe { cstr_lossy(name) };
+pub fn api_err_required(err: &mut Error, name: *const c_char) {
+    let name_str = cstr_lossy(name);
     let has_space = name_str.as_bytes().contains(&b' ');
     let msg = if has_space {
         format!("Required: {name_str}")
@@ -539,9 +539,9 @@ pub unsafe fn api_err_required(err: &mut Error, name: *const c_char) {
 ///
 /// # Safety
 /// `err`, `name`, and `name2` must be valid pointers.
-pub unsafe fn api_err_conflict(err: &mut Error, name: *const c_char, name2: *const c_char) {
-    let name_str = unsafe { cstr_lossy(name) };
-    let name2_str = unsafe { cstr_lossy(name2) };
+pub fn api_err_conflict(err: &mut Error, name: *const c_char, name2: *const c_char) {
+    let name_str = cstr_lossy(name);
+    let name2_str = cstr_lossy(name2);
     let has_space2 = name2_str.as_bytes().contains(&b' ');
     let msg = if has_space2 {
         format!("Conflict: '{name_str}' not allowed with {name2_str}")
@@ -556,13 +556,13 @@ pub unsafe fn api_err_conflict(err: &mut Error, name: *const c_char, name2: *con
 ///
 /// # Safety
 /// `arr`, `name`, and `err` must be valid.
-pub unsafe fn check_string_array(
+pub fn check_string_array(
     arr: Array,
     name: *mut c_char,
     disallow_nl: bool,
     err: &mut Error,
 ) -> bool {
-    let name_str = unsafe { cstr_lossy(name) };
+    let name_str = cstr_lossy(name);
     for i in 0..arr.size {
         let item = unsafe { &*arr.items.add(i) };
         if item.obj_type != ObjectType::kObjectTypeString {
@@ -586,10 +586,8 @@ pub unsafe fn check_string_array(
 }
 
 #[inline]
-pub unsafe fn api_err_range(err: &mut Error, name: *const c_char) {
-    unsafe {
-        api_err_invalid(err, name, c"out of range".as_ptr(), 0, false);
-    }
+pub fn api_err_range(err: &mut Error, name: *const c_char) {
+    api_err_invalid(err, name, c"out of range".as_ptr(), 0, false);
 }
 
 #[cfg(test)]
@@ -601,8 +599,7 @@ mod tests {
     fn formats_validation_error_messages() {
         let mut err = Error::new();
 
-        unsafe {
-            api_err_invalid(&mut err, c"col".as_ptr(), std::ptr::null(), -1, false);
+        api_err_invalid(&mut err, c"col".as_ptr(), std::ptr::null(), -1, false);
             assert_eq!(err.err_type, ErrorType::kErrorTypeValidation);
             assert_eq!(err.msg.as_ref().unwrap().to_str().unwrap(), "Invalid 'col': -1");
             api_clear_error(&mut err);
@@ -632,6 +629,5 @@ mod tests {
                 "Conflict: 'row' not allowed with 'win'"
             );
             api_clear_error(&mut err);
-        }
     }
 }

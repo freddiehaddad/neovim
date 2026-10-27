@@ -1447,9 +1447,7 @@ pub fn f_and(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
 
 /// "api_info()" function
 pub fn f_api_info(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    unsafe {
-        object_to_vim(api_metadata(), rettv, &mut crate::api::private::validate::Error::new());
-    }
+    object_to_vim(api_metadata(), rettv, &mut crate::api::private::validate::Error::new());
 }
 
 /// "atan2()" function

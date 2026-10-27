@@ -4246,8 +4246,7 @@ pub fn cmdline_ui_flush() {
 
 /// Put a character on the command line.
 pub fn putcmdline(c: c_char, shift: bool) {
-    unsafe {
-        if g_st().cmd_silent {
+    if g_st().cmd_silent {
             return;
         }
         if !ui_has(kUICmdline) {
@@ -4269,7 +4268,6 @@ pub fn putcmdline(c: c_char, shift: bool) {
         getln_st().ccline.special_char = c;
         getln_st().ccline.special_shift = shift;
         ui_cursor_shape();
-    }
 }
 
 /// Undo a `putcmdline(c, false)`.

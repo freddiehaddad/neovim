@@ -355,14 +355,12 @@ pub fn handle_ui_client_redraw(
     _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
-    unsafe {
-        api_set_error!(
+    api_set_error!(
             error,
             ErrorType::kErrorTypeValidation,
             c"'redraw' cannot be sent as a request".as_ptr(),
         );
         OBJECT_NIL
-    }
 }
 
 pub fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
@@ -530,18 +528,14 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
 }
 
 pub fn ui_client_event_restart(args: Array) {
-    unsafe {
-        api_free_array(uic_st().restart_args);
+    api_free_array(uic_st().restart_args);
         uic_st().restart_args = copy_array(args, ptr::null_mut());
         uic_st().restart_pending = true;
-    }
 }
 
 pub fn ui_client_event__set_restart_on_crash_exit(args: Array) {
-    unsafe {
-        api_free_array(uic_st().restart_args_after_crash_exit);
+    api_free_array(uic_st().restart_args_after_crash_exit);
         uic_st().restart_args_after_crash_exit = copy_array(args, ptr::null_mut());
-    }
 }
 
 pub fn ui_client_attach_to_restarted_server(error_restart: bool) {

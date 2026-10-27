@@ -3329,8 +3329,7 @@ pub fn did_set_winbar(args: &mut optset_T) -> *const c_char {
 
 /// Validate the 'winborder' or 'pumborder' option.
 pub fn validate_border(args: &mut optset_T) -> *const c_char {
-    unsafe {
-        let mut fconfig = WIN_CONFIG_INIT;
+    let mut fconfig = WIN_CONFIG_INIT;
         let mut err = Error::new();
         let ok = parse_winborder(
             &raw mut fconfig,
@@ -3339,7 +3338,6 @@ pub fn validate_border(args: &mut optset_T) -> *const c_char {
         );
         api_clear_error(&mut err);
         if ok { ptr::null() } else { e_invarg.as_ptr() }
-    }
 }
 
 /// The 'winhighlight' option is changed.

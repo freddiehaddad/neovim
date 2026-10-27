@@ -2853,8 +2853,7 @@ pub fn mt_recurse_nodes_compare(b: &MarkTree, x: usize, checked: &PMapPtr) -> bo
 }
 
 pub fn mt_inspect(b: &MarkTree, keys: bool, dot: bool) -> NvimString {
-    unsafe {
-        let mut out = String::new();
+    let mut out = String::new();
         let p = MTPos { row: 0, col: 0 };
         if let Some(root) = b.root {
             if dot {
@@ -2866,7 +2865,6 @@ pub fn mt_inspect(b: &MarkTree, keys: bool, dot: bool) -> NvimString {
             }
         }
         cbuf_to_string(out.as_ptr().cast(), out.len())
-    }
 }
 
 #[inline]

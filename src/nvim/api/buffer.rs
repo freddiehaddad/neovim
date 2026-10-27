@@ -1608,8 +1608,7 @@ pub unsafe extern "C" fn nvim_buf_set_mark(
     _opts: *mut KeyDict_empty,
     err: &mut Error,
 ) -> Boolean {
-    unsafe {
-        let b = api_buf_ensure_loaded(buf, err);
+    let b = api_buf_ensure_loaded(buf, err);
         if b.is_null() {
             return false;
         }
@@ -1626,7 +1625,6 @@ pub unsafe extern "C" fn nvim_buf_set_mark(
         }
 
         set_mark(b, name, line, col, err)
-    }
 }
 
 /// Returns a `(row,col)` tuple representing the position of the named mark.
@@ -1816,7 +1814,7 @@ fn fix_cursor(win: &mut win_T, lo: linenr_T, hi: linenr_T, extra: linenr_T) {
     }
 }
 
-unsafe fn fix_pos_col(
+fn fix_pos_col(
     buf: *mut buf_T,
     pos: &mut pos_T,
     start_row: linenr_T,
@@ -1906,7 +1904,7 @@ fn fix_cursor_cols(
 }
 
 #[inline]
-unsafe fn init_line_array(lstate: *mut lua_State, a: *mut Array, size: usize, arena: *mut Arena) {
+fn init_line_array(lstate: *mut lua_State, a: *mut Array, size: usize, arena: *mut Arena) {
     unsafe {
         if !lstate.is_null() {
             lua_createtable(lstate, size as c_int, 0);
@@ -1916,7 +1914,7 @@ unsafe fn init_line_array(lstate: *mut lua_State, a: *mut Array, size: usize, ar
     }
 }
 
-unsafe fn push_linestr(
+fn push_linestr(
     lstate: *mut lua_State,
     a: *mut Array,
     s: *const c_char,
@@ -1966,7 +1964,7 @@ unsafe fn push_linestr(
 /// @return true unless `err` was set
 // DLLEXPORT void buf_collect_lines(buf_T *buf, size_t n, linenr_T start, int start_idx,
 //                                  bool replace_nl, Array *l, lua_State *lstate, Arena *arena);
-pub unsafe fn buf_collect_lines(
+pub fn buf_collect_lines(
     buf: *mut buf_T,
     n: usize,
     start: linenr_T,
