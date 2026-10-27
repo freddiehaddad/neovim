@@ -1192,112 +1192,168 @@ static DECOMP_TABLE: [decomp_T; 0xfb4f - 0xfb20 + 1] = [
 ];
 
 // Global work variables
-pub(super) static mut reg_prev_sub: Option<std::ffi::CString> = None;
+pub(super) struct RegexpState {
+    pub(super) reg_prev_sub: Option<std::ffi::CString>,
+    pub(super) class_tab: [i16; 256],
+    pub(super) init_class_tab_done: bool,
+    pub(super) regparse: *mut c_char,
+    pub(super) regnpar: c_int,
+    pub(super) wants_nfa: bool,
+    pub(super) regnzpar: c_int,
+    pub(super) re_has_z: c_int,
+    pub(super) regflags: c_uint,
+    pub(super) had_eol: c_int,
+    pub(super) reg_magic: magic_T,
+    pub(super) reg_string: c_int,
+    pub(super) reg_strict: c_int,
+    pub(super) curchr: c_int,
+    pub(super) prevchr: c_int,
+    pub(super) prevprevchr: c_int,
+    pub(super) nextchr: c_int,
+    pub(super) prevchr_len: c_int,
+    pub(super) at_start: c_int,
+    pub(super) prev_at_start: c_int,
+    pub(super) peekchr_after_slash: c_int,
+    pub(super) reg_cpo_lit: c_int,
+    pub(super) reg_tofree: Vec<u8>,
+    pub(super) rex: regexec_T,
+    pub(super) rex_in_use: bool,
+    pub(super) can_f_submatch: bool,
+    pub(super) rsm: regsubmatch_T,
+    pub(super) reg_startzp: [*mut u8; NSUBEXP],
+    pub(super) reg_endzp: [*mut u8; NSUBEXP],
+    pub(super) reg_startzpos: [lpos_T; NSUBEXP],
+    pub(super) reg_endzpos: [lpos_T; NSUBEXP],
+    pub(super) eval_result: [Option<std::ffi::CString>; MAX_REGSUB_NESTING],
+    pub(super) regsub_nesting: usize,
+    pub(super) had_endbrace: [u8; NSUBEXP],
+    pub(super) num_complex_braces: c_int,
+    pub(super) regcode: *mut u8,
+    pub(super) regsize: i64,
+    pub(super) reg_toolong: c_int,
+    pub(super) bt_reg_parse_depth: c_int,
+    pub(super) brace_min: [i64; 10],
+    pub(super) brace_max: [i64; 10],
+    pub(super) brace_count: [c_int; 10],
+    pub(super) one_exactly: bool,
+    pub(super) regstack: Vec<u64>,
+    backpos: Vec<backpos_T>,
+    pub(super) behind_pos: regsave_T,
+    pub(super) nfa_re_flags: c_int,
+    pub(super) post_vec: Vec<c_int>,
+    pub(super) nfa_reg_parse_depth: c_int,
+    pub(super) nstate: c_int,
+    pub(super) istate: c_int,
+    pub(super) nfa_endp: *mut save_se_T,
+    pub(super) nfa_ll_index: usize,
+    pub(super) regexp_engine: c_int,
+}
+
+impl RegexpState {
+    const fn new() -> Self {
+        Self {
+            reg_prev_sub: None,
+            class_tab: [0; 256],
+            init_class_tab_done: false,
+            regparse: ptr::null_mut(),
+            regnpar: 0,
+            wants_nfa: false,
+            regnzpar: 0,
+            re_has_z: 0,
+            regflags: 0,
+            had_eol: 0,
+            reg_magic: 0,
+            reg_string: 0,
+            reg_strict: 0,
+            curchr: 0,
+            prevchr: 0,
+            prevprevchr: 0,
+            nextchr: 0,
+            prevchr_len: 0,
+            at_start: 0,
+            prev_at_start: 0,
+            peekchr_after_slash: 0,
+            reg_cpo_lit: 0,
+            reg_tofree: Vec::new(),
+            rex: regexec_T {
+                reg_match: ptr::null_mut(),
+                reg_mmatch: ptr::null_mut(),
+                reg_startp: ptr::null_mut(),
+                reg_endp: ptr::null_mut(),
+                reg_startpos: ptr::null_mut(),
+                reg_endpos: ptr::null_mut(),
+                reg_win: ptr::null_mut(),
+                reg_buf: ptr::null_mut(),
+                reg_firstlnum: 0,
+                reg_maxline: 0,
+                reg_line_lbr: false,
+                lnum: 0,
+                line: ptr::null_mut(),
+                input: ptr::null_mut(),
+                need_clear_subexpr: 0,
+                need_clear_zsubexpr: 0,
+                reg_ic: false,
+                reg_icombine: false,
+                reg_nobreak: false,
+                reg_maxcol: 0,
+                nfa_has_zend: 0,
+                nfa_has_backref: 0,
+                nfa_nsubexpr: 0,
+                nfa_listid: 0,
+                nfa_alt_listid: 0,
+                nfa_has_zsubexpr: 0,
+            },
+            rex_in_use: false,
+            can_f_submatch: false,
+            rsm: regsubmatch_T {
+                sm_match: ptr::null_mut(),
+                sm_mmatch: ptr::null_mut(),
+                sm_firstlnum: 0,
+                sm_maxline: 0,
+                sm_line_lbr: 0,
+            },
+            reg_startzp: [ptr::null_mut(); NSUBEXP],
+            reg_endzp: [ptr::null_mut(); NSUBEXP],
+            reg_startzpos: [lpos_T { lnum: 0, col: 0 }; NSUBEXP],
+            reg_endzpos: [lpos_T { lnum: 0, col: 0 }; NSUBEXP],
+            eval_result: [const { None }; MAX_REGSUB_NESTING],
+            regsub_nesting: 0,
+            had_endbrace: [0; NSUBEXP],
+            num_complex_braces: 0,
+            regcode: ptr::null_mut(),
+            regsize: 0,
+            reg_toolong: 0,
+            bt_reg_parse_depth: 0,
+            brace_min: [0; 10],
+            brace_max: [0; 10],
+            brace_count: [0; 10],
+            one_exactly: false,
+            regstack: Vec::new(),
+            backpos: Vec::new(),
+            behind_pos: regsave_T::new(),
+            nfa_re_flags: 0,
+            post_vec: Vec::new(),
+            nfa_reg_parse_depth: 0,
+            nstate: 0,
+            istate: 0,
+            nfa_endp: ptr::null_mut(),
+            nfa_ll_index: 0,
+            regexp_engine: 0,
+        }
+    }
+}
+
+pub(super) static RE_STATE: GlobalState<RegexpState> = GlobalState::new(RegexpState::new());
+
+#[inline]
+pub(super) unsafe fn re_st() -> &'static mut RegexpState {
+    unsafe { &mut *RE_STATE.as_ptr() }
+}
 
 #[inline]
 pub(super) unsafe fn reg_prev_sub_ref() -> Option<&'static CStr> {
-    let ptr = &raw const reg_prev_sub;
-    unsafe { (*ptr).as_deref() }
+    unsafe { (*RE_STATE.as_ptr()).reg_prev_sub.as_deref() }
 }
-
-pub(super) static mut class_tab: [i16; 256] = [0; 256];
-static mut init_class_tab_done: bool = false;
-
-pub(super) static mut regparse: *mut c_char = ptr::null_mut();
-pub(super) static mut regnpar: c_int = 0;
-pub(super) static mut wants_nfa: bool = false;
-pub(super) static mut regnzpar: c_int = 0;
-pub(super) static mut re_has_z: c_int = 0;
-pub(super) static mut regflags: c_uint = 0;
-pub(super) static mut had_eol: c_int = 0;
-pub(super) static mut reg_magic: magic_T = 0;
-pub(super) static mut reg_string: c_int = 0;
-pub(super) static mut reg_strict: c_int = 0;
-
-pub(super) static mut curchr: c_int = 0;
-pub(super) static mut prevchr: c_int = 0;
-pub(super) static mut prevprevchr: c_int = 0;
-pub(super) static mut nextchr: c_int = 0;
-pub(super) static mut prevchr_len: c_int = 0;
-pub(super) static mut at_start: c_int = 0;
-pub(super) static mut prev_at_start: c_int = 0;
-static mut peekchr_after_slash: c_int = 0;
-
-pub(super) static mut reg_cpo_lit: c_int = 0;
-
-pub(super) static mut reg_tofree: Vec<u8> = Vec::new();
-
-pub(super) static mut rex: regexec_T = regexec_T {
-    reg_match: ptr::null_mut(),
-    reg_mmatch: ptr::null_mut(),
-    reg_startp: ptr::null_mut(),
-    reg_endp: ptr::null_mut(),
-    reg_startpos: ptr::null_mut(),
-    reg_endpos: ptr::null_mut(),
-    reg_win: ptr::null_mut(),
-    reg_buf: ptr::null_mut(),
-    reg_firstlnum: 0,
-    reg_maxline: 0,
-    reg_line_lbr: false,
-    lnum: 0,
-    line: ptr::null_mut(),
-    input: ptr::null_mut(),
-    need_clear_subexpr: 0,
-    need_clear_zsubexpr: 0,
-    reg_ic: false,
-    reg_icombine: false,
-    reg_nobreak: false,
-    reg_maxcol: 0,
-    nfa_has_zend: 0,
-    nfa_has_backref: 0,
-    nfa_nsubexpr: 0,
-    nfa_listid: 0,
-    nfa_alt_listid: 0,
-    nfa_has_zsubexpr: 0,
-};
-pub(super) static mut rex_in_use: bool = false;
-pub(super) static mut can_f_submatch: bool = false;
-pub(super) static mut rsm: regsubmatch_T = regsubmatch_T {
-    sm_match: ptr::null_mut(),
-    sm_mmatch: ptr::null_mut(),
-    sm_firstlnum: 0,
-    sm_maxline: 0,
-    sm_line_lbr: 0,
-};
-
-pub(super) static mut reg_startzp: [*mut u8; NSUBEXP] = [ptr::null_mut(); NSUBEXP];
-pub(super) static mut reg_endzp: [*mut u8; NSUBEXP] = [ptr::null_mut(); NSUBEXP];
-pub(super) static mut reg_startzpos: [lpos_T; NSUBEXP] = [lpos_T { lnum: 0, col: 0 }; NSUBEXP];
-pub(super) static mut reg_endzpos: [lpos_T; NSUBEXP] = [lpos_T { lnum: 0, col: 0 }; NSUBEXP];
-
-static mut eval_result: [Option<std::ffi::CString>; MAX_REGSUB_NESTING] =
-    [const { None }; MAX_REGSUB_NESTING];
-static mut regsub_nesting: usize = 0;
-
-pub(super) static mut had_endbrace: [u8; NSUBEXP] = [0; NSUBEXP];
-pub(super) static mut num_complex_braces: c_int = 0;
-pub(super) static mut regcode: *mut u8 = ptr::null_mut();
-pub(super) static mut regsize: i64 = 0;
-pub(super) static mut reg_toolong: c_int = 0;
-pub(super) static mut bt_reg_parse_depth: c_int = 0;
-pub(super) static mut brace_min: [i64; 10] = [0; 10];
-pub(super) static mut brace_max: [i64; 10] = [0; 10];
-pub(super) static mut brace_count: [c_int; 10] = [0; 10];
-pub(super) static mut one_exactly: bool = false;
-
-pub(super) static mut regstack: Vec<u64> = Vec::new();
-static mut backpos: Vec<backpos_T> = Vec::new();
-pub(super) static mut behind_pos: regsave_T = regsave_T::new();
-
-pub(super) static mut nfa_re_flags: c_int = 0;
-pub(super) static mut post_vec: Vec<c_int> = Vec::new();
-pub(super) static mut nfa_reg_parse_depth: c_int = 0;
-pub(super) static mut nstate: c_int = 0;
-pub(super) static mut istate: c_int = 0;
-pub(super) static mut nfa_endp: *mut save_se_T = ptr::null_mut();
-pub(super) static mut nfa_ll_index: usize = 0;
-
-static mut regexp_engine: c_int = 0;
 
 use crate::eval::partial_name;
 use crate::eval::typval::tv_get_string_buf_chk;
@@ -1345,7 +1401,7 @@ pub(super) unsafe fn UCHARAT(p: *const u8) -> c_int {
 
 #[inline]
 pub(super) unsafe fn REG_MULTI() -> bool {
-    unsafe { rex.reg_match.is_null() }
+    unsafe { re_st().rex.reg_match.is_null() }
 }
 
 #[inline]
@@ -1427,10 +1483,10 @@ pub(super) unsafe fn get_char_class(pp: *mut *mut c_char) -> c_int {
 
 pub(super) unsafe fn init_class_tab() {
     unsafe {
-        if init_class_tab_done {
+        if re_st().init_class_tab_done {
             return;
         }
-        let tab = (&raw mut class_tab).cast::<i16>();
+        let tab = (&raw mut re_st().class_tab).cast::<i16>();
         for i in 0..256usize {
             let val = if (b'0' as usize..=b'7' as usize).contains(&i) {
                 RI_DIGIT + RI_HEX + RI_OCTAL + RI_WORD
@@ -1453,7 +1509,7 @@ pub(super) unsafe fn init_class_tab() {
         }
         *tab.add(b' ' as usize) |= RI_WHITE;
         *tab.add(b'\t' as usize) |= RI_WHITE;
-        init_class_tab_done = true;
+        re_st().init_class_tab_done = true;
     }
 }
 
@@ -1461,56 +1517,56 @@ pub(super) unsafe fn init_class_tab() {
 pub(super) unsafe fn ri_digit(c: c_int) -> bool {
     unsafe {
         (0..0x100).contains(&c)
-            && (*(&raw const class_tab).cast::<i16>().add(c as usize) & RI_DIGIT) != 0
+            && (*(&raw const re_st().class_tab).cast::<i16>().add(c as usize) & RI_DIGIT) != 0
     }
 }
 #[inline]
 pub(super) unsafe fn ri_hex(c: c_int) -> bool {
     unsafe {
         (0..0x100).contains(&c)
-            && (*(&raw const class_tab).cast::<i16>().add(c as usize) & RI_HEX) != 0
+            && (*(&raw const re_st().class_tab).cast::<i16>().add(c as usize) & RI_HEX) != 0
     }
 }
 #[inline]
 pub(super) unsafe fn ri_octal(c: c_int) -> bool {
     unsafe {
         (0..0x100).contains(&c)
-            && (*(&raw const class_tab).cast::<i16>().add(c as usize) & RI_OCTAL) != 0
+            && (*(&raw const re_st().class_tab).cast::<i16>().add(c as usize) & RI_OCTAL) != 0
     }
 }
 #[inline]
 pub(super) unsafe fn ri_word(c: c_int) -> bool {
     unsafe {
         (0..0x100).contains(&c)
-            && (*(&raw const class_tab).cast::<i16>().add(c as usize) & RI_WORD) != 0
+            && (*(&raw const re_st().class_tab).cast::<i16>().add(c as usize) & RI_WORD) != 0
     }
 }
 #[inline]
 pub(super) unsafe fn ri_head(c: c_int) -> bool {
     unsafe {
         (0..0x100).contains(&c)
-            && (*(&raw const class_tab).cast::<i16>().add(c as usize) & RI_HEAD) != 0
+            && (*(&raw const re_st().class_tab).cast::<i16>().add(c as usize) & RI_HEAD) != 0
     }
 }
 #[inline]
 pub(super) unsafe fn ri_alpha(c: c_int) -> bool {
     unsafe {
         (0..0x100).contains(&c)
-            && (*(&raw const class_tab).cast::<i16>().add(c as usize) & RI_ALPHA) != 0
+            && (*(&raw const re_st().class_tab).cast::<i16>().add(c as usize) & RI_ALPHA) != 0
     }
 }
 #[inline]
 pub(super) unsafe fn ri_lower(c: c_int) -> bool {
     unsafe {
         (0..0x100).contains(&c)
-            && (*(&raw const class_tab).cast::<i16>().add(c as usize) & RI_LOWER) != 0
+            && (*(&raw const re_st().class_tab).cast::<i16>().add(c as usize) & RI_LOWER) != 0
     }
 }
 #[inline]
 pub(super) unsafe fn ri_upper(c: c_int) -> bool {
     unsafe {
         (0..0x100).contains(&c)
-            && (*(&raw const class_tab).cast::<i16>().add(c as usize) & RI_UPPER) != 0
+            && (*(&raw const re_st().class_tab).cast::<i16>().add(c as usize) & RI_UPPER) != 0
     }
 }
 
@@ -1553,7 +1609,7 @@ pub(super) unsafe fn get_coll_element(pp: *mut *mut c_char) -> c_int {
 
 pub(super) unsafe fn get_cpo_flags() {
     unsafe {
-        reg_cpo_lit = (!vim_strchr(p_cpo, kCpoLiteral).is_null()) as c_int;
+        re_st().reg_cpo_lit = (!vim_strchr(p_cpo, kCpoLiteral).is_null()) as c_int;
     }
 }
 
@@ -1577,7 +1633,7 @@ pub(super) unsafe fn skip_anyof(mut p: *mut c_char) -> *mut c_char {
                 }
             } else if *p == b'\\' as c_char
                 && (!vim_strchr(REGEXP_INRANGE.as_ptr(), *p.add(1) as u8 as c_int).is_null()
-                    || (reg_cpo_lit == 0
+                    || (re_st().reg_cpo_lit == 0
                         && !vim_strchr(REGEXP_ABBR.as_ptr(), *p.add(1) as u8 as c_int).is_null()))
             {
                 p = p.add(2);
@@ -1696,96 +1752,96 @@ pub unsafe fn skip_regexp_ex(
 
 pub(super) unsafe fn initchr(str_: *mut c_char) {
     unsafe {
-        regparse = str_;
-        prevchr_len = 0;
-        nextchr = -1;
-        prevchr = -1;
-        prevprevchr = -1;
-        curchr = -1;
-        at_start = 1;
-        prev_at_start = 0;
+        re_st().regparse = str_;
+        re_st().prevchr_len = 0;
+        re_st().nextchr = -1;
+        re_st().prevchr = -1;
+        re_st().prevprevchr = -1;
+        re_st().curchr = -1;
+        re_st().at_start = 1;
+        re_st().prev_at_start = 0;
     }
 }
 
 pub(super) unsafe fn save_parse_state(ps: *mut parse_state_T) {
     unsafe {
-        (*ps).regparse = regparse;
-        (*ps).prevchr_len = prevchr_len;
-        (*ps).curchr = curchr;
-        (*ps).prevchr = prevchr;
-        (*ps).prevprevchr = prevprevchr;
-        (*ps).nextchr = nextchr;
-        (*ps).at_start = at_start;
-        (*ps).prev_at_start = prev_at_start;
-        (*ps).regnpar = regnpar;
+        (*ps).regparse = re_st().regparse;
+        (*ps).prevchr_len = re_st().prevchr_len;
+        (*ps).curchr = re_st().curchr;
+        (*ps).prevchr = re_st().prevchr;
+        (*ps).prevprevchr = re_st().prevprevchr;
+        (*ps).nextchr = re_st().nextchr;
+        (*ps).at_start = re_st().at_start;
+        (*ps).prev_at_start = re_st().prev_at_start;
+        (*ps).regnpar = re_st().regnpar;
     }
 }
 
 pub(super) unsafe fn restore_parse_state(ps: *mut parse_state_T) {
     unsafe {
-        regparse = (*ps).regparse;
-        prevchr_len = (*ps).prevchr_len;
-        curchr = (*ps).curchr;
-        prevchr = (*ps).prevchr;
-        prevprevchr = (*ps).prevprevchr;
-        nextchr = (*ps).nextchr;
-        at_start = (*ps).at_start;
-        prev_at_start = (*ps).prev_at_start;
-        regnpar = (*ps).regnpar;
+        re_st().regparse = (*ps).regparse;
+        re_st().prevchr_len = (*ps).prevchr_len;
+        re_st().curchr = (*ps).curchr;
+        re_st().prevchr = (*ps).prevchr;
+        re_st().prevprevchr = (*ps).prevprevchr;
+        re_st().nextchr = (*ps).nextchr;
+        re_st().at_start = (*ps).at_start;
+        re_st().prev_at_start = (*ps).prev_at_start;
+        re_st().regnpar = (*ps).regnpar;
     }
 }
 
 pub(super) unsafe fn peekchr() -> c_int {
     unsafe {
-        if curchr != -1 {
-            return curchr;
+        if re_st().curchr != -1 {
+            return re_st().curchr;
         }
 
-        curchr = *regparse as u8 as c_int;
-        match curchr as u8 {
+        re_st().curchr = *re_st().regparse as u8 as c_int;
+        match re_st().curchr as u8 {
             b'.' | b'[' | b'~' => {
-                if reg_magic >= MAGIC_ON {
-                    curchr = Magic(curchr);
+                if re_st().reg_magic >= MAGIC_ON {
+                    re_st().curchr = Magic(re_st().curchr);
                 }
             }
             b'(' | b')' | b'{' | b'%' | b'+' | b'=' | b'?' | b'@' | b'!' | b'&' | b'|' | b'<'
             | b'>' | b'#' | b'"' | b'\'' | b',' | b'-' | b':' | b';' | b'`' | b'/' => {
-                if reg_magic == MAGIC_ALL {
-                    curchr = Magic(curchr);
+                if re_st().reg_magic == MAGIC_ALL {
+                    re_st().curchr = Magic(re_st().curchr);
                 }
             }
             b'*' => {
-                if reg_magic >= MAGIC_ON
-                    && at_start == 0
-                    && !(prev_at_start != 0 && prevchr == Magic(b'^' as c_int))
-                    && (peekchr_after_slash != 0
-                        || (prevchr != Magic(b'(' as c_int)
-                            && prevchr != Magic(b'&' as c_int)
-                            && prevchr != Magic(b'|' as c_int)))
+                if re_st().reg_magic >= MAGIC_ON
+                    && re_st().at_start == 0
+                    && !(re_st().prev_at_start != 0 && re_st().prevchr == Magic(b'^' as c_int))
+                    && (re_st().peekchr_after_slash != 0
+                        || (re_st().prevchr != Magic(b'(' as c_int)
+                            && re_st().prevchr != Magic(b'&' as c_int)
+                            && re_st().prevchr != Magic(b'|' as c_int)))
                 {
-                    curchr = Magic(b'*' as c_int);
+                    re_st().curchr = Magic(b'*' as c_int);
                 }
             }
             b'^' => {
-                if reg_magic >= MAGIC_OFF
-                    && (at_start != 0
-                        || reg_magic == MAGIC_ALL
-                        || prevchr == Magic(b'(' as c_int)
-                        || prevchr == Magic(b'|' as c_int)
-                        || prevchr == Magic(b'&' as c_int)
-                        || prevchr == Magic(b'n' as c_int)
-                        || (no_Magic(prevchr) == b'(' as c_int
-                            && prevprevchr == Magic(b'%' as c_int)))
+                if re_st().reg_magic >= MAGIC_OFF
+                    && (re_st().at_start != 0
+                        || re_st().reg_magic == MAGIC_ALL
+                        || re_st().prevchr == Magic(b'(' as c_int)
+                        || re_st().prevchr == Magic(b'|' as c_int)
+                        || re_st().prevchr == Magic(b'&' as c_int)
+                        || re_st().prevchr == Magic(b'n' as c_int)
+                        || (no_Magic(re_st().prevchr) == b'(' as c_int
+                            && re_st().prevprevchr == Magic(b'%' as c_int)))
                 {
-                    curchr = Magic(b'^' as c_int);
-                    at_start = 1;
-                    prev_at_start = 0;
+                    re_st().curchr = Magic(b'^' as c_int);
+                    re_st().at_start = 1;
+                    re_st().prev_at_start = 0;
                 }
             }
             b'$' => {
-                if reg_magic >= MAGIC_OFF {
-                    let mut p = regparse.add(1).cast::<u8>();
-                    let mut is_magic_all = reg_magic == MAGIC_ALL;
+                if re_st().reg_magic >= MAGIC_OFF {
+                    let mut p = re_st().regparse.add(1).cast::<u8>();
+                    let mut is_magic_all = re_st().reg_magic == MAGIC_ALL;
 
                     while *p == b'\\'
                         && matches!(*p.add(1), b'c' | b'C' | b'm' | b'M' | b'v' | b'V' | b'Z')
@@ -1800,83 +1856,83 @@ pub(super) unsafe fn peekchr() -> c_int {
                     if *p == NUL
                         || (*p == b'\\' && matches!(*p.add(1), b'|' | b'&' | b')' | b'n'))
                         || (is_magic_all && matches!(*p, b'|' | b'&' | b')'))
-                        || reg_magic == MAGIC_ALL
+                        || re_st().reg_magic == MAGIC_ALL
                     {
-                        curchr = Magic(b'$' as c_int);
+                        re_st().curchr = Magic(b'$' as c_int);
                     }
                 }
             }
             b'\\' => {
-                let c = *regparse.add(1) as u8 as c_int;
+                let c = *re_st().regparse.add(1) as u8 as c_int;
                 if c == NUL as c_int {
-                    curchr = b'\\' as c_int;
+                    re_st().curchr = b'\\' as c_int;
                 } else if c <= b'~' as c_int && META_flags[c as usize] != 0 {
-                    curchr = -1;
-                    prev_at_start = at_start;
-                    at_start = 0;
-                    regparse = regparse.add(1);
-                    peekchr_after_slash += 1;
+                    re_st().curchr = -1;
+                    re_st().prev_at_start = re_st().at_start;
+                    re_st().at_start = 0;
+                    re_st().regparse = re_st().regparse.add(1);
+                    re_st().peekchr_after_slash += 1;
                     let _ = peekchr();
-                    regparse = regparse.sub(1);
-                    peekchr_after_slash -= 1;
-                    curchr = toggle_Magic(curchr);
+                    re_st().regparse = re_st().regparse.sub(1);
+                    re_st().peekchr_after_slash -= 1;
+                    re_st().curchr = toggle_Magic(re_st().curchr);
                 } else if !vim_strchr(REGEXP_ABBR.as_ptr(), c).is_null() {
-                    curchr = backslash_trans(c);
-                } else if reg_magic == MAGIC_NONE && (c == b'$' as c_int || c == b'^' as c_int) {
-                    curchr = toggle_Magic(c);
+                    re_st().curchr = backslash_trans(c);
+                } else if re_st().reg_magic == MAGIC_NONE && (c == b'$' as c_int || c == b'^' as c_int) {
+                    re_st().curchr = toggle_Magic(c);
                 } else {
-                    curchr = if c >= 0x80 {
-                        utf_ptr2char(regparse.add(1))
+                    re_st().curchr = if c >= 0x80 {
+                        utf_ptr2char(re_st().regparse.add(1))
                     } else {
                         c
                     };
                 }
             }
             _ => {
-                if curchr >= 0x80 {
-                    curchr = utf_ptr2char(regparse);
+                if re_st().curchr >= 0x80 {
+                    re_st().curchr = utf_ptr2char(re_st().regparse);
                 }
             }
         }
 
-        curchr
+        re_st().curchr
     }
 }
 
 pub(super) unsafe fn skipchr() {
     unsafe {
-        if *regparse == b'\\' as c_char {
-            prevchr_len = 1;
+        if *re_st().regparse == b'\\' as c_char {
+            re_st().prevchr_len = 1;
         } else {
-            prevchr_len = 0;
+            re_st().prevchr_len = 0;
         }
-        if *regparse.add(prevchr_len as usize) != NUL as c_char {
-            if (*regparse.add(prevchr_len as usize) as u8) < 0x80 {
-                prevchr_len += 1;
+        if *re_st().regparse.add(re_st().prevchr_len as usize) != NUL as c_char {
+            if (*re_st().regparse.add(re_st().prevchr_len as usize) as u8) < 0x80 {
+                re_st().prevchr_len += 1;
             } else {
-                prevchr_len += utf_ptr2len(regparse.add(prevchr_len as usize));
+                re_st().prevchr_len += utf_ptr2len(re_st().regparse.add(re_st().prevchr_len as usize));
             }
         }
-        regparse = regparse.add(prevchr_len as usize);
-        prev_at_start = at_start;
-        at_start = 0;
-        prevprevchr = prevchr;
-        prevchr = curchr;
-        curchr = nextchr;
-        nextchr = -1;
+        re_st().regparse = re_st().regparse.add(re_st().prevchr_len as usize);
+        re_st().prev_at_start = re_st().at_start;
+        re_st().at_start = 0;
+        re_st().prevprevchr = re_st().prevchr;
+        re_st().prevchr = re_st().curchr;
+        re_st().curchr = re_st().nextchr;
+        re_st().nextchr = -1;
     }
 }
 
 pub(super) unsafe fn skipchr_keepstart() {
     unsafe {
-        let as_ = prev_at_start;
-        let pr = prevchr;
-        let prpr = prevprevchr;
+        let as_ = re_st().prev_at_start;
+        let pr = re_st().prevchr;
+        let prpr = re_st().prevprevchr;
 
         skipchr();
-        at_start = as_;
-        prevchr = pr;
-        prevprevchr = prpr;
+        re_st().at_start = as_;
+        re_st().prevchr = pr;
+        re_st().prevprevchr = prpr;
     }
 }
 
@@ -1890,12 +1946,12 @@ pub(super) unsafe fn getchr() -> c_int {
 
 pub(super) unsafe fn ungetchr() {
     unsafe {
-        nextchr = curchr;
-        curchr = prevchr;
-        prevchr = prevprevchr;
-        at_start = prev_at_start;
-        prev_at_start = 0;
-        regparse = regparse.sub(prevchr_len as usize);
+        re_st().nextchr = re_st().curchr;
+        re_st().curchr = re_st().prevchr;
+        re_st().prevchr = re_st().prevprevchr;
+        re_st().at_start = re_st().prev_at_start;
+        re_st().prev_at_start = 0;
+        re_st().regparse = re_st().regparse.sub(re_st().prevchr_len as usize);
     }
 }
 
@@ -1904,13 +1960,13 @@ pub(super) unsafe fn gethexchrs(maxinputlen: c_int) -> i64 {
         let mut nr: i64 = 0;
         let mut i: c_int = 0;
         while i < maxinputlen {
-            let c = *regparse as u8 as c_int;
+            let c = *re_st().regparse as u8 as c_int;
             if !ascii_isxdigit(c) {
                 break;
             }
             nr <<= 4;
             nr |= i64::from(hex2nr(c));
-            regparse = regparse.add(1);
+            re_st().regparse = re_st().regparse.add(1);
             i += 1;
         }
         if i == 0 { -1 } else { nr }
@@ -1922,13 +1978,13 @@ pub(super) unsafe fn getdecchrs() -> i64 {
         let mut nr: i64 = 0;
         let mut i: c_int = 0;
         loop {
-            let c = *regparse as u8;
+            let c = *re_st().regparse as u8;
             if !c.is_ascii_digit() {
                 break;
             }
             nr = nr.wrapping_mul(10).wrapping_add(i64::from(c - b'0'));
-            regparse = regparse.add(1);
-            curchr = -1;
+            re_st().regparse = re_st().regparse.add(1);
+            re_st().curchr = -1;
             i += 1;
         }
         if i == 0 { -1 } else { nr }
@@ -1940,13 +1996,13 @@ pub(super) unsafe fn getoctchrs() -> i64 {
         let mut nr: i64 = 0;
         let mut i: c_int = 0;
         while i < 3 && nr < 0o40 {
-            let c = *regparse as u8;
+            let c = *re_st().regparse as u8;
             if !(b'0'..=b'7').contains(&c) {
                 break;
             }
             nr <<= 3;
             nr |= i64::from(hex2nr(c as c_int));
-            regparse = regparse.add(1);
+            re_st().regparse = re_st().regparse.add(1);
             i += 1;
         }
         if i == 0 { -1 } else { nr }
@@ -1956,16 +2012,16 @@ pub(super) unsafe fn getoctchrs() -> i64 {
 pub(super) unsafe fn read_limits(minval: *mut c_int, maxval: *mut c_int) -> c_int {
     unsafe {
         let mut reverse = false;
-        if *regparse == b'-' as c_char {
-            regparse = regparse.add(1);
+        if *re_st().regparse == b'-' as c_char {
+            re_st().regparse = re_st().regparse.add(1);
             reverse = true;
         }
-        let first_char = regparse;
-        *minval = getdigits_int(&raw mut regparse, false, 0);
-        if *regparse == b',' as c_char {
-            regparse = regparse.add(1);
-            if ascii_isdigit(*regparse as u8 as c_int) {
-                *maxval = getdigits_int(&raw mut regparse, false, MAX_LIMIT);
+        let first_char = re_st().regparse;
+        *minval = getdigits_int(&raw mut re_st().regparse, false, 0);
+        if *re_st().regparse == b',' as c_char {
+            re_st().regparse = re_st().regparse.add(1);
+            if ascii_isdigit(*re_st().regparse as u8 as c_int) {
+                *maxval = getdigits_int(&raw mut re_st().regparse, false, MAX_LIMIT);
             } else {
                 *maxval = MAX_LIMIT;
             }
@@ -1974,13 +2030,13 @@ pub(super) unsafe fn read_limits(minval: *mut c_int, maxval: *mut c_int) -> c_in
         } else {
             *maxval = MAX_LIMIT;
         }
-        if *regparse == b'\\' as c_char {
-            regparse = regparse.add(1);
+        if *re_st().regparse == b'\\' as c_char {
+            re_st().regparse = re_st().regparse.add(1);
         }
-        if *regparse != b'}' as c_char {
+        if *re_st().regparse != b'}' as c_char {
             semsg!(
                 tr(c"E554: Syntax error in %s{...}".as_ptr()),
-                if reg_magic == MAGIC_ALL {
+                if re_st().reg_magic == MAGIC_ALL {
                     c"".as_ptr()
                 } else {
                     c"\\".as_ptr()
@@ -1999,14 +2055,14 @@ pub(super) unsafe fn read_limits(minval: *mut c_int, maxval: *mut c_int) -> c_in
 
 pub(super) unsafe fn reg_breakcheck() {
     unsafe {
-        if !rex.reg_nobreak {
+        if !re_st().rex.reg_nobreak {
             fast_breakcheck();
         }
     }
 }
 
 pub(super) unsafe fn reg_iswordc(c: c_int) -> bool {
-    unsafe { vim_iswordc_buf(c, rex.reg_buf) }
+    unsafe { vim_iswordc_buf(c, re_st().rex.reg_buf) }
 }
 
 unsafe fn reg_getline_common(
@@ -2019,9 +2075,9 @@ unsafe fn reg_getline_common(
         let get_line = (flags & RGLF_LINE) != 0;
         let get_length = (flags & RGLF_LENGTH) != 0;
         let (firstlnum, maxline) = if (flags & RGLF_SUBMATCH) != 0 {
-            (rsm.sm_firstlnum + lnum, rsm.sm_maxline)
+            (re_st().rsm.sm_firstlnum + lnum, re_st().rsm.sm_maxline)
         } else {
-            (rex.reg_firstlnum + lnum, rex.reg_maxline)
+            (re_st().rex.reg_firstlnum + lnum, re_st().rex.reg_maxline)
         };
 
         if firstlnum < 1 {
@@ -2045,10 +2101,10 @@ unsafe fn reg_getline_common(
         }
 
         if get_line {
-            *line = ml_get_buf(rex.reg_buf, firstlnum);
+            *line = ml_get_buf(re_st().rex.reg_buf, firstlnum);
         }
         if get_length {
-            *length = ml_get_buf_len(rex.reg_buf, firstlnum);
+            *length = ml_get_buf_len(re_st().rex.reg_buf, firstlnum);
         }
     }
 }
@@ -2071,10 +2127,10 @@ pub(super) unsafe fn reg_getline_len(lnum: linenr_T) -> colnr_T {
 
 pub(super) unsafe fn reg_prev_class() -> c_int {
     unsafe {
-        if rex.input > rex.line {
-            let prev = rex.input.sub(1).cast::<c_char>();
-            let head = prev.sub(utf_head_off(rex.line.cast(), prev) as usize);
-            return mb_get_class_tab(head, (&raw const (*rex.reg_buf).b_chartab).cast());
+        if re_st().rex.input > re_st().rex.line {
+            let prev = re_st().rex.input.sub(1).cast::<c_char>();
+            let head = prev.sub(utf_head_off(re_st().rex.line.cast(), prev) as usize);
+            return mb_get_class_tab(head, (&raw const (*re_st().rex.reg_buf).b_chartab).cast());
         }
         -1
     }
@@ -2082,12 +2138,12 @@ pub(super) unsafe fn reg_prev_class() -> c_int {
 
 pub(super) unsafe fn reg_match_visual() -> bool {
     unsafe {
-        let wp = if rex.reg_win.is_null() {
+        let wp = if re_st().rex.reg_win.is_null() {
             curwin
         } else {
-            rex.reg_win
+            re_st().rex.reg_win
         };
-        if rex.reg_buf != curbuf || Visual.start.lnum == 0 || !REG_MULTI() {
+        if re_st().rex.reg_buf != curbuf || Visual.start.lnum == 0 || !REG_MULTI() {
             return false;
         }
 
@@ -2115,12 +2171,12 @@ pub(super) unsafe fn reg_match_visual() -> bool {
             )
         };
 
-        let lnum = rex.lnum + rex.reg_firstlnum;
+        let lnum = re_st().rex.lnum + re_st().rex.reg_firstlnum;
         if lnum < top.lnum || lnum > bot.lnum {
             return false;
         }
 
-        let col = rex.input.offset_from(rex.line) as colnr_T;
+        let col = re_st().rex.input.offset_from(re_st().rex.line) as colnr_T;
         if mode == b'v' as c_int {
             if (lnum == top.lnum && col < top.col)
                 || (lnum == bot.lnum && col >= bot.col + colnr_T::from(*p_sel != b'e' as c_char))
@@ -2160,10 +2216,10 @@ pub(super) unsafe fn reg_match_visual() -> bool {
                 end = MAXCOL;
             }
 
-            rex.line = reg_getline(rex.lnum).cast();
-            rex.input = rex.line.add(col as usize);
+            re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
+            re_st().rex.input = re_st().rex.line.add(col as usize);
 
-            let cols = win_linetabsize(wp, rex.reg_firstlnum + rex.lnum, rex.line.cast(), col);
+            let cols = win_linetabsize(wp, re_st().rex.reg_firstlnum + re_st().rex.lnum, re_st().rex.line.cast(), col);
             if cols < start || cols > end - colnr_T::from(*p_sel == b'e' as c_char) {
                 return false;
             }
@@ -2175,9 +2231,9 @@ pub(super) unsafe fn reg_match_visual() -> bool {
 pub(super) unsafe fn prog_magic_wrong() -> bool {
     unsafe {
         let prog = if REG_MULTI() {
-            (*rex.reg_mmatch).regprog
+            (*re_st().rex.reg_mmatch).regprog
         } else {
-            (*rex.reg_match).regprog
+            (*re_st().rex.reg_match).regprog
         };
         let RegProgEngine::Bt(ref bt_prog) = (*prog).engine else {
             return false;
@@ -2192,43 +2248,43 @@ pub(super) unsafe fn prog_magic_wrong() -> bool {
 
 pub(super) unsafe fn cleanup_subexpr() {
     unsafe {
-        if rex.need_clear_subexpr == 0 {
+        if re_st().rex.need_clear_subexpr == 0 {
             return;
         }
         if REG_MULTI() {
             let uninit_pos = lpos_T { lnum: -1, col: -1 };
-            std::slice::from_raw_parts_mut(rex.reg_startpos, NSUBEXP).fill(uninit_pos);
-            std::slice::from_raw_parts_mut(rex.reg_endpos, NSUBEXP).fill(uninit_pos);
+            std::slice::from_raw_parts_mut(re_st().rex.reg_startpos, NSUBEXP).fill(uninit_pos);
+            std::slice::from_raw_parts_mut(re_st().rex.reg_endpos, NSUBEXP).fill(uninit_pos);
         } else {
-            std::slice::from_raw_parts_mut(rex.reg_startp, NSUBEXP).fill(ptr::null_mut());
-            std::slice::from_raw_parts_mut(rex.reg_endp, NSUBEXP).fill(ptr::null_mut());
+            std::slice::from_raw_parts_mut(re_st().rex.reg_startp, NSUBEXP).fill(ptr::null_mut());
+            std::slice::from_raw_parts_mut(re_st().rex.reg_endp, NSUBEXP).fill(ptr::null_mut());
         }
-        rex.need_clear_subexpr = 0;
+        re_st().rex.need_clear_subexpr = 0;
     }
 }
 
 pub(super) unsafe fn cleanup_zsubexpr() {
     unsafe {
-        if rex.need_clear_zsubexpr == 0 {
+        if re_st().rex.need_clear_zsubexpr == 0 {
             return;
         }
         if REG_MULTI() {
             let uninit_pos = lpos_T { lnum: -1, col: -1 };
-            reg_startzpos = [uninit_pos; NSUBEXP];
-            reg_endzpos = [uninit_pos; NSUBEXP];
+            re_st().reg_startzpos = [uninit_pos; NSUBEXP];
+            re_st().reg_endzpos = [uninit_pos; NSUBEXP];
         } else {
-            reg_startzp = [ptr::null_mut(); NSUBEXP];
-            reg_endzp = [ptr::null_mut(); NSUBEXP];
+            re_st().reg_startzp = [ptr::null_mut(); NSUBEXP];
+            re_st().reg_endzp = [ptr::null_mut(); NSUBEXP];
         }
-        rex.need_clear_zsubexpr = 0;
+        re_st().rex.need_clear_zsubexpr = 0;
     }
 }
 
 pub(super) unsafe fn reg_nextline() {
     unsafe {
-        rex.lnum += 1;
-        rex.line = reg_getline(rex.lnum).cast();
-        rex.input = rex.line;
+        re_st().rex.lnum += 1;
+        re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
+        re_st().rex.input = re_st().rex.line;
         reg_breakcheck();
     }
 }
@@ -2248,16 +2304,16 @@ pub(super) unsafe fn match_with_backref(
             *bytelen = 0;
         }
         loop {
-            let tf = &raw mut reg_tofree;
-            if (*tf).is_empty() || rex.line != (*tf).as_mut_ptr() {
-                let len = strlen(rex.line.cast()) + 51;
-                let off = rex.input.offset_from(rex.line) as usize;
+            let tf = &raw mut re_st().reg_tofree;
+            if (*tf).is_empty() || re_st().rex.line != (*tf).as_mut_ptr() {
+                let len = strlen(re_st().rex.line.cast()) + 51;
+                let off = re_st().rex.input.offset_from(re_st().rex.line) as usize;
                 if (*tf).len() < len {
                     (*tf).resize(len, 0);
                 }
-                strcpy((*tf).as_mut_ptr().cast(), rex.line.cast());
-                rex.line = (*tf).as_mut_ptr();
-                rex.input = rex.line.add(off);
+                strcpy((*tf).as_mut_ptr().cast(), re_st().rex.line.cast());
+                re_st().rex.line = (*tf).as_mut_ptr();
+                re_st().rex.input = re_st().rex.line.add(off);
             }
 
             let p = reg_getline(clnum);
@@ -2269,9 +2325,9 @@ pub(super) unsafe fn match_with_backref(
                 reg_getline_len(clnum) - ccol
             };
 
-            if (!rex.reg_ic && cstrncmp(p.add(ccol as usize), rex.input.cast(), &raw mut len) != 0)
-                || (rex.reg_ic
-                    && mb_strnicmp(p.add(ccol as usize), rex.input.cast(), len as usize) != 0)
+            if (!re_st().rex.reg_ic && cstrncmp(p.add(ccol as usize), re_st().rex.input.cast(), &raw mut len) != 0)
+                || (re_st().rex.reg_ic
+                    && mb_strnicmp(p.add(ccol as usize), re_st().rex.input.cast(), len as usize) != 0)
             {
                 return RA_NOMATCH;
             }
@@ -2281,7 +2337,7 @@ pub(super) unsafe fn match_with_backref(
             if clnum == end_lnum {
                 break;
             }
-            if rex.lnum >= rex.reg_maxline {
+            if re_st().rex.lnum >= re_st().rex.reg_maxline {
                 return RA_NOMATCH;
             }
 
@@ -2327,7 +2383,7 @@ unsafe fn mb_decompose(c: c_int, c1: *mut c_int, c2: *mut c_int, c3: *mut c_int)
 
 pub(super) unsafe fn cstrncmp(s1: *const c_char, s2: *const c_char, n: *mut c_int) -> c_int {
     unsafe {
-        let mut result = if !rex.reg_ic {
+        let mut result = if !re_st().rex.reg_ic {
             strncmp(s1, s2, *n as usize)
         } else {
             let mut p = s1.cast_mut();
@@ -2351,7 +2407,7 @@ pub(super) unsafe fn cstrncmp(s1: *const c_char, s2: *const c_char, n: *mut c_in
             r
         };
 
-        if result != 0 && rex.reg_icombine {
+        if result != 0 && re_st().rex.reg_icombine {
             let mut str1: *const c_char = s1;
             let mut str2: *const c_char = s2;
             let mut c1: c_int = 0;
@@ -2364,12 +2420,12 @@ pub(super) unsafe fn cstrncmp(s1: *const c_char, s2: *const c_char, n: *mut c_in
                 c1 = mb_ptr2char_adv(&raw mut str1);
                 c2 = mb_ptr2char_adv(&raw mut str2);
 
-                if c1 != c2 && (!rex.reg_ic || utf_fold(c1) != utf_fold(c2)) {
+                if c1 != c2 && (!re_st().rex.reg_ic || utf_fold(c1) != utf_fold(c2)) {
                     mb_decompose(c1, &raw mut c11, &raw mut junk, &raw mut junk);
                     mb_decompose(c2, &raw mut c12, &raw mut junk, &raw mut junk);
                     c1 = c11;
                     c2 = c12;
-                    if c11 != c12 && (!rex.reg_ic || utf_fold(c11) != utf_fold(c12)) {
+                    if c11 != c12 && (!re_st().rex.reg_ic || utf_fold(c11) != utf_fold(c12)) {
                         break;
                     }
                 }
@@ -2387,7 +2443,7 @@ pub(super) unsafe fn cstrncmp(s1: *const c_char, s2: *const c_char, n: *mut c_in
 #[inline]
 pub(super) unsafe fn cstrchr(s: *const c_char, c: c_int) -> *mut c_char {
     unsafe {
-        if !rex.reg_ic {
+        if !re_st().rex.reg_ic {
             return vim_strchr(s, c);
         }
 
@@ -2497,7 +2553,7 @@ pub unsafe fn regtilde(
 
         if !preview {
             newsublen = p.offset_from(newsub) as usize;
-            reg_prev_sub = if newsublen == 0 {
+            re_st().reg_prev_sub = if newsublen == 0 {
                 None
             } else {
                 cstring_from_bytes(newsub, newsublen)
@@ -2524,11 +2580,11 @@ pub(crate) unsafe fn fill_submatch_list(
 
         let mut li = tv_list_first((*listarg).vval.v_list());
         for i in 0..10 {
-            let s = (*rsm.sm_match).startp[i];
-            if s.is_null() || (*rsm.sm_match).endp[i].is_null() {
+            let s = (*re_st().rsm.sm_match).startp[i];
+            if s.is_null() || (*re_st().rsm.sm_match).endp[i].is_null() {
                 tv_set_string(&raw mut (*li).li_tv, ptr::null());
             } else {
-                let len = (*rsm.sm_match).endp[i].offset_from(s) as usize;
+                let len = (*re_st().rsm.sm_match).endp[i].offset_from(s) as usize;
                 let cs = cstring_from_bytes(s, len).unwrap_or_default();
                 tv_set_string(&raw mut (*li).li_tv, cs.as_ptr());
             }
@@ -2548,23 +2604,23 @@ pub unsafe fn vim_regsub(
 ) -> c_int {
     unsafe {
         let mut rex_save = regexec_T::new();
-        let rex_in_use_save = rex_in_use;
+        let rex_in_use_save = re_st().rex_in_use;
 
-        if rex_in_use {
-            rex_save = rex;
+        if re_st().rex_in_use {
+            rex_save = re_st().rex;
         }
-        rex_in_use = true;
+        re_st().rex_in_use = true;
 
-        rex.reg_match = rmp;
-        rex.reg_mmatch = ptr::null_mut();
-        rex.reg_maxline = 0;
-        rex.reg_buf = curbuf;
-        rex.reg_line_lbr = true;
+        re_st().rex.reg_match = rmp;
+        re_st().rex.reg_mmatch = ptr::null_mut();
+        re_st().rex.reg_maxline = 0;
+        re_st().rex.reg_buf = curbuf;
+        re_st().rex.reg_line_lbr = true;
         let result = vim_regsub_both(source, expr, dest, destlen, flags);
 
-        rex_in_use = rex_in_use_save;
-        if rex_in_use {
-            rex = rex_save;
+        re_st().rex_in_use = rex_in_use_save;
+        if re_st().rex_in_use {
+            re_st().rex = rex_save;
         }
 
         result
@@ -2581,24 +2637,24 @@ pub unsafe fn vim_regsub_multi(
 ) -> c_int {
     unsafe {
         let mut rex_save = regexec_T::new();
-        let rex_in_use_save = rex_in_use;
+        let rex_in_use_save = re_st().rex_in_use;
 
-        if rex_in_use {
-            rex_save = rex;
+        if re_st().rex_in_use {
+            rex_save = re_st().rex;
         }
-        rex_in_use = true;
+        re_st().rex_in_use = true;
 
-        rex.reg_match = ptr::null_mut();
-        rex.reg_mmatch = rmp;
-        rex.reg_buf = curbuf;
-        rex.reg_firstlnum = lnum;
-        rex.reg_maxline = (*curbuf).b_ml.ml_line_count - lnum;
-        rex.reg_line_lbr = false;
+        re_st().rex.reg_match = ptr::null_mut();
+        re_st().rex.reg_mmatch = rmp;
+        re_st().rex.reg_buf = curbuf;
+        re_st().rex.reg_firstlnum = lnum;
+        re_st().rex.reg_maxline = (*curbuf).b_ml.ml_line_count - lnum;
+        re_st().rex.reg_line_lbr = false;
         let result = vim_regsub_both(source, ptr::null_mut(), dest, destlen, flags);
 
-        rex_in_use = rex_in_use_save;
-        if rex_in_use {
-            rex = rex_save;
+        re_st().rex_in_use = rex_in_use_save;
+        if re_st().rex_in_use {
+            re_st().rex = rex_save;
         }
 
         result
@@ -2627,12 +2683,12 @@ unsafe fn vim_regsub_both(
         if prog_magic_wrong() {
             return 0;
         }
-        if regsub_nesting == MAX_REGSUB_NESTING {
+        if re_st().regsub_nesting == MAX_REGSUB_NESTING {
             emsg(tr(e_substitute_nesting_too_deep.as_ptr()));
             return 0;
         }
-        let nested = regsub_nesting;
-        let eval_slot = (&raw mut eval_result[nested]).as_mut().unwrap();
+        let nested = re_st().regsub_nesting;
+        let eval_slot = (&raw mut re_st().eval_result[nested]).as_mut().unwrap();
         let mut src = source;
         let mut dst = dest;
 
@@ -2647,22 +2703,22 @@ unsafe fn vim_regsub_both(
                     }
                 }
             } else {
-                let prev_can_f_submatch = can_f_submatch;
+                let prev_can_f_submatch = re_st().can_f_submatch;
                 let mut rsm_save = regsubmatch_T::new();
 
                 *eval_slot = None;
 
-                if can_f_submatch {
-                    rsm_save = rsm;
+                if re_st().can_f_submatch {
+                    rsm_save = re_st().rsm;
                 }
-                can_f_submatch = true;
-                rsm.sm_match = rex.reg_match;
-                rsm.sm_mmatch = rex.reg_mmatch;
-                rsm.sm_firstlnum = rex.reg_firstlnum;
-                rsm.sm_maxline = rex.reg_maxline;
-                rsm.sm_line_lbr = c_int::from(rex.reg_line_lbr);
+                re_st().can_f_submatch = true;
+                re_st().rsm.sm_match = re_st().rex.reg_match;
+                re_st().rsm.sm_mmatch = re_st().rex.reg_mmatch;
+                re_st().rsm.sm_firstlnum = re_st().rex.reg_firstlnum;
+                re_st().rsm.sm_maxline = re_st().rex.reg_maxline;
+                re_st().rsm.sm_line_lbr = c_int::from(re_st().rex.reg_line_lbr);
 
-                regsub_nesting += 1;
+                re_st().regsub_nesting += 1;
 
                 if !expr.is_null() {
                     let mut argv: [typval_T; 2] = [typval_T::new(); 2];
@@ -2719,18 +2775,18 @@ unsafe fn vim_regsub_both(
                 } else {
                     *eval_slot = eval_to_string(source.add(2), true, false);
                 }
-                regsub_nesting -= 1;
+                re_st().regsub_nesting -= 1;
 
                 if let Some(eval_cstr) = eval_slot.take() {
                     let mut eval_bytes = eval_cstr.into_bytes_with_nul();
                     let mut had_backslash = false;
                     let mut s = eval_bytes.as_mut_ptr().cast::<c_char>();
                     while *s != NUL as c_char {
-                        if *s == NL as c_char && rsm.sm_line_lbr == 0 {
+                        if *s == NL as c_char && re_st().rsm.sm_line_lbr == 0 {
                             *s = CAR as c_char;
                         } else if *s == b'\\' as c_char && *s.add(1) != NUL as c_char {
                             s = s.add(1);
-                            if *s == NL as c_char && rsm.sm_line_lbr == 0 {
+                            if *s == NL as c_char && re_st().rsm.sm_line_lbr == 0 {
                                 *s = CAR as c_char;
                             }
                             had_backslash = true;
@@ -2748,9 +2804,9 @@ unsafe fn vim_regsub_both(
                     *eval_slot = Some(final_cstr);
                 }
 
-                can_f_submatch = prev_can_f_submatch;
-                if can_f_submatch {
-                    rsm = rsm_save;
+                re_st().can_f_submatch = prev_can_f_submatch;
+                if re_st().can_f_submatch {
+                    re_st().rsm = rsm_save;
                 }
             }
         } else {
@@ -2896,33 +2952,33 @@ unsafe fn vim_regsub_both(
                 } else {
                     let mut s: *mut c_char;
                     if REG_MULTI() {
-                        clnum = (*rex.reg_mmatch).startpos[no as usize].lnum;
-                        if clnum < 0 || (*rex.reg_mmatch).endpos[no as usize].lnum < 0 {
+                        clnum = (*re_st().rex.reg_mmatch).startpos[no as usize].lnum;
+                        if clnum < 0 || (*re_st().rex.reg_mmatch).endpos[no as usize].lnum < 0 {
                             s = ptr::null_mut();
                         } else {
                             s = reg_getline(clnum)
-                                .add((*rex.reg_mmatch).startpos[no as usize].col as usize);
-                            if (*rex.reg_mmatch).endpos[no as usize].lnum == clnum {
-                                len = (*rex.reg_mmatch).endpos[no as usize].col
-                                    - (*rex.reg_mmatch).startpos[no as usize].col;
+                                .add((*re_st().rex.reg_mmatch).startpos[no as usize].col as usize);
+                            if (*re_st().rex.reg_mmatch).endpos[no as usize].lnum == clnum {
+                                len = (*re_st().rex.reg_mmatch).endpos[no as usize].col
+                                    - (*re_st().rex.reg_mmatch).startpos[no as usize].col;
                             } else {
                                 len = reg_getline_len(clnum)
-                                    - (*rex.reg_mmatch).startpos[no as usize].col;
+                                    - (*re_st().rex.reg_mmatch).startpos[no as usize].col;
                             }
                         }
                     } else {
-                        s = (*rex.reg_match).startp[no as usize];
-                        if (*rex.reg_match).endp[no as usize].is_null() {
+                        s = (*re_st().rex.reg_match).startp[no as usize];
+                        if (*re_st().rex.reg_match).endp[no as usize].is_null() {
                             s = ptr::null_mut();
                         } else {
-                            len = (*rex.reg_match).endp[no as usize].offset_from(s) as c_int;
+                            len = (*re_st().rex.reg_match).endp[no as usize].offset_from(s) as c_int;
                         }
                     }
                     if !s.is_null() {
                         loop {
                             if len == 0 {
                                 if REG_MULTI() {
-                                    if (*rex.reg_mmatch).endpos[no as usize].lnum == clnum {
+                                    if (*re_st().rex.reg_mmatch).endpos[no as usize].lnum == clnum {
                                         break;
                                     }
                                     if copy {
@@ -2935,8 +2991,8 @@ unsafe fn vim_regsub_both(
                                     dst = dst.add(1);
                                     clnum += 1;
                                     s = reg_getline(clnum);
-                                    if (*rex.reg_mmatch).endpos[no as usize].lnum == clnum {
-                                        len = (*rex.reg_mmatch).endpos[no as usize].col;
+                                    if (*re_st().rex.reg_mmatch).endpos[no as usize].lnum == clnum {
+                                        len = (*re_st().rex.reg_mmatch).endpos[no as usize].col;
                                     } else {
                                         len = reg_getline_len(clnum);
                                     }
@@ -3031,15 +3087,15 @@ pub unsafe fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
     unsafe {
         let mut retval_vec: Vec<c_char>;
         let mut retval: *mut c_char = ptr::null_mut();
-        if !can_f_submatch || no < 0 {
+        if !re_st().can_f_submatch || no < 0 {
             return None;
         }
         let no = no as usize;
 
-        if rsm.sm_match.is_null() {
+        if re_st().rsm.sm_match.is_null() {
             for round in 1..=2 {
-                let mut lnum = (*rsm.sm_mmatch).startpos[no].lnum;
-                if lnum < 0 || (*rsm.sm_mmatch).endpos[no].lnum < 0 {
+                let mut lnum = (*re_st().rsm.sm_mmatch).startpos[no].lnum;
+                if lnum < 0 || (*re_st().rsm.sm_mmatch).endpos[no].lnum < 0 {
                     return None;
                 }
 
@@ -3047,17 +3103,17 @@ pub unsafe fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                 if s.is_null() {
                     break;
                 }
-                s = s.add((*rsm.sm_mmatch).startpos[no].col as usize);
+                s = s.add((*re_st().rsm.sm_mmatch).startpos[no].col as usize);
                 let mut len: isize;
-                if (*rsm.sm_mmatch).endpos[no].lnum == lnum {
-                    len = ((*rsm.sm_mmatch).endpos[no].col - (*rsm.sm_mmatch).startpos[no].col)
+                if (*re_st().rsm.sm_mmatch).endpos[no].lnum == lnum {
+                    len = ((*re_st().rsm.sm_mmatch).endpos[no].col - (*re_st().rsm.sm_mmatch).startpos[no].col)
                         as isize;
                     if round == 2 {
                         xmemcpyz(retval.cast(), s.cast(), len as usize);
                     }
                     len += 1;
                 } else {
-                    len = (reg_getline_submatch_len(lnum) - (*rsm.sm_mmatch).startpos[no].col)
+                    len = (reg_getline_submatch_len(lnum) - (*re_st().rsm.sm_mmatch).startpos[no].col)
                         as isize;
                     if round == 2 {
                         strcpy(retval, s);
@@ -3065,7 +3121,7 @@ pub unsafe fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                     }
                     len += 1;
                     lnum += 1;
-                    while lnum < (*rsm.sm_mmatch).endpos[no].lnum {
+                    while lnum < (*re_st().rsm.sm_mmatch).endpos[no].lnum {
                         s = reg_getline_submatch(lnum);
                         if round == 2 {
                             strcpy(retval.add(len as usize), s);
@@ -3081,10 +3137,10 @@ pub unsafe fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                         strncpy(
                             retval.add(len as usize),
                             reg_getline_submatch(lnum),
-                            (*rsm.sm_mmatch).endpos[no].col as usize,
+                            (*re_st().rsm.sm_mmatch).endpos[no].col as usize,
                         );
                     }
-                    len += (*rsm.sm_mmatch).endpos[no].col as isize;
+                    len += (*re_st().rsm.sm_mmatch).endpos[no].col as isize;
                     if round == 2 {
                         *retval.add(len as usize) = NUL as c_char;
                     }
@@ -3098,11 +3154,11 @@ pub unsafe fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
             }
             (!retval.is_null()).then(|| CStr::from_ptr(retval).to_owned())
         } else {
-            let s = (*rsm.sm_match).startp[no];
-            if s.is_null() || (*rsm.sm_match).endp[no].is_null() {
+            let s = (*re_st().rsm.sm_match).startp[no];
+            if s.is_null() || (*re_st().rsm.sm_match).endp[no].is_null() {
                 None
             } else {
-                cstring_from_bytes(s, (*rsm.sm_match).endp[no].offset_from(s) as usize)
+                cstring_from_bytes(s, (*re_st().rsm.sm_match).endp[no].offset_from(s) as usize)
             }
         }
     }
@@ -3110,21 +3166,21 @@ pub unsafe fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
 
 pub unsafe fn reg_submatch_list(no: c_int) -> *mut list_T {
     unsafe {
-        if !can_f_submatch || no < 0 {
+        if !re_st().can_f_submatch || no < 0 {
             return ptr::null_mut();
         }
         let no = no as usize;
         let list: *mut list_T;
 
-        if rsm.sm_match.is_null() {
-            let slnum = (*rsm.sm_mmatch).startpos[no].lnum;
-            let elnum = (*rsm.sm_mmatch).endpos[no].lnum;
+        if re_st().rsm.sm_match.is_null() {
+            let slnum = (*re_st().rsm.sm_mmatch).startpos[no].lnum;
+            let elnum = (*re_st().rsm.sm_mmatch).endpos[no].lnum;
             if slnum < 0 || elnum < 0 {
                 return ptr::null_mut();
             }
 
-            let scol = (*rsm.sm_mmatch).startpos[no].col;
-            let ecol = (*rsm.sm_mmatch).endpos[no].col;
+            let scol = (*re_st().rsm.sm_mmatch).startpos[no].col;
+            let ecol = (*re_st().rsm.sm_mmatch).endpos[no].col;
 
             list = tv_list_alloc((elnum - slnum + 1) as isize);
 
@@ -3142,12 +3198,12 @@ pub unsafe fn reg_submatch_list(no: c_int) -> *mut list_T {
                 tv_list_append_string(list, s, ecol as isize);
             }
         } else {
-            let s = (*rsm.sm_match).startp[no];
-            if s.is_null() || (*rsm.sm_match).endp[no].is_null() {
+            let s = (*re_st().rsm.sm_match).startp[no];
+            if s.is_null() || (*re_st().rsm.sm_match).endp[no].is_null() {
                 return ptr::null_mut();
             }
             list = tv_list_alloc(1);
-            tv_list_append_string(list, s, (*rsm.sm_match).endp[no].offset_from(s));
+            tv_list_append_string(list, s, (*re_st().rsm.sm_match).endp[no].offset_from(s));
         }
 
         tv_list_ref(list);
@@ -3162,17 +3218,17 @@ pub(super) unsafe fn init_regexec_multi(
     lnum: linenr_T,
 ) {
     unsafe {
-        rex.reg_match = ptr::null_mut();
-        rex.reg_mmatch = rmp;
-        rex.reg_buf = buf;
-        rex.reg_win = win;
-        rex.reg_firstlnum = lnum;
-        rex.reg_maxline = (*rex.reg_buf).b_ml.ml_line_count - lnum;
-        rex.reg_line_lbr = false;
-        rex.reg_ic = (*rmp).rmm_ic != 0;
-        rex.reg_icombine = false;
-        rex.reg_nobreak = ((*(*rmp).regprog).re_flags & (RE_NOBREAK as c_uint)) != 0;
-        rex.reg_maxcol = (*rmp).rmm_maxcol;
+        re_st().rex.reg_match = ptr::null_mut();
+        re_st().rex.reg_mmatch = rmp;
+        re_st().rex.reg_buf = buf;
+        re_st().rex.reg_win = win;
+        re_st().rex.reg_firstlnum = lnum;
+        re_st().rex.reg_maxline = (*re_st().rex.reg_buf).b_ml.ml_line_count - lnum;
+        re_st().rex.reg_line_lbr = false;
+        re_st().rex.reg_ic = (*rmp).rmm_ic != 0;
+        re_st().rex.reg_icombine = false;
+        re_st().rex.reg_nobreak = ((*(*rmp).regprog).re_flags & (RE_NOBREAK as c_uint)) != 0;
+        re_st().rex.reg_maxcol = (*rmp).rmm_maxcol;
     }
 }
 
@@ -3254,31 +3310,31 @@ pub(super) unsafe fn regcomp_start(expr: *mut u8, re_flags: c_int) {
     unsafe {
         initchr(expr.cast());
         if (re_flags & RE_MAGIC) != 0 {
-            reg_magic = MAGIC_ON;
+            re_st().reg_magic = MAGIC_ON;
         } else {
-            reg_magic = MAGIC_OFF;
+            re_st().reg_magic = MAGIC_OFF;
         }
-        reg_string = re_flags & RE_STRING;
-        reg_strict = re_flags & RE_STRICT;
+        re_st().reg_string = re_flags & RE_STRING;
+        re_st().reg_strict = re_flags & RE_STRICT;
         get_cpo_flags();
 
-        num_complex_braces = 0;
-        regnpar = 1;
-        had_endbrace = [0; NSUBEXP];
-        regnzpar = 1;
-        re_has_z = 0;
-        regsize = 0;
-        reg_toolong = 0;
-        bt_reg_parse_depth = 0;
-        regflags = 0;
-        had_eol = 0;
+        re_st().num_complex_braces = 0;
+        re_st().regnpar = 1;
+        re_st().had_endbrace = [0; NSUBEXP];
+        re_st().regnzpar = 1;
+        re_st().re_has_z = 0;
+        re_st().regsize = 0;
+        re_st().reg_toolong = 0;
+        re_st().bt_reg_parse_depth = 0;
+        re_st().regflags = 0;
+        re_st().had_eol = 0;
     }
 }
 
 pub(super) unsafe fn seen_endbrace(refnum: c_int) -> bool {
     unsafe {
-        if *(&raw const had_endbrace).cast::<u8>().add(refnum as usize) == 0 {
-            let mut p = regparse.cast::<u8>();
+        if *(&raw const re_st().had_endbrace).cast::<u8>().add(refnum as usize) == 0 {
+            let mut p = re_st().regparse.cast::<u8>();
             while *p != NUL {
                 if *p == b'@' && *p.add(1) == b'<' && (*p.add(2) == b'!' || *p.add(2) == b'=') {
                     break;
@@ -3298,8 +3354,8 @@ pub(super) unsafe fn seen_endbrace(refnum: c_int) -> bool {
 pub(super) unsafe fn coll_get_char() -> c_int {
     unsafe {
         let mut nr: i64 = -1;
-        let ch = *regparse as u8;
-        regparse = regparse.add(1);
+        let ch = *re_st().regparse as u8;
+        re_st().regparse = re_st().regparse.add(1);
         match ch {
             b'd' => nr = getdecchrs(),
             b'o' => nr = getoctchrs(),
@@ -3309,7 +3365,7 @@ pub(super) unsafe fn coll_get_char() -> c_int {
             _ => {}
         }
         if nr < 0 {
-            regparse = regparse.sub(1);
+            re_st().regparse = re_st().regparse.sub(1);
             nr = i64::from(b'\\');
         }
         if nr > i64::from(c_int::MAX) {
@@ -3320,7 +3376,7 @@ pub(super) unsafe fn coll_get_char() -> c_int {
 }
 
 pub unsafe fn vim_regcomp_had_eol() -> c_int {
-    unsafe { had_eol }
+    unsafe { re_st().had_eol }
 }
 
 /// Compile a regular expression into internal code.
@@ -3328,7 +3384,7 @@ pub unsafe fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regp
     unsafe {
         let mut expr = expr_arg;
 
-        regexp_engine = p_re as c_int;
+        re_st().regexp_engine = p_re as c_int;
 
         if strncmp(expr, c"\\%#=".as_ptr(), 4) == 0 {
             let newengine = (*expr.add(4) as u8).wrapping_sub(b'0') as c_int;
@@ -3336,35 +3392,35 @@ pub unsafe fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regp
                 || newengine == BACKTRACKING_ENGINE
                 || newengine == NFA_ENGINE
             {
-                regexp_engine = newengine;
+                re_st().regexp_engine = newengine;
                 expr = expr.add(5);
             } else {
                 emsg(tr(
                     c"E864: \\%#= can only be followed by 0, 1, or 2. The automatic engine will be used "
                         .as_ptr(),
                 ));
-                regexp_engine = AUTOMATIC_ENGINE;
+                re_st().regexp_engine = AUTOMATIC_ENGINE;
             }
         }
 
-        rex.reg_buf = curbuf;
+        re_st().rex.reg_buf = curbuf;
 
         let called_emsg_before = called_emsg;
-        let mut prog_opt = if regexp_engine != BACKTRACKING_ENGINE {
+        let mut prog_opt = if re_st().regexp_engine != BACKTRACKING_ENGINE {
             nfa_regcomp(
                 expr.cast_mut().cast(),
                 re_flags
-                    + if regexp_engine == AUTOMATIC_ENGINE {
+                    + if re_st().regexp_engine == AUTOMATIC_ENGINE {
                         RE_AUTO
                     } else {
                         0
                     },
             )
             .map(|mut nfa| {
-                nfa.re_engine = regexp_engine as c_uint;
+                nfa.re_engine = re_st().regexp_engine as c_uint;
                 regprog_T {
                     regflags: nfa.regflags,
-                    re_engine: regexp_engine as c_uint,
+                    re_engine: re_st().regexp_engine as c_uint,
                     re_flags: re_flags as c_uint,
                     re_in_use: false,
                     engine: RegProgEngine::Nfa(nfa),
@@ -3373,7 +3429,7 @@ pub unsafe fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regp
         } else {
             bt_regcomp(expr.cast_mut().cast(), re_flags).map(|bt| regprog_T {
                 regflags: bt.regflags,
-                re_engine: regexp_engine as c_uint,
+                re_engine: re_st().regexp_engine as c_uint,
                 re_flags: re_flags as c_uint,
                 re_in_use: false,
                 engine: RegProgEngine::Bt(bt),
@@ -3381,14 +3437,14 @@ pub unsafe fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regp
         };
 
         if prog_opt.is_none()
-            && regexp_engine == AUTOMATIC_ENGINE
+            && re_st().regexp_engine == AUTOMATIC_ENGINE
             && called_emsg == called_emsg_before
         {
-            regexp_engine = BACKTRACKING_ENGINE;
+            re_st().regexp_engine = BACKTRACKING_ENGINE;
             report_re_switch(expr);
             prog_opt = bt_regcomp(expr.cast_mut().cast(), re_flags).map(|bt| regprog_T {
                 regflags: bt.regflags,
-                re_engine: regexp_engine as c_uint,
+                re_engine: re_st().regexp_engine as c_uint,
                 re_flags: re_flags as c_uint,
                 re_in_use: false,
                 engine: RegProgEngine::Bt(bt),
@@ -3432,14 +3488,14 @@ pub unsafe fn vim_regfree(prog: *mut regprog_T) {
 
 pub unsafe fn free_regexp_stuff() {
     unsafe {
-        let rs = &raw mut regstack;
+        let rs = &raw mut re_st().regstack;
         *rs = Vec::new();
-        let bp = &raw mut backpos;
+        let bp = &raw mut re_st().backpos;
         *bp = Vec::new();
-        let tf = &raw mut reg_tofree;
+        let tf = &raw mut re_st().reg_tofree;
         *tf = Vec::new();
-        reg_prev_sub = None;
-        let pv = &raw mut post_vec;
+        re_st().reg_prev_sub = None;
+        let pv = &raw mut re_st().post_vec;
         *pv = Vec::new();
     }
 }
@@ -3465,7 +3521,7 @@ unsafe fn vim_regexec_string(
 ) -> bool {
     unsafe {
         let mut rex_save = regexec_T::new();
-        let rex_in_use_save = rex_in_use;
+        let rex_in_use_save = re_st().rex_in_use;
 
         if (*(*rmp).regprog).re_in_use {
             emsg(tr(e_recursive.as_ptr()));
@@ -3473,15 +3529,15 @@ unsafe fn vim_regexec_string(
         }
         (*(*rmp).regprog).re_in_use = true;
 
-        if rex_in_use {
-            rex_save = rex;
+        if re_st().rex_in_use {
+            rex_save = re_st().rex;
         }
-        rex_in_use = true;
+        re_st().rex_in_use = true;
 
-        rex.reg_startp = ptr::null_mut();
-        rex.reg_endp = ptr::null_mut();
-        rex.reg_startpos = ptr::null_mut();
-        rex.reg_endpos = ptr::null_mut();
+        re_st().rex.reg_startp = ptr::null_mut();
+        re_st().rex.reg_endp = ptr::null_mut();
+        re_st().rex.reg_startpos = ptr::null_mut();
+        re_st().rex.reg_endpos = ptr::null_mut();
 
         let mut result = match (*(*rmp).regprog).engine {
             RegProgEngine::Bt(_) => bt_regexec_nl(rmp, line.cast_mut().cast(), col, nl),
@@ -3512,9 +3568,9 @@ unsafe fn vim_regexec_string(
             p_re = save_p_re;
         }
 
-        rex_in_use = rex_in_use_save;
-        if rex_in_use {
-            rex = rex_save;
+        re_st().rex_in_use = rex_in_use_save;
+        if re_st().rex_in_use {
+            re_st().rex = rex_save;
         }
 
         result > 0
@@ -3558,7 +3614,7 @@ pub unsafe fn vim_regexec_multi(
 ) -> c_int {
     unsafe {
         let mut rex_save = regexec_T::new();
-        let rex_in_use_save = rex_in_use;
+        let rex_in_use_save = re_st().rex_in_use;
 
         if (*(*rmp).regprog).re_in_use {
             emsg(tr(e_recursive.as_ptr()));
@@ -3566,10 +3622,10 @@ pub unsafe fn vim_regexec_multi(
         }
         (*(*rmp).regprog).re_in_use = true;
 
-        if rex_in_use {
-            rex_save = rex;
+        if re_st().rex_in_use {
+            rex_save = re_st().rex;
         }
-        rex_in_use = true;
+        re_st().rex_in_use = true;
 
         let mut result = match (*(*rmp).regprog).engine {
             RegProgEngine::Bt(_) => bt_regexec_multi(rmp, win, buf, lnum, col, tm, timed_out),
@@ -3608,9 +3664,9 @@ pub unsafe fn vim_regexec_multi(
             p_re = save_p_re;
         }
 
-        rex_in_use = rex_in_use_save;
-        if rex_in_use {
-            rex = rex_save;
+        re_st().rex_in_use = rex_in_use_save;
+        if re_st().rex_in_use {
+            re_st().rex = rex_save;
         }
 
         if result <= 0 { 0 } else { result }

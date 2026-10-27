@@ -502,51 +502,102 @@ struct pat_ptr_T {
     pp_matchgroup_id: c_int,
 }
 
-static mut did_syntax_onoff: bool = false;
-static mut changedtick_last: i64 = 0;
-static mut try_next_column: bool = false;
-static mut in_id_list_depth: c_int = 0;
+struct SyntaxState {
+    did_syntax_onoff: bool,
+    changedtick_last: i64,
+    try_next_column: bool,
+    in_id_list_depth: c_int,
+    current_attr: c_int,
+    current_id: c_int,
+    current_trans_id: c_int,
+    current_flags: c_int,
+    current_seqnr: c_int,
+    current_sub_char: c_int,
+    current_syn_inc_tag: c_int,
+    running_syn_inc_tag: c_int,
+    keepend_level: c_int,
+    next_seqnr: c_int,
+    next_match_col: c_int,
+    next_match_m_endpos: lpos_T,
+    next_match_h_startpos: lpos_T,
+    next_match_h_endpos: lpos_T,
+    next_match_idx: c_int,
+    next_match_flags: c_int,
+    next_match_eos_pos: lpos_T,
+    next_match_eoe_pos: lpos_T,
+    next_match_end_idx: c_int,
+    next_match_extmatch: Option<std::rc::Rc<reg_extmatch_T>>,
+    syn_win: *mut win_T,
+    syn_buf: *mut buf_T,
+    syn_block: *mut synblock_T,
+    syn_tm: Option<proftime_T>,
+    current_lnum: linenr_T,
+    current_col: colnr_T,
+    current_state_stored: bool,
+    current_finished: bool,
+    current_state_valid: bool,
+    current_state: Vec<stateitem_T>,
+    current_next_list: SynIdList,
+    current_next_flags: c_int,
+    current_line_id: c_int,
+    syn_time_on: bool,
+    last_matchgroup: c_int,
+    expand_what: c_int,
+}
 
-static mut current_attr: c_int = 0;
-static mut current_id: c_int = 0;
-static mut current_trans_id: c_int = 0;
-static mut current_flags: c_int = 0;
-static mut current_seqnr: c_int = 0;
-static mut current_sub_char: c_int = 0;
+impl SyntaxState {
+    const fn new() -> Self {
+        Self {
+            did_syntax_onoff: false,
+            changedtick_last: 0,
+            try_next_column: false,
+            in_id_list_depth: 0,
+            current_attr: 0,
+            current_id: 0,
+            current_trans_id: 0,
+            current_flags: 0,
+            current_seqnr: 0,
+            current_sub_char: 0,
+            current_syn_inc_tag: 0,
+            running_syn_inc_tag: 0,
+            keepend_level: -1,
+            next_seqnr: 1,
+            next_match_col: 0,
+            next_match_m_endpos: lpos_T { lnum: 0, col: 0 },
+            next_match_h_startpos: lpos_T { lnum: 0, col: 0 },
+            next_match_h_endpos: lpos_T { lnum: 0, col: 0 },
+            next_match_idx: 0,
+            next_match_flags: 0,
+            next_match_eos_pos: lpos_T { lnum: 0, col: 0 },
+            next_match_eoe_pos: lpos_T { lnum: 0, col: 0 },
+            next_match_end_idx: 0,
+            next_match_extmatch: None,
+            syn_win: ptr::null_mut(),
+            syn_buf: ptr::null_mut(),
+            syn_block: ptr::null_mut(),
+            syn_tm: None,
+            current_lnum: 0,
+            current_col: 0,
+            current_state_stored: false,
+            current_finished: false,
+            current_state_valid: false,
+            current_state: Vec::new(),
+            current_next_list: None,
+            current_next_flags: 0,
+            current_line_id: 0,
+            syn_time_on: false,
+            last_matchgroup: 0,
+            expand_what: EXP_SUBCMD,
+        }
+    }
+}
 
+static SYN_STATE: GlobalState<SyntaxState> = GlobalState::new(SyntaxState::new());
 
-static mut current_syn_inc_tag: c_int = 0;
-static mut running_syn_inc_tag: c_int = 0;
-static mut keepend_level: c_int = -1;
-static mut next_seqnr: c_int = 1;
-
-static mut next_match_col: c_int = 0;
-static mut next_match_m_endpos: lpos_T = lpos_T { lnum: 0, col: 0 };
-static mut next_match_h_startpos: lpos_T = lpos_T { lnum: 0, col: 0 };
-static mut next_match_h_endpos: lpos_T = lpos_T { lnum: 0, col: 0 };
-static mut next_match_idx: c_int = 0;
-static mut next_match_flags: c_int = 0;
-static mut next_match_eos_pos: lpos_T = lpos_T { lnum: 0, col: 0 };
-static mut next_match_eoe_pos: lpos_T = lpos_T { lnum: 0, col: 0 };
-static mut next_match_end_idx: c_int = 0;
-static mut next_match_extmatch: Option<std::rc::Rc<reg_extmatch_T>> = None;
-
-static mut syn_win: *mut win_T = ptr::null_mut();
-static mut syn_buf: *mut buf_T = ptr::null_mut();
-static mut syn_block: *mut synblock_T = ptr::null_mut();
-static mut syn_tm: Option<proftime_T> = None;
-static mut current_lnum: linenr_T = 0;
-static mut current_col: colnr_T = 0;
-static mut current_state_stored: bool = false;
-static mut current_finished: bool = false;
-static mut current_state_valid: bool = false;
-static mut current_state: Vec<stateitem_T> = Vec::new();
-static mut current_next_list: SynIdList = None;
-static mut current_next_flags: c_int = 0;
-static mut current_line_id: c_int = 0;
-static mut syn_time_on: bool = false;
-static mut last_matchgroup: c_int = 0;
-static mut expand_what: c_int = EXP_SUBCMD;
+#[inline]
+unsafe fn syn_st() -> &'static mut SyntaxState {
+    unsafe { &mut *SYN_STATE.as_ptr() }
+}
 
 #[inline]
 pub unsafe fn win_s(wp: *mut win_T) -> *mut synblock_T {
@@ -566,7 +617,7 @@ unsafe fn syn_clstr(block: *mut synblock_T) -> *mut syn_cluster_T {
 #[inline]
 unsafe fn cur_state_len() -> c_int {
     unsafe {
-        let cs_ptr = &raw const current_state;
+        let cs_ptr = &raw const syn_st().current_state;
         (*cs_ptr).len() as c_int
     }
 }
@@ -574,7 +625,7 @@ unsafe fn cur_state_len() -> c_int {
 #[inline]
 unsafe fn cur_state_empty() -> bool {
     unsafe {
-        let cs_ptr = &raw const current_state;
+        let cs_ptr = &raw const syn_st().current_state;
         (*cs_ptr).is_empty()
     }
 }
@@ -582,7 +633,7 @@ unsafe fn cur_state_empty() -> bool {
 #[inline]
 unsafe fn cur_state_at(idx: c_int) -> *mut stateitem_T {
     unsafe {
-        let cs_ptr = &raw mut current_state;
+        let cs_ptr = &raw mut syn_st().current_state;
         (*cs_ptr).as_mut_ptr().offset(idx as isize)
     }
 }
@@ -599,18 +650,18 @@ fn id_list_all() -> SynIdList {
 
 #[inline]
 unsafe fn invalid_state() -> bool {
-    unsafe { !current_state_valid }
+    unsafe { !syn_st().current_state_valid }
 }
 
 #[inline]
 unsafe fn valid_state() -> bool {
-    unsafe { current_state_valid }
+    unsafe { syn_st().current_state_valid }
 }
 
 /// Set the timeout used for syntax highlighting.
 pub unsafe fn syn_set_timeout(tm: Option<proftime_T>) {
     unsafe {
-        syn_tm = tm;
+        syn_st().syn_tm = tm;
     }
 }
 
@@ -621,53 +672,53 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
         let mut last_min_valid: Option<usize> = None;
         let mut prev: Option<usize> = None;
 
-        current_sub_char = NUL as c_int;
+        syn_st().current_sub_char = NUL as c_int;
 
-        if syn_block != win_s(wp)
-            || syn_buf != (*wp).w_buffer
-            || changedtick_last != buf_get_changedtick(syn_buf)
+        if syn_st().syn_block != win_s(wp)
+            || syn_st().syn_buf != (*wp).w_buffer
+            || syn_st().changedtick_last != buf_get_changedtick(syn_st().syn_buf)
         {
             invalidate_current_state();
-            syn_buf = (*wp).w_buffer;
-            syn_block = win_s(wp);
+            syn_st().syn_buf = (*wp).w_buffer;
+            syn_st().syn_block = win_s(wp);
         }
-        changedtick_last = buf_get_changedtick(syn_buf);
-        syn_win = wp;
+        syn_st().changedtick_last = buf_get_changedtick(syn_st().syn_buf);
+        syn_st().syn_win = wp;
 
         syn_stack_alloc();
-        if (*syn_block).b_sst_max == 0 {
+        if (*syn_st().syn_block).b_sst_max == 0 {
             return;
         }
-        (*syn_block).b_sst_lasttick = display_tick;
+        (*syn_st().syn_block).b_sst_lasttick = display_tick;
 
-        if valid_state() && current_lnum < lnum && current_lnum < (*syn_buf).b_ml.ml_line_count {
+        if valid_state() && syn_st().current_lnum < lnum && syn_st().current_lnum < (*syn_st().syn_buf).b_ml.ml_line_count {
             syn_finish_line(false);
-            if !current_state_stored {
-                current_lnum += 1;
+            if !syn_st().current_state_stored {
+                syn_st().current_lnum += 1;
                 store_current_state();
             }
 
-            if current_lnum != lnum {
+            if syn_st().current_lnum != lnum {
                 invalidate_current_state();
             }
         } else {
             invalidate_current_state();
         }
 
-        if invalid_state() && !(*syn_block).b_sst_array.is_empty() {
-            for (idx, p) in (*syn_block).b_sst_array.as_slice().iter().enumerate() {
+        if invalid_state() && !(*syn_st().syn_block).b_sst_array.is_empty() {
+            for (idx, p) in (*syn_st().syn_block).b_sst_array.as_slice().iter().enumerate() {
                 if p.sst_lnum > lnum {
                     break;
                 }
                 if p.sst_change_lnum == 0 {
                     last_valid = Some(idx);
-                    if p.sst_lnum >= lnum - (*syn_block).b_syn_sync_minlines {
+                    if p.sst_lnum >= lnum - (*syn_st().syn_block).b_syn_sync_minlines {
                         last_min_valid = Some(idx);
                     }
                 }
             }
             if let Some(idx) = last_min_valid {
-                load_current_state(&(*syn_block).b_sst_array.as_slice()[idx]);
+                load_current_state(&(*syn_st().syn_block).b_sst_array.as_slice()[idx]);
             }
         }
 
@@ -676,64 +727,64 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
                 wp,
                 lnum,
                 last_valid.map_or(ptr::null(), |idx| {
-                    &raw const (*syn_block).b_sst_array.as_slice()[idx]
+                    &raw const (*syn_st().syn_block).b_sst_array.as_slice()[idx]
                 }),
             );
-            if current_lnum == 1 {
+            if syn_st().current_lnum == 1 {
                 1
             } else {
-                current_lnum + (*syn_block).b_syn_sync_minlines
+                syn_st().current_lnum + (*syn_st().syn_block).b_syn_sync_minlines
             }
         } else {
-            current_lnum
+            syn_st().current_lnum
         };
 
-        let sst_len = (*syn_block).b_sst_max;
+        let sst_len = (*syn_st().syn_block).b_sst_max;
         let dist = if sst_len <= Rows {
             999999
         } else {
-            (*syn_buf).b_ml.ml_line_count / (sst_len - Rows) + 1
+            (*syn_st().syn_buf).b_ml.ml_line_count / (sst_len - Rows) + 1
         };
 
-        while current_lnum < lnum {
+        while syn_st().current_lnum < lnum {
             syn_start_line();
             syn_finish_line(false);
-            current_lnum += 1;
+            syn_st().current_lnum += 1;
 
-            if current_lnum >= first_stored {
+            if syn_st().current_lnum >= first_stored {
                 if prev.is_none() {
-                    prev = syn_stack_find_entry(current_lnum - 1);
+                    prev = syn_stack_find_entry(syn_st().current_lnum - 1);
                 }
                 let mut sp_idx = prev.unwrap_or(0);
-                while sp_idx < (*syn_block).b_sst_array.len()
-                    && (*syn_block).b_sst_array.as_slice()[sp_idx].sst_lnum < current_lnum
+                while sp_idx < (*syn_st().syn_block).b_sst_array.len()
+                    && (*syn_st().syn_block).b_sst_array.as_slice()[sp_idx].sst_lnum < syn_st().current_lnum
                 {
                     sp_idx += 1;
                 }
-                if sp_idx < (*syn_block).b_sst_array.len()
-                    && (*syn_block).b_sst_array.as_slice()[sp_idx].sst_lnum == current_lnum
-                    && syn_stack_equal(&(*syn_block).b_sst_array.as_slice()[sp_idx])
+                if sp_idx < (*syn_st().syn_block).b_sst_array.len()
+                    && (*syn_st().syn_block).b_sst_array.as_slice()[sp_idx].sst_lnum == syn_st().current_lnum
+                    && syn_stack_equal(&(*syn_st().syn_block).b_sst_array.as_slice()[sp_idx])
                 {
-                    let parsed_lnum = current_lnum;
+                    let parsed_lnum = syn_st().current_lnum;
                     prev = Some(sp_idx);
-                    while sp_idx < (*syn_block).b_sst_array.len()
-                        && (*syn_block).b_sst_array.as_slice()[sp_idx].sst_change_lnum
+                    while sp_idx < (*syn_st().syn_block).b_sst_array.len()
+                        && (*syn_st().syn_block).b_sst_array.as_slice()[sp_idx].sst_change_lnum
                             <= parsed_lnum
                     {
-                        if (*syn_block).b_sst_array.as_slice()[sp_idx].sst_lnum <= lnum {
+                        if (*syn_st().syn_block).b_sst_array.as_slice()[sp_idx].sst_lnum <= lnum {
                             prev = Some(sp_idx);
-                        } else if (*syn_block).b_sst_array.as_slice()[sp_idx].sst_change_lnum == 0 {
+                        } else if (*syn_st().syn_block).b_sst_array.as_slice()[sp_idx].sst_change_lnum == 0 {
                             break;
                         }
-                        (*syn_block).b_sst_array.as_mut_slice()[sp_idx].sst_change_lnum = 0;
+                        (*syn_st().syn_block).b_sst_array.as_mut_slice()[sp_idx].sst_change_lnum = 0;
                         sp_idx += 1;
                     }
                     if let Some(pi) = prev {
-                        load_current_state(&(*syn_block).b_sst_array.as_slice()[pi]);
+                        load_current_state(&(*syn_st().syn_block).b_sst_array.as_slice()[pi]);
                     }
                 } else if prev.is_none_or(|pi| {
-                    current_lnum == lnum
-                        || current_lnum >= (*syn_block).b_sst_array.as_slice()[pi].sst_lnum + dist
+                    syn_st().current_lnum == lnum
+                        || syn_st().current_lnum >= (*syn_st().syn_block).b_sst_array.as_slice()[pi].sst_lnum + dist
                 }) {
                     prev = store_current_state();
                 }
@@ -741,7 +792,7 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
 
             line_breakcheck();
             if got_int {
-                current_lnum = lnum;
+                syn_st().current_lnum = lnum;
                 break;
             }
         }
@@ -752,7 +803,7 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
 
 unsafe fn clear_current_state() {
     unsafe {
-        let cs_ptr = &raw mut current_state;
+        let cs_ptr = &raw mut syn_st().current_state;
         *cs_ptr = Vec::new();
     }
 }
@@ -767,18 +818,18 @@ unsafe fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *const 
 
         invalidate_current_state();
 
-        if (*syn_block).b_syn_sync_minlines > start_lnum {
+        if (*syn_st().syn_block).b_syn_sync_minlines > start_lnum {
             start_lnum = 1;
         } else {
-            let mut lnum = if (*syn_block).b_syn_sync_minlines == 1 {
+            let mut lnum = if (*syn_st().syn_block).b_syn_sync_minlines == 1 {
                 1
-            } else if (*syn_block).b_syn_sync_minlines < 10 {
-                (*syn_block).b_syn_sync_minlines * 2
+            } else if (*syn_st().syn_block).b_syn_sync_minlines < 10 {
+                (*syn_st().syn_block).b_syn_sync_minlines * 2
             } else {
-                (*syn_block).b_syn_sync_minlines * 3 / 2
+                (*syn_st().syn_block).b_syn_sync_minlines * 3 / 2
             };
-            if (*syn_block).b_syn_sync_maxlines != 0 && lnum > (*syn_block).b_syn_sync_maxlines {
-                lnum = (*syn_block).b_syn_sync_maxlines;
+            if (*syn_st().syn_block).b_syn_sync_maxlines != 0 && lnum > (*syn_st().syn_block).b_syn_sync_maxlines {
+                lnum = (*syn_st().syn_block).b_syn_sync_maxlines;
             }
             if lnum >= start_lnum {
                 start_lnum = 1;
@@ -786,13 +837,13 @@ unsafe fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *const 
                 start_lnum -= lnum;
             }
         }
-        current_lnum = start_lnum;
+        syn_st().current_lnum = start_lnum;
 
-        if ((*syn_block).b_syn_sync_flags & SF_CCOMMENT) != 0 {
+        if ((*syn_st().syn_block).b_syn_sync_flags & SF_CCOMMENT) != 0 {
             let curwin_save = curwin;
             curwin = wp;
             let curbuf_save = curbuf;
-            curbuf = syn_buf;
+            curbuf = syn_st().syn_buf;
 
             while start_lnum > 1 {
                 let l = ml_get(start_lnum - 1);
@@ -803,17 +854,17 @@ unsafe fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *const 
                 }
                 start_lnum -= 1;
             }
-            current_lnum = start_lnum;
+            syn_st().current_lnum = start_lnum;
 
             let cursor_save: pos_T = (*wp).w_cursor;
             (*wp).w_cursor.lnum = start_lnum;
             (*wp).w_cursor.col = 0;
 
-            if !find_start_comment((*syn_block).b_syn_sync_maxlines).is_null() {
-                let mut idx = (*syn_block).b_syn_patterns.len() as c_int - 1;
+            if !find_start_comment((*syn_st().syn_block).b_syn_sync_maxlines).is_null() {
+                let mut idx = (*syn_st().syn_block).b_syn_patterns.len() as c_int - 1;
                 while idx >= 0 {
-                    let spp = syn_items(syn_block).offset(idx as isize);
-                    if (*spp).sp_syn.id == (*syn_block).b_syn_sync_id
+                    let spp = syn_items(syn_st().syn_block).offset(idx as isize);
+                    if (*spp).sp_syn.id == (*syn_st().syn_block).b_syn_sync_id
                         && (*spp).sp_type == SPTYPE_START
                     {
                         validate_current_state();
@@ -828,11 +879,11 @@ unsafe fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *const 
             (*wp).w_cursor = cursor_save;
             curwin = curwin_save;
             curbuf = curbuf_save;
-        } else if ((*syn_block).b_syn_sync_flags & SF_MATCH) != 0 {
-            let break_lnum = if (*syn_block).b_syn_sync_maxlines != 0
-                && start_lnum > (*syn_block).b_syn_sync_maxlines
+        } else if ((*syn_st().syn_block).b_syn_sync_flags & SF_MATCH) != 0 {
+            let break_lnum = if (*syn_st().syn_block).b_syn_sync_maxlines != 0
+                && start_lnum > (*syn_st().syn_block).b_syn_sync_maxlines
             {
-                start_lnum - (*syn_block).b_syn_sync_maxlines
+                start_lnum - (*syn_st().syn_block).b_syn_sync_maxlines
             } else {
                 0
             };
@@ -846,7 +897,7 @@ unsafe fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *const 
                 line_breakcheck();
                 if got_int {
                     invalidate_current_state();
-                    current_lnum = start_lnum;
+                    syn_st().current_lnum = start_lnum;
                     break;
                 }
 
@@ -861,51 +912,51 @@ unsafe fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *const 
 
                 validate_current_state();
 
-                current_lnum = lnum;
-                while current_lnum < end_lnum {
+                syn_st().current_lnum = lnum;
+                while syn_st().current_lnum < end_lnum {
                     syn_start_line();
                     loop {
                         let had_sync_point = syn_finish_line(true);
                         if had_sync_point && !cur_state_empty() {
                             let cur_si = cur_state_at(cur_state_len() - 1);
                             if (*cur_si).si_m_endpos.lnum > start_lnum {
-                                current_lnum = end_lnum;
+                                syn_st().current_lnum = end_lnum;
                                 break;
                             }
                             if (*cur_si).si_idx < 0 {
                                 found_flags = 0;
                                 found_match_idx = KEYWORD_IDX;
                             } else {
-                                let spp = syn_items(syn_block).offset((*cur_si).si_idx as isize);
+                                let spp = syn_items(syn_st().syn_block).offset((*cur_si).si_idx as isize);
                                 found_flags = (*spp).sp_flags;
                                 found_match_idx = (*spp).sp_sync_idx;
                             }
-                            found_current_lnum = current_lnum;
-                            found_current_col = current_col;
+                            found_current_lnum = syn_st().current_lnum;
+                            found_current_col = syn_st().current_col;
                             found_m_endpos = (*cur_si).si_m_endpos;
-                            if found_m_endpos.lnum > current_lnum {
-                                current_lnum = found_m_endpos.lnum;
-                                current_col = found_m_endpos.col;
-                                if current_lnum >= end_lnum {
+                            if found_m_endpos.lnum > syn_st().current_lnum {
+                                syn_st().current_lnum = found_m_endpos.lnum;
+                                syn_st().current_col = found_m_endpos.col;
+                                if syn_st().current_lnum >= end_lnum {
                                     break;
                                 }
-                            } else if found_m_endpos.col > current_col {
-                                current_col = found_m_endpos.col;
+                            } else if found_m_endpos.col > syn_st().current_col {
+                                syn_st().current_col = found_m_endpos.col;
                             } else {
-                                current_col += 1;
+                                syn_st().current_col += 1;
                             }
 
-                            let prev_current_col = current_col;
-                            if *syn_getcurline().offset(current_col as isize) != NUL {
-                                current_col += 1;
+                            let prev_current_col = syn_st().current_col;
+                            if *syn_getcurline().offset(syn_st().current_col as isize) != NUL {
+                                syn_st().current_col += 1;
                             }
                             check_state_ends();
-                            current_col = prev_current_col;
+                            syn_st().current_col = prev_current_col;
                         } else {
                             break;
                         }
                     }
-                    current_lnum += 1;
+                    syn_st().current_lnum += 1;
                 }
 
                 if found_flags != 0 {
@@ -916,19 +967,19 @@ unsafe fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *const 
                     }
 
                     if (found_flags & HL_SYNC_HERE) != 0 {
-                        current_lnum = found_m_endpos.lnum;
-                        current_col = found_m_endpos.col;
+                        syn_st().current_lnum = found_m_endpos.lnum;
+                        syn_st().current_col = found_m_endpos.col;
                         if !cur_state_empty() {
                             let cur_si = cur_state_at(cur_state_len() - 1);
                             (*cur_si).si_h_startpos.lnum = found_current_lnum;
                             (*cur_si).si_h_startpos.col = found_current_col;
-                            update_si_end(cur_si, current_col, true);
+                            update_si_end(cur_si, syn_st().current_col, true);
                             check_keepend();
                         }
                         syn_finish_line(false);
-                        current_lnum += 1;
+                        syn_st().current_lnum += 1;
                     } else {
-                        current_lnum = start_lnum;
+                        syn_st().current_lnum = start_lnum;
                     }
 
                     break;
@@ -940,7 +991,7 @@ unsafe fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *const 
 
             if lnum <= break_lnum {
                 invalidate_current_state();
-                current_lnum = break_lnum + 1;
+                syn_st().current_lnum = break_lnum + 1;
             }
         }
 
@@ -950,18 +1001,18 @@ unsafe fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *const 
 
 unsafe fn save_chartab(chartab: *mut c_char) {
     unsafe {
-        if (*syn_block).b_syn_isk.is_none() {
+        if (*syn_st().syn_block).b_syn_isk.is_none() {
             return;
         }
 
         ptr::copy(
-            (&raw const (*syn_buf).b_chartab).cast::<u8>(),
+            (&raw const (*syn_st().syn_buf).b_chartab).cast::<u8>(),
             chartab.cast::<u8>(),
             32,
         );
         ptr::copy(
-            (&raw const (*win_s(syn_win)).b_syn_chartab).cast::<u8>(),
-            (&raw mut (*syn_buf).b_chartab).cast::<u8>(),
+            (&raw const (*win_s(syn_st().syn_win)).b_syn_chartab).cast::<u8>(),
+            (&raw mut (*syn_st().syn_buf).b_chartab).cast::<u8>(),
             32,
         );
     }
@@ -969,10 +1020,10 @@ unsafe fn save_chartab(chartab: *mut c_char) {
 
 unsafe fn restore_chartab(chartab: *const c_char) {
     unsafe {
-        if (*win_s(syn_win)).b_syn_isk.is_some() {
+        if (*win_s(syn_st().syn_win)).b_syn_isk.is_some() {
             ptr::copy(
                 chartab.cast::<u8>(),
-                (&raw mut (*syn_buf).b_chartab).cast::<u8>(),
+                (&raw mut (*syn_st().syn_buf).b_chartab).cast::<u8>(),
                 32,
             );
         }
@@ -981,7 +1032,7 @@ unsafe fn restore_chartab(chartab: *const c_char) {
 
 unsafe fn syn_match_linecont(lnum: linenr_T) -> c_int {
     unsafe {
-        if (*syn_block).b_syn_linecont_prog.is_none() {
+        if (*syn_st().syn_block).b_syn_linecont_prog.is_none() {
             return 0;
         }
 
@@ -989,13 +1040,13 @@ unsafe fn syn_match_linecont(lnum: linenr_T) -> c_int {
         let mut buf_chartab = [0 as c_char; 32];
         save_chartab(buf_chartab.as_mut_ptr());
 
-        regmatch.rmm_ic = (*syn_block).b_syn_linecont_ic;
-        regmatch.regprog = crate::regexp::regprog_as_ptr(&(*syn_block).b_syn_linecont_prog);
+        regmatch.rmm_ic = (*syn_st().syn_block).b_syn_linecont_ic;
+        regmatch.regprog = crate::regexp::regprog_as_ptr(&(*syn_st().syn_block).b_syn_linecont_prog);
         let r = syn_regexec(
             &raw mut regmatch,
             lnum,
             0,
-            &raw mut (*syn_block).b_syn_linecont_time,
+            &raw mut (*syn_st().syn_block).b_syn_linecont_time,
         );
 
         restore_chartab(buf_chartab.as_ptr());
@@ -1005,17 +1056,17 @@ unsafe fn syn_match_linecont(lnum: linenr_T) -> c_int {
 
 unsafe fn syn_start_line() {
     unsafe {
-        current_finished = false;
-        current_col = 0;
+        syn_st().current_finished = false;
+        syn_st().current_col = 0;
 
         if !cur_state_empty() {
             syn_update_ends(true);
             check_state_ends();
         }
 
-        next_match_idx = -1;
-        current_line_id += 1;
-        next_seqnr = 1;
+        syn_st().next_match_idx = -1;
+        syn_st().current_line_id += 1;
+        syn_st().next_seqnr = 1;
     }
 }
 
@@ -1026,9 +1077,9 @@ unsafe fn syn_update_ends(startofline: bool) {
             for i in 0..len {
                 let cur_si = cur_state_at(i);
                 if (*cur_si).si_idx >= 0
-                    && (*syn_items(syn_block).offset((*cur_si).si_idx as isize)).sp_type
+                    && (*syn_items(syn_st().syn_block).offset((*cur_si).si_idx as isize)).sp_type
                         == SPTYPE_MATCH
-                    && (*cur_si).si_m_endpos.lnum < current_lnum
+                    && (*cur_si).si_m_endpos.lnum < syn_st().current_lnum
                 {
                     (*cur_si).si_flags |= HL_MATCHCONT;
                     (*cur_si).si_m_endpos.lnum = 0;
@@ -1040,8 +1091,8 @@ unsafe fn syn_update_ends(startofline: bool) {
         }
 
         let mut i = len - 1;
-        if keepend_level >= 0 {
-            while i > keepend_level {
+        if syn_st().keepend_level >= 0 {
+            while i > syn_st().keepend_level {
                 if ((*cur_state_at(i)).si_flags & HL_EXTEND) != 0 {
                     break;
                 }
@@ -1057,10 +1108,10 @@ unsafe fn syn_update_ends(startofline: bool) {
                 || (i == len - 1 && startofline)
             {
                 (*cur_si).si_h_startpos.col = 0;
-                (*cur_si).si_h_startpos.lnum = current_lnum;
+                (*cur_si).si_h_startpos.lnum = syn_st().current_lnum;
 
                 if ((*cur_si).si_flags & HL_MATCHCONT) == 0 {
-                    update_si_end(cur_si, current_col, !startofline);
+                    update_si_end(cur_si, syn_st().current_col, !startofline);
                 }
 
                 if !startofline && ((*cur_si).si_flags & HL_KEEPEND) != 0 {
@@ -1101,21 +1152,21 @@ pub unsafe fn syn_stack_free_all(block: *mut synblock_T) {
 
 unsafe fn syn_stack_alloc() {
     unsafe {
-        let mut len = ((*syn_buf).b_ml.ml_line_count / SST_DIST + Rows * 2)
+        let mut len = ((*syn_st().syn_buf).b_ml.ml_line_count / SST_DIST + Rows * 2)
             .clamp(SST_MIN_ENTRIES, SST_MAX_ENTRIES);
-        let cur_len = (*syn_block).b_sst_max;
+        let cur_len = (*syn_st().syn_block).b_sst_max;
         if cur_len > len * 2 || cur_len < len {
-            len = (*syn_buf).b_ml.ml_line_count;
+            len = (*syn_st().syn_buf).b_ml.ml_line_count;
             len = ((len + len / 2) / SST_DIST + Rows * 2).clamp(SST_MIN_ENTRIES, SST_MAX_ENTRIES);
 
-            while ((*syn_block).b_sst_array.len() as c_int) + 2 > len && syn_stack_cleanup() {}
-            let needed = ((*syn_block).b_sst_array.len() as c_int) + 2;
+            while ((*syn_st().syn_block).b_sst_array.len() as c_int) + 2 > len && syn_stack_cleanup() {}
+            let needed = ((*syn_st().syn_block).b_sst_array.len() as c_int) + 2;
             if len < needed {
                 len = needed;
             }
 
-            (*syn_block).b_sst_max = len;
-            (*syn_block).b_sst_search = 0;
+            (*syn_st().syn_block).b_sst_max = len;
+            (*syn_st().syn_block).b_sst_search = 0;
         }
     }
 }
@@ -1173,24 +1224,24 @@ unsafe fn syn_stack_apply_changes_block(block: *mut synblock_T, buf: *mut buf_T)
 
 unsafe fn syn_stack_cleanup() -> bool {
     unsafe {
-        if (*syn_block).b_sst_array.len() < 2 {
+        if (*syn_st().syn_block).b_sst_array.len() < 2 {
             return false;
         }
 
-        let sst_len = (*syn_block).b_sst_max;
+        let sst_len = (*syn_st().syn_block).b_sst_max;
         let dist = if sst_len <= Rows {
             999999
         } else {
-            (*syn_buf).b_ml.ml_line_count / (sst_len - Rows) + 1
+            (*syn_st().syn_buf).b_ml.ml_line_count / (sst_len - Rows) + 1
         };
 
-        let mut tick = (*syn_block).b_sst_lasttick;
+        let mut tick = (*syn_st().syn_block).b_sst_lasttick;
         let mut above = false;
-        for w in (*syn_block).b_sst_array.as_slice().windows(2) {
+        for w in (*syn_st().syn_block).b_sst_array.as_slice().windows(2) {
             let prev = &w[0];
             let p = &w[1];
             if prev.sst_lnum + dist > p.sst_lnum {
-                if p.sst_tick > (*syn_block).b_sst_lasttick {
+                if p.sst_tick > (*syn_st().syn_block).b_sst_lasttick {
                     if !above || p.sst_tick < tick {
                         tick = p.sst_tick;
                     }
@@ -1203,16 +1254,16 @@ unsafe fn syn_stack_cleanup() -> bool {
 
         let mut retval = false;
         let mut idx = 1;
-        while idx < (*syn_block).b_sst_array.len() {
-            let prev_lnum = (*syn_block).b_sst_array.as_slice()[idx - 1].sst_lnum;
-            let p = &(*syn_block).b_sst_array.as_slice()[idx];
+        while idx < (*syn_st().syn_block).b_sst_array.len() {
+            let prev_lnum = (*syn_st().syn_block).b_sst_array.as_slice()[idx - 1].sst_lnum;
+            let p = &(*syn_st().syn_block).b_sst_array.as_slice()[idx];
             if p.sst_tick == tick && prev_lnum + dist > p.sst_lnum {
-                if (*syn_block).b_sst_search == idx {
-                    (*syn_block).b_sst_search = 0;
-                } else if (*syn_block).b_sst_search > idx {
-                    (*syn_block).b_sst_search -= 1;
+                if (*syn_st().syn_block).b_sst_search == idx {
+                    (*syn_st().syn_block).b_sst_search = 0;
+                } else if (*syn_st().syn_block).b_sst_search > idx {
+                    (*syn_st().syn_block).b_sst_search -= 1;
                 }
-                (*syn_block).b_sst_array.remove(idx);
+                (*syn_st().syn_block).b_sst_array.remove(idx);
                 retval = true;
             } else {
                 idx += 1;
@@ -1224,13 +1275,13 @@ unsafe fn syn_stack_cleanup() -> bool {
 
 unsafe fn syn_stack_find_entry(lnum: linenr_T) -> Option<usize> {
     unsafe {
-        let arr = (*syn_block).b_sst_array.as_slice();
+        let arr = (*syn_st().syn_block).b_sst_array.as_slice();
         if arr.is_empty() {
             return None;
         }
 
         let mut idx = 0;
-        let search = (*syn_block).b_sst_search;
+        let search = (*syn_st().syn_block).b_sst_search;
         if search < arr.len() && arr[search].sst_lnum <= lnum {
             idx = search;
         }
@@ -1238,7 +1289,7 @@ unsafe fn syn_stack_find_entry(lnum: linenr_T) -> Option<usize> {
         let mut prev: Option<usize> = None;
         while idx < arr.len() {
             if arr[idx].sst_lnum == lnum {
-                (*syn_block).b_sst_search = idx;
+                (*syn_st().syn_block).b_sst_search = idx;
                 return Some(idx);
             }
             if arr[idx].sst_lnum > lnum {
@@ -1248,7 +1299,7 @@ unsafe fn syn_stack_find_entry(lnum: linenr_T) -> Option<usize> {
             idx += 1;
         }
         if let Some(p) = prev {
-            (*syn_block).b_sst_search = p;
+            (*syn_st().syn_block).b_sst_search = p;
         }
         prev
     }
@@ -1256,15 +1307,15 @@ unsafe fn syn_stack_find_entry(lnum: linenr_T) -> Option<usize> {
 
 unsafe fn store_current_state() -> Option<usize> {
     unsafe {
-        let mut sp_idx = syn_stack_find_entry(current_lnum);
+        let mut sp_idx = syn_stack_find_entry(syn_st().current_lnum);
 
         let mut i = cur_state_len() - 1;
         while i >= 0 {
             let cur_si = cur_state_at(i);
-            if (*cur_si).si_h_startpos.lnum >= current_lnum
-                || (*cur_si).si_m_endpos.lnum >= current_lnum
-                || (*cur_si).si_h_endpos.lnum >= current_lnum
-                || ((*cur_si).si_end_idx != 0 && (*cur_si).si_eoe_pos.lnum >= current_lnum)
+            if (*cur_si).si_h_startpos.lnum >= syn_st().current_lnum
+                || (*cur_si).si_m_endpos.lnum >= syn_st().current_lnum
+                || (*cur_si).si_h_endpos.lnum >= syn_st().current_lnum
+                || ((*cur_si).si_end_idx != 0 && (*cur_si).si_eoe_pos.lnum >= syn_st().current_lnum)
             {
                 break;
             }
@@ -1272,38 +1323,38 @@ unsafe fn store_current_state() -> Option<usize> {
         }
         if i >= 0 {
             if let Some(idx) = sp_idx {
-                if (*syn_block).b_sst_search == idx {
-                    (*syn_block).b_sst_search = 0;
-                } else if (*syn_block).b_sst_search > idx {
-                    (*syn_block).b_sst_search -= 1;
+                if (*syn_st().syn_block).b_sst_search == idx {
+                    (*syn_st().syn_block).b_sst_search = 0;
+                } else if (*syn_st().syn_block).b_sst_search > idx {
+                    (*syn_st().syn_block).b_sst_search -= 1;
                 }
-                (*syn_block).b_sst_array.remove(idx);
+                (*syn_st().syn_block).b_sst_array.remove(idx);
                 sp_idx = None;
             }
         } else if sp_idx
-            .is_none_or(|idx| (*syn_block).b_sst_array.as_slice()[idx].sst_lnum != current_lnum)
+            .is_none_or(|idx| (*syn_st().syn_block).b_sst_array.as_slice()[idx].sst_lnum != syn_st().current_lnum)
         {
-            if ((*syn_block).b_sst_array.len() as c_int) >= (*syn_block).b_sst_max {
+            if ((*syn_st().syn_block).b_sst_array.len() as c_int) >= (*syn_st().syn_block).b_sst_max {
                 syn_stack_cleanup();
-                sp_idx = syn_stack_find_entry(current_lnum);
+                sp_idx = syn_stack_find_entry(syn_st().current_lnum);
             }
-            if ((*syn_block).b_sst_array.len() as c_int) >= (*syn_block).b_sst_max {
+            if ((*syn_st().syn_block).b_sst_array.len() as c_int) >= (*syn_st().syn_block).b_sst_max {
                 sp_idx = None;
             } else {
                 let insert_idx = sp_idx.map_or(0, |idx| idx + 1);
-                (*syn_block).b_sst_array.insert(
+                (*syn_st().syn_block).b_sst_array.insert(
                     insert_idx,
                     synstate_T {
-                        sst_lnum: current_lnum,
+                        sst_lnum: syn_st().current_lnum,
                         ..synstate_T::default()
                     },
                 );
-                (*syn_block).b_sst_search = insert_idx;
+                (*syn_st().syn_block).b_sst_search = insert_idx;
                 sp_idx = Some(insert_idx);
             }
         }
         if let Some(idx) = sp_idx {
-            let sp = &mut (*syn_block).b_sst_array.as_mut_slice()[idx];
+            let sp = &mut (*syn_st().syn_block).b_sst_array.as_mut_slice()[idx];
             sp.sst_stack.clear();
             let len = cur_state_len();
             sp.sst_stack.reserve(len as usize);
@@ -1317,12 +1368,12 @@ unsafe fn store_current_state() -> Option<usize> {
                     bs_extmatch: (*cur_si).si_extmatch.clone(),
                 });
             }
-            sp.sst_next_flags = current_next_flags;
-            sp.sst_next_list = (&raw const current_next_list).as_ref().unwrap().clone();
+            sp.sst_next_flags = syn_st().current_next_flags;
+            sp.sst_next_list = (&raw const syn_st().current_next_list).as_ref().unwrap().clone();
             sp.sst_tick = display_tick;
             sp.sst_change_lnum = 0;
         }
-        current_state_stored = true;
+        syn_st().current_state_stored = true;
         sp_idx
     }
 }
@@ -1331,10 +1382,10 @@ unsafe fn load_current_state(from: *const synstate_T) {
     unsafe {
         clear_current_state();
         validate_current_state();
-        keepend_level = -1;
+        syn_st().keepend_level = -1;
         let stacksize = (*from).sst_stack.len() as c_int;
         if stacksize != 0 {
-            let cs_ptr = &raw mut current_state;
+            let cs_ptr = &raw mut syn_st().current_state;
             (*cs_ptr).reserve(stacksize as usize);
             for (i, b) in (*from).sst_stack.iter().enumerate() {
                 let i_c = i as c_int;
@@ -1344,13 +1395,13 @@ unsafe fn load_current_state(from: *const synstate_T) {
                 item.si_seqnr = b.bs_seqnr;
                 item.si_cchar = b.bs_cchar;
                 item.si_extmatch = b.bs_extmatch.clone();
-                if keepend_level < 0 && (item.si_flags & HL_KEEPEND) != 0 {
-                    keepend_level = i_c;
+                if syn_st().keepend_level < 0 && (item.si_flags & HL_KEEPEND) != 0 {
+                    syn_st().keepend_level = i_c;
                 }
                 item.si_ends = 0;
                 item.si_m_lnum = 0;
                 if item.si_idx >= 0 {
-                    item.si_next_list = (*syn_items(syn_block).offset(item.si_idx as isize))
+                    item.si_next_list = (*syn_items(syn_st().syn_block).offset(item.si_idx as isize))
                         .sp_next_list
                         .clone();
                 } else {
@@ -1360,9 +1411,9 @@ unsafe fn load_current_state(from: *const synstate_T) {
                 update_si_attr(i_c);
             }
         }
-        current_next_list = (*from).sst_next_list.clone();
-        current_next_flags = (*from).sst_next_flags;
-        current_lnum = (*from).sst_lnum;
+        syn_st().current_next_list = (*from).sst_next_list.clone();
+        syn_st().current_next_flags = (*from).sst_next_flags;
+        syn_st().current_lnum = (*from).sst_lnum;
     }
 }
 
@@ -1371,7 +1422,7 @@ unsafe fn syn_stack_equal(sp: *const synstate_T) -> bool {
         if (*sp).sst_stack.len() as c_int != cur_state_len()
             || !syn_id_list_eq(
                 &(*sp).sst_next_list,
-                (&raw const current_next_list).as_ref().unwrap(),
+                (&raw const syn_st().current_next_list).as_ref().unwrap(),
             )
         {
             return false;
@@ -1404,7 +1455,7 @@ unsafe fn syn_stack_equal(sp: *const synstate_T) -> bool {
                         break;
                     };
                     if mb_strcmp_ic(
-                        (*syn_items(syn_block).offset((*cur_si).si_idx as isize)).sp_ic != 0,
+                        (*syn_items(syn_st().syn_block).offset((*cur_si).si_idx as isize)).sp_ic != 0,
                         bs_m.as_ptr(),
                         si_m.as_ptr(),
                     ) != 0
@@ -1426,18 +1477,18 @@ unsafe fn syn_stack_equal(sp: *const synstate_T) -> bool {
 /// We stop parsing syntax above line "lnum".
 pub unsafe fn syntax_end_parsing(wp: *mut win_T, lnum: linenr_T) {
     unsafe {
-        if syn_block != win_s(wp) {
+        if syn_st().syn_block != win_s(wp) {
             return;
         }
         if let Some(mut sp_idx) = syn_stack_find_entry(lnum) {
-            if (*syn_block).b_sst_array.as_slice()[sp_idx].sst_lnum < lnum {
+            if (*syn_st().syn_block).b_sst_array.as_slice()[sp_idx].sst_lnum < lnum {
                 sp_idx += 1;
             }
 
-            if sp_idx < (*syn_block).b_sst_array.len()
-                && (*syn_block).b_sst_array.as_slice()[sp_idx].sst_change_lnum != 0
+            if sp_idx < (*syn_st().syn_block).b_sst_array.len()
+                && (*syn_st().syn_block).b_sst_array.as_slice()[sp_idx].sst_change_lnum != 0
             {
-                (*syn_block).b_sst_array.as_mut_slice()[sp_idx].sst_change_lnum = lnum;
+                (*syn_st().syn_block).b_sst_array.as_mut_slice()[sp_idx].sst_change_lnum = lnum;
             }
         }
     }
@@ -1446,15 +1497,15 @@ pub unsafe fn syntax_end_parsing(wp: *mut win_T, lnum: linenr_T) {
 unsafe fn invalidate_current_state() {
     unsafe {
         clear_current_state();
-        current_state_valid = false;
-        current_next_list = None;
-        keepend_level = -1;
+        syn_st().current_state_valid = false;
+        syn_st().current_next_list = None;
+        syn_st().keepend_level = -1;
     }
 }
 
 unsafe fn validate_current_state() {
     unsafe {
-        current_state_valid = true;
+        syn_st().current_state_valid = true;
     }
 }
 
@@ -1464,17 +1515,17 @@ pub unsafe fn syntax_check_changed(lnum: linenr_T) -> bool {
         let mut retval = true;
 
         if valid_state()
-            && lnum == current_lnum + 1
+            && lnum == syn_st().current_lnum + 1
             && let Some(sp_idx) = syn_stack_find_entry(lnum)
-            && (*syn_block).b_sst_array.as_slice()[sp_idx].sst_lnum == lnum
+            && (*syn_st().syn_block).b_sst_array.as_slice()[sp_idx].sst_lnum == lnum
         {
             syn_finish_line(false);
 
-            if syn_stack_equal(&(*syn_block).b_sst_array.as_slice()[sp_idx]) {
+            if syn_stack_equal(&(*syn_st().syn_block).b_sst_array.as_slice()[sp_idx]) {
                 retval = false;
             }
 
-            current_lnum += 1;
+            syn_st().current_lnum += 1;
             store_current_state();
         }
 
@@ -1484,27 +1535,27 @@ pub unsafe fn syntax_check_changed(lnum: linenr_T) -> bool {
 
 unsafe fn syn_finish_line(syncing: bool) -> bool {
     unsafe {
-        while !current_finished {
+        while !syn_st().current_finished {
             syn_current_attr(syncing, false, ptr::null_mut(), false);
 
             if syncing && !cur_state_empty() {
                 let cur_si = cur_state_at(cur_state_len() - 1);
                 if (*cur_si).si_idx >= 0
-                    && ((*syn_items(syn_block).offset((*cur_si).si_idx as isize)).sp_flags
+                    && ((*syn_items(syn_st().syn_block).offset((*cur_si).si_idx as isize)).sp_flags
                         & (HL_SYNC_HERE | HL_SYNC_THERE))
                         != 0
                 {
                     return true;
                 }
 
-                let prev_current_col = current_col;
-                if *syn_getcurline().offset(current_col as isize) != NUL {
-                    current_col += 1;
+                let prev_current_col = syn_st().current_col;
+                if *syn_getcurline().offset(syn_st().current_col as isize) != NUL {
+                    syn_st().current_col += 1;
                 }
                 check_state_ends();
-                current_col = prev_current_col;
+                syn_st().current_col = prev_current_col;
             }
-            current_col += 1;
+            syn_st().current_col += 1;
         }
         false
     }
@@ -1516,23 +1567,23 @@ pub unsafe fn get_syntax_attr(col: colnr_T, can_spell: *mut bool, keep_state: bo
         let mut attr: c_int = 0;
 
         if !can_spell.is_null() {
-            *can_spell = if (*syn_block).b_syn_spell == SYNSPL_DEFAULT {
-                (*syn_block).b_spell_cluster_id == 0
+            *can_spell = if (*syn_st().syn_block).b_syn_spell == SYNSPL_DEFAULT {
+                (*syn_st().syn_block).b_spell_cluster_id == 0
             } else {
-                (*syn_block).b_syn_spell == SYNSPL_TOP
+                (*syn_st().syn_block).b_syn_spell == SYNSPL_TOP
             };
         }
 
-        if (*syn_block).b_sst_max == 0 {
+        if (*syn_st().syn_block).b_sst_max == 0 {
             return 0;
         }
 
-        if (*syn_buf).b_p_smc > 0 && col >= (*syn_buf).b_p_smc as colnr_T {
+        if (*syn_st().syn_buf).b_p_smc > 0 && col >= (*syn_st().syn_buf).b_p_smc as colnr_T {
             clear_current_state();
-            current_id = 0;
-            current_trans_id = 0;
-            current_flags = 0;
-            current_seqnr = 0;
+            syn_st().current_id = 0;
+            syn_st().current_trans_id = 0;
+            syn_st().current_flags = 0;
+            syn_st().current_seqnr = 0;
             return 0;
         }
 
@@ -1540,18 +1591,18 @@ pub unsafe fn get_syntax_attr(col: colnr_T, can_spell: *mut bool, keep_state: bo
             validate_current_state();
         }
 
-        while current_col <= col {
+        while syn_st().current_col <= col {
             attr = syn_current_attr(
                 false,
                 true,
                 can_spell,
-                if current_col == col {
+                if syn_st().current_col == col {
                     keep_state
                 } else {
                     false
                 },
             );
-            current_col += 1;
+            syn_st().current_col += 1;
         }
 
         attr
@@ -1589,30 +1640,30 @@ unsafe fn syn_current_attr(
         let mut zero_width_next_ga: Vec<c_int> = Vec::new();
 
         let mut line = syn_getcurline();
-        if *line.offset(current_col as isize) == NUL && current_col != 0 {
-            if next_match_idx >= 0 && next_match_col >= current_col && next_match_col != MAXCOL {
+        if *line.offset(syn_st().current_col as isize) == NUL && syn_st().current_col != 0 {
+            if syn_st().next_match_idx >= 0 && syn_st().next_match_col >= syn_st().current_col && syn_st().next_match_col != MAXCOL {
                 push_next_match();
             }
 
-            current_finished = true;
-            current_state_stored = false;
+            syn_st().current_finished = true;
+            syn_st().current_state_stored = false;
             return 0;
         }
 
-        if *line.offset(current_col as isize) == NUL
-            || *line.offset((current_col + 1) as isize) == NUL
+        if *line.offset(syn_st().current_col as isize) == NUL
+            || *line.offset((syn_st().current_col + 1) as isize) == NUL
         {
-            current_finished = true;
-            current_state_stored = false;
+            syn_st().current_finished = true;
+            syn_st().current_state_stored = false;
         }
 
-        if try_next_column {
-            next_match_idx = -1;
-            try_next_column = false;
+        if syn_st().try_next_column {
+            syn_st().next_match_idx = -1;
+            syn_st().try_next_column = false;
         }
 
         let do_keywords = !syncing
-            && (!(*syn_block).b_keywtab.is_empty() || !(*syn_block).b_keywtab_ic.is_empty());
+            && (!(*syn_st().syn_block).b_keywtab.is_empty() || !(*syn_st().syn_block).b_keywtab_ic.is_empty());
 
         save_chartab(buf_chartab.as_mut_ptr());
 
@@ -1627,25 +1678,25 @@ unsafe fn syn_current_attr(
                 cur_si = ptr::null_mut();
             }
 
-            if (*syn_block).b_syn_containedin != 0
+            if (*syn_st().syn_block).b_syn_containedin != 0
                 || cur_si.is_null()
                 || (*cur_si).si_cont_list.is_some()
             {
                 if do_keywords {
                     line = syn_getcurline();
-                    let cur_pos = line.offset(current_col as isize);
-                    if vim_iswordp_buf(cur_pos, syn_buf)
-                        && (current_col == 0
+                    let cur_pos = line.offset(syn_st().current_col as isize);
+                    if vim_iswordp_buf(cur_pos, syn_st().syn_buf)
+                        && (syn_st().current_col == 0
                             || !vim_iswordp_buf(
                                 cur_pos
                                     .sub(1)
                                     .sub(utf_head_off(line, cur_pos.sub(1)) as usize),
-                                syn_buf,
+                                syn_st().syn_buf,
                             ))
                     {
                         syn_id = check_keyword_id(
                             line,
-                            current_col,
+                            syn_st().current_col,
                             &raw mut endcol,
                             &raw mut flags,
                             &mut next_list,
@@ -1656,18 +1707,18 @@ unsafe fn syn_current_attr(
                             push_current_state(KEYWORD_IDX);
                             let len = cur_state_len();
                             cur_si = cur_state_at(len - 1);
-                            (*cur_si).si_m_startcol = current_col;
-                            (*cur_si).si_h_startpos.lnum = current_lnum;
+                            (*cur_si).si_m_startcol = syn_st().current_col;
+                            (*cur_si).si_h_startpos.lnum = syn_st().current_lnum;
                             (*cur_si).si_h_startpos.col = 0;
-                            (*cur_si).si_m_endpos.lnum = current_lnum;
+                            (*cur_si).si_m_endpos.lnum = syn_st().current_lnum;
                             (*cur_si).si_m_endpos.col = endcol;
-                            (*cur_si).si_h_endpos.lnum = current_lnum;
+                            (*cur_si).si_h_endpos.lnum = syn_st().current_lnum;
                             (*cur_si).si_h_endpos.col = endcol;
                             (*cur_si).si_ends = 1;
                             (*cur_si).si_end_idx = 0;
                             (*cur_si).si_flags = flags;
-                            (*cur_si).si_seqnr = next_seqnr;
-                            next_seqnr += 1;
+                            (*cur_si).si_seqnr = syn_st().next_seqnr;
+                            syn_st().next_seqnr += 1;
                             (*cur_si).si_cchar = cchar;
                             if len > 1 {
                                 (*cur_si).si_flags |=
@@ -1693,14 +1744,14 @@ unsafe fn syn_current_attr(
                     }
                 }
 
-                if syn_id == 0 && !(*syn_block).b_syn_patterns.is_empty() {
-                    if next_match_idx < 0 || next_match_col < current_col {
-                        next_match_idx = 0;
-                        next_match_col = MAXCOL;
-                        let mut idx = (*syn_block).b_syn_patterns.len() as c_int - 1;
+                if syn_id == 0 && !(*syn_st().syn_block).b_syn_patterns.is_empty() {
+                    if syn_st().next_match_idx < 0 || syn_st().next_match_col < syn_st().current_col {
+                        syn_st().next_match_idx = 0;
+                        syn_st().next_match_col = MAXCOL;
+                        let mut idx = (*syn_st().syn_block).b_syn_patterns.len() as c_int - 1;
                         while idx >= 0 {
-                            let spp = syn_items(syn_block).offset(idx as isize);
-                            let cur_next_list = (&raw const current_next_list).as_ref().unwrap();
+                            let spp = syn_items(syn_st().syn_block).offset(idx as isize);
+                            let cur_next_list = (&raw const syn_st().current_next_list).as_ref().unwrap();
                             if (*spp).sp_syncing == syncing
                                 && (displaying || ((*spp).sp_flags & HL_DISPLAY) == 0)
                                 && ((*spp).sp_type == SPTYPE_MATCH
@@ -1723,15 +1774,15 @@ unsafe fn syn_current_attr(
                                     ) != 0
                                 }
                             {
-                                if (*spp).sp_line_id == current_line_id
-                                    && (*spp).sp_startcol >= next_match_col
+                                if (*spp).sp_line_id == syn_st().current_line_id
+                                    && (*spp).sp_startcol >= syn_st().next_match_col
                                 {
                                     idx -= 1;
                                     continue;
                                 }
-                                (*spp).sp_line_id = current_line_id;
+                                (*spp).sp_line_id = syn_st().current_line_id;
 
-                                let mut lc_col = current_col - (*spp).sp_offsets[SPO_LC_OFF];
+                                let mut lc_col = syn_st().current_col - (*spp).sp_offsets[SPO_LC_OFF];
                                 if lc_col < 0 {
                                     lc_col = 0;
                                 }
@@ -1740,7 +1791,7 @@ unsafe fn syn_current_attr(
                                 regmatch.regprog = crate::regexp::regprog_as_ptr(&(*spp).sp_prog);
                                 let r = syn_regexec(
                                     &raw mut regmatch,
-                                    current_lnum,
+                                    syn_st().current_lnum,
                                     lc_col,
                                     &raw mut (*spp).sp_time,
                                 );
@@ -1757,7 +1808,7 @@ unsafe fn syn_current_attr(
                                     SPO_MS_OFF,
                                     -1,
                                 );
-                                if pos.lnum > current_lnum {
+                                if pos.lnum > syn_st().current_lnum {
                                     (*spp).sp_startcol = MAXCOL;
                                     idx -= 1;
                                     continue;
@@ -1765,13 +1816,13 @@ unsafe fn syn_current_attr(
                                 startcol = pos.col;
                                 (*spp).sp_startcol = startcol;
 
-                                if startcol >= next_match_col {
+                                if startcol >= syn_st().next_match_col {
                                     idx -= 1;
                                     continue;
                                 }
 
                                 if did_match_already(idx, &zero_width_next_ga) {
-                                    try_next_column = true;
+                                    syn_st().try_next_column = true;
                                     idx -= 1;
                                     continue;
                                 }
@@ -1835,50 +1886,50 @@ unsafe fn syn_current_attr(
                                         SPO_ME_OFF,
                                         0,
                                     );
-                                    if endpos.lnum == current_lnum
+                                    if endpos.lnum == syn_st().current_lnum
                                         && endpos.col + c_int::from(syncing) < startcol
                                     {
                                         if regmatch.startpos[0].col == regmatch.endpos[0].col {
-                                            try_next_column = true;
+                                            syn_st().try_next_column = true;
                                         }
                                         idx -= 1;
                                         continue;
                                     }
                                 }
 
-                                if hl_startpos.lnum == current_lnum && hl_startpos.col < startcol {
+                                if hl_startpos.lnum == syn_st().current_lnum && hl_startpos.col < startcol {
                                     hl_startpos.col = startcol;
                                 }
                                 limit_pos_zero(&raw mut hl_endpos, &raw mut endpos);
 
-                                next_match_idx = idx;
-                                next_match_col = startcol;
-                                next_match_m_endpos = endpos;
-                                next_match_h_endpos = hl_endpos;
-                                next_match_h_startpos = hl_startpos;
-                                next_match_flags = flags;
-                                next_match_eos_pos = eos_pos;
-                                next_match_eoe_pos = eoe_pos;
-                                next_match_end_idx = end_idx;
-                                next_match_extmatch = cur_extmatch.take();
+                                syn_st().next_match_idx = idx;
+                                syn_st().next_match_col = startcol;
+                                syn_st().next_match_m_endpos = endpos;
+                                syn_st().next_match_h_endpos = hl_endpos;
+                                syn_st().next_match_h_startpos = hl_startpos;
+                                syn_st().next_match_flags = flags;
+                                syn_st().next_match_eos_pos = eos_pos;
+                                syn_st().next_match_eoe_pos = eoe_pos;
+                                syn_st().next_match_end_idx = end_idx;
+                                syn_st().next_match_extmatch = cur_extmatch.take();
                             }
                             idx -= 1;
                         }
                     }
 
-                    if next_match_idx >= 0 && next_match_col == current_col {
-                        let lspp = syn_items(syn_block).offset(next_match_idx as isize);
-                        if next_match_m_endpos.lnum == current_lnum
-                            && next_match_m_endpos.col == current_col
+                    if syn_st().next_match_idx >= 0 && syn_st().next_match_col == syn_st().current_col {
+                        let lspp = syn_items(syn_st().syn_block).offset(syn_st().next_match_idx as isize);
+                        if syn_st().next_match_m_endpos.lnum == syn_st().current_lnum
+                            && syn_st().next_match_m_endpos.col == syn_st().current_col
                             && (*lspp).sp_next_list.is_some()
                         {
-                            current_next_list = (*lspp).sp_next_list.clone();
-                            current_next_flags = (*lspp).sp_flags;
+                            syn_st().current_next_list = (*lspp).sp_next_list.clone();
+                            syn_st().current_next_flags = (*lspp).sp_flags;
                             keep_next_list = true;
                             zero_width_next_list = true;
 
-                            zero_width_next_ga.push(next_match_idx);
-                            next_match_idx = -1;
+                            zero_width_next_ga.push(syn_st().next_match_idx);
+                            syn_st().next_match_idx = -1;
                         } else {
                             cur_si = push_next_match();
                         }
@@ -1887,19 +1938,19 @@ unsafe fn syn_current_attr(
                 }
             }
 
-            if (&raw const current_next_list).as_ref().unwrap().is_some() && !keep_next_list {
+            if (&raw const syn_st().current_next_list).as_ref().unwrap().is_some() && !keep_next_list {
                 if !found_match {
                     line = syn_getcurline();
-                    if ((current_next_flags & HL_SKIPWHITE) != 0
-                        && ascii_iswhite(*line.offset(current_col as isize)))
-                        || ((current_next_flags & HL_SKIPEMPTY) != 0 && *line == NUL)
+                    if ((syn_st().current_next_flags & HL_SKIPWHITE) != 0
+                        && ascii_iswhite(*line.offset(syn_st().current_col as isize)))
+                        || ((syn_st().current_next_flags & HL_SKIPEMPTY) != 0 && *line == NUL)
                     {
                         break;
                     }
                 }
 
-                current_next_list = None;
-                next_match_idx = -1;
+                syn_st().current_next_list = None;
+                syn_st().next_match_idx = -1;
                 if !zero_width_next_list {
                     found_match = true;
                 }
@@ -1912,29 +1963,29 @@ unsafe fn syn_current_attr(
 
         restore_chartab(buf_chartab.as_ptr());
 
-        current_attr = 0;
-        current_id = 0;
-        current_trans_id = 0;
-        current_flags = 0;
-        current_seqnr = 0;
+        syn_st().current_attr = 0;
+        syn_st().current_id = 0;
+        syn_st().current_trans_id = 0;
+        syn_st().current_flags = 0;
+        syn_st().current_seqnr = 0;
         if !cur_si.is_null() {
             let mut idx = cur_state_len() - 1;
             while idx >= 0 {
                 sip = cur_state_at(idx);
-                if (current_lnum > (*sip).si_h_startpos.lnum
-                    || (current_lnum == (*sip).si_h_startpos.lnum
-                        && current_col >= (*sip).si_h_startpos.col))
+                if (syn_st().current_lnum > (*sip).si_h_startpos.lnum
+                    || (syn_st().current_lnum == (*sip).si_h_startpos.lnum
+                        && syn_st().current_col >= (*sip).si_h_startpos.col))
                     && ((*sip).si_h_endpos.lnum == 0
-                        || current_lnum < (*sip).si_h_endpos.lnum
-                        || (current_lnum == (*sip).si_h_endpos.lnum
-                            && current_col < (*sip).si_h_endpos.col))
+                        || syn_st().current_lnum < (*sip).si_h_endpos.lnum
+                        || (syn_st().current_lnum == (*sip).si_h_endpos.lnum
+                            && syn_st().current_col < (*sip).si_h_endpos.col))
                 {
-                    current_attr = (*sip).si_attr;
-                    current_id = (*sip).si_id;
-                    current_trans_id = (*sip).si_trans_id;
-                    current_flags = (*sip).si_flags;
-                    current_seqnr = (*sip).si_seqnr;
-                    current_sub_char = (*sip).si_cchar;
+                    syn_st().current_attr = (*sip).si_attr;
+                    syn_st().current_id = (*sip).si_id;
+                    syn_st().current_trans_id = (*sip).si_trans_id;
+                    syn_st().current_flags = (*sip).si_flags;
+                    syn_st().current_seqnr = (*sip).si_seqnr;
+                    syn_st().current_sub_char = (*sip).si_cchar;
                     break;
                 }
                 idx -= 1;
@@ -1947,21 +1998,21 @@ unsafe fn syn_current_attr(
                     cont_in_list: None,
                 };
 
-                if (*syn_block).b_spell_cluster_id == 0 {
-                    if (*syn_block).b_nospell_cluster_id == 0 || current_trans_id == 0 {
-                        *can_spell = (*syn_block).b_syn_spell != SYNSPL_NOTOP;
+                if (*syn_st().syn_block).b_spell_cluster_id == 0 {
+                    if (*syn_st().syn_block).b_nospell_cluster_id == 0 || syn_st().current_trans_id == 0 {
+                        *can_spell = (*syn_st().syn_block).b_syn_spell != SYNSPL_NOTOP;
                     } else {
-                        sps.id = (*syn_block).b_nospell_cluster_id as i16;
+                        sps.id = (*syn_st().syn_block).b_nospell_cluster_id as i16;
                         *can_spell = in_id_list(sip, &(*sip).si_cont_list, &raw mut sps, 0) == 0;
                     }
-                } else if current_trans_id == 0 {
-                    *can_spell = (*syn_block).b_syn_spell == SYNSPL_TOP;
+                } else if syn_st().current_trans_id == 0 {
+                    *can_spell = (*syn_st().syn_block).b_syn_spell == SYNSPL_TOP;
                 } else {
-                    sps.id = (*syn_block).b_spell_cluster_id as i16;
+                    sps.id = (*syn_st().syn_block).b_spell_cluster_id as i16;
                     *can_spell = in_id_list(sip, &(*sip).si_cont_list, &raw mut sps, 0) != 0;
 
-                    if (*syn_block).b_nospell_cluster_id != 0 {
-                        sps.id = (*syn_block).b_nospell_cluster_id as i16;
+                    if (*syn_st().syn_block).b_nospell_cluster_id != 0 {
+                        sps.id = (*syn_st().syn_block).b_nospell_cluster_id as i16;
                         if in_id_list(sip, &(*sip).si_cont_list, &raw mut sps, 0) != 0 {
                             *can_spell = false;
                         }
@@ -1971,27 +2022,27 @@ unsafe fn syn_current_attr(
 
             if !syncing && !keep_state {
                 check_state_ends();
-                if !cur_state_empty() && *syn_getcurline().offset(current_col as isize) != NUL {
-                    current_col += 1;
+                if !cur_state_empty() && *syn_getcurline().offset(syn_st().current_col as isize) != NUL {
+                    syn_st().current_col += 1;
                     check_state_ends();
-                    current_col -= 1;
+                    syn_st().current_col -= 1;
                 }
             }
         } else if !can_spell.is_null() {
-            *can_spell = if (*syn_block).b_syn_spell == SYNSPL_DEFAULT {
-                (*syn_block).b_spell_cluster_id == 0
+            *can_spell = if (*syn_st().syn_block).b_syn_spell == SYNSPL_DEFAULT {
+                (*syn_st().syn_block).b_spell_cluster_id == 0
             } else {
-                (*syn_block).b_syn_spell == SYNSPL_TOP
+                (*syn_st().syn_block).b_syn_spell == SYNSPL_TOP
             };
         }
 
-        if (&raw const current_next_list).as_ref().unwrap().is_some() {
+        if (&raw const syn_st().current_next_list).as_ref().unwrap().is_some() {
             line = syn_getcurline();
-            if *line.offset(current_col as isize) != NUL
-                && *line.offset((current_col + 1) as isize) == NUL
-                && (current_next_flags & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
+            if *line.offset(syn_st().current_col as isize) != NUL
+                && *line.offset((syn_st().current_col + 1) as isize) == NUL
+                && (syn_st().current_next_flags & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
             {
-                current_next_list = None;
+                syn_st().current_next_list = None;
             }
         }
 
@@ -2000,7 +2051,7 @@ unsafe fn syn_current_attr(
         re_extmatch_out = None;
         drop(cur_extmatch);
 
-        current_attr
+        syn_st().current_attr
     }
 }
 
@@ -2009,8 +2060,8 @@ unsafe fn did_match_already(idx: c_int, gap: &[c_int]) -> bool {
         let mut i = cur_state_len() - 1;
         while i >= 0 {
             let cur_si = cur_state_at(i);
-            if (*cur_si).si_m_startcol == current_col
-                && (*cur_si).si_m_lnum == current_lnum
+            if (*cur_si).si_m_startcol == syn_st().current_col
+                && (*cur_si).si_m_lnum == syn_st().current_lnum
                 && (*cur_si).si_idx == idx
             {
                 return true;
@@ -2024,56 +2075,56 @@ unsafe fn did_match_already(idx: c_int, gap: &[c_int]) -> bool {
 
 unsafe fn push_next_match() -> *mut stateitem_T {
     unsafe {
-        let spp = syn_items(syn_block).offset(next_match_idx as isize);
+        let spp = syn_items(syn_st().syn_block).offset(syn_st().next_match_idx as isize);
 
-        push_current_state(next_match_idx);
+        push_current_state(syn_st().next_match_idx);
         let len = cur_state_len();
         let mut cur_si = cur_state_at(len - 1);
-        (*cur_si).si_h_startpos = next_match_h_startpos;
-        (*cur_si).si_m_startcol = current_col;
-        (*cur_si).si_m_lnum = current_lnum;
+        (*cur_si).si_h_startpos = syn_st().next_match_h_startpos;
+        (*cur_si).si_m_startcol = syn_st().current_col;
+        (*cur_si).si_m_lnum = syn_st().current_lnum;
         (*cur_si).si_flags = (*spp).sp_flags;
-        (*cur_si).si_seqnr = next_seqnr;
-        next_seqnr += 1;
+        (*cur_si).si_seqnr = syn_st().next_seqnr;
+        syn_st().next_seqnr += 1;
         (*cur_si).si_cchar = (*spp).sp_cchar;
         if len > 1 {
             (*cur_si).si_flags |= (*cur_state_at(len - 2)).si_flags & HL_CONCEAL;
         }
         (*cur_si).si_next_list = (*spp).sp_next_list.clone();
-        let next_ext = &raw const next_match_extmatch;
+        let next_ext = &raw const syn_st().next_match_extmatch;
         (*cur_si).si_extmatch = (*next_ext).clone();
         if (*spp).sp_type == SPTYPE_START && ((*spp).sp_flags & HL_ONELINE) == 0 {
-            update_si_end(cur_si, next_match_m_endpos.col, true);
+            update_si_end(cur_si, syn_st().next_match_m_endpos.col, true);
             check_keepend();
         } else {
-            (*cur_si).si_m_endpos = next_match_m_endpos;
-            (*cur_si).si_h_endpos = next_match_h_endpos;
+            (*cur_si).si_m_endpos = syn_st().next_match_m_endpos;
+            (*cur_si).si_h_endpos = syn_st().next_match_h_endpos;
             (*cur_si).si_ends = 1;
-            (*cur_si).si_flags |= next_match_flags;
-            (*cur_si).si_eoe_pos = next_match_eoe_pos;
-            (*cur_si).si_end_idx = next_match_end_idx;
+            (*cur_si).si_flags |= syn_st().next_match_flags;
+            (*cur_si).si_eoe_pos = syn_st().next_match_eoe_pos;
+            (*cur_si).si_end_idx = syn_st().next_match_end_idx;
         }
-        if keepend_level < 0 && ((*cur_si).si_flags & HL_KEEPEND) != 0 {
-            keepend_level = len - 1;
+        if syn_st().keepend_level < 0 && ((*cur_si).si_flags & HL_KEEPEND) != 0 {
+            syn_st().keepend_level = len - 1;
         }
         check_keepend();
         update_si_attr(len - 1);
 
         let save_flags = (*cur_si).si_flags & (HL_CONCEAL | HL_CONCEALENDS);
         if (*spp).sp_type == SPTYPE_START && (*spp).sp_syn_match_id != 0 {
-            push_current_state(next_match_idx);
+            push_current_state(syn_st().next_match_idx);
             let len2 = cur_state_len();
             cur_si = cur_state_at(len2 - 1);
-            (*cur_si).si_h_startpos = next_match_h_startpos;
-            (*cur_si).si_m_startcol = current_col;
-            (*cur_si).si_m_lnum = current_lnum;
-            (*cur_si).si_m_endpos = next_match_eos_pos;
-            (*cur_si).si_h_endpos = next_match_eos_pos;
+            (*cur_si).si_h_startpos = syn_st().next_match_h_startpos;
+            (*cur_si).si_m_startcol = syn_st().current_col;
+            (*cur_si).si_m_lnum = syn_st().current_lnum;
+            (*cur_si).si_m_endpos = syn_st().next_match_eos_pos;
+            (*cur_si).si_h_endpos = syn_st().next_match_eos_pos;
             (*cur_si).si_ends = 1;
             (*cur_si).si_end_idx = 0;
             (*cur_si).si_flags = HL_MATCH;
-            (*cur_si).si_seqnr = next_seqnr;
-            next_seqnr += 1;
+            (*cur_si).si_seqnr = syn_st().next_seqnr;
+            syn_st().next_seqnr += 1;
             (*cur_si).si_flags |= save_flags;
             if ((*cur_si).si_flags & HL_CONCEALENDS) != 0 {
                 (*cur_si).si_flags |= HL_CONCEAL;
@@ -2083,7 +2134,7 @@ unsafe fn push_next_match() -> *mut stateitem_T {
             update_si_attr(len2 - 1);
         }
 
-        next_match_idx = -1;
+        syn_st().next_match_idx = -1;
         cur_si
     }
 }
@@ -2093,39 +2144,39 @@ unsafe fn check_state_ends() {
         let mut cur_si = cur_state_at(cur_state_len() - 1);
         loop {
             if (*cur_si).si_ends != 0
-                && ((*cur_si).si_m_endpos.lnum < current_lnum
-                    || ((*cur_si).si_m_endpos.lnum == current_lnum
-                        && (*cur_si).si_m_endpos.col <= current_col))
+                && ((*cur_si).si_m_endpos.lnum < syn_st().current_lnum
+                    || ((*cur_si).si_m_endpos.lnum == syn_st().current_lnum
+                        && (*cur_si).si_m_endpos.col <= syn_st().current_col))
             {
                 if (*cur_si).si_end_idx != 0
-                    && ((*cur_si).si_eoe_pos.lnum > current_lnum
-                        || ((*cur_si).si_eoe_pos.lnum == current_lnum
-                            && (*cur_si).si_eoe_pos.col > current_col))
+                    && ((*cur_si).si_eoe_pos.lnum > syn_st().current_lnum
+                        || ((*cur_si).si_eoe_pos.lnum == syn_st().current_lnum
+                            && (*cur_si).si_eoe_pos.col > syn_st().current_col))
                 {
                     (*cur_si).si_idx = (*cur_si).si_end_idx;
                     (*cur_si).si_end_idx = 0;
                     (*cur_si).si_m_endpos = (*cur_si).si_eoe_pos;
                     (*cur_si).si_h_endpos = (*cur_si).si_eoe_pos;
                     (*cur_si).si_flags |= HL_MATCH;
-                    (*cur_si).si_seqnr = next_seqnr;
-                    next_seqnr += 1;
+                    (*cur_si).si_seqnr = syn_st().next_seqnr;
+                    syn_st().next_seqnr += 1;
                     if ((*cur_si).si_flags & HL_CONCEALENDS) != 0 {
                         (*cur_si).si_flags |= HL_CONCEAL;
                     }
                     update_si_attr(cur_state_len() - 1);
 
-                    current_next_list = None;
-                    next_match_idx = 0;
-                    next_match_col = MAXCOL;
+                    syn_st().current_next_list = None;
+                    syn_st().next_match_idx = 0;
+                    syn_st().next_match_col = MAXCOL;
                     break;
                 }
 
-                current_next_list = (*cur_si).si_next_list.clone();
-                current_next_flags = (*cur_si).si_flags;
-                if (current_next_flags & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
-                    && *syn_getcurline().offset(current_col as isize) == NUL
+                syn_st().current_next_list = (*cur_si).si_next_list.clone();
+                syn_st().current_next_flags = (*cur_si).si_flags;
+                if (syn_st().current_next_flags & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
+                    && *syn_getcurline().offset(syn_st().current_col as isize) == NUL
                 {
-                    current_next_list = None;
+                    syn_st().current_next_list = None;
                 }
 
                 let had_extend = ((*cur_si).si_flags & HL_EXTEND) != 0;
@@ -2136,7 +2187,7 @@ unsafe fn check_state_ends() {
                     break;
                 }
 
-                if had_extend && keepend_level >= 0 {
+                if had_extend && syn_st().keepend_level >= 0 {
                     syn_update_ends(false);
                     if cur_state_empty() {
                         break;
@@ -2146,15 +2197,15 @@ unsafe fn check_state_ends() {
                 cur_si = cur_state_at(cur_state_len() - 1);
 
                 if (*cur_si).si_idx >= 0
-                    && (*syn_items(syn_block).offset((*cur_si).si_idx as isize)).sp_type
+                    && (*syn_items(syn_st().syn_block).offset((*cur_si).si_idx as isize)).sp_type
                         == SPTYPE_START
                     && ((*cur_si).si_flags & (HL_MATCH | HL_KEEPEND)) == 0
                 {
-                    update_si_end(cur_si, current_col, true);
+                    update_si_end(cur_si, syn_st().current_col, true);
                     check_keepend();
-                    if (current_next_flags & HL_HAS_EOL) != 0
-                        && keepend_level < 0
-                        && *syn_getcurline().offset(current_col as isize) == NUL
+                    if (syn_st().current_next_flags & HL_HAS_EOL) != 0
+                        && syn_st().keepend_level < 0
+                        && *syn_getcurline().offset(syn_st().current_col as isize) == NUL
                     {
                         break;
                     }
@@ -2173,7 +2224,7 @@ unsafe fn update_si_attr(idx: c_int) {
             return;
         }
 
-        let spp = syn_items(syn_block).offset((*sip).si_idx as isize);
+        let spp = syn_items(syn_st().syn_block).offset((*sip).si_idx as isize);
         if ((*sip).si_flags & HL_MATCH) != 0 {
             (*sip).si_id = (*spp).sp_syn_match_id as c_int;
         } else {
@@ -2209,13 +2260,13 @@ unsafe fn update_si_attr(idx: c_int) {
 
 unsafe fn check_keepend() {
     unsafe {
-        if keepend_level < 0 {
+        if syn_st().keepend_level < 0 {
             return;
         }
 
         let len = cur_state_len();
         let mut i = len - 1;
-        while i > keepend_level {
+        while i > syn_st().keepend_level {
             if ((*cur_state_at(i)).si_flags & HL_EXTEND) != 0 {
                 break;
             }
@@ -2259,13 +2310,13 @@ unsafe fn update_si_end(sip: *mut stateitem_T, startcol: c_int, force: bool) {
             return;
         }
 
-        if !force && (*sip).si_m_endpos.lnum >= current_lnum {
+        if !force && (*sip).si_m_endpos.lnum >= syn_st().current_lnum {
             return;
         }
 
         let mut end_idx: c_int = 0;
         let mut startpos = lpos_T {
-            lnum: current_lnum,
+            lnum: syn_st().current_lnum,
             col: startcol,
         };
         let mut endpos = lpos_T { lnum: 0, col: 0 };
@@ -2284,9 +2335,9 @@ unsafe fn update_si_end(sip: *mut stateitem_T, startcol: c_int, force: bool) {
         );
 
         if endpos.lnum == 0 {
-            if ((*syn_items(syn_block).offset((*sip).si_idx as isize)).sp_flags & HL_ONELINE) != 0 {
+            if ((*syn_items(syn_st().syn_block).offset((*sip).si_idx as isize)).sp_flags & HL_ONELINE) != 0 {
                 (*sip).si_ends = 1;
-                (*sip).si_m_endpos.lnum = current_lnum;
+                (*sip).si_m_endpos.lnum = syn_st().current_lnum;
                 (*sip).si_m_endpos.col = syn_getcurline_len();
             } else {
                 (*sip).si_ends = 0;
@@ -2307,19 +2358,19 @@ unsafe fn push_current_state(idx: c_int) {
     unsafe {
         let mut item = stateitem_T::new();
         item.si_idx = idx;
-        let cs_ptr = &raw mut current_state;
+        let cs_ptr = &raw mut syn_st().current_state;
         (*cs_ptr).push(item);
     }
 }
 
 unsafe fn pop_current_state() {
     unsafe {
-        let cs_ptr = &raw mut current_state;
+        let cs_ptr = &raw mut syn_st().current_state;
         let _ = (*cs_ptr).pop();
-        next_match_idx = -1;
+        syn_st().next_match_idx = -1;
 
-        if keepend_level >= (*cs_ptr).len() as c_int {
-            keepend_level = -1;
+        if syn_st().keepend_level >= (*cs_ptr).len() as c_int {
+            syn_st().keepend_level = -1;
         }
     }
 }
@@ -2339,14 +2390,14 @@ unsafe fn find_endpos(
             return;
         }
 
-        let mut spp = syn_items(syn_block).offset(idx as isize);
+        let mut spp = syn_items(syn_st().syn_block).offset(idx as isize);
         if (*spp).sp_type != SPTYPE_START {
             *hl_endpos = *startpos;
             return;
         }
 
         loop {
-            spp = syn_items(syn_block).offset(idx as isize);
+            spp = syn_items(syn_st().syn_block).offset(idx as isize);
             if (*spp).sp_type != SPTYPE_START {
                 break;
             }
@@ -2375,9 +2426,9 @@ unsafe fn find_endpos(
         loop {
             let mut best_idx: c_int = -1;
             idx = start_idx;
-            while (idx as usize) < (*syn_block).b_syn_patterns.len() {
+            while (idx as usize) < (*syn_st().syn_block).b_syn_patterns.len() {
                 let mut lc_col = matchcol;
-                spp = syn_items(syn_block).offset(idx as isize);
+                spp = syn_items(syn_st().syn_block).offset(idx as isize);
                 if (*spp).sp_type != SPTYPE_END {
                     break;
                 }
@@ -2427,7 +2478,7 @@ unsafe fn find_endpos(
                         break;
                     }
 
-                    let line_len = ml_get_buf_len(syn_buf, (*startpos).lnum);
+                    let line_len = ml_get_buf_len(syn_st().syn_buf, (*startpos).lnum);
 
                     if pos.col <= matchcol {
                         matchcol += 1;
@@ -2448,7 +2499,7 @@ unsafe fn find_endpos(
                 }
             }
 
-            spp = syn_items(syn_block).offset(best_idx as isize);
+            spp = syn_items(syn_st().syn_block).offset(best_idx as isize);
             syn_add_end_off(m_endpos, &raw mut best_regmatch, spp, SPO_ME_OFF, 1);
             if (*m_endpos).lnum == (*startpos).lnum && (*m_endpos).col < (*startpos).col {
                 (*m_endpos).col = (*startpos).col;
@@ -2538,10 +2589,10 @@ unsafe fn syn_add_end_off(
             off = (*spp).sp_offsets[idx];
         }
 
-        if (*result).lnum > (*syn_buf).b_ml.ml_line_count {
+        if (*result).lnum > (*syn_st().syn_buf).b_ml.ml_line_count {
             col = 0;
         } else if off != 0 {
-            let base = ml_get_buf(syn_buf, (*result).lnum);
+            let base = ml_get_buf(syn_st().syn_buf, (*result).lnum);
             let mut p = base.offset(col as isize);
             if off > 0 {
                 while off > 0 && *p != NUL {
@@ -2580,12 +2631,12 @@ unsafe fn syn_add_start_off(
             col = (*regmatch).startpos[0].col;
             off = (*spp).sp_offsets[idx];
         }
-        if (*result).lnum > (*syn_buf).b_ml.ml_line_count {
-            (*result).lnum = (*syn_buf).b_ml.ml_line_count;
-            col = ml_get_buf_len(syn_buf, (*result).lnum);
+        if (*result).lnum > (*syn_st().syn_buf).b_ml.ml_line_count {
+            (*result).lnum = (*syn_st().syn_buf).b_ml.ml_line_count;
+            col = ml_get_buf_len(syn_st().syn_buf, (*result).lnum);
         }
         if off != 0 {
-            let base = ml_get_buf(syn_buf, (*result).lnum);
+            let base = ml_get_buf(syn_st().syn_buf, (*result).lnum);
             let mut p = base.offset(col as isize);
             if off > 0 {
                 while off > 0 && *p != NUL {
@@ -2606,12 +2657,12 @@ unsafe fn syn_add_start_off(
 
 #[inline]
 unsafe fn syn_getcurline() -> *mut c_char {
-    unsafe { ml_get_buf(syn_buf, current_lnum) }
+    unsafe { ml_get_buf(syn_st().syn_buf, syn_st().current_lnum) }
 }
 
 #[inline]
 unsafe fn syn_getcurline_len() -> colnr_T {
-    unsafe { ml_get_buf_len(syn_buf, current_lnum) }
+    unsafe { ml_get_buf_len(syn_st().syn_buf, syn_st().current_lnum) }
 }
 
 unsafe fn syn_regexec(
@@ -2623,7 +2674,7 @@ unsafe fn syn_regexec(
     unsafe {
         let mut timed_out: c_int = 0;
         let mut pt: proftime_T = 0;
-        let l_syn_time_on = syn_time_on;
+        let l_syn_time_on = syn_st().syn_time_on;
 
         if l_syn_time_on {
             pt = profile_start();
@@ -2633,8 +2684,8 @@ unsafe fn syn_regexec(
             return false;
         }
 
-        (*rmp).rmm_maxcol = (*syn_buf).b_p_smc as colnr_T;
-        let r = vim_regexec_multi(rmp, syn_win, syn_buf, lnum, col, syn_tm, &raw mut timed_out);
+        (*rmp).rmm_maxcol = (*syn_st().syn_buf).b_p_smc as colnr_T;
+        let r = vim_regexec_multi(rmp, syn_st().syn_win, syn_st().syn_buf, lnum, col, syn_st().syn_tm, &raw mut timed_out);
 
         if l_syn_time_on {
             pt = profile_end(pt);
@@ -2647,8 +2698,8 @@ unsafe fn syn_regexec(
                 (*st).match_ += 1;
             }
         }
-        if timed_out != 0 && !(*win_s(syn_win)).b_syn_slow {
-            (*win_s(syn_win)).b_syn_slow = true;
+        if timed_out != 0 && !(*win_s(syn_st().syn_win)).b_syn_slow {
+            (*win_s(syn_st().syn_win)).b_syn_slow = true;
             msg(
                 gettext(c"'redrawtime' exceeded, syntax highlighting disabled".as_ptr()),
                 0,
@@ -2678,7 +2729,7 @@ unsafe fn check_keyword_id(
         let mut kwlen: c_int = 0;
         loop {
             kwlen += utfc_ptr2len(kwp.offset(kwlen as isize));
-            if !vim_iswordp_buf(kwp.offset(kwlen as isize), syn_buf) {
+            if !vim_iswordp_buf(kwp.offset(kwlen as isize), syn_st().syn_buf) {
                 break;
             }
         }
@@ -2692,13 +2743,13 @@ unsafe fn check_keyword_id(
 
         let mut kp: *const keyentry_T = ptr::null();
 
-        if !(*syn_block).b_keywtab.is_empty() {
-            kp = match_keyword(keyword.as_mut_ptr(), &(*syn_block).b_keywtab, cur_si);
+        if !(*syn_st().syn_block).b_keywtab.is_empty() {
+            kp = match_keyword(keyword.as_mut_ptr(), &(*syn_st().syn_block).b_keywtab, cur_si);
         }
 
-        if kp.is_null() && !(*syn_block).b_keywtab_ic.is_empty() {
+        if kp.is_null() && !(*syn_st().syn_block).b_keywtab_ic.is_empty() {
             str_foldcase(kwp, kwlen, keyword.as_mut_ptr(), (MAXKEYWLEN + 1) as c_int);
-            kp = match_keyword(keyword.as_mut_ptr(), &(*syn_block).b_keywtab_ic, cur_si);
+            kp = match_keyword(keyword.as_mut_ptr(), &(*syn_st().syn_block).b_keywtab_ic, cur_si);
         }
 
         if !kp.is_null() {
@@ -2721,7 +2772,7 @@ unsafe fn match_keyword(
     unsafe {
         let key_bytes = std::ffi::CStr::from_ptr(keyword).to_bytes();
         if let Some(entries) = ht.get(key_bytes) {
-            let cur_next_list = (&raw const current_next_list).as_ref().unwrap();
+            let cur_next_list = (&raw const syn_st().current_next_list).as_ref().unwrap();
             for kp in entries {
                 let mut k_syn = kp.k_syn.clone();
                 if if cur_next_list.is_some() {
@@ -2929,7 +2980,7 @@ pub unsafe fn syntax_clear(block: *mut synblock_T) {
         syn_stack_free_all(block);
         invalidate_current_state();
 
-        running_syn_inc_tag = 0;
+        syn_st().running_syn_inc_tag = 0;
     }
 }
 
@@ -3081,7 +3132,7 @@ unsafe fn syn_cmd_onoff(eap: *mut exarg_T, name: *const c_char) {
     unsafe {
         (*eap).nextcmd = check_nextcmd((*eap).arg);
         if (*eap).skip == 0 {
-            did_syntax_onoff = true;
+            syn_st().did_syntax_onoff = true;
             let mut buf = [0 as c_char; 100];
             ptr::copy_nonoverlapping(c"so ".as_ptr(), buf.as_mut_ptr(), 4);
             vim_snprintf!(buf.as_mut_ptr().add(3), 100 - 3, SYNTAX_FNAME, name);
@@ -3092,7 +3143,7 @@ unsafe fn syn_cmd_onoff(eap: *mut exarg_T, name: *const c_char) {
 
 pub unsafe fn syn_maybe_enable() {
     unsafe {
-        if !did_syntax_onoff {
+        if !syn_st().did_syntax_onoff {
             let mut ea: exarg_T = exarg_T::new();
             ea.arg = c"".as_ptr().cast_mut();
             ea.skip = 0;
@@ -3259,7 +3310,7 @@ unsafe fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
 
             syn_list_header(did_header, 0, id, true);
             did_header = true;
-            last_matchgroup = 0;
+            syn_st().last_matchgroup = 0;
             if (*spp).sp_type == SPTYPE_MATCH {
                 put_pattern(c"match".as_ptr(), b' ' as c_int, spp, hl_id);
                 msg_putchar(b' ' as c_int);
@@ -3419,14 +3470,14 @@ unsafe fn put_pattern(s: *const c_char, c: c_int, spp: *const synpat_T, hl_id: c
     unsafe {
         const SEPCHARS: &[u8] = b"/+=-#@\"|'^&\0";
 
-        if last_matchgroup != (*spp).sp_syn_match_id as c_int {
-            last_matchgroup = (*spp).sp_syn_match_id as c_int;
+        if syn_st().last_matchgroup != (*spp).sp_syn_match_id as c_int {
+            syn_st().last_matchgroup = (*spp).sp_syn_match_id as c_int;
             msg_puts_hl(c"matchgroup".as_ptr(), hl_id, false);
             msg_putchar(b'=' as c_int);
-            if last_matchgroup == 0 {
+            if syn_st().last_matchgroup == 0 {
                 msg_outtrans(c"NONE".as_ptr(), 0, false);
             } else {
-                msg_outtrans(highlight_group_name(last_matchgroup - 1), 0, false);
+                msg_outtrans(highlight_group_name(syn_st().last_matchgroup - 1), 0, false);
             }
             msg_putchar(b' ' as c_int);
         }
@@ -3613,7 +3664,7 @@ unsafe fn add_keyword(
         }
         let kp = keyentry_T {
             k_syn: sp_syn {
-                inc_tag: current_syn_inc_tag,
+                inc_tag: syn_st().current_syn_inc_tag,
                 id: id as i16,
                 cont_in_list: cont_in_list.clone(),
             },
@@ -3860,13 +3911,13 @@ unsafe fn syn_cmd_include(eap: *mut exarg_T, _syncing: c_int) {
             path_to_slash((*eap).arg);
         }
 
-        if running_syn_inc_tag >= MAX_SYN_INC_TAG {
+        if syn_st().running_syn_inc_tag >= MAX_SYN_INC_TAG {
             emsg(gettext(c"E847: Too many syntax includes".as_ptr()));
             return;
         }
-        let prev_syn_inc_tag = current_syn_inc_tag;
-        running_syn_inc_tag += 1;
-        current_syn_inc_tag = running_syn_inc_tag;
+        let prev_syn_inc_tag = syn_st().current_syn_inc_tag;
+        syn_st().running_syn_inc_tag += 1;
+        syn_st().current_syn_inc_tag = syn_st().running_syn_inc_tag;
         let prev_toplvl_grp = (*win_s(curwin)).b_syn_topgrp;
         (*win_s(curwin)).b_syn_topgrp = sgl_id;
         let res = if source {
@@ -3878,7 +3929,7 @@ unsafe fn syn_cmd_include(eap: *mut exarg_T, _syncing: c_int) {
             semsg!(gettext((&raw const e_notopen).cast()), (*eap).arg);
         }
         (*win_s(curwin)).b_syn_topgrp = prev_toplvl_grp;
-        current_syn_inc_tag = prev_syn_inc_tag;
+        syn_st().current_syn_inc_tag = prev_syn_inc_tag;
     }
 }
 
@@ -4048,7 +4099,7 @@ unsafe fn syn_cmd_match(eap: *mut exarg_T, syncing: c_int) {
                     item.sp_syncing = syncing != 0;
                     item.sp_type = SPTYPE_MATCH;
                     item.sp_syn.id = syn_id as i16;
-                    item.sp_syn.inc_tag = current_syn_inc_tag;
+                    item.sp_syn.inc_tag = syn_st().current_syn_inc_tag;
                     item.sp_flags = syn_opt_arg.flags;
                     item.sp_sync_idx = syn_opt_arg.sync_idx.unwrap_or(0);
                     item.sp_cont_list = syn_opt_arg.cont_list.take();
@@ -4228,7 +4279,7 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
                             };
                             pat.sp_flags |= syn_opt_arg.flags;
                             pat.sp_syn.id = syn_id as i16;
-                            pat.sp_syn.inc_tag = current_syn_inc_tag;
+                            pat.sp_syn.inc_tag = syn_st().current_syn_inc_tag;
                             pat.sp_syn_match_id = ppp.pp_matchgroup_id as i16;
                             pat.sp_cchar = conceal_char;
                             if item == ITEM_START {
@@ -4735,7 +4786,7 @@ unsafe fn get_id_list(
                     } else {
                         SYNID_CONTAINED as c_int
                     };
-                    id += current_syn_inc_tag;
+                    id += syn_st().current_syn_inc_tag;
                 } else if *name.add(1) == b'@' as c_char {
                     if skip {
                         id = -1;
@@ -4837,7 +4888,7 @@ unsafe fn idl_collect(list: &[i16], ga: &mut Vec<i16>, seen: &mut Vec<i16>) -> b
                     seen.push(item);
                     ga.push(item);
 
-                    let scl = &(*syn_clstr(syn_block).offset((item - SYNID_CLUSTER) as isize));
+                    let scl = &(*syn_clstr(syn_st().syn_block).offset((item - SYNID_CLUSTER) as isize));
                     if !scl.scl_list.as_ref().is_some_and(|rc| !rc.is_empty())
                         || !idl_collect(scl.scl_list.as_deref().unwrap(), ga, seen)
                     {
@@ -4854,7 +4905,7 @@ unsafe fn idl_collect(list: &[i16], ga: &mut Vec<i16>, seen: &mut Vec<i16>) -> b
 
 unsafe fn idl_get_entry(list: &SynIdList) -> *mut idl_entry_T {
     unsafe {
-        let cache = (*syn_block)
+        let cache = (*syn_st().syn_block)
             .b_idlist_cache
             .get_or_insert_with(|| Box::new(idl_cache_T::default()));
         let last = cache.last as usize;
@@ -4926,7 +4977,7 @@ unsafe fn in_id_list(
                 cur_si = cur_si.sub(1);
             }
             if (*cur_si).si_idx >= 0 {
-                let c_spp = syn_items(syn_block).offset((*cur_si).si_idx as isize);
+                let c_spp = syn_items(syn_st().syn_block).offset((*cur_si).si_idx as isize);
                 if in_id_list(
                     ptr::null_mut(),
                     &(*ssp).cont_in_list,
@@ -5000,11 +5051,11 @@ unsafe fn in_id_list(
             }
             if item >= SYNID_CLUSTER {
                 let scl_list =
-                    &(*syn_clstr(syn_block).offset((item - SYNID_CLUSTER) as isize)).scl_list;
-                if scl_list.is_some() && in_id_list_depth < 30 {
-                    in_id_list_depth += 1;
+                    &(*syn_clstr(syn_st().syn_block).offset((item - SYNID_CLUSTER) as isize)).scl_list;
+                if scl_list.is_some() && syn_st().in_id_list_depth < 30 {
+                    syn_st().in_id_list_depth += 1;
                     let r = in_id_list(ptr::null_mut(), scl_list, ssp, flags);
-                    in_id_list_depth -= 1;
+                    syn_st().in_id_list_depth -= 1;
                     if r != 0 {
                         return c_int::from(retval);
                     }
@@ -5142,7 +5193,7 @@ pub unsafe fn set_context_in_echohl_cmd(xp: *mut expand_T, arg: *const c_char) {
 pub unsafe fn set_context_in_syntax_cmd(xp: *mut expand_T, arg: *const c_char) {
     unsafe {
         (*xp).xp_context = EXPAND_SYNTAX;
-        expand_what = EXP_SUBCMD;
+        syn_st().expand_what = EXP_SUBCMD;
         (*xp).xp_pattern = arg.cast_mut();
         include_link = 0;
         include_default = 0;
@@ -5162,15 +5213,15 @@ pub unsafe fn set_context_in_syntax_cmd(xp: *mut expand_T, arg: *const c_char) {
         } else {
             let n = p.offset_from(arg) as usize;
             if vim_strnicmp(arg, c"case".as_ptr(), n) == 0 {
-                expand_what = EXP_CASE;
+                syn_st().expand_what = EXP_CASE;
             } else if vim_strnicmp(arg, c"spell".as_ptr(), n) == 0 {
-                expand_what = EXP_SPELL;
+                syn_st().expand_what = EXP_SPELL;
             } else if vim_strnicmp(arg, c"sync".as_ptr(), n) == 0 {
-                expand_what = EXP_SYNC;
+                syn_st().expand_what = EXP_SYNC;
             } else if vim_strnicmp(arg, c"list".as_ptr(), n) == 0 {
                 let p2 = skipwhite(p);
                 if *p2 == b'@' as c_char {
-                    expand_what = EXP_CLUSTER;
+                    syn_st().expand_what = EXP_CLUSTER;
                 } else {
                     (*xp).xp_context = EXPAND_HIGHLIGHT;
                 }
@@ -5192,7 +5243,7 @@ pub unsafe fn get_syntax_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
             return ptr::null_mut();
         }
         let u = idx as usize;
-        match expand_what {
+        match syn_st().expand_what {
             EXP_SUBCMD => {
                 if u >= SUBCOMMANDS.len() {
                     ptr::null_mut()
@@ -5273,38 +5324,38 @@ pub unsafe fn syn_get_id(
     keep_state: c_int,
 ) -> c_int {
     unsafe {
-        if wp != syn_win || (*wp).w_buffer != syn_buf || lnum != current_lnum || col < current_col {
+        if wp != syn_st().syn_win || (*wp).w_buffer != syn_st().syn_buf || lnum != syn_st().current_lnum || col < syn_st().current_col {
             syntax_start(wp, lnum);
-        } else if col > current_col {
-            next_match_idx = -1;
+        } else if col > syn_st().current_col {
+            syn_st().next_match_idx = -1;
         }
 
         get_syntax_attr(col, spellp, keep_state != 0);
 
         if trans != 0 {
-            current_trans_id
+            syn_st().current_trans_id
         } else {
-            current_id
+            syn_st().current_id
         }
     }
 }
 
 pub unsafe fn get_syntax_info(seqnrp: *mut c_int) -> c_int {
     unsafe {
-        *seqnrp = current_seqnr;
-        current_flags
+        *seqnrp = syn_st().current_seqnr;
+        syn_st().current_flags
     }
 }
 
 pub unsafe fn syn_get_sub_char() -> c_int {
-    unsafe { current_sub_char }
+    unsafe { syn_st().current_sub_char }
 }
 
 pub unsafe fn syn_get_stack_item(i: c_int) -> c_int {
     unsafe {
         if i >= cur_state_len() {
             invalidate_current_state();
-            current_col = MAXCOL;
+            syn_st().current_col = MAXCOL;
             return -1;
         }
         (*cur_state_at(i)).si_id
@@ -5338,7 +5389,7 @@ pub unsafe fn syn_get_foldlevel(wp: *mut win_T, lnum: linenr_T) -> c_int {
             if (*win_s(wp)).b_syn_foldlevel == SYNFLD_MINIMUM {
                 let mut cur_level = level;
                 let mut low_level = cur_level;
-                while !current_finished {
+                while !syn_st().current_finished {
                     syn_current_attr(false, false, ptr::null_mut(), false);
                     cur_level = syn_cur_foldlevel();
                     if cur_level < low_level {
@@ -5346,7 +5397,7 @@ pub unsafe fn syn_get_foldlevel(wp: *mut win_T, lnum: linenr_T) -> c_int {
                     } else if cur_level > low_level {
                         level = low_level;
                     }
-                    current_col += 1;
+                    syn_st().current_col += 1;
                 }
             }
         }
@@ -5364,9 +5415,9 @@ pub unsafe fn syn_get_foldlevel(wp: *mut win_T, lnum: linenr_T) -> c_int {
 pub unsafe fn ex_syntime(eap: *mut exarg_T) {
     unsafe {
         if strcmp((*eap).arg, c"on".as_ptr()) == 0 {
-            syn_time_on = true;
+            syn_st().syn_time_on = true;
         } else if strcmp((*eap).arg, c"off".as_ptr()) == 0 {
-            syn_time_on = false;
+            syn_st().syn_time_on = false;
         } else if strcmp((*eap).arg, c"clear".as_ptr()) == 0 {
             syntime_clear();
         } else if strcmp((*eap).arg, c"report".as_ptr()) == 0 {
