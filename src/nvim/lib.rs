@@ -60,7 +60,8 @@ pub(crate) mod log;
 #[path = "../lpeg/mod.rs"]
 pub(crate) mod lpeg;
 pub(crate) mod lua;
-pub mod main_init;
+pub(crate) mod main_init;
+pub use main_init::nvim_main;
 pub(crate) mod mapping;
 pub(crate) mod mark;
 pub(crate) mod marktree;

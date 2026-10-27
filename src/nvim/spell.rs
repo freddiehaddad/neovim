@@ -2049,7 +2049,7 @@ pub fn open_spellbuf() -> Box<buf_T> {
                 c"Error opening a new memline".as_ptr(),
             );
         }
-        ml_open_file(&mut *buf);
+        ml_open_file(&mut buf);
         buf
 }
 pub fn close_spellbuf(buf: &mut Option<Box<buf_T>>) {
@@ -2152,7 +2152,7 @@ fn spell_iswordp_w(p: *const c_int, wp: &win_T) -> bool {
             p
         };
         if *s > 255 {
-            return spell_mb_isword_class(utf_class(*s), &*wp);
+            return spell_mb_isword_class(utf_class(*s), wp);
         }
         *s >= 0 && spell_priv_st().spelltab.st_isw[*s as usize]
     }

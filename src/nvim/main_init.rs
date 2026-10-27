@@ -398,7 +398,42 @@ fn early_init(paramp: *mut mparm_T) {
     }
 }
 
-pub fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
+pub fn nvim_main() -> c_int {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStringExt;
+        unsafe {
+            crate::os::signal::signal(13 /* SIGPIPE */, 0 /* SIG_DFL */);
+        }
+        let mut c_args: Vec<std::ffi::CString> = std::env::args_os()
+            .map(|arg| crate::memory::cstr_from_bytes(&arg.into_vec()))
+            .collect();
+        if c_args.is_empty() {
+            c_args.push(c"nvim".to_owned());
+        }
+        let argc = c_args.len() as c_int;
+        let mut c_argv: Vec<*mut c_char> =
+            c_args.iter_mut().map(|s| s.as_ptr().cast_mut()).collect();
+        c_argv.push(ptr::null_mut());
+        nvim_main_inner(argc, c_argv.as_mut_ptr())
+    }
+    #[cfg(windows)]
+    {
+        let mut c_args: Vec<std::ffi::CString> = std::env::args_os()
+            .map(|arg| crate::memory::cstr_from_bytes(arg.to_string_lossy().as_bytes()))
+            .collect();
+        if c_args.is_empty() {
+            c_args.push(c"nvim".to_owned());
+        }
+        let argc = c_args.len() as c_int;
+        let mut c_argv: Vec<*mut c_char> =
+            c_args.iter_mut().map(|s| s.as_ptr().cast_mut()).collect();
+        c_argv.push(ptr::null_mut());
+        nvim_main_inner(argc, c_argv.as_mut_ptr())
+    }
+}
+
+fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
     unsafe {
         main_init_st().ARGV0 = *argv;
         to_slash_if_needed(main_init_st().ARGV0);

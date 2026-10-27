@@ -707,9 +707,9 @@ fn func_dump_profile(fd: *mut FILE) {
 
         if !sorttab.is_empty() {
             let st_len = sorttab.len() as c_int;
-            sorttab.sort_unstable_by(|a, b| prof_total_cmp(a, b));
+            sorttab.sort_unstable_by(prof_total_cmp);
             prof_sort_list(fd, sorttab.as_mut_ptr(), st_len, c"TOTAL".as_ptr(), false);
-            sorttab.sort_unstable_by(|a, b| prof_self_cmp(a, b));
+            sorttab.sort_unstable_by(prof_self_cmp);
             prof_sort_list(fd, sorttab.as_mut_ptr(), st_len, c"SELF".as_ptr(), true);
         }
     }

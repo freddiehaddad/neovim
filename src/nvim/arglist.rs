@@ -127,7 +127,7 @@ fn arglist_st() -> &'static mut ArglistModuleState {
 
 #[inline]
 pub fn win_alist(wp: &win_T) -> *mut alist_T {
-    (*wp)
+    wp
             .w_alist
             .as_ref()
             .map_or(&raw mut g_st().global_alist, |rc| rc.as_ptr())

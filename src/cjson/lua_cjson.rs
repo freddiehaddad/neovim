@@ -624,7 +624,7 @@ fn json_append_object(l: *mut lua_State, ctx: *mut json_encode_t, current_depth:
             let keys_count = (*keybuf).keys.len() - init_keybuf_size;
             if keys_count > 0 {
                 let slice = &mut (*keybuf).keys.as_mut_slice()[init_keybuf_size..];
-                slice.sort_by(|a, b| cmp_key_entries(a, b));
+                slice.sort_by(cmp_key_entries);
             }
 
             for i in init_keybuf_size..(init_keybuf_size + keys_count) {

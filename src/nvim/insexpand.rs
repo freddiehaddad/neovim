@@ -636,7 +636,7 @@ fn compl_at(idx: usize) -> *mut compl_T {
 
 #[inline]
 fn compl_opt(idx: Option<usize>) -> *mut compl_T {
-    idx.map_or(ptr::null_mut(), |i| compl_at(i))
+    idx.map_or(ptr::null_mut(), compl_at)
 }
 
 #[inline]
@@ -4268,7 +4268,7 @@ fn fuzzy_longest_match() {
             return;
         }
 
-        let nn_idx = compl_next_idx(0).and_then(|i| compl_next_idx(i));
+        let nn_idx = compl_next_idx(0).and_then(compl_next_idx);
         let more_candidates = nn_idx.is_some_and(|i| i != 0);
 
         let mut compl_idx = if ctrl_x_mode_whole_line() {

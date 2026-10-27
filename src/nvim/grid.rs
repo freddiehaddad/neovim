@@ -1126,7 +1126,7 @@ pub fn win_grid_alloc(wp: &mut win_T) {
         if (wp.w_view_height as usize) + 1 > wp.w_lines.len() {
             wp.w_lines_valid = 0;
             wp.w_lines.clear();
-            (*wp)
+            wp
                 .w_lines
                 .resize(wp.w_view_height as usize + 1, wline_T::default());
         }

@@ -345,7 +345,7 @@ fn buf_delete_signs(
         }
 
         if !signs.is_empty() {
-            signs.sort_by(|a, b| sign_row_cmp_slice(a, b));
+            signs.sort_by(sign_row_cmp_slice);
             let first = signs[0];
             extmark_del_id(&mut *buf, first.ns, first.id);
         } else if atlnum > 0 {
@@ -405,7 +405,7 @@ fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
                 }
 
                 if !signs.is_empty() {
-                    signs.sort_by(|a, b| sign_row_cmp_slice(a, b));
+                    signs.sort_by(sign_row_cmp_slice);
                     msg_putchar(b'\n' as c_int);
 
                     for (i, &mark) in signs.iter().enumerate() {
@@ -1223,7 +1223,7 @@ fn sign_get_placed_in_buf(
         }
 
         if !signs.is_empty() {
-            signs.sort_by(|a, b| sign_row_cmp_slice(a, b));
+            signs.sort_by(sign_row_cmp_slice);
             for mark in signs {
                 tv_list_append_dict(l, sign_get_placed_info_dict(mark));
             }

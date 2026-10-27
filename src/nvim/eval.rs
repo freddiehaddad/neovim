@@ -5180,8 +5180,8 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &typval_T) -> bool {
 
         let is_lua_tbl = nlua_is_table_from_lua(arg);
 
-        if arg.v_type == VarType::VAR_PARTIAL && !tv_partial(&*arg).is_null() {
-            let pt = tv_partial(&*arg);
+        if arg.v_type == VarType::VAR_PARTIAL && !tv_partial(arg).is_null() {
+            let pt = tv_partial(arg);
             callback.data = crate::eval::typval::CallbackData::partial(pt);
             (*pt).pt_refcount += 1;
         } else if arg.v_type == VarType::VAR_STRING

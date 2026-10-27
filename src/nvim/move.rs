@@ -1658,7 +1658,7 @@ pub fn scrollup(wp: &mut win_T, line_count: linenr_T, byfold: bool) -> bool {
         }
 
         wp.w_topline = wp.w_topline.min((*wp.w_buffer).b_ml.ml_line_count);
-        wp.w_botline = (*wp)
+        wp.w_botline = wp
             .w_botline
             .min((*wp.w_buffer).b_ml.ml_line_count + 1);
 

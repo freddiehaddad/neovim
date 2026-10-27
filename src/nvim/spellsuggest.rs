@@ -2926,7 +2926,7 @@ fn cleanup_suggestions(gap: &mut Vec<suggest_T>, maxscore: c_int, keep: c_int) -
     if gap.is_empty() {
             return maxscore;
         }
-        gap.sort_unstable_by(|a, b| sug_compare(a, b));
+        gap.sort_unstable_by(sug_compare);
         let keep_usize = keep.max(0) as usize;
         if gap.len() > keep_usize {
             gap.truncate(keep_usize);

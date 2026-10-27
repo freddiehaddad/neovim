@@ -659,7 +659,7 @@ pub fn save_file_ff(buf: &mut buf_T) {
         buf.b_start_bomb = buf.b_p_bomb;
 
         let p_fenc_bytes = CStr::from_ptr(buf.b_p_fenc).to_bytes();
-        if (*buf)
+        if buf
             .b_start_fenc
             .as_ref()
             .is_none_or(|s| s.to_bytes() != p_fenc_bytes)
