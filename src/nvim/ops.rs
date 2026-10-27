@@ -951,7 +951,7 @@ pub fn op_delete(oap: &mut oparg_T) -> c_int {
                     );
                 }
 
-                check_cursor_col(*curwin.as_ptr());
+                check_cursor_col(&mut **curwin.as_ptr());
                 changed_lines(
                     g_st().curbuf,
                     (**curwin.as_ptr()).w_cursor.lnum,
@@ -1001,7 +1001,7 @@ pub fn op_delete(oap: &mut oparg_T) -> c_int {
                         coladvance_force(getviscol2(oap.start.col, oap.start.coladd));
                         oap.start = (**curwin.as_ptr()).w_cursor;
                         if oap.line_count == 1 {
-                            coladvance(*curwin.as_ptr(), endcol);
+                            coladvance(&mut **curwin.as_ptr(), endcol);
                             oap.end.col = (**curwin.as_ptr()).w_cursor.col;
                             oap.end.coladd = (**curwin.as_ptr()).w_cursor.coladd;
                             (**curwin.as_ptr()).w_cursor = oap.start;
@@ -1613,7 +1613,7 @@ pub fn op_insert(oap: &mut oparg_T, count1: c_int) {
                 }
             } else {
                 (**curwin.as_ptr()).w_cursor = oap.end;
-                check_cursor_col(*curwin.as_ptr());
+                check_cursor_col(&mut **curwin.as_ptr());
 
                 if !lineempty((**curwin.as_ptr()).w_cursor.lnum) && oap.start_vcol != oap.end_vcol {
                     inc_cursor();
@@ -1885,7 +1885,7 @@ pub fn adjust_cursor_eol() {
             let mut ecol: colnr_T = 0;
 
             getvcol(
-                *curwin.as_ptr(),
+                &mut **curwin.as_ptr(),
                 &mut (**curwin.as_ptr()).w_cursor,
                 &raw mut scol,
                 ptr::null_mut(),
@@ -2140,7 +2140,7 @@ pub fn do_join(
             } else {
                 col
             };
-            check_cursor_col(*curwin.as_ptr());
+            check_cursor_col(&mut **curwin.as_ptr());
 
             (**curwin.as_ptr()).w_cursor.coladd = 0;
             (**curwin.as_ptr()).w_set_curswant = true;
@@ -2464,7 +2464,7 @@ pub fn charwise_block_prep(
             startcol = start.col;
             if g_st().virtual_op != 0 {
                 getvcol(
-                    *curwin.as_ptr(),
+                    &mut **curwin.as_ptr(),
                     &mut start,
                     &raw mut cs,
                     ptr::null_mut(),
@@ -2483,7 +2483,7 @@ pub fn charwise_block_prep(
             endcol = end.col;
             if g_st().virtual_op != 0 {
                 getvcol(
-                    *curwin.as_ptr(),
+                    &mut **curwin.as_ptr(),
                     &mut end,
                     &raw mut cs,
                     ptr::null_mut(),
@@ -3112,7 +3112,7 @@ pub unsafe fn cursor_pos_info(dict: *mut dict_T) {
         } else {
             let mut last_check: varnumber_T = 100000;
             let mut line_count_selected: c_int = 0;
-            let eol_size = if get_fileformat(g_st().curbuf) == EOL_DOS {
+            let eol_size = if get_fileformat(&*g_st().curbuf) == EOL_DOS {
                 2
             } else {
                 1
@@ -3596,11 +3596,11 @@ fn get_op_vcol(oap: &mut oparg_T, initial: bool) {
         }
 
         (**curwin.as_ptr()).w_cursor.lnum = oap.end.lnum;
-        coladvance(*curwin.as_ptr(), oap.end_vcol);
+        coladvance(&mut **curwin.as_ptr(), oap.end_vcol);
         oap.end = (**curwin.as_ptr()).w_cursor;
 
         (**curwin.as_ptr()).w_cursor = oap.start;
-        coladvance(*curwin.as_ptr(), oap.start_vcol);
+        coladvance(&mut **curwin.as_ptr(), oap.start_vcol);
         oap.start = (**curwin.as_ptr()).w_cursor;
     }
 }
@@ -3935,7 +3935,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
                         }
                         op_yank(oap, !gui_yank);
                     }
-                    check_cursor_col(*curwin.as_ptr());
+                    check_cursor_col(&mut **curwin.as_ptr());
                 }
                 OP_CHANGE => {
                     g_st().Visual.reselect = 0;
@@ -3948,7 +3948,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
 
                         restore_lbr(lbr_saved);
 
-                        (*g_st().curbuf).b_last_changedtick_i = buf_get_changedtick(g_st().curbuf);
+                        (*g_st().curbuf).b_last_changedtick_i = buf_get_changedtick(&*g_st().curbuf);
 
                         let mut session: InsSession = atom_ins_start(
                             b'c' as c_int,
@@ -4003,7 +4003,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
                     } else {
                         op_tilde(oap);
                     }
-                    check_cursor_col(*curwin.as_ptr());
+                    check_cursor_col(&mut **curwin.as_ptr());
                 }
                 OP_FORMAT => {
                     if (*g_st().curbuf).b_p_fex.cb_type() != kCallbackNone {
@@ -4032,7 +4032,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
 
                         restore_lbr(lbr_saved);
 
-                        (*g_st().curbuf).b_last_changedtick_i = buf_get_changedtick(g_st().curbuf);
+                        (*g_st().curbuf).b_last_changedtick_i = buf_get_changedtick(&*g_st().curbuf);
 
                         let mut session: InsSession = atom_ins_start(
                             b'I' as c_int,
@@ -4105,7 +4105,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
                         op_addsub(oap, cap.count1, cap.arg != 0);
                         g_st().Visual.active = false;
                     }
-                    check_cursor_col(*curwin.as_ptr());
+                    check_cursor_col(&mut **curwin.as_ptr());
                 }
                 _ => {
                     clearopbeep(oap);
@@ -4122,7 +4122,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
                 {
                     reset_lbr();
                     (**curwin.as_ptr()).w_curswant = old_col;
-                    coladvance(*curwin.as_ptr(), old_col);
+                    coladvance(&mut **curwin.as_ptr(), old_col);
                 }
             } else {
                 (**curwin.as_ptr()).w_cursor = old_cursor;

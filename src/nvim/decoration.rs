@@ -487,7 +487,7 @@ pub unsafe fn bufhl_add_hl_pos_offset(
             }
 
             extmark_set(
-                buf,
+                &mut *buf,
                 src_id as u32,
                 ptr::null_mut(),
                 lnum - 1,
@@ -559,7 +559,7 @@ pub unsafe fn decor_redraw_sh(buf: *mut buf_T, row1: c_int, row2: c_int, sh: Dec
             let mut wp = g_st().firstwin;
             while !wp.is_null() {
                 if (*wp).w_buffer == buf {
-                    changed_window_setting(wp);
+                    changed_window_setting(&mut *wp);
                 }
                 wp = (*wp).w_next;
             }
@@ -701,7 +701,7 @@ pub unsafe fn buf_remove_decor_sh(
 ) {
     unsafe {
         if (sh.flags & kSHIsSign) != 0 && sh.text[0] != 0 {
-            if buf_meta_total(buf, kMTMetaSignText) != 0 {
+            if buf_meta_total(&*buf, kMTMetaSignText) != 0 {
                 buf_signcols_count_range(buf, row1, row2, -1, kFalse);
             } else {
                 may_force_numberwidth_recompute(buf, true);
@@ -880,9 +880,9 @@ pub fn decor_virt_pos_kind(decor: &DecorRange) -> VirtTextPos {
     }
 }
 
-pub unsafe fn decor_redraw_start(wp: *mut win_T, top_row: c_int, state: &mut DecorState) -> bool {
+pub fn decor_redraw_start(wp: &mut win_T, top_row: c_int, state: &mut DecorState) -> bool {
     unsafe {
-        let buf = (*wp).w_buffer;
+        let buf = wp.w_buffer;
         state.top_row = top_row;
         state.itr_valid = true;
 
@@ -939,7 +939,7 @@ pub unsafe fn decor_redraw_line(wp: *mut win_T, row: c_int, state: &mut DecorSta
         decor_state_pack(state);
 
         if state.row == -1 {
-            decor_redraw_start(wp, row, state);
+            decor_redraw_start(&mut *wp, row, state);
         } else if !state.itr_valid {
             marktree_itr_get(&(*(*wp).w_buffer).b_marktree, row, 0, &mut state.itr);
             state.itr_valid = true;
@@ -1188,8 +1188,8 @@ pub fn decor_recheck_draw_col(win_col: c_int, hidden: bool, state: &mut DecorSta
     }
 }
 
-pub unsafe fn decor_redraw_col_impl(
-    wp: *mut win_T,
+pub fn decor_redraw_col_impl(
+    wp: &mut win_T,
     col: c_int,
     win_col: c_int,
     hidden: bool,
@@ -1197,7 +1197,7 @@ pub unsafe fn decor_redraw_col_impl(
     max_col_last: c_int,
 ) -> c_int {
     unsafe {
-        let buf = (*wp).w_buffer;
+        let buf = wp.w_buffer;
         let row = state.row;
         let mut col_last = max_col_last;
 
@@ -1380,8 +1380,8 @@ pub unsafe fn decor_conceal_line(wp: *mut win_T, row: c_int, check_cursor: bool)
             return false;
         }
 
-        if buf_meta_total((*wp).w_buffer, kMTMetaConcealLines) == 0 {
-            return decor_providers_invoke_conceal_line(wp, row);
+        if buf_meta_total(&*(*wp).w_buffer, kMTMetaConcealLines) == 0 {
+            return decor_providers_invoke_conceal_line(&mut *wp, row);
         }
 
         let mut pair: MTPair = MTPair::new();
@@ -1407,12 +1407,12 @@ pub unsafe fn decor_conceal_line(wp: *mut win_T, row: c_int, check_cursor: bool)
             marktree_itr_next_filter(b, &mut itr, row + 1, 0, &CONCEAL_FILTER);
         }
 
-        decor_providers_invoke_conceal_line(wp, row)
+        decor_providers_invoke_conceal_line(&mut *wp, row)
     }
 }
 
-pub unsafe fn win_lines_concealed(wp: *mut win_T) -> bool {
-    unsafe { hasAnyFolding(wp) != 0 || (*wp).w_onebuf_opt.wo_cole >= 2 }
+pub fn win_lines_concealed(wp: &mut win_T) -> bool {
+    hasAnyFolding(wp) != 0 || wp.w_onebuf_opt.wo_cole >= 2
 }
 
 pub fn sign_item_cmp(s1: &SignItem<'_>, s2: &SignItem<'_>) -> Ordering {
@@ -1552,7 +1552,7 @@ pub unsafe fn buf_signcols_count_range(
     clear: TriState,
 ) {
     unsafe {
-        if !(*buf).b_signcols.autom || row2 < row1 || buf_meta_total(buf, kMTMetaSignText) == 0 {
+        if !(*buf).b_signcols.autom || row2 < row1 || buf_meta_total(&*buf, kMTMetaSignText) == 0 {
             return;
         }
 
@@ -1616,7 +1616,7 @@ pub unsafe fn decor_redraw_col(
         if col <= state.col_last {
             return state.current;
         }
-        decor_redraw_col_impl(wp, col, win_col, hidden, state, max_col_last)
+        decor_redraw_col_impl(&mut *wp, col, win_col, hidden, state, max_col_last)
     }
 }
 
@@ -1647,11 +1647,9 @@ pub unsafe fn decor_redraw_eol(
 }
 
 #[inline]
-unsafe fn decor_virt_line_wrap(wp: *mut win_T, overflow: VirtLineOverflow) -> bool {
-    unsafe {
-        overflow == kVLOverflowWrap
-            || (overflow == kVLOverflowAuto && (*wp).w_onebuf_opt.wo_wrap != 0)
-    }
+fn decor_virt_line_wrap(wp: &mut win_T, overflow: VirtLineOverflow) -> bool {
+    overflow == kVLOverflowWrap
+            || (overflow == kVLOverflowAuto && wp.w_onebuf_opt.wo_wrap != 0)
 }
 
 pub unsafe fn decor_virt_line_rows(
@@ -1664,7 +1662,7 @@ pub unsafe fn decor_virt_line_rows(
         if !skip_cells.is_null() {
             *skip_cells = 0;
         }
-        if !decor_virt_line_wrap(wp, vl.overflow) {
+        if !decor_virt_line_wrap(&mut *wp, vl.overflow) {
             return 1;
         }
         let row_width = (*wp).w_view_width
@@ -1711,7 +1709,7 @@ pub unsafe fn decor_virt_line_rows(
 }
 
 pub unsafe fn decor_virt_lines(
-    wp: *mut win_T,
+    wp: &mut win_T,
     start_row: c_int,
     end_row: c_int,
     num_below: *mut c_int,
@@ -1719,8 +1717,8 @@ pub unsafe fn decor_virt_lines(
     apply_folds: bool,
 ) -> c_int {
     unsafe {
-        let buf = (*wp).w_buffer;
-        if buf_meta_total(buf, kMTMetaLines) == 0 {
+        let buf = wp.w_buffer;
+        if buf_meta_total(&*buf, kMTMetaLines) == 0 {
             return 0;
         }
 

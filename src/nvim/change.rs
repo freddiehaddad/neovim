@@ -187,7 +187,7 @@ pub unsafe fn changed(buf: *mut buf_T) {
                 let save_need_wait_return = g_st().need_wait_return;
 
                 g_st().need_wait_return = false;
-                ml_open_file(buf);
+                ml_open_file(&mut *buf);
 
                 if g_st().need_wait_return && g_st().emsg_silent == 0 && !g_st().in_assert_fails && !ui_has(kUIMessages)
                 {
@@ -198,7 +198,7 @@ pub unsafe fn changed(buf: *mut buf_T) {
                     g_st().need_wait_return = save_need_wait_return;
                 }
             }
-            changed_internal(buf);
+            changed_internal(&mut *buf);
         }
         buf_inc_changedtick(buf);
 
@@ -209,10 +209,10 @@ pub unsafe fn changed(buf: *mut buf_T) {
 }
 
 /// Internal part of `changed()`, no user interaction.
-pub unsafe fn changed_internal(buf: *mut buf_T) {
+pub fn changed_internal(buf: &mut buf_T) {
     unsafe {
-        let was_changed = (*buf).b_changed != 0;
-        (*buf).b_changed = 1;
+        let was_changed = buf.b_changed != 0;
+        buf.b_changed = 1;
         ml_setflags(buf);
         redraw_buf_status_later(buf);
         g_st().redraw_tabline = true;
@@ -233,20 +233,20 @@ fn changed_lines_invalidate_win(
 ) {
     unsafe {
         if wp.w_cursor.lnum <= lnum {
-            let i = find_wl_entry(&raw mut *wp, lnum);
+            let i = find_wl_entry(&mut *wp, lnum);
             if i >= 0 && wp.w_cursor.lnum > (&wp.w_lines)[i as usize].wl_lnum {
-                changed_line_abv_curs_win(&raw mut *wp);
+                changed_line_abv_curs_win(&mut *wp);
             }
         }
 
         if wp.w_cursor.lnum > lnum {
-            changed_line_abv_curs_win(&raw mut *wp);
+            changed_line_abv_curs_win(&mut *wp);
         } else if wp.w_cursor.lnum == lnum && wp.w_cursor.col >= col {
             changed_cline_bef_curs(wp);
         }
         if wp.w_botline >= lnum {
             if xtra < 0 {
-                invalidate_botline_win(&raw mut *wp);
+                invalidate_botline_win(&mut *wp);
             } else {
                 approximate_botline_win(wp);
             }
@@ -254,8 +254,8 @@ fn changed_lines_invalidate_win(
 
         if (xtra < 0
             && wp.w_onebuf_opt.wo_wrap != 0
-            && buf_meta_total(wp.w_buffer, kMTMetaInline) != 0)
-            || (xtra != 0 && buf_meta_total(wp.w_buffer, kMTMetaLines) != 0)
+            && buf_meta_total(&*wp.w_buffer, kMTMetaInline) != 0)
+            || (xtra != 0 && buf_meta_total(&*wp.w_buffer, kMTMetaLines) != 0)
         {
             lnume += 1;
         }
@@ -328,7 +328,7 @@ unsafe fn changed_common(
                 && lnum >= (**curwin.as_ptr()).w_topline
                 && lnum <= (**curwin.as_ptr()).w_botline
             {
-                view = mark_view_make(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor);
+                view = mark_view_make(&**curwin.as_ptr(), (**curwin.as_ptr()).w_cursor);
             }
             reset_fmark(
                 &mut (*buf).b_last_change,
@@ -444,8 +444,8 @@ unsafe fn changed_common(
 
                 changed_lines_invalidate_win(&mut *wp, lnum, col, lnume, xtra);
 
-                if hasAnyFolding(wp) != 0 {
-                    set_topline(wp, (*wp).w_topline);
+                if hasAnyFolding(&mut *wp) != 0 {
+                    set_topline(&mut *wp, (*wp).w_topline);
                 }
 
                 if (*wp).w_onebuf_opt.wo_rnu != 0 && xtra != 0 {
@@ -581,7 +581,7 @@ pub unsafe fn changed_lines_redraw_buf(
 ) {
     unsafe {
         if xtra != 0 && (*buf).b_marktree.n_keys > 0 {
-            lnume += 1 + c_int::from(xtra < 0 && buf_meta_total(buf, kMTMetaLines) != 0);
+            lnume += 1 + c_int::from(xtra < 0 && buf_meta_total(&*buf, kMTMetaLines) != 0);
         }
 
         if (*buf).b_mod_set {
@@ -649,7 +649,7 @@ pub unsafe fn unchanged(buf: *mut buf_T, ff: bool, always_inc_changedtick: bool)
             (*buf).b_changed = 0;
             ml_setflags(buf);
             if ff {
-                save_file_ff(buf);
+                save_file_ff(&mut *buf);
             }
             redraw_buf_status_later(buf);
             g_st().redraw_tabline = true;
@@ -665,20 +665,20 @@ pub unsafe fn unchanged(buf: *mut buf_T, ff: bool, always_inc_changedtick: bool)
 }
 
 /// Save the current values of `'fileformat'` and `'fileencoding'`.
-pub unsafe fn save_file_ff(buf: *mut buf_T) {
+pub fn save_file_ff(buf: &mut buf_T) {
     unsafe {
-        (*buf).b_start_ffc = c_int::from(*(*buf).b_p_ff as u8);
-        (*buf).b_start_eof = (*buf).b_p_eof;
-        (*buf).b_start_eol = (*buf).b_p_eol;
-        (*buf).b_start_bomb = (*buf).b_p_bomb;
+        buf.b_start_ffc = c_int::from(*buf.b_p_ff as u8);
+        buf.b_start_eof = buf.b_p_eof;
+        buf.b_start_eol = buf.b_p_eol;
+        buf.b_start_bomb = buf.b_p_bomb;
 
-        let p_fenc_bytes = CStr::from_ptr((*buf).b_p_fenc).to_bytes();
+        let p_fenc_bytes = CStr::from_ptr(buf.b_p_fenc).to_bytes();
         if (*buf)
             .b_start_fenc
             .as_ref()
             .is_none_or(|s| s.to_bytes() != p_fenc_bytes)
         {
-            (*buf).b_start_fenc = Some(CStr::from_ptr((*buf).b_p_fenc).to_owned());
+            buf.b_start_fenc = Some(CStr::from_ptr(buf.b_p_fenc).to_owned());
         }
     }
 }
@@ -769,7 +769,7 @@ pub unsafe fn ins_char_bytes(buf: *mut c_char, charlen: usize) {
                 }
                 let mut vcol: colnr_T = 0;
                 getvcol(
-                    *curwin.as_ptr(),
+                    &mut **curwin.as_ptr(),
                     &mut (**curwin.as_ptr()).w_cursor,
                     ptr::null_mut(),
                     &raw mut vcol,
@@ -1903,7 +1903,7 @@ pub fn del_lines(nlines: linenr_T, undo: bool) {
         }
 
         (**curwin.as_ptr()).w_cursor.col = 0;
-        check_cursor_lnum(*curwin.as_ptr());
+        check_cursor_lnum(&mut **curwin.as_ptr());
 
         deleted_lines_mark(first, n);
     }

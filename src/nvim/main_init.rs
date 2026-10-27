@@ -639,7 +639,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
 
         if g_st().recoverymode && fname.is_null() {
             let mut items_tv = crate::eval::typval::typval_T::new();
-            tv_list_alloc_ret(&raw mut items_tv, 0);
+            tv_list_alloc_ret(&mut items_tv, 0);
             recover_names(ptr::null_mut(), false, items_tv.vval.v_list());
             let mut lua_args = [items_tv, crate::eval::typval::typval_T::new()];
             nlua_call_typval(
@@ -932,7 +932,7 @@ pub fn getout(mut exitval: c_int) -> ! {
                         continue;
                     }
                     let buf = (*wp).w_buffer;
-                    if buf_get_changedtick(buf) != -1 {
+                    if buf_get_changedtick(&*buf) != -1 {
                         let mut bufref: bufref_T = bufref_T::new();
                         set_bufref(&mut bufref, buf);
                         apply_autocmds(
@@ -943,7 +943,7 @@ pub fn getout(mut exitval: c_int) -> ! {
                             buf,
                         );
                         if bufref_valid(&raw mut bufref) {
-                            buf_set_changedtick(buf, -1);
+                            buf_set_changedtick(&mut *buf, -1);
                         }
                         next_tp = g_st().first_tabpage;
                         break;

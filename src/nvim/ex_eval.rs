@@ -1031,7 +1031,7 @@ pub fn ex_continue(eap: &mut exarg_T) {
         if (*cstack).cs_looplevel <= 0 || (*cstack).cs_idx < 0 {
             eap.errmsg = gettext(c"E586: :continue without :while or :for".as_ptr());
         } else {
-            let idx = cleanup_conditionals(cstack, CSF_WHILE | CSF_FOR, 0);
+            let idx = cleanup_conditionals(&mut *cstack, CSF_WHILE | CSF_FOR, 0);
             assert!(idx >= 0);
             if ((*cstack).cs_flags[idx as usize] & (CSF_WHILE | CSF_FOR)) != 0 {
                 rewind_conditionals(&mut *cstack, idx, CSF_TRY, &mut (*cstack).cs_trylevel);
@@ -1051,7 +1051,7 @@ pub fn ex_break(eap: &mut exarg_T) {
         if (*cstack).cs_looplevel <= 0 || (*cstack).cs_idx < 0 {
             eap.errmsg = gettext(c"E587: :break without :while or :for".as_ptr());
         } else {
-            let idx = cleanup_conditionals(cstack, CSF_WHILE | CSF_FOR, 1);
+            let idx = cleanup_conditionals(&mut *cstack, CSF_WHILE | CSF_FOR, 1);
             if idx >= 0 && ((*cstack).cs_flags[idx as usize] & (CSF_WHILE | CSF_FOR)) == 0 {
                 (*cstack).cs_pending[idx as usize] = CSTP_BREAK as c_char;
                 report_make_pending(CSTP_BREAK, PendingVal::None);
@@ -1098,7 +1098,7 @@ pub fn ex_endwhile(eap: &mut exarg_T) {
                     }
                     idx -= 1;
                 }
-                cleanup_conditionals(cstack, CSF_WHILE | CSF_FOR, 0);
+                cleanup_conditionals(&mut *cstack, CSF_WHILE | CSF_FOR, 0);
                 rewind_conditionals(&mut *cstack, idx, CSF_TRY, &mut (*cstack).cs_trylevel);
             } else if ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_TRUE) != 0
                 && ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_ACTIVE) == 0
@@ -1133,7 +1133,7 @@ pub fn ex_throw(eap: &mut exarg_T) {
 
 pub unsafe fn do_throw(cstack: *mut cstack_T) {
     unsafe {
-        let idx = cleanup_conditionals(cstack, 0, 0);
+        let idx = cleanup_conditionals(&mut *cstack, 0, 0);
         if idx >= 0 {
             let u_idx = idx as usize;
             if ((*cstack).cs_flags[u_idx] & CSF_CAUGHT) == 0 {
@@ -1299,7 +1299,7 @@ pub fn ex_catch(eap: &mut exarg_T) {
                     internal_error(c"ex_catch()".as_ptr());
                 }
             } else {
-                cleanup_conditionals(cstack, CSF_TRY, 1);
+                cleanup_conditionals(&mut *cstack, CSF_TRY, 1);
             }
         }
 
@@ -1350,7 +1350,7 @@ pub fn ex_finally(eap: &mut exarg_T) {
                 do_intthrow(cstack);
             }
 
-            cleanup_conditionals(cstack, CSF_TRY, 0);
+            cleanup_conditionals(&mut *cstack, CSF_TRY, 0);
 
             let cur_idx = (*cstack).cs_idx as usize;
             if pending == CSTP_ERROR || g_st().did_emsg != 0 || g_st().got_int || g_st().did_throw {
@@ -1461,7 +1461,7 @@ pub fn ex_endtry(eap: &mut exarg_T) {
             }
         }
 
-        cleanup_conditionals(cstack, CSF_TRY | CSF_SILENT, 1);
+        cleanup_conditionals(&mut *cstack, CSF_TRY | CSF_SILENT, 1);
 
         if (*cstack).cs_idx >= 0 && ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_TRY) != 0 {
             (*cstack).cs_idx -= 1;
@@ -1590,61 +1590,60 @@ pub fn leave_cleanup(csp: &mut cleanup_T) {
     }
 }
 
-pub unsafe fn cleanup_conditionals(
-    cstack: *mut cstack_T,
+pub fn cleanup_conditionals(
+    cstack: &mut cstack_T,
     searched_cond: c_int,
     inclusive: c_int,
 ) -> c_int {
-    unsafe {
-        let mut idx = (*cstack).cs_idx;
+    let mut idx = cstack.cs_idx;
         let mut stop = false;
 
         while idx >= 0 {
             let u_idx = idx as usize;
-            if ((*cstack).cs_flags[u_idx] & CSF_TRY) != 0 {
-                if g_st().did_emsg != 0 || g_st().got_int || ((*cstack).cs_flags[u_idx] & CSF_FINALLY) != 0 {
-                    let pend = c_int::from((*cstack).cs_pending[u_idx]);
+            if (cstack.cs_flags[u_idx] & CSF_TRY) != 0 {
+                if g_st().did_emsg != 0 || g_st().got_int || (cstack.cs_flags[u_idx] & CSF_FINALLY) != 0 {
+                    let pend = c_int::from(cstack.cs_pending[u_idx]);
                     match pend {
                         CSTP_NONE => {}
                         CSTP_CONTINUE | CSTP_BREAK | CSTP_FINISH => {
                             report_discard_pending(pend, PendingVal::None);
-                            (*cstack).cs_pending[u_idx] = CSTP_NONE as c_char;
+                            cstack.cs_pending[u_idx] = CSTP_NONE as c_char;
                         }
                         CSTP_RETURN => {
                             report_discard_pending(
                                 CSTP_RETURN,
-                                PendingVal::Return((*cstack).cs_rettv[u_idx]),
+                                PendingVal::Return(cstack.cs_rettv[u_idx]),
                             );
-                            discard_pending_return(&mut (&mut (*cstack).cs_rettv)[u_idx]);
-                            (*cstack).cs_pending[u_idx] = CSTP_NONE as c_char;
+                            discard_pending_return(&mut (&mut cstack.cs_rettv)[u_idx]);
+                            cstack.cs_pending[u_idx] = CSTP_NONE as c_char;
                         }
                         _ => {
-                            if ((*cstack).cs_flags[u_idx] & CSF_FINALLY) != 0 {
+                            if (cstack.cs_flags[u_idx] & CSF_FINALLY) != 0 {
                                 if (pend & CSTP_THROW) != 0
-                                    && (*cstack).cs_exception[u_idx].is_some()
+                                    && cstack.cs_exception[u_idx].is_some()
                                 {
                                     discard_exception(
-                                        (&mut (*cstack).cs_exception)[u_idx].take(),
+                                        (&mut cstack.cs_exception)[u_idx].take(),
                                         false,
                                     );
                                 } else {
                                     report_discard_pending(pend, PendingVal::None);
                                 }
-                                (*cstack).cs_pending[u_idx] = CSTP_NONE as c_char;
+                                cstack.cs_pending[u_idx] = CSTP_NONE as c_char;
                             }
                         }
                     }
                 }
 
-                if ((*cstack).cs_flags[u_idx] & CSF_FINALLY) == 0 {
-                    if ((*cstack).cs_flags[u_idx] & CSF_ACTIVE) != 0
-                        && ((*cstack).cs_flags[u_idx] & CSF_CAUGHT) != 0
-                        && ((*cstack).cs_flags[u_idx] & CSF_FINISHED) == 0
+                if (cstack.cs_flags[u_idx] & CSF_FINALLY) == 0 {
+                    if (cstack.cs_flags[u_idx] & CSF_ACTIVE) != 0
+                        && (cstack.cs_flags[u_idx] & CSF_CAUGHT) != 0
+                        && (cstack.cs_flags[u_idx] & CSF_FINISHED) == 0
                     {
-                        finish_exception((&mut (*cstack).cs_exception)[u_idx].take());
-                        (*cstack).cs_flags[u_idx] |= CSF_FINISHED;
+                        finish_exception((&mut cstack.cs_exception)[u_idx].take());
+                        cstack.cs_flags[u_idx] |= CSF_FINISHED;
                     }
-                    if ((*cstack).cs_flags[u_idx] & CSF_TRUE) != 0 {
+                    if (cstack.cs_flags[u_idx] & CSF_TRUE) != 0 {
                         if searched_cond == 0 && inclusive == 0 {
                             break;
                         }
@@ -1653,24 +1652,24 @@ pub unsafe fn cleanup_conditionals(
                 }
             }
 
-            if ((*cstack).cs_flags[u_idx] & searched_cond) != 0 {
+            if (cstack.cs_flags[u_idx] & searched_cond) != 0 {
                 if inclusive == 0 {
                     break;
                 }
                 stop = true;
             }
-            (*cstack).cs_flags[u_idx] &= !CSF_ACTIVE;
+            cstack.cs_flags[u_idx] &= !CSF_ACTIVE;
             if stop && searched_cond != (CSF_TRY | CSF_SILENT) {
                 break;
             }
 
-            if ((*cstack).cs_flags[u_idx] & CSF_TRY) != 0
-                && ((*cstack).cs_flags[u_idx] & CSF_SILENT) != 0
+            if (cstack.cs_flags[u_idx] & CSF_TRY) != 0
+                && (cstack.cs_flags[u_idx] & CSF_SILENT) != 0
             {
-                if let Some(saved) = (*cstack).cs_emsg_silent_list.pop() {
+                if let Some(saved) = cstack.cs_emsg_silent_list.pop() {
                     g_st().emsg_silent = saved;
                 }
-                (*cstack).cs_flags[u_idx] &= !CSF_SILENT;
+                cstack.cs_flags[u_idx] &= !CSF_SILENT;
             }
             if stop {
                 break;
@@ -1678,7 +1677,6 @@ pub unsafe fn cleanup_conditionals(
             idx -= 1;
         }
         idx
-    }
 }
 
 fn get_end_emsg(cstack: &cstack_T) -> *mut c_char {

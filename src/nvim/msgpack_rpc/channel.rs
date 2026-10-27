@@ -242,7 +242,7 @@ pub fn rpc_init() {
 
 pub fn rpc_start(channel: &mut Channel) {
     unsafe {
-        channel_incref(&raw mut *channel);
+        channel_incref(&mut *channel);
 
         let cp = &raw mut *channel;
         let ct = &raw mut *channel;
@@ -321,7 +321,7 @@ pub unsafe fn rpc_send_call(
             return OBJECT_NIL;
         }
 
-        channel_incref(channel);
+        channel_incref(&mut *channel);
 
         let cp = &raw mut *channel;
         let ct = &raw mut *channel;
@@ -429,7 +429,7 @@ pub(crate) unsafe fn receive_msgpack(
     eof: bool,
 ) -> usize {
     unsafe {
-        channel_incref(&raw mut *channel);
+        channel_incref(&mut *channel);
 
         let mut consumed: usize = 0;
         let cp = &raw mut *channel;
@@ -578,7 +578,7 @@ fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
             pos: 0,
             size: 0,
         };
-        channel_incref(&raw mut *channel);
+        channel_incref(&mut *channel);
 
         if p.handler.fast {
             let is_get_mode = p
@@ -666,7 +666,7 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
         }
 
         if (*cp).streamtype == kChannelStreamInternal {
-            channel_incref(&raw mut *channel);
+            channel_incref(&mut *channel);
             if !(*cp).events.is_null() {
                 multiqueue_put_event((*cp).events, Event::RpcInternalRead { channel: &raw mut *channel, buffer });
             } else {

@@ -346,7 +346,7 @@ pub fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
                 ptr::null_mut(),
                 &raw mut (**curwin.as_ptr()).w_cursor.lnum,
             ) {
-                coladvance(*curwin.as_ptr(), MAXCOL);
+                coladvance(&mut **curwin.as_ptr(), MAXCOL);
             }
             let sclass = cls();
 
@@ -456,7 +456,7 @@ pub fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) ->
                 ptr::null_mut(),
                 &raw mut (**curwin.as_ptr()).w_cursor.lnum,
             ) {
-                coladvance(*curwin.as_ptr(), MAXCOL);
+                coladvance(&mut **curwin.as_ptr(), MAXCOL);
             }
             let sclass = cls();
             if inc_cursor() == -1 {

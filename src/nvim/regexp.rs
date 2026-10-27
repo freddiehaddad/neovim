@@ -2032,7 +2032,7 @@ pub(super) fn reg_breakcheck() {
 }
 
 pub(super) fn reg_iswordc(c: c_int) -> bool {
-    unsafe { vim_iswordc_buf(c, re_st().rex.reg_buf) }
+    unsafe { vim_iswordc_buf(c, &mut *re_st().rex.reg_buf) }
 }
 
 unsafe fn reg_getline_common(
@@ -2547,11 +2547,11 @@ pub(crate) unsafe fn fill_submatch_list(
         for i in 0..10 {
             let s = (*re_st().rsm.sm_match).startp[i];
             if s.is_null() || (*re_st().rsm.sm_match).endp[i].is_null() {
-                tv_set_string(&raw mut (*li).li_tv, ptr::null());
+                tv_set_string(&mut (*li).li_tv, ptr::null());
             } else {
                 let len = (*re_st().rsm.sm_match).endp[i].offset_from(s) as usize;
                 let cs = cstring_from_bytes(s, len).unwrap_or_default();
-                tv_set_string(&raw mut (*li).li_tv, cs.as_ptr());
+                tv_set_string(&mut (*li).li_tv, cs.as_ptr());
             }
             li = (*li).li_next;
         }

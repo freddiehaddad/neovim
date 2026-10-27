@@ -699,7 +699,7 @@ fn get_indent_nolabel(lnum: linenr_T) -> c_int {
         };
         let mut col: colnr_T = 0;
         getvcol(
-            *curwin.as_ptr(),
+            &mut **curwin.as_ptr(),
             &mut fp,
             &raw mut col,
             ptr::null_mut(),
@@ -771,7 +771,7 @@ fn cin_first_id_amount() -> c_int {
         };
         let mut col: colnr_T = 0;
         getvcol(
-            *curwin.as_ptr(),
+            &mut **curwin.as_ptr(),
             &mut fp,
             &raw mut col,
             ptr::null_mut(),
@@ -815,7 +815,7 @@ fn cin_get_equal_amount(lnum: linenr_T) -> c_int {
         };
         let mut col: colnr_T = 0;
         getvcol(
-            *curwin.as_ptr(),
+            &mut **curwin.as_ptr(),
             &mut fp,
             &raw mut col,
             ptr::null_mut(),
@@ -1266,7 +1266,7 @@ fn get_baseclass_amount(col: colnr_T) -> c_int {
         } else {
             (**curwin.as_ptr()).w_cursor.col = col;
             getvcol(
-                *curwin.as_ptr(),
+                &mut **curwin.as_ptr(),
                 &mut (**curwin.as_ptr()).w_cursor,
                 &raw mut vcol,
                 ptr::null_mut(),
@@ -1503,48 +1503,48 @@ unsafe fn find_last_paren(l: *const c_char, start: c_char, end: c_char) -> bool 
     }
 }
 /// Parse 'cinoptions' and set the values in "buf".
-pub unsafe fn parse_cino(buf: *mut buf_T) {
+pub fn parse_cino(buf: &mut buf_T) {
     unsafe {
         let mut fraction: c_int = 0;
         let sw = get_sw_value(buf);
-        (*buf).b_ind_level = sw;
-        (*buf).b_ind_open_imag = 0;
-        (*buf).b_ind_no_brace = 0;
-        (*buf).b_ind_first_open = 0;
-        (*buf).b_ind_open_extra = 0;
-        (*buf).b_ind_close_extra = 0;
-        (*buf).b_ind_open_left_imag = 0;
-        (*buf).b_ind_jump_label = -1;
-        (*buf).b_ind_case = sw;
-        (*buf).b_ind_case_code = sw;
-        (*buf).b_ind_case_break = 0;
-        (*buf).b_ind_scopedecl = sw;
-        (*buf).b_ind_scopedecl_code = sw;
-        (*buf).b_ind_param = sw;
-        (*buf).b_ind_func_type = sw;
-        (*buf).b_ind_cpp_baseclass = sw;
-        (*buf).b_ind_continuation = sw;
-        (*buf).b_ind_unclosed = sw * 2;
-        (*buf).b_ind_unclosed2 = sw;
-        (*buf).b_ind_unclosed_noignore = 0;
-        (*buf).b_ind_unclosed_wrapped = 0;
-        (*buf).b_ind_unclosed_whiteok = 0;
-        (*buf).b_ind_matching_paren = 0;
-        (*buf).b_ind_paren_prev = 0;
-        (*buf).b_ind_comment = 0;
-        (*buf).b_ind_in_comment = 3;
-        (*buf).b_ind_in_comment2 = 0;
-        (*buf).b_ind_maxparen = 20;
-        (*buf).b_ind_maxcomment = 70;
-        (*buf).b_ind_java = 0;
-        (*buf).b_ind_js = 0;
-        (*buf).b_ind_keep_case_label = 0;
-        (*buf).b_ind_cpp_namespace = 0;
-        (*buf).b_ind_if_for_while = 0;
-        (*buf).b_ind_hash_comment = 0;
-        (*buf).b_ind_cpp_extern_c = 0;
-        (*buf).b_ind_pragma = 0;
-        let mut p = (*buf).b_p_cino;
+        buf.b_ind_level = sw;
+        buf.b_ind_open_imag = 0;
+        buf.b_ind_no_brace = 0;
+        buf.b_ind_first_open = 0;
+        buf.b_ind_open_extra = 0;
+        buf.b_ind_close_extra = 0;
+        buf.b_ind_open_left_imag = 0;
+        buf.b_ind_jump_label = -1;
+        buf.b_ind_case = sw;
+        buf.b_ind_case_code = sw;
+        buf.b_ind_case_break = 0;
+        buf.b_ind_scopedecl = sw;
+        buf.b_ind_scopedecl_code = sw;
+        buf.b_ind_param = sw;
+        buf.b_ind_func_type = sw;
+        buf.b_ind_cpp_baseclass = sw;
+        buf.b_ind_continuation = sw;
+        buf.b_ind_unclosed = sw * 2;
+        buf.b_ind_unclosed2 = sw;
+        buf.b_ind_unclosed_noignore = 0;
+        buf.b_ind_unclosed_wrapped = 0;
+        buf.b_ind_unclosed_whiteok = 0;
+        buf.b_ind_matching_paren = 0;
+        buf.b_ind_paren_prev = 0;
+        buf.b_ind_comment = 0;
+        buf.b_ind_in_comment = 3;
+        buf.b_ind_in_comment2 = 0;
+        buf.b_ind_maxparen = 20;
+        buf.b_ind_maxcomment = 70;
+        buf.b_ind_java = 0;
+        buf.b_ind_js = 0;
+        buf.b_ind_keep_case_label = 0;
+        buf.b_ind_cpp_namespace = 0;
+        buf.b_ind_if_for_while = 0;
+        buf.b_ind_hash_comment = 0;
+        buf.b_ind_cpp_extern_c = 0;
+        buf.b_ind_pragma = 0;
+        let mut p = buf.b_p_cino;
         while *p != NUL {
             let l = p;
             p = p.add(1);
@@ -1582,43 +1582,43 @@ pub unsafe fn parse_cino(buf: *mut buf_T) {
             }
             let val = trim_to_int(n);
             match *l as u8 {
-                b'>' => (*buf).b_ind_level = val,
-                b'e' => (*buf).b_ind_open_imag = val,
-                b'n' => (*buf).b_ind_no_brace = val,
-                b'f' => (*buf).b_ind_first_open = val,
-                b'{' => (*buf).b_ind_open_extra = val,
-                b'}' => (*buf).b_ind_close_extra = val,
-                b'^' => (*buf).b_ind_open_left_imag = val,
-                b'L' => (*buf).b_ind_jump_label = val,
-                b':' => (*buf).b_ind_case = val,
-                b'=' => (*buf).b_ind_case_code = val,
-                b'b' => (*buf).b_ind_case_break = val,
-                b'p' => (*buf).b_ind_param = val,
-                b't' => (*buf).b_ind_func_type = val,
-                b'/' => (*buf).b_ind_comment = val,
-                b'c' => (*buf).b_ind_in_comment = val,
-                b'C' => (*buf).b_ind_in_comment2 = val,
-                b'i' => (*buf).b_ind_cpp_baseclass = val,
-                b'+' => (*buf).b_ind_continuation = val,
-                b'(' => (*buf).b_ind_unclosed = val,
-                b'u' => (*buf).b_ind_unclosed2 = val,
-                b'U' => (*buf).b_ind_unclosed_noignore = val,
-                b'W' => (*buf).b_ind_unclosed_wrapped = val,
-                b'w' => (*buf).b_ind_unclosed_whiteok = val,
-                b'm' => (*buf).b_ind_matching_paren = val,
-                b'M' => (*buf).b_ind_paren_prev = val,
-                b')' => (*buf).b_ind_maxparen = val,
-                b'*' => (*buf).b_ind_maxcomment = val,
-                b'g' => (*buf).b_ind_scopedecl = val,
-                b'h' => (*buf).b_ind_scopedecl_code = val,
-                b'j' => (*buf).b_ind_java = val,
-                b'J' => (*buf).b_ind_js = val,
-                b'l' => (*buf).b_ind_keep_case_label = val,
-                b'#' => (*buf).b_ind_hash_comment = val,
-                b'N' => (*buf).b_ind_cpp_namespace = val,
-                b'k' => (*buf).b_ind_if_for_while = val,
-                b'E' => (*buf).b_ind_cpp_extern_c = val,
-                b'P' => (*buf).b_ind_pragma = val,
+                b'>' => buf.b_ind_level = val,
+                b'e' => buf.b_ind_open_imag = val,
+                b'n' => buf.b_ind_no_brace = val,
+                b'f' => buf.b_ind_first_open = val,
+                b'{' => buf.b_ind_open_extra = val,
+                b'}' => buf.b_ind_close_extra = val,
+                b'^' => buf.b_ind_open_left_imag = val,
+                b'L' => buf.b_ind_jump_label = val,
+                b':' => buf.b_ind_case = val,
+                b'=' => buf.b_ind_case_code = val,
+                b'b' => buf.b_ind_case_break = val,
+                b'p' => buf.b_ind_param = val,
+                b't' => buf.b_ind_func_type = val,
+                b'/' => buf.b_ind_comment = val,
+                b'c' => buf.b_ind_in_comment = val,
+                b'C' => buf.b_ind_in_comment2 = val,
+                b'i' => buf.b_ind_cpp_baseclass = val,
+                b'+' => buf.b_ind_continuation = val,
+                b'(' => buf.b_ind_unclosed = val,
+                b'u' => buf.b_ind_unclosed2 = val,
+                b'U' => buf.b_ind_unclosed_noignore = val,
+                b'W' => buf.b_ind_unclosed_wrapped = val,
+                b'w' => buf.b_ind_unclosed_whiteok = val,
+                b'm' => buf.b_ind_matching_paren = val,
+                b'M' => buf.b_ind_paren_prev = val,
+                b')' => buf.b_ind_maxparen = val,
+                b'*' => buf.b_ind_maxcomment = val,
+                b'g' => buf.b_ind_scopedecl = val,
+                b'h' => buf.b_ind_scopedecl_code = val,
+                b'j' => buf.b_ind_java = val,
+                b'J' => buf.b_ind_js = val,
+                b'l' => buf.b_ind_keep_case_label = val,
+                b'#' => buf.b_ind_hash_comment = val,
+                b'N' => buf.b_ind_cpp_namespace = val,
+                b'k' => buf.b_ind_if_for_while = val,
+                b'E' => buf.b_ind_cpp_extern_c = val,
+                b'P' => buf.b_ind_pragma = val,
                 _ => {}
             }
             if *p == b',' as c_char {
@@ -1727,7 +1727,7 @@ pub fn get_c_indent() -> c_int {
                     }
                     if !trypos.is_null() {
                         getvcol(
-                            *curwin.as_ptr(),
+                            &mut **curwin.as_ptr(),
                             &mut *trypos,
                             &raw mut col,
                             ptr::null_mut(),
@@ -1749,7 +1749,7 @@ pub fn get_c_indent() -> c_int {
                     let mut start_off: c_int = 0;
                     let mut done = false;
                     getvcol(
-                        *curwin.as_ptr(),
+                        &mut **curwin.as_ptr(),
                         &mut *comment_pos,
                         &raw mut col,
                         ptr::null_mut(),
@@ -1862,7 +1862,7 @@ pub fn get_c_indent() -> c_int {
                                 }
                             }
                             getvcol(
-                                *curwin.as_ptr(),
+                                &mut **curwin.as_ptr(),
                                 &mut *comment_pos,
                                 &raw mut col,
                                 ptr::null_mut(),
@@ -2027,7 +2027,7 @@ pub fn get_c_indent() -> c_int {
                                 }
                                 if our_paren_pos.col > 0 {
                                     getvcol(
-                                        *curwin.as_ptr(),
+                                        &mut **curwin.as_ptr(),
                                         &mut our_paren_pos,
                                         &raw mut col,
                                         ptr::null_mut(),
@@ -2097,7 +2097,7 @@ pub fn get_c_indent() -> c_int {
                         look = skipwhite(start);
                         if *look == b'{' as c_char {
                             getvcol(
-                                *curwin.as_ptr(),
+                                &mut **curwin.as_ptr(),
                                 &mut *trypos,
                                 &raw mut col,
                                 ptr::null_mut(),

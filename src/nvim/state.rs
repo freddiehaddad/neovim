@@ -338,7 +338,7 @@ pub fn may_trigger_modechanged() {
             8,
             ptr::addr_of!(g_st().last_mode).cast(),
         );
-        tv_dict_set_keys_readonly(v_event);
+        tv_dict_set_keys_readonly(&mut *v_event);
 
         vim_snprintf!(
             pattern_buf.as_mut_ptr(),

@@ -701,8 +701,8 @@ pub fn diff_redraw(dofold: bool) {
             if wp != *curwin.as_ptr() {
                 wp_other = wp;
             }
-            if dofold && foldmethodIsDiff(wp) {
-                foldUpdateAll(wp);
+            if dofold && foldmethodIsDiff(&mut *wp) {
+                foldUpdateAll(&mut *wp);
             }
             let n = diff_check_fill(wp, (*wp).w_topline);
             if (wp != *curwin.as_ptr() && (*wp).w_topfill > 0) || n > 0 {
@@ -1458,7 +1458,7 @@ pub fn ex_diffsplit(eap: &mut exarg_T) {
                 );
             }
         }
-        scroll_to_fraction(*curwin.as_ptr(), (**curwin.as_ptr()).w_height);
+        scroll_to_fraction(&mut **curwin.as_ptr(), (**curwin.as_ptr()).w_height);
     }
 }
 pub fn ex_diffthis(_eap: &mut exarg_T) {
@@ -1526,8 +1526,8 @@ pub unsafe fn diff_win_options(wp: *mut win_T, addbuf: bool) {
         (*wp).w_onebuf_opt.wo_fdc = alloc_string_option(fdc_buf.as_ptr());
         (*wp).w_onebuf_opt.wo_fen = 1;
         (*wp).w_onebuf_opt.wo_fdl = 0;
-        foldUpdateAll(wp);
-        changed_window_setting(wp);
+        foldUpdateAll(&mut *wp);
+        changed_window_setting(&mut *wp);
         if vim_strchr(opt_vars().p_sbo, b'h' as c_int).is_null() {
             do_cmdline_cmd(c"set sbo+=hor".as_ptr());
         }
@@ -1583,16 +1583,16 @@ pub fn ex_diffoff(eap: &mut exarg_T) {
                         (*wp).w_onebuf_opt.wo_fdl = (*wp).w_onebuf_opt.wo_fdl_save;
                     }
                     if (*wp).w_onebuf_opt.wo_fen != 0 {
-                        (*wp).w_onebuf_opt.wo_fen = if foldmethodIsManual(wp) {
+                        (*wp).w_onebuf_opt.wo_fen = if foldmethodIsManual(&mut *wp) {
                             0
                         } else {
                             (*wp).w_onebuf_opt.wo_fen_save
                         };
                     }
-                    foldUpdateAll(wp);
+                    foldUpdateAll(&mut *wp);
                 }
                 (*wp).w_topfill = 0;
-                changed_window_setting(wp);
+                changed_window_setting(&mut *wp);
                 diff_buf_adjust(&mut *wp);
             }
             diffwin |= (*wp).w_onebuf_opt.wo_diff != 0;
@@ -2049,19 +2049,19 @@ fn run_linematch_algorithm(dp_idx: usize) {
     }
 }
 pub unsafe fn diff_check_with_linestatus(
-    wp: *mut win_T,
+    wp: &mut win_T,
     lnum: linenr_T,
     linestatus: *mut c_int,
 ) -> c_int {
     unsafe {
-        let buf = (*wp).w_buffer;
+        let buf = wp.w_buffer;
         if !linestatus.is_null() {
             *linestatus = 0;
         }
         if (*g_st().curtab).tp_diff_invalid != 0 {
             ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
         }
-        if (*g_st().curtab).tp_diffs.is_empty() || (*wp).w_onebuf_opt.wo_diff == 0 {
+        if (*g_st().curtab).tp_diffs.is_empty() || wp.w_onebuf_opt.wo_diff == 0 {
             return 0;
         }
         if lnum < 1 || lnum > (*buf).b_ml.ml_line_count + 1 {
@@ -2096,8 +2096,8 @@ pub unsafe fn diff_check_with_linestatus(
         {
             return 0;
         }
-        if lnum >= (*wp).w_topline
-            && lnum < (*wp).w_botline
+        if lnum >= wp.w_topline
+            && lnum < wp.w_botline
             && !(&(*g_st().curtab).tp_diffs)[dp_idx].is_linematched
             && diff_linematch(&(&(*g_st().curtab).tp_diffs)[dp_idx])
             && diff_check_sanity(&*g_st().curtab, &(&(*g_st().curtab).tp_diffs)[dp_idx]) != 0
@@ -2173,7 +2173,7 @@ pub unsafe fn diff_check_fill(wp: *mut win_T, lnum: linenr_T) -> c_int {
         if (diff_st().diff_flags & DIFF_FILLER) == 0 {
             return 0;
         }
-        let n = diff_check_with_linestatus(wp, lnum, ptr::null_mut());
+        let n = diff_check_with_linestatus(&mut *wp, lnum, ptr::null_mut());
         n.max(0)
     }
 }
@@ -2312,8 +2312,8 @@ pub fn diff_set_topline(fromwin: &mut win_T, towin: &mut win_T) {
             towin.w_topline = 1;
             towin.w_topfill = 0;
         }
-        invalidate_botline_win(&raw mut *towin);
-        changed_line_abv_curs_win(&raw mut *towin);
+        invalidate_botline_win(&mut *towin);
+        changed_line_abv_curs_win(&mut *towin);
         check_topfill(&raw mut *towin, false);
         hasFolding(
             &raw mut *towin,
@@ -3333,10 +3333,10 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
         if eap.addr_count == 0 {
             let mut linestatus: c_int = 0;
             if eap.line1 == (*g_st().curbuf).b_ml.ml_line_count
-                && diff_check_with_linestatus(*curwin.as_ptr(), eap.line1, &raw mut linestatus) == 0
+                && diff_check_with_linestatus(&mut **curwin.as_ptr(), eap.line1, &raw mut linestatus) == 0
                 && linestatus == 0
                 && (eap.line1 == 1
-                    || (diff_check_with_linestatus(*curwin.as_ptr(), eap.line1 - 1, &raw mut linestatus)
+                    || (diff_check_with_linestatus(&mut **curwin.as_ptr(), eap.line1 - 1, &raw mut linestatus)
                         >= 0
                         && linestatus == 0))
             {
@@ -3402,7 +3402,7 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
                     && *(*wp).w_onebuf_opt.wo_fdm == b'd' as c_char
                     && (*wp).w_onebuf_opt.wo_fen != 0
                 {
-                    foldUpdateAll(wp);
+                    foldUpdateAll(&mut *wp);
                 }
                 wp = (*wp).w_next;
             }
@@ -3847,12 +3847,12 @@ pub fn f_diff_hlID(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         }
         if !cache_results
             || lnum != diff_st().f_diff_hlid_prev_lnum
-            || diff_st().f_diff_hlid_changedtick != buf_get_changedtick(g_st().curbuf)
+            || diff_st().f_diff_hlid_changedtick != buf_get_changedtick(&*g_st().curbuf)
             || diff_st().f_diff_hlid_fnum != (*g_st().curbuf).b_fnum
             || diff_st().diff_flags != diff_st().f_diff_hlid_prev_diff_flags
         {
             let mut linestatus: c_int = 0;
-            diff_check_with_linestatus(*curwin.as_ptr(), lnum, &raw mut linestatus);
+            diff_check_with_linestatus(&mut **curwin.as_ptr(), lnum, &raw mut linestatus);
             if linestatus < 0 {
                 if linestatus == -1 {
                     diff_st().f_diff_hlid_change_start = MAXCOL;
@@ -3876,7 +3876,7 @@ pub fn f_diff_hlID(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             }
             if cache_results {
                 diff_st().f_diff_hlid_prev_lnum = lnum;
-                diff_st().f_diff_hlid_changedtick = buf_get_changedtick(g_st().curbuf);
+                diff_st().f_diff_hlid_changedtick = buf_get_changedtick(&*g_st().curbuf);
                 diff_st().f_diff_hlid_fnum = (*g_st().curbuf).b_fnum;
                 diff_st().f_diff_hlid_prev_diff_flags = diff_st().diff_flags;
             }

@@ -49,7 +49,7 @@ unsafe fn filter_map_one(
 ) -> c_int {
     unsafe {
         let mut retval = FAIL;
-        tv_copy(tv, get_vim_var_tv(VV_VAL));
+        tv_copy(&*tv, &mut *get_vim_var_tv(VV_VAL));
 
         (*newtv).v_type = VarType::VAR_UNKNOWN;
         if filtermap == FilterMap::ForEach && (*expr).v_type == VarType::VAR_STRING {
@@ -165,7 +165,7 @@ unsafe fn filter_map_dict(
                     {
                         break;
                     }
-                    tv_dict_item_remove(d, di);
+                    tv_dict_item_remove(&mut *d, di);
                 }
             }
             hi = hi.add(1);
@@ -272,7 +272,7 @@ unsafe fn filter_map_string(
         while *p != 0 {
             let len = utfc_ptr2len(p) as usize;
             let mut tv = typval_T::new();
-            crate::eval::typval::tv_set_string_len(&raw mut tv, p, len);
+            crate::eval::typval::tv_set_string_len(&mut tv, p, len);
 
             set_vim_var_nr(VV_KEY, idx);
             let mut newtv = typval_T {
@@ -307,7 +307,7 @@ unsafe fn filter_map_string(
             idx += 1;
             p = p.add(len);
         }
-        crate::eval::typval::tv_set_string_len(rettv, out.as_ptr().cast::<c_char>(), out.len());
+        crate::eval::typval::tv_set_string_len(&mut *rettv, out.as_ptr().cast::<c_char>(), out.len());
     }
 }
 
@@ -332,7 +332,7 @@ unsafe fn filter_map_list(
 
         let mut l_ret: *mut list_T = std::ptr::null_mut();
         if filtermap == FilterMap::MapNew {
-            tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN);
+            tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_UNKNOWN);
             l_ret = (*rettv).vval.v_list();
         }
         set_vim_var_type(VV_KEY, VarType::VAR_NUMBER);
@@ -394,7 +394,7 @@ unsafe fn filter_map(argvars: *mut typval_T, rettv: *mut typval_T, filtermap: Fi
 
         let arg0 = &*argvars;
         if filtermap != FilterMap::MapNew && arg0.v_type != VarType::VAR_STRING {
-            tv_copy(argvars, rettv);
+            tv_copy(&*argvars, &mut *rettv);
         }
 
         if !matches!(
@@ -499,7 +499,7 @@ pub fn f_add(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
             let l = arg0.vval.v_list();
             if !value_check_lock(tv_list_locked(l), c"add() argument".as_ptr(), TV_TRANSLATE) {
                 tv_list_append_tv(l, argvars.add(1));
-                tv_copy(argvars, rettv);
+                tv_copy(&*argvars, rettv);
             }
         } else if arg0.v_type == VarType::VAR_BLOB {
             let b = arg0.vval.v_blob();
@@ -511,7 +511,7 @@ pub fn f_add(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                 if !error {
                     let bv = &mut (*b).bv_ga;
                     bv.push(n as u8);
-                    tv_copy(argvars, rettv);
+                    tv_copy(&*argvars, rettv);
                 }
             }
         } else {
@@ -704,7 +704,7 @@ unsafe fn extend_dict(
                 vval: TypvalVval::Dict(d1),
             };
         } else {
-            tv_copy(argvars, rettv);
+            tv_copy(&*argvars, &mut *rettv);
         }
     }
 }
@@ -763,7 +763,7 @@ unsafe fn extend_list(
                 vval: TypvalVval::List(l1),
             };
         } else {
-            tv_copy(argvars, rettv);
+            tv_copy(&*argvars, &mut *rettv);
         }
     }
 }
@@ -856,7 +856,7 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             let bv = &mut (*b).bv_ga;
             bv.insert(before as usize, val as u8);
 
-            tv_copy(argvars, rettv);
+            tv_copy(&*argvars, rettv);
         } else if arg0.v_type != VarType::VAR_LIST {
             semsg!(e_listblobarg.as_ptr(), c"insert()".as_ptr());
         } else {
@@ -887,7 +887,7 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             }
             if !l.is_null() {
                 tv_list_insert_tv(l, arg1, item);
-                tv_copy(argvars, rettv);
+                tv_copy(&*argvars, rettv);
             }
         }
     }

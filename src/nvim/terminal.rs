@@ -1000,7 +1000,7 @@ pub unsafe fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
             let mut save_v_event: save_v_event_T = save_v_event_T::new();
             let dict = get_v_event(&mut save_v_event);
             tv_dict_add_nr(dict, c"status".as_ptr(), 6, i64::from(status));
-            tv_dict_set_keys_readonly(dict);
+            tv_dict_set_keys_readonly(&mut *dict);
 
             let mut data_items = [KeyValuePair {
                 key: cstr_slice_as_string(b"pos\0"),
@@ -1216,7 +1216,7 @@ pub fn terminal_enter() -> bool {
         ui_cursor_shape();
 
         terminal_focus(&mut *s.term, true);
-        (*g_st().curbuf).b_last_changedtick_i = buf_get_changedtick(g_st().curbuf);
+        (*g_st().curbuf).b_last_changedtick_i = buf_get_changedtick(&*g_st().curbuf);
 
         (*s.term).refcount += 1;
         apply_autocmds(
@@ -1248,7 +1248,7 @@ pub fn terminal_enter() -> bool {
         unset_terminal_winopts(&mut s);
 
         terminal_focus(&mut *s.term, false);
-        (*g_st().curbuf).b_last_changedtick = buf_get_changedtick(g_st().curbuf);
+        (*g_st().curbuf).b_last_changedtick = buf_get_changedtick(&*g_st().curbuf);
 
         if (*g_st().curbuf).terminal == s.term && !s.close {
             terminal_check_cursor();
@@ -1293,7 +1293,7 @@ fn terminal_check_cursor() {
             .min(row_to_linenr(term, term.cursor.row));
         let topline = ((*g_st().curbuf).b_ml.ml_line_count - (**curwin.as_ptr()).w_view_height + 1).max(1);
         if topline != (**curwin.as_ptr()).w_topline {
-            set_topline(*curwin.as_ptr(), topline);
+            set_topline(&mut **curwin.as_ptr(), topline);
         }
         if term.suspended && (g_st().State & MODE_TERMINAL) != 0 {
             (**curwin.as_ptr()).w_cursor = pos_T {
@@ -1309,7 +1309,7 @@ fn terminal_check_cursor() {
             } else {
                 -1
             };
-            coladvance(*curwin.as_ptr(), (term.cursor.col + off).max(0));
+            coladvance(&mut **curwin.as_ptr(), (term.cursor.col + off).max(0));
         }
     }
 }
@@ -1361,7 +1361,7 @@ fn terminal_check(s: &mut TerminalState) -> c_int {
 
         (*s.term).refcount += 1;
         if has_event(EVENT_TEXTCHANGEDT)
-            && (*g_st().curbuf).b_last_changedtick_i != buf_get_changedtick(g_st().curbuf)
+            && (*g_st().curbuf).b_last_changedtick_i != buf_get_changedtick(&*g_st().curbuf)
         {
             apply_autocmds(
                 EVENT_TEXTCHANGEDT,
@@ -1370,7 +1370,7 @@ fn terminal_check(s: &mut TerminalState) -> c_int {
                 false,
                 g_st().curbuf,
             );
-            (*g_st().curbuf).b_last_changedtick_i = buf_get_changedtick(g_st().curbuf);
+            (*g_st().curbuf).b_last_changedtick_i = buf_get_changedtick(&*g_st().curbuf);
         }
         may_trigger_win_scrolled_resized();
         (*s.term).refcount -= 1;
@@ -2570,7 +2570,7 @@ fn adjust_scrollback(term: &mut Terminal, buf: &mut buf_T) {
                 term.sb_buffer.pop();
             }
             mark_adjust_buf(
-                &raw mut *buf,
+                &mut *buf,
                 1,
                 diff as linenr_T,
                 MAXLNUM,
@@ -2593,7 +2593,7 @@ fn refresh_scrollback(term: &mut Terminal, buf: &mut buf_T) {
         let mut deleted = (term.sb_deleted - term.old_sb_deleted) as linenr_T;
         deleted = deleted.min(buf.b_ml.ml_line_count);
         mark_adjust_buf(
-            &raw mut *buf,
+            &mut *buf,
             1,
             deleted,
             MAXLNUM,
@@ -2703,7 +2703,7 @@ fn adjust_topline_cursor(term: &mut Terminal, buf: &mut buf_T, added: c_int) {
                     let following = ml_end == (*wp).w_cursor.lnum + added;
                     if following {
                         (*wp).w_cursor.lnum = ml_end;
-                        set_topline(wp, ((*wp).w_cursor.lnum - (*wp).w_view_height + 1).max(1));
+                        set_topline(&mut *wp, ((*wp).w_cursor.lnum - (*wp).w_view_height + 1).max(1));
                     } else {
                         (*wp).w_cursor.lnum = (*wp).w_cursor.lnum.min(ml_end);
                     }

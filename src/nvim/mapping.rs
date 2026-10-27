@@ -2295,10 +2295,10 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: &mut typval_T, exact: c_int)
         if !get_dict {
             if !rhs.is_null() {
                 if *rhs == NUL {
-                    crate::eval::typval::tv_set_string(&raw mut *rettv, c"<Nop>".as_ptr());
+                    crate::eval::typval::tv_set_string(&mut *rettv, c"<Nop>".as_ptr());
                 } else {
                     crate::eval::typval::tv_set_string(
-                        &raw mut *rettv,
+                        &mut *rettv,
                         str2special_save(rhs, false, kFalse).as_ptr(),
                     );
                 }
@@ -2306,7 +2306,7 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: &mut typval_T, exact: c_int)
                 && let Some(mp) = mp_opt
             {
                 let s = nlua_funcref_str(mp.m_luaref, true);
-                crate::eval::typval::tv_set_string_len(&raw mut *rettv, s.as_ptr(), s.as_bytes().len());
+                crate::eval::typval::tv_set_string_len(&mut *rettv, s.as_ptr(), s.as_bytes().len());
             }
         } else if let Some(mp) = mp_opt
             && (!rhs.is_null() || rhs_lua != LUA_NOREF)

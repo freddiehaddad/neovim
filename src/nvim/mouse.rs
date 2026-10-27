@@ -493,7 +493,7 @@ fn do_popup(which_button: c_int, m_pos_flag: c_int, mut m_pos: pos_T) -> c_int {
                     );
                     let mut col = m_pos.col;
                     getvcol(
-                        *curwin.as_ptr(),
+                        &mut **curwin.as_ptr(),
                         &mut m_pos,
                         ptr::null_mut(),
                         &raw mut col,
@@ -970,7 +970,7 @@ pub unsafe fn do_mouse(
 
                 start_visual = (**curwin.as_ptr()).w_cursor;
                 (**curwin.as_ptr()).w_cursor = end_visual;
-                coladvance(*curwin.as_ptr(), end_visual.col);
+                coladvance(&mut **curwin.as_ptr(), end_visual.col);
                 g_st().Visual.start = (**curwin.as_ptr()).w_cursor;
                 (**curwin.as_ptr()).w_cursor = start_visual;
             } else if lt((**curwin.as_ptr()).w_cursor, start_visual) {
@@ -1517,7 +1517,7 @@ pub unsafe fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button
             }
 
             if !mouse_st().on_statuscol {
-                let fdc = win_fdccol_count(wp);
+                let fdc = win_fdccol_count(&mut *wp);
                 mouse_st().dragwin = ptr::null_mut();
 
                 if below_window {
@@ -1718,7 +1718,7 @@ pub unsafe fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button
 
         (**curwin.as_ptr()).w_curswant = col;
         (**curwin.as_ptr()).w_set_curswant = false;
-        if coladvance(*curwin.as_ptr(), col) == FAIL {
+        if coladvance(&mut **curwin.as_ptr(), col) == FAIL {
             if !inclusive.is_null() {
                 *inclusive = true;
             }
@@ -1858,7 +1858,7 @@ pub fn mouse_comp_pos(
 
         let mut virt_below: c_int = 0;
         let virt_lines = decor_virt_lines(
-            &raw mut *win,
+            &mut *win,
             lnum - 1,
             lnum,
             &raw mut virt_below,
@@ -1877,7 +1877,7 @@ pub fn mouse_comp_pos(
             lnum -= 1;
             let mut virt_below_prev: c_int = 0;
             let virt_lines_prev = decor_virt_lines(
-                &raw mut *win,
+                &mut *win,
                 lnum - 1,
                 lnum,
                 &raw mut virt_below_prev,

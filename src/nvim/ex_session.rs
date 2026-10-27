@@ -355,7 +355,7 @@ unsafe fn put_view(
                 return FAIL;
             }
         } else {
-            let alist = crate::arglist::win_alist(wp);
+            let alist = crate::arglist::win_alist(&*wp);
             if ses_arglist(
                 fd,
                 c"arglocal".as_ptr(),
@@ -371,7 +371,7 @@ unsafe fn put_view(
             }
         }
 
-        let wargcount = (*crate::arglist::win_alist(wp)).al_ga.len() as c_int;
+        let wargcount = (*crate::arglist::win_alist(&*wp)).al_ga.len() as c_int;
         if (*wp).w_arg_idx != current_arg_idx
             && (*wp).w_arg_idx < wargcount
             && ptr::eq(flagp, &raw mut opt_vars().ssop_flags)

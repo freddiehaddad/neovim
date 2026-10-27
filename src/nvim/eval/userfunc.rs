@@ -1050,7 +1050,7 @@ fn cleanup_function_call(fc: &mut funccall_T) {
                     if !hashitem_empty(&*hi) {
                         todo -= 1;
                         let di = tv_dict_hi2di(hi);
-                        tv_copy(&raw const (*di).di_tv, &raw mut (*di).di_tv);
+                        tv_copy(&(*di).di_tv, &mut (*di).di_tv);
                     }
                     hi = hi.add(1);
                 }
@@ -1070,7 +1070,7 @@ fn cleanup_function_call(fc: &mut funccall_T) {
             {
                 let mut li = fc.fc_l_varlist.lv_first;
                 while !li.is_null() {
-                    tv_copy(&raw const (*li).li_tv, &raw mut (*li).li_tv);
+                    tv_copy(&(*li).li_tv, &mut (*li).li_tv);
                     li = (*li).li_next;
                 }
             }
@@ -1141,21 +1141,19 @@ fn func_remove(fp: &mut ufunc_T) -> bool {
     }
 }
 
-unsafe fn func_clear_items(fp: *mut ufunc_T) {
-    unsafe {
-        (*fp).uf_args.clear();
-        (*fp).uf_def_args.clear();
-        (*fp).uf_lines.clear();
+fn func_clear_items(fp: &mut ufunc_T) {
+    fp.uf_args.clear();
+        fp.uf_def_args.clear();
+        fp.uf_lines.clear();
 
-        if ((*fp).uf_flags & FC_LUAREF) != 0 {
-            api_free_luaref((*fp).uf_luaref);
-            (*fp).uf_luaref = LUA_NOREF;
+        if (fp.uf_flags & FC_LUAREF) != 0 {
+            api_free_luaref(fp.uf_luaref);
+            fp.uf_luaref = LUA_NOREF;
         }
 
-        (*fp).uf_tml_count.clear();
-        (*fp).uf_tml_total.clear();
-        (*fp).uf_tml_self.clear();
-    }
+        fp.uf_tml_count.clear();
+        fp.uf_tml_total.clear();
+        fp.uf_tml_self.clear();
 }
 
 unsafe fn func_clear(fp: *mut ufunc_T, force: bool) {
@@ -1165,22 +1163,20 @@ unsafe fn func_clear(fp: *mut ufunc_T, force: bool) {
         }
         (*fp).uf_cleared = true;
 
-        func_clear_items(fp);
+        func_clear_items(&mut *fp);
         funccal_unref((*fp).uf_scoped, fp, force);
     }
 }
 
 impl Drop for ufunc_T {
     fn drop(&mut self) {
-        unsafe {
-            if !self.uf_cleared {
+        if !self.uf_cleared {
                 self.uf_cleared = true;
                 func_clear_items(self);
             }
             if (self.uf_flags & (FC_DELETED | FC_REMOVED)) == 0 {
                 func_remove(self);
             }
-        }
     }
 }
 
@@ -1372,7 +1368,7 @@ pub unsafe fn call_user_func(
             }
 
             if addlocal {
-                tv_copy(&raw const (*v).di_tv, &raw mut (*v).di_tv);
+                tv_copy(&(*v).di_tv, &mut (*v).di_tv);
                 hash_add(&mut (*fc).fc_l_vars.dv_hashtab, &mut *v);
             } else {
                 hash_add(&mut (*fc).fc_l_avars.dv_hashtab, &mut *v);
@@ -1773,7 +1769,7 @@ pub unsafe fn func_call(
                     skip_call = true;
                     break;
                 }
-                tv_copy(&raw const (*item).li_tv, &raw mut argv[argc as usize]);
+                tv_copy(&(*item).li_tv, &mut argv[argc as usize]);
                 argc += 1;
                 item = (*item).li_next;
             }
@@ -1936,7 +1932,7 @@ pub unsafe fn call_func(
                     }
                     tv_copy(
                         &(&(*partial).pt_argv)[argv_clear as usize],
-                        &raw mut argv[argv_clear as usize],
+                        &mut argv[argv_clear as usize],
                     );
                     argv_clear += 1;
                 }
@@ -2041,11 +2037,11 @@ pub unsafe fn call_func(
 pub unsafe fn call_simple_luafunc(
     funcname: *const c_char,
     len: usize,
-    rettv: *mut typval_T,
+    rettv: &mut typval_T,
 ) -> c_int {
     unsafe {
-        (*rettv).v_type = VarType::VAR_NUMBER;
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
+        rettv.v_type = VarType::VAR_NUMBER;
+        rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
         let mut argvars: [typval_T; 1] = [typval_T::new(); 1];
         argvars[0].v_type = VarType::VAR_UNKNOWN;
@@ -2054,12 +2050,12 @@ pub unsafe fn call_simple_luafunc(
     }
 }
 
-pub unsafe fn call_simple_func(funcname: *const c_char, len: usize, rettv: *mut typval_T) -> c_int {
+pub unsafe fn call_simple_func(funcname: *const c_char, len: usize, rettv: &mut typval_T) -> c_int {
     unsafe {
         let mut ret = FAIL;
 
-        (*rettv).v_type = VarType::VAR_NUMBER;
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
+        rettv.v_type = VarType::VAR_NUMBER;
+        rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
         let name = cstr_from_bytes(std::slice::from_raw_parts(funcname.cast::<u8>(), len));
 
@@ -3177,7 +3173,7 @@ pub fn ex_function(eap: &mut exarg_T) {
                     let exp_name = (*fp).uf_name_exp.take();
                     name_owned = None;
                     name = ptr::null_mut();
-                    func_clear_items(fp);
+                    func_clear_items(&mut *fp);
                     (*fp).uf_name_exp = exp_name;
                     (*fp).uf_profiling = 0;
                     (*fp).uf_prof_initialized = 0;
@@ -3252,7 +3248,7 @@ pub fn ex_function(eap: &mut exarg_T) {
                     tv_clear(&raw mut (*fudi.fd_di).di_tv);
                 }
                 crate::eval::typval::tv_set_string_len(
-                    &raw mut (*fudi.fd_di).di_tv,
+                    &mut (*fudi.fd_di).di_tv,
                     name,
                     namelen,
                 );
@@ -3455,7 +3451,7 @@ pub fn ex_delfunction(eap: &mut exarg_T) {
             }
 
             if !fudi.fd_dict.is_null() {
-                tv_dict_item_remove(fudi.fd_dict, fudi.fd_di);
+                tv_dict_item_remove(&mut *fudi.fd_dict, fudi.fd_di);
             } else {
                 let threshold = if func_name_refcount(uf2hikey(&*fp)) {
                     0
@@ -3679,7 +3675,7 @@ unsafe fn ex_defer_inner(
                 for i in 0..partial_argc {
                     tv_copy(
                         &(&(*partial).pt_argv)[i as usize],
-                        &raw mut argvars[i as usize],
+                        &mut argvars[i as usize],
                     );
                 }
             }
@@ -3937,7 +3933,7 @@ pub fn do_return(
             (*uf_st().current_funccal).fc_returned = 0;
         }
 
-        let idx = cleanup_conditionals(cstack, 0, 1);
+        let idx = cleanup_conditionals(&mut *cstack, 0, 1);
         if idx >= 0 {
             (*cstack).cs_pending[idx as usize] = CSTP_RETURN as c_char;
 
@@ -4121,7 +4117,7 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
                     let pt_argc = (*ret_pt).pt_argv.len();
                     (*pt).pt_argv.resize(pt_argc, typval_T::new());
                     for i in 0..pt_argc {
-                        tv_copy(&(&(*ret_pt).pt_argv)[i], &raw mut (&mut (*pt).pt_argv)[i]);
+                        tv_copy(&(&(*ret_pt).pt_argv)[i], &mut (&mut (*pt).pt_argv)[i]);
                     }
                 }
                 partial_unref(ret_pt);

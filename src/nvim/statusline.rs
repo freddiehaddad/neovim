@@ -371,7 +371,7 @@ pub fn win_redr_status(wp: &mut win_T) {
                 wp.w_p_fcs_chars.vert
             };
             let attr = win_hl_attr(&raw mut *wp, group);
-            grid_line_start(&raw mut g_st().default_gridview, w_endrow(&raw mut *wp));
+            grid_line_start(&raw mut g_st().default_gridview, w_endrow(&*wp));
             grid_line_put_schar(w_endcol(wp), fillchar, attr);
             grid_line_flush();
         }
@@ -628,7 +628,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
                 col = (*wp).w_wincol_off;
                 maxwidth = (*wp).w_view_width;
             } else {
-                row = w_endrow(wp);
+                row = w_endrow(&*wp);
                 col = (*wp).w_wincol;
                 maxwidth = (*wp).w_width;
             }
@@ -2070,7 +2070,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         base = NumberBase::kNumBaseHexadecimal;
                     }
                     let l = ml_find_line_or_offset(
-                        (*wp).w_buffer,
+                        &mut *(*wp).w_buffer,
                         (*wp).w_cursor.lnum,
                         ptr::null_mut(),
                         false,
@@ -2093,7 +2093,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     num = byteval;
                     if num == NL {
                         num = 0;
-                    } else if num == CAR && get_fileformat((*wp).w_buffer) == EOL_MAC {
+                    } else if num == CAR && get_fileformat(&*(*wp).w_buffer) == EOL_MAC {
                         num = NL;
                     }
                 }
@@ -2229,7 +2229,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                             fold_buf.as_mut_ptr(),
                         );
                         stl_items!()[stl_st().curitem as usize].minwid =
-                            -if use_cursor_line_highlight(wp, lnum) {
+                            -if use_cursor_line_highlight(&mut *wp, lnum) {
                                 HLF_CLF
                             } else {
                                 HLF_FC

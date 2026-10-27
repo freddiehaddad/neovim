@@ -203,8 +203,8 @@ pub fn w_endcol(wp: &win_T) -> c_int {
 }
 
 #[inline]
-pub unsafe fn w_endrow(wp: *const win_T) -> c_int {
-    unsafe { (*wp).w_winrow + (*wp).w_height }
+pub fn w_endrow(wp: &win_T) -> c_int {
+    wp.w_winrow + wp.w_height
 }
 
 #[inline]
@@ -222,7 +222,7 @@ pub fn conceal_check_cursor_line() {
         redrawWinline(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum);
 
         if decor_conceal_line(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum - 1, true) {
-            changed_window_setting(*curwin.as_ptr());
+            changed_window_setting(&mut **curwin.as_ptr());
         }
         curs_columns(*curwin.as_ptr(), 1);
     }
@@ -414,7 +414,7 @@ pub fn screen_resize(mut width: c_int, mut height: c_int) {
             maketitle();
 
             changed_line_abv_curs();
-            invalidate_botline_win(*curwin.as_ptr());
+            invalidate_botline_win(&mut **curwin.as_ptr());
 
             if g_st().State == MODE_ASKMORE
                 || g_st().State == MODE_EXTERNCMD
@@ -551,10 +551,10 @@ pub fn update_screen() -> c_int {
                 let mut wp = g_st().firstwin;
                 while !wp.is_null() {
                     if !(*wp).w_floating {
-                        if w_endrow(wp) > valid {
+                        if w_endrow(&*wp) > valid {
                             (*wp).w_redr_type = (*wp).w_redr_type.max(UPD_NOT_VALID);
                         }
-                        if !is_stl_global && w_endrow(wp) + (*wp).w_status_height > valid {
+                        if !is_stl_global && w_endrow(&*wp) + (*wp).w_status_height > valid {
                             (*wp).w_redr_status = true;
                         }
                     }
@@ -694,7 +694,7 @@ pub fn update_screen() -> c_int {
             }
 
             win_check_ns_hl(wp);
-            win_grid_alloc(wp);
+            win_grid_alloc(&mut *wp);
 
             if (*wp).w_redr_border || (*wp).w_redr_type >= UPD_NOT_VALID {
                 grid_draw_border(
@@ -1171,7 +1171,7 @@ fn win_redraw_signcols(wp: &mut win_T) -> bool {
         if rebuild_stc {
             wp.w_nrwidth_line_count = 0;
         } else if wp.w_minscwidth == 0 && wp.w_maxscwidth == 1 {
-            width = c_int::from(buf_meta_total(buf, kMTMetaSignText) > 0);
+            width = c_int::from(buf_meta_total(&*buf, kMTMetaSignText) > 0);
         }
 
         let scwidth = wp.w_scwidth;
@@ -1186,7 +1186,7 @@ fn hsep_connected(wp: &mut win_T, corner: WindowCorner) -> bool {
         let sep_row = if corner == WindowCorner::TopLeft || corner == WindowCorner::TopRight {
             wp.w_winrow - 1
         } else {
-            w_endrow(&raw mut *wp)
+            w_endrow(&*wp)
         };
         let mut fr = wp.w_frame;
 
@@ -1217,7 +1217,7 @@ fn hsep_connected(wp: &mut win_T, corner: WindowCorner) -> bool {
             }
         }
 
-        sep_row == (*(*fr).fr_win).w_winrow - 1 || sep_row == w_endrow((*fr).fr_win)
+        sep_row == (*(*fr).fr_win).w_winrow - 1 || sep_row == w_endrow(&*(*fr).fr_win)
     }
 }
 
@@ -1268,7 +1268,7 @@ fn draw_vsep_win(wp: &mut win_T) {
             return;
         }
 
-        for row in wp.w_winrow..w_endrow(&raw mut *wp) {
+        for row in wp.w_winrow..w_endrow(&*wp) {
             grid_line_start(&raw mut g_st().default_gridview, row);
             grid_line_put_schar(
                 w_endcol(&*wp),
@@ -1286,7 +1286,7 @@ fn draw_hsep_win(wp: &mut win_T) {
             return;
         }
 
-        grid_line_start(&raw mut g_st().default_gridview, w_endrow(&raw mut *wp));
+        grid_line_start(&raw mut g_st().default_gridview, w_endrow(&*wp));
         grid_line_fill(
             wp.w_wincol,
             w_endcol(&*wp),
@@ -1366,7 +1366,7 @@ fn draw_sep_connectors_win(wp: &mut win_T) {
             grid_line_flush();
         }
         if bot_left {
-            grid_line_start(&raw mut g_st().default_gridview, w_endrow(&raw mut *wp));
+            grid_line_start(&raw mut g_st().default_gridview, w_endrow(&*wp));
             grid_line_put_schar(
                 wp.w_wincol - 1,
                 get_corner_sep_connector(wp, WindowCorner::BottomLeft),
@@ -1375,7 +1375,7 @@ fn draw_sep_connectors_win(wp: &mut win_T) {
             grid_line_flush();
         }
         if bot_right {
-            grid_line_start(&raw mut g_st().default_gridview, w_endrow(&raw mut *wp));
+            grid_line_start(&raw mut g_st().default_gridview, w_endrow(&*wp));
             grid_line_put_schar(
                 w_endcol(&*wp),
                 get_corner_sep_connector(wp, WindowCorner::BottomRight),
@@ -1461,7 +1461,7 @@ fn win_update(wp: &mut win_T) {
         let mut win = g_st().firstwin;
         while !win.is_null() {
             if ptr::eq((*win).w_buffer, wp.w_buffer) && win_redraw_signcols(&mut *win) {
-                changed_line_abv_curs_win(win);
+                changed_line_abv_curs_win(&mut *win);
                 redraw_later(win, UPD_NOT_VALID);
             }
             win = (*win).w_next;
@@ -1502,7 +1502,7 @@ fn win_update(wp: &mut win_T) {
 
         if wp.w_nrwidth != nrwidth_new {
             type_ = UPD_NOT_VALID;
-            changed_line_abv_curs_win(&raw mut *wp);
+            changed_line_abv_curs_win(&mut *wp);
             wp.w_nrwidth = nrwidth_new;
         } else {
             mod_top = wp.w_redraw_top;
@@ -1543,7 +1543,7 @@ fn win_update(wp: &mut win_T) {
                 }
             }
 
-            if mod_top != 0 && win_lines_concealed(&raw mut *wp) {
+            if mod_top != 0 && win_lines_concealed(&mut *wp) {
                 let mut lnumt = wp.w_topline;
                 let mut lnumb = MAXLNUM;
                 for i in 0..wp.w_lines_valid {
@@ -1630,7 +1630,7 @@ fn win_update(wp: &mut win_T) {
                     || (topline_conceal == wl0.wl_lnum && wp.w_topfill > wp.w_old_topfill))
             {
                 let mut j: c_int;
-                if win_lines_concealed(&raw mut *wp) {
+                if win_lines_concealed(&mut *wp) {
                     j = 0;
                     let mut ln = wp.w_topline;
                     while ln < wl0.wl_lnum {
@@ -1724,7 +1724,7 @@ fn win_update(wp: &mut win_T) {
                             }
                         }
 
-                        if win_may_fill(&raw mut *wp) && bot_start > 0 {
+                        if win_may_fill(&mut *wp) && bot_start > 0 {
                             w_lines_at(&raw mut *wp, 0).wl_size = plines_correct_topline(
                                 &raw mut *wp,
                                 wp.w_topline,
@@ -1956,7 +1956,7 @@ fn win_update(wp: &mut win_T) {
                                     || did_update == DidUpdate::Fold
                                     || (did_update == DidUpdate::Line
                                         && syntax_present(&raw mut *wp)
-                                        && ((foldmethodIsSyntax(&raw mut *wp) && hasAnyFolding(&raw mut *wp) != 0)
+                                        && ((foldmethodIsSyntax(&mut *wp) && hasAnyFolding(&mut *wp) != 0)
                                             || syntax_check_changed(lnum)))
                                     || (!wp.w_match_head.is_empty()
                                         && (*buf).b_mod_set
@@ -2176,7 +2176,7 @@ fn win_update(wp: &mut win_T) {
                         };
 
                         let mut virt_below = decor_virt_lines(
-                            &raw mut *wp,
+                            &mut *wp,
                             lastlnum,
                             lastlnum + 1,
                             ptr::null_mut(),
@@ -2307,7 +2307,7 @@ fn win_update(wp: &mut win_T) {
                     );
                     grid_line_fill(3, wp.w_view_width, schar_from_ascii(b' '), at_attr);
                     grid_line_flush();
-                    set_empty_rows(&raw mut *wp, srow);
+                    set_empty_rows(&mut *wp, srow);
                     wp.w_botline = lnum;
                 } else if (opt_vars().dy_flags & kOptDyFlagLastline) != 0 {
                     grid_line_start(&raw mut wp.w_grid, wp.w_view_height - 1);
@@ -2325,7 +2325,7 @@ fn win_update(wp: &mut win_T) {
                         at_attr,
                     );
                     grid_line_flush();
-                    set_empty_rows(&raw mut *wp, srow);
+                    set_empty_rows(&mut *wp, srow);
                     wp.w_botline = lnum;
                 } else {
                     win_draw_end(
@@ -2336,7 +2336,7 @@ fn win_update(wp: &mut win_T) {
                         wp.w_view_height,
                         HLF_AT,
                     );
-                    set_empty_rows(&raw mut *wp, srow);
+                    set_empty_rows(&mut *wp, srow);
                     wp.w_botline = lnum;
                 }
             } else {
@@ -2390,7 +2390,7 @@ fn win_update(wp: &mut win_T) {
                     wp.w_view_height,
                     HLF_EOB,
                 );
-                set_empty_rows(&raw mut *wp, row);
+                set_empty_rows(&mut *wp, row);
             }
 
             if wp.w_redr_type >= UPD_REDRAW_TOP {
@@ -2555,7 +2555,7 @@ pub fn win_draw_end(
 
 pub unsafe fn compute_foldcolumn(wp: *mut win_T, col: c_int) -> c_int {
     unsafe {
-        let fdc = win_fdccol_count(wp);
+        let fdc = win_fdccol_count(&mut *wp);
         let wmw = if ptr::eq(wp, *curwin.as_ptr()) && opt_vars().p_wmw == 0 {
             1
         } else {
@@ -2599,7 +2599,7 @@ pub unsafe fn number_width(wp: *mut win_T) -> c_int {
         n = n.max(((*wp).w_onebuf_opt.wo_nuw as c_int) - 1);
 
         if n < 2
-            && buf_meta_total((*wp).w_buffer, kMTMetaSignText) != 0
+            && buf_meta_total(&*(*wp).w_buffer, kMTMetaSignText) != 0
             && (*wp).w_minscwidth == SCL_NUM
         {
             n = 2;
@@ -2851,16 +2851,16 @@ pub unsafe fn conceal_cursor_line(wp: *const win_T) -> bool {
     }
 }
 
-pub unsafe fn win_cursorline_standout(wp: *const win_T) -> bool {
+pub fn win_cursorline_standout(wp: &win_T) -> bool {
     unsafe {
-        (*wp).w_onebuf_opt.wo_cul != 0
-            || (ptr::eq(wp, *curwin.as_ptr()) && (*wp).w_onebuf_opt.wo_cole > 0 && !conceal_cursor_line(wp))
+        wp.w_onebuf_opt.wo_cul != 0
+            || (ptr::eq(wp, *curwin.as_ptr()) && wp.w_onebuf_opt.wo_cole > 0 && !conceal_cursor_line(wp))
     }
 }
 
 pub fn win_update_cursorline(wp: &mut win_T, foldinfo: &mut foldinfo_T) {
     unsafe {
-        wp.w_cursorline = if win_cursorline_standout(&raw mut *wp) {
+        wp.w_cursorline = if win_cursorline_standout(&*wp) {
             wp.w_cursor.lnum
         } else {
             0

@@ -2092,11 +2092,11 @@ unsafe fn do_unlet_var(
             let mut oldtv: typval_T = typval_T::new();
 
             if watched {
-                tv_copy(&raw const (*di).di_tv, &raw mut oldtv);
+                tv_copy(&(*di).di_tv, &mut oldtv);
                 key = Some(cstr_to_cstring((*di).di_key.as_ptr()));
             }
 
-            tv_dict_item_remove(d, di);
+            tv_dict_item_remove(&mut *d, di);
 
             if let Some(ref k) = key {
                 tv_dict_watcher_notify(&mut *d, k.as_ptr(), ptr::null_mut(), &raw mut oldtv);
@@ -2177,7 +2177,7 @@ pub unsafe fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> c
                 let watched = tv_dict_is_watched(dict);
 
                 if watched {
-                    tv_copy(&raw const (*di).di_tv, &raw mut oldtv);
+                    tv_copy(&(*di).di_tv, &mut oldtv);
                 }
 
                 delete_var(&mut *ht, hi);
@@ -2288,7 +2288,7 @@ pub unsafe fn set_vim_var_tv(idx: VimVarIndex, tv: *mut typval_T) {
     unsafe {
         let tv_out = get_vim_var_tv(idx);
         tv_clear(tv_out);
-        tv_copy(tv, tv_out);
+        tv_copy(&*tv, &mut *tv_out);
     }
 }
 
@@ -2474,9 +2474,9 @@ pub unsafe fn set_vim_var_string(idx: VimVarIndex, val: *const c_char, len: isiz
             (*tv).v_type = VarType::VAR_STRING;
             (*tv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         } else if len == -1 {
-            crate::eval::typval::tv_set_string(tv, val);
+            crate::eval::typval::tv_set_string(&mut *tv, val);
         } else {
-            crate::eval::typval::tv_set_string_len(tv, val, len as usize);
+            crate::eval::typval::tv_set_string_len(&mut *tv, val, len as usize);
         }
     }
 }
@@ -2504,7 +2504,7 @@ pub unsafe fn set_vim_var_dict(idx: VimVarIndex, val: *mut dict_T) {
         }
 
         (*val).dv_refcount += 1;
-        tv_dict_set_keys_readonly(val);
+        tv_dict_set_keys_readonly(&mut *val);
     }
 }
 
@@ -2603,7 +2603,7 @@ pub unsafe fn set_cmdarg(
             newval.extend_from_slice(b" ++p");
         }
 
-        crate::eval::typval::tv_set_string_len(tv, newval.as_ptr().cast::<c_char>(), newval.len());
+        crate::eval::typval::tv_set_string_len(&mut *tv, newval.as_ptr().cast::<c_char>(), newval.len());
         oldval
     }
 }
@@ -2671,7 +2671,7 @@ pub unsafe fn eval_variable(
             }
             ret = FAIL;
         } else if !rettv.is_null() {
-            tv_copy(tv, rettv);
+            tv_copy(&*tv, &mut *rettv);
         }
 
         ret
@@ -3020,12 +3020,12 @@ pub unsafe fn before_set_vvar(
         if di.di_tv.v_type == VarType::VAR_STRING {
             let mut oldtv: typval_T = typval_T::new();
             if watched {
-                tv_copy(&raw const di.di_tv, &raw mut oldtv);
+                tv_copy(&di.di_tv, &mut oldtv);
             }
             tv_clear(&raw mut di.di_tv);
             if copy || (*tv).v_type != VarType::VAR_STRING {
                 let val = tv_get_string(tv);
-                crate::eval::typval::tv_set_string(&raw mut di.di_tv, val);
+                crate::eval::typval::tv_set_string(&mut di.di_tv, val);
             } else {
                 di.di_tv.v_type = VarType::VAR_STRING;
                 di.di_tv.vval = crate::eval::typval::TypvalVval::String((*tv).vval.v_string());
@@ -3044,7 +3044,7 @@ pub unsafe fn before_set_vvar(
         } else if di.di_tv.v_type == VarType::VAR_NUMBER {
             let mut oldtv: typval_T = typval_T::new();
             if watched {
-                tv_copy(&raw const di.di_tv, &raw mut oldtv);
+                tv_copy(&di.di_tv, &mut oldtv);
             }
             di.di_tv.vval = crate::eval::typval::TypvalVval::Number(tv_get_number(tv));
             if std::ffi::CStr::from_ptr(varname).to_bytes() == b"searchforward" {
@@ -3139,7 +3139,7 @@ pub unsafe fn set_var_const(
             }
 
             if watched {
-                tv_copy(&raw const (*di).di_tv, &raw mut oldtv);
+                tv_copy(&(*di).di_tv, &mut oldtv);
             }
             tv_clear(&raw mut (*di).di_tv);
         } else {
@@ -3165,7 +3165,7 @@ pub unsafe fn set_var_const(
         }
 
         if copy || (*tv).v_type == VarType::VAR_NUMBER || (*tv).v_type == VarType::VAR_FLOAT {
-            tv_copy(tv, &raw mut (*di).di_tv);
+            tv_copy(&*tv, &mut (*di).di_tv);
         } else {
             (*di).di_tv = *tv;
             (*di).di_tv.v_lock = VAR_UNLOCKED;
@@ -3367,7 +3367,7 @@ unsafe fn get_var_from(
                     } else {
                         (&raw const (*tp).tp_winvar).cast()
                     };
-                    tv_copy(&raw const (*v).di_tv, rettv);
+                    tv_copy(&(*v).di_tv, &mut *rettv);
                     done = true;
                 } else {
                     let ht = if htname == b'b' as c_int {
@@ -3380,7 +3380,7 @@ unsafe fn get_var_from(
 
                     let v = find_var_in_ht(ht, htname, varname, std::ffi::CStr::from_ptr(varname).to_bytes().len(), 0);
                     if !v.is_null() {
-                        tv_copy(&raw const (*v).di_tv, rettv);
+                        tv_copy(&(*v).di_tv, &mut *rettv);
                         done = true;
                     }
                 }
@@ -3392,7 +3392,7 @@ unsafe fn get_var_from(
         }
 
         if !done && (*deftv).v_type != VarType::VAR_UNKNOWN {
-            tv_copy(deftv, rettv);
+            tv_copy(&*deftv, &mut *rettv);
         }
 
         g_st().emsg_off -= 1;
@@ -3531,7 +3531,7 @@ pub fn opt_to_tv(value: Object, numbool: bool) -> typval_T {
             ObjectType::kObjectTypeString => {
                 if !value.data.string().data.is_null() {
                     crate::eval::typval::tv_set_string_len(
-                        &raw mut rettv,
+                        &mut rettv,
                         value.data.string().data,
                         value.data.string().size,
                     );
@@ -3543,7 +3543,7 @@ pub fn opt_to_tv(value: Object, numbool: bool) -> typval_T {
             ObjectType::kObjectTypeLuaRef => {
                 let s = nlua_funcref_str(value.data.luaref(), true);
                 crate::eval::typval::tv_set_string_len(
-                    &raw mut rettv,
+                    &mut rettv,
                     s.as_ptr(),
                     s.as_bytes().len(),
                 );

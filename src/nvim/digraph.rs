@@ -1864,7 +1864,7 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut typval_T) {
         let user_ptr = &raw const digr_st().USER_DIGRAPHS;
         let user_slice = (*user_ptr).as_slice();
         let cap = (DIGRAPHDEFAULT.len() + user_slice.len()) as isize;
-        tv_list_alloc_ret(&raw mut *rettv, cap);
+        tv_list_alloc_ret(&mut *rettv, cap);
 
         if list_all {
             for dp in DIGRAPHDEFAULT {

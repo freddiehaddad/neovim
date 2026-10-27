@@ -779,7 +779,7 @@ pub fn ex_language(eap: &mut exarg_T) {
             }
         }
 
-        let _ = buf_init_isk_chartab(g_st().curbuf);
+        let _ = buf_init_isk_chartab(&mut *g_st().curbuf);
         let _ = init_isf_chartab();
         let _ = init_isi_chartab();
     }

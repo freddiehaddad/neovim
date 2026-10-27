@@ -567,7 +567,7 @@ pub unsafe fn dict_set_var(
                 if retval {
                     rv = vim_to_object(&raw mut (*di).di_tv, arena, false);
                 }
-                tv_dict_item_remove(&raw mut *dict, di);
+                tv_dict_item_remove(&mut *dict, di);
             }
         } else {
             let mut tv: typval_T = typval_T::new();
@@ -604,12 +604,12 @@ pub unsafe fn dict_set_var(
                     return rv;
                 }
                 if watched {
-                    tv_copy(&raw mut (*di).di_tv, &raw mut oldtv);
+                    tv_copy(&(*di).di_tv, &mut oldtv);
                 }
                 tv_clear(&raw mut (*di).di_tv);
             }
 
-            tv_copy(&raw mut tv, &raw mut (*di).di_tv);
+            tv_copy(&tv, &mut (*di).di_tv);
             if watched {
                 tv_dict_watcher_notify(dict, key.data, &raw mut tv, &raw mut oldtv);
                 tv_clear(&raw mut oldtv);

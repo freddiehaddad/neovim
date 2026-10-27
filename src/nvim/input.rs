@@ -2032,7 +2032,7 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: &mut typval_T, mut allow
             }
             assert!(i < 10);
             temp[i] = NUL as c_char;
-            crate::eval::typval::tv_set_string_len(&raw mut *rettv, temp.as_ptr(), i);
+            crate::eval::typval::tv_set_string_len(&mut *rettv, temp.as_ptr(), i);
 
             if is_mouse_key(ni) {
                 let mut row = g_st().mouse_row;

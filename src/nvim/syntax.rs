@@ -598,8 +598,8 @@ fn syn_st() -> &'static mut SyntaxState {
 }
 
 #[inline]
-pub unsafe fn win_s(wp: *mut win_T) -> *mut synblock_T {
-    unsafe { (*wp).w_s_ptr() }
+pub fn win_s(wp: &mut win_T) -> *mut synblock_T {
+    wp.w_s_ptr()
 }
 
 #[inline]
@@ -670,15 +670,15 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
 
         syn_st().current_sub_char = NUL as c_int;
 
-        if syn_st().syn_block != win_s(wp)
+        if syn_st().syn_block != win_s(&mut *wp)
             || syn_st().syn_buf != (*wp).w_buffer
-            || syn_st().changedtick_last != buf_get_changedtick(syn_st().syn_buf)
+            || syn_st().changedtick_last != buf_get_changedtick(&*syn_st().syn_buf)
         {
             invalidate_current_state();
             syn_st().syn_buf = (*wp).w_buffer;
-            syn_st().syn_block = win_s(wp);
+            syn_st().syn_block = win_s(&mut *wp);
         }
-        syn_st().changedtick_last = buf_get_changedtick(syn_st().syn_buf);
+        syn_st().changedtick_last = buf_get_changedtick(&*syn_st().syn_buf);
         syn_st().syn_win = wp;
 
         syn_stack_alloc();
@@ -1007,7 +1007,7 @@ unsafe fn save_chartab(chartab: *mut c_char) {
             32,
         );
         ptr::copy(
-            (&raw const (*win_s(syn_st().syn_win)).b_syn_chartab).cast::<u8>(),
+            (&raw const (*win_s(&mut *syn_st().syn_win)).b_syn_chartab).cast::<u8>(),
             (&raw mut (*syn_st().syn_buf).b_chartab).cast::<u8>(),
             32,
         );
@@ -1016,7 +1016,7 @@ unsafe fn save_chartab(chartab: *mut c_char) {
 
 unsafe fn restore_chartab(chartab: *const c_char) {
     unsafe {
-        if (*win_s(syn_st().syn_win)).b_syn_isk.is_some() {
+        if (*win_s(&mut *syn_st().syn_win)).b_syn_isk.is_some() {
             ptr::copy(
                 chartab.cast::<u8>(),
                 (&raw mut (*syn_st().syn_buf).b_chartab).cast::<u8>(),
@@ -1135,8 +1135,8 @@ pub unsafe fn syn_stack_free_all(block: *mut synblock_T) {
         if !g_st().curtab.is_null() {
             let mut wp = g_st().firstwin;
             while !wp.is_null() {
-                if win_s(wp) == block && foldmethodIsSyntax(wp) {
-                    foldUpdateAll(wp);
+                if win_s(&mut *wp) == block && foldmethodIsSyntax(&mut *wp) {
+                    foldUpdateAll(&mut *wp);
                 }
                 wp = (*wp).w_next;
             }
@@ -1174,8 +1174,8 @@ pub fn syn_stack_apply_changes(buf: &mut buf_T) {
         if !g_st().curtab.is_null() {
             let mut wp = g_st().firstwin;
             while !wp.is_null() {
-                if (*wp).w_buffer == buf && win_s(wp) != &raw mut buf.b_s {
-                    syn_stack_apply_changes_block(&mut *win_s(wp), buf);
+                if (*wp).w_buffer == buf && win_s(&mut *wp) != &raw mut buf.b_s {
+                    syn_stack_apply_changes_block(&mut *win_s(&mut *wp), buf);
                 }
                 wp = (*wp).w_next;
             }
@@ -1470,7 +1470,7 @@ fn syn_stack_equal(sp: &synstate_T) -> bool {
 /// We stop parsing syntax above line "lnum".
 pub unsafe fn syntax_end_parsing(wp: *mut win_T, lnum: linenr_T) {
     unsafe {
-        if syn_st().syn_block != win_s(wp) {
+        if syn_st().syn_block != win_s(&mut *wp) {
             return;
         }
         if let Some(mut sp_idx) = syn_stack_find_entry(lnum) {
@@ -2683,8 +2683,8 @@ unsafe fn syn_regexec(
                 (*st).match_ += 1;
             }
         }
-        if timed_out != 0 && !(*win_s(syn_st().syn_win)).b_syn_slow {
-            (*win_s(syn_st().syn_win)).b_syn_slow = true;
+        if timed_out != 0 && !(*win_s(&mut *syn_st().syn_win)).b_syn_slow {
+            (*win_s(&mut *syn_st().syn_win)).b_syn_slow = true;
             msg(
                 gettext(c"'redrawtime' exceeded, syntax highlighting disabled".as_ptr()),
                 0,
@@ -2785,15 +2785,15 @@ fn syn_cmd_conceal(eap: &mut exarg_T, _syncing: c_int) {
 
         let next = skiptowhite(arg);
         if *arg == NUL {
-            if (*win_s(*curwin.as_ptr())).b_syn_conceal != 0 {
+            if (*win_s(&mut **curwin.as_ptr())).b_syn_conceal != 0 {
                 msg(c"syntax conceal on".as_ptr(), 0);
             } else {
                 msg(c"syntax conceal off".as_ptr(), 0);
             }
         } else if crate::memory::cstr_prefix_bytes(arg, 2).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"on".as_ptr(), 2)) && next.offset_from(arg) == 2 {
-            (*win_s(*curwin.as_ptr())).b_syn_conceal = 1;
+            (*win_s(&mut **curwin.as_ptr())).b_syn_conceal = 1;
         } else if crate::memory::cstr_prefix_bytes(arg, 3).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"off".as_ptr(), 3)) && next.offset_from(arg) == 3 {
-            (*win_s(*curwin.as_ptr())).b_syn_conceal = 0;
+            (*win_s(&mut **curwin.as_ptr())).b_syn_conceal = 0;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
         }
@@ -2810,15 +2810,15 @@ fn syn_cmd_case(eap: &mut exarg_T, _syncing: c_int) {
 
         let next = skiptowhite(arg);
         if *arg == NUL {
-            if (*win_s(*curwin.as_ptr())).b_syn_ic != 0 {
+            if (*win_s(&mut **curwin.as_ptr())).b_syn_ic != 0 {
                 msg(c"syntax case ignore".as_ptr(), 0);
             } else {
                 msg(c"syntax case match".as_ptr(), 0);
             }
         } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"match".as_ptr(), 5)) && next.offset_from(arg) == 5 {
-            (*win_s(*curwin.as_ptr())).b_syn_ic = 0;
+            (*win_s(&mut **curwin.as_ptr())).b_syn_ic = 0;
         } else if crate::memory::cstr_prefix_bytes(arg, 6).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"ignore".as_ptr(), 6)) && next.offset_from(arg) == 6 {
-            (*win_s(*curwin.as_ptr())).b_syn_ic = 1;
+            (*win_s(&mut **curwin.as_ptr())).b_syn_ic = 1;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
         }
@@ -2834,7 +2834,7 @@ fn syn_cmd_foldlevel(eap: &mut exarg_T, _syncing: c_int) {
         }
 
         if *arg == NUL {
-            match (*win_s(*curwin.as_ptr())).b_syn_foldlevel {
+            match (*win_s(&mut **curwin.as_ptr())).b_syn_foldlevel {
                 SYNFLD_START => {
                     msg(c"syntax foldlevel start".as_ptr(), 0);
                 }
@@ -2848,9 +2848,9 @@ fn syn_cmd_foldlevel(eap: &mut exarg_T, _syncing: c_int) {
 
         let arg_end = skiptowhite(arg);
         if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"start".as_ptr(), 5)) && arg_end.offset_from(arg) == 5 {
-            (*win_s(*curwin.as_ptr())).b_syn_foldlevel = SYNFLD_START;
+            (*win_s(&mut **curwin.as_ptr())).b_syn_foldlevel = SYNFLD_START;
         } else if crate::memory::cstr_prefix_bytes(arg, 7).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"minimum".as_ptr(), 7)) && arg_end.offset_from(arg) == 7 {
-            (*win_s(*curwin.as_ptr())).b_syn_foldlevel = SYNFLD_MINIMUM;
+            (*win_s(&mut **curwin.as_ptr())).b_syn_foldlevel = SYNFLD_MINIMUM;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
             return;
@@ -2873,20 +2873,20 @@ fn syn_cmd_spell(eap: &mut exarg_T, _syncing: c_int) {
 
         let next = skiptowhite(arg);
         if *arg == NUL {
-            if (*win_s(*curwin.as_ptr())).b_syn_spell == SYNSPL_TOP {
+            if (*win_s(&mut **curwin.as_ptr())).b_syn_spell == SYNSPL_TOP {
                 msg(c"syntax spell toplevel".as_ptr(), 0);
-            } else if (*win_s(*curwin.as_ptr())).b_syn_spell == SYNSPL_NOTOP {
+            } else if (*win_s(&mut **curwin.as_ptr())).b_syn_spell == SYNSPL_NOTOP {
                 msg(c"syntax spell notoplevel".as_ptr(), 0);
             } else {
                 msg(c"syntax spell default".as_ptr(), 0);
             }
         } else if crate::memory::cstr_prefix_bytes(arg, 8).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"toplevel".as_ptr(), 8)) && next.offset_from(arg) == 8 {
-            (*win_s(*curwin.as_ptr())).b_syn_spell = SYNSPL_TOP;
+            (*win_s(&mut **curwin.as_ptr())).b_syn_spell = SYNSPL_TOP;
         } else if crate::memory::cstr_prefix_bytes(arg, 10).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"notoplevel".as_ptr(), 10)) && next.offset_from(arg) == 10
         {
-            (*win_s(*curwin.as_ptr())).b_syn_spell = SYNSPL_NOTOP;
+            (*win_s(&mut **curwin.as_ptr())).b_syn_spell = SYNSPL_NOTOP;
         } else if crate::memory::cstr_prefix_bytes(arg, 7).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"default".as_ptr(), 7)) && next.offset_from(arg) == 7 {
-            (*win_s(*curwin.as_ptr())).b_syn_spell = SYNSPL_DEFAULT;
+            (*win_s(&mut **curwin.as_ptr())).b_syn_spell = SYNSPL_DEFAULT;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
             return;
@@ -2906,15 +2906,15 @@ fn syn_cmd_iskeyword(eap: &mut exarg_T, _syncing: c_int) {
         arg = skipwhite(arg);
         if *arg == NUL {
             msg_puts(c"\n".as_ptr());
-            if let Some(ref isk) = (*win_s(*curwin.as_ptr())).b_syn_isk {
+            if let Some(ref isk) = (*win_s(&mut **curwin.as_ptr())).b_syn_isk {
                 msg_puts(c"syntax iskeyword ".as_ptr());
                 msg_outtrans(isk.as_ptr(), 0, false);
             } else {
                 msg_outtrans(gettext(c"syntax iskeyword not set".as_ptr()), 0, false);
             }
         } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"clear".as_ptr(), 5)) {
-            (*win_s(*curwin.as_ptr())).b_syn_chartab = (*g_st().curbuf).b_chartab;
-            (*win_s(*curwin.as_ptr())).b_syn_isk = None;
+            (*win_s(&mut **curwin.as_ptr())).b_syn_chartab = (*g_st().curbuf).b_chartab;
+            (*win_s(&mut **curwin.as_ptr())).b_syn_isk = None;
         } else {
             if check_isopt(arg) == FAIL {
                 emsg(gettext((&raw const e_invarg).cast()));
@@ -2922,10 +2922,10 @@ fn syn_cmd_iskeyword(eap: &mut exarg_T, _syncing: c_int) {
             }
             let isk = std::ffi::CStr::from_ptr(arg).to_owned();
             let isk_ptr = isk.as_ptr().cast_mut();
-            (*win_s(*curwin.as_ptr())).b_syn_isk = Some(isk);
+            (*win_s(&mut **curwin.as_ptr())).b_syn_isk = Some(isk);
             parse_isopt(
                 isk_ptr,
-                (&raw mut (*win_s(*curwin.as_ptr())).b_syn_chartab).cast(),
+                (&raw mut (*win_s(&mut **curwin.as_ptr())).b_syn_chartab).cast(),
             );
         }
         redraw_later(*curwin.as_ptr(), UPD_NOT_VALID);
@@ -2976,32 +2976,30 @@ impl Drop for synblock_T {
 }
 
 /// Get rid of ownsyntax for window "wp".
-pub unsafe fn reset_synblock(wp: *mut win_T) {
-    unsafe {
-        (*wp).w_s_owned = None;
-    }
+pub fn reset_synblock(wp: &mut win_T) {
+    wp.w_s_owned = None;
 }
 
 fn syntax_sync_clear() {
     unsafe {
-        let mut i = (*win_s(*curwin.as_ptr())).b_syn_patterns.len() as c_int - 1;
+        let mut i = (*win_s(&mut **curwin.as_ptr())).b_syn_patterns.len() as c_int - 1;
         while i >= 0 {
-            if (*syn_items(&mut *win_s(*curwin.as_ptr())).offset(i as isize)).sp_syncing {
-                syn_remove_pattern(&mut *win_s(*curwin.as_ptr()), i);
+            if (*syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset(i as isize)).sp_syncing {
+                syn_remove_pattern(&mut *win_s(&mut **curwin.as_ptr()), i);
             }
             i -= 1;
         }
 
-        (*win_s(*curwin.as_ptr())).b_syn_sync_flags = 0;
-        (*win_s(*curwin.as_ptr())).b_syn_sync_minlines = 0;
-        (*win_s(*curwin.as_ptr())).b_syn_sync_maxlines = 0;
-        (*win_s(*curwin.as_ptr())).b_syn_sync_linebreaks = 0;
+        (*win_s(&mut **curwin.as_ptr())).b_syn_sync_flags = 0;
+        (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines = 0;
+        (*win_s(&mut **curwin.as_ptr())).b_syn_sync_maxlines = 0;
+        (*win_s(&mut **curwin.as_ptr())).b_syn_sync_linebreaks = 0;
 
-        (*win_s(*curwin.as_ptr())).b_syn_linecont_prog = None;
-        (*win_s(*curwin.as_ptr())).b_syn_linecont_pat = None;
-        (*win_s(*curwin.as_ptr())).b_syn_isk = None;
+        (*win_s(&mut **curwin.as_ptr())).b_syn_linecont_prog = None;
+        (*win_s(&mut **curwin.as_ptr())).b_syn_linecont_pat = None;
+        (*win_s(&mut **curwin.as_ptr())).b_syn_isk = None;
 
-        syn_stack_free_all(win_s(*curwin.as_ptr()));
+        syn_stack_free_all(win_s(&mut **curwin.as_ptr()));
     }
 }
 
@@ -3024,7 +3022,7 @@ fn syn_cmd_clear(eap: &mut exarg_T, syncing: c_int) {
             return;
         }
 
-        if (*win_s(*curwin.as_ptr())).b_syn_topgrp != 0 {
+        if (*win_s(&mut **curwin.as_ptr())).b_syn_topgrp != 0 {
             return;
         }
 
@@ -3032,8 +3030,8 @@ fn syn_cmd_clear(eap: &mut exarg_T, syncing: c_int) {
             if syncing != 0 {
                 syntax_sync_clear();
             } else {
-                syntax_clear(&mut *win_s(*curwin.as_ptr()));
-                if win_s(*curwin.as_ptr()) == &raw mut (*(**curwin.as_ptr()).w_buffer).b_s {
+                syntax_clear(&mut *win_s(&mut **curwin.as_ptr()));
+                if win_s(&mut **curwin.as_ptr()) == &raw mut (*(**curwin.as_ptr()).w_buffer).b_s {
                     do_unlet(c"b:current_syntax".as_ptr(), 16, true);
                 }
                 do_unlet(c"w:current_syntax".as_ptr(), 16, true);
@@ -3048,7 +3046,7 @@ fn syn_cmd_clear(eap: &mut exarg_T, syncing: c_int) {
                         break;
                     }
                     let scl_id = id - SYNID_CLUSTER as c_int;
-                    let clp = syn_clstr(&mut *win_s(*curwin.as_ptr())).offset(scl_id as isize);
+                    let clp = syn_clstr(&mut *win_s(&mut **curwin.as_ptr())).offset(scl_id as isize);
                     (*clp).scl_list = None;
                 } else {
                     let id = syn_name2id_len(arg, arg_end.offset_from(arg) as usize);
@@ -3062,22 +3060,22 @@ fn syn_cmd_clear(eap: &mut exarg_T, syncing: c_int) {
             }
         }
         redraw_curbuf_later(UPD_SOME_VALID);
-        syn_stack_free_all(win_s(*curwin.as_ptr()));
+        syn_stack_free_all(win_s(&mut **curwin.as_ptr()));
     }
 }
 
 fn syn_clear_one(id: c_int, syncing: bool) {
     unsafe {
         if !syncing {
-            syn_clear_keyword(id, &mut (*win_s(*curwin.as_ptr())).b_keywtab);
-            syn_clear_keyword(id, &mut (*win_s(*curwin.as_ptr())).b_keywtab_ic);
+            syn_clear_keyword(id, &mut (*win_s(&mut **curwin.as_ptr())).b_keywtab);
+            syn_clear_keyword(id, &mut (*win_s(&mut **curwin.as_ptr())).b_keywtab_ic);
         }
 
-        let mut idx = (*win_s(*curwin.as_ptr())).b_syn_patterns.len() as c_int - 1;
+        let mut idx = (*win_s(&mut **curwin.as_ptr())).b_syn_patterns.len() as c_int - 1;
         while idx >= 0 {
-            let spp = syn_items(&mut *win_s(*curwin.as_ptr())).offset(idx as isize);
+            let spp = syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset(idx as isize);
             if (*spp).sp_syn.id as c_int == id && (*spp).sp_syncing == syncing {
-                syn_remove_pattern(&mut *win_s(*curwin.as_ptr()), idx);
+                syn_remove_pattern(&mut *win_s(&mut **curwin.as_ptr()), idx);
             }
             idx -= 1;
         }
@@ -3148,15 +3146,15 @@ fn syn_cmd_list(eap: &mut exarg_T, syncing: c_int) {
         }
 
         if syncing != 0 {
-            if ((*win_s(*curwin.as_ptr())).b_syn_sync_flags & SF_CCOMMENT) != 0 {
+            if ((*win_s(&mut **curwin.as_ptr())).b_syn_sync_flags & SF_CCOMMENT) != 0 {
                 msg_puts(gettext(c"syncing on C-style comments".as_ptr()));
                 syn_lines_msg();
                 syn_match_msg();
-            } else if ((*win_s(*curwin.as_ptr())).b_syn_sync_flags & SF_MATCH) != 0 {
+            } else if ((*win_s(&mut **curwin.as_ptr())).b_syn_sync_flags & SF_MATCH) != 0 {
                 msg_puts_title(gettext(c"\n--- Syntax sync items ---".as_ptr()));
-                if (*win_s(*curwin.as_ptr())).b_syn_sync_minlines > 0
-                    || (*win_s(*curwin.as_ptr())).b_syn_sync_maxlines > 0
-                    || (*win_s(*curwin.as_ptr())).b_syn_sync_linebreaks > 0
+                if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines > 0
+                    || (*win_s(&mut **curwin.as_ptr())).b_syn_sync_maxlines > 0
+                    || (*win_s(&mut **curwin.as_ptr())).b_syn_sync_linebreaks > 0
                 {
                     msg_puts(gettext(c"\nsyncing on items".as_ptr()));
                     syn_lines_msg();
@@ -3167,14 +3165,14 @@ fn syn_cmd_list(eap: &mut exarg_T, syncing: c_int) {
                     syn_list_one(id, true, false);
                     id += 1;
                 }
-            } else if (*win_s(*curwin.as_ptr())).b_syn_sync_minlines == 0 {
+            } else if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines == 0 {
                 msg_puts(gettext(c"no syncing".as_ptr()));
             } else {
-                if (*win_s(*curwin.as_ptr())).b_syn_sync_minlines == MAXLNUM {
+                if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines == MAXLNUM {
                     msg_puts(gettext(c"syncing starts at the first line".as_ptr()));
                 } else {
                     msg_puts(gettext(c"syncing starts ".as_ptr()));
-                    msg_outnum((*win_s(*curwin.as_ptr())).b_syn_sync_minlines as c_int);
+                    msg_outnum((*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines as c_int);
                     msg_puts(gettext(c" lines before top line".as_ptr()));
                 }
                 syn_match_msg();
@@ -3190,7 +3188,7 @@ fn syn_cmd_list(eap: &mut exarg_T, syncing: c_int) {
                 id += 1;
             }
             let mut cid: c_int = 0;
-            while (cid as usize) < (*win_s(*curwin.as_ptr())).b_syn_clusters.len() && !g_st().got_int {
+            while (cid as usize) < (*win_s(&mut **curwin.as_ptr())).b_syn_clusters.len() && !g_st().got_int {
                 syn_list_cluster(cid);
                 cid += 1;
             }
@@ -3221,21 +3219,21 @@ fn syn_cmd_list(eap: &mut exarg_T, syncing: c_int) {
 
 fn syn_lines_msg() {
     unsafe {
-        if (*win_s(*curwin.as_ptr())).b_syn_sync_maxlines > 0 || (*win_s(*curwin.as_ptr())).b_syn_sync_minlines > 0 {
+        if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_maxlines > 0 || (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines > 0 {
             msg_puts(c"; ".as_ptr());
-            if (*win_s(*curwin.as_ptr())).b_syn_sync_minlines == MAXLNUM {
+            if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines == MAXLNUM {
                 msg_puts(gettext(c"from the first line".as_ptr()));
             } else {
-                if (*win_s(*curwin.as_ptr())).b_syn_sync_minlines > 0 {
+                if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines > 0 {
                     msg_puts(gettext(c"minimal ".as_ptr()));
-                    msg_outnum((*win_s(*curwin.as_ptr())).b_syn_sync_minlines as c_int);
-                    if (*win_s(*curwin.as_ptr())).b_syn_sync_maxlines != 0 {
+                    msg_outnum((*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines as c_int);
+                    if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_maxlines != 0 {
                         msg_puts(c", ".as_ptr());
                     }
                 }
-                if (*win_s(*curwin.as_ptr())).b_syn_sync_maxlines > 0 {
+                if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_maxlines > 0 {
                     msg_puts(gettext(c"maximal ".as_ptr()));
-                    msg_outnum((*win_s(*curwin.as_ptr())).b_syn_sync_maxlines as c_int);
+                    msg_outnum((*win_s(&mut **curwin.as_ptr())).b_syn_sync_maxlines as c_int);
                 }
                 msg_puts(gettext(c" lines before top line".as_ptr()));
             }
@@ -3245,9 +3243,9 @@ fn syn_lines_msg() {
 
 fn syn_match_msg() {
     unsafe {
-        if (*win_s(*curwin.as_ptr())).b_syn_sync_linebreaks > 0 {
+        if (*win_s(&mut **curwin.as_ptr())).b_syn_sync_linebreaks > 0 {
             msg_puts(gettext(c"; match ".as_ptr()));
-            msg_outnum((*win_s(*curwin.as_ptr())).b_syn_sync_linebreaks as c_int);
+            msg_outnum((*win_s(&mut **curwin.as_ptr())).b_syn_sync_linebreaks as c_int);
             msg_puts(gettext(c" line breaks".as_ptr()));
         }
     }
@@ -3277,13 +3275,13 @@ fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
         let hl_id = HLF_D;
 
         if !syncing {
-            did_header = syn_list_keywords(id, &(*win_s(*curwin.as_ptr())).b_keywtab, false, hl_id);
-            did_header = syn_list_keywords(id, &(*win_s(*curwin.as_ptr())).b_keywtab_ic, did_header, hl_id);
+            did_header = syn_list_keywords(id, &(*win_s(&mut **curwin.as_ptr())).b_keywtab, false, hl_id);
+            did_header = syn_list_keywords(id, &(*win_s(&mut **curwin.as_ptr())).b_keywtab_ic, did_header, hl_id);
         }
 
         let mut idx: c_int = 0;
-        while (idx as usize) < (*win_s(*curwin.as_ptr())).b_syn_patterns.len() && !g_st().got_int {
-            let spp = syn_items(&mut *win_s(*curwin.as_ptr())).offset(idx as isize);
+        while (idx as usize) < (*win_s(&mut **curwin.as_ptr())).b_syn_patterns.len() && !g_st().got_int {
+            let spp = syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset(idx as isize);
             if (*spp).sp_syn.id as c_int != id || (*spp).sp_syncing != syncing {
                 idx += 1;
                 continue;
@@ -3296,31 +3294,31 @@ fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
                 put_pattern(c"match".as_ptr(), b' ' as c_int, &*spp, hl_id);
                 msg_putchar(b' ' as c_int);
             } else if (*spp).sp_type == SPTYPE_START {
-                while (*syn_items(&mut *win_s(*curwin.as_ptr())).offset(idx as isize)).sp_type == SPTYPE_START {
+                while (*syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset(idx as isize)).sp_type == SPTYPE_START {
                     put_pattern(
                         c"start".as_ptr(),
                         b'=' as c_int,
-                        &*syn_items(&mut *win_s(*curwin.as_ptr())).offset(idx as isize),
+                        &*syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset(idx as isize),
                         hl_id,
                     );
                     idx += 1;
                 }
-                if (*syn_items(&mut *win_s(*curwin.as_ptr())).offset(idx as isize)).sp_type == SPTYPE_SKIP {
+                if (*syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset(idx as isize)).sp_type == SPTYPE_SKIP {
                     put_pattern(
                         c"skip".as_ptr(),
                         b'=' as c_int,
-                        &*syn_items(&mut *win_s(*curwin.as_ptr())).offset(idx as isize),
+                        &*syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset(idx as isize),
                         hl_id,
                     );
                     idx += 1;
                 }
-                while (idx as usize) < (*win_s(*curwin.as_ptr())).b_syn_patterns.len()
-                    && (*syn_items(&mut *win_s(*curwin.as_ptr())).offset(idx as isize)).sp_type == SPTYPE_END
+                while (idx as usize) < (*win_s(&mut **curwin.as_ptr())).b_syn_patterns.len()
+                    && (*syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset(idx as isize)).sp_type == SPTYPE_END
                 {
                     put_pattern(
                         c"end".as_ptr(),
                         b'=' as c_int,
-                        &*syn_items(&mut *win_s(*curwin.as_ptr())).offset(idx as isize),
+                        &*syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset(idx as isize),
                         hl_id,
                     );
                     idx += 1;
@@ -3350,7 +3348,7 @@ fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
                 }
                 msg_putchar(b' ' as c_int);
                 if (*spp).sp_sync_idx >= 0 {
-                    let sync_id = (*syn_items(&mut *win_s(*curwin.as_ptr())).offset((*spp).sp_sync_idx as isize))
+                    let sync_id = (*syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset((*spp).sp_sync_idx as isize))
                         .sp_syn
                         .id as c_int;
                     msg_outtrans(highlight_group_name(sync_id - 1), 0, false);
@@ -3391,7 +3389,7 @@ fn syn_list_cluster(id: c_int) {
         let mut endcol: c_int = 15;
 
         msg_putchar(b'\n' as c_int);
-        let clp = syn_clstr(&mut *win_s(*curwin.as_ptr())).offset(id as isize);
+        let clp = syn_clstr(&mut *win_s(&mut **curwin.as_ptr())).offset(id as isize);
         msg_outtrans((*clp).scl_name.as_ptr(), 0, false);
 
         if g_st().msg_col >= endcol {
@@ -3431,7 +3429,7 @@ unsafe fn put_id_list(name: *const c_char, list: *const i16, hl_id: c_int) {
                 let scl_id = (*p - SYNID_CLUSTER) as isize;
                 msg_putchar(b'@' as c_int);
                 msg_outtrans(
-                    (*syn_clstr(&mut *win_s(*curwin.as_ptr())).offset(scl_id)).scl_name.as_ptr(),
+                    (*syn_clstr(&mut *win_s(&mut **curwin.as_ptr())).offset(scl_id)).scl_name.as_ptr(),
                     0,
                     false,
                 );
@@ -3625,7 +3623,7 @@ unsafe fn add_keyword(
 ) {
     unsafe {
         let mut name_folded = [0 as c_char; MAXKEYWLEN + 1];
-        let (name_ic, name_iclen): (*const c_char, usize) = if (*win_s(*curwin.as_ptr())).b_syn_ic != 0 {
+        let (name_ic, name_iclen): (*const c_char, usize) = if (*win_s(&mut **curwin.as_ptr())).b_syn_ic != 0 {
             str_foldcase(
                 name,
                 namelen as c_int,
@@ -3641,7 +3639,7 @@ unsafe fn add_keyword(
         kw_vec.extend_from_slice(std::slice::from_raw_parts(name_ic, name_iclen));
         kw_vec.push(NUL);
         if cont_in_list.is_some() {
-            (*win_s(*curwin.as_ptr())).b_syn_containedin = 1;
+            (*win_s(&mut **curwin.as_ptr())).b_syn_containedin = 1;
         }
         let kp = keyentry_T {
             k_syn: sp_syn {
@@ -3655,10 +3653,10 @@ unsafe fn add_keyword(
             keyword: kw_vec,
         };
 
-        let ht = if (*win_s(*curwin.as_ptr())).b_syn_ic != 0 {
-            &mut (*win_s(*curwin.as_ptr())).b_keywtab_ic
+        let ht = if (*win_s(&mut **curwin.as_ptr())).b_syn_ic != 0 {
+            &mut (*win_s(&mut **curwin.as_ptr())).b_keywtab_ic
         } else {
-            &mut (*win_s(*curwin.as_ptr())).b_keywtab
+            &mut (*win_s(&mut **curwin.as_ptr())).b_keywtab
         };
         let key_bytes = std::slice::from_raw_parts(name_ic.cast::<u8>(), name_iclen).to_vec();
         ht.entry(key_bytes).or_default().insert(0, kp);
@@ -3710,7 +3708,7 @@ unsafe fn get_syn_options(
             return ptr::null_mut();
         }
 
-        if (*win_s(*curwin.as_ptr())).b_syn_conceal != 0 {
+        if (*win_s(&mut **curwin.as_ptr())).b_syn_conceal != 0 {
             (*opt).flags |= HL_CONCEAL;
         }
 
@@ -3802,9 +3800,9 @@ unsafe fn get_syn_options(
                         (*opt).sync_idx = Some(NONE_IDX);
                     } else {
                         let syn_id = syn_name2id(gname.as_ptr());
-                        let mut i = (*win_s(*curwin.as_ptr())).b_syn_patterns.len() as c_int - 1;
+                        let mut i = (*win_s(&mut **curwin.as_ptr())).b_syn_patterns.len() as c_int - 1;
                         while i >= 0 {
-                            let spp = syn_items(&mut *win_s(*curwin.as_ptr())).offset(i as isize);
+                            let spp = syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset(i as isize);
                             if (*spp).sp_syn.id as c_int == syn_id && (*spp).sp_type == SPTYPE_START
                             {
                                 (*opt).sync_idx = Some(i);
@@ -3822,8 +3820,8 @@ unsafe fn get_syn_options(
                     }
 
                     arg = skipwhite(arg);
-                } else if flags == HL_FOLD && foldmethodIsSyntax(*curwin.as_ptr()) {
-                    foldUpdateAll(*curwin.as_ptr());
+                } else if flags == HL_FOLD && foldmethodIsSyntax(&mut **curwin.as_ptr()) {
+                    foldUpdateAll(&mut **curwin.as_ptr());
                 }
             }
         }
@@ -3834,14 +3832,14 @@ unsafe fn get_syn_options(
 
 fn syn_incl_toplevel(id: c_int, flagsp: &mut c_int) {
     unsafe {
-        if (*flagsp & HL_CONTAINED) != 0 || (*win_s(*curwin.as_ptr())).b_syn_topgrp == 0 {
+        if (*flagsp & HL_CONTAINED) != 0 || (*win_s(&mut **curwin.as_ptr())).b_syn_topgrp == 0 {
             return;
         }
         *flagsp |= HL_CONTAINED | HL_INCLUDED_TOPLEVEL;
-        if (*win_s(*curwin.as_ptr())).b_syn_topgrp >= SYNID_CLUSTER as c_int {
+        if (*win_s(&mut **curwin.as_ptr())).b_syn_topgrp >= SYNID_CLUSTER as c_int {
             let mut grp_list: SynIdList = Some(std::rc::Rc::from([id as i16, 0]));
-            let tlg_id = (*win_s(*curwin.as_ptr())).b_syn_topgrp - SYNID_CLUSTER as c_int;
-            let clp = syn_clstr(&mut *win_s(*curwin.as_ptr())).offset(tlg_id as isize);
+            let tlg_id = (*win_s(&mut **curwin.as_ptr())).b_syn_topgrp - SYNID_CLUSTER as c_int;
+            let clp = syn_clstr(&mut *win_s(&mut **curwin.as_ptr())).offset(tlg_id as isize);
             syn_combine_list(&mut (*clp).scl_list, &mut grp_list, CLUSTER_ADD);
         }
     }
@@ -3899,8 +3897,8 @@ fn syn_cmd_include(eap: &mut exarg_T, _syncing: c_int) {
         let prev_syn_inc_tag = syn_st().current_syn_inc_tag;
         syn_st().running_syn_inc_tag += 1;
         syn_st().current_syn_inc_tag = syn_st().running_syn_inc_tag;
-        let prev_toplvl_grp = (*win_s(*curwin.as_ptr())).b_syn_topgrp;
-        (*win_s(*curwin.as_ptr())).b_syn_topgrp = sgl_id;
+        let prev_toplvl_grp = (*win_s(&mut **curwin.as_ptr())).b_syn_topgrp;
+        (*win_s(&mut **curwin.as_ptr())).b_syn_topgrp = sgl_id;
         let res = if source {
             do_source(eap.arg, false, DOSO_NONE, ptr::null_mut())
         } else {
@@ -3909,7 +3907,7 @@ fn syn_cmd_include(eap: &mut exarg_T, _syncing: c_int) {
         if res == FAIL {
             semsg!(gettext((&raw const e_notopen).cast()), eap.arg);
         }
-        (*win_s(*curwin.as_ptr())).b_syn_topgrp = prev_toplvl_grp;
+        (*win_s(&mut **curwin.as_ptr())).b_syn_topgrp = prev_toplvl_grp;
         syn_st().current_syn_inc_tag = prev_syn_inc_tag;
     }
 }
@@ -4028,7 +4026,7 @@ fn syn_cmd_keyword(eap: &mut exarg_T, _syncing: c_int) {
         }
 
         redraw_curbuf_later(UPD_SOME_VALID);
-        syn_stack_free_all(win_s(*curwin.as_ptr()));
+        syn_stack_free_all(win_s(&mut **curwin.as_ptr()));
     }
 }
 
@@ -4087,21 +4085,21 @@ fn syn_cmd_match(eap: &mut exarg_T, syncing: c_int) {
                     item.sp_syn.cont_in_list = syn_opt_arg.cont_in_list.take();
                     item.sp_cchar = conceal_char;
                     if item.sp_syn.cont_in_list.is_some() {
-                        (*win_s(*curwin.as_ptr())).b_syn_containedin = 1;
+                        (*win_s(&mut **curwin.as_ptr())).b_syn_containedin = 1;
                     }
                     item.sp_next_list = syn_opt_arg.next_list.take();
-                    let pats = &mut (*win_s(*curwin.as_ptr())).b_syn_patterns;
+                    let pats = &mut (*win_s(&mut **curwin.as_ptr())).b_syn_patterns;
                     pats.push(item);
 
                     if (syn_opt_arg.flags & (HL_SYNC_HERE | HL_SYNC_THERE)) != 0 {
-                        (*win_s(*curwin.as_ptr())).b_syn_sync_flags |= SF_MATCH;
+                        (*win_s(&mut **curwin.as_ptr())).b_syn_sync_flags |= SF_MATCH;
                     }
                     if (syn_opt_arg.flags & HL_FOLD) != 0 {
-                        (*win_s(*curwin.as_ptr())).b_syn_folditems += 1;
+                        (*win_s(&mut **curwin.as_ptr())).b_syn_folditems += 1;
                     }
 
                     redraw_curbuf_later(UPD_SOME_VALID);
-                    syn_stack_free_all(win_s(*curwin.as_ptr()));
+                    syn_stack_free_all(win_s(&mut **curwin.as_ptr()));
                     return;
                 }
             }
@@ -4243,7 +4241,7 @@ fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
                 let syn_id = syn_check_group(arg, group_name_end.offset_from(arg) as usize);
                 if syn_id != 0 {
                     syn_incl_toplevel(syn_id, &mut syn_opt_arg.flags);
-                    let pats = &mut (*win_s(*curwin.as_ptr())).b_syn_patterns;
+                    let pats = &mut (*win_s(&mut **curwin.as_ptr())).b_syn_patterns;
                     pats.reserve(pat_count as usize);
                     for (item, pat_vec) in pat_ptrs
                         .iter_mut()
@@ -4270,19 +4268,19 @@ fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
                                 pat.sp_cont_list = syn_opt_arg.cont_list.clone();
                                 pat.sp_syn.cont_in_list = syn_opt_arg.cont_in_list.clone();
                                 if syn_opt_arg.cont_in_list.is_some() {
-                                    (*win_s(*curwin.as_ptr())).b_syn_containedin = 1;
+                                    (*win_s(&mut **curwin.as_ptr())).b_syn_containedin = 1;
                                 }
                                 pat.sp_next_list = syn_opt_arg.next_list.clone();
                             }
                             pats.push(pat);
                             if (syn_opt_arg.flags & HL_FOLD) != 0 {
-                                (*win_s(*curwin.as_ptr())).b_syn_folditems += 1;
+                                (*win_s(&mut **curwin.as_ptr())).b_syn_folditems += 1;
                             }
                         }
                     }
 
                     redraw_curbuf_later(UPD_SOME_VALID);
-                    syn_stack_free_all(win_s(*curwin.as_ptr()));
+                    syn_stack_free_all(win_s(&mut **curwin.as_ptr()));
                     success = true;
                 }
             }
@@ -4354,9 +4352,9 @@ unsafe fn syn_scl_name2id(name: *const c_char) -> c_int {
         let name_u = crate::memory::cstr_from_bytes(
             &std::ffi::CStr::from_ptr(name).to_bytes().to_ascii_uppercase(),
         );
-        let mut i = (*win_s(*curwin.as_ptr())).b_syn_clusters.len() as c_int - 1;
+        let mut i = (*win_s(&mut **curwin.as_ptr())).b_syn_clusters.len() as c_int - 1;
         while i >= 0 {
-            let clp = syn_clstr(&mut *win_s(*curwin.as_ptr())).offset(i as isize);
+            let clp = syn_clstr(&mut *win_s(&mut **curwin.as_ptr())).offset(i as isize);
             if std::ffi::CStr::from_ptr(name_u.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr((*clp).scl_name_u.as_ptr()).to_bytes() {
                 break;
             }
@@ -4390,7 +4388,7 @@ unsafe fn syn_check_cluster(pp: *const c_char, len: c_int) -> c_int {
 
 fn syn_add_cluster(name: std::ffi::CString) -> c_int {
     unsafe {
-        let len = (*win_s(*curwin.as_ptr())).b_syn_clusters.len() as c_int;
+        let len = (*win_s(&mut **curwin.as_ptr())).b_syn_clusters.len() as c_int;
         if len >= MAX_CLUSTER_ID {
             emsg(gettext(c"E848: Too many syntax clusters".as_ptr()));
             return 0;
@@ -4403,7 +4401,7 @@ fn syn_add_cluster(name: std::ffi::CString) -> c_int {
             &std::ffi::CStr::from_ptr(name_ptr).to_bytes().to_ascii_uppercase(),
         );
 
-        let clusters = &mut (*win_s(*curwin.as_ptr())).b_syn_clusters;
+        let clusters = &mut (*win_s(&mut **curwin.as_ptr())).b_syn_clusters;
         clusters.push(syn_cluster_T {
             scl_name: name,
             scl_name_u,
@@ -4411,10 +4409,10 @@ fn syn_add_cluster(name: std::ffi::CString) -> c_int {
         });
 
         if is_spell {
-            (*win_s(*curwin.as_ptr())).b_spell_cluster_id = len + SYNID_CLUSTER as c_int;
+            (*win_s(&mut **curwin.as_ptr())).b_spell_cluster_id = len + SYNID_CLUSTER as c_int;
         }
         if is_nospell {
-            (*win_s(*curwin.as_ptr())).b_nospell_cluster_id = len + SYNID_CLUSTER as c_int;
+            (*win_s(&mut **curwin.as_ptr())).b_nospell_cluster_id = len + SYNID_CLUSTER as c_int;
         }
 
         len + SYNID_CLUSTER as c_int
@@ -4470,7 +4468,7 @@ fn syn_cmd_cluster(eap: &mut exarg_T, _syncing: c_int) {
                     break;
                 }
                 if scl_id >= 0 {
-                    let clp = syn_clstr(&mut *win_s(*curwin.as_ptr())).offset(scl_id as isize);
+                    let clp = syn_clstr(&mut *win_s(&mut **curwin.as_ptr())).offset(scl_id as isize);
                     syn_combine_list(&mut (*clp).scl_list, &mut clstr_list, list_op);
                 }
                 got_clstr = true;
@@ -4478,7 +4476,7 @@ fn syn_cmd_cluster(eap: &mut exarg_T, _syncing: c_int) {
 
             if got_clstr {
                 redraw_curbuf_later(UPD_SOME_VALID);
-                syn_stack_free_all(win_s(*curwin.as_ptr()));
+                syn_stack_free_all(win_s(&mut **curwin.as_ptr()));
             }
         }
 
@@ -4518,7 +4516,7 @@ unsafe fn get_syn_pattern(arg: *mut c_char, ci: *mut synpat_T) -> *mut c_char {
         if (*ci).sp_prog.is_none() {
             return ptr::null_mut();
         }
-        (*ci).sp_ic = (*win_s(*curwin.as_ptr())).b_syn_ic;
+        (*ci).sp_ic = (*win_s(&mut **curwin.as_ptr())).b_syn_ic;
         syn_clear_time(&mut (*ci).sp_time);
 
         end = end.add(1);
@@ -4604,18 +4602,18 @@ fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
             let key = key_owned.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
             if std::ffi::CStr::from_ptr(key).to_bytes() == b"CCOMMENT" {
                 if eap.skip == 0 {
-                    (*win_s(*curwin.as_ptr())).b_syn_sync_flags |= SF_CCOMMENT;
+                    (*win_s(&mut **curwin.as_ptr())).b_syn_sync_flags |= SF_CCOMMENT;
                 }
                 if ends_excmd(*next_arg as c_int) == 0 {
                     arg_end = skiptowhite(next_arg);
                     if eap.skip == 0 {
-                        (*win_s(*curwin.as_ptr())).b_syn_sync_id =
+                        (*win_s(&mut **curwin.as_ptr())).b_syn_sync_id =
                             syn_check_group(next_arg, arg_end.offset_from(next_arg) as usize)
                                 as i16;
                     }
                     next_arg = skipwhite(arg_end);
                 } else if eap.skip == 0 {
-                    (*win_s(*curwin.as_ptr())).b_syn_sync_id = syn_name2id(c"Comment".as_ptr()) as i16;
+                    (*win_s(&mut **curwin.as_ptr())).b_syn_sync_id = syn_name2id(c"Comment".as_ptr()) as i16;
                 }
             } else if (crate::memory::cstr_prefix_bytes(key, 5) == &b"LINES"[..5])
                 || (crate::memory::cstr_prefix_bytes(key, 8) == &b"MINLINES"[..8])
@@ -4637,24 +4635,24 @@ fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
                 let n: linenr_T = getdigits_int32(&raw mut arg_end, false, 0);
                 if eap.skip == 0 {
                     if *key.add(4) == b'B' as c_char {
-                        (*win_s(*curwin.as_ptr())).b_syn_sync_linebreaks = n;
+                        (*win_s(&mut **curwin.as_ptr())).b_syn_sync_linebreaks = n;
                     } else if *key.add(1) == b'A' as c_char {
-                        (*win_s(*curwin.as_ptr())).b_syn_sync_maxlines = n;
+                        (*win_s(&mut **curwin.as_ptr())).b_syn_sync_maxlines = n;
                     } else {
-                        (*win_s(*curwin.as_ptr())).b_syn_sync_minlines = n;
+                        (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines = n;
                     }
                 }
             } else if std::ffi::CStr::from_ptr(key).to_bytes() == b"FROMSTART" {
                 if eap.skip == 0 {
-                    (*win_s(*curwin.as_ptr())).b_syn_sync_minlines = MAXLNUM;
-                    (*win_s(*curwin.as_ptr())).b_syn_sync_maxlines = 0;
+                    (*win_s(&mut **curwin.as_ptr())).b_syn_sync_minlines = MAXLNUM;
+                    (*win_s(&mut **curwin.as_ptr())).b_syn_sync_maxlines = 0;
                 }
             } else if std::ffi::CStr::from_ptr(key).to_bytes() == b"LINECONT" {
                 if *next_arg == NUL {
                     illegal = true;
                     break;
                 }
-                if (*win_s(*curwin.as_ptr())).b_syn_linecont_pat.is_some() {
+                if (*win_s(&mut **curwin.as_ptr())).b_syn_linecont_pat.is_some() {
                     emsg(gettext(
                         c"E403: syntax sync: line continuations pattern specified twice".as_ptr(),
                     ));
@@ -4673,21 +4671,21 @@ fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
                         arg_end.offset_from(next_arg) as usize - 1,
                     );
                     let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
-                    (*win_s(*curwin.as_ptr())).b_syn_linecont_ic = (*win_s(*curwin.as_ptr())).b_syn_ic;
+                    (*win_s(&mut **curwin.as_ptr())).b_syn_linecont_ic = (*win_s(&mut **curwin.as_ptr())).b_syn_ic;
 
                     let cpo_save = opt_vars().p_cpo;
                     opt_vars().p_cpo = empty_string_option.as_ptr().cast();
-                    (*win_s(*curwin.as_ptr())).b_syn_linecont_prog =
+                    (*win_s(&mut **curwin.as_ptr())).b_syn_linecont_prog =
                         crate::regexp::vim_regcomp_box(pat_cstr.as_ptr(), RE_MAGIC);
                     opt_vars().p_cpo = cpo_save;
-                    syn_clear_time(&mut (*win_s(*curwin.as_ptr())).b_syn_linecont_time);
+                    syn_clear_time(&mut (*win_s(&mut **curwin.as_ptr())).b_syn_linecont_time);
 
-                    if (*win_s(*curwin.as_ptr())).b_syn_linecont_prog.is_none() {
-                        (*win_s(*curwin.as_ptr())).b_syn_linecont_pat = None;
+                    if (*win_s(&mut **curwin.as_ptr())).b_syn_linecont_prog.is_none() {
+                        (*win_s(&mut **curwin.as_ptr())).b_syn_linecont_pat = None;
                         finished = true;
                         break;
                     }
-                    (*win_s(*curwin.as_ptr())).b_syn_linecont_pat = Some(pat_cstr);
+                    (*win_s(&mut **curwin.as_ptr())).b_syn_linecont_pat = Some(pat_cstr);
                 }
                 next_arg = skipwhite(arg_end.add(1));
             } else {
@@ -4711,7 +4709,7 @@ fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
         } else if !finished {
             eap.nextcmd = check_nextcmd(arg_start);
             redraw_curbuf_later(UPD_SOME_VALID);
-            syn_stack_free_all(win_s(*curwin.as_ptr()));
+            syn_stack_free_all(win_s(&mut **curwin.as_ptr()));
         }
     }
 }
@@ -5158,10 +5156,10 @@ pub fn ex_ownsyntax(eap: &mut exarg_T) {
 
 pub unsafe fn syntax_present(win: *mut win_T) -> bool {
     unsafe {
-        !(*win_s(win)).b_syn_patterns.is_empty()
-            || !(*win_s(win)).b_syn_clusters.is_empty()
-            || !(*win_s(win)).b_keywtab.is_empty()
-            || !(*win_s(win)).b_keywtab_ic.is_empty()
+        !(*win_s(&mut *win)).b_syn_patterns.is_empty()
+            || !(*win_s(&mut *win)).b_syn_clusters.is_empty()
+            || !(*win_s(&mut *win)).b_keywtab.is_empty()
+            || !(*win_s(&mut *win)).b_keywtab_ic.is_empty()
     }
 }
 
@@ -5281,13 +5279,13 @@ pub fn get_syntax_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
                 }
             }
             EXP_CLUSTER => {
-                if (idx as usize) < (*win_s(*curwin.as_ptr())).b_syn_clusters.len() {
+                if (idx as usize) < (*win_s(&mut **curwin.as_ptr())).b_syn_clusters.len() {
                     let xp_buf = xp.xp_buf.as_mut_ptr();
                     vim_snprintf!(
                         xp_buf,
                         EXPAND_BUF_LEN,
                         c"@%s".as_ptr(),
-                        (*syn_clstr(&mut *win_s(*curwin.as_ptr())).offset(idx as isize))
+                        (*syn_clstr(&mut *win_s(&mut **curwin.as_ptr())).offset(idx as isize))
                             .scl_name
                             .as_ptr(),
                     );
@@ -5363,15 +5361,15 @@ pub fn syn_get_foldlevel(wp: &mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
         let mut level: c_int = 0;
 
-        if (*win_s(&raw mut *wp)).b_syn_folditems != 0
-            && !(*win_s(&raw mut *wp)).b_syn_error
-            && !(*win_s(&raw mut *wp)).b_syn_slow
+        if (*win_s(&mut *wp)).b_syn_folditems != 0
+            && !(*win_s(&mut *wp)).b_syn_error
+            && !(*win_s(&mut *wp)).b_syn_slow
         {
             syntax_start(&raw mut *wp, lnum);
 
             level = syn_cur_foldlevel();
 
-            if (*win_s(&raw mut *wp)).b_syn_foldlevel == SYNFLD_MINIMUM {
+            if (*win_s(&mut *wp)).b_syn_foldlevel == SYNFLD_MINIMUM {
                 let mut cur_level = level;
                 let mut low_level = cur_level;
                 while !syn_st().current_finished {
@@ -5426,7 +5424,7 @@ fn syntime_clear() {
             msg(gettext(msg_no_items), 0);
             return;
         }
-        for pat in &mut (*win_s(*curwin.as_ptr())).b_syn_patterns {
+        for pat in &mut (*win_s(&mut **curwin.as_ptr())).b_syn_patterns {
             syn_clear_time(&mut pat.sp_time);
         }
     }
@@ -5457,7 +5455,7 @@ fn syntime_report() {
 
         let mut total_total = profile_zero();
         let mut total_count: c_int = 0;
-        for pat in &(*win_s(*curwin.as_ptr())).b_syn_patterns {
+        for pat in &(*win_s(&mut **curwin.as_ptr())).b_syn_patterns {
             if pat.sp_time.count > 0 {
                 total_total = profile_add(total_total, pat.sp_time.total);
                 total_count += pat.sp_time.count;

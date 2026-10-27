@@ -237,14 +237,14 @@ const ADDR_TYPE_COMPLETE: [AddrTypeComplete; 9] = [
 
 /// Search for a user command that matches `eap->cmd` (`find_ucmd`).
 pub unsafe fn find_ucmd(
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     p: *mut c_char,
     full: *mut c_int,
     xp: *mut expand_T,
     complp: *mut c_int,
 ) -> *mut c_char {
     unsafe {
-        let len = p.offset_from((*eap).cmd) as c_int;
+        let len = p.offset_from(eap.cmd) as c_int;
         let mut matchlen: c_int = 0;
         let mut found = false;
         let mut possible = false;
@@ -256,7 +256,7 @@ pub unsafe fn find_ucmd(
             let mut j: c_int = 0;
             while (j as usize) < gap.len() {
                 let uc = &gap[j as usize];
-                let mut cp = (*eap).cmd;
+                let mut cp = eap.cmd;
                 let mut np = uc.uc_name.as_ptr();
                 let mut k: c_int = 0;
                 while k < len && *np != NUL && {
@@ -268,7 +268,7 @@ pub unsafe fn find_ucmd(
                 } {
                     k += 1;
                 }
-                if k == len || (*np == NUL && ascii_isdigit(*(*eap).cmd.add(k as usize))) {
+                if k == len || (*np == NUL && ascii_isdigit(*eap.cmd.add(k as usize))) {
                     if k == len && found && *np != NUL {
                         if is_global {
                             return ptr::null_mut();
@@ -284,13 +284,13 @@ pub unsafe fn find_ucmd(
                         }
 
                         if is_global {
-                            (*eap).cmdidx = CMD_USER;
+                            eap.cmdidx = CMD_USER;
                         } else {
-                            (*eap).cmdidx = CMD_USER_BUF;
+                            eap.cmdidx = CMD_USER_BUF;
                         }
-                        (*eap).argt = uc.uc_argt;
-                        (*eap).useridx = j;
-                        (*eap).addr_type = uc.uc_addr_type;
+                        eap.argt = uc.uc_argt;
+                        eap.useridx = j;
+                        eap.addr_type = uc.uc_addr_type;
 
                         if !complp.is_null() {
                             *complp = uc.uc_compl;

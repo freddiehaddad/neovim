@@ -2506,7 +2506,7 @@ pub fn showmatch(c: c_int) {
 
         if (**curwin.as_ptr()).w_onebuf_opt.wo_wrap == 0 {
             getvcol(
-                *curwin.as_ptr(),
+                &mut **curwin.as_ptr(),
                 &mut *lpos,
                 ptr::null_mut(),
                 &raw mut vcol,
@@ -2923,7 +2923,7 @@ fn update_search_stat(
         let wraparound = (dirc == b'?' as c_int && lt(srch().stat_lastpos, p))
             || (dirc == b'/' as c_int && lt(p, srch().stat_lastpos));
 
-        if !(i64::from(srch().stat_chgtick) == buf_get_changedtick(g_st().curbuf)
+        if !(i64::from(srch().stat_chgtick) == buf_get_changedtick(&*g_st().curbuf)
             && srch().stat_lastpat.is_some()
             && srch().stat_lastpat.as_deref()
                 == srch().spats[srch().last_idx as usize].pat.as_deref()
@@ -3012,7 +3012,7 @@ fn update_search_stat(
             }
             if done_search {
                 srch().stat_lastpat = srch().spats[srch().last_idx as usize].pat.clone();
-                srch().stat_chgtick = buf_get_changedtick(g_st().curbuf) as c_int;
+                srch().stat_chgtick = buf_get_changedtick(&*g_st().curbuf) as c_int;
                 srch().stat_lbuf = g_st().curbuf;
                 srch().stat_lastpos = p;
             }

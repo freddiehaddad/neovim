@@ -900,13 +900,13 @@ fn curbuf_is_changed() -> bool {
 }
 
 #[inline]
-pub unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number() }
+pub fn buf_get_changedtick(buf: &buf_T) -> varnumber_T {
+    buf.changedtick_di.di_tv.vval.v_number()
 }
 
 #[inline]
-pub unsafe fn buf_meta_total(b: *const buf_T, m: usize) -> u32 {
-    unsafe { (*b).b_marktree.meta_root[m] }
+pub fn buf_meta_total(b: &buf_T, m: usize) -> u32 {
+    b.b_marktree.meta_root[m]
 }
 
 #[inline]
@@ -1176,8 +1176,8 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
         }
 
         if ((*g_st().curbuf).b_flags & BF_NEVERLOADED) != 0 {
-            buf_init_isk_chartab(g_st().curbuf);
-            parse_cino(g_st().curbuf);
+            buf_init_isk_chartab(&mut *g_st().curbuf);
+            parse_cino(&mut *g_st().curbuf);
         }
 
         if (g_st().got_int && !vim_strchr(opt_vars().p_cpo, kCpoIntmod).is_null())
@@ -1188,9 +1188,9 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
         } else if retval != FAIL && !read_stdin && !read_fifo {
             unchanged(g_st().curbuf, false, true);
         }
-        save_file_ff(g_st().curbuf);
+        save_file_ff(&mut *g_st().curbuf);
 
-        let tick = buf_get_changedtick(g_st().curbuf);
+        let tick = buf_get_changedtick(&*g_st().curbuf);
         (*g_st().curbuf).b_last_changedtick = tick;
         (*g_st().curbuf).b_last_changedtick_i = tick;
         (*g_st().curbuf).b_last_changedtick_pum = tick;
@@ -1220,7 +1220,7 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
             }
         }
 
-        foldUpdateAll(*curwin.as_ptr());
+        foldUpdateAll(&mut **curwin.as_ptr());
 
         if ((**curwin.as_ptr()).w_valid & VALID_TOPLINE) == 0 {
             (**curwin.as_ptr()).w_topline = 1;
@@ -1308,9 +1308,9 @@ pub unsafe fn buf_valid(buf: *mut buf_T) -> bool {
     false
 }
 
-unsafe fn can_unload_buffer(buf: *mut buf_T) -> bool {
+fn can_unload_buffer(buf: &mut buf_T) -> bool {
     unsafe {
-        let mut can_unload = (*buf).b_locked == 0;
+        let mut can_unload = buf.b_locked == 0;
 
         if can_unload && g_st().updating_screen {
             let mut wp = g_st().firstwin;
@@ -1322,15 +1322,15 @@ unsafe fn can_unload_buffer(buf: *mut buf_T) -> bool {
                 wp = (*wp).w_next;
             }
         }
-        if can_unload && (*buf).b_saving {
+        if can_unload && buf.b_saving {
             can_unload = false;
         }
 
         if !can_unload {
-            let fname = if !(*buf).b_fname.is_null() {
-                (*buf).b_fname
+            let fname = if !buf.b_fname.is_null() {
+                buf.b_fname
             } else {
-                (*buf).b_ffname
+                buf.b_ffname
             };
             semsg!(
                 gettext(E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR.as_ptr()),
@@ -1345,12 +1345,12 @@ unsafe fn can_unload_buffer(buf: *mut buf_T) -> bool {
     }
 }
 
-pub unsafe fn buf_close_terminal(buf: *mut buf_T) {
+pub fn buf_close_terminal(buf: &mut buf_T) {
     unsafe {
-        debug_assert!(!(*buf).terminal.is_null());
-        (*buf).b_locked += 1;
-        terminal_close((&raw mut (*buf).terminal).cast::<*mut Terminal>(), -1);
-        (*buf).b_locked -= 1;
+        debug_assert!(!buf.terminal.is_null());
+        buf.b_locked += 1;
+        terminal_close((&raw mut buf.terminal).cast::<*mut Terminal>(), -1);
+        buf.b_locked -= 1;
     }
 }
 
@@ -1391,7 +1391,7 @@ pub unsafe fn close_buffer(
             wipe_buf = true;
         }
 
-        if (del_buf || wipe_buf) && !can_unload_buffer(buf) {
+        if (del_buf || wipe_buf) && !can_unload_buffer(&mut *buf) {
             return false;
         }
 
@@ -1540,7 +1540,7 @@ pub unsafe fn close_buffer(
                 (*buf).b_p_initialized = false;
             }
             g_st().textlock += 1;
-            buf_clear_file(buf);
+            buf_clear_file(&mut *buf);
             g_st().textlock -= 1;
             if clear_w_buf {
                 (*win).w_buffer = ptr::null_mut();
@@ -1556,18 +1556,18 @@ pub unsafe fn close_buffer(
 }
 
 /// Make buffer not contain a file.
-pub unsafe fn buf_clear_file(buf: *mut buf_T) {
+pub fn buf_clear_file(buf: &mut buf_T) {
     unsafe {
-        (*buf).b_ml.ml_line_count = 1;
+        buf.b_ml.ml_line_count = 1;
         unchanged(buf, true, true);
-        (*buf).b_p_eof = 0;
-        (*buf).b_start_eof = 0;
-        (*buf).b_p_eol = 1;
-        (*buf).b_start_eol = 1;
-        (*buf).b_p_bomb = 0;
-        (*buf).b_start_bomb = 0;
-        (*buf).b_ml.ml_mfp = None;
-        (*buf).b_ml.ml_flags = ML_EMPTY;
+        buf.b_p_eof = 0;
+        buf.b_start_eof = 0;
+        buf.b_p_eol = 1;
+        buf.b_start_eol = 1;
+        buf.b_p_bomb = 0;
+        buf.b_start_bomb = 0;
+        buf.b_ml.ml_mfp = None;
+        buf.b_ml.ml_flags = ML_EMPTY;
     }
 }
 
@@ -1575,7 +1575,7 @@ pub unsafe fn buf_clear_file(buf: *mut buf_T) {
 pub fn buf_clear() {
     unsafe {
         let line_count = (*g_st().curbuf).b_ml.ml_line_count;
-        extmark_free_all(g_st().curbuf);
+        extmark_free_all(&mut *g_st().curbuf);
         mc_buf_free(g_st().curbuf);
         while ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) == 0 {
             ml_delete(1);
@@ -1599,10 +1599,10 @@ pub unsafe fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
         set_bufref(&mut bufref, buf);
 
         if !(*buf).terminal.is_null() {
-            buf_close_terminal(buf);
+            buf_close_terminal(&mut *buf);
         }
 
-        buf_updates_unload(buf, false);
+        buf_updates_unload(&mut *buf, false);
 
         if (*buf).b_ml.ml_mfp.is_some()
             && apply_autocmds(EVENT_BUFUNLOAD, (*buf).b_fname, (*buf).b_fname, false, buf)
@@ -1645,7 +1645,7 @@ pub unsafe fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
 
         diff_buf_delete(buf);
         if !(*curwin.as_ptr()).is_null() && (**curwin.as_ptr()).w_buffer == buf {
-            reset_synblock(*curwin.as_ptr());
+            reset_synblock(&mut **curwin.as_ptr());
         }
 
         let mut tp = g_st().first_tabpage;
@@ -1657,7 +1657,7 @@ pub unsafe fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
             };
             while !win.is_null() {
                 if (*win).w_buffer == buf {
-                    clearFolding(win);
+                    clearFolding(&mut *win);
                 }
                 win = (*win).w_next;
             }
@@ -1666,7 +1666,7 @@ pub unsafe fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
 
         if !(*buf).terminal.is_null() {
             block_autocmds();
-            buf_close_terminal(buf);
+            buf_close_terminal(&mut *buf);
             unblock_autocmds();
         }
 
@@ -1677,7 +1677,7 @@ pub unsafe fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
 
         if bt_nofilename(buf) && !g_st().exiting {
             mark_adjust_buf(
-                buf,
+                &mut *buf,
                 1,
                 count,
                 MAXLNUM,
@@ -1689,7 +1689,7 @@ pub unsafe fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
         }
 
         if (flags & BFA_KEEP_UNDO) == 0 {
-            u_clearallandblockfree(buf);
+            u_clearallandblockfree(&mut *buf);
         }
         syntax_clear(&mut (*buf).b_s);
         (*buf).b_flags &= !BF_READERR;
@@ -1807,16 +1807,14 @@ unsafe fn free_buffer(buf: *mut buf_T) {
     }
 }
 
-unsafe fn clear_wininfo(buf: *mut buf_T) {
-    unsafe {
-        (*buf).b_wininfo.clear();
-    }
+fn clear_wininfo(buf: &mut buf_T) {
+    buf.b_wininfo.clear();
 }
 
 unsafe fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
     unsafe {
         if (free_flags & kBffClearWinInfo) != 0 {
-            clear_wininfo(buf);
+            clear_wininfo(&mut *buf);
             free_buf_options(buf, true);
             (*buf).b_s.b_langp = Vec::new();
         }
@@ -1830,10 +1828,10 @@ unsafe fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
         }
         vars_clear(&mut (*(*buf).b_vars()).dv_hashtab);
         if (free_flags & kBffInitChangedtick) != 0 {
-            buf_init_changedtick(buf);
+            buf_init_changedtick(&mut *buf);
         }
         (*buf).b_ucmds.clear();
-        extmark_free_all(buf);
+        extmark_free_all(&mut *buf);
         mc_buf_free(buf);
         map_clear_mode(buf, MAP_ALL_MODES, true, false);
         map_clear_mode(buf, MAP_ALL_MODES, true, true);
@@ -1841,7 +1839,7 @@ unsafe fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
         (*buf).b_localdir = None;
         (*buf).b_prevdir = None;
 
-        buf_free_callbacks(buf);
+        buf_free_callbacks(&mut *buf);
     }
 }
 
@@ -2228,7 +2226,7 @@ fn do_buffer_ext(
 
         if unload {
             let mut bufref: bufref_T = bufref_T::new();
-            if !can_unload_buffer(buf) {
+            if !can_unload_buffer(&mut *buf) {
                 return FAIL;
             }
             set_bufref(&mut bufref, buf);
@@ -2295,7 +2293,7 @@ fn do_buffer_ext(
             }
 
             while buf == g_st().curbuf
-                && !(win_locked(*curwin.as_ptr()) != 0 || (*(**curwin.as_ptr()).w_buffer).b_locked > 0)
+                && !(win_locked(&mut **curwin.as_ptr()) != 0 || (*(**curwin.as_ptr()).w_buffer).b_locked > 0)
                 && (is_ctx_win(g_st().lastwin) || !last_window(*curwin.as_ptr()))
             {
                 if win_close(*curwin.as_ptr(), false, false) == FAIL {
@@ -2540,7 +2538,7 @@ pub unsafe fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) 
         if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
             (**curwin.as_ptr()).w_alt_fnum = (*g_st().curbuf).b_fnum;
         }
-        buflist_altfpos(*curwin.as_ptr());
+        buflist_altfpos(&mut **curwin.as_ptr());
 
         g_st().Visual.reselect = 0;
 
@@ -2561,7 +2559,7 @@ pub unsafe fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) 
             && !aborting())
         {
             if prevbuf == (**curwin.as_ptr()).w_buffer {
-                reset_synblock(*curwin.as_ptr());
+                reset_synblock(&mut **curwin.as_ptr());
             }
             if unload {
                 close_windows(prevbuf, false);
@@ -2623,9 +2621,9 @@ unsafe fn enter_buffer(buf: *mut buf_T) {
         if !(*buf).b_help {
             get_winopts(buf);
         } else {
-            clearFolding(*curwin.as_ptr());
+            clearFolding(&mut **curwin.as_ptr());
         }
-        foldUpdateAll(*curwin.as_ptr());
+        foldUpdateAll(&mut **curwin.as_ptr());
 
         if (**curwin.as_ptr()).w_onebuf_opt.wo_diff != 0 {
             diff_buf_add(g_st().curbuf);
@@ -2678,7 +2676,7 @@ unsafe fn enter_buffer(buf: *mut buf_T) {
         maketitle();
         win_float_update_preview(&mut **curwin.as_ptr());
         if (**curwin.as_ptr()).w_topline == 1 && !(**curwin.as_ptr()).w_topline_was_set {
-            scroll_cursor_halfway(*curwin.as_ptr(), false, false);
+            scroll_cursor_halfway(&mut **curwin.as_ptr(), false, false);
         }
 
         do_autochdir();
@@ -2756,15 +2754,15 @@ pub fn no_write_message_nobang(buf: &buf_T) {
 }
 
 #[inline]
-unsafe fn buf_init_changedtick(buf: *mut buf_T) {
+fn buf_init_changedtick(buf: &mut buf_T) {
     unsafe {
-        (*buf).changedtick_di.di_tv = typval_T {
+        buf.changedtick_di.di_tv = typval_T {
             v_type: VarType::VAR_NUMBER,
             v_lock: VAR_FIXED,
             vval: TypvalVval::Number(buf_get_changedtick(buf)),
         };
-        (*buf).changedtick_di.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
-        tv_dict_add((*buf).b_vars(), (&raw mut (*buf).changedtick_di).cast());
+        buf.changedtick_di.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
+        tv_dict_add(buf.b_vars(), (&raw mut buf.changedtick_di).cast());
     }
 }
 
@@ -2846,7 +2844,7 @@ pub unsafe fn buflist_new(
             buf = buf_T::alloc();
             init_var_dict(&mut *tv_dict_alloc(), &mut *(&raw mut (*buf).b_bufvar).cast(), VAR_SCOPE);
             (*buf).changedtick_di.di_key = b"changedtick\0".iter().map(|&b| b as c_char).collect();
-            buf_init_changedtick(buf);
+            buf_init_changedtick(&mut *buf);
         }
 
         if let Some(ff_cstr) = ffname_cstr {
@@ -2857,7 +2855,7 @@ pub unsafe fn buflist_new(
             (*buf).set_sfname(Some(std::ffi::CString::from_vec_with_nul(sf_vec).unwrap()));
         }
 
-        clear_wininfo(buf);
+        clear_wininfo(&mut *buf);
         (*buf).b_wininfo.push(WinInfo::new());
 
         if buf == g_st().curbuf {
@@ -2910,9 +2908,9 @@ pub unsafe fn buflist_new(
         if (flags & BLN_DUMMY) != 0 {
             (*buf).b_flags |= BF_DUMMY;
         }
-        buf_clear_file(buf);
+        buf_clear_file(&mut *buf);
         clrallmarks(&mut *buf, 0);
-        fmarks_check_names(buf);
+        fmarks_check_names(&mut *buf);
         (*buf).b_p_bl = c_int::from((flags & BLN_LISTED) != 0);
         (*buf).update_channels.clear();
         (*buf).update_callbacks.clear();
@@ -3114,7 +3112,7 @@ pub fn buflist_getfile(
 
             if opt_vars().p_sol == 0 && col != 0 {
                 (**curwin.as_ptr()).w_cursor.col = col;
-                check_cursor_col(*curwin.as_ptr());
+                check_cursor_col(&mut **curwin.as_ptr());
                 (**curwin.as_ptr()).w_cursor.coladd = 0;
                 (**curwin.as_ptr()).w_set_curswant = true;
             }
@@ -3134,13 +3132,13 @@ fn buflist_getfpos() {
         let fpos = &raw const (*fm).mark;
 
         (**curwin.as_ptr()).w_cursor.lnum = (*fpos).lnum;
-        check_cursor_lnum(*curwin.as_ptr());
+        check_cursor_lnum(&mut **curwin.as_ptr());
 
         if opt_vars().p_sol != 0 {
             (**curwin.as_ptr()).w_cursor.col = 0;
         } else {
             (**curwin.as_ptr()).w_cursor.col = (*fpos).col;
-            check_cursor_col(*curwin.as_ptr());
+            check_cursor_col(&mut **curwin.as_ptr());
             (**curwin.as_ptr()).w_cursor.coladd = 0;
             (**curwin.as_ptr()).w_set_curswant = true;
         }
@@ -3527,7 +3525,7 @@ pub unsafe fn buflist_setfpos(
             wip.wi_mark.mark.lnum = lnum;
             wip.wi_mark.mark.col = col;
             if !win.is_null() {
-                wip.wi_mark.view = mark_view_make(win, wip.wi_mark.mark);
+                wip.wi_mark.view = mark_view_make(&*win, wip.wi_mark.mark);
             }
         }
         if !win.is_null() {
@@ -3561,13 +3559,13 @@ fn wininfo_other_tab_diff(wip: &WinInfo) -> bool {
     }
 }
 
-unsafe fn find_wininfo(
-    buf: *mut buf_T,
+fn find_wininfo(
+    buf: &mut buf_T,
     need_options: bool,
     skip_diff_buffer: bool,
 ) -> *mut WinInfo {
     unsafe {
-        for wip in &mut (*buf).b_wininfo {
+        for wip in &mut buf.b_wininfo {
             if wip.wi_win == *curwin.as_ptr()
                 && (!skip_diff_buffer || !wininfo_other_tab_diff(wip))
                 && (!need_options || wip.wi_optset)
@@ -3577,16 +3575,17 @@ unsafe fn find_wininfo(
         }
 
         if skip_diff_buffer {
-            for wip in &mut (*buf).b_wininfo {
+            let buf_ptr: *mut buf_T = &raw mut *buf;
+            for wip in &mut buf.b_wininfo {
                 if !wininfo_other_tab_diff(wip)
                     && (!need_options
                         || wip.wi_optset
-                        || (!wip.wi_win.is_null() && (*wip.wi_win).w_buffer == buf))
+                        || (!wip.wi_win.is_null() && (*wip.wi_win).w_buffer == buf_ptr))
                 {
                     return wip;
                 }
             }
-        } else if let Some(wip) = (*buf).b_wininfo.first_mut() {
+        } else if let Some(wip) = buf.b_wininfo.first_mut() {
             return wip;
         }
         ptr::null_mut()
@@ -3597,9 +3596,9 @@ unsafe fn find_wininfo(
 pub unsafe fn get_winopts(buf: *mut buf_T) {
     unsafe {
         clear_winopt(&mut (**curwin.as_ptr()).w_onebuf_opt);
-        clearFolding(*curwin.as_ptr());
+        clearFolding(&mut **curwin.as_ptr());
 
-        let wip = find_wininfo(buf, true, true);
+        let wip = find_wininfo(&mut *buf, true, true);
         if !wip.is_null()
             && (*wip).wi_win != *curwin.as_ptr()
             && !(*wip).wi_win.is_null()
@@ -3646,7 +3645,7 @@ pub unsafe fn get_winopts(buf: *mut buf_T) {
 /// Find the mark for the buffer `buf` for the current window.
 pub unsafe fn buflist_findfmark(buf: *mut buf_T) -> *mut fmark_T {
     unsafe {
-        let wip = find_wininfo(buf, false, false);
+        let wip = find_wininfo(&mut *buf, false, false);
         if wip.is_null() {
             &raw mut buf_st().no_position
         } else {
@@ -3946,7 +3945,7 @@ pub unsafe fn buf_set_name(fnum: c_int, name: *mut c_char) {
 pub unsafe fn buf_name_changed(buf: *mut buf_T) {
     unsafe {
         if (*buf).b_ml.ml_mfp.is_some() {
-            ml_setname(buf);
+            ml_setname(&mut *buf);
         }
 
         if (**curwin.as_ptr()).w_buffer == buf {
@@ -3954,7 +3953,7 @@ pub unsafe fn buf_name_changed(buf: *mut buf_T) {
         }
         maketitle();
         status_redraw_all();
-        fmarks_check_names(buf);
+        fmarks_check_names(&mut *buf);
         ml_timestamp(buf);
     }
 }
@@ -3995,9 +3994,9 @@ pub unsafe fn buflist_add(fname: *mut c_char, flags: c_int) -> c_int {
 }
 
 /// Set alternate cursor position for the current buffer and window `win`.
-pub unsafe fn buflist_altfpos(win: *mut win_T) {
+pub fn buflist_altfpos(win: &mut win_T) {
     unsafe {
-        buflist_setfpos(g_st().curbuf, win, (*win).w_cursor.lnum, (*win).w_cursor.col, true);
+        buflist_setfpos(g_st().curbuf, win, win.w_cursor.lnum, win.w_cursor.col, true);
     }
 }
 
@@ -4570,7 +4569,7 @@ pub fn ex_buffer_all(eap: &mut exarg_T) {
                     || size_mismatch
                     || (had_tab > 0 && wp != g_st().firstwin))
                     && g_st().firstwin != g_st().lastwin
-                    && !(win_locked(wp) != 0 || (*(*wp).w_buffer).b_locked > 0)
+                    && !(win_locked(&mut *wp) != 0 || (*(*wp).w_buffer).b_locked > 0)
                     && !is_ctx_win(wp)
                 {
                     if win_close(wp, false, false) == FAIL {
@@ -5020,7 +5019,7 @@ pub unsafe fn buf_contents_changed(buf: *mut buf_T) -> bool {
         }
 
         let mut ea: exarg_T = exarg_T::new();
-        let _ea_cmd = prep_exarg(&mut ea, buf);
+        let _ea_cmd = prep_exarg(&mut ea, &*buf);
 
         let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), newbuf, 0);
@@ -5082,34 +5081,34 @@ pub fn buf_is_empty(buf: &mut buf_T) -> bool {
 /// Increment `b:changedtick` value.
 pub unsafe fn buf_inc_changedtick(buf: *mut buf_T) {
     unsafe {
-        buf_set_changedtick(buf, buf_get_changedtick(buf) + 1);
+        buf_set_changedtick(&mut *buf, buf_get_changedtick(&*buf) + 1);
     }
 }
 
 /// Set `b:changedtick`, also checking `b:` for consistency in debug build.
-pub unsafe fn buf_set_changedtick(buf: *mut buf_T, changedtick: varnumber_T) {
+pub fn buf_set_changedtick(buf: &mut buf_T, changedtick: varnumber_T) {
     unsafe {
-        let old_val = (*buf).changedtick_di.di_tv;
+        let old_val = buf.changedtick_di.di_tv;
 
-        let changedtick_di = tv_dict_find((*buf).b_vars(), c"changedtick".as_ptr(), 11);
+        let changedtick_di = tv_dict_find(buf.b_vars(), c"changedtick".as_ptr(), 11);
         debug_assert!(!changedtick_di.is_null());
         debug_assert!((*changedtick_di).di_tv.v_type == VarType::VAR_NUMBER);
         debug_assert!((*changedtick_di).di_tv.v_lock == VAR_FIXED);
         debug_assert!((*changedtick_di).di_flags == (DI_FLAGS_RO | DI_FLAGS_FIX));
-        debug_assert!(changedtick_di == (&raw mut (*buf).changedtick_di).cast());
+        debug_assert!(changedtick_di == (&raw mut buf.changedtick_di).cast());
         let _ = changedtick_di;
 
-        (*buf).changedtick_di.di_tv.vval = crate::eval::typval::TypvalVval::Number(changedtick);
+        buf.changedtick_di.di_tv.vval = crate::eval::typval::TypvalVval::Number(changedtick);
 
-        if tv_dict_is_watched((*buf).b_vars()) {
-            (*buf).b_locked += 1;
+        if tv_dict_is_watched(buf.b_vars()) {
+            buf.b_locked += 1;
             tv_dict_watcher_notify(
-                &mut *(*buf).b_vars(),
-                (*buf).changedtick_di.di_key.as_ptr(),
-                &raw mut (*buf).changedtick_di.di_tv,
+                &mut *buf.b_vars(),
+                buf.changedtick_di.di_key.as_ptr(),
+                &raw mut buf.changedtick_di.di_tv,
                 &raw const old_val as *mut _,
             );
-            (*buf).b_locked -= 1;
+            buf.b_locked -= 1;
         }
     }
 }

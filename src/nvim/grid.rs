@@ -1121,23 +1121,23 @@ pub fn grid_free_all_mem() {
     }
 }
 
-pub unsafe fn win_grid_alloc(wp: *mut win_T) {
+pub fn win_grid_alloc(wp: &mut win_T) {
     unsafe {
-        let grid = &raw mut (*wp).w_grid;
-        let grid_allocated = &raw mut (*wp).w_grid_alloc;
+        let grid = &raw mut wp.w_grid;
+        let grid_allocated = &raw mut wp.w_grid_alloc;
 
-        let total_rows = (*wp).w_height_outer;
-        let total_cols = (*wp).w_width_outer;
+        let total_rows = wp.w_height_outer;
+        let total_cols = wp.w_width_outer;
 
-        let want_allocation = ui_has(kUIMultigrid) || (*wp).w_floating;
+        let want_allocation = ui_has(kUIMultigrid) || wp.w_floating;
         let has_allocation = !(*grid_allocated).chars.is_empty();
 
-        if ((*wp).w_view_height as usize) + 1 > (*wp).w_lines.len() {
-            (*wp).w_lines_valid = 0;
-            (*wp).w_lines.clear();
+        if (wp.w_view_height as usize) + 1 > wp.w_lines.len() {
+            wp.w_lines_valid = 0;
+            wp.w_lines.clear();
             (*wp)
                 .w_lines
-                .resize((*wp).w_view_height as usize + 1, wline_T::default());
+                .resize(wp.w_view_height as usize + 1, wline_T::default());
         }
 
         let mut was_resized = false;
@@ -1150,31 +1150,31 @@ pub unsafe fn win_grid_alloc(wp: *mut win_T) {
                 &mut *grid_allocated,
                 total_rows,
                 total_cols,
-                (*wp).w_grid_alloc.valid,
+                wp.w_grid_alloc.valid,
                 false,
             );
             (*grid_allocated).valid = true;
-            if (*wp).w_floating && (*wp).w_config.border {
-                (*wp).w_redr_border = true;
+            if wp.w_floating && wp.w_config.border {
+                wp.w_redr_border = true;
             }
             was_resized = true;
         } else if !want_allocation && has_allocation {
             grid_free(&mut *grid_allocated);
             (*grid_allocated).valid = false;
             was_resized = true;
-        } else if want_allocation && has_allocation && !(*wp).w_grid_alloc.valid {
+        } else if want_allocation && has_allocation && !wp.w_grid_alloc.valid {
             grid_invalidate(grid_allocated);
             (*grid_allocated).valid = true;
         }
 
         if want_allocation {
             (*grid).target = grid_allocated;
-            (*grid).row_offset = (*wp).w_winrow_off;
-            (*grid).col_offset = (*wp).w_wincol_off;
+            (*grid).row_offset = wp.w_winrow_off;
+            (*grid).col_offset = wp.w_wincol_off;
         } else {
             (*grid).target = &raw mut g_st().default_grid;
-            (*grid).row_offset = (*wp).w_winrow + (*wp).w_winrow_off;
-            (*grid).col_offset = (*wp).w_wincol + (*wp).w_wincol_off;
+            (*grid).row_offset = wp.w_winrow + wp.w_winrow_off;
+            (*grid).col_offset = wp.w_wincol + wp.w_wincol_off;
         }
 
         if (g_st().resizing_screen || was_resized) && want_allocation {

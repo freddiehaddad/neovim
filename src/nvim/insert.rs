@@ -403,7 +403,7 @@ fn insert_enter(s: &mut InsertState) {
                 let save_state = g_st().State;
                 (**curwin.as_ptr()).w_cursor = save_cursor;
                 g_st().State = MODE_INSERT;
-                check_cursor_col(*curwin.as_ptr());
+                check_cursor_col(&mut **curwin.as_ptr());
                 g_st().State = save_state;
             }
         }
@@ -475,7 +475,7 @@ fn insert_enter(s: &mut InsertState) {
         may_trigger_modechanged();
         g_st().Ins.stop_insert_mode = false;
 
-        if gchar_cursor() == TAB || buf_meta_total(g_st().curbuf, kMTMetaInline) > 0 {
+        if gchar_cursor() == TAB || buf_meta_total(&*g_st().curbuf, kMTMetaInline) > 0 {
             (**curwin.as_ptr()).w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
         }
 
@@ -567,8 +567,8 @@ fn insert_enter(s: &mut InsertState) {
         }
         g_st().did_cursorhold = false;
 
-        if !char_avail() && (*g_st().curbuf).b_last_changedtick_i == buf_get_changedtick(g_st().curbuf) {
-            (*g_st().curbuf).b_last_changedtick = buf_get_changedtick(g_st().curbuf);
+        if !char_avail() && (*g_st().curbuf).b_last_changedtick_i == buf_get_changedtick(&*g_st().curbuf) {
+            (*g_st().curbuf).b_last_changedtick = buf_get_changedtick(&*g_st().curbuf);
         }
     }
 }
@@ -659,9 +659,9 @@ fn insert_check(s: &mut InsertState) -> c_int {
                     ptr::null_mut(),
                     &raw mut s.old_topline,
                 ) {
-                    set_topline(*curwin.as_ptr(), s.old_topline + 1);
+                    set_topline(&mut **curwin.as_ptr(), s.old_topline + 1);
                 } else {
-                    set_topline(*curwin.as_ptr(), (**curwin.as_ptr()).w_topline + 1);
+                    set_topline(&mut **curwin.as_ptr(), (**curwin.as_ptr()).w_topline + 1);
                 }
             }
         }
@@ -1044,7 +1044,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     br_fnum: 0,
                     br_buf_free_count: 0,
                 };
-                let tick = buf_get_changedtick(g_st().curbuf);
+                let tick = buf_get_changedtick(&*g_st().curbuf);
                 set_bufref(&mut save_curbuf, g_st().curbuf);
 
                 if s.c == K_PASTE_START {
@@ -1073,7 +1073,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
 
                 let changed = bufref_valid(&raw mut save_curbuf)
                     && g_st().curbuf == save_curbuf.br_buf
-                    && tick != buf_get_changedtick(g_st().curbuf);
+                    && tick != buf_get_changedtick(&*g_st().curbuf);
                 if (*g_st().curbuf).b_u_synced || changed {
                     g_st().Ins.need_undo = true;
                 }
@@ -1417,11 +1417,11 @@ pub fn ins_redraw(ready: bool) {
 
         if ready
             && has_event(EVENT_TEXTCHANGEDI)
-            && (*g_st().curbuf).b_last_changedtick_i != buf_get_changedtick(g_st().curbuf)
+            && (*g_st().curbuf).b_last_changedtick_i != buf_get_changedtick(&*g_st().curbuf)
             && !pum_visible()
         {
             let mut aco = CtxSwitch::new();
-            let tick = buf_get_changedtick(g_st().curbuf);
+            let tick = buf_get_changedtick(&*g_st().curbuf);
             ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), g_st().curbuf, 0);
             apply_autocmds(
                 EVENT_TEXTCHANGEDI,
@@ -1431,19 +1431,19 @@ pub fn ins_redraw(ready: bool) {
                 g_st().curbuf,
             );
             ctx_restore(&mut aco);
-            (*g_st().curbuf).b_last_changedtick_i = buf_get_changedtick(g_st().curbuf);
-            if tick != buf_get_changedtick(g_st().curbuf) {
+            (*g_st().curbuf).b_last_changedtick_i = buf_get_changedtick(&*g_st().curbuf);
+            if tick != buf_get_changedtick(&*g_st().curbuf) {
                 u_save((**curwin.as_ptr()).w_cursor.lnum, (**curwin.as_ptr()).w_cursor.lnum + 1);
             }
         }
 
         if ready
             && has_event(EVENT_TEXTCHANGEDP)
-            && (*g_st().curbuf).b_last_changedtick_pum != buf_get_changedtick(g_st().curbuf)
+            && (*g_st().curbuf).b_last_changedtick_pum != buf_get_changedtick(&*g_st().curbuf)
             && pum_visible()
         {
             let mut aco = CtxSwitch::new();
-            let tick = buf_get_changedtick(g_st().curbuf);
+            let tick = buf_get_changedtick(&*g_st().curbuf);
             ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), g_st().curbuf, 0);
             apply_autocmds(
                 EVENT_TEXTCHANGEDP,
@@ -1453,8 +1453,8 @@ pub fn ins_redraw(ready: bool) {
                 g_st().curbuf,
             );
             ctx_restore(&mut aco);
-            (*g_st().curbuf).b_last_changedtick_pum = buf_get_changedtick(g_st().curbuf);
-            if tick != buf_get_changedtick(g_st().curbuf) {
+            (*g_st().curbuf).b_last_changedtick_pum = buf_get_changedtick(&*g_st().curbuf);
+            if tick != buf_get_changedtick(&*g_st().curbuf) {
                 u_save((**curwin.as_ptr()).w_cursor.lnum, (**curwin.as_ptr()).w_cursor.lnum + 1);
             }
         }
@@ -1603,11 +1603,11 @@ fn init_prompt(cmdchar_todo: c_int) {
                 appended_lines_mark(lnum, 1);
                 (*g_st().curbuf).b_prompt_start.mark.lnum = (*g_st().curbuf).b_ml.ml_line_count;
                 (*g_st().curbuf).b_prompt_append_new_line = true;
-                u_clearallandblockfree(g_st().curbuf);
+                u_clearallandblockfree(&mut *g_st().curbuf);
             }
             (*g_st().curbuf).b_prompt_start.mark.col = prompt_len;
             (**curwin.as_ptr()).w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
-            coladvance(*curwin.as_ptr(), MAXCOL);
+            coladvance(&mut **curwin.as_ptr(), MAXCOL);
         }
 
         if g_st().Ins.start_orig.lnum != (*g_st().curbuf).b_prompt_start.mark.lnum
@@ -1620,7 +1620,7 @@ fn init_prompt(cmdchar_todo: c_int) {
         }
 
         if cmdchar_todo == b'A' as c_int {
-            coladvance(*curwin.as_ptr(), MAXCOL);
+            coladvance(&mut **curwin.as_ptr(), MAXCOL);
         }
         if (*g_st().curbuf).b_prompt_start.mark.lnum == (**curwin.as_ptr()).w_cursor.lnum {
             (**curwin.as_ptr()).w_cursor.col = (**curwin.as_ptr())
@@ -2195,7 +2195,7 @@ unsafe fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
                 let prev_col = (*end_insert_pos).col;
 
                 (**curwin.as_ptr()).w_cursor = *end_insert_pos;
-                check_cursor_col(*curwin.as_ptr());
+                check_cursor_col(&mut **curwin.as_ptr());
 
                 let mut strip_col = (**curwin.as_ptr()).w_cursor.col;
                 if gchar_cursor() == NUL as c_int && strip_col > 0 {
@@ -2272,7 +2272,7 @@ pub fn free_last_insert() {
 pub fn beginline(flags: c_int) {
     unsafe {
         if (flags & BL_SOL) != 0 && opt_vars().p_sol == 0 {
-            coladvance(*curwin.as_ptr(), (**curwin.as_ptr()).w_curswant);
+            coladvance(&mut **curwin.as_ptr(), (**curwin.as_ptr()).w_curswant);
         } else {
             (**curwin.as_ptr()).w_cursor.col = 0;
             (**curwin.as_ptr()).w_cursor.coladd = 0;
@@ -2302,7 +2302,7 @@ pub fn oneright() -> c_int {
             } else {
                 1
             };
-            coladvance(*curwin.as_ptr(), getviscol() + step);
+            coladvance(&mut **curwin.as_ptr(), getviscol() + step);
             (**curwin.as_ptr()).w_set_curswant = true;
             return if prevpos.col != (**curwin.as_ptr()).w_cursor.col
                 || prevpos.coladd != (**curwin.as_ptr()).w_cursor.coladd
@@ -2338,7 +2338,7 @@ pub fn oneleft() -> c_int {
             }
             let mut width: c_int = 1;
             loop {
-                coladvance(*curwin.as_ptr(), v - width);
+                coladvance(&mut **curwin.as_ptr(), v - width);
                 if getviscol() < v {
                     break;
                 }
@@ -2377,7 +2377,7 @@ pub fn cursor_up_inner(wp: &mut win_T, mut n: linenr_T, skip_conceal: bool) {
 
         if n >= lnum {
             lnum = 1;
-        } else if win_lines_concealed(&raw mut *wp) {
+        } else if win_lines_concealed(&mut *wp) {
             hasFolding(&raw mut *wp, lnum, &raw mut lnum, ptr::null_mut());
             while n > 0 {
                 n -= 1;
@@ -2407,7 +2407,7 @@ pub fn cursor_up(n: linenr_T, upd_topline: bool) -> c_int {
             return FAIL;
         }
         cursor_up_inner(&mut **curwin.as_ptr(), n, false);
-        coladvance(*curwin.as_ptr(), (**curwin.as_ptr()).w_curswant);
+        coladvance(&mut **curwin.as_ptr(), (**curwin.as_ptr()).w_curswant);
         if upd_topline {
             update_topline(*curwin.as_ptr());
         }
@@ -2423,7 +2423,7 @@ pub fn cursor_down_inner(wp: &mut win_T, mut n: c_int, skip_conceal: bool) {
 
         if lnum + n >= line_count {
             lnum = line_count;
-        } else if win_lines_concealed(&raw mut *wp) {
+        } else if win_lines_concealed(&mut *wp) {
             let mut last: linenr_T = 0;
             while n > 0 {
                 n -= 1;
@@ -2470,7 +2470,7 @@ pub fn cursor_down(n: c_int, upd_topline: bool) -> c_int {
             return FAIL;
         }
         cursor_down_inner(&mut **curwin.as_ptr(), n, false);
-        coladvance(*curwin.as_ptr(), (**curwin.as_ptr()).w_curswant);
+        coladvance(&mut **curwin.as_ptr(), (**curwin.as_ptr()).w_curswant);
         if upd_topline {
             update_topline(*curwin.as_ptr());
         }
@@ -2665,7 +2665,7 @@ fn replace_do_bs(limit_col: c_int) {
             let mut orig_vcols: c_int = 0;
             if (l_state & VREPLACE_FLAG) != 0 {
                 getvcol(
-                    *curwin.as_ptr(),
+                    &mut **curwin.as_ptr(),
                     &mut (**curwin.as_ptr()).w_cursor,
                     ptr::null_mut(),
                     &raw mut start_vcol,
@@ -2888,7 +2888,7 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
         }
 
         if (g_st().cmdmod.cmod_flags & CMOD_KEEPJUMPS) == 0 {
-            let view = mark_view_make(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor);
+            let view = mark_view_make(&**curwin.as_ptr(), (**curwin.as_ptr()).w_cursor);
             reset_fmark(
                 &mut (*g_st().curbuf).b_last_insert,
                 (**curwin.as_ptr()).w_cursor,
@@ -2916,7 +2916,7 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
 
         g_st().State = MODE_NORMAL;
         may_trigger_modechanged();
-        if gchar_cursor() == TAB || buf_meta_total(g_st().curbuf, kMTMetaInline) > 0 {
+        if gchar_cursor() == TAB || buf_meta_total(&*g_st().curbuf, kMTMetaInline) > 0 {
             (**curwin.as_ptr()).w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
         }
 
@@ -3414,7 +3414,7 @@ fn ins_left() {
         } else if !vim_strchr(opt_vars().p_ww, b'[' as c_int).is_null() && (**curwin.as_ptr()).w_cursor.lnum > 1 {
             start_arrow(&raw mut tpos, true, K_LEFT);
             (**curwin.as_ptr()).w_cursor.lnum -= 1;
-            coladvance(*curwin.as_ptr(), MAXCOL);
+            coladvance(&mut **curwin.as_ptr(), MAXCOL);
             (**curwin.as_ptr()).w_set_curswant = true;
         } else {
             vim_beep(kOptBoFlagCursor);
@@ -3454,7 +3454,7 @@ fn ins_end(c: c_int) {
         if c == K_C_END {
             (**curwin.as_ptr()).w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
         }
-        coladvance(*curwin.as_ptr(), MAXCOL);
+        coladvance(&mut **curwin.as_ptr(), MAXCOL);
         (**curwin.as_ptr()).w_curswant = MAXCOL;
         start_arrow(
             &raw mut tpos,
@@ -3544,7 +3544,7 @@ fn ins_up(startcol: bool) {
         let mut tpos = (**curwin.as_ptr()).w_cursor;
         if cursor_up(1, true) == OK {
             if startcol {
-                coladvance(*curwin.as_ptr(), getvcol_nolist(&mut g_st().Ins.start));
+                coladvance(&mut **curwin.as_ptr(), getvcol_nolist(&mut g_st().Ins.start));
             }
             if old_topline != (**curwin.as_ptr()).w_topline || old_topfill != (**curwin.as_ptr()).w_topfill {
                 redraw_later(*curwin.as_ptr(), UPD_VALID);
@@ -3592,7 +3592,7 @@ fn ins_down(startcol: bool) {
         let mut tpos = (**curwin.as_ptr()).w_cursor;
         if cursor_down(1, true) == OK {
             if startcol {
-                coladvance(*curwin.as_ptr(), getvcol_nolist(&mut g_st().Ins.start));
+                coladvance(&mut **curwin.as_ptr(), getvcol_nolist(&mut g_st().Ins.start));
             }
             if old_topline != (**curwin.as_ptr()).w_topline || old_topfill != (**curwin.as_ptr()).w_topfill {
                 redraw_later(*curwin.as_ptr(), UPD_VALID);
@@ -3749,7 +3749,7 @@ fn ins_tab() -> bool {
             }
 
             getvcol(
-                *curwin.as_ptr(),
+                &mut **curwin.as_ptr(),
                 &mut fpos,
                 &raw mut vcol,
                 ptr::null_mut(),
@@ -3757,7 +3757,7 @@ fn ins_tab() -> bool {
                 0,
             );
             getvcol(
-                *curwin.as_ptr(),
+                &mut **curwin.as_ptr(),
                 &mut *cursor,
                 &raw mut want_vcol,
                 ptr::null_mut(),
@@ -3869,7 +3869,7 @@ pub fn ins_eol(c: c_int) -> bool {
         }
 
         if virtual_active(*curwin.as_ptr()) && (**curwin.as_ptr()).w_cursor.coladd > 0 {
-            coladvance(*curwin.as_ptr(), getviscol());
+            coladvance(&mut **curwin.as_ptr(), getviscol());
         }
 
         if g_st().Ins.revins_on {
@@ -4083,7 +4083,7 @@ pub fn set_can_cindent(val: bool) {
 /// Trigger `event` and take care of fixing undo.
 pub fn ins_apply_autocmds(event: event_T) -> c_int {
     unsafe {
-        let tick = buf_get_changedtick(g_st().curbuf);
+        let tick = buf_get_changedtick(&*g_st().curbuf);
         let r = c_int::from(apply_autocmds(
             event,
             ptr::null_mut(),
@@ -4091,7 +4091,7 @@ pub fn ins_apply_autocmds(event: event_T) -> c_int {
             false,
             g_st().curbuf,
         ));
-        if event != EVENT_INSERTLEAVE && tick != buf_get_changedtick(g_st().curbuf) {
+        if event != EVENT_INSERTLEAVE && tick != buf_get_changedtick(&*g_st().curbuf) {
             u_save((**curwin.as_ptr()).w_cursor.lnum, (**curwin.as_ptr()).w_cursor.lnum + 1);
         }
         r

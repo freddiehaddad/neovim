@@ -1204,7 +1204,7 @@ pub unsafe fn readfile(
 
             if newfile && !read_stdin && !read_buffer && !read_fifo {
                 if os_fileinfo(fname, &mut file_info) {
-                    buf_store_file_info(g_st().curbuf, &mut file_info);
+                    buf_store_file_info(&mut *g_st().curbuf, &mut file_info);
                     (*g_st().curbuf).b_mtime_read = (*g_st().curbuf).b_mtime;
                     (*g_st().curbuf).b_mtime_read_ns = (*g_st().curbuf).b_mtime_ns;
                     #[cfg(unix)]
@@ -1265,7 +1265,7 @@ pub unsafe fn readfile(
                         set_forced_fenc(eap);
                     }
                     apply_autocmds_exarg(EVENT_BUFNEWFILE, sfname, sfname, false, g_st().curbuf, eap);
-                    save_file_ff(g_st().curbuf);
+                    save_file_ff(&mut *g_st().curbuf);
 
                     if !aborting() {
                         retval = OK;
@@ -1535,7 +1535,7 @@ pub unsafe fn readfile(
                 } else if (*g_st().curbuf).b_p_bin != 0 {
                     fileformat = EOL_UNIX;
                 } else if *opt_vars().p_ffs == NUL {
-                    fileformat = get_fileformat(g_st().curbuf);
+                    fileformat = get_fileformat(&*g_st().curbuf);
                 } else {
                     fileformat = EOL_UNKNOWN;
                 }
@@ -2403,7 +2403,7 @@ pub unsafe fn readfile(
             }
 
             if set_options {
-                save_file_ff(g_st().curbuf);
+                save_file_ff(&mut *g_st().curbuf);
                 set_option_direct(kOptFileencoding, cstr_as_obj(fenc), OPT_LOCAL, 0);
             }
             drop(fenc_owned);
@@ -2453,7 +2453,7 @@ pub unsafe fn readfile(
                 if newfile || read_buffer {
                     redraw_curbuf_later(UPD_NOT_VALID);
                     diff_invalidate(g_st().curbuf);
-                    foldUpdateAll(*curwin.as_ptr());
+                    foldUpdateAll(&mut **curwin.as_ptr());
                 } else if linecnt != 0 {
                     appended_lines_mark(from, linecnt);
                 }
@@ -2670,7 +2670,7 @@ pub unsafe fn readfile(
                 u_clearline(&mut *g_st().curbuf);
 
                 (**curwin.as_ptr()).w_cursor.lnum = from + 1;
-                check_cursor_lnum(*curwin.as_ptr());
+                check_cursor_lnum(&mut **curwin.as_ptr());
                 beginline(BL_WHITE | BL_FIX);
 
                 if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
@@ -2701,7 +2701,7 @@ pub unsafe fn readfile(
                 let n = g_st().msg_scrolled;
 
                 if set_options {
-                    save_file_ff(g_st().curbuf);
+                    save_file_ff(&mut *g_st().curbuf);
                 }
 
                 g_st().msg_scroll = 1;
@@ -2816,18 +2816,18 @@ unsafe fn readfile_linenr(linecnt: linenr_T, p: *mut c_char, endp: *const c_char
 
 /// Fill "*eap" to force the 'fileencoding', 'fileformat' and 'binary' to be
 /// equal to the buffer "buf".
-pub unsafe fn prep_exarg(eap: &mut exarg_T, buf: *const buf_T) -> std::ffi::CString {
+pub fn prep_exarg(eap: &mut exarg_T, buf: &buf_T) -> std::ffi::CString {
     unsafe {
-        let fenc_bytes = CStr::from_ptr((*buf).b_p_fenc).to_bytes();
+        let fenc_bytes = CStr::from_ptr(buf.b_p_fenc).to_bytes();
         let mut cmd_vec = Vec::with_capacity(8 + fenc_bytes.len());
         cmd_vec.extend_from_slice(b"e ++enc=");
         cmd_vec.extend_from_slice(fenc_bytes);
         let cmd_cstr = std::ffi::CString::new(cmd_vec).unwrap_or_default();
         eap.cmd = cmd_cstr.as_ptr().cast_mut();
         eap.force_enc = 8;
-        eap.bad_char = (*buf).b_bad_char;
-        eap.force_ff = (*(*buf).b_p_ff as u8) as c_int;
-        eap.force_bin = if (*buf).b_p_bin != 0 {
+        eap.bad_char = buf.b_bad_char;
+        eap.force_ff = (*buf.b_p_ff as u8) as c_int;
+        eap.force_bin = if buf.b_p_bin != 0 {
             FORCE_BIN
         } else {
             FORCE_NOBIN
@@ -3791,7 +3791,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
                 buf.b_orig_size = 0;
                 buf.b_orig_mode = 0;
             } else {
-                buf_store_file_info(&raw mut *buf, &mut file_info);
+                buf_store_file_info(&mut *buf, &mut file_info);
             }
 
             if os_isdir(buf.b_fname) {
@@ -3994,7 +3994,7 @@ pub unsafe fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool
         mc_buf_clear(buf);
 
         let _ea_cmd = if !reload_options {
-            Some(prep_exarg(&mut ea, buf))
+            Some(prep_exarg(&mut ea, &*buf))
         } else {
             None
         };
@@ -4064,11 +4064,11 @@ pub unsafe fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool
             } else if buf == g_st().curbuf {
                 unchanged(buf, true, true);
                 if (flags & READ_KEEP_UNDO) == 0 {
-                    u_clearallandblockfree(buf);
+                    u_clearallandblockfree(&mut *buf);
                 } else {
-                    u_unchanged(g_st().curbuf);
+                    u_unchanged(&mut *g_st().curbuf);
                 }
-                buf_updates_unload(g_st().curbuf, true);
+                buf_updates_unload(&mut *g_st().curbuf, true);
                 (*g_st().curbuf).b_mod_set = true;
             }
         }
@@ -4094,8 +4094,8 @@ pub unsafe fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool
                 (*tp).tp_firstwin
             };
             while !wp.is_null() {
-                if (*wp).w_buffer == (**curwin.as_ptr()).w_buffer && !foldmethodIsManual(wp) {
-                    foldUpdateAll(wp);
+                if (*wp).w_buffer == (**curwin.as_ptr()).w_buffer && !foldmethodIsManual(&mut *wp) {
+                    foldUpdateAll(&mut *wp);
                 }
                 wp = (*wp).w_next;
             }
@@ -4112,13 +4112,11 @@ pub unsafe fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool
     }
 }
 
-pub unsafe fn buf_store_file_info(buf: *mut buf_T, file_info: &mut FileInfo) {
-    unsafe {
-        (*buf).b_mtime = file_info.stat.st_mtim.tv_sec as _;
-        (*buf).b_mtime_ns = file_info.stat.st_mtim.tv_nsec as _;
-        (*buf).b_orig_size = os_fileinfo_size(file_info);
-        (*buf).b_orig_mode = file_info.stat.st_mode as c_int;
-    }
+pub fn buf_store_file_info(buf: &mut buf_T, file_info: &mut FileInfo) {
+    buf.b_mtime = file_info.stat.st_mtim.tv_sec as _;
+        buf.b_mtime_ns = file_info.stat.st_mtim.tv_nsec as _;
+        buf.b_orig_size = os_fileinfo_size(file_info);
+        buf.b_orig_mode = file_info.stat.st_mode as c_int;
 }
 
 /// Adjust the line with missing eol, used for the next write.

@@ -357,9 +357,9 @@ fn match_delete(wp: &mut win_T, id: c_int, perr: bool) -> c_int {
 }
 
 /// Delete all matches in the match list of window `wp` (`clear_matches`).
-pub unsafe fn clear_matches(wp: *mut win_T) {
+pub fn clear_matches(wp: &mut win_T) {
     unsafe {
-        (*wp).w_match_head.clear();
+        wp.w_match_head.clear();
         redraw_later(wp, UPD_SOME_VALID);
     }
 }
@@ -976,7 +976,7 @@ pub fn f_clearmatches(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: Ev
     unsafe {
         let win = get_optional_window(argvars, 0);
         if !win.is_null() {
-            clear_matches(win);
+            clear_matches(&mut *win);
         }
     }
 }
@@ -1087,7 +1087,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             li = (*li).li_next;
         }
 
-        clear_matches(win);
+        clear_matches(&mut *win);
         let mut match_add_failed = false;
         let mut li = tv_list_first(l);
         while !li.is_null() {

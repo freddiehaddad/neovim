@@ -949,7 +949,7 @@ pub fn set_init_1(clean_arg: bool) {
         (*g_st().curbuf).b_p_ar = -1;
         (*g_st().curbuf).b_p_fs = -1;
         (*g_st().curbuf).b_p_ul = NO_LOCAL_UNDOLEVEL;
-        check_buf_options(g_st().curbuf);
+        check_buf_options(&mut *g_st().curbuf);
         check_win_options(&mut **curwin.as_ptr());
         check_options();
 
@@ -965,7 +965,7 @@ pub fn set_init_1(clean_arg: bool) {
             set_option_value_give_err(kOptTtyfast, boolean_obj(false), 0);
         }
 
-        save_file_ff(g_st().curbuf);
+        save_file_ff(&mut *g_st().curbuf);
 
         if os_env_exists(c"MLTERM".as_ptr(), false) {
             set_option_value_give_err(kOptTermbidi, boolean_obj(true), 0);
@@ -1042,7 +1042,7 @@ fn set_option_default(opt_idx: OptIndex, opt_flags: c_int) {
         optval_free_read(opt_idx, def_val);
 
         if opt_idx == kOptScroll {
-            win_comp_scroll(*curwin.as_ptr());
+            win_comp_scroll(&mut **curwin.as_ptr());
         }
 
         let mut flagsp = insecure_flag(*curwin.as_ptr(), opt_idx, opt_flags);
@@ -1071,13 +1071,13 @@ fn set_options_default(opt_flags: c_int) {
                 (*tp).tp_firstwin
             };
             while !wp.is_null() {
-                win_comp_scroll(wp);
+                win_comp_scroll(&mut *wp);
                 wp = (*wp).w_next;
             }
             tp = (*tp).tp_next;
         }
 
-        parse_cino(g_st().curbuf);
+        parse_cino(&mut *g_st().curbuf);
     }
 }
 
@@ -2372,7 +2372,7 @@ unsafe fn option_expand(opt_idx: OptIndex, mut val: *const c_char) -> *mut c_cha
 /// After setting various option values: recompute variables that depend on option values.
 fn didset_options() {
     unsafe {
-        buf_init_isk_chartab(g_st().curbuf);
+        buf_init_isk_chartab(&mut *g_st().curbuf);
         init_isf_chartab();
         init_isi_chartab();
 
@@ -2505,11 +2505,9 @@ pub unsafe fn valid_name(val: *const c_char, allowed: *const c_char) -> bool {
     }
 }
 
-pub unsafe fn check_blending(wp: *mut win_T) {
-    unsafe {
-        (*wp).w_grid_alloc.blending =
-            (*wp).w_onebuf_opt.wo_winbl > 0 || ((*wp).w_floating && (*wp).w_config.shadow);
-    }
+pub fn check_blending(wp: &mut win_T) {
+    wp.w_grid_alloc.blending =
+            wp.w_onebuf_opt.wo_winbl > 0 || (wp.w_floating && wp.w_config.shadow);
 }
 
 /// Handle setting 'winhighlight' in window "wp".
@@ -2747,7 +2745,7 @@ pub fn did_set_arabic(args: &mut optset_T) -> *const c_char {
             if opt_vars().p_tbidi == 0 {
                 if (*win).w_onebuf_opt.wo_rl == 0 {
                     (*win).w_onebuf_opt.wo_rl = 1;
-                    changed_window_setting(win);
+                    changed_window_setting(&mut *win);
                 }
 
                 if opt_vars().p_arshape == 0 {
@@ -2777,7 +2775,7 @@ pub fn did_set_arabic(args: &mut optset_T) -> *const c_char {
         } else {
             if opt_vars().p_tbidi == 0 && (*win).w_onebuf_opt.wo_rl != 0 {
                 (*win).w_onebuf_opt.wo_rl = 0;
-                changed_window_setting(win);
+                changed_window_setting(&mut *win);
             }
 
             (*(*win).w_buffer).b_p_iminsert = B_IMODE_NONE;
@@ -2855,8 +2853,8 @@ pub fn did_set_diff(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
         diff_buf_adjust(&mut *win);
-        if foldmethodIsDiff(win) {
-            foldUpdateAll(win);
+        if foldmethodIsDiff(&mut *win) {
+            foldUpdateAll(&mut *win);
         }
         ptr::null()
     }
@@ -2884,14 +2882,14 @@ pub fn did_set_foldenable(args: &mut optset_T) -> *const c_char {
         let win = args.os_win;
         if args.os_varp == (&raw mut (*win).w_onebuf_opt.wo_fen).cast::<c_void>()
             && c_int::from(args.os_oldval.data.boolean()) != (*win).w_onebuf_opt.wo_fen
-            && foldmethodIsDiff(win)
+            && foldmethodIsDiff(&mut *win)
             && (*win).w_onebuf_opt.wo_scb != 0
         {
             let mut wp = g_st().firstwin;
             while !wp.is_null() {
-                if wp != win && foldmethodIsDiff(wp) && (*wp).w_onebuf_opt.wo_scb != 0 {
+                if wp != win && foldmethodIsDiff(&mut *wp) && (*wp).w_onebuf_opt.wo_scb != 0 {
                     (*wp).w_onebuf_opt.wo_fen = (*win).w_onebuf_opt.wo_fen;
-                    changed_window_setting(wp);
+                    changed_window_setting(&mut *wp);
                 }
                 wp = (*wp).w_next;
             }
@@ -2909,7 +2907,7 @@ pub fn did_set_foldlevel(_args: &mut optset_T) -> *const c_char {
 /// Process the new 'foldminlines' option value.
 pub fn did_set_foldminlines(args: &mut optset_T) -> *const c_char {
     unsafe {
-        foldUpdateAll(args.os_win);
+        foldUpdateAll(&mut *args.os_win);
         ptr::null()
     }
 }
@@ -2918,8 +2916,8 @@ pub fn did_set_foldminlines(args: &mut optset_T) -> *const c_char {
 pub fn did_set_foldnestmax(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
-        if foldmethodIsSyntax(win) || foldmethodIsIndent(win) {
-            foldUpdateAll(win);
+        if foldmethodIsSyntax(&mut *win) || foldmethodIsIndent(&mut *win) {
+            foldUpdateAll(&mut *win);
         }
         ptr::null()
     }
@@ -3048,7 +3046,7 @@ pub fn did_set_lines_or_columns(args: &mut optset_T) -> *const c_char {
 /// Process the updated 'lisp' option value.
 pub fn did_set_lisp(args: &mut optset_T) -> *const c_char {
     unsafe {
-        buf_init_isk_chartab(args.os_buf);
+        buf_init_isk_chartab(&mut *args.os_buf);
         ptr::null()
     }
 }
@@ -3064,7 +3062,7 @@ pub fn did_set_modified(args: &mut optset_T) -> *const c_char {
     unsafe {
         let buf = args.os_buf;
         if !args.os_newval.data.boolean() {
-            save_file_ff(buf);
+            save_file_ff(&mut *buf);
         }
         redraw_titles();
         (*buf).b_modified_was_set = args.os_newval.data.boolean();
@@ -3302,11 +3300,11 @@ pub fn did_set_shiftwidth_tabstop(args: &mut optset_T) -> *const c_char {
         let win = args.os_win;
         let pp = args.os_varp.cast::<OptInt>();
 
-        if foldmethodIsIndent(win) {
-            foldUpdateAll(win);
+        if foldmethodIsIndent(&mut *win) {
+            foldUpdateAll(&mut *win);
         }
         if pp == &raw mut (*buf).b_p_sw || (*buf).b_p_sw == 0 {
-            parse_cino(buf);
+            parse_cino(&mut *buf);
         }
         ptr::null()
     }
@@ -3345,9 +3343,9 @@ pub fn did_set_swapfile(args: &mut optset_T) -> *const c_char {
     unsafe {
         let buf = args.os_buf;
         if (*buf).b_p_swf != 0 && opt_vars().p_uc != 0 {
-            ml_open_file(buf);
+            ml_open_file(&mut *buf);
         } else {
-            mf_close_file(buf, true);
+            mf_close_file(&mut *buf, true);
         }
         ptr::null()
     }
@@ -3492,7 +3490,7 @@ pub fn did_set_winblend(args: &mut optset_T) -> *const c_char {
         if value != old_value {
             (*win).w_onebuf_opt.wo_winbl = (*win).w_onebuf_opt.wo_winbl.clamp(0, 100);
             (*win).w_hl_needs_update = 1;
-            check_blending(win);
+            check_blending(&mut *win);
         }
         ptr::null()
     }
@@ -3652,7 +3650,7 @@ unsafe fn check_num_option_bounds(
                 if *newval != 0 {
                     errmsg = e_scroll.as_ptr();
                 }
-                *newval = OptInt::from(win_default_scroll(win));
+                *newval = OptInt::from(win_default_scroll(&mut *win));
             }
             _ => {}
         }
@@ -3837,7 +3835,7 @@ pub unsafe fn check_redraw_for(buf: *mut buf_T, win: *mut win_T, flags: u32) {
             if (flags & kOptFlagHLOnly) != 0 {
                 redraw_later(win, UPD_NOT_VALID);
             } else {
-                changed_window_setting(win);
+                changed_window_setting(&mut *win);
             }
         }
         if (flags & kOptFlagRedrBuf) != 0 {
@@ -7216,15 +7214,15 @@ pub fn get_findfunc() -> *mut Callback {
 }
 
 /// Copy options from one window to another.
-pub unsafe fn win_copy_options(wp_from: *mut win_T, wp_to: *mut win_T) {
+pub fn win_copy_options(wp_from: &mut win_T, wp_to: &mut win_T) {
     unsafe {
         copy_winopt(
-            &mut (*wp_from).w_onebuf_opt,
-            &mut (*wp_to).w_onebuf_opt,
+            &mut wp_from.w_onebuf_opt,
+            &mut wp_to.w_onebuf_opt,
         );
         copy_winopt(
-            &mut (*wp_from).w_allbuf_opt,
-            &mut (*wp_to).w_allbuf_opt,
+            &mut wp_from.w_allbuf_opt,
+            &mut wp_to.w_allbuf_opt,
         );
         didset_window_options(wp_to, true);
     }
@@ -7415,7 +7413,7 @@ pub unsafe fn didset_window_options(wp: *mut win_T, valid_cursor: bool) {
             None,
         );
         parse_winhl_opt(ptr::null(), wp);
-        check_blending(wp);
+        check_blending(&mut *wp);
         set_winbar_win(wp, false, valid_cursor);
         check_signcolumn(ptr::null_mut(), wp);
         (*wp).w_grid_alloc.blending = (*wp).w_onebuf_opt.wo_winbl > 0;
@@ -7423,9 +7421,9 @@ pub unsafe fn didset_window_options(wp: *mut win_T, valid_cursor: bool) {
 }
 
 #[inline]
-unsafe fn copy_opt_sctx(buf: *mut buf_T, bv: usize) {
+fn copy_opt_sctx(buf: &mut buf_T, bv: usize) {
     unsafe {
-        (*buf).b_p_script_ctx[bv] = (*get_option(buf_opt_idx[bv])).script_ctx;
+        buf.b_p_script_ctx[bv] = (*get_option(buf_opt_idx[bv])).script_ctx;
     }
 }
 
@@ -7480,63 +7478,63 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 }
 
                 (*buf).b_p_ai = opt_vars().p_ai;
-                copy_opt_sctx(buf, kBufOptAutoindent);
+                copy_opt_sctx(&mut *buf, kBufOptAutoindent);
                 (*buf).b_p_ai_nopaste = opt_st().P_AI_NOPASTE;
                 (*buf).b_p_sw = opt_vars().p_sw;
-                copy_opt_sctx(buf, kBufOptShiftwidth);
+                copy_opt_sctx(&mut *buf, kBufOptShiftwidth);
                 (*buf).b_p_scbk = opt_vars().p_scbk;
-                copy_opt_sctx(buf, kBufOptScrollback);
+                copy_opt_sctx(&mut *buf, kBufOptScrollback);
                 (*buf).b_p_tw = opt_vars().p_tw;
-                copy_opt_sctx(buf, kBufOptTextwidth);
+                copy_opt_sctx(&mut *buf, kBufOptTextwidth);
                 (*buf).b_p_tw_nopaste = opt_st().P_TW_NOPASTE;
                 (*buf).b_p_tw_nobin = opt_st().P_TW_NOBIN;
                 (*buf).b_p_wm = opt_vars().p_wm;
-                copy_opt_sctx(buf, kBufOptWrapmargin);
+                copy_opt_sctx(&mut *buf, kBufOptWrapmargin);
                 (*buf).b_p_wm_nopaste = opt_st().P_WM_NOPASTE;
                 (*buf).b_p_wm_nobin = opt_st().P_WM_NOBIN;
                 (*buf).b_p_bin = opt_vars().p_bin;
-                copy_opt_sctx(buf, kBufOptBinary);
+                copy_opt_sctx(&mut *buf, kBufOptBinary);
                 (*buf).b_p_bomb = opt_vars().p_bomb;
-                copy_opt_sctx(buf, kBufOptBomb);
+                copy_opt_sctx(&mut *buf, kBufOptBomb);
                 (*buf).b_p_et = opt_vars().p_et;
-                copy_opt_sctx(buf, kBufOptExpandtab);
+                copy_opt_sctx(&mut *buf, kBufOptExpandtab);
                 (*buf).b_p_fixeol = opt_vars().p_fixeol;
-                copy_opt_sctx(buf, kBufOptFixendofline);
+                copy_opt_sctx(&mut *buf, kBufOptFixendofline);
                 (*buf).b_p_follow = opt_vars().p_follow;
-                copy_opt_sctx(buf, kBufOptFollow);
+                copy_opt_sctx(&mut *buf, kBufOptFollow);
                 (*buf).b_p_et_nobin = opt_st().P_ET_NOBIN;
                 (*buf).b_p_et_nopaste = opt_st().P_ET_NOPASTE;
                 (*buf).b_p_ml = opt_vars().p_ml;
-                copy_opt_sctx(buf, kBufOptModeline);
+                copy_opt_sctx(&mut *buf, kBufOptModeline);
                 (*buf).b_p_ml_nobin = opt_st().P_ML_NOBIN;
                 (*buf).b_p_inf = opt_vars().p_inf;
-                copy_opt_sctx(buf, kBufOptInfercase);
+                copy_opt_sctx(&mut *buf, kBufOptInfercase);
                 if (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0 {
                     (*buf).b_p_swf = 0;
                 } else {
                     (*buf).b_p_swf = opt_vars().p_swf;
-                    copy_opt_sctx(buf, kBufOptSwapfile);
+                    copy_opt_sctx(&mut *buf, kBufOptSwapfile);
                 }
                 (*buf).b_p_cpt = alloc_string_option(opt_vars().p_cpt);
-                copy_opt_sctx(buf, kBufOptComplete);
+                copy_opt_sctx(&mut *buf, kBufOptComplete);
                 (*buf).b_p_cpt_flags = copy_opt_insecure(kBufOptComplete);
                 set_buflocal_cpt_callbacks(buf);
                 #[cfg(windows)]
                 {
                     (*buf).b_p_csl = alloc_string_option(opt_vars().p_csl);
-                    copy_opt_sctx(buf, kBufOptCompleteslash);
+                    copy_opt_sctx(&mut *buf, kBufOptCompleteslash);
                 }
                 callback_copy(&mut (*buf).b_p_cfu, &opt_vars().p_cfu);
-                copy_opt_sctx(buf, kBufOptCompletefunc);
+                copy_opt_sctx(&mut *buf, kBufOptCompletefunc);
                 callback_copy(&mut (*buf).b_p_ofu, &opt_vars().p_ofu);
-                copy_opt_sctx(buf, kBufOptOmnifunc);
+                copy_opt_sctx(&mut *buf, kBufOptOmnifunc);
                 callback_copy(&mut (*buf).b_p_tfu, &opt_vars().p_tfu);
-                copy_opt_sctx(buf, kBufOptTagfunc);
+                copy_opt_sctx(&mut *buf, kBufOptTagfunc);
                 (*buf).b_p_sts = opt_vars().p_sts;
-                copy_opt_sctx(buf, kBufOptSofttabstop);
+                copy_opt_sctx(&mut *buf, kBufOptSofttabstop);
                 (*buf).b_p_sts_nopaste = opt_st().P_STS_NOPASTE;
                 (*buf).b_p_vsts = alloc_string_option(opt_vars().p_vsts);
-                copy_opt_sctx(buf, kBufOptVarsofttabstop);
+                copy_opt_sctx(&mut *buf, kBufOptVarsofttabstop);
                 if !opt_vars().p_vsts.is_null() && opt_vars().p_vsts != empty_opt {
                     tabstop_set(opt_vars().p_vsts, &mut (*buf).b_p_vsts_array, None);
                 } else {
@@ -7545,72 +7543,72 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 let vsts_np_ptr = &raw const opt_st().P_VSTS_NOPASTE;
                 (*buf).b_p_vsts_nopaste = (*vsts_np_ptr).clone();
                 (*buf).b_p_com = alloc_string_option(opt_vars().p_com);
-                copy_opt_sctx(buf, kBufOptComments);
+                copy_opt_sctx(&mut *buf, kBufOptComments);
                 (*buf).b_p_cms = alloc_string_option(opt_vars().p_cms);
-                copy_opt_sctx(buf, kBufOptCommentstring);
+                copy_opt_sctx(&mut *buf, kBufOptCommentstring);
                 (*buf).b_p_fo = alloc_string_option(opt_vars().p_fo);
-                copy_opt_sctx(buf, kBufOptFormatoptions);
+                copy_opt_sctx(&mut *buf, kBufOptFormatoptions);
                 (*buf).b_p_flp = alloc_string_option(opt_vars().p_flp);
-                copy_opt_sctx(buf, kBufOptFormatlistpat);
+                copy_opt_sctx(&mut *buf, kBufOptFormatlistpat);
                 (*buf).b_p_nf = alloc_string_option(opt_vars().p_nf);
-                copy_opt_sctx(buf, kBufOptNrformats);
+                copy_opt_sctx(&mut *buf, kBufOptNrformats);
                 (*buf).b_p_mps = alloc_string_option(opt_vars().p_mps);
-                copy_opt_sctx(buf, kBufOptMatchpairs);
+                copy_opt_sctx(&mut *buf, kBufOptMatchpairs);
                 (*buf).b_p_si = opt_vars().p_si;
-                copy_opt_sctx(buf, kBufOptSmartindent);
+                copy_opt_sctx(&mut *buf, kBufOptSmartindent);
                 (*buf).b_p_channel = 0;
                 (*buf).b_p_ci = opt_vars().p_ci;
-                copy_opt_sctx(buf, kBufOptCopyindent);
+                copy_opt_sctx(&mut *buf, kBufOptCopyindent);
                 (*buf).b_p_cin = opt_vars().p_cin;
-                copy_opt_sctx(buf, kBufOptCindent);
+                copy_opt_sctx(&mut *buf, kBufOptCindent);
                 (*buf).b_p_cink = alloc_string_option(opt_vars().p_cink);
-                copy_opt_sctx(buf, kBufOptCinkeys);
+                copy_opt_sctx(&mut *buf, kBufOptCinkeys);
                 (*buf).b_p_cino = alloc_string_option(opt_vars().p_cino);
-                copy_opt_sctx(buf, kBufOptCinoptions);
+                copy_opt_sctx(&mut *buf, kBufOptCinoptions);
                 (*buf).b_p_cinsd = alloc_string_option(opt_vars().p_cinsd);
-                copy_opt_sctx(buf, kBufOptCinscopedecls);
+                copy_opt_sctx(&mut *buf, kBufOptCinscopedecls);
                 (*buf).b_p_lop = alloc_string_option(opt_vars().p_lop);
-                copy_opt_sctx(buf, kBufOptLispoptions);
+                copy_opt_sctx(&mut *buf, kBufOptLispoptions);
 
                 (*buf).b_p_ft = empty_opt;
                 (*buf).b_p_pi = opt_vars().p_pi;
-                copy_opt_sctx(buf, kBufOptPreserveindent);
+                copy_opt_sctx(&mut *buf, kBufOptPreserveindent);
                 (*buf).b_p_cinw = alloc_string_option(opt_vars().p_cinw);
-                copy_opt_sctx(buf, kBufOptCinwords);
+                copy_opt_sctx(&mut *buf, kBufOptCinwords);
                 (*buf).b_p_lisp = opt_vars().p_lisp;
-                copy_opt_sctx(buf, kBufOptLisp);
+                copy_opt_sctx(&mut *buf, kBufOptLisp);
                 (*buf).b_p_syn = empty_opt;
                 (*buf).b_p_smc = opt_vars().p_smc;
-                copy_opt_sctx(buf, kBufOptSynmaxcol);
+                copy_opt_sctx(&mut *buf, kBufOptSynmaxcol);
                 (*buf).b_s.b_syn_isk = None;
                 (*buf).b_s.b_p_spc = alloc_string_option(opt_vars().p_spc);
-                copy_opt_sctx(buf, kBufOptSpellcapcheck);
+                copy_opt_sctx(&mut *buf, kBufOptSpellcapcheck);
                 compile_cap_prog((*buf).b_s.b_p_spc, &mut (*buf).b_s.b_cap_prog);
                 (*buf).b_s.b_p_spf = alloc_string_option(opt_vars().p_spf);
-                copy_opt_sctx(buf, kBufOptSpellfile);
+                copy_opt_sctx(&mut *buf, kBufOptSpellfile);
                 (*buf).b_s.b_p_spl = alloc_string_option(opt_vars().p_spl);
-                copy_opt_sctx(buf, kBufOptSpelllang);
+                copy_opt_sctx(&mut *buf, kBufOptSpelllang);
                 (*buf).b_s.b_p_spo = alloc_string_option(opt_vars().p_spo);
-                copy_opt_sctx(buf, kBufOptSpelloptions);
+                copy_opt_sctx(&mut *buf, kBufOptSpelloptions);
                 (*buf).b_s.b_p_spo_flags = opt_vars().spo_flags;
                 callback_copy(&mut (*buf).b_p_inde, &opt_vars().p_inde);
-                copy_opt_sctx(buf, kBufOptIndentexpr);
+                copy_opt_sctx(&mut *buf, kBufOptIndentexpr);
                 (*buf).b_p_inde_flags = copy_opt_insecure(kBufOptIndentexpr);
                 (*buf).b_p_indk = alloc_string_option(opt_vars().p_indk);
-                copy_opt_sctx(buf, kBufOptIndentkeys);
+                copy_opt_sctx(&mut *buf, kBufOptIndentkeys);
                 (*buf).b_p_fp = empty_opt;
                 callback_copy(&mut (*buf).b_p_fex, &opt_vars().p_fex);
-                copy_opt_sctx(buf, kBufOptFormatexpr);
+                copy_opt_sctx(&mut *buf, kBufOptFormatexpr);
                 (*buf).b_p_fex_flags = copy_opt_insecure(kBufOptFormatexpr);
                 (*buf).b_p_sua = alloc_string_option(opt_vars().p_sua);
-                copy_opt_sctx(buf, kBufOptSuffixesadd);
+                copy_opt_sctx(&mut *buf, kBufOptSuffixesadd);
                 (*buf).b_p_keymap = alloc_string_option(opt_vars().p_keymap);
-                copy_opt_sctx(buf, kBufOptKeymap);
+                copy_opt_sctx(&mut *buf, kBufOptKeymap);
                 (*buf).b_kmap_state |= KEYMAP_INIT;
                 (*buf).b_p_iminsert = opt_vars().p_iminsert;
-                copy_opt_sctx(buf, kBufOptIminsert);
+                copy_opt_sctx(&mut *buf, kBufOptIminsert);
                 (*buf).b_p_imsearch = opt_vars().p_imsearch;
-                copy_opt_sctx(buf, kBufOptImsearch);
+                copy_opt_sctx(&mut *buf, kBufOptImsearch);
 
                 (*buf).b_p_ac = -1;
                 (*buf).b_p_ar = -1;
@@ -7632,7 +7630,7 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 (*buf).b_p_def = empty_opt;
                 (*buf).b_p_inc = empty_opt;
                 callback_copy(&mut (*buf).b_p_inex, &opt_vars().p_inex);
-                copy_opt_sctx(buf, kBufOptIncludeexpr);
+                copy_opt_sctx(&mut *buf, kBufOptIncludeexpr);
                 (*buf).b_p_inex_flags = copy_opt_insecure(kBufOptIncludeexpr);
                 (*buf).b_p_cot = empty_opt;
                 (*buf).b_cot_flags = 0;
@@ -7641,9 +7639,9 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 (*buf).b_p_tsr = empty_opt;
                 (*buf).b_p_tsrfu = Callback::NONE;
                 (*buf).b_p_qe = alloc_string_option(opt_vars().p_qe);
-                copy_opt_sctx(buf, kBufOptQuoteescape);
+                copy_opt_sctx(&mut *buf, kBufOptQuoteescape);
                 (*buf).b_p_udf = opt_vars().p_udf;
-                copy_opt_sctx(buf, kBufOptUndofile);
+                copy_opt_sctx(&mut *buf, kBufOptUndofile);
                 (*buf).b_p_lw = empty_opt;
                 (*buf).b_p_menc = empty_opt;
 
@@ -7656,12 +7654,12 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                     }
                 } else {
                     (*buf).b_p_isk = alloc_string_option(opt_vars().p_isk);
-                    copy_opt_sctx(buf, kBufOptIskeyword);
+                    copy_opt_sctx(&mut *buf, kBufOptIskeyword);
                     did_isk = true;
                     (*buf).b_p_ts = opt_vars().p_ts;
-                    copy_opt_sctx(buf, kBufOptTabstop);
+                    copy_opt_sctx(&mut *buf, kBufOptTabstop);
                     (*buf).b_p_vts = alloc_string_option(opt_vars().p_vts);
-                    copy_opt_sctx(buf, kBufOptVartabstop);
+                    copy_opt_sctx(&mut *buf, kBufOptVartabstop);
                     if !opt_vars().p_vts.is_null() && *opt_vars().p_vts != NUL && (*buf).b_p_vts_array.is_empty() {
                         tabstop_set(opt_vars().p_vts, &mut (*buf).b_p_vts_array, None);
                     } else {
@@ -7672,7 +7670,7 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                         clear_string_option(&raw mut (*buf).b_p_bt);
                     }
                     (*buf).b_p_ma = opt_vars().p_ma;
-                    copy_opt_sctx(buf, kBufOptModifiable);
+                    copy_opt_sctx(&mut *buf, kBufOptModifiable);
                 }
             }
 
@@ -7681,9 +7679,9 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
             }
         }
 
-        check_buf_options(buf);
+        check_buf_options(&mut *buf);
         if did_isk {
-            buf_init_isk_chartab(buf);
+            buf_init_isk_chartab(&mut *buf);
         }
     }
 }
@@ -8354,7 +8352,7 @@ pub unsafe fn option_set_callback_func(optval: *mut c_char, optcb: &mut Callback
             evaluated
         } else {
             let mut allocated = typval_T::new();
-            crate::eval::typval::tv_set_string(&raw mut allocated, optval);
+            crate::eval::typval::tv_set_string(&mut allocated, optval);
             allocated
         };
 
@@ -8431,9 +8429,9 @@ pub unsafe fn get_ve_flags(wp: *mut win_T) -> c_uint {
 }
 
 /// Get the local or global value of 'showbreak'.
-pub unsafe fn get_showbreak_value(win: *mut win_T) -> *mut c_char {
+pub fn get_showbreak_value(win: &mut win_T) -> *mut c_char {
     unsafe {
-        let sbr = (*win).w_onebuf_opt.wo_sbr;
+        let sbr = win.w_onebuf_opt.wo_sbr;
         if sbr.is_null() || *sbr == NUL {
             return opt_vars().p_sbr;
         }
@@ -8445,10 +8443,10 @@ pub unsafe fn get_showbreak_value(win: *mut win_T) -> *mut c_char {
 }
 
 /// Return the current end-of-line type: EOL_DOS, EOL_UNIX or EOL_MAC.
-pub unsafe fn get_fileformat(buf: *const buf_T) -> c_int {
+pub fn get_fileformat(buf: &buf_T) -> c_int {
     unsafe {
-        let c = *(*buf).b_p_ff as u8;
-        if (*buf).b_p_bin != 0 || c == b'u' {
+        let c = *buf.b_p_ff as u8;
+        if buf.b_p_bin != 0 || c == b'u' {
             return EOL_UNIX;
         }
         if c == b'm' {

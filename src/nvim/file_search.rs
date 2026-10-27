@@ -1713,7 +1713,7 @@ pub unsafe fn do_autocmd_dirchanged(
             "changed_window".len(),
             c_int::from(cause == kCdCauseWindow),
         );
-        tv_dict_set_keys_readonly(dict);
+        tv_dict_set_keys_readonly(&mut *dict);
 
         match cause {
             kCdCauseManual | kCdCauseWindow | kCdCauseBuffer => {}

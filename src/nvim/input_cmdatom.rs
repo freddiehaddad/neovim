@@ -476,7 +476,7 @@ fn atom_origin() -> CmdOrigin {
         let mut origin = CmdOrigin {
             win: *curwin.as_ptr(),
             pos: (**curwin.as_ptr()).w_cursor,
-            tick: buf_get_changedtick(g_st().curbuf),
+            tick: buf_get_changedtick(&*g_st().curbuf),
             maptick: g_st().maptick,
             mcursor: mc_mark_at(g_st().curbuf, (**curwin.as_ptr()).w_cursor, 0),
             ..CmdOrigin::default()
@@ -490,7 +490,7 @@ fn atom_origin() -> CmdOrigin {
 fn atom_origin_changed(origin: CmdOrigin) -> bool {
     unsafe {
         bufref_valid((&raw const origin.buf).cast_mut())
-            && buf_get_changedtick(origin.buf.br_buf) != origin.tick
+            && buf_get_changedtick(&*origin.buf.br_buf) != origin.tick
     }
 }
 
@@ -521,7 +521,7 @@ pub unsafe fn atom_origin_pos(buf: *mut buf_T) -> pos_T {
         if atom_st().composite.open
             && o.buf.br_buf == buf
             && bufref_valid((&raw const o.buf).cast_mut())
-            && buf_get_changedtick(buf) == o.tick
+            && buf_get_changedtick(&*buf) == o.tick
         {
             return o.pos;
         }
@@ -765,7 +765,7 @@ unsafe fn atom_emit(atom: *const CmdAtom) {
             TYPE_NAMES[(*atom).r#type as usize].as_ptr().cast_mut(),
             ptr::null_mut(),
             AUGROUP_ALL,
-            buf,
+            &mut *buf,
             &mut obj,
         );
         api_free_dict(data);
@@ -845,7 +845,7 @@ unsafe fn atom_push(cascade: bool, atom: *mut CmdAtom) {
             *atom = CmdAtom::new();
             return;
         }
-        atom_push_raw(cascade && mc_buf_has_cursors(g_st().curbuf), atom);
+        atom_push_raw(cascade && mc_buf_has_cursors(&mut *g_st().curbuf), atom);
     }
 }
 
@@ -1015,7 +1015,7 @@ fn atom_capturable(consumers: bool, keytyped: bool) -> bool {
 
 #[inline]
 fn atom_buf_has_consumers() -> bool {
-    unsafe { mc_buf_has_cursors(g_st().curbuf) || has_event(EVENT_CMDATOM) }
+    unsafe { mc_buf_has_cursors(&mut *g_st().curbuf) || has_event(EVENT_CMDATOM) }
 }
 
 pub fn atom_key_class(cmd: c_int, arg: c_int, arg2: c_int) -> c_uint {
@@ -1386,7 +1386,7 @@ fn atom_visual_span_flush() {
         if atom_st().vatom.done >= (*v_atoms).len()
             || !atom_visual_replayable()
             || !atom_visual_typed()
-            || !mc_buf_has_cursors(g_st().curbuf)
+            || !mc_buf_has_cursors(&mut *g_st().curbuf)
         {
             return;
         }
@@ -1748,7 +1748,7 @@ pub fn atom_ins_end(session: &mut InsSession, busy: bool) {
             session.vsel = None;
             return;
         }
-        atom_ins_push(session, mc_buf_has_cursors(g_st().curbuf));
+        atom_ins_push(session, mc_buf_has_cursors(&mut *g_st().curbuf));
         session.vsel = None;
     }
 }

@@ -515,7 +515,7 @@ pub unsafe extern "C" fn nvim_open_win(
             if fconfig.style == kWinStyleMinimal {
                 win_set_minimal_style(&mut *wp);
                 didset_window_options(wp, true);
-                changed_window_setting(wp);
+                changed_window_setting(&mut *wp);
             }
             rv = (*wp).handle;
         }
@@ -573,7 +573,7 @@ unsafe fn win_can_move_tp(wp: *mut win_T, tp: &mut tabpage_T, err: &mut Error) -
             );
             return false;
         }
-        if win_locked(wp) != 0 {
+        if win_locked(&mut *wp) != 0 {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -861,7 +861,7 @@ unsafe fn win_config_split(
                 });
                 if !to_split_ok {
                     if was_split {
-                        winframe_restore(win, dir, &mut *unflat_altfr);
+                        winframe_restore(&mut *win, dir, &mut *unflat_altfr);
                     }
                     if !error_set(err) {
                         api_set_error!(
@@ -995,7 +995,7 @@ unsafe fn win_config_float_tp(
                 set_must_redraw(UPD_NOT_VALID);
             }
 
-            win_config_float(win, fconfig.clone());
+            win_config_float(&mut *win, fconfig.clone());
             return true;
         }
 
@@ -1074,7 +1074,7 @@ pub unsafe extern "C" fn nvim_win_set_config(
         if fconfig.style == kWinStyleMinimal && old_style != fconfig.style {
             win_set_minimal_style(&mut *w);
             didset_window_options(w, true);
-            changed_window_setting(w);
+            changed_window_setting(&mut *w);
         }
         if fconfig._cmdline_offset < c_int::MAX {
             g_st().cmdline_win = w;

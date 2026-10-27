@@ -436,8 +436,8 @@ unsafe fn buf_write_do_autocmds(
             did_cmd = apply_autocmds_exarg(EVENT_BUFWRITECMD, sfname, sfname, false, g_st().curbuf, eap);
             if did_cmd {
                 if was_changed && !curbufIsChanged() {
-                    u_unchanged(g_st().curbuf);
-                    u_update_save_nr(g_st().curbuf);
+                    u_unchanged(&mut *g_st().curbuf);
+                    u_update_save_nr(&mut *g_st().curbuf);
                 }
             } else if overwriting && bt_nofilename(g_st().curbuf) {
                 nofile_err = true;
@@ -1263,7 +1263,7 @@ pub unsafe fn buf_write(
         let mut progress: c_int = -1;
         let mut progress_nchars: i64 = 0;
         let write_start = os_hrtime();
-        let write_tick = buf_get_changedtick(buf);
+        let write_tick = buf_get_changedtick(&*buf);
         g_st().msg_scroll = 0;
 
         write_info.bw_buf = vec![0; WRITEBUFSIZE];
@@ -1368,7 +1368,7 @@ pub unsafe fn buf_write(
                         } else {
                             opt_vars().p_fs != 0
                         };
-                        ml_preserve(buf, false, fsync_opt);
+                        ml_preserve(&mut *buf, false, fsync_opt);
                         if g_st().got_int {
                             err = set_err(gettext(e_interr.as_ptr()));
                             break 'restore_backup;
@@ -1676,7 +1676,7 @@ pub unsafe fn buf_write(
                                         true,
                                         false,
                                     );
-                                    if buf_get_changedtick(buf) != write_tick {
+                                    if buf_get_changedtick(&*buf) != write_tick {
                                         err = set_err(gettext(
                                             e_buffer_changed_unexpectedly.as_ptr(),
                                         ));
@@ -1926,15 +1926,15 @@ pub unsafe fn buf_write(
                         && !append
                         && write_info.bw_conv_error == 0
                         && (overwriting || !vim_strchr(opt_vars().p_cpo, kCpoPlus).is_null())
-                        && buf_get_changedtick(buf) == write_tick
+                        && buf_get_changedtick(&*buf) == write_tick
                     {
                         unchanged(buf, true, false);
-                        let changedtick = buf_get_changedtick(buf);
+                        let changedtick = buf_get_changedtick(&*buf);
                         if (*buf).b_last_changedtick + 1 == changedtick {
                             (*buf).b_last_changedtick = changedtick;
                         }
-                        u_unchanged(buf);
-                        u_update_save_nr(buf);
+                        u_unchanged(&mut *buf);
+                        u_update_save_nr(&mut *buf);
                     }
 
                     if overwriting {
@@ -2063,7 +2063,7 @@ pub unsafe fn buf_write(
                 );
 
                 if os_fileinfo(fname, &mut file_info_old) {
-                    buf_store_file_info(buf, &mut file_info_old);
+                    buf_store_file_info(&mut *buf, &mut file_info_old);
                     (*buf).b_mtime_read = (*buf).b_mtime;
                     (*buf).b_mtime_read_ns = (*buf).b_mtime_ns;
                 }

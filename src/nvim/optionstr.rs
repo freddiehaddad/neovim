@@ -997,58 +997,58 @@ fn illegal_char(errbuf: Option<CharBuf>, c: c_int) -> *const c_char {
 }
 
 /// Check string options in a buffer for NULL value.
-pub unsafe fn check_buf_options(buf: *mut buf_T) {
+pub fn check_buf_options(buf: &mut buf_T) {
     unsafe {
-        check_string_option(&raw mut (*buf).b_p_bh);
-        check_string_option(&raw mut (*buf).b_p_bt);
-        check_string_option(&raw mut (*buf).b_p_fenc);
-        check_string_option(&raw mut (*buf).b_p_ff);
-        check_string_option(&raw mut (*buf).b_p_def);
-        check_string_option(&raw mut (*buf).b_p_inc);
-        check_string_option(&raw mut (*buf).b_p_indk);
-        check_string_option(&raw mut (*buf).b_p_fp);
-        check_string_option(&raw mut (*buf).b_p_kp);
-        check_string_option(&raw mut (*buf).b_p_mps);
-        check_string_option(&raw mut (*buf).b_p_fo);
-        check_string_option(&raw mut (*buf).b_p_flp);
-        check_string_option(&raw mut (*buf).b_p_isk);
-        check_string_option(&raw mut (*buf).b_p_com);
-        check_string_option(&raw mut (*buf).b_p_cms);
-        check_string_option(&raw mut (*buf).b_p_nf);
-        check_string_option(&raw mut (*buf).b_p_qe);
-        check_string_option(&raw mut (*buf).b_p_syn);
-        (*buf).b_s.b_syn_isk = None;
-        check_string_option(&raw mut (*buf).b_s.b_p_spc);
-        check_string_option(&raw mut (*buf).b_s.b_p_spf);
-        check_string_option(&raw mut (*buf).b_s.b_p_spl);
-        check_string_option(&raw mut (*buf).b_s.b_p_spo);
-        check_string_option(&raw mut (*buf).b_p_sua);
-        check_string_option(&raw mut (*buf).b_p_cink);
-        check_string_option(&raw mut (*buf).b_p_cino);
+        check_string_option(&raw mut buf.b_p_bh);
+        check_string_option(&raw mut buf.b_p_bt);
+        check_string_option(&raw mut buf.b_p_fenc);
+        check_string_option(&raw mut buf.b_p_ff);
+        check_string_option(&raw mut buf.b_p_def);
+        check_string_option(&raw mut buf.b_p_inc);
+        check_string_option(&raw mut buf.b_p_indk);
+        check_string_option(&raw mut buf.b_p_fp);
+        check_string_option(&raw mut buf.b_p_kp);
+        check_string_option(&raw mut buf.b_p_mps);
+        check_string_option(&raw mut buf.b_p_fo);
+        check_string_option(&raw mut buf.b_p_flp);
+        check_string_option(&raw mut buf.b_p_isk);
+        check_string_option(&raw mut buf.b_p_com);
+        check_string_option(&raw mut buf.b_p_cms);
+        check_string_option(&raw mut buf.b_p_nf);
+        check_string_option(&raw mut buf.b_p_qe);
+        check_string_option(&raw mut buf.b_p_syn);
+        buf.b_s.b_syn_isk = None;
+        check_string_option(&raw mut buf.b_s.b_p_spc);
+        check_string_option(&raw mut buf.b_s.b_p_spf);
+        check_string_option(&raw mut buf.b_s.b_p_spl);
+        check_string_option(&raw mut buf.b_s.b_p_spo);
+        check_string_option(&raw mut buf.b_p_sua);
+        check_string_option(&raw mut buf.b_p_cink);
+        check_string_option(&raw mut buf.b_p_cino);
         parse_cino(buf);
-        check_string_option(&raw mut (*buf).b_p_lop);
-        check_string_option(&raw mut (*buf).b_p_ft);
-        check_string_option(&raw mut (*buf).b_p_cinw);
-        check_string_option(&raw mut (*buf).b_p_cinsd);
-        check_string_option(&raw mut (*buf).b_p_cot);
-        check_string_option(&raw mut (*buf).b_p_cpt);
-        check_string_option(&raw mut (*buf).b_p_keymap);
-        check_string_option(&raw mut (*buf).b_p_gefm);
-        check_string_option(&raw mut (*buf).b_p_gp);
-        check_string_option(&raw mut (*buf).b_p_mp);
-        check_string_option(&raw mut (*buf).b_p_efm);
-        check_string_option(&raw mut (*buf).b_p_ep);
-        check_string_option(&raw mut (*buf).b_p_path);
-        check_string_option(&raw mut (*buf).b_p_tags);
-        check_string_option(&raw mut (*buf).b_p_tc);
-        check_string_option(&raw mut (*buf).b_p_dict);
-        check_string_option(&raw mut (*buf).b_p_dia);
-        check_string_option(&raw mut (*buf).b_p_tsr);
-        check_string_option(&raw mut (*buf).b_p_lw);
-        check_string_option(&raw mut (*buf).b_p_bkc);
-        check_string_option(&raw mut (*buf).b_p_menc);
-        check_string_option(&raw mut (*buf).b_p_vsts);
-        check_string_option(&raw mut (*buf).b_p_vts);
+        check_string_option(&raw mut buf.b_p_lop);
+        check_string_option(&raw mut buf.b_p_ft);
+        check_string_option(&raw mut buf.b_p_cinw);
+        check_string_option(&raw mut buf.b_p_cinsd);
+        check_string_option(&raw mut buf.b_p_cot);
+        check_string_option(&raw mut buf.b_p_cpt);
+        check_string_option(&raw mut buf.b_p_keymap);
+        check_string_option(&raw mut buf.b_p_gefm);
+        check_string_option(&raw mut buf.b_p_gp);
+        check_string_option(&raw mut buf.b_p_mp);
+        check_string_option(&raw mut buf.b_p_efm);
+        check_string_option(&raw mut buf.b_p_ep);
+        check_string_option(&raw mut buf.b_p_path);
+        check_string_option(&raw mut buf.b_p_tags);
+        check_string_option(&raw mut buf.b_p_tc);
+        check_string_option(&raw mut buf.b_p_dict);
+        check_string_option(&raw mut buf.b_p_dia);
+        check_string_option(&raw mut buf.b_p_tsr);
+        check_string_option(&raw mut buf.b_p_lw);
+        check_string_option(&raw mut buf.b_p_bkc);
+        check_string_option(&raw mut buf.b_p_menc);
+        check_string_option(&raw mut buf.b_p_vsts);
+        check_string_option(&raw mut buf.b_p_vts);
     }
 }
 
@@ -1891,7 +1891,7 @@ pub fn expand_set_chars_option(
 /// The 'cinoptions' option is changed.
 pub fn did_set_cinoptions(args: &mut optset_T) -> *const c_char {
     unsafe {
-        parse_cino(args.os_buf);
+        parse_cino(&mut *args.os_buf);
         ptr::null()
     }
 }
@@ -2373,7 +2373,7 @@ pub fn did_set_fileformat(args: &mut optset_T) -> *const c_char {
 
         redraw_titles();
         ml_setflags(buf);
-        if get_fileformat(buf) == EOL_MAC || *oldval == b'm' as c_char {
+        if get_fileformat(&*buf) == EOL_MAC || *oldval == b'm' as c_char {
             redraw_buf_later(buf, UPD_NOT_VALID);
         }
         ptr::null()
@@ -2415,8 +2415,8 @@ pub fn did_set_filetype_or_syntax(args: &mut optset_T) -> *const c_char {
 pub fn did_set_foldexpr(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
-        if foldmethodIsExpr(win) {
-            foldUpdateAll(win);
+        if foldmethodIsExpr(&mut *win) {
+            foldUpdateAll(&mut *win);
         }
         ptr::null()
     }
@@ -2426,8 +2426,8 @@ pub fn did_set_foldexpr(args: &mut optset_T) -> *const c_char {
 pub fn did_set_foldignore(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
-        if foldmethodIsIndent(win) {
-            foldUpdateAll(win);
+        if foldmethodIsIndent(&mut *win) {
+            foldUpdateAll(&mut *win);
         }
         ptr::null()
     }
@@ -2453,8 +2453,8 @@ pub fn validate_foldmarker(args: &mut optset_T) -> *const c_char {
 pub fn did_set_foldmarker(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
-        if foldmethodIsMarker(win) {
-            foldUpdateAll(win);
+        if foldmethodIsMarker(&mut *win) {
+            foldUpdateAll(&mut *win);
         }
         ptr::null()
     }
@@ -2464,8 +2464,8 @@ pub fn did_set_foldmarker(args: &mut optset_T) -> *const c_char {
 pub fn did_set_foldmethod(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
-        foldUpdateAll(win);
-        if foldmethodIsDiff(win) {
+        foldUpdateAll(&mut *win);
+        if foldmethodIsDiff(&mut *win) {
             newFoldLevel();
         }
         ptr::null()
@@ -2576,7 +2576,7 @@ pub fn did_set_iskeyword(args: &mut optset_T) -> *const c_char {
         let varp = args.os_varp.cast::<*mut c_char>();
         if !ptr::eq(varp, &raw mut opt_vars().p_isk) {
             let buf = args.os_buf;
-            if buf_init_isk_chartab(buf) == FAIL {
+            if buf_init_isk_chartab(&mut *buf) == FAIL {
                 return e_invarg.as_ptr();
             }
         }
@@ -3176,7 +3176,7 @@ fn did_set_statustabline_rulerformat(
         }
 
         if is_stl && !win.is_null() && (*win).w_floating {
-            win_config_float(win, (*win).w_config.clone());
+            win_config_float(&mut *win, (*win).w_config.clone());
         }
 
         if rulerformat && !ui_has(kUIMessages) && *s == b'%' as c_char {
@@ -3298,8 +3298,8 @@ pub fn did_set_vartabstop(args: &mut optset_T) -> *const c_char {
             &mut (*buf).b_p_vts_array
         };
         *array = args.os_prep.take_tabstop();
-        if !soft && foldmethodIsIndent(win) {
-            foldUpdateAll(win);
+        if !soft && foldmethodIsIndent(&mut *win) {
+            foldUpdateAll(&mut *win);
         }
         ptr::null()
     }
@@ -3343,7 +3343,7 @@ pub fn did_set_virtualedit(args: &mut optset_T) -> *const c_char {
                 return errmsg;
             } else if std::ffi::CStr::from_ptr(ve).to_bytes() != std::ffi::CStr::from_ptr(args.os_oldval.data.string().data).to_bytes() {
                 validate_virtcol(win);
-                coladvance(win, (*win).w_virtcol);
+                coladvance(&mut *win, (*win).w_virtcol);
             }
         }
         ptr::null()

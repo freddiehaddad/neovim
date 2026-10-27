@@ -487,7 +487,7 @@ fn set_search_match(t: &mut pos_T) {
         t.col = g_st().Search.match_endcol;
         if t.lnum > (*g_st().curbuf).b_ml.ml_line_count {
             t.lnum = (*g_st().curbuf).b_ml.ml_line_count;
-            coladvance(*curwin.as_ptr(), MAXCOL);
+            coladvance(&mut **curwin.as_ptr(), MAXCOL);
         }
     }
 }
@@ -523,7 +523,7 @@ pub unsafe fn parse_pattern_and_range(
 
         let mut dummy_cmdmod: cmdmod_T = cmdmod_T::new();
         // Skip over command modifiers
-        parse_command_modifiers(&raw mut ea, &raw mut dummy, &mut dummy_cmdmod, true);
+        parse_command_modifiers(&mut ea, &raw mut dummy, &mut dummy_cmdmod, true);
 
         // Skip over the range to find the command.
         let cmd = skip_range(ea.cmd, ptr::null_mut());
@@ -632,7 +632,7 @@ pub unsafe fn parse_pattern_and_range(
         let save_cursor = (**curwin.as_ptr()).w_cursor;
         (**curwin.as_ptr()).w_cursor = *incsearch_start;
 
-        parse_cmd_address(&raw mut ea, &raw mut dummy, true);
+        parse_cmd_address(&mut ea, &raw mut dummy, true);
 
         if ea.addr_count > 0 {
             // Allow for reverse match.
@@ -1132,7 +1132,7 @@ fn command_line_enter(
 
                 tv_dict_add_str(dict, c"cmdtype".as_ptr(), 7, firstcbuf.as_ptr());
                 tv_dict_add_nr(dict, c"cmdlevel".as_ptr(), 8, getln_st().ccline.level as varnumber_T);
-                tv_dict_set_keys_readonly(dict);
+                tv_dict_set_keys_readonly(&mut *dict);
                 let mut tstate = TryState::new();
                 try_enter(&raw mut tstate);
                 apply_autocmds(
@@ -1213,7 +1213,7 @@ fn command_line_enter(
 
                 tv_dict_add_str(dict, c"cmdtype".as_ptr(), 7, firstcbuf.as_ptr());
                 tv_dict_add_nr(dict, c"cmdlevel".as_ptr(), 8, getln_st().ccline.level as varnumber_T);
-                tv_dict_set_keys_readonly(dict);
+                tv_dict_set_keys_readonly(&mut *dict);
                 tv_dict_add_bool(
                     dict,
                     c"abort".as_ptr(),
@@ -3152,7 +3152,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
         let parsed = parse_cmdline(
             &raw mut cmdline,
             &raw mut cmdline_vec,
-            &raw mut ea,
+            &mut ea,
             &mut cmod,
             &mut errormsg,
             false,
@@ -3257,7 +3257,7 @@ fn do_autocmd_cmdlinechanged(firstc: c_int) {
 
             tv_dict_add_str(dict, c"cmdtype".as_ptr(), 7, firstcbuf.as_ptr());
             tv_dict_add_nr(dict, c"cmdlevel".as_ptr(), 8, getln_st().ccline.level as varnumber_T);
-            tv_dict_set_keys_readonly(dict);
+            tv_dict_set_keys_readonly(&mut *dict);
             let mut tstate = TryState::new();
             try_enter(&raw mut tstate);
             apply_autocmds(
@@ -5413,12 +5413,12 @@ pub unsafe fn get_user_input(
 
         if let Some(res_cstr) = res {
             crate::eval::typval::tv_set_string_len(
-                &raw mut *rettv,
+                &mut *rettv,
                 res_cstr.as_ptr(),
                 res_cstr.as_bytes().len(),
             );
         } else if !cancelreturn.is_null() {
-            tv_copy(cancelreturn, &raw mut *rettv);
+            tv_copy(&*cancelreturn, &mut *rettv);
         }
 
         g_st().need_wait_return = false;

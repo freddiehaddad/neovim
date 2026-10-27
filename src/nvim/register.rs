@@ -615,7 +615,7 @@ pub fn do_record(c: c_int) -> c_int {
             buf[0] = reg_st().do_record_regname as u8 as c_char;
             buf[1] = NUL;
             tv_dict_add_str(dict, c"regname".as_ptr(), 7, buf.as_ptr());
-            tv_dict_set_keys_readonly(dict);
+            tv_dict_set_keys_readonly(&mut *dict);
 
             apply_autocmds(
                 EVENT_RECORDINGLEAVE,
@@ -1434,7 +1434,7 @@ pub fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
             },
         );
 
-        tv_dict_set_keys_readonly(dict);
+        tv_dict_set_keys_readonly(&mut *dict);
         g_st().textlock += 1;
         apply_autocmds(
             EVENT_TEXTYANKPOST,
@@ -1514,7 +1514,7 @@ unsafe fn put_do_autocmd(
             },
         );
 
-        tv_dict_set_keys_readonly(v_event);
+        tv_dict_set_keys_readonly(&mut *v_event);
 
         reg_st().put_autocmd_recursive = true;
         g_st().textlock += 1;
@@ -1897,7 +1897,7 @@ pub unsafe fn do_put(
                 if dir == FORWARD && c != 0 {
                     if cur_ve_flags == kOptVeFlagAll {
                         getvcol(
-                            *curwin.as_ptr(),
+                            &mut **curwin.as_ptr(),
                             &mut (**curwin.as_ptr()).w_cursor,
                             &raw mut col,
                             ptr::null_mut(),
@@ -1906,7 +1906,7 @@ pub unsafe fn do_put(
                         );
                     } else {
                         getvcol(
-                            *curwin.as_ptr(),
+                            &mut **curwin.as_ptr(),
                             &mut (**curwin.as_ptr()).w_cursor,
                             ptr::null_mut(),
                             ptr::null_mut(),
@@ -1918,7 +1918,7 @@ pub unsafe fn do_put(
                     col += 1;
                 } else {
                     getvcol(
-                        *curwin.as_ptr(),
+                        &mut **curwin.as_ptr(),
                         &mut (**curwin.as_ptr()).w_cursor,
                         &raw mut col,
                         ptr::null_mut(),
@@ -2155,7 +2155,7 @@ pub unsafe fn do_put(
                                 coladd: 0,
                             };
                             getvcol(
-                                *curwin.as_ptr(),
+                                &mut **curwin.as_ptr(),
                                 &mut pos,
                                 ptr::null_mut(),
                                 &raw mut vcol,
@@ -2208,7 +2208,7 @@ pub unsafe fn do_put(
 
                             if lnum == (**curwin.as_ptr()).w_cursor.lnum {
                                 changed_cline_bef_curs(&mut **curwin.as_ptr());
-                                invalidate_botline_win(*curwin.as_ptr());
+                                invalidate_botline_win(&mut **curwin.as_ptr());
                                 (**curwin.as_ptr()).w_cursor.col += (totlen - 1) as colnr_T;
                             }
                             changed_bytes(lnum, col);

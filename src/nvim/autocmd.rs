@@ -2575,7 +2575,7 @@ pub unsafe fn aucmd_defer(
     fname: *mut c_char,
     fname_io: *mut c_char,
     group: c_int,
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     data: *mut Object,
 ) {
     unsafe {
@@ -2584,7 +2584,7 @@ pub unsafe fn aucmd_defer(
             fname: (!fname.is_null()).then(|| CStr::from_ptr(fname).to_owned()),
             fname_io: (!fname_io.is_null()).then(|| CStr::from_ptr(fname_io).to_owned()),
             group,
-            buf: (*buf).b_fnum,
+            buf: buf.b_fnum,
             data: (!data.is_null()).then(|| copy_object(*data, ptr::null_mut())),
         });
 
@@ -2624,7 +2624,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
                     tv_clear(&raw mut tv);
                 }
             }
-            tv_dict_set_keys_readonly(v_event);
+            tv_dict_set_keys_readonly(&mut *v_event);
 
             let win = *curwin.as_ptr();
             let mut aco: CtxSwitch = CtxSwitch::new();
@@ -3937,7 +3937,7 @@ pub fn do_autocmd_uienter(chanid: u64, attached: bool) {
         let dict = get_v_event(&mut save_v_event);
         assert!(chanid < i64::MAX as u64);
         tv_dict_add_nr(dict, c"chan".as_ptr(), 4, chanid as varnumber_T);
-        tv_dict_set_keys_readonly(dict);
+        tv_dict_set_keys_readonly(&mut *dict);
         apply_autocmds(
             if attached {
                 EVENT_UIENTER

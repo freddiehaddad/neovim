@@ -252,7 +252,7 @@ pub unsafe extern "C" fn nvim_buf_add_highlight(
         decor.data.hl_mut().hl_id = hl_id;
 
         extmark_set(
-            buf,
+            &mut *buf,
             ns,
             ptr::null_mut(),
             line as c_int,
@@ -350,7 +350,7 @@ pub unsafe extern "C" fn nvim_buf_set_virtual_text(
         };
 
         extmark_set(
-            buf,
+            &mut *buf,
             ns_id,
             ptr::null_mut(),
             line as c_int,

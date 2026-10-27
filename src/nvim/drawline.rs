@@ -630,8 +630,8 @@ fn draw_col_fill(wlv: &mut winlinevars_T, fillchar: schar_T, width: c_int, attr:
 
 /// Return true if CursorLineSign / CursorLineFold highlight is to be used.
 /// This depends only on 'cursorline', not on 'cursorlineopt'.
-pub unsafe fn use_cursor_line_highlight(wp: *mut win_T, lnum: linenr_T) -> bool {
-    unsafe { (*wp).w_onebuf_opt.wo_cul != 0 && lnum == (*wp).w_cursorline }
+pub fn use_cursor_line_highlight(wp: &mut win_T, lnum: linenr_T) -> bool {
+    wp.w_onebuf_opt.wo_cul != 0 && lnum == wp.w_cursorline
 }
 
 /// Setup for drawing the 'foldcolumn', if there is one.
@@ -641,7 +641,7 @@ unsafe fn draw_foldcolumn(wp: *mut win_T, wlv: &mut winlinevars_T) {
         if fdc > 0 {
             let attr = win_hl_attr(
                 wp,
-                if use_cursor_line_highlight(wp, wlv.lnum) {
+                if use_cursor_line_highlight(&mut *wp, wlv.lnum) {
                     HLF_CLF
                 } else {
                     HLF_FC
@@ -745,7 +745,7 @@ unsafe fn draw_sign(nrcol: bool, wp: *mut win_T, wlv: &mut winlinevars_T, sign_i
         let sattr = wlv.sattrs[sign_idx as usize];
         let scl_attr = win_hl_attr(
             wp,
-            if use_cursor_line_highlight(wp, wlv.lnum) {
+            if use_cursor_line_highlight(&mut *wp, wlv.lnum) {
                 HLF_CLS
             } else {
                 HLF_SC
@@ -788,7 +788,7 @@ unsafe fn get_line_number_str(wp: &mut win_T, lnum: linenr_T, buf: *mut c_char, 
         if wp.w_onebuf_opt.wo_nu != 0 && wp.w_onebuf_opt.wo_rnu == 0 {
             num = lnum;
         } else {
-            num = get_cursor_rel_lnum(&raw mut *wp, lnum).abs();
+            num = get_cursor_rel_lnum(&mut *wp, lnum).abs();
             if num == 0 && wp.w_onebuf_opt.wo_nu != 0 && wp.w_onebuf_opt.wo_rnu != 0 {
                 num = lnum;
                 fmt = c"%-*d ".as_ptr();
@@ -799,15 +799,13 @@ unsafe fn get_line_number_str(wp: &mut win_T, lnum: linenr_T, buf: *mut c_char, 
     }
 }
 
-unsafe fn use_cursor_line_nr(wp: *mut win_T, wlv: &winlinevars_T) -> bool {
-    unsafe {
-        (*wp).w_onebuf_opt.wo_cul != 0
-            && wlv.lnum == (*wp).w_cursorline
-            && ((*wp).w_p_culopt_flags & kOptCuloptFlagNumber) != 0
+fn use_cursor_line_nr(wp: &mut win_T, wlv: &winlinevars_T) -> bool {
+    wp.w_onebuf_opt.wo_cul != 0
+            && wlv.lnum == wp.w_cursorline
+            && (wp.w_p_culopt_flags & kOptCuloptFlagNumber) != 0
             && (wlv.row == wlv.startrow + wlv.filler_lines
                 || (wlv.row > wlv.startrow + wlv.filler_lines
-                    && ((*wp).w_p_culopt_flags & kOptCuloptFlagLine) != 0))
-    }
+                    && (wp.w_p_culopt_flags & kOptCuloptFlagLine) != 0))
 }
 
 unsafe fn get_line_number_attr(wp: *mut win_T, wlv: &mut winlinevars_T) -> c_int {
@@ -832,7 +830,7 @@ unsafe fn get_line_number_attr(wp: *mut win_T, wlv: &mut winlinevars_T) -> c_int
             numhl_attr = wlv.prev_num_attr;
         }
 
-        if use_cursor_line_nr(wp, wlv) {
+        if use_cursor_line_nr(&mut *wp, wlv) {
             return hl_combine_attr(win_hl_attr(wp, HLF_CLN), numhl_attr);
         }
 
@@ -914,7 +912,7 @@ unsafe fn draw_statuscol(
         if reset && lnum < (*wp).w_topline {
             let mut virt_below_prev: c_int = 0;
             let virt_lines_prev = decor_virt_lines(
-                wp,
+                &mut *wp,
                 lnum - 1,
                 lnum,
                 &raw mut virt_below_prev,
@@ -932,7 +930,7 @@ unsafe fn draw_statuscol(
             wlv.row - wlv.startrow - wlv.filler_lines
         };
         let relnum: linenr_T = if virtnum == -reset_virt - 1 || virtnum == 0 {
-            get_cursor_rel_lnum(wp, lnum).abs()
+            get_cursor_rel_lnum(&mut *wp, lnum).abs()
         } else {
             -1
         };
@@ -1005,7 +1003,7 @@ unsafe fn draw_statuscol(
         let len = CStr::from_ptr(buf_ptr).to_bytes().len();
         let scl_attr = win_hl_attr(
             wp,
-            if use_cursor_line_highlight(wp, wlv.lnum) {
+            if use_cursor_line_highlight(&mut *wp, wlv.lnum) {
                 HLF_CLS
             } else {
                 HLF_SC
@@ -1124,7 +1122,7 @@ fn handle_showbreak_and_filler(
             draw_col_fill(wlv, c, remaining, win_hl_attr(&raw mut *wp, HLF_DED));
         }
 
-        let sbr = get_showbreak_value(&raw mut *wp);
+        let sbr = get_showbreak_value(&mut *wp);
         if *sbr != NUL && wlv.need_showbreak {
             let mut attr = hl_combine_attr(wlv.cul_attr, gap_decor_attr);
             attr = hl_combine_attr(attr, win_hl_attr(&raw mut *wp, HLF_AT));
@@ -1606,7 +1604,7 @@ pub fn win_line(
             {
                 if lnum == (**curwin.as_ptr()).w_cursor.lnum {
                     getvcol(
-                        *curwin.as_ptr(),
+                        &mut **curwin.as_ptr(),
                         &mut (**curwin.as_ptr()).w_cursor,
                         &raw mut wlv.fromcol,
                         ptr::null_mut(),
@@ -1623,7 +1621,7 @@ pub fn win_line(
                         coladd: 0,
                     };
                     getvcol(
-                        *curwin.as_ptr(),
+                        &mut **curwin.as_ptr(),
                         &mut pos,
                         &raw mut wlv.tocol,
                         ptr::null_mut(),
@@ -1642,7 +1640,7 @@ pub fn win_line(
         let bg_attr = win_bg_attr(wp);
 
         let mut linestatus: c_int = 0;
-        wlv.filler_lines = diff_check_with_linestatus(&raw mut *wp, lnum, &raw mut linestatus);
+        wlv.filler_lines = diff_check_with_linestatus(&mut *wp, lnum, &raw mut linestatus);
         let mut line_changes = diffline_T::default();
         let mut change_index: c_int = -1;
         if linestatus < 0 {
@@ -1677,7 +1675,7 @@ pub fn win_line(
         }
         let mut virt_lines: VirtLines = Vec::new();
         wlv.n_virt_lines = decor_virt_lines(
-            &raw mut *wp,
+            &mut *wp,
             lnum - 1,
             lnum,
             &raw mut wlv.n_virt_below,
@@ -1727,13 +1725,13 @@ pub fn win_line(
             statuscol.lnum = lnum;
             statuscol.foldinfo = foldinfo;
             statuscol.width = win_col_off(&raw mut *wp);
-            statuscol.sign_cul_id = if use_cursor_line_highlight(&raw mut *wp, lnum) {
+            statuscol.sign_cul_id = if use_cursor_line_highlight(&mut *wp, lnum) {
                 wlv.sign_cul_attr
             } else {
                 0
             };
         } else if wlv.sign_cul_attr > 0 {
-            wlv.sign_cul_attr = if use_cursor_line_highlight(&raw mut *wp, lnum) {
+            wlv.sign_cul_attr = if use_cursor_line_highlight(&mut *wp, lnum) {
                 syn_id2attr(wlv.sign_cul_attr)
             } else {
                 0
@@ -2027,7 +2025,7 @@ pub fn win_line(
         }
 
         let may_have_inline_virt =
-            !has_foldtext && buf_meta_total(wp.w_buffer, kMTMetaInline) > 0;
+            !has_foldtext && buf_meta_total(&*wp.w_buffer, kMTMetaInline) > 0;
         let mut has_virt_line = false;
         let mut virt_line_flags: c_int = 0;
         let mut virt_line_index: c_int = 0;
@@ -2854,7 +2852,7 @@ pub fn win_line(
                                 lcs_tab2 = wp.w_p_lcs_chars.leadtab2;
                                 lcs_tab3 = wp.w_p_lcs_chars.leadtab3;
                             }
-                            let sbr = get_showbreak_value(&raw mut *wp);
+                            let sbr = get_showbreak_value(&mut *wp);
 
                             if *sbr != NUL
                                 && wlv.vcol == wlv.vcol_sbr
@@ -3625,7 +3623,7 @@ pub fn win_line(
                         wp.w_view_height,
                         HLF_AT,
                     );
-                    set_empty_rows(&raw mut *wp, wlv.row);
+                    set_empty_rows(&mut *wp, wlv.row);
                     wlv.row = endrow;
                 }
 
@@ -3694,7 +3692,7 @@ fn wlv_put_linebuf(
 
         if wlv.row == 0
             && wp.w_skipcol > 0
-            && *get_showbreak_value(&raw mut *wp) == NUL
+            && *get_showbreak_value(&mut *wp) == NUL
             && !(wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.prec != 0)
         {
             let mut off: c_int = 0;

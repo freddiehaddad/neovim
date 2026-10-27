@@ -624,7 +624,7 @@ fn select_spell_suggestion(sug: &mut suginfo_T) {
             v_lock: 0,
             vval: TypvalVval::Number(0),
         };
-        tv_list_alloc_ret(&raw mut items_tv, sug.su_ga.len() as isize);
+        tv_list_alloc_ret(&mut items_tv, sug.su_ga.len() as isize);
         for stp in &sug.su_ga {
             let d = tv_dict_alloc();
             let el = sug.su_badlen - stp.st_orglen;
@@ -675,7 +675,7 @@ fn select_spell_suggestion(sug: &mut suginfo_T) {
             v_lock: 0,
             vval: TypvalVval::Number(0),
         };
-        tv_set_string(&raw mut bad_tv, bad_cstr.as_ptr());
+        tv_set_string(&mut bad_tv, bad_cstr.as_ptr());
         let mut lua_args = [
             items_tv,
             bad_tv,
@@ -1294,7 +1294,7 @@ unsafe fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char
                         || if soundfold {
                             ascii_iswhite(*fword.add(stack[udepth].ts_fidx as usize))
                         } else {
-                            !spell_iswordp(fword.add(stack[udepth].ts_fidx as usize), *curwin.as_ptr())
+                            !spell_iswordp(fword.add(stack[udepth].ts_fidx as usize), &**curwin.as_ptr())
                         };
                     tword[stack[udepth].ts_twordlen as usize] = NUL;
                     if stack[udepth].ts_prefixdepth <= PFD_NOTSPECIAL
@@ -1520,12 +1520,12 @@ unsafe fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char
                         } else if stack[udepth].ts_fidx > 0 {
                             p = fword.add(stack[udepth].ts_fidx as usize);
                             mb_ptr_back(fword, &mut p);
-                            if !spell_iswordp(p, *curwin.as_ptr()) && preword[0] != NUL {
+                            if !spell_iswordp(p, &**curwin.as_ptr()) && preword[0] != NUL {
                                 p = (&raw mut preword)
                                     .cast::<c_char>()
                                     .add(std::ffi::CStr::from_ptr((&raw const preword).cast()).to_bytes().len());
                                 mb_ptr_back(&raw const preword, &mut p);
-                                if spell_iswordp(p, *curwin.as_ptr()) {
+                                if spell_iswordp(p, &**curwin.as_ptr()) {
                                     newscore += SCORE_NONWORD;
                                 }
                             }
@@ -1958,7 +1958,7 @@ unsafe fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char
                         stack[udepth].ts_state = state_T::STATE_FINAL;
                         continue;
                     }
-                    if !soundfold && !spell_iswordp(p, *curwin.as_ptr()) {
+                    if !soundfold && !spell_iswordp(p, &**curwin.as_ptr()) {
                         stack[udepth].ts_state = state_T::STATE_REP_INI;
                         continue;
                     }
@@ -1966,7 +1966,7 @@ unsafe fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char
                     c = utf_ptr2char(p);
                     if *p.add(n as usize) == NUL {
                         c2 = NUL as c_int;
-                    } else if !soundfold && !spell_iswordp(p.add(n as usize), *curwin.as_ptr()) {
+                    } else if !soundfold && !spell_iswordp(p.add(n as usize), &**curwin.as_ptr()) {
                         c2 = c;
                     } else {
                         c2 = utf_ptr2char(p.add(n as usize));
@@ -2010,7 +2010,7 @@ unsafe fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char
                     c = utf_ptr2char(p);
                     fl = utf_ptr2len(p.add(n as usize));
                     c2 = utf_ptr2char(p.add(n as usize));
-                    if !soundfold && !spell_iswordp(p.add((n + fl) as usize), *curwin.as_ptr()) {
+                    if !soundfold && !spell_iswordp(p.add((n + fl) as usize), &**curwin.as_ptr()) {
                         c3 = c;
                     } else {
                         c3 = utf_ptr2char(p.add((n + fl) as usize));
@@ -2045,7 +2045,7 @@ unsafe fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char
                     utf_char2bytes(c, p);
                     utf_char2bytes(c2, p.add(tl as usize));
                     p = p.add(tl as usize);
-                    if !soundfold && !spell_iswordp(p, *curwin.as_ptr()) {
+                    if !soundfold && !spell_iswordp(p, &**curwin.as_ptr()) {
                         stack[udepth].ts_state = state_T::STATE_REP_INI;
                         continue;
                     }

@@ -277,7 +277,7 @@ unsafe fn reset_xfmark(
 /// Set named mark `c` at current cursor position (`setmark`).
 pub fn setmark(c: c_int) -> c_int {
     unsafe {
-        let view = mark_view_make(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor);
+        let view = mark_view_make(&**curwin.as_ptr(), (**curwin.as_ptr()).w_cursor);
         setmark_pos(
             c,
             &mut (**curwin.as_ptr()).w_cursor,
@@ -356,7 +356,7 @@ unsafe fn do_markset_autocmd(c: c_char, pos: &pos_T, buf: *mut buf_T) {
             mark_str.as_mut_ptr(),
             ptr::null_mut(),
             AUGROUP_ALL,
-            buf,
+            &mut *buf,
             &raw mut dict_obj,
         );
     }
@@ -518,7 +518,7 @@ pub fn setpcmark() {
         (**curwin.as_ptr()).w_jumplistidx = (**curwin.as_ptr()).w_jumplistlen;
         let fm = &raw mut (**curwin.as_ptr()).w_jumplist[((**curwin.as_ptr()).w_jumplistlen - 1) as usize];
 
-        let view = mark_view_make(*curwin.as_ptr(), (**curwin.as_ptr()).w_pcmark);
+        let view = mark_view_make(&**curwin.as_ptr(), (**curwin.as_ptr()).w_pcmark);
         set_xfmark(fm, (**curwin.as_ptr()).w_pcmark, (*g_st().curbuf).b_fnum, view, None);
     }
 }
@@ -841,7 +841,7 @@ pub unsafe fn mark_view_restore(fm: *mut fmark_T) {
         if !fm.is_null() && (*fm).view.topline_offset >= 0 {
             let topline = (*fm).mark.lnum - (*fm).view.topline_offset;
             if topline >= 1 {
-                set_topline(*curwin.as_ptr(), topline);
+                set_topline(&mut **curwin.as_ptr(), topline);
                 (**curwin.as_ptr()).w_skipcol = if (*fm).view.skipcol > 0
                     && !hasFolding(*curwin.as_ptr(), topline, ptr::null_mut(), ptr::null_mut())
                     && (*fm).view.skipcol < linetabsize_eol(*curwin.as_ptr(), topline)
@@ -855,13 +855,11 @@ pub unsafe fn mark_view_restore(fm: *mut fmark_T) {
     }
 }
 
-pub unsafe fn mark_view_make(wp: *const win_T, pos: pos_T) -> fmarkv_T {
-    unsafe {
-        fmarkv_T {
-            topline_offset: pos.lnum - (*wp).w_topline,
-            skipcol: (*wp).w_skipcol,
+pub fn mark_view_make(wp: &win_T, pos: pos_T) -> fmarkv_T {
+    fmarkv_T {
+            topline_offset: pos.lnum - wp.w_topline,
+            skipcol: wp.w_skipcol,
         }
-    }
 }
 
 /// Search for the next named mark in the current file from a start position (`getnextmark`).
@@ -927,9 +925,9 @@ fn fname2fnum(fm: &mut xfmark_T) {
 }
 
 /// Check all file marks for a name that matches the file name in `buf` (`fmarks_check_names`).
-pub unsafe fn fmarks_check_names(buf: *mut buf_T) {
+pub fn fmarks_check_names(buf: &mut buf_T) {
     unsafe {
-        let name = (*buf).b_ffname;
+        let name = buf.b_ffname;
         if name.is_null() {
             return;
         }
@@ -1283,7 +1281,7 @@ pub fn ex_jumps(_eap: &mut exarg_T) {
 
 pub fn ex_clearjumps(_eap: &mut exarg_T) {
     unsafe {
-        free_jumplist(*curwin.as_ptr());
+        free_jumplist(&mut **curwin.as_ptr());
         (**curwin.as_ptr()).w_jumplistlen = 0;
         (**curwin.as_ptr()).w_jumplistidx = 0;
     }
@@ -1402,7 +1400,7 @@ pub fn mark_adjust(
 ) {
     unsafe {
         mark_adjust_buf(
-            g_st().curbuf,
+            &mut *g_st().curbuf,
             line1,
             line2,
             amount,
@@ -1424,7 +1422,7 @@ pub fn mark_adjust_nofold(
 ) {
     unsafe {
         mark_adjust_buf(
-            g_st().curbuf,
+            &mut *g_st().curbuf,
             line1,
             line2,
             amount,
@@ -1436,8 +1434,8 @@ pub fn mark_adjust_nofold(
     }
 }
 
-pub unsafe fn mark_adjust_buf(
-    buf: *mut buf_T,
+pub fn mark_adjust_buf(
+    buf: &mut buf_T,
     line1: linenr_T,
     line2: linenr_T,
     amount: linenr_T,
@@ -1447,7 +1445,7 @@ pub unsafe fn mark_adjust_buf(
     op: ExtmarkOp,
 ) {
     unsafe {
-        let fnum = (*buf).b_fnum;
+        let fnum = buf.b_fnum;
         const INITPOS: pos_T = pos_T {
             lnum: 1,
             col: 0,
@@ -1465,7 +1463,7 @@ pub unsafe fn mark_adjust_buf(
             let fm_base = (&raw mut g_st().namedfm).cast::<xfmark_T>();
             for i in 0..NMARKS {
                 one_adjust(
-                    &mut (*buf).b_namedm[i].mark.lnum,
+                    &mut buf.b_namedm[i].mark.lnum,
                     line1,
                     line2,
                     amount,
@@ -1496,25 +1494,25 @@ pub unsafe fn mark_adjust_buf(
             }
 
             one_adjust(
-                &mut (*buf).b_last_insert.mark.lnum,
+                &mut buf.b_last_insert.mark.lnum,
                 line1,
                 line2,
                 amount,
                 amount_after,
             );
             one_adjust(
-                &mut (*buf).b_last_change.mark.lnum,
+                &mut buf.b_last_change.mark.lnum,
                 line1,
                 line2,
                 amount,
                 amount_after,
             );
 
-            if !equalpos((*buf).b_last_cursor.mark, INITPOS)
-                && (!by_term || (*buf).b_last_cursor.mark.lnum < (*buf).b_ml.ml_line_count)
+            if !equalpos(buf.b_last_cursor.mark, INITPOS)
+                && (!by_term || buf.b_last_cursor.mark.lnum < buf.b_ml.ml_line_count)
             {
                 one_adjust(
-                    &mut (*buf).b_last_cursor.mark.lnum,
+                    &mut buf.b_last_cursor.mark.lnum,
                     line1,
                     line2,
                     amount,
@@ -1524,7 +1522,7 @@ pub unsafe fn mark_adjust_buf(
 
             if bt_prompt(buf) {
                 one_adjust_nodel(
-                    &mut (*buf).b_prompt_start.mark.lnum,
+                    &mut buf.b_prompt_start.mark.lnum,
                     line1,
                     line2,
                     amount,
@@ -1532,9 +1530,9 @@ pub unsafe fn mark_adjust_buf(
                 );
             }
 
-            for i in 0..((*buf).b_changelistlen as usize) {
+            for i in 0..(buf.b_changelistlen as usize) {
                 one_adjust_nodel(
-                    &mut (*buf).b_changelist[i].mark.lnum,
+                    &mut buf.b_changelist[i].mark.lnum,
                     line1,
                     line2,
                     amount,
@@ -1543,14 +1541,14 @@ pub unsafe fn mark_adjust_buf(
             }
 
             one_adjust_nodel(
-                &mut (*buf).b_visual.vi_start.lnum,
+                &mut buf.b_visual.vi_start.lnum,
                 line1,
                 line2,
                 amount,
                 amount_after,
             );
             one_adjust_nodel(
-                &mut (*buf).b_visual.vi_end.lnum,
+                &mut buf.b_visual.vi_end.lnum,
                 line1,
                 line2,
                 amount,
@@ -1558,7 +1556,7 @@ pub unsafe fn mark_adjust_buf(
             );
 
             if !qf_mark_adjust(buf, ptr::null_mut(), line1, line2, amount, amount_after) {
-                (*buf).b_has_qf_entry &= !BUF_HAS_QF_ENTRY;
+                buf.b_has_qf_entry &= !BUF_HAS_QF_ENTRY;
             }
             let mut found_one = false;
             let mut tab = g_st().first_tabpage;
@@ -1571,7 +1569,7 @@ pub unsafe fn mark_adjust_buf(
                 tab = (*tab).tp_next;
             }
             if !found_one {
-                (*buf).b_has_qf_entry &= !BUF_HAS_LL_ENTRY;
+                buf.b_has_qf_entry &= !BUF_HAS_LL_ENTRY;
             }
         }
 
@@ -1658,7 +1656,7 @@ pub unsafe fn mark_adjust_buf(
 
                     if by_api
                         || (if by_term {
-                            (*win).w_cursor.lnum < (*buf).b_ml.ml_line_count
+                            (*win).w_cursor.lnum < buf.b_ml.ml_line_count
                         } else {
                             win != *curwin.as_ptr()
                         })
@@ -1682,7 +1680,7 @@ pub unsafe fn mark_adjust_buf(
                     }
                     if !by_api
                         && (if by_term {
-                            (*win).w_cursor.lnum < (*buf).b_ml.ml_line_count
+                            (*win).w_cursor.lnum < buf.b_ml.ml_line_count
                         } else {
                             win != *curwin.as_ptr()
                         })
@@ -1707,8 +1705,8 @@ pub unsafe fn mark_adjust_buf(
 
         diff_mark_adjust(buf, line1, line2, amount, amount_after);
 
-        for wip in &mut (*buf).b_wininfo {
-            if !by_term || wip.wi_mark.mark.lnum < (*buf).b_ml.ml_line_count {
+        for wip in &mut buf.b_wininfo {
+            if !by_term || wip.wi_mark.mark.lnum < buf.b_ml.ml_line_count {
                 one_adjust_cursor(
                     &mut wip.wi_mark.mark,
                     line1,
@@ -1985,14 +1983,12 @@ pub fn cleanup_jumplist(wp: &mut win_T, loadfiles: bool) {
 }
 
 /// Copy the jumplist from window `from` to window `to` (`copy_jumplist`).
-pub unsafe fn copy_jumplist(from: *mut win_T, to: *mut win_T) {
-    unsafe {
-        for i in 0..((*from).w_jumplistlen as usize) {
-            (*to).w_jumplist[i] = (*from).w_jumplist[i].clone();
+pub fn copy_jumplist(from: &mut win_T, to: &mut win_T) {
+    for i in 0..(from.w_jumplistlen as usize) {
+            to.w_jumplist[i] = from.w_jumplist[i].clone();
         }
-        (*to).w_jumplistlen = (*from).w_jumplistlen;
-        (*to).w_jumplistidx = (*from).w_jumplistidx;
-    }
+        to.w_jumplistlen = from.w_jumplistlen;
+        to.w_jumplistidx = from.w_jumplistidx;
 }
 
 /// Iterate over jumplist items (`mark_jumplist_iter`).
@@ -2134,13 +2130,11 @@ pub fn mark_set_local(name: c_char, buf: &mut buf_T, fm: fmark_T, update: bool) 
 }
 
 /// Free items in the jumplist of window `wp` (`free_jumplist`).
-pub unsafe fn free_jumplist(wp: *mut win_T) {
-    unsafe {
-        for i in 0..((*wp).w_jumplistlen as usize) {
-            free_xfmark(&mut (*wp).w_jumplist[i]);
+pub fn free_jumplist(wp: &mut win_T) {
+    for i in 0..(wp.w_jumplistlen as usize) {
+            free_xfmark(&mut wp.w_jumplist[i]);
         }
-        (*wp).w_jumplistlen = 0;
-    }
+        wp.w_jumplistlen = 0;
 }
 
 pub unsafe fn set_last_cursor(win: *mut win_T) {

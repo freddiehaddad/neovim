@@ -303,7 +303,7 @@ pub fn ctx_free(ctx: &mut Context) {
         if !buf.is_null() {
             for i in 0..ctx.pos_marks.len() {
                 if ctx.pos_marks[i] != 0 {
-                    extmark_del_id(buf, ctx_marks_ns(), ctx.pos_marks[i]);
+                    extmark_del_id(&mut *buf, ctx_marks_ns(), ctx.pos_marks[i]);
                 }
             }
         }
@@ -312,14 +312,14 @@ pub fn ctx_free(ctx: &mut Context) {
     }
 }
 
-pub unsafe fn ctx_save(ctx: *mut Context, flags: CtxStateFlags) {
+pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
     unsafe {
-        assert!((*ctx).buf == 0 || (*ctx).buf == (*g_st().curbuf).b_fnum);
-        (*ctx).buf = (*g_st().curbuf).b_fnum;
-        (*ctx).pos = (**curwin.as_ptr()).w_cursor;
+        assert!(ctx.buf == 0 || ctx.buf == (*g_st().curbuf).b_fnum);
+        ctx.buf = (*g_st().curbuf).b_fnum;
+        ctx.pos = (**curwin.as_ptr()).w_cursor;
 
         if (flags & kCtxCursor) != 0 {
-            (*ctx).curswant = if (**curwin.as_ptr()).w_set_curswant {
+            ctx.curswant = if (**curwin.as_ptr()).w_set_curswant {
                 -1
             } else {
                 (**curwin.as_ptr()).w_curswant
@@ -327,14 +327,14 @@ pub unsafe fn ctx_save(ctx: *mut Context, flags: CtxStateFlags) {
         }
 
         if (flags & kCtxVisual) != 0 {
-            (*ctx).visual = (*g_st().curbuf).b_visual;
-            (*ctx).visual_mode_eval = (*g_st().curbuf).b_visual_mode_eval;
+            ctx.visual = (*g_st().curbuf).b_visual;
+            ctx.visual_mode_eval = (*g_st().curbuf).b_visual_mode_eval;
         }
         if (flags & kCtxMarks) != 0 {
-            (*ctx).op_start = (*g_st().curbuf).b_op_start;
-            (*ctx).op_end = (*g_st().curbuf).b_op_end;
-            (*ctx).last_change = (*g_st().curbuf).b_last_change.clone();
-            (*ctx).last_insert = (*g_st().curbuf).b_last_insert.clone();
+            ctx.op_start = (*g_st().curbuf).b_op_start;
+            ctx.op_end = (*g_st().curbuf).b_op_end;
+            ctx.last_change = (*g_st().curbuf).b_last_change.clone();
+            ctx.last_insert = (*g_st().curbuf).b_last_insert.clone();
         }
         if (flags & (kCtxVisual | kCtxMarks)) != 0 {
             let pos = ctx_positions(ctx, flags);
@@ -343,9 +343,9 @@ pub unsafe fn ctx_save(ctx: *mut Context, flags: CtxStateFlags) {
                     continue;
                 }
                 if (*pos_ptr).lnum == 0 {
-                    if (*ctx).pos_marks[i] != 0 {
-                        extmark_del_id(g_st().curbuf, ctx_marks_ns(), (*ctx).pos_marks[i]);
-                        (*ctx).pos_marks[i] = 0;
+                    if ctx.pos_marks[i] != 0 {
+                        extmark_del_id(&mut *g_st().curbuf, ctx_marks_ns(), ctx.pos_marks[i]);
+                        ctx.pos_marks[i] = 0;
                     }
                     continue;
                 }
@@ -354,7 +354,7 @@ pub unsafe fn ctx_save(ctx: *mut Context, flags: CtxStateFlags) {
                 extmark_set_pos(
                     g_st().curbuf,
                     ctx_marks_ns(),
-                    &raw mut (*ctx).pos_marks[i],
+                    &raw mut ctx.pos_marks[i],
                     p,
                     true,
                     true,
@@ -364,21 +364,21 @@ pub unsafe fn ctx_save(ctx: *mut Context, flags: CtxStateFlags) {
         }
 
         if (flags & kCtxRegs) != 0 {
-            (*ctx).regs = shada_encode_regs(false, 0);
+            ctx.regs = shada_encode_regs(false, 0);
         }
         if (flags & kCtxJumps) != 0 {
-            (*ctx).jumps = shada_encode_jumps();
+            ctx.jumps = shada_encode_jumps();
         }
         if (flags & kCtxBufs) != 0 {
-            (*ctx).bufs = shada_encode_buflist();
+            ctx.bufs = shada_encode_buflist();
         }
         if (flags & kCtxGVars) != 0 {
-            (*ctx).gvars = shada_encode_gvars();
+            ctx.gvars = shada_encode_gvars();
         }
 
         if (flags & (kCtxFuncs | kCtxSFuncs)) != 0 {
             let scriptonly = (flags & kCtxFuncs) == 0;
-            (*ctx).funcs = Array::new();
+            ctx.funcs = Array::new();
             let mut err = Error::new();
 
             let ht = func_tbl_get();
@@ -403,7 +403,7 @@ pub unsafe fn ctx_save(ctx: *mut Context, flags: CtxStateFlags) {
                         &mut err,
                     );
                     if !error_set(&err) {
-                        (*ctx).funcs.push(string_obj(func_body));
+                        ctx.funcs.push(string_obj(func_body));
                     }
                     api_clear_error(&mut err);
                 }
@@ -579,10 +579,10 @@ pub unsafe fn ctx_from_dict(dict: Dict, ctx: *mut Context, err: &mut Error) -> C
     }
 }
 
-unsafe fn ctx_win_dirs_save(cs: &mut CtxSwitch, cw_win: &mut win_T, buf: *mut buf_T) {
+fn ctx_win_dirs_save(cs: &mut CtxSwitch, cw_win: &mut win_T, buf: &mut buf_T) {
     unsafe {
         cw_win.w_localdir = None;
-        cs.cs_b_localdir = (*buf).b_localdir.take();
+        cs.cs_b_localdir = buf.b_localdir.take();
         cs.cs_tp_localdir = (*g_st().curtab).tp_localdir.take();
         cs.cs_globaldir = g_st().globaldir.take();
     }
@@ -743,15 +743,15 @@ unsafe fn ctx_win_prep(cs: &mut CtxSwitch, buf: *mut buf_T) -> *mut win_T {
 
         (*cw_win).w_buffer = buf;
         (*buf).b_nwindows += 1;
-        win_init_empty(cw_win);
+        win_init_empty(&mut *cw_win);
 
-        ctx_win_dirs_save(cs, &mut *cw_win, buf);
+        ctx_win_dirs_save(cs, &mut *cw_win, &mut *buf);
 
         if need_append {
             win_append(g_st().lastwin, cw_win, ptr::null_mut());
             let map_ptr = &raw mut g_st().window_handles;
             (*map_ptr).insert((*cw_win).handle, cw_win);
-            win_config_float(cw_win, (*cw_win).w_config.clone());
+            win_config_float(&mut *cw_win, (*cw_win).w_config.clone());
         }
 
         cw_win

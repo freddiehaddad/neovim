@@ -229,17 +229,17 @@ pub unsafe fn decor_providers_invoke_spell(
 }
 
 /// Return whether a provider placed any marks in the callback (`decor_providers_invoke_conceal_line`).
-pub unsafe fn decor_providers_invoke_conceal_line(wp: *mut win_T, row: c_int) -> bool {
+pub fn decor_providers_invoke_conceal_line(wp: &mut win_T, row: c_int) -> bool {
     unsafe {
-        let keys = (*(*wp).w_buffer).b_marktree.n_keys;
+        let keys = (*wp.w_buffer).b_marktree.n_keys;
         let mut i = 0usize;
         while i < providers_mut().len() {
             let p = &providers_mut()[i];
             if p.state != kDecorProviderDisabled && p.conceal_line != LUA_NOREF {
                 let conceal_line = p.conceal_line;
                 let mut args_buf = [
-                    integer_obj((*wp).handle as Integer),
-                    integer_obj((*(*wp).w_buffer).b_fnum as Integer),
+                    integer_obj(wp.handle as Integer),
+                    integer_obj((*wp.w_buffer).b_fnum as Integer),
                     integer_obj(row as Integer),
                 ];
                 let args = Array {
@@ -258,7 +258,7 @@ pub unsafe fn decor_providers_invoke_conceal_line(wp: *mut win_T, row: c_int) ->
             }
             i += 1;
         }
-        (*(*wp).w_buffer).b_marktree.n_keys > keys
+        (*wp.w_buffer).b_marktree.n_keys > keys
     }
 }
 

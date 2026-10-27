@@ -860,12 +860,12 @@ pub fn ui_grid_resize(grid_handle: handle_T, width: c_int, height: c_int, err: &
             if width != (*wp).w_width || height != (*wp).w_height {
                 (*wp).w_config.width = width.max(1);
                 (*wp).w_config.height = height.max(1);
-                win_config_float(wp, (*wp).w_config.clone());
+                win_config_float(&mut *wp, (*wp).w_config.clone());
             }
         } else {
             (*wp).w_height_request = height.max(0);
             (*wp).w_width_request = width.max(0);
-            win_set_inner_size(wp, true);
+            win_set_inner_size(&mut *wp, true);
         }
     }
 }

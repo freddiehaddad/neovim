@@ -421,7 +421,7 @@ pub unsafe extern "C" fn nvim_buf_get_extmark_by_id(
             true
         };
 
-        let extmark = extmark_from_id(b, ns_id as u32, id as u32);
+        let extmark = extmark_from_id(&mut *b, ns_id as u32, id as u32);
         if extmark.start.pos.row < 0 {
             return rv;
         }
@@ -1318,7 +1318,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                 };
 
                 extmark_set(
-                    b,
+                    &mut *b,
                     ns_id as u32,
                     &mut id,
                     line as c_int,
@@ -1371,7 +1371,7 @@ pub unsafe extern "C" fn nvim_buf_del_extmark(
             api_err_invalid(err, c"ns_id".as_ptr(), ptr::null(), ns_id, false);
             return false;
         }
-        extmark_del_id(b, ns_id as u32, id as u32)
+        extmark_del_id(&mut *b, ns_id as u32, id as u32)
     }
 }
 
@@ -1559,7 +1559,7 @@ unsafe fn extmark_get_index_from_obj(
                 return false;
             }
 
-            let extmark = extmark_from_id(buf, ns_id as u32, id as u32);
+            let extmark = extmark_from_id(&mut *buf, ns_id as u32, id as u32);
             if extmark.start.pos.row < 0 {
                 api_err_invalid(err, c"mark id (not found)".as_ptr(), ptr::null(), id, false);
                 return false;
@@ -1757,14 +1757,14 @@ pub unsafe extern "C" fn nvim__ns_set(ns_id: Integer, opts: *mut KeyDict_ns_opts
                         && (*wp).w_ns_set.insert(ns_id as u32)
                         && (*(*wp).w_buffer).b_extmark_ns.contains_key(&(ns_id as u32))
                     {
-                        changed_window_setting(wp);
+                        changed_window_setting(&mut *wp);
                     }
 
                     if !windows.contains(&wp)
                         && (*wp).w_ns_set.remove(&(ns_id as u32))
                         && (*(*wp).w_buffer).b_extmark_ns.contains_key(&(ns_id as u32))
                     {
-                        changed_window_setting(wp);
+                        changed_window_setting(&mut *wp);
                     }
                     wp = (*wp).w_next;
                 }
@@ -1785,7 +1785,7 @@ pub unsafe extern "C" fn nvim__ns_set(ns_id: Integer, opts: *mut KeyDict_ns_opts
                 };
                 while !wp.is_null() {
                     if (*(*wp).w_buffer).b_extmark_ns.contains_key(&(ns_id as u32)) {
-                        changed_window_setting(wp);
+                        changed_window_setting(&mut *wp);
                     }
                     wp = (*wp).w_next;
                 }

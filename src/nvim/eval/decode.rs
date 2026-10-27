@@ -135,7 +135,7 @@ pub unsafe fn decode_string(
     };
     if !s.is_null() {
         unsafe {
-            crate::eval::typval::tv_set_string_len(&raw mut tv, s, len);
+            crate::eval::typval::tv_set_string_len(&mut tv, s, len);
         }
     }
     tv

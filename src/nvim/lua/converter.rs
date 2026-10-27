@@ -734,7 +734,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                     let mut found_self_ref = false;
                     for item in &stack {
                         if item.container && lua_rawequal(lstate, -1, item.idx) != 0 {
-                            tv_copy(item.tv, cur.tv);
+                            tv_copy(&*item.tv, &mut *cur.tv);
                             cur.container = false;
                             found_self_ref = true;
                             break;
@@ -810,7 +810,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                 LUA_TFUNCTION => {
                     let func = nlua_ref_global(lstate, -1);
                     let name = register_luafunc(func);
-                    crate::eval::typval::tv_set_string(cur.tv, name);
+                    crate::eval::typval::tv_set_string(&mut *cur.tv, name);
                     (*cur.tv).v_type = VarType::VAR_FUNC;
                 }
                 LUA_TUSERDATA => {

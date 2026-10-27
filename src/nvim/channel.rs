@@ -405,10 +405,8 @@ pub unsafe fn channel_create_event(chan: &mut Channel, _ext_source: *const c_cha
     }
 }
 
-pub unsafe fn channel_incref(chan: *mut Channel) {
-    unsafe {
-        (*chan).refcount += 1;
-    }
+pub fn channel_incref(chan: &mut Channel) {
+    chan.refcount += 1;
 }
 
 pub unsafe fn channel_decref(chan: *mut Channel) {
@@ -884,7 +882,7 @@ fn schedule_channel_event(chan: &mut Channel) {
         if !(*ct).callback_scheduled {
             if !(*ct).callback_busy {
                 multiqueue_put_event((*cp).events, Event::ChannelCallback(&raw mut *chan));
-                channel_incref(&raw mut *chan);
+                channel_incref(&mut *chan);
             }
             (*ct).callback_scheduled = true;
         }
@@ -910,7 +908,7 @@ pub fn on_channel_event(chan: &mut Channel) {
         (*ct).callback_busy = false;
         if (*ct).callback_scheduled {
             multiqueue_put_event((*cp).events, Event::ChannelCallback(&raw mut *chan));
-            channel_incref(&raw mut *chan);
+            channel_incref(&mut *chan);
         }
 
         channel_decref(&raw mut *chan);
@@ -1052,7 +1050,7 @@ pub fn channel_terminal_alloc(buf: &mut buf_T, chan: &mut Channel) {
             force_crlf: false,
         };
         buf.b_p_channel = (*cp).id as OptInt;
-        channel_incref(&raw mut *chan);
+        channel_incref(&mut *chan);
         {
             (*ct).term = terminal_alloc(buf, topts);
         }
@@ -1175,7 +1173,7 @@ pub fn channel_term_close(chan: &mut Channel) {
 pub unsafe fn channel_event(chan: *mut Channel, event: event_T) {
     unsafe {
         if has_event(event) {
-            channel_incref(chan);
+            channel_incref(&mut *chan);
             let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
             multiqueue_put_event((*qc).events, Event::ChannelSetInfo { chan, event });
         }
@@ -1203,7 +1201,7 @@ pub fn set_info_event(chan: &mut Channel, event: event_T) {
         );
         assert_eq!(retval.v_type, VarType::VAR_DICT);
         let _ = tv_dict_add_dict(dict, c"info".as_ptr(), 4, retval.vval.v_dict());
-        tv_dict_set_keys_readonly(dict);
+        tv_dict_set_keys_readonly(&mut *dict);
 
         let _ = apply_autocmds(event, ptr::null_mut(), ptr::null_mut(), true, g_st().curbuf);
 

@@ -458,8 +458,8 @@ pub fn prepare_help_buffer() {
         let p = c"!-~,^*,^|,^\",192-255";
         if CStr::from_ptr((*g_st().curbuf).b_p_isk) != p {
             set_option_direct(kOptIskeyword, cstr_as_obj(p.as_ptr()), OPT_LOCAL, 0);
-            check_buf_options(g_st().curbuf);
-            buf_init_isk_chartab(g_st().curbuf);
+            check_buf_options(&mut *g_st().curbuf);
+            buf_init_isk_chartab(&mut *g_st().curbuf);
         }
 
         set_option_direct(

@@ -1604,7 +1604,7 @@ pub unsafe extern "C" fn nvim_create_buf(
                 unblock_autocmds();
                 break 'create;
             }
-            let tick = buf_get_changedtick(buf);
+            let tick = buf_get_changedtick(&*buf);
             (*buf).b_last_changedtick = tick;
             (*buf).b_last_changedtick_i = tick;
             (*buf).b_last_changedtick_pum = tick;
@@ -1722,7 +1722,7 @@ pub unsafe extern "C" fn nvim_open_term(
                 );
                 return 0;
             }
-            buf_close_terminal(b);
+            buf_close_terminal(&mut *b);
             may_read_buffer = false;
         }
 
@@ -1757,7 +1757,7 @@ pub unsafe extern "C" fn nvim_open_term(
             read_buffer_into(b, 1, (*b).b_ml.ml_line_count, &mut contents);
         }
 
-        channel_incref(chan);
+        channel_incref(&mut *chan);
         (*tail).term = terminal_alloc(&mut *b, topts);
         terminal_open((&raw mut (*tail).term).cast(), &mut *b);
         if !(*tail).term.is_null() {
@@ -3094,7 +3094,7 @@ pub unsafe extern "C" fn nvim_eval_statusline(
 
             statuscol.foldinfo = fold_info(wp, lnum);
             win_update_cursorline(&mut *wp, &mut cursorline_fi);
-            let use_cul = use_cursor_line_highlight(wp, lnum);
+            let use_cul = use_cursor_line_highlight(&mut *wp, lnum);
             statuscol.sign_cul_id = if use_cul { cul_id } else { 0 };
             scl_hl_id = if use_cul { HLF_CLS } else { HLF_SC };
 
@@ -3113,7 +3113,7 @@ pub unsafe extern "C" fn nvim_eval_statusline(
             }
 
             set_vim_var_nr(VV_LNUM, i64::from(lnum));
-            let rel = get_cursor_rel_lnum(wp, lnum);
+            let rel = get_cursor_rel_lnum(&mut *wp, lnum);
             set_vim_var_nr(VV_RELNUM, (rel as i64).abs());
             set_vim_var_nr(VV_VIRTNUM, 0);
         } else if fillchar == 0 && !(*opts).use_tabline {
@@ -3301,11 +3301,11 @@ fn redraw_status(wp: &mut win_T, opts: &mut KeyDict_redraw, flush: &mut bool) {
     unsafe {
         if opts.statuscolumn && *wp.w_onebuf_opt.wo_stc != NUL {
             wp.w_nrwidth_line_count = 0;
-            changed_window_setting(&raw mut *wp);
+            changed_window_setting(&mut *wp);
         }
 
         let old_row_offset = wp.w_grid.row_offset;
-        win_grid_alloc(&raw mut *wp);
+        win_grid_alloc(&mut *wp);
 
         if wp.w_lines_valid == 0 || wp.w_grid.row_offset != old_row_offset {
             *flush = true;

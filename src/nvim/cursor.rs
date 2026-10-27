@@ -133,7 +133,7 @@ pub fn getviscol2(col: colnr_T, coladd: colnr_T) -> c_int {
 /// Go to column `wcol`, and add/insert white space as necessary (`coladvance_force`).
 pub fn coladvance_force(wcol: colnr_T) -> c_int {
     unsafe {
-        let rc = coladvance2(*curwin.as_ptr(), &mut (**curwin.as_ptr()).w_cursor, true, false, wcol);
+        let rc = coladvance2(&mut **curwin.as_ptr(), &mut (**curwin.as_ptr()).w_cursor, true, false, wcol);
 
         if wcol == MAXCOL {
             (**curwin.as_ptr()).w_valid &= !VALID_VIRTCOL;
@@ -145,14 +145,14 @@ pub fn coladvance_force(wcol: colnr_T) -> c_int {
 }
 
 /// Try to advance the Cursor to the specified screen column (`coladvance`).
-pub unsafe fn coladvance(wp: *mut win_T, wcol: colnr_T) -> c_int {
+pub fn coladvance(wp: &mut win_T, wcol: colnr_T) -> c_int {
     unsafe {
-        let rc = getvpos(wp, &mut (*wp).w_cursor, wcol);
+        let rc = getvpos(wp, &mut wp.w_cursor, wcol);
 
         if wcol == MAXCOL || rc == FAIL {
-            (*wp).w_valid &= !VALID_VIRTCOL;
-        } else if *(ml_get_buf((*wp).w_buffer, (*wp).w_cursor.lnum)
-            .add((*wp).w_cursor.col as usize))
+            wp.w_valid &= !VALID_VIRTCOL;
+        } else if *(ml_get_buf(wp.w_buffer, wp.w_cursor.lnum)
+            .add(wp.w_cursor.col as usize))
             != TAB
         {
             set_valid_virtcol(&mut **curwin.as_ptr(), wcol);
@@ -161,15 +161,15 @@ pub unsafe fn coladvance(wp: *mut win_T, wcol: colnr_T) -> c_int {
     }
 }
 
-unsafe fn coladvance2(
-    wp: *mut win_T,
+fn coladvance2(
+    wp: &mut win_T,
     pos: &mut pos_T,
     addspaces: bool,
     finetune: bool,
     wcol_arg: colnr_T,
 ) -> c_int {
     unsafe {
-        debug_assert!(wp == *curwin.as_ptr() || !addspaces);
+        debug_assert!(ptr::eq(wp, *curwin.as_ptr()) || !addspaces);
         let mut wcol = wcol_arg;
         let mut idx: c_int;
         let mut col: colnr_T;
@@ -183,26 +183,26 @@ unsafe fn coladvance2(
                 || ((get_ve_flags(wp) & kOptVeFlagOnemore) != 0 && wcol < MAXCOL),
         );
 
-        let line = ml_get_buf((*wp).w_buffer, pos.lnum);
-        let linelen = ml_get_buf_len((*wp).w_buffer, pos.lnum);
+        let line = ml_get_buf(wp.w_buffer, pos.lnum);
+        let linelen = ml_get_buf_len(wp.w_buffer, pos.lnum);
 
         if wcol == MAXCOL {
             idx = linelen - 1 + one_more;
             col = wcol;
 
             if (addspaces || finetune) && !g_st().Visual.active {
-                (*wp).w_curswant = linetabsize(wp, pos.lnum) + one_more;
-                if (*wp).w_curswant > 0 {
-                    (*wp).w_curswant -= 1;
+                wp.w_curswant = linetabsize(wp, pos.lnum) + one_more;
+                if wp.w_curswant > 0 {
+                    wp.w_curswant -= 1;
                 }
             }
         } else {
-            let width = (*wp).w_view_width - win_col_off(wp);
+            let width = wp.w_view_width - win_col_off(wp);
             let mut csize: c_int = 0;
 
             if finetune
-                && (*wp).w_onebuf_opt.wo_wrap != 0
-                && (*wp).w_view_width != 0
+                && wp.w_onebuf_opt.wo_wrap != 0
+                && wp.w_view_width != 0
                 && wcol >= width
                 && width > 0
             {
@@ -303,14 +303,14 @@ unsafe fn coladvance2(
                 }
             } else {
                 let b = wcol - col;
-                if b > 0 && b < (MAXCOL - 2 * (*wp).w_view_width) {
+                if b > 0 && b < (MAXCOL - 2 * wp.w_view_width) {
                     pos.coladd = b;
                 }
                 col += b;
             }
         }
 
-        mark_mb_adjustpos((*wp).w_buffer, pos);
+        mark_mb_adjustpos(wp.w_buffer, pos);
 
         if wcol < 0 || col < wcol {
             return FAIL;
@@ -321,7 +321,7 @@ unsafe fn coladvance2(
 
 /// Return in `pos` the position of the cursor advanced to screen column `wcol` (`getvpos`).
 pub unsafe fn getvpos(wp: *mut win_T, pos: &mut pos_T, wcol: colnr_T) -> c_int {
-    unsafe { coladvance2(wp, pos, false, virtual_active(wp), wcol) }
+    unsafe { coladvance2(&mut *wp, pos, false, virtual_active(wp), wcol) }
 }
 
 /// Increment the cursor position (`inc_cursor`).
@@ -335,9 +335,9 @@ pub fn dec_cursor() -> c_int {
 }
 
 /// Get the line number relative to the current cursor position (`get_cursor_rel_lnum`).
-pub unsafe fn get_cursor_rel_lnum(wp: *mut win_T, lnum: linenr_T) -> linenr_T {
+pub fn get_cursor_rel_lnum(wp: &mut win_T, lnum: linenr_T) -> linenr_T {
     unsafe {
-        let cursor = (*wp).w_cursor.lnum;
+        let cursor = wp.w_cursor.lnum;
         if lnum == cursor || hasAnyFolding(wp) == 0 {
             return lnum - cursor;
         }
@@ -371,36 +371,36 @@ pub fn check_pos(buf: &mut buf_T, pos: &mut pos_T) {
 }
 
 /// Make sure `win->w_cursor.lnum` is valid (`check_cursor_lnum`).
-pub unsafe fn check_cursor_lnum(win: *mut win_T) {
+pub fn check_cursor_lnum(win: &mut win_T) {
     unsafe {
-        let buf = (*win).w_buffer;
-        if (*win).w_cursor.lnum > (*buf).b_ml.ml_line_count
+        let buf = win.w_buffer;
+        if win.w_cursor.lnum > (*buf).b_ml.ml_line_count
             && !hasFolding(
                 win,
                 (*buf).b_ml.ml_line_count,
-                &raw mut (*win).w_cursor.lnum,
+                &raw mut win.w_cursor.lnum,
                 ptr::null_mut(),
             )
         {
-            (*win).w_cursor.lnum = (*buf).b_ml.ml_line_count;
+            win.w_cursor.lnum = (*buf).b_ml.ml_line_count;
         }
-        if (*win).w_cursor.lnum <= 0 {
-            (*win).w_cursor.lnum = 1;
+        if win.w_cursor.lnum <= 0 {
+            win.w_cursor.lnum = 1;
         }
     }
 }
 
 /// Make sure `win->w_cursor.col` is valid (`check_cursor_col`).
-pub unsafe fn check_cursor_col(win: *mut win_T) {
+pub fn check_cursor_col(win: &mut win_T) {
     unsafe {
-        let oldcol = (*win).w_cursor.col;
-        let oldcoladd = (*win).w_cursor.col + (*win).w_cursor.coladd;
+        let oldcol = win.w_cursor.col;
+        let oldcoladd = win.w_cursor.col + win.w_cursor.coladd;
         let cur_ve_flags = get_ve_flags(win);
 
-        let len = ml_get_buf_len((*win).w_buffer, (*win).w_cursor.lnum);
+        let len = ml_get_buf_len(win.w_buffer, win.w_cursor.lnum);
         if len == 0 {
-            (*win).w_cursor.col = 0;
-        } else if (*win).w_cursor.col >= len {
+            win.w_cursor.col = 0;
+        } else if win.w_cursor.col >= len {
             if (g_st().State & MODE_INSERT) != 0
                 || g_st().restart_edit != 0
                 || (g_st().State & MODE_TERMINAL) != 0
@@ -408,37 +408,39 @@ pub unsafe fn check_cursor_col(win: *mut win_T) {
                 || (cur_ve_flags & kOptVeFlagOnemore) != 0
                 || virtual_active(win)
             {
-                (*win).w_cursor.col = len;
+                win.w_cursor.col = len;
             } else {
-                (*win).w_cursor.col = len - 1;
-                mark_mb_adjustpos((*win).w_buffer, &mut (*win).w_cursor);
+                win.w_cursor.col = len - 1;
+                mark_mb_adjustpos(win.w_buffer, &mut win.w_cursor);
             }
-        } else if (*win).w_cursor.col < 0 {
-            (*win).w_cursor.col = 0;
+        } else if win.w_cursor.col < 0 {
+            win.w_cursor.col = 0;
         }
 
         if oldcol == MAXCOL {
-            (*win).w_cursor.coladd = 0;
+            win.w_cursor.coladd = 0;
         } else if cur_ve_flags == kOptVeFlagAll {
-            if oldcoladd > (*win).w_cursor.col {
-                (*win).w_cursor.coladd = oldcoladd - (*win).w_cursor.col;
+            if oldcoladd > win.w_cursor.col {
+                win.w_cursor.coladd = oldcoladd - win.w_cursor.col;
 
-                if (*win).w_cursor.col + 1 < len {
-                    debug_assert!((*win).w_cursor.coladd > 0);
+                if win.w_cursor.col + 1 < len {
+                    debug_assert!(win.w_cursor.coladd > 0);
                     let mut cs: colnr_T = 0;
                     let mut ce: colnr_T = 0;
+                    let mut w_cursor = win.w_cursor;
                     getvcol(
                         win,
-                        &mut (*win).w_cursor,
+                        &mut w_cursor,
                         &raw mut cs,
                         ptr::null_mut(),
                         &raw mut ce,
                         0,
                     );
-                    (*win).w_cursor.coladd = (*win).w_cursor.coladd.min(ce - cs);
+                    win.w_cursor = w_cursor;
+                    win.w_cursor.coladd = win.w_cursor.coladd.min(ce - cs);
                 }
             } else {
-                (*win).w_cursor.coladd = 0;
+                win.w_cursor.coladd = 0;
             }
         }
     }
@@ -447,8 +449,8 @@ pub unsafe fn check_cursor_col(win: *mut win_T) {
 /// Make sure `curwin->w_cursor` is on a valid character (`check_cursor`).
 pub unsafe fn check_cursor(wp: *mut win_T) {
     unsafe {
-        check_cursor_lnum(wp);
-        check_cursor_col(wp);
+        check_cursor_lnum(&mut *wp);
+        check_cursor_col(&mut *wp);
     }
 }
 
@@ -499,10 +501,10 @@ pub fn set_leftcol(leftcol: colnr_T) -> bool {
         let siso = get_sidescrolloff_value(*curwin.as_ptr());
         if (**curwin.as_ptr()).w_virtcol > (lastcol - siso) as colnr_T {
             retval = true;
-            coladvance(*curwin.as_ptr(), (lastcol - siso) as colnr_T);
+            coladvance(&mut **curwin.as_ptr(), (lastcol - siso) as colnr_T);
         } else if (**curwin.as_ptr()).w_virtcol < (i64::from((**curwin.as_ptr()).w_leftcol) + siso) as colnr_T {
             retval = true;
-            coladvance(*curwin.as_ptr(), (i64::from((**curwin.as_ptr()).w_leftcol) + siso) as colnr_T);
+            coladvance(&mut **curwin.as_ptr(), (i64::from((**curwin.as_ptr()).w_leftcol) + siso) as colnr_T);
         }
 
         let mut s: colnr_T = 0;
@@ -517,10 +519,10 @@ pub fn set_leftcol(leftcol: colnr_T) -> bool {
         );
         if e > lastcol as colnr_T {
             retval = true;
-            coladvance(*curwin.as_ptr(), s - 1);
+            coladvance(&mut **curwin.as_ptr(), s - 1);
         } else if s < (**curwin.as_ptr()).w_leftcol {
             retval = true;
-            if coladvance(*curwin.as_ptr(), e + 1) == FAIL {
+            if coladvance(&mut **curwin.as_ptr(), e + 1) == FAIL {
                 (**curwin.as_ptr()).w_leftcol = s;
                 changed_cline_bef_curs(&mut **curwin.as_ptr());
             }

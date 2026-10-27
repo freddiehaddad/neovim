@@ -783,8 +783,8 @@ pub fn suggest_load_files() {
         let mut ga: Vec<u8> = Vec::new();
 
         let mut lpi: usize = 0;
-        while lpi < (*win_s(*curwin.as_ptr())).b_langp.len() {
-            let lp = &(&(*win_s(*curwin.as_ptr())).b_langp)[lpi];
+        while lpi < (*win_s(&mut **curwin.as_ptr())).b_langp.len() {
+            let lp = &(&(*win_s(&mut **curwin.as_ptr())).b_langp)[lpi];
             let slang = lp.lp_slang;
             if (*slang).sl_sugtime != 0 && !(*slang).sl_sugloaded {
                 (*slang).sl_sugloaded = true;
@@ -5261,18 +5261,18 @@ pub unsafe fn spell_add_word(
                 .as_ptr()
                 .cast_mut()
         } else {
-            if *(*win_s(*curwin.as_ptr())).b_p_spf == NUL {
+            if *(*win_s(&mut **curwin.as_ptr())).b_p_spf == NUL {
                 init_spellfile();
                 new_spf = true;
             }
 
-            if *(*win_s(*curwin.as_ptr())).b_p_spf == NUL {
+            if *(*win_s(&mut **curwin.as_ptr())).b_p_spf == NUL {
                 semsg!(gettext((&raw const e_notset).cast()), c"spellfile".as_ptr());
                 return;
             }
             let fnamebuf = fnamebuf_arr.as_mut_ptr();
 
-            let mut spf = (*win_s(*curwin.as_ptr())).b_p_spf;
+            let mut spf = (*win_s(&mut **curwin.as_ptr())).b_p_spf;
             let mut i: c_int = 1;
             while *spf != NUL {
                 copy_option_part(&raw mut spf, fnamebuf, MAXPATHL, c",".as_ptr());
@@ -5426,11 +5426,11 @@ fn init_spellfile() {
         let mut aspath = false;
         let mut lstart = (*g_st().curbuf).b_s.b_p_spl;
 
-        if *(*win_s(*curwin.as_ptr())).b_p_spl == NUL || (*win_s(*curwin.as_ptr())).b_langp.is_empty() {
+        if *(*win_s(&mut **curwin.as_ptr())).b_p_spl == NUL || (*win_s(&mut **curwin.as_ptr())).b_langp.is_empty() {
             return;
         }
 
-        let mut lend = (*win_s(*curwin.as_ptr())).b_p_spl;
+        let mut lend = (*win_s(&mut **curwin.as_ptr())).b_p_spl;
         while *lend != NUL && vim_strchr(c",._".as_ptr(), *lend as u8 as c_int).is_null() {
             if vim_ispathsep(*lend as c_int) {
                 aspath = true;
@@ -5470,7 +5470,7 @@ fn init_spellfile() {
             lstart,
         );
 
-        let fname = (*(&(*win_s(*curwin.as_ptr())).b_langp)[0].lp_slang)
+        let fname = (*(&(*win_s(&mut **curwin.as_ptr())).b_langp)[0].lp_slang)
             .sl_fname
             .as_ref()
             .map_or(ptr::null(), |s| s.as_ptr());

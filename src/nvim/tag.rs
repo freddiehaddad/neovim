@@ -631,7 +631,7 @@ pub unsafe fn do_tag(
                         (*tagstack.add(tagstackidx as usize)).fmark.mark = (**curwin.as_ptr()).w_cursor;
                         (*tagstack.add(tagstackidx as usize)).fmark.fnum = (*g_st().curbuf).b_fnum;
                         (*tagstack.add(tagstackidx as usize)).fmark.view =
-                            mark_view_make(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor);
+                            mark_view_make(&**curwin.as_ptr(), (**curwin.as_ptr()).w_cursor);
                     }
 
                     (**curwin.as_ptr()).w_tagstackidx = tagstackidx;
@@ -929,7 +929,7 @@ unsafe fn select_tag_match(
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Number(0),
         };
-        tv_list_alloc_ret(&raw mut items_tv, matches.len() as isize);
+        tv_list_alloc_ret(&mut items_tv, matches.len() as isize);
 
         for (idx, m_vec) in matches.iter().enumerate() {
             let m = m_vec.as_ptr().cast_mut();
@@ -2983,7 +2983,7 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
 
                 if retval == OK {
                     if (*g_st().curbuf).b_help {
-                        set_topline(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum);
+                        set_topline(&mut **curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum);
                     }
                     if (opt_vars().fdo_flags & kOptFdoFlagTag) != 0 && old_KeyTyped {
                         foldOpenCursor();
@@ -3420,17 +3420,15 @@ fn tagstack_clear(wp: &mut win_T) {
     }
 }
 
-unsafe fn tagstack_shift(wp: *mut win_T) {
-    unsafe {
-        let len = (*wp).w_tagstacklen as usize;
-        (&mut (*wp).w_tagstack)[..len].rotate_left(1);
-        tagstack_clear_entry(&mut (*wp).w_tagstack[len - 1]);
-        (*wp).w_tagstacklen -= 1;
-    }
+fn tagstack_shift(wp: &mut win_T) {
+    let len = wp.w_tagstacklen as usize;
+        (&mut wp.w_tagstack)[..len].rotate_left(1);
+        tagstack_clear_entry(&mut wp.w_tagstack[len - 1]);
+        wp.w_tagstacklen -= 1;
 }
 
-unsafe fn tagstack_push_item(
-    wp: *mut win_T,
+fn tagstack_push_item(
+    wp: &mut win_T,
     tagname: Option<std::ffi::CString>,
     cur_fnum: c_int,
     cur_match: c_int,
@@ -3439,15 +3437,15 @@ unsafe fn tagstack_push_item(
     user_data: Option<std::ffi::CString>,
 ) {
     unsafe {
-        let tagstack = (&raw mut (*wp).w_tagstack).cast::<taggy_T>();
-        let mut idx = (*wp).w_tagstacklen;
+        let tagstack = (&raw mut wp.w_tagstack).cast::<taggy_T>();
+        let mut idx = wp.w_tagstacklen;
 
         if idx >= TAGSTACKSIZE {
             tagstack_shift(wp);
             idx = TAGSTACKSIZE - 1;
         }
 
-        (*wp).w_tagstacklen += 1;
+        wp.w_tagstacklen += 1;
         let entry = tagstack.add(idx as usize);
         (*entry).tagname = tagname;
         (*entry).cur_fnum = cur_fnum;
@@ -3495,7 +3493,7 @@ unsafe fn tagstack_push_items(wp: *mut win_T, l: *mut list_T) {
                             }
                             let ud_ptr = tv_dict_get_string(itemdict, c"user_data".as_ptr());
                             tagstack_push_item(
-                                wp,
+                                &mut *wp,
                                 Some(CStr::from_ptr(tagname).to_owned()),
                                 tv_dict_get_number(itemdict, c"bufnr".as_ptr()) as c_int,
                                 tv_dict_get_number(itemdict, c"matchnr".as_ptr()) as c_int - 1,

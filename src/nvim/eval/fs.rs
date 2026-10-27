@@ -685,7 +685,7 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: &mut typval_T, find_what: 
         }
 
         if count < 0 {
-            tv_list_alloc_ret(&raw mut *rettv, K_LIST_LEN_UNKNOWN);
+            tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_UNKNOWN);
         }
 
         if *fname != NUL && !error {
@@ -733,7 +733,7 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: &mut typval_T, find_what: 
 
         if rettv.v_type == VarType::VAR_STRING {
             crate::eval::typval::tv_set_string(
-                &raw mut *rettv,
+                &mut *rettv,
                 fresult.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
             );
         }
@@ -1386,9 +1386,9 @@ pub fn f_mkdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
         }
         if let Some(created_cstr) = created {
             let mut tv = [typval_T::new(), typval_T::new()];
-            crate::eval::typval::tv_set_string(&raw mut tv[0], created_cstr.as_ptr());
+            crate::eval::typval::tv_set_string(&mut tv[0], created_cstr.as_ptr());
             crate::eval::typval::tv_set_string(
-                &raw mut tv[1],
+                &mut tv[1],
                 if defer_recurse {
                     c"rf".as_ptr()
                 } else {
@@ -1575,7 +1575,7 @@ unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: &mut typval_T, always
         if blob {
             tv_blob_alloc_ret(&raw mut *rettv);
         } else {
-            tv_list_alloc_ret(&raw mut *rettv, K_LIST_LEN_UNKNOWN);
+            tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_UNKNOWN);
         }
 
         // Always open the file in binary mode, library functions have a mind of
@@ -2174,7 +2174,7 @@ pub fn f_writefile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
                 if defer {
                     let mut tv = typval_T::new();
                     if let Some(full) = FullName_save(fname, false) {
-                        crate::eval::typval::tv_set_string(&raw mut tv, full.as_ptr());
+                        crate::eval::typval::tv_set_string(&mut tv, full.as_ptr());
                     } else {
                         tv.v_type = VarType::VAR_STRING;
                     }

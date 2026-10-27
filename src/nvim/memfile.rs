@@ -177,15 +177,15 @@ pub fn mf_close(mfp: Option<Box<memfile_T>>, del_file: bool) {
 }
 
 /// Close the swap file for a memfile. Used when 'swapfile' is reset.
-pub unsafe fn mf_close_file(buf: *mut buf_T, getlines: bool) {
+pub fn mf_close_file(buf: &mut buf_T, getlines: bool) {
     unsafe {
-        let mfp = (*buf).b_ml.mfp_ptr();
+        let mfp = buf.b_ml.mfp_ptr();
         if mfp.is_null() || (*mfp).mf_fd < 0 {
             return;
         }
 
         if getlines {
-            for lnum in 1..=(*buf).b_ml.ml_line_count {
+            for lnum in 1..=buf.b_ml.ml_line_count {
                 ml_get_buf(buf, lnum);
             }
         }
@@ -395,7 +395,7 @@ pub fn mf_release_all() -> bool {
             let mfp = (*buf).b_ml.mfp_ptr();
             if !mfp.is_null() {
                 if (*mfp).mf_fd < 0 && (*buf).b_may_swap {
-                    ml_open_file(buf);
+                    ml_open_file(&mut *buf);
                 }
 
                 if (*mfp).mf_fd >= 0 {

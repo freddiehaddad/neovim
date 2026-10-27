@@ -126,13 +126,11 @@ fn arglist_st() -> &'static mut ArglistModuleState {
 }
 
 #[inline]
-pub unsafe fn win_alist(wp: *const win_T) -> *mut alist_T {
-    unsafe {
-        (*wp)
+pub fn win_alist(wp: &win_T) -> *mut alist_T {
+    (*wp)
             .w_alist
             .as_ref()
             .map_or(&raw mut g_st().global_alist, |rc| rc.as_ptr())
-    }
 }
 
 #[inline]
@@ -142,12 +140,12 @@ fn aarglist(al: &mut alist_T) -> *mut aentry_T {
 
 #[inline]
 unsafe fn warglist(wp: *const win_T) -> *mut aentry_T {
-    unsafe { aarglist(&mut *win_alist(wp)) }
+    unsafe { aarglist(&mut *win_alist(&*wp)) }
 }
 
 #[inline]
 unsafe fn wargcount(wp: *const win_T) -> c_int {
-    unsafe { (*win_alist(wp)).al_ga.len() as c_int }
+    unsafe { (*win_alist(&*wp)).al_ga.len() as c_int }
 }
 
 #[inline]
@@ -341,7 +339,7 @@ fn alist_check_arg_idx() {
         while !tp.is_null() {
             let mut win = first_win_in_tab(tp);
             while !win.is_null() {
-                if win_alist(win) == win_alist(*curwin.as_ptr()) {
+                if win_alist(&*win) == win_alist(&**curwin.as_ptr()) {
                     check_arg_idx(&mut *win);
                 }
                 win = (*win).w_next;
@@ -357,7 +355,7 @@ fn alist_add_list(files: Vec<CString>, mut after: c_int, will_edit: bool) {
         let old_argcount = argcount();
         if check_arglist_locked() != FAIL {
             let wp = *curwin.as_ptr();
-            let al = win_alist(wp);
+            let al = win_alist(&*wp);
             after = after.clamp(0, old_argcount);
             arglist_st().arglist_locked = true;
             (*wp).w_locked += 1;
@@ -414,7 +412,7 @@ fn arglist_del_files(alist_ga: &[*mut c_char]) {
                     0,
                 ) {
                     didone = true;
-                    (*win_alist(*curwin.as_ptr())).al_ga.remove(match_idx as usize);
+                    (*win_alist(&**curwin.as_ptr())).al_ga.remove(match_idx as usize);
                     if (**curwin.as_ptr()).w_arg_idx > match_idx {
                         (**curwin.as_ptr()).w_arg_idx -= 1;
                     }
@@ -470,7 +468,7 @@ unsafe fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit
                 alist_add_list(exp_files, after, will_edit);
             } else {
                 debug_assert_eq!(what, AL_SET);
-                alist_set(win_alist(*curwin.as_ptr()), exp_files, c_int::from(will_edit));
+                alist_set(win_alist(&**curwin.as_ptr()), exp_files, c_int::from(will_edit));
             }
         }
 
@@ -511,7 +509,7 @@ pub fn check_arg_idx(win: &mut win_T) {
             let gcount = gargcount();
             if win.w_arg_idx != wcount - 1
                 && !g_st().arg_had_last
-                && ptr::eq(win_alist(&raw mut *win), &raw const g_st().global_alist)
+                && ptr::eq(win_alist(&*win), &raw const g_st().global_alist)
                 && gcount > 0
                 && win.w_arg_idx < gcount
             {
@@ -530,7 +528,7 @@ pub fn check_arg_idx(win: &mut win_T) {
             }
         } else {
             win.w_arg_idx_invalid = false;
-            if win.w_arg_idx == wcount - 1 && ptr::eq(win_alist(&raw mut *win), &raw const g_st().global_alist) {
+            if win.w_arg_idx == wcount - 1 && ptr::eq(win_alist(&*win), &raw const g_st().global_alist) {
                 g_st().arg_had_last = true;
             }
         }
@@ -576,7 +574,7 @@ pub fn ex_args(eap: &mut exarg_T) {
         }
 
         if eap.cmdidx == CMD_arglocal {
-            let al = win_alist(*curwin.as_ptr());
+            let al = win_alist(&**curwin.as_ptr());
             let gcount = gargcount() as usize;
             (*al).al_ga.reserve(gcount);
 
@@ -684,7 +682,7 @@ pub fn do_argfile(eap: &mut exarg_T, argn: c_int) {
         }
 
         (**curwin.as_ptr()).w_arg_idx = argn;
-        if argn == argcount() - 1 && ptr::eq(win_alist(*curwin.as_ptr()), &raw const g_st().global_alist) {
+        if argn == argcount() - 1 && ptr::eq(win_alist(&**curwin.as_ptr()), &raw const g_st().global_alist) {
             g_st().arg_had_last = true;
         }
 
@@ -752,7 +750,7 @@ pub fn ex_argdedupe(_eap: &mut exarg_T) {
                 let dup = path_equal(first_ptr, second_ptr, kPathCmpLiteral);
 
                 if dup {
-                    (*win_alist(*curwin.as_ptr())).al_ga.remove(j as usize);
+                    (*win_alist(&**curwin.as_ptr())).al_ga.remove(j as usize);
 
                     if (**curwin.as_ptr()).w_arg_idx == j {
                         (**curwin.as_ptr()).w_arg_idx = i;
@@ -844,7 +842,7 @@ pub fn ex_argdelete(eap: &mut exarg_T) {
                 return;
             }
 
-            (*win_alist(*curwin.as_ptr()))
+            (*win_alist(&**curwin.as_ptr()))
                 .al_ga
                 .drain((eap.line1 as usize - 1)..(eap.line2 as usize));
             if (**curwin.as_ptr()).w_arg_idx >= eap.line2 {
@@ -964,7 +962,7 @@ fn arg_all_close_unused_windows(aall: &mut arg_all_state_T) {
                                     i = opened_len;
                                 }
 
-                                if win_alist(wp) != al {
+                                if win_alist(&*wp) != al {
                                     (*wp).w_alist = aall_ref.local_alist.clone();
                                 }
                                 break;
@@ -1135,7 +1133,7 @@ fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
         setpcmark();
 
         let mut aall = arg_all_state_T {
-            alist: win_alist(*curwin.as_ptr()),
+            alist: win_alist(&**curwin.as_ptr()),
             local_alist: (**curwin.as_ptr()).w_alist.clone(),
             had_tab: g_st().cmdmod.cmod_tab,
             keep_tabs,
@@ -1266,14 +1264,14 @@ pub fn f_arglistid(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         let wp = find_tabwin(&mut *argvars, &mut *argvars.add(1));
         if !wp.is_null() {
-            rettv.vval = crate::eval::typval::TypvalVval::Number((*win_alist(wp)).id as varnumber_T);
+            rettv.vval = crate::eval::typval::TypvalVval::Number((*win_alist(&*wp)).id as varnumber_T);
         }
     }
 }
 
 unsafe fn get_arglist_as_rettv(arglist_ptr: *mut aentry_T, count: c_int, rettv: &mut typval_T) {
     unsafe {
-        tv_list_alloc_ret(&raw mut *rettv, count as isize);
+        tv_list_alloc_ret(&mut *rettv, count as isize);
         if !arglist_ptr.is_null() {
             for idx in 0..(count as usize) {
                 tv_list_append_string(rettv.vval.v_list(), alist_name(&*arglist_ptr.add(idx)), -1);

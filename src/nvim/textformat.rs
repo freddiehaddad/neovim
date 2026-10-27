@@ -276,7 +276,7 @@ pub fn internal_format(
                 break;
             }
 
-            coladvance(*curwin.as_ptr(), textwidth);
+            coladvance(&mut **curwin.as_ptr(), textwidth);
             let wantcol = (**curwin.as_ptr()).w_cursor.col;
 
             (**curwin.as_ptr()).w_cursor.col = startcol;
@@ -763,9 +763,9 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
 
         if (**curwin.as_ptr()).w_cursor.lnum > (*g_st().curbuf).b_ml.ml_line_count {
             (**curwin.as_ptr()).w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
-            coladvance(*curwin.as_ptr(), MAXCOL);
+            coladvance(&mut **curwin.as_ptr(), MAXCOL);
         } else {
-            check_cursor_col(*curwin.as_ptr());
+            check_cursor_col(&mut **curwin.as_ptr());
         }
 
         if !wasatend && has_format_option(kFoWhitePar) {
@@ -816,7 +816,7 @@ pub fn comp_textwidth(ff: bool) -> c_int {
         let mut textwidth = (*g_st().curbuf).b_p_tw as c_int;
         if textwidth == 0 && (*g_st().curbuf).b_p_wm != 0 {
             textwidth = (**curwin.as_ptr()).w_view_width - (*g_st().curbuf).b_p_wm as c_int;
-            textwidth -= win_fdccol_count(*curwin.as_ptr());
+            textwidth -= win_fdccol_count(&mut **curwin.as_ptr());
             textwidth -= (**curwin.as_ptr()).w_scwidth;
 
             if (**curwin.as_ptr()).w_onebuf_opt.wo_nu != 0 || (**curwin.as_ptr()).w_onebuf_opt.wo_rnu != 0 {
@@ -1066,7 +1066,7 @@ pub fn format_lines(line_count: linenr_T, avoid_fex: bool) {
                     }
 
                     g_st().State = MODE_NORMAL;
-                    coladvance(*curwin.as_ptr(), MAXCOL);
+                    coladvance(&mut **curwin.as_ptr(), MAXCOL);
                     while (**curwin.as_ptr()).w_cursor.col != 0 && ascii_isspace(gchar_cursor()) {
                         dec_cursor();
                     }

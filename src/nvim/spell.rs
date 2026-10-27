@@ -297,13 +297,13 @@ pub unsafe fn spell_check(
         }
         mi.mi_word = ptr;
         mi.mi_fend = ptr;
-        if spell_iswordp(mi.mi_fend, wp) {
+        if spell_iswordp(mi.mi_fend, &*wp) {
             if use_camel_case {
                 mi.mi_fend = advance_camelcase_word(ptr, wp, &mut is_camel_case);
             } else {
                 loop {
                     mb_ptr_adv(&mut mi.mi_fend);
-                    if *mi.mi_fend == NUL || !spell_iswordp(mi.mi_fend, wp) {
+                    if *mi.mi_fend == NUL || !spell_iswordp(mi.mi_fend, &*wp) {
                         break;
                     }
                 }
@@ -443,7 +443,7 @@ unsafe fn advance_camelcase_word(
         mb_ptr_adv(&mut end);
         let mut last_last_type: c_int = -1;
         let mut last_type = get_char_type(c);
-        while *end != NUL && spell_iswordp(end, wp) {
+        while *end != NUL && spell_iswordp(end, &*wp) {
             c = utf_ptr2char(end);
             let this_type = get_char_type(c);
             if last_last_type == CHAR_UPPER && last_type == CHAR_UPPER && this_type == CHAR_OTHER {
@@ -574,7 +574,7 @@ fn find_word(mip: &mut matchinf_T, mode: c_int) {
             if utf_head_off(ptr, ptr.add(wlen as usize)) > 0 {
                 continue;
             }
-            let word_ends = if spell_iswordp(ptr.add(wlen as usize), mip.mi_win) {
+            let word_ends = if spell_iswordp(ptr.add(wlen as usize), &*mip.mi_win) {
                 if slang.sl_compprog.is_none() && !slang.sl_nobreak {
                     continue;
                 }
@@ -1035,7 +1035,7 @@ fn fold_more(mip: &mut matchinf_T) -> c_int {
         let p = mip.mi_fend;
         loop {
             mb_ptr_adv(&mut mip.mi_fend);
-            if *mip.mi_fend == NUL || !spell_iswordp(mip.mi_fend, mip.mi_win) {
+            if *mip.mi_fend == NUL || !spell_iswordp(mip.mi_fend, &*mip.mi_win) {
                 break;
             }
         }
@@ -1660,7 +1660,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
         }
         spell_priv_st().parse_spelllang_recursive = true;
         let mut ga: Vec<langp_T> = Vec::with_capacity(2);
-        clear_midword(wp);
+        clear_midword(&mut *wp);
         let w_s = (*wp).w_s_ptr();
         let spl_copy = std::ffi::CStr::from_ptr((*w_s).b_p_spl).to_owned();
         (*w_s).b_cjk = 0;
@@ -1920,9 +1920,9 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
         ret_msg
     }
 }
-unsafe fn clear_midword(wp: *mut win_T) {
+fn clear_midword(wp: &mut win_T) {
     unsafe {
-        let w_s = (*wp).w_s_ptr();
+        let w_s = wp.w_s_ptr();
         (*w_s).b_spell_ismw = [false; 256];
         (*w_s).b_spell_ismw_mb = None;
     }
@@ -2058,7 +2058,7 @@ pub fn open_spellbuf() -> Box<buf_T> {
                 c"Error opening a new memline".as_ptr(),
             );
         }
-        ml_open_file(&raw mut *buf);
+        ml_open_file(&mut *buf);
         buf
     }
 }
@@ -2101,9 +2101,9 @@ pub fn init_spell_chartab() {
             spell_priv_st().spelltab.st_upper[i] = if u < 256 { u as u8 } else { i as u8 };
         }
 }
-pub unsafe fn spell_iswordp(p: *const c_char, wp: *const win_T) -> bool {
+pub unsafe fn spell_iswordp(p: *const c_char, wp: &win_T) -> bool {
     unsafe {
-        let w_s = (*wp).w_s_ptr();
+        let w_s = wp.w_s_ptr();
         let l = utfc_ptr2len(p);
         let mut s = p;
         if l == 1 {
@@ -2134,14 +2134,14 @@ pub unsafe fn spell_iswordp_nmw(p: *const c_char, wp: *mut win_T) -> bool {
     unsafe {
         let c = utf_ptr2char(p);
         if c > 255 {
-            return spell_mb_isword_class(mb_get_class(p), wp);
+            return spell_mb_isword_class(mb_get_class(p), &*wp);
         }
         c >= 0 && spell_priv_st().spelltab.st_isw[c as usize]
     }
 }
-unsafe fn spell_mb_isword_class(cl: c_int, wp: *const win_T) -> bool {
+fn spell_mb_isword_class(cl: c_int, wp: &win_T) -> bool {
     unsafe {
-        let w_s = (*wp).w_s_ptr();
+        let w_s = wp.w_s_ptr();
         if (*w_s).b_cjk != 0 {
             return cl == 2 || cl == 0x2800;
         }
@@ -2164,7 +2164,7 @@ unsafe fn spell_iswordp_w(p: *const c_int, wp: &win_T) -> bool {
             p
         };
         if *s > 255 {
-            return spell_mb_isword_class(utf_class(*s), &raw const *wp);
+            return spell_mb_isword_class(utf_class(*s), &*wp);
         }
         *s >= 0 && spell_priv_st().spelltab.st_isw[*s as usize]
     }
@@ -2191,7 +2191,7 @@ pub unsafe fn spell_casefold(
             }
             let mut c = mb_cptr2char_adv(&raw mut p);
             if c == 0x03a3 || c == 0x03c2 {
-                if p == end || !spell_iswordp(p, wp) {
+                if p == end || !spell_iswordp(p, &*wp) {
                     c = 0x03c2;
                 } else {
                     c = 0x03c3;
@@ -3205,7 +3205,7 @@ unsafe fn dump_prefixes(
 pub unsafe fn spell_to_word_end(start: *mut c_char, win: *mut win_T) -> *mut c_char {
     unsafe {
         let mut p = start;
-        while *p != NUL && spell_iswordp(p, win) {
+        while *p != NUL && spell_iswordp(p, &*win) {
             mb_ptr_adv(&mut p);
         }
         p
@@ -3228,7 +3228,7 @@ pub fn spell_word_start(startcol: c_int) -> c_int {
         while p > line {
             col = p.offset_from(line) as c_int;
             mb_ptr_back(line, &mut p);
-            if !spell_iswordp(p, *curwin.as_ptr()) {
+            if !spell_iswordp(p, &**curwin.as_ptr()) {
                 break;
             }
             col = 0;

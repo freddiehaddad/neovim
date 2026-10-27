@@ -150,7 +150,7 @@ unsafe fn win_id2tabwin(argvars: *mut typval_T, rettv: *mut typval_T) {
         let mut tabnr: c_int = 1;
         win_get_tabwin(id, &mut tabnr, &mut winnr);
 
-        let list = tv_list_alloc_ret(rettv, 2);
+        let list = tv_list_alloc_ret(&mut *rettv, 2);
         tv_list_append_number(list, tabnr as varnumber_T);
         tv_list_append_number(list, winnr as varnumber_T);
     }
@@ -1072,7 +1072,7 @@ pub fn f_winrestview(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: Eva
         }
         let di = tv_dict_find(dict, c"topline".as_ptr(), 7);
         if !di.is_null() {
-            set_topline(*curwin.as_ptr(), tv_get_number(&raw const (*di).di_tv) as linenr_T);
+            set_topline(&mut **curwin.as_ptr(), tv_get_number(&raw const (*di).di_tv) as linenr_T);
         }
         let mut vs = viewstate_T::default();
         save_viewstate(&mut **curwin.as_ptr(), &mut vs);
@@ -1096,7 +1096,7 @@ pub fn f_winrestview(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: Eva
         restore_viewstate(&mut **curwin.as_ptr(), &vs);
 
         check_cursor(*curwin.as_ptr());
-        changed_window_setting(*curwin.as_ptr());
+        changed_window_setting(&mut **curwin.as_ptr());
         if (**curwin.as_ptr()).w_topline <= 0 {
             (**curwin.as_ptr()).w_topline = 1;
         }

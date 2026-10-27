@@ -147,7 +147,7 @@ pub unsafe fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usiz
                 std::ptr::copy_nonoverlapping(buf.cast::<u8>(), dst.cast::<u8>(), line_length);
                 { let _d = (dst).cast::<u8>(); let _sz = line_length; if _sz > 0 { let _c = 0_u8; let _x = (NL as c_char) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
                 crate::eval::typval::tv_set_string_len(
-                    &raw mut (*li).li_tv,
+                    &mut (*li).li_tv,
                     combined.as_ptr(),
                     combined.len(),
                 );

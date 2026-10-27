@@ -961,7 +961,7 @@ unsafe fn do_autocmd_completedone(c: c_int, mode: c_int, word: *mut NvimString) 
             c"discard".as_ptr()
         };
         tv_dict_add_str(v_event, c"reason".as_ptr(), 6, reason);
-        tv_dict_set_keys_readonly(v_event);
+        tv_dict_set_keys_readonly(&mut *v_event);
 
         ins_apply_autocmds(EVENT_COMPLETEDONE);
         restore_v_event(&mut *v_event, &mut save_v_event);
@@ -1669,7 +1669,7 @@ fn trigger_complete_changed_event(cur: c_int) {
         let v_event = get_v_event(&mut save_v_event);
         tv_dict_add_dict(v_event, c"completed_item".as_ptr(), 14, item);
         pum_set_event_info(v_event);
-        tv_dict_set_keys_readonly(v_event);
+        tv_dict_set_keys_readonly(&mut *v_event);
 
         RECURSIVE.store(true, std::sync::atomic::Ordering::Relaxed);
         g_st().textlock += 1;
@@ -3512,7 +3512,7 @@ unsafe fn ins_compl_add_dict(dict: *mut dict_T) {
 fn save_orig_extmarks() {
     unsafe {
         extmark_splice_delete(
-            g_st().curbuf,
+            &mut *g_st().curbuf,
             (**curwin.as_ptr()).w_cursor.lnum - 1,
             insexp().compl_col,
             (**curwin.as_ptr()).w_cursor.lnum - 1,

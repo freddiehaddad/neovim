@@ -310,7 +310,7 @@ pub unsafe extern "C" fn nvim_buf_detach(channel_id: u64, buf: Buffer, err: &mut
         if b.is_null() {
             return false;
         }
-        buf_updates_unregister(b, channel_id);
+        buf_updates_unregister(&mut *b, channel_id);
         true
     }
 }
@@ -582,7 +582,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
 
             let adjust = if end > start { MAXLNUM as linenr_T } else { 0 };
             mark_adjust_buf(
-                b,
+                &mut *b,
                 start as linenr_T,
                 (end - 1) as linenr_T,
                 adjust,
@@ -914,7 +914,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
                 0
             };
             mark_adjust_buf(
-                b,
+                &mut *b,
                 start_row as linenr_T,
                 (end_row as linenr_T) - 1,
                 adjust,
@@ -1177,7 +1177,7 @@ pub unsafe extern "C" fn nvim_buf_get_offset(
         }
 
         i64::from(ml_find_line_or_offset(
-            b,
+            &mut *b,
             (index as linenr_T) + 1,
             ptr::null_mut(),
             true,
@@ -1790,7 +1790,7 @@ pub unsafe extern "C" fn nvim__buf_stats(buf: Buffer, arena: *mut Arena, err: &m
             put_c(
                 &mut rv,
                 c"uhp_extmark_size",
-                integer_obj(uhp_ref(b, uh).uh_extmark.len() as Integer),
+                integer_obj(uhp_ref(&*b, uh).uh_extmark.len() as Integer),
             );
         }
 
@@ -1804,14 +1804,14 @@ fn fix_cursor(win: &mut win_T, lo: linenr_T, hi: linenr_T, extra: linenr_T) {
             if win.w_cursor.lnum >= hi {
                 win.w_cursor.lnum += extra;
             } else if extra < 0 {
-                check_cursor_lnum(&raw mut *win);
+                check_cursor_lnum(&mut *win);
             }
-            check_cursor_col(&raw mut *win);
+            check_cursor_col(&mut *win);
             changed_cline_bef_curs(win);
             win.w_valid &= !VALID_BOTLINE_AP;
             update_topline(&raw mut *win);
         } else {
-            invalidate_botline_win(&raw mut *win);
+            invalidate_botline_win(&mut *win);
         }
     }
 }
@@ -1899,9 +1899,9 @@ fn fix_cursor_cols(
             mode_col_adj,
         );
 
-        check_cursor_col(&raw mut *win);
+        check_cursor_col(&mut *win);
         changed_cline_bef_curs(win);
-        invalidate_botline_win(&raw mut *win);
+        invalidate_botline_win(&mut *win);
     }
 }
 

@@ -745,7 +745,7 @@ pub fn get_number_indent(lnum: linenr_T) -> c_int {
         }
         let mut col: colnr_T = 0;
         getvcol(
-            *curwin.as_ptr(),
+            &mut **curwin.as_ptr(),
             &mut pos,
             &raw mut col,
             ptr::null_mut(),
@@ -806,7 +806,7 @@ pub unsafe fn get_breakindent_win(wp: &mut win_T, line: *mut c_char) -> c_int {
         if ind_st().PREV_FNUM != (*buf).b_fnum
             || ind_st().PREV_TS != (*buf).b_p_ts
             || (*prev_vts).as_slice() != (*buf).b_p_vts_array.as_slice()
-            || ind_st().PREV_TICK != buf_get_changedtick(buf)
+            || ind_st().PREV_TICK != buf_get_changedtick(&*buf)
             || ind_st().PREV_LISTOPT != wp.w_briopt_list
             || ind_st().PREV_NO_TS != no_ts
             || ind_st().PREV_DY_UHEX != (opt_vars().dy_flags & kOptDyFlagUhex)
@@ -824,7 +824,7 @@ pub unsafe fn get_breakindent_win(wp: &mut win_T, line: *mut c_char) -> c_int {
                     ind_st().PREV_INDENT = indent_size_ts(line, (*buf).b_p_ts, &(*buf).b_p_vts_array);
                 }
             }
-            ind_st().PREV_TICK = buf_get_changedtick(buf);
+            ind_st().PREV_TICK = buf_get_changedtick(&*buf);
             ind_st().PREV_LISTOPT = wp.w_briopt_list;
             ind_st().PREV_LIST = 0;
             ind_st().PREV_NO_TS = no_ts;
@@ -881,7 +881,7 @@ pub unsafe fn get_breakindent_win(wp: &mut win_T, line: *mut c_char) -> c_int {
         }
 
         if wp.w_briopt_sbr {
-            bri -= vim_strsize(get_showbreak_value(&raw mut *wp));
+            bri -= vim_strsize(get_showbreak_value(&mut *wp));
         }
 
         if bri < 0 {
@@ -1604,7 +1604,7 @@ pub fn ex_retab(eap: &mut exarg_T) {
                 return;
             }
         }
-        coladvance(*curwin.as_ptr(), (**curwin.as_ptr()).w_curswant);
+        coladvance(&mut **curwin.as_ptr(), (**curwin.as_ptr()).w_curswant);
     }
 }
 

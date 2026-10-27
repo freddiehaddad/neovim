@@ -89,7 +89,7 @@ pub fn buf_updates_register(
 
             let mut items = [
                 buffer_obj(buf.b_fnum),
-                integer_obj(buf_get_changedtick(&raw mut *buf)),
+                integer_obj(buf_get_changedtick(&*buf)),
                 integer_obj(0),
                 integer_obj(-1),
                 array_obj(linedata),
@@ -111,13 +111,13 @@ pub fn buf_updates_register(
     }
 }
 
-pub unsafe fn buf_updates_active(buf: *mut buf_T) -> bool {
-    unsafe { !(*buf).update_channels.is_empty() || !(*buf).update_callbacks.is_empty() }
+pub fn buf_updates_active(buf: &mut buf_T) -> bool {
+    !buf.update_channels.is_empty() || !buf.update_callbacks.is_empty()
 }
 
-pub unsafe fn buf_updates_send_end(buf: *mut buf_T, channelid: u64) {
+pub fn buf_updates_send_end(buf: &mut buf_T, channelid: u64) {
     unsafe {
-        let mut items = [buffer_obj((*buf).b_fnum)];
+        let mut items = [buffer_obj(buf.b_fnum)];
         let args = Array {
             size: 1,
             capacity: 1,
@@ -127,41 +127,36 @@ pub unsafe fn buf_updates_send_end(buf: *mut buf_T, channelid: u64) {
     }
 }
 
-pub unsafe fn buf_updates_unregister(buf: *mut buf_T, channelid: u64) {
-    unsafe {
-        let size = (*buf).update_channels.len();
+pub fn buf_updates_unregister(buf: &mut buf_T, channelid: u64) {
+    let size = buf.update_channels.len();
         if size == 0 {
             return;
         }
 
-        (*buf).update_channels.retain(|&id| id != channelid);
-        if (*buf).update_channels.len() < size {
+        buf.update_channels.retain(|&id| id != channelid);
+        if buf.update_channels.len() < size {
             buf_updates_send_end(buf, channelid);
-            if (*buf).update_channels.is_empty() {
-                (*buf).update_channels = Vec::new();
+            if buf.update_channels.is_empty() {
+                buf.update_channels = Vec::new();
             }
         }
-    }
 }
 
-pub unsafe fn buf_free_callbacks(buf: *mut buf_T) {
-    unsafe {
-        (*buf).update_channels = Vec::new();
-        (*buf).update_callbacks = Vec::new();
-    }
+pub fn buf_free_callbacks(buf: &mut buf_T) {
+    buf.update_channels = Vec::new();
+        buf.update_callbacks = Vec::new();
 }
 
-pub unsafe fn buf_updates_unload(buf: *mut buf_T, can_reload: bool) {
+pub fn buf_updates_unload(buf: &mut buf_T, can_reload: bool) {
     unsafe {
-        for channelid in (*buf).update_channels.drain(..) {
+        for channelid in std::mem::take(&mut buf.update_channels) {
             buf_updates_send_end(buf, channelid);
         }
-        (*buf).update_channels = Vec::new();
 
         let mut i = 0usize;
-        while i < (*buf).update_callbacks.len() {
-            let on_reload = (*buf).update_callbacks.as_slice()[i].on_reload;
-            let on_detach = (*buf).update_callbacks.as_slice()[i].on_detach;
+        while i < buf.update_callbacks.len() {
+            let on_reload = buf.update_callbacks.as_slice()[i].on_reload;
+            let on_detach = buf.update_callbacks.as_slice()[i].on_detach;
             let mut thecb = LUA_NOREF;
             let mut keep = false;
 
@@ -173,7 +168,7 @@ pub unsafe fn buf_updates_unload(buf: *mut buf_T, can_reload: bool) {
             }
 
             if thecb != LUA_NOREF {
-                let mut items = [buffer_obj((*buf).b_fnum)];
+                let mut items = [buffer_obj(buf.b_fnum)];
                 let args = Array {
                     size: 1,
                     capacity: 1,
@@ -199,11 +194,11 @@ pub unsafe fn buf_updates_unload(buf: *mut buf_T, can_reload: bool) {
             if keep {
                 i += 1;
             } else {
-                (*buf).update_callbacks.remove(i);
+                buf.update_callbacks.remove(i);
             }
         }
-        if (*buf).update_callbacks.is_empty() {
-            (*buf).update_callbacks = Vec::new();
+        if buf.update_callbacks.is_empty() {
+            buf.update_callbacks = Vec::new();
         }
     }
 }
@@ -218,9 +213,9 @@ pub unsafe fn buf_updates_send_changes(
         let mut deleted_codepoints: usize = 0;
         let mut deleted_codeunits: usize = 0;
         let deleted_bytes =
-            ml_flush_deleted_bytes(buf, &mut deleted_codepoints, &mut deleted_codeunits);
+            ml_flush_deleted_bytes(&mut *buf, &mut deleted_codepoints, &mut deleted_codeunits);
 
-        if !buf_updates_active(buf) {
+        if !buf_updates_active(&mut *buf) {
             return;
         }
 
@@ -247,7 +242,7 @@ pub unsafe fn buf_updates_send_changes(
             let mut items = [
                 buffer_obj((*buf).b_fnum),
                 if send_tick {
-                    integer_obj(buf_get_changedtick(buf))
+                    integer_obj(buf_get_changedtick(&*buf))
                 } else {
                     OBJECT_NIL
                 },
@@ -276,7 +271,7 @@ pub unsafe fn buf_updates_send_changes(
                 c"Disabling buffer updates for dead channel %llu".as_ptr(),
                 badchannelid,
             );
-            buf_updates_unregister(buf, badchannelid);
+            buf_updates_unregister(&mut *buf, badchannelid);
         }
 
         arena_mem_free(arena_finish(&mut arena));
@@ -291,7 +286,7 @@ pub unsafe fn buf_updates_send_changes(
                 let mut items = [
                     buffer_obj((*buf).b_fnum),
                     if send_tick {
-                        integer_obj(buf_get_changedtick(buf))
+                        integer_obj(buf_get_changedtick(&*buf))
                     } else {
                         OBJECT_NIL
                     },
@@ -346,7 +341,7 @@ pub unsafe fn buf_updates_send_splice(
     new_byte: bcount_t,
 ) {
     unsafe {
-        if !buf_updates_active(buf) || (old_byte == 0 && new_byte == 0) {
+        if !buf_updates_active(&mut *buf) || (old_byte == 0 && new_byte == 0) {
             return;
         }
 
@@ -358,7 +353,7 @@ pub unsafe fn buf_updates_send_splice(
             if on_bytes != LUA_NOREF && (preview || !g_st().cmdpreview) {
                 let mut items = [
                     buffer_obj((*buf).b_fnum),
-                    integer_obj(buf_get_changedtick(buf)),
+                    integer_obj(buf_get_changedtick(&*buf)),
                     integer_obj(i64::from(start_row)),
                     integer_obj(i64::from(start_col)),
                     integer_obj(start_byte as Integer),
@@ -414,7 +409,7 @@ pub fn buf_updates_changedtick(buf: &mut buf_T) {
             if on_changedtick != LUA_NOREF {
                 let mut items = [
                     buffer_obj(buf.b_fnum),
-                    integer_obj(buf_get_changedtick(&raw mut *buf)),
+                    integer_obj(buf_get_changedtick(&*buf)),
                 ];
                 let args = Array {
                     size: 2,
@@ -451,7 +446,7 @@ pub fn buf_updates_changedtick_single(buf: &mut buf_T, channel_id: u64) {
     unsafe {
         let mut items = [
             buffer_obj(buf.b_fnum),
-            integer_obj(buf_get_changedtick(&raw mut *buf)),
+            integer_obj(buf_get_changedtick(&*buf)),
         ];
         let args = Array {
             size: 2,

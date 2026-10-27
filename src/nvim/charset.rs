@@ -240,15 +240,15 @@ const fn nr2hex(n: u32) -> u8 {
 
 use crate::keycodes::k_second;
 
-pub unsafe fn buf_init_isk_chartab(buf: *mut buf_T) -> c_int {
+pub fn buf_init_isk_chartab(buf: &mut buf_T) -> c_int {
     unsafe {
-        let save_chartab = (*buf).b_chartab;
-        (*buf).b_chartab = [0; 4];
-        if (*buf).b_p_lisp != 0 {
-            set_chartab((*buf).b_chartab.as_mut_ptr(), b'-' as c_int);
+        let save_chartab = buf.b_chartab;
+        buf.b_chartab = [0; 4];
+        if buf.b_p_lisp != 0 {
+            set_chartab(buf.b_chartab.as_mut_ptr(), b'-' as c_int);
         }
-        if parse_isopt((*buf).b_p_isk, (*buf).b_chartab.as_mut_ptr()) == FAIL {
-            (*buf).b_chartab = save_chartab;
+        if parse_isopt(buf.b_p_isk, buf.b_chartab.as_mut_ptr()) == FAIL {
+            buf.b_chartab = save_chartab;
             return FAIL;
         }
         OK
@@ -638,7 +638,7 @@ pub unsafe fn transchar_nonprint(buf: *const buf_T, charbuf: *mut c_char, mut c:
     unsafe {
         if c == c_int::from(NL) {
             c = 0;
-        } else if !buf.is_null() && c == CAR && get_fileformat(buf) == EOL_MAC {
+        } else if !buf.is_null() && c == CAR && get_fileformat(&*buf) == EOL_MAC {
             c = c_int::from(NL);
         }
         assert!(c <= 0xff);
@@ -731,7 +731,7 @@ pub fn vim_isIDc(c: c_int) -> bool {
 }
 
 pub fn vim_iswordc(c: c_int) -> bool {
-    unsafe { vim_iswordc_buf(c, g_st().curbuf) }
+    unsafe { vim_iswordc_buf(c, &mut *g_st().curbuf) }
 }
 
 pub unsafe fn vim_iswordc_tab(c: c_int, chartab: *const u64) -> bool {
@@ -744,8 +744,8 @@ pub unsafe fn vim_iswordc_tab(c: c_int, chartab: *const u64) -> bool {
     }
 }
 
-pub unsafe fn vim_iswordc_buf(c: c_int, buf: *mut buf_T) -> bool {
-    unsafe { vim_iswordc_tab(c, (*buf).b_chartab.as_ptr()) }
+pub fn vim_iswordc_buf(c: c_int, buf: &mut buf_T) -> bool {
+    unsafe { vim_iswordc_tab(c, buf.b_chartab.as_ptr()) }
 }
 
 pub unsafe fn vim_iswordp(p: *const c_char) -> bool {
@@ -758,7 +758,7 @@ pub unsafe fn vim_iswordp_buf(p: *const c_char, buf: *mut buf_T) -> bool {
         if utf8len_tab[c as usize] > 1 {
             c = utf_ptr2char(p);
         }
-        vim_iswordc_buf(c, buf)
+        vim_iswordc_buf(c, &mut *buf)
     }
 }
 

@@ -637,7 +637,7 @@ pub fn free_all_mem() {
             let nextbuf = (*buf).b_next;
             (*buf).b_nwindows = 0;
 
-            buf_free_callbacks(buf);
+            buf_free_callbacks(&mut *buf);
             close_buffer(std::ptr::null_mut(), buf, DOBUF_WIPE, false, false, false);
             buf = if bufref_valid(&raw mut bufref) {
                 nextbuf

@@ -168,13 +168,13 @@ pub unsafe fn linetabsize_col(startvcol: c_int, s: *mut c_char) -> c_int {
     }
 }
 
-pub unsafe fn linetabsize(wp: *mut win_T, lnum: linenr_T) -> c_int {
-    unsafe { win_linetabsize(wp, lnum, ml_get_buf((*wp).w_buffer, lnum), MAXCOL) }
+pub fn linetabsize(wp: &mut win_T, lnum: linenr_T) -> c_int {
+    unsafe { win_linetabsize(wp, lnum, ml_get_buf(wp.w_buffer, lnum), MAXCOL) }
 }
 
 pub unsafe fn linetabsize_eol(wp: *mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
-        linetabsize(wp, lnum)
+        linetabsize(&mut *wp, lnum)
             + if (*wp).w_onebuf_opt.wo_list != 0 && (*wp).w_p_lcs_chars.eol != 0 {
                 1
             } else {
@@ -218,7 +218,7 @@ pub unsafe fn init_charsize_arg(
             || ((*wp).w_onebuf_opt.wo_wrap != 0
                 && ((*wp).w_onebuf_opt.wo_lbr != 0
                     || (*wp).w_onebuf_opt.wo_bri != 0
-                    || *get_showbreak_value(wp) != NUL))
+                    || *get_showbreak_value(&mut *wp) != NUL))
         {
             kCharsizeRegular
         } else {
@@ -359,7 +359,7 @@ pub unsafe fn charsize_regular(
             mb_added = 1;
         }
 
-        let sbr = get_showbreak_value(wp);
+        let sbr = get_showbreak_value(&mut *wp);
 
         let mut head = mb_added;
         if size > 0
@@ -704,7 +704,7 @@ unsafe fn virt_text_cursor_off(csarg: *const CharsizeArg, on_nul: bool) -> c_int
 }
 
 pub unsafe fn getvcol(
-    wp: *mut win_T,
+    wp: &mut win_T,
     pos: &mut pos_T,
     start: *mut colnr_T,
     cursor: *mut colnr_T,
@@ -712,7 +712,7 @@ pub unsafe fn getvcol(
     flags: c_int,
 ) {
     unsafe {
-        let line = ml_get_buf((*wp).w_buffer, pos.lnum);
+        let line = ml_get_buf(wp.w_buffer, pos.lnum);
         let end_col = pos.col;
 
         let mut csarg = CharsizeArg::new();
@@ -785,7 +785,7 @@ pub unsafe fn getvcol(
         if !cursor.is_null() {
             if ci.chr.value == TAB
                 && (g_st().State & MODE_NORMAL) != 0
-                && (*wp).w_onebuf_opt.wo_list == 0
+                && wp.w_onebuf_opt.wo_list == 0
                 && !virtual_active(wp)
                 && !(g_st().Visual.active && (*opt_vars().p_sel == b'e' as c_char || ltoreq(*pos, g_st().Visual.start)))
             {
@@ -807,7 +807,7 @@ pub fn getvcol_nolist(posp: &mut pos_T) -> colnr_T {
         if posp.coladd != 0 {
             getvvcol(*curwin.as_ptr(), posp, ptr::null_mut(), &mut vcol, ptr::null_mut(), 0);
         } else {
-            getvcol(*curwin.as_ptr(), posp, ptr::null_mut(), &mut vcol, ptr::null_mut(), 0);
+            getvcol(&mut **curwin.as_ptr(), posp, ptr::null_mut(), &mut vcol, ptr::null_mut(), 0);
         }
         (**curwin.as_ptr()).w_onebuf_opt.wo_list = list_save;
         vcol
@@ -826,7 +826,7 @@ pub unsafe fn getvvcol(
         let mut col: colnr_T = 0;
 
         if virtual_active(wp) {
-            getvcol(wp, pos, &mut col, ptr::null_mut(), ptr::null_mut(), flags);
+            getvcol(&mut *wp, pos, &mut col, ptr::null_mut(), ptr::null_mut(), flags);
             let mut coladd = pos.coladd;
             let mut endadd: colnr_T = 0;
 
@@ -854,7 +854,7 @@ pub unsafe fn getvvcol(
                 *end = col + endadd;
             }
         } else {
-            getvcol(wp, pos, start, cursor, end, flags);
+            getvcol(&mut *wp, pos, start, cursor, end, flags);
         }
     }
 }
@@ -895,16 +895,16 @@ pub unsafe fn getvcols(
     }
 }
 
-pub unsafe fn win_may_fill(wp: *mut win_T) -> bool {
+pub fn win_may_fill(wp: &mut win_T) -> bool {
     unsafe {
-        ((*wp).w_onebuf_opt.wo_diff != 0 && diffopt_filler())
-            || (*(*wp).w_buffer).b_marktree.meta_root[kMTMetaLines] != 0
+        (wp.w_onebuf_opt.wo_diff != 0 && diffopt_filler())
+            || (*wp.w_buffer).b_marktree.meta_root[kMTMetaLines] != 0
     }
 }
 
 pub unsafe fn win_get_fill(wp: *mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
-        decor_virt_lines(wp, lnum - 1, lnum, ptr::null_mut(), ptr::null_mut(), true)
+        decor_virt_lines(&mut *wp, lnum - 1, lnum, ptr::null_mut(), ptr::null_mut(), true)
             + diff_check_fill(wp, lnum)
     }
 }
@@ -921,7 +921,7 @@ pub unsafe fn plines_win_nofill(wp: *mut win_T, lnum: linenr_T, limit_winheight:
         if (*wp).w_onebuf_opt.wo_wrap == 0 || (*wp).w_view_width == 0 || lineFolded(wp, lnum) {
             return 1;
         }
-        let lines = plines_win_nofold(wp, lnum);
+        let lines = plines_win_nofold(&mut *wp, lnum);
         if limit_winheight && lines > (*wp).w_view_height {
             (*wp).w_view_height
         } else {
@@ -930,9 +930,9 @@ pub unsafe fn plines_win_nofill(wp: *mut win_T, lnum: linenr_T, limit_winheight:
     }
 }
 
-pub unsafe fn plines_win_nofold(wp: *mut win_T, lnum: linenr_T) -> c_int {
+pub fn plines_win_nofold(wp: &mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
-        let s = ml_get_buf((*wp).w_buffer, lnum);
+        let s = ml_get_buf(wp.w_buffer, lnum);
         let mut csarg = CharsizeArg::new();
         let cstype = init_charsize_arg(&mut csarg, wp, lnum, s);
         if *s == NUL && csarg.virt_row < 0 {
@@ -945,11 +945,11 @@ pub unsafe fn plines_win_nofold(wp: *mut win_T, lnum: linenr_T) -> c_int {
             i64::from(linesize_regular(&mut csarg, 0, MAXCOL))
         };
 
-        if (*wp).w_onebuf_opt.wo_list != 0 && (*wp).w_p_lcs_chars.eol != 0 {
+        if wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.eol != 0 {
             col += 1;
         }
 
-        let mut width = (*wp).w_view_width - win_col_off(wp);
+        let mut width = wp.w_view_width - win_col_off(wp);
         if width <= 0 {
             return 32000;
         }
@@ -1071,7 +1071,7 @@ pub unsafe fn plines_m_win_fill(wp: *mut win_T, first: linenr_T, last: linenr_T)
     unsafe {
         let mut count = last - first
             + 1
-            + decor_virt_lines(wp, first - 1, last, ptr::null_mut(), ptr::null_mut(), false);
+            + decor_virt_lines(&mut *wp, first - 1, last, ptr::null_mut(), ptr::null_mut(), false);
 
         if diffopt_filler() {
             for lnum in first..=last {
@@ -1175,7 +1175,7 @@ pub unsafe fn win_max_displaywidth(
         let mut width = 0;
         let mut lnum = first;
         while lnum <= last && width < max {
-            width = width.max(linetabsize(wp, lnum));
+            width = width.max(linetabsize(&mut *wp, lnum));
             lnum += 1;
         }
         max.min(width)

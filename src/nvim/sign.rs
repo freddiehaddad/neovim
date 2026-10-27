@@ -223,7 +223,7 @@ unsafe fn buf_set_sign(
             }),
         };
         extmark_set(
-            buf,
+            &mut *buf,
             ns,
             id,
             (*buf).b_ml.ml_line_count.min(lnum) - 1,
@@ -339,7 +339,7 @@ unsafe fn buf_delete_signs(
                     signs.push(mark);
                     marktree_itr_next(&(*buf).b_marktree, &mut itr);
                 } else {
-                    extmark_del(buf, &mut itr, mark, true);
+                    extmark_del(&mut *buf, &mut itr, mark, true);
                 }
             } else {
                 marktree_itr_next(&(*buf).b_marktree, &mut itr);
@@ -349,7 +349,7 @@ unsafe fn buf_delete_signs(
         if !signs.is_empty() {
             signs.sort_by(|a, b| sign_row_cmp_slice(a, b));
             let first = signs[0];
-            extmark_del_id(buf, first.ns, first.id);
+            extmark_del_id(&mut *buf, first.ns, first.id);
         } else if atlnum > 0 {
             return FAIL;
         }
@@ -359,7 +359,7 @@ unsafe fn buf_delete_signs(
 }
 
 pub unsafe fn buf_has_signs(buf: *const buf_T) -> bool {
-    unsafe { buf_meta_total(buf, kMTMetaSignHL) + buf_meta_total(buf, kMTMetaSignText) != 0 }
+    unsafe { buf_meta_total(&*buf, kMTMetaSignHL) + buf_meta_total(&*buf, kMTMetaSignText) != 0 }
 }
 
 unsafe fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
@@ -763,7 +763,7 @@ unsafe fn sign_unplace_inner(
             }
         } else {
             let ns = group_get_ns(group);
-            if ns < 0 || !extmark_del_id(buf, ns as u32, id as u32) {
+            if ns < 0 || !extmark_del_id(&mut *buf, ns as u32, id as u32) {
                 return FAIL;
             }
         }
@@ -800,7 +800,7 @@ unsafe fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T 
 
         if !buf_jump_open_win(buf).is_null() {
             (**curwin.as_ptr()).w_cursor.lnum = lnum;
-            check_cursor_lnum(*curwin.as_ptr());
+            check_cursor_lnum(&mut **curwin.as_ptr());
             beginline(BL_WHITE);
         } else {
             if (*buf).b_fname.is_null() {

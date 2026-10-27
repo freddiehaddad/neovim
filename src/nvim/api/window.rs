@@ -180,7 +180,7 @@ pub unsafe extern "C" fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut 
         (*w).w_cursor.lnum = row as linenr_T;
         (*w).w_cursor.col = col as colnr_T;
         (*w).w_cursor.coladd = 0;
-        check_cursor_col(w);
+        check_cursor_col(&mut *w);
 
         (*w).w_set_curswant = true;
 

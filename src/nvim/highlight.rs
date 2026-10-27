@@ -755,7 +755,7 @@ pub fn update_window_hl(wp: &mut win_T, invalid: bool) {
             }
         }
 
-        check_blending(&raw mut *wp);
+        check_blending(&mut *wp);
 
         if hl_def_get(HLF_INACTIVE) == 0 {
             wp.w_hl_attr_normalnc =
