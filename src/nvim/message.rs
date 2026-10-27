@@ -244,25 +244,41 @@ macro_rules! smsg_keep {
 }
 pub use smsg_keep;
 
+#[inline(never)]
+pub unsafe fn semsg_fmt(fmt: *const c_char, args: &[crate::strings::FmtVal]) -> bool {
+    unsafe {
+        if emsg_not_now() {
+            return true;
+        }
+        let mut errbuf = [0 as c_char; 1025];
+        crate::strings::vim_snprintf_fmt(errbuf.as_mut_ptr(), errbuf.len(), fmt, args);
+        emsg(errbuf.as_ptr())
+    }
+}
+
+#[inline(never)]
+pub unsafe fn semsg_multiline_fmt(
+    kind: *const c_char,
+    fmt: *const c_char,
+    args: &[crate::strings::FmtVal],
+) -> bool {
+    unsafe {
+        if emsg_not_now() {
+            return true;
+        }
+        let mut errbuf = [0 as c_char; 8192];
+        crate::strings::vim_snprintf_fmt(errbuf.as_mut_ptr(), errbuf.len(), fmt, args);
+        emsg_multiline(errbuf.as_ptr(), kind, 6, true)
+    }
+}
+
 #[macro_export]
 macro_rules! semsg {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
-        let fmt_ptr: *const std::ffi::c_char = $fmt;
-        {
-            if $crate::message::emsg_not_now() {
-                let _ = (fmt_ptr $(, $crate::strings::IntoFmtVal::into_fmt_val($arg))*);
-                true
-            } else {
-                let mut errbuf = [0 as std::ffi::c_char; 1025];
-                $crate::strings::vim_snprintf!(
-                    (&raw mut errbuf).cast::<std::ffi::c_char>(),
-                    errbuf.len(),
-                    fmt_ptr
-                    $(, $arg)*
-                );
-                $crate::message::emsg(errbuf.as_ptr())
-            }
-        }
+        $crate::message::semsg_fmt(
+            $fmt,
+            &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+        )
     }};
 }
 pub use semsg;
@@ -270,23 +286,11 @@ pub use semsg;
 #[macro_export]
 macro_rules! semsg_multiline {
     ($kind:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
-        let kind_ptr: *const std::ffi::c_char = $kind;
-        let fmt_ptr: *const std::ffi::c_char = $fmt;
-        {
-            if $crate::message::emsg_not_now() {
-                let _ = (kind_ptr, fmt_ptr $(, $crate::strings::IntoFmtVal::into_fmt_val($arg))*);
-                true
-            } else {
-                let mut errbuf = [0 as std::ffi::c_char; 8192];
-                $crate::strings::vim_snprintf!(
-                    (&raw mut errbuf).cast::<std::ffi::c_char>(),
-                    errbuf.len(),
-                    fmt_ptr
-                    $(, $arg)*
-                );
-                $crate::message::emsg_multiline(errbuf.as_ptr(), kind_ptr, 6, true)
-            }
-        }
+        $crate::message::semsg_multiline_fmt(
+            $kind,
+            $fmt,
+            &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+        )
     }};
 }
 pub use semsg_multiline;

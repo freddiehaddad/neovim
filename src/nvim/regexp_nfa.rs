@@ -153,7 +153,6 @@ const NFA_CLASS_KEYWORD: c_int = NFA_CURSOR + 31;
 const NFA_CLASS_FNAME: c_int = NFA_CURSOR + 32;
 
 const NFA_POSTFIX_KEEP: usize = 10000;
-const NFA_STACK_KEEP: c_int = 4000;
 
 const NFA_PIM_UNUSED: c_int = 0;
 const NFA_PIM_TODO: c_int = 1;
@@ -174,10 +173,6 @@ const e_misplaced: &CStr = c"E866: (NFA regexp) Misplaced %c";
 const e_ill_char_class: &CStr = c"E877: (NFA regexp) Invalid character class: %lld";
 const e_value_too_large: &CStr = c"E951: \\% value too large";
 
-static mut empty_frag: Frag_T = Frag_T {
-    start: ptr::null_mut(),
-    out: ptr::null_mut(),
-};
 static mut temp_subs: regsubs_T = regsubs_T::new();
 static mut nfa_match: c_int = 0;
 static mut nfa_time_limit: Option<proftime_T> = None;
@@ -1032,456 +1027,31 @@ unsafe fn nfa_regatom() -> c_int {
                 }
             } else if c == Magic(b'%' as c_int) {
                 c = no_Magic(getchr());
-                match c as u8 {
-                    b'(' => {
-                        if nfa_reg(REG_NPAREN) == FAIL {
-                            return FAIL;
-                        }
-                        EMIT(NFA_NOPEN);
-                        return OK;
-                    }
-                    b'd' | b'o' | b'x' | b'u' | b'U' => {
-                        let nr = match c as u8 {
-                            b'd' => getdecchrs(),
-                            b'o' => getoctchrs(),
-                            b'x' => gethexchrs(2),
-                            b'u' => gethexchrs(4),
-                            b'U' => gethexchrs(8),
-                            _ => -1,
-                        };
-                        if nr < 0 || nr > i64::from(c_int::MAX) {
-                            semsg!(
-                                tr(c"E678: Invalid character after %s%%[dxouU]".as_ptr()),
-                                if reg_magic == MAGIC_ALL {
-                                    c"".as_ptr()
-                                } else {
-                                    c"\\".as_ptr()
-                                },
-                            );
-                            rc_did_emsg = true;
-                            return FAIL;
-                        }
-                        EMIT(if nr == 0 { 0x0a } else { nr as c_int });
-                        return OK;
-                    }
-                    b'^' => {
-                        EMIT(NFA_BOF);
-                        return OK;
-                    }
-                    b'$' => {
-                        EMIT(NFA_EOF);
-                        return OK;
-                    }
-                    b'#' => {
-                        if *regparse == b'=' as c_char
-                            && (*regparse.add(1) as u8) >= 48
-                            && (*regparse.add(1) as u8) <= 50
-                        {
-                            semsg!(
-                                tr(e_atom_engine_must_be_at_start_of_pattern.as_ptr()),
-                                *regparse.add(1) as c_int,
-                            );
-                            return FAIL;
-                        }
-                        EMIT(NFA_CURSOR);
-                        return OK;
-                    }
-                    b'V' => {
-                        EMIT(NFA_VISUAL);
-                        return OK;
-                    }
-                    b'C' => {
-                        EMIT(NFA_ANY_COMPOSING);
-                        return OK;
-                    }
-                    b'[' => {
-                        let mut n: c_int = 0;
-                        loop {
-                            c = peekchr();
-                            if c == b']' as c_int {
-                                break;
-                            }
-                            if c == NUL as c_int {
-                                semsg!(
-                                    tr(e_missing_sb.as_ptr()),
-                                    if reg_magic == MAGIC_ALL {
-                                        c"".as_ptr()
-                                    } else {
-                                        c"\\".as_ptr()
-                                    },
-                                );
-                                rc_did_emsg = true;
-                                return FAIL;
-                            }
-                            if nfa_regatom() == FAIL {
-                                return FAIL;
-                            }
-                            n += 1;
-                        }
-                        let _ = getchr();
-                        if n == 0 {
-                            semsg!(
-                                tr(e_empty_sb.as_ptr()),
-                                if reg_magic == MAGIC_ALL {
-                                    c"".as_ptr()
-                                } else {
-                                    c"\\".as_ptr()
-                                },
-                            );
-                            rc_did_emsg = true;
-                            return FAIL;
-                        }
-                        EMIT(NFA_OPT_CHARS);
-                        EMIT(n);
-                        EMIT(NFA_NOPEN);
-                        return OK;
-                    }
-                    _ => {
-                        let mut n: i64 = 0;
-                        let cmp = c;
-                        let mut cur = false;
-                        let mut got_digit = false;
-
-                        if c == b'<' as c_int || c == b'>' as c_int {
-                            c = getchr();
-                        }
-                        if no_Magic(c) == b'.' as c_int {
-                            cur = true;
-                            c = getchr();
-                        }
-                        while ascii_isdigit(c) {
-                            if cur {
-                                semsg!(
-                                    tr(e_regexp_number_after_dot_pos_search_chr.as_ptr()),
-                                    no_Magic(c),
-                                );
-                                return FAIL;
-                            }
-                            if n > i64::from(i32::MAX - (c - b'0' as c_int)) / 10 {
-                                emsg(tr(e_value_too_large.as_ptr()));
-                                return FAIL;
-                            }
-                            n = n * 10 + i64::from(c - b'0' as c_int);
-                            c = getchr();
-                            got_digit = true;
-                        }
-                        if c == b'l' as c_int || c == b'c' as c_int || c == b'v' as c_int {
-                            let mut limit = i32::MAX;
-                            if !cur && !got_digit {
-                                semsg!(tr(e_nfa_regexp_missing_value_in_chr.as_ptr()), no_Magic(c));
-                                return FAIL;
-                            }
-                            if c == b'l' as c_int {
-                                if cur {
-                                    n = i64::from((*curwin).w_cursor.lnum);
-                                }
-                                EMIT(if cmp == b'<' as c_int {
-                                    NFA_LNUM_LT
-                                } else if cmp == b'>' as c_int {
-                                    NFA_LNUM_GT
-                                } else {
-                                    NFA_LNUM
-                                });
-                                if save_prev_at_start != 0 {
-                                    at_start = 1;
-                                }
-                            } else if c == b'c' as c_int {
-                                if cur {
-                                    n = i64::from((*curwin).w_cursor.col) + 1;
-                                }
-                                EMIT(if cmp == b'<' as c_int {
-                                    NFA_COL_LT
-                                } else if cmp == b'>' as c_int {
-                                    NFA_COL_GT
-                                } else {
-                                    NFA_COL
-                                });
-                            } else {
-                                if cur {
-                                    let mut vcol: colnr_T = 0;
-                                    getvvcol(
-                                        curwin,
-                                        &raw mut (*curwin).w_cursor,
-                                        ptr::null_mut(),
-                                        ptr::null_mut(),
-                                        &raw mut vcol,
-                                        0,
-                                    );
-                                    vcol += 1;
-                                    n = i64::from(vcol);
-                                }
-                                EMIT(if cmp == b'<' as c_int {
-                                    NFA_VCOL_LT
-                                } else if cmp == b'>' as c_int {
-                                    NFA_VCOL_GT
-                                } else {
-                                    NFA_VCOL
-                                });
-                                limit = i32::MAX / MB_MAXBYTES;
-                            }
-                            if n >= i64::from(limit) {
-                                emsg(tr(e_value_too_large.as_ptr()));
-                                return FAIL;
-                            }
-                            EMIT(n as c_int);
-                            return OK;
-                        } else if no_Magic(c) == b'\'' as c_int && n == 0 {
-                            EMIT(if cmp == b'<' as c_int {
-                                NFA_MARK_LT
-                            } else if cmp == b'>' as c_int {
-                                NFA_MARK_GT
-                            } else {
-                                NFA_MARK
-                            });
-                            EMIT(getchr());
-                            return OK;
-                        }
-                        semsg!(
-                            tr(c"E867: (NFA) Unknown operator '\\%%%c'".as_ptr()),
-                            no_Magic(c),
-                        );
+                if c == b'(' as c_int {
+                    if nfa_reg(REG_NPAREN) == FAIL {
                         return FAIL;
                     }
+                    EMIT(NFA_NOPEN);
+                    return OK;
                 }
+                return nfa_regatom_percent(c, save_prev_at_start);
             } else if c == Magic(b'[' as c_int) {
                 goto_collection = true;
             }
         }
 
         if goto_collection {
-            let p = regparse.cast::<u8>();
-            let endp = skip_anyof(p.cast()).cast::<u8>();
-            if *endp == b']' {
-                let result = nfa_recognize_char_class(
-                    regparse.cast(),
-                    endp,
-                    c_int::from(extra == NFA_ADD_NL),
-                );
-                if result != FAIL {
-                    if (NFA_FIRST_NL..=NFA_LAST_NL).contains(&result) {
-                        EMIT(result - NFA_ADD_NL);
-                        EMIT(NFA_NEWL);
-                        EMIT(NFA_OR);
-                    } else {
-                        EMIT(result);
-                    }
-                    regparse = endp.cast();
-                    mb_ptr_adv(&raw mut regparse);
-                    return OK;
-                }
-
-                let mut negated = false;
-                if *regparse == b'^' as c_char {
-                    negated = true;
-                    mb_ptr_adv(&raw mut regparse);
-                    EMIT(NFA_START_NEG_COLL);
-                } else {
-                    EMIT(NFA_START_COLL);
-                }
-                if *regparse == b'-' as c_char {
-                    startc = b'-' as c_int;
-                    EMIT(startc);
-                    EMIT(NFA_CONCAT);
-                    mb_ptr_adv(&raw mut regparse);
-                }
-
-                let mut emit_range = false;
-                while (regparse.cast::<u8>() as *const u8) < endp {
-                    let oldstartc = startc;
-                    let mut range_endpoint = false;
-                    startc = -1;
-                    let mut got_coll_char = false;
-
-                    if *regparse == b'[' as c_char {
-                        let mut equiclass: c_int = 0;
-                        let mut collclass: c_int = 0;
-                        let charclass = get_char_class(&raw mut regparse);
-                        if charclass == CLASS_NONE {
-                            equiclass = get_equi_class(&raw mut regparse);
-                            if equiclass == 0 {
-                                collclass = get_coll_element(&raw mut regparse);
-                            }
-                        }
-
-                        if charclass != CLASS_NONE {
-                            match charclass {
-                                CLASS_ALNUM => EMIT(NFA_CLASS_ALNUM),
-                                CLASS_ALPHA => EMIT(NFA_CLASS_ALPHA),
-                                CLASS_BLANK => EMIT(NFA_CLASS_BLANK),
-                                CLASS_CNTRL => EMIT(NFA_CLASS_CNTRL),
-                                CLASS_DIGIT => EMIT(NFA_CLASS_DIGIT),
-                                CLASS_GRAPH => EMIT(NFA_CLASS_GRAPH),
-                                CLASS_LOWER => {
-                                    wants_nfa = true;
-                                    EMIT(NFA_CLASS_LOWER);
-                                }
-                                CLASS_PRINT => EMIT(NFA_CLASS_PRINT),
-                                CLASS_PUNCT => EMIT(NFA_CLASS_PUNCT),
-                                CLASS_SPACE => EMIT(NFA_CLASS_SPACE),
-                                CLASS_UPPER => {
-                                    wants_nfa = true;
-                                    EMIT(NFA_CLASS_UPPER);
-                                }
-                                CLASS_XDIGIT => EMIT(NFA_CLASS_XDIGIT),
-                                CLASS_TAB => EMIT(NFA_CLASS_TAB),
-                                CLASS_RETURN => EMIT(NFA_CLASS_RETURN),
-                                CLASS_BACKSPACE => EMIT(NFA_CLASS_BACKSPACE),
-                                CLASS_ESCAPE => EMIT(NFA_CLASS_ESCAPE),
-                                CLASS_IDENT => EMIT(NFA_CLASS_IDENT),
-                                CLASS_KEYWORD => EMIT(NFA_CLASS_KEYWORD),
-                                CLASS_FNAME => EMIT(NFA_CLASS_FNAME),
-                                _ => {}
-                            }
-                            EMIT(NFA_CONCAT);
-                            continue;
-                        }
-                        if equiclass != 0 {
-                            nfa_emit_equi_class(equiclass);
-                            continue;
-                        }
-                        if collclass != 0 {
-                            startc = collclass;
-                        }
-                    }
-
-                    if *regparse == b'-' as c_char && oldstartc != -1 {
-                        emit_range = true;
-                        startc = oldstartc;
-                        mb_ptr_adv(&raw mut regparse);
-                        continue;
-                    }
-
-                    if *regparse == b'\\' as c_char
-                        && (regparse.add(1).cast::<u8>() as *const u8) <= endp
-                        && (!vim_strchr(REGEXP_INRANGE.as_ptr(), *regparse.add(1) as u8 as c_int)
-                            .is_null()
-                            || (reg_cpo_lit == 0
-                                && !vim_strchr(
-                                    REGEXP_ABBR.as_ptr(),
-                                    *regparse.add(1) as u8 as c_int,
-                                )
-                                .is_null()))
-                    {
-                        mb_ptr_adv(&raw mut regparse);
-                        if *regparse == b'n' as c_char {
-                            startc = if reg_string != 0
-                                || emit_range
-                                || *regparse.add(1) == b'-' as c_char
-                            {
-                                NL
-                            } else {
-                                NFA_NEWL
-                            };
-                        } else if matches!(*regparse as u8, b'd' | b'o' | b'x' | b'u' | b'U') {
-                            startc = coll_get_char();
-                            if startc == c_int::MAX {
-                                emsg(tr(e_unicode_val_too_large.as_ptr()));
-                                rc_did_emsg = true;
-                                return FAIL;
-                            }
-                            got_coll_char = true;
-                            mb_ptr_back(old_regparse, &raw mut regparse);
-                        } else {
-                            startc = backslash_trans(*regparse as u8 as c_int);
-                        }
-                    }
-
-                    if startc == -1 {
-                        startc = utf_ptr2char(regparse);
-                    }
-
-                    if emit_range {
-                        let endc = startc;
-                        range_endpoint = true;
-                        startc = oldstartc;
-                        if startc > endc {
-                            emsg(tr(e_reverse_range.as_ptr()));
-                            rc_did_emsg = true;
-                            return FAIL;
-                        }
-                        if endc > startc + 2 {
-                            if startc == 0 {
-                                EMIT(1);
-                            } else {
-                                let pv = &raw mut post_vec;
-                                (*pv).pop();
-                            }
-                            EMIT(endc);
-                            EMIT(NFA_RANGE);
-                            EMIT(NFA_CONCAT);
-                        } else {
-                            for ch in (startc + 1)..=endc {
-                                EMIT(ch);
-                                EMIT(NFA_CONCAT);
-                            }
-                        }
-                        emit_range = false;
-                        startc = -1;
-                    } else if startc == NFA_NEWL {
-                        if !negated {
-                            extra = NFA_ADD_NL;
-                        }
-                    } else if got_coll_char && startc == 0 {
-                        EMIT(0x0a);
-                        EMIT(NFA_CONCAT);
-                    } else {
-                        EMIT(startc);
-                        if utf_ptr2len(regparse) == utfc_ptr2len(regparse) {
-                            EMIT(NFA_CONCAT);
-                        }
-                    }
-
-                    let plen = utfc_ptr2len(regparse);
-                    if !range_endpoint && utf_ptr2len(regparse) != plen {
-                        let mut i = utf_ptr2len(regparse);
-                        c = utf_ptr2char(regparse.add(i as usize));
-                        loop {
-                            if c == 0 {
-                                EMIT(1);
-                            } else {
-                                EMIT(c);
-                            }
-                            EMIT(NFA_CONCAT);
-                            i += utf_char2len(c);
-                            if i >= plen {
-                                break;
-                            }
-                            c = utf_ptr2char(regparse.add(i as usize));
-                        }
-                        EMIT(NFA_COMPOSING);
-                        EMIT(NFA_CONCAT);
-                    }
-                    mb_ptr_adv(&raw mut regparse);
-                }
-
-                mb_ptr_back(old_regparse, &raw mut regparse);
-                if *regparse == b'-' as c_char {
-                    EMIT(b'-' as c_int);
-                    EMIT(NFA_CONCAT);
-                }
-
-                regparse = endp.cast();
-                mb_ptr_adv(&raw mut regparse);
-
-                if negated {
-                    EMIT(NFA_END_NEG_COLL);
-                } else {
-                    EMIT(NFA_END_COLL);
-                }
-
-                if extra == NFA_ADD_NL {
-                    EMIT(if reg_string != 0 { NL } else { NFA_NEWL });
-                    EMIT(NFA_OR);
-                }
-
-                return OK;
+            let mut mb_c = c;
+            let res = nfa_regatom_collection(
+                &mut old_regparse,
+                &mut extra,
+                &mut startc,
+                &mut mb_c,
+            );
+            if res != -2 {
+                return res;
             }
-
-            if reg_strict != 0 {
-                emsg(tr(e_missingbracket.as_ptr()));
-                rc_did_emsg = true;
-                return FAIL;
-            }
+            c = mb_c;
         }
 
         let plen = utfc_ptr2len(old_regparse.cast());
@@ -1508,12 +1078,464 @@ unsafe fn nfa_regatom() -> c_int {
     }
 }
 
+#[inline(never)]
+unsafe fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int {
+    unsafe {
+        match c as u8 {
+            b'd' | b'o' | b'x' | b'u' | b'U' => {
+                let nr = match c as u8 {
+                    b'd' => getdecchrs(),
+                    b'o' => getoctchrs(),
+                    b'x' => gethexchrs(2),
+                    b'u' => gethexchrs(4),
+                    b'U' => gethexchrs(8),
+                    _ => -1,
+                };
+                if nr < 0 || nr > i64::from(c_int::MAX) {
+                    semsg!(
+                        tr(c"E678: Invalid character after %s%%[dxouU]".as_ptr()),
+                        if reg_magic == MAGIC_ALL {
+                            c"".as_ptr()
+                        } else {
+                            c"\\".as_ptr()
+                        },
+                    );
+                    rc_did_emsg = true;
+                    return FAIL;
+                }
+                EMIT(if nr == 0 { 0x0a } else { nr as c_int });
+                return OK;
+            }
+            b'^' => {
+                EMIT(NFA_BOF);
+                return OK;
+            }
+            b'$' => {
+                EMIT(NFA_EOF);
+                return OK;
+            }
+            b'#' => {
+                if *regparse == b'=' as c_char
+                    && (*regparse.add(1) as u8) >= 48
+                    && (*regparse.add(1) as u8) <= 50
+                {
+                    semsg!(
+                        tr(e_atom_engine_must_be_at_start_of_pattern.as_ptr()),
+                        *regparse.add(1) as c_int,
+                    );
+                    return FAIL;
+                }
+                EMIT(NFA_CURSOR);
+                return OK;
+            }
+            b'V' => {
+                EMIT(NFA_VISUAL);
+                return OK;
+            }
+            b'C' => {
+                EMIT(NFA_ANY_COMPOSING);
+                return OK;
+            }
+            b'[' => {
+                let mut n: c_int = 0;
+                loop {
+                    c = peekchr();
+                    if c == b']' as c_int {
+                        break;
+                    }
+                    if c == NUL as c_int {
+                        semsg!(
+                            tr(e_missing_sb.as_ptr()),
+                            if reg_magic == MAGIC_ALL {
+                                c"".as_ptr()
+                            } else {
+                                c"\\".as_ptr()
+                            },
+                        );
+                        rc_did_emsg = true;
+                        return FAIL;
+                    }
+                    if nfa_regatom() == FAIL {
+                        return FAIL;
+                    }
+                    n += 1;
+                }
+                let _ = getchr();
+                if n == 0 {
+                    semsg!(
+                        tr(e_empty_sb.as_ptr()),
+                        if reg_magic == MAGIC_ALL {
+                            c"".as_ptr()
+                        } else {
+                            c"\\".as_ptr()
+                        },
+                    );
+                    rc_did_emsg = true;
+                    return FAIL;
+                }
+                EMIT(NFA_OPT_CHARS);
+                EMIT(n);
+                EMIT(NFA_NOPEN);
+                return OK;
+            }
+            _ => {
+                let mut n: i64 = 0;
+                let cmp = c;
+                let mut cur = false;
+                let mut got_digit = false;
+
+                if c == b'<' as c_int || c == b'>' as c_int {
+                    c = getchr();
+                }
+                if no_Magic(c) == b'.' as c_int {
+                    cur = true;
+                    c = getchr();
+                }
+                while ascii_isdigit(c) {
+                    if cur {
+                        semsg!(
+                            tr(e_regexp_number_after_dot_pos_search_chr.as_ptr()),
+                            no_Magic(c),
+                        );
+                        return FAIL;
+                    }
+                    if n > i64::from(i32::MAX - (c - b'0' as c_int)) / 10 {
+                        emsg(tr(e_value_too_large.as_ptr()));
+                        return FAIL;
+                    }
+                    n = n * 10 + i64::from(c - b'0' as c_int);
+                    c = getchr();
+                    got_digit = true;
+                }
+                if c == b'l' as c_int || c == b'c' as c_int || c == b'v' as c_int {
+                    let mut limit = i32::MAX;
+                    if !cur && !got_digit {
+                        semsg!(tr(e_nfa_regexp_missing_value_in_chr.as_ptr()), no_Magic(c));
+                        return FAIL;
+                    }
+                    if c == b'l' as c_int {
+                        if cur {
+                            n = i64::from((*curwin).w_cursor.lnum);
+                        }
+                        EMIT(if cmp == b'<' as c_int {
+                            NFA_LNUM_LT
+                        } else if cmp == b'>' as c_int {
+                            NFA_LNUM_GT
+                        } else {
+                            NFA_LNUM
+                        });
+                        if save_prev_at_start != 0 {
+                            at_start = 1;
+                        }
+                    } else if c == b'c' as c_int {
+                        if cur {
+                            n = i64::from((*curwin).w_cursor.col) + 1;
+                        }
+                        EMIT(if cmp == b'<' as c_int {
+                            NFA_COL_LT
+                        } else if cmp == b'>' as c_int {
+                            NFA_COL_GT
+                        } else {
+                            NFA_COL
+                        });
+                    } else {
+                        if cur {
+                            let mut vcol: colnr_T = 0;
+                            getvvcol(
+                                curwin,
+                                &raw mut (*curwin).w_cursor,
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                &raw mut vcol,
+                                0,
+                            );
+                            vcol += 1;
+                            n = i64::from(vcol);
+                        }
+                        EMIT(if cmp == b'<' as c_int {
+                            NFA_VCOL_LT
+                        } else if cmp == b'>' as c_int {
+                            NFA_VCOL_GT
+                        } else {
+                            NFA_VCOL
+                        });
+                        limit = i32::MAX / MB_MAXBYTES;
+                    }
+                    if n >= i64::from(limit) {
+                        emsg(tr(e_value_too_large.as_ptr()));
+                        return FAIL;
+                    }
+                    EMIT(n as c_int);
+                    return OK;
+                } else if no_Magic(c) == b'\'' as c_int && n == 0 {
+                    EMIT(if cmp == b'<' as c_int {
+                        NFA_MARK_LT
+                    } else if cmp == b'>' as c_int {
+                        NFA_MARK_GT
+                    } else {
+                        NFA_MARK
+                    });
+                    EMIT(getchr());
+                    return OK;
+                }
+                semsg!(
+                    tr(c"E867: (NFA) Unknown operator '\\%%%c'".as_ptr()),
+                    no_Magic(c),
+                );
+                FAIL
+            }
+        }
+    }
+}
+
+#[inline(never)]
+unsafe fn nfa_regatom_collection(
+    old_regparse: &mut *mut u8,
+    extra: &mut c_int,
+    startc: &mut c_int,
+    c: &mut c_int,
+) -> c_int {
+    unsafe {
+        let p = regparse.cast::<u8>();
+        let endp = skip_anyof(p.cast()).cast::<u8>();
+        if *endp == b']' {
+            let result = nfa_recognize_char_class(
+                regparse.cast(),
+                endp,
+                c_int::from(*extra == NFA_ADD_NL),
+            );
+            if result != FAIL {
+                if (NFA_FIRST_NL..=NFA_LAST_NL).contains(&result) {
+                    EMIT(result - NFA_ADD_NL);
+                    EMIT(NFA_NEWL);
+                    EMIT(NFA_OR);
+                } else {
+                    EMIT(result);
+                }
+                regparse = endp.cast();
+                mb_ptr_adv(&raw mut regparse);
+                return OK;
+            }
+
+            let mut negated = false;
+            if *regparse == b'^' as c_char {
+                negated = true;
+                mb_ptr_adv(&raw mut regparse);
+                EMIT(NFA_START_NEG_COLL);
+            } else {
+                EMIT(NFA_START_COLL);
+            }
+            if *regparse == b'-' as c_char {
+                *startc = b'-' as c_int;
+                EMIT(*startc);
+                EMIT(NFA_CONCAT);
+                mb_ptr_adv(&raw mut regparse);
+            }
+
+            let mut emit_range = false;
+            while (regparse.cast::<u8>() as *const u8) < endp {
+                let oldstartc = *startc;
+                let mut range_endpoint = false;
+                *startc = -1;
+                let mut got_coll_char = false;
+
+                if *regparse == b'[' as c_char {
+                    let mut equiclass: c_int = 0;
+                    let mut collclass: c_int = 0;
+                    let charclass = get_char_class(&raw mut regparse);
+                    if charclass == CLASS_NONE {
+                        equiclass = get_equi_class(&raw mut regparse);
+                        if equiclass == 0 {
+                            collclass = get_coll_element(&raw mut regparse);
+                        }
+                    }
+
+                    if charclass != CLASS_NONE {
+                        match charclass {
+                            CLASS_ALNUM => EMIT(NFA_CLASS_ALNUM),
+                            CLASS_ALPHA => EMIT(NFA_CLASS_ALPHA),
+                            CLASS_BLANK => EMIT(NFA_CLASS_BLANK),
+                            CLASS_CNTRL => EMIT(NFA_CLASS_CNTRL),
+                            CLASS_DIGIT => EMIT(NFA_CLASS_DIGIT),
+                            CLASS_GRAPH => EMIT(NFA_CLASS_GRAPH),
+                            CLASS_LOWER => {
+                                wants_nfa = true;
+                                EMIT(NFA_CLASS_LOWER);
+                            }
+                            CLASS_PRINT => EMIT(NFA_CLASS_PRINT),
+                            CLASS_PUNCT => EMIT(NFA_CLASS_PUNCT),
+                            CLASS_SPACE => EMIT(NFA_CLASS_SPACE),
+                            CLASS_UPPER => {
+                                wants_nfa = true;
+                                EMIT(NFA_CLASS_UPPER);
+                            }
+                            CLASS_XDIGIT => EMIT(NFA_CLASS_XDIGIT),
+                            CLASS_TAB => EMIT(NFA_CLASS_TAB),
+                            CLASS_RETURN => EMIT(NFA_CLASS_RETURN),
+                            CLASS_BACKSPACE => EMIT(NFA_CLASS_BACKSPACE),
+                            CLASS_ESCAPE => EMIT(NFA_CLASS_ESCAPE),
+                            CLASS_IDENT => EMIT(NFA_CLASS_IDENT),
+                            CLASS_KEYWORD => EMIT(NFA_CLASS_KEYWORD),
+                            CLASS_FNAME => EMIT(NFA_CLASS_FNAME),
+                            _ => {}
+                        }
+                        EMIT(NFA_CONCAT);
+                        continue;
+                    }
+                    if equiclass != 0 {
+                        nfa_emit_equi_class(equiclass);
+                        continue;
+                    }
+                    if collclass != 0 {
+                        *startc = collclass;
+                    }
+                }
+
+                if *regparse == b'-' as c_char && oldstartc != -1 {
+                    emit_range = true;
+                    *startc = oldstartc;
+                    mb_ptr_adv(&raw mut regparse);
+                    continue;
+                }
+
+                if *regparse == b'\\' as c_char
+                    && (regparse.add(1).cast::<u8>() as *const u8) <= endp
+                    && (!vim_strchr(REGEXP_INRANGE.as_ptr(), *regparse.add(1) as u8 as c_int)
+                        .is_null()
+                        || (reg_cpo_lit == 0
+                            && !vim_strchr(
+                                REGEXP_ABBR.as_ptr(),
+                                *regparse.add(1) as u8 as c_int,
+                            )
+                            .is_null()))
+                {
+                    mb_ptr_adv(&raw mut regparse);
+                    if *regparse == b'n' as c_char {
+                        *startc = if reg_string != 0
+                            || emit_range
+                            || *regparse.add(1) == b'-' as c_char
+                        {
+                            NL
+                        } else {
+                            NFA_NEWL
+                        };
+                    } else if matches!(*regparse as u8, b'd' | b'o' | b'x' | b'u' | b'U') {
+                        *startc = coll_get_char();
+                        if *startc == c_int::MAX {
+                            emsg(tr(e_unicode_val_too_large.as_ptr()));
+                            rc_did_emsg = true;
+                            return FAIL;
+                        }
+                        got_coll_char = true;
+                        mb_ptr_back(*old_regparse, &raw mut regparse);
+                    } else {
+                        *startc = backslash_trans(*regparse as u8 as c_int);
+                    }
+                }
+
+                if *startc == -1 {
+                    *startc = utf_ptr2char(regparse);
+                }
+
+                if emit_range {
+                    let endc = *startc;
+                    range_endpoint = true;
+                    *startc = oldstartc;
+                    if *startc > endc {
+                        emsg(tr(e_reverse_range.as_ptr()));
+                        rc_did_emsg = true;
+                        return FAIL;
+                    }
+                    if endc > *startc + 2 {
+                        if *startc == 0 {
+                            EMIT(1);
+                        } else {
+                            let pv = &raw mut post_vec;
+                            (*pv).pop();
+                        }
+                        EMIT(endc);
+                        EMIT(NFA_RANGE);
+                        EMIT(NFA_CONCAT);
+                    } else {
+                        for ch in (*startc + 1)..=endc {
+                            EMIT(ch);
+                            EMIT(NFA_CONCAT);
+                        }
+                    }
+                    emit_range = false;
+                    *startc = -1;
+                } else if *startc == NFA_NEWL {
+                    if !negated {
+                        *extra = NFA_ADD_NL;
+                    }
+                } else if got_coll_char && *startc == 0 {
+                    EMIT(0x0a);
+                    EMIT(NFA_CONCAT);
+                } else {
+                    EMIT(*startc);
+                    if utf_ptr2len(regparse) == utfc_ptr2len(regparse) {
+                        EMIT(NFA_CONCAT);
+                    }
+                }
+
+                let plen = utfc_ptr2len(regparse);
+                if !range_endpoint && utf_ptr2len(regparse) != plen {
+                    let mut i = utf_ptr2len(regparse);
+                    *c = utf_ptr2char(regparse.add(i as usize));
+                    loop {
+                        if *c == 0 {
+                            EMIT(1);
+                        } else {
+                            EMIT(*c);
+                        }
+                        EMIT(NFA_CONCAT);
+                        i += utf_char2len(*c);
+                        if i >= plen {
+                            break;
+                        }
+                        *c = utf_ptr2char(regparse.add(i as usize));
+                    }
+                    EMIT(NFA_COMPOSING);
+                    EMIT(NFA_CONCAT);
+                }
+                mb_ptr_adv(&raw mut regparse);
+            }
+
+            mb_ptr_back(*old_regparse, &raw mut regparse);
+            if *regparse == b'-' as c_char {
+                EMIT(b'-' as c_int);
+                EMIT(NFA_CONCAT);
+            }
+
+            regparse = endp.cast();
+            mb_ptr_adv(&raw mut regparse);
+
+            if negated {
+                EMIT(NFA_END_NEG_COLL);
+            } else {
+                EMIT(NFA_END_COLL);
+            }
+
+            if *extra == NFA_ADD_NL {
+                EMIT(if reg_string != 0 { NL } else { NFA_NEWL });
+                EMIT(NFA_OR);
+            }
+
+            return OK;
+        }
+
+        if reg_strict != 0 {
+            emsg(tr(e_missingbracket.as_ptr()));
+            rc_did_emsg = true;
+            return FAIL;
+        }
+        -2
+    }
+}
+
 unsafe fn nfa_regpiece() -> c_int {
     unsafe {
-        let mut minval: c_int = 0;
-        let mut maxval: c_int = 0;
         let mut old_state = parse_state_T::new();
-        let mut new_state = parse_state_T::new();
 
         save_parse_state(&raw mut old_state);
         let pv = &raw mut post_vec;
@@ -1528,11 +1550,27 @@ unsafe fn nfa_regpiece() -> c_int {
             return OK;
         }
 
+        nfa_regpiece_multi(op, &mut old_state, my_post_start)
+    }
+}
+
+#[inline(never)]
+unsafe fn nfa_regpiece_multi(
+    op: c_int,
+    old_state: &mut parse_state_T,
+    my_post_start: usize,
+) -> c_int {
+    unsafe {
+        let mut minval: c_int = 0;
+        let mut maxval: c_int = 0;
+        let mut new_state = parse_state_T::new();
+        let pv = &raw mut post_vec;
+
         skipchr();
         if op == Magic(b'*' as c_int) {
             EMIT(NFA_STAR);
         } else if op == Magic(b'+' as c_int) {
-            restore_parse_state(&raw mut old_state);
+            restore_parse_state(&raw mut *old_state);
             curchr = -1;
             if nfa_regatom() == FAIL {
                 return FAIL;
@@ -1609,7 +1647,7 @@ unsafe fn nfa_regpiece() -> c_int {
                     NFA_QUEST_NONGREEDY
                 };
                 for i in 0..maxval {
-                    restore_parse_state(&raw mut old_state);
+                    restore_parse_state(&raw mut *old_state);
                     let old_post_pos = (*pv).len();
                     if nfa_regatom() == FAIL {
                         return FAIL;
@@ -1857,65 +1895,34 @@ unsafe fn alloc_state(c: c_int, out: *mut nfa_state_T, out1: *mut nfa_state_T) -
 }
 
 #[inline]
-fn frag(start: *mut nfa_state_T, out: *mut Ptrlist) -> Frag_T {
+fn frag(start: *mut nfa_state_T, out: Vec<*mut *mut nfa_state_T>) -> Frag_T {
     Frag_T { start, out }
 }
 
 #[inline]
-unsafe fn list1(outp: *mut *mut nfa_state_T) -> *mut Ptrlist {
-    unsafe {
-        let l = outp.cast::<Ptrlist>();
-        (*l).0 = ptr::null_mut();
-        l
-    }
+fn list1(outp: *mut *mut nfa_state_T) -> Vec<*mut *mut nfa_state_T> {
+    vec![outp]
 }
 
-unsafe fn patch(mut l: *mut Ptrlist, s: *mut nfa_state_T) {
+unsafe fn patch(l: Vec<*mut *mut nfa_state_T>, s: *mut nfa_state_T) {
     unsafe {
-        while !l.is_null() {
-            let next = (*l).0;
-            *l.cast::<*mut nfa_state_T>() = s;
-            l = next;
+        for slot in l {
+            *slot = s;
         }
     }
 }
 
-unsafe fn append(mut l1: *mut Ptrlist, l2: *mut Ptrlist) -> *mut Ptrlist {
-    unsafe {
-        let oldl1 = l1;
-        while !(*l1).0.is_null() {
-            l1 = (*l1).0;
-        }
-        (*l1).0 = l2;
-        oldl1
-    }
+fn append(
+    mut l1: Vec<*mut *mut nfa_state_T>,
+    l2: Vec<*mut *mut nfa_state_T>,
+) -> Vec<*mut *mut nfa_state_T> {
+    l1.extend(l2);
+    l1
 }
 
 unsafe fn st_error(_postfix: *mut c_int, _end: *mut c_int, _p: *mut c_int) {
     unsafe {
         emsg(tr(c"E874: (NFA) Could not pop the stack!".as_ptr()));
-    }
-}
-
-unsafe fn st_push(s: Frag_T, p: *mut *mut Frag_T, stack_end: *mut Frag_T) {
-    unsafe {
-        let stackp = *p;
-        if stackp >= stack_end {
-            return;
-        }
-        *stackp = s;
-        *p = stackp.add(1);
-    }
-}
-
-unsafe fn st_pop(p: *mut *mut Frag_T, stack: *mut Frag_T) -> Frag_T {
-    unsafe {
-        *p = (*p).wrapping_sub(1);
-        let stackp = *p;
-        if stackp < stack {
-            return empty_frag;
-        }
-        *stackp
     }
 }
 
@@ -2021,33 +2028,26 @@ unsafe fn post2nfa(postfix: *mut c_int, end: *mut c_int, nfa_calc_size: bool) ->
             return ptr::null_mut();
         }
 
-        let mut stack: *mut Frag_T = ptr::null_mut();
-        let mut stackp: *mut Frag_T = ptr::null_mut();
-        let mut stack_end: *mut Frag_T = ptr::null_mut();
-
-        if !nfa_calc_size {
-            let ns = &raw mut nfa_stack;
-            let req = nstate as usize + 1;
-            if (*ns).len() < req {
-                (*ns).resize(req, Frag_T::new());
-            }
-            stack = (*ns).as_mut_ptr();
-            stackp = stack;
-            stack_end = stack.add(req);
-        }
+        let max_stack = if !nfa_calc_size {
+            nstate as usize + 1
+        } else {
+            0
+        };
+        let mut stack: Vec<Frag_T> = Vec::with_capacity(max_stack);
 
         macro_rules! push {
             ($s:expr) => {
-                st_push($s, &raw mut stackp, stack_end)
+                if stack.len() < max_stack {
+                    stack.push($s);
+                }
             };
         }
         macro_rules! pop {
             ($p:ident) => {{
-                let val = st_pop(&raw mut stackp, stack);
-                if stackp < stack {
+                let Some(val) = stack.pop() else {
                     st_error(postfix, end, $p);
                     return ptr::null_mut();
-                }
+                };
                 val
             }};
         }
@@ -2170,10 +2170,7 @@ unsafe fn post2nfa(postfix: *mut c_int, end: *mut c_int, nfa_calc_size: bool) ->
                         nstate += n;
                     } else {
                         let mut s: *mut nfa_state_T = ptr::null_mut();
-                        let mut e1 = Frag_T {
-                            start: ptr::null_mut(),
-                            out: ptr::null_mut(),
-                        };
+                        let mut e1 = Frag_T::new();
                         let mut s1: *mut nfa_state_T = ptr::null_mut();
                         while n > 0 {
                             n -= 1;
@@ -2182,11 +2179,12 @@ unsafe fn post2nfa(postfix: *mut c_int, end: *mut c_int, nfa_calc_size: bool) ->
                             if s.is_null() {
                                 return ptr::null_mut();
                             }
-                            if e1.out.is_null() {
+                            if e1.out.is_empty() {
                                 e1 = e;
+                            } else {
+                                patch(e.out, s1);
                             }
-                            patch(e.out, s1);
-                            append(e1.out, list1(&raw mut (*s).out1));
+                            e1.out.push(&raw mut (*s).out1);
                             s1 = s;
                         }
                         push!(frag(s, e1.out));
@@ -2272,7 +2270,7 @@ unsafe fn post2nfa(postfix: *mut c_int, end: *mut c_int, nfa_calc_size: bool) ->
                             }
                             c => c + NSUBEXP as c_int,
                         };
-                        if stackp == stack {
+                        if stack.is_empty() {
                             let s = alloc_state(mopen, ptr::null_mut(), ptr::null_mut());
                             if s.is_null() {
                                 return ptr::null_mut();
@@ -2354,7 +2352,7 @@ unsafe fn post2nfa(postfix: *mut c_int, end: *mut c_int, nfa_calc_size: bool) ->
         }
 
         let e = pop!(p);
-        if stackp != stack {
+        if !stack.is_empty() {
             emsg(tr(
                 c"E875: (NFA regexp) (While converting from postfix to NFA),too many states left on stack"
                     .as_ptr(),
@@ -4783,10 +4781,6 @@ unsafe fn cleanup_nfa_regcomp(prog: Option<nfa_regprog_T>) -> Option<nfa_regprog
             *pv = Vec::new();
         } else {
             (*pv).clear();
-        }
-        let ns = &raw mut nfa_stack;
-        if (*ns).capacity() > (NFA_STACK_KEEP as usize) {
-            *ns = Vec::new();
         }
         state_ptr = ptr::null_mut();
         prog

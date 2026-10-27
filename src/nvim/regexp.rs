@@ -568,22 +568,16 @@ pub(super) struct regbehind_T {
     pub save_end: [save_se_T; NSUBEXP],
 }
 
-#[repr(transparent)]
-#[derive(Clone, Copy)]
-pub(super) struct Ptrlist(pub *mut Ptrlist);
-
-#[repr(C)]
-#[derive(Clone, Copy)]
 pub(super) struct Frag_T {
     pub start: *mut nfa_state_T,
-    pub out: *mut Ptrlist,
+    pub out: Vec<*mut *mut nfa_state_T>,
 }
 
 impl Frag_T {
     pub(super) const fn new() -> Self {
         Self {
             start: ptr::null_mut(),
-            out: ptr::null_mut(),
+            out: Vec::new(),
         }
     }
 }
@@ -1294,7 +1288,6 @@ pub(super) static mut istate: c_int = 0;
 pub(super) static mut nfa_endp: *mut save_se_T = ptr::null_mut();
 pub(super) static mut nfa_ll_index: usize = 0;
 pub(super) static mut state_ptr: *mut nfa_state_T = ptr::null_mut();
-pub(super) static mut nfa_stack: Vec<Frag_T> = Vec::new();
 
 static mut regexp_engine: c_int = 0;
 
@@ -3440,8 +3433,6 @@ pub unsafe fn free_regexp_stuff() {
         reg_prev_sub = None;
         let pv = &raw mut post_vec;
         *pv = Vec::new();
-        let ns = &raw mut nfa_stack;
-        *ns = Vec::new();
     }
 }
 
