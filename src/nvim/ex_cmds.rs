@@ -774,7 +774,7 @@ pub unsafe fn ex_sort(eap: &mut exarg_T) {
 
                 let mut start_col: colnr_T = 0;
                 let mut end_col: colnr_T = len;
-                if !regmatch.regprog.is_null() && vim_regexec(&raw mut regmatch, s, 0) {
+                if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s, 0) {
                     if excmds_st().sort_rx {
                         start_col = regmatch.startp[0].offset_from(s) as colnr_T;
                         end_col = regmatch.endp[0].offset_from(s) as colnr_T;
@@ -1050,7 +1050,7 @@ pub unsafe fn ex_uniq(eap: &mut exarg_T) {
 
                 let mut start_col: colnr_T = 0;
                 let mut end_col: colnr_T = len;
-                if !regmatch.regprog.is_null() && vim_regexec(&raw mut regmatch, s, 0) {
+                if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s, 0) {
                     if excmds_st().sort_rx {
                         start_col = regmatch.startp[0].offset_from(s) as colnr_T;
                         end_col = regmatch.endp[0].offset_from(s) as colnr_T;
@@ -4100,7 +4100,7 @@ unsafe fn do_sub(
             which_pat,
             if cmdpreview_ns > 0 { 0 } else { SEARCH_HIS },
             magic,
-            &raw mut regmatch,
+            &mut regmatch,
         ) == FAIL
         {
             if excmds_st().subflags.do_error {
@@ -4139,7 +4139,7 @@ unsafe fn do_sub(
                 || lnum <= (**curwin.as_ptr()).w_botline)
         {
             let mut nmatch = vim_regexec_multi(
-                &raw mut regmatch,
+                &mut regmatch,
                 *curwin.as_ptr(),
                 g_st().curbuf,
                 lnum,
@@ -4418,7 +4418,7 @@ unsafe fn do_sub(
 
                             g_st().textlock += 1;
                             let sublen_i = vim_regsub_multi(
-                                &raw mut regmatch,
+                                &mut regmatch,
                                 sub_firstlnum - regmatch.startpos[0].lnum,
                                 sub,
                                 sub_firstline.data(),
@@ -4472,7 +4472,7 @@ unsafe fn do_sub(
 
                             g_st().textlock += 1;
                             let mut n = vim_regsub_multi(
-                                &raw mut regmatch,
+                                &mut regmatch,
                                 sub_firstlnum - regmatch.startpos[0].lnum,
                                 sub,
                                 new_end,
@@ -4600,7 +4600,7 @@ unsafe fn do_sub(
                         || nmatch_tl > 0
                         || {
                             nmatch = vim_regexec_multi(
-                                &raw mut regmatch,
+                                &mut regmatch,
                                 *curwin.as_ptr(),
                                 g_st().curbuf,
                                 sub_firstlnum,
@@ -4678,7 +4678,7 @@ unsafe fn do_sub(
                         }
                         if nmatch == -1 && !lastone {
                             nmatch = vim_regexec_multi(
-                                &raw mut regmatch,
+                                &mut regmatch,
                                 *curwin.as_ptr(),
                                 g_st().curbuf,
                                 sub_firstlnum,
@@ -4964,7 +4964,7 @@ pub unsafe fn ex_global(eap: &mut exarg_T) {
             which_pat,
             SEARCH_HIS,
             opt_vars().p_magic != 0,
-            &raw mut regmatch,
+            &mut regmatch,
         ) == FAIL
         {
             emsg(gettext(e_invcmd.as_ptr()));
@@ -4974,7 +4974,7 @@ pub unsafe fn ex_global(eap: &mut exarg_T) {
         if g_st().global_busy != 0 {
             lnum = (**curwin.as_ptr()).w_cursor.lnum;
             let matched = vim_regexec_multi(
-                &raw mut regmatch,
+                &mut regmatch,
                 *curwin.as_ptr(),
                 g_st().curbuf,
                 lnum,
@@ -4992,7 +4992,7 @@ pub unsafe fn ex_global(eap: &mut exarg_T) {
             lnum = eap.line1;
             while lnum <= eap.line2 && !g_st().got_int {
                 let matched = vim_regexec_multi(
-                    &raw mut regmatch,
+                    &mut regmatch,
                     *curwin.as_ptr(),
                     g_st().curbuf,
                     lnum,

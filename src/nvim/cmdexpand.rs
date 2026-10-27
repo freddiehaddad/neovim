@@ -4651,7 +4651,7 @@ unsafe fn get_packupdate_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
 unsafe fn ExpandOther(
     pat: *mut c_char,
     xp: &mut expand_T,
-    rmp: *mut regmatch_T,
+    rmp: &mut regmatch_T,
     matches: &mut Vec<CString>,
 ) -> c_int {
     struct ExpGen {
@@ -4890,7 +4890,7 @@ unsafe fn ExpandOther(
         for entry in &tab {
             if xp.xp_context == entry.context {
                 if entry.ic {
-                    (*rmp).rm_ic = true;
+                    rmp.rm_ic = true;
                 }
                 ExpandGeneric(pat, xp, rmp, matches, Some(entry.func), entry.escaped);
                 return OK;
@@ -5043,19 +5043,19 @@ unsafe fn ExpandFromContext(
 
         let ret = if xp.xp_context == EXPAND_SETTINGS || xp.xp_context == EXPAND_BOOL_SETTINGS
         {
-            ExpandSettings(xp, &raw mut regmatch, pat, matches, fuzzy)
+            ExpandSettings(xp, &mut regmatch, pat, matches, fuzzy)
         } else if xp.xp_context == EXPAND_STRING_SETTING {
-            ExpandStringSetting(xp, &raw mut regmatch, matches)
+            ExpandStringSetting(xp, &mut regmatch, matches)
         } else if xp.xp_context == EXPAND_SETTING_SUBTRACT {
-            ExpandSettingSubtract(xp, &raw mut regmatch, matches)
+            ExpandSettingSubtract(xp, &mut regmatch, matches)
         } else if xp.xp_context == EXPAND_MAPPINGS {
-            ExpandMappings(pat, &raw mut regmatch, matches)
+            ExpandMappings(pat, &mut regmatch, matches)
         } else if xp.xp_context == EXPAND_ARGOPT {
-            expand_argopt(pat, xp, &raw mut regmatch, matches)
+            expand_argopt(pat, xp, &mut regmatch, matches)
         } else if xp.xp_context == EXPAND_USER_DEFINED {
-            ExpandUserDefined(pat, xp, &raw mut regmatch, matches)
+            ExpandUserDefined(pat, xp, &mut regmatch, matches)
         } else {
-            ExpandOther(pat, xp, &raw mut regmatch, matches)
+            ExpandOther(pat, xp, &mut regmatch, matches)
         };
 
         if !fuzzy {
@@ -5071,7 +5071,7 @@ unsafe fn ExpandFromContext(
 pub unsafe fn ExpandGeneric(
     pat: *const c_char,
     xp: &mut expand_T,
-    regmatch: *mut regmatch_T,
+    regmatch: &mut regmatch_T,
     matches: &mut Vec<CString>,
     func: CompleteListItemGetter,
     escaped: bool,
@@ -5360,7 +5360,7 @@ unsafe fn call_user_expand_func<R>(
 unsafe fn ExpandUserDefined(
     pat: *const c_char,
     xp: &mut expand_T,
-    regmatch: *mut regmatch_T,
+    regmatch: &mut regmatch_T,
     matches: &mut Vec<CString>,
 ) -> c_int {
     unsafe {
@@ -6166,7 +6166,7 @@ unsafe fn is_regex_match(pat: *const c_char, str_arg: *const c_char) -> bool {
 
         g_st().emsg_off += 1;
         g_st().msg_silent += 1;
-        let result = vim_regexec_nl(&raw mut regmatch, str_arg, 0);
+        let result = vim_regexec_nl(&mut regmatch, str_arg, 0);
         g_st().emsg_off -= 1;
         g_st().msg_silent -= 1;
 

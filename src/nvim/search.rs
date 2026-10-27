@@ -764,7 +764,7 @@ pub unsafe fn searchit(
             pat_use,
             options & (SEARCH_HIS + SEARCH_KEEP),
             magic,
-            &raw mut regmatch,
+            &mut regmatch,
         ) == FAIL
         {
             if (options & SEARCH_MSG) != 0 && !g_st().rc_did_emsg {
@@ -845,7 +845,7 @@ pub unsafe fn searchit(
                         0
                     };
                     nmatched =
-                        vim_regexec_multi(&raw mut regmatch, win, buf, lnum, col, tm, timed_out);
+                        vim_regexec_multi(&mut regmatch, win, buf, lnum, col, tm, timed_out);
                     if regmatch.regprog.is_null() {
                         break;
                     }
@@ -897,7 +897,7 @@ pub unsafe fn searchit(
                                 }
                                 if *ptr_line.add(matchcol as usize) == NUL || {
                                     nmatched = vim_regexec_multi(
-                                        &raw mut regmatch,
+                                        &mut regmatch,
                                         win,
                                         buf,
                                         lnum,
@@ -973,7 +973,7 @@ pub unsafe fn searchit(
                                 }
                                 if *ptr_line.add(matchcol as usize) == NUL || {
                                     nmatched = vim_regexec_multi(
-                                        &raw mut regmatch,
+                                        &mut regmatch,
                                         win,
                                         buf,
                                         lnum + matchpos.lnum,
@@ -2739,7 +2739,7 @@ unsafe fn is_zero_width(
             RE_SEARCH,
             SEARCH_KEEP,
             opt_vars().p_magic != 0,
-            &raw mut regmatch,
+            &mut regmatch,
         ) == FAIL
         {
             return -1;
@@ -2771,7 +2771,7 @@ unsafe fn is_zero_width(
             loop {
                 regmatch.startpos[0].col += 1;
                 nmatched = vim_regexec_multi(
-                    &raw mut regmatch,
+                    &mut regmatch,
                     *curwin.as_ptr(),
                     g_st().curbuf,
                     pos.lnum,
@@ -3302,7 +3302,7 @@ pub unsafe fn find_pattern_in_path(
         let mut line = get_line_and_copy(lnum, file_line);
 
         loop {
-            if !incl_regmatch.regprog.is_null() && vim_regexec(&raw mut incl_regmatch, line, 0) {
+            if !incl_regmatch.regprog.is_null() && vim_regexec(&mut incl_regmatch, line, 0) {
                 let p_fname = if curr_fname == (*g_st().curbuf).b_fname {
                     (*g_st().curbuf).b_ffname
                 } else {
@@ -3499,7 +3499,7 @@ pub unsafe fn find_pattern_in_path(
                 loop {
                     define_matched = false;
                     if !def_regmatch.regprog.is_null()
-                        && vim_regexec(&raw mut def_regmatch, line, 0)
+                        && vim_regexec(&mut def_regmatch, line, 0)
                     {
                         p = def_regmatch.endp[0];
                         while *p != NUL && !vim_iswordc(c_int::from(*p as u8)) {
@@ -3524,7 +3524,7 @@ pub unsafe fn find_pattern_in_path(
                                 matched = false;
                             }
                         } else if !regmatch.regprog.is_null()
-                            && vim_regexec(&raw mut regmatch, line, p.offset_from(line) as colnr_T)
+                            && vim_regexec(&mut regmatch, line, p.offset_from(line) as colnr_T)
                         {
                             matched = true;
                             startp = regmatch.startp[0];

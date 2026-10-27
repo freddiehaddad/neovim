@@ -99,7 +99,7 @@ unsafe fn regex_match(
         let mut rm: regmatch_T = regmatch_T::new();
         rm.regprog = *prog;
         rm.rm_ic = false;
-        let matched = vim_regexec(&raw mut rm, str_, 0);
+        let matched = vim_regexec(&mut rm, str_, 0);
         *prog = rm.regprog;
 
         if matched {

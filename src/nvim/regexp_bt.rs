@@ -4075,7 +4075,7 @@ unsafe fn finish_bt_regexec(retval: c_int, col: colnr_T) -> c_int {
 }
 
 pub(super) unsafe fn bt_regexec_nl(
-    rmp: *mut regmatch_T,
+    rmp: &mut regmatch_T,
     line: *mut u8,
     col: colnr_T,
     line_lbr: bool,
@@ -4087,9 +4087,9 @@ pub(super) unsafe fn bt_regexec_nl(
         re_st().rex.reg_line_lbr = line_lbr;
         re_st().rex.reg_buf = g_st().curbuf;
         re_st().rex.reg_win = ptr::null_mut();
-        re_st().rex.reg_ic = (*rmp).rm_ic;
+        re_st().rex.reg_ic = rmp.rm_ic;
         re_st().rex.reg_icombine = false;
-        re_st().rex.reg_nobreak = ((*(*rmp).regprog).re_flags & (RE_NOBREAK as c_uint)) != 0;
+        re_st().rex.reg_nobreak = ((*rmp.regprog).re_flags & (RE_NOBREAK as c_uint)) != 0;
         re_st().rex.reg_maxcol = 0;
 
         bt_regexec_both(line, col, None, ptr::null_mut())

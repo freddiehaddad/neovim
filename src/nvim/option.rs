@@ -8003,7 +8003,7 @@ pub unsafe fn set_context_in_set_cmd(xp: &mut expand_T, mut arg: *mut c_char, op
 
 unsafe fn match_str(
     str_arg: *mut c_char,
-    regmatch: *mut regmatch_T,
+    regmatch: &mut regmatch_T,
     matches: &mut Vec<std::ffi::CString>,
     fuzzy: bool,
     fuzzystr: *const c_char,
@@ -8011,7 +8011,7 @@ unsafe fn match_str(
 ) -> bool {
     unsafe {
         if !fuzzy {
-            if vim_regexec(regmatch.cast(), str_arg, 0) {
+            if vim_regexec(regmatch, str_arg, 0) {
                 matches.push(CStr::from_ptr(str_arg).to_owned());
                 return true;
             }
@@ -8033,20 +8033,20 @@ unsafe fn match_str(
 
 pub unsafe fn ExpandSettings(
     xp: &mut expand_T,
-    regmatch: *mut regmatch_T,
+    regmatch: &mut regmatch_T,
     fuzzystr: *mut c_char,
     matches: &mut Vec<std::ffi::CString>,
     can_fuzzy: bool,
 ) -> c_int {
     unsafe {
         let names: [*mut c_char; 1] = [c"all".as_ptr().cast_mut()];
-        let ic = (*regmatch).rm_ic;
+        let ic = regmatch.rm_ic;
 
         matches.clear();
         let mut fuzmatch: Vec<fuzmatch_str_T> = Vec::new();
         let fuzzy = can_fuzzy && cmdline_fuzzy_complete(fuzzystr);
 
-        (*regmatch).rm_ic = ic;
+        regmatch.rm_ic = ic;
         if xp.xp_context != EXPAND_BOOL_SETTINGS {
             for &name in &names {
                 match_str(name, regmatch, matches, fuzzy, fuzzystr, &mut fuzmatch);
@@ -8068,7 +8068,7 @@ pub unsafe fn ExpandSettings(
                 && !fuzzy
                 && (*opt)
                     .shortname
-                    .is_some_and(|s| vim_regexec(regmatch.cast(), s.as_ptr(), 0))
+                    .is_some_and(|s| vim_regexec(regmatch, s.as_ptr(), 0))
             {
                 matches.push((*opt).fullname.to_owned());
             }
@@ -8149,7 +8149,7 @@ pub unsafe fn ExpandOldSetting(matches: &mut Vec<std::ffi::CString>) -> c_int {
 /// Expansion handler for :set=/:set+= when the option has a custom expansion handler.
 pub unsafe fn ExpandStringSetting(
     xp: &mut expand_T,
-    regmatch: *mut regmatch_T,
+    regmatch: &mut regmatch_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
     unsafe {
@@ -8184,7 +8184,7 @@ pub unsafe fn ExpandStringSetting(
 /// Expansion handler for :set-=
 pub unsafe fn ExpandSettingSubtract(
     xp: &mut expand_T,
-    regmatch: *mut regmatch_T,
+    regmatch: &mut regmatch_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
     unsafe {
@@ -8226,7 +8226,7 @@ pub unsafe fn ExpandSettingSubtract(
                     next_val = ptr::null_mut();
                 }
 
-                if *item != NUL && vim_regexec(regmatch.cast(), item, 0) {
+                if *item != NUL && vim_regexec(regmatch, item, 0) {
                     matches.push(escape_option_str_cmdline(item));
                 }
 

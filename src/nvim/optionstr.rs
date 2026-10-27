@@ -1404,7 +1404,7 @@ unsafe fn expand_set_opt_string(
             {
                 continue;
             }
-            if vim_regexec(regmatch, val.as_ptr(), 0) {
+            if vim_regexec(&mut *regmatch, val.as_ptr(), 0) {
                 matches.push(val.to_owned());
             }
         }
@@ -1450,7 +1450,7 @@ unsafe fn expand_set_opt_generic(
         ExpandGeneric(
             c"".as_ptr(),
             &mut *args.oe_xp,
-            args.oe_regmatch,
+            &mut *args.oe_regmatch,
             matches,
             Some(expand_set_opt_callback),
             false,

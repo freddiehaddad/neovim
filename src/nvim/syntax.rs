@@ -1042,7 +1042,7 @@ unsafe fn syn_match_linecont(lnum: linenr_T) -> c_int {
         regmatch.rmm_ic = (*syn_st().syn_block).b_syn_linecont_ic;
         regmatch.regprog = crate::regexp::regprog_as_ptr(&(*syn_st().syn_block).b_syn_linecont_prog);
         let r = syn_regexec(
-            &raw mut regmatch,
+            &mut regmatch,
             lnum,
             0,
             &raw mut (*syn_st().syn_block).b_syn_linecont_time,
@@ -1789,7 +1789,7 @@ unsafe fn syn_current_attr(
                                 regmatch.rmm_ic = (*spp).sp_ic;
                                 regmatch.regprog = crate::regexp::regprog_as_ptr(&(*spp).sp_prog);
                                 let r = syn_regexec(
-                                    &raw mut regmatch,
+                                    &mut regmatch,
                                     syn_st().current_lnum,
                                     lc_col,
                                     &raw mut (*spp).sp_time,
@@ -1802,7 +1802,7 @@ unsafe fn syn_current_attr(
 
                                 syn_add_start_off(
                                     &raw mut pos,
-                                    &raw mut regmatch,
+                                    &mut regmatch,
                                     spp,
                                     SPO_MS_OFF,
                                     -1,
@@ -1831,14 +1831,14 @@ unsafe fn syn_current_attr(
 
                                 syn_add_start_off(
                                     &raw mut hl_startpos,
-                                    &raw mut regmatch,
+                                    &mut regmatch,
                                     spp,
                                     SPO_HS_OFF,
                                     -1,
                                 );
                                 syn_add_end_off(
                                     &raw mut eos_pos,
-                                    &raw mut regmatch,
+                                    &mut regmatch,
                                     spp,
                                     SPO_RS_OFF,
                                     0,
@@ -1873,14 +1873,14 @@ unsafe fn syn_current_attr(
                                 } else if (*spp).sp_type == SPTYPE_MATCH {
                                     syn_add_end_off(
                                         &raw mut hl_endpos,
-                                        &raw mut regmatch,
+                                        &mut regmatch,
                                         spp,
                                         SPO_HE_OFF,
                                         0,
                                     );
                                     syn_add_end_off(
                                         &raw mut endpos,
-                                        &raw mut regmatch,
+                                        &mut regmatch,
                                         spp,
                                         SPO_ME_OFF,
                                         0,
@@ -2439,7 +2439,7 @@ unsafe fn find_endpos(
                 regmatch.rmm_ic = (*spp).sp_ic;
                 regmatch.regprog = crate::regexp::regprog_as_ptr(&(*spp).sp_prog);
                 let r = syn_regexec(
-                    &raw mut regmatch,
+                    &mut regmatch,
                     (*startpos).lnum,
                     lc_col,
                     &raw mut (*spp).sp_time,
@@ -2465,13 +2465,13 @@ unsafe fn find_endpos(
                 regmatch.rmm_ic = (*spp_skip).sp_ic;
                 regmatch.regprog = crate::regexp::regprog_as_ptr(&(*spp_skip).sp_prog);
                 let r = syn_regexec(
-                    &raw mut regmatch,
+                    &mut regmatch,
                     (*startpos).lnum,
                     lc_col,
                     &raw mut (*spp_skip).sp_time,
                 );
                 if r && regmatch.startpos[0].col <= best_regmatch.startpos[0].col {
-                    syn_add_end_off(&raw mut pos, &raw mut regmatch, spp_skip, SPO_ME_OFF, 1);
+                    syn_add_end_off(&raw mut pos, &mut regmatch, spp_skip, SPO_ME_OFF, 1);
 
                     if pos.lnum > (*startpos).lnum {
                         break;
@@ -4807,7 +4807,7 @@ unsafe fn get_id_list(
                     id = 0;
                     let mut i = highlight_num_groups() - 1;
                     while i >= 0 {
-                        if vim_regexec(&raw mut regmatch, highlight_group_name(i), 0) {
+                        if vim_regexec(&mut regmatch, highlight_group_name(i), 0) {
                             if round == 2 {
                                 if count >= total_count {
                                     retval.clear();

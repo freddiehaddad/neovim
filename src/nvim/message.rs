@@ -3063,7 +3063,7 @@ pub unsafe fn message_filtered(msg: *const c_char) -> bool {
             return false;
         }
 
-        let match_ = vim_regexec((&raw mut g_st().cmdmod.cmod_filter_regmatch).cast(), msg, 0);
+        let match_ = vim_regexec(&mut g_st().cmdmod.cmod_filter_regmatch, msg, 0);
         if g_st().cmdmod.cmod_filter_force {
             match_
         } else {

@@ -4539,9 +4539,9 @@ pub unsafe fn match_file_pat(
 
         if !regmatch.regprog.is_null()
             && ((allow_dirs != 0
-                && (vim_regexec(&raw mut regmatch, fname, 0)
-                    || (!sfname.is_null() && vim_regexec(&raw mut regmatch, sfname, 0))))
-                || (allow_dirs == 0 && vim_regexec(&raw mut regmatch, tail, 0)))
+                && (vim_regexec(&mut regmatch, fname, 0)
+                    || (!sfname.is_null() && vim_regexec(&mut regmatch, sfname, 0))))
+                || (allow_dirs == 0 && vim_regexec(&mut regmatch, tail, 0)))
         {
             result = true;
         }

@@ -423,15 +423,15 @@ unsafe fn was_banned(su: *mut suginfo_T, word: *const c_char) -> bool {
 
 unsafe fn can_be_compound(
     sp: *const trystate_T,
-    slang: *mut slang_T,
+    slang: &mut slang_T,
     compflags: *mut u8,
     flag: c_int,
 ) -> bool {
     unsafe {
         let flags_cstr = if (*sp).ts_complen == (*sp).ts_compsplit {
-            &(*slang).sl_compstartflags
+            &slang.sl_compstartflags
         } else {
-            &(*slang).sl_compallflags
+            &slang.sl_compallflags
         };
         if !byte_in_str(
             flags_cstr
@@ -441,7 +441,7 @@ unsafe fn can_be_compound(
         ) {
             return false;
         }
-        if (*slang).sl_comprules.is_some() && (*sp).ts_complen > (*sp).ts_compsplit {
+        if slang.sl_comprules.is_some() && (*sp).ts_complen > (*sp).ts_compsplit {
             let complen = (*sp).ts_complen as usize;
             *compflags.add(complen) = flag as u8;
             *compflags.add(complen + 1) = 0;
@@ -453,7 +453,7 @@ unsafe fn can_be_compound(
     }
 }
 unsafe fn score_wordcount_adj(
-    slang: *mut slang_T,
+    slang: &mut slang_T,
     score: c_int,
     word: *const c_char,
     split: bool,
@@ -944,7 +944,7 @@ unsafe fn spell_find_suggest(
         }
         if !(*su).su_sallang.is_null() {
             spell_soundfold(
-                (*su).su_sallang,
+                &mut *(*su).su_sallang,
                 (&raw mut (*su).su_fbadword).cast(),
                 true,
                 (&raw mut (*su).su_sal_badword).cast(),
@@ -1202,27 +1202,27 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
         let mut fl: c_int;
         let mut tl: c_int;
         let mut repextra: c_int = 0;
-        let slang = lp.lp_slang;
+        let slang = &mut *lp.lp_slang;
         let mut goodword_ends: bool;
         let mut breakcheckcount: c_int = 1000;
         let mut depth: isize = 0;
         stack[0] = trystate_T::default();
         stack[0].ts_curi = 1;
         if soundfold {
-            fbyts = (*slang).sl_sbyts.as_mut_ptr();
+            fbyts = slang.sl_sbyts.as_mut_ptr();
             byts = fbyts;
-            fidxs = (*slang).sl_sidxs.as_mut_ptr();
+            fidxs = slang.sl_sidxs.as_mut_ptr();
             idxs = fidxs;
             pbyts = ptr::null_mut();
             pidxs = ptr::null_mut();
             stack[0].ts_prefixdepth = PFD_NOPREFIX;
             stack[0].ts_state = state_T::STATE_START;
         } else {
-            fbyts = (*slang).sl_fbyts.as_mut_ptr();
-            fidxs = (*slang).sl_fidxs.as_mut_ptr();
-            if !(*slang).sl_pbyts.is_empty() {
-                pbyts = (*slang).sl_pbyts.as_mut_ptr();
-                pidxs = (*slang).sl_pidxs.as_mut_ptr();
+            fbyts = slang.sl_fbyts.as_mut_ptr();
+            fidxs = slang.sl_fidxs.as_mut_ptr();
+            if !slang.sl_pbyts.is_empty() {
+                pbyts = slang.sl_pbyts.as_mut_ptr();
+                pidxs = slang.sl_pidxs.as_mut_ptr();
                 byts = pbyts;
                 idxs = pidxs;
                 stack[0].ts_prefixdepth = PFD_PREFIXTREE;
@@ -1342,7 +1342,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                     let mut p: *mut c_char = ptr::null_mut();
                     let mut compound_ok = true;
                     if stack[udepth].ts_complen > stack[udepth].ts_compsplit {
-                        if (*slang).sl_nobreak {
+                        if slang.sl_nobreak {
                             if stack[udepth].ts_fidx - stack[udepth].ts_splitfidx
                                 == stack[udepth].ts_twordlen - stack[udepth].ts_splitoff
                                 && { let _p1 = fword.add(stack[udepth].ts_splitfidx as usize); let _p2 = (&raw const tword)
@@ -1377,16 +1377,16 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                             if ((flags as u32) >> 24) == 0
                                 || c_int::from(
                                     stack[udepth].ts_twordlen - stack[udepth].ts_splitoff,
-                                ) < (*slang).sl_compminlen
+                                ) < slang.sl_compminlen
                             {
                                 continue;
                             }
-                            if (*slang).sl_compminlen > 0
+                            if slang.sl_compminlen > 0
                                 && mb_charlen(
                                     (&raw const tword)
                                         .cast::<c_char>()
                                         .add(stack[udepth].ts_splitoff as usize),
-                                ) < (*slang).sl_compminlen
+                                ) < slang.sl_compminlen
                             {
                                 continue;
                             }
@@ -1403,7 +1403,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                             if match_checkcompoundpattern(
                                 (&raw mut preword).cast(),
                                 stack[udepth].ts_prewordlen as c_int,
-                                &(*slang).sl_comppat,
+                                &slang.sl_comppat,
                             ) {
                                 compound_ok = false;
                             }
@@ -1485,7 +1485,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                             ))
                             || was_banned(su, (&raw const preword).cast())
                         {
-                            if (*slang).sl_compprog.is_none() {
+                            if slang.sl_compprog.is_none() {
                                 continue;
                             }
                             goodword_ends = false;
@@ -1593,21 +1593,21 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                             && !soundfold;
                         let mut try_compound = false;
                         if !soundfold
-                            && !(*slang).sl_nocompoundsugs
-                            && (*slang).sl_compprog.is_some()
+                            && !slang.sl_nocompoundsugs
+                            && slang.sl_compprog.is_some()
                             && ((flags as u32) >> 24) != 0
                             && (stack[udepth].ts_twordlen - stack[udepth].ts_splitoff) as c_int
-                                >= (*slang).sl_compminlen
-                            && ((*slang).sl_compminlen == 0
+                                >= slang.sl_compminlen
+                            && (slang.sl_compminlen == 0
                                 || mb_charlen(
                                     (&raw const tword)
                                         .cast::<c_char>()
                                         .add(stack[udepth].ts_splitoff as usize),
-                                ) >= (*slang).sl_compminlen)
-                            && ((*slang).sl_compsylmax < MAXWLEN as c_int
+                                ) >= slang.sl_compminlen)
+                            && (slang.sl_compsylmax < MAXWLEN as c_int
                                 || c_int::from(
                                     stack[udepth].ts_complen + 1 - stack[udepth].ts_compsplit,
-                                ) < (*slang).sl_compmax)
+                                ) < slang.sl_compmax)
                             && can_be_compound(
                                 &raw const stack[udepth],
                                 slang,
@@ -1620,7 +1620,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                                 ((flags as u32) >> 24) as u8;
                             compflags[stack[udepth].ts_complen as usize + 1] = 0;
                         }
-                        if (*slang).sl_nobreak && !(*slang).sl_nocompoundsugs {
+                        if slang.sl_nobreak && !slang.sl_nocompoundsugs {
                             try_compound = true;
                         } else if !fword_ends
                             && try_compound
@@ -1655,7 +1655,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                                 {
                                     continue;
                                 }
-                                if (*slang).sl_nosplitsugs {
+                                if slang.sl_nosplitsugs {
                                     newscore += SCORE_SPLIT_NO;
                                 } else {
                                     newscore += SCORE_SPLIT;
@@ -1823,7 +1823,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                                         {
                                             stack[udepth].ts_score -= SCORE_SUBST - SCORE_SUBCOMP;
                                         } else if !soundfold
-                                            && (*slang).sl_has_map
+                                            && slang.sl_has_map
                                             && similar_chars(
                                                 slang,
                                                 utf_ptr2char(tw_ptr),
@@ -1922,8 +1922,8 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                     }
                     n += stack[udepth].ts_curi as c_int;
                     stack[udepth].ts_curi += 1;
-                    if byts == (*slang).sl_fbyts.as_mut_ptr()
-                        && n >= (*slang).sl_fbyts.len() as c_int
+                    if byts == slang.sl_fbyts.as_mut_ptr()
+                        && n >= slang.sl_fbyts.len() as c_int
                     {
                         g_st().got_int = true;
                         continue;
@@ -2123,7 +2123,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                             let first_byte =
                                 *fword.add(stack[udepth].ts_fidx as usize) as u8 as usize;
                             stack[udepth].ts_curi = if soundfold {
-                                (*slang).sl_repsal_first[first_byte]
+                                slang.sl_repsal_first[first_byte]
                             } else {
                                 (*lp.lp_replang).sl_rep_first[first_byte]
                             };
@@ -2138,7 +2138,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                     if do_rep {
                         let p = fword.add(stack[udepth].ts_fidx as usize);
                         let gap = if soundfold {
-                            &(*slang).sl_repsal
+                            &slang.sl_repsal
                         } else {
                             &(*lp.lp_replang).sl_rep
                         };
@@ -2179,7 +2179,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                 }
                 state_T::STATE_REP_UNDO => {
                     let gap = if soundfold {
-                        &(*slang).sl_repsal
+                        &slang.sl_repsal
                     } else {
                         &(*lp.lp_replang).sl_rep
                     };
@@ -2221,7 +2221,7 @@ fn go_deeper(stack: &mut [trystate_T; MAXWLEN], depth: usize, score_add: c_int) 
     stack[depth + 1].ts_curi = 1;
     stack[depth + 1].ts_flags = 0;
 }
-unsafe fn find_keepcap_word(slang: *mut slang_T, fword: *mut c_char, kword: *mut c_char) {
+unsafe fn find_keepcap_word(slang: &mut slang_T, fword: *mut c_char, kword: *mut c_char) {
     unsafe {
         let mut uword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let mut arridx: [idx_T; MAXWLEN] = [0; MAXWLEN];
@@ -2229,12 +2229,12 @@ unsafe fn find_keepcap_word(slang: *mut slang_T, fword: *mut c_char, kword: *mut
         let mut fwordidx: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut uwordidx: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut kwordlen: [c_int; MAXWLEN] = [0; MAXWLEN];
-        if (*slang).sl_kbyts.is_empty() {
+        if slang.sl_kbyts.is_empty() {
             *kword = NUL;
             return;
         }
-        let byts = (*slang).sl_kbyts.as_mut_ptr();
-        let idxs = (*slang).sl_kidxs.as_mut_ptr();
+        let byts = slang.sl_kbyts.as_mut_ptr();
+        let idxs = slang.sl_kidxs.as_mut_ptr();
         allcap_copy(fword, (&raw mut uword).cast());
         let mut depth: isize = 0;
         while depth >= 0 {
@@ -2331,13 +2331,13 @@ unsafe fn score_comp_sal(su: *mut suginfo_T) {
         for lp in &(*w_s).b_langp {
             if (*lp.lp_slang).has_sal() {
                 spell_soundfold(
-                    lp.lp_slang,
+                    &mut *lp.lp_slang,
                     (&raw mut (*su).su_fbadword).cast(),
                     true,
                     (&raw mut badsound).cast(),
                 );
                 for stp in &(*su).su_ga {
-                    let score = stp_sal_score(stp, su, lp.lp_slang, (&raw mut badsound).cast());
+                    let score = stp_sal_score(stp, su, &mut *lp.lp_slang, (&raw mut badsound).cast());
                     if score < SCORE_MAXMAX {
                         let sga = &mut (*su).su_sga;
                         sga.push(suggest_T {
@@ -2366,13 +2366,13 @@ unsafe fn score_combine(su: *mut suginfo_T) {
             if (*lp.lp_slang).has_sal() {
                 slang = lp.lp_slang;
                 spell_soundfold(
-                    slang,
+                    &mut *slang,
                     (&raw mut (*su).su_fbadword).cast(),
                     true,
                     (&raw mut badsound).cast(),
                 );
                 for stp in &mut (*su).su_ga {
-                    stp.st_altscore = stp_sal_score(stp, su, slang, (&raw mut badsound).cast());
+                    stp.st_altscore = stp_sal_score(stp, su, &mut *slang, (&raw mut badsound).cast());
                     if stp.st_altscore == SCORE_MAXMAX {
                         stp.st_score = (stp.st_score * 3 + SCORE_BIG) / 4;
                     } else {
@@ -2433,7 +2433,7 @@ unsafe fn score_combine(su: *mut suginfo_T) {
 unsafe fn stp_sal_score(
     stp: &suggest_T,
     su: *const suginfo_T,
-    slang: *mut slang_T,
+    slang: &mut slang_T,
     badsound: *mut c_char,
 ) -> c_int {
     unsafe {
@@ -2493,9 +2493,9 @@ unsafe fn suggest_try_soundalike_prep() {
     unsafe {
         let w_s = (**curwin.as_ptr()).w_s_ptr();
         for lp in &(*w_s).b_langp {
-            let slang = lp.lp_slang;
-            if (*slang).has_sal() && !(*slang).sl_sbyts.is_empty() {
-                (*slang).sl_sounddone.clear();
+            let slang = &mut *lp.lp_slang;
+            if slang.has_sal() && !slang.sl_sbyts.is_empty() {
+                slang.sl_sounddone.clear();
             }
         }
     }
@@ -2505,10 +2505,10 @@ unsafe fn suggest_try_soundalike(su: *mut suginfo_T) {
         let mut salword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let w_s = (**curwin.as_ptr()).w_s_ptr();
         for lp in &(*w_s).b_langp {
-            let slang = lp.lp_slang;
-            if (*slang).has_sal() && !(*slang).sl_sbyts.is_empty() {
+            let slang = &mut *lp.lp_slang;
+            if slang.has_sal() && !slang.sl_sbyts.is_empty() {
                 spell_soundfold(
-                    slang,
+                    &mut *slang,
                     (&raw mut (*su).su_fbadword).cast(),
                     true,
                     (&raw mut salword).cast(),
@@ -2522,19 +2522,19 @@ unsafe fn suggest_try_soundalike_finish() {
     unsafe {
         let w_s = (**curwin.as_ptr()).w_s_ptr();
         for lp in &(*w_s).b_langp {
-            let slang = lp.lp_slang;
-            if (*slang).has_sal() && !(*slang).sl_sbyts.is_empty() {
-                (*slang).sl_sounddone.clear();
+            let slang = &mut *lp.lp_slang;
+            if slang.has_sal() && !slang.sl_sbyts.is_empty() {
+                slang.sl_sounddone.clear();
             }
         }
     }
 }
 unsafe fn add_sound_suggest(su: *mut suginfo_T, goodword: *mut c_char, score: c_int, lp: &langp_T) {
     unsafe {
-        let slang = lp.lp_slang;
+        let slang = &mut *lp.lp_slang;
         let mut theword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let goodword_bytes = std::ffi::CStr::from_ptr(goodword).to_bytes();
-        if let Some(prev_score) = (*slang).sl_sounddone.get_mut(goodword_bytes) {
+        if let Some(prev_score) = slang.sl_sounddone.get_mut(goodword_bytes) {
             if score >= *prev_score as c_int {
                 return;
             }
@@ -2557,8 +2557,8 @@ unsafe fn add_sound_suggest(su: *mut suginfo_T, goodword: *mut c_char, score: c_
         let mut orgnr: c_int = 0;
         while *nrline != NUL {
             orgnr += bytes2offset(&raw mut nrline);
-            let byts = (*slang).sl_fbyts.as_mut_ptr();
-            let idxs = (*slang).sl_fidxs.as_mut_ptr();
+            let byts = slang.sl_fbyts.as_mut_ptr();
+            let idxs = slang.sl_fidxs.as_mut_ptr();
             let mut n: idx_T = 0;
             let mut wordcount: c_int = 0;
             let mut wlen: usize = 0;
@@ -2677,14 +2677,14 @@ unsafe fn add_sound_suggest(su: *mut suginfo_T, goodword: *mut c_char, score: c_
         }
     }
 }
-unsafe fn soundfold_find(slang: *mut slang_T, word: *mut c_char) -> c_int {
+unsafe fn soundfold_find(slang: &mut slang_T, word: *mut c_char) -> c_int {
     unsafe {
         let mut arridx: idx_T = 0;
         let mut wlen: usize = 0;
         let ptr = word.cast::<u8>();
         let mut wordnr: c_int = 0;
-        let byts = (*slang).sl_sbyts.as_mut_ptr();
-        let idxs = (*slang).sl_sidxs.as_mut_ptr();
+        let byts = slang.sl_sbyts.as_mut_ptr();
+        let idxs = slang.sl_sidxs.as_mut_ptr();
         loop {
             let mut len = *byts.add(arridx as usize) as c_int;
             arridx += 1;
@@ -2730,12 +2730,11 @@ unsafe fn soundfold_find(slang: *mut slang_T, word: *mut c_char) -> c_int {
         wordnr
     }
 }
-unsafe fn similar_chars(slang: *mut slang_T, c1: c_int, c2: c_int) -> bool {
-    unsafe {
-        let m1 = if c1 >= 256 {
-            (*slang).sl_map_hash.get(&c1).copied().unwrap_or(0)
+unsafe fn similar_chars(slang: &mut slang_T, c1: c_int, c2: c_int) -> bool {
+    let m1 = if c1 >= 256 {
+            slang.sl_map_hash.get(&c1).copied().unwrap_or(0)
         } else if c1 >= 0 {
-            (*slang).sl_map_array[c1 as usize]
+            slang.sl_map_array[c1 as usize]
         } else {
             0
         };
@@ -2743,14 +2742,13 @@ unsafe fn similar_chars(slang: *mut slang_T, c1: c_int, c2: c_int) -> bool {
             return false;
         }
         let m2 = if c2 >= 256 {
-            (*slang).sl_map_hash.get(&c2).copied().unwrap_or(0)
+            slang.sl_map_hash.get(&c2).copied().unwrap_or(0)
         } else if c2 >= 0 {
-            (*slang).sl_map_array[c2 as usize]
+            slang.sl_map_array[c2 as usize]
         } else {
             0
         };
         m1 == m2
-    }
 }
 unsafe fn add_suggestion(
     su: *mut suginfo_T,
@@ -2905,14 +2903,14 @@ unsafe fn rescore_one(su: *mut suginfo_T, stp: &mut suggest_T) {
                 (&raw mut (*su).su_sal_badword).cast()
             } else {
                 spell_soundfold(
-                    slang,
+                    &mut *slang,
                     (&raw mut (*su).su_fbadword).cast(),
                     true,
                     (&raw mut sal_badword).cast(),
                 );
                 (&raw mut sal_badword).cast()
             };
-            stp.st_altscore = stp_sal_score(stp, su, slang, p);
+            stp.st_altscore = stp_sal_score(stp, su, &mut *slang, p);
             if stp.st_altscore == SCORE_MAXMAX {
                 stp.st_altscore = SCORE_BIG;
             }
@@ -3143,7 +3141,7 @@ unsafe fn spell_edit_score(
                         SCORE_ICASE + prev_diag
                     } else if !slang.is_null()
                         && (*slang).sl_has_map
-                        && similar_chars(slang, gc, bc)
+                        && similar_chars(&mut *slang, gc, bc)
                     {
                         SCORE_SIMILAR + prev_diag
                     } else {
@@ -3292,7 +3290,7 @@ unsafe fn spell_edit_score_limit_w(
                         score += SCORE_ICASE;
                     } else if !slang.is_null()
                         && (*slang).sl_has_map
-                        && similar_chars(slang, gc, bc)
+                        && similar_chars(&mut *slang, gc, bc)
                     {
                         score += SCORE_SIMILAR;
                     } else {

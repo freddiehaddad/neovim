@@ -1711,24 +1711,24 @@ unsafe fn qf_new_list(qi: *mut qf_info_T, qf_title: *const c_char) {
 }
 
 unsafe fn qf_parse_fmt_f(
-    rmp: *mut regmatch_T,
+    rmp: &mut regmatch_T,
     midx: usize,
     fields: *mut qffields_T,
     prefix: c_int,
 ) -> c_int {
     unsafe {
-        if (*rmp).startp[midx].is_null() || (*rmp).endp[midx].is_null() {
+        if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
             return QF_FAIL;
         }
 
-        let c = *(*rmp).endp[midx];
-        *(*rmp).endp[midx] = NUL;
+        let c = *rmp.endp[midx];
+        *rmp.endp[midx] = NUL;
         expand_env(
-            (*rmp).startp[midx],
+            rmp.startp[midx],
             (*fields).namebuf.as_mut_ptr(),
             CMDBUFFSIZE as c_int,
         );
-        *(*rmp).endp[midx] = c;
+        *rmp.endp[midx] = c;
 
         if !vim_strchr(c"OPQ".as_ptr(), prefix).is_null()
             && !os_path_exists((*fields).namebuf.as_ptr())
@@ -1740,12 +1740,12 @@ unsafe fn qf_parse_fmt_f(
     }
 }
 
-unsafe fn qf_parse_fmt_b(rmp: *mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
+unsafe fn qf_parse_fmt_b(rmp: &mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
     unsafe {
-        if (*rmp).startp[midx].is_null() {
+        if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        let bnr = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*rmp).startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
+        let bnr = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(rmp.startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
         if buflist_findnr(bnr).is_null() {
             return QF_FAIL;
         }
@@ -1754,62 +1754,62 @@ unsafe fn qf_parse_fmt_b(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
     }
 }
 
-unsafe fn qf_parse_fmt_n(rmp: *mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
+unsafe fn qf_parse_fmt_n(rmp: &mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
     unsafe {
-        if (*rmp).startp[midx].is_null() {
+        if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        (*fields).enr = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*rmp).startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
+        (*fields).enr = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(rmp.startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
         QF_OK
     }
 }
 
-unsafe fn qf_parse_fmt_l(rmp: *mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
+unsafe fn qf_parse_fmt_l(rmp: &mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
     unsafe {
-        if (*rmp).startp[midx].is_null() {
+        if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        (*fields).lnum = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*rmp).startp[midx]).to_bytes()) as std::ffi::c_long as linenr_T;
+        (*fields).lnum = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(rmp.startp[midx]).to_bytes()) as std::ffi::c_long as linenr_T;
         QF_OK
     }
 }
 
-unsafe fn qf_parse_fmt_e(rmp: *mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
+unsafe fn qf_parse_fmt_e(rmp: &mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
     unsafe {
-        if (*rmp).startp[midx].is_null() {
+        if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        (*fields).end_lnum = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*rmp).startp[midx]).to_bytes()) as std::ffi::c_long as linenr_T;
+        (*fields).end_lnum = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(rmp.startp[midx]).to_bytes()) as std::ffi::c_long as linenr_T;
         QF_OK
     }
 }
 
-unsafe fn qf_parse_fmt_c(rmp: *mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
+unsafe fn qf_parse_fmt_c(rmp: &mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
     unsafe {
-        if (*rmp).startp[midx].is_null() {
+        if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        (*fields).col = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*rmp).startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
+        (*fields).col = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(rmp.startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
         QF_OK
     }
 }
 
-unsafe fn qf_parse_fmt_k(rmp: *mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
+unsafe fn qf_parse_fmt_k(rmp: &mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
     unsafe {
-        if (*rmp).startp[midx].is_null() {
+        if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        (*fields).end_col = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*rmp).startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
+        (*fields).end_col = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(rmp.startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
         QF_OK
     }
 }
 
-unsafe fn qf_parse_fmt_t(rmp: *mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
+unsafe fn qf_parse_fmt_t(rmp: &mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
     unsafe {
-        if (*rmp).startp[midx].is_null() {
+        if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        (*fields).type_ = *(*rmp).startp[midx];
+        (*fields).type_ = *rmp.startp[midx];
         QF_OK
     }
 }
@@ -1828,38 +1828,38 @@ unsafe fn copy_nonerror_line(
     }
 }
 
-unsafe fn qf_parse_fmt_m(rmp: *mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
+unsafe fn qf_parse_fmt_m(rmp: &mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
     unsafe {
-        if (*rmp).startp[midx].is_null() || (*rmp).endp[midx].is_null() {
+        if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
             return QF_FAIL;
         }
-        let len = (*rmp).endp[midx].offset_from((*rmp).startp[midx]) as usize;
+        let len = rmp.endp[midx].offset_from(rmp.startp[midx]) as usize;
         if len >= (*fields).errmsg.len() {
             (*fields).errmsg.resize(len + 1, 0);
         }
-        xstrlcpy((*fields).errmsg.as_mut_ptr(), (*rmp).startp[midx], len + 1);
+        xstrlcpy((*fields).errmsg.as_mut_ptr(), rmp.startp[midx], len + 1);
         QF_OK
     }
 }
 
-unsafe fn qf_parse_fmt_r(rmp: *mut regmatch_T, midx: usize, tail: *mut *mut c_char) -> c_int {
+unsafe fn qf_parse_fmt_r(rmp: &mut regmatch_T, midx: usize, tail: *mut *mut c_char) -> c_int {
     unsafe {
-        if (*rmp).startp[midx].is_null() {
+        if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        *tail = (*rmp).startp[midx];
+        *tail = rmp.startp[midx];
         QF_OK
     }
 }
 
-unsafe fn qf_parse_fmt_p(rmp: *mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
+unsafe fn qf_parse_fmt_p(rmp: &mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
     unsafe {
-        if (*rmp).startp[midx].is_null() || (*rmp).endp[midx].is_null() {
+        if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
             return QF_FAIL;
         }
         (*fields).col = 0;
-        let mut match_ptr = (*rmp).startp[midx];
-        while match_ptr != (*rmp).endp[midx] {
+        let mut match_ptr = rmp.startp[midx];
+        while match_ptr != rmp.endp[midx] {
             (*fields).col += 1;
             if *match_ptr == TAB {
                 (*fields).col += 7;
@@ -1873,27 +1873,27 @@ unsafe fn qf_parse_fmt_p(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
     }
 }
 
-unsafe fn qf_parse_fmt_v(rmp: *mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
+unsafe fn qf_parse_fmt_v(rmp: &mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
     unsafe {
-        if (*rmp).startp[midx].is_null() {
+        if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        (*fields).col = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*rmp).startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
+        (*fields).col = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(rmp.startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
         (*fields).use_viscol = true;
         QF_OK
     }
 }
 
-unsafe fn qf_parse_fmt_s(rmp: *mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
+unsafe fn qf_parse_fmt_s(rmp: &mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
     unsafe {
-        if (*rmp).startp[midx].is_null() || (*rmp).endp[midx].is_null() {
+        if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
             return QF_FAIL;
         }
-        let mut len = (*rmp).endp[midx].offset_from((*rmp).startp[midx]) as usize;
+        let mut len = rmp.endp[midx].offset_from(rmp.startp[midx]) as usize;
         len = len.min(CMDBUFFSIZE - 5);
         let pat_ptr = (*fields).pattern.as_mut_ptr();
         { let s = c"^\\V".as_ptr(); std::ptr::copy_nonoverlapping(s, pat_ptr, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-        xstrlcat(pat_ptr, (*rmp).startp[midx], len + 4);
+        xstrlcat(pat_ptr, rmp.startp[midx], len + 4);
         *pat_ptr.add(len + 3) = b'\\' as c_char;
         *pat_ptr.add(len + 4) = b'$' as c_char;
         *pat_ptr.add(len + 5) = NUL;
@@ -1901,15 +1901,15 @@ unsafe fn qf_parse_fmt_s(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
     }
 }
 
-unsafe fn qf_parse_fmt_o(rmp: *mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
+unsafe fn qf_parse_fmt_o(rmp: &mut regmatch_T, midx: usize, fields: *mut qffields_T) -> c_int {
     unsafe {
-        if (*rmp).startp[midx].is_null() || (*rmp).endp[midx].is_null() {
+        if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
             return QF_FAIL;
         }
-        let len = (*rmp).endp[midx].offset_from((*rmp).startp[midx]) as usize;
+        let len = rmp.endp[midx].offset_from(rmp.startp[midx]) as usize;
         let mod_ptr = (*fields).module.as_mut_ptr();
         let dsize = (std::ffi::CStr::from_ptr(mod_ptr).to_bytes().len() + len + 1).min(CMDBUFFSIZE);
-        xstrlcat(mod_ptr, (*rmp).startp[midx], dsize);
+        xstrlcat(mod_ptr, rmp.startp[midx], dsize);
         QF_OK
     }
 }
@@ -1918,7 +1918,7 @@ unsafe fn qf_parse_match(
     linebuf: *mut c_char,
     linelen: usize,
     fmt_ptr: &efm_T,
-    regmatch: *mut regmatch_T,
+    regmatch: &mut regmatch_T,
     fields: *mut qffields_T,
     qf_multiline: c_int,
     qf_multiscan: c_int,
@@ -2012,14 +2012,14 @@ unsafe fn qf_parse_get_fields(
         let mut regmatch: regmatch_T = regmatch_T::new();
         regmatch.rm_ic = true;
         regmatch.regprog = crate::regexp::regprog_as_ptr(&fmt_ptr.prog);
-        let r = vim_regexec(&raw mut regmatch, linebuf, 0);
+        let r = vim_regexec(&mut regmatch, linebuf, 0);
         let mut status = QF_FAIL;
         if r {
             status = qf_parse_match(
                 linebuf,
                 linelen,
                 fmt_ptr,
-                &raw mut regmatch,
+                &mut regmatch,
                 fields,
                 qf_multiline,
                 qf_multiscan,
@@ -7684,7 +7684,7 @@ unsafe fn hgr_get_ll(new_ll: *mut bool) -> *mut qf_info_T {
     }
 }
 
-unsafe fn hgr_search_file(qfl: *mut qf_list_T, fname: *mut c_char, p_regmatch: *mut regmatch_T) {
+unsafe fn hgr_search_file(qfl: *mut qf_list_T, fname: *mut c_char, p_regmatch: &mut regmatch_T) {
     unsafe {
         let fd = os_fopen(fname, c"r".as_ptr()).cast::<FILE>();
         if fd.is_null() {
@@ -7712,8 +7712,8 @@ unsafe fn hgr_search_file(qfl: *mut qf_list_T, fname: *mut c_char, p_regmatch: *
                     line,
                     lnum,
                     0,
-                    ((*p_regmatch).startp[0].offset_from(line) as c_int) + 1,
-                    ((*p_regmatch).endp[0].offset_from(line) as c_int) + 1,
+                    (p_regmatch.startp[0].offset_from(line) as c_int) + 1,
+                    (p_regmatch.endp[0].offset_from(line) as c_int) + 1,
                     0,
                     ptr::null_mut(),
                     0,
@@ -7736,7 +7736,7 @@ unsafe fn hgr_search_file(qfl: *mut qf_list_T, fname: *mut c_char, p_regmatch: *
 unsafe fn hgr_search_files_in_dir(
     qfl: *mut qf_list_T,
     mut dirname: *mut c_char,
-    p_regmatch: *mut regmatch_T,
+    p_regmatch: &mut regmatch_T,
     lang: *const c_char,
 ) {
     unsafe {
@@ -7768,7 +7768,7 @@ unsafe fn hgr_search_files_in_dir(
     }
 }
 
-unsafe fn hgr_search_in_rtp(qfl: *mut qf_list_T, p_regmatch: *mut regmatch_T, lang: *const c_char) {
+unsafe fn hgr_search_in_rtp(qfl: *mut qf_list_T, p_regmatch: &mut regmatch_T, lang: *const c_char) {
     unsafe {
         let mut p = opt_vars().p_rtp;
         let name_buff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
@@ -7820,7 +7820,7 @@ pub unsafe fn ex_helpgrep(eap: &mut exarg_T) {
             qf_new_list(qi, qf_cmdtitle(*eap.cmdlinep));
             let qfl = qf_get_curlist(qi);
 
-            hgr_search_in_rtp(qfl, &raw mut regmatch, lang);
+            hgr_search_in_rtp(qfl, &mut regmatch, lang);
 
             vim_regfree(regmatch.regprog);
 

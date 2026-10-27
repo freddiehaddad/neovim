@@ -1430,7 +1430,7 @@ pub unsafe fn set_context_in_map_cmd(
 /// Find all mapping/abbreviation names that match regexp "regmatch".
 pub unsafe fn ExpandMappings(
     pat: *mut c_char,
-    regmatch: *mut regmatch_T,
+    regmatch: &mut regmatch_T,
     matches: &mut Vec<CString>,
 ) -> c_int {
     unsafe {

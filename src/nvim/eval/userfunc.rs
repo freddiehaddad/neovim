@@ -2514,7 +2514,7 @@ unsafe fn list_functions(regmatch: *mut regmatch_T) {
             let matches = if regmatch.is_null() {
                 !message_filtered(uf2hikey(fp)) && !func_name_refcount(uf2hikey(fp))
             } else {
-                !(*uf2hikey(fp) as u8).is_ascii_digit() && vim_regexec(regmatch, uf2hikey(fp), 0)
+                !(*uf2hikey(fp) as u8).is_ascii_digit() && vim_regexec(&mut *regmatch, uf2hikey(fp), 0)
             };
             if matches {
                 if list_func_head(fp, false, false) == FAIL {
@@ -2540,7 +2540,7 @@ unsafe fn list_functions_matching_pat(eap: *mut exarg_T) -> *mut c_char {
             *p = c;
             if !regmatch.regprog.is_null() {
                 regmatch.rm_ic = opt_vars().p_ic != 0;
-                list_functions(&raw mut regmatch);
+                list_functions(&mut regmatch);
                 vim_regfree(regmatch.regprog);
             }
         }

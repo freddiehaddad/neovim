@@ -485,9 +485,7 @@ pub unsafe fn api_err_invalid(
         }
     };
 
-    unsafe {
-        set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
-    }
+    set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
 }
 
 /// Create `"Invalid …: expected …"` validation message on `err` (`api_err_exp`).
@@ -519,9 +517,7 @@ pub unsafe fn api_err_exp(
         }
     };
 
-    unsafe {
-        set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
-    }
+    set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
 }
 
 /// Create `"Required: …"` validation message on `err` (`api_err_required`).
@@ -536,9 +532,7 @@ pub unsafe fn api_err_required(err: &mut Error, name: *const c_char) {
     } else {
         format!("Required: '{name_str}'")
     };
-    unsafe {
-        set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
-    }
+    set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
 }
 
 /// Create `"Conflict: … not allowed with …"` validation message on `err` (`api_err_conflict`).
@@ -554,9 +548,7 @@ pub unsafe fn api_err_conflict(err: &mut Error, name: *const c_char, name2: *con
     } else {
         format!("Conflict: '{name_str}' not allowed with '{name2_str}'")
     };
-    unsafe {
-        set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
-    }
+    set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
 }
 
 /// Validate that `arr` contains only `String` items (and optionally no embedded newlines)
@@ -578,18 +570,14 @@ pub unsafe fn check_string_array(
                 "Invalid '{name_str}' item: expected String, got {}",
                 object_typename(item.obj_type)
             );
-            unsafe {
-                set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
-            }
+            set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
             return false;
         }
         if disallow_nl {
             let l = item.data.string();
             if unsafe { l.as_bytes() }.contains(&b'\n') {
                 let msg = format!("'{name_str}' item contains newlines");
-                unsafe {
-                    set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
-                }
+                set_error_str(err, ErrorType::kErrorTypeValidation, &msg);
                 return false;
             }
         }

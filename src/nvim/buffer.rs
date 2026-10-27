@@ -3252,7 +3252,7 @@ pub unsafe fn buflist_findpat(
                         }
                         if (*buf).b_p_bl == find_listed
                             && (!diffmode || diff_mode_buf(buf))
-                            && !buflist_match(&raw mut regmatch, buf, false).is_null()
+                            && !buflist_match(&mut regmatch, buf, false).is_null()
                         {
                             if curtab_only {
                                 let mut found_window = false;
@@ -3360,7 +3360,7 @@ pub unsafe fn ExpandBufnames(
 
             let mut p: *mut c_char = ptr::null_mut();
             if !fuzzy {
-                p = buflist_match(&raw mut regmatch, buf, opt_vars().p_wic != 0);
+                p = buflist_match(&mut regmatch, buf, opt_vars().p_wic != 0);
             } else {
                 score = fuzzy_match_str((*buf).b_sfname, pat);
                 if score != FUZZY_SCORE_NONE {
@@ -3438,28 +3438,28 @@ pub unsafe fn ExpandBufnames(
     }
 }
 
-unsafe fn buflist_match(rmp: *mut regmatch_T, buf: *mut buf_T, ignore_case: bool) -> *mut c_char {
+unsafe fn buflist_match(rmp: &mut regmatch_T, buf: *mut buf_T, ignore_case: bool) -> *mut c_char {
     unsafe {
         let mut match_ = fname_match(rmp, (*buf).b_sfname, ignore_case);
-        if match_.is_null() && !(*rmp).regprog.is_null() {
+        if match_.is_null() && !rmp.regprog.is_null() {
             match_ = fname_match(rmp, (*buf).b_ffname, ignore_case);
         }
         match_
     }
 }
 
-unsafe fn fname_match(rmp: *mut regmatch_T, name: *mut c_char, ignore_case: bool) -> *mut c_char {
+unsafe fn fname_match(rmp: &mut regmatch_T, name: *mut c_char, ignore_case: bool) -> *mut c_char {
     unsafe {
         let mut match_: *mut c_char = ptr::null_mut();
 
-        if name.is_null() || (*rmp).regprog.is_null() {
+        if name.is_null() || rmp.regprog.is_null() {
             return ptr::null_mut();
         }
 
-        (*rmp).rm_ic = opt_vars().p_fic != 0 || ignore_case;
+        rmp.rm_ic = opt_vars().p_fic != 0 || ignore_case;
         if vim_regexec(rmp, name, 0) {
             match_ = name;
-        } else if !(*rmp).regprog.is_null() {
+        } else if !rmp.regprog.is_null() {
             let p = home_replace_save(ptr::null_mut(), name);
             if vim_regexec(rmp, p.as_ptr().cast_mut(), 0) {
                 match_ = name;

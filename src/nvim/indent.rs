@@ -732,7 +732,7 @@ pub unsafe fn get_number_indent(lnum: linenr_T) -> c_int {
 
         if !regmatch.regprog.is_null() {
             regmatch.rm_ic = false;
-            if vim_regexec(&raw mut regmatch, ml_get(lnum).add(lead_len as usize), 0) {
+            if vim_regexec(&mut regmatch, ml_get(lnum).add(lead_len as usize), 0) {
                 pos.lnum = lnum;
                 pos.col = regmatch.endp[0].offset_from(ml_get(lnum)) as colnr_T;
                 pos.coladd = 0;
@@ -848,7 +848,7 @@ pub unsafe fn get_breakindent_win(wp: *mut win_T, line: *mut c_char) -> c_int {
                 };
                 if !regmatch.regprog.is_null() {
                     regmatch.rm_ic = false;
-                    if vim_regexec(&raw mut regmatch, line, 0) {
+                    if vim_regexec(&mut regmatch, line, 0) {
                         if (*wp).w_briopt_list > 0 {
                             ind_st().PREV_LIST += (*wp).w_briopt_list;
                         } else {

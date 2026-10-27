@@ -1979,14 +1979,14 @@ unsafe fn findtags_match_tag(
         if !match_ && !(*st).orgpat.regmatch.regprog.is_null() {
             let cc = *tagpp.tagname_end;
             *tagpp.tagname_end = NUL;
-            match_ = vim_regexec(&raw mut (*st).orgpat.regmatch, tagpp.tagname, 0);
+            match_ = vim_regexec(&mut (*st).orgpat.regmatch, tagpp.tagname, 0);
             if match_ {
                 margs.matchoff =
                     (*st).orgpat.regmatch.startp[0].offset_from(tagpp.tagname) as c_int;
                 if (*st).orgpat.regmatch.rm_ic {
                     (*st).orgpat.regmatch.rm_ic = false;
                     margs.match_no_ic =
-                        vim_regexec(&raw mut (*st).orgpat.regmatch, tagpp.tagname, 0);
+                        vim_regexec(&mut (*st).orgpat.regmatch, tagpp.tagname, 0);
                     (*st).orgpat.regmatch.rm_ic = true;
                 }
             }

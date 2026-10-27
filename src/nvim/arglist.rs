@@ -409,7 +409,7 @@ unsafe fn arglist_del_files(alist_ga: &[*mut c_char]) {
             while match_idx < argcount() {
                 let entries = arglist();
                 if vim_regexec(
-                    &raw mut regmatch,
+                    &mut regmatch,
                     alist_name(entries.add(match_idx as usize)),
                     0,
                 ) {

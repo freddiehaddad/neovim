@@ -2073,7 +2073,7 @@ pub unsafe fn pattern_match(pat: *const c_char, text: *const c_char, ic: bool) -
         regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
         if !regmatch.regprog.is_null() {
             regmatch.rm_ic = ic;
-            matches = c_int::from(vim_regexec_nl(&raw mut regmatch, text, 0));
+            matches = c_int::from(vim_regexec_nl(&mut regmatch, text, 0));
             vim_regfree(regmatch.regprog);
         }
         opt_vars().p_cpo = save_cpo;
@@ -6880,7 +6880,7 @@ pub unsafe fn do_string_sub(
             let mut zero_width: *mut c_char = ptr::null_mut();
 
             while vim_regexec_nl(
-                &raw mut regmatch,
+                &mut regmatch,
                 str_,
                 ((tail as usize).wrapping_sub(str_ as usize)) as colnr_T,
             ) {
@@ -6896,7 +6896,7 @@ pub unsafe fn do_string_sub(
                     zero_width = regmatch.startp[0];
                 }
 
-                let sublen = vim_regsub(&raw mut regmatch, sub, expr, tail, 0, REGSUB_MAGIC);
+                let sublen = vim_regsub(&mut regmatch, sub, expr, tail, 0, REGSUB_MAGIC);
                 if sublen <= 0 {
                     out = None;
                     break;
@@ -6910,7 +6910,7 @@ pub unsafe fn do_string_sub(
                 let cur_len = buf.len();
                 buf.resize(cur_len + (sublen as usize), 0);
                 vim_regsub(
-                    &raw mut regmatch,
+                    &mut regmatch,
                     sub,
                     expr,
                     buf.as_mut_ptr().add(cur_len),

@@ -5425,7 +5425,7 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
                         }
                     }
 
-                    match_found = vim_regexec_nl((&raw mut regmatch).cast(), str_, startcol);
+                    match_found = vim_regexec_nl(&mut regmatch, str_, startcol);
 
                     if match_found {
                         nth -= 1;
@@ -5533,7 +5533,7 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
 
 unsafe fn get_matches_in_str(
     str_: *const c_char,
-    rmp: *mut regmatch_T,
+    rmp: &mut regmatch_T,
     mlist: *mut list_T,
     idx: c_int,
     submatches: bool,
@@ -5544,7 +5544,7 @@ unsafe fn get_matches_in_str(
         let mut startidx: colnr_T = 0;
 
         loop {
-            if !vim_regexec_nl(rmp.cast(), str_, startidx) {
+            if !vim_regexec_nl(rmp, str_, startidx) {
                 break;
             }
 
@@ -5561,34 +5561,34 @@ unsafe fn get_matches_in_str(
                 d,
                 c"byteidx".as_ptr(),
                 7,
-                (*rmp).startp[0].offset_from(str_) as varnumber_T,
+                rmp.startp[0].offset_from(str_) as varnumber_T,
             );
 
             tv_dict_add_str_len(
                 d,
                 c"text".as_ptr(),
                 4,
-                (*rmp).startp[0],
-                (*rmp).endp[0].offset_from((*rmp).startp[0]) as c_int,
+                rmp.startp[0],
+                rmp.endp[0].offset_from(rmp.startp[0]) as c_int,
             );
 
             if submatches {
                 let sml = tv_list_alloc((NSUBEXP - 1) as isize);
                 tv_dict_add_list(d, c"submatches".as_ptr(), 10, sml);
                 for i in 1..NSUBEXP {
-                    if (*rmp).endp[i].is_null() {
+                    if rmp.endp[i].is_null() {
                         tv_list_append_string(sml, c"".as_ptr(), 0);
                     } else {
                         tv_list_append_string(
                             sml,
-                            (*rmp).startp[i],
-                            (*rmp).endp[i].offset_from((*rmp).startp[i]),
+                            rmp.startp[i],
+                            rmp.endp[i].offset_from(rmp.startp[i]),
                         );
                     }
                 }
             }
-            startidx = (*rmp).endp[0].offset_from(str_) as colnr_T;
-            if (startidx as usize) >= len || str_.add(startidx as usize) <= (*rmp).startp[0] {
+            startidx = rmp.endp[0].offset_from(str_) as colnr_T;
+            if (startidx as usize) >= len || str_.add(startidx as usize) <= rmp.startp[0] {
                 break;
             }
         }
@@ -5678,7 +5678,7 @@ pub unsafe fn f_matchbufline(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
 
             while slnum <= elnum {
                 let str_ = ml_get_buf(buf, slnum);
-                get_matches_in_str(str_, &raw mut regmatch, retlist, slnum, submatches, true);
+                get_matches_in_str(str_, &mut regmatch, retlist, slnum, submatches, true);
                 slnum += 1;
             }
 
@@ -5773,7 +5773,7 @@ pub unsafe fn f_matchstrlist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
                     if (*li_tv).v_type == VarType::VAR_STRING && !(*li_tv).vval.v_string().is_null() {
                         get_matches_in_str(
                             (*li_tv).vval.v_string(),
-                            &raw mut regmatch,
+                            &mut regmatch,
                             retlist,
                             idx,
                             submatches,
@@ -8542,7 +8542,7 @@ pub unsafe fn f_split(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalF
                     let match_found = if *str_ == NUL {
                         false
                     } else {
-                        vim_regexec_nl(&raw mut regmatch, str_, col)
+                        vim_regexec_nl(&mut regmatch, str_, col)
                     };
                     let end: *const c_char = if match_found {
                         regmatch.startp[0]

@@ -574,7 +574,7 @@ pub unsafe fn spell_load_file(
                     (*lp).sl_info = Some(CStr::from_ptr(raw.as_ptr()).to_owned());
                 }
                 SN_REGION => {
-                    res = read_region_section(fd, lp, len);
+                    res = read_region_section(fd, &mut *lp, len);
                 }
                 SN_CHARFLAGS => {
                     res = read_charflags_section(fd);
@@ -588,7 +588,7 @@ pub unsafe fn spell_load_file(
                     (*lp).sl_midword = Some(CStr::from_ptr(raw.as_ptr()).to_owned());
                 }
                 SN_PREFCOND => {
-                    res = read_prefcond_section(fd, lp);
+                    res = read_prefcond_section(fd, &mut *lp);
                 }
                 SN_REP => {
                     res = read_rep_section(
@@ -605,20 +605,20 @@ pub unsafe fn spell_load_file(
                     );
                 }
                 SN_SAL => {
-                    res = read_sal_section(fd, lp);
+                    res = read_sal_section(fd, &mut *lp);
                 }
                 SN_SOFO => {
-                    res = read_sofo_section(fd, lp);
+                    res = read_sofo_section(fd, &mut *lp);
                 }
                 SN_MAP => {
                     let Some(p) = read_string(fd, len as usize) else {
                         fail = true;
                         break;
                     };
-                    set_map_str(lp, p.as_ptr().cast_mut());
+                    set_map_str(&mut *lp, p.as_ptr().cast_mut());
                 }
                 SN_WORDS => {
-                    res = read_words_section(fd, lp, len);
+                    res = read_words_section(fd, &mut *lp, len);
                 }
                 SN_SUGFILE => {
                     (*lp).sl_sugtime = get8ctime(fd);
@@ -630,7 +630,7 @@ pub unsafe fn spell_load_file(
                     (*lp).sl_nocompoundsugs = true;
                 }
                 SN_COMPOUND => {
-                    res = read_compound(fd, lp, len);
+                    res = read_compound(fd, &mut *lp, len);
                 }
                 SN_NOBREAK => {
                     (*lp).sl_nobreak = true;
@@ -642,7 +642,7 @@ pub unsafe fn spell_load_file(
                         break;
                     };
                     (*lp).sl_syllable = Some(CStr::from_ptr(raw.as_ptr()).to_owned());
-                    if init_syl_tab(lp) != OK {
+                    if init_syl_tab(&mut *lp) != OK {
                         fail = true;
                         break;
                     }
@@ -785,7 +785,7 @@ pub unsafe fn suggest_load_files() {
         let mut lpi: usize = 0;
         while lpi < (*win_s(*curwin.as_ptr())).b_langp.len() {
             let lp = &(&(*win_s(*curwin.as_ptr())).b_langp)[lpi];
-            let slang = lp.lp_slang;
+            let slang = (*lp).lp_slang;
             if (*slang).sl_sugtime != 0 && !(*slang).sl_sugloaded {
                 (*slang).sl_sugloaded = true;
 
@@ -906,7 +906,7 @@ pub unsafe fn suggest_load_files() {
 
                         if someerror {
                             semsg!(gettext(e_error_while_reading_sug_file_str), sug_ptr);
-                            slang_clear_sug(slang);
+                            slang_clear_sug(&mut *slang);
                         } else {
                             tree_count_words(
                                 (*slang).sl_fbyts.as_mut_ptr(),
@@ -955,7 +955,7 @@ unsafe fn read_cnt_string(
     }
 }
 
-unsafe fn read_region_section(fd: *mut FILE, lp: *mut slang_T, len: c_int) -> c_int {
+unsafe fn read_region_section(fd: *mut FILE, lp: &mut slang_T, len: c_int) -> c_int {
     unsafe {
         if len > (MAXREGIONS * 2) as c_int {
             return SP_FORMERROR;
@@ -996,7 +996,7 @@ unsafe fn read_charflags_section(fd: *mut FILE) -> c_int {
     }
 }
 
-unsafe fn read_prefcond_section(fd: *mut FILE, lp: *mut slang_T) -> c_int {
+unsafe fn read_prefcond_section(fd: *mut FILE, lp: &mut slang_T) -> c_int {
     unsafe {
         let cnt = get2c(fd);
         if cnt <= 0 {
@@ -1072,19 +1072,19 @@ unsafe fn read_rep_section(fd: *mut FILE, gap: &mut Vec<fromto_T>, first: *mut i
     }
 }
 
-unsafe fn read_sal_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
+unsafe fn read_sal_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
     unsafe {
-        (*slang).sl_sofo = false;
+        slang.sl_sofo = false;
 
         let flags = fgetc(fd);
         if (flags & SAL_F0LLOWUP) != 0 {
-            (*slang).sl_followup = true;
+            slang.sl_followup = true;
         }
         if (flags & SAL_COLLAPSE) != 0 {
-            (*slang).sl_collapse = true;
+            slang.sl_collapse = true;
         }
         if (flags & SAL_REM_ACCENTS) != 0 {
-            (*slang).sl_rem_accents = true;
+            slang.sl_rem_accents = true;
         }
 
         let cnt = get2c(fd);
@@ -1092,7 +1092,7 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
             return SP_TRUNCERROR;
         }
 
-        let gap = &mut (*slang).sl_sal;
+        let gap = &mut slang.sl_sal;
         gap.clear();
         gap.reserve((cnt + 1) as usize);
 
@@ -1199,7 +1199,7 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
     }
 }
 
-unsafe fn read_words_section(fd: *mut FILE, lp: *mut slang_T, len: c_int) -> c_int {
+unsafe fn read_words_section(fd: *mut FILE, lp: &mut slang_T, len: c_int) -> c_int {
     unsafe {
         let mut done: c_int = 0;
         let mut word = [0u8; MAXWLEN];
@@ -1228,7 +1228,7 @@ unsafe fn read_words_section(fd: *mut FILE, lp: *mut slang_T, len: c_int) -> c_i
     }
 }
 
-unsafe fn read_sofo_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
+unsafe fn read_sofo_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
     unsafe {
         let mut cnt: c_int = 0;
         let from = read_cnt_string(fd, 2, &raw mut cnt);
@@ -1249,7 +1249,7 @@ unsafe fn read_sofo_section(fd: *mut FILE, slang: *mut slang_T) -> c_int {
     }
 }
 
-unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int {
+unsafe fn read_compound(fd: *mut FILE, slang: &mut slang_T, len: c_int) -> c_int {
     unsafe {
         let mut todo = len;
         let mut cnt: c_int = 0;
@@ -1262,21 +1262,21 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
         if c < 2 {
             c = MAXWLEN as c_int;
         }
-        (*slang).sl_compmax = c;
+        slang.sl_compmax = c;
 
         todo -= 1;
         c = fgetc(fd);
         if c < 1 {
             c = 0;
         }
-        (*slang).sl_compminlen = c;
+        slang.sl_compminlen = c;
 
         todo -= 1;
         c = fgetc(fd);
         if c < 1 {
             c = MAXWLEN as c_int;
         }
-        (*slang).sl_compsylmax = c;
+        slang.sl_compsylmax = c;
 
         c = fgetc(fd);
         if c != 0 {
@@ -1285,9 +1285,9 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
             todo -= 1;
             c = fgetc(fd);
             todo -= 1;
-            (*slang).sl_compoptions = c;
+            slang.sl_compoptions = c;
 
-            let gap = &mut (*slang).sl_comppat;
+            let gap = &mut slang.sl_comppat;
             c = get2c(fd);
             if c < 0 {
                 return SP_TRUNCERROR;
@@ -1389,14 +1389,14 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
         pp = pp.add(1);
         *pp = NUL;
 
-        (*slang).sl_compstartflags = Some(std::ffi::CString::new(cp_vec).unwrap_or_default());
-        (*slang).sl_compallflags = Some(std::ffi::CString::new(ap_vec).unwrap_or_default());
-        (*slang).sl_comprules = crp_vec.map(|v| std::ffi::CString::new(v).unwrap_or_default());
+        slang.sl_compstartflags = Some(std::ffi::CString::new(cp_vec).unwrap_or_default());
+        slang.sl_compallflags = Some(std::ffi::CString::new(ap_vec).unwrap_or_default());
+        slang.sl_comprules = crp_vec.map(|v| std::ffi::CString::new(v).unwrap_or_default());
 
-        (*slang).sl_compprog =
+        slang.sl_compprog =
             crate::regexp::vim_regcomp_box(pat, RE_MAGIC + RE_STRING + RE_STRICT);
         drop(pat_vec);
-        if (*slang).sl_compprog.is_none() {
+        if slang.sl_compprog.is_none() {
             return SP_FORMERROR;
         }
 
@@ -1404,7 +1404,7 @@ unsafe fn read_compound(fd: *mut FILE, slang: *mut slang_T, len: c_int) -> c_int
     }
 }
 
-unsafe fn set_sofo(lp: *mut slang_T, from: *const c_char, to: *const c_char) -> c_int {
+unsafe fn set_sofo(lp: &mut slang_T, from: *const c_char, to: *const c_char) -> c_int {
     unsafe {
         (*lp).sl_sal = Vec::new();
         (*lp).sl_sofo_sal = Vec::new();
@@ -1433,9 +1433,8 @@ unsafe fn set_sofo(lp: *mut slang_T, from: *const c_char, to: *const c_char) -> 
     }
 }
 
-unsafe fn set_sal_first(lp: *mut slang_T) {
-    unsafe {
-        let gap = &mut (*lp).sl_sal;
+unsafe fn set_sal_first(lp: &mut slang_T) {
+    let gap = &mut (*lp).sl_sal;
         (*lp).sl_sal_first.fill(-1);
         let len = gap.len() as c_int;
         let mut i: c_int = 0;
@@ -1460,7 +1459,6 @@ unsafe fn set_sal_first(lp: *mut slang_T) {
             }
             i += 1;
         }
-    }
 }
 
 unsafe fn mb_str2wide(s: *const c_char) -> Vec<c_int> {
@@ -1663,9 +1661,9 @@ unsafe fn spell_reload_one(fname: *mut c_char, added_word: bool) {
                 .as_ref()
                 .is_some_and(|f| path_equal(fname, f.as_ptr(), kPathCmpExpand))
             {
-                slang_clear(slang);
+                slang_clear(&mut *slang);
                 if spell_load_file(fname, ptr::null_mut(), slang, false).is_null() {
-                    slang_clear(slang);
+                    slang_clear(&mut *slang);
                 }
                 redraw_all_later(UPD_SOME_VALID);
                 didit = true;
@@ -4694,7 +4692,7 @@ unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
         (*spin).si_foldwcount = 0;
 
         spell_message(spin, gettext(c"Performing soundfolding...".as_ptr()));
-        if sug_filltree(spin, slang) != FAIL && sug_maketable(spin) != FAIL {
+        if sug_filltree(spin, &mut *slang) != FAIL && sug_maketable(spin) != FAIL {
             smsg!(
                 0,
                 gettext(c"Number of words after soundfolding: %lld".as_ptr()),
@@ -4719,7 +4717,7 @@ unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
     }
 }
 
-unsafe fn sug_filltree(spin: *mut spellinfo_T, slang: *mut slang_T) -> c_int {
+unsafe fn sug_filltree(spin: *mut spellinfo_T, slang: &mut slang_T) -> c_int {
     unsafe {
         let mut arridx = [0 as idx_T; MAXWLEN];
         let mut curi = [0 as c_int; MAXWLEN];
@@ -4731,12 +4729,12 @@ unsafe fn sug_filltree(spin: *mut spellinfo_T, slang: *mut slang_T) -> c_int {
         (*spin).si_foldroot = wordtree_alloc(&mut *spin);
         (*spin).si_sugtree = 1;
 
-        if (*slang).sl_fbyts.is_empty() || (*slang).sl_fidxs.is_empty() {
+        if slang.sl_fbyts.is_empty() || slang.sl_fidxs.is_empty() {
             return FAIL;
         }
-        let fbyts_len = (*slang).sl_fbyts.len() as c_int;
-        let byts = (*slang).sl_fbyts.as_mut_ptr();
-        let idxs = (*slang).sl_fidxs.as_mut_ptr();
+        let fbyts_len = slang.sl_fbyts.len() as c_int;
+        let byts = slang.sl_fbyts.as_mut_ptr();
+        let idxs = slang.sl_fidxs.as_mut_ptr();
 
         arridx[0] = 0;
         curi[0] = 1;
@@ -5578,20 +5576,20 @@ unsafe fn write_spell_prefcond(
     }
 }
 
-unsafe fn set_map_str(lp: *mut slang_T, map: *const c_char) {
+unsafe fn set_map_str(lp: &mut slang_T, map: *const c_char) {
     unsafe {
         let mut headc: c_int = 0;
 
         if *map == NUL {
-            (*lp).sl_has_map = false;
+            lp.sl_has_map = false;
             return;
         }
-        (*lp).sl_has_map = true;
+        lp.sl_has_map = true;
 
         for i in 0..256 {
-            (*lp).sl_map_array[i] = 0;
+            lp.sl_map_array[i] = 0;
         }
-        (*lp).sl_map_hash.clear();
+        lp.sl_map_hash.clear();
 
         let mut p = map;
         while *p != NUL {
@@ -5604,11 +5602,11 @@ unsafe fn set_map_str(lp: *mut slang_T, map: *const c_char) {
                 }
 
                 if c >= 256 {
-                    if (*lp).sl_map_hash.insert(c, headc).is_some() {
+                    if lp.sl_map_hash.insert(c, headc).is_some() {
                         emsg(gettext(e_duplicate_char_in_map_entry));
                     }
                 } else {
-                    (*lp).sl_map_array[c as usize] = headc;
+                    lp.sl_map_array[c as usize] = headc;
                 }
             }
         }

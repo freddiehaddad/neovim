@@ -2205,7 +2205,7 @@ unsafe fn ins_compl_dictionaries(
                         &[CStr::from_ptr(dict).to_owned()],
                         thesaurus,
                         flags,
-                        &raw mut regmatch,
+                        &mut regmatch,
                         buf,
                         &raw mut dir,
                     );
@@ -2214,7 +2214,7 @@ unsafe fn ins_compl_dictionaries(
                         &files,
                         thesaurus,
                         flags,
-                        &raw mut regmatch,
+                        &mut regmatch,
                         buf,
                         &raw mut dir,
                     );
@@ -2369,7 +2369,7 @@ unsafe fn ins_compl_files(
                         }
                     }
                 } else if !regmatch.is_null() {
-                    while vim_regexec(regmatch, buf, ptr.offset_from(buf) as colnr_T) {
+                    while vim_regexec(&mut *regmatch, buf, ptr.offset_from(buf) as colnr_T) {
                         ptr = (*regmatch).startp[0];
                         ptr = if ctrl_x_mode_line_or_eval() {
                             find_line_end(ptr)

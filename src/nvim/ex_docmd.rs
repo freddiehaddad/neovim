@@ -8655,7 +8655,7 @@ unsafe fn get_argopt_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 pub unsafe fn expand_argopt(
     pat: *mut c_char,
     xp: &mut expand_T,
-    rmp: *mut regmatch_T,
+    rmp: &mut regmatch_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
     unsafe {
