@@ -175,8 +175,7 @@ pub unsafe fn array_add(a: &mut Array, item: Object) {
 #[repr(C)]
 pub struct TryState {
     pub current_exception: *mut except_T,
-    pub private_msg_list: Vec<msglist_T>,
-    pub msg_list: *mut Vec<msglist_T>,
+    pub msg_list: Option<Vec<msglist_T>>,
     pub got_int: c_int,
     pub did_throw: bool,
     pub need_rethrow: c_int,
@@ -187,8 +186,7 @@ impl TryState {
     pub const fn new() -> Self {
         Self {
             current_exception: ptr::null_mut(),
-            private_msg_list: Vec::new(),
-            msg_list: ptr::null_mut(),
+            msg_list: None,
             got_int: 0,
             did_throw: false,
             need_rethrow: 0,
@@ -358,19 +356,18 @@ pub unsafe fn error_set(e: *const Error) -> bool {
 /// Start block that may cause Vimscript exceptions while evaluating another code (`try_enter`).
 pub unsafe fn try_enter(tstate: *mut TryState) {
     unsafe {
+        let saved_msg_list = std::mem::replace(&mut *(&raw mut msg_list), Some(Vec::new()));
         ptr::write(
             tstate,
             TryState {
                 current_exception,
-                private_msg_list: Vec::new(),
-                msg_list,
+                msg_list: saved_msg_list,
                 got_int: c_int::from(got_int),
                 did_throw,
                 need_rethrow: c_int::from(need_rethrow),
                 did_emsg,
             },
         );
-        msg_list = &raw mut (*tstate).private_msg_list;
         current_exception = ptr::null_mut();
         got_int = false;
         did_throw = false;
@@ -399,8 +396,9 @@ pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
                 c"Keyboard interrupt".as_ptr(),
             );
             got_int = false;
-        } else if !msg_list.is_null() && !(*msg_list).is_empty() {
-            let msgs = (*msg_list).as_slice();
+        } else if let Some(ref msgs) = *(&raw const msg_list)
+            && !msgs.is_empty()
+        {
             let throw_ptr = msgs[msgs[0].throw_idx].msg.as_ptr().add(msgs[0].throw_off);
             let msg = get_error_exception_string(throw_ptr, ptr::null_mut());
             api_set_error!(
@@ -441,7 +439,7 @@ pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
             discard_current_exception();
         }
 
-        msg_list = (*tstate).msg_list;
+        msg_list = (*tstate).msg_list.clone();
         current_exception = (*tstate).current_exception;
         got_int = (*tstate).got_int != 0;
         did_throw = (*tstate).did_throw;

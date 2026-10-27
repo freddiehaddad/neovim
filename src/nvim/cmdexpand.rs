@@ -1414,19 +1414,19 @@ pub struct CmdlineInfo {
     pub cmdspos: c_int,
     pub cmdfirstc: c_int,
     pub cmdindent: c_int,
-    pub cmdprompt: *mut c_char,
+    pub cmdprompt: Option<CString>,
     pub hl_id: c_int,
     pub overstrike: c_int,
     pub xpc: *mut expand_T,
     pub xp_context: c_int,
-    pub xp_arg: *mut c_char,
+    pub xp_arg: Option<CString>,
     pub input_fn: c_int,
     pub cmdbuff_replaced: bool,
     pub prompt_id: c_uint,
     pub highlight_callback: Callback,
     pub last_colors: ColoredCmdline,
     pub level: c_int,
-    pub prev_ccline: *mut CmdlineInfo,
+    pub prev_ccline: Option<Box<CmdlineInfo>>,
     pub special_char: c_char,
     pub special_shift: bool,
     pub redraw_state: c_int,
@@ -1445,19 +1445,19 @@ impl CmdlineInfo {
             cmdspos: 0,
             cmdfirstc: 0,
             cmdindent: 0,
-            cmdprompt: ptr::null_mut(),
+            cmdprompt: None,
             hl_id: 0,
             overstrike: 0,
             xpc: ptr::null_mut(),
             xp_context: 0,
-            xp_arg: ptr::null_mut(),
+            xp_arg: None,
             input_fn: 0,
             cmdbuff_replaced: false,
             prompt_id: 0,
             highlight_callback: Callback::NONE,
             last_colors: ColoredCmdline::new(),
             level: 0,
-            prev_ccline: ptr::null_mut(),
+            prev_ccline: None,
             special_char: 0,
             special_shift: false,
             redraw_state: 0,
@@ -4232,7 +4232,10 @@ pub unsafe fn set_cmd_context(
         } else if use_ccline != 0 && (*ccline).input_fn != 0 {
             (*xp).xp_context = (*ccline).xp_context;
             (*xp).xp_pattern = (*ccline).cmdbuff;
-            (*xp).xp_arg = (*ccline).xp_arg;
+            (*xp).xp_arg = (*ccline)
+                .xp_arg
+                .as_ref()
+                .map_or(ptr::null_mut(), |a| a.as_ptr().cast_mut());
             if (*xp).xp_context == EXPAND_SHELLCMDLINE {
                 let mut context = (*xp).xp_context;
                 set_context_for_wildcard_arg(

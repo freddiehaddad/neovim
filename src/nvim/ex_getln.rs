@@ -1031,13 +1031,12 @@ unsafe fn command_line_enter(
         let s = &raw mut state;
         (*s).save_p_icm = Some(CStr::from_ptr(p_icm).to_owned());
         init_incsearch_state(&raw mut (*s).is_state);
-        let mut save_ccline = CmdlineInfo::new();
         let mut did_save_ccline = false;
 
         let cc = &raw mut ccline;
         if !(*cc).cmdbuff.is_null() {
             debug_assert!(clear_ccline);
-            save_cmdline(&raw mut save_ccline);
+            save_cmdline();
             did_save_ccline = true;
         } else if clear_ccline {
             *cc = CmdlineInfo::new();
@@ -1081,7 +1080,11 @@ unsafe fn command_line_enter(
             if ccline.input_fn != 0 {
                 (*s).xpc.xp_context = ccline.xp_context;
                 (*s).xpc.xp_pattern = ccline.cmdbuff;
-                (*s).xpc.xp_arg = ccline.xp_arg;
+                (*s).xpc.xp_arg = (&raw const ccline.xp_arg)
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .map_or(ptr::null_mut(), |a| a.as_ptr().cast_mut());
             }
 
             msg_scroll = 0;
@@ -1344,7 +1347,7 @@ unsafe fn command_line_enter(
         cmdline_level -= 1;
 
         if did_save_ccline {
-            restore_cmdline(&raw mut save_ccline);
+            restore_cmdline();
         } else {
             dealloc_cmdbuff();
         }
@@ -2145,7 +2148,7 @@ unsafe fn command_line_erase_chars(s: *mut CommandLineState) -> c_int {
             redrawcmd();
         } else if ccline.cmdlen == 0
             && (*s).c != Ctrl_W
-            && ccline.cmdprompt.is_null()
+            && (&raw const ccline.cmdprompt).as_ref().unwrap().is_none()
             && (*s).indent == 0
         {
             if ccline.cmdfirstc == b'>' as c_int {
@@ -3357,21 +3360,28 @@ pub unsafe fn getcmdline_prompt(
     unsafe {
         let msg_col_save = msg_col;
 
-        let mut save_ccline = CmdlineInfo::new();
         let mut did_save_ccline = false;
         let cc = &raw mut ccline;
         if !(*cc).cmdbuff.is_null() {
-            save_cmdline(&raw mut save_ccline);
+            save_cmdline();
             did_save_ccline = true;
         } else {
             *cc = CmdlineInfo::new();
         }
         ccline.prompt_id = last_prompt_id;
         last_prompt_id = last_prompt_id.wrapping_add(1);
-        ccline.cmdprompt = prompt.cast_mut();
+        ccline.cmdprompt = if prompt.is_null() {
+            None
+        } else {
+            Some(CStr::from_ptr(prompt).to_owned())
+        };
         ccline.hl_id = hl_id;
         ccline.xp_context = xp_context;
-        ccline.xp_arg = xp_arg.cast_mut();
+        ccline.xp_arg = if xp_arg.is_null() {
+            None
+        } else {
+            Some(CStr::from_ptr(xp_arg).to_owned())
+        };
         ccline.input_fn = c_int::from(firstc == b'@' as c_int);
         ccline.highlight_callback = highlight_callback;
         ccline.one_key = one_key;
@@ -3387,7 +3397,7 @@ pub unsafe fn getcmdline_prompt(
         ccline.highlight_callback = Callback::NONE;
 
         if did_save_ccline {
-            restore_cmdline(&raw mut save_ccline);
+            restore_cmdline();
         }
         msg_silent = msg_silent_saved;
         cmd_silent = cmd_silent_saved;
@@ -4104,10 +4114,15 @@ unsafe fn ui_ext_cmdline_show(line: *mut CmdlineInfo) {
             content,
             (*line).cmdpos as Integer,
             cstr_as_string(charbuf.as_ptr()),
-            cstr_as_string((*line).cmdprompt),
+            cstr_as_string(
+                (*line)
+                    .cmdprompt
+                    .as_ref()
+                    .map_or(ptr::null(), |p| p.as_ptr()),
+            ),
             (*line).cmdindent as Integer,
             (*line).level as Integer,
-            if !(*line).cmdprompt.is_null() {
+            if (*line).cmdprompt.is_some() {
                 (*line).hl_id as Integer
             } else {
                 -1
@@ -4186,13 +4201,20 @@ pub unsafe fn cmdline_screen_cleared() {
         }
 
         let mut prev_level = ccline.level - 1;
-        let mut line = ccline.prev_ccline;
+        let mut line = (&raw mut ccline.prev_ccline)
+            .as_mut()
+            .unwrap()
+            .as_deref_mut()
+            .map_or(ptr::null_mut(), ptr::from_mut);
         while prev_level > 0 && !line.is_null() {
             if (*line).level == prev_level {
                 (*line).redraw_state = kCmdRedrawAll;
                 prev_level -= 1;
             }
-            line = (*line).prev_ccline;
+            line = (*line)
+                .prev_ccline
+                .as_deref_mut()
+                .map_or(ptr::null_mut(), ptr::from_mut);
         }
         redrawcmd();
     }
@@ -4218,7 +4240,10 @@ pub unsafe fn cmdline_ui_flush() {
                 }
                 level -= 1;
             }
-            line = (*line).prev_ccline;
+            line = (*line)
+                .prev_ccline
+                .as_deref_mut()
+                .map_or(ptr::null_mut(), ptr::from_mut);
         }
     }
 }
@@ -4369,19 +4394,20 @@ pub unsafe fn put_on_cmdline(str: *const c_char, mut len: c_int, redraw: bool) {
 }
 
 /// Save `ccline`.
-unsafe fn save_cmdline(ccp: *mut CmdlineInfo) {
+unsafe fn save_cmdline() {
     unsafe {
         let cc = &raw mut ccline;
-        *ccp = std::mem::replace(&mut *cc, CmdlineInfo::new());
-        (*cc).prev_ccline = ccp;
+        let prev = std::mem::replace(&mut *cc, CmdlineInfo::new());
+        (*cc).prev_ccline = Some(Box::new(prev));
     }
 }
 
 /// Restore `ccline` after it has been saved with `save_cmdline()`.
-unsafe fn restore_cmdline(ccp: *mut CmdlineInfo) {
+unsafe fn restore_cmdline() {
     unsafe {
         let cc = &raw mut ccline;
-        *cc = std::mem::replace(&mut *ccp, CmdlineInfo::new());
+        let prev = (*cc).prev_ccline.take();
+        *cc = prev.map_or_else(CmdlineInfo::new, |b| *b);
     }
 }
 
@@ -4497,8 +4523,8 @@ unsafe fn redrawcmdprompt() {
         if ccline.cmdfirstc != NUL as c_int {
             msg_putchar(ccline.cmdfirstc);
         }
-        if !ccline.cmdprompt.is_null() {
-            msg_puts_hl(ccline.cmdprompt, ccline.hl_id, false);
+        if let Some(ref prompt) = *(&raw const ccline.cmdprompt) {
+            msg_puts_hl(prompt.as_ptr(), ccline.hl_id, false);
             ccline.cmdindent = msg_col + (msg_row - cmdline_row) * Columns;
             if ccline.cmdfirstc != NUL as c_int {
                 ccline.cmdindent -= 1;
@@ -4716,8 +4742,10 @@ unsafe fn get_ccline_ptr() -> *mut CmdlineInfo {
             ptr::null_mut()
         } else if !ccline.cmdbuff.is_null() {
             &raw mut ccline
-        } else if !ccline.prev_ccline.is_null() && !(*ccline.prev_ccline).cmdbuff.is_null() {
-            ccline.prev_ccline
+        } else if let Some(ref mut prev) = *(&raw mut ccline.prev_ccline)
+            && !prev.cmdbuff.is_null()
+        {
+            &raw mut **prev
         } else {
             ptr::null_mut()
         }
@@ -4875,8 +4903,10 @@ pub unsafe fn f_getcmdprompt(_argvars: *mut typval_T, rettv: *mut typval_T, _fpt
         let p = get_ccline_ptr();
         crate::eval::typval::tv_set_string(
             rettv,
-            if !p.is_null() && !(*p).cmdprompt.is_null() {
+            if !p.is_null() {
                 (*p).cmdprompt
+                    .as_ref()
+                    .map_or(ptr::null(), |s| s.as_ptr())
             } else {
                 ptr::null()
             },

@@ -112,6 +112,7 @@ impl Default for cstack_T {
 }
 
 #[repr(C)]
+#[derive(Clone)]
 pub struct msglist_T {
     pub msg: CString,
     pub throw_idx: usize,
@@ -277,8 +278,7 @@ pub unsafe fn cause_errthrow(
             discard_current_exception();
         }
 
-        if !msg_list.is_null() {
-            let list = &mut *msg_list;
+        if let Some(ref mut list) = *(&raw mut msg_list) {
             if concat && let Some(last) = list.last_mut() {
                 let mut bytes = last.msg.as_bytes().to_vec();
                 bytes.extend_from_slice(CStr::from_ptr(mesg).to_bytes());
@@ -317,7 +317,9 @@ pub unsafe fn cause_errthrow(
 
 pub unsafe fn free_global_msglist() {
     unsafe {
-        (*msg_list).clear();
+        if let Some(ref mut list) = *(&raw mut msg_list) {
+            list.clear();
+        }
     }
 }
 
@@ -328,11 +330,14 @@ pub unsafe fn do_errthrow(cstack: *mut cstack_T, cmdname: *mut c_char) {
             force_abort = true;
         }
 
-        if msg_list.is_null() || (*msg_list).is_empty() {
+        let Some(ref mut list) = *(&raw mut msg_list) else {
+            return;
+        };
+        if list.is_empty() {
             return;
         }
 
-        let messages = std::mem::take(&mut *msg_list);
+        let messages = std::mem::take(list);
         if throw_exception(ExceptionValue::Error(messages), cmdname) != FAIL {
             if !cstack.is_null() {
                 do_throw(cstack);
@@ -1522,7 +1527,7 @@ pub unsafe fn leave_cleanup(csp: *mut cleanup_T) {
                 report_discard_pending(pending, PendingVal::None);
             }
 
-            if !msg_list.is_null() {
+            if (&raw const msg_list).as_ref().unwrap().is_some() {
                 free_global_msglist();
             }
         } else {

@@ -4978,13 +4978,11 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
         let mut breakpoint: *mut linenr_T = ptr::null_mut();
         let mut dbg_tick: *mut c_int = ptr::null_mut();
         let mut debug_saved = dbg_stuff::new();
-        let mut private_msg_list: Vec<msglist_T> = Vec::new();
 
         let mut cmd_getline: LineGetter;
         let mut cmd_loop_cookie = loop_cookie::new();
 
-        let saved_msg_list = msg_list;
-        msg_list = &raw mut private_msg_list;
+        let saved_msg_list = std::mem::replace(&mut *(&raw mut msg_list), Some(Vec::new()));
 
         if do_cmdline_start() == FAIL {
             let _ = emsg(gettext(e_command_too_recursive.as_ptr()));
