@@ -65,7 +65,7 @@ pub struct KeyDict_option {
 }
 
 fn validate_option_value_args(
-    opts: *mut KeyDict_option,
+    opts: &mut KeyDict_option,
     name: *mut c_char,
     allow_tab: bool,
     opt_idxp: *mut OptIndex,
@@ -78,7 +78,7 @@ fn validate_option_value_args(
     err: &mut Error,
 ) -> c_int {
     unsafe {
-        let mask = (*opts).is_set__option_;
+        let mask = opts.is_set__option_;
         if has_key(mask, KEYSET_OPTIDX_option__filetype)
             && (has_key(mask, KEYSET_OPTIDX_option__scope)
                 || has_key(mask, KEYSET_OPTIDX_option__buf)
@@ -118,9 +118,9 @@ fn validate_option_value_args(
         }
 
         if has_key(mask, KEYSET_OPTIDX_option__scope) {
-            if crate::memory::cstr_as_opt_bytes((*opts).scope.data) == Some(b"local") {
+            if crate::memory::cstr_as_opt_bytes(opts.scope.data) == Some(b"local") {
                 *opt_flags = OPT_LOCAL;
-            } else if crate::memory::cstr_as_opt_bytes((*opts).scope.data) == Some(b"global") {
+            } else if crate::memory::cstr_as_opt_bytes(opts.scope.data) == Some(b"global") {
                 *opt_flags = OPT_GLOBAL;
             } else {
                 api_err_exp(
@@ -136,12 +136,12 @@ fn validate_option_value_args(
         *scope = kOptScopeGlobal;
 
         if !filetype.is_null() && has_key(mask, KEYSET_OPTIDX_option__filetype) {
-            *filetype = (*opts).filetype.data;
+            *filetype = opts.filetype.data;
         }
 
         if has_key(mask, KEYSET_OPTIDX_option__win) {
             *scope = kOptScopeWin;
-            *from = OptTarget::Win(find_window_by_handle((*opts).win, err));
+            *from = OptTarget::Win(find_window_by_handle(opts.win, err));
             if error_set(err) {
                 return FAIL;
             }
@@ -154,7 +154,7 @@ fn validate_option_value_args(
             }
             *opt_flags = OPT_LOCAL;
             *scope = kOptScopeBuf;
-            *from = OptTarget::Buf(find_buffer_by_handle((*opts).buf, err));
+            *from = OptTarget::Buf(find_buffer_by_handle(opts.buf, err));
             if error_set(err) {
                 return FAIL;
             }
@@ -162,7 +162,7 @@ fn validate_option_value_args(
 
         if has_key(mask, KEYSET_OPTIDX_option__tab) {
             *scope = kOptScopeTab;
-            *from = OptTarget::Tab(find_tab_by_handle((*opts).tab, err));
+            *from = OptTarget::Tab(find_tab_by_handle(opts.tab, err));
             if error_set(err) {
                 return FAIL;
             }
@@ -180,13 +180,13 @@ fn validate_option_value_args(
         }
 
         if !operation.is_null() && has_key(mask, KEYSET_OPTIDX_option__operation) {
-            if crate::memory::cstr_as_opt_bytes((*opts).operation.data) == Some(b"set") {
+            if crate::memory::cstr_as_opt_bytes(opts.operation.data) == Some(b"set") {
                 *operation = OP_NONE;
-            } else if crate::memory::cstr_as_opt_bytes((*opts).operation.data) == Some(b"append") {
+            } else if crate::memory::cstr_as_opt_bytes(opts.operation.data) == Some(b"append") {
                 *operation = OP_ADDING;
-            } else if crate::memory::cstr_as_opt_bytes((*opts).operation.data) == Some(b"prepend") {
+            } else if crate::memory::cstr_as_opt_bytes(opts.operation.data) == Some(b"prepend") {
                 *operation = OP_PREPENDING;
-            } else if crate::memory::cstr_as_opt_bytes((*opts).operation.data) == Some(b"remove") {
+            } else if crate::memory::cstr_as_opt_bytes(opts.operation.data) == Some(b"remove") {
                 *operation = OP_REMOVING;
             } else {
                 api_err_exp(
@@ -202,13 +202,13 @@ fn validate_option_value_args(
                 || option_has_type(*opt_idxp, ObjectType::kObjectTypeString)
                 || option_has_type(*opt_idxp, ObjectType::kObjectTypeInteger))
             {
-                api_err_conflict(err, (*opts).operation.data, c"boolean options".as_ptr());
+                api_err_conflict(err, opts.operation.data, c"boolean options".as_ptr());
                 return FAIL;
             }
         }
 
         if !dry_run.is_null() && has_key(mask, KEYSET_OPTIDX_option__dry_run) {
-            *dry_run = (*opts).dry_run;
+            *dry_run = opts.dry_run;
         }
 
         if has_key(mask, KEYSET_OPTIDX_option__tab) && !option_has_scope(*opt_idxp, kOptScopeTab) {
@@ -385,7 +385,7 @@ fn wipe_ft_buf(buf: &mut buf_T) {
 //   FUNC_API_SINCE(9) FUNC_API_RET_ALLOC;
 pub fn nvim_get_option_value(
     name: NvimString,
-    opts: *mut KeyDict_option,
+    opts: &mut KeyDict_option,
     err: &mut Error,
 ) -> Object {
     unsafe {
@@ -581,7 +581,7 @@ pub fn nvim_set_option_value(
     channel_id: u64,
     name: NvimString,
     value: Object,
-    opts: *mut KeyDict_option,
+    opts: &mut KeyDict_option,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
@@ -834,7 +834,7 @@ pub fn nvim_get_all_options_info(arena: &mut Arena, _err: &mut Error) -> Dict {
 //   FUNC_API_SINCE(11);
 pub fn nvim_get_option_info2(
     name: NvimString,
-    opts: *mut KeyDict_option,
+    opts: &mut KeyDict_option,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {

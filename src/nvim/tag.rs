@@ -995,7 +995,7 @@ fn select_tag_match(
         nlua_call_excmd(
             c"vim._core.tag".as_ptr(),
             c"select_tag".as_ptr(),
-            eap,
+            &mut *eap,
             &g_st().cmdmod,
             &raw mut extra_tv,
         );

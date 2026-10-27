@@ -380,11 +380,11 @@ pub fn nvim_get_hl_id_by_name(name: NvimString, err: &mut Error) -> Integer {
 //                                           Error *err) FUNC_API_SINCE(11);
 pub fn nvim_get_hl(
     ns_id: Integer,
-    opts: *mut KeyDict_get_highlight,
+    opts: &mut KeyDict_get_highlight,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    unsafe { ns_get_hl_defs(ns_id as NS, &mut *opts, arena, err) }
+    ns_get_hl_defs(ns_id as NS, &mut *opts, arena, err)
 }
 
 /// Sets a highlight group. By default, replaces the entire definition (e.g. `nvim_set_hl(0, 'Visual', {})`
@@ -444,10 +444,10 @@ pub fn nvim_set_hl(
     channel_id: u64,
     ns_id: Integer,
     name: NvimString,
-    val: *mut KeyDict_highlight,
+    val: &mut KeyDict_highlight,
     err: &mut Error,
 ) {
-    unsafe {
+    {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
         let hl_id = syn_check_group(name.data, name.size);
@@ -457,7 +457,7 @@ pub fn nvim_set_hl(
         }
         let mut link_id: c_int = -1;
 
-        if ((*val).is_set__highlight_ & (1u64 << KEYSET_OPTIDX_highlight__url)) != 0 {
+        if (val.is_set__highlight_ & (1u64 << KEYSET_OPTIDX_highlight__url)) != 0 {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
@@ -466,8 +466,8 @@ pub fn nvim_set_hl(
             return;
         }
 
-        let update = ((*val).is_set__highlight_ & (1u64 << KEYSET_OPTIDX_highlight__update)) != 0
-            && (*val).update;
+        let update = (val.is_set__highlight_ & (1u64 << KEYSET_OPTIDX_highlight__update)) != 0
+            && val.update;
         let mut base: *mut HlAttrs = ptr::null_mut();
         let mut base_attrs = HlAttrs::default();
         if update && hl_ns_get_attrs(ns_id as c_int, hl_id, ptr::null_mut(), &mut base_attrs) {
@@ -477,7 +477,7 @@ pub fn nvim_set_hl(
         let attrs = dict2hlattrs(val, true, &mut link_id, base, err);
         if !error_set(err) {
             let save_current_sctx = api_set_sctx(channel_id);
-            ns_hl_def(ns_id as NS, hl_id, attrs, link_id, val);
+            ns_hl_def(ns_id as NS, hl_id, attrs, link_id, Some(val));
             g_st().current_sctx = save_current_sctx;
         }
     }
@@ -493,10 +493,10 @@ pub fn nvim_set_hl(
 /// @param[out] err Error details, if any
 /// @return Namespace id, or -1
 // DLLEXPORT Integer nvim_get_hl_ns(Dict(get_ns) *opts, Error *err) FUNC_API_SINCE(12);
-pub fn nvim_get_hl_ns(opts: *mut KeyDict_get_ns, err: &mut Error) -> Integer {
+pub fn nvim_get_hl_ns(opts: &mut KeyDict_get_ns, err: &mut Error) -> Integer {
     unsafe {
-        if ((*opts).is_set__get_ns_ & (1u64 << KEYSET_OPTIDX_get_ns__winid)) != 0 {
-            let win = find_window_by_handle((*opts).winid, err);
+        if (opts.is_set__get_ns_ & (1u64 << KEYSET_OPTIDX_get_ns__winid)) != 0 {
+            let win = find_window_by_handle(opts.winid, err);
             if win.is_null() {
                 return 0;
             }
@@ -989,12 +989,12 @@ pub fn nvim__get_lib_dir() -> NvimString {
 pub fn nvim__get_runtime(
     pat: Array,
     all: Boolean,
-    opts: *mut KeyDict_runtime,
+    opts: &mut KeyDict_runtime,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
     unsafe {
-        if (*opts).do_source && !nlua_is_deferred_safe() {
+        if opts.do_source && !nlua_is_deferred_safe() {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
@@ -1006,8 +1006,8 @@ pub fn nvim__get_runtime(
             return Array::new();
         }
 
-        let res = runtime_get_named((*opts).is_lua, pat, all, arena);
-        if (*opts).do_source {
+        let res = runtime_get_named(opts.is_lua, pat, all, arena);
+        if opts.do_source {
             for i in 0..res.size {
                 let name = res[i].data.string();
                 do_source(name.data, false, DOSO_NONE, ptr::null_mut());
@@ -1244,21 +1244,21 @@ pub fn nvim_set_vvar(name: NvimString, value: Object, err: &mut Error) {
 pub fn nvim_echo(
     chunks: Array,
     history: Boolean,
-    opts: *mut KeyDict_echo_opts,
+    opts: &mut KeyDict_echo_opts,
     err: &mut Error,
 ) -> Object {
     unsafe {
         let mut id = integer_obj(-1);
-        let mut hl_msg = parse_hl_msg(chunks, (*opts).err, err);
+        let mut hl_msg = parse_hl_msg(chunks, opts.err, err);
         if error_set(err) {
             return id;
         }
 
-        let mut kind = (*opts).kind.data.cast_const();
-        if (*opts).verbose {
+        let mut kind = opts.kind.data.cast_const();
+        if opts.verbose {
             verbose_enter();
         } else if kind.is_null() {
-            kind = if (*opts).err {
+            kind = if opts.err {
                 c"echoerr".as_ptr()
             } else if history {
                 c"echomsg".as_ptr()
@@ -1270,15 +1270,15 @@ pub fn nvim_echo(
         let is_progress = crate::memory::cstr_as_opt_bytes(kind) == Some(b"progress");
         let mut needs_clear = !history;
         let has_percent =
-            ((*opts).is_set__echo_opts_ & (1u64 << KEYSET_OPTIDX_echo_opts__percent)) != 0;
+            (opts.is_set__echo_opts_ & (1u64 << KEYSET_OPTIDX_echo_opts__percent)) != 0;
 
         let valid = 'validate: {
             if !is_progress
-                && ((*opts).status.size != 0
-                    || (*opts).title.size != 0
+                && (opts.status.size != 0
+                    || opts.title.size != 0
                     || has_percent
-                    || (*opts).data.size != 0
-                    || (*opts).source.size != 0)
+                    || opts.data.size != 0
+                    || opts.source.size != 0)
             {
                 api_set_error!(
                     err,
@@ -1291,22 +1291,22 @@ pub fn nvim_echo(
             }
 
             if is_progress
-                && !((crate::memory::cstr_as_opt_bytes((*opts).status.data) == Some(b"success"))
-                    || (crate::memory::cstr_as_opt_bytes((*opts).status.data) == Some(b"failed"))
-                    || (crate::memory::cstr_as_opt_bytes((*opts).status.data) == Some(b"running"))
-                    || (crate::memory::cstr_as_opt_bytes((*opts).status.data) == Some(b"cancel")))
+                && !((crate::memory::cstr_as_opt_bytes(opts.status.data) == Some(b"success"))
+                    || (crate::memory::cstr_as_opt_bytes(opts.status.data) == Some(b"failed"))
+                    || (crate::memory::cstr_as_opt_bytes(opts.status.data) == Some(b"running"))
+                    || (crate::memory::cstr_as_opt_bytes(opts.status.data) == Some(b"cancel")))
             {
                 api_err_exp(
                     err,
                     c"status".as_ptr(),
                     c"success|failed|running|cancel".as_ptr(),
-                    (*opts).status.data,
+                    opts.status.data,
                 );
                 break 'validate false;
             }
 
             if !validate_range(
-                !is_progress || !has_percent || ((*opts).percent >= 0 && (*opts).percent <= 100),
+                !is_progress || !has_percent || (opts.percent >= 0 && opts.percent <= 100),
                 c"percent".as_ptr(),
                 err,
             ) {
@@ -1314,7 +1314,7 @@ pub fn nvim_echo(
             }
 
             if !validate_r(
-                !is_progress || (*opts).source.size != 0,
+                !is_progress || opts.source.size != 0,
                 c"opts.source".as_ptr(),
                 err,
             ) {
@@ -1322,19 +1322,19 @@ pub fn nvim_echo(
             }
 
             if !validate_s(
-                !is_progress || !(crate::memory::cstr_as_opt_bytes((*opts).source.data) == Some(b"nvim")),
+                !is_progress || !(crate::memory::cstr_as_opt_bytes(opts.source.data) == Some(b"nvim")),
                 c"source".as_ptr(),
-                (*opts).source.data,
+                opts.source.data,
                 err,
             ) {
                 break 'validate false;
             }
 
             if !validate_int(
-                (*opts).id.obj_type != ObjectType::kObjectTypeInteger
-                    || msg_id_exists((*opts).id.data.integer()),
+                opts.id.obj_type != ObjectType::kObjectTypeInteger
+                    || msg_id_exists(opts.id.data.integer()),
                 c"id".as_ptr(),
-                (*opts).id.data.integer(),
+                opts.id.data.integer(),
                 err,
             ) {
                 break 'validate false;
@@ -1348,17 +1348,17 @@ pub fn nvim_echo(
         }
 
         let mut msg_data = MessageData {
-            source: (*opts).source,
-            percent: if has_percent { (*opts).percent } else { -1 },
-            title: (*opts).title,
-            status: (*opts).status,
-            data: (*opts).data,
+            source: opts.source,
+            percent: if has_percent { opts.percent } else { -1 },
+            title: opts.title,
+            status: opts.status,
+            data: opts.data,
         };
 
         let save_nwr = g_st().need_wait_return;
         let save_lines_left = g_st().lines_left;
         let save_msg_didany = g_st().msg_didany;
-        if (*opts)._truncate {
+        if opts._truncate {
             g_st().no_wait_return += 1;
             g_st().lines_left = 0;
             g_st().msg_didany = true;
@@ -1366,16 +1366,16 @@ pub fn nvim_echo(
         }
         msg_ext_no_fast();
         id = msg_multihl(
-            (*opts).id,
+            opts.id,
             &mut hl_msg,
             kind,
             history,
-            (*opts).err,
+            opts.err,
             &mut msg_data,
             &mut needs_clear,
             false,
         );
-        if (*opts)._truncate {
+        if opts._truncate {
             g_st().msg_no_more = false;
             g_st().msg_didany = save_msg_didany;
             g_st().lines_left = save_lines_left;
@@ -1383,7 +1383,7 @@ pub fn nvim_echo(
             g_st().need_wait_return = save_nwr;
         }
 
-        if (*opts).verbose {
+        if opts.verbose {
             verbose_leave();
             verbose_stop();
         }
@@ -1642,7 +1642,7 @@ pub fn nvim_create_buf(
 //                                  Error *err) FUNC_API_SINCE(7) FUNC_API_TEXTLOCK;
 pub fn nvim_open_term(
     buf: Buffer,
-    opts: *mut KeyDict_open_term,
+    opts: &mut KeyDict_open_term,
     err: &mut Error,
 ) -> Integer {
     unsafe {
@@ -1667,14 +1667,14 @@ pub fn nvim_open_term(
         }
 
         let mut cb = LUA_NOREF;
-        if ((*opts).is_set__open_term_ & (1u64 << KEYSET_OPTIDX_open_term__on_input)) != 0 {
-            cb = (*opts).on_input;
-            (*opts).on_input = LUA_NOREF;
+        if (opts.is_set__open_term_ & (1u64 << KEYSET_OPTIDX_open_term__on_input)) != 0 {
+            cb = opts.on_input;
+            opts.on_input = LUA_NOREF;
         }
 
         let force_crlf =
-            if ((*opts).is_set__open_term_ & (1u64 << KEYSET_OPTIDX_open_term__force_crlf)) != 0 {
-                (*opts).force_crlf
+            if (opts.is_set__open_term_ & (1u64 << KEYSET_OPTIDX_open_term__force_crlf)) != 0 {
+                opts.force_crlf
             } else {
                 true
             };
@@ -2026,13 +2026,13 @@ pub fn nvim_get_color_map(arena: &mut Arena) -> Dict {
 /// @return Editor state as a msgpack-encoded map.
 // DLLEXPORT Dict nvim_get_context(Dict(context) *opts, Arena *arena, Error *err) FUNC_API_SINCE(6);
 pub fn nvim_get_context(
-    opts: *mut KeyDict_context,
+    opts: &mut KeyDict_context,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    unsafe {
-        let types = if ((*opts).is_set__context_ & (1u64 << KEYSET_OPTIDX_context__types)) != 0 {
-            (*opts).types
+    {
+        let types = if (opts.is_set__context_ & (1u64 << KEYSET_OPTIDX_context__types)) != 0 {
+            opts.types
         } else {
             Array::new()
         };
@@ -2157,10 +2157,10 @@ pub fn nvim_set_keymap(
     mode: NvimString,
     lhs: NvimString,
     rhs: NvimString,
-    opts: *mut KeyDict_keymap,
+    opts: &mut KeyDict_keymap,
     err: &mut Error,
 ) {
-    modify_keymap(channel_id, -1, MAPTYPE_MAP, mode, lhs, rhs, opts, err);
+    modify_keymap(channel_id, -1, MAPTYPE_MAP, mode, lhs, rhs, Some(opts), err);
 }
 
 /// Unmaps a global |mapping| for the given mode.
@@ -2179,7 +2179,7 @@ pub fn nvim_del_keymap(
     channel_id: u64,
     mode: NvimString,
     lhs: NvimString,
-    opts: *mut KeyDict_keymap_del,
+    opts: &mut KeyDict_keymap_del,
     err: &mut Error,
 ) {
     {
@@ -2312,7 +2312,7 @@ pub fn nvim_set_client_info(
 pub fn nvim_chan_set(
     channel_id: u64,
     mut chan: Integer,
-    config: *mut KeyDict_chan_set,
+    config: &mut KeyDict_chan_set,
     err: &mut Error,
 ) {
     unsafe {
@@ -2323,8 +2323,8 @@ pub fn nvim_chan_set(
         if !validate_int(!channel.is_null(), c"chan".as_ptr(), chan, err) {
             return;
         }
-        if ((*config).is_set__chan_set_ & (1u64 << KEYSET_OPTIDX_chan_set__detach)) != 0 {
-            (*channel).detach = (*config).detach;
+        if (config.is_set__chan_set_ & (1u64 << KEYSET_OPTIDX_chan_set__detach)) != 0 {
+            (*channel).detach = config.detach;
             channel_event(channel, EVENT_CHANINFO);
         }
     }
@@ -2649,7 +2649,7 @@ pub fn nvim_select_popupmenu_item(
     item: Integer,
     mut insert: Boolean,
     finish: Boolean,
-    _opts: *mut KeyDict_empty,
+    _opts: &mut KeyDict_empty,
     _err: &mut Error,
 ) {
     if finish {
@@ -2780,7 +2780,7 @@ pub fn nvim_del_mark(name: NvimString, err: &mut Error) -> Boolean {
 //                                                                 Error *err) FUNC_API_SINCE(8);
 pub fn nvim_get_mark(
     name: NvimString,
-    _opts: *mut KeyDict_empty,
+    _opts: &mut KeyDict_empty,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
@@ -2878,7 +2878,7 @@ pub fn nvim_get_mark(
 //   FUNC_API_FAST;
 pub fn nvim_eval_statusline(
     str_: NvimString,
-    opts: *mut KeyDict_eval_statusline,
+    opts: &mut KeyDict_eval_statusline,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
@@ -2901,12 +2901,12 @@ pub fn nvim_eval_statusline(
             }
         }
 
-        let window = (*opts).winid;
+        let window = opts.winid;
 
-        if ((*opts).is_set__eval_statusline_ & (1u64 << KEYSET_OPTIDX_eval_statusline__fillchar))
+        if (opts.is_set__eval_statusline_ & (1u64 << KEYSET_OPTIDX_eval_statusline__fillchar))
             != 0
         {
-            let ci = utf_ptr2StrCharInfo((*opts).fillchar.data);
+            let ci = utf_ptr2StrCharInfo(opts.fillchar.data);
             let cli = utf_ClusterInfo(ci);
             if *ci.ptr == 0 || *cli.next.ptr != NUL || cli.cells != 1 {
                 api_err_exp(
@@ -2920,9 +2920,9 @@ pub fn nvim_eval_statusline(
             fillchar = crate::grid::schar_from_cluster(ci, cli);
         }
 
-        let mut use_bools = c_int::from((*opts).use_winbar) + c_int::from((*opts).use_tabline);
+        let mut use_bools = c_int::from(opts.use_winbar) + c_int::from(opts.use_tabline);
 
-        let wp = if (*opts).use_tabline {
+        let wp = if opts.use_tabline {
             *curwin.as_ptr()
         } else {
             find_window_by_handle(window, err)
@@ -2931,11 +2931,11 @@ pub fn nvim_eval_statusline(
             return result;
         }
 
-        if ((*opts).is_set__eval_statusline_
+        if (opts.is_set__eval_statusline_
             & (1u64 << KEYSET_OPTIDX_eval_statusline__use_statuscol_lnum))
             != 0
         {
-            statuscol_lnum = (*opts).use_statuscol_lnum as c_int;
+            statuscol_lnum = opts.use_statuscol_lnum as c_int;
             if !validate_range(
                 statuscol_lnum > 0 && statuscol_lnum <= (*(*wp).w_buffer).b_ml.ml_line_count,
                 c"use_statuscol_lnum".as_ptr(),
@@ -3000,8 +3000,8 @@ pub fn nvim_eval_statusline(
             let rel = get_cursor_rel_lnum(&mut *wp, lnum);
             set_vim_var_nr(VV_RELNUM, (rel as i64).abs());
             set_vim_var_nr(VV_VIRTNUM, 0);
-        } else if fillchar == 0 && !(*opts).use_tabline {
-            if (*opts).use_winbar {
+        } else if fillchar == 0 && !opts.use_tabline {
+            if opts.use_winbar {
                 fillchar = (*wp).w_p_fcs_chars.wbr;
             } else {
                 let mut group: hlf_T = 0;
@@ -3009,14 +3009,14 @@ pub fn nvim_eval_statusline(
             }
         }
 
-        let maxwidth = if ((*opts).is_set__eval_statusline_
+        let maxwidth = if (opts.is_set__eval_statusline_
             & (1u64 << KEYSET_OPTIDX_eval_statusline__maxwidth))
             != 0
         {
-            (*opts).maxwidth as c_int
+            opts.maxwidth as c_int
         } else if statuscol_lnum != 0 {
             win_col_off(wp)
-        } else if (*opts).use_tabline || (!(*opts).use_winbar && global_stl_height() > 0) {
+        } else if opts.use_tabline || (!opts.use_winbar && global_stl_height() > 0) {
             g_st().Columns
         } else {
             (*wp).w_width
@@ -3042,7 +3042,7 @@ pub fn nvim_eval_statusline(
             0,
             fillchar,
             maxwidth,
-            if (*opts).highlights {
+            if opts.highlights {
                 &mut hltab
             } else {
                 ptr::null_mut()
@@ -3064,15 +3064,15 @@ pub fn nvim_eval_statusline(
 
         (*wp).w_onebuf_opt.wo_crb = p_crb_save;
 
-        if (*opts).highlights {
+        if opts.highlights {
             let mut hl_values = arena_array(arena, hltab_len + 1);
             let dfltname = get_default_stl_hl(
-                if (*opts).use_tabline {
+                if opts.use_tabline {
                     ptr::null_mut()
                 } else {
                     wp
                 },
-                (*opts).use_winbar,
+                opts.use_winbar,
                 stc_hl_id,
             );
             if (*hltab).start.is_null() || (*hltab).start.offset_from(buf_data) != 0 {
@@ -3090,12 +3090,12 @@ pub fn nvim_eval_statusline(
                 let user_str: String;
                 let grpname: *const c_char = if (*sp).userhl == 0 {
                     get_default_stl_hl(
-                        if (*opts).use_tabline {
+                        if opts.use_tabline {
                             ptr::null_mut()
                         } else {
                             wp
                         },
-                        (*opts).use_winbar,
+                        opts.use_winbar,
                         stc_hl_id,
                     )
                 } else if (*sp).userhl < 0 {
@@ -3151,7 +3151,7 @@ pub fn nvim_eval_statusline(
 //                                              Error *err);
 pub fn nvim__complete_set(
     index: Integer,
-    opts: *mut KeyDict_complete_set,
+    opts: &mut KeyDict_complete_set,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
@@ -3165,8 +3165,8 @@ pub fn nvim__complete_set(
             );
             return rv;
         }
-        if ((*opts).is_set__complete_set_ & (1u64 << KEYSET_OPTIDX_complete_set__info)) != 0 {
-            let wp = pum_set_info(index as c_int, (*opts).info.data);
+        if (opts.is_set__complete_set_ & (1u64 << KEYSET_OPTIDX_complete_set__info)) != 0 {
+            let wp = pum_set_info(index as c_int, opts.info.data);
             if !wp.is_null() {
                 put_c(&mut rv, c"winid".as_ptr(), window_obj((*wp).handle));
                 put_c(
@@ -3180,7 +3180,7 @@ pub fn nvim__complete_set(
     }
 }
 
-fn redraw_status(wp: &mut win_T, opts: &mut KeyDict_redraw, flush: &mut bool) {
+fn redraw_status(wp: &mut win_T, opts: &mut KeyDict_redraw) {
     unsafe {
         if opts.statuscolumn && *wp.w_onebuf_opt.wo_stc != NUL {
             wp.w_nrwidth_line_count = 0;
@@ -3191,10 +3191,10 @@ fn redraw_status(wp: &mut win_T, opts: &mut KeyDict_redraw, flush: &mut bool) {
         win_grid_alloc(&mut *wp);
 
         if wp.w_lines_valid == 0 || wp.w_grid.row_offset != old_row_offset {
-            *flush = true;
+            opts.flush = true;
         }
 
-        if *flush && (opts.statusline || opts.winbar) {
+        if opts.flush && (opts.statusline || opts.winbar) {
             wp.w_redr_status = true;
         } else if opts.statusline || opts.winbar {
             win_check_ns_hl(&raw mut *wp);
@@ -3233,19 +3233,19 @@ fn redraw_status(wp: &mut win_T, opts: &mut KeyDict_redraw, flush: &mut bool) {
 ///               - win: Target a specific |window-ID| as described below.
 ///               - winbar: Redraw the 'winbar' in `buf`, `win` or all windows.
 // DLLEXPORT void nvim__redraw(Dict(redraw) *opts, Error *err) FUNC_API_SINCE(12);
-pub fn nvim__redraw(opts: *mut KeyDict_redraw, err: &mut Error) {
+pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     unsafe {
         let mut win: *mut win_T = ptr::null_mut();
         let mut buf: *mut buf_T = ptr::null_mut();
 
-        if ((*opts).is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__win)) != 0 {
-            win = find_window_by_handle((*opts).win, err);
+        if (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__win)) != 0 {
+            win = find_window_by_handle(opts.win, err);
             if error_set(err) {
                 return;
             }
         }
 
-        if ((*opts).is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__buf)) != 0 {
+        if (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__buf)) != 0 {
             if !win.is_null() {
                 api_set_error!(
                     err,
@@ -3255,14 +3255,14 @@ pub fn nvim__redraw(opts: *mut KeyDict_redraw, err: &mut Error) {
                 );
                 return;
             }
-            buf = find_buffer_by_handle((*opts).buf, err);
+            buf = find_buffer_by_handle(opts.buf, err);
             if error_set(err) {
                 return;
             }
         }
 
         let count = u32::from(!win.is_null()) + u32::from(!buf.is_null());
-        if (xpopcount((*opts).is_set__redraw_) as u32) <= count {
+        if (xpopcount(opts.is_set__redraw_) as u32) <= count {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
@@ -3272,12 +3272,12 @@ pub fn nvim__redraw(opts: *mut KeyDict_redraw, err: &mut Error) {
             return;
         }
 
-        let has_valid = ((*opts).is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__valid)) != 0;
-        let has_range = ((*opts).is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__range)) != 0;
-        let has_flush = ((*opts).is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__flush)) != 0;
+        let has_valid = (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__valid)) != 0;
+        let has_range = (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__range)) != 0;
+        let has_flush = (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__flush)) != 0;
 
         if has_valid {
-            let rtype = if (*opts).valid {
+            let rtype = if opts.valid {
                 UPD_VALID
             } else {
                 UPD_NOT_VALID
@@ -3292,7 +3292,7 @@ pub fn nvim__redraw(opts: *mut KeyDict_redraw, err: &mut Error) {
         }
 
         if has_range {
-            let r = (*opts).range;
+            let r = opts.range;
             let ok = r.size == 2
                 && (*r.items).obj_type == ObjectType::kObjectTypeInteger
                 && r[1].obj_type == ObjectType::kObjectTypeInteger
@@ -3331,13 +3331,13 @@ pub fn nvim__redraw(opts: *mut KeyDict_redraw, err: &mut Error) {
         }
 
         if has_valid || has_range {
-            (*opts).flush = if has_flush { (*opts).flush } else { true };
+            opts.flush = if has_flush { opts.flush } else { true };
         }
 
-        let mut flush_ui = (*opts).flush;
-        if (*opts).tabline {
+        let mut flush_ui = opts.flush;
+        if opts.tabline {
             if g_st().redraw_tabline && (*g_st().firstwin).w_lines_valid == 0 {
-                (*opts).flush = true;
+                opts.flush = true;
             } else {
                 draw_tabline();
             }
@@ -3348,33 +3348,33 @@ pub fn nvim__redraw(opts: *mut KeyDict_redraw, err: &mut Error) {
         let save_rd = g_st().RedrawingDisabled;
         g_st().RedrawingDisabled = 0;
         opt_vars().p_lz = 0;
-        if (*opts).statuscolumn || (*opts).statusline || (*opts).winbar {
+        if opts.statuscolumn || opts.statusline || opts.winbar {
             if win.is_null() {
                 let mut wp = g_st().firstwin;
                 while !wp.is_null() {
                     if buf.is_null() || (*wp).w_buffer == buf {
-                        redraw_status(&mut *wp, &mut *opts, &mut (*opts).flush);
+                        redraw_status(&mut *wp, opts);
                     }
                     wp = (*wp).w_next;
                 }
             } else {
-                redraw_status(&mut *win, &mut *opts, &mut (*opts).flush);
+                redraw_status(&mut *win, opts);
             }
             flush_ui = true;
         }
 
         let cwin = if !win.is_null() { win } else { *curwin.as_ptr() };
-        if (*opts).cursor && ((*cwin).w_grid.target.is_null() || !(*(*cwin).w_grid.target).valid) {
-            (*opts).flush = true;
+        if opts.cursor && ((*cwin).w_grid.target.is_null() || !(*(*cwin).w_grid.target).valid) {
+            opts.flush = true;
         }
 
-        if (*opts).flush && !g_st().cmdpreview {
+        if opts.flush && !g_st().cmdpreview {
             validate_cursor(*curwin.as_ptr());
             update_topline(*curwin.as_ptr());
             update_screen();
         }
 
-        if (*opts).cursor {
+        if opts.cursor {
             setcursor_mayforce(&mut *cwin, true);
             flush_ui = true;
         }

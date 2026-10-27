@@ -427,10 +427,9 @@ pub fn ex_debug(eap: &mut exarg_T) {
 }
 
 /// Check if a breakpoint or debug break level was hit (`dbg_check_breakpoint`).
-pub fn dbg_check_breakpoint(eap: *mut exarg_T) {
+pub fn dbg_check_breakpoint(eap: &mut exarg_T) {
     unsafe {
         dbg_st().DEBUG_SKIPPED = false;
-        let eap = &mut *eap;
         if !dbg_st().DEBUG_BREAKPOINT_NAME.is_null() {
             if eap.skip == 0 {
                 let bp_name = dbg_st().DEBUG_BREAKPOINT_NAME;
@@ -472,7 +471,7 @@ pub fn dbg_check_skipped(eap: &mut exarg_T) -> bool {
         g_st().got_int = false;
         dbg_st().DEBUG_BREAKPOINT_NAME = dbg_st().DEBUG_SKIPPED_NAME;
         eap.skip = 0;
-        dbg_check_breakpoint(&raw mut *eap);
+        dbg_check_breakpoint(eap);
         eap.skip = 1;
         g_st().got_int |= prev_got_int;
         true

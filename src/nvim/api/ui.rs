@@ -1118,8 +1118,8 @@ pub fn remote_ui_hl_attr_define(
             size: 0,
             capacity: HLATTRS_DICT_SIZE,
         };
-        hlattrs2dict(&raw mut rgb, ptr::null_mut(), rgb_attrs, true, false);
-        hlattrs2dict(&raw mut cterm, ptr::null_mut(), rgb_attrs, false, false);
+        hlattrs2dict(&mut rgb, None, rgb_attrs, true, false);
+        hlattrs2dict(&mut cterm, None, rgb_attrs, false, false);
 
         if rgb_attrs.url >= 0 {
             let url = hl_get_url(rgb_attrs.url as u32);
@@ -1162,8 +1162,8 @@ pub fn remote_ui_highlight_set(ui: &mut RemoteUI, id: c_int) {
             capacity: HLATTRS_DICT_SIZE,
         };
         hlattrs2dict(
-            &raw mut dict,
-            ptr::null_mut(),
+            &mut dict,
+            None,
             syn_attr2entry(id),
             ui.rgb,
             false,
@@ -1440,8 +1440,8 @@ fn translate_contents(ui: &mut RemoteUI, contents: Array, arena: &mut Arena) -> 
             if attr != 0 {
                 let mut rgb_attrs = arena_dict(arena, HLATTRS_DICT_SIZE);
                 hlattrs2dict(
-                    &raw mut rgb_attrs,
-                    ptr::null_mut(),
+                    &mut rgb_attrs,
+                    None,
                     syn_attr2entry(attr),
                     ui.rgb,
                     false,

@@ -388,7 +388,7 @@ fn clear_autocmd(
 //                                                                Arena *arena,
 //                                                                Error *err) FUNC_API_SINCE(9);
 pub fn nvim_get_autocmds(
-    opts: *mut KeyDict_get_autocmds,
+    opts: &mut KeyDict_get_autocmds,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
@@ -405,24 +405,24 @@ pub fn nvim_get_autocmds(
         let mut group: c_int = 0;
 
         'body: {
-            match (*opts).group.obj_type {
+            match opts.group.obj_type {
                 ObjectType::kObjectTypeNil => {}
                 ObjectType::kObjectTypeString => {
-                    group = augroup_find((*opts).group.data.string().data);
+                    group = augroup_find(opts.group.data.string().data);
                     if group < 0 {
-                        api_err_inv(err, c"group".as_ptr(), (*opts).group.data.string().data);
+                        api_err_inv(err, c"group".as_ptr(), opts.group.data.string().data);
                         break 'body;
                     }
                 }
                 ObjectType::kObjectTypeInteger => {
-                    group = (*opts).group.data.integer() as c_int;
+                    group = opts.group.data.integer() as c_int;
                     let name = if group == 0 {
                         std::ptr::null()
                     } else {
                         augroup_name(group)
                     };
                     if !augroup_exists(name) {
-                        api_err_int(err, c"group".as_ptr(), (*opts).group.data.integer());
+                        api_err_int(err, c"group".as_ptr(), opts.group.data.integer());
                         break 'body;
                     }
                 }
@@ -431,22 +431,22 @@ pub fn nvim_get_autocmds(
                         err,
                         c"group".as_ptr(),
                         c"String or Integer".as_ptr(),
-                        api_typename((*opts).group.obj_type),
+                        api_typename(opts.group.obj_type),
                     );
                     break 'body;
                 }
             }
 
-            let mask = (*opts).is_set__get_autocmds_;
+            let mask = opts.is_set__get_autocmds_;
             let id: c_int = if has_key(mask, KEYSET_OPTIDX_get_autocmds__id) {
-                (*opts).id as c_int
+                opts.id as c_int
             } else {
                 -1
             };
 
             if has_key(mask, KEYSET_OPTIDX_get_autocmds__event) {
                 check_event = true;
-                let v = (*opts).event;
+                let v = opts.event;
                 if v.obj_type == ObjectType::kObjectTypeString {
                     let event_nr = event_name2nr_str(v.data.string());
                     if (event_nr as usize) >= NUM_EVENTS {
@@ -488,9 +488,9 @@ pub fn nvim_get_autocmds(
             let has_buffer_key = has_key(mask, KEYSET_OPTIDX_get_autocmds__buffer);
             let has_buf = has_buf_key || has_buffer_key;
             let buf = if has_buf_key {
-                (*opts).buf
+                opts.buf
             } else {
-                (*opts).buffer
+                opts.buffer
             };
 
             if has_buf_key && has_buffer_key {
@@ -504,7 +504,7 @@ pub fn nvim_get_autocmds(
 
             let mut pattern_filter_count = 0usize;
             if has_key(mask, KEYSET_OPTIDX_get_autocmds__pattern) {
-                let v = (*opts).pattern;
+                let v = opts.pattern;
                 if v.obj_type == ObjectType::kObjectTypeString {
                     pattern_filters[pattern_filter_count] = v.data.string().data;
                     pattern_filter_count += 1;
@@ -822,7 +822,7 @@ pub fn nvim_get_autocmds(
 pub fn nvim_create_autocmd(
     channel_id: u64,
     event: Object,
-    opts: *mut KeyDict_create_autocmd,
+    opts: &mut KeyDict_create_autocmd,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Integer {
@@ -838,7 +838,7 @@ pub fn nvim_create_autocmd(
                 break 'body;
             }
 
-            let mask = (*opts).is_set__create_autocmd_;
+            let mask = opts.is_set__create_autocmd_;
             let has_callback = has_key(mask, KEYSET_OPTIDX_create_autocmd__callback);
             let has_command = has_key(mask, KEYSET_OPTIDX_create_autocmd__command);
 
@@ -848,7 +848,7 @@ pub fn nvim_create_autocmd(
             }
 
             if has_callback {
-                let callback = &mut (*opts).callback;
+                let callback = &mut opts.callback;
                 match callback.obj_type {
                     ObjectType::kObjectTypeLuaRef => {
                         if callback.data.luaref() == LUA_NOREF {
@@ -878,13 +878,13 @@ pub fn nvim_create_autocmd(
                     }
                 }
             } else if has_command {
-                handler_cmd = Some(cstr_from_bytes((*opts).command.as_bytes()));
+                handler_cmd = Some(cstr_from_bytes(opts.command.as_bytes()));
             } else {
                 api_err_req(err, c"'command' or 'callback'".as_ptr());
                 break 'body;
             }
 
-            let au_group = get_augroup_from_object((*opts).group, err);
+            let au_group = get_augroup_from_object(opts.group, err);
             if au_group == AUGROUP_ERROR {
                 break 'body;
             }
@@ -893,9 +893,9 @@ pub fn nvim_create_autocmd(
             let has_buffer_key = has_key(mask, KEYSET_OPTIDX_create_autocmd__buffer);
             let has_buf = has_buf_key || has_buffer_key;
             let buf = if has_buf_key {
-                (*opts).buf
+                opts.buf
             } else {
-                (*opts).buffer
+                opts.buffer
             };
 
             if has_buf_key && has_buffer_key {
@@ -908,7 +908,7 @@ pub fn nvim_create_autocmd(
             }
 
             let patterns = get_patterns_from_pattern_or_buf(
-                (*opts).pattern,
+                opts.pattern,
                 has_buf,
                 buf,
                 c"*".as_ptr(),
@@ -929,7 +929,7 @@ pub fn nvim_create_autocmd(
             }
 
             if has_key(mask, KEYSET_OPTIDX_create_autocmd__desc) {
-                desc = (*opts).desc.data;
+                desc = opts.desc.data;
             }
 
             if event_array.size == 0 {
@@ -957,8 +957,8 @@ pub fn nvim_create_autocmd(
                         pat.data.string().data,
                         pat.data.string().size as c_int,
                         au_group,
-                        (*opts).once,
-                        (*opts).nested,
+                        opts.once,
+                        opts.nested,
                         desc.cast_mut(),
                         handler_cmd
                             .as_ref()
@@ -1023,25 +1023,25 @@ pub fn nvim_del_autocmd(id: Integer, err: &mut Error) {
 // DLLEXPORT void nvim_clear_autocmds(Dict(clear_autocmds) *opts, Arena *arena,
 //                                    Error *err) FUNC_API_SINCE(9);
 pub fn nvim_clear_autocmds(
-    opts: *mut KeyDict_clear_autocmds,
+    opts: &mut KeyDict_clear_autocmds,
     arena: &mut Arena,
     err: &mut Error,
 ) {
-    unsafe {
+    {
         let event_array =
-            unpack_string_or_array((*opts).event, c"event".as_ptr(), false, arena, err);
+            unpack_string_or_array(opts.event, c"event".as_ptr(), false, arena, err);
         if error_set(err) {
             return;
         }
 
-        let mask = (*opts).is_set__clear_autocmds_;
+        let mask = opts.is_set__clear_autocmds_;
         let has_buf_key = has_key(mask, KEYSET_OPTIDX_clear_autocmds__buf);
         let has_buffer_key = has_key(mask, KEYSET_OPTIDX_clear_autocmds__buffer);
         let has_buf = has_buf_key || has_buffer_key;
         let buf = if has_buf_key {
-            (*opts).buf
+            opts.buf
         } else {
-            (*opts).buffer
+            opts.buffer
         };
 
         if has_buf_key && has_buffer_key {
@@ -1053,13 +1053,13 @@ pub fn nvim_clear_autocmds(
             return;
         }
 
-        let au_group = get_augroup_from_object((*opts).group, err);
+        let au_group = get_augroup_from_object(opts.group, err);
         if au_group == AUGROUP_ERROR {
             return;
         }
 
         let patterns = get_patterns_from_pattern_or_buf(
-            (*opts).pattern,
+            opts.pattern,
             has_buf,
             buf,
             c"".as_ptr(),
@@ -1070,7 +1070,7 @@ pub fn nvim_clear_autocmds(
             return;
         }
 
-        if (*opts).event.obj_type == ObjectType::kObjectTypeNil {
+        if opts.event.obj_type == ObjectType::kObjectTypeNil {
             for event in 0..NUM_EVENTS {
                 for j in 0..patterns.size {
                     let pat_object = patterns[j];
@@ -1119,16 +1119,16 @@ pub fn nvim_clear_autocmds(
 pub fn nvim_create_augroup(
     channel_id: u64,
     name: NvimString,
-    opts: *mut KeyDict_create_augroup,
+    opts: &mut KeyDict_create_augroup,
     err: &mut Error,
 ) -> Integer {
-    unsafe {
+    {
         let augroup_name = name.data;
         let clear_autocmds = if has_key(
-            (*opts).is_set__create_augroup_,
+            opts.is_set__create_augroup_,
             KEYSET_OPTIDX_create_augroup__clear,
         ) {
-            (*opts).clear
+            opts.clear
         } else {
             true
         };
@@ -1202,7 +1202,7 @@ pub fn nvim_del_augroup_by_name(name: NvimString, err: &mut Error) {
 //                                   Error *err) FUNC_API_SINCE(9);
 pub fn nvim_exec_autocmds(
     event: Object,
-    opts: *mut KeyDict_exec_autocmds,
+    opts: &mut KeyDict_exec_autocmds,
     arena: &mut Arena,
     err: &mut Error,
 ) {
@@ -1216,17 +1216,17 @@ pub fn nvim_exec_autocmds(
             return;
         }
 
-        match (*opts).group.obj_type {
+        match opts.group.obj_type {
             ObjectType::kObjectTypeNil => {}
             ObjectType::kObjectTypeString => {
-                au_group = augroup_find((*opts).group.data.string().data);
+                au_group = augroup_find(opts.group.data.string().data);
                 if au_group == AUGROUP_ERROR {
-                    api_err_inv(err, c"group".as_ptr(), (*opts).group.data.string().data);
+                    api_err_inv(err, c"group".as_ptr(), opts.group.data.string().data);
                     return;
                 }
             }
             ObjectType::kObjectTypeInteger => {
-                au_group = (*opts).group.data.integer() as c_int;
+                au_group = opts.group.data.integer() as c_int;
                 let name = if au_group == 0 {
                     std::ptr::null()
                 } else {
@@ -1242,20 +1242,20 @@ pub fn nvim_exec_autocmds(
                     err,
                     c"group".as_ptr(),
                     c"String or Integer".as_ptr(),
-                    api_typename((*opts).group.obj_type),
+                    api_typename(opts.group.obj_type),
                 );
                 return;
             }
         }
 
-        let mask = (*opts).is_set__exec_autocmds_;
+        let mask = opts.is_set__exec_autocmds_;
         let has_buf_key = has_key(mask, KEYSET_OPTIDX_exec_autocmds__buf);
         let has_buffer_key = has_key(mask, KEYSET_OPTIDX_exec_autocmds__buffer);
         let has_buf = has_buf_key || has_buffer_key;
         let buf = if has_buf_key {
-            (*opts).buf
+            opts.buf
         } else {
-            (*opts).buffer
+            opts.buffer
         };
 
         if has_buf_key && has_buffer_key {
@@ -1275,7 +1275,7 @@ pub fn nvim_exec_autocmds(
         }
 
         let patterns = get_patterns_from_pattern_or_buf(
-            (*opts).pattern,
+            opts.pattern,
             has_buf,
             buf,
             c"".as_ptr(),
@@ -1287,11 +1287,11 @@ pub fn nvim_exec_autocmds(
         }
 
         if has_key(mask, KEYSET_OPTIDX_exec_autocmds__data) {
-            data = &mut (*opts).data;
+            data = &mut opts.data;
         }
 
         let modeline = if has_key(mask, KEYSET_OPTIDX_exec_autocmds__modeline) {
-            (*opts).modeline
+            opts.modeline
         } else {
             true
         };

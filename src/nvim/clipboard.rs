@@ -215,7 +215,7 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet: bool) 
         if reg.y_array.last().is_some_and(|last| last.size == 0) {
             if reg.y_type != MotionType::kMTCharWise {
                 if let Some(mut popped) = reg.y_array.pop() {
-                    api_clear_string(&raw mut popped);
+                    api_clear_string(&mut popped);
                 }
                 if reg.y_type == MotionType::kMTUnknown {
                     reg.y_type = MotionType::kMTLineWise;

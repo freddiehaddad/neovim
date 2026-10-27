@@ -800,15 +800,15 @@ fn mc_region_mark_range(mark: u32, start: &mut pos_T, end: &mut pos_T) -> bool {
     }
 }
 
-fn mc_ins_preview_replace(start: pos_T, end: pos_T, text: *const NvimString) {
-    unsafe {
+fn mc_ins_preview_replace(start: pos_T, end: pos_T, text: &NvimString) {
+    {
         let mut arena = Arena {
             cur_blk: ptr::null_mut(),
             pos: 0,
             size: 0,
         };
         let mut err = Error::new();
-        let input = if !(*text).data.is_null() {
+        let input = if !text.data.is_null() {
             *text
         } else {
             NvimString {
@@ -846,7 +846,7 @@ fn mc_ins_preview_replace(start: pos_T, end: pos_T, text: *const NvimString) {
     }
 }
 
-fn mc_ins_preview_set(new_text: *const NvimString) {
+fn mc_ins_preview_set(new_text: &NvimString) {
     unsafe {
         let saved = mc_ins_save_state();
         let mut primary: u32 = 0;
@@ -1010,7 +1010,7 @@ pub fn mc_ins_cascade() {
     }
 }
 
-fn mc_ins_span_flush(ins: *const NvimString, commit: bool) {
+fn mc_ins_span_flush(ins: &NvimString, commit: bool) {
     unsafe {
         let empty = NvimString {
             data: ptr::null_mut(),
@@ -1022,12 +1022,12 @@ fn mc_ins_span_flush(ins: *const NvimString, commit: bool) {
         {
             mc_ins_preview_set(&empty);
         }
-        let dlen = (*ins).size - mc_st().mc_ins_span.done_len;
+        let dlen = ins.size - mc_st().mc_ins_span.done_len;
         let mut keys: Vec<c_char> = Vec::with_capacity(dlen + 2);
         keys.push(b'i' as c_char);
         if dlen > 0 {
             keys.extend_from_slice(std::slice::from_raw_parts(
-                (*ins).data.add(mc_st().mc_ins_span.done_len),
+                ins.data.add(mc_st().mc_ins_span.done_len),
                 dlen,
             ));
         }
@@ -1036,14 +1036,14 @@ fn mc_ins_span_flush(ins: *const NvimString, commit: bool) {
         }
         let text = if commit && dlen > 1 {
             let text_slice = std::slice::from_raw_parts(
-                (*ins).data.add(mc_st().mc_ins_span.done_len).cast::<u8>(),
+                ins.data.add(mc_st().mc_ins_span.done_len).cast::<u8>(),
                 dlen - 1,
             );
             Some(std::ffi::CString::new(text_slice).unwrap())
         } else {
             None
         };
-        mc_st().mc_ins_span.done_len = (*ins).size;
+        mc_st().mc_ins_span.done_len = ins.size;
         let keys_slice = std::slice::from_raw_parts(keys.as_ptr().cast::<u8>(), keys.len());
         mc_ins_span_push(std::ffi::CString::new(keys_slice).unwrap(), text);
         if !commit {

@@ -293,7 +293,7 @@ fn parse_map_cmd(arg_str: *const c_char, arena: &mut Arena) -> Array {
 //   FUNC_API_SINCE(10) FUNC_API_FAST;
 pub fn nvim_parse_cmd(
     str_val: NvimString,
-    _opts: *mut KeyDict_empty,
+    _opts: &mut KeyDict_empty,
     arena: &mut Arena,
     err: &mut Error,
 ) -> KeyDict_cmd {
@@ -619,8 +619,8 @@ pub fn nvim_parse_cmd(
 //   FUNC_API_SINCE(10);
 pub fn nvim_cmd(
     channel_id: u64,
-    cmd: *mut KeyDict_cmd,
-    opts: *mut KeyDict_cmd_opts,
+    cmd: &mut KeyDict_cmd,
+    opts: &mut KeyDict_cmd_opts,
     arena: &mut Arena,
     err: &mut Error,
 ) -> NvimString {
@@ -636,7 +636,7 @@ pub fn nvim_cmd(
             size: 0,
         };
 
-        let mask = (*cmd).is_set__cmd_;
+        let mask = cmd.is_set__cmd_;
 
         'end: {
             if !has_key(mask, KEYSET_OPTIDX_cmd__cmd) {
@@ -644,8 +644,8 @@ pub fn nvim_cmd(
                 break 'end;
             }
 
-            if *(*cmd).cmd.data == NUL
-                && !((has_key(mask, KEYSET_OPTIDX_cmd__range) && (*cmd).range.size > 0)
+            if *cmd.cmd.data == NUL
+                && !((has_key(mask, KEYSET_OPTIDX_cmd__range) && cmd.range.size > 0)
                     || has_key(mask, KEYSET_OPTIDX_cmd__mods))
             {
                 api_err_exp(
@@ -657,7 +657,7 @@ pub fn nvim_cmd(
                 break 'end;
             }
 
-            let cmdname = arena_string(arena, (*cmd).cmd).data;
+            let cmdname = arena_string(arena, cmd.cmd).data;
             ea.cmd = cmdname;
 
             let mut p = find_ex_command(&mut ea, ptr::null_mut());
@@ -667,7 +667,7 @@ pub fn nvim_cmd(
                 && ascii_isupper(*ea.cmd)
                 && has_event(EVENT_CMDUNDEFINED)
             {
-                p = arena_string(arena, (*cmd).cmd).data;
+                p = arena_string(arena, cmd.cmd).data;
                 let ret = apply_autocmds(EVENT_CMDUNDEFINED, p, p, true, ptr::null_mut());
                 p = if ret && !aborting() {
                     find_ex_command(&mut ea, ptr::null_mut())
@@ -677,13 +677,13 @@ pub fn nvim_cmd(
             }
 
             let range_only = ea.cmdidx == CMD_SIZE
-                && *(*cmd).cmd.data == NUL
+                && *cmd.cmd.data == NUL
                 && has_key(mask, KEYSET_OPTIDX_cmd__range)
-                && (*cmd).range.size > 0;
+                && cmd.range.size > 0;
 
             if ea.cmdidx == CMD_SIZE
-                && *(*cmd).cmd.data == NUL
-                && (!has_key(mask, KEYSET_OPTIDX_cmd__range) || (*cmd).range.size == 0)
+                && *cmd.cmd.data == NUL
+                && (!has_key(mask, KEYSET_OPTIDX_cmd__range) || cmd.range.size == 0)
                 && has_key(mask, KEYSET_OPTIDX_cmd__mods)
             {
                 break 'end;
@@ -736,8 +736,8 @@ pub fn nvim_cmd(
 
             let mut count_from_first_arg = false;
             if has_key(mask, KEYSET_OPTIDX_cmd__args) {
-                if (*cmd).args.size == 1 && (ea.argt & EX_COUNT) != 0 && (ea.argt & EX_EXTRA) == 0 {
-                    let first_arg = *(*cmd).args.items.add(0);
+                if cmd.args.size == 1 && (ea.argt & EX_COUNT) != 0 && (ea.argt & EX_EXTRA) == 0 {
+                    let first_arg = *cmd.args.items.add(0);
                     let mut is_numeric = false;
                     let mut count_value: i64 = 0;
 
@@ -765,9 +765,9 @@ pub fn nvim_cmd(
                 }
 
                 if !count_from_first_arg {
-                    args = arena_array(arena, (*cmd).args.size);
-                    for i in 0..(*cmd).args.size {
-                        let elem = *(*cmd).args.items.add(i);
+                    args = arena_array(arena, cmd.args.size);
+                    for i in 0..cmd.args.size {
+                        let elem = *cmd.args.items.add(i);
                         match elem.obj_type {
                             ObjectType::kObjectTypeBoolean => {
                                 let data_str = arena_alloc(arena, 2, false).cast::<c_char>();
@@ -836,11 +836,11 @@ pub fn nvim_cmd(
                         ErrorType::kErrorTypeValidation,
                         c"Command cannot accept %s: %s".as_ptr(),
                         c"range".as_ptr(),
-                        (*cmd).cmd.data,
+                        cmd.cmd.data,
                     );
                     break 'end;
                 }
-                if (*cmd).range.size > 2 {
+                if cmd.range.size > 2 {
                     api_err_exp(
                         err,
                         c"range".as_ptr(),
@@ -850,7 +850,7 @@ pub fn nvim_cmd(
                     break 'end;
                 }
 
-                let range = (*cmd).range;
+                let range = cmd.range;
                 ea.addr_count = range.size as c_int;
 
                 for i in 0..range.size {
@@ -937,11 +937,11 @@ pub fn nvim_cmd(
                         ErrorType::kErrorTypeValidation,
                         c"Command cannot accept %s: %s".as_ptr(),
                         c"count".as_ptr(),
-                        (*cmd).cmd.data,
+                        cmd.cmd.data,
                     );
                     break 'end;
                 }
-                if (*cmd).count < 0 {
+                if cmd.count < 0 {
                     api_err_exp(
                         err,
                         c"count".as_ptr(),
@@ -950,7 +950,7 @@ pub fn nvim_cmd(
                     );
                     break 'end;
                 }
-                set_cmd_count(&mut ea, (*cmd).count as linenr_T, true);
+                set_cmd_count(&mut ea, cmd.count as linenr_T, true);
             }
 
             if has_key(mask, KEYSET_OPTIDX_cmd__reg) {
@@ -960,20 +960,20 @@ pub fn nvim_cmd(
                         ErrorType::kErrorTypeValidation,
                         c"Command cannot accept %s: %s".as_ptr(),
                         c"register".as_ptr(),
-                        (*cmd).cmd.data,
+                        cmd.cmd.data,
                     );
                     break 'end;
                 }
-                if (*cmd).reg.size != 1 {
+                if cmd.reg.size != 1 {
                     api_err_exp(
                         err,
                         c"reg".as_ptr(),
                         c"single character".as_ptr(),
-                        (*cmd).reg.data,
+                        cmd.reg.data,
                     );
                     break 'end;
                 }
-                let regname = *(*cmd).reg.data;
+                let regname = *cmd.reg.data;
                 if regname == b'=' as c_char {
                     api_set_error!(
                         err,
@@ -998,14 +998,14 @@ pub fn nvim_cmd(
                 ea.regname = c_int::from(regname as u8);
             }
 
-            ea.forceit = c_int::from((*cmd).bang);
+            ea.forceit = c_int::from(cmd.bang);
             if ea.forceit != 0 && (ea.argt & EX_BANG) == 0 {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"Command cannot accept %s: %s".as_ptr(),
                     c"bang".as_ptr(),
-                    (*cmd).cmd.data,
+                    cmd.cmd.data,
                 );
                 break 'end;
             }
@@ -1015,7 +1015,7 @@ pub fn nvim_cmd(
                 if !api_dict_to_keydict(
                     (&raw mut magic).cast(),
                     Some(KeyDict_cmd_magic_get_field),
-                    (*cmd).magic,
+                    cmd.magic,
                     err,
                 ) {
                     break 'end;
@@ -1047,7 +1047,7 @@ pub fn nvim_cmd(
                 if !api_dict_to_keydict(
                     (&raw mut mods).cast(),
                     Some(KeyDict_cmd_mods_get_field),
-                    (*cmd).mods,
+                    cmd.mods,
                     err,
                 ) {
                     break 'end;
@@ -1207,12 +1207,12 @@ pub fn nvim_cmd(
             let save_capture_ga = g_st().capture_ga;
             let save_msg_col = g_st().msg_col;
 
-            if (*opts).output {
+            if opts.output {
                 g_st().capture_ga = &raw mut capture_local;
             }
 
             try_wrap(err, || {
-                if (*opts).output {
+                if opts.output {
                     g_st().msg_silent += 1;
                     g_st().redir_off = false;
                     g_st().msg_col = 0;
@@ -1222,7 +1222,7 @@ pub fn nvim_cmd(
                     execute_cmd(&mut ea, &mut cmod, false);
                 });
 
-                if (*opts).output {
+                if opts.output {
                     g_st().capture_ga = save_capture_ga;
                     g_st().msg_silent = save_msg_silent;
                     g_st().redir_off = save_redir_off;
@@ -1230,7 +1230,7 @@ pub fn nvim_cmd(
                 }
             });
 
-            if !error_set(err) && (*opts).output && capture_local.len() > 1 {
+            if !error_set(err) && opts.output && capture_local.len() > 1 {
                 retv = cbuf_to_arena_str(arena, capture_local.as_ptr(), capture_local.len());
                 if *retv.data == b'\n' as c_char {
                     retv.data = retv.data.add(1);
@@ -1348,10 +1348,10 @@ pub fn nvim_create_user_command(
     channel_id: u64,
     name: NvimString,
     cmd: Object,
-    opts: *mut KeyDict_user_command,
+    opts: &mut KeyDict_user_command,
     err: &mut Error,
 ) {
-    unsafe {
+    {
         create_user_command(channel_id, name, cmd, &mut *opts, 0, err);
     }
 }
@@ -1381,10 +1381,10 @@ pub fn nvim_buf_create_user_command(
     buf: Buffer,
     name: NvimString,
     cmd: Object,
-    opts: *mut KeyDict_user_command,
+    opts: &mut KeyDict_user_command,
     err: &mut Error,
 ) {
-    unsafe {
+    {
         let target_buf = find_buffer_by_handle(buf, err);
         if error_set(err) {
             return;
@@ -1768,7 +1768,7 @@ pub fn create_user_command(
 //                                                          Error *err)
 //   FUNC_API_SINCE(4);
 pub fn nvim_get_commands(
-    opts: *mut KeyDict_get_commands,
+    opts: &mut KeyDict_get_commands,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
@@ -1787,18 +1787,18 @@ pub fn nvim_get_commands(
 //   FUNC_API_SINCE(4);
 pub fn nvim_buf_get_commands(
     buf: Buffer,
-    opts: *mut KeyDict_get_commands,
+    opts: &mut KeyDict_get_commands,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    unsafe {
+    {
         let global = buf == -1;
         if error_set(err) {
             return Dict::new();
         }
 
         if global {
-            if (*opts).builtin {
+            if opts.builtin {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
@@ -1810,7 +1810,7 @@ pub fn nvim_buf_get_commands(
         }
 
         let b = find_buffer_by_handle(buf, err);
-        if (*opts).builtin || b.is_null() {
+        if opts.builtin || b.is_null() {
             return Dict::new();
         }
         commands_array(b, arena)

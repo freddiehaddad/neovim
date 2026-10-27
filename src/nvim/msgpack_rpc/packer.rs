@@ -369,10 +369,7 @@ pub fn mpack_handle(obj_type: ObjectType, handle: handle_T, packer: &mut PackerB
 }
 
 /// Pack `obj` into `packer` (`mpack_object`).
-///
-/// # Safety
-/// `obj` and `packer` must be valid writable pointers.
-pub fn mpack_object(obj: *mut Object, packer: &mut PackerBuffer) {
+pub fn mpack_object(obj: &mut Object, packer: &mut PackerBuffer) {
     mpack_object_inner(obj, std::ptr::null_mut(), 0, packer);
 }
 

@@ -1334,7 +1334,7 @@ pub fn api_wrapper(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFun
         if err.err_type != ErrorType::kErrorTypeNone {
             semsg_multiline!(c"emsg".as_ptr(), e_api_error.as_ptr(), err.msg_ptr());
         } else {
-            object_to_vim_take_luaref(&raw mut result, rettv, true, &mut err);
+            object_to_vim_take_luaref(&mut result, rettv, true, &mut err);
         }
 
         if handler.ret_alloc {
@@ -1394,7 +1394,7 @@ pub fn lua_wrapper(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFun
         if err.err_type != ErrorType::kErrorTypeNone {
             semsg_multiline!(c"emsg".as_ptr(), e_api_error.as_ptr(), err.msg_ptr());
         } else {
-            object_to_vim_take_luaref(&raw mut result, rettv, true, &mut err);
+            object_to_vim_take_luaref(&mut result, rettv, true, &mut err);
         }
 
         arena_mem_free(arena_finish(&mut arena));

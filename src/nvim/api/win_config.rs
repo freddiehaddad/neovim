@@ -332,7 +332,7 @@ pub const WIN_CONFIG_INIT: WinConfig = WinConfig {
 pub fn nvim_open_win(
     buf: Buffer,
     enter: Boolean,
-    config: *mut KeyDict_win_config,
+    config: &mut KeyDict_win_config,
     err: &mut Error,
 ) -> Window {
     unsafe {
@@ -341,7 +341,7 @@ pub fn nvim_open_win(
             return 0;
         }
 
-        let mask = (*config).is_set__win_config_;
+        let mask = config.is_set__win_config_;
         let is_split = has_key(mask, KEYSET_OPTIDX_win_config__split)
             || has_key(mask, KEYSET_OPTIDX_win_config__vertical);
         let mut fconfig = WIN_CONFIG_INIT;
@@ -358,12 +358,12 @@ pub fn nvim_open_win(
             let mut wp: *mut win_T = ptr::null_mut();
             let mut tp = g_st().curtab;
             assert!(!(*curwin.as_ptr()).is_null());
-            let mut parent = if (*config).win == 0 {
+            let mut parent = if config.win == 0 {
                 *curwin.as_ptr()
             } else {
                 ptr::null_mut()
             };
-            if (*config).win > 0 {
+            if config.win > 0 {
                 parent = find_window_by_handle(fconfig.window, err);
                 if parent.is_null() {
                     break 'cleanup;
@@ -386,7 +386,7 @@ pub fn nvim_open_win(
                 if has_key(mask, KEYSET_OPTIDX_win_config__vertical)
                     && !has_key(mask, KEYSET_OPTIDX_win_config__split)
                 {
-                    if (*config).vertical {
+                    if config.vertical {
                         fconfig.split = if opt_vars().p_spr != 0 {
                             kWinSplitRight
                         } else {
@@ -1028,7 +1028,7 @@ fn win_config_float_tp(
 //   FUNC_API_SINCE(6);
 pub fn nvim_win_set_config(
     win: Window,
-    config: *mut KeyDict_win_config,
+    config: &mut KeyDict_win_config,
     err: &mut Error,
 ) {
     unsafe {
@@ -1038,17 +1038,17 @@ pub fn nvim_win_set_config(
         }
 
         let was_split = !(*w).w_floating;
-        let mask = (*config).is_set__win_config_;
+        let mask = config.is_set__win_config_;
         let has_split = has_key(mask, KEYSET_OPTIDX_win_config__split);
         let has_vertical = has_key(mask, KEYSET_OPTIDX_win_config__vertical);
         let old_style = (*w).w_config.style;
         let mut fconfig = (*w).w_config.clone();
 
-        let to_split = (*config).relative.size == 0
-            && !(has_key(mask, KEYSET_OPTIDX_win_config__external) && (*config).external)
+        let to_split = config.relative.size == 0
+            && !(has_key(mask, KEYSET_OPTIDX_win_config__external) && config.external)
             && (has_split || has_vertical || was_split);
         let will_float =
-            (!was_split && !to_split) || (*config).relative.size > 0 || (*config).external;
+            (!was_split && !to_split) || config.relative.size > 0 || config.external;
 
         if !parse_win_config(
             w,

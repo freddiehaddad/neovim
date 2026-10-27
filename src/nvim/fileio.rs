@@ -1266,7 +1266,7 @@ pub fn readfile(
                     }
                     check_marks_read();
                     if !eap.is_null() {
-                        set_forced_fenc(eap);
+                        set_forced_fenc(&mut *eap);
                     }
                     apply_autocmds_exarg(EVENT_BUFNEWFILE, sfname, sfname, false, g_st().curbuf, eap);
                     save_file_ff(&mut *g_st().curbuf);
@@ -2862,13 +2862,13 @@ pub fn set_file_options(set_options: bool, eap: *mut exarg_T) {
 }
 
 /// Set forced 'fileencoding'.
-pub fn set_forced_fenc(eap: *mut exarg_T) {
+pub fn set_forced_fenc(eap: &mut exarg_T) {
     unsafe {
-        if (*eap).force_enc == 0 {
+        if eap.force_enc == 0 {
             return;
         }
 
-        let fenc = enc_canonize((*eap).cmd.add((*eap).force_enc as usize));
+        let fenc = enc_canonize(eap.cmd.add(eap.force_enc as usize));
         set_option_direct(kOptFileencoding, cstr_as_obj(fenc.as_ptr()), OPT_LOCAL, 0);
     }
 }

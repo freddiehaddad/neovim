@@ -436,11 +436,11 @@ pub fn ns_hl_def(
     hl_id: c_int,
     attrs: HlAttrs,
     link_id: c_int,
-    dict: *mut KeyDict_highlight,
+    dict: Option<&KeyDict_highlight>,
 ) {
     unsafe {
         if ns_id == 0 {
-            assert!(!dict.is_null());
+            let dict = dict.expect("ns_hl_def with ns_id == 0 requires dict");
             set_hl_group(hl_id, attrs, dict, link_id);
             return;
         }
@@ -539,7 +539,7 @@ pub fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c
                     &mut err,
                 ) {
                     attrs = dict2hlattrs(
-                        &raw mut dict,
+                        &mut dict,
                         true,
                         &raw mut it.link_id,
                         ptr::null_mut(),
@@ -1273,8 +1273,8 @@ pub fn hl_get_attr_by_id(
         }
         let mut retval = arena_dict(arena, HLATTRS_DICT_SIZE);
         hlattrs2dict(
-            &raw mut retval,
-            ptr::null_mut(),
+            &mut retval,
+            None,
             syn_attr2entry(attr_id as c_int),
             rgb,
             false,
@@ -1284,17 +1284,18 @@ pub fn hl_get_attr_by_id(
 }
 
 pub fn hlattrs2dict(
-    hl: *mut Dict,
-    mut hl_attrs: *mut Dict,
+    hl: &mut Dict,
+    hl_attrs: Option<&mut Dict>,
     ae: HlAttrs,
     use_rgb: bool,
     short_keys: bool,
 ) {
     unsafe {
-        if hl_attrs.is_null() {
-            hl_attrs = hl;
-        }
-        assert!((*hl).capacity >= HLATTRS_DICT_SIZE);
+        let hl_attrs: *mut Dict = match hl_attrs {
+            Some(a) => &raw mut *a,
+            None => &raw mut *hl,
+        };
+        assert!(hl.capacity >= HLATTRS_DICT_SIZE);
         assert!((*hl_attrs).capacity >= HLATTRS_DICT_SIZE);
         let mask = if use_rgb {
             ae.rgb_ae_attr
@@ -1438,7 +1439,7 @@ const fn apply_cterm_flag(val: bool, mut m: i32, flag: i32) -> i32 {
 }
 
 pub fn dict2hlattrs(
-    dict: *mut KeyDict_highlight,
+    dict: &mut KeyDict_highlight,
     use_rgb: bool,
     link_id: *mut c_int,
     base: *mut HlAttrs,
@@ -1497,109 +1498,109 @@ pub fn dict2hlattrs(
         let mut font: i32 = if !base.is_null() { (*base).font } else { -1 };
         let mut cterm_mask_provided = false;
 
-        let is_set = (*dict).is_set__highlight_;
+        let is_set = dict.is_set__highlight_;
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_highlight__reverse,
-            (*dict).reverse,
+            dict.reverse,
             mask,
             HL_INVERSE,
         );
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_highlight__bold,
-            (*dict).bold,
+            dict.bold,
             mask,
             HL_BOLD,
         );
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_highlight__italic,
-            (*dict).italic,
+            dict.italic,
             mask,
             HL_ITALIC,
         );
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_highlight__underline,
-            (*dict).underline,
+            dict.underline,
             mask,
             HL_UNDERLINE,
         );
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_highlight__undercurl,
-            (*dict).undercurl,
+            dict.undercurl,
             mask,
             HL_UNDERCURL,
         );
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_highlight__underdouble,
-            (*dict).underdouble,
+            dict.underdouble,
             mask,
             HL_UNDERDOUBLE,
         );
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_highlight__underdotted,
-            (*dict).underdotted,
+            dict.underdotted,
             mask,
             HL_UNDERDOTTED,
         );
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_highlight__underdashed,
-            (*dict).underdashed,
+            dict.underdashed,
             mask,
             HL_UNDERDASHED,
         );
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_highlight__standout,
-            (*dict).standout,
+            dict.standout,
             mask,
             HL_STANDOUT,
         );
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_highlight__strikethrough,
-            (*dict).strikethrough,
+            dict.strikethrough,
             mask,
             HL_STRIKETHROUGH,
         );
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_highlight__altfont,
-            (*dict).altfont,
+            dict.altfont,
             mask,
             HL_ALTFONT,
         );
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_highlight__dim,
-            (*dict).dim,
+            dict.dim,
             mask,
             HL_DIM,
         );
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_highlight__blink,
-            (*dict).blink,
+            dict.blink,
             mask,
             HL_BLINK,
         );
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_highlight__conceal,
-            (*dict).conceal,
+            dict.conceal,
             mask,
             HL_CONCEALED,
         );
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_highlight__overline,
-            (*dict).overline,
+            dict.overline,
             mask,
             HL_OVERLINE,
         );
@@ -1607,14 +1608,14 @@ pub fn dict2hlattrs(
             mask = apply_flag_with_key(
                 is_set,
                 KEYSET_OPTIDX_highlight__fg_indexed,
-                (*dict).fg_indexed,
+                dict.fg_indexed,
                 mask,
                 HL_FG_INDEXED,
             );
             mask = apply_flag_with_key(
                 is_set,
                 KEYSET_OPTIDX_highlight__bg_indexed,
-                (*dict).bg_indexed,
+                dict.bg_indexed,
                 mask,
                 HL_BG_INDEXED,
             );
@@ -1622,23 +1623,23 @@ pub fn dict2hlattrs(
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_highlight__nocombine,
-            (*dict).nocombine,
+            dict.nocombine,
             mask,
             HL_NOCOMBINE,
         );
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_highlight__default,
-            (*dict).default_,
+            dict.default_,
             mask,
             HL_DEFAULT,
         );
 
         if has_key(is_set, KEYSET_OPTIDX_highlight__fg) {
-            fg = object_to_color((*dict).fg, c"fg".as_ptr().cast_mut(), use_rgb, err);
+            fg = object_to_color(dict.fg, c"fg".as_ptr().cast_mut(), use_rgb, err);
         } else if has_key(is_set, KEYSET_OPTIDX_highlight__foreground) {
             fg = object_to_color(
-                (*dict).foreground,
+                dict.foreground,
                 c"foreground".as_ptr().cast_mut(),
                 use_rgb,
                 err,
@@ -1649,10 +1650,10 @@ pub fn dict2hlattrs(
         }
 
         if has_key(is_set, KEYSET_OPTIDX_highlight__bg) {
-            bg = object_to_color((*dict).bg, c"bg".as_ptr().cast_mut(), use_rgb, err);
+            bg = object_to_color(dict.bg, c"bg".as_ptr().cast_mut(), use_rgb, err);
         } else if has_key(is_set, KEYSET_OPTIDX_highlight__background) {
             bg = object_to_color(
-                (*dict).background,
+                dict.background,
                 c"background".as_ptr().cast_mut(),
                 use_rgb,
                 err,
@@ -1663,16 +1664,16 @@ pub fn dict2hlattrs(
         }
 
         if has_key(is_set, KEYSET_OPTIDX_highlight__sp) {
-            sp = object_to_color((*dict).sp, c"sp".as_ptr().cast_mut(), true, err);
+            sp = object_to_color(dict.sp, c"sp".as_ptr().cast_mut(), true, err);
         } else if has_key(is_set, KEYSET_OPTIDX_highlight__special) {
-            sp = object_to_color((*dict).special, c"special".as_ptr().cast_mut(), true, err);
+            sp = object_to_color(dict.special, c"special".as_ptr().cast_mut(), true, err);
         }
         if err.err_type != ErrorType::kErrorTypeNone {
             return hlattrs;
         }
 
         if has_key(is_set, KEYSET_OPTIDX_highlight__blend) {
-            let blend0 = (*dict).blend;
+            let blend0 = dict.blend;
             if !(0..=100).contains(&blend0) {
                 api_err_invalid(err, c"blend".as_ptr(), c"out of range".as_ptr(), 0, false);
                 return hlattrs;
@@ -1697,10 +1698,10 @@ pub fn dict2hlattrs(
                 return hlattrs;
             }
             if has_key(is_set, KEYSET_OPTIDX_highlight__link_global) {
-                *link_id = (*dict).link_global as c_int;
+                *link_id = dict.link_global as c_int;
                 mask |= HL_GLOBAL;
             } else {
-                *link_id = (*dict).link as c_int;
+                *link_id = dict.link as c_int;
             }
 
             if err.err_type != ErrorType::kErrorTypeNone {
@@ -1713,7 +1714,7 @@ pub fn dict2hlattrs(
             if !api_dict_to_keydict(
                 (&raw mut cterm).cast(),
                 Some(KeyDict_highlight_cterm_get_field),
-                (*dict).cterm,
+                dict.cterm,
                 err,
             ) {
                 return hlattrs;
@@ -1740,14 +1741,14 @@ pub fn dict2hlattrs(
         }
 
         if has_key(is_set, KEYSET_OPTIDX_highlight__ctermfg) {
-            ctermfg = object_to_color((*dict).ctermfg, c"ctermfg".as_ptr().cast_mut(), false, err);
+            ctermfg = object_to_color(dict.ctermfg, c"ctermfg".as_ptr().cast_mut(), false, err);
             if err.err_type != ErrorType::kErrorTypeNone {
                 return hlattrs;
             }
         }
 
         if has_key(is_set, KEYSET_OPTIDX_highlight__ctermbg) {
-            ctermbg = object_to_color((*dict).ctermbg, c"ctermbg".as_ptr().cast_mut(), false, err);
+            ctermbg = object_to_color(dict.ctermbg, c"ctermbg".as_ptr().cast_mut(), false, err);
             if err.err_type != ErrorType::kErrorTypeNone {
                 return hlattrs;
             }
@@ -1780,7 +1781,7 @@ pub fn dict2hlattrs(
         }
 
         if has_key(is_set, KEYSET_OPTIDX_highlight__font) {
-            let str_ = (*dict).font;
+            let str_ = dict.font;
             font = if str_.size > 0 && !is_none_str(str_.data) {
                 hl_add_font_idx(str_.data)
             } else {
@@ -1820,15 +1821,15 @@ pub fn object_to_color(val: Object, key: *mut c_char, rgb: bool, err: &mut Error
 
 pub fn hl_inspect(attr: c_int, arena: &mut Arena) -> Array {
     if !hl_st().hlstate_active {
-            return Array {
-                size: 0,
-                capacity: 0,
-                items: ptr::null_mut(),
-            };
-        }
-        let mut ret = arena_array(arena, hl_inspect_size(attr));
-        hl_inspect_impl(&raw mut ret, attr, arena);
-        ret
+        return Array {
+            size: 0,
+            capacity: 0,
+            items: ptr::null_mut(),
+        };
+    }
+    let mut ret = arena_array(arena, hl_inspect_size(attr));
+    hl_inspect_impl(&mut ret, attr, arena);
+    ret
 }
 
 fn hl_inspect_size(attr: c_int) -> usize {
@@ -1846,7 +1847,7 @@ fn hl_inspect_size(attr: c_int) -> usize {
     }
 }
 
-fn hl_inspect_impl(arr: *mut Array, attr: c_int, arena: &mut Arena) {
+fn hl_inspect_impl(arr: &mut Array, attr: c_int, arena: &mut Arena) {
     unsafe {
         let entries_ptr = &raw const hl_st().attr_entries;
         if attr <= 0 || (attr as usize) >= (*entries_ptr).len() {
@@ -1884,7 +1885,7 @@ fn hl_inspect_impl(arr: *mut Array, attr: c_int, arena: &mut Arena) {
             _ => return,
         }
         put_c(&mut item, c"id", integer_obj(Integer::from(attr)));
-        add_c(&mut *arr, dict_obj(item));
+        add_c(arr, dict_obj(item));
     }
 }
 

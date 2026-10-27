@@ -953,14 +953,14 @@ fn lookup_color(idx: c_int, foreground: bool, boldp: *mut TriState) -> c_int {
 pub fn set_hl_group(
     id: c_int,
     attrs: HlAttrs,
-    dict: *mut KeyDict_highlight,
+    dict: &KeyDict_highlight,
     link_id: c_int,
 ) {
     unsafe {
         let idx = (id - 1) as usize;
         let is_default = (attrs.rgb_ae_attr & HL_DEFAULT) != 0;
 
-        if is_default && hl_has_settings(idx as c_int, true) && !(*dict).force {
+        if is_default && hl_has_settings(idx as c_int, true) && !dict.force {
             return;
         }
 
@@ -985,7 +985,7 @@ pub fn set_hl_group(
         }
 
         let update =
-            has_key((*dict).is_set__highlight_, KEYSET_OPTIDX_highlight__update) && (*dict).update;
+            has_key(dict.is_set__highlight_, KEYSET_OPTIDX_highlight__update) && dict.update;
         g.sg_gui = attrs.rgb_ae_attr & !HL_DEFAULT;
 
         g.sg_rgb_fg = attrs.rgb_fg_color;
@@ -996,28 +996,28 @@ pub fn set_hl_group(
             (
                 &raw mut g.sg_rgb_fg_idx,
                 g.sg_rgb_fg,
-                if has_key((*dict).is_set__highlight_, KEYSET_OPTIDX_highlight__fg) {
-                    (*dict).fg
+                if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_highlight__fg) {
+                    dict.fg
                 } else {
-                    (*dict).foreground
+                    dict.foreground
                 },
             ),
             (
                 &raw mut g.sg_rgb_bg_idx,
                 g.sg_rgb_bg,
-                if has_key((*dict).is_set__highlight_, KEYSET_OPTIDX_highlight__bg) {
-                    (*dict).bg
+                if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_highlight__bg) {
+                    dict.bg
                 } else {
-                    (*dict).background
+                    dict.background
                 },
             ),
             (
                 &raw mut g.sg_rgb_sp_idx,
                 g.sg_rgb_sp,
-                if has_key((*dict).is_set__highlight_, KEYSET_OPTIDX_highlight__sp) {
-                    (*dict).sp
+                if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_highlight__sp) {
+                    dict.sp
                 } else {
-                    (*dict).special
+                    dict.special
                 },
             ),
         ];
@@ -1065,7 +1065,7 @@ pub fn set_hl_group(
 
         if attrs.font >= 0 {
             g.sg_font = Some(CStr::from_ptr(hl_get_font(attrs.font)).to_owned());
-        } else if has_key((*dict).is_set__highlight_, KEYSET_OPTIDX_highlight__font) || !update {
+        } else if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_highlight__font) || !update {
             g.sg_font = None;
         }
 
@@ -1773,7 +1773,7 @@ fn highlight_list_one(id: c_int) {
     }
 }
 
-fn hlgroup2dict(hl: *mut Dict, ns_id: NS, hl_id: c_int, arena: &mut Arena) -> bool {
+fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: c_int, arena: &mut Arena) -> bool {
     unsafe {
         let sgp = &*hl_table().add((hl_id - 1) as usize);
         let mut ns = ns_id;
@@ -1797,21 +1797,21 @@ fn hlgroup2dict(hl: *mut Dict, ns_id: NS, hl_id: c_int, arena: &mut Arena) -> bo
         let attr = syn_attr2entry(attr_id);
         *hl = arena_dict(arena, HLATTRS_DICT_SIZE + 1);
         if (attr.rgb_ae_attr & HL_DEFAULT) != 0 {
-            put_c(&mut *hl, c"default".as_ptr(), boolean_obj(true));
+            put_c(hl, c"default".as_ptr(), boolean_obj(true));
         }
         if link > 0 {
             assert!(1 <= link && link <= hl_len());
             put_c(
-                &mut *hl,
+                hl,
                 c"link".as_ptr(),
                 cstr_as_obj((*hl_table().add((link - 1) as usize)).sg_name.as_ptr()),
             );
         }
         let mut hl_cterm = arena_dict(arena, HLATTRS_DICT_SIZE);
-        hlattrs2dict(hl, ptr::null_mut(), attr, true, true);
-        hlattrs2dict(hl, &raw mut hl_cterm, attr, false, true);
+        hlattrs2dict(hl, None, attr, true, true);
+        hlattrs2dict(hl, Some(&mut hl_cterm), attr, false, true);
         if hl_cterm.size > 0 {
-            put_c(&mut *hl, c"cterm".as_ptr(), dict_obj(hl_cterm));
+            put_c(hl, c"cterm".as_ptr(), dict_obj(hl_cterm));
         }
         true
     }
@@ -1872,7 +1872,7 @@ pub fn ns_get_hl_defs(
             }
             let mut attrs = Dict::new();
             let target_id = if link { id } else { syn_get_final_id(id) };
-            hlgroup2dict(&raw mut attrs, ns_id, target_id, arena);
+            hlgroup2dict(&mut attrs, ns_id, target_id, arena);
             return attrs;
         }
         if err.err_type != ErrorType::kErrorTypeNone {
@@ -1883,7 +1883,7 @@ pub fn ns_get_hl_defs(
         let mut rv = arena_dict(arena, len as usize);
         for i in 1..=len {
             let mut attrs = Dict::new();
-            if !hlgroup2dict(&raw mut attrs, ns_id, i, arena) {
+            if !hlgroup2dict(&mut attrs, ns_id, i, arena) {
                 continue;
             }
             let target_id = if link { i } else { syn_get_final_id(i) };

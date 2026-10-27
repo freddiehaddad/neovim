@@ -3759,7 +3759,7 @@ pub fn handle_nvim_get_autocmds(
             && !extract_keydict(args[0], &mut arg_1, Some(KeyDict_get_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_get_autocmds, expecting Dict(get_autocmds) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_get_autocmds(&raw mut arg_1, arena, error);
+        let rv = nvim_get_autocmds(&mut arg_1, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -3796,7 +3796,7 @@ pub fn handle_nvim_create_autocmd(
             && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_create_autocmd_get_field), c"Wrong type for argument 2 when calling nvim_create_autocmd, expecting Dict(create_autocmd) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_create_autocmd(channel_id, arg_1, &raw mut arg_2, arena, error);
+        let rv = nvim_create_autocmd(channel_id, arg_1, &mut arg_2, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -3871,7 +3871,7 @@ pub fn handle_nvim_clear_autocmds(
             && !extract_keydict(args[0], &mut arg_1, Some(KeyDict_clear_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_clear_autocmds, expecting Dict(clear_autocmds) *".as_ptr(), error) {
                 return ret;
             }
-        nvim_clear_autocmds(&raw mut arg_1, arena, error);
+        nvim_clear_autocmds(&mut arg_1, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -3916,7 +3916,7 @@ pub fn handle_nvim_create_augroup(
             && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_create_augroup_get_field), c"Wrong type for argument 2 when calling nvim_create_augroup, expecting Dict(create_augroup) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_create_augroup(channel_id, arg_1, &raw mut arg_2, error);
+        let rv = nvim_create_augroup(channel_id, arg_1, &mut arg_2, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -4033,7 +4033,7 @@ pub fn handle_nvim_exec_autocmds(
             && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_exec_autocmds_get_field), c"Wrong type for argument 2 when calling nvim_exec_autocmds, expecting Dict(exec_autocmds) *".as_ptr(), error) {
                 return ret;
             }
-        nvim_exec_autocmds(arg_1, &raw mut arg_2, arena, error);
+        nvim_exec_autocmds(arg_1, &mut arg_2, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -4129,7 +4129,7 @@ pub fn handle_nvim_buf_attach(
             && !extract_keydict(args[2], &mut arg_3, Some(KeyDict_buf_attach_get_field), c"Wrong type for argument 3 when calling nvim_buf_attach, expecting Dict(buf_attach) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_buf_attach(channel_id, arg_1, arg_2, &raw mut arg_3, error);
+        let rv = nvim_buf_attach(channel_id, arg_1, arg_2, &mut arg_3, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -4515,7 +4515,7 @@ pub fn handle_nvim_buf_get_text(
             arg_3,
             arg_4,
             arg_5,
-            &raw mut arg_6,
+            &mut arg_6,
             arena,
             ptr::null_mut(),
             error,
@@ -4798,7 +4798,7 @@ pub fn handle_nvim_buf_set_keymap(
             arg_2,
             arg_3,
             arg_4,
-            &raw mut arg_5,
+            &mut arg_5,
             error,
         );
         if error.err_type != ErrorType::kErrorTypeNone {
@@ -4866,7 +4866,7 @@ pub fn handle_nvim_buf_del_keymap(
             && !extract_keydict(args[3], &mut arg_4, Some(KeyDict_keymap_del_get_field), c"Wrong type for argument 4 when calling nvim_buf_del_keymap, expecting Dict(keymap_del) *".as_ptr(), error) {
                 return ret;
             }
-        nvim_buf_del_keymap(channel_id, arg_1, arg_2, arg_3, &raw mut arg_4, error);
+        nvim_buf_del_keymap(channel_id, arg_1, arg_2, arg_3, &mut arg_4, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -5142,7 +5142,7 @@ pub fn handle_nvim_buf_delete(
             api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
             return ret;
         }
-        nvim_buf_delete(arg_1, &raw mut arg_2, error);
+        nvim_buf_delete(arg_1, &mut arg_2, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -5302,7 +5302,7 @@ pub fn handle_nvim_buf_set_mark(
             && !extract_keydict(args[4], &mut arg_5, Some(KeyDict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_mark, expecting Dict(empty) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_buf_set_mark(arg_1, arg_2, arg_3, arg_4, &raw mut arg_5, error);
+        let rv = nvim_buf_set_mark(arg_1, arg_2, arg_3, arg_4, &mut arg_5, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -5446,7 +5446,7 @@ pub fn handle_nvim_parse_cmd(
         {
             return ret;
         }
-        let mut rv = nvim_parse_cmd(arg_1, &raw mut arg_2, arena, error);
+        let mut rv = nvim_parse_cmd(arg_1, &mut arg_2, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -5505,7 +5505,7 @@ pub fn handle_nvim_cmd(
         {
             return ret;
         }
-        let rv = nvim_cmd(channel_id, &raw mut arg_1, &raw mut arg_2, arena, error);
+        let rv = nvim_cmd(channel_id, &mut arg_1, &mut arg_2, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -5552,7 +5552,7 @@ pub fn handle_nvim_create_user_command(
             && !extract_keydict(args[2], &mut arg_3, Some(KeyDict_user_command_get_field), c"Wrong type for argument 3 when calling nvim_create_user_command, expecting Dict(user_command) *".as_ptr(), error) {
                 return ret;
             }
-        nvim_create_user_command(channel_id, arg_1, arg_2, &raw mut arg_3, error);
+        nvim_create_user_command(channel_id, arg_1, arg_2, &mut arg_3, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -5636,7 +5636,7 @@ pub fn handle_nvim_buf_create_user_command(
             && !extract_keydict(args[3], &mut arg_4, Some(KeyDict_user_command_get_field), c"Wrong type for argument 4 when calling nvim_buf_create_user_command, expecting Dict(user_command) *".as_ptr(), error) {
                 return ret;
             }
-        nvim_buf_create_user_command(channel_id, arg_1, arg_2, arg_3, &raw mut arg_4, error);
+        nvim_buf_create_user_command(channel_id, arg_1, arg_2, arg_3, &mut arg_4, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -5722,7 +5722,7 @@ pub fn handle_nvim_get_commands(
             && !extract_keydict(args[0], &mut arg_1, Some(KeyDict_get_commands_get_field), c"Wrong type for argument 1 when calling nvim_get_commands, expecting Dict(get_commands) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_get_commands(&raw mut arg_1, arena, error);
+        let rv = nvim_get_commands(&mut arg_1, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -5769,7 +5769,7 @@ pub fn handle_nvim_buf_get_commands(
             && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_get_commands_get_field), c"Wrong type for argument 2 when calling nvim_buf_get_commands, expecting Dict(get_commands) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_buf_get_commands(arg_1, &raw mut arg_2, arena, error);
+        let rv = nvim_buf_get_commands(arg_1, &mut arg_2, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -6190,7 +6190,7 @@ pub fn handle_nvim_buf_set_virtual_text(
             && !extract_keydict(args[4], &mut arg_5, Some(KeyDict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_virtual_text, expecting Dict(empty) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_buf_set_virtual_text(arg_1, arg_2, arg_3, arg_4, &raw mut arg_5, error);
+        let rv = nvim_buf_set_virtual_text(arg_1, arg_2, arg_3, arg_4, &mut arg_5, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -7983,7 +7983,7 @@ pub fn handle_nvim_buf_get_extmark_by_id(
             && !extract_keydict(args[3], &mut arg_4, Some(KeyDict_get_extmark_get_field), c"Wrong type for argument 4 when calling nvim_buf_get_extmark_by_id, expecting Dict(get_extmark) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_buf_get_extmark_by_id(arg_1, arg_2, arg_3, &raw mut arg_4, arena, error);
+        let rv = nvim_buf_get_extmark_by_id(arg_1, arg_2, arg_3, &mut arg_4, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -8042,7 +8042,7 @@ pub fn handle_nvim_buf_get_extmarks(
             && !extract_keydict(args[4], &mut arg_5, Some(KeyDict_get_extmarks_get_field), c"Wrong type for argument 5 when calling nvim_buf_get_extmarks, expecting Dict(get_extmarks) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_buf_get_extmarks(arg_1, arg_2, arg_3, arg_4, &raw mut arg_5, arena, error);
+        let rv = nvim_buf_get_extmarks(arg_1, arg_2, arg_3, arg_4, &mut arg_5, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -8119,7 +8119,7 @@ pub fn handle_nvim_buf_set_extmark(
             && !extract_keydict(args[4], &mut arg_5, Some(KeyDict_set_extmark_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_extmark, expecting Dict(set_extmark) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_buf_set_extmark(arg_1, arg_2, arg_3, arg_4, &raw mut arg_5, error);
+        let rv = nvim_buf_set_extmark(arg_1, arg_2, arg_3, arg_4, &mut arg_5, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -8367,7 +8367,7 @@ pub fn handle_nvim__ns_set(
         {
             return ret;
         }
-        nvim__ns_set(arg_1, &raw mut arg_2, error);
+        nvim__ns_set(arg_1, &mut arg_2, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -8457,7 +8457,7 @@ pub fn handle_nvim_get_option_value(
             && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_value, expecting Dict(option) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_get_option_value(arg_1, &raw mut arg_2, error);
+        let rv = nvim_get_option_value(arg_1, &mut arg_2, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -8504,7 +8504,7 @@ pub fn handle_nvim_set_option_value(
             && !extract_keydict(args[2], &mut arg_3, Some(KeyDict_option_get_field), c"Wrong type for argument 3 when calling nvim_set_option_value, expecting Dict(option) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_set_option_value(channel_id, arg_1, arg_2, &raw mut arg_3, arena, error);
+        let rv = nvim_set_option_value(channel_id, arg_1, arg_2, &mut arg_3, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -8581,7 +8581,7 @@ pub fn handle_nvim_get_option_info2(
             && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_info2, expecting Dict(option) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_get_option_info2(arg_1, &raw mut arg_2, arena, error);
+        let rv = nvim_get_option_info2(arg_1, &mut arg_2, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -9011,7 +9011,7 @@ pub fn handle_nvim_open_tabpage(
             api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
             return ret;
         }
-        let rv = nvim_open_tabpage(arg_1, arg_2, &raw mut arg_3, error);
+        let rv = nvim_open_tabpage(arg_1, arg_2, &mut arg_3, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -9579,7 +9579,7 @@ pub fn handle_nvim_get_hl(
             && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_get_highlight_get_field), c"Wrong type for argument 2 when calling nvim_get_hl, expecting Dict(get_highlight) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_get_hl(arg_1, &raw mut arg_2, arena, error);
+        let rv = nvim_get_hl(arg_1, &mut arg_2, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -9639,7 +9639,7 @@ pub fn handle_nvim_set_hl(
         ) {
             return ret;
         }
-        nvim_set_hl(channel_id, arg_1, arg_2, &raw mut arg_3, error);
+        nvim_set_hl(channel_id, arg_1, arg_2, &mut arg_3, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -9682,7 +9682,7 @@ pub fn handle_nvim_get_hl_ns(
         {
             return ret;
         }
-        let rv = nvim_get_hl_ns(&raw mut arg_1, error);
+        let rv = nvim_get_hl_ns(&mut arg_1, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -10336,7 +10336,7 @@ pub fn handle_nvim__get_runtime(
             && !extract_keydict(args[2], &mut arg_3, Some(KeyDict_runtime_get_field), c"Wrong type for argument 3 when calling nvim__get_runtime, expecting Dict(runtime) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim__get_runtime(arg_1, arg_2, &raw mut arg_3, arena, error);
+        let rv = nvim__get_runtime(arg_1, arg_2, &mut arg_3, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -10741,7 +10741,7 @@ pub fn handle_nvim_echo(
         {
             return ret;
         }
-        let rv = nvim_echo(arg_1, arg_2, &raw mut arg_3, error);
+        let rv = nvim_echo(arg_1, arg_2, &mut arg_3, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -11042,7 +11042,7 @@ pub fn handle_nvim_open_term(
             api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
             return ret;
         }
-        let rv = nvim_open_term(arg_1, &raw mut arg_2, error);
+        let rv = nvim_open_term(arg_1, &mut arg_2, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -11425,7 +11425,7 @@ pub fn handle_nvim_get_context(
             && !extract_keydict(args[0], &mut arg_1, Some(KeyDict_context_get_field), c"Wrong type for argument 1 when calling nvim_get_context, expecting Dict(context) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_get_context(&raw mut arg_1, arena, error);
+        let rv = nvim_get_context(&mut arg_1, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -11601,7 +11601,7 @@ pub fn handle_nvim_set_keymap(
         {
             return ret;
         }
-        nvim_set_keymap(channel_id, arg_1, arg_2, arg_3, &raw mut arg_4, error);
+        nvim_set_keymap(channel_id, arg_1, arg_2, arg_3, &mut arg_4, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -11654,7 +11654,7 @@ pub fn handle_nvim_del_keymap(
             && !extract_keydict(args[2], &mut arg_3, Some(KeyDict_keymap_del_get_field), c"Wrong type for argument 3 when calling nvim_del_keymap, expecting Dict(keymap_del) *".as_ptr(), error) {
                 return ret;
             }
-        nvim_del_keymap(channel_id, arg_1, arg_2, &raw mut arg_3, error);
+        nvim_del_keymap(channel_id, arg_1, arg_2, &mut arg_3, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -11809,7 +11809,7 @@ pub fn handle_nvim_chan_set(
         ) {
             return ret;
         }
-        nvim_chan_set(channel_id, arg_1, &raw mut arg_2, error);
+        nvim_chan_set(channel_id, arg_1, &mut arg_2, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -12269,7 +12269,7 @@ pub fn handle_nvim_select_popupmenu_item(
             && !extract_keydict(args[3], &mut arg_4, Some(KeyDict_empty_get_field), c"Wrong type for argument 4 when calling nvim_select_popupmenu_item, expecting Dict(empty) *".as_ptr(), error) {
                 return ret;
             }
-        nvim_select_popupmenu_item(arg_1, arg_2, arg_3, &raw mut arg_4, error);
+        nvim_select_popupmenu_item(arg_1, arg_2, arg_3, &mut arg_4, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -12525,7 +12525,7 @@ pub fn handle_nvim_get_mark(
         {
             return ret;
         }
-        let rv = nvim_get_mark(arg_1, &raw mut arg_2, arena, error);
+        let rv = nvim_get_mark(arg_1, &mut arg_2, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -12571,7 +12571,7 @@ pub fn handle_nvim_eval_statusline(
             && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_eval_statusline_get_field), c"Wrong type for argument 2 when calling nvim_eval_statusline, expecting Dict(eval_statusline) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_eval_statusline(arg_1, &raw mut arg_2, arena, error);
+        let rv = nvim_eval_statusline(arg_1, &mut arg_2, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -12617,7 +12617,7 @@ pub fn handle_nvim__complete_set(
             && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_complete_set_get_field), c"Wrong type for argument 2 when calling nvim__complete_set, expecting Dict(complete_set) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim__complete_set(arg_1, &raw mut arg_2, arena, error);
+        let rv = nvim__complete_set(arg_1, &mut arg_2, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -12661,7 +12661,7 @@ pub fn handle_nvim__redraw(
         {
             return ret;
         }
-        nvim__redraw(&raw mut arg_1, error);
+        nvim__redraw(&mut arg_1, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -12760,7 +12760,7 @@ pub fn handle_nvim_exec2(
         {
             return ret;
         }
-        let rv = nvim_exec2(channel_id, arg_1, &raw mut arg_2, error);
+        let rv = nvim_exec2(channel_id, arg_1, &mut arg_2, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -13066,7 +13066,7 @@ pub fn handle_nvim_open_win(
             api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
             return ret;
         }
-        let rv = nvim_open_win(arg_1, arg_2, &raw mut arg_3, error);
+        let rv = nvim_open_win(arg_1, arg_2, &mut arg_3, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -13112,7 +13112,7 @@ pub fn handle_nvim_win_set_config(
         if !extract_keydict(args[1], &mut arg_2, Some(KeyDict_win_config_get_field), c"Wrong type for argument 2 when calling nvim_win_set_config, expecting Dict(win_config) *".as_ptr(), error) {
             return ret;
         }
-        nvim_win_set_config(arg_1, &raw mut arg_2, error);
+        nvim_win_set_config(arg_1, &mut arg_2, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -13930,7 +13930,7 @@ pub fn handle_nvim_win_text_height(
             && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_win_text_height_get_field), c"Wrong type for argument 2 when calling nvim_win_text_height, expecting Dict(win_text_height) *".as_ptr(), error) {
                 return ret;
             }
-        let rv = nvim_win_text_height(arg_1, &raw mut arg_2, arena, error);
+        let rv = nvim_win_text_height(arg_1, &mut arg_2, arena, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -13994,7 +13994,7 @@ pub fn handle_nvim_win_resize(
             && !extract_keydict(args[3], &mut arg_4, Some(KeyDict_win_resize_get_field), c"Wrong type for argument 4 when calling nvim_win_resize, expecting Dict(win_resize) *".as_ptr(), error) {
                 return ret;
             }
-        nvim_win_resize(arg_1, arg_2, arg_3, &raw mut arg_4, error);
+        nvim_win_resize(arg_1, arg_2, arg_3, &mut arg_4, error);
         if error.err_type != ErrorType::kErrorTypeNone {
             return ret;
         }
@@ -16103,7 +16103,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                let ret = nvim_get_autocmds(&raw mut arg1, &mut arena, &mut err);
+                let ret = nvim_get_autocmds(&mut arg1, &mut arena, &mut err);
                 nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 nlua_st().active_lstate = save_active_lstate;
             }
@@ -16156,7 +16156,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State)
                 let ret = nvim_create_autocmd(
                     LUA_INTERNAL_CALL,
                     arg1,
-                    &raw mut arg2,
+                    &mut arg2,
                     &mut arena,
                     &mut err,
                 );
@@ -16247,7 +16247,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_clear_autocmds(lstate: *mut lua_State)
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                nvim_clear_autocmds(&raw mut arg1, &mut arena, &mut err);
+                nvim_clear_autocmds(&mut arg1, &mut arena, &mut err);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -16303,7 +16303,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State)
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                let ret = nvim_create_augroup(LUA_INTERNAL_CALL, arg1, &raw mut arg2, &mut err);
+                let ret = nvim_create_augroup(LUA_INTERNAL_CALL, arg1, &mut arg2, &mut err);
                 nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 nlua_st().active_lstate = save_active_lstate;
             }
@@ -16432,7 +16432,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec_autocmds(lstate: *mut lua_State) 
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                nvim_exec_autocmds(arg1, &raw mut arg2, &mut arena, &mut err);
+                nvim_exec_autocmds(arg1, &mut arg2, &mut arena, &mut err);
                 nlua_st().active_lstate = save_active_lstate;
                 api_luarefs_free_object(arg1);
             }
@@ -16534,7 +16534,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> 
                     let save_active_lstate = nlua_st().active_lstate;
                     nlua_st().active_lstate = lstate;
                     let ret =
-                        nvim_buf_attach(LUA_INTERNAL_CALL, arg1, arg2, &raw mut arg3, &mut err);
+                        nvim_buf_attach(LUA_INTERNAL_CALL, arg1, arg2, &mut arg3, &mut err);
                     nlua_push_Boolean(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                     nlua_st().active_lstate = save_active_lstate;
                 }
@@ -16882,7 +16882,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -
                                     arg3,
                                     arg4,
                                     arg5,
-                                    &raw mut arg6,
+                                    &mut arg6,
                                     &mut arena,
                                     lstate,
                                     &mut err,
@@ -17150,7 +17150,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State)
                                 arg2,
                                 arg3,
                                 arg4,
-                                &raw mut arg5,
+                                &mut arg5,
                                 &mut err,
                             );
                             nlua_st().active_lstate = save_active_lstate;
@@ -17230,7 +17230,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State)
                             arg1,
                             arg2,
                             arg3,
-                            &raw mut arg4,
+                            &mut arg4,
                             &mut err,
                         );
                         nlua_st().active_lstate = save_active_lstate;
@@ -17513,7 +17513,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_delete(lstate: *mut lua_State) -> 
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                nvim_buf_delete(arg1, &raw mut arg2, &mut err);
+                nvim_buf_delete(arg1, &mut arg2, &mut err);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -17677,7 +17677,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -
                                 arg2,
                                 arg3,
                                 arg4,
-                                &raw mut arg5,
+                                &mut arg5,
                                 &mut err,
                             );
                             nlua_push_Boolean(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
@@ -17860,7 +17860,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> c
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                let mut ret = nvim_parse_cmd(arg1, &raw mut arg2, &mut arena, &mut err);
+                let mut ret = nvim_parse_cmd(arg1, &mut arg2, &mut arena, &mut err);
                 nlua_push_keydict(
                     lstate,
                     (&raw mut ret).cast(),
@@ -17930,8 +17930,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> c_int {
                     nlua_st().active_lstate = lstate;
                     let ret = nvim_cmd(
                         LUA_INTERNAL_CALL,
-                        &raw mut arg1,
-                        &raw mut arg2,
+                        &mut arg1,
+                        &mut arg2,
                         &mut arena,
                         &mut err,
                     );
@@ -18007,7 +18007,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_user_command(lstate: *mut lua_S
                         LUA_INTERNAL_CALL,
                         arg1,
                         arg2,
-                        &raw mut arg3,
+                        &mut arg3,
                         &mut err,
                     );
                     nlua_st().active_lstate = save_active_lstate;
@@ -18122,7 +18122,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut l
                             arg1,
                             arg2,
                             arg3,
-                            &raw mut arg4,
+                            &mut arg4,
                             &mut err,
                         );
                         nlua_st().active_lstate = save_active_lstate;
@@ -18221,7 +18221,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                let ret = nvim_get_commands(&raw mut arg1, &mut arena, &mut err);
+                let ret = nvim_get_commands(&mut arg1, &mut arena, &mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 nlua_st().active_lstate = save_active_lstate;
             }
@@ -18278,7 +18278,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_Stat
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                let ret = nvim_buf_get_commands(arg1, &raw mut arg2, &mut arena, &mut err);
+                let ret = nvim_buf_get_commands(arg1, &mut arg2, &mut arena, &mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 nlua_st().active_lstate = save_active_lstate;
             }
@@ -18627,7 +18627,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_
                                 arg2,
                                 arg3,
                                 arg4,
-                                &raw mut arg5,
+                                &mut arg5,
                                 &mut err,
                             );
                             nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
@@ -19432,7 +19432,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua
                             arg1,
                             arg2,
                             arg3,
-                            &raw mut arg4,
+                            &mut arg4,
                             &mut arena,
                             &mut err,
                         );
@@ -19520,7 +19520,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_Stat
                                 arg2,
                                 arg3,
                                 arg4,
-                                &raw mut arg5,
+                                &mut arg5,
                                 &mut arena,
                                 &mut err,
                             );
@@ -19611,7 +19611,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State
                                 arg2,
                                 arg3,
                                 arg4,
-                                &raw mut arg5,
+                                &mut arg5,
                                 &mut err,
                             );
                             nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
@@ -19786,7 +19786,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut l
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                nvim_set_decoration_provider(arg1, &raw mut arg2, &mut err);
+                nvim_set_decoration_provider(arg1, &mut arg2, &mut err);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -19896,7 +19896,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__ns_set(lstate: *mut lua_State) -> c_i
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                nvim__ns_set(arg1, &raw mut arg2, &mut err);
+                nvim__ns_set(arg1, &mut arg2, &mut err);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -20039,7 +20039,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_Stat
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                let mut ret = nvim_get_option_value(arg1, &raw mut arg2, &mut err);
+                let mut ret = nvim_get_option_value(arg1, &mut arg2, &mut err);
                 nlua_push_Object(lstate, &raw mut ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 nlua_st().active_lstate = save_active_lstate;
                 api_free_object(ret);
@@ -20108,7 +20108,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_Stat
                         LUA_INTERNAL_CALL,
                         arg1,
                         arg2,
-                        &raw mut arg3,
+                        &mut arg3,
                         &mut arena,
                         &mut err,
                     );
@@ -20201,7 +20201,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_Stat
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                let ret = nvim_get_option_info2(arg1, &raw mut arg2, &mut arena, &mut err);
+                let ret = nvim_get_option_info2(arg1, &mut arg2, &mut arena, &mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushFreeRefs);
                 nlua_st().active_lstate = save_active_lstate;
             }
@@ -20605,7 +20605,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -
                     }
                     let save_active_lstate = nlua_st().active_lstate;
                     nlua_st().active_lstate = lstate;
-                    let ret = nvim_open_tabpage(arg1, arg2, &raw mut arg3, &mut err);
+                    let ret = nvim_open_tabpage(arg1, arg2, &mut arg3, &mut err);
                     nlua_push_Tabpage(lstate, ret, kNluaPushFreeRefs);
                     nlua_st().active_lstate = save_active_lstate;
                 }
@@ -20736,7 +20736,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> c_in
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                let ret = nvim_get_hl(arg1, &raw mut arg2, &mut arena, &mut err);
+                let ret = nvim_get_hl(arg1, &mut arg2, &mut arena, &mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushFreeRefs);
                 nlua_st().active_lstate = save_active_lstate;
             }
@@ -20798,7 +20798,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> c_in
                     }
                     let save_active_lstate = nlua_st().active_lstate;
                     nlua_st().active_lstate = lstate;
-                    nvim_set_hl(LUA_INTERNAL_CALL, arg1, arg2, &raw mut arg3, &mut err);
+                    nvim_set_hl(LUA_INTERNAL_CALL, arg1, arg2, &mut arg3, &mut err);
                     nlua_st().active_lstate = save_active_lstate;
                 }
             }
@@ -20849,7 +20849,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> c
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                let ret = nvim_get_hl_ns(&raw mut arg1, &mut err);
+                let ret = nvim_get_hl_ns(&mut arg1, &mut err);
                 nlua_push_Integer(lstate, ret, kNluaPushFreeRefs);
                 nlua_st().active_lstate = save_active_lstate;
             }
@@ -21347,7 +21347,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__get_runtime(lstate: *mut lua_State) -
                     let save_active_lstate = nlua_st().active_lstate;
                     nlua_st().active_lstate = lstate;
                     let ret =
-                        nvim__get_runtime(arg1, arg2, &raw mut arg3, &mut arena, &mut err);
+                        nvim__get_runtime(arg1, arg2, &mut arg3, &mut arena, &mut err);
                     nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                     nlua_st().active_lstate = save_active_lstate;
                 }
@@ -21761,7 +21761,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> c_int 
                     }
                     let save_active_lstate = nlua_st().active_lstate;
                     nlua_st().active_lstate = lstate;
-                    let mut ret = nvim_echo(arg1, arg2, &raw mut arg3, &mut err);
+                    let mut ret = nvim_echo(arg1, arg2, &mut arg3, &mut err);
                     nlua_push_Object(lstate, &raw mut ret, kNluaPushSpecial | kNluaPushFreeRefs);
                     nlua_st().active_lstate = save_active_lstate;
                 }
@@ -22084,7 +22084,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> c
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                let ret = nvim_open_term(arg1, &raw mut arg2, &mut err);
+                let ret = nvim_open_term(arg1, &mut arg2, &mut err);
                 nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 nlua_st().active_lstate = save_active_lstate;
             }
@@ -22489,7 +22489,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) ->
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                let ret = nvim_get_context(&raw mut arg1, &mut arena, &mut err);
+                let ret = nvim_get_context(&mut arg1, &mut arena, &mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 nlua_st().active_lstate = save_active_lstate;
             }
@@ -22663,7 +22663,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> 
                             arg1,
                             arg2,
                             arg3,
-                            &raw mut arg4,
+                            &mut arg4,
                             &mut err,
                         );
                         nlua_st().active_lstate = save_active_lstate;
@@ -22730,7 +22730,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> 
                     }
                     let save_active_lstate = nlua_st().active_lstate;
                     nlua_st().active_lstate = lstate;
-                    nvim_del_keymap(LUA_INTERNAL_CALL, arg1, arg2, &raw mut arg3, &mut err);
+                    nvim_del_keymap(LUA_INTERNAL_CALL, arg1, arg2, &mut arg3, &mut err);
                     nlua_st().active_lstate = save_active_lstate;
                 }
             }
@@ -22778,7 +22778,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_chan_set(lstate: *mut lua_State) -> c_
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                nvim_chan_set(LUA_INTERNAL_CALL, arg1, &raw mut arg2, &mut err);
+                nvim_chan_set(LUA_INTERNAL_CALL, arg1, &mut arg2, &mut err);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -23241,7 +23241,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua
                         }
                         let save_active_lstate = nlua_st().active_lstate;
                         nlua_st().active_lstate = lstate;
-                        nvim_select_popupmenu_item(arg1, arg2, arg3, &raw mut arg4, &mut err);
+                        nvim_select_popupmenu_item(arg1, arg2, arg3, &mut arg4, &mut err);
                         nlua_st().active_lstate = save_active_lstate;
                     }
                 }
@@ -23478,7 +23478,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> c_
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                let ret = nvim_get_mark(arg1, &raw mut arg2, &mut arena, &mut err);
+                let ret = nvim_get_mark(arg1, &mut arg2, &mut arena, &mut err);
                 nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 nlua_st().active_lstate = save_active_lstate;
             }
@@ -23528,7 +23528,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                let ret = nvim_eval_statusline(arg1, &raw mut arg2, &mut arena, &mut err);
+                let ret = nvim_eval_statusline(arg1, &mut arg2, &mut arena, &mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 nlua_st().active_lstate = save_active_lstate;
             }
@@ -23585,7 +23585,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__complete_set(lstate: *mut lua_State) 
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                let ret = nvim__complete_set(arg1, &raw mut arg2, &mut arena, &mut err);
+                let ret = nvim__complete_set(arg1, &mut arg2, &mut arena, &mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 nlua_st().active_lstate = save_active_lstate;
             }
@@ -23636,7 +23636,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__redraw(lstate: *mut lua_State) -> c_i
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                nvim__redraw(&raw mut arg1, &mut err);
+                nvim__redraw(&mut arg1, &mut err);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -23736,7 +23736,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> c_int
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                let ret = nvim_exec2(LUA_INTERNAL_CALL, arg1, &raw mut arg2, &mut err);
+                let ret = nvim_exec2(LUA_INTERNAL_CALL, arg1, &mut arg2, &mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushFreeRefs);
                 nlua_st().active_lstate = save_active_lstate;
                 api_free_dict(ret);
@@ -24029,7 +24029,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> c_
                     }
                     let save_active_lstate = nlua_st().active_lstate;
                     nlua_st().active_lstate = lstate;
-                    let ret = nvim_open_win(arg1, arg2, &raw mut arg3, &mut err);
+                    let ret = nvim_open_win(arg1, arg2, &mut arg3, &mut err);
                     nlua_push_Window(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                     nlua_st().active_lstate = save_active_lstate;
                 }
@@ -24085,7 +24085,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_config(lstate: *mut lua_State)
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                nvim_win_set_config(arg1, &raw mut arg2, &mut err);
+                nvim_win_set_config(arg1, &mut arg2, &mut err);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -24902,7 +24902,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State
                 }
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
-                let ret = nvim_win_text_height(arg1, &raw mut arg2, &mut arena, &mut err);
+                let ret = nvim_win_text_height(arg1, &mut arg2, &mut arena, &mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushFreeRefs);
                 nlua_st().active_lstate = save_active_lstate;
             }
@@ -24973,7 +24973,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> 
                         }
                         let save_active_lstate = nlua_st().active_lstate;
                         nlua_st().active_lstate = lstate;
-                        nvim_win_resize(arg1, arg2, arg3, &raw mut arg4, &mut err);
+                        nvim_win_resize(arg1, arg2, arg3, &mut arg4, &mut err);
                         nlua_st().active_lstate = save_active_lstate;
                     }
                 }

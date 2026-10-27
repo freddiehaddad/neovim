@@ -287,12 +287,10 @@ pub const fn error_init() -> Error {
 }
 
 #[inline]
-pub fn api_clear_string(s: *mut NvimString) {
-    unsafe {
-        api_free_string(*s);
-        (*s).data = ptr::null_mut();
-        (*s).size = 0;
-    }
+pub fn api_clear_string(s: &mut NvimString) {
+    api_free_string(*s);
+    s.data = ptr::null_mut();
+    s.size = 0;
 }
 
 #[inline]

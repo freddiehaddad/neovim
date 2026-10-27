@@ -2995,7 +2995,7 @@ pub fn do_ecmd(
 
                             if !oldbuf && !eap.is_null() {
                                 set_file_options(true, eap);
-                                set_forced_fenc(eap);
+                                set_forced_fenc(&mut *eap);
                             }
                         }
 

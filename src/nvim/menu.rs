@@ -1554,7 +1554,7 @@ pub fn show_popupmenu() {
 }
 
 /// Execute `menu` (`execute_menu`).
-pub fn execute_menu(eap: *const exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
+pub fn execute_menu(eap: &exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
     unsafe {
         let mut idx = mode_idx;
 
@@ -1568,12 +1568,12 @@ pub fn execute_menu(eap: *const exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) 
             } else if ((g_st().State & MODE_INSERT) != 0 || g_st().restart_edit != 0) && g_st().current_sctx.sc_sid == 0
             {
                 idx = MENU_INDEX_INSERT;
-            } else if !eap.is_null() && (*eap).addr_count != 0 {
+            } else if eap.addr_count != 0 {
                 idx = MENU_INDEX_VISUAL;
 
                 let tpos: pos_T;
-                if (*g_st().curbuf).b_visual.vi_start.lnum == (*eap).line1
-                    && (*g_st().curbuf).b_visual.vi_end.lnum == (*eap).line2
+                if (*g_st().curbuf).b_visual.vi_start.lnum == eap.line1
+                    && (*g_st().curbuf).b_visual.vi_end.lnum == eap.line2
                 {
                     g_st().Visual.mode = (*g_st().curbuf).b_visual.vi_mode;
                     tpos = (*g_st().curbuf).b_visual.vi_end;
@@ -1581,10 +1581,10 @@ pub fn execute_menu(eap: *const exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) 
                     (**curwin.as_ptr()).w_curswant = (*g_st().curbuf).b_visual.vi_curswant;
                 } else {
                     g_st().Visual.mode = b'V' as c_int;
-                    (**curwin.as_ptr()).w_cursor.lnum = (*eap).line1;
+                    (**curwin.as_ptr()).w_cursor.lnum = eap.line1;
                     (**curwin.as_ptr()).w_cursor.col = 1;
                     tpos = pos_T {
-                        lnum: (*eap).line2,
+                        lnum: eap.line2,
                         col: MAXCOL,
                         coladd: 0,
                     };
@@ -1604,7 +1604,7 @@ pub fn execute_menu(eap: *const exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) 
             }
         }
 
-        if idx == MENU_INDEX_INVALID || eap.is_null() {
+        if idx == MENU_INDEX_INVALID {
             idx = MENU_INDEX_NORMAL;
         }
 
@@ -1613,7 +1613,7 @@ pub fn execute_menu(eap: *const exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) 
             && (menu.modes & (1 << idx)) != 0
         {
             let cmd_ptr = cmd_str.as_ptr().cast_mut();
-            if eap.is_null() || g_st().current_sctx.sc_sid != 0 {
+            if g_st().current_sctx.sc_sid != 0 {
                 let mut save_state = save_state_T::new();
                 g_st().ex_normal_busy += 1;
                 save_current_state(&mut save_state);
@@ -1629,7 +1629,7 @@ pub fn execute_menu(eap: *const exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) 
                     menu.silent[u_idx],
                 );
             }
-        } else if !eap.is_null() {
+        } else {
             let mode = match idx {
                 MENU_INDEX_VISUAL => c"Visual",
                 MENU_INDEX_SELECT => c"Select",

@@ -625,7 +625,7 @@ pub fn request_event(mut e: RequestEvent) {
                     e.r#type,
                     e.request_id,
                     &mut error,
-                    &raw mut result,
+                    &mut result,
                 );
             }
             if handler.ret_alloc {
@@ -731,7 +731,7 @@ fn send_error(
             err,
         );
         let mut nil_obj = OBJECT_NIL;
-        serialize_response(chan, handler, r#type, id, &mut e, &raw mut nil_obj);
+        serialize_response(chan, handler, r#type, id, &mut e, &mut nil_obj);
         api_clear_error(&mut e);
     }
 }
@@ -895,7 +895,7 @@ pub fn serialize_response(
     r#type: MessageType,
     response_id: u32,
     err: &mut Error,
-    arg: *mut Object,
+    arg: &mut Object,
 ) {
     if err.err_type != ErrorType::kErrorTypeNone
             && r#type == MessageType::kMessageTypeNotification

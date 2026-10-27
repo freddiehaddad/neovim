@@ -566,7 +566,7 @@ pub fn nvim_win_set_hl_ns(win: Window, ns_id: Integer, err: &mut Error) {
 //   FUNC_API_SINCE(12);
 pub fn nvim_win_text_height(
     win: Window,
-    opts: *mut KeyDict_win_text_height,
+    opts: &mut KeyDict_win_text_height,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
@@ -586,14 +586,14 @@ pub fn nvim_win_text_height(
         let mut end_vcol: i64 = -1;
 
         let mut oob = false;
-        let mask = (*opts).is_set__win_text_height_;
+        let mask = opts.is_set__win_text_height_;
 
         if has_key(mask, KEYSET_OPTIDX_win_text_height__start_row) {
-            start_lnum = normalize_index(&mut *buf, (*opts).start_row, false, &mut oob) as linenr_T;
+            start_lnum = normalize_index(&mut *buf, opts.start_row, false, &mut oob) as linenr_T;
         }
 
         if has_key(mask, KEYSET_OPTIDX_win_text_height__end_row) {
-            end_lnum = normalize_index(&mut *buf, (*opts).end_row, false, &mut oob) as linenr_T;
+            end_lnum = normalize_index(&mut *buf, opts.end_row, false, &mut oob) as linenr_T;
         }
 
         if oob {
@@ -625,7 +625,7 @@ pub fn nvim_win_text_height(
                 );
                 return rv;
             }
-            start_vcol = (*opts).start_vcol;
+            start_vcol = opts.start_vcol;
             if !(0..=MAXCOL).contains(&start_vcol) {
                 api_err_range(err, c"start_vcol".as_ptr());
                 return rv;
@@ -642,7 +642,7 @@ pub fn nvim_win_text_height(
                 );
                 return rv;
             }
-            end_vcol = (*opts).end_vcol;
+            end_vcol = opts.end_vcol;
             if !(0..=MAXCOL).contains(&end_vcol) {
                 api_err_range(err, c"end_vcol".as_ptr());
                 return rv;
@@ -651,11 +651,11 @@ pub fn nvim_win_text_height(
 
         let mut max: i64 = i64::MAX;
         if has_key(mask, KEYSET_OPTIDX_win_text_height__max_height) {
-            if (*opts).max_height <= 0 {
+            if opts.max_height <= 0 {
                 api_err_range(err, c"max_height".as_ptr());
                 return rv;
             }
-            max = (*opts).max_height;
+            max = opts.max_height;
         }
 
         if start_lnum == end_lnum && start_vcol >= 0 && end_vcol >= 0 && start_vcol > end_vcol {
@@ -715,10 +715,10 @@ pub fn nvim_win_resize(
     win: Window,
     width: Integer,
     height: Integer,
-    opts: *mut KeyDict_win_resize,
+    opts: &mut KeyDict_win_resize,
     err: &mut Error,
 ) {
-    unsafe {
+    {
         let w = find_window_by_handle(win, err);
         if w.is_null() {
             return;
@@ -752,11 +752,11 @@ pub fn nvim_win_resize(
         let mut from_left = true;
 
         if has_key(
-            (*opts).is_set__win_resize_,
+            opts.is_set__win_resize_,
             KEYSET_OPTIDX_win_resize__anchor,
         ) {
-            let anchor = (*opts).anchor.data;
-            let anchor_bytes = (*opts).anchor.as_bytes();
+            let anchor = opts.anchor.data;
+            let anchor_bytes = opts.anchor.as_bytes();
             let is_height = anchor_bytes == b"top" || anchor_bytes == b"bottom";
             let is_width = anchor_bytes == b"left" || anchor_bytes == b"right";
 

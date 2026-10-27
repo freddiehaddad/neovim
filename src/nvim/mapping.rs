@@ -2839,7 +2839,7 @@ pub fn modify_keymap(
     mode: NvimString,
     lhs: NvimString,
     rhs: NvimString,
-    opts: *mut KeyDict_keymap,
+    opts: Option<&mut KeyDict_keymap>,
     err: &mut Error,
 ) {
     unsafe {
@@ -2857,20 +2857,20 @@ pub fn modify_keymap(
         let save_current_sctx = api_set_sctx(channel_id);
 
         let mut parsed_args = MapArguments::new();
-        if !opts.is_null() {
-            parsed_args.nowait = (*opts).nowait;
-            parsed_args.noremap = (*opts).noremap;
-            parsed_args.silent = (*opts).silent;
-            parsed_args.script = (*opts).script;
-            parsed_args.expr = (*opts).expr;
-            parsed_args.unique = (*opts).unique;
-            parsed_args.replace_keycodes = (*opts).replace_keycodes;
-            if has_key((*opts).is_set__keymap_, KEYSET_OPTIDX_keymap__callback) {
-                lua_funcref = (*opts).callback;
-                (*opts).callback = LUA_NOREF;
+        if let Some(opts) = opts {
+            parsed_args.nowait = opts.nowait;
+            parsed_args.noremap = opts.noremap;
+            parsed_args.silent = opts.silent;
+            parsed_args.script = opts.script;
+            parsed_args.expr = opts.expr;
+            parsed_args.unique = opts.unique;
+            parsed_args.replace_keycodes = opts.replace_keycodes;
+            if has_key(opts.is_set__keymap_, KEYSET_OPTIDX_keymap__callback) {
+                lua_funcref = opts.callback;
+                opts.callback = LUA_NOREF;
             }
-            if has_key((*opts).is_set__keymap_, KEYSET_OPTIDX_keymap__desc) {
-                parsed_args.desc = Some(string_to_cstr((*opts).desc));
+            if has_key(opts.is_set__keymap_, KEYSET_OPTIDX_keymap__desc) {
+                parsed_args.desc = Some(string_to_cstr(opts.desc));
             }
         }
         parsed_args.buffer = !global;

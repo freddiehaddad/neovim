@@ -508,10 +508,10 @@ fn nlua_push_cmdmod(lstate: *mut lua_State, cmod: &cmdmod_T) {
     }
 }
 
-fn nlua_push_eap(lstate: *mut lua_State, eap: *mut exarg_T, cmod: &cmdmod_T) {
+fn nlua_push_eap(lstate: *mut lua_State, eap: &mut exarg_T, cmod: &cmdmod_T) {
     unsafe {
-        if !is_user_cmdidx((*eap).cmdidx) && (*eap).cmdidx < CMD_SIZE {
-            lua_pushstring(lstate, get_command_name(&mut crate::os::env::expand_T::new(), (*eap).cmdidx));
+        if !is_user_cmdidx(eap.cmdidx) && eap.cmdidx < CMD_SIZE {
+            lua_pushstring(lstate, get_command_name(&mut crate::os::env::expand_T::new(), eap.cmdidx));
             lua_setfield(lstate, -2, c"name".as_ptr());
         }
 
@@ -523,38 +523,38 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: *mut exarg_T, cmod: &cmdmod_T) {
         nlua_push_cmdmod(lstate, cmod);
         lua_setfield(lstate, -2, c"smods".as_ptr());
 
-        lua_pushstring(lstate, (*eap).arg);
+        lua_pushstring(lstate, eap.arg);
         lua_setfield(lstate, -2, c"args".as_ptr());
 
-        lua_pushboolean(lstate, (*eap).forceit);
+        lua_pushboolean(lstate, eap.forceit);
         lua_setfield(lstate, -2, c"bang".as_ptr());
 
-        lua_pushinteger(lstate, (*eap).line1 as lua_Integer);
+        lua_pushinteger(lstate, eap.line1 as lua_Integer);
         lua_setfield(lstate, -2, c"line1".as_ptr());
 
-        lua_pushinteger(lstate, (*eap).line2 as lua_Integer);
+        lua_pushinteger(lstate, eap.line2 as lua_Integer);
         lua_setfield(lstate, -2, c"line2".as_ptr());
 
-        lua_pushinteger(lstate, (*eap).addr_count as lua_Integer);
+        lua_pushinteger(lstate, eap.addr_count as lua_Integer);
         lua_setfield(lstate, -2, c"range".as_ptr());
 
-        lua_pushinteger(lstate, (*eap).line2 as lua_Integer);
+        lua_pushinteger(lstate, eap.line2 as lua_Integer);
         lua_setfield(lstate, -2, c"count".as_ptr());
 
-        let reg: [c_char; 2] = [(*eap).regname as c_char, NUL];
+        let reg: [c_char; 2] = [eap.regname as c_char, NUL];
         lua_pushstring(lstate, reg.as_ptr());
         lua_setfield(lstate, -2, c"reg".as_ptr());
 
-        if !(*eap).args.is_empty() {
-            lua_createtable(lstate, (*eap).args.len() as c_int, 0);
-            for (i, (&arg, &arglen)) in (*eap).args.iter().zip(&(*eap).arglens).enumerate() {
+        if !eap.args.is_empty() {
+            lua_createtable(lstate, eap.args.len() as c_int, 0);
+            for (i, (&arg, &arglen)) in eap.args.iter().zip(&eap.arglens).enumerate() {
                 lua_pushlstring(lstate, arg, arglen);
                 lua_rawseti(lstate, -2, (i + 1) as c_int);
             }
             lua_setfield(lstate, -2, c"fargs".as_ptr());
         } else {
             lua_newtable(lstate);
-            let length = CStr::from_ptr((*eap).arg).to_bytes().len();
+            let length = CStr::from_ptr(eap.arg).to_bytes().len();
             if length > 0 {
                 let mut end: usize = 0;
                 let mut len: usize = 0;
@@ -563,7 +563,7 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: *mut exarg_T, cmod: &cmdmod_T) {
                 let mut done = false;
                 while !done {
                     done = uc_split_args_iter(
-                        (*eap).arg,
+                        eap.arg,
                         length,
                         &raw mut end,
                         buf.as_mut_ptr(),
@@ -2123,7 +2123,7 @@ pub fn nlua_call_typval(
 pub fn nlua_call_excmd(
     module: *const c_char,
     func: *const c_char,
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     cmod: &cmdmod_T,
     extra: *mut typval_T,
 ) -> bool {
@@ -2737,7 +2737,7 @@ pub fn nlua_do_ucmd(cmd: &mut ucmd_T, eap: &mut exarg_T, preview: bool) -> c_int
         );
 
         lua_newtable(lstate);
-        nlua_push_eap(lstate, &raw mut *eap, &g_st().cmdmod);
+        nlua_push_eap(lstate, &mut *eap, &g_st().cmdmod);
 
         lua_pushstring(lstate, cmd.uc_name.as_ptr());
         lua_setfield(lstate, -2, c"name".as_ptr());

@@ -2579,7 +2579,7 @@ pub fn parse_winhl_opt(winhl: *const c_char, wp: *mut win_T) -> bool {
                     url: -1,
                     font: -1,
                 };
-                ns_hl_def(ns_hl, hl_id_link, attrs, hl_id, ptr::null_mut());
+                ns_hl_def(ns_hl, hl_id_link, attrs, hl_id, None);
             }
         }
 

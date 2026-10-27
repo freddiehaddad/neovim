@@ -388,7 +388,7 @@ pub fn nvim_buf_get_extmark_by_id(
     buf: Buffer,
     ns_id: Integer,
     id: Integer,
-    opts: *mut KeyDict_get_extmark,
+    opts: &mut KeyDict_get_extmark,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
@@ -404,12 +404,12 @@ pub fn nvim_buf_get_extmark_by_id(
             return rv;
         }
 
-        let details = (*opts).details;
+        let details = opts.details;
         let hl_name = if has_key(
-            (*opts).is_set__get_extmark_,
+            opts.is_set__get_extmark_,
             KEYSET_OPTIDX_get_extmark__hl_name,
         ) {
-            (*opts).hl_name
+            opts.hl_name
         } else {
             true
         };
@@ -489,7 +489,7 @@ pub fn nvim_buf_get_extmarks(
     ns_id: Integer,
     start: Object,
     end: Object,
-    opts: *mut KeyDict_get_extmarks,
+    opts: &mut KeyDict_get_extmarks,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
@@ -505,37 +505,37 @@ pub fn nvim_buf_get_extmarks(
             return rv;
         }
 
-        let mask = (*opts).is_set__get_extmarks_;
-        let details = (*opts).details;
+        let mask = opts.is_set__get_extmarks_;
+        let details = opts.details;
         let hl_name = if has_key(mask, KEYSET_OPTIDX_get_extmarks__hl_name) {
-            (*opts).hl_name
+            opts.hl_name
         } else {
             true
         };
 
         let mut type_filter = kExtmarkNone;
         if has_key(mask, KEYSET_OPTIDX_get_extmarks__type) {
-            if crate::memory::cstr_as_opt_bytes((*opts).type_.data) == Some(b"sign") {
+            if crate::memory::cstr_as_opt_bytes(opts.type_.data) == Some(b"sign") {
                 type_filter = kExtmarkSign;
-            } else if crate::memory::cstr_as_opt_bytes((*opts).type_.data) == Some(b"virt_text") {
+            } else if crate::memory::cstr_as_opt_bytes(opts.type_.data) == Some(b"virt_text") {
                 type_filter = kExtmarkVirtText;
-            } else if crate::memory::cstr_as_opt_bytes((*opts).type_.data) == Some(b"virt_lines") {
+            } else if crate::memory::cstr_as_opt_bytes(opts.type_.data) == Some(b"virt_lines") {
                 type_filter = kExtmarkVirtLines;
-            } else if crate::memory::cstr_as_opt_bytes((*opts).type_.data) == Some(b"highlight") {
+            } else if crate::memory::cstr_as_opt_bytes(opts.type_.data) == Some(b"highlight") {
                 type_filter = kExtmarkHighlight;
             } else {
                 api_err_exp(
                     err,
                     c"type".as_ptr(),
                     c"sign, virt_text, virt_lines or highlight".as_ptr(),
-                    (*opts).type_.data,
+                    opts.type_.data,
                 );
                 return rv;
             }
         }
 
         let mut limit = if has_key(mask, KEYSET_OPTIDX_get_extmarks__limit) {
-            (*opts).limit
+            opts.limit
         } else {
             -1
         };
@@ -575,7 +575,7 @@ pub fn nvim_buf_get_extmarks(
             u_col,
             limit,
             type_filter,
-            (*opts).overlap,
+            opts.overlap,
         );
 
         rv = arena_array(arena, marks.len().min(rv_limit));
@@ -724,7 +724,7 @@ pub fn nvim_buf_set_extmark(
     ns_id: Integer,
     mut line: Integer,
     mut col: Integer,
-    opts: *mut KeyDict_set_extmark,
+    opts: &mut KeyDict_set_extmark,
     err: &mut Error,
 ) -> Integer {
     unsafe {
@@ -765,10 +765,10 @@ pub fn nvim_buf_set_extmark(
                 break 'error;
             }
 
-            let mask = (*opts).is_set__set_extmark_;
+            let mask = opts.is_set__set_extmark_;
             let mut id: u32 = 0;
             if has_key(mask, KEYSET_OPTIDX_set_extmark__id) {
-                if (*opts).id <= 0 {
+                if opts.id <= 0 {
                     api_err_exp(
                         err,
                         c"id".as_ptr(),
@@ -777,7 +777,7 @@ pub fn nvim_buf_set_extmark(
                     );
                     break 'error;
                 }
-                id = (*opts).id as u32;
+                id = opts.id as u32;
             }
 
             let mut line2: c_int = -1;
@@ -793,18 +793,18 @@ pub fn nvim_buf_set_extmark(
                     );
                     break 'error;
                 }
-                (*opts).end_row = (*opts).end_line;
+                opts.end_row = opts.end_line;
                 did_end_line = true;
             }
 
             let strict = if has_key(mask, KEYSET_OPTIDX_set_extmark__strict) {
-                (*opts).strict
+                opts.strict
             } else {
                 true
             };
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__end_row) || did_end_line {
-                let val = (*opts).end_row;
+                let val = opts.end_row;
                 if val < 0 || (val > i64::from((*b).b_ml.ml_line_count) && strict) {
                     api_err_range(err, c"end_row".as_ptr());
                     break 'error;
@@ -814,7 +814,7 @@ pub fn nvim_buf_set_extmark(
 
             let mut col2: colnr_T = -1;
             if has_key(mask, KEYSET_OPTIDX_set_extmark__end_col) {
-                let mut val = (*opts).end_col;
+                let mut val = opts.end_col;
                 if !(-1..=MAXCOL).contains(&val) {
                     api_err_range(err, c"end_col".as_ptr());
                     break 'error;
@@ -826,8 +826,8 @@ pub fn nvim_buf_set_extmark(
             }
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__hl_group) {
-                if (*opts).hl_group.obj_type == ObjectType::kObjectTypeArray {
-                    let arr = (*opts).hl_group.data.array();
+                if opts.hl_group.obj_type == ObjectType::kObjectTypeArray {
+                    let arr = opts.hl_group.data.array();
                     if arr.size >= 1 {
                         hl.hl_id =
                             object_to_hl_id(arr[0], c"hl_group item".as_ptr(), err);
@@ -846,7 +846,7 @@ pub fn nvim_buf_set_extmark(
                         }
                     }
                 } else {
-                    hl.hl_id = object_to_hl_id((*opts).hl_group, c"hl_group".as_ptr(), err);
+                    hl.hl_id = object_to_hl_id(opts.hl_group, c"hl_group".as_ptr(), err);
                     if error_set(err) {
                         break 'error;
                     }
@@ -854,10 +854,10 @@ pub fn nvim_buf_set_extmark(
                 has_hl = hl.hl_id > 0;
             }
 
-            sign.hl_id = (*opts).sign_hl_group as c_int;
-            sign.cursorline_hl_id = (*opts).cursorline_hl_group as c_int;
-            sign.number_hl_id = (*opts).number_hl_group as c_int;
-            sign.line_hl_id = (*opts).line_hl_group as c_int;
+            sign.hl_id = opts.sign_hl_group as c_int;
+            sign.cursorline_hl_id = opts.cursorline_hl_group as c_int;
+            sign.number_hl_id = opts.number_hl_group as c_int;
+            sign.line_hl_id = opts.line_hl_group as c_int;
 
             if sign.hl_id != 0
                 || sign.cursorline_hl_id != 0
@@ -868,27 +868,27 @@ pub fn nvim_buf_set_extmark(
             }
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__conceal) {
-                if (*opts).conceal.obj_type != ObjectType::kObjectTypeBoolean
-                    && (*opts).conceal.obj_type != ObjectType::kObjectTypeString
+                if opts.conceal.obj_type != ObjectType::kObjectTypeBoolean
+                    && opts.conceal.obj_type != ObjectType::kObjectTypeString
                 {
                     api_err_exp(
                         err,
                         c"conceal".as_ptr(),
                         c"String or Boolean".as_ptr(),
-                        api_typename((*opts).conceal.obj_type),
+                        api_typename(opts.conceal.obj_type),
                     );
                     break 'error;
                 }
 
                 has_hl = true;
-                if (*opts).conceal.obj_type == ObjectType::kObjectTypeBoolean {
-                    hl.flags |= if (*opts).conceal.data.boolean() {
+                if opts.conceal.obj_type == ObjectType::kObjectTypeBoolean {
+                    hl.flags |= if opts.conceal.data.boolean() {
                         kSHConceal
                     } else {
                         kSHConcealOff
                     };
                 } else {
-                    let conceal_str = (*opts).conceal.data.string();
+                    let conceal_str = opts.conceal.data.string();
                     hl.flags |= kSHConceal;
                     if conceal_str.size > 0 {
                         let ci = utf_ptr2StrCharInfo(conceal_str.data);
@@ -910,7 +910,7 @@ pub fn nvim_buf_set_extmark(
             if has_key(mask, KEYSET_OPTIDX_set_extmark__conceal_lines) {
                 hl.flags |= kSHConcealLines;
                 has_hl = true;
-                if (*opts).conceal_lines.size > 0 && *(*opts).conceal_lines.data != NUL {
+                if opts.conceal_lines.size > 0 && *opts.conceal_lines.data != NUL {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
@@ -923,7 +923,7 @@ pub fn nvim_buf_set_extmark(
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__virt_text) {
                 virt_text.data = DecorVirtTextData::VirtText(parse_virt_text(
-                    (*opts).virt_text,
+                    opts.virt_text,
                     err,
                     &mut virt_text.width,
                     false,
@@ -934,7 +934,7 @@ pub fn nvim_buf_set_extmark(
             }
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__virt_text_pos) {
-                let str_val = (*opts).virt_text_pos;
+                let str_val = opts.virt_text_pos;
                 if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"eol") {
                     virt_text.pos = kVPosEndOfLine;
                 } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"overlay") {
@@ -952,20 +952,20 @@ pub fn nvim_buf_set_extmark(
             }
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__virt_text_win_col) {
-                virt_text.col = (*opts).virt_text_win_col as c_int;
+                virt_text.col = opts.virt_text_win_col as c_int;
                 virt_text.pos = kVPosWinCol;
             }
 
-            hl.flags |= if (*opts).hl_eol { kSHHlEol } else { 0 };
-            virt_text.flags |= (if (*opts).virt_text_hide { kVTHide } else { 0 })
-                | (if (*opts).virt_text_repeat_linebreak {
+            hl.flags |= if opts.hl_eol { kSHHlEol } else { 0 };
+            virt_text.flags |= (if opts.virt_text_hide { kVTHide } else { 0 })
+                | (if opts.virt_text_repeat_linebreak {
                     kVTRepeatLinebreak
                 } else {
                     0
                 });
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__hl_mode) {
-                let str_val = (*opts).hl_mode;
+                let str_val = opts.hl_mode;
                 if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"replace") {
                     virt_text.hl_mode = kHlModeReplace;
                 } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"combine") {
@@ -987,14 +987,14 @@ pub fn nvim_buf_set_extmark(
                 }
             }
 
-            let virt_lines_flags = if (*opts).virt_lines_leftcol {
+            let virt_lines_flags = if opts.virt_lines_leftcol {
                 kVLLeftcol
             } else {
                 0
             };
             let mut virt_lines_overflow = kVLOverflowTrunc;
             if has_key(mask, KEYSET_OPTIDX_set_extmark__virt_lines_overflow) {
-                let str_val = (*opts).virt_lines_overflow;
+                let str_val = opts.virt_lines_overflow;
                 if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"scroll") {
                     virt_lines_overflow = kVLOverflowScroll;
                 } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"wrap") {
@@ -1008,7 +1008,7 @@ pub fn nvim_buf_set_extmark(
             }
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__virt_lines) {
-                let a = (*opts).virt_lines;
+                let a = opts.virt_lines;
                 for j in 0..a.size {
                     let item = a[j];
                     if item.obj_type != ObjectType::kObjectTypeArray {
@@ -1033,18 +1033,18 @@ pub fn nvim_buf_set_extmark(
                 }
             }
 
-            virt_lines.flags |= if (*opts).virt_lines_above {
+            virt_lines.flags |= if opts.virt_lines_above {
                 kVTLinesAbove
             } else {
                 0
             };
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__priority) {
-                if !((0..=i64::from(u16::MAX)).contains(&(*opts).priority)) {
+                if !((0..=i64::from(u16::MAX)).contains(&opts.priority)) {
                     api_err_range(err, c"priority".as_ptr());
                     break 'error;
                 }
-                let prio = (*opts).priority as DecorPriority;
+                let prio = opts.priority as DecorPriority;
                 hl.priority = prio;
                 sign.priority = prio;
                 virt_text.priority = prio;
@@ -1056,7 +1056,7 @@ pub fn nvim_buf_set_extmark(
                 if init_sign_text(
                     ptr::null_mut(),
                     sign.text.as_mut_ptr(),
-                    (*opts).sign_text.data,
+                    opts.sign_text.data,
                 ) == 0
                 {
                     api_err_invalid(err, c"sign_text".as_ptr(), c"".as_ptr(), 0, true);
@@ -1066,7 +1066,7 @@ pub fn nvim_buf_set_extmark(
             }
 
             let right_gravity = if has_key(mask, KEYSET_OPTIDX_set_extmark__right_gravity) {
-                (*opts).right_gravity
+                opts.right_gravity
             } else {
                 true
             };
@@ -1087,7 +1087,7 @@ pub fn nvim_buf_set_extmark(
             let mut len: colnr_T = 0;
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__spell) {
-                hl.flags |= if (*opts).spell {
+                hl.flags |= if opts.spell {
                     kSHSpellOn
                 } else {
                     kSHSpellOff
@@ -1096,11 +1096,11 @@ pub fn nvim_buf_set_extmark(
             }
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__url) {
-                url = Some(string_to_cstr((*opts).url));
+                url = Some(string_to_cstr(opts.url));
                 has_hl = true;
             }
 
-            if (*opts).ui_watched {
+            if opts.ui_watched {
                 hl.flags |= kSHUIWatched;
                 if virt_text.pos == kVPosOverlay {
                     hl.flags |= kSHUIWatchedOverlay;
@@ -1120,7 +1120,7 @@ pub fn nvim_buf_set_extmark(
                 }
                 line = i64::from((*b).b_ml.ml_line_count);
             } else if line < i64::from((*b).b_ml.ml_line_count) {
-                len = if (*opts).ephemeral {
+                len = if opts.ephemeral {
                     MAXCOL as colnr_T
                 } else {
                     ml_get_buf_len(b, (line as linenr_T) + 1)
@@ -1142,7 +1142,7 @@ pub fn nvim_buf_set_extmark(
 
             if col2 >= 0 {
                 if line2 >= 0 && line2 < (*b).b_ml.ml_line_count {
-                    len = if (*opts).ephemeral {
+                    len = if opts.ephemeral {
                         MAXCOL as colnr_T
                     } else {
                         ml_get_buf_len(b, line2 + 1)
@@ -1163,7 +1163,7 @@ pub fn nvim_buf_set_extmark(
                 col2 = 0;
             }
 
-            if (*opts).ephemeral && !g_st().decor_state.win.is_null() && (*g_st().decor_state.win).w_buffer == b {
+            if opts.ephemeral && !g_st().decor_state.win.is_null() && (*g_st().decor_state.win).w_buffer == b {
                 let r = line as c_int;
                 let c = col as c_int;
                 if line2 == -1 {
@@ -1173,11 +1173,11 @@ pub fn nvim_buf_set_extmark(
 
                 let mut subpriority: DecorPriority = 0;
                 if has_key(mask, KEYSET_OPTIDX_set_extmark___subpriority) {
-                    if !((0..=i64::from(u16::MAX)).contains(&(*opts)._subpriority)) {
+                    if !((0..=i64::from(u16::MAX)).contains(&opts._subpriority)) {
                         api_err_range(err, c"_subpriority".as_ptr());
                         break 'error;
                     }
-                    subpriority = (*opts)._subpriority as DecorPriority;
+                    subpriority = opts._subpriority as DecorPriority;
                 }
 
                 if !virt_text.data.virt_text().is_empty() {
@@ -1219,7 +1219,7 @@ pub fn nvim_buf_set_extmark(
                     );
                 }
             } else {
-                if (*opts).ephemeral {
+                if opts.ephemeral {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -1256,7 +1256,7 @@ pub fn nvim_buf_set_extmark(
                 }
 
                 if has_hl_multiple {
-                    let arr = (*opts).hl_group.data.array();
+                    let arr = opts.hl_group.data.array();
                     let mut i = arr.size - 1;
                     while i > 0 {
                         let hl_id =
@@ -1264,7 +1264,7 @@ pub fn nvim_buf_set_extmark(
                         if hl_id > 0 {
                             let mut sh = DECOR_SIGN_HIGHLIGHT_INIT;
                             sh.hl_id = hl_id;
-                            sh.flags = if (*opts).hl_eol { kSHHlEol } else { 0 };
+                            sh.flags = if opts.hl_eol { kSHHlEol } else { 0 };
                             sh.next = decor_indexed;
                             decor_indexed = decor_put_sh(sh);
                             decor_flags |= MT_FLAG_DECOR_HL;
@@ -1304,7 +1304,7 @@ pub fn nvim_buf_set_extmark(
                 }
 
                 let undo_restore = if has_key(mask, KEYSET_OPTIDX_set_extmark__undo_restore) {
-                    (*opts).undo_restore
+                    opts.undo_restore
                 } else {
                     true
                 };
@@ -1320,9 +1320,9 @@ pub fn nvim_buf_set_extmark(
                     decor,
                     decor_flags,
                     right_gravity,
-                    (*opts).end_right_gravity,
+                    opts.end_right_gravity,
                     !undo_restore,
-                    (*opts).invalidate,
+                    opts.invalidate,
                 );
                 if error_set(err) {
                     decor_free(decor);
@@ -1483,7 +1483,7 @@ pub fn nvim_buf_clear_namespace(
 //   FUNC_API_SINCE(7) FUNC_API_LUA_ONLY;
 pub fn nvim_set_decoration_provider(
     ns_id: Integer,
-    opts: *mut KeyDict_set_decoration_provider,
+    opts: &mut KeyDict_set_decoration_provider,
     _err: &mut Error,
 ) {
     unsafe {
@@ -1494,16 +1494,16 @@ pub fn nvim_set_decoration_provider(
         redraw_all_later(UPD_NOT_VALID);
 
         let pairs: [(*mut LuaRef, *mut LuaRef); 9] = [
-            (&raw mut (*opts).on_start, &raw mut (*p).redraw_start),
-            (&raw mut (*opts).on_buf, &raw mut (*p).redraw_buf),
-            (&raw mut (*opts).on_win, &raw mut (*p).redraw_win),
-            (&raw mut (*opts).on_line, &raw mut (*p).redraw_line),
-            (&raw mut (*opts).on_range, &raw mut (*p).redraw_range),
-            (&raw mut (*opts).on_end, &raw mut (*p).redraw_end),
-            (&raw mut (*opts)._on_hl_def, &raw mut (*p).hl_def),
-            (&raw mut (*opts)._on_spell_nav, &raw mut (*p).spell_nav),
+            (&raw mut opts.on_start, &raw mut (*p).redraw_start),
+            (&raw mut opts.on_buf, &raw mut (*p).redraw_buf),
+            (&raw mut opts.on_win, &raw mut (*p).redraw_win),
+            (&raw mut opts.on_line, &raw mut (*p).redraw_line),
+            (&raw mut opts.on_range, &raw mut (*p).redraw_range),
+            (&raw mut opts.on_end, &raw mut (*p).redraw_end),
+            (&raw mut opts._on_hl_def, &raw mut (*p).hl_def),
+            (&raw mut opts._on_spell_nav, &raw mut (*p).spell_nav),
             (
-                &raw mut (*opts)._on_conceal_line,
+                &raw mut opts._on_conceal_line,
                 &raw mut (*p).conceal_line,
             ),
         ];
@@ -1704,7 +1704,7 @@ pub fn nvim__buf_debug_extmarks(
 ///           - wins: a list of windows to be scoped in
 ///
 // DLLEXPORT void nvim__ns_set(Integer ns_id, Dict(ns_opts) *opts, Error *err);
-pub fn nvim__ns_set(ns_id: Integer, opts: *mut KeyDict_ns_opts, err: &mut Error) {
+pub fn nvim__ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) {
     unsafe {
         if !ns_initialized(ns_id as u32) {
             api_err_invalid(err, c"ns_id".as_ptr(), ptr::null(), ns_id, false);
@@ -1713,15 +1713,15 @@ pub fn nvim__ns_set(ns_id: Integer, opts: *mut KeyDict_ns_opts, err: &mut Error)
 
         let mut set_scoped = true;
 
-        if has_key((*opts).is_set__ns_opts_, KEYSET_OPTIDX_ns_opts__wins) {
-            if (*opts).wins.size == 0 {
+        if has_key(opts.is_set__ns_opts_, KEYSET_OPTIDX_ns_opts__wins) {
+            if opts.wins.size == 0 {
                 set_scoped = false;
             }
 
             let mut windows: std::collections::HashSet<*mut win_T> =
                 std::collections::HashSet::new();
-            for i in 0..(*opts).wins.size {
-                let win = (*(*opts).wins.items.add(i)).data.integer();
+            for i in 0..opts.wins.size {
+                let win = (*opts.wins.items.add(i)).data.integer();
                 let wp = find_window_by_handle(win as Window, err);
                 if wp.is_null() {
                     return;

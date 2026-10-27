@@ -260,7 +260,7 @@ pub fn nvim_tabpage_is_valid(tabpage: Tabpage) -> Boolean {
 pub fn nvim_open_tabpage(
     buf: Buffer,
     enter: Boolean,
-    config: *mut KeyDict_tabpage_config,
+    config: &mut KeyDict_tabpage_config,
     err: &mut Error,
 ) -> Tabpage {
     unsafe {
@@ -270,10 +270,10 @@ pub fn nvim_open_tabpage(
         }
 
         let after: c_int = if has_key(
-            (*config).is_set__tabpage_config_,
+            config.is_set__tabpage_config_,
             KEYSET_OPTIDX_tabpage_config__after,
         ) {
-            (*config).after as c_int
+            config.after as c_int
         } else {
             -1
         };

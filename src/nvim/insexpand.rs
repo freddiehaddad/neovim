@@ -332,7 +332,7 @@ impl Drop for compl_T {
                     }
                 }
             }
-            api_clear_string(&raw mut self.cp_str);
+            api_clear_string(&mut self.cp_str);
             tv_clear(&raw mut self.cp_user_data);
         }
     }
@@ -1703,10 +1703,10 @@ fn cp_compare_nearest(a: &compl_T, b: &compl_T) -> c_int {
     }
 }
 
-fn prepend_startcol_text(dest: *mut NvimString, src: *const NvimString, startcol: c_int) {
+fn prepend_startcol_text(dest: &mut NvimString, src: &NvimString, startcol: c_int) {
     unsafe {
         let prepend_len = insexp().compl_col - startcol;
-        let new_length = (prepend_len + (*src).size as c_int) as usize;
+        let new_length = (prepend_len + src.size as c_int) as usize;
         let mut buf: Vec<c_char> = vec![0; new_length + 1];
 
         let line = ml_get((**curwin.as_ptr()).w_cursor.lnum);
@@ -1717,9 +1717,9 @@ fn prepend_startcol_text(dest: *mut NvimString, src: *const NvimString, startcol
             prepend_len as usize,
         );
         ptr::copy(
-            (*src).data,
+            src.data,
             buf.as_mut_ptr().add(prepend_len as usize),
-            (*src).size,
+            src.size,
         );
         *dest = cbuf_to_string(buf.as_ptr(), new_length);
     }
@@ -1728,7 +1728,7 @@ fn prepend_startcol_text(dest: *mut NvimString, src: *const NvimString, startcol
 fn get_leader_for_startcol(match_: *mut compl_T, cached: bool) -> *mut NvimString {
     unsafe {
         if match_.is_null() {
-            api_clear_string(&raw mut insexp().adjusted_leader);
+            api_clear_string(&mut insexp().adjusted_leader);
             return ptr::null_mut();
         }
 
@@ -1764,8 +1764,8 @@ fn get_leader_for_startcol(match_: *mut compl_T, cached: bool) -> *mut NvimStrin
                 return &raw mut insexp().adjusted_leader;
             }
 
-            api_clear_string(&raw mut insexp().adjusted_leader);
-            prepend_startcol_text(&raw mut insexp().adjusted_leader, &raw const insexp().compl_leader, startcol);
+            api_clear_string(&mut insexp().adjusted_leader);
+            prepend_startcol_text(&mut insexp().adjusted_leader, &insexp().compl_leader, startcol);
             return &raw mut insexp().adjusted_leader;
         }
 
@@ -1867,7 +1867,7 @@ fn get_user_highlight_attr(hl_id: c_int) -> c_int {
 fn ins_compl_build_pum() -> c_int {
     unsafe {
         if ins_compl_need_restart() {
-            api_clear_string(&raw mut insexp().compl_leader);
+            api_clear_string(&mut insexp().compl_leader);
         }
 
         let compl_no_select = (get_cot_flags() & kOptCotFlagNoselect) != 0
@@ -2417,7 +2417,7 @@ pub fn find_line_end(ptr: *mut c_char) -> *mut c_char {
 fn ins_compl_free() {
     unsafe {
         insexp().compl_pattern = None;
-        api_clear_string(&raw mut insexp().compl_leader);
+        api_clear_string(&mut insexp().compl_leader);
 
         let list = &raw mut insexp().compl_list;
         if (*list).is_empty() {
@@ -2450,11 +2450,11 @@ pub fn ins_compl_clear() {
         insexp().compl_curr_win = ptr::null_mut();
         insexp().compl_curr_buf = ptr::null_mut();
         insexp().compl_pattern = None;
-        api_clear_string(&raw mut insexp().compl_leader);
+        api_clear_string(&mut insexp().compl_leader);
         g_st().edit_submode_extra = ptr::null_mut();
         let extmarks = &raw mut insexp().compl_orig_extmarks;
         (*extmarks).clear();
-        api_clear_string(&raw mut insexp().compl_orig_text);
+        api_clear_string(&mut insexp().compl_orig_text);
         insexp().compl_enter_selects = false;
         cpt_sources_clear();
         insexp().compl_autocomplete = false;
@@ -2544,7 +2544,7 @@ pub fn ins_compl_bs() -> c_int {
 
         line = get_cursor_line_ptr();
 
-        api_clear_string(&raw mut insexp().compl_leader);
+        api_clear_string(&mut insexp().compl_leader);
         insexp().compl_leader = cbuf_to_string(
             line.add(insexp().compl_col as usize),
             (p_off - insexp().compl_col as isize) as usize,
@@ -2693,7 +2693,7 @@ pub fn ins_compl_addleader(c: c_int) {
             ins_compl_restart();
         }
 
-        api_clear_string(&raw mut insexp().compl_leader);
+        api_clear_string(&mut insexp().compl_leader);
         insexp().compl_leader = cbuf_to_string(
             get_cursor_line_ptr().add(insexp().compl_col as usize),
             ((**curwin.as_ptr()).w_cursor.col - insexp().compl_col) as usize,
@@ -2722,7 +2722,7 @@ fn ins_compl_set_original_text(str_ptr: *const c_char, len: usize) {
             return;
         };
         let match_ = compl_at(orig_idx);
-        api_clear_string(&raw mut (*match_).cp_str);
+        api_clear_string(&mut (*match_).cp_str);
         (*match_).cp_str = cbuf_to_string(str_ptr, len);
     }
 }
@@ -6152,11 +6152,11 @@ fn get_cmdline_compl_info(line: *mut c_char, curs_col: colnr_T) -> c_int {
 fn set_compl_globals(mut startcol: c_int, curs_col: colnr_T, is_cpt_compl: bool) {
     unsafe {
         if is_cpt_compl {
-            api_clear_string(&raw mut insexp().cpt_compl_pattern);
+            api_clear_string(&mut insexp().cpt_compl_pattern);
             if startcol < insexp().compl_col {
                 prepend_startcol_text(
-                    &raw mut insexp().cpt_compl_pattern,
-                    &raw const insexp().compl_orig_text,
+                    &mut insexp().cpt_compl_pattern,
+                    &insexp().compl_orig_text,
                     startcol,
                 );
             } else {
@@ -6437,7 +6437,7 @@ fn ins_compl_start() -> c_int {
 
         ins_compl_fixRedoBufForLeader(ptr::null());
 
-        api_clear_string(&raw mut insexp().compl_orig_text);
+        api_clear_string(&mut insexp().compl_orig_text);
         let extmarks = &raw mut insexp().compl_orig_extmarks;
         (*extmarks).clear();
         insexp().compl_orig_text = cbuf_to_string(line.add(insexp().compl_col as usize), insexp().compl_length as usize);
@@ -6462,7 +6462,7 @@ fn ins_compl_start() -> c_int {
         ) != OK
         {
             insexp().compl_pattern = None;
-            api_clear_string(&raw mut insexp().compl_orig_text);
+            api_clear_string(&mut insexp().compl_orig_text);
             let extmarks = &raw mut insexp().compl_orig_extmarks;
             (*extmarks).clear();
             g_st().Ins.did_ai = save_did_ai;
@@ -6757,7 +6757,7 @@ fn quote_meta(mut dest: *mut c_char, mut src: *const c_char, mut len: c_int) -> 
 
 pub fn free_insexpand_stuff() {
     unsafe {
-        api_clear_string(&raw mut insexp().compl_orig_text);
+        api_clear_string(&mut insexp().compl_orig_text);
         let extmarks = &raw mut insexp().compl_orig_extmarks;
         *extmarks = Vec::new();
         callback_free(&mut opt_vars().p_cfu);

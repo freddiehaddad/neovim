@@ -2438,12 +2438,12 @@ fn ll_get_or_alloc_list(wp: *mut win_T) -> *mut qf_info_T {
     }
 }
 
-fn qf_cmd_get_stack(eap: *mut exarg_T, print_emsg: bool) -> *mut qf_info_T {
+fn qf_cmd_get_stack(eap: &mut exarg_T, print_emsg: bool) -> *mut qf_info_T {
     unsafe {
         let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
 
-        if is_loclist_cmd((*eap).cmdidx) {
+        if is_loclist_cmd(eap.cmdidx) {
             qi = get_loc_list(*curwin.as_ptr());
             if qi.is_null() {
                 if print_emsg {
@@ -2861,14 +2861,14 @@ fn qf_find_help_win() -> *mut win_T {
     }
 }
 
-fn win_set_loclist(wp: *mut win_T, qi: *mut qf_info_T) {
+fn win_set_loclist(wp: *mut win_T, qi: &mut qf_info_T) {
     unsafe {
-        (*wp).w_llist = qi;
-        (*qi).qf_refcount += 1;
+        (*wp).w_llist = &raw mut *qi;
+        qi.qf_refcount += 1;
     }
 }
 
-fn jump_to_help_window(qi: *mut qf_info_T, newwin: bool, opened_window: *mut bool) -> c_int {
+fn jump_to_help_window(qi: &mut qf_info_T, newwin: bool, opened_window: *mut bool) -> c_int {
     unsafe {
         let wp = if g_st().cmdmod.cmod_tab != 0 || newwin {
             ptr::null_mut()
@@ -2884,7 +2884,7 @@ fn jump_to_help_window(qi: *mut qf_info_T, newwin: bool, opened_window: *mut boo
                 flags |= WSP_TOP;
             }
 
-            if is_ll_stack(&*qi) && !newwin {
+            if is_ll_stack(qi) && !newwin {
                 flags |= WSP_NEWLOC;
             }
 
@@ -2898,7 +2898,7 @@ fn jump_to_help_window(qi: *mut qf_info_T, newwin: bool, opened_window: *mut boo
                 win_setheight(opt_vars().p_hh as c_int);
             }
 
-            if is_ll_stack(&*qi) && !newwin {
+            if is_ll_stack(qi) && !newwin {
                 win_set_loclist(*curwin.as_ptr(), qi);
             }
         }
@@ -2967,7 +2967,7 @@ fn qf_open_new_file_win(ll_ref: *mut qf_info_T) -> c_int {
         opt_vars().swb_flags = 0;
         reset_binding(&mut **curwin.as_ptr());
         if !ll_ref.is_null() {
-            win_set_loclist(*curwin.as_ptr(), ll_ref);
+            win_set_loclist(*curwin.as_ptr(), &mut *ll_ref);
         }
         OK
     }
@@ -3006,7 +3006,7 @@ fn qf_goto_win_with_ll_file(use_win: *mut win_T, qf_fnum: c_int, ll_ref: *mut qf
         win_goto(win);
 
         if (*win).w_llist.is_null() && !ll_ref.is_null() {
-            win_set_loclist(win, ll_ref);
+            win_set_loclist(win, &mut *ll_ref);
         }
     }
 }
@@ -3265,7 +3265,7 @@ fn qf_jump_goto_line(
 }
 
 fn qf_jump_print_msg(
-    qi: *mut qf_info_T,
+    qi: &mut qf_info_T,
     qf_index: c_int,
     qf_ptr: &mut qfline_T,
     old_curbuf: *mut buf_T,
@@ -3291,7 +3291,7 @@ fn qf_jump_print_msg(
             IOSIZE,
             gettext(c"(%d of %d)%s%s: ".as_ptr()),
             qf_index,
-            (*qf_get_curlist(&mut *qi)).count(),
+            qf_get_curlist(qi).count(),
             deleted_str,
             qf_types(c_int::from(qf_ptr.qf_type), qf_ptr.qf_nr),
         );
@@ -3372,7 +3372,7 @@ fn qf_jump_open_window(
 }
 
 fn qf_jump_to_buffer(
-    qi: *mut qf_info_T,
+    qi: &mut qf_info_T,
     qf_index: c_int,
     forceit: c_int,
     prev_winid: c_int,
@@ -3384,10 +3384,10 @@ fn qf_jump_to_buffer(
         let old_curbuf = g_st().curbuf;
         let old_lnum = (**curwin.as_ptr()).w_cursor.lnum;
         let mut retval = OK;
-        let qfl = qf_get_curlist(&mut *qi);
+        let qfl = qf_get_curlist(qi);
 
         if (&qfl.qf_items)[(qf_index - 1) as usize].qf_fnum != 0 {
-            retval = qf_jump_edit_buffer(&mut *qi, qf_index, forceit, prev_winid, opened_window);
+            retval = qf_jump_edit_buffer(qi, qf_index, forceit, prev_winid, opened_window);
             if retval != OK {
                 return retval;
             }
@@ -3455,7 +3455,7 @@ fn qf_jump_newwin(
         if !qf_ptr.is_null() {
             qfl.qf_index = qf_index;
 
-            let print_message = !qf_win_pos_update(qi, old_qf_index);
+            let print_message = !qf_win_pos_update(&mut *qi, old_qf_index);
             let prev_winid = (**curwin.as_ptr()).handle;
             let mut opened_window = false;
             let mut retval = qf_jump_open_window(&mut *qi, qf_index, newwin, &raw mut opened_window);
@@ -3465,7 +3465,7 @@ fn qf_jump_newwin(
                 qi = ptr::null_mut();
             } else if retval != NOTDONE {
                 retval = qf_jump_to_buffer(
-                    qi,
+                    &mut *qi,
                     qf_index,
                     forceit,
                     prev_winid,
@@ -3969,7 +3969,7 @@ pub fn ex_cwindow(eap: &mut exarg_T) {
         }
 
         let qfl = qf_get_curlist(&mut *qi);
-        let win = qf_find_win(qi);
+        let win = qf_find_win(&*qi);
 
         if qf_stack_empty(qi) || qfl.qf_nonevalid || qf_list_empty(qfl) {
             if !win.is_null() {
@@ -3987,7 +3987,7 @@ pub fn ex_cclose(eap: &mut exarg_T) {
             return;
         }
 
-        let win = qf_find_win(qi);
+        let win = unsafe { qf_find_win(&*qi) };
         if !win.is_null() {
             win_close(win, false, false);
         }
@@ -3995,7 +3995,7 @@ pub fn ex_cclose(eap: &mut exarg_T) {
 
 fn qf_goto_cwindow(qi: &qf_info_T, resize: bool, sz: c_int, vertsplit: bool) -> c_int {
     unsafe {
-        let win = qf_find_win(&raw const *qi);
+        let win = qf_find_win(qi);
         if win.is_null() {
             return FAIL;
         }
@@ -4183,7 +4183,7 @@ pub fn ex_cbottom(eap: &mut exarg_T) {
             return;
         }
 
-        let win = qf_find_win(qi);
+        let win = qf_find_win(&*qi);
         if !win.is_null() && (*win).w_cursor.lnum != (*(*win).w_buffer).b_ml.ml_line_count {
             qf_win_goto(win, (*(*win).w_buffer).b_ml.ml_line_count);
         }
@@ -4203,9 +4203,9 @@ pub fn qf_current_entry(wp: &mut win_T) -> linenr_T {
     }
 }
 
-fn qf_win_pos_update(qi: *mut qf_info_T, old_qf_index: c_int) -> bool {
+fn qf_win_pos_update(qi: &mut qf_info_T, old_qf_index: c_int) -> bool {
     unsafe {
-        let qf_index = qf_get_curlist(&mut *qi).qf_index;
+        let qf_index = qf_get_curlist(qi).qf_index;
 
         let win = qf_find_win(qi);
         if !win.is_null()
@@ -4220,20 +4220,18 @@ fn qf_win_pos_update(qi: *mut qf_info_T, old_qf_index: c_int) -> bool {
     }
 }
 
-fn is_qf_win(win: &win_T, qi: *const qf_info_T) -> bool {
-    unsafe {
-        if buf_valid(win.w_buffer)
-            && bt_quickfix(win.w_buffer)
-            && ((is_qf_stack(&*qi) && win.w_llist_ref.is_null())
-                || (is_ll_stack(&*qi) && win.w_llist_ref.cast_const() == qi))
-        {
-            return true;
-        }
-        false
+fn is_qf_win(win: &win_T, qi: &qf_info_T) -> bool {
+    if buf_valid(win.w_buffer)
+        && bt_quickfix(win.w_buffer)
+        && ((is_qf_stack(qi) && win.w_llist_ref.is_null())
+            || (is_ll_stack(qi) && ptr::eq(win.w_llist_ref.cast_const(), qi)))
+    {
+        return true;
     }
+    false
 }
 
-fn qf_find_win(qi: *const qf_info_T) -> *mut win_T {
+fn qf_find_win(qi: &qf_info_T) -> *mut win_T {
     unsafe {
         let mut win = tab_firstwin(&*g_st().curtab);
         while !win.is_null() {
@@ -4260,7 +4258,7 @@ fn qf_find_buf(qi: &mut qf_info_T) -> *mut buf_T {
         while !tp.is_null() {
             let mut win = tab_firstwin(&*tp);
             while !win.is_null() {
-                if is_qf_win(&*win, &raw mut *qi) {
+                if is_qf_win(&*win, &*qi) {
                     return (*win).w_buffer;
                 }
                 win = (*win).w_next;
@@ -4281,7 +4279,7 @@ fn qf_update_win_titlevar(qi: &mut qf_info_T) {
         while !tp.is_null() {
             let mut win = tab_firstwin(&*tp);
             while !win.is_null() {
-                if is_qf_win(&*win, &raw mut *qi) {
+                if is_qf_win(&*win, &*qi) {
                     *curwin.as_ptr() = win;
                     qf_set_title_var(qfl);
                 }
@@ -4312,7 +4310,7 @@ fn qf_update_buffer(qi: &mut qf_info_T, old_count: usize) {
             } else {
                 win = qf_find_win_with_loclist(qi);
                 if win.is_null() {
-                    win = qf_find_win(&raw mut *qi);
+                    win = qf_find_win(&*qi);
                 }
                 if win.is_null() {
                     return;
@@ -4383,11 +4381,11 @@ fn qf_update_buffer(qi: &mut qf_info_T, old_count: usize) {
         (*buf).b_changed = 0;
 
         if old_count == 0 {
-            qf_win_pos_update(&raw mut *qi, 0);
+            qf_win_pos_update(&mut *qi, 0);
             ctx_restore(&mut aco);
         }
 
-        win = qf_find_win(&raw mut *qi);
+        win = qf_find_win(&*qi);
         if !win.is_null() && old_line_count < (*win).w_botline {
             redraw_buf_later(buf, UPD_NOT_VALID);
         }
@@ -4878,7 +4876,7 @@ fn get_mef_name() -> Option<std::ffi::CString> {
     }
 }
 
-pub fn qf_get_size(eap: *mut exarg_T) -> usize {
+pub fn qf_get_size(eap: &mut exarg_T) -> usize {
     unsafe {
         let qi = qf_cmd_get_stack(eap, false);
         if qi.is_null() {
@@ -4888,7 +4886,7 @@ pub fn qf_get_size(eap: *mut exarg_T) -> usize {
     }
 }
 
-pub fn qf_get_valid_size(eap: *mut exarg_T) -> usize {
+pub fn qf_get_valid_size(eap: &mut exarg_T) -> usize {
     unsafe {
         let qi = qf_cmd_get_stack(eap, false);
         if qi.is_null() {
@@ -4903,7 +4901,7 @@ pub fn qf_get_valid_size(eap: *mut exarg_T) -> usize {
                 break;
             }
             if qfp.qf_valid != 0 {
-                if (*eap).cmdidx == CMD_cdo || (*eap).cmdidx == CMD_ldo {
+                if eap.cmdidx == CMD_cdo || eap.cmdidx == CMD_ldo {
                     sz += 1;
                 } else if qfp.qf_fnum > 0 && qfp.qf_fnum != prev_fnum {
                     sz += 1;
@@ -4916,7 +4914,7 @@ pub fn qf_get_valid_size(eap: *mut exarg_T) -> usize {
     }
 }
 
-pub fn qf_get_cur_idx(eap: *mut exarg_T) -> usize {
+pub fn qf_get_cur_idx(eap: &mut exarg_T) -> usize {
     unsafe {
         let qi = qf_cmd_get_stack(eap, false);
         if qi.is_null() {
@@ -4928,7 +4926,7 @@ pub fn qf_get_cur_idx(eap: *mut exarg_T) -> usize {
     }
 }
 
-pub fn qf_get_cur_valid_idx(eap: *mut exarg_T) -> c_int {
+pub fn qf_get_cur_valid_idx(eap: &mut exarg_T) -> c_int {
     unsafe {
         let qi = qf_cmd_get_stack(eap, false);
         if qi.is_null() {
@@ -4946,7 +4944,7 @@ pub fn qf_get_cur_valid_idx(eap: *mut exarg_T) -> c_int {
         let limit = (qfl.qf_index as usize).min(qfl.qf_items.len());
         for qfp in &(&qfl.qf_items)[..limit] {
             if qfp.qf_valid != 0 {
-                if (*eap).cmdidx == CMD_cfdo || (*eap).cmdidx == CMD_lfdo {
+                if eap.cmdidx == CMD_cfdo || eap.cmdidx == CMD_lfdo {
                     if qfp.qf_fnum > 0 && qfp.qf_fnum != prev_fnum {
                         eidx += 1;
                         prev_fnum = qfp.qf_fnum;
@@ -6279,7 +6277,7 @@ fn qf_winid(qi: *mut qf_info_T) -> c_int {
         if qi.is_null() {
             return 0;
         }
-        let win = qf_find_win(qi);
+        let win = qf_find_win(&*qi);
         if !win.is_null() {
             return (*win).handle;
         }
@@ -7068,7 +7066,7 @@ fn qf_setprop_curidx(
         qfl.qf_index = newidx;
 
         if (&qi.qf_lists)[qi.qf_curlist as usize].qf_id == qfl.qf_id {
-            qf_win_pos_update(&raw mut *qi, old_qfidx);
+            qf_win_pos_update(&mut *qi, old_qfidx);
         }
         OK
     }
@@ -7133,7 +7131,7 @@ fn qf_set_properties(
 
 fn qf_free_stack(mut wp: *mut win_T, qi: &mut qf_info_T) {
     unsafe {
-        let qfwin = qf_find_win(&raw mut *qi);
+        let qfwin = qf_find_win(&*qi);
 
         if !qfwin.is_null() {
             if qi.qf_curlist < qi.qf_listcount {
@@ -7161,7 +7159,7 @@ fn qf_free_stack(mut wp: *mut win_T, qi: &mut qf_info_T) {
 
             (*qfwin).w_llist_ref = new_ll;
             if wp != qfwin {
-                win_set_loclist(wp, new_ll);
+                win_set_loclist(wp, &mut *new_ll);
             }
         }
     }

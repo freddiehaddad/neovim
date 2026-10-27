@@ -240,7 +240,7 @@ pub fn nvim_buf_attach(
     channel_id: u64,
     buf: Buffer,
     send_buffer: Boolean,
-    opts: *mut KeyDict_buf_attach,
+    opts: &mut KeyDict_buf_attach,
     err: &mut Error,
 ) -> Boolean {
     unsafe {
@@ -260,29 +260,29 @@ pub fn nvim_buf_attach(
         };
 
         if channel_id == LUA_INTERNAL_CALL {
-            let mask = (*opts).is_set__buf_attach_;
+            let mask = opts.is_set__buf_attach_;
             if has_key(mask, KEYSET_OPTIDX_buf_attach__on_lines) {
-                cb.on_lines = (*opts).on_lines;
-                (*opts).on_lines = LUA_NOREF;
+                cb.on_lines = opts.on_lines;
+                opts.on_lines = LUA_NOREF;
             }
             if has_key(mask, KEYSET_OPTIDX_buf_attach__on_bytes) {
-                cb.on_bytes = (*opts).on_bytes;
-                (*opts).on_bytes = LUA_NOREF;
+                cb.on_bytes = opts.on_bytes;
+                opts.on_bytes = LUA_NOREF;
             }
             if has_key(mask, KEYSET_OPTIDX_buf_attach__on_changedtick) {
-                cb.on_changedtick = (*opts).on_changedtick;
-                (*opts).on_changedtick = LUA_NOREF;
+                cb.on_changedtick = opts.on_changedtick;
+                opts.on_changedtick = LUA_NOREF;
             }
             if has_key(mask, KEYSET_OPTIDX_buf_attach__on_detach) {
-                cb.on_detach = (*opts).on_detach;
-                (*opts).on_detach = LUA_NOREF;
+                cb.on_detach = opts.on_detach;
+                opts.on_detach = LUA_NOREF;
             }
             if has_key(mask, KEYSET_OPTIDX_buf_attach__on_reload) {
-                cb.on_reload = (*opts).on_reload;
-                (*opts).on_reload = LUA_NOREF;
+                cb.on_reload = opts.on_reload;
+                opts.on_reload = LUA_NOREF;
             }
-            cb.utf_sizes = (*opts).utf_sizes;
-            cb.preview = (*opts).preview;
+            cb.utf_sizes = opts.utf_sizes;
+            cb.preview = opts.preview;
         }
 
         buf_updates_register(&mut *b, channel_id, cb, send_buffer)
@@ -1021,7 +1021,7 @@ pub fn nvim_buf_get_text(
     start_col: Integer,
     mut end_row: Integer,
     end_col: Integer,
-    _opts: *mut KeyDict_empty,
+    _opts: &mut KeyDict_empty,
     arena: &mut Arena,
     lstate: *mut lua_State,
     err: &mut Error,
@@ -1255,10 +1255,10 @@ pub fn nvim_buf_set_keymap(
     mode: NvimString,
     lhs: NvimString,
     rhs: NvimString,
-    opts: *mut KeyDict_keymap,
+    opts: &mut KeyDict_keymap,
     err: &mut Error,
 ) {
-    modify_keymap(channel_id, buf, MAPTYPE_MAP, mode, lhs, rhs, opts, err);
+    modify_keymap(channel_id, buf, MAPTYPE_MAP, mode, lhs, rhs, Some(opts), err);
 }
 
 /// Unmaps a buffer-local |mapping| for the given mode.
@@ -1278,30 +1278,28 @@ pub fn nvim_buf_del_keymap(
     buf: Buffer,
     mode: NvimString,
     lhs: NvimString,
-    opts: *mut KeyDict_keymap_del,
+    opts: &mut KeyDict_keymap_del,
     err: &mut Error,
 ) {
-    unsafe {
-        let rhs = NvimString {
-            data: c"".as_ptr() as *mut c_char,
-            size: 0,
-        };
-        let maptype = if !opts.is_null() && (*opts).lhs {
-            MAPTYPE_UNMAP_LHS
-        } else {
-            MAPTYPE_UNMAP
-        };
-        modify_keymap(
-            channel_id,
-            buf,
-            maptype,
-            mode,
-            lhs,
-            rhs,
-            ptr::null_mut(),
-            err,
-        );
-    }
+    let rhs = NvimString {
+        data: c"".as_ptr() as *mut c_char,
+        size: 0,
+    };
+    let maptype = if opts.lhs {
+        MAPTYPE_UNMAP_LHS
+    } else {
+        MAPTYPE_UNMAP
+    };
+    modify_keymap(
+        channel_id,
+        buf,
+        maptype,
+        mode,
+        lhs,
+        rhs,
+        None,
+        err,
+    );
 }
 
 /// Sets a buffer-scoped (b:) variable
@@ -1454,7 +1452,7 @@ pub fn nvim_buf_is_loaded(buf: Buffer) -> Boolean {
 //   FUNC_API_TEXTLOCK;
 pub fn nvim_buf_delete(
     buf: Buffer,
-    opts: *mut KeyDict_buf_delete,
+    opts: &mut KeyDict_buf_delete,
     err: &mut Error,
 ) {
     unsafe {
@@ -1463,8 +1461,8 @@ pub fn nvim_buf_delete(
             return;
         }
 
-        let force = (*opts).force;
-        let unload = (*opts).unload;
+        let force = opts.force;
+        let unload = opts.unload;
 
         let result = do_buffer(
             if unload { DOBUF_UNLOAD } else { DOBUF_WIPE },
@@ -1577,7 +1575,7 @@ pub fn nvim_buf_set_mark(
     name: NvimString,
     line: Integer,
     col: Integer,
-    _opts: *mut KeyDict_empty,
+    _opts: &mut KeyDict_empty,
     err: &mut Error,
 ) -> Boolean {
     let b = api_buf_ensure_loaded(buf, err);
@@ -1867,7 +1865,7 @@ fn fix_cursor_cols(
 }
 
 #[inline]
-fn init_line_array(lstate: *mut lua_State, a: *mut Array, size: usize, arena: &mut Arena) {
+fn init_line_array(lstate: *mut lua_State, a: &mut Array, size: usize, arena: &mut Arena) {
     unsafe {
         if !lstate.is_null() {
             lua_createtable(lstate, size as c_int, 0);
@@ -1879,7 +1877,7 @@ fn init_line_array(lstate: *mut lua_State, a: *mut Array, size: usize, arena: &m
 
 fn push_linestr(
     lstate: *mut lua_State,
-    a: *mut Array,
+    a: &mut Array,
     s: *const c_char,
     len: usize,
     idx: c_int,
@@ -1908,7 +1906,7 @@ fn push_linestr(
                 }
                 str_val = NvimString { data, size: len };
             }
-            add_c(&mut *a, string_obj(str_val));
+            add_c(a, string_obj(str_val));
         }
     }
 }
@@ -1933,7 +1931,7 @@ pub fn buf_collect_lines(
     start: linenr_T,
     start_idx: c_int,
     replace_nl: bool,
-    l: *mut Array,
+    l: &mut Array,
     lstate: *mut lua_State,
     arena: &mut Arena,
 ) {

@@ -99,16 +99,16 @@ fn cbuf_to_arena_obj(arena: &mut Arena, s: *const c_char, len: usize) -> Object 
 pub fn nvim_exec2(
     channel_id: u64,
     src: NvimString,
-    opts: *mut KeyDict_exec_opts,
+    opts: &mut KeyDict_exec_opts,
     err: &mut Error,
 ) -> Dict {
-    unsafe {
+    {
         let mut result = Dict::new();
         let output = exec_impl(channel_id, src, &mut *opts, err);
         if error_set(err) {
             return result;
         }
-        if (*opts).output {
+        if opts.output {
             result.push(KeyValuePair {
                 key: cstr_to_string(c"output".as_ptr()),
                 value: string_obj(output),

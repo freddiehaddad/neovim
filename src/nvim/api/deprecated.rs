@@ -287,7 +287,7 @@ pub fn nvim_buf_set_virtual_text(
     mut src_id: Integer,
     line: Integer,
     chunks: Array,
-    _opts: *mut KeyDict_empty,
+    _opts: &mut KeyDict_empty,
     err: &mut Error,
 ) -> Integer {
     unsafe {

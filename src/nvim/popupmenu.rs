@@ -1774,7 +1774,7 @@ fn pum_execute_menu(menu: &mut vimmenu_T, mode: c_int) {
                 idx += 1;
                 if cur_idx == pum().selected {
                     let ea: exarg_T = exarg_T::new();
-                    execute_menu(&raw const ea, mp, -1);
+                    execute_menu(&ea, mp, -1);
                     break;
                 }
             }
