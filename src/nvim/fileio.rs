@@ -2669,7 +2669,7 @@ pub unsafe fn readfile(
                     (*g_st().curbuf).b_p_ro = 1;
                 }
 
-                u_clearline(g_st().curbuf);
+                u_clearline(&mut *g_st().curbuf);
 
                 (**curwin.as_ptr()).w_cursor.lnum = from + 1;
                 check_cursor_lnum(*curwin.as_ptr());
@@ -3250,34 +3250,34 @@ unsafe fn check_for_bom(
 }
 
 /// Shorten filename of a buffer.
-pub unsafe fn shorten_buf_fname(buf: *mut buf_T, dirname: *mut c_char, force: c_int) -> bool {
+pub unsafe fn shorten_buf_fname(buf: &mut buf_T, dirname: *mut c_char, force: c_int) -> bool {
     unsafe {
-        if (*buf).b_fname.is_null()
-            || bt_nofilename(buf)
-            || path_with_url((*buf).b_fname) != 0
-            || !(force != 0 || (*buf).b_sfname.is_null() || path_is_absolute((*buf).b_sfname))
+        if buf.b_fname.is_null()
+            || bt_nofilename(&raw mut *buf)
+            || path_with_url(buf.b_fname) != 0
+            || !(force != 0 || buf.b_sfname.is_null() || path_is_absolute(buf.b_sfname))
         {
             return false;
         }
 
-        let p = path_shorten_fname((*buf).b_ffname, dirname);
+        let p = path_shorten_fname(buf.b_ffname, dirname);
         let shorten = !p.is_null() && *p != NUL;
         if shorten
-            && !(*buf).b_sfname.is_null()
-            && CStr::from_ptr(p) == CStr::from_ptr((*buf).b_sfname)
+            && !buf.b_sfname.is_null()
+            && CStr::from_ptr(p) == CStr::from_ptr(buf.b_sfname)
         {
             return false;
         }
 
-        let new_fname = if shorten { p } else { (*buf).b_ffname };
+        let new_fname = if shorten { p } else { buf.b_ffname };
         let changed =
-            new_fname.is_null() || CStr::from_ptr(new_fname) != CStr::from_ptr((*buf).b_fname);
+            new_fname.is_null() || CStr::from_ptr(new_fname) != CStr::from_ptr(buf.b_fname);
 
-        (*buf).set_sfname(shorten.then(|| cstr_to_cstring(p)));
+        buf.set_sfname(shorten.then(|| cstr_to_cstring(p)));
         if shorten {
-            (*buf).b_fname = (*buf).b_sfname;
+            buf.b_fname = buf.b_sfname;
         } else {
-            (*buf).b_fname = (*buf).b_ffname;
+            buf.b_fname = buf.b_ffname;
         }
         changed
     }
@@ -3292,7 +3292,7 @@ pub unsafe fn shorten_fnames(force: c_int) {
         os_dirname(dirname.as_mut_ptr(), MAXPATHL);
         let mut buf = g_st().firstbuf;
         while !buf.is_null() {
-            changed |= shorten_buf_fname(buf, dirname.as_mut_ptr(), force);
+            changed |= shorten_buf_fname(&mut *buf, dirname.as_mut_ptr(), force);
             mf_fullname((*buf).b_ml.mfp_ptr());
             buf = (*buf).b_next;
         }
@@ -3690,7 +3690,7 @@ pub unsafe fn check_timestamps(focus: c_int) -> c_int {
                 if (*buf).b_nwindows > 0 {
                     let mut bufref: bufref_T = bufref_T::new();
                     set_bufref(&raw mut bufref, buf);
-                    let n = buf_check_timestamp(buf);
+                    let n = buf_check_timestamp(&mut *buf);
                     didit = didit.max(n);
                     if n > 0 && !bufref_valid(&raw mut bufref) {
                         buf = g_st().firstbuf;
@@ -3743,7 +3743,7 @@ unsafe fn move_lines(frombuf: *mut buf_T, tobuf: *mut buf_T) -> c_int {
 }
 
 /// Check if buffer "buf" has been changed.
-pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
+pub unsafe fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
     unsafe {
         static BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -3757,17 +3757,17 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
         let mut helpmesg = false;
         let mut reload: c_int = RELOAD_NONE;
         let mut can_reload = false;
-        let orig_size = (*buf).b_orig_size;
-        let orig_mode = (*buf).b_orig_mode;
+        let orig_size = buf.b_orig_size;
+        let orig_mode = buf.b_orig_mode;
 
         let mut bufref: bufref_T = bufref_T::new();
-        set_bufref(&raw mut bufref, buf);
+        set_bufref(&raw mut bufref, &raw mut *buf);
 
-        if !(*buf).terminal.is_null()
-            || (*buf).b_ffname.is_null()
-            || (*buf).b_ml.ml_mfp.is_none()
-            || !bt_normal(buf)
-            || (*buf).b_saving
+        if !buf.terminal.is_null()
+            || buf.b_ffname.is_null()
+            || buf.b_ml.ml_mfp.is_none()
+            || !bt_normal(&raw mut *buf)
+            || buf.b_saving
             || BUSY.load(std::sync::atomic::Ordering::Relaxed)
         {
             return 0;
@@ -3775,31 +3775,31 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
 
         let mut file_info: FileInfo = FileInfo::new();
         let file_info_ok: bool;
-        if ((*buf).b_flags & BF_NOTEDITED) == 0
-            && (*buf).b_mtime != 0
+        if (buf.b_flags & BF_NOTEDITED) == 0
+            && buf.b_mtime != 0
             && ({
-                file_info_ok = os_fileinfo((*buf).b_ffname, &mut file_info);
+                file_info_ok = os_fileinfo(buf.b_ffname, &mut file_info);
                 !file_info_ok
-                    || time_differs(&file_info, (*buf).b_mtime, (*buf).b_mtime_ns)
-                    || (file_info.stat.st_mode as c_int) != (*buf).b_orig_mode
+                    || time_differs(&file_info, buf.b_mtime, buf.b_mtime_ns)
+                    || (file_info.stat.st_mode as c_int) != buf.b_orig_mode
             })
         {
-            let prev_b_mtime = (*buf).b_mtime;
+            let prev_b_mtime = buf.b_mtime;
 
             retval = 1;
 
             if !file_info_ok {
-                (*buf).b_mtime = -1;
-                (*buf).b_orig_size = 0;
-                (*buf).b_orig_mode = 0;
+                buf.b_mtime = -1;
+                buf.b_orig_size = 0;
+                buf.b_orig_mode = 0;
             } else {
-                buf_store_file_info(buf, &mut file_info);
+                buf_store_file_info(&raw mut *buf, &mut file_info);
             }
 
-            if os_isdir((*buf).b_fname) {
+            if os_isdir(buf.b_fname) {
                 // Don't do anything for a directory.
-            } else if (if (*buf).b_p_ar >= 0 {
-                (*buf).b_p_ar
+            } else if (if buf.b_p_ar >= 0 {
+                buf.b_p_ar
             } else {
                 opt_vars().p_ar
             }) != 0
@@ -3812,9 +3812,9 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
                     (c"deleted".as_ptr(), 7isize)
                 } else if bufIsChanged(buf) {
                     (c"conflict".as_ptr(), 8isize)
-                } else if orig_size != (*buf).b_orig_size || buf_contents_changed(buf) {
+                } else if orig_size != buf.b_orig_size || buf_contents_changed(&raw mut *buf) {
                     (c"changed".as_ptr(), 7isize)
-                } else if orig_mode != (*buf).b_orig_mode {
+                } else if orig_mode != buf.b_orig_mode {
                     (c"mode".as_ptr(), 4isize)
                 } else {
                     (c"time".as_ptr(), 4isize)
@@ -3826,10 +3826,10 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
                 g_st().allbuf_lock += 1;
                 let mut n = apply_autocmds(
                     EVENT_FILECHANGEDSHELL,
-                    (*buf).b_fname,
-                    (*buf).b_fname,
+                    buf.b_fname,
+                    buf.b_fname,
                     false,
-                    buf,
+                    &raw mut *buf,
                 );
                 g_st().allbuf_lock -= 1;
                 BUSY.store(false, std::sync::atomic::Ordering::Relaxed);
@@ -3878,24 +3878,24 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
                             );
                             mesg2 = tr(c"See \":help W16\" for more info.".as_ptr());
                         } else {
-                            (*buf).b_mtime_read = (*buf).b_mtime;
-                            (*buf).b_mtime_read_ns = (*buf).b_mtime_ns;
+                            buf.b_mtime_read = buf.b_mtime;
+                            buf.b_mtime_read_ns = buf.b_mtime_ns;
                         }
                     }
                 }
             }
-        } else if ((*buf).b_flags & BF_NEW) != 0
-            && ((*buf).b_flags & BF_NEW_W) == 0
-            && os_path_exists((*buf).b_ffname)
+        } else if (buf.b_flags & BF_NEW) != 0
+            && (buf.b_flags & BF_NEW_W) == 0
+            && os_path_exists(buf.b_ffname)
         {
             retval = 1;
             mesg = tr(c"W13: Warning: File \"%s\" has been created after editing started".as_ptr());
-            (*buf).b_flags |= BF_NEW_W;
+            buf.b_flags |= BF_NEW_W;
             can_reload = true;
         }
 
         if !mesg.is_null() {
-            let path = home_replace_save(buf, (*buf).b_fname);
+            let path = home_replace_save(&raw mut *buf, buf.b_fname);
             if !helpmesg {
                 mesg2 = c"".as_ptr().cast_mut();
             }
@@ -3959,21 +3959,21 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
         }
 
         if reload != RELOAD_NONE {
-            buf_reload(buf, orig_mode, reload == RELOAD_DETECT);
-            if bufref_valid(&raw mut bufref) && (*buf).b_p_udf != 0 && !(*buf).b_ffname.is_null() {
+            buf_reload(&raw mut *buf, orig_mode, reload == RELOAD_DETECT);
+            if bufref_valid(&raw mut bufref) && buf.b_p_udf != 0 && !buf.b_ffname.is_null() {
                 let mut hash: [u8; UNDO_HASH_SIZE] = [0; UNDO_HASH_SIZE];
                 u_compute_hash(buf, hash.as_mut_ptr());
-                u_write_undo(ptr::null(), false, buf, hash.as_mut_ptr());
+                u_write_undo(ptr::null(), false, &raw mut *buf, hash.as_mut_ptr());
             }
         }
 
         if bufref_valid(&raw mut bufref) && retval != 0 {
             apply_autocmds(
                 EVENT_FILECHANGEDSHELLPOST,
-                (*buf).b_fname,
-                (*buf).b_fname,
+                buf.b_fname,
+                buf.b_fname,
                 false,
-                buf,
+                &raw mut *buf,
             );
         }
         retval
@@ -4010,7 +4010,7 @@ pub unsafe fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool
             flags |= READ_KEEP_UNDO;
         }
 
-        if buf_is_empty(g_st().curbuf) || saved == FAIL {
+        if buf_is_empty(&mut *g_st().curbuf) || saved == FAIL {
             savebuf = ptr::null_mut();
         } else {
             savebuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_DUMMY);
@@ -4018,7 +4018,7 @@ pub unsafe fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool
             if !savebuf.is_null() && buf == g_st().curbuf {
                 g_st().curbuf = savebuf;
                 (**curwin.as_ptr()).w_buffer = savebuf;
-                saved = ml_open(g_st().curbuf);
+                saved = ml_open(&mut *g_st().curbuf);
                 g_st().curbuf = buf;
                 (**curwin.as_ptr()).w_buffer = buf;
             }
@@ -4056,7 +4056,7 @@ pub unsafe fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool
                     );
                 }
                 if !savebuf.is_null() && bufref_valid(&raw mut bufref) && buf == g_st().curbuf {
-                    while !buf_is_empty(g_st().curbuf) {
+                    while !buf_is_empty(&mut *g_st().curbuf) {
                         if ml_delete((*buf).b_ml.ml_line_count) == FAIL {
                             break;
                         }

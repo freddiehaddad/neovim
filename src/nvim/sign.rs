@@ -818,7 +818,7 @@ unsafe fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T 
                 ptr::null_mut(),
                 ptr::null_mut(),
                 lnum,
-                if buf_hide(g_st().curbuf) { ECMD_HIDE } else { 0 },
+                if buf_hide(&*g_st().curbuf) { ECMD_HIDE } else { 0 },
                 *curwin.as_ptr(),
             ) == FAIL
             {
@@ -1169,11 +1169,11 @@ unsafe fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
     }
 }
 
-pub unsafe fn get_buffer_signs(buf: *mut buf_T) -> *mut list_T {
+pub unsafe fn get_buffer_signs(buf: &mut buf_T) -> *mut list_T {
     unsafe {
         let l = tv_list_alloc(kListLenMayKnow);
         let mut itr = MarkTreeIter::new();
-        let b = &(*buf).b_marktree;
+        let b = &buf.b_marktree;
         marktree_itr_get(b, 0, 0, &mut itr);
 
         while itr.x.is_some() {

@@ -432,7 +432,7 @@ pub unsafe fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int, view_pt: *mut 
         if ascii_islower(c) {
             let i = (c - b'a' as c_int) as usize;
             reset_fmark(&mut (*buf).b_namedm[i], *pos, fnum, view);
-            u_update_named_mark(buf, i as c_int);
+            u_update_named_mark(&mut *buf, i as c_int);
             do_markset_autocmd(c as c_char, pos, buf);
             return OK;
         }
@@ -451,20 +451,20 @@ pub unsafe fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int, view_pt: *mut 
 }
 
 /// Remove every jump list entry referring to a given buffer (`mark_jumplist_forget_file`).
-pub unsafe fn mark_jumplist_forget_file(wp: *mut win_T, fnum: c_int) {
+pub unsafe fn mark_jumplist_forget_file(wp: &mut win_T, fnum: c_int) {
     unsafe {
-        let mut i = (*wp).w_jumplistlen - 1;
+        let mut i = wp.w_jumplistlen - 1;
         while i >= 0 {
             let idx = i as usize;
-            if (*wp).w_jumplist[idx].fmark.fnum == fnum {
-                free_xfmark(&mut (*wp).w_jumplist[idx]);
-                if (*wp).w_jumplistidx > i {
-                    (*wp).w_jumplistidx -= 1;
+            if wp.w_jumplist[idx].fmark.fnum == fnum {
+                free_xfmark(&mut wp.w_jumplist[idx]);
+                if wp.w_jumplistidx > i {
+                    wp.w_jumplistidx -= 1;
                 }
-                let old_len = (*wp).w_jumplistlen as usize;
-                (&mut (*wp).w_jumplist)[idx..old_len].rotate_left(1);
-                (*wp).w_jumplist[old_len - 1] = xfmark_T::ZERO;
-                (*wp).w_jumplistlen -= 1;
+                let old_len = wp.w_jumplistlen as usize;
+                (&mut wp.w_jumplist)[idx..old_len].rotate_left(1);
+                wp.w_jumplist[old_len - 1] = xfmark_T::ZERO;
+                wp.w_jumplistlen -= 1;
             }
             i -= 1;
         }
@@ -472,21 +472,21 @@ pub unsafe fn mark_jumplist_forget_file(wp: *mut win_T, fnum: c_int) {
 }
 
 /// Delete every entry referring to file `fnum` from both the jumplist and the tag stack (`mark_forget_file`).
-pub unsafe fn mark_forget_file(wp: *mut win_T, fnum: c_int) {
+pub unsafe fn mark_forget_file(wp: &mut win_T, fnum: c_int) {
     unsafe {
         mark_jumplist_forget_file(wp, fnum);
 
-        let mut i = (*wp).w_tagstacklen - 1;
+        let mut i = wp.w_tagstacklen - 1;
         while i >= 0 {
             let idx = i as usize;
-            if (*wp).w_tagstack[idx].fmark.fnum == fnum {
-                let old_len = (*wp).w_tagstacklen as usize;
-                (&mut (*wp).w_tagstack)[idx..old_len].rotate_left(1);
-                (*wp).w_tagstack[old_len - 1] = crate::tag::taggy_T::ZERO;
-                if (*wp).w_tagstackidx > i {
-                    (*wp).w_tagstackidx -= 1;
+            if wp.w_tagstack[idx].fmark.fnum == fnum {
+                let old_len = wp.w_tagstacklen as usize;
+                (&mut wp.w_tagstack)[idx..old_len].rotate_left(1);
+                wp.w_tagstack[old_len - 1] = crate::tag::taggy_T::ZERO;
+                if wp.w_tagstackidx > i {
+                    wp.w_tagstackidx -= 1;
                 }
-                (*wp).w_tagstacklen -= 1;
+                wp.w_tagstacklen -= 1;
             }
             i -= 1;
         }
@@ -544,32 +544,32 @@ pub unsafe fn checkpcmark() {
 }
 
 /// Get mark in `count` position in the jumplist relative to the current index (`get_jumplist`).
-pub unsafe fn get_jumplist(win: *mut win_T, mut count: c_int) -> *mut fmark_T {
+pub unsafe fn get_jumplist(win: &mut win_T, mut count: c_int) -> *mut fmark_T {
     unsafe {
         cleanup_jumplist(win, true);
 
-        if (*win).w_jumplistlen == 0 {
+        if win.w_jumplistlen == 0 {
             return ptr::null_mut();
         }
 
         loop {
-            if (*win).w_jumplistidx + count < 0
-                || (*win).w_jumplistidx + count >= (*win).w_jumplistlen
+            if win.w_jumplistidx + count < 0
+                || win.w_jumplistidx + count >= win.w_jumplistlen
             {
                 return ptr::null_mut();
             }
 
-            if (*win).w_jumplistidx == (*win).w_jumplistlen {
+            if win.w_jumplistidx == win.w_jumplistlen {
                 setpcmark();
-                (*win).w_jumplistidx -= 1;
-                if (*win).w_jumplistidx + count < 0 {
+                win.w_jumplistidx -= 1;
+                if win.w_jumplistidx + count < 0 {
                     return ptr::null_mut();
                 }
             }
 
-            (*win).w_jumplistidx += count;
+            win.w_jumplistidx += count;
 
-            let jmp = &raw mut (*win).w_jumplist[(*win).w_jumplistidx as usize];
+            let jmp = &raw mut win.w_jumplist[win.w_jumplistidx as usize];
             if (*jmp).fmark.fnum == 0 {
                 fname2fnum(jmp);
             }
@@ -584,9 +584,9 @@ pub unsafe fn get_jumplist(win: *mut win_T, mut count: c_int) -> *mut fmark_T {
 }
 
 /// Get mark in `count` position in the changelist relative to the current index (`get_changelist`).
-pub unsafe fn get_changelist(buf: *mut buf_T, win: *mut win_T, count: c_int) -> *mut fmark_T {
+pub unsafe fn get_changelist(buf: &mut buf_T, win: *mut win_T, count: c_int) -> *mut fmark_T {
     unsafe {
-        if (*buf).b_changelistlen == 0 {
+        if buf.b_changelistlen == 0 {
             return ptr::null_mut();
         }
 
@@ -596,16 +596,16 @@ pub unsafe fn get_changelist(buf: *mut buf_T, win: *mut win_T, count: c_int) -> 
                 return ptr::null_mut();
             }
             n = 0;
-        } else if n + count >= (*buf).b_changelistlen {
-            if n == (*buf).b_changelistlen - 1 {
+        } else if n + count >= buf.b_changelistlen {
+            if n == buf.b_changelistlen - 1 {
                 return ptr::null_mut();
             }
-            n = (*buf).b_changelistlen - 1;
+            n = buf.b_changelistlen - 1;
         } else {
             n += count;
         }
         (*win).w_changelistidx = n;
-        let fm = &raw mut (*buf).b_changelist[n as usize];
+        let fm = &raw mut buf.b_changelist[n as usize];
         (*fm).fnum = (*g_st().curbuf).b_fnum;
         fm
     }
@@ -613,7 +613,7 @@ pub unsafe fn get_changelist(buf: *mut buf_T, win: *mut win_T, count: c_int) -> 
 
 /// Get a named mark (`mark_get`).
 pub unsafe fn mark_get(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     win: *mut win_T,
     fmp: *mut fmark_T,
     flag: MarkGet,
@@ -624,9 +624,9 @@ pub unsafe fn mark_get(
         if ascii_isupper(name) || ascii_isdigit(name) {
             let xfm = mark_get_global(flag != kMarkAllNoResolve, name);
             fm = &raw mut (*xfm).fmark;
-            if flag == kMarkBufLocal && (*xfm).fmark.fnum != (*buf).b_fnum {
+            if flag == kMarkBufLocal && (*xfm).fmark.fnum != buf.b_fnum {
                 return pos_to_mark(
-                    buf,
+                    &raw mut *buf,
                     ptr::null_mut(),
                     pos_T {
                         lnum: 0,
@@ -665,32 +665,32 @@ pub unsafe fn mark_get_global(resolve: bool, mut name: c_int) -> *mut xfmark_T {
 }
 
 /// Get a local mark (`mark_get_local`).
-pub unsafe fn mark_get_local(buf: *mut buf_T, win: *mut win_T, name: c_int) -> *mut fmark_T {
+pub unsafe fn mark_get_local(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *mut fmark_T {
     unsafe {
         let mark = if ascii_islower(name) {
-            &raw mut (*buf).b_namedm[(name - b'a' as c_int) as usize]
+            &raw mut buf.b_namedm[(name - b'a' as c_int) as usize]
         } else if name == b'[' as c_int {
-            pos_to_mark(buf, ptr::null_mut(), (*buf).b_op_start)
+            pos_to_mark(&raw mut *buf, ptr::null_mut(), buf.b_op_start)
         } else if name == b']' as c_int {
-            pos_to_mark(buf, ptr::null_mut(), (*buf).b_op_end)
+            pos_to_mark(&raw mut *buf, ptr::null_mut(), buf.b_op_end)
         } else if name == b'<' as c_int || name == b'>' as c_int {
             mark_get_visual(buf, name)
         } else if name == b'\'' as c_int || name == b'`' as c_int {
             pos_to_mark(g_st().curbuf, ptr::null_mut(), (*win).w_pcmark)
         } else if name == b'"' as c_int {
-            &raw mut (*buf).b_last_cursor
+            &raw mut buf.b_last_cursor
         } else if name == b'^' as c_int {
-            &raw mut (*buf).b_last_insert
+            &raw mut buf.b_last_insert
         } else if name == b'.' as c_int {
-            &raw mut (*buf).b_last_change
-        } else if name == b':' as c_int && bt_prompt(buf) {
-            &raw mut (*buf).b_prompt_start
+            &raw mut buf.b_last_change
+        } else if name == b':' as c_int && bt_prompt(&raw mut *buf) {
+            &raw mut buf.b_prompt_start
         } else {
-            mark_get_motion(buf, win, name)
+            mark_get_motion(&raw mut *buf, win, name)
         };
 
         if !mark.is_null() {
-            (*mark).fnum = (*buf).b_fnum;
+            (*mark).fnum = buf.b_fnum;
         }
 
         mark
@@ -738,21 +738,21 @@ pub unsafe fn mark_get_motion(buf: *mut buf_T, win: *mut win_T, name: c_int) -> 
 }
 
 /// Get visual marks `'<'`, `'>'` (`mark_get_visual`).
-pub unsafe fn mark_get_visual(buf: *mut buf_T, name: c_int) -> *mut fmark_T {
+pub unsafe fn mark_get_visual(buf: &mut buf_T, name: c_int) -> *mut fmark_T {
     unsafe {
         let mut mark: *mut fmark_T = ptr::null_mut();
         if name == b'<' as c_int || name == b'>' as c_int {
-            let startp = (*buf).b_visual.vi_start;
-            let endp = (*buf).b_visual.vi_end;
+            let startp = buf.b_visual.vi_start;
+            let endp = buf.b_visual.vi_end;
             mark = if ((name == b'<' as c_int) == lt(startp, endp) || endp.lnum == 0)
                 && startp.lnum != 0
             {
-                pos_to_mark(buf, ptr::null_mut(), startp)
+                pos_to_mark(&raw mut *buf, ptr::null_mut(), startp)
             } else {
-                pos_to_mark(buf, ptr::null_mut(), endp)
+                pos_to_mark(&raw mut *buf, ptr::null_mut(), endp)
             };
 
-            if (*buf).b_visual.vi_mode == b'V' as c_int {
+            if buf.b_visual.vi_mode == b'V' as c_int {
                 (*mark).mark.col = if name == b'<' as c_int { 0 } else { MAXCOL };
                 (*mark).mark.coladd = 0;
             }
@@ -1005,21 +1005,21 @@ pub unsafe fn mark_check_line_bounds(
 }
 
 /// Clear all marks and change list in the given buffer (`clrallmarks`).
-pub unsafe fn clrallmarks(buf: *mut buf_T, timestamp: Timestamp) {
+pub unsafe fn clrallmarks(buf: &mut buf_T, timestamp: Timestamp) {
     unsafe {
         for i in 0..NMARKS {
-            clear_fmark(&mut (*buf).b_namedm[i], timestamp);
+            clear_fmark(&mut buf.b_namedm[i], timestamp);
         }
-        clear_fmark(&mut (*buf).b_last_cursor, timestamp);
-        (*buf).b_last_cursor.mark.lnum = 1;
-        clear_fmark(&mut (*buf).b_last_insert, timestamp);
-        clear_fmark(&mut (*buf).b_last_change, timestamp);
-        (*buf).b_op_start.lnum = 0;
-        (*buf).b_op_end.lnum = 0;
-        for i in 0..((*buf).b_changelistlen as usize) {
-            clear_fmark(&mut (*buf).b_changelist[i], timestamp);
+        clear_fmark(&mut buf.b_last_cursor, timestamp);
+        buf.b_last_cursor.mark.lnum = 1;
+        clear_fmark(&mut buf.b_last_insert, timestamp);
+        clear_fmark(&mut buf.b_last_change, timestamp);
+        buf.b_op_start.lnum = 0;
+        buf.b_op_end.lnum = 0;
+        for i in 0..(buf.b_changelistlen as usize) {
+            clear_fmark(&mut buf.b_changelist[i], timestamp);
         }
-        (*buf).b_changelistlen = 0;
+        buf.b_changelistlen = 0;
     }
 }
 
@@ -1105,7 +1105,7 @@ pub unsafe fn ex_delmarks(eap: &mut exarg_T) {
             if (*g_st().curbuf).b_op_end.lnum != 0 {
                 do_markset_autocmd(b']' as c_char, &pos, g_st().curbuf);
             }
-            clrallmarks(g_st().curbuf, os_time());
+            clrallmarks(&mut *g_st().curbuf, os_time());
         } else if eap.forceit != 0 {
             emsg(gettext(e_invarg.as_ptr()));
         } else if *eap.arg == NUL {
@@ -1228,7 +1228,7 @@ pub unsafe fn ex_delmarks(eap: &mut exarg_T) {
 /// Print the jumplist (`ex_jumps`).
 pub unsafe fn ex_jumps(_eap: &mut exarg_T) {
     unsafe {
-        cleanup_jumplist(*curwin.as_ptr(), true);
+        cleanup_jumplist(&mut **curwin.as_ptr(), true);
         msg_ext_set_kind(c"list_cmd".as_ptr());
         msg_puts_title(gettext(c"\n jump line  col file/text".as_ptr()));
         let mut i: c_int = 0;
@@ -1711,7 +1711,7 @@ pub unsafe fn mark_adjust_buf(
                     }
 
                     if adjust_folds {
-                        foldMarkAdjust(win, line1, line2, amount, amount_after);
+                        foldMarkAdjust(&mut *win, line1, line2, amount, amount_after);
                     }
                 }
                 win = (*win).w_next;
@@ -1934,36 +1934,36 @@ pub unsafe fn mark_col_adjust(
 }
 
 /// Remove duplicate marks in the jumplist (`cleanup_jumplist`).
-pub unsafe fn cleanup_jumplist(wp: *mut win_T, loadfiles: bool) {
+pub unsafe fn cleanup_jumplist(wp: &mut win_T, loadfiles: bool) {
     unsafe {
         if loadfiles {
-            for i in 0..((*wp).w_jumplistlen as usize) {
-                if (*wp).w_jumplist[i].fmark.fnum == 0 && (*wp).w_jumplist[i].fmark.mark.lnum != 0 {
-                    fname2fnum(&raw mut (*wp).w_jumplist[i]);
+            for i in 0..(wp.w_jumplistlen as usize) {
+                if wp.w_jumplist[i].fmark.fnum == 0 && wp.w_jumplist[i].fmark.mark.lnum != 0 {
+                    fname2fnum(&raw mut wp.w_jumplist[i]);
                 }
             }
         }
 
         let mut to: c_int = 0;
-        for from in 0..(*wp).w_jumplistlen {
+        for from in 0..wp.w_jumplistlen {
             let from_u = from as usize;
-            if (*wp).w_jumplistidx == from {
-                (*wp).w_jumplistidx = to;
+            if wp.w_jumplistidx == from {
+                wp.w_jumplistidx = to;
             }
             let mut i = from + 1;
-            while i < (*wp).w_jumplistlen {
+            while i < wp.w_jumplistlen {
                 let i_u = i as usize;
-                if (*wp).w_jumplist[i_u].fmark.fnum == (*wp).w_jumplist[from_u].fmark.fnum
-                    && (*wp).w_jumplist[from_u].fmark.fnum != 0
-                    && (*wp).w_jumplist[i_u].fmark.mark.lnum
-                        == (*wp).w_jumplist[from_u].fmark.mark.lnum
+                if wp.w_jumplist[i_u].fmark.fnum == wp.w_jumplist[from_u].fmark.fnum
+                    && wp.w_jumplist[from_u].fmark.fnum != 0
+                    && wp.w_jumplist[i_u].fmark.mark.lnum
+                        == wp.w_jumplist[from_u].fmark.mark.lnum
                 {
                     break;
                 }
                 i += 1;
             }
 
-            let mustfree = if i >= (*wp).w_jumplistlen {
+            let mustfree = if i >= wp.w_jumplistlen {
                 false
             } else if i > from + 1 {
                 (opt_vars().jop_flags & kOptJopFlagStack) == 0
@@ -1972,27 +1972,27 @@ pub unsafe fn cleanup_jumplist(wp: *mut win_T, loadfiles: bool) {
             };
 
             if mustfree {
-                (*wp).w_jumplist[from_u].fname = None;
+                wp.w_jumplist[from_u].fname = None;
             } else {
                 if to != from {
-                    (*wp).w_jumplist[to as usize] = (*wp).w_jumplist[from_u].clone();
+                    wp.w_jumplist[to as usize] = wp.w_jumplist[from_u].clone();
                 }
                 to += 1;
             }
         }
-        if (*wp).w_jumplistidx == (*wp).w_jumplistlen {
-            (*wp).w_jumplistidx = to;
+        if wp.w_jumplistidx == wp.w_jumplistlen {
+            wp.w_jumplistidx = to;
         }
-        (*wp).w_jumplistlen = to;
+        wp.w_jumplistlen = to;
 
-        if loadfiles && (*wp).w_jumplistlen != 0 && (*wp).w_jumplistidx == (*wp).w_jumplistlen {
-            let last_idx = ((*wp).w_jumplistlen - 1) as usize;
-            if (*wp).w_jumplist[last_idx].fmark.fnum == (*g_st().curbuf).b_fnum
-                && (*wp).w_jumplist[last_idx].fmark.mark.lnum == (*wp).w_cursor.lnum
+        if loadfiles && wp.w_jumplistlen != 0 && wp.w_jumplistidx == wp.w_jumplistlen {
+            let last_idx = (wp.w_jumplistlen - 1) as usize;
+            if wp.w_jumplist[last_idx].fmark.fnum == (*g_st().curbuf).b_fnum
+                && wp.w_jumplist[last_idx].fmark.mark.lnum == wp.w_cursor.lnum
             {
-                (*wp).w_jumplist[last_idx].fname = None;
-                (*wp).w_jumplistlen -= 1;
-                (*wp).w_jumplistidx -= 1;
+                wp.w_jumplist[last_idx].fname = None;
+                wp.w_jumplistlen -= 1;
+                wp.w_jumplistidx -= 1;
             }
         }
     }
@@ -2125,19 +2125,19 @@ pub unsafe fn mark_set_global(name: c_char, fm: xfmark_T, update: bool) -> bool 
 }
 
 /// Set local mark (`mark_set_local`).
-pub unsafe fn mark_set_local(name: c_char, buf: *mut buf_T, fm: fmark_T, update: bool) -> bool {
+pub unsafe fn mark_set_local(name: c_char, buf: &mut buf_T, fm: fmark_T, update: bool) -> bool {
     unsafe {
         let ch = c_int::from(name as u8);
         let fm_tgt = if ascii_islower(ch) {
-            &raw mut (*buf).b_namedm[(ch - b'a' as c_int) as usize]
+            &raw mut buf.b_namedm[(ch - b'a' as c_int) as usize]
         } else if name == b'"' as c_char {
-            &raw mut (*buf).b_last_cursor
+            &raw mut buf.b_last_cursor
         } else if name == b'^' as c_char {
-            &raw mut (*buf).b_last_insert
+            &raw mut buf.b_last_insert
         } else if name == b':' as c_char {
-            &raw mut (*buf).b_prompt_start
+            &raw mut buf.b_prompt_start
         } else if name == b'.' as c_char {
-            &raw mut (*buf).b_last_change
+            &raw mut buf.b_last_change
         } else {
             return false;
         };
@@ -2249,7 +2249,7 @@ unsafe fn add_mark(
 }
 
 /// Get information about marks local to a buffer (`get_buf_local_marks`).
-pub unsafe fn get_buf_local_marks(buf: *const buf_T, l: *mut list_T) {
+pub unsafe fn get_buf_local_marks(buf: &buf_T, l: *mut list_T) {
     unsafe {
         let mut mname: [c_char; 3] = [b'\'' as c_char, b' ' as c_char, 0];
 
@@ -2259,8 +2259,8 @@ pub unsafe fn get_buf_local_marks(buf: *const buf_T, l: *mut list_T) {
                 l,
                 mname.as_ptr(),
                 2,
-                &(*buf).b_namedm[i].mark,
-                (*buf).b_fnum,
+                &buf.b_namedm[i].mark,
+                buf.b_fnum,
                 ptr::null(),
             );
         }
@@ -2277,49 +2277,49 @@ pub unsafe fn get_buf_local_marks(buf: *const buf_T, l: *mut list_T) {
             l,
             c"'\"".as_ptr(),
             2,
-            &(*buf).b_last_cursor.mark,
-            (*buf).b_fnum,
+            &buf.b_last_cursor.mark,
+            buf.b_fnum,
             ptr::null(),
         );
         add_mark(
             l,
             c"'[".as_ptr(),
             2,
-            &(*buf).b_op_start,
-            (*buf).b_fnum,
+            &buf.b_op_start,
+            buf.b_fnum,
             ptr::null(),
         );
         add_mark(
             l,
             c"']".as_ptr(),
             2,
-            &(*buf).b_op_end,
-            (*buf).b_fnum,
+            &buf.b_op_end,
+            buf.b_fnum,
             ptr::null(),
         );
         add_mark(
             l,
             c"'^".as_ptr(),
             2,
-            &(*buf).b_last_insert.mark,
-            (*buf).b_fnum,
+            &buf.b_last_insert.mark,
+            buf.b_fnum,
             ptr::null(),
         );
         add_mark(
             l,
             c"'.".as_ptr(),
             2,
-            &(*buf).b_last_change.mark,
-            (*buf).b_fnum,
+            &buf.b_last_change.mark,
+            buf.b_fnum,
             ptr::null(),
         );
-        if bt_prompt(buf.cast_mut()) {
+        if bt_prompt((&raw const *buf).cast_mut()) {
             add_mark(
                 l,
                 c"':".as_ptr(),
                 2,
-                &(*buf).b_prompt_start.mark,
-                (*buf).b_fnum,
+                &buf.b_prompt_start.mark,
+                buf.b_fnum,
                 ptr::null(),
             );
         }
@@ -2327,16 +2327,16 @@ pub unsafe fn get_buf_local_marks(buf: *const buf_T, l: *mut list_T) {
             l,
             c"'<".as_ptr(),
             2,
-            &(*buf).b_visual.vi_start,
-            (*buf).b_fnum,
+            &buf.b_visual.vi_start,
+            buf.b_fnum,
             ptr::null(),
         );
         add_mark(
             l,
             c"'>".as_ptr(),
             2,
-            &(*buf).b_visual.vi_end,
-            (*buf).b_fnum,
+            &buf.b_visual.vi_end,
+            buf.b_fnum,
             ptr::null(),
         );
     }

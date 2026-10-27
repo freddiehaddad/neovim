@@ -2084,7 +2084,7 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow
                     if win.is_null() {
                         return;
                     }
-                    mouse_comp_pos(win, &raw mut row, &raw mut col, &raw mut lnum);
+                    mouse_comp_pos(&mut *win, &raw mut row, &raw mut col, &raw mut lnum);
                     let mut wp = g_st().firstwin;
                     while wp != win {
                         winnr += 1;

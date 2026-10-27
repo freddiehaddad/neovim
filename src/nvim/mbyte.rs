@@ -2824,30 +2824,30 @@ pub unsafe fn mb_adjust_cursor() {
     }
 }
 
-pub unsafe fn mb_check_adjust_col(win: *mut win_T) {
+pub unsafe fn mb_check_adjust_col(win: &mut win_T) {
     unsafe {
-        let oldcol = (*win).w_cursor.col;
+        let oldcol = win.w_cursor.col;
 
         if oldcol != 0 {
-            let p = ml_get_buf((*win).w_buffer, (*win).w_cursor.lnum);
+            let p = ml_get_buf(win.w_buffer, win.w_cursor.lnum);
             let len = CStr::from_ptr(p).to_bytes().len() as colnr_T;
 
             if len == 0 || oldcol < 0 {
-                (*win).w_cursor.col = 0;
+                win.w_cursor.col = 0;
             } else {
                 if oldcol > len {
-                    (*win).w_cursor.col = len - 1;
+                    win.w_cursor.col = len - 1;
                 }
-                (*win).w_cursor.col -= utf_head_off(p, p.add((*win).w_cursor.col as usize));
+                win.w_cursor.col -= utf_head_off(p, p.add(win.w_cursor.col as usize));
             }
 
-            let cur_col = (*win).w_cursor.col as usize;
-            if (*win).w_cursor.coladd == 1
+            let cur_col = win.w_cursor.col as usize;
+            if win.w_cursor.coladd == 1
                 && *p.add(cur_col) != TAB
                 && vim_isprintc(utf_ptr2char(p.add(cur_col)))
                 && ptr2cells(p.add(cur_col)) > 1
             {
-                (*win).w_cursor.coladd = 0;
+                win.w_cursor.coladd = 0;
             }
         }
     }

@@ -1856,7 +1856,7 @@ pub unsafe fn do_put(
                 if dir == FORWARD {
                     lnum += 1;
                 }
-                let save_res = if buf_is_empty(g_st().curbuf) {
+                let save_res = if buf_is_empty(&mut *g_st().curbuf) {
                     u_save(0, 2)
                 } else {
                     u_save(lnum - 1, lnum)
@@ -2215,7 +2215,7 @@ pub unsafe fn do_put(
                             drop(newp_vec);
 
                             if lnum == (**curwin.as_ptr()).w_cursor.lnum {
-                                changed_cline_bef_curs(*curwin.as_ptr());
+                                changed_cline_bef_curs(&mut **curwin.as_ptr());
                                 invalidate_botline_win(*curwin.as_ptr());
                                 (**curwin.as_ptr()).w_cursor.col += (totlen - 1) as colnr_T;
                             }

@@ -325,7 +325,7 @@ pub unsafe extern "C" fn nvim_buf_set_virtual_text(
             return 0;
         }
 
-        let existing = decor_find_virttext(buf, line as c_int, u64::from(ns_id));
+        let existing = decor_find_virttext(&mut *buf, line as c_int, u64::from(ns_id));
         if !existing.is_null() {
             (*existing).data = DecorVirtTextData::VirtText(virt_text);
             (*existing).width = width;

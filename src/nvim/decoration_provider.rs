@@ -300,7 +300,7 @@ pub unsafe fn decor_providers_start() {
 }
 
 /// For each provider run 'win' (`decor_providers_invoke_win`).
-pub unsafe fn decor_providers_invoke_win(wp: *mut win_T) {
+pub unsafe fn decor_providers_invoke_win(wp: &mut win_T) {
     unsafe {
         let ds = &raw const g_st().decor_state;
         debug_assert!(
@@ -308,9 +308,9 @@ pub unsafe fn decor_providers_invoke_win(wp: *mut win_T) {
         );
 
         if !providers_mut().is_empty() {
-            validate_botline_win(wp);
+            validate_botline_win(&raw mut *wp);
         }
-        let botline: linenr_T = (*wp).w_botline.min((*(*wp).w_buffer).b_ml.ml_line_count);
+        let botline: linenr_T = wp.w_botline.min((*wp.w_buffer).b_ml.ml_line_count);
 
         let mut i = 0usize;
         while i < providers_mut().len() {
@@ -325,9 +325,9 @@ pub unsafe fn decor_providers_invoke_win(wp: *mut win_T) {
             if p.state == kDecorProviderActive && p.redraw_win != LUA_NOREF {
                 let redraw_win = p.redraw_win;
                 let mut args_buf = [
-                    window_obj((*wp).handle),
-                    buffer_obj((*(*wp).w_buffer).b_fnum),
-                    integer_obj(((*wp).w_topline - 1) as Integer),
+                    window_obj(wp.handle),
+                    buffer_obj((*wp.w_buffer).b_fnum),
+                    integer_obj((wp.w_topline - 1) as Integer),
                     integer_obj((botline - 1) as Integer),
                 ];
                 let args = Array {
@@ -352,7 +352,7 @@ pub unsafe fn decor_providers_invoke_win(wp: *mut win_T) {
 }
 
 /// For each provider invoke the 'line' callback for a given window row (`decor_providers_invoke_line`).
-pub unsafe fn decor_providers_invoke_line(wp: *mut win_T, row: c_int) {
+pub unsafe fn decor_providers_invoke_line(wp: &mut win_T, row: c_int) {
     unsafe {
         g_st().decor_state.running_decor_provider = true;
         let mut i = 0usize;
@@ -361,8 +361,8 @@ pub unsafe fn decor_providers_invoke_line(wp: *mut win_T, row: c_int) {
             if p.state == kDecorProviderActive && p.redraw_line != LUA_NOREF {
                 let redraw_line = p.redraw_line;
                 let mut args_buf = [
-                    window_obj((*wp).handle),
-                    buffer_obj((*(*wp).w_buffer).b_fnum),
+                    window_obj(wp.handle),
+                    buffer_obj((*wp.w_buffer).b_fnum),
                     integer_obj(row as Integer),
                 ];
                 let args = Array {
@@ -390,7 +390,7 @@ pub unsafe fn decor_providers_invoke_line(wp: *mut win_T, row: c_int) {
 }
 
 pub unsafe fn decor_providers_invoke_range(
-    wp: *mut win_T,
+    wp: &mut win_T,
     start_row: c_int,
     start_col: c_int,
     end_row: c_int,
@@ -411,8 +411,8 @@ pub unsafe fn decor_providers_invoke_range(
 
                 let redraw_range = p.redraw_range;
                 let mut args_buf = [
-                    window_obj((*wp).handle),
-                    buffer_obj((*(*wp).w_buffer).b_fnum),
+                    window_obj(wp.handle),
+                    buffer_obj((*wp.w_buffer).b_fnum),
                     integer_obj(start_row as Integer),
                     integer_obj(start_col as Integer),
                     integer_obj(end_row as Integer),
@@ -467,7 +467,7 @@ pub unsafe fn decor_providers_invoke_range(
 }
 
 /// For each provider invoke the 'buf' callback for a given buffer (`decor_providers_invoke_buf`).
-pub unsafe fn decor_providers_invoke_buf(buf: *mut buf_T) {
+pub unsafe fn decor_providers_invoke_buf(buf: &mut buf_T) {
     unsafe {
         let mut i = 0usize;
         while i < providers_mut().len() {
@@ -475,7 +475,7 @@ pub unsafe fn decor_providers_invoke_buf(buf: *mut buf_T) {
             if p.state == kDecorProviderActive && p.redraw_buf != LUA_NOREF {
                 let redraw_buf = p.redraw_buf;
                 let mut args_buf = [
-                    buffer_obj((*buf).b_fnum),
+                    buffer_obj(buf.b_fnum),
                     integer_obj(*display_tick.as_ptr() as Integer),
                 ];
                 let args = Array {

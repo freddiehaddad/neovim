@@ -350,7 +350,7 @@ pub unsafe fn ctx_save(ctx: *mut Context, flags: CtxStateFlags) {
                     continue;
                 }
                 let mut p = *pos_ptr;
-                check_pos(g_st().curbuf, &mut p);
+                check_pos(&mut *g_st().curbuf, &mut p);
                 extmark_set_pos(
                     g_st().curbuf,
                     ctx_marks_ns(),
@@ -579,9 +579,9 @@ pub unsafe fn ctx_from_dict(dict: Dict, ctx: *mut Context, err: &mut Error) -> C
     }
 }
 
-unsafe fn ctx_win_dirs_save(cs: &mut CtxSwitch, cw_win: *mut win_T, buf: *mut buf_T) {
+unsafe fn ctx_win_dirs_save(cs: &mut CtxSwitch, cw_win: &mut win_T, buf: *mut buf_T) {
     unsafe {
-        (*cw_win).w_localdir = None;
+        cw_win.w_localdir = None;
         cs.cs_b_localdir = (*buf).b_localdir.take();
         cs.cs_tp_localdir = (*g_st().curtab).tp_localdir.take();
         cs.cs_globaldir = g_st().globaldir.take();
@@ -747,7 +747,7 @@ unsafe fn ctx_win_prep(cs: &mut CtxSwitch, buf: *mut buf_T) -> *mut win_T {
         (*buf).b_nwindows += 1;
         win_init_empty(cw_win);
 
-        ctx_win_dirs_save(cs, cw_win, buf);
+        ctx_win_dirs_save(cs, &mut *cw_win, buf);
 
         if need_append {
             win_append(g_st().lastwin, cw_win, ptr::null_mut());
@@ -897,7 +897,7 @@ pub unsafe fn ctx_switch(
         if !buf.is_null() {
             if wp.is_null() {
                 wp = ctx_win_prep(&mut *cs, buf);
-                leaving_window(*curwin.as_ptr());
+                leaving_window(&mut **curwin.as_ptr());
                 buf_copy_options(buf, BCO_ENTER | BCO_NOHELP);
                 g_st().prevwin = *curwin.as_ptr();
             }
@@ -962,7 +962,7 @@ pub unsafe fn ctx_restore(cs: &mut CtxSwitch) {
         } else if cs.cs_ctxwin_idx >= 0 {
             let cwp = ctx_win_rest(cs);
             ctx_restore_curwin(cs, g_st().firstwin);
-            entering_window(*curwin.as_ptr());
+            entering_window(&mut **curwin.as_ptr());
             if bt_prompt(g_st().curbuf) {
                 (*g_st().curbuf).b_prompt_insert = cs.cs_prompt_insert;
             }
@@ -997,7 +997,7 @@ pub unsafe fn ctx_restore(cs: &mut CtxSwitch) {
         if cs.cs_mode == kCtxSwitchBuf {
             check_cursor(*curwin.as_ptr());
             if g_st().Visual.active {
-                check_pos(g_st().curbuf, &mut g_st().Visual.start);
+                check_pos(&mut *g_st().curbuf, &mut g_st().Visual.start);
             }
         }
 
@@ -1016,7 +1016,7 @@ pub unsafe fn ctx_restore(cs: &mut CtxSwitch) {
             }
             check_cursor(*curwin.as_ptr());
             if g_st().Visual.active {
-                check_pos(g_st().curbuf, &mut g_st().Visual.start);
+                check_pos(&mut *g_st().curbuf, &mut g_st().Visual.start);
             }
         }
         if cs.cs_mode == kCtxSwitchBuf && cs.cs_new_curwin != cs.cs_curwin {

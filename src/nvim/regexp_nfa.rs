@@ -4289,7 +4289,7 @@ unsafe fn nfa_regmatch(
                             0
                         };
                         let fm = mark_get(
-                            re_st().rex.reg_buf,
+                            &mut *re_st().rex.reg_buf,
                             *curwin.as_ptr(),
                             ptr::null_mut(),
                             kMarkBufLocal,

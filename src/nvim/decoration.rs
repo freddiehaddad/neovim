@@ -829,12 +829,12 @@ pub unsafe fn next_virt_text_chunk(
     }
 }
 
-pub unsafe fn decor_find_virttext(buf: *mut buf_T, row: c_int, ns_id: u64) -> *mut DecorVirtText {
+pub unsafe fn decor_find_virttext(buf: &mut buf_T, row: c_int, ns_id: u64) -> *mut DecorVirtText {
     unsafe {
         let mut itr = MarkTreeIter::new();
-        marktree_itr_get(&(*buf).b_marktree, row, 0, &mut itr);
+        marktree_itr_get(&buf.b_marktree, row, 0, &mut itr);
         loop {
-            let mark = marktree_itr_current(&(*buf).b_marktree, &itr);
+            let mark = marktree_itr_current(&buf.b_marktree, &itr);
             if mark.pos.row < 0 || mark.pos.row > row {
                 break;
             } else if !mt_invalid(mark) {
@@ -846,7 +846,7 @@ pub unsafe fn decor_find_virttext(buf: *mut buf_T, row: c_int, ns_id: u64) -> *m
                     return decor;
                 }
             }
-            marktree_itr_next(&(*buf).b_marktree, &mut itr);
+            marktree_itr_next(&buf.b_marktree, &mut itr);
         }
         ptr::null_mut()
     }

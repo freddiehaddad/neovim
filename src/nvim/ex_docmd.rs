@@ -5620,7 +5620,7 @@ unsafe fn current_win_nr(win: *const win_T, cmdarg: *mut exarg_T) -> c_int {
 
         let mut wp = g_st().firstwin;
         while !wp.is_null() {
-            let include_this = nonnr || win_has_winnr(wp, g_st().curtab);
+            let include_this = nonnr || win_has_winnr(&mut *wp, g_st().curtab);
             nr += c_int::from(include_this);
             if ptr::eq(wp, win) {
                 if !include_this {
@@ -7303,12 +7303,12 @@ pub unsafe fn parse_cmd_address(
 
                         (*eap).cmd = (*eap).cmd.add(1);
                         if (*eap).skip == 0 {
-                            let fm1 = mark_get_visual(g_st().curbuf, b'<' as c_int);
+                            let fm1 = mark_get_visual(&mut *g_st().curbuf, b'<' as c_int);
                             if !mark_check(fm1, errormsg) {
                                 break 'theend;
                             }
                             (*eap).line1 = (*fm1).mark.lnum;
-                            let fm2 = mark_get_visual(g_st().curbuf, b'>' as c_int);
+                            let fm2 = mark_get_visual(&mut *g_st().curbuf, b'>' as c_int);
                             if !mark_check(fm2, errormsg) {
                                 break 'theend;
                             }
@@ -7817,7 +7817,7 @@ pub unsafe fn get_address(
                                 kMarkBufLocal
                             };
                             let fm = mark_get(
-                                g_st().curbuf,
+                                &mut *g_st().curbuf,
                                 *curwin.as_ptr(),
                                 ptr::null_mut(),
                                 flag,
@@ -9104,9 +9104,9 @@ unsafe fn ex_quit(eap: &mut exarg_T) {
         if check_more(false, eap.forceit != 0) == OK && only_one_window() {
             g_st().exiting = true;
         }
-        if (!buf_hide((*wp).w_buffer)
+        if (!buf_hide(&*(*wp).w_buffer)
             && check_changed(
-                (*wp).w_buffer,
+                &mut *(*wp).w_buffer,
                 (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 })
                     | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 })
                     | CCGD_EXCMD,
@@ -9122,7 +9122,7 @@ unsafe fn ex_quit(eap: &mut exarg_T) {
             not_exiting(save_exiting);
             win_close(
                 wp,
-                !buf_hide((*wp).w_buffer) || eap.forceit != 0,
+                !buf_hide(&*(*wp).w_buffer) || eap.forceit != 0,
                 eap.forceit != 0,
             );
         }
@@ -9661,13 +9661,13 @@ pub unsafe fn ex_win_close(forceit: c_int, win: *mut win_T, tp: *mut tabpage_T) 
 
         let buf = (*win).w_buffer;
 
-        let mut need_hide = bufIsChanged(buf) && (*buf).b_nwindows <= 1;
-        if need_hide && !buf_hide(buf) && forceit == 0 {
+        let mut need_hide = bufIsChanged(&mut *buf) && (*buf).b_nwindows <= 1;
+        if need_hide && !buf_hide(&*buf) && forceit == 0 {
             if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && opt_vars().p_write != 0 {
                 let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&raw mut bufref, buf);
-                dialog_changed(buf, false);
-                if bufref_valid(&raw mut bufref) && bufIsChanged(buf) {
+                dialog_changed(&mut *buf, false);
+                if bufref_valid(&raw mut bufref) && bufIsChanged(&mut *buf) {
                     return;
                 }
                 need_hide = false;
@@ -9678,11 +9678,11 @@ pub unsafe fn ex_win_close(forceit: c_int, win: *mut win_T, tp: *mut tabpage_T) 
         }
 
         if tp.is_null() {
-            win_close(win, !need_hide && !buf_hide(buf), forceit != 0);
+            win_close(win, !need_hide && !buf_hide(&*buf), forceit != 0);
         } else {
             win_close_othertab(
                 win,
-                c_int::from(!need_hide && !buf_hide(buf)),
+                c_int::from(!need_hide && !buf_hide(&*buf)),
                 tp,
                 forceit != 0,
             );
@@ -9919,7 +9919,7 @@ unsafe fn ex_exit(eap: &mut exarg_T) {
                 getout(0);
             }
             not_exiting(save_exiting);
-            win_close(*curwin.as_ptr(), !buf_hide((**curwin.as_ptr()).w_buffer), eap.forceit != 0);
+            win_close(*curwin.as_ptr(), !buf_hide(&*(**curwin.as_ptr()).w_buffer), eap.forceit != 0);
         }
     }
 }
@@ -9966,7 +9966,7 @@ unsafe fn ex_recover(eap: &mut exarg_T) {
     unsafe {
         g_st().recoverymode = true;
         if !check_changed(
-            g_st().curbuf,
+            &mut *g_st().curbuf,
             (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 })
                 | CCGD_MULTWIN
                 | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 })
@@ -10355,7 +10355,7 @@ unsafe fn ex_tabs(_eap: &mut exarg_T) {
                     b' ' as c_int
                 });
                 msg_putchar(b' ' as c_int);
-                msg_putchar(if bufIsChanged((*wp).w_buffer) {
+                msg_putchar(if bufIsChanged(&mut *(*wp).w_buffer) {
                     b'+' as c_int
                 } else {
                     b' ' as c_int
@@ -10648,7 +10648,7 @@ pub unsafe fn do_exedit(eap: &mut exarg_T, old_curwin: *mut win_T) {
             {
                 setpcmark();
             }
-            let ecmd_flags = (if buf_hide(g_st().curbuf) { ECMD_HIDE } else { 0 })
+            let ecmd_flags = (if buf_hide(&*g_st().curbuf) { ECMD_HIDE } else { 0 })
                 + (if eap.forceit != 0 { ECMD_FORCEIT } else { 0 })
                 + (if !old_curwin.is_null() {
                     ECMD_OLDBUF
@@ -10685,10 +10685,10 @@ pub unsafe fn do_exedit(eap: &mut exarg_T, old_curwin: *mut win_T) {
             {
                 if !old_curwin.is_null() {
                     let need_hide = curbufIsChanged() && (*g_st().curbuf).b_nwindows <= 1;
-                    if !need_hide || buf_hide(g_st().curbuf) {
+                    if !need_hide || buf_hide(&*g_st().curbuf) {
                         let mut cs: cleanup_T = cleanup_T::new();
                         enter_cleanup(&raw mut cs);
-                        win_close(*curwin.as_ptr(), !need_hide && !buf_hide(g_st().curbuf), false);
+                        win_close(*curwin.as_ptr(), !need_hide && !buf_hide(&*g_st().curbuf), false);
                         leave_cleanup(&raw mut cs);
                     }
                 }
@@ -10701,7 +10701,7 @@ pub unsafe fn do_exedit(eap: &mut exarg_T, old_curwin: *mut win_T) {
                 do_cmdline_cmd(eap.do_ecmd_cmd);
             }
             let n = (**curwin.as_ptr()).w_arg_idx_invalid;
-            check_arg_idx(*curwin.as_ptr());
+            check_arg_idx(&mut **curwin.as_ptr());
             if n != (**curwin.as_ptr()).w_arg_idx_invalid {
                 maketitle();
             }
@@ -10750,7 +10750,7 @@ unsafe fn ex_syncbind(_eap: &mut exarg_T) {
         setpcmark();
 
         let vtopline = if (**curwin.as_ptr()).w_onebuf_opt.wo_scb != 0 {
-            let mut vt = get_vtopline(*curwin.as_ptr());
+            let mut vt = get_vtopline(&mut **curwin.as_ptr());
             let mut wp = g_st().firstwin;
             while !wp.is_null() {
                 if (*wp).w_onebuf_opt.wo_scb != 0 && !(*wp).w_buffer.is_null() {
@@ -10768,15 +10768,15 @@ unsafe fn ex_syncbind(_eap: &mut exarg_T) {
         let mut wp = g_st().firstwin;
         while !wp.is_null() {
             if (*wp).w_onebuf_opt.wo_scb != 0 {
-                let y = vtopline - get_vtopline(wp);
+                let y = vtopline - get_vtopline(&mut *wp);
                 if y > 0 {
                     scrollup(wp, y, true);
                 } else {
-                    scrolldown(wp, -y, c_int::from(true));
+                    scrolldown(&mut *wp, -y, c_int::from(true));
                 }
                 (*wp).w_scbind_pos = vtopline;
                 redraw_later(wp, UPD_VALID);
-                cursor_correct(wp);
+                cursor_correct(&mut *wp);
                 (*wp).w_redr_status = true;
             }
             wp = (*wp).w_next;
@@ -11078,8 +11078,8 @@ unsafe fn ex_equal(eap: &mut exarg_T) {
 
 unsafe fn ex_sleep(eap: &mut exarg_T) {
     unsafe {
-        if cursor_valid(*curwin.as_ptr()) != 0 {
-            setcursor_mayforce(*curwin.as_ptr(), true);
+        if cursor_valid(&mut **curwin.as_ptr()) != 0 {
+            setcursor_mayforce(&mut **curwin.as_ptr(), true);
         }
 
         let mut len = i64::from(eap.line2);
@@ -11312,7 +11312,7 @@ unsafe fn ex_copymove(eap: &mut exarg_T) {
         } else {
             ex_copy(eap.line1, eap.line2, n);
         }
-        u_clearline(g_st().curbuf);
+        u_clearline(&mut *g_st().curbuf);
         beginline(BL_SOL | BL_FIX);
         ex_may_print(eap);
     }
@@ -11440,7 +11440,7 @@ unsafe fn ex_undo(eap: &mut exarg_T) {
 unsafe fn ex_wundo(eap: &mut exarg_T) {
     unsafe {
         let mut hash = [0u8; UNDO_HASH_SIZE];
-        u_compute_hash(g_st().curbuf, hash.as_mut_ptr());
+        u_compute_hash(&mut *g_st().curbuf, hash.as_mut_ptr());
         u_write_undo(eap.arg, eap.forceit != 0, g_st().curbuf, hash.as_mut_ptr());
     }
 }
@@ -11448,7 +11448,7 @@ unsafe fn ex_wundo(eap: &mut exarg_T) {
 unsafe fn ex_rundo(eap: &mut exarg_T) {
     unsafe {
         let mut hash = [0u8; UNDO_HASH_SIZE];
-        u_compute_hash(g_st().curbuf, hash.as_mut_ptr());
+        u_compute_hash(&mut *g_st().curbuf, hash.as_mut_ptr());
         u_read_undo(eap.arg, hash.as_ptr(), ptr::null());
     }
 }

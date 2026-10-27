@@ -1674,7 +1674,7 @@ pub unsafe fn do_search(
 }
 
 pub unsafe fn search_for_exact_line(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     pos: &mut pos_T,
     dir: Direction,
     pat: *mut c_char,
@@ -1683,14 +1683,14 @@ pub unsafe fn search_for_exact_line(
         let mut start: linenr_T = 0;
         let compl_len = ins_compl_len();
 
-        if (*buf).b_ml.ml_line_count == 0 {
+        if buf.b_ml.ml_line_count == 0 {
             return FAIL;
         }
         loop {
             pos.lnum += dir;
             if pos.lnum < 1 {
                 if opt_vars().p_ws != 0 {
-                    pos.lnum = (*buf).b_ml.ml_line_count;
+                    pos.lnum = buf.b_ml.ml_line_count;
                     if !shortmess(kShmSearch) {
                         give_warning(tr(top_bot_msg.as_ptr()), true, false);
                     }
@@ -1698,7 +1698,7 @@ pub unsafe fn search_for_exact_line(
                     pos.lnum = 1;
                     break;
                 }
-            } else if pos.lnum > (*buf).b_ml.ml_line_count {
+            } else if pos.lnum > buf.b_ml.ml_line_count {
                 if opt_vars().p_ws != 0 {
                     pos.lnum = 1;
                     if !shortmess(kShmSearch) {
@@ -1715,7 +1715,7 @@ pub unsafe fn search_for_exact_line(
             if start == 0 {
                 start = pos.lnum;
             }
-            let ptr_line = ml_get_buf(buf, pos.lnum);
+            let ptr_line = ml_get_buf(&raw mut *buf, pos.lnum);
             let p = skipwhite(ptr_line);
             pos.col = p.offset_from(ptr_line) as colnr_T;
 
@@ -3764,7 +3764,7 @@ pub unsafe fn find_pattern_in_path(
                                     if win_split(0, 0) == FAIL {
                                         stop_fpip_loop = true;
                                     } else {
-                                        reset_binding(*curwin.as_ptr());
+                                        reset_binding(&mut **curwin.as_ptr());
                                     }
                                 }
                                 if !stop_fpip_loop {

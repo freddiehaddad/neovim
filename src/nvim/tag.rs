@@ -3395,25 +3395,25 @@ unsafe fn get_tag_details(tag: *mut taggy_T, retdict: *mut dict_T) {
 }
 
 /// Return the tag stack entries of the specified window `wp` in dictionary `retdict`.
-pub unsafe fn get_tagstack(wp: *mut win_T, retdict: *mut dict_T) {
+pub unsafe fn get_tagstack(wp: &mut win_T, retdict: *mut dict_T) {
     unsafe {
         tv_dict_add_nr(
             retdict,
             c"length".as_ptr(),
             6,
-            (*wp).w_tagstacklen as varnumber_T,
+            wp.w_tagstacklen as varnumber_T,
         );
         tv_dict_add_nr(
             retdict,
             c"curidx".as_ptr(),
             6,
-            ((*wp).w_tagstackidx + 1) as varnumber_T,
+            (wp.w_tagstackidx + 1) as varnumber_T,
         );
         let l = tv_list_alloc(2);
         tv_dict_add_list(retdict, c"items".as_ptr(), 5, l);
 
-        let tagstack = (&raw mut (*wp).w_tagstack).cast::<taggy_T>();
-        for i in 0..(*wp).w_tagstacklen as usize {
+        let tagstack = (&raw mut wp.w_tagstack).cast::<taggy_T>();
+        for i in 0..wp.w_tagstacklen as usize {
             let d = tv_dict_alloc();
             tv_list_append_dict(l, d);
             get_tag_details(tagstack.add(i), d);

@@ -1751,7 +1751,7 @@ unsafe fn get_col(argvars: *mut typval_T, rettv: *mut typval_T, charcol: bool) {
         let bp = (*wp).w_buffer;
         let mut col: colnr_T = 0;
         let mut fnum = (*bp).b_fnum;
-        let fp = var2fpos(argvars, false, &raw mut fnum, charcol, wp);
+        let fp = var2fpos(argvars, false, &raw mut fnum, charcol, &mut *wp);
         if !fp.is_null() && fnum == (*bp).b_fnum {
             if (*fp).col == MAXCOL {
                 if (*fp).lnum <= (*bp).b_ml.ml_line_count {
@@ -1764,7 +1764,7 @@ unsafe fn get_col(argvars: *mut typval_T, rettv: *mut typval_T, charcol: bool) {
                 if virtual_active(wp) && ptr::eq(fp, &raw const (*wp).w_cursor) {
                     let p = ml_get_buf(bp, (*wp).w_cursor.lnum).add((*wp).w_cursor.col as usize);
                     if (*wp).w_cursor.coladd
-                        >= win_chartabsize(wp, p, (*wp).w_virtcol - (*wp).w_cursor.coladd)
+                        >= win_chartabsize(&mut *wp, p, (*wp).w_virtcol - (*wp).w_cursor.coladd)
                         && *p != NUL
                     {
                         let l = utfc_ptr2len(p);
@@ -3049,7 +3049,7 @@ unsafe fn getpos_both(
                 fp = &raw mut pos;
             }
         } else {
-            fp = var2fpos(argvars, true, &raw mut fnum, charcol, *curwin.as_ptr());
+            fp = var2fpos(argvars, true, &raw mut fnum, charcol, &mut **curwin.as_ptr());
         }
 
         let l = tv_list_alloc_ret(rettv, 4 + isize::from(getcurpos));
@@ -3161,7 +3161,7 @@ pub unsafe fn f_getjumplist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
             return;
         }
 
-        cleanup_jumplist(wp, true);
+        cleanup_jumplist(&mut *wp, true);
 
         let l = tv_list_alloc((*wp).w_jumplistlen as isize);
         tv_list_append_list(rettv.vval.v_list(), l);
@@ -3216,7 +3216,7 @@ pub unsafe fn f_getmarklist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
         if buf.is_null() {
             return;
         }
-        get_buf_local_marks(buf, rettv.vval.v_list());
+        get_buf_local_marks(&*buf, rettv.vval.v_list());
     }
 }
 
@@ -3702,7 +3702,7 @@ pub unsafe fn f_gettagstack(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
                 return;
             }
         }
-        get_tagstack(wp, rettv.vval.v_dict().cast());
+        get_tagstack(&mut *wp, rettv.vval.v_dict().cast());
     }
 }
 
@@ -4845,14 +4845,14 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
             let buf = g_st().curbuf;
 
             (*buf).b_p_swf = 0;
-            if (*buf).b_ml.ml_mfp.is_none() && ml_open(buf) == FAIL {
+            if (*buf).b_ml.ml_mfp.is_none() && ml_open(&mut *buf) == FAIL {
                 proc_stop(&mut (*chan).uv.proc_);
                 channel_decref(chan);
                 return;
             }
 
             channel_incref(chan);
-            channel_terminal_alloc(buf, &mut *chan);
+            channel_terminal_alloc(&mut *buf, &mut *chan);
 
             let ct = chan;
             'term_done: {
@@ -4940,7 +4940,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
                     break 'term_done;
                 }
 
-                terminal_open(&raw mut (*ct).term, buf);
+                terminal_open(&raw mut (*ct).term, &mut *buf);
             }
             channel_create_event(&mut *chan, ptr::null());
             channel_decref(chan);
@@ -5268,11 +5268,11 @@ pub unsafe fn f_line(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFu
                     g_st().skip_update_topline = true;
                 }
                 check_cursor(wp);
-                fp = var2fpos(argvars, true, &raw mut fnum, false, wp);
+                fp = var2fpos(argvars, true, &raw mut fnum, false, &mut *wp);
                 g_st().skip_update_topline = false;
             }
         } else {
-            fp = var2fpos(argvars, true, &raw mut fnum, false, *curwin.as_ptr());
+            fp = var2fpos(argvars, true, &raw mut fnum, false, &mut **curwin.as_ptr());
         }
 
         if !fp.is_null() {
@@ -9256,7 +9256,7 @@ pub unsafe fn f_virtcol(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
 
             let bp = (*wp).w_buffer;
             let mut fnum = (*bp).b_fnum;
-            let fp = var2fpos(argvars, false, &raw mut fnum, false, wp);
+            let fp = var2fpos(argvars, false, &raw mut fnum, false, &mut *wp);
             if !fp.is_null() && (*fp).lnum <= (*bp).b_ml.ml_line_count && fnum == (*bp).b_fnum {
                 if (*fp).col < 0 {
                     (*fp).col = 0;

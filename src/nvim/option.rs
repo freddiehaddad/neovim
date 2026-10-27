@@ -952,7 +952,7 @@ pub unsafe fn set_init_1(clean_arg: bool) {
         (*g_st().curbuf).b_p_fs = -1;
         (*g_st().curbuf).b_p_ul = NO_LOCAL_UNDOLEVEL;
         check_buf_options(g_st().curbuf);
-        check_win_options(*curwin.as_ptr());
+        check_win_options(&mut **curwin.as_ptr());
         check_options();
 
         last_status(false);
@@ -1224,7 +1224,7 @@ pub unsafe fn set_init_3() {
             break;
         }
 
-        if buf_is_empty(g_st().curbuf) && ((*get_option(kOptFileformats)).flags & kOptFlagWasSet) != 0 {
+        if buf_is_empty(&mut *g_st().curbuf) && ((*get_option(kOptFileformats)).flags & kOptFlagWasSet) != 0 {
             set_fileformat(default_fileformat(), OPT_LOCAL);
         }
 
@@ -2862,7 +2862,7 @@ pub unsafe fn did_set_cmdheight(args: &mut optset_T) -> *const c_char {
 pub unsafe fn did_set_diff(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
-        diff_buf_adjust(win);
+        diff_buf_adjust(&mut *win);
         if foldmethodIsDiff(win) {
             foldUpdateAll(win);
         }
@@ -3318,7 +3318,7 @@ pub unsafe fn did_set_scrollbind(args: &mut optset_T) -> *const c_char {
             return ptr::null();
         }
         do_check_scrollbind(false);
-        (*win).w_scbind_pos = get_vtopline(win);
+        (*win).w_scbind_pos = get_vtopline(&mut *win);
         ptr::null()
     }
 }
@@ -3436,10 +3436,10 @@ pub unsafe fn did_set_undofile(args: &mut optset_T) -> *const c_char {
         let mut bp = g_st().firstbuf;
         while !bp.is_null() {
             if (buf == bp || (args.os_flags & OPT_GLOBAL) != 0 || args.os_flags == 0)
-                && !bufIsChanged(bp)
+                && !bufIsChanged(&mut *bp)
                 && (*bp).b_ml.ml_mfp.is_some()
             {
-                u_compute_hash(bp, hash.as_mut_ptr());
+                u_compute_hash(&mut *bp, hash.as_mut_ptr());
                 u_read_undo(ptr::null_mut(), hash.as_ptr(), (*bp).b_fname);
             }
             bp = (*bp).b_next;
@@ -3461,14 +3461,14 @@ pub unsafe fn did_set_global_undolevels(value: OptInt, old_value: OptInt) -> *co
 
 /// Process the new buffer local 'undolevels' option value.
 pub unsafe fn did_set_buflocal_undolevels(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     value: OptInt,
     old_value: OptInt,
 ) -> *const c_char {
     unsafe {
-        (*buf).b_p_ul = old_value;
+        buf.b_p_ul = old_value;
         u_sync(true);
-        (*buf).b_p_ul = value;
+        buf.b_p_ul = value;
         ptr::null()
     }
 }
@@ -3486,7 +3486,7 @@ pub unsafe fn did_set_undolevels(args: &mut optset_T) -> *const c_char {
             );
         } else if pp == &raw mut (*buf).b_p_ul {
             did_set_buflocal_undolevels(
-                buf,
+                &mut *buf,
                 args.os_newval.data.integer(),
                 args.os_oldval.data.integer(),
             );
@@ -3599,25 +3599,25 @@ pub unsafe fn did_set_xhistory(args: &mut optset_T) -> *const c_char {
     }
 }
 
-unsafe fn do_syntax_autocmd(buf: *mut buf_T, value_changed: bool) {
+unsafe fn do_syntax_autocmd(buf: &mut buf_T, value_changed: bool) {
     unsafe {
         opt_st().SYN_RECURSIVE += 1;
-        (*buf).b_flags |= BF_SYN_SET;
+        buf.b_flags |= BF_SYN_SET;
         apply_autocmds(
             EVENT_SYNTAX,
-            (*buf).b_p_syn,
-            (*buf).b_fname,
+            buf.b_p_syn,
+            buf.b_fname,
             value_changed || opt_st().SYN_RECURSIVE == 1,
-            buf,
+            &raw mut *buf,
         );
         opt_st().SYN_RECURSIVE -= 1;
     }
 }
 
-unsafe fn do_spelllang_source(win: *mut win_T) {
+unsafe fn do_spelllang_source(win: &mut win_T) {
     unsafe {
         let mut fname = [0 as c_char; 200];
-        let ws = (*win).w_s_ptr();
+        let ws = win.w_s_ptr();
         let mut q = (*ws).b_p_spl;
 
         if { let _p = q; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"cjk,"[..4] } {
@@ -5745,13 +5745,13 @@ unsafe fn did_set_option(
 
         let ws = (**curwin.as_ptr()).w_s_ptr();
         if varp == (&raw mut (*g_st().curbuf).b_p_syn).cast::<c_void>() {
-            do_syntax_autocmd(g_st().curbuf, args.os_value_changed);
+            do_syntax_autocmd(&mut *g_st().curbuf, args.os_value_changed);
         } else if varp == (&raw mut (*g_st().curbuf).b_p_ft).cast::<c_void>() {
             if (opt_flags & OPT_MODELINE) == 0 || args.os_value_changed {
                 do_filetype_autocmd(g_st().curbuf, args.os_value_changed);
             }
         } else if varp == (&raw mut (*ws).b_p_spl).cast::<c_void>() {
-            do_spelllang_source(*curwin.as_ptr());
+            do_spelllang_source(&mut **curwin.as_ptr());
         }
 
         comp_col();
@@ -7379,10 +7379,10 @@ pub unsafe fn copy_winopt(from: *mut winopt_T, to: *mut winopt_T) {
     }
 }
 
-unsafe fn check_win_options(win: *mut win_T) {
+unsafe fn check_win_options(win: &mut win_T) {
     unsafe {
-        check_winopt(&raw mut (*win).w_onebuf_opt);
-        check_winopt(&raw mut (*win).w_allbuf_opt);
+        check_winopt(&raw mut win.w_onebuf_opt);
+        check_winopt(&raw mut win.w_allbuf_opt);
     }
 }
 
@@ -7752,16 +7752,16 @@ pub unsafe fn reset_modifiable() {
 }
 
 /// Set the global value for 'iminsert' to the local value.
-pub unsafe fn set_iminsert_global(buf: *mut buf_T) {
+pub unsafe fn set_iminsert_global(buf: &mut buf_T) {
     unsafe {
-        opt_vars().p_iminsert = (*buf).b_p_iminsert;
+        opt_vars().p_iminsert = buf.b_p_iminsert;
     }
 }
 
 /// Set the global value for 'imsearch' to the local value.
-pub unsafe fn set_imsearch_global(buf: *mut buf_T) {
+pub unsafe fn set_imsearch_global(buf: &mut buf_T) {
     unsafe {
-        opt_vars().p_imsearch = (*buf).b_p_imsearch;
+        opt_vars().p_imsearch = buf.b_p_imsearch;
     }
 }
 
@@ -8468,12 +8468,12 @@ pub unsafe fn get_bkc_flags(buf: *mut buf_T) -> c_uint {
 }
 
 /// Get the local or global value of 'formatlistpat'.
-pub unsafe fn get_flp_value(buf: *mut buf_T) -> *mut c_char {
+pub unsafe fn get_flp_value(buf: &mut buf_T) -> *mut c_char {
     unsafe {
-        if (*buf).b_p_flp.is_null() || *(*buf).b_p_flp == NUL {
+        if buf.b_p_flp.is_null() || *buf.b_p_flp == NUL {
             opt_vars().p_flp
         } else {
-            (*buf).b_p_flp
+            buf.b_p_flp
         }
     }
 }

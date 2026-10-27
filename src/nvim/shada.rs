@@ -1658,7 +1658,7 @@ unsafe fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
                         additional_data: cur_entry.additional_data.take(),
                     };
                     if cur_entry.entry_type == ShadaEntryType::kSDItemLocalMark {
-                        if !mark_set_local(fm_name, buf, fm, !force) {
+                        if !mark_set_local(fm_name, &mut *buf, fm, !force) {
                             shada_free_shada_entry(&mut cur_entry);
                             continue;
                         }
@@ -2352,7 +2352,7 @@ unsafe fn shada_read_when_writing(
                                     {
                                         let mut fm = fmark_T::new();
                                         mark_get(
-                                            buf,
+                                            &mut *buf,
                                             *curwin.as_ptr(),
                                             &mut fm,
                                             kMarkBufLocal,
@@ -4334,7 +4334,7 @@ unsafe fn shada_init_jumps(
         let mut jumps_size = 0usize;
         let mut jump_iter: Option<usize> = None;
         setpcmark();
-        cleanup_jumplist(*curwin.as_ptr(), false);
+        cleanup_jumplist(&mut **curwin.as_ptr(), false);
         loop {
             let mut fm = xfmark_T::new();
             jump_iter = mark_jumplist_iter(jump_iter, &**curwin.as_ptr(), &mut fm);

@@ -4124,7 +4124,7 @@ pub unsafe fn list_version() {
 /// Whether it still is not too late to show an intro message (`may_show_intro`).
 pub unsafe fn may_show_intro() -> bool {
     unsafe {
-        buf_is_empty(g_st().curbuf)
+        buf_is_empty(&mut *g_st().curbuf)
             && (*g_st().curbuf).b_fname.is_null()
             && (*g_st().curbuf).b_fnum == 1
             && (**curwin.as_ptr()).handle == LOWEST_WIN_ID

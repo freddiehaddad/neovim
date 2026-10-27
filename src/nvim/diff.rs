@@ -297,19 +297,19 @@ pub unsafe fn diff_buf_delete(buf: *mut buf_T) {
         }
     }
 }
-pub unsafe fn diff_buf_adjust(win: *mut win_T) {
+pub unsafe fn diff_buf_adjust(win: &mut win_T) {
     unsafe {
-        if (*win).w_onebuf_opt.wo_diff == 0 {
+        if win.w_onebuf_opt.wo_diff == 0 {
             let mut found_win = false;
             let mut wp = g_st().firstwin;
             while !wp.is_null() {
-                if (*wp).w_buffer == (*win).w_buffer && (*wp).w_onebuf_opt.wo_diff != 0 {
+                if (*wp).w_buffer == win.w_buffer && (*wp).w_onebuf_opt.wo_diff != 0 {
                     found_win = true;
                 }
                 wp = (*wp).w_next;
             }
             if !found_win {
-                let i = diff_buf_idx((*win).w_buffer, &mut *g_st().curtab);
+                let i = diff_buf_idx(win.w_buffer, &mut *g_st().curtab);
                 if i != DB_COUNT as c_int {
                     (*g_st().curtab).tp_diffbuf[i as usize] = ptr::null_mut();
                     (*g_st().curtab).tp_diff_invalid = 1;
@@ -317,7 +317,7 @@ pub unsafe fn diff_buf_adjust(win: *mut win_T) {
                 }
             }
         } else {
-            diff_buf_add((*win).w_buffer);
+            diff_buf_add(win.w_buffer);
         }
     }
 }
@@ -895,7 +895,7 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: &mut exarg_T
                 for idx_new in idx_orig..DB_COUNT {
                     let buf = (*g_st().curtab).tp_diffbuf[idx_new];
                     if buf_valid(buf) {
-                        let _ = buf_check_timestamp(buf);
+                        let _ = buf_check_timestamp(&mut *buf);
                     }
                 }
             }
@@ -1605,7 +1605,7 @@ pub unsafe fn ex_diffoff(eap: &mut exarg_T) {
                 }
                 (*wp).w_topfill = 0;
                 changed_window_setting(wp);
-                diff_buf_adjust(wp);
+                diff_buf_adjust(&mut *wp);
             }
             diffwin |= (*wp).w_onebuf_opt.wo_diff != 0;
             wp = (*wp).w_next;
@@ -2595,7 +2595,7 @@ pub unsafe fn diff_change_parse(
     }
 }
 unsafe fn diff_find_change_simple(
-    wp: *mut win_T,
+    wp: &mut win_T,
     lnum: linenr_T,
     dp: *const diff_T,
     idx: usize,
@@ -2606,7 +2606,7 @@ unsafe fn diff_find_change_simple(
         let line_org_owned = if (diff_st().diff_flags & DIFF_INLINE_NONE) != 0 {
             None
         } else {
-            Some(CStr::from_ptr(ml_get_buf((*wp).w_buffer, lnum)).to_owned())
+            Some(CStr::from_ptr(ml_get_buf(wp.w_buffer, lnum)).to_owned())
         };
         let line_org = line_org_owned
             .as_ref()
@@ -3100,9 +3100,9 @@ unsafe fn diff_find_change_inline_diff(dp_idx: usize) {
         clear_diffout(&mut dio.dio_diff);
     }
 }
-pub unsafe fn diff_find_change(wp: *mut win_T, lnum: linenr_T, diffline: *mut diffline_T) -> bool {
+pub unsafe fn diff_find_change(wp: &mut win_T, lnum: linenr_T, diffline: *mut diffline_T) -> bool {
     unsafe {
-        let idx = diff_buf_idx((*wp).w_buffer, &mut *g_st().curtab);
+        let idx = diff_buf_idx(wp.w_buffer, &mut *g_st().curtab);
         if idx == DB_COUNT as c_int {
             return false;
         }
@@ -3190,15 +3190,15 @@ pub unsafe fn diff_find_change(wp: *mut win_T, lnum: linenr_T, diffline: *mut di
         added
     }
 }
-pub unsafe fn diff_infold(wp: *mut win_T, lnum: linenr_T) -> bool {
+pub unsafe fn diff_infold(wp: &mut win_T, lnum: linenr_T) -> bool {
     unsafe {
-        if (*wp).w_onebuf_opt.wo_diff == 0 {
+        if wp.w_onebuf_opt.wo_diff == 0 {
             return false;
         }
         let mut idx: c_int = -1;
         let mut other = false;
         for i in 0..DB_COUNT {
-            if (*g_st().curtab).tp_diffbuf[i] == (*wp).w_buffer {
+            if (*g_st().curtab).tp_diffbuf[i] == wp.w_buffer {
                 idx = i as c_int;
             } else if !(*g_st().curtab).tp_diffbuf[i].is_null() {
                 other = true;
@@ -3276,7 +3276,7 @@ pub unsafe fn ex_diffgetput(eap: &mut exarg_T) {
             let mut idx = 0;
             while idx < DB_COUNT {
                 if (*g_st().curtab).tp_diffbuf[idx] != g_st().curbuf && !(*g_st().curtab).tp_diffbuf[idx].is_null() {
-                    if eap.cmdidx != CMD_diffput || modifiable((*g_st().curtab).tp_diffbuf[idx]) {
+                    if eap.cmdidx != CMD_diffput || modifiable(&*(*g_st().curtab).tp_diffbuf[idx]) {
                         break;
                     }
                     found_not_ma = true;
@@ -3297,7 +3297,7 @@ pub unsafe fn ex_diffgetput(eap: &mut exarg_T) {
             for i in (idx_other + 1)..DB_COUNT {
                 if (*g_st().curtab).tp_diffbuf[i] != g_st().curbuf
                     && !(*g_st().curtab).tp_diffbuf[i].is_null()
-                    && (eap.cmdidx != CMD_diffput || modifiable((*g_st().curtab).tp_diffbuf[i]))
+                    && (eap.cmdidx != CMD_diffput || modifiable(&*(*g_st().curtab).tp_diffbuf[i]))
                 {
                     emsg(gettext(
                         c"E101: More than two buffers in diff mode, don't know which one to use"
@@ -3469,7 +3469,7 @@ unsafe fn diffgetput(
             let mut did_free = false;
             let mut lnum = (&(*g_st().curtab).tp_diffs)[dp_idx].df_lnum[idx_to];
             let mut count = (&(*g_st().curtab).tp_diffs)[dp_idx].df_count[idx_to];
-            let undo_bot = lnum + count + linenr_T::from(count == 0 && buf_is_empty(g_st().curbuf));
+            let undo_bot = lnum + count + linenr_T::from(count == 0 && buf_is_empty(&mut *g_st().curbuf));
             if (&(*g_st().curtab).tp_diffs)[dp_idx].df_lnum[idx_cur]
                 + (&(*g_st().curtab).tp_diffs)[dp_idx].df_count[idx_cur]
                 > line1 + off
@@ -3512,7 +3512,7 @@ unsafe fn diffgetput(
                         end_skip = 0;
                     }
                 }
-                let mut buf_empty = buf_is_empty(g_st().curbuf);
+                let mut buf_empty = buf_is_empty(&mut *g_st().curbuf);
                 let mut added: c_int = 0;
                 for _ in 0..count {
                     buf_empty = (*g_st().curbuf).b_ml.ml_line_count == 1;
@@ -3871,7 +3871,7 @@ pub unsafe fn f_diff_hlID(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
                 if linestatus == -1 {
                     diff_st().f_diff_hlid_change_start = MAXCOL;
                     diff_st().f_diff_hlid_change_end = -1;
-                    if diff_find_change(*curwin.as_ptr(), lnum, &raw mut diffline) {
+                    if diff_find_change(&mut **curwin.as_ptr(), lnum, &raw mut diffline) {
                         diff_st().f_diff_hlid_hlID = HLF_ADD;
                     } else {
                         diff_st().f_diff_hlid_hlID = HLF_CHD;

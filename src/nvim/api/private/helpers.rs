@@ -807,14 +807,14 @@ pub unsafe fn string_to_array(input: NvimString, crlf: bool, arena: *mut Arena) 
 }
 
 pub unsafe fn normalize_index(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     mut index: i64,
     end_exclusive: bool,
     oob: *mut bool,
 ) -> i64 {
     unsafe {
-        debug_assert!((*buf).b_ml.ml_line_count > 0);
-        let max_index = i64::from((*buf).b_ml.ml_line_count) + i64::from(end_exclusive) - 1;
+        debug_assert!(buf.b_ml.ml_line_count > 0);
+        let max_index = i64::from(buf.b_ml.ml_line_count) + i64::from(end_exclusive) - 1;
         if index < 0 {
             index = max_index + index + 1;
         }

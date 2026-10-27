@@ -140,20 +140,20 @@ pub unsafe fn win_new_float(
     }
 }
 
-pub unsafe fn win_set_minimal_style(wp: *mut win_T) {
+pub unsafe fn win_set_minimal_style(wp: &mut win_T) {
     unsafe {
         let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
-        (*wp).w_onebuf_opt.wo_nu = 0;
-        (*wp).w_onebuf_opt.wo_rnu = 0;
-        (*wp).w_onebuf_opt.wo_cul = 0;
-        (*wp).w_onebuf_opt.wo_cuc = 0;
-        (*wp).w_onebuf_opt.wo_spell = 0;
-        (*wp).w_onebuf_opt.wo_list = 0;
+        wp.w_onebuf_opt.wo_nu = 0;
+        wp.w_onebuf_opt.wo_rnu = 0;
+        wp.w_onebuf_opt.wo_cul = 0;
+        wp.w_onebuf_opt.wo_cuc = 0;
+        wp.w_onebuf_opt.wo_spell = 0;
+        wp.w_onebuf_opt.wo_list = 0;
 
         // Hide EOB region: use " " fillchar and cleared highlighting
-        if (*wp).w_p_fcs_chars.eob != b' ' as u32 {
-            let old = (*wp).w_onebuf_opt.wo_fcs;
-            (*wp).w_onebuf_opt.wo_fcs = if *old == NUL {
+        if wp.w_p_fcs_chars.eob != b' ' as u32 {
+            let old = wp.w_onebuf_opt.wo_fcs;
+            wp.w_onebuf_opt.wo_fcs = if *old == NUL {
                 alloc_string_option(c"eob: ".as_ptr())
             } else {
                 alloc_string_option(concat_str(old, c",eob: ".as_ptr()).as_ptr())
@@ -161,49 +161,49 @@ pub unsafe fn win_set_minimal_style(wp: *mut win_T) {
             free_string_option(old);
         }
 
-        let old = (*wp).w_onebuf_opt.wo_winhl;
-        (*wp).w_onebuf_opt.wo_winhl = if *old == NUL {
+        let old = wp.w_onebuf_opt.wo_winhl;
+        wp.w_onebuf_opt.wo_winhl = if *old == NUL {
             alloc_string_option(c"EndOfBuffer:".as_ptr())
         } else {
             alloc_string_option(concat_str(old, c",EndOfBuffer:".as_ptr()).as_ptr())
         };
         free_string_option(old);
-        parse_winhl_opt(ptr::null(), wp);
+        parse_winhl_opt(ptr::null(), &raw mut *wp);
 
         // signcolumn: use 'auto'
-        let scl_len = CStr::from_ptr((*wp).w_onebuf_opt.wo_scl).to_bytes().len();
-        if *(*wp).w_onebuf_opt.wo_scl != b'a' as c_char || scl_len >= 8 {
-            free_string_option((*wp).w_onebuf_opt.wo_scl);
-            (*wp).w_onebuf_opt.wo_scl = alloc_string_option(c"auto".as_ptr());
+        let scl_len = CStr::from_ptr(wp.w_onebuf_opt.wo_scl).to_bytes().len();
+        if *wp.w_onebuf_opt.wo_scl != b'a' as c_char || scl_len >= 8 {
+            free_string_option(wp.w_onebuf_opt.wo_scl);
+            wp.w_onebuf_opt.wo_scl = alloc_string_option(c"auto".as_ptr());
         }
 
         // foldcolumn: use '0'
-        if *(*wp).w_onebuf_opt.wo_fdc != b'0' as c_char {
-            free_string_option((*wp).w_onebuf_opt.wo_fdc);
-            (*wp).w_onebuf_opt.wo_fdc = alloc_string_option(c"0".as_ptr());
+        if *wp.w_onebuf_opt.wo_fdc != b'0' as c_char {
+            free_string_option(wp.w_onebuf_opt.wo_fdc);
+            wp.w_onebuf_opt.wo_fdc = alloc_string_option(c"0".as_ptr());
         }
 
         // colorcolumn: cleared
-        if !(*wp).w_onebuf_opt.wo_cc.is_null() && *(*wp).w_onebuf_opt.wo_cc != NUL {
-            free_string_option((*wp).w_onebuf_opt.wo_cc);
-            (*wp).w_onebuf_opt.wo_cc = alloc_string_option(c"".as_ptr());
+        if !wp.w_onebuf_opt.wo_cc.is_null() && *wp.w_onebuf_opt.wo_cc != NUL {
+            free_string_option(wp.w_onebuf_opt.wo_cc);
+            wp.w_onebuf_opt.wo_cc = alloc_string_option(c"".as_ptr());
         }
 
         // statuscolumn: cleared
-        if !(*wp).w_onebuf_opt.wo_stc.is_null() && *(*wp).w_onebuf_opt.wo_stc != NUL {
-            free_string_option((*wp).w_onebuf_opt.wo_stc);
-            (*wp).w_onebuf_opt.wo_stc = empty_opt;
+        if !wp.w_onebuf_opt.wo_stc.is_null() && *wp.w_onebuf_opt.wo_stc != NUL {
+            free_string_option(wp.w_onebuf_opt.wo_stc);
+            wp.w_onebuf_opt.wo_stc = empty_opt;
         }
 
         // statusline: cleared (for floating windows)
-        if (*wp).w_floating
-            && !(*wp).w_onebuf_opt.wo_stl.is_null()
-            && *(*wp).w_onebuf_opt.wo_stl != NUL
+        if wp.w_floating
+            && !wp.w_onebuf_opt.wo_stl.is_null()
+            && *wp.w_onebuf_opt.wo_stl != NUL
         {
-            free_string_option((*wp).w_onebuf_opt.wo_stl);
-            (*wp).w_onebuf_opt.wo_stl = empty_opt;
-            if (*wp).w_status_height > 0 {
-                win_config_float(wp, (*wp).w_config.clone());
+            free_string_option(wp.w_onebuf_opt.wo_stl);
+            wp.w_onebuf_opt.wo_stl = empty_opt;
+            if wp.w_status_height > 0 {
+                win_config_float(&raw mut *wp, wp.w_config.clone());
             }
         }
     }
@@ -305,7 +305,7 @@ pub unsafe fn win_config_float(wp: *mut win_T, mut fconfig: WinConfig) {
                     let mut tcolc: c_int = 0;
                     let mut tcole: c_int = 0;
                     textpos2screenpos(
-                        parent,
+                        &mut *parent,
                         &mut pos,
                         &raw mut trow,
                         &raw mut tcol,
@@ -472,10 +472,10 @@ unsafe fn win_float_special_fail(wp: *mut win_T, err: &mut Error) -> *mut win_T 
 }
 
 /// Snapshot a 'previewpopup' preview's anchor: the current cursor's screen cell (`win_float_anchor_preview`).
-pub unsafe fn win_float_anchor_preview(wp: *mut win_T) {
+pub unsafe fn win_float_anchor_preview(wp: &mut win_T) {
     unsafe {
-        (*wp).w_wantline = (**curwin.as_ptr()).w_winrow + (**curwin.as_ptr()).w_wrow;
-        (*wp).w_wantcol = (**curwin.as_ptr()).w_wincol + (**curwin.as_ptr()).w_wcol;
+        wp.w_wantline = (**curwin.as_ptr()).w_winrow + (**curwin.as_ptr()).w_wrow;
+        wp.w_wantcol = (**curwin.as_ptr()).w_wincol + (**curwin.as_ptr()).w_wcol;
     }
 }
 
@@ -522,7 +522,7 @@ pub unsafe fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *m
                 0,
                 OptTarget::Buf(buf),
             );
-            win_set_buf(wp, buf, &mut err);
+            win_set_buf(&mut *wp, &mut *buf, &mut err);
             if error_set(&err) {
                 return win_float_special_fail(wp, &mut err);
             }
@@ -536,7 +536,7 @@ pub unsafe fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *m
             (*wp).w_onebuf_opt.wo_pvw = 1;
             (*wp).w_onebuf_opt.wo_scb = 0;
             (*wp).w_onebuf_opt.wo_crb = 0;
-            win_float_anchor_preview(wp);
+            win_float_anchor_preview(&mut *wp);
         }
         (*wp).w_kind = kind;
 
@@ -558,34 +558,34 @@ pub unsafe fn win_float_close(kind: WinKind) {
 }
 
 /// Re-layout a 'previewpopup' window for its current content (`win_float_update_preview`).
-pub unsafe fn win_float_update_preview(wp: *mut win_T) {
+pub unsafe fn win_float_update_preview(wp: &mut win_T) {
     unsafe {
-        if (*wp).w_kind != kWinPreview || !(*wp).w_floating || (*wp).w_buffer.is_null() {
+        if wp.w_kind != kWinPreview || !wp.w_floating || wp.w_buffer.is_null() {
             return;
         }
 
         // Title is the previewed file's name, only known once it is loaded.
-        if (*wp).w_config.border && !(*(*wp).w_buffer).b_fname.is_null() {
+        if wp.w_config.border && !(*wp.w_buffer).b_fname.is_null() {
             let mut dirname = [0 as c_char; MAXPATHL];
             os_dirname(dirname.as_mut_ptr(), MAXPATHL);
-            shorten_buf_fname((*wp).w_buffer, dirname.as_mut_ptr(), 0);
+            shorten_buf_fname(&mut *wp.w_buffer, dirname.as_mut_ptr(), 0);
 
-            (*wp).w_config.title_chunks.clear();
+            wp.w_config.title_chunks.clear();
             let mut err = error_init();
             parse_bordertext(
-                cstr_as_obj((*(*wp).w_buffer).b_fname),
+                cstr_as_obj((*wp.w_buffer).b_fname),
                 kBorderTextTitle,
-                &mut (*wp).w_config,
+                &mut wp.w_config,
                 &mut err,
             );
             api_clear_error(&mut err);
-            (*wp).w_config.title_pos = kAlignCenter;
+            wp.w_config.title_pos = kAlignCenter;
         }
 
-        let border_h = win_border_height(wp);
-        let border_w = win_border_width(wp);
-        let row = (*wp).w_wantline.max(0).min(g_st().Rows - 1);
-        let col = (*wp).w_wantcol.max(0).min(g_st().Columns - 1);
+        let border_h = win_border_height(&raw mut *wp);
+        let border_w = win_border_width(&raw mut *wp);
+        let row = wp.w_wantline.max(0).min(g_st().Rows - 1);
+        let col = wp.w_wantcol.max(0).min(g_st().Columns - 1);
 
         let v = opt_keyset(opt_vars().p_pvp, kOptPreviewpopup, ptr::null_mut()).cast::<OptKeyDict_pvp>();
         let mut want_w = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_pvp__width) {
@@ -600,17 +600,17 @@ pub unsafe fn win_float_update_preview(wp: *mut win_T) {
         };
 
         // If a dimension is not given in 'previewpopup', autosize to the content.
-        let last: linenr_T = (*(*wp).w_buffer).b_ml.ml_line_count;
+        let last: linenr_T = (*wp.w_buffer).b_ml.ml_line_count;
         if want_w == 0 {
-            want_w = win_max_displaywidth(wp, 1, last, g_st().Columns).max(1);
+            want_w = win_max_displaywidth(&raw mut *wp, 1, last, g_st().Columns).max(1);
         }
         want_w = want_w.min(g_st().Columns);
 
         if want_h == 0 {
-            let saved_view_width = (*wp).w_view_width;
-            (*wp).w_view_width = want_w;
+            let saved_view_width = wp.w_view_width;
+            wp.w_view_width = want_w;
             want_h = plines_m_win(wp, 1, last, g_st().Rows).max(1);
-            (*wp).w_view_width = saved_view_width;
+            wp.w_view_width = saved_view_width;
         }
         want_h = want_h.min(g_st().Rows);
 
@@ -626,14 +626,14 @@ pub unsafe fn win_float_update_preview(wp: *mut win_T) {
         let max_height = (if below { space_below } else { space_above }) - border_h;
         let max_width = (if right { space_right } else { space_left }) - border_w;
 
-        (*wp).w_config.height = want_h.min(max_height).max(1);
-        (*wp).w_config.width = want_w.min(max_width).max(1);
-        (*wp).w_config.anchor = (if below { 0 } else { kFloatAnchorSouth })
+        wp.w_config.height = want_h.min(max_height).max(1);
+        wp.w_config.width = want_w.min(max_width).max(1);
+        wp.w_config.anchor = (if below { 0 } else { kFloatAnchorSouth })
             | (if right { 0 } else { kFloatAnchorEast });
-        (*wp).w_config.row = (row + if below { 1 } else { 0 }) as f64;
-        (*wp).w_config.col = (col + if right { 1 } else { 0 }) as f64;
-        (*wp).w_config.hide = false;
-        win_config_float(wp, (*wp).w_config.clone());
+        wp.w_config.row = (row + if below { 1 } else { 0 }) as f64;
+        wp.w_config.col = (col + if right { 1 } else { 0 }) as f64;
+        wp.w_config.hide = false;
+        win_config_float(&raw mut *wp, wp.w_config.clone());
     }
 }
 

@@ -755,7 +755,7 @@ unsafe fn term_may_alloc_scrollback(term: &mut Terminal, mut buf: *mut buf_T) ->
     }
 }
 
-pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut Terminal {
+pub unsafe fn terminal_alloc(buf: &mut buf_T, mut opts: TerminalOptions) -> *mut Terminal {
     unsafe {
         if opts.width == 0 {
             opts.width = 80;
@@ -776,7 +776,7 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
             old_sb_deleted: 0,
             old_height: 0,
             title: Vec::new(),
-            buf_handle: (*buf).b_fnum,
+            buf_handle: buf.b_fnum,
             in_altscreen: false,
             suspended: false,
             closed: false,
@@ -796,7 +796,7 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
             termrequest_terminator: 0,
             refcount: 0,
         }));
-        (*buf).terminal = term;
+        buf.terminal = term;
         let term_ref = &mut *term;
         vterm_set_utf8(&mut term_ref.vt, 1);
 
@@ -835,15 +835,15 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
 
         term_ref.pending.events = multiqueue_new(ptr::null_mut());
 
-        if ((*buf).b_ml.ml_flags & ML_EMPTY) == 0 {
-            let line_count = (*buf).b_ml.ml_line_count;
+        if (buf.b_ml.ml_flags & ML_EMPTY) == 0 {
+            let line_count = buf.b_ml.ml_line_count;
             loop {
-                if ((*buf).b_ml.ml_flags & ML_EMPTY) != 0 {
+                if (buf.b_ml.ml_flags & ML_EMPTY) != 0 {
                     break;
                 }
-                ml_delete_buf(buf, 1, false);
+                ml_delete_buf(&raw mut *buf, 1, false);
             }
-            deleted_lines_buf(buf, 1, line_count);
+            deleted_lines_buf(&raw mut *buf, 1, line_count);
         }
         term_ref.old_height = 1;
 
@@ -851,21 +851,21 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
     }
 }
 
-pub unsafe fn terminal_open(termpp: *mut *mut Terminal, buf: *mut buf_T) {
+pub unsafe fn terminal_open(termpp: *mut *mut Terminal, buf: &mut buf_T) {
     unsafe {
         debug_assert!(!(*termpp).is_null());
         let term = &mut **termpp;
 
         let mut aco: CtxSwitch = CtxSwitch::new();
-        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), &raw mut *buf, 0);
 
         if term.sb_allocated {
             refresh_scrollback(term, buf);
         } else {
             debug_assert!(term.invalid_start >= 0);
         }
-        refresh_screen(term, buf);
-        (*buf).b_locked += 1;
+        refresh_screen(term, &raw mut *buf);
+        buf.b_locked += 1;
         set_option_value(
             kOptBuftype,
             string_obj(cstr_slice_as_string(b"terminal\0")),
@@ -873,13 +873,13 @@ pub unsafe fn terminal_open(termpp: *mut *mut Terminal, buf: *mut buf_T) {
             true,
             None,
         );
-        (*buf).b_locked -= 1;
+        buf.b_locked -= 1;
 
-        if !(*buf).b_ffname.is_null() {
+        if !buf.b_ffname.is_null() {
             buf_set_term_title(
-                buf,
-                (*buf).b_ffname,
-                CStr::from_ptr((*buf).b_ffname).to_bytes().len(),
+                &raw mut *buf,
+                buf.b_ffname,
+                CStr::from_ptr(buf.b_ffname).to_bytes().len(),
             );
         }
         (**curwin.as_ptr()).w_onebuf_opt.wo_scb = 0;
@@ -890,7 +890,7 @@ pub unsafe fn terminal_open(termpp: *mut *mut Terminal, buf: *mut buf_T) {
             coladd: 0,
         };
 
-        apply_autocmds(EVENT_TERMOPEN, ptr::null_mut(), ptr::null_mut(), false, buf);
+        apply_autocmds(EVENT_TERMOPEN, ptr::null_mut(), ptr::null_mut(), false, &raw mut *buf);
 
         ctx_restore(&mut aco);
 
@@ -898,7 +898,7 @@ pub unsafe fn terminal_open(termpp: *mut *mut Terminal, buf: *mut buf_T) {
             return;
         }
 
-        if !term_may_alloc_scrollback(term, buf) {
+        if !term_may_alloc_scrollback(term, &raw mut *buf) {
             std::process::abort();
         }
 
@@ -1211,7 +1211,7 @@ pub unsafe fn terminal_enter() -> bool {
         set_terminal_winopts(&mut s);
 
         (*s.term).pending.cursor = true;
-        adjust_topline_cursor(&mut *s.term, buf, 0);
+        adjust_topline_cursor(&mut *s.term, &mut *buf, 0);
         showmode();
         ui_cursor_shape();
 
@@ -2437,11 +2437,11 @@ unsafe fn refresh_terminal(term: &mut Terminal) {
         let ml_before = (*buf).b_ml.ml_line_count;
 
         let resized = refresh_size(term, buf);
-        refresh_scrollback(term, buf);
+        refresh_scrollback(term, &mut *buf);
         refresh_screen(term, buf);
 
         let ml_added = (*buf).b_ml.ml_line_count - ml_before;
-        adjust_topline_cursor(term, buf, ml_added);
+        adjust_topline_cursor(term, &mut *buf, ml_added);
 
         if resized {
             let mut tp = g_st().first_tabpage;
@@ -2562,12 +2562,12 @@ pub unsafe fn on_scrollback_option_changed(term: &mut Terminal) {
     }
 }
 
-unsafe fn adjust_scrollback(term: &mut Terminal, buf: *mut buf_T) {
+unsafe fn adjust_scrollback(term: &mut Terminal, buf: &mut buf_T) {
     unsafe {
-        if (*buf).b_p_scbk < 1 {
-            (*buf).b_p_scbk = SB_MAX;
+        if buf.b_p_scbk < 1 {
+            buf.b_p_scbk = SB_MAX;
         }
-        let scbk = (*buf).b_p_scbk as usize;
+        let scbk = buf.b_p_scbk as usize;
         debug_assert!(term.sb_buffer.len() < usize::MAX);
         if term.sb_pending > 0 {
             std::process::abort();
@@ -2576,11 +2576,11 @@ unsafe fn adjust_scrollback(term: &mut Terminal, buf: *mut buf_T) {
         if scbk < term.sb_buffer.len() {
             let diff = term.sb_buffer.len() - scbk;
             for _ in 0..diff {
-                ml_delete_buf(buf, 1, false);
+                ml_delete_buf(&raw mut *buf, 1, false);
                 term.sb_buffer.pop();
             }
             mark_adjust_buf(
-                buf,
+                &raw mut *buf,
                 1,
                 diff as linenr_T,
                 MAXLNUM,
@@ -2589,21 +2589,21 @@ unsafe fn adjust_scrollback(term: &mut Terminal, buf: *mut buf_T) {
                 kMarkAdjustTerm,
                 kExtmarkUndo,
             );
-            deleted_lines_buf(buf, 1, diff as linenr_T);
+            deleted_lines_buf(&raw mut *buf, 1, diff as linenr_T);
         }
 
         term.sb_size = scbk;
     }
 }
 
-unsafe fn refresh_scrollback(term: &mut Terminal, buf: *mut buf_T) {
+unsafe fn refresh_scrollback(term: &mut Terminal, buf: &mut buf_T) {
     unsafe {
         channel_term_read_pause(true, &mut *term.opts.data);
 
         let mut deleted = (term.sb_deleted - term.old_sb_deleted) as linenr_T;
-        deleted = deleted.min((*buf).b_ml.ml_line_count);
+        deleted = deleted.min(buf.b_ml.ml_line_count);
         mark_adjust_buf(
-            buf,
+            &raw mut *buf,
             1,
             deleted,
             MAXLNUM,
@@ -2619,29 +2619,29 @@ unsafe fn refresh_scrollback(term: &mut Terminal, buf: *mut buf_T) {
         let mut height: c_int = 0;
         vterm_get_size(&term.vt, &mut height, &mut width);
 
-        while deleted > 0 && (*buf).b_ml.ml_line_count > old_height {
-            ml_delete_buf(buf, 1, false);
-            deleted_lines_buf(buf, 1, 1);
+        while deleted > 0 && buf.b_ml.ml_line_count > old_height {
+            ml_delete_buf(&raw mut *buf, 1, false);
+            deleted_lines_buf(&raw mut *buf, 1, 1);
             deleted -= 1;
         }
 
-        old_height = old_height.min((*buf).b_ml.ml_line_count);
+        old_height = old_height.min(buf.b_ml.ml_line_count);
         let textbuf_ptr = (&raw mut term.textbuf).cast::<c_char>();
         while term.sb_pending > 0 {
             fetch_row(term, -term.sb_pending, width);
-            let buf_index = (*buf).b_ml.ml_line_count - old_height;
-            ml_append_buf(buf, buf_index, textbuf_ptr, 0, false);
-            appended_lines_buf(buf, buf_index, 1);
+            let buf_index = buf.b_ml.ml_line_count - old_height;
+            ml_append_buf(&raw mut *buf, buf_index, textbuf_ptr, 0, false);
+            appended_lines_buf(&raw mut *buf, buf_index, 1);
             term.sb_pending -= 1;
         }
 
         let max_line_count = term.sb_buffer.len() as c_int + height;
         loop {
-            if (*buf).b_ml.ml_line_count <= max_line_count {
+            if buf.b_ml.ml_line_count <= max_line_count {
                 break;
             }
-            ml_delete_buf(buf, (*buf).b_ml.ml_line_count, false);
-            deleted_lines_buf(buf, (*buf).b_ml.ml_line_count, 1);
+            ml_delete_buf(&raw mut *buf, buf.b_ml.ml_line_count, false);
+            deleted_lines_buf(&raw mut *buf, buf.b_ml.ml_line_count, 1);
         }
 
         adjust_scrollback(term, buf);
@@ -2691,9 +2691,9 @@ unsafe fn refresh_screen(term: &mut Terminal, buf: *mut buf_T) {
     }
 }
 
-unsafe fn adjust_topline_cursor(term: &mut Terminal, buf: *mut buf_T, added: c_int) {
+unsafe fn adjust_topline_cursor(term: &mut Terminal, buf: &mut buf_T, added: c_int) {
     unsafe {
-        let ml_end = (*buf).b_ml.ml_line_count;
+        let ml_end = buf.b_ml.ml_line_count;
 
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
@@ -2717,18 +2717,18 @@ unsafe fn adjust_topline_cursor(term: &mut Terminal, buf: *mut buf_T, added: c_i
                     } else {
                         (*wp).w_cursor.lnum = (*wp).w_cursor.lnum.min(ml_end);
                     }
-                    mb_check_adjust_col(wp);
+                    mb_check_adjust_col(&mut *wp);
                 }
                 wp = (*wp).w_next;
             }
             tp = (*tp).tp_next;
         }
 
-        if ml_end == (*buf).b_last_cursor.mark.lnum + added {
-            (*buf).b_last_cursor.mark.lnum = ml_end;
+        if ml_end == buf.b_last_cursor.mark.lnum + added {
+            buf.b_last_cursor.mark.lnum = ml_end;
         }
 
-        for wip in &mut (*buf).b_wininfo {
+        for wip in &mut buf.b_wininfo {
             if ml_end == wip.wi_mark.mark.lnum + added {
                 wip.wi_mark.mark.lnum = ml_end;
             }
@@ -2755,14 +2755,14 @@ unsafe fn is_focused(term: &mut Terminal) -> bool {
     unsafe { (g_st().State & MODE_TERMINAL) != 0 && (*g_st().curbuf).terminal == term }
 }
 
-unsafe fn get_config_string(buf: *mut buf_T, key: *mut c_char) -> *mut c_char {
+unsafe fn get_config_string(buf: &mut buf_T, key: *mut c_char) -> *mut c_char {
     unsafe {
         let mut err = Error::new();
         let key_str = NvimString {
             data: key,
             size: CStr::from_ptr(key).to_bytes().len(),
         };
-        let mut obj = dict_get_value((*buf).b_vars(), key_str, ptr::null_mut(), &mut err);
+        let mut obj = dict_get_value(buf.b_vars(), key_str, ptr::null_mut(), &mut err);
         api_clear_error(&mut err);
         if obj.obj_type == ObjectType::kObjectTypeNil {
             obj = dict_get_value(get_globvar_dict(), key_str, ptr::null_mut(), &mut err);

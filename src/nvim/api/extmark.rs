@@ -575,7 +575,7 @@ pub unsafe extern "C" fn nvim_buf_get_extmarks(
         }
 
         let marks = extmark_get(
-            b,
+            &mut *b,
             ns_id as u32,
             l_row,
             l_col,

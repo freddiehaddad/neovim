@@ -306,7 +306,7 @@ unsafe fn mc_sandbox_enter(sb: *mut McSandbox, save_regs: bool) {
         );
         (*sb).cursor_mark = 0;
         mc_track_upd(g_st().curbuf, &mut (*sb).cursor_mark, (*sb).primary.pos);
-        save_viewstate(*curwin.as_ptr(), &mut (*sb).view);
+        save_viewstate(&mut **curwin.as_ptr(), &mut (*sb).view);
         (*sb).topline_mark = 0;
         mc_track_upd(
             g_st().curbuf,
@@ -348,7 +348,7 @@ unsafe fn mc_sandbox_leave(sb: *mut McSandbox) {
             extmark_del_id(buf, mc_session_ns(), (*sb).topline_mark);
         }
         if buf == g_st().curbuf {
-            restore_viewstate(*curwin.as_ptr(), &(*sb).view);
+            restore_viewstate(&mut **curwin.as_ptr(), &(*sb).view);
             ctx_load(&mut (*sb).primary, kCtxCursor | kCtxVisual | kCtxMarks, 0);
             check_cursor(*curwin.as_ptr());
             if topline_valid {
@@ -420,7 +420,7 @@ unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
         );
 
         if atom_type == kAInsertSpan {
-            check_pos(g_st().curbuf, &mut (**curwin.as_ptr()).w_cursor);
+            check_pos(&mut *g_st().curbuf, &mut (**curwin.as_ptr()).w_cursor);
         } else {
             check_cursor(*curwin.as_ptr());
         }
@@ -1343,7 +1343,7 @@ pub unsafe fn mc_ins_commit() -> bool {
         mc_ins_regions_clear();
 
         if active && buf_get_changedtick(g_st().curbuf) == mc_st().mc_ins_span.origin.tick {
-            u_forget_unchanged(g_st().curbuf);
+            u_forget_unchanged(&mut *g_st().curbuf);
         }
 
         if !ins_cascaded {
@@ -1639,8 +1639,8 @@ pub unsafe fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
             },
         ];
         if oap.from_visual {
-            bounds[0] = (*mark_get_visual(g_st().curbuf, b'<' as c_int)).mark;
-            bounds[1] = (*mark_get_visual(g_st().curbuf, b'>' as c_int)).mark;
+            bounds[0] = (*mark_get_visual(&mut *g_st().curbuf, b'<' as c_int)).mark;
+            bounds[1] = (*mark_get_visual(&mut *g_st().curbuf, b'>' as c_int)).mark;
         }
 
         let lines = oap.motion_type == kMTLineWise;
@@ -1668,7 +1668,7 @@ pub unsafe fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
         (**curwin.as_ptr()).w_cursor = primary;
         update_curswant();
         let mut view = viewstate_T::new();
-        save_viewstate(*curwin.as_ptr(), &mut view);
+        save_viewstate(&mut **curwin.as_ptr(), &mut view);
         save_search_patterns();
 
         let search = (cap.cmdchar != NUL
@@ -1738,7 +1738,7 @@ pub unsafe fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
 
         drop(keys_cstr);
         restore_search_patterns();
-        restore_viewstate(*curwin.as_ptr(), &view);
+        restore_viewstate(&mut **curwin.as_ptr(), &view);
 
         if placed > 0 {
             if mc_mark_at(g_st().curbuf, primary, 0) == 0 {

@@ -1047,7 +1047,7 @@ unsafe fn channel_callback_call(chan: &mut Channel, reader: *mut CallbackReader)
 }
 
 /// Allocate terminal for channel.
-pub unsafe fn channel_terminal_alloc(buf: *mut buf_T, chan: &mut Channel) {
+pub unsafe fn channel_terminal_alloc(buf: &mut buf_T, chan: &mut Channel) {
     unsafe {
         let cp = &raw mut *chan;
         let ct = &raw mut *chan;
@@ -1057,7 +1057,7 @@ pub unsafe fn channel_terminal_alloc(buf: *mut buf_T, chan: &mut Channel) {
             height: chan.uv.proc_.height,
             force_crlf: false,
         };
-        (*buf).b_p_channel = (*cp).id as OptInt;
+        buf.b_p_channel = (*cp).id as OptInt;
         channel_incref(&raw mut *chan);
         {
             (*ct).term = terminal_alloc(buf, topts);

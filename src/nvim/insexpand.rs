@@ -2501,9 +2501,9 @@ pub unsafe fn ins_compl_active() -> bool {
     unsafe { insexp().compl_started }
 }
 
-pub unsafe fn ins_compl_win_active(wp: *mut win_T) -> bool {
+pub unsafe fn ins_compl_win_active(wp: &mut win_T) -> bool {
     unsafe {
-        ins_compl_active() && ptr::eq(wp, insexp().compl_curr_win) && ptr::eq((*wp).w_buffer, insexp().compl_curr_buf)
+        ins_compl_active() && ptr::eq(wp, insexp().compl_curr_win) && ptr::eq(wp.w_buffer, insexp().compl_curr_buf)
     }
 }
 
@@ -2898,7 +2898,7 @@ unsafe fn set_ctrl_x_mode(c: c_int) -> bool {
 
 unsafe fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
     unsafe {
-        if ins_compl_preinsert_effect() && ins_compl_win_active(*curwin.as_ptr()) {
+        if ins_compl_preinsert_effect() && ins_compl_win_active(&mut **curwin.as_ptr()) {
             ins_compl_delete(false);
         }
 
@@ -4584,22 +4584,22 @@ unsafe fn get_next_spell_completion(lnum: linenr_T) {
 }
 
 unsafe fn ins_compl_get_next_word_or_line(
-    ins_buf: *mut buf_T,
+    ins_buf: &mut buf_T,
     cur_match_pos: &mut pos_T,
     match_len: *mut c_int,
     cont_s_ipos: *mut bool,
 ) -> *mut c_char {
     unsafe {
         *match_len = 0;
-        let mut ptr = ml_get_buf(ins_buf, cur_match_pos.lnum).add(cur_match_pos.col as usize);
-        let mut len = ml_get_buf_len(ins_buf, cur_match_pos.lnum) - cur_match_pos.col;
+        let mut ptr = ml_get_buf(&raw mut *ins_buf, cur_match_pos.lnum).add(cur_match_pos.col as usize);
+        let mut len = ml_get_buf_len(&raw mut *ins_buf, cur_match_pos.lnum) - cur_match_pos.col;
         if ctrl_x_mode_line_or_eval() {
             if compl_status_adding() {
-                if cur_match_pos.lnum >= (*ins_buf).b_ml.ml_line_count {
+                if cur_match_pos.lnum >= ins_buf.b_ml.ml_line_count {
                     return ptr::null_mut();
                 }
-                ptr = ml_get_buf(ins_buf, cur_match_pos.lnum + 1);
-                len = ml_get_buf_len(ins_buf, cur_match_pos.lnum + 1);
+                ptr = ml_get_buf(&raw mut *ins_buf, cur_match_pos.lnum + 1);
+                len = ml_get_buf_len(&raw mut *ins_buf, cur_match_pos.lnum + 1);
                 if opt_vars().p_paste == 0 {
                     let tmp_ptr = ptr;
                     ptr = skipwhite(tmp_ptr);
@@ -4620,10 +4620,10 @@ unsafe fn ins_compl_get_next_word_or_line(
             len = tmp_ptr.offset_from(ptr) as c_int;
 
             if compl_status_adding() && len == insexp().compl_length {
-                if cur_match_pos.lnum < (*ins_buf).b_ml.ml_line_count {
+                if cur_match_pos.lnum < ins_buf.b_ml.ml_line_count {
                     let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
                     { let n = crate::memory::xstrnlen(ptr, len as usize); ptr::copy_nonoverlapping(ptr, iobuff_ptr, n); ptr::write_bytes(iobuff_ptr.add(n), 0, len as usize - n); }
-                    ptr = ml_get_buf(ins_buf, cur_match_pos.lnum + 1);
+                    ptr = ml_get_buf(&raw mut *ins_buf, cur_match_pos.lnum + 1);
                     ptr = skipwhite(ptr);
                     tmp_ptr = find_word_start(ptr);
                     tmp_ptr = find_word_end(tmp_ptr);
@@ -4700,7 +4700,7 @@ unsafe fn get_next_default_completion(
 
             if in_fuzzy_collect {
                 found_new_match = c_int::from(search_for_fuzzy_match(
-                    (*st).ins_buf,
+                    &mut *(*st).ins_buf,
                     &mut *(*st).cur_match_pos_ptr(),
                     leader,
                     insexp().compl_direction,
@@ -4714,7 +4714,7 @@ unsafe fn get_next_default_completion(
                 || (insexp().compl_cont_status & CONT_SOL) != 0
             {
                 found_new_match = search_for_exact_line(
-                    (*st).ins_buf,
+                    &mut *(*st).ins_buf,
                     &mut *(*st).cur_match_pos_ptr(),
                     insexp().compl_direction,
                     compl_pattern_ptr(),
@@ -4776,7 +4776,7 @@ unsafe fn get_next_default_completion(
 
             if !in_fuzzy_collect {
                 ptr = ins_compl_get_next_word_or_line(
-                    (*st).ins_buf,
+                    &mut *(*st).ins_buf,
                     &mut *(*st).cur_match_pos_ptr(),
                     &raw mut len,
                     &raw mut cont_s_ipos,
@@ -5432,7 +5432,7 @@ pub unsafe fn ins_compl_delete(new_leader: bool) {
             (**curwin.as_ptr()).w_cursor.col = orig_col;
         }
 
-        changed_cline_bef_curs(*curwin.as_ptr());
+        changed_cline_bef_curs(&mut **curwin.as_ptr());
         set_vim_var_dict(VV_COMPLETED_ITEM, tv_dict_alloc_lock(VAR_FIXED));
     }
 }

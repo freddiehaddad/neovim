@@ -71,14 +71,14 @@ impl viewstate_T {
     }
 }
 
-pub unsafe fn win_has_winnr(wp: *mut win_T, tp: *mut tabpage_T) -> bool {
+pub unsafe fn win_has_winnr(wp: &mut win_T, tp: *mut tabpage_T) -> bool {
     unsafe {
         let cur = if ptr::eq(tp, g_st().curtab) {
             *curwin.as_ptr()
         } else {
             (*tp).tp_curwin
         };
-        wp == cur || (!(*wp).w_config.hide && (*wp).w_config.focusable)
+        ptr::eq(wp, cur) || (!wp.w_config.hide && wp.w_config.focusable)
     }
 }
 
@@ -90,7 +90,7 @@ pub unsafe fn win_find_nr(mut nr: c_int, mut tp: *mut tabpage_T) -> *mut win_T {
         }
         let mut wp = first_win_in_tab(tp);
         while !wp.is_null() {
-            nr -= c_int::from(win_has_winnr(wp, tp));
+            nr -= c_int::from(win_has_winnr(&mut *wp, tp));
             if nr <= 0 {
                 return wp;
             }
@@ -132,7 +132,7 @@ unsafe fn win_getid(argvars: *mut typval_T) -> c_int {
             wp = first_win_in_tab(tp);
         }
         while !wp.is_null() {
-            winnr -= c_int::from(win_has_winnr(wp, tp));
+            winnr -= c_int::from(win_has_winnr(&mut *wp, tp));
             if winnr == 0 {
                 return (*wp).handle;
             }
@@ -189,9 +189,9 @@ unsafe fn win_id2win(argvars: *mut typval_T) -> c_int {
         let mut wp = g_st().firstwin;
         while !wp.is_null() {
             if (*wp).handle == id {
-                return if win_has_winnr(wp, g_st().curtab) { nr } else { 0 };
+                return if win_has_winnr(&mut *wp, g_st().curtab) { nr } else { 0 };
             }
-            nr += c_int::from(win_has_winnr(wp, g_st().curtab));
+            nr += c_int::from(win_has_winnr(&mut *wp, g_st().curtab));
             wp = (*wp).w_next;
         }
         0
@@ -368,13 +368,13 @@ unsafe fn get_winnr(tp: &mut tabpage_T, argvar: *mut typval_T) -> c_int {
                     if !endp.is_null() && *endp != NUL {
                         let tail = CStr::from_ptr(endp).to_bytes();
                         if tail == b"j" {
-                            twin = win_vert_neighbor(tp, twin, false, count);
+                            twin = win_vert_neighbor(tp, &mut *twin, false, count);
                         } else if tail == b"k" {
-                            twin = win_vert_neighbor(tp, twin, true, count);
+                            twin = win_vert_neighbor(tp, &mut *twin, true, count);
                         } else if tail == b"h" {
-                            twin = win_horz_neighbor(tp, twin, true, count);
+                            twin = win_horz_neighbor(tp, &mut *twin, true, count);
                         } else if tail == b"l" {
-                            twin = win_horz_neighbor(tp, twin, false, count);
+                            twin = win_horz_neighbor(tp, &mut *twin, false, count);
                         } else {
                             invalid_arg = true;
                         }
@@ -388,7 +388,7 @@ unsafe fn get_winnr(tp: &mut tabpage_T, argvar: *mut typval_T) -> c_int {
                 semsg!(gettext((&raw const e_invexpr2).cast()), arg);
                 nr = 0;
             }
-        } else if !win_has_winnr(twin, &raw mut *tp) {
+        } else if !win_has_winnr(&mut *twin, &raw mut *tp) {
             nr = 0;
         }
 
@@ -399,7 +399,7 @@ unsafe fn get_winnr(tp: &mut tabpage_T, argvar: *mut typval_T) -> c_int {
         nr = 0;
         let mut wp = first_win_in_tab(&raw mut *tp);
         while !wp.is_null() {
-            nr += c_int::from(win_has_winnr(wp, &raw mut *tp));
+            nr += c_int::from(win_has_winnr(&mut *wp, &raw mut *tp));
             if wp == twin {
                 break;
             }
@@ -413,86 +413,86 @@ unsafe fn get_winnr(tp: &mut tabpage_T, argvar: *mut typval_T) -> c_int {
 }
 
 /// Information about a window as a dictionary (`get_win_info`).
-unsafe fn get_win_info(wp: *mut win_T, tpnr: i16, winnr: i16) -> *mut dict_T {
+unsafe fn get_win_info(wp: &mut win_T, tpnr: i16, winnr: i16) -> *mut dict_T {
     unsafe {
         let dict = tv_dict_alloc();
 
-        validate_botline_win(wp);
+        validate_botline_win(&raw mut *wp);
 
         tv_dict_add_nr(dict, c"tabnr".as_ptr(), 5, tpnr as varnumber_T);
         tv_dict_add_nr(dict, c"winnr".as_ptr(), 5, winnr as varnumber_T);
-        tv_dict_add_nr(dict, c"winid".as_ptr(), 5, (*wp).handle as varnumber_T);
+        tv_dict_add_nr(dict, c"winid".as_ptr(), 5, wp.handle as varnumber_T);
         tv_dict_add_nr(
             dict,
             c"height".as_ptr(),
             6,
-            (*wp).w_view_height as varnumber_T,
+            wp.w_view_height as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
             c"status_height".as_ptr(),
             13,
-            (*wp).w_status_height as varnumber_T,
+            wp.w_status_height as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
             c"winrow".as_ptr(),
             6,
-            ((*wp).w_winrow + 1) as varnumber_T,
+            (wp.w_winrow + 1) as varnumber_T,
         );
-        tv_dict_add_nr(dict, c"topline".as_ptr(), 7, (*wp).w_topline as varnumber_T);
+        tv_dict_add_nr(dict, c"topline".as_ptr(), 7, wp.w_topline as varnumber_T);
         tv_dict_add_nr(
             dict,
             c"botline".as_ptr(),
             7,
-            ((*wp).w_botline - 1) as varnumber_T,
+            (wp.w_botline - 1) as varnumber_T,
         );
-        tv_dict_add_nr(dict, c"leftcol".as_ptr(), 7, (*wp).w_leftcol as varnumber_T);
+        tv_dict_add_nr(dict, c"leftcol".as_ptr(), 7, wp.w_leftcol as varnumber_T);
         tv_dict_add_nr(
             dict,
             c"winbar".as_ptr(),
             6,
-            (*wp).w_winbar_height as varnumber_T,
+            wp.w_winbar_height as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
             c"width".as_ptr(),
             5,
-            (*wp).w_view_width as varnumber_T,
+            wp.w_view_width as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
             c"bufnr".as_ptr(),
             5,
-            (*(*wp).w_buffer).b_fnum as varnumber_T,
+            (*wp.w_buffer).b_fnum as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
             c"wincol".as_ptr(),
             6,
-            ((*wp).w_wincol + 1) as varnumber_T,
+            (wp.w_wincol + 1) as varnumber_T,
         );
-        tv_dict_add_nr(dict, c"textoff".as_ptr(), 7, win_col_off(wp) as varnumber_T);
+        tv_dict_add_nr(dict, c"textoff".as_ptr(), 7, win_col_off(&raw mut *wp) as varnumber_T);
         tv_dict_add_nr(
             dict,
             c"terminal".as_ptr(),
             8,
-            varnumber_T::from(bt_terminal((*wp).w_buffer)),
+            varnumber_T::from(bt_terminal(wp.w_buffer)),
         );
         tv_dict_add_nr(
             dict,
             c"quickfix".as_ptr(),
             8,
-            varnumber_T::from(bt_quickfix((*wp).w_buffer)),
+            varnumber_T::from(bt_quickfix(wp.w_buffer)),
         );
         tv_dict_add_nr(
             dict,
             c"loclist".as_ptr(),
             7,
-            varnumber_T::from(bt_quickfix((*wp).w_buffer) && !(*wp).w_llist_ref.is_null()),
+            varnumber_T::from(bt_quickfix(wp.w_buffer) && !wp.w_llist_ref.is_null()),
         );
 
-        tv_dict_add_dict(dict, c"variables".as_ptr(), 9, (*wp).w_vars());
+        tv_dict_add_dict(dict, c"variables".as_ptr(), 9, wp.w_vars());
 
         dict
     }
@@ -579,13 +579,13 @@ pub unsafe fn f_getwininfo(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
             let mut winnr: i16 = 0;
             let mut wp = first_win_in_tab(tp);
             while !wp.is_null() {
-                let has_winnr = win_has_winnr(wp, tp);
+                let has_winnr = win_has_winnr(&mut *wp, tp);
                 winnr = winnr.wrapping_add(i16::from(has_winnr));
                 if !wparg.is_null() && wp != wparg {
                     wp = (*wp).w_next;
                     continue;
                 }
-                let d = get_win_info(wp, tabnr, if has_winnr { winnr } else { 0 });
+                let d = get_win_info(&mut *wp, tabnr, if has_winnr { winnr } else { 0 });
                 tv_list_append_dict(rettv.vval.v_list(), d);
                 if !wparg.is_null() {
                     return;
@@ -763,7 +763,7 @@ pub unsafe fn f_win_move_separator(
         }
 
         let offset = tv_get_number(argvars.add(1)) as c_int;
-        win_drag_vsep_line(wp, offset);
+        win_drag_vsep_line(&mut *wp, offset);
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
     }
 }
@@ -787,7 +787,7 @@ pub unsafe fn f_win_move_statusline(
         }
 
         let offset = tv_get_number(argvars.add(1)) as c_int;
-        win_drag_status_line(wp, offset);
+        win_drag_status_line(&mut *wp, offset);
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
     }
 }
@@ -997,7 +997,7 @@ pub unsafe fn f_winrestcmd(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
             let mut winnr: c_int = 1;
             let mut wp = g_st().firstwin;
             while !wp.is_null() {
-                if !win_has_winnr(wp, g_st().curtab) {
+                if !win_has_winnr(&mut *wp, g_st().curtab) {
                     wp = (*wp).w_next;
                     continue;
                 }
@@ -1041,7 +1041,7 @@ pub unsafe fn f_winrestview(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr
             set_topline(*curwin.as_ptr(), tv_get_number(&raw const (*di).di_tv) as linenr_T);
         }
         let mut vs = viewstate_T::default();
-        save_viewstate(*curwin.as_ptr(), &raw mut vs);
+        save_viewstate(&mut **curwin.as_ptr(), &raw mut vs);
         let di = tv_dict_find(dict, c"curswant".as_ptr(), 8);
         if !di.is_null() {
             vs.vs_curswant = tv_get_number(&raw const (*di).di_tv) as colnr_T;
@@ -1059,7 +1059,7 @@ pub unsafe fn f_winrestview(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr
         if !di.is_null() {
             vs.vs_skipcol = tv_get_number(&raw const (*di).di_tv) as colnr_T;
         }
-        restore_viewstate(*curwin.as_ptr(), &raw const vs);
+        restore_viewstate(&mut **curwin.as_ptr(), &raw const vs);
 
         check_cursor(*curwin.as_ptr());
         changed_window_setting(*curwin.as_ptr());
@@ -1099,7 +1099,7 @@ pub unsafe fn f_winsaveview(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr
         );
         update_curswant();
         let mut vs = viewstate_T::default();
-        save_viewstate(*curwin.as_ptr(), &raw mut vs);
+        save_viewstate(&mut **curwin.as_ptr(), &raw mut vs);
         tv_dict_add_nr(dict, c"curswant".as_ptr(), 8, vs.vs_curswant as varnumber_T);
 
         tv_dict_add_nr(dict, c"topline".as_ptr(), 7, vs.vs_topline as varnumber_T);

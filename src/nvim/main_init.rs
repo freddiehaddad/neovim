@@ -1982,7 +1982,7 @@ unsafe fn read_stdin() {
             );
 
             let stdin_buf_handle: handle_T = (*stdin_buf).b_fnum;
-            let stdin_buf_empty = buf_is_empty(g_st().curbuf);
+            let stdin_buf_empty = buf_is_empty(&mut *g_st().curbuf);
 
             let mut buf = [0 as c_char; 100];
             vim_snprintf!(
@@ -2005,7 +2005,7 @@ unsafe fn read_stdin() {
         } else {
             set_buflisted(1);
             open_buffer(true, ptr::null_mut(), 0);
-            if buf_is_empty(g_st().curbuf) && !(*g_st().curbuf).b_next.is_null() {
+            if buf_is_empty(&mut *g_st().curbuf) && !(*g_st().curbuf).b_next.is_null() {
                 do_cmdline_cmd(c"silent! bnext".as_ptr());
                 do_cmdline_cmd(c"silent! bwipeout 1".as_ptr());
             }

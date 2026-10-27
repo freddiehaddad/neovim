@@ -323,7 +323,7 @@ pub unsafe extern "C" fn nvim_open_tabpage(
                 g_st().autocmd_no_enter += 1;
                 g_st().autocmd_no_leave += 1;
             }
-            win_set_buf(wp, b, err);
+            win_set_buf(&mut *wp, &mut *b, err);
             if au_no_enter_leave {
                 g_st().autocmd_no_enter -= 1;
                 g_st().autocmd_no_leave -= 1;

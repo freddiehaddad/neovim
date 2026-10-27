@@ -637,7 +637,7 @@ unsafe fn insert_check(s: *mut InsertState) -> c_int {
             && (*s).count <= 1
         {
             (*s).mincol = (**curwin.as_ptr()).w_wcol;
-            validate_cursor_col(*curwin.as_ptr());
+            validate_cursor_col(&mut **curwin.as_ptr());
 
             if (**curwin.as_ptr()).w_wcol
                 < (*s).mincol
@@ -1351,7 +1351,7 @@ unsafe fn insert_handle_key_post(s: *mut InsertState) {
             g_st().did_cursorhold = false;
         }
 
-        if ins_compl_active() && !ins_compl_win_active(*curwin.as_ptr()) {
+        if ins_compl_active() && !ins_compl_win_active(&mut **curwin.as_ptr()) {
             ins_compl_cancel();
         }
 
@@ -1552,18 +1552,16 @@ pub unsafe fn edit_putchar(c: c_int, highlight: bool) {
 }
 
 /// Return the effective prompt for the specified buffer.
-pub unsafe fn buf_prompt_text(buf: *const buf_T) -> *mut c_char {
-    unsafe {
-        (*buf)
+pub unsafe fn buf_prompt_text(buf: &buf_T) -> *mut c_char {
+    (*buf)
             .b_prompt_text
             .as_ref()
             .map_or(c"% ".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut())
-    }
 }
 
 /// Return the effective prompt for the current buffer.
 pub unsafe fn prompt_text() -> *mut c_char {
-    unsafe { buf_prompt_text(g_st().curbuf) }
+    unsafe { buf_prompt_text(&*g_st().curbuf) }
 }
 
 unsafe fn init_prompt(cmdchar_todo: c_int) {
@@ -2381,25 +2379,25 @@ pub unsafe fn oneleft() -> c_int {
 }
 
 /// Move the cursor up `n` lines in window `wp`.
-pub unsafe fn cursor_up_inner(wp: *mut win_T, mut n: linenr_T, skip_conceal: bool) {
+pub unsafe fn cursor_up_inner(wp: &mut win_T, mut n: linenr_T, skip_conceal: bool) {
     unsafe {
-        let mut lnum = (*wp).w_cursor.lnum;
+        let mut lnum = wp.w_cursor.lnum;
 
         if n >= lnum {
             lnum = 1;
-        } else if win_lines_concealed(wp) {
-            hasFolding(wp, lnum, &raw mut lnum, ptr::null_mut());
+        } else if win_lines_concealed(&raw mut *wp) {
+            hasFolding(&raw mut *wp, lnum, &raw mut lnum, ptr::null_mut());
             while n > 0 {
                 n -= 1;
                 lnum -= 1;
                 if lnum <= 1 {
                     break;
                 }
-                if skip_conceal && decor_conceal_line(wp, lnum - 1, true) {
+                if skip_conceal && decor_conceal_line(&raw mut *wp, lnum - 1, true) {
                     n += 1;
                 }
                 if n > 0 || !((g_st().State & MODE_INSERT) != 0 || (opt_vars().fdo_flags & kOptFdoFlagAll) != 0) {
-                    hasFolding(wp, lnum, &raw mut lnum, ptr::null_mut());
+                    hasFolding(&raw mut *wp, lnum, &raw mut lnum, ptr::null_mut());
                 }
             }
             lnum = lnum.max(1);
@@ -2407,7 +2405,7 @@ pub unsafe fn cursor_up_inner(wp: *mut win_T, mut n: linenr_T, skip_conceal: boo
             lnum -= n;
         }
 
-        (*wp).w_cursor.lnum = lnum;
+        wp.w_cursor.lnum = lnum;
     }
 }
 
@@ -2416,7 +2414,7 @@ pub unsafe fn cursor_up(n: linenr_T, upd_topline: bool) -> c_int {
         if n > 0 && (**curwin.as_ptr()).w_cursor.lnum <= 1 {
             return FAIL;
         }
-        cursor_up_inner(*curwin.as_ptr(), n, false);
+        cursor_up_inner(&mut **curwin.as_ptr(), n, false);
         coladvance(*curwin.as_ptr(), (**curwin.as_ptr()).w_curswant);
         if upd_topline {
             update_topline(*curwin.as_ptr());
@@ -2426,19 +2424,19 @@ pub unsafe fn cursor_up(n: linenr_T, upd_topline: bool) -> c_int {
 }
 
 /// Move the cursor down `n` lines in window `wp`.
-pub unsafe fn cursor_down_inner(wp: *mut win_T, mut n: c_int, skip_conceal: bool) {
+pub unsafe fn cursor_down_inner(wp: &mut win_T, mut n: c_int, skip_conceal: bool) {
     unsafe {
-        let mut lnum = (*wp).w_cursor.lnum;
-        let line_count = (*(*wp).w_buffer).b_ml.ml_line_count;
+        let mut lnum = wp.w_cursor.lnum;
+        let line_count = (*wp.w_buffer).b_ml.ml_line_count;
 
         if lnum + n >= line_count {
             lnum = line_count;
-        } else if win_lines_concealed(wp) {
+        } else if win_lines_concealed(&raw mut *wp) {
             let mut last: linenr_T = 0;
             while n > 0 {
                 n -= 1;
                 if hasFoldingWin(
-                    wp,
+                    &raw mut *wp,
                     lnum,
                     ptr::null_mut(),
                     &raw mut last,
@@ -2452,7 +2450,7 @@ pub unsafe fn cursor_down_inner(wp: *mut win_T, mut n: c_int, skip_conceal: bool
                 if lnum >= line_count {
                     break;
                 }
-                if skip_conceal && decor_conceal_line(wp, lnum - 1, true) {
+                if skip_conceal && decor_conceal_line(&raw mut *wp, lnum - 1, true) {
                     n += 1;
                 }
             }
@@ -2461,7 +2459,7 @@ pub unsafe fn cursor_down_inner(wp: *mut win_T, mut n: c_int, skip_conceal: bool
             lnum += n;
         }
 
-        (*wp).w_cursor.lnum = lnum;
+        wp.w_cursor.lnum = lnum;
     }
 }
 
@@ -2479,7 +2477,7 @@ pub unsafe fn cursor_down(n: c_int, upd_topline: bool) -> c_int {
         if n > 0 && lnum >= (*(**curwin.as_ptr()).w_buffer).b_ml.ml_line_count {
             return FAIL;
         }
-        cursor_down_inner(*curwin.as_ptr(), n, false);
+        cursor_down_inner(&mut **curwin.as_ptr(), n, false);
         coladvance(*curwin.as_ptr(), (**curwin.as_ptr()).w_curswant);
         if upd_topline {
             update_topline(*curwin.as_ptr());
@@ -2688,7 +2686,7 @@ unsafe fn replace_do_bs(limit_col: c_int) {
                     ptr::null_mut(),
                     0,
                 );
-                orig_vcols = win_chartabsize(*curwin.as_ptr(), get_cursor_pos_ptr(), start_vcol);
+                orig_vcols = win_chartabsize(&mut **curwin.as_ptr(), get_cursor_pos_ptr(), start_vcol);
             }
             del_char_after_col(limit_col);
             if (l_state & VREPLACE_FLAG) != 0 {
@@ -2702,7 +2700,7 @@ unsafe fn replace_do_bs(limit_col: c_int) {
                 let mut vcol = start_vcol;
                 let mut i: c_int = 0;
                 while i < ins_len {
-                    vcol += win_chartabsize(*curwin.as_ptr(), p.offset(i as isize), vcol);
+                    vcol += win_chartabsize(&mut **curwin.as_ptr(), p.offset(i as isize), vcol);
                     i += utfc_ptr2len(p.offset(i as isize));
                 }
                 vcol -= start_vcol;
@@ -2848,7 +2846,7 @@ unsafe fn ins_ctrl_hat() {
                 g_st().State |= MODE_LANGMAP;
             }
         }
-        set_iminsert_global(g_st().curbuf);
+        set_iminsert_global(&mut *g_st().curbuf);
         showmode();
         status_redraw_curbuf();
     }
@@ -3119,7 +3117,7 @@ unsafe fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: *mut c_int) -> boo
         let mut did_backspace = false;
         let mut call_fix_indent = false;
 
-        if buf_is_empty(g_st().curbuf)
+        if buf_is_empty(&mut *g_st().curbuf)
             || (!g_st().Ins.revins_on
                 && (((**curwin.as_ptr()).w_cursor.lnum == 1 && (**curwin.as_ptr()).w_cursor.col == 0)
                     || (!can_bs(BS_START)
@@ -3186,7 +3184,7 @@ unsafe fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: *mut c_int) -> boo
                         if len > 0 && *ptr.add((len - 1) as usize) == b' ' as c_char {
                             let new_line =
                                 std::slice::from_raw_parts(ptr, (len - 1) as usize).to_vec();
-                            ml_replace_dirty_line(g_st().curbuf, &new_line, false);
+                            ml_replace_dirty_line(&mut *g_st().curbuf, &new_line, false);
                         }
                     }
 
@@ -3256,7 +3254,7 @@ unsafe fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: *mut c_int) -> boo
                     }
                     let cli = utf_ClusterInfo(sci);
                     vcol +=
-                        charsize_nowrap(g_st().curbuf, sci.ptr, use_ts, vcol, sci.chr.value, cli.cells);
+                        charsize_nowrap(&mut *g_st().curbuf, sci.ptr, use_ts, vcol, sci.chr.value, cli.cells);
                     sci = cli.next;
                     prev_space = cur_space;
                 }
@@ -3275,7 +3273,7 @@ unsafe fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: *mut c_int) -> boo
                 loop {
                     let cli = utf_ClusterInfo(space_sci);
                     let size = charsize_nowrap(
-                        g_st().curbuf,
+                        &mut *g_st().curbuf,
                         space_sci.ptr,
                         use_ts,
                         space_vcol,
@@ -3834,7 +3832,7 @@ unsafe fn ins_tab() -> bool {
                             ptr.offset(i as isize),
                             newp_len.saturating_sub(col + 1),
                         ));
-                        ml_replace_dirty_line(g_st().curbuf, &new_line, true);
+                        ml_replace_dirty_line(&mut *g_st().curbuf, &new_line, true);
                         inserted_bytes(
                             fpos.lnum,
                             change_col,

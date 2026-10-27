@@ -269,7 +269,7 @@ unsafe fn do_ft_buf(filetype: *const c_char, aco: &mut CtxSwitch, err: &mut Erro
             return ptr::null_mut();
         }
 
-        if ml_open(ftbuf) == FAIL {
+        if ml_open(&mut *ftbuf) == FAIL {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -338,7 +338,7 @@ unsafe fn do_ft_buf(filetype: *const c_char, aco: &mut CtxSwitch, err: &mut Erro
     }
 }
 
-unsafe fn wipe_ft_buf(buf: *mut buf_T) {
+unsafe fn wipe_ft_buf(buf: &mut buf_T) {
     unsafe {
         block_autocmds();
 
@@ -347,14 +347,14 @@ unsafe fn wipe_ft_buf(buf: *mut buf_T) {
             br_fnum: 0,
             br_buf_free_count: 0,
         };
-        set_bufref(&mut bufref, buf);
+        set_bufref(&mut bufref, &raw mut *buf);
 
-        close_windows(buf, false);
-        if bufref_valid(&mut bufref) && buf != g_st().curbuf && (*buf).b_nwindows == 0 {
-            wipe_buffer(buf, false);
+        close_windows(&raw mut *buf, false);
+        if bufref_valid(&mut bufref) && !ptr::eq(buf, g_st().curbuf) && buf.b_nwindows == 0 {
+            wipe_buffer(&raw mut *buf, false);
         }
         if bufref_valid(&mut bufref) {
-            (*buf).b_flags &= !BF_DUMMY;
+            buf.b_flags &= !BF_DUMMY;
         }
 
         unblock_autocmds();
@@ -419,7 +419,7 @@ pub unsafe extern "C" fn nvim_get_option_value(
         if error_set(err) {
             ctx_restore(&mut aco);
             if !ftbuf.is_null() {
-                wipe_ft_buf(ftbuf);
+                wipe_ft_buf(&mut *ftbuf);
             }
             return OBJECT_NIL;
         }
@@ -433,7 +433,7 @@ pub unsafe extern "C" fn nvim_get_option_value(
 
         ctx_restore(&mut aco);
         if !ftbuf.is_null() {
-            wipe_ft_buf(ftbuf);
+            wipe_ft_buf(&mut *ftbuf);
         }
 
         if error_set(err) {

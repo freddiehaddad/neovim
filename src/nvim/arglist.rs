@@ -342,7 +342,7 @@ unsafe fn alist_check_arg_idx() {
             let mut win = first_win_in_tab(tp);
             while !win.is_null() {
                 if win_alist(win) == win_alist(*curwin.as_ptr()) {
-                    check_arg_idx(win);
+                    check_arg_idx(&mut *win);
                 }
                 win = (*win).w_next;
             }
@@ -487,36 +487,36 @@ pub unsafe fn set_arglist(str_: *mut c_char) {
 }
 
 /// Return true if window `win` is editing the file at the current argument index (`editing_arg_idx`).
-pub unsafe fn editing_arg_idx(win: *mut win_T) -> bool {
+pub unsafe fn editing_arg_idx(win: &mut win_T) -> bool {
     unsafe {
-        let idx = (*win).w_arg_idx;
-        if idx >= wargcount(win) {
+        let idx = win.w_arg_idx;
+        if idx >= wargcount(&raw mut *win) {
             return false;
         }
-        let entry = warglist(win).add(idx as usize);
-        if (*(*win).w_buffer).b_fnum == (*entry).ae_fnum {
+        let entry = warglist(&raw mut *win).add(idx as usize);
+        if (*win.w_buffer).b_fnum == (*entry).ae_fnum {
             return true;
         }
-        let ffname = (*(*win).w_buffer).b_ffname;
+        let ffname = (*win.w_buffer).b_ffname;
         !ffname.is_null() && path_equal(alist_name(entry), ffname, kPathCmpExpand | kPathCmpFull)
     }
 }
 
 /// Check if window `win` is editing the `w_arg_idx` file in its argument list (`check_arg_idx`).
-pub unsafe fn check_arg_idx(win: *mut win_T) {
+pub unsafe fn check_arg_idx(win: &mut win_T) {
     unsafe {
-        let wcount = wargcount(win);
+        let wcount = wargcount(&raw mut *win);
         if wcount > 1 && !editing_arg_idx(win) {
-            (*win).w_arg_idx_invalid = true;
+            win.w_arg_idx_invalid = true;
             let gcount = gargcount();
-            if (*win).w_arg_idx != wcount - 1
+            if win.w_arg_idx != wcount - 1
                 && !g_st().arg_had_last
-                && ptr::eq(win_alist(win), &raw const g_st().global_alist)
+                && ptr::eq(win_alist(&raw mut *win), &raw const g_st().global_alist)
                 && gcount > 0
-                && (*win).w_arg_idx < gcount
+                && win.w_arg_idx < gcount
             {
                 let last_entry = garglist().add((gcount - 1) as usize);
-                let buf = (*win).w_buffer;
+                let buf = win.w_buffer;
                 if (*buf).b_fnum == (*last_entry).ae_fnum
                     || (!(*buf).b_ffname.is_null()
                         && path_equal(
@@ -529,8 +529,8 @@ pub unsafe fn check_arg_idx(win: *mut win_T) {
                 }
             }
         } else {
-            (*win).w_arg_idx_invalid = false;
-            if (*win).w_arg_idx == wcount - 1 && ptr::eq(win_alist(win), &raw const g_st().global_alist) {
+            win.w_arg_idx_invalid = false;
+            if win.w_arg_idx == wcount - 1 && ptr::eq(win_alist(&raw mut *win), &raw const g_st().global_alist) {
                 g_st().arg_had_last = true;
             }
         }
@@ -667,16 +667,16 @@ pub unsafe fn do_argfile(eap: &mut exarg_T, argn: c_int) {
             (**curwin.as_ptr()).w_onebuf_opt.wo_crb = 0;
         } else {
             let mut other = true;
-            if buf_hide(g_st().curbuf) {
+            if buf_hide(&*g_st().curbuf) {
                 let p = fix_fname(alist_name(arglist().add(argn as usize)));
                 other = otherfile(
                     p.as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
                 );
             }
-            if (!buf_hide(g_st().curbuf) || !other)
+            if (!buf_hide(&*g_st().curbuf) || !other)
                 && check_changed(
-                    g_st().curbuf,
+                    &mut *g_st().curbuf,
                     CCGD_AW
                         | if other { 0 } else { CCGD_MULTWIN }
                         | if eap.forceit != 0 { CCGD_FORCEIT } else { 0 }
@@ -698,7 +698,7 @@ pub unsafe fn do_argfile(eap: &mut exarg_T, argn: c_int) {
             ptr::null_mut(),
             &raw mut *eap,
             ECMD_LAST,
-            (if buf_hide((**curwin.as_ptr()).w_buffer) {
+            (if buf_hide(&*(**curwin.as_ptr()).w_buffer) {
                 ECMD_HIDE
             } else {
                 0
@@ -716,10 +716,10 @@ pub unsafe fn do_argfile(eap: &mut exarg_T, argn: c_int) {
 /// `:next`, and commands that behave like it (`ex_next`).
 pub unsafe fn ex_next(eap: &mut exarg_T) {
     unsafe {
-        if buf_hide(g_st().curbuf)
+        if buf_hide(&*g_st().curbuf)
             || eap.cmdidx == CMD_snext
             || !check_changed(
-                g_st().curbuf,
+                &mut *g_st().curbuf,
                 CCGD_AW | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 }) | CCGD_EXCMD,
             )
         {
@@ -981,15 +981,15 @@ unsafe fn arg_all_close_unused_windows(aall: *mut arg_all_state_T) {
 
                 if i == opened_len
                     && !aall_ref.keep_tabs
-                    && (buf_hide(buf)
+                    && (buf_hide(&*buf)
                         || aall_ref.forceit
                         || (*buf).b_nwindows > 1
-                        || !bufIsChanged(buf))
+                        || !bufIsChanged(&mut *buf))
                 {
-                    if !buf_hide(buf) && (*buf).b_nwindows <= 1 && bufIsChanged(buf) {
+                    if !buf_hide(&*buf) && (*buf).b_nwindows <= 1 && bufIsChanged(&mut *buf) {
                         let mut bufref: bufref_T = bufref_T::new();
                         set_bufref(&raw mut bufref, buf);
-                        autowrite(buf, false);
+                        autowrite(&mut *buf, false);
                         if !win_valid(wp) || !bufref_valid(&raw mut bufref) {
                             wp = if (*g_st().lastwin).w_floating {
                                 g_st().lastwin
@@ -1004,7 +1004,7 @@ unsafe fn arg_all_close_unused_windows(aall: *mut arg_all_state_T) {
                     {
                         (*aall).use_firstwin = true;
                     } else {
-                        win_close(wp, !buf_hide(buf) && !bufIsChanged(buf), false);
+                        win_close(wp, !buf_hide(&*buf) && !bufIsChanged(&mut *buf), false);
                         if !win_valid(wpnext) {
                             wpnext = if (*g_st().lastwin).w_floating {
                                 g_st().lastwin
@@ -1036,7 +1036,7 @@ unsafe fn arg_all_open_windows(aall: *mut arg_all_state_T, count: c_int) {
         let mut tab_drop_empty_window = false;
 
         if (*aall).keep_tabs
-            && buf_is_empty(g_st().curbuf)
+            && buf_is_empty(&mut *g_st().curbuf)
             && (*g_st().curbuf).b_nwindows == 1
             && (*g_st().curbuf).b_ffname.is_null()
             && (*g_st().curbuf).b_changed == 0
@@ -1101,7 +1101,7 @@ unsafe fn arg_all_open_windows(aall: *mut arg_all_state_T, count: c_int) {
                     ptr::null_mut(),
                     ptr::null_mut(),
                     ECMD_ONE,
-                    (if buf_hide((**curwin.as_ptr()).w_buffer) || bufIsChanged((**curwin.as_ptr()).w_buffer) {
+                    (if buf_hide(&*(**curwin.as_ptr()).w_buffer) || bufIsChanged(&mut *(**curwin.as_ptr()).w_buffer) {
                         ECMD_HIDE
                     } else {
                         0

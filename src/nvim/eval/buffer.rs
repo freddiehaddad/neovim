@@ -304,24 +304,24 @@ pub unsafe fn f_appendbufline(argvars: *mut typval_T, rettv: &mut typval_T, _fpt
 }
 
 /// Trim lines above the prompt to enforce `'scrollback'` limit (`prompt_trim_scrollback`).
-unsafe fn prompt_trim_scrollback(buf: *mut buf_T) {
+unsafe fn prompt_trim_scrollback(buf: &mut buf_T) {
     unsafe {
-        if (*buf).b_p_scbk <= 0 {
+        if buf.b_p_scbk <= 0 {
             return;
         }
 
-        let prompt_line = (*buf).b_prompt_start.mark.lnum;
+        let prompt_line = buf.b_prompt_start.mark.lnum;
         let above_prompt = prompt_line - 1;
-        if above_prompt <= (*buf).b_p_scbk as linenr_T {
+        if above_prompt <= buf.b_p_scbk as linenr_T {
             return;
         }
 
-        let to_delete = above_prompt - (*buf).b_p_scbk as linenr_T;
+        let to_delete = above_prompt - buf.b_p_scbk as linenr_T;
         for _ in 0..to_delete {
-            ml_delete_buf(buf, 1, false);
+            ml_delete_buf(&raw mut *buf, 1, false);
         }
         mark_adjust_buf(
-            buf,
+            &raw mut *buf,
             1,
             to_delete,
             MAXLNUM,
@@ -330,7 +330,7 @@ unsafe fn prompt_trim_scrollback(buf: *mut buf_T) {
             kMarkAdjustNormal,
             kExtmarkUndo,
         );
-        deleted_lines_buf(buf, 1, to_delete);
+        deleted_lines_buf(&raw mut *buf, 1, to_delete);
 
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
@@ -403,7 +403,7 @@ pub unsafe fn prompt_invoke_callback() {
         (*g_st().curbuf).b_prompt_start.mark.lnum = (*g_st().curbuf).b_ml.ml_line_count;
         (*g_st().curbuf).b_prompt_append_new_line = true;
 
-        prompt_trim_scrollback(g_st().curbuf);
+        prompt_trim_scrollback(&mut *g_st().curbuf);
     }
 }
 
@@ -514,7 +514,7 @@ pub unsafe fn f_prompt_appendbuf(
                 }
             }
 
-            prompt_trim_scrollback(buf);
+            prompt_trim_scrollback(&mut *buf);
         }
     }
 }
@@ -550,7 +550,7 @@ pub unsafe fn f_bufload(argvars: *mut typval_T, _unused: &mut typval_T, _fptr: E
             if g_st().swap_exists_action != SEA_READONLY {
                 g_st().swap_exists_action = SEA_NONE;
             }
-            buf_ensure_loaded(buf);
+            buf_ensure_loaded(&mut *buf);
         }
     }
 }
@@ -627,8 +627,8 @@ unsafe fn buf_win_common(argvars: *mut typval_T, rettv: *mut typval_T, get_nr: b
         let mut found_buf = false;
         let mut wp = g_st().firstwin;
         while !wp.is_null() {
-            winnr += c_int::from(win_has_winnr(wp, g_st().curtab));
-            if ptr::eq((*wp).w_buffer, buf) && (!get_nr || win_has_winnr(wp, g_st().curtab)) {
+            winnr += c_int::from(win_has_winnr(&mut *wp, g_st().curtab));
+            if ptr::eq((*wp).w_buffer, buf) && (!get_nr || win_has_winnr(&mut *wp, g_st().curtab)) {
                 found_buf = true;
                 winid = (*wp).handle;
                 break;
@@ -736,61 +736,61 @@ pub unsafe fn f_deletebufline(argvars: *mut typval_T, rettv: &mut typval_T, _fpt
 }
 
 /// Buffer options, variables and other attributes in a dictionary (`get_buffer_info`).
-unsafe fn get_buffer_info(buf: *mut buf_T) -> *mut dict_T {
+unsafe fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
     unsafe {
         let dict = tv_dict_alloc();
 
-        tv_dict_add_nr(dict, c"bufnr".as_ptr(), 5, (*buf).b_fnum as varnumber_T);
+        tv_dict_add_nr(dict, c"bufnr".as_ptr(), 5, buf.b_fnum as varnumber_T);
         tv_dict_add_str(
             dict,
             c"name".as_ptr(),
             4,
-            if !(*buf).b_ffname.is_null() {
-                (*buf).b_ffname
+            if !buf.b_ffname.is_null() {
+                buf.b_ffname
             } else {
                 c"".as_ptr()
             },
         );
-        let lnum = if buf == g_st().curbuf {
+        let lnum = if ptr::eq(buf, g_st().curbuf) {
             (**curwin.as_ptr()).w_cursor.lnum
         } else {
-            buflist_findlnum(buf)
+            buflist_findlnum(&raw mut *buf)
         };
         tv_dict_add_nr(dict, c"lnum".as_ptr(), 4, lnum as varnumber_T);
         tv_dict_add_nr(
             dict,
             c"linecount".as_ptr(),
             9,
-            (*buf).b_ml.ml_line_count as varnumber_T,
+            buf.b_ml.ml_line_count as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
             c"loaded".as_ptr(),
             6,
-            varnumber_T::from((*buf).b_ml.ml_mfp.is_some()),
+            varnumber_T::from(buf.b_ml.ml_mfp.is_some()),
         );
-        tv_dict_add_nr(dict, c"listed".as_ptr(), 6, (*buf).b_p_bl as varnumber_T);
+        tv_dict_add_nr(dict, c"listed".as_ptr(), 6, buf.b_p_bl as varnumber_T);
         tv_dict_add_nr(
             dict,
             c"changed".as_ptr(),
             7,
             varnumber_T::from(bufIsChanged(buf)),
         );
-        tv_dict_add_nr(dict, c"changedtick".as_ptr(), 11, buf_get_changedtick(buf));
+        tv_dict_add_nr(dict, c"changedtick".as_ptr(), 11, buf_get_changedtick(&raw mut *buf));
         tv_dict_add_nr(
             dict,
             c"hidden".as_ptr(),
             6,
-            varnumber_T::from((*buf).b_ml.ml_mfp.is_some() && (*buf).b_nwindows == 0),
+            varnumber_T::from(buf.b_ml.ml_mfp.is_some() && buf.b_nwindows == 0),
         );
         tv_dict_add_nr(
             dict,
             c"command".as_ptr(),
             7,
-            varnumber_T::from(bt_cmdwin(buf)),
+            varnumber_T::from(bt_cmdwin(&raw mut *buf)),
         );
 
-        tv_dict_add_dict(dict, c"variables".as_ptr(), 9, (*buf).b_vars());
+        tv_dict_add_dict(dict, c"variables".as_ptr(), 9, buf.b_vars());
 
         let windows = tv_list_alloc(kListLenMayKnow);
         let mut tp = g_st().first_tabpage;
@@ -806,11 +806,11 @@ unsafe fn get_buffer_info(buf: *mut buf_T) -> *mut dict_T {
         }
         tv_dict_add_list(dict, c"windows".as_ptr(), 7, windows);
 
-        if buf_has_signs(buf) {
+        if buf_has_signs(&raw mut *buf) {
             tv_dict_add_list(dict, c"signs".as_ptr(), 5, get_buffer_signs(buf));
         }
 
-        tv_dict_add_nr(dict, c"lastused".as_ptr(), 8, (*buf).b_last_used);
+        tv_dict_add_nr(dict, c"lastused".as_ptr(), 8, buf.b_last_used);
 
         dict
     }
@@ -857,7 +857,7 @@ pub unsafe fn f_getbufinfo(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
                 continue;
             }
 
-            let d = get_buffer_info(buf);
+            let d = get_buffer_info(&mut *buf);
             tv_list_append_dict(rettv.vval.v_list(), d);
             if !argbuf.is_null() {
                 return;
@@ -1053,7 +1053,7 @@ pub unsafe fn f_prompt_getprompt(
             return;
         }
 
-        tv_set_string(rettv, buf_prompt_text(buf));
+        tv_set_string(rettv, buf_prompt_text(&*buf));
     }
 }
 
@@ -1108,7 +1108,7 @@ pub unsafe fn f_prompt_setprompt(
             }
 
             let prompt_lno = (*buf).b_prompt_start.mark.lnum;
-            let old_prompt = buf_prompt_text(buf);
+            let old_prompt = buf_prompt_text(&*buf);
             let old_line = ml_get_buf(buf, prompt_lno);
             let old_line_len = ml_get_buf_len(buf, prompt_lno);
 

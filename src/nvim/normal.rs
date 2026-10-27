@@ -2133,7 +2133,7 @@ unsafe fn normal_finish_command(s: &mut NormalState) {
         }
 
         checkpcmark();
-        mb_check_adjust_col(*curwin.as_ptr());
+        mb_check_adjust_col(&mut **curwin.as_ptr());
 
         if (**curwin.as_ptr()).w_onebuf_opt.wo_scb != 0 && s.toplevel {
             validate_cursor(*curwin.as_ptr());
@@ -2639,7 +2639,7 @@ pub unsafe fn find_ident_under_cursor(
     unsafe {
         let mut textcol: c_int = 0;
         let len = find_ident_at_pos(
-            *curwin.as_ptr(),
+            &mut **curwin.as_ptr(),
             (**curwin.as_ptr()).w_cursor.lnum,
             (**curwin.as_ptr()).w_cursor.col,
             text,
@@ -2658,7 +2658,7 @@ pub unsafe fn find_ident_under_cursor(
 }
 
 pub unsafe fn find_ident_at_pos(
-    wp: *mut win_T,
+    wp: &mut win_T,
     lnum: linenr_T,
     mut startcol: colnr_T,
     text: *mut *mut c_char,
@@ -2672,7 +2672,7 @@ pub unsafe fn find_ident_at_pos(
         let mut prevcol: c_int;
         let mut bn: c_int;
 
-        let mut ptr = ml_get_buf((*wp).w_buffer, lnum);
+        let mut ptr = ml_get_buf(wp.w_buffer, lnum);
         let mut i = if (find_type & FIND_IDENT) != 0 { 0 } else { 1 };
         while i < 2 {
             col = startcol;
@@ -3162,13 +3162,13 @@ pub unsafe fn display_showcmd() {
     }
 }
 
-pub unsafe fn get_vtopline(wp: *mut win_T) -> c_int {
-    unsafe { plines_m_win_fill(wp, 1, (*wp).w_topline) - (*wp).w_topfill }
+pub unsafe fn get_vtopline(wp: &mut win_T) -> c_int {
+    unsafe { plines_m_win_fill(&raw mut *wp, 1, wp.w_topline) - wp.w_topfill }
 }
 
 pub unsafe fn do_check_scrollbind(check: bool) {
     unsafe {
-        let vtopline = get_vtopline(*curwin.as_ptr());
+        let vtopline = get_vtopline(&mut **curwin.as_ptr());
 
         if check && (**curwin.as_ptr()).w_onebuf_opt.wo_scb != 0 {
             if g_st().did_syncbind {
@@ -3224,7 +3224,7 @@ pub unsafe fn check_scrollbind(vtopline_diff: linenr_T, leftcol_diff: c_int) {
                         diff_set_topline(old_curwin, *curwin.as_ptr());
                     } else {
                         (**curwin.as_ptr()).w_scbind_pos += vtopline_diff;
-                        let curr_vtopline = get_vtopline(*curwin.as_ptr());
+                        let curr_vtopline = get_vtopline(&mut **curwin.as_ptr());
                         let max_vtopline = curr_vtopline
                             + (**curwin.as_ptr()).w_topfill
                             + plines_m_win_fill(
@@ -3237,12 +3237,12 @@ pub unsafe fn check_scrollbind(vtopline_diff: linenr_T, leftcol_diff: c_int) {
                         if y > 0 {
                             scrollup(*curwin.as_ptr(), y, false);
                         } else {
-                            scrolldown(*curwin.as_ptr(), -y, 0);
+                            scrolldown(&mut **curwin.as_ptr(), -y, 0);
                         }
                     }
 
                     redraw_later(*curwin.as_ptr(), UPD_VALID);
-                    cursor_correct(*curwin.as_ptr());
+                    cursor_correct(&mut **curwin.as_ptr());
                     (**curwin.as_ptr()).w_redr_status = true;
                 }
 
@@ -3578,7 +3578,7 @@ pub unsafe fn nv_screengo(
                             retval = false;
                             break;
                         }
-                        cursor_up_inner(*curwin.as_ptr(), 1, skip_conceal);
+                        cursor_up_inner(&mut **curwin.as_ptr(), 1, skip_conceal);
 
                         linelen = linetabsize(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum);
                         if linelen > width1 {
@@ -3607,7 +3607,7 @@ pub unsafe fn nv_screengo(
                             retval = false;
                             break;
                         }
-                        cursor_down_inner(*curwin.as_ptr(), 1, skip_conceal);
+                        cursor_down_inner(&mut **curwin.as_ptr(), 1, skip_conceal);
                         (**curwin.as_ptr()).w_curswant %= width2;
 
                         if (**curwin.as_ptr()).w_curswant >= width1 {
@@ -3979,7 +3979,7 @@ unsafe fn nv_zet(cap: &mut cmdarg_T) {
                         nv_operator(cap);
                     } else {
                         deleteFold(
-                            *curwin.as_ptr(),
+                            &mut **curwin.as_ptr(),
                             (**curwin.as_ptr()).w_cursor.lnum,
                             (**curwin.as_ptr()).w_cursor.lnum,
                             c_int::from(nchar == b'D' as c_int),
@@ -3993,7 +3993,7 @@ unsafe fn nv_zet(cap: &mut cmdarg_T) {
                     clearFolding(*curwin.as_ptr());
                     changed_window_setting(*curwin.as_ptr());
                 } else if foldmethodIsMarker(*curwin.as_ptr()) {
-                    deleteFold(*curwin.as_ptr(), 1, (*g_st().curbuf).b_ml.ml_line_count, 1, false);
+                    deleteFold(&mut **curwin.as_ptr(), 1, (*g_st().curbuf).b_ml.ml_line_count, 1, false);
                 } else {
                     emsg(tr(
                         c"E352: Cannot erase folds with current 'foldmethod'".as_ptr()
@@ -4778,7 +4778,7 @@ unsafe fn nv_scroll(cap: &mut cmdarg_T) {
         }
 
         if (*cap.oap).op_type == OP_NOP {
-            cursor_correct(*curwin.as_ptr());
+            cursor_correct(&mut **curwin.as_ptr());
         }
         beginline(BL_SOL | BL_FIX);
     }
@@ -4967,8 +4967,8 @@ unsafe fn nv_gotofile(cap: &mut cmdarg_T) {
 
         if let Some(fname_cstr) = grab_file_name(cap.count1, &raw mut lnum) {
             let ptr = fname_cstr.as_ptr().cast_mut();
-            if curbufIsChanged() && (*g_st().curbuf).b_nwindows <= 1 && !buf_hide(g_st().curbuf) {
-                autowrite(g_st().curbuf, false);
+            if curbufIsChanged() && (*g_st().curbuf).b_nwindows <= 1 && !buf_hide(&*g_st().curbuf) {
+                autowrite(&mut *g_st().curbuf, false);
             }
             setpcmark();
             if do_ecmd(
@@ -4977,7 +4977,7 @@ unsafe fn nv_gotofile(cap: &mut cmdarg_T) {
                 ptr::null_mut(),
                 ptr::null_mut(),
                 ECMD_LAST,
-                if buf_hide(g_st().curbuf) { ECMD_HIDE } else { 0 },
+                if buf_hide(&*g_st().curbuf) { ECMD_HIDE } else { 0 },
                 *curwin.as_ptr(),
             ) == OK
                 && cap.nchar == b'F' as c_int
@@ -5919,7 +5919,7 @@ unsafe fn nv_Replace(cap: &mut cmdarg_T) {
             return;
         }
 
-        if !modifiable(g_st().curbuf) {
+        if !modifiable(&*g_st().curbuf) {
             emsg(tr(e_modifiable.as_ptr()));
         } else {
             if virtual_active(*curwin.as_ptr()) {
@@ -5952,7 +5952,7 @@ unsafe fn nv_vreplace(cap: &mut cmdarg_T) {
             return;
         }
 
-        if !modifiable(g_st().curbuf) {
+        if !modifiable(&*g_st().curbuf) {
             emsg(tr(e_modifiable.as_ptr()));
         } else {
             if cap.extra_char == Ctrl_V || cap.extra_char == Ctrl_Q {
@@ -6005,7 +6005,7 @@ unsafe fn n_swapchar(cap: &mut cmdarg_T) {
                         if u_savesub((**curwin.as_ptr()).w_cursor.lnum) == 0 {
                             break;
                         }
-                        u_clearline(g_st().curbuf);
+                        u_clearline(&mut *g_st().curbuf);
                     }
                 } else {
                     break;
@@ -6146,7 +6146,7 @@ unsafe fn nv_gomark(cap: &mut cmdarg_T) {
             flags |= kMarkSetView;
         }
 
-        let fm = mark_get(g_st().curbuf, *curwin.as_ptr(), ptr::null_mut(), kMarkAll, name);
+        let fm = mark_get(&mut *g_st().curbuf, *curwin.as_ptr(), ptr::null_mut(), kMarkAll, name);
         let move_res = nv_mark_move_to(cap, flags, &mut *fm);
 
         if !virtual_active(*curwin.as_ptr()) {
@@ -6186,10 +6186,10 @@ unsafe fn nv_pcmark(cap: &mut cmdarg_T) {
         }
 
         let fm = if cap.cmdchar == b'g' as c_int {
-            get_changelist(g_st().curbuf, *curwin.as_ptr(), cap.count1)
+            get_changelist(&mut *g_st().curbuf, *curwin.as_ptr(), cap.count1)
         } else {
             flags |= KMarkNoContext | kMarkJumpList;
-            get_jumplist(*curwin.as_ptr(), cap.count1)
+            get_jumplist(&mut **curwin.as_ptr(), cap.count1)
         };
 
         if !fm.is_null() {

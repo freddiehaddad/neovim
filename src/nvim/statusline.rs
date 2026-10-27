@@ -1028,7 +1028,7 @@ pub unsafe fn draw_tabline() {
                 while !wp.is_null() {
                     if !(*wp).w_config.focusable || (*wp).w_config.hide {
                         wincount -= 1;
-                    } else if bufIsChanged((*wp).w_buffer) {
+                    } else if bufIsChanged(&mut *(*wp).w_buffer) {
                         modified = true;
                     }
                     wp = (*wp).w_next;
@@ -2162,7 +2162,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 STL_MODIFIED | STL_MODIFIED_ALT => {
                     itemisflag = true;
                     let code = c_int::from(opt == STL_MODIFIED_ALT)
-                        + c_int::from(bufIsChanged((*wp).w_buffer)) * 2
+                        + c_int::from(bufIsChanged(&mut *(*wp).w_buffer)) * 2
                         + c_int::from((*(*wp).w_buffer).b_p_ma == 0) * 4;
                     str = match code {
                         2 => c"[+]".as_ptr().cast_mut(),

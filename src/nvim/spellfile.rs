@@ -5295,7 +5295,7 @@ pub unsafe fn spell_add_word(
             if !buf.is_null() && (*buf).b_ml.ml_mfp.is_none() {
                 buf = ptr::null_mut();
             }
-            if !buf.is_null() && bufIsChanged(buf) {
+            if !buf.is_null() && bufIsChanged(&mut *buf) {
                 emsg(gettext((&raw const e_bufloaded).cast()));
                 return;
             }

@@ -102,7 +102,7 @@ pub unsafe extern "C" fn nvim_win_set_buf(win: Window, buf: Buffer, err: &mut Er
         if b.is_null() {
             return;
         }
-        win_set_buf(w, b, err);
+        win_set_buf(&mut *w, &mut *b, err);
     }
 }
 
@@ -607,11 +607,11 @@ pub unsafe extern "C" fn nvim_win_text_height(
         let mask = (*opts).is_set__win_text_height_;
 
         if has_key(mask, KEYSET_OPTIDX_win_text_height__start_row) {
-            start_lnum = normalize_index(buf, (*opts).start_row, false, &mut oob) as linenr_T;
+            start_lnum = normalize_index(&mut *buf, (*opts).start_row, false, &mut oob) as linenr_T;
         }
 
         if has_key(mask, KEYSET_OPTIDX_win_text_height__end_row) {
-            end_lnum = normalize_index(buf, (*opts).end_row, false, &mut oob) as linenr_T;
+            end_lnum = normalize_index(&mut *buf, (*opts).end_row, false, &mut oob) as linenr_T;
         }
 
         if oob {
@@ -688,7 +688,7 @@ pub unsafe extern "C" fn nvim_win_text_height(
 
         let mut fill: i64 = 0;
         let mut all = win_text_height(
-            w,
+            &mut *w,
             start_lnum,
             start_vcol,
             &mut end_lnum,

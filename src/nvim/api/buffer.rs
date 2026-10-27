@@ -131,7 +131,7 @@ pub unsafe fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> *mut buf_T 
             return ptr::null_mut();
         }
 
-        if (*b).b_ml.ml_mfp.is_none() && !buf_ensure_loaded(b) {
+        if (*b).b_ml.ml_mfp.is_none() && !buf_ensure_loaded(&mut *b) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -287,7 +287,7 @@ pub unsafe extern "C" fn nvim_buf_attach(
             cb.preview = (*opts).preview;
         }
 
-        buf_updates_register(b, channel_id, cb, send_buffer)
+        buf_updates_register(&mut *b, channel_id, cb, send_buffer)
     }
 }
 
@@ -361,8 +361,8 @@ pub unsafe extern "C" fn nvim_buf_get_lines(
         }
 
         let mut oob = false;
-        start = normalize_index(b, start, true, &mut oob);
-        end = normalize_index(b, end, true, &mut oob);
+        start = normalize_index(&mut *b, start, true, &mut oob);
+        end = normalize_index(&mut *b, end, true, &mut oob);
 
         if strict_indexing && oob {
             api_set_error!(
@@ -441,8 +441,8 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
         }
 
         let mut oob = false;
-        start = normalize_index(b, start, true, &mut oob);
-        end = normalize_index(b, end, true, &mut oob);
+        start = normalize_index(&mut *b, start, true, &mut oob);
+        end = normalize_index(&mut *b, end, true, &mut oob);
 
         if strict_indexing && oob {
             api_set_error!(
@@ -500,7 +500,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            if u_save_buf(b, (start - 1) as linenr_T, end as linenr_T) == FAIL {
+            if u_save_buf(&mut *b, (start - 1) as linenr_T, end as linenr_T) == FAIL {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
@@ -509,7 +509,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            let deleted_bytes = get_region_bytecount(b, start as linenr_T, end as linenr_T, 0, 0);
+            let deleted_bytes = get_region_bytecount(&mut *b, start as linenr_T, end as linenr_T, 0, 0);
 
             let to_delete = old_len.saturating_sub(new_len);
             for _ in 0..to_delete {
@@ -630,7 +630,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
                 };
                 while !win.is_null() {
                     if (*win).w_buffer == b {
-                        fix_cursor(win, start as linenr_T, end as linenr_T, extra as linenr_T);
+                        fix_cursor(&mut *win, start as linenr_T, end as linenr_T, extra as linenr_T);
                     }
                     win = (*win).w_next;
                 }
@@ -697,13 +697,13 @@ pub unsafe extern "C" fn nvim_buf_set_text(
         }
 
         let mut oob = false;
-        start_row = normalize_index(b, start_row, false, &mut oob);
+        start_row = normalize_index(&mut *b, start_row, false, &mut oob);
         if oob {
             api_err_range(err, c"start_row".as_ptr());
             return;
         }
 
-        end_row = normalize_index(b, end_row, false, &mut oob);
+        end_row = normalize_index(&mut *b, end_row, false, &mut oob);
         if oob {
             api_err_range(err, c"end_row".as_ptr());
             return;
@@ -830,7 +830,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
                 break 'end;
             }
 
-            if u_save_buf(b, (start_row as linenr_T) - 1, (end_row as linenr_T) + 1) == FAIL {
+            if u_save_buf(&mut *b, (start_row as linenr_T) - 1, (end_row as linenr_T) + 1) == FAIL {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
@@ -974,7 +974,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
                             && i64::from((*win).w_cursor.lnum) <= end_row
                         {
                             fix_cursor_cols(
-                                win,
+                                &mut *win,
                                 start_row as linenr_T,
                                 start_col as colnr_T,
                                 end_row as linenr_T,
@@ -984,7 +984,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
                             );
                         } else {
                             fix_cursor(
-                                win,
+                                &mut *win,
                                 start_row as linenr_T,
                                 end_row as linenr_T,
                                 extra as linenr_T,
@@ -1046,8 +1046,8 @@ pub unsafe extern "C" fn nvim_buf_get_text(
         }
 
         let mut oob = false;
-        start_row = normalize_index(b, start_row, false, &mut oob);
-        end_row = normalize_index(b, end_row, false, &mut oob);
+        start_row = normalize_index(&mut *b, start_row, false, &mut oob);
+        end_row = normalize_index(&mut *b, end_row, false, &mut oob);
 
         if oob {
             api_set_error!(
@@ -1564,7 +1564,7 @@ pub unsafe extern "C" fn nvim_buf_del_mark(
         }
 
         let fm = mark_get(
-            b,
+            &mut *b,
             *curwin.as_ptr(),
             ptr::null_mut(),
             kMarkAllNoResolve,
@@ -1672,7 +1672,7 @@ pub unsafe extern "C" fn nvim_buf_get_mark(
         }
 
         let mark = c_int::from(*name.data.cast::<u8>());
-        let fm = mark_get(b, *curwin.as_ptr(), ptr::null_mut(), kMarkAllNoResolve, mark);
+        let fm = mark_get(&mut *b, *curwin.as_ptr(), ptr::null_mut(), kMarkAllNoResolve, mark);
         if fm.is_null() {
             api_err_invalid(err, c"mark name".as_ptr(), name.data, 0, true);
             return rv;
@@ -1800,20 +1800,20 @@ pub unsafe extern "C" fn nvim__buf_stats(buf: Buffer, arena: *mut Arena, err: &m
     }
 }
 
-unsafe fn fix_cursor(win: *mut win_T, lo: linenr_T, hi: linenr_T, extra: linenr_T) {
+unsafe fn fix_cursor(win: &mut win_T, lo: linenr_T, hi: linenr_T, extra: linenr_T) {
     unsafe {
-        if (*win).w_cursor.lnum >= lo {
-            if (*win).w_cursor.lnum >= hi {
-                (*win).w_cursor.lnum += extra;
+        if win.w_cursor.lnum >= lo {
+            if win.w_cursor.lnum >= hi {
+                win.w_cursor.lnum += extra;
             } else if extra < 0 {
-                check_cursor_lnum(win);
+                check_cursor_lnum(&raw mut *win);
             }
-            check_cursor_col(win);
+            check_cursor_col(&raw mut *win);
             changed_cline_bef_curs(win);
-            (*win).w_valid &= !VALID_BOTLINE_AP;
-            update_topline(win);
+            win.w_valid &= !VALID_BOTLINE_AP;
+            update_topline(&raw mut *win);
         } else {
-            invalidate_botline_win(win);
+            invalidate_botline_win(&raw mut *win);
         }
     }
 }
@@ -1875,7 +1875,7 @@ unsafe fn fix_pos_col(
 }
 
 unsafe fn fix_cursor_cols(
-    win: *mut win_T,
+    win: &mut win_T,
     start_row: linenr_T,
     start_col: colnr_T,
     end_row: linenr_T,
@@ -1884,14 +1884,14 @@ unsafe fn fix_cursor_cols(
     new_cols_at_end_row: colnr_T,
 ) {
     unsafe {
-        let mode_col_adj = if win == *curwin.as_ptr() && (g_st().State & MODE_INSERT) != 0 {
+        let mode_col_adj = if ptr::eq(win, *curwin.as_ptr()) && (g_st().State & MODE_INSERT) != 0 {
             0
         } else {
             1
         };
         fix_pos_col(
-            (*win).w_buffer,
-            &mut (*win).w_cursor,
+            win.w_buffer,
+            &mut win.w_cursor,
             start_row,
             start_col,
             end_row,
@@ -1901,9 +1901,9 @@ unsafe fn fix_cursor_cols(
             mode_col_adj,
         );
 
-        check_cursor_col(win);
+        check_cursor_col(&raw mut *win);
         changed_cline_bef_curs(win);
-        invalidate_botline_win(win);
+        invalidate_botline_win(&raw mut *win);
     }
 }
 

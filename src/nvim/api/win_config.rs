@@ -493,7 +493,7 @@ pub unsafe extern "C" fn nvim_open_win(
                     g_st().autocmd_no_enter += 1;
                     g_st().autocmd_no_leave += 1;
                 }
-                win_set_buf(wp, b, err);
+                win_set_buf(&mut *wp, &mut *b, err);
                 if !fconfig.noautocmd {
                     tp = win_find_tabpage(wp);
                 }
@@ -513,7 +513,7 @@ pub unsafe extern "C" fn nvim_open_win(
             }
 
             if fconfig.style == kWinStyleMinimal {
-                win_set_minimal_style(wp);
+                win_set_minimal_style(&mut *wp);
                 didset_window_options(wp, true);
                 changed_window_setting(wp);
             }
@@ -1072,7 +1072,7 @@ pub unsafe extern "C" fn nvim_win_set_config(
         }
 
         if fconfig.style == kWinStyleMinimal && old_style != fconfig.style {
-            win_set_minimal_style(w);
+            win_set_minimal_style(&mut *w);
             didset_window_options(w, true);
             changed_window_setting(w);
         }

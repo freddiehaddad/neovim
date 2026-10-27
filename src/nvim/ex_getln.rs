@@ -477,8 +477,8 @@ unsafe fn init_incsearch_state(s: *mut incsearch_state_T) {
         clearpos(&mut s.match_end);
         s.save_cursor = (**curwin.as_ptr()).w_cursor;
         s.search_start = (**curwin.as_ptr()).w_cursor;
-        save_viewstate(*curwin.as_ptr(), &raw mut s.init_viewstate);
-        save_viewstate(*curwin.as_ptr(), &raw mut s.old_viewstate);
+        save_viewstate(&mut **curwin.as_ptr(), &raw mut s.init_viewstate);
+        save_viewstate(&mut **curwin.as_ptr(), &raw mut s.old_viewstate);
     }
 }
 
@@ -816,8 +816,8 @@ unsafe fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut inc
 
         // first restore the old curwin values, so the screen is
         // positioned in the same way as the actual search command
-        restore_viewstate(*curwin.as_ptr(), &raw mut (*s).old_viewstate);
-        changed_cline_bef_curs(*curwin.as_ptr());
+        restore_viewstate(&mut **curwin.as_ptr(), &raw mut (*s).old_viewstate);
+        changed_cline_bef_curs(&mut **curwin.as_ptr());
         update_topline(*curwin.as_ptr());
 
         let mut end_pos = (**curwin.as_ptr()).w_cursor;
@@ -966,7 +966,7 @@ unsafe fn finish_incsearch_highlighting(
             }
             (**curwin.as_ptr()).w_cursor = (*s).search_start;
         }
-        restore_viewstate(*curwin.as_ptr(), &raw mut (*s).old_viewstate);
+        restore_viewstate(&mut **curwin.as_ptr(), &raw mut (*s).old_viewstate);
         g_st().Search.hl_match = false;
 
         // by default search all lines
@@ -2090,11 +2090,11 @@ unsafe fn may_do_command_line_next_incsearch(
 
             set_search_match(&mut (*s).match_end);
             (**curwin.as_ptr()).w_cursor = (*s).match_start;
-            changed_cline_bef_curs(*curwin.as_ptr());
+            changed_cline_bef_curs(&mut **curwin.as_ptr());
             update_topline(*curwin.as_ptr());
             validate_cursor(*curwin.as_ptr());
             g_st().Search.hl_match = true;
-            save_viewstate(*curwin.as_ptr(), &raw mut (*s).old_viewstate);
+            save_viewstate(&mut **curwin.as_ptr(), &raw mut (*s).old_viewstate);
             redraw_later(*curwin.as_ptr(), UPD_NOT_VALID);
             update_screen();
             g_st().Search.hl_match = false;
@@ -2209,9 +2209,9 @@ unsafe fn command_line_toggle_langmap(s: &mut CommandLineState) {
 
         if let Some(use_insert) = use_insert_opt {
             if use_insert && ptr::eq(s.b_im_ptr_buf, g_st().curbuf) {
-                set_iminsert_global(g_st().curbuf);
+                set_iminsert_global(&mut *g_st().curbuf);
             } else {
-                set_imsearch_global(g_st().curbuf);
+                set_imsearch_global(&mut *g_st().curbuf);
             }
         }
         ui_cursor_shape();
@@ -3073,14 +3073,14 @@ unsafe fn cmdpreview_prepare() -> CpInfo {
                     cp_bufinfo.save_b_changed = (*buf).b_changed;
                     cp_bufinfo.save_b_op_start = (*buf).b_op_start;
                     cp_bufinfo.save_b_op_end = (*buf).b_op_end;
-                    u_checkpoint(&raw mut cp_bufinfo.undo_checkpoint, buf);
+                    u_checkpoint(&raw mut cp_bufinfo.undo_checkpoint, &mut *buf);
                     cpinfo.buf_info.push(cp_bufinfo);
                 }
 
                 let mut cp_wininfo = CpWinInfo::new();
                 cp_wininfo.win = win;
                 cp_wininfo.save_w_cursor = (*win).w_cursor;
-                save_viewstate(win, &raw mut cp_wininfo.save_viewstate);
+                save_viewstate(&mut *win, &raw mut cp_wininfo.save_viewstate);
                 cp_wininfo.save_w_p_cul = (*win).w_onebuf_opt.wo_cul;
                 cp_wininfo.save_w_p_cuc = (*win).w_onebuf_opt.wo_cuc;
 
@@ -3118,7 +3118,7 @@ unsafe fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
 
             extmark_clear(buf, getln_st().cmdpreview_ns as u32, 0, 0, MAXLNUM, MAXCOL);
 
-            u_rollback(&raw mut cp_bufinfo.undo_checkpoint, buf);
+            u_rollback(&raw mut cp_bufinfo.undo_checkpoint, &mut *buf);
 
             (*buf).b_op_start = cp_bufinfo.save_b_op_start;
             (*buf).b_op_end = cp_bufinfo.save_b_op_end;
@@ -3129,7 +3129,7 @@ unsafe fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
             let win = cp_wininfo.win;
 
             (*win).w_cursor = cp_wininfo.save_w_cursor;
-            restore_viewstate(win, &raw mut cp_wininfo.save_viewstate);
+            restore_viewstate(&mut *win, &raw mut cp_wininfo.save_viewstate);
 
             (*win).w_onebuf_opt.wo_cul = cp_wininfo.save_w_p_cul;
             (*win).w_onebuf_opt.wo_cuc = cp_wininfo.save_w_p_cuc;

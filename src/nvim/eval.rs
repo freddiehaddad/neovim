@@ -1007,12 +1007,12 @@ pub unsafe fn eval_expr_option_tv(
 
 /// Evaluate 'foldexpr'. Returns the foldlevel, and any character preceding
 /// it in "*cp". Doesn't give error messages.
-pub unsafe fn eval_foldexpr(wp: *mut win_T, cp: *mut c_int) -> c_int {
+pub unsafe fn eval_foldexpr(wp: &mut win_T, cp: *mut c_int) -> c_int {
     unsafe {
         let saved_sctx = g_st().current_sctx;
-        let use_sandbox = was_set_insecurely(wp, kOptFoldexpr, OPT_LOCAL) != 0;
+        let use_sandbox = was_set_insecurely(&raw mut *wp, kOptFoldexpr, OPT_LOCAL) != 0;
 
-        g_st().current_sctx = (*wp).w_onebuf_opt.wo_script_ctx[kWinOptFoldexpr];
+        g_st().current_sctx = wp.w_onebuf_opt.wo_script_ctx[kWinOptFoldexpr];
 
         g_st().emsg_off += 1;
         if use_sandbox {
@@ -1025,7 +1025,7 @@ pub unsafe fn eval_foldexpr(wp: *mut win_T, cp: *mut c_int) -> c_int {
         let mut argv = [tv_initial_value()];
         let retval: varnumber_T;
         if !callback_call(
-            (&raw mut (*wp).w_onebuf_opt.wo_fde).cast(),
+            (&raw mut wp.w_onebuf_opt.wo_fde).cast(),
             0,
             argv.as_mut_ptr(),
             &raw mut tv,
@@ -5778,10 +5778,10 @@ pub unsafe fn var2fpos(
     dollar_lnum: bool,
     ret_fnum: *mut c_int,
     charcol: bool,
-    wp: *mut win_T,
+    wp: &mut win_T,
 ) -> *mut pos_T {
     unsafe {
-        let bp = (*wp).w_buffer;
+        let bp = wp.w_buffer;
 
         if (*tv).v_type == VarType::VAR_LIST {
             let mut error = false;
@@ -5836,12 +5836,12 @@ pub unsafe fn var2fpos(
         eval_st().VAR2FPOS_POS.lnum = 0;
         if *name == b'.' as c_char {
             eval_st().VAR2FPOS_POS = pos_T {
-                lnum: (*wp).w_cursor.lnum,
-                col: (*wp).w_cursor.col,
-                coladd: (*wp).w_cursor.coladd,
+                lnum: wp.w_cursor.lnum,
+                col: wp.w_cursor.col,
+                coladd: wp.w_cursor.coladd,
             };
         } else if *name == b'v' as c_char && *name.add(1) == NUL {
-            if g_st().Visual.active && wp == *curwin.as_ptr() {
+            if g_st().Visual.active && ptr::eq(wp, *curwin.as_ptr()) {
                 eval_st().VAR2FPOS_POS = pos_T {
                     lnum: g_st().Visual.start.lnum,
                     col: g_st().Visual.start.col,
@@ -5849,14 +5849,14 @@ pub unsafe fn var2fpos(
                 };
             } else {
                 eval_st().VAR2FPOS_POS = pos_T {
-                    lnum: (*wp).w_cursor.lnum,
-                    col: (*wp).w_cursor.col,
-                    coladd: (*wp).w_cursor.coladd,
+                    lnum: wp.w_cursor.lnum,
+                    col: wp.w_cursor.col,
+                    coladd: wp.w_cursor.coladd,
                 };
             }
         } else if *name == b'\'' as c_char {
             let mname = c_int::from(*name.add(1) as u8);
-            let fm = mark_get(bp, wp, ptr::null_mut(), kMarkAll, mname);
+            let fm = mark_get(&mut *bp, &raw mut *wp, ptr::null_mut(), kMarkAll, mname);
             if fm.is_null() || (*fm).mark.lnum <= 0 {
                 return ptr::null_mut();
             }
@@ -5875,21 +5875,21 @@ pub unsafe fn var2fpos(
         eval_st().VAR2FPOS_POS.coladd = 0;
 
         if *name == b'w' as c_char && dollar_lnum {
-            check_cursor_moved(wp);
+            check_cursor_moved(&raw mut *wp);
 
             eval_st().VAR2FPOS_POS.col = 0;
             if *name.add(1) == b'0' as c_char {
-                update_topline(wp);
-                eval_st().VAR2FPOS_POS.lnum = if (*wp).w_topline > 0 {
-                    (*wp).w_topline
+                update_topline(&raw mut *wp);
+                eval_st().VAR2FPOS_POS.lnum = if wp.w_topline > 0 {
+                    wp.w_topline
                 } else {
                     1
                 };
                 return &raw mut eval_st().VAR2FPOS_POS;
             } else if *name.add(1) == b'$' as c_char {
-                validate_botline_win(wp);
-                eval_st().VAR2FPOS_POS.lnum = if (*wp).w_botline > 0 {
-                    (*wp).w_botline - 1
+                validate_botline_win(&raw mut *wp);
+                eval_st().VAR2FPOS_POS.lnum = if wp.w_botline > 0 {
+                    wp.w_botline - 1
                 } else {
                     0
                 };
@@ -5900,11 +5900,11 @@ pub unsafe fn var2fpos(
                 eval_st().VAR2FPOS_POS.lnum = (*bp).b_ml.ml_line_count;
                 eval_st().VAR2FPOS_POS.col = 0;
             } else {
-                eval_st().VAR2FPOS_POS.lnum = (*wp).w_cursor.lnum;
+                eval_st().VAR2FPOS_POS.lnum = wp.w_cursor.lnum;
                 eval_st().VAR2FPOS_POS.col = if charcol {
-                    mb_charlen(ml_get_buf(bp, (*wp).w_cursor.lnum))
+                    mb_charlen(ml_get_buf(bp, wp.w_cursor.lnum))
                 } else {
-                    ml_get_buf_len(bp, (*wp).w_cursor.lnum)
+                    ml_get_buf_len(bp, wp.w_cursor.lnum)
                 };
             }
             return &raw mut eval_st().VAR2FPOS_POS;

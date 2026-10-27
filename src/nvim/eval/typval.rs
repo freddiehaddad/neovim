@@ -4873,7 +4873,7 @@ pub unsafe fn tv_get_lnum(tv: *const typval_T) -> linenr_T {
         let mut lnum = tv_get_number_chk(tv, ptr::null_mut()) as linenr_T;
         if lnum <= 0 && did_emsg_before == g_st().did_emsg && (*tv).v_type != VarType::VAR_NUMBER {
             let mut fnum: c_int = 0;
-            let fp = var2fpos(tv, true, &raw mut fnum, false, *curwin.as_ptr());
+            let fp = var2fpos(tv, true, &raw mut fnum, false, &mut **curwin.as_ptr());
             if !fp.is_null() {
                 lnum = (*fp).lnum;
             }

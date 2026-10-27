@@ -140,18 +140,18 @@ pub unsafe fn ex_perldo(eap: &mut exarg_T) {
 }
 
 /// If `'autowrite'` option set, try to write the file (`autowrite`).
-pub unsafe fn autowrite(buf: *mut buf_T, forceit: bool) -> c_int {
+pub unsafe fn autowrite(buf: &mut buf_T, forceit: bool) -> c_int {
     unsafe {
         if (opt_vars().p_aw == 0 && opt_vars().p_awa == 0)
             || opt_vars().p_write == 0
-            || bt_dontwrite(buf)
-            || (!forceit && (*buf).b_p_ro != 0)
-            || (*buf).b_ffname.is_null()
+            || bt_dontwrite(&raw mut *buf)
+            || (!forceit && buf.b_p_ro != 0)
+            || buf.b_ffname.is_null()
         {
             return FAIL;
         }
         let mut bufref: bufref_T = bufref_T::new();
-        set_bufref(&raw mut bufref, buf);
+        set_bufref(&raw mut bufref, &raw mut *buf);
         let mut r = buf_write_all(buf, forceit);
 
         if bufref_valid(&raw mut bufref) && bufIsChanged(buf) {
@@ -170,10 +170,10 @@ pub unsafe fn autowrite_all() {
 
         let mut buf = g_st().firstbuf;
         while !buf.is_null() {
-            if bufIsChanged(buf) && (*buf).b_p_ro == 0 && !bt_dontwrite(buf) {
+            if bufIsChanged(&mut *buf) && (*buf).b_p_ro == 0 && !bt_dontwrite(buf) {
                 let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&raw mut bufref, buf);
-                buf_write_all(buf, false);
+                buf_write_all(&mut *buf, false);
                 if !bufref_valid(&raw mut bufref) {
                     buf = g_st().firstbuf;
                     continue;
@@ -185,15 +185,15 @@ pub unsafe fn autowrite_all() {
 }
 
 /// Return true if buffer was changed and cannot be abandoned (`check_changed`).
-pub unsafe fn check_changed(buf: *mut buf_T, flags: c_int) -> bool {
+pub unsafe fn check_changed(buf: &mut buf_T, flags: c_int) -> bool {
     unsafe {
         let forceit = (flags & CCGD_FORCEIT) != 0;
         let mut bufref: bufref_T = bufref_T::new();
-        set_bufref(&raw mut bufref, buf);
+        set_bufref(&raw mut bufref, &raw mut *buf);
 
         if !forceit
             && bufIsChanged(buf)
-            && ((flags & CCGD_MULTWIN) != 0 || (*buf).b_nwindows <= 1)
+            && ((flags & CCGD_MULTWIN) != 0 || buf.b_nwindows <= 1)
             && ((flags & CCGD_AW) == 0 || autowrite(buf, forceit) == FAIL)
         {
             if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && opt_vars().p_write != 0 {
@@ -202,7 +202,7 @@ pub unsafe fn check_changed(buf: *mut buf_T, flags: c_int) -> bool {
                 if (flags & CCGD_ALLBUF) != 0 {
                     let mut buf2 = g_st().firstbuf;
                     while !buf2.is_null() {
-                        if bufIsChanged(buf2) && !(*buf2).b_ffname.is_null() {
+                        if bufIsChanged(&mut *buf2) && !(*buf2).b_ffname.is_null() {
                             count += 1;
                         }
                         buf2 = (*buf2).b_next;
@@ -220,7 +220,7 @@ pub unsafe fn check_changed(buf: *mut buf_T, flags: c_int) -> bool {
             if (flags & CCGD_EXCMD) != 0 {
                 no_write_message();
             } else {
-                no_write_message_nobang(g_st().curbuf);
+                no_write_message_nobang(&*g_st().curbuf);
             }
             return true;
         }
@@ -229,13 +229,13 @@ pub unsafe fn check_changed(buf: *mut buf_T, flags: c_int) -> bool {
 }
 
 /// Ask the user what to do when abandoning a changed buffer (`dialog_changed`).
-pub unsafe fn dialog_changed(buf: *mut buf_T, checkall: bool) {
+pub unsafe fn dialog_changed(buf: &mut buf_T, checkall: bool) {
     unsafe {
         let mut buff = [0 as c_char; DIALOG_MSG_SIZE];
         let mut ea: exarg_T = exarg_T::new();
 
-        let fname = if !(*buf).b_fname.is_null() {
-            (*buf).b_fname.cast_const()
+        let fname = if !buf.b_fname.is_null() {
+            buf.b_fname.cast_const()
         } else {
             gettext(c"Untitled".as_ptr())
         };
@@ -252,40 +252,40 @@ pub unsafe fn dialog_changed(buf: *mut buf_T, checkall: bool) {
         };
 
         if ret == VIM_YES {
-            let empty_bufname = (*buf).b_fname.is_null();
+            let empty_bufname = buf.b_fname.is_null();
             if empty_bufname {
-                buf_set_name((*buf).b_fnum, c"Untitled".as_ptr().cast_mut());
+                buf_set_name(buf.b_fnum, c"Untitled".as_ptr().cast_mut());
             }
 
-            if check_overwrite(&mut ea, buf, (*buf).b_fname, (*buf).b_ffname, false) == OK
+            if check_overwrite(&mut ea, buf, buf.b_fname, buf.b_ffname, false) == OK
                 && buf_write_all(buf, false) == OK
             {
                 return;
             }
 
             if empty_bufname {
-                (*buf).b_fname = ptr::null_mut();
-                (*buf).clear_fnames();
+                buf.b_fname = ptr::null_mut();
+                buf.clear_fnames();
             }
         } else if ret == VIM_NO {
-            unchanged(buf, true, false);
+            unchanged(&raw mut *buf, true, false);
         } else if ret == VIM_ALL {
             let mut buf2 = g_st().firstbuf;
             while !buf2.is_null() {
-                if bufIsChanged(buf2) && !(*buf2).b_ffname.is_null() && (*buf2).b_p_ro == 0 {
+                if bufIsChanged(&mut *buf2) && !(*buf2).b_ffname.is_null() && (*buf2).b_p_ro == 0 {
                     let mut bufref: bufref_T = bufref_T::new();
                     set_bufref(&raw mut bufref, buf2);
 
                     if !(*buf2).b_fname.is_null()
                         && check_overwrite(
                             &mut ea,
-                            buf2,
+                            &mut *buf2,
                             (*buf2).b_fname,
                             (*buf2).b_ffname,
                             false,
                         ) == OK
                     {
-                        buf_write_all(buf2, false);
+                        buf_write_all(&mut *buf2, false);
                     }
                     if !bufref_valid(&raw mut bufref) {
                         buf2 = g_st().firstbuf;
@@ -305,11 +305,11 @@ pub unsafe fn dialog_changed(buf: *mut buf_T, checkall: bool) {
 }
 
 /// Ask the user whether to close the terminal buffer or not (`dialog_close_terminal`).
-pub unsafe fn dialog_close_terminal(buf: *mut buf_T) -> bool {
+pub unsafe fn dialog_close_terminal(buf: &mut buf_T) -> bool {
     unsafe {
         let mut buff = [0 as c_char; DIALOG_MSG_SIZE];
-        let fname = if !(*buf).b_fname.is_null() {
-            (*buf).b_fname.cast_const()
+        let fname = if !buf.b_fname.is_null() {
+            buf.b_fname.cast_const()
         } else {
             c"?".as_ptr()
         };
@@ -324,11 +324,11 @@ pub unsafe fn dialog_close_terminal(buf: *mut buf_T) -> bool {
 }
 
 /// Return true if the buffer `buf` can be abandoned (`can_abandon`).
-pub unsafe fn can_abandon(buf: *mut buf_T, forceit: bool) -> bool {
+pub unsafe fn can_abandon(buf: &mut buf_T, forceit: bool) -> bool {
     unsafe {
         buf_hide(buf)
             || !bufIsChanged(buf)
-            || (*buf).b_nwindows > 1
+            || buf.b_nwindows > 1
             || autowrite(buf, forceit) == OK
             || forceit
     }
@@ -388,12 +388,12 @@ pub unsafe fn check_changed_any(hidden: bool, unload: bool) -> bool {
         let mut i: usize = 0;
         while i < bufnrs.len() {
             buf = buflist_findnr(bufnrs[i]);
-            if !buf.is_null() && (!hidden || (*buf).b_nwindows == 0) && bufIsChanged(buf) {
+            if !buf.is_null() && (!hidden || (*buf).b_nwindows == 0) && bufIsChanged(&mut *buf) {
                 let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&raw mut bufref, buf);
 
                 if check_changed(
-                    buf,
+                    &mut *buf,
                     (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 }) | CCGD_MULTWIN | CCGD_ALLBUF,
                 ) && bufref_valid(&raw mut bufref)
                 {
@@ -480,15 +480,15 @@ pub unsafe fn check_fname() -> c_int {
 }
 
 /// Flush the contents of a buffer, unless it has no file name (`buf_write_all`).
-pub unsafe fn buf_write_all(buf: *mut buf_T, forceit: bool) -> c_int {
+pub unsafe fn buf_write_all(buf: &mut buf_T, forceit: bool) -> c_int {
     unsafe {
         let old_curbuf = g_st().curbuf;
         let retval = buf_write(
-            buf,
-            (*buf).b_ffname,
-            (*buf).b_fname,
+            &raw mut *buf,
+            buf.b_ffname,
+            buf.b_fname,
             1,
-            (*buf).b_ml.ml_line_count,
+            buf.b_ml.ml_line_count,
             ptr::null_mut(),
             false,
             forceit,
@@ -548,9 +548,9 @@ pub unsafe fn ex_listdo(eap: &mut exarg_T) {
 
         if eap.cmdidx == CMD_windo
             || eap.cmdidx == CMD_tabdo
-            || buf_hide(g_st().curbuf)
+            || buf_hide(&*g_st().curbuf)
             || !check_changed(
-                g_st().curbuf,
+                &mut *g_st().curbuf,
                 CCGD_AW | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 }) | CCGD_EXCMD,
             )
         {
@@ -622,7 +622,7 @@ pub unsafe fn ex_listdo(eap: &mut exarg_T) {
                     if i == curwin_argcount() {
                         break;
                     }
-                    if (**curwin.as_ptr()).w_arg_idx != i || !editing_arg_idx(*curwin.as_ptr()) {
+                    if (**curwin.as_ptr()).w_arg_idx != i || !editing_arg_idx(&mut **curwin.as_ptr()) {
                         do_argfile(eap, i);
                     }
                     if (**curwin.as_ptr()).w_arg_idx != i {
@@ -826,7 +826,7 @@ pub unsafe fn ex_checktime(eap: &mut exarg_T) {
         } else {
             let buf = buflist_findnr(eap.line2 as c_int);
             if !buf.is_null() {
-                buf_check_timestamp(buf);
+                buf_check_timestamp(&mut *buf);
             }
         }
         g_st().no_check_timestamps = save_no_check_timestamps;
@@ -906,10 +906,10 @@ pub unsafe fn ex_drop(eap: &mut exarg_T) {
                 if (*wp).w_buffer == buf {
                     goto_tabpage_win(&mut *tp, wp);
                     (**curwin.as_ptr()).w_arg_idx = 0;
-                    if !bufIsChanged(g_st().curbuf) {
+                    if !bufIsChanged(&mut *g_st().curbuf) {
                         let save_ar = (*g_st().curbuf).b_p_ar;
                         (*g_st().curbuf).b_p_ar = 1;
-                        buf_check_timestamp(g_st().curbuf);
+                        buf_check_timestamp(&mut *g_st().curbuf);
                         (*g_st().curbuf).b_p_ar = save_ar;
                     }
                     if ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) != 0 {
@@ -934,9 +934,9 @@ pub unsafe fn ex_drop(eap: &mut exarg_T) {
             tp = (*tp).tp_next;
         }
 
-        if !buf_hide(g_st().curbuf) {
+        if !buf_hide(&*g_st().curbuf) {
             g_st().emsg_off += 1;
-            split = check_changed(g_st().curbuf, CCGD_AW | CCGD_EXCMD);
+            split = check_changed(&mut *g_st().curbuf, CCGD_AW | CCGD_EXCMD);
             g_st().emsg_off -= 1;
         }
 

@@ -1783,7 +1783,7 @@ pub unsafe fn validate_chars_option(args: &mut optset_T) -> *const c_char {
 
 /// The global 'listchars' or 'fillchars' option is changed.
 unsafe fn did_set_global_chars_option(
-    win: *mut win_T,
+    win: &mut win_T,
     val: *const c_char,
     what: CharsOption,
     opt_flags: c_int,
@@ -1791,13 +1791,13 @@ unsafe fn did_set_global_chars_option(
 ) -> *const c_char {
     unsafe {
         let local_ptr = if what == CharsOption::kListchars {
-            &raw mut (*win).w_onebuf_opt.wo_lcs
+            &raw mut win.w_onebuf_opt.wo_lcs
         } else {
-            &raw mut (*win).w_onebuf_opt.wo_fcs
+            &raw mut win.w_onebuf_opt.wo_fcs
         };
 
         let errmsg = set_chars_option(
-            win,
+            &raw mut *win,
             val,
             what,
             **local_ptr == NUL || (opt_flags & OPT_GLOBAL) == 0,
@@ -1847,7 +1847,7 @@ pub unsafe fn did_set_chars_option(args: &mut optset_T) -> *const c_char {
 
         if ptr::eq(varp, &raw mut opt_vars().p_lcs) {
             errmsg = did_set_global_chars_option(
-                win,
+                &mut *win,
                 *varp,
                 CharsOption::kListchars,
                 args.os_flags,
@@ -1855,7 +1855,7 @@ pub unsafe fn did_set_chars_option(args: &mut optset_T) -> *const c_char {
             );
         } else if ptr::eq(varp, &raw mut opt_vars().p_fcs) {
             errmsg = did_set_global_chars_option(
-                win,
+                &mut *win,
                 *varp,
                 CharsOption::kFillchars,
                 args.os_flags,
@@ -2273,7 +2273,7 @@ pub unsafe fn validate_encoding(args: &mut optset_T) -> *const c_char {
     unsafe {
         if args.os_idx == kOptFileencoding {
             let buf = args.os_buf;
-            if !modifiable(buf) && args.os_flags != OPT_GLOBAL {
+            if !modifiable(&*buf) && args.os_flags != OPT_GLOBAL {
                 return e_modifiable.as_ptr();
             }
 
@@ -2372,7 +2372,7 @@ pub unsafe fn expand_set_eventignore(
 pub unsafe fn validate_fileformat(args: &mut optset_T) -> *const c_char {
     unsafe {
         let buf = args.os_buf;
-        if (args.os_flags & OPT_GLOBAL) == 0 && !modifiable(buf) {
+        if (args.os_flags & OPT_GLOBAL) == 0 && !modifiable(&*buf) {
             return e_modifiable.as_ptr();
         }
         validate_str_generic(args)
@@ -2646,8 +2646,8 @@ pub unsafe fn did_set_keymap(args: &mut optset_T) -> *const c_char {
                 }
             }
             if (opt_flags & OPT_LOCAL) == 0 {
-                set_iminsert_global(buf);
-                set_imsearch_global(buf);
+                set_iminsert_global(&mut *buf);
+                set_imsearch_global(&mut *buf);
             }
             status_redraw_buf(buf);
         }

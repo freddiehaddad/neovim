@@ -416,7 +416,7 @@ unsafe fn get_fpos_of_mouse(mpos: &mut pos_T, wpp: *mut *mut win_T) -> c_int {
         let winrow = row;
         let wincol = col;
 
-        let below_buffer = mouse_comp_pos(wp, &raw mut row, &raw mut col, &raw mut mpos.lnum);
+        let below_buffer = mouse_comp_pos(&mut *wp, &raw mut row, &raw mut col, &raw mut mpos.lnum);
 
         if !below_buffer
             && *(*wp).w_onebuf_opt.wo_stc != NUL
@@ -453,7 +453,7 @@ unsafe fn get_fpos_of_mouse(mpos: &mut pos_T, wpp: *mut *mut win_T) -> c_int {
             return IN_UNKNOWN;
         }
 
-        mpos.col = vcol2col(wp, mpos.lnum, col, &raw mut mpos.coladd);
+        mpos.col = vcol2col(&mut *wp, mpos.lnum, col, &raw mut mpos.coladd);
         IN_BUFFER
     }
 }
@@ -1565,7 +1565,7 @@ pub unsafe fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button
                     win_enter(wp, true);
                 }
                 if *curwin.as_ptr() != old_curwin {
-                    set_mouse_topline(*curwin.as_ptr());
+                    set_mouse_topline(&mut **curwin.as_ptr());
                 }
                 if mouse_st().status_line_offset != 0 {
                     if *curwin.as_ptr() == old_curwin {
@@ -1586,14 +1586,14 @@ pub unsafe fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button
             if which_button == MOUSE_LEFT && !mouse_st().dragwin.is_null() {
                 let count =
                     row - (*mouse_st().dragwin).w_winrow - (*mouse_st().dragwin).w_height + 1 - mouse_st().status_line_offset;
-                win_drag_status_line(mouse_st().dragwin, count);
+                win_drag_status_line(&mut *mouse_st().dragwin, count);
                 mouse_st().did_drag |= count;
             }
             return IN_STATUS_LINE;
         } else if mouse_st().sep_line_offset != 0 && which_button == MOUSE_LEFT {
             if !mouse_st().dragwin.is_null() {
                 let count = col - (*mouse_st().dragwin).w_wincol - (*mouse_st().dragwin).w_width + 1 - mouse_st().sep_line_offset;
-                win_drag_vsep_line(mouse_st().dragwin, count);
+                win_drag_vsep_line(&mut *mouse_st().dragwin, count);
                 mouse_st().did_drag |= count;
             }
             return IN_SEP_LINE;
@@ -1696,7 +1696,7 @@ pub unsafe fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button
         mouse_check_grid(&raw mut col_from_screen, &raw mut mouse_fold_flags);
 
         if mouse_comp_pos(
-            *curwin.as_ptr(),
+            &mut **curwin.as_ptr(),
             &raw mut row,
             &raw mut col,
             &raw mut (**curwin.as_ptr()).w_cursor.lnum,
@@ -1806,7 +1806,7 @@ pub unsafe fn nv_mouse(cap: &mut cmdarg_T) {
 /// window "win".
 /// Returns true if the position is below the last line.
 pub unsafe fn mouse_comp_pos(
-    win: *mut win_T,
+    win: &mut win_T,
     rowp: *mut c_int,
     colp: *mut c_int,
     lnump: *mut linenr_T,
@@ -1816,27 +1816,27 @@ pub unsafe fn mouse_comp_pos(
         let mut row = *rowp;
         let mut retval = false;
 
-        if (*win).w_onebuf_opt.wo_rl != 0 {
-            col = (*win).w_view_width - 1 - col;
+        if win.w_onebuf_opt.wo_rl != 0 {
+            col = win.w_view_width - 1 - col;
         }
 
-        let mut lnum = (*win).w_topline;
+        let mut lnum = win.w_topline;
 
         while row > 0 {
-            let filler_lines = if lnum == (*win).w_topline {
-                (*win).w_topfill
+            let filler_lines = if lnum == win.w_topline {
+                win.w_topfill
             } else {
-                win_get_fill(win, lnum)
+                win_get_fill(&raw mut *win, lnum)
             };
-            let mut count = plines_win_nofill(win, lnum, false);
+            let mut count = plines_win_nofill(&raw mut *win, lnum, false);
 
-            if (*win).w_skipcol > 0 && lnum == (*win).w_topline {
-                let width1 = (*win).w_view_width - win_col_off(win);
+            if win.w_skipcol > 0 && lnum == win.w_topline {
+                let width1 = win.w_view_width - win_col_off(&raw mut *win);
 
                 if width1 > 0 {
-                    let skip_lines = if (*win).w_skipcol > width1 {
-                        ((*win).w_skipcol - width1) / (width1 + win_col_off2(win)) + 1
-                    } else if (*win).w_skipcol > 0 {
+                    let skip_lines = if win.w_skipcol > width1 {
+                        (win.w_skipcol - width1) / (width1 + win_col_off2(&raw mut *win)) + 1
+                    } else if win.w_skipcol > 0 {
                         1
                     } else {
                         0
@@ -1850,9 +1850,9 @@ pub unsafe fn mouse_comp_pos(
                 break;
             }
 
-            hasFolding(win, lnum, ptr::null_mut(), &raw mut lnum);
+            hasFolding(&raw mut *win, lnum, ptr::null_mut(), &raw mut lnum);
 
-            if lnum == (*(*win).w_buffer).b_ml.ml_line_count {
+            if lnum == (*win.w_buffer).b_ml.ml_line_count {
                 retval = true;
                 break;
             }
@@ -1862,16 +1862,16 @@ pub unsafe fn mouse_comp_pos(
 
         let mut virt_below: c_int = 0;
         let virt_lines = decor_virt_lines(
-            win,
+            &raw mut *win,
             lnum - 1,
             lnum,
             &raw mut virt_below,
             ptr::null_mut(),
             true,
         );
-        let diff_fill = diff_check_fill(win, lnum);
-        let skip_fill = if lnum == (*win).w_topline {
-            virt_lines + diff_fill - (*win).w_topfill
+        let diff_fill = diff_check_fill(&raw mut *win, lnum);
+        let skip_fill = if lnum == win.w_topline {
+            virt_lines + diff_fill - win.w_topfill
         } else {
             0
         };
@@ -1881,14 +1881,14 @@ pub unsafe fn mouse_comp_pos(
             lnum -= 1;
             let mut virt_below_prev: c_int = 0;
             let virt_lines_prev = decor_virt_lines(
-                win,
+                &raw mut *win,
                 lnum - 1,
                 lnum,
                 &raw mut virt_below_prev,
                 ptr::null_mut(),
                 true,
             );
-            let diff_fill_prev = diff_check_fill(win, lnum - 1);
+            let diff_fill_prev = diff_check_fill(&raw mut *win, lnum - 1);
             virtnum = -row - 1 - virt_lines_prev - diff_fill_prev + virt_below_prev;
         } else if row < virt_lines + diff_fill - skip_fill {
             virtnum = -row;
@@ -1898,28 +1898,28 @@ pub unsafe fn mouse_comp_pos(
 
         row -= virt_lines + diff_fill - skip_fill;
 
-        while lnum < (*(*win).w_buffer).b_ml.ml_line_count
-            && decor_conceal_line(win, lnum - 1, false)
+        while lnum < (*win.w_buffer).b_ml.ml_line_count
+            && decor_conceal_line(&raw mut *win, lnum - 1, false)
         {
             lnum += 1;
-            hasFolding(win, lnum, ptr::null_mut(), &raw mut lnum);
+            hasFolding(&raw mut *win, lnum, ptr::null_mut(), &raw mut lnum);
         }
 
         if !retval {
-            let off = win_col_off(win) - win_col_off2(win);
+            let off = win_col_off(&raw mut *win) - win_col_off2(&raw mut *win);
             col = col.max(off);
-            col += row * ((*win).w_view_width - off);
+            col += row * (win.w_view_width - off);
 
-            if lnum == (*win).w_topline {
-                col += (*win).w_skipcol;
+            if lnum == win.w_topline {
+                col += win.w_skipcol;
             }
         }
 
-        if (*win).w_onebuf_opt.wo_wrap == 0 {
-            col += (*win).w_leftcol;
+        if win.w_onebuf_opt.wo_wrap == 0 {
+            col += win.w_leftcol;
         }
 
-        col -= win_col_off(win);
+        col -= win_col_off(&raw mut *win);
         col = col.max(0);
 
         *colp = col;
@@ -2045,15 +2045,15 @@ unsafe fn mouse_find_grid_win(gridp: *mut c_int, rowp: *mut c_int, colp: *mut c_
 /// Convert a virtual (screen) column to a character column.
 /// The first column is zero.
 pub unsafe fn vcol2col(
-    wp: *mut win_T,
+    wp: &mut win_T,
     lnum: linenr_T,
     vcol: colnr_T,
     coladdp: *mut colnr_T,
 ) -> colnr_T {
     unsafe {
-        let line = ml_get_buf((*wp).w_buffer, lnum);
+        let line = ml_get_buf(wp.w_buffer, lnum);
         let mut csarg = CharsizeArg::new();
-        let cstype: CSType = init_charsize_arg(&raw mut csarg, wp, lnum, line);
+        let cstype: CSType = init_charsize_arg(&raw mut csarg, &raw mut *wp, lnum, line);
         let mut ci = utf_ptr2StrCharInfo(line);
         let mut cur_vcol: c_int = 0;
         while cur_vcol < vcol && *ci.ptr != NUL {
@@ -2090,10 +2090,10 @@ pub unsafe fn setmouse() {
     }
 }
 
-unsafe fn set_mouse_topline(wp: *mut win_T) {
+unsafe fn set_mouse_topline(wp: &mut win_T) {
     unsafe {
-        mouse_st().orig_topline = (*wp).w_topline;
-        mouse_st().orig_topfill = (*wp).w_topfill;
+        mouse_st().orig_topline = wp.w_topline;
+        mouse_st().orig_topfill = wp.w_topfill;
     }
 }
 
@@ -2104,7 +2104,7 @@ unsafe fn scroll_line_len(lnum: linenr_T) -> colnr_T {
         let mut line = ml_get(lnum);
         if *line != NUL {
             loop {
-                let numchar = win_chartabsize(*curwin.as_ptr(), line, col);
+                let numchar = win_chartabsize(&mut **curwin.as_ptr(), line, col);
                 line = line.add(utfc_ptr2len(line) as usize);
                 if *line == NUL {
                     break;
@@ -2228,8 +2228,8 @@ pub unsafe fn f_getmousepos(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr
                 winrow = varnumber_T::from(row + 1 + (*wp).w_winrow_off);
                 wincol = varnumber_T::from(col + 1 + (*wp).w_wincol_off);
                 if row >= 0 && row < (*wp).w_height && col >= 0 && col < (*wp).w_width {
-                    mouse_comp_pos(wp, &raw mut row, &raw mut col, &raw mut lnum);
-                    col = vcol2col(wp, lnum, col, &raw mut coladd);
+                    mouse_comp_pos(&mut *wp, &raw mut row, &raw mut col, &raw mut lnum);
+                    col = vcol2col(&mut *wp, lnum, col, &raw mut coladd);
                     column = varnumber_T::from(col) + 1;
                 }
             }

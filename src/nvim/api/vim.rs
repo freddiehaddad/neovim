@@ -1604,7 +1604,7 @@ pub unsafe extern "C" fn nvim_create_buf(
                 unblock_autocmds();
                 break 'create;
             }
-            if ml_open(buf) == FAIL {
+            if ml_open(&mut *buf) == FAIL {
                 unblock_autocmds();
                 break 'create;
             }
@@ -1762,8 +1762,8 @@ pub unsafe extern "C" fn nvim_open_term(
         }
 
         channel_incref(chan);
-        (*tail).term = terminal_alloc(b, topts);
-        terminal_open((&raw mut (*tail).term).cast(), b);
+        (*tail).term = terminal_alloc(&mut *b, topts);
+        terminal_open((&raw mut (*tail).term).cast(), &mut *b);
         if !(*tail).term.is_null() {
             terminal_check_size(&mut *(*tail).term.cast());
         }
@@ -3103,7 +3103,7 @@ pub unsafe extern "C" fn nvim_eval_statusline(
             );
 
             statuscol.foldinfo = fold_info(wp, lnum);
-            win_update_cursorline(wp, &mut cursorline_fi);
+            win_update_cursorline(&mut *wp, &mut cursorline_fi);
             let use_cul = use_cursor_line_highlight(wp, lnum);
             statuscol.sign_cul_id = if use_cul { cul_id } else { 0 };
             scl_hl_id = if use_cul { HLF_CLS } else { HLF_SC };
@@ -3307,29 +3307,29 @@ pub unsafe extern "C" fn nvim__complete_set(
     }
 }
 
-unsafe fn redraw_status(wp: *mut win_T, opts: *mut KeyDict_redraw, flush: *mut bool) {
+unsafe fn redraw_status(wp: &mut win_T, opts: *mut KeyDict_redraw, flush: *mut bool) {
     unsafe {
-        if (*opts).statuscolumn && *(*wp).w_onebuf_opt.wo_stc != NUL {
-            (*wp).w_nrwidth_line_count = 0;
-            changed_window_setting(wp);
+        if (*opts).statuscolumn && *wp.w_onebuf_opt.wo_stc != NUL {
+            wp.w_nrwidth_line_count = 0;
+            changed_window_setting(&raw mut *wp);
         }
 
-        let old_row_offset = (*wp).w_grid.row_offset;
-        win_grid_alloc(wp);
+        let old_row_offset = wp.w_grid.row_offset;
+        win_grid_alloc(&raw mut *wp);
 
-        if (*wp).w_lines_valid == 0 || (*wp).w_grid.row_offset != old_row_offset {
+        if wp.w_lines_valid == 0 || wp.w_grid.row_offset != old_row_offset {
             *flush = true;
         }
 
         if *flush && ((*opts).statusline || (*opts).winbar) {
-            (*wp).w_redr_status = true;
+            wp.w_redr_status = true;
         } else if (*opts).statusline || (*opts).winbar {
-            win_check_ns_hl(wp);
+            win_check_ns_hl(&raw mut *wp);
             if (*opts).winbar {
-                win_redr_winbar(wp);
+                win_redr_winbar(&raw mut *wp);
             }
             if (*opts).statusline {
-                win_redr_status(wp);
+                win_redr_status(&raw mut *wp);
             }
             win_check_ns_hl(ptr::null_mut());
         }
@@ -3481,12 +3481,12 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: &mut Error
                 let mut wp = g_st().firstwin;
                 while !wp.is_null() {
                     if buf.is_null() || (*wp).w_buffer == buf {
-                        redraw_status(wp, opts, &raw mut (*opts).flush);
+                        redraw_status(&mut *wp, opts, &raw mut (*opts).flush);
                     }
                     wp = (*wp).w_next;
                 }
             } else {
-                redraw_status(win, opts, &raw mut (*opts).flush);
+                redraw_status(&mut *win, opts, &raw mut (*opts).flush);
             }
             flush_ui = true;
         }
@@ -3503,7 +3503,7 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: &mut Error
         }
 
         if (*opts).cursor {
-            setcursor_mayforce(cwin, true);
+            setcursor_mayforce(&mut *cwin, true);
             flush_ui = true;
         }
 

@@ -1068,10 +1068,10 @@ pub unsafe fn spell_valid_case(wordflags: c_int, treeflags: c_int) -> bool {
         || ((treeflags & (WF_ALLCAP | WF_KEEPCAP)) == 0
             && ((treeflags & WF_ONECAP) == 0 || (wordflags & WF_ONECAP) != 0))
 }
-pub unsafe fn spell_check_window(wp: *mut win_T) -> bool {
+pub unsafe fn spell_check_window(wp: &mut win_T) -> bool {
     unsafe {
-        let w_s = (*wp).w_s_ptr();
-        (*wp).w_onebuf_opt.wo_spell != 0
+        let w_s = wp.w_s_ptr();
+        wp.w_onebuf_opt.wo_spell != 0
             && *(*w_s).b_p_spl != NUL
             && !(*w_s).b_langp.is_empty()
             && !(&(*w_s).b_langp)[0].lp_slang.is_null()
@@ -1159,7 +1159,7 @@ pub unsafe fn spell_move_to(
                     capcol = getwhitecols(line) as colnr_T;
                 } else if curline && wp == *curwin.as_ptr() {
                     let col = getwhitecols(line) as colnr_T;
-                    if check_need_cap(*curwin.as_ptr(), lnum, col) {
+                    if check_need_cap(&mut **curwin.as_ptr(), lnum, col) {
                         capcol = col;
                     }
                     line = ml_get_buf((*wp).w_buffer, lnum);
@@ -2058,7 +2058,7 @@ pub unsafe fn open_spellbuf() -> Box<buf_T> {
         let mut buf = Box::new(buf_T::new());
         buf.b_spell = true;
         buf.b_p_swf = 1;
-        if ml_open(&raw mut *buf) == FAIL {
+        if ml_open(&mut *buf) == FAIL {
             let _ = logmsg!(
                 3,
                 std::ptr::null(),
@@ -2162,9 +2162,9 @@ unsafe fn spell_mb_isword_class(cl: c_int, wp: *const win_T) -> bool {
         cl >= 2 && cl != 0x2070 && cl != 0x2080 && cl != 3
     }
 }
-unsafe fn spell_iswordp_w(p: *const c_int, wp: *const win_T) -> bool {
+unsafe fn spell_iswordp_w(p: *const c_int, wp: &win_T) -> bool {
     unsafe {
-        let w_s = (*wp).w_s_ptr();
+        let w_s = wp.w_s_ptr();
         let s = if if *p < 256 && *p >= 0 {
             (*w_s).b_spell_ismw[*p as usize]
         } else {
@@ -2178,7 +2178,7 @@ unsafe fn spell_iswordp_w(p: *const c_int, wp: *const win_T) -> bool {
             p
         };
         if *s > 255 {
-            return spell_mb_isword_class(utf_class(*s), wp);
+            return spell_mb_isword_class(utf_class(*s), &raw const *wp);
         }
         *s >= 0 && spell_priv_st().spelltab.st_isw[*s as usize]
     }
@@ -2219,15 +2219,15 @@ pub unsafe fn spell_casefold(
         OK
     }
 }
-pub unsafe fn check_need_cap(wp: *mut win_T, lnum: linenr_T, col: colnr_T) -> bool {
+pub unsafe fn check_need_cap(wp: &mut win_T, lnum: linenr_T, col: colnr_T) -> bool {
     unsafe {
-        let w_s = (*wp).w_s_ptr();
+        let w_s = wp.w_s_ptr();
         if (*w_s).b_cap_prog.is_none() {
             return false;
         }
         let mut need_cap = false;
         let mut line: *mut c_char = if col != 0 {
-            ml_get_buf((*wp).w_buffer, lnum)
+            ml_get_buf(wp.w_buffer, lnum)
         } else {
             ptr::null_mut()
         };
@@ -2237,7 +2237,7 @@ pub unsafe fn check_need_cap(wp: *mut win_T, lnum: linenr_T, col: colnr_T) -> bo
             if lnum == 1 {
                 need_cap = true;
             } else {
-                line = ml_get_buf((*wp).w_buffer, lnum - 1);
+                line = ml_get_buf(wp.w_buffer, lnum - 1);
                 if *skipwhite(line) == NUL {
                     need_cap = true;
                 } else {
@@ -2258,7 +2258,7 @@ pub unsafe fn check_need_cap(wp: *mut win_T, lnum: linenr_T, col: colnr_T) -> bo
             let mut p = line.add(endcol as usize);
             loop {
                 mb_ptr_back(line, &mut p);
-                if p == line || spell_iswordp_nmw(p, wp) {
+                if p == line || spell_iswordp_nmw(p, &raw mut *wp) {
                     break;
                 }
                 if vim_regexec(&mut regmatch, p, 0)
@@ -2591,13 +2591,13 @@ unsafe fn spell_soundfold_wsal(slang: &mut slang_T, inword: *const c_char, res: 
                         || (*sr == b'^' as c_char
                             && (i == 0
                                 || !(word[i - 1] == b' ' as c_int
-                                    || spell_iswordp_w(word_ptr.add(i - 1), *curwin.as_ptr())))
+                                    || spell_iswordp_w(word_ptr.add(i - 1), &**curwin.as_ptr())))
                             && (*sr.add(1) != b'$' as c_char
-                                || !spell_iswordp_w(word_ptr.add(i + k0), *curwin.as_ptr())))
+                                || !spell_iswordp_w(word_ptr.add(i + k0), &**curwin.as_ptr())))
                         || (*sr == b'$' as c_char
                             && i > 0
-                            && spell_iswordp_w(word_ptr.add(i - 1), *curwin.as_ptr())
-                            && !spell_iswordp_w(word_ptr.add(i + k0), *curwin.as_ptr()))
+                            && spell_iswordp_w(word_ptr.add(i - 1), &**curwin.as_ptr())
+                            && !spell_iswordp_w(word_ptr.add(i + k0), &**curwin.as_ptr()))
                     {
                         let c0 = word[i + k - 1];
                         let mut n0 = slang.sl_sal_first[(c0 & 0xff) as usize];
@@ -2668,7 +2668,7 @@ unsafe fn spell_soundfold_wsal(slang: &mut slang_T, inword: *const c_char, res: 
                                 }
                                 if *sr == NUL
                                     || (*sr == b'$' as c_char
-                                        && !spell_iswordp_w(word_ptr.add(i + k0), *curwin.as_ptr()))
+                                        && !spell_iswordp_w(word_ptr.add(i + k0), &**curwin.as_ptr()))
                                 {
                                     if k0 == k {
                                         n0 += 1;
@@ -2826,7 +2826,7 @@ pub unsafe fn ex_spelldump(eap: &mut exarg_T) {
         set_option_value_give_err(kOptSpell, boolean_obj(true), OPT_LOCAL);
         set_option_value_give_err(kOptSpelllang, spl, OPT_LOCAL);
         optval_free(spl);
-        if !buf_is_empty(g_st().curbuf) {
+        if !buf_is_empty(&mut *g_st().curbuf) {
             return;
         }
         spell_dump_compl(
@@ -3252,7 +3252,7 @@ pub unsafe fn spell_word_start(startcol: c_int) -> c_int {
 }
 pub unsafe fn spell_expand_check_cap(col: colnr_T) {
     unsafe {
-        spell_priv_st().spell_expand_need_cap = check_need_cap(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum, col);
+        spell_priv_st().spell_expand_need_cap = check_need_cap(&mut **curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum, col);
     }
 }
 pub unsafe fn expand_spelling(

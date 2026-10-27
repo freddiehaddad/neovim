@@ -225,43 +225,43 @@ pub unsafe fn changed_internal(buf: *mut buf_T) {
 
 /// Invalidate a window's `w_valid` flags and `w_lines[]` entries after changing lines.
 unsafe fn changed_lines_invalidate_win(
-    wp: *mut win_T,
+    wp: &mut win_T,
     lnum: linenr_T,
     col: colnr_T,
     mut lnume: linenr_T,
     xtra: linenr_T,
 ) {
     unsafe {
-        if (*wp).w_cursor.lnum <= lnum {
-            let i = find_wl_entry(wp, lnum);
-            if i >= 0 && (*wp).w_cursor.lnum > (&(*wp).w_lines)[i as usize].wl_lnum {
-                changed_line_abv_curs_win(wp);
+        if wp.w_cursor.lnum <= lnum {
+            let i = find_wl_entry(&raw mut *wp, lnum);
+            if i >= 0 && wp.w_cursor.lnum > (&wp.w_lines)[i as usize].wl_lnum {
+                changed_line_abv_curs_win(&raw mut *wp);
             }
         }
 
-        if (*wp).w_cursor.lnum > lnum {
-            changed_line_abv_curs_win(wp);
-        } else if (*wp).w_cursor.lnum == lnum && (*wp).w_cursor.col >= col {
+        if wp.w_cursor.lnum > lnum {
+            changed_line_abv_curs_win(&raw mut *wp);
+        } else if wp.w_cursor.lnum == lnum && wp.w_cursor.col >= col {
             changed_cline_bef_curs(wp);
         }
-        if (*wp).w_botline >= lnum {
+        if wp.w_botline >= lnum {
             if xtra < 0 {
-                invalidate_botline_win(wp);
+                invalidate_botline_win(&raw mut *wp);
             } else {
                 approximate_botline_win(wp);
             }
         }
 
         if (xtra < 0
-            && (*wp).w_onebuf_opt.wo_wrap != 0
-            && buf_meta_total((*wp).w_buffer, kMTMetaInline) != 0)
-            || (xtra != 0 && buf_meta_total((*wp).w_buffer, kMTMetaLines) != 0)
+            && wp.w_onebuf_opt.wo_wrap != 0
+            && buf_meta_total(wp.w_buffer, kMTMetaInline) != 0)
+            || (xtra != 0 && buf_meta_total(wp.w_buffer, kMTMetaLines) != 0)
         {
             lnume += 1;
         }
 
-        let valid_len = (*wp).w_lines_valid.max(0) as usize;
-        for (i, wl) in (&mut (*wp).w_lines)[..valid_len].iter_mut().enumerate() {
+        let valid_len = wp.w_lines_valid.max(0) as usize;
+        for (i, wl) in (&mut wp.w_lines)[..valid_len].iter_mut().enumerate() {
             if wl.wl_valid {
                 if wl.wl_lnum >= lnum {
                     if i == 0 || wl.wl_lnum < lnume {
@@ -290,7 +290,7 @@ pub unsafe fn changed_lines_invalidate_buf(
     unsafe {
         for_all_tab_windows(|wp| {
             if (*wp).w_buffer == buf {
-                changed_lines_invalidate_win(wp, lnum, col, lnume, xtra);
+                changed_lines_invalidate_win(&mut *wp, lnum, col, lnume, xtra);
             }
         });
     }
@@ -442,7 +442,7 @@ unsafe fn changed_common(
                     (*wp).w_cline_folded = folded;
                 }
 
-                changed_lines_invalidate_win(wp, lnum, col, lnume, xtra);
+                changed_lines_invalidate_win(&mut *wp, lnum, col, lnume, xtra);
 
                 if hasAnyFolding(wp) != 0 {
                     set_topline(wp, (*wp).w_topline);
@@ -483,7 +483,7 @@ pub unsafe fn changed_bytes(lnum: linenr_T, col: colnr_T) {
     unsafe {
         changed_lines_redraw_buf(g_st().curbuf, lnum, lnum + 1, 0);
         changed_common(g_st().curbuf, lnum, col, lnum + 1, 0);
-        if spell_check_window(*curwin.as_ptr())
+        if spell_check_window(&mut **curwin.as_ptr())
             && lnum < (*g_st().curbuf).b_ml.ml_line_count
             && vim_strchr(opt_vars().p_cpo, kCpoDollar).is_null()
         {
@@ -776,9 +776,9 @@ pub unsafe fn ins_char_bytes(buf: *mut c_char, charlen: usize) {
                     ptr::null_mut(),
                     0,
                 );
-                let new_vcol = vcol + win_chartabsize(*curwin.as_ptr(), buf, vcol);
+                let new_vcol = vcol + win_chartabsize(&mut **curwin.as_ptr(), buf, vcol);
                 while *oldp.add(col + oldlen) != NUL && vcol < new_vcol {
-                    vcol += win_chartabsize(*curwin.as_ptr(), oldp.add(col + oldlen), vcol);
+                    vcol += win_chartabsize(&mut **curwin.as_ptr(), oldp.add(col + oldlen), vcol);
                     if vcol > new_vcol && *oldp.add(col + oldlen) == TAB {
                         break;
                     }
@@ -1048,7 +1048,7 @@ pub unsafe fn open_line(
             *p_extra = NUL;
         }
 
-        u_clearline(g_st().curbuf);
+        u_clearline(&mut *g_st().curbuf);
         g_st().Ins.did_si = false;
         g_st().Ins.ai_col = 0;
 

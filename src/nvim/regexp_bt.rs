@@ -2742,7 +2742,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                                 0
                             };
                             let fm =
-                                mark_get(re_st().rex.reg_buf, *curwin.as_ptr(), ptr::null_mut(), kMarkBufLocal, mark);
+                                mark_get(&mut *re_st().rex.reg_buf, *curwin.as_ptr(), ptr::null_mut(), kMarkBufLocal, mark);
                             if REG_MULTI() {
                                 re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
                                 re_st().rex.input = re_st().rex.line.add(col);

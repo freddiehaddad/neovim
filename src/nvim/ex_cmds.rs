@@ -1309,7 +1309,7 @@ pub unsafe fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> c
         }
 
         extmark_move_region(
-            g_st().curbuf,
+            &mut *g_st().curbuf,
             line1 - 1,
             0,
             start_byte,
@@ -1381,7 +1381,7 @@ pub unsafe fn ex_copy(mut line1: linenr_T, mut line2: linenr_T, n: linenr_T) {
 
         appended_lines_mark(n, count);
         if g_st().Visual.active {
-            check_pos(g_st().curbuf, &mut g_st().Visual.start);
+            check_pos(&mut *g_st().curbuf, &mut g_st().Visual.start);
         }
 
         msgmore(count);
@@ -1824,7 +1824,7 @@ pub unsafe fn do_shell(cmd: *mut c_char, flags: c_int) {
         if opt_vars().p_warn != 0 && !g_st().autocmd_busy && g_st().msg_silent == 0 {
             let mut buf = g_st().firstbuf;
             while !buf.is_null() {
-                if bufIsChanged(buf) {
+                if bufIsChanged(&mut *buf) {
                     msg_puts(gettext(c"[No write since last change]\n".as_ptr()));
                     break;
                 }
@@ -2241,7 +2241,7 @@ pub unsafe fn do_write(eap: &mut exarg_T) -> c_int {
                 if check_writable((*g_st().curbuf).b_ffname) == FAIL {
                     break 'theend;
                 }
-                if check_readonly(&raw mut eap.forceit, g_st().curbuf) {
+                if check_readonly(&raw mut eap.forceit, &mut *g_st().curbuf) {
                     break 'theend;
                 }
             }
@@ -2272,7 +2272,7 @@ pub unsafe fn do_write(eap: &mut exarg_T) -> c_int {
                 }
             }
 
-            if check_overwrite(eap, g_st().curbuf, fname, ffname, other) == OK {
+            if check_overwrite(eap, &mut *g_st().curbuf, fname, ffname, other) == OK {
                 if eap.cmdidx == cmdidx_T::CMD_saveas as c_int && !alt_buf.is_null() {
                     let was_curbuf = g_st().curbuf;
 
@@ -2378,18 +2378,18 @@ pub unsafe fn do_write(eap: &mut exarg_T) -> c_int {
 /// Check if it is allowed to overwrite a file.
 pub unsafe fn check_overwrite(
     eap: &mut exarg_T,
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     fname: *mut c_char,
     ffname: *mut c_char,
     other: bool,
 ) -> c_int {
     unsafe {
         if (other
-            || (!bt_nofilename(buf)
-                && (((*buf).b_flags & BF_NOTEDITED) != 0
-                    || (((*buf).b_flags & BF_NEW) != 0
+            || (!bt_nofilename(&raw mut *buf)
+                && ((buf.b_flags & BF_NOTEDITED) != 0
+                    || ((buf.b_flags & BF_NEW) != 0
                         && vim_strchr(opt_vars().p_cpo, kCpoOvernew).is_null())
-                    || ((*buf).b_flags & BF_READERR) != 0)))
+                    || (buf.b_flags & BF_READERR) != 0)))
             && opt_vars().p_wa == 0
             && os_path_exists(ffname)
         {
@@ -2497,11 +2497,11 @@ pub unsafe fn do_wqall(eap: &mut exarg_T) {
                 && !(*buf).terminal.is_null()
                 && channel_job_running((*buf).b_p_channel as u64)
             {
-                no_write_message_buf(buf);
+                no_write_message_buf(&mut *buf);
                 error += 1;
                 buf = (*buf).b_next;
                 continue;
-            } else if !bufIsChanged(buf) || bt_dontwrite(buf) {
+            } else if !bufIsChanged(&mut *buf) || bt_dontwrite(buf) {
                 buf = (*buf).b_next;
                 continue;
             }
@@ -2516,15 +2516,15 @@ pub unsafe fn do_wqall(eap: &mut exarg_T) {
                     (*buf).b_fnum as i64,
                 );
                 error += 1;
-            } else if check_readonly(&raw mut eap.forceit, buf)
-                || check_overwrite(eap, buf, (*buf).b_fname, (*buf).b_ffname, false) == FAIL
+            } else if check_readonly(&raw mut eap.forceit, &mut *buf)
+                || check_overwrite(eap, &mut *buf, (*buf).b_fname, (*buf).b_ffname, false) == FAIL
             {
                 error += 1;
             } else {
                 let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&raw mut bufref, buf);
                 if handle_mkdir_p_arg(eap, (*buf).b_fname) == FAIL
-                    || buf_write_all(buf, eap.forceit != 0) == FAIL
+                    || buf_write_all(&mut *buf, eap.forceit != 0) == FAIL
                 {
                     error += 1;
                 }
@@ -2563,22 +2563,22 @@ unsafe fn not_writing() -> bool {
 }
 
 /// Check if a buffer is read-only.
-unsafe fn check_readonly(forceit: *mut c_int, buf: *mut buf_T) -> bool {
+unsafe fn check_readonly(forceit: *mut c_int, buf: &mut buf_T) -> bool {
     unsafe {
         if *forceit == 0
-            && ((*buf).b_p_ro != 0
-                || (os_path_exists((*buf).b_ffname) && os_file_is_writable((*buf).b_ffname) == 0))
+            && (buf.b_p_ro != 0
+                || (os_path_exists(buf.b_ffname) && os_file_is_writable(buf.b_ffname) == 0))
         {
             if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
-                && !(*buf).b_fname.is_null()
+                && !buf.b_fname.is_null()
             {
                 let mut buff: [c_char; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
-                let fname = if !(*buf).b_fname.is_null() {
-                    (*buf).b_fname
+                let fname = if !buf.b_fname.is_null() {
+                    buf.b_fname
                 } else {
                     gettext(c"Untitled".as_ptr())
                 };
-                if (*buf).b_p_ro != 0 {
+                if buf.b_p_ro != 0 {
                     vim_snprintf!(
                         buff.as_mut_ptr(),
                         DIALOG_MSG_SIZE,
@@ -2606,12 +2606,12 @@ unsafe fn check_readonly(forceit: *mut c_int, buf: *mut buf_T) -> bool {
                     return false;
                 }
                 return true;
-            } else if (*buf).b_p_ro != 0 {
+            } else if buf.b_p_ro != 0 {
                 emsg(gettext(e_readonly.as_ptr()));
             } else {
                 semsg!(
                     gettext(c"E505: \"%s\" is read-only (add ! to override)".as_ptr()),
-                    (*buf).b_fname,
+                    buf.b_fname,
                 );
             }
             return true;
@@ -2662,12 +2662,12 @@ pub unsafe fn getfile(
             if other
                 && !forceit
                 && (*g_st().curbuf).b_nwindows == 1
-                && !buf_hide(g_st().curbuf)
+                && !buf_hide(&*g_st().curbuf)
                 && curbufIsChanged()
-                && autowrite(g_st().curbuf, forceit) == FAIL
+                && autowrite(&mut *g_st().curbuf, forceit) == FAIL
             {
                 if opt_vars().p_confirm != 0 && opt_vars().p_write != 0 {
-                    dialog_changed(g_st().curbuf, false);
+                    dialog_changed(&mut *g_st().curbuf, false);
                 }
                 if curbufIsChanged() {
                     g_st().no_wait_return -= 1;
@@ -2695,7 +2695,7 @@ pub unsafe fn getfile(
                 sfname,
                 ptr::null_mut(),
                 lnum,
-                (if buf_hide(g_st().curbuf) { ECMD_HIDE } else { 0 })
+                (if buf_hide(&*g_st().curbuf) { ECMD_HIDE } else { 0 })
                     + (if forceit { ECMD_FORCEIT } else { 0 }),
                 *curwin.as_ptr(),
             ) == OK
@@ -2812,7 +2812,7 @@ pub unsafe fn do_ecmd(
             }
 
             if !other_file && !(*g_st().curbuf).terminal.is_null() {
-                check_arg_idx(*curwin.as_ptr());
+                check_arg_idx(&mut **curwin.as_ptr());
                 maketitle();
                 retval = OK;
                 break 'theend;
@@ -2822,7 +2822,7 @@ pub unsafe fn do_ecmd(
                 || ((*g_st().curbuf).b_nwindows == 1
                     && (flags & (ECMD_HIDE | ECMD_ADDBUF | ECMD_ALTBUF)) == 0))
                 && check_changed(
-                    g_st().curbuf,
+                    &mut *g_st().curbuf,
                     (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 })
                         | (if other_file { 0 } else { CCGD_MULTWIN })
                         | (if (flags & ECMD_FORCEIT) != 0 {
@@ -2908,7 +2908,7 @@ pub unsafe fn do_ecmd(
                 } else {
                     oldbuf = true;
                     set_bufref(&raw mut bufref, buf);
-                    buf_check_timestamp(buf);
+                    buf_check_timestamp(&mut *buf);
                     if !bufref_valid(&raw mut bufref) || g_st().curbuf != old_curbuf.br_buf {
                         break 'theend;
                     }
@@ -3096,7 +3096,7 @@ pub unsafe fn do_ecmd(
                 (*g_st().curbuf).b_flags &= !BF_NOTEDITED;
             }
 
-            check_arg_idx(*curwin.as_ptr());
+            check_arg_idx(&mut **curwin.as_ptr());
 
             if !auto_buf {
                 curwin_init();
@@ -3158,7 +3158,7 @@ pub unsafe fn do_ecmd(
                         );
                     }
                 }
-                check_arg_idx(*curwin.as_ptr());
+                check_arg_idx(&mut **curwin.as_ptr());
 
                 if !equalpos((**curwin.as_ptr()).w_cursor, orig_pos) {
                     let text = get_cursor_line_ptr();
@@ -3178,7 +3178,7 @@ pub unsafe fn do_ecmd(
 
                 maketitle();
                 if retval != FAIL {
-                    win_float_update_preview(*curwin.as_ptr());
+                    win_float_update_preview(&mut **curwin.as_ptr());
                 }
             }
 
@@ -4080,7 +4080,7 @@ unsafe fn do_sub(
             return 0;
         }
 
-        if !excmds_st().subflags.do_count && !modifiable(g_st().curbuf) {
+        if !excmds_st().subflags.do_count && !modifiable(&*g_st().curbuf) {
             emsg(gettext(e_modifiable.as_ptr()));
             return 0;
         }
@@ -5110,7 +5110,7 @@ pub unsafe fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> boo
                     continue;
                 }
                 if use_previewpopup {
-                    win_float_anchor_preview(wp);
+                    win_float_anchor_preview(&mut *wp);
                 }
                 win_enter(wp, undo_sync);
                 return false;
@@ -5208,7 +5208,7 @@ unsafe fn show_sub(
                     col: m.end.col,
                 };
 
-                buf_ensure_loaded(cmdpreview_buf);
+                buf_ensure_loaded(&mut *cmdpreview_buf);
 
                 if m.pre_match == 0 {
                     next_linenr = m.start.lnum;

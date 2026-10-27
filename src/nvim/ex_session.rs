@@ -111,7 +111,7 @@ unsafe fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut win
             let mut n: c_int = 0;
             let mut wp = tab_firstwin;
             while !wp.is_null() {
-                if ses_do_win(wp) == 0 {
+                if ses_do_win(&mut *wp) == 0 {
                     wp = (*wp).w_next;
                     continue;
                 }
@@ -221,7 +221,7 @@ unsafe fn ses_skipframe(fr: &mut frame_T) -> *mut frame_T {
 unsafe fn ses_do_frame(fr: &frame_T) -> bool {
     unsafe {
         if fr.fr_layout == FR_LEAF {
-            return ses_do_win(fr.fr_win) != 0;
+            return ses_do_win(&mut *fr.fr_win) != 0;
         }
         let mut frc: *const frame_T = fr.fr_child;
         while !frc.is_null() {
@@ -234,12 +234,12 @@ unsafe fn ses_do_frame(fr: &frame_T) -> bool {
     }
 }
 
-unsafe fn ses_do_win(wp: *mut win_T) -> c_int {
+unsafe fn ses_do_win(wp: &mut win_T) -> c_int {
     unsafe {
-        if (*wp).w_floating {
+        if wp.w_floating {
             return 0;
         }
-        let buf = (*wp).w_buffer;
+        let buf = wp.w_buffer;
         if (*buf).b_fname.is_null() || ((*buf).terminal.is_null() && bt_nofilename(buf)) {
             return (opt_vars().ssop_flags & kOptSsopFlagBlank) as c_int;
         }
@@ -848,7 +848,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
 
             let mut wp = tab_firstwin;
             while !wp.is_null() {
-                if ses_do_win(wp) != 0
+                if ses_do_win(&mut *wp) != 0
                     && !(*(*wp).w_buffer).b_ffname.is_null()
                     && !bt_help((*wp).w_buffer)
                     && !bt_nofilename((*wp).w_buffer)
@@ -902,7 +902,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
             let mut restore_size = true;
             wp = tab_firstwin;
             while !wp.is_null() {
-                if ses_do_win(wp) != 0 {
+                if ses_do_win(&mut *wp) != 0 {
                     nr += 1;
                 } else if !(*wp).w_floating {
                     restore_size = false;
@@ -945,7 +945,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
 
             wp = tab_firstwin;
             while !wp.is_null() {
-                if ses_do_win(wp) == 0 {
+                if ses_do_win(&mut *wp) == 0 {
                     wp = (*wp).w_next;
                     continue;
                 }

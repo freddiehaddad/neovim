@@ -138,7 +138,7 @@ pub unsafe fn coladvance_force(wcol: colnr_T) -> c_int {
         if wcol == MAXCOL {
             (**curwin.as_ptr()).w_valid &= !VALID_VIRTCOL;
         } else {
-            set_valid_virtcol(*curwin.as_ptr(), wcol);
+            set_valid_virtcol(&mut **curwin.as_ptr(), wcol);
         }
         rc
     }
@@ -155,7 +155,7 @@ pub unsafe fn coladvance(wp: *mut win_T, wcol: colnr_T) -> c_int {
             .add((*wp).w_cursor.col as usize))
             != TAB
         {
-            set_valid_virtcol(*curwin.as_ptr(), wcol);
+            set_valid_virtcol(&mut **curwin.as_ptr(), wcol);
         }
         rc
     }
@@ -361,11 +361,11 @@ pub unsafe fn get_cursor_rel_lnum(wp: *mut win_T, lnum: linenr_T) -> linenr_T {
 }
 
 /// Make sure `pos.lnum` and `pos.col` are valid in `buf` (`check_pos`).
-pub unsafe fn check_pos(buf: *mut buf_T, pos: &mut pos_T) {
+pub unsafe fn check_pos(buf: &mut buf_T, pos: &mut pos_T) {
     unsafe {
-        pos.lnum = pos.lnum.min((*buf).b_ml.ml_line_count);
+        pos.lnum = pos.lnum.min(buf.b_ml.ml_line_count);
         if pos.col > 0 {
-            pos.col = pos.col.min(ml_get_buf_len(buf, pos.lnum));
+            pos.col = pos.col.min(ml_get_buf_len(&raw mut *buf, pos.lnum));
         }
     }
 }
@@ -489,7 +489,7 @@ pub unsafe fn set_leftcol(leftcol: colnr_T) -> bool {
         }
         (**curwin.as_ptr()).w_leftcol = leftcol;
 
-        changed_cline_bef_curs(*curwin.as_ptr());
+        changed_cline_bef_curs(&mut **curwin.as_ptr());
         let lastcol = i64::from((**curwin.as_ptr()).w_leftcol) + i64::from((**curwin.as_ptr()).w_view_width)
             - i64::from(win_col_off(*curwin.as_ptr()))
             - 1;
@@ -522,7 +522,7 @@ pub unsafe fn set_leftcol(leftcol: colnr_T) -> bool {
             retval = true;
             if coladvance(*curwin.as_ptr(), e + 1) == FAIL {
                 (**curwin.as_ptr()).w_leftcol = s;
-                changed_cline_bef_curs(*curwin.as_ptr());
+                changed_cline_bef_curs(&mut **curwin.as_ptr());
             }
         }
 

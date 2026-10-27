@@ -407,8 +407,8 @@ pub unsafe fn get_indent_lnum(lnum: linenr_T) -> c_int {
 }
 
 /// Count the size (in window cells) of the indent in line `lnum` of buffer `buf` (`get_indent_buf`).
-pub unsafe fn get_indent_buf(buf: *mut buf_T, lnum: linenr_T) -> c_int {
-    unsafe { indent_size_ts(ml_get_buf(buf, lnum), (*buf).b_p_ts, &(*buf).b_p_vts_array) }
+pub unsafe fn get_indent_buf(buf: &mut buf_T, lnum: linenr_T) -> c_int {
+    unsafe { indent_size_ts(ml_get_buf(&raw mut *buf, lnum), buf.b_p_ts, &buf.b_p_vts_array) }
 }
 
 /// Compute the size of the indent (in window cells) in line `ptr`, without tabstops (`indent_size_no_ts`).
@@ -794,20 +794,20 @@ pub unsafe fn briopt_check(wp: *mut win_T) {
 }
 
 /// Return appropriate space number for breakindent (`get_breakindent_win`).
-pub unsafe fn get_breakindent_win(wp: *mut win_T, line: *mut c_char) -> c_int {
+pub unsafe fn get_breakindent_win(wp: &mut win_T, line: *mut c_char) -> c_int {
     unsafe {
-        let eff_wwidth = (*wp).w_view_width - win_col_off(wp) + win_col_off2(wp);
-        let no_ts = (*wp).w_onebuf_opt.wo_list != 0 && (*wp).w_p_lcs_chars.tab1 == 0;
+        let eff_wwidth = wp.w_view_width - win_col_off(&raw mut *wp) + win_col_off2(&raw mut *wp);
+        let no_ts = wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.tab1 == 0;
 
-        let buf = (*wp).w_buffer;
+        let buf = wp.w_buffer;
         let prev_vts = &raw mut ind_st().PREV_VTS;
-        let flp_val = CStr::from_ptr(get_flp_value(buf));
+        let flp_val = CStr::from_ptr(get_flp_value(&mut *buf));
         let line_cstr = CStr::from_ptr(line);
         if ind_st().PREV_FNUM != (*buf).b_fnum
             || ind_st().PREV_TS != (*buf).b_p_ts
             || (*prev_vts).as_slice() != (*buf).b_p_vts_array.as_slice()
             || ind_st().PREV_TICK != buf_get_changedtick(buf)
-            || ind_st().PREV_LISTOPT != (*wp).w_briopt_list
+            || ind_st().PREV_LISTOPT != wp.w_briopt_list
             || ind_st().PREV_NO_TS != no_ts
             || ind_st().PREV_DY_UHEX != (opt_vars().dy_flags & kOptDyFlagUhex)
             || ind_st().PREV_FLP.as_deref() != Some(flp_val)
@@ -817,7 +817,7 @@ pub unsafe fn get_breakindent_win(wp: *mut win_T, line: *mut c_char) -> c_int {
             ind_st().PREV_LINE = Some(line_cstr.to_owned());
             ind_st().PREV_TS = (*buf).b_p_ts;
             (*prev_vts).clone_from(&(*buf).b_p_vts_array);
-            if (*wp).w_briopt_vcol == 0 {
+            if wp.w_briopt_vcol == 0 {
                 if no_ts {
                     ind_st().PREV_INDENT = indent_size_no_ts(line);
                 } else {
@@ -825,13 +825,13 @@ pub unsafe fn get_breakindent_win(wp: *mut win_T, line: *mut c_char) -> c_int {
                 }
             }
             ind_st().PREV_TICK = buf_get_changedtick(buf);
-            ind_st().PREV_LISTOPT = (*wp).w_briopt_list;
+            ind_st().PREV_LISTOPT = wp.w_briopt_list;
             ind_st().PREV_LIST = 0;
             ind_st().PREV_NO_TS = no_ts;
             ind_st().PREV_DY_UHEX = opt_vars().dy_flags & kOptDyFlagUhex;
             ind_st().PREV_FLP = Some(flp_val.to_owned());
 
-            if (*wp).w_briopt_list != 0 && (*wp).w_briopt_vcol == 0 {
+            if wp.w_briopt_list != 0 && wp.w_briopt_vcol == 0 {
                 let flp_ptr = (&raw const ind_st().PREV_FLP)
                     .as_ref()
                     .unwrap()
@@ -849,8 +849,8 @@ pub unsafe fn get_breakindent_win(wp: *mut win_T, line: *mut c_char) -> c_int {
                 if !regmatch.regprog.is_null() {
                     regmatch.rm_ic = false;
                     if vim_regexec(&mut regmatch, line, 0) {
-                        if (*wp).w_briopt_list > 0 {
-                            ind_st().PREV_LIST += (*wp).w_briopt_list;
+                        if wp.w_briopt_list > 0 {
+                            ind_st().PREV_LIST += wp.w_briopt_list;
                         } else {
                             let mut ptr_cur = regmatch.startp[0];
                             let end_ptr = regmatch.endp[0];
@@ -867,27 +867,27 @@ pub unsafe fn get_breakindent_win(wp: *mut win_T, line: *mut c_char) -> c_int {
             }
         }
 
-        let mut bri = if (*wp).w_briopt_vcol != 0 {
+        let mut bri = if wp.w_briopt_vcol != 0 {
             ind_st().PREV_LIST = 0;
-            (*wp).w_briopt_vcol
+            wp.w_briopt_vcol
         } else {
-            ind_st().PREV_INDENT + (*wp).w_briopt_shift
+            ind_st().PREV_INDENT + wp.w_briopt_shift
         };
 
-        bri += win_col_off2(wp);
+        bri += win_col_off2(&raw mut *wp);
 
-        if (*wp).w_briopt_list > 0 {
+        if wp.w_briopt_list > 0 {
             bri += ind_st().PREV_LIST;
         }
 
-        if (*wp).w_briopt_sbr {
-            bri -= vim_strsize(get_showbreak_value(wp));
+        if wp.w_briopt_sbr {
+            bri -= vim_strsize(get_showbreak_value(&raw mut *wp));
         }
 
         if bri < 0 {
             bri = 0;
-        } else if bri > eff_wwidth - (*wp).w_briopt_min {
-            bri = (eff_wwidth - (*wp).w_briopt_min).max(0);
+        } else if bri > eff_wwidth - wp.w_briopt_min {
+            bri = (eff_wwidth - wp.w_briopt_min).max(0);
         }
 
         bri
@@ -915,7 +915,7 @@ pub unsafe fn op_reindent(oap: &mut oparg_T, how: Indenter) {
         let mut last_changed: linenr_T = 0;
         let start_lnum = (**curwin.as_ptr()).w_cursor.lnum;
 
-        if !modifiable(g_st().curbuf) {
+        if !modifiable(&*g_st().curbuf) {
             emsg(gettext(e_modifiable.as_ptr()));
             return;
         }
@@ -1234,7 +1234,7 @@ pub unsafe fn change_indent(type_: c_int, amount: c_int, round: c_int, call_chan
         (**curwin.as_ptr()).w_onebuf_opt.wo_list = save_p_list;
         (**curwin.as_ptr()).w_cursor.col = new_cursor_col.max(0);
         (**curwin.as_ptr()).w_set_curswant = true;
-        changed_cline_bef_curs(*curwin.as_ptr());
+        changed_cline_bef_curs(&mut **curwin.as_ptr());
 
         if (g_st().State & MODE_INSERT) != 0 {
             if (**curwin.as_ptr()).w_cursor.lnum == g_st().Ins.start.lnum && g_st().Ins.start.col != 0 {
@@ -1552,7 +1552,7 @@ pub unsafe fn ex_retab(eap: &mut exarg_T) {
                     break;
                 }
                 vcol += i64::from(win_chartabsize(
-                    *curwin.as_ptr(),
+                    &mut **curwin.as_ptr(),
                     ptr.add(col as usize),
                     vcol as colnr_T,
                 ));
@@ -1577,7 +1577,7 @@ pub unsafe fn ex_retab(eap: &mut exarg_T) {
         }
 
         (**curwin.as_ptr()).w_onebuf_opt.wo_list = save_list;
-        u_clearline(g_st().curbuf);
+        u_clearline(&mut *g_st().curbuf);
 
         if let Some(ref ts_cstr) = new_ts_str {
             let win_handle: handle_T = (**curwin.as_ptr()).handle;

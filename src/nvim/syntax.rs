@@ -1171,14 +1171,14 @@ unsafe fn syn_stack_alloc() {
 }
 
 /// Check for changes in a buffer to affect stored syntax states.
-pub unsafe fn syn_stack_apply_changes(buf: *mut buf_T) {
+pub unsafe fn syn_stack_apply_changes(buf: &mut buf_T) {
     unsafe {
-        syn_stack_apply_changes_block(&raw mut (*buf).b_s, buf);
+        syn_stack_apply_changes_block(&raw mut buf.b_s, buf);
 
         if !g_st().curtab.is_null() {
             let mut wp = g_st().firstwin;
             while !wp.is_null() {
-                if (*wp).w_buffer == buf && win_s(wp) != &raw mut (*buf).b_s {
+                if (*wp).w_buffer == buf && win_s(wp) != &raw mut buf.b_s {
                     syn_stack_apply_changes_block(win_s(wp), buf);
                 }
                 wp = (*wp).w_next;
@@ -1187,14 +1187,14 @@ pub unsafe fn syn_stack_apply_changes(buf: *mut buf_T) {
     }
 }
 
-unsafe fn syn_stack_apply_changes_block(block: *mut synblock_T, buf: *mut buf_T) {
+unsafe fn syn_stack_apply_changes_block(block: *mut synblock_T, buf: &mut buf_T) {
     unsafe {
         let mut idx = 0;
         while idx < (*block).b_sst_array.len() {
             let p = &mut (*block).b_sst_array.as_mut_slice()[idx];
-            if p.sst_lnum + (*block).b_syn_sync_linebreaks > (*buf).b_mod_top {
-                let n = p.sst_lnum + (*buf).b_mod_xlines;
-                if n <= (*buf).b_mod_bot {
+            if p.sst_lnum + (*block).b_syn_sync_linebreaks > buf.b_mod_top {
+                let n = p.sst_lnum + buf.b_mod_xlines;
+                if n <= buf.b_mod_bot {
                     if (*block).b_sst_search == idx {
                         (*block).b_sst_search = 0;
                     } else if (*block).b_sst_search > idx {
@@ -1203,15 +1203,15 @@ unsafe fn syn_stack_apply_changes_block(block: *mut synblock_T, buf: *mut buf_T)
                     (*block).b_sst_array.remove(idx);
                     continue;
                 }
-                if p.sst_change_lnum != 0 && p.sst_change_lnum > (*buf).b_mod_top {
-                    if p.sst_change_lnum + (*buf).b_mod_xlines > (*buf).b_mod_top {
-                        p.sst_change_lnum += (*buf).b_mod_xlines;
+                if p.sst_change_lnum != 0 && p.sst_change_lnum > buf.b_mod_top {
+                    if p.sst_change_lnum + buf.b_mod_xlines > buf.b_mod_top {
+                        p.sst_change_lnum += buf.b_mod_xlines;
                     } else {
-                        p.sst_change_lnum = (*buf).b_mod_top;
+                        p.sst_change_lnum = buf.b_mod_top;
                     }
                 }
-                if p.sst_change_lnum == 0 || p.sst_change_lnum < (*buf).b_mod_bot {
-                    p.sst_change_lnum = (*buf).b_mod_bot;
+                if p.sst_change_lnum == 0 || p.sst_change_lnum < buf.b_mod_bot {
+                    p.sst_change_lnum = buf.b_mod_bot;
                 }
 
                 p.sst_lnum = n;
@@ -5371,19 +5371,19 @@ unsafe fn syn_cur_foldlevel() -> c_int {
     }
 }
 
-pub unsafe fn syn_get_foldlevel(wp: *mut win_T, lnum: linenr_T) -> c_int {
+pub unsafe fn syn_get_foldlevel(wp: &mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
         let mut level: c_int = 0;
 
-        if (*win_s(wp)).b_syn_folditems != 0
-            && !(*win_s(wp)).b_syn_error
-            && !(*win_s(wp)).b_syn_slow
+        if (*win_s(&raw mut *wp)).b_syn_folditems != 0
+            && !(*win_s(&raw mut *wp)).b_syn_error
+            && !(*win_s(&raw mut *wp)).b_syn_slow
         {
-            syntax_start(wp, lnum);
+            syntax_start(&raw mut *wp, lnum);
 
             level = syn_cur_foldlevel();
 
-            if (*win_s(wp)).b_syn_foldlevel == SYNFLD_MINIMUM {
+            if (*win_s(&raw mut *wp)).b_syn_foldlevel == SYNFLD_MINIMUM {
                 let mut cur_level = level;
                 let mut low_level = cur_level;
                 while !syn_st().current_finished {
@@ -5398,8 +5398,8 @@ pub unsafe fn syn_get_foldlevel(wp: *mut win_T, lnum: linenr_T) -> c_int {
                 }
             }
         }
-        if (level as i64) > (*wp).w_onebuf_opt.wo_fdn {
-            level = (*wp).w_onebuf_opt.wo_fdn as c_int;
+        if (level as i64) > wp.w_onebuf_opt.wo_fdn {
+            level = wp.w_onebuf_opt.wo_fdn as c_int;
             if level < 0 {
                 level = 0;
             }

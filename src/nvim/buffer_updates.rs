@@ -44,39 +44,39 @@ unsafe fn textlock_wrap<F: FnOnce()>(f: F) {
 }
 
 pub unsafe fn buf_updates_register(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     channel_id: u64,
     cb: BufUpdateCallbacks,
     send_buffer: bool,
 ) -> bool {
     unsafe {
-        if (*buf).b_ml.ml_mfp.is_none() {
+        if buf.b_ml.ml_mfp.is_none() {
             return false;
         }
 
         if channel_id == LUA_INTERNAL_CALL {
             let utf_sizes = cb.utf_sizes;
-            (*buf).update_callbacks.push(cb);
+            buf.update_callbacks.push(cb);
             if utf_sizes {
-                (*buf).update_need_codepoints = true;
+                buf.update_need_codepoints = true;
             }
             return true;
         }
 
-        if (*buf).update_channels.contains(&channel_id) {
+        if buf.update_channels.contains(&channel_id) {
             return true;
         }
 
-        (*buf).update_channels.push(channel_id);
+        buf.update_channels.push(channel_id);
 
         if send_buffer {
-            let line_count = (*buf).b_ml.ml_line_count as usize;
+            let line_count = buf.b_ml.ml_line_count as usize;
             let mut linedata = Array::new();
             let mut arena = ARENA_EMPTY;
             if line_count > 0 {
                 linedata = arena_array(&mut arena, line_count);
                 buf_collect_lines(
-                    buf,
+                    &raw mut *buf,
                     line_count,
                     1,
                     0,
@@ -88,8 +88,8 @@ pub unsafe fn buf_updates_register(
             }
 
             let mut items = [
-                buffer_obj((*buf).b_fnum),
-                integer_obj(buf_get_changedtick(buf)),
+                buffer_obj(buf.b_fnum),
+                integer_obj(buf_get_changedtick(&raw mut *buf)),
                 integer_obj(0),
                 integer_obj(-1),
                 array_obj(linedata),
@@ -400,20 +400,21 @@ pub unsafe fn buf_updates_send_splice(
     }
 }
 
-pub unsafe fn buf_updates_changedtick(buf: *mut buf_T) {
+pub unsafe fn buf_updates_changedtick(buf: &mut buf_T) {
     unsafe {
-        for &channel_id in &(*buf).update_channels {
+        for idx in 0..buf.update_channels.len() {
+            let channel_id = buf.update_channels[idx];
             buf_updates_changedtick_single(buf, channel_id);
         }
 
         let mut i = 0usize;
-        while i < (*buf).update_callbacks.len() {
-            let on_changedtick = (*buf).update_callbacks.as_slice()[i].on_changedtick;
+        while i < buf.update_callbacks.len() {
+            let on_changedtick = buf.update_callbacks.as_slice()[i].on_changedtick;
             let mut keep = true;
             if on_changedtick != LUA_NOREF {
                 let mut items = [
-                    buffer_obj((*buf).b_fnum),
-                    integer_obj(buf_get_changedtick(buf)),
+                    buffer_obj(buf.b_fnum),
+                    integer_obj(buf_get_changedtick(&raw mut *buf)),
                 ];
                 let args = Array {
                     size: 2,
@@ -440,17 +441,17 @@ pub unsafe fn buf_updates_changedtick(buf: *mut buf_T) {
             if keep {
                 i += 1;
             } else {
-                (*buf).update_callbacks.remove(i);
+                buf.update_callbacks.remove(i);
             }
         }
     }
 }
 
-pub unsafe fn buf_updates_changedtick_single(buf: *mut buf_T, channel_id: u64) {
+pub unsafe fn buf_updates_changedtick_single(buf: &mut buf_T, channel_id: u64) {
     unsafe {
         let mut items = [
-            buffer_obj((*buf).b_fnum),
-            integer_obj(buf_get_changedtick(buf)),
+            buffer_obj(buf.b_fnum),
+            integer_obj(buf_get_changedtick(&raw mut *buf)),
         ];
         let args = Array {
             size: 2,

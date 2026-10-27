@@ -442,7 +442,7 @@ pub unsafe fn pum_display(
         loop {
             pum().is_visible = true;
             pum().is_drawn = true;
-            validate_cursor_col(*curwin.as_ptr());
+            validate_cursor_col(&mut **curwin.as_ptr());
             let mut above_row: c_int = 0;
             let mut below_row = g_st().cmdline_row.max((**curwin.as_ptr()).w_winrow + (**curwin.as_ptr()).w_view_height);
             if (g_st().State & MODE_CMDLINE) != 0 {
@@ -1185,7 +1185,7 @@ pub unsafe fn pum_redraw() {
 
 /// Set the informational text in the preview buffer (`pum_preview_set_text`).
 unsafe fn pum_preview_set_text(
-    win: *mut win_T,
+    win: &mut win_T,
     info: *mut c_char,
     lnum: *mut linenr_T,
     max_width: *mut c_int,
@@ -1202,7 +1202,7 @@ unsafe fn pum_preview_set_text(
             size: 0,
             capacity: 0,
         };
-        let buf = (*win).w_buffer;
+        let buf = win.w_buffer;
         (*buf).b_p_ma = 1;
 
         let mut curr = info;
@@ -1214,10 +1214,10 @@ unsafe fn pum_preview_set_text(
             if *curr == NUL && next.is_null() {
                 break;
             }
-            let save_wrap = (*win).w_onebuf_opt.wo_wrap;
-            (*win).w_onebuf_opt.wo_wrap = 0;
-            let line_width = win_linetabsize(win, 0, curr, MAXCOL);
-            (*win).w_onebuf_opt.wo_wrap = save_wrap;
+            let save_wrap = win.w_onebuf_opt.wo_wrap;
+            win.w_onebuf_opt.wo_wrap = 0;
+            let line_width = win_linetabsize(&raw mut *win, 0, curr, MAXCOL);
+            win.w_onebuf_opt.wo_wrap = save_wrap;
             *max_width = (*max_width).max(line_width);
             replacement.push(string_obj(cstr_to_string(curr)));
             *lnum += 1;
@@ -1254,7 +1254,7 @@ unsafe fn pum_preview_set_text(
 }
 
 /// Adjust floating info preview window position (`pum_adjust_info_position`).
-unsafe fn pum_adjust_info_position(wp: *mut win_T, width: c_int) -> bool {
+unsafe fn pum_adjust_info_position(wp: &mut win_T, width: c_int) -> bool {
     unsafe {
         let border_width = pum_border_width();
         let col = pum().col + pum().width + 1 + border_width.max(pum().scrollbar);
@@ -1263,32 +1263,32 @@ unsafe fn pum_adjust_info_position(wp: *mut win_T, width: c_int) -> bool {
 
         let max_extra = right_extra.max(left_extra);
         if max_extra < 10 {
-            (*wp).w_config.hide = true;
+            wp.w_config.hide = true;
             return false;
         }
 
         if right_extra > width {
-            (*wp).w_config.width = width;
-            (*wp).w_config.col = f64::from(col - 1);
+            wp.w_config.width = width;
+            wp.w_config.col = f64::from(col - 1);
         } else if left_extra > width {
-            (*wp).w_config.width = width;
-            (*wp).w_config.col = f64::from(pum().col - (*wp).w_config.width - 1);
+            wp.w_config.width = width;
+            wp.w_config.col = f64::from(pum().col - wp.w_config.width - 1);
         } else {
             let place_in_right = right_extra > left_extra;
-            (*wp).w_config.width = max_extra;
-            (*wp).w_config.col = f64::from(if place_in_right {
+            wp.w_config.width = max_extra;
+            wp.w_config.col = f64::from(if place_in_right {
                 col - 1
             } else {
-                pum().col - (*wp).w_config.width - 1
+                pum().col - wp.w_config.width - 1
             });
         }
-        (*wp).w_config.anchor = 0;
-        let count = (*(*wp).w_buffer).b_ml.ml_line_count;
-        (*wp).w_view_width = (*wp).w_config.width;
-        (*wp).w_config.height = plines_m_win(wp, (*wp).w_topline, count, g_st().Rows);
-        (*wp).w_config.row = f64::from(pum().row);
-        (*wp).w_config.hide = false;
-        win_config_float(wp, (*wp).w_config.clone());
+        wp.w_config.anchor = 0;
+        let count = (*wp.w_buffer).b_ml.ml_line_count;
+        wp.w_view_width = wp.w_config.width;
+        wp.w_config.height = plines_m_win(wp, wp.w_topline, count, g_st().Rows);
+        wp.w_config.row = f64::from(pum().row);
+        wp.w_config.hide = false;
+        win_config_float(&raw mut *wp, wp.w_config.clone());
         true
     }
 }
@@ -1313,12 +1313,12 @@ pub unsafe fn pum_set_info(selected: c_int, info: *mut c_char) -> *mut win_T {
         }
         let mut lnum: linenr_T = 0;
         let mut max_info_width: c_int = 0;
-        pum_preview_set_text(wp, info, &raw mut lnum, &raw mut max_info_width);
+        pum_preview_set_text(&mut *wp, info, &raw mut lnum, &raw mut max_info_width);
         g_st().no_u_sync -= 1;
         g_st().RedrawingDisabled -= 1;
         redraw_later(wp, UPD_NOT_VALID);
 
-        if !pum_adjust_info_position(wp, max_info_width) {
+        if !pum_adjust_info_position(&mut *wp, max_info_width) {
             wp = ptr::null_mut();
         }
         unblock_autocmds();
@@ -1460,7 +1460,7 @@ unsafe fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                         let mut lnum: linenr_T = 0;
                         let mut max_info_width: c_int = 0;
                         pum_preview_set_text(
-                            *curwin.as_ptr(),
+                            &mut **curwin.as_ptr(),
                             (*pum().array.add(pum().selected as usize)).info_ptr(),
                             &raw mut lnum,
                             &raw mut max_info_width,
@@ -1484,7 +1484,7 @@ unsafe fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                         (**curwin.as_ptr()).w_cursor.col = 0;
 
                         if use_float
-                            && !pum_adjust_info_position(*curwin.as_ptr(), max_info_width)
+                            && !pum_adjust_info_position(&mut **curwin.as_ptr(), max_info_width)
                             && win_valid(curwin_save)
                         {
                             win_enter(curwin_save, false);
@@ -1861,7 +1861,7 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
             pum().is_drawn = true;
             g_st().pum_grid.zindex = kZIndexCmdlinePopupMenu;
             pum_redraw();
-            setcursor_mayforce(*curwin.as_ptr(), true);
+            setcursor_mayforce(&mut **curwin.as_ptr(), true);
 
             let c = vgetc();
 

@@ -144,11 +144,11 @@ pub unsafe fn win_linetabsize(
     }
 }
 
-pub unsafe fn win_chartabsize(wp: *mut win_T, p: *const c_char, col: colnr_T) -> c_int {
+pub unsafe fn win_chartabsize(wp: &mut win_T, p: *const c_char, col: colnr_T) -> c_int {
     unsafe {
-        let buf = (*wp).w_buffer;
+        let buf = wp.w_buffer;
         if c_int::from(*p) == TAB
-            && ((*wp).w_onebuf_opt.wo_list == 0 || (*wp).w_p_lcs_chars.tab1 != 0)
+            && (wp.w_onebuf_opt.wo_list == 0 || wp.w_p_lcs_chars.tab1 != 0)
         {
             return tabstop_padding(col, (*buf).b_p_ts, &(*buf).b_p_vts_array);
         }
@@ -229,14 +229,14 @@ pub unsafe fn init_charsize_arg(
 
 pub unsafe fn init_charsize_arg_skip_cur_text(
     csarg: *mut CharsizeArg,
-    wp: *mut win_T,
+    wp: &mut win_T,
     lnum: linenr_T,
     line: *mut c_char,
 ) -> CSType {
     unsafe {
-        let mut cstype = init_charsize_arg(csarg, wp, 0, line);
+        let mut cstype = init_charsize_arg(csarg, &raw mut *wp, 0, line);
         (*csarg).skip_cur_text = true;
-        if lnum > 0 && (*(*wp).w_buffer).b_marktree.meta_root[kMTMetaInline] > 0 {
+        if lnum > 0 && (*wp.w_buffer).b_marktree.meta_root[kMTMetaInline] > 0 {
             (*csarg).virt_row = lnum - 1;
             cstype = kCharsizeRegular;
         }
@@ -245,19 +245,19 @@ pub unsafe fn init_charsize_arg_skip_cur_text(
 }
 
 unsafe fn inline_virt_text_width(
-    wp: *mut win_T,
+    wp: &mut win_T,
     iter: &mut MarkTreeIter,
     row: c_int,
     col: c_int,
 ) -> c_int {
     unsafe {
-        let buf = (*wp).w_buffer;
+        let buf = wp.w_buffer;
         let mut width: c_int = 0;
         loop {
             let mark = marktree_itr_current(&(*buf).b_marktree, iter);
             if mark.pos.row != row || mark.pos.col > col {
                 break;
-            } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
+            } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &raw mut *wp) {
                 let decor = mt_decor(mark);
                 let mut vt = if decor.is_ext() {
                     decor.data.ext().vt
@@ -386,7 +386,7 @@ pub unsafe fn charsize_regular(
                         head_prev += vim_strsize(sbr);
                     }
                     if (*wp).w_onebuf_opt.wo_bri != 0 {
-                        head_prev += get_breakindent_win(wp, line);
+                        head_prev += get_breakindent_win(&mut *wp, line);
                     }
                     (*csarg).indent_width = head_prev;
                 }
@@ -411,7 +411,7 @@ pub unsafe fn charsize_regular(
                         head_mid += vim_strsize(sbr);
                     }
                     if (*wp).w_onebuf_opt.wo_bri != 0 {
-                        head_mid += get_breakindent_win(wp, line);
+                        head_mid += get_breakindent_win(&mut *wp, line);
                     }
                     (*csarg).indent_width = head_mid;
                 }
@@ -500,12 +500,12 @@ pub unsafe fn charsize_regular(
                     ));
                 }
                 let virt_width = if has_virt != 0 {
-                    inline_virt_text_width(wp, &mut virt_iter, (*csarg).virt_row, col)
+                    inline_virt_text_width(&mut *wp, &mut virt_iter, (*csarg).virt_row, col)
                 } else {
                     0
                 };
                 vcol2 += virt_width;
-                vcol2 += win_chartabsize(wp, s, vcol2);
+                vcol2 += win_chartabsize(&mut *wp, s, vcol2);
                 if vcol2 >= colmax {
                     size = colmax - vcol + col_adj;
                     break;
@@ -590,22 +590,20 @@ pub unsafe fn charsize_fast(
 }
 
 pub unsafe fn charsize_nowrap(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     _cur: *const c_char,
     use_tabstop: bool,
     vcol: colnr_T,
     cur_char: i32,
     mb_width: c_int,
 ) -> c_int {
-    unsafe {
-        if cur_char == TAB && use_tabstop {
-            tabstop_padding(vcol, (*buf).b_p_ts, &(*buf).b_p_vts_array)
+    if cur_char == TAB && use_tabstop {
+            tabstop_padding(vcol, buf.b_p_ts, &buf.b_p_vts_array)
         } else if cur_char < 0 {
             kInvalidByteCells
         } else {
             mb_width
         }
-    }
 }
 
 unsafe fn in_win_border(wp: *mut win_T, vcol: colnr_T) -> bool {
@@ -1050,7 +1048,7 @@ pub unsafe fn plines_win_full(
 }
 
 pub unsafe fn plines_m_win(
-    wp: *mut win_T,
+    wp: &mut win_T,
     mut first: linenr_T,
     last: linenr_T,
     max: c_int,
@@ -1059,11 +1057,11 @@ pub unsafe fn plines_m_win(
         let mut count = 0;
         while first <= last && count < max {
             let mut next = first;
-            count += plines_win_full(wp, first, &mut next, ptr::null_mut(), false, false);
+            count += plines_win_full(&raw mut *wp, first, &mut next, ptr::null_mut(), false, false);
             first = next + 1;
         }
-        if first == (*(*wp).w_buffer).b_ml.ml_line_count + 1 {
-            count += win_get_fill(wp, first);
+        if first == (*wp.w_buffer).b_ml.ml_line_count + 1 {
+            count += win_get_fill(&raw mut *wp, first);
         }
         max.min(count)
     }
@@ -1087,7 +1085,7 @@ pub unsafe fn plines_m_win_fill(wp: *mut win_T, first: linenr_T, last: linenr_T)
 }
 
 pub unsafe fn win_text_height(
-    wp: *mut win_T,
+    wp: &mut win_T,
     start_lnum: linenr_T,
     start_vcol: i64,
     end_lnum: *mut linenr_T,
@@ -1096,8 +1094,8 @@ pub unsafe fn win_text_height(
     max: i64,
 ) -> i64 {
     unsafe {
-        let mut width1 = (*wp).w_view_width - win_col_off(wp);
-        let mut width2 = width1 + win_col_off2(wp);
+        let mut width1 = wp.w_view_width - win_col_off(&raw mut *wp);
+        let mut width2 = width1 + win_col_off2(&raw mut *wp);
         width1 = width1.max(0);
         width2 = width2.max(0);
         let mut height_sum_fill: i64 = 0;
@@ -1109,8 +1107,8 @@ pub unsafe fn win_text_height(
 
         if start_vcol >= 0 {
             let mut lnum_next = lnum;
-            cur_folded = hasFolding(wp, lnum, &mut lnum, &mut lnum_next);
-            height_cur_nofill = i64::from(plines_win_nofill(wp, lnum, false));
+            cur_folded = hasFolding(&raw mut *wp, lnum, &mut lnum, &mut lnum_next);
+            height_cur_nofill = i64::from(plines_win_nofill(&raw mut *wp, lnum, false));
             height_sum_nofill += height_cur_nofill;
             let row_off = if start_vcol < i64::from(width1) || width2 <= 0 {
                 0
@@ -1123,9 +1121,9 @@ pub unsafe fn win_text_height(
 
         while lnum <= *end_lnum && height_sum_nofill + height_sum_fill < max {
             let mut lnum_next = lnum;
-            cur_folded = hasFolding(wp, lnum, &mut lnum, &mut lnum_next);
-            height_sum_fill += i64::from(win_get_fill(wp, lnum));
-            height_cur_nofill = i64::from(plines_win_nofill(wp, lnum, false));
+            cur_folded = hasFolding(&raw mut *wp, lnum, &mut lnum, &mut lnum_next);
+            height_sum_fill += i64::from(win_get_fill(&raw mut *wp, lnum));
+            height_cur_nofill = i64::from(plines_win_nofill(&raw mut *wp, lnum, false));
             height_sum_nofill += height_cur_nofill;
             cur_lnum = lnum;
             lnum = lnum_next + 1;
@@ -1148,7 +1146,7 @@ pub unsafe fn win_text_height(
         if cur_folded {
             vcol_end = 0;
         } else {
-            let linesize = i64::from(linetabsize_eol(wp, cur_lnum));
+            let linesize = i64::from(linetabsize_eol(&raw mut *wp, cur_lnum));
             vcol_end = (if use_vcol { vcol_end } else { i64::MAX }).min(linesize);
         }
 

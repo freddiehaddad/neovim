@@ -749,7 +749,7 @@ pub unsafe fn spell_suggest(count: c_int) {
                 }
                 (**curwin.as_ptr()).w_cursor.col = p.offset_from(curline) as colnr_T;
             }
-            let need_cap = check_need_cap(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum, (**curwin.as_ptr()).w_cursor.col);
+            let need_cap = check_need_cap(&mut **curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum, (**curwin.as_ptr()).w_cursor.col);
             let mut line_vec: Vec<c_char> = std::slice::from_raw_parts(
                 get_cursor_line_ptr(),
                 get_cursor_line_len() as usize + 1,

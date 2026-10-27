@@ -834,7 +834,7 @@ pub unsafe fn op_delete(oap: &mut oparg_T) -> c_int {
             return u_save_cursor();
         }
 
-        if !modifiable(g_st().curbuf) {
+        if !modifiable(&*g_st().curbuf) {
             emsg(tr(e_modifiable.as_ptr()));
             return FAIL;
         }
@@ -987,12 +987,12 @@ pub unsafe fn op_delete(oap: &mut oparg_T) -> c_int {
                     }
                     truncate_line(0);
                     if oap.line_count > 1 {
-                        u_clearline(g_st().curbuf);
+                        u_clearline(&mut *g_st().curbuf);
                     }
                 } else {
                     del_lines(oap.line_count, true);
                     beginline(BL_WHITE | BL_FIX);
-                    u_clearline(g_st().curbuf);
+                    u_clearline(&mut *g_st().curbuf);
                 }
             } else {
                 if g_st().virtual_op != 0 {
@@ -1080,7 +1080,7 @@ pub unsafe fn op_delete(oap: &mut oparg_T) -> c_int {
                     g_st().curbuf_splice_pending += 1;
                     let startpos = (**curwin.as_ptr()).w_cursor;
                     let deleted_bytes = get_region_bytecount(
-                        g_st().curbuf,
+                        &mut *g_st().curbuf,
                         startpos.lnum,
                         oap.end.lnum,
                         startpos.col,
@@ -3766,7 +3766,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                 (*oap).start = (**curwin.as_ptr()).w_cursor;
             }
 
-            check_pos((**curwin.as_ptr()).w_buffer, &mut (*oap).end);
+            check_pos(&mut *(**curwin.as_ptr()).w_buffer, &mut (*oap).end);
             (*oap).line_count = (*oap).end.lnum - (*oap).start.lnum + 1;
 
             g_st().virtual_op = TriState::from(virtual_active(*curwin.as_ptr()));
@@ -3867,7 +3867,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
             let empty_region_error = (*oap).empty && !vim_strchr(opt_vars().p_cpo, kCpoEmptyregion).is_null();
 
             if (*oap).is_VIsual
-                && ((*oap).empty || !modifiable(g_st().curbuf) || (*oap).op_type == OP_FOLD)
+                && ((*oap).empty || !modifiable(&*g_st().curbuf) || (*oap).op_type == OP_FOLD)
             {
                 restore_lbr(lbr_saved);
                 redraw_curbuf_later(UPD_INVERTED);
@@ -4100,7 +4100,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                 OP_FOLDDEL | OP_FOLDDELREC => {
                     g_st().Visual.reselect = 0;
                     deleteFold(
-                        *curwin.as_ptr(),
+                        &mut **curwin.as_ptr(),
                         (*oap).start.lnum,
                         (*oap).end.lnum,
                         c_int::from((*oap).op_type == OP_FOLDDELREC),
@@ -4148,27 +4148,27 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
 
 /// Get the byte count of buffer region. End-exclusive.
 pub unsafe fn get_region_bytecount(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     start_lnum: linenr_T,
     end_lnum: linenr_T,
     start_col: colnr_T,
     end_col: colnr_T,
 ) -> bcount_t {
     unsafe {
-        let max_lnum = (*buf).b_ml.ml_line_count;
+        let max_lnum = buf.b_ml.ml_line_count;
         if start_lnum > max_lnum {
             return 0;
         }
         if start_lnum == end_lnum {
             return (end_col - start_col) as bcount_t;
         }
-        let mut deleted_bytes = (ml_get_buf_len(buf, start_lnum) - start_col + 1) as bcount_t;
+        let mut deleted_bytes = (ml_get_buf_len(&raw mut *buf, start_lnum) - start_col + 1) as bcount_t;
 
         for i in 1..=(end_lnum - start_lnum - 1) {
             if start_lnum + i > max_lnum {
                 return deleted_bytes;
             }
-            deleted_bytes += (ml_get_buf_len(buf, start_lnum + i) + 1) as bcount_t;
+            deleted_bytes += (ml_get_buf_len(&raw mut *buf, start_lnum + i) + 1) as bcount_t;
         }
         if end_lnum > max_lnum {
             return deleted_bytes;

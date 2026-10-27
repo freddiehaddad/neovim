@@ -810,7 +810,7 @@ pub unsafe fn fuzzy_match_str_in_line(
 
 /// Search for the next fuzzy match in `buf` (`search_for_fuzzy_match`).
 pub unsafe fn search_for_fuzzy_match(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     pos: &mut pos_T,
     pattern: *mut c_char,
     dir: c_int,
@@ -825,11 +825,11 @@ pub unsafe fn search_for_fuzzy_match(
         let mut looped_around = false;
 
         let whole_line = ctrl_x_mode_whole_line();
-        let circly_end = if buf == g_st().curbuf {
+        let circly_end = if std::ptr::eq(buf, g_st().curbuf) {
             *start_pos
         } else {
             pos_T {
-                lnum: (*buf).b_ml.ml_line_count,
+                lnum: buf.b_ml.ml_line_count,
                 col: 0,
                 coladd: 0,
             }
@@ -850,8 +850,8 @@ pub unsafe fn search_for_fuzzy_match(
                 break;
             }
 
-            if current_pos.lnum >= 1 && current_pos.lnum <= (*buf).b_ml.ml_line_count {
-                *ptr = ml_get_buf(buf, current_pos.lnum);
+            if current_pos.lnum >= 1 && current_pos.lnum <= buf.b_ml.ml_line_count {
+                *ptr = ml_get_buf(&raw mut *buf, current_pos.lnum);
                 if !whole_line {
                     *ptr = (*ptr).add(current_pos.col as usize);
                 }
@@ -873,7 +873,7 @@ pub unsafe fn search_for_fuzzy_match(
                             found_new_match = true;
                             *pos = current_pos;
                             *ptr = p;
-                            *len = ml_get_buf_len(buf, current_pos.lnum)
+                            *len = ml_get_buf_len(&raw mut *buf, current_pos.lnum)
                                 - (((p as usize) - (line as usize)) as c_int);
                             break;
                         }
@@ -883,7 +883,7 @@ pub unsafe fn search_for_fuzzy_match(
 
             if dir == FORWARD {
                 current_pos.lnum += 1;
-                if current_pos.lnum > (*buf).b_ml.ml_line_count {
+                if current_pos.lnum > buf.b_ml.ml_line_count {
                     if opt_vars().p_ws != 0 {
                         current_pos.lnum = 1;
                         looped_around = true;
@@ -895,7 +895,7 @@ pub unsafe fn search_for_fuzzy_match(
                 current_pos.lnum -= 1;
                 if current_pos.lnum < 1 {
                     if opt_vars().p_ws != 0 {
-                        current_pos.lnum = (*buf).b_ml.ml_line_count;
+                        current_pos.lnum = buf.b_ml.ml_line_count;
                         looped_around = true;
                     } else {
                         break;
