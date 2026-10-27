@@ -17,7 +17,24 @@ permissions:
 
 # Build on the oldest supported images, so we have broader compatibility
 jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      appimage_tag: ${{ steps.build.outputs.appimage_tag }}
+    steps:
+      - if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.tag_name != 'nightly')
+        run: echo 'appimage_tag=latest' >> $GITHUB_OUTPUT
+        id: build_release
+      - if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.tag_name == 'nightly')
+        run: echo 'appimage_tag=nightly' >> $GITHUB_OUTPUT
+        id: build_nightly
+      - name: Export build information
+        id: build
+        run: |
+          printf "appimage_tag=${{ steps.build_release.outputs.appimage_tag || steps.build_nightly.outputs.appimage_tag }}\n" >> $GITHUB_OUTPUT
+
   linux:
+    needs: setup
     strategy:
       fail-fast: false
       matrix:
@@ -36,9 +53,20 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup
+      - run: sudo apt-get install -y zsync
 
-      - name: Build release archive
+      - name: Build release archive and AppImage
+        env:
+          APPIMAGE_TAG: ${{ needs.setup.outputs.appimage_tag }}
         run: cargo xtask dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: nvim-appimage-${{ matrix.arch }}
+          path: |
+            target/release/nvim-linux-${{ matrix.arch }}.appimage
+            target/release/nvim-linux-${{ matrix.arch }}.appimage.zsync
+          retention-days: 1
 
       - uses: actions/upload-artifact@v7
         with:
@@ -55,6 +83,7 @@ jobs:
           printf 'END\n' >> $GITHUB_OUTPUT
 
   macos:
+    needs: setup
     strategy:
       fail-fast: false
       matrix:
@@ -84,6 +113,7 @@ jobs:
           retention-days: 1
 
   windows:
+    needs: setup
     strategy:
       matrix:
         include:
@@ -101,7 +131,11 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
 
-      - name: Build release archive
+      - name: Install WiX
+        shell: pwsh
+        run: dotnet tool install --global wix --version 5.0.2
+
+      - name: Build release archive and MSI
         shell: pwsh
         run: cargo xtask dist
 
@@ -111,6 +145,7 @@ jobs:
           name: nvim-win-${{ matrix.arch }}
           path: |
             target/release/${{ matrix.archive_name }}.zip
+            target/release/${{ matrix.archive_name }}.msi
           retention-days: 1
 
   publish:
@@ -129,9 +164,6 @@ jobs:
           persist-credentials: false
 
       - uses: actions/download-artifact@v8
-
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y gettext-base
 
       - if: github.event_name == 'workflow_dispatch'
         env:
@@ -178,18 +210,78 @@ jobs:
           ## Install
 
           ### Windows
+
+          #### Zip
+
           1. Download **nvim-win64.zip** (or **nvim-win-arm64.zip** for ARM)
-          2. Extract the zip and run \`bin\nvim.exe\`
+          2. Extract the zip
+          3. Run \`bin\\nvim.exe\` in your terminal
 
-          ### macOS
-          1. Download **nvim-macos-x86_64.tar.gz** or **nvim-macos-arm64.tar.gz**
-          2. Run \`xattr -c ./nvim-macos-*.tar.gz\` and extract with \`tar xzvf\`
+          #### MSI
 
-          ### Linux
-          1. Download **nvim-linux-x86_64.tar.gz** or **nvim-linux-arm64.tar.gz**
-          2. Extract with \`tar xzvf\` and run \`./nvim-linux-*/bin/nvim\`
+          1. Download **nvim-win64.msi** (or **nvim-win-arm64.msi** for ARM)
+          2. Run the MSI
+          3. Run \`nvim.exe\` in your terminal
+
+          Note: On Windows "Server" you may need to [install \`vcruntime*.dll\`](https://neovim.io/doc/install/#windows).
+
+          ### macOS (x86_64)
+
+          1. Download **nvim-macos-x86_64.tar.gz**
+          2. Run \`xattr -c ./nvim-macos-x86_64.tar.gz\` (to avoid "unknown developer" warning)
+          3. Extract: \`tar xzvf nvim-macos-x86_64.tar.gz\`
+          4. Run \`./nvim-macos-x86_64/bin/nvim\`
+
+          ### macOS (arm64)
+
+          1. Download **nvim-macos-arm64.tar.gz**
+          2. Run \`xattr -c ./nvim-macos-arm64.tar.gz\` (to avoid "unknown developer" warning)
+          3. Extract: \`tar xzvf nvim-macos-arm64.tar.gz\`
+          4. Run \`./nvim-macos-arm64/bin/nvim\`
+
+          ### Linux (x86_64)
+
+          If your system does not have the required glibc version, try the (unsupported) [builds for older glibc](https://github.com/neovim/neovim-releases).
+
+          #### AppImage
+
+          1. Download **nvim-linux-x86_64.appimage**
+          2. Run \`chmod u+x nvim-linux-x86_64.appimage && ./nvim-linux-x86_64.appimage\`
+             - If your system does not have FUSE you can [extract the appimage](https://github.com/AppImage/AppImageKit/wiki/FUSE#type-2-appimage):
+               \`\`\`bash
+               ./nvim-linux-x86_64.appimage --appimage-extract
+               ./squashfs-root/usr/bin/nvim
+               \`\`\`
+
+          #### Tarball
+
+          1. Download **nvim-linux-x86_64.tar.gz**
+          2. Extract: \`tar xzvf nvim-linux-x86_64.tar.gz\`
+          3. Run \`./nvim-linux-x86_64/bin/nvim\`
+
+          ### Linux (arm64)
+
+          #### AppImage
+
+          1. Download **nvim-linux-arm64.appimage**
+          2. Run \`chmod u+x nvim-linux-arm64.appimage && ./nvim-linux-arm64.appimage\`
+             - If your system does not have FUSE you can [extract the appimage](https://github.com/AppImage/AppImageKit/wiki/FUSE#type-2-appimage):
+               \`\`\`bash
+               ./nvim-linux-arm64.appimage --appimage-extract
+               ./squashfs-root/usr/bin/nvim
+               \`\`\`
+
+          #### Tarball
+
+          1. Download **nvim-linux-arm64.tar.gz**
+          2. Extract: \`tar xzvf nvim-linux-arm64.tar.gz\`
+          3. Run \`./nvim-linux-arm64/bin/nvim\`
+
+          ### Other
+
+          - Install by [package manager](https://github.com/freddiehaddad/neovim/blob/master/INSTALL.md#install-from-package)
           EOF
           if [ "$TAG_NAME" != "nightly" ]; then
-            gh release create stable $PRERELEASE --notes-file "$RUNNER_TEMP/notes.md" --title "$SUBJECT" --target $GITHUB_SHA nvim-macos-x86_64/* nvim-macos-arm64/* nvim-linux-x86_64/* nvim-linux-arm64/* nvim-win-x86_64/* nvim-win-arm64/*
+            gh release create stable $PRERELEASE --notes-file "$RUNNER_TEMP/notes.md" --title "$SUBJECT" --target $GITHUB_SHA nvim-macos-x86_64/* nvim-macos-arm64/* nvim-linux-x86_64/* nvim-linux-arm64/* nvim-appimage-x86_64/* nvim-appimage-arm64/* nvim-win-x86_64/* nvim-win-arm64/*
           fi
-          gh release create $TAG_NAME $PRERELEASE --notes-file "$RUNNER_TEMP/notes.md" --title "$SUBJECT" --target $GITHUB_SHA nvim-macos-x86_64/* nvim-macos-arm64/* nvim-linux-x86_64/* nvim-linux-arm64/* nvim-win-x86_64/* nvim-win-arm64/*
+          gh release create $TAG_NAME $PRERELEASE --notes-file "$RUNNER_TEMP/notes.md" --title "$SUBJECT" --target $GITHUB_SHA nvim-macos-x86_64/* nvim-macos-arm64/* nvim-linux-x86_64/* nvim-linux-arm64/* nvim-appimage-x86_64/* nvim-appimage-arm64/* nvim-win-x86_64/* nvim-win-arm64/*

@@ -237,6 +237,242 @@ fn stage_build_dir(root: &Path, profile_dir: &Path, build_dir: &Path) -> PathBuf
     nvim_bin
 }
 
+fn unescape_po_string(raw: &[u8]) -> Vec<u8> {
+    let mut s = raw;
+    while s.first().is_some_and(u8::is_ascii_whitespace) {
+        s = &s[1..];
+    }
+    while s.last().is_some_and(u8::is_ascii_whitespace) {
+        s = &s[..s.len() - 1];
+    }
+    if s.len() >= 2 && s[0] == b'"' && s[s.len() - 1] == b'"' {
+        s = &s[1..s.len() - 1];
+    }
+    let mut out = Vec::with_capacity(s.len());
+    let mut i = 0;
+    while i < s.len() {
+        if s[i] == b'\\' && i + 1 < s.len() {
+            i += 1;
+            match s[i] {
+                b'n' => out.push(b'\n'),
+                b't' => out.push(b'\t'),
+                b'r' => out.push(b'\r'),
+                b'"' => out.push(b'"'),
+                b'\\' => out.push(b'\\'),
+                b'0' => out.push(0),
+                other => out.push(other),
+            }
+        } else {
+            out.push(s[i]);
+        }
+        i += 1;
+    }
+    out
+}
+
+fn compile_po_to_mo_rust(po_path: &Path, mo_path: &Path) {
+    let data = fs::read(po_path).expect("failed to read .po file");
+    let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = BTreeMap::new();
+
+    #[derive(PartialEq, Eq)]
+    enum State {
+        None,
+        Msgid,
+        MsgidPlural,
+        Msgstr(usize),
+    }
+
+    let mut state = State::None;
+    let mut fuzzy = false;
+    let mut msgid = Vec::new();
+    let mut msgid_plural: Option<Vec<u8>> = None;
+    let mut msgstrs: Vec<Vec<u8>> = Vec::new();
+
+    let flush = |entries: &mut BTreeMap<Vec<u8>, Vec<u8>>,
+                 fuzzy: &mut bool,
+                 msgid: &mut Vec<u8>,
+                 msgid_plural: &mut Option<Vec<u8>>,
+                 msgstrs: &mut Vec<Vec<u8>>| {
+        if !*fuzzy && !msgstrs.is_empty() && msgstrs.iter().any(|s| !s.is_empty()) {
+            let mut key = std::mem::take(msgid);
+            if let Some(plural) = msgid_plural.take() {
+                key.push(0);
+                key.extend_from_slice(&plural);
+            }
+            let mut val = Vec::new();
+            for (idx, part) in msgstrs.iter().enumerate() {
+                if idx > 0 {
+                    val.push(0);
+                }
+                val.extend_from_slice(part);
+            }
+            entries.insert(key, val);
+        }
+        *fuzzy = false;
+        msgid.clear();
+        *msgid_plural = None;
+        msgstrs.clear();
+    };
+
+    for raw_line in data.split(|&b| b == b'\n') {
+        let mut line = raw_line;
+        while line.first().is_some_and(u8::is_ascii_whitespace) {
+            line = &line[1..];
+        }
+        while line.last().is_some_and(u8::is_ascii_whitespace) {
+            line = &line[..line.len() - 1];
+        }
+        if line.is_empty() {
+            flush(
+                &mut entries,
+                &mut fuzzy,
+                &mut msgid,
+                &mut msgid_plural,
+                &mut msgstrs,
+            );
+            state = State::None;
+            continue;
+        }
+        if line.starts_with(b"#") {
+            if line.starts_with(b"#,") && line.windows(5).any(|w| w == b"fuzzy") {
+                fuzzy = true;
+            }
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix(b"msgid_plural ") {
+            state = State::MsgidPlural;
+            msgid_plural = Some(unescape_po_string(rest));
+        } else if let Some(rest) = line.strip_prefix(b"msgid ") {
+            if matches!(state, State::Msgstr(_)) {
+                flush(
+                    &mut entries,
+                    &mut fuzzy,
+                    &mut msgid,
+                    &mut msgid_plural,
+                    &mut msgstrs,
+                );
+            }
+            state = State::Msgid;
+            msgid = unescape_po_string(rest);
+        } else if let Some(rest) = line.strip_prefix(b"msgstr ") {
+            state = State::Msgstr(0);
+            msgstrs.clear();
+            msgstrs.push(unescape_po_string(rest));
+        } else if let Some(rest) = line.strip_prefix(b"msgstr[") {
+            if let Some(bracket) = rest.iter().position(|&b| b == b']') {
+                let idx = std::str::from_utf8(&rest[..bracket])
+                    .ok()
+                    .and_then(|s| s.parse::<usize>().ok())
+                    .unwrap_or(0);
+                let val_part = &rest[bracket + 1..];
+                if msgstrs.len() <= idx {
+                    msgstrs.resize_with(idx + 1, Vec::new);
+                }
+                msgstrs[idx] = unescape_po_string(val_part);
+                state = State::Msgstr(idx);
+            }
+        } else if line.starts_with(b"\"") {
+            let chunk = unescape_po_string(line);
+            match state {
+                State::Msgid => msgid.extend_from_slice(&chunk),
+                State::MsgidPlural => {
+                    if let Some(p) = &mut msgid_plural {
+                        p.extend_from_slice(&chunk);
+                    }
+                }
+                State::Msgstr(idx) => {
+                    if let Some(s) = msgstrs.get_mut(idx) {
+                        s.extend_from_slice(&chunk);
+                    }
+                }
+                State::None => {}
+            }
+        }
+    }
+    flush(
+        &mut entries,
+        &mut fuzzy,
+        &mut msgid,
+        &mut msgid_plural,
+        &mut msgstrs,
+    );
+
+    let n = entries.len() as u32;
+    let orig_tab_offset = 28u32;
+    let trans_tab_offset = 28 + 8 * n;
+    let hash_tab_offset = 28 + 16 * n;
+    let mut cur_offset = hash_tab_offset;
+
+    let mut orig_tab = Vec::with_capacity((n * 8) as usize);
+    let mut trans_tab = Vec::with_capacity((n * 8) as usize);
+    let mut pool = Vec::new();
+
+    for key in entries.keys() {
+        orig_tab.extend_from_slice(&(key.len() as u32).to_le_bytes());
+        orig_tab.extend_from_slice(&cur_offset.to_le_bytes());
+        pool.extend_from_slice(key);
+        pool.push(0);
+        cur_offset += key.len() as u32 + 1;
+    }
+    for val in entries.values() {
+        trans_tab.extend_from_slice(&(val.len() as u32).to_le_bytes());
+        trans_tab.extend_from_slice(&cur_offset.to_le_bytes());
+        pool.extend_from_slice(val);
+        pool.push(0);
+        cur_offset += val.len() as u32 + 1;
+    }
+
+    let mut out = Vec::with_capacity(cur_offset as usize);
+    out.extend_from_slice(&0x9504_12de_u32.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&n.to_le_bytes());
+    out.extend_from_slice(&orig_tab_offset.to_le_bytes());
+    out.extend_from_slice(&trans_tab_offset.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&hash_tab_offset.to_le_bytes());
+    out.extend_from_slice(&orig_tab);
+    out.extend_from_slice(&trans_tab);
+    out.extend_from_slice(&pool);
+
+    fs::write(mo_path, out).expect("failed to write .mo file");
+}
+
+fn install_translations(root: &Path, dst_share: &Path) {
+    let po_dir = root.join("src").join("nvim").join("po");
+    if !po_dir.exists() {
+        return;
+    }
+    let has_msgfmt = Command::new("msgfmt").arg("--version").output().is_ok();
+    for entry in fs::read_dir(&po_dir).unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("po") {
+            continue;
+        }
+        let Some(lang) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if matches!(lang, "az" | "sr") {
+            continue;
+        }
+        let lc_dir = dst_share.join("locale").join(lang).join("LC_MESSAGES");
+        fs::create_dir_all(&lc_dir).unwrap();
+        let mo_path = lc_dir.join("nvim.mo");
+        if has_msgfmt {
+            let status = Command::new("msgfmt")
+                .env("OLD_PO_FILE_INPUT", "yes")
+                .arg("-o")
+                .arg(&mo_path)
+                .arg(&path)
+                .status();
+            if status.is_ok_and(|s| s.success()) {
+                continue;
+            }
+        }
+        compile_po_to_mo_rust(&path, &mo_path);
+    }
+}
+
 fn install_prefix(root: &Path, profile_dir: &Path, build_dir: &Path, prefix: &Path) {
     stage_build_dir(root, profile_dir, build_dir);
 
@@ -323,6 +559,9 @@ fn install_prefix(root: &Path, profile_dir: &Path, build_dir: &Path, prefix: &Pa
 
     // Overlay generated runtime files (doc/tags, syntax/vim/generated.vim, pack/dist/opt/*/doc/tags)
     deps_build::copy_dir_all(&build_dir.join("runtime"), &dst_rt).unwrap();
+
+    // Compile and install gettext locale translations (share/locale/<lang>/LC_MESSAGES/nvim.mo)
+    install_translations(root, &dst_share);
 }
 
 fn create_symlink_or_junction(src: &Path, dst: &Path) {
@@ -1012,6 +1251,79 @@ fn main() -> ExitCode {
                     .arg(pkg_name);
                 run_status(&mut cmd, "tar zip archive");
                 eprintln!("[dist] Packaged {}", archive.display());
+
+                let wix_bin = if Command::new("wix")
+                    .env("DOTNET_ROLL_FORWARD", "Major")
+                    .arg("--version")
+                    .output()
+                    .is_ok_and(|o| o.status.success())
+                {
+                    Some(PathBuf::from("wix"))
+                } else {
+                    env::var("USERPROFILE").ok().and_then(|p| {
+                        let candidate = PathBuf::from(p)
+                            .join(".dotnet")
+                            .join("tools")
+                            .join("wix.exe");
+                        candidate.exists().then_some(candidate)
+                    })
+                };
+                if let Some(wix) = wix_bin {
+                    let msi_path = out_dir.join(format!("{pkg_name}.msi"));
+                    if msi_path.exists() {
+                        let _ = fs::remove_file(&msi_path);
+                    }
+                    let ver = Command::new(stage_root.join("bin").join("nvim.exe"))
+                        .arg("--version")
+                        .output()
+                        .ok()
+                        .and_then(|o| {
+                            let s = String::from_utf8_lossy(&o.stdout);
+                            let first = s.lines().next()?.trim_start_matches("NVIM v");
+                            Some(first.split('-').next()?.to_string())
+                        })
+                        .unwrap_or_else(|| "0.13.0".to_string());
+                    let arch_attr = if cfg!(target_arch = "aarch64") {
+                        "arm64"
+                    } else {
+                        "x64"
+                    };
+                    let icon_path = root.join("runtime").join("neovim.ico");
+                    let wxs_path = out_dir.join("_nvim_installer.wxs");
+                    let wxs_content = format!(
+                        "<Wix xmlns=\"http://wixtoolset.org/schemas/v4/wxs\">\n\
+                         \x20 <Package Name=\"Neovim\"\n\
+                         \x20          Manufacturer=\"neovim.io\"\n\
+                         \x20          Version=\"{ver}\"\n\
+                         \x20          UpgradeCode=\"207A1A70-7B0C-418A-A153-CA6883E38F4D\"\n\
+                         \x20          Scope=\"perMachine\">\n\
+                         \x20   <MajorUpgrade DowngradeErrorMessage=\"A newer version of [ProductName] is already installed.\" />\n\
+                         \x20   <MediaTemplate EmbedCab=\"yes\" />\n\
+                         \x20   <Icon Id=\"neovim.ico\" SourceFile=\"{}\" />\n\
+                         \x20   <Property Id=\"ARPPRODUCTICON\" Value=\"neovim.ico\" />\n\
+                         \x20   <StandardDirectory Id=\"ProgramFiles6432Folder\">\n\
+                         \x20     <Directory Id=\"INSTALLFOLDER\" Name=\"Neovim\">\n\
+                         \x20       <Files Include=\"{}\\**\" />\n\
+                         \x20     </Directory>\n\
+                         \x20   </StandardDirectory>\n\
+                         \x20 </Package>\n\
+                         </Wix>\n",
+                        icon_path.display(),
+                        stage_root.display(),
+                    );
+                    fs::write(&wxs_path, wxs_content).unwrap();
+                    let mut wix_cmd = Command::new(&wix);
+                    wix_cmd
+                        .current_dir(&out_dir)
+                        .env("DOTNET_ROLL_FORWARD", "Major")
+                        .args(["build", "-arch", arch_attr, "-o"])
+                        .arg(&msi_path)
+                        .arg(&wxs_path);
+                    run_status(&mut wix_cmd, "wix build msi");
+                    let _ = fs::remove_file(&wxs_path);
+                    let _ = fs::remove_file(out_dir.join(format!("{pkg_name}.wixpdb")));
+                    eprintln!("[dist] Packaged {}", msi_path.display());
+                }
             } else {
                 let archive = out_dir.join(format!("{pkg_name}.tar.gz"));
                 if archive.exists() {
@@ -1024,6 +1336,114 @@ fn main() -> ExitCode {
                     .arg(pkg_name);
                 run_status(&mut cmd, "tar.gz archive");
                 eprintln!("[dist] Packaged {}", archive.display());
+
+                if cfg!(target_os = "linux") {
+                    let uname_arch = if cfg!(target_arch = "aarch64") {
+                        "aarch64"
+                    } else {
+                        "x86_64"
+                    };
+                    let arch_output = if cfg!(target_arch = "aarch64") {
+                        "arm64"
+                    } else {
+                        "x86_64"
+                    };
+                    let appdir = out_dir.join("org.neovim.nvim.AppDir");
+                    if appdir.exists() {
+                        let _ = fs::remove_dir_all(&appdir);
+                    }
+                    let appdir_usr = appdir.join("usr");
+                    deps_build::copy_dir_all(&stage_root, &appdir_usr).unwrap();
+                    let metainfo_dir = appdir_usr.join("share").join("metainfo");
+                    fs::create_dir_all(&metainfo_dir).unwrap();
+                    fs::copy(
+                        root.join("runtime").join("org.neovim.nvim.appdata.xml"),
+                        metainfo_dir.join("org.neovim.nvim.appdata.xml"),
+                    )
+                    .unwrap();
+                    let apprun = appdir.join("AppRun");
+                    fs::write(
+                        &apprun,
+                        "#!/bin/bash\n\nunset ARGV0\nexec \"$(dirname \"$(readlink -f \"${0}\")\")/usr/bin/nvim\" ${@+\"$@\"}\n",
+                    )
+                    .unwrap();
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::PermissionsExt;
+                        let mut perms = fs::metadata(&apprun).unwrap().permissions();
+                        perms.set_mode(0o755);
+                        fs::set_permissions(&apprun, perms).unwrap();
+                    }
+
+                    let dl_dir = root.join(".deps").join("build").join("downloads");
+                    fs::create_dir_all(&dl_dir).unwrap();
+                    let linuxdeploy = dl_dir.join(format!("linuxdeploy-{uname_arch}.AppImage"));
+                    if !linuxdeploy.exists() {
+                        let url = format!(
+                            "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-{uname_arch}.AppImage"
+                        );
+                        let mut dl_cmd = Command::new("curl");
+                        dl_cmd.args(["-sfL", "--retry", "3", &url, "-o"]).arg(&linuxdeploy);
+                        run_status(&mut dl_cmd, "download linuxdeploy");
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::PermissionsExt;
+                            let mut perms = fs::metadata(&linuxdeploy).unwrap().permissions();
+                            perms.set_mode(0o755);
+                            fs::set_permissions(&linuxdeploy, perms).unwrap();
+                        }
+                    }
+
+                    let appimage_name = format!("nvim-linux-{arch_output}.appimage");
+                    let appimage_out = out_dir.join(&appimage_name);
+                    if appimage_out.exists() {
+                        let _ = fs::remove_file(&appimage_out);
+                    }
+                    let ver_out = Command::new(stage_root.join("bin").join("nvim"))
+                        .arg("--version")
+                        .output()
+                        .ok()
+                        .map(|o| {
+                            String::from_utf8_lossy(&o.stdout)
+                                .lines()
+                                .next()
+                                .unwrap_or("v0.13.0-dev")
+                                .trim_start_matches("NVIM ")
+                                .to_string()
+                        })
+                        .unwrap_or_else(|| "v0.13.0-dev".to_string());
+
+                    let mut ld_cmd = Command::new(&linuxdeploy);
+                    ld_cmd
+                        .current_dir(&out_dir)
+                        .env("ARCH", uname_arch)
+                        .env("OUTPUT", &appimage_name)
+                        .env("LDAI_OUTPUT", &appimage_name)
+                        .env("VERSION", &ver_out)
+                        .env("LINUXDEPLOY_OUTPUT_VERSION", &ver_out)
+                        .env("APPIMAGE_EXTRACT_AND_RUN", "1")
+                        .env("LDAI_NO_APPSTREAM", "1");
+                    if let Ok(tag) = env::var("APPIMAGE_TAG")
+                        && !tag.is_empty()
+                    {
+                        let update_info = format!(
+                            "gh-releases-zsync|freddiehaddad|neovim|{tag}|{appimage_name}.zsync"
+                        );
+                        ld_cmd.env("UPDATE_INFORMATION", &update_info);
+                        ld_cmd.env("LDAI_UPDATE_INFORMATION", &update_info);
+                    }
+                    ld_cmd
+                        .arg("--appdir")
+                        .arg(&appdir)
+                        .arg("-d")
+                        .arg(root.join("runtime").join("org.neovim.nvim.desktop"))
+                        .arg("-i")
+                        .arg(root.join("runtime").join("nvim.png"))
+                        .args(["--output", "appimage"]);
+                    run_status(&mut ld_cmd, "linuxdeploy appimage");
+                    let _ = fs::remove_dir_all(&appdir);
+                    eprintln!("[dist] Packaged {}", appimage_out.display());
+                }
             }
         }
         "doc-vim" | "doc-eval" | "doc" | "lintdoc" | "lintdocurls" => {
