@@ -1089,7 +1089,7 @@ pub unsafe fn terminal_check_size(term: *mut Terminal) {
         }
 
         vterm_set_size(&mut (*term).vt, c_int::from(height), c_int::from(width));
-        vterm_screen_flush_damage((*term).vt.screen_mut_ptr());
+        vterm_screen_flush_damage(&mut *(*term).vt.screen_mut_ptr());
         (*term).pending.resize = true;
         invalidate_terminal(term, -1, -1);
     }
@@ -1629,7 +1629,7 @@ pub unsafe fn terminal_receive(term: *mut Terminal, data: *const c_char, len: us
         } else {
             vterm_input_write(&mut (*term).vt, data, len);
         }
-        vterm_screen_flush_damage((*term).vt.screen_mut_ptr());
+        vterm_screen_flush_damage(&mut *(*term).vt.screen_mut_ptr());
 
         if (*term).sync_flush_pending {
             (*term).sync_flush_pending = false;
@@ -1645,7 +1645,7 @@ pub unsafe fn terminal_receive(term: *mut Terminal, data: *const c_char, len: us
     }
 }
 
-unsafe fn get_rgb(state: *const VTermStateFull, mut color: VTermColor) -> c_int {
+unsafe fn get_rgb(state: &VTermStateFull, mut color: VTermColor) -> c_int {
     unsafe {
         vterm_state_convert_color_to_rgb(state, &mut color);
         let r = c_int::from(color.bytes[1]);
@@ -2383,7 +2383,7 @@ unsafe fn fetch_cell(
                 return false;
             }
         } else {
-            vterm_screen_get_cell((*term).vt.screen_mut_ptr(), VTermPos { row, col }, cell);
+            vterm_screen_get_cell(&mut *(*term).vt.screen_mut_ptr(), VTermPos { row, col }, cell);
         }
         true
     }

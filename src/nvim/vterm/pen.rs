@@ -399,13 +399,13 @@ fn lookup_default_colour_ansi(idx: isize, col: &mut VTermColor) {
 }
 
 unsafe fn lookup_colour_ansi(
-    state: *const VTermStateFull,
+    state: &VTermStateFull,
     index: isize,
     col: *mut VTermColor,
 ) -> bool {
     if (0..16).contains(&index) {
         unsafe {
-            *col = (*state).colors[index as usize];
+            *col = state.colors[index as usize];
         }
         return true;
     }
@@ -413,7 +413,7 @@ unsafe fn lookup_colour_ansi(
 }
 
 unsafe fn lookup_colour_palette(
-    state: *const VTermStateFull,
+    state: &VTermStateFull,
     mut index: isize,
     col: *mut VTermColor,
 ) -> bool {
@@ -439,7 +439,7 @@ unsafe fn lookup_colour_palette(
 }
 
 unsafe fn lookup_colour(
-    _state: *const VTermStateFull,
+    _state: &VTermStateFull,
     palette: c_int,
     args: *const c_long,
     argcount: c_int,
@@ -486,171 +486,171 @@ unsafe fn lookup_colour(
 }
 
 unsafe fn setpenattr(
-    state: *mut VTermStateFull,
+    state: &mut VTermStateFull,
     attr: VTermAttr,
     _type: VTermValueType,
     val: *mut VTermValue,
 ) {
     unsafe {
-        if let Some(callbacks) = (*state).callbacks
+        if let Some(callbacks) = state.callbacks
             && let Some(cb) = callbacks.setpenattr
         {
-            cb(attr, val, (*state).screen_ptr());
+            cb(attr, val, state.screen_ptr());
         }
     }
 }
 
-unsafe fn setpenattr_bool(state: *mut VTermStateFull, attr: VTermAttr, boolean: c_int) {
+unsafe fn setpenattr_bool(state: &mut VTermStateFull, attr: VTermAttr, boolean: c_int) {
     let mut val = VTermValue::Boolean(boolean);
     unsafe {
         setpenattr(state, attr, VTERM_VALUETYPE_BOOL, &raw mut val);
     }
 }
 
-unsafe fn setpenattr_int(state: *mut VTermStateFull, attr: VTermAttr, number: c_int) {
+unsafe fn setpenattr_int(state: &mut VTermStateFull, attr: VTermAttr, number: c_int) {
     let mut val = VTermValue::Number(number);
     unsafe {
         setpenattr(state, attr, VTERM_VALUETYPE_INT, &raw mut val);
     }
 }
 
-unsafe fn setpenattr_col(state: *mut VTermStateFull, attr: VTermAttr, color: VTermColor) {
+unsafe fn setpenattr_col(state: &mut VTermStateFull, attr: VTermAttr, color: VTermColor) {
     let mut val = VTermValue::Color(color);
     unsafe {
         setpenattr(state, attr, VTERM_VALUETYPE_COLOR, &raw mut val);
     }
 }
 
-unsafe fn set_pen_col_ansi(state: *mut VTermStateFull, attr: VTermAttr, col: c_int) {
+unsafe fn set_pen_col_ansi(state: &mut VTermStateFull, attr: VTermAttr, col: c_int) {
     unsafe {
         let colp = if attr == VTERM_ATTR_BACKGROUND {
-            &raw mut (*state).pen.bg
+            &raw mut state.pen.bg
         } else {
-            &raw mut (*state).pen.fg
+            &raw mut state.pen.fg
         };
         (*colp).set_indexed(col as u8);
         setpenattr_col(state, attr, *colp);
     }
 }
 
-pub unsafe fn vterm_state_newpen(state: *mut VTermStateFull) {
+pub unsafe fn vterm_state_newpen(state: &mut VTermStateFull) {
     unsafe {
-        (*state).default_fg.set_rgb(240, 240, 240);
-        (*state).default_bg.set_rgb(0, 0, 0);
-        let dfg = (*state).default_fg;
-        let dbg = (*state).default_bg;
+        state.default_fg.set_rgb(240, 240, 240);
+        state.default_bg.set_rgb(0, 0, 0);
+        let dfg = state.default_fg;
+        let dbg = state.default_bg;
         vterm_state_set_default_colors(state, &raw const dfg, &raw const dbg);
 
         for col in 0..16 {
-            lookup_default_colour_ansi(col as isize, &mut (*state).colors[col]);
+            lookup_default_colour_ansi(col as isize, &mut state.colors[col]);
         }
     }
 }
 
-pub unsafe fn vterm_state_resetpen(state: *mut VTermStateFull) {
+pub unsafe fn vterm_state_resetpen(state: &mut VTermStateFull) {
     unsafe {
-        (*state).pen.set_bold(0);
+        state.pen.set_bold(0);
         setpenattr_bool(state, VTERM_ATTR_BOLD, 0);
-        (*state).pen.set_underline(0);
+        state.pen.set_underline(0);
         setpenattr_int(state, VTERM_ATTR_UNDERLINE, 0);
-        (*state).pen.set_italic(0);
+        state.pen.set_italic(0);
         setpenattr_bool(state, VTERM_ATTR_ITALIC, 0);
-        (*state).pen.set_blink(0);
+        state.pen.set_blink(0);
         setpenattr_bool(state, VTERM_ATTR_BLINK, 0);
-        (*state).pen.set_reverse(0);
+        state.pen.set_reverse(0);
         setpenattr_bool(state, VTERM_ATTR_REVERSE, 0);
-        (*state).pen.set_conceal(0);
+        state.pen.set_conceal(0);
         setpenattr_bool(state, VTERM_ATTR_CONCEAL, 0);
-        (*state).pen.set_strike(0);
+        state.pen.set_strike(0);
         setpenattr_bool(state, VTERM_ATTR_STRIKE, 0);
-        (*state).pen.set_font(0);
+        state.pen.set_font(0);
         setpenattr_int(state, VTERM_ATTR_FONT, 0);
-        (*state).pen.set_small(0);
+        state.pen.set_small(0);
         setpenattr_bool(state, VTERM_ATTR_SMALL, 0);
-        (*state).pen.set_baseline(0);
+        state.pen.set_baseline(0);
         setpenattr_int(state, VTERM_ATTR_BASELINE, 0);
-        (*state).pen.set_dim(0);
+        state.pen.set_dim(0);
         setpenattr_bool(state, VTERM_ATTR_DIM, 0);
-        (*state).pen.set_overline(0);
+        state.pen.set_overline(0);
         setpenattr_bool(state, VTERM_ATTR_OVERLINE, 0);
 
-        (*state).pen.fg = (*state).default_fg;
-        setpenattr_col(state, VTERM_ATTR_FOREGROUND, (*state).default_fg);
-        (*state).pen.bg = (*state).default_bg;
-        setpenattr_col(state, VTERM_ATTR_BACKGROUND, (*state).default_bg);
+        state.pen.fg = state.default_fg;
+        setpenattr_col(state, VTERM_ATTR_FOREGROUND, state.default_fg);
+        state.pen.bg = state.default_bg;
+        setpenattr_col(state, VTERM_ATTR_BACKGROUND, state.default_bg);
 
-        (*state).pen.uri = 0;
+        state.pen.uri = 0;
         setpenattr_int(state, VTERM_ATTR_URI, 0);
     }
 }
 
-pub unsafe fn vterm_state_savepen(state: *mut VTermStateFull, save: c_int) {
+pub unsafe fn vterm_state_savepen(state: &mut VTermStateFull, save: c_int) {
     unsafe {
         if save != 0 {
-            (*state).saved.pen = (*state).pen;
+            state.saved.pen = state.pen;
         } else {
-            (*state).pen = (*state).saved.pen;
+            state.pen = state.saved.pen;
 
-            setpenattr_bool(state, VTERM_ATTR_BOLD, (*state).pen.bold() as c_int);
+            setpenattr_bool(state, VTERM_ATTR_BOLD, state.pen.bold() as c_int);
             setpenattr_int(
                 state,
                 VTERM_ATTR_UNDERLINE,
-                (*state).pen.underline() as c_int,
+                state.pen.underline() as c_int,
             );
-            setpenattr_bool(state, VTERM_ATTR_ITALIC, (*state).pen.italic() as c_int);
-            setpenattr_bool(state, VTERM_ATTR_BLINK, (*state).pen.blink() as c_int);
-            setpenattr_bool(state, VTERM_ATTR_REVERSE, (*state).pen.reverse() as c_int);
-            setpenattr_bool(state, VTERM_ATTR_CONCEAL, (*state).pen.conceal() as c_int);
-            setpenattr_bool(state, VTERM_ATTR_STRIKE, (*state).pen.strike() as c_int);
-            setpenattr_int(state, VTERM_ATTR_FONT, (*state).pen.font() as c_int);
-            setpenattr_bool(state, VTERM_ATTR_SMALL, (*state).pen.small() as c_int);
-            setpenattr_int(state, VTERM_ATTR_BASELINE, (*state).pen.baseline() as c_int);
-            setpenattr_bool(state, VTERM_ATTR_DIM, (*state).pen.dim() as c_int);
-            setpenattr_bool(state, VTERM_ATTR_OVERLINE, (*state).pen.overline() as c_int);
+            setpenattr_bool(state, VTERM_ATTR_ITALIC, state.pen.italic() as c_int);
+            setpenattr_bool(state, VTERM_ATTR_BLINK, state.pen.blink() as c_int);
+            setpenattr_bool(state, VTERM_ATTR_REVERSE, state.pen.reverse() as c_int);
+            setpenattr_bool(state, VTERM_ATTR_CONCEAL, state.pen.conceal() as c_int);
+            setpenattr_bool(state, VTERM_ATTR_STRIKE, state.pen.strike() as c_int);
+            setpenattr_int(state, VTERM_ATTR_FONT, state.pen.font() as c_int);
+            setpenattr_bool(state, VTERM_ATTR_SMALL, state.pen.small() as c_int);
+            setpenattr_int(state, VTERM_ATTR_BASELINE, state.pen.baseline() as c_int);
+            setpenattr_bool(state, VTERM_ATTR_DIM, state.pen.dim() as c_int);
+            setpenattr_bool(state, VTERM_ATTR_OVERLINE, state.pen.overline() as c_int);
 
-            setpenattr_col(state, VTERM_ATTR_FOREGROUND, (*state).pen.fg);
-            setpenattr_col(state, VTERM_ATTR_BACKGROUND, (*state).pen.bg);
+            setpenattr_col(state, VTERM_ATTR_FOREGROUND, state.pen.fg);
+            setpenattr_col(state, VTERM_ATTR_BACKGROUND, state.pen.bg);
 
-            setpenattr_int(state, VTERM_ATTR_URI, (*state).pen.uri);
+            setpenattr_int(state, VTERM_ATTR_URI, state.pen.uri);
         }
     }
 }
 
 pub unsafe fn vterm_state_set_default_colors(
-    state: *mut VTermStateFull,
+    state: &mut VTermStateFull,
     default_fg: *const VTermColor,
     default_bg: *const VTermColor,
 ) {
     unsafe {
         if !default_fg.is_null() {
-            (*state).default_fg = *default_fg;
-            let t = ((*state).default_fg.type_byte() & !VTERM_COLOR_DEFAULT_MASK)
+            state.default_fg = *default_fg;
+            let t = (state.default_fg.type_byte() & !VTERM_COLOR_DEFAULT_MASK)
                 | VTERM_COLOR_DEFAULT_FG;
-            (*state).default_fg.set_type_byte(t);
+            state.default_fg.set_type_byte(t);
         }
 
         if !default_bg.is_null() {
-            (*state).default_bg = *default_bg;
-            let t = ((*state).default_bg.type_byte() & !VTERM_COLOR_DEFAULT_MASK)
+            state.default_bg = *default_bg;
+            let t = (state.default_bg.type_byte() & !VTERM_COLOR_DEFAULT_MASK)
                 | VTERM_COLOR_DEFAULT_BG;
-            (*state).default_bg.set_type_byte(t);
+            state.default_bg.set_type_byte(t);
         }
     }
 }
 
 pub unsafe fn vterm_state_set_palette_color(
-    state: *mut VTermStateFull,
+    state: &mut VTermStateFull,
     index: c_int,
     col: *const VTermColor,
 ) {
     if (0..16).contains(&index) {
         unsafe {
-            (*state).colors[index as usize] = *col;
+            state.colors[index as usize] = *col;
         }
     }
 }
 
-pub unsafe fn vterm_state_convert_color_to_rgb(state: *const VTermStateFull, col: *mut VTermColor) {
+pub unsafe fn vterm_state_convert_color_to_rgb(state: &VTermStateFull, col: *mut VTermColor) {
     unsafe {
         if (*col).is_indexed() {
             lookup_colour_palette(state, (*col).idx() as isize, col);
@@ -660,7 +660,7 @@ pub unsafe fn vterm_state_convert_color_to_rgb(state: *const VTermStateFull, col
     }
 }
 
-pub unsafe fn vterm_state_setpen(state: *mut VTermStateFull, args: *const c_long, argcount: c_int) {
+pub unsafe fn vterm_state_setpen(state: &mut VTermStateFull, args: *const c_long, argcount: c_int) {
     unsafe {
         let mut argi: c_int = 0;
 
@@ -671,106 +671,106 @@ pub unsafe fn vterm_state_setpen(state: *mut VTermStateFull, args: *const c_long
                     vterm_state_resetpen(state);
                 }
                 1 => {
-                    let fg = (*state).pen.fg;
-                    (*state).pen.set_bold(1);
+                    let fg = state.pen.fg;
+                    state.pen.set_bold(1);
                     setpenattr_bool(state, VTERM_ATTR_BOLD, 1);
                     if !fg.is_default_fg()
                         && fg.is_indexed()
                         && fg.idx() < 8
-                        && (*state).bold_is_highbright != 0
+                        && state.bold_is_highbright != 0
                     {
                         let idx =
-                            c_int::from(fg.idx()) + if (*state).pen.bold() != 0 { 8 } else { 0 };
+                            c_int::from(fg.idx()) + if state.pen.bold() != 0 { 8 } else { 0 };
                         set_pen_col_ansi(state, VTERM_ATTR_FOREGROUND, idx);
                     }
                 }
                 2 => {
-                    (*state).pen.set_dim(1);
+                    state.pen.set_dim(1);
                     setpenattr_bool(state, VTERM_ATTR_DIM, 1);
                 }
                 3 => {
-                    (*state).pen.set_italic(1);
+                    state.pen.set_italic(1);
                     setpenattr_bool(state, VTERM_ATTR_ITALIC, 1);
                 }
                 4 => {
-                    (*state).pen.set_underline(VTERM_UNDERLINE_SINGLE);
+                    state.pen.set_underline(VTERM_UNDERLINE_SINGLE);
                     if csi_arg_has_more(*args.add(argi as usize)) {
                         argi += 1;
                         match csi_arg(*args.add(argi as usize)) {
-                            0 => (*state).pen.set_underline(0),
-                            1 => (*state).pen.set_underline(VTERM_UNDERLINE_SINGLE),
-                            2 => (*state).pen.set_underline(VTERM_UNDERLINE_DOUBLE),
-                            3 => (*state).pen.set_underline(VTERM_UNDERLINE_CURLY),
+                            0 => state.pen.set_underline(0),
+                            1 => state.pen.set_underline(VTERM_UNDERLINE_SINGLE),
+                            2 => state.pen.set_underline(VTERM_UNDERLINE_DOUBLE),
+                            3 => state.pen.set_underline(VTERM_UNDERLINE_CURLY),
                             _ => {}
                         }
                     }
                     setpenattr_int(
                         state,
                         VTERM_ATTR_UNDERLINE,
-                        (*state).pen.underline() as c_int,
+                        state.pen.underline() as c_int,
                     );
                 }
                 5 => {
-                    (*state).pen.set_blink(1);
+                    state.pen.set_blink(1);
                     setpenattr_bool(state, VTERM_ATTR_BLINK, 1);
                 }
                 7 => {
-                    (*state).pen.set_reverse(1);
+                    state.pen.set_reverse(1);
                     setpenattr_bool(state, VTERM_ATTR_REVERSE, 1);
                 }
                 8 => {
-                    (*state).pen.set_conceal(1);
+                    state.pen.set_conceal(1);
                     setpenattr_bool(state, VTERM_ATTR_CONCEAL, 1);
                 }
                 9 => {
-                    (*state).pen.set_strike(1);
+                    state.pen.set_strike(1);
                     setpenattr_bool(state, VTERM_ATTR_STRIKE, 1);
                 }
                 10..=19 => {
-                    (*state).pen.set_font((arg - 10) as u32);
-                    setpenattr_int(state, VTERM_ATTR_FONT, (*state).pen.font() as c_int);
+                    state.pen.set_font((arg - 10) as u32);
+                    setpenattr_int(state, VTERM_ATTR_FONT, state.pen.font() as c_int);
                 }
                 21 => {
-                    (*state).pen.set_underline(VTERM_UNDERLINE_DOUBLE);
+                    state.pen.set_underline(VTERM_UNDERLINE_DOUBLE);
                     setpenattr_int(
                         state,
                         VTERM_ATTR_UNDERLINE,
-                        (*state).pen.underline() as c_int,
+                        state.pen.underline() as c_int,
                     );
                 }
                 22 => {
-                    (*state).pen.set_bold(0);
+                    state.pen.set_bold(0);
                     setpenattr_bool(state, VTERM_ATTR_BOLD, 0);
-                    (*state).pen.set_dim(0);
+                    state.pen.set_dim(0);
                     setpenattr_bool(state, VTERM_ATTR_DIM, 0);
                 }
                 23 => {
-                    (*state).pen.set_italic(0);
+                    state.pen.set_italic(0);
                     setpenattr_bool(state, VTERM_ATTR_ITALIC, 0);
                 }
                 24 => {
-                    (*state).pen.set_underline(0);
+                    state.pen.set_underline(0);
                     setpenattr_int(state, VTERM_ATTR_UNDERLINE, 0);
                 }
                 25 => {
-                    (*state).pen.set_blink(0);
+                    state.pen.set_blink(0);
                     setpenattr_bool(state, VTERM_ATTR_BLINK, 0);
                 }
                 27 => {
-                    (*state).pen.set_reverse(0);
+                    state.pen.set_reverse(0);
                     setpenattr_bool(state, VTERM_ATTR_REVERSE, 0);
                 }
                 28 => {
-                    (*state).pen.set_conceal(0);
+                    state.pen.set_conceal(0);
                     setpenattr_bool(state, VTERM_ATTR_CONCEAL, 0);
                 }
                 29 => {
-                    (*state).pen.set_strike(0);
+                    state.pen.set_strike(0);
                     setpenattr_bool(state, VTERM_ATTR_STRIKE, 0);
                 }
                 30..=37 => {
                     let mut value = arg - 30;
-                    if (*state).pen.bold() != 0 && (*state).bold_is_highbright != 0 {
+                    if state.pen.bold() != 0 && state.bold_is_highbright != 0 {
                         value += 8;
                     }
                     set_pen_col_ansi(state, VTERM_ATTR_FOREGROUND, value);
@@ -779,18 +779,20 @@ pub unsafe fn vterm_state_setpen(state: *mut VTermStateFull, args: *const c_long
                     if argcount - argi < 1 {
                         return;
                     }
+                    let mut fg = state.pen.fg;
                     argi += 1 + lookup_colour(
                         state,
                         csi_arg(*args.add((argi + 1) as usize)),
                         args.add((argi + 2) as usize),
                         argcount - argi - 2,
-                        &raw mut (*state).pen.fg,
+                        &raw mut fg,
                     );
-                    setpenattr_col(state, VTERM_ATTR_FOREGROUND, (*state).pen.fg);
+                    state.pen.fg = fg;
+                    setpenattr_col(state, VTERM_ATTR_FOREGROUND, fg);
                 }
                 39 => {
-                    (*state).pen.fg = (*state).default_fg;
-                    setpenattr_col(state, VTERM_ATTR_FOREGROUND, (*state).pen.fg);
+                    state.pen.fg = state.default_fg;
+                    setpenattr_col(state, VTERM_ATTR_FOREGROUND, state.pen.fg);
                 }
                 40..=47 => {
                     let value = arg - 40;
@@ -800,38 +802,40 @@ pub unsafe fn vterm_state_setpen(state: *mut VTermStateFull, args: *const c_long
                     if argcount - argi < 1 {
                         return;
                     }
+                    let mut bg = state.pen.bg;
                     argi += 1 + lookup_colour(
                         state,
                         csi_arg(*args.add((argi + 1) as usize)),
                         args.add((argi + 2) as usize),
                         argcount - argi - 2,
-                        &raw mut (*state).pen.bg,
+                        &raw mut bg,
                     );
-                    setpenattr_col(state, VTERM_ATTR_BACKGROUND, (*state).pen.bg);
+                    state.pen.bg = bg;
+                    setpenattr_col(state, VTERM_ATTR_BACKGROUND, bg);
                 }
                 49 => {
-                    (*state).pen.bg = (*state).default_bg;
-                    setpenattr_col(state, VTERM_ATTR_BACKGROUND, (*state).pen.bg);
+                    state.pen.bg = state.default_bg;
+                    setpenattr_col(state, VTERM_ATTR_BACKGROUND, state.pen.bg);
                 }
                 53 => {
-                    (*state).pen.set_overline(1);
+                    state.pen.set_overline(1);
                     setpenattr_bool(state, VTERM_ATTR_OVERLINE, 1);
                 }
                 55 => {
-                    (*state).pen.set_overline(0);
+                    state.pen.set_overline(0);
                     setpenattr_bool(state, VTERM_ATTR_OVERLINE, 0);
                 }
                 73..=75 => {
-                    (*state).pen.set_small(u32::from(arg != 75));
-                    (*state).pen.set_baseline(if arg == 73 {
+                    state.pen.set_small(u32::from(arg != 75));
+                    state.pen.set_baseline(if arg == 73 {
                         VTERM_BASELINE_RAISE
                     } else if arg == 74 {
                         VTERM_BASELINE_LOWER
                     } else {
                         VTERM_BASELINE_NORMAL
                     });
-                    setpenattr_bool(state, VTERM_ATTR_SMALL, (*state).pen.small() as c_int);
-                    setpenattr_int(state, VTERM_ATTR_BASELINE, (*state).pen.baseline() as c_int);
+                    setpenattr_bool(state, VTERM_ATTR_SMALL, state.pen.small() as c_int);
+                    setpenattr_int(state, VTERM_ATTR_BASELINE, state.pen.baseline() as c_int);
                 }
                 90..=97 => {
                     let value = arg - 90 + 8;
@@ -900,7 +904,7 @@ unsafe fn vterm_state_getpen_color(
 }
 
 pub unsafe fn vterm_state_getpen(
-    state: *mut VTermStateFull,
+    state: &mut VTermStateFull,
     args: *mut c_long,
     _argcount: c_int,
 ) -> c_int {
@@ -908,66 +912,66 @@ pub unsafe fn vterm_state_getpen(
         let mut argi: c_int = 0;
         let more = CSI_ARG_FLAG_MORE_U32 as c_long;
 
-        if (*state).pen.bold() != 0 {
+        if state.pen.bold() != 0 {
             *args.add(argi as usize) = 1;
             argi += 1;
         }
-        if (*state).pen.dim() != 0 {
+        if state.pen.dim() != 0 {
             *args.add(argi as usize) = 2;
             argi += 1;
         }
-        if (*state).pen.italic() != 0 {
+        if state.pen.italic() != 0 {
             *args.add(argi as usize) = 3;
             argi += 1;
         }
-        if (*state).pen.underline() == VTERM_UNDERLINE_SINGLE {
+        if state.pen.underline() == VTERM_UNDERLINE_SINGLE {
             *args.add(argi as usize) = 4;
             argi += 1;
         }
-        if (*state).pen.underline() == VTERM_UNDERLINE_CURLY {
+        if state.pen.underline() == VTERM_UNDERLINE_CURLY {
             *args.add(argi as usize) = 4 | more;
             argi += 1;
             *args.add(argi as usize) = 3;
             argi += 1;
         }
-        if (*state).pen.blink() != 0 {
+        if state.pen.blink() != 0 {
             *args.add(argi as usize) = 5;
             argi += 1;
         }
-        if (*state).pen.reverse() != 0 {
+        if state.pen.reverse() != 0 {
             *args.add(argi as usize) = 7;
             argi += 1;
         }
-        if (*state).pen.conceal() != 0 {
+        if state.pen.conceal() != 0 {
             *args.add(argi as usize) = 8;
             argi += 1;
         }
-        if (*state).pen.strike() != 0 {
+        if state.pen.strike() != 0 {
             *args.add(argi as usize) = 9;
             argi += 1;
         }
-        if (*state).pen.font() != 0 {
-            *args.add(argi as usize) = (10 + (*state).pen.font()) as c_long;
+        if state.pen.font() != 0 {
+            *args.add(argi as usize) = (10 + state.pen.font()) as c_long;
             argi += 1;
         }
-        if (*state).pen.underline() == VTERM_UNDERLINE_DOUBLE {
+        if state.pen.underline() == VTERM_UNDERLINE_DOUBLE {
             *args.add(argi as usize) = 21;
             argi += 1;
         }
 
-        argi = vterm_state_getpen_color(&(*state).pen.fg, argi, args, true);
-        argi = vterm_state_getpen_color(&(*state).pen.bg, argi, args, false);
+        argi = vterm_state_getpen_color(&state.pen.fg, argi, args, true);
+        argi = vterm_state_getpen_color(&state.pen.bg, argi, args, false);
 
-        if (*state).pen.overline() != 0 {
+        if state.pen.overline() != 0 {
             *args.add(argi as usize) = 53;
             argi += 1;
         }
 
-        if (*state).pen.small() != 0 {
-            if (*state).pen.baseline() == VTERM_BASELINE_RAISE {
+        if state.pen.small() != 0 {
+            if state.pen.baseline() == VTERM_BASELINE_RAISE {
                 *args.add(argi as usize) = 73;
                 argi += 1;
-            } else if (*state).pen.baseline() == VTERM_BASELINE_LOWER {
+            } else if state.pen.baseline() == VTERM_BASELINE_LOWER {
                 *args.add(argi as usize) = 74;
                 argi += 1;
             }
@@ -978,7 +982,7 @@ pub unsafe fn vterm_state_getpen(
 }
 
 pub unsafe fn vterm_state_set_penattr(
-    state: *mut VTermStateFull,
+    state: &mut VTermStateFull,
     attr: VTermAttr,
     r#type: VTermValueType,
     val: *mut VTermValue,
@@ -992,28 +996,28 @@ pub unsafe fn vterm_state_set_penattr(
         }
 
         match attr {
-            VTERM_ATTR_BOLD => (*state).pen.set_bold((*val).boolean() as u32),
-            VTERM_ATTR_UNDERLINE => (*state).pen.set_underline((*val).number() as u32),
-            VTERM_ATTR_ITALIC => (*state).pen.set_italic((*val).boolean() as u32),
-            VTERM_ATTR_BLINK => (*state).pen.set_blink((*val).boolean() as u32),
-            VTERM_ATTR_REVERSE => (*state).pen.set_reverse((*val).boolean() as u32),
-            VTERM_ATTR_CONCEAL => (*state).pen.set_conceal((*val).boolean() as u32),
-            VTERM_ATTR_STRIKE => (*state).pen.set_strike((*val).boolean() as u32),
-            VTERM_ATTR_FONT => (*state).pen.set_font((*val).number() as u32),
-            VTERM_ATTR_FOREGROUND => (*state).pen.fg = (*val).color(),
-            VTERM_ATTR_BACKGROUND => (*state).pen.bg = (*val).color(),
-            VTERM_ATTR_SMALL => (*state).pen.set_small((*val).boolean() as u32),
-            VTERM_ATTR_BASELINE => (*state).pen.set_baseline((*val).number() as u32),
-            VTERM_ATTR_URI => (*state).pen.uri = (*val).number(),
-            VTERM_ATTR_DIM => (*state).pen.set_dim((*val).boolean() as u32),
-            VTERM_ATTR_OVERLINE => (*state).pen.set_overline((*val).boolean() as u32),
+            VTERM_ATTR_BOLD => state.pen.set_bold((*val).boolean() as u32),
+            VTERM_ATTR_UNDERLINE => state.pen.set_underline((*val).number() as u32),
+            VTERM_ATTR_ITALIC => state.pen.set_italic((*val).boolean() as u32),
+            VTERM_ATTR_BLINK => state.pen.set_blink((*val).boolean() as u32),
+            VTERM_ATTR_REVERSE => state.pen.set_reverse((*val).boolean() as u32),
+            VTERM_ATTR_CONCEAL => state.pen.set_conceal((*val).boolean() as u32),
+            VTERM_ATTR_STRIKE => state.pen.set_strike((*val).boolean() as u32),
+            VTERM_ATTR_FONT => state.pen.set_font((*val).number() as u32),
+            VTERM_ATTR_FOREGROUND => state.pen.fg = (*val).color(),
+            VTERM_ATTR_BACKGROUND => state.pen.bg = (*val).color(),
+            VTERM_ATTR_SMALL => state.pen.set_small((*val).boolean() as u32),
+            VTERM_ATTR_BASELINE => state.pen.set_baseline((*val).number() as u32),
+            VTERM_ATTR_URI => state.pen.uri = (*val).number(),
+            VTERM_ATTR_DIM => state.pen.set_dim((*val).boolean() as u32),
+            VTERM_ATTR_OVERLINE => state.pen.set_overline((*val).boolean() as u32),
             _ => return 0,
         }
 
-        if let Some(callbacks) = (*state).callbacks
+        if let Some(callbacks) = state.callbacks
             && let Some(cb) = callbacks.setpenattr
         {
-            cb(attr, val, (*state).screen_ptr());
+            cb(attr, val, state.screen_ptr());
         }
 
         1

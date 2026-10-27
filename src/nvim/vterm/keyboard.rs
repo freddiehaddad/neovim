@@ -510,17 +510,15 @@ const KEYCODES_KP_CSIU: [KeycodeEntry; 18] = [
 ];
 
 #[inline]
-unsafe fn vterm_state_get_key_encoding_disambiguate(state: *const VTermStateFull) -> bool {
-    unsafe {
-        let screen = if ((*state).mode & MODE_ALT_SCREEN_BIT) != 0 {
+unsafe fn vterm_state_get_key_encoding_disambiguate(state: &VTermStateFull) -> bool {
+    let screen = if (state.mode & MODE_ALT_SCREEN_BIT) != 0 {
             BUFIDX_ALTSCREEN
         } else {
             BUFIDX_PRIMARY
         };
-        let stack = &(*state).key_encoding_stacks[screen];
+        let stack = &state.key_encoding_stacks[screen];
         debug_assert!(stack.size > 0);
         (stack.items[(stack.size - 1) as usize] & 0x01) != 0
-    }
 }
 
 pub unsafe fn vterm_keyboard_unichar(vt: &mut VTerm, mut c: u32, mut mod_: VTermModifier) {
@@ -539,7 +537,7 @@ pub unsafe fn vterm_keyboard_unichar(vt: &mut VTerm, mut c: u32, mut mod_: VTerm
         }
 
         let state: *const VTermStateFull = vt.state_ptr();
-        if vterm_state_get_key_encoding_disambiguate(state) {
+        if vterm_state_get_key_encoding_disambiguate(&*state) {
             if (u32::from(b'A')..=u32::from(b'Z')).contains(&c) {
                 c += u32::from(b'a' - b'A');
                 mod_ |= VTERM_MOD_SHIFT;
@@ -634,7 +632,7 @@ pub unsafe fn vterm_keyboard_key(vt: &mut VTerm, key: VTermKey, mod_: VTermModif
     }
     unsafe {
         let state: *const VTermStateFull = vt.state_ptr();
-        let disambiguate = vterm_state_get_key_encoding_disambiguate(state);
+        let disambiguate = vterm_state_get_key_encoding_disambiguate(&*state);
 
         let mut k = if key < VTERM_KEY_FUNCTION_0 {
             if key < 0 || (key as usize) >= KEYCODES.len() {

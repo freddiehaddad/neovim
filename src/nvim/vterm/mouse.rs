@@ -180,7 +180,7 @@ impl Default for VTerm {
 }
 
 unsafe fn output_mouse(
-    state: *mut VTermStateFull,
+    state: &mut VTermStateFull,
     mut code: c_int,
     pressed: c_int,
     mut modifiers: c_int,
@@ -190,7 +190,7 @@ unsafe fn output_mouse(
     unsafe {
         modifiers <<= 2;
 
-        match (*state).mouse_protocol {
+        match state.mouse_protocol {
             MOUSE_X10 => {
                 if col + 0x21 > 0xff {
                     col = 0xff - 0x21;
@@ -212,7 +212,7 @@ unsafe fn output_mouse(
                     (col + 0x21) as u8,
                     (row + 0x21) as u8,
                 ];
-                vterm_push_output_ctrl_bytes(&mut *(*state).vt, C1_CSI, &payload);
+                vterm_push_output_ctrl_bytes(&mut *state.vt, C1_CSI, &payload);
             }
             MOUSE_UTF8 => {
                 let mut utf8 = [0u8; 19];
@@ -230,12 +230,12 @@ unsafe fn output_mouse(
                 len += fill_utf8(col + 0x21, utf8.as_mut_ptr().add(len).cast::<c_char>()) as usize;
                 len += fill_utf8(row + 0x21, utf8.as_mut_ptr().add(len).cast::<c_char>()) as usize;
 
-                vterm_push_output_ctrl_bytes(&mut *(*state).vt, C1_CSI, &utf8[..len]);
+                vterm_push_output_ctrl_bytes(&mut *state.vt, C1_CSI, &utf8[..len]);
             }
             MOUSE_SGR => {
                 let ch = if pressed != 0 { 'M' } else { 'm' };
                 let s = format!("<{};{};{}{ch}", code | modifiers, col + 1, row + 1);
-                vterm_push_output_ctrl_bytes(&mut *(*state).vt, C1_CSI, s.as_bytes());
+                vterm_push_output_ctrl_bytes(&mut *state.vt, C1_CSI, s.as_bytes());
             }
             MOUSE_RXVT => {
                 if pressed == 0 {
@@ -243,7 +243,7 @@ unsafe fn output_mouse(
                 }
 
                 let s = format!("{};{};{}M", code | modifiers, col + 1, row + 1);
-                vterm_push_output_ctrl_bytes(&mut *(*state).vt, C1_CSI, s.as_bytes());
+                vterm_push_output_ctrl_bytes(&mut *state.vt, C1_CSI, s.as_bytes());
             }
             _ => {}
         }
@@ -252,7 +252,7 @@ unsafe fn output_mouse(
 
 pub unsafe fn vterm_mouse_move(vt: &mut VTerm, row: c_int, col: c_int, mod_: VTermModifier) {
     unsafe {
-        let state = vt.state_mut_ptr();
+        let state = &mut *vt.state_mut_ptr();
 
         if col == (*state).mouse_col && row == (*state).mouse_row {
             return;
@@ -285,7 +285,7 @@ pub unsafe fn vterm_mouse_button(
     mod_: VTermModifier,
 ) {
     unsafe {
-        let state = vt.state_mut_ptr();
+        let state = &mut *vt.state_mut_ptr();
 
         let old_buttons = (*state).mouse_buttons;
 

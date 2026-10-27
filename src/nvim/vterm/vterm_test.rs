@@ -675,12 +675,12 @@ pub unsafe fn term_output(s: *const c_char, len: usize, _user: *mut Terminal) {
 }
 
 pub unsafe fn vterm_state_get_penattr(
-    state: *const VTermStateFull,
+    state: &VTermStateFull,
     attr: VTermAttr,
     val: *mut VTermValue,
 ) -> c_int {
     unsafe {
-        let pen = &(*state).pen;
+        let pen = &state.pen;
         match attr {
             VTERM_ATTR_BOLD => {
                 *val = VTermValue::Boolean(pen.bold() as c_int);
@@ -822,7 +822,7 @@ unsafe fn attrs_differ(attrs: VTermAttrMask, a: *const ScreenCell, b: *const Scr
 }
 
 pub unsafe fn vterm_screen_get_attrs_extent(
-    screen: *const VTermScreen,
+    screen: &VTermScreen,
     extent: *mut VTermRect,
     pos: VTermPos,
     attrs: VTermAttrMask,
@@ -835,7 +835,7 @@ pub unsafe fn vterm_screen_get_attrs_extent(
             (*extent).start_col = 0;
         }
         if (*extent).end_col < 0 {
-            (*extent).end_col = (*screen).cols;
+            (*extent).end_col = screen.cols;
         }
 
         let mut col = pos.col - 1;
@@ -860,7 +860,7 @@ pub unsafe fn vterm_screen_get_attrs_extent(
 }
 
 pub unsafe fn vterm_screen_get_text(
-    screen: *const VTermScreen,
+    screen: &VTermScreen,
     buffer: *mut c_char,
     len: usize,
     rect: VTermRect,
@@ -906,9 +906,9 @@ pub unsafe fn vterm_screen_get_text(
     outpos
 }
 
-pub unsafe fn vterm_screen_is_eol(screen: *const VTermScreen, mut pos: VTermPos) -> c_int {
+pub unsafe fn vterm_screen_is_eol(screen: &VTermScreen, mut pos: VTermPos) -> c_int {
     unsafe {
-        while pos.col < (*screen).cols {
+        while pos.col < screen.cols {
             let cell = getcell(screen, pos.row, pos.col);
             if (*cell).schar != 0 {
                 return 0;
@@ -919,19 +919,17 @@ pub unsafe fn vterm_screen_is_eol(screen: *const VTermScreen, mut pos: VTermPos)
     }
 }
 
-pub unsafe fn vterm_state_get_cursorpos(state: *const VTermStateFull, cursorpos: *mut VTermPos) {
+pub unsafe fn vterm_state_get_cursorpos(state: &VTermStateFull, cursorpos: *mut VTermPos) {
     unsafe {
-        *cursorpos = (*state).pos;
+        *cursorpos = state.pos;
     }
 }
 
 pub unsafe fn vterm_state_set_bold_highbright(
-    state: *mut VTermStateFull,
+    state: &mut VTermStateFull,
     bold_is_highbright: c_int,
 ) {
-    unsafe {
-        (*state).bold_is_highbright = bold_is_highbright;
-    }
+    state.bold_is_highbright = bold_is_highbright;
 }
 
 #[cfg(test)]
@@ -1105,12 +1103,12 @@ mod tests {
         vterm_parser_set_callbacks(vt, Some(&PARSER_CBS), ptr::null_mut());
     }
 
-    unsafe fn wantstate(vt: &mut VTerm, opts: StateOpts) -> *mut VTermStateFull {
+    unsafe fn wantstate(vt: &mut VTerm, opts: StateOpts) -> &'static mut VTermStateFull {
         unsafe {
             let state = vterm_obtain_state(vt);
             vterm_state_set_callbacks(state, Some(&STATE_CBS), ptr::null_mut());
             vterm_state_set_selection_callbacks(
-                &mut *state,
+                state,
                 Some(&SELECTION_CBS),
                 ptr::null_mut(),
                 16,
@@ -1130,7 +1128,7 @@ mod tests {
         }
     }
 
-    unsafe fn wantscreen(vt: &mut VTerm, opts: ScreenOpts) -> *mut VTermScreen {
+    unsafe fn wantscreen(vt: &mut VTerm, opts: ScreenOpts) -> &'static mut VTermScreen {
         unsafe {
             let screen = vterm_obtain_screen(vt);
             vterm_screen_set_callbacks(screen, Some(&SCREEN_CBS), ptr::null_mut());
@@ -1148,13 +1146,13 @@ mod tests {
         }
     }
 
-    unsafe fn reset(state: *mut VTermStateFull, screen: *mut VTermScreen) {
+    unsafe fn reset(state: Option<&mut VTermStateFull>, screen: Option<&mut VTermScreen>) {
         unsafe {
-            if !state.is_null() {
+            if let Some(state) = state {
                 vterm_state_reset(state, 1);
                 vterm_state_get_cursorpos(state, &mut vtt_st().state_pos);
             }
-            if !screen.is_null() {
+            if let Some(screen) = screen {
                 vterm_screen_reset(screen, 1);
             }
         }
@@ -1190,7 +1188,7 @@ mod tests {
         assert_eq!(String::from_utf8_lossy(&actual), exp);
     }
 
-    unsafe fn cursor(row: c_int, col: c_int, state: *const VTermStateFull) {
+    unsafe fn cursor(row: c_int, col: c_int, state: &VTermStateFull) {
         unsafe {
             let mut pos = VTermPos { row: 0, col: 0 };
             vterm_state_get_cursorpos(state, &raw mut pos);
@@ -1203,17 +1201,15 @@ mod tests {
         exp_dwl: bool,
         exp_dhl: bool,
         exp_cont: bool,
-        state: *const VTermStateFull,
+        state: &VTermStateFull,
     ) {
-        unsafe {
-            let info = vterm_state_get_lineinfo(&*state, row);
+        let info = vterm_state_get_lineinfo(state, row);
             assert_eq!(info.doublewidth() == 1, exp_dwl);
             assert_eq!(info.doubleheight() == 1, exp_dhl);
             assert_eq!(info.continuation(), exp_cont);
-        }
     }
 
-    unsafe fn pen(attribute: &str, expected: c_int, state: *const VTermStateFull) {
+    unsafe fn pen(attribute: &str, expected: c_int, state: &VTermStateFull) {
         let attr = match attribute {
             "bold" => VTERM_ATTR_BOLD,
             "underline" => VTERM_ATTR_UNDERLINE,
@@ -1244,7 +1240,7 @@ mod tests {
         end_row: c_int,
         end_col: c_int,
         expected: &[u8],
-        screen: *const VTermScreen,
+        screen: &VTermScreen,
     ) {
         unsafe {
             let rect = VTermRect {
@@ -1266,7 +1262,7 @@ mod tests {
         end_row: c_int,
         end_col: c_int,
         expected: &[u8],
-        screen: *const VTermScreen,
+        screen: &VTermScreen,
     ) {
         unsafe {
             let rect = VTermRect {
@@ -1290,13 +1286,13 @@ mod tests {
         }
     }
 
-    unsafe fn screen_row(row: c_int, expected: &[u8], screen: *const VTermScreen, end_col: c_int) {
+    unsafe fn screen_row(row: c_int, expected: &[u8], screen: &VTermScreen, end_col: c_int) {
         unsafe {
             screen_chars(row, 0, row + 1, end_col, expected, screen);
         }
     }
 
-    unsafe fn screen_cell(row: c_int, col: c_int, expected: &[u8], screen: *mut VTermScreen) {
+    unsafe fn screen_cell(row: c_int, col: c_int, expected: &[u8], screen: &mut VTermScreen) {
         use std::fmt::Write as _;
         unsafe {
             let pos = VTermPos { row, col };
@@ -1372,7 +1368,7 @@ mod tests {
         }
     }
 
-    unsafe fn screen_eol(row: c_int, col: c_int, expected: c_int, screen: *const VTermScreen) {
+    unsafe fn screen_eol(row: c_int, col: c_int, expected: c_int, screen: &VTermScreen) {
         unsafe {
             assert_eq!(vterm_screen_is_eol(screen, VTermPos { row, col }), expected);
         }
@@ -1382,7 +1378,7 @@ mod tests {
         row: c_int,
         col: c_int,
         expected: &[u8],
-        screen: *const VTermScreen,
+        screen: &VTermScreen,
     ) {
         unsafe {
             let mut rect = VTermRect {
@@ -1702,41 +1698,41 @@ mod tests {
                     s: false,
                 },
             );
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"ABC", vt);
             expect(b"putglyph 41 1 0,0\nputglyph 42 1 0,1\nputglyph 43 1 0,2");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\xc3\x81\xc3\xa9", vt);
             expect(b"putglyph c1 1 0,0\nputglyph e9 1 0,1");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\xc3", vt);
             push(b"\x81", vt);
             expect(b"putglyph c1 1 0,0");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\xef\xbc\x90 ", vt);
             expect(b"putglyph ff10 2 0,0\nputglyph 20 1 0,2");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\xf0\x9f\x98\x80 ", vt);
             expect(b"putglyph 1f600 2 0,0\nputglyph 20 1 0,2");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"e\xcc\x81Z", vt);
             expect(b"putglyph 65,301 1 0,0\nputglyph 5a 1 0,1");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"e", vt);
             expect(b"putglyph 65 1 0,0");
             push(b"\xcc\x81Z", vt);
             expect(b"putglyph 65,301 1 0,0\nputglyph 5a 1 0,1");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"e\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81", vt);
             expect(b"putglyph 65,301,301,301,301,301,301,301,301,301,301,301,301,301,301 1 0,0");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"e", vt);
             expect(b"putglyph 65 1 0,0");
             push(b"\xcc\x81", vt);
             expect(b"putglyph 65,301 1 0,0");
             push(b"\xcc\x82", vt);
             expect(b"putglyph 65,301,302 1 0,0");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b[5;80H", vt);
             push(b"e", vt);
             expect(b"putglyph 65 1 4,79");
@@ -1744,7 +1740,7 @@ mod tests {
             expect(b"putglyph 65,301 1 4,79");
             push(b"\xcc\x82Z", vt);
             expect(b"putglyph 65,301,302 1 4,79\nputglyph 5a 1 5,0");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b[5;77H", vt);
             push(b"\xf0\x9f\x87\xa6", vt);
             expect(b"putglyph 1f1e6 2 4,76");
@@ -1758,10 +1754,10 @@ mod tests {
             expect(b"putglyph 1f1f2 2 5,0");
             push(b"\xf0\x9f\x87\xa8", vt);
             expect(b"putglyph 1f1f2,1f1e8 2 5,0");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\xf0\x9f\x8f\xb3\xef\xb8\x8f\xe2\x80\x8d\xf0\x9f\x8c\x88\xf0\x9f\x8f\xb3\xef\xb8\x8f\xe2\x80\x8d\xe2\x9a\xa7\xef\xb8\x8f\xf0\x9f\x8f\xb4\xe2\x80\x8d\xe2\x98\xa0\xef\xb8\x8f", vt);
             expect(b"putglyph 1f3f3,fe0f,200d,1f308 2 0,0\nputglyph 1f3f3,fe0f,200d,26a7,fe0f 2 0,2\nputglyph 1f3f4,200d,2620,fe0f 2 0,4");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\xf0\x9f\x8f\xb3", vt);
             expect(b"putglyph 1f3f3 2 0,0");
             push(b"\xef\xb8\x8f", vt);
@@ -1776,7 +1772,7 @@ mod tests {
             expect(b"putglyph 2764,fe0f 2 0,2");
             push(b"\xe2\x9d\xa4\xef\xb8\x8f", vt);
             expect(b"putglyph 2764,fe0f 2 0,4");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"A\x1b[1\"qB\x1b[2\"qC", vt);
             expect(b"putglyph 41 1 0,0\nputglyph 42 1 0,1 prot\nputglyph 43 1 0,2");
             vterm_free(vt);
@@ -1818,14 +1814,14 @@ mod tests {
             cursor(0, 79, state);
             push(b"\t", vt);
             cursor(0, 79, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"ABC\x1bD", vt);
             cursor(1, 3, state);
             push(b"\x1bM", vt);
             cursor(0, 3, state);
             push(b"\x1bE", vt);
             cursor(1, 0, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b[B", vt);
             cursor(1, 0, state);
             push(b"\x1b[3B", vt);
@@ -1891,7 +1887,7 @@ mod tests {
             cursor(9, 79, state);
             push(b"X", vt);
             cursor(10, 1, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b[A", vt);
             cursor(0, 0, state);
             push(b"\x1b[D", vt);
@@ -1912,7 +1908,7 @@ mod tests {
             cursor(0, 79, state);
             push(b"\x1b[99;99H", vt);
             cursor(24, 79, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b[5`", vt);
             cursor(0, 4, state);
             push(b"\x1b[3a", vt);
@@ -1927,7 +1923,7 @@ mod tests {
             cursor(6, 2, state);
             push(b"\x1b[2k", vt);
             cursor(4, 2, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\t", vt);
             cursor(0, 8, state);
             push(b"   ", vt);
@@ -1977,14 +1973,14 @@ mod tests {
             push(b"\n", vt);
             expect(b"scrollrect 0..25,0..80 => +1,+0");
             cursor(24, 0, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b[25H", vt);
             push(b"\x1bD", vt);
             expect(b"scrollrect 0..25,0..80 => +1,+0");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1bM", vt);
             expect(b"scrollrect 0..25,0..80 => -1,+0");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b[1;10r", vt);
             cursor(0, 0, state);
             push(b"\n\n\n\n\n\n\n\n\n", vt);
@@ -2019,7 +2015,7 @@ mod tests {
             push(b"\x1bP$qs\x1b\\", vt);
             expect_output(b"\x1bP1$r10;40s\x1b\\");
             push(b"\x1b[?69l\x1b[;0s\x1b[?69h", vt);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b[S", vt);
             expect(b"scrollrect 0..25,0..80 => +1,+0");
             cursor(0, 0, state);
@@ -2041,7 +2037,7 @@ mod tests {
             expect(b"scrollrect 4..20,0..80 => +1,+0");
             push(b"\x1b[T", vt);
             expect(b"scrollrect 4..20,0..80 => -1,+0");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b[?69h", vt);
             push(b"\x1b[3;10r\x1b[10;40s", vt);
             cursor(0, 0, state);
@@ -2052,10 +2048,10 @@ mod tests {
             push(b"\x1b[?69l", vt);
             push(b"\x1b[S", vt);
             expect(b"scrollrect 2..10,0..80 => +1,+0");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b[100;105r\x1bD", vt);
             push(b"\x1b[5;2r\x1bD", vt);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             let _ = state;
             let state = wantstate(
                 vt,
@@ -2107,7 +2103,7 @@ mod tests {
                     s: true,
                 },
             );
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             cursor(0, 0, state);
             push(b"ACD", vt);
@@ -2125,7 +2121,7 @@ mod tests {
             push(b"\x1b[20G\x1b[@", vt);
             expect(b"scrollrect 0..1,19..50 => +0,-1");
             push(b"\x1b[70G\x1b[@", vt);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             cursor(0, 0, state);
             push(b"ABBC", vt);
@@ -2142,7 +2138,7 @@ mod tests {
             push(b"\x1b[20G\x1b[P", vt);
             expect(b"scrollrect 0..1,19..50 => +0,+1");
             push(b"\x1b[70G\x1b[P", vt);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             cursor(0, 0, state);
             push(b"ABC", vt);
@@ -2156,7 +2152,7 @@ mod tests {
             cursor(0, 1, state);
             push(b"\x1b[100X", vt);
             expect(b"erase 0..1,1..80");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             cursor(0, 0, state);
             push(b"A\r\nC", vt);
@@ -2176,7 +2172,7 @@ mod tests {
             push(b"\x1b[10;50s", vt);
             push(b"\x1b[5;10H\x1b[L", vt);
             expect(b"scrollrect 4..15,9..50 => -1,+0");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             cursor(0, 0, state);
             push(b"A\r\nB\r\nB\r\nC", vt);
@@ -2197,7 +2193,7 @@ mod tests {
             push(b"\x1b[10;50s", vt);
             push(b"\x1b[5;10H\x1b[M", vt);
             expect(b"scrollrect 4..15,9..50 => +1,+0");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             push(b"\x1b[20G\x1b[5'}", vt);
             expect(b"scrollrect 0..25,19..80 => +0,-5");
@@ -2206,7 +2202,7 @@ mod tests {
             push(b"\x1b[4;20H\x1b[3'}", vt);
             expect(b"scrollrect 3..20,19..60 => +0,-3");
             push(b"\x1b[70G\x1b['}", vt);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             push(b"\x1b[20G\x1b[5'~", vt);
             expect(b"scrollrect 0..25,19..80 => +0,+5");
@@ -2215,7 +2211,7 @@ mod tests {
             push(b"\x1b[4;20H\x1b[3'~", vt);
             expect(b"scrollrect 3..20,19..60 => +0,+3");
             push(b"\x1b[70G\x1b['~", vt);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             cursor(0, 0, state);
             push(b"ABCDE", vt);
@@ -2224,7 +2220,7 @@ mod tests {
             push(b"\x1b[0K", vt);
             expect(b"erase 0..1,2..80");
             cursor(0, 2, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             cursor(0, 0, state);
             push(b"ABCDE", vt);
@@ -2233,7 +2229,7 @@ mod tests {
             push(b"\x1b[1K", vt);
             expect(b"erase 0..1,0..3");
             cursor(0, 2, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             cursor(0, 0, state);
             push(b"ABCDE", vt);
@@ -2242,7 +2238,7 @@ mod tests {
             push(b"\x1b[2K", vt);
             expect(b"erase 0..1,0..80");
             cursor(0, 2, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             cursor(0, 0, state);
             push(b"\x1b[11G", vt);
@@ -2256,7 +2252,7 @@ mod tests {
             push(b"\x1b[?2K", vt);
             expect(b"erase 0..1,0..80 selective");
             cursor(0, 10, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             cursor(0, 0, state);
             push(b"\x1b[2;2H", vt);
@@ -2264,7 +2260,7 @@ mod tests {
             push(b"\x1b[0J", vt);
             expect(b"erase 1..2,1..80\nerase 2..25,0..80");
             cursor(1, 1, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             cursor(0, 0, state);
             push(b"\x1b[2;2H", vt);
@@ -2272,7 +2268,7 @@ mod tests {
             push(b"\x1b[1J", vt);
             expect(b"erase 0..1,0..80\nerase 1..2,0..2");
             cursor(1, 1, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             cursor(0, 0, state);
             push(b"\x1b[2;2H", vt);
@@ -2282,7 +2278,7 @@ mod tests {
             cursor(1, 1, state);
             push(b"\x1b[3J", vt);
             expect(b"sb_clear");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             push(b"\x1b[5;5H", vt);
             cursor(4, 4, state);
@@ -2312,7 +2308,7 @@ mod tests {
                 },
             );
             expect(b"erase 0..25,0..80");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             cursor(0, 0, state);
             push(b"ACD", vt);
@@ -2325,7 +2321,7 @@ mod tests {
             cursor(0, 2, state);
             push(b"\x1b[3@", vt);
             expect(b"moverect 0..1,2..77 -> 0..1,5..80\nerase 0..1,2..5");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             cursor(0, 0, state);
             push(b"ABBC", vt);
@@ -2360,14 +2356,14 @@ mod tests {
                     s: false,
                 },
             );
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"#", vt);
             expect(b"putglyph 23 1 0,0");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b(0", vt);
             push(b"a", vt);
             expect(b"putglyph 2592 1 0,0");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b)0", vt);
             push(b"a", vt);
             expect(b"putglyph 61 1 0,0");
@@ -2399,21 +2395,21 @@ mod tests {
             expect(b"putglyph 61 1 0,9\nputglyph 2592 1 0,10\nputglyph 61 1 0,11");
             push(b"a\x8faa", vt);
             expect(b"putglyph 61 1 0,12\nputglyph 2592 1 0,13\nputglyph 61 1 0,14");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b~", vt);
             push(b"\xe1", vt);
             expect(b"putglyph 61 1 0,0");
             push(b"\x1b)0", vt);
             push(b"\xe1", vt);
             expect(b"putglyph 2592 1 0,1");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b}", vt);
             push(b"\xe1", vt);
             expect(b"putglyph 61 1 0,0");
             push(b"\x1b*0", vt);
             push(b"\xe1", vt);
             expect(b"putglyph 2592 1 0,1");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b|", vt);
             push(b"\xe1", vt);
             expect(b"putglyph 61 1 0,0");
@@ -2421,11 +2417,11 @@ mod tests {
             push(b"\xe1", vt);
             expect(b"putglyph 2592 1 0,1");
             vterm_set_utf8(vt, 1);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b(B", vt);
             push(b"AB\xc4\x88D", vt);
             expect(b"putglyph 41 1 0,0\nputglyph 42 1 0,1\nputglyph 108 1 0,2\nputglyph 44 1 0,3");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"AB\xc4", vt);
             expect(b"putglyph 41 1 0,0\nputglyph 42 1 0,1");
             push(b"\x88D", vt);
@@ -2452,7 +2448,7 @@ mod tests {
                     s: false,
                 },
             );
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             cursor(0, 0, state);
             push(b"AC\x1b[DB", vt);
@@ -2465,7 +2461,7 @@ mod tests {
             expect(b"moverect 0..1,2..79 -> 0..1,3..80\nerase 0..1,2..3\nputglyph 65 1 0,2");
             push(b"\xcc\x81", vt);
             expect(b"putglyph 65,301 1 0,2");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             cursor(0, 0, state);
             push(b"\x1b[5G\n", vt);
@@ -2473,7 +2469,7 @@ mod tests {
             push(b"\x1b[20h", vt);
             push(b"\x1b[5G\n", vt);
             cursor(2, 0, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"erase 0..25,0..80");
             cursor(0, 0, state);
             push(b"\x1b[5;15r", vt);
@@ -2528,10 +2524,10 @@ mod tests {
                     s: false,
                 },
             );
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"AB\x1b[79GCDE", vt);
             expect(b"putglyph 41 1 0,0\nputglyph 42 1 0,1\nputglyph 43 1 0,78\nputglyph 44 1 0,79\nputglyph 45 1 1,0");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             resize(27, 85, vt);
             push(b"AB\x1b[79GCDE", vt);
             expect(b"putglyph 41 1 0,0\nputglyph 42 1 0,1\nputglyph 43 1 0,78\nputglyph 44 1 0,79\nputglyph 45 1 0,80");
@@ -2545,7 +2541,7 @@ mod tests {
             cursor(0, 85, state);
             resize(25, 80, vt);
             cursor(0, 79, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b[79GAB", vt);
             expect(b"putglyph 41 1 0,78\nputglyph 42 1 0,79");
             cursor(0, 79, state);
@@ -2582,7 +2578,7 @@ mod tests {
             expect_output(b"\x1b[?1002;2$y");
             push(b"\x1b[?1003$p", vt);
             expect_output(b"\x1b[?1003;2$y");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"settermprop 1 true\nsettermprop 2 true\nsettermprop 7 1");
             push(b"\x1b[?1000h", vt);
             expect(b"settermprop 8 1");
@@ -2621,7 +2617,7 @@ mod tests {
             expect_output(b"\x1b[?1002;2$y");
             push(b"\x1b[?1003$p", vt);
             expect_output(b"\x1b[?1003;2$y");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"settermprop 1 true\nsettermprop 2 true\nsettermprop 7 1");
             push(b"\x1b[?1002h", vt);
             expect(b"settermprop 8 2");
@@ -2713,7 +2709,7 @@ mod tests {
             expect_output(b"\x1b[?1006;2$y");
             push(b"\x1b[?1015$p", vt);
             expect_output(b"\x1b[?1015;1$y");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"settermprop 1 true\nsettermprop 2 true\nsettermprop 7 1");
             mousemove(0, 0, vt, 0);
             mousebtn(b'd', 1, vt, 0);
@@ -2744,7 +2740,7 @@ mod tests {
                     s: false,
                 },
             );
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"settermprop 1 true\nsettermprop 2 true\nsettermprop 7 1");
             push(b"\x1b[?25h", vt);
             expect(b"settermprop 1 true");
@@ -2806,7 +2802,7 @@ mod tests {
             push(b"BBBCC", vt);
             expect(b"putglyph 42 1 1,77\nputglyph 42 1 1,78\nputglyph 42 1 1,79\nputglyph 43 1 2,0\nputglyph 43 1 2,1");
             cursor(2, 2, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b[?7l", vt);
             push(b"\x1b[75G", vt);
             push(b"DDDDDD", vt);
@@ -2848,7 +2844,7 @@ mod tests {
                     s: false,
                 },
             );
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\tX", vt);
             expect(b"putglyph 58 1 0,8");
             push(b"\tX", vt);
@@ -2867,7 +2863,7 @@ mod tests {
             push(b"\tX", vt);
             expect(b"putglyph 58 1 0,49");
             cursor(0, 50, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             resize(30, 100, vt);
             push(b"\tX", vt);
             expect(b"putglyph 58 1 0,8");
@@ -2916,7 +2912,7 @@ mod tests {
                     s: false,
                 },
             );
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             expect(b"settermprop 1 true\nsettermprop 2 true\nsettermprop 7 1");
             push(b"\x1b[2;2H", vt);
             cursor(1, 1, state);
@@ -3221,13 +3217,13 @@ mod tests {
         unsafe {
             let vt = init();
             let state = wantstate(vt, StateOpts::default());
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b[c", vt);
             expect_output(b"\x1b[?61;22;52c");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b[>q", vt);
             expect_output(b"\x1bP>|libvterm(0.3)\x1b\\");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b[5n", vt);
             expect_output(b"\x1b[0n");
             push(b"\x1b[6n", vt);
@@ -3269,7 +3265,7 @@ mod tests {
         unsafe {
             let vt = init();
             let state = wantstate(vt, StateOpts::default());
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b[5;5H", vt);
             cursor(4, 4, state);
             let _ = state;
@@ -3347,11 +3343,11 @@ mod tests {
                     s: false,
                 },
             );
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b#5", vt);
             push(b"Hello", vt);
             expect(b"putglyph 48 1 0,0\nputglyph 65 1 0,1\nputglyph 6c 1 0,2\nputglyph 6c 1 0,3\nputglyph 6f 1 0,4");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b#6", vt);
             push(b"Hello", vt);
             expect(b"putglyph 48 1 0,0 dwl\nputglyph 65 1 0,1 dwl\nputglyph 6c 1 0,2 dwl\nputglyph 6c 1 0,3 dwl\nputglyph 6f 1 0,4 dwl");
@@ -3359,7 +3355,7 @@ mod tests {
             push(b"\x1b[40GAB", vt);
             expect(b"putglyph 41 1 0,39 dwl\nputglyph 42 1 1,0");
             cursor(1, 1, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b#3", vt);
             push(b"Hello", vt);
             expect(b"putglyph 48 1 0,0 dwl dhl-top\nputglyph 65 1 0,1 dwl dhl-top\nputglyph 6c 1 0,2 dwl dhl-top\nputglyph 6c 1 0,3 dwl dhl-top\nputglyph 6f 1 0,4 dwl dhl-top");
@@ -3368,7 +3364,7 @@ mod tests {
             push(b"Hello", vt);
             expect(b"putglyph 48 1 1,0 dwl dhl-bottom\nputglyph 65 1 1,1 dwl dhl-bottom\nputglyph 6c 1 1,2 dwl dhl-bottom\nputglyph 6c 1 1,3 dwl dhl-bottom\nputglyph 6f 1 1,4 dwl dhl-bottom");
             cursor(1, 5, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x1b[20H\x1b#6ABC", vt);
             expect(b"putglyph 41 1 19,0 dwl\nputglyph 42 1 19,1 dwl\nputglyph 43 1 19,2 dwl");
             push(b"\x1b[25H\n", vt);
@@ -3399,7 +3395,7 @@ mod tests {
                     s: false,
                 },
             );
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\x03", vt);
             expect(b"control 03");
             push(b"\x1b[?15;2z", vt);
@@ -3520,25 +3516,25 @@ mod tests {
                     s: false,
                 },
             );
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"a\x1b[b", vt);
             expect(b"putglyph 61 1 0,0\nputglyph 61 1 0,1");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"a\x1b[0b", vt);
             expect(b"putglyph 61 1 0,0\nputglyph 61 1 0,1");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"a\x1b[2b", vt);
             expect(b"putglyph 61 1 0,0\nputglyph 61 1 0,1\nputglyph 61 1 0,2");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\xc3\xa9\x1b[b", vt);
             expect(b"putglyph e9 1 0,0\nputglyph e9 1 0,1");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"\xef\xbc\x90\x1b[b", vt);
             expect(b"putglyph ff10 2 0,0\nputglyph ff10 2 0,2");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"e\xcc\x81\x1b[b", vt);
             expect(b"putglyph 65,301 1 0,0\nputglyph 65,301 1 0,1");
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"a\x1b[1000bb", vt);
             expect(b"putglyph 61 1 0,0\nputglyph 61 1 0,1\nputglyph 61 1 0,2\nputglyph 61 1 0,3\nputglyph 61 1 0,4\nputglyph 61 1 0,5\nputglyph 61 1 0,6\nputglyph 61 1 0,7\nputglyph 61 1 0,8\nputglyph 61 1 0,9\nputglyph 61 1 0,10\nputglyph 61 1 0,11\nputglyph 61 1 0,12\nputglyph 61 1 0,13\nputglyph 61 1 0,14\nputglyph 61 1 0,15\nputglyph 61 1 0,16\nputglyph 61 1 0,17\nputglyph 61 1 0,18\nputglyph 61 1 0,19\nputglyph 61 1 0,20\nputglyph 61 1 0,21\nputglyph 61 1 0,22\nputglyph 61 1 0,23\nputglyph 61 1 0,24\nputglyph 61 1 0,25\nputglyph 61 1 0,26\nputglyph 61 1 0,27\nputglyph 61 1 0,28\nputglyph 61 1 0,29\nputglyph 61 1 0,30\nputglyph 61 1 0,31\nputglyph 61 1 0,32\nputglyph 61 1 0,33\nputglyph 61 1 0,34\nputglyph 61 1 0,35\nputglyph 61 1 0,36\nputglyph 61 1 0,37\nputglyph 61 1 0,38\nputglyph 61 1 0,39\nputglyph 61 1 0,40\nputglyph 61 1 0,41\nputglyph 61 1 0,42\nputglyph 61 1 0,43\nputglyph 61 1 0,44\nputglyph 61 1 0,45\nputglyph 61 1 0,46\nputglyph 61 1 0,47\nputglyph 61 1 0,48\nputglyph 61 1 0,49\nputglyph 61 1 0,50\nputglyph 61 1 0,51\nputglyph 61 1 0,52\nputglyph 61 1 0,53\nputglyph 61 1 0,54\nputglyph 61 1 0,55\nputglyph 61 1 0,56\nputglyph 61 1 0,57\nputglyph 61 1 0,58\nputglyph 61 1 0,59\nputglyph 61 1 0,60\nputglyph 61 1 0,61\nputglyph 61 1 0,62\nputglyph 61 1 0,63\nputglyph 61 1 0,64\nputglyph 61 1 0,65\nputglyph 61 1 0,66\nputglyph 61 1 0,67\nputglyph 61 1 0,68\nputglyph 61 1 0,69\nputglyph 61 1 0,70\nputglyph 61 1 0,71\nputglyph 61 1 0,72\nputglyph 61 1 0,73\nputglyph 61 1 0,74\nputglyph 61 1 0,75\nputglyph 61 1 0,76\nputglyph 61 1 0,77\nputglyph 61 1 0,78\nputglyph 61 1 0,79\nputglyph 62 1 1,0");
             vterm_free(vt);
@@ -3552,12 +3548,12 @@ mod tests {
         unsafe {
             let vt = init();
             let state = wantstate(vt, StateOpts::default());
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", vt);
             push(b"\r\n", vt);
             lineinfo(0, false, false, false, state);
             lineinfo(1, false, false, true, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(
                 b"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
                 vt,
@@ -3567,7 +3563,7 @@ mod tests {
             push(b"\r\n", vt);
             lineinfo(0, false, false, false, state);
             lineinfo(1, false, false, false, state);
-            reset(state, ptr::null_mut());
+            reset(Some(state), None);
             push(b"DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", vt);
             lineinfo(1, false, false, true, state);
             push(b"\x1bM\x1b[79G\x1b[K", vt);
@@ -3636,7 +3632,7 @@ mod tests {
                     r: false,
                 },
             );
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"ABC", vt);
             expect(b"movecursor 0,3");
             screen_chars(0, 0, 1, 3, b"ABC", screen);
@@ -3685,27 +3681,27 @@ mod tests {
                     r: false,
                 },
             );
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"ABCDE\x1b[H\x1b[K", vt);
             screen_text(0, 0, 1, 80, b"", screen);
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"ABC\x1b[H\x1b[@", vt);
             push(b"1", vt);
             screen_row(0, b"1ABC", screen, 80);
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"ABC\x1b[H\x1b[P", vt);
             screen_chars(0, 0, 1, 1, b"B", screen);
             screen_chars(0, 1, 1, 2, b"C", screen);
             screen_chars(0, 0, 1, 80, b"BC", screen);
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"Hello\x1b[CWorld", vt);
             screen_row(0, b"Hello World", screen, 80);
             screen_text(0, 0, 1, 80, b"48,65,6c,6c,6f,20,57,6f,72,6c,64", screen);
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"Hello\r\nWorld", vt);
             screen_chars(0, 0, 2, 80, b"Hello\nWorld", screen);
             screen_text(0, 0, 2, 80, b"48,65,6c,6c,6f,0a,57,6f,72,6c,64", screen);
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"P", vt);
             screen_row(0, b"P", screen, 80);
             vterm_free(vt);
@@ -3719,7 +3715,7 @@ mod tests {
         unsafe {
             let vt = init();
             let screen = wantscreen(vt, ScreenOpts::default());
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"\xc3\x81\xc3\xa9", vt);
             screen_row(0, b"\xc3\x81\xc3\xa9", screen, 80);
             screen_text(0, 0, 1, 80, b"c3,81,c3,a9", screen);
@@ -3729,7 +3725,7 @@ mod tests {
                 b"{c1} width=1 attrs={} fg=rgb(240,240,240) bg=rgb(0,0,0)",
                 screen,
             );
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"0123\x1b[H", vt);
             push(b"\xef\xbc\x90", vt);
             screen_row(0, b"\xef\xbc\x9023", screen, 80);
@@ -3740,7 +3736,7 @@ mod tests {
                 b"{ff10} width=2 attrs={} fg=rgb(240,240,240) bg=rgb(0,0,0)",
                 screen,
             );
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"0123\x1b[H", vt);
             push(b"e\xcc\x81", vt);
             screen_row(0, b"e\xcc\x81123", screen, 80);
@@ -3751,14 +3747,14 @@ mod tests {
                 b"{65,301} width=1 attrs={} fg=rgb(240,240,240) bg=rgb(0,0,0)",
                 screen,
             );
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"e\xcc\x81\xcc\x82\xcc\x83\xcc\x84\xcc\x85\xcc\x86\xcc\x87\xcc\x88\xcc\x89\xcc\x8a", vt);
             screen_cell(0, 0, b"{65,301,302,303,304,305,306,307,308,309,30a} width=1 attrs={} fg=rgb(240,240,240) bg=rgb(0,0,0)", screen);
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"e\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81", vt);
             push(b"\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81\xcc\x81", vt);
             screen_cell(0, 0, b"{65,301,301,301,301,301,301,301,301,301,301,301,301,301,301} width=1 attrs={} fg=rgb(240,240,240) bg=rgb(0,0,0)", screen);
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"\x1b[80G\xef\xbc\x90", vt);
             screen_cell(
                 0,
@@ -3772,7 +3768,7 @@ mod tests {
                 b"{ff10} width=2 attrs={} fg=rgb(240,240,240) bg=rgb(0,0,0)",
                 screen,
             );
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"\xf0\x9f\x8f\xb3\xef\xb8\x8f\xe2\x80\x8d\xf0\x9f\x8c\x88\xf0\x9f\x8f\xb3\xef\xb8\x8f\xe2\x80\x8d\xe2\x9a\xa7\xef\xb8\x8f\xf0\x9f\x8f\xb4\xe2\x80\x8d\xe2\x98\xa0\xef\xb8\x8f", vt);
             screen_cell(
                 0,
@@ -3804,7 +3800,7 @@ mod tests {
             let vt = init();
             let state = wantstate(vt, StateOpts::default());
             let screen = wantscreen(vt, ScreenOpts::default());
-            reset(state, screen);
+            reset(Some(state), Some(screen));
             resize(25, 80, vt);
             push(b"AB\r\nCD", vt);
             screen_chars(0, 0, 1, 80, b"AB", screen);
@@ -3812,7 +3808,7 @@ mod tests {
             resize(25, 100, vt);
             screen_chars(0, 0, 1, 100, b"AB", screen);
             screen_chars(1, 0, 2, 100, b"CD", screen);
-            reset(state, screen);
+            reset(Some(state), Some(screen));
             resize(25, 80, vt);
             push(b"AB\x1b[79GCD", vt);
             screen_chars(0, 0, 1, 2, b"AB", screen);
@@ -3822,7 +3818,7 @@ mod tests {
             screen_chars(0, 78, 1, 80, b"CD", screen);
             push(b"E", vt);
             screen_chars(0, 78, 1, 81, b"CDE", screen);
-            reset(state, screen);
+            reset(Some(state), Some(screen));
             resize(25, 80, vt);
             push(b"Top\x1b[10HLine 10", vt);
             screen_row(0, b"Top", screen, 80);
@@ -3832,7 +3828,7 @@ mod tests {
             screen_row(0, b"Top", screen, 80);
             screen_row(9, b"Line 10", screen, 80);
             cursor(9, 7, state);
-            reset(state, screen);
+            reset(Some(state), Some(screen));
             resize(25, 80, vt);
             push(b"Top\x1b[25HLine 25\x1b[15H", vt);
             screen_row(0, b"Top", screen, 80);
@@ -3854,7 +3850,7 @@ mod tests {
             expect(b"sb_pushline 80 = 54 6f 70\nsb_pushline 80 =\nsb_pushline 80 =\nsb_pushline 80 =\nsb_pushline 80 =");
             screen_row(19, b"Line 25", screen, 80);
             cursor(9, 0, state);
-            reset(state, screen);
+            reset(Some(state), Some(screen));
             let _ = wantscreen(vt, ScreenOpts::default());
             resize(25, 80, vt);
             let _ = screen;
@@ -3877,7 +3873,7 @@ mod tests {
             expect(b"sb_pushline 80 =");
             screen_row(22, b"Line 25", screen, 80);
             cursor(23, 0, state);
-            reset(state, screen);
+            reset(Some(state), Some(screen));
             let _ = wantscreen(vt, ScreenOpts::default());
             resize(25, 80, vt);
             let _ = screen;
@@ -3897,7 +3893,7 @@ mod tests {
             resize(20, 80, vt);
             expect(b"sb_pushline 80 =\nsb_pushline 80 =\nsb_pushline 80 =\nsb_pushline 80 =\nsb_pushline 80 =");
             cursor(0, 0, state);
-            reset(state, screen);
+            reset(Some(state), Some(screen));
             let _ = screen;
             let screen = wantscreen(vt, ScreenOpts::default());
             resize(25, 80, vt);
@@ -3925,7 +3921,7 @@ mod tests {
             cursor(19, 0, state);
             let _ = screen;
             let screen = wantscreen(vt, ScreenOpts::default());
-            reset(state, screen);
+            reset(Some(state), Some(screen));
             let _ = screen;
             let screen = wantscreen(
                 vt,
@@ -3955,7 +3951,7 @@ mod tests {
         unsafe {
             let vt = init();
             let screen = wantscreen(vt, ScreenOpts::default());
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"A", vt);
             screen_cell(
                 0,
@@ -4086,7 +4082,7 @@ mod tests {
                 b"{} width=1 attrs={} fg=rgb(240,240,240) bg=rgb(0,0,0)",
                 screen,
             );
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"ABC\x1b[31mDEF\x1b[m", vt);
             screen_cell(
                 0,
@@ -4111,12 +4107,12 @@ mod tests {
         unsafe {
             let vt = init();
             let screen = wantscreen(vt, ScreenOpts::default());
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"A\x1b[1\"qB\x1b[\"qC", vt);
             screen_row(0, b"ABC", screen, 80);
             push(b"\x1b[G\x1b[?J", vt);
             screen_row(0, b" B", screen, 80);
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"A\x1b[1\"qB\x1b[\"qC", vt);
             screen_row(0, b"ABC", screen, 80);
             vterm_free(vt);
@@ -4130,7 +4126,7 @@ mod tests {
         unsafe {
             let vt = init();
             let screen = wantscreen(vt, ScreenOpts::default());
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"AB\x1b[1mCD\x1b[mE", vt);
             screen_attrs_extent(0, 0, b"0,0-1,1", screen);
             screen_attrs_extent(0, 1, b"0,0-1,1", screen);
@@ -4148,8 +4144,8 @@ mod tests {
         unsafe {
             let vt = init();
             let screen = wantscreen(vt, ScreenOpts::default());
-            reset(ptr::null_mut(), screen);
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
+            reset(None, Some(screen));
             push(b"\x1b#5", vt);
             push(b"abcde", vt);
             screen_cell(
@@ -4158,7 +4154,7 @@ mod tests {
                 b"{61} width=1 attrs={} fg=rgb(240,240,240) bg=rgb(0,0,0)",
                 screen,
             );
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"\x1b#6", vt);
             push(b"abcde", vt);
             screen_cell(
@@ -4167,7 +4163,7 @@ mod tests {
                 b"{61} width=1 attrs={} dwl fg=rgb(240,240,240) bg=rgb(0,0,0)",
                 screen,
             );
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"\x1b#3", vt);
             push(b"abcde", vt);
             push(b"\r\n\x1b#4", vt);
@@ -4184,7 +4180,7 @@ mod tests {
                 b"{61} width=1 attrs={} dwl dhl-bottom fg=rgb(240,240,240) bg=rgb(0,0,0)",
                 screen,
             );
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"abcde", vt);
             screen_cell(
                 0,
@@ -4199,7 +4195,7 @@ mod tests {
                 b"{61} width=1 attrs={} dwl fg=rgb(240,240,240) bg=rgb(0,0,0)",
                 screen,
             );
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"\x1b[25H\x1b#6Final\r\n", vt);
             screen_cell(
                 23,
@@ -4234,7 +4230,7 @@ mod tests {
                     r: false,
                 },
             );
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             expect(b"settermprop 1 true\nsettermprop 2 true\nsettermprop 7 1");
             push(b"\x1b[?25h", vt);
             expect(b"settermprop 1 true");
@@ -4265,8 +4261,8 @@ mod tests {
                     r: true,
                 },
             );
-            reset(state, screen);
-            reset(state, screen);
+            reset(Some(state), Some(screen));
+            reset(Some(state), Some(screen));
             push(b"AAAAAAAAAAAA", vt);
             screen_row(0, b"AAAAAAAAAA", screen, vt.cols);
             screen_row(1, b"AA", screen, vt.cols);
@@ -4280,7 +4276,7 @@ mod tests {
             screen_row(0, b"AAAAAAAAAAAA", screen, vt.cols);
             lineinfo(1, false, false, false, state);
             cursor(0, 12, state);
-            reset(state, screen);
+            reset(Some(state), Some(screen));
             resize(5, 10, vt);
             push(b"ABCDEFGHI", vt);
             screen_row(0, b"ABCDEFGHI", screen, vt.cols);
@@ -4295,7 +4291,7 @@ mod tests {
             screen_row(1, b"GHI", screen, vt.cols);
             lineinfo(1, false, false, true, state);
             cursor(1, 3, state);
-            reset(state, screen);
+            reset(Some(state), Some(screen));
             resize(5, 10, vt);
             push(b"PROMPT GOES HERE\r\n> \r\n\r\nPROMPT GOES HERE\r\n> ", vt);
             screen_row(0, b"> ", screen, vt.cols);
@@ -4323,13 +4319,13 @@ mod tests {
             lineinfo(3, false, false, false, state);
             screen_row(3, b"> ", screen, vt.cols);
             cursor(3, 2, state);
-            reset(state, screen);
+            reset(Some(state), Some(screen));
             resize(5, 5, vt);
             resize(3, 1, vt);
             push(b"\x1b[2;1Habc\r\n\x1b[H", vt);
             resize(1, 1, vt);
             cursor(0, 0, state);
-            reset(state, screen);
+            reset(Some(state), Some(screen));
             resize(4, 4, vt);
             push(b"ABCD\r\nX", vt);
             screen_row(0, b"ABCD", screen, vt.cols);
@@ -4339,7 +4335,7 @@ mod tests {
             screen_row(0, b"ABCD", screen, vt.cols);
             screen_row(1, b"X", screen, vt.cols);
             cursor(1, 1, state);
-            reset(state, screen);
+            reset(Some(state), Some(screen));
             resize(4, 4, vt);
             push(b"ABCD\r\nX", vt);
             cursor(1, 1, state);
@@ -4360,7 +4356,7 @@ mod tests {
             let vt = init();
             let state = wantstate(vt, StateOpts::default());
             let screen = wantscreen(vt, ScreenOpts::default());
-            reset(state, screen);
+            reset(Some(state), Some(screen));
             push(b"A B C D E F G H I", vt);
             push(b"\r\n", vt);
             push(b"A\x1b[2\x08CB\x1b[2\x08CC\x1b[2\x08CD\x1b[2\x08CE\x1b[2\x08CF\x1b[2\x08CG\x1b[2\x08CH\x1b[2\x08CI", vt);
@@ -4384,7 +4380,7 @@ mod tests {
         unsafe {
             let vt = init();
             let screen = wantscreen(vt, ScreenOpts::default());
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"\x1b[00000000004;000000001HT", vt);
             push(b"\x1b[00000000004;000000002Hh", vt);
             push(b"\x1b[00000000004;000000003Hi", vt);
@@ -4423,7 +4419,7 @@ mod tests {
         unsafe {
             let vt = init();
             let screen = wantscreen(vt, ScreenOpts::default());
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"\x1b[?6h", vt);
             push(b"\x1b[23;24r", vt);
             push(b"\n", vt);
@@ -4443,7 +4439,7 @@ mod tests {
         unsafe {
             let vt = init();
             let screen = wantscreen(vt, ScreenOpts::default());
-            reset(ptr::null_mut(), screen);
+            reset(None, Some(screen));
             push(b"\x1b[?6l", vt);
             push(b"\x1b[23;24r", vt);
             push(b"\x1b[24;1H", vt);
