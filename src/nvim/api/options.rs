@@ -32,7 +32,7 @@ use crate::option::{
     option_has_type, optval_free, optval_from_obj, optval_own, set_op_T, set_option_direct,
     set_option_value_for, validate_and_prepare_option_value,
 };
-use crate::strings::{strchr, strlen};
+use crate::strings::{strlen};
 use crate::window::close_windows;
 use std::ffi::{c_char, c_int};
 use std::ptr;
@@ -128,7 +128,7 @@ unsafe fn validate_option_value_args(
                     err,
                     c"scope".as_ptr(),
                     c"'local' or 'global'".as_ptr(),
-                    ptr::null(),
+                    std::ptr::null(),
                 );
                 return FAIL;
             }
@@ -194,7 +194,7 @@ unsafe fn validate_option_value_args(
                     err,
                     c"operation".as_ptr(),
                     c"'set', 'append', 'prepend', or 'remove'".as_ptr(),
-                    ptr::null(),
+                    std::ptr::null(),
                 );
                 return FAIL;
             }
@@ -533,7 +533,7 @@ pub unsafe extern "C" fn nvim__option_to_object(
                     );
                     continue;
                 }
-                let colon = strchr(item, b':' as c_int);
+                let colon = std::ffi::CStr::from_ptr(item).to_bytes().iter().position(|&b| b == b':').map_or(ptr::null_mut(), |i| item.add(i));
                 let mut val: *mut c_char = ptr::null_mut();
                 if !colon.is_null() {
                     *colon = NUL;
@@ -619,7 +619,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
         }
 
         let mut merged_val = OBJECT_NIL;
-        let mut errmsg: *const c_char = ptr::null();
+        let mut errmsg: *const c_char = std::ptr::null();
         let option = get_option(opt_idx);
         let is_array = value.obj_type == ObjectType::kObjectTypeArray;
         let is_dict = value.obj_type == ObjectType::kObjectTypeDict;
@@ -895,7 +895,7 @@ mod tests {
         unsafe {
             assert!(strequal_str(c"local".as_ptr(), "local"));
             assert!(!strequal_str(c"local".as_ptr(), "global"));
-            assert!(!strequal_str(ptr::null(), "local"));
+            assert!(!strequal_str(std::ptr::null(), "local"));
         }
     }
 }

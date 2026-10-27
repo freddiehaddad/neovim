@@ -16,7 +16,7 @@ use crate::lua::executor::{kRetObject, nlua_exec};
 use crate::mbyte::{utf_ptr2char, utfc_ptr2len};
 use crate::message::{msg_ext_set_kind, msg_putchar, msg_puts};
 use crate::option_vars::*;
-use crate::strings::{gettext, memchr, strstr, vim_strchr};
+use crate::strings::{gettext, vim_strchr};
 use crate::ui::ui_has;
 use crate::window::{LOWEST_WIN_ID, one_window};
 use std::ffi::{CStr, CString, c_char, c_int};
@@ -4171,7 +4171,7 @@ pub unsafe fn intro_message(colon: bool) {
             for (i, &p) in lines.iter().enumerate() {
                 let formatted_cstr: Option<CString>;
 
-                let mesg: *const c_char = if !strstr(p, c"news".as_ptr()).is_null() {
+                let mesg: *const c_char = if CStr::from_ptr(p).to_bytes().windows(4).any(|w| w == b"news") {
                     let fmt_str = CStr::from_ptr(gettext(p)).to_string_lossy();
                     let major_s = nvim_version_major.to_string();
                     let minor_s = nvim_version_minor.to_string();
@@ -4275,7 +4275,7 @@ unsafe fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: b
             if *p == b'<' as c_char {
                 col += grid_line_puts(col, p, l, hlf8_attr);
             } else {
-                let colon_pos = memchr(p.cast(), b':' as c_int, l as usize).cast::<c_char>();
+                let colon_pos = std::slice::from_raw_parts(p.cast::<u8>(), l as usize).iter().position(|&b| b == b':').map_or(ptr::null(), |i| p.add(i));
                 if !colon_pos.is_null() && *p.add(l as usize) == b'<' as c_char {
                     let prefix_len = colon_pos.offset_from(p) as c_int;
                     col += grid_line_puts(col, p, prefix_len, 0);

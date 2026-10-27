@@ -15,7 +15,7 @@ use crate::memory::xstrlcpy;
 use crate::os::fs::{UV_EINVAL, UV_ENOENT, os_path_exists, os_remove};
 use crate::os::time::os_hrtime;
 use crate::path::path_tail;
-use crate::strings::{gettext, strlen, strrchr, vim_snprintf};
+use crate::strings::{gettext, strlen, vim_snprintf};
 
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -165,7 +165,7 @@ pub unsafe fn socket_address_tcp_host_end(address: *const c_char) -> *mut c_char
             return ptr::null_mut();
         }
 
-        let colon = strrchr(address, b':' as c_int);
+        let colon = std::ffi::CStr::from_ptr(address).to_bytes().iter().rposition(|&b| b == b':').map_or(ptr::null_mut(), |i| address.add(i).cast_mut());
         if !colon.is_null() && colon != address.cast_mut() {
             colon
         } else {
@@ -195,7 +195,7 @@ pub unsafe fn socket_watcher_init(
             if !ok || iport < 0 || iport > i64::from(u16::MAX) {
                 logmsg!(
                     LOGLVL_ERR,
-                    ptr::null(),
+                    std::ptr::null(),
                     c"socket_watcher_init".as_ptr(),
                     line!() as c_int,
                     true,
@@ -232,7 +232,7 @@ pub unsafe fn socket_watcher_init(
             if retval != 0 {
                 logmsg!(
                     LOGLVL_ERR,
-                    ptr::null(),
+                    std::ptr::null(),
                     c"socket_watcher_init".as_ptr(),
                     line!() as c_int,
                     true,
@@ -260,7 +260,7 @@ pub unsafe fn socket_watcher_init(
 unsafe fn socket_alive(loop_: *mut Loop, addr: *const c_char) -> bool {
     unsafe {
         let mut stream = RStream::new();
-        let mut error: *const c_char = ptr::null();
+        let mut error: *const c_char = std::ptr::null();
 
         let stream_ptr: *mut RStream = &raw mut stream;
         let connected = socket_connect(loop_, stream_ptr, false, addr, 500, &raw mut error);
@@ -332,7 +332,7 @@ pub unsafe fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) 
                     if rm_result != 0 {
                         logmsg!(
                             LOGLVL_WRN,
-                            ptr::null(),
+                            std::ptr::null(),
                             c"socket_watcher_start".as_ptr(),
                             line!() as c_int,
                             true,
@@ -359,7 +359,7 @@ pub unsafe fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) 
                 } else {
                     logmsg!(
                         LOGLVL_ERR,
-                        ptr::null(),
+                        std::ptr::null(),
                         c"socket_watcher_start".as_ptr(),
                         line!() as c_int,
                         true,
@@ -485,7 +485,7 @@ pub unsafe fn socket_connect(
         let mut addr_req = UvGetaddrinfoReq([0; 512]);
         let addr_req_ptr = (&raw mut addr_req).cast::<uv_getaddrinfo_t>();
         *getaddrinfo_req_addrinfo_ptr(addr_req_ptr) = ptr::null_mut();
-        let mut cur_addrinfo: *const addrinfo = ptr::null();
+        let mut cur_addrinfo: *const addrinfo = std::ptr::null();
         let mut addr_buf: Vec<c_char> = Vec::new();
 
         'cleanup: {
@@ -493,7 +493,7 @@ pub unsafe fn socket_connect(
                 let addr_slice = std::slice::from_raw_parts(address, strlen(address) + 1);
                 addr_buf.extend_from_slice(addr_slice);
                 let addr = addr_buf.as_mut_ptr();
-                let host_end = strrchr(addr, b':' as c_int);
+                let host_end = std::ffi::CStr::from_ptr(addr).to_bytes().iter().rposition(|&b| b == b':').map_or(ptr::null_mut(), |i| addr.add(i));
                 if host_end.is_null() {
                     *error = gettext(c"tcp address must be host:port".as_ptr());
                     break 'cleanup;
@@ -573,7 +573,7 @@ mod tests {
     #[test]
     fn socket_address_tcp_host_end_detects_tcp_and_rejects_drive_letters() {
         unsafe {
-            assert!(socket_address_tcp_host_end(ptr::null()).is_null());
+            assert!(socket_address_tcp_host_end(std::ptr::null()).is_null());
             assert!(socket_address_tcp_host_end(c"C:/tmp/nvim.sock".as_ptr()).is_null());
             assert!(socket_address_tcp_host_end(c"/tmp/nvim.sock".as_ptr()).is_null());
             let s = c"127.0.0.1:6666".as_ptr();

@@ -55,7 +55,7 @@ use crate::os::env::expand_T;
 use crate::os::input::line_breakcheck;
 use crate::runtime::sourcing_lnum;
 use crate::strings::{
-    gettext, strcat, strchr, strcmp, strcpy, strncmp, vim_strchr, vim_strnicmp_asc,
+    gettext, strcat, strcmp, strcpy, strncmp, vim_strchr, vim_strnicmp_asc,
 };
 use crate::window::{
     WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT, prevwin_curwin, tabpage_index,
@@ -352,7 +352,7 @@ pub unsafe fn set_context_in_user_cmd(xp: *mut expand_T, arg_in: *const c_char) 
             arg = arg.add(1);
             p = skiptowhite(arg);
             if *p == NUL {
-                p = strchr(arg, b'=' as c_int);
+                p = CStr::from_ptr(arg).to_bytes().iter().position(|&b| b == b'=').map_or(ptr::null(), |i| arg.add(i));
                 if p.is_null() {
                     (*xp).xp_context = EXPAND_USER_CMD_FLAGS;
                     (*xp).xp_pattern = arg.cast_mut();

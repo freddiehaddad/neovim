@@ -135,7 +135,7 @@ use crate::state::{
     save_v_event_T, state_enter, state_handle_k_event,
 };
 use crate::strings::{
-    gettext, strcmp, strcpy, strlen, strncmp, strrchr, vim_strchr, vim_strnicmp,
+    gettext, strcmp, strcpy, strlen, strncmp, vim_strchr, vim_strnicmp,
     vim_strsave_escaped,
 };
 use crate::ui::{
@@ -5413,7 +5413,7 @@ pub unsafe fn get_user_input(
 
         let mut p = prompt;
         if !ui_has(kUICmdline) {
-            let lastnl = strrchr(prompt, b'\n' as c_int);
+            let lastnl = CStr::from_ptr(prompt).to_bytes().iter().rposition(|&b| b == b'\n').map_or(ptr::null_mut(), |i| prompt.add(i).cast_mut());
             if !lastnl.is_null() {
                 p = lastnl.add(1);
                 msg_start();

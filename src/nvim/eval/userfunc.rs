@@ -76,7 +76,7 @@ use crate::runtime::{
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::strings::{
-    gettext, memchr, strchr, strcmp, strcpy, strlen, strncmp, strstr, vim_snprintf, vim_strchr,
+    gettext, strcmp, strcpy, strlen, strncmp, vim_snprintf, vim_strchr,
 };
 use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int};
@@ -640,7 +640,7 @@ pub unsafe fn get_lambda_tv(
             line_bytes.extend_from_slice(b"return ");
             line_bytes.extend_from_slice(std::slice::from_raw_parts(start.cast::<u8>(), expr_len));
             let line_cstr = std::ffi::CString::new(line_bytes).unwrap();
-            if strstr(line_cstr.as_ptr().add(7), c"a:".as_ptr()).is_null() {
+            if !line_cstr.to_bytes()[7..].windows(2).any(|w| w == b"a:") {
                 flags |= FC_NOARGS;
             }
             let newlines = vec![Some(line_cstr)];
@@ -1740,13 +1740,12 @@ unsafe fn builtin_function(name: *const c_char, len: c_int) -> bool {
             return false;
         }
 
-        let p = if len == -1 {
-            strchr(name, AUTOLOAD_CHAR as c_int)
+        let bytes = if len == -1 {
+            CStr::from_ptr(name).to_bytes()
         } else {
-            memchr(name.cast(), AUTOLOAD_CHAR as c_int, len as usize).cast::<c_char>()
+            std::slice::from_raw_parts(name.cast::<u8>(), len as usize)
         };
-
-        p.is_null()
+        !bytes.contains(&(AUTOLOAD_CHAR as u8))
     }
 }
 

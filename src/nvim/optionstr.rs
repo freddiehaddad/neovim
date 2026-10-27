@@ -60,7 +60,7 @@ use crate::spell::{
 use crate::spellfile::spell_check_msm;
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
-    atoi, gettext, strcmp, strcspn, strlen, strncmp, strpbrk, strstr, vim_snprintf, vim_strchr,
+    atoi, gettext, strcmp, strlen, strncmp, vim_snprintf, vim_strchr,
 };
 use crate::terminal::terminal_notify_theme;
 use crate::ui::ui_has;
@@ -1268,8 +1268,8 @@ pub unsafe fn check_illegal_path_names(val: *mut c_char, flags: u32) -> bool {
         } else {
             c"/\\*?[<>\r\n".as_ptr()
         };
-        ((flags & kOptFlagNFname) != 0 && !strpbrk(val, nfname_illegal).is_null())
-            || ((flags & kOptFlagNDname) != 0 && !strpbrk(val, c"*?[|;&<>\r\n".as_ptr()).is_null())
+        ((flags & kOptFlagNFname) != 0 && CStr::from_ptr(val).to_bytes().iter().any(|b| CStr::from_ptr(nfname_illegal).to_bytes().contains(b)))
+            || ((flags & kOptFlagNDname) != 0 && CStr::from_ptr(val).to_bytes().iter().any(|b| b"*?[|;&<>\r\n".contains(b)))
     }
 }
 
@@ -1938,7 +1938,7 @@ pub unsafe fn validate_comments(args: *mut optset_T) -> *const c_char {
 pub unsafe fn validate_commentstring(args: *mut optset_T) -> *const c_char {
     unsafe {
         let value = (*args).os_newval.data.string().data;
-        if *value == NUL || !strstr(value, c"%s".as_ptr()).is_null() {
+        if *value == NUL || CStr::from_ptr(value).to_bytes().windows(2).any(|w| w == b"%s") {
             ptr::null()
         } else {
             c"E537: 'commentstring' must be empty or contain %s".as_ptr()
@@ -3510,7 +3510,7 @@ unsafe fn opt_strings_flags(
                     errbuf,
                     c"E474: Invalid value '%s', expected one of:".as_ptr(),
                     val,
-                    strcspn(val, c",".as_ptr()),
+                    CStr::from_ptr(val).to_bytes().iter().position(|&b| b == b',').unwrap_or_else(|| CStr::from_ptr(val).to_bytes().len()),
                     values,
                 );
             }

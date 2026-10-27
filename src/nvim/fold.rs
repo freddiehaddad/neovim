@@ -41,7 +41,7 @@ use crate::os::input::line_breakcheck;
 use crate::plines::plines_win_nofold;
 use crate::search::{FORWARD, linewhite};
 use crate::statusline::foldinfo_T;
-use crate::strings::{atoi, gettext, strstr, vim_snprintf, vim_strchr};
+use crate::strings::{atoi, gettext, vim_snprintf, vim_strchr};
 use crate::syntax::syn_get_foldlevel;
 use crate::undo::u_save;
 use crate::window::win_T;
@@ -1348,7 +1348,7 @@ unsafe fn foldCreateMarkers(wp: *mut win_T, start: pos_T, end: pos_T) {
 unsafe fn foldAddMarker(buf: *mut buf_T, pos: pos_T, marker: *const c_char, markerlen: usize) {
     unsafe {
         let cms = (*buf).b_p_cms;
-        let p = strstr(cms, c"%s".as_ptr());
+        let p = CStr::from_ptr(cms).to_bytes().windows(2).position(|w| w == b"%s").map_or(ptr::null_mut(), |i| cms.add(i));
         let mut line_is_comment = false;
         let lnum = pos.lnum;
 
@@ -1438,7 +1438,7 @@ unsafe fn foldDelMarker(buf: *mut buf_T, lnum: linenr_T, marker: *const c_char, 
                 len += 1;
             }
             if *cms != NUL {
-                let cms2 = strstr(cms, c"%s".as_ptr());
+                let cms2 = CStr::from_ptr(cms).to_bytes().windows(2).position(|w| w == b"%s").map_or(ptr::null_mut(), |i| cms.add(i));
                 if !cms2.is_null() {
                     let prefix_len = (cms2 as usize) - (cms as usize);
                     let suffix = cms2.add(2);
@@ -1604,7 +1604,7 @@ unsafe fn foldtext_cleanup(str_ptr: *mut c_char) {
             cms_slen -= 1;
         }
 
-        let mut cms_end = strstr(cms_start, c"%s".as_ptr());
+        let mut cms_end = CStr::from_ptr(cms_start).to_bytes().windows(2).position(|w| w == b"%s").map_or(ptr::null_mut(), |i| cms_start.add(i));
         let mut cms_elen: usize = 0;
         if !cms_end.is_null() {
             let start_off = (cms_end as usize) - (cms_start as usize);

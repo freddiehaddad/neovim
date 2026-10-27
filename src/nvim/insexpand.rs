@@ -113,8 +113,7 @@ use crate::strings::vim_strnicmp;
 #[cfg(windows)]
 use crate::strings::vim_strnicmp;
 use crate::strings::{
-    atoi, gettext, memcmp, strcat, strchr, strcmp, strcpy, strlen, strncmp, strncpy, strrchr,
-    tolower, vim_snprintf, vim_strchr, vim_strsave_escaped,
+    atoi, gettext, strcat, strcmp, strcpy, strlen, strncmp, tolower, vim_snprintf, vim_strchr, vim_strsave_escaped,
 };
 use crate::tag::find_tags;
 use crate::textformat::auto_format;
@@ -4404,7 +4403,7 @@ unsafe fn get_next_filename_completion() {
             {
                 path_to_slash(leader);
             }
-            let last_sep = strrchr(leader, PATHSEP as c_int);
+            let last_sep = CStr::from_ptr(leader).to_bytes().iter().rposition(|&b| b == PATHSEP as u8).map_or(ptr::null_mut(), |i| leader.add(i));
             if last_sep.is_null() {
                 insexp().compl_pattern = Some(c"*".to_owned());
             } else if *last_sep.add(1) == NUL {
@@ -4623,7 +4622,7 @@ unsafe fn ins_compl_get_next_word_or_line(
             if compl_status_adding() && len == insexp().compl_length {
                 if (*cur_match_pos).lnum < (*ins_buf).b_ml.ml_line_count {
                     let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
-                    strncpy(iobuff_ptr, ptr, len as usize);
+                    { let n = crate::memory::xstrnlen(ptr, len as usize); ptr::copy_nonoverlapping(ptr, iobuff_ptr, n); ptr::write_bytes(iobuff_ptr.add(n), 0, len as usize - n); }
                     ptr = ml_get_buf(ins_buf, (*cur_match_pos).lnum + 1);
                     ptr = skipwhite(ptr);
                     tmp_ptr = find_word_start(ptr);
@@ -5531,7 +5530,7 @@ unsafe fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut 
                         while j < len && *s1 != NUL && *s2 != NUL {
                             let l1 = utf_byte2len(c_int::from(*s1 as u8));
                             let l2 = utf_byte2len(c_int::from(*s2 as u8));
-                            if l1 != l2 || memcmp(s1.cast(), s2.cast(), l1 as usize) != 0 {
+                            if l1 != l2 || std::slice::from_raw_parts(s1.cast::<u8>(), l1 as usize) != std::slice::from_raw_parts(s2.cast::<u8>(), l1 as usize) {
                                 break;
                             }
 
@@ -5580,7 +5579,7 @@ pub unsafe fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
         let mut cp_str = (*shown).cp_str.data;
         let mut cp_str_len = (*shown).cp_str.size;
         let leader_len = ins_compl_leader_len();
-        let has_multiple = !strchr(cp_str, b'\n' as c_int).is_null();
+        let has_multiple = CStr::from_ptr(cp_str).to_bytes().contains(&b'\n');
 
         let cpt_sources = &raw const insexp().cpt_sources_array;
         if insert_prefix {

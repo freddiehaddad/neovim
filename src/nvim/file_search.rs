@@ -36,7 +36,7 @@ use crate::path::{
 #[cfg(windows)]
 use crate::path::{path_to_slash, vim_FullName};
 use crate::state::save_v_event_T;
-use crate::strings::{tr, vim_snprintf, vim_strchr, xstrnsave};
+use crate::strings::{tr, vim_snprintf, vim_strchr};
 use std::ffi::{CStr, c_char, c_int, c_long};
 use std::ptr;
 
@@ -673,7 +673,7 @@ pub unsafe fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<s
                     }
 
                     if path_with_url(dirptrs[0]) != 0 {
-                        (*stackp).ffs_filearray = vec![xstrnsave(dirptrs[0], file_path.size)];
+                        (*stackp).ffs_filearray = vec![crate::memory::cstr_from_bytes(std::slice::from_raw_parts(dirptrs[0].cast::<u8>(), crate::memory::xstrnlen(dirptrs[0], file_path.size)))];
                     } else {
                         expand_wildcards_vec(
                             if dirptrs[1].is_null() { 1 } else { 2 },

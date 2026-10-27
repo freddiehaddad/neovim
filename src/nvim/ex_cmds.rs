@@ -130,7 +130,7 @@ use crate::shada::SubReplacementString;
 use crate::spell::parse_spelllang;
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_LANGMAP};
 use crate::strings::{
-    atoi, atol, concat_str, gettext, isalpha, ngettext, sort_slice_by, strcat, strchr, strcmp,
+    atoi, atol, concat_str, gettext, isalpha, ngettext, strcat, strcmp,
     strcoll, strcpy, strlen, strncmp, strtod, vim_snprintf, vim_snprintf_add, vim_snprintf_safelen,
     vim_strchr, vim_stricmp, vim_strsave_escaped,
 };
@@ -861,7 +861,7 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
             let mut sortbuf2_vec = vec![0 as c_char; maxlen as usize + 1];
             let sortbuf2 = sortbuf2_vec.as_mut_ptr();
 
-            sort_slice_by(&mut nrs_vec, |a, b| sort_compare(a, b, sortbuf1, sortbuf2));
+            nrs_vec.sort_by(|a, b| sort_compare(a, b, sortbuf1, sortbuf2).cmp(&0));
 
             if excmds_st().sort_abort {
                 break 'sortend;
@@ -2007,7 +2007,7 @@ pub unsafe fn append_redir(
         let end = buf.add(strlen(buf));
         let mut p = opt;
         loop {
-            p = strchr(p, b'%' as c_int);
+            p = CStr::from_ptr(p).to_bytes().iter().position(|&b| b == b'%').map_or(ptr::null(), |i| p.add(i));
             if p.is_null() {
                 break;
             }

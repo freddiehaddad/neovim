@@ -40,7 +40,7 @@ use crate::ops::{
 use crate::option_vars::*;
 use crate::register::reg_max_ts;
 use crate::state::{MODE_NORMAL, MODE_OP_PENDING, get_real_state};
-use crate::strings::{strchr, strlen, vim_snprintf, vim_strchr};
+use crate::strings::{strlen, vim_snprintf, vim_strchr};
 use crate::textformat::oparg_T;
 use crate::viml::parser::expressions::ESC;
 use crate::window::{win_T, win_valid};
@@ -1059,10 +1059,10 @@ pub unsafe fn atom_key_class(cmd: c_int, arg: c_int, arg2: c_int) -> c_uint {
             if arg == b'\'' as c_int || arg == b'`' as c_int {
                 return atom_key_class(arg, arg2, NUL);
             }
-            if !strchr(c";,go".as_ptr(), arg).is_null() {
+            if b";,go".contains(&(arg as u8)) {
                 return kKeyJump;
             }
-            return if !strchr(c"jk0^$_meEM*#".as_ptr(), arg).is_null() {
+            return if b"jk0^$_meEM*#".contains(&(arg as u8)) {
                 kKeyMotion
             } else {
                 0
@@ -1072,7 +1072,7 @@ pub unsafe fn atom_key_class(cmd: c_int, arg: c_int, arg2: c_int) -> c_uint {
             if arg == b'C' as c_int {
                 return kKeyJump;
             }
-            return if !strchr(c"[](){}mMcsz#*/".as_ptr(), arg).is_null() {
+            return if b"[](){}mMcsz#*/".contains(&(arg as u8)) {
                 kKeyMotion
             } else {
                 0
@@ -1086,7 +1086,7 @@ pub unsafe fn atom_key_class(cmd: c_int, arg: c_int, arg2: c_int) -> c_uint {
             };
         }
         if cmd == b'\'' as c_int || cmd == b'`' as c_int {
-            return if arg != NUL && !strchr(c"<>[].^(){}".as_ptr(), arg).is_null() {
+            return if arg != NUL && b"<>[].^(){}".contains(&(arg as u8)) {
                 kKeyMotion
             } else {
                 kKeyJump
@@ -1551,7 +1551,7 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: *mut cmdarg_T, redo_yank: 
             || (*oap).op_type == OP_INSERT
             || (*oap).op_type == OP_APPEND;
         let payload_motion = (*cap).cmdchar >= 0x100
-            || ((*cap).cmdchar != NUL && !strchr(c"/?:!".as_ptr(), (*cap).cmdchar).is_null());
+            || ((*cap).cmdchar != NUL && b"/?:!".contains(&((*cap).cmdchar as u8)));
         let excmd = (*cap).cmdchar == b':' as c_int || (*cap).cmdchar == K_COMMAND;
         if !ins_op && !payload_motion {
             let prep_exempt = !redoable || (*cap).cmdchar == b'D' as c_int;

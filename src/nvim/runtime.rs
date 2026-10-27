@@ -81,7 +81,7 @@ use crate::profile::{
     script_line_end, script_line_start, scriptitem_T, time_msg, time_pop, time_push,
 };
 use crate::regexp::{RE_MAGIC, RE_STRING, regmatch_T, vim_regcomp, vim_regexec, vim_regfree};
-use crate::strings::{gettext, strstr, vim_snprintf, vim_snprintf_safelen, vim_strchr};
+use crate::strings::{gettext, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::usercmd::add_win_cmd_modifiers;
 use crate::viml::parser::expressions::AUTOLOAD_CHAR;
 use std::ffi::{CStr, c_char, c_int};
@@ -1497,7 +1497,7 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                     buf.size
                 };
 
-                let p_after = strstr(buf.data, c"after".as_ptr());
+                let p_after = CStr::from_ptr(buf.data).to_bytes().windows(5).position(|w| w == b"after").map_or(ptr::null_mut(), |i| buf.data.add(i));
                 let is_after = !p_after.is_null()
                     && (p_after as usize) > (buf.data as usize)
                     && vim_ispathsep(*p_after.sub(1) as u8 as c_int)

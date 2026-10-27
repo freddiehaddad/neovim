@@ -40,7 +40,7 @@ use crate::ex_docmd::{
     CAR, check_nextcmd, cmd_has_expr_args, do_cmdline, ends_excmd, exarg_T, set_ref_in_findfunc,
 };
 use crate::strings::{
-    atol, concat_str, gettext, strcmp, strlen, strncmp, strpbrk, strstr, strtod, vim_snprintf,
+    atol, concat_str, gettext, strcmp, strlen, strncmp, strtod, vim_snprintf,
     vim_strchr,
 };
 pub mod buffer;
@@ -134,8 +134,7 @@ use crate::mbyte::{
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
     Arena, arena_finish, arena_mem_free, cstr_from_bytes, cstr_to_cstring, memchrsub, strchrsub,
-    strequal, strnequal,
-};
+    strequal, };
 use crate::msgpack_rpc::channel::find_channel;
 use crate::ops::set_ref_in_opfunc;
 use crate::optionstr::{OptIndex, free_string_option};
@@ -1952,7 +1951,7 @@ pub unsafe fn set_context_for_expression(
 
         if cmdidx == cmdidx_T::CMD_let || cmdidx == cmdidx_T::CMD_const {
             (*xp).xp_context = EXPAND_USER_VARS;
-            if strpbrk(arg, c"\"'+-*/%.=!?~|&$([<>,#".as_ptr()).is_null() {
+            if !CStr::from_ptr(arg).to_bytes().iter().any(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b)) {
                 let mut p = arg.add(strlen(arg));
                 while (p as usize) >= (arg as usize) {
                     (*xp).xp_pattern = p;
@@ -1971,7 +1970,7 @@ pub unsafe fn set_context_for_expression(
             };
         }
         while {
-            (*xp).xp_pattern = strpbrk(arg, c"\"'+-*/%.=!?~|&$([<>,#".as_ptr());
+            (*xp).xp_pattern = CStr::from_ptr(arg).to_bytes().iter().position(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b)).map_or(ptr::null_mut(), |i| arg.add(i));
             !(*xp).xp_pattern.is_null()
         } {
             let mut c = c_int::from(*(*xp).xp_pattern as u8);
@@ -2206,11 +2205,11 @@ pub unsafe fn eval0(
 /// the result. Otherwise return NOTDONE.
 pub unsafe fn may_call_simple_func(arg: *const c_char, rettv: *mut typval_T) -> c_int {
     unsafe {
-        let parens = strstr(arg, c"()".as_ptr()).cast_const();
+        let parens = CStr::from_ptr(arg).to_bytes().windows(2).position(|w| w == b"()").map_or(ptr::null(), |i| arg.add(i));
         let mut r = NOTDONE;
 
         if !parens.is_null() && *skipwhite(parens.add(2)) == NUL {
-            if strnequal(arg, c"v:lua.".as_ptr(), 6) {
+            if CStr::from_ptr(arg).to_bytes().starts_with(b"v:lua.") {
                 let p = arg.add(6);
                 if p != parens && skip_luafunc_name(p) == parens {
                     r = call_simple_luafunc(p, (parens as usize).wrapping_sub(p as usize), rettv);
@@ -3004,7 +3003,7 @@ unsafe fn eval7(
                     check_vars(s, len as usize);
                     if (*rettv).v_type == VarType::VAR_UNKNOWN
                         && !evaluate
-                        && strnequal(s, c"v:lua.".as_ptr(), 6)
+                        && CStr::from_ptr(s).to_bytes().starts_with(b"v:lua.")
                     {
                         (*rettv).v_type = VarType::VAR_PARTIAL;
                         let lua_pt = get_vim_var_partial(VV_LUA);
@@ -3236,7 +3235,7 @@ unsafe fn eval_method(
         let mut lua_funcname: *mut c_char = ptr::null_mut();
         let mut alias: Option<std::ffi::CString> = None;
 
-        if strnequal(name, c"v:lua.".as_ptr(), 6) {
+        if CStr::from_ptr(name).to_bytes().starts_with(b"v:lua.") {
             lua_funcname = name.add(6);
             *arg = skip_luafunc_name(lua_funcname).cast_mut();
             *arg = skipwhite(*arg);

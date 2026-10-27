@@ -23,7 +23,7 @@ use crate::plines::getvcol;
 use crate::regexp::MAXCOL;
 use crate::search::{findmatchlimit, linewhite};
 use crate::state::MODE_INSERT;
-use crate::strings::{atoi, strcpy, strlen, strncmp, strpbrk, tolower, vim_strchr};
+use crate::strings::{atoi, strcpy, strlen, strncmp, tolower, vim_strchr};
 use std::ffi::{c_char, c_int};
 use std::ptr;
 pub(crate) const FM_BACKWARD: c_int = 0x01;
@@ -87,7 +87,7 @@ pub unsafe fn check_linecomment(line: *const c_char) -> c_int {
             if !vim_strchr(p, b';' as c_int).is_null() {
                 let mut in_str = false;
                 while {
-                    p = strpbrk(p, c"\";".as_ptr());
+                    p = std::ffi::CStr::from_ptr(p).to_bytes().iter().position(|&b| b == b'"' || b == b';').map_or(std::ptr::null(), |i| p.add(i));
                     !p.is_null()
                 } {
                     if *p == b'"' as c_char {
@@ -112,7 +112,7 @@ pub unsafe fn check_linecomment(line: *const c_char) -> c_int {
                     p = p.add(1);
                 }
             } else {
-                p = ptr::null();
+                p = std::ptr::null();
             }
         } else {
             while *p != NUL {
@@ -129,7 +129,7 @@ pub unsafe fn check_linecomment(line: *const c_char) -> c_int {
                 p = p.add(1);
             }
             if *p == NUL {
-                p = ptr::null();
+                p = std::ptr::null();
             }
         }
         if p.is_null() {
@@ -466,7 +466,7 @@ unsafe fn cin_skip_comment_and_string(s: *const c_char) -> *const c_char {
 unsafe fn cin_is_compound_init(s: *const c_char) -> bool {
     unsafe {
         let mut p = s;
-        let mut r: *const c_char = ptr::null();
+        let mut r: *const c_char = std::ptr::null();
         while *p != NUL {
             if *p == b'=' as c_char {
                 r = cin_skipcomment(p.add(1));
@@ -676,11 +676,11 @@ unsafe fn after_label(mut l: *const c_char) -> *const c_char {
             l = l.add(1);
         }
         if *l == NUL {
-            return ptr::null();
+            return std::ptr::null();
         }
         l = cin_skipcomment(l.add(1));
         if *l == NUL {
-            return ptr::null();
+            return std::ptr::null();
         }
         l
     }
@@ -1640,8 +1640,8 @@ pub unsafe fn get_c_indent() -> c_int {
         let start: *mut c_char;
         let start_brace: c_int;
         let mut ourscope: linenr_T;
-        let mut l: *const c_char = ptr::null();
-        let mut look: *const c_char = ptr::null();
+        let mut l: *const c_char = std::ptr::null();
+        let mut look: *const c_char = std::ptr::null();
         let mut terminated: c_char;
         let mut lookfor: c_int;
         let mut whilelevel: c_int;

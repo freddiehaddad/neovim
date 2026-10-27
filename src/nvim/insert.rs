@@ -110,7 +110,6 @@ use crate::mcursor::{mc_ins_cascade, mc_ins_cascade_restart, mc_ins_join, mc_ins
 use crate::memline::{
     gchar_pos, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace, ml_replace_dirty_line,
 };
-use crate::memory::strnequal;
 use crate::message::{emsg, msg_check_for_delay};
 use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, ins_mouse, ins_mousescroll, setmouse,
@@ -1594,11 +1593,10 @@ unsafe fn init_prompt(cmdchar_todo: c_int) {
         if (*g_st().curbuf).b_prompt_start.mark.lnum == (**curwin.as_ptr()).w_cursor.lnum
             && ((*g_st().curbuf).b_prompt_start.mark.col < prompt_len
                 || (*g_st().curbuf).b_prompt_start.mark.col > text_len
-                || !strnequal(
-                    text.offset(((*g_st().curbuf).b_prompt_start.mark.col - prompt_len) as isize),
-                    prompt,
+                || std::slice::from_raw_parts(
+                    text.offset(((*g_st().curbuf).b_prompt_start.mark.col - prompt_len) as isize).cast::<u8>(),
                     prompt_len as usize,
-                ))
+                ) != std::slice::from_raw_parts(prompt.cast::<u8>(), prompt_len as usize))
         {
             if *text == NUL {
                 ml_replace((*g_st().curbuf).b_prompt_start.mark.lnum, prompt, true);

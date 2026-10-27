@@ -94,7 +94,7 @@ use crate::mbyte::{enc_locale, utfc_ptr2len};
 use crate::mcursor::{kOptFollow, mc_ins_replay_can_join};
 use crate::memfile::mf_close_file;
 use crate::memline::{ml_open_file, ml_open_files};
-use crate::memory::{Arena, strequal, strnequal, xmemcpyz, xstrlcpy};
+use crate::memory::{Arena, strequal, xmemcpyz, xstrlcpy};
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar,
     msg_puts, msg_puts_title, msg_source,
@@ -129,7 +129,7 @@ use crate::runtime::{
 use crate::spell::{compile_cap_prog, did_set_spell_option, init_spell_chartab, parse_spelllang};
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
-    gettext, strchr, strcmp, strcpy, strlen, strncmp, strstr, tr, vim_snprintf,
+    gettext, strcmp, strcpy, strlen, strncmp, tr, vim_snprintf,
     vim_snprintf_safelen, vim_strchr, vim_strsave_escaped,
 };
 use crate::tag::free_tagfunc_option;
@@ -666,8 +666,14 @@ pub unsafe fn opt_error_int(
 }
 
 #[inline]
-unsafe fn c_strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char {
-    unsafe { strstr(haystack, needle) }
+unsafe fn c_str_contains(haystack: *const c_char, needle: &[u8]) -> bool {
+    unsafe {
+        needle.is_empty()
+            || CStr::from_ptr(haystack)
+                .to_bytes()
+                .windows(needle.len())
+                .any(|w| w == needle)
+    }
 }
 
 #[inline]
@@ -1202,7 +1208,7 @@ pub unsafe fn set_init_3() {
         let p = invocation_path_tail(opt_vars().p_sh, &raw mut len);
         xmemcpyz(name.as_mut_ptr().cast(), p.cast(), len);
         for (i, rule) in SHELL_RULES.iter().enumerate() {
-            if c_strstr(name.as_ptr(), rule.pat.as_ptr()).is_null() {
+            if !c_str_contains(name.as_ptr(), rule.pat.to_bytes()) {
                 continue;
             }
             change_option_and_default_if_unset(kOptShellcmdflag, rule.shcf);
@@ -5198,13 +5204,7 @@ pub unsafe fn option_equal(o1: Object, o2: Object) -> bool {
             ObjectType::kObjectTypeBoolean => o1.data.boolean() == o2.data.boolean(),
             ObjectType::kObjectTypeInteger => o1.data.integer() == o2.data.integer(),
             ObjectType::kObjectTypeString => {
-                o1.data.string().size == o2.data.string().size
-                    && (o1.data.string().data == o2.data.string().data
-                        || strnequal(
-                            o1.data.string().data,
-                            o2.data.string().data,
-                            o1.data.string().size,
-                        ))
+                o1.data.string().as_bytes() == o2.data.string().as_bytes()
             }
             ObjectType::kObjectTypeLuaRef => false,
             _ => std::process::abort(),
@@ -5555,7 +5555,7 @@ pub unsafe fn optval_from_obj(
             join_cstrings(&items, if is_flaglist && !is_comma { b"" } else { b"," })
         };
 
-        if op == OP_REMOVING && is_map && strchr(str_cstr.as_ptr(), b':' as c_int).is_null() {
+        if op == OP_REMOVING && is_map && !str_cstr.as_bytes().contains(&b':') {
             let mut bytes = str_cstr.into_bytes();
             bytes.push(b':');
             str_cstr = std::ffi::CString::new(bytes).unwrap();
@@ -8676,12 +8676,12 @@ pub unsafe fn option_slice_eq(slice: *const c_char, slicelen: usize, name: *cons
 
 /// Return true when 'shell' has "csh" in the tail.
 pub unsafe fn csh_like_shell() -> c_int {
-    unsafe { c_int::from(!c_strstr(path_tail(opt_vars().p_sh), c"csh".as_ptr()).is_null()) }
+    unsafe { c_int::from(c_str_contains(path_tail(opt_vars().p_sh), b"csh")) }
 }
 
 /// Return true when 'shell' has "fish" in the tail.
 pub unsafe fn fish_like_shell() -> bool {
-    unsafe { !c_strstr(path_tail(opt_vars().p_sh), c"fish".as_ptr()).is_null() }
+    unsafe { c_str_contains(path_tail(opt_vars().p_sh), b"fish") }
 }
 
 /// Get window or buffer local options.

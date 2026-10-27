@@ -69,7 +69,7 @@ use crate::sha256::context_sha256_T;
 use crate::spell::spell_check_window;
 use crate::state::virtual_active;
 use crate::strings::{
-    gettext, memcmp, ngettext, strcmp, strlen, vim_snprintf, vim_snprintf_add, vim_strchr,
+    gettext, ngettext, strcmp, strlen, vim_snprintf, vim_snprintf_add, vim_strchr,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong};
 use std::ptr;
@@ -1136,11 +1136,7 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
                         let len = read_eintr(fd, mbuf.as_mut_ptr().cast(), UF_START_MAGIC_LEN);
                         os_close(fd);
                         if len < UF_START_MAGIC_LEN as isize
-                            || memcmp(
-                                mbuf.as_ptr().cast(),
-                                UF_START_MAGIC.as_ptr().cast(),
-                                UF_START_MAGIC_LEN,
-                            ) != 0
+                            || mbuf != UF_START_MAGIC[..UF_START_MAGIC_LEN]
                         {
                             if !name.is_null() || opt_vars().p_verbose > 0 {
                                 if name.is_null() {
@@ -1383,11 +1379,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
 
                 let mut magic_buf = [0u8; UF_START_MAGIC_LEN];
                 if fread(magic_buf.as_mut_ptr().cast(), UF_START_MAGIC_LEN, 1, fp) != 1
-                    || memcmp(
-                        magic_buf.as_ptr().cast(),
-                        UF_START_MAGIC.as_ptr().cast(),
-                        UF_START_MAGIC_LEN,
-                    ) != 0
+                    || magic_buf != UF_START_MAGIC[..UF_START_MAGIC_LEN]
                 {
                     semsg!(gettext(c"E823: Not an undo file: %s".as_ptr()), file_name);
                     break 'error;
@@ -1407,7 +1399,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                     break 'error;
                 }
                 let line_count = undo_read_4c(&mut bi) as linenr_T;
-                if memcmp(hash.cast(), read_hash.as_ptr().cast(), UNDO_HASH_SIZE) != 0
+                if std::slice::from_raw_parts(hash, UNDO_HASH_SIZE) != read_hash
                     || line_count != (*g_st().curbuf).b_ml.ml_line_count
                 {
                     if opt_vars().p_verbose > 0 || !name.is_null() {

@@ -4845,7 +4845,7 @@ pub unsafe fn vim_fprintf_fmt(
     args: &[crate::strings::FmtVal],
 ) -> c_int {
     unsafe {
-        if args.is_empty() && crate::strings::strchr(fmt, b'%' as c_int).is_null() {
+        if args.is_empty() && !CStr::from_ptr(fmt).to_bytes().contains(&b'%') {
             let bytes = CStr::from_ptr(fmt).to_bytes();
             if bytes.is_empty() {
                 return 0;

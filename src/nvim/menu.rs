@@ -32,7 +32,7 @@ use crate::state::{
     MODE_TERMINAL, MODE_VISUAL, get_real_state,
 };
 use crate::strings::{
-    gettext, strcat, strcmp, strmove, strncmp, vim_strchr, vim_stricmp, vim_strnicmp_asc,
+    gettext, strcat, strcmp, strncmp, vim_strchr, vim_stricmp, vim_strnicmp_asc,
 };
 use crate::ui::ui_call_update_menu;
 use std::ffi::{CStr, c_char, c_int};
@@ -260,7 +260,7 @@ pub unsafe fn ex_menu(eap: *mut exarg_T) {
             arg = arg.add(5);
             while *arg != NUL && *arg != b' ' as c_char {
                 if *arg == b'\\' as c_char {
-                    strmove(arg, arg.add(1));
+                    ptr::copy(arg.add(1), arg, std::ffi::CStr::from_ptr(arg.add(1)).to_bytes_with_nul().len());
                 }
                 arg = arg.add(utfc_ptr2len(arg) as usize);
             }
@@ -1251,7 +1251,7 @@ unsafe fn menu_name_skip(name: *mut c_char) -> *mut c_char {
         let mut p = name;
         while *p != NUL && *p != b'.' as c_char {
             if *p == b'\\' as c_char || *p == Ctrl_V {
-                strmove(p, p.add(1));
+                ptr::copy(p.add(1), p, std::ffi::CStr::from_ptr(p.add(1)).to_bytes_with_nul().len());
                 if *p == NUL {
                     break;
                 }
@@ -1448,7 +1448,7 @@ unsafe fn menu_text(
                 if !mnemonic.is_null() && *p.add(1) != b'&' as c_char {
                     *mnemonic = c_int::from(*p.add(1) as u8);
                 }
-                strmove(p, p.add(1));
+                ptr::copy(p.add(1), p, std::ffi::CStr::from_ptr(p.add(1)).to_bytes_with_nul().len());
                 p = p.add(1);
             }
         }
@@ -1881,7 +1881,7 @@ unsafe fn menu_unescape_name(name: *mut c_char) {
         let mut p = name;
         while *p != NUL && *p != b'.' as c_char {
             if *p == b'\\' as c_char {
-                strmove(p, p.add(1));
+                ptr::copy(p.add(1), p, std::ffi::CStr::from_ptr(p.add(1)).to_bytes_with_nul().len());
             }
             p = p.add(utfc_ptr2len(p) as usize);
         }
@@ -1898,7 +1898,7 @@ unsafe fn menu_translate_tab_and_shift(arg_start: *mut c_char) -> *mut c_char {
                 arg = arg.add(1);
             } else if vim_strnicmp_asc(arg, c"<TAB>".as_ptr(), 5) == 0 {
                 *arg = TAB;
-                strmove(arg.add(1), arg.add(5));
+                ptr::copy(arg.add(5), arg.add(1), std::ffi::CStr::from_ptr(arg.add(5)).to_bytes_with_nul().len());
             }
             arg = arg.add(1);
         }

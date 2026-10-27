@@ -30,7 +30,7 @@ use crate::os::fs::os_errno;
 use crate::os::lang::nl_langinfo;
 use crate::os::lang::{LC_CTYPE, setlocale};
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
-use crate::strings::{strmove, tolower, toupper, vim_strchr, vim_strnicmp_asc};
+use crate::strings::{tolower, toupper, vim_strchr, vim_strnicmp_asc};
 use crate::utf8proc::{
     UTF8PROC_BOUNDCLASS_CONTROL, UTF8PROC_BOUNDCLASS_CR, UTF8PROC_BOUNDCLASS_EXTENDED_PICTOGRAPHIC,
     UTF8PROC_BOUNDCLASS_OTHER, UTF8PROC_BOUNDCLASS_PREPEND, UTF8PROC_BOUNDCLASS_REGIONAL_INDICATOR,
@@ -2978,29 +2978,29 @@ pub unsafe fn enc_canonize(enc: *const c_char) -> std::ffi::CString {
 
         let p_bytes = CStr::from_ptr(p).to_bytes();
         if p_bytes.starts_with(b"microsoft-cp") {
-            strmove(p, p.add(10));
+            ptr::copy(p.add(10), p, std::ffi::CStr::from_ptr(p.add(10)).to_bytes_with_nul().len());
         }
 
         let p_bytes = CStr::from_ptr(p).to_bytes();
         if p_bytes.starts_with(b"iso8859") {
-            strmove(p.add(4), p.add(3));
+            ptr::copy(p.add(3), p.add(4), std::ffi::CStr::from_ptr(p.add(3)).to_bytes_with_nul().len());
             *p.add(3) = b'-' as c_char;
         }
 
         let p_bytes = CStr::from_ptr(p).to_bytes();
         if p_bytes.starts_with(b"iso-8859") && p_bytes.len() > 8 && p_bytes[8].is_ascii_digit() {
-            strmove(p.add(9), p.add(8));
+            ptr::copy(p.add(8), p.add(9), std::ffi::CStr::from_ptr(p.add(8)).to_bytes_with_nul().len());
             *p.add(8) = b'-' as c_char;
         }
 
         let p_bytes = CStr::from_ptr(p).to_bytes();
         if p_bytes.starts_with(b"latin-") {
-            strmove(p.add(5), p.add(6));
+            ptr::copy(p.add(6), p.add(5), std::ffi::CStr::from_ptr(p.add(6)).to_bytes_with_nul().len());
         }
 
         if enc_canon_search(p) >= 0 {
             if p != r {
-                strmove(r, p);
+                ptr::copy(p, r, CStr::from_ptr(p).to_bytes_with_nul().len());
             }
         } else {
             let i = enc_alias_search(p);

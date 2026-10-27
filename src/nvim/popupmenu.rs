@@ -51,7 +51,7 @@ use crate::option::{
 };
 use crate::option_vars::*;
 use crate::plines::{plines_m_win, win_linetabsize};
-use crate::strings::{gettext, reverse_text, strchr};
+use crate::strings::{gettext, reverse_text};
 use crate::ui::{
     ui_call_grid_destroy, ui_call_grid_resize, ui_call_option_set, ui_call_popupmenu_hide,
     ui_call_popupmenu_select, ui_call_popupmenu_show, ui_call_win_close, ui_call_win_float_pos,
@@ -1207,7 +1207,7 @@ unsafe fn pum_preview_set_text(
 
         let mut curr = info;
         while !curr.is_null() {
-            let next = strchr(curr, b'\n' as c_int);
+            let next = CStr::from_ptr(curr).to_bytes().iter().position(|&b| b == b'\n').map_or(ptr::null_mut(), |i| curr.add(i));
             if !next.is_null() {
                 *next = NUL;
             }

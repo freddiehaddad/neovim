@@ -39,7 +39,7 @@ use crate::spell::{
 };
 use crate::spellfile::{MAXREGIONS, WF_NOSUGGEST, suggest_load_files};
 use crate::strings::{
-    atoi, gettext, strcat, strcmp, strcpy, strlen, strmove, strncmp, strncpy, vim_snprintf,
+    atoi, gettext, strcat, strcmp, strcpy, strlen, strncmp, vim_snprintf,
     vim_strchr,
 };
 use crate::ui::vim_beep;
@@ -2179,7 +2179,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                                 fl = ftp.ft_from.as_bytes().len() as c_int;
                                 tl = ftp.ft_to.as_bytes().len() as c_int;
                                 if fl != tl {
-                                    strmove(p.add(tl as usize), p.add(fl as usize));
+                                    ptr::copy(p.add(fl as usize), p.add(tl as usize), std::ffi::CStr::from_ptr(p.add(fl as usize)).to_bytes_with_nul().len());
                                     repextra += tl - fl;
                                 }
                                 ptr::copy(ftp.ft_to.as_ptr(), p, tl as usize);
@@ -2206,7 +2206,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                     tl = ftp.ft_to.as_bytes().len() as c_int;
                     let p = fword.add(stack[udepth].ts_fidx as usize);
                     if fl != tl {
-                        strmove(p.add(fl as usize), p.add(tl as usize));
+                        ptr::copy(p.add(tl as usize), p.add(fl as usize), std::ffi::CStr::from_ptr(p.add(tl as usize)).to_bytes_with_nul().len());
                         repextra -= tl - fl;
                     }
                     ptr::copy(ftp.ft_from.as_ptr(), p, fl as usize);
@@ -2312,18 +2312,18 @@ unsafe fn find_keepcap_word(slang: *mut slang_T, fword: *mut c_char, kword: *mut
                     }
                     if l == 0 {
                         if round[udepth] == 1 {
-                            strncpy(
-                                kword.add(kwordlen[udepth] as usize),
+                            ptr::copy_nonoverlapping(
                                 fword.add(fwordidx[udepth] as usize),
+                                kword.add(kwordlen[udepth] as usize),
                                 flen as usize,
                             );
                             kwordlen[udepth + 1] = kwordlen[udepth] + flen;
                         } else {
-                            strncpy(
-                                kword.add(kwordlen[udepth] as usize),
+                            ptr::copy_nonoverlapping(
                                 (&raw const uword)
                                     .cast::<c_char>()
                                     .add(uwordidx[udepth] as usize),
+                                kword.add(kwordlen[udepth] as usize),
                                 ulen as usize,
                             );
                             kwordlen[udepth + 1] = kwordlen[udepth] + ulen;
@@ -2479,7 +2479,7 @@ unsafe fn stp_sal_score(
                     if *p == NUL {
                         break;
                     }
-                    strmove(p, p.add(1));
+                    ptr::copy(p.add(1), p, std::ffi::CStr::from_ptr(p.add(1)).to_bytes_with_nul().len());
                 }
             }
             spell_soundfold(

@@ -103,7 +103,7 @@ use crate::search::{Direction, ignorecase, pat_has_uppercase, searchit};
 use crate::sign::{get_sign_name, set_context_in_sign_cmd};
 use crate::statusline::fillchar_status;
 use crate::strings::{
-    gettext, sort_slice_by, sort_strings, strcase_save, strcmp, strcpy, strlen, strncmp,
+    gettext, sort_strings, strcase_save, strcmp, strcpy, strlen, strncmp,
     vim_snprintf, vim_strchr, vim_strsave_escaped,
 };
 use crate::syntax::{
@@ -5163,7 +5163,7 @@ pub unsafe fn ExpandGeneric(
 
         if sort_matches {
             if funcsort {
-                sort_slice_by(&mut str_ga, |a, b| sort_func_compare(a, b));
+                str_ga.sort_by(|a, b| sort_func_compare(a, b).cmp(&0));
             } else {
                 sort_strings(&mut str_ga);
             }

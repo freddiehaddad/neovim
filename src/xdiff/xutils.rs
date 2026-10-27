@@ -3,7 +3,6 @@
 use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong};
 use std::ptr;
 
-use crate::strings::memchr;
 use crate::xdiff::xdiffi::xdl_do_diff;
 use crate::xdiff::{
     XDF_IGNORE_CR_AT_EOL, XDF_IGNORE_WHITESPACE, XDF_IGNORE_WHITESPACE_AT_EOL,
@@ -72,18 +71,13 @@ pub unsafe fn xdl_guess_lines(mf: *mut mmfile_t, sample: c_long) -> c_long {
         let top = unsafe { data.offset(size as isize) };
         while nl < sample && cur < top {
             nl += 1;
-            let found = unsafe {
-                memchr(
-                    cur.cast(),
-                    c_int::from(b'\n'),
-                    top.offset_from(cur) as usize,
-                )
-            }
-            .cast::<c_char>();
-            if found.is_null() {
-                cur = top;
+            let rem = unsafe {
+                std::slice::from_raw_parts(cur.cast::<u8>(), top.offset_from(cur) as usize)
+            };
+            if let Some(pos) = rem.iter().position(|&b| b == b'\n') {
+                cur = unsafe { cur.add(pos + 1) };
             } else {
-                cur = unsafe { found.add(1) };
+                cur = top;
             }
         }
         tsize += unsafe { cur.offset_from(data) } as c_long;

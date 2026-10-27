@@ -58,7 +58,7 @@ use crate::optionstr::optset_T;
 use crate::os::env::expand_T;
 use crate::regexp::{Ctrl_V, NUMBUFLEN, regmatch_T, vim_regexec};
 use crate::runtime::{sctx_T, sourcing_lnum};
-use crate::strings::{atoi, gettext, sort_strings, strpbrk, strstr, vim_snprintf, vim_strchr};
+use crate::strings::{atoi, gettext, sort_strings, vim_snprintf, vim_strchr};
 use crate::viml::parser::expressions::Ctrl_H;
 use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
@@ -1295,7 +1295,8 @@ pub unsafe fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) ->
             let b = if exp_buffer { g_st().curbuf } else { ptr::null() };
             for bucket in get_map_buckets(b, abbr) {
                 for mp in bucket {
-                    if (mp.m_mode & mode) != 0 && !strstr(mp.m_str.as_ptr(), rhs).is_null() {
+                    let rhs_b = CStr::from_ptr(rhs).to_bytes();
+            if (mp.m_mode & mode) != 0 && (rhs_b.is_empty() || mp.m_str.as_bytes().windows(rhs_b.len()).any(|w| w == rhs_b)) {
                         return true;
                     }
                 }
@@ -1877,9 +1878,9 @@ pub unsafe fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
                             if mp.m_str.as_bytes().is_empty() {
                                 did_cpo = true;
                             } else {
-                                let specials = [K_SPECIAL as c_char, NL as c_char, NUL];
-                                if !strpbrk(mp.m_str.as_ptr(), specials.as_ptr()).is_null()
-                                    || !strpbrk(mp.m_keys.as_ptr(), specials.as_ptr()).is_null()
+                                let specials = [K_SPECIAL as u8, NL as u8];
+                                if mp.m_str.as_bytes().iter().any(|b| specials.contains(b))
+                                    || mp.m_keys.as_bytes().iter().any(|b| specials.contains(b))
                                 {
                                     did_cpo = true;
                                 }

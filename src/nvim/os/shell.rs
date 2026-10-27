@@ -57,7 +57,7 @@ use crate::path::{
 use crate::profile::{prof_child_enter, prof_child_exit, proftime_T};
 use crate::strings::{gettext, vim_strnsave_unquoted, vim_strsave_escaped_ext};
 #[cfg(unix)]
-use crate::strings::{strcat, strcpy, strlen, strstr, vim_strchr};
+use crate::strings::{strcat, strcpy, strlen, vim_strchr};
 use crate::tag::tag_freematch;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush, ui_has};
 use std::ffi::{CStr, c_char, c_int};
@@ -252,9 +252,10 @@ pub unsafe fn os_expand_wildcards(
             }
         }
         if shell_style == STYLE_ECHO {
-            if !strstr(path_tail(opt_vars().p_sh), c"bash".as_ptr()).is_null() {
+            let sh_tail = CStr::from_ptr(path_tail(opt_vars().p_sh)).to_bytes();
+            if sh_tail.windows(4).any(|w| w == b"bash") {
                 shell_style = STYLE_GLOBSTAR;
-            } else if !strstr(path_tail(opt_vars().p_sh), c"sh".as_ptr()).is_null() {
+            } else if sh_tail.windows(2).any(|w| w == b"sh") {
                 shell_style = STYLE_VIMGLOB;
             }
         }

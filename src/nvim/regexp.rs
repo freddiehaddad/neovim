@@ -28,7 +28,7 @@ use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
 use crate::plines::{getvvcol, win_linetabsize};
 use crate::profile::{profile_passed_limit, proftime_T};
-pub(super) use crate::strings::{strcpy, strlen, strncmp, strncpy};
+pub(super) use crate::strings::{strcpy, strlen, strncmp};
 use crate::strings::tr;
 use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint};
@@ -3134,11 +3134,14 @@ pub unsafe fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                         lnum += 1;
                     }
                     if round == 2 {
-                        strncpy(
-                            retval.add(len as usize),
-                            reg_getline_submatch(lnum),
-                            (*re_st().rsm.sm_mmatch).endpos[no].col as usize,
-                        );
+                        {
+                            let dst = retval.add(len as usize);
+                            let src = reg_getline_submatch(lnum);
+                            let cap_n = (*re_st().rsm.sm_mmatch).endpos[no].col as usize;
+                            let copy_n = crate::memory::xstrnlen(src, cap_n);
+                            ptr::copy_nonoverlapping(src, dst, copy_n);
+                            ptr::write_bytes(dst.add(copy_n), 0, cap_n - copy_n);
+                        }
                     }
                     len += (*re_st().rsm.sm_mmatch).endpos[no].col as isize;
                     if round == 2 {

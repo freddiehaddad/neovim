@@ -54,7 +54,7 @@ use crate::os::time::os_delay;
 use crate::runtime::{
     DIP_OPT, DIP_START, sctx_T, source_runtime_vim_lua, sourcing_lnum, sourcing_name,
 };
-use crate::strings::{atoi, gettext, strchr, strncmp, strtol, vim_memcpy_up};
+use crate::strings::{atoi, gettext, strncmp, vim_memcpy_up};
 use crate::ui::{
     ui_call_hl_group_set, ui_default_colors_set, ui_flush, ui_has, ui_mode_info_set, ui_refresh,
     ui_rgb_attached,
@@ -1332,7 +1332,7 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                 if *linep == b'\'' as c_char {
                     linep = linep.add(1);
                     arg_start = linep;
-                    linep = strchr(linep, c_int::from(b'\''));
+                    linep = CStr::from_ptr(linep).to_bytes().iter().position(|&b| b == b'\'').map_or(ptr::null(), |i| linep.add(i));
                     if linep.is_null() {
                         semsg!(gettext(e_invarg2.as_ptr()), key_start);
                         error = true;
@@ -2625,7 +2625,8 @@ pub unsafe fn name_to_color(name: *const c_char, idx: *mut c_int) -> RgbValue {
             && *name.add(7) == NUL
         {
             *idx = kColorIdxHex;
-            return strtol(name.add(1), ptr::null_mut(), 16) as RgbValue;
+            let hex_str = std::str::from_utf8_unchecked(std::slice::from_raw_parts(name.add(1).cast::<u8>(), 6));
+            return RgbValue::from_str_radix(hex_str, 16).unwrap_or(0);
         } else if mb_stricmp(name, c"bg".as_ptr()) == 0
             || mb_stricmp(name, c"background".as_ptr()) == 0
         {

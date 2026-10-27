@@ -99,14 +99,6 @@ pub unsafe fn tr<S: IntoCCharPtr>(s: S) -> *mut c_char {
 }
 
 #[inline]
-pub unsafe fn strmove(dst: *mut c_char, src: *const c_char) {
-    unsafe {
-        let len = CStr::from_ptr(src).to_bytes_with_nul().len();
-        ptr::copy(src, dst, len);
-    }
-}
-
-#[inline]
 pub unsafe fn gettext(msgid: *const c_char) -> *mut c_char {
     if crate::os::lang::HAVE_LIBINTL {
         unsafe { crate::os::lang::c_gettext(msgid) }
@@ -234,55 +226,6 @@ pub unsafe fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char {
 }
 
 #[inline]
-pub unsafe fn strchr(mut s: *const c_char, c: c_int) -> *mut c_char {
-    unsafe {
-        let target = c as c_char;
-        loop {
-            let cur = *s;
-            if cur == target {
-                return s.cast_mut();
-            }
-            if cur == NUL {
-                return ptr::null_mut();
-            }
-            s = s.add(1);
-        }
-    }
-}
-
-#[inline]
-pub unsafe fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char {
-    unsafe {
-        let n_bytes = CStr::from_ptr(needle).to_bytes();
-        if n_bytes.is_empty() {
-            return haystack.cast_mut();
-        }
-        let h_bytes = CStr::from_ptr(haystack).to_bytes();
-        match h_bytes.windows(n_bytes.len()).position(|w| w == n_bytes) {
-            Some(pos) => haystack.add(pos).cast_mut(),
-            None => ptr::null_mut(),
-        }
-    }
-}
-
-#[inline]
-pub unsafe fn strpbrk(mut s: *const c_char, accept: *const c_char) -> *mut c_char {
-    unsafe {
-        while *s != NUL {
-            let mut a = accept;
-            while *a != NUL {
-                if *s == *a {
-                    return s.cast_mut();
-                }
-                a = a.add(1);
-            }
-            s = s.add(1);
-        }
-        ptr::null_mut()
-    }
-}
-
-#[inline]
 pub unsafe fn atol(mut s: *const c_char) -> c_long {
     unsafe {
         while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
@@ -311,207 +254,6 @@ pub unsafe fn atol(mut s: *const c_char) -> c_long {
 #[inline]
 pub unsafe fn atoi(s: *const c_char) -> c_int {
     unsafe { atol(s) as c_int }
-}
-
-#[inline]
-pub fn sort_slice_by<T, F: FnMut(&T, &T) -> c_int>(slice: &mut [T], mut compar: F) {
-    let nmemb = slice.len();
-    if nmemb < 2 {
-        return;
-    }
-    let mut sift_down = |slice: &mut [T], mut root: usize, end: usize| {
-        loop {
-            let left = 2 * root + 1;
-            if left >= end {
-                break;
-            }
-            let mut swap_idx = root;
-            if compar(&slice[swap_idx], &slice[left]) < 0 {
-                swap_idx = left;
-            }
-            let right = left + 1;
-            if right < end && compar(&slice[swap_idx], &slice[right]) < 0 {
-                swap_idx = right;
-            }
-            if swap_idx == root {
-                break;
-            }
-            slice.swap(root, swap_idx);
-            root = swap_idx;
-        }
-    };
-
-    let mut start = nmemb / 2;
-    while start > 0 {
-        start -= 1;
-        sift_down(slice, start, nmemb);
-    }
-    let mut end = nmemb;
-    while end > 1 {
-        end -= 1;
-        slice.swap(0, end);
-        sift_down(slice, 0, end);
-    }
-}
-
-#[inline]
-pub unsafe fn strncpy(dst: *mut c_char, src: *const c_char, n: usize) -> *mut c_char {
-    unsafe {
-        let mut i = 0;
-        while i < n && *src.add(i) != NUL {
-            *dst.add(i) = *src.add(i);
-            i += 1;
-        }
-        if i < n {
-            ptr::write_bytes(dst.add(i), 0, n - i);
-        }
-        dst
-    }
-}
-
-#[inline]
-pub unsafe fn strcspn(mut s: *const c_char, reject: *const c_char) -> usize {
-    unsafe {
-        let mut count = 0;
-        while *s != NUL {
-            let mut r = reject;
-            while *r != NUL {
-                if *s == *r {
-                    return count;
-                }
-                r = r.add(1);
-            }
-            s = s.add(1);
-            count += 1;
-        }
-        count
-    }
-}
-
-#[inline]
-pub unsafe fn strtoul(nptr: *const c_char, endptr: *mut *mut c_char, mut base: c_int) -> c_ulong {
-    unsafe {
-        let mut s = nptr;
-        while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
-            s = s.add(1);
-        }
-        let neg = if *s == b'-' as c_char {
-            s = s.add(1);
-            true
-        } else {
-            if *s == b'+' as c_char {
-                s = s.add(1);
-            }
-            false
-        };
-        if (base == 0 || base == 16)
-            && *s == b'0' as c_char
-            && matches!(*s.add(1) as u8, b'x' | b'X')
-        {
-            s = s.add(2);
-            base = 16;
-        } else if base == 0 {
-            base = if *s == b'0' as c_char { 8 } else { 10 };
-        }
-        let radix = base as u32;
-        let mut acc: c_ulong = 0;
-        let mut any = false;
-        loop {
-            let ch = *s as u8 as char;
-            let Some(digit) = ch.to_digit(radix) else {
-                break;
-            };
-            any = true;
-            acc = acc
-                .wrapping_mul(radix as c_ulong)
-                .wrapping_add(digit as c_ulong);
-            s = s.add(1);
-        }
-        if !endptr.is_null() {
-            *endptr = if any { s.cast_mut() } else { nptr.cast_mut() };
-        }
-        if neg { acc.wrapping_neg() } else { acc }
-    }
-}
-
-#[inline]
-pub unsafe fn strtol(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_long {
-    unsafe { strtoul(nptr, endptr, base) as c_long }
-}
-
-#[inline]
-pub unsafe fn strtoll(
-    nptr: *const c_char,
-    endptr: *mut *mut c_char,
-    mut base: c_int,
-) -> c_longlong {
-    unsafe {
-        let mut s = nptr;
-        while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
-            s = s.add(1);
-        }
-        let neg = if *s == b'-' as c_char {
-            s = s.add(1);
-            true
-        } else {
-            if *s == b'+' as c_char {
-                s = s.add(1);
-            }
-            false
-        };
-        if (base == 0 || base == 16)
-            && *s == b'0' as c_char
-            && matches!(*s.add(1) as u8, b'x' | b'X')
-            && (*s.add(2) as u8).is_ascii_hexdigit()
-        {
-            s = s.add(2);
-            base = 16;
-        } else if base == 0 {
-            base = if *s == b'0' as c_char { 8 } else { 10 };
-        }
-        let radix = base as u32;
-        let cutoff = if neg {
-            (c_longlong::MAX as u64) + 1
-        } else {
-            c_longlong::MAX as u64
-        };
-        let mut acc: u64 = 0;
-        let mut any = false;
-        let mut overflow = false;
-        loop {
-            let ch = *s as u8 as char;
-            let Some(digit) = ch.to_digit(radix) else {
-                break;
-            };
-            any = true;
-            if !overflow {
-                if let Some(next) = acc
-                    .checked_mul(u64::from(radix))
-                    .and_then(|v| v.checked_add(u64::from(digit)))
-                    && next <= cutoff
-                {
-                    acc = next;
-                } else {
-                    overflow = true;
-                }
-            }
-            s = s.add(1);
-        }
-        if !endptr.is_null() {
-            *endptr = if any { s.cast_mut() } else { nptr.cast_mut() };
-        }
-        if overflow {
-            if neg {
-                c_longlong::MIN
-            } else {
-                c_longlong::MAX
-            }
-        } else if neg {
-            acc.wrapping_neg() as c_longlong
-        } else {
-            acc as c_longlong
-        }
-    }
 }
 
 pub unsafe fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double {
@@ -681,81 +423,7 @@ fn write_fmt_to_c_buf(dst: &mut [c_char], args: std::fmt::Arguments<'_>) -> usiz
     written
 }
 
-#[inline]
-pub unsafe fn strrchr(mut s: *const c_char, c: c_int) -> *mut c_char {
-    unsafe {
-        let target = c as c_char;
-        let mut last: *mut c_char = ptr::null_mut();
-        loop {
-            let cur = *s;
-            if cur == target {
-                last = s.cast_mut();
-            }
-            if cur == NUL {
-                return last;
-            }
-            s = s.add(1);
-        }
-    }
-}
-
-#[inline]
-pub unsafe fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) -> c_int {
-    if n == 0 {
-        return 0;
-    }
-    unsafe {
-        let b1 = std::slice::from_raw_parts(s1.cast::<u8>(), n);
-        let b2 = std::slice::from_raw_parts(s2.cast::<u8>(), n);
-        for (&x, &y) in b1.iter().zip(b2.iter()) {
-            if x != y {
-                return c_int::from(x) - c_int::from(y);
-            }
-        }
-        0
-    }
-}
-
-#[inline]
-pub unsafe fn memchr(s: *const c_void, c: c_int, n: usize) -> *mut c_void {
-    if n == 0 {
-        return ptr::null_mut();
-    }
-    unsafe {
-        let target = c as u8;
-        let bytes = std::slice::from_raw_parts(s.cast::<u8>(), n);
-        match bytes.iter().position(|&b| b == target) {
-            Some(pos) => s.cast::<u8>().add(pos).cast_mut().cast(),
-            None => ptr::null_mut(),
-        }
-    }
-}
-
-#[cfg(windows)]
-#[inline]
-pub unsafe fn wcslen(mut s: *const u16) -> usize {
-    unsafe {
-        let mut len = 0usize;
-        while *s != 0 {
-            len += 1;
-            s = s.add(1);
-        }
-        len
-    }
-}
-
 use crate::charset::tolower_asc;
-
-/// Copy up to `len` bytes of `string` into an owned `CString`.
-pub unsafe fn xstrnsave(string: *const c_char, len: usize) -> std::ffi::CString {
-    unsafe {
-        let mut i = 0;
-        while i < len && *string.add(i) != NUL {
-            i += 1;
-        }
-        crate::memory::cstr_from_bytes(std::slice::from_raw_parts(string.cast::<u8>(), i))
-    }
-}
 
 pub unsafe fn vim_strsave_escaped(
     string: *const c_char,
@@ -3701,32 +3369,12 @@ mod tests {
             assert_eq!(strncmp(c"abcdef".as_ptr(), c"abcxyz".as_ptr(), 3), 0);
             assert_eq!(atoi(c"  -1234px".as_ptr()), -1234);
             assert_eq!(atol(c" +56789".as_ptr()), 56789);
-            assert!(!strchr(c"hello".as_ptr(), b'e' as c_int).is_null());
-            assert!(!strstr(c"hello world".as_ptr(), c"world".as_ptr()).is_null());
-            assert!(!strpbrk(c"hello".as_ptr(), c"xyzl".as_ptr()).is_null());
-            assert_eq!(strcspn(c"foo,bar".as_ptr(), c",".as_ptr()), 3);
-            assert_eq!(strtol(c"ff00aa".as_ptr(), ptr::null_mut(), 16), 0xff00aa);
             let mut end: *mut c_char = ptr::null_mut();
-            let s = c"9.1.0123";
-            assert_eq!(strtoul(s.as_ptr(), &raw mut end, 10), 9);
-            assert_eq!(*end as u8, b'.');
-            assert_eq!(
-                strtoll(c"  -9223372036854775808!".as_ptr(), &raw mut end, 10),
-                i64::MIN
-            );
-            assert_eq!(*end as u8, b'!');
-            assert_eq!(
-                strtoll(c"99999999999999999999999".as_ptr(), &raw mut end, 10),
-                i64::MAX
-            );
             assert_eq!(strtod(c"  -12.5e2px".as_ptr(), &raw mut end), -1250.0);
             assert_eq!(*end as u8, b'p');
             assert_eq!(strtod(c"0x1.8p+2".as_ptr(), &raw mut end), 6.0);
             assert!(strtod(c"-INF".as_ptr(), &raw mut end).is_infinite());
             assert!(strtod(c"NaN".as_ptr(), &raw mut end).is_nan());
-            let mut arr = [9i32, -3, 7, 0, -3, 12, 4, 1];
-            sort_slice_by(&mut arr, |x, y| x.cmp(y) as c_int);
-            assert_eq!(arr, [-3, -3, 0, 1, 4, 7, 9, 12]);
         }
     }
 

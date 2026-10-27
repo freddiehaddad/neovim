@@ -219,8 +219,8 @@ use crate::spellfile::{ex_mkspell, ex_spell};
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_TERMINAL};
 use crate::statusline::draw_tabline;
 use crate::strings::{
-    atoi, atol, del_trailing_spaces, gettext, ngettext, strcmp, strcpy, strlen, strmove, strncmp,
-    strpbrk, strrchr, strrep, strstr, vim_snprintf, vim_strchr, vim_stricmp, vim_strsave_escaped,
+    atoi, atol, del_trailing_spaces, gettext, ngettext, strcmp, strcpy, strlen, strncmp,
+    strrep, vim_snprintf, vim_strchr, vim_stricmp, vim_strsave_escaped,
 };
 use crate::syntax::{ex_ownsyntax, ex_syntax, ex_syntime};
 use crate::tag::{do_tag, do_tags};
@@ -5236,7 +5236,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                     g_st().last_cmdline = Some(new_cmd);
                 }
             } else {
-                strmove(cmdline_copy, next_cmdline);
+                ptr::copy(next_cmdline, cmdline_copy, CStr::from_ptr(next_cmdline).to_bytes_with_nul().len());
                 next_cmdline = cmdline_copy;
             }
 
@@ -6727,7 +6727,7 @@ unsafe fn do_one_cmd(
                 let mut s = ea.arg;
                 while *s != NUL {
                     if *s == b'\\' as c_char && *s.add(1) == b'\n' as c_char {
-                        strmove(s, s.add(1));
+                        ptr::copy(s.add(1), s, std::ffi::CStr::from_ptr(s.add(1)).to_bytes_with_nul().len());
                     } else if *s == b'\n' as c_char {
                         ea.nextcmd = s.add(1);
                         *s = NUL;
@@ -8306,7 +8306,7 @@ pub unsafe fn expand_filename(
             if ((*eap).usefilter != 0
                 || (*eap).cmdidx == cmdidx_T::CMD_bang as c_int
                 || (*eap).cmdidx == cmdidx_T::CMD_terminal as c_int)
-                && !strpbrk(repl_cstr.as_ptr(), c"!".as_ptr()).is_null()
+                && repl_cstr.as_bytes().contains(&b'!')
             {
                 repl_cstr = vim_strsave_escaped(repl_cstr.as_ptr(), c"!".as_ptr());
             }
@@ -8447,7 +8447,7 @@ pub unsafe fn separate_nextcmd(eap: *mut exarg_T) {
                 if ((*eap).argt & (EX_CTRLV | EX_XFILE)) != 0 {
                     p = p.add(1);
                 } else {
-                    strmove(p, p.add(1));
+                    ptr::copy(p.add(1), p, std::ffi::CStr::from_ptr(p.add(1)).to_bytes_with_nul().len());
                 }
                 if *p == NUL {
                     break;
@@ -8476,7 +8476,7 @@ pub unsafe fn separate_nextcmd(eap: *mut exarg_T) {
                 if (vim_strchr(opt_vars().p_cpo, kCpoBar).is_null() || ((*eap).argt & EX_CTRLV) == 0)
                     && *p.sub(1) == b'\\' as c_char
                 {
-                    strmove(p.sub(1), p);
+                    ptr::copy(p, p.sub(1), CStr::from_ptr(p).to_bytes_with_nul().len());
                     p = p.sub(1);
                 } else {
                     (*eap).nextcmd = check_nextcmd(p);
@@ -8522,7 +8522,7 @@ pub unsafe fn skip_cmd_arg(mut p: *mut c_char, rembs: bool) -> *mut c_char {
         while *p != NUL && !ascii_isspace(*p) {
             if *p == b'\\' as c_char && *p.add(1) != NUL {
                 if rembs {
-                    strmove(p, p.add(1));
+                    ptr::copy(p.add(1), p, std::ffi::CStr::from_ptr(p.add(1)).to_bytes_with_nul().len());
                 } else {
                     p = p.add(1);
                 }
@@ -9287,9 +9287,10 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
                 let next_li = (*li).li_next;
                 if !next_li.is_null() {
                     let addr = tv_get_string(&raw const (*next_li).li_tv);
-                    if !strstr(addr, c":".as_ptr()).is_null()
-                        || !strstr(addr, c"/".as_ptr()).is_null()
-                        || !strstr(addr, c"\\".as_ptr()).is_null()
+                    if CStr::from_ptr(addr)
+                        .to_bytes()
+                        .iter()
+                        .any(|b| matches!(b, b':' | b'/' | b'\\'))
                     {
                         listen_arg = to_slash_save(addr);
                         #[cfg(windows)]
@@ -12218,7 +12219,7 @@ pub unsafe fn eval_vars(
 
         if (src as usize) > (srcstart as usize) && *src.sub(1) == b'\\' as c_char {
             *usedlen = 0;
-            strmove(src.sub(1), src);
+            ptr::copy(src, src.sub(1), CStr::from_ptr(src).to_bytes_with_nul().len());
             return None;
         }
 
@@ -12445,7 +12446,7 @@ pub unsafe fn eval_vars(
             resultlen = strlen(result);
             if *src.add(*usedlen) == b'<' as c_char {
                 *usedlen += 1;
-                let s = strrchr(result, b'.' as c_int);
+                let s = CStr::from_ptr(result).to_bytes().iter().rposition(|&b| b == b'.').map_or(ptr::null_mut(), |i| result.add(i));
                 if !s.is_null() && s >= path_tail(result) {
                     resultlen = (s as usize) - (result as usize);
                 }
@@ -12806,7 +12807,8 @@ unsafe fn ex_checkhealth(eap: *mut exarg_T) {
             let _ = emsg(gettext(c"E5009: $VIMRUNTIME is empty or unset".as_ptr()));
             return;
         };
-        let rtp_ok = !strstr(opt_vars().p_rtp, vimruntime_env.as_ptr()).is_null();
+        let vr_bytes = vimruntime_env.to_bytes();
+            let rtp_ok = vr_bytes.is_empty() || CStr::from_ptr(opt_vars().p_rtp).to_bytes().windows(vr_bytes.len()).any(|w| w == vr_bytes);
         if rtp_ok {
             let _ = semsg!(
                 gettext(c"E5009: Invalid $VIMRUNTIME: %s".as_ptr()),

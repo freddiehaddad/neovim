@@ -36,7 +36,7 @@ use crate::memory::{cstr_from_bytes, cstr_to_cstring, strequal, xstrlcpy};
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
 use crate::strings::{
-    sort_slice_by, strcmp, strcoll, strlen, strncmp, strtod, tr, vim_snprintf, vim_stricmp,
+    strcmp, strcoll, strlen, strncmp, strtod, tr, vim_snprintf, vim_stricmp,
 };
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -2189,9 +2189,9 @@ unsafe fn do_sort(l: *mut list_T, info: &mut sortinfo_T) {
         }
 
         if !use_custom {
-            sort_slice_by(&mut ptrs, |a, b| item_compare(a, b, false, info));
+            ptrs.sort_by(|a, b| item_compare(a, b, false, info).cmp(&0));
         } else {
-            sort_slice_by(&mut ptrs, |a, b| item_compare2(a, b, false, info));
+            ptrs.sort_by(|a, b| item_compare2(a, b, false, info).cmp(&0));
         }
         if !info.item_compare_func_err {
             (*l).lv_first = ptr::null_mut();

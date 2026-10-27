@@ -36,8 +36,6 @@ use crate::path::{
     to_slash_save, vim_ispathsep,
 };
 use crate::runtime::sctx_T;
-#[cfg(windows)]
-use crate::strings::wcslen;
 use crate::strings::{striequal, strlen, vim_strchr, vim_strsave_escaped};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -383,7 +381,7 @@ pub unsafe fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> 
         let mut name: Option<std::ffi::CString> = None;
         let mut i: usize = 0;
         loop {
-            let l = wcslen(p);
+            let l = { let mut n = 0usize; while *p.add(n) != 0 { n += 1; } n };
             if l == 0 || i > index {
                 break;
             }

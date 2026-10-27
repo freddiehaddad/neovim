@@ -125,7 +125,7 @@ unsafe fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
     dic.size += 1;
 }
 
-use crate::strings::{strchr, vim_strnicmp_asc};
+use crate::strings::{vim_strnicmp_asc};
 
 unsafe fn clear_shape_table() {
     let tbl = unsafe { &mut *std::ptr::addr_of_mut!((*shape_table_mut())) };
@@ -290,8 +290,8 @@ pub unsafe fn parse_shape_opt(what: c_int) -> *const c_char {
             }
             let mut modep: *const c_char = opt_vars().p_guicursor;
             while !modep.is_null() && *modep != 0 {
-                let colonp = strchr(modep, b':' as c_int).cast_const();
-                let commap = strchr(modep, b',' as c_int).cast_const();
+                let colonp = std::ffi::CStr::from_ptr(modep).to_bytes().iter().position(|&b| b == b':').map_or(std::ptr::null(), |i| modep.add(i));
+                let commap = std::ffi::CStr::from_ptr(modep).to_bytes().iter().position(|&b| b == b',').map_or(std::ptr::null(), |i| modep.add(i));
 
                 if colonp.is_null() || (!commap.is_null() && (commap as usize) < (colonp as usize))
                 {
@@ -386,15 +386,15 @@ pub unsafe fn parse_shape_opt(what: c_int) -> *const c_char {
                             }
                             p = p.add(5);
                         } else {
-                            let mut endp = strchr(p, b'-' as c_int).cast_const();
+                            let mut endp = std::ffi::CStr::from_ptr(p).to_bytes().iter().position(|&b| b == b'-').map_or(std::ptr::null(), |i| p.add(i));
                             if commap.is_null() {
                                 if endp.is_null() {
-                                    endp = p.add(CStr::from_ptr(p).to_bytes().len());
+                                    endp = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
                                 }
                             } else if endp.is_null() || (endp as usize) > (commap as usize) {
                                 endp = commap;
                             }
-                            let slashp = strchr(p, b'/' as c_int).cast_const();
+                            let slashp = std::ffi::CStr::from_ptr(p).to_bytes().iter().position(|&b| b == b'/').map_or(std::ptr::null(), |i| p.add(i));
                             let mut saved_hl_id = first_byte as c_int;
                             if !slashp.is_null() && (slashp as usize) < (endp as usize) {
                                 saved_hl_id = syn_check_group(p, (slashp as usize) - (p as usize));
@@ -440,7 +440,7 @@ pub unsafe fn parse_shape_opt(what: c_int) -> *const c_char {
 /// Map cursor mode from string to integer (`cursor_mode_str2int`).
 #[cfg(test)]
 pub unsafe fn cursor_mode_str2int(mode: *const c_char) -> c_int {
-    let mode_bytes = unsafe { CStr::from_ptr(mode).to_bytes() };
+    let mode_bytes = unsafe { std::ffi::CStr::from_ptr(mode).to_bytes() };
     let tbl = unsafe { &*std::ptr::addr_of!((*shape_table_mut())) };
     for (mode_idx, entry) in tbl.iter().enumerate() {
         if entry.full_name.to_bytes() == mode_bytes {

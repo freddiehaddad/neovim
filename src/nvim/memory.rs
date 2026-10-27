@@ -488,24 +488,6 @@ pub unsafe fn strequal(a: *const c_char, b: *const c_char) -> bool {
     unsafe { CStr::from_ptr(a).to_bytes() == CStr::from_ptr(b).to_bytes() }
 }
 
-/// Return true if the first `n` characters of `a` and `b` are equal (`strnequal`).
-pub unsafe fn strnequal(a: *const c_char, b: *const c_char, n: usize) -> bool {
-    if a.is_null() && b.is_null() {
-        return true;
-    }
-    if a.is_null() || b.is_null() {
-        return false;
-    }
-    let la = unsafe { xstrnlen(a, n) };
-    let lb = unsafe { xstrnlen(b, n) };
-    if la != lb {
-        return false;
-    }
-    let sa = unsafe { std::slice::from_raw_parts(a.cast::<u8>(), la) };
-    let sb = unsafe { std::slice::from_raw_parts(b.cast::<u8>(), lb) };
-    sa == sb
-}
-
 /// Write `time_` as 8 big-endian bytes into `buf[0..8]` (`time_to_bytes`).
 pub unsafe fn time_to_bytes(time_val: i64, buf: *mut u8) {
     let bytes = (time_val as u64).to_be_bytes();

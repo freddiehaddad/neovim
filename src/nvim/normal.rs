@@ -167,7 +167,7 @@ use crate::state::{
 };
 use crate::statusline::{draw_tabline, win_redr_status};
 use crate::strings::{
-    strcat, strchr, strcpy, strlen, tr, vim_snprintf, vim_strchr, vim_strsave_shellescape,
+    strcat, strcpy, strlen, tr, vim_snprintf, vim_strchr, vim_strsave_shellescape,
 };
 use crate::syntax::syn_stack_free_all;
 use crate::tag::do_tag;
@@ -6123,7 +6123,7 @@ unsafe fn nv_optrans(cap: *mut cmdarg_T) {
             if (*cap).count0 != 0 {
                 stuffnumReadbuff((*cap).count0);
             }
-            let idx = strchr(str_p, (*cap).cmdchar).offset_from(str_p) as usize;
+            let idx = CStr::from_ptr(str_p).to_bytes().iter().position(|&b| b == (*cap).cmdchar as u8).unwrap();
             stuffReadbuff(AR[idx].as_ptr());
             exec_stuffed(cap);
         }

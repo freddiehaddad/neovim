@@ -48,7 +48,7 @@ use crate::search::{BACKWARD, Direction, FORWARD, do_search, kShmSearch};
 use crate::spellfile::{MAXREGIONS, spell_load_file};
 use crate::spellsuggest::{idx_T, langp_T, slang_T, spell_suggest_list, spelltab_T};
 use crate::strings::{
-    concat_str, gettext, strcat, strcmp, strcpy, strlen, strncmp, strstr, vim_snprintf, vim_strchr,
+    concat_str, gettext, strcat, strcmp, strcpy, strlen, strncmp, vim_snprintf, vim_strchr,
 };
 use crate::syntax::{syn_get_id, syntax_present};
 use crate::undo::u_save_cursor;
@@ -672,7 +672,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                     if !byte_in_str(
                         flags_cstr
                             .as_ref()
-                            .map_or(ptr::null(), |s| s.as_ptr().cast()),
+                            .map_or(std::ptr::null(), |s| s.as_ptr().cast()),
                         (flags >> 24) as c_int,
                     ) {
                         continue;
@@ -1419,7 +1419,7 @@ unsafe fn int_wordlist_spl(fname: *mut c_char) {
                 .as_ref()
                 .unwrap()
                 .as_ref()
-                .map_or(ptr::null(), |s| s.as_ptr()),
+                .map_or(std::ptr::null(), |s| s.as_ptr()),
             spell_enc(),
         );
     }
@@ -2068,7 +2068,7 @@ pub unsafe fn open_spellbuf() -> Box<buf_T> {
         if ml_open(&raw mut *buf) == FAIL {
             let _ = logmsg!(
                 3,
-                ptr::null(),
+                std::ptr::null(),
                 c"open_spellbuf".as_ptr(),
                 1878,
                 true,
@@ -2566,7 +2566,7 @@ unsafe fn spell_soundfold_wsal(slang: *mut slang_T, inword: *const c_char, res: 
                         }
                     }
                     let mut pf = if (*smp.add(cur_n)).sm_oneof_w.is_empty() {
-                        ptr::null()
+                        std::ptr::null()
                     } else {
                         (*smp.add(cur_n)).sm_oneof_w.as_ptr()
                     };
@@ -2651,7 +2651,7 @@ unsafe fn spell_soundfold_wsal(slang: *mut slang_T, inword: *const c_char, res: 
                                 }
                                 k0 += k - 1;
                                 pf = if (*smp.add(cur_n0)).sm_oneof_w.is_empty() {
-                                    ptr::null()
+                                    std::ptr::null()
                                 } else {
                                     (*smp.add(cur_n0)).sm_oneof_w.as_ptr()
                                 };
@@ -2701,7 +2701,7 @@ unsafe fn spell_soundfold_wsal(slang: *mut slang_T, inword: *const c_char, res: 
                             }
                         }
                         ws = if (*smp.add(cur_n)).sm_to_w.is_empty() {
-                            ptr::null()
+                            std::ptr::null()
                         } else {
                             (*smp.add(cur_n)).sm_to_w.as_ptr()
                         };
@@ -2747,7 +2747,7 @@ unsafe fn spell_soundfold_wsal(slang: *mut slang_T, inword: *const c_char, res: 
                                 }
                             }
                             c = if ws.is_null() { 0 } else { *ws };
-                            if !strstr(sr, c"^^".as_ptr()).is_null() {
+                            if std::ffi::CStr::from_ptr(sr).to_bytes().windows(2).any(|w| w == b"^^") {
                                 if c != 0 && reslen < MAXWLEN {
                                     wres[reslen] = c;
                                     reslen += 1;
@@ -2812,7 +2812,7 @@ pub unsafe fn ex_spellinfo(_eap: *mut exarg_T) {
             let p = (*lp.lp_slang)
                 .sl_info
                 .as_ref()
-                .map_or(ptr::null(), |s| s.as_ptr());
+                .map_or(std::ptr::null(), |s| s.as_ptr());
             if lpi < len || !p.is_null() {
                 msg_putchar(b'\n' as c_int);
             }
@@ -2874,7 +2874,7 @@ pub unsafe fn spell_dump_compl(
             if ic != 0 {
                 dumpflags |= DUMPFLAG_ICASE;
             } else {
-                let n = captype(pat, ptr::null());
+                let n = captype(pat, std::ptr::null());
                 if n == WF_ONECAP {
                     dumpflags |= DUMPFLAG_ONECAP;
                 } else if n == WF_ALLCAP && (strlen(pat) as c_int) > utfc_ptr2len(pat) {
@@ -3044,7 +3044,7 @@ unsafe fn dump_word(
                 (&raw mut cword).cast()
             } else {
                 if (dumpflags & DUMPFLAG_KEEPCASE) != 0
-                    && ((captype(word, ptr::null()) & WF_KEEPCAP) == 0 || (flags & WF_FIXCAP) != 0)
+                    && ((captype(word, std::ptr::null()) & WF_KEEPCAP) == 0 || (flags & WF_FIXCAP) != 0)
                 {
                     keepcap = true;
                 }
@@ -3312,7 +3312,7 @@ pub unsafe fn valid_spellfile(val: *const c_char) -> bool {
 }
 pub unsafe fn did_set_spell_option() -> *const c_char {
     unsafe {
-        let mut errmsg: *const c_char = ptr::null();
+        let mut errmsg: *const c_char = std::ptr::null();
         let mut wp = g_st().firstwin;
         while !wp.is_null() {
             if (*wp).w_buffer == g_st().curbuf && (*wp).w_onebuf_opt.wo_spell != 0 {
@@ -3338,7 +3338,7 @@ pub unsafe fn compile_cap_prog(
             }
         }
         *prog = rp;
-        ptr::null()
+        std::ptr::null()
     }
 }
 #[cfg(test)]

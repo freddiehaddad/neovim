@@ -137,7 +137,7 @@ use crate::memline::{
 };
 use crate::memory::{
     ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, cstr_from_bytes,
-    cstr_to_cstring, free_block, strequal, strnequal,
+    cstr_to_cstring, free_block, strequal,
 };
 use crate::menu::{get_menu_cmd_modes, menu_get};
 use crate::message::{
@@ -198,7 +198,7 @@ use crate::state::{MODE_CMDLINE, MODE_MAX_LENGTH, get_mode, get_was_safe_state, 
 #[cfg(windows)]
 use crate::strings::mb_strup_buf;
 use crate::strings::{
-    atoi, gettext, strcmp, strlen, strncmp, strtoul, vim_snprintf, vim_snprintf_safelen,
+    atoi, gettext, strcmp, strlen, strncmp, vim_snprintf, vim_snprintf_safelen,
     vim_snprintf_typval_only, vim_strchr, vim_stricmp, vim_strnicmp, vim_strsave_escaped,
     vim_strsave_shellescape,
 };
@@ -2323,7 +2323,7 @@ pub unsafe fn f_exists(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
                 n = 0;
             }
         } else if *p == b'*' as c_char {
-            n = c_int::from(if strnequal(p, c"*v:lua.".as_ptr(), 7) {
+            n = c_int::from(if CStr::from_ptr(p).to_bytes().starts_with(b"*v:lua.") {
                 nlua_func_exists(p.add(7))
             } else {
                 function_exists(p.add(1), false)
@@ -3824,8 +3824,10 @@ pub unsafe fn f_has(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFun
                 && strlen(name) >= 11
                 && (*name.add(6) >= b'1' as c_char && *name.add(6) <= b'9' as c_char)
             {
-                let mut end: *mut c_char = ptr::null_mut();
-                let major = strtoul(name.add(6), &raw mut end, 10) as c_int;
+                let s6 = name.add(6);
+                let dlen = CStr::from_ptr(s6).to_bytes().iter().take_while(|b| b.is_ascii_digit()).count();
+                let end = s6.add(dlen);
+                let major = std::str::from_utf8_unchecked(std::slice::from_raw_parts(s6.cast::<u8>(), dlen)).parse::<c_int>().unwrap_or(0);
                 if *end == b'.' as c_char
                     && ascii_isdigit(*end.add(1))
                     && *end.add(2) == b'.' as c_char

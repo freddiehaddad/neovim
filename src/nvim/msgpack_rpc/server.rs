@@ -14,7 +14,7 @@ use crate::memory::{cstr_to_cstring, strequal, xstrlcpy};
 use crate::os::env::{os_env_exists, os_get_pid, os_getenv_cstr, os_unsetenv};
 use crate::os::stdpaths::get_appname;
 use crate::path::{fix_fname, to_slash, to_slash_save};
-use crate::strings::{strcmp, strlen, strstr, vim_snprintf};
+use crate::strings::{strcmp, strlen, vim_snprintf};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -224,9 +224,10 @@ pub unsafe fn server_start(addr: *const c_char) -> c_int {
             return 1;
         }
 
-        let isname = strstr(addr, c":".as_ptr()).is_null()
-            && strstr(addr, c"/".as_ptr()).is_null()
-            && strstr(addr, c"\\".as_ptr()).is_null();
+        let isname = !CStr::from_ptr(addr)
+            .to_bytes()
+            .iter()
+            .any(|b| matches!(b, b':' | b'/' | b'\\'));
         let addr_gen = if isname {
             Some(server_address_new(addr))
         } else {

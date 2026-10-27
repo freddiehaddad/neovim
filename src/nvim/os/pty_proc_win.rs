@@ -15,7 +15,7 @@ use crate::os::env::os_shell_is_cmdexe;
 #[cfg(windows)]
 use crate::os::fs::os_can_exe;
 #[cfg(windows)]
-use crate::strings::{strlen, wcslen};
+use crate::strings::{strlen};
 #[cfg(any(test, windows))]
 use std::ffi::{CStr, c_char};
 #[cfg(windows)]
@@ -503,7 +503,7 @@ mod win_impl {
                     env_block.clear();
                     break;
                 }
-                let len = wcslen(str_utf16.as_ptr()) + 1;
+                let len = str_utf16.iter().position(|&c| c == 0).unwrap_or(str_utf16.len()) + 1;
                 env_block.extend_from_slice(&str_utf16[..len]);
             }
             if rc == 0 {

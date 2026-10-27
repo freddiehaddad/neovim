@@ -66,7 +66,7 @@ use crate::runtime::{DIP_ALL, RuntimeCallback, do_in_runtimepath};
 use crate::search::{do_search, ignorecase, ignorecase_opt};
 use crate::state::MODE_INSERT;
 use crate::strings::{
-    atoi, gettext, strcmp, strcpy, strlen, strncmp, strpbrk, strstr, vim_snprintf,
+    atoi, gettext, strcmp, strcpy, strlen, strncmp, vim_snprintf,
     vim_snprintf_safelen, vim_strchr,
 };
 use crate::window::{
@@ -1253,7 +1253,7 @@ unsafe fn tagfunc_cmd_kind(cmd: *mut c_char) -> tagcmd_T {
                 tagcmd_T::TAGCMD_INVALID
             };
         }
-        if !strpbrk(cmd, c"\t\r\n".as_ptr()).is_null() {
+        if CStr::from_ptr(cmd).to_bytes().iter().any(|b| b"\t\r\n".contains(b)) {
             return tagcmd_T::TAGCMD_INVALID;
         }
         tagcmd_T::TAGCMD_GENERIC
@@ -3113,7 +3113,7 @@ unsafe fn find_extra(pp: *mut *mut c_char) -> c_int {
                     str_ = str_.add(1);
                 }
             } else {
-                str_ = strstr(str_, c"|;\"".as_ptr());
+                str_ = CStr::from_ptr(str_).to_bytes().windows(3).position(|w| w == b"|;\"").map_or(ptr::null_mut(), |i| str_.add(i));
                 if !str_.is_null() {
                     str_ = str_.add(1);
                     break;

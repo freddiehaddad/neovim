@@ -76,7 +76,7 @@ use crate::register::{
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::shada::shada_encode_regs;
 use crate::state::{MODE_INSERT, virtual_active};
-use crate::strings::{strchr, strncmp, vim_snprintf};
+use crate::strings::{strncmp, vim_snprintf};
 use crate::textformat::{InsState, oparg_T};
 use crate::undo::{u_forget_unchanged, u_save, uhp_mut};
 use std::ffi::{c_char, c_int, c_long};
@@ -1672,10 +1672,10 @@ pub unsafe fn mc_zq(oap: *mut oparg_T, cap: *mut cmdarg_T, origin: pos_T) {
         save_search_patterns();
 
         let search = ((*cap).cmdchar != NUL
-            && !strchr(c"*#/?nN".as_ptr(), (*cap).cmdchar).is_null())
+            && b"*#/?nN".contains(&((*cap).cmdchar as u8)))
             || ((*cap).cmdchar == b'g' as c_int
                 && (*cap).nchar != NUL
-                && !strchr(c"*#nN".as_ptr(), (*cap).nchar).is_null());
+                && b"*#nN".contains(&((*cap).nchar as u8)));
         let mut placed: c_int = 0;
         let mut first = INIT_POS;
         let mut spec = atom_cmd_spec(cap);

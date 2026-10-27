@@ -24,7 +24,6 @@ use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::semsg;
 use crate::option_vars::*;
 use crate::search::FORWARD;
-use crate::strings::sort_slice_by;
 use std::ffi::{CStr, CString, c_char, c_int};
 
 pub const FUZZY_MATCH_MAX_LEN: usize = 1024;
@@ -920,7 +919,7 @@ pub unsafe fn fuzzymatches_slice_to_strmatches(
         matches.clear();
         if !fuzmatch.is_empty() {
             if funcsort {
-                sort_slice_by(fuzmatch, |a, b| fuzzy_match_func_compare(a, b));
+                fuzmatch.sort_by(|a, b| fuzzy_match_func_compare(a, b).cmp(&0));
             } else {
                 fuzmatch.sort_unstable_by(fuzzy_match_str_compare);
             }

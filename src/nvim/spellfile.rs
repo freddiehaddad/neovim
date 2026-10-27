@@ -47,8 +47,8 @@ use crate::spell::{
 };
 use crate::spellsuggest::{fromto_T, idx_T, salitem_T, slang_T, spelltab_T};
 use crate::strings::{
-    atoi, gettext, has_non_ascii, memchr, memcmp, strcmp, strcpy, strerror, strlen, strncmp,
-    strrchr, strstr, vim_snprintf, vim_strchr,
+    atoi, gettext, has_non_ascii, strcmp, strcpy, strerror, strlen, strncmp,
+    vim_snprintf, vim_strchr,
 };
 use crate::syntax::win_s;
 use crate::ui::ui_flush;
@@ -447,7 +447,7 @@ unsafe fn spell_read_nonnul_bytes(buf: *mut c_char, n: usize, fd: *mut FILE) -> 
         if ret != 0 {
             return ret;
         }
-        if !memchr(buf.cast(), 0, n).is_null() {
+        if std::slice::from_raw_parts(buf.cast::<u8>(), n).contains(&0) {
             return SP_FORMERROR;
         }
         0
@@ -462,11 +462,8 @@ unsafe fn spell_check_magic_string(fd: *mut FILE) -> c_int {
         if ret != 0 {
             return ret;
         }
-        if memcmp(
-            buf.as_ptr().cast(),
-            VIMSPELLMAGIC.as_ptr().cast(),
-            VIMSPELLMAGICL,
-        ) != 0
+        if std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), VIMSPELLMAGICL)
+            != &VIMSPELLMAGIC[..VIMSPELLMAGICL]
         {
             return SP_FORMERROR;
         }
@@ -505,7 +502,8 @@ pub unsafe fn spell_load_file(
         let mut owned_lp = if old_lp.is_null() {
             let mut new_lp = slang_alloc(lang);
             new_lp.sl_fname = Some(CStr::from_ptr(fname).to_owned());
-            new_lp.sl_add = !strstr(path_tail(fname), SPL_FNAME_ADD).is_null();
+            let add_b = CStr::from_ptr(SPL_FNAME_ADD).to_bytes();
+        new_lp.sl_add = CStr::from_ptr(path_tail(fname)).to_bytes().windows(add_b.len()).any(|w| w == add_b);
             Some(new_lp)
         } else {
             None
@@ -796,12 +794,14 @@ pub unsafe fn suggest_load_files() {
                     lpi += 1;
                     continue;
                 };
-                let dotp = strrchr(fname_cstr.as_ptr(), b'.' as c_int);
-                if dotp.is_null() || !path_equal(dotp, c".spl".as_ptr(), kPathCmpLiteral) {
+                let Some(prefix_len) = fname_cstr.to_bytes().iter().rposition(|&b| b == b'.') else {
+                    lpi += 1;
+                    continue;
+                };
+                if !path_equal(fname_cstr.as_ptr().add(prefix_len), c".spl".as_ptr(), kPathCmpLiteral) {
                     lpi += 1;
                     continue;
                 }
-                let prefix_len = dotp.offset_from(fname_cstr.as_ptr()) as usize;
                 let mut sug_bytes = fname_cstr.as_bytes()[..prefix_len].to_vec();
                 sug_bytes.extend_from_slice(b".sug");
                 let sug_fname = std::ffi::CString::new(sug_bytes).unwrap();
@@ -4692,7 +4692,8 @@ unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
             spell_message(spin, gettext(c"Reading back spell file...".as_ptr()));
             let mut new_lp = slang_alloc(ptr::null_mut());
             new_lp.sl_fname = Some(CStr::from_ptr(wfname).to_owned());
-            new_lp.sl_add = !strstr(path_tail(wfname), SPL_FNAME_ADD).is_null();
+            let add_b = CStr::from_ptr(SPL_FNAME_ADD).to_bytes();
+            new_lp.sl_add = CStr::from_ptr(path_tail(wfname)).to_bytes().windows(add_b.len()).any(|w| w == add_b);
             slang = spell_load_file(wfname, ptr::null_mut(), &raw mut *new_lp, false);
             if slang.is_null() {
                 return;
@@ -5069,10 +5070,12 @@ unsafe fn mkspell(
                 );
             }
 
-            if !strstr(path_tail(wfname), SPL_FNAME_ASCII).is_null() {
+            let asc_b = CStr::from_ptr(SPL_FNAME_ASCII).to_bytes();
+        if CStr::from_ptr(path_tail(wfname)).to_bytes().windows(asc_b.len()).any(|w| w == asc_b) {
                 spin.si_ascii = 1;
             }
-            if !strstr(path_tail(wfname), SPL_FNAME_ADD).is_null() {
+            let add_b = CStr::from_ptr(SPL_FNAME_ADD).to_bytes();
+        if CStr::from_ptr(path_tail(wfname)).to_bytes().windows(add_b.len()).any(|w| w == add_b) {
                 spin.si_add = 1;
             }
         }
@@ -5495,7 +5498,7 @@ unsafe fn init_spellfile() {
             .as_ref()
             .map_or(ptr::null(), |s| s.as_ptr());
         let enc_suffix =
-            if !fname.is_null() && !strstr(path_tail(fname), c".ascii.".as_ptr()).is_null() {
+            if !fname.is_null() && CStr::from_ptr(path_tail(fname)).to_bytes().windows(7).any(|w| w == b".ascii.") {
                 c"ascii".as_ptr()
             } else {
                 spell_enc()

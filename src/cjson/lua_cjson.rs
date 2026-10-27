@@ -315,7 +315,7 @@ const fn init_char2escape() -> [*const c_char; 256] {
 
 const CHAR2ESCAPE: [*const c_char; 256] = init_char2escape();
 
-use crate::strings::{strncmp, strtoll};
+use crate::strings::strncmp;
 use std::process::abort;
 
 unsafe fn json_fetch_config(l: *mut lua_State) -> *mut json_config_t {
@@ -1108,8 +1108,49 @@ unsafe fn json_is_invalid_number(json: *mut json_parse_t) -> bool {
 
 unsafe fn json_next_number_token(json: *mut json_parse_t, token: *mut json_token_t) {
     unsafe {
-        let mut endptr: *mut c_char = ptr::null_mut();
-        let tmpval = strtoll((*json).ptr, &mut endptr, 10);
+        let mut s = (*json).ptr;
+        while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
+            s = s.add(1);
+        }
+        let neg = if *s == b'-' as c_char {
+            s = s.add(1);
+            true
+        } else {
+            if *s == b'+' as c_char {
+                s = s.add(1);
+            }
+            false
+        };
+        let cutoff = if neg {
+            (c_longlong::MAX as u64) + 1
+        } else {
+            c_longlong::MAX as u64
+        };
+        let mut acc: u64 = 0;
+        let mut any = false;
+        let mut overflow = false;
+        while (*s as u8).is_ascii_digit() {
+            any = true;
+            let digit = u64::from((*s as u8) - b'0');
+            if !overflow {
+                if let Some(next) = acc.checked_mul(10).and_then(|v| v.checked_add(digit))
+                    && next <= cutoff
+                {
+                    acc = next;
+                } else {
+                    overflow = true;
+                }
+            }
+            s = s.add(1);
+        }
+        let mut endptr: *mut c_char = if any { s.cast_mut() } else { (*json).ptr.cast_mut() };
+        let tmpval: c_longlong = if overflow {
+            if neg { c_longlong::MIN } else { c_longlong::MAX }
+        } else if neg {
+            acc.wrapping_neg() as c_longlong
+        } else {
+            acc as c_longlong
+        };
         let end_ch = *endptr as u8;
         if (*json).ptr == endptr.cast_const()
             || end_ch == b'.'

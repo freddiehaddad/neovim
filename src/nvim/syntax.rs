@@ -49,7 +49,7 @@ use crate::regexp::{
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{
-    gettext, strcat, strchr, strcmp, strlen, strncmp, strpbrk, vim_snprintf, vim_strchr,
+    gettext, strcat, strcmp, strlen, strncmp, vim_snprintf, vim_strchr,
     vim_stricmp, vim_strnicmp, vim_strnsave_up, vim_strsave_up,
 };
 use crate::window::win_T;
@@ -726,7 +726,7 @@ pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
             syn_sync(
                 wp,
                 lnum,
-                last_valid.map_or(ptr::null(), |idx| {
+                last_valid.map_or(std::ptr::null(), |idx| {
                     &raw const (*syn_st().syn_block).b_sst_array.as_slice()[idx]
                 }),
             );
@@ -2741,7 +2741,7 @@ unsafe fn check_keyword_id(
         let mut keyword = [0 as c_char; MAXKEYWLEN + 1];
         xmemcpyz(keyword.as_mut_ptr().cast(), kwp.cast(), kwlen as usize);
 
-        let mut kp: *const keyentry_T = ptr::null();
+        let mut kp: *const keyentry_T = std::ptr::null();
 
         if !(*syn_st().syn_block).b_keywtab.is_empty() {
             kp = match_keyword(keyword.as_mut_ptr(), &(*syn_st().syn_block).b_keywtab, cur_si);
@@ -2786,7 +2786,7 @@ unsafe fn match_keyword(
                 }
             }
         }
-        ptr::null()
+        std::ptr::null()
     }
 }
 
@@ -3734,7 +3734,7 @@ unsafe fn get_syn_options(
         }
 
         loop {
-            if strchr(FIRST_LETTERS, *arg as c_int).is_null() {
+            if *arg == NUL || !std::ffi::CStr::from_ptr(FIRST_LETTERS).to_bytes().contains(&(*arg as u8)) {
                 break;
             }
 
@@ -3871,7 +3871,7 @@ unsafe fn syn_cmd_include(eap: *mut exarg_T, _syncing: c_int) {
         let mut arg = (*eap).arg;
         let mut sgl_id: c_int = 1;
         let mut group_name_end: *mut c_char = ptr::null_mut();
-        let mut errormsg: *const c_char = ptr::null();
+        let mut errormsg: *const c_char = std::ptr::null();
         let mut source = false;
 
         (*eap).nextcmd = find_nextcmd(arg);
@@ -4793,7 +4793,7 @@ unsafe fn get_id_list(
                     } else {
                         id = syn_check_cluster(name.add(2), end.offset_from(p) as c_int - 1);
                     }
-                } else if strpbrk(name.add(1), c"\\.*^$~[".as_ptr()).is_null() {
+                } else if !std::ffi::CStr::from_ptr(name.add(1)).to_bytes().iter().any(|b| b"\\.*^$~[".contains(b)) {
                     id = syn_check_group(name.add(1), end.offset_from(p) as usize);
                 } else {
                     *name = b'^' as c_char;
@@ -5253,7 +5253,7 @@ pub unsafe fn get_syntax_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
             }
             EXP_CASE => {
                 const CASE_ARGS: [*const c_char; 3] =
-                    [c"match".as_ptr(), c"ignore".as_ptr(), ptr::null()];
+                    [c"match".as_ptr(), c"ignore".as_ptr(), std::ptr::null()];
                 if u >= CASE_ARGS.len() {
                     ptr::null_mut()
                 } else {
@@ -5265,7 +5265,7 @@ pub unsafe fn get_syntax_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
                     c"toplevel".as_ptr(),
                     c"notoplevel".as_ptr(),
                     c"default".as_ptr(),
-                    ptr::null(),
+                    std::ptr::null(),
                 ];
                 if u >= SPELL_ARGS.len() {
                     ptr::null_mut()
@@ -5285,7 +5285,7 @@ pub unsafe fn get_syntax_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
                     c"maxlines=".as_ptr(),
                     c"minlines=".as_ptr(),
                     c"region".as_ptr(),
-                    ptr::null(),
+                    std::ptr::null(),
                 ];
                 if u >= SYNC_ARGS.len() {
                     ptr::null_mut()
@@ -5545,17 +5545,16 @@ unsafe fn syntime_report() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::CStr;
 
     #[test]
     fn get_syntime_arg_and_limit_pos_work() {
         unsafe {
             assert_eq!(
-                CStr::from_ptr(get_syntime_arg(ptr::null_mut(), 0)).to_bytes(),
+                std::ffi::CStr::from_ptr(get_syntime_arg(ptr::null_mut(), 0)).to_bytes(),
                 b"on"
             );
             assert_eq!(
-                CStr::from_ptr(get_syntime_arg(ptr::null_mut(), 3)).to_bytes(),
+                std::ffi::CStr::from_ptr(get_syntime_arg(ptr::null_mut(), 3)).to_bytes(),
                 b"report"
             );
             assert!(get_syntime_arg(ptr::null_mut(), 4).is_null());
