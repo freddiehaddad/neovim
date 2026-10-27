@@ -83,7 +83,7 @@ const fn entry(
     }
 }
 
-pub static mut shape_table: [cursorentry_T; SHAPE_IDX_COUNT] = [
+static SHAPE_TABLE: GlobalState<[cursorentry_T; SHAPE_IDX_COUNT]> = GlobalState::new([
     entry(c"normal", 700, 400, 250, c"n", SHAPE_BOTH),
     entry(c"visual", 700, 400, 250, c"v", SHAPE_BOTH),
     entry(c"insert", 700, 400, 250, c"i", SHAPE_BOTH),
@@ -102,7 +102,12 @@ pub static mut shape_table: [cursorentry_T; SHAPE_IDX_COUNT] = [
     entry(c"more_lastline", 0, 0, 0, c"ml", SHAPE_MOUSE as c_char),
     entry(c"showmatch", 100, 100, 100, c"sm", SHAPE_CURSOR as c_char),
     entry(c"terminal", 0, 0, 0, c"t", SHAPE_CURSOR as c_char),
-];
+]);
+
+#[inline]
+pub unsafe fn shape_table_mut() -> &'static mut [cursorentry_T; SHAPE_IDX_COUNT] {
+    unsafe { &mut *SHAPE_TABLE.as_ptr() }
+}
 
 #[inline]
 unsafe fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
@@ -123,7 +128,7 @@ unsafe fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
 use crate::strings::{strchr, vim_strnicmp_asc};
 
 unsafe fn clear_shape_table() {
-    let tbl = unsafe { &mut *std::ptr::addr_of_mut!(shape_table) };
+    let tbl = unsafe { &mut *std::ptr::addr_of_mut!((*shape_table_mut())) };
     for entry in tbl.iter_mut() {
         entry.shape = CursorShape::SHAPE_BLOCK;
         entry.blinkwait = 0;
@@ -134,11 +139,11 @@ unsafe fn clear_shape_table() {
     }
 }
 
-/// Converts `shape_table` into an `Array` of `Dict`s (`mode_style_array`).
+/// Converts `(*shape_table_mut())` into an `Array` of `Dict`s (`mode_style_array`).
 pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
     unsafe {
         let mut all = arena_array(arena, SHAPE_IDX_COUNT);
-        let tbl = &*std::ptr::addr_of!(shape_table);
+        let tbl = &*std::ptr::addr_of!((*shape_table_mut()));
 
         for cur in tbl.iter() {
             let is_cursor = (cur.used_for as c_int & SHAPE_CURSOR) != 0;
@@ -273,7 +278,7 @@ pub unsafe fn parse_shape_opt(what: c_int) -> *const c_char {
         let mut p: *const c_char = std::ptr::null();
         let mut idx: usize = 0;
         let mut found_ve = false;
-        let tbl = &mut *std::ptr::addr_of_mut!(shape_table);
+        let tbl = &mut *std::ptr::addr_of_mut!((*shape_table_mut()));
 
         for round in 1..=2 {
             if round == 2 || *p_guicursor == 0 {
@@ -436,7 +441,7 @@ pub unsafe fn parse_shape_opt(what: c_int) -> *const c_char {
 #[cfg(test)]
 pub unsafe fn cursor_mode_str2int(mode: *const c_char) -> c_int {
     let mode_bytes = unsafe { CStr::from_ptr(mode).to_bytes() };
-    let tbl = unsafe { &*std::ptr::addr_of!(shape_table) };
+    let tbl = unsafe { &*std::ptr::addr_of!((*shape_table_mut())) };
     for (mode_idx, entry) in tbl.iter().enumerate() {
         if entry.full_name.to_bytes() == mode_bytes {
             return mode_idx as c_int;
@@ -462,7 +467,7 @@ pub unsafe fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
         if *p_guicursor == 0 {
             return false;
         }
-        let tbl = &*std::ptr::addr_of!(shape_table);
+        let tbl = &*std::ptr::addr_of!((*shape_table_mut()));
         for entry in tbl.iter() {
             if entry.id == syn_id || entry.id_lm == syn_id {
                 return true;
@@ -472,7 +477,7 @@ pub unsafe fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
     }
 }
 
-/// Return the index into `shape_table[]` for the current mode (`cursor_get_mode_idx`).
+/// Return the index into `(*shape_table_mut())[]` for the current mode (`cursor_get_mode_idx`).
 pub unsafe fn cursor_get_mode_idx() -> c_int {
     unsafe {
         if State == MODE_SHOWMATCH {

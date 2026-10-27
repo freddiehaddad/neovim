@@ -14,7 +14,7 @@ use crate::input::{
 };
 use crate::insexpand::{ctrl_x_mode_not_defined_yet, ins_compl_active};
 use crate::keycodes::get_special_key_name;
-use crate::log::{LOGLVL_DBG, g_min_log_level, logmsg};
+use crate::log::{LOGLVL_DBG, log_st, logmsg};
 use crate::option::get_ve_flags;
 use crate::os::input::{input_available, input_get, os_breakcheck};
 use crate::strings::{strcmp, strcpy, vim_snprintf};
@@ -136,7 +136,7 @@ pub unsafe fn state_enter<S: EditorState>(s: *mut S) {
                     may_sync_undo();
                 }
 
-                if g_min_log_level <= LOGLVL_DBG {
+                if log_st().g_min_log_level <= LOGLVL_DBG {
                     let keyname = if key == K_EVENT {
                         c"K_EVENT".as_ptr()
                     } else {
@@ -378,7 +378,7 @@ pub unsafe fn may_trigger_safestate(safe: bool) {
     unsafe {
         let is_safe = safe && is_safe_now();
 
-        if state_mod_st().was_safe != is_safe && g_min_log_level <= LOGLVL_DBG {
+        if state_mod_st().was_safe != is_safe && log_st().g_min_log_level <= LOGLVL_DBG {
             let msg: &CStr = if is_safe {
                 c"SafeState: Start triggering"
             } else {
@@ -409,7 +409,7 @@ pub unsafe fn may_trigger_safestate(safe: bool) {
 
 pub unsafe fn state_no_longer_safe(reason: *const c_char) {
     unsafe {
-        if state_mod_st().was_safe && !reason.is_null() && g_min_log_level <= LOGLVL_DBG {
+        if state_mod_st().was_safe && !reason.is_null() && log_st().g_min_log_level <= LOGLVL_DBG {
             logmsg!(
                 LOGLVL_DBG,
                 ptr::null(),

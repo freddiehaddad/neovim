@@ -184,19 +184,15 @@ impl std::ops::DerefMut for OwnedSlang {
     }
 }
 
-pub static mut first_lang: Vec<OwnedSlang> = Vec::new();
-pub static mut int_wordlist: Option<std::ffi::CString> = None;
-pub static mut spelltab: spelltab_T = spelltab_T {
-    st_isw: [false; 256],
-    st_isu: [false; 256],
-    st_fold: [0; 256],
-    st_upper: [0; 256],
-};
-pub static mut did_set_spelltab: bool = false;
 pub const e_format: &std::ffi::CStr = c"E759: Format error in spell file";
-pub static mut repl_from: Option<std::ffi::CString> = None;
-pub static mut repl_to: Option<std::ffi::CString> = None;
-struct SpellPrivateState {
+
+pub(crate) struct SpellPrivateState {
+    pub(crate) first_lang: Vec<OwnedSlang>,
+    pub(crate) int_wordlist: Option<std::ffi::CString>,
+    pub(crate) spelltab: spelltab_T,
+    pub(crate) did_set_spelltab: bool,
+    pub(crate) repl_from: Option<std::ffi::CString>,
+    pub(crate) repl_to: Option<std::ffi::CString>,
     parse_spelllang_recursive: bool,
     spell_expand_need_cap: bool,
 }
@@ -204,6 +200,17 @@ struct SpellPrivateState {
 impl SpellPrivateState {
     const fn new() -> Self {
         Self {
+            first_lang: Vec::new(),
+            int_wordlist: None,
+            spelltab: spelltab_T {
+                st_isw: [false; 256],
+                st_isu: [false; 256],
+                st_fold: [0; 256],
+                st_upper: [0; 256],
+            },
+            did_set_spelltab: false,
+            repl_from: None,
+            repl_to: None,
             parse_spelllang_recursive: false,
             spell_expand_need_cap: false,
         }
@@ -213,7 +220,7 @@ impl SpellPrivateState {
 static SPELL_PRIV_STATE: crate::globals::GlobalState<SpellPrivateState> = crate::globals::GlobalState::new(SpellPrivateState::new());
 
 #[inline]
-unsafe fn spell_priv_st() -> &'static mut SpellPrivateState {
+pub(crate) unsafe fn spell_priv_st() -> &'static mut SpellPrivateState {
     unsafe { &mut *SPELL_PRIV_STATE.as_ptr() }
 }
 #[inline]
@@ -222,7 +229,7 @@ pub unsafe fn spell_isupper(c: c_int) -> bool {
         if c >= 128 {
             mb_isupper(c)
         } else if c >= 0 {
-            spelltab.st_isu[c as usize]
+            spell_priv_st().spelltab.st_isu[c as usize]
         } else {
             false
         }
@@ -234,7 +241,7 @@ pub unsafe fn spell_tofold(c: c_int) -> c_int {
         if c >= 128 {
             utf_fold(c)
         } else if c >= 0 {
-            spelltab.st_fold[c as usize] as c_int
+            spell_priv_st().spelltab.st_fold[c as usize] as c_int
         } else {
             c
         }
@@ -246,7 +253,7 @@ pub unsafe fn spell_toupper(c: c_int) -> c_int {
         if c >= 128 {
             mb_toupper(c)
         } else if c >= 0 {
-            spelltab.st_upper[c as usize] as c_int
+            spell_priv_st().spelltab.st_upper[c as usize] as c_int
         } else {
             c
         }
@@ -1408,7 +1415,7 @@ unsafe fn int_wordlist_spl(fname: *mut c_char) {
             fname,
             MAXPATHL,
             c"%s.%s.spl".as_ptr(),
-            (&raw const int_wordlist)
+            (&raw const spell_priv_st().int_wordlist)
                 .as_ref()
                 .unwrap()
                 .as_ref()
@@ -1715,7 +1722,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                     } else {
                         dont_use_region = true;
                     }
-                    let langs = &raw mut first_lang;
+                    let langs = &raw mut spell_priv_st().first_lang;
                     let slang = (*langs)
                         .iter_mut()
                         .rev()
@@ -1733,7 +1740,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                     } else {
                         dont_use_region = true;
                     }
-                    let langs = &raw mut first_lang;
+                    let langs = &raw mut spell_priv_st().first_lang;
                     let slang = (*langs)
                         .iter_mut()
                         .rev()
@@ -1764,7 +1771,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                         }
                     }
                 }
-                let langs = &raw mut first_lang;
+                let langs = &raw mut spell_priv_st().first_lang;
                 for s in (*langs).iter_mut().rev() {
                     let slang: *mut slang_T = &raw mut **s;
                     let matched = if filename {
@@ -1820,7 +1827,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                 round += 1;
                 let spf_ptr = (&raw mut spf_name).cast::<c_char>();
                 if cur_round == 0 {
-                    if (&raw const int_wordlist).as_ref().unwrap().is_none() {
+                    if (&raw const spell_priv_st().int_wordlist).as_ref().unwrap().is_none() {
                         continue;
                     }
                     int_wordlist_spl(spf_ptr);
@@ -1840,7 +1847,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                         continue;
                     }
                 }
-                let langs = &raw mut first_lang;
+                let langs = &raw mut spell_priv_st().first_lang;
                 let mut slang = (*langs)
                     .iter_mut()
                     .rev()
@@ -2015,14 +2022,14 @@ pub unsafe fn captype(word: *const c_char, end: *const c_char) -> c_int {
 }
 pub unsafe fn spell_delete_wordlist() {
     unsafe {
-        let Some(ref wl) = *(&raw const int_wordlist).as_ref().unwrap() else {
+        let Some(ref wl) = *(&raw const spell_priv_st().int_wordlist).as_ref().unwrap() else {
             return;
         };
         let mut fname: [c_char; MAXPATHL] = [0; MAXPATHL];
         let _ = os_remove(wl.as_ptr());
         int_wordlist_spl((&raw mut fname).cast());
         let _ = os_remove((&raw const fname).cast());
-        int_wordlist = None;
+        spell_priv_st().int_wordlist = None;
     }
 }
 pub unsafe fn spell_free_all() {
@@ -2032,10 +2039,10 @@ pub unsafe fn spell_free_all() {
             (*buf).b_s.b_langp = Vec::new();
             buf = (*buf).b_next;
         }
-        first_lang = Vec::new();
+        spell_priv_st().first_lang = Vec::new();
         spell_delete_wordlist();
-        repl_to = None;
-        repl_from = None;
+        spell_priv_st().repl_to = None;
+        spell_priv_st().repl_from = None;
     }
 }
 pub unsafe fn spell_reload() {
@@ -2103,15 +2110,15 @@ pub unsafe fn clear_spell_chartab(sp: *mut spelltab_T) {
 }
 pub unsafe fn init_spell_chartab() {
     unsafe {
-        did_set_spelltab = false;
-        clear_spell_chartab(&raw mut spelltab);
+        spell_priv_st().did_set_spelltab = false;
+        clear_spell_chartab(&raw mut spell_priv_st().spelltab);
         for i in 128..256 {
             let f = utf_fold(i as c_int);
             let u = mb_toupper(i as c_int);
-            spelltab.st_isu[i] = mb_isupper(i as c_int);
-            spelltab.st_isw[i] = spelltab.st_isu[i] || mb_islower(i as c_int);
-            spelltab.st_fold[i] = if f < 256 { f as u8 } else { i as u8 };
-            spelltab.st_upper[i] = if u < 256 { u as u8 } else { i as u8 };
+            spell_priv_st().spelltab.st_isu[i] = mb_isupper(i as c_int);
+            spell_priv_st().spelltab.st_isw[i] = spell_priv_st().spelltab.st_isu[i] || mb_islower(i as c_int);
+            spell_priv_st().spelltab.st_fold[i] = if f < 256 { f as u8 } else { i as u8 };
+            spell_priv_st().spelltab.st_upper[i] = if u < 256 { u as u8 } else { i as u8 };
         }
     }
 }
@@ -2141,7 +2148,7 @@ pub unsafe fn spell_iswordp(p: *const c_char, wp: *const win_T) -> bool {
         if c > 255 {
             return spell_mb_isword_class(mb_get_class(s), wp);
         }
-        c >= 0 && spelltab.st_isw[c as usize]
+        c >= 0 && spell_priv_st().spelltab.st_isw[c as usize]
     }
 }
 pub unsafe fn spell_iswordp_nmw(p: *const c_char, wp: *mut win_T) -> bool {
@@ -2150,7 +2157,7 @@ pub unsafe fn spell_iswordp_nmw(p: *const c_char, wp: *mut win_T) -> bool {
         if c > 255 {
             return spell_mb_isword_class(mb_get_class(p), wp);
         }
-        c >= 0 && spelltab.st_isw[c as usize]
+        c >= 0 && spell_priv_st().spelltab.st_isw[c as usize]
     }
 }
 unsafe fn spell_mb_isword_class(cl: c_int, wp: *const win_T) -> bool {
@@ -2180,7 +2187,7 @@ unsafe fn spell_iswordp_w(p: *const c_int, wp: *const win_T) -> bool {
         if *s > 255 {
             return spell_mb_isword_class(utf_class(*s), wp);
         }
-        *s >= 0 && spelltab.st_isw[*s as usize]
+        *s >= 0 && spell_priv_st().spelltab.st_isw[*s as usize]
     }
 }
 pub unsafe fn spell_casefold(
@@ -2279,8 +2286,8 @@ pub unsafe fn ex_spellrepall(_eap: *mut exarg_T) {
         let save_ws = p_ws;
         let mut prev_lnum: linenr_T = 0;
         let (Some(repl_from_cstr), Some(repl_to_cstr)) = (
-            (&raw const repl_from).as_ref().unwrap().as_ref(),
-            (&raw const repl_to).as_ref().unwrap().as_ref(),
+            (&raw const spell_priv_st().repl_from).as_ref().unwrap().as_ref(),
+            (&raw const spell_priv_st().repl_to).as_ref().unwrap().as_ref(),
         ) else {
             emsg(gettext(c"E752: No previous spell replacement".as_ptr()));
             return;

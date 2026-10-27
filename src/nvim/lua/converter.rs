@@ -23,7 +23,7 @@ use crate::eval::typval::{
     tv_list_append_owned_tv, tv_list_first, tv_list_last, tv_list_len, tv_list_ref, typval_T,
 };
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
-use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists};
+use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists_mut};
 use crate::eval::{get_copyID, partial_name};
 use crate::globals::*;
 use crate::hashtab::hashitem_empty;
@@ -1054,7 +1054,7 @@ unsafe fn lua_convert_one_value(
                         let val_di = tv_dict_find(dict, c"_VAL".as_ptr(), 4);
                         if !val_di.is_null() {
                             let mut mp_idx = NUM_MSGPACK_TYPES;
-                            for (i, tl) in { eval_msgpack_type_lists }.into_iter().enumerate() {
+                            for (i, tl) in { *eval_msgpack_type_lists_mut() }.into_iter().enumerate() {
                                 if (*type_di).di_tv.vval.v_list().cast_const() == tl {
                                     mp_idx = i;
                                     break;

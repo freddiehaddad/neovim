@@ -205,7 +205,7 @@ use crate::register::{
 use crate::runtime::{
     DIP_ALL, ESTACK_SCRIPT, ESTACK_SFILE, ESTACK_STACK, ETYPE_EXCEPT, SID_NONE, do_finish,
     estack_pop, estack_push, estack_sfile, ex_finish, ex_options, ex_packadd, ex_packloadall,
-    ex_runtime, ex_scriptencoding, ex_scriptnames, ex_source, exestack, source_breakpoint,
+    ex_runtime, ex_scriptencoding, ex_scriptnames, ex_source, rt_st, source_breakpoint,
     source_dbg_tick, source_finished, source_level, source_runtime, sourcing_name,
 };
 use crate::search::{
@@ -4853,7 +4853,7 @@ const CMDIDXS2: [[u8; 26]; 26] = [
 #[inline]
 unsafe fn sourcing_lnum_ptr() -> *mut linenr_T {
     unsafe {
-        let es = &raw mut exestack;
+        let es = &raw mut rt_st().exestack;
         &raw mut (*es).last_mut().unwrap().es_lnum
     }
 }

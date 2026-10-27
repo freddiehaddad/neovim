@@ -314,7 +314,8 @@ pub struct ExDocmdCookie {
 use crate::event::r#loop::{uv_thread_equal, uv_thread_self};
 use crate::lua::converter::{lua_Debug, lua_getinfo, lua_getstack};
 
-struct LuaExecutorState {
+pub(crate) struct LuaExecutorState {
+    pub(crate) active_lstate: *mut lua_State,
     IN_FAST_CALLBACK: c_int,
     GLOBAL_LSTATE: *mut lua_State,
     REQUIRE_REF: LuaRef,
@@ -325,6 +326,7 @@ struct LuaExecutorState {
 impl LuaExecutorState {
     const fn new() -> Self {
         Self {
+            active_lstate: ptr::null_mut(),
             IN_FAST_CALLBACK: 0,
             GLOBAL_LSTATE: ptr::null_mut(),
             REQUIRE_REF: LUA_REFNIL,
@@ -334,12 +336,10 @@ impl LuaExecutorState {
     }
 }
 
-pub static mut active_lstate: *mut lua_State = ptr::null_mut();
-
 static NLUA_STATE: GlobalState<LuaExecutorState> = GlobalState::new(LuaExecutorState::new());
 
 #[inline]
-unsafe fn nlua_st() -> &'static mut LuaExecutorState {
+pub(crate) unsafe fn nlua_st() -> &'static mut LuaExecutorState {
     unsafe { &mut *NLUA_STATE.as_ptr() }
 }
 
@@ -1344,7 +1344,7 @@ pub unsafe fn nlua_init(argv: *mut *mut c_char, argc: c_int, lua_arg0: c_int) {
 
         luv_set_thread_cb(Some(nlua_thread_acquire_vm), Some(nlua_common_free_all_mem));
         nlua_st().GLOBAL_LSTATE = lstate;
-        active_lstate = lstate;
+        nlua_st().active_lstate = lstate;
         nlua_st().MAIN_THREAD = uv_thread_self();
         nlua_init_argv(lstate, argv, argc, lua_arg0);
     }
@@ -2219,7 +2219,7 @@ pub unsafe fn nlua_call_ref_ctx(
     err: *mut Error,
 ) -> Object {
     unsafe {
-        let lstate = active_lstate;
+        let lstate = nlua_st().active_lstate;
         let top = lua_gettop(lstate);
         nlua_pushref(lstate, ref_);
         let mut nargs = args.size as c_int;
@@ -2712,7 +2712,7 @@ pub unsafe fn nlua_set_sctx(current: *mut sctx_T) {
         if p_verbose <= 0 {
             return;
         }
-        let lstate = active_lstate;
+        let lstate = nlua_st().active_lstate;
         let mut info = lua_Debug::new();
 
         let mut level: c_int = 1;

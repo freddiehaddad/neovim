@@ -72,7 +72,7 @@ use crate::mark::setpcmark;
 use crate::math::{FAIL, OK};
 use crate::mcursor::mc_init;
 use crate::memline::{ml_close_all, ml_close_notmod, ml_recover, ml_sync_all, recover_names};
-use crate::memory::{entered_free_all_mem, free_all_mem, strequal, striequal_str};
+use crate::memory::{mem_st, free_all_mem, strequal, striequal_str};
 use crate::message::{msg_putchar, semsg, wait_return};
 use crate::mouse::setmouse;
 use crate::r#move::update_topline;
@@ -982,7 +982,7 @@ pub unsafe fn getout(mut exitval: c_int) -> ! {
             }
         }
 
-        if !entered_free_all_mem && !p_shada.is_null() && *p_shada != NUL {
+        if !mem_st().entered_free_all_mem && !p_shada.is_null() && *p_shada != NUL {
             shada_write_file(ptr::null(), false);
         }
 

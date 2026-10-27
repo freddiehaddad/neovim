@@ -7,7 +7,7 @@ use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str};
 use crate::event::r#loop::{uv_mutex_lock, uv_mutex_unlock, uv_strerror};
 use crate::fileio::{EOF, FILE, fclose, fflush, fopen, fprintf, fputc};
 use crate::globals::*;
-use crate::memory::{entered_free_all_mem, xstrlcpy};
+use crate::memory::{mem_st, xstrlcpy};
 use crate::message::msg_schedule_semsg;
 use crate::os::env::{expand_env, os_get_pid, os_getenv_buf, os_setenv};
 use crate::os::fs::{os_isdir, os_mkdir_recurse};
@@ -27,7 +27,8 @@ pub const LOGLVL_ERR: c_int = 4;
 #[repr(C, align(8))]
 struct UvMutex([u8; 128]);
 
-struct LogModuleState {
+pub(crate) struct LogModuleState {
+    pub(crate) g_min_log_level: c_int,
     LOG_FILE_PATH: [c_char; MAXPATHL + 1],
     DID_LOG_INIT: bool,
     MUTEX: UvMutex,
@@ -39,6 +40,7 @@ struct LogModuleState {
 impl LogModuleState {
     const fn new() -> Self {
         Self {
+            g_min_log_level: LOGLVL_WRN,
             LOG_FILE_PATH: [0; MAXPATHL + 1],
             DID_LOG_INIT: false,
             MUTEX: UvMutex([0; 128]),
@@ -52,11 +54,9 @@ impl LogModuleState {
 static LOG_STATE: crate::globals::GlobalState<LogModuleState> = crate::globals::GlobalState::new(LogModuleState::new());
 
 #[inline]
-unsafe fn log_st() -> &'static mut LogModuleState {
+pub(crate) unsafe fn log_st() -> &'static mut LogModuleState {
     unsafe { &mut *LOG_STATE.as_ptr() }
 }
-
-pub static mut g_min_log_level: c_int = LOGLVL_WRN;
 
 use crate::event::r#loop::{
     UvTimeval64, uv_gettimeofday, uv_mutex_init_recursive, uv_print_all_handles,
@@ -269,7 +269,7 @@ pub unsafe fn log_should_log(log_level: c_int) -> bool {
             g_stats.log_skip += 1;
             return false;
         }
-        log_level >= g_min_log_level
+        log_level >= log_st().g_min_log_level
     }
 }
 
@@ -286,11 +286,11 @@ pub unsafe fn logmsg_str(
             g_stats.log_skip += 1;
             return false;
         }
-        if log_level < g_min_log_level {
+        if log_level < log_st().g_min_log_level {
             return false;
         }
 
-        if entered_free_all_mem {
+        if mem_st().entered_free_all_mem {
             let stderr = log_get_stderr();
             fprintf!(
                 stderr,

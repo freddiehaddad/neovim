@@ -2149,7 +2149,8 @@ pub fn handle_x_keys(key: c_int) -> c_int {
     }
 }
 
-static mut SPECIAL_KEY_STRING: [c_char; MAX_KEY_NAME_LEN + 1] = [0; MAX_KEY_NAME_LEN + 1];
+static SPECIAL_KEY_STRING: crate::globals::GlobalState<[c_char; MAX_KEY_NAME_LEN + 1]> =
+    crate::globals::GlobalState::new([0; MAX_KEY_NAME_LEN + 1]);
 
 /// Gets a key "chord" (key + modifiers) as a string, and optionally as structured `data`
 /// (`get_special_key`).
@@ -2159,7 +2160,7 @@ pub unsafe fn get_special_key(
     data: *mut keychord,
 ) -> *mut c_char {
     unsafe {
-        let string = std::ptr::addr_of_mut!(SPECIAL_KEY_STRING).cast::<c_char>();
+        let string = (*SPECIAL_KEY_STRING.as_ptr()).as_mut_ptr();
         let mut is_ascii_ctrl = false;
 
         *string = b'<' as c_char;

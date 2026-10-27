@@ -23,7 +23,7 @@ use crate::api::ui::{
 use crate::api::win_config::UIExtension;
 use crate::autocmd::do_autocmd_uienter;
 use crate::buffer::resettitle;
-use crate::cursor_shape::{cursor_get_mode_idx, cursorentry_T, mode_style_array, shape_table};
+use crate::cursor_shape::{cursor_get_mode_idx, cursorentry_T, mode_style_array, shape_table_mut};
 use crate::drawscreen::{DEFAULT_GRID_HANDLE, conceal_check_cursor_line, screen_resize};
 use crate::event::r#loop::uv_cwd;
 use crate::event::multiqueue::{Event, multiqueue_free, multiqueue_put_event};
@@ -672,7 +672,7 @@ pub unsafe fn ui_flush() {
             } else {
                 ui_state().ui_mode_idx
             };
-            let full_name = (*(&raw const shape_table)
+            let full_name = (*(&raw const (*shape_table_mut()))
                 .cast::<cursorentry_T>()
                 .add(idx as usize))
             .full_name;
@@ -1032,7 +1032,7 @@ pub unsafe fn ui_log(funname: &'static std::ffi::CStr) {
     let _ = funname;
     #[cfg(debug_assertions)]
     unsafe {
-        if crate::memory::entered_free_all_mem {
+        if crate::memory::mem_st().entered_free_all_mem {
             return;
         }
 

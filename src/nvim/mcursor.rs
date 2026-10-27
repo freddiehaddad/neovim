@@ -41,12 +41,12 @@ use crate::input::{
 use crate::input_cmdatom::{
     CmdAtom, CmdOrigin, atom_cmd_spec, atom_composite_active, atom_composite_queued,
     atom_did_global_op, atom_key_class, atom_lhs_replay_queue, atom_push_raw, atom_suppress,
-    atom_visual_reset, atom_visual_span, cmdarg_T, g_atoms, kAInsertSpan, kAMotion, kAVisualSpan,
+    atom_visual_reset, atom_visual_span, cmdarg_T, atom_st, kAInsertSpan, kAMotion, kAVisualSpan,
     kKeyInsFlush,
 };
 use crate::insexpand::ins_compl_active;
 use crate::keycodes::{K_COMMAND, K_SPECIAL, NL};
-use crate::log::{LOGLVL_DBG, g_min_log_level, logmsg};
+use crate::log::{LOGLVL_DBG, log_st, logmsg};
 use crate::lua::executor::nlua_call_typval;
 use crate::mapping::REMAP_NONE;
 use crate::mark::mark_get_visual;
@@ -365,7 +365,7 @@ unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
     unsafe {
         let mut ctx = cursors()[cursoridx].clone();
         let (atom_keys, atom_type, atom_cmd, atom_cmd2, atom_remap) = {
-            let ga = &raw const g_atoms;
+            let ga = &raw const atom_st().g_atoms;
             let a = &(*ga).as_slice()[atomidx];
             (
                 a.keys.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
@@ -492,7 +492,7 @@ unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
 
 unsafe fn mc_cascade() {
     unsafe {
-        let ga = &raw mut g_atoms;
+        let ga = &raw mut atom_st().g_atoms;
         assert!(!(*ga).is_empty());
         let origin = (*ga).as_slice()[0].origin;
         let mcursor = if origin.buf.br_buf == curbuf {
@@ -562,7 +562,7 @@ unsafe fn mc_cascade() {
 
 pub unsafe fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
     unsafe {
-        let ga = &raw mut g_atoms;
+        let ga = &raw mut atom_st().g_atoms;
         if (map_edit || (follow && map_moved && !Visual.active))
             && !atom_composite_queued()
             && (*ga).is_empty()
@@ -840,7 +840,7 @@ unsafe fn mc_ins_preview_replace(start: pos_T, end: pos_T, text: *const NvimStri
             &mut err,
         );
         if err.err_type != ErrorType::kErrorTypeNone {
-            if g_min_log_level <= LOGLVL_DBG {
+            if log_st().g_min_log_level <= LOGLVL_DBG {
                 logmsg!(
                     LOGLVL_DBG,
                     ptr::null(),
@@ -907,7 +907,7 @@ unsafe fn mc_ins_keys_nonliteral(keys: *const c_char, len: usize) -> bool {
 
 pub unsafe fn mc_ins_cascade_restart() {
     unsafe {
-        let ga = &raw const g_atoms;
+        let ga = &raw const atom_st().g_atoms;
         if !mc_st().mc_ins_span.active
             || mc_replaying()
             || (State & MODE_INSERT) == 0
@@ -1946,7 +1946,7 @@ pub unsafe fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
         }
         mc_cleanup(false, ptr::null(), 0);
         if cursors().is_empty() {
-            g_atoms = Vec::new();
+            atom_st().g_atoms = Vec::new();
         }
     }
 }

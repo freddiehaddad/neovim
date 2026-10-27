@@ -20,7 +20,7 @@ use crate::eval::typval::{
     tv_dict_item_alloc, tv_dict_item_free, tv_dict_unref, tv_dict_watcher_notify,
     tv_dict_wrong_func_name, tv_empty_string, tv_equal, tv_get_float, tv_get_number,
     tv_get_number_chk, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk,
-    tv_in_free_unref_items, tv_initial_value, tv_is_func, tv_list_alloc, tv_list_alloc_ret,
+    tv_st, tv_initial_value, tv_is_func, tv_list_alloc, tv_list_alloc_ret,
     tv_list_append_dict, tv_list_append_owned_tv, tv_list_append_string, tv_list_assign_range,
     tv_list_check_range_index_one, tv_list_check_range_index_two, tv_list_concat, tv_list_copy,
     tv_list_equal, tv_list_find, tv_list_find_nr, tv_list_first, tv_list_free,
@@ -94,7 +94,7 @@ use crate::regexp::{
 };
 use crate::register::{get_reg_contents_str, kGRegExprSrc};
 use crate::runtime::{
-    exestack, free_autoload_scriptnames, free_scriptnames, get_scriptname, script_autoload,
+    rt_st, free_autoload_scriptnames, free_scriptnames, get_scriptname, script_autoload,
     script_is_lua, sctx_T,
 };
 use crate::ui::ui_has;
@@ -235,10 +235,8 @@ const E_EMPTY_FUNCTION_NAME: &CStr = c"E1192: Empty function name";
 const E_CANNOT_USE_PARTIAL_HERE: &CStr = c"E1265: Cannot use a partial here";
 const NAMESPACE_CHAR: &CStr = c"abglstvw";
 
-/// Used for checking if local variables or arguments used in a lambda.
-pub static mut eval_lavars_used: *mut bool = ptr::null_mut();
-
-struct EvalModuleState {
+pub(crate) struct EvalModuleState {
+    pub(crate) eval_lavars_used: *mut bool,
     echo_hl_id: c_int,
     last_timer_id: u64,
     callback_depth: c_int,
@@ -252,6 +250,7 @@ struct EvalModuleState {
 impl EvalModuleState {
     const fn new() -> Self {
         Self {
+            eval_lavars_used: ptr::null_mut(),
             echo_hl_id: 0,
             last_timer_id: 1,
             callback_depth: 0,
@@ -267,7 +266,7 @@ impl EvalModuleState {
 static EVAL_STATE: GlobalState<EvalModuleState> = GlobalState::new(EvalModuleState::new());
 
 #[inline]
-unsafe fn eval_st() -> &'static mut EvalModuleState {
+pub(crate) unsafe fn eval_st() -> &'static mut EvalModuleState {
     unsafe { &mut *EVAL_STATE.as_ptr() }
 }
 
@@ -4335,7 +4334,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
             garbage_collect_at_exit = false;
         }
 
-        let es = &raw mut exestack;
+        let es = &raw mut rt_st().exestack;
         if (*es).capacity() - (*es).len() > 500 {
             let keep = (*es).len() + ((*es).len() / 2).max(50);
             (*es).shrink_to(keep);
@@ -4534,7 +4533,7 @@ unsafe fn free_unref_items(copyID: c_int) -> c_int {
     unsafe {
         let mut did_free = false;
 
-        tv_in_free_unref_items = true;
+        tv_st().tv_in_free_unref_items = true;
 
         for &dd in gc_dicts_slice().iter().rev() {
             if ((*dd).dv_copyID & COPYID_MASK) != (copyID & COPYID_MASK) {
@@ -4572,7 +4571,7 @@ unsafe fn free_unref_items(copyID: c_int) -> c_int {
             }
         }
 
-        tv_in_free_unref_items = false;
+        tv_st().tv_in_free_unref_items = false;
         c_int::from(did_free)
     }
 }
@@ -7062,7 +7061,7 @@ pub unsafe fn eval_call_provider(
             provider,
         );
 
-        let es = &raw const exestack;
+        let es = &raw const rt_st().exestack;
         let new_scope = caller_scope {
             script_ctx: current_sctx,
             es_entry: (*es).last().unwrap().clone(),

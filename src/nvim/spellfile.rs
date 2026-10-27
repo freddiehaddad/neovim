@@ -41,10 +41,9 @@ use crate::runtime::{ETYPE_SPELL, estack_pop, estack_push};
 use crate::spell::{
     MAXWLEN, SP_FORMERROR, WF_BANNED, WF_COMPROOT, WF_FIXCAP, WF_HAS_AFF, WF_KEEPCAP, WF_NEEDCOMP,
     WF_NOCOMPAFT, WF_NOCOMPBEF, WF_RARE, WF_REGION, WFP_NC, captype, clear_spell_chartab,
-    close_spellbuf, count_common_word, did_set_spelltab, e_format, first_lang, init_spell_chartab,
-    init_syl_tab, int_wordlist, onecap_copy, open_spellbuf, parse_spelllang, slang_alloc,
-    slang_clear, slang_clear_sug, spell_casefold, spell_enc, spell_soundfold, spell_toupper,
-    spelltab,
+    close_spellbuf, count_common_word, e_format, init_spell_chartab, init_syl_tab, onecap_copy,
+    open_spellbuf, parse_spelllang, slang_alloc, slang_clear, slang_clear_sug, spell_casefold,
+    spell_enc, spell_priv_st, spell_soundfold, spell_toupper,
 };
 use crate::spellsuggest::{fromto_T, idx_T, salitem_T, slang_T, spelltab_T};
 use crate::strings::{
@@ -715,7 +714,7 @@ pub unsafe fn spell_load_file(
             if let Some(boxed_lp) = owned_lp.take()
                 && !lang.is_null()
             {
-                let langs = &raw mut first_lang;
+                let langs = &raw mut spell_priv_st().first_lang;
                 (*langs).push(crate::spell::OwnedSlang(boxed_lp));
                 lp = &raw mut **(*langs).last_mut().unwrap();
             }
@@ -1654,7 +1653,7 @@ unsafe fn spell_reload_one(fname: *mut c_char, added_word: bool) {
     unsafe {
         let mut didit = false;
 
-        let langs = &raw mut first_lang;
+        let langs = &raw mut spell_priv_st().first_lang;
         let len = (*langs).len();
         for i in (0..len).rev() {
             let slang: *mut slang_T = &raw mut *(*langs).as_mut_slice()[i];
@@ -4270,7 +4269,7 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
 
             let mut l: usize = 0;
             for i in 128..256 {
-                l += utf_char2bytes(spelltab.st_fold[i] as c_int, folchars.as_mut_ptr().add(l))
+                l += utf_char2bytes(spell_priv_st().spelltab.st_fold[i] as c_int, folchars.as_mut_ptr().add(l))
                     as usize;
             }
             put_bytes(fd, (1 + 128 + 2 + l) as u64, 4);
@@ -4278,10 +4277,10 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
             fputc(128, fd);
             for i in 128..256 {
                 let mut flags: c_int = 0;
-                if spelltab.st_isw[i] {
+                if spell_priv_st().spelltab.st_isw[i] {
                     flags |= CF_WORD as c_int;
                 }
-                if spelltab.st_isu[i] {
+                if spell_priv_st().spelltab.st_isu[i] {
                     flags |= CF_UPPER as c_int;
                 }
                 fputc(flags, fd);
@@ -4678,7 +4677,7 @@ pub unsafe fn ex_mkspell(eap: *mut exarg_T) {
 
 unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
     unsafe {
-        let langs = &raw mut first_lang;
+        let langs = &raw mut spell_priv_st().first_lang;
         let mut slang = (*langs)
             .iter_mut()
             .rev()
@@ -5268,13 +5267,13 @@ pub unsafe fn spell_add_word(
         }
 
         let fname: *mut c_char = if idx == 0 {
-            if (&raw const int_wordlist).as_ref().unwrap().is_none() {
-                int_wordlist = vim_tempname();
-                if (&raw const int_wordlist).as_ref().unwrap().is_none() {
+            if (&raw const spell_priv_st().int_wordlist).as_ref().unwrap().is_none() {
+                spell_priv_st().int_wordlist = vim_tempname();
+                if (&raw const spell_priv_st().int_wordlist).as_ref().unwrap().is_none() {
                     return;
                 }
             }
-            (&raw const int_wordlist)
+            (&raw const spell_priv_st().int_wordlist)
                 .as_ref()
                 .unwrap()
                 .as_ref()
@@ -5542,12 +5541,12 @@ unsafe fn set_spell_charflags(flags_in: *const c_char, cnt: c_int, fol: *const c
 
 unsafe fn set_spell_finish(new_st: *mut spelltab_T) -> c_int {
     unsafe {
-        if did_set_spelltab {
+        if spell_priv_st().did_set_spelltab {
             for i in 0..256 {
-                if spelltab.st_isw[i] != (*new_st).st_isw[i]
-                    || spelltab.st_isu[i] != (*new_st).st_isu[i]
-                    || spelltab.st_fold[i] != (*new_st).st_fold[i]
-                    || spelltab.st_upper[i] != (*new_st).st_upper[i]
+                if spell_priv_st().spelltab.st_isw[i] != (*new_st).st_isw[i]
+                    || spell_priv_st().spelltab.st_isu[i] != (*new_st).st_isu[i]
+                    || spell_priv_st().spelltab.st_fold[i] != (*new_st).st_fold[i]
+                    || spell_priv_st().spelltab.st_upper[i] != (*new_st).st_upper[i]
                 {
                     emsg(gettext(
                         c"E763: Word characters differ between spell files".as_ptr(),
@@ -5556,8 +5555,8 @@ unsafe fn set_spell_finish(new_st: *mut spelltab_T) -> c_int {
                 }
             }
         } else {
-            spelltab = *new_st;
-            did_set_spelltab = true;
+            spell_priv_st().spelltab = *new_st;
+            spell_priv_st().did_set_spelltab = true;
         }
 
         OK

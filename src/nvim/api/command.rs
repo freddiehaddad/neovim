@@ -40,7 +40,7 @@ use crate::regexp::{RE_MAGIC, vim_regcomp};
 use crate::register::valid_yank_reg;
 use crate::usercmd::{
     UC_BUFFER, commands_array, get_user_command_name, parse_addr_type_arg, parse_compl_arg,
-    uc_add_command, uc_nargs_upper_bound, uc_split_args_iter, uc_validate_name, ucmds,
+    uc_add_command, uc_nargs_upper_bound, uc_split_args_iter, uc_validate_name, ucmds_mut,
 };
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -361,7 +361,7 @@ pub unsafe extern "C" fn nvim_parse_cmd(
         }
 
         let cmd = if ea.cmdidx == CMD_USER {
-            let u = &raw mut ucmds;
+            let u = &raw mut (*ucmds_mut());
             Some(&(&*u)[ea.useridx as usize])
         } else if ea.cmdidx == CMD_USER_BUF {
             Some(&(&(*curbuf).b_ucmds)[ea.useridx as usize])
@@ -1415,7 +1415,7 @@ pub unsafe extern "C" fn nvim_buf_create_user_command(
 pub unsafe extern "C" fn nvim_buf_del_user_command(buf: Buffer, name: NvimString, err: *mut Error) {
     unsafe {
         let gap = if buf == -1 {
-            &raw mut ucmds
+            &raw mut (*ucmds_mut())
         } else {
             let b = find_buffer_by_handle(buf, err);
             if error_set(err) {

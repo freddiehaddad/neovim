@@ -186,7 +186,7 @@ use crate::register::{
     get_reg_type, get_register_name, get_unname_register, get_yank_register, kGRegExprSrc,
     op_reg_set_previous, write_reg_contents_ex, write_reg_contents_lst,
 };
-use crate::runtime::{exestack, sctx_T};
+use crate::runtime::{rt_st, sctx_T};
 use crate::search::{
     BACKWARD, last_csearch, last_csearch_forward, last_csearch_until, searchit, searchit_arg_T,
     set_csearch_direction, set_csearch_until, set_last_csearch,
@@ -7203,7 +7203,7 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
             save_funccal();
 
             current_sctx = provider_caller_scope.script_ctx;
-            let es = &raw mut exestack;
+            let es = &raw mut rt_st().exestack;
             (*es).push(
                 (&raw const provider_caller_scope.es_entry)
                     .as_ref()
@@ -7233,7 +7233,7 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
 
         if l_provider_call_nesting != 0 {
             current_sctx = save_current_sctx;
-            let es = &raw mut exestack;
+            let es = &raw mut rt_st().exestack;
             (*es).pop();
             autocmd_fname = save_autocmd_fname;
             autocmd_match = save_autocmd_match;

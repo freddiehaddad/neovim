@@ -9,7 +9,7 @@ use crate::eval::typval::{
     tv_list_append_list, tv_list_append_number, tv_list_append_owned_tv, tv_list_len, tv_list_ref,
     typval_T,
 };
-use crate::eval::vars::eval_msgpack_type_lists;
+use crate::eval::vars::eval_msgpack_type_lists_mut;
 use crate::hashtab::hashitem_empty;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len};
@@ -61,7 +61,7 @@ unsafe fn create_special_dict(rettv: *mut typval_T, mp_type: usize, val: typval_
         let type_di = tv_dict_item_alloc_len(c"_TYPE".as_ptr(), 5);
         (*type_di).di_tv.v_type = VarType::VAR_LIST;
         (*type_di).di_tv.v_lock = VAR_UNLOCKED;
-        (*type_di).di_tv.vval = crate::eval::typval::TypvalVval::List(eval_msgpack_type_lists[mp_type].cast_mut());
+        (*type_di).di_tv.vval = crate::eval::typval::TypvalVval::List((*eval_msgpack_type_lists_mut())[mp_type].cast_mut());
         tv_list_ref((*type_di).di_tv.vval.v_list());
         tv_dict_add(dict, type_di);
 

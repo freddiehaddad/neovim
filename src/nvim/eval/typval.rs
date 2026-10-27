@@ -648,12 +648,11 @@ struct ListSortItem {
     key: ListSortKey,
 }
 
-pub static mut tv_in_free_unref_items: bool = false;
-
 static TV_EMPTY_STRING_BYTE: c_char = 0;
 pub const tv_empty_string: *const c_char = &raw const TV_EMPTY_STRING_BYTE;
 
-struct TypvalModuleState {
+pub(crate) struct TypvalModuleState {
+    pub(crate) tv_in_free_unref_items: bool,
     TV_EQUAL_RECURSE_LIMIT: c_int,
     dict_numbuf: [c_char; NUMBUFLEN],
     mybuf_chk: [c_char; NUMBUFLEN],
@@ -663,6 +662,7 @@ struct TypvalModuleState {
 impl TypvalModuleState {
     const fn new() -> Self {
         Self {
+            tv_in_free_unref_items: false,
             TV_EQUAL_RECURSE_LIMIT: 0,
             dict_numbuf: [0; NUMBUFLEN],
             mybuf_chk: [0; NUMBUFLEN],
@@ -675,7 +675,7 @@ static TV_STATE: crate::globals::GlobalState<TypvalModuleState> =
     crate::globals::GlobalState::new(TypvalModuleState::new());
 
 #[inline]
-unsafe fn tv_st() -> &'static mut TypvalModuleState {
+pub(crate) unsafe fn tv_st() -> &'static mut TypvalModuleState {
     unsafe { &mut *TV_STATE.as_ptr() }
 }
 
@@ -1114,7 +1114,7 @@ pub unsafe fn tv_list_free_contents(l: *mut list_T) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tv_list_free(l: *mut list_T) {
     unsafe {
-        if tv_in_free_unref_items {
+        if tv_st().tv_in_free_unref_items {
             return;
         }
 
@@ -2922,7 +2922,7 @@ pub unsafe fn tv_dict_free_contents(d: *mut dict_T) {
 /// Free a dictionary, including all items it contains.
 pub unsafe fn tv_dict_free(d: *mut dict_T) {
     unsafe {
-        if tv_in_free_unref_items {
+        if tv_st().tv_in_free_unref_items {
             return;
         }
 

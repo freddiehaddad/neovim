@@ -69,7 +69,7 @@ use crate::memline::{
     ml_close, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_open, ml_recover,
     ml_setname, ml_timestamp,
 };
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, entered_free_all_mem, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, mem_st, xstrlcpy};
 use crate::message::{
     emsg, message_filtered, msg, msg_delay, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts,
     msg_start, msg_trunc, semsg, set_keep_msg, smsg,
@@ -1505,7 +1505,7 @@ pub unsafe fn close_buffer(
 
         if wipe_buf
             && (*buf).b_nwindows <= 0
-            && (!(*buf).b_prev.is_null() || !(*buf).b_next.is_null() || entered_free_all_mem)
+            && (!(*buf).b_prev.is_null() || !(*buf).b_next.is_null() || mem_st().entered_free_all_mem)
         {
             if clear_w_buf {
                 (*win).w_buffer = ptr::null_mut();
@@ -1641,7 +1641,7 @@ pub unsafe fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
             return false;
         }
 
-        if buf == curbuf && Visual.active && !entered_free_all_mem {
+        if buf == curbuf && Visual.active && !mem_st().entered_free_all_mem {
             end_visual_mode();
         }
 
@@ -2611,7 +2611,7 @@ pub unsafe fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) 
 /// Enter a new current buffer.
 unsafe fn enter_buffer(buf: *mut buf_T) {
     unsafe {
-        if Visual.active && !entered_free_all_mem {
+        if Visual.active && !mem_st().entered_free_all_mem {
             end_visual_mode();
         }
 

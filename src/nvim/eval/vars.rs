@@ -34,7 +34,7 @@ use crate::eval::userfunc::{
 use crate::eval::window::find_win_by_nr;
 use crate::eval::{
     AUTOLOAD_CHAR, DICT_MAXNEST, FNE_CHECK_START, FNE_INCL_BR, GLV_QUIET, VAR_DEF_SCOPE,
-    callback_call, clear_evalarg, eval_isnamec1, eval_lavars_used, eval_option, eval_to_string,
+    callback_call, clear_evalarg, eval_isnamec1, eval_st, eval_option, eval_to_string,
     eval0, eval1, fill_evalarg_from_eap, find_name_end, find_option_var_end, get_env_len, get_lval,
     get_name_len, handle_subscript, kListLenUnknown, may_call_simple_func, num_divide, num_modulus,
     partial_unref, set_ref_in_ht, set_var_lval, skip_expr, tv_dict_set_ret,
@@ -510,8 +510,13 @@ const MSGPACK_TYPE_NAMES: [&CStr; NUM_MSGPACK_TYPES] = [
     c"nil", c"boolean", c"integer", c"float", c"string", c"array", c"map", c"ext",
 ];
 
-pub static mut eval_msgpack_type_lists: [*const list_T; NUM_MSGPACK_TYPES] =
-    [ptr::null(); NUM_MSGPACK_TYPES];
+static EVAL_MSGPACK_TYPE_LISTS: GlobalState<[*const list_T; NUM_MSGPACK_TYPES]> =
+    GlobalState::new([ptr::null(); NUM_MSGPACK_TYPES]);
+
+#[inline]
+pub(crate) unsafe fn eval_msgpack_type_lists_mut() -> &'static mut [*const list_T; NUM_MSGPACK_TYPES] {
+    unsafe { &mut *EVAL_MSGPACK_TYPE_LISTS.as_ptr() }
+}
 
 
 
@@ -618,7 +623,7 @@ pub unsafe fn evalvars_init() {
                 v_lock: 0,
                 vval: TypvalVval::List(type_list),
             };
-            *(&raw mut eval_msgpack_type_lists)
+            *(&raw mut (*eval_msgpack_type_lists_mut()))
                 .cast::<*const list_T>()
                 .add(i) = type_list;
             if tv_dict_add(msgpack_types_dict, di) == FAIL {
@@ -2676,7 +2681,7 @@ pub unsafe fn eval_variable(
 /// Check if variable "name[len]" is a local variable or an argument.
 pub unsafe fn check_vars(name: *const c_char, len: usize) {
     unsafe {
-        if eval_lavars_used.is_null() {
+        if eval_st().eval_lavars_used.is_null() {
             return;
         }
 
@@ -2686,7 +2691,7 @@ pub unsafe fn check_vars(name: *const c_char, len: usize) {
         if (ht == get_funccal_local_ht() || ht == get_funccal_args_ht())
             && !find_var(name, len, ptr::null_mut(), 1).is_null()
         {
-            *eval_lavars_used = true;
+            *eval_st().eval_lavars_used = true;
         }
     }
 }

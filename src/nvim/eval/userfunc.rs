@@ -30,7 +30,7 @@ use crate::eval::vars::{
 use crate::eval::{
     AUTOLOAD_CHAR, EVAL_EVALUATE, FNE_CHECK_START, FNE_INCL_BR, GLV_READ_ONLY, TFN_NO_AUTOLOAD,
     TFN_QUIET, VAR_DEF_SCOPE, callback_call, check_luafunc_name, clear_evalarg, eval_isnamec,
-    eval_isnamec1, eval_lavars_used, eval0, eval1, fill_evalarg_from_eap, find_name_end,
+    eval_isnamec1, eval_st, eval0, eval1, fill_evalarg_from_eap, find_name_end,
     garbage_collect, get_id_len, get_lval, handle_subscript, is_luafunc, last_set_msg,
     partial_name, partial_unref, set_ref_in_ht, set_ref_in_item, set_ref_in_list_items, skip_expr,
 };
@@ -52,7 +52,7 @@ use crate::lua::executor::{
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, entered_free_all_mem, xmemrchr, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, mem_st, xmemrchr, xstrlcpy};
 use crate::message::{
     emsg, iemsg, internal_error, message_filtered, msg_clr_eos, msg_ext_set_kind, msg_outnum,
     msg_prt_line, msg_putchar, msg_puts, msg_start, semsg, smsg, swmsg, trunc_string,
@@ -71,7 +71,7 @@ use crate::regexp::{
     NUMBUFLEN, RE_MAGIC, regmatch_T, skip_regexp, vim_regcomp, vim_regexec, vim_regfree,
 };
 use crate::runtime::{
-    autoload_name, estack_pop, estack_push_ufunc, exestack, get_sourced_lnum, script_autoload,
+    autoload_name, estack_pop, estack_push_ufunc, rt_st, get_sourced_lnum, script_autoload,
     set_sourcing_lnum, sourcing_lnum, sourcing_name,
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
@@ -577,7 +577,7 @@ pub unsafe fn get_lambda_tv(
         let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
         let mut newargs: Vec<std::ffi::CString> = Vec::new();
         let mut varargs: c_int = 0;
-        let old_eval_lavars = eval_lavars_used;
+        let old_eval_lavars = eval_st().eval_lavars_used;
         let mut eval_lavars = false;
 
         let mut s = skipwhite((*arg).add(1));
@@ -603,12 +603,12 @@ pub unsafe fn get_lambda_tv(
             false,
         );
         if ret == FAIL || **arg != b'>' as c_char {
-            eval_lavars_used = old_eval_lavars;
+            eval_st().eval_lavars_used = old_eval_lavars;
             return FAIL;
         }
 
         if evaluate {
-            eval_lavars_used = &raw mut eval_lavars;
+            eval_st().eval_lavars_used = &raw mut eval_lavars;
         }
 
         *arg = skipwhite((*arg).add(1));
@@ -616,14 +616,14 @@ pub unsafe fn get_lambda_tv(
         ret = skip_expr(arg, evalarg);
         let end = *arg;
         if ret == FAIL {
-            eval_lavars_used = old_eval_lavars;
+            eval_st().eval_lavars_used = old_eval_lavars;
             return FAIL;
         }
 
         *arg = skipwhite(*arg);
         if **arg != b'}' as c_char {
             semsg!(gettext(c"E451: Expected }: %s".as_ptr()), *arg);
-            eval_lavars_used = old_eval_lavars;
+            eval_st().eval_lavars_used = old_eval_lavars;
             return FAIL;
         }
         *arg = (*arg).add(1);
@@ -676,7 +676,7 @@ pub unsafe fn get_lambda_tv(
             (*rettv).v_type = VarType::VAR_PARTIAL;
         }
 
-        eval_lavars_used = old_eval_lavars;
+        eval_st().eval_lavars_used = old_eval_lavars;
         OK
     }
 }
@@ -1394,7 +1394,7 @@ pub unsafe fn call_user_func(
         }
 
         estack_push_ufunc(fp, 1);
-        let es = &raw const exestack;
+        let es = &raw const rt_st().exestack;
         let estack_len_before = (*es).len() as c_int;
         if p_verbose >= 12 {
             no_wait_return += 1;
@@ -3491,7 +3491,7 @@ pub unsafe fn func_unref(name: *mut c_char) {
         }
 
         let fp = find_func(name);
-        if fp.is_null() && (*name as u8).is_ascii_digit() && !entered_free_all_mem {
+        if fp.is_null() && (*name as u8).is_ascii_digit() && !mem_st().entered_free_all_mem {
             internal_error(c"func_unref()".as_ptr());
             std::process::abort();
         }

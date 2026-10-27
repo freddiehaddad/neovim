@@ -29,7 +29,7 @@ use crate::context::{
 };
 use crate::cursor::{coladvance, linenr_T, pos_T};
 use crate::cursor_shape::{
-    CursorShape, SHAPE_CURSOR, SHAPE_IDX_TERM, parse_shape_opt, shape_table,
+    CursorShape, SHAPE_CURSOR, SHAPE_IDX_TERM, parse_shape_opt, shape_table_mut,
 };
 use crate::drawscreen::{
     UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, redraw_buf_line_later, redraw_later,
@@ -812,7 +812,7 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
             SELECTIONBUF_SIZE,
         );
 
-        let shape_num = match shape_table[SHAPE_IDX_TERM].shape {
+        let shape_num = match (*shape_table_mut())[SHAPE_IDX_TERM].shape {
             CursorShape::SHAPE_BLOCK => VTERM_PROP_CURSORSHAPE_BLOCK,
             CursorShape::SHAPE_HOR => VTERM_PROP_CURSORSHAPE_UNDERLINE,
             CursorShape::SHAPE_VER => VTERM_PROP_CURSORSHAPE_BAR_LEFT,
@@ -821,7 +821,7 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
         vterm_state_set_termprop(state, VTERM_PROP_CURSORSHAPE, &mut cursor_shape);
 
         let mut cursor_blink = VTermValue::Boolean(c_int::from(
-            shape_table[SHAPE_IDX_TERM].blinkon != 0 && shape_table[SHAPE_IDX_TERM].blinkoff != 0,
+            (*shape_table_mut())[SHAPE_IDX_TERM].blinkon != 0 && (*shape_table_mut())[SHAPE_IDX_TERM].blinkoff != 0,
         ));
         vterm_state_set_termprop(state, VTERM_PROP_CURSORBLINK, &mut cursor_blink);
 
@@ -2476,24 +2476,24 @@ unsafe fn refresh_cursor(term: *mut Terminal, cursor_visible: *mut bool) {
         (*term).pending.cursor = false;
 
         if (*term).cursor.blink {
-            shape_table[SHAPE_IDX_TERM].blinkon = 500;
-            shape_table[SHAPE_IDX_TERM].blinkoff = 500;
+            (*shape_table_mut())[SHAPE_IDX_TERM].blinkon = 500;
+            (*shape_table_mut())[SHAPE_IDX_TERM].blinkoff = 500;
         } else {
-            shape_table[SHAPE_IDX_TERM].blinkon = 0;
-            shape_table[SHAPE_IDX_TERM].blinkoff = 0;
+            (*shape_table_mut())[SHAPE_IDX_TERM].blinkon = 0;
+            (*shape_table_mut())[SHAPE_IDX_TERM].blinkoff = 0;
         }
 
         match (*term).cursor.shape {
             VTERM_PROP_CURSORSHAPE_BLOCK => {
-                shape_table[SHAPE_IDX_TERM].shape = CursorShape::SHAPE_BLOCK;
+                (*shape_table_mut())[SHAPE_IDX_TERM].shape = CursorShape::SHAPE_BLOCK;
             }
             VTERM_PROP_CURSORSHAPE_UNDERLINE => {
-                shape_table[SHAPE_IDX_TERM].shape = CursorShape::SHAPE_HOR;
-                shape_table[SHAPE_IDX_TERM].percentage = 20;
+                (*shape_table_mut())[SHAPE_IDX_TERM].shape = CursorShape::SHAPE_HOR;
+                (*shape_table_mut())[SHAPE_IDX_TERM].percentage = 20;
             }
             VTERM_PROP_CURSORSHAPE_BAR_LEFT => {
-                shape_table[SHAPE_IDX_TERM].shape = CursorShape::SHAPE_VER;
-                shape_table[SHAPE_IDX_TERM].percentage = 25;
+                (*shape_table_mut())[SHAPE_IDX_TERM].shape = CursorShape::SHAPE_VER;
+                (*shape_table_mut())[SHAPE_IDX_TERM].percentage = 25;
             }
             _ => {}
         }

@@ -58,7 +58,7 @@ use crate::os::time::{Timestamp, os_now};
 use crate::path::{FullName_save, path_tail, to_slash_save};
 use crate::profile::{prof_child_enter, prof_child_exit, proftime_T};
 use crate::regexp::{RE_MAGIC, RE_NOBREAK};
-use crate::runtime::{ETYPE_AUCMD, SID_NONE, estack_pop, estack_push, exestack, sctx_T};
+use crate::runtime::{ETYPE_AUCMD, SID_NONE, estack_pop, estack_push, rt_st, sctx_T};
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::state::{MODE_INSERT, MODE_NORMAL_BUSY, get_mode, get_real_state, save_v_event_T};
 use crate::strings::tr;
@@ -2426,7 +2426,7 @@ pub unsafe fn autocmd_register(
             ac.handler = AutoCmdHandler::Fn(cb);
         }
         ac.script_ctx = current_sctx;
-        let es = &raw const exestack;
+        let es = &raw const rt_st().exestack;
         let sourcing_lnum = (*es).last().map_or(0, |top| top.es_lnum);
         ac.script_ctx.sc_lnum += sourcing_lnum;
         nlua_set_sctx(&raw mut ac.script_ctx);
@@ -3259,7 +3259,7 @@ pub unsafe fn is_autocmd_blocked() -> bool {
 
 unsafe fn aucmd_next(apc: &mut AutoPatCmd) {
     unsafe {
-        let es = &raw mut exestack;
+        let es = &raw mut rt_st().exestack;
         let entry = (*es).last_mut().unwrap();
 
         let acs = &raw mut au_st().autocmds[apc.event as usize];

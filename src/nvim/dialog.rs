@@ -34,9 +34,26 @@ pub(crate) const VIM_DISCARDALL: c_int = 6;
 const HAS_HOTKEY_LEN: usize = 30;
 const HOTK_LEN: usize = 4;
 
-pub static mut confirm_msg: Option<std::ffi::CString> = None;
+pub(crate) struct DialogModuleState {
+    pub(crate) confirm_msg: Option<std::ffi::CString>,
+    pub(crate) confirm_buttons: Vec<c_char>,
+}
 
-pub static mut confirm_buttons: Vec<c_char> = Vec::new();
+impl DialogModuleState {
+    const fn new() -> Self {
+        Self {
+            confirm_msg: None,
+            confirm_buttons: Vec::new(),
+        }
+    }
+}
+
+static DLG_STATE: GlobalState<DialogModuleState> = GlobalState::new(DialogModuleState::new());
+
+#[inline]
+pub(crate) unsafe fn dlg_st() -> &'static mut DialogModuleState {
+    unsafe { &mut *DLG_STATE.as_ptr() }
+}
 
 unsafe fn copy_char(from: *const c_char, to: *mut c_char, lowercase: bool) -> usize {
     unsafe {
@@ -93,7 +110,7 @@ unsafe fn console_dialog_alloc(
             button_len += 2;
         }
 
-        confirm_msg = Some(if ui_has(K_UI_MESSAGES) {
+        dlg_st().confirm_msg = Some(if ui_has(K_UI_MESSAGES) {
             CStr::from_ptr(message).to_owned()
         } else {
             let mut v = Vec::with_capacity(msg_bytes.len() + 2);
@@ -103,7 +120,7 @@ unsafe fn console_dialog_alloc(
             std::ffi::CString::new(v).unwrap_or_default()
         });
 
-        confirm_buttons = vec![0 as c_char; button_len];
+        dlg_st().confirm_buttons = vec![0 as c_char; button_len];
 
         vec![0 as c_char; lenhotkey]
     }
@@ -120,7 +137,7 @@ unsafe fn copy_confirm_hotkeys(
         *hotkeys_ptr.add(first_len) = 0;
 
         let mut first_hotkey = !has_hotkey[0];
-        let mut msgp = (&raw mut confirm_buttons).as_mut().unwrap().as_mut_ptr();
+        let mut msgp = (&raw mut dlg_st().confirm_buttons).as_mut().unwrap().as_mut_ptr();
         let mut idx = 0usize;
         let mut r = buttons;
 
@@ -345,7 +362,7 @@ pub unsafe fn do_dialog(
             }
 
             let mut c = prompt_for_input(
-                (&raw mut confirm_buttons).as_mut().unwrap().as_mut_ptr(),
+                (&raw mut dlg_st().confirm_buttons).as_mut().unwrap().as_mut_ptr(),
                 HLF_M,
                 true,
                 std::ptr::null_mut(),
@@ -392,7 +409,7 @@ pub unsafe fn do_dialog(
         }
 
         drop(hotkeys_vec);
-        confirm_msg = None;
+        dlg_st().confirm_msg = None;
 
         msg_silent = save_msg_silent;
         State = old_state;

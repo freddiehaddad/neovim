@@ -7,7 +7,7 @@ use crate::event::r#loop::{
 #[cfg(windows)]
 use crate::event::r#loop::{uv_handle_size, uv_tty_init, uv_tty_set_mode};
 use crate::event::multiqueue::MultiQueue;
-use crate::log::{LOGLVL_DBG, LOGLVL_WRN, g_min_log_level, logmsg};
+use crate::log::{LOGLVL_DBG, LOGLVL_WRN, log_st, logmsg};
 use std::ffi::{c_int, c_void};
 use std::ptr;
 
@@ -256,7 +256,7 @@ pub unsafe fn stream_may_close(stream: *mut Stream) {
         if (*stream).closed {
             return;
         }
-        if g_min_log_level <= LOGLVL_DBG {
+        if log_st().g_min_log_level <= LOGLVL_DBG {
             logmsg!(
                 LOGLVL_DBG,
                 ptr::null(),

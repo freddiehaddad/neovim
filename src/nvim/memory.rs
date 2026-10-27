@@ -58,10 +58,8 @@ impl Default for Arena {
 const ALLOC_ALIGN: usize = 16;
 const HEADER_SIZE: usize = 16;
 
-/// Indicates that `free_all_mem` function was or is running.
-pub static mut entered_free_all_mem: bool = false;
-
-struct MemoryModuleState {
+pub(crate) struct MemoryModuleState {
+    pub(crate) entered_free_all_mem: bool,
     TRYING_TO_FREE: bool,
     ARENA_REUSE_HEAD: *mut ConsumedBlk,
     ARENA_REUSE_COUNT: usize,
@@ -70,6 +68,7 @@ struct MemoryModuleState {
 impl MemoryModuleState {
     const fn new() -> Self {
         Self {
+            entered_free_all_mem: false,
             TRYING_TO_FREE: false,
             ARENA_REUSE_HEAD: std::ptr::null_mut(),
             ARENA_REUSE_COUNT: 0,
@@ -80,7 +79,7 @@ impl MemoryModuleState {
 static MEM_STATE: crate::globals::GlobalState<MemoryModuleState> = crate::globals::GlobalState::new(MemoryModuleState::new());
 
 #[inline]
-unsafe fn mem_st() -> &'static mut MemoryModuleState {
+pub(crate) unsafe fn mem_st() -> &'static mut MemoryModuleState {
     unsafe { &mut *MEM_STATE.as_ptr() }
 }
 
@@ -726,11 +725,11 @@ pub unsafe fn free_all_mem() {
     use crate::window::{free_tabpage, win_free_all};
 
     unsafe {
-        if entered_free_all_mem {
+        if mem_st().entered_free_all_mem {
             nlua_free_all_mem();
             return;
         }
-        entered_free_all_mem = true;
+        mem_st().entered_free_all_mem = true;
         block_autocmds();
 
         p_ea = 0;

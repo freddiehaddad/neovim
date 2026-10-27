@@ -150,14 +150,10 @@ pub type ResizePseudoConsoleFn = Option<unsafe extern "system" fn(HPCON, COORD) 
 pub type ClosePseudoConsoleFn = Option<unsafe extern "system" fn(HPCON)>;
 
 #[cfg(windows)]
-pub static mut pCreatePseudoConsole: CreatePseudoConsoleFn = None;
-#[cfg(windows)]
-pub static mut pResizePseudoConsole: ResizePseudoConsoleFn = None;
-#[cfg(windows)]
-pub static mut pClosePseudoConsole: ClosePseudoConsoleFn = None;
-
-#[cfg(windows)]
 struct ConptyModuleState {
+    pCreatePseudoConsole: CreatePseudoConsoleFn,
+    pResizePseudoConsole: ResizePseudoConsoleFn,
+    pClosePseudoConsole: ClosePseudoConsoleFn,
     HAS_CONPTY: TriState,
     CONPTY_COUNT: c_int,
 }
@@ -166,6 +162,9 @@ struct ConptyModuleState {
 impl ConptyModuleState {
     const fn new() -> Self {
         Self {
+            pCreatePseudoConsole: None,
+            pResizePseudoConsole: None,
+            pClosePseudoConsole: None,
             HAS_CONPTY: kNone,
             CONPTY_COUNT: 0,
         }
@@ -274,15 +273,15 @@ pub unsafe fn os_dyn_conpty_init() -> TriState {
         let entries: [(*const c_char, *mut *mut c_void); 3] = [
             (
                 c"CreatePseudoConsole".as_ptr(),
-                std::ptr::addr_of_mut!(pCreatePseudoConsole).cast::<*mut c_void>(),
+                std::ptr::addr_of_mut!(conpty_st().pCreatePseudoConsole).cast::<*mut c_void>(),
             ),
             (
                 c"ResizePseudoConsole".as_ptr(),
-                std::ptr::addr_of_mut!(pResizePseudoConsole).cast::<*mut c_void>(),
+                std::ptr::addr_of_mut!(conpty_st().pResizePseudoConsole).cast::<*mut c_void>(),
             ),
             (
                 c"ClosePseudoConsole".as_ptr(),
-                std::ptr::addr_of_mut!(pClosePseudoConsole).cast::<*mut c_void>(),
+                std::ptr::addr_of_mut!(conpty_st().pClosePseudoConsole).cast::<*mut c_void>(),
             ),
         ];
 
@@ -364,7 +363,7 @@ pub unsafe fn os_conpty_init(
                 X: width as i16,
                 Y: height as i16,
             };
-            let hr = (pCreatePseudoConsole.unwrap_unchecked())(
+            let hr = (conpty_st().pCreatePseudoConsole.unwrap_unchecked())(
                 size,
                 in_read,
                 out_write,
@@ -482,7 +481,7 @@ pub unsafe fn os_conpty_set_size(conpty_object: &conpty_t, width: u16, height: u
             X: width as i16,
             Y: height as i16,
         };
-        if (pResizePseudoConsole.unwrap_unchecked())(conpty_object.pty, size) != S_OK {
+        if (conpty_st().pResizePseudoConsole.unwrap_unchecked())(conpty_object.pty, size) != S_OK {
             logmsg!(
                 LOGLVL_ERR,
                 std::ptr::null(),
@@ -504,7 +503,7 @@ impl Drop for conpty_t {
                 DeleteProcThreadAttributeList(self.si_ex.lpAttributeList);
             }
             if !self.pty.is_null()
-                && let Some(close_fn) = pClosePseudoConsole
+                && let Some(close_fn) = conpty_st().pClosePseudoConsole
             {
                 close_fn(self.pty);
             }

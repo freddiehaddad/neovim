@@ -13,7 +13,7 @@ use crate::eval::typval::{
     tv_blob_len, tv_dict_find, tv_list_append_string, tv_list_first, tv_list_idx_of_item,
     tv_list_last, tv_list_len, typval_T,
 };
-use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists};
+use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists_mut};
 use crate::eval::{get_copyID, partial_name};
 use crate::hashtab::{hashitem_T, hashitem_empty};
 use crate::keycodes::{BS, CAR, NL, TAB};
@@ -314,7 +314,7 @@ pub unsafe fn encode_check_json_key(tv: *const typval_T) -> bool {
         let type_di = tv_dict_find(spdict, c"_TYPE".as_ptr(), 5);
         if type_di.is_null()
             || (*type_di).di_tv.v_type != VarType::VAR_LIST
-            || (*type_di).di_tv.vval.v_list().cast_const() != eval_msgpack_type_lists[K_MP_STRING]
+            || (*type_di).di_tv.vval.v_list().cast_const() != (*eval_msgpack_type_lists_mut())[K_MP_STRING]
         {
             return false;
         }
@@ -1300,7 +1300,7 @@ unsafe fn convert_one_value(
                         let val_di = tv_dict_find(dict, c"_VAL".as_ptr(), 4);
                         if !val_di.is_null() {
                             let mut mp_idx = NUM_MSGPACK_TYPES;
-                            for (i, tl) in { eval_msgpack_type_lists }.into_iter().enumerate() {
+                            for (i, tl) in { *eval_msgpack_type_lists_mut() }.into_iter().enumerate() {
                                 if (*type_di).di_tv.vval.v_list().cast_const() == tl {
                                     mp_idx = i;
                                     break;

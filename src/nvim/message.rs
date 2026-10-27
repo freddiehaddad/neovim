@@ -12,7 +12,7 @@ use crate::charset::{
     ascii_iswhite, ascii2cells, char2cells, is_special, skipwhite, to_special, transchar_buf,
     transchar_byte_buf, vim_isprintc, vim_strsize,
 };
-use crate::dialog::{confirm_buttons, confirm_msg, prompt_for_input};
+use crate::dialog::{dlg_st, prompt_for_input};
 use crate::drawscreen::{
     UPD_NOT_VALID, UPD_VALID, redraw_all_later, redraw_later, set_must_redraw,
 };
@@ -68,7 +68,7 @@ use crate::os::input::os_breakcheck;
 use crate::os::time::os_delay;
 use crate::regexp::vim_regexec;
 use crate::register::write_reg_contents;
-use crate::runtime::{ESTACK_NONE, estack_sfile, exestack, sourcing_lnum, sourcing_name};
+use crate::runtime::{ESTACK_NONE, estack_sfile, rt_st, sourcing_lnum, sourcing_name};
 use crate::state::{MODE_ASKMORE, MODE_CMDLINE, MODE_EXTERNCMD, MODE_HITRETURN, MODE_SETWSIZE};
 use crate::strings::{gettext, ngettext, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::ui::{
@@ -405,7 +405,7 @@ use crate::keycodes::{k_second, k_third};
 #[inline]
 unsafe fn have_sourcing_info() -> bool {
     unsafe {
-        let es = &raw const exestack;
+        let es = &raw const rt_st().exestack;
         !(*es).is_empty()
     }
 }
@@ -2954,7 +2954,7 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
 
                     if p_more != 0 && lines_left == 0 && State != MODE_HITRETURN && !msg_no_more {
                         if do_more_prompt(NUL as c_int) {
-                            s = (&raw const confirm_buttons).as_ref().unwrap().as_ptr();
+                            s = (&raw const dlg_st().confirm_buttons).as_ref().unwrap().as_ptr();
                         }
                         if quit_more {
                             return;
@@ -3755,7 +3755,7 @@ pub unsafe fn repeat_message() {
             msg_moremsg(true);
             msg_row = Rows - 1;
         } else if (State & MODE_CMDLINE) != 0
-            && (&raw const confirm_msg).as_ref().unwrap().is_some()
+            && (&raw const dlg_st().confirm_msg).as_ref().unwrap().is_some()
         {
             display_confirm_msg();
             msg_row = Rows - 1;
@@ -4181,7 +4181,7 @@ pub unsafe fn msg_advance(mut col: c_int) {
 pub unsafe fn display_confirm_msg() {
     unsafe {
         msg_st().confirm_msg_used += 1;
-        if let Some(ref msg) = *(&raw const confirm_msg).as_ref().unwrap() {
+        if let Some(ref msg) = *(&raw const dlg_st().confirm_msg).as_ref().unwrap() {
             msg_ext_set_kind(c"confirm".as_ptr());
             msg_puts_hl(msg.as_ptr(), HLF_M, false);
         }

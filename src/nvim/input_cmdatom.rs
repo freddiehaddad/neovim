@@ -344,9 +344,8 @@ struct TypedState {
     map_start: usize,
 }
 
-pub static mut g_atoms: CmdAtomVec = Vec::new();
-
-struct CmdAtomModuleState {
+pub(crate) struct CmdAtomModuleState {
+    pub(crate) g_atoms: CmdAtomVec,
     atom_captures: u64,
     global_ops: u64,
     atom_suppressed: bool,
@@ -361,6 +360,7 @@ struct CmdAtomModuleState {
 impl CmdAtomModuleState {
     const fn new() -> Self {
         Self {
+            g_atoms: Vec::new(),
             atom_captures: 0,
             global_ops: 0,
             atom_suppressed: false,
@@ -377,7 +377,7 @@ impl CmdAtomModuleState {
 static ATOM_STATE: GlobalState<CmdAtomModuleState> = GlobalState::new(CmdAtomModuleState::new());
 
 #[inline]
-unsafe fn atom_st() -> &'static mut CmdAtomModuleState {
+pub(crate) unsafe fn atom_st() -> &'static mut CmdAtomModuleState {
     unsafe { &mut *ATOM_STATE.as_ptr() }
 }
 
@@ -438,7 +438,7 @@ unsafe fn is_child_frame() -> bool {
 
 pub unsafe fn atom_free_all() {
     unsafe {
-        g_atoms = Vec::new();
+        atom_st().g_atoms = Vec::new();
         let frames = &raw mut atom_st().cmd_frames;
         for frame in (*frames).iter_mut().rev() {
             frame.staged = CmdAtom::new();
@@ -823,7 +823,7 @@ pub unsafe fn atom_push_raw(cascade: bool, atom: *mut CmdAtom) {
                 remap: (*atom).remap,
                 cascaded: (*atom).cascaded,
             };
-            let ga = &raw mut g_atoms;
+            let ga = &raw mut atom_st().g_atoms;
             (*ga).push(copy);
             if collect {
                 atom_st().composite.queued = true;
@@ -904,7 +904,7 @@ unsafe fn atom_composite_lhs() -> std::ffi::CString {
 
 pub unsafe fn atom_lhs_replay_queue() {
     unsafe {
-        let ga = &raw mut g_atoms;
+        let ga = &raw mut atom_st().g_atoms;
         let mut atom = CmdAtom::new();
         atom.r#type = kAComp;
         atom.keys = Some(atom_composite_lhs());
@@ -1418,7 +1418,7 @@ unsafe fn atom_visual_span_flush() {
         }
         let span_cstr = atom_visual_span();
         atom_st().vatom.done = (*v_atoms).len();
-        let ga = &raw mut g_atoms;
+        let ga = &raw mut atom_st().g_atoms;
         let mut atom = CmdAtom::new();
         atom.r#type = kAVisualSpan;
         atom.keys = span_cstr;
@@ -1520,7 +1520,7 @@ unsafe fn atom_visual_end_suffix(
         atom.cascaded = atom_st().vatom.done > 0;
         if atom.cascaded && atom_st().vatom.done < (*v_atoms).len() {
             let span_cstr = atom_visual_span();
-            let ga = &raw mut g_atoms;
+            let ga = &raw mut atom_st().g_atoms;
             let mut span_atom = CmdAtom::new();
             span_atom.r#type = kAVisualSpan;
             span_atom.keys = span_cstr;

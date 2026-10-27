@@ -33,7 +33,7 @@ use crate::spell::{
     MAXWLEN, WF_ALLCAP, WF_BANNED, WF_CAPMASK, WF_KEEPCAP, WF_NEEDCOMP, WF_ONECAP, WF_RARE,
     WF_RAREPFX, WF_REGION, allcap_copy, byte_in_str, can_compound, captype, check_need_cap,
     make_case_word, match_checkcompoundpattern, match_compoundrule, nofold_len, parse_spelllang,
-    repl_from, repl_to, spell_casefold, spell_check, spell_isupper, spell_iswordp,
+    spell_priv_st, spell_casefold, spell_check, spell_isupper, spell_iswordp,
     spell_iswordp_nmw, spell_move_to, spell_soundfold, spell_tofold, spell_valid_case,
     valid_word_prefix,
 };
@@ -795,7 +795,7 @@ pub unsafe fn spell_suggest(count: c_int) {
             if selected > 0 && selected <= sug_len && u_save_cursor() == OK {
                 let stp = &sug.su_ga[(selected - 1) as usize];
                 if sug.su_badlen > stp.st_orglen {
-                    repl_from = Some(
+                    spell_priv_st().repl_from = Some(
                         CString::new(std::slice::from_raw_parts(
                             sug.su_badptr.cast::<u8>(),
                             sug.su_badlen as usize,
@@ -810,16 +810,16 @@ pub unsafe fn spell_suggest(count: c_int) {
                         sug.su_badlen - stp.st_orglen,
                         sug.su_badptr.add(stp.st_orglen as usize),
                     );
-                    repl_to = Some(CStr::from_ptr((&raw const IObuff).cast()).to_owned());
+                    spell_priv_st().repl_to = Some(CStr::from_ptr((&raw const IObuff).cast()).to_owned());
                 } else {
-                    repl_from = Some(
+                    spell_priv_st().repl_from = Some(
                         CString::new(std::slice::from_raw_parts(
                             sug.su_badptr.cast::<u8>(),
                             stp.st_orglen as usize,
                         ))
                         .unwrap_or_default(),
                     );
-                    repl_to = Some(CStr::from_ptr(stp.st_word.as_ptr()).to_owned());
+                    spell_priv_st().repl_to = Some(CStr::from_ptr(stp.st_word.as_ptr()).to_owned());
                 }
                 let mut p_vec: Vec<c_char> =
                     vec![0; strlen(line) - stp.st_orglen as usize + stp.st_wordlen as usize + 1];

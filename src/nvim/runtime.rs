@@ -287,11 +287,11 @@ struct SearchPathItem {
 
 type RuntimeSearchPath = Vec<SearchPathItem>;
 
-pub static mut exestack: Vec<estack_T> = Vec::new();
-pub static mut script_items: Vec<scriptitem_T> = Vec::new();
 static RUNTIME_SEARCH_PATH_MUTEX: Mutex<()> = Mutex::new(());
 
-struct RuntimeModuleState {
+pub(crate) struct RuntimeModuleState {
+    pub(crate) exestack: Vec<estack_T>,
+    pub(crate) script_items: Vec<scriptitem_T>,
     ga_loaded: Vec<std::ffi::CString>,
     last_current_SID_seq: c_int,
     last_current_SID: scid_T,
@@ -312,6 +312,8 @@ struct RuntimeModuleState {
 impl RuntimeModuleState {
     const fn new() -> Self {
         Self {
+            exestack: Vec::new(),
+            script_items: Vec::new(),
             ga_loaded: Vec::new(),
             last_current_SID_seq: 0,
             last_current_SID: 0,
@@ -334,7 +336,7 @@ impl RuntimeModuleState {
 static RT_STATE: GlobalState<RuntimeModuleState> = GlobalState::new(RuntimeModuleState::new());
 
 #[inline]
-unsafe fn rt_st() -> &'static mut RuntimeModuleState {
+pub(crate) unsafe fn rt_st() -> &'static mut RuntimeModuleState {
     unsafe { &mut *RT_STATE.as_ptr() }
 }
 
@@ -348,7 +350,7 @@ use crate::viml::parser::parser::CONV_NONE;
 #[inline]
 pub unsafe fn script_item(id: scid_T) -> *mut scriptitem_T {
     unsafe {
-        let items = &raw mut script_items;
+        let items = &raw mut rt_st().script_items;
         &raw mut (*items).as_mut_slice()[(id - 1) as usize]
     }
 }
@@ -356,7 +358,7 @@ pub unsafe fn script_item(id: scid_T) -> *mut scriptitem_T {
 #[inline]
 pub unsafe fn script_items_len() -> scid_T {
     unsafe {
-        let items = &raw const script_items;
+        let items = &raw const rt_st().script_items;
         (*items).len() as scid_T
     }
 }
@@ -369,7 +371,7 @@ pub unsafe fn script_id_valid(id: scid_T) -> bool {
 #[inline]
 pub unsafe fn sourcing_name() -> *mut c_char {
     unsafe {
-        let es = &raw const exestack;
+        let es = &raw const rt_st().exestack;
         (*es).last().unwrap().name_ptr()
     }
 }
@@ -377,7 +379,7 @@ pub unsafe fn sourcing_name() -> *mut c_char {
 #[inline]
 pub unsafe fn sourcing_lnum() -> linenr_T {
     unsafe {
-        let es = &raw const exestack;
+        let es = &raw const rt_st().exestack;
         (*es).last().unwrap().es_lnum
     }
 }
@@ -385,7 +387,7 @@ pub unsafe fn sourcing_lnum() -> linenr_T {
 #[inline]
 pub unsafe fn set_sourcing_lnum(lnum: linenr_T) {
     unsafe {
-        let es = &raw mut exestack;
+        let es = &raw mut rt_st().exestack;
         (*es).last_mut().unwrap().es_lnum = lnum;
     }
 }
@@ -393,7 +395,7 @@ pub unsafe fn set_sourcing_lnum(lnum: linenr_T) {
 /// Initialize the execution stack.
 pub unsafe fn estack_init() {
     unsafe {
-        let es = &raw mut exestack;
+        let es = &raw mut rt_st().exestack;
         (*es).reserve(10);
         (*es).push(estack_T {
             es_type: ETYPE_TOP,
@@ -407,7 +409,7 @@ pub unsafe fn estack_init() {
 /// Add an item to the execution stack.
 pub unsafe fn estack_push(type_: etype_T, name: *const c_char, lnum: linenr_T) -> *mut estack_T {
     unsafe {
-        let es = &raw mut exestack;
+        let es = &raw mut rt_st().exestack;
         (*es).push(estack_T {
             es_type: type_,
             es_name: if name.is_null() {
@@ -440,7 +442,7 @@ pub unsafe fn estack_push_ufunc(ufunc: *mut ufunc_T, lnum: linenr_T) {
 /// Take an item off of the execution stack.
 pub unsafe fn estack_pop() {
     unsafe {
-        let es = &raw mut exestack;
+        let es = &raw mut rt_st().exestack;
         if (*es).len() > 1 {
             (*es).pop();
         }
@@ -450,7 +452,7 @@ pub unsafe fn estack_pop() {
 /// Get the current value for <sfile> as an owned `CString`.
 pub unsafe fn estack_sfile(which: estack_arg_T) -> Option<std::ffi::CString> {
     unsafe {
-        let es = &raw const exestack;
+        let es = &raw const rt_st().exestack;
         let last_entry = (*es).last().unwrap();
         if which == ESTACK_SFILE && last_entry.es_type != ETYPE_UFUNC {
             return last_entry.es_name.clone();
@@ -563,10 +565,10 @@ unsafe fn stacktrace_push_item(
     }
 }
 
-/// Create the stacktrace from exestack.
+/// Create the stacktrace from rt_st().exestack.
 pub unsafe fn stacktrace_create() -> *mut list_T {
     unsafe {
-        let es = &raw const exestack;
+        let es = &raw const rt_st().exestack;
         let l = tv_list_alloc((*es).len() as isize);
 
         for entry in &*es {
@@ -2638,7 +2640,7 @@ pub unsafe fn new_script_item(
         if !sid_out.is_null() {
             *sid_out = sid;
         }
-        let items = &raw mut script_items;
+        let items = &raw mut rt_st().script_items;
         while ((*items).len() as scid_T) < sid {
             (*items).push(scriptitem_T {
                 sn_vars: new_script_vars(),
@@ -3250,7 +3252,7 @@ pub unsafe fn get_scriptname(
 pub unsafe fn free_scriptnames() {
     unsafe {
         profile_reset();
-        script_items = Vec::new();
+        rt_st().script_items = Vec::new();
     }
 }
 
