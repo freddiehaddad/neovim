@@ -301,7 +301,6 @@ impl Default for CmdAtom {
 pub struct CmdFrame {
     pub origin: CmdOrigin,
     pub staged: CmdAtom,
-    pub parent: *mut CmdFrame,
     pub visual: VisualState,
     pub keytyped: bool,
     pub keyclass: c_uint,
@@ -317,31 +316,6 @@ pub struct CmdFrame {
     pub payload_end: usize,
     pub redo_frame: u64,
     pub cmdline: Option<std::ffi::CString>,
-}
-
-impl CmdFrame {
-    pub unsafe fn new() -> Self {
-        Self {
-            origin: CmdOrigin::new(),
-            staged: CmdAtom::new(),
-            parent: ptr::null_mut(),
-            visual: VisualState::new(),
-            keytyped: false,
-            keyclass: 0,
-            ex_normal: 0,
-            captures: 0,
-            global_ops: 0,
-            beeps: 0,
-            id: 0,
-            follow: false,
-            consumers: false,
-            reg_ts: 0,
-            payload_start: 0,
-            payload_end: 0,
-            redo_frame: 0,
-            cmdline: None,
-        }
-    }
 }
 
 struct CompositeState {
@@ -377,7 +351,7 @@ static mut global_ops: u64 = 0;
 static mut atom_suppressed: bool = false;
 static mut map_edit: bool = false;
 static mut frame_id: u64 = 0;
-static mut cur_frame: *mut CmdFrame = ptr::null_mut();
+static mut cmd_frames: Vec<CmdFrame> = Vec::new();
 
 static mut composite: CompositeState = CompositeState {
     active: false,
@@ -430,37 +404,43 @@ unsafe fn dict_put(d: &mut Dict, key: &CStr, value: Object) {
 use crate::api::private::helpers::array_add;
 
 #[inline]
+unsafe fn cur_frame_ptr() -> *mut CmdFrame {
+    unsafe {
+        let frames = &raw mut cmd_frames;
+        (*frames).last_mut().map_or(ptr::null_mut(), ptr::from_mut)
+    }
+}
+
+#[inline]
 unsafe fn root_frame() -> *mut CmdFrame {
     unsafe {
-        assert!(!cur_frame.is_null());
-        let mut frame = cur_frame;
-        while !(*frame).parent.is_null() {
-            frame = (*frame).parent;
-        }
-        frame
+        let frames = &raw mut cmd_frames;
+        assert!(!(*frames).is_empty());
+        (*frames).as_mut_ptr()
     }
 }
 
 #[inline]
 unsafe fn is_child_frame() -> bool {
     unsafe {
-        if cur_frame.is_null() || (*cur_frame).parent.is_null() {
+        let frames = &raw const cmd_frames;
+        if (*frames).len() <= 1 {
             return false;
         }
-        let root = root_frame();
-        let fed = (*cur_frame).ex_normal > (*root).ex_normal;
-        fed && ((*root).keyclass & kKeySynthetic) == 0
+        let root = &(*frames).as_slice()[0];
+        let cur = (*frames).last().unwrap();
+        let fed = cur.ex_normal > root.ex_normal;
+        fed && (root.keyclass & kKeySynthetic) == 0
     }
 }
 
 pub unsafe fn atom_free_all() {
     unsafe {
         g_atoms = Vec::new();
-        let mut frame = cur_frame;
-        while !frame.is_null() {
-            (*frame).staged = CmdAtom::new();
-            (*frame).cmdline = None;
-            frame = (*frame).parent;
+        let frames = &raw mut cmd_frames;
+        for frame in (*frames).iter_mut().rev() {
+            frame.staged = CmdAtom::new();
+            frame.cmdline = None;
         }
         atom_composite_abort();
         let comp_atoms = &raw mut composite.atoms;
@@ -801,6 +781,7 @@ pub unsafe fn atom_push_raw(cascade: bool, atom: *mut CmdAtom) {
             (*atom).moved = atom_origin_moved((*atom).origin);
             (*atom).undoseq = atom_origin_undoseq((*atom).origin);
         }
+        let cur_frame = cur_frame_ptr();
         let collect =
             composite.active && (cur_frame.is_null() || (*cur_frame).id != composite.frame);
         if atom_visual_pending() {
@@ -871,6 +852,7 @@ unsafe fn atom_push(cascade: bool, atom: *mut CmdAtom) {
 
 unsafe fn atom_stage_set(atom: *mut CmdAtom) {
     unsafe {
+        let cur_frame = cur_frame_ptr();
         assert!(!cur_frame.is_null());
         assert!(!atom_staged());
         (*cur_frame).staged = CmdAtom::new();
@@ -885,7 +867,10 @@ unsafe fn atom_stage_set(atom: *mut CmdAtom) {
 
 #[inline]
 unsafe fn atom_staged() -> bool {
-    unsafe { !cur_frame.is_null() && (*cur_frame).staged.keys.is_some() }
+    unsafe {
+        let cur_frame = cur_frame_ptr();
+        !cur_frame.is_null() && (*cur_frame).staged.keys.is_some()
+    }
 }
 
 unsafe fn atom_stage_flush(frame: *mut CmdFrame) {
@@ -1144,6 +1129,7 @@ pub unsafe fn atom_key_class(cmd: c_int, arg: c_int, arg2: c_int) -> c_uint {
 
 pub unsafe fn atom_cmdline_set(firstc: c_int, line: *const c_char, len: usize) {
     unsafe {
+        let cur_frame = cur_frame_ptr();
         if cur_frame.is_null()
             || !atom_is_user_cmd()
             || (firstc != b':' as c_int && firstc != K_COMMAND)
@@ -1161,6 +1147,7 @@ pub unsafe fn atom_cmdline_set(firstc: c_int, line: *const c_char, len: usize) {
 #[inline]
 unsafe fn atom_typed_collecting() -> bool {
     unsafe {
+        let cur_frame = cur_frame_ptr();
         atom_composite_active()
             || (!cur_frame.is_null() && (*cur_frame).payload_start != usize::MAX)
     }
@@ -1168,6 +1155,7 @@ unsafe fn atom_typed_collecting() -> bool {
 
 pub unsafe fn atom_payload_start() {
     unsafe {
+        let cur_frame = cur_frame_ptr();
         if expr_map_lock == 0
             && !cur_frame.is_null()
             && (*cur_frame).payload_start == usize::MAX
@@ -1183,6 +1171,7 @@ pub unsafe fn atom_payload_start() {
 
 pub unsafe fn atom_payload_end() {
     unsafe {
+        let cur_frame = cur_frame_ptr();
         if expr_map_lock == 0
             && !cur_frame.is_null()
             && (*cur_frame).payload_start != usize::MAX
@@ -1263,14 +1252,13 @@ pub unsafe fn atom_follow_changed() {
         if mc_replaying() {
             return;
         }
-        let mut frame = cur_frame;
-        while !frame.is_null() {
-            if !atom_origin_moved((*frame).origin) {
-                (*frame).follow = mc_following();
+        let frames = &raw mut cmd_frames;
+        for frame in (*frames).iter_mut().rev() {
+            if !atom_origin_moved(frame.origin) {
+                frame.follow = mc_following();
             } else if composite.follow == kNone {
-                composite.follow = if (*frame).follow { kTrue } else { kFalse };
+                composite.follow = if frame.follow { kTrue } else { kFalse };
             }
-            frame = (*frame).parent;
         }
     }
 }
@@ -1278,7 +1266,8 @@ pub unsafe fn atom_follow_changed() {
 pub unsafe fn atom_redo_prepped() {
     unsafe {
         if atom_is_user_cmd() {
-            (*root_frame()).redo_frame = (*cur_frame).id;
+            let cur_id = (*cur_frame_ptr()).id;
+            (*root_frame()).redo_frame = cur_id;
         }
     }
 }
@@ -1339,6 +1328,7 @@ pub unsafe fn atom_map_start(lhs: *const c_char, len: usize, peeked: bool) {
             return;
         }
         atom_composite_start(lhs, len);
+        let cur_frame = cur_frame_ptr();
         if peeked && !cur_frame.is_null() {
             composite.frame = (*cur_frame).id;
         }
@@ -1523,7 +1513,7 @@ unsafe fn atom_visual_end_suffix(
             op_atom.r#type = kAOperator;
             op_atom.spec = (*spec).without_body();
             op_atom.keys = suffix;
-            op_atom.origin = (*cur_frame).origin;
+            op_atom.origin = (*cur_frame_ptr()).origin;
             (*v_atoms).push(op_atom);
         }
         atom.cascaded = vatom.done > 0;
@@ -1579,7 +1569,7 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: *mut cmdarg_T, redo_yank: 
                     spec.cmd2 = if operand { NUL } else { (*cap).nchar };
                     spec.cmdarg = if operand { (*cap).nchar } else { NUL };
                     let mut op_atom = atom_from_spec(kAOperator, spec);
-                    op_atom.origin = (*cur_frame).origin;
+                    op_atom.origin = (*cur_frame_ptr()).origin;
                     atom_stage_set(&mut op_atom);
                 }
             } else if !Visual.active || (*oap).motion_force != 0 {
@@ -1705,6 +1695,7 @@ pub unsafe fn atom_ins_start(
     vblock: bool,
 ) -> InsSession {
     unsafe {
+        let cur_frame = cur_frame_ptr();
         let mut session = InsSession {
             typed: atom_is_user_input(),
             vis,
@@ -1809,14 +1800,16 @@ unsafe fn atom_ins_push(session: *const InsSession, cascade: bool) {
     }
 }
 
-pub unsafe fn atom_cmd_start(old: *mut CmdFrame, cmdchar: c_int) {
+pub unsafe fn atom_cmd_start(cmdchar: c_int) {
     unsafe {
         let consumers = atom_buf_has_consumers();
         frame_id += 1;
-        *old = CmdFrame {
-            origin: atom_origin(),
+        let frames = &raw mut cmd_frames;
+        let is_root = (*frames).is_empty();
+        let origin = atom_origin();
+        (*frames).push(CmdFrame {
+            origin,
             staged: CmdAtom::default(),
-            parent: cur_frame,
             visual: Visual,
             keytyped: KeyTyped,
             keyclass: atom_key_class(cmdchar, NUL, NUL),
@@ -1832,15 +1825,13 @@ pub unsafe fn atom_cmd_start(old: *mut CmdFrame, cmdchar: c_int) {
             payload_end: 0,
             redo_frame: 0,
             cmdline: None,
-        };
-        cur_frame = old;
-        if (*old).parent.is_null() && !composite.open {
+        });
+        if is_root && !composite.open {
             composite.open = true;
-            composite.origin = (*old).origin;
+            composite.origin = origin;
             composite.follow = kNone;
         }
-        if (*old).parent.is_null() && !mc_replaying() && !composite.active && composite.lhs[0] != 0
-        {
+        if is_root && !mc_replaying() && !composite.active && composite.lhs[0] != 0 {
             if !KeyTyped && consumers {
                 atom_composite_start(ptr::null(), 0);
                 let typed_keys = &raw const typed.keys;
@@ -1850,7 +1841,7 @@ pub unsafe fn atom_cmd_start(old: *mut CmdFrame, cmdchar: c_int) {
                 composite.lhs[0] = 0;
             }
         }
-        if (*old).parent.is_null() && atom_is_user_cmd() && !atom_composite_active() {
+        if is_root && atom_is_user_cmd() && !atom_composite_active() {
             let typed_keys = &raw mut typed.keys;
             (*typed_keys).clear();
             typed.map_start = 0;
@@ -1858,7 +1849,7 @@ pub unsafe fn atom_cmd_start(old: *mut CmdFrame, cmdchar: c_int) {
     }
 }
 
-unsafe fn atom_capture_cmd(ca: *mut cmdarg_T, old: *mut CmdFrame) -> bool {
+unsafe fn atom_capture_cmd(ca: *mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> bool {
     unsafe {
         if mc_replaying() || atom_suppressed {
             return false;
@@ -2045,19 +2036,22 @@ unsafe fn atom_capture_cmd(ca: *mut cmdarg_T, old: *mut CmdFrame) -> bool {
         }
         atom_visual_span_flush();
 
-        Visual.active && user && (*old).parent.is_null()
+        Visual.active && user && is_root
     }
 }
 
-pub unsafe fn atom_cmd_end(ca: *mut cmdarg_T, old: *mut CmdFrame) {
+pub unsafe fn atom_cmd_end(ca: *mut cmdarg_T) {
     unsafe {
+        let frames = &raw mut cmd_frames;
+        let is_root = (*frames).len() == 1;
+        let old = cur_frame_ptr();
         if composite.follow == kNone
             && !mc_replaying()
             && (atom_origin_moved((*old).origin) || nv_is((*ca).cmdchar, NV_MOTION))
         {
             composite.follow = if (*old).follow { kTrue } else { kFalse };
         }
-        let refresh_visual = atom_capture_cmd(ca, old);
+        let refresh_visual = atom_capture_cmd(ca, old, is_root);
         atom_stage_flush(old);
         if atom_composite_active()
             && (*old).payload_start != usize::MAX
@@ -2066,7 +2060,7 @@ pub unsafe fn atom_cmd_end(ca: *mut cmdarg_T, old: *mut CmdFrame) {
             composite.lossy = true;
         }
 
-        if (*old).parent.is_null() && !mc_replaying() && typebuf_typed() != 0 && stuff_empty() {
+        if is_root && !mc_replaying() && typebuf_typed() != 0 && stuff_empty() {
             let map_moved = atom_composite_active() && atom_origin_moved(composite.origin);
             mc_clock_edge(map_edit, map_moved, composite.follow == kTrue);
 
@@ -2079,8 +2073,7 @@ pub unsafe fn atom_cmd_end(ca: *mut cmdarg_T, old: *mut CmdFrame) {
         if refresh_visual {
             mc_vsel_refresh();
         }
-        (*old).cmdline = None;
-        cur_frame = (*old).parent;
+        (*frames).pop();
     }
 }
 

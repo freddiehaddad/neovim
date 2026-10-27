@@ -137,10 +137,10 @@ pub struct diffline_change_T {
     pub dc_end_lnum_off: [c_int; DB_COUNT],
 }
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Default)]
 pub struct diffline_T {
-    pub changes: *mut diffline_change_T,
-    pub num_changes: c_int,
+    pub changes: Vec<diffline_change_T>,
+    pub is_simple: bool,
     pub bufidx: c_int,
     pub lineoff: c_int,
 }
@@ -206,12 +206,7 @@ static mut diff_finger_dp_idx: Option<usize> = None;
 static mut diff_finger_tp: *mut tabpage_T = ptr::null_mut();
 static mut diff_finger_idx: c_int = -1;
 static mut diff_finger_lnum: linenr_T = 0;
-static mut simple_diffline_change: diffline_change_T = diffline_change_T {
-    dc_start: [0; DB_COUNT],
-    dc_end: [0; DB_COUNT],
-    dc_start_lnum_off: [0; DB_COUNT],
-    dc_end_lnum_off: [0; DB_COUNT],
-};
+
 static mut f_diff_hlid_prev_lnum: linenr_T = 0;
 static mut f_diff_hlid_changedtick: varnumber_T = 0;
 static mut f_diff_hlid_fnum: c_int = 0;
@@ -2533,32 +2528,32 @@ pub unsafe fn diff_update_line(lnum: linenr_T) {
     }
 }
 pub unsafe fn diff_change_parse(
-    diffline: *mut diffline_T,
-    change: *mut diffline_change_T,
+    diffline: &diffline_T,
+    change: &diffline_change_T,
     change_start: *mut c_int,
     change_end: *mut c_int,
 ) -> bool {
     unsafe {
-        let bufidx = (*diffline).bufidx as usize;
-        if (*change).dc_start_lnum_off[bufidx] < (*diffline).lineoff {
+        let bufidx = diffline.bufidx as usize;
+        if change.dc_start_lnum_off[bufidx] < diffline.lineoff {
             *change_start = 0;
         } else {
-            *change_start = (*change).dc_start[bufidx];
+            *change_start = change.dc_start[bufidx];
         }
-        if (*change).dc_end_lnum_off[bufidx] > (*diffline).lineoff {
+        if change.dc_end_lnum_off[bufidx] > diffline.lineoff {
             *change_end = c_int::MAX;
         } else {
-            *change_end = (*change).dc_end[bufidx];
+            *change_end = change.dc_end[bufidx];
         }
-        if ptr::eq(change, &raw const simple_diffline_change) {
+        if diffline.is_simple {
             return false;
         }
         for i in 0..DB_COUNT {
             if i == bufidx {
                 continue;
             }
-            if (*change).dc_start[i] != (*change).dc_end[i]
-                || (*change).dc_end_lnum_off[i] != (*change).dc_start_lnum_off[i]
+            if change.dc_start[i] != change.dc_end[i]
+                || change.dc_end_lnum_off[i] != change.dc_start_lnum_off[i]
             {
                 return false;
             }
@@ -3102,20 +3097,21 @@ pub unsafe fn diff_find_change(wp: *mut win_T, lnum: linenr_T, diffline: *mut di
                 &raw mut change_end,
             );
             change_end += 1;
-            simple_diffline_change = diffline_change_T {
+            let mut simple_change = diffline_change_T {
                 dc_start: [0; DB_COUNT],
                 dc_end: [0; DB_COUNT],
                 dc_start_lnum_off: [0; DB_COUNT],
                 dc_end_lnum_off: [0; DB_COUNT],
             };
-            (*diffline).changes = &raw mut simple_diffline_change;
-            (*diffline).num_changes = 1;
+            simple_change.dc_start[u_idx] = change_start;
+            simple_change.dc_end[u_idx] = change_end;
+            simple_change.dc_start_lnum_off[u_idx] = off;
+            simple_change.dc_end_lnum_off[u_idx] = off;
+            (*diffline).changes.clear();
+            (*diffline).changes.push(simple_change);
+            (*diffline).is_simple = true;
             (*diffline).bufidx = idx;
             (*diffline).lineoff = lnum - (&(*curtab).tp_diffs)[dp_idx].df_lnum[u_idx];
-            simple_diffline_change.dc_start[u_idx] = change_start;
-            simple_diffline_change.dc_end[u_idx] = change_end;
-            simple_diffline_change.dc_start_lnum_off[u_idx] = off;
-            simple_diffline_change.dc_end_lnum_off[u_idx] = off;
             return ret;
         }
         if !(&(*curtab).tp_diffs)[dp_idx].has_changes {
@@ -3123,11 +3119,11 @@ pub unsafe fn diff_find_change(wp: *mut win_T, lnum: linenr_T, diffline: *mut di
         }
         let dp = &mut (&mut (*curtab).tp_diffs)[dp_idx];
         let changes_len = dp.df_changes.len() as c_int;
-        let mut num_changes: c_int = 0;
         let mut change_idx: c_int = 0;
-        (*diffline).changes = ptr::null_mut();
+        (*diffline).changes.clear();
+        (*diffline).is_simple = false;
         while change_idx < changes_len {
-            let change = &mut dp.df_changes[change_idx as usize];
+            let change = &dp.df_changes[change_idx as usize];
             if change.dc_end_lnum_off[u_idx] < off {
                 change_idx += 1;
                 continue;
@@ -3135,13 +3131,10 @@ pub unsafe fn diff_find_change(wp: *mut win_T, lnum: linenr_T, diffline: *mut di
             if change.dc_start_lnum_off[u_idx] > off {
                 break;
             }
-            if (*diffline).changes.is_null() {
-                (*diffline).changes = &raw mut *change;
-            }
-            num_changes += 1;
+            (*diffline).changes.push(*change);
             change_idx += 1;
         }
-        (*diffline).num_changes = num_changes;
+        let num_changes = (*diffline).changes.len() as c_int;
         (*diffline).bufidx = idx;
         (*diffline).lineoff = off;
         let mut added = false;
@@ -3827,12 +3820,7 @@ pub unsafe fn f_diff_filler(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
 }
 pub unsafe fn f_diff_hlID(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let mut diffline = diffline_T {
-            changes: ptr::null_mut(),
-            num_changes: 0,
-            bufidx: 0,
-            lineoff: 0,
-        };
+        let mut diffline = diffline_T::default();
         let cache_results = (diff_flags & ALL_INLINE_DIFF) == 0;
         let mut lnum = tv_get_lnum(argvars);
         if lnum < 0 {
@@ -3854,11 +3842,11 @@ pub unsafe fn f_diff_hlID(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
                         f_diff_hlid_hlID = HLF_ADD;
                     } else {
                         f_diff_hlid_hlID = HLF_CHD;
-                        if diffline.num_changes > 0 && cache_results {
+                        if !diffline.changes.is_empty() && cache_results {
                             f_diff_hlid_change_start =
-                                (*diffline.changes).dc_start[diffline.bufidx as usize];
+                                diffline.changes[0].dc_start[diffline.bufidx as usize];
                             f_diff_hlid_change_end =
-                                (*diffline.changes).dc_end[diffline.bufidx as usize];
+                                diffline.changes[0].dc_end[diffline.bufidx as usize];
                         }
                     }
                 } else {
@@ -3884,10 +3872,10 @@ pub unsafe fn f_diff_hlID(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
                 }
             } else {
                 f_diff_hlid_hlID = HLF_CHD;
-                for i in 0..diffline.num_changes {
+                for change in &diffline.changes {
                     let added = diff_change_parse(
-                        &raw mut diffline,
-                        diffline.changes.add(i as usize),
+                        &diffline,
+                        change,
                         &raw mut f_diff_hlid_change_start,
                         &raw mut f_diff_hlid_change_end,
                     );

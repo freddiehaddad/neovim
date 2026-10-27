@@ -1637,21 +1637,16 @@ pub unsafe fn win_line(
 
         let mut linestatus: c_int = 0;
         wlv.filler_lines = diff_check_with_linestatus(wp, lnum, &raw mut linestatus);
-        let mut line_changes = diffline_T {
-            changes: ptr::null_mut(),
-            num_changes: 0,
-            bufidx: 0,
-            lineoff: 0,
-        };
+        let mut line_changes = diffline_T::default();
         let mut change_index: c_int = -1;
         if linestatus < 0 {
             if linestatus == -1 {
                 if diff_find_change(wp, lnum, &raw mut line_changes) {
                     wlv.diff_hlf = HLF_ADD;
-                } else if line_changes.num_changes > 0 {
+                } else if !line_changes.changes.is_empty() {
                     let added = diff_change_parse(
-                        &raw mut line_changes,
-                        line_changes.changes,
+                        &line_changes,
+                        &line_changes.changes[0],
                         &raw mut change_start,
                         &raw mut change_end,
                     );
@@ -2316,25 +2311,26 @@ pub unsafe fn win_line(
                     }
 
                     if wlv.diff_hlf != 0 {
-                        if line_changes.num_changes > 0
+                        let num_changes = line_changes.changes.len() as c_int;
+                        if num_changes > 0
                             && change_index >= 0
-                            && change_index < line_changes.num_changes - 1
+                            && change_index < num_changes - 1
                         {
-                            let next_change = line_changes.changes.add((change_index + 1) as usize);
+                            let next_change = &line_changes.changes[(change_index + 1) as usize];
                             if (ptr.offset_from(line) as c_int)
-                                >= (*next_change).dc_start[line_changes.bufidx as usize]
+                                >= next_change.dc_start[line_changes.bufidx as usize]
                             {
                                 change_index += 1;
                             }
                         }
                         let mut added = false;
-                        if line_changes.num_changes > 0
+                        if num_changes > 0
                             && change_index >= 0
-                            && change_index < line_changes.num_changes
+                            && change_index < num_changes
                         {
                             added = diff_change_parse(
-                                &raw mut line_changes,
-                                line_changes.changes.add(change_index as usize),
+                                &line_changes,
+                                &line_changes.changes[change_index as usize],
                                 &raw mut change_start,
                                 &raw mut change_end,
                             );

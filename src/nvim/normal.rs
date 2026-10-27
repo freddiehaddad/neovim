@@ -75,7 +75,7 @@ use crate::input::{
     stuffcharReadbuff, stuffnumReadbuff, typebuf_maplen, typebuf_typed, vgetc, vpeekc, vungetc,
 };
 use crate::input_cmdatom::{
-    CmdFrame, CmdSpec, InsSession, atom_capture_op, atom_cmd_end, atom_cmd_spec, atom_cmd_start,
+    CmdSpec, InsSession, atom_capture_op, atom_cmd_end, atom_cmd_spec, atom_cmd_start,
     atom_ins_end, atom_ins_start, atom_macro_start, atom_stuff_start, atom_suppress,
     atom_visual_end, cmdarg_T, kVInsNone,
 };
@@ -2054,7 +2054,7 @@ unsafe fn normal_get_command_count(s: *mut NormalState) -> bool {
     }
 }
 
-unsafe fn normal_finish_command(s: *mut NormalState, frame: *mut CmdFrame) {
+unsafe fn normal_finish_command(s: *mut NormalState) {
     unsafe {
         let mut did_visual_op = false;
 
@@ -2143,7 +2143,7 @@ unsafe fn normal_finish_command(s: *mut NormalState, frame: *mut CmdFrame) {
 
         opcount = (*s).ca.opcount;
 
-        atom_cmd_end(&raw mut (*s).ca, frame);
+        atom_cmd_end(&raw mut (*s).ca);
 
         if (*s).oa.op_type == OP_NOP && (*s).oa.regname == 0 && (*s).ca.cmdchar != K_EVENT {
             clear_showcmd();
@@ -2153,8 +2153,7 @@ unsafe fn normal_finish_command(s: *mut NormalState, frame: *mut CmdFrame) {
 
 unsafe fn normal_execute(state: *mut VimState, key: c_int) -> c_int {
     unsafe {
-        let mut frame = CmdFrame::new();
-        atom_cmd_start(&raw mut frame, key);
+        atom_cmd_start(key);
 
         let s = state.cast::<NormalState>();
         (*s).command_finished = false;
@@ -2304,7 +2303,7 @@ unsafe fn normal_execute(state: *mut VimState, key: c_int) -> c_int {
             (nv_cmds[(*s).idx as usize].cmd_func)(&raw mut (*s).ca);
         }
 
-        normal_finish_command(s, &raw mut frame);
+        normal_finish_command(s);
         (*s).ca.searchbuf = None;
         1
     }
