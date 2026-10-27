@@ -1070,6 +1070,34 @@ macro_rules! ui_call_loop {
     };
 }
 
+macro_rules! ui_call_event_guarded {
+    ($event:literal) => {{
+        static ENTERED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if !ENTERED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            unsafe {
+                ui_call_event($event, NOARGS_ARRAY);
+            }
+            ENTERED.store(false, std::sync::atomic::Ordering::Relaxed);
+        }
+    }};
+    ($event:literal, [$($item:expr),+ $(,)?]) => {{
+        static ENTERED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if !ENTERED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            let mut items = [$($item),+];
+            let len = items.len();
+            let args = Array {
+                items: items.as_mut_ptr(),
+                size: len,
+                capacity: len,
+            };
+            unsafe {
+                ui_call_event($event, args);
+            }
+            ENTERED.store(false, std::sync::atomic::Ordering::Relaxed);
+        }
+    }};
+}
+
 pub unsafe fn ui_call_mode_info_set(enabled: bool, cursor_styles: Array) {
     ui_call_loop!(true, c"mode_info_set", |ui| {
         remote_ui_mode_info_set(ui, enabled, cursor_styles)
@@ -1241,21 +1269,7 @@ pub unsafe fn ui_composed_call_grid_scroll(
 }
 
 pub unsafe fn ui_call_grid_destroy(grid: Integer) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [integer_obj(grid)];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 1,
-            capacity: 1,
-        };
-        ui_call_event(c"grid_destroy", args);
-        ENTERED = false;
-    }
+    ui_call_event_guarded!(c"grid_destroy", [integer_obj(grid)]);
 }
 
 pub unsafe fn ui_call_raw_line(
@@ -1307,28 +1321,17 @@ pub unsafe fn ui_call_win_pos(
     width: Integer,
     height: Integer,
 ) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [
+    ui_call_event_guarded!(
+        c"win_pos",
+        [
             integer_obj(grid),
             window_obj(win),
             integer_obj(startrow),
             integer_obj(startcol),
             integer_obj(width),
             integer_obj(height),
-        ];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 6,
-            capacity: 6,
-        };
-        ui_call_event(c"win_pos", args);
-        ENTERED = false;
-    }
+        ]
+    );
 }
 
 pub unsafe fn ui_call_win_float_pos(
@@ -1344,13 +1347,9 @@ pub unsafe fn ui_call_win_float_pos(
     screen_row: Integer,
     screen_col: Integer,
 ) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [
+    ui_call_event_guarded!(
+        c"win_float_pos",
+        [
             integer_obj(grid),
             window_obj(win),
             string_obj(anchor),
@@ -1362,69 +1361,20 @@ pub unsafe fn ui_call_win_float_pos(
             integer_obj(compindex),
             integer_obj(screen_row),
             integer_obj(screen_col),
-        ];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 11,
-            capacity: 11,
-        };
-        ui_call_event(c"win_float_pos", args);
-        ENTERED = false;
-    }
+        ]
+    );
 }
 
 pub unsafe fn ui_call_win_external_pos(grid: Integer, win: handle_T) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [integer_obj(grid), window_obj(win)];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 2,
-            capacity: 2,
-        };
-        ui_call_event(c"win_external_pos", args);
-        ENTERED = false;
-    }
+    ui_call_event_guarded!(c"win_external_pos", [integer_obj(grid), window_obj(win)]);
 }
 
 pub unsafe fn ui_call_win_hide(grid: Integer) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [integer_obj(grid)];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 1,
-            capacity: 1,
-        };
-        ui_call_event(c"win_hide", args);
-        ENTERED = false;
-    }
+    ui_call_event_guarded!(c"win_hide", [integer_obj(grid)]);
 }
 
 pub unsafe fn ui_call_win_close(grid: Integer) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [integer_obj(grid)];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 1,
-            capacity: 1,
-        };
-        ui_call_event(c"win_close", args);
-        ENTERED = false;
-    }
+    ui_call_event_guarded!(c"win_close", [integer_obj(grid)]);
 }
 
 pub unsafe fn ui_call_msg_set_pos(
@@ -1489,28 +1439,17 @@ pub unsafe fn ui_call_win_extmark(
     row: Integer,
     col: Integer,
 ) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [
+    ui_call_event_guarded!(
+        c"win_extmark",
+        [
             integer_obj(grid),
             window_obj(win),
             integer_obj(ns_id),
             integer_obj(mark_id),
             integer_obj(row),
             integer_obj(col),
-        ];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 6,
-            capacity: 6,
-        };
-        ui_call_event(c"win_extmark", args);
-        ENTERED = false;
-    }
+        ]
+    );
 }
 
 pub unsafe fn ui_call_popupmenu_show(
@@ -1520,57 +1459,24 @@ pub unsafe fn ui_call_popupmenu_show(
     col: Integer,
     grid: Integer,
 ) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [
+    ui_call_event_guarded!(
+        c"popupmenu_show",
+        [
             array_obj(items_arr),
             integer_obj(selected),
             integer_obj(row),
             integer_obj(col),
             integer_obj(grid),
-        ];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 5,
-            capacity: 5,
-        };
-        ui_call_event(c"popupmenu_show", args);
-        ENTERED = false;
-    }
+        ]
+    );
 }
 
 pub unsafe fn ui_call_popupmenu_hide() {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        ui_call_event(c"popupmenu_hide", NOARGS_ARRAY);
-        ENTERED = false;
-    }
+    ui_call_event_guarded!(c"popupmenu_hide");
 }
 
 pub unsafe fn ui_call_popupmenu_select(selected: Integer) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [integer_obj(selected)];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 1,
-            capacity: 1,
-        };
-        ui_call_event(c"popupmenu_select", args);
-        ENTERED = false;
-    }
+    ui_call_event_guarded!(c"popupmenu_select", [integer_obj(selected)]);
 }
 
 pub unsafe fn ui_call_tabline_update(
@@ -1579,26 +1485,15 @@ pub unsafe fn ui_call_tabline_update(
     current_buffer: handle_T,
     buffers: Array,
 ) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [
+    ui_call_event_guarded!(
+        c"tabline_update",
+        [
             tab_obj(current),
             array_obj(tabs),
             buf_obj(current_buffer),
             array_obj(buffers),
-        ];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 4,
-            capacity: 4,
-        };
-        ui_call_event(c"tabline_update", args);
-        ENTERED = false;
-    }
+        ]
+    );
 }
 
 pub unsafe fn ui_call_cmdline_show(
@@ -1610,13 +1505,9 @@ pub unsafe fn ui_call_cmdline_show(
     level: Integer,
     hl_id: Integer,
 ) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [
+    ui_call_event_guarded!(
+        c"cmdline_show",
+        [
             array_obj(content),
             integer_obj(pos),
             string_obj(firstc),
@@ -1624,117 +1515,35 @@ pub unsafe fn ui_call_cmdline_show(
             integer_obj(indent),
             integer_obj(level),
             integer_obj(hl_id),
-        ];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 7,
-            capacity: 7,
-        };
-        ui_call_event(c"cmdline_show", args);
-        ENTERED = false;
-    }
+        ]
+    );
 }
 
 pub unsafe fn ui_call_cmdline_pos(pos: Integer, level: Integer) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [integer_obj(pos), integer_obj(level)];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 2,
-            capacity: 2,
-        };
-        ui_call_event(c"cmdline_pos", args);
-        ENTERED = false;
-    }
+    ui_call_event_guarded!(c"cmdline_pos", [integer_obj(pos), integer_obj(level)]);
 }
 
 pub unsafe fn ui_call_cmdline_special_char(c: NvimString, shift: bool, level: Integer) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [string_obj(c), boolean_obj(shift), integer_obj(level)];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 3,
-            capacity: 3,
-        };
-        ui_call_event(c"cmdline_special_char", args);
-        ENTERED = false;
-    }
+    ui_call_event_guarded!(
+        c"cmdline_special_char",
+        [string_obj(c), boolean_obj(shift), integer_obj(level)]
+    );
 }
 
 pub unsafe fn ui_call_cmdline_hide(level: Integer, abort: bool) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [integer_obj(level), boolean_obj(abort)];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 2,
-            capacity: 2,
-        };
-        ui_call_event(c"cmdline_hide", args);
-        ENTERED = false;
-    }
+    ui_call_event_guarded!(c"cmdline_hide", [integer_obj(level), boolean_obj(abort)]);
 }
 
 pub unsafe fn ui_call_cmdline_block_show(lines: Array) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [array_obj(lines)];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 1,
-            capacity: 1,
-        };
-        ui_call_event(c"cmdline_block_show", args);
-        ENTERED = false;
-    }
+    ui_call_event_guarded!(c"cmdline_block_show", [array_obj(lines)]);
 }
 
 pub unsafe fn ui_call_cmdline_block_append(lines: Array) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [array_obj(lines)];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 1,
-            capacity: 1,
-        };
-        ui_call_event(c"cmdline_block_append", args);
-        ENTERED = false;
-    }
+    ui_call_event_guarded!(c"cmdline_block_append", [array_obj(lines)]);
 }
 
 pub unsafe fn ui_call_cmdline_block_hide() {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        ui_call_event(c"cmdline_block_hide", NOARGS_ARRAY);
-        ENTERED = false;
-    }
+    ui_call_event_guarded!(c"cmdline_block_hide");
 }
 
 pub unsafe fn ui_call_msg_show(
@@ -1746,13 +1555,9 @@ pub unsafe fn ui_call_msg_show(
     id: Object,
     trigger: NvimString,
 ) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [
+    ui_call_event_guarded!(
+        c"msg_show",
+        [
             string_obj(kind),
             array_obj(content),
             boolean_obj(replace_last),
@@ -1760,99 +1565,31 @@ pub unsafe fn ui_call_msg_show(
             boolean_obj(append),
             id,
             string_obj(trigger),
-        ];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 7,
-            capacity: 7,
-        };
-        ui_call_event(c"msg_show", args);
-        ENTERED = false;
-    }
+        ]
+    );
 }
 
 pub unsafe fn ui_call_msg_clear() {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        ui_call_event(c"msg_clear", NOARGS_ARRAY);
-        ENTERED = false;
-    }
+    ui_call_event_guarded!(c"msg_clear");
 }
 
 pub unsafe fn ui_call_msg_showcmd(content: Array) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [array_obj(content)];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 1,
-            capacity: 1,
-        };
-        ui_call_event(c"msg_showcmd", args);
-        ENTERED = false;
-    }
+    ui_call_event_guarded!(c"msg_showcmd", [array_obj(content)]);
 }
 
 pub unsafe fn ui_call_msg_showmode(content: Array) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [array_obj(content)];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 1,
-            capacity: 1,
-        };
-        ui_call_event(c"msg_showmode", args);
-        ENTERED = false;
-    }
+    ui_call_event_guarded!(c"msg_showmode", [array_obj(content)]);
 }
 
 pub unsafe fn ui_call_msg_ruler(content: Array) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [array_obj(content)];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 1,
-            capacity: 1,
-        };
-        ui_call_event(c"msg_ruler", args);
-        ENTERED = false;
-    }
+    ui_call_event_guarded!(c"msg_ruler", [array_obj(content)]);
 }
 
 pub unsafe fn ui_call_msg_history_show(entries: Array, prev_cmd: bool) {
-    static mut ENTERED: bool = false;
-    unsafe {
-        if ENTERED {
-            return;
-        }
-        ENTERED = true;
-        let mut items = [array_obj(entries), boolean_obj(prev_cmd)];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 2,
-            capacity: 2,
-        };
-        ui_call_event(c"msg_history_show", args);
-        ENTERED = false;
-    }
+    ui_call_event_guarded!(
+        c"msg_history_show",
+        [array_obj(entries), boolean_obj(prev_cmd)]
+    );
 }
 
 pub unsafe fn ui_call_error_exit(status: Integer) {

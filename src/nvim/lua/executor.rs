@@ -1889,8 +1889,8 @@ unsafe fn nlua_exec_typval_fmt(
     ret_tv: *mut typval_T,
 ) {
     unsafe {
-        static mut LCMD_BUF: [c_char; IOSIZE] = [0; IOSIZE];
-        let buf_ptr = (&raw mut LCMD_BUF).cast::<c_char>();
+        let mut lcmd_buf: [c_char; IOSIZE] = [0; IOSIZE];
+        let buf_ptr = lcmd_buf.as_mut_ptr();
         let mut lcmd = buf_ptr;
         let mut lcmd_vec: Vec<c_char> = Vec::new();
         let lcmd_len = vim_snprintf!(buf_ptr, IOSIZE, fmt, bodylen as c_int, body);
@@ -2359,8 +2359,8 @@ pub unsafe fn ex_luado(eap: *mut exarg_T) {
         const DOSTART: &[u8] = b"return function(line, linenr) ";
         const DOEND: &[u8] = b" end";
         let lcmd_len = cmd_len + DOSTART.len() + DOEND.len();
-        static mut LCMD_BUF: [c_char; IOSIZE] = [0; IOSIZE];
-        let buf_ptr = (&raw mut LCMD_BUF).cast::<c_char>();
+        let mut lcmd_buf: [c_char; IOSIZE] = [0; IOSIZE];
+        let buf_ptr = lcmd_buf.as_mut_ptr();
         let mut lcmd_vec: Vec<c_char> = Vec::new();
         let lcmd = if lcmd_len < IOSIZE {
             buf_ptr
@@ -2640,11 +2640,11 @@ pub unsafe fn nlua_register_table_as_callable(arg: *const typval_T) -> *mut c_ch
 
 pub unsafe fn nlua_exec_on_key(c: c_int, typed_buf: *mut c_char) -> bool {
     unsafe {
-        static mut RECURSIVE: bool = false;
-        if RECURSIVE {
+        static RECURSIVE: std::sync::atomic::AtomicBool =
+            std::sync::atomic::AtomicBool::new(false);
+        if RECURSIVE.swap(true, std::sync::atomic::Ordering::Relaxed) {
             return false;
         }
-        RECURSIVE = true;
 
         let mut buf = [0 as c_char; MB_MAXBYTES * 3 + 4];
         let buf_len = special_to_buf(c, mod_mask, false, buf.as_mut_ptr());
@@ -2676,7 +2676,7 @@ pub unsafe fn nlua_exec_on_key(c: c_int, typed_buf: *mut c_char) -> bool {
         lua_pop(lstate, 1);
         debug_assert_eq!(top, lua_gettop(lstate));
 
-        RECURSIVE = false;
+        RECURSIVE.store(false, std::sync::atomic::Ordering::Relaxed);
         discard
     }
 }

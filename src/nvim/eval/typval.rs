@@ -4462,16 +4462,16 @@ const fn change_lock(lock: bool, var: VarLockStatus) -> VarLockStatus {
 /// Lock or unlock an item.
 pub unsafe fn tv_item_lock(tv: *mut typval_T, deep: c_int, lock: bool, check_refcount: bool) {
     unsafe {
-        static mut RECURSE: c_int = 0;
+        static RECURSE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
-        if RECURSE >= DICT_MAXNEST {
+        if RECURSE.load(std::sync::atomic::Ordering::Relaxed) >= DICT_MAXNEST {
             emsg(tr(E_VARIABLE_NESTED_TOO_DEEP_FOR_UNLOCK.as_ptr()));
             return;
         }
         if deep == 0 {
             return;
         }
-        RECURSE += 1;
+        RECURSE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
         (*tv).v_lock = change_lock(lock, (*tv).v_lock);
 
@@ -4522,7 +4522,7 @@ pub unsafe fn tv_item_lock(tv: *mut typval_T, deep: c_int, lock: bool, check_ref
             | VarType::VAR_SPECIAL => {}
             VarType::VAR_UNKNOWN => std::process::abort(),
         }
-        RECURSE -= 1;
+        RECURSE.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
     }
 }
 
@@ -4616,31 +4616,32 @@ pub unsafe fn value_check_lock(
 /// Compare two Vimscript values.
 pub unsafe fn tv_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool {
     unsafe {
-        static mut RECURSIVE_CNT: c_int = 0;
+        static RECURSIVE_CNT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
         if !(tv_is_func_inline(*tv1) && tv_is_func_inline(*tv2)) && (*tv1).v_type != (*tv2).v_type {
             return false;
         }
 
-        if RECURSIVE_CNT == 0 {
+        let cur_cnt = RECURSIVE_CNT.load(std::sync::atomic::Ordering::Relaxed);
+        if cur_cnt == 0 {
             TV_EQUAL_RECURSE_LIMIT = 1000;
         }
-        if RECURSIVE_CNT >= TV_EQUAL_RECURSE_LIMIT {
+        if cur_cnt >= TV_EQUAL_RECURSE_LIMIT {
             TV_EQUAL_RECURSE_LIMIT -= 1;
             return true;
         }
 
         match (*tv1).v_type {
             VarType::VAR_LIST => {
-                RECURSIVE_CNT += 1;
+                RECURSIVE_CNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 let r = tv_list_equal((*tv1).vval.v_list(), (*tv2).vval.v_list(), ic);
-                RECURSIVE_CNT -= 1;
+                RECURSIVE_CNT.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                 r
             }
             VarType::VAR_DICT => {
-                RECURSIVE_CNT += 1;
+                RECURSIVE_CNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 let r = tv_dict_equal((*tv1).vval.v_dict(), (*tv2).vval.v_dict(), ic);
-                RECURSIVE_CNT -= 1;
+                RECURSIVE_CNT.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                 r
             }
             VarType::VAR_PARTIAL | VarType::VAR_FUNC => {
@@ -4649,9 +4650,9 @@ pub unsafe fn tv_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool
                 {
                     return false;
                 }
-                RECURSIVE_CNT += 1;
+                RECURSIVE_CNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 let r = func_equal(tv1, tv2, ic);
-                RECURSIVE_CNT -= 1;
+                RECURSIVE_CNT.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                 r
             }
             VarType::VAR_BLOB => tv_blob_equal((*tv1).vval.v_blob(), (*tv2).vval.v_blob()),

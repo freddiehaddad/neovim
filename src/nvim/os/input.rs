@@ -641,9 +641,9 @@ unsafe fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
 
         if input_unanswerable() && !os_input_ready(events) {
             // Dismiss the prompt (CTRL-C) instead of waiting forever.
-            static mut DID_LOG: bool = false;
-            if !DID_LOG {
-                DID_LOG = true;
+            static DID_LOG: std::sync::atomic::AtomicBool =
+                std::sync::atomic::AtomicBool::new(false);
+            if !DID_LOG.swap(true, std::sync::atomic::Ordering::Relaxed) {
                 let mut mode = [0 as c_char; MODE_MAX_LENGTH];
                 get_mode(mode.as_mut_ptr());
                 logmsg!(

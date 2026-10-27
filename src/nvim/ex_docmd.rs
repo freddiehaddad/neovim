@@ -4959,7 +4959,7 @@ pub unsafe fn do_cmdline_cmd(cmd: *const c_char) -> c_int {
 
 /// do_cmdline(): execute one Ex command line
 pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_int) -> c_int {
-    static mut recursive: c_int = 0;
+    static RECURSIVE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
     unsafe {
         let mut next_cmdline: *mut c_char;
@@ -5007,7 +5007,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
             dbg_tick = source_dbg_tick(sp);
         }
 
-        if recursive == 0 {
+        if RECURSIVE.load(std::sync::atomic::Ordering::Relaxed) == 0 {
             force_abort = false;
             suppress_errthrow = false;
         }
@@ -5169,7 +5169,10 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
 
             let prev_count = count;
             count += 1;
-            if prev_count == 0 && (flags & DOCMD_NOWAIT) == 0 && recursive == 0 {
+            if prev_count == 0
+                && (flags & DOCMD_NOWAIT) == 0
+                && RECURSIVE.load(std::sync::atomic::Ordering::Relaxed) == 0
+            {
                 msg_didout_before_start = msg_didout;
                 msg_didany = false;
                 msg_start();
@@ -5183,7 +5186,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                 msg_verbose_cmd(*sourcing_lnum_ptr(), cmdline_copy);
             }
 
-            recursive += 1;
+            RECURSIVE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             next_cmdline = do_one_cmd(
                 &raw mut cmdline_copy,
                 &raw mut cmdline_buf,
@@ -5191,7 +5194,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                 &raw mut cstack,
                 cmd_getline,
             );
-            recursive -= 1;
+            RECURSIVE.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
 
             if using_loop_cookie {
                 current_line = cmd_loop_cookie.current_line;

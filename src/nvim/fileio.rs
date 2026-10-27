@@ -3726,7 +3726,7 @@ unsafe fn move_lines(frombuf: *mut buf_T, tobuf: *mut buf_T) -> c_int {
 /// Check if buffer "buf" has been changed.
 pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
     unsafe {
-        static mut BUSY: bool = false;
+        static BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
         const RELOAD_NONE: c_int = 0;
         const RELOAD_NORMAL: c_int = 1;
@@ -3749,7 +3749,7 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
             || (*buf).b_ml.ml_mfp.is_none()
             || !bt_normal(buf)
             || (*buf).b_saving
-            || BUSY
+            || BUSY.load(std::sync::atomic::Ordering::Relaxed)
         {
             return 0;
         }
@@ -3801,7 +3801,7 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
                     (c"time".as_ptr(), 4isize)
                 };
 
-                BUSY = true;
+                BUSY.store(true, std::sync::atomic::Ordering::Relaxed);
                 set_vim_var_string(VV_FCS_REASON, reason, reasonlen);
                 set_vim_var_string(VV_FCS_CHOICE, c"".as_ptr(), 0);
                 allbuf_lock += 1;
@@ -3813,7 +3813,7 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
                     buf,
                 );
                 allbuf_lock -= 1;
-                BUSY = false;
+                BUSY.store(false, std::sync::atomic::Ordering::Relaxed);
                 if n {
                     if !bufref_valid(&raw mut bufref) {
                         emsg(tr(
@@ -4486,7 +4486,7 @@ unsafe fn vim_settempdir(tempdir: *mut c_char) -> bool {
 /// Return a unique name that can be used for a temp file.
 pub unsafe fn vim_tempname() -> Option<std::ffi::CString> {
     unsafe {
-        static mut TEMP_COUNT: u64 = 0;
+        static TEMP_COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
         let tempdir = vim_gettempdir();
         if tempdir.is_null() {
@@ -4494,8 +4494,7 @@ pub unsafe fn vim_tempname() -> Option<std::ffi::CString> {
         }
 
         let mut templ: [c_char; TEMP_FILE_PATH_MAXLEN] = [0; TEMP_FILE_PATH_MAXLEN];
-        let count = TEMP_COUNT;
-        TEMP_COUNT += 1;
+        let count = TEMP_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let _ = vim_snprintf!(
             templ.as_mut_ptr(),
             TEMP_FILE_PATH_MAXLEN,
