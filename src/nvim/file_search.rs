@@ -1400,7 +1400,7 @@ pub unsafe fn grab_file_name(count: c_int, file_lnum: *mut linenr_T) -> Option<s
         let fname = if g_st().Visual.active {
             let mut len: usize = 0;
             let mut ptr: *mut c_char = ptr::null_mut();
-            if !get_visual_text(ptr::null_mut(), &raw mut ptr, &raw mut len) {
+            if !get_visual_text(None, &mut ptr, &mut len) {
                 return None;
             }
             if !file_lnum.is_null()

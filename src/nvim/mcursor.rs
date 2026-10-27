@@ -1600,10 +1600,10 @@ unsafe fn mc_zq_run(
     }
 }
 
-pub unsafe fn mc_zq_start(cap: *mut cmdarg_T) {
+pub unsafe fn mc_zq_start(cap: &mut cmdarg_T) {
     unsafe {
-        (*(*cap).oap).from_visual = g_st().Visual.active;
-        (*(*cap).oap).motion_type = kMTUnknown;
+        (*cap.oap).from_visual = g_st().Visual.active;
+        (*cap.oap).motion_type = kMTUnknown;
         if g_st().Visual.active {
             atom_visual_reset();
             end_visual_mode();
@@ -1612,16 +1612,16 @@ pub unsafe fn mc_zq_start(cap: *mut cmdarg_T) {
     }
 }
 
-pub unsafe fn mc_zq(oap: *mut oparg_T, cap: *mut cmdarg_T, origin: pos_T) {
+pub unsafe fn mc_zq(oap: *mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
     unsafe {
         atom_did_global_op();
         if mc_replaying()
             || (*oap).motion_type == kMTUnknown
-            || (*cap).cmdchar == b'i' as c_int
-            || (*cap).cmdchar == b'a' as c_int
-            || (*cap).cmdchar == K_LUA
-            || (*cap).cmdchar == K_COMMAND
-            || (*cap).cmdchar == b':' as c_int
+            || cap.cmdchar == b'i' as c_int
+            || cap.cmdchar == b'a' as c_int
+            || cap.cmdchar == K_LUA
+            || cap.cmdchar == K_COMMAND
+            || cap.cmdchar == b':' as c_int
         {
             beep_flush();
             (**curwin.as_ptr()).w_cursor = origin;
@@ -1671,11 +1671,11 @@ pub unsafe fn mc_zq(oap: *mut oparg_T, cap: *mut cmdarg_T, origin: pos_T) {
         save_viewstate(*curwin.as_ptr(), &mut view);
         save_search_patterns();
 
-        let search = ((*cap).cmdchar != NUL
-            && b"*#/?nN".contains(&((*cap).cmdchar as u8)))
-            || ((*cap).cmdchar == b'g' as c_int
-                && (*cap).nchar != NUL
-                && b"*#nN".contains(&((*cap).nchar as u8)));
+        let search = (cap.cmdchar != NUL
+            && b"*#/?nN".contains(&(cap.cmdchar as u8)))
+            || (cap.cmdchar == b'g' as c_int
+                && cap.nchar != NUL
+                && b"*#nN".contains(&(cap.nchar as u8)));
         let mut placed: c_int = 0;
         let mut first = INIT_POS;
         let mut spec = atom_cmd_spec(cap);

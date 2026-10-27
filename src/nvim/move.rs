@@ -2648,7 +2648,7 @@ pub unsafe fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> c_int 
         } else if (**curwin.as_ptr()).w_onebuf_opt.wo_sms == 0 {
             beginline(BL_SOL | BL_FIX);
         } else if opt_vars().p_sol != 0 {
-            nv_g_home_m_cmd(&raw mut ca);
+            nv_g_home_m_cmd(&mut ca);
         }
 
         if did_move { OK } else { FAIL }

@@ -1686,7 +1686,7 @@ pub unsafe fn do_put(
                 return;
             }
 
-            exec_stuffed(ptr::null_mut());
+            exec_stuffed(None);
             return;
         }
 

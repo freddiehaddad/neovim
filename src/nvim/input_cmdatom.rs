@@ -453,18 +453,18 @@ pub unsafe fn atom_free_all() {
     }
 }
 
-pub unsafe fn atom_cmd_spec(cap: *const cmdarg_T) -> CmdSpec {
+pub unsafe fn atom_cmd_spec(cap: &cmdarg_T) -> CmdSpec {
     unsafe {
-        let operand = nv_is((*cap).cmdchar, NV_LANG | NV_NCH_ARG);
+        let operand = nv_is(cap.cmdchar, NV_LANG | NV_NCH_ARG);
         CmdSpec {
-            regname: (*(*cap).oap).regname,
-            count: c_long::from((*cap).count0),
-            cmd: (*cap).cmdchar,
-            cmd2: if operand { NUL } else { (*cap).nchar },
+            regname: (*cap.oap).regname,
+            count: c_long::from(cap.count0),
+            cmd: cap.cmdchar,
+            cmd2: if operand { NUL } else { cap.nchar },
             cmdarg: if operand {
-                (*cap).nchar
+                cap.nchar
             } else {
-                (*cap).extra_char
+                cap.extra_char
             },
             ..CmdSpec::default()
         }
@@ -560,29 +560,29 @@ unsafe fn atom_from_spec(r#type: CmdAtomType, spec: CmdSpec) -> CmdAtom {
 
 unsafe fn atom_from_cmdline(
     r#type: CmdAtomType,
-    ca: *mut cmdarg_T,
+    ca: &mut cmdarg_T,
     cmdline: *const c_char,
     vis: bool,
 ) -> CmdAtom {
     unsafe {
         let mut sb: Vec<c_char> = Vec::new();
-        if (*ca).cmdchar != b':' as c_int && (*ca).count0 != 0 {
+        if ca.cmdchar != b':' as c_int && ca.count0 != 0 {
             let mut num_buf = [0 as c_char; 32];
             let n = vim_snprintf!(
                 num_buf.as_mut_ptr(),
                 num_buf.len(),
                 c"%d".as_ptr(),
-                (*ca).count0,
+                ca.count0,
             );
             if n > 0 {
                 sb.extend_from_slice(&num_buf[..n as usize]);
             }
         }
-        sb_add_char(&mut sb, (*ca).cmdchar);
-        if vis && (*ca).cmdchar == b':' as c_int {
+        sb_add_char(&mut sb, ca.cmdchar);
+        if vis && ca.cmdchar == b':' as c_int {
             sb_add_char(&mut sb, Ctrl_U);
         }
-        if is_special((*ca).cmdchar) {
+        if is_special(ca.cmdchar) {
             sb_add_spec(&mut sb, cmdline);
         } else {
             sb_add_lit(&mut sb, cmdline, -1);
@@ -592,8 +592,8 @@ unsafe fn atom_from_cmdline(
         let mut atom = CmdAtom::new();
         atom.r#type = r#type;
         atom.spec = CmdSpec {
-            count: c_long::from((*ca).count0),
-            cmd: (*ca).cmdchar,
+            count: c_long::from(ca.count0),
+            cmd: ca.cmdchar,
             ..CmdSpec::default()
         };
         atom.keys = Some(std::ffi::CString::new(sb_u8).unwrap());
@@ -602,15 +602,15 @@ unsafe fn atom_from_cmdline(
     }
 }
 
-unsafe fn atom_from_frame(ca: *mut cmdarg_T, frame: *mut CmdFrame) -> CmdAtom {
+unsafe fn atom_from_frame(ca: &mut cmdarg_T, frame: *mut CmdFrame) -> CmdAtom {
     unsafe {
         let root = root_frame();
         let mut atom = CmdAtom::default();
         if let Some(ref cmdline) = (*root).cmdline
-            && ((*ca).cmdchar == b':' as c_int || (*ca).cmdchar == K_COMMAND)
+            && (ca.cmdchar == b':' as c_int || ca.cmdchar == K_COMMAND)
         {
             atom = atom_from_cmdline(kAExcmd, ca, cmdline.as_ptr(), (*frame).visual.active);
-        } else if (*ca).cmdchar == K_LUA {
+        } else if ca.cmdchar == K_LUA {
             let mut lua_id = [0 as c_char; NUMBUFLEN];
             vim_snprintf!(
                 lua_id.as_mut_ptr(),
@@ -1291,7 +1291,7 @@ pub unsafe fn atom_macro_start(regname: c_int) {
     }
 }
 
-pub unsafe fn atom_stuff_start(cap: *const cmdarg_T) {
+pub unsafe fn atom_stuff_start(cap: &cmdarg_T) {
     unsafe {
         if mc_replaying() || atom_composite_active() || !atom_is_user_input() {
             return;
@@ -1544,42 +1544,42 @@ pub unsafe fn atom_visual_end(spec: CmdSpec, redoable: bool) -> bool {
     }
 }
 
-pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: *mut cmdarg_T, redo_yank: bool) {
+pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: &mut cmdarg_T, redo_yank: bool) {
     unsafe {
         let redoable = op_redoable((*oap).op_type, redo_yank);
         let ins_op = (*oap).op_type == OP_CHANGE
             || (*oap).op_type == OP_INSERT
             || (*oap).op_type == OP_APPEND;
-        let payload_motion = (*cap).cmdchar >= 0x100
-            || ((*cap).cmdchar != NUL && b"/?:!".contains(&((*cap).cmdchar as u8)));
-        let excmd = (*cap).cmdchar == b':' as c_int || (*cap).cmdchar == K_COMMAND;
+        let payload_motion = cap.cmdchar >= 0x100
+            || (cap.cmdchar != NUL && b"/?:!".contains(&(cap.cmdchar as u8)));
+        let excmd = cap.cmdchar == b':' as c_int || cap.cmdchar == K_COMMAND;
         if !ins_op && !payload_motion {
-            let prep_exempt = !redoable || (*cap).cmdchar == b'D' as c_int;
+            let prep_exempt = !redoable || cap.cmdchar == b'D' as c_int;
             let mut spec = CmdSpec {
                 regname: (*oap).regname,
-                count: c_long::from((*cap).count0),
+                count: c_long::from(cap.count0),
                 op: get_op_char((*oap).op_type),
                 op_extra: get_extra_op_char((*oap).op_type),
                 ..CmdSpec::default()
             };
             if prep_exempt && (!g_st().Visual.active || (*oap).motion_force != 0) {
                 if atom_capturable(atom_buf_has_consumers(), g_st().KeyTyped) {
-                    let operand = nv_is((*cap).cmdchar, NV_LANG | NV_NCH_ARG);
+                    let operand = nv_is(cap.cmdchar, NV_LANG | NV_NCH_ARG);
                     spec.motion_force = (*oap).motion_force;
-                    spec.cmd = (*cap).cmdchar;
-                    spec.cmd2 = if operand { NUL } else { (*cap).nchar };
-                    spec.cmdarg = if operand { (*cap).nchar } else { NUL };
+                    spec.cmd = cap.cmdchar;
+                    spec.cmd2 = if operand { NUL } else { cap.nchar };
+                    spec.cmdarg = if operand { cap.nchar } else { NUL };
                     let mut op_atom = atom_from_spec(kAOperator, spec);
                     op_atom.origin = (*cur_frame_ptr()).origin;
                     atom_stage_set(&mut op_atom);
                 }
             } else if !g_st().Visual.active || (*oap).motion_force != 0 {
                 // Prepped: atom_cmd_end() derives the atom from redobuff.
-            } else if (*oap).op_type == OP_REPLACE && (*cap).nchar <= 0 {
+            } else if (*oap).op_type == OP_REPLACE && cap.nchar <= 0 {
                 let suffix: [c_char; 4] = [
                     b'r' as c_char,
                     Ctrl_V as c_char,
-                    if (*cap).nchar == REPLACE_CR_NCHAR {
+                    if cap.nchar == REPLACE_CR_NCHAR {
                         CAR as c_char
                     } else {
                         NL as c_char
@@ -1589,11 +1589,11 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: *mut cmdarg_T, redo_yank: 
                 atom_visual_end_suffix(Some(cstr_to_cstring(suffix.as_ptr())), &spec, redoable);
             } else {
                 spec.cmdarg = if (*oap).op_type == OP_REPLACE {
-                    (*cap).nchar
+                    cap.nchar
                 } else {
                     NUL
                 };
-                if ((*oap).op_type == OP_NR_ADD || (*oap).op_type == OP_NR_SUB) && (*cap).arg != 0 {
+                if ((*oap).op_type == OP_NR_ADD || (*oap).op_type == OP_NR_SUB) && cap.arg != 0 {
                     spec.op_extra = spec.op;
                     spec.op = b'g' as c_int;
                 }
@@ -1602,32 +1602,32 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: *mut cmdarg_T, redo_yank: 
         }
 
         if redoable
-            && (*cap).cmdchar != b'D' as c_int
-            && ((!g_st().Visual.active || (*oap).motion_force != 0) || excmd || (*cap).cmdchar == K_LUA)
+            && cap.cmdchar != b'D' as c_int
+            && ((!g_st().Visual.active || (*oap).motion_force != 0) || excmd || cap.cmdchar == K_LUA)
         {
             prep_redo(
                 true,
                 false,
                 CmdSpec {
                     regname: (*oap).regname,
-                    count: c_long::from((*cap).count0),
+                    count: c_long::from(cap.count0),
                     op: get_op_char((*oap).op_type),
                     op_extra: get_extra_op_char((*oap).op_type),
                     motion_force: (*oap).motion_force,
-                    cmd: (*cap).cmdchar,
-                    cmd2: (*cap).nchar,
+                    cmd: cap.cmdchar,
+                    cmd2: cap.nchar,
                     ..CmdSpec::default()
                 },
             );
-            if (*cap).cmdchar == b'/' as c_int || (*cap).cmdchar == b'?' as c_int {
+            if cap.cmdchar == b'/' as c_int || cap.cmdchar == b'?' as c_int {
                 if vim_strchr(opt_vars().p_cpo, kCpoRedo).is_null() {
-                    redo_append_lit((*cap).searchbuf_ptr(), -1);
+                    redo_append_lit(cap.searchbuf_ptr(), -1);
                 }
                 redo_append_str(c"\n".as_ptr(), 1);
             } else if excmd {
                 let rc = g_st().repeat_cmdline.take();
                 if let Some(ref rc) = rc {
-                    if (*cap).cmdchar == b':' as c_int {
+                    if cap.cmdchar == b':' as c_int {
                         redo_append_lit(rc.as_ptr(), -1);
                     } else {
                         redo_append_spec(rc.as_ptr());
@@ -1636,7 +1636,7 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: *mut cmdarg_T, redo_yank: 
                 } else {
                     redo_new(CmdSpec::default());
                 }
-            } else if (*cap).cmdchar == K_LUA {
+            } else if cap.cmdchar == K_LUA {
                 let mut lua_id = [0 as c_char; NUMBUFLEN];
                 let n = vim_snprintf!(
                     lua_id.as_mut_ptr(),
@@ -1654,16 +1654,16 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: *mut cmdarg_T, redo_yank: 
                     false,
                     CmdSpec {
                         regname: (*oap).regname,
-                        count: c_long::from((*cap).count0),
+                        count: c_long::from(cap.count0),
                         op: get_op_char((*oap).op_type),
                         op_extra: get_extra_op_char((*oap).op_type),
                         motion_force: (*oap).motion_force,
-                        cmd: (*cap).cmdchar,
-                        cmd2: (*cap).nchar,
+                        cmd: cap.cmdchar,
+                        cmd2: cap.nchar,
                         ..CmdSpec::default()
                     },
                 );
-            } else if ins_op && !excmd && (*cap).cmdchar != K_LUA {
+            } else if ins_op && !excmd && cap.cmdchar != K_LUA {
                 let v = if atom_visual_redoable() {
                     atom_visual_span()
                 } else {
@@ -1850,7 +1850,7 @@ pub unsafe fn atom_cmd_start(cmdchar: c_int) {
     }
 }
 
-unsafe fn atom_capture_cmd(ca: *mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> bool {
+unsafe fn atom_capture_cmd(ca: &mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> bool {
     unsafe {
         if mc_replaying() || atom_st().atom_suppressed {
             return false;
@@ -1858,7 +1858,7 @@ unsafe fn atom_capture_cmd(ca: *mut cmdarg_T, old: *mut CmdFrame, is_root: bool)
 
         let user = atom_is_user_cmd();
         let root = root_frame();
-        let keycls = atom_key_class((*ca).cmdchar, (*ca).nchar, (*ca).extra_char);
+        let keycls = atom_key_class(ca.cmdchar, ca.nchar, ca.extra_char);
         let opaque = (keycls & kKeyOpaque) != 0;
         let synthetic = (keycls & kKeySynthetic) != 0;
         let unchanged = g_st().curbuf == (*old).origin.buf.br_buf
@@ -1902,8 +1902,8 @@ unsafe fn atom_capture_cmd(ca: *mut cmdarg_T, old: *mut CmdFrame, is_root: bool)
                 atom_st().vatom.state = (atom_st().vatom.state & kVatomVoid) | kVatomTyped;
             }
             vis = atom_visual_pending()
-                && (*ca).cmdchar != b'Q' as c_int
-                && (*ca).cmdchar != b'q' as c_int;
+                && ca.cmdchar != b'Q' as c_int
+                && ca.cmdchar != b'q' as c_int;
             if vis
                 && (g_st().Visual.select
                     || ((keycls & (kKeyScrollMove | kKeyScrollView | kKeyMouse)) != 0
@@ -1937,13 +1937,13 @@ unsafe fn atom_capture_cmd(ca: *mut cmdarg_T, old: *mut CmdFrame, is_root: bool)
         if (vis
             && atom_st().vatom.frame <= (*old).id
             && atom_st().atom_captures == (*old).captures
-            && (*(*ca).oap).op_type == OP_NOP)
+            && (*ca.oap).op_type == OP_NOP)
             || (!g_st().Visual.active
                 && !(*old).visual.active
                 && atom_capturable((*old).consumers, (*old).keytyped)
                 && atom_st().atom_captures == (*old).captures
                 && !atom_staged()
-                && (*(*ca).oap).op_type == OP_NOP
+                && (*ca.oap).op_type == OP_NOP
                 && stuff_empty()
                 && !ins_cascaded)
         {
@@ -1951,17 +1951,17 @@ unsafe fn atom_capture_cmd(ca: *mut cmdarg_T, old: *mut CmdFrame, is_root: bool)
             let special_motion = (keycls & kKeyMotion) != 0;
             let scroll_cmd = (keycls & (kKeyScrollMove | kKeyScrollView)) != 0;
             let mouse_cmd = (keycls & kKeyMouse) != 0;
-            let jump_cmd = nv_is((*ca).cmdchar, NV_JUMP)
+            let jump_cmd = nv_is(ca.cmdchar, NV_JUMP)
                 || (keycls & kKeyJump) != 0
-                || ((*ca).cmdchar == b'%' as c_int && (*ca).count0 > 0);
-            let replayable = ((*ca).cmdchar > 0
-                && (*ca).cmdchar < 0x100
-                && (*ca).cmdchar != b'"' as c_int
-                && (*ca).cmdchar != b'@' as c_int
+                || (ca.cmdchar == b'%' as c_int && ca.count0 > 0);
+            let replayable = (ca.cmdchar > 0
+                && ca.cmdchar < 0x100
+                && ca.cmdchar != b'"' as c_int
+                && ca.cmdchar != b'@' as c_int
                 && !scroll_cmd)
                 || special_motion;
             let changed = atom_origin_changed((*old).origin);
-            let motion = (nv_is((*ca).cmdchar, NV_MOTION) || special_motion)
+            let motion = (nv_is(ca.cmdchar, NV_MOTION) || special_motion)
                 && !changed
                 && !g_st().finish_op
                 && !jump_cmd;
@@ -1980,17 +1980,17 @@ unsafe fn atom_capture_cmd(ca: *mut cmdarg_T, old: *mut CmdFrame, is_root: bool)
                     atom.origin = (*old).origin;
                     atom_push(effect, &mut atom);
                 }
-            } else if (*ca).searchbuf.is_some()
-                && ((*ca).cmdchar == b'/' as c_int || (*ca).cmdchar == b'?' as c_int)
+            } else if ca.searchbuf.is_some()
+                && (ca.cmdchar == b'/' as c_int || ca.cmdchar == b'?' as c_int)
                 && !(vis && unchanged)
             {
                 let mut atom =
-                    atom_from_cmdline(kAMotion, ca, (*ca).searchbuf_ptr(), (*old).visual.active);
+                    atom_from_cmdline(kAMotion, ca, ca.searchbuf_ptr(), (*old).visual.active);
                 atom.origin = (*old).origin;
                 atom_push(false, &mut atom);
             } else if ((*root).cmdline.is_some()
-                && ((*ca).cmdchar == b':' as c_int || (*ca).cmdchar == K_COMMAND))
-                || (vis && (*ca).cmdchar == K_LUA)
+                && (ca.cmdchar == b':' as c_int || ca.cmdchar == K_COMMAND))
+                || (vis && ca.cmdchar == K_LUA)
             {
                 let mut atom = atom_from_frame(ca, old);
                 atom.origin = (*old).origin;
@@ -2017,7 +2017,7 @@ unsafe fn atom_capture_cmd(ca: *mut cmdarg_T, old: *mut CmdFrame, is_root: bool)
                 }
             } else if (scroll_cmd || mouse_cmd) && !atom_composite_active() {
                 let mut spec = atom_cmd_spec(ca);
-                if is_special((*ca).cmdchar) {
+                if is_special(ca.cmdchar) {
                     spec.count = 0;
                 }
                 let mut atom = atom_from_spec(if scroll_cmd { kAScroll } else { kAMouse }, spec);
@@ -2041,14 +2041,14 @@ unsafe fn atom_capture_cmd(ca: *mut cmdarg_T, old: *mut CmdFrame, is_root: bool)
     }
 }
 
-pub unsafe fn atom_cmd_end(ca: *mut cmdarg_T) {
+pub unsafe fn atom_cmd_end(ca: &mut cmdarg_T) {
     unsafe {
         let frames = &raw mut atom_st().cmd_frames;
         let is_root = (*frames).len() == 1;
         let old = cur_frame_ptr();
         if atom_st().composite.follow == kNone
             && !mc_replaying()
-            && (atom_origin_moved((*old).origin) || nv_is((*ca).cmdchar, NV_MOTION))
+            && (atom_origin_moved((*old).origin) || nv_is(ca.cmdchar, NV_MOTION))
         {
             atom_st().composite.follow = if (*old).follow { kTrue } else { kFalse };
         }
@@ -2066,7 +2066,7 @@ pub unsafe fn atom_cmd_end(ca: *mut cmdarg_T) {
             mc_clock_edge(atom_st().map_edit, map_moved, atom_st().composite.follow == kTrue);
 
             atom_st().map_edit = false;
-            if (*(*ca).oap).op_type == OP_NOP && !g_st().Visual.active && g_st().restart_edit == 0 {
+            if (*ca.oap).op_type == OP_NOP && !g_st().Visual.active && g_st().restart_edit == 0 {
                 atom_composite_end();
                 atom_st().composite.open = false;
             }

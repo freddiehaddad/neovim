@@ -3471,7 +3471,7 @@ unsafe fn op_colon(oap: *mut oparg_T) {
 
         do_cmdline(ptr::null_mut(), crate::cmdexpand::LineGetter::ExLine, 0);
         atom_suppress(true);
-        exec_stuffed(ptr::null_mut());
+        exec_stuffed(None);
         atom_suppress(false);
     }
 }
@@ -3613,29 +3613,27 @@ unsafe fn get_op_vcol(oap: *mut oparg_T, initial: bool) {
     }
 }
 
-unsafe fn is_ex_cmdchar(cap: *const cmdarg_T) -> bool {
-    unsafe { (*cap).cmdchar == b':' as c_int || (*cap).cmdchar == K_COMMAND }
+fn is_ex_cmdchar(cap: &cmdarg_T) -> bool {
+    cap.cmdchar == b':' as c_int || cap.cmdchar == K_COMMAND
 }
 
-pub unsafe fn op_self_select(cap: *const cmdarg_T) -> bool {
-    unsafe {
-        (*cap).cmdchar == b'g' as c_int
-            && ((*cap).nchar == b'n' as c_int
-                || (*cap).nchar == b'N' as c_int
-                || (*cap).nchar == b'v' as c_int)
-    }
+pub fn op_self_select(cap: &cmdarg_T) -> bool {
+    cap.cmdchar == b'g' as c_int
+        && (cap.nchar == b'n' as c_int
+            || cap.nchar == b'N' as c_int
+            || cap.nchar == b'v' as c_int)
 }
 
-unsafe fn op_ins_visual(oap: *mut oparg_T, cap: *mut cmdarg_T) -> VisualIns {
+unsafe fn op_ins_visual(oap: *mut oparg_T, cap: &mut cmdarg_T) -> VisualIns {
     unsafe {
         if !(*oap).is_VIsual {
             return kVInsNone;
         }
-        if is_ex_cmdchar(cap) || (*cap).cmdchar == K_LUA {
+        if is_ex_cmdchar(cap) || cap.cmdchar == K_LUA {
             return kVInsMotion;
         }
         if op_self_select(cap)
-            && (*cap).nchar != b'v' as c_int
+            && cap.nchar != b'v' as c_int
             && (*oap).motion_force == c_int::from(NUL)
         {
             return kVInsMotion;
@@ -3651,9 +3649,9 @@ unsafe fn op_ins_visual(oap: *mut oparg_T, cap: *mut cmdarg_T) -> VisualIns {
     }
 }
 
-pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: bool) {
+pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
     unsafe {
-        let oap = (*cap).oap;
+        let oap = cap.oap;
         let lbr_saved = (**curwin.as_ptr()).w_onebuf_opt.wo_lbr != 0;
 
         let old_cursor = (**curwin.as_ptr()).w_cursor;
@@ -3695,7 +3693,7 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
 
                 if g_st().Visual.select
                     && g_st().Visual.mode == b'V' as c_int
-                    && (*(*cap).oap).op_type != OP_DELETE
+                    && (*cap.oap).op_type != OP_DELETE
                 {
                     if lt(g_st().Visual.start, (**curwin.as_ptr()).w_cursor) {
                         g_st().Visual.start.col = 0;
@@ -3875,7 +3873,7 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
 
             if (*oap).motion_type == kMTCharWise
                 && !(*oap).inclusive
-                && ((*cap).retval & CA_NO_ADJ_OP_END) == 0
+                && (cap.retval & CA_NO_ADJ_OP_END) == 0
                 && (*oap).end.col == 0
                 && (!(*oap).is_VIsual || *opt_vars().p_sel == b'o' as c_char)
                 && (*oap).line_count > 1
@@ -3898,7 +3896,7 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
 
             match (*oap).op_type {
                 OP_LSHIFT | OP_RSHIFT => {
-                    op_shift(oap, true, if (*oap).is_VIsual { (*cap).count1 } else { 1 });
+                    op_shift(oap, true, if (*oap).is_VIsual { cap.count1 } else { 1 });
                     auto_format(false, true);
                 }
                 OP_JOIN_NS | OP_JOIN => {
@@ -3941,7 +3939,7 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
                         }
                     } else {
                         restore_lbr(lbr_saved);
-                        (*oap).excl_tr_ws = (*cap).cmdchar == b'z' as c_int;
+                        (*oap).excl_tr_ws = cap.cmdchar == b'z' as c_int;
                         if (*oap).restore_cursor {
                             (**curwin.as_ptr()).w_cursor = (*oap).cursor_start;
                         }
@@ -3964,13 +3962,13 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
 
                         let mut session: InsSession = atom_ins_start(
                             b'c' as c_int,
-                            c_long::from((*cap).count0),
+                            c_long::from(cap.count0),
                             op_ins_visual(oap, cap),
                             (*oap).is_VIsual && (*oap).motion_type == kMTBlockWise,
                         );
                         let busy = op_change(oap) != 0;
                         if busy {
-                            (*cap).retval |= CA_COMMAND_BUSY;
+                            cap.retval |= CA_COMMAND_BUSY;
                         }
                         if g_st().restart_edit == 0 {
                             g_st().restart_edit = restart_edit_save;
@@ -4048,11 +4046,11 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
 
                         let mut session: InsSession = atom_ins_start(
                             b'I' as c_int,
-                            c_long::from((*cap).count1),
+                            c_long::from(cap.count1),
                             op_ins_visual(oap, cap),
                             (*oap).motion_type == kMTBlockWise,
                         );
-                        op_insert(oap, (*cap).count1);
+                        op_insert(oap, cap.count1);
                         atom_ins_end(&raw mut session, false);
 
                         reset_lbr();
@@ -4061,7 +4059,7 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
                         if g_st().restart_edit == 0 {
                             g_st().restart_edit = restart_edit_save;
                         } else {
-                            (*cap).retval |= CA_COMMAND_BUSY;
+                            cap.retval |= CA_COMMAND_BUSY;
                         }
                     }
                 }
@@ -4072,7 +4070,7 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
                         redo_cancel();
                     } else {
                         restore_lbr(lbr_saved);
-                        op_replace(oap, (*cap).nchar);
+                        op_replace(oap, cap.nchar);
                     }
                 }
                 OP_FOLD => {
@@ -4114,7 +4112,7 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
                     } else {
                         g_st().Visual.active = true;
                         restore_lbr(lbr_saved);
-                        op_addsub(oap, (*cap).count1, (*cap).arg != 0);
+                        op_addsub(oap, cap.count1, cap.arg != 0);
                         g_st().Visual.active = false;
                     }
                     check_cursor_col(*curwin.as_ptr());

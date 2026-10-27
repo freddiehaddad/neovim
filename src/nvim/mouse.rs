@@ -586,7 +586,7 @@ pub unsafe fn do_mouse(
             stuffcharReadbuff(Ctrl_T);
             mouse_st().got_click = false;
             if (g_st().State & MODE_INSERT) == 0 {
-                exec_stuffed(ptr::null_mut());
+                exec_stuffed(None);
             }
             return false;
         }
@@ -631,7 +631,7 @@ pub unsafe fn do_mouse(
                         stuffcharReadbuff(b'y' as c_int);
                         stuffcharReadbuff(K_MIDDLEMOUSE);
                     }
-                    exec_stuffed(ptr::null_mut());
+                    exec_stuffed(None);
                     return false;
                 }
             } else if (g_st().State & MODE_INSERT) == 0 {
@@ -1072,7 +1072,7 @@ pub unsafe fn do_mouse(
             stuffcharReadbuff(Ctrl_RSB);
             mouse_st().got_click = false;
             if (g_st().State & MODE_INSERT) == 0 {
-                exec_stuffed(ptr::null_mut());
+                exec_stuffed(None);
             }
         } else if (g_st().mod_mask & MOD_MASK_SHIFT) != 0 {
             if (g_st().State & MODE_INSERT) != 0 || (g_st().Visual.active && g_st().Visual.select) {
@@ -1084,7 +1084,7 @@ pub unsafe fn do_mouse(
                 stuffcharReadbuff(b'#' as c_int);
             }
             if (g_st().State & MODE_INSERT) == 0 {
-                exec_stuffed(ptr::null_mut());
+                exec_stuffed(None);
             }
         } else if in_status_line || in_sep_line {
             // Do nothing if on status line or vertical separator
@@ -1222,21 +1222,21 @@ pub unsafe fn ins_mouse(c: c_int) {
 }
 
 /// Common mouse wheel scrolling, shared between Insert mode and NV modes.
-pub unsafe fn do_mousescroll(cap: *mut cmdarg_T) {
+pub unsafe fn do_mousescroll(cap: &mut cmdarg_T) {
     unsafe {
         let shift_or_ctrl = (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) != 0;
 
-        if (*cap).arg == MSCR_UP || (*cap).arg == MSCR_DOWN {
+        if cap.arg == MSCR_UP || cap.arg == MSCR_DOWN {
             if (g_st().State & MODE_NORMAL) != 0 && shift_or_ctrl {
-                pagescroll(if (*cap).arg != 0 { FORWARD } else { BACKWARD }, 1, false);
+                pagescroll(if cap.arg != 0 { FORWARD } else { BACKWARD }, 1, false);
             } else {
                 if shift_or_ctrl {
-                    (*cap).count1 = (**curwin.as_ptr()).w_botline - (**curwin.as_ptr()).w_topline;
+                    cap.count1 = (**curwin.as_ptr()).w_botline - (**curwin.as_ptr()).w_topline;
                 } else {
-                    (*cap).count1 = opt_vars().p_mousescroll_vert as c_int;
+                    cap.count1 = opt_vars().p_mousescroll_vert as c_int;
                 }
-                if (*cap).count1 > 0 {
-                    (*cap).count0 = (*cap).count1;
+                if cap.count1 > 0 {
+                    cap.count0 = cap.count1;
                     nv_scroll_line(cap);
                 }
             }
@@ -1247,7 +1247,7 @@ pub unsafe fn do_mousescroll(cap: *mut cmdarg_T) {
                 opt_vars().p_mousescroll_hor as c_int
             };
             let leftcol = ((**curwin.as_ptr()).w_leftcol
-                + if (*cap).arg == MSCR_RIGHT {
+                + if cap.arg == MSCR_RIGHT {
                     -step
                 } else {
                     step
@@ -1298,7 +1298,7 @@ pub unsafe fn ins_mousescroll(dir: c_int) {
 
         let mut orig_cursor = (**curwin.as_ptr()).w_cursor;
 
-        do_mousescroll(&raw mut cap);
+        do_mousescroll(&mut cap);
 
         (**curwin.as_ptr()).w_redr_status = true;
         *curwin.as_ptr() = old_curwin;
@@ -1347,7 +1347,7 @@ pub unsafe fn cmdline_mousescroll(dir: c_int) -> bool {
 
         *curwin.as_ptr() = wp;
         g_st().curbuf = (*wp).w_buffer;
-        do_mousescroll(&raw mut cap);
+        do_mousescroll(&mut cap);
         *curwin.as_ptr() = old_curwin;
         g_st().curbuf = (**curwin.as_ptr()).w_buffer;
 
@@ -1769,7 +1769,7 @@ unsafe fn do_mousescroll_horiz(leftcol: colnr_T) -> bool {
 
 /// Normal and Visual modes implementation for scrolling in direction
 /// "cap->arg", which is one of the MSCR_ values.
-pub unsafe fn nv_mousescroll(cap: *mut cmdarg_T) {
+pub unsafe fn nv_mousescroll(cap: &mut cmdarg_T) {
     unsafe {
         let old_curwin = *curwin.as_ptr();
 
@@ -1794,9 +1794,9 @@ pub unsafe fn nv_mousescroll(cap: *mut cmdarg_T) {
 }
 
 /// Mouse clicks and drags.
-pub unsafe fn nv_mouse(cap: *mut cmdarg_T) {
+pub unsafe fn nv_mouse(cap: &mut cmdarg_T) {
     unsafe {
-        do_mouse((*cap).oap, (*cap).cmdchar, BACKWARD, (*cap).count1, false);
+        do_mouse(cap.oap, cap.cmdchar, BACKWARD, cap.count1, false);
     }
 }
 

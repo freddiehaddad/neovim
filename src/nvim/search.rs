@@ -1739,11 +1739,11 @@ pub unsafe fn search_for_exact_line(
     }
 }
 
-pub unsafe fn searchc(cap: *mut cmdarg_T, mut t_cmd: bool) -> c_int {
+pub unsafe fn searchc(cap: &mut cmdarg_T, mut t_cmd: bool) -> c_int {
     unsafe {
-        let mut c = (*cap).nchar;
-        let mut dir = (*cap).arg;
-        let mut count = (*cap).count1;
+        let mut c = cap.nchar;
+        let mut dir = cap.arg;
+        let mut count = cap.count1;
         let mut stop = true;
 
         if c != c_int::from(NUL) {
@@ -1751,12 +1751,12 @@ pub unsafe fn searchc(cap: *mut cmdarg_T, mut t_cmd: bool) -> c_int {
                 srch().lastc[0] = c as u8;
                 set_csearch_direction(dir);
                 set_csearch_until(c_int::from(t_cmd));
-                if (*cap).nchar_len != 0 {
-                    srch().lastc_bytelen = (*cap).nchar_len;
+                if cap.nchar_len != 0 {
+                    srch().lastc_bytelen = cap.nchar_len;
                     ptr::copy_nonoverlapping(
-                        (&raw const (*cap).nchar_composing).cast::<c_char>(),
+                        cap.nchar_composing.as_ptr(),
                         (&raw mut srch().lastc_bytes).cast::<c_char>(),
-                        (*cap).nchar_len as usize,
+                        cap.nchar_len as usize,
                     );
                 } else {
                     srch().lastc_bytelen = utf_char2bytes(c, (&raw mut srch().lastc_bytes).cast::<c_char>());
@@ -1775,7 +1775,7 @@ pub unsafe fn searchc(cap: *mut cmdarg_T, mut t_cmd: bool) -> c_int {
             }
         }
 
-        (*(*cap).oap).inclusive = dir != BACKWARD;
+        (*cap.oap).inclusive = dir != BACKWARD;
 
         let p = get_cursor_line_ptr();
         let mut col = (**curwin.as_ptr()).w_cursor.col;
