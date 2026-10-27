@@ -113,7 +113,7 @@ use crate::vterm::pen::{
     vterm_state_set_palette_color, vterm_state_set_penattr,
 };
 use crate::vterm::screen::{
-    VTERM_DAMAGE_SCROLL, VTERM_PROP_ALTSCREEN, VTermScreen, VTermScreenCallbacks, VTermScreenCell,
+    VTERM_DAMAGE_SCROLL, VTERM_PROP_ALTSCREEN, VTermScreenCallbacks, VTermScreenCell,
     VTermScreenCellAttrs, vterm_obtain_screen, vterm_screen_enable_altscreen,
     vterm_screen_enable_reflow, vterm_screen_flush_damage, vterm_screen_get_cell,
     vterm_screen_reset, vterm_screen_set_callbacks, vterm_screen_set_damage_merge,
@@ -290,7 +290,6 @@ impl Default for TermPending {
 pub struct Terminal {
     opts: TerminalOptions,
     vt: VTerm,
-    vts: *mut VTermScreen,
     textbuf: [c_char; TEXTBUF_SIZE],
     sb_buffer: Vec<Vec<VTermScreenCell>>,
     sb_allocated: bool,
@@ -738,7 +737,6 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
         let term = Box::into_raw(Box::new(Terminal {
             opts,
             vt: vterm_new(c_int::from(opts.height), c_int::from(opts.width)),
-            vts: ptr::null_mut(),
             textbuf: [0; TEXTBUF_SIZE],
             sb_buffer: Vec::new(),
             sb_allocated: false,
@@ -772,13 +770,13 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
         vterm_set_utf8(&raw mut (*term).vt, 1);
 
         let state = vterm_obtain_state(&raw mut (*term).vt);
-        (*term).vts = vterm_obtain_screen(&raw mut (*term).vt);
-        vterm_screen_enable_altscreen((*term).vts, 1);
-        vterm_screen_enable_reflow((*term).vts, true);
-        vterm_screen_set_callbacks((*term).vts, Some(&VTERM_SCREEN_CALLBACKS), term);
-        vterm_screen_set_unrecognised_fallbacks((*term).vts, Some(&VTERM_FALLBACKS), term);
-        vterm_screen_set_damage_merge((*term).vts, VTERM_DAMAGE_SCROLL);
-        vterm_screen_reset((*term).vts, 1);
+        let vts = vterm_obtain_screen(&raw mut (*term).vt);
+        vterm_screen_enable_altscreen(vts, 1);
+        vterm_screen_enable_reflow(vts, true);
+        vterm_screen_set_callbacks(vts, Some(&VTERM_SCREEN_CALLBACKS), term);
+        vterm_screen_set_unrecognised_fallbacks(vts, Some(&VTERM_FALLBACKS), term);
+        vterm_screen_set_damage_merge(vts, VTERM_DAMAGE_SCROLL);
+        vterm_screen_reset(vts, 1);
         vterm_output_set_callback(&raw mut (*term).vt, Some(term_output_callback), term);
 
         vterm_state_set_selection_callbacks(
@@ -1066,7 +1064,7 @@ pub unsafe fn terminal_check_size(term: *mut Terminal) {
         }
 
         vterm_set_size(&raw mut (*term).vt, c_int::from(height), c_int::from(width));
-        vterm_screen_flush_damage((*term).vts);
+        vterm_screen_flush_damage((*term).vt.screen_mut_ptr());
         (*term).pending.resize = true;
         invalidate_terminal(term, -1, -1);
     }
@@ -1611,7 +1609,7 @@ pub unsafe fn terminal_receive(term: *mut Terminal, data: *const c_char, len: us
         } else {
             vterm_input_write(&raw mut (*term).vt, data, len);
         }
-        vterm_screen_flush_damage((*term).vts);
+        vterm_screen_flush_damage((*term).vt.screen_mut_ptr());
 
         if (*term).sync_flush_pending {
             (*term).sync_flush_pending = false;
@@ -2365,7 +2363,7 @@ unsafe fn fetch_cell(
                 return false;
             }
         } else {
-            vterm_screen_get_cell((*term).vts, VTermPos { row, col }, cell);
+            vterm_screen_get_cell((*term).vt.screen_mut_ptr(), VTermPos { row, col }, cell);
         }
         true
     }

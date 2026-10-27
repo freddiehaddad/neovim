@@ -25,7 +25,7 @@ use crate::tui::termkey::driver_ti::{
     TERMKEY_TYPE_APC, TERMKEY_TYPE_DCS, TERMKEY_TYPE_FUNCTION, TERMKEY_TYPE_KEYSYM,
     TERMKEY_TYPE_MODEREPORT, TERMKEY_TYPE_MOUSE, TERMKEY_TYPE_OSC, TERMKEY_TYPE_POSITION,
     TERMKEY_TYPE_UNICODE, TERMKEY_TYPE_UNKNOWN_CSI, TermKey, TermKeyKey, TermKeyResult, TermKeySym,
-    TermKeyTI, TermKeyTerminfoGetstrHook, TerminfoEntry, keyinfo, peekkey_ti, start_driver_ti,
+    TermKeyTI, TerminfoEntry, keyinfo, peekkey_ti, start_driver_ti,
 };
 use std::ffi::{CStr, c_char, c_int};
 
@@ -369,8 +369,6 @@ pub unsafe fn termkey_new_abstract(term: Option<&TerminfoEntry>, flags: c_int) -
             buffstart: 0,
             buffcount: 0,
             hightide: 0,
-            ti_getstr_hook: None,
-            ti_getstr_hook_data: std::ptr::null_mut(),
             is_closed: 0,
             is_started: 0,
             keynames: vec![None; 64],
@@ -394,7 +392,9 @@ pub unsafe fn termkey_new_abstract(term: Option<&TerminfoEntry>, flags: c_int) -
         register_c0(&mut tk, TERMKEY_SYM_ENTER, 0x0d, None);
         register_c0(&mut tk, TERMKEY_SYM_ESCAPE, 0x1b, None);
 
-        if (flags & TERMKEY_FLAG_NOSTART) == 0 && termkey_start(&mut tk, term) == 0 {
+        if (flags & TERMKEY_FLAG_NOSTART) == 0
+            && termkey_start(&mut tk, term, std::ptr::null_mut()) == 0
+        {
             return None;
         }
 
@@ -402,22 +402,17 @@ pub unsafe fn termkey_new_abstract(term: Option<&TerminfoEntry>, flags: c_int) -
     }
 }
 
-pub fn termkey_hook_terminfo_getstr(
+pub unsafe fn termkey_start(
     tk: &mut TermKey,
-    hookfn: TermKeyTerminfoGetstrHook,
-    data: *mut crate::tui::input::TermInput,
-) {
-    tk.ti_getstr_hook = hookfn;
-    tk.ti_getstr_hook_data = data;
-}
-
-pub unsafe fn termkey_start(tk: &mut TermKey, term: Option<&TerminfoEntry>) -> c_int {
+    term: Option<&TerminfoEntry>,
+    input: *mut crate::tui::input::TermInput,
+) -> c_int {
     unsafe {
         if tk.is_started != 0 {
             return 1;
         }
 
-        if start_driver_ti(tk, term) == 0 {
+        if start_driver_ti(tk, term, input) == 0 {
             return 0;
         }
 
@@ -1219,7 +1214,7 @@ mod tests {
 
             termkey_stop(tk);
             assert_eq!(tk.is_started, 0);
-            termkey_start(tk, None);
+            termkey_start(tk, None, std::ptr::null_mut());
             assert_eq!(tk.is_started, 1);
 
             let mut key = TermKeyKey::new();

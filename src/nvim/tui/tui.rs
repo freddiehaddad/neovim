@@ -365,7 +365,6 @@ pub unsafe fn tui_start(
         signal_watcher_init((*tui).loop_, tui_winch_handle(tui), tui);
         signal_watcher_start(tui_winch_handle(tui), SIGWINCH);
 
-        (*tui).input.tk_ti_hook_fn = Some(tui_tk_ti_getstr);
         (*tui).grid.cells.clear();
         tui_terminal_start(tui);
 
@@ -3296,7 +3295,7 @@ unsafe fn tui_get_stty_erase(input: *mut TermInput) -> *const c_char {
     }
 }
 
-unsafe fn tui_tk_ti_getstr(
+pub(crate) unsafe fn tui_tk_ti_getstr(
     name: *const c_char,
     value: *const c_char,
     input: *mut TermInput,

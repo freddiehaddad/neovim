@@ -25,16 +25,14 @@ use crate::tui::termkey::driver_ti::{
     TERMKEY_KEYMOD_SHIFT, TERMKEY_RES_AGAIN, TERMKEY_RES_KEY, TERMKEY_SYM_SUSPEND,
     TERMKEY_TYPE_APC, TERMKEY_TYPE_DCS, TERMKEY_TYPE_FUNCTION, TERMKEY_TYPE_KEYSYM,
     TERMKEY_TYPE_MODEREPORT, TERMKEY_TYPE_MOUSE, TERMKEY_TYPE_OSC, TERMKEY_TYPE_UNICODE,
-    TERMKEY_TYPE_UNKNOWN_CSI, TermKey, TermKeyKey, TermKeyResult, TermKeyTerminfoGetstrHook,
-    TerminfoEntry,
+    TERMKEY_TYPE_UNKNOWN_CSI, TermKey, TermKeyKey, TermKeyResult, TerminfoEntry,
 };
 use crate::tui::termkey::termkey::{
     TERMKEY_CANON_DELBS, TERMKEY_FLAG_KEEPC0, TERMKEY_FLAG_NOSTART, TERMKEY_FLAG_UTF8,
     TERMKEY_FORMAT_ALTISMETA, TERMKEY_FORMAT_WRAPBRACKET, TermKeyFormat,
     termkey_get_buffer_remaining, termkey_get_buffer_size, termkey_get_canonflags, termkey_getkey,
-    termkey_getkey_force, termkey_hook_terminfo_getstr, termkey_interpret_string,
-    termkey_new_abstract, termkey_push_bytes, termkey_set_buffer_size, termkey_set_canonflags,
-    termkey_start, termkey_strfkey,
+    termkey_getkey_force, termkey_interpret_string, termkey_new_abstract, termkey_push_bytes,
+    termkey_set_buffer_size, termkey_set_canonflags, termkey_start, termkey_strfkey,
 };
 use crate::tui::tui::{
     TUIData, tui_enable_extended_underline, tui_handle_primary_device_attr, tui_handle_term_mode,
@@ -80,7 +78,6 @@ pub struct TermInput {
     pub key_encoding: KeyEncoding,
     pub ttimeoutlen: OptInt,
     pub tk: Option<TermKey>,
-    pub tk_ti_hook_fn: TermKeyTerminfoGetstrHook,
     pub timer_handle: [u64; 32],
     pub bg_query_timer: [u64; 32],
     pub loop_: *mut Loop,
@@ -100,7 +97,6 @@ impl TermInput {
             key_encoding: kKeyEncodingLegacy,
             ttimeoutlen: 0,
             tk: None,
-            tk_ti_hook_fn: None,
             timer_handle: [0; 32],
             bg_query_timer: [0; 32],
             loop_: ptr::null_mut(),
@@ -228,11 +224,9 @@ pub unsafe fn tinput_init(input: *mut TermInput, loop_: *mut Loop, ti: &Terminfo
             Some(ti),
             TERMKEY_FLAG_UTF8 | TERMKEY_FLAG_NOSTART | TERMKEY_FLAG_KEEPC0,
         );
-        let tk_hook = (*input).tk_ti_hook_fn;
         let tk = (*input).tk_mut();
         termkey_set_buffer_size(tk, INPUT_BUFFER_SIZE);
-        termkey_hook_terminfo_getstr(tk, tk_hook, input);
-        termkey_start(tk, Some(ti));
+        termkey_start(tk, Some(ti), input);
 
         let curflags = termkey_get_canonflags(tk);
         termkey_set_canonflags(tk, curflags | TERMKEY_CANON_DELBS);

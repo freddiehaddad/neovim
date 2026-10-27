@@ -184,14 +184,6 @@ pub struct keyinfo {
     pub modifier_set: c_int,
 }
 
-pub type TermKeyTerminfoGetstrHook = Option<
-    unsafe fn(
-        name: *const c_char,
-        value: *const c_char,
-        data: *mut crate::tui::input::TermInput,
-    ) -> *const c_char,
->;
-
 pub struct TermKey {
     pub flags: c_int,
     pub canonflags: c_int,
@@ -199,8 +191,6 @@ pub struct TermKey {
     pub buffstart: usize,
     pub buffcount: usize,
     pub hightide: usize,
-    pub ti_getstr_hook: TermKeyTerminfoGetstrHook,
-    pub ti_getstr_hook_data: *mut crate::tui::input::TermInput,
     pub is_closed: c_char,
     pub is_started: c_char,
     pub keynames: Vec<Option<&'static CStr>>,
@@ -418,8 +408,8 @@ fn insert_seq(root: &mut TrieNode, seq: &[u8], info: keyinfo) {
 }
 
 unsafe fn try_load_terminfo_key(
-    tk: &TermKey,
     ti: Option<&TerminfoEntry>,
+    input: *mut crate::tui::input::TermInput,
     root: &mut TrieNode,
     fn_nr: bool,
     key: usize,
@@ -443,8 +433,8 @@ unsafe fn try_load_terminfo_key(
             }
         }
 
-        if let Some(hook) = tk.ti_getstr_hook {
-            value = hook(name, value, tk.ti_getstr_hook_data);
+        if !input.is_null() {
+            value = crate::tui::tui::tui_tk_ti_getstr(name, value, input);
         }
 
         if value.is_null() || value == (-1isize as *const c_char) || *value == 0 {
@@ -458,7 +448,11 @@ unsafe fn try_load_terminfo_key(
     }
 }
 
-unsafe fn load_terminfo(tk: &mut TermKey, ti: Option<&TerminfoEntry>) {
+unsafe fn load_terminfo(
+    tk: &mut TermKey,
+    ti: Option<&TerminfoEntry>,
+    input: *mut crate::tui::input::TermInput,
+) {
     unsafe {
         let mut root = TrieNode::new_arr(0, 0xff);
 
@@ -475,8 +469,8 @@ unsafe fn load_terminfo(tk: &mut TermKey, ti: Option<&TerminfoEntry>) {
                 modifier_set: entry.mods,
             };
             if !try_load_terminfo_key(
-                tk,
                 ti,
+                input,
                 &mut root,
                 false,
                 entry.ti_key as usize,
@@ -502,8 +496,8 @@ unsafe fn load_terminfo(tk: &mut TermKey, ti: Option<&TerminfoEntry>) {
                 modifier_set: entry.mods | TERMKEY_KEYMOD_SHIFT,
             };
             try_load_terminfo_key(
-                tk,
                 ti,
+                input,
                 &mut root,
                 false,
                 entry.ti_key as usize,
@@ -526,8 +520,8 @@ unsafe fn load_terminfo(tk: &mut TermKey, ti: Option<&TerminfoEntry>) {
                 modifier_set: 0,
             };
             if !try_load_terminfo_key(
-                tk,
                 ti,
+                input,
                 &mut root,
                 true,
                 i - 1,
@@ -549,10 +543,14 @@ impl TermKeyTI {
     }
 }
 
-pub unsafe fn start_driver_ti(tk: &mut TermKey, ti: Option<&TerminfoEntry>) -> c_int {
+pub unsafe fn start_driver_ti(
+    tk: &mut TermKey,
+    ti: Option<&TerminfoEntry>,
+    input: *mut crate::tui::input::TermInput,
+) -> c_int {
     unsafe {
         if tk.ti.root.is_none() {
-            load_terminfo(tk, ti);
+            load_terminfo(tk, ti, input);
         }
         1
     }
@@ -649,7 +647,7 @@ mod tests {
 
         unsafe {
             let mut tk = termkey_new_abstract(None, 0).unwrap();
-            assert_eq!(start_driver_ti(&mut tk, None), 1);
+            assert_eq!(start_driver_ti(&mut tk, None, std::ptr::null_mut()), 1);
         }
     }
 }
