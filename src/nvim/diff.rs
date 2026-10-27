@@ -3848,12 +3848,12 @@ pub(crate) unsafe fn xdiff_out(
         0
     }
 }
-pub unsafe fn f_diff_filler(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_diff_filler(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(diff_check_fill(*curwin.as_ptr(), tv_get_lnum(argvars)).max(0) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(diff_check_fill(*curwin.as_ptr(), tv_get_lnum(argvars)).max(0) as varnumber_T);
     }
 }
-pub unsafe fn f_diff_hlID(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_diff_hlID(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut diffline = diffline_T::default();
         let cache_results = (diff_st().diff_flags & ALL_INLINE_DIFF) == 0;
@@ -3924,7 +3924,7 @@ pub unsafe fn f_diff_hlID(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
                 }
             }
         }
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(diff_st().f_diff_hlid_hlID as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(diff_st().f_diff_hlid_hlID as varnumber_T);
     }
 }
 #[cfg(test)]

@@ -2190,7 +2190,7 @@ unsafe fn mouse_check_grid(vcolp: *mut colnr_T, flagsp: *mut c_int) {
 }
 
 /// "getmousepos()" function
-pub unsafe fn f_getmousepos(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_getmousepos(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut row = g_st().mouse_row;
         let mut col = g_st().mouse_col;
@@ -2203,7 +2203,7 @@ pub unsafe fn f_getmousepos(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr
         let mut coladd: colnr_T = 0;
 
         tv_dict_alloc_ret(rettv);
-        let d = (*rettv).vval.v_dict();
+        let d = rettv.vval.v_dict();
 
         tv_dict_add_nr(
             d,

@@ -1238,15 +1238,15 @@ pub unsafe fn arg_all() -> CString {
 }
 
 /// `argc([window id])` function (`f_argc`).
-pub unsafe fn f_argc(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_argc(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type == VarType::VAR_UNKNOWN {
-            (*rettv).vval = crate::eval::typval::TypvalVval::Number(argcount() as varnumber_T);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(argcount() as varnumber_T);
         } else if (*argvars).v_type == VarType::VAR_NUMBER && tv_get_number(argvars) == -1 {
-            (*rettv).vval = crate::eval::typval::TypvalVval::Number(gargcount() as varnumber_T);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(gargcount() as varnumber_T);
         } else {
             let wp = find_win_by_nr_or_id(argvars);
-            (*rettv).vval = crate::eval::typval::TypvalVval::Number(if !wp.is_null() {
+            rettv.vval = crate::eval::typval::TypvalVval::Number(if !wp.is_null() {
                 wargcount(wp) as varnumber_T
             } else {
                 -1
@@ -1256,19 +1256,19 @@ pub unsafe fn f_argc(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
 }
 
 /// `argidx()` function (`f_argidx`).
-pub unsafe fn f_argidx(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_argidx(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number((**curwin.as_ptr()).w_arg_idx as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number((**curwin.as_ptr()).w_arg_idx as varnumber_T);
     }
 }
 
 /// `arglistid()` function (`f_arglistid`).
-pub unsafe fn f_arglistid(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_arglistid(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         let wp = find_tabwin(argvars, argvars.add(1));
         if !wp.is_null() {
-            (*rettv).vval = crate::eval::typval::TypvalVval::Number((*win_alist(wp)).id as varnumber_T);
+            rettv.vval = crate::eval::typval::TypvalVval::Number((*win_alist(wp)).id as varnumber_T);
         }
     }
 }
@@ -1285,7 +1285,7 @@ unsafe fn get_arglist_as_rettv(arglist_ptr: *mut aentry_T, count: c_int, rettv: 
 }
 
 /// `argv(nr)` function (`f_argv`).
-pub unsafe fn f_argv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_argv(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut al_ptr: *mut aentry_T = ptr::null_mut();
         let mut count: c_int = -1;

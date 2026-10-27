@@ -972,7 +972,7 @@ unsafe fn matchadd_dict_arg(
 }
 
 /// `clearmatches()` function (`f_clearmatches`).
-pub unsafe fn f_clearmatches(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_clearmatches(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let win = get_optional_window(argvars, 0);
         if !win.is_null() {
@@ -982,7 +982,7 @@ pub unsafe fn f_clearmatches(argvars: *mut typval_T, _rettv: *mut typval_T, _fpt
 }
 
 /// `getmatches()` function (`f_getmatches`).
-pub unsafe fn f_getmatches(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_getmatches(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let win = get_optional_window(argvars, 0);
 
@@ -1033,18 +1033,18 @@ pub unsafe fn f_getmatches(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
                 tv_dict_add_str_len(dict, c"conceal".as_ptr(), 7, buf.as_ptr(), buflen);
             }
 
-            tv_list_append_dict((*rettv).vval.v_list(), dict);
+            tv_list_append_dict(rettv.vval.v_list(), dict);
         }
     }
 }
 
 /// `setmatches()` function (`f_setmatches`).
-pub unsafe fn f_setmatches(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_setmatches(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut s: *mut list_T = ptr::null_mut();
         let win = get_optional_window(argvars, 1);
 
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         if (*argvars).v_type != VarType::VAR_LIST {
             emsg(gettext((&raw const e_listreq).cast()));
             return;
@@ -1139,13 +1139,13 @@ pub unsafe fn f_setmatches(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
             li = (*li).li_next;
         }
         if !match_add_failed {
-            (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
     }
 }
 
 /// `matchadd()` function (`f_matchadd`).
-pub unsafe fn f_matchadd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_matchadd(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut grpbuf = [0 as c_char; NUMBUFLEN];
         let mut patbuf = [0 as c_char; NUMBUFLEN];
@@ -1157,7 +1157,7 @@ pub unsafe fn f_matchadd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         let mut conceal_char: *const c_char = ptr::null();
         let mut win = *curwin.as_ptr();
 
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
         if grp.is_null() || pat.is_null() {
             return;
@@ -1185,14 +1185,14 @@ pub unsafe fn f_matchadd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             return;
         }
 
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(match_add(win, grp, pat, prio, id, ptr::null_mut(), conceal_char) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(win, grp, pat, prio, id, ptr::null_mut(), conceal_char) as varnumber_T);
     }
 }
 
 /// `matchaddpos()` function (`f_matchaddpos`).
-pub unsafe fn f_matchaddpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_matchaddpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
         let mut buf = [0 as c_char; NUMBUFLEN];
         let group = tv_get_string_buf_chk(argvars, buf.as_mut_ptr());
@@ -1243,12 +1243,12 @@ pub unsafe fn f_matchaddpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             return;
         }
 
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(match_add(win, group, ptr::null(), prio, id, l, conceal_char) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(win, group, ptr::null(), prio, id, l, conceal_char) as varnumber_T);
     }
 }
 
 /// `matcharg()` function (`f_matcharg`).
-pub unsafe fn f_matcharg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_matcharg(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let id = tv_get_number(argvars) as c_int;
 
@@ -1257,27 +1257,27 @@ pub unsafe fn f_matcharg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         if (1..=3).contains(&id) {
             let m = get_match(*curwin.as_ptr(), id);
             if !m.is_null() {
-                tv_list_append_string((*rettv).vval.v_list(), syn_id2name((*m).mit_hlg_id), -1);
+                tv_list_append_string(rettv.vval.v_list(), syn_id2name((*m).mit_hlg_id), -1);
                 tv_list_append_string(
-                    (*rettv).vval.v_list(),
+                    rettv.vval.v_list(),
                     (*m).mit_pattern
                         .as_ref()
                         .map_or(ptr::null(), |p| p.as_ptr()),
                     -1,
                 );
             } else {
-                tv_list_append_string((*rettv).vval.v_list(), ptr::null(), 0);
-                tv_list_append_string((*rettv).vval.v_list(), ptr::null(), 0);
+                tv_list_append_string(rettv.vval.v_list(), ptr::null(), 0);
+                tv_list_append_string(rettv.vval.v_list(), ptr::null(), 0);
             }
         }
     }
 }
 
 /// `matchdelete()` function (`f_matchdelete`).
-pub unsafe fn f_matchdelete(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_matchdelete(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let win = get_optional_window(argvars, 1);
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(if win.is_null() {
+        rettv.vval = crate::eval::typval::TypvalVval::Number(if win.is_null() {
             -1
         } else {
             match_delete(win, tv_get_number(argvars) as c_int, true) as varnumber_T

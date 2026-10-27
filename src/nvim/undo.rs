@@ -3048,7 +3048,7 @@ unsafe fn u_eval_tree(buf: *mut buf_T, first_uhp: Option<usize>) -> *mut list_T 
 }
 
 /// `"undofile(name)"` function.
-pub unsafe fn f_undofile(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_undofile(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         crate::eval::typval::tv_set_string(rettv, ptr::null());
         let fname = tv_get_string(argvars);
@@ -3063,7 +3063,7 @@ pub unsafe fn f_undofile(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 }
 
 /// `"undotree(expr)"` function.
-pub unsafe fn f_undotree(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_undotree(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_dict_alloc_ret(rettv);
 
@@ -3077,7 +3077,7 @@ pub unsafe fn f_undotree(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             return;
         }
 
-        let dict = (*rettv).vval.v_dict();
+        let dict = rettv.vval.v_dict();
 
         tv_dict_add_nr(
             dict,

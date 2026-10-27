@@ -3653,7 +3653,7 @@ unsafe fn set_completion(mut startcol: colnr_T, list: *mut list_T) {
     }
 }
 
-pub unsafe fn f_complete(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_complete(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (g_st().State & MODE_INSERT) == 0 {
             emsg(gettext(
@@ -3677,18 +3677,18 @@ pub unsafe fn f_complete(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: E
     }
 }
 
-pub unsafe fn f_complete_add(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_complete_add(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(ins_compl_add_tv(argvars, 0, false)));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(ins_compl_add_tv(argvars, 0, false)));
     }
 }
 
-pub unsafe fn f_complete_check(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_complete_check(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let saved = g_st().RedrawingDisabled;
         g_st().RedrawingDisabled = 0;
         ins_compl_check_keys(0, true);
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(ins_compl_interrupted()));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(ins_compl_interrupted()));
         g_st().RedrawingDisabled = saved;
     }
 }
@@ -4004,7 +4004,7 @@ unsafe fn get_complete_info(what_list: *mut list_T, retdict: *mut dict_T) {
     }
 }
 
-pub unsafe fn f_complete_info(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_complete_info(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_dict_alloc_ret(rettv);
 
@@ -4017,7 +4017,7 @@ pub unsafe fn f_complete_info(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
             }
             what_list = (*argvars).vval.v_list();
         }
-        get_complete_info(what_list, (*rettv).vval.v_dict());
+        get_complete_info(what_list, rettv.vval.v_dict());
     }
 }
 
@@ -7063,10 +7063,10 @@ unsafe fn cpt_compl_refresh() {
     }
 }
 
-pub unsafe fn f_preinserted(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_preinserted(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if ins_compl_preinsert_effect() {
-            (*rettv).vval = crate::eval::typval::TypvalVval::Number(1);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(1);
         }
     }
 }

@@ -3168,16 +3168,16 @@ pub unsafe fn do_c_expr_indent() {
     }
 }
 /// "cindent(lnum)" function
-pub unsafe fn f_cindent(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_cindent(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let pos = (**curwin.as_ptr()).w_cursor;
         let lnum = tv_get_lnum(argvars);
         if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
             (**curwin.as_ptr()).w_cursor.lnum = lnum;
-            (*rettv).vval = crate::eval::typval::TypvalVval::Number(get_c_indent() as i64);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(get_c_indent() as i64);
             (**curwin.as_ptr()).w_cursor = pos;
         } else {
-            (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         }
     }
 }

@@ -521,9 +521,9 @@ unsafe fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
 }
 
 /// `"histadd()"` function (`f_histadd`).
-pub unsafe fn f_histadd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_histadd(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         if check_secure() {
             return;
         }
@@ -551,12 +551,12 @@ pub unsafe fn f_histadd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             false,
             0,
         );
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(1);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(1);
     }
 }
 
 /// `"histdel()"` function (`f_histdel`).
-pub unsafe fn f_histdel(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_histdel(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let str_ptr = tv_get_string_chk(argvars);
         let n = if str_ptr.is_null() {
@@ -574,12 +574,12 @@ pub unsafe fn f_histdel(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                 del_history_entry(htype, pat.cast_mut())
             }
         };
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(n as i64);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(n as i64);
     }
 }
 
 /// `"histget()"` function (`f_histget`).
-pub unsafe fn f_histget(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_histget(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let str_ptr = tv_get_string_chk(argvars);
         if str_ptr.is_null() {
@@ -604,7 +604,7 @@ pub unsafe fn f_histget(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
 }
 
 /// `"histnr()"` function (`f_histnr`).
-pub unsafe fn f_histnr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_histnr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let histname = tv_get_string_chk(argvars);
         let htype = if histname.is_null() {
@@ -612,7 +612,7 @@ pub unsafe fn f_histnr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
         } else {
             get_histtype(histname, CStr::from_ptr(histname).to_bytes().len(), false)
         };
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(if htype != HIST_INVALID {
+        rettv.vval = crate::eval::typval::TypvalVval::Number(if htype != HIST_INVALID {
             get_history_idx(htype) as i64
         } else {
             HIST_INVALID as i64

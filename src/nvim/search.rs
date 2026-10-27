@@ -3049,7 +3049,7 @@ unsafe fn update_search_stat(
     }
 }
 
-pub unsafe fn f_searchcount(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_searchcount(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut pos = (**curwin.as_ptr()).w_cursor;
         let mut pattern: *mut c_char = ptr::null_mut();
@@ -3158,31 +3158,31 @@ pub unsafe fn f_searchcount(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             );
 
             tv_dict_add_nr(
-                (*rettv).vval.v_dict(),
+                rettv.vval.v_dict(),
                 c"current".as_ptr(),
                 7,
                 varnumber_T::from(stat.cur),
             );
             tv_dict_add_nr(
-                (*rettv).vval.v_dict(),
+                rettv.vval.v_dict(),
                 c"total".as_ptr(),
                 5,
                 varnumber_T::from(stat.cnt),
             );
             tv_dict_add_nr(
-                (*rettv).vval.v_dict(),
+                rettv.vval.v_dict(),
                 c"exact_match".as_ptr(),
                 11,
                 varnumber_T::from(stat.exact_match),
             );
             tv_dict_add_nr(
-                (*rettv).vval.v_dict(),
+                rettv.vval.v_dict(),
                 c"incomplete".as_ptr(),
                 10,
                 varnumber_T::from(stat.incomplete),
             );
             tv_dict_add_nr(
-                (*rettv).vval.v_dict(),
+                rettv.vval.v_dict(),
                 c"maxcount".as_ptr(),
                 8,
                 varnumber_T::from(stat.last_maxcount),

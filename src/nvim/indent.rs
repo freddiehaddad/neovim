@@ -1932,28 +1932,28 @@ pub unsafe fn fix_indent() {
 }
 
 /// `indent()` function (`f_indent`).
-pub unsafe fn f_indent(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_indent(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let lnum = tv_get_lnum(argvars);
         if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
-            (*rettv).vval = crate::eval::typval::TypvalVval::Number(i64::from(get_indent_lnum(lnum)));
+            rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(get_indent_lnum(lnum)));
         } else {
-            (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         }
     }
 }
 
 /// `lispindent(lnum)` function (`f_lispindent`).
-pub unsafe fn f_lispindent(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_lispindent(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let pos = (**curwin.as_ptr()).w_cursor;
         let lnum = tv_get_lnum(argvars);
         if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
             (**curwin.as_ptr()).w_cursor.lnum = lnum;
-            (*rettv).vval = crate::eval::typval::TypvalVval::Number(i64::from(get_lisp_indent()));
+            rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(get_lisp_indent()));
             (**curwin.as_ptr()).w_cursor = pos;
         } else {
-            (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         }
     }
 }

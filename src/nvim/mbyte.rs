@@ -3182,10 +3182,10 @@ unsafe fn iconv_string(
     }
 }
 
-pub unsafe fn f_iconv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_iconv(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.v_type = VarType::VAR_STRING;
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         let str_ = tv_get_string(argvars);
         let mut buf1 = [0 as c_char; NUMBUFLEN];
@@ -3444,7 +3444,7 @@ unsafe fn first_list_number(l: *const list_T) -> varnumber_T {
     }
 }
 
-pub unsafe fn f_setcellwidths(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_setcellwidths(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type != VarType::VAR_LIST || (*argvars).vval.v_list().is_null() {
             emsg((&raw const e_listreq).cast::<c_char>());
@@ -3535,7 +3535,7 @@ pub unsafe fn f_setcellwidths(argvars: *mut typval_T, _rettv: *mut typval_T, _fp
     }
 }
 
-pub unsafe fn f_getcellwidths(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_getcellwidths(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let cw_ptr = &raw const mbyte_st().CW_TABLE;
         let table = (*cw_ptr).as_slice();
@@ -3545,17 +3545,17 @@ pub unsafe fn f_getcellwidths(_argvars: *mut typval_T, rettv: *mut typval_T, _fp
             tv_list_append_number(entry, entry_data.first);
             tv_list_append_number(entry, entry_data.last);
             tv_list_append_number(entry, varnumber_T::from(entry_data.width));
-            tv_list_append_list((*rettv).vval.v_list(), entry);
+            tv_list_append_list(rettv.vval.v_list(), entry);
         }
     }
 }
 
-pub unsafe fn f_charclass(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_charclass(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if tv_check_for_string_arg(argvars, 0) == FAIL || (*argvars).vval.v_string().is_null() {
             return;
         }
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(mb_get_class((*argvars).vval.v_string())));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(mb_get_class((*argvars).vval.v_string())));
     }
 }
 

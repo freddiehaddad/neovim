@@ -1236,10 +1236,10 @@ pub unsafe fn textpos2screenpos(
 }
 
 /// `"screenpos({winid}, {lnum}, {col})"` function.
-pub unsafe fn f_screenpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_screenpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_dict_alloc_ret(rettv);
-        let dict = (*rettv).vval.v_dict();
+        let dict = rettv.vval.v_dict();
 
         let wp = find_win_by_nr_or_id(argvars);
         if wp.is_null() {
@@ -1304,9 +1304,9 @@ unsafe fn virtcol2col(wp: *mut win_T, lnum: linenr_T, vcol: c_int) -> c_int {
 }
 
 /// `"virtcol2col({winid}, {lnum}, {col})"` function.
-pub unsafe fn f_virtcol2col(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_virtcol2col(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
         if tv_check_for_number_arg(argvars, 0) == FAIL
             || tv_check_for_number_arg(argvars, 1) == FAIL
@@ -1331,7 +1331,7 @@ pub unsafe fn f_virtcol2col(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
             return;
         }
 
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(virtcol2col(wp, lnum, screencol)));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(virtcol2col(wp, lnum, screencol)));
     }
 }
 

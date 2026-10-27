@@ -1996,10 +1996,10 @@ unsafe fn menuitem_getinfo(menu: *const vimmenu_T, modes: c_int, dict: *mut dict
 }
 
 /// `menu_info()` function (`f_menu_info`).
-pub unsafe fn f_menu_info(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_menu_info(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_dict_alloc_ret(rettv);
-        let retdict = (*rettv).vval.v_dict();
+        let retdict = rettv.vval.v_dict();
 
         let menu_name = tv_get_string_chk(argvars);
         if menu_name.is_null() {

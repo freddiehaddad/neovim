@@ -5842,7 +5842,7 @@ pub unsafe fn wildmenu_cleanup(cclp: *mut CmdlineInfo) {
 }
 
 /// "getcompletion()" function.
-pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut xpc: expand_T = expand_T::new();
         let mut filtered = false;
@@ -5969,7 +5969,7 @@ pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
         tv_list_alloc_ret(rettv, xpc.xp_numfiles as isize);
 
         for f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
-            tv_list_append_string((*rettv).vval.v_list(), f.as_ptr(), f.as_bytes().len() as isize);
+            tv_list_append_string(rettv.vval.v_list(), f.as_ptr(), f.as_bytes().len() as isize);
         }
     }
 }
@@ -5977,12 +5977,12 @@ pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
 /// "getcompletiontype()" function.
 pub unsafe fn f_getcompletiontype(
     argvars: *mut typval_T,
-    rettv: *mut typval_T,
+    rettv: &mut typval_T,
     _fptr: EvalFuncData,
 ) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.v_type = VarType::VAR_STRING;
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         if tv_check_for_string_arg(argvars, 0) == FAIL {
             return;
@@ -6011,7 +6011,7 @@ pub unsafe fn f_getcompletiontype(
 /// "cmdcomplete_info()" function.
 pub unsafe fn f_cmdcomplete_info(
     _argvars: *mut typval_T,
-    rettv: *mut typval_T,
+    rettv: &mut typval_T,
     _fptr: EvalFuncData,
 ) {
     unsafe {
@@ -6025,7 +6025,7 @@ pub unsafe fn f_cmdcomplete_info(
         let orig_ptr = &raw const cmdexp().cmdline_orig;
         let orig_ref = (*orig_ptr).as_ref();
 
-        let retdict = (*rettv).vval.v_dict();
+        let retdict = rettv.vval.v_dict();
         let mut ret = tv_dict_add_str_len(
             retdict,
             c"cmdexp().cmdline_orig".as_ptr(),

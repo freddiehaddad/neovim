@@ -1809,7 +1809,7 @@ pub unsafe fn tv_list_join(gap: &mut Vec<c_char>, l: *mut list_T, sep: *const c_
 }
 
 /// "join()" function.
-pub unsafe fn f_join(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_join(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if (*argvars).v_type != VarType::VAR_LIST {
             emsg(tr(e_listreq.as_ptr()));
@@ -1821,23 +1821,23 @@ pub unsafe fn f_join(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
             tv_get_string_chk(argvars.add(1))
         };
 
-        (*rettv).v_type = VarType::VAR_STRING;
+        rettv.v_type = VarType::VAR_STRING;
 
         if !sep.is_null() {
             let mut out: Vec<c_char> = Vec::with_capacity(80);
             tv_list_join(&mut out, (*argvars).vval.v_list(), sep);
             tv_set_string_len(rettv, out.as_ptr(), out.len());
         } else {
-            (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+            rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
     }
 }
 
 /// "list2str()" function.
-pub unsafe fn f_list2str(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_list2str(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.v_type = VarType::VAR_STRING;
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         if (*argvars).v_type != VarType::VAR_LIST {
             emsg(tr(e_invarg.as_ptr()));
             return;
@@ -2367,14 +2367,14 @@ unsafe fn do_sort_uniq(argvars: *mut typval_T, rettv: *mut typval_T, sort: bool)
 }
 
 /// "sort({list})" function.
-pub unsafe fn f_sort(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_sort(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         do_sort_uniq(argvars, rettv, true);
     }
 }
 
 /// "uniq({list})" function.
-pub unsafe fn f_uniq(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_uniq(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         do_sort_uniq(argvars, rettv, false);
     }
@@ -3804,7 +3804,7 @@ pub unsafe fn tv_blob_remove(
 }
 
 /// blob2list() function.
-pub unsafe fn f_blob2list(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_blob2list(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
 
@@ -3813,7 +3813,7 @@ pub unsafe fn f_blob2list(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
         }
 
         let blob = (*argvars).vval.v_blob();
-        let l = (*rettv).vval.v_list();
+        let l = rettv.vval.v_list();
         for i in 0..tv_blob_len_inline(blob) {
             tv_list_append_number(l, i64::from(tv_blob_get_inline(blob, i)));
         }
@@ -3821,7 +3821,7 @@ pub unsafe fn f_blob2list(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
 }
 
 /// list2blob() function.
-pub unsafe fn f_list2blob(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_list2blob(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let blob = tv_blob_alloc_ret(rettv);
 
@@ -3930,7 +3930,7 @@ unsafe fn tv_dict2list(argvars: *mut typval_T, rettv: *mut typval_T, what: DictL
 }
 
 /// "items()" function.
-pub unsafe fn f_items(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_items(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         match (*argvars).v_type {
             VarType::VAR_STRING => tv_string2items(argvars, rettv),
@@ -3948,21 +3948,21 @@ pub unsafe fn f_items(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
 }
 
 /// "keys()" function.
-pub unsafe fn f_keys(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_keys(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_dict2list(argvars, rettv, DictListType::Keys);
     }
 }
 
 /// "values(dict)" function.
-pub unsafe fn f_values(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_values(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_dict2list(argvars, rettv, DictListType::Values);
     }
 }
 
 /// "has_key()" function.
-pub unsafe fn f_has_key(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_has_key(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if tv_check_for_dict_arg(argvars, 0) == FAIL {
             return;
@@ -3972,7 +3972,7 @@ pub unsafe fn f_has_key(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             return;
         }
 
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(i64::from(
+        rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(
             !tv_dict_find((*argvars).vval.v_dict(), tv_get_string(argvars.add(1)), -1).is_null(),
         ));
     }

@@ -608,11 +608,11 @@ pub unsafe fn stacktrace_create() -> *mut list_T {
 }
 
 /// getstacktrace() function
-pub unsafe fn f_getstacktrace(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_getstacktrace(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let l = stacktrace_create();
-        (*rettv).v_type = VarType::VAR_LIST;
-        (*rettv).vval = crate::eval::typval::TypvalVval::List(l);
+        rettv.v_type = VarType::VAR_LIST;
+        rettv.vval = crate::eval::typval::TypvalVval::List(l);
         if !l.is_null() {
             (*l).lv_refcount += 1;
         }
@@ -3294,7 +3294,7 @@ unsafe fn get_script_local_funcs(sid: scid_T) -> *mut list_T {
 }
 
 /// "getscriptinfo()" function
-pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, script_items_len() as isize);
 
@@ -3302,7 +3302,7 @@ pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
             return;
         }
 
-        let l = (*rettv).vval.v_list();
+        let l = rettv.vval.v_list();
 
         let mut regmatch: regmatch_T = regmatch_T::new();
         regmatch.rm_ic = opt_vars().p_ic != 0;

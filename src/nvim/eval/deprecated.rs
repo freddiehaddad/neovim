@@ -28,10 +28,10 @@ const fn callback_reader_init() -> CallbackReader {
 }
 
 /// `"rpcstart()"` function (`f_rpcstart`).
-pub unsafe fn f_rpcstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_rpcstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_NUMBER;
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
+        rettv.v_type = VarType::VAR_NUMBER;
+        rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
         if check_secure() {
             return;
@@ -102,7 +102,7 @@ pub unsafe fn f_rpcstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             0,
             0,
             std::ptr::null_mut(),
-            (*rettv).vval.v_number_mut(),
+            rettv.vval.v_number_mut(),
         );
         if !chan.is_null() {
             channel_create_event(chan, std::ptr::null());
@@ -111,10 +111,10 @@ pub unsafe fn f_rpcstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 }
 
 /// `"rpcstop()"` function (`f_rpcstop`).
-pub unsafe fn f_rpcstop(argvars: *mut typval_T, rettv: *mut typval_T, fptr: EvalFuncData) {
+pub unsafe fn f_rpcstop(argvars: *mut typval_T, rettv: &mut typval_T, fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_NUMBER;
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
+        rettv.v_type = VarType::VAR_NUMBER;
+        rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
         if check_secure() {
             return;
@@ -132,7 +132,7 @@ pub unsafe fn f_rpcstop(argvars: *mut typval_T, rettv: *mut typval_T, fptr: Eval
         } else {
             let mut error: *const c_char = std::ptr::null();
             let closed = channel_close(id, K_CHANNEL_PART_RPC, &mut error);
-            (*rettv).vval = crate::eval::typval::TypvalVval::Number(i64::from(closed));
+            rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(closed));
             if !closed {
                 emsg(error);
             }
@@ -141,7 +141,7 @@ pub unsafe fn f_rpcstop(argvars: *mut typval_T, rettv: *mut typval_T, fptr: Eval
 }
 
 /// `"last_buffer_nr()"` function (`f_last_buffer_nr`).
-pub unsafe fn f_last_buffer_nr(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_last_buffer_nr(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut n: c_int = 0;
         let mut buf = g_st().firstbuf;
@@ -151,12 +151,12 @@ pub unsafe fn f_last_buffer_nr(_argvars: *mut typval_T, rettv: *mut typval_T, _f
             }
             buf = (*buf).b_next;
         }
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(n as i64);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(n as i64);
     }
 }
 
 /// `"termopen(cmd[, cwd])"` function (`f_termopen`).
-pub unsafe fn f_termopen(argvars: *mut typval_T, rettv: *mut typval_T, fptr: EvalFuncData) {
+pub unsafe fn f_termopen(argvars: *mut typval_T, rettv: &mut typval_T, fptr: EvalFuncData) {
     unsafe {
         if check_secure() {
             return;

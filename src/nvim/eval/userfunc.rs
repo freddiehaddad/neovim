@@ -82,7 +82,7 @@ use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-pub type VimLFunc = Option<unsafe fn(*mut typval_T, *mut typval_T, EvalFuncData)>;
+pub type VimLFunc = Option<unsafe fn(*mut typval_T, &mut typval_T, EvalFuncData)>;
 
 #[repr(C)]
 pub struct ufunc_T {

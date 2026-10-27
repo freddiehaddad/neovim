@@ -2105,23 +2105,23 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow
 }
 
 /// `"getchar()"` function.
-pub unsafe fn f_getchar(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_getchar(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         getchar_common(argvars, rettv, true);
     }
 }
 
 /// `"getcharstr()"` function.
-pub unsafe fn f_getcharstr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_getcharstr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         getchar_common(argvars, rettv, false);
     }
 }
 
 /// `"getcharmod()"` function.
-pub unsafe fn f_getcharmod(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_getcharmod(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(g_st().mod_mask));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(g_st().mod_mask));
     }
 }
 

@@ -7609,12 +7609,12 @@ pub unsafe fn cmd_exists(name: *const c_char) -> c_int {
     }
 }
 
-pub unsafe fn f_fullcommand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_fullcommand(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut name = tv_get_string(argvars).cast_mut();
 
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.v_type = VarType::VAR_STRING;
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         while *name == b':' as c_char {
             name = name.add(1);

@@ -661,14 +661,14 @@ unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: *mut typval_T, retmatch
 }
 
 /// `"matchfuzzy()"` function (`f_matchfuzzy`).
-pub unsafe fn f_matchfuzzy(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_matchfuzzy(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         do_fuzzymatch(argvars, rettv, false);
     }
 }
 
 /// `"matchfuzzypos()"` function (`f_matchfuzzypos`).
-pub unsafe fn f_matchfuzzypos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_matchfuzzypos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         do_fuzzymatch(argvars, rettv, true);
     }

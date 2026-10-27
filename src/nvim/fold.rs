@@ -2759,34 +2759,34 @@ unsafe fn foldclosed_both(argvars: *mut typval_T, rettv: *mut typval_T, end: boo
 }
 
 /// "foldclosed()" function
-pub unsafe fn f_foldclosed(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_foldclosed(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         foldclosed_both(argvars, rettv, false);
     }
 }
 
 /// "foldclosedend()" function
-pub unsafe fn f_foldclosedend(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_foldclosedend(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         foldclosed_both(argvars, rettv, true);
     }
 }
 
 /// "foldlevel()" function
-pub unsafe fn f_foldlevel(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_foldlevel(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let lnum = tv_get_lnum(argvars);
         if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
-            (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(foldLevel(lnum)));
+            rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(foldLevel(lnum)));
         }
     }
 }
 
 /// "foldtext()" function
-pub unsafe fn f_foldtext(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_foldtext(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.v_type = VarType::VAR_STRING;
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         let foldstart = get_vim_var_nr(VV_FOLDSTART) as linenr_T;
         let foldend = get_vim_var_nr(VV_FOLDEND) as linenr_T;
@@ -2834,10 +2834,10 @@ pub unsafe fn f_foldtext(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
 }
 
 /// "foldtextresult(lnum)" function
-pub unsafe fn f_foldtextresult(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_foldtextresult(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.v_type = VarType::VAR_STRING;
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         if fold_st().fdt_result_entered {
             return;
         }

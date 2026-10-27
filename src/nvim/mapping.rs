@@ -2091,7 +2091,7 @@ pub unsafe fn check_map(
 }
 
 /// "hasmapto()" function
-pub unsafe fn f_hasmapto(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_hasmapto(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let name = tv_get_string(argvars);
         let mut abbr = false;
@@ -2106,7 +2106,7 @@ pub unsafe fn f_hasmapto(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             m
         };
 
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(i64::from(map_to_exists(name, mode, abbr)));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(map_to_exists(name, mode, abbr)));
     }
 }
 
@@ -2383,7 +2383,7 @@ unsafe fn get_map_mode_string(mode_string: *const c_char, abbr: bool) -> c_int {
 }
 
 /// "mapset()" function
-pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if check_secure() {
             return;
@@ -2522,7 +2522,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
 }
 
 /// "maplist()" function
-pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let flags = REPTERM_FROM_PART | REPTERM_DO_LT;
         let abbr = (*argvars).v_type != VarType::VAR_UNKNOWN && tv_get_bool(argvars) != 0;
@@ -2580,7 +2580,7 @@ pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                     let mut dobj = dict_obj(dict);
                     object_to_vim_take_luaref(&mut dobj, &mut d, true, ptr::null_mut());
                     debug_assert!(d.v_type == VarType::VAR_DICT);
-                    tv_list_append_dict((*rettv).vval.v_list(), d.vval.v_dict());
+                    tv_list_append_dict(rettv.vval.v_list(), d.vval.v_dict());
                     arena_mem_free(arena_finish(&mut arena));
                 }
             }
@@ -2589,14 +2589,14 @@ pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
 }
 
 /// "maparg()" function
-pub unsafe fn f_maparg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_maparg(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         get_maparg(argvars, rettv, 1);
     }
 }
 
 /// "mapcheck()" function
-pub unsafe fn f_mapcheck(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_mapcheck(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         get_maparg(argvars, rettv, 0);
     }

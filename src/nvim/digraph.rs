@@ -2011,10 +2011,10 @@ unsafe fn digraph_set_common(argchars: *const typval_T, argdigraph: *const typva
 }
 
 /// `digraph_get()` function (`f_digraph_get`).
-pub unsafe fn f_digraph_get(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_digraph_get(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.v_type = VarType::VAR_STRING;
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         let digraphs = tv_get_string_chk(argvars);
 
         if digraphs.is_null() {
@@ -2037,7 +2037,7 @@ pub unsafe fn f_digraph_get(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
 }
 
 /// `digraph_getlist()` function (`f_digraph_getlist`).
-pub unsafe fn f_digraph_getlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_digraph_getlist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         if tv_check_for_opt_bool_arg(argvars, 0) == FAIL {
             return;
@@ -2054,24 +2054,24 @@ pub unsafe fn f_digraph_getlist(argvars: *mut typval_T, rettv: *mut typval_T, _f
 }
 
 /// `digraph_set()` function (`f_digraph_set`).
-pub unsafe fn f_digraph_set(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_digraph_set(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_BOOL;
-        (*rettv).vval = crate::eval::typval::TypvalVval::Bool(kBoolVarFalse);
+        rettv.v_type = VarType::VAR_BOOL;
+        rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarFalse);
 
         if !digraph_set_common(argvars, argvars.add(1)) {
             return;
         }
 
-        (*rettv).vval = crate::eval::typval::TypvalVval::Bool(kBoolVarTrue);
+        rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarTrue);
     }
 }
 
 /// `digraph_setlist()` function (`f_digraph_setlist`).
-pub unsafe fn f_digraph_setlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+pub unsafe fn f_digraph_setlist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_BOOL;
-        (*rettv).vval = crate::eval::typval::TypvalVval::Bool(kBoolVarFalse);
+        rettv.v_type = VarType::VAR_BOOL;
+        rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarFalse);
 
         if (*argvars).v_type != VarType::VAR_LIST {
             emsg(gettext(
@@ -2082,7 +2082,7 @@ pub unsafe fn f_digraph_setlist(argvars: *mut typval_T, rettv: *mut typval_T, _f
 
         let pl = (*argvars).vval.v_list();
         if pl.is_null() {
-            (*rettv).vval = crate::eval::typval::TypvalVval::Bool(kBoolVarTrue);
+            rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarTrue);
             return;
         }
 
@@ -2120,7 +2120,7 @@ pub unsafe fn f_digraph_setlist(argvars: *mut typval_T, rettv: *mut typval_T, _f
             };
         }
 
-        (*rettv).vval = crate::eval::typval::TypvalVval::Bool(kBoolVarTrue);
+        rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarTrue);
     }
 }
 
