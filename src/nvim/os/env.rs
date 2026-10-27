@@ -933,7 +933,7 @@ pub unsafe fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
         {
             let mut vim_path_cstr: Option<std::ffi::CString> = None;
             if vimruntime
-                && *default_vimruntime_dir == NUL
+                && *default_vimruntime_dir() == NUL
                 && let Some(kos_cstr) = os_getenv_cstr(c"VIM".as_ptr())
             {
                 vim_path_cstr = vim_runtime_dir(kos_cstr.as_ptr()).or(Some(kos_cstr));
@@ -985,14 +985,14 @@ pub unsafe fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
             }
 
             if vim_path_cstr.is_none() {
-                if vimruntime && *default_vimruntime_dir != NUL {
-                    vim_path_cstr = Some(CStr::from_ptr(default_vimruntime_dir).to_owned());
-                } else if *default_vim_dir != NUL {
+                if vimruntime && *default_vimruntime_dir() != NUL {
+                    vim_path_cstr = Some(CStr::from_ptr(default_vimruntime_dir()).to_owned());
+                } else if *default_vim_dir() != NUL {
                     if vimruntime {
-                        vim_path_cstr = vim_runtime_dir(default_vim_dir);
+                        vim_path_cstr = vim_runtime_dir(default_vim_dir());
                     }
                     if vim_path_cstr.is_none() {
-                        vim_path_cstr = Some(CStr::from_ptr(default_vim_dir).to_owned());
+                        vim_path_cstr = Some(CStr::from_ptr(default_vim_dir()).to_owned());
                     }
                 }
             }

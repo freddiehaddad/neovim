@@ -682,7 +682,7 @@ pub unsafe fn spell_load_file(
 
         if check_someerror {
             if res == SP_FORMERROR {
-                emsg(gettext(e_format));
+                emsg(gettext(e_format.as_ptr()));
                 fail = true;
             } else if res == SP_TRUNCERROR {
                 emsg(gettext(e_spell_trunc));

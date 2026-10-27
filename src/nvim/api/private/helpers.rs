@@ -4218,7 +4218,7 @@ pub unsafe fn api_get_packed_metadata(len: *mut usize) -> *const u8 {
         mpack_push_str(&mut out, b"api_prerelease");
         mpack_push_bool(&mut out, nvim_api_prerelease);
         mpack_push_str(&mut out, b"build");
-        let build_ptr = unsafe { nvim_version_build };
+        let build_ptr = nvim_version_build();
         if build_ptr.is_null() {
             out.push(0xc0);
         } else {

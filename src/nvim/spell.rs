@@ -193,7 +193,7 @@ pub static mut spelltab: spelltab_T = spelltab_T {
     st_upper: [0; 256],
 };
 pub static mut did_set_spelltab: bool = false;
-pub static mut e_format: *mut c_char = c"E759: Format error in spell file".as_ptr().cast_mut();
+pub const e_format: &std::ffi::CStr = c"E759: Format error in spell file";
 pub static mut repl_from: Option<std::ffi::CString> = None;
 pub static mut repl_to: Option<std::ffi::CString> = None;
 static mut parse_spelllang_recursive: bool = false;
@@ -491,7 +491,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
             arridx += 1;
             if *byts.add(arridx as usize) == 0 {
                 if endidxcnt == MAXWLEN {
-                    emsg(gettext(e_format));
+                    emsg(gettext(e_format.as_ptr()));
                     return;
                 }
                 endlen[endidxcnt] = wlen;

@@ -2295,8 +2295,11 @@ unsafe fn add_dir(
 
 pub unsafe fn get_lib_dir() -> Option<std::ffi::CString> {
     unsafe {
-        if !default_lib_dir.is_null() && *default_lib_dir != NUL && os_isdir(default_lib_dir) {
-            return Some(crate::memory::cstr_to_cstring(default_lib_dir));
+        if !default_lib_dir().is_null()
+            && *default_lib_dir() != NUL
+            && os_isdir(default_lib_dir().cast_mut())
+        {
+            return Some(crate::memory::cstr_to_cstring(default_lib_dir()));
         }
 
         let mut exe_name = [0 as c_char; MAXPATHL];

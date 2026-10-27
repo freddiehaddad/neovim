@@ -364,32 +364,7 @@ const E_WRONG_CHARACTER_WIDTH_FOR_FIELD_STR: &CStr =
 const E_CONFLICTS_WITH_VALUE_OF_LISTCHARS: &CStr = c"E834: Conflicts with value of 'listchars'";
 const E_CONFLICTS_WITH_VALUE_OF_FILLCHARS: &CStr = c"E835: Conflicts with value of 'fillchars'";
 
-static mut SHM_ALL: [c_char; 24] = [
-    b'r' as c_char,
-    b'm' as c_char,
-    b'l' as c_char,
-    b'w' as c_char,
-    b'a' as c_char,
-    b'W' as c_char,
-    b't' as c_char,
-    b'T' as c_char,
-    b'o' as c_char,
-    b'O' as c_char,
-    b's' as c_char,
-    b'A' as c_char,
-    b'I' as c_char,
-    b'c' as c_char,
-    b'C' as c_char,
-    b'q' as c_char,
-    b'F' as c_char,
-    b'S' as c_char,
-    b'u' as c_char,
-    b'n' as c_char,
-    b'f' as c_char,
-    b'x' as c_char,
-    b'i' as c_char,
-    0,
-];
+const SHM_ALL: &CStr = c"rmlwaWtToOsAIcCqFSunfxi";
 
 static mut set_opt_callback_orig_option: *mut c_char = ptr::null_mut();
 static mut set_opt_callback_func: CompleteListItemGetter = None;
@@ -2901,7 +2876,7 @@ pub unsafe fn expand_set_shortmess(
     args: *mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
-    unsafe { expand_set_opt_listflag(args, (&raw const SHM_ALL).cast::<c_char>(), matches) }
+    unsafe { expand_set_opt_listflag(args, SHM_ALL.as_ptr(), matches) }
 }
 
 /// Validate the 'shortmess' option.
@@ -2909,7 +2884,7 @@ pub unsafe fn validate_shortmess(args: *mut optset_T) -> *const c_char {
     unsafe {
         check_option_listflag(
             (*args).os_newval.data.string().data,
-            (&raw const SHM_ALL).cast::<c_char>(),
+            SHM_ALL.as_ptr(),
             (*args).os_errbuf,
         )
     }

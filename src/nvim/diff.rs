@@ -198,7 +198,7 @@ static mut diff_need_update: bool = false;
 static mut diff_flags: c_int =
     DIFF_INTERNAL | DIFF_FILLER | DIFF_CLOSE_OFF | DIFF_LINEMATCH | DIFF_INLINE_CHAR;
 static mut diff_algorithm: c_int = XDF_INDENT_HEURISTIC;
-static mut diff_word_gap: c_int = 5;
+const diff_word_gap: c_int = 5;
 static mut linematch_lines: c_int = 40;
 static mut diff_a_works: TriState = kNone;
 static mut next_diff_id: u64 = 1;

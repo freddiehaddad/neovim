@@ -415,7 +415,7 @@ pub unsafe fn ml_open(buf: *mut buf_T) -> c_int {
         (*b0p).b0_magic_short = B0_MAGIC_SHORT;
         (*b0p).b0_magic_char = B0_MAGIC_CHAR;
         let ver_dst = xstpcpy((&raw mut (*b0p).b0_version).cast(), c"VIM ".as_ptr());
-        xstrlcpy(ver_dst, *(&raw const Versions).cast::<*mut c_char>(), 6);
+        xstrlcpy(ver_dst, Versions[0].as_ptr(), 6);
         long_to_char(
             (*mfp).mf_page_size as c_long,
             (&raw mut (*b0p).b0_page_size).cast(),

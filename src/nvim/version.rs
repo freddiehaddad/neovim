@@ -3735,13 +3735,7 @@ static INCLUDED_PATCHSETS: [&[c_int]; 5] = [
     PATCHES_902,
 ];
 
-pub static mut Versions: [*mut c_char; 5] = [
-    c"8.1".as_ptr().cast_mut(),
-    c"8.2".as_ptr().cast_mut(),
-    c"9.0".as_ptr().cast_mut(),
-    c"9.1".as_ptr().cast_mut(),
-    c"9.2".as_ptr().cast_mut(),
-];
+pub const Versions: [&CStr; 5] = [c"8.1", c"8.2", c"9.0", c"9.1", c"9.2"];
 
 const fn make_cstr_buf<const N: usize>(opt: Option<&str>) -> [u8; N] {
     let mut buf = [0u8; N];
@@ -3818,34 +3812,56 @@ pub const nvim_api_level: c_int = parse_version_int(option_env!("NVIM_API_LEVEL"
 pub const nvim_api_level_compat: c_int = parse_version_int(option_env!("NVIM_API_LEVEL_COMPAT"), 0);
 pub const nvim_api_prerelease: bool = env_flag_enabled(option_env!("NVIM_API_PRERELEASE"), true);
 
-pub static mut version_buildtype: *mut c_char = (&raw const VERSION_BUILDTYPE_BUF)
-    .cast::<c_char>()
-    .cast_mut();
-pub static mut version_cflags: *mut c_char = if match option_env!("NVIM_VERSION_CFLAGS") {
-    Some(s) => !s.is_empty(),
-    None => false,
-} {
-    (&raw const VERSION_CFLAGS_BUF).cast::<c_char>().cast_mut()
-} else {
-    ptr::null_mut()
-};
-pub static mut default_vim_dir: *mut c_char =
-    (&raw const DEFAULT_VIM_DIR_BUF).cast::<c_char>().cast_mut();
-pub static mut default_vimruntime_dir: *mut c_char = (&raw const DEFAULT_VIMRUNTIME_DIR_BUF)
-    .cast::<c_char>()
-    .cast_mut();
-pub static mut default_lib_dir: *mut c_char =
-    (&raw const DEFAULT_LIB_DIR_BUF).cast::<c_char>().cast_mut();
+#[inline]
+pub const fn version_buildtype() -> *const c_char {
+    (&raw const VERSION_BUILDTYPE_BUF).cast::<c_char>()
+}
+
+#[inline]
+pub const fn version_cflags() -> *const c_char {
+    if match option_env!("NVIM_VERSION_CFLAGS") {
+        Some(s) => !s.is_empty(),
+        None => false,
+    } {
+        (&raw const VERSION_CFLAGS_BUF).cast::<c_char>()
+    } else {
+        ptr::null()
+    }
+}
+
+#[inline]
+pub const fn default_vim_dir() -> *const c_char {
+    (&raw const DEFAULT_VIM_DIR_BUF).cast::<c_char>()
+}
+
+#[inline]
+pub const fn default_vimruntime_dir() -> *const c_char {
+    (&raw const DEFAULT_VIMRUNTIME_DIR_BUF).cast::<c_char>()
+}
+
+#[inline]
+pub const fn default_lib_dir() -> *const c_char {
+    (&raw const DEFAULT_LIB_DIR_BUF).cast::<c_char>()
+}
+
 pub static main_exitfree: bool = env_flag_enabled(option_env!("NVIM_EXITFREE"), false);
-pub static mut longVersion: *mut c_char = (&raw const LONG_VERSION_BUF).cast::<c_char>().cast_mut();
-pub static mut nvim_version_build: *const c_char = if match option_env!("NVIM_VERSION_BUILD") {
-    Some(s) => !s.is_empty(),
-    None => false,
-} {
-    (&raw const VERSION_BUILD_BUF).cast::<c_char>()
-} else {
-    ptr::null()
-};
+
+#[inline]
+pub const fn longVersion() -> *const c_char {
+    (&raw const LONG_VERSION_BUF).cast::<c_char>()
+}
+
+#[inline]
+pub const fn nvim_version_build() -> *const c_char {
+    if match option_env!("NVIM_VERSION_BUILD") {
+        Some(s) => !s.is_empty(),
+        None => false,
+    } {
+        (&raw const VERSION_BUILD_BUF).cast::<c_char>()
+    } else {
+        ptr::null()
+    }
+}
 
 fn parse_leading_int(s: &[u8]) -> Option<c_int> {
     if !s.first().is_some_and(u8::is_ascii_digit) {
@@ -4055,9 +4071,9 @@ pub unsafe fn list_lua_version() {
 pub unsafe fn list_version() {
     unsafe {
         msg_ext_set_kind(c"list_cmd".as_ptr());
-        msg_puts(longVersion);
+        msg_puts(longVersion());
         msg_putchar(b'\n' as c_int);
-        msg_puts(version_buildtype);
+        msg_puts(version_buildtype());
         msg_putchar(b'\n' as c_int);
         list_lua_version();
 
@@ -4065,17 +4081,16 @@ pub unsafe fn list_version() {
             msg_putchar(b'\n' as c_int);
             msg_puts(c"Vim versions: ".as_ptr());
 
-            let versions_ptr = (&raw const Versions).cast::<*mut c_char>();
-            for i in 0..VIM_VERSIONS.len() {
+            for (i, ver) in Versions.iter().enumerate() {
                 if i > 0 {
                     msg_puts(c", ".as_ptr());
                 }
-                msg_puts(*versions_ptr.add(i));
+                msg_puts(ver.as_ptr());
             }
 
-            if !version_cflags.is_null() {
+            if !version_cflags().is_null() {
                 msg_putchar(b'\n' as c_int);
-                msg_puts(version_cflags);
+                msg_puts(version_cflags());
             }
             version_msg(c"\n\n".as_ptr());
 
@@ -4083,15 +4098,15 @@ pub unsafe fn list_version() {
             version_msg(c"$VIM/sysinit.vim".as_ptr());
             version_msg(c"\"\n".as_ptr());
 
-            if *default_vim_dir != NUL {
+            if *default_vim_dir() != NUL {
                 version_msg(gettext(c"  fall-back for $VIM: \"".as_ptr()));
-                version_msg(default_vim_dir);
+                version_msg(default_vim_dir());
                 version_msg(c"\"\n".as_ptr());
             }
 
-            if *default_vimruntime_dir != NUL {
+            if *default_vimruntime_dir() != NUL {
                 version_msg(gettext(c" f-b for $VIMRUNTIME: \"".as_ptr()));
-                version_msg(default_vimruntime_dir);
+                version_msg(default_vimruntime_dir());
                 version_msg(c"\"\n".as_ptr());
             }
         }
@@ -4126,7 +4141,7 @@ pub unsafe fn intro_message(colon: bool) {
             c"││╲╲││".as_ptr(),
             c"││ ╲ │".as_ptr(),
             c"".as_ptr(),
-            longVersion,
+            longVersion(),
             c"────────────────────────────────────────────".as_ptr(),
             c"Nvim is open source and freely distributable".as_ptr(),
             c"https://neovim.io/#chat".as_ptr(),

@@ -2731,7 +2731,7 @@ unsafe fn shada_write(
                 key: static_cstr_as_string(c"version"),
                 value: Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData::String(cstr_as_string(longVersion)),
+                    data: ObjectData::String(cstr_as_string(longVersion())),
                 },
             },
             KeyValuePair {
