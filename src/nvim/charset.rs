@@ -228,7 +228,7 @@ pub unsafe fn ascii2cells(b: c_int) -> c_int {
     if (b' ' as c_int..=b'~' as c_int).contains(&b) {
         1
     } else {
-        unsafe { dy_escape_width }
+        unsafe { opt_vars().dy_escape_width }
     }
 }
 
@@ -259,7 +259,7 @@ pub unsafe fn init_isf_chartab() -> c_int {
     unsafe {
         let save_chartab = charset_st().isf_chartab;
         charset_st().isf_chartab = [0, 0, 0xFFFF_FFFF_0000_0000, 0xFFFF_FFFF_FFFF_FFFF];
-        if parse_isopt(p_isf, (&raw mut charset_st().isf_chartab).cast::<u64>()) == FAIL {
+        if parse_isopt(opt_vars().p_isf, (&raw mut charset_st().isf_chartab).cast::<u64>()) == FAIL {
             charset_st().isf_chartab = save_chartab;
             return FAIL;
         }
@@ -271,7 +271,7 @@ pub unsafe fn init_isi_chartab() -> c_int {
     unsafe {
         let save_chartab = charset_st().isi_chartab;
         charset_st().isi_chartab = [0; 4];
-        if parse_isopt(p_isi, (&raw mut charset_st().isi_chartab).cast::<u64>()) == FAIL {
+        if parse_isopt(opt_vars().p_isi, (&raw mut charset_st().isi_chartab).cast::<u64>()) == FAIL {
             charset_st().isi_chartab = save_chartab;
             return FAIL;
         }
@@ -643,7 +643,7 @@ pub unsafe fn transchar_nonprint(buf: *const buf_T, charbuf: *mut c_char, mut c:
         }
         assert!(c <= 0xff);
 
-        if (dy_flags & kOptDyFlagUhex) != 0 || c > 0x7f {
+        if (opt_vars().dy_flags & kOptDyFlagUhex) != 0 || c > 0x7f {
             transchar_hex(charbuf, c);
         } else {
             *charbuf = b'^' as c_char;

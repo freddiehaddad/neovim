@@ -231,8 +231,8 @@ pub unsafe fn tinput_init(input: *mut TermInput, loop_: *mut Loop, ti: &Terminfo
         (*input).paste = 0;
         (*input).in_fd = STDIN_FILENO;
         {
-            (*input).ttimeout = p_ttimeout != 0;
-            (*input).ttimeoutlen = p_ttm;
+            (*input).ttimeout = opt_vars().p_ttimeout != 0;
+            (*input).ttimeoutlen = opt_vars().p_ttm;
         }
 
         rstream_init_fd(loop_, &raw mut (*input).read_stream, (*input).in_fd);

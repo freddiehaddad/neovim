@@ -1182,9 +1182,9 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
             parse_cino(curbuf);
         }
 
-        if (got_int && !vim_strchr(p_cpo, kCpoIntmod).is_null())
+        if (got_int && !vim_strchr(opt_vars().p_cpo, kCpoIntmod).is_null())
             || (*curbuf).b_modified_was_set
-            || (aborting() && !vim_strchr(p_cpo, kCpoIntmod).is_null())
+            || (aborting() && !vim_strchr(opt_vars().p_cpo, kCpoIntmod).is_null())
         {
             changed(curbuf);
         } else if retval != FAIL && !read_stdin && !read_fifo {
@@ -2028,7 +2028,7 @@ pub unsafe fn do_bufdel(
                     );
                 }
                 errormsg = iobuff_ptr;
-            } else if i64::from(deleted) >= p_report {
+            } else if i64::from(deleted) >= opt_vars().p_report {
                 if command == DOBUF_UNLOAD {
                     smsg!(
                         0,
@@ -2240,7 +2240,7 @@ unsafe fn do_buffer_ext(
             }
 
             if (flags & DOBUF_FORCEIT) == 0 && buf_is_changed(buf) {
-                if (p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && p_write != 0 {
+                if (opt_vars().p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && opt_vars().p_write != 0 {
                     dialog_changed(buf, false);
                     if !bufref_valid(&raw mut bufref) {
                         return FAIL;
@@ -2264,7 +2264,7 @@ unsafe fn do_buffer_ext(
                 && !(*buf).terminal.is_null()
                 && terminal_running((*buf).terminal.cast())
             {
-                if p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
+                if opt_vars().p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                     if !dialog_close_terminal(buf) {
                         return FAIL;
                     }
@@ -2306,7 +2306,7 @@ unsafe fn do_buffer_ext(
             }
 
             if buf != curbuf {
-                if (jop_flags & kOptJopFlagClean) != 0 {
+                if (opt_vars().jop_flags & kOptJopFlagClean) != 0 {
                     mark_jumplist_forget_file(curwin, buf_fnum);
                 }
 
@@ -2344,14 +2344,14 @@ unsafe fn do_buffer_ext(
             {
                 buf = au_new_curbuf.br_buf;
             } else if (*curwin).w_jumplistlen > 0 {
-                if (jop_flags & kOptJopFlagClean) != 0 {
+                if (opt_vars().jop_flags & kOptJopFlagClean) != 0 {
                     mark_jumplist_forget_file(curwin, buf_fnum);
                 }
 
                 if (*curwin).w_jumplistlen > 0 {
                     let mut jumpidx = (*curwin).w_jumplistidx;
 
-                    if (jop_flags & kOptJopFlagClean) != 0 {
+                    if (opt_vars().jop_flags & kOptJopFlagClean) != 0 {
                         if jumpidx == (*curwin).w_jumplistlen {
                             jumpidx = (*curwin).w_jumplistlen - 1;
                             (*curwin).w_jumplistidx = jumpidx;
@@ -2364,7 +2364,7 @@ unsafe fn do_buffer_ext(
                     }
 
                     let forward = jumpidx;
-                    while (jop_flags & kOptJopFlagClean) != 0 || jumpidx != (*curwin).w_jumplistidx
+                    while (opt_vars().jop_flags & kOptJopFlagClean) != 0 || jumpidx != (*curwin).w_jumplistidx
                     {
                         buf = buflist_findnr((*curwin).w_jumplist[jumpidx as usize].fmark.fnum);
 
@@ -2383,7 +2383,7 @@ unsafe fn do_buffer_ext(
                             }
                         }
                         if !buf.is_null() {
-                            if (jop_flags & kOptJopFlagClean) != 0 {
+                            if (opt_vars().jop_flags & kOptJopFlagClean) != 0 {
                                 (*curwin).w_jumplistidx = jumpidx;
                                 update_jumplist = false;
                             }
@@ -2485,7 +2485,7 @@ unsafe fn do_buffer_ext(
         }
 
         if action == DOBUF_GOTO && !can_abandon(curbuf, (flags & DOBUF_FORCEIT) != 0) {
-            if (p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && p_write != 0 {
+            if (opt_vars().p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && opt_vars().p_write != 0 {
                 let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&raw mut bufref, buf);
                 dialog_changed(curbuf, false);
@@ -2709,7 +2709,7 @@ unsafe fn enter_buffer(buf: *mut buf_T) {
 /// Change to the directory of the current buffer.
 pub unsafe fn do_autochdir() {
     unsafe {
-        if p_acd != 0
+        if opt_vars().p_acd != 0
             && starting == 0
             && !(*curbuf).b_ffname.is_null()
             && vim_chdirfile((*curbuf).b_ffname, kCdCauseAuto) == OK
@@ -3084,14 +3084,14 @@ pub unsafe fn buflist_getfile(
             let wp = swbuf_goto_win_with_buf(buf);
 
             if wp.is_null()
-                && (swb_flags & (kOptSwbFlagVsplit | kOptSwbFlagSplit | kOptSwbFlagNewtab)) != 0
+                && (opt_vars().swb_flags & (kOptSwbFlagVsplit | kOptSwbFlagSplit | kOptSwbFlagNewtab)) != 0
                 && !buf_is_empty(curbuf)
             {
-                if (swb_flags & kOptSwbFlagNewtab) != 0 {
+                if (opt_vars().swb_flags & kOptSwbFlagNewtab) != 0 {
                     tabpage_new();
                 } else if win_split(
                     0,
-                    if (swb_flags & kOptSwbFlagVsplit) != 0 {
+                    if (opt_vars().swb_flags & kOptSwbFlagVsplit) != 0 {
                         WSP_VERT
                     } else {
                         0
@@ -3116,13 +3116,13 @@ pub unsafe fn buflist_getfile(
         {
             RedrawingDisabled -= 1;
 
-            if p_sol == 0 && col != 0 {
+            if opt_vars().p_sol == 0 && col != 0 {
                 (*curwin).w_cursor.col = col;
                 check_cursor_col(curwin);
                 (*curwin).w_cursor.coladd = 0;
                 (*curwin).w_set_curswant = true;
             }
-            if (jop_flags & kOptJopFlagView) != 0 && restore_view {
+            if (opt_vars().jop_flags & kOptJopFlagView) != 0 && restore_view {
                 mark_view_restore(fm);
             }
             return OK;
@@ -3140,7 +3140,7 @@ unsafe fn buflist_getfpos() {
         (*curwin).w_cursor.lnum = (*fpos).lnum;
         check_cursor_lnum(curwin);
 
-        if p_sol != 0 {
+        if opt_vars().p_sol != 0 {
             (*curwin).w_cursor.col = 0;
         } else {
             (*curwin).w_cursor.col = (*fpos).col;
@@ -3149,7 +3149,7 @@ unsafe fn buflist_getfpos() {
             (*curwin).w_set_curswant = true;
         }
 
-        if (jop_flags & kOptJopFlagView) != 0 {
+        if (opt_vars().jop_flags & kOptJopFlagView) != 0 {
             mark_view_restore(fm);
         }
     }
@@ -3243,7 +3243,7 @@ pub unsafe fn buflist_findpat(
                     }
 
                     let mut regmatch: regmatch_T = regmatch_T::new();
-                    regmatch.regprog = vim_regcomp(p, if p_magic != 0 { RE_MAGIC } else { 0 });
+                    regmatch.regprog = vim_regcomp(p, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
 
                     let mut buf = lastbuf;
                     while !buf.is_null() {
@@ -3360,7 +3360,7 @@ pub unsafe fn ExpandBufnames(
 
             let mut p: *mut c_char = ptr::null_mut();
             if !fuzzy {
-                p = buflist_match(&raw mut regmatch, buf, p_wic != 0);
+                p = buflist_match(&raw mut regmatch, buf, opt_vars().p_wic != 0);
             } else {
                 score = fuzzy_match_str((*buf).b_sfname, pat);
                 if score != FUZZY_SCORE_NONE {
@@ -3456,7 +3456,7 @@ unsafe fn fname_match(rmp: *mut regmatch_T, name: *mut c_char, ignore_case: bool
             return ptr::null_mut();
         }
 
-        (*rmp).rm_ic = p_fic != 0 || ignore_case;
+        (*rmp).rm_ic = opt_vars().p_fic != 0 || ignore_case;
         if vim_regexec(rmp, name, 0) {
             match_ = name;
         } else if !(*rmp).regprog.is_null() {
@@ -3640,8 +3640,8 @@ pub unsafe fn get_winopts(buf: *mut buf_T) {
             win_set_minimal_style(curwin);
         }
 
-        if p_fdls >= 0 {
-            (*curwin).w_onebuf_opt.wo_fdl = p_fdls;
+        if opt_vars().p_fdls >= 0 {
+            (*curwin).w_onebuf_opt.wo_fdl = opt_vars().p_fdls;
         }
         didset_window_options(curwin, false);
     }
@@ -4168,7 +4168,7 @@ pub unsafe fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
                 c"%s".as_ptr(),
                 gettext(no_lines_msg.as_ptr()),
             );
-        } else if p_ru != 0 {
+        } else if opt_vars().p_ru != 0 {
             bufferlen += vim_snprintf_safelen!(
                 buffer.add(bufferlen),
                 IOSIZE - bufferlen,
@@ -4242,27 +4242,27 @@ pub unsafe fn maketitle() {
         }
 
         need_maketitle = false;
-        if p_title == 0
-            && p_icon == 0
+        if opt_vars().p_title == 0
+            && opt_vars().p_icon == 0
             && (&raw const buf_st().lasttitle).as_ref().unwrap().is_none()
             && (&raw const buf_st().lasticon).as_ref().unwrap().is_none()
         {
             return;
         }
 
-        if p_title != 0 {
+        if opt_vars().p_title != 0 {
             let mut maxlen = 0;
 
-            if p_titlelen > 0 {
-                maxlen = ((p_titlelen * i64::from(Columns) / 100) as c_int).max(10);
+            if opt_vars().p_titlelen > 0 {
+                maxlen = ((opt_vars().p_titlelen * i64::from(Columns) / 100) as c_int).max(10);
             }
 
-            if *p_titlestring != NUL {
+            if *opt_vars().p_titlestring != NUL {
                 if (stl_syntax & STL_IN_TITLE) != 0 {
                     build_stl_str_hl(
                         curwin,
                         outbuf,
-                        p_titlestring,
+                        opt_vars().p_titlestring,
                         kOptTitlestring,
                         0,
                         0,
@@ -4274,14 +4274,14 @@ pub unsafe fn maketitle() {
                     );
                     title_str = buf.as_mut_ptr();
                 } else {
-                    title_str = p_titlestring;
+                    title_str = opt_vars().p_titlestring;
                 }
             } else {
                 #[cfg(windows)]
-                let p_ssl_save = p_ssl;
+                let p_ssl_save = opt_vars().p_ssl;
                 #[cfg(windows)]
                 {
-                    p_ssl = 1;
+                    opt_vars().p_ssl = 1;
                 }
                 let default_titlestring = c"%t%( %M%)%( (%{expand('%:p:~:h')})%)%a - Nvim"
                     .as_ptr()
@@ -4302,20 +4302,20 @@ pub unsafe fn maketitle() {
                 title_str = buf.as_mut_ptr();
                 #[cfg(windows)]
                 {
-                    p_ssl = p_ssl_save;
+                    opt_vars().p_ssl = p_ssl_save;
                 }
             }
         }
         let mut mustset = value_change(title_str, (&raw mut buf_st().lasttitle).as_mut().unwrap());
 
-        if p_icon != 0 {
+        if opt_vars().p_icon != 0 {
             icon_str = buf.as_mut_ptr();
-            if *p_iconstring != NUL {
+            if *opt_vars().p_iconstring != NUL {
                 if (stl_syntax & STL_IN_ICON) != 0 {
                     build_stl_str_hl(
                         curwin,
                         outbuf,
-                        p_iconstring,
+                        opt_vars().p_iconstring,
                         kOptIconstring,
                         0,
                         0,
@@ -4326,7 +4326,7 @@ pub unsafe fn maketitle() {
                         ptr::null_mut(),
                     );
                 } else {
-                    icon_str = p_iconstring;
+                    icon_str = opt_vars().p_iconstring;
                 }
             } else {
                 let mut name = buf_spname(curbuf);
@@ -4565,7 +4565,7 @@ pub unsafe fn ex_buffer_all(eap: *mut exarg_T) {
                 let size_mismatch = if (cmdmod.cmod_split & WSP_VERT) != 0 {
                     i64::from((*wp).w_height + (*wp).w_hsep_height + (*wp).w_status_height)
                         < i64::from(Rows)
-                            - p_ch
+                            - opt_vars().p_ch
                             - i64::from(tabline_height())
                             - i64::from(global_stl_height())
                 } else {
@@ -4634,18 +4634,18 @@ pub unsafe fn ex_buffer_all(eap: *mut exarg_T) {
             if wp.is_null() && split_ret == OK {
                 let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&raw mut bufref, buf);
-                let p_ea_save = p_ea;
-                p_ea = 1;
+                let p_ea_save = opt_vars().p_ea;
+                opt_vars().p_ea = 1;
                 split_ret = win_split(0, WSP_ROOM | WSP_BELOW);
                 open_wins += 1;
-                p_ea = p_ea_save;
+                opt_vars().p_ea = p_ea_save;
                 if split_ret == FAIL {
                     buf = (*buf).b_next;
                     continue;
                 }
 
                 swap_exists_action = SEA_DIALOG;
-                set_curbuf(buf, DOBUF_GOTO, (jop_flags & kOptJopFlagClean) == 0);
+                set_curbuf(buf, DOBUF_GOTO, (opt_vars().jop_flags & kOptJopFlagClean) == 0);
                 if !bufref_valid(&raw mut bufref) {
                     swap_exists_action = SEA_NONE;
                     break;
@@ -4671,7 +4671,7 @@ pub unsafe fn ex_buffer_all(eap: *mut exarg_T) {
             if aborting() {
                 break;
             }
-            if had_tab > 0 && i64::from(tabpage_index(ptr::null_mut())) <= p_tpm {
+            if had_tab > 0 && i64::from(tabpage_index(ptr::null_mut())) <= opt_vars().p_tpm {
                 cmdmod.cmod_tab = 9999;
             }
             buf = (*buf).b_next;
@@ -4705,7 +4705,7 @@ pub unsafe fn ex_buffer_all(eap: *mut exarg_T) {
 /// Process mode lines for the current file.
 pub unsafe fn do_modelines(flags: c_int) {
     unsafe {
-        let mut nmlines = p_mls as c_int;
+        let mut nmlines = opt_vars().p_mls as c_int;
         if (*curbuf).b_p_ml == 0 || nmlines == 0 {
             return;
         }
@@ -4943,7 +4943,7 @@ pub unsafe fn buf_hide(buf: *const buf_T) -> bool {
         match *(*buf).b_p_bh as u8 {
             b'u' | b'w' | b'd' => false,
             b'h' => true,
-            _ => p_hid != 0 || (cmdmod.cmod_flags & CMOD_HIDE) != 0,
+            _ => opt_vars().p_hid != 0 || (cmdmod.cmod_flags & CMOD_HIDE) != 0,
         }
     }
 }

@@ -388,13 +388,13 @@ pub unsafe extern "C" fn nvim_open_win(
                     && !has_key(mask, KEYSET_OPTIDX_win_config__split)
                 {
                     if (*config).vertical {
-                        fconfig.split = if p_spr != 0 {
+                        fconfig.split = if opt_vars().p_spr != 0 {
                             kWinSplitRight
                         } else {
                             kWinSplitLeft
                         };
                     } else {
-                        fconfig.split = if p_sb != 0 {
+                        fconfig.split = if opt_vars().p_sb != 0 {
                             kWinSplitBelow
                         } else {
                             kWinSplitAbove
@@ -631,13 +631,13 @@ unsafe fn win_config_split(
         let old_split = win_split_dir(win);
         if has_vertical && !has_split {
             if (*config).vertical {
-                (*fconfig).split = if old_split == kWinSplitRight || p_spr != 0 {
+                (*fconfig).split = if old_split == kWinSplitRight || opt_vars().p_spr != 0 {
                     kWinSplitRight
                 } else {
                     kWinSplitLeft
                 };
             } else {
-                (*fconfig).split = if old_split == kWinSplitBelow || p_sb != 0 {
+                (*fconfig).split = if old_split == kWinSplitBelow || opt_vars().p_sb != 0 {
                     kWinSplitBelow
                 } else {
                     kWinSplitAbove
@@ -1934,9 +1934,9 @@ unsafe fn parse_win_config(
                         break 'fail;
                     }
                 }
-            } else if *p_winborder != NUL
+            } else if *opt_vars().p_winborder != NUL
                 && (wp.is_null() || !(*wp).w_floating)
-                && !parse_winborder(fconfig, p_winborder, err)
+                && !parse_winborder(fconfig, opt_vars().p_winborder, err)
             {
                 break 'fail;
             }

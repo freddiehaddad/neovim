@@ -1005,7 +1005,7 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
 pub unsafe fn diff_internal() -> c_int {
     unsafe {
         c_int::from(
-            (diff_st().diff_flags & DIFF_INTERNAL) != 0 && crate::eval::typval::Callback::raw_cb_type(&raw const p_dex) == kCallbackNone,
+            (diff_st().diff_flags & DIFF_INTERNAL) != 0 && crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_dex) == kCallbackNone,
         )
     }
 }
@@ -1131,7 +1131,7 @@ unsafe fn check_external_diff(diffio: *mut diffio_T) -> c_int {
                 }
                 let _ = os_remove(orig_fname);
             }
-            if crate::eval::typval::Callback::raw_cb_type(&raw const p_dex) != kCallbackNone {
+            if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_dex) != kCallbackNone {
                 break;
             }
             if diff_st().diff_a_works != kNone {
@@ -1217,14 +1217,14 @@ unsafe fn diff_file(dio: *mut diffio_T) -> c_int {
             .dout_fname
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        if crate::eval::typval::Callback::raw_cb_type(&raw const p_dex) != kCallbackNone {
+        if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_dex) != kCallbackNone {
             eval_diff(tmp_orig, tmp_new, tmp_diff);
             return OK;
         }
         if (*dio).dio_internal != 0 {
             return diff_file_internal(dio);
         }
-        let len = strlen(tmp_orig) + strlen(tmp_new) + strlen(tmp_diff) + strlen(p_srr) + 27;
+        let len = strlen(tmp_orig) + strlen(tmp_new) + strlen(tmp_diff) + strlen(opt_vars().p_srr) + 27;
         let mut cmd_vec: Vec<c_char> = vec![0; len];
         let cmd = cmd_vec.as_mut_ptr();
         if os_env_exists(c"DIFF_OPTIONS".as_ptr(), true) {
@@ -1268,7 +1268,7 @@ unsafe fn diff_file(dio: *mut diffio_T) -> c_int {
             tmp_orig,
             tmp_new,
         );
-        append_redir(cmd, len, p_srr, tmp_diff);
+        append_redir(cmd, len, opt_vars().p_srr, tmp_diff);
         crate::autocmd::block_autocmds();
         call_shell(
             cmd,
@@ -1349,7 +1349,7 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
                     shorten_fnames(1);
                 }
             }
-            if crate::eval::typval::Callback::raw_cb_type(&raw const p_pex) != kCallbackNone {
+            if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_pex) != kCallbackNone {
                 #[cfg(unix)]
                 eval_patch(
                     tmp_orig,
@@ -1544,7 +1544,7 @@ pub unsafe fn diff_win_options(wp: *mut win_T, addbuf: bool) {
         (*wp).w_onebuf_opt.wo_fdl = 0;
         foldUpdateAll(wp);
         changed_window_setting(wp);
-        if vim_strchr(p_sbo, b'h' as c_int).is_null() {
+        if vim_strchr(opt_vars().p_sbo, b'h' as c_int).is_null() {
             do_cmdline_cmd(c"set sbo+=hor".as_ptr());
         }
         (*wp).w_onebuf_opt.wo_diff_saved = 1;
@@ -1623,7 +1623,7 @@ pub unsafe fn ex_diffoff(eap: *mut exarg_T) {
             (*curtab).tp_diff_update = 0;
             diff_clear(curtab);
         }
-        if !diffwin && !vim_strchr(p_sbo, b'h' as c_int).is_null() {
+        if !diffwin && !vim_strchr(opt_vars().p_sbo, b'h' as c_int).is_null() {
             do_cmdline_cmd(c"set sbo-=hor".as_ptr());
         }
     }
@@ -2349,7 +2349,7 @@ unsafe fn parse_diffanchors(
 ) -> c_int {
     unsafe {
         let mut dia = if *(*buf).b_p_dia == NUL {
-            p_dia
+            opt_vars().p_dia
         } else {
             (*buf).b_p_dia
         };
@@ -2452,7 +2452,7 @@ pub unsafe fn diffanchors_changed(buflocal: bool) -> c_int {
 }
 pub unsafe fn diffopt_changed() -> c_int {
     unsafe {
-        let v = opt_keyset(p_dip, kOptDiffopt, ptr::null_mut()).cast::<OptKeyDict_dip>();
+        let v = opt_keyset(opt_vars().p_dip, kOptDiffopt, ptr::null_mut()).cast::<OptKeyDict_dip>();
         let mut flags = (if (*v).filler { DIFF_FILLER } else { 0 })
             | (if (*v).anchor { DIFF_ANCHOR } else { 0 })
             | (if (*v).iblank { DIFF_IBLANK } else { 0 })

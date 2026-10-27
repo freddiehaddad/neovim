@@ -389,7 +389,7 @@ pub unsafe fn init_search_hl(wp: *mut win_T, search_hl: *mut match_T) {
             cur.mit_hl.buf = buf;
             cur.mit_hl.lnum = 0;
             cur.mit_hl.first_lnum = 0;
-            cur.mit_hl.tm = profile_setlimit(p_rdt);
+            cur.mit_hl.tm = profile_setlimit(opt_vars().p_rdt);
         }
         (*search_hl).buf = (*wp).w_buffer;
         (*search_hl).lnum = 0;
@@ -491,7 +491,7 @@ unsafe fn next_search_hl(
             }
             if (*shl).lnum == 0 {
                 matchcol = 0;
-            } else if vim_strchr(p_cpo, kCpoSearch).is_null()
+            } else if vim_strchr(opt_vars().p_cpo, kCpoSearch).is_null()
                 || ((*shl).rm.endpos[0].lnum == 0
                     && (*shl).rm.endpos[0].col <= (*shl).rm.startpos[0].col)
             {

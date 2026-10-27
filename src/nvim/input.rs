@@ -339,9 +339,9 @@ pub unsafe fn mb_byte2len_check(b: c_int) -> c_int {
 #[inline]
 pub(crate) unsafe fn langmap_adjust(c: &mut c_int, condition: bool) {
     unsafe {
-        if *p_langmap != 0
+        if *opt_vars().p_langmap != 0
             && condition
-            && (p_lrm != 0
+            && (opt_vars().p_lrm != 0
                 || if vgetc_busy != 0 {
                     typebuf_maplen() == 0
                 } else {
@@ -1625,12 +1625,12 @@ unsafe fn updatescript(c: c_int) {
         }
         let idle = c == 0;
         if idle
-            || (p_uc > 0 && {
+            || (opt_vars().p_uc > 0 && {
                 inp_st().UPDATESCRIPT_COUNT += 1;
-                (inp_st().UPDATESCRIPT_COUNT as OptInt) >= p_uc
+                (inp_st().UPDATESCRIPT_COUNT as OptInt) >= opt_vars().p_uc
             })
         {
-            ml_sync_all(c_int::from(idle), 1, p_fs != 0 || idle);
+            ml_sync_all(c_int::from(idle), 1, opt_vars().p_fs != 0 || idle);
             inp_st().UPDATESCRIPT_COUNT = 0;
         }
     }
@@ -1660,7 +1660,7 @@ pub unsafe fn merge_modifiers(c_arg: c_int, modifiers: *mut c_int) -> c_int {
 
 unsafe fn add_byte_to_showcmd(byte: u8) {
     unsafe {
-        if p_sc == 0 || msg_silent != 0 {
+        if opt_vars().p_sc == 0 || msg_silent != 0 {
             return;
         }
 
@@ -2310,7 +2310,7 @@ unsafe fn handle_mapping(
             && (typebuf.tb_maplen == 0
                 || is_plug_map
                 || (*tb_noremap_ptr().add(typebuf.tb_off as usize) & (RM_NONE | RM_ABBR)) == 0)
-            && !(p_paste != 0 && (State & (MODE_INSERT | MODE_CMDLINE)) != 0)
+            && !(opt_vars().p_paste != 0 && (State & (MODE_INSERT | MODE_CMDLINE)) != 0)
             && !(State == MODE_HITRETURN && (tb_b1 == CAR || tb_b1 == b' ' as c_int))
             && State != MODE_ASKMORE
             && !at_ins_compl_key()
@@ -2497,7 +2497,7 @@ unsafe fn handle_mapping(
             del_typebuf(keylen, 0);
 
             *mapdepth += 1;
-            if (*mapdepth as OptInt) >= p_mmd {
+            if (*mapdepth as OptInt) >= opt_vars().p_mmd {
                 emsg(gettext(E_RECURSIVE_MAPPING.as_ptr()));
                 if (State & MODE_CMDLINE) != 0 {
                     redrawcmdline();
@@ -2744,7 +2744,7 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
                         && ex_normal_busy == 0
                         && typebuf.tb_maplen == 0
                         && (State & MODE_INSERT) != 0
-                        && (p_timeout != 0 || (keylen == KEYLEN_PART_KEY && p_ttimeout != 0))
+                        && (opt_vars().p_timeout != 0 || (keylen == KEYLEN_PART_KEY && opt_vars().p_ttimeout != 0))
                         && {
                             c = inchar(
                                 tb_buf_ptr().add((typebuf.tb_off + typebuf.tb_len) as usize),
@@ -2865,7 +2865,7 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
                         break;
                     }
 
-                    if ((State & MODE_INSERT) != 0 || p_lz != 0)
+                    if ((State & MODE_INSERT) != 0 || opt_vars().p_lz != 0)
                         && (State & MODE_CMDLINE) == 0
                         && advance
                         && must_redraw != 0
@@ -2936,13 +2936,13 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
                     let mut wait_time: c_long = 0;
                     if advance {
                         if typebuf.tb_len == 0
-                            || !(p_timeout != 0 || (p_ttimeout != 0 && keylen == KEYLEN_PART_KEY))
+                            || !(opt_vars().p_timeout != 0 || (opt_vars().p_ttimeout != 0 && keylen == KEYLEN_PART_KEY))
                         {
                             wait_time = -1;
-                        } else if keylen == KEYLEN_PART_KEY && p_ttm >= 0 {
-                            wait_time = p_ttm as c_long;
+                        } else if keylen == KEYLEN_PART_KEY && opt_vars().p_ttm >= 0 {
+                            wait_time = opt_vars().p_ttm as c_long;
                         } else {
-                            wait_time = p_tm as c_long;
+                            wait_time = opt_vars().p_tm as c_long;
                         }
                     }
 
@@ -2995,7 +2995,7 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
             }
         }
 
-        if advance && p_smd != 0 && msg_silent == 0 && (State & MODE_INSERT) != 0 {
+        if advance && opt_vars().p_smd != 0 && msg_silent == 0 && (State & MODE_INSERT) != 0 {
             if c == ESC && !mode_deleted && no_mapping == 0 && mode_displayed {
                 if typebuf.tb_len != 0 && !KeyTyped {
                     redraw_cmdline = true;

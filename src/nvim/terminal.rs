@@ -1521,7 +1521,7 @@ unsafe fn is_filter_char(c: c_int) -> bool {
             }
         }
     };
-    unsafe { (tpf_flags & flag) != 0 }
+    unsafe { (opt_vars().tpf_flags & flag) != 0 }
 }
 
 pub unsafe fn terminal_set_streamed_paste(term: *mut Terminal, streamed: bool) {
@@ -1955,7 +1955,7 @@ unsafe fn term_bell(_data: *mut Terminal) -> c_int {
 
 unsafe fn term_theme(dark: *mut bool, _data: *mut Terminal) -> c_int {
     unsafe {
-        *dark = *p_bg == b'd' as c_char;
+        *dark = *opt_vars().p_bg == b'd' as c_char;
     }
     1
 }

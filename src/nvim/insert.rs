@@ -486,7 +486,7 @@ unsafe fn insert_enter(s: *mut InsertState) {
 
         setmouse();
         clear_showcmd();
-        Ins.revins_on = State == MODE_INSERT && p_ri != 0;
+        Ins.revins_on = State == MODE_INSERT && opt_vars().p_ri != 0;
         if Ins.revins_on {
             undisplay_dollar();
         }
@@ -533,7 +533,7 @@ unsafe fn insert_enter(s: *mut InsertState) {
         }
 
         (*s).i = 0;
-        if p_smd != 0 && msg_silent == 0 {
+        if opt_vars().p_smd != 0 && msg_silent == 0 {
             (*s).i = showmode();
         }
 
@@ -616,7 +616,7 @@ unsafe fn insert_check(s: *mut InsertState) -> c_int {
 
         msg_scroll = 0;
 
-        if (fdo_flags & kOptFdoFlagInsert) != 0 {
+        if (opt_vars().fdo_flags & kOptFdoFlagInsert) != 0 {
             foldOpenCursor();
         }
 
@@ -957,7 +957,7 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
                 ins_ctrl_hat();
             }
             Ctrl__ => {
-                if p_ari == 0 {
+                if opt_vars().p_ari == 0 {
                     goto_normalchar = true;
                 } else {
                     ins_ctrl_();
@@ -1263,7 +1263,7 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
 
         if goto_normalchar {
             let mut skip_char = false;
-            if p_paste == 0 {
+            if opt_vars().p_paste == 0 {
                 if let Some(str_) = do_insert_char_pre((*s).c) {
                     let str_ptr = str_.as_ptr().cast_mut();
                     if *str_ptr != NUL && stop_arrow() != FAIL {
@@ -1974,7 +1974,7 @@ pub unsafe fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
             && vpeekc() != NUL as c_int
             && (State & REPLACE_FLAG) == 0
             && !cindent_on()
-            && p_ri == 0
+            && opt_vars().p_ri == 0
         {
             let mut buf = [0 as c_char; INPUT_BUFLEN + 1];
             let mut virtcol: colnr_T = 0;
@@ -2197,7 +2197,7 @@ unsafe fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
                 && Ins.did_ai
                 && !mc_ins_replaying()
                 && (esc != 0
-                    || (vim_strchr(p_cpo, kCpoIndent).is_null()
+                    || (vim_strchr(opt_vars().p_cpo, kCpoIndent).is_null()
                         && (*curwin).w_cursor.lnum != (*end_insert_pos).lnum))
                 && (*end_insert_pos).lnum <= (*curbuf).b_ml.ml_line_count
             {
@@ -2283,7 +2283,7 @@ pub unsafe fn free_last_insert() {
 
 pub unsafe fn beginline(flags: c_int) {
     unsafe {
-        if (flags & BL_SOL) != 0 && p_sol == 0 {
+        if (flags & BL_SOL) != 0 && opt_vars().p_sol == 0 {
             coladvance(curwin, (*curwin).w_curswant);
         } else {
             (*curwin).w_cursor.col = 0;
@@ -2400,7 +2400,7 @@ pub unsafe fn cursor_up_inner(wp: *mut win_T, mut n: linenr_T, skip_conceal: boo
                 if skip_conceal && decor_conceal_line(wp, lnum - 1, true) {
                     n += 1;
                 }
-                if n > 0 || !((State & MODE_INSERT) != 0 || (fdo_flags & kOptFdoFlagAll) != 0) {
+                if n > 0 || !((State & MODE_INSERT) != 0 || (opt_vars().fdo_flags & kOptFdoFlagAll) != 0) {
                     hasFolding(wp, lnum, &raw mut lnum, ptr::null_mut());
                 }
             }
@@ -2583,7 +2583,7 @@ pub unsafe fn get_last_insert_save() -> Option<std::ffi::CString> {
 
 unsafe fn echeck_abbr(c: c_int) -> bool {
     unsafe {
-        if p_paste != 0 || no_abbr || Ins.moved != kInsNone {
+        if opt_vars().p_paste != 0 || no_abbr || Ins.moved != kInsNone {
             return false;
         }
         check_abbr(
@@ -2879,7 +2879,7 @@ unsafe fn ins_esc(count: *mut c_int, cmdchar: c_int, nomove: bool) -> bool {
 
             *count -= 1;
             if *count > 0 {
-                if !vim_strchr(p_cpo, kCpoReplcnt).is_null() {
+                if !vim_strchr(opt_vars().p_cpo, kCpoReplcnt).is_null() {
                     State &= !REPLACE_FLAG;
                 }
 
@@ -2943,9 +2943,9 @@ unsafe fn ins_esc(count: *mut c_int, cmdchar: c_int, nomove: bool) -> bool {
 
         if reg_recording != 0 || restart_edit != NUL as c_int {
             showmode();
-        } else if p_smd != 0
+        } else if opt_vars().p_smd != 0
             && (got_int || !skip_showmode())
-            && !(p_ch == 0 && !ui_has(kUIMessages))
+            && !(opt_vars().p_ch == 0 && !ui_has(kUIMessages))
         {
             unshowmode(false);
         }
@@ -2961,8 +2961,8 @@ unsafe fn ins_ctrl_() {
                 (*curwin).w_cursor.col += 1;
             }
         }
-        p_ri = c_int::from(p_ri == 0);
-        Ins.revins_on = State == MODE_INSERT && p_ri != 0;
+        opt_vars().p_ri = c_int::from(opt_vars().p_ri == 0);
+        Ins.revins_on = State == MODE_INSERT && opt_vars().p_ri != 0;
         if Ins.revins_on {
             Ins.revins_scol = (*curwin).w_cursor.col;
             Ins.revins_legal += 1;
@@ -3230,7 +3230,7 @@ unsafe fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: *mut c_int) -> boo
             }
 
             if mode == BACKSPACE_CHAR
-                && ((p_sta != 0 && in_indent)
+                && ((opt_vars().p_sta != 0 && in_indent)
                     || ((get_sts_value() != 0 || tabstop_count(&(*curbuf).b_p_vsts_array) != 0)
                         && (*curwin).w_cursor.col > 0
                         && (*get_cursor_pos_ptr().offset(-1) == TAB as c_char
@@ -3264,7 +3264,7 @@ unsafe fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: *mut c_int) -> boo
                 }
 
                 let mut want_vcol = if vcol > 0 { vcol - 1 } else { 0 };
-                if p_sta != 0 && in_indent {
+                if opt_vars().p_sta != 0 && in_indent {
                     want_vcol -= want_vcol % (get_sw_value(curbuf) as colnr_T);
                 } else {
                     want_vcol = tabstop_start(
@@ -3350,7 +3350,7 @@ unsafe fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: *mut c_int) -> boo
                         replace_do_bs(-1);
                     } else {
                         let mut has_composing = false;
-                        if p_deco != 0 {
+                        if opt_vars().p_deco != 0 {
                             let p0 = get_cursor_pos_ptr();
                             has_composing = utf_composinglike(
                                 p0,
@@ -3404,7 +3404,7 @@ unsafe fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: *mut c_int) -> boo
             Ins.start_orig.col = (*curwin).w_cursor.col;
         }
 
-        if !vim_strchr(p_cpo, kCpoBackspace).is_null() && dollar_vcol == -1 {
+        if !vim_strchr(opt_vars().p_cpo, kCpoBackspace).is_null() && dollar_vcol == -1 {
             dollar_vcol = (*curwin).w_virtcol;
         }
 
@@ -3418,7 +3418,7 @@ unsafe fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: *mut c_int) -> boo
 unsafe fn ins_left() {
     unsafe {
         let end_change = Ins.dont_sync_undo == kFalse;
-        if (fdo_flags & kOptFdoFlagHor) != 0 && KeyTyped {
+        if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && KeyTyped {
             foldOpenCursor();
         }
         undisplay_dollar();
@@ -3429,7 +3429,7 @@ unsafe fn ins_left() {
                 Ins.revins_legal += 1;
             }
             Ins.revins_chars += 1;
-        } else if !vim_strchr(p_ww, b'[' as c_int).is_null() && (*curwin).w_cursor.lnum > 1 {
+        } else if !vim_strchr(opt_vars().p_ww, b'[' as c_int).is_null() && (*curwin).w_cursor.lnum > 1 {
             start_arrow(&raw mut tpos, true, K_LEFT);
             (*curwin).w_cursor.lnum -= 1;
             coladvance(curwin, MAXCOL);
@@ -3443,7 +3443,7 @@ unsafe fn ins_left() {
 
 unsafe fn ins_home(c: c_int) {
     unsafe {
-        if (fdo_flags & kOptFdoFlagHor) != 0 && KeyTyped {
+        if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && KeyTyped {
             foldOpenCursor();
         }
         undisplay_dollar();
@@ -3464,7 +3464,7 @@ unsafe fn ins_home(c: c_int) {
 
 unsafe fn ins_end(c: c_int) {
     unsafe {
-        if (fdo_flags & kOptFdoFlagHor) != 0 && KeyTyped {
+        if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && KeyTyped {
             foldOpenCursor();
         }
         undisplay_dollar();
@@ -3485,7 +3485,7 @@ unsafe fn ins_end(c: c_int) {
 unsafe fn ins_s_left() {
     unsafe {
         let end_change = Ins.dont_sync_undo == kFalse;
-        if (fdo_flags & kOptFdoFlagHor) != 0 && KeyTyped {
+        if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && KeyTyped {
             foldOpenCursor();
         }
         undisplay_dollar();
@@ -3503,7 +3503,7 @@ unsafe fn ins_s_left() {
 unsafe fn ins_right() {
     unsafe {
         let end_change = Ins.dont_sync_undo == kFalse;
-        if (fdo_flags & kOptFdoFlagHor) != 0 && KeyTyped {
+        if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && KeyTyped {
             foldOpenCursor();
         }
         undisplay_dollar();
@@ -3520,7 +3520,7 @@ unsafe fn ins_right() {
             if Ins.revins_chars != 0 {
                 Ins.revins_chars -= 1;
             }
-        } else if !vim_strchr(p_ww, b']' as c_int).is_null()
+        } else if !vim_strchr(opt_vars().p_ww, b']' as c_int).is_null()
             && (*curwin).w_cursor.lnum < (*curbuf).b_ml.ml_line_count
         {
             start_arrow(&raw mut (*curwin).w_cursor, true, K_RIGHT);
@@ -3537,7 +3537,7 @@ unsafe fn ins_right() {
 unsafe fn ins_s_right() {
     unsafe {
         let end_change = Ins.dont_sync_undo == kFalse;
-        if (fdo_flags & kOptFdoFlagHor) != 0 && KeyTyped {
+        if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && KeyTyped {
             foldOpenCursor();
         }
         undisplay_dollar();
@@ -3664,7 +3664,7 @@ unsafe fn ins_tab() -> bool {
         }
 
         if (*curbuf).b_p_et == 0
-            && !(p_sta != 0
+            && !(opt_vars().p_sta != 0
                 && ind
                 && ((tabstop_count(&(*curbuf).b_p_vts_array) > 1)
                     || (tabstop_count(&(*curbuf).b_p_vts_array) == 1
@@ -3687,7 +3687,7 @@ unsafe fn ins_tab() -> bool {
         Ins.can_si_back = false;
         redo_append_str(c"\t".as_ptr(), 1);
 
-        let mut temp: c_int = if p_sta != 0 && ind {
+        let mut temp: c_int = if opt_vars().p_sta != 0 && ind {
             let sw = get_sw_value(curbuf);
             sw - (get_nolist_virtcol() % sw)
         } else if tabstop_count(&(*curbuf).b_p_vsts_array) > 0 || (*curbuf).b_p_sts != 0 {
@@ -3722,7 +3722,7 @@ unsafe fn ins_tab() -> bool {
         if (*curbuf).b_p_et == 0
             && (tabstop_count(&(*curbuf).b_p_vsts_array) > 0
                 || get_sts_value() > 0
-                || (p_sta != 0 && ind))
+                || (opt_vars().p_sta != 0 && ind))
         {
             let mut pos: pos_T;
             let cursor: *mut pos_T;
@@ -3748,7 +3748,7 @@ unsafe fn ins_tab() -> bool {
                 cursor = &raw mut (*curwin).w_cursor;
             }
 
-            if vim_strchr(p_cpo, kCpoListwm).is_null() {
+            if vim_strchr(opt_vars().p_cpo, kCpoListwm).is_null() {
                 (*curwin).w_onebuf_opt.wo_list = 0;
             }
 
@@ -4053,7 +4053,7 @@ pub unsafe fn get_nolist_virtcol() -> colnr_T {
         {
             return 0;
         }
-        if (*curwin).w_onebuf_opt.wo_list != 0 && vim_strchr(p_cpo, kCpoListwm).is_null() {
+        if (*curwin).w_onebuf_opt.wo_list != 0 && vim_strchr(opt_vars().p_cpo, kCpoListwm).is_null() {
             return getvcol_nolist(&raw mut (*curwin).w_cursor);
         }
         validate_virtcol(curwin);

@@ -4521,10 +4521,10 @@ unsafe fn get_syn_pattern(arg: *mut c_char, ci: *mut synpat_T) -> *mut c_char {
             std::slice::from_raw_parts(arg.add(1).cast::<u8>(), end.offset_from(arg) as usize - 1);
         let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
 
-        let cpo_save = p_cpo;
-        p_cpo = (&raw mut empty_string_option).cast();
+        let cpo_save = opt_vars().p_cpo;
+        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
         (*ci).sp_prog = crate::regexp::vim_regcomp_box(pat_cstr.as_ptr(), RE_MAGIC);
-        p_cpo = cpo_save;
+        opt_vars().p_cpo = cpo_save;
         (*ci).sp_pattern = Some(pat_cstr);
 
         if (*ci).sp_prog.is_none() {
@@ -4684,11 +4684,11 @@ unsafe fn syn_cmd_sync(eap: *mut exarg_T, _syncing: c_int) {
                     let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
                     (*win_s(curwin)).b_syn_linecont_ic = (*win_s(curwin)).b_syn_ic;
 
-                    let cpo_save = p_cpo;
-                    p_cpo = (&raw mut empty_string_option).cast();
+                    let cpo_save = opt_vars().p_cpo;
+                    opt_vars().p_cpo = empty_string_option.as_ptr().cast();
                     (*win_s(curwin)).b_syn_linecont_prog =
                         crate::regexp::vim_regcomp_box(pat_cstr.as_ptr(), RE_MAGIC);
-                    p_cpo = cpo_save;
+                    opt_vars().p_cpo = cpo_save;
                     syn_clear_time(&raw mut (*win_s(curwin)).b_syn_linecont_time);
 
                     if (*win_s(curwin)).b_syn_linecont_prog.is_none() {

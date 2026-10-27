@@ -991,7 +991,7 @@ unsafe fn sd_reader_skip(sd_reader: *mut FileDescriptor, offset: usize) -> ShaDa
 
 unsafe fn close_file(cookie: *mut FileDescriptor) {
     unsafe {
-        let error = file_close(cookie, p_fs != 0);
+        let error = file_close(cookie, opt_vars().p_fs != 0);
         if error != 0 {
             semsg!(
                 gettext(c"E886: System error while closing ShaDa file: %s".as_ptr()),
@@ -1011,7 +1011,7 @@ unsafe fn shada_read_file(file: *const c_char, flags: c_int) -> c_int {
         let mut sd_reader = FileDescriptor::new();
         let of_ret = file_open(&mut sd_reader, fname, K_FILE_READ_ONLY, 0);
 
-        if p_verbose > 1 {
+        if opt_vars().p_verbose > 1 {
             verbose_enter();
             let empty = c"".as_ptr();
             smsg!(
@@ -1324,7 +1324,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
             kSDReadUndisableableData
                 | kSDReadRegisters
                 | kSDReadGlobalMarks
-                | if p_hi != 0 && (flags & kShaDaNoHistory) == 0 {
+                | if opt_vars().p_hi != 0 && (flags & kShaDaNoHistory) == 0 {
                     kSDReadHistory
                 } else {
                     0
@@ -1370,7 +1370,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
             });
         if (srni_flags & kSDReadHistory) != 0 {
             for (i, hm) in hms.iter_mut().enumerate().take(HIST_COUNT) {
-                hms_init(hm, i as u8, p_hi as usize, true, true);
+                hms_init(hm, i as u8, opt_vars().p_hi as usize, true, true);
             }
         }
         let mut cur_entry = MISSING_ENTRY;
@@ -1464,7 +1464,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                         .take()
                         .unwrap_or_default()
                         .into_bytes_with_nul();
-                    let final_sub = regtilde(sub_bytes.as_mut_ptr().cast(), p_magic, false)
+                    let final_sub = regtilde(sub_bytes.as_mut_ptr().cast(), opt_vars().p_magic, false)
                         .or_else(|| Some(CStr::from_ptr(sub_bytes.as_ptr().cast()).to_owned()));
                     sub_set_replacement(SubReplacementString {
                         sub: final_sub,
@@ -1740,9 +1740,9 @@ unsafe fn shada_get_default_file() -> *const c_char {
 unsafe fn shada_filename(mut file: *const c_char) -> Option<std::ffi::CString> {
     unsafe {
         if file.is_null() || *file == NUL {
-            if !p_shadafile.is_null() && *p_shadafile != NUL {
-                if !strequal(p_shadafile, c"NONE".as_ptr()) {
-                    file = p_shadafile;
+            if !opt_vars().p_shadafile.is_null() && *opt_vars().p_shadafile != NUL {
+                if !strequal(opt_vars().p_shadafile, c"NONE".as_ptr()) {
+                    file = opt_vars().p_shadafile;
                 } else {
                     return None;
                 }
@@ -2683,7 +2683,7 @@ unsafe fn shada_write(
         for (i, dump_one) in dump_one_history.iter_mut().enumerate().take(HIST_COUNT) {
             let mut num_saved = get_shada_parameter(hist_type2char(i as c_int));
             if num_saved == -1 {
-                num_saved = p_hi as c_int;
+                num_saved = opt_vars().p_hi as c_int;
             }
             if num_saved > 0 {
                 dump_history = true;
@@ -2771,7 +2771,7 @@ unsafe fn shada_write(
                 key: static_cstr_as_string(c"encoding"),
                 value: Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData::String(cstr_as_string(p_enc)),
+                    data: ObjectData::String(cstr_as_string(opt_vars().p_enc)),
                 },
             },
         ];
@@ -3332,7 +3332,7 @@ pub unsafe fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int 
             return FAIL;
         }
 
-        if p_verbose > 1 {
+        if opt_vars().p_verbose > 1 {
             verbose_enter();
             smsg!(0, gettext(c"Writing ShaDa file \"%s\"".as_ptr()), fname);
             verbose_leave();
@@ -4303,7 +4303,7 @@ unsafe fn shada_removable(name: *const c_char) -> bool {
         let mut part = [0 as c_char; MAXPATHL + 1];
         let mut retval = false;
         let new_name = home_replace_save(ptr::null_mut(), name);
-        let mut p = p_shada;
+        let mut p = opt_vars().p_shada;
         while *p != 0 {
             copy_option_part(&mut p, part.as_mut_ptr(), part.len(), c", ".as_ptr());
             if part[0] == (b'r' as c_char) {
@@ -4541,7 +4541,7 @@ pub unsafe fn get_shada_parameter(param_type: c_int) -> c_int {
 /// Find the parameter represented by the given character in 'shada' (`find_shada_parameter`).
 pub unsafe fn find_shada_parameter(param_type: c_int) -> *mut c_char {
     unsafe {
-        let mut p = p_shada;
+        let mut p = opt_vars().p_shada;
         while *p != 0 {
             if c_int::from(*p as u8) == param_type {
                 return p.add(1);

@@ -179,7 +179,7 @@ unsafe fn coladvance2(
             (State & MODE_INSERT) != 0
                 || (State & MODE_TERMINAL) != 0
                 || restart_edit != 0
-                || (Visual.active && *p_sel != b'o' as c_char)
+                || (Visual.active && *opt_vars().p_sel != b'o' as c_char)
                 || ((get_ve_flags(wp) & kOptVeFlagOnemore) != 0 && wcol < MAXCOL),
         );
 
@@ -404,7 +404,7 @@ pub unsafe fn check_cursor_col(win: *mut win_T) {
             if (State & MODE_INSERT) != 0
                 || restart_edit != 0
                 || (State & MODE_TERMINAL) != 0
-                || (Visual.active && *p_sel != b'o' as c_char)
+                || (Visual.active && *opt_vars().p_sel != b'o' as c_char)
                 || (cur_ve_flags & kOptVeFlagOnemore) != 0
                 || virtual_active(win)
             {
@@ -473,7 +473,7 @@ pub unsafe fn check_visual_pos() {
 pub unsafe fn adjust_cursor_col() {
     unsafe {
         if (*curwin).w_cursor.col > 0
-            && (!Visual.active || *p_sel == b'o' as c_char)
+            && (!Visual.active || *opt_vars().p_sel == b'o' as c_char)
             && gchar_cursor() == 0
         {
             (*curwin).w_cursor.col -= 1;

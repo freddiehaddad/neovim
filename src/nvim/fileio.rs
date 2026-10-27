@@ -886,7 +886,7 @@ unsafe fn filemess(buf: *mut buf_T, name: *mut c_char, s: *const c_char, msg_id:
         xstrlcat(iobuf_ptr, s, IOSIZE);
 
         let msg_scroll_save = msg_scroll;
-        if shortmess(kShmOverall) && msg_listdo_overwrite == 0 && !exiting && p_verbose == 0 {
+        if shortmess(kShmOverall) && msg_listdo_overwrite == 0 && !exiting && opt_vars().p_verbose == 0 {
             msg_scroll = 0;
         }
         if msg_scroll == 0 {
@@ -1039,7 +1039,7 @@ pub unsafe fn readfile(
             if (*curbuf).b_ffname.is_null()
                 && !filtering
                 && !fname.is_null()
-                && !vim_strchr(p_cpo, kCpoFnamer).is_null()
+                && !vim_strchr(opt_vars().p_cpo, kCpoFnamer).is_null()
                 && (flags & READ_DUMMY) == 0
                 && set_rw_fname(fname, sfname) == FAIL
             {
@@ -1121,7 +1121,7 @@ pub unsafe fn readfile(
             }
 
             if ((shortmess(kShmOver) && msg_listdo_overwrite == 0) || (*curbuf).b_help)
-                && p_verbose == 0
+                && opt_vars().p_verbose == 0
             {
                 msg_scroll = 0;
             } else {
@@ -1360,9 +1360,9 @@ pub unsafe fn readfile(
             (*curbuf).b_op_start.lnum = if from == 0 { 1 } else { from };
             (*curbuf).b_op_start.col = 0;
 
-            let mut try_mac = c_int::from(!vim_strchr(p_ffs, b'm' as c_int).is_null());
-            let mut try_dos = c_int::from(!vim_strchr(p_ffs, b'd' as c_int).is_null());
-            let mut try_unix = c_int::from(!vim_strchr(p_ffs, b'x' as c_int).is_null());
+            let mut try_mac = c_int::from(!vim_strchr(opt_vars().p_ffs, b'm' as c_int).is_null());
+            let mut try_dos = c_int::from(!vim_strchr(opt_vars().p_ffs, b'd' as c_int).is_null());
+            let mut try_unix = c_int::from(!vim_strchr(opt_vars().p_ffs, b'x' as c_int).is_null());
 
             if !read_buffer {
                 let m = msg_scroll;
@@ -1411,9 +1411,9 @@ pub unsafe fn readfile(
                     );
                 }
 
-                try_mac = c_int::from(!vim_strchr(p_ffs, b'm' as c_int).is_null());
-                try_dos = c_int::from(!vim_strchr(p_ffs, b'd' as c_int).is_null());
-                try_unix = c_int::from(!vim_strchr(p_ffs, b'x' as c_int).is_null());
+                try_mac = c_int::from(!vim_strchr(opt_vars().p_ffs, b'm' as c_int).is_null());
+                try_dos = c_int::from(!vim_strchr(opt_vars().p_ffs, b'd' as c_int).is_null());
+                try_unix = c_int::from(!vim_strchr(opt_vars().p_ffs, b'x' as c_int).is_null());
                 (*curbuf).b_op_start = orig_start;
 
                 if msg_scrolled == n {
@@ -1498,10 +1498,10 @@ pub unsafe fn readfile(
             } else if (*curbuf).b_help {
                 fenc_next = c"latin1".as_ptr().cast_mut();
                 fenc = c"utf-8".as_ptr().cast_mut();
-            } else if *p_fencs == NUL {
+            } else if *opt_vars().p_fencs == NUL {
                 fenc = (*curbuf).b_p_fenc;
             } else {
-                fenc_next = p_fencs;
+                fenc_next = opt_vars().p_fencs;
                 fenc_owned = Some(next_fenc(&raw mut fenc_next));
                 fenc = fenc_owned.as_ref().unwrap().as_ptr().cast_mut();
             }
@@ -1536,7 +1536,7 @@ pub unsafe fn readfile(
                     try_mac = 0;
                 } else if (*curbuf).b_p_bin != 0 {
                     fileformat = EOL_UNIX;
-                } else if *p_ffs == NUL {
+                } else if *opt_vars().p_ffs == NUL {
                     fileformat = get_fileformat(curbuf);
                 } else {
                     fileformat = EOL_UNKNOWN;
@@ -1585,7 +1585,7 @@ pub unsafe fn readfile(
                     if fio_flags == 0
                         && !read_stdin
                         && !read_buffer
-                        && crate::eval::typval::Callback::raw_cb_type(&raw const p_ccv) != kCallbackNone
+                        && crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_ccv) != kCallbackNone
                         && !read_fifo
                         && iconv_fd == -1
                     {
@@ -1723,7 +1723,7 @@ pub unsafe fn readfile(
                                 } else if conv_restlen > 0 {
                                     if fio_flags != 0 || iconv_fd != -1 {
                                         if can_retry {
-                                            if crate::eval::typval::Callback::raw_cb_type(&raw const p_ccv) != kCallbackNone && iconv_fd != -1 {
+                                            if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_ccv) != kCallbackNone && iconv_fd != -1 {
                                                 did_iconv = true;
                                             } else {
                                                 advance_fenc = true;
@@ -1830,7 +1830,7 @@ pub unsafe fn readfile(
                                 || from_size > CONV_RESTLEN
                             {
                                 if can_retry {
-                                    if crate::eval::typval::Callback::raw_cb_type(&raw const p_ccv) != kCallbackNone && iconv_fd != -1 {
+                                    if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_ccv) != kCallbackNone && iconv_fd != -1 {
                                         did_iconv = true;
                                     } else {
                                         advance_fenc = true;
@@ -1942,7 +1942,7 @@ pub unsafe fn readfile(
                                     {
                                         if p == ptr.cast::<u8>() {
                                             if can_retry {
-                                                if crate::eval::typval::Callback::raw_cb_type(&raw const p_ccv) != kCallbackNone
+                                                if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_ccv) != kCallbackNone
                                                     && iconv_fd != -1
                                                 {
                                                     did_iconv = true;
@@ -1982,7 +1982,7 @@ pub unsafe fn readfile(
 
                                         if !(0xd800..=0xdbff).contains(&u16c) {
                                             if can_retry {
-                                                if crate::eval::typval::Callback::raw_cb_type(&raw const p_ccv) != kCallbackNone
+                                                if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_ccv) != kCallbackNone
                                                     && iconv_fd != -1
                                                 {
                                                     did_iconv = true;
@@ -2037,7 +2037,7 @@ pub unsafe fn readfile(
                                         u8c = utf_ptr2char(p.cast()) as c_uint;
                                         if len == 0 {
                                             if can_retry {
-                                                if crate::eval::typval::Callback::raw_cb_type(&raw const p_ccv) != kCallbackNone
+                                                if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_ccv) != kCallbackNone
                                                     && iconv_fd != -1
                                                 {
                                                     did_iconv = true;
@@ -2137,7 +2137,7 @@ pub unsafe fn readfile(
                                 }
                             }
                             if p < ptr.cast::<u8>().offset(size) && !incomplete_tail {
-                                if crate::eval::typval::Callback::raw_cb_type(&raw const p_ccv) != kCallbackNone && iconv_fd != -1 {
+                                if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_ccv) != kCallbackNone && iconv_fd != -1 {
                                     did_iconv = true;
                                 } else {
                                     advance_fenc = true;
@@ -2846,7 +2846,7 @@ pub unsafe fn set_file_options(set_options: bool, eap: *mut exarg_T) {
         if set_options {
             if !eap.is_null() && (*eap).force_ff != 0 {
                 set_fileformat(get_fileformat_force(curbuf, eap), OPT_LOCAL);
-            } else if *p_ffs != NUL {
+            } else if *opt_vars().p_ffs != NUL {
                 set_fileformat(default_fileformat(), OPT_LOCAL);
             }
         }
@@ -3137,11 +3137,11 @@ pub unsafe fn need_conversion(fenc: *const c_char) -> bool {
         let same_encoding: bool;
         let fenc_flags: c_int;
 
-        if *fenc == NUL || CStr::from_ptr(p_enc) == CStr::from_ptr(fenc) {
+        if *fenc == NUL || CStr::from_ptr(opt_vars().p_enc) == CStr::from_ptr(fenc) {
             same_encoding = true;
             fenc_flags = 0;
         } else {
-            let enc_flags = get_fio_flags(p_enc);
+            let enc_flags = get_fio_flags(opt_vars().p_enc);
             fenc_flags = get_fio_flags(fenc);
             same_encoding = enc_flags != 0 && fenc_flags == enc_flags;
         }
@@ -3158,10 +3158,10 @@ pub unsafe fn need_conversion(fenc: *const c_char) -> bool {
 pub unsafe fn get_fio_flags(mut name: *const c_char) -> c_int {
     unsafe {
         if name.is_null() || *name == NUL {
-            name = if p_enc.is_null() {
+            name = if opt_vars().p_enc.is_null() {
                 c"utf-8".as_ptr()
             } else {
-                p_enc
+                opt_vars().p_enc
             };
         }
         let prop = enc_canon_props(name);
@@ -3587,7 +3587,7 @@ pub unsafe fn vim_rename(from: *const c_char, to: *const c_char) -> c_int {
         let mut use_tmp_file = false;
 
         if path_equal(from, to, kPathCmpLiteral) {
-            if p_fic != 0 && CStr::from_ptr(path_tail(from)) != CStr::from_ptr(path_tail(to)) {
+            if opt_vars().p_fic != 0 && CStr::from_ptr(path_tail(from)) != CStr::from_ptr(path_tail(to)) {
                 use_tmp_file = true;
             } else {
                 return 0;
@@ -3804,7 +3804,7 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
             } else if (if (*buf).b_p_ar >= 0 {
                 (*buf).b_p_ar
             } else {
-                p_ar
+                opt_vars().p_ar
             }) != 0
                 && !bufIsChanged(buf)
                 && file_info_ok
@@ -4007,7 +4007,7 @@ pub unsafe fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool
         let old_cursor = (*curwin).w_cursor;
         let old_topline = (*curwin).w_topline;
 
-        if p_ur < 0 || i64::from((*curbuf).b_ml.ml_line_count) <= p_ur {
+        if opt_vars().p_ur < 0 || i64::from((*curbuf).b_ml.ml_line_count) <= opt_vars().p_ur {
             u_sync(false);
             saved = u_savecommon(curbuf, 0, (*curbuf).b_ml.ml_line_count + 1, 0, true);
             flags |= READ_KEEP_UNDO;
@@ -4541,7 +4541,7 @@ pub unsafe fn match_file_pat(
         let mut regmatch: regmatch_T = regmatch_T::new();
         let mut result = false;
 
-        regmatch.rm_ic = p_fic != 0;
+        regmatch.rm_ic = opt_vars().p_fic != 0;
         regmatch.regprog = if let Some(prog) = prog {
             ptr::from_ref(prog).cast_mut()
         } else {

@@ -659,7 +659,7 @@ unsafe fn ctx_dirs_save(cs: *mut CtxSwitch, wp: *mut win_T, tp: *mut tabpage_T, 
         }
 
         if let Some(ref cs_cwd) = (*cs).cs_cwd
-            && p_acd != 0
+            && opt_vars().p_acd != 0
         {
             let saved_cwd_bytes = cs_cwd.as_bytes().to_vec();
             do_autochdir();

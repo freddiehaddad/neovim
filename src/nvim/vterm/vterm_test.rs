@@ -1076,7 +1076,7 @@ mod tests {
 
     unsafe fn init() -> *mut VTerm {
         unsafe {
-            crate::option_vars::p_emoji = 1;
+            crate::option_vars::opt_vars().p_emoji = 1;
             vtt_st().state_pos = VTermPos { row: 0, col: 0 };
             vtt_st().want_state_putglyph = false;
             vtt_st().want_state_movecursor = false;

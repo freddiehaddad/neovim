@@ -474,7 +474,7 @@ unsafe fn showmap(mp: &mapblock_T, local: bool) {
             msg_puts(c"\n                 ".as_ptr());
             msg_puts(desc.as_ptr());
         }
-        if p_verbose > 0 {
+        if opt_vars().p_verbose > 0 {
             last_set_msg(mp.m_script_ctx);
         }
         msg_clr_eos();
@@ -645,7 +645,7 @@ unsafe fn str_to_mapargs(
         }
 
         let mut lhs_end = to_parse;
-        let do_backslash = vim_strchr(p_cpo, kCpoBslash).is_null();
+        let do_backslash = vim_strchr(opt_vars().p_cpo, kCpoBslash).is_null();
         while *lhs_end != NUL && (is_unmap || !ascii_iswhite(*lhs_end as u8 as c_int)) {
             if (*lhs_end == Ctrl_V as c_char || (do_backslash && *lhs_end == b'\\' as c_char))
                 && *lhs_end.add(1) != NUL
@@ -675,7 +675,7 @@ unsafe fn str_to_mapargs(
             rhs_start,
             orig_rhs_len,
             LUA_NOREF,
-            p_cpo,
+            opt_vars().p_cpo,
             mapargs,
         ) {
             return 1;
@@ -1254,7 +1254,7 @@ pub unsafe fn map_to_exists(str_ptr: *const c_char, modechars: *const c_char, ab
             0,
             REPTERM_DO_LT,
             ptr::null_mut(),
-            p_cpo,
+            opt_vars().p_cpo,
         )
         .unwrap_or_default();
 
@@ -1492,7 +1492,7 @@ pub unsafe fn ExpandMappings(
                     continue;
                 }
 
-                let p_cstr = translate_mapping(mp.m_keys.as_ptr().cast_mut(), p_cpo);
+                let p_cstr = translate_mapping(mp.m_keys.as_ptr().cast_mut(), opt_vars().p_cpo);
                 let p = p_cstr.as_ptr().cast_mut();
 
                 let mut score: c_int = 0;
@@ -1752,7 +1752,7 @@ pub unsafe fn eval_map_expr(mp: &mapblock_T, c: c_int) -> Option<CString> {
                 0,
                 REPTERM_DO_LT,
                 ptr::null_mut(),
-                p_cpo,
+                opt_vars().p_cpo,
             )
         } else {
             Some(vim_strsave_escape_ks(p.as_ptr()))
@@ -2257,7 +2257,7 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: *mut typval_T, exact: c_int)
             0,
             flags,
             &mut did_simplify,
-            p_cpo,
+            opt_vars().p_cpo,
         )
         .unwrap_or_default();
         let mut mp_opt: Option<&'static mapblock_T> = None;
@@ -2282,7 +2282,7 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: *mut typval_T, exact: c_int)
                 0,
                 flags | REPTERM_NO_SIMPLIFY,
                 ptr::null_mut(),
-                p_cpo,
+                opt_vars().p_cpo,
             )
             .unwrap_or_default();
             rhs = check_map(
@@ -2465,7 +2465,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
             CStr::from_ptr(orig_rhs).to_bytes().len(),
             rhs_lua,
             sid,
-            p_cpo,
+            opt_vars().p_cpo,
             &mut args,
         );
 
@@ -2476,7 +2476,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
             c"".as_ptr(),
             0,
             LUA_NOREF,
-            p_cpo,
+            opt_vars().p_cpo,
             &mut unmap_args,
         );
         unmap_args.buffer = buffer;
@@ -2559,7 +2559,7 @@ pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                         0,
                         flags,
                         &mut did_simplify,
-                        p_cpo,
+                        opt_vars().p_cpo,
                     )
                     .unwrap_or_default();
 
@@ -2615,7 +2615,7 @@ pub unsafe fn add_map(lhs: *mut c_char, rhs: *mut c_char, mode: c_int, buffer: b
             rhs,
             CStr::from_ptr(rhs).to_bytes().len(),
             LUA_NOREF,
-            p_cpo,
+            opt_vars().p_cpo,
             &mut args,
         );
         args.buffer = buffer;
@@ -2658,7 +2658,7 @@ pub unsafe fn did_set_langmap(args: *mut optset_T) -> *const c_char {
     unsafe {
         langmap_init();
 
-        let mut p = p_langmap;
+        let mut p = opt_vars().p_langmap;
         while *p != NUL {
             let mut p2 = p;
             while *p2 != NUL && *p2 != b',' as c_char && *p2 != b';' as c_char {
@@ -2908,7 +2908,7 @@ pub unsafe fn modify_keymap(
                 rhs.data,
                 rhs.size,
                 lua_funcref,
-                p_cpo,
+                opt_vars().p_cpo,
                 &mut parsed_args,
             ) {
                 api_set_error!(

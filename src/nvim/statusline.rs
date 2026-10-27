@@ -525,7 +525,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
         }
 
         if wp.is_null() {
-            stl = p_tal;
+            stl = opt_vars().p_tal;
             row = 0;
             fillchar = schar_from_ascii(b' ');
             group = HLF_TPF;
@@ -539,7 +539,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
             stl = if *(*wp).w_onebuf_opt.wo_wbr != NUL {
                 (*wp).w_onebuf_opt.wo_wbr
             } else {
-                p_wbr
+                opt_vars().p_wbr
             };
             opt_scope = if *(*wp).w_onebuf_opt.wo_wbr != NUL {
                 OPT_LOCAL
@@ -566,7 +566,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
             stl_clear_click_defs(&mut (*wp).w_winbar_click_defs);
             click_defs = stl_alloc_click_defs(&mut (*wp).w_winbar_click_defs, maxwidth);
         } else if draw_ruler && ui_event {
-            stl = p_ruf;
+            stl = opt_vars().p_ruf;
             opt_idx = kOptRulerformat;
             maxwidth = Columns / 2;
             fillchar = schar_from_ascii(b' ');
@@ -574,7 +574,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
             attr = hl_attr(group);
             click_defs = ptr::null_mut();
         } else if draw_ruler {
-            stl = p_ruf;
+            stl = opt_vars().p_ruf;
             opt_idx = kOptRulerformat;
             if *stl == b'%' as c_char {
                 stl = stl.add(1);
@@ -589,7 +589,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
                 let ch = *stl;
                 stl = stl.add(1);
                 if ch != b'(' as c_char {
-                    stl = p_ruf;
+                    stl = opt_vars().p_ruf;
                 }
             }
             row = Rows - 1;
@@ -604,7 +604,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
             stl = if *(*wp).w_onebuf_opt.wo_stl != NUL {
                 (*wp).w_onebuf_opt.wo_stl
             } else {
-                p_stl
+                opt_vars().p_stl
             };
             opt_idx = kOptStatusline;
             opt_scope = if *(*wp).w_onebuf_opt.wo_stl != NUL {
@@ -613,7 +613,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
                 0
             };
             if is_stl_global {
-                row = Rows - (p_ch as c_int) - 1;
+                row = Rows - (opt_vars().p_ch as c_int) - 1;
                 col = 0;
                 maxwidth = Columns;
             } else if (*wp).w_status_height == 0 {
@@ -757,7 +757,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
                 sp = sp.add(1);
             }
 
-            if p_sc != 0 && find_option(p_sloc) == opt_idx {
+            if opt_vars().p_sc != 0 && find_option(opt_vars().p_sloc) == opt_idx {
                 showcmd_update_clear_state();
             }
 
@@ -790,7 +790,7 @@ pub unsafe fn win_redr_winbar(wp: *mut win_T) {
 
         if (*wp).w_winbar_height == 0 || !redrawing() {
             // Do nothing.
-        } else if *p_wbr != NUL || *(*wp).w_onebuf_opt.wo_wbr != NUL {
+        } else if *opt_vars().p_wbr != NUL || *(*wp).w_onebuf_opt.wo_wbr != NUL {
             win_redr_stl_expr(wp, true, false, false);
         }
         stl_st().winbar_entered = false;
@@ -807,7 +807,7 @@ pub unsafe fn redraw_ruler() {
         let is_stl_global = global_stl_height() > 0;
 
         let part_of_status = (*wp).w_status_height != 0 || is_stl_global;
-        if p_ru == 0 || part_of_status || (p_ch == 0 && !ui_has(kUIMessages)) {
+        if opt_vars().p_ru == 0 || part_of_status || (opt_vars().p_ch == 0 && !ui_has(kUIMessages)) {
             if stl_st().did_show_ext_ruler && ui_has(kUIMessages) {
                 ui_call_msg_ruler(Array::new());
                 stl_st().did_show_ext_ruler = false;
@@ -973,7 +973,7 @@ pub unsafe fn draw_tabline() {
         debug_assert!((*defs).len() >= Columns as usize);
         stl_clear_click_defs(&mut *defs);
 
-        if *p_tal != NUL {
+        if *opt_vars().p_tal != NUL {
             win_redr_stl_expr(ptr::null_mut(), false, false, false);
         } else {
             let mut tabcount: c_int = 0;
@@ -1100,7 +1100,7 @@ pub unsafe fn draw_tabline() {
             let c = if use_sep_chars { b'_' } else { b' ' };
             grid_line_fill(col, Columns, schar_from_ascii(c), attr_fill);
 
-            if p_sc != 0 && *p_sloc == b't' as c_char {
+            if opt_vars().p_sc != 0 && *opt_vars().p_sloc == b't' as c_char {
                 let n = Columns - col - c_int::from(tabcount > 1) * 3;
                 let sc_width = 10.min(n);
 
@@ -2036,7 +2036,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     str = buf_tmp.as_mut_ptr();
                 }
                 STL_SHOWCMD => {
-                    if p_sc != 0 && (opt_idx == kOptInvalid || find_option(p_sloc) == opt_idx) {
+                    if opt_vars().p_sc != 0 && (opt_idx == kOptInvalid || find_option(opt_vars().p_sloc) == opt_idx) {
                         str = (&raw mut showcmd_buf).cast();
                     }
                 }

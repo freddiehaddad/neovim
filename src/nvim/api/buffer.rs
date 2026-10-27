@@ -1418,10 +1418,10 @@ pub unsafe extern "C" fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: *
         let mut ren_ret = OK;
         try_wrap(err, || {
             let is_curbuf = b == curbuf;
-            let save_acd = p_acd;
+            let save_acd = opt_vars().p_acd;
             if !is_curbuf {
                 RedrawingDisabled += 1;
-                p_acd = 0;
+                opt_vars().p_acd = 0;
             }
 
             let mut aco: CtxSwitch = CtxSwitch::new();
@@ -1431,7 +1431,7 @@ pub unsafe extern "C" fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: *
 
             if !is_curbuf {
                 RedrawingDisabled -= 1;
-                p_acd = save_acd;
+                opt_vars().p_acd = save_acd;
             }
         });
 

@@ -986,7 +986,7 @@ fn nowin() -> *mut win_T {
 unsafe fn rows_avail() -> OptInt {
     unsafe {
         OptInt::from(Rows)
-            - p_ch
+            - opt_vars().p_ch
             - OptInt::from(tabline_height())
             - OptInt::from(global_stl_height())
     }
@@ -1108,11 +1108,11 @@ pub unsafe fn swbuf_goto_win_with_buf(buf: *mut buf_T) -> *mut win_T {
             return wp;
         }
 
-        if (swb_flags & kOptSwbFlagUseopen) != 0 {
+        if (opt_vars().swb_flags & kOptSwbFlagUseopen) != 0 {
             wp = buf_jump_open_win(buf);
         }
 
-        if wp.is_null() && (swb_flags & kOptSwbFlagUsetab) != 0 {
+        if wp.is_null() && (opt_vars().swb_flags & kOptSwbFlagUsetab) != 0 {
             wp = buf_jump_open_tab(buf);
         }
 
@@ -1154,7 +1154,7 @@ unsafe fn do_window_gotofile(nchar: c_int, Prenum1: c_int) {
             setpcmark();
 
             let mut wp: *mut win_T = ptr::null_mut();
-            if (swb_flags & (kOptSwbFlagUseopen | kOptSwbFlagUsetab)) != 0 && cmdmod.cmod_tab == 0 {
+            if (opt_vars().swb_flags & (kOptSwbFlagUseopen | kOptSwbFlagUsetab)) != 0 && cmdmod.cmod_tab == 0 {
                 wp = swbuf_goto_win_with_buf(buflist_findname_exp(ptr));
             }
 
@@ -1482,7 +1482,7 @@ pub unsafe fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     if Prenum != 0 {
                         g_do_tagpreview = Prenum;
                     } else {
-                        g_do_tagpreview = p_pvh as c_int;
+                        g_do_tagpreview = opt_vars().p_pvh as c_int;
                     }
                 } else {
                     g_do_tagpreview = 0;
@@ -1550,7 +1550,7 @@ pub unsafe fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                             if Prenum != 0 {
                                 g_do_tagpreview = Prenum;
                             } else {
-                                g_do_tagpreview = p_pvh as c_int;
+                                g_do_tagpreview = opt_vars().p_pvh as c_int;
                             }
                         }
                         if Prenum != 0 {
@@ -1633,15 +1633,15 @@ pub unsafe fn win_set_buf(win: *mut win_T, buf: *mut buf_T, err: *mut Error) {
             kCtxNoDisplay | kCtxKeepCwd,
         );
         if win_ok {
-            let save_acd = p_acd;
+            let save_acd = opt_vars().p_acd;
             if !switchwin.cs_same_win {
-                p_acd = 0;
+                opt_vars().p_acd = 0;
             }
 
             do_buffer(DOBUF_GOTO, DOBUF_FIRST, FORWARD, (*buf).b_fnum, 0);
 
             if !switchwin.cs_same_win {
-                p_acd = save_acd;
+                opt_vars().p_acd = save_acd;
             }
         }
         try_leave(&raw const tstate, err);
@@ -1771,7 +1771,7 @@ pub unsafe fn ui_ext_win_position(wp: *mut win_T, validate: bool) {
                     }
                 }
             } else if c.relative == kFloatRelativeLaststatus {
-                row += f64::from(Rows - p_ch as c_int - last_stl_height(false));
+                row += f64::from(Rows - opt_vars().p_ch as c_int - last_stl_height(false));
             } else if c.relative == kFloatRelativeTabline {
                 row += f64::from(tabline_height());
             }
@@ -1795,7 +1795,7 @@ pub unsafe fn ui_ext_win_position(wp: *mut win_T, validate: bool) {
             let mut comp_row = (row as c_int) - if south { (*wp).w_height_outer } else { 0 };
             let mut comp_col = (col as c_int) - if east { (*wp).w_width_outer } else { 0 };
             let above_ch = if (*wp).w_config.zindex < kZIndexMessages {
-                p_ch as c_int
+                opt_vars().p_ch as c_int
             } else {
                 0
             };
@@ -2045,8 +2045,8 @@ pub unsafe fn win_split_ins(
         let vertical = (flags & WSP_VERT) != 0;
         let toplevel = (flags & (WSP_TOP | WSP_BOT)) != 0;
 
-        if one_window(firstwin, ptr::null_mut()) && p_ls == 1 && (*oldwin).w_status_height == 0 {
-            if OptInt::from((*oldwin).w_height) <= p_wmh {
+        if one_window(firstwin, ptr::null_mut()) && opt_vars().p_ls == 1 && (*oldwin).w_status_height == 0 {
+            if OptInt::from((*oldwin).w_height) <= opt_vars().p_wmh {
                 emsg(gettext(e_noroom.as_ptr()));
                 return ptr::null_mut();
             }
@@ -2060,10 +2060,10 @@ pub unsafe fn win_split_ins(
         let mut did_set_fraction = false;
 
         if vertical {
-            let wmw1 = if p_wmw == 0 { 1 } else { p_wmw as c_int };
+            let wmw1 = if opt_vars().p_wmw == 0 { 1 } else { opt_vars().p_wmw as c_int };
             let mut needed = wmw1 + 1;
             if (flags & WSP_ROOM) != 0 {
-                needed += p_wiw as c_int - wmw1;
+                needed += opt_vars().p_wiw as c_int - wmw1;
             }
             let mut minwidth: c_int;
             let available: c_int;
@@ -2071,7 +2071,7 @@ pub unsafe fn win_split_ins(
                 minwidth = frame_minwidth(topframe, nowin());
                 available = (*topframe).fr_width;
                 needed += minwidth;
-            } else if p_ea != 0 {
+            } else if opt_vars().p_ea != 0 {
                 minwidth = frame_minwidth((*oldwin).w_frame, nowin());
                 let mut prevfrp = (*oldwin).w_frame;
                 let mut frp = (*(*oldwin).w_frame).fr_parent;
@@ -2104,7 +2104,7 @@ pub unsafe fn win_split_ins(
             }
             new_size = new_size.min(available - minwidth - 1).max(wmw1);
 
-            if OptInt::from((*oldwin).w_width - new_size - 1) < p_wmw {
+            if OptInt::from((*oldwin).w_width - new_size - 1) < opt_vars().p_wmw {
                 do_equal = true;
             }
 
@@ -2113,9 +2113,9 @@ pub unsafe fn win_split_ins(
             }
 
             if !do_equal
-                && p_ea != 0
+                && opt_vars().p_ea != 0
                 && size == 0
-                && *p_ead != b'v' as c_char
+                && *opt_vars().p_ead != b'v' as c_char
                 && !(*(*oldwin).w_frame).fr_parent.is_null()
             {
                 let mut frp = (*(*(*oldwin).w_frame).fr_parent).fr_child;
@@ -2132,12 +2132,12 @@ pub unsafe fn win_split_ins(
                 }
             }
         } else {
-            let wmh1 = (p_wmh as c_int).max(1) + (*oldwin).w_winbar_height;
+            let wmh1 = (opt_vars().p_wmh as c_int).max(1) + (*oldwin).w_winbar_height;
             let mut needed = wmh1 + STATUS_HEIGHT;
             if (flags & WSP_ROOM) != 0 {
-                needed += p_wh as c_int - wmh1 + (*oldwin).w_winbar_height;
+                needed += opt_vars().p_wh as c_int - wmh1 + (*oldwin).w_winbar_height;
             }
-            if p_ch < 1 {
+            if opt_vars().p_ch < 1 {
                 needed += 1;
             }
             let mut minheight: c_int;
@@ -2146,7 +2146,7 @@ pub unsafe fn win_split_ins(
                 minheight = frame_minheight(topframe, nowin()) + need_status;
                 available = (*topframe).fr_height;
                 needed += minheight;
-            } else if p_ea != 0 {
+            } else if opt_vars().p_ea != 0 {
                 minheight = frame_minheight((*oldwin).w_frame, nowin()) + need_status;
                 let mut prevfrp = (*oldwin).w_frame;
                 let mut frp = (*(*oldwin).w_frame).fr_parent;
@@ -2187,7 +2187,7 @@ pub unsafe fn win_split_ins(
                 .min(available - minheight - STATUS_HEIGHT)
                 .max(wmh1);
 
-            if OptInt::from(oldwin_height - new_size - STATUS_HEIGHT) < p_wmh {
+            if OptInt::from(oldwin_height - new_size - STATUS_HEIGHT) < opt_vars().p_wmh {
                 do_equal = true;
             }
 
@@ -2200,9 +2200,9 @@ pub unsafe fn win_split_ins(
             }
 
             if !do_equal
-                && p_ea != 0
+                && opt_vars().p_ea != 0
                 && size == 0
-                && *p_ead != b'h' as c_char
+                && *opt_vars().p_ead != b'h' as c_char
                 && !(*(*oldwin).w_frame).fr_parent.is_null()
             {
                 let mut frp = (*(*(*oldwin).w_frame).fr_parent).fr_child;
@@ -2223,7 +2223,7 @@ pub unsafe fn win_split_ins(
         if (flags & WSP_TOP) == 0
             && ((flags & WSP_BOT) != 0
                 || (flags & WSP_BELOW) != 0
-                || ((flags & WSP_ABOVE) == 0 && if vertical { p_spr != 0 } else { p_sb != 0 }))
+                || ((flags & WSP_ABOVE) == 0 && if vertical { opt_vars().p_spr != 0 } else { opt_vars().p_sb != 0 }))
         {
             if new_wp.is_null() {
                 wp = win_alloc(oldwin, false);
@@ -2297,9 +2297,9 @@ pub unsafe fn win_split_ins(
             } else if (flags & WSP_ABOVE) != 0 {
                 before = true;
             } else if vertical {
-                before = p_spr == 0;
+                before = opt_vars().p_spr == 0;
             } else {
-                before = p_sb == 0;
+                before = opt_vars().p_sb == 0;
             }
         }
         if (*curfrp).fr_parent.is_null() || (*(*curfrp).fr_parent).fr_layout != layout {
@@ -2351,7 +2351,7 @@ pub unsafe fn win_split_ins(
             }
             if toplevel {
                 (*wp).w_winrow = tabline_height();
-                let ls_h = c_int::from(p_ls == 1 || p_ls == 2);
+                let ls_h = c_int::from(opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
                 win_new_height(wp, (*curfrp).fr_height - ls_h);
                 (*wp).w_status_height = ls_h;
                 (*wp).w_hsep_height = 0;
@@ -2421,7 +2421,7 @@ pub unsafe fn win_split_ins(
                         new_fr_height -= 1;
                     }
                 } else {
-                    if !((flags & WSP_BOT) != 0 && p_ls == 0) {
+                    if !((flags & WSP_BOT) != 0 && opt_vars().p_ls == 0) {
                         new_fr_height -= STATUS_HEIGHT;
                     }
                     if (flags & WSP_BOT) != 0 {
@@ -2495,14 +2495,14 @@ pub unsafe fn win_split_ins(
 
         let i: c_int;
         if (flags & WSP_VERT) != 0 {
-            i = p_wiw as c_int;
+            i = opt_vars().p_wiw as c_int;
             if size != 0 {
-                p_wiw = OptInt::from(size);
+                opt_vars().p_wiw = OptInt::from(size);
             }
         } else {
-            i = p_wh as c_int;
+            i = opt_vars().p_wh as c_int;
             if size != 0 {
-                p_wh = OptInt::from(size);
+                opt_vars().p_wh = OptInt::from(size);
             }
         }
 
@@ -2518,9 +2518,9 @@ pub unsafe fn win_split_ins(
             );
         }
         if vertical {
-            p_wiw = OptInt::from(i);
+            opt_vars().p_wiw = OptInt::from(i);
         } else {
-            p_wh = OptInt::from(i);
+            opt_vars().p_wh = OptInt::from(i);
         }
 
         if win_valid(oldwin) {
@@ -2559,8 +2559,8 @@ pub unsafe fn win_init(newp: *mut win_T, oldp: *mut win_T, flags: c_int) {
         (*newp).w_localdir = (*oldp).w_localdir.clone();
         (*newp).w_prevdir = (*oldp).w_prevdir.clone();
 
-        if *p_spk != b'c' as c_char {
-            if *p_spk == b't' as c_char {
+        if *opt_vars().p_spk != b'c' as c_char {
+            if *opt_vars().p_spk == b't' as c_char {
                 (*newp).w_skipcol = (*oldp).w_skipcol;
             }
             (*newp).w_botline = (*oldp).w_botline;
@@ -2671,13 +2671,13 @@ pub unsafe fn win_count() -> c_int {
 pub unsafe fn make_windows(mut count: c_int, vertical: bool) -> c_int {
     unsafe {
         let mut maxcount = if vertical {
-            ((OptInt::from((*curwin).w_width + (*curwin).w_vsep_width) - (p_wiw - p_wmw)) as c_int)
-                / (p_wmw as c_int + 1)
+            ((OptInt::from((*curwin).w_width + (*curwin).w_vsep_width) - (opt_vars().p_wiw - opt_vars().p_wmw)) as c_int)
+                / (opt_vars().p_wmw as c_int + 1)
         } else {
             ((OptInt::from(
                 (*curwin).w_height + (*curwin).w_hsep_height + (*curwin).w_status_height,
-            ) - (p_wh - p_wmh)) as c_int)
-                / (p_wmh as c_int + STATUS_HEIGHT + global_winbar_height())
+            ) - (opt_vars().p_wh - opt_vars().p_wmh)) as c_int)
+                / (opt_vars().p_wmh as c_int + STATUS_HEIGHT + global_winbar_height())
         };
 
         maxcount = maxcount.max(2);
@@ -2907,7 +2907,7 @@ pub unsafe fn win_splitmove(wp: *mut win_T, size: c_int, flags: c_int) -> c_int 
 
         if size == 0 && (flags & WSP_VERT) == 0 && win_valid(wp) && !(*wp).w_floating {
             win_setheight_win(height, wp, true);
-            if p_ea != 0 {
+            if opt_vars().p_ea != 0 {
                 win_equal(curwin, ptr::eq(curwin, wp), b'v' as c_int);
             }
         }
@@ -2973,25 +2973,25 @@ pub unsafe fn win_move_after(win1: *mut win_T, win2: *mut win_T) {
 unsafe fn get_maximum_wincount(fr: *mut frame_T, mut height: c_int) -> c_int {
     unsafe {
         if (*fr).fr_layout != FR_COL {
-            return height / (p_wmh as c_int + STATUS_HEIGHT + (*frame2win(fr)).w_winbar_height);
+            return height / (opt_vars().p_wmh as c_int + STATUS_HEIGHT + (*frame2win(fr)).w_winbar_height);
         } else if global_winbar_height() != 0 {
-            return height / (p_wmh as c_int + STATUS_HEIGHT + 1);
+            return height / (opt_vars().p_wmh as c_int + STATUS_HEIGHT + 1);
         }
 
         let mut total_wincount: c_int = 0;
         let mut frp = (*fr).fr_child;
         while !frp.is_null() {
             let wp = frame2win(frp);
-            if OptInt::from(height) < (p_wmh + OptInt::from(STATUS_HEIGHT + (*wp).w_winbar_height))
+            if OptInt::from(height) < (opt_vars().p_wmh + OptInt::from(STATUS_HEIGHT + (*wp).w_winbar_height))
             {
                 break;
             }
-            height -= p_wmh as c_int + STATUS_HEIGHT + (*wp).w_winbar_height;
+            height -= opt_vars().p_wmh as c_int + STATUS_HEIGHT + (*wp).w_winbar_height;
             total_wincount += 1;
             frp = (*frp).fr_next;
         }
 
-        total_wincount += height / (p_wmh as c_int + STATUS_HEIGHT);
+        total_wincount += height / (opt_vars().p_wmh as c_int + STATUS_HEIGHT);
         total_wincount
     }
 }
@@ -2999,7 +2999,7 @@ unsafe fn get_maximum_wincount(fr: *mut frame_T, mut height: c_int) -> c_int {
 pub unsafe fn win_equal(next_curwin: *mut win_T, current: bool, mut dir: c_int) {
     unsafe {
         if dir == 0 {
-            dir = c_int::from(*p_ead as u8);
+            dir = c_int::from(*opt_vars().p_ead as u8);
         }
         win_equal_rec(
             if next_curwin.is_null() {
@@ -3061,13 +3061,13 @@ unsafe fn win_equal_rec(
                 } else {
                     extra_sep = 0;
                 }
-                totwincount = (n + extra_sep) / (p_wmw as c_int + 1);
+                totwincount = (n + extra_sep) / (opt_vars().p_wmw as c_int + 1);
                 has_next_curwin = frame_has_win(topfr, next_curwin);
 
                 let m = frame_minwidth(topfr, next_curwin);
                 room = width - m;
                 if room < 0 {
-                    next_curwin_size = p_wiw as c_int + room;
+                    next_curwin_size = opt_vars().p_wiw as c_int + room;
                     room = 0;
                 } else {
                     next_curwin_size = -1;
@@ -3077,15 +3077,15 @@ unsafe fn win_equal_rec(
                             n = frame_minwidth(fr, nowin());
                             let mut new_size = (*fr).fr_width;
                             if frame_has_win(fr, next_curwin) {
-                                room += p_wiw as c_int - p_wmw as c_int;
+                                room += opt_vars().p_wiw as c_int - opt_vars().p_wmw as c_int;
                                 next_curwin_size = 0;
-                                new_size = new_size.max(p_wiw as c_int);
+                                new_size = new_size.max(opt_vars().p_wiw as c_int);
                             } else {
                                 totwincount -= (n + if (*fr).fr_next.is_null() {
                                     extra_sep
                                 } else {
                                     0
-                                }) / (p_wmw as c_int + 1);
+                                }) / (opt_vars().p_wmw as c_int + 1);
                             }
                             room -= new_size - n;
                             if room < 0 {
@@ -3100,17 +3100,17 @@ unsafe fn win_equal_rec(
                         if !has_next_curwin {
                             next_curwin_size = 0;
                         } else if totwincount > 1
-                            && OptInt::from((room + (totwincount - 2)) / (totwincount - 1)) > p_wiw
+                            && OptInt::from((room + (totwincount - 2)) / (totwincount - 1)) > opt_vars().p_wiw
                         {
                             next_curwin_size = ((OptInt::from(room)
-                                + p_wiw
-                                + OptInt::from(totwincount - 1) * p_wmw
+                                + opt_vars().p_wiw
+                                + OptInt::from(totwincount - 1) * opt_vars().p_wmw
                                 + OptInt::from(totwincount - 1))
                                 as c_int)
                                 / totwincount;
-                            room -= next_curwin_size - p_wiw as c_int;
+                            room -= next_curwin_size - opt_vars().p_wiw as c_int;
                         } else {
-                            next_curwin_size = p_wiw as c_int;
+                            next_curwin_size = opt_vars().p_wiw as c_int;
                         }
                     }
                 }
@@ -3137,7 +3137,7 @@ unsafe fn win_equal_rec(
                         extra_sep
                     } else {
                         0
-                    }) / (p_wmw as c_int + 1);
+                    }) / (opt_vars().p_wmw as c_int + 1);
                     let m = frame_minwidth(fr, next_curwin);
                     let hnc = has_next_curwin && frame_has_win(fr, next_curwin);
                     if hnc {
@@ -3149,7 +3149,7 @@ unsafe fn win_equal_rec(
                         (wincount * room + (totwincount / 2)) / totwincount
                     };
                     if hnc {
-                        next_curwin_size -= p_wiw as c_int - (m - n);
+                        next_curwin_size -= opt_vars().p_wiw as c_int - (m - n);
                         next_curwin_size = next_curwin_size.max(0);
                         ns += next_curwin_size;
                         room -= ns - next_curwin_size;
@@ -3178,7 +3178,7 @@ unsafe fn win_equal_rec(
 
             if dir != b'h' as c_int {
                 let mut n = frame_minheight(topfr, nowin());
-                if row + height >= cmdline_row && p_ls == 0 {
+                if row + height >= cmdline_row && opt_vars().p_ls == 0 {
                     extra_sep = STATUS_HEIGHT;
                 } else if global_stl_height() > 0 {
                     extra_sep = 1;
@@ -3191,7 +3191,7 @@ unsafe fn win_equal_rec(
                 let m = frame_minheight(topfr, next_curwin);
                 room = height - m;
                 if room < 0 {
-                    next_curwin_size = p_wh as c_int + room;
+                    next_curwin_size = opt_vars().p_wh as c_int + room;
                     room = 0;
                 } else {
                     next_curwin_size = -1;
@@ -3201,9 +3201,9 @@ unsafe fn win_equal_rec(
                             n = frame_minheight(fr, nowin());
                             let mut new_size = (*fr).fr_height;
                             if frame_has_win(fr, next_curwin) {
-                                room += p_wh as c_int - p_wmh as c_int;
+                                room += opt_vars().p_wh as c_int - opt_vars().p_wmh as c_int;
                                 next_curwin_size = 0;
-                                new_size = new_size.max(p_wh as c_int);
+                                new_size = new_size.max(opt_vars().p_wh as c_int);
                             } else {
                                 totwincount -= get_maximum_wincount(
                                     fr,
@@ -3227,17 +3227,17 @@ unsafe fn win_equal_rec(
                         if !has_next_curwin {
                             next_curwin_size = 0;
                         } else if totwincount > 1
-                            && OptInt::from((room + (totwincount - 2)) / (totwincount - 1)) > p_wh
+                            && OptInt::from((room + (totwincount - 2)) / (totwincount - 1)) > opt_vars().p_wh
                         {
                             next_curwin_size = ((OptInt::from(room)
-                                + p_wh
-                                + OptInt::from(totwincount - 1) * p_wmh
+                                + opt_vars().p_wh
+                                + OptInt::from(totwincount - 1) * opt_vars().p_wmh
                                 + OptInt::from(totwincount - 1))
                                 as c_int)
                                 / totwincount;
-                            room -= next_curwin_size - p_wh as c_int;
+                            room -= next_curwin_size - opt_vars().p_wh as c_int;
                         } else {
-                            next_curwin_size = p_wh as c_int;
+                            next_curwin_size = opt_vars().p_wh as c_int;
                         }
                     }
                 }
@@ -3279,7 +3279,7 @@ unsafe fn win_equal_rec(
                         (wincount * room + (totwincount / 2)) / totwincount
                     };
                     if hnc {
-                        next_curwin_size -= p_wh as c_int - (m - n);
+                        next_curwin_size -= opt_vars().p_wh as c_int - (m - n);
                         ns += next_curwin_size;
                         room -= ns - next_curwin_size;
                     } else {
@@ -3752,7 +3752,7 @@ pub unsafe fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
             (*(*win).w_buffer).b_nwindows -= 1;
         }
 
-        let had_cmdline_ruler = p_ru != 0 && ptr::eq(win, curwin) && (*win).w_status_height == 0;
+        let had_cmdline_ruler = opt_vars().p_ru != 0 && ptr::eq(win, curwin) && (*win).w_status_height == 0;
         let mut dir: c_int = 0;
         let mut wp = win_free_mem(win, &raw mut dir, ptr::null_mut());
 
@@ -3800,8 +3800,8 @@ pub unsafe fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
             last_status(false);
 
             if !(*curwin).w_floating
-                && p_ea != 0
-                && (*p_ead == b'b' as c_char || c_int::from(*p_ead as u8) == dir)
+                && opt_vars().p_ea != 0
+                && (*opt_vars().p_ead == b'b' as c_char || c_int::from(*opt_vars().p_ead as u8) == dir)
             {
                 win_equal(
                     curwin,
@@ -4451,12 +4451,12 @@ unsafe fn win_altframe(win: *mut win_T, tp: *mut tabpage_T) -> *mut frame_T {
         let mut target_fr = (*frp).fr_next;
         let mut other_fr = (*frp).fr_prev;
 
-        if !(*frp).fr_parent.is_null() && (*(*frp).fr_parent).fr_layout == FR_COL && p_sb != 0 {
+        if !(*frp).fr_parent.is_null() && (*(*frp).fr_parent).fr_layout == FR_COL && opt_vars().p_sb != 0 {
             target_fr = (*frp).fr_prev;
             other_fr = (*frp).fr_next;
         }
 
-        if !(*frp).fr_parent.is_null() && (*(*frp).fr_parent).fr_layout == FR_ROW && p_spr != 0 {
+        if !(*frp).fr_parent.is_null() && (*(*frp).fr_parent).fr_layout == FR_ROW && opt_vars().p_spr != 0 {
             target_fr = (*frp).fr_prev;
             other_fr = (*frp).fr_next;
         }
@@ -4475,12 +4475,12 @@ unsafe fn win_altframe(win: *mut win_T, tp: *mut tabpage_T) -> *mut frame_T {
 
 unsafe fn alt_tabpage() -> *mut tabpage_T {
     unsafe {
-        if (tcl_flags & kOptTclFlagUselast) != 0 && valid_tabpage(lastused_tabpage) {
+        if (opt_vars().tcl_flags & kOptTclFlagUselast) != 0 && valid_tabpage(lastused_tabpage) {
             return lastused_tabpage;
         }
 
         let forward = !(*curtab).tp_next.is_null()
-            && ((tcl_flags & kOptTclFlagLeft) == 0 || ptr::eq(curtab, first_tabpage));
+            && ((opt_vars().tcl_flags & kOptTclFlagLeft) == 0 || ptr::eq(curtab, first_tabpage));
 
         if forward {
             (*curtab).tp_next
@@ -4541,8 +4541,8 @@ pub unsafe fn frame_new_height(
 ) {
     unsafe {
         if (*topfrp).fr_parent.is_null() && set_ch {
-            let new_ch = win_st().min_set_ch.max(p_ch + OptInt::from((*topfrp).fr_height - height));
-            if new_ch != p_ch {
+            let new_ch = win_st().min_set_ch.max(opt_vars().p_ch + OptInt::from((*topfrp).fr_height - height));
+            if new_ch != opt_vars().p_ch {
                 let save_ch = win_st().min_set_ch;
                 set_option_value(kOptCmdheight, integer_obj(new_ch), 0, true, None);
                 win_st().min_set_ch = save_ch;
@@ -4876,10 +4876,10 @@ unsafe fn frame_minheight(topfrp: *mut frame_T, next_curwin: *mut win_T) -> c_in
                 + (*(*topfrp).fr_win).w_hsep_height
                 + (*(*topfrp).fr_win).w_status_height;
             if ptr::eq((*topfrp).fr_win, next_curwin) {
-                m = p_wh as c_int + extra_height;
+                m = opt_vars().p_wh as c_int + extra_height;
             } else {
-                m = p_wmh as c_int + extra_height;
-                if ptr::eq((*topfrp).fr_win, curwin) && next_curwin.is_null() && p_wmh == 0 {
+                m = opt_vars().p_wmh as c_int + extra_height;
+                if ptr::eq((*topfrp).fr_win, curwin) && next_curwin.is_null() && opt_vars().p_wmh == 0 {
                     m += 1;
                 }
             }
@@ -4910,10 +4910,10 @@ unsafe fn frame_minwidth(topfrp: *mut frame_T, next_curwin: *mut win_T) -> c_int
         let mut m: c_int;
         if !(*topfrp).fr_win.is_null() {
             if ptr::eq((*topfrp).fr_win, next_curwin) {
-                m = p_wiw as c_int + (*(*topfrp).fr_win).w_vsep_width;
+                m = opt_vars().p_wiw as c_int + (*(*topfrp).fr_win).w_vsep_width;
             } else {
-                m = p_wmw as c_int + (*(*topfrp).fr_win).w_vsep_width;
-                if p_wmw == 0 && ptr::eq((*topfrp).fr_win, curwin) && next_curwin.is_null() {
+                m = opt_vars().p_wmw as c_int + (*(*topfrp).fr_win).w_vsep_width;
+                if opt_vars().p_wmw == 0 && ptr::eq((*topfrp).fr_win, curwin) && next_curwin.is_null() {
                     m += 1;
                 }
             }
@@ -4984,8 +4984,8 @@ pub unsafe fn close_others(message: c_int, forceit: c_int, ignore_pinned: bool) 
             }
             if !r {
                 if message != 0
-                    && (p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
-                    && p_write != 0
+                    && (opt_vars().p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+                    && opt_vars().p_write != 0
                 {
                     dialog_changed((*wp).w_buffer, false);
                     if !win_valid(wp) {
@@ -5029,7 +5029,7 @@ pub unsafe fn unuse_tabpage(tp: *mut tabpage_T) {
         (*tp).tp_firstwin = firstwin;
         (*tp).tp_lastwin = lastwin;
         (*tp).tp_curwin = curwin;
-        (*tp).tp_ch_used = p_ch;
+        (*tp).tp_ch_used = opt_vars().p_ch;
     }
 }
 
@@ -5040,7 +5040,7 @@ pub unsafe fn use_tabpage(tp: *mut tabpage_T) {
         firstwin = (*curtab).tp_firstwin;
         lastwin = (*curtab).tp_lastwin;
         curwin = (*curtab).tp_curwin;
-        p_ch = (*curtab).tp_ch_used;
+        opt_vars().p_ch = (*curtab).tp_ch_used;
     }
 }
 
@@ -5094,7 +5094,7 @@ unsafe fn win_alloc_firstwin(oldwin: *mut win_T) -> c_int {
         new_frame(curwin);
         topframe = (*curwin).w_frame;
         (*topframe).fr_width = Columns;
-        (*topframe).fr_height = Rows - p_ch as c_int - global_stl_height();
+        (*topframe).fr_height = Rows - opt_vars().p_ch as c_int - global_stl_height();
 
         OK
     }
@@ -5135,7 +5135,7 @@ unsafe fn alloc_tabpage() -> *mut tabpage_T {
         (*map_ptr).insert((*tp).handle, tp);
 
         init_var_dict(tv_dict_alloc(), (&raw mut (*tp).tp_winvar).cast(), VAR_SCOPE);
-        (*tp).tp_ch_used = p_ch;
+        (*tp).tp_ch_used = opt_vars().p_ch;
 
         tp
     }
@@ -5334,7 +5334,7 @@ unsafe fn may_open_tabpage() -> c_int {
 
 pub unsafe fn make_tabpages(maxcount: c_int) -> c_int {
     unsafe {
-        let count = maxcount.min(p_tpm as c_int);
+        let count = maxcount.min(opt_vars().p_tpm as c_int);
 
         block_autocmds();
 
@@ -5503,14 +5503,14 @@ unsafe fn enter_tabpage(
         let old_off = (*(*tp).tp_firstwin).w_winrow;
         let next_prevwin = (*tp).tp_prevwin;
         let old_curtab = curtab;
-        let prev_p_ch = p_ch;
+        let prev_p_ch = opt_vars().p_ch;
 
         use_tabpage(tp);
 
-        if !ptr::eq(old_curtab, curtab) && p_ch != prev_p_ch {
+        if !ptr::eq(old_curtab, curtab) && opt_vars().p_ch != prev_p_ch {
             tabpage_check_windows(old_curtab);
-            let new_ch = p_ch;
-            p_ch = prev_p_ch;
+            let new_ch = opt_vars().p_ch;
+            opt_vars().p_ch = prev_p_ch;
             win_st().command_frame_height = false;
             set_option_value(kOptCmdheight, integer_obj(new_ch), 0, true, None);
             win_st().command_frame_height = true;
@@ -6046,7 +6046,7 @@ unsafe fn win_enter_ext(wp: *mut win_T, flags: c_int) {
             u_sync(false);
         }
 
-        if *p_spk == b'c' as c_char && !curwin_invalid {
+        if *opt_vars().p_spk == b'c' as c_char && !curwin_invalid {
             update_topline(curwin);
         }
 
@@ -6064,7 +6064,7 @@ unsafe fn win_enter_ext(wp: *mut win_T, flags: c_int) {
         if !virtual_active(curwin) {
             (*curwin).w_cursor.coladd = 0;
         }
-        if *p_spk == b'c' as c_char {
+        if *opt_vars().p_spk == b'c' as c_char {
             changed_line_abv_curs();
         } else {
             win_fix_cursor((get_real_state() & (MODE_NORMAL | MODE_CMDLINE | MODE_TERMINAL)) != 0);
@@ -6115,20 +6115,20 @@ unsafe fn win_enter_ext(wp: *mut win_T, flags: c_int) {
             redraw_later(prevwin, UPD_NOT_VALID);
         }
 
-        if OptInt::from((*curwin).w_height) < p_wh
+        if OptInt::from((*curwin).w_height) < opt_vars().p_wh
             && (*curwin).w_onebuf_opt.wo_wfh == 0
             && !(*curwin).w_floating
         {
-            win_setheight(p_wh as c_int);
+            win_setheight(opt_vars().p_wh as c_int);
         } else if (*curwin).w_height == 0 {
             win_setheight(1);
         }
 
-        if OptInt::from((*curwin).w_width) < p_wiw
+        if OptInt::from((*curwin).w_width) < opt_vars().p_wiw
             && (*curwin).w_onebuf_opt.wo_wfw == 0
             && !(*curwin).w_floating
         {
-            win_setwidth(p_wiw as c_int);
+            win_setwidth(opt_vars().p_wiw as c_int);
         }
 
         setmouse();
@@ -6166,10 +6166,10 @@ pub unsafe fn update_cwd(cause: CdCause) {
                 globaldir = Some(std::ffi::CStr::from_ptr(cwd.as_ptr()).to_owned());
             }
             let dir_differs = !path_equal(new_dir_ptr, cwd.as_ptr(), kPathCmpLiteral);
-            if p_acd == 0 && dir_differs {
+            if opt_vars().p_acd == 0 && dir_differs {
                 do_autocmd_dirchanged(new_dir_ptr, scope, cause, true);
             }
-            if os_chdir(new_dir_ptr) == 0 && p_acd == 0 && dir_differs {
+            if os_chdir(new_dir_ptr) == 0 && opt_vars().p_acd == 0 && dir_differs {
                 do_autocmd_dirchanged(new_dir_ptr, scope, cause, false);
             }
             last_chdir_reason = None;
@@ -6177,10 +6177,10 @@ pub unsafe fn update_cwd(cause: CdCause) {
         } else if let Some(gdir) = (&raw mut globaldir).as_mut().unwrap().take() {
             let gdir_ptr = gdir.as_ptr().cast_mut();
             let dir_differs = !path_equal(gdir_ptr, cwd.as_ptr(), kPathCmpLiteral);
-            if p_acd == 0 && dir_differs {
+            if opt_vars().p_acd == 0 && dir_differs {
                 do_autocmd_dirchanged(gdir_ptr, kCdScopeGlobal, cause, true);
             }
-            if os_chdir(gdir_ptr) == 0 && p_acd == 0 && dir_differs {
+            if os_chdir(gdir_ptr) == 0 && opt_vars().p_acd == 0 && dir_differs {
                 do_autocmd_dirchanged(gdir_ptr, kCdScopeGlobal, cause, false);
             }
             last_chdir_reason = None;
@@ -6519,10 +6519,10 @@ unsafe fn frame_remove(frp: *mut frame_T) {
 pub unsafe fn win_new_screensize() {
     unsafe {
         if win_st().old_Rows != Rows {
-            if p_window == OptInt::from(win_st().old_Rows - 1)
+            if opt_vars().p_window == OptInt::from(win_st().old_Rows - 1)
                 || (win_st().old_Rows == 0 && !option_was_set(kOptWindow))
             {
-                p_window = OptInt::from(Rows - 1);
+                opt_vars().p_window = OptInt::from(Rows - 1);
             }
             win_st().old_Rows = Rows;
             win_new_screen_rows();
@@ -6549,7 +6549,7 @@ pub unsafe fn win_new_screen_rows() {
         win_comp_pos();
         win_reconfig_floats();
         compute_cmdrow();
-        (*curtab).tp_ch_used = p_ch;
+        (*curtab).tp_ch_used = opt_vars().p_ch;
 
         if !skip_win_fix_scroll {
             win_fix_scroll(true);
@@ -6997,9 +6997,9 @@ pub unsafe fn win_setheight(height: c_int) {
 pub unsafe fn win_setheight_win(mut height: c_int, win: *mut win_T, from_top: bool) {
     unsafe {
         let min_wmh = if ptr::eq(win, curwin) {
-            p_wmh.max(1)
+            opt_vars().p_wmh.max(1)
         } else {
-            p_wmh
+            opt_vars().p_wmh
         } as c_int;
         height = height.max(min_wmh + (*win).w_winbar_height);
 
@@ -7064,7 +7064,7 @@ unsafe fn frame_setheight(curfrp: *mut frame_T, mut height: c_int, from_top: boo
                 } else {
                     let wp = lastwin_nofloating(ptr::null_mut());
                     room_cmdline = Rows
-                        - p_ch as c_int
+                        - opt_vars().p_ch as c_int
                         - global_stl_height()
                         - ((*wp).w_winrow
                             + (*wp).w_height
@@ -7082,7 +7082,7 @@ unsafe fn frame_setheight(curfrp: *mut frame_T, mut height: c_int, from_top: boo
                 }
                 frame_setheight(
                     (*curfrp).fr_parent,
-                    height + frame_minheight((*curfrp).fr_parent, nowin()) - p_wmh as c_int - 1,
+                    height + frame_minheight((*curfrp).fr_parent, nowin()) - opt_vars().p_wmh as c_int - 1,
                     from_top,
                 );
             }
@@ -7155,7 +7155,7 @@ pub unsafe fn win_setwidth(width: c_int) {
 pub unsafe fn win_setwidth_win(mut width: c_int, wp: *mut win_T, from_left: bool) {
     unsafe {
         if ptr::eq(wp, curwin) {
-            width = width.max(p_wmw as c_int).max(1);
+            width = width.max(opt_vars().p_wmw as c_int).max(1);
         } else if width < 0 {
             width = 0;
         }
@@ -7216,7 +7216,7 @@ unsafe fn frame_setwidth(curfrp: *mut frame_T, mut width: c_int, from_left: bool
                 }
                 frame_setwidth(
                     (*curfrp).fr_parent,
-                    width + frame_minwidth((*curfrp).fr_parent, nowin()) - p_wmw as c_int - 1,
+                    width + frame_minwidth((*curfrp).fr_parent, nowin()) - opt_vars().p_wmw as c_int - 1,
                     from_left,
                 );
             }
@@ -7277,13 +7277,13 @@ unsafe fn frame_setwidth(curfrp: *mut frame_T, mut width: c_int, from_left: bool
 pub unsafe fn did_set_winminheight(_args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut first = true;
-        while p_wmh > 0 {
-            let room = Rows - p_ch as c_int;
+        while opt_vars().p_wmh > 0 {
+            let room = Rows - opt_vars().p_ch as c_int;
             let needed = min_rows_for_all_tabpages();
             if room >= needed {
                 break;
             }
-            p_wmh -= 1;
+            opt_vars().p_wmh -= 1;
             if first {
                 emsg(gettext(e_noroom.as_ptr()));
                 first = false;
@@ -7296,13 +7296,13 @@ pub unsafe fn did_set_winminheight(_args: *mut optset_T) -> *const c_char {
 pub unsafe fn did_set_winminwidth(_args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut first = true;
-        while p_wmw > 0 {
+        while opt_vars().p_wmw > 0 {
             let room = Columns;
             let needed = frame_minwidth(topframe, ptr::null_mut());
             if room >= needed {
                 break;
             }
-            p_wmw -= 1;
+            opt_vars().p_wmw -= 1;
             if first {
                 emsg(gettext(e_noroom.as_ptr()));
                 first = false;
@@ -7358,7 +7358,7 @@ pub unsafe fn win_drag_status_line(dragwin: *mut win_T, mut offset: c_int) {
         } else {
             room = Rows - cmdline_row;
             if !(*curfr).fr_next.is_null() {
-                room -= p_ch as c_int + global_stl_height();
+                room -= opt_vars().p_ch as c_int + global_stl_height();
             } else if win_st().min_set_ch > 0 {
                 room -= 1;
             }
@@ -7504,7 +7504,7 @@ pub unsafe fn set_fraction(wp: *mut win_T) {
 
 pub unsafe fn win_fix_scroll(resize: bool) {
     unsafe {
-        if *p_spk == b'c' as c_char {
+        if *opt_vars().p_spk == b'c' as c_char {
             return;
         }
 
@@ -7514,7 +7514,7 @@ pub unsafe fn win_fix_scroll(resize: bool) {
             if !(*wp).w_floating && (*wp).w_height != (*wp).w_prev_height {
                 (*wp).w_do_win_fix_cursor = true;
 
-                if *p_spk == b's' as c_char
+                if *opt_vars().p_spk == b's' as c_char
                     && (*wp).w_winrow != (*wp).w_prev_winrow
                     && (*wp).w_botline - 1 <= (*(*wp).w_buffer).b_ml.ml_line_count
                 {
@@ -7702,7 +7702,7 @@ pub unsafe fn win_set_inner_size(wp: *mut win_T, valid_cursor: bool) {
 
         if height != prev_height {
             if height > 0 && valid_cursor {
-                if ptr::eq(wp, curwin) && (*p_spk == b'c' as c_char || (*wp).w_floating) {
+                if ptr::eq(wp, curwin) && (*opt_vars().p_spk == b'c' as c_char || (*wp).w_floating) {
                     validate_cursor(curwin);
                 }
                 if (*wp).w_view_height != prev_height {
@@ -7715,7 +7715,7 @@ pub unsafe fn win_set_inner_size(wp: *mut win_T, valid_cursor: bool) {
             (*wp).w_view_height = height;
             win_comp_scroll(wp);
 
-            if valid_cursor && !exiting && (*p_spk == b'c' as c_char || (*wp).w_floating) {
+            if valid_cursor && !exiting && (*opt_vars().p_spk == b'c' as c_char || (*wp).w_floating) {
                 if (*wp).w_onebuf_opt.wo_sms == 0 {
                     (*wp).w_skipcol = 0;
                 }
@@ -7730,7 +7730,7 @@ pub unsafe fn win_set_inner_size(wp: *mut win_T, valid_cursor: bool) {
             if valid_cursor {
                 changed_line_abv_curs_win(wp);
                 invalidate_botline_win(wp);
-                if ptr::eq(wp, curwin) && (*p_spk == b'c' as c_char || (*wp).w_floating) {
+                if ptr::eq(wp, curwin) && (*opt_vars().p_spk == b'c' as c_char || (*wp).w_floating) {
                     curs_columns(wp, 1);
                 }
             }
@@ -7811,25 +7811,25 @@ pub unsafe fn command_height() {
             frp = (*frp).fr_prev;
         }
 
-        while p_ch > OptInt::from(old_p_ch) && win_st().command_frame_height {
+        while opt_vars().p_ch > OptInt::from(old_p_ch) && win_st().command_frame_height {
             if frp.is_null() {
                 emsg(gettext(e_noroom.as_ptr()));
-                p_ch = OptInt::from(old_p_ch);
+                opt_vars().p_ch = OptInt::from(old_p_ch);
                 break;
             }
-            let h = ((p_ch - OptInt::from(old_p_ch)) as c_int)
+            let h = ((opt_vars().p_ch - OptInt::from(old_p_ch)) as c_int)
                 .min((*frp).fr_height - frame_minheight(frp, ptr::null_mut()));
             frame_add_height(frp, -h);
             old_p_ch += h;
             frp = (*frp).fr_prev;
         }
-        if p_ch < OptInt::from(old_p_ch) && win_st().command_frame_height && !frp.is_null() {
-            frame_add_height(frp, (OptInt::from(old_p_ch) - p_ch) as c_int);
+        if opt_vars().p_ch < OptInt::from(old_p_ch) && win_st().command_frame_height && !frp.is_null() {
+            frame_add_height(frp, (OptInt::from(old_p_ch) - opt_vars().p_ch) as c_int);
         }
 
         win_comp_pos();
         win_fix_scroll(true);
-        cmdline_row = Rows - p_ch as c_int;
+        cmdline_row = Rows - opt_vars().p_ch as c_int;
         redraw_cmdline = true;
 
         if msg_scrolled == 0 && full_screen {
@@ -7842,8 +7842,8 @@ pub unsafe fn command_height() {
             msg_row = cmdline_row;
         }
 
-        (*curtab).tp_ch_used = p_ch;
-        win_st().min_set_ch = p_ch;
+        (*curtab).tp_ch_used = opt_vars().p_ch;
+        win_st().min_set_ch = opt_vars().p_ch;
     }
 }
 
@@ -7988,7 +7988,7 @@ pub unsafe fn set_winbar_win(wp: *mut win_T, make_room: bool, valid_cursor: bool
         let winbar_height = if (*wp).w_floating {
             c_int::from(*(*wp).w_onebuf_opt.wo_wbr != NUL)
         } else {
-            c_int::from(*p_wbr != NUL || *(*wp).w_onebuf_opt.wo_wbr != NUL)
+            c_int::from(*opt_vars().p_wbr != NUL || *(*wp).w_onebuf_opt.wo_wbr != NUL)
         };
 
         if (*wp).w_winbar_height != winbar_height {
@@ -8062,7 +8062,7 @@ pub unsafe fn tabline_height() -> c_int {
             return 0;
         }
         debug_assert!(!first_tabpage.is_null());
-        match p_stal {
+        match opt_vars().p_stal {
             0 => 0,
             1 => c_int::from(!(*first_tabpage).tp_next.is_null()),
             _ => 1,
@@ -8071,16 +8071,16 @@ pub unsafe fn tabline_height() -> c_int {
 }
 
 pub unsafe fn global_winbar_height() -> c_int {
-    unsafe { c_int::from(*p_wbr != NUL) }
+    unsafe { c_int::from(*opt_vars().p_wbr != NUL) }
 }
 
 pub unsafe fn global_stl_height() -> c_int {
-    unsafe { if p_ls == 3 { STATUS_HEIGHT } else { 0 } }
+    unsafe { if opt_vars().p_ls == 3 { STATUS_HEIGHT } else { 0 } }
 }
 
 pub unsafe fn last_stl_height(morewin: bool) -> c_int {
     unsafe {
-        if p_ls > 1 || (p_ls == 1 && (morewin || !one_window(firstwin, ptr::null_mut()))) {
+        if opt_vars().p_ls > 1 || (opt_vars().p_ls == 1 && (morewin || !one_window(firstwin, ptr::null_mut()))) {
             STATUS_HEIGHT
         } else {
             0
@@ -8097,7 +8097,7 @@ pub unsafe fn min_rows(tp: *mut tabpage_T) -> c_int {
         let mut total = frame_minheight((*tp).tp_topframe, ptr::null_mut());
         total += tabline_height() + global_stl_height();
         if (if ptr::eq(tp, curtab) {
-            p_ch
+            opt_vars().p_ch
         } else {
             (*tp).tp_ch_used
         }) > 0
@@ -8119,7 +8119,7 @@ pub unsafe fn min_rows_for_all_tabpages() -> c_int {
         while !tp.is_null() {
             let mut n = frame_minheight((*tp).tp_topframe, ptr::null_mut());
             if (if ptr::eq(tp, curtab) {
-                p_ch
+                opt_vars().p_ch
             } else {
                 (*tp).tp_ch_used
             }) > 0
@@ -8403,7 +8403,7 @@ pub unsafe fn check_colorcolumn(cc: *mut c_char, wp: *mut win_T) -> *const c_cha
             return ptr::null();
         }
 
-        let mut s: *mut c_char = (&raw mut empty_string_option).cast::<c_char>();
+        let mut s: *mut c_char = empty_string_option.as_ptr().cast::<c_char>();
         if !cc.is_null() {
             s = cc;
         } else if !wp.is_null() {

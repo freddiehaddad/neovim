@@ -541,7 +541,7 @@ pub unsafe fn screengrid_line_start(grid: *mut ScreenGrid, row: c_int, col: c_in
 
         assert!(grid_st().grid_line_maxcol as usize <= linebuf_size);
 
-        if full_screen && (rdb_flags & kOptRdbFlagInvalid) != 0 {
+        if full_screen && (opt_vars().rdb_flags & kOptRdbFlagInvalid) != 0 {
             assert!(linebuf_size > 0);
             (&mut *lbuf_char_ptr).fill(u32::MAX);
             (&mut *lbuf_attr_ptr).fill(-1);
@@ -793,7 +793,7 @@ pub unsafe fn grid_line_flush() {
 pub unsafe fn grid_line_flush_if_valid_row() {
     unsafe {
         if grid_st().grid_line_row < 0 || grid_st().grid_line_row >= (*grid_st().grid_line_grid).rows {
-            if (rdb_flags & kOptRdbFlagInvalid) != 0 {
+            if (opt_vars().rdb_flags & kOptRdbFlagInvalid) != 0 {
                 std::process::abort();
             } else {
                 grid_st().grid_line_grid = ptr::null_mut();
@@ -841,7 +841,7 @@ unsafe fn grid_char_needs_redraw(
                 || (cols > 1
                     && linebuf_char[(col + 1) as usize] == 0
                     && linebuf_char[(col + 1) as usize] != grid.chars[off_to + 1]))
-                || (rdb_flags & kOptRdbFlagNodelta) != 0)
+                || (opt_vars().rdb_flags & kOptRdbFlagNodelta) != 0)
     }
 }
 
@@ -889,7 +889,7 @@ pub unsafe fn grid_put_linebuf(
             clear_width = col;
         }
 
-        if p_arshape != 0 && p_tbidi == 0 && endcol > col {
+        if opt_vars().p_arshape != 0 && opt_vars().p_tbidi == 0 && endcol > col {
             line_do_arabic_shape(&raw mut linebuf_char[col as usize], endcol - col);
         }
 
@@ -981,7 +981,7 @@ pub unsafe fn grid_put_linebuf(
             let off = off_to + c as usize;
             if grid.chars[off] != schar_from_ascii(b' ')
                 || grid.attrs[off] != clear_attr
-                || (rdb_flags & kOptRdbFlagNodelta) != 0
+                || (opt_vars().rdb_flags & kOptRdbFlagNodelta) != 0
             {
                 grid.chars[off] = schar_from_ascii(b' ');
                 grid.attrs[off] = clear_attr;

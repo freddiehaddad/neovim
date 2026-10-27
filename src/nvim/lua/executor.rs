@@ -2709,7 +2709,7 @@ pub unsafe fn nlua_set_sctx(current: *mut sctx_T) {
 
         (*current).sc_lnum = 0;
 
-        if p_verbose <= 0 {
+        if opt_vars().p_verbose <= 0 {
             return;
         }
         let lstate = nlua_st().active_lstate;

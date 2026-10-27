@@ -1617,7 +1617,7 @@ pub unsafe fn do_digraph(mut c: c_int) -> c_int {
     unsafe {
         if c == -1 {
             digr_st().BACKSPACED = -1;
-        } else if p_dg != 0 {
+        } else if opt_vars().p_dg != 0 {
             if digr_st().BACKSPACED >= 0 {
                 c = digraph_get(digr_st().BACKSPACED, c, false);
             }
@@ -2134,7 +2134,7 @@ pub unsafe fn keymap_init() -> *mut c_char {
             do_cmdline_cmd(c"unlet! b:keymap_name".as_ptr());
         } else {
             let kmap = CStr::from_ptr((*curbuf).b_p_keymap).to_string_lossy();
-            let enc = CStr::from_ptr(p_enc).to_string_lossy();
+            let enc = CStr::from_ptr(opt_vars().p_enc).to_string_lossy();
             let primary = CString::new(format!("keymap/{kmap}_{enc}.vim")).unwrap_or_default();
             if source_runtime(primary.as_ptr().cast_mut(), 0) == FAIL {
                 let fallback = CString::new(format!("keymap/{kmap}.vim")).unwrap_or_default();
@@ -2152,7 +2152,7 @@ pub unsafe fn keymap_init() -> *mut c_char {
 pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
     unsafe {
         let mut buf = [0 as c_char; KMAP_LLEN + 11];
-        let save_cpo = p_cpo;
+        let save_cpo = opt_vars().p_cpo;
         let fgetline: LineGetter = (*eap).ea_getline;
 
         if !fgetline.is_source() {
@@ -2172,7 +2172,7 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
         (*curbuf).b_kmap_state = 0;
         (*curbuf).b_kmap_ga.clear();
 
-        p_cpo = c"C".as_ptr().cast_mut();
+        opt_vars().p_cpo = c"C".as_ptr().cast_mut();
 
         while let Some(line_cstr) = fgetline.call(0, 0, true) {
             let line = line_cstr.as_ptr();
@@ -2210,7 +2210,7 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
             do_map(MAPTYPE_MAP, buf.as_mut_ptr(), MODE_LANGMAP, false);
         }
 
-        p_cpo = save_cpo;
+        opt_vars().p_cpo = save_cpo;
 
         (*curbuf).b_kmap_state |= KEYMAP_LOADED;
         status_redraw_curbuf();
@@ -2221,13 +2221,13 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
 unsafe fn keymap_unload() {
     unsafe {
         let mut buf = [0 as c_char; KMAP_MAXLEN + 10];
-        let save_cpo = p_cpo;
+        let save_cpo = opt_vars().p_cpo;
 
         if ((*curbuf).b_kmap_state & KEYMAP_LOADED) == 0 {
             return;
         }
 
-        p_cpo = c"C".as_ptr().cast_mut();
+        opt_vars().p_cpo = c"C".as_ptr().cast_mut();
 
         for entry in &(*curbuf).b_kmap_ga {
             vim_snprintf!(
@@ -2240,7 +2240,7 @@ unsafe fn keymap_unload() {
         }
         (*curbuf).b_kmap_ga.clear();
 
-        p_cpo = save_cpo;
+        opt_vars().p_cpo = save_cpo;
 
         (*curbuf).b_kmap_state &= !KEYMAP_LOADED;
         status_redraw_curbuf();

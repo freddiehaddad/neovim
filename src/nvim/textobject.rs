@@ -119,7 +119,7 @@ pub unsafe fn findsent(dir: Direction, mut count: c_int) -> c_int {
 
                 // remember the line where the search started
                 let startlnum = pos.lnum;
-                let cpo_J = !vim_strchr(p_cpo, kCpoEndofsent).is_null();
+                let cpo_J = !vim_strchr(opt_vars().p_cpo, kCpoEndofsent).is_null();
 
                 loop {
                     c = gchar_pos(&raw mut pos);
@@ -308,7 +308,7 @@ pub unsafe fn startPS(lnum: linenr_T, para: c_int, both: bool) -> bool {
             return true;
         }
         if *s == b'.' as c_char
-            && (inmacro(p_sections, s.add(1)) || (para == 0 && inmacro(p_para, s.add(1))))
+            && (inmacro(opt_vars().p_sections, s.add(1)) || (para == 0 && inmacro(opt_vars().p_para, s.add(1))))
         {
             return true;
         }
@@ -440,7 +440,7 @@ pub unsafe fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: b
         (*curwin).w_cursor.coladd = 0;
         tobj_st().CLS_BIGWORD = bigword;
 
-        if *p_sel == b'e' as c_char
+        if *opt_vars().p_sel == b'e' as c_char
             && Visual.active
             && Visual.mode == b'v' as c_int
             && Visual.select_exclu_adj
@@ -621,7 +621,7 @@ pub unsafe fn current_word(
         tobj_st().CLS_BIGWORD = bigword;
         clearpos(&mut start_pos);
 
-        if Visual.active && *p_sel == b'e' as c_char && lt(Visual.start, (*curwin).w_cursor) {
+        if Visual.active && *opt_vars().p_sel == b'e' as c_char && lt(Visual.start, (*curwin).w_cursor) {
             dec_cursor();
         }
 
@@ -707,7 +707,7 @@ pub unsafe fn current_word(
         }
 
         if Visual.active {
-            if *p_sel == b'e' as c_char && inclusive && ltoreq(Visual.start, (*curwin).w_cursor) {
+            if *opt_vars().p_sel == b'e' as c_char && inclusive && ltoreq(Visual.start, (*curwin).w_cursor) {
                 inc_cursor();
             }
             if Visual.mode == b'V' as c_int {
@@ -772,7 +772,7 @@ pub unsafe fn current_line(oap: *mut oparg_T, include: bool) -> c_int {
         if Visual.active {
             Visual.start = start_pos;
             (*curwin).w_cursor = end_pos;
-            if *p_sel == b'e' as c_char && ltoreq(Visual.start, (*curwin).w_cursor) {
+            if *opt_vars().p_sel == b'e' as c_char && ltoreq(Visual.start, (*curwin).w_cursor) {
                 inc_cursor();
             }
             Visual.mode = b'v' as c_int;
@@ -839,7 +839,7 @@ pub unsafe fn current_sent(oap: *mut oparg_T, mut count: c_int, include: bool) -
 
             if Visual.active {
                 if !equalpos(start_pos, (*curwin).w_cursor) {
-                    if *p_sel == b'e' as c_char {
+                    if *opt_vars().p_sel == b'e' as c_char {
                         (*curwin).w_cursor.col += 1;
                     }
                     Visual.start = start_pos;
@@ -918,7 +918,7 @@ pub unsafe fn current_sent(oap: *mut oparg_T, mut count: c_int, include: bool) -
                 count *= 2;
             }
             findsent_forward(count, at_start_sent);
-            if *p_sel == b'e' as c_char {
+            if *opt_vars().p_sel == b'e' as c_char {
                 (*curwin).w_cursor.col += 1;
             }
         }
@@ -967,8 +967,8 @@ pub unsafe fn current_block(
             old_end = Visual.start;
         }
 
-        let save_cpo = p_cpo;
-        p_cpo = if !vim_strchr(p_cpo, kCpoMatchbsl).is_null() {
+        let save_cpo = opt_vars().p_cpo;
+        opt_vars().p_cpo = if !vim_strchr(opt_vars().p_cpo, kCpoMatchbsl).is_null() {
             c"%M".as_ptr().cast_mut()
         } else {
             c"%".as_ptr().cast_mut()
@@ -1001,7 +1001,7 @@ pub unsafe fn current_block(
                 start_pos = *pos;
             }
         }
-        p_cpo = save_cpo;
+        opt_vars().p_cpo = save_cpo;
 
         if pos.is_null() || {
             end_pos = findmatch(ptr::null_mut(), other);
@@ -1056,7 +1056,7 @@ pub unsafe fn current_block(
         }
 
         if Visual.active {
-            if *p_sel == b'e' as c_char {
+            if *opt_vars().p_sel == b'e' as c_char {
                 inc(&raw mut (*curwin).w_cursor);
             }
             if sol && gchar_cursor() != c_int::from(NUL) {
@@ -1138,16 +1138,16 @@ pub unsafe fn current_tagblock(oap: *mut oparg_T, count_arg: c_int, include: boo
     unsafe {
         let mut count = count_arg;
         let mut do_include = include;
-        let save_p_ws = p_ws;
+        let save_p_ws = opt_vars().p_ws;
         let mut retval = FAIL;
         let mut is_inclusive = true;
 
-        p_ws = 0;
+        opt_vars().p_ws = 0;
 
         let old_pos = (*curwin).w_cursor;
         let mut old_end = (*curwin).w_cursor;
         let mut old_start = old_end;
-        if !Visual.active || *p_sel == b'e' as c_char {
+        if !Visual.active || *opt_vars().p_sel == b'e' as c_char {
             decl(&raw mut old_end);
         }
 
@@ -1197,7 +1197,7 @@ pub unsafe fn current_tagblock(oap: *mut oparg_T, count_arg: c_int, include: boo
                 ) <= 0
                 {
                     (*curwin).w_cursor = old_pos;
-                    p_ws = save_p_ws;
+                    opt_vars().p_ws = save_p_ws;
                     return retval;
                 }
             }
@@ -1212,7 +1212,7 @@ pub unsafe fn current_tagblock(oap: *mut oparg_T, count_arg: c_int, include: boo
             let len = cp.offset_from(p) as usize;
             if len == 0 {
                 (*curwin).w_cursor = old_pos;
-                p_ws = save_p_ws;
+                opt_vars().p_ws = save_p_ws;
                 return retval;
             }
 
@@ -1287,7 +1287,7 @@ pub unsafe fn current_tagblock(oap: *mut oparg_T, count_arg: c_int, include: boo
             if Visual.active {
                 if lt(end_pos, start_pos) {
                     (*curwin).w_cursor = start_pos;
-                } else if *p_sel == b'e' as c_char {
+                } else if *opt_vars().p_sel == b'e' as c_char {
                     inc_cursor();
                 }
                 Visual.start = start_pos;
@@ -1308,7 +1308,7 @@ pub unsafe fn current_tagblock(oap: *mut oparg_T, count_arg: c_int, include: boo
             break 'again;
         }
 
-        p_ws = save_p_ws;
+        opt_vars().p_ws = save_p_ws;
         retval
     }
 }
@@ -1560,7 +1560,7 @@ pub unsafe fn current_quote(
         let mut restore_vis_bef = false;
 
         let abort_search = |did_exclusive_adj: bool, restore_vis_bef: bool| -> bool {
-            if Visual.active && *p_sel == b'e' as c_char {
+            if Visual.active && *opt_vars().p_sel == b'e' as c_char {
                 if did_exclusive_adj {
                     inc_cursor();
                 }
@@ -1578,7 +1578,7 @@ pub unsafe fn current_quote(
 
             vis_bef_curs = lt(Visual.start, (*curwin).w_cursor);
             vis_empty = equalpos(Visual.start, (*curwin).w_cursor);
-            if *p_sel == b'e' as c_char {
+            if *opt_vars().p_sel == b'e' as c_char {
                 if vis_bef_curs {
                     dec_cursor();
                     did_exclusive_adj = true;
@@ -1732,7 +1732,7 @@ pub unsafe fn current_quote(
         }
         if Visual.active {
             if vis_empty || vis_bef_curs {
-                if *p_sel != b'e' as c_char {
+                if *opt_vars().p_sel != b'e' as c_char {
                     dec_cursor();
                 }
             } else {

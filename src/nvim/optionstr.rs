@@ -1039,7 +1039,7 @@ pub fn alloc_string_option_bytes(bytes: &[u8]) -> *mut c_char {
 /// Free the string allocated for an option.
 pub unsafe fn free_string_option(p: *mut c_char) {
     unsafe {
-        if !p.is_null() && p != (&raw mut empty_string_option).cast::<c_char>() {
+        if !p.is_null() && p != empty_string_option.as_ptr().cast::<c_char>() {
             drop(std::ffi::CString::from_raw(p));
         }
     }
@@ -1047,7 +1047,7 @@ pub unsafe fn free_string_option(p: *mut c_char) {
 
 pub unsafe fn clear_string_option(pp: *mut *mut c_char) {
     unsafe {
-        let empty = (&raw mut empty_string_option).cast::<c_char>();
+        let empty = empty_string_option.as_ptr().cast::<c_char>();
         if !(*pp).is_null() && *pp != empty {
             drop(std::ffi::CString::from_raw(*pp));
         }
@@ -1058,7 +1058,7 @@ pub unsafe fn clear_string_option(pp: *mut *mut c_char) {
 pub unsafe fn check_string_option(pp: *mut *mut c_char) {
     unsafe {
         if (*pp).is_null() {
-            *pp = (&raw mut empty_string_option).cast::<c_char>();
+            *pp = empty_string_option.as_ptr().cast::<c_char>();
         }
     }
 }
@@ -1071,7 +1071,7 @@ unsafe fn valid_filetype(val: *const c_char) -> bool {
 /// Handle setting 'signcolumn' for value 'val'.
 pub unsafe fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> c_int {
     unsafe {
-        let mut val = (&raw mut empty_string_option).cast::<c_char>();
+        let mut val = empty_string_option.as_ptr().cast::<c_char>();
         if !scl.is_null() {
             val = scl;
         } else if !wp.is_null() {
@@ -1509,24 +1509,24 @@ pub unsafe fn did_set_emoji(args: *mut optset_T) -> *const c_char {
 /// The 'background' option is changed.
 pub unsafe fn did_set_background(args: *mut optset_T) -> *const c_char {
     unsafe {
-        if *(*args).os_oldval.data.string().data == *p_bg {
+        if *(*args).os_oldval.data.string().data == *opt_vars().p_bg {
             return ptr::null();
         }
 
-        let dark = *p_bg == b'd' as c_char;
+        let dark = *opt_vars().p_bg == b'd' as c_char;
 
         init_highlight(false, false);
 
-        if dark != (*p_bg == b'd' as c_char) && !get_var_value(c"g:colors_name".as_ptr()).is_null()
+        if dark != (*opt_vars().p_bg == b'd' as c_char) && !get_var_value(c"g:colors_name".as_ptr()).is_null()
         {
             do_unlet(c"g:colors_name".as_ptr(), 13, true);
-            free_string_option(p_bg);
-            p_bg = alloc_string_option(if dark {
+            free_string_option(opt_vars().p_bg);
+            opt_vars().p_bg = alloc_string_option(if dark {
                 c"dark".as_ptr()
             } else {
                 c"light".as_ptr()
             });
-            check_string_option(&raw mut p_bg);
+            check_string_option(&raw mut opt_vars().p_bg);
             init_highlight(false, false);
         }
 
@@ -1586,8 +1586,8 @@ pub unsafe fn did_set_backupcopy(args: *mut optset_T) -> *const c_char {
     unsafe {
         let buf = (*args).os_buf;
         let opt_flags = (*args).os_flags;
-        let mut bkc = p_bkc;
-        let mut flags = &raw mut bkc_flags;
+        let mut bkc = opt_vars().p_bkc;
+        let mut flags = &raw mut opt_vars().bkc_flags;
 
         if (opt_flags & OPT_LOCAL) != 0 {
             bkc = (*buf).b_p_bkc;
@@ -1621,12 +1621,12 @@ pub unsafe fn validate_backupext_or_patchmode(args: *mut optset_T) -> *const c_c
         let bex = if (*args).os_idx == kOptBackupext {
             (*args).os_newval.data.string().data
         } else {
-            p_bex
+            opt_vars().p_bex
         };
         let pm = if (*args).os_idx == kOptPatchmode {
             (*args).os_newval.data.string().data
         } else {
-            p_pm
+            opt_vars().p_pm
         };
         let bex_s = if *bex == b'.' as c_char {
             bex.add(1)
@@ -1645,13 +1645,13 @@ pub unsafe fn validate_backupext_or_patchmode(args: *mut optset_T) -> *const c_c
 /// The 'breakat' option is changed.
 pub unsafe fn did_set_breakat(_args: *mut optset_T) -> *const c_char {
     unsafe {
-        let flags_ptr = (&raw mut breakat_flags).cast::<c_char>();
+        let flags_ptr = (&raw mut opt_vars().breakat_flags).cast::<c_char>();
         for i in 0..256 {
             *flags_ptr.add(i) = 0;
         }
 
-        if !p_breakat.is_null() {
-            let mut p = p_breakat;
+        if !opt_vars().p_breakat.is_null() {
+            let mut p = opt_vars().p_breakat;
             while *p != NUL {
                 *flags_ptr.add(*p as u8 as usize) = 1;
                 p = p.add(1);
@@ -1821,7 +1821,7 @@ pub unsafe fn did_set_chars_option(args: *mut optset_T) -> *const c_char {
         let varp = (*args).os_varp.cast::<*mut c_char>();
         let mut errmsg: *const c_char = ptr::null();
 
-        if ptr::eq(varp, &raw mut p_lcs) {
+        if ptr::eq(varp, &raw mut opt_vars().p_lcs) {
             errmsg = did_set_global_chars_option(
                 win,
                 *varp,
@@ -1829,7 +1829,7 @@ pub unsafe fn did_set_chars_option(args: *mut optset_T) -> *const c_char {
                 (*args).os_flags,
                 (*args).os_errbuf,
             );
-        } else if ptr::eq(varp, &raw mut p_fcs) {
+        } else if ptr::eq(varp, &raw mut opt_vars().p_fcs) {
             errmsg = did_set_global_chars_option(
                 win,
                 *varp,
@@ -1855,7 +1855,7 @@ pub unsafe fn expand_set_chars_option(
     unsafe {
         let varp = (*args).oe_varp.cast::<*mut c_char>();
         let is_lcs =
-            ptr::eq(varp, &raw mut p_lcs) || ptr::eq(varp, &raw mut (*curwin).w_onebuf_opt.wo_lcs);
+            ptr::eq(varp, &raw mut opt_vars().p_lcs) || ptr::eq(varp, &raw mut (*curwin).w_onebuf_opt.wo_lcs);
         expand_set_opt_generic(
             args,
             Some(if is_lcs {
@@ -2065,7 +2065,7 @@ pub unsafe fn validate_completeitemalign(args: *mut optset_T) -> *const c_char {
 /// The 'completeitemalign' option is changed.
 pub unsafe fn did_set_completeitemalign(args: *mut optset_T) -> *const c_char {
     unsafe {
-        cia_flags = (*args).os_prep.as_flags();
+        opt_vars().cia_flags = (*args).os_prep.as_flags();
         ptr::null()
     }
 }
@@ -2074,8 +2074,8 @@ pub unsafe fn did_set_completeitemalign(args: *mut optset_T) -> *const c_char {
 pub unsafe fn did_set_completeopt(args: *mut optset_T) -> *const c_char {
     unsafe {
         let buf = (*args).os_buf;
-        let mut cot = p_cot;
-        let mut flags = &raw mut cot_flags;
+        let mut cot = opt_vars().p_cot;
+        let mut flags = &raw mut opt_vars().cot_flags;
 
         if ((*args).os_flags & OPT_LOCAL) != 0 {
             cot = (*buf).b_p_cot;
@@ -2099,7 +2099,7 @@ pub unsafe fn did_set_completeslash(args: *mut optset_T) -> *const c_char {
     unsafe {
         let buf = (*args).os_buf;
         let errmsg = opt_strings_flags(
-            p_csl,
+            opt_vars().p_csl,
             &opt_csl_values,
             ptr::null_mut(),
             false,
@@ -2234,7 +2234,7 @@ pub unsafe fn did_set_display(args: *mut optset_T) -> *const c_char {
         if !errmsg.is_null() {
             return errmsg;
         }
-        dy_escape_width = if (dy_flags & kOptDyFlagUhex) != 0 {
+        opt_vars().dy_escape_width = if (opt_vars().dy_flags & kOptDyFlagUhex) != 0 {
             4
         } else {
             2
@@ -2282,7 +2282,7 @@ pub unsafe fn did_set_encoding(args: *mut optset_T) -> *const c_char {
             free_string_option(*varp);
             *varp = alloc_string_option(prep_cstr.as_ptr());
         }
-        if ptr::eq(varp, &raw mut p_enc) {
+        if ptr::eq(varp, &raw mut opt_vars().p_enc) {
             spell_reload();
         }
         ptr::null()
@@ -2340,7 +2340,7 @@ pub unsafe fn expand_set_eventignore(
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
     unsafe {
-        optstr_st().expand_eiw = !ptr::eq((*args).oe_varp, (&raw mut p_ei).cast::<c_char>());
+        optstr_st().expand_eiw = !ptr::eq((*args).oe_varp, (&raw mut opt_vars().p_ei).cast::<c_char>());
         expand_set_opt_generic(args, Some(get_eventignore_name), matches)
     }
 }
@@ -2566,7 +2566,7 @@ pub unsafe fn validate_isopt(args: *mut optset_T) -> *const c_char {
 pub unsafe fn did_set_iskeyword(args: *mut optset_T) -> *const c_char {
     unsafe {
         let varp = (*args).os_varp.cast::<*mut c_char>();
-        if !ptr::eq(varp, &raw mut p_isk) {
+        if !ptr::eq(varp, &raw mut opt_vars().p_isk) {
             let buf = (*args).os_buf;
             if buf_init_isk_chartab(buf) == FAIL {
                 return e_invarg.as_ptr();
@@ -2579,7 +2579,7 @@ pub unsafe fn did_set_iskeyword(args: *mut optset_T) -> *const c_char {
 /// The 'isident', 'iskeyword', 'isprint' or 'isfname' option is changed.
 pub unsafe fn did_set_isopt(args: *mut optset_T) -> *const c_char {
     unsafe {
-        let res = if ptr::eq((*args).os_varp, (&raw mut p_isf).cast()) {
+        let res = if ptr::eq((*args).os_varp, (&raw mut opt_vars().p_isf).cast()) {
             init_isf_chartab()
         } else {
             init_isi_chartab()
@@ -2635,8 +2635,8 @@ pub unsafe fn did_set_keymap(args: *mut optset_T) -> *const c_char {
 /// The 'keymodel' option is changed.
 pub unsafe fn did_set_keymodel(_args: *mut optset_T) -> *const c_char {
     unsafe {
-        km_stopsel = !vim_strchr(p_km, b'o' as c_int).is_null();
-        km_startsel = !vim_strchr(p_km, b'a' as c_int).is_null();
+        km_stopsel = !vim_strchr(opt_vars().p_km, b'o' as c_int).is_null();
+        km_startsel = !vim_strchr(opt_vars().p_km, b'a' as c_int).is_null();
         ptr::null()
     }
 }
@@ -2733,16 +2733,16 @@ pub unsafe fn validate_mousescroll(args: *mut optset_T) -> *const c_char {
 /// Handle setting 'mousescroll'.
 pub unsafe fn did_set_mousescroll(_args: *mut optset_T) -> *const c_char {
     unsafe {
-        let v = opt_keyset(p_mousescroll, kOptMousescroll, ptr::null_mut())
+        let v = opt_keyset(opt_vars().p_mousescroll, kOptMousescroll, ptr::null_mut())
             .cast::<OptKeyDict_mousescroll>();
         let has_hor = ((*v).is_set__mousescroll_ & (1 << KEYSET_OPTIDX_mousescroll__hor)) != 0;
         let has_ver = ((*v).is_set__mousescroll_ & (1 << KEYSET_OPTIDX_mousescroll__ver)) != 0;
-        p_mousescroll_hor = if has_hor {
+        opt_vars().p_mousescroll_hor = if has_hor {
             i64::from((*v).hor as c_int)
         } else {
             MOUSESCROLL_HOR_DFLT
         };
-        p_mousescroll_vert = if has_ver {
+        opt_vars().p_mousescroll_vert = if has_ver {
             i64::from((*v).ver as c_int)
         } else {
             MOUSESCROLL_VERT_DFLT
@@ -3001,7 +3001,7 @@ pub unsafe fn validate_spellcapcheck(args: *mut optset_T) -> *const c_char {
 /// The 'spellcapcheck' option is changed.
 pub unsafe fn did_set_spellcapcheck(args: *mut optset_T) -> *const c_char {
     unsafe {
-        if ptr::eq((*args).os_varp, (&raw mut p_spc).cast()) {
+        if ptr::eq((*args).os_varp, (&raw mut opt_vars().p_spc).cast()) {
             return ptr::null();
         }
         let win = (*args).os_win;
@@ -3054,7 +3054,7 @@ pub unsafe fn did_set_spelloptions(args: *mut optset_T) -> *const c_char {
             let errmsg = opt_strings_flags(
                 val,
                 &opt_spo_values,
-                &raw mut spo_flags,
+                &raw mut opt_vars().spo_flags,
                 true,
                 (*args).os_errbuf,
             );
@@ -3210,7 +3210,7 @@ pub unsafe fn did_set_tagcase(args: *mut optset_T) -> *const c_char {
         let (p, flags) = if (opt_flags & OPT_LOCAL) != 0 {
             ((*buf).b_p_tc, &raw mut (*buf).b_tc_flags)
         } else {
-            (p_tc, &raw mut tc_flags)
+            (opt_vars().p_tc, &raw mut opt_vars().tc_flags)
         };
 
         if (opt_flags & OPT_LOCAL) != 0 && *p == NUL {
@@ -3284,8 +3284,8 @@ pub unsafe fn validate_vartabstop(args: *mut optset_T) -> *const c_char {
 /// The 'vartabstop' or 'varsofttabstop' option is changed.
 pub unsafe fn did_set_vartabstop(args: *mut optset_T) -> *const c_char {
     unsafe {
-        if ptr::eq((*args).os_varp, (&raw mut p_vts).cast())
-            || ptr::eq((*args).os_varp, (&raw mut p_vsts).cast())
+        if ptr::eq((*args).os_varp, (&raw mut opt_vars().p_vts).cast())
+            || ptr::eq((*args).os_varp, (&raw mut opt_vars().p_vsts).cast())
         {
             return ptr::null();
         }
@@ -3309,7 +3309,7 @@ pub unsafe fn did_set_vartabstop(args: *mut optset_T) -> *const c_char {
 pub unsafe fn did_set_verbosefile(_args: *mut optset_T) -> *const c_char {
     unsafe {
         verbose_stop();
-        if *p_vfile != NUL && verbose_open() == FAIL {
+        if *opt_vars().p_vfile != NUL && verbose_open() == FAIL {
             return e_invarg.as_ptr();
         }
         ptr::null()
@@ -3321,8 +3321,8 @@ pub unsafe fn did_set_virtualedit(args: *mut optset_T) -> *const c_char {
     unsafe {
         let win = (*args).os_win;
 
-        let mut ve = p_ve;
-        let mut flags = &raw mut ve_flags;
+        let mut ve = opt_vars().p_ve;
+        let mut flags = &raw mut opt_vars().ve_flags;
 
         if ((*args).os_flags & OPT_LOCAL) != 0 {
             ve = (*win).w_onebuf_opt.wo_ve;
@@ -4094,12 +4094,12 @@ pub unsafe fn set_chars_option(
 
         let tab: &[CharsTabEntry] = if what == CharsOption::kListchars {
             if apply && *(*wp).w_onebuf_opt.wo_lcs == NUL {
-                value = p_lcs;
+                value = opt_vars().p_lcs;
             }
             &LCS_TAB
         } else {
             if apply && *(*wp).w_onebuf_opt.wo_fcs == NUL {
-                value = p_fcs;
+                value = opt_vars().p_fcs;
             }
             &FCS_TAB
         };
@@ -4339,10 +4339,10 @@ pub unsafe fn get_listchars_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char 
 /// Check all global and local values of 'listchars' and 'fillchars'.
 pub unsafe fn check_chars_options() -> *const c_char {
     unsafe {
-        if !set_chars_option(curwin, p_lcs, CharsOption::kListchars, false, None).is_null() {
+        if !set_chars_option(curwin, opt_vars().p_lcs, CharsOption::kListchars, false, None).is_null() {
             return E_CONFLICTS_WITH_VALUE_OF_LISTCHARS.as_ptr();
         }
-        if !set_chars_option(curwin, p_fcs, CharsOption::kFillchars, false, None).is_null() {
+        if !set_chars_option(curwin, opt_vars().p_fcs, CharsOption::kFillchars, false, None).is_null() {
             return E_CONFLICTS_WITH_VALUE_OF_FILLCHARS.as_ptr();
         }
         let mut tp = first_tabpage;

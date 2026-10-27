@@ -486,7 +486,7 @@ pub unsafe fn changed_bytes(lnum: linenr_T, col: colnr_T) {
         changed_common(curbuf, lnum, col, lnum + 1, 0);
         if spell_check_window(curwin)
             && lnum < (*curbuf).b_ml.ml_line_count
-            && vim_strchr(p_cpo, kCpoDollar).is_null()
+            && vim_strchr(opt_vars().p_cpo, kCpoDollar).is_null()
         {
             redrawWinline(curwin, lnum + 1);
         }
@@ -765,7 +765,7 @@ pub unsafe fn ins_char_bytes(buf: *mut c_char, charlen: usize) {
         if (State & REPLACE_FLAG) != 0 {
             if (State & VREPLACE_FLAG) != 0 {
                 let old_list = (*curwin).w_onebuf_opt.wo_list;
-                if old_list != 0 && vim_strchr(p_cpo, kCpoListwm).is_null() {
+                if old_list != 0 && vim_strchr(opt_vars().p_cpo, kCpoListwm).is_null() {
                     (*curwin).w_onebuf_opt.wo_list = 0;
                 }
                 let mut vcol: colnr_T = 0;
@@ -823,11 +823,11 @@ pub unsafe fn ins_char_bytes(buf: *mut c_char, charlen: usize) {
         drop(newp_vec);
         inserted_bytes(lnum, col as colnr_T, oldlen as c_int, newlen as c_int);
 
-        if p_sm != 0 && (State & MODE_INSERT) != 0 && msg_silent == 0 && !ins_compl_active() {
+        if opt_vars().p_sm != 0 && (State & MODE_INSERT) != 0 && msg_silent == 0 && !ins_compl_active() {
             showmatch(utf_ptr2char(buf));
         }
 
-        if p_ri == 0 || (State & REPLACE_FLAG) != 0 {
+        if opt_vars().p_ri == 0 || (State & REPLACE_FLAG) != 0 {
             (*curwin).w_cursor.col += charlen as colnr_T;
         }
     }
@@ -916,7 +916,7 @@ pub unsafe fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bo
             return FAIL;
         }
 
-        if p_deco != 0 && use_delcombine && utfc_ptr2len(oldp.add(col as usize)) >= count {
+        if opt_vars().p_deco != 0 && use_delcombine && utfc_ptr2len(oldp.add(col as usize)) >= count {
             let p0 = oldp.add(col as usize);
             let mut state = GRAPHEME_STATE_INIT;
             if utf_composinglike(p0, p0.add(utf_ptr2len(p0) as usize), &raw mut state) {
@@ -1181,7 +1181,7 @@ pub unsafe fn open_line(
             Ins.did_ai = true;
         }
 
-        let do_cindent = p_paste == 0
+        let do_cindent = opt_vars().p_paste == 0
             && ((*curbuf).b_p_cin != 0 || (*curbuf).b_p_inde.cb_type() != kCallbackNone)
             && in_cinkeys(
                 if dir == FORWARD {
@@ -1671,7 +1671,7 @@ pub unsafe fn open_line(
                 (*curwin).w_cursor.lnum += 1;
                 if Ins.did_si {
                     let sw = get_sw_value(curbuf);
-                    if p_sr != 0 {
+                    if opt_vars().p_sr != 0 {
                         newindent -= newindent % sw;
                     }
                     newindent += sw;
@@ -1807,7 +1807,7 @@ pub unsafe fn open_line(
                 0
             };
 
-            if p_paste == 0 {
+            if opt_vars().p_paste == 0 {
                 if leader.is_null()
                     && !use_indentexpr_for_lisp()
                     && (*curbuf).b_p_lisp != 0

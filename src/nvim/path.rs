@@ -217,7 +217,7 @@ pub unsafe fn path_equal(s1: *const c_char, s2: *const c_char, flags: PathCmpFla
             let is_url = path_with_url(s1) != 0 || path_with_url(s2) != 0;
             return (!is_url
                 || CStr::from_ptr(s1).to_bytes().len() == CStr::from_ptr(s2).to_bytes().len())
-                && path_cmp(p_fic != 0, s1, s2, MAXPATHL) == 0;
+                && path_cmp(opt_vars().p_fic != 0, s1, s2, MAXPATHL) == 0;
         }
 
         if (flags & kPathCmpExpand) != 0 {
@@ -241,7 +241,7 @@ pub unsafe fn path_equal(s1: *const c_char, s2: *const c_char, flags: PathCmpFla
         if !id_ok1 && !id_ok2 && (flags & kPathCmpFull) != 0 {
             vim_FullName(expanded_s1.as_ptr(), full1.as_mut_ptr(), MAXPATHL, false);
             vim_FullName(s2, full2.as_mut_ptr(), MAXPATHL, false);
-            return path_cmp(p_fic != 0, full1.as_ptr(), full2.as_ptr(), MAXPATHL) == 0;
+            return path_cmp(opt_vars().p_fic != 0, full1.as_ptr(), full2.as_ptr(), MAXPATHL) == 0;
         }
         false
     }
@@ -688,7 +688,7 @@ unsafe fn do_path_expand(
                     !vim_strchr(PATH_ESC_WILDCARDS, *path_end as u8 as c_int).is_null();
                 #[cfg(not(windows))]
                 let is_icase_alpha =
-                    p_fic == 0 && (flags & EW_ICASE) != 0 && mb_isalpha(utf_ptr2char(path_end));
+                    opt_vars().p_fic == 0 && (flags & EW_ICASE) != 0 && mb_isalpha(utf_ptr2char(path_end));
                 #[cfg(windows)]
                 let is_icase_alpha = false;
                 is_esc_wild || is_icase_alpha
@@ -733,7 +733,7 @@ unsafe fn do_path_expand(
             endp: [ptr::null_mut(); 10],
             rm_matchcol: 0,
             #[cfg(unix)]
-            rm_ic: (flags & EW_ICASE) != 0 || p_fic != 0,
+            rm_ic: (flags & EW_ICASE) != 0 || opt_vars().p_fic != 0,
             #[cfg(not(unix))]
             rm_ic: true,
         };
@@ -784,7 +784,7 @@ unsafe fn do_path_expand(
                         && (*name.add(1) != b'.' as c_char || *name.add(2) != NUL));
                 let reg_ok = (!regmatch.regprog.is_null() && vim_regexec(&mut regmatch, name, 0))
                     || ((flags & EW_NOTWILD) != 0
-                        && path_cmp(p_fic != 0, path.add(len), name, e.offset_from(s) as usize)
+                        && path_cmp(opt_vars().p_fic != 0, path.add(len), name, e.offset_from(s) as usize)
                             == 0);
                 if dot_ok && reg_ok {
                     len += vim_snprintf!(s, buflen - len, c"%s".as_ptr(), name) as usize;
@@ -830,7 +830,7 @@ unsafe fn do_path_expand(
         let matches = gap.len() - start_len;
         if matches > 0 && !got_int {
             gap[start_len..].sort_by(|a, b| {
-                let cmp = path_cmp(p_fic != 0, a.as_ptr(), b.as_ptr(), MAXPATHL);
+                let cmp = path_cmp(opt_vars().p_fic != 0, a.as_ptr(), b.as_ptr(), MAXPATHL);
                 if cmp < 0 {
                     Ordering::Less
                 } else if cmp > 0 {
@@ -1038,7 +1038,7 @@ unsafe fn uniquefy_paths(
             len = gap[i].as_bytes().len();
             let dir_len = dir_end.offset_from(path) as usize;
             let is_in_curdir =
-                path_cmp(p_fic != 0, curdir, path, dir_len) == 0 && *curdir.add(dir_len) == NUL;
+                path_cmp(opt_vars().p_fic != 0, curdir, path, dir_len) == 0 && *curdir.add(dir_len) == NUL;
             if is_in_curdir {
                 in_curdir[i] = Some(gap[i].clone());
             }
@@ -1165,7 +1165,7 @@ unsafe fn expand_in_path(
     unsafe {
         let mut path_ga: Vec<std::ffi::CString> = Vec::new();
         let path_option = if *(*curbuf).b_p_path == NUL {
-            p_path
+            opt_vars().p_path
         } else {
             (*curbuf).b_p_path
         };
@@ -1175,7 +1175,7 @@ unsafe fn expand_in_path(
         os_dirname(curdir, MAXPATHL);
 
         if (flags & EW_CDPATH) != 0 {
-            expand_path_option(curdir, p_cdpath, &mut path_ga);
+            expand_path_option(curdir, opt_vars().p_cdpath, &mut path_ga);
         } else {
             expand_path_option(curdir, path_option, &mut path_ga);
         }
@@ -1275,7 +1275,7 @@ pub unsafe fn gen_expand_wildcards_vec(
         file.clear();
         let mut did_expand_in_path = false;
         let path_option = if *(*curbuf).b_p_path == NUL {
-            p_path
+            opt_vars().p_path
         } else {
             (*curbuf).b_p_path
         };
@@ -1397,11 +1397,11 @@ pub unsafe fn expand_wildcards_vec(
             return retval;
         }
 
-        if *p_wig != NUL {
+        if *opt_vars().p_wig != NUL {
             files.retain(|fi_cstr| {
                 let fi = fi_cstr.as_ptr().cast_mut();
                 let ffname = FullName_save(fi, false).unwrap_or_default();
-                !match_file_list(p_wig, fi, ffname.as_ptr().cast_mut())
+                !match_file_list(opt_vars().p_wig, fi, ffname.as_ptr().cast_mut())
             });
         }
 
@@ -1507,8 +1507,8 @@ pub unsafe fn slash_adjust(p: *mut c_char) {
             }
         }
 
-        let from = if p_ssl != 0 { b'\\' as c_char } else { PATHSEP };
-        let to = if p_ssl != 0 { PATHSEP } else { b'\\' as c_char };
+        let from = if opt_vars().p_ssl != 0 { b'\\' as c_char } else { PATHSEP };
+        let to = if opt_vars().p_ssl != 0 { PATHSEP } else { b'\\' as c_char };
         strchrsub(p, from, to);
     }
 }
@@ -1799,7 +1799,7 @@ pub unsafe fn path_with_extension(path: *const c_char, extension: *const c_char)
             return false;
         };
         let last_dot = path.add(pos);
-        mb_strcmp_ic(p_fic != 0, last_dot.add(1), extension) == 0
+        mb_strcmp_ic(opt_vars().p_fic != 0, last_dot.add(1), extension) == 0
     }
 }
 
@@ -1940,7 +1940,7 @@ pub unsafe fn same_directory(f1: *mut c_char, f2: *mut c_char) -> bool {
         let t2 = path_tail_with_sep(f2);
         let d1 = t1.offset_from(ffname.as_mut_ptr());
         let d2 = t2.offset_from(f2);
-        d1 == d2 && path_cmp(p_fic != 0, ffname.as_ptr(), f2, d1 as usize) == 0
+        d1 == d2 && path_cmp(opt_vars().p_fic != 0, ffname.as_ptr(), f2, d1 as usize) == 0
     }
 }
 
@@ -2051,7 +2051,7 @@ pub unsafe fn path_shorten_fname(full_path: *mut c_char, dir_name: *mut c_char) 
         debug_assert!(!dir_name.is_null());
         let len = CStr::from_ptr(dir_name).to_bytes().len();
 
-        let ic = p_fic != 0;
+        let ic = opt_vars().p_fic != 0;
 
         if path_cmp(ic, dir_name, full_path, len) != 0 {
             return ptr::null_mut();
@@ -2134,7 +2134,7 @@ pub unsafe fn match_suffix(fname: *mut c_char) -> bool {
         let mut suf_buf = [0 as c_char; MAXSUFLEN];
         let fnamelen = CStr::from_ptr(fname).to_bytes().len();
         let mut setsuflen: usize = 0;
-        let mut setsuf = p_su;
+        let mut setsuf = opt_vars().p_su;
         while *setsuf != NUL {
             setsuflen =
                 copy_option_part(&mut setsuf, suf_buf.as_mut_ptr(), MAXSUFLEN, c".,".as_ptr());
@@ -2147,7 +2147,7 @@ pub unsafe fn match_suffix(fname: *mut c_char) -> bool {
             } else {
                 if fnamelen >= setsuflen
                     && path_cmp(
-                        p_fic != 0,
+                        opt_vars().p_fic != 0,
                         suf_buf.as_ptr(),
                         fname.add(fnamelen - setsuflen),
                         setsuflen,
@@ -2565,8 +2565,8 @@ mod tests {
             assert!(path_is_absolute(c"~/in/my/home~/directory".as_ptr()));
             assert!(!path_is_absolute(c"not/in/my/home~/directory".as_ptr()));
 
-            let saved_fic = p_fic;
-            p_fic = 0;
+            let saved_fic = opt_vars().p_fic;
+            opt_vars().p_fic = 0;
             assert!(path_with_extension(
                 c"/some/path/file.lua".as_ptr(),
                 c"lua".as_ptr()
@@ -2583,12 +2583,12 @@ mod tests {
                 c"/some/path/file.LUA".as_ptr(),
                 c"lua".as_ptr()
             ));
-            p_fic = 1;
+            opt_vars().p_fic = 1;
             assert!(path_with_extension(
                 c"/some/path/file.LUA".as_ptr(),
                 c"lua".as_ptr()
             ));
-            p_fic = saved_fic;
+            opt_vars().p_fic = saved_fic;
 
             assert_eq!(path_with_url(c"test://xyz/foo/b0".as_ptr()), 1);
             assert_eq!(path_with_url(c"test:\\\\xyz\\foo\\b0".as_ptr()), 2);
@@ -2651,20 +2651,20 @@ mod tests {
                 kPathCmpExpand | kPathCmpFull
             ));
 
-            let saved_fic = p_fic;
-            p_fic = 0;
+            let saved_fic = opt_vars().p_fic;
+            opt_vars().p_fic = 0;
             assert!(!path_equal(
                 c"Foo".as_ptr(),
                 c"foo".as_ptr(),
                 kPathCmpLiteral
             ));
-            p_fic = 1;
+            opt_vars().p_fic = 1;
             assert!(path_equal(
                 c"Foo".as_ptr(),
                 c"foo".as_ptr(),
                 kPathCmpLiteral
             ));
-            p_fic = saved_fic;
+            opt_vars().p_fic = saved_fic;
 
             // path_full_dir_name
             let mut out = [0 as c_char; MAXPATHL];

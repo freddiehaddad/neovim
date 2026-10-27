@@ -502,7 +502,7 @@ unsafe fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int 
             stacktrace,
         });
 
-        if p_verbose >= 13 || debug_break_level > 0 {
+        if opt_vars().p_verbose >= 13 || debug_break_level > 0 {
             let save_msg_silent = msg_silent;
 
             if debug_break_level > 0 {
@@ -511,7 +511,7 @@ unsafe fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int 
                 verbose_enter();
             }
             no_wait_return += 1;
-            if debug_break_level > 0 || *p_vfile == NUL {
+            if debug_break_level > 0 || *opt_vars().p_vfile == NUL {
                 msg_scroll = 1;
             }
             smsg!(
@@ -521,7 +521,7 @@ unsafe fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int 
             );
             msg_puts(c"\n".as_ptr());
 
-            if debug_break_level > 0 || *p_vfile == NUL {
+            if debug_break_level > 0 || *opt_vars().p_vfile == NUL {
                 cmdline_row = msg_row;
             }
             no_wait_return -= 1;
@@ -551,7 +551,7 @@ unsafe fn discard_exception(excp: Option<std::rc::Rc<except_T>>, was_finished: b
             current_exception = None;
         }
 
-        if p_verbose >= 13 || debug_break_level > 0 {
+        if opt_vars().p_verbose >= 13 || debug_break_level > 0 {
             let save_msg_silent = msg_silent;
             let saved_iobuff = CStr::from_ptr(ptr::addr_of!(IObuff).cast()).to_owned();
             if debug_break_level > 0 {
@@ -560,7 +560,7 @@ unsafe fn discard_exception(excp: Option<std::rc::Rc<except_T>>, was_finished: b
                 verbose_enter();
             }
             no_wait_return += 1;
-            if debug_break_level > 0 || *p_vfile == NUL {
+            if debug_break_level > 0 || *opt_vars().p_vfile == NUL {
                 msg_scroll = 1;
             }
             let fmt = if was_finished {
@@ -570,7 +570,7 @@ unsafe fn discard_exception(excp: Option<std::rc::Rc<except_T>>, was_finished: b
             };
             smsg!(0, fmt, excp.value.as_ptr());
             msg_puts(c"\n".as_ptr());
-            if debug_break_level > 0 || *p_vfile == NUL {
+            if debug_break_level > 0 || *opt_vars().p_vfile == NUL {
                 cmdline_row = msg_row;
             }
             no_wait_return -= 1;
@@ -632,7 +632,7 @@ unsafe fn catch_exception(excp: &std::rc::Rc<except_T>) {
             set_vim_var_string(VV_THROWPOINT, ptr::null(), -1);
         }
 
-        if p_verbose >= 13 || debug_break_level > 0 {
+        if opt_vars().p_verbose >= 13 || debug_break_level > 0 {
             let save_msg_silent = msg_silent;
 
             if debug_break_level > 0 {
@@ -641,7 +641,7 @@ unsafe fn catch_exception(excp: &std::rc::Rc<except_T>) {
                 verbose_enter();
             }
             no_wait_return += 1;
-            if debug_break_level > 0 || *p_vfile == NUL {
+            if debug_break_level > 0 || *opt_vars().p_vfile == NUL {
                 msg_scroll = 1;
             }
             smsg!(
@@ -651,7 +651,7 @@ unsafe fn catch_exception(excp: &std::rc::Rc<except_T>) {
             );
             msg_puts(c"\n".as_ptr());
 
-            if debug_break_level > 0 || *p_vfile == NUL {
+            if debug_break_level > 0 || *opt_vars().p_vfile == NUL {
                 cmdline_row = msg_row;
             }
             no_wait_return -= 1;
@@ -816,7 +816,7 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
 
 pub unsafe fn report_make_pending(pending: c_int, value: PendingVal) {
     unsafe {
-        if p_verbose >= 14 || debug_break_level > 0 {
+        if opt_vars().p_verbose >= 14 || debug_break_level > 0 {
             if debug_break_level <= 0 {
                 verbose_enter();
             }
@@ -830,7 +830,7 @@ pub unsafe fn report_make_pending(pending: c_int, value: PendingVal) {
 
 unsafe fn report_resume_pending(pending: c_int, value: PendingVal) {
     unsafe {
-        if p_verbose >= 14 || debug_break_level > 0 {
+        if opt_vars().p_verbose >= 14 || debug_break_level > 0 {
             if debug_break_level <= 0 {
                 verbose_enter();
             }
@@ -844,7 +844,7 @@ unsafe fn report_resume_pending(pending: c_int, value: PendingVal) {
 
 unsafe fn report_discard_pending(pending: c_int, value: PendingVal) {
     unsafe {
-        if p_verbose >= 14 || debug_break_level > 0 {
+        if opt_vars().p_verbose >= 14 || debug_break_level > 0 {
             if debug_break_level <= 0 {
                 verbose_enter();
             }
@@ -1274,8 +1274,8 @@ pub unsafe fn ex_catch(eap: *mut exarg_T) {
                         save_char = *end;
                         *end = NUL;
                     }
-                    let save_cpo = p_cpo;
-                    p_cpo = ptr::addr_of_mut!(empty_string_option).cast();
+                    let save_cpo = opt_vars().p_cpo;
+                    opt_vars().p_cpo = empty_string_option.as_ptr().cast();
                     emsg_off += 1;
                     let mut regmatch: regmatch_T = regmatch_T::new();
                     regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
@@ -1284,7 +1284,7 @@ pub unsafe fn ex_catch(eap: *mut exarg_T) {
                     if !end.is_null() {
                         *end = save_char;
                     }
-                    p_cpo = save_cpo;
+                    opt_vars().p_cpo = save_cpo;
                     if regmatch.regprog.is_null() {
                         semsg!(gettext(e_invarg2.as_ptr()), pat);
                     } else {

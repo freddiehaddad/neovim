@@ -55,7 +55,7 @@ pub unsafe fn win_new_float(
     err: *mut Error,
 ) -> *mut win_T {
     unsafe {
-        let empty_opt = (&raw mut empty_string_option).cast::<c_char>();
+        let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
         if wp.is_null() {
             let mut tp_last = if last {
                 lastwin
@@ -124,7 +124,7 @@ pub unsafe fn win_new_float(
         (*wp).w_floating = true;
         (*wp).w_status_height = if !(*wp).w_onebuf_opt.wo_stl.is_null()
             && *(*wp).w_onebuf_opt.wo_stl != NUL
-            && (p_ls == 1 || p_ls == 2)
+            && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2)
         {
             STATUS_HEIGHT
         } else {
@@ -142,7 +142,7 @@ pub unsafe fn win_new_float(
 
 pub unsafe fn win_set_minimal_style(wp: *mut win_T) {
     unsafe {
-        let empty_opt = (&raw mut empty_string_option).cast::<c_char>();
+        let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
         (*wp).w_onebuf_opt.wo_nu = 0;
         (*wp).w_onebuf_opt.wo_rnu = 0;
         (*wp).w_onebuf_opt.wo_cul = 0;
@@ -220,7 +220,7 @@ pub unsafe fn win_border_width(wp: *mut win_T) -> c_int {
 pub unsafe fn win_config_float(wp: *mut win_T, mut fconfig: WinConfig) {
     unsafe {
         // Process statusline changes before applying new height from config
-        let show_stl = *(*wp).w_onebuf_opt.wo_stl != NUL && (p_ls == 1 || p_ls == 2);
+        let show_stl = *(*wp).w_onebuf_opt.wo_stl != NUL && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
         if (*wp).w_status_height != 0 && !show_stl {
             win_remove_status_line(wp, false);
         } else if (*wp).w_status_height == 0 && show_stl {
@@ -266,7 +266,7 @@ pub unsafe fn win_config_float(wp: *mut win_T, mut fconfig: WinConfig) {
 
         if !ui_has(kUIMultigrid) {
             let above_ch = if (*wp).w_config.zindex < kZIndexMessages {
-                p_ch as c_int
+                opt_vars().p_ch as c_int
             } else {
                 0
             };
@@ -379,7 +379,7 @@ pub unsafe fn win_float_update_statusline() {
         let mut wp = lastwin;
         while !wp.is_null() && (*wp).w_floating {
             let has_status = (*wp).w_status_height > 0;
-            let should_show = *(*wp).w_onebuf_opt.wo_stl != NUL && (p_ls == 1 || p_ls == 2);
+            let should_show = *(*wp).w_onebuf_opt.wo_stl != NUL && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
             if should_show != has_status {
                 win_config_float(wp, (*wp).w_config.clone());
             }
@@ -494,7 +494,7 @@ pub unsafe fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *m
         config.style = kWinStyleMinimal;
         let mut err = error_init();
         let preview = kind == kWinPreview;
-        if preview && !win_previewpopup_config(p_pvp, &raw mut config) {
+        if preview && !win_previewpopup_config(opt_vars().p_pvp, &raw mut config) {
             emsg(gettext((&raw const e_invarg).cast()));
             return ptr::null_mut();
         }
@@ -587,7 +587,7 @@ pub unsafe fn win_float_update_preview(wp: *mut win_T) {
         let row = (*wp).w_wantline.max(0).min(Rows - 1);
         let col = (*wp).w_wantcol.max(0).min(Columns - 1);
 
-        let v = opt_keyset(p_pvp, kOptPreviewpopup, ptr::null_mut()).cast::<OptKeyDict_pvp>();
+        let v = opt_keyset(opt_vars().p_pvp, kOptPreviewpopup, ptr::null_mut()).cast::<OptKeyDict_pvp>();
         let mut want_w = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_pvp__width) {
             (*v).width as c_int
         } else {
@@ -616,7 +616,7 @@ pub unsafe fn win_float_update_preview(wp: *mut win_T) {
 
         let need_h = want_h + border_h;
         let need_w = want_w + border_w;
-        let space_below = Rows - row - 1 - (p_ch as c_int);
+        let space_below = Rows - row - 1 - (opt_vars().p_ch as c_int);
         let space_above = row - 1;
         let space_right = Columns - col - 1;
         let space_left = col;
@@ -662,8 +662,8 @@ pub unsafe fn win_previewpopup_config(value: *const c_char, config: *mut WinConf
         let mut border: *mut c_char = ptr::null_mut();
         if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_pvp__border) {
             border = (*v).border.as_mut_ptr();
-        } else if *p_winborder != NUL {
-            border = p_winborder;
+        } else if *opt_vars().p_winborder != NUL {
+            border = opt_vars().p_winborder;
         }
         if !border.is_null() {
             let mut err = error_init();

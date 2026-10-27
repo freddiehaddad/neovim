@@ -186,9 +186,9 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
             if !wp.is_null() && (*(*wp).w_buffer).b_nwindows > 0 {
                 win_enter(wp, true);
             } else {
-                let helpfd = os_fopen(p_hf, c"rb".as_ptr());
+                let helpfd = os_fopen(opt_vars().p_hf, c"rb".as_ptr());
                 if helpfd.is_null() {
-                    smsg!(0, gettext(c"Help file \"%s\" not found".as_ptr()), p_hf);
+                    smsg!(0, gettext(c"Help file \"%s\" not found".as_ptr()), opt_vars().p_hf);
                     early_ret = true;
                 } else {
                     fclose(helpfd);
@@ -198,13 +198,13 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
                         && (*curwin).w_width != Columns
                         && (*curwin).w_width < 80
                     {
-                        n |= if p_sb != 0 { WSP_BOT } else { WSP_TOP };
+                        n |= if opt_vars().p_sb != 0 { WSP_BOT } else { WSP_TOP };
                     }
                     if win_split(0, n) == FAIL {
                         early_ret = true;
                     } else {
-                        if ((*curwin).w_height as OptInt) < p_hh {
-                            win_setheight(p_hh as c_int);
+                        if ((*curwin).w_height as OptInt) < opt_vars().p_hh {
+                            win_setheight(opt_vars().p_hh as c_int);
                         }
 
                         alt_fnum = (*curbuf).b_fnum;
@@ -404,11 +404,11 @@ pub unsafe fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
     unsafe {
         let mut buf = [0u8; 3];
         let has_default_lang =
-            *p_hlg != NUL && (*p_hlg != b'e' as c_char || *p_hlg.add(1) != b'n' as c_char);
+            *opt_vars().p_hlg != NUL && (*opt_vars().p_hlg != b'e' as c_char || *opt_vars().p_hlg.add(1) != b'n' as c_char);
         if has_default_lang {
             buf[0] = b'@';
-            buf[1] = *p_hlg as u8;
-            buf[2] = *p_hlg.add(1) as u8;
+            buf[1] = *opt_vars().p_hlg as u8;
+            buf[2] = *opt_vars().p_hlg.add(1) as u8;
         }
 
         for i in 0..file.len() {

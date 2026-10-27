@@ -842,7 +842,7 @@ pub unsafe extern "C" fn nvim_replace_termcodes(
             0,
             flags,
             ptr::null_mut(),
-            p_cpo,
+            opt_vars().p_cpo,
         )
         .unwrap_or_default();
         cbuf_to_string(out.as_ptr(), out.as_bytes().len())
@@ -3472,10 +3472,10 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: *mut Error
             flush_ui = true;
         }
 
-        let save_lz = p_lz;
+        let save_lz = opt_vars().p_lz;
         let save_rd = RedrawingDisabled;
         RedrawingDisabled = 0;
-        p_lz = 0;
+        opt_vars().p_lz = 0;
         if (*opts).statuscolumn || (*opts).statusline || (*opts).winbar {
             if win.is_null() {
                 let mut wp = firstwin;
@@ -3512,7 +3512,7 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: *mut Error
         }
 
         RedrawingDisabled = save_rd;
-        p_lz = save_lz;
+        opt_vars().p_lz = save_lz;
     }
 }
 

@@ -1491,7 +1491,7 @@ unsafe fn qf_setup_state(
     unsafe {
         (*pstate).vc.vc_type = CONV_NONE;
         if !enc.is_null() && *enc != NUL {
-            convert_setup(&mut (*pstate).vc, enc, p_enc);
+            convert_setup(&mut (*pstate).vc, enc, opt_vars().p_enc);
         }
 
         if !efile.is_null() {
@@ -1566,7 +1566,7 @@ unsafe fn qf_init_ext(
         }
 
         let efm =
-            if errorformat == p_efm && tv.is_null() && !buf.is_null() && *(*buf).b_p_efm != NUL {
+            if errorformat == opt_vars().p_efm && tv.is_null() && !buf.is_null() && *(*buf).b_p_efm != NUL {
                 (*buf).b_p_efm
             } else {
                 errorformat
@@ -2394,7 +2394,7 @@ unsafe fn qf_resize_stack_base(qi: *mut qf_info_T, n: c_int) {
 
 pub unsafe fn qf_init_stack() {
     unsafe {
-        let _ = qf_alloc_stack(QFLT_QUICKFIX, p_chi as c_int);
+        let _ = qf_alloc_stack(QFLT_QUICKFIX, opt_vars().p_chi as c_int);
     }
 }
 
@@ -2934,8 +2934,8 @@ unsafe fn jump_to_help_window(qi: *mut qf_info_T, newwin: bool, opened_window: *
 
             *opened_window = true;
 
-            if i64::from((*curwin).w_height) < p_hh {
-                win_setheight(p_hh as c_int);
+            if i64::from((*curwin).w_height) < opt_vars().p_hh {
+                win_setheight(opt_vars().p_hh as c_int);
             }
 
             if is_ll_stack(qi) && !newwin {
@@ -3003,8 +3003,8 @@ unsafe fn qf_open_new_file_win(ll_ref: *mut qf_info_T) -> c_int {
         if win_split(0, flags) == FAIL {
             return FAIL;
         }
-        p_swb = (&raw mut empty_string_option).cast::<c_char>();
-        swb_flags = 0;
+        opt_vars().p_swb = empty_string_option.as_ptr().cast::<c_char>();
+        opt_vars().swb_flags = 0;
         reset_binding(curwin);
         if !ll_ref.is_null() {
             win_set_loclist(curwin, ll_ref);
@@ -3066,7 +3066,7 @@ unsafe fn qf_goto_win_with_qfl_file(qf_fnum: c_int) {
             }
 
             if is_qf_window(win) {
-                if (swb_flags & kOptSwbFlagUselast) != 0
+                if (opt_vars().swb_flags & kOptSwbFlagUselast) != 0
                     && win_valid(prevwin)
                     && (*prevwin).w_onebuf_opt.wo_wfb == 0
                 {
@@ -3122,7 +3122,7 @@ unsafe fn qf_jump_to_usable_window(
             }
         }
 
-        if !usable_win && (swb_flags & kOptSwbFlagUsetab) != 0 {
+        if !usable_win && (opt_vars().swb_flags & kOptSwbFlagUsetab) != 0 {
             usable_win = qf_goto_tabwin_with_file(qf_fnum);
         }
 
@@ -3294,7 +3294,7 @@ unsafe fn qf_jump_goto_line(
                 strlen(qf_pattern),
                 1,
                 SEARCH_KEEP,
-                p_magic != 0,
+                opt_vars().p_magic != 0,
                 ptr::null_mut(),
             ) == 0
             {
@@ -3342,7 +3342,7 @@ unsafe fn qf_jump_print_msg(
         let i = msg_scroll;
         if curbuf == old_curbuf && (*curwin).w_cursor.lnum == old_lnum {
             msg_scroll = 1;
-        } else if (msg_scrolled == 0 || (p_ch == 0 && msg_scrolled == 1)) && shortmess(kShmOverall)
+        } else if (msg_scrolled == 0 || (opt_vars().p_ch == 0 && msg_scrolled == 1)) && shortmess(kShmOverall)
         {
             msg_scroll = 0;
         }
@@ -3448,7 +3448,7 @@ unsafe fn qf_jump_to_buffer(
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
         );
 
-        if (fdo_flags & kOptFdoFlagQuickfix) != 0 && openfold != 0 {
+        if (opt_vars().fdo_flags & kOptFdoFlagQuickfix) != 0 && openfold != 0 {
             foldOpenCursor();
         }
         if print_message {
@@ -3473,8 +3473,8 @@ unsafe fn qf_jump_newwin(
     newwin: bool,
 ) {
     unsafe {
-        let old_swb = p_swb;
-        let old_swb_flags = swb_flags;
+        let old_swb = opt_vars().p_swb;
+        let old_swb_flags = opt_vars().swb_flags;
         let old_KeyTyped = KeyTyped;
 
         if qi.is_null() {
@@ -3533,9 +3533,9 @@ unsafe fn qf_jump_newwin(
         if !qi.is_null() {
             (*qfl).qf_index = qf_index;
         }
-        if p_swb != old_swb && p_swb == (&raw mut empty_string_option).cast::<c_char>() {
-            p_swb = old_swb;
-            swb_flags = old_swb_flags;
+        if opt_vars().p_swb != old_swb && opt_vars().p_swb == empty_string_option.as_ptr().cast::<c_char>() {
+            opt_vars().p_swb = old_swb;
+            opt_vars().swb_flags = old_swb_flags;
         }
         decr_quickfix_busy();
     }
@@ -4524,7 +4524,7 @@ unsafe fn call_qftf_func(
     end_idx: c_int,
 ) -> *mut list_T {
     unsafe {
-        let mut cb: *mut Callback = &raw mut p_qftf;
+        let mut cb: *mut Callback = &raw mut opt_vars().p_qftf;
         let mut qftf_list: *mut list_T = ptr::null_mut();
 
         if qf_st().qftf_recursive {
@@ -4740,7 +4740,7 @@ unsafe fn qf_jump_first(qi: *mut qf_info_T, save_qfid: c_uint, forceit: c_int) {
 pub unsafe fn grep_internal(cmdidx: c_int) -> c_int {
     unsafe {
         let gp = if *(*curbuf).b_p_gp == NUL {
-            p_gp
+            opt_vars().p_gp
         } else {
             (*curbuf).b_p_gp
         };
@@ -4768,16 +4768,16 @@ unsafe fn make_get_auname(cmdidx: c_int) -> *const c_char {
 
 unsafe fn make_get_fullcmd(makecmd: *const c_char, fname: *const c_char) -> std::ffi::CString {
     unsafe {
-        let mut len = strlen(p_shq) * 2 + strlen(makecmd) + 1;
-        if *p_sp != NUL {
-            len += strlen(p_sp) + strlen(fname) + 3;
+        let mut len = strlen(opt_vars().p_shq) * 2 + strlen(makecmd) + 1;
+        if *opt_vars().p_sp != NUL {
+            len += strlen(opt_vars().p_sp) + strlen(fname) + 3;
         }
         let mut cmd_vec: Vec<c_char> = vec![0; len];
         let cmd = cmd_vec.as_mut_ptr();
-        vim_snprintf!(cmd, len, c"%s%s%s".as_ptr(), p_shq, makecmd, p_shq);
+        vim_snprintf!(cmd, len, c"%s%s%s".as_ptr(), opt_vars().p_shq, makecmd, opt_vars().p_shq);
 
-        if *p_sp != NUL {
-            append_redir(cmd, len, p_sp, fname);
+        if *opt_vars().p_sp != NUL {
+            append_redir(cmd, len, opt_vars().p_sp, fname);
         }
 
         if msg_col == 0 {
@@ -4796,7 +4796,7 @@ pub unsafe fn ex_make(eap: *mut exarg_T) {
         let enc = if *(*curbuf).b_p_menc != NUL {
             (*curbuf).b_p_menc
         } else {
-            p_menc
+            opt_vars().p_menc
         };
 
         if grep_internal((*eap).cmdidx) != 0 {
@@ -4840,10 +4840,10 @@ pub unsafe fn ex_make(eap: *mut exarg_T) {
             if *(*curbuf).b_p_gefm != NUL {
                 (*curbuf).b_p_gefm
             } else {
-                p_gefm
+                opt_vars().p_gefm
             }
         } else {
-            p_efm
+            opt_vars().p_efm
         };
 
         let newlist = (*eap).cmdidx != CMD_grepadd && (*eap).cmdidx != CMD_lgrepadd;
@@ -4888,7 +4888,7 @@ pub unsafe fn ex_make(eap: *mut exarg_T) {
 
 unsafe fn get_mef_name() -> Option<std::ffi::CString> {
     unsafe {
-        if *p_mef == NUL {
+        if *opt_vars().p_mef == NUL {
             let name = vim_tempname();
             if name.is_none() {
                 emsg(gettext((&raw const e_notmp).cast()));
@@ -4896,7 +4896,7 @@ unsafe fn get_mef_name() -> Option<std::ffi::CString> {
             return name;
         }
 
-        let mut p = p_mef;
+        let mut p = opt_vars().p_mef;
         while *p != NUL {
             if *p == b'#' as c_char && *p.add(1) == b'#' as c_char {
                 break;
@@ -4905,7 +4905,7 @@ unsafe fn get_mef_name() -> Option<std::ffi::CString> {
         }
 
         if *p == NUL {
-            return Some(CStr::from_ptr(p_mef).to_owned());
+            return Some(CStr::from_ptr(opt_vars().p_mef).to_owned());
         }
 
         loop {
@@ -4914,11 +4914,11 @@ unsafe fn get_mef_name() -> Option<std::ffi::CString> {
             } else {
                 qf_st().mef_off += 19;
             }
-            let mef_len = strlen(p_mef);
+            let mef_len = strlen(opt_vars().p_mef);
             let mut name_vec: Vec<c_char> = vec![0; mef_len + 30];
             let name = name_vec.as_mut_ptr();
-            strcpy(name, p_mef);
-            let off_idx = p.offset_from(p_mef) as usize;
+            strcpy(name, opt_vars().p_mef);
+            let off_idx = p.offset_from(opt_vars().p_mef) as usize;
             vim_snprintf!(
                 name.add(off_idx),
                 mef_len + 30 - off_idx,
@@ -5474,7 +5474,7 @@ pub unsafe fn ex_cfile(eap: *mut exarg_T) {
         let enc = if *(*curbuf).b_p_menc != NUL {
             (*curbuf).b_p_menc
         } else {
-            p_menc
+            opt_vars().p_menc
         };
 
         if is_loclist_cmd((*eap).cmdidx) {
@@ -5485,8 +5485,8 @@ pub unsafe fn ex_cfile(eap: *mut exarg_T) {
 
         let res = qf_init(
             wp,
-            p_ef,
-            p_efm,
+            opt_vars().p_ef,
+            opt_vars().p_efm,
             c_int::from((*eap).cmdidx != CMD_caddfile && (*eap).cmdidx != CMD_laddfile),
             qf_cmdtitle(*(*eap).cmdlinep),
             enc,
@@ -5550,7 +5550,7 @@ unsafe fn vgr_init_regmatch(regmatch: *mut regmmatch_T, s: *mut c_char) {
             (*regmatch).regprog = vim_regcomp(s, RE_MAGIC);
         }
 
-        (*regmatch).rmm_ic = p_ic;
+        (*regmatch).rmm_ic = opt_vars().p_ic;
         (*regmatch).rmm_maxcol = 0;
     }
 }
@@ -5578,12 +5578,12 @@ unsafe fn vgr_load_dummy_buf(
     unsafe {
         let save_ei = au_event_disable(c",Filetype".as_ptr().cast_mut());
 
-        let save_mls = p_mls;
-        p_mls = 0;
+        let save_mls = opt_vars().p_mls;
+        opt_vars().p_mls = 0;
 
         let buf = load_dummy_buffer(fname, dirname_start, dirname_now);
 
-        p_mls = save_mls;
+        opt_vars().p_mls = save_mls;
         au_event_restore(Some(save_ei));
 
         buf
@@ -6331,7 +6331,7 @@ unsafe fn qf_get_list_from_lines(
             return FAIL;
         }
 
-        let mut errorformat = p_efm;
+        let mut errorformat = opt_vars().p_efm;
         let efm_di = tv_dict_find(what, c"efm".as_ptr(), 3);
         if !efm_di.is_null() {
             if (*efm_di).di_tv.v_type != VarType::VAR_STRING
@@ -7098,7 +7098,7 @@ unsafe fn qf_setprop_items_from_lines(
     action: c_int,
 ) -> c_int {
     unsafe {
-        let mut errorformat = p_efm;
+        let mut errorformat = opt_vars().p_efm;
         let mut retval = FAIL;
 
         let efm_di = tv_dict_find(what, c"efm".as_ptr(), 3);
@@ -7383,7 +7383,7 @@ pub unsafe fn set_ref_in_quickfix(copyID: c_int) -> bool {
     unsafe {
         if mark_quickfix_ctx(ql_info_ptr(), copyID)
             || mark_quickfix_user_data(ql_info_ptr(), copyID)
-            || set_ref_in_callback(&raw mut p_qftf, copyID, ptr::null_mut(), ptr::null_mut())
+            || set_ref_in_callback(&raw mut opt_vars().p_qftf, copyID, ptr::null_mut(), ptr::null_mut())
         {
             return true;
         }
@@ -7523,7 +7523,7 @@ pub unsafe fn ex_cbuffer(eap: *mut exarg_T) {
             ptr::null(),
             buf,
             ptr::null_mut(),
-            p_efm,
+            opt_vars().p_efm,
             (*eap).cmdidx != CMD_caddbuffer && (*eap).cmdidx != CMD_laddbuffer,
             (*eap).line1,
             (*eap).line2,
@@ -7609,7 +7609,7 @@ pub unsafe fn cexpr_core(eap: *const exarg_T, tv: *mut typval_T) -> c_int {
                 ptr::null(),
                 ptr::null_mut(),
                 tv,
-                p_efm,
+                opt_vars().p_efm,
                 (*eap).cmdidx != CMD_caddexpr && (*eap).cmdidx != CMD_laddexpr,
                 0,
                 0,
@@ -7771,7 +7771,7 @@ unsafe fn hgr_search_files_in_dir(
 
 unsafe fn hgr_search_in_rtp(qfl: *mut qf_list_T, p_regmatch: *mut regmatch_T, lang: *const c_char) {
     unsafe {
-        let mut p = p_rtp;
+        let mut p = opt_vars().p_rtp;
         let name_buff_ptr = (&raw mut NameBuff).cast::<c_char>();
         while *p != NUL && !got_int {
             copy_option_part(&raw mut p, name_buff_ptr, MAXPATHL, c",".as_ptr());
@@ -7803,8 +7803,8 @@ pub unsafe fn ex_helpgrep(eap: *mut exarg_T) {
         }
 
         let mut updated = false;
-        let save_cpo = p_cpo;
-        p_cpo = (&raw mut empty_string_option).cast::<c_char>();
+        let save_cpo = opt_vars().p_cpo;
+        opt_vars().p_cpo = empty_string_option.as_ptr().cast::<c_char>();
 
         let mut new_qi = false;
         if is_loclist_cmd((*eap).cmdidx) {
@@ -7831,10 +7831,10 @@ pub unsafe fn ex_helpgrep(eap: *mut exarg_T) {
             updated = true;
         }
 
-        if p_cpo == (&raw mut empty_string_option).cast::<c_char>() {
-            p_cpo = save_cpo;
+        if opt_vars().p_cpo == empty_string_option.as_ptr().cast::<c_char>() {
+            opt_vars().p_cpo = save_cpo;
         } else {
-            if *p_cpo == NUL {
+            if *opt_vars().p_cpo == NUL {
                 set_option_value_give_err(kOptCpoptions, cstr_as_obj(save_cpo), 0);
             }
             free_string_option(save_cpo);
@@ -7891,7 +7891,7 @@ pub unsafe fn free_quickfix() {
             tab = (*tab).tp_next;
         }
 
-        callback_free(&raw mut p_qftf);
+        callback_free(&raw mut opt_vars().p_qftf);
         let gap = &raw mut qf_st().qfga;
         *gap = Vec::new();
     }

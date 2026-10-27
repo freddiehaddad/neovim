@@ -4953,7 +4953,7 @@ unsafe fn msg_verbose_cmd(lnum: linenr_T, cmd: *mut c_char) {
 unsafe fn do_cmdline_start() -> c_int {
     unsafe {
         debug_assert!(docmd_st().cmdline_call_depth >= 0);
-        if docmd_st().cmdline_call_depth >= 200 && OptInt::from(docmd_st().cmdline_call_depth) >= p_mfd {
+        if docmd_st().cmdline_call_depth >= 200 && OptInt::from(docmd_st().cmdline_call_depth) >= opt_vars().p_mfd {
             return FAIL;
         }
         docmd_st().cmdline_call_depth += 1;
@@ -5207,7 +5207,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                 did_inc = true;
             }
 
-            if (p_verbose >= 15 && !sourcing_name().is_null()) || p_verbose >= 16 {
+            if (opt_vars().p_verbose >= 15 && !sourcing_name().is_null()) || opt_vars().p_verbose >= 16 {
                 msg_verbose_cmd(*sourcing_lnum_ptr(), cmdline_copy);
             }
 
@@ -7132,9 +7132,9 @@ pub unsafe fn apply_cmdmod(cmod: *mut cmdmod_T) {
         }
         if (*cmod).cmod_verbose > 0 {
             if (*cmod).cmod_verbose_save == 0 {
-                (*cmod).cmod_verbose_save = p_verbose + 1;
+                (*cmod).cmod_verbose_save = opt_vars().p_verbose + 1;
             }
-            p_verbose = OptInt::from((*cmod).cmod_verbose - 1);
+            opt_vars().p_verbose = OptInt::from((*cmod).cmod_verbose - 1);
         }
 
         if ((*cmod).cmod_flags & (CMOD_SILENT | CMOD_UNSILENT)) != 0
@@ -7156,7 +7156,7 @@ pub unsafe fn apply_cmdmod(cmod: *mut cmdmod_T) {
         }
 
         if ((*cmod).cmod_flags & CMOD_NOAUTOCMD) != 0 && (*cmod).cmod_save_ei.is_none() {
-            (*cmod).cmod_save_ei = Some(cstr_to_cstring(p_ei));
+            (*cmod).cmod_save_ei = Some(cstr_to_cstring(opt_vars().p_ei));
             set_option_direct(kOptEventignore, cstr_as_obj(c"all".as_ptr()), 0, SID_NONE);
         }
     }
@@ -7165,7 +7165,7 @@ pub unsafe fn apply_cmdmod(cmod: *mut cmdmod_T) {
 pub unsafe fn undo_cmdmod(cmod: *mut cmdmod_T) {
     unsafe {
         if (*cmod).cmod_verbose_save > 0 {
-            p_verbose = (*cmod).cmod_verbose_save - 1;
+            opt_vars().p_verbose = (*cmod).cmod_verbose_save - 1;
             (*cmod).cmod_verbose_save = 0;
         }
 
@@ -7692,7 +7692,7 @@ pub unsafe fn skip_range(mut cmd: *const c_char, ctx: *mut c_int) -> *mut c_char
                     *ctx = EXPAND_NOTHING;
                 }
             } else if *cmd == b'/' as c_char || *cmd == b'?' as c_char {
-                cmd = skip_regexp(cmd.add(1).cast_mut(), c_int::from(*cmd as u8), p_magic);
+                cmd = skip_regexp(cmd.add(1).cast_mut(), c_int::from(*cmd as u8), opt_vars().p_magic);
                 if *cmd == NUL && !ctx.is_null() {
                     *ctx = EXPAND_NOTHING;
                 }
@@ -7843,7 +7843,7 @@ pub unsafe fn get_address(
                             break 'error;
                         }
                         if skip {
-                            cmd = skip_regexp(cmd, c, p_magic);
+                            cmd = skip_regexp(cmd, c, opt_vars().p_magic);
                             if c_int::from(*cmd as u8) == c {
                                 cmd = cmd.add(1);
                             }
@@ -7872,7 +7872,7 @@ pub unsafe fn get_address(
                                 strlen(cmd),
                                 1,
                                 search_flags,
-                                p_magic != 0,
+                                opt_vars().p_magic != 0,
                                 ptr::null_mut(),
                             ) == 0
                             {
@@ -7926,7 +7926,7 @@ pub unsafe fn get_address(
                                 1,
                                 SEARCH_MSG,
                                 pat_use,
-                                p_magic != 0,
+                                opt_vars().p_magic != 0,
                                 ptr::null_mut(),
                             ) != FAIL
                             {
@@ -8191,12 +8191,12 @@ pub unsafe fn replace_makeprg(
         {
             let program = if isgrep {
                 if *(*curbuf).b_p_gp == NUL {
-                    p_gp
+                    opt_vars().p_gp
                 } else {
                     (*curbuf).b_p_gp
                 }
             } else if *(*curbuf).b_p_mp == NUL {
-                p_mp
+                opt_vars().p_mp
             } else {
                 (*curbuf).b_p_mp
             };
@@ -8353,7 +8353,7 @@ pub unsafe fn expand_filename(
                 let mut options = WILD_LIST_NOTFOUND | WILD_NOERROR | WILD_ADD_SLASH;
 
                 xpc.xp_context = EXPAND_FILES;
-                if p_wic != 0 {
+                if opt_vars().p_wic != 0 {
                     options += WILD_ICASE;
                 }
                 let Some(expanded) = ExpandOne(
@@ -8473,7 +8473,7 @@ pub unsafe fn separate_nextcmd(eap: *mut exarg_T) {
                     && (*eap).cmdidx != cmdidx_T::CMD_insert as c_int)
                 || *p == b'\n' as c_char
             {
-                if (vim_strchr(p_cpo, kCpoBar).is_null() || ((*eap).argt & EX_CTRLV) == 0)
+                if (vim_strchr(opt_vars().p_cpo, kCpoBar).is_null() || ((*eap).argt & EX_CTRLV) == 0)
                     && *p.sub(1) == b'\\' as c_char
                 {
                     strmove(p.sub(1), p);
@@ -8941,7 +8941,7 @@ unsafe fn check_more(message: bool, forceit: bool) -> c_int {
 
         if !forceit && only_one_window() && ac > 1 && !arg_had_last && n > 0 && docmd_st().quitmore == 0 {
             if message {
-                if (p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+                if (opt_vars().p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
                     && !(*curbuf).b_fname.is_null()
                 {
                     let mut buff = [0 as c_char; DIALOG_MSG_SIZE];
@@ -9106,7 +9106,7 @@ unsafe fn ex_quit(eap: *mut exarg_T) {
         if (!buf_hide((*wp).w_buffer)
             && check_changed(
                 (*wp).w_buffer,
-                (if p_awa != 0 { CCGD_AW } else { 0 })
+                (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 })
                     | (if (*eap).forceit != 0 { CCGD_FORCEIT } else { 0 })
                     | CCGD_EXCMD,
             ))
@@ -9661,7 +9661,7 @@ pub unsafe fn ex_win_close(forceit: c_int, win: *mut win_T, tp: *mut tabpage_T) 
 
         let mut need_hide = bufIsChanged(buf) && (*buf).b_nwindows <= 1;
         if need_hide && !buf_hide(buf) && forceit == 0 {
-            if (p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && p_write != 0 {
+            if (opt_vars().p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && opt_vars().p_write != 0 {
                 let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&raw mut bufref, buf);
                 dialog_changed(buf, false);
@@ -9965,7 +9965,7 @@ unsafe fn ex_recover(eap: *mut exarg_T) {
         recoverymode = true;
         if !check_changed(
             curbuf,
-            (if p_awa != 0 { CCGD_AW } else { 0 })
+            (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 })
                 | CCGD_MULTWIN
                 | (if (*eap).forceit != 0 { CCGD_FORCEIT } else { 0 })
                 | CCGD_EXCMD,
@@ -10107,12 +10107,12 @@ unsafe fn findfunc_find_file(
 
 pub unsafe fn free_findfunc_option() {
     unsafe {
-        callback_free(&raw mut p_ffu);
+        callback_free(&raw mut opt_vars().p_ffu);
     }
 }
 
 pub unsafe fn set_ref_in_findfunc(copyID: c_int) -> bool {
-    unsafe { set_ref_in_callback(&raw mut p_ffu, copyID, ptr::null_mut(), ptr::null_mut()) }
+    unsafe { set_ref_in_callback(&raw mut opt_vars().p_ffu, copyID, ptr::null_mut(), ptr::null_mut()) }
 }
 
 unsafe fn set_browse_edit_arg(eap: *mut exarg_T) {
@@ -10817,7 +10817,7 @@ unsafe fn ex_read(eap: *mut exarg_T) {
                 false,
             )
         } else {
-            if !vim_strchr(p_cpo, kCpoAltread).is_null() {
+            if !vim_strchr(opt_vars().p_cpo, kCpoAltread).is_null() {
                 setaltfname((*eap).arg, (*eap).arg, 1);
             }
             readfile(
@@ -10904,7 +10904,7 @@ unsafe fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
         }
 
         last_chdir_reason = None;
-        shorten_fnames(c_int::from(vim_strchr(p_cpo, kCpoNosymlinks).is_null()));
+        shorten_fnames(c_int::from(vim_strchr(opt_vars().p_cpo, kCpoNosymlinks).is_null()));
 
         if trigger_dirchanged {
             do_autocmd_dirchanged(cwd.as_mut_ptr(), scope, kCdCauseManual, false);
@@ -10932,7 +10932,7 @@ pub unsafe fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
             None
         };
 
-        if *new_dir == NUL && p_cdh != 0 {
+        if *new_dir == NUL && opt_vars().p_cdh != 0 {
             expand_env(
                 c"$HOME".as_ptr().cast_mut(),
                 (&raw mut NameBuff).cast(),
@@ -11014,18 +11014,18 @@ pub unsafe fn ex_cd(eap: *mut exarg_T) {
 
         if (*eap).forceit != 0 && *new_dir == NUL && scope != kCdScopeGlobal {
             chdir_clear(scope);
-            if KeyTyped || p_verbose >= 5 {
+            if KeyTyped || opt_vars().p_verbose >= 5 {
                 ex_pwd(eap);
             }
             return;
         }
 
-        if *new_dir == NUL && p_cdh == 0 {
+        if *new_dir == NUL && opt_vars().p_cdh == 0 {
             ex_pwd(ptr::null_mut());
             return;
         }
 
-        if do_chdir(new_dir, scope) && (KeyTyped || p_verbose >= 5) {
+        if do_chdir(new_dir, scope) && (KeyTyped || opt_vars().p_verbose >= 5) {
             ex_pwd(eap);
         }
     }
@@ -11036,7 +11036,7 @@ unsafe fn ex_pwd(_eap: *mut exarg_T) {
         if os_dirname((&raw mut NameBuff).cast(), MAXPATHL) == OK {
             #[cfg(windows)]
             slash_adjust((&raw mut NameBuff).cast());
-            if p_verbose > 0 {
+            if opt_vars().p_verbose > 0 {
                 let context = if let Some(reason) = last_chdir_reason {
                     reason.as_ptr()
                 } else if (*curbuf).b_localdir.is_some() {
@@ -11369,7 +11369,7 @@ unsafe fn ex_at(eap: *mut exarg_T) {
         if do_execreg(
             c,
             c_int::from(true),
-            c_int::from(!vim_strchr(p_cpo, kCpoExecbuf).is_null()),
+            c_int::from(!vim_strchr(opt_vars().p_cpo, kCpoExecbuf).is_null()),
             c_int::from(true),
         ) == FAIL
         {
@@ -11587,10 +11587,10 @@ unsafe fn ex_redraw(eap: *mut exarg_T) {
             return;
         }
         let r = RedrawingDisabled;
-        let p = p_lz;
+        let p = opt_vars().p_lz;
 
         RedrawingDisabled = 0;
-        p_lz = 0;
+        opt_vars().p_lz = 0;
         validate_cursor(curwin);
         update_topline(curwin);
         if (*eap).forceit != 0 {
@@ -11604,7 +11604,7 @@ unsafe fn ex_redraw(eap: *mut exarg_T) {
             maketitle();
         }
         RedrawingDisabled = r;
-        p_lz = p;
+        opt_vars().p_lz = p;
 
         msg_didout = false;
         msg_col = 0;
@@ -11620,7 +11620,7 @@ unsafe fn ex_redrawstatus(eap: *mut exarg_T) {
             return;
         }
         let r = RedrawingDisabled;
-        let p = p_lz;
+        let p = opt_vars().p_lz;
 
         if (*eap).forceit != 0 {
             status_redraw_all();
@@ -11629,7 +11629,7 @@ unsafe fn ex_redrawstatus(eap: *mut exarg_T) {
         }
 
         RedrawingDisabled = 0;
-        p_lz = 0;
+        opt_vars().p_lz = 0;
         if (State & MODE_CMDLINE) != 0 {
             redraw_statuslines();
         } else {
@@ -11639,7 +11639,7 @@ unsafe fn ex_redrawstatus(eap: *mut exarg_T) {
             update_screen();
         }
         RedrawingDisabled = r;
-        p_lz = p;
+        opt_vars().p_lz = p;
         ui_flush();
     }
 }
@@ -11647,15 +11647,15 @@ unsafe fn ex_redrawstatus(eap: *mut exarg_T) {
 unsafe fn ex_redrawtabline(_eap: *mut exarg_T) {
     unsafe {
         let r = RedrawingDisabled;
-        let p = p_lz;
+        let p = opt_vars().p_lz;
 
         RedrawingDisabled = 0;
-        p_lz = 0;
+        opt_vars().p_lz = 0;
 
         draw_tabline();
 
         RedrawingDisabled = r;
-        p_lz = p;
+        opt_vars().p_lz = p;
         ui_flush();
     }
 }
@@ -11799,7 +11799,7 @@ unsafe fn ex_normal(eap: *mut exarg_T) {
             return;
         }
 
-        if OptInt::from(ex_normal_busy) >= p_mmd {
+        if OptInt::from(ex_normal_busy) >= opt_vars().p_mmd {
             let _ = emsg(gettext(c"E192: Recursive use of :normal too deep".as_ptr()));
             return;
         }
@@ -11980,7 +11980,7 @@ unsafe fn ex_checkpath(eap: *mut exarg_T) {
 
 unsafe fn ex_psearch(eap: *mut exarg_T) {
     unsafe {
-        g_do_tagpreview = p_pvh as c_int;
+        g_do_tagpreview = opt_vars().p_pvh as c_int;
         ex_findpat(eap);
         g_do_tagpreview = 0;
     }
@@ -12011,7 +12011,7 @@ unsafe fn ex_findpat(eap: *mut exarg_T) {
         if *(*eap).arg == b'/' as c_char {
             whole = false;
             (*eap).arg = (*eap).arg.add(1);
-            let mut p = skip_regexp((*eap).arg, b'/' as c_int, p_magic);
+            let mut p = skip_regexp((*eap).arg, b'/' as c_int, opt_vars().p_magic);
             if *p != NUL {
                 *p = NUL;
                 p = skipwhite(p.add(1));
@@ -12048,7 +12048,7 @@ unsafe fn ex_findpat(eap: *mut exarg_T) {
 
 unsafe fn ex_ptag(eap: *mut exarg_T) {
     unsafe {
-        g_do_tagpreview = p_pvh as c_int;
+        g_do_tagpreview = opt_vars().p_pvh as c_int;
         ex_tag_cmd(eap, CMDNAMES[(*eap).cmdidx as usize].cmd_name.as_ptr().add(1));
     }
 }
@@ -12073,8 +12073,8 @@ unsafe fn ex_pbuffer(eap: *mut exarg_T) {
 
 unsafe fn prepare_preview_window() {
     unsafe {
-        g_do_tagpreview = p_pvh as c_int;
-        prepare_tagpreview(true, *p_pvp != NUL);
+        g_do_tagpreview = opt_vars().p_pvh as c_int;
+        prepare_tagpreview(true, *opt_vars().p_pvp != NUL);
     }
 }
 
@@ -12541,9 +12541,9 @@ pub unsafe fn expand_sfile(arg: *mut c_char) -> Option<std::ffi::CString> {
 
 unsafe fn ex_shada(eap: *mut exarg_T) {
     unsafe {
-        let save_shada = p_shada;
-        if *p_shada == NUL {
-            p_shada = c"'100".as_ptr().cast_mut();
+        let save_shada = opt_vars().p_shada;
+        if *opt_vars().p_shada == NUL {
+            opt_vars().p_shada = c"'100".as_ptr().cast_mut();
         }
         if (*eap).cmdidx == cmdidx_T::CMD_rviminfo as c_int
             || (*eap).cmdidx == cmdidx_T::CMD_rshada as c_int
@@ -12552,7 +12552,7 @@ unsafe fn ex_shada(eap: *mut exarg_T) {
         } else {
             shada_write_file((*eap).arg, (*eap).forceit != 0);
         }
-        p_shada = save_shada;
+        opt_vars().p_shada = save_shada;
     }
 }
 
@@ -12711,7 +12711,7 @@ pub unsafe fn set_no_hlsearch(flag: bool) {
         Search.no_hlsearch = flag;
         set_vim_var_nr(
             VV_HLSEARCH,
-            varnumber_T::from(!Search.no_hlsearch && p_hls != 0),
+            varnumber_T::from(!Search.no_hlsearch && opt_vars().p_hls != 0),
         );
     }
 }
@@ -12806,7 +12806,7 @@ unsafe fn ex_checkhealth(eap: *mut exarg_T) {
             let _ = emsg(gettext(c"E5009: $VIMRUNTIME is empty or unset".as_ptr()));
             return;
         };
-        let rtp_ok = !strstr(p_rtp, vimruntime_env.as_ptr()).is_null();
+        let rtp_ok = !strstr(opt_vars().p_rtp, vimruntime_env.as_ptr()).is_null();
         if rtp_ok {
             let _ = semsg!(
                 gettext(c"E5009: Invalid $VIMRUNTIME: %s".as_ptr()),
@@ -12834,7 +12834,7 @@ unsafe fn ex_terminal(eap: *mut exarg_T) {
                 ptr::null_mut(),
             );
         } else {
-            if *p_sh == NUL {
+            if *opt_vars().p_sh == NUL {
                 let _ = emsg(gettext(e_shellempty.as_ptr()));
                 return;
             }

@@ -1759,7 +1759,7 @@ unsafe fn cmdline_fuzzy_completion_supported(xp: *const expand_T) -> bool {
             | EXPAND_TAGS_LISTFILES
             | EXPAND_USER_LIST
             | EXPAND_USER_LUA => false,
-            _ => (wop_flags & kOptWopFlagFuzzy) != 0,
+            _ => (opt_vars().wop_flags & kOptWopFlagFuzzy) != 0,
         }
     }
 }
@@ -1767,7 +1767,7 @@ unsafe fn cmdline_fuzzy_completion_supported(xp: *const expand_T) -> bool {
 /// Returns true if fuzzy completion for cmdline completion is enabled and
 /// "fuzzystr" is not empty.
 pub unsafe fn cmdline_fuzzy_complete(fuzzystr: *const c_char) -> bool {
-    unsafe { (wop_flags & kOptWopFlagFuzzy) != 0 && *fuzzystr != NUL }
+    unsafe { (opt_vars().wop_flags & kOptWopFlagFuzzy) != 0 && *fuzzystr != NUL }
 }
 
 /// Sort function for the completion matches.
@@ -1949,7 +1949,7 @@ pub unsafe fn nextwild(xp: *mut expand_T, type_arg: c_int, options: c_int, escap
                 | WILD_ADD_SLASH
                 | WILD_SILENT
                 | if escape { WILD_ESCAPE } else { 0 }
-                | if p_wic != 0 { WILD_ICASE } else { 0 };
+                | if opt_vars().p_wic != 0 { WILD_ICASE } else { 0 };
             let orig = cstr_from_bytes(std::slice::from_raw_parts(
                 (*ccline).cmdbuff.add(i as usize).cast::<u8>(),
                 (*xp).xp_pattern_len,
@@ -2154,7 +2154,7 @@ pub unsafe fn cmdline_compl_is_fuzzy() -> bool {
 unsafe fn cmdline_compl_use_pum(need_wildmenu: bool) -> bool {
     unsafe {
         (need_wildmenu
-            && (wop_flags & kOptWopFlagPum) != 0
+            && (opt_vars().wop_flags & kOptWopFlagPum) != 0
             && !(ui_has(kUICmdline) && cmdline_win.is_null()))
             || ui_has(kUIWildmenu)
             || (ui_has(kUICmdline) && ui_has(kUIPopupmenu))
@@ -2355,10 +2355,10 @@ unsafe fn redraw_wildmenu(
                     wild_menu_showing = WM_SCROLLED;
                 } else {
                     if (*lastwin).w_status_height == 0 && global_stl_height() == 0 {
-                        save_p_ls = p_ls as c_int;
-                        save_p_wmh = p_wmh as c_int;
-                        p_ls = 2;
-                        p_wmh = 0;
+                        save_p_ls = opt_vars().p_ls as c_int;
+                        save_p_wmh = opt_vars().p_wmh as c_int;
+                        opt_vars().p_ls = 2;
+                        opt_vars().p_wmh = 0;
                         last_status(false);
                     }
                     wild_menu_showing = WM_SHOWN;
@@ -2439,7 +2439,7 @@ unsafe fn get_next_or_prev_match(mode: c_int, xp: *mut expand_T) -> Option<CStri
             }
         }
 
-        if p_wmnu != 0 {
+        if opt_vars().p_wmnu != 0 {
             let arr = &raw const cmdexp().compl_match_array;
             if !(*arr).is_empty() {
                 cmdexp().compl_selected = findex;
@@ -2553,7 +2553,7 @@ unsafe fn find_longest_match(xp: *mut expand_T, options: c_int) -> CString {
             while (i as c_int) < (*xp).xp_numfiles {
                 let ci = utf_ptr2char(files[i].as_ptr().add(len));
 
-                if p_fic != 0
+                if opt_vars().p_fic != 0
                     && ((*xp).xp_context == EXPAND_DIRECTORIES
                         || (*xp).xp_context == EXPAND_FILES
                         || (*xp).xp_context == EXPAND_SHELLCMD
@@ -3155,7 +3155,7 @@ unsafe fn set_cmd_index(
         let mut p: *const c_char;
         let fuzzy = cmdline_fuzzy_complete(cmd);
 
-        if !fuzzy && p_ic == 0 && *cmd == b'k' as c_char && *cmd.add(1) != b'e' as c_char {
+        if !fuzzy && opt_vars().p_ic == 0 && *cmd == b'k' as c_char && *cmd.add(1) != b'e' as c_char {
             (*eap).cmdidx = cmdidx_T::CMD_k as c_int;
             p = cmd.add(1);
         } else {
@@ -3361,7 +3361,7 @@ unsafe fn set_context_in_match_cmd(xp: *mut expand_T, mut arg: *const c_char) ->
             arg = skipwhite(skiptowhite(arg));
             if *arg != NUL {
                 (*xp).xp_context = EXPAND_NOTHING;
-                arg = skip_regexp(arg.add(1).cast_mut(), *arg as u8 as c_int, p_magic);
+                arg = skip_regexp(arg.add(1).cast_mut(), *arg as u8 as c_int, opt_vars().p_magic);
             }
         }
         find_nextcmd(arg)
@@ -3396,7 +3396,7 @@ unsafe fn find_cmd_after_substitute_cmd(mut arg: *const c_char) -> *const c_char
         let delim = *arg as u8 as c_int;
         if delim != 0 {
             arg = arg.add(1);
-            arg = skip_regexp(arg.cast_mut(), delim, p_magic);
+            arg = skip_regexp(arg.cast_mut(), delim, opt_vars().p_magic);
 
             if *arg != NUL && (*arg as u8 as c_int) == delim {
                 arg = arg.add(1);
@@ -3617,7 +3617,7 @@ unsafe fn set_context_with_pattern(xp: *mut expand_T) {
         let mut skiplen: c_int = 0;
         let mut dummy: c_int = 0;
         let mut patlen: c_int = 0;
-        let mut magic = p_magic != 0;
+        let mut magic = opt_vars().p_magic != 0;
         let retval = parse_pattern_and_range(
             &raw mut cmdexp().pre_incsearch_pos,
             &raw mut dummy,
@@ -3775,7 +3775,7 @@ unsafe fn set_context_by_cmdname(
             | cmdidx_T::CMD_tjump
             | cmdidx_T::CMD_stjump
             | cmdidx_T::CMD_ptjump => {
-                if (wop_flags & kOptWopFlagTagfile) != 0 {
+                if (opt_vars().wop_flags & kOptWopFlagTagfile) != 0 {
                     (*xp).xp_context = EXPAND_TAGS_LISTFILES;
                 } else {
                     (*xp).xp_context = EXPAND_TAGS;
@@ -4315,7 +4315,7 @@ pub unsafe fn expand_cmdline(
             addstar((*xp).xp_pattern, (*xp).xp_pattern_len, (*xp).xp_context)
         };
 
-        if p_wic != 0 {
+        if opt_vars().p_wic != 0 {
             options += WILD_ICASE;
         }
 
@@ -4399,9 +4399,9 @@ unsafe fn expand_files_and_dirs(
         };
         drop(pat_owned);
         #[cfg(windows)]
-        if ((options & WILD_USE_SHELLSLASH) != 0 && p_ssl == 0)
+        if ((options & WILD_USE_SHELLSLASH) != 0 && opt_vars().p_ssl == 0)
             || ((options & WILD_USE_COMPLETESLASH) != 0
-                && ((*p_csl == NUL && p_ssl == 0) || *p_csl == b'b' as c_char))
+                && ((*opt_vars().p_csl == NUL && opt_vars().p_ssl == 0) || *opt_vars().p_csl == b'b' as c_char))
         {
             for slot in matches.iter_mut() {
                 if slot.as_bytes().contains(&(PATHSEP as u8)) {
@@ -5036,7 +5036,7 @@ unsafe fn ExpandFromContext(
         }
 
         if !fuzzy {
-            regmatch.regprog = vim_regcomp(pat, if p_magic != 0 { RE_MAGIC } else { 0 });
+            regmatch.regprog = vim_regcomp(pat, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
             if regmatch.regprog.is_null() {
                 return FAIL;
             }
@@ -5640,7 +5640,7 @@ unsafe fn wildmenu_process_key_menunames(
             && (*cclp).cmdpos > 0
             && *(*cclp).cmdbuff.add(((*cclp).cmdpos - 1) as usize) == b'.' as c_char
         {
-            key = p_wc as c_int;
+            key = opt_vars().p_wc as c_int;
             KeyTyped = true;
         } else if key == K_UP {
             let mut found = false;
@@ -5671,7 +5671,7 @@ unsafe fn wildmenu_process_key_menunames(
             if i > 0 {
                 cmdline_del(cclp, i);
             }
-            key = p_wc as c_int;
+            key = opt_vars().p_wc as c_int;
             KeyTyped = true;
             (*xp).xp_context = EXPAND_NOTHING;
         }
@@ -5702,7 +5702,7 @@ unsafe fn wildmenu_process_key_filenames(
                 || *(*cclp).cmdbuff.add(((*cclp).cmdpos - 2) as usize) != b'.' as c_char
                 || *(*cclp).cmdbuff.add(((*cclp).cmdpos - 3) as usize) != b'.' as c_char)
         {
-            key = p_wc as c_int;
+            key = opt_vars().p_wc as c_int;
             KeyTyped = true;
         } else if strncmp((*xp).xp_pattern, upseg.as_ptr().add(1), 3) == 0 && key == K_DOWN {
             let mut found = false;
@@ -5725,7 +5725,7 @@ unsafe fn wildmenu_process_key_filenames(
                 && (vim_ispathsep(*(*cclp).cmdbuff.add((j - 3) as usize) as c_int) || j == i + 2)
             {
                 cmdline_del(cclp, j - 2);
-                key = p_wc as c_int;
+                key = opt_vars().p_wc as c_int;
                 KeyTyped = true;
             }
         } else if key == K_UP {
@@ -5777,7 +5777,7 @@ unsafe fn wildmenu_process_key_filenames(
                 cmdline_del(cclp, i);
             }
 
-            key = p_wc as c_int;
+            key = opt_vars().p_wc as c_int;
             KeyTyped = true;
         }
 
@@ -5805,7 +5805,7 @@ pub unsafe fn wildmenu_process_key(cclp: *mut CmdlineInfo, key: c_int, xp: *mut 
 /// Free expanded names when finished walking through the matches.
 pub unsafe fn wildmenu_cleanup(cclp: *mut CmdlineInfo) {
     unsafe {
-        if p_wmnu == 0 || wild_menu_showing == 0 {
+        if opt_vars().p_wmnu == 0 || wild_menu_showing == 0 {
             return;
         }
 
@@ -5823,8 +5823,8 @@ pub unsafe fn wildmenu_cleanup(cclp: *mut CmdlineInfo) {
             redrawcmd();
             wild_menu_showing = 0;
         } else if save_p_ls != -1 {
-            p_ls = OptInt::from(save_p_ls);
-            p_wmh = OptInt::from(save_p_wmh);
+            opt_vars().p_ls = OptInt::from(save_p_ls);
+            opt_vars().p_wmh = OptInt::from(save_p_wmh);
             last_status(false);
             update_screen();
             redrawcmd();
@@ -5859,7 +5859,7 @@ pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
             filtered = tv_get_bool_chk(argvars.add(2), ptr::null_mut()) != 0;
         }
 
-        if p_wic != 0 {
+        if opt_vars().p_wic != 0 {
             options |= WILD_ICASE;
         }
 
@@ -6074,7 +6074,7 @@ unsafe fn copy_substring_from_pos(
     match_end: *mut pos_T,
 ) -> Option<CString> {
     unsafe {
-        let exacttext = (wop_flags & kOptWopFlagExacttext) != 0;
+        let exacttext = (opt_vars().wop_flags & kOptWopFlagExacttext) != 0;
 
         if (*start).lnum > (*end).lnum
             || ((*start).lnum == (*end).lnum && (*start).col >= (*end).col)
@@ -6157,8 +6157,8 @@ unsafe fn is_regex_match(pat: *const c_char, str_arg: *const c_char) -> bool {
         if regmatch.regprog.is_null() {
             return false;
         }
-        regmatch.rm_ic = p_ic != 0;
-        if p_ic != 0 && p_scs != 0 {
+        regmatch.rm_ic = opt_vars().p_ic != 0;
+        if opt_vars().p_ic != 0 && opt_vars().p_scs != 0 {
             regmatch.rm_ic = !pat_has_uppercase(pat.cast_mut());
         }
 
@@ -6214,7 +6214,7 @@ unsafe fn expand_pattern_in_buf(
     matches: &mut Vec<CString>,
 ) -> c_int {
     unsafe {
-        let exacttext = (wop_flags & kOptWopFlagExacttext) != 0;
+        let exacttext = (opt_vars().wop_flags & kOptWopFlagExacttext) != 0;
         let has_range = Search.first_line != 0;
 
         matches.clear();
@@ -6265,7 +6265,7 @@ unsafe fn expand_pattern_in_buf(
                 1,
                 search_flags,
                 RE_LAST,
-                p_magic != 0,
+                opt_vars().p_magic != 0,
                 ptr::null_mut(),
             );
             msg_silent -= 1;

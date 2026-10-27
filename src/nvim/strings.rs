@@ -864,7 +864,7 @@ pub unsafe fn vim_strsave_shellescape(
         let csh_like = csh_like_shell() != 0;
         let fish_like = fish_like_shell();
         #[cfg(windows)]
-        let use_double_quote = p_ssl == 0;
+        let use_double_quote = opt_vars().p_ssl == 0;
         #[cfg(not(windows))]
         let use_double_quote = false;
 
@@ -3776,7 +3776,7 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         unsafe {
-            crate::option_vars::cmp_flags =
+            crate::option_vars::opt_vars().cmp_flags =
                 crate::mbyte::kOptCmpFlagInternal | crate::mbyte::kOptCmpFlagKeepascii;
 
             for (s, esc, expected) in [

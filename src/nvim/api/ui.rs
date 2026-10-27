@@ -1065,7 +1065,7 @@ pub unsafe fn remote_ui_default_colors_set(
 ) {
     unsafe {
         if !(*ui).ui_ext[kUITermColors] {
-            let dark = *p_bg == b'd' as c_char;
+            let dark = *opt_vars().p_bg == b'd' as c_char;
             if rgb_fg == -1 {
                 rgb_fg = if dark { 0xFFFFFF } else { 0x000000 };
             }

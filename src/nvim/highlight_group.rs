@@ -886,7 +886,7 @@ pub unsafe fn init_highlight(both: bool, reset: bool) {
             return;
         }
 
-        let pp = if *p_bg == b'l' as c_char {
+        let pp = if *opt_vars().p_bg == b'l' as c_char {
             &HIGHLIGHT_INIT_LIGHT
         } else {
             &HIGHLIGHT_INIT_DARK
@@ -1499,7 +1499,7 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                                         -1
                                     };
                                     if dark != -1
-                                        && (dark != 0) != (*p_bg == b'd' as c_char)
+                                        && (dark != 0) != (*opt_vars().p_bg == b'd' as c_char)
                                         && !option_was_set(kOptBackground)
                                     {
                                         set_option_value_give_err(
@@ -1769,7 +1769,7 @@ unsafe fn highlight_list_one(id: c_int) {
         if !didh {
             highlight_list_arg(id, didh, LIST_STRING, 0, c"cleared".as_ptr(), c"".as_ptr());
         }
-        if p_verbose > 0 {
+        if opt_vars().p_verbose > 0 {
             last_set_msg(sgp.sg_script_ctx);
         }
     }

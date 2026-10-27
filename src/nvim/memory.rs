@@ -732,7 +732,7 @@ pub unsafe fn free_all_mem() {
         mem_st().entered_free_all_mem = true;
         block_autocmds();
 
-        p_ea = 0;
+        opt_vars().p_ea = 0;
         if !first_tabpage.is_null() && !(*first_tabpage).tp_next.is_null() {
             do_cmdline_cmd(c"tabonly!".as_ptr());
         }
@@ -779,7 +779,7 @@ pub unsafe fn free_all_mem() {
         new_last_cmdline = None;
         set_keep_msg(std::ptr::null(), 0);
 
-        p_hi = 0;
+        opt_vars().p_hi = 0;
         init_history();
 
         free_quickfix();
@@ -791,7 +791,7 @@ pub unsafe fn free_all_mem() {
 
         free_all_options();
 
-        p_acd = 0;
+        opt_vars().p_acd = 0;
         let mut buf = firstbuf;
         while !buf.is_null() {
             let mut bufref = bufref_T {

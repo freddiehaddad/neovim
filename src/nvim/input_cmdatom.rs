@@ -1620,7 +1620,7 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: *mut cmdarg_T, redo_yank: 
                 },
             );
             if (*cap).cmdchar == b'/' as c_int || (*cap).cmdchar == b'?' as c_int {
-                if vim_strchr(p_cpo, kCpoRedo).is_null() {
+                if vim_strchr(opt_vars().p_cpo, kCpoRedo).is_null() {
                     redo_append_lit((*cap).searchbuf_ptr(), -1);
                 }
                 redo_append_str(c"\n".as_ptr(), 1);

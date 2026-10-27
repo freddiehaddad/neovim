@@ -1265,7 +1265,7 @@ pub unsafe fn mc_vsel_refresh() {
                 &mut s,
                 &mut e,
                 r_type,
-                *p_sel == b'e' as c_char,
+                *opt_vars().p_sel == b'e' as c_char,
                 0,
                 &mut inclusive,
                 &mut oa,
@@ -1509,10 +1509,10 @@ unsafe fn mc_zq_first(
         let bof = dec(&mut before) == -1;
         (*step).lnum = 0;
         if !bof {
-            let save_ww = p_ww;
-            p_ww = c"s,l,>".as_ptr().cast_mut();
+            let save_ww = opt_vars().p_ww;
+            opt_vars().p_ww = c"s,l,>".as_ptr().cast_mut();
             let s = mc_zq_step(keys, before);
-            p_ww = save_ww;
+            opt_vars().p_ww = save_ww;
             (*curwin).w_curswant = curswant;
             if ltoreq(start, s) && ltoreq(s, end_bound) {
                 *step = s;

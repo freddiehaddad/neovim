@@ -389,7 +389,7 @@ unsafe fn alist_add_list(files: Vec<CString>, mut after: c_int, will_edit: bool)
 unsafe fn arglist_del_files(alist_ga: &[*mut c_char]) {
     unsafe {
         let mut regmatch: regmatch_T = regmatch_T::new();
-        regmatch.rm_ic = p_fic != 0;
+        regmatch.rm_ic = opt_vars().p_fic != 0;
 
         for &orig_p in alist_ga {
             if got_int {
@@ -399,7 +399,7 @@ unsafe fn arglist_del_files(alist_ga: &[*mut c_char]) {
             else {
                 break;
             };
-            regmatch.regprog = vim_regcomp(p.as_ptr(), if p_magic != 0 { RE_MAGIC } else { 0 });
+            regmatch.regprog = vim_regcomp(p.as_ptr(), if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
             if regmatch.regprog.is_null() {
                 break;
             }
@@ -1078,10 +1078,10 @@ unsafe fn arg_all_open_windows(aall: *mut arg_all_state_T, count: c_int) {
                     autocmd_no_enter -= 1;
                 }
                 if !(*aall).use_firstwin {
-                    let p_ea_save = p_ea;
-                    p_ea = 1;
+                    let p_ea_save = opt_vars().p_ea;
+                    opt_vars().p_ea = 1;
                     split_ret = win_split(0, WSP_ROOM | WSP_BELOW);
-                    p_ea = p_ea_save;
+                    opt_vars().p_ea = p_ea_save;
                     if split_ret == FAIL {
                         i += 1;
                         continue;
@@ -1118,7 +1118,7 @@ unsafe fn arg_all_open_windows(aall: *mut arg_all_state_T, count: c_int) {
             }
             os_breakcheck();
 
-            if (*aall).had_tab > 0 && (tabpage_index(ptr::null_mut()) as OptInt) <= p_tpm {
+            if (*aall).had_tab > 0 && (tabpage_index(ptr::null_mut()) as OptInt) <= opt_vars().p_tpm {
                 cmdmod.cmod_tab = 9999;
             }
             i += 1;

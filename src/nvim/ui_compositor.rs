@@ -557,7 +557,7 @@ unsafe fn compose_line(
         for i in skipstart..end_idx {
             let p = abuf.add(i as usize);
             if *p < 0 {
-                if (rdb_flags & kOptRdbFlagInvalid) != 0 {
+                if (opt_vars().rdb_flags & kOptRdbFlagInvalid) != 0 {
                     std::process::abort();
                 } else {
                     *p = 0;
@@ -587,7 +587,7 @@ unsafe fn compose_debug(
     delay: bool,
 ) {
     unsafe {
-        if (rdb_flags & kOptRdbFlagCompositor) == 0 || startcol >= endcol {
+        if (opt_vars().rdb_flags & kOptRdbFlagCompositor) == 0 || startcol >= endcol {
             return;
         }
 
@@ -624,7 +624,7 @@ unsafe fn compose_debug(
 unsafe fn debug_delay(lines: Integer) {
     unsafe {
         ui_call_flush();
-        let wd = p_wd.unsigned_abs();
+        let wd = opt_vars().p_wd.unsigned_abs();
         let factor = lines.clamp(1, 5) as u64;
         os_sleep(factor * wd);
     }
@@ -859,7 +859,7 @@ pub unsafe fn ui_comp_grid_scroll(
             }
         } else {
             ui_composed_call_grid_scroll(1, top, bot, left, right, rows, cols);
-            if (rdb_flags & kOptRdbFlagCompositor) != 0 {
+            if (opt_vars().rdb_flags & kOptRdbFlagCompositor) != 0 {
                 debug_delay(2);
             }
         }

@@ -1228,7 +1228,7 @@ pub unsafe fn call_user_func(
         let mut did_save_redo = false;
         let mut save_redo = RedoState::new();
 
-        if i64::from(uf_st().call_depth) >= p_mfd {
+        if i64::from(uf_st().call_depth) >= opt_vars().p_mfd {
             emsg(gettext(
                 c"E132: Function call depth is higher than 'maxfuncdepth'".as_ptr(),
             ));
@@ -1396,12 +1396,12 @@ pub unsafe fn call_user_func(
         estack_push_ufunc(fp, 1);
         let es = &raw const rt_st().exestack;
         let estack_len_before = (*es).len() as c_int;
-        if p_verbose >= 12 {
+        if opt_vars().p_verbose >= 12 {
             no_wait_return += 1;
             verbose_enter_scroll();
 
             smsg!(0, gettext(c"calling %s".as_ptr()), sourcing_name());
-            if p_verbose >= 14 {
+            if opt_vars().p_verbose >= 14 {
                 msg_puts(c"(".as_ptr());
                 for i in 0..argcount {
                     if i > 0 {
@@ -1513,7 +1513,7 @@ pub unsafe fn call_user_func(
             }
         }
 
-        if p_verbose >= 12 {
+        if opt_vars().p_verbose >= 12 {
             no_wait_return += 1;
             verbose_enter_scroll();
 
@@ -1554,7 +1554,7 @@ pub unsafe fn call_user_func(
             sandbox -= 1;
         }
 
-        if p_verbose >= 12 && !sourcing_name().is_null() {
+        if opt_vars().p_verbose >= 12 && !sourcing_name().is_null() {
             no_wait_return += 1;
             verbose_enter_scroll();
 
@@ -2192,7 +2192,7 @@ unsafe fn list_func_head(fp: *mut ufunc_T, indent: bool, force: bool) -> c_int {
             msg_puts(c" closure".as_ptr());
         }
         msg_clr_eos();
-        if p_verbose > 0 {
+        if opt_vars().p_verbose > 0 {
             last_set_msg((*fp).uf_script_ctx);
         }
 
@@ -2540,7 +2540,7 @@ unsafe fn list_functions_matching_pat(eap: *mut exarg_T) -> *mut c_char {
             regmatch.regprog = vim_regcomp((*eap).arg.add(1), RE_MAGIC);
             *p = c;
             if !regmatch.regprog.is_null() {
-                regmatch.rm_ic = p_ic != 0;
+                regmatch.rm_ic = opt_vars().p_ic != 0;
                 list_functions(&raw mut regmatch);
                 vim_regfree(regmatch.regprog);
             }
@@ -2744,7 +2744,7 @@ unsafe fn get_function_body(
                             nextcmd = p.add(1);
                         } else if !line_arg.is_null() && *skipwhite(line_arg) != NUL {
                             nextcmd = line_arg;
-                        } else if *p != NUL && *p != b'"' as c_char && p_verbose > 0 {
+                        } else if *p != NUL && *p != b'"' as c_char && opt_vars().p_verbose > 0 {
                             swmsg!(
                                 true,
                                 gettext(c"W22: Text found after :endfunction: %s".as_ptr()),

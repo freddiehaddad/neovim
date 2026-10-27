@@ -455,7 +455,7 @@ pub unsafe fn msg_grid_validate() {
     unsafe {
         grid_assign_handle(&raw mut msg_grid);
         let should_alloc = msg_use_grid();
-        let max_rows = Rows - p_ch as c_int;
+        let max_rows = Rows - opt_vars().p_ch as c_int;
         let msg_grid_empty = !crate::grid::grid_allocated(&raw const msg_grid);
         if should_alloc && (msg_grid.rows != Rows || msg_grid.cols != Columns || msg_grid_empty) {
             grid_alloc(&raw mut msg_grid, Rows, Columns, false, true);
@@ -1057,8 +1057,8 @@ pub unsafe fn msg_source(hl_id: c_int) {
 pub unsafe fn emsg_not_now() -> bool {
     unsafe {
         (emsg_off > 0
-            && vim_strchr(p_debug, b'm' as c_int).is_null()
-            && vim_strchr(p_debug, b't' as c_int).is_null())
+            && vim_strchr(opt_vars().p_debug, b'm' as c_int).is_null()
+            && vim_strchr(opt_vars().p_debug, b't' as c_int).is_null())
             || emsg_skip > 0
     }
 }
@@ -1084,7 +1084,7 @@ pub unsafe fn emsg_multiline(
         let severe = emsg_severe;
         emsg_severe = false;
 
-        if emsg_off == 0 || !vim_strchr(p_debug, b't' as c_int).is_null() {
+        if emsg_off == 0 || !vim_strchr(opt_vars().p_debug, b't' as c_int).is_null() {
             if cause_errthrow(s, multiline, msg_st().is_multihl > 1, severe, &raw mut ignore) {
                 if !ignore {
                     did_emsg += 1;
@@ -1196,7 +1196,7 @@ pub unsafe fn emsg_multiline(
                 global_busy += 1;
             }
 
-            if p_eb != 0 {
+            if opt_vars().p_eb != 0 {
                 beep_flush(); // also includes flush_buffers()
             } else {
                 flush_buffers(FLUSH_MINIMAL); // flush internal buffers
@@ -1283,7 +1283,7 @@ pub unsafe fn msg_schedule_semsg_multiline_cstr(s: *const c_char) {
     }
 }
 
-/// Like msg(), but truncate to a single line if p_shm contains 't', or when
+/// Like msg(), but truncate to a single line if opt_vars().p_shm contains 't', or when
 /// "force" is true.  This truncates in another way as for normal messages.
 /// Careful: The string may be changed by msg_may_trunc()!
 ///
@@ -1657,7 +1657,7 @@ pub unsafe fn validate_messagesopt(args: *mut optset_T) -> *const c_char {
 /// Process the updated 'messagesopt' option value.
 pub unsafe fn did_set_messagesopt(_args: *mut optset_T) -> *const c_char {
     unsafe {
-        let v = opt_keyset(p_mopt, kOptMessagesopt, ptr::null_mut()).cast::<OptKeyDict_mopt>();
+        let v = opt_keyset(opt_vars().p_mopt, kOptMessagesopt, ptr::null_mut()).cast::<OptKeyDict_mopt>();
 
         msg_st().msg_hit_enter = (*v).hit_enter;
         msg_st().msg_wait = (*v).wait as c_int;
@@ -1852,7 +1852,7 @@ pub unsafe fn wait_return(redraw: c_int) {
             }
 
             // if cmdheight=0, we need to scroll in the first line of msg_grid upon the screen
-            if p_ch == 0 && !ui_has(kUIMessages) && msg_scrolled == 0 {
+            if opt_vars().p_ch == 0 && !ui_has(kUIMessages) && msg_scrolled == 0 {
                 msg_grid_validate();
                 msg_scroll_up(false, true);
                 msg_scrolled += 1;
@@ -1880,7 +1880,7 @@ pub unsafe fn wait_return(redraw: c_int) {
                     reg_recording = save_reg_recording;
                     scriptout = save_scriptout;
 
-                    if KeyTyped && p_more != 0 {
+                    if KeyTyped && opt_vars().p_more != 0 {
                         if c == b'b' as c_int
                             || c == Ctrl_B
                             || c == b'k' as c_int
@@ -1990,15 +1990,15 @@ pub unsafe fn wait_return(redraw: c_int) {
 /// Write the hit-return prompt.
 unsafe fn hit_return_msg(newline_sb: bool) {
     unsafe {
-        let save_p_more = p_more;
+        let save_p_more = opt_vars().p_more;
 
         if !newline_sb {
-            p_more = 0;
+            opt_vars().p_more = 0;
         }
         if msg_didout {
             msg_putchar(NL);
         }
-        p_more = 0;
+        opt_vars().p_more = 0;
         if got_int {
             msg_puts(gettext(c"Interrupt: ".as_ptr()));
         }
@@ -2011,7 +2011,7 @@ unsafe fn hit_return_msg(newline_sb: bool) {
         if msg_use_printf() == 0 {
             msg_clr_eos();
         }
-        p_more = save_p_more;
+        opt_vars().p_more = save_p_more;
     }
 }
 
@@ -2034,7 +2034,7 @@ pub unsafe fn set_keep_msg(s: *const c_char, hl_id: c_int) {
 
 /// Return true if printing messages should currently be done.
 pub unsafe fn messaging() -> bool {
-    unsafe { !(p_lz != 0 && char_avail() && !KeyTyped) && (p_ch > 0 || ui_has(kUIMessages)) }
+    unsafe { !(opt_vars().p_lz != 0 && char_avail() && !KeyTyped) && (opt_vars().p_ch > 0 || ui_has(kUIMessages)) }
 }
 
 pub unsafe fn msgmore(n: c_int) {
@@ -2049,7 +2049,7 @@ pub unsafe fn msgmore(n: c_int) {
 
         let pn = n.abs();
 
-        if i64::from(pn) > p_report {
+        if i64::from(pn) > opt_vars().p_report {
             let msg_ptr = (&raw mut msg_buf).cast::<c_char>();
             if n > 0 {
                 vim_snprintf!(
@@ -2135,13 +2135,13 @@ pub unsafe fn msg_start() {
             highlight_changed();
         }
 
-        if need_clr_eos || (p_ch == 0 && redrawing_cmdline) {
+        if need_clr_eos || (opt_vars().p_ch == 0 && redrawing_cmdline) {
             need_clr_eos = false;
             msg_clr_eos();
         }
 
         // if cmdheight=0, we need to scroll in the first line of msg_grid upon the screen
-        if p_ch == 0 && !ui_has(kUIMessages) && msg_scrolled == 0 {
+        if opt_vars().p_ch == 0 && !ui_has(kUIMessages) && msg_scrolled == 0 {
             msg_grid_validate();
             msg_scroll_up(false, true);
             msg_scrolled += 1;
@@ -2151,8 +2151,8 @@ pub unsafe fn msg_start() {
         if msg_scroll == 0 && full_screen {
             msg_row = cmdline_row;
             msg_col = 0;
-        } else if (msg_didout || p_ch == 0) && !ui_has(kUIMessages) {
-            if ((p_ch == 0 && !msg_didout) || msg_st().msg_special_case_for_lua_print)
+        } else if (msg_didout || opt_vars().p_ch == 0) && !ui_has(kUIMessages) {
+            if ((opt_vars().p_ch == 0 && !msg_didout) || msg_st().msg_special_case_for_lua_print)
                 && msg_use_printf() != 0
             {
                 msg_puts_display(c"\n".as_ptr(), 1, 0, 0);
@@ -2809,7 +2809,7 @@ pub unsafe fn msg_puts_len(str_: *const c_char, len: isize, hl_id: c_int, hist: 
             msg_hist_add(str_, len as c_int, hl_id);
         }
 
-        let overflow = !ui_has(kUIMessages) && msg_scrolled > if p_ch == 0 { 1 } else { 0 };
+        let overflow = !ui_has(kUIMessages) && msg_scrolled > if opt_vars().p_ch == 0 { 1 } else { 0 };
 
         if overflow && !msg_scrolled_ign && CStr::from_ptr(str_) != c"\r" {
             need_wait_return = true;
@@ -2914,7 +2914,7 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
 
         loop {
             if msg_col >= Columns {
-                if p_more != 0 && recurse == 0 {
+                if opt_vars().p_more != 0 && recurse == 0 {
                     store_sb_text(&raw mut sb_str, s, hl_id, &raw mut sb_col, 1);
                 }
                 if msg_no_more && lines_left == 0 {
@@ -2952,7 +2952,7 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
                         lines_left -= 1;
                     }
 
-                    if p_more != 0 && lines_left == 0 && State != MODE_HITRETURN && !msg_no_more {
+                    if opt_vars().p_more != 0 && lines_left == 0 && State != MODE_HITRETURN && !msg_no_more {
                         if do_more_prompt(NUL as c_int) {
                             s = (&raw const dlg_st().confirm_buttons).as_ref().unwrap().as_ptr();
                         }
@@ -2999,7 +2999,7 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
                     msg_didout = false;
                     msg_col = 0;
                     msg_row += 1;
-                    if p_more != 0 && recurse == 0 {
+                    if opt_vars().p_more != 0 && recurse == 0 {
                         store_sb_text(&raw mut sb_str, s, hl_id, &raw mut sb_col, 1);
                     }
                 } else if c == CAR as c_char {
@@ -3028,7 +3028,7 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
         }
         msg_cursor_goto(msg_row, msg_col);
 
-        if p_more != 0 && recurse == 0 {
+        if opt_vars().p_more != 0 && recurse == 0 {
             store_sb_text(&raw mut sb_str, s, hl_id, &raw mut sb_col, 0);
         }
 
@@ -3074,11 +3074,11 @@ pub unsafe fn message_filtered(msg: *const c_char) -> bool {
 
 /// including horizontal separator
 pub unsafe fn msg_scrollsize() -> c_int {
-    unsafe { msg_scrolled + p_ch as c_int + c_int::from(p_ch > 0 || msg_scrolled > 1) }
+    unsafe { msg_scrolled + opt_vars().p_ch as c_int + c_int::from(opt_vars().p_ch > 0 || msg_scrolled > 1) }
 }
 
 pub unsafe fn msg_do_throttle() -> bool {
-    unsafe { msg_use_grid() && (rdb_flags & kOptRdbFlagNothrottle) == 0 }
+    unsafe { msg_use_grid() && (opt_vars().rdb_flags & kOptRdbFlagNothrottle) == 0 }
 }
 
 /// Scroll the screen up one line for displaying the next message line.
@@ -3174,7 +3174,7 @@ pub unsafe fn msg_reset_scroll() {
             return;
         }
         msg_grid.throttled = false;
-        msg_grid_set_pos(Rows - p_ch as c_int, false);
+        msg_grid_set_pos(Rows - opt_vars().p_ch as c_int, false);
         clear_cmdline = true;
         if crate::grid::grid_allocated(&raw const msg_grid) {
             let limit = msg_scrollsize().min(msg_grid.rows);
@@ -3451,7 +3451,7 @@ unsafe fn msg_puts_printf(str_: *const c_char, maxlen: isize) {
 
         while (maxlen < 0 || s.offset_from(str_) < maxlen) && *s != NUL {
             let len = utf_ptr2len(s) as usize;
-            if !(silent_mode && p_verbose == 0) {
+            if !(silent_mode && opt_vars().p_verbose == 0) {
                 let mut p = buf.as_mut_ptr();
                 if *s == NL as c_char && !info_message && !silent_mode && !headless_mode {
                     *p = CAR as c_char;
@@ -3967,7 +3967,7 @@ unsafe fn redir_write(str_: *const c_char, maxlen: isize) {
             return;
         }
 
-        if *p_vfile != NUL && (*(&raw const msg_st().verbose_fd)).is_none() {
+        if *opt_vars().p_vfile != NUL && (*(&raw const msg_st().verbose_fd)).is_none() {
             verbose_open();
         }
 
@@ -4038,7 +4038,7 @@ pub unsafe fn redirecting() -> c_int {
     unsafe {
         c_int::from(
             has_redir_fd()
-                || *p_vfile != NUL
+                || *opt_vars().p_vfile != NUL
                 || redir_reg != 0
                 || redir_vname
                 || !capture_ga.is_null(),
@@ -4050,7 +4050,7 @@ pub unsafe fn redirecting() -> c_int {
 /// Must always be called paired with verbose_leave()!
 pub unsafe fn verbose_enter() {
     unsafe {
-        if *p_vfile != NUL {
+        if *opt_vars().p_vfile != NUL {
             msg_silent += 1;
         }
         if !msg_ext_skip_verbose {
@@ -4067,7 +4067,7 @@ pub unsafe fn verbose_enter() {
 /// Must always be called paired with verbose_enter()!
 pub unsafe fn verbose_leave() {
     unsafe {
-        if *p_vfile != NUL {
+        if *opt_vars().p_vfile != NUL {
             msg_silent -= 1;
             if msg_silent < 0 {
                 msg_silent = 0;
@@ -4084,7 +4084,7 @@ pub unsafe fn verbose_leave() {
 pub unsafe fn verbose_enter_scroll() {
     unsafe {
         verbose_enter();
-        if *p_vfile == NUL {
+        if *opt_vars().p_vfile == NUL {
             msg_scroll = 1;
         }
     }
@@ -4094,7 +4094,7 @@ pub unsafe fn verbose_enter_scroll() {
 pub unsafe fn verbose_leave_scroll() {
     unsafe {
         verbose_leave();
-        if *p_vfile == NUL {
+        if *opt_vars().p_vfile == NUL {
             cmdline_row = msg_row;
         }
     }
@@ -4116,9 +4116,9 @@ pub unsafe fn verbose_open() -> c_int {
         if (*(&raw const msg_st().verbose_fd)).is_none() && !msg_st().verbose_did_open {
             msg_st().verbose_did_open = true;
 
-            msg_st().verbose_fd = crate::os::fs::CFile::from_raw(os_fopen(p_vfile, c"a".as_ptr()));
+            msg_st().verbose_fd = crate::os::fs::CFile::from_raw(os_fopen(opt_vars().p_vfile, c"a".as_ptr()));
             if (*(&raw const msg_st().verbose_fd)).is_none() {
-                semsg!(gettext(e_notopen.as_ptr()), p_vfile);
+                semsg!(gettext(e_notopen.as_ptr()), opt_vars().p_vfile);
                 return FAIL;
             }
         }

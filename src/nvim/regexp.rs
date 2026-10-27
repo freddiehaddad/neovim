@@ -1609,7 +1609,7 @@ pub(super) unsafe fn get_coll_element(pp: *mut *mut c_char) -> c_int {
 
 pub(super) unsafe fn get_cpo_flags() {
     unsafe {
-        re_st().reg_cpo_lit = (!vim_strchr(p_cpo, kCpoLiteral).is_null()) as c_int;
+        re_st().reg_cpo_lit = (!vim_strchr(opt_vars().p_cpo, kCpoLiteral).is_null()) as c_int;
     }
 }
 
@@ -2179,7 +2179,7 @@ pub(super) unsafe fn reg_match_visual() -> bool {
         let col = re_st().rex.input.offset_from(re_st().rex.line) as colnr_T;
         if mode == b'v' as c_int {
             if (lnum == top.lnum && col < top.col)
-                || (lnum == bot.lnum && col >= bot.col + colnr_T::from(*p_sel != b'e' as c_char))
+                || (lnum == bot.lnum && col >= bot.col + colnr_T::from(*opt_vars().p_sel != b'e' as c_char))
             {
                 return false;
             }
@@ -2220,7 +2220,7 @@ pub(super) unsafe fn reg_match_visual() -> bool {
             re_st().rex.input = re_st().rex.line.add(col as usize);
 
             let cols = win_linetabsize(wp, re_st().rex.reg_firstlnum + re_st().rex.lnum, re_st().rex.line.cast(), col);
-            if cols < start || cols > end - colnr_T::from(*p_sel == b'e' as c_char) {
+            if cols < start || cols > end - colnr_T::from(*opt_vars().p_sel == b'e' as c_char) {
                 return false;
             }
         }
@@ -3384,7 +3384,7 @@ pub unsafe fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regp
     unsafe {
         let mut expr = expr_arg;
 
-        re_st().regexp_engine = p_re as c_int;
+        re_st().regexp_engine = opt_vars().p_re as c_int;
 
         if strncmp(expr, c"\\%#=".as_ptr(), 4) == 0 {
             let newengine = (*expr.add(4) as u8).wrapping_sub(b'0') as c_int;
@@ -3502,7 +3502,7 @@ pub unsafe fn free_regexp_stuff() {
 
 unsafe fn report_re_switch(pat: *const c_char) {
     unsafe {
-        if p_verbose > 0 {
+        if opt_vars().p_verbose > 0 {
             verbose_enter();
             msg_puts(tr(
                 c"Switching to backtracking RE engine for pattern: ".as_ptr()
@@ -3547,12 +3547,12 @@ unsafe fn vim_regexec_string(
 
         if (*(*rmp).regprog).re_engine == AUTOMATIC_ENGINE as c_uint && result == NFA_TOO_EXPENSIVE
         {
-            let save_p_re = p_re;
+            let save_p_re = opt_vars().p_re;
             let re_flags = (*(*rmp).regprog).re_flags as c_int;
             let prev_prog = (*rmp).regprog;
             let pat = (*prev_prog).nfa_mut().pattern.as_ptr();
 
-            p_re = OptInt::from(BACKTRACKING_ENGINE);
+            opt_vars().p_re = OptInt::from(BACKTRACKING_ENGINE);
             report_re_switch(pat);
             let new_prog = vim_regcomp(pat, re_flags);
             if !new_prog.is_null() {
@@ -3565,7 +3565,7 @@ unsafe fn vim_regexec_string(
                 (*(*rmp).regprog).re_in_use = false;
             }
 
-            p_re = save_p_re;
+            opt_vars().p_re = save_p_re;
         }
 
         re_st().rex_in_use = rex_in_use_save;
@@ -3635,12 +3635,12 @@ pub unsafe fn vim_regexec_multi(
 
         if (*(*rmp).regprog).re_engine == AUTOMATIC_ENGINE as c_uint && result == NFA_TOO_EXPENSIVE
         {
-            let save_p_re = p_re;
+            let save_p_re = opt_vars().p_re;
             let re_flags = (*(*rmp).regprog).re_flags as c_int;
             let prev_prog = (*rmp).regprog;
             let pat = (*prev_prog).nfa_mut().pattern.as_ptr();
 
-            p_re = OptInt::from(BACKTRACKING_ENGINE);
+            opt_vars().p_re = OptInt::from(BACKTRACKING_ENGINE);
 
             report_re_switch(pat);
             reg_do_extmatch = REX_ALL;
@@ -3661,7 +3661,7 @@ pub unsafe fn vim_regexec_multi(
                 (*(*rmp).regprog).re_in_use = false;
             }
 
-            p_re = save_p_re;
+            opt_vars().p_re = save_p_re;
         }
 
         re_st().rex_in_use = rex_in_use_save;

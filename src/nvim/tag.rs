@@ -385,14 +385,14 @@ use crate::charset::toupper_asc;
 
 pub unsafe fn free_tagfunc_option() {
     unsafe {
-        callback_free(&raw mut p_tfu);
+        callback_free(&raw mut opt_vars().p_tfu);
     }
 }
 
 /// Mark the global `'tagfunc'` callback with `copyID` so that it is not garbage
 /// collected.
 pub unsafe fn set_ref_in_tagfunc(copyID: c_int) -> bool {
-    unsafe { set_ref_in_callback(&raw mut p_tfu, copyID, ptr::null_mut(), ptr::null_mut()) }
+    unsafe { set_ref_in_callback(&raw mut opt_vars().p_tfu, copyID, ptr::null_mut(), ptr::null_mut()) }
 }
 
 /// Jump to tag; handling of tag commands and tag stack.
@@ -462,7 +462,7 @@ pub unsafe fn do_tag(
 
         assert!(!tag.is_null());
         'end_do_tag: {
-            if p_tgst == 0 && *tag != NUL {
+            if opt_vars().p_tgst == 0 && *tag != NUL {
                 use_tagstack = false;
                 new_tag = true;
                 if g_do_tagpreview != 0 {
@@ -557,11 +557,11 @@ pub unsafe fn do_tag(
                         }
                         (*curwin).w_cursor.col = saved_fmark.mark.col;
                         (*curwin).w_set_curswant = true;
-                        if (jop_flags & kOptJopFlagView) != 0 {
+                        if (opt_vars().jop_flags & kOptJopFlagView) != 0 {
                             mark_view_restore(&raw mut saved_fmark);
                         }
                         check_cursor(curwin);
-                        if (fdo_flags & kOptFdoFlagTag) != 0 && old_KeyTyped {
+                        if (opt_vars().fdo_flags & kOptFdoFlagTag) != 0 && old_KeyTyped {
                             foldOpenCursor();
                         }
 
@@ -1206,7 +1206,7 @@ unsafe fn prepare_pats(pats: *mut pat_T, has_re: bool) {
             } else {
                 (*pats).headlen = 0;
                 while *(*pats).head.add((*pats).headlen as usize) != NUL {
-                    let magic_chars = if p_magic != 0 {
+                    let magic_chars = if opt_vars().p_magic != 0 {
                         c".[~*\\$".as_ptr()
                     } else {
                         c"\\$".as_ptr()
@@ -1222,14 +1222,14 @@ unsafe fn prepare_pats(pats: *mut pat_T, has_re: bool) {
                     (*pats).headlen += 1;
                 }
             }
-            if p_tl != 0 && ((*pats).headlen as OptInt) > p_tl {
-                (*pats).headlen = p_tl as c_int;
+            if opt_vars().p_tl != 0 && ((*pats).headlen as OptInt) > opt_vars().p_tl {
+                (*pats).headlen = opt_vars().p_tl as c_int;
             }
         }
 
         if has_re {
             (*pats).regmatch.regprog =
-                vim_regcomp((*pats).pat, if p_magic != 0 { RE_MAGIC } else { 0 });
+                vim_regcomp((*pats).pat, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
         } else {
             (*pats).regmatch.regprog = ptr::null_mut();
         }
@@ -1632,7 +1632,7 @@ unsafe fn findtags_in_help_init(st: *mut findtags_state_T) -> bool {
             st.help_pri = 0;
         } else {
             st.help_pri = 1;
-            let mut s = p_hlg;
+            let mut s = opt_vars().p_hlg;
             while *s != NUL {
                 if mb_strnicmp(s, st.help_lang.as_ptr(), 2) == 0 {
                     break;
@@ -1766,7 +1766,7 @@ unsafe fn findtags_hdr_parse(st: *mut findtags_state_T) -> bool {
                 p = p.add(1);
             }
             *p = NUL;
-            convert_setup(&mut (*st).vimconv, lbuf.add(20), p_enc);
+            convert_setup(&mut (*st).vimconv, lbuf.add(20), opt_vars().p_enc);
         }
 
         false
@@ -1795,7 +1795,7 @@ unsafe fn findtags_start_state_handler(
         } else if (*st).tag_file_sorted == b'2' as c_int {
             (*st).state = tagsearch_state_T::TS_BINARY;
             *sortic = true;
-            (*st).orgpat.regmatch.rm_ic = p_ic != 0 || !noic;
+            (*st).orgpat.regmatch.rm_ic = opt_vars().p_ic != 0 || !noic;
         } else {
             (*st).state = tagsearch_state_T::TS_LINEAR;
         }
@@ -1845,8 +1845,8 @@ unsafe fn findtags_parse_line(
             }
 
             let mut cmplen = tagpp.tagname_end.offset_from(tagpp.tagname) as c_int;
-            if p_tl != 0 && (cmplen as OptInt) > p_tl {
-                cmplen = p_tl as c_int;
+            if opt_vars().p_tl != 0 && (cmplen as OptInt) > opt_vars().p_tl {
+                cmplen = opt_vars().p_tl as c_int;
             }
             if ((*st).flags & TAG_REGEXP) != 0 && (*st).orgpat.headlen < cmplen {
                 cmplen = (*st).orgpat.headlen;
@@ -1968,8 +1968,8 @@ unsafe fn findtags_match_tag(
         let mut match_: bool;
 
         let mut cmplen = tagpp.tagname_end.offset_from(tagpp.tagname) as c_int;
-        if p_tl != 0 && (cmplen as OptInt) > p_tl {
-            cmplen = p_tl as c_int;
+        if opt_vars().p_tl != 0 && (cmplen as OptInt) > opt_vars().p_tl {
+            cmplen = opt_vars().p_tl as c_int;
         }
         if (*st).orgpat.len != cmplen {
             match_ = false;
@@ -2107,7 +2107,7 @@ unsafe fn findtags_add_match(
                 mfp_vec = Some(v);
 
                 if (State & MODE_INSERT) != 0 {
-                    (*st).get_searchpat = p_sft != 0;
+                    (*st).get_searchpat = opt_vars().p_sft != 0;
                 }
             }
         } else {
@@ -2241,7 +2241,7 @@ unsafe fn findtags_in_file(st: *mut findtags_state_T, _flags: c_int, buf_ffname:
             return;
         }
 
-        if p_verbose >= 5 {
+        if opt_vars().p_verbose >= 5 {
             verbose_enter();
             smsg!(
                 0,
@@ -2325,18 +2325,18 @@ pub unsafe fn find_tags(
         let has_re = (flags & TAG_REGEXP) != 0;
         let noic = (flags & TAG_NOIC) != 0;
         let verbose = (flags & TAG_VERBOSE) != 0;
-        let save_p_ic = p_ic;
+        let save_p_ic = opt_vars().p_ic;
 
         match if (*curbuf).b_tc_flags != 0 {
             (*curbuf).b_tc_flags
         } else {
-            tc_flags
+            opt_vars().tc_flags
         } {
             kOptTcFlagFollowic => {}
-            kOptTcFlagIgnore => p_ic = 1,
-            kOptTcFlagMatch => p_ic = 0,
-            kOptTcFlagFollowscs => p_ic = ignorecase(pat),
-            kOptTcFlagSmart => p_ic = ignorecase_opt(pat, 1, 1),
+            kOptTcFlagIgnore => opt_vars().p_ic = 1,
+            kOptTcFlagMatch => opt_vars().p_ic = 0,
+            kOptTcFlagFollowscs => opt_vars().p_ic = ignorecase(pat),
+            kOptTcFlagSmart => opt_vars().p_ic = ignorecase_opt(pat, 1, 1),
             _ => std::process::abort(),
         }
 
@@ -2366,8 +2366,8 @@ pub unsafe fn find_tags(
             saved_pat = Some(cstr);
             st.orgpat.len -= 3;
         }
-        if p_tl != 0 && (st.orgpat.len as OptInt) > p_tl {
-            st.orgpat.len = p_tl as c_int;
+        if opt_vars().p_tl != 0 && (st.orgpat.len as OptInt) > opt_vars().p_tl {
+            st.orgpat.len = opt_vars().p_tl as c_int;
         }
 
         let save_emsg_off = emsg_off;
@@ -2398,9 +2398,9 @@ pub unsafe fn find_tags(
                 }
 
                 st.orgpat.regmatch.rm_ic =
-                    (p_ic != 0 || !noic) && (findall || st.orgpat.headlen == 0 || p_tbs == 0);
+                    (opt_vars().p_ic != 0 || !noic) && (findall || st.orgpat.headlen == 0 || opt_vars().p_tbs == 0);
                 for round in 1..=2 {
-                    st.linear = st.orgpat.headlen == 0 || p_tbs == 0 || round == 2;
+                    st.linear = st.orgpat.headlen == 0 || opt_vars().p_tbs == 0 || round == 2;
 
                     let mut tn = tagname_T::new();
                     let mut first_file: c_int = 1;
@@ -2415,7 +2415,7 @@ pub unsafe fn find_tags(
 
                     if st.stop_searching
                         || st.linear
-                        || (p_ic == 0 && noic)
+                        || (opt_vars().p_ic == 0 && noic)
                         || st.orgpat.regmatch.rm_ic
                     {
                         break;
@@ -2442,7 +2442,7 @@ pub unsafe fn find_tags(
         (*curbuf).b_help = help_save;
         drop(saved_pat);
 
-        p_ic = save_p_ic;
+        opt_vars().p_ic = save_p_ic;
 
         retval
     }
@@ -2499,11 +2499,11 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
 
             let len = (*tf).len() as c_int;
             if (*tnp).tn_hf_idx >= len {
-                if (*tnp).tn_hf_idx > len || *p_hf == NUL {
+                if (*tnp).tn_hf_idx > len || *opt_vars().p_hf == NUL {
                     return FAIL;
                 }
                 (*tnp).tn_hf_idx += 1;
-                xstrlcpy(buf, p_hf, MAXPATHL - 4);
+                xstrlcpy(buf, opt_vars().p_hf, MAXPATHL - 4);
                 strcpy(path_tail(buf), c"tags".as_ptr());
                 simplify_filename(buf);
 
@@ -2526,7 +2526,7 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
             let src = if *(*curbuf).b_p_tags != NUL {
                 (*curbuf).b_p_tags
             } else {
-                p_tags
+                opt_vars().p_tags
             };
             (*tnp).tn_tags = Some(CStr::from_ptr(src).to_owned());
             (*tnp).tn_np = (*tnp).tn_tags.as_ref().unwrap().as_ptr().cast_mut();
@@ -2800,21 +2800,21 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
-                    prepare_tagpreview(true, *p_pvp != NUL);
+                    prepare_tagpreview(true, *opt_vars().p_pvp != NUL);
                 }
             }
 
-            if postponed_split != 0 && (swb_flags & (kOptSwbFlagUseopen | kOptSwbFlagUsetab)) != 0 {
+            if postponed_split != 0 && (opt_vars().swb_flags & (kOptSwbFlagUseopen | kOptSwbFlagUsetab)) != 0 {
                 let existing_buf = buflist_findname_exp(fname);
                 if !existing_buf.is_null() && !swbuf_goto_win_with_buf(existing_buf).is_null() {
                     getfile_result = GETFILE_SAME_FILE;
                 }
             }
             if getfile_result == GETFILE_UNUSED && (postponed_split != 0 || cmdmod.cmod_tab != 0) {
-                if (swb_flags & kOptSwbFlagVsplit) != 0 {
+                if (opt_vars().swb_flags & kOptSwbFlagVsplit) != 0 {
                     cmdmod.cmod_split |= WSP_VERT;
                 }
-                if (swb_flags & kOptSwbFlagNewtab) != 0 && cmdmod.cmod_tab == 0 {
+                if (opt_vars().swb_flags & kOptSwbFlagNewtab) != 0 && cmdmod.cmod_tab == 0 {
                     cmdmod.cmod_tab = tabpage_index(curtab) + 1;
                 }
                 if win_split(
@@ -2852,7 +2852,7 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
 
                 let save_no_hlsearch = Search.no_hlsearch;
 
-                let search_options = if !vim_strchr(p_cpo, kCpoTagpat).is_null() {
+                let search_options = if !vim_strchr(opt_vars().p_cpo, kCpoTagpat).is_null() {
                     0
                 } else {
                     SEARCH_KEEP
@@ -2865,12 +2865,12 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
                 if str_ > pbuf_end.sub(1) {
                     let mut pbuflen = pbuf_end.offset_from(pbuf) as usize;
 
-                    let save_p_ws = p_ws;
-                    let save_p_ic = p_ic;
-                    let save_p_scs = p_scs;
-                    p_ws = 1;
-                    p_ic = 0;
-                    p_scs = 0;
+                    let save_p_ws = opt_vars().p_ws;
+                    let save_p_ic = opt_vars().p_ic;
+                    let save_p_scs = opt_vars().p_scs;
+                    opt_vars().p_ws = 1;
+                    opt_vars().p_ic = 0;
+                    opt_vars().p_scs = 0;
                     let save_lnum = (*curwin).w_cursor.lnum;
 
                     (*curwin).w_cursor.lnum = if tagp.tagline > 0 {
@@ -2894,7 +2894,7 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
                         retval = OK;
                     } else {
                         let mut found = 1;
-                        p_ic = 1;
+                        opt_vars().p_ic = 1;
                         if do_search(
                             ptr::null_mut(),
                             *pbuf as c_int,
@@ -2968,9 +2968,9 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
                             retval = OK;
                         }
                     }
-                    p_ws = save_p_ws;
-                    p_ic = save_p_ic;
-                    p_scs = save_p_scs;
+                    opt_vars().p_ws = save_p_ws;
+                    opt_vars().p_ic = save_p_ic;
+                    opt_vars().p_scs = save_p_scs;
 
                     check_cursor(curwin);
                 } else {
@@ -3003,7 +3003,7 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
                     if (*curbuf).b_help {
                         set_topline(curwin, (*curwin).w_cursor.lnum);
                     }
-                    if (fdo_flags & kOptFdoFlagTag) != 0 && old_KeyTyped {
+                    if (opt_vars().fdo_flags & kOptFdoFlagTag) != 0 && old_KeyTyped {
                         foldOpenCursor();
                     }
                 }
@@ -3058,7 +3058,7 @@ unsafe fn expand_tag_fname(
             }
         }
 
-        if (p_tr != 0 || (*curbuf).b_help) && !vim_isAbsName(fname.as_ptr()) {
+        if (opt_vars().p_tr != 0 || (*curbuf).b_help) && !vim_isAbsName(fname.as_ptr()) {
             let p = path_tail(tag_fname);
             if p != tag_fname {
                 let mut retval = [0 as c_char; MAXPATHL];
@@ -3227,7 +3227,7 @@ unsafe fn add_tag_field(
 ) -> c_int {
     unsafe {
         if !tv_dict_find(dict, field_name, -1).is_null() {
-            if p_verbose > 0 {
+            if opt_vars().p_verbose > 0 {
                 verbose_enter();
                 smsg!(0, gettext(c"Duplicate field name: %s".as_ptr()), field_name);
                 verbose_leave();

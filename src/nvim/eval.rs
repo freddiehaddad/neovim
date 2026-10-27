@@ -2070,15 +2070,15 @@ pub unsafe fn pattern_match(pat: *const c_char, text: *const c_char, ic: bool) -
         let mut matches: c_int = 0;
         let mut regmatch: regmatch_T = regmatch_T::new();
 
-        let save_cpo = p_cpo;
-        p_cpo = (&raw mut empty_string_option).cast();
+        let save_cpo = opt_vars().p_cpo;
+        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
         regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
         if !regmatch.regprog.is_null() {
             regmatch.rm_ic = ic;
             matches = c_int::from(vim_regexec_nl(&raw mut regmatch, text, 0));
             vim_regfree(regmatch.regprog);
         }
-        p_cpo = save_cpo;
+        opt_vars().p_cpo = save_cpo;
         matches
     }
 }
@@ -2550,7 +2550,7 @@ unsafe fn eval4(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evala
                 len += 1;
             } else {
                 {
-                    ic = p_ic != 0;
+                    ic = opt_vars().p_ic != 0;
                 }
             }
 
@@ -4518,7 +4518,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
             did_free = free_unref_items(copyID) != 0;
             did_free = free_unref_funccal(copyID, c_int::from(testing)) || did_free;
         } else {
-            if p_verbose > 0 {
+            if opt_vars().p_verbose > 0 {
                 verb_msg(gettext(
                     c"Not enough memory to set references, garbage collection aborted!".as_ptr(),
                 ));
@@ -5121,7 +5121,7 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
             return;
         }
 
-        if p_verbose > 3 {
+        if opt_vars().p_verbose > 3 {
             let cmdstr = shell_argv_to_str(&argv);
             verbose_enter_scroll();
             smsg!(
@@ -5283,7 +5283,7 @@ pub unsafe fn callback_call(
     rettv: *mut typval_T,
 ) -> bool {
     unsafe {
-        if i64::from(eval_st().callback_depth) > p_mfd {
+        if i64::from(eval_st().callback_depth) > opt_vars().p_mfd {
             emsg(gettext((&raw const e_command_too_recursive).cast()));
             return false;
         }
@@ -6870,10 +6870,10 @@ pub unsafe fn do_string_sub(
         let mut regmatch: regmatch_T = regmatch_T::new();
         let mut out: Option<Vec<c_char>> = None;
 
-        let save_cpo = p_cpo;
-        p_cpo = (&raw mut empty_string_option).cast();
+        let save_cpo = opt_vars().p_cpo;
+        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
 
-        regmatch.rm_ic = p_ic != 0;
+        regmatch.rm_ic = opt_vars().p_ic != 0;
         regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
         if !regmatch.regprog.is_null() {
             let mut tail = str_;
@@ -6945,11 +6945,11 @@ pub unsafe fn do_string_sub(
             cstr_from_bytes(std::slice::from_raw_parts(str_.cast::<u8>(), len))
         };
         drop(out);
-        let empty_opt = (&raw mut empty_string_option).cast::<c_char>();
-        if p_cpo == empty_opt {
-            p_cpo = save_cpo;
+        let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
+        if opt_vars().p_cpo == empty_opt {
+            opt_vars().p_cpo = save_cpo;
         } else {
-            if *p_cpo == NUL {
+            if *opt_vars().p_cpo == NUL {
                 let obj = Object {
                     obj_type: ObjectType::kObjectTypeString,
                     data: ObjectData::String(cstr_as_string(save_cpo)),
@@ -7187,7 +7187,7 @@ pub unsafe fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> boo
                     c"provider#%s#Call".as_ptr(),
                     name.as_ptr(),
                 );
-                if !find_func(buf.as_ptr()).is_null() && p_lpl != 0 {
+                if !find_func(buf.as_ptr()).is_null() && opt_vars().p_lpl != 0 {
                     semsg!(
                         c"provider: %s: missing required variable g:loaded_%s_provider".as_ptr(),
                         name.as_ptr(),

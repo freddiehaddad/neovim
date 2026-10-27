@@ -252,7 +252,7 @@ unsafe fn find_start_of_word(pos: *mut pos_T) {
 unsafe fn find_end_of_word(pos: *mut pos_T) {
     unsafe {
         let line = ml_get((*pos).lnum);
-        if *p_sel == b'e' as c_char && (*pos).col > 0 {
+        if *opt_vars().p_sel == b'e' as c_char && (*pos).col > 0 {
             (*pos).col -= 1;
             (*pos).col -= utf_head_off(line, line.add((*pos).col as usize));
         }
@@ -260,7 +260,7 @@ unsafe fn find_end_of_word(pos: *mut pos_T) {
         while *line.add((*pos).col as usize) != NUL {
             let col = (*pos).col + utfc_ptr2len(line.add((*pos).col as usize));
             if get_mouse_class(line.add(col as usize)) != cclass {
-                if *p_sel == b'e' as c_char {
+                if *opt_vars().p_sel == b'e' as c_char {
                     (*pos).col = col;
                 }
                 break;
@@ -431,8 +431,8 @@ unsafe fn get_fpos_of_mouse(mpos: *mut pos_T, wpp: *mut *mut win_T) -> c_int {
 
         if winrow >= (*wp).w_view_height + (*wp).w_status_height {
             if mouse_grid <= 1
-                && i64::from(mouse_row) < i64::from(Rows) - p_ch
-                && i64::from(mouse_row) >= i64::from(Rows) - p_ch - i64::from(global_stl_height())
+                && i64::from(mouse_row) < i64::from(Rows) - opt_vars().p_ch
+                && i64::from(mouse_row) >= i64::from(Rows) - opt_vars().p_ch - i64::from(global_stl_height())
             {
                 return IN_STATUS_LINE;
             }
@@ -461,7 +461,7 @@ unsafe fn get_fpos_of_mouse(mpos: *mut pos_T, wpp: *mut *mut win_T) -> c_int {
 unsafe fn do_popup(which_button: c_int, m_pos_flag: c_int, mut m_pos: pos_T) -> c_int {
     unsafe {
         let mut jump_flags = 0;
-        if CStr::from_ptr(p_mousem).to_bytes() == b"popup_setpos" {
+        if CStr::from_ptr(opt_vars().p_mousem).to_bytes() == b"popup_setpos" {
             if Visual.active {
                 if m_pos_flag != IN_BUFFER {
                     jump_flags = MOUSE_MAY_STOP_VIS;
@@ -1136,7 +1136,7 @@ pub unsafe fn do_mouse(
                             (*curwin).w_cursor = *pos;
                             if (*oap).motion_type == kMTLineWise {
                                 Visual.mode = b'V' as c_int;
-                            } else if *p_sel == b'e' as c_char {
+                            } else if *opt_vars().p_sel == b'e' as c_char {
                                 if lt((*curwin).w_cursor, Visual.start) {
                                     Visual.start.col += 1;
                                 } else {
@@ -1153,7 +1153,7 @@ pub unsafe fn do_mouse(
                         find_end_of_word(&raw mut Visual.start);
                     } else {
                         find_start_of_word(&raw mut Visual.start);
-                        if *p_sel == b'e' as c_char && *get_cursor_pos_ptr() != NUL {
+                        if *opt_vars().p_sel == b'e' as c_char && *get_cursor_pos_ptr() != NUL {
                             (*curwin).w_cursor.col += utfc_ptr2len(get_cursor_pos_ptr());
                         }
                         find_end_of_word(&raw mut (*curwin).w_cursor);
@@ -1174,7 +1174,7 @@ pub unsafe fn do_mouse(
 
         if (!Visual.active && old_active && mode_displayed)
             || (Visual.active
-                && p_smd != 0
+                && opt_vars().p_smd != 0
                 && msg_silent == 0
                 && (!old_active || Visual.mode != old_mode))
         {
@@ -1233,7 +1233,7 @@ pub unsafe fn do_mousescroll(cap: *mut cmdarg_T) {
                 if shift_or_ctrl {
                     (*cap).count1 = (*curwin).w_botline - (*curwin).w_topline;
                 } else {
-                    (*cap).count1 = p_mousescroll_vert as c_int;
+                    (*cap).count1 = opt_vars().p_mousescroll_vert as c_int;
                 }
                 if (*cap).count1 > 0 {
                     (*cap).count0 = (*cap).count1;
@@ -1244,7 +1244,7 @@ pub unsafe fn do_mousescroll(cap: *mut cmdarg_T) {
             let step = if shift_or_ctrl {
                 (*curwin).w_view_width
             } else {
-                p_mousescroll_hor as c_int
+                opt_vars().p_mousescroll_hor as c_int
             };
             let leftcol = ((*curwin).w_leftcol
                 + if (*cap).arg == MSCR_RIGHT {
@@ -1387,7 +1387,7 @@ pub fn is_mouse_key(c: c_int) -> bool {
 
 /// Return true when 'mousemodel' is set to "popup" or "popup_setpos".
 unsafe fn mouse_model_popup() -> bool {
-    unsafe { *p_mousem == b'p' as c_char }
+    unsafe { *opt_vars().p_mousem == b'p' as c_char }
 }
 
 /// Reset the window being dragged. To be called when switching tab page.
@@ -1709,7 +1709,7 @@ pub unsafe fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button
             may_start_select(b'o' as c_int);
             setmouse();
 
-            if p_smd != 0 && msg_silent == 0 {
+            if opt_vars().p_smd != 0 && msg_silent == 0 {
                 redraw_cmdline = true;
             }
         }

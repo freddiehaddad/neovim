@@ -1671,7 +1671,7 @@ unsafe fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char
                 } else {
                     msg_puts_hl(handler_str.as_ptr(), HLF_8, false);
                 }
-                if p_verbose > 0 {
+                if opt_vars().p_verbose > 0 {
                     last_set_msg(ac.script_ctx);
                 }
 
@@ -1751,7 +1751,7 @@ pub unsafe fn aubuflocal_remove(buf: *mut buf_T) {
 
                 aucmd_del(ac);
 
-                if p_verbose >= 6 {
+                if opt_vars().p_verbose >= 6 {
                     verbose_enter();
                     smsg!(
                         0,
@@ -2005,7 +2005,7 @@ pub unsafe fn event_ignored(event: event_T, mut ei: *mut c_char) -> bool {
             if vim_strnicmp(ei, c"all".as_ptr(), 3) == 0
                 && (*ei.add(3) == NUL || *ei.add(3) == b',' as c_char)
             {
-                ignored = ptr::eq(ei.cast_const(), p_ei.cast_const())
+                ignored = ptr::eq(ei.cast_const(), opt_vars().p_ei.cast_const())
                     || EVENT_NAMES[event as usize].event <= 0;
                 ei = ei.add(3 + usize::from(*ei.add(3) == b',' as c_char));
             } else if event_name2nr(ei, &raw mut ei) == event {
@@ -2043,9 +2043,9 @@ pub unsafe fn check_ei(mut ei: *mut c_char, win: bool) -> c_int {
 
 pub unsafe fn au_event_disable(what: *mut c_char) -> std::ffi::CString {
     unsafe {
-        let p_ei_bytes = CStr::from_ptr(p_ei).to_bytes();
+        let p_ei_bytes = CStr::from_ptr(opt_vars().p_ei).to_bytes();
         let what_bytes = CStr::from_ptr(what).to_bytes();
-        let save_ei = CStr::from_ptr(p_ei).to_owned();
+        let save_ei = CStr::from_ptr(opt_vars().p_ei).to_owned();
         let mut new_ei_vec: Vec<u8> = Vec::with_capacity(p_ei_bytes.len() + what_bytes.len());
         if what_bytes.first() == Some(&b',') && p_ei_bytes.is_empty() {
             new_ei_vec.extend_from_slice(&what_bytes[1..]);
@@ -2868,7 +2868,7 @@ pub unsafe fn apply_autocmds_group(
                 break 'bypass_au;
             }
 
-            if event_ignored(event, p_ei) {
+            if event_ignored(event, opt_vars().p_ei) {
                 break 'bypass_au;
             }
 
@@ -3315,7 +3315,7 @@ unsafe fn aucmd_next(apc: &mut AutoPatCmd) {
                 let pat_str = ap.pat.to_string_lossy();
                 let formatted = format!("{name_str} Autocommands for \"{pat_str}\"");
                 let name_cstr = CString::new(formatted).unwrap_or_default();
-                if p_verbose >= 8 {
+                if opt_vars().p_verbose >= 8 {
                     verbose_enter();
                     smsg!(0, tr(c"Executing %s"), name_cstr.as_ptr());
                     verbose_leave();
@@ -3468,7 +3468,7 @@ pub unsafe fn getnextac(
         assert!(ac.pat.is_some());
         let mut oneshot = ac.once;
 
-        if p_verbose >= 9 {
+        if opt_vars().p_verbose >= 9 {
             verbose_enter_scroll();
             let handler_str = aucmd_handler_to_string(ac);
             smsg!(0, tr(c"autocommand %s"), handler_str.as_ptr());
@@ -3743,7 +3743,7 @@ pub unsafe fn au_exists(arg: *const c_char) -> bool {
                         let pat_match = if pattern.is_null() {
                             true
                         } else if buflocal_buf.is_null() {
-                            mb_strcmp_ic(p_fic != 0, ap.pat.as_ptr(), pattern) == 0
+                            mb_strcmp_ic(opt_vars().p_fic != 0, ap.pat.as_ptr(), pattern) == 0
                         } else {
                             ap.buflocal_nr == (*buflocal_buf).b_fnum
                         };

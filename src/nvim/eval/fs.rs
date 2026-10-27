@@ -245,7 +245,7 @@ pub unsafe fn modify_fname(
 
                         // Do not call shorten_fname() here since it removes the prefix
                         // even though the path does not have a prefix.
-                        if path_cmp(p_fic != 0, p, dirname.as_ptr(), dirnamelen) == 0 {
+                        if path_cmp(opt_vars().p_fic != 0, p, dirname.as_ptr(), dirnamelen) == 0 {
                             p = p.add(dirnamelen);
                             if vim_ispathsep(*p as u8 as c_int) {
                                 while *p != NUL && vim_ispathsep(*p as u8 as c_int) {
@@ -641,7 +641,7 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
     unsafe {
         let mut fresult: Option<std::ffi::CString> = None;
         let mut path = if *(*curbuf).b_p_path == NUL {
-            p_path
+            opt_vars().p_path
         } else {
             (*curbuf).b_p_path
         };
@@ -1103,7 +1103,7 @@ pub unsafe fn f_glob(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
         }
         if !error {
             xpc.xp_context = EXPAND_FILES;
-            if p_wic != 0 {
+            if opt_vars().p_wic != 0 {
                 options += WILD_ICASE;
             }
             if (*rettv).v_type == VarType::VAR_STRING {
@@ -2053,7 +2053,7 @@ pub unsafe fn f_writefile(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
         let mut binary = false;
         let mut append = false;
         let mut defer = false;
-        let mut do_fsync = p_fs != 0;
+        let mut do_fsync = opt_vars().p_fs != 0;
         let mut mkdir_p = false;
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
             let flags = tv_get_string_chk(argvars.add(2));

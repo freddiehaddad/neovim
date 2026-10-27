@@ -541,9 +541,9 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
         }
 
         assert!(
-            p_ch >= 0 && i64::from(Rows) >= p_ch && i64::from(Rows) - p_ch <= i64::from(c_int::MAX)
+            opt_vars().p_ch >= 0 && i64::from(Rows) >= opt_vars().p_ch && i64::from(Rows) - opt_vars().p_ch <= i64::from(c_int::MAX)
         );
-        cmdline_row = Rows - p_ch as c_int;
+        cmdline_row = Rows - opt_vars().p_ch as c_int;
         msg_row = cmdline_row;
         default_grid_alloc();
         set_init_2(headless_mode);
@@ -614,7 +614,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
         let vimrc_none = params.use_vimrc.as_deref() == Some(c"NONE");
 
         if vimrc_none && !params.clean {
-            p_lpl = 0;
+            opt_vars().p_lpl = 0;
         }
 
         exe_pre_commands(&raw mut params);
@@ -655,14 +655,14 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
         time_msg_if_enabled(c"inits 3".as_ptr());
 
         if params.no_swap_file != 0 {
-            p_uc = 0;
+            opt_vars().p_uc = 0;
         }
 
         if silent_mode {
-            p_ut = 1;
+            opt_vars().p_ut = 1;
         }
 
-        if *p_shada != NUL {
+        if *opt_vars().p_shada != NUL {
             shada_read_everything(ptr::null(), false, true);
             time_msg_if_enabled(c"reading ShaDa".as_ptr());
         }
@@ -772,7 +772,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
             stuffcharReadbuff(K_NOP);
         }
 
-        if (cb_flags & (kOptCbFlagUnnamed | kOptCbFlagUnnamedplus)) != 0 {
+        if (opt_vars().cb_flags & (kOptCbFlagUnnamed | kOptCbFlagUnnamedplus)) != 0 {
             eval_has_provider(c"clipboard".as_ptr(), false);
         }
 
@@ -982,7 +982,7 @@ pub unsafe fn getout(mut exitval: c_int) -> ! {
             }
         }
 
-        if !mem_st().entered_free_all_mem && !p_shada.is_null() && *p_shada != NUL {
+        if !mem_st().entered_free_all_mem && !opt_vars().p_shada.is_null() && *opt_vars().p_shada != NUL {
             shada_write_file(ptr::null(), false);
         }
 
@@ -1022,8 +1022,8 @@ pub unsafe fn getout(mut exitval: c_int) -> ! {
             wait_return(0);
         }
 
-        if p_title != 0 && *p_titleold != NUL {
-            ui_call_set_title(cstr_as_string(p_titleold));
+        if opt_vars().p_title != 0 && *opt_vars().p_titleold != NUL {
+            ui_call_set_title(cstr_as_string(opt_vars().p_titleold));
         }
 
         if garbage_collect_at_exit {
@@ -1404,7 +1404,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                             want_argument = true;
                             argv_idx += 6;
                         } else if strnicmp_ascii(sub, b"noplugin") {
-                            p_lpl = 0;
+                            opt_vars().p_lpl = 0;
                         } else if strnicmp_ascii(sub, b"cmd") {
                             want_argument = true;
                             argv_idx += 3;
@@ -1462,10 +1462,10 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                     }
                     b'M' => {
                         reset_modifiable();
-                        p_write = 0;
+                        opt_vars().p_write = 0;
                     }
                     b'm' => {
-                        p_write = 0;
+                        opt_vars().p_write = 0;
                     }
                     b'n' => {
                         (*parmp).no_swap_file = 1;
@@ -1498,7 +1498,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                     b'R' => {
                         readonlymode = true;
                         (*curbuf).b_p_ro = 1;
-                        p_uc = 10000;
+                        opt_vars().p_uc = 10000;
                     }
                     b'r' | b'L' => {
                         recoverymode = true;
@@ -1508,7 +1508,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                             silent_mode = true;
                             exmode_active = true;
                             (*parmp).no_swap_file = 1;
-                            if p_shadafile.is_null() || *p_shadafile == NUL {
+                            if opt_vars().p_shadafile.is_null() || *opt_vars().p_shadafile == NUL {
                                 set_option_value_give_err(
                                     kOptShadafile,
                                     cstr_as_obj(c"NONE".as_ptr()),
@@ -1537,7 +1537,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                         os_exit(0);
                     }
                     b'V' => {
-                        p_verbose = i64::from(get_number_arg(arg0, &raw mut argv_idx, 10));
+                        opt_vars().p_verbose = i64::from(get_number_arg(arg0, &raw mut argv_idx, 10));
                         if *arg0.add(argv_idx as usize) != NUL {
                             set_option_value_give_err(
                                 kOptVerbosefile,
@@ -1643,12 +1643,12 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                         b'l' => {
                             headless_mode = true;
                             silent_mode = true;
-                            p_verbose = 1;
+                            opt_vars().p_verbose = 1;
                             (*parmp).no_swap_file = 1;
                             if (*parmp).use_vimrc.is_none() {
                                 (*parmp).use_vimrc = Some(c"NONE".to_owned());
                             }
-                            if p_shadafile.is_null() || *p_shadafile == NUL {
+                            if opt_vars().p_shadafile.is_null() || *opt_vars().p_shadafile == NUL {
                                 set_option_value_give_err(
                                     kOptShadafile,
                                     cstr_as_obj(c"NONE".as_ptr()),
@@ -1917,14 +1917,14 @@ unsafe fn handle_quickfix(paramp: *mut mparm_T) {
             if let Some(ref use_ef) = (*paramp).use_ef {
                 set_option_direct(kOptErrorfile, cstr_as_obj(use_ef.as_ptr()), 0, SID_CARG);
             }
-            vim_snprintf!((&raw mut IObuff).cast(), IOSIZE, c"cfile %s".as_ptr(), p_ef);
+            vim_snprintf!((&raw mut IObuff).cast(), IOSIZE, c"cfile %s".as_ptr(), opt_vars().p_ef);
             if qf_init(
                 ptr::null_mut(),
-                p_ef,
-                p_efm,
+                opt_vars().p_ef,
+                opt_vars().p_efm,
                 1,
                 (&raw const IObuff).cast(),
-                p_menc,
+                opt_vars().p_menc,
             ) < 0
             {
                 msg_putchar(b'\n' as c_int);
@@ -2080,8 +2080,8 @@ unsafe fn create_windows(parmp: *mut mparm_T) {
                 dorewind = false;
                 curbuf = (*curwin).w_buffer;
                 if (*curbuf).b_ml.ml_mfp.is_none() {
-                    if p_fdls >= 0 {
-                        (*curwin).w_onebuf_opt.wo_fdl = p_fdls;
+                    if opt_vars().p_fdls >= 0 {
+                        (*curwin).w_onebuf_opt.wo_fdl = opt_vars().p_fdls;
                     }
                     swap_exists_action = SEA_DIALOG;
                     set_buflisted(1);
@@ -2152,8 +2152,8 @@ unsafe fn edit_buffers(parmp: *mut mparm_T) {
                     goto_tabpage(0);
                     if i == 1 {
                         let mut buf = [0 as c_char; 100];
-                        p_shm_save = Some(CStr::from_ptr(p_shm).to_owned());
-                        vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"F%s".as_ptr(), p_shm);
+                        p_shm_save = Some(CStr::from_ptr(opt_vars().p_shm).to_owned());
+                        vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"F%s".as_ptr(), opt_vars().p_shm);
                         set_option_value_give_err(kOptShortmess, cstr_as_obj(buf.as_ptr()), 0);
                     }
                 } else {
@@ -2330,9 +2330,9 @@ unsafe fn do_system_initialization() {
 
 unsafe fn do_user_initialization() -> bool {
     unsafe {
-        let mut do_exrc = p_exrc != 0;
+        let mut do_exrc = opt_vars().p_exrc != 0;
         if execute_env(c"VIMINIT".as_ptr().cast_mut()) == OK {
-            do_exrc = p_exrc != 0;
+            do_exrc = opt_vars().p_exrc != 0;
             return do_exrc;
         }
 
@@ -2351,13 +2351,13 @@ unsafe fn do_user_initialization() -> bool {
                     user_vimrc_ptr,
                 );
             }
-            do_exrc = p_exrc != 0;
+            do_exrc = opt_vars().p_exrc != 0;
             return do_exrc;
         }
         drop(init_lua_path);
 
         if do_source(user_vimrc_ptr, true, DOSO_VIMRC, ptr::null_mut()) != FAIL {
-            do_exrc = p_exrc != 0;
+            do_exrc = opt_vars().p_exrc != 0;
             if do_exrc {
                 do_exrc = !path_equal(c".nvimrc".as_ptr(), user_vimrc_ptr, kPathCmpExpand);
             }
@@ -2417,7 +2417,7 @@ unsafe fn do_user_initialization() -> bool {
                             init_vim.as_ptr(),
                         );
                     }
-                    do_exrc = p_exrc != 0;
+                    do_exrc = opt_vars().p_exrc != 0;
                     return do_exrc;
                 }
 
@@ -2428,7 +2428,7 @@ unsafe fn do_user_initialization() -> bool {
                     ptr::null_mut(),
                 ) != FAIL
                 {
-                    do_exrc = p_exrc != 0;
+                    do_exrc = opt_vars().p_exrc != 0;
                     if do_exrc {
                         do_exrc = !path_equal(
                             c".nvimrc".as_ptr(),
@@ -2446,7 +2446,7 @@ unsafe fn do_user_initialization() -> bool {
         }
 
         if execute_env(c"EXINIT".as_ptr().cast_mut()) == OK {
-            do_exrc = p_exrc != 0;
+            do_exrc = opt_vars().p_exrc != 0;
             return do_exrc;
         }
         do_exrc

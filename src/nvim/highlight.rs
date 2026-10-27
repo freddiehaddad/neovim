@@ -660,8 +660,8 @@ pub unsafe fn hl_get_ui_attr(
         }
 
         if (HLF_PNI..=HLF_PST).contains(&idx) {
-            if attrs.hl_blend == -1 && p_pb > 0 {
-                attrs.hl_blend = p_pb as i32;
+            if attrs.hl_blend == -1 && opt_vars().p_pb > 0 {
+                attrs.hl_blend = opt_vars().p_pb as i32;
             }
             if pum_drawn() {
                 must_redraw_pum = true;
@@ -1063,7 +1063,7 @@ unsafe fn get_colors_force(mut attrs: HlAttrs) -> HlAttrs {
         if attrs.rgb_sp_color == -1 {
             attrs.rgb_sp_color = normal_sp;
         }
-        let dark = *p_bg == b'd' as c_char;
+        let dark = *opt_vars().p_bg == b'd' as c_char;
         if attrs.rgb_fg_color == -1 {
             attrs.rgb_fg_color = if dark { 0xFFFFFF } else { 0x000000 };
         }

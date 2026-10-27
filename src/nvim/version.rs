@@ -4077,7 +4077,7 @@ pub unsafe fn list_version() {
         msg_putchar(b'\n' as c_int);
         list_lua_version();
 
-        if p_verbose > 0 {
+        if opt_vars().p_verbose > 0 {
             msg_putchar(b'\n' as c_int);
             msg_puts(c"Vim versions: ".as_ptr());
 
@@ -4111,7 +4111,7 @@ pub unsafe fn list_version() {
             }
         }
 
-        version_msg(if p_verbose > 0 {
+        version_msg(if opt_vars().p_verbose > 0 {
             c"\nRun :checkhealth for more info".as_ptr()
         } else if starting != 0 {
             c"\nRun \"nvim -V1 -v\" for more info".as_ptr()
@@ -4129,7 +4129,7 @@ pub unsafe fn may_show_intro() -> bool {
             && (*curbuf).b_fnum == 1
             && (*curwin).handle == LOWEST_WIN_ID
             && one_window(curwin, ptr::null_mut())
-            && vim_strchr(p_shm, kShmIntro).is_null()
+            && vim_strchr(opt_vars().p_shm, kShmIntro).is_null()
     }
 }
 
@@ -4159,7 +4159,7 @@ pub unsafe fn intro_message(colon: bool) {
 
         let lines_size = lines.len() as c_int;
         let mut blanklines = Rows - (lines_size - 1);
-        if p_ls > 1 {
+        if opt_vars().p_ls > 1 {
             blanklines -= Rows - (*topframe).fr_height;
         }
         if blanklines < 0 {

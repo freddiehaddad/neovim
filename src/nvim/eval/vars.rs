@@ -776,7 +776,7 @@ pub unsafe fn eval_charconvert(
         let mut err = false;
         let mut tv: typval_T = typval_T::new();
         let mut argv: [typval_T; 1] = [typval_T::new()];
-        if !callback_call(&raw mut p_ccv, 0, argv.as_mut_ptr(), &raw mut tv) {
+        if !callback_call(&raw mut opt_vars().p_ccv, 0, argv.as_mut_ptr(), &raw mut tv) {
             err = true;
         } else {
             if tv_get_number_chk(&raw const tv, ptr::null_mut()) != 0 {
@@ -809,7 +809,7 @@ pub unsafe fn eval_diff(origfile: *const c_char, newfile: *const c_char, outfile
 
         let mut tv: typval_T = typval_T::new();
         let mut argv: [typval_T; 1] = [typval_T::new()];
-        if callback_call(&raw mut p_dex, 0, argv.as_mut_ptr(), &raw mut tv) {
+        if callback_call(&raw mut opt_vars().p_dex, 0, argv.as_mut_ptr(), &raw mut tv) {
             tv_clear(&raw mut tv);
         }
 
@@ -834,7 +834,7 @@ pub unsafe fn eval_patch(origfile: *const c_char, difffile: *const c_char, outfi
 
         let mut tv: typval_T = typval_T::new();
         let mut argv: [typval_T; 1] = [typval_T::new()];
-        if callback_call(&raw mut p_pex, 0, argv.as_mut_ptr(), &raw mut tv) {
+        if callback_call(&raw mut opt_vars().p_pex, 0, argv.as_mut_ptr(), &raw mut tv) {
             tv_clear(&raw mut tv);
         }
 
@@ -856,7 +856,7 @@ pub unsafe fn eval_spell_expr(badword: *mut c_char, expr: *mut c_char) -> *mut l
 
         prepare_vimvar(VV_VAL, &raw mut save_val);
         set_vim_var_string(VV_VAL, badword, -1);
-        if p_verbose == 0 {
+        if opt_vars().p_verbose == 0 {
             emsg_off += 1;
         }
         let ctx = get_option_sctx(kOptSpellsuggest);
@@ -876,7 +876,7 @@ pub unsafe fn eval_spell_expr(badword: *mut c_char, expr: *mut c_char) -> *mut l
             }
         }
 
-        if p_verbose == 0 {
+        if opt_vars().p_verbose == 0 {
             emsg_off -= 1;
         }
         tv_clear(get_vim_var_tv(VV_VAL));

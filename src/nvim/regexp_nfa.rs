@@ -2741,7 +2741,7 @@ unsafe fn addstate(
                 if (*l).n as usize == (*l).t.len() {
                     let newlen = (*l).t.len() * 3 / 2 + 50;
                     let newsize = newlen * size_of::<nfa_thread_T>();
-                    if ((newsize >> 10) as i64) >= p_mmp {
+                    if ((newsize >> 10) as i64) >= opt_vars().p_mmp {
                         emsg(tr(e_pattern_uses_more_memory_than_maxmempattern.as_ptr()));
                         return ptr::null_mut();
                     }
@@ -2961,7 +2961,7 @@ unsafe fn addstate_here(
             if ((*l).n + count) as usize > (*l).t.len() {
                 let newlen = (*l).t.len() * 3 / 2 + 50;
                 let newsize = newlen * size_of::<nfa_thread_T>();
-                if ((newsize >> 10) as i64) >= p_mmp {
+                if ((newsize >> 10) as i64) >= opt_vars().p_mmp {
                     emsg(tr(e_pattern_uses_more_memory_than_maxmempattern.as_ptr()));
                     return ptr::null_mut();
                 }

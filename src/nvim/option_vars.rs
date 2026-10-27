@@ -7,347 +7,706 @@ use crate::eval::typval::Callback;
 use crate::option::OptInt;
 use crate::optionstr::{OptIndex, OptSchemaItem, OptSchemaKind};
 
-pub static mut empty_string_option: [c_char; 1] = [0 as c_char; 1];
-pub static mut p_ambw: *mut c_char = ptr::null_mut();
-pub static mut p_acd: c_int = 0;
-pub static mut p_ai: c_int = 0;
-pub static mut p_bin: c_int = 0;
-pub static mut p_bomb: c_int = 0;
-pub static mut p_bl: c_int = 0;
-pub static mut p_cin: c_int = 0;
-pub static mut p_channel: OptInt = 0;
-pub static mut p_cink: *mut c_char = ptr::null_mut();
-pub static mut p_cinsd: *mut c_char = ptr::null_mut();
-pub static mut p_cinw: *mut c_char = ptr::null_mut();
-pub static mut p_cfu: Callback = Callback::NONE;
-pub static mut p_ofu: Callback = Callback::NONE;
-pub static mut p_tsrfu: Callback = Callback::NONE;
-pub static mut p_ci: c_int = 0;
-pub static mut p_ar: c_int = 0;
-pub static mut p_aw: c_int = 0;
-pub static mut p_awa: c_int = 0;
-pub static mut p_bs: *mut c_char = ptr::null_mut();
-pub static mut p_bg: *mut c_char = ptr::null_mut();
-pub static mut p_bk: c_int = 0;
-pub static mut p_bkc: *mut c_char = ptr::null_mut();
-pub static mut bkc_flags: c_uint = 0;
-pub static mut p_bdir: *mut c_char = ptr::null_mut();
-pub static mut p_bex: *mut c_char = ptr::null_mut();
-pub static mut p_bo: *mut c_char = ptr::null_mut();
-pub static mut breakat_flags: [c_char; 256] = [0 as c_char; 256];
-pub static mut bo_flags: c_uint = 0;
-pub static mut p_bsk: *mut c_char = ptr::null_mut();
-pub static mut p_breakat: *mut c_char = ptr::null_mut();
-pub static mut p_bh: *mut c_char = ptr::null_mut();
-pub static mut p_bt: *mut c_char = ptr::null_mut();
-pub static mut p_busy: OptInt = 0;
-pub static mut p_cmp: *mut c_char = ptr::null_mut();
-pub static mut cmp_flags: c_uint = 0;
-pub static mut p_enc: *mut c_char = ptr::null_mut();
-pub static mut p_deco: c_int = 0;
-pub static mut p_ccv: Callback = Callback::NONE;
-pub static mut p_cino: *mut c_char = ptr::null_mut();
-pub static mut p_cedit: *mut c_char = ptr::null_mut();
-pub static mut p_cb: *mut c_char = ptr::null_mut();
-pub static mut cb_flags: c_uint = 0;
-pub static mut p_cwh: OptInt = 0;
-pub static mut p_ch: OptInt = 0;
-pub static mut p_cms: *mut c_char = ptr::null_mut();
-pub static mut p_cpt: *mut c_char = ptr::null_mut();
-pub static mut p_cto: OptInt = 0;
-pub static mut p_columns: OptInt = 0;
-pub static mut p_confirm: c_int = 0;
-pub static mut p_cia: *mut c_char = ptr::null_mut();
-pub static mut cia_flags: c_uint = 0;
-pub static mut p_cot: *mut c_char = ptr::null_mut();
-pub static mut cot_flags: c_uint = 0;
-pub static mut p_ac: c_int = 0;
-pub static mut p_act: OptInt = 0;
-pub static mut p_acl: OptInt = 0;
-#[cfg(windows)]
-pub static mut p_csl: *mut c_char = ptr::null_mut();
-pub static mut p_pumborder: *mut c_char = ptr::null_mut();
-pub static mut p_pb: OptInt = 0;
-pub static mut p_ph: OptInt = 0;
-pub static mut p_pw: OptInt = 0;
-pub static mut p_pmw: OptInt = 0;
-pub static mut p_com: *mut c_char = ptr::null_mut();
-pub static mut p_cpo: *mut c_char = ptr::null_mut();
-pub static mut p_debug: *mut c_char = ptr::null_mut();
-pub static mut p_def: *mut c_char = ptr::null_mut();
-pub static mut p_inc: *mut c_char = ptr::null_mut();
-pub static mut p_dia: *mut c_char = ptr::null_mut();
-pub static mut p_dip: *mut c_char = ptr::null_mut();
-pub static mut p_dex: Callback = Callback::NONE;
-pub static mut p_dict: *mut c_char = ptr::null_mut();
-pub static mut p_dg: c_int = 0;
-pub static mut p_dir: *mut c_char = ptr::null_mut();
-pub static mut p_dy: *mut c_char = ptr::null_mut();
-pub static mut dy_flags: c_uint = 0;
-pub static mut dy_escape_width: c_int = 2;
-pub static mut p_ead: *mut c_char = ptr::null_mut();
-pub static mut p_emoji: c_int = 0;
-pub static mut p_ea: c_int = 0;
-pub static mut p_ep: *mut c_char = ptr::null_mut();
-pub static mut p_eb: c_int = 0;
-pub static mut p_ef: *mut c_char = ptr::null_mut();
-pub static mut p_efm: *mut c_char = ptr::null_mut();
-pub static mut p_gefm: *mut c_char = ptr::null_mut();
-pub static mut p_gp: *mut c_char = ptr::null_mut();
-pub static mut p_eof: c_int = 0;
-pub static mut p_eol: c_int = 0;
-pub static mut p_ei: *mut c_char = ptr::null_mut();
-pub static mut p_et: c_int = 0;
-pub static mut p_exrc: c_int = 0;
-pub static mut p_fenc: *mut c_char = ptr::null_mut();
-pub static mut p_fencs: *mut c_char = ptr::null_mut();
-pub static mut p_ff: *mut c_char = ptr::null_mut();
-pub static mut p_ffs: *mut c_char = ptr::null_mut();
-pub static mut p_fic: c_int = 0;
-pub static mut p_ft: *mut c_char = ptr::null_mut();
-pub static mut p_fcs: *mut c_char = ptr::null_mut();
-pub static mut p_ffu: Callback = Callback::NONE;
-pub static mut p_fixeol: c_int = 0;
-pub static mut p_fcl: *mut c_char = ptr::null_mut();
-pub static mut p_fdls: OptInt = 0;
-pub static mut p_fdo: *mut c_char = ptr::null_mut();
-pub static mut fdo_flags: c_uint = 0;
-pub static mut p_follow: c_int = 0;
-pub static mut p_fex: Callback = Callback::NONE;
-pub static mut p_flp: *mut c_char = ptr::null_mut();
-pub static mut p_fo: *mut c_char = ptr::null_mut();
-pub static mut p_fp: *mut c_char = ptr::null_mut();
-pub static mut p_fs: c_int = 0;
-pub static mut p_gd: c_int = 0;
-pub static mut p_guicursor: *mut c_char = ptr::null_mut();
-pub static mut p_guifont: *mut c_char = ptr::null_mut();
-pub static mut p_guifontwide: *mut c_char = ptr::null_mut();
-pub static mut p_hf: *mut c_char = ptr::null_mut();
-pub static mut p_hh: OptInt = 0;
-pub static mut p_hlg: *mut c_char = ptr::null_mut();
-pub static mut p_hid: c_int = 0;
-pub static mut p_hl: *mut c_char = ptr::null_mut();
-pub static mut p_hls: c_int = 0;
-pub static mut p_hi: OptInt = 0;
-pub static mut p_arshape: c_int = 0;
-pub static mut p_icon: c_int = 0;
-pub static mut p_iconstring: *mut c_char = ptr::null_mut();
-pub static mut p_ic: c_int = 0;
-pub static mut p_iminsert: OptInt = 0;
-pub static mut p_imsearch: OptInt = 0;
-pub static mut p_inf: c_int = 0;
-pub static mut p_inex: Callback = Callback::NONE;
-pub static mut p_is: c_int = 0;
-pub static mut p_inde: Callback = Callback::NONE;
-pub static mut p_indk: *mut c_char = ptr::null_mut();
-pub static mut p_icm: *mut c_char = ptr::null_mut();
-pub static mut p_isf: *mut c_char = ptr::null_mut();
-pub static mut p_isi: *mut c_char = ptr::null_mut();
-pub static mut p_isk: *mut c_char = ptr::null_mut();
-pub static mut p_js: c_int = 0;
-pub static mut p_jop: *mut c_char = ptr::null_mut();
-pub static mut jop_flags: c_uint = 0;
-pub static mut p_keymap: *mut c_char = ptr::null_mut();
-pub static mut p_kp: *mut c_char = ptr::null_mut();
-pub static mut p_km: *mut c_char = ptr::null_mut();
-pub static mut p_langmap: *mut c_char = ptr::null_mut();
-pub static mut p_lnr: c_int = 0;
-pub static mut p_lrm: c_int = 0;
-pub static mut p_lm: *mut c_char = ptr::null_mut();
-pub static mut p_lines: OptInt = 0;
-pub static mut p_linespace: OptInt = 0;
-pub static mut p_lisp: c_int = 0;
-pub static mut p_lop: *mut c_char = ptr::null_mut();
-pub static mut p_lispwords: *mut c_char = ptr::null_mut();
-pub static mut p_ls: OptInt = 0;
-pub static mut p_stal: OptInt = 0;
-pub static mut p_lcs: *mut c_char = ptr::null_mut();
-pub static mut p_lz: c_int = 0;
-pub static mut p_lpl: c_int = 0;
-pub static mut p_magic: c_int = 0;
-pub static mut p_menc: *mut c_char = ptr::null_mut();
-pub static mut p_mef: *mut c_char = ptr::null_mut();
-pub static mut p_mp: *mut c_char = ptr::null_mut();
-pub static mut p_mps: *mut c_char = ptr::null_mut();
-pub static mut p_mat: OptInt = 0;
-pub static mut p_mco: OptInt = 0;
-pub static mut p_mfd: OptInt = 0;
-pub static mut p_mmd: OptInt = 0;
-pub static mut p_mmp: OptInt = 0;
-pub static mut p_mis: OptInt = 0;
-pub static mut p_mopt: *mut c_char = ptr::null_mut();
-pub static mut p_msc: OptInt = 0;
-pub static mut p_msm: *mut c_char = ptr::null_mut();
-pub static mut p_ml: c_int = 0;
-pub static mut p_mle: c_int = 0;
-pub static mut p_mls: OptInt = 0;
-pub static mut p_ma: c_int = 0;
-pub static mut p_mod: c_int = 0;
-pub static mut p_mouse: *mut c_char = ptr::null_mut();
-pub static mut p_mousem: *mut c_char = ptr::null_mut();
-pub static mut p_mousemev: c_int = 0;
-pub static mut p_mousef: c_int = 0;
-pub static mut p_mh: c_int = 0;
-pub static mut p_mousescroll: *mut c_char = ptr::null_mut();
-pub static mut p_mousescroll_vert: OptInt = 3;
-pub static mut p_mousescroll_hor: OptInt = 6;
-pub static mut p_mouset: OptInt = 0;
-pub static mut p_more: c_int = 0;
-pub static mut p_nf: *mut c_char = ptr::null_mut();
-pub static mut p_opfunc: Callback = Callback::NONE;
-pub static mut p_para: *mut c_char = ptr::null_mut();
-pub static mut p_paste: c_int = 0;
-pub static mut p_pex: Callback = Callback::NONE;
-pub static mut p_pm: *mut c_char = ptr::null_mut();
-pub static mut p_path: *mut c_char = ptr::null_mut();
-pub static mut p_cdpath: *mut c_char = ptr::null_mut();
-pub static mut p_pi: c_int = 0;
-pub static mut p_pyx: OptInt = 0;
-pub static mut p_qe: *mut c_char = ptr::null_mut();
-pub static mut p_ro: c_int = 0;
-pub static mut p_rdb: *mut c_char = ptr::null_mut();
-pub static mut rdb_flags: c_uint = 0;
-pub static mut p_rdt: OptInt = 0;
-pub static mut p_re: OptInt = 0;
-pub static mut p_report: OptInt = 0;
-pub static mut p_pvp: *mut c_char = ptr::null_mut();
-pub static mut p_pvh: OptInt = 0;
-pub static mut p_chi: OptInt = 0;
-pub static mut p_ari: c_int = 0;
-pub static mut p_ri: c_int = 0;
-pub static mut p_ru: c_int = 0;
-pub static mut p_ruf: *mut c_char = ptr::null_mut();
-pub static mut p_plf: *mut c_char = ptr::null_mut();
-pub static mut p_pp: *mut c_char = ptr::null_mut();
-pub static mut p_qftf: Callback = Callback::NONE;
-pub static mut p_rtp: *mut c_char = ptr::null_mut();
-pub static mut p_scbk: OptInt = 0;
-pub static mut p_sj: OptInt = 0;
-pub static mut p_so: OptInt = 0;
-pub static mut p_sop: OptInt = 0;
-pub static mut p_sbo: *mut c_char = ptr::null_mut();
-pub static mut p_sections: *mut c_char = ptr::null_mut();
-pub static mut p_secure: c_int = 0;
-pub static mut p_sel: *mut c_char = ptr::null_mut();
-pub static mut p_slm: *mut c_char = ptr::null_mut();
-pub static mut p_ssop: *mut c_char = ptr::null_mut();
-pub static mut ssop_flags: c_uint = 0;
-pub static mut p_sh: *mut c_char = ptr::null_mut();
-pub static mut p_shcf: *mut c_char = ptr::null_mut();
-pub static mut p_sp: *mut c_char = ptr::null_mut();
-pub static mut p_shq: *mut c_char = ptr::null_mut();
-pub static mut p_sxq: *mut c_char = ptr::null_mut();
-pub static mut p_sxe: *mut c_char = ptr::null_mut();
-pub static mut p_srr: *mut c_char = ptr::null_mut();
-pub static mut p_stmp: c_int = 0;
-#[cfg(windows)]
-pub static mut p_ssl: c_int = 0;
-pub static mut p_stl: *mut c_char = ptr::null_mut();
-pub static mut p_wbr: *mut c_char = ptr::null_mut();
-pub static mut p_sr: c_int = 0;
-pub static mut p_sw: OptInt = 0;
-pub static mut p_shm: *mut c_char = ptr::null_mut();
-pub static mut p_sbr: *mut c_char = ptr::null_mut();
-pub static mut p_sc: c_int = 0;
-pub static mut p_sloc: *mut c_char = ptr::null_mut();
-pub static mut p_sft: c_int = 0;
-pub static mut p_sm: c_int = 0;
-pub static mut p_smd: c_int = 0;
-pub static mut p_ss: OptInt = 0;
-pub static mut p_siso: OptInt = 0;
-pub static mut p_scs: c_int = 0;
-pub static mut p_si: c_int = 0;
-pub static mut p_sta: c_int = 0;
-pub static mut p_sts: OptInt = 0;
-pub static mut p_sb: c_int = 0;
-pub static mut p_sua: *mut c_char = ptr::null_mut();
-pub static mut p_swf: c_int = 0;
-pub static mut p_smc: OptInt = 0;
-pub static mut p_tpm: OptInt = 0;
-pub static mut p_tal: *mut c_char = ptr::null_mut();
-pub static mut p_tpf: *mut c_char = ptr::null_mut();
-pub static mut tpf_flags: c_uint = 0;
-pub static mut p_tfu: Callback = Callback::NONE;
-pub static mut p_spc: *mut c_char = ptr::null_mut();
-pub static mut p_spf: *mut c_char = ptr::null_mut();
-pub static mut p_spl: *mut c_char = ptr::null_mut();
-pub static mut p_spo: *mut c_char = ptr::null_mut();
-pub static mut spo_flags: c_uint = 0;
-pub static mut p_sps: *mut c_char = ptr::null_mut();
-pub static mut p_spr: c_int = 0;
-pub static mut p_sol: c_int = 0;
-pub static mut p_su: *mut c_char = ptr::null_mut();
-pub static mut p_swb: *mut c_char = ptr::null_mut();
-pub static mut swb_flags: c_uint = 0;
-pub static mut p_spk: *mut c_char = ptr::null_mut();
-pub static mut p_syn: *mut c_char = ptr::null_mut();
-pub static mut p_tcl: *mut c_char = ptr::null_mut();
-pub static mut tcl_flags: c_uint = 0;
-pub static mut p_ts: OptInt = 0;
-pub static mut p_tbs: c_int = 0;
-pub static mut p_tc: *mut c_char = ptr::null_mut();
-pub static mut tc_flags: c_uint = 0;
-pub static mut p_tl: OptInt = 0;
-pub static mut p_tr: c_int = 0;
-pub static mut p_tags: *mut c_char = ptr::null_mut();
-pub static mut p_tgst: c_int = 0;
-pub static mut p_tbidi: c_int = 0;
-pub static mut p_tw: OptInt = 0;
-pub static mut p_to: c_int = 0;
-pub static mut p_timeout: c_int = 0;
-pub static mut p_tm: OptInt = 0;
-pub static mut p_title: c_int = 0;
-pub static mut p_titlelen: OptInt = 0;
-pub static mut p_titleold: *mut c_char = ptr::null_mut();
-pub static mut p_titlestring: *mut c_char = ptr::null_mut();
-pub static mut p_tsr: *mut c_char = ptr::null_mut();
-pub static mut p_tgc: c_int = 0;
-pub static mut p_ttimeout: c_int = 0;
-pub static mut p_ttm: OptInt = 0;
-pub static mut p_tf: c_int = 0;
-pub static mut p_udir: *mut c_char = ptr::null_mut();
-pub static mut p_udf: c_int = 0;
-pub static mut p_ul: OptInt = 0;
-pub static mut p_ur: OptInt = 0;
-pub static mut p_uc: OptInt = 0;
-pub static mut p_ut: OptInt = 0;
-pub static mut p_shada: *mut c_char = ptr::null_mut();
-pub static mut p_shadafile: *mut c_char = ptr::null_mut();
-pub static mut p_termsync: c_int = 0;
-pub static mut p_vsts: *mut c_char = ptr::null_mut();
-pub static mut p_vts: *mut c_char = ptr::null_mut();
-pub static mut p_vdir: *mut c_char = ptr::null_mut();
-pub static mut p_vop: *mut c_char = ptr::null_mut();
-pub static mut vop_flags: c_uint = 0;
-pub static mut p_vb: c_int = 0;
-pub static mut p_ve: *mut c_char = ptr::null_mut();
-pub static mut ve_flags: c_uint = 0;
-pub static mut p_verbose: OptInt = 0;
-pub static mut p_vfile: *mut c_char = (&raw mut empty_string_option).cast();
-pub static mut p_warn: c_int = 0;
-pub static mut p_wop: *mut c_char = ptr::null_mut();
-pub static mut wop_flags: c_uint = 0;
-pub static mut p_window: OptInt = 0;
-pub static mut p_wak: *mut c_char = ptr::null_mut();
-pub static mut p_wig: *mut c_char = ptr::null_mut();
-pub static mut p_ww: *mut c_char = ptr::null_mut();
-pub static mut p_wc: OptInt = 0;
-pub static mut p_wcm: OptInt = 0;
-pub static mut p_wic: c_int = 0;
-pub static mut p_wim: *mut c_char = ptr::null_mut();
-pub static mut p_wmnu: c_int = 0;
-pub static mut p_winborder: *mut c_char = ptr::null_mut();
-pub static mut p_wh: OptInt = 0;
-pub static mut p_wmh: OptInt = 0;
-pub static mut p_wmw: OptInt = 0;
-pub static mut p_wiw: OptInt = 0;
-pub static mut p_wm: OptInt = 0;
-pub static mut p_ws: c_int = 0;
-pub static mut p_write: c_int = 0;
-pub static mut p_wa: c_int = 0;
-pub static mut p_wb: c_int = 0;
-pub static mut p_wd: OptInt = 0;
-pub static mut p_cdh: c_int = 0;
+use crate::globals::GlobalState;
+
+pub static empty_string_option: GlobalState<[c_char; 1]> = GlobalState::new([0 as c_char; 1]);
+
+pub struct OptionVars {
+    pub p_ambw: *mut c_char,
+    pub p_acd: c_int,
+    pub p_ai: c_int,
+    pub p_bin: c_int,
+    pub p_bomb: c_int,
+    pub p_bl: c_int,
+    pub p_cin: c_int,
+    pub p_channel: OptInt,
+    pub p_cink: *mut c_char,
+    pub p_cinsd: *mut c_char,
+    pub p_cinw: *mut c_char,
+    pub p_cfu: Callback,
+    pub p_ofu: Callback,
+    pub p_tsrfu: Callback,
+    pub p_ci: c_int,
+    pub p_ar: c_int,
+    pub p_aw: c_int,
+    pub p_awa: c_int,
+    pub p_bs: *mut c_char,
+    pub p_bg: *mut c_char,
+    pub p_bk: c_int,
+    pub p_bkc: *mut c_char,
+    pub bkc_flags: c_uint,
+    pub p_bdir: *mut c_char,
+    pub p_bex: *mut c_char,
+    pub p_bo: *mut c_char,
+    pub breakat_flags: [c_char; 256],
+    pub bo_flags: c_uint,
+    pub p_bsk: *mut c_char,
+    pub p_breakat: *mut c_char,
+    pub p_bh: *mut c_char,
+    pub p_bt: *mut c_char,
+    pub p_busy: OptInt,
+    pub p_cmp: *mut c_char,
+    pub cmp_flags: c_uint,
+    pub p_enc: *mut c_char,
+    pub p_deco: c_int,
+    pub p_ccv: Callback,
+    pub p_cino: *mut c_char,
+    pub p_cedit: *mut c_char,
+    pub p_cb: *mut c_char,
+    pub cb_flags: c_uint,
+    pub p_cwh: OptInt,
+    pub p_ch: OptInt,
+    pub p_cms: *mut c_char,
+    pub p_cpt: *mut c_char,
+    pub p_cto: OptInt,
+    pub p_columns: OptInt,
+    pub p_confirm: c_int,
+    pub p_cia: *mut c_char,
+    pub cia_flags: c_uint,
+    pub p_cot: *mut c_char,
+    pub cot_flags: c_uint,
+    pub p_ac: c_int,
+    pub p_act: OptInt,
+    pub p_acl: OptInt,
+    #[cfg(windows)]
+    pub p_csl: *mut c_char,
+    pub p_pumborder: *mut c_char,
+    pub p_pb: OptInt,
+    pub p_ph: OptInt,
+    pub p_pw: OptInt,
+    pub p_pmw: OptInt,
+    pub p_com: *mut c_char,
+    pub p_cpo: *mut c_char,
+    pub p_debug: *mut c_char,
+    pub p_def: *mut c_char,
+    pub p_inc: *mut c_char,
+    pub p_dia: *mut c_char,
+    pub p_dip: *mut c_char,
+    pub p_dex: Callback,
+    pub p_dict: *mut c_char,
+    pub p_dg: c_int,
+    pub p_dir: *mut c_char,
+    pub p_dy: *mut c_char,
+    pub dy_flags: c_uint,
+    pub dy_escape_width: c_int,
+    pub p_ead: *mut c_char,
+    pub p_emoji: c_int,
+    pub p_ea: c_int,
+    pub p_ep: *mut c_char,
+    pub p_eb: c_int,
+    pub p_ef: *mut c_char,
+    pub p_efm: *mut c_char,
+    pub p_gefm: *mut c_char,
+    pub p_gp: *mut c_char,
+    pub p_eof: c_int,
+    pub p_eol: c_int,
+    pub p_ei: *mut c_char,
+    pub p_et: c_int,
+    pub p_exrc: c_int,
+    pub p_fenc: *mut c_char,
+    pub p_fencs: *mut c_char,
+    pub p_ff: *mut c_char,
+    pub p_ffs: *mut c_char,
+    pub p_fic: c_int,
+    pub p_ft: *mut c_char,
+    pub p_fcs: *mut c_char,
+    pub p_ffu: Callback,
+    pub p_fixeol: c_int,
+    pub p_fcl: *mut c_char,
+    pub p_fdls: OptInt,
+    pub p_fdo: *mut c_char,
+    pub fdo_flags: c_uint,
+    pub p_follow: c_int,
+    pub p_fex: Callback,
+    pub p_flp: *mut c_char,
+    pub p_fo: *mut c_char,
+    pub p_fp: *mut c_char,
+    pub p_fs: c_int,
+    pub p_gd: c_int,
+    pub p_guicursor: *mut c_char,
+    pub p_guifont: *mut c_char,
+    pub p_guifontwide: *mut c_char,
+    pub p_hf: *mut c_char,
+    pub p_hh: OptInt,
+    pub p_hlg: *mut c_char,
+    pub p_hid: c_int,
+    pub p_hl: *mut c_char,
+    pub p_hls: c_int,
+    pub p_hi: OptInt,
+    pub p_arshape: c_int,
+    pub p_icon: c_int,
+    pub p_iconstring: *mut c_char,
+    pub p_ic: c_int,
+    pub p_iminsert: OptInt,
+    pub p_imsearch: OptInt,
+    pub p_inf: c_int,
+    pub p_inex: Callback,
+    pub p_is: c_int,
+    pub p_inde: Callback,
+    pub p_indk: *mut c_char,
+    pub p_icm: *mut c_char,
+    pub p_isf: *mut c_char,
+    pub p_isi: *mut c_char,
+    pub p_isk: *mut c_char,
+    pub p_js: c_int,
+    pub p_jop: *mut c_char,
+    pub jop_flags: c_uint,
+    pub p_keymap: *mut c_char,
+    pub p_kp: *mut c_char,
+    pub p_km: *mut c_char,
+    pub p_langmap: *mut c_char,
+    pub p_lnr: c_int,
+    pub p_lrm: c_int,
+    pub p_lm: *mut c_char,
+    pub p_lines: OptInt,
+    pub p_linespace: OptInt,
+    pub p_lisp: c_int,
+    pub p_lop: *mut c_char,
+    pub p_lispwords: *mut c_char,
+    pub p_ls: OptInt,
+    pub p_stal: OptInt,
+    pub p_lcs: *mut c_char,
+    pub p_lz: c_int,
+    pub p_lpl: c_int,
+    pub p_magic: c_int,
+    pub p_menc: *mut c_char,
+    pub p_mef: *mut c_char,
+    pub p_mp: *mut c_char,
+    pub p_mps: *mut c_char,
+    pub p_mat: OptInt,
+    pub p_mco: OptInt,
+    pub p_mfd: OptInt,
+    pub p_mmd: OptInt,
+    pub p_mmp: OptInt,
+    pub p_mis: OptInt,
+    pub p_mopt: *mut c_char,
+    pub p_msc: OptInt,
+    pub p_msm: *mut c_char,
+    pub p_ml: c_int,
+    pub p_mle: c_int,
+    pub p_mls: OptInt,
+    pub p_ma: c_int,
+    pub p_mod: c_int,
+    pub p_mouse: *mut c_char,
+    pub p_mousem: *mut c_char,
+    pub p_mousemev: c_int,
+    pub p_mousef: c_int,
+    pub p_mh: c_int,
+    pub p_mousescroll: *mut c_char,
+    pub p_mousescroll_vert: OptInt,
+    pub p_mousescroll_hor: OptInt,
+    pub p_mouset: OptInt,
+    pub p_more: c_int,
+    pub p_nf: *mut c_char,
+    pub p_opfunc: Callback,
+    pub p_para: *mut c_char,
+    pub p_paste: c_int,
+    pub p_pex: Callback,
+    pub p_pm: *mut c_char,
+    pub p_path: *mut c_char,
+    pub p_cdpath: *mut c_char,
+    pub p_pi: c_int,
+    pub p_pyx: OptInt,
+    pub p_qe: *mut c_char,
+    pub p_ro: c_int,
+    pub p_rdb: *mut c_char,
+    pub rdb_flags: c_uint,
+    pub p_rdt: OptInt,
+    pub p_re: OptInt,
+    pub p_report: OptInt,
+    pub p_pvp: *mut c_char,
+    pub p_pvh: OptInt,
+    pub p_chi: OptInt,
+    pub p_ari: c_int,
+    pub p_ri: c_int,
+    pub p_ru: c_int,
+    pub p_ruf: *mut c_char,
+    pub p_plf: *mut c_char,
+    pub p_pp: *mut c_char,
+    pub p_qftf: Callback,
+    pub p_rtp: *mut c_char,
+    pub p_scbk: OptInt,
+    pub p_sj: OptInt,
+    pub p_so: OptInt,
+    pub p_sop: OptInt,
+    pub p_sbo: *mut c_char,
+    pub p_sections: *mut c_char,
+    pub p_secure: c_int,
+    pub p_sel: *mut c_char,
+    pub p_slm: *mut c_char,
+    pub p_ssop: *mut c_char,
+    pub ssop_flags: c_uint,
+    pub p_sh: *mut c_char,
+    pub p_shcf: *mut c_char,
+    pub p_sp: *mut c_char,
+    pub p_shq: *mut c_char,
+    pub p_sxq: *mut c_char,
+    pub p_sxe: *mut c_char,
+    pub p_srr: *mut c_char,
+    pub p_stmp: c_int,
+    #[cfg(windows)]
+    pub p_ssl: c_int,
+    pub p_stl: *mut c_char,
+    pub p_wbr: *mut c_char,
+    pub p_sr: c_int,
+    pub p_sw: OptInt,
+    pub p_shm: *mut c_char,
+    pub p_sbr: *mut c_char,
+    pub p_sc: c_int,
+    pub p_sloc: *mut c_char,
+    pub p_sft: c_int,
+    pub p_sm: c_int,
+    pub p_smd: c_int,
+    pub p_ss: OptInt,
+    pub p_siso: OptInt,
+    pub p_scs: c_int,
+    pub p_si: c_int,
+    pub p_sta: c_int,
+    pub p_sts: OptInt,
+    pub p_sb: c_int,
+    pub p_sua: *mut c_char,
+    pub p_swf: c_int,
+    pub p_smc: OptInt,
+    pub p_tpm: OptInt,
+    pub p_tal: *mut c_char,
+    pub p_tpf: *mut c_char,
+    pub tpf_flags: c_uint,
+    pub p_tfu: Callback,
+    pub p_spc: *mut c_char,
+    pub p_spf: *mut c_char,
+    pub p_spl: *mut c_char,
+    pub p_spo: *mut c_char,
+    pub spo_flags: c_uint,
+    pub p_sps: *mut c_char,
+    pub p_spr: c_int,
+    pub p_sol: c_int,
+    pub p_su: *mut c_char,
+    pub p_swb: *mut c_char,
+    pub swb_flags: c_uint,
+    pub p_spk: *mut c_char,
+    pub p_syn: *mut c_char,
+    pub p_tcl: *mut c_char,
+    pub tcl_flags: c_uint,
+    pub p_ts: OptInt,
+    pub p_tbs: c_int,
+    pub p_tc: *mut c_char,
+    pub tc_flags: c_uint,
+    pub p_tl: OptInt,
+    pub p_tr: c_int,
+    pub p_tags: *mut c_char,
+    pub p_tgst: c_int,
+    pub p_tbidi: c_int,
+    pub p_tw: OptInt,
+    pub p_to: c_int,
+    pub p_timeout: c_int,
+    pub p_tm: OptInt,
+    pub p_title: c_int,
+    pub p_titlelen: OptInt,
+    pub p_titleold: *mut c_char,
+    pub p_titlestring: *mut c_char,
+    pub p_tsr: *mut c_char,
+    pub p_tgc: c_int,
+    pub p_ttimeout: c_int,
+    pub p_ttm: OptInt,
+    pub p_tf: c_int,
+    pub p_udir: *mut c_char,
+    pub p_udf: c_int,
+    pub p_ul: OptInt,
+    pub p_ur: OptInt,
+    pub p_uc: OptInt,
+    pub p_ut: OptInt,
+    pub p_shada: *mut c_char,
+    pub p_shadafile: *mut c_char,
+    pub p_termsync: c_int,
+    pub p_vsts: *mut c_char,
+    pub p_vts: *mut c_char,
+    pub p_vdir: *mut c_char,
+    pub p_vop: *mut c_char,
+    pub vop_flags: c_uint,
+    pub p_vb: c_int,
+    pub p_ve: *mut c_char,
+    pub ve_flags: c_uint,
+    pub p_verbose: OptInt,
+    pub p_vfile: *mut c_char,
+    pub p_warn: c_int,
+    pub p_wop: *mut c_char,
+    pub wop_flags: c_uint,
+    pub p_window: OptInt,
+    pub p_wak: *mut c_char,
+    pub p_wig: *mut c_char,
+    pub p_ww: *mut c_char,
+    pub p_wc: OptInt,
+    pub p_wcm: OptInt,
+    pub p_wic: c_int,
+    pub p_wim: *mut c_char,
+    pub p_wmnu: c_int,
+    pub p_winborder: *mut c_char,
+    pub p_wh: OptInt,
+    pub p_wmh: OptInt,
+    pub p_wmw: OptInt,
+    pub p_wiw: OptInt,
+    pub p_wm: OptInt,
+    pub p_ws: c_int,
+    pub p_write: c_int,
+    pub p_wa: c_int,
+    pub p_wb: c_int,
+    pub p_wd: OptInt,
+    pub p_cdh: c_int,
+}
+
+impl OptionVars {
+    pub const fn new() -> Self {
+        Self {
+            p_ambw: ptr::null_mut(),
+            p_acd: 0,
+            p_ai: 0,
+            p_bin: 0,
+            p_bomb: 0,
+            p_bl: 0,
+            p_cin: 0,
+            p_channel: 0,
+            p_cink: ptr::null_mut(),
+            p_cinsd: ptr::null_mut(),
+            p_cinw: ptr::null_mut(),
+            p_cfu: Callback::NONE,
+            p_ofu: Callback::NONE,
+            p_tsrfu: Callback::NONE,
+            p_ci: 0,
+            p_ar: 0,
+            p_aw: 0,
+            p_awa: 0,
+            p_bs: ptr::null_mut(),
+            p_bg: ptr::null_mut(),
+            p_bk: 0,
+            p_bkc: ptr::null_mut(),
+            bkc_flags: 0,
+            p_bdir: ptr::null_mut(),
+            p_bex: ptr::null_mut(),
+            p_bo: ptr::null_mut(),
+            breakat_flags: [0 as c_char; 256],
+            bo_flags: 0,
+            p_bsk: ptr::null_mut(),
+            p_breakat: ptr::null_mut(),
+            p_bh: ptr::null_mut(),
+            p_bt: ptr::null_mut(),
+            p_busy: 0,
+            p_cmp: ptr::null_mut(),
+            cmp_flags: 0,
+            p_enc: ptr::null_mut(),
+            p_deco: 0,
+            p_ccv: Callback::NONE,
+            p_cino: ptr::null_mut(),
+            p_cedit: ptr::null_mut(),
+            p_cb: ptr::null_mut(),
+            cb_flags: 0,
+            p_cwh: 0,
+            p_ch: 0,
+            p_cms: ptr::null_mut(),
+            p_cpt: ptr::null_mut(),
+            p_cto: 0,
+            p_columns: 0,
+            p_confirm: 0,
+            p_cia: ptr::null_mut(),
+            cia_flags: 0,
+            p_cot: ptr::null_mut(),
+            cot_flags: 0,
+            p_ac: 0,
+            p_act: 0,
+            p_acl: 0,
+            #[cfg(windows)]
+            p_csl: ptr::null_mut(),
+            p_pumborder: ptr::null_mut(),
+            p_pb: 0,
+            p_ph: 0,
+            p_pw: 0,
+            p_pmw: 0,
+            p_com: ptr::null_mut(),
+            p_cpo: ptr::null_mut(),
+            p_debug: ptr::null_mut(),
+            p_def: ptr::null_mut(),
+            p_inc: ptr::null_mut(),
+            p_dia: ptr::null_mut(),
+            p_dip: ptr::null_mut(),
+            p_dex: Callback::NONE,
+            p_dict: ptr::null_mut(),
+            p_dg: 0,
+            p_dir: ptr::null_mut(),
+            p_dy: ptr::null_mut(),
+            dy_flags: 0,
+            dy_escape_width: 2,
+            p_ead: ptr::null_mut(),
+            p_emoji: 0,
+            p_ea: 0,
+            p_ep: ptr::null_mut(),
+            p_eb: 0,
+            p_ef: ptr::null_mut(),
+            p_efm: ptr::null_mut(),
+            p_gefm: ptr::null_mut(),
+            p_gp: ptr::null_mut(),
+            p_eof: 0,
+            p_eol: 0,
+            p_ei: ptr::null_mut(),
+            p_et: 0,
+            p_exrc: 0,
+            p_fenc: ptr::null_mut(),
+            p_fencs: ptr::null_mut(),
+            p_ff: ptr::null_mut(),
+            p_ffs: ptr::null_mut(),
+            p_fic: 0,
+            p_ft: ptr::null_mut(),
+            p_fcs: ptr::null_mut(),
+            p_ffu: Callback::NONE,
+            p_fixeol: 0,
+            p_fcl: ptr::null_mut(),
+            p_fdls: 0,
+            p_fdo: ptr::null_mut(),
+            fdo_flags: 0,
+            p_follow: 0,
+            p_fex: Callback::NONE,
+            p_flp: ptr::null_mut(),
+            p_fo: ptr::null_mut(),
+            p_fp: ptr::null_mut(),
+            p_fs: 0,
+            p_gd: 0,
+            p_guicursor: ptr::null_mut(),
+            p_guifont: ptr::null_mut(),
+            p_guifontwide: ptr::null_mut(),
+            p_hf: ptr::null_mut(),
+            p_hh: 0,
+            p_hlg: ptr::null_mut(),
+            p_hid: 0,
+            p_hl: ptr::null_mut(),
+            p_hls: 0,
+            p_hi: 0,
+            p_arshape: 0,
+            p_icon: 0,
+            p_iconstring: ptr::null_mut(),
+            p_ic: 0,
+            p_iminsert: 0,
+            p_imsearch: 0,
+            p_inf: 0,
+            p_inex: Callback::NONE,
+            p_is: 0,
+            p_inde: Callback::NONE,
+            p_indk: ptr::null_mut(),
+            p_icm: ptr::null_mut(),
+            p_isf: ptr::null_mut(),
+            p_isi: ptr::null_mut(),
+            p_isk: ptr::null_mut(),
+            p_js: 0,
+            p_jop: ptr::null_mut(),
+            jop_flags: 0,
+            p_keymap: ptr::null_mut(),
+            p_kp: ptr::null_mut(),
+            p_km: ptr::null_mut(),
+            p_langmap: ptr::null_mut(),
+            p_lnr: 0,
+            p_lrm: 0,
+            p_lm: ptr::null_mut(),
+            p_lines: 0,
+            p_linespace: 0,
+            p_lisp: 0,
+            p_lop: ptr::null_mut(),
+            p_lispwords: ptr::null_mut(),
+            p_ls: 0,
+            p_stal: 0,
+            p_lcs: ptr::null_mut(),
+            p_lz: 0,
+            p_lpl: 0,
+            p_magic: 0,
+            p_menc: ptr::null_mut(),
+            p_mef: ptr::null_mut(),
+            p_mp: ptr::null_mut(),
+            p_mps: ptr::null_mut(),
+            p_mat: 0,
+            p_mco: 0,
+            p_mfd: 0,
+            p_mmd: 0,
+            p_mmp: 0,
+            p_mis: 0,
+            p_mopt: ptr::null_mut(),
+            p_msc: 0,
+            p_msm: ptr::null_mut(),
+            p_ml: 0,
+            p_mle: 0,
+            p_mls: 0,
+            p_ma: 0,
+            p_mod: 0,
+            p_mouse: ptr::null_mut(),
+            p_mousem: ptr::null_mut(),
+            p_mousemev: 0,
+            p_mousef: 0,
+            p_mh: 0,
+            p_mousescroll: ptr::null_mut(),
+            p_mousescroll_vert: 3,
+            p_mousescroll_hor: 6,
+            p_mouset: 0,
+            p_more: 0,
+            p_nf: ptr::null_mut(),
+            p_opfunc: Callback::NONE,
+            p_para: ptr::null_mut(),
+            p_paste: 0,
+            p_pex: Callback::NONE,
+            p_pm: ptr::null_mut(),
+            p_path: ptr::null_mut(),
+            p_cdpath: ptr::null_mut(),
+            p_pi: 0,
+            p_pyx: 0,
+            p_qe: ptr::null_mut(),
+            p_ro: 0,
+            p_rdb: ptr::null_mut(),
+            rdb_flags: 0,
+            p_rdt: 0,
+            p_re: 0,
+            p_report: 0,
+            p_pvp: ptr::null_mut(),
+            p_pvh: 0,
+            p_chi: 0,
+            p_ari: 0,
+            p_ri: 0,
+            p_ru: 0,
+            p_ruf: ptr::null_mut(),
+            p_plf: ptr::null_mut(),
+            p_pp: ptr::null_mut(),
+            p_qftf: Callback::NONE,
+            p_rtp: ptr::null_mut(),
+            p_scbk: 0,
+            p_sj: 0,
+            p_so: 0,
+            p_sop: 0,
+            p_sbo: ptr::null_mut(),
+            p_sections: ptr::null_mut(),
+            p_secure: 0,
+            p_sel: ptr::null_mut(),
+            p_slm: ptr::null_mut(),
+            p_ssop: ptr::null_mut(),
+            ssop_flags: 0,
+            p_sh: ptr::null_mut(),
+            p_shcf: ptr::null_mut(),
+            p_sp: ptr::null_mut(),
+            p_shq: ptr::null_mut(),
+            p_sxq: ptr::null_mut(),
+            p_sxe: ptr::null_mut(),
+            p_srr: ptr::null_mut(),
+            p_stmp: 0,
+            #[cfg(windows)]
+            p_ssl: 0,
+            p_stl: ptr::null_mut(),
+            p_wbr: ptr::null_mut(),
+            p_sr: 0,
+            p_sw: 0,
+            p_shm: ptr::null_mut(),
+            p_sbr: ptr::null_mut(),
+            p_sc: 0,
+            p_sloc: ptr::null_mut(),
+            p_sft: 0,
+            p_sm: 0,
+            p_smd: 0,
+            p_ss: 0,
+            p_siso: 0,
+            p_scs: 0,
+            p_si: 0,
+            p_sta: 0,
+            p_sts: 0,
+            p_sb: 0,
+            p_sua: ptr::null_mut(),
+            p_swf: 0,
+            p_smc: 0,
+            p_tpm: 0,
+            p_tal: ptr::null_mut(),
+            p_tpf: ptr::null_mut(),
+            tpf_flags: 0,
+            p_tfu: Callback::NONE,
+            p_spc: ptr::null_mut(),
+            p_spf: ptr::null_mut(),
+            p_spl: ptr::null_mut(),
+            p_spo: ptr::null_mut(),
+            spo_flags: 0,
+            p_sps: ptr::null_mut(),
+            p_spr: 0,
+            p_sol: 0,
+            p_su: ptr::null_mut(),
+            p_swb: ptr::null_mut(),
+            swb_flags: 0,
+            p_spk: ptr::null_mut(),
+            p_syn: ptr::null_mut(),
+            p_tcl: ptr::null_mut(),
+            tcl_flags: 0,
+            p_ts: 0,
+            p_tbs: 0,
+            p_tc: ptr::null_mut(),
+            tc_flags: 0,
+            p_tl: 0,
+            p_tr: 0,
+            p_tags: ptr::null_mut(),
+            p_tgst: 0,
+            p_tbidi: 0,
+            p_tw: 0,
+            p_to: 0,
+            p_timeout: 0,
+            p_tm: 0,
+            p_title: 0,
+            p_titlelen: 0,
+            p_titleold: ptr::null_mut(),
+            p_titlestring: ptr::null_mut(),
+            p_tsr: ptr::null_mut(),
+            p_tgc: 0,
+            p_ttimeout: 0,
+            p_ttm: 0,
+            p_tf: 0,
+            p_udir: ptr::null_mut(),
+            p_udf: 0,
+            p_ul: 0,
+            p_ur: 0,
+            p_uc: 0,
+            p_ut: 0,
+            p_shada: ptr::null_mut(),
+            p_shadafile: ptr::null_mut(),
+            p_termsync: 0,
+            p_vsts: ptr::null_mut(),
+            p_vts: ptr::null_mut(),
+            p_vdir: ptr::null_mut(),
+            p_vop: ptr::null_mut(),
+            vop_flags: 0,
+            p_vb: 0,
+            p_ve: ptr::null_mut(),
+            ve_flags: 0,
+            p_verbose: 0,
+            p_vfile: empty_string_option.as_ptr().cast(),
+            p_warn: 0,
+            p_wop: ptr::null_mut(),
+            wop_flags: 0,
+            p_window: 0,
+            p_wak: ptr::null_mut(),
+            p_wig: ptr::null_mut(),
+            p_ww: ptr::null_mut(),
+            p_wc: 0,
+            p_wcm: 0,
+            p_wic: 0,
+            p_wim: ptr::null_mut(),
+            p_wmnu: 0,
+            p_winborder: ptr::null_mut(),
+            p_wh: 0,
+            p_wmh: 0,
+            p_wmw: 0,
+            p_wiw: 0,
+            p_wm: 0,
+            p_ws: 0,
+            p_write: 0,
+            p_wa: 0,
+            p_wb: 0,
+            p_wd: 0,
+            p_cdh: 0,
+        }
+    }
+}
+
+pub static OPT_VARS: GlobalState<OptionVars> = GlobalState::new(OptionVars::new());
+
+#[inline]
+pub unsafe fn opt_vars() -> &'static mut OptionVars {
+    unsafe { &mut *OPT_VARS.as_ptr() }
+}
 
 pub static buf_opt_idx: [OptIndex; 93] = [
     6, 9, 10, 16, 21, 22, 27, 28, 29, 30, 35, 38, 39, 40, 41, 42, 48, 49, 51, 52, 54, 55, 60, 67,
@@ -922,11 +1281,11 @@ mod tests {
     #[test]
     fn option_vars_defaults_match_c_initializers() {
         unsafe {
-            assert_eq!({ dy_escape_width }, 2);
-            assert_eq!({ p_mousescroll_vert }, 3);
-            assert_eq!({ p_mousescroll_hor }, 6);
-            assert_eq!({ empty_string_option[0] }, 0);
-            assert_eq!({ *p_vfile }, 0);
+            assert_eq!({ opt_vars().dy_escape_width }, 2);
+            assert_eq!({ opt_vars().p_mousescroll_vert }, 3);
+            assert_eq!({ opt_vars().p_mousescroll_hor }, 6);
+            assert_eq!({ (*empty_string_option.as_ptr())[0] }, 0);
+            assert_eq!({ *opt_vars().p_vfile }, 0);
         }
     }
 }

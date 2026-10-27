@@ -252,7 +252,7 @@ unsafe fn deadly_signal(signum: c_int) -> ! {
             signal_name(signum).as_ptr(),
         );
 
-        if p_awa != 0 && signum != SIGTERM && signum != SIGINT {
+        if opt_vars().p_awa != 0 && signum != SIGTERM && signum != SIGINT {
             autowrite_all();
         }
 
@@ -275,7 +275,7 @@ pub(crate) unsafe fn on_signal(signum: c_int) {
         }
         #[cfg(unix)]
         if signum == SIGTSTP {
-            if p_awa != 0 {
+            if opt_vars().p_awa != 0 {
                 autowrite_all();
             }
             return;

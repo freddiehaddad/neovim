@@ -1487,10 +1487,10 @@ pub unsafe fn tv_get_buf(tv: *mut typval_T, curtab_only: c_int) -> *mut buf_T {
             return lastbuf;
         }
 
-        let save_magic = p_magic;
-        p_magic = 1;
-        let save_cpo = p_cpo;
-        p_cpo = (&raw mut empty_string_option).cast();
+        let save_magic = opt_vars().p_magic;
+        opt_vars().p_magic = 1;
+        let save_cpo = opt_vars().p_cpo;
+        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
 
         let buf = buflist_findnr(buflist_findpat(
             name,
@@ -1500,8 +1500,8 @@ pub unsafe fn tv_get_buf(tv: *mut typval_T, curtab_only: c_int) -> *mut buf_T {
             curtab_only != 0,
         ));
 
-        p_magic = save_magic;
-        p_cpo = save_cpo;
+        opt_vars().p_magic = save_magic;
+        opt_vars().p_cpo = save_cpo;
 
         if buf.is_null() {
             return find_buffer(tv);
@@ -2360,7 +2360,7 @@ pub unsafe fn f_expand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
 
         let s = tv_get_string(argvars);
         if *s == b'%' as c_char || *s == b'#' as c_char || *s == b'<' as c_char {
-            if p_verbose == 0 {
+            if opt_vars().p_verbose == 0 {
                 emsg_off += 1;
             }
             let mut len: usize = 0;
@@ -2374,7 +2374,7 @@ pub unsafe fn f_expand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
                 ptr::null_mut(),
                 false,
             );
-            if p_verbose == 0 {
+            if opt_vars().p_verbose == 0 {
                 emsg_off -= 1;
             } else if !errormsg.is_null() {
                 emsg(errormsg);
@@ -2398,7 +2398,7 @@ pub unsafe fn f_expand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
             if !error {
                 let mut xpc: expand_T = expand_T::new();
                 xpc.xp_context = EXPAND_FILES;
-                if p_wic != 0 {
+                if opt_vars().p_wic != 0 {
                     options += WILD_ICASE;
                 }
                 if (*rettv).v_type == VarType::VAR_STRING {
@@ -3303,14 +3303,14 @@ unsafe fn getregionpos(
             is_select_exclusive = tv_dict_get_bool(
                 d,
                 c"exclusive".as_ptr(),
-                c_int::from(*p_sel == b'e' as c_char),
+                c_int::from(*opt_vars().p_sel == b'e' as c_char),
             ) != 0;
             type_str = tv_dict_get_string(d, c"type".as_ptr());
             if type_str.is_null() {
                 type_str = default_type.as_mut_ptr();
             }
         } else {
-            is_select_exclusive = *p_sel == b'e' as c_char;
+            is_select_exclusive = *opt_vars().p_sel == b'e' as c_char;
             type_str = default_type.as_mut_ptr();
         }
 
@@ -4347,7 +4347,7 @@ pub unsafe fn f_inputrestore(_argvars: *mut typval_T, rettv: *mut typval_T, _fpt
         let userinput = &raw mut funcs_st().GA_USERINPUT;
         if let Some(mut saved) = (*userinput).pop() {
             restore_typeahead(&mut saved);
-        } else if p_verbose > 1 {
+        } else if opt_vars().p_verbose > 1 {
             verb_msg(gettext(
                 c"called inputrestore() more often than inputsave()".as_ptr(),
             ));
@@ -4572,7 +4572,7 @@ pub unsafe fn create_environment(
                         tv_dict_item_remove(env, dv);
                     }
                 }
-                if p_tgc != 0 {
+                if opt_vars().p_tgc != 0 {
                     tv_dict_add_str(env, c"COLORTERM".as_ptr(), 9, c"truecolor".as_ptr());
                 }
             }
@@ -5265,7 +5265,7 @@ pub unsafe fn f_line(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
             let mut tp: *mut tabpage_T = ptr::null_mut();
             let wp = win_id2wp_tp(id, &raw mut tp);
             if !wp.is_null() && !tp.is_null() {
-                if *p_spk != b'c' as c_char
+                if *opt_vars().p_spk != b'c' as c_char
                     || ((*wp).w_onebuf_opt.wo_diff != 0 && (*curwin).w_onebuf_opt.wo_diff != 0)
                 {
                     skip_update_topline = true;
@@ -5332,8 +5332,8 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
         let mut idx: c_int = 0;
         let mut tofree_owned: Option<std::ffi::CString> = None;
 
-        let save_cpo = p_cpo;
-        p_cpo = (&raw mut empty_string_option).cast();
+        let save_cpo = opt_vars().p_cpo;
+        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
 
         (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
         match type_ {
@@ -5411,7 +5411,7 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
 
             regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
             if !regmatch.regprog.is_null() {
-                regmatch.rm_ic = p_ic != 0;
+                regmatch.rm_ic = opt_vars().p_ic != 0;
 
                 loop {
                     if !l.is_null() {
@@ -5532,7 +5532,7 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
         }
 
         drop(tofree_owned);
-        p_cpo = save_cpo;
+        opt_vars().p_cpo = save_cpo;
     }
 }
 
@@ -5673,13 +5673,13 @@ pub unsafe fn f_matchbufline(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
             }
         }
 
-        let save_cpo = p_cpo;
-        p_cpo = (&raw mut empty_string_option).cast();
+        let save_cpo = opt_vars().p_cpo;
+        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
 
         let mut regmatch: regmatch_T = regmatch_T::new();
         regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
         if !regmatch.regprog.is_null() {
-            regmatch.rm_ic = p_ic != 0;
+            regmatch.rm_ic = opt_vars().p_ic != 0;
 
             while slnum <= elnum {
                 let str_ = ml_get_buf(buf, slnum);
@@ -5690,7 +5690,7 @@ pub unsafe fn f_matchbufline(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
             vim_regfree(regmatch.regprog);
         }
 
-        p_cpo = save_cpo;
+        opt_vars().p_cpo = save_cpo;
     }
 }
 
@@ -5747,13 +5747,13 @@ pub unsafe fn f_matchstrlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
             return;
         }
 
-        let save_cpo = p_cpo;
-        p_cpo = (&raw mut empty_string_option).cast();
+        let save_cpo = opt_vars().p_cpo;
+        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
 
         let mut regmatch: regmatch_T = regmatch_T::new();
         regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
         if !regmatch.regprog.is_null() {
-            regmatch.rm_ic = p_ic != 0;
+            regmatch.rm_ic = opt_vars().p_ic != 0;
 
             'cleanup: {
                 let mut submatches = false;
@@ -5793,7 +5793,7 @@ pub unsafe fn f_matchstrlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
             vim_regfree(regmatch.regprog);
         }
 
-        p_cpo = save_cpo;
+        opt_vars().p_cpo = save_cpo;
     }
 }
 
@@ -6897,8 +6897,8 @@ unsafe fn get_search_arg(varp: *mut typval_T, flagsp: *mut c_int) -> c_int {
         while *flags != NUL {
             match *flags as u8 {
                 b'b' => dir = BACKWARD,
-                b'w' => p_ws = 1,
-                b'W' => p_ws = 0,
+                b'w' => opt_vars().p_ws = 1,
+                b'W' => opt_vars().p_ws = 0,
                 b => {
                     let mut mask: c_int = 0;
                     if !flagsp.is_null() {
@@ -6933,7 +6933,7 @@ unsafe fn get_search_arg(varp: *mut typval_T, flagsp: *mut c_int) -> c_int {
 
 unsafe fn search_cmn(argvars: *mut typval_T, match_pos: *mut pos_T, flagsp: *mut c_int) -> c_int {
     unsafe {
-        let save_p_ws = p_ws;
+        let save_p_ws = opt_vars().p_ws;
         let mut retval: c_int = 0;
         let mut lnum_stop: linenr_T = 0;
         let mut time_limit: i64 = 0;
@@ -7015,7 +7015,7 @@ unsafe fn search_cmn(argvars: *mut typval_T, match_pos: *mut pos_T, flagsp: *mut
                     1,
                     options,
                     RE_SEARCH,
-                    p_magic != 0,
+                    opt_vars().p_magic != 0,
                     &raw mut sia,
                 );
                 if firstpos.lnum != 0 && equalpos(pos, firstpos) {
@@ -7071,7 +7071,7 @@ unsafe fn search_cmn(argvars: *mut typval_T, match_pos: *mut pos_T, flagsp: *mut
                 (*curwin).w_set_curswant = true;
             }
         }
-        p_ws = save_p_ws;
+        opt_vars().p_ws = save_p_ws;
         retval
     }
 }
@@ -7435,7 +7435,7 @@ pub unsafe fn f_searchdecl(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
 
 unsafe fn searchpair_cmn(argvars: *mut typval_T, match_pos: *mut pos_T) -> c_int {
     unsafe {
-        let save_p_ws = p_ws;
+        let save_p_ws = opt_vars().p_ws;
         let mut flags: c_int = 0;
         let mut retval: c_int = 0;
         let mut lnum_stop: linenr_T = 0;
@@ -7464,7 +7464,7 @@ unsafe fn searchpair_cmn(argvars: *mut typval_T, match_pos: *mut pos_T) -> c_int
             }
 
             if (flags & SP_REPEAT) != 0 {
-                p_ws = 0;
+                opt_vars().p_ws = 0;
             }
 
             let skip: *const typval_T = if (*argvars.add(3)).v_type == VarType::VAR_UNKNOWN
@@ -7495,7 +7495,7 @@ unsafe fn searchpair_cmn(argvars: *mut typval_T, match_pos: *mut pos_T) -> c_int
             );
         }
 
-        p_ws = save_p_ws;
+        opt_vars().p_ws = save_p_ws;
         retval
     }
 }
@@ -7546,8 +7546,8 @@ pub unsafe fn do_searchpair(
         let mut use_skip = false;
         let mut options = SEARCH_KEEP;
 
-        let save_cpo = p_cpo;
-        p_cpo = (&raw mut empty_string_option).cast();
+        let save_cpo = opt_vars().p_cpo;
+        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
 
         let tm = profile_setlimit(time_limit);
 
@@ -7705,10 +7705,10 @@ pub unsafe fn do_searchpair(
 
         drop(pat2_vec);
         drop(pat3_vec);
-        if p_cpo == (&raw mut empty_string_option).cast() {
-            p_cpo = save_cpo;
+        if opt_vars().p_cpo == empty_string_option.as_ptr().cast() {
+            opt_vars().p_cpo = save_cpo;
         } else {
-            if *p_cpo == NUL {
+            if *opt_vars().p_cpo == NUL {
                 set_option_value_give_err(
                     kOptCpoptions,
                     Object {
@@ -8513,8 +8513,8 @@ pub unsafe fn f_split(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
         let mut keepempty = false;
         let mut typeerr = false;
 
-        let save_cpo = p_cpo;
-        p_cpo = (&raw mut empty_string_option).cast();
+        let save_cpo = opt_vars().p_cpo;
+        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
 
         let mut str_ = tv_get_string(argvars);
         let mut pat: *const c_char = ptr::null();
@@ -8577,7 +8577,7 @@ pub unsafe fn f_split(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
             }
         }
 
-        p_cpo = save_cpo;
+        opt_vars().p_cpo = save_cpo;
     }
 }
 
@@ -8695,7 +8695,7 @@ pub unsafe fn f_strftime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         let enc_ptr = enc
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        convert_setup(&mut conv, p_enc, enc_ptr);
+        convert_setup(&mut conv, opt_vars().p_enc, enc_ptr);
         let p_owned: Option<Vec<u8>>;
         if conv.vc_type != CONV_NONE {
             p_owned = string_convert(&conv, p, ptr::null_mut());
@@ -8711,7 +8711,7 @@ pub unsafe fn f_strftime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         }
         drop(p_owned);
 
-        convert_setup(&mut conv, enc_ptr, p_enc);
+        convert_setup(&mut conv, enc_ptr, opt_vars().p_enc);
         if conv.vc_type != CONV_NONE {
             if let Some(conv_bytes) =
                 string_convert(&conv, result_buf.as_mut_ptr(), ptr::null_mut())
@@ -8743,7 +8743,7 @@ pub unsafe fn f_strptime(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         let enc_ptr = enc
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        convert_setup(&mut conv, p_enc, enc_ptr);
+        convert_setup(&mut conv, opt_vars().p_enc, enc_ptr);
         let fmt_owned: Option<Vec<u8>>;
         if conv.vc_type != CONV_NONE {
             fmt_owned = string_convert(&conv, fmt, ptr::null_mut());

@@ -388,7 +388,7 @@ pub unsafe fn ex_menu(eap: *mut exarg_T) {
                     0,
                     REPTERM_DO_LT,
                     ptr::null_mut(),
-                    p_cpo,
+                    opt_vars().p_cpo,
                 )
             } else {
                 None
@@ -1607,7 +1607,7 @@ pub unsafe fn execute_menu(eap: *const exarg_T, menu: *mut vimmenu_T, mode_idx: 
 
                 check_cursor(curwin);
 
-                if *p_sel == b'e' as c_char && gchar_cursor() != c_int::from(NUL) {
+                if *opt_vars().p_sel == b'e' as c_char && gchar_cursor() != c_int::from(NUL) {
                     (*curwin).w_cursor.col += 1;
                 }
             }

@@ -976,7 +976,7 @@ unsafe fn spell_find_suggest(
         if banbadword {
             add_banned(su, (&raw mut (*su).su_badword).cast());
         }
-        let sps_copy = CStr::from_ptr(p_sps).to_owned();
+        let sps_copy = CStr::from_ptr(opt_vars().p_sps).to_owned();
         let mut p = sps_copy.as_ptr().cast_mut();
         while *p != NUL {
             copy_option_part(&raw mut p, (&raw mut buf).cast(), MAXPATHL, c",".as_ptr());

@@ -859,7 +859,7 @@ unsafe fn get_line_number_attr(wp: *mut win_T, wlv: &mut winlinevars_T) -> c_int
 
 unsafe fn draw_lnum_col(wp: *mut win_T, wlv: &mut winlinevars_T) {
     unsafe {
-        let has_cpo_n = !vim_strchr(p_cpo, kCpoNumcol).is_null();
+        let has_cpo_n = !vim_strchr(opt_vars().p_cpo, kCpoNumcol).is_null();
 
         if ((*wp).w_onebuf_opt.wo_nu != 0 || (*wp).w_onebuf_opt.wo_rnu != 0)
             && (wlv.row == wlv.startrow + wlv.filler_lines || !has_cpo_n)
@@ -1577,14 +1577,14 @@ pub unsafe fn win_line(
                         }
                     }
                     if Visual.mode != b'V' as c_int && lnum == (*bot).lnum {
-                        if *p_sel == b'e' as c_char && (*bot).col == 0 && (*bot).coladd == 0 {
+                        if *opt_vars().p_sel == b'e' as c_char && (*bot).col == 0 && (*bot).coladd == 0 {
                             wlv.fromcol = -10;
                             wlv.tocol = MAXCOL;
                         } else if (*bot).col == MAXCOL {
                             wlv.tocol = MAXCOL;
                         } else {
                             let mut pos = *bot;
-                            if *p_sel == b'e' as c_char {
+                            if *opt_vars().p_sel == b'e' as c_char {
                                 getvvcol(
                                     wp,
                                     &raw mut pos,
@@ -3003,9 +3003,9 @@ pub unsafe fn win_line(
                             );
                             wlv.p_extra = extra_ptr;
                             if wlv.n_extra == 0 {
-                                wlv.n_extra = dy_escape_width - 1;
+                                wlv.n_extra = opt_vars().dy_escape_width - 1;
                             }
-                            if (dy_flags & kOptDyFlagUhex) != 0 && (*wp).w_onebuf_opt.wo_rl != 0 {
+                            if (opt_vars().dy_flags & kOptDyFlagUhex) != 0 && (*wp).w_onebuf_opt.wo_rl != 0 {
                                 rl_mirror_ascii(wlv.p_extra, ptr::null_mut());
                             }
                             wlv.sc_extra = 0;
@@ -3022,7 +3022,7 @@ pub unsafe fn win_line(
                                 *p.add(wlv.n_extra as usize) = NUL;
                                 wlv.p_extra = p;
                             } else {
-                                wlv.n_extra = dy_escape_width - 1;
+                                wlv.n_extra = opt_vars().dy_escape_width - 1;
                                 mb_c = c_int::from(*wlv.p_extra as u8);
                                 wlv.p_extra = wlv.p_extra.add(1);
                             }
@@ -3656,7 +3656,7 @@ pub unsafe fn win_line(
                     wlv.need_showbreak = true;
                 }
                 if statuscol.draw
-                    && !vim_strchr(p_cpo, kCpoNumcol).is_null()
+                    && !vim_strchr(opt_vars().p_cpo, kCpoNumcol).is_null()
                     && wlv.row > startrow + wlv.filler_lines
                 {
                     statuscol.draw = false;

@@ -415,7 +415,7 @@ pub unsafe fn ml_open(buf: *mut buf_T) -> c_int {
             (*buf).b_p_swf = 0;
         }
 
-        (*buf).b_may_swap = (*buf).terminal.is_null() && p_uc != 0 && (*buf).b_p_swf != 0;
+        (*buf).b_may_swap = (*buf).terminal.is_null() && opt_vars().p_uc != 0 && (*buf).b_p_swf != 0;
 
         (*buf).b_ml.ml_mfp = mf_open(None, 0);
         let Some(mfp_box) = (*buf).b_ml.ml_mfp.as_deref_mut() else {
@@ -511,13 +511,13 @@ pub unsafe fn ml_setname(buf: *mut buf_T) {
         let mut success = false;
         let mfp = (*buf).b_ml.mfp_ptr();
         if (*mfp).mf_fd < 0 {
-            if p_uc != 0 && (cmdmod.cmod_flags & CMOD_NOSWAPFILE) == 0 {
+            if opt_vars().p_uc != 0 && (cmdmod.cmod_flags & CMOD_NOSWAPFILE) == 0 {
                 ml_open_file(buf);
             }
             return;
         }
 
-        let mut dirp = p_dir;
+        let mut dirp = opt_vars().p_dir;
         let mut found_existing_dir = false;
         loop {
             if *dirp == NUL {
@@ -609,7 +609,7 @@ pub unsafe fn ml_open_file(buf: *mut buf_T) {
             return;
         }
 
-        let mut dirp = p_dir;
+        let mut dirp = opt_vars().p_dir;
         let mut found_existing_dir = false;
         loop {
             if *dirp == NUL {
@@ -642,7 +642,7 @@ pub unsafe fn ml_open_file(buf: *mut buf_T) {
             }
         }
 
-        if *p_dir != NUL && (*mfp).mf_fname.is_none() {
+        if *opt_vars().p_dir != NUL && (*mfp).mf_fname.is_none() {
             need_wait_return = true;
             no_wait_return += 1;
             let sp = buf_spname(buf);
@@ -1530,12 +1530,12 @@ pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mu
             }
         }
 
-        let mut dir_name_vec: Vec<c_char> = vec![0; strlen(p_dir) + 1];
+        let mut dir_name_vec: Vec<c_char> = vec![0; strlen(opt_vars().p_dir) + 1];
         let mut dir_name = NvimString {
             data: dir_name_vec.as_mut_ptr(),
             size: 0,
         };
-        let mut dirp = p_dir;
+        let mut dirp = opt_vars().p_dir;
         while *dirp != NUL {
             dir_name.size = copy_option_part(&raw mut dirp, dir_name.data, 31000, c",".as_ptr());
 
@@ -3673,13 +3673,13 @@ unsafe fn findswapname(
 
                 if !differ
                     && ((*curbuf).b_flags & BF_RECOVERED) == 0
-                    && vim_strchr(p_shm, kShmAttention).is_null()
+                    && vim_strchr(opt_vars().p_shm, kShmAttention).is_null()
                 {
                     let mut choice: sea_choice_T = SEA_CHOICE_NONE;
 
                     if os_path_exists((*buf).b_fname) && swapfile_unchanged(fname) {
                         choice = SEA_CHOICE_DELETE;
-                        if p_verbose > 0 {
+                        if opt_vars().p_verbose > 0 {
                             verb_msg(tr(c"Found a swap file that is not useful, deleting it"));
                         }
                     }

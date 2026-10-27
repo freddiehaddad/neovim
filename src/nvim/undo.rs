@@ -353,7 +353,7 @@ pub unsafe fn undo_allowed(buf: *mut buf_T) -> bool {
 unsafe fn get_undolevel(buf: *mut buf_T) -> OptInt {
     unsafe {
         if (*buf).b_p_ul == NO_LOCAL_UNDOLEVEL {
-            p_ul
+            opt_vars().p_ul
         } else {
             (*buf).b_p_ul
         }
@@ -637,7 +637,7 @@ pub unsafe fn u_get_undo_file_name(
         let mut undo_file_name: Option<std::ffi::CString> = None;
 
         let ffname_len = strlen(ffname);
-        let mut dirp = p_udir;
+        let mut dirp = opt_vars().p_udir;
         while *dirp != NUL {
             let mut dir_len = copy_option_part(
                 &raw mut dirp,
@@ -1085,7 +1085,7 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
         let file_name = if name.is_null() {
             f_owned = u_get_undo_file_name((*buf).b_ffname, false);
             let Some(ref f) = f_owned else {
-                if p_verbose > 0 {
+                if opt_vars().p_verbose > 0 {
                     verbose_enter();
                     smsg!(
                         0,
@@ -1115,7 +1115,7 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
                 if name.is_null() || !forceit {
                     let fd = os_open(file_name, O_RDONLY, 0);
                     if fd < 0 {
-                        if !name.is_null() || p_verbose > 0 {
+                        if !name.is_null() || opt_vars().p_verbose > 0 {
                             if name.is_null() {
                                 verbose_enter();
                             }
@@ -1142,7 +1142,7 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
                                 UF_START_MAGIC_LEN,
                             ) != 0
                         {
-                            if !name.is_null() || p_verbose > 0 {
+                            if !name.is_null() || opt_vars().p_verbose > 0 {
                                 if name.is_null() {
                                     verbose_enter();
                                 }
@@ -1166,7 +1166,7 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
             }
 
             if (*buf).b_u_numhead == 0 && (*buf).b_u_line_ptr.is_none() {
-                if p_verbose > 0 {
+                if opt_vars().p_verbose > 0 {
                     verb_msg(gettext(
                         c"Skipping undo file write, nothing to undo".as_ptr(),
                     ));
@@ -1180,7 +1180,7 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
                 break 'theend;
             }
             os_setperm(file_name, perm);
-            if p_verbose > 0 {
+            if opt_vars().p_verbose > 0 {
                 verbose_enter();
                 smsg!(0, gettext(c"Writing undo file: %s".as_ptr()), file_name);
                 verbose_leave();
@@ -1267,7 +1267,7 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
                 let do_fsync = if (*buf).b_p_fs >= 0 {
                     (*buf).b_p_fs != 0
                 } else {
-                    p_fs != 0
+                    opt_vars().p_fs != 0
                 };
                 if do_fsync && fflush(bi.bi_fp.as_ptr()) == 0 && os_fsync(fd) != 0 {
                     write_ok = false;
@@ -1332,7 +1332,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                     && file_info_orig.stat.st_uid != file_info_undo.stat.st_uid
                     && file_info_undo.stat.st_uid != u64::from(getuid())
                 {
-                    if p_verbose > 0 {
+                    if opt_vars().p_verbose > 0 {
                         verbose_enter();
                         smsg!(
                             0,
@@ -1349,7 +1349,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
             name
         };
 
-        if p_verbose > 0 {
+        if opt_vars().p_verbose > 0 {
             verbose_enter();
             smsg!(0, gettext(c"Reading undo file: %s".as_ptr()), file_name);
             verbose_leave();
@@ -1359,7 +1359,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
         'theend: {
             'error: {
                 let Some(bi_fp) = fp_opt else {
-                    if !name.is_null() || p_verbose > 0 {
+                    if !name.is_null() || opt_vars().p_verbose > 0 {
                         semsg!(
                             gettext(c"E822: Cannot open undo file for reading: %s".as_ptr()),
                             file_name,
@@ -1410,7 +1410,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 if memcmp(hash.cast(), read_hash.as_ptr().cast(), UNDO_HASH_SIZE) != 0
                     || line_count != (*curbuf).b_ml.ml_line_count
                 {
-                    if p_verbose > 0 || !name.is_null() {
+                    if opt_vars().p_verbose > 0 || !name.is_null() {
                         if name.is_null() {
                             verbose_enter();
                         }
@@ -1691,7 +1691,7 @@ pub unsafe fn u_undo(mut count: c_int) {
             count = 1;
         }
 
-        if vim_strchr(p_cpo, kCpoUndo).is_null() {
+        if vim_strchr(opt_vars().p_cpo, kCpoUndo).is_null() {
             undo_st().undo_undoes = true;
         } else {
             undo_st().undo_undoes = !undo_st().undo_undoes;
@@ -1703,7 +1703,7 @@ pub unsafe fn u_undo(mut count: c_int) {
 /// Redo `count` times.
 pub unsafe fn u_redo(count: c_int) {
     unsafe {
-        if vim_strchr(p_cpo, kCpoUndo).is_null() {
+        if vim_strchr(opt_vars().p_cpo, kCpoUndo).is_null() {
             undo_st().undo_undoes = false;
         }
 
@@ -2359,7 +2359,7 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
 
 unsafe fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
     unsafe {
-        if (fdo_flags & kOptFdoFlagUndo) != 0 && KeyTyped {
+        if (opt_vars().fdo_flags & kOptFdoFlagUndo) != 0 && KeyTyped {
             foldOpenCursor();
         }
 
@@ -3288,9 +3288,9 @@ mod tests {
             let _ = std::fs::remove_dir_all(&base);
             std::fs::create_dir_all(&base).unwrap();
 
-            let save_udir = p_udir;
+            let save_udir = opt_vars().p_udir;
             let base_c = CString::new(base.clone()).unwrap();
-            p_udir = base_c.as_ptr().cast_mut();
+            opt_vars().p_udir = base_c.as_ptr().cast_mut();
 
             let fpath = format!("{base}/Xtest-unit-undo");
             std::fs::write(&fpath, b"hello\n").unwrap();
@@ -3333,7 +3333,7 @@ mod tests {
             assert!(!std::path::Path::new(&ufile).exists());
 
             close_buffer(ptr::null_mut(), buf, DOBUF_WIPE, false, false, false);
-            p_udir = save_udir;
+            opt_vars().p_udir = save_udir;
             let _ = std::fs::remove_dir_all(&base);
             emsg_skip -= 1;
         }

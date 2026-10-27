@@ -202,7 +202,7 @@ pub unsafe fn vim_findfile_init(
 
         if *path == b'.' as c_char
             && (vim_ispathsep(c_int::from(*path.add(1) as u8)) || *path.add(1) == NUL)
-            && (tagfile == 0 || vim_strchr(p_cpo, kCpoDottag).is_null())
+            && (tagfile == 0 || vim_strchr(opt_vars().p_cpo, kCpoDottag).is_null())
             && !rel_fname.is_null()
         {
             let len = path_tail(rel_fname).offset_from(rel_fname) as usize;
@@ -964,7 +964,7 @@ unsafe fn ff_wc_equal(s1: *const c_char, s2: *const c_char) -> bool {
             let c1 = utf_ptr2char(s1.add(i));
             let c2 = utf_ptr2char(s2.add(j));
 
-            let neq = if p_fic != 0 {
+            let neq = if opt_vars().p_fic != 0 {
                 mb_tolower(c1) != mb_tolower(c2)
             } else {
                 c1 != c2
@@ -1121,7 +1121,7 @@ unsafe fn ff_path_in_stoplist(
 
         for stopdir in stopdirs_v {
             let bytes = stopdir.to_bytes();
-            if path_cmp(p_fic != 0, stopdir.as_ptr(), path, path_len) == 0
+            if path_cmp(opt_vars().p_fic != 0, stopdir.as_ptr(), path, path_len) == 0
                 && (bytes.len() <= path_len || vim_ispathsep(c_int::from(bytes[path_len])))
             {
                 return true;
@@ -1149,7 +1149,7 @@ pub unsafe fn find_file_in_path(
             options,
             first,
             if *(*curbuf).b_p_path == NUL {
-                p_path
+                opt_vars().p_path
             } else {
                 (*curbuf).b_p_path
             },
@@ -1179,7 +1179,7 @@ pub unsafe fn find_directory_in_path(
             len,
             options,
             c_int::from(true),
-            p_cdpath,
+            opt_vars().p_cdpath,
             FINDFILE_DIR,
             rel_fname,
             EMPTY_C.as_ptr().cast_mut(),

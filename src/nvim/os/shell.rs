@@ -202,7 +202,7 @@ pub unsafe fn os_expand_wildcards(
 
         #[cfg(unix)]
         let is_fish_shell = {
-            let tail = invocation_path_tail(p_sh, ptr::null_mut());
+            let tail = invocation_path_tail(opt_vars().p_sh, ptr::null_mut());
             let bytes = CStr::from_ptr(tail).to_bytes();
             bytes.starts_with(b"fish")
         };
@@ -241,9 +241,9 @@ pub unsafe fn os_expand_wildcards(
             }
         }
         if shell_style != STYLE_BT {
-            let sh_len = strlen(p_sh);
+            let sh_len = strlen(opt_vars().p_sh);
             if sh_len >= 3 {
-                let tail3 = CStr::from_ptr(p_sh.add(sh_len - 3)).to_bytes();
+                let tail3 = CStr::from_ptr(opt_vars().p_sh.add(sh_len - 3)).to_bytes();
                 if tail3 == b"csh" {
                     shell_style = STYLE_GLOB;
                 } else if tail3 == b"zsh" {
@@ -252,9 +252,9 @@ pub unsafe fn os_expand_wildcards(
             }
         }
         if shell_style == STYLE_ECHO {
-            if !strstr(path_tail(p_sh), c"bash".as_ptr()).is_null() {
+            if !strstr(path_tail(opt_vars().p_sh), c"bash".as_ptr()).is_null() {
                 shell_style = STYLE_GLOBSTAR;
-            } else if !strstr(path_tail(p_sh), c"sh".as_ptr()).is_null() {
+            } else if !strstr(path_tail(opt_vars().p_sh), c"sh".as_ptr()).is_null() {
                 shell_style = STYLE_VIMGLOB;
             }
         }
@@ -583,22 +583,22 @@ pub unsafe fn os_expand_wildcards(
     }
 }
 
-/// Builds the argument vector for running the user-configured 'shell' (p_sh)
-/// with an optional command prefixed by 'shellcmdflag' (p_shcf).
+/// Builds the argument vector for running the user-configured 'shell' (opt_vars().p_sh)
+/// with an optional command prefixed by 'shellcmdflag' (opt_vars().p_shcf).
 pub unsafe fn shell_build_argv(
     cmd: *const c_char,
     extra_args: *const c_char,
 ) -> Vec<std::ffi::CString> {
     unsafe {
         let mut rv: Vec<std::ffi::CString> = Vec::new();
-        tokenize(p_sh, &mut rv);
+        tokenize(opt_vars().p_sh, &mut rv);
 
         if !extra_args.is_null() {
             rv.push(CStr::from_ptr(extra_args).to_owned());
         }
 
         if !cmd.is_null() {
-            tokenize(p_shcf, &mut rv);
+            tokenize(opt_vars().p_shcf, &mut rv);
             rv.push(shell_xescape_xquote(cmd));
         }
 
@@ -638,7 +638,7 @@ pub unsafe fn shell_argv_to_str(argv: &[std::ffi::CString]) -> [c_char; 256] {
     }
 }
 
-/// Calls the user-configured 'shell' (p_sh) for running a command or wildcard expansion.
+/// Calls the user-configured 'shell' (opt_vars().p_sh) for running a command or wildcard expansion.
 pub unsafe fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_char) -> c_int {
     unsafe {
         let mut input: Vec<c_char> = Vec::new();
@@ -707,12 +707,12 @@ pub unsafe fn call_shell(cmd: *mut c_char, opts: c_int, extra_shell_arg: *mut c_
     unsafe {
         let mut wait_time: proftime_T = 0;
 
-        if p_verbose > 3 {
+        if opt_vars().p_verbose > 3 {
             verbose_enter();
             smsg!(
                 0,
                 gettext(c"Executing command: \"%s\"".as_ptr()),
-                if cmd.is_null() { p_sh } else { cmd },
+                if cmd.is_null() { opt_vars().p_sh } else { cmd },
             );
             if !ui_has(kUIMessages) {
                 msg_putchar(b'\n' as c_int);
@@ -724,7 +724,7 @@ pub unsafe fn call_shell(cmd: *mut c_char, opts: c_int, extra_shell_arg: *mut c_
             prof_child_enter(&raw mut wait_time);
         }
 
-        let retval = if *p_sh == NUL {
+        let retval = if *opt_vars().p_sh == NUL {
             emsg(gettext(e_shellempty.as_ptr()));
             -1
         } else {
@@ -1249,13 +1249,13 @@ pub(crate) unsafe fn shell_write_cb(stream: *mut Stream, status: c_int) {
 
 unsafe fn shell_xescape_xquote(cmd: *const c_char) -> std::ffi::CString {
     unsafe {
-        if *p_sxq == NUL {
+        if *opt_vars().p_sxq == NUL {
             return CStr::from_ptr(cmd).to_owned();
         }
 
-        let sxq_bytes = CStr::from_ptr(p_sxq).to_bytes();
-        let owned_ecmd = if *p_sxe != NUL && sxq_bytes == b"(" {
-            Some(vim_strsave_escaped_ext(cmd, p_sxe, b'^' as c_char, false))
+        let sxq_bytes = CStr::from_ptr(opt_vars().p_sxq).to_bytes();
+        let owned_ecmd = if *opt_vars().p_sxe != NUL && sxq_bytes == b"(" {
+            Some(vim_strsave_escaped_ext(cmd, opt_vars().p_sxe, b'^' as c_char, false))
         } else {
             None
         };
@@ -1298,15 +1298,15 @@ mod tests {
     #[test]
     fn shell_build_argv_and_argv_to_str() {
         unsafe {
-            let save_sh = p_sh;
-            let save_shcf = p_shcf;
-            let save_sxq = p_sxq;
-            let save_sxe = p_sxe;
+            let save_sh = opt_vars().p_sh;
+            let save_shcf = opt_vars().p_shcf;
+            let save_sxq = opt_vars().p_sxq;
+            let save_sxe = opt_vars().p_sxe;
 
-            p_sh = c"/bin/sh".as_ptr().cast_mut();
-            p_shcf = c"-c".as_ptr().cast_mut();
-            p_sxq = c"".as_ptr().cast_mut();
-            p_sxe = c"".as_ptr().cast_mut();
+            opt_vars().p_sh = c"/bin/sh".as_ptr().cast_mut();
+            opt_vars().p_shcf = c"-c".as_ptr().cast_mut();
+            opt_vars().p_sxq = c"".as_ptr().cast_mut();
+            opt_vars().p_sxe = c"".as_ptr().cast_mut();
 
             let collect_argv = |cmd: *const c_char, extra: *const c_char| -> Vec<String> {
                 shell_build_argv(cmd, extra)
@@ -1329,8 +1329,8 @@ mod tests {
                 vec!["/bin/sh", "ghi  jkl", "-c", "abc  def"]
             );
 
-            p_sh = c"/Program\" \"Files/zsh -f".as_ptr().cast_mut();
-            p_shcf = c"-x -o \"sh word split\" \"-\"c".as_ptr().cast_mut();
+            opt_vars().p_sh = c"/Program\" \"Files/zsh -f".as_ptr().cast_mut();
+            opt_vars().p_shcf = c"-x -o \"sh word split\" \"-\"c".as_ptr().cast_mut();
             assert_eq!(
                 collect_argv(c"abc  def".as_ptr(), c"ghi  jkl".as_ptr()),
                 vec![
@@ -1345,23 +1345,23 @@ mod tests {
                 ]
             );
 
-            p_sh = c"/bin/sh".as_ptr().cast_mut();
-            p_shcf = c"-c".as_ptr().cast_mut();
-            p_sxq = c"(".as_ptr().cast_mut();
-            p_sxe = c"\"&|<>()@^".as_ptr().cast_mut();
+            opt_vars().p_sh = c"/bin/sh".as_ptr().cast_mut();
+            opt_vars().p_shcf = c"-c".as_ptr().cast_mut();
+            opt_vars().p_sxq = c"(".as_ptr().cast_mut();
+            opt_vars().p_sxe = c"\"&|<>()@^".as_ptr().cast_mut();
             assert_eq!(
                 collect_argv(c"echo &|<>()@^".as_ptr(), ptr::null()),
                 vec!["/bin/sh", "-c", "(echo ^&^|^<^>^(^)^@^^)"]
             );
 
-            p_sxq = c"\"(".as_ptr().cast_mut();
+            opt_vars().p_sxq = c"\"(".as_ptr().cast_mut();
             assert_eq!(
                 collect_argv(c"echo -n some text".as_ptr(), ptr::null()),
                 vec!["/bin/sh", "-c", "\"(echo -n some text)\""]
             );
 
-            p_sxq = c"\"".as_ptr().cast_mut();
-            p_sxe = c"".as_ptr().cast_mut();
+            opt_vars().p_sxq = c"\"".as_ptr().cast_mut();
+            opt_vars().p_sxe = c"".as_ptr().cast_mut();
             assert_eq!(
                 collect_argv(c"echo -n some text".as_ptr(), ptr::null()),
                 vec!["/bin/sh", "-c", "\"echo -n some text\""]
@@ -1374,10 +1374,10 @@ mod tests {
                 "'foo' '' 'bar'"
             );
 
-            p_sh = save_sh;
-            p_shcf = save_shcf;
-            p_sxq = save_sxq;
-            p_sxe = save_sxe;
+            opt_vars().p_sh = save_sh;
+            opt_vars().p_shcf = save_shcf;
+            opt_vars().p_sxq = save_sxq;
+            opt_vars().p_sxe = save_sxe;
         }
     }
 }

@@ -184,7 +184,7 @@ unsafe fn whitechar(cc: c_int) -> bool {
 /// Return true if format option `x` is in effect (`has_format_option`).
 pub unsafe fn has_format_option(x: c_int) -> bool {
     unsafe {
-        if p_paste != 0 {
+        if opt_vars().p_paste != 0 {
             return false;
         }
         !vim_strchr((*curbuf).b_p_fo, x).is_null()
@@ -1076,8 +1076,8 @@ pub unsafe fn format_lines(line_count: linenr_T, avoid_fex: bool) {
                     }
 
                     State = MODE_INSERT;
-                    let smd_save = p_smd;
-                    p_smd = 0;
+                    let smd_save = opt_vars().p_smd;
+                    opt_vars().p_smd = 0;
 
                     insertchar(
                         0,
@@ -1093,7 +1093,7 @@ pub unsafe fn format_lines(line_count: linenr_T, avoid_fex: bool) {
                     );
 
                     State = old_State;
-                    p_smd = smd_save;
+                    opt_vars().p_smd = smd_save;
                     ui_cursor_shape();
 
                     second_indent = -1;

@@ -505,7 +505,7 @@ unsafe fn buf_write_do_autocmds(
                 if reset_changed
                     && (*buf).b_changed != 0
                     && !append
-                    && (overwriting || !vim_strchr(p_cpo, kCpoPlus).is_null())
+                    && (overwriting || !vim_strchr(opt_vars().p_cpo, kCpoPlus).is_null())
                 {
                     return FAIL;
                 }
@@ -803,7 +803,7 @@ unsafe fn get_fileinfo(
             *readonly = os_file_is_writable(fname) == 0;
 
             if !forceit && *readonly {
-                if !vim_strchr(p_cpo, kCpoFwrite).is_null() {
+                if !vim_strchr(opt_vars().p_cpo, kCpoFwrite).is_null() {
                     *err = set_err_num(
                         c"E504",
                         gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')".as_ptr()),
@@ -955,15 +955,15 @@ unsafe fn buf_write_make_backup(
             }
         }
 
-        let backup_ext = if *p_bex == NUL {
+        let backup_ext = if *opt_vars().p_bex == NUL {
             c".bak".as_ptr().cast_mut()
         } else {
-            p_bex
+            opt_vars().p_bex
         };
 
         if *backup_copyp {
             let mut some_error = false;
-            let mut dirp = p_bdir;
+            let mut dirp = opt_vars().p_bdir;
             'nobackup: {
                 while *dirp != 0 {
                     *backupp =
@@ -984,7 +984,7 @@ unsafe fn buf_write_make_backup(
                     if os_fileinfo(bk_ptr, &raw mut file_info_new) {
                         if os_fileinfo_id_equal(&raw const file_info_new, file_info_old) {
                             keep_bk = false;
-                        } else if p_bk == 0 {
+                        } else if opt_vars().p_bk == 0 {
                             let blen = strlen(bk_ptr);
                             let extlen = strlen(backup_ext);
                             let mut wp = if blen > extlen + 1 {
@@ -1055,7 +1055,7 @@ unsafe fn buf_write_make_backup(
             }
             *err = set_err(ptr::null());
         } else {
-            if file_readonly && !vim_strchr(p_cpo, kCpoFwrite).is_null() {
+            if file_readonly && !vim_strchr(opt_vars().p_cpo, kCpoFwrite).is_null() {
                 *err = set_err_num(
                     c"E504",
                     gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')".as_ptr()),
@@ -1063,7 +1063,7 @@ unsafe fn buf_write_make_backup(
                 return FAIL;
             }
 
-            let mut dirp = p_bdir;
+            let mut dirp = opt_vars().p_bdir;
             while *dirp != 0 {
                 *backupp = buf_get_backup_name(fname, &raw mut dirp, no_prepend_dot, backup_ext);
                 if let Some(bk_cstr) = backupp.take() {
@@ -1074,7 +1074,7 @@ unsafe fn buf_write_make_backup(
                         .collect();
                     let bk_ptr = bk_vec.as_mut_ptr();
                     let mut keep_bk = true;
-                    if p_bk == 0 && os_path_exists(bk_ptr) {
+                    if opt_vars().p_bk == 0 && os_path_exists(bk_ptr) {
                         let blen = strlen(bk_ptr);
                         let extlen = strlen(backup_ext);
                         let mut p = if blen > extlen + 1 {
@@ -1166,8 +1166,8 @@ pub unsafe fn buf_write(
             && buf == curbuf
             && !bt_nofilename(buf)
             && !filtering
-            && (!append || !vim_strchr(p_cpo, kCpoFnameapp).is_null())
-            && !vim_strchr(p_cpo, kCpoFnamew).is_null()
+            && (!append || !vim_strchr(opt_vars().p_cpo, kCpoFnameapp).is_null())
+            && !vim_strchr(opt_vars().p_cpo, kCpoFnamew).is_null()
         {
             if set_rw_fname(fname, sfname) == FAIL {
                 return FAIL;
@@ -1301,8 +1301,8 @@ pub unsafe fn buf_write(
                     acl = os_get_acl(fname);
                 }
 
-                let mut dobackup = p_wb != 0 || p_bk != 0 || *p_pm != NUL;
-                if dobackup && *p_bsk != NUL && match_file_list(p_bsk, sfname, ffname) {
+                let mut dobackup = opt_vars().p_wb != 0 || opt_vars().p_bk != 0 || *opt_vars().p_pm != NUL;
+                if dobackup && *opt_vars().p_bsk != NUL && match_file_list(opt_vars().p_bsk, sfname, ffname) {
                     dobackup = false;
                 }
 
@@ -1311,7 +1311,7 @@ pub unsafe fn buf_write(
                 got_int = false;
                 (*buf).b_saving = true;
 
-                if !(append && *p_pm == NUL)
+                if !(append && *opt_vars().p_pm == NUL)
                     && !filtering
                     && perm >= 0
                     && dobackup
@@ -1340,14 +1340,14 @@ pub unsafe fn buf_write(
                     && perm >= 0
                     && (perm & 0o200) == 0
                     && file_info_old.stat.st_uid == u64::from(getuid())
-                    && vim_strchr(p_cpo, kCpoFwrite).is_null()
+                    && vim_strchr(opt_vars().p_cpo, kCpoFwrite).is_null()
                 {
                     perm |= 0o200;
                     let _ = os_setperm(fname, perm);
                     made_writable = true;
                 }
 
-                if forceit && overwriting && vim_strchr(p_cpo, kCpoKeepro).is_null() {
+                if forceit && overwriting && vim_strchr(opt_vars().p_cpo, kCpoKeepro).is_null() {
                     (*buf).b_p_ro = 0;
                     need_maketitle = true;
                     status_redraw_all();
@@ -1366,7 +1366,7 @@ pub unsafe fn buf_write(
                         let fsync_opt = if (*buf).b_p_fs >= 0 {
                             (*buf).b_p_fs != 0
                         } else {
-                            p_fs != 0
+                            opt_vars().p_fs != 0
                         };
                         ml_preserve(buf, false, fsync_opt);
                         if got_int {
@@ -1406,7 +1406,7 @@ pub unsafe fn buf_write(
                         if write_info.bw_iconv_fd != -1 {
                             write_info.bw_conv_buf = vec![0; (bufsize as usize) * ICONV_MULT];
                             write_info.bw_first = 1;
-                        } else if crate::eval::typval::Callback::raw_cb_type(&raw const p_ccv) != kCallbackNone {
+                        } else if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_ccv) != kCallbackNone {
                             wfname_owned = vim_tempname();
                             match wfname_owned {
                                 Some(ref wf) => wfname = wf.as_ptr().cast_mut(),
@@ -1491,7 +1491,7 @@ pub unsafe fn buf_write(
                                                 fd,
                                             );
                                             if forceit
-                                                && vim_strchr(p_cpo, kCpoFwrite).is_null()
+                                                && vim_strchr(opt_vars().p_cpo, kCpoFwrite).is_null()
                                                 && perm >= 0
                                             {
                                                 if (perm & 0o200) == 0 {
@@ -1520,7 +1520,7 @@ pub unsafe fn buf_write(
                                             fd,
                                         );
                                         if forceit
-                                            && vim_strchr(p_cpo, kCpoFwrite).is_null()
+                                            && vim_strchr(opt_vars().p_cpo, kCpoFwrite).is_null()
                                             && perm >= 0
                                         {
                                             if !append {
@@ -1716,7 +1716,7 @@ pub unsafe fn buf_write(
                         let do_fsync = if (*buf).b_p_fs >= 0 {
                             (*buf).b_p_fs != 0
                         } else {
-                            p_fs != 0
+                            opt_vars().p_fs != 0
                         };
                         if do_fsync {
                             let error = os_fsync(fd);
@@ -1933,7 +1933,7 @@ pub unsafe fn buf_write(
                         && whole
                         && !append
                         && write_info.bw_conv_error == 0
-                        && (overwriting || !vim_strchr(p_cpo, kCpoPlus).is_null())
+                        && (overwriting || !vim_strchr(opt_vars().p_cpo, kCpoPlus).is_null())
                         && buf_get_changedtick(buf) == write_tick
                     {
                         unchanged(buf, true, false);
@@ -1954,8 +1954,8 @@ pub unsafe fn buf_write(
                         }
                     }
 
-                    if *p_pm != 0 && dobackup {
-                        let org = modname(fname, p_pm, false);
+                    if *opt_vars().p_pm != 0 && dobackup {
+                        let org = modname(fname, opt_vars().p_pm, false);
                         if let Some(ref bk) = backup {
                             match org {
                                 None => {
@@ -1999,7 +1999,7 @@ pub unsafe fn buf_write(
                         }
                     }
 
-                    if p_bk == 0
+                    if opt_vars().p_bk == 0
                         && let Some(ref bk) = backup
                         && write_info.bw_conv_error == 0
                         && os_remove(bk.as_ptr()) != 0

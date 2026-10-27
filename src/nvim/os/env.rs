@@ -845,7 +845,7 @@ unsafe fn remove_tail(path: *mut c_char, pend: *mut c_char, dirname: *const c_ch
         let len = strlen(dirname);
         if (pend as usize) > (path as usize) + len {
             let new_tail = pend.sub(len + 1);
-            if path_cmp(p_fic != 0, new_tail, dirname, len) == 0
+            if path_cmp(opt_vars().p_fic != 0, new_tail, dirname, len) == 0
                 && (new_tail == path || after_pathsep(path, new_tail) != 0)
             {
                 return new_tail;
@@ -959,8 +959,8 @@ pub unsafe fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
 
             if vim_path_cstr.is_none() {
                 let mut vim_path: *mut c_char = ptr::null_mut();
-                if !p_hf.is_null() && vim_strchr(p_hf, b'$' as c_int).is_null() {
-                    vim_path = p_hf;
+                if !opt_vars().p_hf.is_null() && vim_strchr(opt_vars().p_hf, b'$' as c_int).is_null() {
+                    vim_path = opt_vars().p_hf;
                 }
 
                 let mut exe_name = [0 as c_char; MAXPATHL];
@@ -978,7 +978,7 @@ pub unsafe fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
 
                 if !vim_path.is_null() {
                     let mut vim_path_end = path_tail(vim_path);
-                    if vim_path == p_hf {
+                    if vim_path == opt_vars().p_hf {
                         vim_path_end = remove_tail(vim_path, vim_path_end, c"doc".as_ptr());
                     }
                     if !vimruntime {
@@ -1116,7 +1116,7 @@ pub unsafe fn home_replace(
             let mut p = homedir_ptr;
             let mut len = dirlen;
             loop {
-                let cmp_ok = len != 0 && path_cmp(p_fic != 0, src, p, len) == 0;
+                let cmp_ok = len != 0 && path_cmp(opt_vars().p_fic != 0, src, p, len) == 0;
 
                 if cmp_ok
                     && (vim_ispathsep(c_int::from(*src.add(len) as u8))

@@ -223,15 +223,15 @@ pub unsafe fn input_get(
             }
         } else {
             let wait_start = os_hrtime();
-            osi_st().cursorhold_time = osi_st().cursorhold_time.min(p_ut as c_int);
+            osi_st().cursorhold_time = osi_st().cursorhold_time.min(opt_vars().p_ut as c_int);
             let delay_pending = ins_compl_autocomplete_pending()
-                && p_acl > 0
+                && opt_vars().p_acl > 0
                 && typebuf.tb_len == 0
                 && !ins_compl_active()
                 && (get_real_state() & MODE_INSERT) != 0;
-            let mut wait_time = p_ut - i64::from(osi_st().cursorhold_time);
+            let mut wait_time = opt_vars().p_ut - i64::from(osi_st().cursorhold_time);
             if delay_pending {
-                let delay_left = p_acl - ins_compl_autocomplete_elapsed();
+                let delay_left = opt_vars().p_acl - ins_compl_autocomplete_elapsed();
                 wait_time = delay_left.max(0).min(wait_time);
             }
             if !inbuf_poll(wait_time as c_int, events) {
@@ -240,7 +240,7 @@ pub unsafe fn input_get(
                     getout(0);
                 }
                 if delay_pending
-                    && ins_compl_autocomplete_elapsed() >= p_acl
+                    && ins_compl_autocomplete_elapsed() >= opt_vars().p_acl
                     && (buf.is_null() || maxlen >= 3)
                     && !typebuf_changed(tb_change_cnt)
                 {
@@ -477,7 +477,7 @@ unsafe fn check_multiclick(
             // For click events the number of clicks is updated.
             let mouse_time = os_hrtime(); // time of current mouse click (ns)
             let timediff = mouse_time.wrapping_sub(osi_st().orig_mouse_time);
-            let mouset = (p_mouset as u64).wrapping_mul(1_000_000);
+            let mouset = (opt_vars().p_mouset as u64).wrapping_mul(1_000_000);
             if code == osi_st().orig_mouse_code && no_move && timediff < mouset && osi_st().orig_num_clicks != 4 {
                 osi_st().orig_num_clicks += 1;
             } else {

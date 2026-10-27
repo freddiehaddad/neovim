@@ -438,7 +438,7 @@ pub unsafe fn save_re_pat(idx: c_int, pat: *mut c_char, patlen: usize, magic: c_
         srch().spats[i].timestamp = os_time();
         srch().spats[i].additional_data = None;
         srch().last_idx = idx;
-        if p_hls != 0 {
+        if opt_vars().p_hls != 0 {
             redraw_all_later(UPD_SOME_VALID);
         }
         set_no_hlsearch(false);
@@ -549,7 +549,7 @@ unsafe fn restore_incsearch_state() {
 }
 
 pub unsafe fn ignorecase(pat: *mut c_char) -> c_int {
-    unsafe { ignorecase_opt(pat, p_ic, p_scs) }
+    unsafe { ignorecase_opt(pat, opt_vars().p_ic, opt_vars().p_scs) }
 }
 
 pub unsafe fn ignorecase_opt(pat: *mut c_char, ic_in: c_int, scs: c_int) -> c_int {
@@ -575,7 +575,7 @@ pub unsafe fn pat_has_uppercase(pat: *mut c_char) -> bool {
         skip_regexp_ex(
             pat,
             c_int::from(NUL),
-            p_magic,
+            opt_vars().p_magic,
             false,
             None,
             ptr::null_mut(),
@@ -689,7 +689,7 @@ pub unsafe fn set_last_search_pat(s: *const c_char, idx: c_int, magic: c_int, se
             srch().saved_spats[i].pat = srch().spats[i].pat.clone();
             srch().saved_spats_last_idx = srch().last_idx;
         }
-        if p_hls != 0 && idx == srch().last_idx && !Search.no_hlsearch {
+        if opt_vars().p_hls != 0 && idx == srch().last_idx && !Search.no_hlsearch {
             redraw_all_later(UPD_SOME_VALID);
         }
     }
@@ -709,7 +709,7 @@ pub unsafe fn last_pat_prog(regmatch: *mut regmmatch_T) {
             0,
             srch().last_idx,
             SEARCH_KEEP,
-            p_magic != 0,
+            opt_vars().p_magic != 0,
             regmatch,
         );
         emsg_off -= 1;
@@ -776,7 +776,7 @@ pub unsafe fn searchit(
             return FAIL;
         }
 
-        let search_from_match_end = !vim_strchr(p_cpo, kCpoSearch).is_null();
+        let search_from_match_end = !vim_strchr(opt_vars().p_cpo, kCpoSearch).is_null();
 
         loop {
             if (*pos).col == MAXCOL {
@@ -1069,7 +1069,7 @@ pub unsafe fn searchit(
                     break;
                 }
 
-                if p_ws == 0
+                if opt_vars().p_ws == 0
                     || stop_lnum != 0
                     || got_int
                     || called_emsg > called_emsg_before
@@ -1123,7 +1123,7 @@ pub unsafe fn searchit(
             if got_int {
                 emsg(tr(e_interr.as_ptr()));
             } else if (options & SEARCH_MSG) == SEARCH_MSG {
-                if p_ws != 0 {
+                if opt_vars().p_ws != 0 {
                     semsg!(tr(e_patnotf2.as_ptr()), get_search_pat());
                 } else if lnum == 0 {
                     semsg!(
@@ -1202,7 +1202,7 @@ pub unsafe fn parse_search_pattern_offset(
         let mut p = skip_regexp_ex(
             *pat,
             search_delim,
-            p_magic,
+            opt_vars().p_magic,
             true,
             Some(strcopy),
             ptr::null_mut(),
@@ -1286,7 +1286,7 @@ pub unsafe fn do_search(
 
         Search.cmdlen = 0;
 
-        if srch().spats[0].off.line && !vim_strchr(p_cpo, kCpoLineoff).is_null() {
+        if srch().spats[0].off.line && !vim_strchr(opt_vars().p_cpo, kCpoLineoff).is_null() {
             srch().spats[0].off.line = false;
             srch().spats[0].off.off = 0;
         }
@@ -1627,14 +1627,14 @@ pub unsafe fn do_search(
                     msgbuflen,
                     count != 1
                         || has_offset
-                        || ((fdo_flags & kOptFdoFlagSearch) == 0
+                        || ((opt_vars().fdo_flags & kOptFdoFlagSearch) == 0
                             && hasFolding(
                                 curwin,
                                 (*curwin).w_cursor.lnum,
                                 ptr::null_mut(),
                                 ptr::null_mut(),
                             )),
-                    p_msc as c_int,
+                    opt_vars().p_msc as c_int,
                     SEARCH_STAT_DEF_TIMEOUT,
                 );
             }
@@ -1689,7 +1689,7 @@ pub unsafe fn search_for_exact_line(
         loop {
             (*pos).lnum += dir;
             if (*pos).lnum < 1 {
-                if p_ws != 0 {
+                if opt_vars().p_ws != 0 {
                     (*pos).lnum = (*buf).b_ml.ml_line_count;
                     if !shortmess(kShmSearch) {
                         give_warning(tr(top_bot_msg.as_ptr()), true, false);
@@ -1699,7 +1699,7 @@ pub unsafe fn search_for_exact_line(
                     break;
                 }
             } else if (*pos).lnum > (*buf).b_ml.ml_line_count {
-                if p_ws != 0 {
+                if opt_vars().p_ws != 0 {
                     (*pos).lnum = 1;
                     if !shortmess(kShmSearch) {
                         give_warning(tr(bot_top_msg.as_ptr()), true, false);
@@ -1720,12 +1720,12 @@ pub unsafe fn search_for_exact_line(
             (*pos).col = p.offset_from(ptr_line) as colnr_T;
 
             if compl_status_adding() && !compl_status_sol() {
-                if mb_strcmp_ic(p_ic != 0, p, pat) == 0 {
+                if mb_strcmp_ic(opt_vars().p_ic != 0, p, pat) == 0 {
                     return OK;
                 }
             } else if *p != NUL {
                 debug_assert!(compl_len >= 0);
-                let eq = if p_ic != 0 {
+                let eq = if opt_vars().p_ic != 0 {
                     mb_strnicmp(p, pat, compl_len as usize) == 0
                 } else {
                     strncmp(p, pat, compl_len as usize) == 0
@@ -1770,7 +1770,7 @@ pub unsafe fn searchc(cap: *mut cmdarg_T, mut t_cmd: bool) -> c_int {
             t_cmd = srch().last_t_cmd;
             c = c_int::from(srch().lastc[0]);
 
-            if vim_strchr(p_cpo, kCpoScolon).is_null() && count == 1 && t_cmd {
+            if vim_strchr(opt_vars().p_cpo, kCpoScolon).is_null() && count == 1 && t_cmd {
                 stop = false;
             }
         }
@@ -1965,8 +1965,8 @@ pub unsafe fn findmatchlimit(
         srch().findmatch_pos.coladd = 0;
         let mut linep = ml_get(srch().findmatch_pos.lnum);
 
-        let cpo_match = !vim_strchr(p_cpo, kCpoMatch).is_null();
-        let cpo_bsl = !vim_strchr(p_cpo, kCpoMatchbsl).is_null();
+        let cpo_match = !vim_strchr(opt_vars().p_cpo, kCpoMatch).is_null();
+        let cpo_bsl = !vim_strchr(opt_vars().p_cpo, kCpoMatchbsl).is_null();
 
         let dir = if (flags & FM_BACKWARD) != 0 {
             BACKWARD
@@ -2495,21 +2495,21 @@ pub unsafe fn showmatch(c: c_int) {
         let so: *mut OptInt = if (*curwin).w_onebuf_opt.wo_so >= 0 {
             &raw mut (*curwin).w_onebuf_opt.wo_so
         } else {
-            &raw mut p_so
+            &raw mut opt_vars().p_so
         };
         let siso: *mut OptInt = if (*curwin).w_onebuf_opt.wo_siso >= 0 {
             &raw mut (*curwin).w_onebuf_opt.wo_siso
         } else {
-            &raw mut p_siso
+            &raw mut opt_vars().p_siso
         };
 
         let mut p = (*curbuf).b_p_mps;
         while *p != NUL {
-            if utf_ptr2char(p) == c && (((*curwin).w_onebuf_opt.wo_rl != 0) ^ (p_ri != 0)) {
+            if utf_ptr2char(p) == c && (((*curwin).w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0)) {
                 break;
             }
             p = p.add(utfc_ptr2len(p) as usize + 1);
-            if utf_ptr2char(p) == c && !(((*curwin).w_onebuf_opt.wo_rl != 0) ^ (p_ri != 0)) {
+            if utf_ptr2char(p) == c && !(((*curwin).w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0)) {
                 break;
             }
             p = p.add(utfc_ptr2len(p) as usize);
@@ -2571,10 +2571,10 @@ pub unsafe fn showmatch(c: c_int) {
         ui_flush();
         dollar_vcol = save_dollar_vcol;
 
-        if !vim_strchr(p_cpo, kCpoShowmatch).is_null() {
-            os_delay((p_mat as u64) * 100 + 8, true);
+        if !vim_strchr(opt_vars().p_cpo, kCpoShowmatch).is_null() {
+            os_delay((opt_vars().p_mat as u64) * 100 + 8, true);
         } else if !char_avail() {
-            os_delay((p_mat as u64) * 100 + 9, false);
+            os_delay((opt_vars().p_mat as u64) * 100 + 9, false);
         }
         (*curwin).w_cursor = save_cursor;
         *so = save_so;
@@ -2586,10 +2586,10 @@ pub unsafe fn showmatch(c: c_int) {
 
 pub unsafe fn current_search(count: c_int, forward: bool) -> c_int {
     unsafe {
-        let old_p_ws = p_ws;
+        let old_p_ws = opt_vars().p_ws;
         let save_VIsual = Visual.start;
 
-        if Visual.active && *p_sel == b'e' as c_char && lt(Visual.start, (*curwin).w_cursor) {
+        if Visual.active && *opt_vars().p_sel == b'e' as c_char && lt(Visual.start, (*curwin).w_cursor) {
             dec_cursor();
         }
 
@@ -2636,7 +2636,7 @@ pub unsafe fn current_search(count: c_int, forward: bool) -> c_int {
             end_pos = pos;
 
             if i == 0 {
-                p_ws = 0;
+                opt_vars().p_ws = 0;
             }
 
             result = searchit(
@@ -2650,11 +2650,11 @@ pub unsafe fn current_search(count: c_int, forward: bool) -> c_int {
                 if i != 0 { count } else { 1 },
                 SEARCH_KEEP | flags,
                 RE_SEARCH,
-                p_magic != 0,
+                opt_vars().p_magic != 0,
                 ptr::null_mut(),
             );
 
-            p_ws = old_p_ws;
+            opt_vars().p_ws = old_p_ws;
 
             if i == 1 && result == 0 {
                 (*curwin).w_cursor = orig_pos;
@@ -2691,7 +2691,7 @@ pub unsafe fn current_search(count: c_int, forward: bool) -> c_int {
         Visual.active = true;
         Visual.mode = b'v' as c_int;
 
-        if *p_sel == b'e' as c_char {
+        if *opt_vars().p_sel == b'e' as c_char {
             if forward && ltoreq(Visual.start, (*curwin).w_cursor) {
                 inc_cursor();
             } else if !forward && ltoreq((*curwin).w_cursor, Visual.start) {
@@ -2699,7 +2699,7 @@ pub unsafe fn current_search(count: c_int, forward: bool) -> c_int {
             }
         }
 
-        if (fdo_flags & kOptFdoFlagSearch) != 0 && KeyTyped {
+        if (opt_vars().fdo_flags & kOptFdoFlagSearch) != 0 && KeyTyped {
             foldOpenCursor();
         }
 
@@ -2742,7 +2742,7 @@ unsafe fn is_zero_width(
             RE_SEARCH,
             RE_SEARCH,
             SEARCH_KEEP,
-            p_magic != 0,
+            opt_vars().p_magic != 0,
             &raw mut regmatch,
         ) == FAIL
         {
@@ -2767,7 +2767,7 @@ unsafe fn is_zero_width(
             1,
             SEARCH_KEEP + flag,
             RE_SEARCH,
-            p_magic != 0,
+            opt_vars().p_magic != 0,
             ptr::null_mut(),
         ) != FAIL
         {
@@ -2933,7 +2933,7 @@ unsafe fn update_search_stat(
     timeout: c_int,
 ) {
     unsafe {
-        let save_ws = p_ws;
+        let save_ws = opt_vars().p_ws;
         let p = *pos;
 
         *stat = searchstat_T::default();
@@ -2996,7 +2996,7 @@ unsafe fn update_search_stat(
                 col: 0,
                 coladd: 0,
             };
-            p_ws = 0;
+            opt_vars().p_ws = 0;
             if timeout > 0 {
                 start = profile_setlimit(i64::from(timeout));
             }
@@ -3012,7 +3012,7 @@ unsafe fn update_search_stat(
                     1,
                     SEARCH_KEEP,
                     RE_LAST,
-                    p_magic != 0,
+                    opt_vars().p_magic != 0,
                     ptr::null_mut(),
                 ) != FAIL
             {
@@ -3049,7 +3049,7 @@ unsafe fn update_search_stat(
         (*stat).exact_match = srch().stat_exact_match;
         (*stat).incomplete = srch().stat_incomplete;
         (*stat).last_maxcount = srch().stat_last_maxcount;
-        p_ws = save_ws;
+        opt_vars().p_ws = save_ws;
     }
 }
 
@@ -3057,7 +3057,7 @@ pub unsafe fn f_searchcount(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
     unsafe {
         let mut pos = (*curwin).w_cursor;
         let mut pattern: *mut c_char = ptr::null_mut();
-        let mut maxcount = p_msc as c_int;
+        let mut maxcount = opt_vars().p_msc as c_int;
         let mut timeout = SEARCH_STAT_DEF_TIMEOUT;
         let mut recompute = true;
         let mut stat = searchstat_T::default();
@@ -3260,32 +3260,32 @@ pub unsafe fn find_pattern_in_path(
                 ptr_pat,
             );
             regmatch.rm_ic = ignorecase(pat) != 0;
-            regmatch.regprog = vim_regcomp(pat, if p_magic != 0 { RE_MAGIC } else { 0 });
+            regmatch.regprog = vim_regcomp(pat, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
             if regmatch.regprog.is_null() {
                 return;
             }
         }
         let inc_opt = if *(*curbuf).b_p_inc == NUL {
-            p_inc
+            opt_vars().p_inc
         } else {
             (*curbuf).b_p_inc
         };
         if *inc_opt != NUL {
-            incl_regmatch.regprog = vim_regcomp(inc_opt, if p_magic != 0 { RE_MAGIC } else { 0 });
+            incl_regmatch.regprog = vim_regcomp(inc_opt, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
             if incl_regmatch.regprog.is_null() {
                 vim_regfree(regmatch.regprog);
                 return;
             }
             incl_regmatch.rm_ic = false;
         }
-        if type_ == FIND_DEFINE && (*(*curbuf).b_p_def != NUL || *p_def != NUL) {
+        if type_ == FIND_DEFINE && (*(*curbuf).b_p_def != NUL || *opt_vars().p_def != NUL) {
             def_regmatch.regprog = vim_regcomp(
                 if *(*curbuf).b_p_def == NUL {
-                    p_def
+                    opt_vars().p_def
                 } else {
                     (*curbuf).b_p_def
                 },
-                if p_magic != 0 { RE_MAGIC } else { 0 },
+                if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
             );
             if def_regmatch.regprog.is_null() {
                 vim_regfree(regmatch.regprog);
@@ -3491,7 +3491,7 @@ pub unsafe fn find_pattern_in_path(
                                 curr_fname,
                             );
                             msg_trunc(iobuff_ptr, true, HLF_R);
-                        } else if p_verbose >= 5 {
+                        } else if opt_vars().p_verbose >= 5 {
                             verbose_enter();
                             smsg!(0, tr(c"Searching included file %s".as_ptr()), curr_fname);
                             verbose_leave();
@@ -3515,7 +3515,7 @@ pub unsafe fn find_pattern_in_path(
                     if def_regmatch.regprog.is_null() || define_matched {
                         if define_matched || compl_status_sol() {
                             startp = skipwhite(p);
-                            if p_ic != 0 {
+                            if opt_vars().p_ic != 0 {
                                 matched = mb_strnicmp(startp, ptr_pat, len) == 0;
                             } else {
                                 matched = strncmp(startp, ptr_pat, len) == 0;
@@ -3636,7 +3636,7 @@ pub unsafe fn find_pattern_in_path(
                                                     IObuff[i as usize] = b' ' as c_char;
                                                     i += 1;
                                                 }
-                                                if p_js != 0
+                                                if opt_vars().p_js != 0
                                                     && (IObuff[(i - 2) as usize] == b'.' as c_char
                                                         || IObuff[(i - 2) as usize]
                                                             == b'?' as c_char
@@ -3672,7 +3672,7 @@ pub unsafe fn find_pattern_in_path(
                                     let add_r = ins_compl_add_infercase(
                                         aux,
                                         i,
-                                        p_ic != 0,
+                                        opt_vars().p_ic != 0,
                                         if curr_fname == (*curbuf).b_fname {
                                             ptr::null_mut()
                                         } else {
@@ -3760,7 +3760,7 @@ pub unsafe fn find_pattern_in_path(
                             } else {
                                 if l_g_do_tagpreview != 0 {
                                     curwin_save = curwin;
-                                    prepare_tagpreview(true, *p_pvp != NUL);
+                                    prepare_tagpreview(true, *opt_vars().p_pvp != NUL);
                                 }
                                 if action == ACTION_SPLIT {
                                     if win_split(0, 0) == FAIL {
@@ -4105,10 +4105,10 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         unsafe {
-            let save_magic = p_magic;
-            let save_cmp = cmp_flags;
-            p_magic = 1;
-            cmp_flags = crate::mbyte::kOptCmpFlagInternal | crate::mbyte::kOptCmpFlagKeepascii;
+            let save_magic = opt_vars().p_magic;
+            let save_cmp = opt_vars().cmp_flags;
+            opt_vars().p_magic = 1;
+            opt_vars().cmp_flags = crate::mbyte::kOptCmpFlagInternal | crate::mbyte::kOptCmpFlagKeepascii;
             for (pat, expected) in [
                 (c"", false),
                 (c"ä", false),
@@ -4125,8 +4125,8 @@ mod tests {
             ] {
                 assert_eq!(pat_has_uppercase(pat.as_ptr().cast_mut()), expected);
             }
-            p_magic = save_magic;
-            cmp_flags = save_cmp;
+            opt_vars().p_magic = save_magic;
+            opt_vars().cmp_flags = save_cmp;
         }
     }
 }

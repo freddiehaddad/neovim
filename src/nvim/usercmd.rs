@@ -801,7 +801,7 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                     false,
                     if name_len == 0 { Columns - 47 } else { 0 },
                 );
-                if p_verbose > 0 {
+                if opt_vars().p_verbose > 0 {
                     last_set_msg(cmd.uc_script_ctx);
                 }
                 line_breakcheck();
@@ -1116,7 +1116,7 @@ pub unsafe fn uc_add_command(
             0,
             0,
             ptr::null_mut(),
-            p_cpo,
+            opt_vars().p_cpo,
         )
         .unwrap_or_else(|| CStr::from_ptr(rep).to_owned());
 

@@ -465,7 +465,7 @@ unsafe fn newFoldLevelWin(wp: *mut win_T) {
 /// Apply 'foldlevel' to all folds that don't contain the cursor.
 pub unsafe fn foldCheckClose() {
     unsafe {
-        if *p_fcl == NUL {
+        if *opt_vars().p_fcl == NUL {
             return;
         }
 
@@ -914,7 +914,7 @@ pub unsafe fn foldAdjustVisual() {
         }
 
         (*end).col = ml_get_len((*end).lnum);
-        if (*end).col > 0 && *p_sel == b'o' as c_char {
+        if (*end).col > 0 && *opt_vars().p_sel == b'o' as c_char {
             (*end).col -= 1;
         }
         mb_adjust_cursor();

@@ -490,7 +490,7 @@ pub unsafe fn os_set_errno(val: c_int) {
 /// Changes the current directory to `path`.
 pub unsafe fn os_chdir(path: *const c_char) -> c_int {
     unsafe {
-        if p_verbose >= 5 {
+        if opt_vars().p_verbose >= 5 {
             verbose_enter();
             let _ = smsg!(0, c"chdir(%s)".as_ptr(), path);
             verbose_leave();
@@ -642,7 +642,7 @@ unsafe fn is_executable_ext(
     mut abspath: Option<&mut Option<std::ffi::CString>>,
 ) -> bool {
     unsafe {
-        let sh_tail = CStr::from_ptr(path_tail(p_sh)).to_bytes();
+        let sh_tail = CStr::from_ptr(path_tail(opt_vars().p_sh)).to_bytes();
         let has_sub =
             |haystack: &[u8], needle: &[u8]| haystack.windows(needle.len()).any(|w| w == needle);
         let is_unix_shell = !has_sub(sh_tail, b"powershell")
@@ -720,7 +720,7 @@ unsafe fn is_executable_in_path(
 
         #[cfg(windows)]
         let path_vec: Vec<c_char> = {
-            let sh_tail = CStr::from_ptr(path_tail(p_sh)).to_bytes();
+            let sh_tail = CStr::from_ptr(path_tail(opt_vars().p_sh)).to_bytes();
             let env_bytes = path_env.as_bytes_with_nul();
             if !os_env_exists(c"NoDefaultCurrentDirectoryInExePath".as_ptr(), false)
                 && sh_tail.windows(7).any(|w| w == b"cmd.exe")

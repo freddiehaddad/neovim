@@ -758,7 +758,7 @@ pub unsafe fn do_in_path(
         let mut buf_vec = vec![0 as c_char; MAXPATHL];
         let mut buf = buf_vec.as_mut_ptr();
         {
-            if p_verbose > 10 && !name.is_null() {
+            if opt_vars().p_verbose > 10 && !name.is_null() {
                 verbose_enter();
                 if *prefix != NUL {
                     smsg!(
@@ -812,7 +812,7 @@ pub unsafe fn do_in_path(
                             debug_assert!(MAXPATHL >= tail_off);
                             copy_option_part(&mut np, tail, MAXPATHL - tail_off, c"\t ".as_ptr());
 
-                            if p_verbose > 10 {
+                            if opt_vars().p_verbose > 10 {
                                 verbose_enter();
                                 smsg!(0, gettext(c"Searching for \"%s\"".as_ptr()), buf);
                                 verbose_leave();
@@ -839,7 +839,7 @@ pub unsafe fn do_in_path(
         drop(buf_vec);
         drop(rtp_copy);
         if !did_one && !name.is_null() {
-            let basepath = if ptr::eq(path, p_rtp) {
+            let basepath = if ptr::eq(path, opt_vars().p_rtp) {
                 c"runtimepath".as_ptr()
             } else {
                 c"packpath".as_ptr()
@@ -847,7 +847,7 @@ pub unsafe fn do_in_path(
 
             if (flags & DIP_ERR) != 0 {
                 semsg!(gettext(e_dirnotf.as_ptr()), basepath, name);
-            } else if p_verbose > 1 {
+            } else if opt_vars().p_verbose > 1 {
                 verbose_enter();
                 smsg!(
                     0,
@@ -896,7 +896,7 @@ unsafe fn do_in_cached_path(
         let mut did_one = false;
         let mut buf = [0 as c_char; MAXPATHL];
 
-        if p_verbose > 10 && !name.is_null() {
+        if opt_vars().p_verbose > 10 && !name.is_null() {
             verbose_enter();
             smsg!(
                 0,
@@ -936,7 +936,7 @@ unsafe fn do_in_cached_path(
                     debug_assert!(MAXPATHL >= tail_off);
                     copy_option_part(&mut np, tail, MAXPATHL - tail_off, c"\t ".as_ptr());
 
-                    if p_verbose > 10 {
+                    if opt_vars().p_verbose > 10 {
                         verbose_enter();
                         smsg!(0, gettext(c"Searching for \"%s\"".as_ptr()), buf.as_ptr());
                         verbose_leave();
@@ -967,7 +967,7 @@ unsafe fn do_in_cached_path(
         if !did_one && !name.is_null() {
             if (flags & DIP_ERR) != 0 {
                 semsg!(gettext(e_dirnotf.as_ptr()), c"runtime path".as_ptr(), name);
-            } else if p_verbose > 1 {
+            } else if opt_vars().p_verbose > 1 {
                 verbose_enter();
                 smsg!(
                     0,
@@ -1123,7 +1123,7 @@ pub unsafe fn do_in_path_and_pp(
             } else {
                 c"pack/*/start/*/".as_ptr()
             };
-            done |= do_in_path(p_pp, prefix, name, flags & !DIP_AFTER, callback);
+            done |= do_in_path(opt_vars().p_pp, prefix, name, flags & !DIP_AFTER, callback);
 
             if done == FAIL || (flags & DIP_ALL) != 0 {
                 prefix = if (flags & DIP_AFTER) != 0 {
@@ -1131,15 +1131,15 @@ pub unsafe fn do_in_path_and_pp(
                 } else {
                     c"start/*/".as_ptr()
                 };
-                done |= do_in_path(p_pp, prefix, name, flags & !DIP_AFTER, callback);
+                done |= do_in_path(opt_vars().p_pp, prefix, name, flags & !DIP_AFTER, callback);
             }
         }
 
         if (done == FAIL || (flags & DIP_ALL) != 0) && (flags & DIP_OPT) != 0 {
-            done |= do_in_path(p_pp, c"pack/*/opt/*/".as_ptr(), name, flags, callback);
+            done |= do_in_path(opt_vars().p_pp, c"pack/*/opt/*/".as_ptr(), name, flags, callback);
 
             if done == FAIL || (flags & DIP_ALL) != 0 {
-                done |= do_in_path(p_pp, c"opt/*/".as_ptr(), name, flags, callback);
+                done |= do_in_path(opt_vars().p_pp, c"opt/*/".as_ptr(), name, flags, callback);
             }
         }
 
@@ -1243,7 +1243,7 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
         let mut after_path: Vec<std::ffi::CString> = Vec::new();
 
         let buf = (&raw mut rt_st().build_rtp_buf).cast::<c_char>();
-        let mut entry = p_pp;
+        let mut entry = opt_vars().p_pp;
         while *entry != NUL {
             let cur_entry = entry;
             let buflen = copy_option_part(&mut entry, buf, MAXPATHL, c",".as_ptr());
@@ -1260,7 +1260,7 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
             );
         }
 
-        let mut rtp_entry = p_rtp;
+        let mut rtp_entry = opt_vars().p_rtp;
         while *rtp_entry != NUL {
             let cur_entry = rtp_entry;
             let buflen = copy_option_part(&mut rtp_entry, buf, MAXPATHL, c",".as_ptr());
@@ -1270,7 +1270,7 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
                 break;
             }
 
-            let pos_in_rtp = (cur_entry as usize) - (p_rtp as usize);
+            let pos_in_rtp = (cur_entry as usize) - (opt_vars().p_rtp as usize);
 
             expand_rtp_entry(&mut search_path, &mut rtp_used, buf, false, pos_in_rtp);
 
@@ -1287,7 +1287,7 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
             }
         }
 
-        let sentinel_pos_in_rtp = ((rtp_entry as usize) - (p_rtp as usize)).saturating_sub(1);
+        let sentinel_pos_in_rtp = ((rtp_entry as usize) - (opt_vars().p_rtp as usize)).saturating_sub(1);
 
         for item in pack_entries {
             let item_bytes = std::slice::from_raw_parts(item.data.cast::<u8>(), item.size);
@@ -1317,7 +1317,7 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
         while *rtp_entry != NUL {
             let cur_entry = rtp_entry;
             let buflen = copy_option_part(&mut rtp_entry, buf, MAXPATHL, c",".as_ptr());
-            let pos_in_rtp = (cur_entry as usize) - (p_rtp as usize);
+            let pos_in_rtp = (cur_entry as usize) - (opt_vars().p_rtp as usize);
             expand_rtp_entry(
                 &mut search_path,
                 &mut rtp_used,
@@ -1394,7 +1394,7 @@ pub unsafe fn do_in_runtimepath(
             flags = (flags & !DIP_START) | DIP_NORTP;
         }
         if (flags & (DIP_START | DIP_OPT)) != 0 && (success == FAIL || (flags & DIP_ALL) != 0) {
-            success |= do_in_path_and_pp(p_rtp, name, flags, callback);
+            success |= do_in_path_and_pp(opt_vars().p_rtp, name, flags, callback);
         }
         success
     }
@@ -1486,7 +1486,7 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
             let mut insp: *const c_char = ptr::null();
             let mut after_insp: *const c_char = ptr::null();
             let mut p_rtp_len: usize = 0;
-            let mut entry: *mut c_char = p_rtp;
+            let mut entry: *mut c_char = opt_vars().p_rtp;
             while *entry != NUL {
                 let cur_entry = entry;
                 buf.size = copy_option_part(&mut entry, buf.data, MAXPATHL, c",".as_ptr());
@@ -1518,15 +1518,15 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                     let Some(rtp_ffname) = fix_fname(buf.data) else {
                         break 'block;
                     };
-                    if path_cmp(p_fic != 0, rtp_ffname.as_ptr(), ffname, fname_len) == 0 {
+                    if path_cmp(opt_vars().p_fic != 0, rtp_ffname.as_ptr(), ffname, fname_len) == 0 {
                         insp = entry;
                     }
                 }
             }
 
-            p_rtp_len += CStr::from_ptr(p_rtp.add(p_rtp_len)).to_bytes().len();
+            p_rtp_len += CStr::from_ptr(opt_vars().p_rtp.add(p_rtp_len)).to_bytes().len();
             if insp.is_null() {
-                insp = p_rtp.add(p_rtp_len);
+                insp = opt_vars().p_rtp.add(p_rtp_len);
             }
 
             fname_len = CStr::from_ptr(fname).to_bytes().len();
@@ -1551,9 +1551,9 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                 size: 0,
             };
 
-            let mut keep = (insp as usize) - (p_rtp as usize);
+            let mut keep = (insp as usize) - (opt_vars().p_rtp as usize);
             let mut first_pos = keep;
-            ptr::copy(p_rtp, new_rtp.data, keep);
+            ptr::copy(opt_vars().p_rtp, new_rtp.data, keep);
             new_rtp.size = keep;
             if *insp == NUL {
                 *new_rtp.data.add(new_rtp.size) = b',' as c_char;
@@ -1570,10 +1570,10 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
             let mut after_pos: usize = 0;
 
             if afterdir.size > 0 && !after_insp.is_null() {
-                let keep_after = (after_insp as usize) - (p_rtp as usize);
+                let keep_after = (after_insp as usize) - (opt_vars().p_rtp as usize);
                 let append_len = keep_after - keep;
 
-                ptr::copy(p_rtp.add(keep), new_rtp.data.add(new_rtp.size), append_len);
+                ptr::copy(opt_vars().p_rtp.add(keep), new_rtp.data.add(new_rtp.size), append_len);
                 new_rtp.size += append_len;
                 ptr::copy(afterdir.data, new_rtp.data.add(new_rtp.size), afterdir.size);
                 new_rtp.size += afterdir.size;
@@ -1583,10 +1583,10 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                 after_pos = keep_after;
             }
 
-            if *p_rtp.add(keep) != NUL {
+            if *opt_vars().p_rtp.add(keep) != NUL {
                 let append_len = p_rtp_len - keep;
                 ptr::copy(
-                    p_rtp.add(keep),
+                    opt_vars().p_rtp.add(keep),
                     new_rtp.data.add(new_rtp.size),
                     append_len + 1,
                 );
@@ -1721,7 +1721,7 @@ unsafe fn add_pack_plugins(
             for fname_cstr in fnames {
                 let fname = fname_cstr.as_ptr().cast_mut();
                 let mut found = false;
-                let mut p: *mut c_char = p_rtp;
+                let mut p: *mut c_char = opt_vars().p_rtp;
                 while *p != NUL {
                     copy_option_part(&mut p, buf.as_mut_ptr(), MAXPATHL, c",".as_ptr());
                     if path_equal(buf.as_ptr(), fname, kPathCmpLiteral) {
@@ -1758,7 +1758,7 @@ unsafe fn add_pack_plugins(
 pub unsafe fn add_pack_start_dirs() {
     unsafe {
         do_in_path(
-            p_pp,
+            opt_vars().p_pp,
             c"".as_ptr(),
             ptr::null_mut(),
             DIP_ALL + DIP_DIR,
@@ -1806,7 +1806,7 @@ pub unsafe fn load_start_packages() {
     unsafe {
         did_source_packages = true;
         do_in_path(
-            p_pp,
+            opt_vars().p_pp,
             c"".as_ptr(),
             c"pack/*/start/*".as_ptr() as *mut c_char,
             DIP_ALL + DIP_DIR,
@@ -1816,7 +1816,7 @@ pub unsafe fn load_start_packages() {
             },
         );
         do_in_path(
-            p_pp,
+            opt_vars().p_pp,
             c"".as_ptr(),
             c"start/*".as_ptr() as *mut c_char,
             DIP_ALL + DIP_DIR,
@@ -1843,13 +1843,13 @@ pub unsafe fn ex_packloadall(eap: *mut exarg_T) {
 /// Read all the plugin files at startup.
 pub unsafe fn load_plugins() {
     unsafe {
-        if p_lpl != 0 {
+        if opt_vars().p_lpl != 0 {
             let mut rtp_copy_owned: Option<std::ffi::CString> = None;
-            let mut rtp_copy = p_rtp;
+            let mut rtp_copy = opt_vars().p_rtp;
             let plugin_pattern = c"plugin/**/*".as_ptr() as *mut c_char;
 
             if !did_source_packages {
-                let copy = cstr_to_cstring(p_rtp);
+                let copy = cstr_to_cstring(opt_vars().p_rtp);
                 rtp_copy = copy.as_ptr().cast_mut();
                 rtp_copy_owned = Some(copy);
                 add_pack_start_dirs();
@@ -1898,7 +1898,7 @@ pub unsafe fn ex_packadd(eap: *mut exarg_T) {
                 (*eap).arg,
             );
             res = do_in_path(
-                p_pp,
+                opt_vars().p_pp,
                 c"".as_ptr(),
                 pat,
                 DIP_ALL + DIP_DIR,
@@ -1914,7 +1914,7 @@ pub unsafe fn ex_packadd(eap: *mut exarg_T) {
             (*eap).arg,
         );
         do_in_path(
-            p_pp,
+            opt_vars().p_pp,
             c"".as_ptr(),
             pat,
             DIP_ALL + DIP_DIR + if res == FAIL { DIP_ERR } else { 0 },
@@ -1960,7 +1960,7 @@ unsafe fn ExpandRTDir_int(
 
             loop {
                 if (flags & DIP_NORTP) == 0 {
-                    globpath(p_rtp, buf, gap, glob_flags, expand_dirs);
+                    globpath(opt_vars().p_rtp, buf, gap, glob_flags, expand_dirs);
                 }
 
                 let ext_str = if expand_dirs {
@@ -1979,7 +1979,7 @@ unsafe fn ExpandRTDir_int(
                         pat,
                         ext_str,
                     );
-                    globpath(p_pp, buf, gap, glob_flags, expand_dirs);
+                    globpath(opt_vars().p_pp, buf, gap, glob_flags, expand_dirs);
 
                     vim_snprintf!(
                         buf,
@@ -1990,7 +1990,7 @@ unsafe fn ExpandRTDir_int(
                         pat,
                         ext_str,
                     );
-                    globpath(p_pp, buf, gap, glob_flags, expand_dirs);
+                    globpath(opt_vars().p_pp, buf, gap, glob_flags, expand_dirs);
                 }
 
                 if (flags & DIP_OPT) != 0 {
@@ -2003,7 +2003,7 @@ unsafe fn ExpandRTDir_int(
                         pat,
                         ext_str,
                     );
-                    globpath(p_pp, buf, gap, glob_flags, expand_dirs);
+                    globpath(opt_vars().p_pp, buf, gap, glob_flags, expand_dirs);
 
                     vim_snprintf!(
                         buf,
@@ -2014,7 +2014,7 @@ unsafe fn ExpandRTDir_int(
                         pat,
                         ext_str,
                     );
-                    globpath(p_pp, buf, gap, glob_flags, expand_dirs);
+                    globpath(opt_vars().p_pp, buf, gap, glob_flags, expand_dirs);
                 }
 
                 if *dir == NUL && !expand_dirs {
@@ -2151,9 +2151,9 @@ pub unsafe fn ExpandPackAddDir(pat: *mut c_char, file: &mut Vec<std::ffi::CStrin
         let mut s_vec = vec![0 as c_char; buflen];
         let s = s_vec.as_mut_ptr();
         vim_snprintf!(s, buflen, c"pack/*/opt/%s*".as_ptr(), pat);
-        globpath(p_pp, s, file, 0, true);
+        globpath(opt_vars().p_pp, s, file, 0, true);
         vim_snprintf!(s, buflen, c"opt/%s*".as_ptr(), pat);
-        globpath(p_pp, s, file, 0, true);
+        globpath(opt_vars().p_pp, s, file, 0, true);
         drop(s_vec);
 
         for slot in file.iter_mut() {
@@ -2871,7 +2871,7 @@ unsafe fn do_source_ext(
             }
 
             if cookie.fp.is_none() && !cookie.source_from_buf_or_str {
-                if p_verbose > 1 {
+                if opt_vars().p_verbose > 1 {
                     verbose_enter();
                     if sourcing_name().is_null() {
                         smsg!(0, gettext(c"could not source \"%s\"".as_ptr()), fname);
@@ -2888,7 +2888,7 @@ unsafe fn do_source_ext(
                 break 'block;
             }
 
-            if p_verbose > 1 {
+            if opt_vars().p_verbose > 1 {
                 verbose_enter();
                 if sourcing_name().is_null() {
                     smsg!(0, gettext(c"sourcing \"%s\"".as_ptr()), fname);
@@ -2908,7 +2908,7 @@ unsafe fn do_source_ext(
 
             #[cfg(windows)]
             {
-                if *p_ffs == NUL {
+                if *opt_vars().p_ffs == NUL {
                     cookie.fileformat = EOL_DOS;
                 } else {
                     cookie.fileformat = EOL_UNKNOWN;
@@ -3035,7 +3035,7 @@ unsafe fn do_source_ext(
                 if let Some(ref fl) = firstline
                     && fl.to_bytes().starts_with(&[0xef, 0xbb, 0xbf])
                 {
-                    convert_setup(&mut cookie.conv, c"utf-8".as_ptr().cast_mut(), p_enc);
+                    convert_setup(&mut cookie.conv, c"utf-8".as_ptr().cast_mut(), opt_vars().p_enc);
                     let after_bom = fl.as_ptr().add(3).cast_mut();
                     firstline = Some(
                         string_convert(&cookie.conv, after_bom, ptr::null_mut()).map_or_else(
@@ -3069,7 +3069,7 @@ unsafe fn do_source_ext(
                 emsg(gettext(e_interr.as_ptr()));
             }
             estack_pop();
-            if p_verbose > 1 {
+            if opt_vars().p_verbose > 1 {
                 verbose_enter();
                 smsg!(0, gettext(c"finished sourcing %s".as_ptr()), fname);
                 let sname = sourcing_name();
@@ -3305,7 +3305,7 @@ pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
         let l = (*rettv).vval.v_list();
 
         let mut regmatch: regmatch_T = regmatch_T::new();
-        regmatch.rm_ic = p_ic != 0;
+        regmatch.rm_ic = opt_vars().p_ic != 0;
         let mut filterpat = false;
         let mut sid: varnumber_T = -1;
 
@@ -3408,7 +3408,7 @@ pub unsafe fn getsourceline(
 
         if let Some(ref mut buf) = line_vec
             && do_concat
-            && vim_strchr(p_cpo, kCpoConcat).is_null()
+            && vim_strchr(opt_vars().p_cpo, kCpoConcat).is_null()
         {
             (*sp).sourcing_lnum -= 1;
 
@@ -3612,7 +3612,7 @@ pub unsafe fn ex_scriptencoding(eap: *mut exarg_T) {
             (*eap).arg
         };
 
-        convert_setup(&mut (*sp).conv, name, p_enc);
+        convert_setup(&mut (*sp).conv, name, opt_vars().p_enc);
     }
 }
 

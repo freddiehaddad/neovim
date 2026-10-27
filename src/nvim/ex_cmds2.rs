@@ -142,8 +142,8 @@ pub unsafe fn ex_perldo(eap: *mut exarg_T) {
 /// If `'autowrite'` option set, try to write the file (`autowrite`).
 pub unsafe fn autowrite(buf: *mut buf_T, forceit: bool) -> c_int {
     unsafe {
-        if (p_aw == 0 && p_awa == 0)
-            || p_write == 0
+        if (opt_vars().p_aw == 0 && opt_vars().p_awa == 0)
+            || opt_vars().p_write == 0
             || bt_dontwrite(buf)
             || (!forceit && (*buf).b_p_ro != 0)
             || (*buf).b_ffname.is_null()
@@ -164,7 +164,7 @@ pub unsafe fn autowrite(buf: *mut buf_T, forceit: bool) -> c_int {
 /// Flush all buffers, except the ones that are readonly or are never written (`autowrite_all`).
 pub unsafe fn autowrite_all() {
     unsafe {
-        if (p_aw == 0 && p_awa == 0) || p_write == 0 {
+        if (opt_vars().p_aw == 0 && opt_vars().p_awa == 0) || opt_vars().p_write == 0 {
             return;
         }
 
@@ -196,7 +196,7 @@ pub unsafe fn check_changed(buf: *mut buf_T, flags: c_int) -> bool {
             && ((flags & CCGD_MULTWIN) != 0 || (*buf).b_nwindows <= 1)
             && ((flags & CCGD_AW) == 0 || autowrite(buf, forceit) == FAIL)
         {
-            if (p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && p_write != 0 {
+            if (opt_vars().p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && opt_vars().p_write != 0 {
                 let mut count: c_int = 0;
 
                 if (flags & CCGD_ALLBUF) != 0 {
@@ -394,7 +394,7 @@ pub unsafe fn check_changed_any(hidden: bool, unload: bool) -> bool {
 
                 if check_changed(
                     buf,
-                    (if p_awa != 0 { CCGD_AW } else { 0 }) | CCGD_MULTWIN | CCGD_ALLBUF,
+                    (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 }) | CCGD_MULTWIN | CCGD_ALLBUF,
                 ) && bufref_valid(&raw mut bufref)
                 {
                     break;
@@ -406,7 +406,7 @@ pub unsafe fn check_changed_any(hidden: bool, unload: bool) -> bool {
         if i < bufnrs.len() {
             ret = true;
             exiting = false;
-            if p_confirm == 0 && (cmdmod.cmod_flags & CMOD_CONFIRM) == 0 {
+            if opt_vars().p_confirm == 0 && (cmdmod.cmod_flags & CMOD_CONFIRM) == 0 {
                 if vgetc_busy > 0 {
                     msg_row = cmdline_row;
                     msg_col = 0;

@@ -54,7 +54,7 @@ pub unsafe fn adjust_clipboard_name(
 ) -> *mut yankreg_T {
     unsafe {
         let reg_char = *name;
-        let flags = cb_flags;
+        let flags = opt_vars().cb_flags;
         let explicit_cb_reg = reg_char == b'*' as c_int || reg_char == b'+' as c_int;
         let implicit_cb_reg =
             reg_char == 0 && (flags & (K_OPT_CB_FLAG_UNNAMED | K_OPT_CB_FLAG_UNNAMEDPLUS)) != 0;

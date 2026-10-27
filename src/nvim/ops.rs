@@ -295,7 +295,7 @@ pub unsafe fn op_shift(oap: *mut oparg_T, curs_top: bool, amount: c_int) {
             } else if (*oap).motion_type == kMTBlockWise {
                 shift_block(oap, amount);
             } else if first_char != b'#' as c_int || !preprocs_left() {
-                shift_line((*oap).op_type == OP_LSHIFT, p_sr != 0, amount, 0);
+                shift_line((*oap).op_type == OP_LSHIFT, opt_vars().p_sr != 0, amount, 0);
             }
             (*curwin).w_cursor.lnum += 1;
             i -= 1;
@@ -312,7 +312,7 @@ pub unsafe fn op_shift(oap: *mut oparg_T, curs_top: bool, amount: c_int) {
         }
         foldOpenCursor();
 
-        if i64::from((*oap).line_count) > p_report {
+        if i64::from((*oap).line_count) > opt_vars().p_report {
             let op = if (*oap).op_type == OP_RSHIFT {
                 c">".as_ptr()
             } else {
@@ -487,9 +487,9 @@ unsafe fn shift_block(oap: *mut oparg_T, amount: c_int) {
         let sw_val = get_sw_value_indent(curbuf, left);
         let ts_val = (*curbuf).b_p_ts as c_int;
         let mut bd = block_def::new();
-        let old_p_ri = p_ri;
+        let old_p_ri = opt_vars().p_ri;
 
-        p_ri = 0;
+        opt_vars().p_ri = 0;
 
         State = MODE_INSERT;
         block_prep(oap, &raw mut bd, (*curwin).w_cursor.lnum, true);
@@ -682,7 +682,7 @@ unsafe fn shift_block(oap: *mut oparg_T, amount: c_int) {
         );
         State = oldstate;
         (*curwin).w_cursor.col = oldcol;
-        p_ri = old_p_ri;
+        opt_vars().p_ri = old_p_ri;
     }
 }
 
@@ -874,7 +874,7 @@ pub unsafe fn op_delete(oap: *mut oparg_T) -> c_int {
             if virtual_op != 0 {
                 only_setmarks = true;
             } else {
-                if !vim_strchr(p_cpo, kCpoEmptyregion).is_null() {
+                if !vim_strchr(opt_vars().p_cpo, kCpoEmptyregion).is_null() {
                     beep_flush();
                 }
                 return OK;
@@ -1041,7 +1041,7 @@ pub unsafe fn op_delete(oap: *mut oparg_T) -> c_int {
                         return FAIL;
                     }
 
-                    if !vim_strchr(p_cpo, kCpoDollar).is_null()
+                    if !vim_strchr(opt_vars().p_cpo, kCpoDollar).is_null()
                         && (*oap).op_type == OP_CHANGE
                         && (*oap).end.lnum == (*curwin).w_cursor.lnum
                         && !(*oap).is_VIsual
@@ -1495,7 +1495,7 @@ pub unsafe fn op_tilde(oap: *mut oparg_T) {
             (*curbuf).b_op_end = (*oap).end;
         }
 
-        if i64::from((*oap).line_count) > p_report {
+        if i64::from((*oap).line_count) > opt_vars().p_report {
             smsg!(
                 0,
                 ngettext(
@@ -2038,7 +2038,7 @@ pub unsafe fn do_join(
                     } else {
                         *spaces.add(t as usize) += 1;
                     }
-                    if p_js != 0
+                    if opt_vars().p_js != 0
                         && (endcurr1 == b'.' as c_int
                             || endcurr1 == b'?' as c_int
                             || endcurr1 == b'!' as c_int)
@@ -2154,7 +2154,7 @@ pub unsafe fn do_join(
             curbuf_splice_pending -= 1;
             (*curbuf).deleted_bytes2 = 0;
 
-            (*curwin).w_cursor.col = if !vim_strchr(p_cpo, kCpoJoincol).is_null() {
+            (*curwin).w_cursor.col = if !vim_strchr(opt_vars().p_cpo, kCpoJoincol).is_null() {
                 currsize
             } else {
                 col
@@ -2625,7 +2625,7 @@ pub unsafe fn op_addsub(oap: *mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
                 (*curbuf).b_op_start = startpos;
             }
 
-            if (change_cnt as i64) > p_report {
+            if (change_cnt as i64) > opt_vars().p_report {
                 smsg!(
                     0,
                     ngettext(
@@ -3145,16 +3145,16 @@ pub unsafe fn cursor_pos_info(dict: *mut dict_T) {
                     min_pos = (*curwin).w_cursor;
                     max_pos = Visual.start;
                 }
-                if *p_sel == b'e' as c_char && max_pos.col > 0 {
+                if *opt_vars().p_sel == b'e' as c_char && max_pos.col > 0 {
                     max_pos.col -= 1;
                 }
 
                 if l_VIsual_mode == Ctrl_V {
-                    let saved_sbr = p_sbr;
+                    let saved_sbr = opt_vars().p_sbr;
                     let saved_w_sbr = (*curwin).w_onebuf_opt.wo_sbr;
 
-                    p_sbr = (&raw mut empty_string_option).cast::<c_char>();
-                    (*curwin).w_onebuf_opt.wo_sbr = (&raw mut empty_string_option).cast::<c_char>();
+                    opt_vars().p_sbr = empty_string_option.as_ptr().cast::<c_char>();
+                    (*curwin).w_onebuf_opt.wo_sbr = empty_string_option.as_ptr().cast::<c_char>();
                     oparg.is_VIsual = true;
                     oparg.motion_type = kMTBlockWise;
                     oparg.op_type = OP_NOP;
@@ -3166,7 +3166,7 @@ pub unsafe fn cursor_pos_info(dict: *mut dict_T) {
                         &raw mut oparg.end_vcol,
                         0,
                     );
-                    p_sbr = saved_sbr;
+                    opt_vars().p_sbr = saved_sbr;
                     (*curwin).w_onebuf_opt.wo_sbr = saved_w_sbr;
                     if (*curwin).w_curswant == MAXCOL {
                         oparg.end_vcol = MAXCOL;
@@ -3379,14 +3379,14 @@ pub unsafe fn cursor_pos_info(dict: *mut dict_T) {
                 );
             }
             if dict.is_null() {
-                let p = p_shm;
-                p_shm = c"".as_ptr().cast_mut();
-                if p_ch < 1 {
+                let p = opt_vars().p_shm;
+                opt_vars().p_shm = c"".as_ptr().cast_mut();
+                if opt_vars().p_ch < 1 {
                     msg_start();
                     msg_scroll = 1;
                 }
                 msg(iobuff_ptr, 0);
-                p_shm = p;
+                opt_vars().p_shm = p;
             }
         }
 
@@ -3472,8 +3472,8 @@ unsafe fn op_colon(oap: *mut oparg_T) {
         } else if (*oap).op_type == OP_FORMAT {
             if *(*curbuf).b_p_fp != NUL {
                 stuffReadbuff((*curbuf).b_p_fp);
-            } else if *p_fp != NUL {
-                stuffReadbuff(p_fp);
+            } else if *opt_vars().p_fp != NUL {
+                stuffReadbuff(opt_vars().p_fp);
             } else {
                 stuffReadbuff(c"fmt".as_ptr());
             }
@@ -3489,12 +3489,12 @@ unsafe fn op_colon(oap: *mut oparg_T) {
 
 pub unsafe fn free_operatorfunc_option() {
     unsafe {
-        callback_free(&raw mut p_opfunc);
+        callback_free(&raw mut opt_vars().p_opfunc);
     }
 }
 
 pub unsafe fn set_ref_in_opfunc(copyID: c_int) -> bool {
-    unsafe { set_ref_in_callback(&raw mut p_opfunc, copyID, ptr::null_mut(), ptr::null_mut()) }
+    unsafe { set_ref_in_callback(&raw mut opt_vars().p_opfunc, copyID, ptr::null_mut(), ptr::null_mut()) }
 }
 
 unsafe fn op_function(oap: *const oparg_T) {
@@ -3502,7 +3502,7 @@ unsafe fn op_function(oap: *const oparg_T) {
         let orig_start = (*curbuf).b_op_start;
         let orig_end = (*curbuf).b_op_end;
 
-        if crate::eval::typval::Callback::raw_cb_type(&raw const p_opfunc) == kCallbackNone {
+        if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_opfunc) == kCallbackNone {
             emsg(tr(c"E774: 'operatorfunc' is empty".as_ptr()));
         } else {
             (*curbuf).b_op_start = (*oap).start;
@@ -3540,7 +3540,7 @@ unsafe fn op_function(oap: *const oparg_T) {
 
             let mut rettv: typval_T = typval_T::new();
             if callback_call(
-                &raw mut p_opfunc,
+                &raw mut opt_vars().p_opfunc,
                 1,
                 (&raw mut argv).cast::<typval_T>(),
                 &raw mut rettv,
@@ -3589,7 +3589,7 @@ unsafe fn get_op_vcol(oap: *mut oparg_T, initial: bool) {
 
         (*oap).start_vcol = (*oap).start_vcol.min(start);
         if end > (*oap).end_vcol {
-            if initial && *p_sel == b'e' as c_char && start >= 1 && start > (*oap).end_vcol {
+            if initial && *opt_vars().p_sel == b'e' as c_char && start >= 1 && start > (*oap).end_vcol {
                 (*oap).end_vcol = start - 1;
             } else {
                 (*oap).end_vcol = end;
@@ -3672,7 +3672,7 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
 
         if (finish_op || Visual.active) && (*oap).op_type != OP_NOP {
             let mut include_line_break = false;
-            let redo_yank = !vim_strchr(p_cpo, kCpoYank).is_null() && !gui_yank;
+            let redo_yank = !vim_strchr(opt_vars().p_cpo, kCpoYank).is_null() && !gui_yank;
 
             reset_lbr();
             (*oap).is_VIsual = Visual.active;
@@ -3830,7 +3830,7 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
                         && (include_line_break || virtual_op == 0)
                     {
                         (*oap).inclusive = false;
-                        if *p_sel != b'o' as c_char
+                        if *opt_vars().p_sel != b'o' as c_char
                             && op_on_lines((*oap).op_type) == 0
                             && (*oap).end.lnum < (*curbuf).b_ml.ml_line_count
                         {
@@ -3875,7 +3875,7 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
                         && gchar_pos(&raw mut (*oap).end) == c_int::from(NUL)))
                 && equalpos((*oap).start, (*oap).end)
                 && !(virtual_op != 0 && (*oap).start.coladd != (*oap).end.coladd);
-            let empty_region_error = (*oap).empty && !vim_strchr(p_cpo, kCpoEmptyregion).is_null();
+            let empty_region_error = (*oap).empty && !vim_strchr(opt_vars().p_cpo, kCpoEmptyregion).is_null();
 
             if (*oap).is_VIsual
                 && ((*oap).empty || !modifiable(curbuf) || (*oap).op_type == OP_FOLD)
@@ -3888,7 +3888,7 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
                 && !(*oap).inclusive
                 && ((*cap).retval & CA_NO_ADJ_OP_END) == 0
                 && (*oap).end.col == 0
-                && (!(*oap).is_VIsual || *p_sel == b'o' as c_char)
+                && (!(*oap).is_VIsual || *opt_vars().p_sel == b'o' as c_char)
                 && (*oap).line_count > 1
             {
                 (*oap).end_adjusted = true;
@@ -3991,7 +3991,7 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
                 }
                 OP_FILTER | OP_INDENT | OP_COLON => {
                     if (*oap).op_type == OP_FILTER {
-                        if !vim_strchr(p_cpo, kCpoFilter).is_null() {
+                        if !vim_strchr(opt_vars().p_cpo, kCpoFilter).is_null() {
                             redo_append_str(c"!\r".as_ptr(), 2);
                         } else {
                             bangredo = true;
@@ -4031,7 +4031,7 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
                 OP_FORMAT => {
                     if (*curbuf).b_p_fex.cb_type() != kCallbackNone {
                         op_formatexpr(oap);
-                    } else if *p_fp != NUL || *(*curbuf).b_p_fp != NUL {
+                    } else if *opt_vars().p_fp != NUL || *(*curbuf).b_p_fp != NUL {
                         op_colon(oap);
                     } else {
                         op_format(oap, false);
@@ -4136,7 +4136,7 @@ pub unsafe fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int, gui_yank: 
             }
             virtual_op = kNone;
             if !gui_yank {
-                if p_sol == 0
+                if opt_vars().p_sol == 0
                     && (*oap).motion_type == kMTLineWise
                     && !(*oap).end_adjusted
                     && ((*oap).op_type == OP_LSHIFT

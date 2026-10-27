@@ -885,7 +885,7 @@ pub unsafe fn search_for_fuzzy_match(
             if dir == FORWARD {
                 current_pos.lnum += 1;
                 if current_pos.lnum > (*buf).b_ml.ml_line_count {
-                    if p_ws != 0 {
+                    if opt_vars().p_ws != 0 {
                         current_pos.lnum = 1;
                         looped_around = true;
                     } else {
@@ -895,7 +895,7 @@ pub unsafe fn search_for_fuzzy_match(
             } else {
                 current_pos.lnum -= 1;
                 if current_pos.lnum < 1 {
-                    if p_ws != 0 {
+                    if opt_vars().p_ws != 0 {
                         current_pos.lnum = (*buf).b_ml.ml_line_count;
                         looped_around = true;
                     } else {

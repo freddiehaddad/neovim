@@ -281,14 +281,14 @@ pub unsafe fn parse_shape_opt(what: c_int) -> *const c_char {
         let tbl = &mut *std::ptr::addr_of_mut!((*shape_table_mut()));
 
         for round in 1..=2 {
-            if round == 2 || *p_guicursor == 0 {
+            if round == 2 || *opt_vars().p_guicursor == 0 {
                 clear_shape_table();
-                if *p_guicursor == 0 {
+                if *opt_vars().p_guicursor == 0 {
                     ui_mode_info_set();
                     return std::ptr::null();
                 }
             }
-            let mut modep: *const c_char = p_guicursor;
+            let mut modep: *const c_char = opt_vars().p_guicursor;
             while !modep.is_null() && *modep != 0 {
                 let colonp = strchr(modep, b':' as c_int).cast_const();
                 let commap = strchr(modep, b',' as c_int).cast_const();
@@ -464,7 +464,7 @@ pub unsafe fn cursor_mode_str2int(mode: *const c_char) -> c_int {
 /// Check if a syntax id is used as a cursor style (`cursor_mode_uses_syn_id`).
 pub unsafe fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
     unsafe {
-        if *p_guicursor == 0 {
+        if *opt_vars().p_guicursor == 0 {
             return false;
         }
         let tbl = &*std::ptr::addr_of!((*shape_table_mut()));
@@ -499,7 +499,7 @@ pub unsafe fn cursor_get_mode_idx() -> c_int {
         } else if finish_op {
             SHAPE_IDX_O as c_int
         } else if Visual.active {
-            if *p_sel as u8 == b'e' {
+            if *opt_vars().p_sel as u8 == b'e' {
                 SHAPE_IDX_VE as c_int
             } else {
                 SHAPE_IDX_V as c_int

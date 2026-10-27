@@ -486,7 +486,7 @@ pub unsafe fn spell_load_file(
         if fd.is_null() {
             if !silent {
                 semsg!(gettext((&raw const e_notopen).cast()), fname);
-            } else if p_verbose > 2 {
+            } else if opt_vars().p_verbose > 2 {
                 verbose_enter();
                 smsg!(0, (&raw const e_notopen).cast(), fname);
                 verbose_leave();
@@ -496,7 +496,7 @@ pub unsafe fn spell_load_file(
             }
             return ptr::null_mut();
         }
-        if p_verbose > 2 {
+        if opt_vars().p_verbose > 2 {
             verbose_enter();
             smsg!(0, gettext(c"Reading spell file \"%s\"".as_ptr()), fname);
             verbose_leave();
@@ -1846,14 +1846,14 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                         .as_ref()
                         .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
                     if (*spin).si_ascii == 0
-                        && convert_setup(&mut (*spin).si_conv, af_enc_ptr, p_enc) == FAIL
+                        && convert_setup(&mut (*spin).si_conv, af_enc_ptr, opt_vars().p_enc) == FAIL
                     {
                         smsg!(
                             0,
                             gettext(c"Conversion in %s not supported: from %s to %s".as_ptr()),
                             fname,
                             af_enc_ptr,
-                            p_enc,
+                            opt_vars().p_enc,
                         );
                     }
                     (*spin).si_conv.vc_fail = true;
@@ -3067,7 +3067,7 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
 
             let dw_bytes = std::ffi::CStr::from_ptr(w).to_bytes().to_vec();
             if !ht.insert(dw_bytes) {
-                if p_verbose > 0 {
+                if opt_vars().p_verbose > 0 {
                     smsg!(
                         0,
                         gettext(c"Duplicate word in %s line %d: %s".as_ptr()),
@@ -3680,7 +3680,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                         line = line.add(9);
                         let enc = enc_canonize(line);
                         if (*spin).si_ascii == 0
-                            && convert_setup(&mut (*spin).si_conv, enc.as_ptr().cast_mut(), p_enc)
+                            && convert_setup(&mut (*spin).si_conv, enc.as_ptr().cast_mut(), opt_vars().p_enc)
                                 == FAIL
                         {
                             smsg!(
@@ -3688,7 +3688,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                                 gettext(c"Conversion in %s not supported: from %s to %s".as_ptr()),
                                 fname,
                                 line,
-                                p_enc,
+                                opt_vars().p_enc,
                             );
                         }
                         (*spin).si_conv.vc_fail = true;
@@ -4099,7 +4099,7 @@ unsafe fn wordtree_compress(spin: *mut spellinfo_T, root: Option<usize>, name: *
 
         let (n, _) = node_compress(spin, first_sibling, &mut ht, &mut tot);
 
-        if spin.si_verbose != 0 || p_verbose > 2 {
+        if spin.si_verbose != 0 || opt_vars().p_verbose > 2 {
             let perc: c_long = if tot > 1_000_000 {
                 ((tot - n) / (tot / 100)) as c_long
             } else if tot == 0 {
@@ -5020,7 +5020,7 @@ unsafe fn mkspell(
         let mut error = false;
         let mut spin = spellinfo_T::default();
 
-        spell_check_msm(p_msm, true);
+        spell_check_msm(opt_vars().p_msm, true);
 
         spin.si_verbose = c_int::from(!added_word);
         spin.si_ascii = c_int::from(ascii);
@@ -5206,7 +5206,7 @@ unsafe fn mkspell(
 
 unsafe fn spell_message(spin: *const spellinfo_T, str_: *const c_char) {
     unsafe {
-        if (*spin).si_verbose != 0 || p_verbose > 2 {
+        if (*spin).si_verbose != 0 || opt_vars().p_verbose > 2 {
             if (*spin).si_verbose == 0 {
                 verbose_enter();
             }

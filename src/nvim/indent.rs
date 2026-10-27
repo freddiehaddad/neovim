@@ -414,7 +414,7 @@ pub unsafe fn get_indent_buf(buf: *mut buf_T, lnum: linenr_T) -> c_int {
 /// Compute the size of the indent (in window cells) in line `ptr`, without tabstops (`indent_size_no_ts`).
 pub unsafe fn indent_size_no_ts(mut ptr: *const c_char) -> c_int {
     unsafe {
-        let tab_size = dy_escape_width;
+        let tab_size = opt_vars().dy_escape_width;
         let mut vcol: c_int = 0;
         loop {
             let c = *ptr;
@@ -809,7 +809,7 @@ pub unsafe fn get_breakindent_win(wp: *mut win_T, line: *mut c_char) -> c_int {
             || ind_st().PREV_TICK != buf_get_changedtick(buf)
             || ind_st().PREV_LISTOPT != (*wp).w_briopt_list
             || ind_st().PREV_NO_TS != no_ts
-            || ind_st().PREV_DY_UHEX != (dy_flags & kOptDyFlagUhex)
+            || ind_st().PREV_DY_UHEX != (opt_vars().dy_flags & kOptDyFlagUhex)
             || (&raw const ind_st().PREV_FLP).as_ref().unwrap().as_deref() != Some(flp_val)
             || (&raw const ind_st().PREV_LINE).as_ref().unwrap().as_deref() != Some(line_cstr)
         {
@@ -828,7 +828,7 @@ pub unsafe fn get_breakindent_win(wp: *mut win_T, line: *mut c_char) -> c_int {
             ind_st().PREV_LISTOPT = (*wp).w_briopt_list;
             ind_st().PREV_LIST = 0;
             ind_st().PREV_NO_TS = no_ts;
-            ind_st().PREV_DY_UHEX = dy_flags & kOptDyFlagUhex;
+            ind_st().PREV_DY_UHEX = opt_vars().dy_flags & kOptDyFlagUhex;
             ind_st().PREV_FLP = Some(flp_val.to_owned());
 
             if (*wp).w_briopt_list != 0 && (*wp).w_briopt_vcol == 0 {
@@ -932,7 +932,7 @@ pub unsafe fn op_reindent(oap: *mut oparg_T, how: Indenter) {
             while i >= 0 && !got_int {
                 if i > 1
                     && (i % 50 == 0 || i == (*oap).line_count - 1)
-                    && i64::from((*oap).line_count) > p_report
+                    && i64::from((*oap).line_count) > opt_vars().p_report
                 {
                     let fmt_ptr = gettext(c"%ld lines to indent... ".as_ptr());
                     let fmt_str = CStr::from_ptr(fmt_ptr).to_string_lossy();
@@ -1000,7 +1000,7 @@ pub unsafe fn op_reindent(oap: *mut oparg_T, how: Indenter) {
             redraw_curbuf_later(UPD_INVERTED);
         }
 
-        if i64::from((*oap).line_count) > p_report {
+        if i64::from((*oap).line_count) > opt_vars().p_report {
             i = (*oap).line_count - (i + 1);
             let fmt_ptr = ngettext(
                 c"%ld line indented ".as_ptr(),
@@ -1051,7 +1051,7 @@ pub unsafe fn may_do_si() -> bool {
         (*curbuf).b_p_si != 0
             && (*curbuf).b_p_cin == 0
             && (*curbuf).b_p_inde.cb_type() == kCallbackNone
-            && p_paste == 0
+            && opt_vars().p_paste == 0
     }
 }
 
@@ -1635,7 +1635,7 @@ pub unsafe fn get_expr_indent() -> c_int {
         check_cursor(curwin);
         State = save_State;
 
-        if did_throw && (vim_strchr(p_debug, b't' as c_int).is_null() || trylevel == 0) {
+        if did_throw && (vim_strchr(opt_vars().p_debug, b't' as c_int).is_null() || trylevel == 0) {
             handle_did_throw();
             did_throw = false;
         }
@@ -1876,7 +1876,7 @@ unsafe fn lisp_match(p: *const c_char) -> bool {
         let mut word = if *(*curbuf).b_p_lw != NUL {
             (*curbuf).b_p_lw
         } else {
-            p_lispwords
+            opt_vars().p_lispwords
         };
 
         while *word != NUL {
@@ -1916,7 +1916,7 @@ pub unsafe fn use_indentexpr_for_lisp() -> bool {
 /// Fix indent for `'lisp'` and `'cindent'` (`fix_indent`).
 pub unsafe fn fix_indent() {
     unsafe {
-        if p_paste != 0 {
+        if opt_vars().p_paste != 0 {
             return;
         }
         if (*curbuf).b_p_lisp != 0 && (*curbuf).b_p_ai != 0 {

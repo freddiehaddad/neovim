@@ -165,8 +165,8 @@ pub unsafe fn get_history_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
 /// Initialize or resize command-line history tables (`init_history`).
 pub unsafe fn init_history() {
     unsafe {
-        assert!(p_hi >= 0 && p_hi <= (c_int::MAX as i64));
-        let newlen = p_hi as c_int;
+        assert!(opt_vars().p_hi >= 0 && opt_vars().p_hi <= (c_int::MAX as i64));
+        let newlen = opt_vars().p_hi as c_int;
         let oldlen = hist_st().HISLEN;
 
         if newlen == oldlen {

@@ -753,7 +753,7 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
                         break 'sortend;
                     }
                     p = s;
-                    regmatch.rm_ic = p_ic != 0;
+                    regmatch.rm_ic = opt_vars().p_ic != 0;
                 } else {
                     semsg!(gettext(e_invarg2.as_ptr()), p);
                     break 'sortend;
@@ -1017,7 +1017,7 @@ pub unsafe fn ex_uniq(eap: *mut exarg_T) {
                         break 'uniqend;
                     }
                     p = s;
-                    regmatch.rm_ic = p_ic != 0;
+                    regmatch.rm_ic = opt_vars().p_ic != 0;
                 } else {
                     semsg!(gettext(e_invarg2.as_ptr()), p);
                     break 'uniqend;
@@ -1297,7 +1297,7 @@ pub unsafe fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> c
         for _ in line1..=line2 {
             ml_delete_flags(line1 + extra, ML_DEL_MESSAGE);
         }
-        if global_busy == 0 && (num_lines as OptInt) > p_report {
+        if global_busy == 0 && (num_lines as OptInt) > opt_vars().p_report {
             smsg!(
                 0,
                 ngettext(
@@ -1520,17 +1520,17 @@ pub unsafe fn do_bang(
                 redo_append_str(c"\n".as_ptr(), 1);
                 bangredo = false;
             }
-            if *p_shq != NUL {
+            if *opt_vars().p_shq != NUL {
                 let prev_ptr = (&raw const excmds_st().prevcmd)
                     .as_ref()
                     .unwrap()
                     .as_ref()
                     .map_or(c"".as_ptr(), |s| s.as_ptr());
-                let qlen = strlen(prev_ptr) + 2 * strlen(p_shq) + 1;
+                let qlen = strlen(prev_ptr) + 2 * strlen(opt_vars().p_shq) + 1;
                 newcmd = vec![0 as c_char; qlen];
-                strcpy(newcmd.as_mut_ptr(), p_shq);
+                strcpy(newcmd.as_mut_ptr(), opt_vars().p_shq);
                 strcat(newcmd.as_mut_ptr(), prev_ptr);
-                strcat(newcmd.as_mut_ptr(), p_shq);
+                strcat(newcmd.as_mut_ptr(), opt_vars().p_shq);
             }
             if addr_count == 0 {
                 msg_start();
@@ -1573,7 +1573,7 @@ unsafe fn do_filter(
         let mut shell_flags: c_int = 0;
         let orig_start = (*curbuf).b_op_start;
         let orig_end = (*curbuf).b_op_end;
-        let stmp = p_stmp;
+        let stmp = opt_vars().p_stmp;
 
         if *cmd == NUL {
             return;
@@ -1721,7 +1721,7 @@ unsafe fn do_filter(
 
                     if do_in {
                         if (cmdmod.cmod_flags & CMOD_KEEPMARKS) != 0
-                            || vim_strchr(p_cpo, kCpoRemmark).is_null()
+                            || vim_strchr(opt_vars().p_cpo, kCpoRemmark).is_null()
                         {
                             if read_linecount >= linecount {
                                 mark_adjust(line1, line2, linecount, 0, kExtmarkNOOP);
@@ -1765,7 +1765,7 @@ unsafe fn do_filter(
                     beginline(BL_WHITE | BL_FIX);
                     no_wait_return -= 1;
 
-                    if (linecount as OptInt) > p_report {
+                    if (linecount as OptInt) > opt_vars().p_report {
                         if do_in {
                             let msg_buf_ptr = (&raw mut msg_buf).cast::<c_char>();
                             vim_snprintf!(
@@ -1825,7 +1825,7 @@ pub unsafe fn do_shell(cmd: *mut c_char, flags: c_int) {
         msg_putchar(b'\r' as c_int);
         msg_putchar(b'\n' as c_int);
 
-        if p_warn != 0 && !autocmd_busy && msg_silent == 0 {
+        if opt_vars().p_warn != 0 && !autocmd_busy && msg_silent == 0 {
             let mut buf = firstbuf;
             while !buf.is_null() {
                 if bufIsChanged(buf) {
@@ -1888,7 +1888,7 @@ pub unsafe fn make_filter_cmd(
     unsafe {
         #[cfg(unix)]
         let is_fish_shell = strncmp(
-            invocation_path_tail(p_sh, ptr::null_mut()),
+            invocation_path_tail(opt_vars().p_sh, ptr::null_mut()),
             c"fish".as_ptr(),
             4,
         ) == 0;
@@ -1896,12 +1896,12 @@ pub unsafe fn make_filter_cmd(
         let is_fish_shell = false;
 
         let is_pwsh = strncmp(
-            invocation_path_tail(p_sh, ptr::null_mut()),
+            invocation_path_tail(opt_vars().p_sh, ptr::null_mut()),
             c"pwsh".as_ptr(),
             4,
         ) == 0
             || strncmp(
-                invocation_path_tail(p_sh, ptr::null_mut()),
+                invocation_path_tail(opt_vars().p_sh, ptr::null_mut()),
                 c"powershell".as_ptr(),
                 10,
             ) == 0;
@@ -1929,7 +1929,7 @@ pub unsafe fn make_filter_cmd(
         }
 
         if !otmp.is_null() {
-            len += strlen(otmp) + strlen(p_srr) + 2;
+            len += strlen(otmp) + strlen(opt_vars().p_srr) + 2;
         }
 
         let mut buf_vec = vec![0 as c_char; len];
@@ -1971,7 +1971,7 @@ pub unsafe fn make_filter_cmd(
             {
                 xstrlcpy(buf, cmd, len);
                 if !itmp.is_null() {
-                    if *p_shq == NUL {
+                    if *opt_vars().p_shq == NUL {
                         let p = find_pipe(buf);
                         if !p.is_null() {
                             *p = NUL;
@@ -1979,7 +1979,7 @@ pub unsafe fn make_filter_cmd(
                     }
                     xstrlcat(buf, c" < ".as_ptr(), len);
                     xstrlcat(buf, itmp, len);
-                    if *p_shq == NUL {
+                    if *opt_vars().p_shq == NUL {
                         let p = find_pipe(cmd);
                         if !p.is_null() {
                             xstrlcat(buf, c" ".as_ptr(), len - 1);
@@ -1990,7 +1990,7 @@ pub unsafe fn make_filter_cmd(
             }
         }
         if !otmp.is_null() {
-            append_redir(buf, len, p_srr, otmp);
+            append_redir(buf, len, opt_vars().p_srr, otmp);
         }
         cstr_to_cstring(buf)
     }
@@ -2236,7 +2236,7 @@ pub unsafe fn do_write(eap: *mut exarg_T) -> c_int {
             }
 
             if other {
-                if !vim_strchr(p_cpo, kCpoAltwrite).is_null()
+                if !vim_strchr(opt_vars().p_cpo, kCpoAltwrite).is_null()
                     || (*eap).cmdidx == cmdidx_T::CMD_saveas as c_int
                 {
                     alt_buf = setaltfname(ffname, fname, 1);
@@ -2268,9 +2268,9 @@ pub unsafe fn do_write(eap: *mut exarg_T) -> c_int {
                 if ((*eap).line1 != 1 || (*eap).line2 != (*curbuf).b_ml.ml_line_count)
                     && (*eap).forceit == 0
                     && (*eap).append == 0
-                    && p_wa == 0
+                    && opt_vars().p_wa == 0
                 {
-                    if p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
+                    if opt_vars().p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                         if vim_dialog_yesno(
                             VIM_QUESTION,
                             ptr::null_mut(),
@@ -2404,9 +2404,9 @@ pub unsafe fn check_overwrite(
             || (!bt_nofilename(buf)
                 && (((*buf).b_flags & BF_NOTEDITED) != 0
                     || (((*buf).b_flags & BF_NEW) != 0
-                        && vim_strchr(p_cpo, kCpoOvernew).is_null())
+                        && vim_strchr(opt_vars().p_cpo, kCpoOvernew).is_null())
                     || ((*buf).b_flags & BF_READERR) != 0)))
-            && p_wa == 0
+            && opt_vars().p_wa == 0
             && os_path_exists(ffname)
         {
             if (*eap).forceit == 0 && (*eap).append == 0 {
@@ -2414,7 +2414,7 @@ pub unsafe fn check_overwrite(
                     semsg!(gettext(e_isadir2.as_ptr()), ffname);
                     return FAIL;
                 }
-                if p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
+                if opt_vars().p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                     let mut buff: [c_char; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
                     vim_snprintf!(
                         buff.as_mut_ptr(),
@@ -2436,17 +2436,17 @@ pub unsafe fn check_overwrite(
 
             if other && emsg_silent == 0 {
                 let mut dir = [0 as c_char; MAXPATHL];
-                if *p_dir == NUL {
+                if *opt_vars().p_dir == NUL {
                     dir[0] = b'.' as c_char;
                     dir[1] = NUL;
                 } else {
-                    let mut p = p_dir;
+                    let mut p = opt_vars().p_dir;
                     copy_option_part(&raw mut p, dir.as_mut_ptr(), MAXPATHL, c",".as_ptr());
                 }
                 if let Some(swapname) = makeswapname(fname, ffname, curbuf, dir.as_mut_ptr())
                     && os_path_exists(swapname.as_ptr())
                 {
-                    if p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
+                    if opt_vars().p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                         let mut buff: [c_char; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
                         vim_snprintf!(
                             buff.as_mut_ptr(),
@@ -2568,7 +2568,7 @@ pub unsafe fn do_wqall(eap: *mut exarg_T) {
 /// Check the `'write'` option.
 unsafe fn not_writing() -> bool {
     unsafe {
-        if p_write != 0 {
+        if opt_vars().p_write != 0 {
             return false;
         }
         emsg(gettext(
@@ -2585,7 +2585,7 @@ unsafe fn check_readonly(forceit: *mut c_int, buf: *mut buf_T) -> bool {
             && ((*buf).b_p_ro != 0
                 || (os_path_exists((*buf).b_ffname) && os_file_is_writable((*buf).b_ffname) == 0))
         {
-            if (p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+            if (opt_vars().p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
                 && !(*buf).b_fname.is_null()
             {
                 let mut buff: [c_char; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
@@ -2682,7 +2682,7 @@ pub unsafe fn getfile(
                 && curbufIsChanged()
                 && autowrite(curbuf, forceit) == FAIL
             {
-                if p_confirm != 0 && p_write != 0 {
+                if opt_vars().p_confirm != 0 && opt_vars().p_write != 0 {
                     dialog_changed(curbuf, false);
                 }
                 if curbufIsChanged() {
@@ -2781,7 +2781,7 @@ pub unsafe fn do_ecmd(
         let so_ptr: *mut OptInt = if (*curwin).w_onebuf_opt.wo_so >= 0 {
             &raw mut (*curwin).w_onebuf_opt.wo_so
         } else {
-            &raw mut p_so
+            &raw mut opt_vars().p_so
         };
 
         if !eap.is_null() {
@@ -2839,7 +2839,7 @@ pub unsafe fn do_ecmd(
                     && (flags & (ECMD_HIDE | ECMD_ADDBUF | ECMD_ALTBUF)) == 0))
                 && check_changed(
                     curbuf,
-                    (if p_awa != 0 { CCGD_AW } else { 0 })
+                    (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 })
                         | (if other_file { 0 } else { CCGD_MULTWIN })
                         | (if (flags & ECMD_FORCEIT) != 0 {
                             CCGD_FORCEIT
@@ -3076,7 +3076,7 @@ pub unsafe fn do_ecmd(
                 set_bufref(&raw mut bufref, buf);
 
                 if ((*curbuf).b_flags & BF_NEVERLOADED) == 0
-                    && (p_ur < 0 || ((*curbuf).b_ml.ml_line_count as OptInt) <= p_ur)
+                    && (opt_vars().p_ur < 0 || ((*curbuf).b_ml.ml_line_count as OptInt) <= opt_vars().p_ur)
                 {
                     u_sync(false);
                     if u_savecommon(curbuf, 0, (*curbuf).b_ml.ml_line_count + 1, 0, true) == FAIL {
@@ -3218,7 +3218,7 @@ pub unsafe fn do_ecmd(
                 } else if newlnum > 0 {
                     (*curwin).w_cursor.lnum = newlnum;
                     check_cursor_lnum(curwin);
-                    if solcol >= 0 && p_sol == 0 {
+                    if solcol >= 0 && opt_vars().p_sol == 0 {
                         (*curwin).w_cursor.col = solcol;
                         check_cursor_col(curwin);
                         (*curwin).w_cursor.coladd = 0;
@@ -3236,7 +3236,7 @@ pub unsafe fn do_ecmd(
             if oldbuf && !auto_buf {
                 let msg_scroll_save = msg_scroll;
 
-                if shortmess(kShmOverall) && msg_listdo_overwrite == 0 && !exiting && p_verbose == 0
+                if shortmess(kShmOverall) && msg_listdo_overwrite == 0 && !exiting && opt_vars().p_verbose == 0
                 {
                     msg_scroll = 0;
                 }
@@ -3576,7 +3576,7 @@ pub unsafe fn ex_z(eap: *mut exarg_T) {
                 bigness = 2 * ((*curbuf).b_ml.ml_line_count as i64);
             }
 
-            p_window = bigness as c_int as OptInt;
+            opt_vars().p_window = bigness as c_int as OptInt;
             if *kind == b'=' as c_char {
                 bigness += 2;
             }
@@ -3741,7 +3741,7 @@ unsafe fn sub_joining_lines(
 
             if save {
                 if !keeppatterns {
-                    save_re_pat(RE_SUBST, pat.data, pat.size, p_magic);
+                    save_re_pat(RE_SUBST, pat.data, pat.size, opt_vars().p_magic);
                 }
                 add_to_history(HIST_SEARCH, pat.data, pat.size, true, NUL as c_int);
             }
@@ -3833,7 +3833,7 @@ unsafe fn sub_parse_flags(
         if *cmd == b'&' as c_char {
             cmd = cmd.add(1);
         } else {
-            (*subflags_arg).do_all = p_gd != 0;
+            (*subflags_arg).do_all = opt_vars().p_gd != 0;
             (*subflags_arg).do_ask = false;
             (*subflags_arg).do_error = true;
             (*subflags_arg).do_print = false;
@@ -4011,7 +4011,7 @@ unsafe fn do_sub(
                 cmd = skip_regexp_ex(
                     cmd,
                     delimiter,
-                    p_magic,
+                    opt_vars().p_magic,
                     true,
                     None,
                     ptr::null_mut(),
@@ -4106,7 +4106,7 @@ unsafe fn do_sub(
         } else if (*eap).cmdidx == cmdidx_T::CMD_snomagic as c_int {
             false
         } else {
-            p_magic != 0
+            opt_vars().p_magic != 0
         };
         if search_regcomp(
             pat.data,
@@ -4136,7 +4136,7 @@ unsafe fn do_sub(
         debug_assert!(!sub.is_null());
 
         if !(*sub == b'\\' as c_char && *sub.add(1) == b'=' as c_char)
-            && let Some(new_sub) = regtilde(sub, p_magic, cmdpreview_ns > 0)
+            && let Some(new_sub) = regtilde(sub, opt_vars().p_magic, cmdpreview_ns > 0)
         {
             sub = new_sub.as_ptr().cast_mut();
             sub_owned = Some(new_sub);
@@ -4151,7 +4151,7 @@ unsafe fn do_sub(
             && timed_out == 0
             && !aborting()
             && (cmdpreview_ns <= 0
-                || preview_lines.lines_needed <= p_cwh as linenr_T
+                || preview_lines.lines_needed <= opt_vars().p_cwh as linenr_T
                 || lnum <= (*curwin).w_botline)
         {
             let mut nmatch = vim_regexec_multi(
@@ -4256,21 +4256,21 @@ unsafe fn do_sub(
                                 do_check_cursorbind();
                             }
 
-                            if !vim_strchr(p_cpo, kCpoUndo).is_null() {
+                            if !vim_strchr(opt_vars().p_cpo, kCpoUndo).is_null() {
                                 no_u_sync += 1;
                             }
 
                             while excmds_st().subflags.do_ask {
                                 let mut orig_line = SubBuf::new();
                                 let mut len_change: c_int = 0;
-                                let save_p_lz = p_lz;
+                                let save_p_lz = opt_vars().p_lz;
                                 let save_p_fen = (*curwin).w_onebuf_opt.wo_fen;
 
                                 (*curwin).w_onebuf_opt.wo_fen = 0;
                                 let temp = RedrawingDisabled;
                                 RedrawingDisabled = 0;
 
-                                p_lz = 0;
+                                opt_vars().p_lz = 0;
 
                                 if !new_start.is_null() {
                                     orig_line =
@@ -4327,7 +4327,7 @@ unsafe fn do_sub(
 
                                 msg_didout = false;
                                 gotocmdline(true);
-                                p_lz = save_p_lz;
+                                opt_vars().p_lz = save_p_lz;
                                 RedrawingDisabled = temp;
 
                                 if !orig_line.is_null() {
@@ -4367,7 +4367,7 @@ unsafe fn do_sub(
                             }
                             State = save_State;
                             setmouse();
-                            if !vim_strchr(p_cpo, kCpoUndo).is_null() {
+                            if !vim_strchr(opt_vars().p_cpo, kCpoUndo).is_null() {
                                 no_u_sync -= 1;
                             }
 
@@ -4439,7 +4439,7 @@ unsafe fn do_sub(
                                 sub,
                                 sub_firstline.data(),
                                 0,
-                                REGSUB_BACKSLASH | if p_magic != 0 { REGSUB_MAGIC } else { 0 },
+                                REGSUB_BACKSLASH | if opt_vars().p_magic != 0 { REGSUB_MAGIC } else { 0 },
                             );
                             let mut sublen = sublen_i as usize;
                             textlock -= 1;
@@ -4495,7 +4495,7 @@ unsafe fn do_sub(
                                 sublen as colnr_T,
                                 REGSUB_COPY
                                     | REGSUB_BACKSLASH
-                                    | if p_magic != 0 { REGSUB_MAGIC } else { 0 },
+                                    | if opt_vars().p_magic != 0 { REGSUB_MAGIC } else { 0 },
                             ) as usize;
                             if n > 0 {
                                 new_start.size += n - 1;
@@ -4771,7 +4771,7 @@ unsafe fn do_sub(
                 if cmdpreview_ns <= 0
                     && !do_sub_msg(excmds_st().subflags.do_count)
                     && excmds_st().subflags.do_ask
-                    && p_ch > 0
+                    && opt_vars().p_ch > 0
                 {
                     msg(c"".as_ptr(), 0);
                 }
@@ -4790,7 +4790,7 @@ unsafe fn do_sub(
             if got_int {
                 emsg(gettext(e_interr.as_ptr()));
             } else if got_match {
-                if p_ch > 0 && !ui_has(kUIMessages) {
+                if opt_vars().p_ch > 0 && !ui_has(kUIMessages) {
                     msg(c"".as_ptr(), 0);
                 }
             } else if excmds_st().subflags.do_error {
@@ -4813,7 +4813,7 @@ unsafe fn do_sub(
         if cmdpreview_ns > 0 && !aborting() {
             if got_quit || profile_passed_limit(tm) {
                 set_option_direct(kOptInccommand, cstr_as_obj(c"".as_ptr()), 0, SID_NONE);
-            } else if *p_icm != NUL && !pat.data.is_null() {
+            } else if *opt_vars().p_icm != NUL && !pat.data.is_null() {
                 if excmds_st().pre_hl_id == 0 {
                     excmds_st().pre_hl_id = syn_check_group(c"Substitute".as_ptr(), 10);
                 }
@@ -4835,7 +4835,7 @@ unsafe fn do_sub(
 /// Give message for number of substitutions.
 pub unsafe fn do_sub_msg(count_only: bool) -> bool {
     unsafe {
-        if (((sub_nsubs as OptInt) > p_report && (KeyTyped || sub_nlines > 1 || p_report < 1))
+        if (((sub_nsubs as OptInt) > opt_vars().p_report && (KeyTyped || sub_nlines > 1 || opt_vars().p_report < 1))
             || count_only)
             && messaging()
         {
@@ -4961,7 +4961,7 @@ pub unsafe fn ex_global(eap: *mut exarg_T) {
             cmd = skip_regexp_ex(
                 cmd,
                 (delim as u8) as c_int,
-                p_magic,
+                opt_vars().p_magic,
                 true,
                 None,
                 ptr::null_mut(),
@@ -4982,7 +4982,7 @@ pub unsafe fn ex_global(eap: *mut exarg_T) {
             RE_BOTH,
             which_pat,
             SEARCH_HIS,
-            p_magic != 0,
+            opt_vars().p_magic != 0,
             &raw mut regmatch,
         ) == FAIL
         {
@@ -5176,7 +5176,7 @@ unsafe fn show_sub(
     cmdpreview_bufnr: handle_T,
 ) -> c_int {
     unsafe {
-        let save_shm_p = cstr_to_cstring(p_shm);
+        let save_shm_p = cstr_to_cstring(opt_vars().p_shm);
         let subresults = &(*preview_lines).subresults;
         let orig_buf = curbuf;
         let mut cmdpreview_buf: *mut buf_T = ptr::null_mut();
@@ -5194,7 +5194,7 @@ unsafe fn show_sub(
         update_topline(curwin);
 
         let mut col_width: c_int = 0;
-        let preview = (*p_icm == b's' as c_char)
+        let preview = (*opt_vars().p_icm == b's' as c_char)
             && ((*eap).line1 != old_cusr.lnum || (*eap).line2 != old_cusr.lnum);
 
         if preview {
@@ -5311,7 +5311,7 @@ pub unsafe fn ex_substitute_preview(
             let save_eap = (*eap).arg;
             let retv = do_sub(
                 eap,
-                profile_setlimit(p_rdt),
+                profile_setlimit(opt_vars().p_rdt),
                 cmdpreview_ns,
                 cmdpreview_bufnr,
             );

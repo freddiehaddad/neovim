@@ -184,7 +184,7 @@ pub unsafe fn ui_free_all_mem() {
 
 pub unsafe fn ui_rgb_attached() -> bool {
     unsafe {
-        if p_tgc != 0 {
+        if opt_vars().p_tgc != 0 {
             return true;
         }
         let uis_ptr = &raw const ui_state().uis;
@@ -297,10 +297,10 @@ pub unsafe fn ui_refresh() {
 
         ui_default_colors_set();
 
-        let save_p_lz = p_lz;
-        p_lz = 0;
+        let save_p_lz = opt_vars().p_lz;
+        opt_vars().p_lz = 0;
         screen_resize(width, height);
-        p_lz = save_p_lz;
+        opt_vars().p_lz = save_p_lz;
 
         ui_mode_info_set();
         ui_state().pending_mode_update = true;
@@ -412,7 +412,7 @@ pub unsafe fn vim_beep(val: c_uint) {
         }
         did_beep += 1;
 
-        if (bo_flags & val) == 0 && (bo_flags & kOptBoFlagAll) == 0 {
+        if (opt_vars().bo_flags & val) == 0 && (opt_vars().bo_flags & kOptBoFlagAll) == 0 {
             let now = os_hrtime();
             if ui_state().beep_start_time == 0 || now.wrapping_sub(ui_state().beep_start_time) > 500_000_000 {
                 ui_state().beep_count = 0;
@@ -420,7 +420,7 @@ pub unsafe fn vim_beep(val: c_uint) {
             }
             ui_state().beep_count += 1;
             if ui_state().beep_count <= 3 {
-                if p_vb != 0 {
+                if opt_vars().p_vb != 0 {
                     ui_call_visual_bell();
                 } else {
                     ui_call_bell();
@@ -428,7 +428,7 @@ pub unsafe fn vim_beep(val: c_uint) {
             }
         }
 
-        if !vim_strchr(p_debug, b'e' as c_int).is_null() {
+        if !vim_strchr(opt_vars().p_debug, b'e' as c_int).is_null() {
             msg_source(HLF_W);
             msg(gettext(c"Beep!".as_ptr()), HLF_W);
         }
@@ -565,14 +565,14 @@ pub unsafe fn ui_line(
             grid.attrs.as_mut_ptr().add(off),
         );
 
-        if p_wd != 0 && (rdb_flags & kOptRdbFlagLine) != 0 {
+        if opt_vars().p_wd != 0 && (opt_vars().rdb_flags & kOptRdbFlagLine) != 0 {
             ui_call_grid_cursor_goto(
                 Integer::from(grid.handle),
                 Integer::from(row),
                 Integer::from(clearcol.min(grid.cols - 1)),
             );
             ui_call_flush();
-            os_sleep(p_wd.unsigned_abs());
+            os_sleep(opt_vars().p_wd.unsigned_abs());
             ui_state().pending_cursor_update = true;
         }
     }
@@ -658,7 +658,7 @@ pub unsafe fn ui_flush() {
                 size: 0,
             };
             let style = mode_style_array(&raw mut arena);
-            let enabled = *p_guicursor != NUL;
+            let enabled = *opt_vars().p_guicursor != NUL;
             ui_call_mode_info_set(enabled, style);
             arena_mem_free(arena_finish(&raw mut arena));
             ui_state().pending_mode_info_update = false;
@@ -691,8 +691,8 @@ pub unsafe fn ui_flush() {
         }
         ui_call_flush();
 
-        if p_wd != 0 && (rdb_flags & kOptRdbFlagFlush) != 0 {
-            os_sleep(p_wd.unsigned_abs());
+        if opt_vars().p_wd != 0 && (opt_vars().rdb_flags & kOptRdbFlagFlush) != 0 {
+            os_sleep(opt_vars().p_wd.unsigned_abs());
         }
     }
 }
@@ -700,7 +700,7 @@ pub unsafe fn ui_flush() {
 pub unsafe fn ui_check_mouse() {
     unsafe {
         ui_state().has_mouse = false;
-        if *p_mouse == NUL {
+        if *opt_vars().p_mouse == NUL {
             return;
         }
 
@@ -726,7 +726,7 @@ pub unsafe fn ui_check_mouse() {
 
 pub unsafe fn ui_mouse_has(mode: c_int) -> bool {
     unsafe {
-        let mut p = p_mouse;
+        let mut p = opt_vars().p_mouse;
         while *p != NUL {
             if *p == b'a' as c_char {
                 if !vim_strchr(MOUSE_A.as_ptr(), mode).is_null() {

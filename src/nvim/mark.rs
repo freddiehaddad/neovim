@@ -515,7 +515,7 @@ pub unsafe fn setpcmark() {
             (*curwin).w_pcmark.lnum = 1;
         }
 
-        if (jop_flags & kOptJopFlagStack) != 0
+        if (opt_vars().jop_flags & kOptJopFlagStack) != 0
             && (*curwin).w_jumplistidx < (*curwin).w_jumplistlen - 1
         {
             (*curwin).w_jumplistlen = (*curwin).w_jumplistidx + 1;
@@ -1974,7 +1974,7 @@ pub unsafe fn cleanup_jumplist(wp: *mut win_T, loadfiles: bool) {
             let mustfree = if i >= (*wp).w_jumplistlen {
                 false
             } else if i > from + 1 {
-                (jop_flags & kOptJopFlagStack) == 0
+                (opt_vars().jop_flags & kOptJopFlagStack) == 0
             } else {
                 true
             };

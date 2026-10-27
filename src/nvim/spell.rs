@@ -1259,7 +1259,7 @@ pub unsafe fn spell_move_to(
                 if dir == BACKWARD {
                     if lnum > 1 {
                         lnum -= 1;
-                    } else if p_ws == 0 {
+                    } else if opt_vars().p_ws == 0 {
                         break;
                     } else {
                         lnum = (*(*wp).w_buffer).b_ml.ml_line_count;
@@ -1272,7 +1272,7 @@ pub unsafe fn spell_move_to(
                 } else {
                     if lnum < (*(*wp).w_buffer).b_ml.ml_line_count {
                         lnum += 1;
-                    } else if p_ws == 0 {
+                    } else if opt_vars().p_ws == 0 {
                         break;
                     } else {
                         lnum = 1;
@@ -1403,8 +1403,8 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
 }
 pub unsafe fn spell_enc() -> *mut c_char {
     unsafe {
-        if strlen(p_enc) < 60 && strcmp(p_enc, c"iso-8859-15".as_ptr()) != 0 {
-            return p_enc;
+        if strlen(opt_vars().p_enc) < 60 && strcmp(opt_vars().p_enc, c"iso-8859-15".as_ptr()) != 0 {
+            return opt_vars().p_enc;
         }
         c"latin1".as_ptr().cast_mut()
     }
@@ -2283,7 +2283,7 @@ pub unsafe fn check_need_cap(wp: *mut win_T, lnum: linenr_T, col: colnr_T) -> bo
 pub unsafe fn ex_spellrepall(_eap: *mut exarg_T) {
     unsafe {
         let pos = (*curwin).w_cursor;
-        let save_ws = p_ws;
+        let save_ws = opt_vars().p_ws;
         let mut prev_lnum: linenr_T = 0;
         let (Some(repl_from_cstr), Some(repl_to_cstr)) = (
             (&raw const spell_priv_st().repl_from).as_ref().unwrap().as_ref(),
@@ -2302,7 +2302,7 @@ pub unsafe fn ex_spellrepall(_eap: *mut exarg_T) {
         let frompat = frompat_vec.as_mut_ptr();
         let frompatlen =
             vim_snprintf!(frompat, frompatsize, c"\\V\\<%s\\>".as_ptr(), repl_from_ptr,) as usize;
-        p_ws = 0;
+        opt_vars().p_ws = 0;
         sub_nsubs = 0;
         sub_nlines = 0;
         (*curwin).w_cursor.lnum = 0;
@@ -2351,7 +2351,7 @@ pub unsafe fn ex_spellrepall(_eap: *mut exarg_T) {
             }
             (*curwin).w_cursor.col += repl_to_len as colnr_T;
         }
-        p_ws = save_ws;
+        opt_vars().p_ws = save_ws;
         (*curwin).w_cursor = pos;
         if sub_nsubs == 0 {
             semsg!(gettext(c"E753: Not found: %s".as_ptr()), repl_from_ptr);
@@ -3100,7 +3100,7 @@ unsafe fn dump_word(
         }) && ins_compl_add_infercase(
             p,
             strlen(p) as c_int,
-            p_ic != 0,
+            opt_vars().p_ic != 0,
             ptr::null_mut(),
             *dir,
             false,

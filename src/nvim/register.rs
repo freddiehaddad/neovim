@@ -636,7 +636,7 @@ pub unsafe fn do_record(c: c_int) -> c_int {
             restore_v_event(dict, &raw mut save_v_event);
             reg_recorded = reg_recording;
             reg_recording = 0;
-            if p_ch == 0 || ui_has(kUIMessages) {
+            if opt_vars().p_ch == 0 || ui_has(kUIMessages) {
                 showmode();
             } else {
                 msg(c"".as_ptr(), 0);
@@ -1163,7 +1163,7 @@ pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankre
         if orig_motion == MotionType::kMTCharWise
             && (*oap).start.col == 0
             && !(*oap).inclusive
-            && (!(*oap).is_VIsual || *p_sel == b'o' as c_char)
+            && (!(*oap).is_VIsual || *opt_vars().p_sel == b'o' as c_char)
             && (*oap).end.col == 0
             && yanklines > 1
         {
@@ -1233,7 +1233,7 @@ pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankre
             }
 
             if curr_reg.y_type == MotionType::kMTCharWise
-                && vim_strchr(p_cpo, kCpoRegappend).is_null()
+                && vim_strchr(opt_vars().p_cpo, kCpoRegappend).is_null()
                 && !curr_reg.y_array.is_empty()
                 && !new_reg.y_array.is_empty()
             {
@@ -1265,7 +1265,7 @@ pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankre
             if yank_type == MotionType::kMTCharWise && yanklines == 1 {
                 yanklines = 0;
             }
-            if yanklines > p_report as usize {
+            if yanklines > opt_vars().p_report as usize {
                 let mut namebuf = [0 as c_char; 100];
                 if (*oap).regname == 0 {
                     namebuf[0] = NUL;

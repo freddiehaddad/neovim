@@ -304,7 +304,7 @@ pub unsafe fn cin_is_cinword(mut line: *const c_char) -> bool {
 }
 pub unsafe fn cindent_on() -> bool {
     unsafe {
-        p_paste == 0 && ((*curbuf).b_p_cin != 0 || (*curbuf).b_p_inde.cb_type() != kCallbackNone)
+        opt_vars().p_paste == 0 && ((*curbuf).b_p_cin != 0 || (*curbuf).b_p_inde.cb_type() != kCallbackNone)
     }
 }
 unsafe fn cin_skipcomment(mut s: *const c_char) -> *const c_char {

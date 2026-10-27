@@ -2587,7 +2587,7 @@ unsafe fn regstack_push(state: regstate_T, scan: *mut u8) -> *mut regitem_T {
     }
     unsafe {
         let rs = &raw mut re_st().regstack;
-        if i64::from((((*rs).len() * 8) as c_uint) >> 10) >= p_mmp {
+        if i64::from((((*rs).len() * 8) as c_uint) >> 10) >= opt_vars().p_mmp {
             emsg(tr(e_pattern_uses_more_memory_than_maxmempattern.as_ptr()));
             return ptr::null_mut();
         }
@@ -3399,7 +3399,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                             } else {
                                 rst.count >= rst.maxval
                             } {
-                                if i64::from((((*rs).len() * 8) as c_uint) >> 10) >= p_mmp {
+                                if i64::from((((*rs).len() * 8) as c_uint) >> 10) >= opt_vars().p_mmp {
                                     emsg(
                                         tr(e_pattern_uses_more_memory_than_maxmempattern.as_ptr()),
                                     );
@@ -3436,7 +3436,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                             }
                         }
                         BEHIND | NOBEHIND => {
-                            if i64::from((((*rs).len() * 8) as c_uint) >> 10) >= p_mmp {
+                            if i64::from((((*rs).len() * 8) as c_uint) >> 10) >= opt_vars().p_mmp {
                                 emsg(tr(e_pattern_uses_more_memory_than_maxmempattern.as_ptr()));
                                 status = RA_FAIL;
                             } else {

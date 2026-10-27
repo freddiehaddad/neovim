@@ -996,7 +996,7 @@ pub unsafe fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
         if *cur.ptr == NUL {
             return ClusterInfo {
                 next: cur,
-                cells: dy_escape_width,
+                cells: opt_vars().dy_escape_width,
             };
         }
         let next = cur.ptr.add(cur.chr.len as usize).cast::<u8>();
@@ -1151,11 +1151,11 @@ pub unsafe fn utf_char2cells(c: c_int) -> c_int {
         if prop.charwidth() == 2 {
             return 2;
         }
-        if !p_ambw.is_null() && *p_ambw == b'd' as c_char && prop.ambiguous_width() {
+        if !opt_vars().p_ambw.is_null() && *opt_vars().p_ambw == b'd' as c_char && prop.ambiguous_width() {
             return 2;
         }
 
-        if p_emoji != 0 && c >= 0x1f000 && !prop.ambiguous_width() && prop_is_emojilike(prop) {
+        if opt_vars().p_emoji != 0 && c >= 0x1f000 && !prop.ambiguous_width() && prop_is_emojilike(prop) {
             return 2;
         }
 
@@ -2108,10 +2108,10 @@ pub unsafe fn utf_fold(a: c_int) -> c_int {
 
 pub unsafe fn mb_toupper(a: c_int) -> c_int {
     unsafe {
-        if a < 128 && (cmp_flags & kOptCmpFlagKeepascii) != 0 {
+        if a < 128 && (opt_vars().cmp_flags & kOptCmpFlagKeepascii) != 0 {
             return toupper_asc(a);
         }
-        if (cmp_flags & kOptCmpFlagInternal) == 0 {
+        if (opt_vars().cmp_flags & kOptCmpFlagInternal) == 0 {
             return towupper(a as wint_t) as c_int;
         }
         if a < 128 {
@@ -2127,10 +2127,10 @@ pub unsafe fn mb_islower(a: c_int) -> bool {
 
 pub unsafe fn mb_tolower(a: c_int) -> c_int {
     unsafe {
-        if a < 128 && (cmp_flags & kOptCmpFlagKeepascii) != 0 {
+        if a < 128 && (opt_vars().cmp_flags & kOptCmpFlagKeepascii) != 0 {
             return tolower_asc(a);
         }
-        if (cmp_flags & kOptCmpFlagInternal) == 0 {
+        if (opt_vars().cmp_flags & kOptCmpFlagInternal) == 0 {
             return towlower(a as wint_t) as c_int;
         }
         if a < 128 {
@@ -2487,7 +2487,7 @@ pub unsafe fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: *mut c_int) -> Cl
         assert!(*next >= 0x80 && *max_len > 0);
 
         let mut check_emoji =
-            cells == 1 && p_emoji != 0 && prop_is_emojilike(utf8proc_get_property(base.chr.value));
+            cells == 1 && opt_vars().p_emoji != 0 && prop_is_emojilike(utf8proc_get_property(base.chr.value));
 
         loop {
             let next_len = utf8len_tab[*next as usize];
@@ -2735,7 +2735,7 @@ pub unsafe fn utf_find_illegal() {
         let mut tofree: Option<Vec<u8>> = None;
 
         if (enc_canon_props((*curbuf).b_p_fenc) & ENC_8BIT) != 0 {
-            convert_setup(&mut vimconv, p_enc, (*curbuf).b_p_fenc);
+            convert_setup(&mut vimconv, opt_vars().p_enc, (*curbuf).b_p_fenc);
         }
 
         (*curwin).w_cursor.coladd = 0;

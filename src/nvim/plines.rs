@@ -105,7 +105,7 @@ pub struct ClusterInfo {
 
 #[inline]
 pub unsafe fn vim_isbreak(c: c_int) -> bool {
-    unsafe { breakat_flags[(c as u8) as usize] != 0 }
+    unsafe { opt_vars().breakat_flags[(c as u8) as usize] != 0 }
 }
 
 #[inline]
@@ -789,7 +789,7 @@ pub unsafe fn getvcol(
                 && (State & MODE_NORMAL) != 0
                 && (*wp).w_onebuf_opt.wo_list == 0
                 && !virtual_active(wp)
-                && !(Visual.active && (*p_sel == b'e' as c_char || ltoreq(*pos, Visual.start)))
+                && !(Visual.active && (*opt_vars().p_sel == b'e' as c_char || ltoreq(*pos, Visual.start)))
             {
                 *cursor = vcol + incr - 1;
             } else {
@@ -886,7 +886,7 @@ pub unsafe fn getvcols(
         *left = from1.min(from2);
 
         if to2 > to1 {
-            if *p_sel == b'e' as c_char && from2 > to1 {
+            if *opt_vars().p_sel == b'e' as c_char && from2 > to1 {
                 *right = from2 - 1;
             } else {
                 *right = to2;

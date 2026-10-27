@@ -293,7 +293,7 @@ pub unsafe fn update_topline(wp: *mut win_T) {
         let so_ptr: *mut OptInt = if (*wp).w_onebuf_opt.wo_so >= 0 {
             &raw mut (*wp).w_onebuf_opt.wo_so
         } else {
-            &raw mut p_so
+            &raw mut opt_vars().p_so
         };
         let save_so = *so_ptr;
 
@@ -494,10 +494,10 @@ pub unsafe fn update_topline(wp: *mut win_T) {
 /// Return the scrolljump value to use for the window `wp`.
 unsafe fn scrolljump_value(wp: *mut win_T) -> c_int {
     unsafe {
-        if p_sj >= 0 {
-            p_sj as c_int
+        if opt_vars().p_sj >= 0 {
+            opt_vars().p_sj as c_int
         } else {
-            ((*wp).w_view_height * (-p_sj as c_int)) / 100
+            ((*wp).w_view_height * (-opt_vars().p_sj as c_int)) / 100
         }
     }
 }
@@ -916,7 +916,7 @@ pub unsafe fn win_col_off2(wp: *mut win_T) -> c_int {
         if ((*wp).w_onebuf_opt.wo_nu != 0
             || (*wp).w_onebuf_opt.wo_rnu != 0
             || *(*wp).w_onebuf_opt.wo_stc != NUL)
-            && !vim_strchr(p_cpo, kCpoNumcol).is_null()
+            && !vim_strchr(opt_vars().p_cpo, kCpoNumcol).is_null()
         {
             return number_width(wp) + c_int::from(*(*wp).w_onebuf_opt.wo_stc == NUL);
         }
@@ -1004,11 +1004,11 @@ pub unsafe fn curs_columns(wp: *mut win_T, may_scroll: c_int) {
                 let mut diff = if off_left < 0 { -off_left } else { off_right };
 
                 let mut new_leftcol =
-                    if p_ss == 0 || diff >= i64::from(width1 / 2) || off_right >= off_left {
+                    if opt_vars().p_ss == 0 || diff >= i64::from(width1 / 2) || off_right >= off_left {
                         (*wp).w_wcol - extra - width1 / 2
                     } else {
-                        if diff < p_ss {
-                            diff = p_ss;
+                        if diff < opt_vars().p_ss {
+                            diff = opt_vars().p_ss;
                         }
                         if off_left < 0 {
                             (*wp).w_leftcol - diff as c_int
@@ -2617,8 +2617,8 @@ pub unsafe fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> c_int 
             }
         } else {
             let one_window = firstwin == lastwin;
-            count *= if one_window && p_window > 0 && p_window < i64::from(Rows - 1) {
-                (p_window as c_int - 2).max(1)
+            count *= if one_window && opt_vars().p_window > 0 && opt_vars().p_window < i64::from(Rows - 1) {
+                (opt_vars().p_window as c_int - 2).max(1)
             } else {
                 get_scroll_overlap(dir)
             };
@@ -2647,7 +2647,7 @@ pub unsafe fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> c_int 
             beep_flush();
         } else if (*curwin).w_onebuf_opt.wo_sms == 0 {
             beginline(BL_SOL | BL_FIX);
-        } else if p_sol != 0 {
+        } else if opt_vars().p_sol != 0 {
             nv_g_home_m_cmd(&raw mut ca);
         }
 
