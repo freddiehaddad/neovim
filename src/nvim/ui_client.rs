@@ -45,25 +45,48 @@ use std::ptr;
 pub(crate) const UI_CLIENT_STDIN_FD: c_int = 3;
 use crate::highlight::KEYSET_OPTIDX_highlight__url;
 
-static mut tui: Option<Box<TUIData>> = None;
-static mut tui_width: c_int = 0;
-static mut tui_height: c_int = 0;
-static mut tui_term: Option<std::ffi::CString> = None;
-static mut tui_rgb: bool = false;
+struct UiClientState {
+    tui: Option<Box<TUIData>>,
+    tui_width: c_int,
+    tui_height: c_int,
+    tui_term: Option<std::ffi::CString>,
+    tui_rgb: bool,
+    restart_args: Array,
+    restart_pending: bool,
+    restart_args_after_crash_exit: Array,
+}
+
+impl UiClientState {
+    const fn new() -> Self {
+        Self {
+            tui: None,
+            tui_width: 0,
+            tui_height: 0,
+            tui_term: None,
+            tui_rgb: false,
+            restart_args: ARRAY_INIT,
+            restart_pending: false,
+            restart_args_after_crash_exit: ARRAY_INIT,
+        }
+    }
+}
+
+static UIC_STATE: GlobalState<UiClientState> = GlobalState::new(UiClientState::new());
+
+#[inline]
+unsafe fn uic_st() -> &'static mut UiClientState {
+    unsafe { &mut *UIC_STATE.as_ptr() }
+}
 
 #[inline]
 unsafe fn tui_ptr() -> *mut TUIData {
     unsafe {
-        let ptr = &raw mut tui;
-        (*ptr)
+        uic_st()
+            .tui
             .as_deref_mut()
             .map_or(ptr::null_mut(), |t| &raw mut *t)
     }
 }
-
-static mut restart_args: Array = ARRAY_INIT;
-static mut restart_pending: bool = false;
-static mut restart_args_after_crash_exit: Array = ARRAY_INIT;
 
 use crate::event::r#loop::uv_os_getpid;
 
@@ -223,7 +246,7 @@ pub unsafe fn ui_client_attach(
         };
 
         let mut args2_items: [Object; 5] = [
-            cstr_as_obj(c"nvim-tui".as_ptr()),
+            cstr_as_obj(c"nvim-uic_st().tui".as_ptr()),
             Object {
                 obj_type: ObjectType::kObjectTypeDict,
                 data: ObjectData::Dict(version),
@@ -266,17 +289,17 @@ pub unsafe fn ui_client_detach() {
 pub unsafe fn ui_client_run() -> ! {
     unsafe {
         tui_start(
-            &raw mut tui,
-            &raw mut tui_width,
-            &raw mut tui_height,
-            &raw mut tui_term,
-            &raw mut tui_rgb,
+            &raw mut uic_st().tui,
+            &raw mut uic_st().tui_width,
+            &raw mut uic_st().tui_height,
+            &raw mut uic_st().tui_term,
+            &raw mut uic_st().tui_rgb,
         );
         ui_client_attach(
-            tui_width,
-            tui_height,
-            (&raw const tui_term).as_ref().unwrap().as_deref(),
-            tui_rgb,
+            uic_st().tui_width,
+            uic_st().tui_height,
+            (&raw const uic_st().tui_term).as_ref().unwrap().as_deref(),
+            uic_st().tui_rgb,
         );
 
         if os_env_exists(c"NVIM_LOG_FILE".as_ptr(), true) {
@@ -328,8 +351,8 @@ pub unsafe fn ui_client_set_size(width: c_int, height: c_int) {
             };
             rpc_send_event(ui_client_channel_id, c"nvim_ui_try_resize".as_ptr(), args);
         }
-        tui_width = width;
-        tui_height = height;
+        uic_st().tui_width = width;
+        uic_st().tui_height = height;
     }
 }
 
@@ -494,10 +517,10 @@ pub unsafe fn channel_connect_event(server_addr: std::ffi::CString) {
 
         ui_client_channel_id = chan;
         ui_client_attach(
-            tui_width,
-            tui_height,
-            (&raw const tui_term).as_ref().unwrap().as_deref(),
-            tui_rgb,
+            uic_st().tui_width,
+            uic_st().tui_height,
+            (&raw const uic_st().tui_term).as_ref().unwrap().as_deref(),
+            uic_st().tui_rgb,
         );
 
         logmsg!(
@@ -515,40 +538,40 @@ pub unsafe fn channel_connect_event(server_addr: std::ffi::CString) {
 
 pub unsafe fn ui_client_event_restart(args: Array) {
     unsafe {
-        api_free_array(restart_args);
-        restart_args = copy_array(args, ptr::null_mut());
-        restart_pending = true;
+        api_free_array(uic_st().restart_args);
+        uic_st().restart_args = copy_array(args, ptr::null_mut());
+        uic_st().restart_pending = true;
     }
 }
 
 pub unsafe fn ui_client_event__set_restart_on_crash_exit(args: Array) {
     unsafe {
-        api_free_array(restart_args_after_crash_exit);
-        restart_args_after_crash_exit = copy_array(args, ptr::null_mut());
+        api_free_array(uic_st().restart_args_after_crash_exit);
+        uic_st().restart_args_after_crash_exit = copy_array(args, ptr::null_mut());
     }
 }
 
 pub unsafe fn ui_client_attach_to_restarted_server(error_restart: bool) {
     unsafe {
-        let mut args = restart_args;
+        let mut args = uic_st().restart_args;
         let mut start_server = false;
-        if !restart_pending {
-            if error_restart && ui_client_error_exit == -1 && restart_args_after_crash_exit.size > 0
+        if !uic_st().restart_pending {
+            if error_restart && ui_client_error_exit == -1 && uic_st().restart_args_after_crash_exit.size > 0
             {
                 start_server = true;
-                args = restart_args_after_crash_exit;
+                args = uic_st().restart_args_after_crash_exit;
             } else {
                 return;
             }
         }
 
-        restart_pending = false;
+        uic_st().restart_pending = false;
 
         let cleanup = || {
-            api_free_array(restart_args);
-            restart_args = ARRAY_INIT;
-            api_free_array(restart_args_after_crash_exit);
-            restart_args_after_crash_exit = ARRAY_INIT;
+            api_free_array(uic_st().restart_args);
+            uic_st().restart_args = ARRAY_INIT;
+            api_free_array(uic_st().restart_args_after_crash_exit);
+            uic_st().restart_args_after_crash_exit = ARRAY_INIT;
         };
 
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
@@ -625,10 +648,10 @@ pub unsafe fn ui_client_attach_to_restarted_server(error_restart: bool) {
 
         ui_client_channel_id = chan_id;
         ui_client_attach(
-            tui_width,
-            tui_height,
-            (&raw const tui_term).as_ref().unwrap().as_deref(),
-            tui_rgb,
+            uic_st().tui_width,
+            uic_st().tui_height,
+            (&raw const uic_st().tui_term).as_ref().unwrap().as_deref(),
+            uic_st().tui_rgb,
         );
 
         logmsg!(
@@ -664,7 +687,7 @@ pub unsafe fn ui_client_event_error_exit(args: Array) {
 
 pub unsafe fn ui_client_free_all_mem() {
     unsafe {
-        let tui_out = &raw mut tui;
+        let tui_out = &raw mut uic_st().tui;
         tui_free_all_mem((*tui_out).take());
         grid_line_buf_char = Vec::new();
         grid_line_buf_attr = Vec::new();

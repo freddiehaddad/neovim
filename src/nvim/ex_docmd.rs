@@ -588,13 +588,38 @@ use crate::errors::*;
 const COMMAND_COUNT: c_int = 564;
 const CMD_SIZE_I32: c_int = cmdidx_T::CMD_SIZE as c_int;
 
-static mut quitmore: c_int = 0;
-static mut cmdline_call_depth: c_int = 0;
-static mut dollar_command: [c_char; 2] = [b'$' as c_char, 0];
-static mut prev_dir: Option<std::ffi::CString> = None;
-static mut filetype_detect: TriState = kNone;
-static mut filetype_plugin: TriState = kNone;
-static mut filetype_indent: TriState = kNone;
+struct ExDocmdState {
+    quitmore: c_int,
+    cmdline_call_depth: c_int,
+    dollar_command: [c_char; 2],
+    prev_dir: Option<std::ffi::CString>,
+    filetype_detect: TriState,
+    filetype_plugin: TriState,
+    filetype_indent: TriState,
+    EX_ERROR_BUF: [c_char; MSG_BUF_LEN],
+}
+
+impl ExDocmdState {
+    const fn new() -> Self {
+        Self {
+            quitmore: 0,
+            cmdline_call_depth: 0,
+            dollar_command: [b'$' as c_char, 0],
+            prev_dir: None,
+            filetype_detect: kNone,
+            filetype_plugin: kNone,
+            filetype_indent: kNone,
+            EX_ERROR_BUF: [0; MSG_BUF_LEN],
+        }
+    }
+}
+
+static DOCMD_STATE: GlobalState<ExDocmdState> = GlobalState::new(ExDocmdState::new());
+
+#[inline]
+unsafe fn docmd_st() -> &'static mut ExDocmdState {
+    unsafe { &mut *DOCMD_STATE.as_ptr() }
+}
 
 struct wcmd_T {
     line: std::ffi::CString,
@@ -4927,11 +4952,11 @@ unsafe fn msg_verbose_cmd(lnum: linenr_T, cmd: *mut c_char) {
 /// Start executing an Ex command line.
 unsafe fn do_cmdline_start() -> c_int {
     unsafe {
-        debug_assert!(cmdline_call_depth >= 0);
-        if cmdline_call_depth >= 200 && OptInt::from(cmdline_call_depth) >= p_mfd {
+        debug_assert!(docmd_st().cmdline_call_depth >= 0);
+        if docmd_st().cmdline_call_depth >= 200 && OptInt::from(docmd_st().cmdline_call_depth) >= p_mfd {
             return FAIL;
         }
-        cmdline_call_depth += 1;
+        docmd_st().cmdline_call_depth += 1;
         start_batch_changes();
         OK
     }
@@ -4940,8 +4965,8 @@ unsafe fn do_cmdline_start() -> c_int {
 /// End executing an Ex command line.
 unsafe fn do_cmdline_end() {
     unsafe {
-        cmdline_call_depth -= 1;
-        debug_assert!(cmdline_call_depth >= 0);
+        docmd_st().cmdline_call_depth -= 1;
+        debug_assert!(docmd_st().cmdline_call_depth >= 0);
         end_batch_changes();
     }
 }
@@ -6423,8 +6448,8 @@ unsafe fn do_one_cmd(
         ea.line2 = 1;
         ex_nesting_level += 1;
 
-        if quitmore != 0 && !fgetline.is_func() && !fgetline.is_autocmd() {
-            quitmore -= 1;
+        if docmd_st().quitmore != 0 && !fgetline.is_func() && !fgetline.is_autocmd() {
+            docmd_st().quitmore -= 1;
         }
 
         let save_cmdmod = ptr::replace(&raw mut cmdmod, cmdmod_T::new());
@@ -8402,7 +8427,7 @@ unsafe fn repl_cmdline(
         }
 
         if !(*eap).do_ecmd_cmd.is_null()
-            && (*eap).do_ecmd_cmd != (&raw mut dollar_command).cast::<c_char>()
+            && (*eap).do_ecmd_cmd != (&raw mut docmd_st().dollar_command).cast::<c_char>()
         {
             (*eap).do_ecmd_cmd = new_cmdline
                 .wrapping_add(((*eap).do_ecmd_cmd as usize).wrapping_sub((*cmdlinep) as usize));
@@ -8476,7 +8501,7 @@ pub unsafe fn getargcmd(argp: *mut *mut c_char) -> *mut c_char {
         if *arg == b'+' as c_char {
             arg = arg.add(1);
             if ascii_isspace(*arg) || *arg == NUL {
-                command = (&raw mut dollar_command).cast();
+                command = (&raw mut docmd_st().dollar_command).cast();
             } else {
                 command = arg;
                 arg = skip_cmd_arg(command, true);
@@ -8914,7 +8939,7 @@ unsafe fn check_more(message: bool, forceit: bool) -> c_int {
         let ac = argcount();
         let n = ac - (*curwin).w_arg_idx - 1;
 
-        if !forceit && only_one_window() && ac > 1 && !arg_had_last && n > 0 && quitmore == 0 {
+        if !forceit && only_one_window() && ac > 1 && !arg_had_last && n > 0 && docmd_st().quitmore == 0 {
             if message {
                 if (p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
                     && !(*curbuf).b_fname.is_null()
@@ -8945,7 +8970,7 @@ unsafe fn check_more(message: bool, forceit: bool) -> c_int {
                     ),
                     n,
                 );
-                quitmore = 2;
+                docmd_st().quitmore = 2;
             }
             return FAIL;
         }
@@ -10818,7 +10843,7 @@ unsafe fn ex_read(eap: *mut exarg_T) {
 
 pub unsafe fn free_cd_dir() {
     unsafe {
-        prev_dir = None;
+        docmd_st().prev_dir = None;
         globaldir = None;
     }
 }
@@ -10829,7 +10854,7 @@ unsafe fn get_prevdir(scope: CdScope) -> *mut Option<std::ffi::CString> {
             kCdScopeTabpage => &raw mut (*curtab).tp_prevdir,
             kCdScopeBuffer => &raw mut (*curbuf).b_prevdir,
             kCdScopeWindow => &raw mut (*curwin).w_prevdir,
-            _ => &raw mut prev_dir,
+            _ => &raw mut docmd_st().prev_dir,
         }
     }
 }
@@ -12537,13 +12562,13 @@ unsafe fn ex_filetype(eap: *mut exarg_T) {
             let _ = smsg!(
                 0,
                 c"filetype detection:%s  plugin:%s  indent:%s".as_ptr(),
-                if filetype_detect == kTrue {
+                if docmd_st().filetype_detect == kTrue {
                     c"ON".as_ptr()
                 } else {
                     c"OFF".as_ptr()
                 },
-                if filetype_plugin == kTrue {
-                    if filetype_detect == kTrue {
+                if docmd_st().filetype_plugin == kTrue {
+                    if docmd_st().filetype_detect == kTrue {
                         c"ON".as_ptr()
                     } else {
                         c"(on)".as_ptr()
@@ -12551,8 +12576,8 @@ unsafe fn ex_filetype(eap: *mut exarg_T) {
                 } else {
                     c"OFF".as_ptr()
                 },
-                if filetype_indent == kTrue {
-                    if filetype_detect == kTrue {
+                if docmd_st().filetype_indent == kTrue {
+                    if docmd_st().filetype_detect == kTrue {
                         c"ON".as_ptr()
                     } else {
                         c"(on)".as_ptr()
@@ -12583,16 +12608,16 @@ unsafe fn ex_filetype(eap: *mut exarg_T) {
         }
 
         if strcmp(arg, c"on".as_ptr()) == 0 || strcmp(arg, c"detect".as_ptr()) == 0 {
-            if *arg == b'o' as c_char || filetype_detect != kTrue {
+            if *arg == b'o' as c_char || docmd_st().filetype_detect != kTrue {
                 source_runtime(FILETYPE_FILE.as_ptr().cast_mut(), DIP_ALL);
-                filetype_detect = kTrue;
+                docmd_st().filetype_detect = kTrue;
                 if plugin {
                     source_runtime(FTPLUGIN_FILE.as_ptr().cast_mut(), DIP_ALL);
-                    filetype_plugin = kTrue;
+                    docmd_st().filetype_plugin = kTrue;
                 }
                 if indent {
                     source_runtime(INDENT_FILE.as_ptr().cast_mut(), DIP_ALL);
-                    filetype_indent = kTrue;
+                    docmd_st().filetype_indent = kTrue;
                 }
             }
             if *arg == b'd' as c_char {
@@ -12607,15 +12632,15 @@ unsafe fn ex_filetype(eap: *mut exarg_T) {
             if plugin || indent {
                 if plugin {
                     source_runtime(FTPLUGOF_FILE.as_ptr().cast_mut(), DIP_ALL);
-                    filetype_plugin = kFalse;
+                    docmd_st().filetype_plugin = kFalse;
                 }
                 if indent {
                     source_runtime(INDOFF_FILE.as_ptr().cast_mut(), DIP_ALL);
-                    filetype_indent = kFalse;
+                    docmd_st().filetype_indent = kFalse;
                 }
             } else {
                 source_runtime(FTOFF_FILE.as_ptr().cast_mut(), DIP_ALL);
-                filetype_detect = kFalse;
+                docmd_st().filetype_detect = kFalse;
             }
         } else {
             let _ = semsg!(gettext(e_invarg2.as_ptr()), arg);
@@ -12623,11 +12648,9 @@ unsafe fn ex_filetype(eap: *mut exarg_T) {
     }
 }
 
-static mut EX_ERROR_BUF: [c_char; MSG_BUF_LEN] = [0; MSG_BUF_LEN];
-
 pub unsafe fn ex_errmsg(msg: *const c_char, arg: *const c_char) -> *mut c_char {
     unsafe {
-        let buf = (&raw mut EX_ERROR_BUF).cast::<c_char>();
+        let buf = (&raw mut docmd_st().EX_ERROR_BUF).cast::<c_char>();
         let _ = vim_snprintf!(buf, MSG_BUF_LEN, gettext(msg), arg);
         buf
     }
@@ -12635,22 +12658,22 @@ pub unsafe fn ex_errmsg(msg: *const c_char, arg: *const c_char) -> *mut c_char {
 
 pub unsafe fn filetype_plugin_enable() {
     unsafe {
-        if filetype_plugin == kNone {
+        if docmd_st().filetype_plugin == kNone {
             source_runtime(FTPLUGIN_FILE.as_ptr().cast_mut(), DIP_ALL);
-            filetype_plugin = kTrue;
+            docmd_st().filetype_plugin = kTrue;
         }
-        if filetype_indent == kNone {
+        if docmd_st().filetype_indent == kNone {
             source_runtime(INDENT_FILE.as_ptr().cast_mut(), DIP_ALL);
-            filetype_indent = kTrue;
+            docmd_st().filetype_indent = kTrue;
         }
     }
 }
 
 pub unsafe fn filetype_maybe_enable() {
     unsafe {
-        if filetype_detect == kNone {
+        if docmd_st().filetype_detect == kNone {
             source_runtime(FILETYPE_FILE.as_ptr().cast_mut(), DIP_ALL);
-            filetype_detect = kTrue;
+            docmd_st().filetype_detect = kTrue;
         }
     }
 }

@@ -313,16 +313,42 @@ pub struct GetListLineCookie {
     li: *const listitem_T,
 }
 
-static mut INPUTSECRET_FLAG: bool = false;
-static mut GA_USERINPUT: Vec<tasave_T> = Vec::new();
-static mut HAS_WSL: TriState = kNone;
-static mut RAND_GX: u32 = 0;
-static mut RAND_GY: u32 = 0;
-static mut RAND_GZ: u32 = 0;
-static mut RAND_GW: u32 = 0;
-static mut RAND_INITIALIZED: bool = false;
-static mut GET_FUNC_NAME_INTIDX: c_int = -1;
-static mut GET_EXPR_NAME_INTIDX: c_int = -1;
+struct EvalFuncsState {
+    INPUTSECRET_FLAG: bool,
+    GA_USERINPUT: Vec<tasave_T>,
+    HAS_WSL: TriState,
+    RAND_GX: u32,
+    RAND_GY: u32,
+    RAND_GZ: u32,
+    RAND_GW: u32,
+    RAND_INITIALIZED: bool,
+    GET_FUNC_NAME_INTIDX: c_int,
+    GET_EXPR_NAME_INTIDX: c_int,
+}
+
+impl EvalFuncsState {
+    const fn new() -> Self {
+        Self {
+            INPUTSECRET_FLAG: false,
+            GA_USERINPUT: Vec::new(),
+            HAS_WSL: kNone,
+            RAND_GX: 0,
+            RAND_GY: 0,
+            RAND_GZ: 0,
+            RAND_GW: 0,
+            RAND_INITIALIZED: false,
+            GET_FUNC_NAME_INTIDX: -1,
+            GET_EXPR_NAME_INTIDX: -1,
+        }
+    }
+}
+
+static FUNCS_STATE: GlobalState<EvalFuncsState> = GlobalState::new(EvalFuncsState::new());
+
+#[inline]
+unsafe fn funcs_st() -> &'static mut EvalFuncsState {
+    unsafe { &mut *FUNCS_STATE.as_ptr() }
+}
 
 const PTY_IGNORED_ENV_VARS: &[&CStr] = &[
     #[cfg(not(windows))]
@@ -429,9 +455,9 @@ unsafe fn proc_is_stopped(proc_: *mut Proc) -> bool {
 pub unsafe fn get_function_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
-            GET_FUNC_NAME_INTIDX = -1;
+            funcs_st().GET_FUNC_NAME_INTIDX = -1;
         }
-        if GET_FUNC_NAME_INTIDX < 0 {
+        if funcs_st().GET_FUNC_NAME_INTIDX < 0 {
             let name = get_user_func_name(xp, idx);
             if !name.is_null() {
                 if *name != NUL
@@ -444,8 +470,8 @@ pub unsafe fn get_function_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
             }
         }
 
-        GET_FUNC_NAME_INTIDX += 1;
-        let fdef = eval_func_def_at(GET_FUNC_NAME_INTIDX);
+        funcs_st().GET_FUNC_NAME_INTIDX += 1;
+        let fdef = eval_func_def_at(funcs_st().GET_FUNC_NAME_INTIDX);
         let Some(key_cstr) = (*fdef).name else {
             return ptr::null_mut();
         };
@@ -469,16 +495,16 @@ pub unsafe fn get_function_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
 pub unsafe fn get_expr_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
-            GET_EXPR_NAME_INTIDX = -1;
+            funcs_st().GET_EXPR_NAME_INTIDX = -1;
         }
-        if GET_EXPR_NAME_INTIDX < 0 {
+        if funcs_st().GET_EXPR_NAME_INTIDX < 0 {
             let name = get_function_name(xp, idx);
             if !name.is_null() {
                 return name;
             }
         }
-        GET_EXPR_NAME_INTIDX += 1;
-        get_user_var_name(xp, GET_EXPR_NAME_INTIDX)
+        funcs_st().GET_EXPR_NAME_INTIDX += 1;
+        get_user_var_name(xp, funcs_st().GET_EXPR_NAME_INTIDX)
     }
 }
 
@@ -3998,7 +4024,7 @@ unsafe fn eval_has_static_feature(name: *const c_char) -> bool {
 
 unsafe fn has_wsl() -> bool {
     unsafe {
-        if HAS_WSL == kNone {
+        if funcs_st().HAS_WSL == kNone {
             let mut err = Error::new();
             let cmd = c"return vim.uv.os_uname()['release']:lower():match('microsoft')";
             let o = nlua_exec(
@@ -4017,9 +4043,9 @@ unsafe fn has_wsl() -> bool {
                 &raw mut err,
             );
             debug_assert!(err.err_type == ErrorType::kErrorTypeNone);
-            HAS_WSL = if luaret_truthy(o) { kTrue } else { kFalse };
+            funcs_st().HAS_WSL = if luaret_truthy(o) { kTrue } else { kFalse };
         }
-        HAS_WSL == kTrue
+        funcs_st().HAS_WSL == kTrue
     }
 }
 
@@ -4270,14 +4296,14 @@ pub unsafe fn f_indexof(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
 /// "input()" function
 pub unsafe fn f_input(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        get_user_input(argvars, rettv, false, INPUTSECRET_FLAG);
+        get_user_input(argvars, rettv, false, funcs_st().INPUTSECRET_FLAG);
     }
 }
 
 /// "inputdialog()" function
 pub unsafe fn f_inputdialog(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        get_user_input(argvars, rettv, true, INPUTSECRET_FLAG);
+        get_user_input(argvars, rettv, true, funcs_st().INPUTSECRET_FLAG);
     }
 }
 
@@ -4318,7 +4344,7 @@ pub unsafe fn f_inputlist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
 /// "inputrestore()" function
 pub unsafe fn f_inputrestore(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let userinput = &raw mut GA_USERINPUT;
+        let userinput = &raw mut funcs_st().GA_USERINPUT;
         if let Some(mut saved) = (*userinput).pop() {
             restore_typeahead(&mut saved);
         } else if p_verbose > 1 {
@@ -4335,7 +4361,7 @@ pub unsafe fn f_inputsave(_argvars: *mut typval_T, _rettv: *mut typval_T, _fptr:
     unsafe {
         let mut saved = tasave_T::new();
         save_typeahead(&mut saved);
-        let userinput = &raw mut GA_USERINPUT;
+        let userinput = &raw mut funcs_st().GA_USERINPUT;
         (*userinput).push(saved);
     }
 }
@@ -4344,10 +4370,10 @@ pub unsafe fn f_inputsave(_argvars: *mut typval_T, _rettv: *mut typval_T, _fptr:
 pub unsafe fn f_inputsecret(argvars: *mut typval_T, rettv: *mut typval_T, fptr: EvalFuncData) {
     unsafe {
         cmdline_star += 1;
-        INPUTSECRET_FLAG = true;
+        funcs_st().INPUTSECRET_FLAG = true;
         f_input(argvars, rettv, fptr);
         cmdline_star -= 1;
-        INPUTSECRET_FLAG = false;
+        funcs_st().INPUTSECRET_FLAG = false;
     }
 }
 
@@ -6272,20 +6298,20 @@ pub unsafe fn f_rand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
         let result: u32;
 
         if (*argvars).v_type == VarType::VAR_UNKNOWN {
-            if !RAND_INITIALIZED {
+            if !funcs_st().RAND_INITIALIZED {
                 let mut x: u32 = 0;
                 init_srand(&raw mut x);
-                RAND_GX = splitmix32(&raw mut x);
-                RAND_GY = splitmix32(&raw mut x);
-                RAND_GZ = splitmix32(&raw mut x);
-                RAND_GW = splitmix32(&raw mut x);
-                RAND_INITIALIZED = true;
+                funcs_st().RAND_GX = splitmix32(&raw mut x);
+                funcs_st().RAND_GY = splitmix32(&raw mut x);
+                funcs_st().RAND_GZ = splitmix32(&raw mut x);
+                funcs_st().RAND_GW = splitmix32(&raw mut x);
+                funcs_st().RAND_INITIALIZED = true;
             }
             result = shuffle_xoshiro128starstar(
-                &raw mut RAND_GX,
-                &raw mut RAND_GY,
-                &raw mut RAND_GZ,
-                &raw mut RAND_GW,
+                &raw mut funcs_st().RAND_GX,
+                &raw mut funcs_st().RAND_GY,
+                &raw mut funcs_st().RAND_GZ,
+                &raw mut funcs_st().RAND_GW,
             );
         } else if (*argvars).v_type == VarType::VAR_LIST {
             let l = (*argvars).vval.v_list();

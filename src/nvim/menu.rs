@@ -162,16 +162,42 @@ impl save_state_T {
     }
 }
 
-static mut MENUS_LOCKED: c_int = 0;
-static mut EXPAND_MENU: *const Vec<vimmenu_T> = ptr::null();
-static mut EXPAND_MODES: c_int = 0;
-static mut EXPAND_EMENU: bool = false;
-static mut GET_MENU_NAME_IDX: usize = 0;
-static mut GET_MENU_NAME_ADVANCE: bool = false;
-static mut GET_MENU_NAMES_IDX: usize = 0;
-static mut GET_MENU_NAMES_ADVANCE: bool = false;
-static mut GET_MENU_NAMES_TBUFFER: [c_char; TBUFFER_LEN] = [0; TBUFFER_LEN];
-static mut MENUTRANS_GA: Vec<menutrans_T> = Vec::new();
+struct MenuModuleState {
+    MENUS_LOCKED: c_int,
+    EXPAND_MENU: *const Vec<vimmenu_T>,
+    EXPAND_MODES: c_int,
+    EXPAND_EMENU: bool,
+    GET_MENU_NAME_IDX: usize,
+    GET_MENU_NAME_ADVANCE: bool,
+    GET_MENU_NAMES_IDX: usize,
+    GET_MENU_NAMES_ADVANCE: bool,
+    GET_MENU_NAMES_TBUFFER: [c_char; TBUFFER_LEN],
+    MENUTRANS_GA: Vec<menutrans_T>,
+}
+
+impl MenuModuleState {
+    const fn new() -> Self {
+        Self {
+            MENUS_LOCKED: 0,
+            EXPAND_MENU: ptr::null(),
+            EXPAND_MODES: 0,
+            EXPAND_EMENU: false,
+            GET_MENU_NAME_IDX: 0,
+            GET_MENU_NAME_ADVANCE: false,
+            GET_MENU_NAMES_IDX: 0,
+            GET_MENU_NAMES_ADVANCE: false,
+            GET_MENU_NAMES_TBUFFER: [0; TBUFFER_LEN],
+            MENUTRANS_GA: Vec::new(),
+        }
+    }
+}
+
+static MENU_STATE: GlobalState<MenuModuleState> = GlobalState::new(MenuModuleState::new());
+
+#[inline]
+unsafe fn menu_st() -> &'static mut MenuModuleState {
+    unsafe { &mut *MENU_STATE.as_ptr() }
+}
 
 use crate::eval::typval::tv_dict_len;
 
@@ -187,7 +213,7 @@ unsafe fn get_root_menu(_name: *const c_char) -> *mut Vec<vimmenu_T> {
 /// If `menus_locked` is set then give an error and return true (`is_menus_locked`).
 unsafe fn is_menus_locked() -> bool {
     unsafe {
-        if MENUS_LOCKED > 0 {
+        if menu_st().MENUS_LOCKED > 0 {
             emsg(gettext(e_cannot_change_menus_while_listing.as_ptr()));
             return true;
         }
@@ -893,10 +919,10 @@ unsafe fn show_menus(path_name: *mut c_char, modes: c_int) -> c_int {
             }
         }
 
-        MENUS_LOCKED += 1;
+        menu_st().MENUS_LOCKED += 1;
         msg_puts_title(gettext(c"\n--- Menus ---".as_ptr()));
         show_menus_recursive(menu, modes, 0);
-        MENUS_LOCKED -= 1;
+        menu_st().MENUS_LOCKED -= 1;
         OK
     }
 }
@@ -1039,14 +1065,14 @@ pub unsafe fn set_context_in_menu_cmd(
 
         let expand_menus =
             !((*cmd == b't' as c_char && *cmd.add(1) == b'e' as c_char) || *cmd == b'p' as c_char);
-        EXPAND_EMENU = *cmd == b'e' as c_char;
+        menu_st().EXPAND_EMENU = *cmd == b'e' as c_char;
         if expand_menus && ascii_iswhite(*p) {
             return ptr::null_mut();
         }
         if *p == NUL {
-            EXPAND_MODES = get_menu_cmd_modes(cmd, forceit, ptr::null_mut(), &raw mut unmenu);
+            menu_st().EXPAND_MODES = get_menu_cmd_modes(cmd, forceit, ptr::null_mut(), &raw mut unmenu);
             if !unmenu {
-                EXPAND_MODES = MENU_ALL_MODES;
+                menu_st().EXPAND_MODES = MENU_ALL_MODES;
             }
 
             let mut menu_list: *const Vec<vimmenu_T> = &raw const root_menu;
@@ -1064,7 +1090,7 @@ pub unsafe fn set_context_in_menu_cmd(
                 for menu in &*menu_list {
                     if menu_name_equal(name, menu) {
                         if (*p != NUL && menu.children.is_empty())
-                            || (menu.modes & EXPAND_MODES) == 0
+                            || (menu.modes & menu_st().EXPAND_MODES) == 0
                         {
                             return ptr::null_mut();
                         }
@@ -1085,7 +1111,7 @@ pub unsafe fn set_context_in_menu_cmd(
                 EXPAND_MENUS
             };
             (*xp).xp_pattern = after_dot;
-            EXPAND_MENU = menu_list;
+            menu_st().EXPAND_MENU = menu_list;
         } else {
             (*xp).xp_context = EXPAND_NOTHING;
         }
@@ -1097,39 +1123,39 @@ pub unsafe fn set_context_in_menu_cmd(
 pub unsafe fn get_menu_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
-            GET_MENU_NAME_IDX = 0;
-            GET_MENU_NAME_ADVANCE = false;
+            menu_st().GET_MENU_NAME_IDX = 0;
+            menu_st().GET_MENU_NAME_ADVANCE = false;
         }
 
-        if EXPAND_MENU.is_null() {
+        if menu_st().EXPAND_MENU.is_null() {
             return ptr::null_mut();
         }
-        let menus = (*EXPAND_MENU).as_slice();
+        let menus = (*menu_st().EXPAND_MENU).as_slice();
 
-        while GET_MENU_NAME_IDX < menus.len() {
-            let menu = &menus[GET_MENU_NAME_IDX];
+        while menu_st().GET_MENU_NAME_IDX < menus.len() {
+            let menu = &menus[menu_st().GET_MENU_NAME_IDX];
             let dname_ptr = menu.dname.as_ptr().cast_mut();
             if menu_is_hidden(dname_ptr) || menu_is_separator(dname_ptr) || menu.children.is_empty()
             {
-                GET_MENU_NAME_IDX += 1;
+                menu_st().GET_MENU_NAME_IDX += 1;
             } else {
                 break;
             }
         }
 
-        if GET_MENU_NAME_IDX >= menus.len() {
+        if menu_st().GET_MENU_NAME_IDX >= menus.len() {
             return ptr::null_mut();
         }
-        let menu = &menus[GET_MENU_NAME_IDX];
+        let menu = &menus[menu_st().GET_MENU_NAME_IDX];
 
-        let str_ptr = if (menu.modes & EXPAND_MODES) != 0 {
-            if GET_MENU_NAME_ADVANCE {
+        let str_ptr = if (menu.modes & menu_st().EXPAND_MODES) != 0 {
+            if menu_st().GET_MENU_NAME_ADVANCE {
                 menu.en_dname
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
             } else {
                 if menu.en_dname.is_none() {
-                    GET_MENU_NAME_ADVANCE = true;
+                    menu_st().GET_MENU_NAME_ADVANCE = true;
                 }
                 menu.dname.as_ptr().cast_mut()
             }
@@ -1137,11 +1163,11 @@ pub unsafe fn get_menu_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
             c"".as_ptr().cast_mut()
         };
 
-        if GET_MENU_NAME_ADVANCE {
-            GET_MENU_NAME_IDX += 1;
+        if menu_st().GET_MENU_NAME_ADVANCE {
+            menu_st().GET_MENU_NAME_IDX += 1;
         }
 
-        GET_MENU_NAME_ADVANCE = !GET_MENU_NAME_ADVANCE;
+        menu_st().GET_MENU_NAME_ADVANCE = !menu_st().GET_MENU_NAME_ADVANCE;
 
         str_ptr
     }
@@ -1151,57 +1177,57 @@ pub unsafe fn get_menu_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
 pub unsafe fn get_menu_names(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
-            GET_MENU_NAMES_IDX = 0;
-            GET_MENU_NAMES_ADVANCE = false;
+            menu_st().GET_MENU_NAMES_IDX = 0;
+            menu_st().GET_MENU_NAMES_ADVANCE = false;
         }
 
-        if EXPAND_MENU.is_null() {
+        if menu_st().EXPAND_MENU.is_null() {
             return ptr::null_mut();
         }
-        let menus = (*EXPAND_MENU).as_slice();
+        let menus = (*menu_st().EXPAND_MENU).as_slice();
 
-        while GET_MENU_NAMES_IDX < menus.len() && {
-            let dname = menus[GET_MENU_NAMES_IDX].dname.as_ptr().cast_mut();
-            let dlen = menus[GET_MENU_NAMES_IDX].dname.as_bytes().len();
+        while menu_st().GET_MENU_NAMES_IDX < menus.len() && {
+            let dname = menus[menu_st().GET_MENU_NAMES_IDX].dname.as_ptr().cast_mut();
+            let dlen = menus[menu_st().GET_MENU_NAMES_IDX].dname.as_bytes().len();
             menu_is_hidden(dname)
-                || (EXPAND_EMENU && menu_is_separator(dname))
+                || (menu_st().EXPAND_EMENU && menu_is_separator(dname))
                 || (dlen > 0 && *dname.add(dlen - 1) == b'.' as c_char)
         } {
-            GET_MENU_NAMES_IDX += 1;
+            menu_st().GET_MENU_NAMES_IDX += 1;
         }
 
-        if GET_MENU_NAMES_IDX >= menus.len() {
+        if menu_st().GET_MENU_NAMES_IDX >= menus.len() {
             return ptr::null_mut();
         }
-        let menu = &menus[GET_MENU_NAMES_IDX];
+        let menu = &menus[menu_st().GET_MENU_NAMES_IDX];
 
-        let str_ptr = if (menu.modes & EXPAND_MODES) != 0 {
+        let str_ptr = if (menu.modes & menu_st().EXPAND_MODES) != 0 {
             if !menu.children.is_empty() {
-                if GET_MENU_NAMES_ADVANCE {
+                if menu_st().GET_MENU_NAMES_ADVANCE {
                     xstrlcpy(
-                        &raw mut GET_MENU_NAMES_TBUFFER[0],
+                        &raw mut menu_st().GET_MENU_NAMES_TBUFFER[0],
                         menu.en_dname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
                         TBUFFER_LEN,
                     );
                 } else {
                     xstrlcpy(
-                        &raw mut GET_MENU_NAMES_TBUFFER[0],
+                        &raw mut menu_st().GET_MENU_NAMES_TBUFFER[0],
                         menu.dname.as_ptr(),
                         TBUFFER_LEN,
                     );
                     if menu.en_dname.is_none() {
-                        GET_MENU_NAMES_ADVANCE = true;
+                        menu_st().GET_MENU_NAMES_ADVANCE = true;
                     }
                 }
-                strcat(&raw mut GET_MENU_NAMES_TBUFFER[0], c"\x01".as_ptr());
-                &raw mut GET_MENU_NAMES_TBUFFER[0]
-            } else if GET_MENU_NAMES_ADVANCE {
+                strcat(&raw mut menu_st().GET_MENU_NAMES_TBUFFER[0], c"\x01".as_ptr());
+                &raw mut menu_st().GET_MENU_NAMES_TBUFFER[0]
+            } else if menu_st().GET_MENU_NAMES_ADVANCE {
                 menu.en_dname
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
             } else {
                 if menu.en_dname.is_none() {
-                    GET_MENU_NAMES_ADVANCE = true;
+                    menu_st().GET_MENU_NAMES_ADVANCE = true;
                 }
                 menu.dname.as_ptr().cast_mut()
             }
@@ -1209,11 +1235,11 @@ pub unsafe fn get_menu_names(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
             c"".as_ptr().cast_mut()
         };
 
-        if GET_MENU_NAMES_ADVANCE {
-            GET_MENU_NAMES_IDX += 1;
+        if menu_st().GET_MENU_NAMES_ADVANCE {
+            menu_st().GET_MENU_NAMES_IDX += 1;
         }
 
-        GET_MENU_NAMES_ADVANCE = !GET_MENU_NAMES_ADVANCE;
+        menu_st().GET_MENU_NAMES_ADVANCE = !menu_st().GET_MENU_NAMES_ADVANCE;
 
         str_ptr
     }
@@ -1763,7 +1789,7 @@ pub unsafe fn menu_find(path_name: *const c_char) -> *mut vimmenu_T {
 pub unsafe fn ex_menutranslate(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
-        let mt_ptr = &raw mut MENUTRANS_GA;
+        let mt_ptr = &raw mut menu_st().MENUTRANS_GA;
         let menutrans = &mut *mt_ptr;
 
         if strncmp(arg, c"clear".as_ptr(), 5) == 0
@@ -1824,7 +1850,7 @@ unsafe fn menu_skip_part(mut p: *mut c_char) -> *mut c_char {
 /// Lookup part of a menu name in the translations (`menutrans_lookup`).
 unsafe fn menutrans_lookup(name: *mut c_char, len: c_int) -> *mut c_char {
     unsafe {
-        let mt_ptr = &raw const MENUTRANS_GA;
+        let mt_ptr = &raw const menu_st().MENUTRANS_GA;
         let menutrans = &*mt_ptr;
         let u_len = len as usize;
 

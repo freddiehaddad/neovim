@@ -164,24 +164,38 @@ pub struct spellvars_T {
     pub spv_capcol_lnum: linenr_T,
 }
 
-static mut redraw_popupmenu: bool = false;
-static mut msg_grid_invalid: bool = false;
-static mut resizing_autocmd: bool = false;
-static mut conceal_cursor_used: bool = false;
-static mut default_grid_resizing: bool = false;
-static mut still_may_intro: bool = true;
-static mut win_update_recursive: bool = false;
+struct DrawscreenState {
+    redraw_popupmenu: bool,
+    msg_grid_invalid: bool,
+    resizing_autocmd: bool,
+    conceal_cursor_used: bool,
+    default_grid_resizing: bool,
+    still_may_intro: bool,
+    win_update_recursive: bool,
+    suspended_virt_text: DecorVirtText,
+}
 
-static mut suspended_virt_text: DecorVirtText = DecorVirtText {
-    flags: 0,
-    hl_mode: 0,
-    priority: DECOR_PRIORITY_BASE,
-    width: 0,
-    col: 0,
-    pos: kVPosWinCol,
-    data: DecorVirtTextData::empty(),
-    next: None,
-};
+impl DrawscreenState {
+    const fn new() -> Self {
+        Self {
+            redraw_popupmenu: false,
+            msg_grid_invalid: false,
+            resizing_autocmd: false,
+            conceal_cursor_used: false,
+            default_grid_resizing: false,
+            still_may_intro: true,
+            win_update_recursive: false,
+            suspended_virt_text: DecorVirtText { flags: 0, hl_mode: 0, priority: DECOR_PRIORITY_BASE, width: 0, col: 0, pos: kVPosWinCol, data: DecorVirtTextData::empty(), next: None },
+        }
+    }
+}
+
+static DS_STATE: GlobalState<DrawscreenState> = GlobalState::new(DrawscreenState::new());
+
+#[inline]
+unsafe fn ds_st() -> &'static mut DrawscreenState {
+    unsafe { &mut *DS_STATE.as_ptr() }
+}
 
 #[inline]
 pub unsafe fn w_endcol(wp: *const win_T) -> c_int {
@@ -201,7 +215,7 @@ unsafe fn w_lines_at(wp: *mut win_T, idx: usize) -> &'static mut wline_T {
 pub unsafe fn conceal_check_cursor_line() {
     unsafe {
         let should_conceal = conceal_cursor_line(curwin);
-        if (*curwin).w_onebuf_opt.wo_cole <= 0 || conceal_cursor_used == should_conceal {
+        if (*curwin).w_onebuf_opt.wo_cole <= 0 || ds_st().conceal_cursor_used == should_conceal {
             return;
         }
 
@@ -216,10 +230,10 @@ pub unsafe fn conceal_check_cursor_line() {
 
 pub unsafe fn default_grid_alloc() -> bool {
     unsafe {
-        if default_grid_resizing {
+        if ds_st().default_grid_resizing {
             return false;
         }
-        default_grid_resizing = true;
+        ds_st().default_grid_resizing = true;
 
         if (grid_allocated(&raw const default_grid)
             && Rows == default_grid.rows
@@ -227,7 +241,7 @@ pub unsafe fn default_grid_alloc() -> bool {
             || Rows == 0
             || Columns == 0
         {
-            default_grid_resizing = false;
+            ds_st().default_grid_resizing = false;
             return false;
         }
 
@@ -241,7 +255,7 @@ pub unsafe fn default_grid_alloc() -> bool {
         default_grid.comp_width = Columns;
         default_grid.handle = DEFAULT_GRID_HANDLE;
 
-        default_grid_resizing = false;
+        ds_st().default_grid_resizing = false;
         true
     }
 }
@@ -275,7 +289,7 @@ pub unsafe fn screenclear() {
         cmdline_was_last_drawn = false;
         redraw_cmdline = true;
         redraw_tabline = true;
-        redraw_popupmenu = true;
+        ds_st().redraw_popupmenu = true;
         pum_invalidate();
 
         let mut wp = firstwin;
@@ -301,7 +315,7 @@ pub unsafe fn screenclear() {
         {
             grid_invalidate(&raw mut msg_grid);
             msg_grid_validate();
-            msg_grid_invalid = false;
+            ds_st().msg_grid_invalid = false;
             clear_cmdline = true;
         }
     }
@@ -360,12 +374,12 @@ pub unsafe fn screen_resize(mut width: c_int, mut height: c_int) {
         ui_call_grid_resize(1, Integer::from(width), Integer::from(height));
 
         let mut retry_count = 0;
-        resizing_autocmd = true;
+        ds_st().resizing_autocmd = true;
 
         while default_grid_alloc() {
             ui_comp_set_screen_valid(false);
             if grid_allocated(&raw const msg_grid) {
-                msg_grid_invalid = true;
+                ds_st().msg_grid_invalid = true;
             }
 
             RedrawingDisabled += 1;
@@ -389,7 +403,7 @@ pub unsafe fn screen_resize(mut width: c_int, mut height: c_int) {
             );
         }
 
-        resizing_autocmd = false;
+        ds_st().resizing_autocmd = false;
         redraw_all_later(UPD_CLEAR);
 
         if State != MODE_ASKMORE && State != MODE_EXTERNCMD {
@@ -419,7 +433,7 @@ pub unsafe fn screen_resize(mut width: c_int, mut height: c_int) {
                     do_check_scrollbind(true);
                 }
                 if (State & MODE_CMDLINE) != 0 {
-                    redraw_popupmenu = false;
+                    ds_st().redraw_popupmenu = false;
                     update_screen();
                     redrawcmdline();
                     if pum_drawn() {
@@ -428,7 +442,7 @@ pub unsafe fn screen_resize(mut width: c_int, mut height: c_int) {
                 } else {
                     update_topline(curwin);
                     if pum_drawn() {
-                        redraw_popupmenu = false;
+                        ds_st().redraw_popupmenu = false;
                         ins_compl_show_pum();
                     }
                     update_screen();
@@ -458,14 +472,14 @@ pub unsafe fn redrawing() -> bool {
 
 pub unsafe fn update_screen() -> c_int {
     unsafe {
-        if still_may_intro && !may_show_intro() {
+        if ds_st().still_may_intro && !may_show_intro() {
             redraw_later(firstwin, UPD_NOT_VALID);
-            still_may_intro = false;
+            ds_st().still_may_intro = false;
         }
 
         let is_stl_global = global_stl_height() > 0;
 
-        if resizing_autocmd || !grid_allocated(&raw const default_grid) {
+        if ds_st().resizing_autocmd || !grid_allocated(&raw const default_grid) {
             return FAIL;
         }
 
@@ -507,7 +521,7 @@ pub unsafe fn update_screen() -> c_int {
             ui_comp_set_screen_valid(false);
         }
 
-        if msg_scrolled != 0 || msg_grid_invalid {
+        if msg_scrolled != 0 || ds_st().msg_grid_invalid {
             clear_cmdline = true;
             let valid = (Rows - msg_scrollsize()).max(0);
             if grid_allocated(&raw const msg_grid) {
@@ -553,7 +567,7 @@ pub unsafe fn update_screen() -> c_int {
                 }
             }
             msg_grid_set_pos(Rows - (p_ch as c_int), false);
-            msg_grid_invalid = false;
+            ds_st().msg_grid_invalid = false;
             if was_invalidated {
                 ui_comp_set_screen_valid(true);
             }
@@ -746,7 +760,7 @@ pub unsafe fn update_screen() -> c_int {
             showmode();
         }
 
-        if still_may_intro {
+        if ds_st().still_may_intro {
             intro_message(false);
         }
         repeat_message();
@@ -1442,7 +1456,7 @@ unsafe fn win_update(wp: *mut win_T) {
         decor_providers_invoke_win(wp);
 
         if !(*buf).terminal.is_null() && terminal_suspended((*buf).terminal.cast::<Terminal>()) {
-            let svt_ptr = &raw mut suspended_virt_text;
+            let svt_ptr = &raw mut ds_st().suspended_virt_text;
             if (*svt_ptr).data.virt_text().is_empty() {
                 (*svt_ptr).data.virt_text_mut().push(VirtTextChunk {
                     text: Some(c"[Process suspended]".to_owned()),
@@ -1913,7 +1927,7 @@ unsafe fn win_update(wp: *mut win_T) {
         let mut cursorline_fi = foldinfo_T::new();
         win_update_cursorline(wp, &raw mut cursorline_fi);
         if ptr::eq(wp, curwin) {
-            conceal_cursor_used = conceal_cursor_line(curwin);
+            ds_st().conceal_cursor_used = conceal_cursor_line(curwin);
         }
 
         win_check_ns_hl(wp);
@@ -2419,8 +2433,8 @@ unsafe fn win_update(wp: *mut win_T) {
             if dollar_vcol == -1 || !ptr::eq(wp, curwin) {
                 (*wp).w_valid |= VALID_BOTLINE;
                 (*wp).w_viewport_invalid = true;
-                if ptr::eq(wp, curwin) && (*wp).w_botline != old_botline && !win_update_recursive {
-                    win_update_recursive = true;
+                if ptr::eq(wp, curwin) && (*wp).w_botline != old_botline && !ds_st().win_update_recursive {
+                    ds_st().win_update_recursive = true;
                     (*curwin).w_valid &= !VALID_TOPLINE;
                     update_topline(curwin);
                     if must_redraw != 0 {
@@ -2431,7 +2445,7 @@ unsafe fn win_update(wp: *mut win_T) {
                         must_redraw = 0;
                         (*curbuf).b_mod_set = mod_set;
                     }
-                    win_update_recursive = false;
+                    ds_st().win_update_recursive = false;
                 }
             }
 

@@ -238,20 +238,38 @@ const NAMESPACE_CHAR: &CStr = c"abglstvw";
 /// Used for checking if local variables or arguments used in a lambda.
 pub static mut eval_lavars_used: *mut bool = ptr::null_mut();
 
-static mut echo_hl_id: c_int = 0;
-static mut last_timer_id: u64 = 1;
-static mut callback_depth: c_int = 0;
-static mut CURRENT_COPY_ID: c_int = 0;
-static mut EVAL7_RECURSE: c_int = 0;
-static mut VAR_ITEM_COPY_RECURSE: c_int = 0;
-static mut VAR2FPOS_POS: pos_T = pos_T {
-    lnum: 0,
-    col: 0,
-    coladd: 0,
-};
+struct EvalModuleState {
+    echo_hl_id: c_int,
+    last_timer_id: u64,
+    callback_depth: c_int,
+    CURRENT_COPY_ID: c_int,
+    EVAL7_RECURSE: c_int,
+    VAR_ITEM_COPY_RECURSE: c_int,
+    VAR2FPOS_POS: pos_T,
+    timers: std::collections::BTreeMap<u64, *mut timer_T>,
+}
 
-static mut timers: std::collections::BTreeMap<u64, *mut timer_T> =
-    std::collections::BTreeMap::new();
+impl EvalModuleState {
+    const fn new() -> Self {
+        Self {
+            echo_hl_id: 0,
+            last_timer_id: 1,
+            callback_depth: 0,
+            CURRENT_COPY_ID: 0,
+            EVAL7_RECURSE: 0,
+            VAR_ITEM_COPY_RECURSE: 0,
+            VAR2FPOS_POS: pos_T { lnum: 0, col: 0, coladd: 0 },
+            timers: std::collections::BTreeMap::new(),
+        }
+    }
+}
+
+static EVAL_STATE: GlobalState<EvalModuleState> = GlobalState::new(EvalModuleState::new());
+
+#[inline]
+unsafe fn eval_st() -> &'static mut EvalModuleState {
+    unsafe { &mut *EVAL_STATE.as_ptr() }
+}
 
 enum ForSource {
     None,
@@ -2888,11 +2906,11 @@ unsafe fn eval7(
         }
         let mut end_leader: *const c_char = *arg;
 
-        if EVAL7_RECURSE == MAX_EVAL7_RECURSE {
+        if eval_st().EVAL7_RECURSE == MAX_EVAL7_RECURSE {
             semsg!(gettext(E_EXPRESSION_TOO_RECURSIVE_STR.as_ptr()), *arg);
             return FAIL;
         }
-        EVAL7_RECURSE += 1;
+        eval_st().EVAL7_RECURSE += 1;
 
         match **arg as u8 {
             b'0'..=b'9' => {
@@ -3010,7 +3028,7 @@ unsafe fn eval7(
             ret = eval7_leader(rettv, false, start_leader, &raw mut end_leader);
         }
 
-        EVAL7_RECURSE -= 1;
+        eval_st().EVAL7_RECURSE -= 1;
         ret
     }
 }
@@ -4301,8 +4319,8 @@ pub unsafe fn func_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bo
 /// Get next (unique) copy ID.
 pub unsafe fn get_copyID() -> c_int {
     unsafe {
-        CURRENT_COPY_ID = CURRENT_COPY_ID.wrapping_add(COPYID_INC);
-        CURRENT_COPY_ID
+        eval_st().CURRENT_COPY_ID = eval_st().CURRENT_COPY_ID.wrapping_add(COPYID_INC);
+        eval_st().CURRENT_COPY_ID
     }
 }
 
@@ -4480,7 +4498,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
             }
         }
 
-        let timers_ptr = &raw const timers;
+        let timers_ptr = &raw const eval_st().timers;
         for &timer in (*timers_ptr).values() {
             set_ref_in_callback(
                 &raw mut (*timer).callback,
@@ -5255,7 +5273,7 @@ pub unsafe fn callback_from_typval(callback: *mut Callback, arg: *const typval_T
 }
 
 pub unsafe fn get_callback_depth() -> c_int {
-    unsafe { callback_depth }
+    unsafe { eval_st().callback_depth }
 }
 
 /// @return  whether the callback could be called.
@@ -5266,7 +5284,7 @@ pub unsafe fn callback_call(
     rettv: *mut typval_T,
 ) -> bool {
     unsafe {
-        if i64::from(callback_depth) > p_mfd {
+        if i64::from(eval_st().callback_depth) > p_mfd {
             emsg(gettext((&raw const e_command_too_recursive).cast()));
             return false;
         }
@@ -5305,7 +5323,7 @@ pub unsafe fn callback_call(
                 }
                 let mut err = Error::new();
                 let luaref = (*callback).data.as_luaref();
-                callback_depth += 1;
+                eval_st().callback_depth += 1;
                 let result = nlua_call_ref(
                     luaref,
                     ptr::null(),
@@ -5314,7 +5332,7 @@ pub unsafe fn callback_call(
                     &raw mut arena,
                     &raw mut err,
                 );
-                callback_depth -= 1;
+                eval_st().callback_depth -= 1;
                 let ok = err.err_type == ErrorType::kErrorTypeNone;
                 if !ok {
                     semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg_ptr());
@@ -5326,7 +5344,7 @@ pub unsafe fn callback_call(
                 return ok;
             }
             kCallbackExpr => {
-                callback_depth += 1;
+                eval_st().callback_depth += 1;
                 let evalarg_ptr = &raw mut EVALARG_EVALUATE;
                 let r = eval0_simple_funccal(
                     skipwhite((*callback).data.as_funcref()),
@@ -5334,7 +5352,7 @@ pub unsafe fn callback_call(
                     ptr::null_mut(),
                     evalarg_ptr,
                 );
-                callback_depth -= 1;
+                eval_st().callback_depth -= 1;
                 return r == OK;
             }
             _ => {
@@ -5355,9 +5373,9 @@ pub unsafe fn callback_call(
             fe_found_var: false,
         };
 
-        callback_depth += 1;
+        eval_st().callback_depth += 1;
         let ret = call_func(name, -1, rettv, argcount_in, argvars_in, &raw mut funcexe);
-        callback_depth -= 1;
+        eval_st().callback_depth -= 1;
         ret != 0
     }
 }
@@ -5406,7 +5424,7 @@ unsafe fn set_ref_in_callback_reader(
 
 pub unsafe fn find_timer_by_nr(xx: varnumber_T) -> *mut timer_T {
     unsafe {
-        let timers_ptr = &raw const timers;
+        let timers_ptr = &raw const eval_st().timers;
         (*timers_ptr)
             .get(&(xx as u64))
             .copied()
@@ -5455,7 +5473,7 @@ pub unsafe fn add_timer_info(rettv: *mut typval_T, timer: *mut timer_T) {
 
 pub unsafe fn add_timer_info_all(rettv: *mut typval_T) {
     unsafe {
-        let timers_ptr = &raw const timers;
+        let timers_ptr = &raw const eval_st().timers;
         tv_list_alloc_ret(rettv, (*timers_ptr).len() as isize);
         for &timer in (*timers_ptr).values() {
             if !(*timer).stopped || (*timer).refcount > 1 {
@@ -5520,8 +5538,8 @@ pub unsafe fn timer_due_cb(_tw: *mut TimeWatcher, timer: *mut timer_T) {
 
 pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: Callback) -> u64 {
     unsafe {
-        let id = last_timer_id;
-        last_timer_id += 1;
+        let id = eval_st().last_timer_id;
+        eval_st().last_timer_id += 1;
         let timer = Box::into_raw(Box::new(timer_T {
             watcher: TimeWatcher::new(),
             timer_id: id as c_int,
@@ -5546,7 +5564,7 @@ pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: Callback)
             time_watcher_start(&raw mut (*timer).watcher, timeout as u64, timeout as u64);
         }
 
-        let timers_ptr = &raw mut timers;
+        let timers_ptr = &raw mut eval_st().timers;
         (*timers_ptr).insert((*timer).timer_id as u64, timer);
         (*timer).timer_id as u64
     }
@@ -5567,7 +5585,7 @@ pub unsafe fn timer_stop(timer: *mut timer_T) {
 
 pub(crate) unsafe fn timer_close_cb(_tw: *mut TimeWatcher, timer: *mut timer_T) {
     unsafe {
-        let timers_ptr = &raw mut timers;
+        let timers_ptr = &raw mut eval_st().timers;
         let _ = (*timers_ptr).remove(&((*timer).timer_id as u64));
         timer_decref(timer);
     }
@@ -5584,7 +5602,7 @@ unsafe fn timer_decref(timer: *mut timer_T) {
 
 pub unsafe fn timer_stop_all() {
     unsafe {
-        let timers_ptr = &raw const timers;
+        let timers_ptr = &raw const eval_st().timers;
         let all_timers: Vec<*mut timer_T> = (*timers_ptr).values().copied().collect();
         for timer in all_timers {
             timer_stop(timer);
@@ -5778,19 +5796,19 @@ pub unsafe fn var2fpos(
                 return ptr::null_mut();
             }
 
-            VAR2FPOS_POS.lnum = tv_list_find_nr(l, 0, &raw mut error) as linenr_T;
-            if error || VAR2FPOS_POS.lnum <= 0 || VAR2FPOS_POS.lnum > (*bp).b_ml.ml_line_count {
+            eval_st().VAR2FPOS_POS.lnum = tv_list_find_nr(l, 0, &raw mut error) as linenr_T;
+            if error || eval_st().VAR2FPOS_POS.lnum <= 0 || eval_st().VAR2FPOS_POS.lnum > (*bp).b_ml.ml_line_count {
                 return ptr::null_mut();
             }
 
-            VAR2FPOS_POS.col = tv_list_find_nr(l, 1, &raw mut error) as colnr_T;
+            eval_st().VAR2FPOS_POS.col = tv_list_find_nr(l, 1, &raw mut error) as colnr_T;
             if error {
                 return ptr::null_mut();
             }
             let len = if charcol {
-                mb_charlen(ml_get_buf(bp, VAR2FPOS_POS.lnum))
+                mb_charlen(ml_get_buf(bp, eval_st().VAR2FPOS_POS.lnum))
             } else {
-                ml_get_buf_len(bp, VAR2FPOS_POS.lnum)
+                ml_get_buf_len(bp, eval_st().VAR2FPOS_POS.lnum)
             };
 
             let li = tv_list_find(l, 1);
@@ -5799,20 +5817,20 @@ pub unsafe fn var2fpos(
                 && !(*tv_list_item_tv(li)).vval.v_string().is_null()
                 && strcmp((*tv_list_item_tv(li)).vval.v_string(), c"$".as_ptr()) == 0
             {
-                VAR2FPOS_POS.col = len + 1;
+                eval_st().VAR2FPOS_POS.col = len + 1;
             }
 
-            if VAR2FPOS_POS.col == 0 || VAR2FPOS_POS.col > len + 1 {
+            if eval_st().VAR2FPOS_POS.col == 0 || eval_st().VAR2FPOS_POS.col > len + 1 {
                 return ptr::null_mut();
             }
-            VAR2FPOS_POS.col -= 1;
+            eval_st().VAR2FPOS_POS.col -= 1;
 
-            VAR2FPOS_POS.coladd = tv_list_find_nr(l, 2, &raw mut error) as colnr_T;
+            eval_st().VAR2FPOS_POS.coladd = tv_list_find_nr(l, 2, &raw mut error) as colnr_T;
             if error {
-                VAR2FPOS_POS.coladd = 0;
+                eval_st().VAR2FPOS_POS.coladd = 0;
             }
 
-            return &raw mut VAR2FPOS_POS;
+            return &raw mut eval_st().VAR2FPOS_POS;
         }
 
         let name = tv_get_string_chk(tv);
@@ -5820,22 +5838,22 @@ pub unsafe fn var2fpos(
             return ptr::null_mut();
         }
 
-        VAR2FPOS_POS.lnum = 0;
+        eval_st().VAR2FPOS_POS.lnum = 0;
         if *name == b'.' as c_char {
-            VAR2FPOS_POS = pos_T {
+            eval_st().VAR2FPOS_POS = pos_T {
                 lnum: (*wp).w_cursor.lnum,
                 col: (*wp).w_cursor.col,
                 coladd: (*wp).w_cursor.coladd,
             };
         } else if *name == b'v' as c_char && *name.add(1) == NUL {
             if Visual.active && wp == curwin {
-                VAR2FPOS_POS = pos_T {
+                eval_st().VAR2FPOS_POS = pos_T {
                     lnum: Visual.start.lnum,
                     col: Visual.start.col,
                     coladd: Visual.start.coladd,
                 };
             } else {
-                VAR2FPOS_POS = pos_T {
+                eval_st().VAR2FPOS_POS = pos_T {
                     lnum: (*wp).w_cursor.lnum,
                     col: (*wp).w_cursor.col,
                     coladd: (*wp).w_cursor.coladd,
@@ -5847,54 +5865,54 @@ pub unsafe fn var2fpos(
             if fm.is_null() || (*fm).mark.lnum <= 0 {
                 return ptr::null_mut();
             }
-            VAR2FPOS_POS = (*fm).mark;
+            eval_st().VAR2FPOS_POS = (*fm).mark;
             if ascii_isupper(*name.add(1)) || ascii_isdigit(*name.add(1)) {
                 *ret_fnum = (*fm).fnum;
             }
         }
-        if VAR2FPOS_POS.lnum != 0 {
+        if eval_st().VAR2FPOS_POS.lnum != 0 {
             if charcol {
-                VAR2FPOS_POS.col = buf_byteidx_to_charidx(bp, VAR2FPOS_POS.lnum, VAR2FPOS_POS.col);
+                eval_st().VAR2FPOS_POS.col = buf_byteidx_to_charidx(bp, eval_st().VAR2FPOS_POS.lnum, eval_st().VAR2FPOS_POS.col);
             }
-            return &raw mut VAR2FPOS_POS;
+            return &raw mut eval_st().VAR2FPOS_POS;
         }
 
-        VAR2FPOS_POS.coladd = 0;
+        eval_st().VAR2FPOS_POS.coladd = 0;
 
         if *name == b'w' as c_char && dollar_lnum {
             check_cursor_moved(wp);
 
-            VAR2FPOS_POS.col = 0;
+            eval_st().VAR2FPOS_POS.col = 0;
             if *name.add(1) == b'0' as c_char {
                 update_topline(wp);
-                VAR2FPOS_POS.lnum = if (*wp).w_topline > 0 {
+                eval_st().VAR2FPOS_POS.lnum = if (*wp).w_topline > 0 {
                     (*wp).w_topline
                 } else {
                     1
                 };
-                return &raw mut VAR2FPOS_POS;
+                return &raw mut eval_st().VAR2FPOS_POS;
             } else if *name.add(1) == b'$' as c_char {
                 validate_botline_win(wp);
-                VAR2FPOS_POS.lnum = if (*wp).w_botline > 0 {
+                eval_st().VAR2FPOS_POS.lnum = if (*wp).w_botline > 0 {
                     (*wp).w_botline - 1
                 } else {
                     0
                 };
-                return &raw mut VAR2FPOS_POS;
+                return &raw mut eval_st().VAR2FPOS_POS;
             }
         } else if *name == b'$' as c_char {
             if dollar_lnum {
-                VAR2FPOS_POS.lnum = (*bp).b_ml.ml_line_count;
-                VAR2FPOS_POS.col = 0;
+                eval_st().VAR2FPOS_POS.lnum = (*bp).b_ml.ml_line_count;
+                eval_st().VAR2FPOS_POS.col = 0;
             } else {
-                VAR2FPOS_POS.lnum = (*wp).w_cursor.lnum;
-                VAR2FPOS_POS.col = if charcol {
+                eval_st().VAR2FPOS_POS.lnum = (*wp).w_cursor.lnum;
+                eval_st().VAR2FPOS_POS.col = if charcol {
                     mb_charlen(ml_get_buf(bp, (*wp).w_cursor.lnum))
                 } else {
                     ml_get_buf_len(bp, (*wp).w_cursor.lnum)
                 };
             }
-            return &raw mut VAR2FPOS_POS;
+            return &raw mut eval_st().VAR2FPOS_POS;
         }
         ptr::null_mut()
     }
@@ -6517,11 +6535,11 @@ pub unsafe fn var_item_copy(
     unsafe {
         let mut ret = OK;
 
-        if VAR_ITEM_COPY_RECURSE >= DICT_MAXNEST {
+        if eval_st().VAR_ITEM_COPY_RECURSE >= DICT_MAXNEST {
             emsg(gettext(E_VARIABLE_NESTED_TOO_DEEP_FOR_MAKING_COPY.as_ptr()));
             return FAIL;
         }
-        VAR_ITEM_COPY_RECURSE += 1;
+        eval_st().VAR_ITEM_COPY_RECURSE += 1;
 
         match (*from).v_type {
             VarType::VAR_NUMBER
@@ -6535,7 +6553,7 @@ pub unsafe fn var_item_copy(
             VarType::VAR_STRING => {
                 let Some(conv) = conv.filter(|c| c.vc_type != CONV_NONE) else {
                     tv_copy(from, to);
-                    VAR_ITEM_COPY_RECURSE -= 1;
+                    eval_st().VAR_ITEM_COPY_RECURSE -= 1;
                     return ret;
                 };
                 if (*from).vval.v_string().is_null() {
@@ -6589,7 +6607,7 @@ pub unsafe fn var_item_copy(
                 ret = FAIL;
             }
         }
-        VAR_ITEM_COPY_RECURSE -= 1;
+        eval_st().VAR_ITEM_COPY_RECURSE -= 1;
         ret
     }
 }
@@ -6641,12 +6659,12 @@ pub unsafe fn ex_echo(eap: *mut exarg_T) {
                         msg_start();
                     }
                 } else if (*eap).cmdidx == cmdidx_T::CMD_echo as c_int {
-                    msg_puts_hl(c" ".as_ptr(), echo_hl_id, false);
+                    msg_puts_hl(c" ".as_ptr(), eval_st().echo_hl_id, false);
                 }
                 let tofree = encode_tv2echo(&raw mut rettv, ptr::null_mut());
                 msg_multiline(
                     cstr_as_string(tofree.as_ptr()),
-                    echo_hl_id,
+                    eval_st().echo_hl_id,
                     true,
                     false,
                     &raw mut need_clear,
@@ -6681,13 +6699,13 @@ pub unsafe fn ex_echo(eap: *mut exarg_T) {
 /// ":echohl {name}".
 pub unsafe fn ex_echohl(eap: *mut exarg_T) {
     unsafe {
-        echo_hl_id = syn_name2id((*eap).arg);
+        eval_st().echo_hl_id = syn_name2id((*eap).arg);
     }
 }
 
 /// Returns the :echo highlight id.
 pub unsafe fn get_echo_hl_id() -> c_int {
-    unsafe { echo_hl_id }
+    unsafe { eval_st().echo_hl_id }
 }
 
 /// ":execute", ":echomsg", ":echoerr"
@@ -6740,7 +6758,7 @@ pub unsafe fn ex_execute(eap: *mut exarg_T) {
             if (*eap).cmdidx == cmdidx_T::CMD_echomsg as c_int {
                 msg_ext_no_fast();
                 msg_ext_set_kind(c"echomsg".as_ptr());
-                msg(buf.as_ptr(), echo_hl_id);
+                msg(buf.as_ptr(), eval_st().echo_hl_id);
             } else if (*eap).cmdidx == cmdidx_T::CMD_echoerr as c_int {
                 let save_did_emsg = did_emsg;
                 msg_ext_no_fast();

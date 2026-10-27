@@ -26,16 +26,40 @@ const IOFBF: c_int = 0;
 
 const PEXP_SUBCMD: i32 = 0;
 
-static mut PROF_WAIT_TIME: proftime_T = 0;
-static mut WAIT_TIME: proftime_T = 0;
-static mut PAUSE_TIME: proftime_T = 0;
-static mut G_START_TIME: proftime_T = 0;
-static mut G_PREV_TIME: proftime_T = 0;
-static mut PEXPAND_WHAT: i32 = PEXP_SUBCMD;
+struct ProfileModuleState {
+    PROF_WAIT_TIME: proftime_T,
+    WAIT_TIME: proftime_T,
+    PAUSE_TIME: proftime_T,
+    G_START_TIME: proftime_T,
+    G_PREV_TIME: proftime_T,
+    PEXPAND_WHAT: i32,
+    STARTUPTIME_BUF: Vec<c_char>,
+    PROFILE_FNAME: Option<CString>,
+    PROFILE_MSG_BUF: [c_char; 50],
+}
 
-static mut STARTUPTIME_BUF: Vec<c_char> = Vec::new();
-static mut PROFILE_FNAME: Option<CString> = None;
-static mut PROFILE_MSG_BUF: [c_char; 50] = [0; 50];
+impl ProfileModuleState {
+    const fn new() -> Self {
+        Self {
+            PROF_WAIT_TIME: 0,
+            WAIT_TIME: 0,
+            PAUSE_TIME: 0,
+            G_START_TIME: 0,
+            G_PREV_TIME: 0,
+            PEXPAND_WHAT: PEXP_SUBCMD,
+            STARTUPTIME_BUF: Vec::new(),
+            PROFILE_FNAME: None,
+            PROFILE_MSG_BUF: [0; 50],
+        }
+    }
+}
+
+static PROF_STATE: GlobalState<ProfileModuleState> = GlobalState::new(ProfileModuleState::new());
+
+#[inline]
+unsafe fn prof_st() -> &'static mut ProfileModuleState {
+    unsafe { &mut *PROF_STATE.as_ptr() }
+}
 
 const PEXPAND_CMDS: [&CStr; 7] = [
     c"continue",
@@ -202,7 +226,7 @@ pub unsafe fn profile_msg(tm: proftime_T) -> *const c_char {
     let formatted = format!("{secs:10.6}");
     let bytes = formatted.as_bytes();
     unsafe {
-        let buf = &mut *std::ptr::addr_of_mut!(PROFILE_MSG_BUF);
+        let buf = &mut *std::ptr::addr_of_mut!(prof_st().PROFILE_MSG_BUF);
         let copy_len = bytes.len().min(buf.len() - 1);
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), buf.as_mut_ptr().cast::<u8>(), copy_len);
         buf[copy_len] = 0;
@@ -265,13 +289,13 @@ pub const fn profile_self(
 
 #[inline]
 fn profile_get_wait() -> proftime_T {
-    unsafe { PROF_WAIT_TIME }
+    unsafe { prof_st().PROF_WAIT_TIME }
 }
 
 /// Sets the current waittime (`profile_set_wait`).
 pub fn profile_set_wait(wait: proftime_T) {
     unsafe {
-        PROF_WAIT_TIME = wait;
+        prof_st().PROF_WAIT_TIME = wait;
     }
 }
 
@@ -353,7 +377,7 @@ pub unsafe fn profile_reset() {
             }
         }
 
-        PROFILE_FNAME = None;
+        prof_st().PROFILE_FNAME = None;
     }
 }
 
@@ -367,7 +391,7 @@ pub unsafe fn ex_profile(eap: *mut exarg_T) {
 
         let arg_bytes = CStr::from_ptr(arg).to_bytes();
         if len == 5 && &arg_bytes[..5] == b"start" && *e != 0 {
-            PROFILE_FNAME = Some(expand_env_save_opt(e, true, std::ptr::null_mut()));
+            prof_st().PROFILE_FNAME = Some(expand_env_save_opt(e, true, std::ptr::null_mut()));
             do_profiling = PROF_YES;
             profile_set_wait(profile_zero());
             set_vim_var_nr(VV_PROFILING, 1);
@@ -380,13 +404,13 @@ pub unsafe fn ex_profile(eap: *mut exarg_T) {
             profile_reset();
         } else if arg_bytes == b"pause" {
             if do_profiling == PROF_YES {
-                PAUSE_TIME = profile_start();
+                prof_st().PAUSE_TIME = profile_start();
             }
             do_profiling = PROF_PAUSED;
         } else if arg_bytes == b"continue" {
             if do_profiling == PROF_PAUSED {
-                let elapsed = profile_end(PAUSE_TIME);
-                PAUSE_TIME = elapsed;
+                let elapsed = profile_end(prof_st().PAUSE_TIME);
+                prof_st().PAUSE_TIME = elapsed;
                 profile_set_wait(profile_add(profile_get_wait(), elapsed));
             }
             do_profiling = PROF_YES;
@@ -400,7 +424,7 @@ pub unsafe fn ex_profile(eap: *mut exarg_T) {
 
 /// Command-line completion item getter for `:profile` (`get_profile_name`).
 pub unsafe fn get_profile_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
-    if unsafe { PEXPAND_WHAT } == PEXP_SUBCMD && idx >= 0 && (idx as usize) < PEXPAND_CMDS.len() {
+    if unsafe { prof_st().PEXPAND_WHAT } == PEXP_SUBCMD && idx >= 0 && (idx as usize) < PEXPAND_CMDS.len() {
         PEXPAND_CMDS[idx as usize].as_ptr().cast_mut()
     } else {
         std::ptr::null_mut()
@@ -412,7 +436,7 @@ pub unsafe fn set_context_in_profile_cmd(xp: *mut expand_T, arg: *const c_char) 
     let xp = unsafe { &mut *xp };
     xp.xp_context = EXPAND_PROFILE;
     unsafe {
-        PEXPAND_WHAT = PEXP_SUBCMD;
+        prof_st().PEXPAND_WHAT = PEXP_SUBCMD;
     }
     xp.xp_pattern = arg.cast_mut();
 
@@ -437,15 +461,15 @@ pub unsafe fn set_context_in_profile_cmd(xp: *mut expand_T, arg: *const c_char) 
 /// Called when starting to wait for user input (`prof_input_start`).
 pub fn prof_input_start() {
     unsafe {
-        WAIT_TIME = profile_start();
+        prof_st().WAIT_TIME = profile_start();
     }
 }
 
 /// Called when finished waiting for user input (`prof_input_end`).
 pub fn prof_input_end() {
-    let elapsed = profile_end(unsafe { WAIT_TIME });
+    let elapsed = profile_end(unsafe { prof_st().WAIT_TIME });
     unsafe {
-        WAIT_TIME = elapsed;
+        prof_st().WAIT_TIME = elapsed;
     }
     profile_set_wait(profile_add(profile_get_wait(), elapsed));
 }
@@ -830,7 +854,7 @@ unsafe fn script_dump_profile(fd: *mut FILE) {
 /// Dump the profiling info (`profile_dump`).
 pub unsafe fn profile_dump() {
     unsafe {
-        let Some(ref profile_fname) = *(&raw const PROFILE_FNAME).as_ref().unwrap() else {
+        let Some(ref profile_fname) = *(&raw const prof_st().PROFILE_FNAME).as_ref().unwrap() else {
             return;
         };
 
@@ -916,8 +940,8 @@ pub unsafe fn script_line_end() {
 pub unsafe fn time_push(rel: *mut proftime_T, start: *mut proftime_T) {
     let now = profile_start();
     unsafe {
-        let prev = G_PREV_TIME;
-        G_PREV_TIME = now;
+        let prev = prof_st().G_PREV_TIME;
+        prof_st().G_PREV_TIME = now;
         *rel = profile_sub(now, prev);
         *start = now;
     }
@@ -926,7 +950,7 @@ pub unsafe fn time_push(rel: *mut proftime_T, start: *mut proftime_T) {
 /// Computes the prev time after doing something that could nest (`time_pop`).
 pub fn time_pop(tp: proftime_T) {
     unsafe {
-        G_PREV_TIME = G_PREV_TIME.wrapping_sub(tp);
+        prof_st().G_PREV_TIME = prof_st().G_PREV_TIME.wrapping_sub(tp);
     }
 }
 
@@ -949,8 +973,8 @@ pub unsafe fn time_start(message: *const c_char) {
         let fp = tf.as_ptr();
 
         let now = profile_start();
-        G_START_TIME = now;
-        G_PREV_TIME = now;
+        prof_st().G_START_TIME = now;
+        prof_st().G_PREV_TIME = now;
 
         fprintf!(fp, c"\ntimes in msec\n".as_ptr());
         fprintf!(
@@ -975,7 +999,7 @@ pub unsafe fn time_msg(mesg: *const c_char, start: *const proftime_T) {
         let fp = tf.as_ptr();
 
         let now = profile_start();
-        time_diff(G_START_TIME, now);
+        time_diff(prof_st().G_START_TIME, now);
 
         if !start.is_null() {
             fprintf!(fp, c"  ".as_ptr());
@@ -983,8 +1007,8 @@ pub unsafe fn time_msg(mesg: *const c_char, start: *const proftime_T) {
         }
 
         fprintf!(fp, c"  ".as_ptr());
-        let prev = G_PREV_TIME;
-        G_PREV_TIME = now;
+        let prev = prof_st().G_PREV_TIME;
+        prof_st().G_PREV_TIME = now;
         time_diff(prev, now);
 
         fprintf!(fp, c": %s\n".as_ptr(), mesg);
@@ -1002,15 +1026,15 @@ pub unsafe fn time_init(fname: *const c_char, proc_name: *const c_char) {
             return;
         };
         let fp = tf.as_ptr();
-        STARTUPTIME_BUF = vec![0; BUFSIZE + 1];
+        prof_st().STARTUPTIME_BUF = vec![0; BUFSIZE + 1];
         let r = setvbuf(
             fp,
-            (&raw mut STARTUPTIME_BUF).as_mut().unwrap().as_mut_ptr(),
+            (&raw mut prof_st().STARTUPTIME_BUF).as_mut().unwrap().as_mut_ptr(),
             IOFBF,
             BUFSIZE + 1,
         );
         if r != 0 {
-            STARTUPTIME_BUF = Vec::new();
+            prof_st().STARTUPTIME_BUF = Vec::new();
             time_fd = None;
             let err_str = CStr::from_ptr(uv_err_name(r)).to_string_lossy();
             eprint!("time_init: setvbuf failed: {r} {err_str}");
@@ -1030,12 +1054,12 @@ pub unsafe fn time_finish() {
         if !has_time_fd() {
             return;
         }
-        assert!(!(&raw const STARTUPTIME_BUF).as_ref().unwrap().is_empty());
+        assert!(!(&raw const prof_st().STARTUPTIME_BUF).as_ref().unwrap().is_empty());
         time_msg(c"--- NVIM STARTED ---\n".as_ptr(), std::ptr::null());
 
         time_fd = None;
 
-        STARTUPTIME_BUF = Vec::new();
+        prof_st().STARTUPTIME_BUF = Vec::new();
     }
 }
 
