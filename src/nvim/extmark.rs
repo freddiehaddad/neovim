@@ -135,11 +135,10 @@ unsafe fn extmark_push_savepos(
     redo_col: colnr_T,
 ) {
     unsafe {
-        let uhp = u_force_get_undo_header(buf);
-        if uhp.is_null() {
+        let Some(uh) = u_force_get_undo_header(buf) else {
             return;
-        }
-        (*uhp)
+        };
+        crate::undo::uhp_mut(buf, uh)
             .uh_extmark
             .push(ExtmarkUndoObject::SavePos(ExtmarkSavePos {
                 mark,
@@ -911,8 +910,8 @@ pub unsafe fn extmark_splice_impl(
             let end_row = start_row + old_row;
             let end_col = (if old_row != 0 { 0 } else { start_col }) + old_col;
             let uhp = u_force_get_undo_header(buf);
-            let uvp = if !uhp.is_null() {
-                &raw mut (*uhp).uh_extmark
+            let uvp = if let Some(uh) = uhp {
+                &raw mut crate::undo::uhp_mut(buf, uh).uh_extmark
             } else {
                 ptr::null_mut()
             };
@@ -953,15 +952,15 @@ pub unsafe fn extmark_splice_impl(
         }
 
         if undo == kExtmarkUndo {
-            let uhp = u_force_get_undo_header(buf);
-            if uhp.is_null() {
+            let Some(uh) = u_force_get_undo_header(buf) else {
                 return;
-            }
+            };
 
             let mut merged = false;
             if old_row == 0
                 && new_row == 0
-                && let Some(ExtmarkUndoObject::Splice(splice)) = (*uhp).uh_extmark.last_mut()
+                && let Some(ExtmarkUndoObject::Splice(splice)) =
+                    crate::undo::uhp_mut(buf, uh).uh_extmark.last_mut()
                 && splice.start_row == start_row
                 && splice.old_row == 0
                 && splice.new_row == 0
@@ -998,7 +997,9 @@ pub unsafe fn extmark_splice_impl(
                     old_byte,
                     new_byte,
                 };
-                (*uhp).uh_extmark.push(ExtmarkUndoObject::Splice(splice));
+                crate::undo::uhp_mut(buf, uh)
+                    .uh_extmark
+                    .push(ExtmarkUndoObject::Splice(splice));
             }
         }
     }
@@ -1086,10 +1087,9 @@ pub unsafe fn extmark_move_region(
         );
 
         if undo == kExtmarkUndo {
-            let uhp = u_force_get_undo_header(buf);
-            if uhp.is_null() {
+            let Some(uh) = u_force_get_undo_header(buf) else {
                 return;
-            }
+            };
 
             let move_ = ExtmarkMove {
                 start_row,
@@ -1102,7 +1102,9 @@ pub unsafe fn extmark_move_region(
                 extent_byte,
                 new_byte,
             };
-            (*uhp).uh_extmark.push(ExtmarkUndoObject::Move(move_));
+            crate::undo::uhp_mut(buf, uh)
+                .uh_extmark
+                .push(ExtmarkUndoObject::Move(move_));
         }
     }
 }

@@ -42,7 +42,7 @@ use crate::r#move::{changed_cline_bef_curs, invalidate_botline_win, update_topli
 use crate::msgpack_rpc::packer::Integer;
 use crate::ops::get_region_bytecount;
 use crate::option_vars::*;
-use crate::undo::{u_header_T, u_save_buf};
+use crate::undo::{u_save_buf, uhp_ref};
 use crate::window::{VALID_BOTLINE_AP, win_T};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -1792,16 +1792,12 @@ pub unsafe extern "C" fn nvim__buf_stats(buf: Buffer, arena: *mut Arena, err: *m
             integer_obj((*b).b_marktree.meta_root[kMTMetaLines] as Integer),
         );
 
-        let uhp = if !(*b).b_u_curhead.is_null() {
-            (*b).b_u_curhead.cast::<u_header_T>()
-        } else {
-            (*b).b_u_newhead.cast::<u_header_T>()
-        };
-        if !uhp.is_null() {
+        let uhp = (*b).b_u_curhead.or((*b).b_u_newhead);
+        if let Some(uh) = uhp {
             put_c(
                 &mut rv,
                 c"uhp_extmark_size",
-                integer_obj((*uhp).uh_extmark.len() as Integer),
+                integer_obj(uhp_ref(b, uh).uh_extmark.len() as Integer),
             );
         }
 

@@ -231,7 +231,7 @@ use crate::ui::{
 };
 use crate::undo::{
     bufIsChanged, curbufIsChanged, ex_undojoin, ex_undolist, u_clearline, u_compute_hash,
-    u_header_T, u_read_undo, u_redo, u_save, u_undo, u_undo_and_forget, u_write_undo, undo_time,
+    u_read_undo, u_redo, u_save, u_undo, u_undo_and_forget, u_write_undo, uhp_ref, undo_time,
 };
 use crate::usercmd::{
     do_ucmd, ex_comclear, ex_command, ex_delcommand, expand_user_command_name, find_ucmd,
@@ -11388,17 +11388,15 @@ unsafe fn ex_undo(eap: *mut exarg_T) {
                 let _ = emsg(gettext(e_undobang_cannot_redo_or_move_branch.as_ptr()));
                 return;
             }
-            let mut uhp = if !(*curbuf).b_u_curhead.is_null() {
-                (*curbuf).b_u_curhead.cast::<u_header_T>()
-            } else {
-                (*curbuf).b_u_newhead.cast::<u_header_T>()
-            };
+            let mut uhp = (*curbuf).b_u_curhead.or((*curbuf).b_u_newhead);
             let mut count: c_int = 0;
-            while !uhp.is_null() && (*uhp).uh_seq > step {
-                uhp = (*uhp).uh_next;
+            while let Some(uh) = uhp
+                && uhp_ref(curbuf, uh).uh_seq > step
+            {
+                uhp = uhp_ref(curbuf, uh).uh_next;
                 count += 1;
             }
-            if step != 0 && (uhp.is_null() || (*uhp).uh_seq < step) {
+            if step != 0 && uhp.is_none_or(|uh| uhp_ref(curbuf, uh).uh_seq < step) {
                 let _ = emsg(gettext(e_undobang_cannot_redo_or_move_branch.as_ptr()));
                 return;
             }

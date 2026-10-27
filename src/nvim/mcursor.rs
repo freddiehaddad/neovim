@@ -78,7 +78,7 @@ use crate::shada::shada_encode_regs;
 use crate::state::{MODE_INSERT, virtual_active};
 use crate::strings::{strchr, strncmp, vim_snprintf};
 use crate::textformat::{InsState, oparg_T};
-use crate::undo::{u_forget_unchanged, u_header_T, u_save};
+use crate::undo::{u_forget_unchanged, u_save, uhp_mut};
 use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
@@ -553,9 +553,9 @@ unsafe fn mc_cascade() {
         mc_cleanup(true, &(*curwin).w_cursor, mcursor);
         if handle_get_buffer(bufnr) == curbuf
             && !(*curbuf).b_u_synced
-            && !(*curbuf).b_u_newhead.is_null()
+            && let Some(nh) = (*curbuf).b_u_newhead
         {
-            (*(*curbuf).b_u_newhead.cast::<u_header_T>()).uh_cursor_after = (*curwin).w_cursor;
+            uhp_mut(curbuf, nh).uh_cursor_after = (*curwin).w_cursor;
         }
     }
 }

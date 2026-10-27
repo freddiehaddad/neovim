@@ -124,10 +124,10 @@ impl u_entry_T {
 
 #[repr(C)]
 pub struct u_header_T {
-    pub uh_next: *mut u_header_T,
-    pub uh_prev: *mut u_header_T,
-    pub uh_alt_next: *mut u_header_T,
-    pub uh_alt_prev: *mut u_header_T,
+    pub uh_next: Option<usize>,
+    pub uh_prev: Option<usize>,
+    pub uh_alt_next: Option<usize>,
+    pub uh_alt_prev: Option<usize>,
     pub uh_seq: c_int,
     pub uh_walk: c_int,
     pub uh_entries: Vec<u_entry_T>,
@@ -146,10 +146,10 @@ pub struct u_header_T {
 impl u_header_T {
     fn new() -> Self {
         Self {
-            uh_next: ptr::null_mut(),
-            uh_prev: ptr::null_mut(),
-            uh_alt_next: ptr::null_mut(),
-            uh_alt_prev: ptr::null_mut(),
+            uh_next: None,
+            uh_prev: None,
+            uh_alt_next: None,
+            uh_alt_prev: None,
             uh_seq: 0,
             uh_walk: 0,
             uh_entries: Vec::new(),
@@ -166,16 +166,39 @@ impl u_header_T {
         }
     }
 
-    unsafe fn alloc() -> *mut Self {
-        Box::into_raw(Box::new(Self::new()))
+    fn clone_from_slice_or_reset(&mut self) {
+        *self = Self::new();
+    }
+}
+
+#[inline]
+pub unsafe fn uhp_ref<'a>(buf: *const buf_T, uh: usize) -> &'a u_header_T {
+    unsafe { &(&(*buf).b_u_headers)[uh] }
+}
+
+#[inline]
+pub unsafe fn uhp_mut<'a>(buf: *mut buf_T, uh: usize) -> &'a mut u_header_T {
+    unsafe { &mut (&mut (*buf).b_u_headers)[uh] }
+}
+
+unsafe fn u_alloc_header(buf: *mut buf_T) -> usize {
+    unsafe {
+        if let Some(idx) = (*buf).b_u_free_headers.pop() {
+            uhp_mut(buf, idx).clone_from_slice_or_reset();
+            idx
+        } else {
+            let idx = (*buf).b_u_headers.len();
+            (*buf).b_u_headers.push(u_header_T::new());
+            idx
+        }
     }
 }
 
 #[derive(Clone)]
 pub struct UndoCheckpoint {
-    pub uc_oldhead: *mut u_header_T,
-    pub uc_newhead: *mut u_header_T,
-    pub uc_curhead: *mut u_header_T,
+    pub uc_oldhead: Option<usize>,
+    pub uc_newhead: Option<usize>,
+    pub uc_curhead: Option<usize>,
     pub uc_numhead: c_int,
     pub uc_synced: bool,
     pub uc_seq_last: c_int,
@@ -193,9 +216,9 @@ pub struct UndoCheckpoint {
 impl UndoCheckpoint {
     pub const fn new() -> Self {
         Self {
-            uc_oldhead: ptr::null_mut(),
-            uc_newhead: ptr::null_mut(),
-            uc_curhead: ptr::null_mut(),
+            uc_oldhead: None,
+            uc_newhead: None,
+            uc_curhead: None,
             uc_numhead: 0,
             uc_synced: false,
             uc_seq_last: 0,
@@ -355,85 +378,84 @@ pub unsafe fn u_savecommon(
         if (*buf).b_u_synced {
             (*buf).b_new_change = true;
 
-            let uhp: *mut u_header_T = if get_undolevel(buf) >= 0 {
-                u_header_T::alloc()
-            } else {
-                ptr::null_mut()
-            };
+            let uhp = (get_undolevel(buf) >= 0).then(|| u_alloc_header(buf));
 
             let mut old_curhead = (*buf).b_u_curhead;
-            if !old_curhead.is_null() {
-                (*buf).b_u_newhead = (*old_curhead).uh_next;
-                (*buf).b_u_curhead = ptr::null_mut();
+            if let Some(oc) = old_curhead {
+                (*buf).b_u_newhead = uhp_ref(buf, oc).uh_next;
+                (*buf).b_u_curhead = None;
             }
 
             while ((*buf).b_u_numhead as OptInt) > get_undolevel(buf)
-                && !(*buf).b_u_oldhead.is_null()
+                && let Some(mut uhfree) = (*buf).b_u_oldhead
             {
-                let mut uhfree = (*buf).b_u_oldhead;
-
-                if uhfree == old_curhead {
-                    u_freebranch(buf, uhfree, &raw mut old_curhead);
-                } else if (*uhfree).uh_alt_next.is_null() {
-                    u_freeheader(buf, uhfree, &raw mut old_curhead);
+                if Some(uhfree) == old_curhead {
+                    u_freebranch(buf, uhfree, &mut old_curhead);
+                } else if uhp_ref(buf, uhfree).uh_alt_next.is_none() {
+                    u_freeheader(buf, uhfree, &mut old_curhead);
                 } else {
-                    while !(*uhfree).uh_alt_next.is_null() {
-                        uhfree = (*uhfree).uh_alt_next;
+                    while let Some(alt_next) = uhp_ref(buf, uhfree).uh_alt_next {
+                        uhfree = alt_next;
                     }
-                    u_freebranch(buf, uhfree, &raw mut old_curhead);
+                    u_freebranch(buf, uhfree, &mut old_curhead);
                 }
             }
 
-            if uhp.is_null() {
-                if !old_curhead.is_null() {
-                    u_freebranch(buf, old_curhead, ptr::null_mut());
+            let Some(uhp) = uhp else {
+                if let Some(oc) = old_curhead {
+                    let mut dummy = None;
+                    u_freebranch(buf, oc, &mut dummy);
                 }
                 (*buf).b_u_synced = false;
                 return OK;
-            }
+            };
 
-            (*uhp).uh_prev = ptr::null_mut();
-            (*uhp).uh_next = (*buf).b_u_newhead;
-            (*uhp).uh_alt_next = old_curhead;
-            if !old_curhead.is_null() {
-                (*uhp).uh_alt_prev = (*old_curhead).uh_alt_prev;
-                if !(*uhp).uh_alt_prev.is_null() {
-                    (*(*uhp).uh_alt_prev).uh_alt_next = uhp;
+            uhp_mut(buf, uhp).uh_prev = None;
+            uhp_mut(buf, uhp).uh_next = (*buf).b_u_newhead;
+            uhp_mut(buf, uhp).uh_alt_next = old_curhead;
+            if let Some(oc) = old_curhead {
+                let oc_alt_prev = uhp_ref(buf, oc).uh_alt_prev;
+                uhp_mut(buf, uhp).uh_alt_prev = oc_alt_prev;
+                if let Some(ap) = oc_alt_prev {
+                    uhp_mut(buf, ap).uh_alt_next = Some(uhp);
                 }
-                (*old_curhead).uh_alt_prev = uhp;
-                if (*buf).b_u_oldhead == old_curhead {
-                    (*buf).b_u_oldhead = uhp;
+                uhp_mut(buf, oc).uh_alt_prev = Some(uhp);
+                if (*buf).b_u_oldhead == Some(oc) {
+                    (*buf).b_u_oldhead = Some(uhp);
                 }
             } else {
-                (*uhp).uh_alt_prev = ptr::null_mut();
+                uhp_mut(buf, uhp).uh_alt_prev = None;
             }
 
-            if !(*buf).b_u_newhead.is_null() {
-                (*(*buf).b_u_newhead).uh_prev = uhp;
+            if let Some(nh) = (*buf).b_u_newhead {
+                uhp_mut(buf, nh).uh_prev = Some(uhp);
             }
 
             (*buf).b_u_seq_last += 1;
-            (*uhp).uh_seq = (*buf).b_u_seq_last;
-            (*buf).b_u_seq_cur = (*uhp).uh_seq;
-            (*uhp).uh_time = os_time() as time_t;
-            (*uhp).uh_save_nr = 0;
-            (*buf).b_u_time_cur = (*uhp).uh_time + 1;
+            let seq_last = (*buf).b_u_seq_last;
+            uhp_mut(buf, uhp).uh_seq = seq_last;
+            (*buf).b_u_seq_cur = seq_last;
+            let now_time = os_time() as time_t;
+            uhp_mut(buf, uhp).uh_time = now_time;
+            uhp_mut(buf, uhp).uh_save_nr = 0;
+            (*buf).b_u_time_cur = now_time + 1;
 
-            (*uhp).uh_walk = 0;
-            (*uhp).uh_entries.clear();
-            (*uhp).uh_getbot_entry = false;
-            (*uhp).uh_cursor = atom_origin_pos(buf);
+            uhp_mut(buf, uhp).uh_walk = 0;
+            uhp_mut(buf, uhp).uh_entries.clear();
+            uhp_mut(buf, uhp).uh_getbot_entry = false;
+            let origin_cursor = atom_origin_pos(buf);
+            uhp_mut(buf, uhp).uh_cursor = origin_cursor;
             if virtual_active(curwin)
                 && (*curwin).w_cursor.coladd > 0
-                && equalpos((*uhp).uh_cursor, (*curwin).w_cursor)
+                && equalpos(origin_cursor, (*curwin).w_cursor)
             {
-                (*uhp).uh_cursor_vcol = getviscol();
+                uhp_mut(buf, uhp).uh_cursor_vcol = getviscol();
             } else {
-                (*uhp).uh_cursor_vcol = -1;
+                uhp_mut(buf, uhp).uh_cursor_vcol = -1;
             }
-            clearpos(&mut (*uhp).uh_cursor_after);
+            clearpos(&mut uhp_mut(buf, uhp).uh_cursor_after);
 
-            (*uhp).uh_flags = (if (*buf).b_changed != 0 { UH_CHANGED } else { 0 })
+            uhp_mut(buf, uhp).uh_flags = (if (*buf).b_changed != 0 { UH_CHANGED } else { 0 })
                 + (if ((*buf).b_ml.ml_flags & ML_EMPTY) != 0 {
                     UH_EMPTYBUF
                 } else {
@@ -441,12 +463,12 @@ pub unsafe fn u_savecommon(
                 });
 
             zero_fmark_additional_data((&raw mut (*buf).b_namedm).cast::<fmark_T>());
-            (*uhp).uh_namedm = (*buf).b_namedm.clone();
-            (*uhp).uh_visual = (*buf).b_visual;
+            uhp_mut(buf, uhp).uh_namedm = (*buf).b_namedm.clone();
+            uhp_mut(buf, uhp).uh_visual = (*buf).b_visual;
 
-            (*buf).b_u_newhead = uhp;
-            if (*buf).b_u_oldhead.is_null() {
-                (*buf).b_u_oldhead = uhp;
+            (*buf).b_u_newhead = Some(uhp);
+            if (*buf).b_u_oldhead.is_none() {
+                (*buf).b_u_oldhead = Some(uhp);
             }
             (*buf).b_u_numhead += 1;
         } else {
@@ -457,10 +479,11 @@ pub unsafe fn u_savecommon(
             if size == 1 {
                 let head_uep = u_get_headentry(buf);
                 if !head_uep.is_null() {
-                    let newhead = (*buf).b_u_newhead;
-                    let limit = (*newhead).uh_entries.len().min(10);
+                    let newhead = (*buf).b_u_newhead.unwrap();
+                    let limit = uhp_ref(buf, newhead).uh_entries.len().min(10);
                     for i in 0..limit {
-                        let uep: *mut u_entry_T = &raw mut (*newhead).uh_entries.as_mut_slice()[i];
+                        let uep: *mut u_entry_T =
+                            &raw mut uhp_mut(buf, newhead).uh_entries.as_mut_slice()[i];
 
                         if u_entry_resized(buf, uep)
                             || ((*uep).ue_size() > 1
@@ -475,18 +498,19 @@ pub unsafe fn u_savecommon(
                                 u_getbot(buf);
                                 (*buf).b_u_synced = false;
 
-                                let entry = (*newhead).uh_entries.remove(i);
-                                (*newhead).uh_entries.insert(0, entry);
+                                let entry = uhp_mut(buf, newhead).uh_entries.remove(i);
+                                uhp_mut(buf, newhead).uh_entries.insert(0, entry);
                             }
 
-                            let first_uep = &mut (*newhead).uh_entries.as_mut_slice()[0];
+                            let first_uep =
+                                &mut uhp_mut(buf, newhead).uh_entries.as_mut_slice()[0];
                             if newbot != 0 {
                                 first_uep.ue_bot = newbot;
                             } else if bot > (*buf).b_ml.ml_line_count {
                                 first_uep.ue_bot = 0;
                             } else {
                                 first_uep.ue_lcount = (*buf).b_ml.ml_line_count;
-                                (*newhead).uh_getbot_entry = true;
+                                uhp_mut(buf, newhead).uh_getbot_entry = true;
                             }
                             return OK;
                         }
@@ -504,14 +528,14 @@ pub unsafe fn u_savecommon(
             ue_array: Vec::new(),
         };
 
-        let newhead = (*buf).b_u_newhead;
+        let newhead = (*buf).b_u_newhead.unwrap();
         if newbot != 0 {
             uep.ue_bot = newbot;
         } else if bot > (*buf).b_ml.ml_line_count {
             uep.ue_bot = 0;
         } else {
             uep.ue_lcount = (*buf).b_ml.ml_line_count;
-            (*newhead).uh_getbot_entry = true;
+            uhp_mut(buf, newhead).uh_getbot_entry = true;
         }
 
         if size > 0 {
@@ -519,16 +543,16 @@ pub unsafe fn u_savecommon(
             for i in 0..size {
                 fast_breakcheck();
                 if got_int {
-                    (*newhead).uh_getbot_entry = false;
+                    uhp_mut(buf, newhead).uh_getbot_entry = false;
                     return FAIL;
                 }
                 uep.ue_array.push(u_save_line_buf(buf, top + 1 + i));
             }
         }
 
-        (*newhead).uh_entries.insert(0, uep);
+        uhp_mut(buf, newhead).uh_entries.insert(0, uep);
         if reload {
-            (*newhead).uh_flags |= UH_RELOAD;
+            uhp_mut(buf, newhead).uh_flags |= UH_RELOAD;
         }
         (*buf).b_u_synced = false;
         undo_undoes = false;
@@ -539,8 +563,8 @@ pub unsafe fn u_savecommon(
 
 unsafe fn u_entry_resized(buf: *mut buf_T, uep: *const u_entry_T) -> bool {
     unsafe {
-        let newhead = (*buf).b_u_newhead.cast::<u_header_T>();
-        if !(*newhead).uh_getbot_entry || !ptr::eq(uep, (*newhead).uh_entries.as_ptr()) {
+        let newhead = uhp_ref(buf, (*buf).b_u_newhead.unwrap());
+        if !newhead.uh_getbot_entry || !ptr::eq(uep, newhead.uh_entries.as_ptr()) {
             (*uep).ue_top + (*uep).ue_size() + 1
                 != if (*uep).ue_bot == 0 {
                     (*buf).b_ml.ml_line_count + 1
@@ -721,9 +745,9 @@ unsafe fn serialize_header(bi: &mut bufinfo_T, hash: *mut u8) -> bool {
         undo_write_bytes(bi, (*buf).b_u_line_lnum as u64, 4);
         undo_write_bytes(bi, (*buf).b_u_line_colnr as u64, 4);
 
-        put_header_ptr(bi, (*buf).b_u_oldhead.cast::<u_header_T>());
-        put_header_ptr(bi, (*buf).b_u_newhead.cast::<u_header_T>());
-        put_header_ptr(bi, (*buf).b_u_curhead.cast::<u_header_T>());
+        put_header_ptr(bi, (*buf).b_u_oldhead);
+        put_header_ptr(bi, (*buf).b_u_newhead);
+        put_header_ptr(bi, (*buf).b_u_curhead);
 
         undo_write_bytes(bi, (*buf).b_u_numhead as u64, 4);
         undo_write_bytes(bi, (*buf).b_u_seq_last as u64, 4);
@@ -742,43 +766,48 @@ unsafe fn serialize_header(bi: &mut bufinfo_T, hash: *mut u8) -> bool {
     }
 }
 
-unsafe fn serialize_uhp(bi: &mut bufinfo_T, uhp: *mut u_header_T) -> bool {
+unsafe fn serialize_uhp(bi: &mut bufinfo_T, uhp: usize) -> bool {
     unsafe {
         if !undo_write_bytes(bi, UF_HEADER_MAGIC as u64, 2) {
             return false;
         }
 
-        put_header_ptr(bi, (*uhp).uh_next);
-        put_header_ptr(bi, (*uhp).uh_prev);
-        put_header_ptr(bi, (*uhp).uh_alt_next);
-        put_header_ptr(bi, (*uhp).uh_alt_prev);
-        undo_write_bytes(bi, (*uhp).uh_seq as u64, 4);
-        serialize_pos(bi, (*uhp).uh_cursor);
-        undo_write_bytes(bi, (*uhp).uh_cursor_vcol as u64, 4);
-        undo_write_bytes(bi, (*uhp).uh_flags as u64, 2);
+        let buf = bi.bi_buf;
+        put_header_ptr(bi, uhp_ref(buf, uhp).uh_next);
+        put_header_ptr(bi, uhp_ref(buf, uhp).uh_prev);
+        put_header_ptr(bi, uhp_ref(buf, uhp).uh_alt_next);
+        put_header_ptr(bi, uhp_ref(buf, uhp).uh_alt_prev);
+        undo_write_bytes(bi, uhp_ref(buf, uhp).uh_seq as u64, 4);
+        serialize_pos(bi, uhp_ref(buf, uhp).uh_cursor);
+        undo_write_bytes(bi, uhp_ref(buf, uhp).uh_cursor_vcol as u64, 4);
+        undo_write_bytes(bi, uhp_ref(buf, uhp).uh_flags as u64, 2);
         for i in 0..NMARKS {
-            serialize_pos(bi, (*uhp).uh_namedm[i].mark);
+            serialize_pos(bi, uhp_ref(buf, uhp).uh_namedm[i].mark);
         }
-        serialize_visualinfo(bi, &raw mut (*uhp).uh_visual);
+        serialize_visualinfo(bi, &raw mut uhp_mut(buf, uhp).uh_visual);
         let mut time_buf = [0u8; 8];
-        time_to_bytes((*uhp).uh_time, time_buf.as_mut_ptr());
+        time_to_bytes(uhp_ref(buf, uhp).uh_time, time_buf.as_mut_ptr());
         undo_write(bi, time_buf.as_mut_ptr(), time_buf.len());
 
         undo_write_bytes(bi, 4, 1);
         undo_write_bytes(bi, UHP_SAVE_NR as u64, 1);
-        undo_write_bytes(bi, (*uhp).uh_save_nr as u64, 4);
+        undo_write_bytes(bi, uhp_ref(buf, uhp).uh_save_nr as u64, 4);
 
         undo_write_bytes(bi, 0, 1);
 
-        for uep in &(*uhp).uh_entries {
+        let entries_len = uhp_ref(buf, uhp).uh_entries.len();
+        for i in 0..entries_len {
             undo_write_bytes(bi, UF_ENTRY_MAGIC as u64, 2);
+            let uep = &uhp_ref(buf, uhp).uh_entries[i];
             if !serialize_uep(bi, uep) {
                 return false;
             }
         }
         undo_write_bytes(bi, UF_ENTRY_END_MAGIC as u64, 2);
 
-        for &item in &(*uhp).uh_extmark {
+        let extmark_len = uhp_ref(buf, uhp).uh_extmark.len();
+        for i in 0..extmark_len {
+            let item = uhp_ref(buf, uhp).uh_extmark[i];
             if !serialize_extmark(bi, item) {
                 return false;
             }
@@ -792,9 +821,9 @@ unsafe fn serialize_uhp(bi: &mut bufinfo_T, uhp: *mut u_header_T) -> bool {
 unsafe fn unserialize_uhp(
     bi: &mut bufinfo_T,
     file_name: *const c_char,
-) -> Option<(Box<u_header_T>, [c_int; 4])> {
+) -> Option<(u_header_T, [c_int; 4])> {
     unsafe {
-        let mut uhp = Box::new(u_header_T::new());
+        let mut uhp = u_header_T::new();
         let seqs = [
             undo_read_4c(bi),
             undo_read_4c(bi),
@@ -1179,29 +1208,36 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
 
                 lastmark += 1;
                 let mark = lastmark;
-                let mut uhp = (*buf).b_u_oldhead.cast::<u_header_T>();
-                while !uhp.is_null() {
-                    if (*uhp).uh_walk != mark {
-                        (*uhp).uh_walk = mark;
-                        if !serialize_uhp(&mut bi, uhp) {
+                let mut uhp = (*buf).b_u_oldhead;
+                while let Some(uh) = uhp {
+                    if uhp_ref(buf, uh).uh_walk != mark {
+                        uhp_mut(buf, uh).uh_walk = mark;
+                        if !serialize_uhp(&mut bi, uh) {
                             break 'write_error;
                         }
                     }
 
-                    if !(*uhp).uh_prev.is_null() && (*(*uhp).uh_prev).uh_walk != mark {
-                        uhp = (*uhp).uh_prev;
-                    } else if !(*uhp).uh_alt_next.is_null() && (*(*uhp).uh_alt_next).uh_walk != mark
+                    let prev = uhp_ref(buf, uh).uh_prev;
+                    let alt_next = uhp_ref(buf, uh).uh_alt_next;
+                    let next = uhp_ref(buf, uh).uh_next;
+                    let alt_prev = uhp_ref(buf, uh).uh_alt_prev;
+                    if let Some(p) = prev
+                        && uhp_ref(buf, p).uh_walk != mark
                     {
-                        uhp = (*uhp).uh_alt_next;
-                    } else if !(*uhp).uh_next.is_null()
-                        && (*uhp).uh_alt_prev.is_null()
-                        && (*(*uhp).uh_next).uh_walk != mark
+                        uhp = Some(p);
+                    } else if let Some(an) = alt_next
+                        && uhp_ref(buf, an).uh_walk != mark
                     {
-                        uhp = (*uhp).uh_next;
-                    } else if !(*uhp).uh_alt_prev.is_null() {
-                        uhp = (*uhp).uh_alt_prev;
+                        uhp = Some(an);
+                    } else if let Some(n) = next
+                        && alt_prev.is_none()
+                        && uhp_ref(buf, n).uh_walk != mark
+                    {
+                        uhp = Some(n);
+                    } else if let Some(ap) = alt_prev {
+                        uhp = Some(ap);
                     } else {
-                        uhp = (*uhp).uh_next;
+                        uhp = next;
                     }
                 }
 
@@ -1233,24 +1269,22 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
     }
 }
 
-unsafe fn uhp_table_find(uhp_table: &[(*mut u_header_T, [c_int; 4])], seq: c_int) -> c_int {
-    unsafe {
-        let mut lo: c_int = 0;
-        let mut hi: c_int = uhp_table.len() as c_int - 1;
+fn uhp_table_find(uhp_table: &[(u_header_T, [c_int; 4])], seq: c_int) -> c_int {
+    let mut lo: c_int = 0;
+    let mut hi: c_int = uhp_table.len() as c_int - 1;
 
-        while lo <= hi {
-            let mid = lo + (hi - lo) / 2;
-            let mid_seq = (*uhp_table[mid as usize].0).uh_seq;
-            if mid_seq < seq {
-                lo = mid + 1;
-            } else if mid_seq > seq {
-                hi = mid - 1;
-            } else {
-                return mid;
-            }
+    while lo <= hi {
+        let mid = lo + (hi - lo) / 2;
+        let mid_seq = uhp_table[mid as usize].0.uh_seq;
+        if mid_seq < seq {
+            lo = mid + 1;
+        } else if mid_seq > seq {
+            hi = mid - 1;
+        } else {
+            return mid;
         }
-        -1
     }
+    -1
 }
 
 /// Loads the undo tree from an undo file.
@@ -1258,7 +1292,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
     unsafe {
         #[cfg(not(unix))]
         let _ = orig_name;
-        let mut uhp_table: Vec<(Box<u_header_T>, [c_int; 4])> = Vec::new();
+        let mut uhp_table: Vec<(u_header_T, [c_int; 4])> = Vec::new();
         let mut line_ptr: Option<std::ffi::CString> = None;
         let mut num_read_uhps: c_int = 0;
 
@@ -1463,73 +1497,49 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                     }
                 }
 
-                let uhp_ptrs: Vec<(*mut u_header_T, [c_int; 4])> = uhp_table
-                    .into_iter()
-                    .map(|(b, seqs)| (Box::into_raw(b), seqs))
-                    .collect();
-
-                let mut old_idx: c_int = -1;
-                let mut new_idx: c_int = -1;
-                let mut cur_idx: c_int = -1;
+                let mut old_idx: Option<usize> = None;
+                let mut new_idx: Option<usize> = None;
+                let mut cur_idx: Option<usize> = None;
                 for i in 0..num_head {
-                    let (uhp, [next_seq, prev_seq, alt_next_seq, alt_prev_seq]) =
-                        uhp_ptrs[i as usize];
+                    let [next_seq, prev_seq, alt_next_seq, alt_prev_seq] = uhp_table[i as usize].1;
 
-                    let fidx_next = uhp_table_find(&uhp_ptrs, next_seq);
-                    (*uhp).uh_next = if fidx_next >= 0 && fidx_next != i {
-                        uhp_ptrs[fidx_next as usize].0
-                    } else {
-                        ptr::null_mut()
-                    };
+                    let fidx_next = uhp_table_find(&uhp_table, next_seq);
+                    let uh_next = (fidx_next >= 0 && fidx_next != i).then_some(fidx_next as usize);
 
-                    let fidx_prev = uhp_table_find(&uhp_ptrs, prev_seq);
-                    (*uhp).uh_prev = if fidx_prev >= 0 && fidx_prev != i {
-                        uhp_ptrs[fidx_prev as usize].0
-                    } else {
-                        ptr::null_mut()
-                    };
+                    let fidx_prev = uhp_table_find(&uhp_table, prev_seq);
+                    let uh_prev = (fidx_prev >= 0 && fidx_prev != i).then_some(fidx_prev as usize);
 
-                    let fidx_anext = uhp_table_find(&uhp_ptrs, alt_next_seq);
-                    (*uhp).uh_alt_next = if fidx_anext >= 0 && fidx_anext != i {
-                        uhp_ptrs[fidx_anext as usize].0
-                    } else {
-                        ptr::null_mut()
-                    };
+                    let fidx_anext = uhp_table_find(&uhp_table, alt_next_seq);
+                    let uh_alt_next =
+                        (fidx_anext >= 0 && fidx_anext != i).then_some(fidx_anext as usize);
 
-                    let fidx_aprev = uhp_table_find(&uhp_ptrs, alt_prev_seq);
-                    (*uhp).uh_alt_prev = if fidx_aprev >= 0 && fidx_aprev != i {
-                        uhp_ptrs[fidx_aprev as usize].0
-                    } else {
-                        ptr::null_mut()
-                    };
+                    let fidx_aprev = uhp_table_find(&uhp_table, alt_prev_seq);
+                    let uh_alt_prev =
+                        (fidx_aprev >= 0 && fidx_aprev != i).then_some(fidx_aprev as usize);
 
-                    if old_header_seq > 0 && old_idx < 0 && (*uhp).uh_seq == old_header_seq {
-                        old_idx = i;
+                    let uhp = &mut uhp_table[i as usize].0;
+                    uhp.uh_next = uh_next;
+                    uhp.uh_prev = uh_prev;
+                    uhp.uh_alt_next = uh_alt_next;
+                    uhp.uh_alt_prev = uh_alt_prev;
+
+                    if old_header_seq > 0 && old_idx.is_none() && uhp.uh_seq == old_header_seq {
+                        old_idx = Some(i as usize);
                     }
-                    if new_header_seq > 0 && new_idx < 0 && (*uhp).uh_seq == new_header_seq {
-                        new_idx = i;
+                    if new_header_seq > 0 && new_idx.is_none() && uhp.uh_seq == new_header_seq {
+                        new_idx = Some(i as usize);
                     }
-                    if cur_header_seq > 0 && cur_idx < 0 && (*uhp).uh_seq == cur_header_seq {
-                        cur_idx = i;
+                    if cur_header_seq > 0 && cur_idx.is_none() && uhp.uh_seq == cur_header_seq {
+                        cur_idx = Some(i as usize);
                     }
                 }
 
                 u_blockfree(curbuf);
-                (*curbuf).b_u_oldhead = if old_idx < 0 {
-                    ptr::null_mut()
-                } else {
-                    uhp_ptrs[old_idx as usize].0
-                };
-                (*curbuf).b_u_newhead = if new_idx < 0 {
-                    ptr::null_mut()
-                } else {
-                    uhp_ptrs[new_idx as usize].0
-                };
-                (*curbuf).b_u_curhead = if cur_idx < 0 {
-                    ptr::null_mut()
-                } else {
-                    uhp_ptrs[cur_idx as usize].0
-                };
+                (*curbuf).b_u_headers = uhp_table.into_iter().map(|(u, _)| u).collect();
+                (*curbuf).b_u_free_headers.clear();
+                (*curbuf).b_u_oldhead = old_idx;
+                (*curbuf).b_u_newhead = new_idx;
+                (*curbuf).b_u_curhead = cur_idx;
                 (*curbuf).b_u_line_ptr = line_ptr;
                 (*curbuf).b_u_line_lnum = line_lnum;
                 (*curbuf).b_u_line_colnr = line_colnr;
@@ -1579,18 +1589,16 @@ unsafe fn undo_write_bytes(bi: &mut bufinfo_T, nr: u64, len: usize) -> bool {
     }
 }
 
-unsafe fn put_header_ptr(bi: &mut bufinfo_T, uhp: *mut u_header_T) {
+unsafe fn put_header_ptr(bi: &mut bufinfo_T, uhp: Option<usize>) {
     unsafe {
-        assert!(uhp.is_null() || (*uhp).uh_seq >= 0);
-        undo_write_bytes(
-            bi,
-            if !uhp.is_null() {
-                (*uhp).uh_seq as u64
-            } else {
-                0
-            },
-            4,
-        );
+        let seq = if let Some(uh) = uhp {
+            let s = uhp_ref(bi.bi_buf, uh).uh_seq;
+            assert!(s >= 0);
+            s as u64
+        } else {
+            0
+        };
+        undo_write_bytes(bi, seq, 4);
     }
 }
 
@@ -1696,11 +1704,11 @@ pub unsafe fn u_undo_and_forget(mut count: c_int, do_buf_event: bool) -> bool {
         undo_undoes = true;
         u_doit(count, true, do_buf_event);
 
-        if (*curbuf).b_u_curhead.is_null() {
+        let Some(curhead) = (*curbuf).b_u_curhead else {
             return false;
-        }
+        };
 
-        u_forget_header(curbuf, (*curbuf).b_u_curhead);
+        u_forget_header(curbuf, curhead);
         true
     }
 }
@@ -1728,12 +1736,13 @@ unsafe fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
             change_warning(curbuf, 0);
 
             if undo_undoes {
-                if (*curbuf).b_u_curhead.is_null() {
+                if (*curbuf).b_u_curhead.is_none() {
                     (*curbuf).b_u_curhead = (*curbuf).b_u_newhead;
                 } else if get_undolevel(curbuf) > 0 {
-                    (*curbuf).b_u_curhead = (*(*curbuf).b_u_curhead).uh_next;
+                    let ch = (*curbuf).b_u_curhead.unwrap();
+                    (*curbuf).b_u_curhead = uhp_ref(curbuf, ch).uh_next;
                 }
-                if (*curbuf).b_u_numhead == 0 || (*curbuf).b_u_curhead.is_null() {
+                if (*curbuf).b_u_numhead == 0 || (*curbuf).b_u_curhead.is_none() {
                     (*curbuf).b_u_curhead = (*curbuf).b_u_oldhead;
                     beep_flush();
                     if count == startcount - 1 {
@@ -1747,7 +1756,7 @@ unsafe fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
 
                 u_undoredo(true, do_buf_event);
             } else {
-                if (*curbuf).b_u_curhead.is_null() || get_undolevel(curbuf) <= 0 {
+                if (*curbuf).b_u_curhead.is_none() || get_undolevel(curbuf) <= 0 {
                     beep_flush();
                     if count == startcount - 1 {
                         if !shortmess(kShmUndo) {
@@ -1760,11 +1769,12 @@ unsafe fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
 
                 u_undoredo(false, do_buf_event);
 
-                let curhead = (*curbuf).b_u_curhead;
-                if (*curhead).uh_prev.is_null() {
-                    (*curbuf).b_u_newhead = curhead;
+                let curhead = (*curbuf).b_u_curhead.unwrap();
+                let prev = uhp_ref(curbuf, curhead).uh_prev;
+                if prev.is_none() {
+                    (*curbuf).b_u_newhead = Some(curhead);
                 }
-                (*curbuf).b_u_curhead = (*curhead).uh_prev;
+                (*curbuf).b_u_curhead = prev;
             }
         }
         u_undo_end(undo_undoes, false, quiet);
@@ -1792,7 +1802,7 @@ pub unsafe fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
 
         let mut target: c_int;
         let mut closest: c_int;
-        let mut uhp: *mut u_header_T = ptr::null_mut();
+        let mut uhp: Option<usize> = None;
         let mut dosec = sec;
         let mut dofile = file;
         let mut above = false;
@@ -1806,13 +1816,12 @@ pub unsafe fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
                 target = ((*curbuf).b_u_time_cur as c_int) + step;
             } else if dofile {
                 if step < 0 {
-                    uhp = (*curbuf).b_u_curhead.cast::<u_header_T>();
-                    if !uhp.is_null() {
-                        uhp = (*uhp).uh_next;
+                    uhp = if let Some(ch) = (*curbuf).b_u_curhead {
+                        uhp_ref(curbuf, ch).uh_next
                     } else {
-                        uhp = (*curbuf).b_u_newhead.cast::<u_header_T>();
-                    }
-                    if !uhp.is_null() && (*uhp).uh_save_nr != 0 {
+                        (*curbuf).b_u_newhead
+                    };
+                    if uhp.is_some_and(|uh| uhp_ref(curbuf, uh).uh_save_nr != 0) {
                         target = (*curbuf).b_u_save_nr_cur + step;
                     } else {
                         target = (*curbuf).b_u_save_nr_cur + step + 1;
@@ -1858,33 +1867,30 @@ pub unsafe fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
                 lastmark += 1;
                 nomark = lastmark;
 
-                uhp = if (*curbuf).b_u_curhead.is_null() {
-                    (*curbuf).b_u_newhead.cast::<u_header_T>()
-                } else {
-                    (*curbuf).b_u_curhead.cast::<u_header_T>()
-                };
+                uhp = (*curbuf).b_u_curhead.or((*curbuf).b_u_newhead);
 
-                while !uhp.is_null() {
-                    (*uhp).uh_walk = mark;
+                while let Some(uh) = uhp {
+                    uhp_mut(curbuf, uh).uh_walk = mark;
                     let val = if dosec {
-                        (*uhp).uh_time as c_int
+                        uhp_ref(curbuf, uh).uh_time as c_int
                     } else if dofile {
-                        (*uhp).uh_save_nr
+                        uhp_ref(curbuf, uh).uh_save_nr
                     } else {
-                        (*uhp).uh_seq
+                        uhp_ref(curbuf, uh).uh_seq
                     };
 
+                    let uh_seq = uhp_ref(curbuf, uh).uh_seq;
                     if round == 1 && !(dofile && val == 0) {
                         let dir_ok = if step < 0 {
-                            (*uhp).uh_seq <= (*curbuf).b_u_seq_cur
+                            uh_seq <= (*curbuf).b_u_seq_cur
                         } else {
-                            (*uhp).uh_seq > (*curbuf).b_u_seq_cur
+                            uh_seq > (*curbuf).b_u_seq_cur
                         };
                         let closer = if dosec && val == closest {
                             if step < 0 {
-                                (*uhp).uh_seq < closest_seq
+                                uh_seq < closest_seq
                             } else {
-                                (*uhp).uh_seq > closest_seq
+                                uh_seq > closest_seq
                             }
                         } else {
                             closest == closest_start
@@ -1902,45 +1908,45 @@ pub unsafe fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
                         };
                         if dir_ok && closer {
                             closest = val;
-                            closest_seq = (*uhp).uh_seq;
+                            closest_seq = uh_seq;
                         }
                     }
 
                     if target == val && !dosec {
-                        target = (*uhp).uh_seq;
+                        target = uh_seq;
                         break;
                     }
 
-                    if !(*uhp).uh_prev.is_null()
-                        && (*(*uhp).uh_prev).uh_walk != nomark
-                        && (*(*uhp).uh_prev).uh_walk != mark
+                    let prev = uhp_ref(curbuf, uh).uh_prev;
+                    let alt_next = uhp_ref(curbuf, uh).uh_alt_next;
+                    let next = uhp_ref(curbuf, uh).uh_next;
+                    let alt_prev = uhp_ref(curbuf, uh).uh_alt_prev;
+                    if let Some(p) = prev
+                        && uhp_ref(curbuf, p).uh_walk != nomark
+                        && uhp_ref(curbuf, p).uh_walk != mark
                     {
-                        uhp = (*uhp).uh_prev;
-                    } else if !(*uhp).uh_alt_next.is_null()
-                        && (*(*uhp).uh_alt_next).uh_walk != nomark
-                        && (*(*uhp).uh_alt_next).uh_walk != mark
+                        uhp = Some(p);
+                    } else if let Some(an) = alt_next
+                        && uhp_ref(curbuf, an).uh_walk != nomark
+                        && uhp_ref(curbuf, an).uh_walk != mark
                     {
-                        uhp = (*uhp).uh_alt_next;
-                    } else if !(*uhp).uh_next.is_null()
-                        && (*uhp).uh_alt_prev.is_null()
-                        && (*(*uhp).uh_next).uh_walk != nomark
-                        && (*(*uhp).uh_next).uh_walk != mark
+                        uhp = Some(an);
+                    } else if let Some(n) = next
+                        && alt_prev.is_none()
+                        && uhp_ref(curbuf, n).uh_walk != nomark
+                        && uhp_ref(curbuf, n).uh_walk != mark
                     {
-                        if uhp == (*curbuf).b_u_curhead.cast::<u_header_T>() {
-                            (*uhp).uh_walk = nomark;
+                        if Some(uh) == (*curbuf).b_u_curhead {
+                            uhp_mut(curbuf, uh).uh_walk = nomark;
                         }
-                        uhp = (*uhp).uh_next;
+                        uhp = Some(n);
                     } else {
-                        (*uhp).uh_walk = nomark;
-                        if !(*uhp).uh_alt_prev.is_null() {
-                            uhp = (*uhp).uh_alt_prev;
-                        } else {
-                            uhp = (*uhp).uh_next;
-                        }
+                        uhp_mut(curbuf, uh).uh_walk = nomark;
+                        uhp = alt_prev.or(next);
                     }
                 }
 
-                if !uhp.is_null() {
+                if uhp.is_some() {
                     break;
                 }
 
@@ -1972,26 +1978,27 @@ pub unsafe fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
             }
         }
 
-        if !uhp.is_null() || target == 0 {
+        if uhp.is_some() || target == 0 {
             while !got_int {
                 change_warning(curbuf, 0);
 
-                uhp = (*curbuf).b_u_curhead.cast::<u_header_T>();
-                if uhp.is_null() {
-                    uhp = (*curbuf).b_u_newhead.cast::<u_header_T>();
+                uhp = if let Some(ch) = (*curbuf).b_u_curhead {
+                    uhp_ref(curbuf, ch).uh_next
                 } else {
-                    uhp = (*uhp).uh_next;
-                }
-                if uhp.is_null()
-                    || (target > 0 && (*uhp).uh_walk != mark)
-                    || ((*uhp).uh_seq == target && !above)
+                    (*curbuf).b_u_newhead
+                };
+                let Some(uh) = uhp else {
+                    break;
+                };
+                if (target > 0 && uhp_ref(curbuf, uh).uh_walk != mark)
+                    || (uhp_ref(curbuf, uh).uh_seq == target && !above)
                 {
                     break;
                 }
-                (*curbuf).b_u_curhead = uhp.cast();
+                (*curbuf).b_u_curhead = Some(uh);
                 u_undoredo(true, true);
                 if target > 0 {
-                    (*uhp).uh_walk = nomark;
+                    uhp_mut(curbuf, uh).uh_walk = nomark;
                 }
             }
 
@@ -1999,64 +2006,72 @@ pub unsafe fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
                 while !got_int {
                     change_warning(curbuf, 0);
 
-                    uhp = (*curbuf).b_u_curhead.cast::<u_header_T>();
-                    if uhp.is_null() {
+                    let Some(mut uh) = (*curbuf).b_u_curhead else {
+                        break;
+                    };
+
+                    while let Some(ap) = uhp_ref(curbuf, uh).uh_alt_prev
+                        && uhp_ref(curbuf, ap).uh_walk == mark
+                    {
+                        uh = ap;
+                    }
+
+                    let mut last = uh;
+                    while let Some(an) = uhp_ref(curbuf, last).uh_alt_next
+                        && uhp_ref(curbuf, an).uh_walk == mark
+                    {
+                        last = an;
+                    }
+                    if last != uh {
+                        while let Some(ap) = uhp_ref(curbuf, uh).uh_alt_prev {
+                            uh = ap;
+                        }
+                        let last_alt_next = uhp_ref(curbuf, last).uh_alt_next;
+                        let last_alt_prev = uhp_ref(curbuf, last).uh_alt_prev;
+                        if let Some(an) = last_alt_next {
+                            uhp_mut(curbuf, an).uh_alt_prev = last_alt_prev;
+                        }
+                        if let Some(ap) = last_alt_prev {
+                            uhp_mut(curbuf, ap).uh_alt_next = last_alt_next;
+                        }
+                        uhp_mut(curbuf, last).uh_alt_prev = None;
+                        uhp_mut(curbuf, last).uh_alt_next = Some(uh);
+                        uhp_mut(curbuf, uh).uh_alt_prev = Some(last);
+
+                        if (*curbuf).b_u_oldhead == Some(uh) {
+                            (*curbuf).b_u_oldhead = Some(last);
+                        }
+                        uh = last;
+                        if let Some(n) = uhp_ref(curbuf, uh).uh_next {
+                            uhp_mut(curbuf, n).uh_prev = Some(uh);
+                        }
+                    }
+                    (*curbuf).b_u_curhead = Some(uh);
+
+                    if uhp_ref(curbuf, uh).uh_walk != mark {
                         break;
                     }
 
-                    while !(*uhp).uh_alt_prev.is_null() && (*(*uhp).uh_alt_prev).uh_walk == mark {
-                        uhp = (*uhp).uh_alt_prev;
-                    }
-
-                    let mut last = uhp;
-                    while !(*last).uh_alt_next.is_null() && (*(*last).uh_alt_next).uh_walk == mark {
-                        last = (*last).uh_alt_next;
-                    }
-                    if last != uhp {
-                        while !(*uhp).uh_alt_prev.is_null() {
-                            uhp = (*uhp).uh_alt_prev;
-                        }
-                        if !(*last).uh_alt_next.is_null() {
-                            (*(*last).uh_alt_next).uh_alt_prev = (*last).uh_alt_prev;
-                        }
-                        (*(*last).uh_alt_prev).uh_alt_next = (*last).uh_alt_next;
-                        (*last).uh_alt_prev = ptr::null_mut();
-                        (*last).uh_alt_next = uhp;
-                        (*uhp).uh_alt_prev = last;
-
-                        if (*curbuf).b_u_oldhead.cast::<u_header_T>() == uhp {
-                            (*curbuf).b_u_oldhead = last.cast();
-                        }
-                        uhp = last;
-                        if !(*uhp).uh_next.is_null() {
-                            (*(*uhp).uh_next).uh_prev = uhp;
-                        }
-                    }
-                    (*curbuf).b_u_curhead = uhp.cast();
-
-                    if (*uhp).uh_walk != mark {
-                        break;
-                    }
-
-                    if (*uhp).uh_seq == target && above {
+                    if uhp_ref(curbuf, uh).uh_seq == target && above {
                         (*curbuf).b_u_seq_cur = target - 1;
                         break;
                     }
 
                     u_undoredo(false, true);
 
-                    if (*uhp).uh_prev.is_null() {
-                        (*curbuf).b_u_newhead = uhp.cast();
+                    let prev = uhp_ref(curbuf, uh).uh_prev;
+                    if prev.is_none() {
+                        (*curbuf).b_u_newhead = Some(uh);
                     }
-                    (*curbuf).b_u_curhead = (*uhp).uh_prev.cast();
+                    (*curbuf).b_u_curhead = prev;
                     did_undo = false;
 
-                    if (*uhp).uh_seq == target {
+                    if uhp_ref(curbuf, uh).uh_seq == target {
                         break;
                     }
 
-                    uhp = (*uhp).uh_prev;
-                    if uhp.is_null() || (*uhp).uh_walk != mark {
+                    uhp = prev;
+                    if uhp.is_none_or(|p| uhp_ref(curbuf, p).uh_walk != mark) {
                         internal_error(c"undo_time()".as_ptr());
                         break;
                     }
@@ -2071,7 +2086,8 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
     unsafe {
         let mut newlnum: linenr_T = MAXLNUM;
         let mut new_curpos = (*curwin).w_cursor;
-        let curhead = (*curbuf).b_u_curhead.cast::<u_header_T>();
+        let curhead_idx = (*curbuf).b_u_curhead.unwrap();
+        let curhead: *mut u_header_T = uhp_mut(curbuf, curhead_idx);
 
         block_autocmds();
 
@@ -2303,8 +2319,8 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
 
         (*curbuf).b_u_seq_cur = (*curhead).uh_seq;
         if undo {
-            (*curbuf).b_u_seq_cur = if !(*curhead).uh_next.is_null() {
-                (*(*curhead).uh_next).uh_seq
+            (*curbuf).b_u_seq_cur = if let Some(n) = (*curhead).uh_next {
+                uhp_ref(curbuf, n).uh_seq
             } else {
                 0
             };
@@ -2356,23 +2372,27 @@ unsafe fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
             }
         };
 
-        let curhead = (*curbuf).b_u_curhead.cast::<u_header_T>();
-        let uhp = if !curhead.is_null() {
-            if absolute && !(*curhead).uh_next.is_null() {
+        let uhp = if let Some(ch) = (*curbuf).b_u_curhead {
+            let next = uhp_ref(curbuf, ch).uh_next;
+            if absolute && next.is_some() {
                 did_undo = false;
-                (*curhead).uh_next
+                next
             } else if did_undo {
-                curhead
+                Some(ch)
             } else {
-                (*curhead).uh_next
+                next
             }
         } else {
-            (*curbuf).b_u_newhead.cast::<u_header_T>()
+            (*curbuf).b_u_newhead
         };
 
         let mut msgbuf = [0 as c_char; 80];
-        if !uhp.is_null() {
-            undo_fmt_time(msgbuf.as_mut_ptr(), msgbuf.len(), (*uhp).uh_time);
+        if let Some(uh) = uhp {
+            undo_fmt_time(
+                msgbuf.as_mut_ptr(),
+                msgbuf.len(),
+                uhp_ref(curbuf, uh).uh_time,
+            );
         }
 
         let mut wp = firstwin;
@@ -2401,11 +2421,7 @@ unsafe fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
             } else {
                 gettext(c"after".as_ptr())
             },
-            if uhp.is_null() {
-                0i64
-            } else {
-                (*uhp).uh_seq as i64
-            },
+            uhp.map_or(0i64, |uh| uhp_ref(curbuf, uh).uh_seq as i64),
             msgbuf.as_ptr(),
         );
     }
@@ -2458,7 +2474,7 @@ pub unsafe fn u_sync(force: bool) {
             (*curbuf).b_u_synced = true;
         } else {
             u_getbot(curbuf);
-            (*curbuf).b_u_curhead = ptr::null_mut();
+            (*curbuf).b_u_curhead = None;
         }
     }
 }
@@ -2475,53 +2491,61 @@ pub unsafe fn ex_undolist(_eap: *mut exarg_T) {
         let mut lines: Vec<std::ffi::CString> = Vec::new();
 
         let iobuf_ptr = (&raw mut IObuff).cast::<c_char>();
-        let mut uhp = (*curbuf).b_u_oldhead.cast::<u_header_T>();
-        while !uhp.is_null() {
-            if (*uhp).uh_prev.is_null() && (*uhp).uh_walk != nomark && (*uhp).uh_walk != mark {
+        let mut uhp = (*curbuf).b_u_oldhead;
+        while let Some(uh) = uhp {
+            let uh_prev = uhp_ref(curbuf, uh).uh_prev;
+            let uh_walk = uhp_ref(curbuf, uh).uh_walk;
+            let uh_seq = uhp_ref(curbuf, uh).uh_seq;
+            let uh_time = uhp_ref(curbuf, uh).uh_time;
+            let uh_save_nr = uhp_ref(curbuf, uh).uh_save_nr;
+            if uh_prev.is_none() && uh_walk != nomark && uh_walk != mark {
                 vim_snprintf!(
                     iobuf_ptr,
                     IOSIZE,
                     c"%6d %7d  ".as_ptr(),
-                    (*uhp).uh_seq,
+                    uh_seq,
                     changes,
                 );
                 let cur_len = strlen(iobuf_ptr);
-                undo_fmt_time(iobuf_ptr.add(cur_len), IOSIZE - cur_len, (*uhp).uh_time);
-                if (*uhp).uh_save_nr > 0 {
+                undo_fmt_time(iobuf_ptr.add(cur_len), IOSIZE - cur_len, uh_time);
+                if uh_save_nr > 0 {
                     while strlen(iobuf_ptr) < 33 {
                         xstrlcat(iobuf_ptr, c" ".as_ptr(), IOSIZE);
                     }
-                    vim_snprintf_add!(iobuf_ptr, IOSIZE, c"  %3d".as_ptr(), (*uhp).uh_save_nr);
+                    vim_snprintf_add!(iobuf_ptr, IOSIZE, c"  %3d".as_ptr(), uh_save_nr);
                 }
                 lines.push(CStr::from_ptr(iobuf_ptr).to_owned());
             }
 
-            (*uhp).uh_walk = mark;
+            uhp_mut(curbuf, uh).uh_walk = mark;
 
-            if !(*uhp).uh_prev.is_null()
-                && (*(*uhp).uh_prev).uh_walk != nomark
-                && (*(*uhp).uh_prev).uh_walk != mark
+            let alt_next = uhp_ref(curbuf, uh).uh_alt_next;
+            let next = uhp_ref(curbuf, uh).uh_next;
+            let alt_prev = uhp_ref(curbuf, uh).uh_alt_prev;
+            if let Some(p) = uh_prev
+                && uhp_ref(curbuf, p).uh_walk != nomark
+                && uhp_ref(curbuf, p).uh_walk != mark
             {
-                uhp = (*uhp).uh_prev;
+                uhp = Some(p);
                 changes += 1;
-            } else if !(*uhp).uh_alt_next.is_null()
-                && (*(*uhp).uh_alt_next).uh_walk != nomark
-                && (*(*uhp).uh_alt_next).uh_walk != mark
+            } else if let Some(an) = alt_next
+                && uhp_ref(curbuf, an).uh_walk != nomark
+                && uhp_ref(curbuf, an).uh_walk != mark
             {
-                uhp = (*uhp).uh_alt_next;
-            } else if !(*uhp).uh_next.is_null()
-                && (*uhp).uh_alt_prev.is_null()
-                && (*(*uhp).uh_next).uh_walk != nomark
-                && (*(*uhp).uh_next).uh_walk != mark
+                uhp = Some(an);
+            } else if let Some(n) = next
+                && alt_prev.is_none()
+                && uhp_ref(curbuf, n).uh_walk != nomark
+                && uhp_ref(curbuf, n).uh_walk != mark
             {
-                uhp = (*uhp).uh_next;
+                uhp = Some(n);
                 changes -= 1;
             } else {
-                (*uhp).uh_walk = nomark;
-                if !(*uhp).uh_alt_prev.is_null() {
-                    uhp = (*uhp).uh_alt_prev;
+                uhp_mut(curbuf, uh).uh_walk = nomark;
+                if let Some(ap) = alt_prev {
+                    uhp = Some(ap);
                 } else {
-                    uhp = (*uhp).uh_next;
+                    uhp = next;
                     changes -= 1;
                 }
             }
@@ -2557,10 +2581,10 @@ pub unsafe fn ex_undolist(_eap: *mut exarg_T) {
 /// `":undojoin"`: continue adding to the last entry list.
 pub unsafe fn ex_undojoin(_eap: *mut exarg_T) {
     unsafe {
-        if (*curbuf).b_u_newhead.is_null() {
+        if (*curbuf).b_u_newhead.is_none() {
             return;
         }
-        if !(*curbuf).b_u_curhead.is_null() {
+        if (*curbuf).b_u_curhead.is_some() {
             emsg(gettext(
                 c"E790: undojoin is not allowed after undo".as_ptr(),
             ));
@@ -2579,7 +2603,7 @@ pub unsafe fn ex_undojoin(_eap: *mut exarg_T) {
 /// Called after writing or reloading the file and setting `b_changed` to false.
 pub unsafe fn u_unchanged(buf: *mut buf_T) {
     unsafe {
-        u_unch_branch((*buf).b_u_oldhead.cast::<u_header_T>());
+        u_unch_branch(buf, (*buf).b_u_oldhead);
         (*buf).b_did_warn = false;
     }
 }
@@ -2588,31 +2612,36 @@ pub unsafe fn u_unchanged(buf: *mut buf_T) {
 /// line that was changed and set the cursor there.
 pub unsafe fn u_find_first_changed() {
     unsafe {
-        let uhp = (*curbuf).b_u_newhead.cast::<u_header_T>();
-        if !(*curbuf).b_u_curhead.is_null() || uhp.is_null() || (*uhp).uh_entries.is_empty() {
+        if (*curbuf).b_u_curhead.is_some() {
             return;
         }
-        let uep = &(*uhp).uh_entries.as_slice()[0];
-        if uep.ue_top != 0 || uep.ue_bot != 0 {
+        let Some(nh) = (*curbuf).b_u_newhead else {
+            return;
+        };
+        if uhp_ref(curbuf, nh).uh_entries.is_empty() {
+            return;
+        }
+        let uep: *const u_entry_T = &raw const uhp_ref(curbuf, nh).uh_entries[0];
+        if (*uep).ue_top != 0 || (*uep).ue_bot != 0 {
             return;
         }
 
         let mut lnum: linenr_T = 1;
-        while lnum < (*curbuf).b_ml.ml_line_count && lnum <= uep.ue_size() {
+        while lnum < (*curbuf).b_ml.ml_line_count && lnum <= (*uep).ue_size() {
             if strcmp(
                 ml_get_buf(curbuf, lnum),
-                uep.ue_array.as_slice()[(lnum - 1) as usize].as_ptr(),
+                (*uep).ue_array.as_slice()[(lnum - 1) as usize].as_ptr(),
             ) != 0
             {
-                clearpos(&mut (*uhp).uh_cursor);
-                (*uhp).uh_cursor.lnum = lnum;
+                clearpos(&mut uhp_mut(curbuf, nh).uh_cursor);
+                uhp_mut(curbuf, nh).uh_cursor.lnum = lnum;
                 return;
             }
             lnum += 1;
         }
-        if (*curbuf).b_ml.ml_line_count != uep.ue_size() {
-            clearpos(&mut (*uhp).uh_cursor);
-            (*uhp).uh_cursor.lnum = lnum;
+        if (*curbuf).b_ml.ml_line_count != (*uep).ue_size() {
+            clearpos(&mut uhp_mut(curbuf, nh).uh_cursor);
+            uhp_mut(curbuf, nh).uh_cursor.lnum = lnum;
         }
     }
 }
@@ -2622,39 +2651,43 @@ pub unsafe fn u_update_save_nr(buf: *mut buf_T) {
     unsafe {
         (*buf).b_u_save_nr_last += 1;
         (*buf).b_u_save_nr_cur = (*buf).b_u_save_nr_last;
-        let mut uhp = (*buf).b_u_curhead;
-        if !uhp.is_null() {
-            uhp = (*uhp).uh_next;
+        let uhp = if let Some(ch) = (*buf).b_u_curhead {
+            uhp_ref(buf, ch).uh_next
         } else {
-            uhp = (*buf).b_u_newhead;
-        }
-        if !uhp.is_null() {
-            (*uhp).uh_save_nr = (*buf).b_u_save_nr_last;
+            (*buf).b_u_newhead
+        };
+        if let Some(uh) = uhp {
+            uhp_mut(buf, uh).uh_save_nr = (*buf).b_u_save_nr_last;
         }
     }
 }
 
-unsafe fn u_unch_branch(uhp: *mut u_header_T) {
+unsafe fn u_unch_branch(buf: *mut buf_T, uhp: Option<usize>) {
     unsafe {
         let mut uh = uhp;
-        while !uh.is_null() {
-            (*uh).uh_flags |= UH_CHANGED;
-            if !(*uh).uh_alt_next.is_null() {
-                u_unch_branch((*uh).uh_alt_next);
+        while let Some(u) = uh {
+            uhp_mut(buf, u).uh_flags |= UH_CHANGED;
+            let alt_next = uhp_ref(buf, u).uh_alt_next;
+            let prev = uhp_ref(buf, u).uh_prev;
+            if alt_next.is_some() {
+                u_unch_branch(buf, alt_next);
             }
-            uh = (*uh).uh_prev;
+            uh = prev;
         }
     }
 }
 
 unsafe fn u_get_headentry(buf: *mut buf_T) -> *mut u_entry_T {
     unsafe {
-        let newhead = (*buf).b_u_newhead;
-        if newhead.is_null() || (*newhead).uh_entries.is_empty() {
+        let Some(newhead) = (*buf).b_u_newhead else {
+            iemsg(gettext(E_UNDO_LIST_CORRUPT.as_ptr()));
+            return ptr::null_mut();
+        };
+        if uhp_ref(buf, newhead).uh_entries.is_empty() {
             iemsg(gettext(E_UNDO_LIST_CORRUPT.as_ptr()));
             return ptr::null_mut();
         }
-        &raw mut (*newhead).uh_entries.as_mut_slice()[0]
+        &raw mut uhp_mut(buf, newhead).uh_entries.as_mut_slice()[0]
     }
 }
 
@@ -2665,8 +2698,8 @@ unsafe fn u_getbot(buf: *mut buf_T) {
             return;
         }
 
-        let newhead = (*buf).b_u_newhead;
-        if (*newhead).uh_getbot_entry {
+        let newhead = (*buf).b_u_newhead.unwrap();
+        if uhp_ref(buf, newhead).uh_getbot_entry {
             let extra = (*buf).b_ml.ml_line_count - (*uep).ue_lcount;
             (*uep).ue_bot = (*uep).ue_top + (*uep).ue_size() + 1 + extra;
             if (*uep).ue_bot < 1 || (*uep).ue_bot > (*buf).b_ml.ml_line_count {
@@ -2674,114 +2707,114 @@ unsafe fn u_getbot(buf: *mut buf_T) {
                 (*uep).ue_bot = (*uep).ue_top + 1;
             }
 
-            (*newhead).uh_getbot_entry = false;
+            uhp_mut(buf, newhead).uh_getbot_entry = false;
         }
 
         (*buf).b_u_synced = true;
     }
 }
 
-unsafe fn u_freeheader(buf: *mut buf_T, uhp: *mut u_header_T, uhpp: *mut *mut u_header_T) {
+unsafe fn u_freeheader(buf: *mut buf_T, uhp: usize, uhpp: &mut Option<usize>) {
     unsafe {
-        if !(*uhp).uh_alt_next.is_null() {
-            u_freebranch(buf, (*uhp).uh_alt_next, uhpp);
+        if let Some(alt_next) = uhp_ref(buf, uhp).uh_alt_next {
+            u_freebranch(buf, alt_next, uhpp);
         }
 
-        if !(*uhp).uh_alt_prev.is_null() {
-            (*(*uhp).uh_alt_prev).uh_alt_next = ptr::null_mut();
+        if let Some(alt_prev) = uhp_ref(buf, uhp).uh_alt_prev {
+            uhp_mut(buf, alt_prev).uh_alt_next = None;
         }
 
-        if (*uhp).uh_next.is_null() {
-            (*buf).b_u_oldhead = (*uhp).uh_prev;
+        let next = uhp_ref(buf, uhp).uh_next;
+        let prev = uhp_ref(buf, uhp).uh_prev;
+        if let Some(n) = next {
+            uhp_mut(buf, n).uh_prev = prev;
         } else {
-            (*(*uhp).uh_next).uh_prev = (*uhp).uh_prev;
+            (*buf).b_u_oldhead = prev;
         }
 
-        if (*uhp).uh_prev.is_null() {
-            (*buf).b_u_newhead = (*uhp).uh_next;
-        } else {
-            let mut uhap = (*uhp).uh_prev;
-            while !uhap.is_null() {
-                (*uhap).uh_next = (*uhp).uh_next;
-                uhap = (*uhap).uh_alt_next;
+        if let Some(p) = prev {
+            let mut uhap = Some(p);
+            while let Some(ua) = uhap {
+                uhp_mut(buf, ua).uh_next = next;
+                uhap = uhp_ref(buf, ua).uh_alt_next;
             }
+        } else {
+            (*buf).b_u_newhead = next;
         }
 
         u_freeentries(buf, uhp, uhpp);
     }
 }
 
-unsafe fn u_freebranch(buf: *mut buf_T, uhp: *mut u_header_T, uhpp: *mut *mut u_header_T) {
+unsafe fn u_freebranch(buf: *mut buf_T, uhp: usize, uhpp: &mut Option<usize>) {
     unsafe {
-        if uhp == (*buf).b_u_oldhead {
-            while !(*buf).b_u_oldhead.is_null() {
-                u_freeheader(buf, (*buf).b_u_oldhead, uhpp);
+        if Some(uhp) == (*buf).b_u_oldhead {
+            while let Some(oh) = (*buf).b_u_oldhead {
+                u_freeheader(buf, oh, uhpp);
             }
             return;
         }
 
-        if !(*uhp).uh_alt_prev.is_null() {
-            (*(*uhp).uh_alt_prev).uh_alt_next = ptr::null_mut();
+        if let Some(alt_prev) = uhp_ref(buf, uhp).uh_alt_prev {
+            uhp_mut(buf, alt_prev).uh_alt_next = None;
         }
 
-        let mut next = uhp;
-        while !next.is_null() {
-            let tofree = next;
-            if !(*tofree).uh_alt_next.is_null() {
-                u_freebranch(buf, (*tofree).uh_alt_next, uhpp);
+        let mut next = Some(uhp);
+        while let Some(tofree) = next {
+            if let Some(alt_next) = uhp_ref(buf, tofree).uh_alt_next {
+                u_freebranch(buf, alt_next, uhpp);
             }
-            next = (*tofree).uh_prev;
+            next = uhp_ref(buf, tofree).uh_prev;
             u_freeentries(buf, tofree, uhpp);
         }
     }
 }
 
-unsafe fn u_forget_header(buf: *mut buf_T, uhp: *mut u_header_T) {
+unsafe fn u_forget_header(buf: *mut buf_T, uhp: usize) {
     unsafe {
-        let parent = (*uhp).uh_next;
-        let alt = (*uhp).uh_alt_next;
-        if !alt.is_null() {
-            (*alt).uh_alt_prev = (*uhp).uh_alt_prev;
+        let parent = uhp_ref(buf, uhp).uh_next;
+        let alt = uhp_ref(buf, uhp).uh_alt_next;
+        let alt_prev = uhp_ref(buf, uhp).uh_alt_prev;
+        if let Some(a) = alt {
+            uhp_mut(buf, a).uh_alt_prev = alt_prev;
         }
-        if !(*uhp).uh_alt_prev.is_null() {
-            (*(*uhp).uh_alt_prev).uh_alt_next = alt;
+        if let Some(ap) = alt_prev {
+            uhp_mut(buf, ap).uh_alt_next = alt;
         }
-        if !parent.is_null() {
-            (*parent).uh_prev = alt;
+        if let Some(p) = parent {
+            uhp_mut(buf, p).uh_prev = alt;
         }
-        if (*buf).b_u_oldhead == uhp {
+        if (*buf).b_u_oldhead == Some(uhp) {
             (*buf).b_u_oldhead = alt;
         }
-        (*uhp).uh_alt_next = ptr::null_mut();
-        (*uhp).uh_alt_prev = ptr::null_mut();
+        uhp_mut(buf, uhp).uh_alt_next = None;
+        uhp_mut(buf, uhp).uh_alt_prev = None;
         (*buf).b_u_newhead = parent;
         (*buf).b_u_curhead = alt;
-        (*buf).b_u_seq_cur = if !parent.is_null() {
-            (*parent).uh_seq
-        } else {
-            0
-        };
-        if (*buf).b_u_seq_last == (*uhp).uh_seq {
+        (*buf).b_u_seq_cur = parent.map_or(0, |p| uhp_ref(buf, p).uh_seq);
+        if (*buf).b_u_seq_last == uhp_ref(buf, uhp).uh_seq {
             (*buf).b_u_seq_last -= 1;
         }
         (*buf).b_u_synced = true;
-        u_freebranch(buf, uhp, ptr::null_mut());
+        let mut dummy = None;
+        u_freebranch(buf, uhp, &mut dummy);
     }
 }
 
-unsafe fn u_freeentries(buf: *mut buf_T, uhp: *mut u_header_T, uhpp: *mut *mut u_header_T) {
+unsafe fn u_freeentries(buf: *mut buf_T, uhp: usize, uhpp: &mut Option<usize>) {
     unsafe {
-        if (*buf).b_u_curhead == uhp {
-            (*buf).b_u_curhead = ptr::null_mut();
+        if (*buf).b_u_curhead == Some(uhp) {
+            (*buf).b_u_curhead = None;
         }
-        if (*buf).b_u_newhead == uhp {
-            (*buf).b_u_newhead = ptr::null_mut();
+        if (*buf).b_u_newhead == Some(uhp) {
+            (*buf).b_u_newhead = None;
         }
-        if !uhpp.is_null() && uhp == *uhpp {
-            *uhpp = ptr::null_mut();
+        if *uhpp == Some(uhp) {
+            *uhpp = None;
         }
 
-        drop(Box::from_raw(uhp));
+        uhp_mut(buf, uhp).clone_from_slice_or_reset();
+        (*buf).b_u_free_headers.push(uhp);
         (*buf).b_u_numhead -= 1;
     }
 }
@@ -2789,13 +2822,14 @@ unsafe fn u_freeentries(buf: *mut buf_T, uhp: *mut u_header_T, uhpp: *mut *mut u
 /// Prunes the newest undo entry if it has no changes.
 pub unsafe fn u_forget_unchanged(buf: *mut buf_T) {
     unsafe {
-        let uhp = (*buf).b_u_newhead.cast::<u_header_T>();
-        let uep: *mut u_entry_T = if !uhp.is_null() && !(*uhp).uh_entries.is_empty() {
-            &raw mut (*uhp).uh_entries.as_mut_slice()[0]
-        } else {
-            ptr::null_mut()
+        let Some(uhp) = (*buf).b_u_newhead else {
+            return;
         };
-        if uep.is_null() || !(*buf).b_u_curhead.is_null() || u_entry_resized(buf, uep) {
+        if uhp_ref(buf, uhp).uh_entries.is_empty() || (*buf).b_u_curhead.is_some() {
+            return;
+        };
+        let uep: *mut u_entry_T = &raw mut uhp_mut(buf, uhp).uh_entries.as_mut_slice()[0];
+        if u_entry_resized(buf, uep) {
             return;
         }
         for i in 0..(*uep).ue_size() {
@@ -2808,9 +2842,9 @@ pub unsafe fn u_forget_unchanged(buf: *mut buf_T) {
             }
         }
 
-        (*uhp).uh_entries.remove(0);
-        (*uhp).uh_getbot_entry = false;
-        if (*uhp).uh_entries.is_empty() {
+        uhp_mut(buf, uhp).uh_entries.remove(0);
+        uhp_mut(buf, uhp).uh_getbot_entry = false;
+        if uhp_ref(buf, uhp).uh_entries.is_empty() {
             u_forget_header(buf, uhp);
         }
     }
@@ -2819,9 +2853,9 @@ pub unsafe fn u_forget_unchanged(buf: *mut buf_T) {
 /// Invalidate the undo buffer; called when storage has already been released.
 pub unsafe fn u_clearall(buf: *mut buf_T) {
     unsafe {
-        (*buf).b_u_newhead = ptr::null_mut();
-        (*buf).b_u_oldhead = ptr::null_mut();
-        (*buf).b_u_curhead = ptr::null_mut();
+        (*buf).b_u_newhead = None;
+        (*buf).b_u_oldhead = None;
+        (*buf).b_u_curhead = None;
         (*buf).b_u_synced = true;
         (*buf).b_u_numhead = 0;
         (*buf).b_u_line_ptr = None;
@@ -2832,14 +2866,10 @@ pub unsafe fn u_clearall(buf: *mut buf_T) {
 /// Free all allocated memory blocks for the buffer `buf`.
 pub unsafe fn u_blockfree(buf: *mut buf_T) {
     unsafe {
-        while !(*buf).b_u_oldhead.is_null() {
-            let previous_oldhead = (*buf).b_u_oldhead;
-            u_freeheader(
-                buf,
-                (*buf).b_u_oldhead.cast::<u_header_T>(),
-                ptr::null_mut(),
-            );
-            assert!((*buf).b_u_oldhead != previous_oldhead);
+        while let Some(previous_oldhead) = (*buf).b_u_oldhead {
+            let mut dummy = None;
+            u_freeheader(buf, previous_oldhead, &mut dummy);
+            assert!((*buf).b_u_oldhead != Some(previous_oldhead));
         }
         (*buf).b_u_line_ptr = None;
     }
@@ -2850,6 +2880,8 @@ pub unsafe fn u_clearallandblockfree(buf: *mut buf_T) {
     unsafe {
         u_blockfree(buf);
         u_clearall(buf);
+        (*buf).b_u_headers.clear();
+        (*buf).b_u_free_headers.clear();
     }
 }
 
@@ -2969,36 +3001,48 @@ pub unsafe fn curbufIsChanged() -> bool {
     unsafe { bufIsChanged(curbuf) }
 }
 
-unsafe fn u_eval_tree(buf: *mut buf_T, first_uhp: *const u_header_T) -> *mut list_T {
+unsafe fn u_eval_tree(buf: *mut buf_T, first_uhp: Option<usize>) -> *mut list_T {
     unsafe {
         let list = tv_list_alloc(kListLenMayKnow);
 
         let mut uhp = first_uhp;
-        while !uhp.is_null() {
+        while let Some(uh) = uhp {
             let dict = tv_dict_alloc();
-            tv_dict_add_nr(dict, c"seq".as_ptr(), 3, (*uhp).uh_seq as varnumber_T);
-            tv_dict_add_nr(dict, c"time".as_ptr(), 4, (*uhp).uh_time as varnumber_T);
-            if uhp == (*buf).b_u_newhead.cast::<u_header_T>().cast_const() {
+            tv_dict_add_nr(
+                dict,
+                c"seq".as_ptr(),
+                3,
+                uhp_ref(buf, uh).uh_seq as varnumber_T,
+            );
+            tv_dict_add_nr(
+                dict,
+                c"time".as_ptr(),
+                4,
+                uhp_ref(buf, uh).uh_time as varnumber_T,
+            );
+            if Some(uh) == (*buf).b_u_newhead {
                 tv_dict_add_nr(dict, c"newhead".as_ptr(), 7, 1);
             }
-            if uhp == (*buf).b_u_curhead.cast::<u_header_T>().cast_const() {
+            if Some(uh) == (*buf).b_u_curhead {
                 tv_dict_add_nr(dict, c"curhead".as_ptr(), 7, 1);
             }
-            if (*uhp).uh_save_nr > 0 {
-                tv_dict_add_nr(dict, c"save".as_ptr(), 4, (*uhp).uh_save_nr as varnumber_T);
-            }
-
-            if !(*uhp).uh_alt_next.is_null() {
-                tv_dict_add_list(
+            if uhp_ref(buf, uh).uh_save_nr > 0 {
+                tv_dict_add_nr(
                     dict,
-                    c"alt".as_ptr(),
-                    3,
-                    u_eval_tree(buf, (*uhp).uh_alt_next),
+                    c"save".as_ptr(),
+                    4,
+                    uhp_ref(buf, uh).uh_save_nr as varnumber_T,
                 );
             }
 
+            let alt_next = uhp_ref(buf, uh).uh_alt_next;
+            let prev = uhp_ref(buf, uh).uh_prev;
+            if alt_next.is_some() {
+                tv_dict_add_list(dict, c"alt".as_ptr(), 3, u_eval_tree(buf, alt_next));
+            }
+
             tv_list_append_dict(list, dict);
-            uhp = (*uhp).uh_prev;
+            uhp = prev;
         }
 
         list
@@ -3086,34 +3130,24 @@ pub unsafe fn f_undotree(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 /// Drops named mark `idx` from the pending undo snapshot.
 pub unsafe fn u_update_named_mark(buf: *mut buf_T, idx: c_int) {
     unsafe {
-        let uhp = if !(*buf).b_u_curhead.is_null() {
-            (*buf).b_u_curhead
-        } else {
-            (*buf).b_u_newhead
-        };
-        if !uhp.is_null() {
-            (*uhp).uh_namedm[idx as usize].mark.lnum = 0;
+        let uhp = (*buf).b_u_curhead.or((*buf).b_u_newhead);
+        if let Some(uh) = uhp {
+            uhp_mut(buf, uh).uh_namedm[idx as usize].mark.lnum = 0;
         }
     }
 }
 
-/// Given the buffer, return the undo header. If none is set, set one first.
-pub unsafe fn u_force_get_undo_header(buf: *mut buf_T) -> *mut u_header_T {
+/// Given the buffer, return the undo header index. If none is set, set one first.
+pub unsafe fn u_force_get_undo_header(buf: *mut buf_T) -> Option<usize> {
     unsafe {
-        let mut uhp: *mut u_header_T = if !(*buf).b_u_curhead.is_null() {
-            (*buf).b_u_curhead
-        } else if !(*buf).b_u_newhead.is_null() {
-            (*buf).b_u_newhead
-        } else {
-            ptr::null_mut()
-        };
+        let mut uhp = (*buf).b_u_curhead.or((*buf).b_u_newhead);
 
-        if uhp.is_null() {
+        if uhp.is_none() {
             u_savecommon(buf, 0, 1, 1, true);
             uhp = (*buf).b_u_curhead;
-            if uhp.is_null() {
+            if uhp.is_none() {
                 uhp = (*buf).b_u_newhead;
-                if get_undolevel(buf) > 0 && uhp.is_null() {
+                if get_undolevel(buf) > 0 && uhp.is_none() {
                     std::process::abort();
                 }
             }
@@ -3151,13 +3185,9 @@ pub unsafe fn u_rollback(uc: *mut UndoCheckpoint, buf: *mut buf_T) {
     unsafe {
         if (*buf).b_u_seq_cur != (*uc).uc_seq_cur {
             let mut count: c_int = 0;
-            let mut uhp = if !(*buf).b_u_curhead.is_null() {
-                (*buf).b_u_curhead
-            } else {
-                (*buf).b_u_newhead
-            };
-            while !uhp.is_null() {
-                uhp = (*uhp).uh_next;
+            let mut uhp = (*buf).b_u_curhead.or((*buf).b_u_newhead);
+            while let Some(uh) = uhp {
+                uhp = uhp_ref(buf, uh).uh_next;
                 count += 1;
             }
 
@@ -3185,7 +3215,7 @@ pub unsafe fn u_rollback(uc: *mut UndoCheckpoint, buf: *mut buf_T) {
         (*buf).b_u_line_ptr = (*uc).uc_line_ptr.take();
         (*buf).b_u_line_lnum = (*uc).uc_line_lnum;
         (*buf).b_u_line_colnr = (*uc).uc_line_colnr;
-        if (*buf).b_u_curhead.is_null() {
+        if (*buf).b_u_curhead.is_none() {
             (*buf).b_u_synced = (*uc).uc_synced;
         }
 
