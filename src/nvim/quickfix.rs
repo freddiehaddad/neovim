@@ -83,7 +83,6 @@ use crate::window::{
 
 use crate::math::{FAIL, OK};
 use crate::mbyte::{convert_setup, ptr2cells, remove_bom, string_convert, utfc_ptr2len, vimconv_T};
-use crate::memfile::memfile_T;
 use crate::memline::{
     check_need_swap, ml_append_buf, ml_delete, ml_get_buf, ml_get_buf_len, ml_open,
 };
@@ -5720,9 +5719,8 @@ unsafe fn vgr_jump_to_match(
 
 unsafe fn existing_swapfile(buf: *const buf_T) -> bool {
     unsafe {
-        let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
-        if !mfp.is_null()
-            && let Some(ref mf_fname) = (*mfp).mf_fname
+        if let Some(ref mfp) = (*buf).b_ml.ml_mfp
+            && let Some(ref mf_fname) = mfp.mf_fname
         {
             let bytes = mf_fname.as_bytes();
             if bytes.len() >= 2 {
@@ -5806,7 +5804,7 @@ unsafe fn vgr_process_files(
 
             let mut buf = buflist_findname_exp(fname_exp);
             let using_dummy: bool;
-            if buf.is_null() || (*buf).b_ml.ml_mfp.is_null() {
+            if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() {
                 duplicate_name = !buf.is_null();
                 using_dummy = true;
                 *redraw_for_dummy = true;
@@ -7398,7 +7396,7 @@ unsafe fn cbuffer_process_args(
             return FAIL;
         }
 
-        if (*buf).b_ml.ml_mfp.is_null() {
+        if (*buf).b_ml.ml_mfp.is_none() {
             emsg(gettext((&raw const e_buffer_is_not_loaded).cast()));
             return FAIL;
         }

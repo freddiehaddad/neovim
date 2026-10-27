@@ -5293,7 +5293,7 @@ pub unsafe fn spell_add_word(
             }
 
             buf = buflist_findname_exp(fnamebuf);
-            if !buf.is_null() && (*buf).b_ml.ml_mfp.is_null() {
+            if !buf.is_null() && (*buf).b_ml.ml_mfp.is_none() {
                 buf = ptr::null_mut();
             }
             if !buf.is_null() && bufIsChanged(buf) {

@@ -3407,7 +3407,7 @@ pub unsafe fn did_set_undofile(args: *mut optset_T) -> *const c_char {
         while !bp.is_null() {
             if (buf == bp || ((*args).os_flags & OPT_GLOBAL) != 0 || (*args).os_flags == 0)
                 && !bufIsChanged(bp)
-                && !(*bp).b_ml.ml_mfp.is_null()
+                && (*bp).b_ml.ml_mfp.is_some()
             {
                 u_compute_hash(bp, hash.as_mut_ptr());
                 u_read_undo(ptr::null_mut(), hash.as_ptr(), (*bp).b_fname);

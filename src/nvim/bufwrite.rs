@@ -390,7 +390,7 @@ unsafe fn buf_write_do_autocmds(
         let mut aco: CtxSwitch = CtxSwitch::new();
         let mut did_cmd = false;
         let mut nofile_err = false;
-        let empty_memline = (*buf).b_ml.ml_mfp.is_null();
+        let empty_memline = (*buf).b_ml.ml_mfp.is_none();
         let mut bufref = bufref_T {
             br_buf: ptr::null_mut(),
             br_fnum: 0,
@@ -468,7 +468,7 @@ unsafe fn buf_write_do_autocmds(
             buf = ptr::null_mut();
         }
         if buf.is_null()
-            || ((*buf).b_ml.ml_mfp.is_null() && !empty_memline)
+            || ((*buf).b_ml.ml_mfp.is_none() && !empty_memline)
             || did_cmd
             || nofile_err
             || aborting()
@@ -1135,7 +1135,7 @@ pub unsafe fn buf_write(
         if fname.is_null() || *fname == NUL {
             return FAIL;
         }
-        if (*buf).b_ml.ml_mfp.is_null() {
+        if (*buf).b_ml.ml_mfp.is_none() {
             emsg(gettext(e_empty_buffer.as_ptr()));
             return FAIL;
         }

@@ -50,7 +50,7 @@ pub unsafe fn buf_updates_register(
     send_buffer: bool,
 ) -> bool {
     unsafe {
-        if (*buf).b_ml.ml_mfp.is_null() {
+        if (*buf).b_ml.ml_mfp.is_none() {
             return false;
         }
 

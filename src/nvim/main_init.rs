@@ -71,7 +71,6 @@ use crate::lua::executor::{
 use crate::mark::setpcmark;
 use crate::math::{FAIL, OK};
 use crate::mcursor::mc_init;
-use crate::memfile::memfile_T;
 use crate::memline::{ml_close_all, ml_close_notmod, ml_recover, ml_sync_all, recover_names};
 use crate::memory::{entered_free_all_mem, free_all_mem, strequal, striequal_str};
 use crate::message::{msg_putchar, semsg, wait_return};
@@ -937,7 +936,7 @@ pub unsafe fn getout(mut exitval: c_int) -> ! {
 
             let mut buf = firstbuf;
             while !buf.is_null() {
-                if !(*buf).b_ml.ml_mfp.is_null() {
+                if (*buf).b_ml.ml_mfp.is_some() {
                     let mut bufref: bufref_T = bufref_T::new();
                     set_bufref(&raw mut bufref, buf);
                     apply_autocmds(EVENT_BUFUNLOAD, (*buf).b_fname, (*buf).b_fname, false, buf);
@@ -1057,7 +1056,7 @@ pub unsafe fn preserve_exit(errmsg: *const c_char) -> ! {
 
         let mut buf = firstbuf;
         while !buf.is_null() {
-            let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
+            let mfp = (*buf).b_ml.mfp_ptr();
             if !mfp.is_null() && (*mfp).mf_fname.is_some() {
                 if !errmsg.is_null() {
                     fprintf!(stderr, c"Nvim: preserving files...\n".as_ptr());
@@ -2031,7 +2030,7 @@ unsafe fn create_windows(parmp: *mut mparm_T) {
         if recoverymode {
             msg_scroll = 1;
             ml_recover(true);
-            if (*curbuf).b_ml.ml_mfp.is_null() {
+            if (*curbuf).b_ml.ml_mfp.is_none() {
                 getout(1);
             }
             do_modelines(0);
@@ -2062,7 +2061,7 @@ unsafe fn create_windows(parmp: *mut mparm_T) {
                 }
                 dorewind = false;
                 curbuf = (*curwin).w_buffer;
-                if (*curbuf).b_ml.ml_mfp.is_null() {
+                if (*curbuf).b_ml.ml_mfp.is_none() {
                     if p_fdls >= 0 {
                         (*curwin).w_onebuf_opt.wo_fdl = p_fdls;
                     }

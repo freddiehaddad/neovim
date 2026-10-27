@@ -961,7 +961,7 @@ pub unsafe fn ctx_restore(cs: *mut CtxSwitch) {
             if (*curwin).handle == (*cs).cs_new_curwin
                 && curbuf != saved_buf
                 && bufref_valid(&raw mut (*cs).cs_new_curbuf)
-                && !(*saved_buf).b_ml.ml_mfp.is_null()
+                && (*saved_buf).b_ml.ml_mfp.is_some()
             {
                 if (*curwin).w_s == &raw mut (*curbuf).b_s {
                     (*curwin).w_s = &raw mut (*saved_buf).b_s;

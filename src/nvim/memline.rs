@@ -69,8 +69,7 @@ use std::ptr;
 #[repr(C)]
 pub struct memline_T {
     pub ml_line_count: i32,
-    pub ml_mfp: *mut crate::memfile::memfile_T,
-    pub ml_mfp_owned: Option<Box<crate::memfile::memfile_T>>,
+    pub ml_mfp: Option<Box<crate::memfile::memfile_T>>,
     pub ml_stack: Vec<infoptr_T>,
     pub ml_stack_top: c_int,
     pub ml_flags: c_int,
@@ -92,8 +91,7 @@ impl memline_T {
     pub const fn new() -> Self {
         Self {
             ml_line_count: 0,
-            ml_mfp: ptr::null_mut(),
-            ml_mfp_owned: None,
+            ml_mfp: None,
             ml_stack: Vec::new(),
             ml_stack_top: 0,
             ml_flags: 0,
@@ -110,6 +108,13 @@ impl memline_T {
             ml_chunksize: Vec::new(),
             ml_usedchunks: 0,
         }
+    }
+
+    #[inline]
+    pub fn mfp_ptr(&mut self) -> *mut crate::memfile::memfile_T {
+        self.ml_mfp
+            .as_deref_mut()
+            .map_or(ptr::null_mut(), |m| &raw mut *m)
     }
 }
 
@@ -388,13 +393,11 @@ pub unsafe fn ml_open(buf: *mut buf_T) -> c_int {
 
         (*buf).b_may_swap = (*buf).terminal.is_null() && p_uc != 0 && (*buf).b_p_swf != 0;
 
-        (*buf).b_ml.ml_mfp_owned = mf_open(None, 0);
-        let Some(mfp_box) = (*buf).b_ml.ml_mfp_owned.as_deref_mut() else {
-            (*buf).b_ml.ml_mfp = ptr::null_mut();
+        (*buf).b_ml.ml_mfp = mf_open(None, 0);
+        let Some(mfp_box) = (*buf).b_ml.ml_mfp.as_deref_mut() else {
             return FAIL;
         };
         let mfp: *mut memfile_T = &raw mut *mfp_box;
-        (*buf).b_ml.ml_mfp = mfp;
         (*buf).b_ml.ml_flags = ML_EMPTY;
         (*buf).b_ml.ml_line_count = 1;
 
@@ -472,9 +475,8 @@ unsafe fn ml_open_error(buf: *mut buf_T, mfp: *mut memfile_T, hp: *mut bhdr_T) -
             if !hp.is_null() {
                 mf_put(mfp, hp, false, false);
             }
-            mf_close((*buf).b_ml.ml_mfp_owned.take(), true);
+            mf_close((*buf).b_ml.ml_mfp.take(), true);
         }
-        (*buf).b_ml.ml_mfp = ptr::null_mut();
         FAIL
     }
 }
@@ -483,7 +485,7 @@ unsafe fn ml_open_error(buf: *mut buf_T, mfp: *mut memfile_T, hp: *mut bhdr_T) -
 pub unsafe fn ml_setname(buf: *mut buf_T) {
     unsafe {
         let mut success = false;
-        let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
+        let mfp = (*buf).b_ml.mfp_ptr();
         if (*mfp).mf_fd < 0 {
             if p_uc != 0 && (cmdmod.cmod_flags & CMOD_NOSWAPFILE) == 0 {
                 ml_open_file(buf);
@@ -507,7 +509,7 @@ pub unsafe fn ml_setname(buf: *mut buf_T) {
                 mf_fname_ptr,
                 &raw mut found_existing_dir,
             );
-            if (*buf).b_ml.ml_mfp.cast::<memfile_T>() != mfp {
+            if (*buf).b_ml.mfp_ptr() != mfp {
                 return;
             }
             if dirp.is_null() {
@@ -565,7 +567,7 @@ pub unsafe fn ml_open_files() {
 /// Open a swapfile for an existing memfile, if there is no swapfile yet.
 pub unsafe fn ml_open_file(buf: *mut buf_T) {
     unsafe {
-        let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
+        let mfp = (*buf).b_ml.mfp_ptr();
         if mfp.is_null()
             || (*mfp).mf_fd >= 0
             || (*buf).b_p_swf == 0
@@ -595,7 +597,7 @@ pub unsafe fn ml_open_file(buf: *mut buf_T) {
                 ptr::null_mut(),
                 &raw mut found_existing_dir,
             );
-            if (*buf).b_ml.ml_mfp.cast::<memfile_T>() != mfp {
+            if (*buf).b_ml.mfp_ptr() != mfp {
                 return;
             }
             if dirp.is_null() {
@@ -648,14 +650,13 @@ pub unsafe fn check_need_swap(newfile: bool) {
 /// Close memline for buffer `buf`.
 pub unsafe fn ml_close(buf: *mut buf_T, del_file: c_int) {
     unsafe {
-        if (*buf).b_ml.ml_mfp.is_null() {
+        if (*buf).b_ml.ml_mfp.is_none() {
             return;
         }
-        mf_close((*buf).b_ml.ml_mfp_owned.take(), del_file != 0);
+        mf_close((*buf).b_ml.ml_mfp.take(), del_file != 0);
         (*buf).b_ml.ml_line_buf = Vec::new();
         (*buf).b_ml.ml_stack = Vec::new();
         (*buf).b_ml.ml_chunksize = Vec::new();
-        (*buf).b_ml.ml_mfp = ptr::null_mut();
 
         (*buf).b_flags &= !BF_RECOVERED;
     }
@@ -712,7 +713,7 @@ unsafe fn ml_check_b0_strings(b0p: *const ZeroBlock) -> bool {
 
 unsafe fn ml_upd_block0(buf: *mut buf_T, what: upd_block0_T) {
     unsafe {
-        let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
+        let mfp = (*buf).b_ml.mfp_ptr();
         if mfp.is_null() {
             return;
         }
@@ -787,7 +788,7 @@ unsafe fn set_b0_fname(b0p: *mut ZeroBlock, buf: *mut buf_T) {
 
 unsafe fn set_b0_dir_flag(b0p: *mut ZeroBlock, buf: *mut buf_T) {
     unsafe {
-        let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
+        let mfp = (*buf).b_ml.mfp_ptr();
         let mf_fname_ptr = (*mfp)
             .mf_fname
             .as_ref()
@@ -843,7 +844,7 @@ pub unsafe fn ml_recover(checkext: bool) {
         let mut orig_file_status = NOTDONE;
 
         recoverymode = true;
-        let called_from_main = (*curbuf).b_ml.ml_mfp.is_null();
+        let called_from_main = (*curbuf).b_ml.ml_mfp.is_none();
 
         let mut fname = (*curbuf).b_fname;
         if fname.is_null() {
@@ -903,18 +904,13 @@ pub unsafe fn ml_recover(checkext: bool) {
         let buf: *mut buf_T = &raw mut *allocated_buf;
         buf_box = Some(allocated_buf);
 
-        (*buf).b_ml.ml_mfp_owned = mf_open(Some(fname_used.clone()), O_RDONLY);
-        mfp = (*buf)
-            .b_ml
-            .ml_mfp_owned
-            .as_deref_mut()
-            .map_or(ptr::null_mut(), |m| &raw mut *m);
+        (*buf).b_ml.ml_mfp = mf_open(Some(fname_used.clone()), O_RDONLY);
+        mfp = (*buf).b_ml.mfp_ptr();
         if mfp.is_null() || (*mfp).mf_fd < 0 {
             semsg!(tr(c"E306: Cannot open %s"), fname_used.as_ptr());
             ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
             return;
         }
-        (*buf).b_ml.ml_mfp = mfp.cast();
         (*mfp).mf_page_size = MIN_SWAP_PAGE_SIZE;
 
         let hl_id = HLF_E;
@@ -1463,7 +1459,7 @@ unsafe fn ml_recover_theend(
             if !hp.is_null() {
                 mf_put(mfp, hp, false, false);
             }
-            mf_close(buf.as_mut().and_then(|b| b.b_ml.ml_mfp_owned.take()), false);
+            mf_close(buf.as_mut().and_then(|b| b.b_ml.ml_mfp.take()), false);
         }
         drop(buf);
         if serious_error && called_from_main {
@@ -1560,8 +1556,8 @@ pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mu
                 );
             }
 
-            let cur_mfp_fname = if skip_curbuf && !(*curbuf).b_ml.ml_mfp.is_null() {
-                let cur_mfp = (*curbuf).b_ml.ml_mfp.cast::<memfile_T>();
+            let cur_mfp_fname = if skip_curbuf && (*curbuf).b_ml.ml_mfp.is_some() {
+                let cur_mfp = (*curbuf).b_ml.mfp_ptr();
                 (*cur_mfp).mf_fname.as_ref().map(|p| p.as_ptr())
             } else {
                 None
@@ -1933,7 +1929,7 @@ pub unsafe fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool) 
     unsafe {
         let mut buf = firstbuf;
         while !buf.is_null() {
-            let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
+            let mfp = (*buf).b_ml.mfp_ptr();
             if mfp.is_null() || (*mfp).mf_fname.is_none() {
                 buf = (*buf).b_next;
                 continue;
@@ -1978,7 +1974,7 @@ pub unsafe fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool) 
 /// Sync one buffer, including negative blocks.
 pub unsafe fn ml_preserve(buf: *mut buf_T, message: bool, do_fsync: bool) {
     unsafe {
-        let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
+        let mfp = (*buf).b_ml.mfp_ptr();
         let got_int_save = got_int;
 
         if mfp.is_null() || (*mfp).mf_fname.is_none() {
@@ -2111,7 +2107,7 @@ pub unsafe fn gchar_pos(pos: *mut pos_T) -> c_int {
 
 unsafe fn ml_get_buf_impl(buf: *mut buf_T, mut lnum: linenr_T, will_change: bool) -> *mut c_char {
     unsafe {
-        if (*buf).b_ml.ml_mfp.is_null() {
+        if (*buf).b_ml.ml_mfp.is_none() {
             (*buf).b_ml.ml_line_textlen = 1;
             return c"".as_ptr().cast_mut();
         }
@@ -2200,7 +2196,7 @@ unsafe fn ml_append_int(
         let line = line_arg;
         let mut len = len_arg;
 
-        if lnum > (*buf).b_ml.ml_line_count || (*buf).b_ml.ml_mfp.is_null() {
+        if lnum > (*buf).b_ml.ml_line_count || (*buf).b_ml.ml_mfp.is_none() {
             return FAIL;
         }
 
@@ -2213,7 +2209,7 @@ unsafe fn ml_append_int(
         }
         let mut space_needed = i64::from(len) + INDEX_SIZE as i64;
 
-        let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
+        let mfp = (*buf).b_ml.mfp_ptr();
         let page_size = i64::from((*mfp).mf_page_size);
 
         let mut hp = ml_find_line(buf, if lnum == 0 { 1 } else { lnum }, ML_INSERT);
@@ -2610,7 +2606,7 @@ pub unsafe fn ml_append_flags(
     flags: c_int,
 ) -> c_int {
     unsafe {
-        if (*curbuf).b_ml.ml_mfp.is_null() && open_buffer(false, ptr::null_mut(), 0) == FAIL {
+        if (*curbuf).b_ml.ml_mfp.is_none() && open_buffer(false, ptr::null_mut(), 0) == FAIL {
             return FAIL;
         }
         ml_append_flush(curbuf, lnum, line, len, flags)
@@ -2626,7 +2622,7 @@ pub unsafe fn ml_append_buf(
     newfile: bool,
 ) -> c_int {
     unsafe {
-        if (*buf).b_ml.ml_mfp.is_null() {
+        if (*buf).b_ml.ml_mfp.is_none() {
             return FAIL;
         }
         ml_append_flush(
@@ -2711,7 +2707,7 @@ pub unsafe fn ml_replace_buf_len(
             return FAIL;
         }
 
-        if (*buf).b_ml.ml_mfp.is_null() && open_buffer(false, ptr::null_mut(), 0) == FAIL {
+        if (*buf).b_ml.ml_mfp.is_none() && open_buffer(false, ptr::null_mut(), 0) == FAIL {
             return FAIL;
         }
 
@@ -2795,7 +2791,7 @@ unsafe fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int 
             return i;
         }
 
-        let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
+        let mfp = (*buf).b_ml.mfp_ptr();
         if mfp.is_null() {
             return FAIL;
         }
@@ -2920,7 +2916,7 @@ pub unsafe fn ml_delete_flags(lnum: linenr_T, flags: c_int) -> c_int {
 /// Set the `DB_MARKED` flag for line `lnum`.
 pub unsafe fn ml_setmarked(lnum: linenr_T) {
     unsafe {
-        if lnum < 1 || lnum > (*curbuf).b_ml.ml_line_count || (*curbuf).b_ml.ml_mfp.is_null() {
+        if lnum < 1 || lnum > (*curbuf).b_ml.ml_line_count || (*curbuf).b_ml.ml_mfp.is_none() {
             return;
         }
         if lowest_marked == 0 || lowest_marked > lnum {
@@ -2940,7 +2936,7 @@ pub unsafe fn ml_setmarked(lnum: linenr_T) {
 /// Find the first line with its `DB_MARKED` flag set.
 pub unsafe fn ml_firstmarked() -> linenr_T {
     unsafe {
-        if (*curbuf).b_ml.ml_mfp.is_null() {
+        if (*curbuf).b_ml.ml_mfp.is_none() {
             return 0;
         }
 
@@ -2972,7 +2968,7 @@ pub unsafe fn ml_firstmarked() -> linenr_T {
 /// Clear all `DB_MARKED` flags.
 pub unsafe fn ml_clearmarked() {
     unsafe {
-        if (*curbuf).b_ml.ml_mfp.is_null() {
+        if (*curbuf).b_ml.ml_mfp.is_none() {
             return;
         }
 
@@ -3017,7 +3013,7 @@ pub unsafe fn ml_flush_deleted_bytes(
 
 unsafe fn ml_flush_line(buf: *mut buf_T, noalloc: bool) {
     unsafe {
-        if (*buf).b_ml.ml_line_lnum == 0 || (*buf).b_ml.ml_mfp.is_null() {
+        if (*buf).b_ml.ml_line_lnum == 0 || (*buf).b_ml.ml_mfp.is_none() {
             return;
         }
         if ((*buf).b_ml.ml_flags & ML_LINE_DIRTY) != 0 {
@@ -3132,7 +3128,7 @@ unsafe fn ml_new_ptr(mfp: *mut memfile_T) -> *mut bhdr_T {
 
 unsafe fn ml_find_line(buf: *mut buf_T, lnum: linenr_T, action: c_int) -> *mut bhdr_T {
     unsafe {
-        let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
+        let mfp = (*buf).b_ml.mfp_ptr();
 
         if !(*buf).b_ml.ml_locked.is_null() {
             if ml_simple(action)
@@ -3304,7 +3300,7 @@ unsafe fn ml_add_stack(buf: *mut buf_T) -> c_int {
 
 unsafe fn ml_lineadd(buf: *mut buf_T, count: c_int) {
     unsafe {
-        let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
+        let mfp = (*buf).b_ml.mfp_ptr();
         let mut idx = (*buf).b_ml.ml_stack_top - 1;
         while idx >= 0 {
             let ip = &mut (&mut (*buf).b_ml.ml_stack)[idx as usize];
@@ -3871,10 +3867,10 @@ unsafe fn char_to_long(s_in: *const c_char) -> c_long {
 /// Set the flags in the first block of the swapfile.
 pub unsafe fn ml_setflags(buf: *mut buf_T) {
     unsafe {
-        if (*buf).b_ml.ml_mfp.is_null() {
+        if (*buf).b_ml.ml_mfp.is_none() {
             return;
         }
-        let mfp = (*buf).b_ml.ml_mfp.cast::<memfile_T>();
+        let mfp = (*buf).b_ml.mfp_ptr();
         let hp = pmap_get_bhdr(&(*mfp).mf_hash, 0);
         if !hp.is_null() {
             let b0p = (*hp).data_ptr().cast::<ZeroBlock>();
@@ -4075,7 +4071,7 @@ pub unsafe fn ml_find_line_or_offset(
         }
 
         if (*buf).b_ml.ml_usedchunks == -1 || (*buf).b_ml.ml_chunksize.is_empty() || lnum < 0 {
-            if no_ff && !(*buf).b_ml.ml_mfp.is_null() && (lnum == 1 || lnum == 2) {
+            if no_ff && (*buf).b_ml.ml_mfp.is_some() && (lnum == 1 || lnum == 2) {
                 return lnum - 1;
             }
             return -1;

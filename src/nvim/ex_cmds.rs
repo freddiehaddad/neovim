@@ -2233,7 +2233,7 @@ pub unsafe fn do_write(eap: *mut exarg_T) -> c_int {
                 } else {
                     alt_buf = buflist_findname(ffname);
                 }
-                if !alt_buf.is_null() && !(*alt_buf).b_ml.ml_mfp.is_null() {
+                if !alt_buf.is_null() && (*alt_buf).b_ml.ml_mfp.is_some() {
                     emsg(gettext(e_bufloaded.as_ptr()));
                     break 'theend;
                 }
@@ -2909,7 +2909,7 @@ pub unsafe fn do_ecmd(
                 if (*curwin).w_alt_fnum == (*buf).b_fnum && prev_alt_fnum != 0 {
                     (*curwin).w_alt_fnum = prev_alt_fnum;
                 }
-                if (*buf).b_ml.ml_mfp.is_null() {
+                if (*buf).b_ml.ml_mfp.is_none() {
                     oldbuf = false;
                 } else {
                     oldbuf = true;

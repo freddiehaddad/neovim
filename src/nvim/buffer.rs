@@ -65,7 +65,6 @@ use crate::mark::{
 use crate::math::{FAIL, OK};
 use crate::mbyte::utf_cp_bounds;
 use crate::mcursor::{mc_buf_clear, mc_buf_free};
-use crate::memfile::memfile_T;
 use crate::memline::{
     ml_close, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_open, ml_recover,
     ml_setname, ml_timestamp,
@@ -995,7 +994,7 @@ unsafe fn read_buffer(read_stdin: bool, eap: *mut exarg_T, flags: c_int) -> c_in
 /// Ensure buffer `buf` is loaded.
 pub unsafe fn buf_ensure_loaded(buf: *mut buf_T) -> bool {
     unsafe {
-        if !(*buf).b_ml.ml_mfp.is_null() {
+        if (*buf).b_ml.ml_mfp.is_some() {
             return true;
         }
 
@@ -1005,7 +1004,7 @@ pub unsafe fn buf_ensure_loaded(buf: *mut buf_T) -> bool {
         ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
         let status = open_buffer(false, ptr::null_mut(), 0);
         ctx_restore(&raw mut aco);
-        status != FAIL && bufref_valid(&raw mut bufref) && !(*buf).b_ml.ml_mfp.is_null()
+        status != FAIL && bufref_valid(&raw mut bufref) && (*buf).b_ml.ml_mfp.is_some()
     }
 }
 
@@ -1036,7 +1035,7 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
             curbuf = ptr::null_mut();
             let mut buf = firstbuf;
             while !buf.is_null() {
-                if !(*buf).b_ml.ml_mfp.is_null() {
+                if (*buf).b_ml.ml_mfp.is_some() {
                     curbuf = buf;
                     break;
                 }
@@ -1061,8 +1060,8 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
             return FAIL;
         }
 
-        if !(*curbuf).b_ml.ml_mfp.is_null() {
-            (*(*curbuf).b_ml.ml_mfp.cast::<memfile_T>()).mf_dirty = MF_DIRTY_YES_NOSYNC;
+        if (*curbuf).b_ml.ml_mfp.is_some() {
+            (*(*curbuf).b_ml.mfp_ptr()).mf_dirty = MF_DIRTY_YES_NOSYNC;
         }
 
         set_bufref(&raw mut old_curbuf, curbuf);
@@ -1152,8 +1151,8 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
             }
         }
 
-        if !(*curbuf).b_ml.ml_mfp.is_null() {
-            let mfp = (*curbuf).b_ml.ml_mfp.cast::<memfile_T>();
+        if (*curbuf).b_ml.ml_mfp.is_some() {
+            let mfp = (*curbuf).b_ml.mfp_ptr();
             if (*mfp).mf_dirty == MF_DIRTY_YES_NOSYNC {
                 (*mfp).mf_dirty = MF_DIRTY_YES;
             }
@@ -1223,7 +1222,7 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
             return retval;
         }
 
-        if bufref_valid(&raw mut old_curbuf) && !(*old_curbuf.br_buf).b_ml.ml_mfp.is_null() {
+        if bufref_valid(&raw mut old_curbuf) && (*old_curbuf.br_buf).b_ml.ml_mfp.is_some() {
             let mut aco: CtxSwitch = CtxSwitch::new();
 
             ctx_switch(
@@ -1550,7 +1549,7 @@ pub unsafe fn buf_clear_file(buf: *mut buf_T) {
         (*buf).b_start_eol = 1;
         (*buf).b_p_bomb = 0;
         (*buf).b_start_bomb = 0;
-        (*buf).b_ml.ml_mfp = ptr::null_mut();
+        (*buf).b_ml.ml_mfp = None;
         (*buf).b_ml.ml_flags = ML_EMPTY;
     }
 }
@@ -1588,7 +1587,7 @@ pub unsafe fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
 
         buf_updates_unload(buf, false);
 
-        if !(*buf).b_ml.ml_mfp.is_null()
+        if (*buf).b_ml.ml_mfp.is_some()
             && apply_autocmds(EVENT_BUFUNLOAD, (*buf).b_fname, (*buf).b_fname, false, buf)
             && !bufref_valid(&raw mut bufref)
         {
@@ -2217,7 +2216,7 @@ unsafe fn do_buffer_ext(
             }
             set_bufref(&raw mut bufref, buf);
 
-            if action != DOBUF_WIPE && (*buf).b_ml.ml_mfp.is_null() && (*buf).b_p_bl == 0 {
+            if action != DOBUF_WIPE && (*buf).b_ml.ml_mfp.is_none() && (*buf).b_p_bl == 0 {
                 return FAIL;
             }
 
@@ -2357,7 +2356,7 @@ unsafe fn do_buffer_ext(
                                 || (*buf).b_locked_split != 0
                             {
                                 buf = ptr::null_mut();
-                            } else if (*buf).b_ml.ml_mfp.is_null() {
+                            } else if (*buf).b_ml.ml_mfp.is_none() {
                                 if bp.is_null() {
                                     bp = buf;
                                 }
@@ -2402,7 +2401,7 @@ unsafe fn do_buffer_ext(
                         && !bt_quickfix(buf)
                         && (*buf).b_locked_split == 0
                     {
-                        if !(*buf).b_ml.ml_mfp.is_null() {
+                        if (*buf).b_ml.ml_mfp.is_some() {
                             break;
                         }
                         if bp.is_null() {
@@ -2627,7 +2626,7 @@ unsafe fn enter_buffer(buf: *mut buf_T) {
 
         (*curwin).w_valid = 0;
 
-        if (*curbuf).b_ml.ml_mfp.is_null() {
+        if (*curbuf).b_ml.ml_mfp.is_none() {
             if *(*curbuf).b_p_ft == NUL {
                 (*curbuf).b_did_filetype = false;
             }
@@ -2941,7 +2940,7 @@ pub unsafe fn curbuf_reusable() -> bool {
             && (*curbuf).b_ffname.is_null()
             && (*curbuf).b_nwindows <= 1
             && (*curbuf).terminal.is_null()
-            && ((*curbuf).b_ml.ml_mfp.is_null() || buf_is_empty(curbuf))
+            && ((*curbuf).b_ml.ml_mfp.is_none() || buf_is_empty(curbuf))
             && !bt_quickfix(curbuf)
             && !curbuf_is_changed()
     }
@@ -3690,9 +3689,9 @@ pub unsafe fn buflist_list(eap: *mut exarg_T) {
                 || (!vim_strchr((*eap).arg, b'+' as c_int).is_null()
                     && (((*buf).b_flags & BF_READERR) != 0 || !buf_is_changed(buf)))
                 || (!vim_strchr((*eap).arg, b'a' as c_int).is_null()
-                    && ((*buf).b_ml.ml_mfp.is_null() || (*buf).b_nwindows == 0))
+                    && ((*buf).b_ml.ml_mfp.is_none() || (*buf).b_nwindows == 0))
                 || (!vim_strchr((*eap).arg, b'h' as c_int).is_null()
-                    && ((*buf).b_ml.ml_mfp.is_null() || (*buf).b_nwindows != 0))
+                    && ((*buf).b_ml.ml_mfp.is_none() || (*buf).b_nwindows != 0))
                 || (!vim_strchr((*eap).arg, b'R' as c_int).is_null()
                     && (!is_terminal || !job_running))
                 || (!vim_strchr((*eap).arg, b'F' as c_int).is_null()
@@ -3765,7 +3764,7 @@ pub unsafe fn buflist_list(eap: *mut exarg_T) {
                 } else {
                     b' ' as c_int
                 },
-                if (*buf).b_ml.ml_mfp.is_null() {
+                if (*buf).b_ml.ml_mfp.is_none() {
                     b' ' as c_int
                 } else if (*buf).b_nwindows == 0 {
                     b'h' as c_int
@@ -3868,7 +3867,7 @@ pub unsafe fn setfname(
                     tab = (*tab).tp_next;
                 }
 
-                if !(*obuf).b_ml.ml_mfp.is_null() || in_use {
+                if (*obuf).b_ml.ml_mfp.is_some() || in_use {
                     if message {
                         emsg(gettext(
                             c"E95: Buffer with this name already exists".as_ptr(),
@@ -3932,7 +3931,7 @@ pub unsafe fn buf_set_name(fnum: c_int, name: *mut c_char) {
 /// Take care of what needs to be done when the name of buffer `buf` has changed.
 pub unsafe fn buf_name_changed(buf: *mut buf_T) {
     unsafe {
-        if !(*buf).b_ml.ml_mfp.is_null() {
+        if (*buf).b_ml.ml_mfp.is_some() {
             ml_setname(buf);
         }
 
@@ -4589,7 +4588,7 @@ pub unsafe fn ex_buffer_all(eap: *mut exarg_T) {
         autocmd_no_leave += 1;
         let mut buf = firstbuf;
         while !buf.is_null() && open_wins < count {
-            if (!all && (*buf).b_ml.ml_mfp.is_null()) || (*buf).b_p_bl == 0 {
+            if (!all && (*buf).b_ml.ml_mfp.is_none()) || (*buf).b_p_bl == 0 {
                 buf = (*buf).b_next;
                 continue;
             }

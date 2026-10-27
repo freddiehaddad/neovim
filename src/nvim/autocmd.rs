@@ -2502,7 +2502,7 @@ pub unsafe fn ex_doautoall(eap: *mut exarg_T) {
 
         let mut buf = firstbuf;
         while !buf.is_null() {
-            if (*buf).b_ml.ml_mfp.is_null() || buf == curbuf {
+            if (*buf).b_ml.ml_mfp.is_none() || buf == curbuf {
                 buf = (*buf).b_next;
                 continue;
             }

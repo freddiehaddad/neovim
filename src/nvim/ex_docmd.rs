@@ -143,7 +143,6 @@ use crate::mark::{
 use crate::r#match::ex_match;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{get_encoding_name, mb_copy_char, utf_head_off, utfc_ptr2len};
-use crate::memfile::memfile_T;
 use crate::memline::{goto_byte, ml_clearmarked, ml_preserve, ml_recover, ml_setmarked};
 use crate::memory::{
     ArenaMem, arena_mem_free, cstr_from_bytes, cstr_to_cstring, strequal, xstrlcat, xstrlcpy,
@@ -5548,7 +5547,7 @@ unsafe fn compute_buffer_local_count(
             }
             buf = nextbuf;
             if addr_type == ADDR_LOADED_BUFFERS {
-                while (*buf).b_ml.ml_mfp.is_null() {
+                while (*buf).b_ml.ml_mfp.is_none() {
                     nextbuf = if offset < 0 {
                         (*buf).b_prev
                     } else {
@@ -5562,7 +5561,7 @@ unsafe fn compute_buffer_local_count(
             }
         }
         if addr_type == ADDR_LOADED_BUFFERS {
-            while (*buf).b_ml.ml_mfp.is_null() {
+            while (*buf).b_ml.ml_mfp.is_none() {
                 let nextbuf = if offset >= 0 {
                     (*buf).b_prev
                 } else {
@@ -5758,12 +5757,12 @@ pub unsafe fn set_cmd_dflall_range(eap: *mut exarg_T) {
             }
             ADDR_LOADED_BUFFERS => {
                 let mut buf = firstbuf;
-                while !(*buf).b_next.is_null() && (*buf).b_ml.ml_mfp.is_null() {
+                while !(*buf).b_next.is_null() && (*buf).b_ml.ml_mfp.is_none() {
                     buf = (*buf).b_next;
                 }
                 (*eap).line1 = (*buf).b_fnum;
                 buf = lastbuf;
-                while !(*buf).b_prev.is_null() && (*buf).b_ml.ml_mfp.is_null() {
+                while !(*buf).b_prev.is_null() && (*buf).b_ml.ml_mfp.is_none() {
                     buf = (*buf).b_prev;
                 }
                 (*eap).line2 = (*buf).b_fnum;
@@ -7211,12 +7210,12 @@ pub unsafe fn parse_cmd_address(
                             }
                             ADDR_LOADED_BUFFERS => {
                                 let mut buf = firstbuf;
-                                while !(*buf).b_next.is_null() && (*buf).b_ml.ml_mfp.is_null() {
+                                while !(*buf).b_next.is_null() && (*buf).b_ml.ml_mfp.is_none() {
                                     buf = (*buf).b_next;
                                 }
                                 (*eap).line1 = (*buf).b_fnum;
                                 buf = lastbuf;
-                                while !(*buf).b_prev.is_null() && (*buf).b_ml.ml_mfp.is_null() {
+                                while !(*buf).b_prev.is_null() && (*buf).b_ml.ml_mfp.is_none() {
                                     buf = (*buf).b_prev;
                                 }
                                 (*eap).line2 = (*buf).b_fnum;
@@ -7734,7 +7733,7 @@ pub unsafe fn get_address(
                             ADDR_ARGUMENTS => lnum = argcount(),
                             ADDR_LOADED_BUFFERS => {
                                 let mut buf = lastbuf;
-                                while (*buf).b_ml.ml_mfp.is_null() {
+                                while (*buf).b_ml.ml_mfp.is_none() {
                                     if (*buf).b_prev.is_null() {
                                         break;
                                     }
@@ -8058,7 +8057,7 @@ pub unsafe fn invalid_range(eap: *mut exarg_T) -> *mut c_char {
                 }
                 ADDR_LOADED_BUFFERS => {
                     let mut buf = firstbuf;
-                    while (*buf).b_ml.ml_mfp.is_null() {
+                    while (*buf).b_ml.ml_mfp.is_none() {
                         if (*buf).b_next.is_null() {
                             return gettext(e_invrange.as_ptr());
                         }
@@ -8068,7 +8067,7 @@ pub unsafe fn invalid_range(eap: *mut exarg_T) -> *mut c_char {
                         return gettext(e_invrange.as_ptr());
                     }
                     buf = lastbuf;
-                    while (*buf).b_ml.ml_mfp.is_null() {
+                    while (*buf).b_ml.ml_mfp.is_none() {
                         if (*buf).b_prev.is_null() {
                             return gettext(e_invrange.as_ptr());
                         }
@@ -10700,7 +10699,7 @@ unsafe fn ex_popup(eap: *mut exarg_T) {
 
 unsafe fn ex_swapname(_eap: *mut exarg_T) {
     unsafe {
-        let mfp = (*curbuf).b_ml.ml_mfp.cast::<memfile_T>();
+        let mfp = (*curbuf).b_ml.mfp_ptr();
         if mfp.is_null() {
             let _ = msg(gettext(c"No swap file".as_ptr()), 0);
         } else if let Some(ref mf_fname) = (*mfp).mf_fname {

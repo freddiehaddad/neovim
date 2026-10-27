@@ -51,7 +51,6 @@ const KEYSET_OPTIDX_option__operation: u64 = 7;
 
 use crate::charset::NUL;
 use crate::math::{FAIL, OK};
-use crate::memfile::memfile_T;
 
 #[repr(C)]
 #[derive(Default)]
@@ -301,7 +300,7 @@ unsafe fn do_ft_buf(filetype: *const c_char, aco: *mut CtxSwitch, err: *mut Erro
             OPT_LOCAL,
             SID_NONE,
         );
-        assert!((*(*ftbuf).b_ml.ml_mfp.cast::<memfile_T>()).mf_fd < 0);
+        assert!((*(*ftbuf).b_ml.mfp_ptr()).mf_fd < 0);
         *(get_option_varp_scope_from(kOptSwapfile, OPT_LOCAL, ftbuf, ptr::null_mut())
             as *mut c_int) = 0;
         *(get_option_varp_scope_from(kOptModeline, OPT_LOCAL, ftbuf, ptr::null_mut())

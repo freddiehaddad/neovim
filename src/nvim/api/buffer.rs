@@ -131,7 +131,7 @@ pub unsafe fn api_buf_ensure_loaded(buf: Buffer, err: *mut Error) -> *mut buf_T 
             return ptr::null_mut();
         }
 
-        if (*b).b_ml.ml_mfp.is_null() && !buf_ensure_loaded(b) {
+        if (*b).b_ml.ml_mfp.is_none() && !buf_ensure_loaded(b) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -155,7 +155,7 @@ pub unsafe fn api_buf_ensure_loaded(buf: Buffer, err: *mut Error) -> *mut buf_T 
 pub unsafe extern "C" fn nvim_buf_line_count(buf: Buffer, err: *mut Error) -> Integer {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
-        if b.is_null() || (*b).b_ml.ml_mfp.is_null() {
+        if b.is_null() || (*b).b_ml.ml_mfp.is_none() {
             return 0;
         }
         i64::from((*b).b_ml.ml_line_count)
@@ -355,7 +355,7 @@ pub unsafe extern "C" fn nvim_buf_get_lines(
             return rv;
         }
 
-        if (*b).b_ml.ml_mfp.is_null() {
+        if (*b).b_ml.ml_mfp.is_none() {
             init_line_array(lstate, &mut rv, 0, arena);
             return rv;
         }
@@ -1045,7 +1045,7 @@ pub unsafe extern "C" fn nvim_buf_get_text(
             return rv;
         }
 
-        if (*b).b_ml.ml_mfp.is_null() {
+        if (*b).b_ml.ml_mfp.is_none() {
             init_line_array(lstate, &mut rv, 0, arena);
             return rv;
         }
@@ -1167,7 +1167,7 @@ pub unsafe extern "C" fn nvim_buf_get_offset(
             return 0;
         }
 
-        if (*b).b_ml.ml_mfp.is_null() {
+        if (*b).b_ml.ml_mfp.is_none() {
             return -1;
         }
 
@@ -1462,7 +1462,7 @@ pub unsafe extern "C" fn nvim_buf_is_loaded(buf: Buffer) -> Boolean {
         let mut stub = Error::new();
         let b = find_buffer_by_handle(buf, &mut stub);
         api_clear_error(&mut stub);
-        !b.is_null() && !(*b).b_ml.ml_mfp.is_null()
+        !b.is_null() && (*b).b_ml.ml_mfp.is_some()
     }
 }
 

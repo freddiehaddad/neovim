@@ -48,7 +48,7 @@ use crate::mbyte::{
     utf_head_off, utf_ptr2char, utf_ptr2len_len,
 };
 use crate::mcursor::mc_buf_clear;
-use crate::memfile::{memfile_T, mf_fullname};
+use crate::memfile::mf_fullname;
 use crate::memline::{
     check_need_swap, ml_append, ml_delete, ml_get, ml_get_buf, ml_get_len, ml_open,
 };
@@ -1301,7 +1301,7 @@ pub unsafe fn readfile(
                 }
                 #[cfg(unix)]
                 {
-                    let mfp = (*curbuf).b_ml.ml_mfp.cast::<memfile_T>();
+                    let mfp = (*curbuf).b_ml.mfp_ptr();
                     if swap_mode > 0
                         && !mfp.is_null()
                         && let Some(ref swap_fname) = (*mfp).mf_fname
@@ -2753,7 +2753,7 @@ pub unsafe fn readfile(
             }
         }
 
-        let mfp = (*curbuf).b_ml.ml_mfp.cast::<memfile_T>();
+        let mfp = (*curbuf).b_ml.mfp_ptr();
         if !mfp.is_null() && (*mfp).mf_dirty == MF_DIRTY_YES_NOSYNC {
             (*mfp).mf_dirty = MF_DIRTY_YES;
         }
@@ -3272,7 +3272,7 @@ pub unsafe fn shorten_fnames(force: c_int) {
         let mut buf = firstbuf;
         while !buf.is_null() {
             changed |= shorten_buf_fname(buf, dirname.as_mut_ptr(), force);
-            mf_fullname((*buf).b_ml.ml_mfp.cast::<memfile_T>());
+            mf_fullname((*buf).b_ml.mfp_ptr());
             buf = (*buf).b_next;
         }
         if changed {
@@ -3745,7 +3745,7 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
 
         if !(*buf).terminal.is_null()
             || (*buf).b_ffname.is_null()
-            || (*buf).b_ml.ml_mfp.is_null()
+            || (*buf).b_ml.ml_mfp.is_none()
             || !bt_normal(buf)
             || (*buf).b_saving
             || BUSY

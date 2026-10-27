@@ -162,7 +162,7 @@ unsafe fn set_buffer_lines(
         let mut added: c_int = 0;
 
         let is_curbuf = buf == curbuf;
-        if buf.is_null() || (!is_curbuf && (*buf).b_ml.ml_mfp.is_null()) || lnum < 1 {
+        if buf.is_null() || (!is_curbuf && (*buf).b_ml.ml_mfp.is_none()) || lnum < 1 {
             (*rettv).vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
             return;
         }
@@ -559,7 +559,7 @@ pub unsafe fn f_bufload(argvars: *mut typval_T, _unused: *mut typval_T, _fptr: E
 pub unsafe fn f_bufloaded(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let buf = find_buffer(argvars);
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(!buf.is_null() && !(*buf).b_ml.ml_mfp.is_null()));
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(!buf.is_null() && (*buf).b_ml.ml_mfp.is_some()));
     }
 }
 
@@ -677,7 +677,7 @@ pub unsafe fn f_deletebufline(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
             first
         };
 
-        if (*buf).b_ml.ml_mfp.is_null()
+        if (*buf).b_ml.ml_mfp.is_none()
             || first < 1
             || first > (*buf).b_ml.ml_line_count
             || last < first
@@ -767,7 +767,7 @@ unsafe fn get_buffer_info(buf: *mut buf_T) -> *mut dict_T {
             dict,
             c"loaded".as_ptr(),
             6,
-            varnumber_T::from(!(*buf).b_ml.ml_mfp.is_null()),
+            varnumber_T::from((*buf).b_ml.ml_mfp.is_some()),
         );
         tv_dict_add_nr(dict, c"listed".as_ptr(), 6, (*buf).b_p_bl as varnumber_T);
         tv_dict_add_nr(
@@ -781,7 +781,7 @@ unsafe fn get_buffer_info(buf: *mut buf_T) -> *mut dict_T {
             dict,
             c"hidden".as_ptr(),
             6,
-            varnumber_T::from(!(*buf).b_ml.ml_mfp.is_null() && (*buf).b_nwindows == 0),
+            varnumber_T::from((*buf).b_ml.ml_mfp.is_some() && (*buf).b_nwindows == 0),
         );
         tv_dict_add_nr(
             dict,
@@ -849,7 +849,7 @@ pub unsafe fn f_getbufinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
                 continue;
             }
             if filtered
-                && ((sel_bufloaded && (*buf).b_ml.ml_mfp.is_null())
+                && ((sel_bufloaded && (*buf).b_ml.ml_mfp.is_none())
                     || (sel_buflisted && (*buf).b_p_bl == 0)
                     || (sel_bufmodified && (*buf).b_changed == 0))
             {
@@ -883,7 +883,7 @@ unsafe fn get_buffer_lines(
         };
         (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
-        if buf.is_null() || (*buf).b_ml.ml_mfp.is_null() || start < 0 || end < start {
+        if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() || start < 0 || end < start {
             if retlist {
                 tv_list_alloc_ret(rettv, 0);
             }
@@ -1094,7 +1094,7 @@ pub unsafe fn f_prompt_setprompt(
         let new_prompt = tv_get_string(argvars.add(1));
         let new_prompt_len = CStr::from_ptr(new_prompt).to_bytes().len() as c_int;
 
-        if bt_prompt(buf) && !(*buf).b_ml.ml_mfp.is_null() {
+        if bt_prompt(buf) && (*buf).b_ml.ml_mfp.is_some() {
             if (*buf).b_prompt_start.mark.lnum < 1
                 || (*buf).b_prompt_start.mark.lnum > (*curbuf).b_ml.ml_line_count
             {

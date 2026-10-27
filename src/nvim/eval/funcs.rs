@@ -131,7 +131,6 @@ use crate::mbyte::{
     convert_setup, enc_locale, mb_adjust_cursor, string_convert, utf_char2bytes, utf_ptr2char,
     utf_ptr2len, utfc_ptr2len, vimconv_T,
 };
-use crate::memfile::memfile_T;
 use crate::memline::{
     decl, incl, ml_find_line_or_offset, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_open,
     recover_names, swapfile_dict,
@@ -3314,7 +3313,7 @@ unsafe fn getregionpos(
         } else {
             curbuf
         };
-        if findbuf.is_null() || (*findbuf).b_ml.ml_mfp.is_null() {
+        if findbuf.is_null() || (*findbuf).b_ml.ml_mfp.is_none() {
             emsg(gettext(e_buffer_is_not_loaded.as_ptr()));
             return FAIL;
         }
@@ -4823,7 +4822,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
             let buf = curbuf;
 
             (*buf).b_p_swf = 0;
-            if (*buf).b_ml.ml_mfp.is_null() && ml_open(buf) == FAIL {
+            if (*buf).b_ml.ml_mfp.is_none() && ml_open(buf) == FAIL {
                 proc_stop(&raw mut (*chan).uv.proc_);
                 channel_decref(chan);
                 return;
@@ -5602,7 +5601,7 @@ pub unsafe fn f_matchbufline(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
             }
             return;
         }
-        if (*buf).b_ml.ml_mfp.is_null() {
+        if (*buf).b_ml.ml_mfp.is_none() {
             emsg(gettext(e_buffer_is_not_loaded.as_ptr()));
             return;
         }
@@ -8826,9 +8825,9 @@ pub unsafe fn f_swapname(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         let buf = tv_get_buf(argvars, 0);
-        if buf.is_null() || (*buf).b_ml.ml_mfp.is_null() {
+        if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() {
             (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-        } else if let Some(ref mf_fname) = (*(*buf).b_ml.ml_mfp.cast::<memfile_T>()).mf_fname {
+        } else if let Some(ref mf_fname) = (*(*buf).b_ml.mfp_ptr()).mf_fname {
             crate::eval::typval::tv_set_string(rettv, mf_fname.as_ptr());
         } else {
             (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());

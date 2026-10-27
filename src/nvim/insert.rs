@@ -4021,7 +4021,7 @@ unsafe fn ins_ctrl_ey(tc: c_int) -> c_int {
 pub unsafe fn get_nolist_virtcol() -> colnr_T {
     unsafe {
         if (*curwin).w_buffer.is_null()
-            || (*(*curwin).w_buffer).b_ml.ml_mfp.is_null()
+            || (*(*curwin).w_buffer).b_ml.ml_mfp.is_none()
             || (*curwin).w_cursor.lnum > (*(*curwin).w_buffer).b_ml.ml_line_count
         {
             return 0;

@@ -82,7 +82,6 @@ use crate::mapping::{MAPTYPE_MAP, REMAP_NONE, REMAP_YES, keymap_array, modify_ke
 use crate::mark::mark_get_global;
 use crate::math::{FAIL, xpopcount};
 use crate::mbyte::{mb_string2cells, utfc_ptr2len, utfc_ptr2schar};
-use crate::memfile::memfile_T;
 use crate::memline::ml_open;
 use crate::memory::{Arena, arena_alloc, arena_strdup, memchrsub, strequal};
 use crate::message::{
@@ -1635,7 +1634,7 @@ pub unsafe extern "C" fn nvim_create_buf(
                     0,
                     OptTarget::Buf(buf),
                 );
-                assert!((*(*buf).b_ml.ml_mfp.cast::<memfile_T>()).mf_fd < 0);
+                assert!((*(*buf).b_ml.mfp_ptr()).mf_fd < 0);
                 (*buf).b_p_swf = 0;
                 (*buf).b_p_ml = 0;
             }

@@ -923,7 +923,7 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
                     anchors.iter().enumerate().take(DB_COUNT).skip(idx_orig + 1)
                 {
                     buf = (*curtab).tp_diffbuf[idx_new];
-                    if buf.is_null() || (*buf).b_ml.ml_mfp.is_null() {
+                    if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() {
                         continue;
                     }
                     lnum_start = if anchor_i == 0 {
@@ -2863,7 +2863,7 @@ unsafe fn diff_find_change_inline_diff(dp_idx: usize) {
             for (i, lm) in linemap.iter_mut().enumerate().take(DB_COUNT) {
                 dio.dio_diff.dout_ga.clear();
                 let buf = (*curtab).tp_diffbuf[i];
-                if buf.is_null() || (*buf).b_ml.ml_mfp.is_null() {
+                if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() {
                     continue;
                 }
                 if dp_count[i] == 0 {

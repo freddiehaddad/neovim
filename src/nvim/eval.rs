@@ -5702,7 +5702,7 @@ pub unsafe fn save_tv_as_string(tv: *mut typval_T, endnl: bool, crlf: bool) -> O
 /// character index.
 pub unsafe fn buf_byteidx_to_charidx(buf: *mut buf_T, mut lnum: linenr_T, byteidx: c_int) -> c_int {
     unsafe {
-        if buf.is_null() || (*buf).b_ml.ml_mfp.is_null() {
+        if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() {
             return -1;
         }
 
@@ -5740,7 +5740,7 @@ pub unsafe fn buf_charidx_to_byteidx(
     mut charidx: c_int,
 ) -> c_int {
     unsafe {
-        if buf.is_null() || (*buf).b_ml.ml_mfp.is_null() {
+        if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() {
             return -1;
         }
 
@@ -5958,7 +5958,7 @@ pub unsafe fn list2fpos(
             } else {
                 *fnump
             });
-            if buf.is_null() || (*buf).b_ml.ml_mfp.is_null() {
+            if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() {
                 return FAIL;
             }
             let cur_lnum = (*curwin).w_cursor.lnum;
