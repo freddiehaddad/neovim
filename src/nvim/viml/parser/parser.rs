@@ -64,7 +64,7 @@ pub struct ParserState<'a> {
     pub colors: Option<ParserHighlight>,
 }
 
-unsafe fn viml_preader_get_line(preader: &mut ParserInputReader<'_>, ret_pline: &mut ParserLine) {
+fn viml_preader_get_line(preader: &mut ParserInputReader<'_>, ret_pline: &mut ParserLine) {
     let mut pline = if let Some((first, rest)) = preader.cursor.split_first() {
         preader.cursor = rest;
         *first
@@ -92,15 +92,13 @@ unsafe fn viml_preader_get_line(preader: &mut ParserInputReader<'_>, ret_pline: 
 }
 
 /// Get the currently parsed line shifted to `pstate.pos.col` (`viml_parser_get_remaining_line`).
-pub unsafe fn viml_parser_get_remaining_line(
+pub fn viml_parser_get_remaining_line(
     pstate: &mut ParserState<'_>,
     ret_pline: &mut ParserLine,
 ) -> bool {
     let num_lines = pstate.reader.lines.len();
     if pstate.pos.line == num_lines {
-        unsafe {
-            viml_preader_get_line(&mut pstate.reader, ret_pline);
-        }
+        viml_preader_get_line(&mut pstate.reader, ret_pline);
     } else {
         *ret_pline = *pstate.reader.lines.last().unwrap();
     }
@@ -133,11 +131,9 @@ mod tests {
             data: std::ptr::null(),
             size: 0,
         };
-        unsafe {
-            viml_preader_get_line(&mut reader, &mut out);
+        viml_preader_get_line(&mut reader, &mut out);
             assert_eq!(out.size, 9);
             viml_preader_get_line(&mut reader, &mut out);
             assert!(out.data.is_null());
-        }
     }
 }

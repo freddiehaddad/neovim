@@ -157,7 +157,7 @@ pub unsafe fn cstr_as_obj(s: *const c_char) -> Object {
 }
 
 #[inline]
-pub unsafe fn add_c(array: &mut Array, item: Object) {
+pub fn add_c(array: &mut Array, item: Object) {
     debug_assert!(!array.items.is_null() && array.size < array.capacity);
     unsafe {
         *array.items.add(array.size) = item;
@@ -166,10 +166,8 @@ pub unsafe fn add_c(array: &mut Array, item: Object) {
 }
 
 #[inline]
-pub unsafe fn array_add(a: &mut Array, item: Object) {
-    unsafe {
-        a.push(item);
-    }
+pub fn array_add(a: &mut Array, item: Object) {
+    a.push(item);
 }
 
 #[repr(C)]
@@ -205,9 +203,7 @@ pub struct HlMessageChunk {
 
 impl Drop for HlMessageChunk {
     fn drop(&mut self) {
-        unsafe {
-            api_free_string(self.text);
-        }
+        api_free_string(self.text);
     }
 }
 
@@ -263,7 +259,7 @@ pub unsafe fn cstr_to_arena_obj(arena: *mut Arena, s: *const c_char) -> Object {
 }
 
 #[inline]
-pub unsafe fn try_wrap<F: FnOnce()>(err: &mut Error, f: F) {
+pub fn try_wrap<F: FnOnce()>(err: &mut Error, f: F) {
     unsafe {
         let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
@@ -273,7 +269,7 @@ pub unsafe fn try_wrap<F: FnOnce()>(err: &mut Error, f: F) {
 }
 
 #[inline]
-pub unsafe fn try_wrap_err<F: FnOnce(&mut Error)>(err: &mut Error, f: F) {
+pub fn try_wrap_err<F: FnOnce(&mut Error)>(err: &mut Error, f: F) {
     unsafe {
         let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
@@ -283,12 +279,10 @@ pub unsafe fn try_wrap_err<F: FnOnce(&mut Error)>(err: &mut Error, f: F) {
 }
 
 #[inline]
-pub unsafe fn with_script_context<F: FnOnce()>(channel_id: u64, f: F) {
-    unsafe {
-        let save_current_sctx = api_set_sctx(channel_id);
+pub fn with_script_context<F: FnOnce()>(channel_id: u64, f: F) {
+    let save_current_sctx = api_set_sctx(channel_id);
         f();
         g_st().current_sctx = save_current_sctx;
-    }
 }
 
 #[inline]
@@ -336,7 +330,7 @@ impl IntoDictKey for &'static CStr {
 }
 
 #[inline]
-pub unsafe fn put_c<K: IntoDictKey>(dict: &mut Dict, key: K, val: Object) {
+pub fn put_c<K: IntoDictKey>(dict: &mut Dict, key: K, val: Object) {
     debug_assert!(!dict.items.is_null() && dict.size < dict.capacity);
     unsafe {
         *dict.items.add(dict.size) = KeyValuePair {
@@ -390,7 +384,7 @@ pub unsafe fn try_enter(tstate: *mut TryState) {
 }
 
 /// Ends a `try_enter` block; sets error message if any (`try_leave`).
-pub unsafe fn try_leave(tstate: &TryState, err: &mut Error) {
+pub fn try_leave(tstate: &TryState, err: &mut Error) {
     unsafe {
         debug_assert!(g_st().trylevel > 0);
         g_st().trylevel -= 1;
@@ -486,7 +480,7 @@ pub unsafe fn dict_get_value(
     }
 }
 
-pub unsafe fn dict_check_writable(
+pub fn dict_check_writable(
     dict: &mut dict_T,
     key: NvimString,
     del: bool,
@@ -627,7 +621,7 @@ pub unsafe fn dict_set_var(
     }
 }
 
-pub unsafe fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut buf_T {
+pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut buf_T {
     unsafe {
         if buffer == 0 {
             return g_st().curbuf;
@@ -668,7 +662,7 @@ pub unsafe extern "C" fn find_window_by_handle(window: Window, err: &mut Error) 
     }
 }
 
-pub unsafe fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut tabpage_T {
+pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut tabpage_T {
     unsafe {
         if tabpage == 0 {
             return g_st().curtab;
@@ -704,7 +698,7 @@ pub unsafe fn cstr_to_string(str_: *const c_char) -> NvimString {
     }
 }
 
-pub unsafe fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
+pub fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
     unsafe {
         let slice = if str_.data.is_null() || str_.size == 0 {
             &[]
@@ -877,7 +871,7 @@ pub unsafe fn buf_get_text(
     }
 }
 
-pub unsafe fn api_free_string(value: NvimString) {
+pub fn api_free_string(value: NvimString) {
     unsafe {
         free_cstring(value.data);
     }
@@ -936,9 +930,8 @@ pub unsafe fn arena_take_arraybuilder(arena: *mut Arena, arr: &mut ArrayBuilder)
     }
 }
 
-pub unsafe fn api_free_object(value: Object) {
-    unsafe {
-        match value.obj_type {
+pub fn api_free_object(value: Object) {
+    match value.obj_type {
             ObjectType::kObjectTypeUnset
             | ObjectType::kObjectTypeNil
             | ObjectType::kObjectTypeBoolean
@@ -952,10 +945,9 @@ pub unsafe fn api_free_object(value: Object) {
             ObjectType::kObjectTypeDict => api_free_dict(value.data.dict()),
             ObjectType::kObjectTypeLuaRef => api_free_luaref(value.data.luaref()),
         }
-    }
 }
 
-pub unsafe fn api_free_array(value: Array) {
+pub fn api_free_array(value: Array) {
     unsafe {
         for &item in value.as_slice() {
             api_free_object(item);
@@ -964,7 +956,7 @@ pub unsafe fn api_free_array(value: Array) {
     }
 }
 
-pub unsafe fn api_free_dict(value: Dict) {
+pub fn api_free_dict(value: Dict) {
     unsafe {
         for &item in value.as_slice() {
             api_free_string(item.key);
@@ -1124,7 +1116,7 @@ pub fn api_typename(t: ObjectType) -> *const c_char {
     }
 }
 
-pub unsafe fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
+pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
     unsafe {
         let mut hl_msg = HlMessage::new();
         for i in 0..chunks.size {
@@ -1399,15 +1391,13 @@ pub unsafe fn api_keydict_to_dict(
     }
 }
 
-pub unsafe fn api_luarefs_free_object(value: Object) {
-    unsafe {
-        match value.obj_type {
+pub fn api_luarefs_free_object(value: Object) {
+    match value.obj_type {
             ObjectType::kObjectTypeLuaRef => api_free_luaref(value.data.luaref()),
             ObjectType::kObjectTypeArray => api_luarefs_free_array(value.data.array()),
             ObjectType::kObjectTypeDict => api_luarefs_free_dict(value.data.dict()),
             _ => {}
         }
-    }
 }
 
 pub unsafe fn api_luarefs_free_keydict(dict: *mut OptKeySet, table: *mut KeySetLink) {
@@ -1429,20 +1419,16 @@ pub unsafe fn api_luarefs_free_keydict(dict: *mut OptKeySet, table: *mut KeySetL
     }
 }
 
-pub unsafe fn api_luarefs_free_array(value: Array) {
-    unsafe {
-        for &item in value.as_slice() {
+pub fn api_luarefs_free_array(value: Array) {
+    for &item in value.as_slice() {
             api_luarefs_free_object(item);
         }
-    }
 }
 
-pub unsafe fn api_luarefs_free_dict(value: Dict) {
-    unsafe {
-        for &item in value.as_slice() {
+pub fn api_luarefs_free_dict(value: Dict) {
+    for &item in value.as_slice() {
             api_luarefs_free_object(item.value);
         }
-    }
 }
 
 pub unsafe fn set_mark(
@@ -1534,7 +1520,7 @@ pub unsafe fn get_default_stl_hl(
     }
 }
 
-pub unsafe fn api_set_sctx(channel_id: u64) -> sctx_T {
+pub fn api_set_sctx(channel_id: u64) -> sctx_T {
     unsafe {
         let old_current_sctx = g_st().current_sctx;
         if channel_id != VIML_INTERNAL_CALL {
@@ -4333,7 +4319,7 @@ pub unsafe fn api_get_packed_metadata(len: *mut usize) -> *const u8 {
     bytes.as_ptr()
 }
 
-pub unsafe fn api_metadata() -> Object {
+pub fn api_metadata() -> Object {
     unsafe {
         if api_meta_st().METADATA_OBJ.obj_type == ObjectType::kObjectTypeNil {
             let mut arena = Arena {
@@ -4354,7 +4340,7 @@ pub unsafe fn api_metadata() -> Object {
     }
 }
 
-pub unsafe fn api_metadata_raw() -> NvimString {
+pub fn api_metadata_raw() -> NvimString {
     unsafe {
         let mut len: usize = 0;
         let ptr = api_get_packed_metadata(&mut len)

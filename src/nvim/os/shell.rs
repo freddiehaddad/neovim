@@ -610,7 +610,7 @@ pub unsafe fn shell_build_argv(
 }
 
 /// Joins shell arguments from `argv` into a fixed 256-byte string buffer.
-pub unsafe fn shell_argv_to_str(argv: &[std::ffi::CString]) -> [c_char; 256] {
+pub fn shell_argv_to_str(argv: &[std::ffi::CString]) -> [c_char; 256] {
     unsafe {
         let mut n: usize = 0;
         let maxsize: usize = 256;
@@ -969,7 +969,7 @@ pub(crate) unsafe fn system_data_cb(
     }
 }
 
-unsafe fn out_data_decide_throttle(size: usize) -> bool {
+fn out_data_decide_throttle(size: usize) -> bool {
     unsafe {
         if size == 0 {
             let previous_decision = sh_st().throttle_visit > 0;
@@ -1057,7 +1057,7 @@ unsafe fn out_data_ring(output: *const c_char, size: usize) {
     }
 }
 
-pub unsafe fn out_data_event(mut str_copy: Vec<c_char>, fd: c_int) {
+pub fn out_data_event(mut str_copy: Vec<c_char>, fd: c_int) {
     unsafe {
         let mut need_clear = true;
         let hl = if fd == STDERR_FILENO { HLF_SE } else { HLF_SO };
@@ -1166,7 +1166,7 @@ pub(crate) unsafe fn word_length(str_in: *const c_char) -> usize {
     }
 }
 
-unsafe fn read_input(buf: &mut Vec<c_char>) {
+fn read_input(buf: &mut Vec<c_char>) {
     unsafe {
         read_buffer_into(
             g_st().curbuf,
@@ -1236,7 +1236,7 @@ unsafe fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool)
     }
 }
 
-pub(crate) unsafe fn shell_write_cb(stream: &mut Stream, status: c_int) {
+pub(crate) fn shell_write_cb(stream: &mut Stream, status: c_int) {
     unsafe {
         if status != 0 {
             msg_schedule_semsg!(

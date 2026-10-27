@@ -10104,9 +10104,7 @@ unsafe fn findfunc_find_file(
 }
 
 pub unsafe fn free_findfunc_option() {
-    unsafe {
-        callback_free(&mut opt_vars().p_ffu);
-    }
+    callback_free(&mut opt_vars().p_ffu);
 }
 
 pub unsafe fn set_ref_in_findfunc(copyID: c_int) -> bool {
@@ -11657,14 +11655,12 @@ unsafe fn ex_redrawtabline(_eap: &mut exarg_T) {
 }
 
 unsafe fn close_redir() {
-    unsafe {
-        g_st().redir_fd = None;
+    g_st().redir_fd = None;
         g_st().redir_reg = 0;
         if g_st().redir_vname {
             var_redir_stop();
             g_st().redir_vname = false;
         }
-    }
 }
 
 pub unsafe fn vim_mkdir_emsg(name: *const c_char, prot: c_int) -> c_int {
@@ -12703,13 +12699,11 @@ unsafe fn ex_digraphs(eap: &mut exarg_T) {
 }
 
 pub unsafe fn set_no_hlsearch(flag: bool) {
-    unsafe {
-        g_st().Search.no_hlsearch = flag;
+    g_st().Search.no_hlsearch = flag;
         set_vim_var_nr(
             VV_HLSEARCH,
             varnumber_T::from(!g_st().Search.no_hlsearch && opt_vars().p_hls != 0),
         );
-    }
 }
 
 unsafe fn ex_nohlsearch(_eap: &mut exarg_T) {

@@ -62,7 +62,7 @@ unsafe fn cmp_recs(xpp: *const xpparam_t, r1: &xrecord_t, r2: &xrecord_t) -> boo
 }
 
 #[inline]
-unsafe fn cmp_index(index: &HistIndex, s1: c_int, l1: c_uint, s2: c_int, l2: c_uint) -> bool {
+fn cmp_index(index: &HistIndex, s1: c_int, l1: c_uint, s2: c_int, l2: c_uint) -> bool {
     unsafe {
         let r1 = get_rec(index.env, s1, l1);
         let r2 = get_rec(index.env, s2, l2);
@@ -71,7 +71,7 @@ unsafe fn cmp_index(index: &HistIndex, s1: c_int, l1: c_uint, s2: c_int, l2: c_u
 }
 
 #[inline]
-unsafe fn table_hash(index: &HistIndex, side: c_int, line: c_uint) -> usize {
+fn table_hash(index: &HistIndex, side: c_int, line: c_uint) -> usize {
     unsafe {
         let rec = get_rec(index.env, side, line);
         xdl_hashlong(rec.ha, index.table_bits) as usize
@@ -83,10 +83,9 @@ fn line_map_idx(index: &HistIndex, ptr: c_uint) -> usize {
     (ptr - index.ptr_shift) as usize
 }
 
-unsafe fn scan_a(index: &mut HistIndex, line1: c_int, count1: c_int) -> c_int {
+fn scan_a(index: &mut HistIndex, line1: c_int, count1: c_int) -> c_int {
     let mut ptr = line1 + count1 - 1;
-    unsafe {
-        while line1 <= ptr {
+    while line1 <= ptr {
             let uptr = ptr as c_uint;
             let tbl_idx = table_hash(index, 1, uptr);
             let mut rec_idx = index.records[tbl_idx];
@@ -127,7 +126,6 @@ unsafe fn scan_a(index: &mut HistIndex, line1: c_int, count1: c_int) -> c_int {
 
             ptr -= 1;
         }
-    }
     0
 }
 

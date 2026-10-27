@@ -4188,15 +4188,13 @@ pub unsafe fn ui_ext_cmdline_block_append(indent: usize, line: *const c_char) {
 }
 
 pub unsafe fn ui_ext_cmdline_block_leave() {
-    unsafe {
-        api_free_array(getln_st().cmdline_block);
+    api_free_array(getln_st().cmdline_block);
         getln_st().cmdline_block = Array {
             size: 0,
             capacity: 0,
             items: ptr::null_mut(),
         };
         ui_call_cmdline_block_hide();
-    }
 }
 
 /// Extra redrawing needed for `redraw!` and on `ui_attach`.

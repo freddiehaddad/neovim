@@ -180,7 +180,7 @@ pub unsafe fn ns_in_win(ns_id: u32, wp: *mut win_T) -> bool {
 }
 
 // DLLEXPORT void api_extmark_free_all_mem(void);
-pub unsafe fn api_extmark_free_all_mem() {
+pub fn api_extmark_free_all_mem() {
     unsafe {
         let ns_ptr = &raw mut g_st().namespace_ids;
         *ns_ptr = Vec::new();

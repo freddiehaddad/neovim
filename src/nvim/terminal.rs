@@ -1818,14 +1818,12 @@ pub unsafe fn terminal_notify_theme(term: &mut Terminal, dark: bool) {
 }
 
 unsafe fn terminal_focus(term: &mut Terminal, focus: bool) {
-    unsafe {
-        let state = vterm_obtain_state(&mut term.vt);
+    let state = vterm_obtain_state(&mut term.vt);
         if focus {
             vterm_state_focus_in(state);
         } else {
             vterm_state_focus_out(state);
         }
-    }
 }
 
 unsafe fn term_damage(rect: VTermRect, term: *mut Terminal) -> c_int {
@@ -2257,12 +2255,10 @@ unsafe fn mouse_action(
     pressed: bool,
     mod_: VTermModifier,
 ) {
-    unsafe {
-        vterm_mouse_move(&mut term.vt, row, col, mod_);
+    vterm_mouse_move(&mut term.vt, row, col, mod_);
         if button != 0 {
             vterm_mouse_button(&mut term.vt, button, pressed, mod_);
         }
-    }
 }
 
 unsafe fn send_mouse_event(term: &mut Terminal, mut c: c_int) -> bool {

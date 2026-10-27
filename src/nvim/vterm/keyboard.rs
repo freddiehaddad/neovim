@@ -128,12 +128,12 @@ pub struct VTermStateFull {
 
 impl VTermStateFull {
     #[inline]
-    pub unsafe fn screen_ptr(&self) -> *mut VTermScreen {
+    pub fn screen_ptr(&self) -> *mut VTermScreen {
         unsafe { (*self.vt).screen_mut_ptr() }
     }
 
     #[inline]
-    pub unsafe fn term_ptr(&self) -> *mut Terminal {
+    pub fn term_ptr(&self) -> *mut Terminal {
         unsafe { (*self.vt).outdata }
     }
 
@@ -521,7 +521,7 @@ fn vterm_state_get_key_encoding_disambiguate(state: &VTermStateFull) -> bool {
         (stack.items[(stack.size - 1) as usize] & 0x01) != 0
 }
 
-pub unsafe fn vterm_keyboard_unichar(vt: &mut VTerm, mut c: u32, mut mod_: VTermModifier) {
+pub fn vterm_keyboard_unichar(vt: &mut VTerm, mut c: u32, mut mod_: VTermModifier) {
     unsafe {
         let passthru = if c == u32::from(b' ') {
             mod_ == VTERM_MOD_NONE
@@ -582,15 +582,14 @@ pub unsafe fn vterm_keyboard_unichar(vt: &mut VTerm, mut c: u32, mut mod_: VTerm
     }
 }
 
-unsafe fn emit_literal(
+fn emit_literal(
     vt: &mut VTerm,
     key: VTermKey,
     mod_: VTermModifier,
     mut disambiguate: bool,
     literal: c_int,
 ) {
-    unsafe {
-        if disambiguate && matches!(key, VTERM_KEY_TAB | VTERM_KEY_ENTER | VTERM_KEY_BACKSPACE) {
+    if disambiguate && matches!(key, VTERM_KEY_TAB | VTERM_KEY_ENTER | VTERM_KEY_BACKSPACE) {
             disambiguate = mod_ != VTERM_MOD_NONE;
         }
 
@@ -602,31 +601,26 @@ unsafe fn emit_literal(
         } else {
             vterm_push_output_bytes_slice(vt, &[literal as u8]);
         }
-    }
 }
 
-unsafe fn emit_csi(vt: &mut VTerm, mod_: VTermModifier, literal: c_int) {
-    unsafe {
-        if mod_ == 0 {
+fn emit_csi(vt: &mut VTerm, mod_: VTermModifier, literal: c_int) {
+    if mod_ == 0 {
             vterm_push_output_ctrl_bytes(vt, C1_CSI, &[literal as u8]);
         } else {
             let s = format!("1;{}{}", mod_ + 1, (literal as u8) as char);
             vterm_push_output_ctrl_bytes(vt, C1_CSI, s.as_bytes());
         }
-    }
 }
 
-unsafe fn emit_ss3(vt: &mut VTerm, mod_: VTermModifier, literal: c_int) {
-    unsafe {
-        if mod_ == 0 {
+fn emit_ss3(vt: &mut VTerm, mod_: VTermModifier, literal: c_int) {
+    if mod_ == 0 {
             vterm_push_output_ctrl_bytes(vt, C1_SS3, &[literal as u8]);
         } else {
             emit_csi(vt, mod_, literal);
         }
-    }
 }
 
-pub unsafe fn vterm_keyboard_key(vt: &mut VTerm, key: VTermKey, mod_: VTermModifier) {
+pub fn vterm_keyboard_key(vt: &mut VTerm, key: VTermKey, mod_: VTermModifier) {
     if key == VTERM_KEY_NONE {
         return;
     }
@@ -714,7 +708,7 @@ pub unsafe fn vterm_keyboard_key(vt: &mut VTerm, key: VTermKey, mod_: VTermModif
     }
 }
 
-pub unsafe fn vterm_keyboard_start_paste(vt: &mut VTerm) {
+pub fn vterm_keyboard_start_paste(vt: &mut VTerm) {
     unsafe {
         let state: *const VTermStateFull = vt.state_ptr();
         if ((*state).mode & MODE_BRACKETPASTE_BIT) != 0 {
@@ -723,7 +717,7 @@ pub unsafe fn vterm_keyboard_start_paste(vt: &mut VTerm) {
     }
 }
 
-pub unsafe fn vterm_keyboard_end_paste(vt: &mut VTerm) {
+pub fn vterm_keyboard_end_paste(vt: &mut VTerm) {
     unsafe {
         let state: *const VTermStateFull = vt.state_ptr();
         if ((*state).mode & MODE_BRACKETPASTE_BIT) != 0 {

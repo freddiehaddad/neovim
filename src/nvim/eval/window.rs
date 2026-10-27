@@ -156,7 +156,7 @@ unsafe fn win_id2tabwin(argvars: *mut typval_T, rettv: *mut typval_T) {
     }
 }
 
-pub unsafe fn win_id2wp(id: c_int) -> *mut win_T {
+pub fn win_id2wp(id: c_int) -> *mut win_T {
     unsafe { win_id2wp_tp(id, ptr::null_mut()) }
 }
 
@@ -263,7 +263,7 @@ pub unsafe fn find_win_by_nr_or_id(vp: *mut typval_T) -> *mut win_T {
 }
 
 /// Find window specified by `wvp` in tabpage `tvp` (`find_tabwin`).
-pub unsafe fn find_tabwin(wvp: &mut typval_T, tvp: &mut typval_T) -> *mut win_T {
+pub fn find_tabwin(wvp: &mut typval_T, tvp: &mut typval_T) -> *mut win_T {
     unsafe {
         let mut wp: *mut win_T = ptr::null_mut();
         let mut tp: *mut tabpage_T = ptr::null_mut();
@@ -328,7 +328,7 @@ unsafe fn get_framelayout(fr: *const frame_T, l: *mut list_T, outer: bool) {
 }
 
 /// Common code for `tabpagewinnr()` and `winnr()` (`get_winnr`).
-unsafe fn get_winnr(tp: &mut tabpage_T, argvar: &mut typval_T) -> c_int {
+fn get_winnr(tp: &mut tabpage_T, argvar: &mut typval_T) -> c_int {
     unsafe {
         let mut nr: c_int = 1;
 
@@ -413,7 +413,7 @@ unsafe fn get_winnr(tp: &mut tabpage_T, argvar: &mut typval_T) -> c_int {
 }
 
 /// Information about a window as a dictionary (`get_win_info`).
-unsafe fn get_win_info(wp: &mut win_T, tpnr: i16, winnr: i16) -> *mut dict_T {
+fn get_win_info(wp: &mut win_T, tpnr: i16, winnr: i16) -> *mut dict_T {
     unsafe {
         let dict = tv_dict_alloc();
 
@@ -499,7 +499,7 @@ unsafe fn get_win_info(wp: &mut win_T, tpnr: i16, winnr: i16) -> *mut dict_T {
 }
 
 /// Information about a tab page as a dictionary (`get_tabpage_info`).
-unsafe fn get_tabpage_info(tp: &mut tabpage_T, tp_idx: c_int) -> *mut dict_T {
+fn get_tabpage_info(tp: &mut tabpage_T, tp_idx: c_int) -> *mut dict_T {
     unsafe {
         let dict = tv_dict_alloc();
 

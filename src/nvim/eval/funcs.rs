@@ -451,7 +451,7 @@ fn proc_is_stopped(proc_: &mut Proc) -> bool {
 
 /// Function given to `ExpandGeneric()` to obtain the list of internal
 /// or user defined function names.
-pub unsafe fn get_function_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_function_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
             funcs_st().GET_FUNC_NAME_INTIDX = -1;
@@ -491,9 +491,8 @@ pub unsafe fn get_function_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
 
 /// Function given to `ExpandGeneric()` to obtain the list of internal or
 /// user defined variable or function names.
-pub unsafe fn get_expr_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
-    unsafe {
-        if idx == 0 {
+pub fn get_expr_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
+    if idx == 0 {
             funcs_st().GET_EXPR_NAME_INTIDX = -1;
         }
         if funcs_st().GET_EXPR_NAME_INTIDX < 0 {
@@ -504,7 +503,6 @@ pub unsafe fn get_expr_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
         }
         funcs_st().GET_EXPR_NAME_INTIDX += 1;
         get_user_var_name(xp, funcs_st().GET_EXPR_NAME_INTIDX)
-    }
 }
 
 const INTERNAL_FUNC_NAME_MAP: &[(&[u8], c_int)] = &[
@@ -1191,7 +1189,7 @@ pub unsafe fn find_internal_func_lua(name: *const c_char) -> *const c_char {
 }
 
 /// Check the argument count to use for internal function "fdef".
-pub unsafe fn check_internal_func(fdef: &EvalFuncDef, argcount: c_int) -> c_int {
+pub fn check_internal_func(fdef: &EvalFuncDef, argcount: c_int) -> c_int {
     unsafe {
         let res = if argcount < c_int::from(fdef.min_argc) {
             FCERR_TOOFEW
@@ -2194,7 +2192,7 @@ pub unsafe fn f_eventhandler(_argvars: *mut typval_T, rettv: &mut typval_T, _fpt
     rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(g_st().vgetc_busy));
 }
 
-pub unsafe fn get_list_line(
+pub fn get_list_line(
     _c: c_int,
     p: &mut GetListLineCookie,
     _indent: c_int,
@@ -3248,7 +3246,7 @@ pub unsafe fn f_getpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
 }
 
 /// Convert from `block_def` to a byte vector.
-unsafe fn block_def2str(bd: &block_def) -> Vec<c_char> {
+fn block_def2str(bd: &block_def) -> Vec<c_char> {
     unsafe {
         let startspaces = bd.startspaces as usize;
         let endspaces = bd.endspaces as usize;
@@ -3459,7 +3457,7 @@ pub unsafe fn f_getregion(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
     }
 }
 
-unsafe fn add_regionpos_range(rettv: &mut typval_T, p1: pos_T, p2: pos_T) {
+fn add_regionpos_range(rettv: &mut typval_T, p1: pos_T, p2: pos_T) {
     unsafe {
         let l1 = tv_list_alloc(2);
         tv_list_append_list(rettv.vval.v_list(), l1);
@@ -3704,7 +3702,7 @@ pub unsafe fn f_gettagstack(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
     }
 }
 
-pub(crate) unsafe fn dummy_timer_due_cb(tw: &mut TimeWatcher) {
+pub(crate) fn dummy_timer_due_cb(tw: &mut TimeWatcher) {
     unsafe {
         if *loop_closing_ptr(&mut *(&raw mut g_st().main_loop).cast()) {
             time_watcher_stop(tw);
@@ -4017,7 +4015,7 @@ unsafe fn eval_has_static_feature(name: *const c_char) -> bool {
     }
 }
 
-unsafe fn has_wsl() -> bool {
+fn has_wsl() -> bool {
     unsafe {
         if funcs_st().HAS_WSL == kNone {
             let mut err = Error::new();
@@ -5796,7 +5794,7 @@ pub unsafe fn f_matchstrpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
 }
 
 /// Get maximal/minimal number value in a list or dictionary.
-unsafe fn max_min(tv: &typval_T, rettv: &mut typval_T, domax: bool) {
+fn max_min(tv: &typval_T, rettv: &mut typval_T, domax: bool) {
     unsafe {
         let mut error = false;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
@@ -5970,7 +5968,7 @@ pub unsafe fn f_msgpackdump(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
     }
 }
 
-unsafe fn emsg_mpack_error(status: c_int) {
+fn emsg_mpack_error(status: c_int) {
     unsafe {
         match status {
             MPACK_ERROR => {
@@ -6236,7 +6234,7 @@ pub unsafe fn f_py3eval(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
     }
 }
 
-unsafe fn init_srand(x: &mut u32) {
+fn init_srand(x: &mut u32) {
     unsafe {
         let mut number: u32 = 0;
         if uv_random(
@@ -6612,7 +6610,7 @@ unsafe fn repeat_list(l: *mut list_T, mut n: varnumber_T, rettv: &mut typval_T) 
     }
 }
 
-unsafe fn repeat_blob(blob_tv: &mut typval_T, n: varnumber_T, rettv: &mut typval_T) {
+fn repeat_blob(blob_tv: &mut typval_T, n: varnumber_T, rettv: &mut typval_T) {
     unsafe {
         let blob = blob_tv.vval.v_blob().cast::<blob_T>();
         tv_blob_alloc_ret(&raw mut *rettv);
@@ -8562,7 +8560,7 @@ pub unsafe fn f_split(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalF
     }
 }
 
-unsafe fn get_xdg_var_list(xdg: XDGVarType, rettv: &mut typval_T) {
+fn get_xdg_var_list(xdg: XDGVarType, rettv: &mut typval_T) {
     unsafe {
         let list = tv_list_alloc(kListLenShouldKnow);
         rettv.v_type = VarType::VAR_LIST;

@@ -246,7 +246,7 @@ fn parse_key_event(n: c_int) -> TermKeyEvent {
     }
 }
 
-unsafe fn handle_csi_ss3_full(
+fn handle_csi_ss3_full(
     _tk: &mut TermKey,
     key: &mut TermKeyKey,
     cmd: c_int,
@@ -301,7 +301,7 @@ unsafe fn handle_csi_ss3_full(
     }
 }
 
-unsafe fn handle_csifunc(
+fn handle_csifunc(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
     _cmd: c_int,
@@ -386,7 +386,7 @@ unsafe fn handle_csifunc(
     }
 }
 
-unsafe fn handle_csi_u(
+fn handle_csi_u(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
     cmd: c_int,
@@ -442,7 +442,7 @@ unsafe fn handle_csi_u(
     }
 }
 
-unsafe fn handle_csi_m(
+fn handle_csi_m(
     _tk: &mut TermKey,
     key: &mut TermKeyKey,
     mut cmd: c_int,
@@ -572,7 +572,7 @@ pub unsafe fn termkey_interpret_mouse(
     }
 }
 
-unsafe fn handle_csi_R(
+fn handle_csi_R(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
     cmd: c_int,
@@ -628,7 +628,7 @@ pub unsafe fn termkey_interpret_position(
     }
 }
 
-unsafe fn handle_csi_y(
+fn handle_csi_y(
     _tk: &mut TermKey,
     key: &mut TermKeyKey,
     cmd: c_int,

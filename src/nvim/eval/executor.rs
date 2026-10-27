@@ -13,7 +13,7 @@ use crate::regexp::NUMBUFLEN;
 use crate::strings::concat_str;
 use std::ffi::{c_char, c_int};
 
-unsafe fn tv_op_blob(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
+fn tv_op_blob(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
     if op != b'+' || tv2.v_type != VarType::VAR_BLOB {
         return FAIL;
     }
@@ -47,7 +47,7 @@ unsafe fn tv_op_blob(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
     OK
 }
 
-unsafe fn tv_op_list(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
+fn tv_op_list(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
     if op != b'+' || tv2.v_type != VarType::VAR_LIST {
         return FAIL;
     }
@@ -72,7 +72,7 @@ unsafe fn tv_op_list(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
     OK
 }
 
-unsafe fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
+fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
     let mut n = unsafe { tv_get_number(tv1) };
 
     if tv2.v_type == VarType::VAR_FLOAT {
@@ -118,7 +118,7 @@ unsafe fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
     OK
 }
 
-unsafe fn tv_op_string(tv1: &mut typval_T, tv2: &typval_T) -> c_int {
+fn tv_op_string(tv1: &mut typval_T, tv2: &typval_T) -> c_int {
     if tv2.v_type == VarType::VAR_FLOAT {
         return FAIL;
     }
@@ -138,18 +138,18 @@ unsafe fn tv_op_string(tv1: &mut typval_T, tv2: &typval_T) -> c_int {
     OK
 }
 
-unsafe fn tv_op_nr_or_string(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
+fn tv_op_nr_or_string(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
     if tv2.v_type == VarType::VAR_LIST {
         return FAIL;
     }
     if matches!(op, b'+' | b'-' | b'*' | b'/' | b'%') {
-        unsafe { tv_op_number(tv1, tv2, op) }
+        tv_op_number(tv1, tv2, op)
     } else {
-        unsafe { tv_op_string(tv1, tv2) }
+        tv_op_string(tv1, tv2)
     }
 }
 
-unsafe fn tv_op_float(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
+fn tv_op_float(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
     if op == b'%'
         || op == b'.'
         || !matches!(
@@ -199,12 +199,10 @@ pub unsafe fn eexe_mod_op(tv1: *mut typval_T, tv2: *const typval_T, op: *const c
         | VarType::VAR_PARTIAL
         | VarType::VAR_BOOL
         | VarType::VAR_SPECIAL => FAIL,
-        VarType::VAR_BLOB => unsafe { tv_op_blob(tv1, tv2, op_byte) },
-        VarType::VAR_LIST => unsafe { tv_op_list(tv1, tv2, op_byte) },
-        VarType::VAR_NUMBER | VarType::VAR_STRING => unsafe {
-            tv_op_nr_or_string(tv1, tv2, op_byte)
-        },
-        VarType::VAR_FLOAT => unsafe { tv_op_float(tv1, tv2, op_byte) },
+        VarType::VAR_BLOB => tv_op_blob(tv1, tv2, op_byte),
+        VarType::VAR_LIST => tv_op_list(tv1, tv2, op_byte),
+        VarType::VAR_NUMBER | VarType::VAR_STRING => tv_op_nr_or_string(tv1, tv2, op_byte),
+        VarType::VAR_FLOAT => tv_op_float(tv1, tv2, op_byte),
         VarType::VAR_UNKNOWN => std::process::abort(),
     };
 

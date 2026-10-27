@@ -64,7 +64,7 @@ unsafe fn nlua_trust(action: *const c_char, path: *const c_char) -> bool {
 }
 
 /// `:trust` command implementation (`ex_trust`).
-pub unsafe fn ex_trust(eap: &mut exarg_T) {
+pub fn ex_trust(eap: &mut exarg_T) {
     unsafe {
         let arg = eap.arg;
         let p = skiptowhite(arg);

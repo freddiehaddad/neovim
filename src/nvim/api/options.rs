@@ -338,7 +338,7 @@ unsafe fn do_ft_buf(filetype: *const c_char, aco: &mut CtxSwitch, err: &mut Erro
     }
 }
 
-unsafe fn wipe_ft_buf(buf: &mut buf_T) {
+fn wipe_ft_buf(buf: &mut buf_T) {
     unsafe {
         block_autocmds();
 

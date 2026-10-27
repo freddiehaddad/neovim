@@ -927,13 +927,11 @@ pub unsafe fn filemess_bufwrite(buf: *mut buf_T, name: *mut c_char, msg_id: *con
 
 /// If a file read/write is slower than this, emit a progress-message.
 pub unsafe fn slow_io_ns() -> u64 {
-    unsafe {
-        if g_st().nvim_testing && get_vim_var_nr(VV_TESTING) != 0 {
+    if g_st().nvim_testing && get_vim_var_nr(VV_TESTING) != 0 {
             0
         } else {
             1_000_000_000 / 2
         }
-    }
 }
 
 /// Shows the progress-message of a slow readfile(). Locks `curbuf` so Progress handlers cannot

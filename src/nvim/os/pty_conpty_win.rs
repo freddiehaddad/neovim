@@ -229,17 +229,15 @@ use crate::extmark::{kFalse, kNone, kTrue};
 use crate::os::os_win_console::{CloseHandle, GetLastError};
 
 #[cfg(windows)]
-pub unsafe fn os_has_conpty_working() -> bool {
-    unsafe {
-        if conpty_st().HAS_CONPTY == kNone {
+pub fn os_has_conpty_working() -> bool {
+    if conpty_st().HAS_CONPTY == kNone {
             conpty_st().HAS_CONPTY = os_dyn_conpty_init();
         }
         conpty_st().HAS_CONPTY == kTrue
-    }
 }
 
 #[cfg(windows)]
-pub unsafe fn os_dyn_conpty_init() -> TriState {
+pub fn os_dyn_conpty_init() -> TriState {
     unsafe {
         let mut conpty_lib = UvLib {
             _opaque: [std::ptr::null_mut(); 4],
@@ -297,7 +295,7 @@ pub unsafe fn os_dyn_conpty_init() -> TriState {
 }
 
 #[cfg(windows)]
-pub unsafe fn os_conpty_init(
+pub fn os_conpty_init(
     in_name: &mut Option<CString>,
     out_name: &mut Option<CString>,
     width: u16,
@@ -473,7 +471,7 @@ pub unsafe fn os_conpty_spawn(
 }
 
 #[cfg(windows)]
-pub unsafe fn os_conpty_set_size(conpty_object: &conpty_t, width: u16, height: u16) {
+pub fn os_conpty_set_size(conpty_object: &conpty_t, width: u16, height: u16) {
     assert!(width <= i16::MAX as u16);
     assert!(height <= i16::MAX as u16);
     unsafe {

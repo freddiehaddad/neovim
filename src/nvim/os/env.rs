@@ -171,7 +171,7 @@ unsafe extern "C" {
 
 #[cfg(not(windows))]
 #[inline]
-pub(crate) unsafe fn os_environ_ptr() -> *mut *mut *mut c_char {
+pub(crate) fn os_environ_ptr() -> *mut *mut *mut c_char {
     #[cfg(target_os = "macos")]
     unsafe {
         _NSGetEnviron()
@@ -211,7 +211,7 @@ unsafe fn env_name_valid(name: *const c_char) -> bool {
     }
 }
 
-pub unsafe fn env_init() {
+pub fn env_init() {
     unsafe {
         g_st().nvim_testing = os_env_exists(c"NVIM_TEST".as_ptr(), false);
     }
@@ -366,7 +366,7 @@ pub unsafe fn os_unsetenv(name: *const c_char) -> c_int {
 }
 
 /// Copy name of the environment variable at `index` in the current environment variables block.
-pub unsafe fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> {
+pub fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> {
     #[cfg(windows)]
     unsafe {
         let envstrings = GetEnvironmentStringsW();
@@ -464,7 +464,7 @@ pub unsafe fn os_get_hostname(hostname: *mut c_char, size: usize) {
 
 /// Gets the "real", resolved user home directory as determined by `init_homedir`.
 #[cfg(windows)]
-pub unsafe fn os_homedir() -> *const c_char {
+pub fn os_homedir() -> *const c_char {
     unsafe {
         let Some(ref hd) = env_st().HOMEDIR else {
             emsg(c"os_homedir failed: homedir not initialized".as_ptr());
@@ -474,7 +474,7 @@ pub unsafe fn os_homedir() -> *const c_char {
     }
 }
 
-unsafe fn os_uv_homedir() -> *mut c_char {
+fn os_uv_homedir() -> *mut c_char {
     unsafe {
         let buf = (&raw mut env_st().HOMEDIR_BUF).cast::<c_char>();
         *buf = NUL;
@@ -489,7 +489,7 @@ unsafe fn os_uv_homedir() -> *mut c_char {
 }
 
 /// Sets `homedir` to the "real", resolved user home directory.
-pub unsafe fn init_homedir() {
+pub fn init_homedir() {
     unsafe {
         env_st().HOMEDIR = None;
 
@@ -1177,7 +1177,7 @@ pub unsafe fn home_replace_save(buf: *mut buf_T, src: *const c_char) -> std::ffi
 }
 
 /// Function given to `ExpandGeneric()` to obtain an environment variable name.
-pub unsafe fn get_env_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_env_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     assert!(idx >= 0);
     unsafe {
         if let Some(envname) = os_getenvname_at_index(idx as usize) {

@@ -147,7 +147,7 @@ fn clear_test_output() {
         .clear();
 }
 
-unsafe fn push_frag_bytes(out: &mut Vec<u8>, frag: VTermStringFragment) {
+fn push_frag_bytes(out: &mut Vec<u8>, frag: VTermStringFragment) {
     let len = frag.len();
     if len > 0 && !frag.str_.is_null() {
         let slice = unsafe { std::slice::from_raw_parts(frag.str_.cast::<u8>(), len) };
@@ -233,9 +233,7 @@ pub unsafe fn parser_osc<T>(command: c_int, frag: VTermStringFragment, _user: *m
             let _ = write!(out, "[{command};");
         }
     }
-    unsafe {
-        push_frag_bytes(&mut out, frag);
-    }
+    push_frag_bytes(&mut out, frag);
     if frag.final_() {
         out.push(b']');
     }
@@ -258,9 +256,7 @@ pub unsafe fn parser_dcs<T>(
             out.extend_from_slice(cmd);
         }
     }
-    unsafe {
-        push_frag_bytes(&mut out, frag);
-    }
+    push_frag_bytes(&mut out, frag);
     if frag.final_() {
         out.push(b']');
     }
@@ -274,9 +270,7 @@ pub unsafe fn parser_apc<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
     if frag.initial() {
         out.push(b'[');
     }
-    unsafe {
-        push_frag_bytes(&mut out, frag);
-    }
+    push_frag_bytes(&mut out, frag);
     if frag.final_() {
         out.push(b']');
     }
@@ -290,9 +284,7 @@ pub unsafe fn parser_pm<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
     if frag.initial() {
         out.push(b'[');
     }
-    unsafe {
-        push_frag_bytes(&mut out, frag);
-    }
+    push_frag_bytes(&mut out, frag);
     if frag.final_() {
         out.push(b']');
     }
@@ -306,9 +298,7 @@ pub unsafe fn parser_sos<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
     if frag.initial() {
         out.push(b'[');
     }
-    unsafe {
-        push_frag_bytes(&mut out, frag);
-    }
+    push_frag_bytes(&mut out, frag);
     if frag.final_() {
         out.push(b']');
     }
@@ -327,9 +317,7 @@ pub unsafe fn selection_set(
     if frag.initial() {
         out.push(b'[');
     }
-    unsafe {
-        push_frag_bytes(&mut out, frag);
-    }
+    push_frag_bytes(&mut out, frag);
     if frag.final_() {
         out.push(b']');
     }
@@ -345,7 +333,7 @@ pub unsafe fn selection_query(mask: VTermSelectionMask, _user: *mut Terminal) ->
     1
 }
 
-unsafe fn format_schar(out: &mut Vec<u8>, schar: schar_T) {
+fn format_schar(out: &mut Vec<u8>, schar: schar_T) {
     unsafe {
         let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
         schar_get(buf.as_mut_ptr(), schar);
@@ -498,8 +486,7 @@ const fn vterm_get_prop_type(prop: VTermProp) -> VTermValueType {
 }
 
 pub unsafe fn state_settermprop<T>(prop: VTermProp, val: &mut VTermValue, _user: *mut T) -> c_int {
-    unsafe {
-        if !vtt_st().want_state_settermprop {
+    if !vtt_st().want_state_settermprop {
             return 1;
         }
         let mut out = Vec::new();
@@ -538,7 +525,6 @@ pub unsafe fn state_settermprop<T>(prop: VTermProp, val: &mut VTermValue, _user:
         };
         append_test_output(&out);
         errcode
-    }
 }
 
 pub unsafe fn state_erase(rect: VTermRect, selective: c_int, _user: *mut VTermScreen) -> c_int {
@@ -805,7 +791,7 @@ unsafe fn attrs_differ(attrs: VTermAttrMask, a: *const ScreenCell, b: *const Scr
     }
 }
 
-pub unsafe fn vterm_screen_get_attrs_extent(
+pub fn vterm_screen_get_attrs_extent(
     screen: &VTermScreen,
     extent: &mut VTermRect,
     pos: VTermPos,
@@ -890,7 +876,7 @@ pub unsafe fn vterm_screen_get_text(
     outpos
 }
 
-pub unsafe fn vterm_screen_is_eol(screen: &VTermScreen, mut pos: VTermPos) -> c_int {
+pub fn vterm_screen_is_eol(screen: &VTermScreen, mut pos: VTermPos) -> c_int {
     unsafe {
         while pos.col < screen.cols {
             let cell = getcell(screen, pos.row, pos.col);
@@ -1056,7 +1042,7 @@ mod tests {
         r: bool,
     }
 
-    unsafe fn init() -> &'static mut VTerm {
+    fn init() -> &'static mut VTerm {
         unsafe {
             crate::option_vars::opt_vars().p_emoji = 1;
             vtt_st().state_pos = VTermPos { row: 0, col: 0 };
@@ -1085,7 +1071,7 @@ mod tests {
         vterm_parser_set_callbacks(vt, Some(&PARSER_CBS), ptr::null_mut());
     }
 
-    unsafe fn wantstate(vt: &mut VTerm, opts: StateOpts) -> &'static mut VTermStateFull {
+    fn wantstate(vt: &mut VTerm, opts: StateOpts) -> &'static mut VTermStateFull {
         unsafe {
             let state = vterm_obtain_state(vt);
             vterm_state_set_callbacks(state, Some(&STATE_CBS), ptr::null_mut());
@@ -1110,7 +1096,7 @@ mod tests {
         }
     }
 
-    unsafe fn wantscreen(vt: &mut VTerm, opts: ScreenOpts) -> &'static mut VTermScreen {
+    fn wantscreen(vt: &mut VTerm, opts: ScreenOpts) -> &'static mut VTermScreen {
         unsafe {
             let screen = vterm_obtain_screen(vt);
             vterm_screen_set_callbacks(screen, Some(&SCREEN_CBS), ptr::null_mut());
@@ -1128,7 +1114,7 @@ mod tests {
         }
     }
 
-    unsafe fn reset(state: Option<&mut VTermStateFull>, screen: Option<&mut VTermScreen>) {
+    fn reset(state: Option<&mut VTermStateFull>, screen: Option<&mut VTermScreen>) {
         unsafe {
             if let Some(state) = state {
                 vterm_state_reset(state, 1);
@@ -1140,7 +1126,7 @@ mod tests {
         }
     }
 
-    unsafe fn push(input: &[u8], vt: &mut VTerm) {
+    fn push(input: &[u8], vt: &mut VTerm) {
         unsafe {
             vterm_input_write(vt, input.as_ptr().cast(), input.len());
         }
@@ -1170,7 +1156,7 @@ mod tests {
         assert_eq!(String::from_utf8_lossy(&actual), exp);
     }
 
-    unsafe fn cursor(row: c_int, col: c_int, state: &VTermStateFull) {
+    fn cursor(row: c_int, col: c_int, state: &VTermStateFull) {
         unsafe {
             let mut pos = VTermPos { row: 0, col: 0 };
             vterm_state_get_cursorpos(state, &raw mut pos);
@@ -1191,7 +1177,7 @@ mod tests {
             assert_eq!(info.continuation(), exp_cont);
     }
 
-    unsafe fn pen(attribute: &str, expected: c_int, state: &VTermStateFull) {
+    fn pen(attribute: &str, expected: c_int, state: &VTermStateFull) {
         let attr = match attribute {
             "bold" => VTERM_ATTR_BOLD,
             "underline" => VTERM_ATTR_UNDERLINE,
@@ -1210,13 +1196,11 @@ mod tests {
         }
     }
 
-    unsafe fn resize(rows: c_int, cols: c_int, vt: &mut VTerm) {
-        unsafe {
-            vterm_set_size(vt, rows, cols);
-        }
+    fn resize(rows: c_int, cols: c_int, vt: &mut VTerm) {
+        vterm_set_size(vt, rows, cols);
     }
 
-    unsafe fn screen_chars(
+    fn screen_chars(
         start_row: c_int,
         start_col: c_int,
         end_row: c_int,
@@ -1238,7 +1222,7 @@ mod tests {
         }
     }
 
-    unsafe fn screen_text(
+    fn screen_text(
         start_row: c_int,
         start_col: c_int,
         end_row: c_int,
@@ -1268,13 +1252,11 @@ mod tests {
         }
     }
 
-    unsafe fn screen_row(row: c_int, expected: &[u8], screen: &VTermScreen, end_col: c_int) {
-        unsafe {
-            screen_chars(row, 0, row + 1, end_col, expected, screen);
-        }
+    fn screen_row(row: c_int, expected: &[u8], screen: &VTermScreen, end_col: c_int) {
+        screen_chars(row, 0, row + 1, end_col, expected, screen);
     }
 
-    unsafe fn screen_cell(row: c_int, col: c_int, expected: &[u8], screen: &mut VTermScreen) {
+    fn screen_cell(row: c_int, col: c_int, expected: &[u8], screen: &mut VTermScreen) {
         use std::fmt::Write as _;
         unsafe {
             let pos = VTermPos { row, col };
@@ -1350,20 +1332,17 @@ mod tests {
         }
     }
 
-    unsafe fn screen_eol(row: c_int, col: c_int, expected: c_int, screen: &VTermScreen) {
-        unsafe {
-            assert_eq!(vterm_screen_is_eol(screen, VTermPos { row, col }), expected);
-        }
+    fn screen_eol(row: c_int, col: c_int, expected: c_int, screen: &VTermScreen) {
+        assert_eq!(vterm_screen_is_eol(screen, VTermPos { row, col }), expected);
     }
 
-    unsafe fn screen_attrs_extent(
+    fn screen_attrs_extent(
         row: c_int,
         col: c_int,
         expected: &[u8],
         screen: &VTermScreen,
     ) {
-        unsafe {
-            let mut rect = VTermRect {
+        let mut rect = VTermRect {
                 start_row: 0,
                 end_row: 0,
                 start_col: 0,
@@ -1375,7 +1354,6 @@ mod tests {
                 rect.start_row, rect.start_col, rect.end_row, rect.end_col
             );
             assert_eq!(actual.as_bytes(), expected);
-        }
     }
 
     fn wantencoding() -> VTermEncodingInstance {
@@ -1406,25 +1384,19 @@ mod tests {
         }
     }
 
-    unsafe fn mousemove(row: c_int, col: c_int, vt: &mut VTerm, mod_: VTermModifier) {
-        unsafe {
-            vterm_mouse_move(vt, row, col, mod_);
-        }
+    fn mousemove(row: c_int, col: c_int, vt: &mut VTerm, mod_: VTermModifier) {
+        vterm_mouse_move(vt, row, col, mod_);
     }
 
-    unsafe fn mousebtn(press: u8, button: c_int, vt: &mut VTerm, mod_: VTermModifier) {
-        unsafe {
-            vterm_mouse_button(vt, button, press == b'd' || press == b'D', mod_);
-        }
+    fn mousebtn(press: u8, button: c_int, vt: &mut VTerm, mod_: VTermModifier) {
+        vterm_mouse_button(vt, button, press == b'd' || press == b'D', mod_);
     }
 
-    unsafe fn inchar(c: u32, vt: &mut VTerm, mod_: VTermModifier) {
-        unsafe {
-            vterm_keyboard_unichar(vt, c, mod_);
-        }
+    fn inchar(c: u32, vt: &mut VTerm, mod_: VTermModifier) {
+        vterm_keyboard_unichar(vt, c, mod_);
     }
 
-    unsafe fn inkey(input_key: &str, vt: &mut VTerm, mod_: VTermModifier) {
+    fn inkey(input_key: &str, vt: &mut VTerm, mod_: VTermModifier) {
         const VTERM_KEY_ESCAPE: VTermKey = 4;
         const VTERM_KEY_UP: VTermKey = 5;
         const VTERM_KEY_DEL: VTermKey = 10;
@@ -1439,9 +1411,7 @@ mod tests {
             "kp0" => VTERM_KEY_KP_0,
             _ => VTERM_KEY_NONE,
         };
-        unsafe {
-            vterm_keyboard_key(vt, key, mod_);
-        }
+        vterm_keyboard_key(vt, key, mod_);
     }
 
     #[test]
@@ -1459,8 +1429,7 @@ mod tests {
     fn spec_02parser() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             vterm_set_utf8(vt, 0);
             wantparser(vt);
             push(b"hello", vt);
@@ -1599,7 +1568,6 @@ mod tests {
             push(b"AB\x7fC", vt);
             expect(b"text 41,42\ntext 43");
             vterm_free(vt);
-        }
     }
 
     #[test]
@@ -1662,8 +1630,7 @@ mod tests {
     fn spec_10state_putglyph() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(
                 vt,
                 StateOpts {
@@ -1754,15 +1721,13 @@ mod tests {
             push(b"A\x1b[1\"qB\x1b[2\"qC", vt);
             expect(b"putglyph 41 1 0,0\nputglyph 42 1 0,1 prot\nputglyph 43 1 0,2");
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_11state_movecursor() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(vt, StateOpts::default());
             push(b"ABC", vt);
             cursor(0, 3, state);
@@ -1925,15 +1890,13 @@ mod tests {
             push(b"\x1b[2Z", vt);
             cursor(0, 40, state);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_12state_scroll() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(
                 vt,
                 StateOpts {
@@ -2060,15 +2023,13 @@ mod tests {
             push(b"\x1b[r", vt);
             cursor(0, 0, state);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_13state_edit() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(
                 vt,
                 StateOpts {
@@ -2312,15 +2273,13 @@ mod tests {
             expect(b"moverect 0..1,4..80 -> 0..1,1..77\nerase 0..1,77..80");
             cursor(0, 1, state);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_14state_encoding() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             vterm_set_utf8(vt, 0);
             let state = wantstate(
                 vt,
@@ -2405,15 +2364,13 @@ mod tests {
             push(b"\x88D", vt);
             expect(b"putglyph 108 1 0,2\nputglyph 44 1 0,3");
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_15state_mode() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(
                 vt,
                 StateOpts {
@@ -2481,15 +2438,13 @@ mod tests {
             push(b"\x1b[r\x1b[?6h", vt);
             cursor(0, 0, state);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_16state_resize() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(
                 vt,
                 StateOpts {
@@ -2529,15 +2484,13 @@ mod tests {
             expect(b"putglyph 43 1 0,80");
             cursor(0, 81, state);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_17state_mouse() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(
                 vt,
                 StateOpts {
@@ -2697,15 +2650,13 @@ mod tests {
             mousebtn(b'd', 1, vt, 0);
             expect_output(b"\x1b[<0;1;1M");
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_18state_termprops() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(
                 vt,
                 StateOpts {
@@ -2745,15 +2696,13 @@ mod tests {
             push(b" another title\x07", vt);
             expect(b"settermprop 4 \" another title\"]");
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_20state_wrapping() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(
                 vt,
                 StateOpts {
@@ -2801,15 +2750,13 @@ mod tests {
             push(b"\x1b[25;1HD", vt);
             expect(b"putglyph 44 1 24,0");
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_21state_tabstops() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(
                 vt,
                 StateOpts {
@@ -2869,15 +2816,13 @@ mod tests {
             expect(b"putglyph 58 1 0,96");
             cursor(0, 97, state);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_22state_save() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(
                 vt,
                 StateOpts {
@@ -2928,15 +2873,13 @@ mod tests {
             expect(b"settermprop 1 true\nsettermprop 2 true\nsettermprop 7 1");
             cursor(5, 9, state);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_25state_input() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(vt, StateOpts::default());
             push(b"\x1b[>1u", vt);
             inchar(0x41, vt, 0);
@@ -3185,15 +3128,13 @@ mod tests {
             inchar(0x2F, vt, VTERM_MOD_CTRL);
             expect_output(b"\x1f");
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_26state_query() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(vt, StateOpts::default());
             reset(Some(state), None);
             push(b"\x1b[c", vt);
@@ -3233,15 +3174,13 @@ mod tests {
             expect_output(b"\x9b0n");
             push(b"\x1b F", vt);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_27state_reset() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(vt, StateOpts::default());
             reset(Some(state), None);
             push(b"\x1b[5;5H", vt);
@@ -3300,15 +3239,13 @@ mod tests {
             push(b"\x1bc\t", vt);
             cursor(0, 8, state);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_28state_dbl_wh() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(
                 vt,
                 StateOpts {
@@ -3352,15 +3289,13 @@ mod tests {
             push(b"\x1b[20;6HFG", vt);
             expect(b"putglyph 46 1 19,5 dwl\nputglyph 47 1 19,6 dwl");
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_29state_fallback() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(
                 vt,
                 StateOpts {
@@ -3389,15 +3324,13 @@ mod tests {
             push(b"\x1bXz123\x1b\\", vt);
             expect(b"sos [z123]");
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_30state_pen() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(vt, StateOpts::default());
             push(b"\x1b[m", vt);
             pen("bold", 0, state);
@@ -3473,15 +3406,13 @@ mod tests {
             push(b"\x1b[53m\x1b[m", vt);
             pen("overline", 0, state);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_31state_rep() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(
                 vt,
                 StateOpts {
@@ -3516,15 +3447,13 @@ mod tests {
             push(b"a\x1b[1000bb", vt);
             expect(b"putglyph 61 1 0,0\nputglyph 61 1 0,1\nputglyph 61 1 0,2\nputglyph 61 1 0,3\nputglyph 61 1 0,4\nputglyph 61 1 0,5\nputglyph 61 1 0,6\nputglyph 61 1 0,7\nputglyph 61 1 0,8\nputglyph 61 1 0,9\nputglyph 61 1 0,10\nputglyph 61 1 0,11\nputglyph 61 1 0,12\nputglyph 61 1 0,13\nputglyph 61 1 0,14\nputglyph 61 1 0,15\nputglyph 61 1 0,16\nputglyph 61 1 0,17\nputglyph 61 1 0,18\nputglyph 61 1 0,19\nputglyph 61 1 0,20\nputglyph 61 1 0,21\nputglyph 61 1 0,22\nputglyph 61 1 0,23\nputglyph 61 1 0,24\nputglyph 61 1 0,25\nputglyph 61 1 0,26\nputglyph 61 1 0,27\nputglyph 61 1 0,28\nputglyph 61 1 0,29\nputglyph 61 1 0,30\nputglyph 61 1 0,31\nputglyph 61 1 0,32\nputglyph 61 1 0,33\nputglyph 61 1 0,34\nputglyph 61 1 0,35\nputglyph 61 1 0,36\nputglyph 61 1 0,37\nputglyph 61 1 0,38\nputglyph 61 1 0,39\nputglyph 61 1 0,40\nputglyph 61 1 0,41\nputglyph 61 1 0,42\nputglyph 61 1 0,43\nputglyph 61 1 0,44\nputglyph 61 1 0,45\nputglyph 61 1 0,46\nputglyph 61 1 0,47\nputglyph 61 1 0,48\nputglyph 61 1 0,49\nputglyph 61 1 0,50\nputglyph 61 1 0,51\nputglyph 61 1 0,52\nputglyph 61 1 0,53\nputglyph 61 1 0,54\nputglyph 61 1 0,55\nputglyph 61 1 0,56\nputglyph 61 1 0,57\nputglyph 61 1 0,58\nputglyph 61 1 0,59\nputglyph 61 1 0,60\nputglyph 61 1 0,61\nputglyph 61 1 0,62\nputglyph 61 1 0,63\nputglyph 61 1 0,64\nputglyph 61 1 0,65\nputglyph 61 1 0,66\nputglyph 61 1 0,67\nputglyph 61 1 0,68\nputglyph 61 1 0,69\nputglyph 61 1 0,70\nputglyph 61 1 0,71\nputglyph 61 1 0,72\nputglyph 61 1 0,73\nputglyph 61 1 0,74\nputglyph 61 1 0,75\nputglyph 61 1 0,76\nputglyph 61 1 0,77\nputglyph 61 1 0,78\nputglyph 61 1 0,79\nputglyph 62 1 1,0");
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_32state_flow() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(vt, StateOpts::default());
             reset(Some(state), None);
             push(b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", vt);
@@ -3547,15 +3476,13 @@ mod tests {
             push(b"\x1bM\x1b[79G\x1b[K", vt);
             lineinfo(1, false, false, false, state);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_40state_selection() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let _ = wantstate(vt, StateOpts::default());
             push(b"\x1b]52;c;SGVsbG8s\x1b\\", vt);
             expect(b"selection-set mask=0001 [Hello,]");
@@ -3590,15 +3517,13 @@ mod tests {
             push(b"\x1b]52;c;?\x1b\\", vt);
             expect(b"selection-query mask=0001");
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_60screen_ascii() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let screen = wantscreen(
                 vt,
                 ScreenOpts {
@@ -3683,15 +3608,13 @@ mod tests {
             push(b"P", vt);
             screen_row(0, b"P", screen, 80);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_61screen_unicode() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let screen = wantscreen(vt, ScreenOpts::default());
             reset(None, Some(screen));
             push(b"\xc3\x81\xc3\xa9", vt);
@@ -3767,15 +3690,13 @@ mod tests {
                 screen,
             );
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_63screen_resize() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(vt, StateOpts::default());
             let screen = wantscreen(vt, ScreenOpts::default());
             reset(Some(state), Some(screen));
@@ -3919,15 +3840,13 @@ mod tests {
             push(b"\x1b[?1049l", vt);
             screen_row(0, b"Main screen", screen, 80);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_64screen_pen() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let screen = wantscreen(vt, ScreenOpts::default());
             reset(None, Some(screen));
             push(b"A", vt);
@@ -4075,15 +3994,13 @@ mod tests {
                 screen,
             );
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_65screen_protect() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let screen = wantscreen(vt, ScreenOpts::default());
             reset(None, Some(screen));
             push(b"A\x1b[1\"qB\x1b[\"qC", vt);
@@ -4094,15 +4011,13 @@ mod tests {
             push(b"A\x1b[1\"qB\x1b[\"qC", vt);
             screen_row(0, b"ABC", screen, 80);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_66screen_extent() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let screen = wantscreen(vt, ScreenOpts::default());
             reset(None, Some(screen));
             push(b"AB\x1b[1mCD\x1b[mE", vt);
@@ -4112,15 +4027,13 @@ mod tests {
             screen_attrs_extent(0, 3, b"0,2-1,3", screen);
             screen_attrs_extent(0, 4, b"0,4-1,79", screen);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_67screen_dbl_wh() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let screen = wantscreen(vt, ScreenOpts::default());
             reset(None, Some(screen));
             reset(None, Some(screen));
@@ -4188,15 +4101,13 @@ mod tests {
                 screen,
             );
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_68screen_termprops() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let screen = wantscreen(
                 vt,
                 ScreenOpts {
@@ -4217,15 +4128,13 @@ mod tests {
             push(b"\x1b]2;Here is my title\x07", vt);
             expect(b"settermprop 4 [\"Here is my title\"]");
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_69screen_pushline() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             resize(5, 10, vt);
             let state = wantstate(vt, StateOpts::default());
             let screen = wantscreen(
@@ -4323,15 +4232,13 @@ mod tests {
             cursor(1, 1, state);
             resize(5, 10, vt);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_90vttest_01_movement_3() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let state = wantstate(vt, StateOpts::default());
             let screen = wantscreen(vt, ScreenOpts::default());
             reset(Some(state), Some(screen));
@@ -4348,15 +4255,13 @@ mod tests {
             screen_row(3, b"A B C D E F G H I ", screen, 80);
             cursor(3, 18, state);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_90vttest_01_movement_4() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let screen = wantscreen(vt, ScreenOpts::default());
             reset(None, Some(screen));
             push(b"\x1b[00000000004;000000001HT", vt);
@@ -4387,15 +4292,13 @@ mod tests {
             push(b"\x1b[00000000004;0000000026He", vt);
             screen_row(3, b"This is a correct sentence", screen, 80);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_90vttest_02_screen_3() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let screen = wantscreen(vt, ScreenOpts::default());
             reset(None, Some(screen));
             push(b"\x1b[?6h", vt);
@@ -4407,15 +4310,13 @@ mod tests {
             screen_row(22, b"Above", screen, 80);
             screen_row(23, b"Bottom", screen, 80);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_90vttest_02_screen_4() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let screen = wantscreen(vt, ScreenOpts::default());
             reset(None, Some(screen));
             push(b"\x1b[?6l", vt);
@@ -4427,15 +4328,13 @@ mod tests {
             screen_row(23, b"Bottom", screen, 80);
             screen_row(0, b"Top", screen, 80);
             vterm_free(vt);
-        }
     }
 
     #[test]
     fn spec_mouse_reporting_should_not_break_by_idempotent_decsm_1002() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let vt = init();
+        let vt = init();
             let _ = wantstate(
                 vt,
                 StateOpts {
@@ -4458,6 +4357,5 @@ mod tests {
             mousemove(2, 0, vt, 0);
             expect_output(b"\x1b[M@!#");
             vterm_free(vt);
-        }
     }
 }

@@ -89,9 +89,7 @@ impl CallbackReader {
 
 impl Drop for CallbackReader {
     fn drop(&mut self) {
-        unsafe {
-            callback_free(&mut self.cb);
-        }
+        callback_free(&mut self.cb);
     }
 }
 
@@ -1130,12 +1128,10 @@ pub unsafe fn channel_term_write(buf: *const c_char, size: usize, chan: &mut Cha
 }
 
 pub unsafe fn channel_term_resize(width: u16, height: u16, chan: &mut Channel) {
-    unsafe {
-        if chan.streamtype == kChannelStreamInternal {
+    if chan.streamtype == kChannelStreamInternal {
             return;
         }
         pty_proc_resize(&mut chan.uv.proc_, width, height);
-    }
 }
 
 pub fn channel_term_resume(chan: &mut Channel) {

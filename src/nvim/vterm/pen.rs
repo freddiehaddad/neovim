@@ -494,28 +494,28 @@ unsafe fn setpenattr(
     }
 }
 
-unsafe fn setpenattr_bool(state: &mut VTermStateFull, attr: VTermAttr, boolean: c_int) {
+fn setpenattr_bool(state: &mut VTermStateFull, attr: VTermAttr, boolean: c_int) {
     let mut val = VTermValue::Boolean(boolean);
     unsafe {
         setpenattr(state, attr, VTERM_VALUETYPE_BOOL, &raw mut val);
     }
 }
 
-unsafe fn setpenattr_int(state: &mut VTermStateFull, attr: VTermAttr, number: c_int) {
+fn setpenattr_int(state: &mut VTermStateFull, attr: VTermAttr, number: c_int) {
     let mut val = VTermValue::Number(number);
     unsafe {
         setpenattr(state, attr, VTERM_VALUETYPE_INT, &raw mut val);
     }
 }
 
-unsafe fn setpenattr_col(state: &mut VTermStateFull, attr: VTermAttr, color: VTermColor) {
+fn setpenattr_col(state: &mut VTermStateFull, attr: VTermAttr, color: VTermColor) {
     let mut val = VTermValue::Color(color);
     unsafe {
         setpenattr(state, attr, VTERM_VALUETYPE_COLOR, &raw mut val);
     }
 }
 
-unsafe fn set_pen_col_ansi(state: &mut VTermStateFull, attr: VTermAttr, col: c_int) {
+fn set_pen_col_ansi(state: &mut VTermStateFull, attr: VTermAttr, col: c_int) {
     unsafe {
         let colp = if attr == VTERM_ATTR_BACKGROUND {
             &raw mut state.pen.bg
@@ -527,7 +527,7 @@ unsafe fn set_pen_col_ansi(state: &mut VTermStateFull, attr: VTermAttr, col: c_i
     }
 }
 
-pub unsafe fn vterm_state_newpen(state: &mut VTermStateFull) {
+pub fn vterm_state_newpen(state: &mut VTermStateFull) {
     unsafe {
         state.default_fg.set_rgb(240, 240, 240);
         state.default_bg.set_rgb(0, 0, 0);
@@ -541,9 +541,8 @@ pub unsafe fn vterm_state_newpen(state: &mut VTermStateFull) {
     }
 }
 
-pub unsafe fn vterm_state_resetpen(state: &mut VTermStateFull) {
-    unsafe {
-        state.pen.set_bold(0);
+pub fn vterm_state_resetpen(state: &mut VTermStateFull) {
+    state.pen.set_bold(0);
         setpenattr_bool(state, VTERM_ATTR_BOLD, 0);
         state.pen.set_underline(0);
         setpenattr_int(state, VTERM_ATTR_UNDERLINE, 0);
@@ -575,12 +574,10 @@ pub unsafe fn vterm_state_resetpen(state: &mut VTermStateFull) {
 
         state.pen.uri = 0;
         setpenattr_int(state, VTERM_ATTR_URI, 0);
-    }
 }
 
-pub unsafe fn vterm_state_savepen(state: &mut VTermStateFull, save: c_int) {
-    unsafe {
-        if save != 0 {
+pub fn vterm_state_savepen(state: &mut VTermStateFull, save: c_int) {
+    if save != 0 {
             state.saved.pen = state.pen;
         } else {
             state.pen = state.saved.pen;
@@ -607,7 +604,6 @@ pub unsafe fn vterm_state_savepen(state: &mut VTermStateFull, save: c_int) {
 
             setpenattr_int(state, VTERM_ATTR_URI, state.pen.uri);
         }
-    }
 }
 
 pub unsafe fn vterm_state_set_default_colors(

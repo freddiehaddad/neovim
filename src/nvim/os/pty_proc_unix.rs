@@ -276,7 +276,7 @@ mod unix_impl {
     }
 
     /// @returns zero on success, or negative error code
-    pub unsafe fn pty_proc_spawn(ptyproc: &mut PtyProc) -> c_int {
+    pub fn pty_proc_spawn(ptyproc: &mut PtyProc) -> c_int {
         unsafe {
             let termios_default_ptr = TERMIOS_DEFAULT.as_ptr();
             if (*termios_default_ptr).c_cflag == 0 {
@@ -415,14 +415,14 @@ mod unix_impl {
         }
     }
 
-    pub unsafe fn pty_proc_tty_name(ptyproc: &mut PtyProc) -> *const c_char {
+    pub fn pty_proc_tty_name(ptyproc: &mut PtyProc) -> *const c_char {
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
             ptsname((*ptail).tty_fd)
         }
     }
 
-    pub unsafe fn pty_proc_resize(ptyproc: &mut PtyProc, width: u16, height: u16) {
+    pub fn pty_proc_resize(ptyproc: &mut PtyProc, width: u16, height: u16) {
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
             (*ptail).winsize = winsize {
@@ -441,7 +441,7 @@ mod unix_impl {
         }
     }
 
-    pub unsafe fn pty_proc_flush_master(ptyproc: &mut PtyProc) {
+    pub fn pty_proc_flush_master(ptyproc: &mut PtyProc) {
         #[cfg(target_os = "linux")]
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
@@ -461,7 +461,7 @@ mod unix_impl {
         let _ = ptyproc;
     }
 
-    pub unsafe fn pty_proc_close(ptyproc: &mut PtyProc) {
+    pub fn pty_proc_close(ptyproc: &mut PtyProc) {
         unsafe {
             pty_proc_close_master(ptyproc);
             let proc_: *mut Proc = ptyproc;
@@ -469,7 +469,7 @@ mod unix_impl {
         }
     }
 
-    pub unsafe fn pty_proc_close_master(ptyproc: &mut PtyProc) {
+    pub fn pty_proc_close_master(ptyproc: &mut PtyProc) {
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
             if (*ptail).tty_fd >= 0 {
@@ -479,7 +479,7 @@ mod unix_impl {
         }
     }
 
-    pub unsafe fn pty_proc_teardown(loop_: &mut Loop) {
+    pub fn pty_proc_teardown(loop_: &mut Loop) {
         unsafe {
             uv_signal_stop(loop_children_watcher(loop_));
         }
@@ -537,7 +537,7 @@ mod unix_impl {
         }
     }
 
-    unsafe fn init_termios(t: &mut termios) {
+    fn init_termios(t: &mut termios) {
         unsafe {
             t.c_iflag = ICRNL | IXON | IUTF8;
             t.c_oflag = OPOST | ONLCR;

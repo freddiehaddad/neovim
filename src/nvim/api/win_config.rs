@@ -1325,7 +1325,7 @@ fn parse_float_bufpos(bufpos: Array, out: &mut lpos_T) -> bool {
 
 // DLLEXPORT void parse_bordertext(Object bordertext, BorderTextType bordertext_type,
 //                                 WinConfig *fconfig, Error *err);
-pub unsafe fn parse_bordertext(
+pub fn parse_bordertext(
     bordertext: Object,
     bordertext_type: BorderTextType,
     fconfig: &mut WinConfig,

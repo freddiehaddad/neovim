@@ -187,14 +187,14 @@ use crate::os::fs::MAXPATHL;
 use crate::event::r#loop::uv_tty_set_vterm_state;
 
 #[cfg(windows)]
-pub unsafe fn os_enable_ctrl_c() {
+pub fn os_enable_ctrl_c() {
     unsafe {
         SetConsoleCtrlHandler(std::ptr::null(), 0);
     }
 }
 
 #[cfg(windows)]
-pub unsafe fn os_open_conin_fd() -> c_int {
+pub fn os_open_conin_fd() -> c_int {
     unsafe {
         let conin_handle = CreateFileA(
             c"CONIN$".as_ptr(),
@@ -218,7 +218,7 @@ pub fn os_clear_hwnd() {
 }
 
 #[cfg(windows)]
-pub unsafe fn os_redirect_stdin_to_conin() {
+pub fn os_redirect_stdin_to_conin() {
     unsafe {
         close(STDIN_FILENO);
         let conin_fd = os_open_conin_fd();
@@ -227,7 +227,7 @@ pub unsafe fn os_redirect_stdin_to_conin() {
 }
 
 #[cfg(windows)]
-pub unsafe fn os_redirect_stdout_stderr_to_conout() {
+pub fn os_redirect_stdout_stderr_to_conout() {
     unsafe {
         let conout_handle = CreateFileA(
             c"CONOUT$".as_ptr(),
@@ -249,16 +249,14 @@ pub unsafe fn os_redirect_stdout_stderr_to_conout() {
 }
 
 #[cfg(windows)]
-pub unsafe fn os_reattach_console_stdio() {
-    unsafe {
-        os_enable_ctrl_c();
+pub fn os_reattach_console_stdio() {
+    os_enable_ctrl_c();
         os_redirect_stdin_to_conin();
         os_redirect_stdout_stderr_to_conout();
-    }
 }
 
 #[cfg(windows)]
-pub unsafe fn os_swap_to_hidden_console() {
+pub fn os_swap_to_hidden_console() {
     unsafe {
         FreeConsole();
         AllocConsole();
@@ -269,7 +267,7 @@ pub unsafe fn os_swap_to_hidden_console() {
 }
 
 #[cfg(windows)]
-pub unsafe fn os_attach_parent_console() {
+pub fn os_attach_parent_console() {
     unsafe {
         wincon_st().CONSOLE_INHERITED =
             !GetConsoleWindow().is_null() || AttachConsole(ATTACH_PARENT_PROCESS) != 0;
@@ -291,7 +289,7 @@ pub unsafe fn os_attach_parent_console() {
 }
 
 #[cfg(windows)]
-pub unsafe fn os_detach_ui_console(stdio_ui: bool) {
+pub fn os_detach_ui_console(stdio_ui: bool) {
     unsafe {
         if stdio_ui || (wincon_st().CONSOLE_INHERITED && ui_active() == 0) {
             os_swap_to_hidden_console();
@@ -300,7 +298,7 @@ pub unsafe fn os_detach_ui_console(stdio_ui: bool) {
 }
 
 #[cfg(windows)]
-pub unsafe fn os_icon_reset() {
+pub fn os_icon_reset() {
     unsafe {
         if wincon_st().H_WND.is_null() {
             return;
@@ -315,7 +313,7 @@ pub unsafe fn os_icon_reset() {
 }
 
 #[cfg(windows)]
-pub unsafe fn os_icon_init() {
+pub fn os_icon_init() {
     unsafe {
         wincon_st().H_WND = GetConsoleWindow();
         if wincon_st().H_WND.is_null() {
@@ -359,7 +357,7 @@ pub unsafe fn os_icon_init() {
 }
 
 #[cfg(windows)]
-pub unsafe fn os_title_save() {
+pub fn os_title_save() {
     unsafe {
         let ptr = std::ptr::addr_of_mut!(wincon_st().ORIG_TITLE).cast::<c_char>();
         GetConsoleTitleA(ptr, 256);
@@ -367,7 +365,7 @@ pub unsafe fn os_title_save() {
 }
 
 #[cfg(windows)]
-pub unsafe fn os_title_reset() {
+pub fn os_title_reset() {
     unsafe {
         let ptr = std::ptr::addr_of!(wincon_st().ORIG_TITLE).cast::<c_char>();
         SetConsoleTitleA(ptr);
@@ -416,7 +414,7 @@ mod tests {
     #[test]
     fn clear_hwnd_and_icon_reset_handle_null() {
         #[cfg(windows)]
-        unsafe {
+        {
             super::os_clear_hwnd();
             super::os_icon_reset();
         }

@@ -249,12 +249,10 @@ pub unsafe extern "C" fn nvim_tabpage_get_number(tabpage: Tabpage, err: &mut Err
 // DLLEXPORT Boolean nvim_tabpage_is_valid(Tabpage tabpage) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_tabpage_is_valid(tabpage: Tabpage) -> Boolean {
-    unsafe {
-        let mut stub = Error::new();
+    let mut stub = Error::new();
         let ret = !find_tab_by_handle(tabpage, &mut stub).is_null();
         api_clear_error(&mut stub);
         ret
-    }
 }
 
 /// Opens a new tabpage.

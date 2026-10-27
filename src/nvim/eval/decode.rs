@@ -141,7 +141,7 @@ pub unsafe fn decode_string(
     tv
 }
 
-unsafe fn json_decoder_pop(
+fn json_decoder_pop(
     obj: ValuesStackItem,
     stack: &mut Vec<ValuesStackItem>,
     container_stack: &mut Vec<JsonContainerStackItem>,

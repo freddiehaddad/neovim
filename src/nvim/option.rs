@@ -5160,8 +5160,7 @@ pub unsafe fn optval_free_read(opt_idx: OptIndex, value: Object) {
 
 /// Free an allocated option value.
 pub unsafe fn optval_free(o: Object) {
-    unsafe {
-        match o.obj_type {
+    match o.obj_type {
             ObjectType::kObjectTypeString => {
                 if o.data.string().data != empty_string_option.as_ptr().cast::<c_char>() {
                     api_free_string(o.data.string());
@@ -5176,13 +5175,11 @@ pub unsafe fn optval_free(o: Object) {
             | ObjectType::kObjectTypeInteger => {}
             _ => std::process::abort(),
         }
-    }
 }
 
 /// Check if two option values are equal.
 pub unsafe fn option_equal(o1: Object, o2: Object) -> bool {
-    unsafe {
-        if o1.obj_type != o2.obj_type {
+    if o1.obj_type != o2.obj_type {
             return false;
         }
 
@@ -5196,7 +5193,6 @@ pub unsafe fn option_equal(o1: Object, o2: Object) -> bool {
             ObjectType::kObjectTypeLuaRef => false,
             _ => std::process::abort(),
         }
-    }
 }
 
 /// Convert a tri-state boolean option to Object.

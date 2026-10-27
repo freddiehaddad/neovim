@@ -476,12 +476,12 @@ pub const fn s_issock(m: u64) -> bool {
 }
 
 #[inline]
-pub unsafe fn os_errno() -> c_int {
+pub fn os_errno() -> c_int {
     unsafe { *errno_ptr() }
 }
 
 #[inline]
-pub unsafe fn os_set_errno(val: c_int) {
+pub fn os_set_errno(val: c_int) {
     unsafe {
         *errno_ptr() = val;
     }
@@ -849,7 +849,7 @@ pub unsafe fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut crate:
 }
 
 /// Sets file descriptor `fd` to close-on-exec (Unix) or non-inheritable (Windows).
-pub unsafe fn os_set_cloexec(fd: c_int) -> c_int {
+pub fn os_set_cloexec(fd: c_int) -> c_int {
     #[cfg(not(windows))]
     unsafe {
         let fdflags = fcntl(fd, F_GETFD);
@@ -896,7 +896,7 @@ pub unsafe fn os_set_cloexec(fd: c_int) -> c_int {
 }
 
 /// Close a file.
-pub unsafe fn os_close(fd: c_int) -> c_int {
+pub fn os_close(fd: c_int) -> c_int {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_close(ptr::null_mut(), &raw mut req, fd, ptr::null());
@@ -906,7 +906,7 @@ pub unsafe fn os_close(fd: c_int) -> c_int {
 }
 
 /// Duplicate file descriptor.
-pub unsafe fn os_dup(fd: c_int) -> c_int {
+pub fn os_dup(fd: c_int) -> c_int {
     unsafe {
         loop {
             let ret = dup(fd);
@@ -927,20 +927,17 @@ pub unsafe fn os_dup(fd: c_int) -> c_int {
 
 /// Duplicates file descriptor `fd` and marks the copy close-on-exec.
 #[cfg(windows)]
-pub unsafe fn os_dup_cloexec(fd: c_int) -> c_int {
-    unsafe {
-        let newfd = os_dup(fd);
+pub fn os_dup_cloexec(fd: c_int) -> c_int {
+    let newfd = os_dup(fd);
         if newfd >= 0 {
             let _ = os_set_cloexec(newfd);
         }
         newfd
-    }
 }
 
 /// Open the file descriptor for stdin.
-pub unsafe fn os_open_stdin_fd() -> c_int {
-    unsafe {
-        if g_st().stdin_fd > 0 {
+pub fn os_open_stdin_fd() -> c_int {
+    if g_st().stdin_fd > 0 {
             g_st().stdin_fd
         } else {
             let fd = os_dup(STDIN_FILENO);
@@ -948,7 +945,6 @@ pub unsafe fn os_open_stdin_fd() -> c_int {
             os_redirect_stdin_to_conin();
             fd
         }
-    }
 }
 
 /// Read from a file.
@@ -1128,7 +1124,7 @@ pub unsafe fn os_copy(path: *const c_char, new_path: *const c_char, flags: c_int
 }
 
 /// Flushes file modifications to disk.
-pub unsafe fn os_fsync(fd: c_int) -> c_int {
+pub fn os_fsync(fd: c_int) -> c_int {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fsync(ptr::null_mut(), &raw mut req, fd, ptr::null());
@@ -1178,7 +1174,7 @@ pub unsafe fn os_setperm(name: *const c_char, perm: c_int) -> c_int {
 
 /// Set the permission of the file referred to by the open file descriptor.
 #[cfg(unix)]
-pub unsafe fn os_fsetperm(fd: c_int, perm: c_int) -> c_int {
+pub fn os_fsetperm(fd: c_int, perm: c_int) -> c_int {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fchmod(ptr::null_mut(), &raw mut req, fd, perm, ptr::null());
@@ -1318,7 +1314,7 @@ pub unsafe fn os_chown(path: *const c_char, owner: uv_uid_t, group: uv_gid_t) ->
 
 /// Changes the owner and group of an open file descriptor, like `fchown(2)`.
 #[cfg_attr(not(unix), cfg(test))]
-pub unsafe fn os_fchown(fd: c_int, owner: uv_uid_t, group: uv_gid_t) -> c_int {
+pub fn os_fchown(fd: c_int, owner: uv_uid_t, group: uv_gid_t) -> c_int {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fchown(ptr::null_mut(), &raw mut req, fd, owner, group, ptr::null());
@@ -1654,7 +1650,7 @@ pub unsafe fn os_fileinfo_link(path: *const c_char, file_info: &mut FileInfo) ->
 }
 
 /// Get the file information for a given file descriptor.
-pub unsafe fn os_fileinfo_fd(file_descriptor: c_int, file_info: &mut FileInfo) -> bool {
+pub fn os_fileinfo_fd(file_descriptor: c_int, file_info: &mut FileInfo) -> bool {
     unsafe {
         *file_info = FileInfo::new();
         {

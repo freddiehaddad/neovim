@@ -152,9 +152,7 @@ impl RpcState {
 
 impl Drop for RpcState {
     fn drop(&mut self) {
-        unsafe {
-            api_free_dict(self.info);
-        }
+        api_free_dict(self.info);
     }
 }
 
@@ -223,7 +221,7 @@ pub fn channel_outstream(chan: &mut Channel) -> *mut RStream {
 }
 
 #[inline]
-pub unsafe fn find_channel(id: u64) -> *mut Channel {
+pub fn find_channel(id: u64) -> *mut Channel {
     unsafe {
         let chans_ptr = &raw const g_st().channels;
         (*chans_ptr).get(&id).copied().unwrap_or(ptr::null_mut())
@@ -235,14 +233,14 @@ fn unpacker_closed(p: &Unpacker) -> bool {
     p.state < 0
 }
 
-pub unsafe fn rpc_init() {
+pub fn rpc_init() {
     unsafe {
         let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
         g_st().ch_before_blocking_events = multiqueue_new_child((*qc).events);
     }
 }
 
-pub unsafe fn rpc_start(channel: &mut Channel) {
+pub fn rpc_start(channel: &mut Channel) {
     unsafe {
         channel_incref(&raw mut *channel);
 
@@ -270,7 +268,7 @@ pub unsafe fn rpc_start(channel: &mut Channel) {
 }
 
 #[inline]
-unsafe fn find_rpc_channel(id: u64) -> *mut Channel {
+fn find_rpc_channel(id: u64) -> *mut Channel {
     unsafe {
         let chan = find_channel(id);
         if chan.is_null() {
@@ -468,7 +466,7 @@ fn find_call_frame(rpc: &RpcState, request_id: u32) -> Option<std::rc::Rc<Channe
     None
 }
 
-unsafe fn parse_msgpack(channel: &mut Channel) {
+fn parse_msgpack(channel: &mut Channel) {
     unsafe {
         let cp = &raw mut *channel;
         let ct = &raw mut *channel;
@@ -546,7 +544,7 @@ unsafe fn parse_msgpack(channel: &mut Channel) {
     }
 }
 
-unsafe fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
+fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
     unsafe {
         assert!(
             p.msg_type == MessageType::kMessageTypeRequest
@@ -613,7 +611,7 @@ unsafe fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
     }
 }
 
-pub unsafe fn request_event(mut e: RequestEvent) {
+pub fn request_event(mut e: RequestEvent) {
     unsafe {
         let channel = e.channel;
         let cp = &raw mut *channel;
@@ -646,7 +644,7 @@ pub unsafe fn request_event(mut e: RequestEvent) {
     }
 }
 
-pub unsafe fn rpc_write_raw(id: u64, buffer: std::rc::Rc<WBuffer>) -> bool {
+pub fn rpc_write_raw(id: u64, buffer: std::rc::Rc<WBuffer>) -> bool {
     unsafe {
         let channel = find_rpc_channel(id);
         if channel.is_null() {
@@ -657,7 +655,7 @@ pub unsafe fn rpc_write_raw(id: u64, buffer: std::rc::Rc<WBuffer>) -> bool {
     }
 }
 
-unsafe fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
+fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
     unsafe {
         let cp = &raw mut *channel;
         let ct = &raw mut *channel;
@@ -700,7 +698,7 @@ unsafe fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> 
     }
 }
 
-pub unsafe fn internal_read_event(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) {
+pub fn internal_read_event(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) {
     unsafe {
         let ct = &raw mut *channel;
         let p: *mut Unpacker = (*ct).rpc.unpacker.as_deref_mut().unwrap();
@@ -761,7 +759,7 @@ unsafe fn broadcast_event(name: *const c_char, args: Array) {
     }
 }
 
-unsafe fn has_undetached_rpc_chan() -> bool {
+fn has_undetached_rpc_chan() -> bool {
     unsafe {
         let chans_ptr = &raw const g_st().channels;
         for &chan in (*chans_ptr).values() {
@@ -774,7 +772,7 @@ unsafe fn has_undetached_rpc_chan() -> bool {
     false
 }
 
-pub unsafe fn rpc_close(channel: &mut Channel) {
+pub fn rpc_close(channel: &mut Channel) {
     unsafe {
         let ct = &raw mut *channel;
         if (*ct).rpc.closed {
@@ -986,7 +984,7 @@ unsafe fn packer_buffer_init_channels(
     }
 }
 
-unsafe fn packer_buffer_finish_channels(packer: &mut PackerBuffer) {
+fn packer_buffer_finish_channels(packer: &mut PackerBuffer) {
     unsafe {
         let len = (packer.ptr as usize) - (packer.startptr as usize);
         let mut vec = std::mem::take(&mut packer.owned_buf);
@@ -1004,7 +1002,7 @@ unsafe fn packer_buffer_finish_channels(packer: &mut PackerBuffer) {
     }
 }
 
-pub(crate) unsafe fn channel_flush_callback(packer: &mut PackerBuffer) {
+pub(crate) fn channel_flush_callback(packer: &mut PackerBuffer) {
     unsafe {
         packer_buffer_finish_channels(packer);
         packer_buffer_init_channels(
@@ -1015,7 +1013,7 @@ pub(crate) unsafe fn channel_flush_callback(packer: &mut PackerBuffer) {
     }
 }
 
-pub unsafe fn rpc_set_client_info(id: u64, info: Dict) {
+pub fn rpc_set_client_info(id: u64, info: Dict) {
     unsafe {
         let chan = find_rpc_channel(id);
         if chan.is_null() {
@@ -1067,7 +1065,7 @@ pub unsafe fn get_client_info(chan: &mut Channel, key: *const c_char) -> *const 
     }
 }
 
-pub unsafe fn rpc_free_all_mem() {
+pub fn rpc_free_all_mem() {
     unsafe {
         multiqueue_free(g_st().ch_before_blocking_events);
     }

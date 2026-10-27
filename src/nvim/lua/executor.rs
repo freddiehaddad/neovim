@@ -650,7 +650,7 @@ pub unsafe fn nlua_pcall(lstate: *mut lua_State, nargs: c_int, mut nresults: c_i
     }
 }
 
-pub unsafe fn nlua_luv_error_event(error: Option<std::ffi::CString>, err_type: isize) {
+pub fn nlua_luv_error_event(error: Option<std::ffi::CString>, err_type: isize) {
     unsafe {
         let error_ptr = error.as_ref().map_or(ptr::null(), |c| c.as_ptr());
         match err_type {
@@ -868,7 +868,7 @@ unsafe fn nlua_init_argv(
     }
 }
 
-pub unsafe fn nlua_schedule_event(cb: LuaRef, ns_id: u32) {
+pub fn nlua_schedule_event(cb: LuaRef, ns_id: u32) {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
 
@@ -957,7 +957,7 @@ unsafe extern "C-unwind" fn nlua_check_interrupt(lstate: *mut lua_State) -> c_in
     }
 }
 
-pub unsafe fn nlua_ex_getline(
+pub fn nlua_ex_getline(
     _c: c_int,
     ecd: &mut ExDocmdCookie,
     _indent: c_int,
@@ -1061,7 +1061,7 @@ pub unsafe fn nlua_get_empty_dict_ref(lstate: *mut lua_State) -> LuaRef {
     unsafe { (*nlua_get_ref_state(lstate)).empty_dict_ref }
 }
 
-pub unsafe fn nlua_get_global_ref_count() -> c_int {
+pub fn nlua_get_global_ref_count() -> c_int {
     unsafe { (*g_st().nlua_global_refs).ref_count }
 }
 
@@ -1351,10 +1351,10 @@ pub unsafe fn nlua_init(argv: *mut *mut c_char, argc: c_int, lua_arg0: c_int) {
 }
 
 unsafe extern "C-unwind" fn nlua_thread_acquire_vm() -> *mut lua_State {
-    unsafe { nlua_init_state(true) }
+    nlua_init_state(true)
 }
 
-unsafe fn nlua_init_state(thread: bool) -> *mut lua_State {
+fn nlua_init_state(thread: bool) -> *mut lua_State {
     unsafe {
         let self_ = uv_thread_self();
         if uv_thread_equal(&raw const nlua_st().MAIN_THREAD, &raw const self_) != 0 {
@@ -1394,7 +1394,7 @@ unsafe fn nlua_init_state(thread: bool) -> *mut lua_State {
     }
 }
 
-pub unsafe fn nlua_free_all_mem() {
+pub fn nlua_free_all_mem() {
     unsafe {
         if nlua_st().GLOBAL_LSTATE.is_null() {
             return;
@@ -1415,7 +1415,7 @@ unsafe extern "C-unwind" fn nlua_common_free_all_mem(lstate: *mut lua_State) {
     }
 }
 
-pub unsafe fn nlua_print_event(text: NvimString) {
+pub fn nlua_print_event(text: NvimString) {
     unsafe {
         msg_ext_no_fast();
         let raw =
@@ -1873,7 +1873,7 @@ pub unsafe fn nlua_unref_global(lstate: *mut lua_State, ref_: LuaRef) {
     }
 }
 
-pub unsafe fn api_free_luaref(ref_: LuaRef) {
+pub fn api_free_luaref(ref_: LuaRef) {
     unsafe {
         nlua_unref_global(nlua_st().GLOBAL_LSTATE, ref_);
     }
@@ -1885,7 +1885,7 @@ pub unsafe fn nlua_pushref(lstate: *mut lua_State, ref_: LuaRef) {
     }
 }
 
-pub unsafe fn api_new_luaref(original_ref: LuaRef) -> LuaRef {
+pub fn api_new_luaref(original_ref: LuaRef) -> LuaRef {
     if original_ref == LUA_NOREF {
         return LUA_NOREF;
     }
@@ -2179,7 +2179,7 @@ pub unsafe fn nlua_call_excmd(
     }
 }
 
-pub unsafe fn nlua_ref_is_function(ref_: LuaRef) -> bool {
+pub fn nlua_ref_is_function(ref_: LuaRef) -> bool {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
         nlua_pushref(lstate, ref_);
@@ -2320,7 +2320,7 @@ pub fn nlua_is_deferred_safe() -> bool {
     nlua_st().IN_FAST_CALLBACK == 0
 }
 
-pub unsafe fn ex_lua(eap: &mut exarg_T) {
+pub fn ex_lua(eap: &mut exarg_T) {
     unsafe {
         if *eap.arg == NUL {
             if eap.addr_count > 0 {
@@ -2366,7 +2366,7 @@ pub unsafe fn ex_lua(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_luado(eap: &mut exarg_T) {
+pub fn ex_luado(eap: &mut exarg_T) {
     unsafe {
         if u_save(eap.line1 - 1, eap.line2 + 1) == FAIL {
             emsg(gettext(c"cannot save undo information".as_ptr()));
@@ -2459,7 +2459,7 @@ pub unsafe fn ex_luado(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_luafile(eap: &mut exarg_T) {
+pub fn ex_luafile(eap: &mut exarg_T) {
     unsafe {
         let _ = nlua_exec_file(eap.arg);
     }
@@ -2530,7 +2530,7 @@ pub unsafe fn nlua_exec_file(path: *const c_char) -> bool {
     }
 }
 
-pub unsafe fn nlua_expand_pat(xp: &mut expand_T) {
+pub fn nlua_expand_pat(xp: &mut expand_T) {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
         let mut status = FAIL;
@@ -2590,7 +2590,7 @@ pub unsafe fn nlua_expand_pat(xp: &mut expand_T) {
     }
 }
 
-pub unsafe fn nlua_expand_get_matches(results: &mut Vec<std::ffi::CString>) -> c_int {
+pub fn nlua_expand_get_matches(results: &mut Vec<std::ffi::CString>) -> c_int {
     unsafe {
         let er = &raw mut nlua_st().EXPAND_RESULT_ARRAY;
         *results = std::mem::take(&mut *er);
@@ -2605,7 +2605,7 @@ unsafe extern "C-unwind" fn nlua_is_thread(lstate: *mut lua_State) -> c_int {
     }
 }
 
-pub unsafe fn nlua_is_table_from_lua(arg: &typval_T) -> bool {
+pub fn nlua_is_table_from_lua(arg: &typval_T) -> bool {
     unsafe {
         if arg.v_type == VarType::VAR_DICT {
             (*arg.vval.v_dict()).lua_table_ref != LUA_NOREF
@@ -2617,7 +2617,7 @@ pub unsafe fn nlua_is_table_from_lua(arg: &typval_T) -> bool {
     }
 }
 
-pub unsafe fn nlua_register_table_as_callable(arg: &typval_T) -> *mut c_char {
+pub fn nlua_register_table_as_callable(arg: &typval_T) -> *mut c_char {
     unsafe {
         let table_ref = if arg.v_type == VarType::VAR_DICT {
             (*arg.vval.v_dict()).lua_table_ref
@@ -2701,7 +2701,7 @@ pub unsafe fn nlua_exec_on_key(c: c_int, typed_buf: *mut c_char) -> bool {
     }
 }
 
-pub unsafe fn nlua_set_sctx(current: &mut sctx_T) {
+pub fn nlua_set_sctx(current: &mut sctx_T) {
     unsafe {
         if !script_is_lua(current.sc_sid) {
             return;
@@ -2744,7 +2744,7 @@ pub unsafe fn nlua_set_sctx(current: &mut sctx_T) {
     }
 }
 
-pub unsafe fn nlua_do_ucmd(cmd: &mut ucmd_T, eap: &mut exarg_T, preview: bool) -> c_int {
+pub fn nlua_do_ucmd(cmd: &mut ucmd_T, eap: &mut exarg_T, preview: bool) -> c_int {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
         nlua_pushref(
@@ -2830,7 +2830,7 @@ pub unsafe fn nlua_do_ucmd(cmd: &mut ucmd_T, eap: &mut exarg_T, preview: bool) -
     }
 }
 
-pub unsafe fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
+pub fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
         if lua_checkstack(lstate, 1) != 0 {
@@ -2864,7 +2864,7 @@ pub unsafe fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CStrin
     }
 }
 
-pub unsafe fn nlua_init_defaults() {
+pub fn nlua_init_defaults() {
     unsafe {
         let L = nlua_st().GLOBAL_LSTATE;
         assert!(!L.is_null());
@@ -2932,10 +2932,8 @@ mod tests {
         assert!(is_user_cmdidx(CMD_USER));
         assert!(is_user_cmdidx(CMD_USER_BUF));
         assert!(!is_user_cmdidx(0));
-        unsafe {
-            assert!(nlua_is_deferred_safe());
+        assert!(nlua_is_deferred_safe());
             assert_eq!(api_new_luaref(LUA_NOREF), LUA_NOREF);
-        }
         assert_eq!(BUILTIN_MODULES[0].name, c"vim._init_packages");
         assert_eq!(BUILTIN_MODULES[1].name, c"vim.inspect");
         for m in &BUILTIN_MODULES {

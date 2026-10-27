@@ -323,13 +323,11 @@ pub unsafe fn ui_client_run() -> ! {
 }
 
 pub unsafe fn ui_client_stop() {
-    unsafe {
-        g_st().ui_client_attached = false;
+    g_st().ui_client_attached = false;
         let t = tui_ptr();
         if !tui_is_stopped(t) {
             tui_stop(t);
         }
-    }
 }
 
 pub unsafe fn ui_client_set_size(width: c_int, height: c_int) {
@@ -743,15 +741,11 @@ pub fn ui_client_event_busy_stop(_args: Array) {
 }
 
 pub unsafe fn ui_client_event_mouse_on(_args: Array) {
-    unsafe {
-        tui_mouse_on(tui_ptr());
-    }
+    tui_mouse_on(tui_ptr());
 }
 
 pub unsafe fn ui_client_event_mouse_off(_args: Array) {
-    unsafe {
-        tui_mouse_off(tui_ptr());
-    }
+    tui_mouse_off(tui_ptr());
 }
 
 pub unsafe fn ui_client_event_mode_change(args: Array) {
@@ -775,27 +769,19 @@ pub unsafe fn ui_client_event_mode_change(args: Array) {
 }
 
 pub unsafe fn ui_client_event_bell(_args: Array) {
-    unsafe {
-        tui_bell(tui_ptr());
-    }
+    tui_bell(tui_ptr());
 }
 
 pub unsafe fn ui_client_event_visual_bell(_args: Array) {
-    unsafe {
-        tui_visual_bell(tui_ptr());
-    }
+    tui_visual_bell(tui_ptr());
 }
 
 pub unsafe fn ui_client_event_flush(_args: Array) {
-    unsafe {
-        tui_flush(tui_ptr());
-    }
+    tui_flush(tui_ptr());
 }
 
 pub unsafe fn ui_client_event_suspend(_args: Array) {
-    unsafe {
-        tui_suspend(tui_ptr());
-    }
+    tui_suspend(tui_ptr());
 }
 
 pub unsafe fn ui_client_event_set_title(args: Array) {

@@ -95,12 +95,10 @@ const fn decor_provider_init(ns_id: NS) -> DecorProvider {
 
 #[inline]
 unsafe fn clear_ref(r: &mut LuaRef) {
-    unsafe {
-        if *r != LUA_NOREF {
+    if *r != LUA_NOREF {
             api_free_luaref(*r);
             *r = LUA_NOREF;
         }
-    }
 }
 
 unsafe fn decor_provider_error(

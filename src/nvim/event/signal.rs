@@ -47,7 +47,7 @@ pub unsafe fn signal_watcher_init(
     }
 }
 
-pub unsafe fn signal_watcher_start(watcher: &mut SignalWatcher, signum: c_int) {
+pub fn signal_watcher_start(watcher: &mut SignalWatcher, signum: c_int) {
     unsafe {
         watcher.signum = signum;
         uv_signal_start(
@@ -58,19 +58,19 @@ pub unsafe fn signal_watcher_start(watcher: &mut SignalWatcher, signum: c_int) {
     }
 }
 
-pub unsafe fn signal_watcher_stop(watcher: &mut SignalWatcher) {
+pub fn signal_watcher_stop(watcher: &mut SignalWatcher) {
     unsafe {
         uv_signal_stop((&raw mut watcher.uv).cast());
     }
 }
 
-pub unsafe fn signal_watcher_close(watcher: &mut SignalWatcher) {
+pub fn signal_watcher_close(watcher: &mut SignalWatcher) {
     unsafe {
         uv_close((&raw mut watcher.uv).cast(), None);
     }
 }
 
-pub unsafe fn signal_event(watcher: &mut SignalWatcher) {
+pub fn signal_event(watcher: &mut SignalWatcher) {
     unsafe {
         if watcher.data.is_null() {
             crate::os::signal::on_signal(watcher.signum);

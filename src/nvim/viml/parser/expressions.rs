@@ -1287,7 +1287,7 @@ fn get_ccs(ret: &mut LexExprToken, bytes: &[u8]) {
 }
 
 /// Get next token for the Vimscript expression input (`viml_pexpr_next_token`).
-pub unsafe fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: c_int) -> LexExprToken {
+pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: c_int) -> LexExprToken {
     unsafe {
         let mut ret = LexExprToken::new();
         ret.r#type = kExprLexInvalid;
@@ -1759,7 +1759,7 @@ const fn recol_pos(pos: ParserPosition, new_col: usize) -> ParserPosition {
 }
 
 #[inline]
-unsafe fn east_set_error(
+fn east_set_error(
     pstate: &ParserState<'_>,
     ret_ast_err: &mut ExprASTError,
     msg: &'static std::ffi::CStr,
@@ -1780,7 +1780,7 @@ unsafe fn east_set_error(
     }
 }
 
-unsafe fn viml_pexpr_handle_bop(
+fn viml_pexpr_handle_bop(
     pstate: &ParserState<'_>,
     ast_stack: &mut ExprASTStack,
     mut bop_node: Box<ExprASTNode>,
@@ -1893,7 +1893,7 @@ macro_rules! hl_group {
     };
 }
 
-unsafe fn parse_quoted_string(
+fn parse_quoted_string(
     pstate: &mut ParserState<'_>,
     node: &mut ExprASTNode,
     token: LexExprToken,
@@ -2287,7 +2287,7 @@ const WANT_NODE_TO_LEXER_FLAGS: [c_int; 2] = [
 const BASE_TO_PREFIX_LENGTH: [usize; 17] = [0, 0, 2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2];
 
 /// Parse one Vimscript expression (`viml_pexpr_parse`).
-pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
+pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
     unsafe {
         let mut ast = ExprAST {
             err: ExprASTError {
@@ -4234,14 +4234,13 @@ mod tests {
         f(&mut pstate)
     }
 
-    unsafe fn lex_one(input: &[u8], flags: c_int) -> LexExprToken {
-        unsafe { with_pstate(input, |pstate| viml_pexpr_next_token(pstate, flags)) }
+    fn lex_one(input: &[u8], flags: c_int) -> LexExprToken {
+        with_pstate(input, |pstate| viml_pexpr_next_token(pstate, flags))
     }
 
     #[test]
     fn lexer_tokens_and_flags() {
-        unsafe {
-            let t = lex_one(b"(", 0);
+        let t = lex_one(b"(", 0);
             assert_eq!(t.r#type, kExprLexParenthesis);
             assert!(!t.data.brc().closing);
 
@@ -4358,13 +4357,11 @@ mod tests {
             assert_eq!(t.r#type, kExprLexEOC);
             let t = lex_one(b"|", kELFlagForbidEOC);
             assert_eq!(t.r#type, kExprLexInvalid);
-        }
     }
 
     #[test]
     fn lex_and_parse_expressions_and_errors() {
-        unsafe {
-            // Binary precedence: 1 + 2 * 3
+        // Binary precedence: 1 + 2 * 3
             with_pstate(b"1 + 2 * 3", |pstate| {
                 let ast = viml_pexpr_parse(pstate, 0);
                 assert!(ast.err.msg.is_none());
@@ -4415,6 +4412,5 @@ mod tests {
                     b": Missing ':' after '?': %.*s"
                 );
             });
-        }
     }
 }

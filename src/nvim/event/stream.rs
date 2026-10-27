@@ -160,7 +160,7 @@ use crate::event::r#loop::{uv_idle_init, uv_stream_get_write_queue_size, uv_stre
 #[cfg(windows)]
 use crate::os::os_win_console::{GetConsoleMode, SetConsoleMode};
 
-pub unsafe fn stream_set_blocking(fd: c_int, blocking: bool) -> c_int {
+pub fn stream_set_blocking(fd: c_int, blocking: bool) -> c_int {
     unsafe {
         let mut loop_buf = [0u64; 256];
         let mut pipe_buf = [0u64; 128];
@@ -251,7 +251,7 @@ pub unsafe fn stream_init(
     }
 }
 
-pub unsafe fn stream_may_close(stream: &mut Stream) {
+pub fn stream_may_close(stream: &mut Stream) {
     unsafe {
         if stream.closed {
             return;
@@ -282,7 +282,7 @@ pub unsafe fn stream_may_close(stream: &mut Stream) {
     }
 }
 
-pub unsafe fn stream_close_handle(stream: &mut Stream) {
+pub fn stream_close_handle(stream: &mut Stream) {
     unsafe {
         let handle: *mut uv_handle_t = if stream.has_uvstream {
             let queued = uv_stream_get_write_queue_size(stream.uvstream_ptr());

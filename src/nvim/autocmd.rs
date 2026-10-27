@@ -129,12 +129,10 @@ impl Default for AutoCmd {
 
 impl Drop for AutoCmd {
     fn drop(&mut self) {
-        unsafe {
-            if let AutoCmdHandler::Fn(cb) = &mut self.handler {
+        if let AutoCmdHandler::Fn(cb) = &mut self.handler {
                 callback_free(cb);
             }
             self.handler = AutoCmdHandler::None;
-        }
     }
 }
 
@@ -339,11 +337,9 @@ pub struct AutoCmdEvent {
 
 impl Drop for AutoCmdEvent {
     fn drop(&mut self) {
-        unsafe {
-            if let Some(data) = self.data.take() {
+        if let Some(data) = self.data.take() {
                 api_free_object(data);
             }
-        }
     }
 }
 
@@ -3826,13 +3822,11 @@ pub unsafe fn autocmd_delete_id(id: i64) -> bool {
 }
 
 pub unsafe fn aucmd_handler_to_string(ac: &mut AutoCmd) -> CString {
-    unsafe {
-        match &mut ac.handler {
+    match &mut ac.handler {
             AutoCmdHandler::Cmd(cmd) => cmd.clone(),
             AutoCmdHandler::Fn(cb) => callback_to_string(cb),
             AutoCmdHandler::None => CString::default(),
         }
-    }
 }
 
 unsafe fn arg_event_skip(arg: *mut c_char, have_group: bool) -> *mut c_char {

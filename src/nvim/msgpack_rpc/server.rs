@@ -120,7 +120,7 @@ pub unsafe fn server_init(mut listen_addr: *const c_char) -> bool {
     }
 }
 
-unsafe fn set_vservername(srvs: &[*mut SocketWatcher]) {
+fn set_vservername(srvs: &[*mut SocketWatcher]) {
     unsafe {
         let default_server = srvs
             .first()
@@ -129,7 +129,7 @@ unsafe fn set_vservername(srvs: &[*mut SocketWatcher]) {
     }
 }
 
-pub unsafe fn server_teardown() {
+pub fn server_teardown() {
     unsafe {
         for &watcher in watchers_mut().iter() {
             socket_watcher_close(&mut *watcher);
@@ -324,7 +324,7 @@ pub unsafe fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bo
     }
 }
 
-pub unsafe fn server_address_list() -> Vec<std::ffi::CString> {
+pub fn server_address_list() -> Vec<std::ffi::CString> {
     unsafe {
         watchers_mut()
             .iter()

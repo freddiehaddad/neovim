@@ -67,7 +67,7 @@ pub struct mpack_rpc_session_t {
 }
 
 impl mpack_rpc_session_t {
-    pub unsafe fn new(capacity: mpack_uint32_t) -> Self {
+    pub fn new(capacity: mpack_uint32_t) -> Self {
         unsafe {
             let cap = if capacity != 0 {
                 capacity as usize

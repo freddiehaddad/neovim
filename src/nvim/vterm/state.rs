@@ -268,7 +268,7 @@ fn set_tmp_selection_recvpartial(state: &mut VTermStateFull, val: u32) {
     state.tmp.words[1] = val;
 }
 
-unsafe fn putglyph(state: &mut VTermStateFull, schar: schar_T, width: c_int, pos: VTermPos) {
+fn putglyph(state: &mut VTermStateFull, schar: schar_T, width: c_int, pos: VTermPos) {
     unsafe {
         let li = state.lineinfo()[pos.row as usize];
         let flags = (state.protected_cell & 0x01)
@@ -288,7 +288,7 @@ unsafe fn putglyph(state: &mut VTermStateFull, schar: schar_T, width: c_int, pos
     }
 }
 
-unsafe fn updatecursor(state: &mut VTermStateFull, oldpos: &VTermPos, cancel_phantom: c_int) {
+fn updatecursor(state: &mut VTermStateFull, oldpos: &VTermPos, cancel_phantom: c_int) {
     unsafe {
         if state.pos.col == oldpos.col && state.pos.row == oldpos.row {
             return;
@@ -307,7 +307,7 @@ unsafe fn updatecursor(state: &mut VTermStateFull, oldpos: &VTermPos, cancel_pha
     }
 }
 
-unsafe fn erase(state: &mut VTermStateFull, rect: VTermRect, selective: c_int) {
+fn erase(state: &mut VTermStateFull, rect: VTermRect, selective: c_int) {
     unsafe {
         if rect.end_col == state.cols {
             let rows = state.rows;
@@ -327,9 +327,8 @@ unsafe fn erase(state: &mut VTermStateFull, rect: VTermRect, selective: c_int) {
     }
 }
 
-unsafe fn vterm_state_new(vt: &mut VTerm) -> Box<VTermStateFull> {
-    unsafe {
-        let rows = vt.rows;
+fn vterm_state_new(vt: &mut VTerm) -> Box<VTermStateFull> {
+    let rows = vt.rows;
         let cols = vt.cols;
         let mut state = Box::new(VTermStateFull {
             vt,
@@ -396,10 +395,9 @@ unsafe fn vterm_state_new(vt: &mut VTerm) -> Box<VTermStateFull> {
         }
 
         state
-    }
 }
 
-unsafe fn scroll(
+fn scroll(
     state: &mut VTermStateFull,
     rect: VTermRect,
     mut downward: c_int,
@@ -467,9 +465,8 @@ unsafe fn scroll(
     }
 }
 
-unsafe fn linefeed(state: &mut VTermStateFull) {
-    unsafe {
-        if state.pos.row == scrollregion_bottom(state) - 1 {
+fn linefeed(state: &mut VTermStateFull) {
+    if state.pos.row == scrollregion_bottom(state) - 1 {
             let rect = VTermRect {
                 start_row: state.scrollregion_top,
                 end_row: scrollregion_bottom(state),
@@ -481,7 +478,6 @@ unsafe fn linefeed(state: &mut VTermStateFull) {
         } else if state.pos.row < state.rows - 1 {
             state.pos.row += 1;
         }
-    }
 }
 
 #[inline]
@@ -538,7 +534,7 @@ fn tab(state: &mut VTermStateFull, mut count: c_int, direction: c_int) {
         }
 }
 
-unsafe fn set_lineinfo(
+fn set_lineinfo(
     state: &mut VTermStateFull,
     row: c_int,
     force: c_int,
@@ -811,7 +807,7 @@ unsafe fn on_control(control: u8, state: *mut VTermStateFull) -> c_int {
 }
 
 #[inline]
-unsafe fn settermprop_bool(state: &mut VTermStateFull, prop: VTermProp, v: c_int) -> c_int {
+fn settermprop_bool(state: &mut VTermStateFull, prop: VTermProp, v: c_int) -> c_int {
     unsafe {
         let mut val = VTermValue::Boolean(v);
         vterm_state_set_termprop(state, prop, &raw mut val)
@@ -819,7 +815,7 @@ unsafe fn settermprop_bool(state: &mut VTermStateFull, prop: VTermProp, v: c_int
 }
 
 #[inline]
-unsafe fn settermprop_int(state: &mut VTermStateFull, prop: VTermProp, v: c_int) -> c_int {
+fn settermprop_int(state: &mut VTermStateFull, prop: VTermProp, v: c_int) -> c_int {
     unsafe {
         let mut val = VTermValue::Number(v);
         vterm_state_set_termprop(state, prop, &raw mut val)
@@ -827,7 +823,7 @@ unsafe fn settermprop_int(state: &mut VTermStateFull, prop: VTermProp, v: c_int)
 }
 
 #[inline]
-unsafe fn settermprop_string(
+fn settermprop_string(
     state: &mut VTermStateFull,
     prop: VTermProp,
     frag: VTermStringFragment,
@@ -838,9 +834,8 @@ unsafe fn settermprop_string(
     }
 }
 
-unsafe fn savecursor(state: &mut VTermStateFull, save: c_int) {
-    unsafe {
-        if save != 0 {
+fn savecursor(state: &mut VTermStateFull, save: c_int) {
+    if save != 0 {
             state.saved.pos = state.pos;
             let cv = u32::from((state.mode & MODE_CURSOR_VISIBLE) != 0);
             let cb = u32::from((state.mode & MODE_CURSOR_BLINK) != 0);
@@ -865,7 +860,6 @@ unsafe fn savecursor(state: &mut VTermStateFull, save: c_int) {
 
             updatecursor(state, &oldpos, 1);
         }
-    }
 }
 
 unsafe fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_int {
@@ -1022,9 +1016,8 @@ fn set_mode(state: &mut VTermStateFull, num: c_int, val: c_int) {
         }
 }
 
-unsafe fn set_dec_mode(state: &mut VTermStateFull, num: c_int, val: c_int) {
-    unsafe {
-        match num {
+fn set_dec_mode(state: &mut VTermStateFull, num: c_int, val: c_int) {
+    match num {
             1 => {
                 set_mode_bit(&mut state.mode, MODE_CURSOR, val != 0);
             }
@@ -1109,10 +1102,9 @@ unsafe fn set_dec_mode(state: &mut VTermStateFull, num: c_int, val: c_int) {
             }
             _ => {}
         }
-    }
 }
 
-unsafe fn request_dec_mode(state: &mut VTermStateFull, num: c_int) {
+fn request_dec_mode(state: &mut VTermStateFull, num: c_int) {
     unsafe {
         let reply = match num {
             1 => (state.mode & MODE_CURSOR) != 0,
@@ -1145,14 +1137,14 @@ unsafe fn request_dec_mode(state: &mut VTermStateFull, num: c_int) {
     }
 }
 
-unsafe fn request_version_string(state: &mut VTermStateFull) {
+fn request_version_string(state: &mut VTermStateFull) {
     unsafe {
         let s = format!(">|libvterm({VTERM_VERSION_MAJOR}.{VTERM_VERSION_MINOR})");
         vterm_push_output_str_bytes(&mut *state.vt, C1_DCS, true, s.as_bytes());
     }
 }
 
-unsafe fn request_key_encoding_flags(state: &mut VTermStateFull) {
+fn request_key_encoding_flags(state: &mut VTermStateFull) {
     unsafe {
         let screen = if (state.mode & MODE_ALT_SCREEN) != 0 {
             BUFIDX_ALTSCREEN
@@ -2027,7 +2019,7 @@ const fn unbase64one(c: u8) -> u8 {
     }
 }
 
-unsafe fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
+fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
     unsafe {
         let mut frag_str = frag.str_;
         let mut frag_len = frag.len();
@@ -2241,7 +2233,7 @@ unsafe fn on_osc(command: c_int, frag: VTermStringFragment, state: *mut VTermSta
     }
 }
 
-unsafe fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) {
+fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) {
     unsafe {
         let vt = &mut *state.vt;
         let tmp = (&raw mut state.tmp.words[0]).cast::<u8>();
@@ -2505,7 +2497,7 @@ static PARSER_CALLBACKS: VTermParserCallbacks = VTermParserCallbacks {
     resize: Some(on_resize),
 };
 
-pub unsafe fn vterm_obtain_state(vt: &mut VTerm) -> &'static mut VTermStateFull {
+pub fn vterm_obtain_state(vt: &mut VTerm) -> &'static mut VTermStateFull {
     unsafe {
         if vt.state.is_none() {
             vt.state = Some(vterm_state_new(vt));
@@ -2516,7 +2508,7 @@ pub unsafe fn vterm_obtain_state(vt: &mut VTerm) -> &'static mut VTermStateFull 
     }
 }
 
-pub unsafe fn vterm_state_reset(state: &mut VTermStateFull, hard: c_int) {
+pub fn vterm_state_reset(state: &mut VTermStateFull, hard: c_int) {
     unsafe {
         state.scrollregion_top = 0;
         state.scrollregion_bottom = -1;
@@ -2717,7 +2709,7 @@ pub unsafe fn vterm_state_set_termprop(
     }
 }
 
-pub unsafe fn vterm_state_focus_in(state: &mut VTermStateFull) {
+pub fn vterm_state_focus_in(state: &mut VTermStateFull) {
     unsafe {
         if (state.mode & MODE_REPORT_FOCUS) != 0 {
             vterm_push_output_ctrl_bytes(&mut *state.vt, C1_CSI, b"I");
@@ -2725,7 +2717,7 @@ pub unsafe fn vterm_state_focus_in(state: &mut VTermStateFull) {
     }
 }
 
-pub unsafe fn vterm_state_focus_out(state: &mut VTermStateFull) {
+pub fn vterm_state_focus_out(state: &mut VTermStateFull) {
     unsafe {
         if (state.mode & MODE_REPORT_FOCUS) != 0 {
             vterm_push_output_ctrl_bytes(&mut *state.vt, C1_CSI, b"O");

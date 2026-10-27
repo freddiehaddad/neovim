@@ -382,9 +382,7 @@ fn tag_st() -> &'static mut TagModuleState {
 use crate::charset::toupper_asc;
 
 pub unsafe fn free_tagfunc_option() {
-    unsafe {
-        callback_free(&mut opt_vars().p_tfu);
-    }
+    callback_free(&mut opt_vars().p_tfu);
 }
 
 /// Mark the global `'tagfunc'` callback with `copyID` so that it is not garbage

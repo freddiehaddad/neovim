@@ -84,7 +84,7 @@ impl Event {
         Self::None
     }
 
-    pub unsafe fn dispatch(self) {
+    pub fn dispatch(self) {
         unsafe {
             match self {
                 Self::None => {}
@@ -274,7 +274,7 @@ unsafe fn multiqueue_push(this: *mut MultiQueue, event: Event) {
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-pub unsafe fn multiqueue_get(this: &mut MultiQueue) -> Event {
+pub fn multiqueue_get(this: &mut MultiQueue) -> Event {
     unsafe {
         if multiqueue_empty(&raw mut *this) {
             Event::nil()
@@ -303,7 +303,7 @@ pub unsafe fn multiqueue_put_event(this: *mut MultiQueue, event: Event) {
 ///
 /// # Safety
 /// `dest` and `src` must be valid pointers to `MultiQueue`s.
-pub unsafe fn multiqueue_move_events(dest: &mut MultiQueue, src: &mut MultiQueue) {
+pub fn multiqueue_move_events(dest: &mut MultiQueue, src: &mut MultiQueue) {
     unsafe {
         while !multiqueue_empty(&raw mut *src) {
             let event = multiqueue_get(src);
@@ -352,7 +352,7 @@ pub unsafe fn multiqueue_empty(this: *mut MultiQueue) -> bool {
 ///
 /// # Safety
 /// `this` must be a valid pointer to an empty `MultiQueue`.
-pub unsafe fn multiqueue_replace_parent(this: &mut MultiQueue, new_parent: &mut MultiQueue) {
+pub fn multiqueue_replace_parent(this: &mut MultiQueue, new_parent: &mut MultiQueue) {
     assert!(unsafe { multiqueue_empty(&raw mut *this) });
     this.parent = new_parent;
 }

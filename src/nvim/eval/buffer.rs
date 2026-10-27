@@ -101,7 +101,7 @@ pub unsafe fn find_buffer(avar: *mut typval_T) -> *mut buf_T {
 }
 
 /// If there is a window for `curbuf`, make it the current window (`find_win_for_curbuf`).
-unsafe fn find_win_for_curbuf() {
+fn find_win_for_curbuf() {
     unsafe {
         for wip in &(*g_st().curbuf).b_wininfo {
             if !wip.wi_win.is_null() && (*wip.wi_win).w_buffer == g_st().curbuf {
@@ -137,7 +137,7 @@ unsafe fn change_other_buffer_prepare(cob: &mut cob_T, buf: *mut buf_T) {
     }
 }
 
-unsafe fn change_other_buffer_restore(cob: &mut cob_T) {
+fn change_other_buffer_restore(cob: &mut cob_T) {
     unsafe {
         if cob.cob_using_aco != 0 {
             ctx_restore(&mut cob.cob_aco);
@@ -304,7 +304,7 @@ pub unsafe fn f_appendbufline(argvars: *mut typval_T, rettv: &mut typval_T, _fpt
 }
 
 /// Trim lines above the prompt to enforce `'scrollback'` limit (`prompt_trim_scrollback`).
-unsafe fn prompt_trim_scrollback(buf: &mut buf_T) {
+fn prompt_trim_scrollback(buf: &mut buf_T) {
     unsafe {
         if buf.b_p_scbk <= 0 {
             return;
@@ -355,7 +355,7 @@ unsafe fn prompt_trim_scrollback(buf: &mut buf_T) {
 }
 
 /// Invokes the user-defined callback defined for the current prompt-buffer (`prompt_invoke_callback`).
-pub unsafe fn prompt_invoke_callback() {
+pub fn prompt_invoke_callback() {
     unsafe {
         let lnum = (*g_st().curbuf).b_ml.ml_line_count;
         let Some(user_input) = prompt_get_input(&mut *g_st().curbuf) else {
@@ -408,7 +408,7 @@ pub unsafe fn prompt_invoke_callback() {
 }
 
 /// Return true when the interrupt callback was invoked (`invoke_prompt_interrupt`).
-pub unsafe fn invoke_prompt_interrupt() -> bool {
+pub fn invoke_prompt_interrupt() -> bool {
     unsafe {
         if (*g_st().curbuf).b_prompt_interrupt.cb_type() == kCallbackNone {
             return false;
@@ -736,7 +736,7 @@ pub unsafe fn f_deletebufline(argvars: *mut typval_T, rettv: &mut typval_T, _fpt
 }
 
 /// Buffer options, variables and other attributes in a dictionary (`get_buffer_info`).
-unsafe fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
+fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
     unsafe {
         let dict = tv_dict_alloc();
 

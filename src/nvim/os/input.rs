@@ -158,7 +158,7 @@ unsafe fn parse_mouse_coords(s: *const c_char) -> Option<(c_int, c_int, usize)> 
 
 use crate::event::stream::UV_TTY;
 
-pub unsafe fn cursorhold_event() {
+pub fn cursorhold_event() {
     unsafe {
         let event = if (g_st().State & MODE_INSERT) != 0 {
             EVENT_CURSORHOLDI
@@ -170,7 +170,7 @@ pub unsafe fn cursorhold_event() {
     }
 }
 
-unsafe fn create_cursorhold_event(events_enabled: bool) {
+fn create_cursorhold_event(events_enabled: bool) {
     unsafe {
         let events = main_loop_events();
         debug_assert!(!events_enabled || multiqueue_empty(events));
@@ -288,12 +288,12 @@ pub unsafe fn input_get(
 }
 
 /// Check if a character is available for reading
-pub unsafe fn os_char_avail() -> bool {
+pub fn os_char_avail() -> bool {
     unsafe { inbuf_poll(0, ptr::null_mut()) }
 }
 
 /// Poll for fast events. `got_int` will be set to `true` if CTRL-C was typed.
-pub unsafe fn os_breakcheck() {
+pub fn os_breakcheck() {
     unsafe {
         if g_st().got_int {
             return;
@@ -304,40 +304,34 @@ pub unsafe fn os_breakcheck() {
 }
 
 /// Check for CTRL-C pressed, but only once in a while.
-pub unsafe fn line_breakcheck() {
-    unsafe {
-        osi_st().breakcheck_count += 1;
+pub fn line_breakcheck() {
+    osi_st().breakcheck_count += 1;
         if osi_st().breakcheck_count >= BREAKCHECK_SKIP {
             osi_st().breakcheck_count = 0;
             os_breakcheck();
         }
-    }
 }
 
 /// Like line_breakcheck() but check 10 times less often.
-pub unsafe fn fast_breakcheck() {
-    unsafe {
-        osi_st().breakcheck_count += 1;
+pub fn fast_breakcheck() {
+    osi_st().breakcheck_count += 1;
         if osi_st().breakcheck_count >= BREAKCHECK_SKIP * 10 {
             osi_st().breakcheck_count = 0;
             os_breakcheck();
         }
-    }
 }
 
 /// Like line_breakcheck() but check 100 times less often.
-pub unsafe fn veryfast_breakcheck() {
-    unsafe {
-        osi_st().breakcheck_count += 1;
+pub fn veryfast_breakcheck() {
+    osi_st().breakcheck_count += 1;
         if osi_st().breakcheck_count >= BREAKCHECK_SKIP * 100 {
             osi_st().breakcheck_count = 0;
             os_breakcheck();
         }
-    }
 }
 
 /// Test whether a file descriptor refers to a terminal.
-pub unsafe fn os_isatty(fd: c_int) -> bool {
+pub fn os_isatty(fd: c_int) -> bool {
     unsafe { uv_guess_handle(fd) == UV_TTY }
 }
 
@@ -346,7 +340,7 @@ pub fn input_available() -> usize {
         (osi_st().input_write_pos as usize).wrapping_sub(osi_st().input_read_pos as usize)
 }
 
-unsafe fn input_space() -> usize {
+fn input_space() -> usize {
     unsafe {
         ensure_input_ptrs_init();
         let buf_end = input_buf_ptr().add(INPUT_BUFFER_SIZE);
@@ -371,7 +365,7 @@ pub unsafe fn input_enqueue_raw(data: *const c_char, size: usize) {
     }
 }
 
-pub unsafe fn input_enqueue(chan_id: u64, keys: NvimString) -> usize {
+pub fn input_enqueue(chan_id: u64, keys: NvimString) -> usize {
     unsafe {
         ensure_input_ptrs_init();
         g_st().current_ui = chan_id;
@@ -576,7 +570,7 @@ unsafe fn handle_mouse_event(
     }
 }
 
-pub unsafe fn input_enqueue_mouse(
+pub fn input_enqueue_mouse(
     code: c_int,
     mut modifier: u8,
     grid: c_int,
@@ -686,7 +680,7 @@ unsafe fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
     }
 }
 
-unsafe fn process_ctrl_c() {
+fn process_ctrl_c() {
     unsafe {
         if !g_st().ctrl_c_interrupts {
             return;

@@ -175,13 +175,11 @@ pub struct BufUpdateCallbacks {
 
 impl Drop for BufUpdateCallbacks {
     fn drop(&mut self) {
-        unsafe {
-            crate::lua::executor::api_free_luaref(self.on_lines);
+        crate::lua::executor::api_free_luaref(self.on_lines);
             crate::lua::executor::api_free_luaref(self.on_bytes);
             crate::lua::executor::api_free_luaref(self.on_changedtick);
             crate::lua::executor::api_free_luaref(self.on_reload);
             crate::lua::executor::api_free_luaref(self.on_detach);
-        }
     }
 }
 

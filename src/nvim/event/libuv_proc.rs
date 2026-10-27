@@ -189,7 +189,7 @@ unsafe fn libuv_proc_stdio(
 }
 
 /// @returns zero on success, or negative error code
-pub unsafe fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> c_int {
+pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> c_int {
     unsafe {
         let proc_: *mut Proc = &raw mut uvproc.proc_;
         let uv: *mut uv_handle_t = (&raw mut uvproc.uv).cast();
@@ -312,7 +312,7 @@ pub unsafe fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> c_int {
     }
 }
 
-pub unsafe fn libuv_proc_close(uvproc: &mut LibuvProc) {
+pub fn libuv_proc_close(uvproc: &mut LibuvProc) {
     unsafe {
         uv_close((&raw mut uvproc.uv).cast(), Some(close_cb));
     }

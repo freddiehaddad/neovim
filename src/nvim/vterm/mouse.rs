@@ -179,7 +179,7 @@ impl Default for VTerm {
     }
 }
 
-unsafe fn output_mouse(
+fn output_mouse(
     state: &mut VTermStateFull,
     mut code: c_int,
     pressed: c_int,
@@ -250,7 +250,7 @@ unsafe fn output_mouse(
     }
 }
 
-pub unsafe fn vterm_mouse_move(vt: &mut VTerm, row: c_int, col: c_int, mod_: VTermModifier) {
+pub fn vterm_mouse_move(vt: &mut VTerm, row: c_int, col: c_int, mod_: VTermModifier) {
     unsafe {
         let state = &mut *vt.state_mut_ptr();
 
@@ -278,7 +278,7 @@ pub unsafe fn vterm_mouse_move(vt: &mut VTerm, row: c_int, col: c_int, mod_: VTe
     }
 }
 
-pub unsafe fn vterm_mouse_button(
+pub fn vterm_mouse_button(
     vt: &mut VTerm,
     button: c_int,
     pressed: bool,

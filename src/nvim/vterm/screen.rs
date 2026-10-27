@@ -392,12 +392,12 @@ pub struct VTermScreen {
 
 impl VTermScreen {
     #[inline]
-    pub unsafe fn state_ptr(&self) -> *mut VTermStateFull {
+    pub fn state_ptr(&self) -> *mut VTermStateFull {
         unsafe { (*self.vt).state_mut_ptr() }
     }
 
     #[inline]
-    pub unsafe fn term_ptr(&self) -> *mut Terminal {
+    pub fn term_ptr(&self) -> *mut Terminal {
         unsafe { (*self.vt).outdata }
     }
 
@@ -452,7 +452,7 @@ fn alloc_buffer(screen: &mut VTermScreen, rows: c_int, cols: c_int) -> Vec<Scree
         new_buffer
 }
 
-unsafe fn damagerect(screen: &mut VTermScreen, rect: VTermRect) {
+fn damagerect(screen: &mut VTermScreen, rect: VTermRect) {
     unsafe {
         let emit = match screen.damage_merge {
             VTERM_DAMAGE_CELL => rect,
@@ -496,16 +496,14 @@ unsafe fn damagerect(screen: &mut VTermScreen, rect: VTermRect) {
     }
 }
 
-unsafe fn damagescreen(screen: &mut VTermScreen) {
-    unsafe {
-        let rect = VTermRect {
+fn damagescreen(screen: &mut VTermScreen) {
+    let rect = VTermRect {
             start_row: 0,
             end_row: screen.rows,
             start_col: 0,
             end_col: screen.cols,
         };
         damagerect(screen, rect);
-    }
 }
 
 unsafe fn putglyph(info: *mut VTermGlyphInfo, pos: VTermPos, screen: *mut VTermScreen) -> c_int {
@@ -547,7 +545,7 @@ unsafe fn putglyph(info: *mut VTermGlyphInfo, pos: VTermPos, screen: *mut VTermS
     }
 }
 
-unsafe fn sb_pushline_from_row(screen: &mut VTermScreen, row: c_int) {
+fn sb_pushline_from_row(screen: &mut VTermScreen, row: c_int) {
     unsafe {
         let mut pos = VTermPos { row, col: 0 };
         let sb_buf_ptr = screen.sb_buffer.as_mut_ptr();
@@ -1338,7 +1336,7 @@ static STATE_CBS: VTermStateCallbacks = VTermStateCallbacks {
     sb_clear: Some(sb_clear),
 };
 
-unsafe fn screen_new(vt: &mut VTerm) -> Option<Box<VTermScreen>> {
+fn screen_new(vt: &mut VTerm) -> Option<Box<VTermScreen>> {
     unsafe {
         let _state = vterm_obtain_state(vt);
         if false {
@@ -1386,7 +1384,7 @@ unsafe fn screen_new(vt: &mut VTerm) -> Option<Box<VTermScreen>> {
     }
 }
 
-pub unsafe fn vterm_screen_reset(screen: &mut VTermScreen, hard: c_int) {
+pub fn vterm_screen_reset(screen: &mut VTermScreen, hard: c_int) {
     unsafe {
         screen.damaged.start_row = -1;
         screen.pending_scrollrect.start_row = -1;
@@ -1446,7 +1444,7 @@ pub unsafe fn vterm_screen_get_cell(
     }
 }
 
-pub unsafe fn vterm_obtain_screen(vt: &mut VTerm) -> &'static mut VTermScreen {
+pub fn vterm_obtain_screen(vt: &mut VTerm) -> &'static mut VTermScreen {
     unsafe {
         if vt.screen.is_none() {
             vt.screen = screen_new(vt);
@@ -1463,7 +1461,7 @@ pub fn vterm_screen_enable_reflow(screen: &mut VTermScreen, reflow: bool) {
     screen.set_reflow(reflow);
 }
 
-pub unsafe fn vterm_screen_enable_altscreen(screen: &mut VTermScreen, altscreen: c_int) {
+pub fn vterm_screen_enable_altscreen(screen: &mut VTermScreen, altscreen: c_int) {
     unsafe {
         if screen.buffers[BUFIDX_ALTSCREEN].is_empty() && altscreen != 0 {
             let mut rows: c_int = 0;
@@ -1498,7 +1496,7 @@ pub unsafe fn vterm_screen_set_unrecognised_fallbacks(
     }
 }
 
-pub unsafe fn vterm_screen_flush_damage(screen: &mut VTermScreen) {
+pub fn vterm_screen_flush_damage(screen: &mut VTermScreen) {
     unsafe {
         if screen.pending_scrollrect.start_row != -1 {
             vterm_scroll_rect(
@@ -1525,15 +1523,13 @@ pub unsafe fn vterm_screen_flush_damage(screen: &mut VTermScreen) {
     }
 }
 
-pub unsafe fn vterm_screen_set_damage_merge(screen: &mut VTermScreen, size: VTermDamageSize) {
-    unsafe {
-        vterm_screen_flush_damage(screen);
+pub fn vterm_screen_set_damage_merge(screen: &mut VTermScreen, size: VTermDamageSize) {
+    vterm_screen_flush_damage(screen);
         screen.damage_merge = size;
-    }
 }
 
 #[cfg(test)]
-pub unsafe fn vterm_screen_convert_color_to_rgb(screen: &VTermScreen, col: &mut VTermColor) {
+pub fn vterm_screen_convert_color_to_rgb(screen: &VTermScreen, col: &mut VTermColor) {
     unsafe {
         crate::vterm::pen::vterm_state_convert_color_to_rgb(&*screen.state_ptr(), col);
     }

@@ -636,7 +636,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn check_before(&mut self) {
+    fn check_before(&mut self) {
         if let Self::Msgpack { packer } = *self {
             unsafe {
                 mpack_check_buffer(&mut *packer);
@@ -645,7 +645,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_nil(&mut self) {
+    fn conv_nil(&mut self) {
         unsafe {
             match self {
                 Self::Text {
@@ -662,7 +662,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_bool(&mut self, val: bool) {
+    fn conv_bool(&mut self, val: bool) {
         unsafe {
             match self {
                 Self::Text {
@@ -691,7 +691,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_number(&mut self, num: i64) {
+    fn conv_number(&mut self, num: i64) {
         unsafe {
             match self {
                 Self::Text { gap, .. } => {
@@ -704,7 +704,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_unsigned_number(&mut self, num: u64) {
+    fn conv_unsigned_number(&mut self, num: u64) {
         unsafe {
             match self {
                 Self::Text {
@@ -721,7 +721,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_float(&mut self, flt: f64) -> c_int {
+    fn conv_float(&mut self, flt: f64) -> c_int {
         unsafe {
             match self {
                 Self::Text {
@@ -995,7 +995,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_empty_list(&mut self) {
+    fn conv_empty_list(&mut self) {
         unsafe {
             match self {
                 Self::Text { gap, .. } => ga_concat_literal(gap, b"[]"),
@@ -1005,7 +1005,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_list_start(&mut self, len: c_int) {
+    fn conv_list_start(&mut self, len: c_int) {
         unsafe {
             match self {
                 Self::Text { gap, .. } => gap.push(b'['),
@@ -1029,7 +1029,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_empty_dict(&mut self) {
+    fn conv_empty_dict(&mut self) {
         unsafe {
             match self {
                 Self::Text { gap, .. } => ga_concat_literal(gap, b"{}"),
@@ -1039,7 +1039,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_dict_start(&mut self, len: usize) {
+    fn conv_dict_start(&mut self, len: usize) {
         unsafe {
             match self {
                 Self::Text { gap, .. } => gap.push(b'{'),
@@ -1070,7 +1070,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn special_dict_key_check(&mut self, key: &typval_T) -> bool {
+    fn special_dict_key_check(&mut self, key: &typval_T) -> bool {
         if matches!(
             *self,
             Self::Text {

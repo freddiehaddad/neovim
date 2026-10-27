@@ -80,7 +80,7 @@ impl xdemitcb_t {
     }
 
     #[inline]
-    pub unsafe fn call_hunk(
+    pub fn call_hunk(
         self,
         start_a: c_int,
         count_a: c_int,

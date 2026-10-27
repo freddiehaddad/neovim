@@ -118,7 +118,7 @@ fn is_string_state(state: c_int) -> bool {
     state >= OSC_COMMAND
 }
 
-unsafe fn do_control(vt: &mut VTerm, control: u8) {
+fn do_control(vt: &mut VTerm, control: u8) {
     unsafe {
         if let Some(callbacks) = vt.parser.callbacks
             && let Some(cb) = callbacks.control
@@ -128,7 +128,7 @@ unsafe fn do_control(vt: &mut VTerm, control: u8) {
     }
 }
 
-unsafe fn do_csi(vt: &mut VTerm, command: c_char) {
+fn do_csi(vt: &mut VTerm, command: c_char) {
     unsafe {
         if let Some(callbacks) = vt.parser.callbacks
             && let Some(cb) = callbacks.csi
@@ -155,7 +155,7 @@ unsafe fn do_csi(vt: &mut VTerm, command: c_char) {
     }
 }
 
-unsafe fn do_escape(vt: &mut VTerm, command: c_char) {
+fn do_escape(vt: &mut VTerm, command: c_char) {
     unsafe {
         let mut seq = [0 as c_char; INTERMED_MAX + 1];
         let mut len = vt.parser.intermedlen as usize;

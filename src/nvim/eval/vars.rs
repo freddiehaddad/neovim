@@ -514,7 +514,7 @@ static EVAL_MSGPACK_TYPE_LISTS: GlobalState<[*const list_T; NUM_MSGPACK_TYPES]> 
     GlobalState::new([ptr::null(); NUM_MSGPACK_TYPES]);
 
 #[inline]
-pub(crate) unsafe fn eval_msgpack_type_lists_mut() -> &'static mut [*const list_T; NUM_MSGPACK_TYPES] {
+pub(crate) fn eval_msgpack_type_lists_mut() -> &'static mut [*const list_T; NUM_MSGPACK_TYPES] {
     unsafe { &mut *EVAL_MSGPACK_TYPE_LISTS.as_ptr() }
 }
 
@@ -552,12 +552,12 @@ pub unsafe fn tv_list_locked(l: *const list_T) -> VarLockStatus {
 }
 
 #[inline]
-unsafe fn script_sv(id: scid_T) -> *mut scriptvar_T {
+fn script_sv(id: scid_T) -> *mut scriptvar_T {
     unsafe { &raw mut *(*script_item(id)).sn_vars }
 }
 
 #[inline]
-unsafe fn script_vars_ht(id: scid_T) -> *mut hashtab_T {
+fn script_vars_ht(id: scid_T) -> *mut hashtab_T {
     unsafe { &raw mut (*script_sv(id)).sv_dict.dv_hashtab }
 }
 
@@ -574,7 +574,7 @@ pub fn tristate_from_int(val: OptInt) -> TriState {
 
 use crate::api::private::helpers::integer_obj;
 
-pub unsafe fn evalvars_init() {
+pub fn evalvars_init() {
     unsafe {
         init_var_dict(&mut *get_globvar_dict(), &mut vars_st().globvars_var, VAR_DEF_SCOPE);
         init_var_dict(&mut vars_st().vimvardict, &mut vars_st().vimvars_var, VAR_SCOPE);
@@ -690,7 +690,7 @@ pub unsafe fn evalvars_init() {
     }
 }
 
-pub unsafe fn evalvars_clear() {
+pub fn evalvars_clear() {
     unsafe {
         let vimvars_ptr = (&raw mut vars_st().vimvars).cast::<VimVar>();
         for i in 0..VV_LEN {
@@ -716,7 +716,7 @@ pub unsafe fn evalvars_clear() {
     }
 }
 
-pub unsafe fn garbage_collect_globvars(copyID: c_int) -> c_int {
+pub fn garbage_collect_globvars(copyID: c_int) -> c_int {
     unsafe {
         c_int::from(set_ref_in_ht(
             &raw mut vars_st().globvardict.dv_hashtab,
@@ -726,11 +726,11 @@ pub unsafe fn garbage_collect_globvars(copyID: c_int) -> c_int {
     }
 }
 
-pub unsafe fn garbage_collect_vimvars(copyID: c_int) -> bool {
+pub fn garbage_collect_vimvars(copyID: c_int) -> bool {
     unsafe { set_ref_in_ht(&raw mut vars_st().vimvardict.dv_hashtab, copyID, ptr::null_mut()) }
 }
 
-pub unsafe fn garbage_collect_scriptvars(copyID: c_int) -> bool {
+pub fn garbage_collect_scriptvars(copyID: c_int) -> bool {
     unsafe {
         let mut abort = false;
 
@@ -1217,7 +1217,7 @@ pub unsafe fn heredoc_get(
 }
 
 /// ":let" and ":const" commands.
-pub unsafe fn ex_let(eap: &mut exarg_T) {
+pub fn ex_let(eap: &mut exarg_T) {
     unsafe {
         let is_const = eap.cmdidx == cmdidx_T::CMD_const as c_int;
         let mut arg = eap.arg;
@@ -1944,7 +1944,7 @@ unsafe fn ex_let_one(
 }
 
 /// ":unlet[!] var1 ... " command.
-pub unsafe fn ex_unlet(eap: &mut exarg_T) {
+pub fn ex_unlet(eap: &mut exarg_T) {
     unsafe {
         let arg = eap.arg;
         let forceit = eap.forceit;
@@ -1959,7 +1959,7 @@ pub unsafe fn ex_unlet(eap: &mut exarg_T) {
 }
 
 /// ":lockvar" and ":unlockvar" commands.
-pub unsafe fn ex_lockvar(eap: &mut exarg_T) {
+pub fn ex_lockvar(eap: &mut exarg_T) {
     unsafe {
         let mut arg = eap.arg;
         let mut deep: c_int = 2;
@@ -2253,7 +2253,7 @@ unsafe fn do_lock_var(
 }
 
 /// Delete all "menutrans_" variables.
-pub unsafe fn del_menutrans_vars() {
+pub fn del_menutrans_vars() {
     unsafe {
         let ht = &raw mut vars_st().globvardict.dv_hashtab;
         hash_lock(&mut *ht);
@@ -2299,7 +2299,7 @@ pub fn get_vim_var_name(idx: VimVarIndex) -> *mut c_char {
             .cast_mut()
 }
 
-pub unsafe fn get_vim_var_tv(idx: VimVarIndex) -> *mut typval_T {
+pub fn get_vim_var_tv(idx: VimVarIndex) -> *mut typval_T {
     unsafe {
         &raw mut (*(&raw mut vars_st().vimvars).cast::<VimVar>().add(idx as usize))
             .vv_di
@@ -2307,23 +2307,23 @@ pub unsafe fn get_vim_var_tv(idx: VimVarIndex) -> *mut typval_T {
     }
 }
 
-pub unsafe fn get_vim_var_nr(idx: VimVarIndex) -> varnumber_T {
+pub fn get_vim_var_nr(idx: VimVarIndex) -> varnumber_T {
     unsafe { (*get_vim_var_tv(idx)).vval.v_number() }
 }
 
-pub unsafe fn get_vim_var_list(idx: VimVarIndex) -> *mut list_T {
+pub fn get_vim_var_list(idx: VimVarIndex) -> *mut list_T {
     unsafe { (*get_vim_var_tv(idx)).vval.v_list() }
 }
 
-pub unsafe fn get_vim_var_dict(idx: VimVarIndex) -> *mut dict_T {
+pub fn get_vim_var_dict(idx: VimVarIndex) -> *mut dict_T {
     unsafe { (*get_vim_var_tv(idx)).vval.v_dict() }
 }
 
-pub unsafe fn get_vim_var_str(idx: VimVarIndex) -> *mut c_char {
+pub fn get_vim_var_str(idx: VimVarIndex) -> *mut c_char {
     unsafe { tv_get_string(get_vim_var_tv(idx)).cast_mut() }
 }
 
-pub unsafe fn get_vim_var_partial(idx: VimVarIndex) -> *mut partial_T {
+pub fn get_vim_var_partial(idx: VimVarIndex) -> *mut partial_T {
     unsafe { (*get_vim_var_tv(idx)).vval.v_partial() }
 }
 
@@ -2342,7 +2342,7 @@ pub unsafe fn cat_prefix_varname(prefix: c_int, name: *const c_char) -> *mut c_c
 }
 
 /// Function given to ExpandGeneric() to obtain the list of user defined variable names.
-pub unsafe fn get_user_var_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_user_var_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
 
     unsafe {
         if idx == 0 {
@@ -2424,14 +2424,14 @@ pub unsafe fn get_user_var_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-pub unsafe fn set_vim_var_type(idx: VimVarIndex, v_type: VarType) {
+pub fn set_vim_var_type(idx: VimVarIndex, v_type: VarType) {
     unsafe {
         let tv = get_vim_var_tv(idx);
         (*tv).v_type = v_type;
     }
 }
 
-pub unsafe fn set_vim_var_nr(idx: VimVarIndex, val: varnumber_T) {
+pub fn set_vim_var_nr(idx: VimVarIndex, val: varnumber_T) {
     unsafe {
         let tv = get_vim_var_tv(idx);
         tv_clear(tv);
@@ -2439,7 +2439,7 @@ pub unsafe fn set_vim_var_nr(idx: VimVarIndex, val: varnumber_T) {
     }
 }
 
-pub unsafe fn set_vim_var_bool(idx: VimVarIndex, val: BoolVarValue) {
+pub fn set_vim_var_bool(idx: VimVarIndex, val: BoolVarValue) {
     unsafe {
         let tv = get_vim_var_tv(idx);
         tv_clear(tv);
@@ -2448,7 +2448,7 @@ pub unsafe fn set_vim_var_bool(idx: VimVarIndex, val: BoolVarValue) {
     }
 }
 
-pub unsafe fn set_vim_var_special(idx: VimVarIndex, val: SpecialVarValue) {
+pub fn set_vim_var_special(idx: VimVarIndex, val: SpecialVarValue) {
     unsafe {
         let tv = get_vim_var_tv(idx);
         tv_clear(tv);
@@ -2457,7 +2457,7 @@ pub unsafe fn set_vim_var_special(idx: VimVarIndex, val: SpecialVarValue) {
     }
 }
 
-pub unsafe fn set_vim_var_char(c: c_int) {
+pub fn set_vim_var_char(c: c_int) {
     unsafe {
         let mut buf = [0 as c_char; MB_MAXCHAR + 1];
         let buflen = utf_char2bytes(c, buf.as_mut_ptr());
@@ -2515,7 +2515,7 @@ pub unsafe fn set_vim_var_partial(idx: VimVarIndex, val: *mut partial_T) {
     }
 }
 
-pub unsafe fn set_reg_var(c: c_int) {
+pub fn set_reg_var(c: c_int) {
     unsafe {
         let mut regname: [c_char; 2] = [0, NUL];
         if c == 0 || c == b' ' as c_int {
@@ -2530,7 +2530,7 @@ pub unsafe fn set_reg_var(c: c_int) {
     }
 }
 
-pub unsafe fn v_exception(oldval: Option<std::ffi::CString>) -> Option<std::ffi::CString> {
+pub fn v_exception(oldval: Option<std::ffi::CString>) -> Option<std::ffi::CString> {
     unsafe {
         let tv = get_vim_var_tv(VV_EXCEPTION);
         let Some(oldval) = oldval else {
@@ -2608,7 +2608,7 @@ pub unsafe fn set_cmdarg(
     }
 }
 
-pub unsafe fn v_throwpoint(oldval: Option<std::ffi::CString>) -> Option<std::ffi::CString> {
+pub fn v_throwpoint(oldval: Option<std::ffi::CString>) -> Option<std::ffi::CString> {
     unsafe {
         let tv = get_vim_var_tv(VV_THROWPOINT);
         let Some(oldval) = oldval else {
@@ -2625,7 +2625,7 @@ pub unsafe fn v_throwpoint(oldval: Option<std::ffi::CString>) -> Option<std::ffi
     }
 }
 
-pub unsafe fn set_vcount(count: i64, count1: i64, set_prevcount: bool) {
+pub fn set_vcount(count: i64, count1: i64, set_prevcount: bool) {
     unsafe {
         if set_prevcount {
             (*get_vim_var_tv(VV_PREVCOUNT)).vval = crate::eval::typval::TypvalVval::Number(get_vim_var_nr(VV_COUNT));
@@ -2892,7 +2892,7 @@ pub fn init_var_dict(dict: &mut dict_T, dict_var: &mut ScopeDictDictItem, scope:
 }
 
 /// Unreference a dictionary initialized by init_var_dict().
-pub unsafe fn unref_var_dict(dict: &mut dict_T) {
+pub fn unref_var_dict(dict: &mut dict_T) {
     unsafe {
         dict.dv_refcount -= DO_NOT_FREE_CNT - 1;
         tv_dict_unref(&raw mut *dict);
@@ -2900,14 +2900,12 @@ pub unsafe fn unref_var_dict(dict: &mut dict_T) {
 }
 
 /// Clean up a list of internal variables.
-pub unsafe fn vars_clear(ht: &mut hashtab_T) {
-    unsafe {
-        vars_clear_ext(ht, true);
-    }
+pub fn vars_clear(ht: &mut hashtab_T) {
+    vars_clear_ext(ht, true);
 }
 
 /// Like vars_clear(), but only free the value if "free_val" is true.
-pub unsafe fn vars_clear_ext(ht: &mut hashtab_T, free_val: bool) {
+pub fn vars_clear_ext(ht: &mut hashtab_T, free_val: bool) {
     unsafe {
         hash_lock(ht);
         let mut todo = ht.ht_used as c_int;
@@ -3497,7 +3495,7 @@ unsafe fn opt_from_tv(
 }
 
 /// Converts an option value to typval.
-pub unsafe fn opt_to_tv(value: Object, numbool: bool) -> typval_T {
+pub fn opt_to_tv(value: Object, numbool: bool) -> typval_T {
     unsafe {
         let mut rettv = typval_T {
             v_type: VarType::VAR_SPECIAL,
@@ -3634,7 +3632,7 @@ unsafe fn setwinvar(argvars: *mut typval_T, off: usize) {
     }
 }
 
-pub unsafe fn reset_v_option_vars() {
+pub fn reset_v_option_vars() {
     unsafe {
         set_vim_var_string(VV_OPTION_NEW, ptr::null(), -1);
         set_vim_var_string(VV_OPTION_OLD, ptr::null(), -1);
@@ -3646,7 +3644,7 @@ pub unsafe fn reset_v_option_vars() {
 }
 
 /// Add an assert error to v:errors.
-pub unsafe fn assert_error(buf: &[u8]) {
+pub fn assert_error(buf: &[u8]) {
     unsafe {
         let tv = get_vim_var_tv(VV_ERRORS);
 
@@ -3790,7 +3788,7 @@ pub unsafe fn var_redir_str(value: *const c_char, value_len: c_int) {
 }
 
 /// Stop redirecting command output to a variable.
-pub unsafe fn var_redir_stop() {
+pub fn var_redir_stop() {
     unsafe {
         let rl = &raw mut vars_st().redir_lval;
         if let Some(ref mut lval) = *rl {

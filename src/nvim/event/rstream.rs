@@ -83,7 +83,7 @@ pub fn rstream_init(stream: &mut RStream) {
         stream.s.is_rstream = true;
 }
 
-pub unsafe fn rstream_start_inner(stream: &mut RStream) {
+pub fn rstream_start_inner(stream: &mut RStream) {
     unsafe {
         if stream.s.has_uvstream {
             uv_read_start(stream.s.uvstream_ptr(), Some(alloc_cb), Some(read_cb));
@@ -93,17 +93,15 @@ pub unsafe fn rstream_start_inner(stream: &mut RStream) {
     }
 }
 
-pub unsafe fn rstream_start(stream: &mut RStream, data: StreamCbData) {
-    unsafe {
-        stream.s.cb_data = data;
+pub fn rstream_start(stream: &mut RStream, data: StreamCbData) {
+    stream.s.cb_data = data;
         stream.want_read = true;
         if !stream.paused_full {
             rstream_start_inner(stream);
         }
-    }
 }
 
-pub unsafe fn rstream_stop_inner(stream: &mut RStream) {
+pub fn rstream_stop_inner(stream: &mut RStream) {
     unsafe {
         if stream.s.has_uvstream {
             uv_read_stop(stream.s.uvstream_ptr());
@@ -113,11 +111,9 @@ pub unsafe fn rstream_stop_inner(stream: &mut RStream) {
     }
 }
 
-pub unsafe fn rstream_stop(stream: &mut RStream) {
-    unsafe {
-        rstream_stop_inner(stream);
+pub fn rstream_stop(stream: &mut RStream) {
+    rstream_stop_inner(stream);
         stream.want_read = false;
-    }
 }
 
 unsafe extern "C" fn alloc_cb(handle: *mut uv_handle_t, _suggested: usize, buf: *mut uv_buf_t) {
@@ -199,7 +195,7 @@ unsafe extern "C" fn fread_idle_cb(handle: *mut uv_idle_t) {
     }
 }
 
-pub unsafe fn read_event(stream: &mut RStream) {
+pub fn read_event(stream: &mut RStream) {
     unsafe {
         stream.pending_read = false;
         let available = rstream_available(stream);
@@ -224,9 +220,8 @@ pub fn rstream_available(stream: &mut RStream) -> usize {
     stream.write_pos.saturating_sub(stream.read_pos)
 }
 
-pub unsafe fn rstream_consume(stream: &mut RStream, consumed: usize) {
-    unsafe {
-        stream.read_pos += consumed;
+pub fn rstream_consume(stream: &mut RStream, consumed: usize) {
+    stream.read_pos += consumed;
         let remaining = stream.write_pos - stream.read_pos;
         if remaining > 0 && stream.read_pos > 0 {
             let rpos = stream.read_pos;
@@ -243,10 +238,9 @@ pub unsafe fn rstream_consume(stream: &mut RStream, consumed: usize) {
             stream.paused_full = false;
             rstream_start_inner(stream);
         }
-    }
 }
 
-unsafe fn invoke_read_cb(stream: &mut RStream, eof: bool) {
+fn invoke_read_cb(stream: &mut RStream, eof: bool) {
     unsafe {
         stream.did_eof |= eof;
 
@@ -270,7 +264,7 @@ unsafe fn invoke_read_cb(stream: &mut RStream, eof: bool) {
     }
 }
 
-pub(crate) unsafe fn rstream_close_cb(s: &mut Stream) {
+pub(crate) fn rstream_close_cb(s: &mut Stream) {
     unsafe {
         let stream = (&raw mut *s).cast::<RStream>();
         assert!(!stream.is_null());
@@ -278,8 +272,6 @@ pub(crate) unsafe fn rstream_close_cb(s: &mut Stream) {
     }
 }
 
-pub unsafe fn rstream_may_close(stream: &mut RStream) {
-    unsafe {
-        stream_may_close(&mut stream.s);
-    }
+pub fn rstream_may_close(stream: &mut RStream) {
+    stream_may_close(&mut stream.s);
 }

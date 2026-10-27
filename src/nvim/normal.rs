@@ -2525,14 +2525,12 @@ unsafe fn normal_check(s: &mut NormalState) -> c_int {
 }
 
 unsafe fn set_vcount_ca(cap: &mut cmdarg_T, set_prevcount: &mut bool) {
-    unsafe {
-        let mut count = i64::from(cap.count0);
+    let mut count = i64::from(cap.count0);
         if cap.opcount != 0 {
             count = i64::from(cap.opcount) * if count == 0 { 1 } else { count };
         }
         set_vcount(count, if count == 0 { 1 } else { count }, *set_prevcount);
         *set_prevcount = false;
-    }
 }
 
 pub unsafe fn visualinfo() -> visualinfo_T {

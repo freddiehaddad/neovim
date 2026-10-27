@@ -24,7 +24,7 @@ fn gc_st() -> &'static mut GcModuleState {
 }
 
 #[inline]
-pub unsafe fn gc_register_dict(d: &mut dict_T) {
+pub fn gc_register_dict(d: &mut dict_T) {
     unsafe {
         let dicts = &raw mut gc_st().GC_DICTS;
         let idx = (*dicts).len();
@@ -34,7 +34,7 @@ pub unsafe fn gc_register_dict(d: &mut dict_T) {
 }
 
 #[inline]
-pub unsafe fn gc_unregister_dict(idx: usize) {
+pub fn gc_unregister_dict(idx: usize) {
     unsafe {
         let dicts = &raw mut gc_st().GC_DICTS;
         (*dicts).swap_remove(idx);
@@ -46,7 +46,7 @@ pub unsafe fn gc_unregister_dict(idx: usize) {
 }
 
 #[inline]
-pub unsafe fn gc_register_list(l: &mut list_T) {
+pub fn gc_register_list(l: &mut list_T) {
     unsafe {
         let lists = &raw mut gc_st().GC_LISTS;
         let idx = (*lists).len();
@@ -56,7 +56,7 @@ pub unsafe fn gc_register_list(l: &mut list_T) {
 }
 
 #[inline]
-pub unsafe fn gc_unregister_list(idx: usize) {
+pub fn gc_unregister_list(idx: usize) {
     unsafe {
         let lists = &raw mut gc_st().GC_LISTS;
         (*lists).swap_remove(idx);
@@ -68,7 +68,7 @@ pub unsafe fn gc_unregister_list(idx: usize) {
 }
 
 #[inline]
-pub unsafe fn gc_dicts_slice() -> &'static [*mut dict_T] {
+pub fn gc_dicts_slice() -> &'static [*mut dict_T] {
     unsafe {
         let ptr = &raw const gc_st().GC_DICTS;
         (*ptr).as_slice()
@@ -76,7 +76,7 @@ pub unsafe fn gc_dicts_slice() -> &'static [*mut dict_T] {
 }
 
 #[inline]
-pub unsafe fn gc_lists_slice() -> &'static [*mut list_T] {
+pub fn gc_lists_slice() -> &'static [*mut list_T] {
     unsafe {
         let ptr = &raw const gc_st().GC_LISTS;
         (*ptr).as_slice()

@@ -626,7 +626,7 @@ pub unsafe fn unpacker_advance(p: *mut Unpacker) -> bool {
 }
 
 #[inline]
-unsafe fn next_type(
+fn next_type(
     p: &mut Unpacker,
     data: &mut *const c_char,
     size: &mut usize,

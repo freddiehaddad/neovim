@@ -543,7 +543,7 @@ pub fn loop_closing_ptr(loop_: &mut Loop) -> *mut bool {
     &raw mut loop_.closing
 }
 
-pub unsafe fn loop_init(loop_: &mut Loop) {
+pub fn loop_init(loop_: &mut Loop) {
     unsafe {
         debug_assert!(uv_loop_size() <= size_of::<[u64; 192]>());
         let uv_ptr: *mut uv_loop_t = (&raw mut loop_.uv).cast();
@@ -570,7 +570,7 @@ pub unsafe fn loop_init(loop_: &mut Loop) {
 }
 
 /// Process `Loop.uv` events with a timeout.
-unsafe fn loop_uv_run(loop_: &mut Loop, ms: i64) -> bool {
+fn loop_uv_run(loop_: &mut Loop, ms: i64) -> bool {
     unsafe {
         let old_rec = loop_.recursive;
         loop_.recursive = old_rec + 1;
@@ -603,7 +603,7 @@ unsafe fn loop_uv_run(loop_: &mut Loop, ms: i64) -> bool {
 /// Processes one `Loop.uv` event (at most).
 /// Processes all `Loop.fast_events` events.
 /// Does NOT process `Loop.events`, that is an application-specific decision.
-pub unsafe fn loop_poll_events(loop_: &mut Loop, ms: i64) -> bool {
+pub fn loop_poll_events(loop_: &mut Loop, ms: i64) -> bool {
     unsafe {
         let timeout_expired = loop_uv_run(loop_, ms);
         multiqueue_process_events(loop_.fast_events);
@@ -612,7 +612,7 @@ pub unsafe fn loop_poll_events(loop_: &mut Loop, ms: i64) -> bool {
 }
 
 /// Schedules a fast event from another thread.
-pub unsafe fn loop_schedule_fast(loop_: &mut Loop, event: Event) {
+pub fn loop_schedule_fast(loop_: &mut Loop, event: Event) {
     unsafe {
         let mutex = loop_mutex(loop_);
         uv_mutex_lock(mutex);
@@ -624,9 +624,8 @@ pub unsafe fn loop_schedule_fast(loop_: &mut Loop, event: Event) {
 
 /// Schedules an event from another thread. Unlike loop_schedule_fast(), the
 /// event is forwarded to `Loop.events`, instead of being processed immediately.
-pub unsafe fn loop_schedule_deferred(loop_: &mut Loop, event: Event) {
-    unsafe {
-        let loop_ptr = &raw mut *loop_;
+pub fn loop_schedule_deferred(loop_: &mut Loop, event: Event) {
+    let loop_ptr = &raw mut *loop_;
         loop_schedule_fast(
             loop_,
             Event::LoopDeferred {
@@ -634,16 +633,15 @@ pub unsafe fn loop_schedule_deferred(loop_: &mut Loop, event: Event) {
                 event: Box::new(event),
             },
         );
-    }
 }
 
-pub unsafe fn loop_deferred_event(loop_: &mut Loop, event: Event) {
+pub fn loop_deferred_event(loop_: &mut Loop, event: Event) {
     unsafe {
         multiqueue_put_event(loop_.events, event);
     }
 }
 
-pub unsafe fn loop_on_put(loop_: &mut Loop) {
+pub fn loop_on_put(loop_: &mut Loop) {
     unsafe {
         if loop_.recursive != 0 {
             uv_stop((&raw mut loop_.uv).cast());
@@ -660,7 +658,7 @@ unsafe extern "C" fn loop_walk_cb(handle: *mut uv_handle_t, _arg: *mut c_void) {
 }
 
 /// Closes `loop` and its handles, and frees its structures.
-pub unsafe fn loop_close(loop_: &mut Loop, wait: bool) -> bool {
+pub fn loop_close(loop_: &mut Loop, wait: bool) -> bool {
     unsafe {
         let mut rv = true;
         *loop_closing_ptr(loop_) = true;
@@ -713,7 +711,7 @@ pub unsafe fn loop_close(loop_: &mut Loop, wait: bool) -> bool {
     }
 }
 
-pub unsafe fn loop_purge(loop_: &mut Loop) {
+pub fn loop_purge(loop_: &mut Loop) {
     unsafe {
         let mutex = loop_mutex(loop_);
         let qc = loop_queues(loop_);
@@ -724,7 +722,7 @@ pub unsafe fn loop_purge(loop_: &mut Loop) {
     }
 }
 
-pub unsafe fn loop_size(loop_: &mut Loop) -> usize {
+pub fn loop_size(loop_: &mut Loop) -> usize {
     unsafe {
         let mutex = loop_mutex(loop_);
         let qc = loop_queues(loop_);

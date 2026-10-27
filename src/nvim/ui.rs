@@ -95,9 +95,7 @@ struct UIEventCallback {
 
 impl Drop for UIEventCallback {
     fn drop(&mut self) {
-        unsafe {
-            api_free_luaref(self.cb);
-        }
+        api_free_luaref(self.cb);
     }
 }
 

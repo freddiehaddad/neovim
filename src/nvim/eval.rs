@@ -436,9 +436,7 @@ pub fn num_modulus(n1: varnumber_T, n2: varnumber_T) -> varnumber_T {
 
 /// Initialize the global and v: variables.
 pub unsafe fn eval_init() {
-    unsafe {
-        evalvars_init();
-    }
+    evalvars_init();
 }
 
 pub unsafe fn eval_clear() {
@@ -5564,8 +5562,7 @@ pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: Callback)
 }
 
 pub unsafe fn timer_stop(timer: &mut timer_T) {
-    unsafe {
-        if timer.stopped {
+    if timer.stopped {
             return;
         }
         timer.stopped = true;
@@ -5573,7 +5570,6 @@ pub unsafe fn timer_stop(timer: &mut timer_T) {
             time_watcher_stop(&mut timer.watcher);
             time_watcher_close(&mut timer.watcher);
         }
-    }
 }
 
 pub(crate) unsafe fn timer_close_cb(_tw: &mut TimeWatcher, timer: &mut timer_T) {
@@ -6277,7 +6273,7 @@ pub unsafe fn set_argv_var(argv: *mut *mut c_char, argc: c_int) {
 
 /// Check if special v:lua value for calling lua functions.
 pub unsafe fn is_luafunc(partial: *mut partial_T) -> bool {
-    unsafe { partial == get_vim_var_partial(VV_LUA) }
+    partial == get_vim_var_partial(VV_LUA)
 }
 
 unsafe fn tv_is_luafunc(tv: *mut typval_T) -> bool {

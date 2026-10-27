@@ -83,10 +83,8 @@ pub unsafe extern "C" fn nvim_exec(
     output: Boolean,
     err: &mut Error,
 ) -> NvimString {
-    unsafe {
-        let mut opts = KeyDict_exec_opts { output };
+    let mut opts = KeyDict_exec_opts { output };
         exec_impl(channel_id, src, &mut opts, err)
-    }
 }
 
 /// @deprecated
@@ -100,10 +98,8 @@ pub unsafe extern "C" fn nvim_command_output(
     command: NvimString,
     err: &mut Error,
 ) -> NvimString {
-    unsafe {
-        let mut opts = KeyDict_exec_opts { output: true };
+    let mut opts = KeyDict_exec_opts { output: true };
         exec_impl(channel_id, command, &mut opts, err)
-    }
 }
 
 /// @deprecated Use nvim_exec_lua() instead.
@@ -831,8 +827,7 @@ pub unsafe extern "C" fn nvim_set_option(
     value: Object,
     err: &mut Error,
 ) {
-    unsafe {
-        set_option_to(
+    set_option_to(
             channel_id,
             OptTarget::Global,
             kOptScopeGlobal,
@@ -840,7 +835,6 @@ pub unsafe extern "C" fn nvim_set_option(
             value,
             err,
         );
-    }
 }
 
 /// Gets the global value of an option.
@@ -855,7 +849,7 @@ pub unsafe extern "C" fn nvim_set_option(
 //   FUNC_API_RET_ALLOC;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_option(name: NvimString, err: &mut Error) -> Object {
-    unsafe { get_option_from(OptTarget::Global, kOptScopeGlobal, name, err) }
+    get_option_from(OptTarget::Global, kOptScopeGlobal, name, err)
 }
 
 /// Gets a buffer option value
@@ -875,13 +869,11 @@ pub unsafe extern "C" fn nvim_buf_get_option(
     name: NvimString,
     err: &mut Error,
 ) -> Object {
-    unsafe {
-        let buf = find_buffer_by_handle(buffer, err);
+    let buf = find_buffer_by_handle(buffer, err);
         if buf.is_null() {
             return OBJECT_NIL;
         }
         get_option_from(OptTarget::Buf(buf), kOptScopeBuf, name, err)
-    }
 }
 
 /// Sets a buffer option value. Passing `nil` as value deletes the option (only
@@ -905,8 +897,7 @@ pub unsafe extern "C" fn nvim_buf_set_option(
     value: Object,
     err: &mut Error,
 ) {
-    unsafe {
-        let buf = find_buffer_by_handle(buffer, err);
+    let buf = find_buffer_by_handle(buffer, err);
         if buf.is_null() {
             return;
         }
@@ -918,7 +909,6 @@ pub unsafe extern "C" fn nvim_buf_set_option(
             value,
             err,
         );
-    }
 }
 
 /// Gets a window option value
@@ -984,7 +974,7 @@ pub unsafe extern "C" fn nvim_win_set_option(
     }
 }
 
-unsafe fn get_option_from(
+fn get_option_from(
     from: OptTarget,
     scope: OptScope,
     name: NvimString,
@@ -1026,7 +1016,7 @@ unsafe fn get_option_from(
     }
 }
 
-unsafe fn set_option_to(
+fn set_option_to(
     channel_id: u64,
     to: OptTarget,
     scope: OptScope,
@@ -1206,7 +1196,7 @@ pub unsafe extern "C" fn nvim_subscribe(_channel_id: u64, _event: NvimString) {}
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_unsubscribe(_channel_id: u64, _event: NvimString) {}
 
-unsafe fn push_char(line_buf: &mut Vec<c_char>, c: c_char, to_err: bool) {
+fn push_char(line_buf: &mut Vec<c_char>, c: c_char, to_err: bool) {
     unsafe {
         if line_buf.capacity() == 0 {
             line_buf.reserve(LINE_BUFFER_MIN_SIZE);
@@ -1231,7 +1221,7 @@ unsafe fn push_char(line_buf: &mut Vec<c_char>, c: c_char, to_err: bool) {
     }
 }
 
-unsafe fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
+fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
     unsafe {
         let line_buf_ptr = if to_err {
             &raw mut api_dep_st().ERR_LINE_BUF
@@ -1263,9 +1253,7 @@ unsafe fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
 //   FUNC_API_SINCE(1) FUNC_API_DEPRECATED_SINCE(13);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_out_write(str: NvimString) {
-    unsafe {
-        write_msg(str, false, false);
-    }
+    write_msg(str, false, false);
 }
 
 /// @deprecated
@@ -1276,9 +1264,7 @@ pub unsafe extern "C" fn nvim_out_write(str: NvimString) {
 //   FUNC_API_DEPRECATED_SINCE(13);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_err_write(str: NvimString) {
-    unsafe {
-        write_msg(str, true, false);
-    }
+    write_msg(str, true, false);
 }
 
 /// @deprecated
@@ -1289,9 +1275,7 @@ pub unsafe extern "C" fn nvim_err_write(str: NvimString) {
 //   FUNC_API_DEPRECATED_SINCE(13);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_err_writeln(str: NvimString) {
-    unsafe {
-        write_msg(str, true, true);
-    }
+    write_msg(str, true, true);
 }
 
 /// @deprecated

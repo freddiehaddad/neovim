@@ -310,7 +310,7 @@ fn parse_mo_header(header: &[u8]) -> (Option<Vec<u8>>, Vec<u8>) {
     (charset, plural_expr)
 }
 
-unsafe fn convert_mo_bytes_to_utf8(bytes: &[u8], charset: Option<&[u8]>) -> Vec<u8> {
+fn convert_mo_bytes_to_utf8(bytes: &[u8], charset: Option<&[u8]>) -> Vec<u8> {
     let Some(cs) = charset else {
         return bytes.to_vec();
     };
@@ -363,7 +363,7 @@ unsafe fn convert_mo_bytes_to_utf8(bytes: &[u8], charset: Option<&[u8]>) -> Vec<
     bytes.to_vec()
 }
 
-unsafe fn parse_mo_catalog(path: PathBuf, data: &[u8]) -> Option<MoCatalog> {
+fn parse_mo_catalog(path: PathBuf, data: &[u8]) -> Option<MoCatalog> {
     if data.len() < 28 {
         return None;
     }
@@ -411,7 +411,7 @@ unsafe fn parse_mo_catalog(path: PathBuf, data: &[u8]) -> Option<MoCatalog> {
     for (msgid, trans) in raw_entries {
         let mut forms = Vec::new();
         for form_bytes in trans.split(|&b| b == 0) {
-            let utf8 = unsafe { convert_mo_bytes_to_utf8(form_bytes, charset.as_deref()) };
+            let utf8 = convert_mo_bytes_to_utf8(form_bytes, charset.as_deref());
             if let Ok(cstr) = CString::new(utf8) {
                 forms.push(cstr);
             }
@@ -465,7 +465,7 @@ fn locale_candidates(locale: &str) -> Vec<String> {
     out
 }
 
-unsafe fn current_message_locale() -> Option<String> {
+fn current_message_locale() -> Option<String> {
     unsafe {
         let mut buf = [0 as c_char; 256];
         for var in [c"LANGUAGE", c"LC_ALL", c"LC_MESSAGES", c"LANG"] {
@@ -491,7 +491,7 @@ unsafe fn current_message_locale() -> Option<String> {
     }
 }
 
-unsafe fn ensure_catalog_loaded() -> Option<&'static MoCatalog> {
+fn ensure_catalog_loaded() -> Option<&'static MoCatalog> {
     unsafe {
         let catalogs_ptr = &raw mut lang_st().CATALOGS;
         let catalogs = &mut *catalogs_ptr;
@@ -587,7 +587,7 @@ use crate::diff::kShellOptSilent;
 use crate::os::fs::MAXPATHL;
 
 #[inline]
-unsafe fn get_locale_val(what: c_int) -> *mut c_char {
+fn get_locale_val(what: c_int) -> *mut c_char {
     unsafe { setlocale(what, ptr::null()) }
 }
 
@@ -600,7 +600,7 @@ unsafe fn is_valid_mess_lang(lang: *const c_char) -> bool {
 }
 
 /// Obtain the current messages language. Used to set the default for `'helplang'`.
-pub unsafe fn get_mess_lang() -> *mut c_char {
+pub fn get_mess_lang() -> *mut c_char {
     unsafe {
         #[cfg(not(windows))]
         let p = get_locale_val(LC_MESSAGES);
@@ -615,17 +615,16 @@ pub unsafe fn get_mess_lang() -> *mut c_char {
     }
 }
 
-unsafe fn get_mess_env(
+fn get_mess_env(
     #[cfg_attr(not(windows), allow(unused_variables))] buf: &mut [c_char; 64],
 ) -> *mut c_char {
+    #[cfg(not(windows))]
+    {
+        get_locale_val(LC_MESSAGES)
+    }
+    #[cfg(windows)]
     unsafe {
-        #[cfg(not(windows))]
-        {
-            get_locale_val(LC_MESSAGES)
-        }
-        #[cfg(windows)]
-        {
-            let mut p = os_getenv_buf(c"LC_ALL".as_ptr(), buf.as_mut_ptr(), buf.len());
+        let mut p = os_getenv_buf(c"LC_ALL".as_ptr(), buf.as_mut_ptr(), buf.len());
             if !p.is_null() {
                 return p;
             }
@@ -637,16 +636,15 @@ unsafe fn get_mess_env(
             if !p.is_null() && (*p as u8).is_ascii_digit() {
                 p = ptr::null_mut();
             }
-            if p.is_null() {
-                p = get_locale_val(LC_CTYPE);
-            }
-            p
+        if p.is_null() {
+            p = get_locale_val(LC_CTYPE);
         }
+        p
     }
 }
 
 /// Set the `v:lang`, `v:lc_time`, `v:collate`, and `v:ctype` variables.
-pub unsafe fn set_lang_var() {
+pub fn set_lang_var() {
     unsafe {
         let mut buf = [0 as c_char; 64];
         let mut loc: *const c_char = get_locale_val(LC_CTYPE);
@@ -664,7 +662,7 @@ pub unsafe fn set_lang_var() {
 }
 
 /// Setup to use the current locale.
-pub unsafe fn init_locale() {
+pub fn init_locale() {
     unsafe {
         let _ = setlocale(LC_ALL, c"".as_ptr());
         let _ = setlocale(LC_NUMERIC, c"C".as_ptr());
@@ -696,7 +694,7 @@ pub unsafe fn init_locale() {
 }
 
 /// `":language"`: Set the language (locale).
-pub unsafe fn ex_language(eap: &mut exarg_T) {
+pub fn ex_language(eap: &mut exarg_T) {
     unsafe {
         let mut what = LC_ALL;
         let mut whatstr: *const c_char = c"".as_ptr();
@@ -788,7 +786,7 @@ pub unsafe fn ex_language(eap: &mut exarg_T) {
 }
 
 #[cfg(not(windows))]
-unsafe fn find_locales() -> Vec<CString> {
+fn find_locales() -> Vec<CString> {
     unsafe {
         let Some(locale_a) = get_cmd_output(
             c"locale -a".as_ptr().cast_mut(),
@@ -806,9 +804,9 @@ unsafe fn find_locales() -> Vec<CString> {
     }
 }
 
-unsafe fn init_locales() {
+fn init_locales() {
     #[cfg(not(windows))]
-    unsafe {
+    {
         if lang_st().DID_INIT_LOCALES {
             return;
         }
@@ -822,18 +820,18 @@ pub fn free_locales() {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the possible arguments of `":language"`.
-pub unsafe fn get_lang_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_lang_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     match idx {
         0 => c"messages".as_ptr().cast_mut(),
         1 => c"ctype".as_ptr().cast_mut(),
         2 => c"time".as_ptr().cast_mut(),
         3 => c"collate".as_ptr().cast_mut(),
-        _ => unsafe { get_locales(_xp, idx - 4) },
+        _ => get_locales(_xp, idx - 4),
     }
 }
 
 /// Function given to `ExpandGeneric()` to obtain the available locales.
-pub unsafe fn get_locales(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_locales(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 {
         return ptr::null_mut();
     }
@@ -847,7 +845,7 @@ pub unsafe fn get_locales(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-pub unsafe fn lang_init() {
+pub fn lang_init() {
     #[cfg(target_os = "macos")]
     unsafe {
         if !os_env_exists(c"LANG".as_ptr(), true) {

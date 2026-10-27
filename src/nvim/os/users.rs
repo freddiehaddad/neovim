@@ -121,7 +121,7 @@ unsafe fn add_user(users: &mut Vec<CString>, user: *const c_char) {
 }
 
 /// Collect all OS usernames (`os_get_usernames`).
-unsafe fn collect_usernames() -> Vec<CString> {
+fn collect_usernames() -> Vec<CString> {
     let mut users = Vec::new();
 
     #[cfg(unix)]
@@ -255,21 +255,19 @@ pub fn free_users() {
     users_st().USERS = Vec::new();
 }
 
-unsafe fn init_users() {
-    unsafe {
-        if users_st().LAZY_INIT_DONE {
+fn init_users() {
+    if users_st().LAZY_INIT_DONE {
             return;
         }
         users_st().LAZY_INIT_DONE = true;
         users_st().USERS = collect_usernames();
-    }
 }
 
 /// Obtain username at `idx` for `ExpandGeneric()` (`get_users`).
 ///
 /// # Safety
 /// Caller must ensure single-threaded access to user completion cache.
-pub unsafe fn get_users(_xp: &mut crate::os::env::expand_T, idx: c_int) -> *mut c_char {
+pub fn get_users(_xp: &mut crate::os::env::expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 {
         return std::ptr::null_mut();
     }

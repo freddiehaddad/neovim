@@ -564,7 +564,7 @@ unsafe fn json_append_number(
     }
 }
 
-unsafe fn cmp_key_entries(ka: &key_entry_t, kb: &key_entry_t) -> std::cmp::Ordering {
+fn cmp_key_entries(ka: &key_entry_t, kb: &key_entry_t) -> std::cmp::Ordering {
     unsafe {
         let a = std::slice::from_raw_parts(
             (*ka.buf).buf.as_ptr().add(ka.offset).cast::<u8>(),

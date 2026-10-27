@@ -2592,7 +2592,7 @@ fn unibi_from_dirs(list: &str, term: &str) -> Option<UnibiTerm> {
     None
 }
 
-unsafe fn get_env_str(name: &CStr) -> Option<String> {
+fn get_env_str(name: &CStr) -> Option<String> {
     unsafe {
         crate::os::env::os_getenv_cstr(name.as_ptr()).map(|c| c.to_string_lossy().into_owned())
     }
@@ -2608,13 +2608,13 @@ unsafe fn unibi_from_term(termname: *const c_char) -> Option<UnibiTerm> {
     }
     let term = std::str::from_utf8(term_bytes).ok()?;
 
-    if let Some(env) = unsafe { get_env_str(c"TERMINFO") }
+    if let Some(env) = get_env_str(c"TERMINFO")
         && let Ok(Some(ut)) = unibi_from_dir(&env, None, term)
     {
         return Some(ut);
     }
 
-    if let Some(home) = unsafe { get_env_str(c"HOME") } {
+    if let Some(home) = get_env_str(c"HOME") {
         match unibi_from_dir(&home, Some(".terminfo"), term) {
             Ok(Some(ut)) => return Some(ut),
             Ok(None) => return None,
@@ -2623,7 +2623,7 @@ unsafe fn unibi_from_term(termname: *const c_char) -> Option<UnibiTerm> {
         }
     }
 
-    if let Some(dirs) = unsafe { get_env_str(c"TERMINFO_DIRS") }
+    if let Some(dirs) = get_env_str(c"TERMINFO_DIRS")
         && let Some(ut) = unibi_from_dirs(&dirs, term)
     {
         return Some(ut);
@@ -2818,7 +2818,7 @@ const fn fmt_bool(val: bool) -> &'static str {
     if val { "true" } else { "false" }
 }
 
-pub unsafe fn terminfo_info_msg(
+pub fn terminfo_info_msg(
     ti: &TerminfoEntry,
     termname: Option<&CStr>,
     from_db: bool,

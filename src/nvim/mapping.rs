@@ -122,14 +122,10 @@ impl mapblock_T {
             alt.keys[0].set(None);
             alt.keys[1].set(None);
             if std::rc::Rc::strong_count(&alt) == 1 {
-                unsafe {
-                    nlua_clear_ref(&mut self.m_luaref);
-                }
-            }
-        } else {
-            unsafe {
                 nlua_clear_ref(&mut self.m_luaref);
             }
+        } else {
+            nlua_clear_ref(&mut self.m_luaref);
         }
     }
 }

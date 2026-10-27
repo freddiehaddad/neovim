@@ -1141,12 +1141,10 @@ pub fn set_search_direction(cdir: c_int) {
 }
 
 unsafe fn set_vv_searchforward() {
-    unsafe {
-        set_vim_var_nr(
+    set_vim_var_nr(
             VV_SEARCHFORWARD,
             varnumber_T::from(srch().spats[0].off.dir == b'/' as c_char),
         );
-    }
 }
 
 fn first_submatch(rp: &regmmatch_T) -> c_int {

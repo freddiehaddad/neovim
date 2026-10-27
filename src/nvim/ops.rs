@@ -3477,9 +3477,7 @@ unsafe fn op_colon(oap: &mut oparg_T) {
 }
 
 pub unsafe fn free_operatorfunc_option() {
-    unsafe {
-        callback_free(&mut opt_vars().p_opfunc);
-    }
+    callback_free(&mut opt_vars().p_opfunc);
 }
 
 pub unsafe fn set_ref_in_opfunc(copyID: c_int) -> bool {

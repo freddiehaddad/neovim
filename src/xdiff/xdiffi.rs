@@ -425,13 +425,13 @@ pub unsafe fn xdl_do_diff(
     0
 }
 
-unsafe fn recs_match(rec1: &xrecord_t, rec2: &xrecord_t, flags: c_long) -> bool {
+fn recs_match(rec1: &xrecord_t, rec2: &xrecord_t, flags: c_long) -> bool {
     unsafe {
         rec1.ha == rec2.ha && xdl_recmatch(rec1.ptr, rec1.size, rec2.ptr, rec2.size, flags) != 0
     }
 }
 
-unsafe fn xget_indent(rec: &xrecord_t) -> c_int {
+fn xget_indent(rec: &xrecord_t) -> c_int {
     let mut ret: c_int = 0;
     unsafe {
         for i in 0..rec.size {

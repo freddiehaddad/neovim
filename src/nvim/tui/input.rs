@@ -260,7 +260,7 @@ pub unsafe fn tinput_init(input: &mut TermInput, loop_: *mut Loop, ti: &Terminfo
     }
 }
 
-pub unsafe fn tinput_destroy(input: &mut TermInput) {
+pub fn tinput_destroy(input: &mut TermInput) {
     unsafe {
         {
             uv_close((&raw mut input.timer_handle).cast(), None);
@@ -272,17 +272,15 @@ pub unsafe fn tinput_destroy(input: &mut TermInput) {
     }
 }
 
-pub unsafe fn tinput_start(input: &mut TermInput) {
-    unsafe {
-        let input_ptr = &raw mut *input;
+pub fn tinput_start(input: &mut TermInput) {
+    let input_ptr = &raw mut *input;
         rstream_start(
             &mut input.read_stream,
             StreamCbData::Input(input_ptr),
         );
-    }
 }
 
-pub unsafe fn tinput_stop(input: &mut TermInput) {
+pub fn tinput_stop(input: &mut TermInput) {
     unsafe {
         rstream_stop(&mut input.read_stream);
         {
@@ -292,14 +290,14 @@ pub unsafe fn tinput_stop(input: &mut TermInput) {
     }
 }
 
-pub unsafe fn tinput_done_event() {
+pub fn tinput_done_event() {
     unsafe {
         os_exit(1);
     }
 }
 
 /// Send all pending input in key buffer to Nvim server.
-unsafe fn tinput_flush(input: &mut TermInput) {
+fn tinput_flush(input: &mut TermInput) {
     unsafe {
         let keys = NvimString {
             data: input.key_buffer.as_mut_ptr(),
@@ -374,7 +372,7 @@ fn push_more_modifiers(modifiers: c_int, out: &mut String) {
     }
 }
 
-unsafe fn handle_kitty_key_protocol(input: &mut TermInput, key: &TermKeyKey) {
+fn handle_kitty_key_protocol(input: &mut TermInput, key: &TermKeyKey) {
     unsafe {
         if let Some(name) = kitty_key_name(key.code.codepoint as c_int) {
             let mut buf = String::with_capacity(32);
@@ -388,7 +386,7 @@ unsafe fn handle_kitty_key_protocol(input: &mut TermInput, key: &TermKeyKey) {
     }
 }
 
-unsafe fn forward_simple_utf8(input: &mut TermInput, key: &TermKeyKey) {
+fn forward_simple_utf8(input: &mut TermInput, key: &TermKeyKey) {
     unsafe {
         let cp = key.code.codepoint as c_int;
         if (0xE000..=0xF8FF).contains(&cp) && kitty_key_name(cp).is_some() {
@@ -415,7 +413,7 @@ unsafe fn forward_simple_utf8(input: &mut TermInput, key: &TermKeyKey) {
     }
 }
 
-unsafe fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
+fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
     unsafe {
         let p = &raw mut *input;
         let mut buf = [0 as c_char; 64];
@@ -482,7 +480,7 @@ unsafe fn forward_modified_utf8(input: &mut TermInput, key: &mut TermKeyKey) {
     }
 }
 
-unsafe fn forward_mouse_event(input: &mut TermInput, key: &TermKeyKey) {
+fn forward_mouse_event(input: &mut TermInput, key: &TermKeyKey) {
     unsafe {
         let p = &raw mut *input;
         let mut button: c_int = 0;
@@ -556,17 +554,15 @@ unsafe fn forward_mouse_event(input: &mut TermInput, key: &TermKeyKey) {
 }
 
 #[inline]
-unsafe fn tk_getkey(tk: &mut TermKey, key: &mut TermKeyKey, force: bool) -> TermKeyResult {
-    unsafe {
-        if force {
+fn tk_getkey(tk: &mut TermKey, key: &mut TermKeyKey, force: bool) -> TermKeyResult {
+    if force {
             termkey_getkey_force(tk, key)
         } else {
             termkey_getkey(tk, key)
         }
-    }
 }
 
-unsafe fn tk_getkeys(input: &mut TermInput, force: bool) {
+fn tk_getkeys(input: &mut TermInput, force: bool) {
     unsafe {
         let p = &raw mut *input;
         let mut key = TermKeyKey::new();
@@ -696,7 +692,7 @@ unsafe fn handle_bracketed_paste(
     }
 }
 
-unsafe fn send_termresponse(response: &[u8]) {
+fn send_termresponse(response: &[u8]) {
     let mut items = [
         string_obj(NvimString {
             data: c"termresponse".as_ptr().cast_mut(),
@@ -717,7 +713,7 @@ unsafe fn send_termresponse(response: &[u8]) {
     }
 }
 
-unsafe fn handle_term_response(input: &mut TermInput, key: &TermKeyKey) {
+fn handle_term_response(input: &mut TermInput, key: &TermKeyKey) {
     unsafe {
         let p = &raw mut *input;
         let mut str_ptr: *const c_char = ptr::null();
@@ -748,7 +744,7 @@ unsafe fn handle_term_response(input: &mut TermInput, key: &TermKeyKey) {
     }
 }
 
-unsafe fn handle_primary_device_attr(
+fn handle_primary_device_attr(
     input: &mut TermInput,
     params: &[TermKeyCsiParam],
     nparams: usize,
@@ -788,7 +784,7 @@ unsafe fn handle_primary_device_attr(
     }
 }
 
-unsafe fn handle_modereport(input: &mut TermInput, key: &TermKeyKey) {
+fn handle_modereport(input: &mut TermInput, key: &TermKeyKey) {
     unsafe {
         let p = &raw mut *input;
         let mut initial: c_int = 0;
@@ -807,7 +803,7 @@ unsafe fn handle_modereport(input: &mut TermInput, key: &TermKeyKey) {
     }
 }
 
-unsafe fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
+fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
     unsafe {
         let p = &raw mut *input;
         let mut params = [TermKeyCsiParam::new(); 16];

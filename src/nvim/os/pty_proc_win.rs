@@ -174,7 +174,7 @@ mod win_impl {
         }
     }
 
-    pub(crate) unsafe fn pty_proc_close_console(stream: &mut Stream) {
+    pub(crate) fn pty_proc_close_console(stream: &mut Stream) {
         unsafe {
             let ptyproc = stream.internal_data.as_proc();
             let proc_: *mut Proc = ptyproc;
@@ -202,7 +202,7 @@ mod win_impl {
     }
 
     /// @returns zero on success, or negative error code.
-    pub unsafe fn pty_proc_spawn(ptyproc: &mut PtyProc) -> c_int {
+    pub fn pty_proc_spawn(ptyproc: &mut PtyProc) -> c_int {
         unsafe {
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
@@ -388,7 +388,7 @@ mod win_impl {
         c"?".as_ptr()
     }
 
-    pub unsafe fn pty_proc_resize(ptyproc: &mut PtyProc, width: u16, height: u16) {
+    pub fn pty_proc_resize(ptyproc: &mut PtyProc, width: u16, height: u16) {
         unsafe {
             let ptail = pty_proc_win_tail(ptyproc);
             if let Some(ref conpty) = (*ptail).conpty {
@@ -401,7 +401,7 @@ mod win_impl {
 
     pub fn pty_proc_flush_master(_ptyproc: &mut PtyProc) {}
 
-    pub unsafe fn pty_proc_close(ptyproc: &mut PtyProc) {
+    pub fn pty_proc_close(ptyproc: &mut PtyProc) {
         unsafe {
             let proc_: *mut Proc = ptyproc;
             let proc_t = proc_;
@@ -434,7 +434,7 @@ mod win_impl {
         }
     }
 
-    pub unsafe fn pty_proc_finish(ptyproc: &mut PtyProc) {
+    pub fn pty_proc_finish(ptyproc: &mut PtyProc) {
         unsafe {
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
@@ -452,7 +452,7 @@ mod win_impl {
         }
     }
 
-    unsafe fn build_cmd_line(
+    fn build_cmd_line(
         argv: &[std::ffi::CString],
         cmd_line: &mut Vec<u16>,
         is_cmdexe: bool,

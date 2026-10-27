@@ -1015,7 +1015,7 @@ unsafe fn parser_check(L: *mut lua_State, index: c_int) -> *mut TSParser {
     }
 }
 
-unsafe fn logger_gc(logger: TSLogger) {
+fn logger_gc(logger: TSLogger) {
     if logger.log.is_none() {
         return;
     }

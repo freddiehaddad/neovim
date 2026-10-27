@@ -2032,11 +2032,9 @@ pub(super) unsafe fn read_limits(minval: &mut c_int, maxval: &mut c_int) -> c_in
 }
 
 pub(super) unsafe fn reg_breakcheck() {
-    unsafe {
-        if !re_st().rex.reg_nobreak {
+    if !re_st().rex.reg_nobreak {
             fast_breakcheck();
         }
-    }
 }
 
 pub(super) unsafe fn reg_iswordc(c: c_int) -> bool {

@@ -1246,7 +1246,7 @@ pub unsafe extern "C" fn nvim_cmd(
     }
 }
 
-unsafe fn string_iswhite(str_val: NvimString) -> bool {
+fn string_iswhite(str_val: NvimString) -> bool {
     unsafe {
         for i in 0..str_val.size {
             let c = *str_val.data.add(i);
@@ -1445,7 +1445,7 @@ pub unsafe extern "C" fn nvim_buf_del_user_command(buf: Buffer, name: NvimString
 
 // DLLEXPORT void create_user_command(uint64_t channel_id, String name, Union(String, LuaRef) cmd,
 //                                    Dict(user_command) *opts, int flags, Error *err);
-pub unsafe fn create_user_command(
+pub fn create_user_command(
     channel_id: u64,
     name: NvimString,
     cmd: Object,

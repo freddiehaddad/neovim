@@ -360,7 +360,7 @@ unsafe fn strpncmp_camel(
     }
 }
 
-pub unsafe fn termkey_new_abstract(term: Option<&TerminfoEntry>, flags: c_int) -> Option<TermKey> {
+pub fn termkey_new_abstract(term: Option<&TerminfoEntry>, flags: c_int) -> Option<TermKey> {
     unsafe {
         let mut tk = TermKey {
             flags: 0,
@@ -542,7 +542,7 @@ fn parse_utf8(bytes: &[u8], cp: &mut c_int, nbytep: &mut usize) -> TermKeyResult
     TERMKEY_RES_KEY
 }
 
-pub(crate) unsafe fn emit_codepoint(tk: &TermKey, codepoint: c_int, key: &mut TermKeyKey) {
+pub(crate) fn emit_codepoint(tk: &TermKey, codepoint: c_int, key: &mut TermKeyKey) {
     unsafe {
         if codepoint == 0 {
             key.r#type = TERMKEY_TYPE_KEYSYM;
@@ -595,7 +595,7 @@ pub(crate) unsafe fn emit_codepoint(tk: &TermKey, codepoint: c_int, key: &mut Te
     }
 }
 
-pub unsafe fn termkey_canonicalise(tk: &TermKey, key: &mut TermKeyKey) {
+pub fn termkey_canonicalise(tk: &TermKey, key: &mut TermKeyKey) {
     unsafe {
         let flags = tk.canonflags;
 
@@ -782,7 +782,7 @@ pub(crate) unsafe fn peekkey_mouse(
     }
 }
 
-pub unsafe fn termkey_getkey(tk: &mut TermKey, key: &mut TermKeyKey) -> TermKeyResult {
+pub fn termkey_getkey(tk: &mut TermKey, key: &mut TermKeyKey) -> TermKeyResult {
     unsafe {
         let mut nbytes: usize = 0;
         let ret = peekkey(tk, key, 0, &mut nbytes);
@@ -799,7 +799,7 @@ pub unsafe fn termkey_getkey(tk: &mut TermKey, key: &mut TermKeyKey) -> TermKeyR
     }
 }
 
-pub unsafe fn termkey_getkey_force(tk: &mut TermKey, key: &mut TermKeyKey) -> TermKeyResult {
+pub fn termkey_getkey_force(tk: &mut TermKey, key: &mut TermKeyKey) -> TermKeyResult {
     unsafe {
         let mut nbytes: usize = 0;
         let ret = peekkey(tk, key, 1, &mut nbytes);
@@ -1200,7 +1200,7 @@ mod tests {
         termkey_interpret_csi, termkey_interpret_position,
     };
 
-    unsafe fn push(tk: &mut TermKey, bytes: &[u8]) -> usize {
+    fn push(tk: &mut TermKey, bytes: &[u8]) -> usize {
         unsafe { termkey_push_bytes(tk, bytes.as_ptr().cast(), bytes.len()) }
     }
 
@@ -1276,8 +1276,7 @@ mod tests {
 
     #[test]
     fn utf8_decoding_invalid_continuations_and_partials() {
-        unsafe {
-            let mut tk = termkey_new_abstract(None, TERMKEY_FLAG_UTF8).unwrap();
+        let mut tk = termkey_new_abstract(None, TERMKEY_FLAG_UTF8).unwrap();
             let tk = &mut tk;
             let mut key = TermKeyKey::new();
 
@@ -1322,7 +1321,6 @@ mod tests {
             push(tk, b"\x80");
             assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
             assert_eq!(key.code.codepoint, 0x10000);
-        }
     }
 
     #[test]

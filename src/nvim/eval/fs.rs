@@ -2008,7 +2008,7 @@ unsafe fn write_data(fp: &mut FileDescriptor, data: *const c_char, len: usize) -
     }
 }
 
-unsafe fn write_blob(fp: &mut FileDescriptor, blob: &blob_T) -> bool {
+fn write_blob(fp: &mut FileDescriptor, blob: &blob_T) -> bool {
     unsafe {
         write_data(
             fp,

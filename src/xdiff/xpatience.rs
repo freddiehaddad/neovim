@@ -44,7 +44,7 @@ struct HashMap {
     xpp: *const xpparam_t,
 }
 
-unsafe fn insert_record(line: c_int, map: &mut HashMap, pass: c_int) {
+fn insert_record(line: c_int, map: &mut HashMap, pass: c_int) {
     unsafe {
         let records = if pass == 1 {
             &(*map.env).xdf1.recs
@@ -114,8 +114,7 @@ unsafe fn fill_hashmap(
         xpp,
     };
 
-    unsafe {
-        while count1 > 0 {
+    while count1 > 0 {
             count1 -= 1;
             insert_record(line1, &mut map, 1);
             line1 += 1;
@@ -126,7 +125,6 @@ unsafe fn fill_hashmap(
             insert_record(line2, &mut map, 2);
             line2 += 1;
         }
-    }
     map
 }
 
@@ -147,7 +145,7 @@ unsafe fn binary_search(sequence: &[*mut Entry], longest: c_int, entry: *mut Ent
     left
 }
 
-unsafe fn find_longest_common_sequence(map: &mut HashMap) -> *mut Entry {
+fn find_longest_common_sequence(map: &mut HashMap) -> *mut Entry {
     unsafe {
         let mut sequence = vec![ptr::null_mut::<Entry>(); map.nr as usize];
 
@@ -185,7 +183,7 @@ unsafe fn find_longest_common_sequence(map: &mut HashMap) -> *mut Entry {
     }
 }
 
-unsafe fn match_lines(map: &HashMap, line1: c_int, line2: c_int) -> bool {
+fn match_lines(map: &HashMap, line1: c_int, line2: c_int) -> bool {
     unsafe {
         let record1 = &(&(*map.env).xdf1.recs)[(line1 - 1) as usize];
         let record2 = &(&(*map.env).xdf2.recs)[(line2 - 1) as usize];
@@ -258,7 +256,7 @@ unsafe fn walk_common_sequence(
     }
 }
 
-unsafe fn fall_back_to_classic_diff(
+fn fall_back_to_classic_diff(
     map: &HashMap,
     line1: c_int,
     count1: c_int,

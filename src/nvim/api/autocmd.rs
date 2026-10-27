@@ -216,7 +216,7 @@ unsafe fn unpack_string_or_array(
     }
 }
 
-unsafe fn get_augroup_from_object(group: Object, err: &mut Error) -> c_int {
+fn get_augroup_from_object(group: Object, err: &mut Error) -> c_int {
     unsafe {
         match group.obj_type {
             ObjectType::kObjectTypeNil => AUGROUP_DEFAULT,

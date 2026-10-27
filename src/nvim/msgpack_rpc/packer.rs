@@ -70,7 +70,7 @@ impl PackerBuffer {
     }
 }
 
-pub unsafe fn packer_flush_buffer(packer: &mut PackerBuffer) {
+pub fn packer_flush_buffer(packer: &mut PackerBuffer) {
     unsafe {
         match packer.anydata {
             PackerData::None => {}
@@ -201,12 +201,10 @@ fn mpack_remaining(packer: &PackerBuffer) -> usize {
 ///
 /// # Safety
 /// `packer` must be a valid writable pointer to a `PackerBuffer`.
-pub unsafe fn mpack_check_buffer(packer: &mut PackerBuffer) {
+pub fn mpack_check_buffer(packer: &mut PackerBuffer) {
     let p = &mut *packer;
     if mpack_remaining(p) < 2 * MPACK_ITEM_SIZE {
-        unsafe {
-            packer_flush_buffer(packer);
-        }
+        packer_flush_buffer(packer);
     }
 }
 
@@ -266,7 +264,7 @@ pub unsafe fn mpack_float8(ptr: *mut *mut c_char, i: f64) {
 ///
 /// # Safety
 /// `str_val` and `packer` must be valid.
-pub unsafe fn mpack_str(str_val: NvimString, packer: &mut PackerBuffer) {
+pub fn mpack_str(str_val: NvimString, packer: &mut PackerBuffer) {
     let len = str_val.size;
     let p = &mut *packer;
     unsafe {
@@ -292,7 +290,7 @@ pub unsafe fn mpack_str(str_val: NvimString, packer: &mut PackerBuffer) {
 ///
 /// # Safety
 /// `str_val` and `packer` must be valid.
-pub unsafe fn mpack_bin(str_val: NvimString, packer: &mut PackerBuffer) {
+pub fn mpack_bin(str_val: NvimString, packer: &mut PackerBuffer) {
     let len = str_val.size;
     let p = &mut *packer;
     unsafe {
@@ -334,14 +332,10 @@ pub unsafe fn mpack_raw(data: *const c_char, len: usize, packer: &mut PackerBuff
             pos += to_copy;
         }
         if pos < len {
-            unsafe {
-                packer_flush_buffer(packer);
-            }
+            packer_flush_buffer(packer);
         }
     }
-    unsafe {
-        mpack_check_buffer(packer);
-    }
+    mpack_check_buffer(packer);
 }
 
 /// Pack a msgpack ext payload into `packer` (`mpack_ext`).
@@ -375,7 +369,7 @@ pub unsafe fn mpack_ext(buf: *mut c_char, len: usize, ext_type: i8, packer: &mut
 ///
 /// # Safety
 /// `packer` must be a valid writable pointer to a `PackerBuffer`.
-pub unsafe fn mpack_handle(obj_type: ObjectType, handle: handle_T, packer: &mut PackerBuffer) {
+pub fn mpack_handle(obj_type: ObjectType, handle: handle_T, packer: &mut PackerBuffer) {
     let exttype = ((obj_type as c_int) - EXT_OBJECT_TYPE_SHIFT) as u8;
     let p = &mut *packer;
     unsafe {
@@ -412,7 +406,7 @@ pub unsafe fn mpack_object(obj: *mut Object, packer: &mut PackerBuffer) {
 ///
 /// # Safety
 /// `arr` and `packer` must be valid.
-pub unsafe fn mpack_object_array(arr: Array, packer: &mut PackerBuffer) {
+pub fn mpack_object_array(arr: Array, packer: &mut PackerBuffer) {
     let p = &mut *packer;
     unsafe {
         mpack_array(&mut p.ptr, arr.size as u32);
@@ -537,7 +531,7 @@ pub unsafe fn mpack_object_inner(
     }
 }
 
-unsafe fn flush_string_buffer(buffer: &mut PackerBuffer) {
+fn flush_string_buffer(buffer: &mut PackerBuffer) {
     let b = &mut *buffer;
     let current_capacity = (b.endptr as usize) - (b.startptr as usize);
     let new_capacity = 2 * current_capacity;

@@ -304,7 +304,7 @@ fn uf2hikey(fp: &ufunc_T) -> *mut c_char {
     fp.uf_name.as_ptr().cast_mut()
 }
 
-unsafe fn func_hashtab_add(fp: &mut ufunc_T) -> c_int {
+fn func_hashtab_add(fp: &mut ufunc_T) -> c_int {
     unsafe {
         let key_ptr = uf2hikey(fp);
         let key = CStr::from_ptr(key_ptr).to_bytes();
@@ -325,7 +325,7 @@ fn funcarg(fp: &ufunc_T, j: c_int) -> *mut c_char {
 }
 
 /// Return the function hash table.
-pub unsafe fn func_tbl_get() -> &'static mut std::collections::BTreeMap<Vec<u8>, *mut ufunc_T> {
+pub fn func_tbl_get() -> &'static mut std::collections::BTreeMap<Vec<u8>, *mut ufunc_T> {
     unsafe {
         let tbl = &raw mut uf_st().func_hashtab;
         &mut *tbl
@@ -488,7 +488,7 @@ unsafe fn get_function_args(
 }
 
 /// Register function "fp" as using "current_funccal" as its scope.
-unsafe fn register_closure(fp: &mut ufunc_T) {
+fn register_closure(fp: &mut ufunc_T) {
     unsafe {
         if fp.uf_scoped == uf_st().current_funccal {
             return;
@@ -501,7 +501,7 @@ unsafe fn register_closure(fp: &mut ufunc_T) {
 }
 
 /// Return a name for a lambda in static memory.
-unsafe fn get_lambda_name() -> NvimString {
+fn get_lambda_name() -> NvimString {
     unsafe {
         uf_st().lambda_no += 1;
         let buf_ptr = (&raw mut uf_st().lambda_name).cast::<c_char>();
@@ -1025,7 +1025,7 @@ impl Drop for funccall_T {
 
 /// Handle the last part of returning from a function: free the local hashtable.
 /// Unless it is still in use by a closure.
-unsafe fn cleanup_function_call(fc: &mut funccall_T) {
+fn cleanup_function_call(fc: &mut funccall_T) {
     unsafe {
         let may_free_fc = fc.fc_refcount <= 0;
         let mut free_fc = true;
@@ -1128,7 +1128,7 @@ unsafe fn funccal_unref(fc: *mut funccall_T, fp: *mut ufunc_T, force: bool) {
 }
 
 /// Remove the function from the function hashtable.
-unsafe fn func_remove(fp: &mut ufunc_T) -> bool {
+fn func_remove(fp: &mut ufunc_T) -> bool {
     unsafe {
         let ht = &raw mut uf_st().func_hashtab;
         let key = CStr::from_ptr(uf2hikey(fp)).to_bytes();
@@ -1645,7 +1645,7 @@ unsafe fn call_user_func_check(
 }
 
 /// Save the current function call pointer, and set it to NULL.
-pub unsafe fn save_funccal() {
+pub fn save_funccal() {
     unsafe {
         let stack = &raw mut uf_st().funccal_stack;
         (*stack).push(uf_st().current_funccal);
@@ -1653,7 +1653,7 @@ pub unsafe fn save_funccal() {
     }
 }
 
-pub unsafe fn restore_funccal() {
+pub fn restore_funccal() {
     unsafe {
         let stack = &raw mut uf_st().funccal_stack;
         if let Some(top) = (*stack).pop() {
@@ -1672,7 +1672,7 @@ pub unsafe fn set_current_funccal(fc: *mut funccall_T) {
     uf_st().current_funccal = fc;
 }
 
-pub unsafe fn free_all_functions() {
+pub fn free_all_functions() {
     unsafe {
         while !uf_st().current_funccal.is_null() {
             tv_clear((*uf_st().current_funccal).fc_rettv);
@@ -2115,7 +2115,7 @@ pub fn printable_func_name(fp: &mut ufunc_T) -> *mut c_char {
         }
 }
 
-unsafe fn function_list_modified(prev_ht_changed: c_int) -> bool {
+fn function_list_modified(prev_ht_changed: c_int) -> bool {
     unsafe {
         if prev_ht_changed != uf_st().func_hashtab_changed {
             emsg(gettext(E_FUNCTION_LIST_WAS_MODIFIED.as_ptr()));
@@ -2125,7 +2125,7 @@ unsafe fn function_list_modified(prev_ht_changed: c_int) -> bool {
     }
 }
 
-unsafe fn list_func_head(fp: &mut ufunc_T, indent: bool, force: bool) -> c_int {
+fn list_func_head(fp: &mut ufunc_T, indent: bool, force: bool) -> c_int {
     unsafe {
         let prev_ht_changed = uf_st().func_hashtab_changed;
 
@@ -2522,7 +2522,7 @@ unsafe fn list_functions(regmatch: *mut regmatch_T) {
     }
 }
 
-unsafe fn list_functions_matching_pat(eap: &mut exarg_T) -> *mut c_char {
+fn list_functions_matching_pat(eap: &mut exarg_T) -> *mut c_char {
     unsafe {
         let mut p = skip_regexp(eap.arg.add(1), b'/' as c_int, 1);
         if eap.skip == 0 {
@@ -2921,7 +2921,7 @@ unsafe fn get_function_body(
 }
 
 /// `:function`
-pub unsafe fn ex_function(eap: &mut exarg_T) {
+pub fn ex_function(eap: &mut exarg_T) {
     unsafe {
         let mut line_arg: *mut c_char = ptr::null_mut();
         let mut newargs: Vec<std::ffi::CString> = Vec::new();
@@ -3344,7 +3344,7 @@ pub unsafe fn function_exists(name: *const c_char, no_deref: bool) -> bool {
 
 /// Function given to `ExpandGeneric()` to obtain the list of user defined
 /// function names.
-pub unsafe fn get_user_func_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_user_func_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
             uf_st().get_uf_done = 0;
@@ -3392,7 +3392,7 @@ pub unsafe fn get_user_func_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// `:delfunction {name}`
-pub unsafe fn ex_delfunction(eap: &mut exarg_T) {
+pub fn ex_delfunction(eap: &mut exarg_T) {
     unsafe {
         let mut fp: *mut ufunc_T = ptr::null_mut();
         let mut fudi = funcdict_T::new();
@@ -3543,7 +3543,7 @@ fn can_free_funccal(fc: &funccall_T, copyID: c_int) -> bool {
 }
 
 /// `:return [expr]`
-pub unsafe fn ex_return(eap: &mut exarg_T) {
+pub fn ex_return(eap: &mut exarg_T) {
     unsafe {
         let arg = eap.arg;
         let mut rettv: typval_T = typval_T::new();
@@ -3726,7 +3726,7 @@ unsafe fn ex_defer_inner(
     }
 }
 
-pub unsafe fn can_add_defer() -> bool {
+pub fn can_add_defer() -> bool {
     unsafe {
         if get_current_funccal().is_null() {
             semsg!(
@@ -3754,7 +3754,7 @@ pub unsafe fn add_defer(name: *mut c_char, argcount_arg: c_int, argvars: *mut ty
     }
 }
 
-unsafe fn handle_defer_one(funccal: &mut funccall_T) {
+fn handle_defer_one(funccal: &mut funccall_T) {
     unsafe {
         let mut idx = funccal.fc_defer.len() as isize - 1;
         while idx >= 0 {
@@ -3803,7 +3803,7 @@ unsafe fn handle_defer_one(funccal: &mut funccall_T) {
     }
 }
 
-pub unsafe fn invoke_all_defer() {
+pub fn invoke_all_defer() {
     unsafe {
         let mut fc = uf_st().current_funccal;
         while !fc.is_null() {
@@ -3823,7 +3823,7 @@ pub unsafe fn invoke_all_defer() {
 }
 
 /// `:1,25call func(arg1, arg2)` or `:defer func(arg1, arg2)`.
-pub unsafe fn ex_call(eap: &mut exarg_T) {
+pub fn ex_call(eap: &mut exarg_T) {
     unsafe {
         let mut arg = eap.arg;
         let mut fudi = funcdict_T::new();
@@ -3924,7 +3924,7 @@ pub unsafe fn ex_call(eap: &mut exarg_T) {
 }
 
 /// Return from a function. Possibly makes the return pending.
-pub unsafe fn do_return(
+pub fn do_return(
     eap: &mut exarg_T,
     reanimate: bool,
     _is_cmd: bool,
@@ -3964,7 +3964,7 @@ pub unsafe fn do_return(
 }
 
 /// Generate a return command for producing the value of `rettv`.
-pub unsafe fn get_return_cmd(rettv: Option<typval_T>) -> std::ffi::CString {
+pub fn get_return_cmd(rettv: Option<typval_T>) -> std::ffi::CString {
     unsafe {
         let mut tofree: Option<std::ffi::CString> = None;
         if let Some(mut tv) = rettv {
@@ -3993,7 +3993,7 @@ pub unsafe fn get_return_cmd(rettv: Option<typval_T>) -> std::ffi::CString {
 }
 
 /// Get next function line.
-pub unsafe fn get_func_line(
+pub fn get_func_line(
     _c: c_int,
     fcp: &mut funccall_T,
     _indent: c_int,
@@ -4045,7 +4045,7 @@ pub unsafe fn get_func_line(
     }
 }
 
-pub unsafe fn func_has_ended(fcp: &mut funccall_T) -> c_int {
+pub fn func_has_ended(fcp: &mut funccall_T) -> c_int {
     unsafe {
         if (((*fcp.fc_func).uf_flags & FC_ABORT) != 0 && g_st().did_emsg != 0 && !aborted_in_try())
             || fcp.fc_returned != 0
@@ -4057,7 +4057,7 @@ pub unsafe fn func_has_ended(fcp: &mut funccall_T) -> c_int {
     }
 }
 
-pub unsafe fn func_has_abort(fcp: &mut funccall_T) -> c_int {
+pub fn func_has_abort(fcp: &mut funccall_T) -> c_int {
     unsafe { (*fcp.fc_func).uf_flags & FC_ABORT }
 }
 
@@ -4132,7 +4132,7 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
     }
 }
 
-pub unsafe fn func_name(fcp: &mut funccall_T) -> *mut c_char {
+pub fn func_name(fcp: &mut funccall_T) -> *mut c_char {
     unsafe { uf2hikey(&*fcp.fc_func) }
 }
 
@@ -4148,11 +4148,11 @@ pub fn func_level(fcp: &mut funccall_T) -> c_int {
     fcp.fc_level
 }
 
-pub unsafe fn current_func_returned() -> c_int {
+pub fn current_func_returned() -> c_int {
     unsafe { (*uf_st().current_funccal).fc_returned }
 }
 
-pub unsafe fn free_unref_funccal(copyID: c_int, testing: c_int) -> bool {
+pub fn free_unref_funccal(copyID: c_int, testing: c_int) -> bool {
     unsafe {
         let mut did_free = false;
         let mut did_free_funccal = false;
@@ -4176,7 +4176,7 @@ pub unsafe fn free_unref_funccal(copyID: c_int, testing: c_int) -> bool {
     }
 }
 
-pub unsafe fn get_funccal() -> *mut funccall_T {
+pub fn get_funccal() -> *mut funccall_T {
     unsafe {
         let mut funccal = uf_st().current_funccal;
         if g_st().debug_backtrace_level > 0 {
@@ -4194,7 +4194,7 @@ pub unsafe fn get_funccal() -> *mut funccall_T {
     }
 }
 
-unsafe fn get_funccal_for_vars() -> *mut funccall_T {
+fn get_funccal_for_vars() -> *mut funccall_T {
     unsafe {
         if uf_st().current_funccal.is_null() {
             return ptr::null_mut();
@@ -4207,7 +4207,7 @@ unsafe fn get_funccal_for_vars() -> *mut funccall_T {
     }
 }
 
-pub unsafe fn get_funccal_local_dict() -> *mut dict_T {
+pub fn get_funccal_local_dict() -> *mut dict_T {
     unsafe {
         let funccal = get_funccal_for_vars();
         if funccal.is_null() {
@@ -4218,7 +4218,7 @@ pub unsafe fn get_funccal_local_dict() -> *mut dict_T {
     }
 }
 
-pub unsafe fn get_funccal_local_ht() -> *mut hashtab_T {
+pub fn get_funccal_local_ht() -> *mut hashtab_T {
     unsafe {
         let d = get_funccal_local_dict();
         if !d.is_null() {
@@ -4229,7 +4229,7 @@ pub unsafe fn get_funccal_local_ht() -> *mut hashtab_T {
     }
 }
 
-pub unsafe fn get_funccal_local_var() -> *mut dictitem_T {
+pub fn get_funccal_local_var() -> *mut dictitem_T {
     unsafe {
         let funccal = get_funccal_for_vars();
         if funccal.is_null() {
@@ -4240,7 +4240,7 @@ pub unsafe fn get_funccal_local_var() -> *mut dictitem_T {
     }
 }
 
-pub unsafe fn get_funccal_args_dict() -> *mut dict_T {
+pub fn get_funccal_args_dict() -> *mut dict_T {
     unsafe {
         let funccal = get_funccal_for_vars();
         if funccal.is_null() {
@@ -4251,7 +4251,7 @@ pub unsafe fn get_funccal_args_dict() -> *mut dict_T {
     }
 }
 
-pub unsafe fn get_funccal_args_ht() -> *mut hashtab_T {
+pub fn get_funccal_args_ht() -> *mut hashtab_T {
     unsafe {
         let d = get_funccal_args_dict();
         if !d.is_null() {
@@ -4262,7 +4262,7 @@ pub unsafe fn get_funccal_args_ht() -> *mut hashtab_T {
     }
 }
 
-pub unsafe fn get_funccal_args_var() -> *mut dictitem_T {
+pub fn get_funccal_args_var() -> *mut dictitem_T {
     unsafe {
         let funccal = get_funccal_for_vars();
         if funccal.is_null() {
@@ -4370,7 +4370,7 @@ pub unsafe fn find_var_in_scoped_ht(
     }
 }
 
-pub unsafe fn set_ref_in_previous_funccal(copyID: c_int) -> bool {
+pub fn set_ref_in_previous_funccal(copyID: c_int) -> bool {
     unsafe {
         let pfc = &raw mut uf_st().previous_funccal;
         for item in (*pfc).as_mut_slice() {
@@ -4393,7 +4393,7 @@ pub unsafe fn set_ref_in_previous_funccal(copyID: c_int) -> bool {
     }
 }
 
-unsafe fn set_ref_in_funccal(fc: &mut funccall_T, copyID: c_int) -> bool {
+fn set_ref_in_funccal(fc: &mut funccall_T, copyID: c_int) -> bool {
     unsafe {
         if fc.fc_copyID != copyID {
             fc.fc_copyID = copyID;
@@ -4413,7 +4413,7 @@ unsafe fn set_ref_in_funccal(fc: &mut funccall_T, copyID: c_int) -> bool {
     }
 }
 
-pub unsafe fn set_ref_in_call_stack(copyID: c_int) -> bool {
+pub fn set_ref_in_call_stack(copyID: c_int) -> bool {
     unsafe {
         let mut fc = uf_st().current_funccal;
         while !fc.is_null() {
@@ -4438,7 +4438,7 @@ pub unsafe fn set_ref_in_call_stack(copyID: c_int) -> bool {
     }
 }
 
-pub unsafe fn set_ref_in_functions(copyID: c_int) -> bool {
+pub fn set_ref_in_functions(copyID: c_int) -> bool {
     unsafe {
         let ht = &raw const uf_st().func_hashtab;
         for &fp in (*ht).values() {
@@ -4453,7 +4453,7 @@ pub unsafe fn set_ref_in_functions(copyID: c_int) -> bool {
     }
 }
 
-pub unsafe fn set_ref_in_func_args(copyID: c_int) -> bool {
+pub fn set_ref_in_func_args(copyID: c_int) -> bool {
     unsafe {
         let fa = &raw const uf_st().funcargs;
         for &tv in &*fa {
@@ -4498,7 +4498,7 @@ pub unsafe fn set_ref_in_func(name: *mut c_char, fp_in: *mut ufunc_T, copyID: c_
 }
 
 /// Registers a luaref as a lambda.
-pub unsafe fn register_luafunc(ref_: LuaRef) -> *mut c_char {
+pub fn register_luafunc(ref_: LuaRef) -> *mut c_char {
     unsafe {
         let name = get_lambda_name();
         let fp = alloc_ufunc(name.data, name.size);

@@ -139,7 +139,7 @@ fn proc_st() -> &'static mut ProcModuleState {
 use crate::event::r#loop::{uv_recv_buffer_size, uv_unref};
 
 #[inline]
-pub unsafe fn libuv_proc_uv(proc_: &mut Proc) -> *mut uv_handle_t {
+pub fn libuv_proc_uv(proc_: &mut Proc) -> *mut uv_handle_t {
     unsafe { (&raw mut (*(&raw mut *proc_).cast::<LibuvProc>()).uv).cast() }
 }
 
@@ -181,7 +181,7 @@ unsafe fn loop_process_events_until<F: FnMut() -> bool>(
 }
 
 /// @returns zero on success, or negative error code
-pub unsafe fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> c_int {
+pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> c_int {
     unsafe {
         let s_in = &raw mut proc_.r#in;
         let s_out = &raw mut proc_.out.s;
@@ -260,7 +260,7 @@ pub unsafe fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> c
     }
 }
 
-pub unsafe fn proc_teardown(loop_: &mut Loop) {
+pub fn proc_teardown(loop_: &mut Loop) {
     unsafe {
         proc_st().proc_is_tearing_down = true;
         let qc = loop_queues(loop_);
@@ -283,12 +283,10 @@ pub unsafe fn proc_teardown(loop_: &mut Loop) {
     }
 }
 
-pub unsafe fn proc_close_streams(proc_: &mut Proc) {
-    unsafe {
-        stream_may_close(&mut proc_.r#in);
+pub fn proc_close_streams(proc_: &mut Proc) {
+    stream_may_close(&mut proc_.r#in);
         rstream_may_close(&mut proc_.out);
         rstream_may_close(&mut proc_.err);
-    }
 }
 
 /// Synchronously wait for a process to finish
@@ -335,7 +333,7 @@ pub unsafe fn proc_wait(proc_: *mut Proc, ms: c_int, mut events: *mut MultiQueue
 }
 
 /// Ask a process to terminate and eventually kill if it doesn't respond
-pub unsafe fn proc_stop(proc_: &mut Proc) {
+pub fn proc_stop(proc_: &mut Proc) {
     unsafe {
         let exited = proc_.status >= 0;
         if exited || proc_.stopped_time != 0 {
@@ -395,7 +393,7 @@ unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
     }
 }
 
-pub unsafe fn proc_close_event(proc_: &mut Proc) {
+pub fn proc_close_event(proc_: &mut Proc) {
     unsafe {
         if !proc_.data.is_null() {
             let status = proc_.status;
@@ -405,7 +403,7 @@ pub unsafe fn proc_close_event(proc_: &mut Proc) {
     }
 }
 
-pub(crate) unsafe fn proc_decref(proc_: &mut Proc) {
+pub(crate) fn proc_decref(proc_: &mut Proc) {
     unsafe {
         proc_.refcount -= 1;
         if proc_.refcount != 0 {
@@ -424,7 +422,7 @@ pub(crate) unsafe fn proc_decref(proc_: &mut Proc) {
     }
 }
 
-unsafe fn proc_close(proc_: &mut Proc) {
+fn proc_close(proc_: &mut Proc) {
     unsafe {
         if proc_st().proc_is_tearing_down
             && proc_.closed
@@ -497,7 +495,7 @@ unsafe fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
     }
 }
 
-pub unsafe fn proc_close_handles(proc_: &mut Proc) {
+pub fn proc_close_handles(proc_: &mut Proc) {
     unsafe {
         proc_st().exit_need_delay += 1;
         flush_stream(&raw mut *proc_, &raw mut proc_.out);
@@ -520,7 +518,7 @@ unsafe extern "C" fn exit_delay_cb(_handle: *mut uv_timer_t) {
     }
 }
 
-pub unsafe fn exit_event(status: c_int) {
+pub fn exit_event(status: c_int) {
     unsafe {
         if proc_st().exit_need_delay != 0 {
             let mloop = main_loop_ptr();
@@ -543,14 +541,14 @@ pub unsafe fn exit_event(status: c_int) {
 }
 
 /// Performs self-exit because the primary RPC channel was closed.
-pub unsafe fn exit_on_closed_chan(status: c_int) {
+pub fn exit_on_closed_chan(status: c_int) {
     unsafe {
         let qc = loop_queues(&mut *main_loop_ptr());
         multiqueue_put_event((*qc).fast_events, Event::ProcExit(status));
     }
 }
 
-pub(crate) unsafe fn on_proc_exit(proc_: &mut Proc) {
+pub(crate) fn on_proc_exit(proc_: &mut Proc) {
     unsafe {
         let qc = loop_queues(&mut *proc_.loop_);
         let queue = if !proc_.events.is_null() {

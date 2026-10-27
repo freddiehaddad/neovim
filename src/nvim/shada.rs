@@ -1764,13 +1764,11 @@ unsafe fn shada_filename(mut file: *const c_char) -> Option<std::ffi::CString> {
 
 #[inline]
 unsafe fn shada_check_buffer(packer: &mut PackerBuffer) {
-    unsafe {
-        let p = &mut *packer;
+    let p = &mut *packer;
         let remaining = (p.endptr as usize).saturating_sub(p.ptr as usize);
         if remaining < SHADA_MPACK_FREE_SPACE {
             crate::msgpack_rpc::packer::packer_flush_buffer(packer);
         }
-    }
 }
 
 #[inline]

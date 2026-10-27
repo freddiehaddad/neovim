@@ -42,7 +42,7 @@ pub unsafe fn vterm_get_size(vt: &VTerm, rowsp: *mut c_int, colsp: *mut c_int) {
     }
 }
 
-pub unsafe fn vterm_set_size(vt: &mut VTerm, rows: c_int, cols: c_int) {
+pub fn vterm_set_size(vt: &mut VTerm, rows: c_int, cols: c_int) {
     if rows < 1 || cols < 1 {
         return;
     }
@@ -84,15 +84,14 @@ pub unsafe fn vterm_push_output_bytes(vt: &mut VTerm, bytes: *const c_char, len:
     }
 }
 
-pub unsafe fn vterm_push_output_bytes_slice(vt: &mut VTerm, payload: &[u8]) {
+pub fn vterm_push_output_bytes_slice(vt: &mut VTerm, payload: &[u8]) {
     unsafe {
         vterm_push_output_bytes(vt, payload.as_ptr().cast::<c_char>(), payload.len());
     }
 }
 
-pub unsafe fn vterm_push_output_ctrl_bytes(vt: &mut VTerm, ctrl: u8, payload: &[u8]) {
-    unsafe {
-        let ctrl8bit = (vt.mode & VT_MODE_CTRL8BIT) != 0;
+pub fn vterm_push_output_ctrl_bytes(vt: &mut VTerm, ctrl: u8, payload: &[u8]) {
+    let ctrl8bit = (vt.mode & VT_MODE_CTRL8BIT) != 0;
         let mut buf = Vec::with_capacity(2 + payload.len());
         if ctrl >= 0x80 && !ctrl8bit {
             buf.push(0x1b);
@@ -102,12 +101,10 @@ pub unsafe fn vterm_push_output_ctrl_bytes(vt: &mut VTerm, ctrl: u8, payload: &[
         }
         buf.extend_from_slice(payload);
         vterm_push_output_bytes_slice(vt, &buf);
-    }
 }
 
-pub unsafe fn vterm_push_output_str_bytes(vt: &mut VTerm, ctrl: u8, term: bool, payload: &[u8]) {
-    unsafe {
-        let ctrl8bit = (vt.mode & VT_MODE_CTRL8BIT) != 0;
+pub fn vterm_push_output_str_bytes(vt: &mut VTerm, ctrl: u8, term: bool, payload: &[u8]) {
+    let ctrl8bit = (vt.mode & VT_MODE_CTRL8BIT) != 0;
         let mut buf = Vec::with_capacity(4 + payload.len());
         if ctrl != 0 {
             if ctrl >= 0x80 && !ctrl8bit {
@@ -123,7 +120,6 @@ pub unsafe fn vterm_push_output_str_bytes(vt: &mut VTerm, ctrl: u8, term: bool, 
             buf.extend_from_slice(st);
         }
         vterm_push_output_bytes_slice(vt, &buf);
-    }
 }
 
 pub fn vterm_get_attr_type(attr: VTermAttr) -> VTermValueType {

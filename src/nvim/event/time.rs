@@ -44,7 +44,7 @@ pub fn loop_fast_events(loop_: &mut Loop) -> *mut MultiQueue {
     loop_.fast_events
 }
 
-pub unsafe fn time_watcher_init(
+pub fn time_watcher_init(
     loop_: &mut Loop,
     watcher: &mut TimeWatcher,
     data: TimeWatcherData,
@@ -58,7 +58,7 @@ pub unsafe fn time_watcher_init(
     }
 }
 
-pub unsafe fn time_watcher_start(watcher: &mut TimeWatcher, timeout: u64, repeat: u64) {
+pub fn time_watcher_start(watcher: &mut TimeWatcher, timeout: u64, repeat: u64) {
     unsafe {
         uv_timer_start(
             (&raw mut watcher.uv).cast(),
@@ -69,19 +69,19 @@ pub unsafe fn time_watcher_start(watcher: &mut TimeWatcher, timeout: u64, repeat
     }
 }
 
-pub unsafe fn time_watcher_stop(watcher: &mut TimeWatcher) {
+pub fn time_watcher_stop(watcher: &mut TimeWatcher) {
     unsafe {
         uv_timer_stop((&raw mut watcher.uv).cast());
     }
 }
 
-pub unsafe fn time_watcher_close(watcher: &mut TimeWatcher) {
+pub fn time_watcher_close(watcher: &mut TimeWatcher) {
     unsafe {
         uv_close((&raw mut watcher.uv).cast(), Some(close_cb));
     }
 }
 
-pub unsafe fn time_event(watcher: &mut TimeWatcher) {
+pub fn time_event(watcher: &mut TimeWatcher) {
     unsafe {
         match watcher.data {
             TimeWatcherData::None => {}
@@ -106,7 +106,7 @@ unsafe extern "C" fn time_watcher_cb(handle: *mut uv_timer_t) {
     }
 }
 
-pub unsafe fn close_event(watcher: &mut TimeWatcher) {
+pub fn close_event(watcher: &mut TimeWatcher) {
     unsafe {
         match watcher.data {
             TimeWatcherData::None | TimeWatcherData::TerminalRefresh => {}

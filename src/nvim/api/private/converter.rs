@@ -237,7 +237,7 @@ unsafe fn convert_one_value(
 }
 
 #[inline]
-unsafe fn pop_into_parent_list(stack: &mut Vec<Object>) {
+fn pop_into_parent_list(stack: &mut Vec<Object>) {
     let item = stack.pop().unwrap();
     let list_obj = stack.last_mut().unwrap();
     debug_assert_eq!(list_obj.obj_type, ObjectType::kObjectTypeArray);
@@ -250,7 +250,7 @@ unsafe fn pop_into_parent_list(stack: &mut Vec<Object>) {
 }
 
 #[inline]
-unsafe fn pop_into_parent_dict(stack: &mut Vec<Object>) {
+fn pop_into_parent_dict(stack: &mut Vec<Object>) {
     let val = stack.pop().unwrap();
     let dict_obj = stack.last_mut().unwrap();
     debug_assert_eq!(dict_obj.obj_type, ObjectType::kObjectTypeDict);

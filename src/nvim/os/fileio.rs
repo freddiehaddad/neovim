@@ -154,8 +154,8 @@ pub fn file_open_fd(ret_fp: &mut FileDescriptor, fd: c_int, flags: c_int) -> c_i
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer.
-pub unsafe fn file_open_stdin(fp: &mut FileDescriptor) -> c_int {
-    let fd = unsafe { os_open_stdin_fd() };
+pub fn file_open_stdin(fp: &mut FileDescriptor) -> c_int {
+    let fd = os_open_stdin_fd();
     file_open_fd(fp, fd, K_FILE_READ_ONLY | K_FILE_NON_BLOCKING)
 }
 
@@ -183,18 +183,18 @@ pub unsafe fn file_open_buffer(ret_fp: &mut FileDescriptor, data: *mut c_char, l
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
-pub unsafe fn file_close(fp: &mut FileDescriptor, do_fsync: bool) -> c_int {
+pub fn file_close(fp: &mut FileDescriptor, do_fsync: bool) -> c_int {
     
     if fp.fd < 0 {
         return 0;
     }
 
     let flush_error = if do_fsync {
-        unsafe { file_fsync(fp) }
+        file_fsync(fp)
     } else {
         unsafe { file_flush(fp) }
     };
-    let close_error = unsafe { os_close(fp.fd) };
+    let close_error = os_close(fp.fd);
     fp.buffer = Vec::new();
     fp.read_pos = 0;
     fp.write_pos = 0;
@@ -208,7 +208,7 @@ pub unsafe fn file_close(fp: &mut FileDescriptor, do_fsync: bool) -> c_int {
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
-pub unsafe fn file_fsync(fp: &mut FileDescriptor) -> c_int {
+pub fn file_fsync(fp: &mut FileDescriptor) -> c_int {
     
     if !fp.wr {
         return 0;
@@ -217,7 +217,7 @@ pub unsafe fn file_fsync(fp: &mut FileDescriptor) -> c_int {
     if flush_error != 0 {
         return flush_error;
     }
-    let fsync_error = unsafe { os_fsync(fp.fd) };
+    let fsync_error = os_fsync(fp.fd);
     if fsync_error != UV_EINVAL && fsync_error != UV_EROFS && fsync_error != UV_ENOTSUP {
         return fsync_error;
     }

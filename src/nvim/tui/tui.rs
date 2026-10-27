@@ -398,7 +398,7 @@ pub unsafe fn tui_start(
     }
 }
 
-unsafe fn tui_request_term_mode(tui: &mut TUIData, mode: TermMode) {
+fn tui_request_term_mode(tui: &mut TUIData, mode: TermMode) {
     unsafe {
         let s = format!("\x1b[?{mode}$p");
         assert!(!s.is_empty() && s.len() < 12);
@@ -406,7 +406,7 @@ unsafe fn tui_request_term_mode(tui: &mut TUIData, mode: TermMode) {
     }
 }
 
-unsafe fn tui_set_term_mode(tui: &mut TUIData, mode: TermMode, set: bool) {
+fn tui_set_term_mode(tui: &mut TUIData, mode: TermMode, set: bool) {
     unsafe {
         let ch = if set { 'h' } else { 'l' };
         let s = format!("\x1b[?{mode}{ch}");
@@ -415,7 +415,7 @@ unsafe fn tui_set_term_mode(tui: &mut TUIData, mode: TermMode, set: bool) {
     }
 }
 
-pub unsafe fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: TermModeState) {
+pub fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: TermModeState) {
     unsafe {
         let mut is_set = false;
         match state {
@@ -484,7 +484,7 @@ pub unsafe fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: Ter
     }
 }
 
-unsafe fn tui_query_extended_underline(tui: &mut TUIData) {
+fn tui_query_extended_underline(tui: &mut TUIData) {
     unsafe {
         let seq = b"\x1b[0m\x1b[4:3m\x1bP$qm\x1b\\";
         out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
@@ -497,21 +497,19 @@ pub fn tui_enable_extended_underline(tui: &mut TUIData) {
     tui.can_set_underline_color = true;
 }
 
-pub unsafe fn tui_handle_primary_device_attr(
+pub fn tui_handle_primary_device_attr(
     tui: &mut TUIData,
     action: PrimaryDeviceAttrAction,
 ) {
-    unsafe {
-        match action {
+    match action {
             PrimaryDeviceAttrAction::SetKeyEncoding => tui_set_key_encoding(tui),
             PrimaryDeviceAttrAction::Stop => tui_stop_cb(tui),
             #[cfg(unix)]
             PrimaryDeviceAttrAction::Suspend => tui_suspend_cb(tui),
         }
-    }
 }
 
-unsafe fn tui_query_kitty_keyboard(tui: &mut TUIData) {
+fn tui_query_kitty_keyboard(tui: &mut TUIData) {
     unsafe {
         tui.input.primary_device_attr = Some(PrimaryDeviceAttrAction::SetKeyEncoding);
         let seq = b"\x1b[?u\x1b[c";
@@ -519,7 +517,7 @@ unsafe fn tui_query_kitty_keyboard(tui: &mut TUIData) {
     }
 }
 
-pub unsafe fn tui_set_key_encoding(tui: &mut TUIData) {
+pub fn tui_set_key_encoding(tui: &mut TUIData) {
     unsafe {
         match tui.input.key_encoding {
             kKeyEncodingKitty => {
@@ -536,7 +534,7 @@ pub unsafe fn tui_set_key_encoding(tui: &mut TUIData) {
     }
 }
 
-unsafe fn tui_reset_key_encoding(tui: &mut TUIData) {
+fn tui_reset_key_encoding(tui: &mut TUIData) {
     unsafe {
         match tui.input.key_encoding {
             kKeyEncodingKitty => {
@@ -553,18 +551,16 @@ unsafe fn tui_reset_key_encoding(tui: &mut TUIData) {
     }
 }
 
-unsafe fn tui_query_bg_color_noflush(tui: &mut TUIData) {
+fn tui_query_bg_color_noflush(tui: &mut TUIData) {
     unsafe {
         let seq = b"\x1b]11;?\x07\x1b[5n";
         out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
     }
 }
 
-pub unsafe fn tui_query_bg_color(tui: &mut TUIData) {
-    unsafe {
-        tui_query_bg_color_noflush(tui);
+pub fn tui_query_bg_color(tui: &mut TUIData) {
+    tui_query_bg_color_noflush(tui);
         flush_buf(tui, FlushBufFinish::kFlushBufFinal);
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -685,7 +681,7 @@ fn lookup_termdef_field(name: &[u8]) -> Option<TermdefFieldTarget> {
     }
 }
 
-unsafe fn push_termdef_err(err_arena: &mut Arena, chunks: &mut Vec<Object>, msg: &str) {
+fn push_termdef_err(err_arena: &mut Arena, chunks: &mut Vec<Object>, msg: &str) {
     unsafe {
         let dup = arena_memdupz(err_arena, msg.as_ptr().cast::<c_char>(), msg.len());
         let str_val = NvimString {
@@ -701,7 +697,7 @@ unsafe fn push_termdef_err(err_arena: &mut Arena, chunks: &mut Vec<Object>, msg:
     }
 }
 
-unsafe fn apply_termdefs(tui: &mut TUIData) {
+fn apply_termdefs(tui: &mut TUIData) {
     unsafe {
         if !os_env_exists(c"NVIM_TERMDEFS".as_ptr(), false) {
             return;
@@ -852,7 +848,7 @@ unsafe fn apply_termdefs(tui: &mut TUIData) {
     }
 }
 
-unsafe fn terminfo_start(tui: &mut TUIData) {
+fn terminfo_start(tui: &mut TUIData) {
     unsafe {
         tui.bufpos = 0;
         tui.default_attr = false;
@@ -1072,7 +1068,7 @@ unsafe fn terminfo_start(tui: &mut TUIData) {
     }
 }
 
-unsafe fn terminfo_disable(tui: &mut TUIData) {
+fn terminfo_disable(tui: &mut TUIData) {
     unsafe {
         if tui.modes_theme_updates {
             tui_set_term_mode(tui, kTermModeThemeUpdates, false);
@@ -1109,7 +1105,7 @@ unsafe fn terminfo_disable(tui: &mut TUIData) {
     }
 }
 
-unsafe fn terminfo_stop(tui: &mut TUIData) {
+fn terminfo_stop(tui: &mut TUIData) {
     unsafe {
         if g_st().ui_client_exit_status == 0 && g_st().ui_client_error_exit > 0 {
             g_st().ui_client_exit_status = g_st().ui_client_error_exit;
@@ -1132,7 +1128,7 @@ unsafe fn terminfo_stop(tui: &mut TUIData) {
     }
 }
 
-unsafe fn tui_terminal_start(tui: &mut TUIData) {
+fn tui_terminal_start(tui: &mut TUIData) {
     unsafe {
         tui.print_attr_id = -1;
         terminfo_start(tui);
@@ -1156,14 +1152,12 @@ unsafe extern "C" fn after_startup_cb(handle: *mut uv_timer_t) {
     }
 }
 
-unsafe fn tui_terminal_after_startup(tui: &mut TUIData) {
-    unsafe {
-        out_len(tui, tui.terminfo_ext.enable_focus_reporting);
+fn tui_terminal_after_startup(tui: &mut TUIData) {
+    out_len(tui, tui.terminfo_ext.enable_focus_reporting);
         flush_buf(tui, FlushBufFinish::kFlushBufFinal);
-    }
 }
 
-pub unsafe fn tui_stop(tui: &mut TUIData) {
+pub fn tui_stop(tui: &mut TUIData) {
     unsafe {
         if uv_is_closing(tui_output_handle(tui)) != 0 {
             if log_st().g_min_log_level <= LOGLVL_ERR {
@@ -1236,7 +1230,7 @@ fn tui_stop_cb(tui: &mut TUIData) {
     tui.stopped = true;
 }
 
-unsafe fn tui_terminal_stop(tui: &mut TUIData) {
+fn tui_terminal_stop(tui: &mut TUIData) {
     unsafe {
         tinput_stop(&mut *tui_input(tui));
         terminfo_stop(tui);
@@ -1247,7 +1241,7 @@ pub fn tui_is_stopped(tui: &TUIData) -> bool {
     tui.stopped
 }
 
-pub unsafe fn tui_free_all_mem(tui: Option<Box<TUIData>>) {
+pub fn tui_free_all_mem(tui: Option<Box<TUIData>>) {
     unsafe {
         let urls_ptr = &raw mut tui_st().urls;
         *urls_ptr = Vec::new();
@@ -1256,13 +1250,11 @@ pub unsafe fn tui_free_all_mem(tui: Option<Box<TUIData>>) {
     }
 }
 
-pub(crate) unsafe fn sigwinch_cb(tui: &mut TUIData) {
-    unsafe {
-        if tui_is_stopped(tui) || tui.resize_events_enabled {
+pub(crate) fn sigwinch_cb(tui: &mut TUIData) {
+    if tui_is_stopped(tui) || tui.resize_events_enabled {
             return;
         }
         tui_guess_size(tui);
-    }
 }
 
 fn attrs_differ(tui: &TUIData, id1: c_int, id2: c_int, rgb: bool) -> bool {
@@ -1293,7 +1285,7 @@ fn attrs_differ(tui: &TUIData, id1: c_int, id2: c_int, rgb: bool) -> bool {
     }
 }
 
-unsafe fn update_attrs(tui: &mut TUIData, attr_id: c_int) {
+fn update_attrs(tui: &mut TUIData, attr_id: c_int) {
     unsafe {
         if !attrs_differ(tui, attr_id, tui.print_attr_id, tui.rgb) {
             tui.print_attr_id = attr_id;
@@ -1539,7 +1531,7 @@ unsafe fn print_cell(tui: &mut TUIData, buf: *const c_char, attr: sattr_T) {
     }
 }
 
-unsafe fn cheap_to_print(tui: &TUIData, row: c_int, col: c_int, mut next: c_int) -> bool {
+fn cheap_to_print(tui: &TUIData, row: c_int, col: c_int, mut next: c_int) -> bool {
     unsafe {
         let cells = &tui.grid.cells;
         let row_cells = &cells[row as usize];
@@ -1560,7 +1552,7 @@ unsafe fn cheap_to_print(tui: &TUIData, row: c_int, col: c_int, mut next: c_int)
     }
 }
 
-unsafe fn cursor_goto(tui: &mut TUIData, row: c_int, col: c_int) {
+fn cursor_goto(tui: &mut TUIData, row: c_int, col: c_int) {
     unsafe {
         if row == tui.grid.row && col == tui.grid.col {
             return;
@@ -1654,7 +1646,7 @@ unsafe fn cursor_goto(tui: &mut TUIData, row: c_int, col: c_int) {
     }
 }
 
-unsafe fn print_spaces(tui: &mut TUIData, width: c_int) {
+fn print_spaces(tui: &mut TUIData, width: c_int) {
     unsafe {
         let mut left = width as usize;
         loop {
@@ -1675,7 +1667,7 @@ unsafe fn print_spaces(tui: &mut TUIData, width: c_int) {
     }
 }
 
-unsafe fn print_cell_at_pos(
+fn print_cell_at_pos(
     tui: &mut TUIData,
     row: c_int,
     col: c_int,
@@ -1708,7 +1700,7 @@ unsafe fn print_cell_at_pos(
     }
 }
 
-unsafe fn clear_region(
+fn clear_region(
     tui: &mut TUIData,
     top: c_int,
     bot: c_int,
@@ -1716,8 +1708,7 @@ unsafe fn clear_region(
     right: c_int,
     attr_id: c_int,
 ) {
-    unsafe {
-        if tui.set_default_colors {
+    if tui.set_default_colors {
             update_attrs(tui, attr_id);
         } else {
             terminfo_out(tui, kTerm_exit_attribute_mode);
@@ -1744,23 +1735,19 @@ unsafe fn clear_region(
                 }
             }
         }
-    }
 }
 
-unsafe fn set_scroll_region(tui: &mut TUIData, top: c_int, bot: c_int, left: c_int, right: c_int) {
-    unsafe {
-        terminfo_print_num2(tui, kTerm_change_scroll_region, top, bot);
+fn set_scroll_region(tui: &mut TUIData, top: c_int, bot: c_int, left: c_int, right: c_int) {
+    terminfo_print_num2(tui, kTerm_change_scroll_region, top, bot);
         if left != 0 || right != tui.width - 1 {
             tui_set_term_mode(tui, kTermModeLeftAndRightMargins, true);
             terminfo_print_num2(tui, kTerm_set_lr_margin, left, right);
         }
         tui.grid.row = -1;
-    }
 }
 
-unsafe fn reset_scroll_region(tui: &mut TUIData, fullwidth: bool) {
-    unsafe {
-        if tui.terminfo_ext.reset_scroll_region.is_some() {
+fn reset_scroll_region(tui: &mut TUIData, fullwidth: bool) {
+    if tui.terminfo_ext.reset_scroll_region.is_some() {
             out_len(tui, tui.terminfo_ext.reset_scroll_region);
         } else {
             terminfo_print_num2(tui, kTerm_change_scroll_region, 0, tui.height - 1);
@@ -1770,12 +1757,10 @@ unsafe fn reset_scroll_region(tui: &mut TUIData, fullwidth: bool) {
             tui_set_term_mode(tui, kTermModeLeftAndRightMargins, false);
         }
         tui.grid.row = -1;
-    }
 }
 
-pub unsafe fn tui_grid_resize(tui: &mut TUIData, _g: Integer, width: Integer, height: Integer) {
-    unsafe {
-        ugrid_resize(&mut tui.grid, width as c_int, height as c_int);
+pub fn tui_grid_resize(tui: &mut TUIData, _g: Integer, width: Integer, height: Integer) {
+    ugrid_resize(&mut tui.grid, width as c_int, height as c_int);
 
         let grid_height = tui.grid.height;
         let grid_width = tui.grid.width;
@@ -1795,10 +1780,9 @@ pub unsafe fn tui_grid_resize(tui: &mut TUIData, _g: Integer, width: Integer, he
             };
             tui.grid.row = -1;
         }
-    }
 }
 
-pub unsafe fn tui_grid_clear(tui: &mut TUIData, _g: Integer) {
+pub fn tui_grid_clear(tui: &mut TUIData, _g: Integer) {
     unsafe {
         ugrid_clear(&mut tui.grid);
         schar_cache_clear_if_full();
@@ -1837,13 +1821,11 @@ unsafe fn tui_cursor_decode_shape(shape_str: *const c_char) -> CursorShape {
     }
 }
 
-unsafe fn tui_cursor_reset_style(tui: &mut TUIData) {
-    unsafe {
-        terminfo_out(tui, kTerm_reset_cursor_style);
-    }
+fn tui_cursor_reset_style(tui: &mut TUIData) {
+    terminfo_out(tui, kTerm_reset_cursor_style);
 }
 
-unsafe fn decode_cursor_entry(args: Dict) -> cursorentry_T {
+fn decode_cursor_entry(args: Dict) -> cursorentry_T {
     unsafe {
         let mut r = (*shape_table_mut())[0];
         for i in 0..args.size {
@@ -1864,9 +1846,8 @@ unsafe fn decode_cursor_entry(args: Dict) -> cursorentry_T {
     }
 }
 
-pub unsafe fn tui_mode_info_set(tui: &mut TUIData, guicursor_enabled: bool, args: Array) {
-    unsafe {
-        tui_st().cursor_style_enabled = guicursor_enabled;
+pub fn tui_mode_info_set(tui: &mut TUIData, guicursor_enabled: bool, args: Array) {
+    tui_st().cursor_style_enabled = guicursor_enabled;
         if !guicursor_enabled {
             tui_cursor_reset_style(tui);
             return;
@@ -1882,7 +1863,6 @@ pub unsafe fn tui_mode_info_set(tui: &mut TUIData, guicursor_enabled: bool, args
         }
 
         tui_set_mode(tui, tui.showing_mode);
-    }
 }
 
 pub fn tui_update_menu(_tui: &mut TUIData) {}
@@ -1895,9 +1875,8 @@ pub fn tui_busy_stop(tui: &mut TUIData) {
     tui.busy = false;
 }
 
-pub unsafe fn tui_mouse_on(tui: &mut TUIData) {
-    unsafe {
-        if !tui.mouse_enabled {
+pub fn tui_mouse_on(tui: &mut TUIData) {
+    if !tui.mouse_enabled {
             tui_set_term_mode(tui, kTermModeMouseButtonEvent, true);
             tui_set_term_mode(tui, kTermModeMouseSGRExt, true);
             if tui.mouse_move_enabled {
@@ -1905,12 +1884,10 @@ pub unsafe fn tui_mouse_on(tui: &mut TUIData) {
             }
             tui.mouse_enabled = true;
         }
-    }
 }
 
-pub unsafe fn tui_mouse_off(tui: &mut TUIData) {
-    unsafe {
-        if tui.mouse_enabled {
+pub fn tui_mouse_off(tui: &mut TUIData) {
+    if tui.mouse_enabled {
             if tui.mouse_move_enabled {
                 tui_set_term_mode(tui, kTermModeMouseAnyEvent, false);
             }
@@ -1918,10 +1895,9 @@ pub unsafe fn tui_mouse_off(tui: &mut TUIData) {
             tui_set_term_mode(tui, kTermModeMouseSGRExt, false);
             tui.mouse_enabled = false;
         }
-    }
 }
 
-unsafe fn tui_set_mode(tui: &mut TUIData, mode: ModeShape) {
+fn tui_set_mode(tui: &mut TUIData, mode: ModeShape) {
     unsafe {
         if !tui_st().cursor_style_enabled {
             tui_cursor_reset_style(tui);
@@ -1965,9 +1941,9 @@ unsafe fn tui_set_mode(tui: &mut TUIData, mode: ModeShape) {
     }
 }
 
-pub unsafe fn tui_mode_change(tui: &mut TUIData, _mode: NvimString, mode_idx: Integer) {
+pub fn tui_mode_change(tui: &mut TUIData, _mode: NvimString, mode_idx: Integer) {
+    #[cfg(unix)]
     unsafe {
-        #[cfg(unix)]
         if tui.out_isatty && tui.is_starting && !g_st().stdin_isatty {
             let ret = uv_tty_set_mode(tui_output_handle(tui).cast(), UV_TTY_MODE_NORMAL);
             if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
@@ -1994,16 +1970,16 @@ pub unsafe fn tui_mode_change(tui: &mut TUIData, _mode: NvimString, mode_idx: In
                 );
             }
         }
-        tui_set_mode(tui, mode_idx as ModeShape);
-        if tui.is_starting && tui.verbose >= 3 {
-            show_verbose_terminfo(tui);
-        }
+    }
+    tui_set_mode(tui, mode_idx as ModeShape);
+    if tui.is_starting && tui.verbose >= 3 {
+        show_verbose_terminfo(tui);
+    }
         tui.is_starting = false;
         tui.showing_mode = mode_idx as ModeShape;
-    }
 }
 
-pub unsafe fn tui_grid_scroll(
+pub fn tui_grid_scroll(
     tui: &mut TUIData,
     _g: Integer,
     mut startrow: Integer,
@@ -2013,8 +1989,7 @@ pub unsafe fn tui_grid_scroll(
     rows: Integer,
     _cols: Integer,
 ) {
-    unsafe {
-        let top = startrow as c_int;
+    let top = startrow as c_int;
         let bot = (endrow - 1) as c_int;
         let left = startcol as c_int;
         let right = (endcol - 1) as c_int;
@@ -2066,7 +2041,6 @@ pub unsafe fn tui_grid_scroll(
                 endcol as c_int,
             );
         }
-    }
 }
 
 pub unsafe fn tui_add_url(_tui: &mut TUIData, url: *const c_char) -> i32 {
@@ -2105,14 +2079,14 @@ pub fn tui_hl_attr_define(
     tui_attrs[idx] = attrs;
 }
 
-pub unsafe fn tui_bell(tui: &mut TUIData) {
+pub fn tui_bell(tui: &mut TUIData) {
     unsafe {
         let seq = b"\x07";
         out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
     }
 }
 
-pub unsafe fn tui_visual_bell(tui: &mut TUIData) {
+pub fn tui_visual_bell(tui: &mut TUIData) {
     unsafe {
         if tui.screen_or_tmux {
             let seq = b"\x1bg";
@@ -2150,7 +2124,7 @@ pub fn tui_default_colors_set(
     invalidate(tui, 0, tui.grid.height, 0, tui.grid.width);
 }
 
-pub unsafe fn tui_ui_send(tui: &mut TUIData, content: NvimString) {
+pub fn tui_ui_send(tui: &mut TUIData, content: NvimString) {
     unsafe {
         if !tui.invalid_regions.is_empty() || tui.bufpos > 0 {
             out(tui, content.data, content.size);
@@ -2180,7 +2154,7 @@ pub unsafe fn tui_ui_send(tui: &mut TUIData, content: NvimString) {
     }
 }
 
-pub unsafe fn tui_flush(tui: &mut TUIData) {
+pub fn tui_flush(tui: &mut TUIData) {
     unsafe {
         let nrevents = loop_size(&mut *tui.loop_);
         if nrevents > TOO_MANY_EVENTS {
@@ -2241,7 +2215,7 @@ pub unsafe fn tui_flush(tui: &mut TUIData) {
     }
 }
 
-unsafe fn show_verbose_terminfo(tui: &mut TUIData) {
+fn show_verbose_terminfo(tui: &mut TUIData) {
     unsafe {
         let mut title_items = [
             cstr_as_obj(c"\n\n--- Terminal info --- {{{\n".as_ptr()),
@@ -2302,7 +2276,7 @@ unsafe fn show_verbose_terminfo(tui: &mut TUIData) {
     }
 }
 
-pub unsafe fn tui_suspend(tui: &mut TUIData) {
+pub fn tui_suspend(tui: &mut TUIData) {
     #[cfg(unix)]
     unsafe {
         ui_client_detach();
@@ -2315,7 +2289,7 @@ pub unsafe fn tui_suspend(tui: &mut TUIData) {
 }
 
 #[cfg(unix)]
-unsafe fn tui_suspend_cb(tui: &mut TUIData) {
+fn tui_suspend_cb(tui: &mut TUIData) {
     unsafe {
         let input = tui_input(tui);
         tui_terminal_stop(tui);
@@ -2342,7 +2316,7 @@ unsafe fn tui_suspend_cb(tui: &mut TUIData) {
     }
 }
 
-pub unsafe fn tui_set_title(tui: &mut TUIData, title: NvimString) {
+pub fn tui_set_title(tui: &mut TUIData, title: NvimString) {
     unsafe {
         if !tui.can_set_title {
             return;
@@ -2382,7 +2356,7 @@ pub unsafe fn tui_set_title(tui: &mut TUIData, title: NvimString) {
 
 pub fn tui_set_icon(_tui: &mut TUIData, _icon: NvimString) {}
 
-pub unsafe fn tui_screenshot(tui: &mut TUIData, path: NvimString) {
+pub fn tui_screenshot(tui: &mut TUIData, path: NvimString) {
     unsafe {
         let Some(f) = crate::os::fs::CFile::from_raw(fopen(path.data, c"w".as_ptr())) else {
             return;
@@ -2414,7 +2388,7 @@ pub unsafe fn tui_screenshot(tui: &mut TUIData, path: NvimString) {
     }
 }
 
-pub unsafe fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
+pub fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
     unsafe {
         if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"mousemoveevent") {
             if tui.mouse_move_enabled != value.data.boolean() {
@@ -2455,7 +2429,7 @@ pub unsafe fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object)
     }
 }
 
-pub unsafe fn tui_chdir(_tui: &mut TUIData, path: NvimString) {
+pub fn tui_chdir(_tui: &mut TUIData, path: NvimString) {
     unsafe {
         let err = uv_chdir(path.data);
         if err != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
@@ -2569,7 +2543,7 @@ fn invalidate(tui: &mut TUIData, top: c_int, bot: c_int, left: c_int, right: c_i
     }
 }
 
-pub unsafe fn tui_set_size(tui: &mut TUIData, width: c_int, height: c_int) {
+pub fn tui_set_size(tui: &mut TUIData, width: c_int, height: c_int) {
     unsafe {
         tui.pending_resize_events += 1;
         tui.width = width;
@@ -2610,7 +2584,7 @@ unsafe fn parse_sscanf_int(val: *const c_char, out: &mut c_int) -> bool {
     false
 }
 
-pub unsafe fn tui_guess_size(tui: &mut TUIData) {
+pub fn tui_guess_size(tui: &mut TUIData) {
     unsafe {
         let mut width: c_int = 0;
         let mut height: c_int = 0;
@@ -2667,7 +2641,7 @@ unsafe fn out(tui: &mut TUIData, str_: *const c_char, len: usize) {
     }
 }
 
-unsafe fn out_len(tui: &mut TUIData, bytes: Option<&[u8]>) {
+fn out_len(tui: &mut TUIData, bytes: Option<&[u8]>) {
     unsafe {
         if let Some(bytes) = bytes {
             out(tui, bytes.as_ptr().cast::<c_char>(), bytes.len());
@@ -2675,7 +2649,7 @@ unsafe fn out_len(tui: &mut TUIData, bytes: Option<&[u8]>) {
     }
 }
 
-unsafe fn out_printf_str(tui: &mut TUIData, limit: usize, formatted: &str) {
+fn out_printf_str(tui: &mut TUIData, limit: usize, formatted: &str) {
     unsafe {
         assert!(limit <= tui.buf.len());
         let available = tui.buf.len() - tui.bufpos;
@@ -2696,26 +2670,22 @@ unsafe fn out_printf_str(tui: &mut TUIData, limit: usize, formatted: &str) {
     }
 }
 
-unsafe fn terminfo_out(tui: &mut TUIData, what: TerminfoDef) {
+fn terminfo_out(tui: &mut TUIData, what: TerminfoDef) {
     unsafe {
         let mut null_params = [TPVAR::default(); 9];
         terminfo_print(tui, what, null_params.as_mut_ptr());
     }
 }
 
-unsafe fn terminfo_print_num1(tui: &mut TUIData, what: TerminfoDef, num: c_int) {
-    unsafe {
-        terminfo_print_num(tui, what, num, 0, 0);
-    }
+fn terminfo_print_num1(tui: &mut TUIData, what: TerminfoDef, num: c_int) {
+    terminfo_print_num(tui, what, num, 0, 0);
 }
 
-unsafe fn terminfo_print_num2(tui: &mut TUIData, what: TerminfoDef, num1: c_int, num2: c_int) {
-    unsafe {
-        terminfo_print_num(tui, what, num1, num2, 0);
-    }
+fn terminfo_print_num2(tui: &mut TUIData, what: TerminfoDef, num1: c_int, num2: c_int) {
+    terminfo_print_num(tui, what, num1, num2, 0);
 }
 
-unsafe fn terminfo_print_num(
+fn terminfo_print_num(
     tui: &mut TUIData,
     what: TerminfoDef,
     num1: c_int,
@@ -3106,7 +3076,7 @@ fn should_invisible(tui: &TUIData) -> bool {
     tui.busy || tui.want_invisible
 }
 
-unsafe fn flush_buf(tui: &mut TUIData, finish: FlushBufFinish) {
+fn flush_buf(tui: &mut TUIData, finish: FlushBufFinish) {
     unsafe {
         flush_buf_raw(tui, finish, ptr::null_mut());
     }
@@ -3232,7 +3202,7 @@ unsafe fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush:
     }
 }
 
-unsafe fn tui_get_stty_erase(input: &mut TermInput) -> *const c_char {
+fn tui_get_stty_erase(input: &mut TermInput) -> *const c_char {
     unsafe {
         #[cfg(unix)]
         {

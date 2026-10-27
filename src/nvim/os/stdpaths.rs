@@ -111,7 +111,7 @@ pub fn appname_is_valid() -> bool {
     true
 }
 
-unsafe fn xdg_remove_duplicate(ret: CString, sep: u8) -> Option<CString> {
+fn xdg_remove_duplicate(ret: CString, sep: u8) -> Option<CString> {
     let input_bytes = ret.as_bytes();
     let mut token_cstrs: Vec<CString> = Vec::new();
 

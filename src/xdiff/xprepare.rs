@@ -44,7 +44,7 @@ fn xdl_init_classifier(cf: &mut xdlclassifier_t, size: c_long, flags: c_long) ->
     0
 }
 
-unsafe fn xdl_classify_record(
+fn xdl_classify_record(
     pass: c_uint,
     cf: &mut xdlclassifier_t,
     rec: &mut xrecord_t,

@@ -100,7 +100,7 @@ unsafe extern "C" {
     pub fn signal(signum: c_int, handler: usize) -> usize;
 }
 
-pub unsafe fn signal_init() {
+pub fn signal_init() {
     unsafe {
         #[cfg(unix)]
         {
@@ -135,7 +135,7 @@ pub unsafe fn signal_init() {
 }
 
 /// During shutdown, we don't want the default actions of these signals.
-unsafe fn signal_ignore_deadly() {
+fn signal_ignore_deadly() {
     #[cfg(unix)]
     unsafe {
         signal(SIGHUP, SIG_IGN);
@@ -145,9 +145,8 @@ unsafe fn signal_ignore_deadly() {
     }
 }
 
-pub unsafe fn signal_teardown() {
-    unsafe {
-        signal_stop();
+pub fn signal_teardown() {
+    signal_stop();
         signal_ignore_deadly();
         signal_watcher_close(&mut sig_st().spipe);
         signal_watcher_close(&mut sig_st().shup);
@@ -160,12 +159,10 @@ pub unsafe fn signal_teardown() {
         #[cfg(unix)]
         signal_watcher_close(&mut sig_st().susr1);
         signal_watcher_close(&mut sig_st().swinch);
-    }
 }
 
-pub unsafe fn signal_start() {
-    unsafe {
-        #[cfg(unix)]
+pub fn signal_start() {
+    #[cfg(unix)]
         signal_watcher_start(&mut sig_st().spipe, SIGPIPE);
         signal_watcher_start(&mut sig_st().shup, SIGHUP);
         signal_watcher_start(&mut sig_st().sint, SIGINT);
@@ -178,12 +175,10 @@ pub unsafe fn signal_start() {
         #[cfg(unix)]
         signal_watcher_start(&mut sig_st().susr1, SIGUSR1);
         signal_watcher_start(&mut sig_st().swinch, SIGWINCH);
-    }
 }
 
-pub unsafe fn signal_stop() {
-    unsafe {
-        #[cfg(unix)]
+pub fn signal_stop() {
+    #[cfg(unix)]
         signal_watcher_stop(&mut sig_st().spipe);
         signal_watcher_stop(&mut sig_st().shup);
         signal_watcher_stop(&mut sig_st().sint);
@@ -195,7 +190,6 @@ pub unsafe fn signal_stop() {
         #[cfg(unix)]
         signal_watcher_stop(&mut sig_st().susr1);
         signal_watcher_stop(&mut sig_st().swinch);
-    }
 }
 
 pub fn signal_reject_deadly() {
@@ -234,7 +228,7 @@ fn signal_name(signum: c_int) -> &'static CStr {
 }
 
 /// This function handles deadly signals.
-unsafe fn deadly_signal(signum: c_int) -> ! {
+fn deadly_signal(signum: c_int) -> ! {
     unsafe {
         // Set the v:dying variable.
         set_vim_var_nr(VV_DYING, 1);
@@ -257,7 +251,7 @@ unsafe fn deadly_signal(signum: c_int) -> ! {
     }
 }
 
-pub(crate) unsafe fn on_signal(signum: c_int) {
+pub(crate) fn on_signal(signum: c_int) {
     debug_assert!(signum >= 0);
     unsafe {
         #[cfg(target_os = "linux")]

@@ -82,11 +82,9 @@ pub struct ucmd_T {
 
 impl Drop for ucmd_T {
     fn drop(&mut self) {
-        unsafe {
-            nlua_clear_ref(&mut self.uc_compl_luaref);
+        nlua_clear_ref(&mut self.uc_compl_luaref);
             nlua_clear_ref(&mut self.uc_luaref);
             nlua_clear_ref(&mut self.uc_preview_luaref);
-        }
     }
 }
 

@@ -447,12 +447,10 @@ impl list_T {
 
 impl Drop for list_T {
     fn drop(&mut self) {
-        unsafe {
-            if let Some(idx) = self.lv_gc_idx.take() {
+        if let Some(idx) = self.lv_gc_idx.take() {
                 gc_unregister_list(idx);
             }
             nlua_clear_ref(&mut self.lua_table_ref);
-        }
     }
 }
 
@@ -516,12 +514,10 @@ impl dict_T {
 
 impl Drop for dict_T {
     fn drop(&mut self) {
-        unsafe {
-            if let Some(idx) = self.dv_gc_idx.take() {
+        if let Some(idx) = self.dv_gc_idx.take() {
                 gc_unregister_dict(idx);
             }
             nlua_clear_ref(&mut self.lua_table_ref);
-        }
     }
 }
 
@@ -574,9 +570,7 @@ pub struct DictWatcher {
 
 impl Drop for DictWatcher {
     fn drop(&mut self) {
-        unsafe {
-            callback_free(&mut self.callback);
-        }
+        callback_free(&mut self.callback);
     }
 }
 
@@ -707,9 +701,9 @@ static E_NON_NULL_DICT_REQUIRED_FOR_ARGUMENT_NR: &CStr =
     c"E1297: Non-NULL Dictionary required for argument %d";
 
 #[inline]
-pub unsafe fn nlua_clear_ref(r: &mut LuaRef) {
+pub fn nlua_clear_ref(r: &mut LuaRef) {
     if *r != LUA_NOREF && *r != 0 {
-        unsafe { api_free_luaref(*r) };
+        api_free_luaref(*r);
         *r = LUA_NOREF;
     }
 }
@@ -1051,7 +1045,7 @@ pub unsafe extern "C" fn tv_list_alloc(_len: isize) -> *mut list_T {
 }
 
 /// Initialize a static list with 10 items.
-pub unsafe fn tv_list_init_static10(sl: &mut staticList10_T) {
+pub fn tv_list_init_static10(sl: &mut staticList10_T) {
     unsafe {
         const SL_SIZE: usize = 10;
         *sl = staticList10_T::new();
@@ -1908,7 +1902,7 @@ pub unsafe fn tv_list_remove(
 }
 
 /// Compare functions for f_sort() and f_uniq().
-unsafe fn item_compare(
+fn item_compare(
     si1: &ListSortItem,
     si2: &ListSortItem,
     keep_zero: bool,
@@ -2053,7 +2047,7 @@ unsafe fn item_compare(
     }
 }
 
-unsafe fn item_compare2(
+fn item_compare2(
     si1: &ListSortItem,
     si2: &ListSortItem,
     keep_zero: bool,
@@ -2122,7 +2116,7 @@ unsafe fn item_compare2(
     }
 }
 
-unsafe fn sort_compute_keys(ptrs: &mut [ListSortItem], info: &mut sortinfo_T) {
+fn sort_compute_keys(ptrs: &mut [ListSortItem], info: &mut sortinfo_T) {
     unsafe {
         if info.item_compare_numbers {
             for si in ptrs.iter_mut() {
@@ -2551,7 +2545,7 @@ pub unsafe fn tv_dict_watcher_add(
 }
 
 /// Check whether two callbacks are equal.
-pub unsafe fn tv_callback_equal(cb1: &Callback, cb2: &Callback) -> bool {
+pub fn tv_callback_equal(cb1: &Callback, cb2: &Callback) -> bool {
     unsafe {
         if cb1.cb_type() != cb2.cb_type() {
             return false;
@@ -2569,7 +2563,7 @@ pub unsafe fn tv_callback_equal(cb1: &Callback, cb2: &Callback) -> bool {
 }
 
 /// Unref/free callback.
-pub unsafe fn callback_free(callback: &mut Callback) {
+pub fn callback_free(callback: &mut Callback) {
     unsafe {
         match callback.cb_type() {
             kCallbackFuncref => {
@@ -2589,7 +2583,7 @@ pub unsafe fn callback_free(callback: &mut Callback) {
 }
 
 /// Copy a callback into a typval_T.
-pub unsafe fn callback_put(cb: &mut Callback, tv: &mut typval_T) {
+pub fn callback_put(cb: &mut Callback, tv: &mut typval_T) {
     unsafe {
         match cb.cb_type() {
             kCallbackPartial => {
@@ -2613,7 +2607,7 @@ pub unsafe fn callback_put(cb: &mut Callback, tv: &mut typval_T) {
 }
 
 /// Copy callback from "src" to "dest", incrementing the refcounts.
-pub unsafe fn callback_copy(dest: &mut Callback, src: &Callback) {
+pub fn callback_copy(dest: &mut Callback, src: &Callback) {
     unsafe {
         match src.cb_type() {
             kCallbackPartial => {
@@ -2642,7 +2636,7 @@ pub unsafe fn callback_copy(dest: &mut Callback, src: &Callback) {
 }
 
 /// Generate a string description of a callback.
-pub unsafe fn callback_to_string(cb: &mut Callback) -> std::ffi::CString {
+pub fn callback_to_string(cb: &mut Callback) -> std::ffi::CString {
     unsafe {
         if cb.cb_type() == kCallbackLua {
             return nlua_funcref_str(cb.data.as_luaref(), true);
@@ -2841,7 +2835,7 @@ pub unsafe fn tv_dict_item_free(item: *mut dictitem_T) {
 }
 
 /// Make a copy of a dictionary item.
-pub unsafe fn tv_dict_item_copy(di: &mut dictitem_T) -> *mut dictitem_T {
+pub fn tv_dict_item_copy(di: &mut dictitem_T) -> *mut dictitem_T {
     unsafe {
         let key_ptr = di.di_key.as_ptr();
         let new_di = tv_dict_item_alloc(key_ptr);
@@ -2865,7 +2859,7 @@ pub unsafe fn tv_dict_item_remove(dict: *mut dict_T, item: *mut dictitem_T) {
 }
 
 /// Allocate an empty dictionary.
-pub unsafe fn tv_dict_alloc() -> *mut dict_T {
+pub fn tv_dict_alloc() -> *mut dict_T {
     unsafe {
         let d = Box::into_raw(Box::new(dict_T {
             dv_lock: VAR_UNLOCKED,
@@ -3318,7 +3312,7 @@ pub unsafe fn tv_dict_add_func(
 
 /// Clear all the keys of a Dictionary.
 #[cfg(test)]
-pub unsafe fn tv_dict_clear(d: &mut dict_T) {
+pub fn tv_dict_clear(d: &mut dict_T) {
     unsafe {
         hash_lock(&mut d.dv_hashtab);
         debug_assert!(d.dv_hashtab.ht_locked > 0);
@@ -3677,7 +3671,7 @@ pub unsafe fn tv_blob_slice_or_index(
 }
 
 /// Check if "n1" is a valid index for a blob with length "bloblen".
-pub unsafe fn tv_blob_check_index(bloblen: c_int, n1: varnumber_T, quiet: bool) -> c_int {
+pub fn tv_blob_check_index(bloblen: c_int, n1: varnumber_T, quiet: bool) -> c_int {
     unsafe {
         if n1 < 0 || n1 > i64::from(bloblen) {
             if !quiet {
@@ -3690,7 +3684,7 @@ pub unsafe fn tv_blob_check_index(bloblen: c_int, n1: varnumber_T, quiet: bool) 
 }
 
 /// Check if "n1"-"n2" is a valid range for a blob with length "bloblen".
-pub unsafe fn tv_blob_check_range(
+pub fn tv_blob_check_range(
     bloblen: c_int,
     n1: varnumber_T,
     n2: varnumber_T,
@@ -3854,7 +3848,7 @@ pub unsafe fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) -> *mut list_
     }
 }
 
-pub unsafe fn tv_dict_alloc_lock(lock: VarLockStatus) -> *mut dict_T {
+pub fn tv_dict_alloc_lock(lock: VarLockStatus) -> *mut dict_T {
     unsafe {
         let d = tv_dict_alloc();
         (*d).dv_lock = lock;
@@ -4050,7 +4044,7 @@ unsafe fn nothing_conv_func_start(tv: *mut typval_T, fun: *mut c_char) -> c_int 
 }
 
 #[inline]
-unsafe fn nothing_conv_func_end(tv: &mut typval_T, copy_id: c_int) {
+fn nothing_conv_func_end(tv: &mut typval_T, copy_id: c_int) {
     unsafe {
         if tv.v_type == VarType::VAR_PARTIAL {
             let pt = tv.vval.v_partial();
@@ -4468,7 +4462,7 @@ const fn change_lock(lock: bool, var: VarLockStatus) -> VarLockStatus {
 }
 
 /// Lock or unlock an item.
-pub unsafe fn tv_item_lock(tv: &mut typval_T, deep: c_int, lock: bool, check_refcount: bool) {
+pub fn tv_item_lock(tv: &mut typval_T, deep: c_int, lock: bool, check_refcount: bool) {
     unsafe {
         static RECURSE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
@@ -4535,7 +4529,7 @@ pub unsafe fn tv_item_lock(tv: &mut typval_T, deep: c_int, lock: bool, check_ref
 }
 
 /// Check whether Vimscript value is locked itself or refers to a locked container.
-pub unsafe fn tv_islocked(tv: &typval_T) -> bool {
+pub fn tv_islocked(tv: &typval_T) -> bool {
     unsafe {
         tv.v_lock == VAR_LOCKED
             || (tv.v_type == VarType::VAR_LIST
@@ -4866,7 +4860,7 @@ pub unsafe fn tv_get_bool_chk(tv: *const typval_T, ret_error: *mut bool) -> varn
 }
 
 /// Get the line number from Vimscript object.
-pub unsafe fn tv_get_lnum(tv: &typval_T) -> linenr_T {
+pub fn tv_get_lnum(tv: &typval_T) -> linenr_T {
     unsafe {
         let did_emsg_before = g_st().did_emsg;
         let mut lnum = tv_get_number_chk(&raw const *tv, ptr::null_mut()) as linenr_T;
@@ -5298,7 +5292,7 @@ pub unsafe fn tv2bool(tv: *const typval_T) -> bool {
 }
 
 /// Check that repeating "slen" items "n" times does not overflow int.
-pub unsafe fn check_repeat_count(slen: varnumber_T, n: varnumber_T) -> c_int {
+pub fn check_repeat_count(slen: varnumber_T, n: varnumber_T) -> c_int {
     unsafe {
         if n <= i64::from(c_int::MAX) / slen {
             return OK;

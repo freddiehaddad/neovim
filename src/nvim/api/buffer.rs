@@ -124,7 +124,7 @@ use crate::state::MODE_INSERT;
 
 /// Ensures that a buffer is loaded.
 // DLLEXPORT buf_T *api_buf_ensure_loaded(Buffer buf, Error *err);
-pub unsafe fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> *mut buf_T {
+pub fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> *mut buf_T {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
         if b.is_null() {
@@ -1520,12 +1520,10 @@ pub unsafe extern "C" fn nvim_buf_delete(
 //   FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_is_valid(buf: Buffer) -> Boolean {
-    unsafe {
-        let mut stub = Error::new();
+    let mut stub = Error::new();
         let ret = !find_buffer_by_handle(buf, &mut stub).is_null();
         api_clear_error(&mut stub);
         ret
-    }
 }
 
 /// Deletes a named mark in the buffer. See |mark-motions|.
@@ -1800,7 +1798,7 @@ pub unsafe extern "C" fn nvim__buf_stats(buf: Buffer, arena: *mut Arena, err: &m
     }
 }
 
-unsafe fn fix_cursor(win: &mut win_T, lo: linenr_T, hi: linenr_T, extra: linenr_T) {
+fn fix_cursor(win: &mut win_T, lo: linenr_T, hi: linenr_T, extra: linenr_T) {
     unsafe {
         if win.w_cursor.lnum >= lo {
             if win.w_cursor.lnum >= hi {
@@ -1874,7 +1872,7 @@ unsafe fn fix_pos_col(
     }
 }
 
-unsafe fn fix_cursor_cols(
+fn fix_cursor_cols(
     win: &mut win_T,
     start_row: linenr_T,
     start_col: colnr_T,

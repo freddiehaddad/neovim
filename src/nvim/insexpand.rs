@@ -3198,12 +3198,10 @@ unsafe fn get_cpt_sources_count(cpt: *mut c_char) -> c_int {
 }
 
 pub unsafe fn clear_cpt_callbacks(callbacks: &mut Vec<Callback>) {
-    unsafe {
-        for cb in callbacks.iter_mut() {
+    for cb in callbacks.iter_mut() {
             callback_free(cb);
         }
         callbacks.clear();
-    }
 }
 
 unsafe fn copy_cpt_callbacks(dest: &mut Vec<Callback>, src: &mut [Callback]) {

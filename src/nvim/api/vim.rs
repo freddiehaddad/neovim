@@ -3303,7 +3303,7 @@ pub unsafe extern "C" fn nvim__complete_set(
     }
 }
 
-unsafe fn redraw_status(wp: &mut win_T, opts: &mut KeyDict_redraw, flush: &mut bool) {
+fn redraw_status(wp: &mut win_T, opts: &mut KeyDict_redraw, flush: &mut bool) {
     unsafe {
         if opts.statuscolumn && *wp.w_onebuf_opt.wo_stc != NUL {
             wp.w_nrwidth_line_count = 0;
