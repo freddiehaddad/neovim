@@ -13,8 +13,8 @@ use crate::eval::typval::{
     callback_free, callback_put, dict_T, dictitem_T, float_T, kCallbackExpr, kCallbackFuncref,
     kCallbackLua, kCallbackNone, kCallbackPartial, list_T, listitem_T, listwatch_T, partial_T,
     tv_blob_alloc, tv_blob_alloc_ret, tv_blob_check_index, tv_blob_check_range, tv_blob_copy,
-    tv_blob_equal, tv_blob_get, tv_blob_len, tv_blob_set_append, tv_blob_set_range,
-    tv_blob_slice_or_index, tv_blob_unref, tv_check_lock, tv_check_num, tv_check_str, tv_clear,
+    tv_blob_equal, tv_blob_len, tv_blob_set_append, tv_blob_set_range,
+    tv_blob_slice_or_index, tv_check_lock, tv_check_num, tv_check_str, tv_clear,
     tv_copy, tv_dict_add, tv_dict_add_nr, tv_dict_alloc, tv_dict_copy, tv_dict_equal, tv_dict_find,
     tv_dict_free, tv_dict_free_contents, tv_dict_get_callback, tv_dict_get_number, tv_dict_hi2di,
     tv_dict_item_alloc, tv_dict_item_free, tv_dict_unref, tv_dict_watcher_notify,
@@ -252,17 +252,27 @@ static mut VAR2FPOS_POS: pos_T = pos_T {
 static mut timers: std::collections::BTreeMap<u64, *mut timer_T> =
     std::collections::BTreeMap::new();
 
+enum ForSource {
+    None,
+    List {
+        list: *mut list_T,
+        lw: std::rc::Rc<listwatch_T>,
+    },
+    Blob {
+        bytes: Vec<u8>,
+        idx: usize,
+    },
+    Str {
+        text: std::ffi::CString,
+        byte_idx: usize,
+    },
+}
+
 /// Info used by a `:for` loop.
-#[repr(C)]
 pub struct forinfo_T {
     fi_semicolon: c_int,
     fi_varcount: c_int,
-    fi_lw: listwatch_T,
-    fi_list: *mut list_T,
-    fi_bi: c_int,
-    fi_blob: *mut blob_T,
-    fi_string: Option<std::ffi::CString>,
-    fi_byte_idx: c_int,
+    fi_source: ForSource,
 }
 
 pub type ht_stack_T = Vec<*mut hashtab_T>;
@@ -1754,16 +1764,9 @@ pub unsafe fn eval_for_line(
 ) -> Box<forinfo_T> {
     unsafe {
         let mut fi = Box::new(forinfo_T {
-            fi_lw: listwatch_T {
-                lw_item: ptr::null_mut(),
-            },
-            fi_list: ptr::null_mut(),
-            fi_bi: 0,
-            fi_byte_idx: 0,
-            fi_blob: ptr::null_mut(),
-            fi_string: None,
-            fi_varcount: 0,
             fi_semicolon: 0,
+            fi_varcount: 0,
+            fi_source: ForSource::None,
         });
         let mut tv = tv_initial_value();
         let skip = (evalarg.eval_flags & EVAL_EVALUATE) == 0;
@@ -1801,25 +1804,27 @@ pub unsafe fn eval_for_line(
                     if l.is_null() {
                         tv_clear(&raw mut tv);
                     } else {
-                        fi.fi_list = l;
-                        tv_list_watch_add(l, &raw mut fi.fi_lw);
-                        fi.fi_lw.lw_item = tv_list_first(l);
+                        let lw = std::rc::Rc::new(listwatch_T {
+                            lw_item: std::cell::Cell::new(tv_list_first(l)),
+                        });
+                        tv_list_watch_add(l, lw.clone());
+                        fi.fi_source = ForSource::List { list: l, lw };
                     }
                 } else if tv.v_type == VarType::VAR_BLOB {
-                    fi.fi_bi = 0;
-                    if !tv.vval.v_blob().is_null() {
-                        let mut btv = tv_initial_value();
-                        tv_blob_copy(tv.vval.v_blob(), &raw mut btv);
-                        fi.fi_blob = btv.vval.v_blob();
-                    }
+                    let bytes = if tv.vval.v_blob().is_null() {
+                        Vec::new()
+                    } else {
+                        (*tv.vval.v_blob()).bv_ga.clone()
+                    };
+                    fi.fi_source = ForSource::Blob { bytes, idx: 0 };
                     tv_clear(&raw mut tv);
                 } else if tv.v_type == VarType::VAR_STRING {
-                    fi.fi_byte_idx = 0;
-                    fi.fi_string = Some(if tv.vval.v_string().is_null() {
+                    let text = if tv.vval.v_string().is_null() {
                         std::ffi::CString::default()
                     } else {
                         CStr::from_ptr(tv.vval.v_string()).to_owned()
-                    });
+                    };
+                    fi.fi_source = ForSource::Str { text, byte_idx: 0 };
                     tv_clear(&raw mut tv);
                 } else {
                     emsg(gettext(E_STRING_LIST_OR_BLOB_REQUIRED.as_ptr()));
@@ -1838,79 +1843,82 @@ pub unsafe fn eval_for_line(
 /// Use the first item in a ":for" list. Advance to the next.
 pub unsafe fn next_for_item(fi: &mut forinfo_T, arg: *mut c_char) -> bool {
     unsafe {
-        if !fi.fi_blob.is_null() {
-            if fi.fi_bi >= tv_blob_len(fi.fi_blob) {
-                return false;
+        match &mut fi.fi_source {
+            ForSource::None => false,
+            ForSource::Blob { bytes, idx } => {
+                if *idx >= bytes.len() {
+                    return false;
+                }
+                let mut tv = typval_T {
+                    v_type: VarType::VAR_NUMBER,
+                    v_lock: VAR_FIXED,
+                    vval: TypvalVval::Number(varnumber_T::from(bytes[*idx])),
+                };
+                *idx += 1;
+                ex_let_vars(
+                    arg,
+                    &raw mut tv,
+                    1,
+                    fi.fi_semicolon,
+                    fi.fi_varcount,
+                    0,
+                    ptr::null_mut(),
+                ) == OK
             }
-            let mut tv = typval_T {
-                v_type: VarType::VAR_NUMBER,
-                v_lock: VAR_FIXED,
-                vval: TypvalVval::Number(varnumber_T::from(tv_blob_get(fi.fi_blob, fi.fi_bi))),
-            };
-            fi.fi_bi += 1;
-            return ex_let_vars(
-                arg,
-                &raw mut tv,
-                1,
-                fi.fi_semicolon,
-                fi.fi_varcount,
-                0,
-                ptr::null_mut(),
-            ) == OK;
-        }
-
-        if let Some(ref fi_str) = fi.fi_string {
-            let str_ptr = fi_str.as_ptr();
-            let len = utfc_ptr2len(str_ptr.add(fi.fi_byte_idx as usize));
-            if len == 0 {
-                return false;
+            ForSource::Str { text, byte_idx } => {
+                let str_ptr = text.as_ptr();
+                let len = utfc_ptr2len(str_ptr.add(*byte_idx));
+                if len == 0 {
+                    return false;
+                }
+                let mut tv = typval_T::new();
+                crate::eval::typval::tv_set_string_len(
+                    &raw mut tv,
+                    str_ptr.add(*byte_idx),
+                    len as usize,
+                );
+                tv.v_lock = VAR_FIXED;
+                *byte_idx += len as usize;
+                let result = ex_let_vars(
+                    arg,
+                    &raw mut tv,
+                    1,
+                    fi.fi_semicolon,
+                    fi.fi_varcount,
+                    0,
+                    ptr::null_mut(),
+                ) == OK;
+                tv_clear(&raw mut tv);
+                result
             }
-            let mut tv = typval_T::new();
-            crate::eval::typval::tv_set_string_len(
-                &raw mut tv,
-                str_ptr.add(fi.fi_byte_idx as usize),
-                len as usize,
-            );
-            tv.v_lock = VAR_FIXED;
-            fi.fi_byte_idx += len;
-            let result = ex_let_vars(
-                arg,
-                &raw mut tv,
-                1,
-                fi.fi_semicolon,
-                fi.fi_varcount,
-                0,
-                ptr::null_mut(),
-            ) == OK;
-            tv_clear(&raw mut tv);
-            return result;
+            ForSource::List { list, lw } => {
+                let item = lw.lw_item.get();
+                if item.is_null() {
+                    return false;
+                }
+                lw.lw_item.set(tv_list_item_next(*list, item));
+                ex_let_vars(
+                    arg,
+                    tv_list_item_tv(item),
+                    1,
+                    fi.fi_semicolon,
+                    fi.fi_varcount,
+                    0,
+                    ptr::null_mut(),
+                ) == OK
+            }
         }
-
-        let item = fi.fi_lw.lw_item;
-        if item.is_null() {
-            return false;
-        }
-        fi.fi_lw.lw_item = tv_list_item_next(fi.fi_list, item);
-        ex_let_vars(
-            arg,
-            tv_list_item_tv(item),
-            1,
-            fi.fi_semicolon,
-            fi.fi_varcount,
-            0,
-            ptr::null_mut(),
-        ) == OK
     }
 }
 
 impl Drop for forinfo_T {
     fn drop(&mut self) {
         unsafe {
-            if !self.fi_list.is_null() {
-                tv_list_watch_remove(self.fi_list, &raw mut self.fi_lw);
-                tv_list_unref(self.fi_list);
-            } else if !self.fi_blob.is_null() {
-                tv_blob_unref(self.fi_blob);
+            if let ForSource::List { list, ref lw } = self.fi_source
+                && !list.is_null()
+            {
+                tv_list_watch_remove(list, lw);
+                tv_list_unref(list);
             }
         }
     }

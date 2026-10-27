@@ -413,7 +413,7 @@ impl Drop for listitem_T {
 pub struct list_T {
     pub lv_first: *mut listitem_T,
     pub lv_last: *mut listitem_T,
-    pub lv_watch: Vec<*mut listwatch_T>,
+    pub lv_watch: Vec<std::rc::Rc<listwatch_T>>,
     pub lv_idx_item: *mut listitem_T,
     pub lv_copylist: *mut list_T,
     pub lv_used_next: *mut list_T,
@@ -564,7 +564,7 @@ enum DictListType {
 
 #[repr(C)]
 pub struct listwatch_T {
-    pub lw_item: *mut listitem_T,
+    pub lw_item: std::cell::Cell<*mut listitem_T>,
 }
 
 #[repr(C)]
@@ -1003,16 +1003,20 @@ pub unsafe fn tv_list_item_remove(l: *mut list_T, item: *mut listitem_T) -> *mut
 }
 
 /// Add a watcher to a list.
-pub unsafe fn tv_list_watch_add(l: *mut list_T, lw: *mut listwatch_T) {
+pub unsafe fn tv_list_watch_add(l: *mut list_T, lw: std::rc::Rc<listwatch_T>) {
     unsafe {
         (*l).lv_watch.push(lw);
     }
 }
 
 /// Remove a watcher from a list.
-pub unsafe fn tv_list_watch_remove(l: *mut list_T, lwrem: *mut listwatch_T) {
+pub unsafe fn tv_list_watch_remove(l: *mut list_T, lwrem: &std::rc::Rc<listwatch_T>) {
     unsafe {
-        if let Some(pos) = (*l).lv_watch.iter().position(|&lw| lw == lwrem) {
+        if let Some(pos) = (*l)
+            .lv_watch
+            .iter()
+            .position(|lw| std::rc::Rc::ptr_eq(lw, lwrem))
+        {
             (*l).lv_watch.remove(pos);
         }
     }
@@ -1021,9 +1025,9 @@ pub unsafe fn tv_list_watch_remove(l: *mut list_T, lwrem: *mut listwatch_T) {
 /// Advance watchers to the next item.
 unsafe fn tv_list_watch_fix(l: *mut list_T, item: *const listitem_T) {
     unsafe {
-        for &lw in &(*l).lv_watch {
-            if ptr::eq((*lw).lw_item, item) {
-                (*lw).lw_item = (*item).li_next;
+        for lw in &(*l).lv_watch {
+            if ptr::eq(lw.lw_item.get(), item) {
+                lw.lw_item.set((*item).li_next);
             }
         }
     }
@@ -5380,23 +5384,23 @@ mod tests {
             assert_eq!((*first).li_tv.vval.v_number(), 30);
 
             // Watchers + item_remove + drop_items + remove_items
-            let mut lw1 = listwatch_T {
-                lw_item: (*l).lv_first,
-            };
-            let mut lw2 = listwatch_T {
-                lw_item: (*l).lv_last,
-            };
-            tv_list_watch_add(l, &raw mut lw1);
-            tv_list_watch_add(l, &raw mut lw2);
+            let lw1 = std::rc::Rc::new(listwatch_T {
+                lw_item: std::cell::Cell::new((*l).lv_first),
+            });
+            let lw2 = std::rc::Rc::new(listwatch_T {
+                lw_item: std::cell::Cell::new((*l).lv_last),
+            });
+            tv_list_watch_add(l, lw1.clone());
+            tv_list_watch_add(l, lw2.clone());
 
             let second = (*(*l).lv_first).li_next;
             let next_after_first = tv_list_item_remove(l, (*l).lv_first);
             assert_eq!(next_after_first, second);
-            assert_eq!(lw1.lw_item, second);
+            assert_eq!(lw1.lw_item.get(), second);
             assert_eq!(tv_list_len_inline(l), 2);
 
-            tv_list_watch_remove(l, &raw mut lw1);
-            tv_list_watch_remove(l, &raw mut lw2);
+            tv_list_watch_remove(l, &lw1);
+            tv_list_watch_remove(l, &lw2);
             tv_list_unref(l);
 
             // insert, insert_tv, append_string, append_allocated_string, append_tv, append_owned_tv
