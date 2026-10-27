@@ -862,7 +862,7 @@ pub unsafe fn ui_array(arena: *mut Arena) -> Array {
     }
 }
 
-pub unsafe fn ui_grid_resize(grid_handle: handle_T, width: c_int, height: c_int, err: *mut Error) {
+pub unsafe fn ui_grid_resize(grid_handle: handle_T, width: c_int, height: c_int, err: &mut Error) {
     unsafe {
         if grid_handle == DEFAULT_GRID_HANDLE {
             screen_resize(width, height);
@@ -941,7 +941,7 @@ pub unsafe fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
                 args,
                 kRetNilBool,
                 ptr::null_mut(),
-                &raw mut err,
+                &mut err,
             );
             g_st().ui_event_ns_id = 0;
             if res.obj_type == ObjectType::kObjectTypeBoolean && res.data.boolean() {
@@ -951,7 +951,7 @@ pub unsafe fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
                 ui_attach_error(ns_id, name.as_ptr(), err.msg_ptr());
                 ui_remove_cb(ns_id, true);
             }
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
         }
         g_st().expr_map_lock = save_expr_map_lock;
         g_st().textlock = save_textlock;

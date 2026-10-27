@@ -313,7 +313,7 @@ pub unsafe fn rpc_send_call(
     method_name: *const c_char,
     args: Array,
     result_mem: *mut ArenaMem,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let mut channel = find_rpc_channel(id);
@@ -545,7 +545,7 @@ unsafe fn parse_msgpack(channel: *mut Channel) {
 
         if unpacker_closed(p) {
             chan_close_on_err(channel, (*p).unpack_error.msg_ptr(), LOGLVL_INF);
-            api_clear_error(&raw mut (*p).unpack_error);
+            api_clear_error(&mut (*p).unpack_error);
         }
     }
 }
@@ -565,7 +565,7 @@ unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
                 (*p).request_id,
                 (*p).unpack_error.msg_ptr(),
             );
-            api_clear_error(&raw mut (*p).unpack_error);
+            api_clear_error(&mut (*p).unpack_error);
             arena_mem_free(arena_finish(&raw mut (*p).arena));
             return;
         }
@@ -627,7 +627,7 @@ pub unsafe fn request_event(mut e: RequestEvent) {
 
         if !(*ct).rpc.closed {
             let fn_call = handler.r#fn.unwrap();
-            let mut result = fn_call((*cp).id, e.args, &raw mut e.used_mem, &raw mut error);
+            let mut result = fn_call((*cp).id, e.args, &mut e.used_mem, &mut error);
             if e.r#type == MessageType::kMessageTypeRequest
                 || error.err_type != ErrorType::kErrorTypeNone
             {
@@ -636,7 +636,7 @@ pub unsafe fn request_event(mut e: RequestEvent) {
                     e.handler,
                     e.r#type,
                     e.request_id,
-                    &raw mut error,
+                    &mut error,
                     &raw mut result,
                 );
             }
@@ -646,7 +646,7 @@ pub unsafe fn request_event(mut e: RequestEvent) {
         }
 
         drop(e);
-        api_clear_error(&raw mut error);
+        api_clear_error(&mut error);
     }
 }
 
@@ -737,14 +737,14 @@ unsafe fn send_error(
     unsafe {
         let mut e = Error::new();
         api_set_error!(
-            &raw mut e,
+            &mut e,
             ErrorType::kErrorTypeException,
             c"%s".as_ptr(),
             err,
         );
         let mut nil_obj = OBJECT_NIL;
-        serialize_response(chan, handler, r#type, id, &raw mut e, &raw mut nil_obj);
-        api_clear_error(&raw mut e);
+        serialize_response(chan, handler, r#type, id, &mut e, &raw mut nil_obj);
+        api_clear_error(&mut e);
     }
 }
 
@@ -807,7 +807,7 @@ pub unsafe fn rpc_close_event(channel: *mut Channel) {
         let ui_closed = (*ct).rpc.has_ui;
 
         {
-            remote_ui_disconnect((*cp).id, ptr::null_mut(), false);
+            remote_ui_disconnect((*cp).id, &mut Error::new(), false);
 
             let is_ui_client = g_st().ui_client_channel_id != 0 && (*cp).id == g_st().ui_client_channel_id;
             if is_ui_client {
@@ -908,11 +908,11 @@ pub unsafe fn serialize_response(
     handler: MsgpackRpcRequestHandler,
     r#type: MessageType,
     response_id: u32,
-    err: *mut Error,
+    err: &mut Error,
     arg: *mut Object,
 ) {
     unsafe {
-        if (*err).err_type != ErrorType::kErrorTypeNone
+        if err.err_type != ErrorType::kErrorTypeNone
             && r#type == MessageType::kMessageTypeNotification
         {
             let is_paste = handler
@@ -921,18 +921,18 @@ pub unsafe fn serialize_response(
 
             if is_paste {
                 {
-                    semsg!(c"paste: %s".as_ptr(), (*err).msg_ptr());
+                    semsg!(c"paste: %s".as_ptr(), err.msg_ptr());
                     api_clear_error(err);
                 }
             } else {
                 let mut items = [
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData::Integer((*err).err_type as i64),
+                        data: ObjectData::Integer(err.err_type as i64),
                     },
                     Object {
                         obj_type: ObjectType::kObjectTypeString,
-                        data: ObjectData::String(cstr_as_string((*err).msg_ptr())),
+                        data: ObjectData::String(cstr_as_string(err.msg_ptr())),
                     },
                 ];
                 let args = Array {
@@ -952,10 +952,10 @@ pub unsafe fn serialize_response(
         mpack_w(&raw mut packer.ptr, 1);
         mpack_uint(&raw mut packer.ptr, response_id);
 
-        if (*err).err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::kErrorTypeNone {
             mpack_array(&raw mut packer.ptr, 2);
-            mpack_integer(&raw mut packer.ptr, (*err).err_type as Integer);
-            mpack_str(cstr_as_string((*err).msg_ptr()), &raw mut packer);
+            mpack_integer(&raw mut packer.ptr, err.err_type as Integer);
+            mpack_str(cstr_as_string(err.msg_ptr()), &raw mut packer);
             mpack_nil(&raw mut packer.ptr);
         } else {
             mpack_nil(&raw mut packer.ptr);

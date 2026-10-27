@@ -52,7 +52,7 @@ pub unsafe fn win_new_float(
     mut wp: *mut win_T,
     last: bool,
     fconfig: WinConfig,
-    err: *mut Error,
+    err: &mut Error,
 ) -> *mut win_T {
     unsafe {
         let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
@@ -288,7 +288,7 @@ pub unsafe fn win_config_float(wp: *mut win_T, mut fconfig: WinConfig) {
             let mut row = (*wp).w_config.row as c_int;
             let mut col = (*wp).w_config.col as c_int;
             let mut dummy = error_init();
-            let parent = find_window_by_handle((*wp).w_config.window, &raw mut dummy);
+            let parent = find_window_by_handle((*wp).w_config.window, &mut dummy);
             if !parent.is_null() {
                 row += (*parent).w_winrow;
                 col += (*parent).w_wincol;
@@ -317,7 +317,7 @@ pub unsafe fn win_config_float(wp: *mut win_T, mut fconfig: WinConfig) {
                     col += tcol - 1;
                 }
             }
-            api_clear_error(&raw mut dummy);
+            api_clear_error(&mut dummy);
             (*wp).w_winrow = row;
             (*wp).w_wincol = col;
         } else {
@@ -456,10 +456,10 @@ pub unsafe fn win_float_find_altwin(win: *const win_T, tp: *const tabpage_T) -> 
 
 /// Abort `win_float_special()`: emit any error, tear down the half-built window, unblock autocmds.
 #[inline]
-unsafe fn win_float_special_fail(wp: *mut win_T, err: *mut Error) -> *mut win_T {
+unsafe fn win_float_special_fail(wp: *mut win_T, err: &mut Error) -> *mut win_T {
     unsafe {
-        if error_set(&*err) {
-            emsg((*err).msg_ptr());
+        if error_set(err) {
+            emsg(err.msg_ptr());
             api_clear_error(err);
         }
         if !wp.is_null() {
@@ -500,19 +500,19 @@ pub unsafe fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *m
         }
 
         block_autocmds();
-        let wp = win_new_float(ptr::null_mut(), false, config, &raw mut err);
+        let wp = win_new_float(ptr::null_mut(), false, config, &mut err);
         if wp.is_null() {
-            return win_float_special_fail(wp, &raw mut err);
+            return win_float_special_fail(wp, &mut err);
         }
 
         if new_buf {
-            let b = nvim_create_buf(false, true, &raw mut err);
+            let b = nvim_create_buf(false, true, &mut err);
             if b == 0 {
-                return win_float_special_fail(wp, &raw mut err);
+                return win_float_special_fail(wp, &mut err);
             }
-            let buf = find_buffer_by_handle(b, &raw mut err);
+            let buf = find_buffer_by_handle(b, &mut err);
             if buf.is_null() {
-                return win_float_special_fail(wp, &raw mut err);
+                return win_float_special_fail(wp, &mut err);
             }
             (*buf).b_p_bl = 0; // unlist
             set_option_direct_for(
@@ -522,9 +522,9 @@ pub unsafe fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *m
                 0,
                 OptTarget::Buf(buf),
             );
-            win_set_buf(wp, buf, &raw mut err);
+            win_set_buf(wp, buf, &mut err);
             if error_set(&err) {
-                return win_float_special_fail(wp, &raw mut err);
+                return win_float_special_fail(wp, &mut err);
             }
         }
         unblock_autocmds();
@@ -576,9 +576,9 @@ pub unsafe fn win_float_update_preview(wp: *mut win_T) {
                 cstr_as_obj((*(*wp).w_buffer).b_fname),
                 kBorderTextTitle,
                 &raw mut (*wp).w_config,
-                &raw mut err,
+                &mut err,
             );
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
             (*wp).w_config.title_pos = kAlignCenter;
         }
 
@@ -667,8 +667,8 @@ pub unsafe fn win_previewpopup_config(value: *const c_char, config: *mut WinConf
         }
         if !border.is_null() {
             let mut err = error_init();
-            let ok = parse_winborder(config, border, &raw mut err);
-            api_clear_error(&raw mut err);
+            let ok = parse_winborder(config, border, &mut err);
+            api_clear_error(&mut err);
             if !ok {
                 return false;
             }

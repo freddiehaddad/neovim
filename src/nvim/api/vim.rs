@@ -288,7 +288,7 @@ unsafe fn api_vim_st() -> &'static mut ApiVimState {
 }
 
 #[inline]
-unsafe fn validate_int(cond: bool, name: *const c_char, val: i64, err: *mut Error) -> bool {
+unsafe fn validate_int(cond: bool, name: *const c_char, val: i64, err: &mut Error) -> bool {
     if !cond {
         unsafe {
             api_err_invalid(err, name, ptr::null(), val, false);
@@ -300,7 +300,7 @@ unsafe fn validate_int(cond: bool, name: *const c_char, val: i64, err: *mut Erro
 }
 
 #[inline]
-unsafe fn validate_s(cond: bool, name: *const c_char, val: *const c_char, err: *mut Error) -> bool {
+unsafe fn validate_s(cond: bool, name: *const c_char, val: *const c_char, err: &mut Error) -> bool {
     if !cond {
         unsafe {
             api_err_invalid(err, name, val, 0, true);
@@ -312,7 +312,7 @@ unsafe fn validate_s(cond: bool, name: *const c_char, val: *const c_char, err: *
 }
 
 #[inline]
-unsafe fn validate_r(cond: bool, name: *const c_char, err: *mut Error) -> bool {
+unsafe fn validate_r(cond: bool, name: *const c_char, err: &mut Error) -> bool {
     if !cond {
         unsafe {
             api_err_required(err, name);
@@ -324,7 +324,7 @@ unsafe fn validate_r(cond: bool, name: *const c_char, err: *mut Error) -> bool {
 }
 
 #[inline]
-unsafe fn validate_range(cond: bool, name: *const c_char, err: *mut Error) -> bool {
+unsafe fn validate_range(cond: bool, name: *const c_char, err: &mut Error) -> bool {
     if !cond {
         unsafe {
             api_err_invalid(err, name, c"out of range".as_ptr(), 0, false);
@@ -340,7 +340,7 @@ unsafe fn validate_t(
     name: *const c_char,
     expected_t: ObjectType,
     actual_t: ObjectType,
-    err: *mut Error,
+    err: &mut Error,
 ) -> bool {
     if expected_t != actual_t {
         unsafe {
@@ -363,7 +363,7 @@ pub const fn is_internal_call(channel_id: u64) -> bool {
 /// @param[out] err Error details, if any
 // DLLEXPORT Integer nvim_get_hl_id_by_name(String name, Error *err) FUNC_API_SINCE(7);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_get_hl_id_by_name(name: NvimString, err: *mut Error) -> Integer {
+pub unsafe extern "C" fn nvim_get_hl_id_by_name(name: NvimString, err: &mut Error) -> Integer {
     unsafe {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
@@ -396,7 +396,7 @@ pub unsafe extern "C" fn nvim_get_hl(
     ns_id: Integer,
     opts: *mut KeyDict_get_highlight,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Dict {
     unsafe { ns_get_hl_defs(ns_id as NS, opts, arena, err) }
 }
@@ -460,14 +460,14 @@ pub unsafe extern "C" fn nvim_set_hl(
     ns_id: Integer,
     name: NvimString,
     val: *mut KeyDict_highlight,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
         let hl_id = syn_check_group(name.data, name.size);
         try_leave(&tstate, err);
-        if error_set(&*err) || hl_id == 0 {
+        if error_set(err) || hl_id == 0 {
             return;
         }
         let mut link_id: c_int = -1;
@@ -490,7 +490,7 @@ pub unsafe extern "C" fn nvim_set_hl(
         }
 
         let attrs = dict2hlattrs(val, true, &mut link_id, base, err);
-        if !error_set(&*err) {
+        if !error_set(err) {
             let save_current_sctx = api_set_sctx(channel_id);
             ns_hl_def(ns_id as NS, hl_id, attrs, link_id, val);
             g_st().current_sctx = save_current_sctx;
@@ -509,7 +509,7 @@ pub unsafe extern "C" fn nvim_set_hl(
 /// @return Namespace id, or -1
 // DLLEXPORT Integer nvim_get_hl_ns(Dict(get_ns) *opts, Error *err) FUNC_API_SINCE(12);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_get_hl_ns(opts: *mut KeyDict_get_ns, err: *mut Error) -> Integer {
+pub unsafe extern "C" fn nvim_get_hl_ns(opts: *mut KeyDict_get_ns, err: &mut Error) -> Integer {
     unsafe {
         if ((*opts).is_set__get_ns_ & (1u64 << KEYSET_OPTIDX_get_ns__winid)) != 0 {
             let win = find_window_by_handle((*opts).winid, err);
@@ -530,7 +530,7 @@ pub unsafe extern "C" fn nvim_get_hl_ns(opts: *mut KeyDict_get_ns, err: *mut Err
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_hl_ns(Integer ns_id, Error *err) FUNC_API_SINCE(10);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_set_hl_ns(ns_id: Integer, err: *mut Error) {
+pub unsafe extern "C" fn nvim_set_hl_ns(ns_id: Integer, err: &mut Error) {
     unsafe {
         if !validate_int(ns_id >= 0, c"namespace".as_ptr(), ns_id, err) {
             return;
@@ -551,7 +551,7 @@ pub unsafe extern "C" fn nvim_set_hl_ns(ns_id: Integer, err: *mut Error) {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_hl_ns_fast(Integer ns_id, Error *err) FUNC_API_SINCE(10) FUNC_API_FAST;
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_set_hl_ns_fast(ns_id: Integer, _err: *mut Error) {
+pub unsafe extern "C" fn nvim_set_hl_ns_fast(ns_id: Integer, _err: &mut Error) {
     unsafe {
         g_st().ns_hl_fast = ns_id as NS;
         hl_check_ns();
@@ -703,7 +703,7 @@ pub unsafe extern "C" fn nvim_input_mouse(
     grid: Integer,
     row: Integer,
     col: Integer,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         may_trigger_vim_suspend_resume(false);
@@ -879,7 +879,7 @@ pub unsafe extern "C" fn nvim_exec_lua(
     code: NvimString,
     args: Array,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe { nlua_exec(code, ptr::null(), args, kRetObject, arena, err) }
 }
@@ -906,7 +906,7 @@ pub unsafe extern "C" fn nvim__exec_lua_fast(
     code: NvimString,
     args: Array,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe { nvim_exec_lua(code, args, arena, err) }
 }
@@ -919,7 +919,7 @@ pub unsafe extern "C" fn nvim__exec_lua_fast(
 /// @return Number of cells
 // DLLEXPORT Integer nvim_strwidth(String text, Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_strwidth(text: NvimString, err: *mut Error) -> Integer {
+pub unsafe extern "C" fn nvim_strwidth(text: NvimString, err: &mut Error) -> Integer {
     unsafe {
         if !validate_s(
             text.size <= (c_int::MAX as usize),
@@ -938,7 +938,7 @@ pub unsafe extern "C" fn nvim_strwidth(text: NvimString, err: *mut Error) -> Int
 /// @return List of paths
 // DLLEXPORT ArrayOf(String) nvim_list_runtime_paths(Arena *arena, Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_list_runtime_paths(arena: *mut Arena, err: *mut Error) -> Array {
+pub unsafe extern "C" fn nvim_list_runtime_paths(arena: *mut Arena, err: &mut Error) -> Array {
     unsafe {
         nvim_get_runtime_file(
             NvimString {
@@ -978,7 +978,7 @@ pub unsafe extern "C" fn nvim_get_runtime_file(
     name: NvimString,
     all: Boolean,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Array {
     unsafe {
         let mut files: Vec<std::ffi::CString> = Vec::new();
@@ -1035,7 +1035,7 @@ pub unsafe extern "C" fn nvim__get_runtime(
     all: Boolean,
     opts: *mut KeyDict_runtime,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Array {
     unsafe {
         if (*opts).do_source && !nlua_is_deferred_safe() {
@@ -1046,7 +1046,7 @@ pub unsafe extern "C" fn nvim__get_runtime(
                 c"'do_source' used in fast callback".as_ptr(),
             );
         }
-        if error_set(&*err) {
+        if error_set(err) {
             return Array::new();
         }
 
@@ -1067,7 +1067,7 @@ pub unsafe extern "C" fn nvim__get_runtime(
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_current_dir(String dir, Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_set_current_dir(dir: NvimString, err: *mut Error) {
+pub unsafe extern "C" fn nvim_set_current_dir(dir: NvimString, err: &mut Error) {
     unsafe {
         if !validate_s(
             dir.size < MAXPATHL,
@@ -1090,7 +1090,7 @@ pub unsafe extern "C" fn nvim_set_current_dir(dir: NvimString, err: *mut Error) 
 /// @return Current line string
 // DLLEXPORT String nvim_get_current_line(Arena *arena, Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_get_current_line(arena: *mut Arena, err: *mut Error) -> NvimString {
+pub unsafe extern "C" fn nvim_get_current_line(arena: *mut Arena, err: &mut Error) -> NvimString {
     unsafe {
         buffer_get_line(
             (*g_st().curbuf).b_fnum,
@@ -1111,7 +1111,7 @@ pub unsafe extern "C" fn nvim_get_current_line(arena: *mut Arena, err: *mut Erro
 pub unsafe extern "C" fn nvim_set_current_line(
     line: NvimString,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         buffer_set_line(
@@ -1129,7 +1129,7 @@ pub unsafe extern "C" fn nvim_set_current_line(
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_del_current_line(Arena *arena, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_del_current_line(arena: *mut Arena, err: *mut Error) {
+pub unsafe extern "C" fn nvim_del_current_line(arena: *mut Arena, err: &mut Error) {
     unsafe {
         buffer_del_line(
             (*g_st().curbuf).b_fnum,
@@ -1150,7 +1150,7 @@ pub unsafe extern "C" fn nvim_del_current_line(arena: *mut Arena, err: *mut Erro
 pub unsafe extern "C" fn nvim_get_var(
     name: NvimString,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let mut di = tv_dict_find(get_globvar_dict(), name.data, name.size as isize);
@@ -1187,7 +1187,7 @@ pub unsafe extern "C" fn nvim_get_var(
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_var(String name, Object value, Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_set_var(name: NvimString, value: Object, err: *mut Error) {
+pub unsafe extern "C" fn nvim_set_var(name: NvimString, value: Object, err: &mut Error) {
     unsafe {
         dict_set_var(
             get_globvar_dict(),
@@ -1207,7 +1207,7 @@ pub unsafe extern "C" fn nvim_set_var(name: NvimString, value: Object, err: *mut
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_del_var(String name, Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_del_var(name: NvimString, err: *mut Error) {
+pub unsafe extern "C" fn nvim_del_var(name: NvimString, err: &mut Error) {
     unsafe {
         dict_set_var(
             get_globvar_dict(),
@@ -1231,7 +1231,7 @@ pub unsafe extern "C" fn nvim_del_var(name: NvimString, err: *mut Error) {
 pub unsafe extern "C" fn nvim_get_vvar(
     name: NvimString,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe { dict_get_value(get_vimvar_dict(), name, arena, err) }
 }
@@ -1243,7 +1243,7 @@ pub unsafe extern "C" fn nvim_get_vvar(
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_vvar(String name, Object value, Error *err) FUNC_API_SINCE(6);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_set_vvar(name: NvimString, value: Object, err: *mut Error) {
+pub unsafe extern "C" fn nvim_set_vvar(name: NvimString, value: Object, err: &mut Error) {
     unsafe {
         dict_set_var(
             get_vimvar_dict(),
@@ -1301,12 +1301,12 @@ pub unsafe extern "C" fn nvim_echo(
     chunks: Array,
     history: Boolean,
     opts: *mut KeyDict_echo_opts,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let mut id = integer_obj(-1);
         let mut hl_msg = parse_hl_msg(chunks, (*opts).err, err);
-        if error_set(&*err) {
+        if error_set(err) {
             return id;
         }
 
@@ -1490,7 +1490,7 @@ pub unsafe extern "C" fn nvim_get_current_buf() -> Buffer {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_current_buf(Buffer buf, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_set_current_buf(buf: Buffer, err: *mut Error) {
+pub unsafe extern "C" fn nvim_set_current_buf(buf: Buffer, err: &mut Error) {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
         if b.is_null() {
@@ -1558,7 +1558,7 @@ pub unsafe extern "C" fn nvim_get_current_win() -> Window {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_current_win(Window win, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_set_current_win(win: Window, err: *mut Error) {
+pub unsafe extern "C" fn nvim_set_current_win(win: Window, err: &mut Error) {
     unsafe {
         let w = find_window_by_handle(win, err);
         if w.is_null() {
@@ -1586,7 +1586,7 @@ pub unsafe extern "C" fn nvim_set_current_win(win: Window, err: *mut Error) {
 pub unsafe extern "C" fn nvim_create_buf(
     listed: Boolean,
     scratch: Boolean,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Buffer {
     unsafe {
         let mut ret: Buffer = 0;
@@ -1655,7 +1655,7 @@ pub unsafe extern "C" fn nvim_create_buf(
         }
         try_leave(&tstate, err);
 
-        if ret == 0 && !error_set(&*err) {
+        if ret == 0 && !error_set(err) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -1707,7 +1707,7 @@ pub unsafe extern "C" fn nvim_create_buf(
 pub unsafe extern "C" fn nvim_open_term(
     buf: Buffer,
     opts: *mut KeyDict_open_term,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Integer {
     unsafe {
         let b = api_buf_ensure_loaded(buf, err);
@@ -1797,7 +1797,7 @@ pub unsafe extern "C" fn nvim_open_term(
 // DLLEXPORT void nvim_chan_send(Integer chan, String data,
 //                               Error *err) FUNC_API_SINCE(7) FUNC_API_REMOTE_ONLY FUNC_API_LUA_ONLY;
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_chan_send(chan: Integer, data: NvimString, err: *mut Error) {
+pub unsafe extern "C" fn nvim_chan_send(chan: Integer, data: NvimString, err: &mut Error) {
     if data.size == 0 {
         return;
     }
@@ -1851,7 +1851,7 @@ pub unsafe extern "C" fn nvim_get_current_tabpage() -> Tabpage {
 // DLLEXPORT void nvim_set_current_tabpage(Tabpage tabpage,
 //                                         Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_set_current_tabpage(tabpage: Tabpage, err: *mut Error) {
+pub unsafe extern "C" fn nvim_set_current_tabpage(tabpage: Tabpage, err: &mut Error) {
     unsafe {
         let tp = find_tab_by_handle(tabpage, err);
         if tp.is_null() {
@@ -1908,7 +1908,7 @@ pub unsafe extern "C" fn nvim_paste(
     crlf: Boolean,
     phase: Integer,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Boolean {
     unsafe {
         if !validate_int((-1..=3).contains(&phase), c"phase".as_ptr(), phase, err) {
@@ -1942,7 +1942,7 @@ pub unsafe extern "C" fn nvim_paste(
             arena,
             err,
         );
-        if error_set(&*err) || (rv.obj_type == ObjectType::kObjectTypeBoolean && !rv.data.boolean()) {
+        if error_set(err) || (rv.obj_type == ObjectType::kObjectTypeBoolean && !rv.data.boolean()) {
             api_vim_st().PASTE_CANCELLED = true;
         }
         if (phase == -1 || phase == 3 || api_vim_st().PASTE_CANCELLED) && !(*g_st().curbuf).terminal.is_null() {
@@ -1992,7 +1992,7 @@ pub unsafe extern "C" fn nvim_put(
     after: Boolean,
     follow: Boolean,
     _arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let mut reg = crate::register::EMPTY_YANKREG;
@@ -2107,7 +2107,7 @@ pub unsafe extern "C" fn nvim_get_color_map(arena: *mut Arena) -> Dict {
 pub unsafe extern "C" fn nvim_get_context(
     opts: *mut KeyDict_context,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Dict {
     unsafe {
         let types = if ((*opts).is_set__context_ & (1u64 << KEYSET_OPTIDX_context__types)) != 0 {
@@ -2155,14 +2155,14 @@ pub unsafe extern "C" fn nvim_get_context(
 /// @param dict  Msgpack-encoded editor state, in the form returned by [nvim_get_context()].
 // DLLEXPORT Object nvim_load_context(Dict dict, Error *err) FUNC_API_SINCE(6);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_load_context(dict: Dict, err: *mut Error) -> Object {
+pub unsafe extern "C" fn nvim_load_context(dict: Dict, err: &mut Error) -> Object {
     unsafe {
         let mut ctx = CONTEXT_INIT;
         let save_did_emsg = g_st().did_emsg;
         g_st().did_emsg = 0;
 
         ctx_from_dict(dict, &mut ctx, err);
-        if !error_set(&*err) {
+        if !error_set(err) {
             ctx_load(&mut ctx, kCtxAll, 0);
         }
 
@@ -2245,7 +2245,7 @@ pub unsafe extern "C" fn nvim_set_keymap(
     lhs: NvimString,
     rhs: NvimString,
     opts: *mut KeyDict_keymap,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         modify_keymap(channel_id, -1, MAPTYPE_MAP, mode, lhs, rhs, opts, err);
@@ -2270,7 +2270,7 @@ pub unsafe extern "C" fn nvim_del_keymap(
     mode: NvimString,
     lhs: NvimString,
     opts: *mut KeyDict_keymap_del,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         nvim_buf_del_keymap(channel_id, -1, mode, lhs, opts, err);
@@ -2358,7 +2358,7 @@ pub unsafe extern "C" fn nvim_set_client_info(
     methods: Dict,
     attributes: Dict,
     arena: *mut Arena,
-    _err: *mut Error,
+    _err: &mut Error,
 ) {
     unsafe {
         let mut info_items = [KeyValuePair::default(); 5];
@@ -2408,7 +2408,7 @@ pub unsafe extern "C" fn nvim_chan_set(
     channel_id: u64,
     mut chan: Integer,
     config: *mut KeyDict_chan_set,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         if chan == 0 && !is_internal_call(channel_id) {
@@ -2432,7 +2432,7 @@ pub unsafe extern "C" fn nvim_chan_set(
 /// @param[out] err Error details, if any.
 // DLLEXPORT void nvim__cmdwin_set(String type, Buffer buf, Error *err) FUNC_API_SINCE(14);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim__cmdwin_set(type_str: NvimString, buf: Buffer, err: *mut Error) {
+pub unsafe extern "C" fn nvim__cmdwin_set(type_str: NvimString, buf: Buffer, err: &mut Error) {
     unsafe {
         if type_str.size == 0 || buf == 0 {
             g_st().cmdwin_type = 0;
@@ -2440,7 +2440,7 @@ pub unsafe extern "C" fn nvim__cmdwin_set(type_str: NvimString, buf: Buffer, err
             return;
         }
         let b = find_buffer_by_handle(buf, err);
-        if error_set(&*err) {
+        if error_set(err) {
             return;
         }
         g_st().cmdwin_type = c_int::from(*type_str.data as u8);
@@ -2482,7 +2482,7 @@ pub unsafe extern "C" fn nvim_get_chan_info(
     channel_id: u64,
     mut chan: Integer,
     arena: *mut Arena,
-    _err: *mut Error,
+    _err: &mut Error,
 ) -> Dict {
     if chan < 0 {
         return Dict::new();
@@ -2626,7 +2626,7 @@ pub unsafe extern "C" fn nvim_list_uis(arena: *mut Arena) -> Array {
 pub unsafe extern "C" fn nvim_get_proc_children(
     pid: Integer,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Array {
     unsafe {
         let mut rvobj = Array::new();
@@ -2658,7 +2658,7 @@ pub unsafe extern "C" fn nvim_get_proc_children(
                 );
                 if o.obj_type == ObjectType::kObjectTypeArray {
                     rvobj = o.data.array();
-                } else if !error_set(&*err) {
+                } else if !error_set(err) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -2685,7 +2685,7 @@ pub unsafe extern "C" fn nvim_get_proc_children(
 /// @return Map of process properties, or NIL if process not found.
 // DLLEXPORT Object nvim_get_proc(Integer pid, Arena *arena, Error *err) FUNC_API_SINCE(4);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_get_proc(pid: Integer, arena: *mut Arena, err: *mut Error) -> Object {
+pub unsafe extern "C" fn nvim_get_proc(pid: Integer, arena: *mut Arena, err: &mut Error) -> Object {
     unsafe {
         if !validate_int(
             pid > 0 && pid <= Integer::from(c_int::MAX),
@@ -2726,7 +2726,7 @@ pub unsafe extern "C" fn nvim_get_proc(pid: Integer, arena: *mut Arena, err: *mu
                 return nil_obj();
             } else if o.obj_type == ObjectType::kObjectTypeDict {
                 rvobj = o;
-            } else if !error_set(&*err) {
+            } else if !error_set(err) {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
@@ -2762,7 +2762,7 @@ pub unsafe extern "C" fn nvim_select_popupmenu_item(
     mut insert: Boolean,
     finish: Boolean,
     _opts: *mut KeyDict_empty,
-    _err: *mut Error,
+    _err: &mut Error,
 ) {
     if finish {
         insert = true;
@@ -2781,7 +2781,7 @@ pub unsafe extern "C" fn nvim__inspect_cell(
     row: Integer,
     col: Integer,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Array {
     unsafe {
         let mut ret = Array::new();
@@ -2848,7 +2848,7 @@ pub unsafe extern "C" fn nvim__invalidate_glyph_cache() {
 pub unsafe extern "C" fn nvim__unpack(
     str_: NvimString,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe { unpack(str_.data, str_.size, arena, err) }
 }
@@ -2862,7 +2862,7 @@ pub unsafe extern "C" fn nvim__unpack(
 /// @see |nvim_get_mark()|
 // DLLEXPORT Boolean nvim_del_mark(String name, Error *err) FUNC_API_SINCE(8);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_del_mark(name: NvimString, err: *mut Error) -> Boolean {
+pub unsafe extern "C" fn nvim_del_mark(name: NvimString, err: &mut Error) -> Boolean {
     unsafe {
         if !validate_s(
             name.size == 1,
@@ -2906,7 +2906,7 @@ pub unsafe extern "C" fn nvim_get_mark(
     name: NvimString,
     _opts: *mut KeyDict_empty,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Array {
     unsafe {
         let mut rv = Array::new();
@@ -3005,7 +3005,7 @@ pub unsafe extern "C" fn nvim_eval_statusline(
     str_: NvimString,
     opts: *mut KeyDict_eval_statusline,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Dict {
     unsafe {
         let mut result = Dict::new();
@@ -3280,7 +3280,7 @@ pub unsafe extern "C" fn nvim__complete_set(
     index: Integer,
     opts: *mut KeyDict_complete_set,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Dict {
     unsafe {
         let mut rv = arena_dict(arena, 2);
@@ -3361,14 +3361,14 @@ unsafe fn redraw_status(wp: *mut win_T, opts: *mut KeyDict_redraw, flush: *mut b
 ///               - winbar: Redraw the 'winbar' in `buf`, `win` or all windows.
 // DLLEXPORT void nvim__redraw(Dict(redraw) *opts, Error *err) FUNC_API_SINCE(12);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: *mut Error) {
+pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: &mut Error) {
     unsafe {
         let mut win: *mut win_T = ptr::null_mut();
         let mut buf: *mut buf_T = ptr::null_mut();
 
         if ((*opts).is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__win)) != 0 {
             win = find_window_by_handle((*opts).win, err);
-            if error_set(&*err) {
+            if error_set(err) {
                 return;
             }
         }
@@ -3384,7 +3384,7 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: *mut Error
                 return;
             }
             buf = find_buffer_by_handle((*opts).buf, err);
-            if error_set(&*err) {
+            if error_set(err) {
                 return;
             }
         }

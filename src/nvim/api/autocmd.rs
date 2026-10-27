@@ -138,28 +138,28 @@ unsafe fn api_au_st() -> &'static mut ApiAutocmdState {
 }
 
 #[inline]
-unsafe fn api_err_con(err: *mut Error, name: *const c_char, name2: *const c_char) {
+unsafe fn api_err_con(err: &mut Error, name: *const c_char, name2: *const c_char) {
     unsafe {
         api_err_conflict(err, name, name2);
     }
 }
 
 #[inline]
-unsafe fn api_err_inv(err: *mut Error, name: *const c_char, val_s: *const c_char) {
+unsafe fn api_err_inv(err: &mut Error, name: *const c_char, val_s: *const c_char) {
     unsafe {
         api_err_invalid(err, name, val_s, 0, true);
     }
 }
 
 #[inline]
-unsafe fn api_err_int(err: *mut Error, name: *const c_char, val_n: i64) {
+unsafe fn api_err_int(err: &mut Error, name: *const c_char, val_n: i64) {
     unsafe {
         api_err_invalid(err, name, std::ptr::null(), val_n, false);
     }
 }
 
 #[inline]
-unsafe fn api_err_req(err: *mut Error, name: *const c_char) {
+unsafe fn api_err_req(err: &mut Error, name: *const c_char) {
     unsafe {
         api_err_required(err, name);
     }
@@ -182,7 +182,7 @@ unsafe fn unpack_string_or_array(
     k: *const c_char,
     required: bool,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Array {
     unsafe {
         if v.obj_type == ObjectType::kObjectTypeString {
@@ -216,7 +216,7 @@ unsafe fn unpack_string_or_array(
     }
 }
 
-unsafe fn get_augroup_from_object(group: Object, err: *mut Error) -> c_int {
+unsafe fn get_augroup_from_object(group: Object, err: &mut Error) -> c_int {
     unsafe {
         match group.obj_type {
             ObjectType::kObjectTypeNil => AUGROUP_DEFAULT,
@@ -260,7 +260,7 @@ unsafe fn get_patterns_from_pattern_or_buf(
     buf: Buffer,
     fallback: *const c_char,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Array {
     unsafe {
         let mut patterns = ArrayBuilder::new();
@@ -345,7 +345,7 @@ unsafe fn clear_autocmd(
     event: event_T,
     pat: *const c_char,
     au_group: c_int,
-    err: *mut Error,
+    err: &mut Error,
 ) -> bool {
     unsafe {
         if do_autocmd_event(event, pat, false, 0, c"".as_ptr(), true, au_group) == FAIL {
@@ -407,7 +407,7 @@ unsafe fn clear_autocmd(
 pub unsafe extern "C" fn nvim_get_autocmds(
     opts: *mut KeyDict_get_autocmds,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Array {
     unsafe {
         let mut autocmd_list = ArrayBuilder::new();
@@ -842,7 +842,7 @@ pub unsafe extern "C" fn nvim_create_autocmd(
     event: Object,
     opts: *mut KeyDict_create_autocmd,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Integer {
     unsafe {
         let mut autocmd_id: i64 = -1;
@@ -1010,7 +1010,7 @@ pub unsafe extern "C" fn nvim_create_autocmd(
 /// @param id Autocommand id returned by |nvim_create_autocmd()|
 // DLLEXPORT void nvim_del_autocmd(Integer id, Error *err) FUNC_API_SINCE(9);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_del_autocmd(id: Integer, err: *mut Error) {
+pub unsafe extern "C" fn nvim_del_autocmd(id: Integer, err: &mut Error) {
     unsafe {
         if id <= 0 {
             api_err_int(err, c"autocmd id".as_ptr(), id);
@@ -1047,7 +1047,7 @@ pub unsafe extern "C" fn nvim_del_autocmd(id: Integer, err: *mut Error) {
 pub unsafe extern "C" fn nvim_clear_autocmds(
     opts: *mut KeyDict_clear_autocmds,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let event_array =
@@ -1143,7 +1143,7 @@ pub unsafe extern "C" fn nvim_create_augroup(
     channel_id: u64,
     name: NvimString,
     opts: *mut KeyDict_create_augroup,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Integer {
     unsafe {
         let augroup_name = name.data;
@@ -1190,7 +1190,7 @@ pub unsafe extern "C" fn nvim_create_augroup(
 /// @see |nvim_create_augroup()|
 // DLLEXPORT void nvim_del_augroup_by_id(Integer id, Error *err) FUNC_API_SINCE(9);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_del_augroup_by_id(id: Integer, err: *mut Error) {
+pub unsafe extern "C" fn nvim_del_augroup_by_id(id: Integer, err: &mut Error) {
     unsafe {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
@@ -1207,7 +1207,7 @@ pub unsafe extern "C" fn nvim_del_augroup_by_id(id: Integer, err: *mut Error) {
 /// @see |autocmd-groups|
 // DLLEXPORT void nvim_del_augroup_by_name(String name, Error *err) FUNC_API_SINCE(9);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_del_augroup_by_name(name: NvimString, err: *mut Error) {
+pub unsafe extern "C" fn nvim_del_augroup_by_name(name: NvimString, err: &mut Error) {
     unsafe {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
@@ -1234,7 +1234,7 @@ pub unsafe extern "C" fn nvim_exec_autocmds(
     event: Object,
     opts: *mut KeyDict_exec_autocmds,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let mut au_group = AUGROUP_ALL;

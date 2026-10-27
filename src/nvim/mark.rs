@@ -799,7 +799,7 @@ pub unsafe fn mark_move_to(mut fm: *mut fmark_T, flags: MarkMove) -> MarkMoveRes
     unsafe {
         let mut res: MarkMoveRes = kMarkMoveSuccess;
         let mut errormsg: *const c_char = ptr::null();
-        if !mark_check(fm, &raw mut errormsg) {
+        if !mark_check(fm, &mut errormsg) {
             if !errormsg.is_null() {
                 emsg(errormsg);
             }
@@ -813,7 +813,7 @@ pub unsafe fn mark_move_to(mut fm: *mut fmark_T, flags: MarkMove) -> MarkMoveRes
             if (res & kMarkMoveFailed) != 0 {
                 return res;
             }
-            if !mark_check_line_bounds(g_st().curbuf, fm, &raw mut errormsg) {
+            if !mark_check_line_bounds(g_st().curbuf, fm, &mut errormsg) {
                 if !errormsg.is_null() {
                     emsg(errormsg);
                 }

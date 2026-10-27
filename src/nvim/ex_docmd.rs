@@ -6267,14 +6267,14 @@ pub unsafe fn execute_cmd(eap: *mut exarg_T, cmod: *mut cmdmod_T, preview: bool)
                 hasFolding(*curwin.as_ptr(), (*eap).line2, ptr::null_mut(), &raw mut (*eap).line2);
             }
 
-            if parse_count(eap, &raw mut errormsg, true) == FAIL {
+            if parse_count(eap, &mut errormsg, true) == FAIL {
                 break 'end;
             }
 
             let mut cstack = cstack_T::default();
             (*eap).cstack = (&raw mut cstack).cast();
 
-            let _ = execute_cmd0(&raw mut retv, eap, &raw mut errormsg, preview);
+            let _ = execute_cmd0(&raw mut retv, eap, &mut errormsg, preview);
         }
 
         if !errormsg.is_null() && *errormsg != NUL {
@@ -6464,7 +6464,7 @@ unsafe fn do_one_cmd(
             ea.ea_getline = fgetline;
             ea.cstack = cstack.cast();
 
-            if parse_command_modifiers(&raw mut ea, &raw mut errormsg, &raw mut g_st().cmdmod, false)
+            if parse_command_modifiers(&raw mut ea, &mut errormsg, &raw mut g_st().cmdmod, false)
                 == FAIL
             {
                 break 'doend;
@@ -6494,7 +6494,7 @@ unsafe fn do_one_cmd(
 
             set_cmd_addr_type(&raw mut ea, p);
 
-            if parse_cmd_address(&raw mut ea, &raw mut errormsg, false) == FAIL {
+            if parse_cmd_address(&raw mut ea, &mut errormsg, false) == FAIL {
                 break 'doend;
             }
 
@@ -6741,7 +6741,7 @@ unsafe fn do_one_cmd(
             }
 
             parse_register(&raw mut ea);
-            if parse_count(&raw mut ea, &raw mut errormsg, true) == FAIL {
+            if parse_count(&raw mut ea, &mut errormsg, true) == FAIL {
                 break 'doend;
             }
 
@@ -6768,7 +6768,7 @@ unsafe fn do_one_cmd(
             }
 
             let mut retv: c_int = 0;
-            if execute_cmd0(&raw mut retv, &raw mut ea, &raw mut errormsg, false) == FAIL {
+            if execute_cmd0(&raw mut retv, &raw mut ea, &mut errormsg, false) == FAIL {
                 break 'doend;
             }
 
@@ -9332,16 +9332,16 @@ unsafe fn ex_restart(eap: &mut exarg_T) {
                     },
                     kRetObject,
                     ptr::null_mut(),
-                    &raw mut lua_err,
+                    &mut lua_err,
                 );
-                if !error_set(&raw const lua_err)
+                if !error_set(&lua_err)
                     && rv.obj_type == ObjectType::kObjectTypeString
                     && rv.data.string().size > 0
                 {
                     listen_arg = Some(cstr_to_cstring(rv.data.string().data));
                 }
                 api_free_object(rv);
-                api_clear_error(&raw mut lua_err);
+                api_clear_error(&mut lua_err);
             }
             false
         };
@@ -9433,9 +9433,9 @@ unsafe fn ex_restart(eap: &mut exarg_T) {
                 c"nvim_chan_set".as_ptr(),
                 detach_args,
                 &raw mut result_mem,
-                &raw mut err,
+                &mut err,
             );
-            if error_set(&raw const err) {
+            if error_set(&err) {
                 break 'fail_2;
             }
             arena_mem_free(result_mem);
@@ -9478,9 +9478,9 @@ unsafe fn ex_restart(eap: &mut exarg_T) {
                     c"nvim_create_autocmd".as_ptr(),
                     autocmd_args,
                     &raw mut result_mem,
-                    &raw mut err,
+                    &mut err,
                 );
-                if error_set(&raw const err) {
+                if error_set(&err) {
                     break 'fail_2;
                 }
                 arena_mem_free(result_mem);
@@ -9498,9 +9498,9 @@ unsafe fn ex_restart(eap: &mut exarg_T) {
                 c"nvim_get_vvar".as_ptr(),
                 servername_args,
                 &raw mut result_mem,
-                &raw mut err,
+                &mut err,
             );
-            if error_set(&raw const err) {
+            if error_set(&err) {
                 break 'fail_2;
             }
             if result.obj_type != ObjectType::kObjectTypeString || result.data.string().size == 0 {
@@ -9543,9 +9543,9 @@ unsafe fn ex_restart(eap: &mut exarg_T) {
                     c"nvim_exec_lua".as_ptr(),
                     lua_args,
                     &raw mut result_mem,
-                    &raw mut err,
+                    &mut err,
                 );
-                if error_set(&raw const err) {
+                if error_set(&err) {
                     break 'fail_2;
                 }
                 arena_mem_free(result_mem);
@@ -9566,11 +9566,11 @@ unsafe fn ex_restart(eap: &mut exarg_T) {
                 quit_cmd = cstr.as_ptr().cast_mut();
                 quit_cmd_copy = Some(cstr);
             }
-            nvim_command(cstr_as_string(quit_cmd), &raw mut err);
+            nvim_command(cstr_as_string(quit_cmd), &mut err);
 
-            if error_set(&raw const err) {
+            if error_set(&err) {
                 let _ = emsg(err.msg_ptr());
-                api_clear_error(&raw mut err);
+                api_clear_error(&mut err);
             } else if !g_st().exiting {
                 let _ = semsg!(e_restart_failed_cmd_no_quit.as_ptr(), quit_cmd);
             }
@@ -9578,9 +9578,9 @@ unsafe fn ex_restart(eap: &mut exarg_T) {
         }
 
         set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
-        if error_set(&raw const err) {
+        if error_set(&err) {
             let _ = emsg(err.msg_ptr());
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
         }
         arena_mem_free(result_mem);
 
@@ -9598,9 +9598,9 @@ unsafe fn ex_restart(eap: &mut exarg_T) {
                 c"nvim_eval".as_ptr(),
                 chanclose_args,
                 &raw mut result_mem,
-                &raw mut err,
+                &mut err,
             );
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
             arena_mem_free(result_mem);
         }
 
@@ -10430,10 +10430,10 @@ unsafe fn ex_detach(eap: &mut exarg_T) {
             }
         } else {
             let mut err = error_init();
-            ui_detach_channel(g_st().current_ui, &raw mut err);
-            if error_set(&raw const err) {
+            ui_detach_channel(g_st().current_ui, &mut err);
+            if error_set(&err) {
                 let _ = emsg(err.msg_ptr());
-                api_clear_error(&raw mut err);
+                api_clear_error(&mut err);
                 return;
             }
             if log_should_log(LOGLVL_INF) {
@@ -10460,11 +10460,11 @@ unsafe fn ex_connect(eap: &mut exarg_T) {
         };
 
         let mut err = error_init();
-        remote_ui_connect(g_st().current_ui, eap.arg, &raw mut err);
+        remote_ui_connect(g_st().current_ui, eap.arg, &mut err);
 
-        if error_set(&raw const err) {
+        if error_set(&err) {
             let _ = emsg(err.msg_ptr());
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
             return;
         }
 
@@ -11287,7 +11287,7 @@ unsafe fn ex_copymove(eap: &mut exarg_T) {
             false,
             0,
             1,
-            &raw mut errormsg,
+            &mut errormsg,
         );
         if eap.arg.is_null() {
             if !errormsg.is_null() {
@@ -12509,7 +12509,7 @@ pub unsafe fn expand_sfile(arg: *mut c_char) -> Option<std::ffi::CString> {
                     result_vec.as_ptr(),
                     &raw mut srclen,
                     ptr::null_mut(),
-                    &raw mut errormsg,
+                    &mut errormsg,
                     ptr::null_mut(),
                     true,
                 );

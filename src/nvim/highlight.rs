@@ -526,7 +526,7 @@ pub unsafe fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: boo
                 args,
                 kRetObject,
                 ptr::null_mut(),
-                &raw mut err,
+                &mut err,
             );
             hl_st().ns_get_hl_recursive -= 1;
 
@@ -540,14 +540,14 @@ pub unsafe fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: boo
                     (&raw mut dict).cast(),
                     Some(KeyDict_highlight_get_field),
                     ret.data.dict(),
-                    &raw mut err,
+                    &mut err,
                 ) {
                     attrs = dict2hlattrs(
                         &raw mut dict,
                         true,
                         &raw mut it.link_id,
                         ptr::null_mut(),
-                        &raw mut err,
+                        &mut err,
                     );
                     fallback =
                         if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_highlight__fallback) {
@@ -1256,7 +1256,7 @@ pub unsafe fn hl_get_attr_by_id(
     attr_id: Integer,
     rgb: Boolean,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Dict {
     unsafe {
         let dic = Dict {
@@ -1450,7 +1450,7 @@ pub unsafe fn dict2hlattrs(
     use_rgb: bool,
     link_id: *mut c_int,
     base: *mut HlAttrs,
-    err: *mut Error,
+    err: &mut Error,
 ) -> HlAttrs {
     unsafe {
         let mut hlattrs = HLATTRS_INIT;
@@ -1652,7 +1652,7 @@ pub unsafe fn dict2hlattrs(
                 err,
             );
         }
-        if (*err).err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::kErrorTypeNone {
             return hlattrs;
         }
 
@@ -1666,7 +1666,7 @@ pub unsafe fn dict2hlattrs(
                 err,
             );
         }
-        if (*err).err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::kErrorTypeNone {
             return hlattrs;
         }
 
@@ -1675,7 +1675,7 @@ pub unsafe fn dict2hlattrs(
         } else if has_key(is_set, KEYSET_OPTIDX_highlight__special) {
             sp = object_to_color((*dict).special, c"special".as_ptr().cast_mut(), true, err);
         }
-        if (*err).err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::kErrorTypeNone {
             return hlattrs;
         }
 
@@ -1711,7 +1711,7 @@ pub unsafe fn dict2hlattrs(
                 *link_id = (*dict).link as c_int;
             }
 
-            if (*err).err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::kErrorTypeNone {
                 return hlattrs;
             }
         }
@@ -1749,14 +1749,14 @@ pub unsafe fn dict2hlattrs(
 
         if has_key(is_set, KEYSET_OPTIDX_highlight__ctermfg) {
             ctermfg = object_to_color((*dict).ctermfg, c"ctermfg".as_ptr().cast_mut(), false, err);
-            if (*err).err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::kErrorTypeNone {
                 return hlattrs;
             }
         }
 
         if has_key(is_set, KEYSET_OPTIDX_highlight__ctermbg) {
             ctermbg = object_to_color((*dict).ctermbg, c"ctermbg".as_ptr().cast_mut(), false, err);
-            if (*err).err_type != ErrorType::kErrorTypeNone {
+            if err.err_type != ErrorType::kErrorTypeNone {
                 return hlattrs;
             }
         }
@@ -1801,7 +1801,7 @@ pub unsafe fn dict2hlattrs(
     }
 }
 
-pub unsafe fn object_to_color(val: Object, key: *mut c_char, rgb: bool, err: *mut Error) -> c_int {
+pub unsafe fn object_to_color(val: Object, key: *mut c_char, rgb: bool, err: &mut Error) -> c_int {
     unsafe {
         if val.obj_type == ObjectType::kObjectTypeInteger {
             val.data.integer() as c_int

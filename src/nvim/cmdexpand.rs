@@ -4522,9 +4522,9 @@ unsafe fn get_healthcheck_names(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
                 a,
                 kRetObject,
                 ptr::null_mut(),
-                &raw mut err,
+                &mut err,
             );
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
             api_free_object(cmdexp().HEALTHCHECK_NAMES);
             cmdexp().HEALTHCHECK_NAMES = res;
             cmdexp().HEALTHCHECK_LAST_GEN = prompt_id;
@@ -4576,9 +4576,9 @@ unsafe fn get_arg1_from_lua(lua: *const c_char, xp: &mut expand_T, idx: c_int) -
                 args,
                 kRetObject,
                 ptr::null_mut(),
-                &raw mut err,
+                &mut err,
             );
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
             api_free_object(cmdexp().ARG1_LUA_NAMES);
             cmdexp().ARG1_LUA_NAMES = res;
             cmdexp().ARG1_LUA_LAST_GEN = prompt_id;

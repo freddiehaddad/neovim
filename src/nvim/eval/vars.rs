@@ -1783,7 +1783,7 @@ unsafe fn ex_let_option(
         }
 
         let mut error = false;
-        newval = opt_from_tv(tv, opt_idx, arg_name, &raw mut error);
+        newval = opt_from_tv(tv, opt_idx, arg_name, &mut error);
         if error {
             *p = c1;
             optval_free(curval);
@@ -3451,9 +3451,9 @@ unsafe fn opt_from_tv(
             value = crate::api::private::helpers::cstr_to_obj(strval.as_ptr());
         } else if option_has_bool || option_has_num {
             let n = if option_has_num {
-                tv_get_number_chk(tv, &raw mut err)
+                tv_get_number_chk(tv, &mut err)
             } else {
-                tv_get_bool_chk(tv, &raw mut err)
+                tv_get_bool_chk(tv, &mut err)
             };
             if !err && (*tv).v_type == VarType::VAR_STRING && n == 0 {
                 let mut idx: usize = 0;
@@ -3573,7 +3573,7 @@ unsafe fn set_option_from_tv(varname: *const c_char, varp: *mut typval_T) {
         }
 
         let mut error = false;
-        let value = opt_from_tv(varp, opt_idx, varname, &raw mut error);
+        let value = opt_from_tv(varp, opt_idx, varname, &mut error);
 
         if !error {
             let mut errbuf_storage = [0 as c_char; IOSIZE];

@@ -1823,7 +1823,7 @@ pub unsafe fn ns_get_hl_defs(
     ns_id: NS,
     opts: *mut KeyDict_get_highlight,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Dict {
     unsafe {
         let link = if has_key(
@@ -1877,7 +1877,7 @@ pub unsafe fn ns_get_hl_defs(
             hlgroup2dict(&raw mut attrs, ns_id, target_id, arena);
             return attrs;
         }
-        if (*err).err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::kErrorTypeNone {
             return Dict::new();
         }
 

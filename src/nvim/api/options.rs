@@ -75,7 +75,7 @@ unsafe fn validate_option_value_args(
     filetype: *mut *mut c_char,
     operation: *mut set_op_T,
     dry_run: *mut bool,
-    err: *mut Error,
+    err: &mut Error,
 ) -> c_int {
     unsafe {
         let mask = (*opts).is_set__option_;
@@ -253,7 +253,7 @@ unsafe fn validate_option_value_args(
     }
 }
 
-unsafe fn do_ft_buf(filetype: *const c_char, aco: *mut CtxSwitch, err: *mut Error) -> *mut buf_T {
+unsafe fn do_ft_buf(filetype: *const c_char, aco: *mut CtxSwitch, err: &mut Error) -> *mut buf_T {
     unsafe {
         if filetype.is_null() {
             return ptr::null_mut();
@@ -387,7 +387,7 @@ unsafe fn wipe_ft_buf(buf: *mut buf_T) {
 pub unsafe extern "C" fn nvim_get_option_value(
     name: NvimString,
     opts: *mut KeyDict_option,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let mut opt_idx: OptIndex = 0;
@@ -453,7 +453,7 @@ pub unsafe extern "C" fn nvim__option_to_object(
     name: NvimString,
     value: Object,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let opt_idx = find_option(name.data);
@@ -586,7 +586,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
     value: Object,
     opts: *mut KeyDict_option,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let mut opt_idx: OptIndex = 0;
@@ -796,7 +796,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
 // DLLEXPORT Dict nvim_get_all_options_info(Arena *arena, Error *err)
 //   FUNC_API_SINCE(7);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_get_all_options_info(arena: *mut Arena, _err: *mut Error) -> Dict {
+pub unsafe extern "C" fn nvim_get_all_options_info(arena: *mut Arena, _err: &mut Error) -> Dict {
     unsafe { get_all_options_info(arena) }
 }
 
@@ -841,7 +841,7 @@ pub unsafe extern "C" fn nvim_get_option_info2(
     name: NvimString,
     opts: *mut KeyDict_option,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Dict {
     unsafe {
         let mut opt_idx: OptIndex = 0;

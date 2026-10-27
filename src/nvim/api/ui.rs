@@ -98,11 +98,11 @@ unsafe fn buf_pos(ui: &RemoteUI) -> usize {
     unsafe { ui.packer.ptr.offset_from(ui.packer.startptr) as usize }
 }
 
-unsafe fn get_ui_or_err(chan_id: u64, err: *mut Error) -> Option<&'static mut RemoteUI> {
+unsafe fn get_ui_or_err(chan_id: u64, err: &mut Error) -> Option<&'static mut RemoteUI> {
     unsafe {
         let uis_ptr = &raw mut api_ui_st().connected_uis;
         let ui = (*uis_ptr).get_mut(&chan_id).map(|b| &mut **b);
-        if ui.is_none() && !err.is_null() {
+        if ui.is_none() {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -137,7 +137,7 @@ unsafe fn mpack_str_small(buf: *mut *mut c_char, str_: *const c_char, len: usize
 /// @param err  if non-NULL and there is no UI on the channel, set an error
 /// @param send_error_exit  send an "error_exit" event with 0 status first
 // DLLEXPORT void remote_ui_disconnect(uint64_t channel_id, Error *err, bool send_error_exit);
-pub unsafe fn remote_ui_disconnect(channel_id: u64, err: *mut Error, send_error_exit: bool) {
+pub unsafe fn remote_ui_disconnect(channel_id: u64, err: &mut Error, send_error_exit: bool) {
     unsafe {
         let Some(ui) = get_ui_or_err(channel_id, err) else {
             return;
@@ -170,7 +170,7 @@ pub unsafe fn remote_ui_disconnect(channel_id: u64, err: *mut Error, send_error_
 /// @param chan  UI channel to disconnect.
 /// @param[out] err Error details, if any.
 // DLLEXPORT void ui_detach_channel(uint64_t chan, Error *err);
-pub unsafe fn ui_detach_channel(chan: u64, err: *mut Error) {
+pub unsafe fn ui_detach_channel(chan: u64, err: &mut Error) {
     unsafe {
         let c = find_channel(chan);
         if c.is_null() {
@@ -215,9 +215,9 @@ pub unsafe fn ui_detach_others(keep_chan: u64) -> usize {
         let mut detached: usize = 0;
         for chan in chans {
             let mut err = Error::new();
-            ui_detach_channel(chan, &raw mut err);
-            if error_set(&raw const err) {
-                api_clear_error(&raw mut err);
+            ui_detach_channel(chan, &mut err);
+            if error_set(&err) {
+                api_clear_error(&mut err);
             } else {
                 detached += 1;
             }
@@ -274,7 +274,7 @@ pub unsafe extern "C" fn nvim_ui_attach(
     width: Integer,
     height: Integer,
     options: Dict,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let uis_ptr = &raw const api_ui_st().connected_uis;
@@ -399,7 +399,7 @@ pub unsafe fn ui_attach(
     width: Integer,
     height: Integer,
     enable_rgb: Boolean,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let mut opts_items: [KeyValuePair; 1] = [KeyValuePair {
@@ -419,7 +419,7 @@ pub unsafe fn ui_attach(
 // DLLEXPORT void nvim_ui_set_focus(uint64_t channel_id, Boolean gained, Error *error)
 //   FUNC_API_SINCE(11) FUNC_API_REMOTE_ONLY;
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_ui_set_focus(channel_id: u64, gained: Boolean, error: *mut Error) {
+pub unsafe extern "C" fn nvim_ui_set_focus(channel_id: u64, gained: Boolean, error: &mut Error) {
     unsafe {
         if get_ui_or_err(channel_id, error).is_none() {
             return;
@@ -441,14 +441,14 @@ pub unsafe extern "C" fn nvim_ui_set_focus(channel_id: u64, gained: Boolean, err
 // DLLEXPORT void nvim_ui_detach(uint64_t channel_id, Error *err)
 //   FUNC_API_SINCE(1) FUNC_API_REMOTE_ONLY;
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_ui_detach(channel_id: u64, err: *mut Error) {
+pub unsafe extern "C" fn nvim_ui_detach(channel_id: u64, err: &mut Error) {
     unsafe {
         remote_ui_disconnect(channel_id, err, false);
     }
 }
 
 // DLLEXPORT void remote_ui_connect(uint64_t channel_id, char *server_addr, Error *err);
-pub unsafe fn remote_ui_connect(channel_id: u64, server_addr: *mut c_char, err: *mut Error) {
+pub unsafe fn remote_ui_connect(channel_id: u64, server_addr: *mut c_char, err: &mut Error) {
     unsafe {
         let Some(ui) = get_ui_or_err(channel_id, err) else {
             return;
@@ -498,7 +498,7 @@ pub unsafe extern "C" fn nvim_ui_try_resize(
     channel_id: u64,
     width: Integer,
     height: Integer,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let Some(ui) = get_ui_or_err(channel_id, err) else {
@@ -525,7 +525,7 @@ pub unsafe extern "C" fn nvim_ui_set_option(
     channel_id: u64,
     name: NvimString,
     value: Object,
-    error: *mut Error,
+    error: &mut Error,
 ) {
     unsafe {
         let Some(ui) = get_ui_or_err(channel_id, error) else {
@@ -540,7 +540,7 @@ unsafe fn ui_set_option(
     init: bool,
     name: NvimString,
     value: Object,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"override" } {
@@ -733,7 +733,7 @@ pub unsafe extern "C" fn nvim_ui_try_resize_grid(
     grid: Integer,
     width: Integer,
     height: Integer,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         if get_ui_or_err(channel_id, err).is_none() {
@@ -756,7 +756,7 @@ pub unsafe extern "C" fn nvim_ui_try_resize_grid(
 // DLLEXPORT void nvim_ui_pum_set_height(uint64_t channel_id, Integer height, Error *err)
 //   FUNC_API_SINCE(6) FUNC_API_REMOTE_ONLY;
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_ui_pum_set_height(channel_id: u64, height: Integer, err: *mut Error) {
+pub unsafe extern "C" fn nvim_ui_pum_set_height(channel_id: u64, height: Integer, err: &mut Error) {
     unsafe {
         let Some(ui) = get_ui_or_err(channel_id, err) else {
             return;
@@ -807,7 +807,7 @@ pub unsafe extern "C" fn nvim_ui_pum_set_bounds(
     height: Float,
     row: Float,
     col: Float,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let Some(ui) = get_ui_or_err(channel_id, err) else {
@@ -1427,7 +1427,7 @@ unsafe fn ui_flush_buf(ui: &mut RemoteUI, incomplete_event: bool) {
 
 pub(crate) unsafe fn remote_ui_flush_if_incomplete(channel_id: u64) {
     unsafe {
-        if let Some(ui) = get_ui_or_err(channel_id, ptr::null_mut())
+        if let Some(ui) = get_ui_or_err(channel_id, &mut Error::new())
             && ui.incomplete_event
         {
             remote_ui_flush_pending_data(ui);
@@ -1620,7 +1620,7 @@ pub unsafe fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: 
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_ui_send(uint64_t channel_id, String content, Error *err) FUNC_API_SINCE(14);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_ui_send(_channel_id: u64, content: NvimString, _err: *mut Error) {
+pub unsafe extern "C" fn nvim_ui_send(_channel_id: u64, content: NvimString, _err: &mut Error) {
     unsafe {
         ui_call_ui_send(content);
     }

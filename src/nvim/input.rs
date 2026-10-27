@@ -2017,7 +2017,7 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow
                     }
                 }
                 n = varnumber_T::from(safe_vgetc());
-            } else if tv_get_bool_chk(argvars, &raw mut error) != 0 {
+            } else if tv_get_bool_chk(argvars, &mut error) != 0 {
                 n = varnumber_T::from(vpeekc_any());
             } else if error || vpeekc_any() == NUL {
                 n = 0;
@@ -3321,11 +3321,11 @@ pub unsafe fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
             args,
             kRetNilBool,
             ptr::null_mut(),
-            &raw mut err,
+            &mut err,
         );
         if err.err_type != ErrorType::kErrorTypeNone {
             semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg_ptr());
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
         }
 
         true
@@ -3462,12 +3462,12 @@ pub unsafe fn paste_repeat(count: c_int) {
                 false,
                 -1,
                 &raw mut arena,
-                &raw mut err,
+                &mut err,
             );
             aborted = err.err_type != ErrorType::kErrorTypeNone;
             i += 1;
         }
-        api_clear_error(&raw mut err);
+        api_clear_error(&mut err);
         arena_mem_free(arena_finish(&raw mut arena));
     }
 }

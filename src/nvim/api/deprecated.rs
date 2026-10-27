@@ -81,7 +81,7 @@ pub unsafe extern "C" fn nvim_exec(
     channel_id: u64,
     src: NvimString,
     output: Boolean,
-    err: *mut Error,
+    err: &mut Error,
 ) -> NvimString {
     unsafe {
         let mut opts = KeyDict_exec_opts { output };
@@ -98,7 +98,7 @@ pub unsafe extern "C" fn nvim_exec(
 pub unsafe extern "C" fn nvim_command_output(
     channel_id: u64,
     command: NvimString,
-    err: *mut Error,
+    err: &mut Error,
 ) -> NvimString {
     unsafe {
         let mut opts = KeyDict_exec_opts { output: true };
@@ -117,7 +117,7 @@ pub unsafe extern "C" fn nvim_execute_lua(
     code: NvimString,
     args: Array,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe { nlua_exec(code, ptr::null(), args, kRetObject, arena, err) }
 }
@@ -133,7 +133,7 @@ pub unsafe extern "C" fn nvim_execute_lua(
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(2);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_buf_get_number(buffer: Buffer, err: *mut Error) -> Integer {
+pub unsafe extern "C" fn nvim_buf_get_number(buffer: Buffer, err: &mut Error) -> Integer {
     unsafe {
         let buf = find_buffer_by_handle(buffer, err);
         if buf.is_null() {
@@ -178,7 +178,7 @@ pub unsafe extern "C" fn nvim_buf_clear_highlight(
     ns_id: Integer,
     line_start: Integer,
     line_end: Integer,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         nvim_buf_clear_namespace(buffer, ns_id, line_start, line_end, err);
@@ -211,7 +211,7 @@ pub unsafe extern "C" fn nvim_buf_add_highlight(
     line: Integer,
     col_start: Integer,
     mut col_end: Integer,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Integer {
     unsafe {
         let buf = find_buffer_by_handle(buffer, err);
@@ -300,7 +300,7 @@ pub unsafe extern "C" fn nvim_buf_set_virtual_text(
     line: Integer,
     chunks: Array,
     _opts: *mut KeyDict_empty,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Integer {
     unsafe {
         let buf = find_buffer_by_handle(buffer, err);
@@ -390,7 +390,7 @@ pub unsafe extern "C" fn nvim_get_hl_by_id(
     hl_id: Integer,
     rgb: Boolean,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Dict {
     unsafe {
         let dic = Dict::new();
@@ -420,7 +420,7 @@ pub unsafe extern "C" fn nvim_get_hl_by_name(
     name: NvimString,
     rgb: Boolean,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Dict {
     unsafe {
         let result = Dict::new();
@@ -450,7 +450,7 @@ pub unsafe fn buffer_insert(
     lnum: Integer,
     lines: Array,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         nvim_buf_set_lines(0, buffer, lnum, lnum, true, lines, arena, err);
@@ -471,7 +471,7 @@ pub unsafe fn buffer_get_line(
     buffer: Buffer,
     mut index: Integer,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> NvimString {
     unsafe {
         let mut rv = NvimString {
@@ -511,7 +511,7 @@ pub unsafe fn buffer_set_line(
     mut index: Integer,
     line: NvimString,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let mut l = string_obj(line);
@@ -538,7 +538,7 @@ pub unsafe fn buffer_del_line(
     buffer: Buffer,
     mut index: Integer,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let array = Array::new();
@@ -569,7 +569,7 @@ pub unsafe fn buffer_get_line_slice(
     include_start: Boolean,
     include_end: Boolean,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Array {
     unsafe {
         start = convert_index(start) + i64::from(!include_start);
@@ -602,7 +602,7 @@ pub unsafe fn buffer_set_line_slice(
     include_end: Boolean,
     replacement: Array,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         start = convert_index(start) + i64::from(!include_start);
@@ -627,7 +627,7 @@ pub unsafe fn buffer_set_var(
     name: NvimString,
     value: Object,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let buf = find_buffer_by_handle(buffer, err);
@@ -652,7 +652,7 @@ pub unsafe fn buffer_del_var(
     buffer: Buffer,
     name: NvimString,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let buf = find_buffer_by_handle(buffer, err);
@@ -679,7 +679,7 @@ pub unsafe fn window_set_var(
     name: NvimString,
     value: Object,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let win = find_window_by_handle(window, err);
@@ -704,7 +704,7 @@ pub unsafe fn window_del_var(
     window: Window,
     name: NvimString,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let win = find_window_by_handle(window, err);
@@ -732,7 +732,7 @@ pub unsafe fn tabpage_set_var(
     name: NvimString,
     value: Object,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let tab = find_tab_by_handle(tabpage, err);
@@ -757,7 +757,7 @@ pub unsafe fn tabpage_del_var(
     tabpage: Tabpage,
     name: NvimString,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let tab = find_tab_by_handle(tabpage, err);
@@ -777,7 +777,7 @@ pub unsafe fn vim_set_var(
     name: NvimString,
     value: Object,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe { dict_set_var(get_globvar_dict(), name, value, false, true, arena, err) }
 }
@@ -786,7 +786,7 @@ pub unsafe fn vim_set_var(
 /// @see nvim_del_var
 // DLLEXPORT Object vim_del_var(String name, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-pub unsafe fn vim_del_var(name: NvimString, arena: *mut Arena, err: *mut Error) -> Object {
+pub unsafe fn vim_del_var(name: NvimString, arena: *mut Arena, err: &mut Error) -> Object {
     unsafe { dict_set_var(get_globvar_dict(), name, OBJECT_NIL, true, true, arena, err) }
 }
 
@@ -809,7 +809,7 @@ const fn convert_index(index: i64) -> i64 {
 pub unsafe extern "C" fn nvim_get_option_info(
     name: NvimString,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Dict {
     unsafe { get_option_info(name, OPT_GLOBAL, g_st().curbuf.cast(), *curwin.as_ptr(), arena, err) }
 }
@@ -829,7 +829,7 @@ pub unsafe extern "C" fn nvim_set_option(
     channel_id: u64,
     name: NvimString,
     value: Object,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         set_option_to(
@@ -854,7 +854,7 @@ pub unsafe extern "C" fn nvim_set_option(
 //   FUNC_API_DEPRECATED_SINCE(11)
 //   FUNC_API_RET_ALLOC;
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_get_option(name: NvimString, err: *mut Error) -> Object {
+pub unsafe extern "C" fn nvim_get_option(name: NvimString, err: &mut Error) -> Object {
     unsafe { get_option_from(OptTarget::Global, kOptScopeGlobal, name, err) }
 }
 
@@ -873,7 +873,7 @@ pub unsafe extern "C" fn nvim_get_option(name: NvimString, err: *mut Error) -> O
 pub unsafe extern "C" fn nvim_buf_get_option(
     buffer: Buffer,
     name: NvimString,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let buf = find_buffer_by_handle(buffer, err);
@@ -903,7 +903,7 @@ pub unsafe extern "C" fn nvim_buf_set_option(
     buffer: Buffer,
     name: NvimString,
     value: Object,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let buf = find_buffer_by_handle(buffer, err);
@@ -936,7 +936,7 @@ pub unsafe extern "C" fn nvim_buf_set_option(
 pub unsafe extern "C" fn nvim_win_get_option(
     window: Window,
     name: NvimString,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let win = find_window_by_handle(window, err);
@@ -966,7 +966,7 @@ pub unsafe extern "C" fn nvim_win_set_option(
     window: Window,
     name: NvimString,
     value: Object,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let win = find_window_by_handle(window, err);
@@ -988,7 +988,7 @@ unsafe fn get_option_from(
     from: OptTarget,
     scope: OptScope,
     name: NvimString,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         if name.size == 0 {
@@ -1032,7 +1032,7 @@ unsafe fn set_option_to(
     scope: OptScope,
     name: NvimString,
     value: Object,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         if name.size == 0 {
@@ -1095,7 +1095,7 @@ pub unsafe extern "C" fn nvim_call_atomic(
     channel_id: u64,
     calls: Array,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Array {
     unsafe {
         let mut rv = arena_array(arena, 2);
@@ -1311,7 +1311,7 @@ pub unsafe extern "C" fn nvim_notify(
     log_level: Integer,
     opts: Dict,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let mut items = [string_obj(msg_str), integer_obj(log_level), dict_obj(opts)];
@@ -1344,7 +1344,7 @@ pub unsafe extern "C" fn nvim_notify(
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(15);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_set_height(win: Window, height: Integer, err: *mut Error) {
+pub unsafe extern "C" fn nvim_win_set_height(win: Window, height: Integer, err: &mut Error) {
     unsafe {
         let w = find_window_by_handle(win, err);
         if w.is_null() {
@@ -1370,7 +1370,7 @@ pub unsafe extern "C" fn nvim_win_set_height(win: Window, height: Integer, err: 
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(15);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_set_width(win: Window, width: Integer, err: *mut Error) {
+pub unsafe extern "C" fn nvim_win_set_width(win: Window, width: Integer, err: &mut Error) {
     unsafe {
         let w = find_window_by_handle(win, err);
         if w.is_null() {

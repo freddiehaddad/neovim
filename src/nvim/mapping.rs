@@ -2331,7 +2331,7 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: *mut typval_T, exact: c_int)
                 &mut arena,
             );
             let mut dobj = dict_obj(dict);
-            object_to_vim_take_luaref(&mut dobj, rettv, true, ptr::null_mut());
+            object_to_vim_take_luaref(&mut dobj, rettv, true, &mut crate::api::private::validate::Error::new());
             arena_mem_free(arena_finish(&mut arena));
         } else {
             tv_dict_alloc_ret(rettv);
@@ -2578,7 +2578,7 @@ pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
                         vval: TypvalVval::Number(0),
                     };
                     let mut dobj = dict_obj(dict);
-                    object_to_vim_take_luaref(&mut dobj, &mut d, true, ptr::null_mut());
+                    object_to_vim_take_luaref(&mut dobj, &mut d, true, &mut crate::api::private::validate::Error::new());
                     debug_assert!(d.v_type == VarType::VAR_DICT);
                     tv_list_append_dict(rettv.vval.v_list(), d.vval.v_dict());
                     arena_mem_free(arena_finish(&mut arena));
@@ -2854,7 +2854,7 @@ pub unsafe fn modify_keymap(
     lhs: NvimString,
     rhs: NvimString,
     opts: *mut KeyDict_keymap,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let mut lua_funcref: LuaRef = LUA_NOREF;

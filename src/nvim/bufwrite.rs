@@ -1291,7 +1291,7 @@ pub unsafe fn buf_write(
                     &raw mut device,
                     &raw mut newfile,
                     &raw mut file_readonly,
-                    &raw mut err,
+                    &mut err,
                 ) == FAIL
                 {
                     break 'fail;
@@ -1326,7 +1326,7 @@ pub unsafe fn buf_write(
                         forceit,
                         &raw mut backup_copy,
                         &mut backup,
-                        &raw mut err,
+                        &mut err,
                     ) == FAIL
                 {
                     retval = FAIL;
@@ -2047,7 +2047,7 @@ pub unsafe fn buf_write(
         if err.msg.is_some() {
             add_quoted_fname((&raw mut g_st().IObuff).cast(), IOSIZE - 100, buf, msgname);
             emit_err(
-                &raw mut err,
+                &mut err,
                 if progress >= 0 {
                     msg_id.as_ptr()
                 } else {

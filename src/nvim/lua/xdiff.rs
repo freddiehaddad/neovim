@@ -309,7 +309,7 @@ unsafe fn process_xdl_diff_opts(
     cfg: &mut xdemitconf_t,
     params: &mut xpparam_t,
     linematch: &mut i64,
-    err: *mut Error,
+    err: &mut Error,
 ) -> NluaXdiffMode {
     let mut opts = KeyDict_xdl_diff::init();
     let mut err_param: *mut c_char = std::ptr::null_mut();
@@ -323,7 +323,7 @@ unsafe fn process_xdl_diff_opts(
             std::ptr::null_mut(),
             err,
         );
-        if (*err).err_type != ErrorType::kErrorTypeNone {
+        if err.err_type != ErrorType::kErrorTypeNone {
             api_free_string(opts.result_type);
             api_free_string(opts.algorithm);
             api_free_luaref(opts.on_hunk);

@@ -3003,7 +3003,7 @@ pub unsafe fn validate_spellcapcheck(args: &mut optset_T) -> *const c_char {
         let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         let mut errmsg = compile_cap_prog(args.os_newval.data.string().data, &mut prog);
-        try_leave(&raw const tstate, &raw mut err);
+        try_leave(&raw const tstate, &mut err);
 
         g_st().emsg_silent = save_emsg_silent;
         g_st().suppress_errthrow = save_suppress_errthrow;
@@ -3015,7 +3015,7 @@ pub unsafe fn validate_spellcapcheck(args: &mut optset_T) -> *const c_char {
                 err.msg_ptr()
             };
             errmsg = opt_error(args.os_errbuf, c"%s".as_ptr(), msg);
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
             return errmsg;
         }
         errmsg
@@ -3426,9 +3426,9 @@ pub unsafe fn validate_border(args: &mut optset_T) -> *const c_char {
         let ok = parse_winborder(
             &raw mut fconfig,
             args.os_newval.data.string().data,
-            &raw mut err,
+            &mut err,
         );
-        api_clear_error(&raw mut err);
+        api_clear_error(&mut err);
         if ok { ptr::null() } else { e_invarg.as_ptr() }
     }
 }

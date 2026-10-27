@@ -355,7 +355,7 @@ pub unsafe fn handle_ui_client_redraw(
     _channel_id: u64,
     _args: Array,
     _arena: *mut Arena,
-    error: *mut Error,
+    error: &mut Error,
 ) -> Object {
     unsafe {
         api_set_error!(
@@ -375,7 +375,7 @@ pub unsafe fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
             (&raw mut dict).cast(),
             Some(highlight_get_field_cb),
             d,
-            &raw mut err,
+            &mut err,
         ) {
             return HLATTRS_INIT;
         }
@@ -385,7 +385,7 @@ pub unsafe fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
             rgb,
             ptr::null_mut(),
             ptr::null_mut(),
-            &raw mut err,
+            &mut err,
         );
         if (dict.is_set__highlight_ & (1u64 << KEYSET_OPTIDX_highlight__url)) != 0 {
             attrs.url = tui_add_url(tui_ptr(), dict.url.data);
@@ -492,7 +492,7 @@ pub unsafe fn channel_connect_event(server_addr: std::ffi::CString) {
         let addr_ptr = server_addr.as_ptr();
         let is_tcp = !socket_address_tcp_host_end(addr_ptr).is_null();
         let on_data = CallbackReader::none();
-        let chan = channel_connect(is_tcp, addr_ptr, true, on_data, 50, &raw mut err);
+        let chan = channel_connect(is_tcp, addr_ptr, true, on_data, 50, &mut err);
 
         if !{ let _a = err; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"" } {
             logmsg!(
@@ -614,7 +614,7 @@ pub unsafe fn ui_client_attach_to_restarted_server(error_restart: bool) {
             let is_tcp = !socket_address_tcp_host_end(first_arg).is_null();
             let mut err: *const c_char = ptr::null();
             let on_data = CallbackReader::none();
-            let id = channel_connect(is_tcp, first_arg, true, on_data, 50, &raw mut err);
+            let id = channel_connect(is_tcp, first_arg, true, on_data, 50, &mut err);
             if !err.is_null() {
                 logmsg!(
                     LOGLVL_ERR,

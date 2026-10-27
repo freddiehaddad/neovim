@@ -263,11 +263,21 @@ pub unsafe fn cstr_to_arena_obj(arena: *mut Arena, s: *const c_char) -> Object {
 }
 
 #[inline]
-pub unsafe fn try_wrap<F: FnOnce()>(err: *mut Error, f: F) {
+pub unsafe fn try_wrap<F: FnOnce()>(err: &mut Error, f: F) {
     unsafe {
         let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         f();
+        try_leave(&raw const tstate, err);
+    }
+}
+
+#[inline]
+pub unsafe fn try_wrap_err<F: FnOnce(&mut Error)>(err: &mut Error, f: F) {
+    unsafe {
+        let mut tstate = TryState::new();
+        try_enter(&raw mut tstate);
+        f(err);
         try_leave(&raw const tstate, err);
     }
 }
@@ -349,8 +359,8 @@ pub unsafe fn cbuf_to_arena_str(arena: *mut Arena, buf: *const c_char, len: usiz
 }
 
 #[inline]
-pub unsafe fn error_set(e: *const Error) -> bool {
-    unsafe { !matches!((*e).err_type, ErrorType::kErrorTypeNone) }
+pub fn error_set(e: &Error) -> bool {
+    !matches!(e.err_type, ErrorType::kErrorTypeNone)
 }
 
 /// Start block that may cause Vimscript exceptions while evaluating another code (`try_enter`).
@@ -380,7 +390,7 @@ pub unsafe fn try_enter(tstate: *mut TryState) {
 }
 
 /// Ends a `try_enter` block; sets error message if any (`try_leave`).
-pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
+pub unsafe fn try_leave(tstate: *const TryState, err: &mut Error) {
     unsafe {
         debug_assert!(g_st().trylevel > 0);
         g_st().trylevel -= 1;
@@ -459,7 +469,7 @@ pub unsafe fn dict_get_value(
     dict: *mut dict_T,
     key: NvimString,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let di = tv_dict_find(dict, key.data, key.size as isize);
@@ -480,7 +490,7 @@ pub unsafe fn dict_check_writable(
     dict: *mut dict_T,
     key: NvimString,
     del: bool,
-    err: *mut Error,
+    err: &mut Error,
 ) -> *mut dictitem_T {
     unsafe {
         let di = tv_dict_find(dict, key.data, key.size as isize);
@@ -538,7 +548,7 @@ pub unsafe fn dict_set_var(
     del: bool,
     retval: bool,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let mut rv = OBJECT_NIL;
@@ -617,7 +627,7 @@ pub unsafe fn dict_set_var(
     }
 }
 
-pub unsafe fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T {
+pub unsafe fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut buf_T {
     unsafe {
         if buffer == 0 {
             return g_st().curbuf;
@@ -638,7 +648,7 @@ pub unsafe fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_window_by_handle(window: Window, err: *mut Error) -> *mut win_T {
+pub unsafe extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut win_T {
     unsafe {
         if window == 0 {
             return *curwin.as_ptr();
@@ -658,7 +668,7 @@ pub unsafe extern "C" fn find_window_by_handle(window: Window, err: *mut Error) 
     }
 }
 
-pub unsafe fn find_tab_by_handle(tabpage: Tabpage, err: *mut Error) -> *mut tabpage_T {
+pub unsafe fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut tabpage_T {
     unsafe {
         if tabpage == 0 {
             return g_st().curtab;
@@ -824,7 +834,7 @@ pub unsafe fn buf_get_text(
     lnum: i64,
     mut start_col: i64,
     mut end_col: i64,
-    err: *mut Error,
+    err: &mut Error,
 ) -> NvimString {
     unsafe {
         let rv = NvimString {
@@ -966,14 +976,12 @@ pub unsafe fn api_free_dict(value: Dict) {
     }
 }
 
-pub unsafe fn api_clear_error(value: *mut Error) {
-    unsafe {
-        if !error_set(value) {
-            return;
-        }
-        (*value).msg = None;
-        (*value).err_type = ErrorType::kErrorTypeNone;
+pub fn api_clear_error(value: &mut Error) {
+    if !error_set(value) {
+        return;
     }
+    value.msg = None;
+    value.err_type = ErrorType::kErrorTypeNone;
 }
 
 pub unsafe fn copy_string(str_: NvimString, arena: *mut Arena) -> NvimString {
@@ -1054,7 +1062,7 @@ pub unsafe fn api_object_to_bool(
     obj: Object,
     what: *const c_char,
     nil_value: bool,
-    err: *mut Error,
+    err: &mut Error,
 ) -> bool {
     unsafe {
         match obj.obj_type {
@@ -1069,7 +1077,7 @@ pub unsafe fn api_object_to_bool(
     }
 }
 
-pub unsafe fn object_to_hl_id(obj: Object, what: *const c_char, err: *mut Error) -> c_int {
+pub unsafe fn object_to_hl_id(obj: Object, what: *const c_char, err: &mut Error) -> c_int {
     unsafe {
         match obj.obj_type {
             ObjectType::kObjectTypeString => {
@@ -1118,7 +1126,7 @@ pub fn api_typename(t: ObjectType) -> *const c_char {
     }
 }
 
-pub unsafe fn parse_hl_msg(chunks: Array, is_err: bool, err: *mut Error) -> HlMessage {
+pub unsafe fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
     unsafe {
         let mut hl_msg = HlMessage::new();
         for i in 0..chunks.size {
@@ -1164,7 +1172,7 @@ pub unsafe fn api_dict_to_keydict(
     retval: *mut OptKeySet,
     hashy: FieldHashfn,
     mut dict: Dict,
-    err: *mut Error,
+    err: &mut Error,
 ) -> bool {
     unsafe {
         let Some(hashy_fn) = hashy else {
@@ -1444,7 +1452,7 @@ pub unsafe fn set_mark(
     name: NvimString,
     line: Integer,
     mut col: Integer,
-    err: *mut Error,
+    err: &mut Error,
 ) -> bool {
     unsafe {
         if buf.is_null() {

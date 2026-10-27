@@ -263,7 +263,7 @@ unsafe fn socket_alive(loop_: *mut Loop, addr: *const c_char) -> bool {
         let mut error: *const c_char = std::ptr::null();
 
         let stream_ptr: *mut RStream = &raw mut stream;
-        let connected = socket_connect(loop_, stream_ptr, false, addr, 500, &raw mut error);
+        let connected = socket_connect(loop_, stream_ptr, false, addr, 500, &mut error);
         if !connected {
             return false;
         }

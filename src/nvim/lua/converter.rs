@@ -1717,7 +1717,7 @@ unsafe fn nlua_pop_Array_unchecked(
         for i in 1..=table_props.maxidx {
             lua_rawgeti(lstate, -1, i as c_int);
             let val = nlua_pop_Object(lstate, false, arena, err);
-            if error_set(err) {
+            if error_set(&*err) {
                 lua_pop(lstate, 1);
                 if arena.is_null() {
                     api_free_array(ret);
@@ -1776,7 +1776,7 @@ unsafe fn nlua_pop_Dict_unchecked(
             if lua_type(lstate, -2) == LUA_TSTRING {
                 lua_pushvalue(lstate, -2);
                 let key = nlua_pop_String(lstate, arena, err);
-                if !error_set(err) {
+                if !error_set(&*err) {
                     let value = nlua_pop_Object(lstate, ref_, arena, err);
                     assert!(ret.size < ret.capacity);
                     *ret.items.add(ret.size) = KeyValuePair { key, value };
@@ -1785,7 +1785,7 @@ unsafe fn nlua_pop_Dict_unchecked(
                     lua_pop(lstate, 1);
                 }
 
-                if error_set(err) {
+                if error_set(&*err) {
                     if arena.is_null() {
                         api_free_dict(ret);
                     }
@@ -1843,7 +1843,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
             container: false,
         });
 
-        while !error_set(err) && !stack.is_empty() {
+        while !error_set(&*err) && !stack.is_empty() {
             let mut cur = stack.pop().unwrap();
             if cur.container {
                 if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
@@ -2025,7 +2025,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
             }
         }
 
-        if error_set(err) {
+        if error_set(&*err) {
             if arena.is_null() {
                 api_free_object(ret);
             }
@@ -2202,7 +2202,7 @@ pub unsafe fn nlua_pop_keydict(
                 std::process::abort();
             }
 
-            if error_set(err) {
+            if error_set(&*err) {
                 *err_opt = field
                     .str
                     .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());

@@ -487,7 +487,7 @@ pub unsafe fn ctx_load(ctx: *mut Context, flags: CtxStateFlags, loadflags: CtxLo
     }
 }
 
-unsafe fn array_to_string(array: Array, err: *mut Error) -> Vec<u8> {
+unsafe fn array_to_string(array: Array, err: &mut Error) -> Vec<u8> {
     unsafe {
         let mut sbuf = Vec::new();
         let mut list_tv: typval_T = typval_T::new();
@@ -547,7 +547,7 @@ pub unsafe fn ctx_to_dict(ctx: *mut Context, arena: *mut Arena) -> Dict {
     }
 }
 
-pub unsafe fn ctx_from_dict(dict: Dict, ctx: *mut Context, err: *mut Error) -> CtxStateFlags {
+pub unsafe fn ctx_from_dict(dict: Dict, ctx: *mut Context, err: &mut Error) -> CtxStateFlags {
     unsafe {
         assert!(!ctx.is_null());
         let mut types: CtxStateFlags = 0;

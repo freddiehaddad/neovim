@@ -787,7 +787,7 @@ pub unsafe fn tv_nr(tvs: *mut typval_T, idxp: *mut c_int) -> varnumber_T {
         } else {
             *idxp += 1;
             let mut err = false;
-            n = tv_get_number_chk(tvs.add(idx), &raw mut err);
+            n = tv_get_number_chk(tvs.add(idx), &mut err);
             if err {
                 n = 0;
             }
@@ -2432,7 +2432,7 @@ unsafe fn byteidx_common(argvars: *mut typval_T, rettv: *mut typval_T, comp: boo
         let mut utf16idx: varnumber_T = 0;
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
             let mut error = false;
-            utf16idx = tv_get_bool_chk(argvars.add(2), &raw mut error);
+            utf16idx = tv_get_bool_chk(argvars.add(2), &mut error);
             if error {
                 return;
             }
@@ -2626,7 +2626,7 @@ pub unsafe fn f_strgetchar(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
             return;
         }
         let mut error = false;
-        let mut charidx = tv_get_number_chk(argvars.add(1), &raw mut error);
+        let mut charidx = tv_get_number_chk(argvars.add(1), &mut error);
         if error {
             return;
         }
@@ -2659,7 +2659,7 @@ pub unsafe fn f_stridx(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
         let hay_len = CStr::from_ptr(haystack).to_bytes().len();
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
             let mut error = false;
-            let start_idx = tv_get_number_chk(argvars.add(2), &raw mut error) as isize;
+            let start_idx = tv_get_number_chk(argvars.add(2), &mut error) as isize;
             if error || start_idx >= hay_len as isize {
                 return;
             }
@@ -2724,7 +2724,7 @@ pub unsafe fn f_strchars(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
         let mut skipcc: varnumber_T = 0;
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
             let mut error = false;
-            skipcc = tv_get_bool_chk(argvars.add(1), &raw mut error);
+            skipcc = tv_get_bool_chk(argvars.add(1), &mut error);
             if error {
                 return;
             }
@@ -2799,12 +2799,12 @@ pub unsafe fn f_strcharpart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
         let mut nbyte: c_int = 0;
         let mut skipcc: varnumber_T = 0;
         let mut error = false;
-        let mut nchar = tv_get_number_chk(argvars.add(1), &raw mut error);
+        let mut nchar = tv_get_number_chk(argvars.add(1), &mut error);
         if !error {
             if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
                 && (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN
             {
-                skipcc = tv_get_bool_chk(argvars.add(3), &raw mut error);
+                skipcc = tv_get_bool_chk(argvars.add(3), &mut error);
                 if error {
                     return;
                 }
@@ -2870,7 +2870,7 @@ pub unsafe fn f_strpart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
         let p = tv_get_string(argvars);
         let slen = CStr::from_ptr(p).to_bytes().len() as varnumber_T;
 
-        let mut n = tv_get_number_chk(argvars.add(1), &raw mut error);
+        let mut n = tv_get_number_chk(argvars.add(1), &mut error);
         let mut len = if error {
             0
         } else if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
@@ -3159,7 +3159,7 @@ pub unsafe fn f_trim(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFu
 
             if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
                 let mut error = false;
-                dir = tv_get_number_chk(argvars.add(2), &raw mut error) as c_int;
+                dir = tv_get_number_chk(argvars.add(2), &mut error) as c_int;
                 if error {
                     return;
                 }

@@ -2617,7 +2617,7 @@ pub unsafe fn deferred_event(mut e: AutoCmdEvent) {
         let data = e.data.as_mut().map_or(ptr::null_mut(), |d| &raw mut *d);
 
         let mut err = Error::new();
-        let buf = find_buffer_by_handle(e.buf, &raw mut err);
+        let buf = find_buffer_by_handle(e.buf, &mut err);
         if !buf.is_null() {
             let mut save_v_event: save_v_event_T = save_v_event_T::new();
             let v_event = get_v_event(&raw mut save_v_event);
@@ -2625,9 +2625,9 @@ pub unsafe fn deferred_event(mut e: AutoCmdEvent) {
                 for i in 0..(*data).data.dict().size {
                     let item = *(*data).data.dict().items.add(i);
                     let mut tv: typval_T = typval_T::new();
-                    object_to_vim(item.value, &raw mut tv, &raw mut err);
+                    object_to_vim(item.value, &raw mut tv, &mut err);
                     if err.err_type != ErrorType::kErrorTypeNone {
-                        api_clear_error(&raw mut err);
+                        api_clear_error(&mut err);
                         continue;
                     }
                     tv_dict_add_tv(v_event, item.key.data, item.key.size, &raw mut tv);
@@ -2661,8 +2661,8 @@ pub unsafe fn deferred_event(mut e: AutoCmdEvent) {
 pub unsafe fn deferred_optionset_modified(bufnr: c_int, new_val: bool) {
     unsafe {
         let mut err = Error::new();
-        let buf = find_buffer_by_handle(bufnr, &raw mut err);
-        api_clear_error(&raw mut err);
+        let buf = find_buffer_by_handle(bufnr, &mut err);
+        api_clear_error(&mut err);
         if !buf.is_null() {
             let old = boolean_obj(!new_val);
             let new = boolean_obj(new_val);

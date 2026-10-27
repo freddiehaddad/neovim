@@ -599,7 +599,7 @@ pub unsafe fn f_bufnr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalF
 
         if buf.is_null()
             && (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
-            && tv_get_bool_chk(argvars.add(1), &raw mut error) != 0
+            && tv_get_bool_chk(argvars.add(1), &mut error) != 0
             && !error
         {
             let name = tv_get_string_chk(argvars);

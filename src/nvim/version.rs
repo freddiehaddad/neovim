@@ -4059,7 +4059,7 @@ pub unsafe fn list_lua_version() {
             args,
             kRetObject,
             ptr::null_mut(),
-            &raw mut err,
+            &mut err,
         );
         debug_assert!(err.err_type == ErrorType::kErrorTypeNone);
         debug_assert!(ret.obj_type == ObjectType::kObjectTypeString);

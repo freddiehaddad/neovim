@@ -1029,17 +1029,17 @@ pub unsafe fn frames_locked() -> bool {
 pub unsafe fn window_layout_locked(cmd: cmdidx_T) -> bool {
     unsafe {
         let mut err = ERROR_INIT;
-        let locked = window_layout_locked_err(cmd, &raw mut err);
+        let locked = window_layout_locked_err(cmd, &mut err);
         if error_set(&err) {
             emsg(gettext(err.msg_ptr()));
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
         }
         locked
     }
 }
 
 /// Like `window_layout_locked`, but set `err` to the (untranslated) error message when locked.
-pub unsafe fn window_layout_locked_err(cmd: cmdidx_T, err: *mut Error) -> bool {
+pub unsafe fn window_layout_locked_err(cmd: cmdidx_T, err: &mut Error) -> bool {
     unsafe {
         if win_st().split_disallowed > 0 || win_st().close_disallowed > 0 {
             if win_st().close_disallowed == 0 && cmd == cmdidx_T::CMD_tabnew {
@@ -1587,9 +1587,9 @@ pub unsafe fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                         config.height = (**curwin.as_ptr()).w_height;
                         config.external = true;
                         let mut err = ERROR_INIT;
-                        if win_new_float(*curwin.as_ptr(), false, config, &raw mut err).is_null() {
+                        if win_new_float(*curwin.as_ptr(), false, config, &mut err).is_null() {
                             emsg(err.msg_ptr());
-                            api_clear_error(&raw mut err);
+                            api_clear_error(&mut err);
                             beep_flush();
                         }
                     }
@@ -1614,7 +1614,7 @@ unsafe fn cmd_with_count(cmd: *const c_char, bufp: *mut c_char, bufsize: usize, 
     }
 }
 
-pub unsafe fn win_set_buf(win: *mut win_T, buf: *mut buf_T, err: *mut Error) {
+pub unsafe fn win_set_buf(win: *mut win_T, buf: *mut buf_T, err: &mut Error) {
     unsafe {
         let win_handle = (*win).handle;
         let tab = win_find_tabpage(win);
@@ -1646,7 +1646,7 @@ pub unsafe fn win_set_buf(win: *mut win_T, buf: *mut buf_T, err: *mut Error) {
         }
         try_leave(&raw const tstate, err);
 
-        if !win_ok && !error_set(&*err) {
+        if !win_ok && !error_set(err) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -1731,8 +1731,8 @@ pub unsafe fn ui_ext_win_position(wp: *mut win_T, validate: bool) {
             let mut col = c.col;
             if c.relative == kFloatRelativeWindow {
                 let mut dummy = ERROR_INIT;
-                let win = find_window_by_handle(c.window, &raw mut dummy);
-                api_clear_error(&raw mut dummy);
+                let win = find_window_by_handle(c.window, &mut dummy);
+                api_clear_error(&mut dummy);
                 if !win.is_null() {
                     if (*win).w_pos_changed
                         && !(*win).w_grid_alloc.chars.is_empty()
@@ -1942,10 +1942,10 @@ pub unsafe fn ui_ext_win_viewport(wp: *mut win_T) {
 pub unsafe fn check_split_disallowed(wp: *const win_T) -> c_int {
     unsafe {
         let mut err = ERROR_INIT;
-        let ok = check_split_disallowed_err(wp, &raw mut err);
+        let ok = check_split_disallowed_err(wp, &mut err);
         if error_set(&err) {
             emsg(gettext(err.msg_ptr()));
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
         }
         if ok { OK } else { FAIL }
     }
@@ -1953,7 +1953,7 @@ pub unsafe fn check_split_disallowed(wp: *const win_T) -> c_int {
 
 /// Like `check_split_disallowed`, but set `err` to the (untranslated) error message on failure and
 /// return false. Otherwise return true.
-pub unsafe fn check_split_disallowed_err(wp: *const win_T, err: *mut Error) -> bool {
+pub unsafe fn check_split_disallowed_err(wp: *const win_T, err: &mut Error) -> bool {
     unsafe {
         if win_st().split_disallowed > 0 {
             api_set_error!(
@@ -4156,7 +4156,7 @@ pub unsafe fn win_free_all() {
             let wp = g_st().lastwin;
             win_remove(g_st().lastwin, ptr::null_mut());
             let mut dummy: c_int = 0;
-            win_free_mem(wp, &raw mut dummy, ptr::null_mut());
+            win_free_mem(wp, &mut dummy, ptr::null_mut());
             let vec = &raw mut g_st().ctx_win_vec;
             for item in (*vec).iter_mut() {
                 if ptr::eq(item.cw_win, wp) {
@@ -4170,7 +4170,7 @@ pub unsafe fn win_free_all() {
             let cw = (*vec).as_slice()[i].cw_win;
             if !cw.is_null() {
                 let mut dummy: c_int = 0;
-                win_free_mem(cw, &raw mut dummy, ptr::null_mut());
+                win_free_mem(cw, &mut dummy, ptr::null_mut());
                 (*vec).as_mut_slice()[i].cw_win = ptr::null_mut();
             }
         }
@@ -4179,7 +4179,7 @@ pub unsafe fn win_free_all() {
 
         while !g_st().firstwin.is_null() {
             let mut dummy: c_int = 0;
-            win_free_mem(g_st().firstwin, &raw mut dummy, ptr::null_mut());
+            win_free_mem(g_st().firstwin, &mut dummy, ptr::null_mut());
         }
 
         *curwin.as_ptr() = ptr::null_mut();
@@ -5065,7 +5065,7 @@ pub unsafe fn win_alloc_ctx_win(idx: c_int) {
         fconfig.focusable = false;
         fconfig.mouse = false;
         fconfig.hide = true;
-        let cw_win = win_new_float(ptr::null_mut(), true, fconfig, &raw mut err);
+        let cw_win = win_new_float(ptr::null_mut(), true, fconfig, &mut err);
         let vec = &raw mut g_st().ctx_win_vec;
         (*vec).as_mut_slice()[idx as usize].cw_win = cw_win;
         (*(*cw_win).w_buffer).b_nwindows -= 1;

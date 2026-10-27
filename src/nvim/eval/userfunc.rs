@@ -932,7 +932,7 @@ pub unsafe fn get_func_arity(
                 name,
                 fname_buf.as_mut_ptr(),
                 &mut tofree,
-                &raw mut error,
+                &mut error,
             );
             let mut ufunc: *mut ufunc_T = ptr::null_mut();
             if error == FCERR_NONE {
@@ -1918,7 +1918,7 @@ pub unsafe fn call_func(
                 nm.as_ptr(),
                 fname_buf.as_mut_ptr(),
                 &mut tofree,
-                &raw mut error,
+                &mut error,
             );
             name_owned = Some(nm);
         }
@@ -2074,7 +2074,7 @@ pub unsafe fn call_simple_func(funcname: *const c_char, len: usize, rettv: *mut 
             name.as_ptr(),
             fname_buf.as_mut_ptr(),
             &mut tofree,
-            &raw mut error,
+            &mut error,
         );
 
         let is_global = *fname == b'g' as c_char && *fname.add(1) == b':' as c_char;
@@ -4102,7 +4102,7 @@ pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
                     fname,
                     fname_buf.as_mut_ptr(),
                     &mut tofree,
-                    &raw mut error,
+                    &mut error,
                 );
                 fp = find_func(fname);
             }
@@ -4489,7 +4489,7 @@ pub unsafe fn set_ref_in_func(name: *mut c_char, fp_in: *mut ufunc_T, copyID: c_
                 name,
                 fname_buf.as_mut_ptr(),
                 &mut tofree,
-                &raw mut error,
+                &mut error,
             );
             fp = find_func(fname);
         }

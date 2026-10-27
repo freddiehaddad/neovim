@@ -1637,7 +1637,7 @@ pub unsafe fn set_var_lval(
                     }
                 } else {
                     let mut error = false;
-                    let val = tv_get_number_chk(rettv, &raw mut error);
+                    let val = tv_get_number_chk(rettv, &mut error);
                     if !error {
                         if !(0..=255).contains(&val) {
                             semsg!(
@@ -2273,7 +2273,7 @@ pub unsafe fn eval1(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut e
 
                 if op_falsy {
                     result = tv2bool(rettv);
-                } else if tv_get_number_chk(rettv, &raw mut error) != 0 {
+                } else if tv_get_number_chk(rettv, &mut error) != 0 {
                     result = true;
                 }
                 if error || !op_falsy || !result {
@@ -2362,7 +2362,7 @@ unsafe fn eval2(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evala
 
             if evaluate {
                 let mut error = false;
-                if tv_get_number_chk(rettv, &raw mut error) != 0 {
+                if tv_get_number_chk(rettv, &mut error) != 0 {
                     result = true;
                 }
                 tv_clear(rettv);
@@ -2385,7 +2385,7 @@ unsafe fn eval2(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evala
 
                 if evaluate && !result {
                     let mut error = false;
-                    if tv_get_number_chk(&raw const var2, &raw mut error) != 0 {
+                    if tv_get_number_chk(&raw const var2, &mut error) != 0 {
                         result = true;
                     }
                     tv_clear(&raw mut var2);
@@ -2432,7 +2432,7 @@ unsafe fn eval3(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evala
 
             if evaluate {
                 let mut error = false;
-                if tv_get_number_chk(rettv, &raw mut error) == 0 {
+                if tv_get_number_chk(rettv, &mut error) == 0 {
                     result = false;
                 }
                 tv_clear(rettv);
@@ -2455,7 +2455,7 @@ unsafe fn eval3(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evala
 
                 if evaluate && result {
                     let mut error = false;
-                    if tv_get_number_chk(&raw const var2, &raw mut error) == 0 {
+                    if tv_get_number_chk(&raw const var2, &mut error) == 0 {
                         result = false;
                     }
                     tv_clear(&raw mut var2);
@@ -2660,7 +2660,7 @@ unsafe fn eval_addsub_number(tv1: *mut typval_T, tv2: *mut typval_T, op: c_int) 
             f1 = (*tv1).vval.v_float();
             n1 = 0;
         } else {
-            n1 = tv_get_number_chk(tv1, &raw mut error);
+            n1 = tv_get_number_chk(tv1, &mut error);
             if error {
                 tv_clear(tv1);
                 tv_clear(tv2);
@@ -2674,7 +2674,7 @@ unsafe fn eval_addsub_number(tv1: *mut typval_T, tv2: *mut typval_T, op: c_int) 
             f2 = (*tv2).vval.v_float();
             n2 = 0;
         } else {
-            n2 = tv_get_number_chk(tv2, &raw mut error);
+            n2 = tv_get_number_chk(tv2, &mut error);
             if error {
                 tv_clear(tv1);
                 tv_clear(tv2);
@@ -2786,7 +2786,7 @@ unsafe fn eval_multdiv_number(tv1: *mut typval_T, tv2: *mut typval_T, op: c_int)
             use_float = true;
             n1 = 0;
         } else {
-            n1 = tv_get_number_chk(tv1, &raw mut error);
+            n1 = tv_get_number_chk(tv1, &mut error);
         }
         tv_clear(tv1);
         if error {
@@ -2802,7 +2802,7 @@ unsafe fn eval_multdiv_number(tv1: *mut typval_T, tv2: *mut typval_T, op: c_int)
             f2 = (*tv2).vval.v_float();
             n2 = 0;
         } else {
-            n2 = tv_get_number_chk(tv2, &raw mut error);
+            n2 = tv_get_number_chk(tv2, &mut error);
             tv_clear(tv2);
             if error {
                 return FAIL;
@@ -3047,7 +3047,7 @@ unsafe fn eval7_leader(
         if (*rettv).v_type == VarType::VAR_FLOAT {
             f = (*rettv).vval.v_float();
         } else {
-            val = tv_get_number_chk(rettv, &raw mut error);
+            val = tv_get_number_chk(rettv, &mut error);
         }
         if error {
             tv_clear(rettv);
@@ -5327,15 +5327,15 @@ pub unsafe fn callback_call(
                     luaargs,
                     kRetObject,
                     &raw mut arena,
-                    &raw mut err,
+                    &mut err,
                 );
                 eval_st().callback_depth -= 1;
                 let ok = err.err_type == ErrorType::kErrorTypeNone;
                 if !ok {
                     semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg_ptr());
-                    api_clear_error(&raw mut err);
+                    api_clear_error(&mut err);
                 } else {
-                    object_to_vim(result, rettv, ptr::null_mut());
+                    object_to_vim(result, rettv, &mut crate::api::private::validate::Error::new());
                 }
                 arena_mem_free(arena_finish(&raw mut arena));
                 return ok;
@@ -5793,12 +5793,12 @@ pub unsafe fn var2fpos(
                 return ptr::null_mut();
             }
 
-            eval_st().VAR2FPOS_POS.lnum = tv_list_find_nr(l, 0, &raw mut error) as linenr_T;
+            eval_st().VAR2FPOS_POS.lnum = tv_list_find_nr(l, 0, &mut error) as linenr_T;
             if error || eval_st().VAR2FPOS_POS.lnum <= 0 || eval_st().VAR2FPOS_POS.lnum > (*bp).b_ml.ml_line_count {
                 return ptr::null_mut();
             }
 
-            eval_st().VAR2FPOS_POS.col = tv_list_find_nr(l, 1, &raw mut error) as colnr_T;
+            eval_st().VAR2FPOS_POS.col = tv_list_find_nr(l, 1, &mut error) as colnr_T;
             if error {
                 return ptr::null_mut();
             }
@@ -5822,7 +5822,7 @@ pub unsafe fn var2fpos(
             }
             eval_st().VAR2FPOS_POS.col -= 1;
 
-            eval_st().VAR2FPOS_POS.coladd = tv_list_find_nr(l, 2, &raw mut error) as colnr_T;
+            eval_st().VAR2FPOS_POS.coladd = tv_list_find_nr(l, 2, &mut error) as colnr_T;
             if error {
                 eval_st().VAR2FPOS_POS.coladd = 0;
             }

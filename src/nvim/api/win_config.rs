@@ -334,7 +334,7 @@ pub unsafe extern "C" fn nvim_open_win(
     buf: Buffer,
     enter: Boolean,
     config: *mut KeyDict_win_config,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Window {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -563,7 +563,7 @@ const fn win_split_flags(split: WinSplit, toplevel: bool) -> c_int {
     flags
 }
 
-unsafe fn win_can_move_tp(wp: *mut win_T, tp: *mut tabpage_T, err: *mut Error) -> bool {
+unsafe fn win_can_move_tp(wp: *mut win_T, tp: *mut tabpage_T, err: &mut Error) -> bool {
     unsafe {
         if one_window(wp, if tp == g_st().curtab { ptr::null_mut() } else { tp }) {
             api_set_error!(
@@ -621,7 +621,7 @@ unsafe fn win_config_split(
     win: *mut win_T,
     config: *const KeyDict_win_config,
     fconfig: *mut WinConfig,
-    err: *mut Error,
+    err: &mut Error,
 ) -> bool {
     unsafe {
         let was_split = !(*win).w_floating;
@@ -905,7 +905,7 @@ unsafe fn win_config_float_tp(
     win: *mut win_T,
     config: *const KeyDict_win_config,
     fconfig: *const WinConfig,
-    err: *mut Error,
+    err: &mut Error,
 ) -> bool {
     unsafe {
         let mut win_tp = win_find_tabpage(win);
@@ -1031,7 +1031,7 @@ unsafe fn win_config_float_tp(
 pub unsafe extern "C" fn nvim_win_set_config(
     win: Window,
     config: *mut KeyDict_win_config,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let w = find_window_by_handle(win, err);
@@ -1137,7 +1137,7 @@ unsafe fn config_put_bordertext(
 pub unsafe extern "C" fn nvim_win_get_config(
     win: Window,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> KeyDict_win_config {
     unsafe {
         const FLOAT_RELATIVE_STR: [&CStr; 6] = [
@@ -1331,7 +1331,7 @@ pub unsafe fn parse_bordertext(
     bordertext: Object,
     bordertext_type: BorderTextType,
     fconfig: *mut WinConfig,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         if bordertext.obj_type != ObjectType::kObjectTypeString
@@ -1401,7 +1401,7 @@ unsafe fn parse_bordertext_pos(
     bordertext_pos: NvimString,
     bordertext_type: BorderTextType,
     fconfig: *mut WinConfig,
-    err: *mut Error,
+    err: &mut Error,
 ) -> bool {
     unsafe {
         let align = if bordertext_type == kBorderTextTitle {
@@ -1443,7 +1443,7 @@ unsafe fn parse_bordertext_pos(
 }
 
 // DLLEXPORT void parse_border_style(Object style, WinConfig *fconfig, Error *err);
-pub unsafe fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: *mut Error) {
+pub unsafe fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: &mut Error) {
     unsafe {
         const DEFAULTS_CHARS: [[&str; 8]; 6] = [
             ["╔", "═", "╗", "║", "╝", "═", "╚", "║"],
@@ -1592,7 +1592,7 @@ pub unsafe fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: *m
     }
 }
 
-unsafe fn generate_api_error(wp: *mut win_T, attribute: *const c_char, err: *mut Error) {
+unsafe fn generate_api_error(wp: *mut win_T, attribute: *const c_char, err: &mut Error) {
     unsafe {
         if !wp.is_null() && (*wp).w_floating {
             api_set_error!(
@@ -1612,7 +1612,7 @@ unsafe fn generate_api_error(wp: *mut win_T, attribute: *const c_char, err: *mut
 pub unsafe fn parse_winborder(
     fconfig: *mut WinConfig,
     border_opt: *mut c_char,
-    err: *mut Error,
+    err: &mut Error,
 ) -> bool {
     unsafe {
         if fconfig.is_null() {
@@ -1652,7 +1652,7 @@ unsafe fn parse_win_config(
     fconfig: *mut WinConfig,
     reconf: bool,
     will_float: bool,
-    err: *mut Error,
+    err: &mut Error,
 ) -> bool {
     unsafe {
         let mut has_relative = false;

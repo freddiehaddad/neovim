@@ -53,7 +53,7 @@ pub unsafe extern "C" fn nvim_ui_term_event(
     channel_id: u64,
     event: NvimString,
     value: Object,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         if !event.data.is_null() && CStr::from_ptr(event.data).to_bytes() == b"termresponse" {

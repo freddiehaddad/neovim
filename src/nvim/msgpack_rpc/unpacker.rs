@@ -297,7 +297,7 @@ pub unsafe fn unpack(
     mut data: *const c_char,
     mut size: usize,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let mut unpacker = Unpacker::new();

@@ -154,7 +154,7 @@ unsafe fn decor_provider_invoke(
                 kRetNilBool
             },
             ptr::null_mut(),
-            &raw mut err,
+            &mut err,
         );
         g_st().textlock -= 1;
 
@@ -169,7 +169,7 @@ unsafe fn decor_provider_invoke(
                 ret,
                 c"provider %s retval".as_ptr(),
                 default_true,
-                &raw mut err,
+                &mut err,
             ) {
                 return true;
             }
@@ -184,7 +184,7 @@ unsafe fn decor_provider_invoke(
             }
         }
 
-        api_clear_error(&raw mut err);
+        api_clear_error(&mut err);
         api_free_object(ret);
         false
     }

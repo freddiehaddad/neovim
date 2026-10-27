@@ -1321,12 +1321,12 @@ pub unsafe fn f_virtcol2col(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
         }
 
         let mut error = false;
-        let lnum = tv_get_number_chk(argvars.add(1), &raw mut error) as linenr_T;
+        let lnum = tv_get_number_chk(argvars.add(1), &mut error) as linenr_T;
         if error || lnum < 0 || lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
             return;
         }
 
-        let screencol = tv_get_number_chk(argvars.add(2), &raw mut error) as c_int;
+        let screencol = tv_get_number_chk(argvars.add(2), &mut error) as c_int;
         if error || screencol < 0 {
             return;
         }

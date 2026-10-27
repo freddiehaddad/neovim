@@ -1877,7 +1877,7 @@ pub unsafe fn tv_list_remove(
         }
 
         let mut error = false;
-        let idx = tv_get_number_chk(argvars.add(1), &raw mut error);
+        let idx = tv_get_number_chk(argvars.add(1), &mut error);
 
         if error {
             return;
@@ -1890,7 +1890,7 @@ pub unsafe fn tv_list_remove(
             *rettv = std::mem::replace(&mut (*item).li_tv, tv_initial_value());
             drop(Box::from_raw(item));
         } else {
-            let end = tv_get_number_chk(argvars.add(2), &raw mut error);
+            let end = tv_get_number_chk(argvars.add(2), &mut error);
             if error {
                 return;
             }
@@ -2275,7 +2275,7 @@ unsafe fn parse_sort_uniq_args(argvars: *mut typval_T, info: &mut sortinfo_T) ->
             info.item_compare_partial = (*argvars.add(1)).vval.v_partial();
         } else {
             let mut error = false;
-            let nr = tv_get_number_chk(argvars.add(1), &raw mut error) as c_int;
+            let nr = tv_get_number_chk(argvars.add(1), &mut error) as c_int;
             if error {
                 return FAIL;
             }
@@ -3766,7 +3766,7 @@ pub unsafe fn tv_blob_remove(
         }
 
         let mut error = false;
-        let mut idx = tv_get_number_chk(argvars.add(1), &raw mut error);
+        let mut idx = tv_get_number_chk(argvars.add(1), &mut error);
 
         if !error {
             let len = i64::from(tv_blob_len_inline(b));
@@ -3782,7 +3782,7 @@ pub unsafe fn tv_blob_remove(
                 let removed = bv.remove(idx as usize);
                 (*rettv).vval = crate::eval::typval::TypvalVval::Number(i64::from(removed));
             } else {
-                let mut end = tv_get_number_chk(argvars.add(2), &raw mut error);
+                let mut end = tv_get_number_chk(argvars.add(2), &mut error);
                 if error {
                     return;
                 }
@@ -3843,7 +3843,7 @@ pub unsafe fn f_list2blob(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
         let mut li = (*l).lv_first;
         while !li.is_null() {
             let mut error = false;
-            let n = tv_get_number_chk(&raw const (*li).li_tv, &raw mut error);
+            let n = tv_get_number_chk(&raw const (*li).li_tv, &mut error);
             if error || !(0..=255).contains(&n) {
                 if !error {
                     semsg!(tr(e_invalid_value_for_blob_nr.as_ptr()), n as c_int);
@@ -4822,7 +4822,7 @@ pub unsafe fn tv_check_str(tv: *const typval_T) -> bool {
 pub unsafe fn tv_get_number(tv: *const typval_T) -> varnumber_T {
     unsafe {
         let mut error = false;
-        tv_get_number_chk(tv, &raw mut error)
+        tv_get_number_chk(tv, &mut error)
     }
 }
 
@@ -5353,11 +5353,11 @@ mod tests {
             assert_eq!(tv_list_idx_of_item(l, ptr::null()), -1);
 
             let mut err = false;
-            assert_eq!(tv_list_find_nr(l, 0, &raw mut err), 10);
+            assert_eq!(tv_list_find_nr(l, 0, &mut err), 10);
             assert!(!err);
-            assert_eq!(tv_list_find_nr(l, -1, &raw mut err), 30);
+            assert_eq!(tv_list_find_nr(l, -1, &mut err), 30);
             assert!(!err);
-            assert_eq!(tv_list_find_nr(l, 10, &raw mut err), -1);
+            assert_eq!(tv_list_find_nr(l, 10, &mut err), -1);
             assert!(err);
 
             tv_list_reverse(l);

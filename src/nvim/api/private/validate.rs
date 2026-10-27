@@ -437,13 +437,11 @@ pub const fn object_typename(t: ObjectType) -> &'static str {
     }
 }
 
-unsafe fn set_error_str(err: *mut Error, err_type: ErrorType, msg: &str) {
+fn set_error_str(err: &mut Error, err_type: ErrorType, msg: &str) {
     let bytes = msg.as_bytes();
     let len = bytes.len().min((1024 * 1024) - 1);
-    unsafe {
-        (*err).msg = Some(crate::memory::cstr_from_bytes(&bytes[..len]));
-        (*err).err_type = err_type;
-    }
+    err.msg = Some(crate::memory::cstr_from_bytes(&bytes[..len]));
+    err.err_type = err_type;
 }
 
 #[inline]
@@ -456,7 +454,7 @@ unsafe fn cstr_lossy<'a>(ptr: *const c_char) -> std::borrow::Cow<'a, str> {
 /// # Safety
 /// `err` and `name` must be valid pointers, and `val_s` must be null or a valid C string.
 pub unsafe fn api_err_invalid(
-    err: *mut Error,
+    err: &mut Error,
     name: *const c_char,
     val_s: *const c_char,
     val_n: i64,
@@ -497,7 +495,7 @@ pub unsafe fn api_err_invalid(
 /// # Safety
 /// `err`, `name`, and `expected` must be valid pointers; `actual` must be null or a valid C string.
 pub unsafe fn api_err_exp(
-    err: *mut Error,
+    err: &mut Error,
     name: *const c_char,
     expected: *const c_char,
     actual: *const c_char,
@@ -530,7 +528,7 @@ pub unsafe fn api_err_exp(
 ///
 /// # Safety
 /// `err` and `name` must be valid pointers.
-pub unsafe fn api_err_required(err: *mut Error, name: *const c_char) {
+pub unsafe fn api_err_required(err: &mut Error, name: *const c_char) {
     let name_str = unsafe { cstr_lossy(name) };
     let has_space = name_str.as_bytes().contains(&b' ');
     let msg = if has_space {
@@ -547,7 +545,7 @@ pub unsafe fn api_err_required(err: *mut Error, name: *const c_char) {
 ///
 /// # Safety
 /// `err`, `name`, and `name2` must be valid pointers.
-pub unsafe fn api_err_conflict(err: *mut Error, name: *const c_char, name2: *const c_char) {
+pub unsafe fn api_err_conflict(err: &mut Error, name: *const c_char, name2: *const c_char) {
     let name_str = unsafe { cstr_lossy(name) };
     let name2_str = unsafe { cstr_lossy(name2) };
     let has_space2 = name2_str.as_bytes().contains(&b' ');
@@ -570,7 +568,7 @@ pub unsafe fn check_string_array(
     arr: Array,
     name: *mut c_char,
     disallow_nl: bool,
-    err: *mut Error,
+    err: &mut Error,
 ) -> bool {
     let name_str = unsafe { cstr_lossy(name) };
     for i in 0..arr.size {
@@ -600,7 +598,7 @@ pub unsafe fn check_string_array(
 }
 
 #[inline]
-pub unsafe fn api_err_range(err: *mut Error, name: *const c_char) {
+pub unsafe fn api_err_range(err: &mut Error, name: *const c_char) {
     unsafe {
         api_err_invalid(err, name, c"out of range".as_ptr(), 0, false);
     }

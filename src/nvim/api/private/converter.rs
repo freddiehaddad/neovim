@@ -351,7 +351,7 @@ pub unsafe fn vim_to_object(obj: *mut typval_T, arena: *mut Arena, reuse_strdata
 }
 
 /// Convert an API `Object` into a Vimscript `typval_T` (`object_to_vim`).
-pub unsafe fn object_to_vim(mut obj: Object, tv: *mut typval_T, err: *mut Error) {
+pub unsafe fn object_to_vim(mut obj: Object, tv: *mut typval_T, err: &mut Error) {
     unsafe {
         object_to_vim_take_luaref(&mut obj, tv, false, err);
     }
@@ -363,7 +363,7 @@ pub unsafe fn object_to_vim_take_luaref(
     obj: *mut Object,
     tv: *mut typval_T,
     take_luaref: bool,
-    _err: *mut Error,
+    _err: &mut Error,
 ) {
     let obj = unsafe { &mut *obj };
     let tv_ref = unsafe { &mut *tv };
@@ -462,7 +462,7 @@ mod tests {
                     data: ObjectData::Integer(99),
                 },
                 &mut tv,
-                std::ptr::null_mut(),
+                &mut Error::new(),
             );
             assert_eq!(tv.v_type, VarType::VAR_NUMBER);
             assert_eq!(tv.vval.v_number(), 99);

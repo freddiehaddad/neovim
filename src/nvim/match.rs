@@ -236,7 +236,7 @@ unsafe fn match_add(
                         failed = true;
                         break;
                     }
-                    lnum = tv_get_number_chk(&raw const (*subli).li_tv, &raw mut error) as linenr_T;
+                    lnum = tv_get_number_chk(&raw const (*subli).li_tv, &mut error) as linenr_T;
                     if error {
                         failed = true;
                         break;
@@ -249,7 +249,7 @@ unsafe fn match_add(
                     subli = (*subli).li_next;
                     if !subli.is_null() {
                         col =
-                            tv_get_number_chk(&raw const (*subli).li_tv, &raw mut error) as colnr_T;
+                            tv_get_number_chk(&raw const (*subli).li_tv, &mut error) as colnr_T;
                         if error {
                             failed = true;
                             break;
@@ -260,7 +260,7 @@ unsafe fn match_add(
                         }
                         subli = (*subli).li_next;
                         if !subli.is_null() {
-                            len = tv_get_number_chk(&raw const (*subli).li_tv, &raw mut error)
+                            len = tv_get_number_chk(&raw const (*subli).li_tv, &mut error)
                                 as colnr_T;
                             if len < 0 {
                                 li = (*li).li_next;
@@ -1163,9 +1163,9 @@ pub unsafe fn f_matchadd(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
             return;
         }
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-            prio = tv_get_number_chk(argvars.add(2), &raw mut error) as c_int;
+            prio = tv_get_number_chk(argvars.add(2), &mut error) as c_int;
             if (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN {
-                id = tv_get_number_chk(argvars.add(3), &raw mut error) as c_int;
+                id = tv_get_number_chk(argvars.add(3), &mut error) as c_int;
                 if (*argvars.add(4)).v_type != VarType::VAR_UNKNOWN
                     && matchadd_dict_arg(argvars.add(4), &raw mut conceal_char, &raw mut win)
                         == FAIL
@@ -1220,9 +1220,9 @@ pub unsafe fn f_matchaddpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
         let mut win = *curwin.as_ptr();
 
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-            prio = tv_get_number_chk(argvars.add(2), &raw mut error) as c_int;
+            prio = tv_get_number_chk(argvars.add(2), &mut error) as c_int;
             if (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN {
-                id = tv_get_number_chk(argvars.add(3), &raw mut error) as c_int;
+                id = tv_get_number_chk(argvars.add(3), &mut error) as c_int;
                 if (*argvars.add(4)).v_type != VarType::VAR_UNKNOWN
                     && matchadd_dict_arg(argvars.add(4), &raw mut conceal_char, &raw mut win)
                         == FAIL

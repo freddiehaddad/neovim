@@ -5,7 +5,7 @@ use crate::api::private::helpers::{
     MAXLNUM, OBJECT_NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict,
     boolean_obj, buf_get_text, cstr_as_string, dict_get_value, dict_set_var, error_set,
     find_buffer_by_handle, has_key, integer_obj, normalize_index, put_c, set_mark,
-    static_cstr_as_obj, string_obj, try_wrap,
+    static_cstr_as_obj, string_obj, try_wrap, try_wrap_err,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, api_err_invalid, api_err_range,
@@ -124,7 +124,7 @@ use crate::state::MODE_INSERT;
 
 /// Ensures that a buffer is loaded.
 // DLLEXPORT buf_T *api_buf_ensure_loaded(Buffer buf, Error *err);
-pub unsafe fn api_buf_ensure_loaded(buf: Buffer, err: *mut Error) -> *mut buf_T {
+pub unsafe fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> *mut buf_T {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
         if b.is_null() {
@@ -152,7 +152,7 @@ pub unsafe fn api_buf_ensure_loaded(buf: Buffer, err: *mut Error) -> *mut buf_T 
 // DLLEXPORT Integer nvim_buf_line_count(Buffer buf, Error *err)
 //   FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_buf_line_count(buf: Buffer, err: *mut Error) -> Integer {
+pub unsafe extern "C" fn nvim_buf_line_count(buf: Buffer, err: &mut Error) -> Integer {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
         if b.is_null() || (*b).b_ml.ml_mfp.is_none() {
@@ -243,7 +243,7 @@ pub unsafe extern "C" fn nvim_buf_attach(
     buf: Buffer,
     send_buffer: Boolean,
     opts: *mut KeyDict_buf_attach,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Boolean {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -304,7 +304,7 @@ pub unsafe extern "C" fn nvim_buf_attach(
 // DLLEXPORT Boolean nvim_buf_detach(uint64_t channel_id, Buffer buf, Error *err)
 //   FUNC_API_SINCE(4) FUNC_API_REMOTE_ONLY;
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_buf_detach(channel_id: u64, buf: Buffer, err: *mut Error) -> Boolean {
+pub unsafe extern "C" fn nvim_buf_detach(channel_id: u64, buf: Buffer, err: &mut Error) -> Boolean {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
         if b.is_null() {
@@ -346,7 +346,7 @@ pub unsafe extern "C" fn nvim_buf_get_lines(
     strict_indexing: Boolean,
     arena: *mut Arena,
     lstate: *mut lua_State,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Array {
     unsafe {
         let mut rv = Array::new();
@@ -432,7 +432,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
     strict_indexing: Boolean,
     replacement: Array,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let b = api_buf_ensure_loaded(buf, err);
@@ -490,7 +490,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
             *lines.add(i) = p;
         }
 
-        try_wrap(err, || 'end: {
+        try_wrap_err(err, |err| 'end: {
             if (*b).b_p_ma == 0 {
                 api_set_error!(
                     err,
@@ -679,7 +679,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
     mut end_col: Integer,
     mut replacement: Array,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let mut scratch_items = [static_cstr_as_obj(c"")];
@@ -820,7 +820,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
             new_byte += (last_item.size as bcount_t) + 1;
         }
 
-        try_wrap(err, || 'end: {
+        try_wrap_err(err, |err| 'end: {
             if (*b).b_p_ma == 0 {
                 api_set_error!(
                     err,
@@ -1031,7 +1031,7 @@ pub unsafe extern "C" fn nvim_buf_get_text(
     _opts: *mut KeyDict_empty,
     arena: *mut Arena,
     lstate: *mut lua_State,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Array {
     unsafe {
         let mut rv = Array::new();
@@ -1154,7 +1154,7 @@ pub unsafe extern "C" fn nvim_buf_get_text(
 pub unsafe extern "C" fn nvim_buf_get_offset(
     buf: Buffer,
     index: Integer,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Integer {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -1198,7 +1198,7 @@ pub unsafe extern "C" fn nvim_buf_get_var(
     buf: Buffer,
     name: NvimString,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -1218,7 +1218,7 @@ pub unsafe extern "C" fn nvim_buf_get_var(
 // DLLEXPORT Integer nvim_buf_get_changedtick(Buffer buf, Error *err)
 //   FUNC_API_SINCE(2);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_buf_get_changedtick(buf: Buffer, err: *mut Error) -> Integer {
+pub unsafe extern "C" fn nvim_buf_get_changedtick(buf: Buffer, err: &mut Error) -> Integer {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
         if b.is_null() {
@@ -1243,7 +1243,7 @@ pub unsafe extern "C" fn nvim_buf_get_keymap(
     buf: Buffer,
     mode: NvimString,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Array {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -1270,7 +1270,7 @@ pub unsafe extern "C" fn nvim_buf_set_keymap(
     lhs: NvimString,
     rhs: NvimString,
     opts: *mut KeyDict_keymap,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         modify_keymap(channel_id, buf, MAPTYPE_MAP, mode, lhs, rhs, opts, err);
@@ -1296,7 +1296,7 @@ pub unsafe extern "C" fn nvim_buf_del_keymap(
     mode: NvimString,
     lhs: NvimString,
     opts: *mut KeyDict_keymap_del,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let rhs = NvimString {
@@ -1334,7 +1334,7 @@ pub unsafe extern "C" fn nvim_buf_set_var(
     buf: Buffer,
     name: NvimString,
     value: Object,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -1353,7 +1353,7 @@ pub unsafe extern "C" fn nvim_buf_set_var(
 // DLLEXPORT void nvim_buf_del_var(Buffer buf, String name, Error *err)
 //   FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_buf_del_var(buf: Buffer, name: NvimString, err: *mut Error) {
+pub unsafe extern "C" fn nvim_buf_del_var(buf: Buffer, name: NvimString, err: &mut Error) {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
         if b.is_null() {
@@ -1382,7 +1382,7 @@ pub unsafe extern "C" fn nvim_buf_del_var(buf: Buffer, name: NvimString, err: *m
 // DLLEXPORT String nvim_buf_get_name(Buffer buf, Error *err)
 //   FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_buf_get_name(buf: Buffer, err: *mut Error) -> NvimString {
+pub unsafe extern "C" fn nvim_buf_get_name(buf: Buffer, err: &mut Error) -> NvimString {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
         if b.is_null() || (*b).b_ffname.is_null() {
@@ -1403,7 +1403,7 @@ pub unsafe extern "C" fn nvim_buf_get_name(buf: Buffer, err: *mut Error) -> Nvim
 // DLLEXPORT void nvim_buf_set_name(Buffer buf, String name, Error *err)
 //   FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: *mut Error) {
+pub unsafe extern "C" fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
         if b.is_null() {
@@ -1480,7 +1480,7 @@ pub unsafe extern "C" fn nvim_buf_is_loaded(buf: Buffer) -> Boolean {
 pub unsafe extern "C" fn nvim_buf_delete(
     buf: Buffer,
     opts: *mut KeyDict_buf_delete,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -1543,7 +1543,7 @@ pub unsafe extern "C" fn nvim_buf_is_valid(buf: Buffer) -> Boolean {
 pub unsafe extern "C" fn nvim_buf_del_mark(
     buf: Buffer,
     name: NvimString,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Boolean {
     unsafe {
         let mut res = false;
@@ -1608,7 +1608,7 @@ pub unsafe extern "C" fn nvim_buf_set_mark(
     line: Integer,
     col: Integer,
     _opts: *mut KeyDict_empty,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Boolean {
     unsafe {
         let b = api_buf_ensure_loaded(buf, err);
@@ -1651,7 +1651,7 @@ pub unsafe extern "C" fn nvim_buf_get_mark(
     buf: Buffer,
     name: NvimString,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Array {
     unsafe {
         let mut rv = Array::new();
@@ -1716,7 +1716,7 @@ pub unsafe extern "C" fn nvim_buf_call(
     buf: Buffer,
     fn_ref: LuaRef,
     _lstate: *mut lua_State,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -1724,7 +1724,7 @@ pub unsafe extern "C" fn nvim_buf_call(
             return OBJECT_NIL;
         }
 
-        try_wrap(err, || {
+        try_wrap_err(err, |err| {
             let mut cs: CtxSwitch = CtxSwitch::new();
             ctx_switch(&mut cs, ptr::null_mut(), ptr::null_mut(), b.cast(), 0);
 
@@ -1748,7 +1748,7 @@ pub unsafe extern "C" fn nvim_buf_call(
 /// @nodoc
 // DLLEXPORT Dict nvim__buf_stats(Buffer buf, Arena *arena, Error *err);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim__buf_stats(buf: Buffer, arena: *mut Arena, err: *mut Error) -> Dict {
+pub unsafe extern "C" fn nvim__buf_stats(buf: Buffer, arena: *mut Arena, err: &mut Error) -> Dict {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
         if b.is_null() {

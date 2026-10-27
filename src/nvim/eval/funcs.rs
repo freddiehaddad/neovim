@@ -1341,19 +1341,19 @@ pub unsafe fn api_wrapper(argvars: *mut typval_T, rettv: &mut typval_T, fptr: Ev
 
         let mut err = Error::new();
         let fn_ptr = handler.r#fn.unwrap();
-        let mut result = fn_ptr(VIML_INTERNAL_CALL, args, &raw mut arena, &raw mut err);
+        let mut result = fn_ptr(VIML_INTERNAL_CALL, args, &raw mut arena, &mut err);
 
         if err.err_type != ErrorType::kErrorTypeNone {
             semsg_multiline!(c"emsg".as_ptr(), e_api_error.as_ptr(), err.msg_ptr());
         } else {
-            object_to_vim_take_luaref(&raw mut result, rettv, true, &raw mut err);
+            object_to_vim_take_luaref(&raw mut result, rettv, true, &mut err);
         }
 
         if handler.ret_alloc {
             api_free_object(result);
         }
         arena_mem_free(arena_finish(&raw mut arena));
-        api_clear_error(&raw mut err);
+        api_clear_error(&mut err);
     }
 }
 
@@ -1400,17 +1400,17 @@ pub unsafe fn lua_wrapper(argvars: *mut typval_T, rettv: &mut typval_T, fptr: Ev
             args,
             kRetObject,
             &raw mut arena,
-            &raw mut err,
+            &mut err,
         );
 
         if err.err_type != ErrorType::kErrorTypeNone {
             semsg_multiline!(c"emsg".as_ptr(), e_api_error.as_ptr(), err.msg_ptr());
         } else {
-            object_to_vim_take_luaref(&raw mut result, rettv, true, &raw mut err);
+            object_to_vim_take_luaref(&raw mut result, rettv, true, &mut err);
         }
 
         arena_mem_free(arena_finish(&raw mut arena));
-        api_clear_error(&raw mut err);
+        api_clear_error(&mut err);
     }
 }
 
@@ -1427,7 +1427,7 @@ pub unsafe fn f_abs(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFun
             }
         } else {
             let mut error = false;
-            let n = tv_get_number_chk(argvars, &raw mut error);
+            let n = tv_get_number_chk(argvars, &mut error);
             if error {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
             } else if n > 0 {
@@ -1450,7 +1450,7 @@ pub unsafe fn f_and(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFun
 /// "api_info()" function
 pub unsafe fn f_api_info(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        object_to_vim(api_metadata(), rettv, ptr::null_mut());
+        object_to_vim(api_metadata(), rettv, &mut crate::api::private::validate::Error::new());
     }
 }
 
@@ -1660,7 +1660,7 @@ pub unsafe fn f_chanclose(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
         rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(channel_close(
             (*argvars).vval.v_number() as u64,
             part,
-            &raw mut error,
+            &mut error,
         )));
         if rettv.vval.v_number() == 0 {
             emsg(error);
@@ -1712,7 +1712,7 @@ pub unsafe fn f_chansend(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
         };
 
         let mut error: *const c_char = ptr::null();
-        rettv.vval = crate::eval::typval::TypvalVval::Number(channel_send(id, input, &raw mut error) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(channel_send(id, input, &mut error) as varnumber_T);
         if !error.is_null() {
             emsg(error);
         }
@@ -1827,7 +1827,7 @@ pub unsafe fn f_confirm(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
                 error = true;
             }
             if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-                def = tv_get_number_chk(argvars.add(2), &raw mut error) as c_int;
+                def = tv_get_number_chk(argvars.add(2), &mut error) as c_int;
                 if (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN {
                     let typestr = tv_get_string_buf_chk(argvars.add(3), buf2.as_mut_ptr());
                     if typestr.is_null() {
@@ -2351,7 +2351,7 @@ pub unsafe fn f_expand(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
         rettv.v_type = VarType::VAR_STRING;
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
             && (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
-            && tv_get_bool_chk(argvars.add(2), &raw mut error) != 0
+            && tv_get_bool_chk(argvars.add(2), &mut error) != 0
             && !error
         {
             tv_list_set_ret(rettv, ptr::null_mut());
@@ -2369,7 +2369,7 @@ pub unsafe fn f_expand(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
                 s,
                 &raw mut len,
                 ptr::null_mut(),
-                &raw mut errormsg,
+                &mut errormsg,
                 ptr::null_mut(),
                 false,
             );
@@ -2390,7 +2390,7 @@ pub unsafe fn f_expand(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
             }
         } else {
             if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
-                && tv_get_bool_chk(argvars.add(1), &raw mut error) != 0
+                && tv_get_bool_chk(argvars.add(1), &mut error) != 0
             {
                 options |= WILD_KEEP_ALL;
             }
@@ -2484,7 +2484,7 @@ pub unsafe fn f_expandcmd(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
         if emsgoff {
             g_st().emsg_off += 1;
         }
-        if expand_filename(&raw mut eap, &raw mut cmdstr, &raw mut errormsg) == FAIL
+        if expand_filename(&raw mut eap, &raw mut cmdstr, &mut errormsg) == FAIL
             && !emsgoff
             && !errormsg.is_null()
             && *errormsg != NUL
@@ -2511,7 +2511,7 @@ unsafe fn flatten_common(argvars: *mut typval_T, rettv: *mut typval_T, make_copy
         let maxdepth: c_int = if (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN {
             999999
         } else {
-            let md = tv_get_number_chk(argvars.add(1), &raw mut error) as c_int;
+            let md = tv_get_number_chk(argvars.add(1), &mut error) as c_int;
             if error {
                 return;
             }
@@ -2834,7 +2834,7 @@ pub unsafe fn f_get(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFun
 
         if (*argvars).v_type == VarType::VAR_BLOB {
             let mut error = false;
-            let mut idx = tv_get_number_chk(argvars.add(1), &raw mut error) as c_int;
+            let mut idx = tv_get_number_chk(argvars.add(1), &mut error) as c_int;
             if !error {
                 let blob = (*argvars).vval.v_blob().cast::<blob_T>();
                 rettv.v_type = VarType::VAR_NUMBER;
@@ -2854,7 +2854,7 @@ pub unsafe fn f_get(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFun
                 let mut error = false;
                 let li = tv_list_find(
                     l,
-                    tv_get_number_chk(argvars.add(1), &raw mut error) as c_int,
+                    tv_get_number_chk(argvars.add(1), &mut error) as c_int,
                 );
                 if !error && !li.is_null() {
                     tv = &raw mut (*li).li_tv;
@@ -3645,9 +3645,9 @@ pub unsafe fn f_getreg(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
             && (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
         {
             let mut error = false;
-            arg2 = tv_get_bool_chk(argvars.add(1), &raw mut error) as c_int;
+            arg2 = tv_get_bool_chk(argvars.add(1), &mut error) as c_int;
             if !error && (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-                return_list = tv_get_bool_chk(argvars.add(2), &raw mut error) != 0;
+                return_list = tv_get_bool_chk(argvars.add(2), &mut error) != 0;
             }
             if error {
                 return;
@@ -3758,7 +3758,7 @@ pub unsafe fn f_wait(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFu
         let mut remaining = i64::from(timeout);
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
         while !(eval_expr_typval(&raw mut expr, false, &raw mut argv, 0, &raw mut exprval) != OK
-            || tv_get_number_chk(&raw const exprval, &raw mut error) != 0
+            || tv_get_number_chk(&raw const exprval, &mut error) != 0
             || g_st().called_emsg > called_emsg_before
             || error
             || g_st().got_int)
@@ -3787,7 +3787,7 @@ pub unsafe fn f_wait(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFu
             g_st().got_int = false;
             vgetc();
             rettv.vval = crate::eval::typval::TypvalVval::Number(-2);
-        } else if tv_get_number_chk(&raw const exprval, &raw mut error) != 0 {
+        } else if tv_get_number_chk(&raw const exprval, &mut error) != 0 {
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
 
@@ -4037,7 +4037,7 @@ unsafe fn has_wsl() -> bool {
                 },
                 kRetNilBool,
                 ptr::null_mut(),
-                &raw mut err,
+                &mut err,
             );
             debug_assert!(err.err_type == ErrorType::kErrorTypeNone);
             funcs_st().HAS_WSL = if luaret_truthy(o) { kTrue } else { kFalse };
@@ -4071,7 +4071,7 @@ pub unsafe fn f_index(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalF
             let mut error = false;
             let mut start: c_int = 0;
             if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-                start = tv_get_number_chk(argvars.add(2), &raw mut error) as c_int;
+                start = tv_get_number_chk(argvars.add(2), &mut error) as c_int;
                 if error {
                     return;
                 }
@@ -4115,7 +4115,7 @@ pub unsafe fn f_index(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalF
             let mut error = false;
             idx = tv_list_uidx(
                 l,
-                tv_get_number_chk(argvars.add(2), &raw mut error) as c_int,
+                tv_get_number_chk(argvars.add(2), &mut error) as c_int,
             );
             if error || idx == -1 {
                 item = ptr::null_mut();
@@ -4124,7 +4124,7 @@ pub unsafe fn f_index(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalF
                 debug_assert!(!item.is_null());
             }
             if (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN {
-                ic = tv_get_bool_chk(argvars.add(3), &raw mut error) != 0;
+                ic = tv_get_bool_chk(argvars.add(3), &mut error) != 0;
                 if error {
                     item = ptr::null_mut();
                 }
@@ -4154,7 +4154,7 @@ unsafe fn indexof_eval_expr(expr: *mut typval_T) -> varnumber_T {
         }
 
         let mut error = false;
-        let found = tv_get_bool_chk(&raw const newtv, &raw mut error);
+        let found = tv_get_bool_chk(&raw const newtv, &mut error);
         tv_clear(&raw mut newtv);
 
         if error { 0 } else { found }
@@ -4918,9 +4918,9 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
                     false,
                     false,
                     ptr::null_mut(),
-                    &raw mut err,
+                    &mut err,
                 );
-                api_clear_error(&raw mut err);
+                api_clear_error(&mut err);
                 dict_set_var(
                     (*buf).b_vars(),
                     cstr_as_string(c"terminal_job_pid".as_ptr()),
@@ -4931,9 +4931,9 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
                     false,
                     false,
                     ptr::null_mut(),
-                    &raw mut err,
+                    &mut err,
                 );
-                api_clear_error(&raw mut err);
+                api_clear_error(&mut err);
                 (*buf).b_locked -= 1;
 
                 if (*ct).term.is_null() || terminal_buf((*ct).term) == 0 {
@@ -4969,7 +4969,7 @@ pub unsafe fn f_jobstop(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
 
         let mut error: *const c_char = ptr::null();
         if (*data).is_rpc {
-            channel_close((*data).id, kChannelPartRpc, &raw mut error);
+            channel_close((*data).id, kChannelPartRpc, &mut error);
         }
         proc_stop(&raw mut (*data).uv.proc_);
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
@@ -5371,7 +5371,7 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
 
             if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
                 let mut error = false;
-                start = tv_get_number_chk(argvars.add(2), &raw mut error);
+                start = tv_get_number_chk(argvars.add(2), &mut error);
                 if error {
                     break 'theend;
                 }
@@ -5397,7 +5397,7 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
                 }
 
                 if (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN {
-                    nth = tv_get_number_chk(argvars.add(3), &raw mut error);
+                    nth = tv_get_number_chk(argvars.add(3), &mut error);
                 }
                 if error {
                     break 'theend;
@@ -5811,7 +5811,7 @@ unsafe fn max_min(tv: *const typval_T, rettv: *mut typval_T, domax: bool) {
             }
             let mut li = tv_list_first((*tv).vval.v_list());
             while !li.is_null() {
-                let i = tv_get_number_chk(&raw const (*li).li_tv, &raw mut error);
+                let i = tv_get_number_chk(&raw const (*li).li_tv, &mut error);
                 if error {
                     return;
                 }
@@ -5832,7 +5832,7 @@ unsafe fn max_min(tv: *const typval_T, rettv: *mut typval_T, domax: bool) {
                 if !crate::hashtab::hashitem_empty(&*hi) {
                     todo -= 1;
                     let di = tv_dict_hi2di(hi);
-                    let i = tv_get_number_chk(&raw const (*di).di_tv, &raw mut error);
+                    let i = tv_get_number_chk(&raw const (*di).di_tv, &mut error);
                     if error {
                         return;
                     }
@@ -6136,7 +6136,7 @@ pub unsafe fn f_nr2char(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
             return;
         }
         let mut error = false;
-        let num = tv_get_number_chk(argvars, &raw mut error);
+        let num = tv_get_number_chk(argvars, &mut error);
         if error {
             return;
         }
@@ -6363,7 +6363,7 @@ pub unsafe fn f_srand(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalF
             init_srand(&raw mut x);
         } else {
             let mut error = false;
-            x = tv_get_number_chk(argvars, &raw mut error) as u32;
+            x = tv_get_number_chk(argvars, &mut error) as u32;
             if error {
                 return;
             }
@@ -6408,14 +6408,14 @@ pub unsafe fn f_range(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalF
         let mut stride: varnumber_T = 1;
         let mut error = false;
 
-        let mut start = tv_get_number_chk(argvars, &raw mut error);
+        let mut start = tv_get_number_chk(argvars, &mut error);
         if (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN {
             end = start - 1;
             start = 0;
         } else {
-            end = tv_get_number_chk(argvars.add(1), &raw mut error);
+            end = tv_get_number_chk(argvars.add(1), &mut error);
             if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-                stride = tv_get_number_chk(argvars.add(2), &raw mut error);
+                stride = tv_get_number_chk(argvars.add(2), &mut error);
             }
         }
 
@@ -6547,8 +6547,8 @@ unsafe fn list2proftime(arg: *mut typval_T, tm: *mut proftime_T) -> c_int {
             return FAIL;
         }
         let mut error = false;
-        let n1 = tv_list_find_nr((*arg).vval.v_list(), 0, &raw mut error);
-        let n2 = tv_list_find_nr((*arg).vval.v_list(), 1, &raw mut error);
+        let n1 = tv_list_find_nr((*arg).vval.v_list(), 0, &mut error);
+        let n2 = tv_list_find_nr((*arg).vval.v_list(), 1, &mut error);
         if error {
             return FAIL;
         }
@@ -7028,7 +7028,7 @@ unsafe fn search_cmn(argvars: *mut typval_T, match_pos: *mut pos_T, flagsp: *mut
                 (**curwin.as_ptr()).w_cursor.col = pos.col;
                 (**curwin.as_ptr()).w_cursor.coladd = pos.coladd;
                 let mut err = false;
-                let do_skip = eval_expr_to_bool(argvars.add(4), &raw mut err);
+                let do_skip = eval_expr_to_bool(argvars.add(4), &mut err);
                 (**curwin.as_ptr()).w_cursor = save_pos;
                 if err {
                     subpatnum = FAIL;
@@ -7223,7 +7223,7 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
         let method = tv_get_string(argvars.add(1));
 
         let mut res_mem: ArenaMem = ptr::null_mut();
-        let result = rpc_send_call(chan_id, method, args, &raw mut res_mem, &raw mut err);
+        let result = rpc_send_call(chan_id, method, args, &raw mut res_mem, &mut err);
         arena_mem_free(arena_finish(&raw mut arena));
 
         if l_provider_call_nesting != 0 {
@@ -7262,11 +7262,11 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
                 );
             }
         } else {
-            object_to_vim(result, rettv, &raw mut err);
+            object_to_vim(result, rettv, &mut err);
         }
 
         arena_mem_free(res_mem);
-        api_clear_error(&raw mut err);
+        api_clear_error(&mut err);
     }
 }
 
@@ -7411,9 +7411,9 @@ pub unsafe fn f_searchdecl(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
 
         let name = tv_get_string_chk(argvars);
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
-            locally = c_int::from(tv_get_bool_chk(argvars.add(1), &raw mut error) == 0);
+            locally = c_int::from(tv_get_bool_chk(argvars.add(1), &mut error) == 0);
             if !error && (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-                thisblock = tv_get_bool_chk(argvars.add(2), &raw mut error) as c_int;
+                thisblock = tv_get_bool_chk(argvars.add(2), &mut error) as c_int;
             }
         }
         if !error && !name.is_null() {
@@ -7648,7 +7648,7 @@ pub unsafe fn do_searchpair(
                 (**curwin.as_ptr()).w_cursor.col = pos.col;
                 (**curwin.as_ptr()).w_cursor.coladd = pos.coladd;
                 let mut err = false;
-                let r = eval_expr_to_bool(skip, &raw mut err);
+                let r = eval_expr_to_bool(skip, &mut err);
                 (**curwin.as_ptr()).w_cursor = save_pos;
                 if err {
                     (**curwin.as_ptr()).w_cursor = save_cursor;
@@ -8317,7 +8317,7 @@ pub unsafe fn f_sockconnect(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
             }
 
             let mut error: *const c_char = ptr::null();
-            let id = channel_connect(tcp, address.as_ptr(), rpc, on_data, 50, &raw mut error);
+            let id = channel_connect(tcp, address.as_ptr(), rpc, on_data, 50, &mut error);
             if !error.is_null() {
                 semsg!(gettext(c"connection failed: %s".as_ptr()), error);
             }
@@ -8355,7 +8355,7 @@ pub unsafe fn f_stdioopen(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
         }
 
         let mut error: *const c_char = ptr::null();
-        let id = channel_from_stdio(rpc, on_stdin, &raw mut error);
+        let id = channel_from_stdio(rpc, on_stdin, &mut error);
         if id == 0 {
             semsg!(e_stdiochan2.as_ptr(), error);
         }
@@ -8762,7 +8762,7 @@ pub unsafe fn f_strptime(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 pub unsafe fn f_submatch(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut error = false;
-        let no = tv_get_number_chk(argvars, &raw mut error) as c_int;
+        let no = tv_get_number_chk(argvars, &mut error) as c_int;
         if error {
             return;
         }
@@ -8772,7 +8772,7 @@ pub unsafe fn f_submatch(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
         }
         let mut ret_list: c_int = 0;
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
-            ret_list = tv_get_bool_chk(argvars.add(1), &raw mut error) as c_int;
+            ret_list = tv_get_bool_chk(argvars.add(1), &mut error) as c_int;
             if error {
                 return;
             }

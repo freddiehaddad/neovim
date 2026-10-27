@@ -296,7 +296,7 @@ pub unsafe extern "C" fn nvim_parse_cmd(
     str_val: NvimString,
     _opts: *mut KeyDict_empty,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> KeyDict_cmd {
     unsafe {
         let mut result = KeyDict_cmd::default();
@@ -624,7 +624,7 @@ pub unsafe extern "C" fn nvim_cmd(
     cmd: *mut KeyDict_cmd,
     opts: *mut KeyDict_cmd_opts,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> NvimString {
     unsafe {
         let mut ea: exarg_T = exarg_T::new();
@@ -1351,7 +1351,7 @@ pub unsafe extern "C" fn nvim_create_user_command(
     name: NvimString,
     cmd: Object,
     opts: *mut KeyDict_user_command,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         create_user_command(channel_id, name, cmd, opts, 0, err);
@@ -1365,7 +1365,7 @@ pub unsafe extern "C" fn nvim_create_user_command(
 // DLLEXPORT void nvim_del_user_command(String name, Error *err)
 //   FUNC_API_SINCE(9);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_del_user_command(name: NvimString, err: *mut Error) {
+pub unsafe extern "C" fn nvim_del_user_command(name: NvimString, err: &mut Error) {
     unsafe {
         nvim_buf_del_user_command(-1, name, err);
     }
@@ -1386,7 +1386,7 @@ pub unsafe extern "C" fn nvim_buf_create_user_command(
     name: NvimString,
     cmd: Object,
     opts: *mut KeyDict_user_command,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let target_buf = find_buffer_by_handle(buf, err);
@@ -1412,7 +1412,7 @@ pub unsafe extern "C" fn nvim_buf_create_user_command(
 // DLLEXPORT void nvim_buf_del_user_command(Buffer buf, String name, Error *err)
 //   FUNC_API_SINCE(9);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_buf_del_user_command(buf: Buffer, name: NvimString, err: *mut Error) {
+pub unsafe extern "C" fn nvim_buf_del_user_command(buf: Buffer, name: NvimString, err: &mut Error) {
     unsafe {
         let gap = if buf == -1 {
             &raw mut (*ucmds_mut())
@@ -1450,7 +1450,7 @@ pub unsafe fn create_user_command(
     cmd: Object,
     opts: *mut KeyDict_user_command,
     flags: c_int,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let mut argt: u32 = 0;
@@ -1776,7 +1776,7 @@ pub unsafe fn create_user_command(
 pub unsafe extern "C" fn nvim_get_commands(
     opts: *mut KeyDict_get_commands,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Dict {
     unsafe { nvim_buf_get_commands(-1, opts, arena, err) }
 }
@@ -1796,7 +1796,7 @@ pub unsafe extern "C" fn nvim_buf_get_commands(
     buf: Buffer,
     opts: *mut KeyDict_get_commands,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Dict {
     unsafe {
         let global = buf == -1;

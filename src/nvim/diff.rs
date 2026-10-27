@@ -2387,7 +2387,7 @@ unsafe fn parse_diffanchors(
                 true,
                 0,
                 1,
-                &raw mut errormsg,
+                &mut errormsg,
             );
             g_st().curbuf = orig_curbuf;
             *curwin.as_ptr() = orig_curwin;

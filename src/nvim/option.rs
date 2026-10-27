@@ -2040,7 +2040,7 @@ unsafe fn do_one_set_option(
         let varp = get_varp_scope(opt, opt_flags);
 
         let mut errmsg: *const c_char = ptr::null();
-        if validate_opt_idx(*curwin.as_ptr(), opt_idx, opt_flags, flags, prefix, &raw mut errmsg) == FAIL {
+        if validate_opt_idx(*curwin.as_ptr(), opt_idx, opt_flags, flags, prefix, &mut errmsg) == FAIL {
             return errmsg;
         }
 
@@ -2124,7 +2124,7 @@ unsafe fn do_one_set_option(
             op,
             varp,
             ptr::null_mut(),
-            &raw mut errmsg,
+            &mut errmsg,
         );
 
         if newval.obj_type == ObjectType::kObjectTypeNil || !errmsg.is_null() {
@@ -6207,7 +6207,7 @@ unsafe fn switch_option_context(
     ctx: &mut OptSavedCtx,
     scope: OptScope,
     from: OptTarget,
-    err: *mut Error,
+    err: &mut Error,
 ) -> bool {
     unsafe {
         match scope {
@@ -6291,7 +6291,7 @@ pub unsafe fn get_option_value_for(
     opt_flags: c_int,
     scope: OptScope,
     from: OptTarget,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let mut ctx = OptSavedCtx::None;
@@ -6319,7 +6319,7 @@ pub unsafe fn set_option_value_for(
     scope: OptScope,
     from: OptTarget,
     value_replaced: bool,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         if let (kOptScopeTab, OptTarget::Tab(tab)) = (scope, from)
@@ -8757,7 +8757,7 @@ pub unsafe fn get_option_info(
     buf: *mut buf_T,
     win: *mut win_T,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Dict {
     unsafe {
         let opt_idx = find_option_len(name.data, name.size);

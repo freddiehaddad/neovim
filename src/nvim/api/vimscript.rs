@@ -103,7 +103,7 @@ pub unsafe extern "C" fn nvim_exec2(
     channel_id: u64,
     src: NvimString,
     opts: *mut KeyDict_exec_opts,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Dict {
     unsafe {
         let mut result = Dict::new();
@@ -126,7 +126,7 @@ pub unsafe fn exec_impl(
     channel_id: u64,
     src: NvimString,
     opts: *mut KeyDict_exec_opts,
-    err: *mut Error,
+    err: &mut Error,
 ) -> NvimString {
     unsafe {
         let save_msg_silent = g_st().msg_silent;
@@ -184,7 +184,7 @@ pub unsafe fn exec_impl(
 /// @param[out] err Error details (Vim error), if any
 // DLLEXPORT void nvim_command(String cmd, Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_command(cmd: NvimString, err: *mut Error) {
+pub unsafe extern "C" fn nvim_command(cmd: NvimString, err: &mut Error) {
     unsafe {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
@@ -202,7 +202,7 @@ pub unsafe extern "C" fn nvim_command(cmd: NvimString, err: *mut Error) {
 /// @return         Evaluation result or expanded object
 // DLLEXPORT Object nvim_eval(String expr, Arena *arena, Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_eval(expr: NvimString, arena: *mut Arena, err: *mut Error) -> Object {
+pub unsafe extern "C" fn nvim_eval(expr: NvimString, arena: *mut Arena, err: &mut Error) -> Object {
     unsafe {
         let mut rv = nil_obj();
 
@@ -256,7 +256,7 @@ unsafe fn call_function_impl(
     args: Array,
     self_dict: *mut dict_T,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let mut rv = nil_obj();
@@ -345,7 +345,7 @@ pub unsafe extern "C" fn nvim_call_function(
     fn_name: NvimString,
     args: Array,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe { call_function_impl(channel_id, fn_name, args, std::ptr::null_mut(), arena, err) }
 }
@@ -368,7 +368,7 @@ pub unsafe extern "C" fn nvim_call_dict_function(
     mut fn_name: NvimString,
     args: Array,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let mut rv = nil_obj();
@@ -564,7 +564,7 @@ pub unsafe extern "C" fn nvim_parse_expression(
     flags: NvimString,
     hl: Boolean,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Dict {
     unsafe {
         let mut pflags: c_int = 0;

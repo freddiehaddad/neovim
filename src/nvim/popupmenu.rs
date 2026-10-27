@@ -814,11 +814,11 @@ pub unsafe fn pum_redraw() {
 
         if border_width > 0 {
             let mut err = Error::new();
-            if !parse_winborder(&raw mut fconfig, opt_vars().p_pumborder, &raw mut err) {
+            if !parse_winborder(&raw mut fconfig, opt_vars().p_pumborder, &mut err) {
                 if err.err_type != ErrorType::kErrorTypeNone {
                     emsg(err.msg_ptr());
                 }
-                api_clear_error(&raw mut err);
+                api_clear_error(&mut err);
                 return;
             }
 
@@ -840,7 +840,7 @@ pub unsafe fn pum_redraw() {
                 }
                 fconfig.border_attr[i] = attr;
             }
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
             if pum().scrollbar != 0 {
                 border_char = schar_from_str(fconfig.border_chars[3].as_ptr());
                 border_attr = fconfig.border_attr[3];
@@ -1240,12 +1240,12 @@ unsafe fn pum_preview_set_text(
             false,
             replacement,
             &raw mut arena,
-            &raw mut err,
+            &mut err,
         );
         g_st().textlock = original_textlock;
         if err.err_type != ErrorType::kErrorTypeNone {
             emsg(err.msg_ptr());
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
         }
         arena_mem_free(arena_finish(&raw mut arena));
         api_free_array(replacement);

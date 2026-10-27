@@ -397,7 +397,7 @@ pub unsafe extern "C" fn nvim_buf_get_extmark_by_id(
     id: Integer,
     opts: *mut KeyDict_get_extmark,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Array {
     unsafe {
         let rv = Array::new();
@@ -499,7 +499,7 @@ pub unsafe extern "C" fn nvim_buf_get_extmarks(
     end: Object,
     opts: *mut KeyDict_get_extmarks,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Array {
     unsafe {
         let mut rv = Array::new();
@@ -734,7 +734,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
     mut line: Integer,
     mut col: Integer,
     opts: *mut KeyDict_set_extmark,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Integer {
     unsafe {
         let mut hl = DECOR_HIGHLIGHT_INLINE_INIT;
@@ -1360,7 +1360,7 @@ pub unsafe extern "C" fn nvim_buf_del_extmark(
     buf: Buffer,
     ns_id: Integer,
     id: Integer,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Boolean {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -1396,7 +1396,7 @@ pub unsafe extern "C" fn nvim_buf_clear_namespace(
     ns_id: Integer,
     line_start: Integer,
     mut line_end: Integer,
-    err: *mut Error,
+    err: &mut Error,
 ) {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -1498,7 +1498,7 @@ pub unsafe extern "C" fn nvim_buf_clear_namespace(
 pub unsafe extern "C" fn nvim_set_decoration_provider(
     ns_id: Integer,
     opts: *mut KeyDict_set_decoration_provider,
-    _err: *mut Error,
+    _err: &mut Error,
 ) {
     unsafe {
         let p = get_decor_provider(ns_id as NS, true);
@@ -1541,7 +1541,7 @@ unsafe fn extmark_get_index_from_obj(
     obj: Object,
     row: *mut c_int,
     col: *mut colnr_T,
-    err: *mut Error,
+    err: &mut Error,
 ) -> bool {
     unsafe {
         if obj.obj_type == ObjectType::kObjectTypeInteger {
@@ -1602,7 +1602,7 @@ unsafe fn extmark_get_index_from_obj(
 // DLLEXPORT VirtText parse_virt_text(Array chunks, Error *err, int *width, bool untab);
 pub unsafe fn parse_virt_text(
     chunks: Array,
-    err: *mut Error,
+    err: &mut Error,
     width: *mut c_int,
     untab: bool,
 ) -> VirtText {
@@ -1698,7 +1698,7 @@ pub unsafe extern "C" fn nvim__buf_debug_extmarks(
     buf: Buffer,
     keys: Boolean,
     dot: Boolean,
-    err: *mut Error,
+    err: &mut Error,
 ) -> NvimString {
     unsafe {
         let b = find_buffer_by_handle(buf, err);
@@ -1720,7 +1720,7 @@ pub unsafe extern "C" fn nvim__buf_debug_extmarks(
 ///
 // DLLEXPORT void nvim__ns_set(Integer ns_id, Dict(ns_opts) *opts, Error *err);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim__ns_set(ns_id: Integer, opts: *mut KeyDict_ns_opts, err: *mut Error) {
+pub unsafe extern "C" fn nvim__ns_set(ns_id: Integer, opts: *mut KeyDict_ns_opts, err: &mut Error) {
     unsafe {
         if !ns_initialized(ns_id as u32) {
             api_err_invalid(err, c"ns_id".as_ptr(), ptr::null(), ns_id, false);
@@ -1804,7 +1804,7 @@ pub unsafe extern "C" fn nvim__ns_set(ns_id: Integer, opts: *mut KeyDict_ns_opts
 pub unsafe extern "C" fn nvim__ns_get(
     ns_id: Integer,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> KeyDict_ns_opts {
     unsafe {
         let mut opts = KeyDict_ns_opts {

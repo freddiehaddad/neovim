@@ -1209,7 +1209,7 @@ pub unsafe fn set_info_event(chan: *mut Channel, event: event_T) {
                 data: ObjectData::Dict(info),
             },
             &raw mut retval,
-            ptr::null_mut(),
+            &mut crate::api::private::validate::Error::new(),
         );
         assert_eq!(retval.v_type, VarType::VAR_DICT);
         let _ = tv_dict_add_dict(dict, c"info".as_ptr(), 4, retval.vval.v_dict());

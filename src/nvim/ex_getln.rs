@@ -1146,7 +1146,7 @@ unsafe fn command_line_enter(
                     g_st().curbuf,
                 );
                 restore_v_event(dict, &raw mut save_v_event);
-                try_leave(&raw const tstate, &raw mut err);
+                try_leave(&raw const tstate, &mut err);
 
                 if error_set(&err) {
                     if !ui_has(kUIMessages) {
@@ -1154,7 +1154,7 @@ unsafe fn command_line_enter(
                     }
                     g_st().msg_scroll = 1;
                     msg_puts_hl(err.msg_ptr(), HLF_E, true);
-                    api_clear_error(&raw mut err);
+                    api_clear_error(&mut err);
                     redrawcmd();
                 }
                 err = error_init();
@@ -1237,7 +1237,7 @@ unsafe fn command_line_enter(
                     false,
                     g_st().curbuf,
                 );
-                try_leave(&raw const tstate, &raw mut err);
+                try_leave(&raw const tstate, &mut err);
                 if tv_dict_get_number(dict, c"abort".as_ptr()) != 0 {
                     (*s).gotesc = true;
                 }
@@ -1310,7 +1310,7 @@ unsafe fn command_line_enter(
                 }
                 emsg(err.msg_ptr());
                 g_st().did_emsg = 0;
-                api_clear_error(&raw mut err);
+                api_clear_error(&mut err);
             }
 
             if (*s).some_key_typed && !error_set(&err) {
@@ -2951,7 +2951,7 @@ unsafe fn cmdpreview_open_buf() -> *mut buf_T {
 
         if cmdpreview_buf.is_null() {
             let mut err = error_init();
-            let bufnr = nvim_create_buf(false, true, &raw mut err);
+            let bufnr = nvim_create_buf(false, true, &mut err);
 
             if error_set(&err) {
                 return ptr::null_mut();
@@ -3018,9 +3018,9 @@ unsafe fn cmdpreview_open_win(cmdpreview_buf: *mut buf_T) -> *mut win_T {
             (*cmdpreview_buf).b_fnum,
             0,
         );
-        try_leave(&raw const tstate, &raw mut err);
+        try_leave(&raw const tstate, &mut err);
         if error_set(&err) || result == FAIL {
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
             return ptr::null_mut();
         }
 
@@ -3163,7 +3163,7 @@ unsafe fn cmdpreview_may_show(_s: *mut CommandLineState) -> bool {
             &raw mut cmdline_vec,
             &raw mut ea,
             &raw mut cmod,
-            &raw mut errormsg,
+            &mut errormsg,
             false,
         );
         g_st().emsg_off -= 1;
@@ -3218,9 +3218,9 @@ unsafe fn cmdpreview_may_show(_s: *mut CommandLineState) -> bool {
         let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         cmdpreview_type = execute_cmd(&raw mut ea, &raw mut cmod, true);
-        try_leave(&raw const tstate, &raw mut err);
+        try_leave(&raw const tstate, &mut err);
         if error_set(&err) {
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
             cmdpreview_type = 0;
         }
 
@@ -3277,14 +3277,14 @@ unsafe fn do_autocmd_cmdlinechanged(firstc: c_int) {
                 g_st().curbuf,
             );
             restore_v_event(dict, &raw mut save_v_event);
-            try_leave(&raw const tstate, &raw mut err);
+            try_leave(&raw const tstate, &mut err);
             if error_set(&err) {
                 if !ui_has(kUIMessages) {
                     msg_putchar(b'\n' as c_int);
                 }
                 g_st().msg_scroll = 1;
                 msg_puts_hl(err.msg_ptr(), HLF_E, true);
-                api_clear_error(&raw mut err);
+                api_clear_error(&mut err);
                 redrawcmd();
             }
         }
@@ -3803,7 +3803,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                         18,
                         &raw mut color_cb,
                     );
-                    try_leave(&raw const tstate, &raw mut err);
+                    try_leave(&raw const tstate, &mut err);
                     can_free_cb = true;
                 } else if (*colored_ccline).cmdfirstc == b'=' as c_int {
                     color_expr_cmdline(colored_ccline, ccline_colors);
@@ -3841,7 +3841,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                 if g_st().got_int {
                     getln_st().getln_interrupted_highlight = true;
                 }
-                try_leave(&raw const tstate, &raw mut err);
+                try_leave(&raw const tstate, &mut err);
                 if error_set(&err) || !cbcall_ret {
                     break 'color_cmdline_error;
                 }
@@ -3891,7 +3891,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                     }
                     let mut error = false;
                     let first_li = tv_list_first(l);
-                    let start = tv_get_number_chk(&raw const (*first_li).li_tv, &raw mut error);
+                    let start = tv_get_number_chk(&raw const (*first_li).li_tv, &mut error);
                     if error {
                         break 'color_cmdline_error;
                     } else if !(prev_end <= start
@@ -3934,7 +3934,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                         });
                     }
                     let second_li = (*first_li).li_next;
-                    let end = tv_get_number_chk(&raw const (*second_li).li_tv, &raw mut error);
+                    let end = tv_get_number_chk(&raw const (*second_li).li_tv, &mut error);
                     if error {
                         break 'color_cmdline_error;
                     } else if !(start < end && end <= (*colored_ccline).cmdlen as varnumber_T) {
@@ -3999,7 +3999,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                 msg_putchar(b'\n' as c_int);
                 smsg!(HLF_E, gettext(err_errmsg), err.msg_ptr());
                 printed_errmsg = true;
-                api_clear_error(&raw mut err);
+                api_clear_error(&mut err);
             }
             let _ = printed_errmsg;
 
@@ -5014,7 +5014,7 @@ pub unsafe fn f_setcmdline(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
             let mut error = false;
 
-            pos = (tv_get_number_chk(argvars.add(1), &raw mut error) - 1) as c_int;
+            pos = (tv_get_number_chk(argvars.add(1), &mut error) - 1) as c_int;
             if error {
                 return;
             }

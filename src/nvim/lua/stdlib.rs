@@ -326,14 +326,14 @@ pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> c_int {
         let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         let prog = vim_regcomp(text, RE_AUTO | RE_MAGIC | RE_STRICT | RE_NOBREAK);
-        try_leave(&raw const tstate, &raw mut err);
+        try_leave(&raw const tstate, &mut err);
 
         if err.err_type != ErrorType::kErrorTypeNone {
             luaL_where(lstate, 1);
             lua_pushlstring(lstate, b"couldn't parse regex: ".as_ptr().cast(), 22);
             lua_pushstring(lstate, err.msg_ptr());
             lua_concat(lstate, 3);
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
             return lua_error(lstate);
         } else if prog.is_null() {
             luaL_where(lstate, 1);
@@ -362,19 +362,19 @@ unsafe fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut dict_T {
             b"g" => dict = get_globvar_dict(),
             b"v" => dict = get_vimvar_dict(),
             b"b" => {
-                let buf = find_buffer_by_handle(handle, &raw mut err);
+                let buf = find_buffer_by_handle(handle, &mut err);
                 if !buf.is_null() {
                     dict = (*buf).b_vars();
                 }
             }
             b"w" => {
-                let win = find_window_by_handle(handle, &raw mut err);
+                let win = find_window_by_handle(handle, &mut err);
                 if !win.is_null() {
                     dict = (*win).w_vars();
                 }
             }
             b"t" => {
-                let tabpage = find_tab_by_handle(handle, &raw mut err);
+                let tabpage = find_tab_by_handle(handle, &mut err);
                 if !tabpage.is_null() {
                     dict = (*tabpage).tp_vars();
                 }
@@ -390,7 +390,7 @@ unsafe fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut dict_T {
             lua_pushlstring(lstate, b"scoped variable: ".as_ptr().cast(), 17);
             lua_pushstring(lstate, err.msg_ptr());
             lua_concat(lstate, 3);
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
             lua_error(lstate);
             return ptr::null_mut();
         }
@@ -411,12 +411,12 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
         let del = lua_gettop(lstate) < 4 || lua_isnil(lstate, 4);
 
         let mut err = Error::new();
-        let mut di = dict_check_writable(dict, key, del, &raw mut err);
+        let mut di = dict_check_writable(dict, key, del, &mut err);
         if err.err_type != ErrorType::kErrorTypeNone {
             luaL_where(lstate, 1);
             lua_pushstring(lstate, err.msg_ptr());
             lua_concat(lstate, 2);
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
             lua_error(lstate);
             return 0;
         }
@@ -707,7 +707,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
 
             ctx_restore(&raw mut cs);
         }
-        try_leave(&raw const tstate, &raw mut err);
+        try_leave(&raw const tstate, &mut err);
 
         undo_cmdmod(&raw mut g_st().cmdmod);
         g_st().cmdmod = save_cmdmod;
@@ -721,7 +721,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
             luaL_where(lstate, 1);
             lua_pushstring(lstate, err.msg_ptr());
             lua_concat(lstate, 2);
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
             return lua_error(lstate);
         }
 

@@ -665,7 +665,7 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
                 }
 
                 if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-                    count = tv_get_number_chk(argvars.add(2), &raw mut error) as c_int;
+                    count = tv_get_number_chk(argvars.add(2), &mut error) as c_int;
                 }
             }
         }
@@ -871,10 +871,10 @@ unsafe fn getcwd_scope_args(
             }
             if argv[kBufArg] > 0 {
                 let mut err = Error::new();
-                *buf = find_buffer_by_handle(argv[kBufArg], &raw mut err);
+                *buf = find_buffer_by_handle(argv[kBufArg], &mut err);
                 if err.err_type != ErrorType::kErrorTypeNone {
                     emsg(gettext(c"E5007: Cannot find buffer number.".as_ptr()));
-                    crate::api::private::helpers::api_clear_error(&raw mut err);
+                    crate::api::private::helpers::api_clear_error(&mut err);
                     return false;
                 }
             }
@@ -1087,15 +1087,15 @@ pub unsafe fn f_glob(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFu
         // for 'wildignore' and don't put matches for 'suffixes' at the end.
         rettv.v_type = VarType::VAR_STRING;
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
-            if tv_get_bool_chk(argvars.add(1), &raw mut error) != 0 {
+            if tv_get_bool_chk(argvars.add(1), &mut error) != 0 {
                 options |= WILD_KEEP_ALL;
             }
             if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-                if tv_get_bool_chk(argvars.add(2), &raw mut error) != 0 {
+                if tv_get_bool_chk(argvars.add(2), &mut error) != 0 {
                     tv_list_set_ret(rettv, ptr::null_mut());
                 }
                 if (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN
-                    && tv_get_bool_chk(argvars.add(3), &raw mut error) != 0
+                    && tv_get_bool_chk(argvars.add(3), &mut error) != 0
                 {
                     options |= WILD_ALLLINKS;
                 }
@@ -1153,16 +1153,16 @@ pub unsafe fn f_globpath(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
             // When the optional second argument is non-zero, don't remove matches
             // for 'wildignore' and don't put matches for 'suffixes' at the end.
-            if tv_get_bool_chk(argvars.add(2), &raw mut error) != 0 {
+            if tv_get_bool_chk(argvars.add(2), &mut error) != 0 {
                 flags |= WILD_KEEP_ALL;
             }
 
             if (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN {
-                if tv_get_bool_chk(argvars.add(3), &raw mut error) != 0 {
+                if tv_get_bool_chk(argvars.add(3), &mut error) != 0 {
                     tv_list_set_ret(rettv, ptr::null_mut());
                 }
                 if (*argvars.add(4)).v_type != VarType::VAR_UNKNOWN
-                    && tv_get_bool_chk(argvars.add(4), &raw mut error) != 0
+                    && tv_get_bool_chk(argvars.add(4), &mut error) != 0
                 {
                     flags |= WILD_ALLLINKS;
                 }
@@ -1404,7 +1404,7 @@ pub(crate) unsafe fn readdir_checkitem(expr: *mut typval_T, name: *const c_char)
 
         let mut rettv = tv_init;
         if eval_expr_typval(expr, false, argv.as_mut_ptr(), 1, &raw mut rettv) != FAIL {
-            retval = tv_get_number_chk(&raw const rettv, &raw mut error);
+            retval = tv_get_number_chk(&raw const rettv, &mut error);
             if error {
                 retval = -1;
             }

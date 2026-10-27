@@ -449,7 +449,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
         if g_st().embedded_mode && stdio_rpc {
             let mut err: *const c_char = ptr::null();
             let on_data = CallbackReader::none();
-            if channel_from_stdio(true, on_data, &raw mut err) == 0 {
+            if channel_from_stdio(true, on_data, &mut err) == 0 {
                 std::process::abort();
             }
         }
@@ -1129,7 +1129,7 @@ unsafe fn server_connect(server_addr: *const c_char, errmsg: *mut *const c_char)
         let on_data = CallbackReader::none();
         let mut error: *const c_char = ptr::null();
         let is_tcp = !socket_address_tcp_host_end(server_addr).is_null();
-        let chan = channel_connect(is_tcp, server_addr, true, on_data, 500, &raw mut error);
+        let chan = channel_connect(is_tcp, server_addr, true, on_data, 500, &mut error);
         if !error.is_null() {
             *errmsg = error;
             return 0;
@@ -1226,7 +1226,7 @@ unsafe fn remote_request(
             data: c"return vim._cs_remote(...)".as_ptr().cast_mut(),
             size: 26,
         };
-        let o = nlua_exec(s, ptr::null(), a, kRetObject, ptr::null_mut(), &raw mut err);
+        let o = nlua_exec(s, ptr::null(), a, kRetObject, ptr::null_mut(), &mut err);
         drop(args_vec);
         if err.err_type != ErrorType::kErrorTypeNone {
             fprintf!(stderr, c"%s\n".as_ptr(), err.msg_ptr());

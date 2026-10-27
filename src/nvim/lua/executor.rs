@@ -824,11 +824,11 @@ unsafe extern "C-unwind" fn nlua_thr_api_nvim__get_runtime(lstate: *mut lua_Stat
         lua_pop(lstate, 1);
 
         let mut err = Error::new();
-        let pat = nlua_pop_Array(lstate, ptr::null_mut(), &raw mut err);
-        if error_set(&raw const err) {
+        let pat = nlua_pop_Array(lstate, ptr::null_mut(), &mut err);
+        if error_set(&err) {
             luaL_where(lstate, 1);
             lua_pushstring(lstate, err.msg_ptr());
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
             lua_concat(lstate, 2);
             return lua_error(lstate);
         }
@@ -1449,7 +1449,7 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
             lua_pushvalue(lstate, -1);
             lua_pushvalue(lstate, curargidx);
             if lua_pcall(lstate, 1, 1, 0) != 0 || lua_type(lstate, -1) != LUA_TSTRING {
-                let errmsg = nlua_get_error(lstate, &raw mut errmsg_len);
+                let errmsg = nlua_get_error(lstate, &mut errmsg_len);
                 drop(msg_vec);
                 let mut buff = [0 as c_char; IOSIZE];
                 let fmt = gettext(c"E5114: Converting print argument #%i: %.*s".as_ptr());
@@ -1682,7 +1682,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             lua_pushvalue(lstate, (i as c_int) + 2);
             if !nlua_pop_typval(lstate, &raw mut vim_args[i]) {
                 api_set_error!(
-                    &raw mut err,
+                    &mut err,
                     ErrorType::kErrorTypeException,
                     c"error converting argument %d".as_ptr(),
                     (i + 1) as c_int,
@@ -1716,10 +1716,10 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
                 vim_args.as_mut_ptr(),
                 &raw mut funcexe,
             );
-            try_leave(&raw const tstate, &raw mut err);
+            try_leave(&raw const tstate, &mut err);
             g_st().current_sctx = save_current_sctx;
 
-            if !error_set(&raw const err) {
+            if !error_set(&err) {
                 nlua_push_typval(lstate, &raw mut rettv, 0);
             }
             tv_clear(&raw mut rettv);
@@ -1729,9 +1729,9 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             i -= 1;
             tv_clear(&raw mut vim_args[i]);
         }
-        if error_set(&raw const err) {
+        if error_set(&err) {
             lua_pushstring(lstate, err.msg_ptr());
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
             return lua_error(lstate);
         }
         1
@@ -1771,19 +1771,19 @@ unsafe fn nlua_rpc(lstate: *mut lua_State, request: bool) -> c_int {
         let mut args = arena_array(&raw mut arena, nargs.max(0) as usize);
         for i in 0..nargs {
             lua_pushvalue(lstate, i + 3);
-            let obj = nlua_pop_Object(lstate, false, &raw mut arena, &raw mut err);
+            let obj = nlua_pop_Object(lstate, false, &raw mut arena, &mut err);
             *args.items.add(args.size) = obj;
             args.size += 1;
-            if error_set(&raw const err) {
+            if error_set(&err) {
                 break;
             }
         }
 
-        if !error_set(&raw const err) {
+        if !error_set(&err) {
             if request {
                 let mut res_mem: ArenaMem = ptr::null_mut();
-                let mut result = rpc_send_call(chan_id, name, args, &raw mut res_mem, &raw mut err);
-                if !error_set(&raw const err) {
+                let mut result = rpc_send_call(chan_id, name, args, &raw mut res_mem, &mut err);
+                if !error_set(&err) {
                     nlua_push_Object(lstate, &raw mut result, 0);
                     arena_mem_free(res_mem);
                 }
@@ -1791,7 +1791,7 @@ unsafe fn nlua_rpc(lstate: *mut lua_State, request: bool) -> c_int {
                 let mut mbuf = [0u8; 64];
                 let _ = write!(&mut mbuf[..], "Invalid channel: {chan_id}\0");
                 api_set_error!(
-                    &raw mut err,
+                    &mut err,
                     ErrorType::kErrorTypeValidation,
                     c"%s".as_ptr(),
                     mbuf.as_ptr().cast::<c_char>(),
@@ -1801,9 +1801,9 @@ unsafe fn nlua_rpc(lstate: *mut lua_State, request: bool) -> c_int {
 
         arena_mem_free(arena_finish(&raw mut arena));
 
-        if error_set(&raw const err) {
+        if error_set(&err) {
             lua_pushstring(lstate, err.msg_ptr());
-            api_clear_error(&raw mut err);
+            api_clear_error(&mut err);
             return lua_error(lstate);
         }
 
@@ -2073,7 +2073,7 @@ pub unsafe fn nlua_exec(
     args: Array,
     mode: LuaRetMode,
     arena: *mut Arena,
-    err: *mut Error,
+    err: &mut Error,
 ) -> Object {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
@@ -2300,7 +2300,7 @@ unsafe fn nlua_call_pop_retval(
                 for i in 0..(nres as usize) {
                     *res.items.add((nres as usize) - i - 1) =
                         nlua_pop_Object(lstate, false, arena, perr);
-                    if error_set(perr) {
+                    if error_set(&*perr) {
                         return OBJECT_NIL;
                     }
                 }
@@ -2556,11 +2556,11 @@ pub unsafe fn nlua_expand_pat(xp: &mut expand_T) {
             pos: 0,
             size: 0,
         };
-        let prefix_len = nlua_pop_Integer(lstate, &raw mut arena, &raw mut err) as isize;
+        let prefix_len = nlua_pop_Integer(lstate, &raw mut arena, &mut err) as isize;
         let er = &raw mut nlua_st().EXPAND_RESULT_ARRAY;
-        if !error_set(&raw const err) && prefix_len <= patlen {
-            let completions = nlua_pop_Array(lstate, &raw mut arena, &raw mut err);
-            if !error_set(&raw const err) {
+        if !error_set(&err) && prefix_len <= patlen {
+            let completions = nlua_pop_Array(lstate, &raw mut arena, &mut err);
+            if !error_set(&err) {
                 *er = Vec::with_capacity(completions.size);
 
                 let mut all_strings = true;
@@ -2909,11 +2909,11 @@ pub unsafe fn nlua_func_exists(lua_funcname: *const c_char) -> bool {
             args,
             kRetNilBool,
             ptr::null_mut(),
-            &raw mut err,
+            &mut err,
         );
         drop(str_cstr);
 
-        api_clear_error(&raw mut err);
+        api_clear_error(&mut err);
         result.obj_type == ObjectType::kObjectTypeBoolean && result.data.boolean()
     }
 }

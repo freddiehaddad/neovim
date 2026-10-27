@@ -3073,14 +3073,14 @@ pub unsafe fn f_searchcount(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
             let dict: *mut dict_T = (*argvars.add(0)).vval.v_dict();
             let mut di: *mut dictitem_T = tv_dict_find(dict, c"timeout".as_ptr(), -1);
             if !di.is_null() {
-                timeout = tv_get_number_chk(&raw const (*di).di_tv, &raw mut error) as c_int;
+                timeout = tv_get_number_chk(&raw const (*di).di_tv, &mut error) as c_int;
                 if error {
                     return;
                 }
             }
             di = tv_dict_find(dict, c"maxcount".as_ptr(), -1);
             if !di.is_null() {
-                maxcount = tv_get_number_chk(&raw const (*di).di_tv, &raw mut error) as c_int;
+                maxcount = tv_get_number_chk(&raw const (*di).di_tv, &mut error) as c_int;
                 if error {
                     return;
                 }
@@ -3109,7 +3109,7 @@ pub unsafe fn f_searchcount(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
                 let mut li: *mut listitem_T = tv_list_find((*di).di_tv.vval.v_list(), 0);
                 if !li.is_null() {
                     pos.lnum =
-                        tv_get_number_chk(&raw const (*li).li_tv, &raw mut error) as linenr_T;
+                        tv_get_number_chk(&raw const (*li).li_tv, &mut error) as linenr_T;
                     if error {
                         return;
                     }
@@ -3117,7 +3117,7 @@ pub unsafe fn f_searchcount(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
                 li = tv_list_find((*di).di_tv.vval.v_list(), 1);
                 if !li.is_null() {
                     pos.col =
-                        tv_get_number_chk(&raw const (*li).li_tv, &raw mut error) as colnr_T - 1;
+                        tv_get_number_chk(&raw const (*li).li_tv, &mut error) as colnr_T - 1;
                     if error {
                         return;
                     }
@@ -3125,7 +3125,7 @@ pub unsafe fn f_searchcount(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
                 li = tv_list_find((*di).di_tv.vval.v_list(), 2);
                 if !li.is_null() {
                     pos.coladd =
-                        tv_get_number_chk(&raw const (*li).li_tv, &raw mut error) as colnr_T;
+                        tv_get_number_chk(&raw const (*li).li_tv, &mut error) as colnr_T;
                     if error {
                         return;
                     }

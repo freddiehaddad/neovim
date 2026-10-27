@@ -301,7 +301,7 @@ pub unsafe fn vim_findfile_init(
                     wc_part = wc_part.add(1);
 
                     let mut errpt: *mut c_char = wc_part;
-                    let llevel = getdigits(&raw mut errpt, false, 255);
+                    let llevel = getdigits(&mut errpt, false, 255);
                     if errpt != wc_part && llevel > 0 && llevel < 255 {
                         *expand_ptr.add(expand_size) = llevel as c_char;
                         expand_size += 1;

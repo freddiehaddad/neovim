@@ -719,11 +719,11 @@ unsafe fn apply_termdefs(tui: &mut TUIData) {
             empty_args,
             kRetObject,
             ptr::null_mut(),
-            &raw mut lua_err,
+            &mut lua_err,
         );
         if rv.obj_type != ObjectType::kObjectTypeDict {
             api_free_object(rv);
-            api_clear_error(&raw mut lua_err);
+            api_clear_error(&mut lua_err);
             return;
         }
 
@@ -846,9 +846,9 @@ unsafe fn apply_termdefs(tui: &mut TUIData) {
             rpc_send_event(g_st().ui_client_channel_id, c"nvim_echo".as_ptr(), args);
         }
 
-        arena_mem_free(arena_finish(&raw mut err_arena));
+        arena_mem_free(arena_finish(&mut err_arena));
         api_free_object(rv);
-        api_clear_error(&raw mut lua_err);
+        api_clear_error(&mut lua_err);
     }
 }
 
