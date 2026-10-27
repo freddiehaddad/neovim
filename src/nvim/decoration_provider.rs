@@ -94,7 +94,7 @@ const fn decor_provider_init(ns_id: NS) -> DecorProvider {
 }
 
 #[inline]
-unsafe fn clear_ref(r: &mut LuaRef) {
+fn clear_ref(r: &mut LuaRef) {
     if *r != LUA_NOREF {
             api_free_luaref(*r);
             *r = LUA_NOREF;
@@ -263,7 +263,7 @@ pub unsafe fn decor_providers_invoke_conceal_line(wp: *mut win_T, row: c_int) ->
 }
 
 /// For each provider invoke the 'start' callback (`decor_providers_start`).
-pub unsafe fn decor_providers_start() {
+pub fn decor_providers_start() {
     unsafe {
         let mut i = 0usize;
         while i < providers_mut().len() {
@@ -298,7 +298,7 @@ pub unsafe fn decor_providers_start() {
 }
 
 /// For each provider run 'win' (`decor_providers_invoke_win`).
-pub unsafe fn decor_providers_invoke_win(wp: &mut win_T) {
+pub fn decor_providers_invoke_win(wp: &mut win_T) {
     unsafe {
         let ds = &raw const g_st().decor_state;
         debug_assert!(
@@ -350,7 +350,7 @@ pub unsafe fn decor_providers_invoke_win(wp: &mut win_T) {
 }
 
 /// For each provider invoke the 'line' callback for a given window row (`decor_providers_invoke_line`).
-pub unsafe fn decor_providers_invoke_line(wp: &mut win_T, row: c_int) {
+pub fn decor_providers_invoke_line(wp: &mut win_T, row: c_int) {
     unsafe {
         g_st().decor_state.running_decor_provider = true;
         let mut i = 0usize;
@@ -387,7 +387,7 @@ pub unsafe fn decor_providers_invoke_line(wp: &mut win_T, row: c_int) {
     }
 }
 
-pub unsafe fn decor_providers_invoke_range(
+pub fn decor_providers_invoke_range(
     wp: &mut win_T,
     start_row: c_int,
     start_col: c_int,
@@ -465,7 +465,7 @@ pub unsafe fn decor_providers_invoke_range(
 }
 
 /// For each provider invoke the 'buf' callback for a given buffer (`decor_providers_invoke_buf`).
-pub unsafe fn decor_providers_invoke_buf(buf: &mut buf_T) {
+pub fn decor_providers_invoke_buf(buf: &mut buf_T) {
     unsafe {
         let mut i = 0usize;
         while i < providers_mut().len() {
@@ -496,7 +496,7 @@ pub unsafe fn decor_providers_invoke_buf(buf: &mut buf_T) {
 }
 
 /// For each provider invoke the 'end' callback (`decor_providers_invoke_end`).
-pub unsafe fn decor_providers_invoke_end() {
+pub fn decor_providers_invoke_end() {
     unsafe {
         let mut i = 0usize;
         while i < providers_mut().len() {
@@ -525,9 +525,8 @@ pub unsafe fn decor_providers_invoke_end() {
 }
 
 /// Mark all cached state of per-namespace highlights as invalid (`decor_provider_invalidate_hl`).
-pub unsafe fn decor_provider_invalidate_hl() {
-    unsafe {
-        for p in providers_mut().iter_mut() {
+pub fn decor_provider_invalidate_hl() {
+    for p in providers_mut().iter_mut() {
             p.hl_cached = false;
         }
 
@@ -535,7 +534,6 @@ pub unsafe fn decor_provider_invalidate_hl() {
             g_st().ns_hl_active = -1;
             hl_check_ns();
         }
-    }
 }
 
 pub fn get_decor_provider(ns_id: NS, force: bool) -> *mut DecorProvider {

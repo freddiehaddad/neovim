@@ -91,7 +91,7 @@ impl IntoCCharPtr for &CStr {
 }
 
 #[inline]
-pub unsafe fn tr<S: IntoCCharPtr>(s: S) -> *mut c_char {
+pub fn tr<S: IntoCCharPtr>(s: S) -> *mut c_char {
     unsafe { gettext(s.into_c_char_ptr()) }
 }
 
@@ -334,14 +334,14 @@ fn write_fmt_to_c_buf(dst: &mut [c_char], args: std::fmt::Arguments<'_>) -> usiz
 }
 
 
-pub unsafe fn vim_strsave_escaped(
+pub fn vim_strsave_escaped(
     string: &CStr,
     esc_chars: &CStr,
 ) -> std::ffi::CString {
-    unsafe { vim_strsave_escaped_ext(string, esc_chars, b'\\' as c_char, false) }
+    vim_strsave_escaped_ext(string, esc_chars, b'\\' as c_char, false)
 }
 
-pub unsafe fn vim_strsave_escaped_ext(
+pub fn vim_strsave_escaped_ext(
     string: &CStr,
     esc_chars: &CStr,
     cc: c_char,
@@ -409,7 +409,7 @@ pub fn vim_strnsave_unquoted(bytes: &[u8]) -> std::ffi::CString {
     crate::memory::cstr_from_bytes(&ret)
 }
 
-pub unsafe fn vim_strsave_shellescape(
+pub fn vim_strsave_shellescape(
     string: &CStr,
     do_special: bool,
     do_newline: bool,
@@ -550,7 +550,7 @@ pub unsafe fn mb_strup_buf(src: *const c_char, dst: *mut c_char) -> usize {
     }
 }
 
-pub unsafe fn strcase_save(orig: &CStr, upper: bool) -> std::ffi::CString {
+pub fn strcase_save(orig: &CStr, upper: bool) -> std::ffi::CString {
     unsafe {
         let orig_len = orig.to_bytes().len();
         let mut res = Vec::<c_char>::with_capacity(orig_len + 1);
@@ -2209,7 +2209,7 @@ pub unsafe fn vim_snprintf_typval_only(
     unsafe { vim_vsnprintf_typval_inner(str_out, str_m, fmt, tvs, &[]) }
 }
 
-pub unsafe fn reverse_text(s: &CStr) -> std::ffi::CString {
+pub fn reverse_text(s: &CStr) -> std::ffi::CString {
     unsafe {
         let len = s.to_bytes().len();
         let s = s.as_ptr();

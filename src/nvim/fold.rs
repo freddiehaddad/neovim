@@ -264,7 +264,7 @@ pub unsafe fn hasFoldingWin(
     }
 }
 
-unsafe fn foldLevel(lnum: linenr_T) -> c_int {
+fn foldLevel(lnum: linenr_T) -> c_int {
     unsafe {
         if fold_st().invalid_top == 0 {
             checkupdate(*curwin.as_ptr());
@@ -348,21 +348,19 @@ pub unsafe fn foldmethodIsDiff(wp: *mut win_T) -> bool {
 }
 
 /// Close fold for current window at position "pos".
-pub unsafe fn closeFold(pos: pos_T, count: c_int) {
-    unsafe {
-        setFoldRepeat(pos, count, false);
-    }
+pub fn closeFold(pos: pos_T, count: c_int) {
+    setFoldRepeat(pos, count, false);
 }
 
 /// Close fold for current window at position `pos` recursively.
-pub unsafe fn closeFoldRecurse(pos: pos_T) {
+pub fn closeFoldRecurse(pos: pos_T) {
     unsafe {
         setManualFold(pos, false, true, ptr::null_mut());
     }
 }
 
 /// Open or Close folds for current window in lines "first" to "last".
-pub unsafe fn opFoldRange(
+pub fn opFoldRange(
     firstpos: pos_T,
     lastpos: pos_T,
     opening: c_int,
@@ -401,21 +399,19 @@ pub unsafe fn opFoldRange(
 }
 
 /// Open fold for current window at position "pos".
-pub unsafe fn openFold(pos: pos_T, count: c_int) {
-    unsafe {
-        setFoldRepeat(pos, count, true);
-    }
+pub fn openFold(pos: pos_T, count: c_int) {
+    setFoldRepeat(pos, count, true);
 }
 
 /// Open fold for current window at position `pos` recursively.
-pub unsafe fn openFoldRecurse(pos: pos_T) {
+pub fn openFoldRecurse(pos: pos_T) {
     unsafe {
         setManualFold(pos, true, true, ptr::null_mut());
     }
 }
 
 /// Open folds until the cursor line is not in a closed fold.
-pub unsafe fn foldOpenCursor() {
+pub fn foldOpenCursor() {
     unsafe {
         checkupdate(*curwin.as_ptr());
         if hasAnyFolding(*curwin.as_ptr()) != 0 {
@@ -431,7 +427,7 @@ pub unsafe fn foldOpenCursor() {
 }
 
 /// Set new foldlevel for current window.
-pub unsafe fn newFoldLevel() {
+pub fn newFoldLevel() {
     unsafe {
         newFoldLevelWin(&mut **curwin.as_ptr());
 
@@ -448,7 +444,7 @@ pub unsafe fn newFoldLevel() {
     }
 }
 
-unsafe fn newFoldLevelWin(wp: &mut win_T) {
+fn newFoldLevelWin(wp: &mut win_T) {
     unsafe {
         checkupdate(&raw mut *wp);
         if wp.w_fold_manual {
@@ -462,7 +458,7 @@ unsafe fn newFoldLevelWin(wp: &mut win_T) {
 }
 
 /// Apply 'foldlevel' to all folds that don't contain the cursor.
-pub unsafe fn foldCheckClose() {
+pub fn foldCheckClose() {
     unsafe {
         if *opt_vars().p_fcl == NUL {
             return;
@@ -494,7 +490,7 @@ fn checkCloseRec(gap: &mut [fold_T], lnum: linenr_T, level: c_int) -> bool {
     retval
 }
 
-pub unsafe fn foldManualAllowed(create: bool) -> c_int {
+pub fn foldManualAllowed(create: bool) -> c_int {
     unsafe {
         if foldmethodIsManual(*curwin.as_ptr()) || foldmethodIsMarker(*curwin.as_ptr()) {
             return 1;
@@ -514,7 +510,7 @@ pub unsafe fn foldManualAllowed(create: bool) -> c_int {
 
 /// Create a fold from line "start" to line "end" (inclusive) in the current
 /// window.
-pub unsafe fn foldCreate(wp: &mut win_T, mut start: pos_T, mut end: pos_T) {
+pub fn foldCreate(wp: &mut win_T, mut start: pos_T, mut end: pos_T) {
     unsafe {
         let mut use_level = false;
         let mut closed = false;
@@ -608,7 +604,7 @@ pub unsafe fn foldCreate(wp: &mut win_T, mut start: pos_T, mut end: pos_T) {
     }
 }
 
-pub unsafe fn deleteFold(
+pub fn deleteFold(
     wp: &mut win_T,
     start: linenr_T,
     end: linenr_T,
@@ -731,7 +727,7 @@ pub unsafe fn foldUpdate(wp: *mut win_T, top: linenr_T, bot: linenr_T) {
 }
 
 /// Updates folds when leaving insert-mode.
-pub unsafe fn foldUpdateAfterInsert() {
+pub fn foldUpdateAfterInsert() {
     unsafe {
         if foldmethodIsManual(*curwin.as_ptr()) || foldmethodIsSyntax(*curwin.as_ptr()) || foldmethodIsExpr(*curwin.as_ptr()) {
             return;
@@ -750,7 +746,7 @@ pub unsafe fn foldUpdateAll(win: *mut win_T) {
     }
 }
 
-pub unsafe fn foldMoveTo(updown: bool, dir: c_int, count: c_int) -> c_int {
+pub fn foldMoveTo(updown: bool, dir: c_int, count: c_int) -> c_int {
     unsafe {
         let mut retval = FAIL;
 
@@ -863,7 +859,7 @@ pub unsafe fn foldMoveTo(updown: bool, dir: c_int, count: c_int) -> c_int {
 }
 
 /// Init the fold info in a new window.
-pub unsafe fn foldInitWin(new_win: &mut win_T) {
+pub fn foldInitWin(new_win: &mut win_T) {
     unsafe {
         ptr::write(&raw mut new_win.w_folds, Vec::new());
     }
@@ -888,7 +884,7 @@ pub unsafe fn find_wl_entry(win: *mut win_T, lnum: linenr_T) -> c_int {
 }
 
 /// Adjust the Visual area to include any fold at the start or end completely.
-pub unsafe fn foldAdjustVisual() {
+pub fn foldAdjustVisual() {
     unsafe {
         if !g_st().Visual.active || hasAnyFolding(*curwin.as_ptr()) == 0 {
             return;
@@ -921,7 +917,7 @@ pub unsafe fn foldAdjustVisual() {
 }
 
 /// Move the cursor to the first line of a closed fold.
-pub unsafe fn foldAdjustCursor(wp: &mut win_T) {
+pub fn foldAdjustCursor(wp: &mut win_T) {
     unsafe {
         hasFolding(
             &raw mut *wp,
@@ -976,7 +972,7 @@ unsafe fn checkupdate(wp: *mut win_T) {
     }
 }
 
-unsafe fn setFoldRepeat(pos: pos_T, count: c_int, do_open: bool) {
+fn setFoldRepeat(pos: pos_T, count: c_int, do_open: bool) {
     unsafe {
         for n in 0..count {
             let mut done = DONE_NOTHING;
@@ -1101,13 +1097,11 @@ unsafe fn setManualFoldWin(
     }
 }
 
-unsafe fn foldOpenNested(fpr: &mut fold_T) {
-    unsafe {
-        for child in &mut fpr.fd_nested {
+fn foldOpenNested(fpr: &mut fold_T) {
+    for child in &mut fpr.fd_nested {
             foldOpenNested(child);
             child.fd_flags = FD_OPEN;
         }
-    }
 }
 
 fn deleteFoldEntry(gap: &mut Vec<fold_T>, idx: c_int, recursive: bool) {
@@ -1131,15 +1125,14 @@ fn deleteFoldEntry(gap: &mut Vec<fold_T>, idx: c_int, recursive: bool) {
 }
 
 /// Update line numbers of folds for inserted/deleted lines.
-pub unsafe fn foldMarkAdjust(
+pub fn foldMarkAdjust(
     wp: &mut win_T,
     mut line1: linenr_T,
     mut line2: linenr_T,
     amount: linenr_T,
     amount_after: linenr_T,
 ) {
-    unsafe {
-        if amount == MAXLNUM && line2 >= line1 && line2 - line1 >= -amount_after {
+    if amount == MAXLNUM && line2 >= line1 && line2 - line1 >= -amount_after {
             line2 = line1 - amount_after - 1;
         }
         if line2 < line1 {
@@ -1149,18 +1142,16 @@ pub unsafe fn foldMarkAdjust(
             line1 -= 1;
         }
         foldMarkAdjustRecurse(&mut wp.w_folds, line1, line2, amount, amount_after);
-    }
 }
 
-unsafe fn foldMarkAdjustRecurse(
+fn foldMarkAdjustRecurse(
     gap: &mut Vec<fold_T>,
     line1: linenr_T,
     line2: linenr_T,
     amount: linenr_T,
     amount_after: linenr_T,
 ) {
-    unsafe {
-        if gap.is_empty() {
+    if gap.is_empty() {
             return;
         }
 
@@ -1236,7 +1227,6 @@ unsafe fn foldMarkAdjustRecurse(
 
             i += 1;
         }
-    }
 }
 
 /// Get the lowest 'foldlevel' value that makes the deepest nested fold in
@@ -1248,15 +1238,13 @@ pub unsafe fn getDeepestNesting(wp: *mut win_T) -> c_int {
     }
 }
 
-unsafe fn getDeepestNestingRecurse(gap: &[fold_T]) -> c_int {
-    unsafe {
-        let mut maxlevel: c_int = 0;
+fn getDeepestNestingRecurse(gap: &[fold_T]) -> c_int {
+    let mut maxlevel: c_int = 0;
         for entry in gap {
             let level = getDeepestNestingRecurse(&entry.fd_nested) + 1;
             maxlevel = maxlevel.max(level);
         }
         maxlevel
-    }
 }
 
 unsafe fn check_closed(
@@ -1325,7 +1313,7 @@ fn setSmallMaybe(gap: &mut [fold_T]) {
     }
 }
 
-unsafe fn foldCreateMarkers(wp: &mut win_T, start: pos_T, end: pos_T) {
+fn foldCreateMarkers(wp: &mut win_T, start: pos_T, end: pos_T) {
     unsafe {
         let buf = wp.w_buffer;
         if (*buf).b_p_ma == 0 {
@@ -1392,7 +1380,7 @@ unsafe fn foldAddMarker(buf: &mut buf_T, pos: pos_T, marker: *const c_char, mark
     }
 }
 
-unsafe fn deleteFoldMarkers(wp: &mut win_T, fp: &mut fold_T, recursive: bool, lnum_off: linenr_T) {
+fn deleteFoldMarkers(wp: &mut win_T, fp: &mut fold_T, recursive: bool, lnum_off: linenr_T) {
     unsafe {
         if recursive {
             for child in &mut fp.fd_nested {
@@ -1684,16 +1672,14 @@ unsafe fn foldtext_cleanup(str_ptr: *mut c_char) {
     }
 }
 
-unsafe fn call_getlevel(kind: LevelGetterKind, flp: &mut fline_T) {
-    unsafe {
-        match kind {
+fn call_getlevel(kind: LevelGetterKind, flp: &mut fline_T) {
+    match kind {
             LevelGetterKind::Marker => foldlevelMarker(flp),
             LevelGetterKind::Expr => foldlevelExpr(flp),
             LevelGetterKind::Syntax => foldlevelSyntax(flp),
             LevelGetterKind::Diff => foldlevelDiff(flp),
             LevelGetterKind::Indent => foldlevelIndent(flp),
         }
-    }
 }
 
 unsafe fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
@@ -1890,7 +1876,7 @@ unsafe fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
     }
 }
 
-unsafe fn foldUpdateIEMSRecurse(
+fn foldUpdateIEMSRecurse(
     gap: &mut Vec<fold_T>,
     level: c_int,
     startlnum: linenr_T,
@@ -2257,9 +2243,8 @@ fn foldSplit(gap: &mut Vec<fold_T>, i: c_int, top: linenr_T, bot: linenr_T) {
         fold_st().fold_changed = true;
 }
 
-unsafe fn foldRemove(gap: &mut Vec<fold_T>, top: linenr_T, bot: linenr_T) {
-    unsafe {
-        if bot < top {
+fn foldRemove(gap: &mut Vec<fold_T>, top: linenr_T, bot: linenr_T) {
+    if bot < top {
             return;
         }
 
@@ -2301,7 +2286,6 @@ unsafe fn foldRemove(gap: &mut Vec<fold_T>, top: linenr_T, bot: linenr_T) {
                 deleteFoldEntry(gap, idx as c_int, true);
             }
         }
-    }
 }
 
 fn foldReverseOrder(gap: &mut [fold_T], start: linenr_T, end: linenr_T) {
@@ -2310,12 +2294,10 @@ fn foldReverseOrder(gap: &mut [fold_T], start: linenr_T, end: linenr_T) {
     }
 }
 
-unsafe fn truncate_fold(fp: &mut fold_T, mut end: linenr_T) {
-    unsafe {
-        end += 1;
+fn truncate_fold(fp: &mut fold_T, mut end: linenr_T) {
+    end += 1;
         foldRemove(&mut fp.fd_nested, end - fp.fd_top, MAXLNUM);
         fp.fd_len = end - fp.fd_top;
-    }
 }
 
 #[inline]
@@ -2324,9 +2306,8 @@ const fn fold_end(fp: &fold_T) -> linenr_T {
 }
 
 /// Move folds within the inclusive range "line1" to "line2" to after "dest".
-pub unsafe fn foldMoveRange(gap: &mut [fold_T], line1: linenr_T, line2: linenr_T, dest: linenr_T) {
-    unsafe {
-        let range_len = line2 - line1 + 1;
+pub fn foldMoveRange(gap: &mut [fold_T], line1: linenr_T, line2: linenr_T, dest: linenr_T) {
+    let range_len = line2 - line1 + 1;
         let move_len = dest - line2;
         let (at_start, mut idx) = foldFind(gap, line1 - 1);
 
@@ -2421,12 +2402,10 @@ pub unsafe fn foldMoveRange(gap: &mut [fold_T], line1: linenr_T, line2: linenr_T
             (move_start + dest_index - move_end) as linenr_T,
             (dest_index - 1) as linenr_T,
         );
-    }
 }
 
-unsafe fn foldMergeInto(fp1: &mut fold_T, mut fp2: fold_T) {
-    unsafe {
-        if let (true, idx3) = foldFind(&fp1.fd_nested, fp1.fd_len - 1)
+fn foldMergeInto(fp1: &mut fold_T, mut fp2: fold_T) {
+    if let (true, idx3) = foldFind(&fp1.fd_nested, fp1.fd_len - 1)
             && let (true, idx4) = foldFind(&fp2.fd_nested, 0)
         {
             let child2 = fp2.fd_nested.remove(idx4);
@@ -2441,17 +2420,14 @@ unsafe fn foldMergeInto(fp1: &mut fold_T, mut fp2: fold_T) {
 
         fp1.fd_len += fp2.fd_len;
         fold_st().fold_changed = true;
-    }
 }
 
-unsafe fn foldMerge(gap: &mut Vec<fold_T>, idx1: usize) {
-    unsafe {
-        let fp2 = gap.remove(idx1 + 1);
+fn foldMerge(gap: &mut Vec<fold_T>, idx1: usize) {
+    let fp2 = gap.remove(idx1 + 1);
         foldMergeInto(&mut gap[idx1], fp2);
-    }
 }
 
-unsafe fn foldlevelIndent(flp: &mut fline_T) {
+fn foldlevelIndent(flp: &mut fline_T) {
     unsafe {
         let lnum = flp.lnum + flp.off;
         let buf = (*flp.wp).w_buffer;
@@ -2470,13 +2446,13 @@ unsafe fn foldlevelIndent(flp: &mut fline_T) {
     }
 }
 
-unsafe fn foldlevelDiff(flp: &mut fline_T) {
+fn foldlevelDiff(flp: &mut fline_T) {
     unsafe {
         flp.lvl = c_int::from(diff_infold(&mut *flp.wp, flp.lnum + flp.off));
     }
 }
 
-unsafe fn foldlevelExpr(flp: &mut fline_T) {
+fn foldlevelExpr(flp: &mut fline_T) {
     unsafe {
         let lnum = flp.lnum + flp.off;
 
@@ -2562,7 +2538,7 @@ unsafe fn parseMarker(wp: *mut win_T) {
     }
 }
 
-unsafe fn foldlevelMarker(flp: &mut fline_T) {
+fn foldlevelMarker(flp: &mut fline_T) {
     unsafe {
         let start_lvl = flp.lvl;
         let startmarker_full = (*flp.wp).w_onebuf_opt.wo_fmr;
@@ -2615,7 +2591,7 @@ unsafe fn foldlevelMarker(flp: &mut fline_T) {
     }
 }
 
-unsafe fn foldlevelSyntax(flp: &mut fline_T) {
+fn foldlevelSyntax(flp: &mut fline_T) {
     unsafe {
         let lnum = flp.lnum + flp.off;
 

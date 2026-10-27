@@ -389,7 +389,7 @@ unsafe fn tv_list_item_next(_l: *const list_T, li: *const listitem_T) -> *mut li
     unsafe { (*li).li_next }
 }
 
-pub unsafe fn get_v_event(sve: &mut save_v_event_T) -> *mut dict_T {
+pub fn get_v_event(sve: &mut save_v_event_T) -> *mut dict_T {
     unsafe {
         let v_event = get_vim_var_dict(VV_EVENT);
 
@@ -403,7 +403,7 @@ pub unsafe fn get_v_event(sve: &mut save_v_event_T) -> *mut dict_T {
     }
 }
 
-pub unsafe fn restore_v_event(v_event: &mut dict_T, sve: &mut save_v_event_T) {
+pub fn restore_v_event(v_event: &mut dict_T, sve: &mut save_v_event_T) {
     unsafe {
         tv_dict_free_contents(&raw mut *v_event);
         if sve.sve_did_save {
@@ -435,19 +435,17 @@ pub fn num_modulus(n1: varnumber_T, n2: varnumber_T) -> varnumber_T {
 }
 
 /// Initialize the global and v: variables.
-pub unsafe fn eval_init() {
+pub fn eval_init() {
     evalvars_init();
 }
 
-pub unsafe fn eval_clear() {
-    unsafe {
-        evalvars_clear();
+pub fn eval_clear() {
+    evalvars_clear();
         free_scriptnames();
         free_locales();
         free_autoload_scriptnames();
         garbage_collect(false);
         free_all_functions();
-    }
 }
 
 pub unsafe fn fill_evalarg_from_eap(evalarg: &mut evalarg_T, _eap: *mut exarg_T, skip: bool) {
@@ -721,7 +719,7 @@ pub unsafe fn skip_expr(pp: *mut *mut c_char, evalarg: *mut evalarg_T) -> c_int 
 }
 
 /// Convert "tv" to a string.
-unsafe fn typval2string(tv: &mut typval_T, join_list: bool) -> Option<std::ffi::CString> {
+fn typval2string(tv: &mut typval_T, join_list: bool) -> Option<std::ffi::CString> {
     unsafe {
         if join_list && tv.v_type == VarType::VAR_LIST {
             let mut out: Vec<c_char> = Vec::with_capacity(80);
@@ -951,7 +949,7 @@ pub unsafe fn call_func_retlist(
 }
 
 /// Evaluate a number-valued "expr" option ('indentexpr'/'formatexpr') via its callback.
-pub unsafe fn eval_expr_option_number(cb: &mut Callback, use_sandbox: bool) -> c_int {
+pub fn eval_expr_option_number(cb: &mut Callback, use_sandbox: bool) -> c_int {
     unsafe {
         let mut copy = Callback::NONE;
         callback_copy(&mut copy, cb);
@@ -1005,7 +1003,7 @@ pub unsafe fn eval_expr_option_tv(
 
 /// Evaluate 'foldexpr'. Returns the foldlevel, and any character preceding
 /// it in "*cp". Doesn't give error messages.
-pub unsafe fn eval_foldexpr(wp: &mut win_T, cp: &mut c_int) -> c_int {
+pub fn eval_foldexpr(wp: &mut win_T, cp: &mut c_int) -> c_int {
     unsafe {
         let saved_sctx = g_st().current_sctx;
         let use_sandbox = was_set_insecurely(&raw mut *wp, kOptFoldexpr, OPT_LOCAL) != 0;
@@ -4316,7 +4314,7 @@ pub fn get_copyID() -> c_int {
 }
 
 /// Do garbage collection for lists and dicts.
-pub unsafe fn garbage_collect(testing: bool) -> bool {
+pub fn garbage_collect(testing: bool) -> bool {
     unsafe {
         let mut abort = false;
 
@@ -4521,7 +4519,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
 }
 
 /// Free lists and dictionaries that are no longer referenced.
-unsafe fn free_unref_items(copyID: c_int) -> c_int {
+fn free_unref_items(copyID: c_int) -> c_int {
     unsafe {
         let mut did_free = false;
 
@@ -5204,7 +5202,7 @@ pub unsafe fn f_systemlist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
 }
 
 /// Get a callback from "arg". It can be a Funcref or a function name.
-pub unsafe fn callback_from_typval(callback: &mut Callback, arg: &typval_T) -> bool {
+pub fn callback_from_typval(callback: &mut Callback, arg: &typval_T) -> bool {
     unsafe {
         let mut r = OK;
 
@@ -5413,7 +5411,7 @@ unsafe fn set_ref_in_callback_reader(
     }
 }
 
-pub unsafe fn find_timer_by_nr(xx: varnumber_T) -> *mut timer_T {
+pub fn find_timer_by_nr(xx: varnumber_T) -> *mut timer_T {
     unsafe {
         let timers_ptr = &raw const eval_st().timers;
         (*timers_ptr)
@@ -5475,7 +5473,7 @@ pub unsafe fn add_timer_info_all(rettv: *mut typval_T) {
 }
 
 /// Invoked on the main loop.
-pub unsafe fn timer_due_cb(_tw: &mut TimeWatcher, timer: &mut timer_T) {
+pub fn timer_due_cb(_tw: &mut TimeWatcher, timer: &mut timer_T) {
     unsafe {
         let save_did_emsg = g_st().did_emsg;
         let called_emsg_before = g_st().called_emsg;
@@ -5527,7 +5525,7 @@ pub unsafe fn timer_due_cb(_tw: &mut TimeWatcher, timer: &mut timer_T) {
     }
 }
 
-pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: Callback) -> u64 {
+pub fn timer_start(timeout: i64, repeat_count: c_int, callback: Callback) -> u64 {
     unsafe {
         let id = eval_st().last_timer_id;
         eval_st().last_timer_id += 1;
@@ -5561,7 +5559,7 @@ pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: Callback)
     }
 }
 
-pub unsafe fn timer_stop(timer: &mut timer_T) {
+pub fn timer_stop(timer: &mut timer_T) {
     if timer.stopped {
             return;
         }
@@ -5572,7 +5570,7 @@ pub unsafe fn timer_stop(timer: &mut timer_T) {
         }
 }
 
-pub(crate) unsafe fn timer_close_cb(_tw: &mut TimeWatcher, timer: &mut timer_T) {
+pub(crate) fn timer_close_cb(_tw: &mut TimeWatcher, timer: &mut timer_T) {
     unsafe {
         let timers_ptr = &raw mut eval_st().timers;
         let _ = (*timers_ptr).remove(&(timer.timer_id as u64));
@@ -5580,7 +5578,7 @@ pub(crate) unsafe fn timer_close_cb(_tw: &mut TimeWatcher, timer: &mut timer_T) 
     }
 }
 
-unsafe fn timer_decref(timer: &mut timer_T) {
+fn timer_decref(timer: &mut timer_T) {
     unsafe {
         timer.refcount -= 1;
         if timer.refcount == 0 {
@@ -5589,7 +5587,7 @@ unsafe fn timer_decref(timer: &mut timer_T) {
     }
 }
 
-pub unsafe fn timer_stop_all() {
+pub fn timer_stop_all() {
     unsafe {
         let timers_ptr = &raw const eval_st().timers;
         let all_timers: Vec<*mut timer_T> = (*timers_ptr).values().copied().collect();
@@ -5599,14 +5597,12 @@ pub unsafe fn timer_stop_all() {
     }
 }
 
-pub unsafe fn timer_teardown() {
-    unsafe {
-        timer_stop_all();
-    }
+pub fn timer_teardown() {
+    timer_stop_all();
 }
 
 /// Saves a typval_T as a string buffer (`None` on error, `Some(vec)` on success).
-pub unsafe fn save_tv_as_string(tv: &mut typval_T, endnl: bool, crlf: bool) -> Option<Vec<c_char>> {
+pub fn save_tv_as_string(tv: &mut typval_T, endnl: bool, crlf: bool) -> Option<Vec<c_char>> {
     unsafe {
         if tv.v_type == VarType::VAR_UNKNOWN {
             return Some(Vec::new());
@@ -6514,7 +6510,7 @@ pub unsafe fn set_selfdict(rettv: *mut typval_T, selfdict: *mut dict_T) {
 }
 
 /// Make a copy of an item.
-pub unsafe fn var_item_copy(
+pub fn var_item_copy(
     conv: Option<&vimconv_T>,
     from: &mut typval_T,
     to: &mut typval_T,
@@ -6602,7 +6598,7 @@ pub unsafe fn var_item_copy(
 }
 
 /// ":echo expr1 ..." and ":echon expr1 ..."
-pub unsafe fn ex_echo(eap: &mut exarg_T) {
+pub fn ex_echo(eap: &mut exarg_T) {
     unsafe {
         let mut arg = eap.arg;
         let mut rettv = tv_initial_value();
@@ -6686,7 +6682,7 @@ pub unsafe fn ex_echo(eap: &mut exarg_T) {
 }
 
 /// ":echohl {name}".
-pub unsafe fn ex_echohl(eap: &mut exarg_T) {
+pub fn ex_echohl(eap: &mut exarg_T) {
     unsafe {
         eval_st().echo_hl_id = syn_name2id(eap.arg);
     }
@@ -6698,7 +6694,7 @@ pub fn get_echo_hl_id() -> c_int {
 }
 
 /// ":execute", ":echomsg", ":echoerr"
-pub unsafe fn ex_execute(eap: &mut exarg_T) {
+pub fn ex_execute(eap: &mut exarg_T) {
     unsafe {
         let mut arg = eap.arg;
         let mut rettv = tv_initial_value();
@@ -6825,7 +6821,7 @@ pub unsafe fn var_set_global(name: *const c_char, mut vartv: typval_T) {
 }
 
 /// Display script name where an item was last set.
-pub unsafe fn last_set_msg(script_ctx: sctx_T) {
+pub fn last_set_msg(script_ctx: sctx_T) {
     unsafe {
         if script_ctx.sc_sid == 0 {
             return;
@@ -6984,7 +6980,7 @@ pub unsafe fn common_job_callbacks(
     }
 }
 
-pub unsafe fn find_job(id: u64, show_error: bool) -> *mut Channel {
+pub fn find_job(id: u64, show_error: bool) -> *mut Channel {
     unsafe {
         let data = find_channel(id);
         let is_stopped = if !data.is_null() && (*data).streamtype == kChannelStreamProc {
@@ -7213,7 +7209,7 @@ pub unsafe fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> boo
 }
 
 /// Gets the current user-input in prompt buffer `buf`, or `None` if buffer is not a prompt buffer.
-pub unsafe fn prompt_get_input(buf: &mut buf_T) -> Option<std::ffi::CString> {
+pub fn prompt_get_input(buf: &mut buf_T) -> Option<std::ffi::CString> {
     unsafe {
         if !bt_prompt(&raw mut *buf) {
             return None;
@@ -7419,7 +7415,7 @@ pub unsafe fn typval_compare(
 }
 
 /// Convert any type to a string, never give an error.
-pub unsafe fn typval_tostring(arg: Option<&mut typval_T>, quotes: bool) -> std::ffi::CString {
+pub fn typval_tostring(arg: Option<&mut typval_T>, quotes: bool) -> std::ffi::CString {
     unsafe {
         let Some(arg) = arg else {
             return c"(does not exist)".to_owned();

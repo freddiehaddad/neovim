@@ -231,12 +231,12 @@ impl TerminalState {
 }
 
 impl EditorState for TerminalState {
-    unsafe fn check(&mut self) -> c_int {
-        unsafe { terminal_check(self) }
+    fn check(&mut self) -> c_int {
+        terminal_check(self)
     }
 
-    unsafe fn execute(&mut self, key: c_int) -> c_int {
-        unsafe { terminal_execute(self, key) }
+    fn execute(&mut self, key: c_int) -> c_int {
+        terminal_execute(self, key)
     }
 }
 
@@ -388,7 +388,7 @@ static VTERM_FALLBACKS: VTermStateFallbacks = VTermStateFallbacks {
 };
 
 #[inline]
-unsafe fn invalidate_terminal_add(term: &mut Terminal) {
+fn invalidate_terminal_add(term: &mut Terminal) {
     unsafe {
         let inv_ptr = &raw mut term_st().INVALIDATED_TERMINALS;
         let term_ptr = &raw mut *term;
@@ -426,7 +426,7 @@ pub struct TermRequestEvent {
     pub terminator: VTermTerminator,
 }
 
-pub unsafe fn emit_termrequest(mut req: Box<TermRequestEvent>) {
+pub fn emit_termrequest(mut req: Box<TermRequestEvent>) {
     unsafe {
         let buf_handle = req.buf_handle;
 
@@ -536,7 +536,7 @@ pub unsafe fn emit_termrequest(mut req: Box<TermRequestEvent>) {
     }
 }
 
-unsafe fn schedule_termrequest(term: &mut Terminal) {
+fn schedule_termrequest(term: &mut Terminal) {
     unsafe {
         let pending_send = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         term.pending.send = Some(pending_send.clone());
@@ -703,7 +703,7 @@ unsafe fn on_apc(frag: VTermStringFragment, term: *mut Terminal) -> c_int {
     }
 }
 
-pub unsafe fn terminal_init() {
+pub fn terminal_init() {
     unsafe {
         let timer = refresh_timer_ptr();
         time_watcher_init(
@@ -715,7 +715,7 @@ pub unsafe fn terminal_init() {
     }
 }
 
-pub unsafe fn terminal_teardown() {
+pub fn terminal_teardown() {
     unsafe {
         let timer = refresh_timer_ptr();
         time_watcher_stop(&mut *timer);
@@ -755,7 +755,7 @@ unsafe fn term_may_alloc_scrollback(term: &mut Terminal, mut buf: *mut buf_T) ->
     }
 }
 
-pub unsafe fn terminal_alloc(buf: &mut buf_T, mut opts: TerminalOptions) -> *mut Terminal {
+pub fn terminal_alloc(buf: &mut buf_T, mut opts: TerminalOptions) -> *mut Terminal {
     unsafe {
         if opts.width == 0 {
             opts.width = 80;
@@ -1033,7 +1033,7 @@ pub unsafe fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
     }
 }
 
-pub unsafe fn terminal_state_change_event(buf_handle: handle_T) {
+pub fn terminal_state_change_event(buf_handle: handle_T) {
     unsafe {
         let buf = handle_get_buffer(buf_handle);
         if !buf.is_null() && !(*buf).terminal.is_null() {
@@ -1042,7 +1042,7 @@ pub unsafe fn terminal_state_change_event(buf_handle: handle_T) {
     }
 }
 
-pub unsafe fn terminal_set_state(term: &mut Terminal, suspended: bool) {
+pub fn terminal_set_state(term: &mut Terminal, suspended: bool) {
     unsafe {
         if term.suspended != suspended {
             multiqueue_put_event(
@@ -1054,7 +1054,7 @@ pub unsafe fn terminal_set_state(term: &mut Terminal, suspended: bool) {
     }
 }
 
-pub unsafe fn terminal_check_size(term: &mut Terminal) {
+pub fn terminal_check_size(term: &mut Terminal) {
     unsafe {
         if term.closed {
             return;
@@ -1190,7 +1190,7 @@ unsafe fn unset_terminal_winopts(s: *mut TerminalState) {
     }
 }
 
-pub unsafe fn terminal_enter() -> bool {
+pub fn terminal_enter() -> bool {
     unsafe {
         let buf = g_st().curbuf;
         debug_assert!(!(*buf).terminal.is_null());
@@ -1284,7 +1284,7 @@ pub unsafe fn terminal_enter() -> bool {
     }
 }
 
-unsafe fn terminal_check_cursor() {
+fn terminal_check_cursor() {
     unsafe {
         let term = &mut *(*g_st().curbuf).terminal;
         (**curwin.as_ptr()).w_cursor.lnum = (*g_st().curbuf)
@@ -1342,7 +1342,7 @@ unsafe fn terminal_check_focus(s: *mut TerminalState) -> bool {
     }
 }
 
-unsafe fn terminal_check(s: &mut TerminalState) -> c_int {
+fn terminal_check(s: &mut TerminalState) -> c_int {
     unsafe {
         debug_assert!(
             !s.close
@@ -1401,7 +1401,7 @@ unsafe fn terminal_check(s: &mut TerminalState) -> c_int {
     }
 }
 
-unsafe fn terminal_execute(s: &mut TerminalState, key: c_int) -> c_int {
+fn terminal_execute(s: &mut TerminalState, key: c_int) -> c_int {
     unsafe {
         let mut tmp_mod_mask = g_st().mod_mask;
         let mod_key = merge_modifiers(key, &mut tmp_mod_mask);
@@ -1529,7 +1529,7 @@ fn is_filter_char(c: c_int) -> bool {
     (opt_vars().tpf_flags & flag) != 0
 }
 
-pub unsafe fn terminal_set_streamed_paste(term: &mut Terminal, streamed: bool) {
+pub fn terminal_set_streamed_paste(term: &mut Terminal, streamed: bool) {
     unsafe {
         if term.streamed_paste != streamed {
             let cur_term = &mut *(*g_st().curbuf).terminal;
@@ -1585,7 +1585,7 @@ pub unsafe fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usi
     }
 }
 
-unsafe fn terminal_send_key(term: &mut Terminal, mut c: c_int) {
+fn terminal_send_key(term: &mut Terminal, mut c: c_int) {
     unsafe {
         let mut mod_: VTermModifier = VTERM_MOD_NONE;
         if c == K_ZERO {
@@ -1601,7 +1601,7 @@ unsafe fn terminal_send_key(term: &mut Terminal, mut c: c_int) {
     }
 }
 
-pub unsafe fn on_sync_flush(buf_handle: handle_T) {
+pub fn on_sync_flush(buf_handle: handle_T) {
     unsafe {
         if g_st().exiting {
             return;
@@ -1803,7 +1803,7 @@ pub fn terminal_suspended(term: &Terminal) -> bool {
     term.suspended
 }
 
-pub unsafe fn terminal_notify_theme(term: &mut Terminal, dark: bool) {
+pub fn terminal_notify_theme(term: &mut Terminal, dark: bool) {
     unsafe {
         if !term.theme_updates {
             return;
@@ -1817,7 +1817,7 @@ pub unsafe fn terminal_notify_theme(term: &mut Terminal, dark: bool) {
     }
 }
 
-unsafe fn terminal_focus(term: &mut Terminal, focus: bool) {
+fn terminal_focus(term: &mut Terminal, focus: bool) {
     let state = vterm_obtain_state(&mut term.vt);
         if focus {
             vterm_state_focus_in(state);
@@ -1952,9 +1952,7 @@ unsafe fn term_settermprop(prop: VTermProp, val: &mut VTermValue, term: *mut Ter
 }
 
 unsafe fn term_bell(_data: *mut Terminal) -> c_int {
-    unsafe {
-        vim_beep(kOptBoFlagTerm);
-    }
+    vim_beep(kOptBoFlagTerm);
     1
 }
 
@@ -2048,7 +2046,7 @@ unsafe fn term_sb_clear(term: *mut Terminal) -> c_int {
     }
 }
 
-pub unsafe fn term_clipboard_set(mask: VTermSelectionMask, data: std::ffi::CString) {
+pub fn term_clipboard_set(mask: VTermSelectionMask, data: std::ffi::CString) {
     unsafe {
         let regname: c_char = match mask as u16 {
             VTERM_SELECTION_CLIPBOARD => b'+' as c_char,
@@ -2247,7 +2245,7 @@ unsafe fn convert_key(
     }
 }
 
-unsafe fn mouse_action(
+fn mouse_action(
     term: &mut Terminal,
     button: c_int,
     row: c_int,
@@ -2261,7 +2259,7 @@ unsafe fn mouse_action(
         }
 }
 
-unsafe fn send_mouse_event(term: &mut Terminal, mut c: c_int) -> bool {
+fn send_mouse_event(term: &mut Terminal, mut c: c_int) -> bool {
     unsafe {
         let mut row = g_st().mouse_row;
         let mut col = g_st().mouse_col;
@@ -2347,7 +2345,7 @@ unsafe fn send_mouse_event(term: &mut Terminal, mut c: c_int) -> bool {
     }
 }
 
-unsafe fn fetch_row(term: &mut Terminal, row: c_int, end_col: c_int) {
+fn fetch_row(term: &mut Terminal, row: c_int, end_col: c_int) {
     unsafe {
         let mut col: c_int = 0;
         let mut line_len: usize = 0;
@@ -2397,7 +2395,7 @@ unsafe fn fetch_cell(
     }
 }
 
-unsafe fn invalidate_terminal(term: &mut Terminal, start_row: c_int, end_row: c_int) {
+fn invalidate_terminal(term: &mut Terminal, start_row: c_int, end_row: c_int) {
     unsafe {
         if start_row != -1 && end_row != -1 {
             term.invalid_start = term.invalid_start.min(start_row);
@@ -2416,13 +2414,13 @@ unsafe fn invalidate_terminal(term: &mut Terminal, start_row: c_int, end_row: c_
     }
 }
 
-pub unsafe fn terminal_check_refresh() {
+pub fn terminal_check_refresh() {
     unsafe {
         multiqueue_process_events((*refresh_timer_ptr()).events);
     }
 }
 
-unsafe fn refresh_terminal(term: &mut Terminal) {
+fn refresh_terminal(term: &mut Terminal) {
     unsafe {
         let buf = handle_get_buffer(term.buf_handle);
         if buf.is_null() {
@@ -2509,7 +2507,7 @@ unsafe fn refresh_cursor(term: &mut Terminal, cursor_visible: *mut bool) {
     }
 }
 
-pub(crate) unsafe fn refresh_timer_cb() {
+pub(crate) fn refresh_timer_cb() {
     unsafe {
         term_st().REFRESH_PENDING = false;
         if g_st().exiting {
@@ -2548,15 +2546,13 @@ unsafe fn refresh_size(term: &mut Terminal, _buf: *mut buf_T) -> bool {
     }
 }
 
-pub unsafe fn on_scrollback_option_changed(term: &mut Terminal) {
-    unsafe {
-        if term.sb_allocated {
+pub fn on_scrollback_option_changed(term: &mut Terminal) {
+    if term.sb_allocated {
             refresh_terminal(term);
         }
-    }
 }
 
-unsafe fn adjust_scrollback(term: &mut Terminal, buf: &mut buf_T) {
+fn adjust_scrollback(term: &mut Terminal, buf: &mut buf_T) {
     unsafe {
         if buf.b_p_scbk < 1 {
             buf.b_p_scbk = SB_MAX;
@@ -2590,7 +2586,7 @@ unsafe fn adjust_scrollback(term: &mut Terminal, buf: &mut buf_T) {
     }
 }
 
-unsafe fn refresh_scrollback(term: &mut Terminal, buf: &mut buf_T) {
+fn refresh_scrollback(term: &mut Terminal, buf: &mut buf_T) {
     unsafe {
         channel_term_read_pause(true, &mut *term.opts.data);
 
@@ -2644,7 +2640,7 @@ unsafe fn refresh_scrollback(term: &mut Terminal, buf: &mut buf_T) {
     }
 }
 
-unsafe fn refresh_screen(term: &mut Terminal, buf: &mut buf_T) {
+fn refresh_screen(term: &mut Terminal, buf: &mut buf_T) {
     unsafe {
         let mut changed: c_int = 0;
         let mut added: c_int = 0;
@@ -2685,7 +2681,7 @@ unsafe fn refresh_screen(term: &mut Terminal, buf: &mut buf_T) {
     }
 }
 
-unsafe fn adjust_topline_cursor(term: &mut Terminal, buf: &mut buf_T, added: c_int) {
+fn adjust_topline_cursor(term: &mut Terminal, buf: &mut buf_T, added: c_int) {
     unsafe {
         let ml_end = buf.b_ml.ml_line_count;
 
@@ -2745,7 +2741,7 @@ fn linenr_to_row(term: &mut Terminal, linenr: c_int) -> c_int {
 }
 
 #[inline]
-unsafe fn is_focused(term: &mut Terminal) -> bool {
+fn is_focused(term: &mut Terminal) -> bool {
     unsafe { (g_st().State & MODE_TERMINAL) != 0 && (*g_st().curbuf).terminal == term }
 }
 

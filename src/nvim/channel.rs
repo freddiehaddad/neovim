@@ -175,7 +175,7 @@ use crate::lua::converter::LUA_NOREF;
 use crate::fileio::freopen;
 
 #[inline]
-unsafe fn redirect_stderr_to_null() {
+fn redirect_stderr_to_null() {
     #[cfg(windows)]
     unsafe {
         let _ = freopen(
@@ -202,7 +202,7 @@ fn callback_reader_set(reader: &CallbackReader) -> bool {
 use crate::api::private::helpers::add_c;
 
 /// Teardown the module.
-pub unsafe fn channel_teardown() {
+pub fn channel_teardown() {
     unsafe {
         let chans_ptr = &raw const g_st().channels;
         let all_chans: Vec<*mut Channel> = (*chans_ptr).values().copied().collect();
@@ -212,7 +212,7 @@ pub unsafe fn channel_teardown() {
     }
 }
 
-pub unsafe fn channel_free_all_mem() {
+pub fn channel_free_all_mem() {
     unsafe {
         let chans_ptr = &raw mut g_st().channels;
         for (_, chan) in std::mem::take(&mut *chans_ptr) {
@@ -343,15 +343,13 @@ pub unsafe fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c
 }
 
 /// Initializes the module.
-pub unsafe fn channel_init() {
-    unsafe {
-        let _ = channel_alloc(kChannelStreamStderr);
+pub fn channel_init() {
+    let _ = channel_alloc(kChannelStreamStderr);
         rpc_init();
-    }
 }
 
 /// Allocates a channel.
-pub unsafe fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
+pub fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
     unsafe {
         let id = if r#type == kChannelStreamStdio {
             CHAN_STDIO
@@ -432,7 +430,7 @@ pub fn callback_reader_start(reader: &mut CallbackReader, r#type: &'static CStr)
     reader.reader_type = Some(r#type);
 }
 
-pub unsafe fn free_channel_event(chan: &mut Channel) {
+pub fn free_channel_event(chan: &mut Channel) {
     unsafe {
         let chans_ptr = &raw mut g_st().channels;
         let _ = (*chans_ptr).remove(&chan.id);
@@ -440,7 +438,7 @@ pub unsafe fn free_channel_event(chan: &mut Channel) {
     }
 }
 
-unsafe fn channel_destroy_early(chan: &mut Channel) {
+fn channel_destroy_early(chan: &mut Channel) {
     unsafe {
         let cp = &raw mut *chan;
         chan_st().NEXT_CHAN_ID -= 1;
@@ -879,7 +877,7 @@ unsafe fn on_channel_output(
     }
 }
 
-unsafe fn schedule_channel_event(chan: &mut Channel) {
+fn schedule_channel_event(chan: &mut Channel) {
     unsafe {
         let cp = &raw mut *chan;
         let ct = &raw mut *chan;
@@ -893,7 +891,7 @@ unsafe fn schedule_channel_event(chan: &mut Channel) {
     }
 }
 
-pub unsafe fn on_channel_event(chan: &mut Channel) {
+pub fn on_channel_event(chan: &mut Channel) {
     unsafe {
         let cp = &raw mut *chan;
         let ct = &raw mut *chan;
@@ -919,7 +917,7 @@ pub unsafe fn on_channel_event(chan: &mut Channel) {
     }
 }
 
-pub unsafe fn channel_reader_callbacks(chan: &mut Channel, reader: &mut CallbackReader) {
+pub fn channel_reader_callbacks(chan: &mut Channel, reader: &mut CallbackReader) {
     unsafe {
         if reader.buffered {
             if reader.eof {
@@ -960,7 +958,7 @@ pub unsafe fn channel_reader_callbacks(chan: &mut Channel, reader: &mut Callback
     }
 }
 
-pub(crate) unsafe fn channel_proc_exit_cb(proc_: &mut Proc, status: c_int, chan: &mut Channel) {
+pub(crate) fn channel_proc_exit_cb(proc_: &mut Proc, status: c_int, chan: &mut Channel) {
     unsafe {
         let cp = &raw mut *chan;
         let ct = &raw mut *chan;
@@ -989,7 +987,7 @@ pub(crate) unsafe fn channel_proc_exit_cb(proc_: &mut Proc, status: c_int, chan:
 }
 
 #[cfg(unix)]
-pub(crate) unsafe fn channel_proc_state_cb(_proc: &mut Proc, suspended: bool, chan: &mut Channel) {
+pub(crate) fn channel_proc_state_cb(_proc: &mut Proc, suspended: bool, chan: &mut Channel) {
     unsafe {
         let ct = &raw mut *chan;
         if !(*ct).term.is_null() {
@@ -1043,7 +1041,7 @@ unsafe fn channel_callback_call(chan: &mut Channel, reader: *mut CallbackReader)
 }
 
 /// Allocate terminal for channel.
-pub unsafe fn channel_terminal_alloc(buf: &mut buf_T, chan: &mut Channel) {
+pub fn channel_terminal_alloc(buf: &mut buf_T, chan: &mut Channel) {
     unsafe {
         let cp = &raw mut *chan;
         let ct = &raw mut *chan;
@@ -1061,7 +1059,7 @@ pub unsafe fn channel_terminal_alloc(buf: &mut buf_T, chan: &mut Channel) {
     }
 }
 
-pub unsafe fn channel_term_read_pause(pause: bool, chan: &mut Channel) {
+pub fn channel_term_read_pause(pause: bool, chan: &mut Channel) {
     unsafe {
         if chan.streamtype == kChannelStreamInternal {
             return;
@@ -1127,7 +1125,7 @@ pub unsafe fn channel_term_write(buf: *const c_char, size: usize, chan: &mut Cha
     }
 }
 
-pub unsafe fn channel_term_resize(width: u16, height: u16, chan: &mut Channel) {
+pub fn channel_term_resize(width: u16, height: u16, chan: &mut Channel) {
     if chan.streamtype == kChannelStreamInternal {
             return;
         }
@@ -1141,7 +1139,7 @@ pub fn channel_term_resume(chan: &mut Channel) {
         pty_proc_resume(&mut chan.uv.proc_);
 }
 
-pub unsafe fn term_delayed_free(chan: &mut Channel) {
+pub fn term_delayed_free(chan: &mut Channel) {
     unsafe {
         let cp = &raw mut *chan;
         let ct = &raw mut *chan;
@@ -1158,7 +1156,7 @@ pub unsafe fn term_delayed_free(chan: &mut Channel) {
     }
 }
 
-pub unsafe fn channel_term_close(chan: &mut Channel) {
+pub fn channel_term_close(chan: &mut Channel) {
     unsafe {
         if chan.streamtype == kChannelStreamInternal {
             let internal = &raw mut chan.internal;
@@ -1184,7 +1182,7 @@ pub unsafe fn channel_event(chan: *mut Channel, event: event_T) {
     }
 }
 
-pub unsafe fn set_info_event(chan: &mut Channel, event: event_T) {
+pub fn set_info_event(chan: &mut Channel, event: event_T) {
     unsafe {
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let dict = get_v_event(&mut save_v_event);
@@ -1215,7 +1213,7 @@ pub unsafe fn set_info_event(chan: &mut Channel, event: event_T) {
     }
 }
 
-pub unsafe fn channel_job_running(id: u64) -> bool {
+pub fn channel_job_running(id: u64) -> bool {
     unsafe {
         let chan = find_channel(id);
         if chan.is_null() {

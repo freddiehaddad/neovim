@@ -142,7 +142,7 @@ pub unsafe fn ui_client_start_server(
 }
 
 /// Attaches this client to the UI channel, and sets its client info (`ui_client_attach`).
-pub unsafe fn ui_client_attach(
+pub fn ui_client_attach(
     width: c_int,
     height: c_int,
     term: Option<&std::ffi::CStr>,
@@ -274,14 +274,14 @@ pub unsafe fn ui_client_attach(
 }
 
 #[cfg(unix)]
-pub unsafe fn ui_client_detach() {
+pub fn ui_client_detach() {
     unsafe {
         rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_detach".as_ptr(), ARRAY_INIT);
         g_st().ui_client_attached = false;
     }
 }
 
-pub unsafe fn ui_client_run() -> ! {
+pub fn ui_client_run() -> ! {
     unsafe {
         tui_start(
             &raw mut uic_st().tui,
@@ -322,7 +322,7 @@ pub unsafe fn ui_client_run() -> ! {
     }
 }
 
-pub unsafe fn ui_client_stop() {
+pub fn ui_client_stop() {
     g_st().ui_client_attached = false;
         let t = tui_ptr();
         if !tui_is_stopped(t) {
@@ -330,7 +330,7 @@ pub unsafe fn ui_client_stop() {
         }
 }
 
-pub unsafe fn ui_client_set_size(width: c_int, height: c_int) {
+pub fn ui_client_set_size(width: c_int, height: c_int) {
     unsafe {
         if g_st().ui_client_attached {
             let mut args_items: [Object; 2] = [
@@ -365,7 +365,7 @@ pub unsafe fn handle_ui_client_redraw(
     }
 }
 
-pub unsafe fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
+pub fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
     unsafe {
         let mut err = Error::new();
         let mut dict = KeyDict_highlight::default();
@@ -392,7 +392,7 @@ pub unsafe fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
     }
 }
 
-pub unsafe fn ui_client_event_grid_resize(args: Array) {
+pub fn ui_client_event_grid_resize(args: Array) {
     unsafe {
         if args.size < 3
             || (*args.items).obj_type != ObjectType::kObjectTypeInteger
@@ -428,7 +428,7 @@ pub fn ui_client_event_grid_line(_args: Array) {
     std::process::abort()
 }
 
-pub unsafe fn ui_client_event_raw_line(g: &mut GridLineEvent) {
+pub fn ui_client_event_raw_line(g: &mut GridLineEvent) {
     unsafe {
         let grid = g.args[0];
         let row = g.args[1];
@@ -454,7 +454,7 @@ pub unsafe fn ui_client_event_raw_line(g: &mut GridLineEvent) {
     }
 }
 
-pub unsafe fn ui_client_event_connect(args: Array) {
+pub fn ui_client_event_connect(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
             logmsg!(
@@ -484,7 +484,7 @@ pub unsafe fn ui_client_event_connect(args: Array) {
     }
 }
 
-pub unsafe fn channel_connect_event(server_addr: std::ffi::CString) {
+pub fn channel_connect_event(server_addr: std::ffi::CString) {
     unsafe {
         let mut err: *const c_char = c"".as_ptr();
         let addr_ptr = server_addr.as_ptr();
@@ -529,7 +529,7 @@ pub unsafe fn channel_connect_event(server_addr: std::ffi::CString) {
     }
 }
 
-pub unsafe fn ui_client_event_restart(args: Array) {
+pub fn ui_client_event_restart(args: Array) {
     unsafe {
         api_free_array(uic_st().restart_args);
         uic_st().restart_args = copy_array(args, ptr::null_mut());
@@ -537,14 +537,14 @@ pub unsafe fn ui_client_event_restart(args: Array) {
     }
 }
 
-pub unsafe fn ui_client_event__set_restart_on_crash_exit(args: Array) {
+pub fn ui_client_event__set_restart_on_crash_exit(args: Array) {
     unsafe {
         api_free_array(uic_st().restart_args_after_crash_exit);
         uic_st().restart_args_after_crash_exit = copy_array(args, ptr::null_mut());
     }
 }
 
-pub unsafe fn ui_client_attach_to_restarted_server(error_restart: bool) {
+pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
     unsafe {
         let mut args = uic_st().restart_args;
         let mut start_server = false;
@@ -661,7 +661,7 @@ pub unsafe fn ui_client_attach_to_restarted_server(error_restart: bool) {
     }
 }
 
-pub unsafe fn ui_client_event_error_exit(args: Array) {
+pub fn ui_client_event_error_exit(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeInteger {
             logmsg!(
@@ -678,7 +678,7 @@ pub unsafe fn ui_client_event_error_exit(args: Array) {
     }
 }
 
-pub unsafe fn ui_client_free_all_mem() {
+pub fn ui_client_free_all_mem() {
     unsafe {
         let tui_out = &raw mut uic_st().tui;
         tui_free_all_mem((*tui_out).take());
@@ -708,7 +708,7 @@ unsafe fn log_ui_event_err(func_name: *const c_char, ev_name: *const c_char) {
     }
 }
 
-pub unsafe fn ui_client_event_mode_info_set(args: Array) {
+pub fn ui_client_event_mode_info_set(args: Array) {
     unsafe {
         if args.size < 2
             || (*args.items).obj_type != ObjectType::kObjectTypeBoolean
@@ -740,15 +740,15 @@ pub fn ui_client_event_busy_stop(_args: Array) {
     tui_busy_stop(tui_ptr());
 }
 
-pub unsafe fn ui_client_event_mouse_on(_args: Array) {
+pub fn ui_client_event_mouse_on(_args: Array) {
     tui_mouse_on(tui_ptr());
 }
 
-pub unsafe fn ui_client_event_mouse_off(_args: Array) {
+pub fn ui_client_event_mouse_off(_args: Array) {
     tui_mouse_off(tui_ptr());
 }
 
-pub unsafe fn ui_client_event_mode_change(args: Array) {
+pub fn ui_client_event_mode_change(args: Array) {
     unsafe {
         if args.size < 2
             || (*args.items).obj_type != ObjectType::kObjectTypeString
@@ -768,23 +768,23 @@ pub unsafe fn ui_client_event_mode_change(args: Array) {
     }
 }
 
-pub unsafe fn ui_client_event_bell(_args: Array) {
+pub fn ui_client_event_bell(_args: Array) {
     tui_bell(tui_ptr());
 }
 
-pub unsafe fn ui_client_event_visual_bell(_args: Array) {
+pub fn ui_client_event_visual_bell(_args: Array) {
     tui_visual_bell(tui_ptr());
 }
 
-pub unsafe fn ui_client_event_flush(_args: Array) {
+pub fn ui_client_event_flush(_args: Array) {
     tui_flush(tui_ptr());
 }
 
-pub unsafe fn ui_client_event_suspend(_args: Array) {
+pub fn ui_client_event_suspend(_args: Array) {
     tui_suspend(tui_ptr());
 }
 
-pub unsafe fn ui_client_event_set_title(args: Array) {
+pub fn ui_client_event_set_title(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
             log_ui_event_err(c"ui_client_event_set_title".as_ptr(), c"set_title".as_ptr());
@@ -794,7 +794,7 @@ pub unsafe fn ui_client_event_set_title(args: Array) {
     }
 }
 
-pub unsafe fn ui_client_event_set_icon(args: Array) {
+pub fn ui_client_event_set_icon(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
             log_ui_event_err(c"ui_client_event_set_icon".as_ptr(), c"set_icon".as_ptr());
@@ -804,7 +804,7 @@ pub unsafe fn ui_client_event_set_icon(args: Array) {
     }
 }
 
-pub unsafe fn ui_client_event_screenshot(args: Array) {
+pub fn ui_client_event_screenshot(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
             log_ui_event_err(
@@ -817,7 +817,7 @@ pub unsafe fn ui_client_event_screenshot(args: Array) {
     }
 }
 
-pub unsafe fn ui_client_event_option_set(args: Array) {
+pub fn ui_client_event_option_set(args: Array) {
     unsafe {
         if args.size < 2 || (*args.items).obj_type != ObjectType::kObjectTypeString {
             log_ui_event_err(
@@ -830,7 +830,7 @@ pub unsafe fn ui_client_event_option_set(args: Array) {
     }
 }
 
-pub unsafe fn ui_client_event_chdir(args: Array) {
+pub fn ui_client_event_chdir(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
             log_ui_event_err(c"ui_client_event_chdir".as_ptr(), c"chdir".as_ptr());
@@ -840,7 +840,7 @@ pub unsafe fn ui_client_event_chdir(args: Array) {
     }
 }
 
-pub unsafe fn ui_client_event_ui_send(args: Array) {
+pub fn ui_client_event_ui_send(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
             log_ui_event_err(c"ui_client_event_ui_send".as_ptr(), c"ui_send".as_ptr());
@@ -850,7 +850,7 @@ pub unsafe fn ui_client_event_ui_send(args: Array) {
     }
 }
 
-pub unsafe fn ui_client_event_default_colors_set(args: Array) {
+pub fn ui_client_event_default_colors_set(args: Array) {
     unsafe {
         if args.size < 5
             || (*args.items).obj_type != ObjectType::kObjectTypeInteger
@@ -876,7 +876,7 @@ pub unsafe fn ui_client_event_default_colors_set(args: Array) {
     }
 }
 
-pub unsafe fn ui_client_event_hl_attr_define(args: Array) {
+pub fn ui_client_event_hl_attr_define(args: Array) {
     unsafe {
         if args.size < 4
             || (*args.items).obj_type != ObjectType::kObjectTypeInteger
@@ -898,7 +898,7 @@ pub unsafe fn ui_client_event_hl_attr_define(args: Array) {
     }
 }
 
-pub unsafe fn ui_client_event_grid_clear(args: Array) {
+pub fn ui_client_event_grid_clear(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeInteger {
             log_ui_event_err(
@@ -911,7 +911,7 @@ pub unsafe fn ui_client_event_grid_clear(args: Array) {
     }
 }
 
-pub unsafe fn ui_client_event_grid_cursor_goto(args: Array) {
+pub fn ui_client_event_grid_cursor_goto(args: Array) {
     unsafe {
         if args.size < 3
             || (*args.items).obj_type != ObjectType::kObjectTypeInteger
@@ -933,7 +933,7 @@ pub unsafe fn ui_client_event_grid_cursor_goto(args: Array) {
     }
 }
 
-pub unsafe fn ui_client_event_grid_scroll(args: Array) {
+pub fn ui_client_event_grid_scroll(args: Array) {
     unsafe {
         if args.size < 7
             || (*args.items).obj_type != ObjectType::kObjectTypeInteger

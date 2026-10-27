@@ -212,7 +212,7 @@ unsafe fn w_lines_at(wp: *mut win_T, idx: usize) -> &'static mut wline_T {
     unsafe { &mut (&mut *wp).w_lines[idx] }
 }
 
-pub unsafe fn conceal_check_cursor_line() {
+pub fn conceal_check_cursor_line() {
     unsafe {
         let should_conceal = conceal_cursor_line(*curwin.as_ptr());
         if (**curwin.as_ptr()).w_onebuf_opt.wo_cole <= 0 || ds_st().conceal_cursor_used == should_conceal {
@@ -228,7 +228,7 @@ pub unsafe fn conceal_check_cursor_line() {
     }
 }
 
-pub unsafe fn default_grid_alloc() -> bool {
+pub fn default_grid_alloc() -> bool {
     unsafe {
         if ds_st().default_grid_resizing {
             return false;
@@ -260,7 +260,7 @@ pub unsafe fn default_grid_alloc() -> bool {
     }
 }
 
-pub unsafe fn screenclear() {
+pub fn screenclear() {
     unsafe {
         msg_check_for_delay(false);
 
@@ -321,7 +321,7 @@ pub unsafe fn screenclear() {
     }
 }
 
-unsafe fn cmdline_number_prompt() -> bool {
+fn cmdline_number_prompt() -> bool {
     unsafe {
         !ui_has(kUIMessages)
             && (g_st().State & MODE_CMDLINE) != 0
@@ -329,7 +329,7 @@ unsafe fn cmdline_number_prompt() -> bool {
     }
 }
 
-pub unsafe fn screen_resize(mut width: c_int, mut height: c_int) {
+pub fn screen_resize(mut width: c_int, mut height: c_int) {
     unsafe {
         if g_st().updating_screen || g_st().resizing_screen || cmdline_number_prompt() {
             return;
@@ -459,18 +459,16 @@ pub unsafe fn screen_resize(mut width: c_int, mut height: c_int) {
     }
 }
 
-pub unsafe fn check_screensize() {
-    unsafe {
-        g_st().Rows = g_st().Rows.max(min_rows_for_all_tabpages()).min(1000);
+pub fn check_screensize() {
+    g_st().Rows = g_st().Rows.max(min_rows_for_all_tabpages()).min(1000);
         g_st().Columns = g_st().Columns.clamp(MIN_COLUMNS, 10000);
-    }
 }
 
-pub unsafe fn redrawing() -> bool {
-    unsafe { g_st().RedrawingDisabled == 0 && !(opt_vars().p_lz != 0 && char_avail() && !g_st().KeyTyped && !g_st().do_redraw) }
+pub fn redrawing() -> bool {
+    g_st().RedrawingDisabled == 0 && !(opt_vars().p_lz != 0 && char_avail() && !g_st().KeyTyped && !g_st().do_redraw)
 }
 
-pub unsafe fn update_screen() -> c_int {
+pub fn update_screen() -> c_int {
     unsafe {
         if ds_st().still_may_intro && !may_show_intro() {
             redraw_later(g_st().firstwin, UPD_NOT_VALID);
@@ -780,19 +778,17 @@ pub unsafe fn update_screen() -> c_int {
     }
 }
 
-pub unsafe fn start_search_hl() {
-    unsafe {
-        if opt_vars().p_hls == 0 || g_st().Search.no_hlsearch {
+pub fn start_search_hl() {
+    if opt_vars().p_hls == 0 || g_st().Search.no_hlsearch {
             return;
         }
 
         end_search_hl();
         last_pat_prog(&mut g_st().screen_search_hl.rm);
         g_st().screen_search_hl.tm = profile_setlimit(opt_vars().p_rdt);
-    }
 }
 
-pub unsafe fn end_search_hl() {
+pub fn end_search_hl() {
     unsafe {
         if g_st().screen_search_hl.rm.regprog.is_null() {
             return;
@@ -803,13 +799,13 @@ pub unsafe fn end_search_hl() {
     }
 }
 
-pub unsafe fn setcursor() {
+pub fn setcursor() {
     unsafe {
         setcursor_mayforce(&mut **curwin.as_ptr(), false);
     }
 }
 
-pub unsafe fn setcursor_mayforce(wp: &mut win_T, force: bool) {
+pub fn setcursor_mayforce(wp: &mut win_T, force: bool) {
     unsafe {
         if force || redrawing() {
             validate_cursor(&raw mut *wp);
@@ -841,7 +837,7 @@ pub fn redraw_custom_title_later() -> bool {
         false
 }
 
-pub unsafe fn show_cursor_info_later(force: bool) {
+pub fn show_cursor_info_later(force: bool) {
     unsafe {
         let state = get_real_state();
         let empty_line = c_int::from(
@@ -895,17 +891,15 @@ pub unsafe fn show_cursor_info_later(force: bool) {
     }
 }
 
-pub unsafe fn skip_showmode() -> bool {
-    unsafe {
-        if g_st().global_busy != 0 || g_st().msg_silent != 0 || !redrawing() || (char_avail() && !g_st().KeyTyped) {
+pub fn skip_showmode() -> bool {
+    if g_st().global_busy != 0 || g_st().msg_silent != 0 || !redrawing() || (char_avail() && !g_st().KeyTyped) {
             g_st().redraw_mode = true;
             return true;
         }
         false
-    }
 }
 
-pub unsafe fn showmode() -> c_int {
+pub fn showmode() -> c_int {
     unsafe {
         let mut length: c_int = 0;
 
@@ -1079,19 +1073,16 @@ fn msg_pos_mode() {
         g_st().msg_row = g_st().Rows - 1;
 }
 
-pub unsafe fn unshowmode(force: bool) {
-    unsafe {
-        if !redrawing() || (!force && char_avail() && !g_st().KeyTyped) {
+pub fn unshowmode(force: bool) {
+    if !redrawing() || (!force && char_avail() && !g_st().KeyTyped) {
             g_st().redraw_cmdline = true;
         } else {
             clearmode();
         }
-    }
 }
 
-pub unsafe fn clearmode() {
-    unsafe {
-        let save_msg_row = g_st().msg_row;
+pub fn clearmode() {
+    let save_msg_row = g_st().msg_row;
         let save_msg_col = g_st().msg_col;
 
         msg_ext_ui_flush();
@@ -1104,10 +1095,9 @@ pub unsafe fn clearmode() {
 
         g_st().msg_col = save_msg_col;
         g_st().msg_row = save_msg_row;
-    }
 }
 
-unsafe fn recording_mode(hl_id: c_int) {
+fn recording_mode(hl_id: c_int) {
     unsafe {
         if shortmess(kShmRecording) {
             return;
@@ -1124,7 +1114,7 @@ unsafe fn recording_mode(hl_id: c_int) {
     }
 }
 
-pub unsafe fn comp_col() {
+pub fn comp_col() {
     unsafe {
         let last_has_status = last_stl_height(false) > 0;
 
@@ -1156,7 +1146,7 @@ pub unsafe fn comp_col() {
     }
 }
 
-unsafe fn win_redraw_signcols(wp: &mut win_T) -> bool {
+fn win_redraw_signcols(wp: &mut win_T) -> bool {
     unsafe {
         let buf = wp.w_buffer;
 
@@ -1190,7 +1180,7 @@ unsafe fn win_redraw_signcols(wp: &mut win_T) -> bool {
     }
 }
 
-unsafe fn hsep_connected(wp: &mut win_T, corner: WindowCorner) -> bool {
+fn hsep_connected(wp: &mut win_T, corner: WindowCorner) -> bool {
     unsafe {
         let before = corner == WindowCorner::TopLeft || corner == WindowCorner::BottomLeft;
         let sep_row = if corner == WindowCorner::TopLeft || corner == WindowCorner::TopRight {
@@ -1231,7 +1221,7 @@ unsafe fn hsep_connected(wp: &mut win_T, corner: WindowCorner) -> bool {
     }
 }
 
-unsafe fn vsep_connected(wp: &mut win_T, corner: WindowCorner) -> bool {
+fn vsep_connected(wp: &mut win_T, corner: WindowCorner) -> bool {
     unsafe {
         let before = corner == WindowCorner::TopLeft || corner == WindowCorner::TopRight;
         let sep_col = if corner == WindowCorner::TopLeft || corner == WindowCorner::BottomLeft {
@@ -1272,7 +1262,7 @@ unsafe fn vsep_connected(wp: &mut win_T, corner: WindowCorner) -> bool {
     }
 }
 
-unsafe fn draw_vsep_win(wp: &mut win_T) {
+fn draw_vsep_win(wp: &mut win_T) {
     unsafe {
         if wp.w_vsep_width == 0 {
             return;
@@ -1290,7 +1280,7 @@ unsafe fn draw_vsep_win(wp: &mut win_T) {
     }
 }
 
-unsafe fn draw_hsep_win(wp: &mut win_T) {
+fn draw_hsep_win(wp: &mut win_T) {
     unsafe {
         if wp.w_hsep_height == 0 {
             return;
@@ -1307,9 +1297,8 @@ unsafe fn draw_hsep_win(wp: &mut win_T) {
     }
 }
 
-unsafe fn get_corner_sep_connector(wp: &mut win_T, corner: WindowCorner) -> schar_T {
-    unsafe {
-        if vsep_connected(wp, corner) {
+fn get_corner_sep_connector(wp: &mut win_T, corner: WindowCorner) -> schar_T {
+    if vsep_connected(wp, corner) {
             if hsep_connected(wp, corner) {
                 wp.w_p_fcs_chars.verthoriz
             } else if corner == WindowCorner::TopLeft || corner == WindowCorner::BottomLeft {
@@ -1322,10 +1311,9 @@ unsafe fn get_corner_sep_connector(wp: &mut win_T, corner: WindowCorner) -> scha
         } else {
             wp.w_p_fcs_chars.horizup
         }
-    }
 }
 
-unsafe fn draw_sep_connectors_win(wp: &mut win_T) {
+fn draw_sep_connectors_win(wp: &mut win_T) {
     unsafe {
         if global_stl_height() == 0 || !(wp.w_hsep_height == 1 || wp.w_vsep_width == 1) {
             return;
@@ -1398,7 +1386,7 @@ unsafe fn draw_sep_connectors_win(wp: &mut win_T) {
     }
 }
 
-unsafe fn win_update(wp: &mut win_T) {
+fn win_update(wp: &mut win_T) {
     unsafe {
         if ptr::eq(wp.w_grid.target, &raw mut g_st().default_grid) && wp.w_wincol >= g_st().Columns {
             return;
@@ -2498,7 +2486,7 @@ pub unsafe fn win_scroll_lines(wp: *mut win_T, row: c_int, line_count: c_int) {
     }
 }
 
-pub unsafe fn win_draw_end(
+pub fn win_draw_end(
     wp: &mut win_T,
     c1: schar_T,
     draw_margin: bool,
@@ -2635,7 +2623,7 @@ pub unsafe fn redraw_later(wp: *mut win_T, type_: c_int) {
     }
 }
 
-pub unsafe fn redraw_all_later(type_: c_int) {
+pub fn redraw_all_later(type_: c_int) {
     unsafe {
         let mut wp = g_st().firstwin;
         while !wp.is_null() {
@@ -2652,7 +2640,7 @@ pub fn set_must_redraw(type_: c_int) {
         }
 }
 
-pub unsafe fn screen_invalidate_highlights() {
+pub fn screen_invalidate_highlights() {
     unsafe {
         let mut wp = g_st().firstwin;
         while !wp.is_null() {
@@ -2663,7 +2651,7 @@ pub unsafe fn screen_invalidate_highlights() {
     }
 }
 
-pub unsafe fn redraw_curbuf_later(type_: c_int) {
+pub fn redraw_curbuf_later(type_: c_int) {
     unsafe {
         redraw_buf_later(g_st().curbuf, type_);
     }
@@ -2752,7 +2740,7 @@ pub unsafe fn redraw_buf_status_later(buf: *mut buf_T) {
     }
 }
 
-pub unsafe fn status_redraw_all() {
+pub fn status_redraw_all() {
     unsafe {
         let is_stl_global = global_stl_height() != 0;
 
@@ -2770,7 +2758,7 @@ pub unsafe fn status_redraw_all() {
     }
 }
 
-pub unsafe fn status_redraw_curbuf() {
+pub fn status_redraw_curbuf() {
     unsafe {
         status_redraw_buf(g_st().curbuf);
     }
@@ -2799,7 +2787,7 @@ pub unsafe fn status_redraw_buf(buf: *mut buf_T) {
     }
 }
 
-pub unsafe fn redraw_statuslines() {
+pub fn redraw_statuslines() {
     unsafe {
         let mut wp = g_st().firstwin;
         while !wp.is_null() {
@@ -2870,7 +2858,7 @@ pub unsafe fn win_cursorline_standout(wp: *const win_T) -> bool {
     }
 }
 
-pub unsafe fn win_update_cursorline(wp: &mut win_T, foldinfo: &mut foldinfo_T) {
+pub fn win_update_cursorline(wp: &mut win_T, foldinfo: &mut foldinfo_T) {
     unsafe {
         wp.w_cursorline = if win_cursorline_standout(&raw mut *wp) {
             wp.w_cursor.lnum

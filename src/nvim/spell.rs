@@ -224,16 +224,14 @@ pub(crate) fn spell_priv_st() -> &'static mut SpellPrivateState {
     unsafe { &mut *SPELL_PRIV_STATE.as_ptr() }
 }
 #[inline]
-pub unsafe fn spell_isupper(c: c_int) -> bool {
-    unsafe {
-        if c >= 128 {
+pub fn spell_isupper(c: c_int) -> bool {
+    if c >= 128 {
             mb_isupper(c)
         } else if c >= 0 {
             spell_priv_st().spelltab.st_isu[c as usize]
         } else {
             false
         }
-    }
 }
 #[inline]
 pub fn spell_tofold(c: c_int) -> c_int {
@@ -246,19 +244,17 @@ pub fn spell_tofold(c: c_int) -> c_int {
         }
 }
 #[inline]
-pub unsafe fn spell_toupper(c: c_int) -> c_int {
-    unsafe {
-        if c >= 128 {
+pub fn spell_toupper(c: c_int) -> c_int {
+    if c >= 128 {
             mb_toupper(c)
         } else if c >= 0 {
             spell_priv_st().spelltab.st_upper[c as usize] as c_int
         } else {
             c
         }
-    }
 }
 #[inline]
-unsafe fn mb_cptr_adv(p: &mut *const c_char) {
+fn mb_cptr_adv(p: &mut *const c_char) {
     unsafe {
         *p = (*p).add(utfc_ptr2len(*p) as usize);
     }
@@ -423,11 +419,11 @@ pub unsafe fn spell_check(
         mi.mi_end.offset_from(ptr) as usize
     }
 }
-unsafe fn get_char_type(c: c_int) -> c_int {
+fn get_char_type(c: c_int) -> c_int {
     if ascii_isdigit(c) {
         return CHAR_DIGIT;
     }
-    if unsafe { spell_isupper(c) } {
+    if spell_isupper(c) {
         return CHAR_UPPER;
     }
     CHAR_OTHER
@@ -467,7 +463,7 @@ unsafe fn advance_camelcase_word(
         end
     }
 }
-unsafe fn find_word(mip: &mut matchinf_T, mode: c_int) {
+fn find_word(mip: &mut matchinf_T, mode: c_int) {
     unsafe {
         let mut wlen: c_int = 0;
         let mut flen: c_int;
@@ -963,7 +959,7 @@ pub unsafe fn valid_word_prefix(
         0
     }
 }
-unsafe fn find_prefix(mip: &mut matchinf_T, mode: c_int) {
+fn find_prefix(mip: &mut matchinf_T, mode: c_int) {
     unsafe {
         let mut arridx: idx_T = 0;
         let mut wlen: c_int = 0;
@@ -1034,7 +1030,7 @@ unsafe fn find_prefix(mip: &mut matchinf_T, mode: c_int) {
         }
     }
 }
-unsafe fn fold_more(mip: &mut matchinf_T) -> c_int {
+fn fold_more(mip: &mut matchinf_T) -> c_int {
     unsafe {
         let p = mip.mi_fend;
         loop {
@@ -1066,7 +1062,7 @@ pub fn spell_valid_case(wordflags: c_int, treeflags: c_int) -> bool {
         || ((treeflags & (WF_ALLCAP | WF_KEEPCAP)) == 0
             && ((treeflags & WF_ONECAP) == 0 || (wordflags & WF_ONECAP) != 0))
 }
-pub unsafe fn spell_check_window(wp: &mut win_T) -> bool {
+pub fn spell_check_window(wp: &mut win_T) -> bool {
     unsafe {
         let w_s = wp.w_s_ptr();
         wp.w_onebuf_opt.wo_spell != 0
@@ -1075,7 +1071,7 @@ pub unsafe fn spell_check_window(wp: &mut win_T) -> bool {
             && !(&(*w_s).b_langp)[0].lp_slang.is_null()
     }
 }
-pub unsafe fn no_spell_checking(wp: &mut win_T) -> bool {
+pub fn no_spell_checking(wp: &mut win_T) -> bool {
     unsafe {
         let w_s = wp.w_s_ptr();
         if wp.w_onebuf_opt.wo_spell == 0 || *(*w_s).b_p_spl == NUL || (*w_s).b_langp.is_empty() {
@@ -1395,7 +1391,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
         (*g_st().curbuf).b_locked -= 1;
     }
 }
-pub unsafe fn spell_enc() -> *mut c_char {
+pub fn spell_enc() -> *mut c_char {
     unsafe {
         if std::ffi::CStr::from_ptr(opt_vars().p_enc).to_bytes().len() < 60 && (std::ffi::CStr::from_ptr(opt_vars().p_enc).to_bytes() != b"iso-8859-15") {
             return opt_vars().p_enc;
@@ -1476,9 +1472,8 @@ pub unsafe fn slang_alloc(lang: *mut c_char) -> Box<slang_T> {
         })
     }
 }
-pub unsafe fn slang_clear(lp: &mut slang_T) {
-    unsafe {
-        lp.sl_fbyts = Vec::new();
+pub fn slang_clear(lp: &mut slang_T) {
+    lp.sl_fbyts = Vec::new();
         lp.sl_kbyts = Vec::new();
         lp.sl_pbyts = Vec::new();
         lp.sl_fidxs = Vec::new();
@@ -1505,18 +1500,15 @@ pub unsafe fn slang_clear(lp: &mut slang_T) {
         lp.sl_compminlen = 0;
         lp.sl_compsylmax = MAXWLEN as c_int;
         lp.sl_regions[0] = NUL;
-    }
 }
-pub unsafe fn slang_clear_sug(lp: &mut slang_T) {
-    unsafe {
-        lp.sl_sbyts = Vec::new();
+pub fn slang_clear_sug(lp: &mut slang_T) {
+    lp.sl_sbyts = Vec::new();
         lp.sl_sidxs = Vec::new();
         close_spellbuf(&mut lp.sl_sugbuf);
         lp.sl_sugloaded = false;
         lp.sl_sugtime = 0;
-    }
 }
-pub unsafe fn spell_load_cb(
+pub fn spell_load_cb(
     fnames: &[std::ffi::CString],
     all: bool,
     slp: &mut spelload_T,
@@ -1577,7 +1569,7 @@ pub unsafe fn byte_in_str(str_: *const u8, n: c_int) -> bool {
         false
     }
 }
-pub unsafe fn init_syl_tab(slang: &mut slang_T) -> c_int {
+pub fn init_syl_tab(slang: &mut slang_T) -> c_int {
     unsafe {
         let syl_items = &mut slang.sl_syl_items;
         syl_items.clear();
@@ -2011,7 +2003,7 @@ pub unsafe fn captype(word: *const c_char, end: *const c_char) -> c_int {
         0
     }
 }
-pub unsafe fn spell_delete_wordlist() {
+pub fn spell_delete_wordlist() {
     unsafe {
         let Some(ref wl) = spell_priv_st().int_wordlist else {
             return;
@@ -2023,7 +2015,7 @@ pub unsafe fn spell_delete_wordlist() {
         spell_priv_st().int_wordlist = None;
     }
 }
-pub unsafe fn spell_free_all() {
+pub fn spell_free_all() {
     unsafe {
         let mut buf = g_st().firstbuf;
         while !buf.is_null() {
@@ -2036,7 +2028,7 @@ pub unsafe fn spell_free_all() {
         spell_priv_st().repl_from = None;
     }
 }
-pub unsafe fn spell_reload() {
+pub fn spell_reload() {
     unsafe {
         init_spell_chartab();
         spell_free_all();
@@ -2051,7 +2043,7 @@ pub unsafe fn spell_reload() {
         }
     }
 }
-pub unsafe fn open_spellbuf() -> Box<buf_T> {
+pub fn open_spellbuf() -> Box<buf_T> {
     unsafe {
         let mut buf = Box::new(buf_T::new());
         buf.b_spell = true;
@@ -2070,7 +2062,7 @@ pub unsafe fn open_spellbuf() -> Box<buf_T> {
         buf
     }
 }
-pub unsafe fn close_spellbuf(buf: &mut Option<Box<buf_T>>) {
+pub fn close_spellbuf(buf: &mut Option<Box<buf_T>>) {
     unsafe {
         if let Some(mut b) = buf.take() {
             ml_close(&raw mut *b, 1);
@@ -2097,9 +2089,8 @@ pub fn clear_spell_chartab(sp: &mut spelltab_T) {
             sp.st_upper[i] = (i - 0x20) as u8;
         }
 }
-pub unsafe fn init_spell_chartab() {
-    unsafe {
-        spell_priv_st().did_set_spelltab = false;
+pub fn init_spell_chartab() {
+    spell_priv_st().did_set_spelltab = false;
         clear_spell_chartab(&mut spell_priv_st().spelltab);
         for i in 128..256 {
             let f = utf_fold(i as c_int);
@@ -2109,7 +2100,6 @@ pub unsafe fn init_spell_chartab() {
             spell_priv_st().spelltab.st_fold[i] = if f < 256 { f as u8 } else { i as u8 };
             spell_priv_st().spelltab.st_upper[i] = if u < 256 { u as u8 } else { i as u8 };
         }
-    }
 }
 pub unsafe fn spell_iswordp(p: *const c_char, wp: *const win_T) -> bool {
     unsafe {
@@ -2215,7 +2205,7 @@ pub unsafe fn spell_casefold(
         OK
     }
 }
-pub unsafe fn check_need_cap(wp: &mut win_T, lnum: linenr_T, col: colnr_T) -> bool {
+pub fn check_need_cap(wp: &mut win_T, lnum: linenr_T, col: colnr_T) -> bool {
     unsafe {
         let w_s = wp.w_s_ptr();
         if (*w_s).b_cap_prog.is_none() {
@@ -2269,7 +2259,7 @@ pub unsafe fn check_need_cap(wp: &mut win_T, lnum: linenr_T, col: colnr_T) -> bo
         need_cap
     }
 }
-pub unsafe fn ex_spellrepall(_eap: &mut exarg_T) {
+pub fn ex_spellrepall(_eap: &mut exarg_T) {
     unsafe {
         let pos = (**curwin.as_ptr()).w_cursor;
         let save_ws = opt_vars().p_ws;
@@ -2775,7 +2765,7 @@ unsafe fn spell_soundfold_wsal(slang: &mut slang_T, inword: *const c_char, res: 
         *res.add(l) = NUL;
     }
 }
-pub unsafe fn ex_spellinfo(_eap: &mut exarg_T) {
+pub fn ex_spellinfo(_eap: &mut exarg_T) {
     unsafe {
         if no_spell_checking(&mut **curwin.as_ptr()) {
             return;
@@ -2812,7 +2802,7 @@ pub unsafe fn ex_spellinfo(_eap: &mut exarg_T) {
         msg_end();
     }
 }
-pub unsafe fn ex_spelldump(eap: &mut exarg_T) {
+pub fn ex_spelldump(eap: &mut exarg_T) {
     unsafe {
         if no_spell_checking(&mut **curwin.as_ptr()) {
             return;
@@ -3221,7 +3211,7 @@ pub unsafe fn spell_to_word_end(start: *mut c_char, win: *mut win_T) -> *mut c_c
         p
     }
 }
-pub unsafe fn spell_word_start(startcol: c_int) -> c_int {
+pub fn spell_word_start(startcol: c_int) -> c_int {
     unsafe {
         if no_spell_checking(&mut **curwin.as_ptr()) {
             return startcol;
@@ -3246,7 +3236,7 @@ pub unsafe fn spell_word_start(startcol: c_int) -> c_int {
         col
     }
 }
-pub unsafe fn spell_expand_check_cap(col: colnr_T) {
+pub fn spell_expand_check_cap(col: colnr_T) {
     unsafe {
         spell_priv_st().spell_expand_need_cap = check_need_cap(&mut **curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum, col);
     }
@@ -3295,7 +3285,7 @@ pub unsafe fn valid_spellfile(val: *const c_char) -> bool {
         true
     }
 }
-pub unsafe fn did_set_spell_option() -> *const c_char {
+pub fn did_set_spell_option() -> *const c_char {
     unsafe {
         let mut errmsg: *const c_char = std::ptr::null();
         let mut wp = g_st().firstwin;

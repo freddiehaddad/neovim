@@ -80,25 +80,23 @@ fn comp() -> &'static mut UiCompositorState {
 }
 
 #[inline]
-unsafe fn layers_mut() -> &'static mut Vec<*mut ScreenGrid> {
+fn layers_mut() -> &'static mut Vec<*mut ScreenGrid> {
     unsafe { &mut (*COMP_STATE.as_ptr()).layers }
 }
 
 #[inline]
-unsafe fn linebuf_mut() -> &'static mut Vec<schar_T> {
+fn linebuf_mut() -> &'static mut Vec<schar_T> {
     unsafe { &mut (*COMP_STATE.as_ptr()).linebuf }
 }
 
 #[inline]
-unsafe fn attrbuf_mut() -> &'static mut Vec<sattr_T> {
+fn attrbuf_mut() -> &'static mut Vec<sattr_T> {
     unsafe { &mut (*COMP_STATE.as_ptr()).attrbuf }
 }
 
-pub unsafe fn ui_comp_init() {
-    unsafe {
-        layers_mut().push(&raw mut g_st().default_grid);
+pub fn ui_comp_init() {
+    layers_mut().push(&raw mut g_st().default_grid);
         comp().curgrid = &raw mut g_st().default_grid;
-    }
 }
 
 pub fn ui_comp_free_all_mem() {
@@ -107,7 +105,7 @@ pub fn ui_comp_free_all_mem() {
         comp().attrbuf = Vec::new();
 }
 
-pub unsafe fn ui_comp_syn_init() {
+pub fn ui_comp_syn_init() {
     unsafe {
         comp().dbghl_normal = syn_check_group(c"RedrawDebugNormal".as_ptr(), 17);
         comp().dbghl_clear = syn_check_group(c"RedrawDebugClear".as_ptr(), 16);
@@ -135,7 +133,7 @@ pub fn ui_comp_should_draw() -> bool {
 }
 
 /// Raises or lowers the layer, syncing `comp_index` with `zindex` (`ui_comp_layers_adjust`).
-pub unsafe fn ui_comp_layers_adjust(mut layer_idx: usize, raise: bool) {
+pub fn ui_comp_layers_adjust(mut layer_idx: usize, raise: bool) {
     unsafe {
         let l = layers_mut();
         let size = l.len();
@@ -165,7 +163,7 @@ pub unsafe fn ui_comp_layers_adjust(mut layer_idx: usize, raise: bool) {
 }
 
 /// Places `grid` at `(col, row)` position with `(width * height)` size (`ui_comp_put_grid`).
-pub unsafe fn ui_comp_put_grid(
+pub fn ui_comp_put_grid(
     grid: &mut ScreenGrid,
     row: c_int,
     col: c_int,
@@ -258,7 +256,7 @@ pub unsafe fn ui_comp_put_grid(
     }
 }
 
-pub unsafe fn ui_comp_remove_grid(grid: &mut ScreenGrid) {
+pub fn ui_comp_remove_grid(grid: &mut ScreenGrid) {
     unsafe {
         debug_assert!(!ptr::eq(grid, &raw const g_st().default_grid));
         if grid.comp_index == 0 {
@@ -283,7 +281,7 @@ pub unsafe fn ui_comp_remove_grid(grid: &mut ScreenGrid) {
     }
 }
 
-pub unsafe fn ui_comp_set_grid(handle: handle_T) -> bool {
+pub fn ui_comp_set_grid(handle: handle_T) -> bool {
     unsafe {
         if (*comp().curgrid).handle == handle {
             return true;
@@ -298,7 +296,7 @@ pub unsafe fn ui_comp_set_grid(handle: handle_T) -> bool {
     }
 }
 
-pub unsafe fn ui_comp_raise_grid(grid: &mut ScreenGrid, new_index: usize) {
+pub fn ui_comp_raise_grid(grid: &mut ScreenGrid, new_index: usize) {
     unsafe {
         let l = layers_mut();
         let old_index = grid.comp_index;
@@ -324,7 +322,7 @@ pub unsafe fn ui_comp_raise_grid(grid: &mut ScreenGrid, new_index: usize) {
     }
 }
 
-pub unsafe fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Integer) {
+pub fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Integer) {
     unsafe {
         if !ui_comp_set_grid(grid_handle as c_int) {
             return;
@@ -350,7 +348,7 @@ pub unsafe fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Inte
     }
 }
 
-pub unsafe fn ui_comp_mouse_focus(row: c_int, col: c_int) -> *mut ScreenGrid {
+pub fn ui_comp_mouse_focus(row: c_int, col: c_int) -> *mut ScreenGrid {
     unsafe {
         let l = layers_mut();
         for &grid in l.iter().skip(1).rev() {
@@ -383,7 +381,7 @@ pub unsafe fn ui_comp_mouse_focus(row: c_int, col: c_int) -> *mut ScreenGrid {
 }
 
 /// Compute which grid is on top at supplied screen coordinates (`ui_comp_get_grid_at_coord`).
-pub unsafe fn ui_comp_get_grid_at_coord(row: c_int, col: c_int) -> *mut ScreenGrid {
+pub fn ui_comp_get_grid_at_coord(row: c_int, col: c_int) -> *mut ScreenGrid {
     unsafe {
         let l = layers_mut();
         for &grid in l.iter().skip(1).rev() {
@@ -413,7 +411,7 @@ pub unsafe fn ui_comp_get_grid_at_coord(row: c_int, col: c_int) -> *mut ScreenGr
     }
 }
 
-unsafe fn compose_line(
+fn compose_line(
     row: Integer,
     mut startcol: Integer,
     mut endcol: Integer,
@@ -573,7 +571,7 @@ unsafe fn compose_line(
     }
 }
 
-unsafe fn compose_debug(
+fn compose_debug(
     startrow: Integer,
     mut endrow: Integer,
     startcol: Integer,
@@ -623,14 +621,13 @@ fn debug_delay(lines: Integer) {
         os_sleep(factor * wd);
 }
 
-unsafe fn compose_area(
+fn compose_area(
     startrow: Integer,
     mut endrow: Integer,
     startcol: Integer,
     mut endcol: Integer,
 ) {
-    unsafe {
-        compose_debug(startrow, endrow, startcol, endcol, comp().dbghl_recompose, true);
+    compose_debug(startrow, endrow, startcol, endcol, comp().dbghl_recompose, true);
         endrow = endrow.min(g_st().default_grid.rows as Integer);
         endcol = endcol.min(g_st().default_grid.cols as Integer);
         if endcol <= startcol {
@@ -639,13 +636,11 @@ unsafe fn compose_area(
         for r in (startrow as c_int)..(endrow as c_int) {
             compose_line(r as Integer, startcol, endcol, kLineFlagInvalid);
         }
-    }
 }
 
 /// Compose the area under the grid (`ui_comp_compose_grid`).
-pub unsafe fn ui_comp_compose_grid(grid: &mut ScreenGrid) {
-    unsafe {
-        if ui_comp_should_draw() {
+pub fn ui_comp_compose_grid(grid: &mut ScreenGrid) {
+    if ui_comp_should_draw() {
             compose_area(
                 grid.comp_row as Integer,
                 (grid.comp_row + grid.rows) as Integer,
@@ -653,7 +648,6 @@ pub unsafe fn ui_comp_compose_grid(grid: &mut ScreenGrid) {
                 (grid.comp_col + grid.cols) as Integer,
             );
         }
-    }
 }
 
 pub unsafe fn ui_comp_raw_line(
@@ -732,7 +726,7 @@ pub fn ui_comp_set_screen_valid(valid: bool) -> bool {
         old_val
 }
 
-pub unsafe fn ui_comp_msg_set_pos(
+pub fn ui_comp_msg_set_pos(
     _grid: Integer,
     row: Integer,
     scrolled: Boolean,
@@ -795,7 +789,7 @@ pub unsafe fn ui_comp_msg_set_pos(
 }
 
 /// Check if `comp().curgrid` is covered by any other grid within the rectangle (`curgrid_covered_above`).
-unsafe fn curgrid_covered_above(top: c_int, bot: c_int, left: c_int, right: c_int) -> bool {
+fn curgrid_covered_above(top: c_int, bot: c_int, left: c_int, right: c_int) -> bool {
     unsafe {
         for &g in layers_mut().iter().skip((*comp().curgrid).comp_index + 1) {
             let grid_top = (*g).comp_row
@@ -816,7 +810,7 @@ unsafe fn curgrid_covered_above(top: c_int, bot: c_int, left: c_int, right: c_in
     }
 }
 
-pub unsafe fn ui_comp_grid_scroll(
+pub fn ui_comp_grid_scroll(
     grid: Integer,
     mut top: Integer,
     mut bot: Integer,
@@ -857,9 +851,8 @@ pub unsafe fn ui_comp_grid_scroll(
     }
 }
 
-pub unsafe fn ui_comp_grid_resize(grid: Integer, width: Integer, height: Integer) {
-    unsafe {
-        if grid == 1 {
+pub fn ui_comp_grid_resize(grid: Integer, width: Integer, height: Integer) {
+    if grid == 1 {
             ui_composed_call_grid_resize(1, width, height);
             comp().chk_width = width as c_int;
             comp().chk_height = height as c_int;
@@ -871,5 +864,4 @@ pub unsafe fn ui_comp_grid_resize(grid: Integer, width: Integer, height: Integer
                 abuf.resize(new_bufsize, 0);
             }
         }
-    }
 }

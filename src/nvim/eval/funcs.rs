@@ -9194,9 +9194,7 @@ pub unsafe fn f_timer_stopall(
     _unused: &mut typval_T,
     _fptr: EvalFuncData,
 ) {
-    unsafe {
-        timer_stop_all();
-    }
+    timer_stop_all();
 }
 
 /// "type(expr)" function
@@ -9287,11 +9285,9 @@ pub unsafe fn f_visualmode(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
 
 /// "wildmenumode()" function
 pub unsafe fn f_wildmenumode(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
-    unsafe {
-        if g_st().wild_menu_showing != 0 || ((g_st().State & MODE_CMDLINE) != 0 && cmdline_pum_active()) {
+    if g_st().wild_menu_showing != 0 || ((g_st().State & MODE_CMDLINE) != 0 && cmdline_pum_active()) {
             rettv.vval = crate::eval::typval::TypvalVval::Number(1);
         }
-    }
 }
 
 /// "windowsversion()" function

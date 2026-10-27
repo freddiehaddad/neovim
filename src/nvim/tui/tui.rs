@@ -1532,8 +1532,7 @@ unsafe fn print_cell(tui: &mut TUIData, buf: *const c_char, attr: sattr_T) {
 }
 
 fn cheap_to_print(tui: &TUIData, row: c_int, col: c_int, mut next: c_int) -> bool {
-    unsafe {
-        let cells = &tui.grid.cells;
+    let cells = &tui.grid.cells;
         let row_cells = &cells[row as usize];
         let mut idx = col as usize;
         while next != 0 {
@@ -1549,7 +1548,6 @@ fn cheap_to_print(tui: &TUIData, row: c_int, col: c_int, mut next: c_int) -> boo
             idx += 1;
         }
         true
-    }
 }
 
 fn cursor_goto(tui: &mut TUIData, row: c_int, col: c_int) {
@@ -1783,12 +1781,10 @@ pub fn tui_grid_resize(tui: &mut TUIData, _g: Integer, width: Integer, height: I
 }
 
 pub fn tui_grid_clear(tui: &mut TUIData, _g: Integer) {
-    unsafe {
-        ugrid_clear(&mut tui.grid);
+    ugrid_clear(&mut tui.grid);
         schar_cache_clear_if_full();
         tui.invalid_regions.clear();
         clear_region(tui, 0, tui.height, 0, tui.width, 0);
-    }
 }
 
 pub fn tui_grid_cursor_goto(tui: &mut TUIData, _grid: Integer, row: Integer, col: Integer) {
@@ -2278,7 +2274,7 @@ fn show_verbose_terminfo(tui: &mut TUIData) {
 
 pub fn tui_suspend(tui: &mut TUIData) {
     #[cfg(unix)]
-    unsafe {
+    {
         ui_client_detach();
         tui.mouse_enabled_save = tui.mouse_enabled;
         tui.input.primary_device_attr = Some(PrimaryDeviceAttrAction::Suspend);
@@ -2544,12 +2540,10 @@ fn invalidate(tui: &mut TUIData, top: c_int, bot: c_int, left: c_int, right: c_i
 }
 
 pub fn tui_set_size(tui: &mut TUIData, width: c_int, height: c_int) {
-    unsafe {
-        tui.pending_resize_events += 1;
+    tui.pending_resize_events += 1;
         tui.width = width;
         tui.height = height;
         ui_client_set_size(width, height);
-    }
 }
 
 unsafe fn parse_sscanf_int(val: *const c_char, out: &mut c_int) -> bool {

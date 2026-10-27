@@ -777,7 +777,7 @@ unsafe fn tree_count_words(byts: *const u8, byts_len: c_int, idxs: *mut idx_T) {
 }
 
 /// Load the .sug files for languages that have one and weren't loaded yet.
-pub unsafe fn suggest_load_files() {
+pub fn suggest_load_files() {
     unsafe {
         let mut buf = [0 as c_char; MAXWLEN];
         let mut ga: Vec<u8> = Vec::new();
@@ -2648,7 +2648,7 @@ unsafe fn is_aff_rule(
     }
 }
 
-unsafe fn aff_process_flags(affile: &afffile_T, entry: &mut affentry_T) {
+fn aff_process_flags(affile: &afffile_T, entry: &mut affentry_T) {
     unsafe {
         if let Some(ref flags_cstr) = entry.ae_flags
             && (affile.af_compforbid != 0 || affile.af_comppermit != 0)
@@ -4101,14 +4101,13 @@ unsafe fn wordtree_compress(spin: *mut spellinfo_T, root: Option<usize>, name: *
     }
 }
 
-unsafe fn node_compress(
+fn node_compress(
     spin: &mut spellinfo_T,
     node: usize,
     ht: &mut std::collections::HashMap<[u8; 6], usize>,
     tot: &mut c_int,
 ) -> (c_int, [u8; 6]) {
-    unsafe {
-        let mut len: c_int = 0;
+    let mut len: c_int = 0;
         let mut compressed: c_int = 0;
 
         let mut np = Some(node);
@@ -4176,7 +4175,6 @@ unsafe fn node_compress(
         veryfast_breakcheck();
 
         (compressed, hashkey)
-    }
 }
 
 fn node_equal(nodes: &[wordnode_T], n1: usize, n2: usize) -> bool {
@@ -4635,7 +4633,7 @@ unsafe fn put_node(
 
 /// ":mkspell [-ascii] outfile  infile ..."
 /// ":mkspell [-ascii] addfile"
-pub unsafe fn ex_mkspell(eap: &mut exarg_T) {
+pub fn ex_mkspell(eap: &mut exarg_T) {
     unsafe {
         let mut fnames: Vec<std::ffi::CString> = Vec::new();
         let mut arg = eap.arg;
@@ -4713,7 +4711,7 @@ unsafe fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: *mut c_char) {
     }
 }
 
-unsafe fn sug_filltree(spin: &mut spellinfo_T, slang: &mut slang_T) -> c_int {
+fn sug_filltree(spin: &mut spellinfo_T, slang: &mut slang_T) -> c_int {
     unsafe {
         let mut arridx = [0 as idx_T; MAXWLEN];
         let mut curi = [0 as c_int; MAXWLEN];
@@ -4814,7 +4812,7 @@ unsafe fn sug_maketable(spin: *mut spellinfo_T) -> c_int {
     }
 }
 
-unsafe fn sug_filltable(
+fn sug_filltable(
     spin: &mut spellinfo_T,
     node: Option<usize>,
     startwordnr: c_int,
@@ -4987,7 +4985,7 @@ unsafe fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
     }
 }
 
-unsafe fn mkspell(
+fn mkspell(
     fnames: &[std::ffi::CString],
     ascii: bool,
     over_write: bool,
@@ -5205,7 +5203,7 @@ unsafe fn spell_message(spin: *const spellinfo_T, str_: *const c_char) {
 /// ":[count]spellwrong {word}"
 /// ":[count]spellundo  {word}"
 /// ":[count]spellrare  {word}"
-pub unsafe fn ex_spell(eap: &mut exarg_T) {
+pub fn ex_spell(eap: &mut exarg_T) {
     unsafe {
         let what = if eap.cmdidx == CMD_spellwrong {
             SPELL_ADD_BAD
@@ -5423,7 +5421,7 @@ pub unsafe fn spell_add_word(
     }
 }
 
-unsafe fn init_spellfile() {
+fn init_spellfile() {
     unsafe {
         let mut aspath = false;
         let mut lstart = (*g_st().curbuf).b_s.b_p_spl;
@@ -5521,7 +5519,7 @@ unsafe fn set_spell_charflags(flags_in: *const c_char, cnt: c_int, fol: *const c
     }
 }
 
-unsafe fn set_spell_finish(new_st: &mut spelltab_T) -> c_int {
+fn set_spell_finish(new_st: &mut spelltab_T) -> c_int {
     unsafe {
         if spell_priv_st().did_set_spelltab {
             for i in 0..256 {

@@ -47,7 +47,7 @@ fn clip_st() -> &'static mut ClipboardModuleState {
 const MSG_NO_CLIP: &CStr = c"clipboard: No provider. Try \":checkhealth\" or \":h clipboard\".";
 
 /// Determine if register `*name` should be used as a clipboard (`adjust_clipboard_name`).
-pub unsafe fn adjust_clipboard_name(
+pub fn adjust_clipboard_name(
     name: &mut c_int,
     quiet: bool,
     writing: bool,

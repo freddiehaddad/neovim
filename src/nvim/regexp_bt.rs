@@ -194,7 +194,7 @@ unsafe fn OPERAND_CMP(p: *const u8) -> u8 {
 }
 
 #[inline]
-unsafe fn ADVANCE_REGINPUT() {
+fn ADVANCE_REGINPUT() {
     unsafe {
         mb_ptr_adv(&raw mut re_st().rex.input);
     }
@@ -237,13 +237,11 @@ unsafe fn bt_recognize_char_class(start: *const u8, end: *const u8) -> c_int {
     }
 }
 
-unsafe fn use_multibytecode(c: c_int) -> bool {
-    unsafe {
-        utf_char2len(c) > 1 && (re_multi_type(peekchr()) != NOT_MULTI || utf_iscomposing_legacy(c))
-    }
+fn use_multibytecode(c: c_int) -> bool {
+    utf_char2len(c) > 1 && (re_multi_type(peekchr()) != NOT_MULTI || utf_iscomposing_legacy(c))
 }
 
-unsafe fn regc(b: c_int) {
+fn regc(b: c_int) {
     unsafe {
         if re_st().regcode == just_calc_size() {
             re_st().regsize += 1;
@@ -254,7 +252,7 @@ unsafe fn regc(b: c_int) {
     }
 }
 
-unsafe fn regmbc(c: c_int) {
+fn regmbc(c: c_int) {
     unsafe {
         if re_st().regcode == just_calc_size() {
             re_st().regsize += i64::from(utf_char2len(c));
@@ -265,9 +263,8 @@ unsafe fn regmbc(c: c_int) {
 }
 
 #[rustfmt::skip]
-unsafe fn reg_equi_class(c: c_int) {
-    unsafe {
-        match c {
+fn reg_equi_class(c: c_int) {
+    match c {
             0x41 | 0xc0 | 0xc1 | 0xc2 | 0xc3 | 0xc4 | 0xc5 | 0x100 | 0x102 | 0x104 | 0x1cd
             | 0x1de | 0x1e0 | 0x1fa | 0x202 | 0x226 | 0x23a | 0x1e00 | 0x1ea0 | 0x1ea2
             | 0x1ea4 | 0x1ea6 | 0x1ea8 | 0x1eaa | 0x1eac | 0x1eae | 0x1eb0 | 0x1eb2 | 0x1eb4
@@ -708,10 +705,9 @@ unsafe fn reg_equi_class(c: c_int) {
             _ => {}
         }
         regmbc(c);
-    }
 }
 
-unsafe fn regnode(op: c_int) -> *mut u8 {
+fn regnode(op: c_int) -> *mut u8 {
     unsafe {
         let ret = re_st().regcode;
         if ret == just_calc_size() {
@@ -856,7 +852,7 @@ unsafe fn reginsert_limits(op: c_int, minval: i64, maxval: i64, opnd: *mut u8) {
     }
 }
 
-unsafe fn regatom(flagp: &mut c_int) -> *mut u8 {
+fn regatom(flagp: &mut c_int) -> *mut u8 {
     unsafe {
         let mut ret: *mut u8;
         let mut flags: c_int = 0;
@@ -1837,7 +1833,7 @@ unsafe fn regpiece(flagp: *mut c_int) -> *mut u8 {
     }
 }
 
-unsafe fn regconcat(flagp: &mut c_int) -> *mut u8 {
+fn regconcat(flagp: &mut c_int) -> *mut u8 {
     unsafe {
         let mut first: *mut u8 = ptr::null_mut();
         let mut chain: *mut u8 = ptr::null_mut();
@@ -1903,7 +1899,7 @@ unsafe fn regconcat(flagp: &mut c_int) -> *mut u8 {
     }
 }
 
-unsafe fn regbranch(flagp: &mut c_int) -> *mut u8 {
+fn regbranch(flagp: &mut c_int) -> *mut u8 {
     unsafe {
         let mut chain: *mut u8 = ptr::null_mut();
         let mut flags: c_int = 0;
@@ -1936,7 +1932,7 @@ unsafe fn regbranch(flagp: &mut c_int) -> *mut u8 {
     }
 }
 
-unsafe fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
+fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
     unsafe {
         let mut ret: *mut u8;
         let mut parno: c_int = 0;
@@ -2182,7 +2178,7 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<bt_reg
     }
 }
 
-unsafe fn reg_save(save: &mut regsave_T) {
+fn reg_save(save: &mut regsave_T) {
     unsafe {
         let bp = &raw const re_st().backpos;
         let len = (*bp).len() as c_int;
@@ -2198,7 +2194,7 @@ unsafe fn reg_save(save: &mut regsave_T) {
     }
 }
 
-unsafe fn reg_restore(save: &mut regsave_T) {
+fn reg_restore(save: &mut regsave_T) {
     unsafe {
         if REG_MULTI() {
             let pos = save.rs_u.pos();
@@ -2215,7 +2211,7 @@ unsafe fn reg_restore(save: &mut regsave_T) {
     }
 }
 
-unsafe fn reg_save_equal(save: &regsave_T) -> bool {
+fn reg_save_equal(save: &regsave_T) -> bool {
     unsafe {
         if REG_MULTI() {
             let pos = save.rs_u.pos();
@@ -2614,7 +2610,7 @@ unsafe fn regstack_pop(scan: *mut *mut u8) {
     }
 }
 
-unsafe fn save_subexpr(bp: &mut regbehind_T) {
+fn save_subexpr(bp: &mut regbehind_T) {
     unsafe {
         bp.save_need_clear_subexpr = re_st().rex.need_clear_subexpr;
         if re_st().rex.need_clear_subexpr != 0 {
@@ -2632,7 +2628,7 @@ unsafe fn save_subexpr(bp: &mut regbehind_T) {
     }
 }
 
-unsafe fn restore_subexpr(bp: &mut regbehind_T) {
+fn restore_subexpr(bp: &mut regbehind_T) {
     unsafe {
         re_st().rex.need_clear_subexpr = bp.save_need_clear_subexpr;
         if re_st().rex.need_clear_subexpr != 0 {
@@ -4039,7 +4035,7 @@ unsafe fn bt_regexec_both(
     }
 }
 
-unsafe fn finish_bt_regexec(retval: c_int, col: colnr_T) -> c_int {
+fn finish_bt_regexec(retval: c_int, col: colnr_T) -> c_int {
     unsafe {
         let tf = &raw mut re_st().reg_tofree;
         if (*tf).capacity() > 400 {

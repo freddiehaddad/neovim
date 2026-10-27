@@ -268,12 +268,12 @@ impl InsertState {
 }
 
 impl EditorState for InsertState {
-    unsafe fn check(&mut self) -> c_int {
-        unsafe { insert_check(self) }
+    fn check(&mut self) -> c_int {
+        insert_check(self)
     }
 
-    unsafe fn execute(&mut self, key: c_int) -> c_int {
-        unsafe { insert_execute(self, key) }
+    fn execute(&mut self, key: c_int) -> c_int {
+        insert_execute(self, key)
     }
 }
 
@@ -321,7 +321,7 @@ fn ins_st() -> &'static mut InsertModuleState {
 }
 
 #[inline]
-unsafe fn replace_stack_mut() -> &'static mut Vec<c_char> {
+fn replace_stack_mut() -> &'static mut Vec<c_char> {
     unsafe { &mut (*INS_MOD_STATE.as_ptr()).replace_stack }
 }
 
@@ -355,7 +355,7 @@ unsafe fn trigger_autocomplete(s: *mut InsertState) -> bool {
 }
 
 #[inline]
-unsafe fn may_trigger_autocomplete(s: &mut InsertState) {
+fn may_trigger_autocomplete(s: &mut InsertState) {
     unsafe {
         if ins_compl_has_autocomplete() && !char_avail() && (**curwin.as_ptr()).w_cursor.col > 0 {
             s.c = char_before_cursor();
@@ -366,7 +366,7 @@ unsafe fn may_trigger_autocomplete(s: &mut InsertState) {
     }
 }
 
-unsafe fn insert_enter(s: &mut InsertState) {
+fn insert_enter(s: &mut InsertState) {
     unsafe {
         s.did_backspace = true;
         s.old_topfill = -1;
@@ -573,7 +573,7 @@ unsafe fn insert_enter(s: &mut InsertState) {
     }
 }
 
-unsafe fn insert_check(s: &mut InsertState) -> c_int {
+fn insert_check(s: &mut InsertState) -> c_int {
     unsafe {
         mc_ins_cascade();
 
@@ -723,7 +723,7 @@ unsafe fn insert_check(s: &mut InsertState) -> c_int {
     }
 }
 
-unsafe fn insert_execute(s: &mut InsertState, key: c_int) -> c_int {
+fn insert_execute(s: &mut InsertState, key: c_int) -> c_int {
     unsafe {
         if g_st().Ins.stop_insert_mode {
             if key != K_IGNORE && key != K_NOP {
@@ -880,7 +880,7 @@ unsafe fn insert_execute(s: &mut InsertState, key: c_int) -> c_int {
     }
 }
 
-unsafe fn insert_handle_key(s: &mut InsertState) -> c_int {
+fn insert_handle_key(s: &mut InsertState) -> c_int {
     unsafe {
         let mut goto_normalchar = false;
         let mut goto_do_complete = false;
@@ -1337,15 +1337,13 @@ unsafe fn insert_do_complete(s: *mut InsertState) {
     }
 }
 
-unsafe fn insert_do_cindent(s: &mut InsertState) {
-    unsafe {
-        if in_cinkeys(s.c, b' ' as c_int, s.line_is_white) && stop_arrow() == OK {
+fn insert_do_cindent(s: &mut InsertState) {
+    if in_cinkeys(s.c, b' ' as c_int, s.line_is_white) && stop_arrow() == OK {
             do_c_expr_indent();
         }
-    }
 }
 
-unsafe fn insert_handle_key_post(s: &mut InsertState) {
+fn insert_handle_key_post(s: &mut InsertState) {
     unsafe {
         if s.c != K_EVENT && s.c != K_COMPLETE_DELAY && ctrl_x_mode_normal() {
             g_st().did_cursorhold = false;
@@ -1366,7 +1364,7 @@ unsafe fn insert_handle_key_post(s: &mut InsertState) {
 }
 
 /// Start inserting text.
-pub unsafe fn edit(cmdchar: c_int, startln: bool, count: c_int) -> bool {
+pub fn edit(cmdchar: c_int, startln: bool, count: c_int) -> bool {
     unsafe {
         if !(*g_st().curbuf).terminal.is_null() {
             if g_st().ex_normal_busy != 0 {
@@ -1397,7 +1395,7 @@ pub unsafe fn edit(cmdchar: c_int, startln: bool, count: c_int) -> bool {
 }
 
 /// Redraw for Insert mode.
-pub unsafe fn ins_redraw(ready: bool) {
+pub fn ins_redraw(ready: bool) {
     unsafe {
         if char_avail() {
             return;
@@ -1482,7 +1480,7 @@ pub unsafe fn ins_redraw(ready: bool) {
     }
 }
 
-unsafe fn ins_ctrl_v() {
+fn ins_ctrl_v() {
     unsafe {
         let mut did_putchar = false;
 
@@ -1507,7 +1505,7 @@ unsafe fn ins_ctrl_v() {
     }
 }
 
-pub unsafe fn edit_putchar(c: c_int, highlight: bool) {
+pub fn edit_putchar(c: c_int, highlight: bool) {
     unsafe {
         if (**curwin.as_ptr()).w_grid_alloc.chars.is_empty()
             && !crate::grid::grid_allocated(&g_st().default_grid)
@@ -1560,11 +1558,11 @@ pub fn buf_prompt_text(buf: &buf_T) -> *mut c_char {
 }
 
 /// Return the effective prompt for the current buffer.
-pub unsafe fn prompt_text() -> *mut c_char {
+pub fn prompt_text() -> *mut c_char {
     unsafe { buf_prompt_text(&*g_st().curbuf) }
 }
 
-unsafe fn init_prompt(cmdchar_todo: c_int) {
+fn init_prompt(cmdchar_todo: c_int) {
     unsafe {
         let prompt = prompt_text();
         let prompt_len = std::ffi::CStr::from_ptr(prompt).to_bytes().len() as colnr_T;
@@ -1635,7 +1633,7 @@ unsafe fn init_prompt(cmdchar_todo: c_int) {
 }
 
 /// Return true if the cursor is in the editable position of the prompt line.
-pub unsafe fn prompt_curpos_editable() -> bool {
+pub fn prompt_curpos_editable() -> bool {
     unsafe {
         (**curwin.as_ptr()).w_cursor.lnum > (*g_st().curbuf).b_prompt_start.mark.lnum
             || ((**curwin.as_ptr()).w_cursor.lnum == (*g_st().curbuf).b_prompt_start.mark.lnum
@@ -1652,7 +1650,7 @@ fn set_insstart(lnum: linenr_T, col: colnr_T) {
         g_st().Ins.moved = kInsNone;
 }
 
-pub unsafe fn edit_unputchar() {
+pub fn edit_unputchar() {
     unsafe {
         if ins_st().pc_status != PC_STATUS_UNSET && ins_st().pc_row >= 0 {
             if ins_st().pc_status == PC_STATUS_RIGHT {
@@ -1670,7 +1668,7 @@ pub unsafe fn edit_unputchar() {
 }
 
 /// Display a `$` at the end of changed text when `$` is in `cpoptions`.
-pub unsafe fn display_dollar(col_arg: colnr_T) {
+pub fn display_dollar(col_arg: colnr_T) {
     unsafe {
         let col = col_arg.max(0);
         if !redrawing() {
@@ -1690,7 +1688,7 @@ pub unsafe fn display_dollar(col_arg: colnr_T) {
     }
 }
 
-pub unsafe fn undisplay_dollar() {
+pub fn undisplay_dollar() {
     unsafe {
         if g_st().dollar_vcol < 0 {
             return;
@@ -1715,7 +1713,7 @@ pub unsafe fn truncate_spaces(line: *mut c_char, len: usize) {
 }
 
 /// Backspace the cursor until the given column.
-pub unsafe fn backspace_until_column(col: c_int) {
+pub fn backspace_until_column(col: c_int) {
     unsafe {
         while (**curwin.as_ptr()).w_cursor.col > col {
             (**curwin.as_ptr()).w_cursor.col -= 1;
@@ -1728,7 +1726,7 @@ pub unsafe fn backspace_until_column(col: c_int) {
     }
 }
 
-unsafe fn del_char_after_col(limit_col: c_int) -> bool {
+fn del_char_after_col(limit_col: c_int) -> bool {
     unsafe {
         if limit_col >= 0 {
             let ecol = (**curwin.as_ptr()).w_cursor.col + 1;
@@ -1752,9 +1750,8 @@ unsafe fn del_char_after_col(limit_col: c_int) -> bool {
 }
 
 /// Next character is interpreted literally.
-pub unsafe fn get_literal(no_simplify: bool) -> c_int {
-    unsafe {
-        let mut nc: c_int;
+pub fn get_literal(no_simplify: bool) -> c_int {
+    let mut nc: c_int;
         let mut hex = false;
         let mut octal = false;
         let mut unicode: c_int = 0;
@@ -1842,10 +1839,9 @@ pub unsafe fn get_literal(no_simplify: bool) -> c_int {
         }
         g_st().got_int = false;
         cc
-    }
 }
 
-unsafe fn insert_special(mut c: c_int, mut allow_modmask: c_int, mut ctrlv: c_int) {
+fn insert_special(mut c: c_int, mut allow_modmask: c_int, mut ctrlv: c_int) {
     unsafe {
         if (g_st().mod_mask & MOD_MASK_CMD) != 0 {
             allow_modmask = 1;
@@ -1870,7 +1866,7 @@ unsafe fn insert_special(mut c: c_int, mut allow_modmask: c_int, mut ctrlv: c_in
     }
 }
 
-pub unsafe fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
+pub fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
     unsafe {
         let force_format = (flags & INSCHAR_FORMAT) != 0;
         let textwidth = comp_textwidth(force_format);
@@ -2028,7 +2024,7 @@ pub unsafe fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
     }
 }
 
-unsafe fn redo_literal(c: c_int) {
+fn redo_literal(c: c_int) {
     unsafe {
         if ascii_isdigit(c) {
             let mut buf = [0 as c_char; 10];
@@ -2069,7 +2065,7 @@ pub unsafe fn start_arrow(end_insert_pos: *mut pos_T, end_change: bool, move_key
     }
 }
 
-unsafe fn start_arrow_with_change(end_insert_pos: &mut pos_T, end_change: bool, move_key: c_int) {
+fn start_arrow_with_change(end_insert_pos: &mut pos_T, end_change: bool, move_key: c_int) {
     unsafe {
         if !end_change && g_st().Ins.moved != kInsJump {
             redo_append_char(Ctrl_G);
@@ -2079,7 +2075,7 @@ unsafe fn start_arrow_with_change(end_insert_pos: &mut pos_T, end_change: bool, 
     }
 }
 
-unsafe fn check_spell_redraw() {
+fn check_spell_redraw() {
     unsafe {
         if g_st().spell_redraw_lnum != 0 {
             let lnum = g_st().spell_redraw_lnum;
@@ -2089,7 +2085,7 @@ unsafe fn check_spell_redraw() {
     }
 }
 
-pub unsafe fn stop_arrow() -> c_int {
+pub fn stop_arrow() -> c_int {
     unsafe {
         if g_st().Ins.moved != kInsNone {
             g_st().Ins.start = (**curwin.as_ptr()).w_cursor;
@@ -2252,7 +2248,7 @@ unsafe fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
 }
 
 /// Set the last inserted text to a single character.
-pub unsafe fn set_last_insert(c: c_int) {
+pub fn set_last_insert(c: c_int) {
     unsafe {
         let mut buf = [0 as c_char; MB_MAXBYTES * 3 + 5];
         let mut s = buf.as_mut_ptr();
@@ -2273,7 +2269,7 @@ pub fn free_last_insert() {
     ins_st().last_insert = None;
 }
 
-pub unsafe fn beginline(flags: c_int) {
+pub fn beginline(flags: c_int) {
     unsafe {
         if (flags & BL_SOL) != 0 && opt_vars().p_sol == 0 {
             coladvance(*curwin.as_ptr(), (**curwin.as_ptr()).w_curswant);
@@ -2296,7 +2292,7 @@ pub unsafe fn beginline(flags: c_int) {
     }
 }
 
-pub unsafe fn oneright() -> c_int {
+pub fn oneright() -> c_int {
     unsafe {
         if virtual_active(*curwin.as_ptr()) {
             let prevpos = (**curwin.as_ptr()).w_cursor;
@@ -2333,7 +2329,7 @@ pub unsafe fn oneright() -> c_int {
     }
 }
 
-pub unsafe fn oneleft() -> c_int {
+pub fn oneleft() -> c_int {
     unsafe {
         if virtual_active(*curwin.as_ptr()) {
             let v = getviscol();
@@ -2375,7 +2371,7 @@ pub unsafe fn oneleft() -> c_int {
 }
 
 /// Move the cursor up `n` lines in window `wp`.
-pub unsafe fn cursor_up_inner(wp: &mut win_T, mut n: linenr_T, skip_conceal: bool) {
+pub fn cursor_up_inner(wp: &mut win_T, mut n: linenr_T, skip_conceal: bool) {
     unsafe {
         let mut lnum = wp.w_cursor.lnum;
 
@@ -2405,7 +2401,7 @@ pub unsafe fn cursor_up_inner(wp: &mut win_T, mut n: linenr_T, skip_conceal: boo
     }
 }
 
-pub unsafe fn cursor_up(n: linenr_T, upd_topline: bool) -> c_int {
+pub fn cursor_up(n: linenr_T, upd_topline: bool) -> c_int {
     unsafe {
         if n > 0 && (**curwin.as_ptr()).w_cursor.lnum <= 1 {
             return FAIL;
@@ -2420,7 +2416,7 @@ pub unsafe fn cursor_up(n: linenr_T, upd_topline: bool) -> c_int {
 }
 
 /// Move the cursor down `n` lines in window `wp`.
-pub unsafe fn cursor_down_inner(wp: &mut win_T, mut n: c_int, skip_conceal: bool) {
+pub fn cursor_down_inner(wp: &mut win_T, mut n: c_int, skip_conceal: bool) {
     unsafe {
         let mut lnum = wp.w_cursor.lnum;
         let line_count = (*wp.w_buffer).b_ml.ml_line_count;
@@ -2459,7 +2455,7 @@ pub unsafe fn cursor_down_inner(wp: &mut win_T, mut n: c_int, skip_conceal: bool
     }
 }
 
-pub unsafe fn cursor_down(n: c_int, upd_topline: bool) -> c_int {
+pub fn cursor_down(n: c_int, upd_topline: bool) -> c_int {
     unsafe {
         let mut lnum = (**curwin.as_ptr()).w_cursor.lnum;
         hasFoldingWin(
@@ -2483,7 +2479,7 @@ pub unsafe fn cursor_down(n: c_int, upd_topline: bool) -> c_int {
 }
 
 /// Stuff the last inserted text in the read buffer.
-pub unsafe fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> c_int {
+pub fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> c_int {
     unsafe {
         let mut last: c_char = NUL;
         let mut insert = get_last_insert();
@@ -2541,7 +2537,7 @@ pub unsafe fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> c_int
     }
 }
 
-pub unsafe fn get_last_insert() -> NvimString {
+pub fn get_last_insert() -> NvimString {
     unsafe {
         if let Some(li) = &ins_st().last_insert {
             let skip = ins_st().last_insert_skip as usize;
@@ -2559,7 +2555,7 @@ pub unsafe fn get_last_insert() -> NvimString {
     }
 }
 
-pub unsafe fn get_last_insert_save() -> Option<std::ffi::CString> {
+pub fn get_last_insert_save() -> Option<std::ffi::CString> {
     unsafe {
         let mut insert = get_last_insert();
         if insert.data.is_null() {
@@ -2573,7 +2569,7 @@ pub unsafe fn get_last_insert_save() -> Option<std::ffi::CString> {
     }
 }
 
-unsafe fn echeck_abbr(c: c_int) -> bool {
+fn echeck_abbr(c: c_int) -> bool {
     unsafe {
         if opt_vars().p_paste != 0 || g_st().no_abbr || g_st().Ins.moved != kInsNone {
             return false;
@@ -2605,26 +2601,23 @@ pub unsafe fn replace_push(str_: *mut c_char, len: usize) {
     }
 }
 
-pub unsafe fn replace_push_nul() {
+pub fn replace_push_nul() {
     unsafe {
         replace_push(c"".as_ptr().cast_mut(), 1);
     }
 }
 
-unsafe fn replace_pop_if_nul() -> c_int {
-    unsafe {
-        let stack = replace_stack_mut();
+fn replace_pop_if_nul() -> c_int {
+    let stack = replace_stack_mut();
         let ch = stack.last().map_or(-1, |&b| c_int::from(b as u8));
         if ch == c_int::from(NUL as u8) {
             stack.pop();
         }
         ch
-    }
 }
 
-pub unsafe fn replace_join(mut off: c_int) {
-    unsafe {
-        let stack = replace_stack_mut();
+pub fn replace_join(mut off: c_int) {
+    let stack = replace_stack_mut();
         let mut i = stack.len();
         while i > 0 {
             i -= 1;
@@ -2637,22 +2630,19 @@ pub unsafe fn replace_join(mut off: c_int) {
                 }
             }
         }
-    }
 }
 
-unsafe fn replace_pop_ins() {
-    unsafe {
-        let old_state = g_st().State;
+fn replace_pop_ins() {
+    let old_state = g_st().State;
         g_st().State = MODE_NORMAL;
         while replace_pop_if_nul() > 0 {
             mb_replace_pop_ins();
             dec_cursor();
         }
         g_st().State = old_state;
-    }
 }
 
-unsafe fn mb_replace_pop_ins() {
+fn mb_replace_pop_ins() {
     unsafe {
         let stack = replace_stack_mut();
         let ptr = stack.as_ptr();
@@ -2664,7 +2654,7 @@ unsafe fn mb_replace_pop_ins() {
     }
 }
 
-unsafe fn replace_do_bs(limit_col: c_int) {
+fn replace_do_bs(limit_col: c_int) {
     unsafe {
         let mut start_vcol: colnr_T = 0;
         let l_state = g_st().State;
@@ -2716,7 +2706,7 @@ unsafe fn replace_do_bs(limit_col: c_int) {
     }
 }
 
-unsafe fn ins_reg() {
+fn ins_reg() {
     unsafe {
         let mut need_redraw = false;
         let mut literally: c_int = 0;
@@ -2800,7 +2790,7 @@ unsafe fn ins_reg() {
     }
 }
 
-unsafe fn ins_ctrl_g() {
+fn ins_ctrl_g() {
     unsafe {
         setcursor();
 
@@ -2831,7 +2821,7 @@ unsafe fn ins_ctrl_g() {
     }
 }
 
-unsafe fn ins_ctrl_hat() {
+fn ins_ctrl_hat() {
     unsafe {
         if map_to_exists_mode(c"".as_ptr(), MODE_LANGMAP, false) {
             if (g_st().State & MODE_LANGMAP) != 0 {
@@ -2848,7 +2838,7 @@ unsafe fn ins_ctrl_hat() {
     }
 }
 
-unsafe fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
+fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
     unsafe {
         check_spell_redraw();
 
@@ -2945,7 +2935,7 @@ unsafe fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
     }
 }
 
-unsafe fn ins_ctrl_() {
+fn ins_ctrl_() {
     unsafe {
         if g_st().Ins.revins_on && g_st().Ins.revins_chars != 0 && g_st().Ins.revins_scol >= 0 {
             while gchar_cursor() != NUL as c_int && g_st().Ins.revins_chars != 0 {
@@ -2967,7 +2957,7 @@ unsafe fn ins_ctrl_() {
     }
 }
 
-unsafe fn ins_start_select(c: c_int) -> bool {
+fn ins_start_select(c: c_int) -> bool {
     unsafe {
         if !g_st().km_startsel {
             return false;
@@ -2999,7 +2989,7 @@ unsafe fn ins_start_select(c: c_int) -> bool {
     }
 }
 
-unsafe fn ins_insert(replace_state: c_int) {
+fn ins_insert(replace_state: c_int) {
     unsafe {
         let mode_str = if (g_st().State & REPLACE_FLAG) != 0 {
             c"i".as_ptr()
@@ -3022,7 +3012,7 @@ unsafe fn ins_insert(replace_state: c_int) {
     }
 }
 
-unsafe fn ins_ctrl_o() {
+fn ins_ctrl_o() {
     unsafe {
         g_st().Visual.restart_select = 0;
         if (g_st().State & VREPLACE_FLAG) != 0 {
@@ -3040,7 +3030,7 @@ unsafe fn ins_ctrl_o() {
     }
 }
 
-unsafe fn ins_shift(c: c_int, lastc: c_int) {
+fn ins_shift(c: c_int, lastc: c_int) {
     unsafe {
         if stop_arrow() == FAIL {
             return;
@@ -3079,7 +3069,7 @@ unsafe fn ins_shift(c: c_int, lastc: c_int) {
     }
 }
 
-unsafe fn ins_del() {
+fn ins_del() {
     unsafe {
         if stop_arrow() == FAIL {
             return;
@@ -3407,7 +3397,7 @@ unsafe fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: *mut c_int) -> boo
     }
 }
 
-unsafe fn ins_left() {
+fn ins_left() {
     unsafe {
         let end_change = g_st().Ins.dont_sync_undo == kFalse;
         if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped {
@@ -3433,7 +3423,7 @@ unsafe fn ins_left() {
     }
 }
 
-unsafe fn ins_home(c: c_int) {
+fn ins_home(c: c_int) {
     unsafe {
         if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped {
             foldOpenCursor();
@@ -3454,7 +3444,7 @@ unsafe fn ins_home(c: c_int) {
     }
 }
 
-unsafe fn ins_end(c: c_int) {
+fn ins_end(c: c_int) {
     unsafe {
         if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped {
             foldOpenCursor();
@@ -3474,7 +3464,7 @@ unsafe fn ins_end(c: c_int) {
     }
 }
 
-unsafe fn ins_s_left() {
+fn ins_s_left() {
     unsafe {
         let end_change = g_st().Ins.dont_sync_undo == kFalse;
         if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped {
@@ -3492,7 +3482,7 @@ unsafe fn ins_s_left() {
     }
 }
 
-unsafe fn ins_right() {
+fn ins_right() {
     unsafe {
         let end_change = g_st().Ins.dont_sync_undo == kFalse;
         if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped {
@@ -3526,7 +3516,7 @@ unsafe fn ins_right() {
     }
 }
 
-unsafe fn ins_s_right() {
+fn ins_s_right() {
     unsafe {
         let end_change = g_st().Ins.dont_sync_undo == kFalse;
         if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped {
@@ -3545,7 +3535,7 @@ unsafe fn ins_s_right() {
     }
 }
 
-unsafe fn ins_up(startcol: bool) {
+fn ins_up(startcol: bool) {
     unsafe {
         let old_topline = (**curwin.as_ptr()).w_topline;
         let old_topfill = (**curwin.as_ptr()).w_topfill;
@@ -3571,7 +3561,7 @@ unsafe fn ins_up(startcol: bool) {
     }
 }
 
-unsafe fn ins_pageup() {
+fn ins_pageup() {
     unsafe {
         undisplay_dollar();
 
@@ -3593,7 +3583,7 @@ unsafe fn ins_pageup() {
     }
 }
 
-unsafe fn ins_down(startcol: bool) {
+fn ins_down(startcol: bool) {
     unsafe {
         let old_topline = (**curwin.as_ptr()).w_topline;
         let old_topfill = (**curwin.as_ptr()).w_topfill;
@@ -3619,7 +3609,7 @@ unsafe fn ins_down(startcol: bool) {
     }
 }
 
-unsafe fn ins_pagedown() {
+fn ins_pagedown() {
     unsafe {
         undisplay_dollar();
 
@@ -3641,7 +3631,7 @@ unsafe fn ins_pagedown() {
     }
 }
 
-unsafe fn ins_tab() -> bool {
+fn ins_tab() -> bool {
     unsafe {
         if g_st().Ins.start_blank_vcol == MAXCOL && (**curwin.as_ptr()).w_cursor.lnum == g_st().Ins.start.lnum {
             g_st().Ins.start_blank_vcol = get_nolist_virtcol();
@@ -3864,7 +3854,7 @@ unsafe fn ins_tab() -> bool {
 }
 
 /// Handle CR or NL in insert mode.
-pub unsafe fn ins_eol(c: c_int) -> bool {
+pub fn ins_eol(c: c_int) -> bool {
     unsafe {
         if echeck_abbr(c + ABBR_OFF) {
             return true;
@@ -3904,7 +3894,7 @@ pub unsafe fn ins_eol(c: c_int) -> bool {
     }
 }
 
-unsafe fn ins_digraph() -> c_int {
+fn ins_digraph() -> c_int {
     unsafe {
         let mut did_putchar = false;
 
@@ -3962,7 +3952,7 @@ unsafe fn ins_digraph() -> c_int {
 }
 
 /// Handle CTRL-E and CTRL-Y in Insert mode: copy char from other line.
-pub unsafe fn ins_copychar(lnum: linenr_T) -> c_int {
+pub fn ins_copychar(lnum: linenr_T) -> c_int {
     unsafe {
         if lnum < 1 || lnum > (*g_st().curbuf).b_ml.ml_line_count {
             vim_beep(kOptBoFlagCopy);
@@ -4006,7 +3996,7 @@ pub unsafe fn ins_copychar(lnum: linenr_T) -> c_int {
     }
 }
 
-unsafe fn ins_ctrl_ey(tc: c_int) -> c_int {
+fn ins_ctrl_ey(tc: c_int) -> c_int {
     unsafe {
         let mut c = tc;
         if ctrl_x_mode_scroll() {
@@ -4037,7 +4027,7 @@ unsafe fn ins_ctrl_ey(tc: c_int) -> c_int {
 }
 
 /// Get the value that `w_virtcol` would have when `'list'` is off.
-pub unsafe fn get_nolist_virtcol() -> colnr_T {
+pub fn get_nolist_virtcol() -> colnr_T {
     unsafe {
         if (**curwin.as_ptr()).w_buffer.is_null()
             || (*(**curwin.as_ptr()).w_buffer).b_ml.ml_mfp.is_none()
@@ -4053,7 +4043,7 @@ pub unsafe fn get_nolist_virtcol() -> colnr_T {
     }
 }
 
-unsafe fn do_insert_char_pre(c: c_int) -> Option<std::ffi::CString> {
+fn do_insert_char_pre(c: c_int) -> Option<std::ffi::CString> {
     unsafe {
         if c == Ctrl_RSB || g_st().KeyStuffed != 0 || !has_event(EVENT_INSERTCHARPRE) {
             return None;
@@ -4091,7 +4081,7 @@ pub fn set_can_cindent(val: bool) {
 }
 
 /// Trigger `event` and take care of fixing undo.
-pub unsafe fn ins_apply_autocmds(event: event_T) -> c_int {
+pub fn ins_apply_autocmds(event: event_T) -> c_int {
     unsafe {
         let tick = buf_get_changedtick(g_st().curbuf);
         let r = c_int::from(apply_autocmds(

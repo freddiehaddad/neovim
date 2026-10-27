@@ -1631,7 +1631,7 @@ pub fn do_digraph(mut c: c_int) -> c_int {
 }
 
 /// Find a digraph for `val` (`get_digraph_for_char`).
-pub unsafe fn get_digraph_for_char(val: c_int) -> *mut c_char {
+pub fn get_digraph_for_char(val: c_int) -> *mut c_char {
     unsafe {
         let user_ptr = &raw const digr_st().USER_DIGRAPHS;
         for dp in (*user_ptr).iter().chain(DIGRAPHDEFAULT.iter()) {
@@ -1647,9 +1647,8 @@ pub unsafe fn get_digraph_for_char(val: c_int) -> *mut c_char {
 }
 
 /// Get a digraph (`get_digraph`).
-pub unsafe fn get_digraph(cmdline: bool) -> c_int {
-    unsafe {
-        g_st().no_mapping += 1;
+pub fn get_digraph(cmdline: bool) -> c_int {
+    g_st().no_mapping += 1;
         g_st().allow_keys += 1;
         let c = plain_vgetc();
         g_st().no_mapping -= 1;
@@ -1680,7 +1679,6 @@ pub unsafe fn get_digraph(cmdline: bool) -> c_int {
             return digraph_get(c, cc, true);
         }
         c_int::from(NUL)
-    }
 }
 
 /// Lookup the pair `char1`, `char2` in the digraph tables (`getexactdigraph`).
@@ -1719,7 +1717,7 @@ pub fn digraph_get(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
 }
 
 /// Add a digraph to the digraph table (`registerdigraph`).
-unsafe fn registerdigraph(char1: c_int, char2: c_int, n: c_int) {
+fn registerdigraph(char1: c_int, char2: c_int, n: c_int) {
     unsafe {
         let user_ptr = &raw mut digr_st().USER_DIGRAPHS;
         let user_vec = &mut *user_ptr;
@@ -1739,7 +1737,7 @@ unsafe fn registerdigraph(char1: c_int, char2: c_int, n: c_int) {
 }
 
 /// Check the characters are valid for a digraph (`check_digraph_chars_valid`).
-pub unsafe fn check_digraph_chars_valid(char1: c_int, char2: c_int) -> bool {
+pub fn check_digraph_chars_valid(char1: c_int, char2: c_int) -> bool {
     unsafe {
         if char2 == 0 {
             let mut msg = [0 as c_char; MB_MAXCHAR + 1];
@@ -1799,7 +1797,7 @@ unsafe fn digraph_header(msg: *const c_char) {
     }
 }
 
-pub unsafe fn listdigraphs(use_headers: bool) {
+pub fn listdigraphs(use_headers: bool) {
     unsafe {
         let mut previous: result_T = 0;
 
@@ -1861,7 +1859,7 @@ unsafe fn digraph_getlist_appendpair(dp: &digr_T, l: *mut list_T) {
     }
 }
 
-pub unsafe fn digraph_getlist_common(list_all: bool, rettv: &mut typval_T) {
+pub fn digraph_getlist_common(list_all: bool, rettv: &mut typval_T) {
     unsafe {
         let user_ptr = &raw const digr_st().USER_DIGRAPHS;
         let user_slice = (*user_ptr).as_slice();
@@ -2121,7 +2119,7 @@ pub unsafe fn f_digraph_setlist(argvars: *mut typval_T, rettv: &mut typval_T, _f
 }
 
 /// Set up key mapping tables for the `'keymap'` option (`keymap_init`).
-pub unsafe fn keymap_init() -> *mut c_char {
+pub fn keymap_init() -> *mut c_char {
     unsafe {
         (*g_st().curbuf).b_kmap_state &= !KEYMAP_INIT;
 
@@ -2145,7 +2143,7 @@ pub unsafe fn keymap_init() -> *mut c_char {
 }
 
 /// `:loadkeymap` command: load the following lines as the keymap (`ex_loadkeymap`).
-pub unsafe fn ex_loadkeymap(eap: &mut exarg_T) {
+pub fn ex_loadkeymap(eap: &mut exarg_T) {
     unsafe {
         let mut buf = [0 as c_char; KMAP_LLEN + 11];
         let save_cpo = opt_vars().p_cpo;
@@ -2214,7 +2212,7 @@ pub unsafe fn ex_loadkeymap(eap: &mut exarg_T) {
 }
 
 /// Stop using `'keymap'` (`keymap_unload`).
-unsafe fn keymap_unload() {
+fn keymap_unload() {
     unsafe {
         let mut buf = [0 as c_char; KMAP_MAXLEN + 10];
         let save_cpo = opt_vars().p_cpo;
@@ -2294,13 +2292,11 @@ mod tests {
 
     #[test]
     fn builtin_digraph_lookup_and_char_validation() {
-        unsafe {
-            assert!(check_digraph_chars_valid(b'a' as c_int, b':' as c_int));
+        assert!(check_digraph_chars_valid(b'a' as c_int, b':' as c_int));
             assert_eq!(getexactdigraph(b'a' as c_int, b':' as c_int, false), 0x00e4);
             assert_eq!(
                 getexactdigraph(b'e' as c_int, b'\'' as c_int, false),
                 0x00e9
             );
-        }
     }
 }

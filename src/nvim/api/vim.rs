@@ -552,10 +552,8 @@ pub unsafe extern "C" fn nvim_set_hl_ns(ns_id: Integer, err: &mut Error) {
 // DLLEXPORT void nvim_set_hl_ns_fast(Integer ns_id, Error *err) FUNC_API_SINCE(10) FUNC_API_FAST;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_set_hl_ns_fast(ns_id: Integer, _err: &mut Error) {
-    unsafe {
-        g_st().ns_hl_fast = ns_id as NS;
+    g_st().ns_hl_fast = ns_id as NS;
         hl_check_ns();
-    }
 }
 
 /// Sends input-keys to Nvim, subject to various quirks controlled by `mode` flags. This is
@@ -662,10 +660,8 @@ pub unsafe extern "C" fn nvim_feedkeys(keys: NvimString, mode: NvimString, escap
 // DLLEXPORT Integer nvim_input(uint64_t channel_id, String keys) FUNC_API_SINCE(1) FUNC_API_FAST;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_input(channel_id: u64, keys: NvimString) -> Integer {
-    unsafe {
-        may_trigger_vim_suspend_resume(false);
+    may_trigger_vim_suspend_resume(false);
         input_enqueue(channel_id, keys) as Integer
-    }
 }
 
 /// Send mouse event from GUI.
@@ -2832,10 +2828,8 @@ pub unsafe extern "C" fn nvim__screenshot(path: NvimString) {
 // DLLEXPORT void nvim__invalidate_glyph_cache(void);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim__invalidate_glyph_cache() {
-    unsafe {
-        schar_cache_clear();
+    schar_cache_clear();
         g_st().must_redraw = UPD_CLEAR;
-    }
 }
 
 /// @nodoc

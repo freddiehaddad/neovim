@@ -25,7 +25,7 @@ impl hashitem_T {
     }
 
     #[inline]
-    pub unsafe fn key_ptr(&self) -> *mut c_char {
+    pub fn key_ptr(&self) -> *mut c_char {
         if self.hi_di.is_null() {
             std::ptr::null_mut()
         } else {
@@ -190,7 +190,7 @@ pub unsafe fn hash_lookup(
 ///
 /// # Safety
 /// `ht` and `di` must be valid pointers, and `di` must outlive the entry in `ht`.
-pub unsafe fn hash_add(ht: &mut hashtab_T, di: &mut crate::eval::typval::dictitem_T) -> c_int {
+pub fn hash_add(ht: &mut hashtab_T, di: &mut crate::eval::typval::dictitem_T) -> c_int {
     let key = di.di_key.as_mut_ptr();
     let len = unsafe { CStr::from_ptr(key).to_bytes().len() };
     let hash = unsafe { hash_hash(key) };

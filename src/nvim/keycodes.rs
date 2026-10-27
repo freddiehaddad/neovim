@@ -2332,7 +2332,7 @@ pub unsafe fn get_special_key(
 }
 
 /// Return string representing the key "chord" (key + modifiers) (`get_special_key_name`).
-pub unsafe fn get_special_key_name(c: c_int, modifiers: c_int) -> *mut c_char {
+pub fn get_special_key_name(c: c_int, modifiers: c_int) -> *mut c_char {
     unsafe { get_special_key(c, modifiers, std::ptr::null_mut()) }
 }
 

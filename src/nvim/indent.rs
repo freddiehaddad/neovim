@@ -255,7 +255,7 @@ pub fn tabstop_start(col: colnr_T, ts: c_int, vts: &[colnr_T]) -> colnr_T {
 }
 
 /// Find the number of tabs and spaces necessary to get from one column to another (`tabstop_fromto`).
-pub unsafe fn tabstop_fromto(
+pub fn tabstop_fromto(
     start_col: colnr_T,
     end_col: colnr_T,
     ts_arg: c_int,
@@ -380,7 +380,7 @@ pub unsafe fn get_sw_value_col(buf: *mut buf_T, col: colnr_T, left: bool) -> c_i
 }
 
 /// Return the effective softtabstop value for the current buffer (`get_sts_value`).
-pub unsafe fn get_sts_value() -> c_int {
+pub fn get_sts_value() -> c_int {
     unsafe {
         if (*g_st().curbuf).b_p_sts < 0 {
             get_sw_value(g_st().curbuf)
@@ -391,7 +391,7 @@ pub unsafe fn get_sts_value() -> c_int {
 }
 
 /// Count the size (in window cells) of the indent in the current line (`get_indent`).
-pub unsafe fn get_indent() -> c_int {
+pub fn get_indent() -> c_int {
     unsafe {
         indent_size_ts(
             get_cursor_line_ptr(),
@@ -402,12 +402,12 @@ pub unsafe fn get_indent() -> c_int {
 }
 
 /// Count the size (in window cells) of the indent in line `lnum` (`get_indent_lnum`).
-pub unsafe fn get_indent_lnum(lnum: linenr_T) -> c_int {
+pub fn get_indent_lnum(lnum: linenr_T) -> c_int {
     unsafe { indent_size_ts(ml_get(lnum), (*g_st().curbuf).b_p_ts, &(*g_st().curbuf).b_p_vts_array) }
 }
 
 /// Count the size (in window cells) of the indent in line `lnum` of buffer `buf` (`get_indent_buf`).
-pub unsafe fn get_indent_buf(buf: &mut buf_T, lnum: linenr_T) -> c_int {
+pub fn get_indent_buf(buf: &mut buf_T, lnum: linenr_T) -> c_int {
     unsafe { indent_size_ts(ml_get_buf(&raw mut *buf, lnum), buf.b_p_ts, &buf.b_p_vts_array) }
 }
 
@@ -488,7 +488,7 @@ pub unsafe fn indent_size_ts(mut ptr: *const c_char, ts: OptInt, vts: &[colnr_T]
 }
 
 /// Set the indent of the current line (`set_indent`).
-pub unsafe fn set_indent(size: c_int, flags: c_int) -> bool {
+pub fn set_indent(size: c_int, flags: c_int) -> bool {
     unsafe {
         let mut doit = false;
         let mut ind_done: c_int = 0;
@@ -705,7 +705,7 @@ pub unsafe fn set_indent(size: c_int, flags: c_int) -> bool {
 }
 
 /// Return the indent of the current line after a number (`get_number_indent`).
-pub unsafe fn get_number_indent(lnum: linenr_T) -> c_int {
+pub fn get_number_indent(lnum: linenr_T) -> c_int {
     unsafe {
         if lnum > (*g_st().curbuf).b_ml.ml_line_count {
             return -1;
@@ -895,7 +895,7 @@ pub unsafe fn get_breakindent_win(wp: &mut win_T, line: *mut c_char) -> c_int {
 }
 
 /// Return true if the cursor is before (or on, when `extra == 0`) the first non-blank in the line (`inindent`).
-pub unsafe fn inindent(extra: c_int) -> bool {
+pub fn inindent(extra: c_int) -> bool {
     unsafe {
         let mut ptr = get_cursor_line_ptr();
         let mut col: colnr_T = 0;
@@ -908,7 +908,7 @@ pub unsafe fn inindent(extra: c_int) -> bool {
 }
 
 /// Handle reindenting a block of lines (`op_reindent`).
-pub unsafe fn op_reindent(oap: &mut oparg_T, how: Indenter) {
+pub fn op_reindent(oap: &mut oparg_T, how: Indenter) {
     unsafe {
         let mut i: c_int = 0;
         let mut first_changed: linenr_T = 0;
@@ -1036,7 +1036,7 @@ pub unsafe fn op_reindent(oap: &mut oparg_T, how: Indenter) {
 }
 
 /// Return true if lines starting with `#` should be left aligned (`preprocs_left`).
-pub unsafe fn preprocs_left() -> bool {
+pub fn preprocs_left() -> bool {
     unsafe {
         ((*g_st().curbuf).b_p_si != 0 && (*g_st().curbuf).b_p_cin == 0)
             || ((*g_st().curbuf).b_p_cin != 0
@@ -1046,7 +1046,7 @@ pub unsafe fn preprocs_left() -> bool {
 }
 
 /// Return true if the conditions are OK for smart indenting (`may_do_si`).
-pub unsafe fn may_do_si() -> bool {
+pub fn may_do_si() -> bool {
     unsafe {
         (*g_st().curbuf).b_p_si != 0
             && (*g_st().curbuf).b_p_cin == 0
@@ -1056,7 +1056,7 @@ pub unsafe fn may_do_si() -> bool {
 }
 
 /// Try to do some very smart auto-indenting (`ins_try_si`).
-pub unsafe fn ins_try_si(c: c_int) {
+pub fn ins_try_si(c: c_int) {
     unsafe {
         if ((g_st().Ins.did_si || g_st().Ins.can_si_back) && c == b'{' as c_int)
             || (g_st().Ins.can_si && c == b'}' as c_int && inindent(0))
@@ -1124,7 +1124,7 @@ pub unsafe fn ins_try_si(c: c_int) {
 }
 
 /// Insert an indent (for `<Tab>` or `CTRL-T`) or delete an indent (for `CTRL-D`) (`change_indent`).
-pub unsafe fn change_indent(type_: c_int, amount: c_int, round: c_int, call_changed_bytes: bool) {
+pub fn change_indent(type_: c_int, amount: c_int, round: c_int, call_changed_bytes: bool) {
     unsafe {
         let mut orig_col: colnr_T = 0;
         let mut orig_line: Vec<c_char> = Vec::new();
@@ -1389,7 +1389,7 @@ pub unsafe fn copy_indent(size: c_int, src: *mut c_char) -> bool {
     }
 }
 
-unsafe fn emsg_text_too_long() {
+fn emsg_text_too_long() {
     unsafe {
         emsg(gettext(e_resulting_text_too_long.as_ptr()));
         if g_st().trylevel == 0 {
@@ -1399,7 +1399,7 @@ unsafe fn emsg_text_too_long() {
 }
 
 /// `:retab` (`ex_retab`).
-pub unsafe fn ex_retab(eap: &mut exarg_T) {
+pub fn ex_retab(eap: &mut exarg_T) {
     unsafe {
         let mut got_tab = false;
         let mut num_spaces: c_int = 0;
@@ -1609,7 +1609,7 @@ pub unsafe fn ex_retab(eap: &mut exarg_T) {
 }
 
 /// Get indent level from `'indentexpr'` (`get_expr_indent`).
-pub unsafe fn get_expr_indent() -> c_int {
+pub fn get_expr_indent() -> c_int {
     unsafe {
         let use_sandbox = was_set_insecurely(*curwin.as_ptr(), kOptIndentexpr, OPT_LOCAL) != 0;
         let save_sctx = g_st().current_sctx;
@@ -1649,7 +1649,7 @@ pub unsafe fn get_expr_indent() -> c_int {
 }
 
 /// Compute Lisp indent for the current line (`get_lisp_indent`).
-pub unsafe fn get_lisp_indent() -> c_int {
+pub fn get_lisp_indent() -> c_int {
     unsafe {
         let mut paren: pos_T;
         let mut amount: c_int;
@@ -1890,7 +1890,7 @@ unsafe fn lisp_match(p: *const c_char) -> bool {
 }
 
 /// Re-indent the current line (`fixthisline`).
-pub unsafe fn fixthisline(get_the_indent: IndentGetter) {
+pub fn fixthisline(get_the_indent: IndentGetter) {
     unsafe {
         let amount = get_the_indent();
         if amount < 0 {
@@ -1905,7 +1905,7 @@ pub unsafe fn fixthisline(get_the_indent: IndentGetter) {
 }
 
 /// Return true if `'indentexpr'` should be used for Lisp indenting (`use_indentexpr_for_lisp`).
-pub unsafe fn use_indentexpr_for_lisp() -> bool {
+pub fn use_indentexpr_for_lisp() -> bool {
     unsafe {
         (*g_st().curbuf).b_p_lisp != 0
             && (*g_st().curbuf).b_p_inde.cb_type() != kCallbackNone
@@ -1914,7 +1914,7 @@ pub unsafe fn use_indentexpr_for_lisp() -> bool {
 }
 
 /// Fix indent for `'lisp'` and `'cindent'` (`fix_indent`).
-pub unsafe fn fix_indent() {
+pub fn fix_indent() {
     unsafe {
         if opt_vars().p_paste != 0 {
             return;

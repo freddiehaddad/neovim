@@ -94,7 +94,7 @@ pub(crate) const VALID_VIRTCOL: c_int = 0x04;
 pub(crate) const kOptVeFlagAll: c_uint = 0x04;
 
 /// Return the screen position of the cursor (`getviscol`).
-pub unsafe fn getviscol() -> c_int {
+pub fn getviscol() -> c_int {
     unsafe {
         let mut x: colnr_T = 0;
         getvvcol(
@@ -110,7 +110,7 @@ pub unsafe fn getviscol() -> c_int {
 }
 
 /// Return the screen position of character `col` with a `coladd` in the cursor line (`getviscol2`).
-pub unsafe fn getviscol2(col: colnr_T, coladd: colnr_T) -> c_int {
+pub fn getviscol2(col: colnr_T, coladd: colnr_T) -> c_int {
     unsafe {
         let mut x: colnr_T = 0;
         let mut pos = pos_T {
@@ -131,7 +131,7 @@ pub unsafe fn getviscol2(col: colnr_T, coladd: colnr_T) -> c_int {
 }
 
 /// Go to column `wcol`, and add/insert white space as necessary (`coladvance_force`).
-pub unsafe fn coladvance_force(wcol: colnr_T) -> c_int {
+pub fn coladvance_force(wcol: colnr_T) -> c_int {
     unsafe {
         let rc = coladvance2(*curwin.as_ptr(), &mut (**curwin.as_ptr()).w_cursor, true, false, wcol);
 
@@ -325,12 +325,12 @@ pub unsafe fn getvpos(wp: *mut win_T, pos: &mut pos_T, wcol: colnr_T) -> c_int {
 }
 
 /// Increment the cursor position (`inc_cursor`).
-pub unsafe fn inc_cursor() -> c_int {
+pub fn inc_cursor() -> c_int {
     unsafe { inc(&mut (**curwin.as_ptr()).w_cursor) }
 }
 
 /// Decrement the cursor position (`dec_cursor`).
-pub unsafe fn dec_cursor() -> c_int {
+pub fn dec_cursor() -> c_int {
     unsafe { dec(&mut (**curwin.as_ptr()).w_cursor) }
 }
 
@@ -361,7 +361,7 @@ pub unsafe fn get_cursor_rel_lnum(wp: *mut win_T, lnum: linenr_T) -> linenr_T {
 }
 
 /// Make sure `pos.lnum` and `pos.col` are valid in `buf` (`check_pos`).
-pub unsafe fn check_pos(buf: &mut buf_T, pos: &mut pos_T) {
+pub fn check_pos(buf: &mut buf_T, pos: &mut pos_T) {
     unsafe {
         pos.lnum = pos.lnum.min(buf.b_ml.ml_line_count);
         if pos.col > 0 {
@@ -453,7 +453,7 @@ pub unsafe fn check_cursor(wp: *mut win_T) {
 }
 
 /// Check if `Visual.start` position is valid, correct it if not (`check_visual_pos`).
-pub unsafe fn check_visual_pos() {
+pub fn check_visual_pos() {
     unsafe {
         if g_st().Visual.start.lnum > (*g_st().curbuf).b_ml.ml_line_count {
             g_st().Visual.start.lnum = (*g_st().curbuf).b_ml.ml_line_count;
@@ -470,7 +470,7 @@ pub unsafe fn check_visual_pos() {
 }
 
 /// Make sure `curwin->w_cursor` is not on the NUL at the end of the line (`adjust_cursor_col`).
-pub unsafe fn adjust_cursor_col() {
+pub fn adjust_cursor_col() {
     unsafe {
         if (**curwin.as_ptr()).w_cursor.col > 0
             && (!g_st().Visual.active || *opt_vars().p_sel == b'o' as c_char)
@@ -482,7 +482,7 @@ pub unsafe fn adjust_cursor_col() {
 }
 
 /// Set `curwin->w_leftcol` to `leftcol` (`set_leftcol`).
-pub unsafe fn set_leftcol(leftcol: colnr_T) -> bool {
+pub fn set_leftcol(leftcol: colnr_T) -> bool {
     unsafe {
         if (**curwin.as_ptr()).w_leftcol == leftcol {
             return false;
@@ -534,12 +534,12 @@ pub unsafe fn set_leftcol(leftcol: colnr_T) -> bool {
     }
 }
 
-pub unsafe fn gchar_cursor() -> c_int {
+pub fn gchar_cursor() -> c_int {
     unsafe { utf_ptr2char(get_cursor_pos_ptr()) }
 }
 
 /// Return the character immediately before the cursor (`char_before_cursor`).
-pub unsafe fn char_before_cursor() -> c_int {
+pub fn char_before_cursor() -> c_int {
     unsafe {
         if (**curwin.as_ptr()).w_cursor.col == 0 {
             return -1;
@@ -553,29 +553,29 @@ pub unsafe fn char_before_cursor() -> c_int {
 }
 
 /// Write a character at the current cursor position (`pchar_cursor`).
-pub unsafe fn pchar_cursor(c: c_char) {
+pub fn pchar_cursor(c: c_char) {
     unsafe {
         *ml_get_buf_mut(g_st().curbuf, (**curwin.as_ptr()).w_cursor.lnum).add((**curwin.as_ptr()).w_cursor.col as usize) = c;
     }
 }
 
 /// Return pointer to cursor line (`get_cursor_line_ptr`).
-pub unsafe fn get_cursor_line_ptr() -> *mut c_char {
+pub fn get_cursor_line_ptr() -> *mut c_char {
     unsafe { ml_get_buf(g_st().curbuf, (**curwin.as_ptr()).w_cursor.lnum) }
 }
 
 /// Return pointer to cursor position (`get_cursor_pos_ptr`).
-pub unsafe fn get_cursor_pos_ptr() -> *mut c_char {
+pub fn get_cursor_pos_ptr() -> *mut c_char {
     unsafe { ml_get_buf(g_st().curbuf, (**curwin.as_ptr()).w_cursor.lnum).add((**curwin.as_ptr()).w_cursor.col as usize) }
 }
 
 /// Return length (excluding the NUL) of the cursor line (`get_cursor_line_len`).
-pub unsafe fn get_cursor_line_len() -> colnr_T {
+pub fn get_cursor_line_len() -> colnr_T {
     unsafe { ml_get_buf_len(g_st().curbuf, (**curwin.as_ptr()).w_cursor.lnum) }
 }
 
 /// Return length (excluding the NUL) of the cursor position (`get_cursor_pos_len`).
-pub unsafe fn get_cursor_pos_len() -> colnr_T {
+pub fn get_cursor_pos_len() -> colnr_T {
     unsafe { ml_get_buf_len(g_st().curbuf, (**curwin.as_ptr()).w_cursor.lnum) - (**curwin.as_ptr()).w_cursor.col }
 }
 

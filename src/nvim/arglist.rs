@@ -151,12 +151,12 @@ unsafe fn wargcount(wp: *const win_T) -> c_int {
 }
 
 #[inline]
-pub unsafe fn arglist() -> *mut aentry_T {
+pub fn arglist() -> *mut aentry_T {
     unsafe { warglist(*curwin.as_ptr()) }
 }
 
 #[inline]
-pub unsafe fn argcount() -> c_int {
+pub fn argcount() -> c_int {
     unsafe { wargcount(*curwin.as_ptr()) }
 }
 
@@ -166,14 +166,14 @@ pub fn garglist() -> *mut aentry_T {
 }
 
 #[inline]
-pub unsafe fn gargcount() -> c_int {
+pub fn gargcount() -> c_int {
     unsafe {
         let ga = &raw const g_st().global_alist.al_ga;
         (*ga).len() as c_int
     }
 }
 
-unsafe fn check_arglist_locked() -> c_int {
+fn check_arglist_locked() -> c_int {
     unsafe {
         if arglist_st().arglist_locked {
             emsg(gettext(
@@ -196,7 +196,7 @@ pub unsafe fn alist_clear(al: *mut alist_T) {
 }
 
 /// Create a new argument list and use it for the current window (`alist_new`).
-pub unsafe fn alist_new() {
+pub fn alist_new() {
     unsafe {
         g_st().max_alist_id += 1;
         (**curwin.as_ptr()).w_alist = Some(std::rc::Rc::new(std::cell::RefCell::new(alist_T {
@@ -335,7 +335,7 @@ pub unsafe fn get_arglist_exp(
 }
 
 /// Check the validity of the `arg_idx` for each other window (`alist_check_arg_idx`).
-unsafe fn alist_check_arg_idx() {
+fn alist_check_arg_idx() {
     unsafe {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
@@ -352,7 +352,7 @@ unsafe fn alist_check_arg_idx() {
 }
 
 /// Add `files[count]` to the arglist of the current window after arg `after` (`alist_add_list`).
-unsafe fn alist_add_list(files: Vec<CString>, mut after: c_int, will_edit: bool) {
+fn alist_add_list(files: Vec<CString>, mut after: c_int, will_edit: bool) {
     unsafe {
         let old_argcount = argcount();
         if check_arglist_locked() != FAIL {
@@ -386,7 +386,7 @@ unsafe fn alist_add_list(files: Vec<CString>, mut after: c_int, will_edit: bool)
 }
 
 /// Delete the file names in `alist_ga` from the argument list (`arglist_del_files`).
-unsafe fn arglist_del_files(alist_ga: &[*mut c_char]) {
+fn arglist_del_files(alist_ga: &[*mut c_char]) {
     unsafe {
         let mut regmatch: regmatch_T = regmatch_T::new();
         regmatch.rm_ic = opt_vars().p_fic != 0;
@@ -487,7 +487,7 @@ pub unsafe fn set_arglist(str_: *mut c_char) {
 }
 
 /// Return true if window `win` is editing the file at the current argument index (`editing_arg_idx`).
-pub unsafe fn editing_arg_idx(win: &mut win_T) -> bool {
+pub fn editing_arg_idx(win: &mut win_T) -> bool {
     unsafe {
         let idx = win.w_arg_idx;
         if idx >= wargcount(&raw mut *win) {
@@ -503,7 +503,7 @@ pub unsafe fn editing_arg_idx(win: &mut win_T) -> bool {
 }
 
 /// Check if window `win` is editing the `w_arg_idx` file in its argument list (`check_arg_idx`).
-pub unsafe fn check_arg_idx(win: &mut win_T) {
+pub fn check_arg_idx(win: &mut win_T) {
     unsafe {
         let wcount = wargcount(&raw mut *win);
         if wcount > 1 && !editing_arg_idx(win) {
@@ -538,7 +538,7 @@ pub unsafe fn check_arg_idx(win: &mut win_T) {
 }
 
 /// `:args`, `:arglocal` and `:argglobal` (`ex_args`).
-pub unsafe fn ex_args(eap: &mut exarg_T) {
+pub fn ex_args(eap: &mut exarg_T) {
     unsafe {
         if eap.cmdidx != CMD_args {
             if check_arglist_locked() == FAIL {
@@ -594,7 +594,7 @@ pub unsafe fn ex_args(eap: &mut exarg_T) {
 }
 
 /// `:previous`, `:sprevious`, `:Next` and `:sNext` (`ex_previous`).
-pub unsafe fn ex_previous(eap: &mut exarg_T) {
+pub fn ex_previous(eap: &mut exarg_T) {
     unsafe {
         let count = argcount();
         let target = if (**curwin.as_ptr()).w_arg_idx - eap.line2 >= count {
@@ -607,21 +607,17 @@ pub unsafe fn ex_previous(eap: &mut exarg_T) {
 }
 
 /// `:rewind`, `:first`, `:sfirst` and `:srewind` (`ex_rewind`).
-pub unsafe fn ex_rewind(eap: &mut exarg_T) {
-    unsafe {
-        do_argfile(eap, 0);
-    }
+pub fn ex_rewind(eap: &mut exarg_T) {
+    do_argfile(eap, 0);
 }
 
 /// `:last` and `:slast` (`ex_last`).
-pub unsafe fn ex_last(eap: &mut exarg_T) {
-    unsafe {
-        do_argfile(eap, argcount() - 1);
-    }
+pub fn ex_last(eap: &mut exarg_T) {
+    do_argfile(eap, argcount() - 1);
 }
 
 /// `:argument` and `:sargument` (`ex_argument`).
-pub unsafe fn ex_argument(eap: &mut exarg_T) {
+pub fn ex_argument(eap: &mut exarg_T) {
     unsafe {
         let i = if eap.addr_count > 0 {
             eap.line2 - 1
@@ -633,7 +629,7 @@ pub unsafe fn ex_argument(eap: &mut exarg_T) {
 }
 
 /// Edit file `argn` of the argument lists (`do_argfile`).
-pub unsafe fn do_argfile(eap: &mut exarg_T, argn: c_int) {
+pub fn do_argfile(eap: &mut exarg_T, argn: c_int) {
     unsafe {
         let is_split_cmd = *eap.cmd == b's' as c_char;
         let old_arg_idx = (**curwin.as_ptr()).w_arg_idx;
@@ -714,7 +710,7 @@ pub unsafe fn do_argfile(eap: &mut exarg_T, argn: c_int) {
 }
 
 /// `:next`, and commands that behave like it (`ex_next`).
-pub unsafe fn ex_next(eap: &mut exarg_T) {
+pub fn ex_next(eap: &mut exarg_T) {
     unsafe {
         if buf_hide(&*g_st().curbuf)
             || eap.cmdidx == CMD_snext
@@ -737,7 +733,7 @@ pub unsafe fn ex_next(eap: &mut exarg_T) {
 }
 
 /// `:argdedupe` (`ex_argdedupe`).
-pub unsafe fn ex_argdedupe(_eap: &mut exarg_T) {
+pub fn ex_argdedupe(_eap: &mut exarg_T) {
     unsafe {
         let mut i: c_int = 0;
         while i < argcount() {
@@ -775,7 +771,7 @@ pub unsafe fn ex_argdedupe(_eap: &mut exarg_T) {
 }
 
 /// `:argedit` (`ex_argedit`).
-pub unsafe fn ex_argedit(eap: &mut exarg_T) {
+pub fn ex_argedit(eap: &mut exarg_T) {
     unsafe {
         let mut i = if eap.addr_count != 0 {
             eap.line2
@@ -802,7 +798,7 @@ pub unsafe fn ex_argedit(eap: &mut exarg_T) {
 }
 
 /// `:argadd` (`ex_argadd`).
-pub unsafe fn ex_argadd(eap: &mut exarg_T) {
+pub fn ex_argadd(eap: &mut exarg_T) {
     unsafe {
         do_arglist(
             eap.arg,
@@ -819,7 +815,7 @@ pub unsafe fn ex_argadd(eap: &mut exarg_T) {
 }
 
 /// `:argdelete` (`ex_argdelete`).
-pub unsafe fn ex_argdelete(eap: &mut exarg_T) {
+pub fn ex_argdelete(eap: &mut exarg_T) {
     unsafe {
         if check_arglist_locked() == FAIL {
             return;
@@ -872,7 +868,7 @@ pub unsafe fn ex_argdelete(eap: &mut exarg_T) {
 }
 
 /// Obtain the possible arguments of the `argedit` and `argdelete` commands (`get_arglist_name`).
-pub unsafe fn get_arglist_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_arglist_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx >= argcount() {
             return ptr::null_mut();
@@ -882,7 +878,7 @@ pub unsafe fn get_arglist_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Get the file name for an argument list entry (`alist_name`).
-pub unsafe fn alist_name(aep: &aentry_T) -> *mut c_char {
+pub fn alist_name(aep: &aentry_T) -> *mut c_char {
     unsafe {
         let bp = buflist_findnr(aep.ae_fnum);
         if bp.is_null() || (*bp).b_fname.is_null() {
@@ -894,7 +890,7 @@ pub unsafe fn alist_name(aep: &aentry_T) -> *mut c_char {
 }
 
 /// Close all the windows containing files which are not in the argument list (`arg_all_close_unused_windows`).
-unsafe fn arg_all_close_unused_windows(aall: &mut arg_all_state_T) {
+fn arg_all_close_unused_windows(aall: &mut arg_all_state_T) {
     unsafe {
         let old_curwin = *curwin.as_ptr();
         let old_curtab = g_st().curtab;
@@ -1031,7 +1027,7 @@ unsafe fn arg_all_close_unused_windows(aall: &mut arg_all_state_T) {
 }
 
 /// Open up to `count` windows for the files in the argument list `aall->alist` (`arg_all_open_windows`).
-unsafe fn arg_all_open_windows(aall: &mut arg_all_state_T, count: c_int) {
+fn arg_all_open_windows(aall: &mut arg_all_state_T, count: c_int) {
     unsafe {
         let mut tab_drop_empty_window = false;
 
@@ -1127,7 +1123,7 @@ unsafe fn arg_all_open_windows(aall: &mut arg_all_state_T, count: c_int) {
 }
 
 /// Open up to `count` windows, one for each argument (`do_arg_all`).
-unsafe fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
+fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
     unsafe {
         let prev_arglist_locked = arglist_st().arglist_locked;
         debug_assert!(!g_st().firstwin.is_null());
@@ -1201,17 +1197,15 @@ unsafe fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
 }
 
 /// `:all` and `:sall` (`ex_all`).
-pub unsafe fn ex_all(eap: &mut exarg_T) {
-    unsafe {
-        if eap.addr_count == 0 {
+pub fn ex_all(eap: &mut exarg_T) {
+    if eap.addr_count == 0 {
             eap.line2 = 9999;
         }
         do_arg_all(eap.line2, eap.forceit, eap.cmdidx == CMD_drop);
-    }
 }
 
 /// Concatenate all files in the argument list, separated by spaces (`arg_all`).
-pub unsafe fn arg_all() -> CString {
+pub fn arg_all() -> CString {
     unsafe {
         let mut bytes: Vec<u8> = Vec::new();
         let count = argcount();

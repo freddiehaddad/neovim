@@ -95,7 +95,7 @@ pub fn pmap_get_bhdr(map: &std::collections::HashMap<i64, Box<bhdr_T>>, key: i64
 }
 
 /// Open a new or existing memory block file.
-pub unsafe fn mf_open(fname: Option<std::ffi::CString>, flags: c_int) -> Option<Box<memfile_T>> {
+pub fn mf_open(fname: Option<std::ffi::CString>, flags: c_int) -> Option<Box<memfile_T>> {
     unsafe {
         let mut mfp = Box::new(memfile_T {
             mf_fname: None,
@@ -150,19 +150,17 @@ pub unsafe fn mf_open(fname: Option<std::ffi::CString>, flags: c_int) -> Option<
 }
 
 /// Open a file for an existing memfile.
-pub unsafe fn mf_open_file(mfp: &mut memfile_T, fname: std::ffi::CString) -> c_int {
-    unsafe {
-        if mf_do_open(mfp, fname, O_RDWR | O_CREAT | O_EXCL) {
+pub fn mf_open_file(mfp: &mut memfile_T, fname: std::ffi::CString) -> c_int {
+    if mf_do_open(mfp, fname, O_RDWR | O_CREAT | O_EXCL) {
             mfp.mf_dirty = MF_DIRTY_YES;
             OK
         } else {
             FAIL
         }
-    }
 }
 
 /// Close a memory file and optionally delete the associated file.
-pub unsafe fn mf_close(mfp: Option<Box<memfile_T>>, del_file: bool) {
+pub fn mf_close(mfp: Option<Box<memfile_T>>, del_file: bool) {
     let Some(mfp) = mfp else {
         return;
     };
@@ -243,7 +241,7 @@ pub fn mf_new(mfp: &mut memfile_T, negative: bool, page_count: c_uint) -> *mut b
 }
 
 /// Get existing block `nr` with `page_count` pages.
-pub unsafe fn mf_get(mfp: &mut memfile_T, nr: blocknr_T, page_count: c_uint) -> *mut bhdr_T {
+pub fn mf_get(mfp: &mut memfile_T, nr: blocknr_T, page_count: c_uint) -> *mut bhdr_T {
     unsafe {
         if nr >= mfp.mf_blocknr_max || nr <= mfp.mf_blocknr_min {
             return ptr::null_mut();
@@ -309,7 +307,7 @@ pub fn mf_free(mfp: &mut memfile_T, hp: &mut bhdr_T) {
 }
 
 /// Sync memory file to disk.
-pub unsafe fn mf_sync(mfp: &mut memfile_T, flags: c_int) -> c_int {
+pub fn mf_sync(mfp: &mut memfile_T, flags: c_int) -> c_int {
     unsafe {
         let got_int_save = g_st().got_int;
 
@@ -389,7 +387,7 @@ pub fn mf_set_dirty(mfp: &mut memfile_T) {
 }
 
 /// Release as many blocks as possible.
-pub unsafe fn mf_release_all() -> bool {
+pub fn mf_release_all() -> bool {
     let mut retval = false;
     unsafe {
         let mut buf = g_st().firstbuf;
@@ -602,7 +600,7 @@ pub fn mf_free_fnames(mfp: &mut memfile_T) {
 }
 
 /// Set the simple file name and the full file name of memfile's swapfile.
-pub unsafe fn mf_set_fnames(mfp: &mut memfile_T, fname: std::ffi::CString) {
+pub fn mf_set_fnames(mfp: &mut memfile_T, fname: std::ffi::CString) {
     unsafe {
         mfp.mf_ffname = FullName_save(fname.as_ptr(), false);
         mfp.mf_fname = Some(fname);
@@ -628,7 +626,7 @@ pub fn mf_need_trans(mfp: &mut memfile_T) -> bool {
     mfp.mf_fname.is_some() && mfp.mf_neg_count > 0
 }
 
-unsafe fn mf_do_open(mfp: &mut memfile_T, fname: std::ffi::CString, mut flags: c_int) -> bool {
+fn mf_do_open(mfp: &mut memfile_T, fname: std::ffi::CString, mut flags: c_int) -> bool {
     unsafe {
         mf_set_fnames(mfp, fname);
         let fname_ptr = mfp.mf_fname.as_ref().unwrap().as_ptr();

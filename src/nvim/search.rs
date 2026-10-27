@@ -412,7 +412,7 @@ pub unsafe fn search_regcomp(
 }
 
 /// Get search pattern used by `search_regcomp()`.
-pub unsafe fn get_search_pat() -> *mut c_char {
+pub fn get_search_pat() -> *mut c_char {
     unsafe {
         (&raw const srch().mr_pattern)
             .as_ref()
@@ -460,9 +460,8 @@ pub fn save_search_patterns() {
         srch().saved_spats_no_hlsearch = g_st().Search.no_hlsearch;
 }
 
-pub unsafe fn restore_search_patterns() {
-    unsafe {
-        srch().save_level -= 1;
+pub fn restore_search_patterns() {
+    srch().save_level -= 1;
         if srch().save_level != 0 {
             return;
         }
@@ -475,7 +474,6 @@ pub unsafe fn restore_search_patterns() {
         srch().mr_pattern = srch().saved_mr_pattern.take();
         srch().last_idx = srch().saved_spats_last_idx;
         set_no_hlsearch(srch().saved_spats_no_hlsearch);
-    }
 }
 
 #[inline]
@@ -502,7 +500,7 @@ pub fn save_last_search_pattern() {
         srch().saved_no_hlsearch = g_st().Search.no_hlsearch;
 }
 
-pub unsafe fn restore_last_search_pattern() {
+pub fn restore_last_search_pattern() {
     unsafe {
         srch().did_save_last_search_spat -= 1;
         if srch().did_save_last_search_spat > 0 {
@@ -639,11 +637,9 @@ pub fn last_search_pat() -> *mut c_char {
     srch().spats[srch().last_idx as usize].pat_ptr()
 }
 
-pub unsafe fn reset_search_dir() {
-    unsafe {
-        srch().spats[0].off.dir = b'/' as c_char;
+pub fn reset_search_dir() {
+    srch().spats[0].off.dir = b'/' as c_char;
         set_vv_searchforward();
-    }
 }
 
 pub unsafe fn set_last_search_pat(s: *const c_char, idx: c_int, magic: c_int, setlast: bool) {
@@ -679,7 +675,7 @@ pub unsafe fn set_last_search_pat(s: *const c_char, idx: c_int, magic: c_int, se
     }
 }
 
-pub unsafe fn last_pat_prog(regmatch: &mut regmmatch_T) {
+pub fn last_pat_prog(regmatch: &mut regmmatch_T) {
     unsafe {
         if srch().spats[srch().last_idx as usize].pat.is_none() {
             regmatch.regprog = ptr::null_mut();
@@ -1140,7 +1136,7 @@ pub fn set_search_direction(cdir: c_int) {
     srch().spats[0].off.dir = cdir as c_char;
 }
 
-unsafe fn set_vv_searchforward() {
+fn set_vv_searchforward() {
     set_vim_var_nr(
             VV_SEARCHFORWARD,
             varnumber_T::from(srch().spats[0].off.dir == b'/' as c_char),
@@ -1719,7 +1715,7 @@ pub unsafe fn search_for_exact_line(
     }
 }
 
-pub unsafe fn searchc(cap: &mut cmdarg_T, mut t_cmd: bool) -> c_int {
+pub fn searchc(cap: &mut cmdarg_T, mut t_cmd: bool) -> c_int {
     unsafe {
         let mut c = cap.nchar;
         let mut dir = cap.arg;
@@ -1871,7 +1867,7 @@ unsafe fn find_rawstring_end(
     }
 }
 
-unsafe fn find_mps_values(
+fn find_mps_values(
     initc: &mut c_int,
     findc: &mut c_int,
     backwards: &mut bool,
@@ -2465,7 +2461,7 @@ pub unsafe fn findmatchlimit(
     }
 }
 
-pub unsafe fn showmatch(c: c_int) {
+pub fn showmatch(c: c_int) {
     unsafe {
         let mut vcol: colnr_T = 0;
         let so: *mut OptInt = if (**curwin.as_ptr()).w_onebuf_opt.wo_so >= 0 {
@@ -2560,7 +2556,7 @@ pub unsafe fn showmatch(c: c_int) {
     }
 }
 
-pub unsafe fn current_search(count: c_int, forward: bool) -> c_int {
+pub fn current_search(count: c_int, forward: bool) -> c_int {
     unsafe {
         let old_p_ws = opt_vars().p_ws;
         let save_VIsual = g_st().Visual.start;
@@ -2788,7 +2784,7 @@ unsafe fn is_zero_width(
     }
 }
 
-pub unsafe fn linewhite(lnum: linenr_T) -> bool {
+pub fn linewhite(lnum: linenr_T) -> bool {
     unsafe {
         let p = skipwhite(ml_get(lnum));
         *p == NUL
@@ -2900,7 +2896,7 @@ unsafe fn cmdline_search_stat(
     }
 }
 
-unsafe fn update_search_stat(
+fn update_search_stat(
     dirc: c_int,
     pos: &mut pos_T,
     cursor_pos: &mut pos_T,
@@ -4009,12 +4005,10 @@ pub fn search_pattern_cleared(substitute: bool) -> bool {
         .is_none()
 }
 
-pub unsafe fn set_search_pattern(pat: SearchPattern) {
-    unsafe {
-        free_spat(&mut srch().spats[0]);
+pub fn set_search_pattern(pat: SearchPattern) {
+    free_spat(&mut srch().spats[0]);
         srch().spats[0] = pat;
         set_vv_searchforward();
-    }
 }
 
 pub fn set_substitute_pattern(pat: SearchPattern) {

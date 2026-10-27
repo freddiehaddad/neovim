@@ -308,7 +308,7 @@ unsafe fn strnicmp_ascii(a: *const c_char, b: &[u8]) -> bool {
     }
 }
 
-pub unsafe fn event_init() {
+pub fn event_init() {
     unsafe {
         loop_init(&mut g_st().main_loop);
         env_init();
@@ -324,7 +324,7 @@ pub unsafe fn event_init() {
     }
 }
 
-unsafe fn event_teardown() -> bool {
+fn event_teardown() -> bool {
     unsafe {
         let queues = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
         if (*queues).events.is_null() {
@@ -842,11 +842,11 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
 }
 
 /// Prompts/dialogs should not wait for a key (no chance of meaningful input).
-pub unsafe fn input_unanswerable() -> bool {
-    unsafe { g_st().v_dying != 0 || (g_st().exiting && ui_active() == 0) }
+pub fn input_unanswerable() -> bool {
+    g_st().v_dying != 0 || (g_st().exiting && ui_active() == 0)
 }
 
-pub unsafe fn os_exit(mut r: c_int) -> ! {
+pub fn os_exit(mut r: c_int) -> ! {
     unsafe {
         g_st().exiting = true;
         signal_reject_deadly();
@@ -896,7 +896,7 @@ pub unsafe fn os_exit(mut r: c_int) -> ! {
     }
 }
 
-pub unsafe fn getout(mut exitval: c_int) -> ! {
+pub fn getout(mut exitval: c_int) -> ! {
     unsafe {
         assert!(g_st().ui_client_channel_id == 0);
         g_st().exiting = true;
@@ -1325,7 +1325,7 @@ fn edit_stdin(parmp: &mut mparm_T) -> bool {
         parmp.had_stdin_file || implicit
 }
 
-unsafe fn command_line_scan(parmp: &mut mparm_T) {
+fn command_line_scan(parmp: &mut mparm_T) {
     unsafe {
         let mut argc = parmp.argc - 1;
         let mut argv = parmp.argv.add(1);
@@ -1811,7 +1811,7 @@ unsafe fn command_line_scan(parmp: &mut mparm_T) {
     }
 }
 
-unsafe fn set_argf_var() {
+fn set_argf_var() {
     unsafe {
         let list = tv_list_alloc(kListLenMayKnow);
         let count = gargcount();
@@ -1840,7 +1840,7 @@ unsafe fn init_params(paramp: &mut mparm_T, argc: c_int, argv: *mut *mut c_char)
         paramp.lua_arg0 = -1;
 }
 
-unsafe fn init_startuptime(paramp: &mut mparm_T) {
+fn init_startuptime(paramp: &mut mparm_T) {
     unsafe {
         let mut is_embed = false;
         for i in 1..(paramp.argc - 1) {
@@ -1866,7 +1866,7 @@ unsafe fn init_startuptime(paramp: &mut mparm_T) {
     }
 }
 
-unsafe fn check_and_set_isatty(_paramp: &mut mparm_T) {
+fn check_and_set_isatty(_paramp: &mut mparm_T) {
     unsafe {
         g_st().stdin_isatty = os_isatty(STDIN_FILENO);
         g_st().stdout_isatty = os_isatty(STDOUT_FILENO);
@@ -1892,7 +1892,7 @@ unsafe fn init_path(exename: *const c_char) {
     }
 }
 
-unsafe fn get_fname(_parmp: &mut mparm_T) -> *mut c_char {
+fn get_fname(_parmp: &mut mparm_T) -> *mut c_char {
     unsafe { alist_name(&*garglist()) }
 }
 
@@ -1906,7 +1906,7 @@ fn set_window_layout(paramp: &mut mparm_T) {
         }
 }
 
-unsafe fn handle_quickfix(paramp: &mut mparm_T) {
+fn handle_quickfix(paramp: &mut mparm_T) {
     unsafe {
         if paramp.edit_type == EDIT_QF {
             if let Some(ref use_ef) = paramp.use_ef {
@@ -1930,7 +1930,7 @@ unsafe fn handle_quickfix(paramp: &mut mparm_T) {
     }
 }
 
-unsafe fn handle_tag(tagname: Option<&CStr>) {
+fn handle_tag(tagname: Option<&CStr>) {
     unsafe {
         if let Some(tagname) = tagname {
             g_st().swap_exists_did_quit = false;
@@ -1951,7 +1951,7 @@ unsafe fn handle_tag(tagname: Option<&CStr>) {
     }
 }
 
-unsafe fn read_stdin() {
+fn read_stdin() {
     unsafe {
         g_st().swap_exists_action = SEA_DIALOG;
         g_st().no_wait_return = 1;
@@ -2014,7 +2014,7 @@ unsafe fn read_stdin() {
     }
 }
 
-unsafe fn create_windows(parmp: &mut mparm_T) {
+fn create_windows(parmp: &mut mparm_T) {
     unsafe {
         if parmp.window_count == -1 {
             parmp.window_count = 1;
@@ -2117,7 +2117,7 @@ unsafe fn create_windows(parmp: &mut mparm_T) {
     }
 }
 
-unsafe fn edit_buffers(parmp: &mut mparm_T) {
+fn edit_buffers(parmp: &mut mparm_T) {
     unsafe {
         let mut advance = true;
         let mut p_shm_save: Option<std::ffi::CString> = None;
@@ -2229,7 +2229,7 @@ unsafe fn edit_buffers(parmp: &mut mparm_T) {
     }
 }
 
-unsafe fn exe_pre_commands(parmp: &mut mparm_T) {
+fn exe_pre_commands(parmp: &mut mparm_T) {
     unsafe {
         if parmp.pre_commands.is_empty() {
             return;
@@ -2247,7 +2247,7 @@ unsafe fn exe_pre_commands(parmp: &mut mparm_T) {
     }
 }
 
-unsafe fn exe_commands(parmp: &mut mparm_T) {
+fn exe_commands(parmp: &mut mparm_T) {
     unsafe {
         g_st().msg_scroll = 1;
         if parmp.tagname.is_none() && (**curwin.as_ptr()).w_cursor.lnum <= 1 {
@@ -2275,7 +2275,7 @@ unsafe fn exe_commands(parmp: &mut mparm_T) {
     }
 }
 
-unsafe fn do_system_initialization() {
+fn do_system_initialization() {
     unsafe {
         if let Some(config_dirs) = stdpaths_get_xdg_var(XDGVarType::kXDGConfigDirs) {
             let mut iter: *const c_char = ptr::null();
@@ -2323,7 +2323,7 @@ unsafe fn do_system_initialization() {
     }
 }
 
-unsafe fn do_user_initialization() -> bool {
+fn do_user_initialization() -> bool {
     unsafe {
         let mut do_exrc = opt_vars().p_exrc != 0;
         if execute_env(c"VIMINIT".as_ptr().cast_mut()) == OK {
@@ -2448,7 +2448,7 @@ unsafe fn do_user_initialization() -> bool {
     }
 }
 
-unsafe fn do_exrc_initialization() {
+fn do_exrc_initialization() {
     unsafe {
         let L = get_global_lstate();
         assert!(!L.is_null());
@@ -2465,7 +2465,7 @@ unsafe fn do_exrc_initialization() {
     }
 }
 
-unsafe fn source_startup_scripts(parmp: &mparm_T) {
+fn source_startup_scripts(parmp: &mparm_T) {
     unsafe {
         if let Some(ref use_vimrc) = parmp.use_vimrc {
             if use_vimrc.as_c_str() == c"NONE" || use_vimrc.as_c_str() == c"NORC" {
@@ -2537,7 +2537,7 @@ unsafe fn print_mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c
     }
 }
 
-unsafe fn version() {
+fn version() {
     unsafe {
         nlua_init(ptr::null_mut(), 0, -1);
         g_st().info_message = true;
@@ -2547,7 +2547,7 @@ unsafe fn version() {
     }
 }
 
-unsafe fn usage() {
+fn usage() {
     unsafe {
         signal_stop();
 
@@ -2639,7 +2639,7 @@ unsafe fn usage() {
     }
 }
 
-unsafe fn check_swap_exists_action() {
+fn check_swap_exists_action() {
     unsafe {
         if g_st().swap_exists_action == SEA_QUIT {
             ui_call_error_exit(1);
@@ -2650,7 +2650,7 @@ unsafe fn check_swap_exists_action() {
 }
 
 #[cfg(test)]
-pub(crate) unsafe fn ensure_test_editor_init() {
+pub(crate) fn ensure_test_editor_init() {
     static INIT: std::sync::Once = std::sync::Once::new();
     INIT.call_once(|| unsafe {
         g_st().headless_mode = true;

@@ -49,8 +49,8 @@ pub const MODE_SHOWMATCH: c_int = 0x6000 | MODE_INSERT;
 const kOptVeFlagInsert: c_uint = 0x06;
 
 pub trait EditorState {
-    unsafe fn check(&mut self) -> c_int;
-    unsafe fn execute(&mut self, key: c_int) -> c_int;
+    fn check(&mut self) -> c_int;
+    fn execute(&mut self, key: c_int) -> c_int;
 }
 
 use crate::cursor::kOptVeFlagAll;
@@ -99,7 +99,7 @@ fn state_mod_st() -> &'static mut StateModuleState {
     unsafe { &mut *STATE_MOD_STATE.as_ptr() }
 }
 
-pub unsafe fn state_enter<S: EditorState>(s: &mut S) {
+pub fn state_enter<S: EditorState>(s: &mut S) {
     unsafe {
         loop {
             let check_result = s.check();
@@ -165,7 +165,7 @@ pub unsafe fn state_enter<S: EditorState>(s: &mut S) {
     }
 }
 
-pub unsafe fn state_handle_k_event() {
+pub fn state_handle_k_event() {
     unsafe {
         loop {
             let events = main_loop_events();
@@ -315,7 +315,7 @@ pub unsafe fn get_mode(buf: *mut c_char) {
     }
 }
 
-pub unsafe fn may_trigger_modechanged() {
+pub fn may_trigger_modechanged() {
     unsafe {
         if !has_event(EVENT_MODECHANGED) || g_st().got_int {
             return;
@@ -362,17 +362,15 @@ pub unsafe fn may_trigger_modechanged() {
 }
 
 #[inline]
-unsafe fn is_safe_now() -> bool {
-    unsafe {
-        stuff_empty()
+fn is_safe_now() -> bool {
+    stuff_empty()
             && g_st().typebuf.tb_len == 0
             && using_script() == 0
             && g_st().global_busy == 0
             && !g_st().debug_mode
-    }
 }
 
-pub unsafe fn may_trigger_safestate(safe: bool) {
+pub fn may_trigger_safestate(safe: bool) {
     unsafe {
         let is_safe = safe && is_safe_now();
 

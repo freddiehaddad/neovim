@@ -138,10 +138,10 @@ pub unsafe fn check_linecomment(line: *const c_char) -> c_int {
         p.offset_from(line) as c_int
     }
 }
-unsafe fn ind_find_start_comment() -> *mut pos_T {
+fn ind_find_start_comment() -> *mut pos_T {
     unsafe { find_start_comment((*g_st().curbuf).b_ind_maxcomment) }
 }
-pub unsafe fn find_start_comment(ind_maxcomment: c_int) -> *mut pos_T {
+pub fn find_start_comment(ind_maxcomment: c_int) -> *mut pos_T {
     unsafe {
         let mut pos: *mut pos_T;
         let mut cur_maxcomment = ind_maxcomment as i64;
@@ -179,7 +179,7 @@ unsafe fn ind_find_start_CORS(is_raw: *mut linenr_T) -> *mut pos_T {
         comment_pos
     }
 }
-unsafe fn find_start_rawstring(ind_maxcomment: c_int) -> *mut pos_T {
+fn find_start_rawstring(ind_maxcomment: c_int) -> *mut pos_T {
     unsafe {
         let mut pos: *mut pos_T;
         let mut cur_maxcomment = ind_maxcomment;
@@ -302,7 +302,7 @@ pub unsafe fn cin_is_cinword(mut line: *const c_char) -> bool {
         retval
     }
 }
-pub unsafe fn cindent_on() -> bool {
+pub fn cindent_on() -> bool {
     unsafe {
         opt_vars().p_paste == 0 && ((*g_st().curbuf).b_p_cin != 0 || (*g_st().curbuf).b_p_inde.cb_type() != kCallbackNone)
     }
@@ -342,7 +342,7 @@ unsafe fn cin_skipcomment(mut s: *const c_char) -> *const c_char {
 unsafe fn cin_nocode(s: *const c_char) -> bool {
     unsafe { *cin_skipcomment(s) == NUL }
 }
-unsafe fn find_line_comment() -> *mut pos_T {
+fn find_line_comment() -> *mut pos_T {
     unsafe {
         indc_st().find_line_comment_pos = (**curwin.as_ptr()).w_cursor;
         loop {
@@ -401,7 +401,7 @@ unsafe fn cin_islabel_skip(s: *mut *const c_char) -> bool {
         }
     }
 }
-unsafe fn cin_islabel() -> bool {
+fn cin_islabel() -> bool {
     unsafe {
         let mut s = cin_skipcomment(get_cursor_line_ptr());
         if cin_isdefault(s) {
@@ -514,7 +514,7 @@ unsafe fn cin_is_compound_init(s: *const c_char) -> bool {
         cin_nocode(p)
     }
 }
-unsafe fn cin_isinit() -> bool {
+fn cin_isinit() -> bool {
     unsafe {
         const SKIP: [(&[u8], *const c_char); 4] = [
             (b"static", c"static".as_ptr()),
@@ -685,7 +685,7 @@ unsafe fn after_label(mut l: *const c_char) -> *const c_char {
         l
     }
 }
-unsafe fn get_indent_nolabel(lnum: linenr_T) -> c_int {
+fn get_indent_nolabel(lnum: linenr_T) -> c_int {
     unsafe {
         let l = ml_get(lnum);
         let p = after_label(l);
@@ -731,7 +731,7 @@ unsafe fn skip_label(lnum: linenr_T, pp: *mut *const c_char) -> c_int {
         amount
     }
 }
-unsafe fn cin_first_id_amount() -> c_int {
+fn cin_first_id_amount() -> c_int {
     unsafe {
         let line = get_cursor_line_ptr();
         let mut p = skipwhite(line);
@@ -781,7 +781,7 @@ unsafe fn cin_first_id_amount() -> c_int {
         col
     }
 }
-unsafe fn cin_get_equal_amount(lnum: linenr_T) -> c_int {
+fn cin_get_equal_amount(lnum: linenr_T) -> c_int {
     unsafe {
         if lnum > 1 {
             let line = ml_get(lnum - 1);
@@ -1087,7 +1087,7 @@ unsafe fn cin_is_if_for_while_before_offset(line: *const c_char, poffset: &mut c
         0
     }
 }
-unsafe fn cin_iswhileofdo_end(terminated: c_int) -> bool {
+fn cin_iswhileofdo_end(terminated: c_int) -> bool {
     unsafe {
         if terminated != b';' as c_int {
             return false;
@@ -1126,7 +1126,7 @@ unsafe fn cin_iswhileofdo_end(terminated: c_int) -> bool {
 unsafe fn cin_isbreak(p: *const c_char) -> bool {
     unsafe { cin_starts_with(p, c"break".as_ptr()) }
 }
-unsafe fn cin_is_cpp_baseclass(cached: &mut cpp_baseclass_cache_T) -> bool {
+fn cin_is_cpp_baseclass(cached: &mut cpp_baseclass_cache_T) -> bool {
     unsafe {
         let pos = &raw mut cached.lpos;
         let mut lnum = (**curwin.as_ptr()).w_cursor.lnum;
@@ -1248,7 +1248,7 @@ unsafe fn cin_is_cpp_baseclass(cached: &mut cpp_baseclass_cache_T) -> bool {
         cpp_base_class
     }
 }
-unsafe fn get_baseclass_amount(col: colnr_T) -> c_int {
+fn get_baseclass_amount(col: colnr_T) -> c_int {
     unsafe {
         let mut amount: c_int;
         let mut vcol: colnr_T = 0;
@@ -1351,7 +1351,7 @@ unsafe fn cin_is_cpp_extern_c(mut s: *const c_char) -> bool {
         false
     }
 }
-unsafe fn cin_skip2pos(trypos: &mut pos_T) -> c_int {
+fn cin_skip2pos(trypos: &mut pos_T) -> c_int {
     unsafe {
         let line: *const c_char = ml_get(trypos.lnum);
         let mut p = line;
@@ -1370,7 +1370,7 @@ unsafe fn cin_skip2pos(trypos: &mut pos_T) -> c_int {
         p.offset_from(line) as c_int
     }
 }
-unsafe fn find_start_brace() -> *mut pos_T {
+fn find_start_brace() -> *mut pos_T {
     unsafe {
         let cursor_save = (**curwin.as_ptr()).w_cursor;
         let mut trypos: *mut pos_T;
@@ -1402,10 +1402,10 @@ unsafe fn find_start_brace() -> *mut pos_T {
         trypos
     }
 }
-unsafe fn find_match_paren(ind_maxparen: c_int) -> *mut pos_T {
-    unsafe { find_match_char(b'(' as c_char, ind_maxparen) }
+fn find_match_paren(ind_maxparen: c_int) -> *mut pos_T {
+    find_match_char(b'(' as c_char, ind_maxparen)
 }
-unsafe fn find_match_char(c: c_char, ind_maxparen: c_int) -> *mut pos_T {
+fn find_match_char(c: c_char, ind_maxparen: c_int) -> *mut pos_T {
     unsafe {
         let cursor_save = (**curwin.as_ptr()).w_cursor;
         let mut ind_maxp_wk = ind_maxparen;
@@ -1447,7 +1447,7 @@ unsafe fn find_match_char(c: c_char, ind_maxparen: c_int) -> *mut pos_T {
         trypos
     }
 }
-unsafe fn find_match_paren_after_brace(ind_maxparen: c_int) -> *mut pos_T {
+fn find_match_paren_after_brace(ind_maxparen: c_int) -> *mut pos_T {
     unsafe {
         let mut trypos = find_match_paren(ind_maxparen);
         if trypos.is_null() {
@@ -1466,7 +1466,7 @@ unsafe fn find_match_paren_after_brace(ind_maxparen: c_int) -> *mut pos_T {
         trypos
     }
 }
-unsafe fn corr_ind_maxparen(startpos: &pos_T) -> c_int {
+fn corr_ind_maxparen(startpos: &pos_T) -> c_int {
     unsafe {
         let n = startpos.lnum - (**curwin.as_ptr()).w_cursor.lnum;
         if n > 0 && n < (*g_st().curbuf).b_ind_maxparen / 2 {
@@ -1629,7 +1629,7 @@ pub unsafe fn parse_cino(buf: *mut buf_T) {
 }
 /// Return the desired indent for C code.
 /// Return -1 if the indent should be left alone (inside a raw string).
-pub unsafe fn get_c_indent() -> c_int {
+pub fn get_c_indent() -> c_int {
     unsafe {
         let mut amount: c_int;
         let mut scope_amount: c_int;
@@ -2918,7 +2918,7 @@ pub unsafe fn get_c_indent() -> c_int {
         amount
     }
 }
-unsafe fn find_match(lookfor: c_int, ourscope: linenr_T) -> c_int {
+fn find_match(lookfor: c_int, ourscope: linenr_T) -> c_int {
     unsafe {
         let mut elselevel: c_int;
         let mut whilelevel: c_int;
@@ -2982,7 +2982,7 @@ unsafe fn find_match(lookfor: c_int, ourscope: linenr_T) -> c_int {
     }
 }
 /// Check that "cinkeys" contains the key "keytyped".
-pub unsafe fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> bool {
+pub fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> bool {
     unsafe {
         if keytyped == NUL as c_int {
             return false;
@@ -3158,7 +3158,7 @@ pub unsafe fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> b
     }
 }
 /// Do C or expression indenting on the current line.
-pub unsafe fn do_c_expr_indent() {
+pub fn do_c_expr_indent() {
     unsafe {
         if (*g_st().curbuf).b_p_inde.cb_type() != kCallbackNone {
             fixthisline(get_expr_indent);

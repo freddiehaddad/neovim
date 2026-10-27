@@ -192,7 +192,7 @@ fn cursors_mut() -> &'static mut Vec<Context> {
 }
 
 #[inline]
-unsafe fn ins_regions() -> &'static [u32] {
+fn ins_regions() -> &'static [u32] {
     unsafe {
         let ptr = &raw const mc_st().mc_ins_span.regions;
         &*ptr
@@ -200,7 +200,7 @@ unsafe fn ins_regions() -> &'static [u32] {
 }
 
 #[inline]
-unsafe fn ins_regions_mut() -> &'static mut Vec<u32> {
+fn ins_regions_mut() -> &'static mut Vec<u32> {
     unsafe {
         let ptr = &raw mut mc_st().mc_ins_span.regions;
         &mut *ptr
@@ -209,13 +209,11 @@ unsafe fn ins_regions_mut() -> &'static mut Vec<u32> {
 
 
 
-pub unsafe fn mc_init() {
-    unsafe {
-        mc_ns();
-    }
+pub fn mc_init() {
+    mc_ns();
 }
 
-unsafe fn mc_ns() -> u32 {
+fn mc_ns() -> u32 {
     unsafe {
         if mc_st().ns_mc == 0 {
             mc_st().ns_mc = nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor")) as u32;
@@ -224,7 +222,7 @@ unsafe fn mc_ns() -> u32 {
     }
 }
 
-unsafe fn mc_vcur_ns() -> u32 {
+fn mc_vcur_ns() -> u32 {
     unsafe {
         if mc_st().ns_vcur == 0 {
             mc_st().ns_vcur =
@@ -234,7 +232,7 @@ unsafe fn mc_vcur_ns() -> u32 {
     }
 }
 
-unsafe fn mc_vsel_ns() -> u32 {
+fn mc_vsel_ns() -> u32 {
     unsafe {
         if mc_st().ns_vsel == 0 {
             mc_st().ns_vsel =
@@ -244,7 +242,7 @@ unsafe fn mc_vsel_ns() -> u32 {
     }
 }
 
-unsafe fn mc_last_ns() -> u32 {
+fn mc_last_ns() -> u32 {
     unsafe {
         if mc_st().ns_last == 0 {
             mc_st().ns_last = nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor.last")) as u32;
@@ -253,7 +251,7 @@ unsafe fn mc_last_ns() -> u32 {
     }
 }
 
-unsafe fn mc_session_ns() -> u32 {
+fn mc_session_ns() -> u32 {
     unsafe {
         if mc_st().ns_session == 0 {
             mc_st().ns_session =
@@ -279,7 +277,7 @@ pub unsafe fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
     }
 }
 
-pub unsafe fn mc_replaying() -> bool {
+pub fn mc_replaying() -> bool {
     unsafe { (*get_vim_var_tv(VV_CASCADING)).vval.v_bool() == kBoolVarTrue }
 }
 
@@ -295,7 +293,7 @@ unsafe fn mc_track_upd(buf: *mut buf_T, mark: *mut u32, pos: pos_T) {
     }
 }
 
-unsafe fn mc_sandbox_enter(sb: &mut McSandbox, save_regs: bool) {
+fn mc_sandbox_enter(sb: &mut McSandbox, save_regs: bool) {
     unsafe {
         assert!(!mc_replaying());
         set_vim_var_bool(VV_CASCADING, kBoolVarTrue);
@@ -324,7 +322,7 @@ unsafe fn mc_sandbox_enter(sb: &mut McSandbox, save_regs: bool) {
     }
 }
 
-unsafe fn mc_sandbox_leave(sb: &mut McSandbox) {
+fn mc_sandbox_leave(sb: &mut McSandbox) {
     unsafe {
         if !sb.primary.regs.is_empty() {
             ctx_load(&mut sb.primary, kCtxRegs, 0);
@@ -361,7 +359,7 @@ unsafe fn mc_sandbox_leave(sb: &mut McSandbox) {
     }
 }
 
-unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
+fn mc_execute(cursoridx: usize, atomidx: usize) {
     unsafe {
         let mut ctx = cursors()[cursoridx].clone();
         let (atom_keys, atom_type, atom_cmd, atom_cmd2, atom_remap) = {
@@ -490,7 +488,7 @@ unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
     }
 }
 
-unsafe fn mc_cascade() {
+fn mc_cascade() {
     unsafe {
         let ga = &raw mut atom_st().g_atoms;
         assert!(!(*ga).is_empty());
@@ -560,7 +558,7 @@ unsafe fn mc_cascade() {
     }
 }
 
-pub unsafe fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
+pub fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
     unsafe {
         let ga = &raw mut atom_st().g_atoms;
         if (map_edit || (follow && map_moved && !g_st().Visual.active))
@@ -625,19 +623,17 @@ unsafe fn mc_cleanup(dedupe: bool, primary: *const pos_T, keep_mark: u32) {
     }
 }
 
-pub unsafe fn mc_ins_join() {
-    unsafe {
-        if !mc_replaying() {
+pub fn mc_ins_join() {
+    if !mc_replaying() {
             mc_st().mc_ins_joined = true;
         }
-    }
 }
 
-pub unsafe fn mc_ins_replay_can_join() -> bool {
-    unsafe { !mc_replaying() || mc_st().mc_ins_joined }
+pub fn mc_ins_replay_can_join() -> bool {
+    !mc_replaying() || mc_st().mc_ins_joined
 }
 
-pub unsafe fn mc_ins_cascade_start(
+pub fn mc_ins_cascade_start(
     cascade: bool,
     origin: CmdOrigin,
     root_frame: u64,
@@ -672,7 +668,7 @@ pub unsafe fn mc_ins_cascade_start(
     }
 }
 
-unsafe fn mc_ins_save_state() -> McInsSaved {
+fn mc_ins_save_state() -> McInsSaved {
     unsafe {
         let saved = McInsSaved {
             ins: g_st().Ins,
@@ -689,7 +685,7 @@ unsafe fn mc_ins_save_state() -> McInsSaved {
     }
 }
 
-unsafe fn mc_ins_restore_state(saved: &McInsSaved) {
+fn mc_ins_restore_state(saved: &McInsSaved) {
     unsafe {
         g_st().Ins = saved.ins;
         (*g_st().curbuf).b_last_changedtick = saved.last_changedtick;
@@ -697,7 +693,7 @@ unsafe fn mc_ins_restore_state(saved: &McInsSaved) {
     }
 }
 
-unsafe fn mc_ins_span_push(keys: std::ffi::CString, text: Option<std::ffi::CString>) {
+fn mc_ins_span_push(keys: std::ffi::CString, text: Option<std::ffi::CString>) {
     unsafe {
         let cascade = mc_buf_has_cursors(g_st().curbuf);
         let mut atom = CmdAtom::new();
@@ -718,7 +714,7 @@ unsafe fn mc_ins_span_push(keys: std::ffi::CString, text: Option<std::ffi::CStri
     }
 }
 
-unsafe fn mc_ins_regions_clear() {
+fn mc_ins_regions_clear() {
     unsafe {
         while let Some(id) = ins_regions_mut().pop() {
             extmark_del_id(g_st().curbuf, mc_session_ns(), id);
@@ -727,7 +723,7 @@ unsafe fn mc_ins_regions_clear() {
 }
 
 #[inline]
-unsafe fn mc_ctx_resolve(ctx: &Context, pos: &mut pos_T) -> bool {
+fn mc_ctx_resolve(ctx: &Context, pos: &mut pos_T) -> bool {
     unsafe {
         handle_get_buffer(ctx.buf) == g_st().curbuf
             && ctx.mark != 0
@@ -756,7 +752,7 @@ unsafe fn mc_region_mark_set(mark: *mut u32, pos: pos_T) {
     }
 }
 
-unsafe fn mc_ins_preview_rebase() {
+fn mc_ins_preview_rebase() {
     unsafe {
         mc_region_mark_set(&raw mut mc_st().mc_ins_span.region, (**curwin.as_ptr()).w_cursor);
         mc_ins_regions_clear();
@@ -772,7 +768,7 @@ unsafe fn mc_ins_preview_rebase() {
     }
 }
 
-unsafe fn mc_ins_region_first() -> MTPair {
+fn mc_ins_region_first() -> MTPair {
     unsafe {
         for &id in ins_regions() {
             let p = extmark_from_id(g_st().curbuf, mc_session_ns(), id);
@@ -800,7 +796,7 @@ unsafe fn mc_region_range(p: MTPair, start: *mut pos_T, end: *mut pos_T) {
     }
 }
 
-unsafe fn mc_region_mark_range(mark: u32, start: &mut pos_T, end: &mut pos_T) -> bool {
+fn mc_region_mark_range(mark: u32, start: &mut pos_T, end: &mut pos_T) -> bool {
     unsafe {
         let p = extmark_from_id(g_st().curbuf, mc_session_ns(), mark);
         if p.start.id == 0 {
@@ -905,7 +901,7 @@ unsafe fn mc_ins_keys_nonliteral(keys: *const c_char, len: usize) -> bool {
     }
 }
 
-pub unsafe fn mc_ins_cascade_restart() {
+pub fn mc_ins_cascade_restart() {
     unsafe {
         let ga = &raw const atom_st().g_atoms;
         if !mc_st().mc_ins_span.active
@@ -922,8 +918,8 @@ pub unsafe fn mc_ins_cascade_restart() {
     }
 }
 
-pub unsafe fn mc_ins_replaying() -> bool {
-    unsafe { mc_replaying() && mc_ins_cascading() }
+pub fn mc_ins_replaying() -> bool {
+    mc_replaying() && mc_ins_cascading()
 }
 
 pub fn mc_ins_cascading() -> bool {
@@ -934,7 +930,7 @@ pub fn mc_ins_cascaded(root_frame: u64) -> bool {
     !mc_st().mc_ins_span.first && mc_st().mc_ins_span.frame == root_frame
 }
 
-pub unsafe fn mc_ins_cascade() {
+pub fn mc_ins_cascade() {
     unsafe {
         if !mc_st().mc_ins_span.active
             || mc_replaying()
@@ -1063,9 +1059,8 @@ unsafe fn mc_ins_span_flush(ins: *const NvimString, commit: bool) {
     }
 }
 
-unsafe fn mc_reg_read(reg: c_int) -> std::ffi::CString {
-    unsafe {
-        let Some(s) = get_reg_contents_str(reg, 0) else {
+fn mc_reg_read(reg: c_int) -> std::ffi::CString {
+    let Some(s) = get_reg_contents_str(reg, 0) else {
             return std::ffi::CString::default();
         };
         let mut bytes = s.into_bytes();
@@ -1073,10 +1068,9 @@ unsafe fn mc_reg_read(reg: c_int) -> std::ffi::CString {
             bytes.pop();
         }
         std::ffi::CString::new(bytes).unwrap_or_default()
-    }
 }
 
-unsafe fn mc_reg_gather() {
+fn mc_reg_gather() {
     unsafe {
         if cursors().is_empty() || g_st().exiting {
             return;
@@ -1173,7 +1167,7 @@ unsafe fn mc_reg_gather() {
     }
 }
 
-pub unsafe fn mc_vsel_clear() {
+pub fn mc_vsel_clear() {
     unsafe {
         let buf = handle_get_buffer(mc_st().mc_vsel_buf);
         if !buf.is_null() {
@@ -1184,7 +1178,7 @@ pub unsafe fn mc_vsel_clear() {
     }
 }
 
-unsafe fn mc_vsel_mark(
+fn mc_vsel_mark(
     start_lnum: linenr_T,
     start_col: colnr_T,
     end_lnum: linenr_T,
@@ -1214,7 +1208,7 @@ unsafe fn mc_vsel_mark(
     }
 }
 
-pub unsafe fn mc_vsel_refresh() {
+pub fn mc_vsel_refresh() {
     unsafe {
         mc_vsel_clear();
         let Some(span_cstr) = atom_visual_span() else {
@@ -1310,14 +1304,14 @@ pub unsafe fn mc_vsel_refresh() {
     }
 }
 
-pub unsafe fn mc_undo_time() {
+pub fn mc_undo_time() {
     unsafe {
         atom_did_global_op();
         extmark_clear(g_st().curbuf, mc_ns(), 0, 0, MAXLNUM, MAXCOL);
     }
 }
 
-pub unsafe fn mc_ins_commit() -> bool {
+pub fn mc_ins_commit() -> bool {
     unsafe {
         let active = mc_st().mc_ins_span.active;
         let ins_cascaded = active && !mc_st().mc_ins_span.first;
@@ -1374,11 +1368,11 @@ pub unsafe fn mc_buf_has_cursors(buf: *mut buf_T) -> bool {
     unsafe { cursors().iter().any(|ctx| ctx.buf == (*buf).b_fnum) }
 }
 
-pub unsafe fn mc_following() -> bool {
+pub fn mc_following() -> bool {
     unsafe { (*g_st().curbuf).b_p_follow != 0 }
 }
 
-unsafe fn mc_lua_enable(enable: bool) {
+fn mc_lua_enable(enable: bool) {
     unsafe {
         if g_st().exiting {
             return;
@@ -1600,7 +1594,7 @@ unsafe fn mc_zq_run(
     }
 }
 
-pub unsafe fn mc_zq_start(cap: &mut cmdarg_T) {
+pub fn mc_zq_start(cap: &mut cmdarg_T) {
     unsafe {
         (*cap.oap).from_visual = g_st().Visual.active;
         (*cap.oap).motion_type = kMTUnknown;
@@ -1612,7 +1606,7 @@ pub unsafe fn mc_zq_start(cap: &mut cmdarg_T) {
     }
 }
 
-pub unsafe fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
+pub fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
     unsafe {
         atom_did_global_op();
         if mc_replaying()
@@ -1755,7 +1749,7 @@ pub unsafe fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
     }
 }
 
-pub unsafe fn mc_counter(count1: c_long) {
+pub fn mc_counter(count1: c_long) {
     unsafe {
         atom_did_global_op();
         let mut tv_args = [
@@ -1779,7 +1773,7 @@ pub unsafe fn mc_counter(count1: c_long) {
     }
 }
 
-pub unsafe fn mc_follow_set(on: TriState) {
+pub fn mc_follow_set(on: TriState) {
     unsafe {
         if mc_replaying() {
             return;
@@ -1952,13 +1946,11 @@ pub unsafe fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
     }
 }
 
-pub unsafe fn mc_free_all() {
-    unsafe {
-        while let Some(mut ctx) = cursors_mut().pop() {
+pub fn mc_free_all() {
+    while let Some(mut ctx) = cursors_mut().pop() {
             ctx_free(&mut ctx);
         }
         *cursors_mut() = Vec::new();
         *ins_regions_mut() = Vec::new();
         ctx_free(&mut mc_st().mc_start.ctx);
-    }
 }

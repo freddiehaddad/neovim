@@ -223,7 +223,7 @@ fn pum() -> &'static mut PopupmenuState {
 
 use crate::api::private::helpers::cstr_to_string;
 
-unsafe fn pum_compute_size() {
+fn pum_compute_size() {
     unsafe {
         pum().base_width = 0;
         pum().kind_width = 0;
@@ -406,7 +406,7 @@ unsafe fn pum_compute_horizontal_placement(
 }
 
 #[inline]
-unsafe fn pum_border_width() -> c_int {
+fn pum_border_width() -> c_int {
     unsafe {
         if *opt_vars().p_pumborder == NUL || (crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder) == crate::memory::cstr_as_opt_bytes(opt_winborder_values[7].as_ptr())) {
             0
@@ -738,7 +738,7 @@ fn pum_align_order(order: &mut [c_int; 3]) {
 }
 
 #[inline]
-unsafe fn pum_get_item(index: c_int, type_: c_int) -> *mut c_char {
+fn pum_get_item(index: c_int, type_: c_int) -> *mut c_char {
     unsafe {
         let item = &*pum().array.add(index as usize);
         match type_ {
@@ -751,7 +751,7 @@ unsafe fn pum_get_item(index: c_int, type_: c_int) -> *mut c_char {
 }
 
 #[inline]
-unsafe fn pum_user_attr_combine(idx: c_int, type_: c_int, attr: c_int) -> c_int {
+fn pum_user_attr_combine(idx: c_int, type_: c_int, attr: c_int) -> c_int {
     unsafe {
         let item = &*pum().array.add(idx as usize);
         let user_attr = [item.pum_user_abbr_hlattr, item.pum_user_kind_hlattr];
@@ -765,7 +765,7 @@ unsafe fn pum_user_attr_combine(idx: c_int, type_: c_int, attr: c_int) -> c_int 
 }
 
 /// Redraw the popup menu, using `pum_first` and `pum_selected` (`pum_redraw`).
-pub unsafe fn pum_redraw() {
+pub fn pum_redraw() {
     unsafe {
         let mut row: c_int = 0;
         let attr_scroll = win_hl_attr(*curwin.as_ptr(), HLF_PSB);
@@ -1250,7 +1250,7 @@ unsafe fn pum_preview_set_text(
 }
 
 /// Adjust floating info preview window position (`pum_adjust_info_position`).
-unsafe fn pum_adjust_info_position(wp: &mut win_T, width: c_int) -> bool {
+fn pum_adjust_info_position(wp: &mut win_T, width: c_int) -> bool {
     unsafe {
         let border_width = pum_border_width();
         let col = pum().col + pum().width + 1 + border_width.max(pum().scrollbar);
@@ -1323,7 +1323,7 @@ pub unsafe fn pum_set_info(selected: c_int, info: *mut c_char) -> *mut win_T {
 }
 
 /// Set the index of the currently selected item (`pum_set_selected`).
-unsafe fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
+fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
     unsafe {
         let mut resized = false;
         let mut context = pum().height / 2;
@@ -1541,21 +1541,18 @@ unsafe fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
 }
 
 /// Undisplay the popup menu (`pum_undisplay`).
-pub unsafe fn pum_undisplay(immediate: bool) {
-    unsafe {
-        pum().is_visible = false;
+pub fn pum_undisplay(immediate: bool) {
+    pum().is_visible = false;
         pum().array = ptr::null_mut();
         g_st().must_redraw_pum = false;
 
         if immediate {
             pum_check_clear();
         }
-    }
 }
 
-pub unsafe fn pum_check_clear() {
-    unsafe {
-        if !pum().is_visible && pum().is_drawn {
+pub fn pum_check_clear() {
+    if !pum().is_visible && pum().is_drawn {
             if pum().external {
                 ui_call_popupmenu_hide();
             } else {
@@ -1570,7 +1567,6 @@ pub unsafe fn pum_check_clear() {
             pum().external = false;
             win_float_close(kWinInfo);
         }
-    }
 }
 
 /// Clear the popup menu (`pum_clear`).
@@ -1604,16 +1600,14 @@ pub fn pum_ext_select_item(item: c_int, insert: bool, finish: bool) {
 }
 
 /// Gets the height of the menu (`pum_get_height`).
-pub unsafe fn pum_get_height() -> c_int {
-    unsafe {
-        if pum().external {
+pub fn pum_get_height() -> c_int {
+    if pum().external {
             let ui_pum_height = ui_pum_get_height();
             if ui_pum_height != 0 {
                 return ui_pum_height;
             }
         }
         pum().height
-    }
 }
 
 /// Add size information about the pum to `dict` (`pum_set_event_info`).
@@ -1650,7 +1644,7 @@ pub unsafe fn pum_set_event_info(dict: *mut dict_T) {
     }
 }
 
-unsafe fn pum_position_at_mouse(min_width: c_int) {
+fn pum_position_at_mouse(min_width: c_int) {
     unsafe {
         let min_row: c_int = 0;
         let min_col: c_int = 0;
@@ -1729,7 +1723,7 @@ unsafe fn pum_position_at_mouse(min_width: c_int) {
 }
 
 /// Select the pum entry at the mouse position (`pum_select_mouse_pos`).
-unsafe fn pum_select_mouse_pos() {
+fn pum_select_mouse_pos() {
     unsafe {
         let mut grid = g_st().mouse_grid;
         let mut row = g_st().mouse_row;
@@ -1773,7 +1767,7 @@ unsafe fn pum_select_mouse_pos() {
 }
 
 /// Execute the currently selected popup menu item (`pum_execute_menu`).
-unsafe fn pum_execute_menu(menu: &mut vimmenu_T, mode: c_int) {
+fn pum_execute_menu(menu: &mut vimmenu_T, mode: c_int) {
     unsafe {
         let mut idx: c_int = 0;
         for mp in &mut menu.children {
@@ -1791,7 +1785,7 @@ unsafe fn pum_execute_menu(menu: &mut vimmenu_T, mode: c_int) {
 }
 
 /// Open the terminal version of the popup menu (`pum_show_popupmenu`).
-pub unsafe fn pum_show_popupmenu(menu: &mut vimmenu_T) {
+pub fn pum_show_popupmenu(menu: &mut vimmenu_T) {
     unsafe {
         pum_undisplay(true);
         pum().size = 0;
@@ -1938,7 +1932,7 @@ pub unsafe fn pum_make_popup(path_name: *const c_char, use_mouse_pos: c_int) {
     }
 }
 
-pub unsafe fn pum_pos_ui_flush(force: bool) {
+pub fn pum_pos_ui_flush(force: bool) {
     unsafe {
         if force
             || (ui_has(kUIMultigrid)

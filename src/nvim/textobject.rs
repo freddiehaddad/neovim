@@ -51,10 +51,10 @@ fn tobj_st() -> &'static mut TextobjectState {
 
 /// Find the start of the next sentence, searching in the direction specified
 /// by the `dir` argument (`findsent`).
-pub unsafe fn findsent(dir: Direction, mut count: c_int) -> c_int {
+pub fn findsent(dir: Direction, mut count: c_int) -> c_int {
     unsafe {
         let mut c: c_int;
-        let func: unsafe fn(&mut pos_T) -> c_int = if dir == FORWARD { incl } else { decl };
+        let func: fn(&mut pos_T) -> c_int = if dir == FORWARD { incl } else { decl };
         let mut noskip = false;
 
         let mut pos = (**curwin.as_ptr()).w_cursor;
@@ -298,7 +298,7 @@ unsafe fn inmacro(opt: *mut c_char, s: *const c_char) -> bool {
 }
 
 /// Return true if line `lnum` is the start of a section or paragraph (`startPS`).
-pub unsafe fn startPS(lnum: linenr_T, para: c_int, both: bool) -> bool {
+pub fn startPS(lnum: linenr_T, para: c_int, both: bool) -> bool {
     unsafe {
         let s = ml_get(lnum);
         if c_int::from(*s as u8) == para
@@ -317,9 +317,8 @@ pub unsafe fn startPS(lnum: linenr_T, para: c_int, both: bool) -> bool {
 }
 
 /// Return the class of character at `curwin->w_cursor` (`cls`).
-unsafe fn cls() -> c_int {
-    unsafe {
-        let mut c = gchar_cursor();
+fn cls() -> c_int {
+    let mut c = gchar_cursor();
         if c == b' ' as c_int || c == b'\t' as c_int || c == c_int::from(NUL) {
             return 0;
         }
@@ -330,11 +329,10 @@ unsafe fn cls() -> c_int {
             return 1;
         }
         c
-    }
 }
 
 /// Move forward `count` words (`fwd_word`).
-pub unsafe fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
+pub fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
     unsafe {
         (**curwin.as_ptr()).w_cursor.coladd = 0;
         tobj_st().CLS_BIGWORD = bigword;
@@ -386,7 +384,7 @@ pub unsafe fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
 }
 
 /// Move backward `count` words (`bck_word`).
-pub unsafe fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> c_int {
+pub fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> c_int {
     unsafe {
         (**curwin.as_ptr()).w_cursor.coladd = 0;
         tobj_st().CLS_BIGWORD = bigword;
@@ -435,7 +433,7 @@ pub unsafe fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> c_int
 }
 
 /// Move to the end of the word (`end_word`).
-pub unsafe fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) -> c_int {
+pub fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) -> c_int {
     unsafe {
         (**curwin.as_ptr()).w_cursor.coladd = 0;
         tobj_st().CLS_BIGWORD = bigword;
@@ -495,7 +493,7 @@ pub unsafe fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: b
 }
 
 /// Move back to the end of the word (`bckend_word`).
-pub unsafe fn bckend_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
+pub fn bckend_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
     unsafe {
         (**curwin.as_ptr()).w_cursor.coladd = 0;
         tobj_st().CLS_BIGWORD = bigword;
@@ -537,9 +535,8 @@ pub unsafe fn bckend_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
 }
 
 /// Skip a row of characters of the same class (`skip_chars`).
-unsafe fn skip_chars(cclass: c_int, dir: Direction) -> bool {
-    unsafe {
-        while cls() == cclass {
+fn skip_chars(cclass: c_int, dir: Direction) -> bool {
+    while cls() == cclass {
             if (if dir == FORWARD {
                 inc_cursor()
             } else {
@@ -550,11 +547,10 @@ unsafe fn skip_chars(cclass: c_int, dir: Direction) -> bool {
             }
         }
         false
-    }
 }
 
 /// Go back to the start of the word or the start of white space (`back_in_line`).
-unsafe fn back_in_line() {
+fn back_in_line() {
     unsafe {
         let sclass = cls();
         loop {
@@ -570,20 +566,18 @@ unsafe fn back_in_line() {
     }
 }
 
-unsafe fn find_first_blank(posp: &mut pos_T) {
-    unsafe {
-        while decl(posp) != -1 {
+fn find_first_blank(posp: &mut pos_T) {
+    while decl(posp) != -1 {
             let c = gchar_pos(posp);
             if !ascii_iswhite(c) {
                 incl(posp);
                 break;
             }
         }
-    }
 }
 
 /// Skip `count/2` sentences and `count/2` separating white spaces (`findsent_forward`).
-unsafe fn findsent_forward(mut count: c_int, mut at_start_sent: bool) {
+fn findsent_forward(mut count: c_int, mut at_start_sent: bool) {
     unsafe {
         while {
             let old = count;
@@ -603,7 +597,7 @@ unsafe fn findsent_forward(mut count: c_int, mut at_start_sent: bool) {
 }
 
 /// Find word under cursor, cursor at end (`current_word`).
-pub unsafe fn current_word(
+pub fn current_word(
     oap: &mut oparg_T,
     mut count: c_int,
     include: bool,
@@ -723,7 +717,7 @@ pub unsafe fn current_word(
 }
 
 /// Find the current line ("il") or all lines ("al") (`current_line`).
-pub unsafe fn current_line(oap: &mut oparg_T, include: bool) -> c_int {
+pub fn current_line(oap: &mut oparg_T, include: bool) -> c_int {
     unsafe {
         if include {
             if g_st().Visual.active {
@@ -790,7 +784,7 @@ pub unsafe fn current_line(oap: &mut oparg_T, include: bool) -> c_int {
 }
 
 /// Find sentence(s) under the cursor, cursor at end (`current_sent`).
-pub unsafe fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -> c_int {
+pub fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -> c_int {
     unsafe {
         let mut start_pos = (**curwin.as_ptr()).w_cursor;
         let mut pos = start_pos;
@@ -927,7 +921,7 @@ pub unsafe fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -
 }
 
 /// Find block under the cursor, cursor at end (`current_block`).
-pub unsafe fn current_block(
+pub fn current_block(
     oap: &mut oparg_T,
     mut count: c_int,
     include: bool,
@@ -1084,7 +1078,7 @@ pub unsafe fn current_block(
 }
 
 /// Return true if the cursor is on a `<aaa>` tag (or `</aaa>` when `end_tag` is true) (`in_html_tag`).
-unsafe fn in_html_tag(end_tag: bool) -> bool {
+fn in_html_tag(end_tag: bool) -> bool {
     unsafe {
         let line = get_cursor_line_ptr();
         let mut p = line.add((**curwin.as_ptr()).w_cursor.col as usize);
@@ -1134,7 +1128,7 @@ unsafe fn in_html_tag(end_tag: bool) -> bool {
 }
 
 /// Find tag block under the cursor, cursor at end (`current_tagblock`).
-pub unsafe fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> c_int {
+pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> c_int {
     unsafe {
         let mut count = count_arg;
         let mut do_include = include;
@@ -1314,7 +1308,7 @@ pub unsafe fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: boo
 }
 
 /// Find paragraph under the cursor (`current_par`).
-pub unsafe fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int) -> c_int {
+pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int) -> c_int {
     unsafe {
         let mut retval = OK;
         let mut do_white = false;
@@ -1541,7 +1535,7 @@ unsafe fn find_prev_quote(
 }
 
 /// Find quote under the cursor, cursor at end (`current_quote`).
-pub unsafe fn current_quote(
+pub fn current_quote(
     oap: &mut oparg_T,
     count: c_int,
     include: bool,

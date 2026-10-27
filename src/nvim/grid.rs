@@ -231,7 +231,7 @@ pub unsafe fn schar_from_buf(buf: *const c_char, len: usize) -> schar_T {
     }
 }
 
-pub unsafe fn schar_cache_clear_if_full() -> bool {
+pub fn schar_cache_clear_if_full() -> bool {
     unsafe {
         let keys_ptr = &raw const grid_st().glyph_cache_keys;
         if (*keys_ptr).len() > (1 << 21) {
@@ -242,7 +242,7 @@ pub unsafe fn schar_cache_clear_if_full() -> bool {
     }
 }
 
-pub unsafe fn schar_cache_clear() {
+pub fn schar_cache_clear() {
     unsafe {
         decor_check_invalid_glyphs();
         let keys_ptr = &raw mut grid_st().glyph_cache_keys;
@@ -297,7 +297,7 @@ pub unsafe fn schar_get_adv(buf_out: *mut *mut c_char, sc: schar_T) -> usize {
     }
 }
 
-pub unsafe fn schar_len(sc: schar_T) -> usize {
+pub fn schar_len(sc: schar_T) -> usize {
     unsafe {
         if schar_high(sc) {
             let idx = schar_idx(sc) as usize;
@@ -312,7 +312,7 @@ pub unsafe fn schar_len(sc: schar_T) -> usize {
     }
 }
 
-pub unsafe fn schar_cells(sc: schar_T) -> c_int {
+pub fn schar_cells(sc: schar_T) -> c_int {
     unsafe {
         #[cfg(target_endian = "big")]
         if (sc & 0x80FF_FFFF) == 0 {
@@ -330,7 +330,7 @@ pub unsafe fn schar_cells(sc: schar_T) -> c_int {
 }
 
 #[inline]
-unsafe fn schar_get_first_byte(sc: schar_T) -> c_char {
+fn schar_get_first_byte(sc: schar_T) -> c_char {
     unsafe {
         let keys_ptr = &raw const grid_st().glyph_cache_keys;
         assert!(!(schar_high(sc) && (schar_idx(sc) as usize) >= (*keys_ptr).len()));
@@ -342,7 +342,7 @@ unsafe fn schar_get_first_byte(sc: schar_T) -> c_char {
     }
 }
 
-pub unsafe fn schar_get_first_codepoint(sc: schar_T) -> c_int {
+pub fn schar_get_first_codepoint(sc: schar_T) -> c_int {
     unsafe {
         let mut sc_buf = [0 as c_char; MAX_SCHAR_SIZE];
         schar_get(sc_buf.as_mut_ptr(), sc);
@@ -350,7 +350,7 @@ pub unsafe fn schar_get_first_codepoint(sc: schar_T) -> c_int {
     }
 }
 
-pub unsafe fn schar_get_ascii(sc: schar_T) -> c_char {
+pub fn schar_get_ascii(sc: schar_T) -> c_char {
     #[cfg(target_endian = "big")]
     unsafe {
         if (sc & 0x80FF_FFFF) == 0 {
@@ -366,15 +366,13 @@ pub unsafe fn schar_get_ascii(sc: schar_T) -> c_char {
 }
 
 #[inline]
-unsafe fn schar_in_arabic_block(sc: schar_T) -> bool {
-    unsafe {
-        let first_byte = schar_get_first_byte(sc) as u8;
+fn schar_in_arabic_block(sc: schar_T) -> bool {
+    let first_byte = schar_get_first_byte(sc) as u8;
         (first_byte & 0xFE) == 0xD8
-    }
 }
 
 #[inline]
-unsafe fn schar_get_first_two_codepoints(sc: schar_T, c0: &mut c_int, c1: &mut c_int) {
+fn schar_get_first_two_codepoints(sc: schar_T, c0: &mut c_int, c1: &mut c_int) {
     unsafe {
         let mut sc_buf = [0 as c_char; MAX_SCHAR_SIZE];
         schar_get(sc_buf.as_mut_ptr(), sc);
@@ -678,15 +676,14 @@ pub fn grid_line_clear_end(
         grid_st().grid_line_clear_attr = clear_attr;
 }
 
-pub unsafe fn grid_line_cursor_goto(col: c_int) {
+pub fn grid_line_cursor_goto(col: c_int) {
     unsafe {
         ui_grid_cursor_goto((*grid_st().grid_line_grid).handle, grid_st().grid_line_row, col);
     }
 }
 
-pub unsafe fn grid_line_mirror(width: c_int) {
-    unsafe {
-        grid_st().grid_line_clear_to = grid_st().grid_line_last.max(grid_st().grid_line_clear_to);
+pub fn grid_line_mirror(width: c_int) {
+    grid_st().grid_line_clear_to = grid_st().grid_line_last.max(grid_st().grid_line_clear_to);
         if grid_st().grid_line_first >= grid_st().grid_line_clear_to {
             return;
         }
@@ -697,10 +694,9 @@ pub unsafe fn grid_line_mirror(width: c_int) {
             width,
         );
         grid_st().grid_line_flags |= SLF_RIGHTLEFT;
-    }
 }
 
-pub unsafe fn linebuf_mirror(
+pub fn linebuf_mirror(
     firstp: &mut c_int,
     lastp: &mut c_int,
     clearp: &mut c_int,
@@ -759,7 +755,7 @@ pub unsafe fn linebuf_mirror(
     }
 }
 
-pub unsafe fn grid_line_flush() {
+pub fn grid_line_flush() {
     unsafe {
         let grid = grid_st().grid_line_grid;
         grid_st().grid_line_grid = ptr::null_mut();
@@ -784,7 +780,7 @@ pub unsafe fn grid_line_flush() {
     }
 }
 
-pub unsafe fn grid_line_flush_if_valid_row() {
+pub fn grid_line_flush_if_valid_row() {
     unsafe {
         if grid_st().grid_line_row < 0 || grid_st().grid_line_row >= (*grid_st().grid_line_grid).rows {
             if (opt_vars().rdb_flags & kOptRdbFlagInvalid) != 0 {
@@ -839,7 +835,7 @@ unsafe fn grid_char_needs_redraw(
     }
 }
 
-pub unsafe fn grid_put_linebuf(
+pub fn grid_put_linebuf(
     grid: &mut ScreenGrid,
     row: c_int,
     coloff: c_int,
@@ -1038,7 +1034,7 @@ pub unsafe fn grid_put_linebuf(
     }
 }
 
-pub unsafe fn grid_alloc(
+pub fn grid_alloc(
     grid: &mut ScreenGrid,
     rows: c_int,
     columns: c_int,
@@ -1109,7 +1105,7 @@ pub fn grid_free(grid: &mut ScreenGrid) {
         grid.line_offset = Vec::new();
 }
 
-pub unsafe fn grid_free_all_mem() {
+pub fn grid_free_all_mem() {
     unsafe {
         grid_free(&mut g_st().default_grid);
         grid_free(&mut g_st().msg_grid);
@@ -1199,7 +1195,7 @@ pub fn grid_assign_handle(grid: &mut ScreenGrid) {
         }
 }
 
-pub unsafe fn grid_ins_lines(
+pub fn grid_ins_lines(
     grid: &mut ScreenGrid,
     row: c_int,
     line_count: c_int,
@@ -1254,7 +1250,7 @@ pub unsafe fn grid_ins_lines(
     }
 }
 
-pub unsafe fn grid_del_lines(
+pub fn grid_del_lines(
     grid: &mut ScreenGrid,
     row: c_int,
     line_count: c_int,
@@ -1309,7 +1305,7 @@ pub unsafe fn grid_del_lines(
     }
 }
 
-unsafe fn grid_draw_bordertext(
+fn grid_draw_bordertext(
     vt: &[VirtTextChunk],
     mut col: c_int,
     winbl: c_int,
@@ -1504,7 +1500,7 @@ unsafe fn linecopy(grid: *mut ScreenGrid, to: c_int, from: c_int, col: c_int, wi
     }
 }
 
-pub unsafe fn get_win_by_grid_handle(handle: handle_T) -> *mut win_T {
+pub fn get_win_by_grid_handle(handle: handle_T) -> *mut win_T {
     unsafe {
         let mut wp = g_st().firstwin;
         while !wp.is_null() {
@@ -1518,7 +1514,7 @@ pub unsafe fn get_win_by_grid_handle(handle: handle_T) -> *mut win_T {
 }
 
 /// Put a unicode character in a screen cell (`schar_from_char`).
-pub unsafe fn schar_from_char(mut c: c_int) -> schar_T {
+pub fn schar_from_char(mut c: c_int) -> schar_T {
     unsafe {
         let mut sc: schar_T = 0;
         if c >= 0x20_0000 {

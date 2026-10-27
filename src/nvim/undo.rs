@@ -272,7 +272,7 @@ fn undo_st() -> &'static mut UndoModuleState {
 }
 
 /// Save the current line for both the `"u"` and `"U"` command.
-pub unsafe fn u_save_cursor() -> c_int {
+pub fn u_save_cursor() -> c_int {
     unsafe {
         let cur = (**curwin.as_ptr()).w_cursor.lnum;
         let top = if cur > 0 { cur - 1 } else { 0 };
@@ -282,11 +282,11 @@ pub unsafe fn u_save_cursor() -> c_int {
 }
 
 /// Save the lines between `top` and `bot` for both the `"u"` and `"U"` command.
-pub unsafe fn u_save(top: linenr_T, bot: linenr_T) -> c_int {
+pub fn u_save(top: linenr_T, bot: linenr_T) -> c_int {
     unsafe { u_save_buf(&mut *g_st().curbuf, top, bot) }
 }
 
-pub unsafe fn u_save_buf(buf: &mut buf_T, top: linenr_T, bot: linenr_T) -> c_int {
+pub fn u_save_buf(buf: &mut buf_T, top: linenr_T, bot: linenr_T) -> c_int {
     unsafe {
         if top >= bot || bot > buf.b_ml.ml_line_count + 1 {
             return FAIL;
@@ -301,17 +301,17 @@ pub unsafe fn u_save_buf(buf: &mut buf_T, top: linenr_T, bot: linenr_T) -> c_int
 }
 
 /// Save the line `lnum` (used by `":s"` and `"~"` command).
-pub unsafe fn u_savesub(lnum: linenr_T) -> c_int {
+pub fn u_savesub(lnum: linenr_T) -> c_int {
     unsafe { u_savecommon(g_st().curbuf, lnum - 1, lnum + 1, lnum + 1, false) }
 }
 
 /// A new line is inserted before line `lnum` (used by `:s` command).
-pub unsafe fn u_inssub(lnum: linenr_T) -> c_int {
+pub fn u_inssub(lnum: linenr_T) -> c_int {
     unsafe { u_savecommon(g_st().curbuf, lnum - 1, lnum, lnum + 1, false) }
 }
 
 /// Save the lines `lnum` - `lnum + nlines` (used by delete command).
-pub unsafe fn u_savedel(lnum: linenr_T, nlines: linenr_T) -> c_int {
+pub fn u_savedel(lnum: linenr_T, nlines: linenr_T) -> c_int {
     unsafe {
         u_savecommon(
             g_st().curbuf,
@@ -784,7 +784,7 @@ unsafe fn serialize_header(bi: &mut bufinfo_T, hash: *mut u8) -> bool {
     }
 }
 
-unsafe fn serialize_uhp(bi: &mut bufinfo_T, uhp: usize) -> bool {
+fn serialize_uhp(bi: &mut bufinfo_T, uhp: usize) -> bool {
     unsafe {
         if !undo_write_bytes(bi, UF_HEADER_MAGIC as u64, 2) {
             return false;
@@ -919,7 +919,7 @@ unsafe fn unserialize_uhp(
     }
 }
 
-unsafe fn serialize_extmark(bi: &mut bufinfo_T, extup: ExtmarkUndoObject) -> bool {
+fn serialize_extmark(bi: &mut bufinfo_T, extup: ExtmarkUndoObject) -> bool {
     unsafe {
         match extup {
             ExtmarkUndoObject::Splice(splice) => {
@@ -978,7 +978,7 @@ unsafe fn unserialize_extmark(
     }
 }
 
-unsafe fn serialize_uep(bi: &mut bufinfo_T, uep: &u_entry_T) -> bool {
+fn serialize_uep(bi: &mut bufinfo_T, uep: &u_entry_T) -> bool {
     unsafe {
         undo_write_bytes(bi, uep.ue_top as u64, 4);
         undo_write_bytes(bi, uep.ue_bot as u64, 4);
@@ -1041,38 +1041,30 @@ unsafe fn unserialize_uep(
     }
 }
 
-unsafe fn serialize_pos(bi: &mut bufinfo_T, pos: pos_T) {
-    unsafe {
-        undo_write_bytes(bi, pos.lnum as u64, 4);
+fn serialize_pos(bi: &mut bufinfo_T, pos: pos_T) {
+    undo_write_bytes(bi, pos.lnum as u64, 4);
         undo_write_bytes(bi, pos.col as u64, 4);
         undo_write_bytes(bi, pos.coladd as u64, 4);
-    }
 }
 
-unsafe fn unserialize_pos(bi: &mut bufinfo_T, pos: &mut pos_T) {
-    unsafe {
-        pos.lnum = undo_read_4c(bi).max(0);
+fn unserialize_pos(bi: &mut bufinfo_T, pos: &mut pos_T) {
+    pos.lnum = undo_read_4c(bi).max(0);
         pos.col = undo_read_4c(bi).max(0);
         pos.coladd = undo_read_4c(bi).max(0);
-    }
 }
 
-unsafe fn serialize_visualinfo(bi: &mut bufinfo_T, info: &mut visualinfo_T) {
-    unsafe {
-        serialize_pos(bi, info.vi_start);
+fn serialize_visualinfo(bi: &mut bufinfo_T, info: &mut visualinfo_T) {
+    serialize_pos(bi, info.vi_start);
         serialize_pos(bi, info.vi_end);
         undo_write_bytes(bi, info.vi_mode as u64, 4);
         undo_write_bytes(bi, info.vi_curswant as u64, 4);
-    }
 }
 
-unsafe fn unserialize_visualinfo(bi: &mut bufinfo_T, info: &mut visualinfo_T) {
-    unsafe {
-        unserialize_pos(bi, &mut info.vi_start);
+fn unserialize_visualinfo(bi: &mut bufinfo_T, info: &mut visualinfo_T) {
+    unserialize_pos(bi, &mut info.vi_start);
         unserialize_pos(bi, &mut info.vi_end);
         info.vi_mode = undo_read_4c(bi);
         info.vi_curswant = undo_read_4c(bi);
-    }
 }
 
 /// Write the undo tree in an undo file.
@@ -1581,7 +1573,7 @@ unsafe fn undo_write(bi: &mut bufinfo_T, ptr: *mut u8, len: usize) -> bool {
     unsafe { fwrite(ptr.cast(), len, 1, bi.bi_fp.as_ptr()) == 1 }
 }
 
-unsafe fn undo_write_bytes(bi: &mut bufinfo_T, nr: u64, len: usize) -> bool {
+fn undo_write_bytes(bi: &mut bufinfo_T, nr: u64, len: usize) -> bool {
     unsafe {
         assert!(len > 0);
         let mut buf = [0u8; 8];
@@ -1594,7 +1586,7 @@ unsafe fn undo_write_bytes(bi: &mut bufinfo_T, nr: u64, len: usize) -> bool {
     }
 }
 
-unsafe fn put_header_ptr(bi: &mut bufinfo_T, uhp: Option<usize>) {
+fn put_header_ptr(bi: &mut bufinfo_T, uhp: Option<usize>) {
     unsafe {
         let seq = if let Some(uh) = uhp {
             let s = uhp_ref(bi.bi_buf, uh).uh_seq;
@@ -1607,7 +1599,7 @@ unsafe fn put_header_ptr(bi: &mut bufinfo_T, uhp: Option<usize>) {
     }
 }
 
-unsafe fn undo_read_4c(bi: &mut bufinfo_T) -> c_int {
+fn undo_read_4c(bi: &mut bufinfo_T) -> c_int {
     unsafe { get4c(bi.bi_fp.as_ptr()) }
 }
 
@@ -1635,15 +1627,15 @@ unsafe fn undo_read_len(
     }
 }
 
-unsafe fn undo_read_2c(bi: &mut bufinfo_T) -> c_int {
+fn undo_read_2c(bi: &mut bufinfo_T) -> c_int {
     unsafe { get2c(bi.bi_fp.as_ptr()) }
 }
 
-unsafe fn undo_read_byte(bi: &mut bufinfo_T) -> c_int {
+fn undo_read_byte(bi: &mut bufinfo_T) -> c_int {
     unsafe { fgetc(bi.bi_fp.as_ptr()) }
 }
 
-unsafe fn undo_read_time(bi: &mut bufinfo_T) -> time_t {
+fn undo_read_time(bi: &mut bufinfo_T) -> time_t {
     unsafe { get8ctime(bi.bi_fp.as_ptr()) }
 }
 
@@ -1657,7 +1649,7 @@ unsafe fn undo_read(bi: &mut bufinfo_T, buffer: *mut u8, size: usize) -> bool {
     }
 }
 
-unsafe fn undo_read_string(bi: &mut bufinfo_T, len: usize) -> Option<std::ffi::CString> {
+fn undo_read_string(bi: &mut bufinfo_T, len: usize) -> Option<std::ffi::CString> {
     unsafe {
         if len == 0 {
             return Some(std::ffi::CString::default());
@@ -1673,7 +1665,7 @@ unsafe fn undo_read_string(bi: &mut bufinfo_T, len: usize) -> Option<std::ffi::C
 }
 
 /// Undo `count` times.
-pub unsafe fn u_undo(mut count: c_int) {
+pub fn u_undo(mut count: c_int) {
     unsafe {
         if !(*g_st().curbuf).b_u_synced {
             u_sync(true);
@@ -1690,7 +1682,7 @@ pub unsafe fn u_undo(mut count: c_int) {
 }
 
 /// Redo `count` times.
-pub unsafe fn u_redo(count: c_int) {
+pub fn u_redo(count: c_int) {
     unsafe {
         if vim_strchr(opt_vars().p_cpo, kCpoUndo).is_null() {
             undo_st().undo_undoes = false;
@@ -1701,7 +1693,7 @@ pub unsafe fn u_redo(count: c_int) {
 }
 
 /// Undo and remove the branch from the undo tree.
-pub unsafe fn u_undo_and_forget(mut count: c_int, do_buf_event: bool) -> bool {
+pub fn u_undo_and_forget(mut count: c_int, do_buf_event: bool) -> bool {
     unsafe {
         if !(*g_st().curbuf).b_u_synced {
             u_sync(true);
@@ -1719,7 +1711,7 @@ pub unsafe fn u_undo_and_forget(mut count: c_int, do_buf_event: bool) -> bool {
     }
 }
 
-unsafe fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
+fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
     unsafe {
         if !undo_allowed(g_st().curbuf) {
             return;
@@ -1788,7 +1780,7 @@ unsafe fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
 }
 
 /// Undo or redo over the timeline.
-pub unsafe fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
+pub fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
     unsafe {
         if text_locked() {
             text_locked_msg();
@@ -2088,7 +2080,7 @@ pub unsafe fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
     }
 }
 
-unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
+fn u_undoredo(undo: bool, do_buf_event: bool) {
     unsafe {
         let mut newlnum: linenr_T = MAXLNUM;
         let mut new_curpos = (**curwin.as_ptr()).w_cursor;
@@ -2343,7 +2335,7 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
     }
 }
 
-unsafe fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
+fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
     unsafe {
         if (opt_vars().fdo_flags & kOptFdoFlagUndo) != 0 && g_st().KeyTyped {
             foldOpenCursor();
@@ -2467,7 +2459,7 @@ pub unsafe fn undo_fmt_time(buf: *mut c_char, buflen: usize, tt: time_t) {
 }
 
 /// `u_sync`: stop adding to the current entry list.
-pub unsafe fn u_sync(force: bool) {
+pub fn u_sync(force: bool) {
     unsafe {
         if (*g_st().curbuf).b_u_synced || (!force && g_st().no_u_sync > 0) {
             return;
@@ -2483,7 +2475,7 @@ pub unsafe fn u_sync(force: bool) {
 }
 
 /// `":undolist"`: List the leafs of the undo tree.
-pub unsafe fn ex_undolist(_eap: &mut exarg_T) {
+pub fn ex_undolist(_eap: &mut exarg_T) {
     unsafe {
         let mut changes: c_int = 1;
 
@@ -2582,7 +2574,7 @@ pub unsafe fn ex_undolist(_eap: &mut exarg_T) {
 }
 
 /// `":undojoin"`: continue adding to the last entry list.
-pub unsafe fn ex_undojoin(_eap: &mut exarg_T) {
+pub fn ex_undojoin(_eap: &mut exarg_T) {
     unsafe {
         if (*g_st().curbuf).b_u_newhead.is_none() {
             return;
@@ -2613,7 +2605,7 @@ pub unsafe fn u_unchanged(buf: *mut buf_T) {
 
 /// After reloading a buffer which was saved for `'undoreload'`: Find the first
 /// line that was changed and set the cursor there.
-pub unsafe fn u_find_first_changed() {
+pub fn u_find_first_changed() {
     unsafe {
         if (*g_st().curbuf).b_u_curhead.is_some() {
             return;
@@ -2770,7 +2762,7 @@ unsafe fn u_freebranch(buf: *mut buf_T, uhp: usize, uhpp: &mut Option<usize>) {
     }
 }
 
-unsafe fn u_forget_header(buf: &mut buf_T, uhp: usize) {
+fn u_forget_header(buf: &mut buf_T, uhp: usize) {
     unsafe {
         let parent = uhp_ref(&raw mut *buf, uhp).uh_next;
         let alt = uhp_ref(&raw mut *buf, uhp).uh_alt_next;
@@ -2820,7 +2812,7 @@ unsafe fn u_freeentries(buf: *mut buf_T, uhp: usize, uhpp: &mut Option<usize>) {
 }
 
 /// Prunes the newest undo entry if it has no changes.
-pub unsafe fn u_forget_unchanged(buf: &mut buf_T) {
+pub fn u_forget_unchanged(buf: &mut buf_T) {
     unsafe {
         let Some(uhp) = buf.b_u_newhead else {
             return;
@@ -2882,7 +2874,7 @@ pub unsafe fn u_clearallandblockfree(buf: *mut buf_T) {
     }
 }
 
-unsafe fn u_saveline(buf: &mut buf_T, lnum: linenr_T) {
+fn u_saveline(buf: &mut buf_T, lnum: linenr_T) {
     unsafe {
         if lnum == buf.b_u_line_lnum {
             return;
@@ -2912,7 +2904,7 @@ pub fn u_clearline(buf: &mut buf_T) {
 }
 
 /// Implementation of the `"U"` command.
-pub unsafe fn u_undoline() {
+pub fn u_undoline() {
     unsafe {
         if (*g_st().curbuf).b_u_line_ptr.is_none()
             || (*g_st().curbuf).b_u_line_lnum > (*g_st().curbuf).b_ml.ml_line_count
@@ -2958,7 +2950,7 @@ pub unsafe fn u_undoline() {
     }
 }
 
-unsafe fn u_save_line(lnum: linenr_T) -> std::ffi::CString {
+fn u_save_line(lnum: linenr_T) -> std::ffi::CString {
     unsafe { u_save_line_buf(g_st().curbuf, lnum) }
 }
 
@@ -2967,7 +2959,7 @@ unsafe fn u_save_line_buf(buf: *mut buf_T, lnum: linenr_T) -> std::ffi::CString 
 }
 
 /// Check if the `'modified'` flag is set, or `'ff'` has changed.
-pub unsafe fn bufIsChanged(buf: &mut buf_T) -> bool {
+pub fn bufIsChanged(buf: &mut buf_T) -> bool {
     unsafe {
         if bt_prompt(&raw mut *buf) {
             buf.b_modified_was_set
@@ -2978,7 +2970,7 @@ pub unsafe fn bufIsChanged(buf: &mut buf_T) -> bool {
 }
 
 /// Return true if any buffer has changes. Also buffers that are not written.
-pub unsafe fn anyBufIsChanged() -> bool {
+pub fn anyBufIsChanged() -> bool {
     unsafe {
         let mut buf = g_st().firstbuf;
         while !buf.is_null() {
@@ -2992,11 +2984,11 @@ pub unsafe fn anyBufIsChanged() -> bool {
 }
 
 /// Return true if the current buffer has changed.
-pub unsafe fn curbufIsChanged() -> bool {
+pub fn curbufIsChanged() -> bool {
     unsafe { bufIsChanged(&mut *g_st().curbuf) }
 }
 
-unsafe fn u_eval_tree(buf: &mut buf_T, first_uhp: Option<usize>) -> *mut list_T {
+fn u_eval_tree(buf: &mut buf_T, first_uhp: Option<usize>) -> *mut list_T {
     unsafe {
         let list = tv_list_alloc(kListLenMayKnow);
 
@@ -3123,7 +3115,7 @@ pub unsafe fn f_undotree(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 }
 
 /// Drops named mark `idx` from the pending undo snapshot.
-pub unsafe fn u_update_named_mark(buf: &mut buf_T, idx: c_int) {
+pub fn u_update_named_mark(buf: &mut buf_T, idx: c_int) {
     unsafe {
         let uhp = buf.b_u_curhead.or(buf.b_u_newhead);
         if let Some(uh) = uhp {
@@ -3152,7 +3144,7 @@ pub unsafe fn u_force_get_undo_header(buf: *mut buf_T) -> Option<usize> {
 }
 
 /// Checkpoints the undo state of `buf` and detaches its undotree.
-pub unsafe fn u_checkpoint(uc: &mut UndoCheckpoint, buf: &mut buf_T) {
+pub fn u_checkpoint(uc: &mut UndoCheckpoint, buf: &mut buf_T) {
     unsafe {
         uc.uc_synced = buf.b_u_synced;
         uc.uc_oldhead = buf.b_u_oldhead;
@@ -3176,7 +3168,7 @@ pub unsafe fn u_checkpoint(uc: &mut UndoCheckpoint, buf: &mut buf_T) {
 }
 
 /// Reverts `buf` from a checkpoint.
-pub unsafe fn u_rollback(uc: &mut UndoCheckpoint, buf: &mut buf_T) {
+pub fn u_rollback(uc: &mut UndoCheckpoint, buf: &mut buf_T) {
     unsafe {
         if buf.b_u_seq_cur != uc.uc_seq_cur {
             let mut count: c_int = 0;

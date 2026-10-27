@@ -134,7 +134,7 @@ unsafe fn get_maxbacktrace_level(sname: *const c_char) -> c_int {
     count
 }
 
-unsafe fn do_checkbacktracelevel() {
+fn do_checkbacktracelevel() {
     unsafe {
         if g_st().debug_backtrace_level < 0 {
             g_st().debug_backtrace_level = 0;
@@ -423,7 +423,7 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
 }
 
 /// `:debug` command (`ex_debug`).
-pub unsafe fn ex_debug(eap: &mut exarg_T) {
+pub fn ex_debug(eap: &mut exarg_T) {
     unsafe {
         let save = g_st().debug_break_level;
         g_st().debug_break_level = 9999;
@@ -470,7 +470,7 @@ pub unsafe fn dbg_check_breakpoint(eap: *mut exarg_T) {
 }
 
 /// Enter debug mode if previously skipped by `dbg_check_breakpoint()` (`dbg_check_skipped`).
-pub unsafe fn dbg_check_skipped(eap: &mut exarg_T) -> bool {
+pub fn dbg_check_skipped(eap: &mut exarg_T) -> bool {
     unsafe {
         if !dbg_st().DEBUG_SKIPPED {
             return false;
@@ -579,7 +579,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
 }
 
 /// `:breakadd` (and `:profile` file/func) command (`ex_breakadd`).
-pub unsafe fn ex_breakadd(eap: &mut exarg_T) {
+pub fn ex_breakadd(eap: &mut exarg_T) {
     unsafe {
         let eap = &*eap;
         let is_prof = eap.cmdidx == CMD_PROFILE;
@@ -637,7 +637,7 @@ fn update_has_expr_breakpoint() {
 }
 
 /// `:breakdel` and `:profdel` command (`ex_breakdel`).
-pub unsafe fn ex_breakdel(eap: &mut exarg_T) {
+pub fn ex_breakdel(eap: &mut exarg_T) {
     unsafe {
         let eap = &*eap;
         let mut todel: isize = -1;
@@ -694,7 +694,7 @@ pub unsafe fn ex_breakdel(eap: &mut exarg_T) {
 }
 
 /// `:breaklist` command (`ex_breaklist`).
-pub unsafe fn ex_breaklist(_eap: &mut exarg_T) {
+pub fn ex_breaklist(_eap: &mut exarg_T) {
     unsafe {
         let gap = dbg_vec_mut(false);
         if gap.is_empty() {

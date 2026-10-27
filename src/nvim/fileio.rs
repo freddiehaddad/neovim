@@ -454,7 +454,7 @@ mod win_iconv {
         Invalid,
     }
 
-    unsafe fn decode_one(desc: &mut WinIconvDesc, src: &[u8]) -> StepResult {
+    fn decode_one(desc: &mut WinIconvDesc, src: &[u8]) -> StepResult {
         let mut enc = desc.from;
         if enc == WinEnc::Utf16Auto {
             if let Some(res) = desc.from_resolved {
@@ -629,7 +629,7 @@ mod win_iconv {
         }
     }
 
-    unsafe fn encode_one(to: WinEnc, ch: char, buf: &mut [u8; 8]) -> Option<usize> {
+    fn encode_one(to: WinEnc, ch: char, buf: &mut [u8; 8]) -> Option<usize> {
         match to {
             WinEnc::Utf8 => Some(ch.encode_utf8(buf).len()),
             WinEnc::Utf16Le | WinEnc::Utf16Be | WinEnc::Utf16Auto => {
@@ -799,7 +799,7 @@ mod win_iconv {
         0
     }
 
-    pub unsafe fn close(cd: iconv_t) -> c_int {
+    pub fn close(cd: iconv_t) -> c_int {
         if cd != -1 && cd != 0 {
             let _ = unsafe { Box::from_raw(cd as *mut WinIconvDesc) };
         }
@@ -832,9 +832,9 @@ pub unsafe fn call_iconv<T: IntoIconvT>(
 }
 
 #[inline]
-pub unsafe fn call_iconv_close<T: IntoIconvT>(cd: T) -> c_int {
+pub fn call_iconv_close<T: IntoIconvT>(cd: T) -> c_int {
     #[cfg(windows)]
-    unsafe {
+    {
         win_iconv::close(cd.into_iconv_t())
     }
     #[cfg(not(windows))]
@@ -860,7 +860,7 @@ impl IntoIconvT for *mut c_void {
 }
 
 #[inline]
-unsafe fn call_umask(mask: c_uint) -> c_uint {
+fn call_umask(mask: c_uint) -> c_uint {
     #[cfg(windows)]
     unsafe {
         _umask(mask as c_int) as c_uint
@@ -926,7 +926,7 @@ pub unsafe fn filemess_bufwrite(buf: *mut buf_T, name: *mut c_char, msg_id: *con
 }
 
 /// If a file read/write is slower than this, emit a progress-message.
-pub unsafe fn slow_io_ns() -> u64 {
+pub fn slow_io_ns() -> u64 {
     if g_st().nvim_testing && get_vim_var_nr(VV_TESTING) != 0 {
             0
         } else {
@@ -3047,7 +3047,7 @@ pub unsafe fn fname_msg_id(
 }
 
 /// Append message for text mode to IObuff.
-pub unsafe fn msg_add_fileformat(eol_type: c_int) -> bool {
+pub fn msg_add_fileformat(eol_type: c_int) -> bool {
     unsafe {
         let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         #[cfg(not(windows))]
@@ -3069,7 +3069,7 @@ pub unsafe fn msg_add_fileformat(eol_type: c_int) -> bool {
 }
 
 /// Append line and character count to IObuff.
-pub unsafe fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: off_T) {
+pub fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: off_T) {
     unsafe {
         let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         let mut len = std::ffi::CStr::from_ptr(iobuf_ptr).to_bytes().len();
@@ -3282,7 +3282,7 @@ pub unsafe fn shorten_buf_fname(buf: &mut buf_T, dirname: *mut c_char, force: c_
 }
 
 /// Shortens filenames for all buffers.
-pub unsafe fn shorten_fnames(force: c_int) {
+pub fn shorten_fnames(force: c_int) {
     unsafe {
         let mut dirname: [c_char; MAXPATHL] = [0; MAXPATHL];
         let mut changed = false;
@@ -3658,7 +3658,7 @@ pub unsafe fn vim_copyfile(from: *const c_char, to: *const c_char) -> c_int {
 }
 
 /// Check if any not hidden buffer has been changed.
-pub unsafe fn check_timestamps(focus: c_int) -> c_int {
+pub fn check_timestamps(focus: c_int) -> c_int {
     unsafe {
         if g_st().no_check_timestamps > 0 {
             return 0;
@@ -3741,7 +3741,7 @@ unsafe fn move_lines(frombuf: *mut buf_T, tobuf: *mut buf_T) -> c_int {
 }
 
 /// Check if buffer "buf" has been changed.
-pub unsafe fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
+pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
     unsafe {
         static BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -4122,7 +4122,7 @@ pub unsafe fn buf_store_file_info(buf: *mut buf_T, file_info: &mut FileInfo) {
 }
 
 /// Adjust the line with missing eol, used for the next write.
-pub unsafe fn write_lnum_adjust(offset: linenr_T) {
+pub fn write_lnum_adjust(offset: linenr_T) {
     unsafe {
         if (*g_st().curbuf).b_no_eol_lnum != 0 {
             (*g_st().curbuf).b_no_eol_lnum += offset;
@@ -4131,7 +4131,7 @@ pub unsafe fn write_lnum_adjust(offset: linenr_T) {
 }
 
 /// Creates a directory for private use by this instance of Nvim.
-unsafe fn vim_mktempdir() {
+fn vim_mktempdir() {
     unsafe {
         #[cfg(windows)]
         const TEMP_DIRS: [&CStr; 5] = [c"$TMPDIR", c"$TMP", c"$TEMP", c"$USERPROFILE", c""];
@@ -4370,7 +4370,7 @@ pub unsafe fn delete_recursive(name: *const c_char) -> c_int {
 }
 
 #[cfg(unix)]
-unsafe fn vim_opentempdir() {
+fn vim_opentempdir() {
     unsafe {
         if !fio_st().VIM_TEMPDIR_DP.is_null() {
             return;
@@ -4390,7 +4390,7 @@ unsafe fn vim_opentempdir() {
 }
 
 #[cfg(unix)]
-unsafe fn vim_closetempdir() {
+fn vim_closetempdir() {
     unsafe {
         if fio_st().VIM_TEMPDIR_DP.is_null() {
             return;
@@ -4402,7 +4402,7 @@ unsafe fn vim_closetempdir() {
 }
 
 /// Delete the temp directory and all files it contains.
-pub unsafe fn vim_deltempdir() {
+pub fn vim_deltempdir() {
     unsafe {
         let Some(td) = fio_st().VIM_TEMPDIR.take() else {
             return;
@@ -4422,7 +4422,7 @@ pub unsafe fn vim_deltempdir() {
 }
 
 /// Gets path to Nvim's own temp dir (ending with slash).
-pub unsafe fn vim_gettempdir() -> *mut c_char {
+pub fn vim_gettempdir() -> *mut c_char {
     unsafe {
         let current_td = (&raw const fio_st().VIM_TEMPDIR)
             .as_ref()
@@ -4490,7 +4490,7 @@ unsafe fn vim_settempdir(tempdir: *mut c_char) -> bool {
 }
 
 /// Return a unique name that can be used for a temp file.
-pub unsafe fn vim_tempname() -> Option<std::ffi::CString> {
+pub fn vim_tempname() -> Option<std::ffi::CString> {
     unsafe {
         static TEMP_COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 

@@ -131,7 +131,7 @@ pub enum RuntimeCallback<'a> {
 }
 
 impl RuntimeCallback<'_> {
-    unsafe fn invoke(&mut self, fnames: &[std::ffi::CString], all: bool) {
+    fn invoke(&mut self, fnames: &[std::ffi::CString], all: bool) {
         unsafe {
             match self {
                 Self::Source { skip_if_loaded } => {
@@ -348,7 +348,7 @@ use crate::version::default_lib_dir;
 use crate::viml::parser::parser::CONV_NONE;
 
 #[inline]
-pub unsafe fn script_item(id: scid_T) -> *mut scriptitem_T {
+pub fn script_item(id: scid_T) -> *mut scriptitem_T {
     unsafe {
         let items = &raw mut rt_st().script_items;
         &raw mut (*items).as_mut_slice()[(id - 1) as usize]
@@ -356,7 +356,7 @@ pub unsafe fn script_item(id: scid_T) -> *mut scriptitem_T {
 }
 
 #[inline]
-pub unsafe fn script_items_len() -> scid_T {
+pub fn script_items_len() -> scid_T {
     unsafe {
         let items = &raw const rt_st().script_items;
         (*items).len() as scid_T
@@ -364,12 +364,12 @@ pub unsafe fn script_items_len() -> scid_T {
 }
 
 #[inline]
-pub unsafe fn script_id_valid(id: scid_T) -> bool {
-    unsafe { id > 0 && id <= script_items_len() }
+pub fn script_id_valid(id: scid_T) -> bool {
+    id > 0 && id <= script_items_len()
 }
 
 #[inline]
-pub unsafe fn sourcing_name() -> *mut c_char {
+pub fn sourcing_name() -> *mut c_char {
     unsafe {
         let es = &raw const rt_st().exestack;
         (*es).last().unwrap().name_ptr()
@@ -377,7 +377,7 @@ pub unsafe fn sourcing_name() -> *mut c_char {
 }
 
 #[inline]
-pub unsafe fn sourcing_lnum() -> linenr_T {
+pub fn sourcing_lnum() -> linenr_T {
     unsafe {
         let es = &raw const rt_st().exestack;
         (*es).last().unwrap().es_lnum
@@ -385,7 +385,7 @@ pub unsafe fn sourcing_lnum() -> linenr_T {
 }
 
 #[inline]
-pub unsafe fn set_sourcing_lnum(lnum: linenr_T) {
+pub fn set_sourcing_lnum(lnum: linenr_T) {
     unsafe {
         let es = &raw mut rt_st().exestack;
         (*es).last_mut().unwrap().es_lnum = lnum;
@@ -393,7 +393,7 @@ pub unsafe fn set_sourcing_lnum(lnum: linenr_T) {
 }
 
 /// Initialize the execution stack.
-pub unsafe fn estack_init() {
+pub fn estack_init() {
     unsafe {
         let es = &raw mut rt_st().exestack;
         (*es).reserve(10);
@@ -425,7 +425,7 @@ pub unsafe fn estack_push(type_: etype_T, name: *const c_char, lnum: linenr_T) -
 }
 
 /// Add a user function to the execution stack.
-pub unsafe fn estack_push_ufunc(ufunc: &mut ufunc_T, lnum: linenr_T) {
+pub fn estack_push_ufunc(ufunc: &mut ufunc_T, lnum: linenr_T) {
     unsafe {
         let name = if let Some(ref exp) = ufunc.uf_name_exp {
             exp.as_ptr()
@@ -440,7 +440,7 @@ pub unsafe fn estack_push_ufunc(ufunc: &mut ufunc_T, lnum: linenr_T) {
 }
 
 /// Take an item off of the execution stack.
-pub unsafe fn estack_pop() {
+pub fn estack_pop() {
     unsafe {
         let es = &raw mut rt_st().exestack;
         if (*es).len() > 1 {
@@ -450,7 +450,7 @@ pub unsafe fn estack_pop() {
 }
 
 /// Get the current value for <sfile> as an owned `CString`.
-pub unsafe fn estack_sfile(which: estack_arg_T) -> Option<std::ffi::CString> {
+pub fn estack_sfile(which: estack_arg_T) -> Option<std::ffi::CString> {
     unsafe {
         let es = &raw const rt_st().exestack;
         let last_entry = (*es).last().unwrap();
@@ -566,7 +566,7 @@ unsafe fn stacktrace_push_item(
 }
 
 /// Create the stacktrace from rt_st().exestack.
-pub unsafe fn stacktrace_create() -> *mut list_T {
+pub fn stacktrace_create() -> *mut list_T {
     unsafe {
         let es = &raw const rt_st().exestack;
         let l = tv_list_alloc((*es).len() as isize);
@@ -647,7 +647,7 @@ unsafe fn get_runtime_cmd_flags(argp: *mut *mut c_char, where_len: usize) -> c_i
 }
 
 /// ":runtime [where] {name}"
-pub unsafe fn ex_runtime(eap: &mut exarg_T) {
+pub fn ex_runtime(eap: &mut exarg_T) {
     unsafe {
         let mut arg = eap.arg;
         let mut flags = if eap.forceit != 0 { DIP_ALL } else { 0 };
@@ -863,7 +863,7 @@ pub unsafe fn do_in_path(
     }
 }
 
-unsafe fn runtime_search_path_get_cached() -> *mut [SearchPathItem] {
+fn runtime_search_path_get_cached() -> *mut [SearchPathItem] {
     unsafe {
         runtime_search_path_validate();
         rt_st().runtime_search_path_refcount += 1;
@@ -877,7 +877,7 @@ fn copy_runtime_search_path(src: &[SearchPathItem]) -> RuntimeSearchPath {
     src.to_vec()
 }
 
-unsafe fn runtime_search_path_unref() {
+fn runtime_search_path_unref() {
     unsafe {
         rt_st().runtime_search_path_refcount -= 1;
         if rt_st().runtime_search_path_refcount == 0 {
@@ -1031,7 +1031,7 @@ pub unsafe fn runtime_get_named(lua: bool, pat: Array, all: bool, arena: *mut Ar
     }
 }
 
-pub unsafe fn runtime_get_named_thread(lua: bool, pat: Array, all: bool) -> Array {
+pub fn runtime_get_named_thread(lua: bool, pat: Array, all: bool) -> Array {
     unsafe {
         let _guard = RUNTIME_SEARCH_PATH_MUTEX
             .lock()
@@ -1233,7 +1233,7 @@ unsafe fn path_is_after(buf: *const c_char, buflen: usize) -> bool {
     }
 }
 
-unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
+fn runtime_search_path_build() -> RuntimeSearchPath {
     unsafe {
         let mut pack_entries: Vec<NvimString> = Vec::new();
         let mut pack_used: std::collections::HashMap<Vec<u8>, c_int> =
@@ -1336,7 +1336,7 @@ pub fn did_set_runtimepackpath(_args: &mut optset_T) -> *const c_char {
         ptr::null()
 }
 
-pub unsafe fn runtime_search_path_validate() {
+pub fn runtime_search_path_validate() {
     unsafe {
         if !nlua_is_deferred_safe() {
             return;
@@ -1358,7 +1358,7 @@ pub unsafe fn runtime_search_path_validate() {
     }
 }
 
-pub unsafe fn update_runtime_search_path_thread(force: bool) {
+pub fn update_runtime_search_path_thread(force: bool) {
     unsafe {
         if !force && !(rt_st().runtime_search_path_valid && !rt_st().runtime_search_path_valid_thread) {
             return;
@@ -1705,7 +1705,7 @@ unsafe fn load_pack_plugin(opt: bool, fname: *mut c_char) -> c_int {
     }
 }
 
-unsafe fn add_pack_plugins(
+fn add_pack_plugins(
     opt: bool,
     fnames: &[std::ffi::CString],
     all: bool,
@@ -1753,7 +1753,7 @@ unsafe fn add_pack_plugins(
 }
 
 /// Add all packages in the "start" directory to 'runtimepath'.
-pub unsafe fn add_pack_start_dirs() {
+pub fn add_pack_start_dirs() {
     unsafe {
         do_in_path(
             opt_vars().p_pp,
@@ -1773,7 +1773,7 @@ unsafe fn pack_has_entries(buf: *mut c_char) -> bool {
     }
 }
 
-unsafe fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
+fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
     unsafe {
         let buf = (&raw mut rt_st().pack_start_buf).cast::<c_char>();
         let start_pats = [c"/start/*", c"/pack/*/start/*"];
@@ -1800,7 +1800,7 @@ unsafe fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
 }
 
 /// Load plugins from all packages in the "start" directory.
-pub unsafe fn load_start_packages() {
+pub fn load_start_packages() {
     unsafe {
         g_st().did_source_packages = true;
         do_in_path(
@@ -1829,17 +1829,15 @@ pub unsafe fn load_start_packages() {
 }
 
 /// ":packloadall"
-pub unsafe fn ex_packloadall(eap: &mut exarg_T) {
-    unsafe {
-        if !g_st().did_source_packages || eap.forceit != 0 {
+pub fn ex_packloadall(eap: &mut exarg_T) {
+    if !g_st().did_source_packages || eap.forceit != 0 {
             add_pack_start_dirs();
             load_start_packages();
         }
-    }
 }
 
 /// Read all the plugin files at startup.
-pub unsafe fn load_plugins() {
+pub fn load_plugins() {
     unsafe {
         if opt_vars().p_lpl != 0 {
             let mut rtp_copy_owned: Option<std::ffi::CString> = None;
@@ -1875,7 +1873,7 @@ pub unsafe fn load_plugins() {
 }
 
 /// ":packadd[!] {name}"
-pub unsafe fn ex_packadd(eap: &mut exarg_T) {
+pub fn ex_packadd(eap: &mut exarg_T) {
     unsafe {
         let mut res = OK;
         let len = 11 + CStr::from_ptr(eap.arg).to_bytes().len() + 5;
@@ -2322,7 +2320,7 @@ unsafe fn add_dir(
     }
 }
 
-pub unsafe fn get_lib_dir() -> Option<std::ffi::CString> {
+pub fn get_lib_dir() -> Option<std::ffi::CString> {
     unsafe {
         if !default_lib_dir().is_null()
             && *default_lib_dir() != NUL
@@ -2341,7 +2339,7 @@ pub unsafe fn get_lib_dir() -> Option<std::ffi::CString> {
 }
 
 /// Determine the startup value for &runtimepath.
-pub unsafe fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
+pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
     unsafe {
         const SITE_SIZE: usize = 4;
         const AFTER_SIZE: usize = 5;
@@ -2558,14 +2556,14 @@ unsafe fn cmd_source(fname: *mut c_char, eap: *mut exarg_T) {
 }
 
 /// ":source [{fname}]"
-pub unsafe fn ex_source(eap: &mut exarg_T) {
+pub fn ex_source(eap: &mut exarg_T) {
     unsafe {
         cmd_source(eap.arg, eap);
     }
 }
 
 /// ":options"
-pub unsafe fn ex_options(_eap: &mut exarg_T) {
+pub fn ex_options(_eap: &mut exarg_T) {
     unsafe {
         let mut buf = [0 as c_char; 500];
         let mut multi_mods = false;
@@ -3130,7 +3128,7 @@ pub unsafe fn do_source(
 }
 
 /// Checks if the script with the given script ID is a Lua script.
-pub unsafe fn script_is_lua(sid: scid_T) -> bool {
+pub fn script_is_lua(sid: scid_T) -> bool {
     unsafe {
         if sid == SID_LUA {
             return true;
@@ -3160,7 +3158,7 @@ pub unsafe fn find_script_by_name(name: *mut c_char) -> c_int {
 }
 
 /// ":scriptnames"
-pub unsafe fn ex_scriptnames(eap: &mut exarg_T) {
+pub fn ex_scriptnames(eap: &mut exarg_T) {
     unsafe {
         let namebuff = (&raw mut g_st().NameBuff).cast::<c_char>();
         let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
@@ -3201,7 +3199,7 @@ pub unsafe fn ex_scriptnames(eap: &mut exarg_T) {
 }
 
 /// Get a script name (`get_scriptname`).
-pub unsafe fn get_scriptname(
+pub fn get_scriptname(
     script_ctx: sctx_T,
     home_replace: bool,
 ) -> std::borrow::Cow<'static, CStr> {
@@ -3247,21 +3245,19 @@ pub unsafe fn get_scriptname(
     }
 }
 
-pub unsafe fn free_scriptnames() {
-    unsafe {
-        profile_reset();
+pub fn free_scriptnames() {
+    profile_reset();
         rt_st().script_items = Vec::new();
-    }
 }
 
-pub unsafe fn free_autoload_scriptnames() {
+pub fn free_autoload_scriptnames() {
     unsafe {
         let loaded = &raw mut rt_st().ga_loaded;
         *loaded = Vec::new();
     }
 }
 
-pub unsafe fn get_sourced_lnum(fgetline: LineGetter) -> linenr_T {
+pub fn get_sourced_lnum(fgetline: LineGetter) -> linenr_T {
     unsafe {
         if let LineGetter::Source(sp) = fgetline {
             (*sp).sourcing_lnum
@@ -3271,7 +3267,7 @@ pub unsafe fn get_sourced_lnum(fgetline: LineGetter) -> linenr_T {
     }
 }
 
-unsafe fn get_script_local_funcs(sid: scid_T) -> *mut list_T {
+fn get_script_local_funcs(sid: scid_T) -> *mut list_T {
     unsafe {
         let functbl = func_tbl_get();
         let l = tv_list_alloc(functbl.len() as isize);
@@ -3372,7 +3368,7 @@ pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: &mut typval_T, _fpt
 }
 
 /// Get one full line from a sourced file.
-pub unsafe fn getsourceline(
+pub fn getsourceline(
     _c: c_int,
     sp: &mut source_cookie_T,
     _indent: c_int,
@@ -3467,7 +3463,7 @@ pub unsafe fn getsourceline(
     }
 }
 
-unsafe fn get_one_sourceline(sp: &mut source_cookie_T) -> Option<Vec<c_char>> {
+fn get_one_sourceline(sp: &mut source_cookie_T) -> Option<Vec<c_char>> {
     unsafe {
         let mut buf: Vec<c_char> = Vec::with_capacity(250);
         let mut have_read = false;
@@ -3588,12 +3584,12 @@ unsafe fn get_one_sourceline(sp: &mut source_cookie_T) -> Option<Vec<c_char>> {
 }
 
 /// Returns true if sourcing a script either from a file or a buffer or a string.
-pub unsafe fn sourcing_a_script(eap: &mut exarg_T) -> c_int {
-    unsafe { c_int::from(eap.ea_getline.is_source()) }
+pub fn sourcing_a_script(eap: &mut exarg_T) -> c_int {
+    c_int::from(eap.ea_getline.is_source())
 }
 
 /// ":scriptencoding": Set encoding conversion for a sourced script.
-pub unsafe fn ex_scriptencoding(eap: &mut exarg_T) {
+pub fn ex_scriptencoding(eap: &mut exarg_T) {
     unsafe {
         let Some(sp) = eap.ea_getline.as_source() else {
             emsg(gettext(
@@ -3615,7 +3611,7 @@ pub unsafe fn ex_scriptencoding(eap: &mut exarg_T) {
 }
 
 /// ":finish": Mark a sourced file as finished.
-pub unsafe fn ex_finish(eap: &mut exarg_T) {
+pub fn ex_finish(eap: &mut exarg_T) {
     unsafe {
         if sourcing_a_script(eap) != 0 {
             do_finish(eap, false);
@@ -3628,7 +3624,7 @@ pub unsafe fn ex_finish(eap: &mut exarg_T) {
 }
 
 /// Mark a sourced file as finished.
-pub unsafe fn do_finish(eap: &mut exarg_T, reanimate: bool) {
+pub fn do_finish(eap: &mut exarg_T, reanimate: bool) {
     unsafe {
         let sp = eap.ea_getline.as_source().unwrap();
         if reanimate {
@@ -3646,7 +3642,7 @@ pub unsafe fn do_finish(eap: &mut exarg_T, reanimate: bool) {
     }
 }
 
-pub unsafe fn source_finished(fgetline: LineGetter) -> bool {
+pub fn source_finished(fgetline: LineGetter) -> bool {
     unsafe { fgetline.as_source().is_some_and(|sp| (*sp).finished) }
 }
 

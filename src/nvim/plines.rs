@@ -244,7 +244,7 @@ pub unsafe fn init_charsize_arg_skip_cur_text(
     }
 }
 
-unsafe fn inline_virt_text_width(
+fn inline_virt_text_width(
     wp: &mut win_T,
     iter: &mut MarkTreeIter,
     row: c_int,
@@ -626,7 +626,7 @@ unsafe fn in_win_border(wp: *mut win_T, vcol: colnr_T) -> bool {
     }
 }
 
-pub unsafe fn linesize_regular(
+pub fn linesize_regular(
     csarg: &mut CharsizeArg,
     mut vcol_arg: c_int,
     len: colnr_T,
@@ -663,7 +663,7 @@ pub unsafe fn linesize_regular(
     }
 }
 
-pub unsafe fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: c_int, len: colnr_T) -> c_int {
+pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: c_int, len: colnr_T) -> c_int {
     unsafe {
         let wp = csarg.win;
         let use_tabstop = csarg.use_tabstop;
@@ -798,7 +798,7 @@ pub unsafe fn getvcol(
     }
 }
 
-pub unsafe fn getvcol_nolist(posp: &mut pos_T) -> colnr_T {
+pub fn getvcol_nolist(posp: &mut pos_T) -> colnr_T {
     unsafe {
         let list_save = (**curwin.as_ptr()).w_onebuf_opt.wo_list;
         let mut vcol: colnr_T = 0;
@@ -1047,7 +1047,7 @@ pub unsafe fn plines_win_full(
     }
 }
 
-pub unsafe fn plines_m_win(
+pub fn plines_m_win(
     wp: &mut win_T,
     mut first: linenr_T,
     last: linenr_T,

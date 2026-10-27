@@ -795,13 +795,11 @@ enum CaseConv {
 
 impl CaseConv {
     #[inline]
-    unsafe fn apply(self, c: c_int) -> c_int {
-        unsafe {
-            match self {
+    fn apply(self, c: c_int) -> c_int {
+        match self {
                 Self::Upper => mb_toupper(c),
                 Self::Lower => mb_tolower(c),
             }
-        }
     }
 }
 
@@ -1349,7 +1347,7 @@ pub(super) fn re_st() -> &'static mut RegexpState {
 }
 
 #[inline]
-pub(super) unsafe fn reg_prev_sub_ref() -> Option<&'static CStr> {
+pub(super) fn reg_prev_sub_ref() -> Option<&'static CStr> {
     unsafe { (*RE_STATE.as_ptr()).reg_prev_sub.as_deref() }
 }
 
@@ -1481,7 +1479,7 @@ pub(super) unsafe fn get_char_class(pp: *mut *mut c_char) -> c_int {
     }
 }
 
-pub(super) unsafe fn init_class_tab() {
+pub(super) fn init_class_tab() {
     unsafe {
         if re_st().init_class_tab_done {
             return;
@@ -1591,7 +1589,7 @@ pub(super) unsafe fn get_coll_element(pp: *mut *mut c_char) -> c_int {
     }
 }
 
-pub(super) unsafe fn get_cpo_flags() {
+pub(super) fn get_cpo_flags() {
     unsafe {
         re_st().reg_cpo_lit = (!vim_strchr(opt_vars().p_cpo, kCpoLiteral).is_null()) as c_int;
     }
@@ -1769,7 +1767,7 @@ pub(super) fn restore_parse_state(ps: &mut parse_state_T) {
         re_st().regnpar = ps.regnpar;
 }
 
-pub(super) unsafe fn peekchr() -> c_int {
+pub(super) fn peekchr() -> c_int {
     unsafe {
         if re_st().curchr != -1 {
             return re_st().curchr;
@@ -1877,7 +1875,7 @@ pub(super) unsafe fn peekchr() -> c_int {
     }
 }
 
-pub(super) unsafe fn skipchr() {
+pub(super) fn skipchr() {
     unsafe {
         if *re_st().regparse == b'\\' as c_char {
             re_st().prevchr_len = 1;
@@ -1901,9 +1899,8 @@ pub(super) unsafe fn skipchr() {
     }
 }
 
-pub(super) unsafe fn skipchr_keepstart() {
-    unsafe {
-        let as_ = re_st().prev_at_start;
+pub(super) fn skipchr_keepstart() {
+    let as_ = re_st().prev_at_start;
         let pr = re_st().prevchr;
         let prpr = re_st().prevprevchr;
 
@@ -1911,18 +1908,15 @@ pub(super) unsafe fn skipchr_keepstart() {
         re_st().at_start = as_;
         re_st().prevchr = pr;
         re_st().prevprevchr = prpr;
-    }
 }
 
-pub(super) unsafe fn getchr() -> c_int {
-    unsafe {
-        let chr = peekchr();
+pub(super) fn getchr() -> c_int {
+    let chr = peekchr();
         skipchr();
         chr
-    }
 }
 
-pub(super) unsafe fn ungetchr() {
+pub(super) fn ungetchr() {
     unsafe {
         re_st().nextchr = re_st().curchr;
         re_st().curchr = re_st().prevchr;
@@ -1933,7 +1927,7 @@ pub(super) unsafe fn ungetchr() {
     }
 }
 
-pub(super) unsafe fn gethexchrs(maxinputlen: c_int) -> i64 {
+pub(super) fn gethexchrs(maxinputlen: c_int) -> i64 {
     unsafe {
         let mut nr: i64 = 0;
         let mut i: c_int = 0;
@@ -1951,7 +1945,7 @@ pub(super) unsafe fn gethexchrs(maxinputlen: c_int) -> i64 {
     }
 }
 
-pub(super) unsafe fn getdecchrs() -> i64 {
+pub(super) fn getdecchrs() -> i64 {
     unsafe {
         let mut nr: i64 = 0;
         let mut i: c_int = 0;
@@ -1969,7 +1963,7 @@ pub(super) unsafe fn getdecchrs() -> i64 {
     }
 }
 
-pub(super) unsafe fn getoctchrs() -> i64 {
+pub(super) fn getoctchrs() -> i64 {
     unsafe {
         let mut nr: i64 = 0;
         let mut i: c_int = 0;
@@ -1987,7 +1981,7 @@ pub(super) unsafe fn getoctchrs() -> i64 {
     }
 }
 
-pub(super) unsafe fn read_limits(minval: &mut c_int, maxval: &mut c_int) -> c_int {
+pub(super) fn read_limits(minval: &mut c_int, maxval: &mut c_int) -> c_int {
     unsafe {
         let mut reverse = false;
         if *re_st().regparse == b'-' as c_char {
@@ -2031,13 +2025,13 @@ pub(super) unsafe fn read_limits(minval: &mut c_int, maxval: &mut c_int) -> c_in
     }
 }
 
-pub(super) unsafe fn reg_breakcheck() {
+pub(super) fn reg_breakcheck() {
     if !re_st().rex.reg_nobreak {
             fast_breakcheck();
         }
 }
 
-pub(super) unsafe fn reg_iswordc(c: c_int) -> bool {
+pub(super) fn reg_iswordc(c: c_int) -> bool {
     unsafe { vim_iswordc_buf(c, re_st().rex.reg_buf) }
 }
 
@@ -2085,7 +2079,7 @@ unsafe fn reg_getline_common(
     }
 }
 
-pub(super) unsafe fn reg_getline(lnum: linenr_T) -> *mut c_char {
+pub(super) fn reg_getline(lnum: linenr_T) -> *mut c_char {
     unsafe {
         let mut line: *mut c_char = ptr::null_mut();
         reg_getline_common(lnum, RGLF_LINE, &raw mut line, ptr::null_mut());
@@ -2093,7 +2087,7 @@ pub(super) unsafe fn reg_getline(lnum: linenr_T) -> *mut c_char {
     }
 }
 
-pub(super) unsafe fn reg_getline_len(lnum: linenr_T) -> colnr_T {
+pub(super) fn reg_getline_len(lnum: linenr_T) -> colnr_T {
     unsafe {
         let mut length: colnr_T = 0;
         reg_getline_common(lnum, RGLF_LENGTH, ptr::null_mut(), &raw mut length);
@@ -2101,7 +2095,7 @@ pub(super) unsafe fn reg_getline_len(lnum: linenr_T) -> colnr_T {
     }
 }
 
-pub(super) unsafe fn reg_prev_class() -> c_int {
+pub(super) fn reg_prev_class() -> c_int {
     unsafe {
         if re_st().rex.input > re_st().rex.line {
             let prev = re_st().rex.input.sub(1).cast::<c_char>();
@@ -2112,7 +2106,7 @@ pub(super) unsafe fn reg_prev_class() -> c_int {
     }
 }
 
-pub(super) unsafe fn reg_match_visual() -> bool {
+pub(super) fn reg_match_visual() -> bool {
     unsafe {
         let wp = if re_st().rex.reg_win.is_null() {
             *curwin.as_ptr()
@@ -2204,7 +2198,7 @@ pub(super) unsafe fn reg_match_visual() -> bool {
     }
 }
 
-pub(super) unsafe fn prog_magic_wrong() -> bool {
+pub(super) fn prog_magic_wrong() -> bool {
     unsafe {
         let prog = if REG_MULTI() {
             (*re_st().rex.reg_mmatch).regprog
@@ -2222,7 +2216,7 @@ pub(super) unsafe fn prog_magic_wrong() -> bool {
     }
 }
 
-pub(super) unsafe fn cleanup_subexpr() {
+pub(super) fn cleanup_subexpr() {
     unsafe {
         if re_st().rex.need_clear_subexpr == 0 {
             return;
@@ -2254,13 +2248,11 @@ pub(super) fn cleanup_zsubexpr() {
         re_st().rex.need_clear_zsubexpr = 0;
 }
 
-pub(super) unsafe fn reg_nextline() {
-    unsafe {
-        re_st().rex.lnum += 1;
+pub(super) fn reg_nextline() {
+    re_st().rex.lnum += 1;
         re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
         re_st().rex.input = re_st().rex.line;
         reg_breakcheck();
-    }
 }
 
 pub(super) unsafe fn match_with_backref(
@@ -3030,7 +3022,7 @@ unsafe fn vim_regsub_both(
     }
 }
 
-unsafe fn reg_getline_submatch(lnum: linenr_T) -> *mut c_char {
+fn reg_getline_submatch(lnum: linenr_T) -> *mut c_char {
     unsafe {
         let mut line: *mut c_char = ptr::null_mut();
         reg_getline_common(
@@ -3043,7 +3035,7 @@ unsafe fn reg_getline_submatch(lnum: linenr_T) -> *mut c_char {
     }
 }
 
-unsafe fn reg_getline_submatch_len(lnum: linenr_T) -> colnr_T {
+fn reg_getline_submatch_len(lnum: linenr_T) -> colnr_T {
     unsafe {
         let mut length: colnr_T = 0;
         reg_getline_common(
@@ -3056,7 +3048,7 @@ unsafe fn reg_getline_submatch_len(lnum: linenr_T) -> colnr_T {
     }
 }
 
-pub unsafe fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
+pub fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
     unsafe {
         let mut retval_vec: Vec<c_char>;
         let mut retval: *mut c_char = ptr::null_mut();
@@ -3140,7 +3132,7 @@ pub unsafe fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
     }
 }
 
-pub unsafe fn reg_submatch_list(no: c_int) -> *mut list_T {
+pub fn reg_submatch_list(no: c_int) -> *mut list_T {
     unsafe {
         if !re_st().can_f_submatch || no < 0 {
             return ptr::null_mut();
@@ -3307,7 +3299,7 @@ pub(super) unsafe fn regcomp_start(expr: *mut u8, re_flags: c_int) {
     }
 }
 
-pub(super) unsafe fn seen_endbrace(refnum: c_int) -> bool {
+pub(super) fn seen_endbrace(refnum: c_int) -> bool {
     unsafe {
         if re_st().had_endbrace[refnum as usize] == 0 {
             let mut p = re_st().regparse.cast::<u8>();
@@ -3327,7 +3319,7 @@ pub(super) unsafe fn seen_endbrace(refnum: c_int) -> bool {
     }
 }
 
-pub(super) unsafe fn coll_get_char() -> c_int {
+pub(super) fn coll_get_char() -> c_int {
     unsafe {
         let mut nr: i64 = -1;
         let ch = *re_st().regparse as u8;
@@ -3462,7 +3454,7 @@ pub unsafe fn vim_regfree(prog: *mut regprog_T) {
     }
 }
 
-pub unsafe fn free_regexp_stuff() {
+pub fn free_regexp_stuff() {
     unsafe {
         let rs = &raw mut re_st().regstack;
         *rs = Vec::new();

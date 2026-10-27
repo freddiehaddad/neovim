@@ -570,7 +570,7 @@ pub unsafe fn decor_redraw_sh(buf: *mut buf_T, row1: c_int, row2: c_int, sh: Dec
     }
 }
 
-pub unsafe fn decor_put_sh(item: DecorSignHighlight) -> u32 {
+pub fn decor_put_sh(item: DecorSignHighlight) -> u32 {
     unsafe {
         let items = &raw mut g_st().decor_items;
         if decor_st().decor_freelist != u32::MAX {
@@ -712,7 +712,7 @@ pub unsafe fn buf_remove_decor_sh(
     }
 }
 
-pub unsafe fn decor_free(decor: DecorInline) {
+pub fn decor_free(decor: DecorInline) {
     unsafe {
         if !decor.is_ext() {
             return;
@@ -745,7 +745,7 @@ pub unsafe fn decor_free(decor: DecorInline) {
     }
 }
 
-unsafe fn decor_free_sh(first_idx: u32) {
+fn decor_free_sh(first_idx: u32) {
     unsafe {
         let items = &raw mut g_st().decor_items;
         let mut idx = first_idx;
@@ -772,7 +772,7 @@ pub unsafe fn decor_state_invalidate(buf: *mut buf_T) {
     }
 }
 
-pub unsafe fn decor_check_to_be_deleted() {
+pub fn decor_check_to_be_deleted() {
     unsafe {
         assert!(!g_st().decor_state.running_decor_provider);
         let list = &raw mut decor_st().to_free_virt;
@@ -783,7 +783,7 @@ pub unsafe fn decor_check_to_be_deleted() {
     }
 }
 
-pub unsafe fn decor_check_invalid_glyphs() {
+pub fn decor_check_invalid_glyphs() {
     unsafe {
         let items = &raw mut g_st().decor_items;
         for it in (*items).iter_mut() {
@@ -803,13 +803,12 @@ pub unsafe fn decor_check_invalid_glyphs() {
     }
 }
 
-pub unsafe fn next_virt_text_chunk(
+pub fn next_virt_text_chunk(
     vt: &[VirtTextChunk],
     pos: &mut usize,
     attr: &mut c_int,
 ) -> *mut c_char {
-    unsafe {
-        let mut text: *mut c_char = ptr::null_mut();
+    let mut text: *mut c_char = ptr::null_mut();
         while text.is_null() && *pos < vt.len() {
             let chunk = &vt[*pos];
             text = chunk
@@ -826,10 +825,9 @@ pub unsafe fn next_virt_text_chunk(
             *pos += 1;
         }
         text
-    }
 }
 
-pub unsafe fn decor_find_virttext(buf: &mut buf_T, row: c_int, ns_id: u64) -> *mut DecorVirtText {
+pub fn decor_find_virttext(buf: &mut buf_T, row: c_int, ns_id: u64) -> *mut DecorVirtText {
     unsafe {
         let mut itr = MarkTreeIter::new();
         marktree_itr_get(&buf.b_marktree, row, 0, &mut itr);
@@ -872,7 +870,7 @@ pub fn decor_virt_pos(decor: &DecorRange) -> bool {
     decor.data.is_vt() || decor.data.is_ui()
 }
 
-pub unsafe fn decor_virt_pos_kind(decor: &DecorRange) -> VirtTextPos {
+pub fn decor_virt_pos_kind(decor: &DecorRange) -> VirtTextPos {
     unsafe {
         match decor.data {
             DecorRangeData::Vt(vt) => (*vt).pos,
@@ -953,7 +951,7 @@ pub unsafe fn decor_redraw_line(wp: *mut win_T, row: c_int, state: &mut DecorSta
     }
 }
 
-pub unsafe fn decor_has_more_decorations(state: &mut DecorState, row: c_int) -> bool {
+pub fn decor_has_more_decorations(state: &mut DecorState, row: c_int) -> bool {
     unsafe {
         if state.current_end != 0 || state.future_begin != state.ranges_i.len() as c_int {
             return true;
@@ -964,7 +962,7 @@ pub unsafe fn decor_has_more_decorations(state: &mut DecorState, row: c_int) -> 
     }
 }
 
-unsafe fn decor_range_add_from_inline(
+fn decor_range_add_from_inline(
     state: &mut DecorState,
     start_row: c_int,
     start_col: c_int,
@@ -1082,7 +1080,7 @@ pub unsafe fn decor_range_add_virt(
     }
 }
 
-pub unsafe fn decor_range_add_sh(
+pub fn decor_range_add_sh(
     state: &mut DecorState,
     start_row: c_int,
     start_col: c_int,
@@ -1094,8 +1092,7 @@ pub unsafe fn decor_range_add_sh(
     mark_id: u32,
     subpriority: DecorPriority,
 ) {
-    unsafe {
-        if (sh.flags & kSHIsSign) != 0 {
+    if (sh.flags & kSHIsSign) != 0 {
             return;
         }
 
@@ -1153,10 +1150,9 @@ pub unsafe fn decor_range_add_sh(
                 },
             );
         }
-    }
 }
 
-pub unsafe fn decor_init_draw_col(win_col: c_int, hidden: bool, item: &mut DecorRange) {
+pub fn decor_init_draw_col(win_col: c_int, hidden: bool, item: &mut DecorRange) {
     unsafe {
         let vt = if item.data.is_vt() {
             item.data.vt()
@@ -1178,7 +1174,7 @@ pub unsafe fn decor_init_draw_col(win_col: c_int, hidden: bool, item: &mut Decor
     }
 }
 
-pub unsafe fn decor_recheck_draw_col(win_col: c_int, hidden: bool, state: &mut DecorState) {
+pub fn decor_recheck_draw_col(win_col: c_int, hidden: bool, state: &mut DecorState) {
     unsafe {
         let end = state.current_end;
 
@@ -1528,7 +1524,7 @@ pub unsafe fn decor_redraw_signs(
     }
 }
 
-pub unsafe fn decor_find_sign(decor: DecorInline) -> Option<&'static DecorSignHighlight> {
+pub fn decor_find_sign(decor: DecorInline) -> Option<&'static DecorSignHighlight> {
     unsafe {
         if !decor.is_ext() {
             return None;
@@ -1998,7 +1994,7 @@ pub unsafe fn decor_to_dict_legacy(
     }
 }
 
-pub unsafe fn decor_type_flags(decor: DecorInline) -> u16 {
+pub fn decor_type_flags(decor: DecorInline) -> u16 {
     unsafe {
         if decor.is_ext() {
             let mut type_flags: u16 = kExtmarkNone;
@@ -2031,7 +2027,7 @@ pub unsafe fn decor_type_flags(decor: DecorInline) -> u16 {
     }
 }
 
-pub unsafe fn hl_group_name(hl_id: c_int, hl_name: bool) -> Object {
+pub fn hl_group_name(hl_id: c_int, hl_name: bool) -> Object {
     unsafe {
         if hl_name {
             cstr_as_obj(syn_id2name(hl_id))
@@ -2047,8 +2043,7 @@ mod tests {
 
     #[test]
     fn decor_sh_from_inline_and_type_flags_work() {
-        unsafe {
-            let inline = DecorHighlightInline {
+        let inline = DecorHighlightInline {
                 flags: 0,
                 priority: 50,
                 hl_id: 7,
@@ -2063,6 +2058,5 @@ mod tests {
                 data: DecorInlineData::Hl(inline),
             };
             assert_eq!(decor_type_flags(di), kExtmarkHighlight);
-        }
     }
 }

@@ -868,7 +868,7 @@ unsafe fn hmll_init(hmll: *mut HMLList, size: usize) {
 }
 
 #[inline]
-unsafe fn hmll_remove(hmll: &mut HMLList, entry_idx: usize) {
+fn hmll_remove(hmll: &mut HMLList, entry_idx: usize) {
     unsafe {
         if entry_idx + 1 == hmll.last_free_entry {
             hmll.last_free_entry -= 1;
@@ -903,9 +903,8 @@ unsafe fn hmll_remove(hmll: &mut HMLList, entry_idx: usize) {
 }
 
 #[inline]
-unsafe fn hmll_insert(hmll: &mut HMLList, mut after_idx: Option<usize>, data: ShadaEntry) {
-    unsafe {
-        if hmll.num_entries == hmll.size {
+fn hmll_insert(hmll: &mut HMLList, mut after_idx: Option<usize>, data: ShadaEntry) {
+    if hmll.num_entries == hmll.size {
             if after_idx == hmll.first {
                 after_idx = None;
             }
@@ -947,7 +946,6 @@ unsafe fn hmll_insert(hmll: &mut HMLList, mut after_idx: Option<usize>, data: Sh
         } else {
             hmll.last = Some(target_idx);
         }
-    }
 }
 
 #[inline]
@@ -987,7 +985,7 @@ unsafe fn sd_reader_skip(sd_reader: *mut FileDescriptor, offset: usize) -> ShaDa
     }
 }
 
-unsafe fn close_file(cookie: &mut FileDescriptor) {
+fn close_file(cookie: &mut FileDescriptor) {
     unsafe {
         let error = file_close(cookie, opt_vars().p_fs != 0);
         if error != 0 {
@@ -1061,14 +1059,13 @@ unsafe fn shada_read_file(file: *const c_char, flags: c_int) -> c_int {
     }
 }
 
-unsafe fn shada_hist_iter(
+fn shada_hist_iter(
     iter: Option<usize>,
     history_type: u8,
     zero: bool,
     hist: &mut ShadaEntry,
 ) -> Option<usize> {
-    unsafe {
-        let mut hist_he = histentry_T::new();
+    let mut hist_he = histentry_T::new();
         let ret = hist_iter(iter, history_type, zero, &mut hist_he);
         if hist_he.hisstr.is_none() {
             *hist = MISSING_ENTRY;
@@ -1091,10 +1088,9 @@ unsafe fn shada_hist_iter(
             };
         }
         ret
-    }
 }
 
-unsafe fn hms_insert(hms_p: &mut HistoryMergerState, entry: ShadaEntry, do_iter: bool) {
+fn hms_insert(hms_p: &mut HistoryMergerState, entry: ShadaEntry, do_iter: bool) {
     unsafe {
         if do_iter {
             while hms_p.last_hist_entry.entry_type != ShadaEntryType::kSDItemMissing
@@ -1145,7 +1141,7 @@ unsafe fn hms_insert(hms_p: &mut HistoryMergerState, entry: ShadaEntry, do_iter:
 }
 
 #[inline]
-unsafe fn hms_init(
+fn hms_init(
     hms_p: &mut HistoryMergerState,
     history_type: u8,
     num_elements: usize,
@@ -1167,9 +1163,8 @@ unsafe fn hms_init(
 }
 
 #[inline]
-unsafe fn hms_insert_whole_neovim_history(hms_p: &mut HistoryMergerState) {
-    unsafe {
-        while hms_p.last_hist_entry.entry_type != ShadaEntryType::kSDItemMissing {
+fn hms_insert_whole_neovim_history(hms_p: &mut HistoryMergerState) {
+    while hms_p.last_hist_entry.entry_type != ShadaEntryType::kSDItemMissing {
             let last_entry = std::mem::replace(&mut hms_p.last_hist_entry, MISSING_ENTRY);
             hms_insert(hms_p, last_entry, false);
             if hms_p.iter.is_none() {
@@ -1182,7 +1177,6 @@ unsafe fn hms_insert_whole_neovim_history(hms_p: &mut HistoryMergerState) {
                 &mut hms_p.last_hist_entry,
             );
         }
-    }
 }
 
 #[inline]
@@ -1217,7 +1211,7 @@ fn hms_dealloc(hms_p: &mut HistoryMergerState) {
     hmll_dealloc(&mut hms_p.hmll);
 }
 
-unsafe fn var_shada_iter(
+fn var_shada_iter(
     iter: Option<usize>,
     name: &mut *const c_char,
     rettv: &mut typval_T,
@@ -1307,7 +1301,7 @@ fn marklist_insert<T>(jumps: &mut [T; JUMPLISTSIZE], jl_len: c_int, mut i: c_int
     i
 }
 
-unsafe fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
+fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
     unsafe {
         let mut oldfiles_list = get_vim_var_list(VV_OLDFILES);
         let force = (flags & kShaDaForceit) != 0;
@@ -1715,7 +1709,7 @@ unsafe fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
     }
 }
 
-unsafe fn shada_get_default_file() -> *const c_char {
+fn shada_get_default_file() -> *const c_char {
     unsafe {
         if shada_st().default_shada_file.is_none() {
             let shada_dir = stdpaths_user_state_subpath(c"shada".as_ptr(), 0, false);
@@ -1763,7 +1757,7 @@ unsafe fn shada_filename(mut file: *const c_char) -> Option<std::ffi::CString> {
 }
 
 #[inline]
-unsafe fn shada_check_buffer(packer: &mut PackerBuffer) {
+fn shada_check_buffer(packer: &mut PackerBuffer) {
     let p = &mut *packer;
         let remaining = (p.endptr as usize).saturating_sub(p.ptr as usize);
         if remaining < SHADA_MPACK_FREE_SPACE {
@@ -1777,7 +1771,7 @@ fn additional_data_len(src: &Option<AdditionalData>) -> u32 {
 }
 
 #[inline]
-unsafe fn dump_additional_data(src: &Option<AdditionalData>, sbuf: &mut PackerBuffer) {
+fn dump_additional_data(src: &Option<AdditionalData>, sbuf: &mut PackerBuffer) {
     if let Some(ad) = src {
         unsafe {
             mpack_raw(ad.bytes.as_ptr(), ad.bytes.len(), sbuf);
@@ -1785,7 +1779,7 @@ unsafe fn dump_additional_data(src: &Option<AdditionalData>, sbuf: &mut PackerBu
     }
 }
 
-unsafe fn shada_pack_entry(
+fn shada_pack_entry(
     packer: &mut PackerBuffer,
     entry: &ShadaEntry,
     max_kbyte: usize,
@@ -2065,7 +2059,7 @@ unsafe fn shada_pack_entry(
 }
 
 #[inline]
-unsafe fn shada_pack_pfreed_entry(
+fn shada_pack_pfreed_entry(
     packer: &mut PackerBuffer,
     mut entry: ShadaEntry,
     max_kbyte: usize,
@@ -2077,7 +2071,7 @@ unsafe fn shada_pack_pfreed_entry(
     }
 }
 
-unsafe fn shada_check_status(
+fn shada_check_status(
     initial_fpos: u64,
     status: c_int,
     remaining: usize,
@@ -2446,7 +2440,7 @@ unsafe fn ignore_buf(
 }
 
 #[inline]
-unsafe fn shada_get_buflist(removable_bufs: &std::collections::HashSet<*mut buf_T>) -> ShadaEntry {
+fn shada_get_buflist(removable_bufs: &std::collections::HashSet<*mut buf_T>) -> ShadaEntry {
     unsafe {
         let max_bufs = get_shada_parameter(b'%' as c_int);
         let mut buffers = Vec::new();
@@ -2478,7 +2472,7 @@ unsafe fn shada_get_buflist(removable_bufs: &std::collections::HashSet<*mut buf_
 #[inline]
 unsafe fn add_search_pattern(
     ret_pse: *mut ShadaEntry,
-    get_pattern: unsafe fn(&mut SearchPattern),
+    get_pattern: fn(&mut SearchPattern),
     is_substitute_pattern: bool,
     search_last_used: bool,
     search_highlighted: bool,
@@ -2524,7 +2518,7 @@ unsafe fn add_search_pattern(
 }
 
 #[inline]
-unsafe fn shada_initialize_registers(
+fn shada_initialize_registers(
     wms: &mut WriteMergerState,
     max_reg_lines: c_int,
     scale_ts: bool,
@@ -2594,7 +2588,7 @@ unsafe fn replace_numbered_mark(wms: *mut WriteMergerState, idx: usize, entry: S
 }
 
 #[inline]
-unsafe fn find_removable_bufs(removable_bufs: &mut std::collections::HashSet<*mut buf_T>) {
+fn find_removable_bufs(removable_bufs: &mut std::collections::HashSet<*mut buf_T>) {
     unsafe {
         let mut buf = g_st().firstbuf;
         while !buf.is_null() {
@@ -2617,7 +2611,7 @@ const fn hist_type2char(hist_type: c_int) -> c_int {
     }
 }
 
-pub(crate) unsafe fn flush_file_buffer(buffer: &mut PackerBuffer) {
+pub(crate) fn flush_file_buffer(buffer: &mut PackerBuffer) {
     unsafe {
         let fd = buffer.anydata.as_file();
         let base = (&*fd).buffer.as_ptr();
@@ -2627,7 +2621,7 @@ pub(crate) unsafe fn flush_file_buffer(buffer: &mut PackerBuffer) {
     }
 }
 
-unsafe fn packer_buffer_for_file(file: &mut FileDescriptor) -> PackerBuffer {
+fn packer_buffer_for_file(file: &mut FileDescriptor) -> PackerBuffer {
     unsafe {
         if file_space(&*file) < SHADA_MPACK_FREE_SPACE {
             file_flush(&raw mut *file);
@@ -3452,7 +3446,7 @@ pub unsafe fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int 
 }
 
 /// Read marks information from ShaDa file (`shada_read_marks`).
-pub unsafe fn shada_read_marks() -> c_int {
+pub fn shada_read_marks() -> c_int {
     unsafe { shada_read_file(ptr::null(), kShaDaWantMarks) }
 }
 
@@ -4320,7 +4314,7 @@ unsafe fn shada_removable(name: *const c_char) -> bool {
 }
 
 #[inline]
-unsafe fn shada_init_jumps(
+fn shada_init_jumps(
     jumps: &mut [ShadaEntry; JUMPLISTSIZE],
     removable_bufs: &std::collections::HashSet<*mut buf_T>,
 ) -> usize {
@@ -4394,9 +4388,8 @@ unsafe fn shada_init_jumps(
 }
 
 /// Gets registers as a msgpack-encoded byte buffer, in shada format (`shada_encode_regs`).
-pub unsafe fn shada_encode_regs(scale_ts: bool, since: Timestamp) -> Vec<u8> {
-    unsafe {
-        let mut wms = WriteMergerState::new();
+pub fn shada_encode_regs(scale_ts: bool, since: Timestamp) -> Vec<u8> {
+    let mut wms = WriteMergerState::new();
         shada_initialize_registers(&mut wms, -1, scale_ts);
         let mut packer = packer_string_buffer();
         for entry in wms.registers {
@@ -4409,13 +4402,11 @@ pub unsafe fn shada_encode_regs(scale_ts: bool, since: Timestamp) -> Vec<u8> {
             }
         }
         packer_take_string(&mut packer)
-    }
 }
 
 /// Gets the jumplist as a msgpack-encoded byte buffer, in shada format (`shada_encode_jumps`).
-pub unsafe fn shada_encode_jumps() -> Vec<u8> {
-    unsafe {
-        let mut removable_bufs: std::collections::HashSet<*mut buf_T> =
+pub fn shada_encode_jumps() -> Vec<u8> {
+    let mut removable_bufs: std::collections::HashSet<*mut buf_T> =
             std::collections::HashSet::new();
         find_removable_bufs(&mut removable_bufs);
         let mut jumps = [const { MISSING_ENTRY }; JUMPLISTSIZE];
@@ -4428,13 +4419,11 @@ pub unsafe fn shada_encode_jumps() -> Vec<u8> {
             }
         }
         packer_take_string(&mut packer)
-    }
 }
 
 /// Gets the buffer-list as a msgpack-encoded byte buffer, in shada format (`shada_encode_buflist`).
-pub unsafe fn shada_encode_buflist() -> Vec<u8> {
-    unsafe {
-        let mut removable_bufs: std::collections::HashSet<*mut buf_T> =
+pub fn shada_encode_buflist() -> Vec<u8> {
+    let mut removable_bufs: std::collections::HashSet<*mut buf_T> =
             std::collections::HashSet::new();
         find_removable_bufs(&mut removable_bufs);
         let buflist_entry = shada_get_buflist(&removable_bufs);
@@ -4444,11 +4433,10 @@ pub unsafe fn shada_encode_buflist() -> Vec<u8> {
             std::process::abort();
         }
         packer_take_string(&mut packer)
-    }
 }
 
 /// Gets global Vimscript variables as a msgpack-encoded byte buffer, in shada format (`shada_encode_gvars`).
-pub unsafe fn shada_encode_gvars() -> Vec<u8> {
+pub fn shada_encode_gvars() -> Vec<u8> {
     unsafe {
         let mut packer = packer_string_buffer();
         let mut var_iter: Option<usize> = None;
@@ -4497,7 +4485,7 @@ pub unsafe fn shada_encode_gvars() -> Vec<u8> {
 }
 
 /// Read ShaDa from byte slice (`shada_read_string`).
-pub unsafe fn shada_read_string(bytes: &[u8], flags: c_int) {
+pub fn shada_read_string(bytes: &[u8], flags: c_int) {
     if bytes.is_empty() {
         return;
     }
@@ -4514,7 +4502,7 @@ pub unsafe fn shada_read_string(bytes: &[u8], flags: c_int) {
 }
 
 /// Find the parameter represented by the given character in 'shada' (`get_shada_parameter`).
-pub unsafe fn get_shada_parameter(param_type: c_int) -> c_int {
+pub fn get_shada_parameter(param_type: c_int) -> c_int {
     unsafe {
         let p = find_shada_parameter(param_type);
         if !p.is_null() && (*p as u8).is_ascii_digit() {
@@ -4533,7 +4521,7 @@ pub unsafe fn get_shada_parameter(param_type: c_int) -> c_int {
 }
 
 /// Find the parameter represented by the given character in 'shada' (`find_shada_parameter`).
-pub unsafe fn find_shada_parameter(param_type: c_int) -> *mut c_char {
+pub fn find_shada_parameter(param_type: c_int) -> *mut c_char {
     unsafe {
         let mut p = opt_vars().p_shada;
         while *p != 0 {
@@ -4554,7 +4542,7 @@ pub unsafe fn find_shada_parameter(param_type: c_int) -> *mut c_char {
 }
 
 /// Read marks for the current buffer from the ShaDa file (`check_marks_read`).
-pub unsafe fn check_marks_read() {
+pub fn check_marks_read() {
     unsafe {
         if !(*g_st().curbuf).b_marks_read
             && get_shada_parameter(b'\'' as c_int) > 0

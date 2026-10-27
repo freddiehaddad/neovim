@@ -3945,7 +3945,7 @@ pub fn has_vim_patch(n: c_int, major_minor_version: c_int) -> bool {
     false
 }
 
-pub unsafe fn ex_version(eap: &mut exarg_T) {
+pub fn ex_version(eap: &mut exarg_T) {
     unsafe {
         if *eap.arg == NUL {
             if !ui_has(kUIMessages) {
@@ -3981,7 +3981,7 @@ unsafe fn version_msg(s: *const c_char) {
 }
 
 /// List string items nicely aligned in columns (`list_in_columns`).
-pub unsafe fn list_in_columns(items: &[*mut c_char], current: c_int) {
+pub fn list_in_columns(items: &[*mut c_char], current: c_int) {
     unsafe {
         let item_count = items.len() as c_int;
         let mut width: c_int = 0;
@@ -4041,7 +4041,7 @@ pub unsafe fn list_in_columns(items: &[*mut c_char], current: c_int) {
     }
 }
 
-pub unsafe fn list_lua_version() {
+pub fn list_lua_version() {
     unsafe {
         const CODE: &[u8] = b"return ((jit and jit.version) and jit.version or _VERSION)\0";
         let mut err = Error::new();
@@ -4068,7 +4068,7 @@ pub unsafe fn list_lua_version() {
     }
 }
 
-pub unsafe fn list_version() {
+pub fn list_version() {
     unsafe {
         msg_ext_set_kind(c"list_cmd".as_ptr());
         msg_puts(longVersion());
@@ -4122,7 +4122,7 @@ pub unsafe fn list_version() {
 }
 
 /// Whether it still is not too late to show an intro message (`may_show_intro`).
-pub unsafe fn may_show_intro() -> bool {
+pub fn may_show_intro() -> bool {
     unsafe {
         buf_is_empty(&mut *g_st().curbuf)
             && (*g_st().curbuf).b_fname.is_null()
@@ -4134,7 +4134,7 @@ pub unsafe fn may_show_intro() -> bool {
 }
 
 /// Give an introductory message about Vim (`intro_message`).
-pub unsafe fn intro_message(colon: bool) {
+pub fn intro_message(colon: bool) {
     unsafe {
         let lines: [*const c_char; 18] = [
             c"│ ╲ ││".as_ptr(),
@@ -4292,12 +4292,10 @@ unsafe fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: b
     }
 }
 
-pub unsafe fn ex_intro(_eap: &mut exarg_T) {
-    unsafe {
-        screenclear();
+pub fn ex_intro(_eap: &mut exarg_T) {
+    screenclear();
         intro_message(true);
         plain_vgetc();
-    }
 }
 
 #[cfg(test)]

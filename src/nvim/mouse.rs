@@ -231,7 +231,7 @@ unsafe fn get_mouse_class(p: *const c_char) -> c_int {
 }
 
 /// Move "pos" back to the start of the word it's in.
-unsafe fn find_start_of_word(pos: &mut pos_T) {
+fn find_start_of_word(pos: &mut pos_T) {
     unsafe {
         let line = ml_get(pos.lnum);
         let cclass = get_mouse_class(line.add(pos.col as usize));
@@ -249,7 +249,7 @@ unsafe fn find_start_of_word(pos: &mut pos_T) {
 
 /// Move "pos" forward to the end of the word it's in.
 /// When 'selection' is "exclusive", the position is just after the word.
-unsafe fn find_end_of_word(pos: &mut pos_T) {
+fn find_end_of_word(pos: &mut pos_T) {
     unsafe {
         let line = ml_get(pos.lnum);
         if *opt_vars().p_sel == b'e' as c_char && pos.col > 0 {
@@ -272,7 +272,7 @@ unsafe fn find_end_of_word(pos: &mut pos_T) {
 
 /// Move the current tab to tab in same column as mouse or to end of the
 /// tabline if there is no tab there.
-unsafe fn move_tab_to_mouse() {
+fn move_tab_to_mouse() {
     unsafe {
         let defs = &raw const g_st().tab_page_click_defs;
         let tabnr = (*defs).as_slice()[g_st().mouse_col as usize].tabnr;
@@ -287,7 +287,7 @@ unsafe fn move_tab_to_mouse() {
 }
 
 /// Close the current or specified tab page.
-unsafe fn mouse_tab_close(c1: c_int) {
+fn mouse_tab_close(c1: c_int) {
     unsafe {
         let tp = if c1 == 999 { g_st().curtab } else { find_tabpage(c1) };
         if tp == g_st().curtab {
@@ -458,7 +458,7 @@ unsafe fn get_fpos_of_mouse(mpos: &mut pos_T, wpp: *mut *mut win_T) -> c_int {
     }
 }
 
-unsafe fn do_popup(which_button: c_int, m_pos_flag: c_int, mut m_pos: pos_T) -> c_int {
+fn do_popup(which_button: c_int, m_pos_flag: c_int, mut m_pos: pos_T) -> c_int {
     unsafe {
         let mut jump_flags = 0;
         if CStr::from_ptr(opt_vars().p_mousem).to_bytes() == b"popup_setpos" {
@@ -1187,7 +1187,7 @@ pub unsafe fn do_mouse(
     }
 }
 
-pub unsafe fn ins_mouse(c: c_int) {
+pub fn ins_mouse(c: c_int) {
     unsafe {
         let old_curwin = *curwin.as_ptr();
 
@@ -1224,7 +1224,7 @@ pub unsafe fn ins_mouse(c: c_int) {
 }
 
 /// Common mouse wheel scrolling, shared between Insert mode and NV modes.
-pub unsafe fn do_mousescroll(cap: &mut cmdarg_T) {
+pub fn do_mousescroll(cap: &mut cmdarg_T) {
     unsafe {
         let shift_or_ctrl = (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) != 0;
 
@@ -1262,7 +1262,7 @@ pub unsafe fn do_mousescroll(cap: &mut cmdarg_T) {
 
 /// Implementation for scrolling in Insert mode in direction "dir", which is one
 /// of the MSCR_ values.
-pub unsafe fn ins_mousescroll(dir: c_int) {
+pub fn ins_mousescroll(dir: c_int) {
     unsafe {
         let mut cap = cmdarg_T::new();
         let mut oa = oparg_T::new();
@@ -1317,7 +1317,7 @@ pub unsafe fn ins_mousescroll(dir: c_int) {
 /// one of the MSCR_ values. Scrolls the completion info popup when the mouse
 /// pointer is on top of it.
 /// Returns true when the info popup was scrolled.
-pub unsafe fn cmdline_mousescroll(dir: c_int) -> bool {
+pub fn cmdline_mousescroll(dir: c_int) -> bool {
     unsafe {
         let mut cap = cmdarg_T::new();
         let mut oa = oparg_T::new();
@@ -1388,7 +1388,7 @@ pub fn is_mouse_key(c: c_int) -> bool {
 }
 
 /// Return true when 'mousemodel' is set to "popup" or "popup_setpos".
-unsafe fn mouse_model_popup() -> bool {
+fn mouse_model_popup() -> bool {
     unsafe { *opt_vars().p_mousem == b'p' as c_char }
 }
 
@@ -1398,15 +1398,14 @@ pub fn reset_dragwin() {
 }
 
 #[inline]
-unsafe fn jump_to_mouse_retnomove(
+fn jump_to_mouse_retnomove(
     flags: c_int,
     status_line_offset: c_int,
     sep_line_offset: c_int,
     on_winbar: bool,
     on_statuscol: bool,
 ) -> c_int {
-    unsafe {
-        if status_line_offset != 0 {
+    if status_line_offset != 0 {
             return IN_STATUS_LINE;
         }
         if sep_line_offset != 0 {
@@ -1423,7 +1422,6 @@ unsafe fn jump_to_mouse_retnomove(
             redraw_curbuf_later(UPD_INVERTED);
         }
         IN_BUFFER
-    }
 }
 
 /// Move the cursor to the specified row and column on the screen.
@@ -1749,7 +1747,7 @@ pub unsafe fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button
 
 /// Make a horizontal scroll to "leftcol".
 /// Return true if the cursor moved, false otherwise.
-unsafe fn do_mousescroll_horiz(leftcol: colnr_T) -> bool {
+fn do_mousescroll_horiz(leftcol: colnr_T) -> bool {
     unsafe {
         if (**curwin.as_ptr()).w_onebuf_opt.wo_wrap != 0 {
             return false;
@@ -1769,7 +1767,7 @@ unsafe fn do_mousescroll_horiz(leftcol: colnr_T) -> bool {
 
 /// Normal and Visual modes implementation for scrolling in direction
 /// "cap->arg", which is one of the MSCR_ values.
-pub unsafe fn nv_mousescroll(cap: &mut cmdarg_T) {
+pub fn nv_mousescroll(cap: &mut cmdarg_T) {
     unsafe {
         let old_curwin = *curwin.as_ptr();
 
@@ -1794,7 +1792,7 @@ pub unsafe fn nv_mousescroll(cap: &mut cmdarg_T) {
 }
 
 /// Mouse clicks and drags.
-pub unsafe fn nv_mouse(cap: &mut cmdarg_T) {
+pub fn nv_mouse(cap: &mut cmdarg_T) {
     unsafe {
         do_mouse(cap.oap, cap.cmdchar, BACKWARD, cap.count1, false);
     }
@@ -1803,7 +1801,7 @@ pub unsafe fn nv_mouse(cap: &mut cmdarg_T) {
 /// Compute the buffer line position from the screen position "rowp" / "colp" in
 /// window "win".
 /// Returns true if the position is below the last line.
-pub unsafe fn mouse_comp_pos(
+pub fn mouse_comp_pos(
     win: &mut win_T,
     rowp: &mut c_int,
     colp: &mut c_int,
@@ -2081,11 +2079,9 @@ pub unsafe fn vcol2col(
 }
 
 /// Set UI mouse depending on current mode and 'mouse'.
-pub unsafe fn setmouse() {
-    unsafe {
-        ui_cursor_shape();
+pub fn setmouse() {
+    ui_cursor_shape();
         ui_check_mouse();
-    }
 }
 
 fn set_mouse_topline(wp: &mut win_T) {
@@ -2094,7 +2090,7 @@ fn set_mouse_topline(wp: &mut win_T) {
 }
 
 /// Return length of line "lnum" for horizontal scrolling.
-unsafe fn scroll_line_len(lnum: linenr_T) -> colnr_T {
+fn scroll_line_len(lnum: linenr_T) -> colnr_T {
     unsafe {
         let mut col: colnr_T = 0;
         let mut line = ml_get(lnum);
@@ -2113,7 +2109,7 @@ unsafe fn scroll_line_len(lnum: linenr_T) -> colnr_T {
 }
 
 /// Find longest visible line number.
-unsafe fn find_longest_lnum() -> linenr_T {
+fn find_longest_lnum() -> linenr_T {
     unsafe {
         let mut ret: linenr_T = 0;
 

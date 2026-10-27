@@ -122,7 +122,7 @@ use std::ptr;
 
 use crate::api::win_config::UIExtension;
 pub type xp_prefix_T = c_int;
-pub type CompleteListItemGetter = Option<unsafe fn(&mut expand_T, c_int) -> *mut c_char>;
+pub type CompleteListItemGetter = Option<fn(&mut expand_T, c_int) -> *mut c_char>;
 #[derive(Clone, Copy)]
 pub enum LineGetter {
     None,
@@ -143,7 +143,7 @@ impl LineGetter {
     }
 
     #[inline]
-    pub unsafe fn inner(self) -> Self {
+    pub fn inner(self) -> Self {
         let mut gp = self;
         while let Self::Loop(cp) = gp {
             gp = unsafe { (*cp).lc_getline };
@@ -152,42 +152,42 @@ impl LineGetter {
     }
 
     #[inline]
-    pub unsafe fn is_exline(self) -> bool {
-        matches!(unsafe { self.inner() }, Self::ExLine)
+    pub fn is_exline(self) -> bool {
+        matches!(self.inner(), Self::ExLine)
     }
 
     #[inline]
-    pub unsafe fn is_autocmd(self) -> bool {
-        matches!(unsafe { self.inner() }, Self::AutoCmd(_))
+    pub fn is_autocmd(self) -> bool {
+        matches!(self.inner(), Self::AutoCmd(_))
     }
 
     #[inline]
-    pub unsafe fn is_func(self) -> bool {
-        matches!(unsafe { self.inner() }, Self::Func(_))
+    pub fn is_func(self) -> bool {
+        matches!(self.inner(), Self::Func(_))
     }
 
     #[inline]
-    pub unsafe fn is_source(self) -> bool {
-        matches!(unsafe { self.inner() }, Self::Source(_))
+    pub fn is_source(self) -> bool {
+        matches!(self.inner(), Self::Source(_))
     }
 
     #[inline]
-    pub unsafe fn as_func(self) -> Option<*mut crate::profile::funccall_T> {
-        match unsafe { self.inner() } {
+    pub fn as_func(self) -> Option<*mut crate::profile::funccall_T> {
+        match self.inner() {
             Self::Func(p) => Some(p),
             _ => None,
         }
     }
 
     #[inline]
-    pub unsafe fn as_source(self) -> Option<*mut crate::runtime::source_cookie_T> {
-        match unsafe { self.inner() } {
+    pub fn as_source(self) -> Option<*mut crate::runtime::source_cookie_T> {
+        match self.inner() {
             Self::Source(p) => Some(p),
             _ => None,
         }
     }
 
-    pub unsafe fn call(
+    pub fn call(
         self,
         c: c_int,
         indent: c_int,
@@ -1718,7 +1718,7 @@ use crate::mbyte::ptr2cells;
 use crate::path::vim_ispathsep;
 
 #[inline]
-unsafe fn show_match(matches: &[CString], m: usize, showtail: bool) -> *mut c_char {
+fn show_match(matches: &[CString], m: usize, showtail: bool) -> *mut c_char {
     unsafe {
         let item = matches[m].as_ptr().cast_mut();
         if showtail {
@@ -1769,7 +1769,7 @@ pub unsafe fn cmdline_fuzzy_complete(fuzzystr: *const c_char) -> bool {
 
 /// Sort function for the completion matches.
 /// <SNR> functions should be sorted to the end.
-unsafe fn sort_func_compare(p1: &CString, p2: &CString) -> c_int {
+fn sort_func_compare(p1: &CString, p2: &CString) -> c_int {
     let b1 = p1.as_bytes().first().copied().unwrap_or(0);
     let b2 = p2.as_bytes().first().copied().unwrap_or(0);
     if b1 != b'<' && b2 == b'<' {
@@ -1869,7 +1869,7 @@ unsafe fn ExpandEscape(
 
 /// Return FAIL if this is not an appropriate context in which to do
 /// completion of anything, return OK if it is (even if there are no matches).
-pub unsafe fn nextwild(xp: &mut expand_T, type_arg: c_int, options: c_int, escape: bool) -> c_int {
+pub fn nextwild(xp: &mut expand_T, type_arg: c_int, options: c_int, escape: bool) -> c_int {
     unsafe {
         let ccline = get_cmdline_info();
         let mut p: Option<CString>;
@@ -2024,7 +2024,7 @@ pub unsafe fn nextwild(xp: &mut expand_T, type_arg: c_int, options: c_int, escap
 }
 
 /// Create completion popup menu with items from "matches".
-unsafe fn cmdline_pum_create(
+fn cmdline_pum_create(
     ccline: &CmdlineInfo,
     xp: &expand_T,
     matches: &[CString],
@@ -2088,7 +2088,7 @@ unsafe fn cmdline_pum_create(
     }
 }
 
-pub unsafe fn cmdline_pum_display(changed_array: bool) {
+pub fn cmdline_pum_display(changed_array: bool) {
     unsafe {
         let arr = &raw mut cmdexp().compl_match_array;
         pum_display(
@@ -2102,7 +2102,7 @@ pub unsafe fn cmdline_pum_display(changed_array: bool) {
 }
 
 /// Returns true if the cmdline completion popup menu is being displayed.
-pub unsafe fn cmdline_pum_active() -> bool {
+pub fn cmdline_pum_active() -> bool {
     unsafe {
         let arr = &raw const cmdexp().compl_match_array;
         pum_visible() && !(*arr).is_empty()
@@ -2110,22 +2110,18 @@ pub unsafe fn cmdline_pum_active() -> bool {
 }
 
 /// Remove the cmdline completion popup menu (if present), free the list of items.
-pub unsafe fn cmdline_pum_remove(defer_redraw: bool) {
-    unsafe {
-        pum_undisplay(!defer_redraw);
+pub fn cmdline_pum_remove(defer_redraw: bool) {
+    pum_undisplay(!defer_redraw);
         cmdexp().compl_match_array = Vec::new();
-    }
 }
 
-pub unsafe fn cmdline_pum_cleanup(cclp: &mut CmdlineInfo) {
-    unsafe {
-        cmdline_pum_remove(false);
+pub fn cmdline_pum_cleanup(cclp: &mut CmdlineInfo) {
+    cmdline_pum_remove(false);
         wildmenu_cleanup(cclp);
-    }
 }
 
 /// Returns the current cmdline completion pattern.
-pub unsafe fn cmdline_compl_pattern() -> *mut c_char {
+pub fn cmdline_compl_pattern() -> *mut c_char {
     unsafe {
         let xp = (*get_cmdline_info()).xpc;
         if false {
@@ -2140,7 +2136,7 @@ pub unsafe fn cmdline_compl_pattern() -> *mut c_char {
 }
 
 /// Returns true if fuzzy cmdline completion is active, false otherwise.
-pub unsafe fn cmdline_compl_is_fuzzy() -> bool {
+pub fn cmdline_compl_is_fuzzy() -> bool {
     unsafe {
         let xp = (*get_cmdline_info()).xpc;
         !xp.is_null() && cmdline_fuzzy_completion_supported(&*xp)
@@ -2200,7 +2196,7 @@ unsafe fn wildmenu_match_len(xp: &expand_T, mut s: *mut c_char) -> c_int {
 }
 
 /// Show wildchar matches in the status line.
-unsafe fn redraw_wildmenu(
+fn redraw_wildmenu(
     xp: &expand_T,
     matches: &[CString],
     mut match_idx: c_int,
@@ -2385,7 +2381,7 @@ unsafe fn redraw_wildmenu(
 }
 
 /// Get the next or prev cmdline completion match.
-unsafe fn get_next_or_prev_match(mode: c_int, xp: &mut expand_T) -> Option<CString> {
+fn get_next_or_prev_match(mode: c_int, xp: &mut expand_T) -> Option<CString> {
     unsafe {
         if xp.xp_numfiles <= 0 {
             return None;
@@ -2540,7 +2536,7 @@ unsafe fn ExpandOne_start(
 }
 
 /// Return the longest common part in the list of cmdline completion matches.
-unsafe fn find_longest_match(xp: &mut expand_T, options: c_int) -> CString {
+fn find_longest_match(xp: &mut expand_T, options: c_int) -> CString {
     unsafe {
         let mut len: usize = 0;
         let files = xp.xp_files.as_slice();
@@ -2710,7 +2706,7 @@ pub fn clear_cmdline_orig() {
 }
 
 /// Display one line of completion matches.
-unsafe fn showmatches_oneline(
+fn showmatches_oneline(
     xp: &expand_T,
     matches: &[CString],
     lines: c_int,
@@ -2777,7 +2773,7 @@ unsafe fn showmatches_oneline(
 }
 
 #[inline]
-unsafe fn show_pum_matches(
+fn show_pum_matches(
     ccline: &mut CmdlineInfo,
     xp: &expand_T,
     matches: &[CString],
@@ -2785,16 +2781,14 @@ unsafe fn show_pum_matches(
     noselect: bool,
     cmdline_unchanged: bool,
 ) {
-    unsafe {
-        cmdline_pum_create(ccline, xp, matches, showtail, cmdline_unchanged);
+    cmdline_pum_create(ccline, xp, matches, showtail, cmdline_unchanged);
         cmdexp().compl_selected = if noselect { -1 } else { 0 };
         pum_clear();
         cmdline_pum_display(true);
-    }
 }
 
 /// Display completion matches.
-pub unsafe fn showmatches(
+pub fn showmatches(
     xp: &mut expand_T,
     display_wildmenu: bool,
     display_list: bool,
@@ -2942,7 +2936,7 @@ unsafe fn showmatches_gettail(s: *mut c_char, eager: bool) -> *mut c_char {
 }
 
 /// Return true if we only need to show the tail of completion matches.
-unsafe fn expand_showtail(xp: &mut expand_T) -> bool {
+fn expand_showtail(xp: &mut expand_T) -> bool {
     unsafe {
         if xp.xp_context != EXPAND_FILES
             && xp.xp_context != EXPAND_SHELLCMD
@@ -3098,7 +3092,7 @@ pub unsafe fn addstar(fname: *mut c_char, mut len: usize, context: c_int) -> CSt
 }
 
 /// Must parse the command line so far to work out what context we are in.
-pub unsafe fn set_expand_context(xp: &mut expand_T) {
+pub fn set_expand_context(xp: &mut expand_T) {
     unsafe {
         let ccline = get_cmdline_info();
 
@@ -3601,7 +3595,7 @@ unsafe fn set_context_in_filetype_cmd(xp: &mut expand_T, arg: *const c_char) -> 
 }
 
 /// Sets the completion context for commands that involve a search pattern and a line range.
-unsafe fn set_context_with_pattern(xp: &mut expand_T) {
+fn set_context_with_pattern(xp: &mut expand_T) {
     unsafe {
         let ccline = get_cmdline_info();
 
@@ -4456,7 +4450,7 @@ fn get_breakadd_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments for ":scriptnames".
-unsafe fn get_scriptnames_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+fn get_scriptnames_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if !script_id_valid(idx + 1) {
             return ptr::null_mut();
@@ -4496,7 +4490,7 @@ fn get_mapclear_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Completion for |:checkhealth| command.
-unsafe fn get_healthcheck_names(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+fn get_healthcheck_names(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         let prompt_id = get_cmdline_last_prompt_id();
         if cmdexp().HEALTHCHECK_LAST_GEN != prompt_id || cmdexp().HEALTHCHECK_LAST_GEN == 0 {
@@ -4587,7 +4581,7 @@ unsafe fn get_arg1_from_lua(lua: *const c_char, xp: &mut expand_T, idx: c_int) -
     }
 }
 
-unsafe fn get_marks_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
+fn get_marks_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         get_arg1_from_lua(
             c"return require'vim._core.marks'.complete(...)".as_ptr(),
@@ -4597,7 +4591,7 @@ unsafe fn get_marks_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-unsafe fn get_log_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
+fn get_log_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         get_arg1_from_lua(
             c"return require'vim._core.ex_cmd'.log_complete(...)".as_ptr(),
@@ -4607,7 +4601,7 @@ unsafe fn get_log_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-unsafe fn get_lsp_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
+fn get_lsp_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         get_arg1_from_lua(
             c"return require'vim._core.ex_cmd'.lsp_complete(...)".as_ptr(),
@@ -4617,7 +4611,7 @@ unsafe fn get_lsp_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-unsafe fn get_packdel_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
+fn get_packdel_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         get_arg1_from_lua(
             c"return require'vim._core.ex_cmd'.packdel_complete(...)".as_ptr(),
@@ -4627,7 +4621,7 @@ unsafe fn get_packdel_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-unsafe fn get_packupdate_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
+fn get_packupdate_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         get_arg1_from_lua(
             c"return require'vim._core.ex_cmd'.packupdate_complete(...)".as_ptr(),
@@ -4646,7 +4640,7 @@ unsafe fn ExpandOther(
 ) -> c_int {
     struct ExpGen {
         context: c_int,
-        func: unsafe fn(&mut expand_T, c_int) -> *mut c_char,
+        func: fn(&mut expand_T, c_int) -> *mut c_char,
         ic: bool,
         escaped: bool,
     }
@@ -5113,7 +5107,7 @@ pub unsafe fn ExpandGeneric(
 
             if ptr::fn_addr_eq(
                 func_fn,
-                get_menu_names as unsafe fn(&mut expand_T, c_int) -> *mut c_char,
+                get_menu_names as fn(&mut expand_T, c_int) -> *mut c_char,
             ) && item_cstr.as_bytes().last() == Some(&1)
             {
                 let mut bytes = item_cstr.into_bytes();
@@ -5301,7 +5295,7 @@ unsafe fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<CString>, flag
 }
 
 /// Call "user_expand_func()" to invoke a user defined Vim script function.
-unsafe fn call_user_expand_func<R>(
+fn call_user_expand_func<R>(
     user_expand_func: unsafe fn(*const c_char, c_int, *mut typval_T) -> R,
     xp: *mut expand_T,
     default: R,
@@ -5495,7 +5489,7 @@ pub unsafe fn expand_process_user_list(
 }
 
 /// Expand names with a list returned by a function defined by the user.
-unsafe fn ExpandUserList(xp: &mut expand_T, matches: &mut Vec<CString>) -> c_int {
+fn ExpandUserList(xp: &mut expand_T, matches: &mut Vec<CString>) -> c_int {
     unsafe {
         matches.clear();
         let retlist = call_user_expand_func(call_func_retlist, xp, ptr::null_mut());
@@ -5509,7 +5503,7 @@ unsafe fn ExpandUserList(xp: &mut expand_T, matches: &mut Vec<CString>) -> c_int
     }
 }
 
-unsafe fn ExpandUserLua(xp: &mut expand_T, matches: &mut Vec<CString>) -> c_int {
+fn ExpandUserLua(xp: &mut expand_T, matches: &mut Vec<CString>) -> c_int {
     unsafe {
         let mut rettv: typval_T = typval_T::new();
         nlua_call_user_expand_func(xp, &raw mut rettv);
@@ -5573,7 +5567,7 @@ pub unsafe fn globpath(
 }
 
 /// Translate some keys pressed when 'wildmenu' is used.
-pub unsafe fn wildmenu_translate_key(
+pub fn wildmenu_translate_key(
     cclp: &mut CmdlineInfo,
     key: c_int,
     xp: &mut expand_T,
@@ -5604,7 +5598,7 @@ pub unsafe fn wildmenu_translate_key(
 }
 
 /// Delete characters on the command line, from "from" to the current position.
-unsafe fn cmdline_del(cclp: &mut CmdlineInfo, from: c_int) {
+fn cmdline_del(cclp: &mut CmdlineInfo, from: c_int) {
     unsafe {
         debug_assert!(cclp.cmdpos <= cclp.cmdlen);
         ptr::copy(
@@ -5618,7 +5612,7 @@ unsafe fn cmdline_del(cclp: &mut CmdlineInfo, from: c_int) {
 }
 
 /// Handle a key pressed when the wild menu for the menu names (EXPAND_MENUNAMES) is displayed.
-unsafe fn wildmenu_process_key_menunames(
+fn wildmenu_process_key_menunames(
     cclp: &mut CmdlineInfo,
     mut key: c_int,
     xp: &mut expand_T,
@@ -5669,7 +5663,7 @@ unsafe fn wildmenu_process_key_menunames(
 }
 
 /// Handle a key pressed when the wild menu for file/dir/shellcmd names is displayed.
-unsafe fn wildmenu_process_key_filenames(
+fn wildmenu_process_key_filenames(
     cclp: &mut CmdlineInfo,
     mut key: c_int,
     xp: &mut expand_T,
@@ -5774,9 +5768,8 @@ unsafe fn wildmenu_process_key_filenames(
 }
 
 /// Handle a key pressed when wild menu is displayed.
-pub unsafe fn wildmenu_process_key(cclp: &mut CmdlineInfo, key: c_int, xp: &mut expand_T) -> c_int {
-    unsafe {
-        if xp.xp_context == EXPAND_MENUNAMES {
+pub fn wildmenu_process_key(cclp: &mut CmdlineInfo, key: c_int, xp: &mut expand_T) -> c_int {
+    if xp.xp_context == EXPAND_MENUNAMES {
             return wildmenu_process_key_menunames(cclp, key, xp);
         }
         if xp.xp_context == EXPAND_FILES
@@ -5787,11 +5780,10 @@ pub unsafe fn wildmenu_process_key(cclp: &mut CmdlineInfo, key: c_int, xp: &mut 
         }
 
         key
-    }
 }
 
 /// Free expanded names when finished walking through the matches.
-pub unsafe fn wildmenu_cleanup(cclp: &mut CmdlineInfo) {
+pub fn wildmenu_cleanup(cclp: &mut CmdlineInfo) {
     unsafe {
         if opt_vars().p_wmnu == 0 || g_st().wild_menu_showing == 0 {
             return;
@@ -6060,7 +6052,7 @@ pub unsafe fn f_cmdcomplete_info(
 }
 
 /// Copy a substring from the current buffer (curbuf).
-unsafe fn copy_substring_from_pos(
+fn copy_substring_from_pos(
     start: &mut pos_T,
     end: &mut pos_T,
     match_end: &mut pos_T,
@@ -6352,14 +6344,12 @@ mod tests {
 
     #[test]
     fn expand_init_and_cleanup_work() {
-        unsafe {
-            let mut xp: expand_T = expand_T::new();
+        let mut xp: expand_T = expand_T::new();
             ExpandInit(&mut xp);
             assert_eq!(xp.xp_context, EXPAND_NOTHING);
             assert_eq!(xp.xp_backslash, XP_BS_NONE);
             ExpandCleanup(&mut xp);
             assert!(!cmdline_pum_active());
-        }
     }
 
     #[test]

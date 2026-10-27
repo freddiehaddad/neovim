@@ -33,7 +33,7 @@ use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-pub unsafe fn remove_duplicate_strings(fnames: &mut Vec<std::ffi::CString>) {
+pub fn remove_duplicate_strings(fnames: &mut Vec<std::ffi::CString>) {
     if fnames.is_empty() {
         return;
     }
@@ -482,7 +482,7 @@ unsafe fn do_concat_fnames(
     }
 }
 
-pub unsafe fn concat_fnames(
+pub fn concat_fnames(
     fname1: NvimString,
     fname2: NvimString,
     sep: bool,
@@ -2367,7 +2367,7 @@ mod tests {
     use crate::eval::vars::{VV_PROGPATH, set_vim_var_string};
     use std::ffi::CString;
 
-    unsafe fn init_progpath() {
+    fn init_progpath() {
         unsafe {
             if *crate::eval::vars::get_vim_var_str(VV_PROGPATH) == NUL {
                 set_vim_var_string(VV_PROGPATH, c"nvim".as_ptr(), -1);

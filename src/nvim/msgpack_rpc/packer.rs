@@ -71,15 +71,13 @@ impl PackerBuffer {
 }
 
 pub fn packer_flush_buffer(packer: &mut PackerBuffer) {
-    unsafe {
-        match packer.anydata {
+    match packer.anydata {
             PackerData::None => {}
             PackerData::StringBuffer => flush_string_buffer(packer),
             PackerData::Ui(_) => crate::api::ui::ui_flush_callback(packer),
             PackerData::File(_) => crate::shada::flush_file_buffer(packer),
             PackerData::Chans(_) => crate::msgpack_rpc::channel::channel_flush_callback(packer),
         }
-    }
 }
 
 impl Default for PackerBuffer {

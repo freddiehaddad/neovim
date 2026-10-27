@@ -403,7 +403,7 @@ pub use swmsg;
 use crate::keycodes::{k_second, k_third};
 
 #[inline]
-unsafe fn have_sourcing_info() -> bool {
+fn have_sourcing_info() -> bool {
     unsafe {
         let es = &raw const rt_st().exestack;
         !(*es).is_empty()
@@ -415,7 +415,7 @@ pub fn msg_id_exists(id: i64) -> bool {
     id > 0 && id < msg_st().msg_id_next
 }
 
-unsafe fn ui_ext_msg_set_pos(row: c_int, scrolled: bool) {
+fn ui_ext_msg_set_pos(row: c_int, scrolled: bool) {
     unsafe {
         let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
         let size = schar_get(buf.as_mut_ptr(), (**curwin.as_ptr()).w_p_fcs_chars.msgsep);
@@ -434,9 +434,8 @@ unsafe fn ui_ext_msg_set_pos(row: c_int, scrolled: bool) {
     }
 }
 
-pub unsafe fn msg_grid_set_pos(row: c_int, scrolled: bool) {
-    unsafe {
-        if !g_st().msg_grid.throttled {
+pub fn msg_grid_set_pos(row: c_int, scrolled: bool) {
+    if !g_st().msg_grid.throttled {
             ui_ext_msg_set_pos(row, scrolled);
             msg_st().msg_grid_pos_at_flush = row;
         }
@@ -444,14 +443,13 @@ pub unsafe fn msg_grid_set_pos(row: c_int, scrolled: bool) {
         if crate::grid::grid_allocated(&g_st().msg_grid) {
             g_st().msg_grid_adj.row_offset = -row;
         }
-    }
 }
 
 pub fn msg_use_grid() -> bool {
     crate::grid::grid_allocated(&g_st().default_grid) && !ui_has(kUIMessages)
 }
 
-pub unsafe fn msg_grid_validate() {
+pub fn msg_grid_validate() {
     unsafe {
         grid_assign_handle(&mut g_st().msg_grid);
         let should_alloc = msg_use_grid();
@@ -961,7 +959,7 @@ pub fn reset_last_sourcing() {
 }
 
 /// @return  true if "SOURCING_NAME" differs from "last_sourcing_name".
-unsafe fn other_sourcing_name() -> bool {
+fn other_sourcing_name() -> bool {
     unsafe {
         let sname = sourcing_name();
         if have_sourcing_info() && !sname.is_null() {
@@ -975,7 +973,7 @@ unsafe fn other_sourcing_name() -> bool {
 }
 
 /// Get the message about the source, as used for an error message
-unsafe fn get_emsg_source() -> Option<std::ffi::CString> {
+fn get_emsg_source() -> Option<std::ffi::CString> {
     unsafe {
         let mut sname = sourcing_name();
         if have_sourcing_info() && !sname.is_null() && other_sourcing_name() {
@@ -996,7 +994,7 @@ unsafe fn get_emsg_source() -> Option<std::ffi::CString> {
 }
 
 /// Get the message about the source lnum, as used for an error message.
-unsafe fn get_emsg_lnum() -> Option<std::ffi::CString> {
+fn get_emsg_lnum() -> Option<std::ffi::CString> {
     unsafe {
         let sname = sourcing_name();
         let slnum = sourcing_lnum();
@@ -1015,7 +1013,7 @@ unsafe fn get_emsg_lnum() -> Option<std::ffi::CString> {
 /// Display name and line number for the source of an error.
 /// Remember the file name and line number, so that for the next error the info
 /// is only displayed if it changed.
-pub unsafe fn msg_source(hl_id: c_int) {
+pub fn msg_source(hl_id: c_int) {
     unsafe {
         if msg_st().MSG_SOURCE_RECURSIVE {
             return;
@@ -1052,7 +1050,7 @@ pub unsafe fn msg_source(hl_id: c_int) {
 ///            If "emsg_off" is set: no error messages at the moment.
 ///            If "msg" is in 'debug': do error message but without side effects.
 ///            If "emsg_skip" is set: never do error messages.
-pub unsafe fn emsg_not_now() -> bool {
+pub fn emsg_not_now() -> bool {
     unsafe {
         (g_st().emsg_off > 0
             && vim_strchr(opt_vars().p_debug, b'm' as c_int).is_null()
@@ -1227,7 +1225,7 @@ pub unsafe fn emsg(s: *const c_char) -> bool {
     unsafe { emsg_multiline(s, c"emsg".as_ptr(), HLF_E, false) }
 }
 
-pub unsafe fn emsg_invreg(name: c_int) {
+pub fn emsg_invreg(name: c_int) {
     unsafe {
         semsg!(
             gettext(c"E354: Invalid register name: '%s'".as_ptr()),
@@ -1255,7 +1253,7 @@ pub unsafe fn internal_error(where_: *const c_char) {
     }
 }
 
-pub unsafe fn msg_semsg_event(s: std::ffi::CString) {
+pub fn msg_semsg_event(s: std::ffi::CString) {
     unsafe {
         emsg(s.as_ptr());
     }
@@ -1268,7 +1266,7 @@ pub unsafe fn msg_schedule_semsg_cstr(s: *const c_char) {
     }
 }
 
-pub unsafe fn msg_semsg_multiline_event(s: std::ffi::CString) {
+pub fn msg_semsg_multiline_event(s: std::ffi::CString) {
     unsafe {
         emsg_multiline(s.as_ptr(), c"emsg".as_ptr(), HLF_E, true);
     }
@@ -1561,7 +1559,7 @@ pub unsafe fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, msg_data: *mut
     }
 }
 
-unsafe fn msg_hist_add_multihl(msg: HlMessage, temp: bool) {
+fn msg_hist_add_multihl(msg: HlMessage, temp: bool) {
     unsafe {
         if msg_st().do_clear_hist_temp {
             msg_hist_clear_temp();
@@ -1592,7 +1590,7 @@ unsafe fn msg_hist_add_multihl(msg: HlMessage, temp: bool) {
 }
 
 /// Delete oldest messages from the history until there are "keep" messages.
-pub unsafe fn msg_hist_clear(keep: c_int) {
+pub fn msg_hist_clear(keep: c_int) {
     unsafe {
         let hist = &raw mut msg_st().msg_hist;
         while msg_st().msg_hist_len > keep || (keep == 0 && !(*hist).is_empty()) {
@@ -1609,7 +1607,7 @@ pub unsafe fn msg_hist_clear(keep: c_int) {
     }
 }
 
-pub unsafe fn msg_hist_clear_temp() {
+pub fn msg_hist_clear_temp() {
     unsafe {
         let temp_idx = msg_st().msg_hist_temp_idx;
         msg_st().msg_hist_temp_idx = None;
@@ -1628,7 +1626,7 @@ pub unsafe fn msg_hist_clear_temp() {
 }
 
 /// Check the 'messagesopt' fields after schema validation.
-pub unsafe fn validate_messagesopt(args: &mut optset_T) -> *const c_char {
+pub fn validate_messagesopt(args: &mut optset_T) -> *const c_char {
     unsafe {
         let v = opt_keyset(
             args.os_newval.data.string().data,
@@ -1653,7 +1651,7 @@ pub unsafe fn validate_messagesopt(args: &mut optset_T) -> *const c_char {
 }
 
 /// Process the updated 'messagesopt' option value.
-pub unsafe fn did_set_messagesopt(_args: &mut optset_T) -> *const c_char {
+pub fn did_set_messagesopt(_args: &mut optset_T) -> *const c_char {
     unsafe {
         let v = opt_keyset(opt_vars().p_mopt, kOptMessagesopt, ptr::null_mut()).cast::<OptKeyDict_mopt>();
 
@@ -1671,7 +1669,7 @@ pub unsafe fn did_set_messagesopt(_args: &mut optset_T) -> *const c_char {
 }
 
 /// :messages command implementation
-pub unsafe fn ex_messages(eap: &mut exarg_T) {
+pub fn ex_messages(eap: &mut exarg_T) {
     unsafe {
         if CStr::from_ptr(eap.arg) == c"clear" {
             msg_hist_clear(if eap.addr_count != 0 {
@@ -1778,15 +1776,13 @@ pub unsafe fn ex_messages(eap: &mut exarg_T) {
 
 /// Call this after prompting the user.  This will avoid a hit-return message
 /// and a delay.
-pub unsafe fn msg_end_prompt() {
-    unsafe {
-        g_st().need_wait_return = false;
+pub fn msg_end_prompt() {
+    g_st().need_wait_return = false;
         g_st().emsg_on_display = false;
         g_st().cmdline_row = g_st().msg_row;
         g_st().msg_col = 0;
         msg_clr_eos();
         g_st().lines_left = -1;
-    }
 }
 
 /// Wait for the user to hit a key (normally Enter)
@@ -1794,7 +1790,7 @@ pub unsafe fn msg_end_prompt() {
 /// @param redraw  if true, redraw the entire screen UPD_NOT_VALID
 ///                if false, do a normal redraw
 ///                if -1, don't redraw at all
-pub unsafe fn wait_return(redraw: c_int) {
+pub fn wait_return(redraw: c_int) {
     unsafe {
         let mut c: c_int;
         let mut had_got_int: bool;
@@ -1986,7 +1982,7 @@ pub unsafe fn wait_return(redraw: c_int) {
 }
 
 /// Write the hit-return prompt.
-unsafe fn hit_return_msg(newline_sb: bool) {
+fn hit_return_msg(newline_sb: bool) {
     unsafe {
         let save_p_more = opt_vars().p_more;
 
@@ -2031,11 +2027,11 @@ pub unsafe fn set_keep_msg(s: *const c_char, hl_id: c_int) {
 }
 
 /// Return true if printing messages should currently be done.
-pub unsafe fn messaging() -> bool {
-    unsafe { !(opt_vars().p_lz != 0 && char_avail() && !g_st().KeyTyped) && (opt_vars().p_ch > 0 || ui_has(kUIMessages)) }
+pub fn messaging() -> bool {
+    !(opt_vars().p_lz != 0 && char_avail() && !g_st().KeyTyped) && (opt_vars().p_ch > 0 || ui_has(kUIMessages))
 }
 
-pub unsafe fn msgmore(n: c_int) {
+pub fn msgmore(n: c_int) {
     unsafe {
         if g_st().global_busy != 0 || !messaging() {
             return;
@@ -2095,30 +2091,24 @@ pub unsafe fn msg_ext_set_kind(msg_kind: *const c_char) {
     }
 }
 
-pub unsafe fn msg_ext_set_append(append: bool) {
-    unsafe {
-        msg_ext_ui_flush();
+pub fn msg_ext_set_append(append: bool) {
+    msg_ext_ui_flush();
         msg_st().msg_ext_append = append;
-    }
 }
 
 pub unsafe fn msg_ext_set_trigger(trigger: *const c_char) {
-    unsafe {
-        msg_ext_ui_flush();
+    msg_ext_ui_flush();
         msg_st().msg_ext_trigger = trigger;
-    }
 }
 
 // Should be executed at all callsites emitting non-internal messages.
-pub unsafe fn msg_ext_no_fast() {
-    unsafe {
-        msg_ext_ui_flush();
+pub fn msg_ext_no_fast() {
+    msg_ext_ui_flush();
         g_st().msg_ext_fast = false;
-    }
 }
 
 /// Prepare for outputting characters in the command line.
-pub unsafe fn msg_start() {
+pub fn msg_start() {
     unsafe {
         let mut did_return = false;
 
@@ -2184,13 +2174,11 @@ pub fn msg_starthere() {
         g_st().msg_didany = false;
 }
 
-pub unsafe fn msg_putchar(c: c_int) {
-    unsafe {
-        msg_putchar_hl(c, 0);
-    }
+pub fn msg_putchar(c: c_int) {
+    msg_putchar_hl(c, 0);
 }
 
-pub unsafe fn msg_putchar_hl(c: c_int, hl_id: c_int) {
+pub fn msg_putchar_hl(c: c_int, hl_id: c_int) {
     unsafe {
         let mut buf = [0 as c_char; MB_MAXCHAR + 1];
 
@@ -2207,7 +2195,7 @@ pub unsafe fn msg_putchar_hl(c: c_int, hl_id: c_int) {
     }
 }
 
-pub unsafe fn msg_outnum(n: c_int) {
+pub fn msg_outnum(n: c_int) {
     unsafe {
         let mut buf = [0 as c_char; 20];
         vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"%d".as_ptr(), n);
@@ -2829,7 +2817,7 @@ pub unsafe fn msg_puts_len(str_: *const c_char, len: isize, hl_id: c_int, hist: 
     }
 }
 
-unsafe fn msg_ext_emit_chunk() {
+fn msg_ext_emit_chunk() {
     unsafe {
         if msg_st().msg_ext_last_attr == -1 {
             return;
@@ -3032,16 +3020,14 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
     }
 }
 
-pub unsafe fn msg_line_flush() {
-    unsafe {
-        if g_st().cmdmsg_rl {
+pub fn msg_line_flush() {
+    if g_st().cmdmsg_rl {
             grid_line_mirror(g_st().msg_grid.cols);
         }
         grid_line_flush_if_valid_row();
-    }
 }
 
-pub unsafe fn msg_cursor_goto(mut row: c_int, mut col: c_int) {
+pub fn msg_cursor_goto(mut row: c_int, mut col: c_int) {
     unsafe {
         if g_st().cmdmsg_rl {
             col = g_st().Columns - 1 - col;
@@ -3078,7 +3064,7 @@ pub fn msg_do_throttle() -> bool {
 }
 
 /// Scroll the screen up one line for displaying the next message line.
-pub unsafe fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
+pub fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
     unsafe {
         if may_throttle && msg_do_throttle() {
             g_st().msg_grid.throttled = true;
@@ -3115,7 +3101,7 @@ pub unsafe fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
 }
 
 /// Send throttled message output to UI clients
-pub unsafe fn msg_scroll_flush() {
+pub fn msg_scroll_flush() {
     unsafe {
         if g_st().msg_grid.throttled {
             g_st().msg_grid.throttled = false;
@@ -3164,7 +3150,7 @@ pub unsafe fn msg_scroll_flush() {
     }
 }
 
-pub unsafe fn msg_reset_scroll() {
+pub fn msg_reset_scroll() {
     unsafe {
         if ui_has(kUIMessages) {
             return;
@@ -3189,9 +3175,8 @@ pub unsafe fn msg_reset_scroll() {
     }
 }
 
-pub unsafe fn msg_ui_refresh() {
-    unsafe {
-        if ui_has(kUIMultigrid) && crate::grid::grid_allocated(&g_st().msg_grid) {
+pub fn msg_ui_refresh() {
+    if ui_has(kUIMultigrid) && crate::grid::grid_allocated(&g_st().msg_grid) {
             ui_call_grid_resize(
                 g_st().msg_grid.handle as Integer,
                 g_st().msg_grid.cols as Integer,
@@ -3199,22 +3184,19 @@ pub unsafe fn msg_ui_refresh() {
             );
             ui_ext_msg_set_pos(g_st().msg_grid_pos, g_st().msg_scrolled != 0);
         }
-    }
 }
 
-pub unsafe fn msg_ui_flush() {
-    unsafe {
-        if ui_has(kUIMultigrid)
+pub fn msg_ui_flush() {
+    if ui_has(kUIMultigrid)
             && crate::grid::grid_allocated(&g_st().msg_grid)
             && g_st().msg_grid.pending_comp_index_update
         {
             ui_ext_msg_set_pos(g_st().msg_grid_pos, g_st().msg_scrolled != 0);
         }
-    }
 }
 
 /// Increment "msg_scrolled".
-unsafe fn inc_msg_scrolled() {
+fn inc_msg_scrolled() {
     unsafe {
         if *get_vim_var_str(VV_SCROLLSTART) == NUL {
             let sname = sourcing_name();
@@ -3289,28 +3271,24 @@ unsafe fn store_sb_text(
 }
 
 /// Finished showing messages, clear the scroll-back text on the next message.
-pub unsafe fn may_clear_sb_text() {
-    unsafe {
-        msg_ext_ui_flush();
+pub fn may_clear_sb_text() {
+    msg_ext_ui_flush();
         msg_st().do_clear_sb_text = sb_clear_T::SB_CLEAR_ALL;
         msg_st().do_clear_hist_temp = true;
-    }
 }
 
 /// Starting to edit the command line: do not clear messages now.
-pub unsafe fn sb_text_start_cmdline() {
-    unsafe {
-        if msg_st().do_clear_sb_text == sb_clear_T::SB_CLEAR_CMDLINE_BUSY {
+pub fn sb_text_start_cmdline() {
+    if msg_st().do_clear_sb_text == sb_clear_T::SB_CLEAR_CMDLINE_BUSY {
             sb_text_restart_cmdline();
         } else {
             msg_sb_eol();
             msg_st().do_clear_sb_text = sb_clear_T::SB_CLEAR_CMDLINE_BUSY;
         }
-    }
 }
 
 /// Redrawing the command line: clear the last unfinished line.
-pub unsafe fn sb_text_restart_cmdline() {
+pub fn sb_text_restart_cmdline() {
     unsafe {
         msg_st().do_clear_sb_text = sb_clear_T::SB_CLEAR_CMDLINE_BUSY;
 
@@ -3334,7 +3312,7 @@ pub fn sb_text_end_cmdline() {
 }
 
 /// Clear any text remembered for scrolling back.
-pub unsafe fn clear_sb_text(all: bool) {
+pub fn clear_sb_text(all: bool) {
     unsafe {
         let chunks = &raw mut msg_st().msgchunks;
         if all {
@@ -3348,7 +3326,7 @@ pub unsafe fn clear_sb_text(all: bool) {
 }
 
 /// "g<" command.
-pub unsafe fn show_sb_text() {
+pub fn show_sb_text() {
     unsafe {
         if ui_has(kUIMessages) {
             let mut ea: exarg_T = exarg_T::new();
@@ -3369,7 +3347,7 @@ pub unsafe fn show_sb_text() {
 }
 
 /// Move to the start of screen line in already displayed text.
-unsafe fn msg_sb_start(mps: Option<usize>) -> Option<usize> {
+fn msg_sb_start(mps: Option<usize>) -> Option<usize> {
     unsafe {
         let chunks = &raw const msg_st().msgchunks;
         let mut idx = mps?;
@@ -3381,7 +3359,7 @@ unsafe fn msg_sb_start(mps: Option<usize>) -> Option<usize> {
 }
 
 /// Mark the last message chunk as finishing the line.
-pub unsafe fn msg_sb_eol() {
+pub fn msg_sb_eol() {
     unsafe {
         let chunks = &raw mut msg_st().msgchunks;
         if let Some(last) = (*chunks).last_mut() {
@@ -3391,7 +3369,7 @@ pub unsafe fn msg_sb_eol() {
 }
 
 /// Display a screen line from previously displayed text at row "row".
-unsafe fn disp_sb_line(row: c_int, smp: usize) -> Option<usize> {
+fn disp_sb_line(row: c_int, smp: usize) -> Option<usize> {
     unsafe {
         let chunks = &raw mut msg_st().msgchunks;
         let mut idx = smp;
@@ -3417,8 +3395,8 @@ unsafe fn disp_sb_line(row: c_int, smp: usize) -> Option<usize> {
 }
 
 /// @return  true when messages should be printed to stdout/stderr
-pub unsafe fn msg_use_printf() -> c_int {
-    unsafe { c_int::from(!g_st().embedded_mode && ui_active() == 0 && !ui_has(kUIMessages)) }
+pub fn msg_use_printf() -> c_int {
+    c_int::from(!g_st().embedded_mode && ui_active() == 0 && !ui_has(kUIMessages))
 }
 
 /// Print a message when there is no valid screen.
@@ -3474,7 +3452,7 @@ unsafe fn msg_puts_printf(str_: *const c_char, maxlen: isize) {
 }
 
 /// Show the more-prompt and handle the user response.
-unsafe fn do_more_prompt(typed_char: c_int) -> bool {
+fn do_more_prompt(typed_char: c_int) -> bool {
     unsafe {
         let mut used_typed_char = typed_char;
         let oldState = g_st().State;
@@ -3719,7 +3697,7 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
     }
 }
 
-unsafe fn msg_moremsg(full: bool) {
+fn msg_moremsg(full: bool) {
     unsafe {
         let attr = hl_combine_attr(hl_attr(HLF_MSG), hl_attr(HLF_M));
         grid_line_start(&raw mut g_st().msg_grid_adj, g_st().Rows - 1);
@@ -3739,9 +3717,8 @@ unsafe fn msg_moremsg(full: bool) {
 
 /// Repeat the message for the current mode: MODE_ASKMORE, MODE_EXTERNCMD,
 /// or confirm() prompt.
-pub unsafe fn repeat_message() {
-    unsafe {
-        if ui_has(kUIMessages) {
+pub fn repeat_message() {
+    if ui_has(kUIMessages) {
             return;
         }
 
@@ -3764,21 +3741,18 @@ pub unsafe fn repeat_message() {
             hit_return_msg(false);
             g_st().msg_row = g_st().Rows - 1;
         }
-    }
 }
 
 /// Clear from current message position to end of screen.
 /// Skip this when ":silent" was used, no need to clear for redirection.
-pub unsafe fn msg_clr_eos() {
-    unsafe {
-        if g_st().msg_silent == 0 {
+pub fn msg_clr_eos() {
+    if g_st().msg_silent == 0 {
             msg_clr_eos_force();
         }
-    }
 }
 
 /// Clear from current message position to end of screen.
-pub unsafe fn msg_clr_eos_force() {
+pub fn msg_clr_eos_force() {
     unsafe {
         if ui_has(kUIMessages) {
             return;
@@ -3824,33 +3798,29 @@ pub unsafe fn msg_clr_eos_force() {
 }
 
 /// Clear the command line.
-pub unsafe fn msg_clr_cmdline() {
-    unsafe {
-        g_st().msg_row = g_st().cmdline_row;
+pub fn msg_clr_cmdline() {
+    g_st().msg_row = g_st().cmdline_row;
         g_st().msg_col = 0;
         msg_clr_eos_force();
-    }
 }
 
 /// end putting a message on the screen
 /// call wait_return() if the message does not fit in the available space
 ///
 /// @return  true if wait_return() not called.
-pub unsafe fn msg_end() -> bool {
-    unsafe {
-        if !g_st().exiting && g_st().need_wait_return && (g_st().State & MODE_CMDLINE) == 0 {
+pub fn msg_end() -> bool {
+    if !g_st().exiting && g_st().need_wait_return && (g_st().State & MODE_CMDLINE) == 0 {
             wait_return(0);
             return false;
         }
 
         msg_ext_ui_flush();
         true
-    }
 }
 
 /// Clear "msg_ext_chunks" before flushing so that ui_flush() does not re-emit
 /// the same message recursively.
-unsafe fn msg_ext_init_chunks() -> Array {
+fn msg_ext_init_chunks() -> Array {
     unsafe {
         let chunks = &raw mut msg_st().msg_ext_chunks;
         let tofree = std::mem::take(&mut *chunks);
@@ -3859,7 +3829,7 @@ unsafe fn msg_ext_init_chunks() -> Array {
     }
 }
 
-pub unsafe fn msg_ext_ui_flush() {
+pub fn msg_ext_ui_flush() {
     unsafe {
         if !ui_has(kUIMessages) {
             msg_st().msg_ext_kind = ptr::null();
@@ -3922,16 +3892,14 @@ pub unsafe fn msg_ext_ui_flush() {
     }
 }
 
-pub unsafe fn msg_ext_flush_showmode() {
-    unsafe {
-        if ui_has(kUIMessages) && (msg_st().msg_ext_last_attr != -1 || msg_st().SHOWMODE_CLEAR) {
+pub fn msg_ext_flush_showmode() {
+    if ui_has(kUIMessages) && (msg_st().msg_ext_last_attr != -1 || msg_st().SHOWMODE_CLEAR) {
             msg_st().SHOWMODE_CLEAR = msg_st().msg_ext_last_attr != -1;
             msg_ext_emit_chunk();
             let tofree = msg_ext_init_chunks();
             ui_call_msg_showmode(tofree);
             api_free_array(tofree);
         }
-    }
 }
 
 /// If the written message runs into the shown command or ruler, we have to
@@ -4026,7 +3994,7 @@ unsafe fn redir_write(str_: *const c_char, maxlen: isize) {
     }
 }
 
-pub unsafe fn redirecting() -> c_int {
+pub fn redirecting() -> c_int {
     unsafe {
         c_int::from(
             has_redir_fd()
@@ -4040,7 +4008,7 @@ pub unsafe fn redirecting() -> c_int {
 
 /// Before giving verbose message.
 /// Must always be called paired with verbose_leave()!
-pub unsafe fn verbose_enter() {
+pub fn verbose_enter() {
     unsafe {
         if *opt_vars().p_vfile != NUL {
             g_st().msg_silent += 1;
@@ -4057,7 +4025,7 @@ pub unsafe fn verbose_enter() {
 
 /// After giving verbose message.
 /// Must always be called paired with verbose_enter()!
-pub unsafe fn verbose_leave() {
+pub fn verbose_leave() {
     unsafe {
         if *opt_vars().p_vfile != NUL {
             g_st().msg_silent -= 1;
@@ -4073,7 +4041,7 @@ pub unsafe fn verbose_leave() {
 }
 
 /// Like verbose_enter() and set msg_scroll when displaying the message.
-pub unsafe fn verbose_enter_scroll() {
+pub fn verbose_enter_scroll() {
     unsafe {
         verbose_enter();
         if *opt_vars().p_vfile == NUL {
@@ -4083,7 +4051,7 @@ pub unsafe fn verbose_enter_scroll() {
 }
 
 /// Like verbose_leave() and set cmdline_row when displaying the message.
-pub unsafe fn verbose_leave_scroll() {
+pub fn verbose_leave_scroll() {
     unsafe {
         verbose_leave();
         if *opt_vars().p_vfile == NUL {
@@ -4101,7 +4069,7 @@ pub fn verbose_stop() {
 /// Open the file 'verbosefile'.
 ///
 /// @return  FAIL or OK.
-pub unsafe fn verbose_open() -> c_int {
+pub fn verbose_open() -> c_int {
     unsafe {
         if msg_st().verbose_fd.is_none() && !msg_st().verbose_did_open {
             msg_st().verbose_did_open = true;
@@ -4154,9 +4122,8 @@ pub unsafe fn give_warning(message: *const c_char, hl: bool, hist: bool) {
 }
 
 /// Advance msg cursor to column "col".
-pub unsafe fn msg_advance(mut col: c_int) {
-    unsafe {
-        if g_st().msg_silent != 0 {
+pub fn msg_advance(mut col: c_int) {
+    if g_st().msg_silent != 0 {
             g_st().msg_col = col;
             return;
         }
@@ -4164,11 +4131,10 @@ pub unsafe fn msg_advance(mut col: c_int) {
         while g_st().msg_col < col {
             msg_putchar(b' ' as c_int);
         }
-    }
 }
 
 /// Display the ":confirm" message.  Also called from do_dialog() and when screen resized.
-pub unsafe fn display_confirm_msg() {
+pub fn display_confirm_msg() {
     unsafe {
         msg_st().confirm_msg_used += 1;
         if let Some(ref msg) = dlg_st().confirm_msg {
@@ -4180,7 +4146,7 @@ pub unsafe fn display_confirm_msg() {
 }
 
 /// Only for legacy UI (`!ui_has(kUIMessages)`): Pause to display a message for `ms` milliseconds.
-pub unsafe fn msg_delay(mut ms: u64, ignoreinput: bool) {
+pub fn msg_delay(mut ms: u64, ignoreinput: bool) {
     unsafe {
         if ui_has(kUIMessages) {
             return;
@@ -4210,9 +4176,8 @@ pub unsafe fn msg_delay(mut ms: u64, ignoreinput: bool) {
 }
 
 /// Check if there should be a delay to allow the user to see a message.
-pub unsafe fn msg_check_for_delay(check_msg_scroll: bool) {
-    unsafe {
-        if (g_st().emsg_on_display || (check_msg_scroll && g_st().msg_scroll != 0))
+pub fn msg_check_for_delay(check_msg_scroll: bool) {
+    if (g_st().emsg_on_display || (check_msg_scroll && g_st().msg_scroll != 0))
             && !g_st().did_wait_return
             && g_st().emsg_silent == 0
             && !g_st().in_assert_fails
@@ -4224,7 +4189,6 @@ pub unsafe fn msg_check_for_delay(check_msg_scroll: bool) {
                 g_st().msg_scroll = 0;
             }
         }
-    }
 }
 
 #[cfg(test)]

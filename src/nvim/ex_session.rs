@@ -218,7 +218,7 @@ unsafe fn ses_skipframe(fr: *mut frame_T) -> *mut frame_T {
     }
 }
 
-unsafe fn ses_do_frame(fr: &frame_T) -> bool {
+fn ses_do_frame(fr: &frame_T) -> bool {
     unsafe {
         if fr.fr_layout == FR_LEAF {
             return ses_do_win(&mut *fr.fr_win) != 0;
@@ -234,7 +234,7 @@ unsafe fn ses_do_frame(fr: &frame_T) -> bool {
     }
 }
 
-unsafe fn ses_do_win(wp: &mut win_T) -> c_int {
+fn ses_do_win(wp: &mut win_T) -> c_int {
     unsafe {
         if wp.w_floating {
             return 0;
@@ -1039,7 +1039,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
     }
 }
 
-pub unsafe fn ex_loadview(eap: &mut exarg_T) {
+pub fn ex_loadview(eap: &mut exarg_T) {
     unsafe {
         let Some(fname) = get_view_file(*eap.arg) else {
             return;
@@ -1051,7 +1051,7 @@ pub unsafe fn ex_loadview(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_mkrc(eap: &mut exarg_T) {
+pub fn ex_mkrc(eap: &mut exarg_T) {
     unsafe {
         let mut view_session = false;
         let mut using_vdir = false;
@@ -1217,7 +1217,7 @@ pub unsafe fn ex_mkrc(eap: &mut exarg_T) {
     }
 }
 
-unsafe fn get_view_file(c: c_char) -> Option<CString> {
+fn get_view_file(c: c_char) -> Option<CString> {
     unsafe {
         if (*g_st().curbuf).b_ffname.is_null() {
             emsg(gettext(e_noname.as_ptr()));

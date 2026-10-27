@@ -213,7 +213,7 @@ unsafe fn redraw_for_cursorcolumn(wp: *mut win_T) {
 }
 
 /// Set `wp->w_virtcol` to a value (`vcol`) that is already valid.
-pub unsafe fn set_valid_virtcol(wp: &mut win_T, vcol: colnr_T) {
+pub fn set_valid_virtcol(wp: &mut win_T, vcol: colnr_T) {
     unsafe {
         wp.w_virtcol = vcol;
         redraw_for_cursorcolumn(&raw mut *wp);
@@ -531,7 +531,7 @@ unsafe fn check_top_offset(wp: *mut win_T) -> bool {
 }
 
 /// Update `w_curswant`.
-pub unsafe fn update_curswant_force() {
+pub fn update_curswant_force() {
     unsafe {
         validate_virtcol(*curwin.as_ptr());
         (**curwin.as_ptr()).w_curswant = (**curwin.as_ptr()).w_virtcol;
@@ -540,7 +540,7 @@ pub unsafe fn update_curswant_force() {
 }
 
 /// Update `w_curswant` if `w_set_curswant` is set.
-pub unsafe fn update_curswant() {
+pub fn update_curswant() {
     unsafe {
         if (**curwin.as_ptr()).w_set_curswant {
             update_curswant_force();
@@ -607,7 +607,7 @@ pub unsafe fn changed_window_setting(wp: *mut win_T) {
 }
 
 /// Call `changed_window_setting()` for every window.
-pub unsafe fn changed_window_setting_all() {
+pub fn changed_window_setting_all() {
     unsafe {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
@@ -677,7 +677,7 @@ pub fn changed_cline_bef_curs(wp: &mut win_T) {
 }
 
 /// Call this function when the length of a line above the cursor has changed.
-pub unsafe fn changed_line_abv_curs() {
+pub fn changed_line_abv_curs() {
     unsafe {
         (**curwin.as_ptr()).w_valid &=
             !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL | VALID_CROW | VALID_CHEIGHT | VALID_TOPLINE);
@@ -712,7 +712,7 @@ pub fn approximate_botline_win(wp: &mut win_T) {
 }
 
 /// Return true if `wp->w_wrow` and `wp->w_wcol` are valid.
-pub unsafe fn cursor_valid(wp: &mut win_T) -> c_int {
+pub fn cursor_valid(wp: &mut win_T) -> c_int {
     unsafe {
         check_cursor_moved(&raw mut *wp);
         c_int::from((wp.w_valid & (VALID_WROW | VALID_WCOL)) == (VALID_WROW | VALID_WCOL))
@@ -857,7 +857,7 @@ pub unsafe fn validate_cheight(wp: *mut win_T) {
 }
 
 /// Validate `w_wcol` and `w_virtcol` only.
-pub unsafe fn validate_cursor_col(wp: &mut win_T) {
+pub fn validate_cursor_col(wp: &mut win_T) {
     unsafe {
         validate_virtcol(&raw mut *wp);
 
@@ -1126,7 +1126,7 @@ pub unsafe fn curs_columns(wp: *mut win_T, may_scroll: c_int) {
 }
 
 /// Compute the screen position of text character at `pos` in window `wp`.
-pub unsafe fn textpos2screenpos(
+pub fn textpos2screenpos(
     wp: &mut win_T,
     pos: &mut pos_T,
     rowp: &mut c_int,
@@ -1279,7 +1279,7 @@ pub unsafe fn f_screenpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
 }
 
 /// Convert a virtual (screen) column to a character column (1-based).
-unsafe fn virtcol2col(wp: &mut win_T, lnum: linenr_T, vcol: c_int) -> c_int {
+fn virtcol2col(wp: &mut win_T, lnum: linenr_T, vcol: c_int) -> c_int {
     unsafe {
         let offset = vcol2col(wp, lnum, vcol - 1, ptr::null_mut());
         let line = ml_get_buf(wp.w_buffer, lnum);
@@ -1424,7 +1424,7 @@ unsafe fn cursor_correct_sms(wp: *mut win_T) {
 }
 
 /// Scroll `count` lines up or down, and redraw.
-pub unsafe fn scroll_redraw(up: c_int, count: linenr_T) {
+pub fn scroll_redraw(up: c_int, count: linenr_T) {
     unsafe {
         let prev_topline = (**curwin.as_ptr()).w_topline;
         let prev_skipcol = (**curwin.as_ptr()).w_skipcol;
@@ -1474,7 +1474,7 @@ pub unsafe fn scroll_redraw(up: c_int, count: linenr_T) {
 }
 
 /// Scroll a window down by `line_count` logical lines (`CTRL-Y`).
-pub unsafe fn scrolldown(wp: &mut win_T, line_count: linenr_T, byfold: c_int) -> bool {
+pub fn scrolldown(wp: &mut win_T, line_count: linenr_T, byfold: c_int) -> bool {
     unsafe {
         let mut done: c_int = 0;
         let mut width1: c_int = 0;
@@ -1689,7 +1689,7 @@ pub unsafe fn scrollup(wp: *mut win_T, line_count: linenr_T, byfold: bool) -> bo
 }
 
 /// Make sure that `curwin->w_skipcol` is valid for `'smoothscroll'`.
-pub unsafe fn adjust_skipcol() {
+pub fn adjust_skipcol() {
     unsafe {
         if (**curwin.as_ptr()).w_onebuf_opt.wo_wrap == 0
             || (**curwin.as_ptr()).w_onebuf_opt.wo_sms == 0
@@ -1788,7 +1788,7 @@ pub unsafe fn check_topfill(wp: *mut win_T, down: bool) {
 }
 
 /// Scroll the screen one line down, without moving the cursor off the screen.
-pub unsafe fn scrolldown_clamp() {
+pub fn scrolldown_clamp() {
     unsafe {
         let can_fill = (**curwin.as_ptr()).w_topfill < win_get_fill(*curwin.as_ptr(), (**curwin.as_ptr()).w_topline);
 
@@ -1830,7 +1830,7 @@ pub unsafe fn scrolldown_clamp() {
 }
 
 /// Scroll the screen one line up, without moving the cursor off the screen.
-pub unsafe fn scrollup_clamp() {
+pub fn scrollup_clamp() {
     unsafe {
         if (**curwin.as_ptr()).w_topline == (*g_st().curbuf).b_ml.ml_line_count && (**curwin.as_ptr()).w_topfill == 0 {
             return;
@@ -2365,7 +2365,7 @@ pub unsafe fn scroll_cursor_halfway(wp: *mut win_T, atend: bool, prefer_above: b
 
 /// Correct the cursor position so that it is in a part of the screen at least
 /// `'so'` lines from the top and bottom, if possible.
-pub unsafe fn cursor_correct(wp: &mut win_T) {
+pub fn cursor_correct(wp: &mut win_T) {
     unsafe {
         let mut above_wanted = get_scrolloff_value(&raw mut *wp);
         let mut below_wanted = get_scrolloff_value(&raw mut *wp);
@@ -2439,7 +2439,7 @@ pub unsafe fn cursor_correct(wp: &mut win_T) {
 }
 
 /// Decide how much overlap to use for page-up or page-down scrolling.
-unsafe fn get_scroll_overlap(dir: Direction) -> c_int {
+fn get_scroll_overlap(dir: Direction) -> c_int {
     unsafe {
         let min_height = (**curwin.as_ptr()).w_view_height - 2;
 
@@ -2511,7 +2511,7 @@ unsafe fn get_scroll_overlap(dir: Direction) -> c_int {
 }
 
 /// Scroll `count` lines with `'smoothscroll'` in direction `dir`.
-unsafe fn scroll_with_sms(dir: Direction, mut count: c_int, curscount: &mut c_int) -> bool {
+fn scroll_with_sms(dir: Direction, mut count: c_int, curscount: &mut c_int) -> bool {
     unsafe {
         let prev_sms = (**curwin.as_ptr()).w_onebuf_opt.wo_sms;
         let prev_skipcol = (**curwin.as_ptr()).w_skipcol;
@@ -2549,7 +2549,7 @@ unsafe fn scroll_with_sms(dir: Direction, mut count: c_int, curscount: &mut c_in
 }
 
 /// Move screen `count` (half) pages up (`dir` is `BACKWARD`) or down (`dir` is `FORWARD`).
-pub unsafe fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> c_int {
+pub fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> c_int {
     unsafe {
         let mut did_move = false;
         let buflen = (*g_st().curbuf).b_ml.ml_line_count;
@@ -2647,7 +2647,7 @@ pub unsafe fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> c_int 
     }
 }
 
-pub unsafe fn do_check_cursorbind() {
+pub fn do_check_cursorbind() {
     unsafe {
 struct MoveCursorbindState {
     prev_curwin: *mut win_T,

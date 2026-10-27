@@ -286,7 +286,7 @@ pub unsafe fn reg_empty(reg: *const yankreg_T) -> bool {
 use crate::api::private::helpers::cstr_to_string;
 
 #[inline]
-unsafe fn copy_string_global(s: NvimString) -> NvimString {
+fn copy_string_global(s: NvimString) -> NvimString {
     if s.data.is_null() {
         NvimString {
             data: ptr::null_mut(),
@@ -297,7 +297,7 @@ unsafe fn copy_string_global(s: NvimString) -> NvimString {
     }
 }
 
-pub unsafe fn get_unname_register() -> c_int {
+pub fn get_unname_register() -> c_int {
     unsafe {
         if reg_st().y_previous.is_null() {
             -1
@@ -307,7 +307,7 @@ pub unsafe fn get_unname_register() -> c_int {
     }
 }
 
-pub unsafe fn get_y_register(reg: c_int) -> *mut yankreg_T {
+pub fn get_y_register(reg: c_int) -> *mut yankreg_T {
     unsafe { (&raw mut reg_st().y_regs).cast::<yankreg_T>().add(reg as usize) }
 }
 
@@ -315,23 +315,21 @@ pub fn get_y_previous() -> *mut yankreg_T {
     reg_st().y_previous
 }
 
-pub unsafe fn get_expr_register() -> c_int {
-    unsafe {
-        let Some(new_line) = getcmdline(c_int::from(b'='), 0, 0, true) else {
+pub fn get_expr_register() -> c_int {
+    let Some(new_line) = getcmdline(c_int::from(b'='), 0, 0, true) else {
             return 0;
         };
         if !new_line.as_bytes().is_empty() {
             set_expr_line(Some(new_line));
         }
         c_int::from(b'=')
-    }
 }
 
 pub fn set_expr_line(new_line: Option<std::ffi::CString>) {
     reg_st().expr_line = new_line;
 }
 
-pub unsafe fn get_expr_line() -> Option<std::ffi::CString> {
+pub fn get_expr_line() -> Option<std::ffi::CString> {
     unsafe {
         let expr_copy = reg_st().expr_line.clone()?;
         if reg_st().get_expr_line_nested >= 10 {
@@ -349,7 +347,7 @@ pub fn get_expr_line_src() -> Option<std::ffi::CString> {
     reg_st().expr_line.clone()
 }
 
-pub unsafe fn valid_yank_reg(regname: c_int, writing: bool) -> bool {
+pub fn valid_yank_reg(regname: c_int, writing: bool) -> bool {
     unsafe {
         (regname > 0 && regname <= 0x7f && (regname as u8).is_ascii_alphanumeric())
             || (!writing && !vim_strchr(c"/#.%:=".as_ptr(), regname).is_null())
@@ -361,15 +359,13 @@ pub unsafe fn valid_yank_reg(regname: c_int, writing: bool) -> bool {
     }
 }
 
-pub unsafe fn get_default_register_name() -> c_int {
-    unsafe {
-        let mut name: c_int = 0;
+pub fn get_default_register_name() -> c_int {
+    let mut name: c_int = 0;
         adjust_clipboard_name(&mut name, true, false);
         name
-    }
 }
 
-pub unsafe fn op_reg_iter(
+pub fn op_reg_iter(
     iter: Option<usize>,
     regs: &[yankreg_T],
     name: &mut c_char,
@@ -400,24 +396,22 @@ pub unsafe fn op_reg_iter(
     }
 }
 
-pub unsafe fn op_global_reg_iter(
+pub fn op_global_reg_iter(
     iter: Option<usize>,
     name: &mut c_char,
     reg: &mut *const yankreg_T,
     is_unnamed: &mut bool,
 ) -> Option<usize> {
-    unsafe {
-        op_reg_iter(
+    op_reg_iter(
             iter,
             &reg_st().y_regs,
             name,
             reg,
             is_unnamed,
         )
-    }
 }
 
-pub unsafe fn reg_max_ts(clipboard: bool) -> Timestamp {
+pub fn reg_max_ts(clipboard: bool) -> Timestamp {
     unsafe {
         let mut max_ts: Timestamp = 0;
         let mut iter: Option<usize> = None;
@@ -442,7 +436,7 @@ pub unsafe fn reg_max_ts(clipboard: bool) -> Timestamp {
     }
 }
 
-pub unsafe fn op_reg_set(name: c_char, reg: yankreg_T, is_unnamed: bool) -> bool {
+pub fn op_reg_set(name: c_char, reg: yankreg_T, is_unnamed: bool) -> bool {
     unsafe {
         let i = op_reg_index(c_int::from(name as u8));
         if i == -1 {
@@ -458,7 +452,7 @@ pub unsafe fn op_reg_set(name: c_char, reg: yankreg_T, is_unnamed: bool) -> bool
     }
 }
 
-pub unsafe fn op_reg_get(name: c_char) -> *const yankreg_T {
+pub fn op_reg_get(name: c_char) -> *const yankreg_T {
     unsafe {
         let i = op_reg_index(c_int::from(name as u8));
         if i == -1 {
@@ -468,7 +462,7 @@ pub unsafe fn op_reg_get(name: c_char) -> *const yankreg_T {
     }
 }
 
-pub unsafe fn op_reg_set_previous(name: c_char) -> bool {
+pub fn op_reg_set_previous(name: c_char) -> bool {
     unsafe {
         let i = op_reg_index(c_int::from(name as u8));
         if i == -1 {
@@ -494,7 +488,7 @@ pub unsafe fn update_yankreg_width(reg: *mut yankreg_T) {
     }
 }
 
-pub unsafe fn get_yank_register(regname: c_int, mode: c_int) -> *mut yankreg_T {
+pub fn get_yank_register(regname: c_int, mode: c_int) -> *mut yankreg_T {
     unsafe {
         let mut reg: *mut yankreg_T = ptr::null_mut();
 
@@ -540,7 +534,7 @@ pub unsafe fn yank_register_mline(regname: c_int, reg: *mut *mut yankreg_T) -> b
     }
 }
 
-pub unsafe fn copy_register(name: c_int) -> yankreg_T {
+pub fn copy_register(name: c_int) -> yankreg_T {
     unsafe {
         let reg = &*get_yank_register(name, YREG_PASTE);
         let y_array = reg.y_array.iter().map(|&s| copy_string_global(s)).collect();
@@ -586,7 +580,7 @@ unsafe fn stuff_yank(regname: c_int, p: *const c_char) -> c_int {
     }
 }
 
-pub unsafe fn do_record(c: c_int) -> c_int {
+pub fn do_record(c: c_int) -> c_int {
     unsafe {
         let retval: c_int;
 
@@ -681,7 +675,7 @@ unsafe fn put_in_typebuf(s: *mut c_char, esc: bool, colon: bool, silent: c_int) 
     }
 }
 
-unsafe fn put_reedit_in_typebuf(silent: c_int) {
+fn put_reedit_in_typebuf(silent: c_int) {
     unsafe {
         if g_st().restart_edit == 0 {
             return;
@@ -752,7 +746,7 @@ unsafe fn execreg_line_continuation(lines: *mut NvimString, idx: &mut usize) -> 
     }
 }
 
-pub unsafe fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int) -> c_int {
+pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int) -> c_int {
     unsafe {
         let mut retval = OK;
 
@@ -1054,7 +1048,7 @@ pub unsafe fn get_spec_reg(
     }
 }
 
-pub unsafe fn cmdline_paste_reg(regname: c_int, literally_arg: bool, remcr: bool) -> bool {
+pub fn cmdline_paste_reg(regname: c_int, literally_arg: bool, remcr: bool) -> bool {
     unsafe {
         let literally = literally_arg || is_literal_register(regname);
 
@@ -1079,7 +1073,7 @@ pub unsafe fn cmdline_paste_reg(regname: c_int, literally_arg: bool, remcr: bool
     }
 }
 
-pub unsafe fn shift_delete_registers(y_append: bool) {
+pub fn shift_delete_registers(y_append: bool) {
     unsafe {
         let regs = (&raw mut reg_st().y_regs).cast::<yankreg_T>();
         *regs.add(9) = EMPTY_YANKREG;
@@ -1094,7 +1088,7 @@ pub unsafe fn shift_delete_registers(y_append: bool) {
     }
 }
 
-pub unsafe fn clear_registers() {
+pub fn clear_registers() {
     unsafe {
         let regs = (&raw mut reg_st().y_regs).cast::<yankreg_T>();
         for i in 0..NUM_REGISTERS {
@@ -1388,7 +1382,7 @@ unsafe fn add_regtype_to_dict(
     }
 }
 
-pub unsafe fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
+pub fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
     unsafe {
         if reg_st().textyankpost_recursive || !has_event(EVENT_TEXTYANKPOST) {
             return;
@@ -1548,7 +1542,7 @@ unsafe fn put_do_autocmd(
     }
 }
 
-pub unsafe fn op_yank(oap: &mut oparg_T, message: bool) -> bool {
+pub fn op_yank(oap: &mut oparg_T, message: bool) -> bool {
     unsafe {
         if oap.regname != 0 && !valid_yank_reg(oap.regname, true) {
             beep_flush();
@@ -2528,7 +2522,7 @@ unsafe fn dis_msg(mut p: *const c_char, skip_esc: bool) {
     }
 }
 
-pub unsafe fn ex_display(eap: &mut exarg_T) {
+pub fn ex_display(eap: &mut exarg_T) {
     unsafe {
         let mut arg = eap.arg;
         if !arg.is_null() && *arg == NUL {
@@ -2716,7 +2710,7 @@ pub unsafe fn get_reg_type(regname: c_int, reg_width: *mut colnr_T) -> MotionTyp
     }
 }
 
-unsafe fn get_reg_wrap_one_line_list(s: Option<std::ffi::CString>) -> *mut list_T {
+fn get_reg_wrap_one_line_list(s: Option<std::ffi::CString>) -> *mut list_T {
     unsafe {
         let Some(s) = s else {
             return ptr::null_mut();
@@ -2727,7 +2721,7 @@ unsafe fn get_reg_wrap_one_line_list(s: Option<std::ffi::CString>) -> *mut list_
     }
 }
 
-pub unsafe fn get_reg_contents_str(mut regname: c_int, flags: c_int) -> Option<std::ffi::CString> {
+pub fn get_reg_contents_str(mut regname: c_int, flags: c_int) -> Option<std::ffi::CString> {
     unsafe {
         if regname == c_int::from(b'=') {
             if (flags & kGRegNoExpr) != 0 {
@@ -2783,7 +2777,7 @@ pub unsafe fn get_reg_contents_str(mut regname: c_int, flags: c_int) -> Option<s
     }
 }
 
-pub unsafe fn get_reg_contents_list(mut regname: c_int, flags: c_int) -> *mut list_T {
+pub fn get_reg_contents_list(mut regname: c_int, flags: c_int) -> *mut list_T {
     unsafe {
         if regname == c_int::from(b'=') {
             if (flags & kGRegNoExpr) != 0 {
@@ -3105,7 +3099,7 @@ pub unsafe fn write_reg_contents_ex(
     }
 }
 
-pub unsafe fn prepare_yankreg_from_object(
+pub fn prepare_yankreg_from_object(
     reg: &mut yankreg_T,
     regtype: NvimString,
     _lines: usize,
@@ -3146,7 +3140,7 @@ pub unsafe fn prepare_yankreg_from_object(
     }
 }
 
-pub unsafe fn finish_yankreg_from_object(reg: &mut yankreg_T, clipboard_adjust: bool) {
+pub fn finish_yankreg_from_object(reg: &mut yankreg_T, clipboard_adjust: bool) {
     unsafe {
         let reg_ref = &mut *reg;
         if reg_ref.y_array.last().is_some_and(|last| last.size == 0) {

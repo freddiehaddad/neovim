@@ -201,7 +201,7 @@ fn nfa_st() -> &'static mut RegexpNfaState {
 }
 
 #[inline]
-unsafe fn EMIT(c: c_int) {
+fn EMIT(c: c_int) {
     unsafe {
         let pv = &raw mut re_st().post_vec;
         (*pv).push(c);
@@ -209,11 +209,9 @@ unsafe fn EMIT(c: c_int) {
 }
 
 #[inline]
-unsafe fn EMIT2(c: c_int) {
-    unsafe {
-        EMIT(c);
+fn EMIT2(c: c_int) {
+    EMIT(c);
         EMIT(NFA_CONCAT);
-    }
 }
 
 unsafe fn nfa_regcomp_start(expr: *mut u8, re_flags: c_int) {
@@ -300,7 +298,7 @@ fn nfa_get_regstart(states: &[nfa_state_T], start: Option<usize>, depth: c_int) 
     0
 }
 
-unsafe fn nfa_get_match_text(
+fn nfa_get_match_text(
     states: &[nfa_state_T],
     start: Option<usize>,
 ) -> Option<std::ffi::CString> {
@@ -387,9 +385,8 @@ unsafe fn nfa_recognize_char_class(start: *mut u8, end: *const u8, mut extra_new
 }
 
 #[rustfmt::skip]
-unsafe fn nfa_emit_equi_class(c: c_int) {
-    unsafe {
-        match c {
+fn nfa_emit_equi_class(c: c_int) {
+    match c {
             0x41 | 0xc0 | 0xc1 | 0xc2 | 0xc3 | 0xc4 | 0xc5 | 0x100 | 0x102 | 0x104 | 0x1cd
             | 0x1de | 0x1e0 | 0x1fa | 0x200 | 0x202 | 0x226 | 0x23a | 0x1e00 | 0x1ea0 | 0x1ea2
             | 0x1ea4 | 0x1ea6 | 0x1ea8 | 0x1eaa | 0x1eac | 0x1eae | 0x1eb0 | 0x1eb2 | 0x1eb4
@@ -820,10 +817,9 @@ unsafe fn nfa_emit_equi_class(c: c_int) {
             _ => {}
         }
         EMIT2(c);
-    }
 }
 
-unsafe fn nfa_regatom() -> c_int {
+fn nfa_regatom() -> c_int {
     unsafe {
         let mut old_regparse = re_st().regparse.cast::<u8>();
         let mut extra: c_int = 0;
@@ -1103,7 +1099,7 @@ unsafe fn nfa_regatom() -> c_int {
 }
 
 #[inline(never)]
-unsafe fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int {
+fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int {
     unsafe {
         match c as u8 {
             b'd' | b'o' | b'x' | b'u' | b'U' => {
@@ -1313,7 +1309,7 @@ unsafe fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int 
 }
 
 #[inline(never)]
-unsafe fn nfa_regatom_collection(
+fn nfa_regatom_collection(
     old_regparse: &mut *mut u8,
     extra: &mut c_int,
     startc: &mut c_int,
@@ -1557,7 +1553,7 @@ unsafe fn nfa_regatom_collection(
     }
 }
 
-unsafe fn nfa_regpiece() -> c_int {
+fn nfa_regpiece() -> c_int {
     unsafe {
         let mut old_state = parse_state_T::new();
 
@@ -1579,7 +1575,7 @@ unsafe fn nfa_regpiece() -> c_int {
 }
 
 #[inline(never)]
-unsafe fn nfa_regpiece_multi(
+fn nfa_regpiece_multi(
     op: c_int,
     old_state: &mut parse_state_T,
     my_post_start: usize,
@@ -1711,9 +1707,8 @@ unsafe fn nfa_regpiece_multi(
     }
 }
 
-unsafe fn nfa_regconcat() -> c_int {
-    unsafe {
-        let mut cont = true;
+fn nfa_regconcat() -> c_int {
+    let mut cont = true;
         let mut first = true;
 
         while cont {
@@ -1762,10 +1757,9 @@ unsafe fn nfa_regconcat() -> c_int {
         }
 
         OK
-    }
 }
 
-unsafe fn nfa_regbranch() -> c_int {
+fn nfa_regbranch() -> c_int {
     unsafe {
         let pv = &raw const re_st().post_vec;
         let mut old_post_pos = (*pv).len();
@@ -1795,7 +1789,7 @@ unsafe fn nfa_regbranch() -> c_int {
     }
 }
 
-unsafe fn nfa_reg(paren: c_int) -> c_int {
+fn nfa_reg(paren: c_int) -> c_int {
     unsafe {
         let mut parno: c_int = 0;
 
@@ -1890,14 +1884,12 @@ unsafe fn nfa_reg(paren: c_int) -> c_int {
     }
 }
 
-unsafe fn re2post() -> bool {
-    unsafe {
-        if nfa_reg(REG_NOPAREN) == FAIL {
+fn re2post() -> bool {
+    if nfa_reg(REG_NOPAREN) == FAIL {
             return false;
         }
         EMIT(NFA_MOPEN);
         true
-    }
 }
 
 fn alloc_state(
@@ -1948,9 +1940,8 @@ unsafe fn st_error(_postfix: *mut c_int, _end: *mut c_int, _p: *mut c_int) {
     }
 }
 
-unsafe fn nfa_max_width(states: &[nfa_state_T], startstate: Option<usize>, depth: c_int) -> c_int {
-    unsafe {
-        let mut state = startstate;
+fn nfa_max_width(states: &[nfa_state_T], startstate: Option<usize>, depth: c_int) -> c_int {
+    let mut state = startstate;
         let mut len: c_int = 0;
 
         if depth > 4 {
@@ -2045,7 +2036,6 @@ unsafe fn nfa_max_width(states: &[nfa_state_T], startstate: Option<usize>, depth
             state = st.out;
         }
         -1
-    }
 }
 
 unsafe fn post2nfa(
@@ -2975,7 +2965,7 @@ unsafe fn addstate_here(
     }
 }
 
-unsafe fn check_char_class(cls: c_int, c: c_int) -> c_int {
+fn check_char_class(cls: c_int, c: c_int) -> c_int {
     unsafe {
         match cls {
             NFA_CLASS_ALNUM => {
@@ -3082,7 +3072,7 @@ unsafe fn check_char_class(cls: c_int, c: c_int) -> c_int {
     }
 }
 
-unsafe fn match_backref(sub: &mut regsub_T, subidx: c_int, bytelen: &mut c_int) -> bool {
+fn match_backref(sub: &mut regsub_T, subidx: c_int, bytelen: &mut c_int) -> bool {
     unsafe {
         if sub.in_use <= subidx {
             *bytelen = 0;
@@ -3132,7 +3122,7 @@ unsafe fn match_backref(sub: &mut regsub_T, subidx: c_int, bytelen: &mut c_int) 
     }
 }
 
-unsafe fn match_zref(subidx: c_int, bytelen: &mut c_int) -> bool {
+fn match_zref(subidx: c_int, bytelen: &mut c_int) -> bool {
     unsafe {
         cleanup_zsubexpr();
         let idx = subidx as usize;
@@ -3362,7 +3352,7 @@ fn failure_chance(states: &[nfa_state_T], state: Option<usize>, depth: c_int) ->
     }
 }
 
-unsafe fn skip_to_start(c: c_int, colp: &mut colnr_T) -> c_int {
+fn skip_to_start(c: c_int, colp: &mut colnr_T) -> c_int {
     unsafe {
         let s = cstrchr(re_st().rex.line.add(*colp as usize).cast(), c);
         if s.is_null() {
@@ -3418,7 +3408,7 @@ unsafe fn find_match_text(startcol: &mut colnr_T, regstart: c_int, match_text: *
     }
 }
 
-unsafe fn match_composing(
+fn match_composing(
     states: &[nfa_state_T],
     mut sta: Option<usize>,
     curc: c_int,
@@ -3477,7 +3467,7 @@ unsafe fn match_composing(
     }
 }
 
-unsafe fn nfa_did_time_out() -> bool {
+fn nfa_did_time_out() -> bool {
     unsafe {
         if nfa_st().nfa_time_limit.is_some_and(profile_passed_limit) {
             if !nfa_st().nfa_timed_out.is_null() {
@@ -4774,7 +4764,7 @@ unsafe fn nfa_regexec_both(
     }
 }
 
-unsafe fn finish_nfa_regexec(retval: c_int, col: colnr_T) -> c_int {
+fn finish_nfa_regexec(retval: c_int, col: colnr_T) -> c_int {
     unsafe {
         if retval > 0 {
             if REG_MULTI() {
@@ -4852,7 +4842,7 @@ pub(super) unsafe fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> Option<nfa_r
     }
 }
 
-unsafe fn cleanup_nfa_regcomp(prog: Option<nfa_regprog_T>) -> Option<nfa_regprog_T> {
+fn cleanup_nfa_regcomp(prog: Option<nfa_regprog_T>) -> Option<nfa_regprog_T> {
     unsafe {
         let pv = &raw mut re_st().post_vec;
         if (*pv).capacity() > NFA_POSTFIX_KEEP {

@@ -46,7 +46,7 @@ pub(crate) const kOptIskeyword: OptIndex = 155;
 use crate::eval::funcs::kSpecialVarNull;
 
 /// `:help`: open a read-only window on a help file (`ex_help`).
-pub unsafe fn ex_help(eap: &mut exarg_T) {
+pub fn ex_help(eap: &mut exarg_T) {
     unsafe {
         let mut arg: *mut c_char;
         let mut wp: *mut win_T;
@@ -259,7 +259,7 @@ pub unsafe fn ex_help(eap: &mut exarg_T) {
 }
 
 /// `:helpclose`: Close one help window (`ex_helpclose`).
-pub unsafe fn ex_helpclose(eap: &mut exarg_T) {
+pub fn ex_helpclose(eap: &mut exarg_T) {
     unsafe {
         let mut win = g_st().firstwin;
         while !win.is_null() {
@@ -323,7 +323,7 @@ pub unsafe fn help_heuristic(
     }
 }
 
-unsafe fn help_compare(str1: &[c_char], str2: &[c_char]) -> std::cmp::Ordering {
+fn help_compare(str1: &[c_char], str2: &[c_char]) -> std::cmp::Ordering {
     unsafe {
         let p1 = str1.as_ptr();
         let p2 = str2.as_ptr();
@@ -400,7 +400,7 @@ pub unsafe fn find_help_tags(
 }
 
 /// Cleanup matches for help tags (`cleanup_help_tags`).
-pub unsafe fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
+pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
     unsafe {
         let mut buf = [0u8; 3];
         let has_default_lang =
@@ -450,7 +450,7 @@ pub unsafe fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
 }
 
 /// Called when starting to edit a buffer for a help file (`prepare_help_buffer`).
-pub unsafe fn prepare_help_buffer() {
+pub fn prepare_help_buffer() {
     unsafe {
         (*g_st().curbuf).b_help = true;
         set_option_direct(kOptBuftype, cstr_as_obj(c"help".as_ptr()), OPT_LOCAL, 0);
@@ -489,7 +489,7 @@ pub unsafe fn prepare_help_buffer() {
 }
 
 /// Populate `*local-additions*` in `help.txt` (`get_local_additions`).
-pub unsafe fn get_local_additions() {
+pub fn get_local_additions() {
     unsafe {
         let mut no_args = [typval_T {
             v_type: VarType::VAR_UNKNOWN,
@@ -506,21 +506,21 @@ pub unsafe fn get_local_additions() {
 }
 
 /// `:exusage` (`ex_exusage`).
-pub unsafe fn ex_exusage(_eap: &mut exarg_T) {
+pub fn ex_exusage(_eap: &mut exarg_T) {
     unsafe {
         do_cmdline_cmd(c"help ex-cmd-index".as_ptr());
     }
 }
 
 /// `:viusage` (`ex_viusage`).
-pub unsafe fn ex_viusage(_eap: &mut exarg_T) {
+pub fn ex_viusage(_eap: &mut exarg_T) {
     unsafe {
         do_cmdline_cmd(c"help normal-index".as_ptr());
     }
 }
 
 /// `:helptags` (`ex_helptags`).
-pub unsafe fn ex_helptags(eap: &mut exarg_T) {
+pub fn ex_helptags(eap: &mut exarg_T) {
     unsafe {
         let mut add_help_tags = false;
 

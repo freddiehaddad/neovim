@@ -849,7 +849,7 @@ unsafe fn get_line_number_attr(wp: *mut win_T, wlv: &mut winlinevars_T) -> c_int
     }
 }
 
-unsafe fn draw_lnum_col(wp: &mut win_T, wlv: &mut winlinevars_T) {
+fn draw_lnum_col(wp: &mut win_T, wlv: &mut winlinevars_T) {
     unsafe {
         let has_cpo_n = !vim_strchr(opt_vars().p_cpo, kCpoNumcol).is_null();
 
@@ -1052,15 +1052,13 @@ unsafe fn draw_statuscol(
     }
 }
 
-unsafe fn attr_has_line_deco(attr: c_int) -> bool {
-    unsafe {
-        let ae = syn_attr2entry(attr);
+fn attr_has_line_deco(attr: c_int) -> bool {
+    let ae = syn_attr2entry(attr);
         let mask: i32 = HL_UNDERLINE_MASK | HL_STRIKETHROUGH | HL_OVERLINE;
         (ae.rgb_ae_attr & mask) != 0 || (ae.cterm_ae_attr & mask) != 0
-    }
 }
 
-unsafe fn handle_breakindent(wp: &mut win_T, wlv: &mut winlinevars_T, gap_decor_attr: c_int) {
+fn handle_breakindent(wp: &mut win_T, wlv: &mut winlinevars_T, gap_decor_attr: c_int) {
     unsafe {
         if wp.w_onebuf_opt.wo_bri != 0
             && (wlv.row > wlv.startrow + wlv.filler_lines || wlv.need_showbreak)
@@ -1112,7 +1110,7 @@ unsafe fn handle_breakindent(wp: &mut win_T, wlv: &mut winlinevars_T, gap_decor_
     }
 }
 
-unsafe fn handle_showbreak_and_filler(
+fn handle_showbreak_and_filler(
     wp: &mut win_T,
     wlv: &mut winlinevars_T,
     gap_decor_attr: c_int,
@@ -1161,7 +1159,7 @@ unsafe fn handle_showbreak_and_filler(
     }
 }
 
-unsafe fn apply_cursorline_highlight(wp: &mut win_T, wlv: &mut winlinevars_T) {
+fn apply_cursorline_highlight(wp: &mut win_T, wlv: &mut winlinevars_T) {
     unsafe {
         wlv.cul_attr = win_hl_attr(&raw mut *wp, HLF_CUL);
         let ae = syn_attr2entry(wlv.cul_attr);
@@ -1194,7 +1192,7 @@ unsafe fn set_line_attr_for_diff(wp: *mut win_T, wlv: &mut winlinevars_T) {
     }
 }
 
-unsafe fn has_more_inline_virt(wlv: &winlinevars_T, v: isize) -> bool {
+fn has_more_inline_virt(wlv: &winlinevars_T, v: isize) -> bool {
     unsafe {
         if wlv.virt_inline_i < wlv.virt_inline.len() {
             return true;
@@ -1356,7 +1354,7 @@ fn get_rightmost_vcol(wp: &mut win_T, color_cols: &[c_int]) -> c_int {
 }
 
 /// Display line "lnum" of window "wp" on the screen.
-pub unsafe fn win_line(
+pub fn win_line(
     wp: &mut win_T,
     lnum: linenr_T,
     startrow: c_int,
@@ -3665,7 +3663,7 @@ pub unsafe fn win_line(
     }
 }
 
-unsafe fn wlv_put_linebuf(
+fn wlv_put_linebuf(
     wp: &mut win_T,
     wlv: &winlinevars_T,
     mut endcol: c_int,
@@ -3739,7 +3737,7 @@ unsafe fn wlv_put_linebuf(
     }
 }
 
-unsafe fn decor_providers_setup(
+fn decor_providers_setup(
     rows_to_draw: c_int,
     draw_from_line_start: bool,
     lnum: linenr_T,
@@ -3764,7 +3762,7 @@ unsafe fn decor_providers_setup(
     }
 }
 
-unsafe fn invoke_range_next(
+fn invoke_range_next(
     wp: &mut win_T,
     lnum: c_int,
     begin_col: colnr_T,

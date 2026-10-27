@@ -290,11 +290,9 @@ pub fn os_attach_parent_console() {
 
 #[cfg(windows)]
 pub fn os_detach_ui_console(stdio_ui: bool) {
-    unsafe {
-        if stdio_ui || (wincon_st().CONSOLE_INHERITED && ui_active() == 0) {
+    if stdio_ui || (wincon_st().CONSOLE_INHERITED && ui_active() == 0) {
             os_swap_to_hidden_console();
         }
-    }
 }
 
 #[cfg(windows)]

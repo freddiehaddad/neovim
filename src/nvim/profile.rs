@@ -221,7 +221,7 @@ pub fn profile_end(tm: proftime_T) -> proftime_T {
 }
 
 /// Gets a static string representing time `tm` (`profile_msg`).
-pub unsafe fn profile_msg(tm: proftime_T) -> *const c_char {
+pub fn profile_msg(tm: proftime_T) -> *const c_char {
     let secs = (profile_signed(tm) as f64) / NS_PER_SEC;
     let formatted = format!("{secs:10.6}");
     let bytes = formatted.as_bytes();
@@ -330,7 +330,7 @@ pub const fn profile_cmp(tm1: proftime_T, tm2: proftime_T) -> c_int {
 }
 
 /// Reset all profiling information (`profile_reset`).
-pub unsafe fn profile_reset() {
+pub fn profile_reset() {
     unsafe {
         for id in 1..=crate::runtime::script_items_len() {
             let si = &mut *script_item(id);
@@ -380,7 +380,7 @@ pub unsafe fn profile_reset() {
 }
 
 /// `":profile cmd args"` (`ex_profile`).
-pub unsafe fn ex_profile(eap: &mut exarg_T) {
+pub fn ex_profile(eap: &mut exarg_T) {
     unsafe {
         let arg = eap.arg;
         let mut e = skiptowhite(arg);
@@ -466,7 +466,7 @@ pub fn prof_input_end() {
 }
 
 /// Returns `true` when a function defined in the current script should be profiled (`prof_def_func`).
-pub unsafe fn prof_def_func() -> bool {
+pub fn prof_def_func() -> bool {
     unsafe {
         if g_st().current_sctx.sc_sid > 0 {
             (*script_item(g_st().current_sctx.sc_sid)).sn_pr_force
@@ -533,11 +533,11 @@ unsafe fn prof_sort_list(
     }
 }
 
-unsafe fn prof_total_cmp(&s1: &*mut ufunc_T, &s2: &*mut ufunc_T) -> std::cmp::Ordering {
+fn prof_total_cmp(&s1: &*mut ufunc_T, &s2: &*mut ufunc_T) -> std::cmp::Ordering {
     unsafe { profile_cmp((*s1).uf_tm_total, (*s2).uf_tm_total).cmp(&0) }
 }
 
-unsafe fn prof_self_cmp(&s1: &*mut ufunc_T, &s2: &*mut ufunc_T) -> std::cmp::Ordering {
+fn prof_self_cmp(&s1: &*mut ufunc_T, &s2: &*mut ufunc_T) -> std::cmp::Ordering {
     unsafe { profile_cmp((*s1).uf_tm_self, (*s2).uf_tm_self).cmp(&0) }
 }
 
@@ -603,7 +603,7 @@ pub unsafe fn prof_child_exit(tm: *mut proftime_T) {
 }
 
 /// Called when starting to read a function line (`func_line_start`).
-pub unsafe fn func_line_start(fcp: &mut funccall_T) {
+pub fn func_line_start(fcp: &mut funccall_T) {
     unsafe {
         let fp = &mut *fcp.fc_func;
         let slnum = sourcing_lnum();
@@ -622,7 +622,7 @@ pub unsafe fn func_line_start(fcp: &mut funccall_T) {
 }
 
 /// Called when actually executing a function line (`func_line_exec`).
-pub unsafe fn func_line_exec(fcp: &mut funccall_T) {
+pub fn func_line_exec(fcp: &mut funccall_T) {
     let fp = unsafe { &mut *fcp.fc_func };
     if fp.uf_profiling != 0 && fp.uf_tml_idx >= 0 {
         fp.uf_tml_execed = 1;
@@ -630,7 +630,7 @@ pub unsafe fn func_line_exec(fcp: &mut funccall_T) {
 }
 
 /// Called when done with a function line (`func_line_end`).
-pub unsafe fn func_line_end(fcp: &mut funccall_T) {
+pub fn func_line_end(fcp: &mut funccall_T) {
     let fp = unsafe { &mut *fcp.fc_func };
 
     if fp.uf_profiling != 0 && fp.uf_tml_idx >= 0 {
@@ -843,7 +843,7 @@ unsafe fn script_dump_profile(fd: *mut FILE) {
 }
 
 /// Dump the profiling info (`profile_dump`).
-pub unsafe fn profile_dump() {
+pub fn profile_dump() {
     unsafe {
         let Some(ref profile_fname) = prof_st().PROFILE_FNAME else {
             return;
@@ -861,7 +861,7 @@ pub unsafe fn profile_dump() {
 }
 
 /// Called when starting to read a script line (`script_line_start`).
-pub unsafe fn script_line_start() {
+pub fn script_line_start() {
     unsafe {
         if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;
@@ -889,7 +889,7 @@ pub unsafe fn script_line_start() {
 }
 
 /// Called when actually executing a script line (`script_line_exec`).
-pub unsafe fn script_line_exec() {
+pub fn script_line_exec() {
     unsafe {
         if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;
@@ -902,7 +902,7 @@ pub unsafe fn script_line_exec() {
 }
 
 /// Called when done with a script line (`script_line_end`).
-pub unsafe fn script_line_end() {
+pub fn script_line_end() {
     unsafe {
         if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;
@@ -943,7 +943,7 @@ pub fn time_pop(tp: proftime_T) {
     prof_st().G_PREV_TIME = prof_st().G_PREV_TIME.wrapping_sub(tp);
 }
 
-unsafe fn time_diff(then: proftime_T, now: proftime_T) {
+fn time_diff(then: proftime_T, now: proftime_T) {
     let diff = profile_sub(now, then);
     let s = format!("{:07.3}\0", (diff as f64) / 1.0e6);
     unsafe {
@@ -1038,7 +1038,7 @@ pub unsafe fn time_init(fname: *const c_char, proc_name: *const c_char) {
 }
 
 /// Flushes the startuptimes to disk for the current process (`time_finish`).
-pub unsafe fn time_finish() {
+pub fn time_finish() {
     unsafe {
         if !has_time_fd() {
             return;

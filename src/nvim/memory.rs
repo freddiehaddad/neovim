@@ -90,7 +90,7 @@ fn layout_with_header(size: usize) -> Option<std::alloc::Layout> {
 }
 
 #[inline]
-unsafe fn sys_malloc(size: usize) -> *mut u8 {
+fn sys_malloc(size: usize) -> *mut u8 {
     let Some(layout) = layout_with_header(size) else {
         return std::ptr::null_mut();
     };
@@ -118,7 +118,7 @@ pub unsafe fn raw_dealloc(ptr: *mut c_void) {
 }
 
 #[inline]
-unsafe fn sys_calloc(count: usize, size: usize) -> *mut u8 {
+fn sys_calloc(count: usize, size: usize) -> *mut u8 {
     let Some(byte_size) = count.checked_mul(size) else {
         return std::ptr::null_mut();
     };
@@ -138,7 +138,7 @@ unsafe fn sys_calloc(count: usize, size: usize) -> *mut u8 {
 #[inline]
 unsafe fn sys_realloc(ptr: *mut c_void, size: usize) -> *mut u8 {
     if ptr.is_null() {
-        return unsafe { sys_malloc(size) };
+        return sys_malloc(size);
     }
     let Some(new_layout) = layout_with_header(size) else {
         return std::ptr::null_mut();
@@ -156,9 +156,8 @@ unsafe fn sys_realloc(ptr: *mut c_void, size: usize) -> *mut u8 {
     }
 }
 
-unsafe fn try_to_free_memory() {
-    unsafe {
-        if mem_st().TRYING_TO_FREE {
+fn try_to_free_memory() {
+    if mem_st().TRYING_TO_FREE {
             return;
         }
         mem_st().TRYING_TO_FREE = true;
@@ -168,15 +167,14 @@ unsafe fn try_to_free_memory() {
         arena_free_reuse_blks();
 
         mem_st().TRYING_TO_FREE = false;
-    }
 }
 
-unsafe fn out_of_memory_exit() -> ! {
+fn out_of_memory_exit() -> ! {
     unsafe { preserve_exit(e_outofmem.as_ptr()) }
 }
 
 /// Free all cached reusable arena blocks (`arena_free_reuse_blks`).
-pub unsafe fn arena_free_reuse_blks() {
+pub fn arena_free_reuse_blks() {
     unsafe {
         while mem_st().ARENA_REUSE_COUNT > 0 {
             let blk = mem_st().ARENA_REUSE_HEAD;
@@ -188,43 +186,39 @@ pub unsafe fn arena_free_reuse_blks() {
 }
 
 /// Allocate `size` bytes via `std::alloc`, retrying after freeing caches (`try_malloc`).
-pub unsafe fn try_malloc(size: usize) -> *mut c_void {
+pub fn try_malloc(size: usize) -> *mut c_void {
     let allocated_size = size.max(1);
-    let mut ret = unsafe { sys_malloc(allocated_size) };
+    let mut ret = sys_malloc(allocated_size);
     if ret.is_null() {
-        unsafe {
-            try_to_free_memory();
+        try_to_free_memory();
             ret = sys_malloc(allocated_size);
-        }
     }
     ret.cast::<c_void>()
 }
 
 /// Allocate `size` bytes via `std::alloc` (never returns null).
-pub unsafe fn raw_alloc(size: usize) -> *mut c_void {
-    let ret = unsafe { try_malloc(size) };
+pub fn raw_alloc(size: usize) -> *mut c_void {
+    let ret = try_malloc(size);
     if ret.is_null() {
-        unsafe { out_of_memory_exit() }
+        out_of_memory_exit()
     }
     ret
 }
 
 /// Zero-initialized allocation via `std::alloc` (never returns null).
-pub unsafe fn raw_calloc(count: usize, size: usize) -> *mut c_void {
+pub fn raw_calloc(count: usize, size: usize) -> *mut c_void {
     let (allocated_count, allocated_size) = if count != 0 && size != 0 {
         (count, size)
     } else {
         (1, 1)
     };
-    let mut ret = unsafe { sys_calloc(allocated_count, allocated_size) };
+    let mut ret = sys_calloc(allocated_count, allocated_size);
     if ret.is_null() {
-        unsafe {
-            try_to_free_memory();
+        try_to_free_memory();
             ret = sys_calloc(allocated_count, allocated_size);
             if ret.is_null() {
                 out_of_memory_exit();
             }
-        }
     }
     ret.cast::<c_void>()
 }
@@ -264,7 +258,7 @@ pub unsafe fn alloc_cstring_len(data: *const c_char, len: usize) -> *mut c_char 
             preserve_exit(c"Nvim: Data too large to fit into virtual memory space\n".as_ptr());
         }
     };
-    let ret = unsafe { raw_alloc(total_size).cast::<u8>() };
+    let ret = raw_alloc(total_size).cast::<u8>();
     if len > 0 {
         unsafe {
             std::ptr::copy_nonoverlapping(data.cast::<u8>(), ret, len);
@@ -369,7 +363,7 @@ pub unsafe fn arena_finish(arena: *mut Arena) -> ArenaMem {
 }
 
 /// Allocate a `ARENA_BLOCK_SIZE` block (`alloc_block`).
-pub unsafe fn alloc_block() -> *mut c_char {
+pub fn alloc_block() -> *mut c_char {
     unsafe {
         if mem_st().ARENA_REUSE_COUNT > 0 {
             let retval = mem_st().ARENA_REUSE_HEAD.cast::<c_char>();
@@ -387,7 +381,7 @@ pub unsafe fn alloc_block() -> *mut c_char {
 pub unsafe fn arena_alloc_block(arena: *mut Arena) {
     let a = unsafe { &mut *arena };
     let prev_blk = a.cur_blk.cast::<ConsumedBlk>();
-    a.cur_blk = unsafe { alloc_block() };
+    a.cur_blk = alloc_block();
     a.pos = 0;
     a.size = ARENA_BLOCK_SIZE;
     let blk = unsafe {
@@ -411,7 +405,7 @@ const fn arena_align_offset(off: usize) -> usize {
 /// Allocate `size` bytes from `arena` (or via `raw_alloc` if `arena` is null) (`arena_alloc`).
 pub unsafe fn arena_alloc(arena: *mut Arena, size: usize, align: bool) -> *mut c_void {
     if arena.is_null() {
-        return unsafe { raw_alloc(size) };
+        return raw_alloc(size);
     }
     let a = unsafe { &mut *arena };
     if a.cur_blk.is_null() {
@@ -433,7 +427,7 @@ pub unsafe fn arena_alloc(arena: *mut Arena, size: usize, align: bool) -> *mut c
             } else {
                 hdr_size
             };
-            let alloc = unsafe { raw_alloc(size + aligned_hdr_size).cast::<u8>() };
+            let alloc = raw_alloc(size + aligned_hdr_size).cast::<u8>();
             unsafe {
                 let cur_blk = a.cur_blk.cast::<ConsumedBlk>();
                 let fix_blk = alloc.cast::<ConsumedBlk>();
@@ -476,7 +470,7 @@ pub unsafe fn free_block(block: *mut c_char) {
 }
 
 /// Free all blocks belonging to `mem` (`arena_mem_free`).
-pub unsafe fn arena_mem_free(mem: ArenaMem) {
+pub fn arena_mem_free(mem: ArenaMem) {
     let mut b = mem;
     if !b.is_null() {
         let reuse_blk = b;
@@ -521,7 +515,7 @@ pub unsafe fn arena_strdup(arena: *mut Arena, str_ptr: *const c_char) -> *mut c_
 }
 
 /// Free everything that we allocated (`free_all_mem`).
-pub unsafe fn free_all_mem() {
+pub fn free_all_mem() {
     use crate::api::extmark::api_extmark_free_all_mem;
     use crate::arglist::alist_clear;
     use crate::autocmd::{autocmd_free_all_mem, block_autocmds, free_all_autocmds};

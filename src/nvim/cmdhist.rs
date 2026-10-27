@@ -126,7 +126,7 @@ pub fn get_hislen() -> c_int {
 }
 
 /// Return a slice of a specified history table (`get_histentry`).
-pub unsafe fn get_histentry(hist_type: c_int) -> &'static [histentry_T] {
+pub fn get_histentry(hist_type: c_int) -> &'static [histentry_T] {
     unsafe {
         (&raw const hist_st().HISTORY[hist_type as usize])
             .as_ref()
@@ -162,7 +162,7 @@ pub fn get_history_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Initialize or resize command-line history tables (`init_history`).
-pub unsafe fn init_history() {
+pub fn init_history() {
     unsafe {
         assert!(opt_vars().p_hi >= 0 && opt_vars().p_hi <= (c_int::MAX as i64));
         let newlen = opt_vars().p_hi as c_int;
@@ -409,7 +409,7 @@ fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
 }
 
 /// Clear all entries in a history (`clr_history`).
-pub unsafe fn clr_history(histype: c_int) -> c_int {
+pub fn clr_history(histype: c_int) -> c_int {
     let hislen = hist_st().HISLEN;
     if hislen != 0 && histype >= 0 && (histype as usize) < HIST_COUNT {
         let htype = histype as usize;
@@ -490,7 +490,7 @@ unsafe fn del_history_entry(histype: c_int, str_ptr: *mut c_char) -> c_int {
     }
 }
 
-unsafe fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
+fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
     unsafe {
         let mut i = calc_hist_idx(histype, idx_arg);
         if i < 0 {
@@ -621,7 +621,7 @@ pub unsafe fn f_histnr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
 }
 
 /// `:history` command (`ex_history`).
-pub unsafe fn ex_history(eap: &mut exarg_T) {
+pub fn ex_history(eap: &mut exarg_T) {
     unsafe {
         let mut histype1 = HIST_CMD;
         let mut histype2 = HIST_CMD;
@@ -739,7 +739,7 @@ pub unsafe fn ex_history(eap: &mut exarg_T) {
 }
 
 /// Iterate over history items (`hist_iter`).
-pub unsafe fn hist_iter(
+pub fn hist_iter(
     iter: Option<usize>,
     history_type: u8,
     zero: bool,
@@ -785,22 +785,20 @@ pub unsafe fn hist_iter(
 }
 
 /// Get array of history items (`hist_get_array`).
-pub unsafe fn hist_get_array(
+pub fn hist_get_array(
     history_type: u8,
 ) -> (
     &'static mut [histentry_T],
     &'static mut c_int,
     &'static mut c_int,
 ) {
-    unsafe {
-        init_history();
+    init_history();
         let htype = history_type as usize;
         (
             hist_st().HISTORY[htype].as_mut_slice(),
             &mut hist_st().HISIDX[htype],
             &mut hist_st().HISNUM[htype],
         )
-    }
 }
 
 #[cfg(test)]

@@ -332,12 +332,12 @@ impl CommandLineState {
 }
 
 impl EditorState for CommandLineState {
-    unsafe fn check(&mut self) -> c_int {
-        unsafe { command_line_check(self) }
+    fn check(&mut self) -> c_int {
+        command_line_check(self)
     }
 
-    unsafe fn execute(&mut self, key: c_int) -> c_int {
-        unsafe { command_line_execute(self, key) }
+    fn execute(&mut self, key: c_int) -> c_int {
+        command_line_execute(self, key)
     }
 }
 
@@ -453,7 +453,7 @@ fn getln_st() -> &'static mut ExGetlnState {
 
 use crate::api::private::helpers::array_add;
 
-unsafe fn trigger_cmd_autocmd(typechar: c_int, evt: event_T) {
+fn trigger_cmd_autocmd(typechar: c_int, evt: event_T) {
     unsafe {
         let mut typestr: [c_char; 2] = [typechar as c_char, NUL];
         apply_autocmds(
@@ -481,7 +481,7 @@ unsafe fn init_incsearch_state(s: *mut incsearch_state_T) {
     }
 }
 
-unsafe fn set_search_match(t: &mut pos_T) {
+fn set_search_match(t: &mut pos_T) {
     unsafe {
         t.lnum += g_st().Search.match_lines;
         t.col = g_st().Search.match_endcol;
@@ -983,7 +983,7 @@ unsafe fn finish_incsearch_highlighting(
 }
 
 /// Initialize the current command-line info.
-unsafe fn init_ccline(firstc: c_int, indent: c_int) {
+fn init_ccline(firstc: c_int, indent: c_int) {
     unsafe {
         getln_st().ccline.overstrike = 0; // always start in insert mode
 
@@ -1022,7 +1022,7 @@ fn ui_ext_cmdline_hide(abort: bool) {
 }
 
 /// Internal entry point for cmdline mode.
-unsafe fn command_line_enter(
+fn command_line_enter(
     firstc: c_int,
     count: c_int,
     indent: c_int,
@@ -1369,7 +1369,7 @@ unsafe fn command_line_enter(
     }
 }
 
-unsafe fn command_line_check(s: &mut CommandLineState) -> c_int {
+fn command_line_check(s: &mut CommandLineState) -> c_int {
     unsafe {
         s.prev_cmdpos = getln_st().ccline.cmdpos;
         s.prev_cmdbuff = None;
@@ -1457,7 +1457,7 @@ unsafe fn command_line_handle_ctrl_bsl(s: *mut CommandLineState) -> c_int {
 }
 
 /// Completion for `'wildchar'` or `'wildcharm'` key.
-unsafe fn command_line_wildchar_complete(s: &mut CommandLineState) -> c_int {
+fn command_line_wildchar_complete(s: &mut CommandLineState) -> c_int {
     unsafe {
         let res: c_int;
         let mut options = WILD_NO_BEEP;
@@ -1620,7 +1620,7 @@ unsafe fn command_line_wildchar_complete(s: &mut CommandLineState) -> c_int {
     }
 }
 
-unsafe fn command_line_end_wildmenu(s: &mut CommandLineState, key_is_wc: bool, c: c_int) {
+fn command_line_end_wildmenu(s: &mut CommandLineState, key_is_wc: bool, c: c_int) {
     unsafe {
         if cmdline_pum_active() {
             if c != -1 {
@@ -1649,7 +1649,7 @@ unsafe fn command_line_end_wildmenu(s: &mut CommandLineState, key_is_wc: bool, c
     }
 }
 
-unsafe fn command_line_execute(s: &mut CommandLineState, key: c_int) -> c_int {
+fn command_line_execute(s: &mut CommandLineState, key: c_int) -> c_int {
     unsafe {
         if key == K_IGNORE || key == K_NOP {
             return -1; // get another key
@@ -2106,7 +2106,7 @@ unsafe fn may_do_command_line_next_incsearch(
 }
 
 /// Handle backspace, delete and CTRL-W keys in the command-line mode.
-unsafe fn command_line_erase_chars(s: &mut CommandLineState) -> c_int {
+fn command_line_erase_chars(s: &mut CommandLineState) -> c_int {
     unsafe {
         if s.c == K_KDEL {
             s.c = K_DEL;
@@ -2180,7 +2180,7 @@ unsafe fn command_line_erase_chars(s: &mut CommandLineState) -> c_int {
 
 /// Handle the CTRL-^ key in the command-line mode and toggle the use of the
 /// language `:lmap` mappings and/or Input Method.
-unsafe fn command_line_toggle_langmap(s: &mut CommandLineState) {
+fn command_line_toggle_langmap(s: &mut CommandLineState) {
     unsafe {
         let use_insert_opt = if buf_valid(s.b_im_ptr_buf) {
             s.b_im_use_insert
@@ -2218,9 +2218,8 @@ unsafe fn command_line_toggle_langmap(s: &mut CommandLineState) {
 
 /// Handle the CTRL-R key in the command-line mode and insert the contents of a
 /// numbered or named register.
-unsafe fn command_line_insert_reg(s: &mut CommandLineState) -> c_int {
-    unsafe {
-        let save_new_cmdpos = getln_st().new_cmdpos;
+fn command_line_insert_reg(s: &mut CommandLineState) -> c_int {
+    let save_new_cmdpos = getln_st().new_cmdpos;
 
         putcmdline(b'"' as c_char, true);
         g_st().no_mapping += 1;
@@ -2270,11 +2269,10 @@ unsafe fn command_line_insert_reg(s: &mut CommandLineState) -> c_int {
         } else {
             CMDLINE_NOT_CHANGED
         }
-    }
 }
 
 /// Handle the Left and Right mouse clicks in the command-line mode.
-unsafe fn command_line_left_right_mouse(s: &mut CommandLineState) {
+fn command_line_left_right_mouse(s: &mut CommandLineState) {
     unsafe {
         s.ignore_drag_release = s.c == K_LEFTRELEASE || s.c == K_RIGHTRELEASE;
 
@@ -2450,7 +2448,7 @@ unsafe fn command_line_browse_history(s: *mut CommandLineState) -> c_int {
     }
 }
 
-unsafe fn command_line_handle_key(s: &mut CommandLineState) -> c_int {
+fn command_line_handle_key(s: &mut CommandLineState) -> c_int {
     unsafe {
         if !(getln_st().ccline.one_key && s.c != ESC && s.c != Ctrl_C) {
             'key_switch: {
@@ -2869,24 +2867,20 @@ unsafe fn command_line_handle_key(s: &mut CommandLineState) -> c_int {
 }
 
 /// Trigger `CursorMovedC` autocommands.
-unsafe fn may_trigger_cursormovedc(s: &mut CommandLineState) {
-    unsafe {
-        if getln_st().ccline.cmdpos != s.prev_cmdpos {
+fn may_trigger_cursormovedc(s: &mut CommandLineState) {
+    if getln_st().ccline.cmdpos != s.prev_cmdpos {
             trigger_cmd_autocmd(s.cmdline_type, EVENT_CURSORMOVEDC);
             getln_st().ccline.redraw_state = getln_st().ccline.redraw_state.max(kCmdRedrawPos);
         }
-    }
 }
 
-unsafe fn command_line_not_changed(s: &mut CommandLineState) -> c_int {
-    unsafe {
-        may_trigger_cursormovedc(s);
+fn command_line_not_changed(s: &mut CommandLineState) -> c_int {
+    may_trigger_cursormovedc(s);
         s.prev_cmdpos = getln_st().ccline.cmdpos;
         if !s.is_state.incsearch_postponed {
             return 1;
         }
         command_line_changed(s)
-    }
 }
 
 /// Guess that the pattern matches everything.
@@ -2938,7 +2932,7 @@ pub fn cmdpreview_get_ns() -> c_int {
 }
 
 /// Sets up command preview buffer.
-unsafe fn cmdpreview_open_buf() -> *mut buf_T {
+fn cmdpreview_open_buf() -> *mut buf_T {
     unsafe {
         let mut cmdpreview_buf = if getln_st().cmdpreview_bufnr != 0 {
             buflist_findnr(getln_st().cmdpreview_bufnr)
@@ -2995,7 +2989,7 @@ unsafe fn cmdpreview_open_buf() -> *mut buf_T {
 }
 
 /// Open command preview window if it's not already open.
-unsafe fn cmdpreview_open_win(cmdpreview_buf: &mut buf_T) -> *mut win_T {
+fn cmdpreview_open_win(cmdpreview_buf: &mut buf_T) -> *mut win_T {
     unsafe {
         let save_curwin = *curwin.as_ptr();
 
@@ -3032,7 +3026,7 @@ unsafe fn cmdpreview_open_win(cmdpreview_buf: &mut buf_T) -> *mut win_T {
 }
 
 /// Closes any open command preview windows.
-unsafe fn cmdpreview_close_win() {
+fn cmdpreview_close_win() {
     unsafe {
         let buf = if getln_st().cmdpreview_bufnr != 0 {
             buflist_findnr(getln_st().cmdpreview_bufnr)
@@ -3046,7 +3040,7 @@ unsafe fn cmdpreview_close_win() {
 }
 
 /// Save current state and prepare windows and buffers for command preview.
-unsafe fn cmdpreview_prepare() -> CpInfo {
+fn cmdpreview_prepare() -> CpInfo {
     unsafe {
         let mut saved_bufs: std::collections::HashSet<*mut buf_T> =
             std::collections::HashSet::new();
@@ -3106,7 +3100,7 @@ unsafe fn cmdpreview_prepare() -> CpInfo {
 }
 
 /// Restore the state of buffers and windows for command preview.
-unsafe fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
+fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
     unsafe {
         for mut cp_bufinfo in cpinfo.buf_info.drain(..) {
             let buf = cp_bufinfo.buf;
@@ -3142,7 +3136,7 @@ unsafe fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
 }
 
 /// Show `'inccommand'` preview if command is previewable.
-unsafe fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
+fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     unsafe {
         let mut ea: exarg_T = exarg_T::new();
         let mut cmod: cmdmod_T = cmdmod_T::new();
@@ -3252,7 +3246,7 @@ unsafe fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
 }
 
 /// Trigger `CmdlineChanged` autocommands.
-unsafe fn do_autocmd_cmdlinechanged(firstc: c_int) {
+fn do_autocmd_cmdlinechanged(firstc: c_int) {
     unsafe {
         if has_event(EVENT_CMDLINECHANGED) {
             let mut err = error_init();
@@ -3288,7 +3282,7 @@ unsafe fn do_autocmd_cmdlinechanged(firstc: c_int) {
     }
 }
 
-unsafe fn command_line_changed(s: &mut CommandLineState) -> c_int {
+fn command_line_changed(s: &mut CommandLineState) -> c_int {
     unsafe {
         let prev_cmdpreview = g_st().cmdpreview;
         if s.firstc == b':' as c_int
@@ -3334,7 +3328,7 @@ unsafe fn command_line_changed(s: &mut CommandLineState) -> c_int {
 }
 
 /// Abandon the command line.
-unsafe fn abandon_cmdline() {
+fn abandon_cmdline() {
     unsafe {
         dealloc_cmdbuff();
         if g_st().msg_scrolled == 0 {
@@ -3348,13 +3342,13 @@ unsafe fn abandon_cmdline() {
 }
 
 /// `getcmdline()` - accept a command line starting with `firstc`.
-pub unsafe fn getcmdline(
+pub fn getcmdline(
     firstc: c_int,
     count: c_int,
     indent: c_int,
     _do_concat: bool,
 ) -> Option<std::ffi::CString> {
-    unsafe { command_line_enter(firstc, count, indent, true) }
+    command_line_enter(firstc, count, indent, true)
 }
 
 /// Get a command line with a prompt.
@@ -3480,16 +3474,14 @@ pub unsafe fn check_opt_wim(value: *const c_char, flags: *mut u8) -> c_int {
 
 /// Return true when the text must not be changed and we can't switch to
 /// another window or buffer.
-pub unsafe fn text_locked() -> bool {
-    unsafe {
-        if expr_map_locked() {
+pub fn text_locked() -> bool {
+    if expr_map_locked() {
             return true;
         }
         g_st().textlock != 0
-    }
 }
 
-pub unsafe fn text_locked_msg() {
+pub fn text_locked_msg() {
     unsafe {
         emsg(gettext(get_text_locked_msg()));
     }
@@ -3500,18 +3492,16 @@ pub fn get_text_locked_msg() -> *const c_char {
 }
 
 /// Check for text, window or buffer locked.
-pub unsafe fn text_or_buf_locked() -> bool {
-    unsafe {
-        if text_locked() {
+pub fn text_or_buf_locked() -> bool {
+    if text_locked() {
             text_locked_msg();
             return true;
         }
         curbuf_locked()
-    }
 }
 
 /// Check if `curbuf->b_ro_locked` or `allbuf_lock` is set.
-pub unsafe fn curbuf_locked() -> bool {
+pub fn curbuf_locked() -> bool {
     unsafe {
         if (*g_st().curbuf).b_ro_locked > 0 {
             emsg(gettext(e_cannot_edit_other_buf.as_ptr()));
@@ -3521,7 +3511,7 @@ pub unsafe fn curbuf_locked() -> bool {
     }
 }
 
-pub unsafe fn allbuf_locked() -> bool {
+pub fn allbuf_locked() -> bool {
     unsafe {
         if g_st().allbuf_lock > 0 {
             emsg(gettext(
@@ -3533,7 +3523,7 @@ pub unsafe fn allbuf_locked() -> bool {
     }
 }
 
-unsafe fn cmdline_charsize(idx: c_int) -> c_int {
+fn cmdline_charsize(idx: c_int) -> c_int {
     unsafe {
         if g_st().cmdline_star > 0 {
             return 1;
@@ -3554,7 +3544,7 @@ fn cmd_startcol() -> c_int {
 }
 
 /// Compute the column position for a byte position on the command line.
-pub unsafe fn cmd_screencol(bytepos: c_int) -> c_int {
+pub fn cmd_screencol(bytepos: c_int) -> c_int {
     unsafe {
         let mut m: c_int;
         let mut col = cmd_startcol();
@@ -3589,7 +3579,7 @@ pub unsafe fn cmd_screencol(bytepos: c_int) -> c_int {
 
 /// Check if the character at `idx`, which is `cells` wide, is a multi-byte
 /// character that doesn't fit, so that a `>` must be displayed.
-unsafe fn correct_screencol(idx: c_int, cells: c_int, col: &mut c_int) {
+fn correct_screencol(idx: c_int, cells: c_int, col: &mut c_int) {
     unsafe {
         if utfc_ptr2len(getln_st().ccline.cmdbuff.add(idx as usize)) > 1
             && utf_ptr2cells(getln_st().ccline.cmdbuff.add(idx as usize)) > 1
@@ -3601,14 +3591,12 @@ unsafe fn correct_screencol(idx: c_int, cells: c_int, col: &mut c_int) {
 }
 
 /// Get an Ex command line for the `:` command.
-pub unsafe fn getexline(c: c_int, indent: c_int, do_concat: bool) -> Option<std::ffi::CString> {
-    unsafe {
-        if g_st().exec_from_reg && vpeekc() == b':' as c_int {
+pub fn getexline(c: c_int, indent: c_int, do_concat: bool) -> Option<std::ffi::CString> {
+    if g_st().exec_from_reg && vpeekc() == b':' as c_int {
             vgetc();
         }
 
         getcmdline(c, 1, indent, do_concat)
-    }
 }
 
 pub fn cmdline_overstrike() -> bool {
@@ -3621,7 +3609,7 @@ pub fn cmdline_at_end() -> bool {
 }
 
 /// Deallocate a command line buffer, updating the buffer size and length.
-unsafe fn dealloc_cmdbuff() {
+fn dealloc_cmdbuff() {
     unsafe {
         let cb = &raw mut getln_st().ccline.cmdbuff_vec;
         *cb = Vec::new();
@@ -3632,7 +3620,7 @@ unsafe fn dealloc_cmdbuff() {
 }
 
 /// Allocate a new command line buffer.
-unsafe fn alloc_cmdbuff(mut len: c_int) {
+fn alloc_cmdbuff(mut len: c_int) {
     unsafe {
         if len < 80 {
             len = 100;
@@ -3648,7 +3636,7 @@ unsafe fn alloc_cmdbuff(mut len: c_int) {
 }
 
 /// Re-allocate the command line to length `len` + something extra.
-pub unsafe fn realloc_cmdbuff(mut len: c_int) {
+pub fn realloc_cmdbuff(mut len: c_int) {
     unsafe {
         if len < getln_st().ccline.cmdbufflen {
             return;
@@ -3682,7 +3670,7 @@ pub unsafe fn realloc_cmdbuff(mut len: c_int) {
 }
 
 /// Color expression cmdline using built-in expressions parser.
-unsafe fn color_expr_cmdline(
+fn color_expr_cmdline(
     colored_ccline: &CmdlineInfo,
     ret_ccline_colors: &mut ColoredCmdline,
 ) {
@@ -3736,7 +3724,7 @@ unsafe fn color_expr_cmdline(
 }
 
 /// Color command-line.
-unsafe fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
+fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
     unsafe {
         let mut printed_errmsg = false;
         let mut ret = true;
@@ -4025,7 +4013,7 @@ unsafe fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
 }
 
 /// Draw part of the cmdline at the current cursor position.
-unsafe fn draw_cmdline(start: c_int, len: c_int) {
+fn draw_cmdline(start: c_int, len: c_int) {
     unsafe {
         if getln_st().ccline.cmdbuff.is_null() || !color_cmdline(&mut getln_st().ccline) {
             return;
@@ -4064,7 +4052,7 @@ unsafe fn draw_cmdline(start: c_int, len: c_int) {
     }
 }
 
-unsafe fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
+fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
     unsafe {
         let mut arena = Arena {
             cur_blk: ptr::null_mut(),
@@ -4187,7 +4175,7 @@ pub unsafe fn ui_ext_cmdline_block_append(indent: usize, line: *const c_char) {
     }
 }
 
-pub unsafe fn ui_ext_cmdline_block_leave() {
+pub fn ui_ext_cmdline_block_leave() {
     api_free_array(getln_st().cmdline_block);
         getln_st().cmdline_block = Array {
             size: 0,
@@ -4198,7 +4186,7 @@ pub unsafe fn ui_ext_cmdline_block_leave() {
 }
 
 /// Extra redrawing needed for `redraw!` and on `ui_attach`.
-pub unsafe fn cmdline_screen_cleared() {
+pub fn cmdline_screen_cleared() {
     unsafe {
         if !ui_has(kUICmdline) {
             return;
@@ -4229,7 +4217,7 @@ pub unsafe fn cmdline_screen_cleared() {
 }
 
 /// Called by `ui_flush`, do what redraws necessary to keep cmdline updated.
-pub unsafe fn cmdline_ui_flush() {
+pub fn cmdline_ui_flush() {
     unsafe {
         if !ui_has(kUICmdline) {
             return;
@@ -4257,7 +4245,7 @@ pub unsafe fn cmdline_ui_flush() {
 }
 
 /// Put a character on the command line.
-pub unsafe fn putcmdline(c: c_char, shift: bool) {
+pub fn putcmdline(c: c_char, shift: bool) {
     unsafe {
         if g_st().cmd_silent {
             return;
@@ -4285,7 +4273,7 @@ pub unsafe fn putcmdline(c: c_char, shift: bool) {
 }
 
 /// Undo a `putcmdline(c, false)`.
-pub unsafe fn unputcmdline() {
+pub fn unputcmdline() {
     unsafe {
         if g_st().cmd_silent {
             return;
@@ -4402,7 +4390,7 @@ pub unsafe fn put_on_cmdline(str: *const c_char, mut len: c_int, redraw: bool) {
 }
 
 /// Save `getln_st().ccline`.
-unsafe fn save_cmdline() {
+fn save_cmdline() {
     unsafe {
         let cc = &raw mut getln_st().ccline;
         let prev = std::mem::replace(&mut *cc, CmdlineInfo::new());
@@ -4411,7 +4399,7 @@ unsafe fn save_cmdline() {
 }
 
 /// Restore `getln_st().ccline` after it has been saved with `save_cmdline()`.
-unsafe fn restore_cmdline() {
+fn restore_cmdline() {
     unsafe {
         let cc = &raw mut getln_st().ccline;
         let prev = (*cc).prev_ccline.take();
@@ -4420,7 +4408,7 @@ unsafe fn restore_cmdline() {
 }
 
 /// Paste a yank register into the command line.
-unsafe fn cmdline_paste(regname: c_int, literally: bool, remcr: bool) -> bool {
+fn cmdline_paste(regname: c_int, literally: bool, remcr: bool) -> bool {
     unsafe {
         let mut arg: *mut c_char = ptr::null_mut();
         let mut owned: Option<Vec<c_char>> = None;
@@ -4506,9 +4494,8 @@ pub unsafe fn cmdline_paste_str(mut s: *const c_char, literally: bool) {
     }
 }
 
-pub unsafe fn redrawcmdline() {
-    unsafe {
-        if g_st().cmd_silent {
+pub fn redrawcmdline() {
+    if g_st().cmd_silent {
             return;
         }
         g_st().need_wait_return = false;
@@ -4516,10 +4503,9 @@ pub unsafe fn redrawcmdline() {
         redrawcmd();
         cursorcmd();
         ui_cursor_shape();
-    }
 }
 
-unsafe fn redrawcmdprompt() {
+fn redrawcmdprompt() {
     unsafe {
         if g_st().cmd_silent {
             return;
@@ -4549,9 +4535,8 @@ unsafe fn redrawcmdprompt() {
 }
 
 /// Redraw what is currently on the command line.
-pub unsafe fn redrawcmd() {
-    unsafe {
-        if g_st().cmd_silent {
+pub fn redrawcmd() {
+    if g_st().cmd_silent {
             return;
         }
 
@@ -4588,10 +4573,9 @@ pub unsafe fn redrawcmd() {
         g_st().skip_redraw = false;
         g_st().cmdline_was_last_drawn = true;
         g_st().redrawing_cmdline = false;
-    }
 }
 
-pub unsafe fn compute_cmdrow() {
+pub fn compute_cmdrow() {
     unsafe {
         if g_st().msg_scrolled != 0 {
             g_st().cmdline_row = g_st().Rows - 1;
@@ -4610,9 +4594,8 @@ pub unsafe fn compute_cmdrow() {
     }
 }
 
-pub unsafe fn cursorcmd() {
-    unsafe {
-        if g_st().cmd_silent || ui_has(kUICmdline) {
+pub fn cursorcmd() {
+    if g_st().cmd_silent || ui_has(kUICmdline) {
             return;
         }
 
@@ -4621,12 +4604,10 @@ pub unsafe fn cursorcmd() {
         g_st().msg_row = g_st().msg_row.min(g_st().Rows - 1);
 
         msg_cursor_goto(g_st().msg_row, g_st().msg_col);
-    }
 }
 
-pub unsafe fn gotocmdline(clr: bool) {
-    unsafe {
-        if ui_has(kUICmdline) {
+pub fn gotocmdline(clr: bool) {
+    if ui_has(kUICmdline) {
             return;
         }
         msg_start();
@@ -4635,11 +4616,10 @@ pub unsafe fn gotocmdline(clr: bool) {
             msg_clr_eos();
         }
         msg_cursor_goto(g_st().cmdline_row, 0);
-    }
 }
 
 /// Check the word in front of the cursor for an abbreviation.
-unsafe fn ccheck_abbr(c: c_int) -> c_int {
+fn ccheck_abbr(c: c_int) -> c_int {
     unsafe {
         let mut spos: c_int = 0;
 
@@ -4745,7 +4725,7 @@ pub fn get_cmdline_last_prompt_id() -> c_uint {
 }
 
 /// Get pointer to the command line info to use.
-unsafe fn get_ccline_ptr() -> *mut CmdlineInfo {
+fn get_ccline_ptr() -> *mut CmdlineInfo {
     unsafe {
         let prev_ptr = &raw mut getln_st().ccline.prev_ccline;
         if (g_st().State & MODE_CMDLINE) == 0 {
@@ -4763,7 +4743,7 @@ unsafe fn get_ccline_ptr() -> *mut CmdlineInfo {
 }
 
 /// Get the current command-line type.
-unsafe fn get_cmdline_type() -> c_int {
+fn get_cmdline_type() -> c_int {
     unsafe {
         let p = get_ccline_ptr();
 
@@ -4782,7 +4762,7 @@ unsafe fn get_cmdline_type() -> c_int {
 }
 
 /// Get the current command line in allocated memory.
-unsafe fn get_cmdline_str() -> Option<std::ffi::CString> {
+fn get_cmdline_str() -> Option<std::ffi::CString> {
     unsafe {
         if g_st().cmdline_star > 0 {
             return None;
@@ -4799,7 +4779,7 @@ unsafe fn get_cmdline_str() -> Option<std::ffi::CString> {
 }
 
 /// Get the current command-line completion pattern.
-unsafe fn get_cmdline_completion_pattern() -> Option<std::ffi::CString> {
+fn get_cmdline_completion_pattern() -> Option<std::ffi::CString> {
     unsafe {
         if g_st().cmdline_star > 0 {
             return None;
@@ -4830,7 +4810,7 @@ unsafe fn get_cmdline_completion_pattern() -> Option<std::ffi::CString> {
 }
 
 /// Get the command-line completion type.
-unsafe fn get_cmdline_completion() -> Option<std::ffi::CString> {
+fn get_cmdline_completion() -> Option<std::ffi::CString> {
     unsafe {
         if g_st().cmdline_star > 0 {
             return None;
@@ -4980,9 +4960,8 @@ unsafe fn set_cmdline_str(str: *const c_char, pos: c_int) -> c_int {
 }
 
 /// Set the command line byte position to `pos`.
-unsafe fn set_cmdline_pos(pos: c_int) -> c_int {
-    unsafe {
-        let p = get_ccline_ptr();
+fn set_cmdline_pos(pos: c_int) -> c_int {
+    let p = get_ccline_ptr();
 
         if p.is_null() {
             return 1;
@@ -4991,7 +4970,6 @@ unsafe fn set_cmdline_pos(pos: c_int) -> c_int {
         getln_st().new_cmdpos = pos.max(0);
 
         0
-    }
 }
 
 /// `"setcmdline()"` function.
@@ -5096,7 +5074,7 @@ pub unsafe fn get_list_range(str: *mut *mut c_char, num1: *mut c_int, num2: *mut
     }
 }
 
-pub unsafe fn cmdline_init() {
+pub fn cmdline_init() {
     unsafe {
         let cc = &raw mut getln_st().ccline;
         *cc = CmdlineInfo::new();
@@ -5104,7 +5082,7 @@ pub unsafe fn cmdline_init() {
 }
 
 /// Validate the `'cedit'` option.
-pub unsafe fn validate_cedit(args: &mut optset_T) -> *const c_char {
+pub fn validate_cedit(args: &mut optset_T) -> *const c_char {
     unsafe {
         let value = args.os_newval.data.string().data;
         if *value != NUL {
@@ -5118,7 +5096,7 @@ pub unsafe fn validate_cedit(args: &mut optset_T) -> *const c_char {
 }
 
 /// The `'cedit'` option is changed.
-pub unsafe fn did_set_cedit(_args: &mut optset_T) -> *const c_char {
+pub fn did_set_cedit(_args: &mut optset_T) -> *const c_char {
     unsafe {
         getln_st().cedit_key = if *opt_vars().p_cedit == NUL {
             -1
@@ -5180,7 +5158,7 @@ pub unsafe fn cmdwin_do_action(action: *const c_char) {
 }
 
 /// Deferred event: opens cmdwin after the cmdline-reader unwinds.
-pub unsafe fn open_cmdwin_event(firstc: c_int, content: Option<std::ffi::CString>, pos: c_int) {
+pub fn open_cmdwin_event(firstc: c_int, content: Option<std::ffi::CString>, pos: c_int) {
     unsafe {
         let content_ptr = content
             .as_ref()
@@ -5190,7 +5168,7 @@ pub unsafe fn open_cmdwin_event(firstc: c_int, content: Option<std::ffi::CString
 }
 
 /// Schedules cmdwin to open after the current cmdline-reader returns.
-unsafe fn open_cmdwin() -> c_int {
+fn open_cmdwin() -> c_int {
     unsafe {
         if text_locked() || g_st().cmdline_star > 0 {
             beep_flush();
@@ -5229,12 +5207,12 @@ unsafe fn open_cmdwin() -> c_int {
 }
 
 /// @return true if `curbuf` is the cmdwin and we're not editing the command line.
-pub unsafe fn is_in_cmdwin() -> bool {
+pub fn is_in_cmdwin() -> bool {
     unsafe { bt_cmdwin(g_st().curbuf) && get_cmdline_type() == NUL as c_int }
 }
 
 /// Get script string.
-pub unsafe fn script_get(eap: &mut exarg_T, lenp: &mut usize) -> Option<std::ffi::CString> {
+pub fn script_get(eap: &mut exarg_T, lenp: &mut usize) -> Option<std::ffi::CString> {
     unsafe {
         let mut cmd = eap.arg;
 

@@ -305,7 +305,7 @@ fn inp_st() -> &'static mut InputModuleState {
 }
 
 #[inline]
-unsafe fn tb_buf_ptr() -> *mut u8 {
+fn tb_buf_ptr() -> *mut u8 {
     unsafe {
         let p = &raw mut g_st().typebuf.tb_buf;
         (*p).as_mut_ptr()
@@ -313,7 +313,7 @@ unsafe fn tb_buf_ptr() -> *mut u8 {
 }
 
 #[inline]
-unsafe fn tb_noremap_ptr() -> *mut u8 {
+fn tb_noremap_ptr() -> *mut u8 {
     unsafe {
         let p = &raw mut g_st().typebuf.tb_noremap;
         (*p).as_mut_ptr()
@@ -337,7 +337,7 @@ pub fn mb_byte2len_check(b: c_int) -> c_int {
 }
 
 #[inline]
-pub(crate) unsafe fn langmap_adjust(c: &mut c_int, condition: bool) {
+pub(crate) fn langmap_adjust(c: &mut c_int, condition: bool) {
     unsafe {
         if *opt_vars().p_langmap != 0
             && condition
@@ -360,7 +360,7 @@ pub(crate) unsafe fn langmap_adjust(c: &mut c_int, condition: bool) {
 }
 
 /// Gets the contents of the record buffer as a string (typeahead encoding) and clears the buffer.
-pub unsafe fn get_recorded() -> std::ffi::CString {
+pub fn get_recorded() -> std::ffi::CString {
     unsafe {
         let rb = &raw mut inp_st().recordbuff;
         let mut bytes: Vec<u8> = std::mem::take(&mut *rb)
@@ -455,7 +455,7 @@ pub unsafe fn redo_keys(spec: *const CmdSpec) -> Option<std::ffi::CString> {
 }
 
 /// Gets the pending change's `CmdSpec` (without `body`).
-pub unsafe fn redo_spec() -> CmdSpec {
+pub fn redo_spec() -> CmdSpec {
     unsafe {
         let cur = &raw const inp_st().redobuff.cur;
         (*cur).without_body()
@@ -534,7 +534,7 @@ fn sb_add_byte(sb: &mut Vec<c_char>, c: c_int) {
 }
 
 /// Dual of `add_char_buff()`, for a byte buffer.
-pub unsafe fn sb_add_char(sb: &mut Vec<c_char>, c: c_int) {
+pub fn sb_add_char(sb: &mut Vec<c_char>, c: c_int) {
     unsafe {
         let mut temp = [0 as c_char; MB_MAXBYTES * 3 + 1];
         let len = key_char_encode(c, temp.as_mut_ptr());
@@ -576,7 +576,7 @@ fn start_stuff() {
 }
 
 /// Returns true if the readahead ("stuff") buffer is empty.
-pub unsafe fn stuff_empty() -> bool {
+pub fn stuff_empty() -> bool {
     unsafe {
         let k1 = &raw const inp_st().readbuf1.keys;
         let k2 = &raw const inp_st().readbuf2.keys;
@@ -585,7 +585,7 @@ pub unsafe fn stuff_empty() -> bool {
 }
 
 /// Returns true if `inp_st().readbuf1` is empty.
-pub unsafe fn readbuf1_empty() -> bool {
+pub fn readbuf1_empty() -> bool {
     unsafe {
         let k1 = &raw const inp_st().readbuf1.keys;
         (*k1).is_empty()
@@ -598,7 +598,7 @@ pub fn typeahead_noflush(c: c_int) {
 }
 
 /// Remove the contents of the stuff buffer and the mapped characters in the typeahead buffer.
-pub unsafe fn flush_buffers(flush_typeahead: flush_buffers_T) {
+pub fn flush_buffers(flush_typeahead: flush_buffers_T) {
     unsafe {
         init_typebuf();
 
@@ -654,17 +654,15 @@ pub fn unblock_on_key() {
 }
 
 /// Flush map and typeahead buffers and give a warning for an error.
-pub unsafe fn beep_flush() {
-    unsafe {
-        if g_st().emsg_silent == 0 && !mc_replaying() {
+pub fn beep_flush() {
+    if g_st().emsg_silent == 0 && !mc_replaying() {
             flush_buffers(FLUSH_MINIMAL);
         }
         vim_beep(kOptBoFlagError);
-    }
 }
 
 /// Starts capturing a new change.
-pub unsafe fn redo_new(spec: CmdSpec) {
+pub fn redo_new(spec: CmdSpec) {
     unsafe {
         assert!(spec.body.is_empty());
         if inp_st().block_redo {
@@ -677,7 +675,7 @@ pub unsafe fn redo_new(spec: CmdSpec) {
 }
 
 /// Frees both redo buffers.
-pub unsafe fn redo_free_all() {
+pub fn redo_free_all() {
     unsafe {
         let rb = &raw mut inp_st().redobuff;
         *rb = RedoState::new();
@@ -685,7 +683,7 @@ pub unsafe fn redo_free_all() {
 }
 
 /// Prepare for redo of any command.
-pub unsafe fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec) {
+pub fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec) {
     unsafe {
         if as_atom {
             atom_redo_prepped();
@@ -720,7 +718,7 @@ pub unsafe fn prep_redo_visual(keys: *const c_char, len: usize, spec: CmdSpec) {
 }
 
 /// Discard the contents of the redo buffer and restore the previous redo buffer.
-pub unsafe fn redo_cancel() {
+pub fn redo_cancel() {
     unsafe {
         if inp_st().block_redo {
             return;
@@ -735,7 +733,7 @@ pub unsafe fn redo_cancel() {
 }
 
 /// Saves the redo state to `save_redo` and detaches it.
-pub unsafe fn save_redobuff(save_redo: &mut RedoState) {
+pub fn save_redobuff(save_redo: &mut RedoState) {
     unsafe {
         let rb = &raw mut inp_st().redobuff;
         save_redo.cur = (*rb).cur.clone();
@@ -848,7 +846,7 @@ pub unsafe fn redo_append_spec(s: *const c_char) {
 }
 
 /// Appends character `c` to the redo buffer, translated to typeahead encoding.
-pub unsafe fn redo_append_char(c: c_int) {
+pub fn redo_append_char(c: c_int) {
     unsafe {
         if !inp_st().block_redo {
             let body = &raw mut inp_st().redobuff.cur.body;
@@ -900,14 +898,14 @@ pub unsafe fn stuffReadbuffSpecial(mut s: *const c_char) {
 }
 
 /// Appends character `c` to the stuff buffer, translated to typeahead encoding.
-pub unsafe fn stuffcharReadbuff(c: c_int) {
+pub fn stuffcharReadbuff(c: c_int) {
     unsafe {
         add_char_buff(&raw mut inp_st().readbuf1, c);
     }
 }
 
 /// Append a number to the stuff buffer.
-pub unsafe fn stuffnumReadbuff(n: c_int) {
+pub fn stuffnumReadbuff(n: c_int) {
     unsafe {
         add_num_buff(&raw mut inp_st().readbuf1, n);
     }
@@ -939,7 +937,7 @@ pub unsafe fn stuffescaped(mut arg: *const c_char, literally: bool) {
 }
 
 /// Dot-repeat `"."` command.
-pub unsafe fn start_redo(count: c_int, old_redo: bool) -> c_int {
+pub fn start_redo(count: c_int, old_redo: bool) -> c_int {
     unsafe {
         let rd = if old_redo {
             &raw mut inp_st().redobuff.old
@@ -975,7 +973,7 @@ pub unsafe fn start_redo(count: c_int, old_redo: bool) -> c_int {
 }
 
 /// Repeats the last insert (`R`, `o`, `O`, `a`, `A`, `i` or `I` command).
-pub unsafe fn start_redo_ins() -> c_int {
+pub fn start_redo_ins() -> c_int {
     unsafe {
         let body = &raw const inp_st().redobuff.cur.body;
         if (*body).is_empty() {
@@ -1010,7 +1008,7 @@ pub fn stop_redo_ins() {
     inp_st().block_redo = false;
 }
 
-unsafe fn init_typebuf() {
+fn init_typebuf() {
     unsafe {
         let p = &raw const g_st().typebuf.tb_buf;
         if !(*p).is_empty() {
@@ -1152,7 +1150,7 @@ pub unsafe fn ins_typebuf(
 }
 
 /// Re-queues key `c`: puts a key obtained by `vgetc()` back into typeahead.
-pub unsafe fn requeue_key(c: c_int, modifiers: c_int, extra_consumed: c_int, recorded: bool) {
+pub fn requeue_key(c: c_int, modifiers: c_int, extra_consumed: c_int, recorded: bool) {
     unsafe {
         let mut buf = [0 as c_char; MB_MAXBYTES * 3 + 4];
         let len = special_to_buf(c, modifiers, true, buf.as_mut_ptr()) as usize;
@@ -1179,7 +1177,7 @@ pub fn typebuf_maplen() -> c_int {
 }
 
 /// Remove `len` characters from `typebuf.tb_buf[typebuf.tb_off + offset]`.
-pub unsafe fn del_typebuf(len: c_int, offset: c_int) {
+pub fn del_typebuf(len: c_int, offset: c_int) {
     unsafe {
         if len == 0 {
             return;
@@ -1346,7 +1344,7 @@ unsafe fn gotchars(chars: *const u8, len: usize) {
 }
 
 /// Record an `<Ignore>` key.
-pub unsafe fn gotchars_ignore() {
+pub fn gotchars_ignore() {
     unsafe {
         let nop_buf: [u8; 3] = [K_SPECIAL, KS_EXTRA, KE_IGNORE];
         inp_st().on_key_ignore_len += 3;
@@ -1354,7 +1352,7 @@ pub unsafe fn gotchars_ignore() {
     }
 }
 
-unsafe fn ungetchars(len: c_int, recorded: bool) {
+fn ungetchars(len: c_int, recorded: bool) {
     unsafe {
         if !g_st().KeyTyped {
             return;
@@ -1374,12 +1372,10 @@ unsafe fn ungetchars(len: c_int, recorded: bool) {
 }
 
 /// Sync undo when typed characters are obtained from the typeahead buffer.
-pub unsafe fn may_sync_undo() {
-    unsafe {
-        if ((g_st().State & (MODE_INSERT | MODE_CMDLINE)) == 0 || g_st().Ins.moved != kInsNone) && inp_st().curscript < 0 {
+pub fn may_sync_undo() {
+    if ((g_st().State & (MODE_INSERT | MODE_CMDLINE)) == 0 || g_st().Ins.moved != kInsNone) && inp_st().curscript < 0 {
             u_sync(false);
         }
-    }
 }
 
 fn alloc_typebuf() {
@@ -1403,24 +1399,22 @@ fn free_typebuf() {
         g_st().typebuf.tb_noremap = Vec::new();
 }
 
-unsafe fn save_typebuf() {
-    unsafe {
-        assert!(inp_st().curscript >= 0);
+fn save_typebuf() {
+    assert!(inp_st().curscript >= 0);
         init_typebuf();
         let prev_cnt = g_st().typebuf.tb_change_cnt;
         inp_st().saved_typebuf[inp_st().curscript as usize] =
             std::mem::replace(&mut g_st().typebuf, typebuf_T::ZERO);
         g_st().typebuf.tb_change_cnt = prev_cnt;
         alloc_typebuf();
-    }
 }
 
-unsafe fn can_get_ungot() -> bool {
-    unsafe { inp_st().ungot.c != -1 && (inp_st().ungot.stuffed || stuff_empty()) }
+fn can_get_ungot() -> bool {
+    inp_st().ungot.c != -1 && (inp_st().ungot.stuffed || stuff_empty())
 }
 
 /// Save all three kinds of typeahead, so that the user must type at a prompt.
-pub unsafe fn save_typeahead(tp: &mut tasave_T) {
+pub fn save_typeahead(tp: &mut tasave_T) {
     unsafe {
         let prev_cnt = g_st().typebuf.tb_change_cnt;
         tp.save_typebuf =
@@ -1438,7 +1432,7 @@ pub unsafe fn save_typeahead(tp: &mut tasave_T) {
 }
 
 /// Restore the typeahead to what it was before calling `save_typeahead()`.
-pub unsafe fn restore_typeahead(tp: &mut tasave_T) {
+pub fn restore_typeahead(tp: &mut tasave_T) {
     unsafe {
         free_typebuf();
         g_st().typebuf = std::mem::replace(&mut tp.save_typebuf, typebuf_T::ZERO);
@@ -1515,7 +1509,7 @@ pub unsafe fn openscript(name: *mut c_char, directly: bool) {
     }
 }
 
-unsafe fn closescript() {
+fn closescript() {
     unsafe {
         assert!(inp_st().curscript >= 0);
         free_typebuf();
@@ -1532,12 +1526,10 @@ unsafe fn closescript() {
     }
 }
 
-pub unsafe fn close_all_scripts() {
-    unsafe {
-        while inp_st().curscript >= 0 {
+pub fn close_all_scripts() {
+    while inp_st().curscript >= 0 {
             closescript();
         }
-    }
 }
 
 pub unsafe fn open_scriptin(scriptin_name: *mut c_char) -> bool {
@@ -1587,16 +1579,14 @@ pub fn using_script() -> c_int {
 }
 
 /// Called just before doing a blocking wait.
-pub unsafe fn before_blocking() {
-    unsafe {
-        updatescript(0);
+pub fn before_blocking() {
+    updatescript(0);
         if g_st().may_garbage_collect {
             garbage_collect(false);
         }
-    }
 }
 
-unsafe fn updatescript(c: c_int) {
+fn updatescript(c: c_int) {
     unsafe {
         if c != 0
             && let Some(ref so) = g_st().scriptout
@@ -1636,7 +1626,7 @@ pub fn merge_modifiers(c_arg: c_int, modifiers: &mut c_int) -> c_int {
         c
 }
 
-unsafe fn add_byte_to_showcmd(byte: u8) {
+fn add_byte_to_showcmd(byte: u8) {
     unsafe {
         if opt_vars().p_sc == 0 || g_st().msg_silent != 0 {
             return;
@@ -1695,7 +1685,7 @@ unsafe fn add_byte_to_showcmd(byte: u8) {
 }
 
 /// Get the next input character.
-pub unsafe fn vgetc() -> c_int {
+pub fn vgetc() -> c_int {
     unsafe {
         let mut c: c_int;
         let mut buf = [0u8; MB_MAXBYTES + 1];
@@ -1863,7 +1853,7 @@ pub unsafe fn vgetc() -> c_int {
 }
 
 /// Like `vgetc()`, but never return a NUL when called recursively.
-pub unsafe fn safe_vgetc() -> c_int {
+pub fn safe_vgetc() -> c_int {
     unsafe {
         let mut c = vgetc();
         if c == NUL {
@@ -1874,40 +1864,34 @@ pub unsafe fn safe_vgetc() -> c_int {
 }
 
 /// Like `safe_vgetc()`, but loop to handle `K_IGNORE`.
-pub unsafe fn plain_vgetc() -> c_int {
-    unsafe {
-        loop {
+pub fn plain_vgetc() -> c_int {
+    loop {
             let c = safe_vgetc();
             if c != K_IGNORE && c != K_VER_SCROLLBAR && c != K_HOR_SCROLLBAR && c != K_MOUSEMOVE {
                 return c;
             }
         }
-    }
 }
 
 /// Check if a character is available, such that `vgetc()` will not block.
-pub unsafe fn vpeekc() -> c_int {
-    unsafe {
-        if can_get_ungot() {
+pub fn vpeekc() -> c_int {
+    if can_get_ungot() {
             return inp_st().ungot.c;
         }
         vgetorpeek(false)
-    }
 }
 
 /// Check if any character is available, also half an escape sequence.
-pub unsafe fn vpeekc_any() -> c_int {
-    unsafe {
-        let mut c = vpeekc();
+pub fn vpeekc_any() -> c_int {
+    let mut c = vpeekc();
         if c == NUL && g_st().typebuf.tb_len > 0 {
             c = ESC;
         }
         c
-    }
 }
 
 /// Call `vpeekc()` without causing anything to be mapped.
-pub unsafe fn char_avail() -> bool {
+pub fn char_avail() -> bool {
     unsafe {
         if *test_disable_char_avail.as_ptr() {
             return false;
@@ -2132,7 +2116,7 @@ unsafe fn put_string_in_typebuf(
     }
 }
 
-unsafe fn at_ins_compl_key() -> bool {
+fn at_ins_compl_key() -> bool {
     unsafe {
         let p = tb_buf_ptr().add(g_st().typebuf.tb_off as usize);
         let mut c = *p as c_int;
@@ -2150,7 +2134,7 @@ unsafe fn at_ins_compl_key() -> bool {
     }
 }
 
-unsafe fn check_simplify_modifier(max_offset: c_int) -> c_int {
+fn check_simplify_modifier(max_offset: c_int) -> c_int {
     unsafe {
         if (g_st().State & MODE_TERMINAL) != 0 || inp_st().no_reduce_keys > 0 {
             return 0;
@@ -2602,7 +2586,7 @@ pub fn check_end_reg_executing(advance: bool) {
         }
 }
 
-unsafe fn vgetorpeek(advance: bool) -> c_int {
+fn vgetorpeek(advance: bool) -> c_int {
     unsafe {
         let mut c: c_int;
         let mut timedout = false;
@@ -3168,7 +3152,7 @@ pub unsafe fn get_keystroke(events: *mut MultiQueue) -> c_int {
 }
 
 /// Function passed to `do_cmdline()` to get the command after a `<Cmd>` key from typeahead.
-pub unsafe fn getcmdkeycmd(
+pub fn getcmdkeycmd(
     promptc: c_int,
     _indent: c_int,
     _do_concat: bool,
@@ -3243,7 +3227,7 @@ pub unsafe fn getcmdkeycmd(
 }
 
 /// Handle a Lua mapping: get its id from typeahead and execute its callback.
-pub unsafe fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
+pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
     unsafe {
         let mut line: Vec<c_char> = Vec::new();
         let mut c1: c_int = -1;
@@ -3305,7 +3289,7 @@ pub unsafe fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
 }
 
 /// Wraps pasted text stream with `K_PASTE_START` and `K_PASTE_END`.
-pub unsafe fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: bool) {
+pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: bool) {
     unsafe {
         if (g_st().State & MODE_CMDLINE) != 0 {
             return;
@@ -3385,7 +3369,7 @@ pub unsafe fn paste_store(channel_id: u64, state: TriState, str_: NvimString, cr
 }
 
 /// Gets a paste stored by `paste_store()` from typeahead and repeats it.
-pub unsafe fn paste_repeat(count: c_int) {
+pub fn paste_repeat(count: c_int) {
     unsafe {
         let mut buf: Vec<u8> = Vec::new();
         let mut aborted = false;

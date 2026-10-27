@@ -234,7 +234,7 @@ fn ctx_st() -> &'static mut ContextModuleState {
 }
 
 #[inline]
-pub unsafe fn handle_get_buffer(h: handle_T) -> *mut buf_T {
+pub fn handle_get_buffer(h: handle_T) -> *mut buf_T {
     unsafe {
         let map_ptr = &raw const g_st().buffer_handles;
         (*map_ptr).get(&h).copied().unwrap_or(ptr::null_mut())
@@ -242,14 +242,14 @@ pub unsafe fn handle_get_buffer(h: handle_T) -> *mut buf_T {
 }
 
 #[inline]
-pub unsafe fn handle_get_window(h: handle_T) -> *mut win_T {
+pub fn handle_get_window(h: handle_T) -> *mut win_T {
     unsafe {
         let map_ptr = &raw const g_st().window_handles;
         (*map_ptr).get(&h).copied().unwrap_or(ptr::null_mut())
     }
 }
 
-unsafe fn ctx_marks_ns() -> u32 {
+fn ctx_marks_ns() -> u32 {
     unsafe {
         if ctx_st().CTX_MARKS_NS_ID == 0 {
             ctx_st().CTX_MARKS_NS_ID = nvim_create_namespace(static_cstr_as_string(c"nvim.context")) as u32;
@@ -297,7 +297,7 @@ unsafe fn ctx_positions(ctx: *mut Context, flags: CtxStateFlags) -> [*mut pos_T;
     }
 }
 
-pub unsafe fn ctx_free(ctx: &mut Context) {
+pub fn ctx_free(ctx: &mut Context) {
     unsafe {
         let buf = handle_get_buffer(ctx.buf);
         if !buf.is_null() {
@@ -412,7 +412,7 @@ pub unsafe fn ctx_save(ctx: *mut Context, flags: CtxStateFlags) {
     }
 }
 
-pub unsafe fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags) {
+pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags) {
     unsafe {
         if (flags & kCtxCursor) != 0 {
             assert!(handle_get_buffer(ctx.buf) == g_st().curbuf);
@@ -487,7 +487,7 @@ pub unsafe fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLo
     }
 }
 
-unsafe fn array_to_string(array: Array, err: &mut Error) -> Vec<u8> {
+fn array_to_string(array: Array, err: &mut Error) -> Vec<u8> {
     unsafe {
         let mut sbuf = Vec::new();
         let mut list_tv: typval_T = typval_T::new();
@@ -672,7 +672,7 @@ unsafe fn ctx_dirs_save(cs: *mut CtxSwitch, wp: *mut win_T, tp: *mut tabpage_T, 
     }
 }
 
-unsafe fn ctx_dirs_restore(cs: &mut CtxSwitch) {
+fn ctx_dirs_restore(cs: &mut CtxSwitch) {
     unsafe {
         if cs.cs_ctxwin_idx >= 0 {
             return;
@@ -758,7 +758,7 @@ unsafe fn ctx_win_prep(cs: &mut CtxSwitch, buf: *mut buf_T) -> *mut win_T {
     }
 }
 
-unsafe fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut win_T {
+fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut win_T {
     unsafe {
         let vec = &raw mut g_st().ctx_win_vec;
         let cwp = (*vec).as_slice()[cs.cs_ctxwin_idx as usize].cw_win;
@@ -804,14 +804,12 @@ unsafe fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut win_T {
     }
 }
 
-pub unsafe fn ctx_saved_curwin() -> *mut win_T {
-    unsafe {
-        if ctx_st().CTX_SAVED_CURWIN == 0 {
+pub fn ctx_saved_curwin() -> *mut win_T {
+    if ctx_st().CTX_SAVED_CURWIN == 0 {
             ptr::null_mut()
         } else {
             win_find_by_handle(ctx_st().CTX_SAVED_CURWIN)
         }
-    }
 }
 
 pub unsafe fn ctx_switch(
@@ -939,7 +937,7 @@ unsafe fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: *mut win_T) {
     }
 }
 
-pub unsafe fn ctx_restore(cs: &mut CtxSwitch) {
+pub fn ctx_restore(cs: &mut CtxSwitch) {
     unsafe {
         if cs.cs_mode == kCtxSwitchNone {
             return;

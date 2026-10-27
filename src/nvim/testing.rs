@@ -68,7 +68,7 @@ unsafe fn buf_concat_len(gap: &mut Vec<u8>, s: *const c_char, len: usize) {
     }
 }
 
-unsafe fn prepare_assert_error(gap: &mut Vec<u8>) {
+fn prepare_assert_error(gap: &mut Vec<u8>) {
     unsafe {
         let sname = estack_sfile(ESTACK_NONE);
         let slnum = sourcing_lnum();

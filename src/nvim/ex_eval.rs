@@ -230,7 +230,7 @@ fn check_skip(cstack: &cstack_T) -> bool {
 }
 
 #[inline]
-unsafe fn discard_pending_return(p: &mut Option<typval_T>) {
+fn discard_pending_return(p: &mut Option<typval_T>) {
     if let Some(ref mut tv) = p.take() {
         unsafe {
             tv_clear(tv);
@@ -330,7 +330,7 @@ pub unsafe fn cause_errthrow(
     }
 }
 
-pub unsafe fn free_global_msglist() {
+pub fn free_global_msglist() {
     unsafe {
         let ml = &raw mut g_st().msg_list;
         if let Some(ref mut list) = *ml {
@@ -525,7 +525,7 @@ unsafe fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int 
     }
 }
 
-unsafe fn discard_exception(excp: Option<std::rc::Rc<except_T>>, was_finished: bool) {
+fn discard_exception(excp: Option<std::rc::Rc<except_T>>, was_finished: bool) {
     unsafe {
         let Some(excp) = excp else {
             internal_error(c"discard_exception()".as_ptr());
@@ -577,7 +577,7 @@ unsafe fn discard_exception(excp: Option<std::rc::Rc<except_T>>, was_finished: b
     }
 }
 
-pub unsafe fn discard_current_exception() {
+pub fn discard_current_exception() {
     unsafe {
         let ce = &raw mut g_st().current_exception;
         if let Some(excp) = (*ce).take() {
@@ -588,7 +588,7 @@ pub unsafe fn discard_current_exception() {
     }
 }
 
-unsafe fn catch_exception(excp: &std::rc::Rc<except_T>) {
+fn catch_exception(excp: &std::rc::Rc<except_T>) {
     unsafe {
         let stack = &raw mut g_st().caught_stack;
         (*stack).push(excp.clone());
@@ -652,7 +652,7 @@ unsafe fn catch_exception(excp: &std::rc::Rc<except_T>) {
     }
 }
 
-unsafe fn finish_exception(excp: Option<std::rc::Rc<except_T>>) {
+fn finish_exception(excp: Option<std::rc::Rc<except_T>>) {
     unsafe {
         let stack = &raw mut g_st().caught_stack;
         if match ((*stack).last(), excp.as_ref()) {
@@ -700,7 +700,7 @@ unsafe fn finish_exception(excp: Option<std::rc::Rc<except_T>>) {
     }
 }
 
-pub unsafe fn exception_state_save(estate: &mut exception_state_T) {
+pub fn exception_state_save(estate: &mut exception_state_T) {
     unsafe {
         let ce = &raw const g_st().current_exception;
         estate.estate_current_exception = (*ce).clone();
@@ -711,9 +711,8 @@ pub unsafe fn exception_state_save(estate: &mut exception_state_T) {
     }
 }
 
-pub unsafe fn exception_state_restore(estate: &mut exception_state_T) {
-    unsafe {
-        if g_st().did_throw {
+pub fn exception_state_restore(estate: &mut exception_state_T) {
+    if g_st().did_throw {
             handle_did_throw();
         }
         g_st().current_exception = estate.estate_current_exception.take();
@@ -721,7 +720,6 @@ pub unsafe fn exception_state_restore(estate: &mut exception_state_T) {
         g_st().need_rethrow = estate.estate_need_rethrow;
         g_st().trylevel = estate.estate_trylevel;
         g_st().did_emsg = estate.estate_did_emsg;
-    }
 }
 
 pub fn exception_state_clear() {
@@ -732,7 +730,7 @@ pub fn exception_state_clear() {
         g_st().did_emsg = 0;
 }
 
-unsafe fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
+fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
     unsafe {
         let mut mesg = match action {
             RP_MAKE => gettext(c"%s made pending".as_ptr()),
@@ -800,9 +798,8 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
     }
 }
 
-pub unsafe fn report_make_pending(pending: c_int, value: PendingVal) {
-    unsafe {
-        if opt_vars().p_verbose >= 14 || g_st().debug_break_level > 0 {
+pub fn report_make_pending(pending: c_int, value: PendingVal) {
+    if opt_vars().p_verbose >= 14 || g_st().debug_break_level > 0 {
             if g_st().debug_break_level <= 0 {
                 verbose_enter();
             }
@@ -811,12 +808,10 @@ pub unsafe fn report_make_pending(pending: c_int, value: PendingVal) {
                 verbose_leave();
             }
         }
-    }
 }
 
-unsafe fn report_resume_pending(pending: c_int, value: PendingVal) {
-    unsafe {
-        if opt_vars().p_verbose >= 14 || g_st().debug_break_level > 0 {
+fn report_resume_pending(pending: c_int, value: PendingVal) {
+    if opt_vars().p_verbose >= 14 || g_st().debug_break_level > 0 {
             if g_st().debug_break_level <= 0 {
                 verbose_enter();
             }
@@ -825,12 +820,10 @@ unsafe fn report_resume_pending(pending: c_int, value: PendingVal) {
                 verbose_leave();
             }
         }
-    }
 }
 
-unsafe fn report_discard_pending(pending: c_int, value: PendingVal) {
-    unsafe {
-        if opt_vars().p_verbose >= 14 || g_st().debug_break_level > 0 {
+fn report_discard_pending(pending: c_int, value: PendingVal) {
+    if opt_vars().p_verbose >= 14 || g_st().debug_break_level > 0 {
             if g_st().debug_break_level <= 0 {
                 verbose_enter();
             }
@@ -839,10 +832,9 @@ unsafe fn report_discard_pending(pending: c_int, value: PendingVal) {
                 verbose_leave();
             }
         }
-    }
 }
 
-pub unsafe fn ex_eval(eap: &mut exarg_T) {
+pub fn ex_eval(eap: &mut exarg_T) {
     unsafe {
         let mut tv: typval_T = typval_T::new();
         let mut evalarg = evalarg_T::new();
@@ -857,7 +849,7 @@ pub unsafe fn ex_eval(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_if(eap: &mut exarg_T) {
+pub fn ex_if(eap: &mut exarg_T) {
     unsafe {
         let cstack = eap.cstack.cast::<cstack_T>();
 
@@ -883,7 +875,7 @@ pub unsafe fn ex_if(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_endif(eap: &mut exarg_T) {
+pub fn ex_endif(eap: &mut exarg_T) {
     unsafe {
         g_st().did_endif = true;
         let cstack = eap.cstack.cast::<cstack_T>();
@@ -903,7 +895,7 @@ pub unsafe fn ex_endif(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_else(eap: &mut exarg_T) {
+pub fn ex_else(eap: &mut exarg_T) {
     unsafe {
         let cstack = eap.cstack.cast::<cstack_T>();
         let mut skip = check_skip(&*cstack);
@@ -969,7 +961,7 @@ pub unsafe fn ex_else(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_while(eap: &mut exarg_T) {
+pub fn ex_while(eap: &mut exarg_T) {
     unsafe {
         let mut error = false;
         let cstack = eap.cstack.cast::<cstack_T>();
@@ -1032,7 +1024,7 @@ pub unsafe fn ex_while(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_continue(eap: &mut exarg_T) {
+pub fn ex_continue(eap: &mut exarg_T) {
     unsafe {
         let cstack = eap.cstack.cast::<cstack_T>();
 
@@ -1052,7 +1044,7 @@ pub unsafe fn ex_continue(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_break(eap: &mut exarg_T) {
+pub fn ex_break(eap: &mut exarg_T) {
     unsafe {
         let cstack = eap.cstack.cast::<cstack_T>();
 
@@ -1068,7 +1060,7 @@ pub unsafe fn ex_break(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_endwhile(eap: &mut exarg_T) {
+pub fn ex_endwhile(eap: &mut exarg_T) {
     unsafe {
         let cstack = eap.cstack.cast::<cstack_T>();
         let (err, csf) = if eap.cmdidx == CMD_endwhile {
@@ -1120,7 +1112,7 @@ pub unsafe fn ex_endwhile(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_throw(eap: &mut exarg_T) {
+pub fn ex_throw(eap: &mut exarg_T) {
     unsafe {
         let arg = eap.arg;
         let value = if *arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char {
@@ -1160,7 +1152,7 @@ pub unsafe fn do_throw(cstack: *mut cstack_T) {
     }
 }
 
-pub unsafe fn ex_try(eap: &mut exarg_T) {
+pub fn ex_try(eap: &mut exarg_T) {
     unsafe {
         let cstack = eap.cstack.cast::<cstack_T>();
 
@@ -1187,7 +1179,7 @@ pub unsafe fn ex_try(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_catch(eap: &mut exarg_T) {
+pub fn ex_catch(eap: &mut exarg_T) {
     unsafe {
         let mut idx: c_int = 0;
         let mut give_up = false;
@@ -1317,7 +1309,7 @@ pub unsafe fn ex_catch(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_finally(eap: &mut exarg_T) {
+pub fn ex_finally(eap: &mut exarg_T) {
     unsafe {
         let mut pending = CSTP_NONE;
         let cstack = eap.cstack.cast::<cstack_T>();
@@ -1397,7 +1389,7 @@ pub unsafe fn ex_finally(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_endtry(eap: &mut exarg_T) {
+pub fn ex_endtry(eap: &mut exarg_T) {
     unsafe {
         let mut rethrow = false;
         let mut pending: c_int = CSTP_NONE;
@@ -1514,7 +1506,7 @@ pub unsafe fn ex_endtry(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn enter_cleanup(csp: &mut cleanup_T) {
+pub fn enter_cleanup(csp: &mut cleanup_T) {
     unsafe {
         let pending = CSTP_NONE;
 
@@ -1550,7 +1542,7 @@ pub unsafe fn enter_cleanup(csp: &mut cleanup_T) {
     }
 }
 
-pub unsafe fn leave_cleanup(csp: &mut cleanup_T) {
+pub fn leave_cleanup(csp: &mut cleanup_T) {
     unsafe {
         let pending = csp.pending;
         if pending == CSTP_NONE {
@@ -1689,7 +1681,7 @@ pub unsafe fn cleanup_conditionals(
     }
 }
 
-unsafe fn get_end_emsg(cstack: &cstack_T) -> *mut c_char {
+fn get_end_emsg(cstack: &cstack_T) -> *mut c_char {
     unsafe {
         let fl = cstack.cs_flags[cstack.cs_idx as usize];
         if (fl & CSF_WHILE) != 0 {
@@ -1720,7 +1712,7 @@ pub fn rewind_conditionals(
         }
 }
 
-pub unsafe fn ex_endfunction(_eap: &mut exarg_T) {
+pub fn ex_endfunction(_eap: &mut exarg_T) {
     unsafe {
         semsg!(
             gettext(e_str_not_inside_function.as_ptr()),

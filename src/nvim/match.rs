@@ -325,7 +325,7 @@ unsafe fn match_add(
 }
 
 /// Delete match with ID `id` in the match list of window `wp` (`match_delete`).
-unsafe fn match_delete(wp: &mut win_T, id: c_int, perr: bool) -> c_int {
+fn match_delete(wp: &mut win_T, id: c_int, perr: bool) -> c_int {
     unsafe {
         let mut rtype = UPD_SOME_VALID;
 
@@ -374,7 +374,7 @@ fn get_match(wp: &mut win_T, id: c_int) -> *mut matchitem_T {
 }
 
 /// Init for calling `prepare_search_hl()` (`init_search_hl`).
-pub unsafe fn init_search_hl(wp: &mut win_T, search_hl: &mut match_T) {
+pub fn init_search_hl(wp: &mut win_T, search_hl: &mut match_T) {
     unsafe {
         let buf = wp.w_buffer;
         for cur in &mut wp.w_match_head {
@@ -554,7 +554,7 @@ unsafe fn next_search_hl(
 }
 
 /// Advance to the match in window `wp` line `lnum` or past it (`prepare_search_hl`).
-pub unsafe fn prepare_search_hl(wp: &mut win_T, search_hl: &mut match_T, lnum: linenr_T) {
+pub fn prepare_search_hl(wp: &mut win_T, search_hl: &mut match_T, lnum: linenr_T) {
     unsafe {
         let mut idx = 0usize;
         let len = wp.w_match_head.len();
@@ -903,7 +903,7 @@ pub fn get_prevcol_hl_flag(
 }
 
 /// Get highlighting for the char after the text in `char_attr` (`get_search_match_hl`).
-pub unsafe fn get_search_match_hl(
+pub fn get_search_match_hl(
     wp: &mut win_T,
     search_hl: &mut match_T,
     col: colnr_T,
@@ -1284,7 +1284,7 @@ pub unsafe fn f_matchdelete(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
 }
 
 /// `:[N]match {group} {pattern}` (`ex_match`).
-pub unsafe fn ex_match(eap: &mut exarg_T) {
+pub fn ex_match(eap: &mut exarg_T) {
     unsafe {
         let mut g = None;
         let end: *mut c_char;

@@ -289,7 +289,7 @@ pub unsafe fn win_hl_attr(wp: *mut win_T, hlf: c_int) -> c_int {
 }
 
 #[inline]
-pub unsafe fn hl_attr(n: c_int) -> c_int {
+pub fn hl_attr(n: c_int) -> c_int {
     unsafe {
         let ha = &raw const g_st().hl_attr_active;
         if let Some(ref tbl) = *ha {
@@ -305,7 +305,7 @@ const fn hl_attr_key(a: c_int, b: c_int) -> u64 {
     ((a as u32 as u64) << 32) | (b as u32 as u64)
 }
 
-pub unsafe fn highlight_init() {
+pub fn highlight_init() {
     unsafe {
         let entries_ptr = &raw mut hl_st().attr_entries;
         let ids_ptr = &raw mut hl_st().attr_entry_ids;
@@ -323,18 +323,16 @@ pub unsafe fn highlight_init() {
     }
 }
 
-pub unsafe fn highlight_use_hlstate() -> bool {
-    unsafe {
-        if hl_st().hlstate_active {
+pub fn highlight_use_hlstate() -> bool {
+    if hl_st().hlstate_active {
             return false;
         }
         hl_st().hlstate_active = true;
         clear_hl_tables(true);
         true
-    }
 }
 
-unsafe fn get_attr_entry(mut entry: HlEntry) -> c_int {
+fn get_attr_entry(mut entry: HlEntry) -> c_int {
     unsafe {
         let mut retried = false;
         if !hl_st().hlstate_active {
@@ -386,7 +384,7 @@ unsafe fn get_attr_entry(mut entry: HlEntry) -> c_int {
     }
 }
 
-pub unsafe fn ui_send_all_hls(ui: &mut RemoteUI) {
+pub fn ui_send_all_hls(ui: &mut RemoteUI) {
     unsafe {
         let entries_ptr = &raw const hl_st().attr_entries;
         let len = (*entries_ptr).len();
@@ -411,9 +409,8 @@ pub unsafe fn ui_send_all_hls(ui: &mut RemoteUI) {
     }
 }
 
-pub unsafe fn hl_get_syn_attr(ns_id: c_int, idx: c_int, at_en: HlAttrs) -> c_int {
-    unsafe {
-        if at_en.cterm_fg_color != 0
+pub fn hl_get_syn_attr(ns_id: c_int, idx: c_int, at_en: HlAttrs) -> c_int {
+    if at_en.cterm_fg_color != 0
             || at_en.cterm_bg_color != 0
             || at_en.rgb_fg_color != -1
             || at_en.rgb_bg_color != -1
@@ -432,7 +429,6 @@ pub unsafe fn hl_get_syn_attr(ns_id: c_int, idx: c_int, at_en: HlAttrs) -> c_int
             });
         }
         0
-    }
 }
 
 pub unsafe fn ns_hl_def(
@@ -592,7 +588,7 @@ pub unsafe fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: boo
     }
 }
 
-pub unsafe fn hl_check_ns() -> bool {
+pub fn hl_check_ns() -> bool {
     unsafe {
         let ns = if g_st().ns_hl_fast > 0 {
             g_st().ns_hl_fast
@@ -645,7 +641,7 @@ pub unsafe fn hl_ns_get_attrs(
     }
 }
 
-pub unsafe fn hl_get_ui_attr(
+pub fn hl_get_ui_attr(
     ns_id: c_int,
     idx: c_int,
     final_id: c_int,
@@ -681,7 +677,7 @@ pub unsafe fn hl_get_ui_attr(
     }
 }
 
-pub unsafe fn hl_apply_winblend(winbl: c_int, mut attr: c_int) -> c_int {
+pub fn hl_apply_winblend(winbl: c_int, mut attr: c_int) -> c_int {
     unsafe {
         let entries_ptr = &raw const hl_st().attr_entries;
         let mut entry = (*entries_ptr).as_slice()[attr as usize];
@@ -693,7 +689,7 @@ pub unsafe fn hl_apply_winblend(winbl: c_int, mut attr: c_int) -> c_int {
     }
 }
 
-pub unsafe fn update_window_hl(wp: &mut win_T, invalid: bool) {
+pub fn update_window_hl(wp: &mut win_T, invalid: bool) {
     unsafe {
         let ns_id = wp.w_ns_hl;
 
@@ -777,7 +773,7 @@ pub unsafe fn update_window_hl(wp: &mut win_T, invalid: bool) {
     }
 }
 
-pub unsafe fn update_ns_hl(ns_id: c_int) {
+pub fn update_ns_hl(ns_id: c_int) {
     unsafe {
         if ns_id <= 0 {
             return;
@@ -808,7 +804,7 @@ pub unsafe fn update_ns_hl(ns_id: c_int) {
     }
 }
 
-pub unsafe fn win_bg_attr(wp: &mut win_T) -> c_int {
+pub fn win_bg_attr(wp: &mut win_T) -> c_int {
     unsafe {
         if g_st().ns_hl_fast < 0 {
             let local = if ptr::eq(wp, *curwin.as_ptr()) {
@@ -829,9 +825,8 @@ pub unsafe fn win_bg_attr(wp: &mut win_T) -> c_int {
     }
 }
 
-pub unsafe fn hl_get_underline() -> c_int {
-    unsafe {
-        let mut attrs = HLATTRS_INIT;
+pub fn hl_get_underline() -> c_int {
+    let mut attrs = HLATTRS_INIT;
         attrs.cterm_ae_attr = HL_UNDERLINE;
         attrs.rgb_ae_attr = HL_UNDERLINE;
         get_attr_entry(HlEntry {
@@ -841,7 +836,6 @@ pub unsafe fn hl_get_underline() -> c_int {
             id2: 0,
             winid: 0,
         })
-    }
 }
 
 pub unsafe fn hl_add_url(attr: c_int, url: *const c_char) -> c_int {
@@ -869,7 +863,7 @@ pub unsafe fn hl_add_url(attr: c_int, url: *const c_char) -> c_int {
     }
 }
 
-pub unsafe fn hl_get_url(index: u32) -> *const c_char {
+pub fn hl_get_url(index: u32) -> *const c_char {
     unsafe {
         let urls_ptr = &raw const hl_st().urls;
         (*urls_ptr).as_slice()[index as usize].as_ptr()
@@ -892,7 +886,7 @@ pub unsafe fn hl_add_font_idx(font_name: *const c_char) -> i32 {
     }
 }
 
-pub unsafe fn hl_get_font(index: i32) -> *const c_char {
+pub fn hl_get_font(index: i32) -> *const c_char {
     unsafe {
         let fonts_ptr = &raw const hl_st().fonts;
         if index < 0 || (index as usize) >= (*fonts_ptr).len() {
@@ -914,7 +908,7 @@ pub unsafe fn hl_get_term_attr(aep: *mut HlAttrs) -> c_int {
     }
 }
 
-pub unsafe fn clear_hl_tables(reinit: bool) {
+pub fn clear_hl_tables(reinit: bool) {
     unsafe {
         let entries_ptr = &raw mut hl_st().attr_entries;
         let ids_ptr = &raw mut hl_st().attr_entry_ids;
@@ -951,7 +945,7 @@ pub unsafe fn clear_hl_tables(reinit: bool) {
     }
 }
 
-pub unsafe fn hl_invalidate_blends() {
+pub fn hl_invalidate_blends() {
     unsafe {
         let blend_ptr = &raw mut hl_st().blend_attr_entries;
         (*blend_ptr).clear();
@@ -970,7 +964,7 @@ const fn hl_combine_ae(char_ae: i32, prim_ae: i32) -> i32 {
     (char_ae & !HL_UNDERLINE_MASK) | (prim_ae & !HL_UNDERLINE_MASK) | new_ul
 }
 
-pub unsafe fn hl_combine_attr(char_attr: c_int, prim_attr: c_int) -> c_int {
+pub fn hl_combine_attr(char_attr: c_int, prim_attr: c_int) -> c_int {
     unsafe {
         if char_attr == 0 {
             return prim_attr;
@@ -1052,7 +1046,7 @@ pub unsafe fn hl_combine_attr(char_attr: c_int, prim_attr: c_int) -> c_int {
     }
 }
 
-unsafe fn get_colors_force(mut attrs: HlAttrs) -> HlAttrs {
+fn get_colors_force(mut attrs: HlAttrs) -> HlAttrs {
     unsafe {
         if attrs.rgb_bg_color == -1 {
             attrs.rgb_bg_color = g_st().normal_bg;
@@ -1242,7 +1236,7 @@ const fn hl_cterm2rgb_color(nr: c_int) -> c_int {
     (r << 16) + (g << 8) + b
 }
 
-pub unsafe fn syn_attr2entry(attr: c_int) -> HlAttrs {
+pub fn syn_attr2entry(attr: c_int) -> HlAttrs {
     unsafe {
         let entries_ptr = &raw const hl_st().attr_entries;
         if attr <= 0 || (attr as usize) >= (*entries_ptr).len() {
@@ -1843,7 +1837,7 @@ pub unsafe fn hl_inspect(attr: c_int, arena: *mut Arena) -> Array {
     }
 }
 
-unsafe fn hl_inspect_size(attr: c_int) -> usize {
+fn hl_inspect_size(attr: c_int) -> usize {
     unsafe {
         let entries_ptr = &raw const hl_st().attr_entries;
         if attr <= 0 || (attr as usize) >= (*entries_ptr).len() {

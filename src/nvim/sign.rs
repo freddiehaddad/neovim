@@ -165,7 +165,7 @@ unsafe fn group_get_ns(group: *const c_char) -> i64 {
     }
 }
 
-unsafe fn sign_get_name(sh: &DecorSignHighlight) -> *const c_char {
+fn sign_get_name(sh: &DecorSignHighlight) -> *const c_char {
     unsafe {
         let Some(ref name) = sh.sign_name else {
             return c"".as_ptr();
@@ -275,9 +275,8 @@ unsafe fn buf_findsign(buf: *mut buf_T, id: c_int, group: *mut c_char) -> c_int 
     }
 }
 
-unsafe fn sign_row_cmp_slice(s1: &MTKey, s2: &MTKey) -> Ordering {
-    unsafe {
-        if s1.pos.row != s2.pos.row {
+fn sign_row_cmp_slice(s1: &MTKey, s2: &MTKey) -> Ordering {
+    if s1.pos.row != s2.pos.row {
             return if s1.pos.row > s2.pos.row {
                 Ordering::Greater
             } else {
@@ -291,7 +290,6 @@ unsafe fn sign_row_cmp_slice(s1: &MTKey, s2: &MTKey) -> Ordering {
         let si2 = SignItem { sh: sh2, id: s2.id };
 
         sign_item_cmp(&si1, &si2)
-    }
 }
 
 unsafe fn buf_delete_signs(
@@ -647,7 +645,7 @@ unsafe fn sign_undefine_by_name(name: *const c_char) -> c_int {
     }
 }
 
-unsafe fn sign_list_defined(sp: &mut sign_T) {
+fn sign_list_defined(sp: &mut sign_T) {
     unsafe {
         smsg!(0, c"sign %s".as_ptr(), sp.sn_name.as_ptr());
         if let Some(ref icon) = sp.sn_icon {
@@ -1042,7 +1040,7 @@ unsafe fn parse_sign_cmd_args(
     }
 }
 
-pub unsafe fn ex_sign(eap: &mut exarg_T) {
+pub fn ex_sign(eap: &mut exarg_T) {
     unsafe {
         let mut arg = eap.arg;
 
@@ -1113,7 +1111,7 @@ pub unsafe fn ex_sign(eap: &mut exarg_T) {
     }
 }
 
-unsafe fn sign_get_info_dict(sp: &mut sign_T) -> *mut dict_T {
+fn sign_get_info_dict(sp: &mut sign_T) -> *mut dict_T {
     unsafe {
         let d = tv_dict_alloc();
 
@@ -1150,7 +1148,7 @@ unsafe fn sign_get_info_dict(sp: &mut sign_T) -> *mut dict_T {
     }
 }
 
-unsafe fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
+fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
     unsafe {
         let d = tv_dict_alloc();
         let sh = decor_find_sign(mt_decor(mark)).unwrap();
@@ -1169,7 +1167,7 @@ unsafe fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
     }
 }
 
-pub unsafe fn get_buffer_signs(buf: &mut buf_T) -> *mut list_T {
+pub fn get_buffer_signs(buf: &mut buf_T) -> *mut list_T {
     unsafe {
         let l = tv_list_alloc(kListLenMayKnow);
         let mut itr = MarkTreeIter::new();
@@ -1267,7 +1265,7 @@ pub fn free_signs() {
     sign_st().sign_map = Vec::new();
 }
 
-unsafe fn get_nth_sign_name(idx: c_int) -> *mut c_char {
+fn get_nth_sign_name(idx: c_int) -> *mut c_char {
     unsafe {
         let sm_ptr = &raw const sign_st().sign_map;
         if let Ok(idx_usize) = usize::try_from(idx)
@@ -1279,7 +1277,7 @@ unsafe fn get_nth_sign_name(idx: c_int) -> *mut c_char {
     }
 }
 
-unsafe fn get_nth_sign_group_name(idx: c_int) -> *mut c_char {
+fn get_nth_sign_group_name(idx: c_int) -> *mut c_char {
     if idx < 0 {
         return ptr::null_mut();
     }
@@ -1292,9 +1290,8 @@ unsafe fn get_nth_sign_group_name(idx: c_int) -> *mut c_char {
     }
 }
 
-pub unsafe fn get_sign_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
-    unsafe {
-        match sign_st().expand_what {
+pub fn get_sign_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+    match sign_st().expand_what {
             EXP_SUBCMD => CMDS[idx as usize].cast_mut(),
             EXP_DEFINE => {
                 const DEFINE_ARG: [*const c_char; 8] = [
@@ -1334,7 +1331,6 @@ pub unsafe fn get_sign_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
             EXP_SIGN_GROUPS => get_nth_sign_group_name(idx),
             _ => ptr::null_mut(),
         }
-    }
 }
 
 pub unsafe fn set_context_in_sign_cmd(xp: &mut expand_T, arg: *mut c_char) {

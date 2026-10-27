@@ -123,7 +123,7 @@ const E_NO_SUCH_USER_DEFINED_COMMAND_IN_CURRENT_BUFFER_STR: &CStr =
 static UCMDS_STATE: GlobalState<Vec<ucmd_T>> = GlobalState::new(Vec::new());
 
 #[inline]
-pub(crate) unsafe fn ucmds_mut() -> &'static mut Vec<ucmd_T> {
+pub(crate) fn ucmds_mut() -> &'static mut Vec<ucmd_T> {
     unsafe { &mut *UCMDS_STATE.as_ptr() }
 }
 
@@ -439,12 +439,12 @@ pub unsafe fn set_context_in_user_cmdarg(
     }
 }
 
-pub unsafe fn expand_user_command_name(idx: c_int) -> *mut c_char {
-    unsafe { get_user_commands(&mut crate::os::env::expand_T::new(), idx - CMD_SIZE) }
+pub fn expand_user_command_name(idx: c_int) -> *mut c_char {
+    get_user_commands(&mut crate::os::env::expand_T::new(), idx - CMD_SIZE)
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user command names (`get_user_commands`).
-pub unsafe fn get_user_commands(_xp: &mut expand_T, mut idx: c_int) -> *mut c_char {
+pub fn get_user_commands(_xp: &mut expand_T, mut idx: c_int) -> *mut c_char {
     unsafe {
         let buf = (*prevwin_curwin()).w_buffer;
         let b_len = (*buf).b_ucmds.len() as c_int;
@@ -471,7 +471,7 @@ pub unsafe fn get_user_commands(_xp: &mut expand_T, mut idx: c_int) -> *mut c_ch
 }
 
 /// Get the name of user command `idx` (`get_user_command_name`).
-pub unsafe fn get_user_command_name(idx: c_int, cmdidx: c_int) -> *mut c_char {
+pub fn get_user_command_name(idx: c_int, cmdidx: c_int) -> *mut c_char {
     unsafe {
         let u = &raw const (*ucmds_mut());
         let u_len = (*u).len() as c_int;
@@ -1198,7 +1198,7 @@ pub unsafe fn uc_add_command(
 }
 
 /// `:command ...` (`ex_command`).
-pub unsafe fn ex_command(eap: &mut exarg_T) {
+pub fn ex_command(eap: &mut exarg_T) {
     unsafe {
         let mut argt: u32 = 0;
         let mut def: c_int = -1;
@@ -1272,7 +1272,7 @@ pub unsafe fn ex_command(eap: &mut exarg_T) {
 }
 
 /// `:comclear` (`ex_comclear`).
-pub unsafe fn ex_comclear(_eap: &mut exarg_T) {
+pub fn ex_comclear(_eap: &mut exarg_T) {
     unsafe {
         let u = &raw mut (*ucmds_mut());
         (*u).clear();
@@ -1282,7 +1282,7 @@ pub unsafe fn ex_comclear(_eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_delcommand(eap: &mut exarg_T) {
+pub fn ex_delcommand(eap: &mut exarg_T) {
     unsafe {
         let mut i: c_int;
         let mut res: c_int = -1;
@@ -1872,7 +1872,7 @@ unsafe fn uc_check_code(
     }
 }
 
-pub unsafe fn do_ucmd(eap: &mut exarg_T, preview: bool) -> c_int {
+pub fn do_ucmd(eap: &mut exarg_T, preview: bool) -> c_int {
     unsafe {
         let mut end: *mut c_char = ptr::null_mut();
         let mut split_len: usize = 0;

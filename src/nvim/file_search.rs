@@ -156,9 +156,7 @@ impl Default for ff_search_ctx_T {
 
 impl Drop for ff_search_ctx_T {
     fn drop(&mut self) {
-        unsafe {
-            ff_clear(self);
-        }
+        ff_clear(self);
     }
 }
 
@@ -512,7 +510,7 @@ pub unsafe fn vim_findfile_stopdir(mut buf: *mut c_char) -> *mut c_char {
 }
 
 /// Find a file in a search context.
-pub unsafe fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi::CString> {
+pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi::CString> {
     unsafe {
         let search_ctx = search_ctx?;
 
@@ -1092,7 +1090,7 @@ fn ff_pop(search_ctx: &mut ff_search_ctx_T) -> Option<ff_stack_T> {
     search_ctx.ffsc_stack.pop()
 }
 
-unsafe fn ff_clear(search_ctx: &mut ff_search_ctx_T) {
+fn ff_clear(search_ctx: &mut ff_search_ctx_T) {
     unsafe {
         search_ctx.ffsc_stack.clear();
         search_ctx.ffsc_stopdirs_v.clear();

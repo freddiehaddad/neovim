@@ -325,7 +325,7 @@ use crate::buffer::bt_dontwrite_msg;
 use crate::undo::{bufIsChanged, curbufIsChanged};
 
 /// `":ascii"` and `"ga"` implementation.
-pub unsafe fn do_ascii(_eap: &mut exarg_T) {
+pub fn do_ascii(_eap: &mut exarg_T) {
     unsafe {
         let data = get_cursor_pos_ptr();
         let len = utfc_ptr2len(data) as usize;
@@ -468,7 +468,7 @@ pub unsafe fn do_ascii(_eap: &mut exarg_T) {
 }
 
 /// `":left"`, `":center"` and `":right"`: align text.
-pub unsafe fn ex_align(eap: &mut exarg_T) {
+pub fn ex_align(eap: &mut exarg_T) {
     unsafe {
         let mut indent: c_int = 0;
         let mut new_indent: c_int;
@@ -672,7 +672,7 @@ unsafe fn sort_compare(
 }
 
 /// `":sort"`.
-pub unsafe fn ex_sort(eap: &mut exarg_T) {
+pub fn ex_sort(eap: &mut exarg_T) {
     unsafe {
         let mut regmatch: regmatch_T = regmatch_T::new();
         let mut maxlen: c_int = 0;
@@ -951,7 +951,7 @@ pub unsafe fn ex_sort(eap: &mut exarg_T) {
 }
 
 /// `":uniq"`.
-pub unsafe fn ex_uniq(eap: &mut exarg_T) {
+pub fn ex_uniq(eap: &mut exarg_T) {
     unsafe {
         let mut regmatch: regmatch_T = regmatch_T::new();
         let mut maxlen: c_int = 0;
@@ -1162,7 +1162,7 @@ pub unsafe fn ex_uniq(eap: &mut exarg_T) {
 }
 
 /// `:move` command - move lines `line1`-`line2` to line `dest`.
-pub unsafe fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> c_int {
+pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> c_int {
     unsafe {
         if dest >= line1 && dest < line2 {
             emsg(gettext(
@@ -1344,7 +1344,7 @@ pub unsafe fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> c
 }
 
 /// `":copy"`.
-pub unsafe fn ex_copy(mut line1: linenr_T, mut line2: linenr_T, n: linenr_T) {
+pub fn ex_copy(mut line1: linenr_T, mut line2: linenr_T, n: linenr_T) {
     unsafe {
         let count = line2 - line1 + 1;
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
@@ -1393,7 +1393,7 @@ pub fn free_prev_shellcmd() {
 }
 
 /// Check that `excmds_st().prevcmd` is not NULL.
-unsafe fn prevcmd_is_set() -> bool {
+fn prevcmd_is_set() -> bool {
     unsafe {
         if excmds_st().prevcmd.is_none() {
             emsg(gettext(e_noprev.as_ptr()));
@@ -1404,7 +1404,7 @@ unsafe fn prevcmd_is_set() -> bool {
 }
 
 /// Handle the `":!cmd"` command.
-pub unsafe fn do_bang(
+pub fn do_bang(
     addr_count: c_int,
     eap: &mut exarg_T,
     forceit: bool,
@@ -2023,7 +2023,7 @@ pub unsafe fn append_redir(
     }
 }
 
-pub unsafe fn print_line_no_prefix(lnum: linenr_T, use_number: bool, list: bool) {
+pub fn print_line_no_prefix(lnum: linenr_T, use_number: bool, list: bool) {
     unsafe {
         let mut numbuf: [c_char; 30] = [0; 30];
 
@@ -2042,7 +2042,7 @@ pub unsafe fn print_line_no_prefix(lnum: linenr_T, use_number: bool, list: bool)
 }
 
 /// Print a text line. Also in silent mode (`"ex -s"`).
-pub unsafe fn print_line(lnum: linenr_T, use_number: bool, list: bool, first: bool) {
+pub fn print_line(lnum: linenr_T, use_number: bool, list: bool, first: bool) {
     unsafe {
         let save_silent = g_st().silent_mode;
 
@@ -2115,7 +2115,7 @@ pub unsafe fn rename_buffer(new_fname: *mut c_char) -> c_int {
 }
 
 /// `":file[!] [fname]"`.
-pub unsafe fn ex_file(eap: &mut exarg_T) {
+pub fn ex_file(eap: &mut exarg_T) {
     unsafe {
         if eap.addr_count > 0
             && (*eap.arg != NUL || eap.line2 > 0 || eap.addr_count > 1)
@@ -2138,7 +2138,7 @@ pub unsafe fn ex_file(eap: &mut exarg_T) {
 }
 
 /// `":update"`.
-pub unsafe fn ex_update(eap: &mut exarg_T) {
+pub fn ex_update(eap: &mut exarg_T) {
     unsafe {
         if curbufIsChanged()
             || (!bt_nofilename(g_st().curbuf)
@@ -2151,7 +2151,7 @@ pub unsafe fn ex_update(eap: &mut exarg_T) {
 }
 
 /// `":write"` and `":saveas"`.
-pub unsafe fn ex_write(eap: &mut exarg_T) {
+pub fn ex_write(eap: &mut exarg_T) {
     unsafe {
         if eap.cmdidx == cmdidx_T::CMD_saveas as c_int {
             eap.line1 = 1;
@@ -2190,7 +2190,7 @@ unsafe fn handle_mkdir_p_arg(eap: &mut exarg_T, fname: *mut c_char) -> c_int {
 }
 
 /// Write current buffer to file `eap->arg`.
-pub unsafe fn do_write(eap: &mut exarg_T) -> c_int {
+pub fn do_write(eap: &mut exarg_T) -> c_int {
     unsafe {
         let mut fname: *mut c_char = ptr::null_mut();
         let mut retval = FAIL;
@@ -2460,7 +2460,7 @@ pub unsafe fn check_overwrite(
 }
 
 /// Handle `":wnext"`, `":wNext"` and `":wprevious"` commands.
-pub unsafe fn ex_wnext(eap: &mut exarg_T) {
+pub fn ex_wnext(eap: &mut exarg_T) {
     unsafe {
         let i = if *eap.cmd.add(1) == b'n' as c_char {
             (**curwin.as_ptr()).w_arg_idx + eap.line2 as c_int
@@ -2476,7 +2476,7 @@ pub unsafe fn ex_wnext(eap: &mut exarg_T) {
 }
 
 /// `":wall"`, `":wqall"` and `":xall"`: Write all changed files (and exit).
-pub unsafe fn do_wqall(eap: &mut exarg_T) {
+pub fn do_wqall(eap: &mut exarg_T) {
     unsafe {
         let mut error: c_int = 0;
         let save_forceit = eap.forceit;
@@ -2551,7 +2551,7 @@ pub unsafe fn do_wqall(eap: &mut exarg_T) {
 }
 
 /// Check the `'write'` option.
-unsafe fn not_writing() -> bool {
+fn not_writing() -> bool {
     unsafe {
         if opt_vars().p_write != 0 {
             return false;
@@ -2564,7 +2564,7 @@ unsafe fn not_writing() -> bool {
 }
 
 /// Check if a buffer is read-only.
-unsafe fn check_readonly(forceit: &mut c_int, buf: &mut buf_T) -> bool {
+fn check_readonly(forceit: &mut c_int, buf: &mut buf_T) -> bool {
     unsafe {
         if *forceit == 0
             && (buf.b_p_ro != 0
@@ -3289,7 +3289,7 @@ pub unsafe fn do_ecmd(
     }
 }
 
-unsafe fn delbuf_msg(name: Option<std::ffi::CString>) {
+fn delbuf_msg(name: Option<std::ffi::CString>) {
     unsafe {
         semsg!(
             gettext(c"E143: Autocommands unexpectedly deleted new buffer %s".as_ptr()),
@@ -3301,7 +3301,7 @@ unsafe fn delbuf_msg(name: Option<std::ffi::CString>) {
 }
 
 /// Get the next line of text for `":append"`, `":insert"` and `":change"`.
-unsafe fn get_append_line(eap: &mut exarg_T, indent: c_int) -> Option<Vec<c_char>> {
+fn get_append_line(eap: &mut exarg_T, indent: c_int) -> Option<Vec<c_char>> {
     unsafe {
         if *eap.arg == b'|' as c_char {
             let theline = cstr_to_cstring(eap.arg.add(1))
@@ -3356,7 +3356,7 @@ unsafe fn get_append_line(eap: &mut exarg_T, indent: c_int) -> Option<Vec<c_char
 }
 
 /// `":insert"` and `":append"`, also used by `":change"`.
-pub unsafe fn ex_append(eap: &mut exarg_T) {
+pub fn ex_append(eap: &mut exarg_T) {
     unsafe {
         let mut did_undo = false;
         let mut lnum = eap.line2;
@@ -3483,7 +3483,7 @@ pub unsafe fn ex_append(eap: &mut exarg_T) {
 }
 
 /// `":change"`.
-pub unsafe fn ex_change(eap: &mut exarg_T) {
+pub fn ex_change(eap: &mut exarg_T) {
     unsafe {
         if eap.skip != 0 {
             ex_append(eap);
@@ -3518,7 +3518,7 @@ pub unsafe fn ex_change(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_z(eap: &mut exarg_T) {
+pub fn ex_z(eap: &mut exarg_T) {
     unsafe {
         let mut bigness: i64;
         let mut minus: c_int = 0;
@@ -3647,7 +3647,7 @@ pub unsafe fn ex_z(eap: &mut exarg_T) {
 }
 
 /// @return true if the secure flag is set and also give an error message.
-pub unsafe fn check_secure() -> bool {
+pub fn check_secure() -> bool {
     unsafe {
         if g_st().secure != 0 {
             g_st().secure = 2;
@@ -3881,7 +3881,7 @@ unsafe fn skip_substitute(start: *mut c_char, delimiter: c_int) -> *mut c_char {
     }
 }
 
-unsafe fn check_regexp_delim(c: c_int) -> c_int {
+fn check_regexp_delim(c: c_int) -> c_int {
     unsafe {
         if ascii_isalpha(c) {
             emsg(gettext(
@@ -3914,7 +3914,7 @@ fn push_preview_lines(
 }
 
 /// Perform a substitution from line `eap->line1` to line `eap->line2`.
-unsafe fn do_sub(
+fn do_sub(
     eap: &mut exarg_T,
     tm: proftime_T,
     cmdpreview_ns: c_int,
@@ -4815,7 +4815,7 @@ unsafe fn do_sub(
 }
 
 /// Give message for number of substitutions.
-pub unsafe fn do_sub_msg(count_only: bool) -> bool {
+pub fn do_sub_msg(count_only: bool) -> bool {
     unsafe {
         if (((g_st().sub_nsubs as OptInt) > opt_vars().p_report && (g_st().KeyTyped || g_st().sub_nlines > 1 || opt_vars().p_report < 1))
             || count_only)
@@ -4891,7 +4891,7 @@ unsafe fn global_exe_one(cmd: *mut c_char, lnum: linenr_T) {
 }
 
 /// Execute a global command (`:g` / `:v`).
-pub unsafe fn ex_global(eap: &mut exarg_T) {
+pub fn ex_global(eap: &mut exarg_T) {
     unsafe {
         let mut lnum: linenr_T;
         let mut cmd: *mut c_char;
@@ -5088,7 +5088,7 @@ pub fn free_old_sub() {
 }
 
 /// Set up for a tagpreview.
-pub unsafe fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
+pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
     unsafe {
         if (**curwin.as_ptr()).w_onebuf_opt.wo_pvw != 0 {
             return false;
@@ -5147,7 +5147,7 @@ pub unsafe fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> boo
 }
 
 /// Shows the effects of the `:substitute` command being typed (`'inccommand'`).
-unsafe fn show_sub(
+fn show_sub(
     eap: &mut exarg_T,
     old_cusr: pos_T,
     preview_lines: &mut PreviewLines,
@@ -5274,14 +5274,12 @@ unsafe fn show_sub(
 }
 
 /// `:substitute` command.
-pub unsafe fn ex_substitute(eap: &mut exarg_T) {
-    unsafe {
-        do_sub(eap, profile_zero(), 0, 0);
-    }
+pub fn ex_substitute(eap: &mut exarg_T) {
+    do_sub(eap, profile_zero(), 0, 0);
 }
 
 /// `:substitute` command preview callback.
-pub unsafe fn ex_substitute_preview(
+pub fn ex_substitute_preview(
     eap: &mut exarg_T,
     cmdpreview_ns: c_int,
     cmdpreview_bufnr: handle_T,
@@ -5352,7 +5350,7 @@ pub unsafe fn skip_vimgrep_pat(
 }
 
 /// `:oldfiles` (sync) and `:browse oldfiles` (async).
-pub unsafe fn ex_oldfiles(eap: &mut exarg_T) {
+pub fn ex_oldfiles(eap: &mut exarg_T) {
     unsafe {
         nlua_call_excmd(
             c"vim._core.ex_cmd".as_ptr(),

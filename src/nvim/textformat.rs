@@ -175,14 +175,14 @@ fn tf_st() -> &'static mut TextformatState {
 }
 
 #[inline]
-unsafe fn whitechar(cc: c_int) -> bool {
+fn whitechar(cc: c_int) -> bool {
     unsafe {
         ascii_iswhite(cc) && !utf_iscomposing_first(utf_ptr2char(get_cursor_pos_ptr().add(1)))
     }
 }
 
 /// Return true if format option `x` is in effect (`has_format_option`).
-pub unsafe fn has_format_option(x: c_int) -> bool {
+pub fn has_format_option(x: c_int) -> bool {
     unsafe {
         if opt_vars().p_paste != 0 {
             return false;
@@ -192,7 +192,7 @@ pub unsafe fn has_format_option(x: c_int) -> bool {
 }
 
 /// Format text at the current insert position (`internal_format`).
-pub unsafe fn internal_format(
+pub fn internal_format(
     textwidth: c_int,
     mut second_indent: c_int,
     flags: c_int,
@@ -575,7 +575,7 @@ unsafe fn fmt_check_par(
     }
 }
 
-unsafe fn ends_in_white(lnum: linenr_T) -> bool {
+fn ends_in_white(lnum: linenr_T) -> bool {
     unsafe {
         let s = ml_get(lnum);
         if *s == NUL {
@@ -655,7 +655,7 @@ unsafe fn same_leader(
     }
 }
 
-unsafe fn paragraph_start(lnum: linenr_T) -> bool {
+fn paragraph_start(lnum: linenr_T) -> bool {
     unsafe {
         let mut leader_len: c_int = 0;
         let mut leader_flags: *mut c_char = ptr::null_mut();
@@ -708,7 +708,7 @@ unsafe fn paragraph_start(lnum: linenr_T) -> bool {
 }
 
 /// Auto-format from the current line until the end of the paragraph (`auto_format`).
-pub unsafe fn auto_format(trailblank: bool, prev_line: bool) {
+pub fn auto_format(trailblank: bool, prev_line: bool) {
     unsafe {
         if !has_format_option(kFoAuto) {
             return;
@@ -788,9 +788,8 @@ pub unsafe fn auto_format(trailblank: bool, prev_line: bool) {
 }
 
 /// Delete extra space added to continue a paragraph for auto-formatting (`check_auto_format`).
-pub unsafe fn check_auto_format(end_insert: bool) {
-    unsafe {
-        if !tf_st().did_add_space {
+pub fn check_auto_format(end_insert: bool) {
+    if !tf_st().did_add_space {
             return;
         }
 
@@ -809,11 +808,10 @@ pub unsafe fn check_auto_format(end_insert: bool) {
                 tf_st().did_add_space = false;
             }
         }
-    }
 }
 
 /// Find out textwidth to be used for formatting (`comp_textwidth`).
-pub unsafe fn comp_textwidth(ff: bool) -> c_int {
+pub fn comp_textwidth(ff: bool) -> c_int {
     unsafe {
         let mut textwidth = (*g_st().curbuf).b_p_tw as c_int;
         if textwidth == 0 && (*g_st().curbuf).b_p_wm != 0 {
@@ -834,7 +832,7 @@ pub unsafe fn comp_textwidth(ff: bool) -> c_int {
 }
 
 /// Implementation of the format operator `gq` (`op_format`).
-pub unsafe fn op_format(oap: &mut oparg_T, keep_cursor: bool) {
+pub fn op_format(oap: &mut oparg_T, keep_cursor: bool) {
     unsafe {
         let mut old_line_count = (*g_st().curbuf).b_ml.ml_line_count;
 
@@ -893,20 +891,18 @@ pub unsafe fn op_format(oap: &mut oparg_T, keep_cursor: bool) {
 }
 
 /// Implementation of the format operator `gq` for when using `'formatexpr'` (`op_formatexpr`).
-pub unsafe fn op_formatexpr(oap: &mut oparg_T) {
-    unsafe {
-        if oap.is_VIsual {
+pub fn op_formatexpr(oap: &mut oparg_T) {
+    if oap.is_VIsual {
             redraw_curbuf_later(UPD_INVERTED);
         }
 
         if fex_format(oap.start.lnum, c_long::from(oap.line_count), 0) != 0 {
             op_format(oap, false);
         }
-    }
 }
 
 /// Evaluate `'formatexpr'` (`fex_format`).
-pub unsafe fn fex_format(lnum: linenr_T, count: c_long, c: c_int) -> c_int {
+pub fn fex_format(lnum: linenr_T, count: c_long, c: c_int) -> c_int {
     unsafe {
         let use_sandbox = was_set_insecurely(*curwin.as_ptr(), kOptFormatexpr, OPT_LOCAL) != 0;
         let save_sctx = g_st().current_sctx;
@@ -927,7 +923,7 @@ pub unsafe fn fex_format(lnum: linenr_T, count: c_long, c: c_int) -> c_int {
 }
 
 /// Format `line_count` lines starting at the cursor position (`format_lines`).
-pub unsafe fn format_lines(line_count: linenr_T, avoid_fex: bool) {
+pub fn format_lines(line_count: linenr_T, avoid_fex: bool) {
     unsafe {
         let mut is_not_par: bool;
         let mut next_is_not_par: bool;

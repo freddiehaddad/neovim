@@ -2464,11 +2464,11 @@ unsafe fn build_meta(L: *mut lua_State, tname: *const c_char, meta: *const luaL_
 }
 
 unsafe extern "C" fn ts_malloc(size: usize) -> *mut c_void {
-    unsafe { raw_alloc(size) }
+    raw_alloc(size)
 }
 
 unsafe extern "C" fn ts_calloc(count: usize, size: usize) -> *mut c_void {
-    unsafe { raw_calloc(count, size) }
+    raw_calloc(count, size)
 }
 
 unsafe extern "C" fn ts_realloc(ptr: *mut c_void, size: usize) -> *mut c_void {

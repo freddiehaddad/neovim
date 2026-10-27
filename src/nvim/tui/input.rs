@@ -291,9 +291,7 @@ pub fn tinput_stop(input: &mut TermInput) {
 }
 
 pub fn tinput_done_event() {
-    unsafe {
-        os_exit(1);
-    }
+    os_exit(1);
 }
 
 /// Send all pending input in key buffer to Nvim server.

@@ -2628,7 +2628,7 @@ pub fn marktree_itr_set_node(
         key
 }
 
-pub unsafe fn marktree_get_altpos(
+pub fn marktree_get_altpos(
     b: &MarkTree,
     mark: MTKey,
     itr: Option<&mut MarkTreeIter>,
@@ -2698,9 +2698,8 @@ pub fn marktree_del_pair_test(b: &mut MarkTree, ns: u32, id: u32) {
 }
 
 #[cfg(test)]
-pub unsafe fn marktree_check(b: &MarkTree) {
-    unsafe {
-        let Some(root) = b.root else {
+pub fn marktree_check(b: &MarkTree) {
+    let Some(root) = b.root else {
             assert_eq!(b.n_keys, 0);
             assert_eq!(b.n_nodes, 0);
             assert_eq!(b.id2node.len(), 0);
@@ -2713,19 +2712,17 @@ pub unsafe fn marktree_check(b: &MarkTree) {
         let nkeys = marktree_check_node(b, root, &mut dummy, &mut last_right, &b.meta_root);
         assert_eq!(b.n_keys, nkeys);
         assert_eq!(b.n_keys, b.id2node.len());
-    }
 }
 
 #[cfg(test)]
-pub unsafe fn marktree_check_node(
+pub fn marktree_check_node(
     b: &MarkTree,
     x: usize,
     last: &mut MTPos,
     last_right: &mut bool,
     meta_node_ref: &[u32; kMTMetaCount],
 ) -> usize {
-    unsafe {
-        assert!(b.nodes[x].n < 2 * T);
+    assert!(b.nodes[x].n < 2 * T);
         assert!(b.nodes[x].n >= if Some(x) != b.root { T - 1 } else { 0 });
         let mut n_keys = b.nodes[x].n as usize;
 
@@ -2775,13 +2772,11 @@ pub unsafe fn marktree_check_node(
         assert_eq!(&meta_node, meta_node_ref);
 
         n_keys
-    }
 }
 
 #[cfg(test)]
-pub unsafe fn marktree_check_intersections(b: &mut MarkTree) -> bool {
-    unsafe {
-        let Some(root) = b.root else {
+pub fn marktree_check_intersections(b: &mut MarkTree) -> bool {
+    let Some(root) = b.root else {
             return true;
         };
         let mut checked: PMapPtr = PMapPtr::new();
@@ -2821,13 +2816,11 @@ pub unsafe fn marktree_check_intersections(b: &mut MarkTree) -> bool {
         // 3. for each node check if the recreated intersection
         // matches the old checked[x] intersection.
         mt_recurse_nodes_compare(b, root, &checked)
-    }
 }
 
 #[cfg(test)]
-pub unsafe fn mt_recurse_nodes(b: &mut MarkTree, x: usize, checked: &mut PMapPtr) {
-    unsafe {
-        if !b.nodes[x].intersect.is_empty() {
+pub fn mt_recurse_nodes(b: &mut MarkTree, x: usize, checked: &mut PMapPtr) {
+    if !b.nodes[x].intersect.is_empty() {
             checked.insert(x, std::mem::take(&mut b.nodes[x].intersect));
         }
 
@@ -2838,13 +2831,11 @@ pub unsafe fn mt_recurse_nodes(b: &mut MarkTree, x: usize, checked: &mut PMapPtr
                 mt_recurse_nodes(b, child, checked);
             }
         }
-    }
 }
 
 #[cfg(test)]
-pub unsafe fn mt_recurse_nodes_compare(b: &MarkTree, x: usize, checked: &PMapPtr) -> bool {
-    unsafe {
-        let expected = checked.get(&x).map_or(&[][..], |v| v.as_slice());
+pub fn mt_recurse_nodes_compare(b: &MarkTree, x: usize, checked: &PMapPtr) -> bool {
+    let expected = checked.get(&x).map_or(&[][..], |v| v.as_slice());
         if b.nodes[x].intersect.as_slice() != expected {
             return false;
         }
@@ -2859,10 +2850,9 @@ pub unsafe fn mt_recurse_nodes_compare(b: &MarkTree, x: usize, checked: &PMapPtr
         }
 
         true
-    }
 }
 
-pub unsafe fn mt_inspect(b: &MarkTree, keys: bool, dot: bool) -> NvimString {
+pub fn mt_inspect(b: &MarkTree, keys: bool, dot: bool) -> NvimString {
     unsafe {
         let mut out = String::new();
         let p = MTPos { row: 0, col: 0 };
@@ -2985,8 +2975,7 @@ mod tests {
     #[test]
     fn marktree_put_splice_lookup_and_check() {
         let mut tree = MarkTree::new();
-        unsafe {
-            for i in 1..=30u32 {
+        for i in 1..=30u32 {
                 marktree_put_test(
                     &mut tree,
                     1,
@@ -3070,6 +3059,5 @@ mod tests {
             assert!(marktree_check_intersections(&mut tree));
             marktree_splice(&mut tree, 48, 0, 139, 0, 0, 0);
             assert!(marktree_check_intersections(&mut tree));
-        }
     }
 }

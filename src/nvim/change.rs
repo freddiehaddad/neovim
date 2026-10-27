@@ -116,7 +116,7 @@ pub const fn replace_normal(s: c_int) -> bool {
 }
 
 #[inline]
-unsafe fn for_all_tab_windows(mut f: impl FnMut(*mut win_T)) {
+fn for_all_tab_windows(mut f: impl FnMut(*mut win_T)) {
     unsafe {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
@@ -224,7 +224,7 @@ pub unsafe fn changed_internal(buf: *mut buf_T) {
 }
 
 /// Invalidate a window's `w_valid` flags and `w_lines[]` entries after changing lines.
-unsafe fn changed_lines_invalidate_win(
+fn changed_lines_invalidate_win(
     wp: &mut win_T,
     lnum: linenr_T,
     col: colnr_T,
@@ -479,7 +479,7 @@ unsafe fn changed_common(
 }
 
 /// Changed bytes within a single line for the current buffer.
-pub unsafe fn changed_bytes(lnum: linenr_T, col: colnr_T) {
+pub fn changed_bytes(lnum: linenr_T, col: colnr_T) {
     unsafe {
         changed_lines_redraw_buf(g_st().curbuf, lnum, lnum + 1, 0);
         changed_common(g_st().curbuf, lnum, col, lnum + 1, 0);
@@ -508,7 +508,7 @@ pub unsafe fn changed_bytes(lnum: linenr_T, col: colnr_T) {
 }
 
 /// Insert/delete bytes at column.
-pub unsafe fn inserted_bytes(lnum: linenr_T, start_col: colnr_T, old_col: c_int, new_col: c_int) {
+pub fn inserted_bytes(lnum: linenr_T, start_col: colnr_T, old_col: c_int, new_col: c_int) {
     unsafe {
         if g_st().curbuf_splice_pending == 0 {
             extmark_splice_cols(g_st().curbuf, lnum - 1, start_col, old_col, new_col, kExtmarkUndo);
@@ -526,14 +526,14 @@ pub unsafe fn appended_lines_buf(buf: *mut buf_T, lnum: linenr_T, count: linenr_
 }
 
 /// Appended `count` lines below line `lnum` in the current buffer.
-pub unsafe fn appended_lines(lnum: linenr_T, count: linenr_T) {
+pub fn appended_lines(lnum: linenr_T, count: linenr_T) {
     unsafe {
         appended_lines_buf(g_st().curbuf, lnum, count);
     }
 }
 
 /// Like `appended_lines()`, but adjust marks first.
-pub unsafe fn appended_lines_mark(lnum: linenr_T, count: c_int) {
+pub fn appended_lines_mark(lnum: linenr_T, count: c_int) {
     unsafe {
         mark_adjust(lnum + 1, MAXLNUM, count, 0, kExtmarkUndo);
         changed_lines(g_st().curbuf, lnum + 1, 0, lnum + 1, count, true);
@@ -548,14 +548,14 @@ pub unsafe fn deleted_lines_buf(buf: *mut buf_T, lnum: linenr_T, count: linenr_T
 }
 
 /// Deleted `count` lines at line `lnum` in the current buffer.
-pub unsafe fn deleted_lines(lnum: linenr_T, count: linenr_T) {
+pub fn deleted_lines(lnum: linenr_T, count: linenr_T) {
     unsafe {
         deleted_lines_buf(g_st().curbuf, lnum, count);
     }
 }
 
 /// Like `deleted_lines()`, but adjust marks first.
-pub unsafe fn deleted_lines_mark(lnum: linenr_T, count: c_int) {
+pub fn deleted_lines_mark(lnum: linenr_T, count: c_int) {
     unsafe {
         let made_empty = count > 0 && ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) != 0;
 
@@ -735,7 +735,7 @@ pub unsafe fn ins_bytes_len(p: *mut c_char, len: usize) {
 }
 
 /// Insert or replace a single character at the cursor position.
-pub unsafe fn ins_char(c: c_int) {
+pub fn ins_char(c: c_int) {
     unsafe {
         let mut buf: [c_char; MB_MAXCHAR + 1] = [0; MB_MAXCHAR + 1];
         let n = utf_char2bytes(c, buf.as_mut_ptr()) as usize;
@@ -866,7 +866,7 @@ pub unsafe fn ins_str(s: *mut c_char, slen: usize) {
 }
 
 /// Delete one character under the cursor.
-pub unsafe fn del_char(fixpos: bool) -> c_int {
+pub fn del_char(fixpos: bool) -> c_int {
     unsafe {
         mb_adjust_cursor();
         if *get_cursor_pos_ptr() == NUL {
@@ -877,7 +877,7 @@ pub unsafe fn del_char(fixpos: bool) -> c_int {
 }
 
 /// Like `del_bytes()`, but delete characters instead of bytes.
-pub unsafe fn del_chars(count: c_int, fixpos: c_int) -> c_int {
+pub fn del_chars(count: c_int, fixpos: c_int) -> c_int {
     unsafe {
         let mut bytes: colnr_T = 0;
         let mut p = get_cursor_pos_ptr();
@@ -893,7 +893,7 @@ pub unsafe fn del_chars(count: c_int, fixpos: c_int) -> c_int {
 }
 
 /// Delete `count` bytes under the cursor.
-pub unsafe fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bool) -> c_int {
+pub fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bool) -> c_int {
     unsafe {
         let lnum = (**curwin.as_ptr()).w_cursor.lnum;
         let mut col = (**curwin.as_ptr()).w_cursor.col;
@@ -1850,7 +1850,7 @@ pub unsafe fn open_line(
 }
 
 /// Delete from cursor to end of line.
-pub unsafe fn truncate_line(fixpos: c_int) {
+pub fn truncate_line(fixpos: c_int) {
     unsafe {
         let lnum = (**curwin.as_ptr()).w_cursor.lnum;
         let col = (**curwin.as_ptr()).w_cursor.col;
@@ -1876,7 +1876,7 @@ pub unsafe fn truncate_line(fixpos: c_int) {
 }
 
 /// Delete `nlines` lines at the cursor.
-pub unsafe fn del_lines(nlines: linenr_T, undo: bool) {
+pub fn del_lines(nlines: linenr_T, undo: bool) {
     unsafe {
         let first = (**curwin.as_ptr()).w_cursor.lnum;
 

@@ -335,7 +335,7 @@ fn stl_st() -> &'static mut StatuslineState {
 }
 
 /// Redraw the status line of window `wp`.
-pub unsafe fn win_redr_status(wp: &mut win_T) {
+pub fn win_redr_status(wp: &mut win_T) {
     unsafe {
         let is_stl_global = global_stl_height() > 0;
 
@@ -394,7 +394,7 @@ pub unsafe fn get_trans_bufname(buf: *mut buf_T) {
 
 /// Return true if the status line of window `wp` is connected to the status
 /// line of the window right of it. If not, then it's a vertical separator.
-pub unsafe fn stl_connected(wp: &mut win_T) -> bool {
+pub fn stl_connected(wp: &mut win_T) -> bool {
     unsafe {
         let mut fr = wp.w_frame;
         while !(*fr).fr_parent.is_null() {
@@ -781,7 +781,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
     }
 }
 
-pub unsafe fn win_redr_winbar(wp: &mut win_T) {
+pub fn win_redr_winbar(wp: &mut win_T) {
     unsafe {
         if stl_st().winbar_entered {
             return;
@@ -797,7 +797,7 @@ pub unsafe fn win_redr_winbar(wp: &mut win_T) {
     }
 }
 
-pub unsafe fn redraw_ruler() {
+pub fn redraw_ruler() {
     unsafe {
         let wp = if !(**curwin.as_ptr()).w_config.hide && (**curwin.as_ptr()).w_status_height == 0 {
             *curwin.as_ptr()
@@ -844,7 +844,7 @@ pub unsafe fn fillchar_status(group: *mut hlf_T, wp: *mut win_T) -> schar_T {
     }
 }
 
-unsafe fn ui_ext_tabline_update() {
+fn ui_ext_tabline_update() {
     unsafe {
         let mut arena = Arena {
             cur_blk: ptr::null_mut(),
@@ -948,7 +948,7 @@ unsafe fn ui_ext_tabline_update() {
 }
 
 /// Draw the tab pages line at the top of the Vim window.
-pub unsafe fn draw_tabline() {
+pub fn draw_tabline() {
     unsafe {
         let attr_fill = hl_attr(HLF_TPF);
         let attr_nosel = hl_combine_attr(attr_fill, hl_attr(HLF_TP));

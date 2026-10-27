@@ -287,7 +287,7 @@ pub unsafe fn extmark_set(
 }
 
 /// Moves a raw mark back to a recorded position (`extmark_setraw`).
-unsafe fn extmark_setraw(buf: &mut buf_T, mark: u64, row: c_int, col: colnr_T, revive: bool) {
+fn extmark_setraw(buf: &mut buf_T, mark: u64, row: c_int, col: colnr_T, revive: bool) {
     unsafe {
         let mut itr = MarkTreeIter::new();
         let key = marktree_lookup(&buf.b_marktree, mark, Some(&mut itr));
@@ -468,7 +468,7 @@ pub unsafe fn extmark_clear(
 }
 
 /// Return the position of marks between a range (`extmark_get`).
-pub unsafe fn extmark_get(
+pub fn extmark_get(
     buf: &mut buf_T,
     ns_id: u32,
     l_row: c_int,
@@ -479,8 +479,7 @@ pub unsafe fn extmark_get(
     type_filter: ExtmarkType,
     overlap: bool,
 ) -> ExtmarkInfoArray {
-    unsafe {
-        let mut array = ExtmarkInfoArray::new();
+    let mut array = ExtmarkInfoArray::new();
         let mut itr = MarkTreeIter::new();
 
         if overlap {
@@ -525,17 +524,15 @@ pub unsafe fn extmark_get(
             marktree_itr_next(&buf.b_marktree, &mut itr);
         }
         array
-    }
 }
 
-unsafe fn push_mark(
+fn push_mark(
     array: &mut ExtmarkInfoArray,
     ns_id: u32,
     type_filter: ExtmarkType,
     mark: MTPair,
 ) {
-    unsafe {
-        if !(ns_id == u32::MAX || mark.start.ns == ns_id) {
+    if !(ns_id == u32::MAX || mark.start.ns == ns_id) {
             return;
         }
         if type_filter != kExtmarkNone {
@@ -549,7 +546,6 @@ unsafe fn push_mark(
         }
 
         array.push(mark);
-    }
 }
 
 /// Lookup an extmark by id (`extmark_from_id`).
@@ -722,7 +718,7 @@ pub unsafe fn extmark_splice_delete(
 }
 
 /// Undo or redo an extmark operation (`extmark_apply_undo`).
-pub unsafe fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
+pub fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
     unsafe {
         match undo_info {
             ExtmarkUndoObject::Splice(splice) => {
@@ -1029,7 +1025,7 @@ pub unsafe fn extmark_splice_cols(
     }
 }
 
-pub unsafe fn extmark_move_region(
+pub fn extmark_move_region(
     buf: &mut buf_T,
     start_row: c_int,
     start_col: colnr_T,

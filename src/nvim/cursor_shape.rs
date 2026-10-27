@@ -105,12 +105,12 @@ static SHAPE_TABLE: GlobalState<[cursorentry_T; SHAPE_IDX_COUNT]> = GlobalState:
 ]);
 
 #[inline]
-pub unsafe fn shape_table_mut() -> &'static mut [cursorentry_T; SHAPE_IDX_COUNT] {
+pub fn shape_table_mut() -> &'static mut [cursorentry_T; SHAPE_IDX_COUNT] {
     unsafe { &mut *SHAPE_TABLE.as_ptr() }
 }
 
 #[inline]
-unsafe fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
+fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
     assert!(dic.size < dic.capacity);
     let key_bytes = key.to_bytes();
     unsafe {
@@ -126,7 +126,7 @@ unsafe fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
 }
 
 
-unsafe fn clear_shape_table() {
+fn clear_shape_table() {
     let tbl = unsafe { &mut *std::ptr::addr_of_mut!((*shape_table_mut())) };
     for entry in tbl.iter_mut() {
         entry.shape = CursorShape::SHAPE_BLOCK;
@@ -272,7 +272,7 @@ pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
 }
 
 /// Parses the `'guicursor'` option (`parse_shape_opt`).
-pub unsafe fn parse_shape_opt(what: c_int) -> *const c_char {
+pub fn parse_shape_opt(what: c_int) -> *const c_char {
     unsafe {
         let mut p: *const c_char = std::ptr::null();
         let mut idx: usize = 0;
@@ -461,7 +461,7 @@ pub unsafe fn cursor_mode_str2int(mode: *const c_char) -> c_int {
 }
 
 /// Check if a syntax id is used as a cursor style (`cursor_mode_uses_syn_id`).
-pub unsafe fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
+pub fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
     unsafe {
         if *opt_vars().p_guicursor == 0 {
             return false;
@@ -477,7 +477,7 @@ pub unsafe fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
 }
 
 /// Return the index into `(*shape_table_mut())[]` for the current mode (`cursor_get_mode_idx`).
-pub unsafe fn cursor_get_mode_idx() -> c_int {
+pub fn cursor_get_mode_idx() -> c_int {
     unsafe {
         if g_st().State == MODE_SHOWMATCH {
             SHAPE_IDX_SM as c_int

@@ -255,7 +255,7 @@ pub unsafe fn buf_init_isk_chartab(buf: *mut buf_T) -> c_int {
     }
 }
 
-pub unsafe fn init_isf_chartab() -> c_int {
+pub fn init_isf_chartab() -> c_int {
     unsafe {
         let save_chartab = charset_st().isf_chartab;
         charset_st().isf_chartab = [0, 0, 0xFFFF_FFFF_0000_0000, 0xFFFF_FFFF_FFFF_FFFF];
@@ -267,7 +267,7 @@ pub unsafe fn init_isf_chartab() -> c_int {
     }
 }
 
-pub unsafe fn init_isi_chartab() -> c_int {
+pub fn init_isi_chartab() -> c_int {
     unsafe {
         let save_chartab = charset_st().isi_chartab;
         charset_st().isi_chartab = [0; 4];
@@ -592,7 +592,7 @@ pub unsafe fn str_foldcase(
     }
 }
 
-pub unsafe fn transchar(c: c_int) -> *mut c_char {
+pub fn transchar(c: c_int) -> *mut c_char {
     unsafe { transchar_buf(g_st().curbuf, c) }
 }
 
@@ -619,7 +619,7 @@ pub unsafe fn transchar_buf(buf: *const buf_T, mut c: c_int) -> *mut c_char {
     }
 }
 
-pub unsafe fn transchar_byte(c: c_int) -> *mut c_char {
+pub fn transchar_byte(c: c_int) -> *mut c_char {
     unsafe { transchar_byte_buf(g_st().curbuf, c) }
 }
 
@@ -700,13 +700,11 @@ pub unsafe fn rl_mirror_ascii(str_: *mut c_char, end: *mut c_char) {
     }
 }
 
-pub unsafe fn char2cells(c: c_int) -> c_int {
-    unsafe {
-        if c >= 0x80 {
+pub fn char2cells(c: c_int) -> c_int {
+    if c >= 0x80 {
             return utf_char2cells(c);
         }
         ascii2cells(c)
-    }
 }
 
 pub unsafe fn vim_strsize(s: *const c_char) -> c_int {
@@ -728,11 +726,11 @@ pub unsafe fn vim_strnsize(s: *const c_char, mut len: c_int) -> c_int {
     }
 }
 
-pub unsafe fn vim_isIDc(c: c_int) -> bool {
+pub fn vim_isIDc(c: c_int) -> bool {
     unsafe { c > 0 && c < 0x100 && get_chartab((&raw const charset_st().isi_chartab).cast::<u64>(), c) != 0 }
 }
 
-pub unsafe fn vim_iswordc(c: c_int) -> bool {
+pub fn vim_iswordc(c: c_int) -> bool {
     unsafe { vim_iswordc_buf(c, g_st().curbuf) }
 }
 
@@ -764,21 +762,19 @@ pub unsafe fn vim_iswordp_buf(p: *const c_char, buf: *mut buf_T) -> bool {
     }
 }
 
-pub unsafe fn vim_isfilec(c: c_int) -> bool {
+pub fn vim_isfilec(c: c_int) -> bool {
     unsafe { c >= 0x100 || (c > 0 && get_chartab((&raw const charset_st().isf_chartab).cast::<u64>(), c) != 0) }
 }
 
-pub unsafe fn vim_is_fname_char(c: c_int) -> bool {
-    unsafe {
-        vim_isfilec(c)
+pub fn vim_is_fname_char(c: c_int) -> bool {
+    vim_isfilec(c)
             || c == b',' as c_int
             || c == b' ' as c_int
             || c == b'@' as c_int
             || c == b':' as c_int
-    }
 }
 
-pub unsafe fn vim_isfilec_or_wc(c: c_int) -> bool {
+pub fn vim_isfilec_or_wc(c: c_int) -> bool {
     unsafe {
         let buf: [c_char; 2] = [c as c_char, NUL];
         vim_isfilec(c) || c == b']' as c_int || path_has_wildcard(buf.as_ptr(), true)
@@ -811,7 +807,7 @@ pub unsafe fn skipwhite_len(mut p: *const c_char, mut len: usize) -> *mut c_char
     }
 }
 
-pub unsafe fn getwhitecols_curline() -> isize {
+pub fn getwhitecols_curline() -> isize {
     unsafe { getwhitecols(get_cursor_line_ptr()) }
 }
 

@@ -37,7 +37,7 @@ impl DiffCmpPath {
 }
 
 #[inline]
-unsafe fn line_slice<'a>(m: &mmfile_t) -> &'a [u8] {
+fn line_slice<'a>(m: &mmfile_t) -> &'a [u8] {
     if m.ptr.is_null() || m.size <= 0 {
         return &[];
     }
@@ -79,9 +79,9 @@ fn matching_chars_slice(s1: &[u8], s2: &[u8]) -> c_int {
     matrix[icur][s2len]
 }
 
-unsafe fn matching_chars_iwhite(s1: &mmfile_t, s2: &mmfile_t) -> c_int {
-    let b1 = unsafe { line_slice(s1) };
-    let b2 = unsafe { line_slice(s2) };
+fn matching_chars_iwhite(s1: &mmfile_t, s2: &mmfile_t) -> c_int {
+    let b1 = line_slice(s1);
+    let b2 = line_slice(s2);
 
     let mut p1 = [0u8; MATCH_CHAR_MAX_LEN];
     let mut p2 = [0u8; MATCH_CHAR_MAX_LEN];
@@ -104,13 +104,13 @@ unsafe fn matching_chars_iwhite(s1: &mmfile_t, s2: &mmfile_t) -> c_int {
     matching_chars_slice(&p1[..len1], &p2[..len2])
 }
 
-unsafe fn matching_chars(m1: &mmfile_t, m2: &mmfile_t) -> c_int {
-    let b1 = unsafe { line_slice(m1) };
-    let b2 = unsafe { line_slice(m2) };
+fn matching_chars(m1: &mmfile_t, m2: &mmfile_t) -> c_int {
+    let b1 = line_slice(m1);
+    let b2 = line_slice(m2);
     matching_chars_slice(b1, b2)
 }
 
-unsafe fn count_n_matched_chars(sp: &[mmfile_t], iwhite: bool) -> c_int {
+fn count_n_matched_chars(sp: &[mmfile_t], iwhite: bool) -> c_int {
     let mut matched_chars: c_int = 0;
     let mut matched: c_int = 0;
     let n = sp.len();
@@ -120,9 +120,9 @@ unsafe fn count_n_matched_chars(sp: &[mmfile_t], iwhite: bool) -> c_int {
             if !sp[i].ptr.is_null() && !sp[j].ptr.is_null() {
                 matched += 1;
                 matched_chars += if iwhite {
-                    unsafe { matching_chars_iwhite(&sp[i], &sp[j]) }
+                    matching_chars_iwhite(&sp[i], &sp[j])
                 } else {
-                    unsafe { matching_chars(&sp[i], &sp[j]) }
+                    matching_chars(&sp[i], &sp[j])
                 };
             }
         }
@@ -139,7 +139,7 @@ unsafe fn count_n_matched_chars(sp: &[mmfile_t], iwhite: bool) -> c_int {
 ///
 /// # Safety
 /// If `s.ptr` is non-null and `s.size > 0`, `s.ptr` must be valid for `s.size` bytes.
-pub unsafe fn fastforward_buf_to_lnum(mut s: mmfile_t, lnum: linenr_T) -> mmfile_t {
+pub fn fastforward_buf_to_lnum(mut s: mmfile_t, lnum: linenr_T) -> mmfile_t {
     for _ in 0..(lnum - 1) {
         if s.ptr.is_null() || s.size <= 0 {
             s.ptr = std::ptr::null_mut();
@@ -173,7 +173,7 @@ fn unwrap_indexes(values: &[c_int], diff_len: &[c_int]) -> usize {
     path_idx
 }
 
-unsafe fn try_possible_paths(
+fn try_possible_paths(
     df_iters: &[c_int],
     paths: &[usize],
     path_idx: usize,
@@ -196,13 +196,13 @@ unsafe fn try_possible_paths(
                 from_vals[k] = df_iters[k];
                 if (*choice & (1 << k)) != 0 {
                     from_vals[k] -= 1;
-                    mm[k] = unsafe { fastforward_buf_to_lnum(diff_blk[k], df_iters[k]) };
+                    mm[k] = fastforward_buf_to_lnum(diff_blk[k], df_iters[k]);
                 }
             }
 
             let unwrapped_idx_from = unwrap_indexes(&from_vals[..ndiffs], diff_len);
             let unwrapped_idx_to = unwrap_indexes(df_iters, diff_len);
-            let matched_chars = unsafe { count_n_matched_chars(&mm[..ndiffs], iwhite) };
+            let matched_chars = count_n_matched_chars(&mm[..ndiffs], iwhite);
             let score = diffcmppath[unwrapped_idx_from].df_lev_score + matched_chars;
 
             let to_node = &mut diffcmppath[unwrapped_idx_to];
@@ -223,8 +223,7 @@ unsafe fn try_possible_paths(
 
     let bit_place = paths[path_idx];
     *choice |= 1 << bit_place;
-    unsafe {
-        try_possible_paths(
+    try_possible_paths(
             df_iters,
             paths,
             path_idx + 1,
@@ -234,10 +233,8 @@ unsafe fn try_possible_paths(
             diff_blk,
             iwhite,
         );
-    }
     *choice &= !(1 << bit_place);
-    unsafe {
-        try_possible_paths(
+    try_possible_paths(
             df_iters,
             paths,
             path_idx + 1,
@@ -247,10 +244,9 @@ unsafe fn try_possible_paths(
             diff_blk,
             iwhite,
         );
-    }
 }
 
-unsafe fn populate_tensor(
+fn populate_tensor(
     df_iters: &mut [c_int; LN_MAX_BUFS],
     ch_dim: usize,
     diffcmppath: &mut [DiffCmpPath],
@@ -271,8 +267,7 @@ unsafe fn populate_tensor(
         let mut choice: c_int = 0;
         let unwrapped_idx_to = unwrap_indexes(&df_iters[..ndiffs], diff_len);
         diffcmppath[unwrapped_idx_to].df_lev_score = -1;
-        unsafe {
-            try_possible_paths(
+        try_possible_paths(
                 &df_iters[..ndiffs],
                 &paths[..npaths],
                 0,
@@ -282,14 +277,12 @@ unsafe fn populate_tensor(
                 diff_blk,
                 iwhite,
             );
-        }
         return;
     }
 
     for i in 0..=diff_len[ch_dim] {
         df_iters[ch_dim] = i;
-        unsafe {
-            populate_tensor(
+        populate_tensor(
                 df_iters,
                 ch_dim + 1,
                 diffcmppath,
@@ -297,7 +290,6 @@ unsafe fn populate_tensor(
                 diff_blk,
                 iwhite,
             );
-        }
     }
 }
 
@@ -335,7 +327,7 @@ fn test_charmatch_paths(
 /// # Safety
 /// Each `mmfile_t` in `diff_blk` with a non-null `ptr` and `size > 0` must be valid for `size`
 /// bytes.
-pub unsafe fn linematch_nbuffers(
+pub fn linematch_nbuffers(
     diff_blk: &[&mmfile_t],
     diff_len: &[c_int],
     iwhite: bool,
@@ -362,8 +354,7 @@ pub unsafe fn linematch_nbuffers(
     let mut diffcmppath: Vec<DiffCmpPath> = (0..memsize).map(|_| DiffCmpPath::new(n)).collect();
 
     let mut df_iters = [0 as c_int; LN_MAX_BUFS];
-    unsafe {
-        populate_tensor(
+    populate_tensor(
             &mut df_iters,
             0,
             &mut diffcmppath,
@@ -371,7 +362,6 @@ pub unsafe fn linematch_nbuffers(
             &blks[..ndiffs],
             iwhite,
         );
-    }
 
     let u = unwrap_indexes(diff_len, diff_len);
     test_charmatch_paths(&mut diffcmppath, u, 0);
@@ -407,14 +397,12 @@ mod tests {
             size: buf2.len() as c_int,
         };
 
-        unsafe {
-            let line2 = fastforward_buf_to_lnum(mm1, 2);
+        let line2 = fastforward_buf_to_lnum(mm1, 2);
             assert!(!line2.ptr.is_null());
             assert_eq!(line_slice(&line2), b"beta_modified");
 
             let decisions = linematch_nbuffers(&[&mm1, &mm2], &[3, 3], false);
             // All 3 lines paired (1 | 2 == 3)
             assert_eq!(decisions, vec![3, 3, 3]);
-        }
     }
 }

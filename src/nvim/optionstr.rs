@@ -216,9 +216,9 @@ pub struct optexpand_T {
     pub oe_set_arg: *mut c_char,
 }
 
-pub type opt_validate_cb_T = Option<unsafe fn(&mut optset_T) -> *const c_char>;
-pub type opt_did_set_cb_T = Option<unsafe fn(&mut optset_T) -> *const c_char>;
-pub type opt_expand_cb_T = Option<unsafe fn(&mut optexpand_T, &mut Vec<std::ffi::CString>) -> c_int>;
+pub type opt_validate_cb_T = Option<fn(&mut optset_T) -> *const c_char>;
+pub type opt_did_set_cb_T = Option<fn(&mut optset_T) -> *const c_char>;
+pub type opt_expand_cb_T = Option<fn(&mut optexpand_T, &mut Vec<std::ffi::CString>) -> c_int>;
 
 #[repr(C)]
 pub struct vimoption_T {
@@ -961,7 +961,7 @@ pub(crate) fn opt_dict_schema(opt_idx: OptIndex) -> Option<&'static OptDictSchem
 }
 
 /// After setting various option values: recompute variables that depend on option values.
-pub unsafe fn didset_string_options() {
+pub fn didset_string_options() {
     unsafe {
         check_str_opt(kOptCasemap, ptr::null_mut(), None);
         check_str_opt(kOptBackupcopy, ptr::null_mut(), None);
@@ -983,7 +983,7 @@ pub unsafe fn didset_string_options() {
     }
 }
 
-unsafe fn illegal_char(errbuf: Option<CharBuf>, c: c_int) -> *const c_char {
+fn illegal_char(errbuf: Option<CharBuf>, c: c_int) -> *const c_char {
     if errbuf.is_none() {
         return c"".as_ptr();
     }
@@ -1297,7 +1297,7 @@ pub unsafe fn check_illegal_path_names(val: *mut c_char, flags: u32) -> bool {
     }
 }
 
-unsafe fn opt_values(idx: OptIndex) -> &'static [&'static CStr] {
+fn opt_values(idx: OptIndex) -> &'static [&'static CStr] {
     unsafe {
         let idx1 = if idx == kOptViewoptions {
             kOptSessionoptions
@@ -1327,18 +1327,16 @@ unsafe fn check_str_opt(
     }
 }
 
-pub unsafe fn expand_set_str_generic(
+pub fn expand_set_str_generic(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
-    unsafe {
-        let values = opt_values(args.oe_idx);
+    let values = opt_values(args.oe_idx);
         expand_set_opt_string(args, values, matches)
-    }
 }
 
 /// An option that accepts a list of flags is changed.
-pub unsafe fn did_set_str_generic(args: &mut optset_T) -> *const c_char {
+pub fn did_set_str_generic(args: &mut optset_T) -> *const c_char {
     unsafe {
         check_str_opt(
             args.os_idx,
@@ -1349,7 +1347,7 @@ pub unsafe fn did_set_str_generic(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate named string values without updating derived flags.
-pub unsafe fn validate_str_generic(args: &mut optset_T) -> *const c_char {
+pub fn validate_str_generic(args: &mut optset_T) -> *const c_char {
     unsafe {
         let opt = get_option(args.os_idx);
         let value = args.os_newval.data.string().data;
@@ -1382,7 +1380,7 @@ unsafe fn check_option_listflag(
 }
 
 /// Expand an option that accepts a list of string values.
-unsafe fn expand_set_opt_string(
+fn expand_set_opt_string(
     args: &mut optexpand_T,
     values: &[&CStr],
     matches: &mut Vec<std::ffi::CString>,
@@ -1416,9 +1414,8 @@ unsafe fn expand_set_opt_string(
 }
 
 /// Callback used by expand_set_opt_generic to also include the original value.
-unsafe fn expand_set_opt_callback(xp: &mut expand_T, idx: c_int) -> *mut c_char {
-    unsafe {
-        if idx == 0 {
+fn expand_set_opt_callback(xp: &mut expand_T, idx: c_int) -> *mut c_char {
+    if idx == 0 {
             if !optstr_st().set_opt_callback_orig_option.is_null() {
                 return optstr_st().set_opt_callback_orig_option;
             } else {
@@ -1430,11 +1427,10 @@ unsafe fn expand_set_opt_callback(xp: &mut expand_T, idx: c_int) -> *mut c_char 
         } else {
             ptr::null_mut()
         }
-    }
 }
 
 /// Expand an option with a callback that iterates through a list of possible names.
-unsafe fn expand_set_opt_generic(
+fn expand_set_opt_generic(
     args: &mut optexpand_T,
     func: CompleteListItemGetter,
     matches: &mut Vec<std::ffi::CString>,
@@ -1515,12 +1511,12 @@ unsafe fn completing_value_for_subopt(args: &mut optexpand_T, name_suffix: *cons
 }
 
 /// The 'ambiwidth' option is changed.
-pub unsafe fn did_set_ambiwidth(_args: &mut optset_T) -> *const c_char {
-    unsafe { check_chars_options() }
+pub fn did_set_ambiwidth(_args: &mut optset_T) -> *const c_char {
+    check_chars_options()
 }
 
 /// The 'emoji' option is changed.
-pub unsafe fn did_set_emoji(args: &mut optset_T) -> *const c_char {
+pub fn did_set_emoji(args: &mut optset_T) -> *const c_char {
     unsafe {
         let errmsg = check_str_opt(kOptAmbiwidth, ptr::null_mut(), args.os_errbuf);
         if !errmsg.is_null() {
@@ -1531,7 +1527,7 @@ pub unsafe fn did_set_emoji(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'background' option is changed.
-pub unsafe fn did_set_background(args: &mut optset_T) -> *const c_char {
+pub fn did_set_background(args: &mut optset_T) -> *const c_char {
     unsafe {
         if *args.os_oldval.data.string().data == *opt_vars().p_bg {
             return ptr::null();
@@ -1567,7 +1563,7 @@ pub unsafe fn did_set_background(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'backspace' option.
-pub unsafe fn validate_backspace(args: &mut optset_T) -> *const c_char {
+pub fn validate_backspace(args: &mut optset_T) -> *const c_char {
     unsafe {
         let value = args.os_newval.data.string().data;
         if ascii_isdigit(*value as c_int) {
@@ -1581,7 +1577,7 @@ pub unsafe fn validate_backspace(args: &mut optset_T) -> *const c_char {
     }
 }
 
-pub unsafe fn validate_backupcopy(args: &mut optset_T) -> *const c_char {
+pub fn validate_backupcopy(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut flags: c_uint = 0;
         let errmsg = opt_strings_flags(
@@ -1606,7 +1602,7 @@ pub unsafe fn validate_backupcopy(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'backupcopy' option is changed.
-pub unsafe fn did_set_backupcopy(args: &mut optset_T) -> *const c_char {
+pub fn did_set_backupcopy(args: &mut optset_T) -> *const c_char {
     unsafe {
         let buf = args.os_buf;
         let opt_flags = args.os_flags;
@@ -1640,7 +1636,7 @@ pub unsafe fn did_set_backupcopy(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'backupext' or 'patchmode' option.
-pub unsafe fn validate_backupext_or_patchmode(args: &mut optset_T) -> *const c_char {
+pub fn validate_backupext_or_patchmode(args: &mut optset_T) -> *const c_char {
     unsafe {
         let bex = if args.os_idx == kOptBackupext {
             args.os_newval.data.string().data
@@ -1667,7 +1663,7 @@ pub unsafe fn validate_backupext_or_patchmode(args: &mut optset_T) -> *const c_c
 }
 
 /// The 'breakat' option is changed.
-pub unsafe fn did_set_breakat(_args: &mut optset_T) -> *const c_char {
+pub fn did_set_breakat(_args: &mut optset_T) -> *const c_char {
     unsafe {
         let flags_ptr = (&raw mut opt_vars().breakat_flags).cast::<c_char>();
         for i in 0..256 {
@@ -1687,7 +1683,7 @@ pub unsafe fn did_set_breakat(_args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'breakindentopt' option is changed.
-pub unsafe fn did_set_breakindentopt(args: &mut optset_T) -> *const c_char {
+pub fn did_set_breakindentopt(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
         let is_local = ptr::eq(
@@ -1705,7 +1701,7 @@ pub unsafe fn did_set_breakindentopt(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'buftype' option.
-pub unsafe fn validate_buftype(args: &mut optset_T) -> *const c_char {
+pub fn validate_buftype(args: &mut optset_T) -> *const c_char {
     unsafe {
         let buf = args.os_buf;
         let errmsg = validate_str_generic(args);
@@ -1722,7 +1718,7 @@ pub unsafe fn validate_buftype(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'buftype' option is changed.
-pub unsafe fn did_set_buftype(args: &mut optset_T) -> *const c_char {
+pub fn did_set_buftype(args: &mut optset_T) -> *const c_char {
     unsafe {
         let buf = args.os_buf;
         let win = args.os_win;
@@ -1765,7 +1761,7 @@ pub unsafe fn did_set_buftype(args: &mut optset_T) -> *const c_char {
     }
 }
 
-pub unsafe fn validate_chars_option(args: &mut optset_T) -> *const c_char {
+pub fn validate_chars_option(args: &mut optset_T) -> *const c_char {
     unsafe {
         set_chars_option(
             args.os_win,
@@ -1839,7 +1835,7 @@ unsafe fn did_set_global_chars_option(
 }
 
 /// The 'fillchars' option or the 'listchars' option is changed.
-pub unsafe fn did_set_chars_option(args: &mut optset_T) -> *const c_char {
+pub fn did_set_chars_option(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
         let varp = args.os_varp.cast::<*mut c_char>();
@@ -1872,7 +1868,7 @@ pub unsafe fn did_set_chars_option(args: &mut optset_T) -> *const c_char {
 }
 
 /// Expand 'fillchars' or 'listchars' option value.
-pub unsafe fn expand_set_chars_option(
+pub fn expand_set_chars_option(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
@@ -1893,19 +1889,19 @@ pub unsafe fn expand_set_chars_option(
 }
 
 /// The 'cinoptions' option is changed.
-pub unsafe fn did_set_cinoptions(args: &mut optset_T) -> *const c_char {
+pub fn did_set_cinoptions(args: &mut optset_T) -> *const c_char {
     unsafe {
         parse_cino(args.os_buf);
         ptr::null()
     }
 }
 
-pub unsafe fn validate_colorcolumn(args: &mut optset_T) -> *const c_char {
+pub fn validate_colorcolumn(args: &mut optset_T) -> *const c_char {
     unsafe { check_colorcolumn(args.os_newval.data.string().data, ptr::null_mut()) }
 }
 
 /// The 'colorcolumn' option is changed.
-pub unsafe fn did_set_colorcolumn(args: &mut optset_T) -> *const c_char {
+pub fn did_set_colorcolumn(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
         let varp = args.os_varp.cast::<*mut c_char>();
@@ -1921,7 +1917,7 @@ pub unsafe fn did_set_colorcolumn(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'comments' option.
-pub unsafe fn validate_comments(args: &mut optset_T) -> *const c_char {
+pub fn validate_comments(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut errmsg: *const c_char = ptr::null();
         let mut s = args.os_newval.data.string().data;
@@ -1959,7 +1955,7 @@ pub unsafe fn validate_comments(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'commentstring' option.
-pub unsafe fn validate_commentstring(args: &mut optset_T) -> *const c_char {
+pub fn validate_commentstring(args: &mut optset_T) -> *const c_char {
     unsafe {
         let value = args.os_newval.data.string().data;
         if *value == NUL || CStr::from_ptr(value).to_bytes().windows(2).any(|w| w == b"%s") {
@@ -1971,7 +1967,7 @@ pub unsafe fn validate_commentstring(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'complete' option.
-pub unsafe fn validate_complete(args: &mut optset_T) -> *const c_char {
+pub fn validate_complete(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut buffer = [0 as c_char; LSIZE];
         let mut char_before: u8 = 0;
@@ -2039,7 +2035,7 @@ pub unsafe fn validate_complete(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'complete' option is changed.
-pub unsafe fn did_set_complete(args: &mut optset_T) -> *const c_char {
+pub fn did_set_complete(args: &mut optset_T) -> *const c_char {
     unsafe {
         if set_cpt_callbacks(args) != OK {
             return crate::option::opt_error_int(
@@ -2053,7 +2049,7 @@ pub unsafe fn did_set_complete(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate 'completeitemalign' and prepare its column order.
-pub unsafe fn validate_completeitemalign(args: &mut optset_T) -> *const c_char {
+pub fn validate_completeitemalign(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut p = args.os_newval.data.string().data;
         let mut new_cia_flags: c_uint = 0;
@@ -2093,7 +2089,7 @@ pub fn did_set_completeitemalign(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'completeopt' option is changed.
-pub unsafe fn did_set_completeopt(args: &mut optset_T) -> *const c_char {
+pub fn did_set_completeopt(args: &mut optset_T) -> *const c_char {
     unsafe {
         let buf = args.os_buf;
         let mut cot = opt_vars().p_cot;
@@ -2117,7 +2113,7 @@ pub unsafe fn did_set_completeopt(args: &mut optset_T) -> *const c_char {
 }
 
 #[cfg(windows)]
-pub unsafe fn did_set_completeslash(args: &mut optset_T) -> *const c_char {
+pub fn did_set_completeslash(args: &mut optset_T) -> *const c_char {
     unsafe {
         let buf = args.os_buf;
         let errmsg = opt_strings_flags(
@@ -2141,7 +2137,7 @@ pub unsafe fn did_set_completeslash(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'concealcursor' option.
-pub unsafe fn validate_concealcursor(args: &mut optset_T) -> *const c_char {
+pub fn validate_concealcursor(args: &mut optset_T) -> *const c_char {
     unsafe {
         check_option_listflag(
             args.os_newval.data.string().data,
@@ -2151,7 +2147,7 @@ pub unsafe fn validate_concealcursor(args: &mut optset_T) -> *const c_char {
     }
 }
 
-pub unsafe fn expand_set_concealcursor(
+pub fn expand_set_concealcursor(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
@@ -2159,7 +2155,7 @@ pub unsafe fn expand_set_concealcursor(
 }
 
 /// Validate the 'cpoptions' option.
-pub unsafe fn validate_cpoptions(args: &mut optset_T) -> *const c_char {
+pub fn validate_cpoptions(args: &mut optset_T) -> *const c_char {
     unsafe {
         check_option_listflag(
             args.os_newval.data.string().data,
@@ -2169,14 +2165,14 @@ pub unsafe fn validate_cpoptions(args: &mut optset_T) -> *const c_char {
     }
 }
 
-pub unsafe fn expand_set_cpoptions(
+pub fn expand_set_cpoptions(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
     unsafe { expand_set_opt_listflag(args, CPO_VI.as_ptr(), matches) }
 }
 
-pub unsafe fn validate_cursorlineopt(args: &mut optset_T) -> *const c_char {
+pub fn validate_cursorlineopt(args: &mut optset_T) -> *const c_char {
     unsafe {
         let value = args.os_newval.data.string().data;
         let mut flags: c_uint = 0;
@@ -2189,7 +2185,7 @@ pub unsafe fn validate_cursorlineopt(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'cursorlineopt' option is changed.
-pub unsafe fn did_set_cursorlineopt(args: &mut optset_T) -> *const c_char {
+pub fn did_set_cursorlineopt(args: &mut optset_T) -> *const c_char {
     unsafe {
         if (args.os_flags & OPT_GLOBAL) != 0 {
             return ptr::null();
@@ -2201,27 +2197,23 @@ pub unsafe fn did_set_cursorlineopt(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'diffanchors' option is changed.
-pub unsafe fn did_set_diffanchors(args: &mut optset_T) -> *const c_char {
-    unsafe {
-        if diffanchors_changed((args.os_flags & OPT_LOCAL) != 0) == FAIL {
+pub fn did_set_diffanchors(args: &mut optset_T) -> *const c_char {
+    if diffanchors_changed((args.os_flags & OPT_LOCAL) != 0) == FAIL {
             return e_invarg.as_ptr();
         }
         ptr::null()
-    }
 }
 
 /// The 'diffopt' option is changed.
-pub unsafe fn did_set_diffopt(_args: &mut optset_T) -> *const c_char {
-    unsafe {
-        if diffopt_changed() == FAIL {
+pub fn did_set_diffopt(_args: &mut optset_T) -> *const c_char {
+    if diffopt_changed() == FAIL {
             e_invarg.as_ptr()
         } else {
             ptr::null()
         }
-    }
 }
 
-pub unsafe fn expand_set_diffopt(args: &mut optexpand_T, matches: &mut Vec<std::ffi::CString>) -> c_int {
+pub fn expand_set_diffopt(args: &mut optexpand_T, matches: &mut Vec<std::ffi::CString>) -> c_int {
     unsafe {
         let xp = args.oe_xp;
 
@@ -2250,9 +2242,8 @@ pub unsafe fn expand_set_diffopt(args: &mut optexpand_T, matches: &mut Vec<std::
 }
 
 /// The 'display' option is changed.
-pub unsafe fn did_set_display(args: &mut optset_T) -> *const c_char {
-    unsafe {
-        let errmsg = did_set_str_generic(args);
+pub fn did_set_display(args: &mut optset_T) -> *const c_char {
+    let errmsg = did_set_str_generic(args);
         if !errmsg.is_null() {
             return errmsg;
         }
@@ -2263,11 +2254,10 @@ pub unsafe fn did_set_display(args: &mut optset_T) -> *const c_char {
         };
         msg_grid_validate();
         ptr::null()
-    }
 }
 
 /// Validate and canonize 'encoding', 'fileencoding' or 'makeencoding'.
-pub unsafe fn validate_encoding(args: &mut optset_T) -> *const c_char {
+pub fn validate_encoding(args: &mut optset_T) -> *const c_char {
     unsafe {
         if args.os_idx == kOptFileencoding {
             let buf = args.os_buf;
@@ -2291,7 +2281,7 @@ pub unsafe fn validate_encoding(args: &mut optset_T) -> *const c_char {
 }
 
 /// One of the 'encoding', 'fileencoding' or 'makeencoding' options is changed.
-pub unsafe fn did_set_encoding(args: &mut optset_T) -> *const c_char {
+pub fn did_set_encoding(args: &mut optset_T) -> *const c_char {
     unsafe {
         let buf = args.os_buf;
         let varp = args.os_varp.cast::<*mut c_char>();
@@ -2311,12 +2301,12 @@ pub unsafe fn did_set_encoding(args: &mut optset_T) -> *const c_char {
     }
 }
 
-pub unsafe fn expand_set_encoding(args: &mut optexpand_T, matches: &mut Vec<std::ffi::CString>) -> c_int {
-    unsafe { expand_set_opt_generic(args, Some(get_encoding_name), matches) }
+pub fn expand_set_encoding(args: &mut optexpand_T, matches: &mut Vec<std::ffi::CString>) -> c_int {
+    expand_set_opt_generic(args, Some(get_encoding_name), matches)
 }
 
 /// Validate the 'eventignore'/'eventignorewin' option.
-pub unsafe fn validate_eventignore(args: &mut optset_T) -> *const c_char {
+pub fn validate_eventignore(args: &mut optset_T) -> *const c_char {
     unsafe {
         if check_ei(
             args.os_newval.data.string().data,
@@ -2329,7 +2319,7 @@ pub unsafe fn validate_eventignore(args: &mut optset_T) -> *const c_char {
     }
 }
 
-unsafe fn get_eventignore_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
+fn get_eventignore_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         let subtract = *xp.xp_pattern == b'-' as c_char;
         if !subtract && idx == 0 {
@@ -2357,17 +2347,15 @@ unsafe fn get_eventignore_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-pub unsafe fn expand_set_eventignore(
+pub fn expand_set_eventignore(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
-    unsafe {
-        optstr_st().expand_eiw = !ptr::eq(args.oe_varp, (&raw mut opt_vars().p_ei).cast::<c_char>());
+    optstr_st().expand_eiw = !ptr::eq(args.oe_varp, (&raw mut opt_vars().p_ei).cast::<c_char>());
         expand_set_opt_generic(args, Some(get_eventignore_name), matches)
-    }
 }
 
-pub unsafe fn validate_fileformat(args: &mut optset_T) -> *const c_char {
+pub fn validate_fileformat(args: &mut optset_T) -> *const c_char {
     unsafe {
         let buf = args.os_buf;
         if (args.os_flags & OPT_GLOBAL) == 0 && !modifiable(&*buf) {
@@ -2378,7 +2366,7 @@ pub unsafe fn validate_fileformat(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'fileformat' option is changed.
-pub unsafe fn did_set_fileformat(args: &mut optset_T) -> *const c_char {
+pub fn did_set_fileformat(args: &mut optset_T) -> *const c_char {
     unsafe {
         let buf = args.os_buf;
         let oldval = args.os_oldval.data.string().data;
@@ -2403,7 +2391,7 @@ pub fn get_fileformat_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Validate the 'filetype', 'syntax' or 'keymap' option.
-pub unsafe fn validate_filetype(args: &mut optset_T) -> *const c_char {
+pub fn validate_filetype(args: &mut optset_T) -> *const c_char {
     unsafe {
         if valid_filetype(args.os_newval.data.string().data) {
             ptr::null()
@@ -2414,7 +2402,7 @@ pub unsafe fn validate_filetype(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'filetype' or the 'syntax' option is changed.
-pub unsafe fn did_set_filetype_or_syntax(args: &mut optset_T) -> *const c_char {
+pub fn did_set_filetype_or_syntax(args: &mut optset_T) -> *const c_char {
     unsafe {
         let varp = args.os_varp.cast::<*mut c_char>();
         args.os_value_changed = std::ffi::CStr::from_ptr(args.os_oldval.data.string().data).to_bytes() != std::ffi::CStr::from_ptr(*varp).to_bytes();
@@ -2424,7 +2412,7 @@ pub unsafe fn did_set_filetype_or_syntax(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'foldexpr' option is changed.
-pub unsafe fn did_set_foldexpr(args: &mut optset_T) -> *const c_char {
+pub fn did_set_foldexpr(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
         if foldmethodIsExpr(win) {
@@ -2435,7 +2423,7 @@ pub unsafe fn did_set_foldexpr(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'foldignore' option is changed.
-pub unsafe fn did_set_foldignore(args: &mut optset_T) -> *const c_char {
+pub fn did_set_foldignore(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
         if foldmethodIsIndent(win) {
@@ -2446,7 +2434,7 @@ pub unsafe fn did_set_foldignore(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'foldmarker' option.
-pub unsafe fn validate_foldmarker(args: &mut optset_T) -> *const c_char {
+pub fn validate_foldmarker(args: &mut optset_T) -> *const c_char {
     unsafe {
         let value = args.os_newval.data.string().data;
         let p = vim_strchr(value, b',' as c_int);
@@ -2462,7 +2450,7 @@ pub unsafe fn validate_foldmarker(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'foldmarker' option is changed.
-pub unsafe fn did_set_foldmarker(args: &mut optset_T) -> *const c_char {
+pub fn did_set_foldmarker(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
         if foldmethodIsMarker(win) {
@@ -2473,7 +2461,7 @@ pub unsafe fn did_set_foldmarker(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'foldmethod' option is changed.
-pub unsafe fn did_set_foldmethod(args: &mut optset_T) -> *const c_char {
+pub fn did_set_foldmethod(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
         foldUpdateAll(win);
@@ -2485,7 +2473,7 @@ pub unsafe fn did_set_foldmethod(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'formatoptions' option.
-pub unsafe fn validate_formatoptions(args: &mut optset_T) -> *const c_char {
+pub fn validate_formatoptions(args: &mut optset_T) -> *const c_char {
     unsafe {
         check_option_listflag(
             args.os_newval.data.string().data,
@@ -2495,7 +2483,7 @@ pub unsafe fn validate_formatoptions(args: &mut optset_T) -> *const c_char {
     }
 }
 
-pub unsafe fn expand_set_formatoptions(
+pub fn expand_set_formatoptions(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
@@ -2503,7 +2491,7 @@ pub unsafe fn expand_set_formatoptions(
 }
 
 /// The 'guicursor' option is changed.
-pub unsafe fn did_set_guicursor(_args: &mut optset_T) -> *const c_char {
+pub fn did_set_guicursor(_args: &mut optset_T) -> *const c_char {
     unsafe {
         let errmsg = parse_shape_opt(SHAPE_CURSOR);
         if !errmsg.is_null() {
@@ -2517,7 +2505,7 @@ pub unsafe fn did_set_guicursor(_args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'helpfile' option is changed.
-pub unsafe fn did_set_helpfile(_args: &mut optset_T) -> *const c_char {
+pub fn did_set_helpfile(_args: &mut optset_T) -> *const c_char {
     unsafe {
         if g_st().didset_vim {
             vim_unsetenv_ext(c"VIM".as_ptr());
@@ -2530,7 +2518,7 @@ pub unsafe fn did_set_helpfile(_args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'helplang' option.
-pub unsafe fn validate_helplang(args: &mut optset_T) -> *const c_char {
+pub fn validate_helplang(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut s = args.os_newval.data.string().data;
         while *s != NUL {
@@ -2549,7 +2537,7 @@ pub unsafe fn validate_helplang(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'highlight' option.
-pub unsafe fn validate_highlight(args: &mut optset_T) -> *const c_char {
+pub fn validate_highlight(args: &mut optset_T) -> *const c_char {
     unsafe {
         if std::ffi::CStr::from_ptr(args.os_newval.data.string().data).to_bytes() != std::ffi::CStr::from_ptr(HIGHLIGHT_INIT.as_ptr()).to_bytes() {
             return e_unsupportedoption.as_ptr();
@@ -2559,8 +2547,8 @@ pub unsafe fn validate_highlight(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'iconstring' option is changed.
-pub unsafe fn did_set_iconstring(args: &mut optset_T) -> *const c_char {
-    unsafe { did_set_titleiconstring(args, STL_IN_ICON) }
+pub fn did_set_iconstring(args: &mut optset_T) -> *const c_char {
+    did_set_titleiconstring(args, STL_IN_ICON)
 }
 
 /// The 'inccommand' option is changed.
@@ -2572,7 +2560,7 @@ pub fn did_set_inccommand(_args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'isident', 'iskeyword' or 'isfname' option.
-pub unsafe fn validate_isopt(args: &mut optset_T) -> *const c_char {
+pub fn validate_isopt(args: &mut optset_T) -> *const c_char {
     unsafe {
         if check_isopt(args.os_newval.data.string().data) == FAIL {
             e_invarg.as_ptr()
@@ -2583,7 +2571,7 @@ pub unsafe fn validate_isopt(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'iskeyword' option is changed.
-pub unsafe fn did_set_iskeyword(args: &mut optset_T) -> *const c_char {
+pub fn did_set_iskeyword(args: &mut optset_T) -> *const c_char {
     unsafe {
         let varp = args.os_varp.cast::<*mut c_char>();
         if !ptr::eq(varp, &raw mut opt_vars().p_isk) {
@@ -2597,9 +2585,8 @@ pub unsafe fn did_set_iskeyword(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'isident', 'iskeyword', 'isprint' or 'isfname' option is changed.
-pub unsafe fn did_set_isopt(args: &mut optset_T) -> *const c_char {
-    unsafe {
-        let res = if ptr::eq(args.os_varp, (&raw mut opt_vars().p_isf).cast()) {
+pub fn did_set_isopt(args: &mut optset_T) -> *const c_char {
+    let res = if ptr::eq(args.os_varp, (&raw mut opt_vars().p_isf).cast()) {
             init_isf_chartab()
         } else {
             init_isi_chartab()
@@ -2609,11 +2596,10 @@ pub unsafe fn did_set_isopt(args: &mut optset_T) -> *const c_char {
         } else {
             ptr::null()
         }
-    }
 }
 
 /// The 'keymap' option has changed.
-pub unsafe fn did_set_keymap(args: &mut optset_T) -> *const c_char {
+pub fn did_set_keymap(args: &mut optset_T) -> *const c_char {
     unsafe {
         let buf = args.os_buf;
         let opt_flags = args.os_flags;
@@ -2653,7 +2639,7 @@ pub unsafe fn did_set_keymap(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'keymodel' option is changed.
-pub unsafe fn did_set_keymodel(_args: &mut optset_T) -> *const c_char {
+pub fn did_set_keymodel(_args: &mut optset_T) -> *const c_char {
     unsafe {
         g_st().km_stopsel = !vim_strchr(opt_vars().p_km, b'o' as c_int).is_null();
         g_st().km_startsel = !vim_strchr(opt_vars().p_km, b'a' as c_int).is_null();
@@ -2662,7 +2648,7 @@ pub unsafe fn did_set_keymodel(_args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'lispoptions' option.
-pub unsafe fn validate_lispoptions(args: &mut optset_T) -> *const c_char {
+pub fn validate_lispoptions(args: &mut optset_T) -> *const c_char {
     unsafe {
         let value = args.os_newval.data.string().data;
         if *value == NUL
@@ -2677,7 +2663,7 @@ pub unsafe fn validate_lispoptions(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'matchpairs' option.
-pub unsafe fn validate_matchpairs(args: &mut optset_T) -> *const c_char {
+pub fn validate_matchpairs(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut p = args.os_newval.data.string().data;
         while *p != NUL {
@@ -2706,7 +2692,7 @@ pub unsafe fn validate_matchpairs(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'mkspellmem' option.
-pub unsafe fn validate_mkspellmem(args: &mut optset_T) -> *const c_char {
+pub fn validate_mkspellmem(args: &mut optset_T) -> *const c_char {
     unsafe {
         if spell_check_msm(args.os_newval.data.string().data, false) == OK {
             ptr::null()
@@ -2717,7 +2703,7 @@ pub unsafe fn validate_mkspellmem(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'mouse' option.
-pub unsafe fn validate_mouse(args: &mut optset_T) -> *const c_char {
+pub fn validate_mouse(args: &mut optset_T) -> *const c_char {
     unsafe {
         check_option_listflag(
             args.os_newval.data.string().data,
@@ -2727,12 +2713,12 @@ pub unsafe fn validate_mouse(args: &mut optset_T) -> *const c_char {
     }
 }
 
-pub unsafe fn expand_set_mouse(args: &mut optexpand_T, matches: &mut Vec<std::ffi::CString>) -> c_int {
+pub fn expand_set_mouse(args: &mut optexpand_T, matches: &mut Vec<std::ffi::CString>) -> c_int {
     unsafe { expand_set_opt_listflag(args, MOUSE_ALL.as_ptr(), matches) }
 }
 
 /// Validate the 'mousescroll' option.
-pub unsafe fn validate_mousescroll(args: &mut optset_T) -> *const c_char {
+pub fn validate_mousescroll(args: &mut optset_T) -> *const c_char {
     unsafe {
         let v = opt_keyset(
             args.os_newval.data.string().data,
@@ -2751,7 +2737,7 @@ pub unsafe fn validate_mousescroll(args: &mut optset_T) -> *const c_char {
 }
 
 /// Handle setting 'mousescroll'.
-pub unsafe fn did_set_mousescroll(_args: &mut optset_T) -> *const c_char {
+pub fn did_set_mousescroll(_args: &mut optset_T) -> *const c_char {
     unsafe {
         let v = opt_keyset(opt_vars().p_mousescroll, kOptMousescroll, ptr::null_mut())
             .cast::<OptKeyDict_mousescroll>();
@@ -2772,22 +2758,20 @@ pub unsafe fn did_set_mousescroll(_args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'rulerformat' option is changed.
-pub unsafe fn did_set_rulerformat(args: &mut optset_T) -> *const c_char {
-    unsafe { did_set_statustabline_rulerformat(args, true, false) }
+pub fn did_set_rulerformat(args: &mut optset_T) -> *const c_char {
+    did_set_statustabline_rulerformat(args, true, false)
 }
 
 /// The 'selection' option is changed.
-pub unsafe fn did_set_selection(_args: &mut optset_T) -> *const c_char {
-    unsafe {
-        if g_st().Visual.active {
+pub fn did_set_selection(_args: &mut optset_T) -> *const c_char {
+    if g_st().Visual.active {
             redraw_curbuf_later(UPD_INVERTED);
         }
         ptr::null()
-    }
 }
 
 /// Validate the 'sessionoptions' option.
-pub unsafe fn validate_sessionoptions(args: &mut optset_T) -> *const c_char {
+pub fn validate_sessionoptions(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut flags: c_uint = 0;
         let errmsg = opt_strings_flags(
@@ -2809,7 +2793,7 @@ pub unsafe fn validate_sessionoptions(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'shada' option.
-pub unsafe fn validate_shada(args: &mut optset_T) -> *const c_char {
+pub fn validate_shada(args: &mut optset_T) -> *const c_char {
     unsafe {
         let errbuf = args.os_errbuf;
         let value = args.os_newval.data.string().data;
@@ -2879,7 +2863,7 @@ pub unsafe fn validate_shada(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate 'shellpipe'/'shellredir' option.
-pub unsafe fn validate_shellpipe_redir(args: &mut optset_T) -> *const c_char {
+pub fn validate_shellpipe_redir(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut seen = false;
 
@@ -2910,7 +2894,7 @@ pub unsafe fn validate_shellpipe_redir(args: &mut optset_T) -> *const c_char {
     }
 }
 
-pub unsafe fn expand_set_shortmess(
+pub fn expand_set_shortmess(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
@@ -2918,7 +2902,7 @@ pub unsafe fn expand_set_shortmess(
 }
 
 /// Validate the 'shortmess' option.
-pub unsafe fn validate_shortmess(args: &mut optset_T) -> *const c_char {
+pub fn validate_shortmess(args: &mut optset_T) -> *const c_char {
     unsafe {
         check_option_listflag(
             args.os_newval.data.string().data,
@@ -2929,7 +2913,7 @@ pub unsafe fn validate_shortmess(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'showbreak' option.
-pub unsafe fn validate_showbreak(args: &mut optset_T) -> *const c_char {
+pub fn validate_showbreak(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut s = args.os_newval.data.string().data;
         while *s != NUL {
@@ -2943,14 +2927,12 @@ pub unsafe fn validate_showbreak(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'showcmdloc' option is changed.
-pub unsafe fn did_set_showcmdloc(_args: &mut optset_T) -> *const c_char {
-    unsafe {
-        comp_col();
+pub fn did_set_showcmdloc(_args: &mut optset_T) -> *const c_char {
+    comp_col();
         ptr::null()
-    }
 }
 
-pub unsafe fn validate_signcolumn(args: &mut optset_T) -> *const c_char {
+pub fn validate_signcolumn(args: &mut optset_T) -> *const c_char {
     unsafe {
         if check_signcolumn(args.os_newval.data.string().data, ptr::null_mut()) == OK {
             ptr::null()
@@ -2961,7 +2943,7 @@ pub unsafe fn validate_signcolumn(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'signcolumn' option is changed.
-pub unsafe fn did_set_signcolumn(args: &mut optset_T) -> *const c_char {
+pub fn did_set_signcolumn(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
         let varp = args.os_varp.cast::<*mut c_char>();
@@ -2987,7 +2969,7 @@ pub unsafe fn did_set_signcolumn(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate 'spellcapcheck' and prepare its regexp program.
-pub unsafe fn validate_spellcapcheck(args: &mut optset_T) -> *const c_char {
+pub fn validate_spellcapcheck(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut prog: Option<Box<regprog_T>> = None;
         let mut err = Error::new();
@@ -3019,7 +3001,7 @@ pub unsafe fn validate_spellcapcheck(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'spellcapcheck' option is changed.
-pub unsafe fn did_set_spellcapcheck(args: &mut optset_T) -> *const c_char {
+pub fn did_set_spellcapcheck(args: &mut optset_T) -> *const c_char {
     unsafe {
         if ptr::eq(args.os_varp, (&raw mut opt_vars().p_spc).cast()) {
             return ptr::null();
@@ -3032,7 +3014,7 @@ pub unsafe fn did_set_spellcapcheck(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'spellfile' option.
-pub unsafe fn validate_spellfile(args: &mut optset_T) -> *const c_char {
+pub fn validate_spellfile(args: &mut optset_T) -> *const c_char {
     unsafe {
         if valid_spellfile(args.os_newval.data.string().data) {
             ptr::null()
@@ -3043,12 +3025,12 @@ pub unsafe fn validate_spellfile(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'spellfile' option is changed.
-pub unsafe fn did_set_spellfile(_args: &mut optset_T) -> *const c_char {
-    unsafe { did_set_spell_option() }
+pub fn did_set_spellfile(_args: &mut optset_T) -> *const c_char {
+    did_set_spell_option()
 }
 
 /// Validate the 'spelllang' option.
-pub unsafe fn validate_spelllang(args: &mut optset_T) -> *const c_char {
+pub fn validate_spelllang(args: &mut optset_T) -> *const c_char {
     unsafe {
         if valid_spelllang(args.os_newval.data.string().data) {
             ptr::null()
@@ -3059,12 +3041,12 @@ pub unsafe fn validate_spelllang(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'spelllang' option is changed.
-pub unsafe fn did_set_spelllang(_args: &mut optset_T) -> *const c_char {
-    unsafe { did_set_spell_option() }
+pub fn did_set_spelllang(_args: &mut optset_T) -> *const c_char {
+    did_set_spell_option()
 }
 
 /// The 'spelloptions' option is changed.
-pub unsafe fn did_set_spelloptions(args: &mut optset_T) -> *const c_char {
+pub fn did_set_spelloptions(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
         let opt_flags = args.os_flags;
@@ -3100,7 +3082,7 @@ pub unsafe fn did_set_spelloptions(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'spellsuggest' option.
-pub unsafe fn validate_spellsuggest(args: &mut optset_T) -> *const c_char {
+pub fn validate_spellsuggest(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut sps: [c_int; 2] = [0, 0];
         if spell_check_sps(
@@ -3124,7 +3106,7 @@ pub fn did_set_spellsuggest(args: &mut optset_T) -> *const c_char {
         ptr::null()
 }
 
-pub unsafe fn did_set_splitkeep(_args: &mut optset_T) -> *const c_char {
+pub fn did_set_splitkeep(_args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
@@ -3144,7 +3126,7 @@ pub unsafe fn did_set_splitkeep(_args: &mut optset_T) -> *const c_char {
     }
 }
 
-pub unsafe fn validate_statustabline_rulerformat(args: &mut optset_T) -> *const c_char {
+pub fn validate_statustabline_rulerformat(args: &mut optset_T) -> *const c_char {
     unsafe {
         let value = args.os_newval.data.string().data;
         if *value == b'%' as c_char && *value.add(1) == b'!' as c_char {
@@ -3156,17 +3138,17 @@ pub unsafe fn validate_statustabline_rulerformat(args: &mut optset_T) -> *const 
 }
 
 /// The 'statuscolumn' option is changed.
-pub unsafe fn did_set_statuscolumn(args: &mut optset_T) -> *const c_char {
-    unsafe { did_set_statustabline_rulerformat(args, false, true) }
+pub fn did_set_statuscolumn(args: &mut optset_T) -> *const c_char {
+    did_set_statustabline_rulerformat(args, false, true)
 }
 
 /// The 'statusline' option is changed.
-pub unsafe fn did_set_statusline(args: &mut optset_T) -> *const c_char {
-    unsafe { did_set_statustabline_rulerformat(args, false, false) }
+pub fn did_set_statusline(args: &mut optset_T) -> *const c_char {
+    did_set_statustabline_rulerformat(args, false, false)
 }
 
 /// The 'statusline', 'winbar', 'tabline', 'rulerformat' or 'statuscolumn' option is changed.
-unsafe fn did_set_statustabline_rulerformat(
+fn did_set_statustabline_rulerformat(
     args: &mut optset_T,
     rulerformat: bool,
     statuscolumn: bool,
@@ -3215,12 +3197,12 @@ unsafe fn did_set_statustabline_rulerformat(
 }
 
 /// The 'tabline' option is changed.
-pub unsafe fn did_set_tabline(args: &mut optset_T) -> *const c_char {
-    unsafe { did_set_statustabline_rulerformat(args, false, false) }
+pub fn did_set_tabline(args: &mut optset_T) -> *const c_char {
+    did_set_statustabline_rulerformat(args, false, false)
 }
 
 /// The 'tagcase' option is changed.
-pub unsafe fn did_set_tagcase(args: &mut optset_T) -> *const c_char {
+pub fn did_set_tagcase(args: &mut optset_T) -> *const c_char {
     unsafe {
         let buf = args.os_buf;
         let opt_flags = args.os_flags;
@@ -3250,7 +3232,7 @@ pub unsafe fn did_set_tagcase(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'titlestring' or the 'iconstring' option is changed.
-unsafe fn did_set_titleiconstring(args: &mut optset_T, flagval: c_int) -> *const c_char {
+fn did_set_titleiconstring(args: &mut optset_T, flagval: c_int) -> *const c_char {
     unsafe {
         let varp = args.os_varp.cast::<*mut c_char>();
 
@@ -3268,12 +3250,12 @@ unsafe fn did_set_titleiconstring(args: &mut optset_T, flagval: c_int) -> *const
 }
 
 /// The 'titlestring' option is changed.
-pub unsafe fn did_set_titlestring(args: &mut optset_T) -> *const c_char {
-    unsafe { did_set_titleiconstring(args, STL_IN_TITLE) }
+pub fn did_set_titlestring(args: &mut optset_T) -> *const c_char {
+    did_set_titleiconstring(args, STL_IN_TITLE)
 }
 
 /// Validate 'vartabstop' or 'varsofttabstop' and prepare its tab widths.
-pub unsafe fn validate_vartabstop(args: &mut optset_T) -> *const c_char {
+pub fn validate_vartabstop(args: &mut optset_T) -> *const c_char {
     unsafe {
         let value = args.os_newval.data.string().data;
         let mut cp = value;
@@ -3300,7 +3282,7 @@ pub unsafe fn validate_vartabstop(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'vartabstop' or 'varsofttabstop' option is changed.
-pub unsafe fn did_set_vartabstop(args: &mut optset_T) -> *const c_char {
+pub fn did_set_vartabstop(args: &mut optset_T) -> *const c_char {
     unsafe {
         if ptr::eq(args.os_varp, (&raw mut opt_vars().p_vts).cast())
             || ptr::eq(args.os_varp, (&raw mut opt_vars().p_vsts).cast())
@@ -3324,7 +3306,7 @@ pub unsafe fn did_set_vartabstop(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'verbosefile' option is changed.
-pub unsafe fn did_set_verbosefile(_args: &mut optset_T) -> *const c_char {
+pub fn did_set_verbosefile(_args: &mut optset_T) -> *const c_char {
     unsafe {
         verbose_stop();
         if *opt_vars().p_vfile != NUL && verbose_open() == FAIL {
@@ -3335,7 +3317,7 @@ pub unsafe fn did_set_verbosefile(_args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'virtualedit' option is changed.
-pub unsafe fn did_set_virtualedit(args: &mut optset_T) -> *const c_char {
+pub fn did_set_virtualedit(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
 
@@ -3369,7 +3351,7 @@ pub unsafe fn did_set_virtualedit(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'whichwrap' option.
-pub unsafe fn validate_whichwrap(args: &mut optset_T) -> *const c_char {
+pub fn validate_whichwrap(args: &mut optset_T) -> *const c_char {
     unsafe {
         check_option_listflag(
             args.os_newval.data.string().data,
@@ -3379,14 +3361,14 @@ pub unsafe fn validate_whichwrap(args: &mut optset_T) -> *const c_char {
     }
 }
 
-pub unsafe fn expand_set_whichwrap(
+pub fn expand_set_whichwrap(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
     unsafe { expand_set_opt_listflag(args, WW_ALL.as_ptr(), matches) }
 }
 
-pub unsafe fn validate_wildmode(args: &mut optset_T) -> *const c_char {
+pub fn validate_wildmode(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut flags = [0u8; 4];
         if check_opt_wim(args.os_newval.data.string().data, flags.as_mut_ptr()) == FAIL {
@@ -3406,12 +3388,12 @@ pub fn did_set_wildmode(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'winbar' option is changed.
-pub unsafe fn did_set_winbar(args: &mut optset_T) -> *const c_char {
-    unsafe { did_set_statustabline_rulerformat(args, false, false) }
+pub fn did_set_winbar(args: &mut optset_T) -> *const c_char {
+    did_set_statustabline_rulerformat(args, false, false)
 }
 
 /// Validate the 'winborder' or 'pumborder' option.
-pub unsafe fn validate_border(args: &mut optset_T) -> *const c_char {
+pub fn validate_border(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut fconfig = WIN_CONFIG_INIT;
         let mut err = Error::new();
@@ -3426,7 +3408,7 @@ pub unsafe fn validate_border(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'winhighlight' option is changed.
-pub unsafe fn did_set_winhighlight(args: &mut optset_T) -> *const c_char {
+pub fn did_set_winhighlight(args: &mut optset_T) -> *const c_char {
     unsafe {
         let win = args.os_win;
         let varp = args.os_varp.cast::<*mut c_char>();
@@ -3444,11 +3426,11 @@ pub unsafe fn did_set_winhighlight(args: &mut optset_T) -> *const c_char {
     }
 }
 
-pub unsafe fn expand_set_winhighlight(
+pub fn expand_set_winhighlight(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
-    unsafe { expand_set_opt_generic(args, Some(get_highlight_name), matches) }
+    expand_set_opt_generic(args, Some(get_highlight_name), matches)
 }
 
 /// Format an error naming an item (at most 63 bytes) and listing its valid values.
@@ -4345,7 +4327,7 @@ pub fn get_listchars_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Check all global and local values of 'listchars' and 'fillchars'.
-pub unsafe fn check_chars_options() -> *const c_char {
+pub fn check_chars_options() -> *const c_char {
     unsafe {
         if !set_chars_option(*curwin.as_ptr(), opt_vars().p_lcs, CharsOption::kListchars, false, None).is_null() {
             return E_CONFLICTS_WITH_VALUE_OF_LISTCHARS.as_ptr();
@@ -4391,7 +4373,7 @@ pub unsafe fn check_chars_options() -> *const c_char {
     }
 }
 
-pub unsafe fn validate_previewpopup(args: &mut optset_T) -> *const c_char {
+pub fn validate_previewpopup(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut fconfig = WIN_CONFIG_INIT;
         if !win_previewpopup_config(args.os_newval.data.string().data, &mut fconfig) {
@@ -4401,7 +4383,7 @@ pub unsafe fn validate_previewpopup(args: &mut optset_T) -> *const c_char {
     }
 }
 
-pub unsafe fn expand_set_popupoption(
+pub fn expand_set_popupoption(
     args: &mut optexpand_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {

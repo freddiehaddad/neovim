@@ -210,7 +210,7 @@ unsafe fn get_root_menu(_name: *const c_char) -> *mut Vec<vimmenu_T> {
 }
 
 /// If `menus_locked` is set then give an error and return true (`is_menus_locked`).
-unsafe fn is_menus_locked() -> bool {
+fn is_menus_locked() -> bool {
     unsafe {
         if menu_st().MENUS_LOCKED > 0 {
             emsg(gettext(e_cannot_change_menus_while_listing.as_ptr()));
@@ -221,7 +221,7 @@ unsafe fn is_menus_locked() -> bool {
 }
 
 /// Do the `:menu` command and relatives (`ex_menu`).
-pub unsafe fn ex_menu(eap: &mut exarg_T) {
+pub fn ex_menu(eap: &mut exarg_T) {
     unsafe {
         let mut noremap: c_int = 0;
         let mut silent = false;
@@ -1119,7 +1119,7 @@ pub unsafe fn set_context_in_menu_cmd(
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of (sub)menus (not entries) (`get_menu_name`).
-pub unsafe fn get_menu_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_menu_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
             menu_st().GET_MENU_NAME_IDX = 0;
@@ -1173,7 +1173,7 @@ pub unsafe fn get_menu_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of menus and menu entries (`get_menu_names`).
-pub unsafe fn get_menu_names(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_menu_names(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
             menu_st().GET_MENU_NAMES_IDX = 0;
@@ -1526,7 +1526,7 @@ pub fn get_menu_mode_flag() -> c_int {
 }
 
 /// Display the Special `"PopUp"` menu as a pop-up at the current mouse position (`show_popupmenu`).
-pub unsafe fn show_popupmenu() {
+pub fn show_popupmenu() {
     unsafe {
         let menu_mode = get_menu_mode();
         if menu_mode == MENU_INDEX_INVALID {
@@ -1702,7 +1702,7 @@ unsafe fn menu_getbyname(name_arg: *mut c_char) -> *mut vimmenu_T {
 }
 
 /// `:emenu` (`ex_emenu`).
-pub unsafe fn ex_emenu(eap: &mut exarg_T) {
+pub fn ex_emenu(eap: &mut exarg_T) {
     unsafe {
         let mut arg = eap.arg;
         let mut mode_idx = MENU_INDEX_INVALID;
@@ -1781,7 +1781,7 @@ pub unsafe fn menu_find(path_name: *const c_char) -> *mut vimmenu_T {
 }
 
 /// `:menutrans` (`ex_menutranslate`).
-pub unsafe fn ex_menutranslate(eap: &mut exarg_T) {
+pub fn ex_menutranslate(eap: &mut exarg_T) {
     unsafe {
         let mut arg = eap.arg;
         let mt_ptr = &raw mut menu_st().MENUTRANS_GA;

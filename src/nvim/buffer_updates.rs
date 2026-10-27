@@ -33,7 +33,7 @@ pub fn luaret_truthy(res: Object) -> bool {
     res.obj_type == ObjectType::kObjectTypeBoolean && res.data.boolean()
 }
 
-unsafe fn textlock_wrap<F: FnOnce()>(f: F) {
+fn textlock_wrap<F: FnOnce()>(f: F) {
     unsafe {
         let save_cursor = (**curwin.as_ptr()).w_cursor;
         g_st().textlock += 1;
@@ -43,7 +43,7 @@ unsafe fn textlock_wrap<F: FnOnce()>(f: F) {
     }
 }
 
-pub unsafe fn buf_updates_register(
+pub fn buf_updates_register(
     buf: &mut buf_T,
     channel_id: u64,
     cb: BufUpdateCallbacks,
@@ -400,7 +400,7 @@ pub unsafe fn buf_updates_send_splice(
     }
 }
 
-pub unsafe fn buf_updates_changedtick(buf: &mut buf_T) {
+pub fn buf_updates_changedtick(buf: &mut buf_T) {
     unsafe {
         for idx in 0..buf.update_channels.len() {
             let channel_id = buf.update_channels[idx];
@@ -447,7 +447,7 @@ pub unsafe fn buf_updates_changedtick(buf: &mut buf_T) {
     }
 }
 
-pub unsafe fn buf_updates_changedtick_single(buf: &mut buf_T, channel_id: u64) {
+pub fn buf_updates_changedtick_single(buf: &mut buf_T, channel_id: u64) {
     unsafe {
         let mut items = [
             buffer_obj(buf.b_fnum),

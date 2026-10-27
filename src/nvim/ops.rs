@@ -209,7 +209,7 @@ const fn rot13(c: c_int, a: c_int) -> c_int {
 }
 
 /// Translate a command name into an operator type.
-pub unsafe fn get_op_type(char1: c_int, char2: c_int) -> c_int {
+pub fn get_op_type(char1: c_int, char2: c_int) -> c_int {
     unsafe {
         if char1 == b'r' as c_int {
             return OP_REPLACE;
@@ -272,7 +272,7 @@ pub fn get_extra_op_char(optype: c_int) -> c_int {
 }
 
 /// Handle a shift operation.
-pub unsafe fn op_shift(oap: &mut oparg_T, curs_top: bool, amount: c_int) {
+pub fn op_shift(oap: &mut oparg_T, curs_top: bool, amount: c_int) {
     unsafe {
         let mut block_col: c_int = 0;
 
@@ -379,9 +379,8 @@ fn get_vts_sum(vts_array: &[c_int], index: c_int) -> c_int {
     sum
 }
 
-unsafe fn get_new_sw_indent(left: bool, round: bool, mut amount: i64, sw_val: i64) -> i64 {
-    unsafe {
-        let mut count = i64::from(get_indent());
+fn get_new_sw_indent(left: bool, round: bool, mut amount: i64, sw_val: i64) -> i64 {
+    let mut count = i64::from(get_indent());
 
         if round {
             let mut i = i64::from(trim_to_int(count / sw_val));
@@ -402,12 +401,10 @@ unsafe fn get_new_sw_indent(left: bool, round: bool, mut amount: i64, sw_val: i6
         }
 
         count
-    }
 }
 
-unsafe fn get_new_vts_indent(left: bool, round: bool, amount: c_int, vts_array: &[c_int]) -> i64 {
-    unsafe {
-        let mut indent = i64::from(get_indent());
+fn get_new_vts_indent(left: bool, round: bool, amount: c_int, vts_array: &[c_int]) -> i64 {
+    let mut indent = i64::from(get_indent());
         let mut vtsi: c_int = 0;
         let mut vts_indent: c_int = 0;
         let mut ts: c_int = 0;
@@ -443,11 +440,10 @@ unsafe fn get_new_vts_indent(left: bool, round: bool, amount: c_int, vts_array: 
         }
 
         indent
-    }
 }
 
 /// Shift the current line `amount` shiftwidth(s) left or right.
-pub unsafe fn shift_line(left: bool, round: bool, amount: c_int, call_changed_bytes: c_int) {
+pub fn shift_line(left: bool, round: bool, amount: c_int, call_changed_bytes: c_int) {
     unsafe {
         let sw_val = (*g_st().curbuf).b_p_sw;
         let ts_val = (*g_st().curbuf).b_p_ts;
@@ -476,7 +472,7 @@ pub unsafe fn shift_line(left: bool, round: bool, amount: c_int, call_changed_by
     }
 }
 
-unsafe fn shift_block(oap: &mut oparg_T, amount: c_int) {
+fn shift_block(oap: &mut oparg_T, amount: c_int) {
     unsafe {
         let left = oap.op_type == OP_LSHIFT;
         let oldstate = g_st().State;
@@ -819,7 +815,7 @@ unsafe fn block_insert(
 }
 
 /// Handle a delete operation.
-pub unsafe fn op_delete(oap: &mut oparg_T) -> c_int {
+pub fn op_delete(oap: &mut oparg_T) -> c_int {
     unsafe {
         let mut bd = block_def::new();
         let old_lcount = (*g_st().curbuf).b_ml.ml_line_count;
@@ -1136,7 +1132,7 @@ pub unsafe fn op_delete(oap: &mut oparg_T) -> c_int {
     }
 }
 
-unsafe fn mb_adjust_opend(oap: &mut oparg_T) {
+fn mb_adjust_opend(oap: &mut oparg_T) {
     unsafe {
         if !oap.inclusive {
             return;
@@ -1152,7 +1148,7 @@ unsafe fn mb_adjust_opend(oap: &mut oparg_T) {
     }
 }
 
-unsafe fn pbyte(mut lp: pos_T, c: c_int) {
+fn pbyte(mut lp: pos_T, c: c_int) {
     unsafe {
         debug_assert!(c <= u8::MAX as c_int);
         let p = ml_get_buf_mut(g_st().curbuf, lp.lnum);
@@ -1168,18 +1164,16 @@ unsafe fn pbyte(mut lp: pos_T, c: c_int) {
     }
 }
 
-unsafe fn replace_character(c: c_int) {
-    unsafe {
-        let n = g_st().State;
+fn replace_character(c: c_int) {
+    let n = g_st().State;
 
         g_st().State = MODE_REPLACE;
         ins_char(c);
         g_st().State = n;
         dec_cursor();
-    }
 }
 
-unsafe fn op_replace(oap: &mut oparg_T, mut c: c_int) -> c_int {
+fn op_replace(oap: &mut oparg_T, mut c: c_int) -> c_int {
     unsafe {
         let mut n: c_int;
         let mut bd = block_def::new();
@@ -1416,7 +1410,7 @@ unsafe fn op_replace(oap: &mut oparg_T, mut c: c_int) -> c_int {
 }
 
 /// Handle the (non-standard vi) tilde operator. Also for "gu", "gU" and "g?".
-pub unsafe fn op_tilde(oap: &mut oparg_T) {
+pub fn op_tilde(oap: &mut oparg_T) {
     unsafe {
         let mut bd = block_def::new();
         let mut did_change = false;
@@ -1500,7 +1494,7 @@ pub unsafe fn op_tilde(oap: &mut oparg_T) {
     }
 }
 
-unsafe fn swapchars(op_type: c_int, pos: &mut pos_T, length: c_int) -> c_int {
+fn swapchars(op_type: c_int, pos: &mut pos_T, length: c_int) -> c_int {
     unsafe {
         let mut did_change: c_int = 0;
         let mut todo = length;
@@ -1520,7 +1514,7 @@ unsafe fn swapchars(op_type: c_int, pos: &mut pos_T, length: c_int) -> c_int {
     }
 }
 
-pub unsafe fn swapchar(op_type: c_int, pos: &mut pos_T) -> bool {
+pub fn swapchar(op_type: c_int, pos: &mut pos_T) -> bool {
     unsafe {
         let c = gchar_pos(pos);
 
@@ -1560,7 +1554,7 @@ pub unsafe fn swapchar(op_type: c_int, pos: &mut pos_T) -> bool {
 }
 
 /// Insert and append operators for Visual mode.
-pub unsafe fn op_insert(oap: &mut oparg_T, count1: c_int) {
+pub fn op_insert(oap: &mut oparg_T, count1: c_int) {
     unsafe {
         let mut pre_textlen: c_int = 0;
         let mut ind_pre_col: colnr_T = 0;
@@ -1747,7 +1741,7 @@ pub unsafe fn op_insert(oap: &mut oparg_T, count1: c_int) {
 }
 
 /// Handle a change operation.
-pub unsafe fn op_change(oap: &mut oparg_T) -> c_int {
+pub fn op_change(oap: &mut oparg_T) -> c_int {
     unsafe {
         let mut pre_textlen: c_int = 0;
         let mut pre_indent: c_int = 0;
@@ -1871,7 +1865,7 @@ pub unsafe fn op_change(oap: &mut oparg_T) -> c_int {
 
 /// When the cursor is on the NUL past the end of the line and it should not be
 /// there move it left.
-pub unsafe fn adjust_cursor_eol() {
+pub fn adjust_cursor_eol() {
     unsafe {
         let cur_ve_flags = get_ve_flags(*curwin.as_ptr());
 
@@ -1951,7 +1945,7 @@ pub unsafe fn skip_comment(
     }
 }
 
-pub unsafe fn do_join(
+pub fn do_join(
     count: usize,
     insert_space: bool,
     save_undo: bool,
@@ -2157,7 +2151,7 @@ pub unsafe fn do_join(
 }
 
 /// Reset 'linebreak' and take care of side effects.
-pub unsafe fn reset_lbr() -> bool {
+pub fn reset_lbr() -> bool {
     unsafe {
         if (**curwin.as_ptr()).w_onebuf_opt.wo_lbr == 0 {
             return false;
@@ -2169,7 +2163,7 @@ pub unsafe fn reset_lbr() -> bool {
 }
 
 /// Restore 'linebreak' and take care of side effects.
-pub unsafe fn restore_lbr(lbr_saved: bool) {
+pub fn restore_lbr(lbr_saved: bool) {
     unsafe {
         if (**curwin.as_ptr()).w_onebuf_opt.wo_lbr != 0 || !lbr_saved {
             return;
@@ -2181,7 +2175,7 @@ pub unsafe fn restore_lbr(lbr_saved: bool) {
 }
 
 /// Prepare a few things for block mode yank/delete/tilde.
-pub unsafe fn block_prep(oap: &mut oparg_T, bdp: &mut block_def, lnum: linenr_T, is_del: bool) {
+pub fn block_prep(oap: &mut oparg_T, bdp: &mut block_def, lnum: linenr_T, is_del: bool) {
     unsafe {
         let mut incr: c_int = 0;
         let lbr_saved = reset_lbr();
@@ -2365,7 +2359,7 @@ pub unsafe fn getregionpos_prep(
     }
 }
 
-pub unsafe fn getregionpos_line(
+pub fn getregionpos_line(
     lnum: linenr_T,
     p1: pos_T,
     p2: pos_T,
@@ -2446,7 +2440,7 @@ pub unsafe fn getregionpos_line(
     }
 }
 
-pub unsafe fn charwise_block_prep(
+pub fn charwise_block_prep(
     mut start: pos_T,
     mut end: pos_T,
     bdp: &mut block_def,
@@ -2527,7 +2521,7 @@ pub unsafe fn charwise_block_prep(
     }
 }
 
-pub unsafe fn op_addsub(oap: &mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
+pub fn op_addsub(oap: &mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
     unsafe {
         let mut bd = block_def::new();
         let mut change_cnt: isize = 0;
@@ -2627,7 +2621,7 @@ pub unsafe fn op_addsub(oap: &mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
     }
 }
 
-pub unsafe fn do_addsub(
+pub fn do_addsub(
     op_type: c_int,
     pos: &mut pos_T,
     mut length: c_int,
@@ -3418,7 +3412,7 @@ pub unsafe fn cursor_pos_info(dict: *mut dict_T) {
     }
 }
 
-unsafe fn op_colon(oap: &mut oparg_T) {
+fn op_colon(oap: &mut oparg_T) {
     unsafe {
         if oap.is_VIsual {
             stuffReadbuff(c"'<,'>".as_ptr());
@@ -3476,15 +3470,15 @@ unsafe fn op_colon(oap: &mut oparg_T) {
     }
 }
 
-pub unsafe fn free_operatorfunc_option() {
+pub fn free_operatorfunc_option() {
     callback_free(&mut opt_vars().p_opfunc);
 }
 
-pub unsafe fn set_ref_in_opfunc(copyID: c_int) -> bool {
+pub fn set_ref_in_opfunc(copyID: c_int) -> bool {
     unsafe { set_ref_in_callback(&mut opt_vars().p_opfunc, copyID, ptr::null_mut(), ptr::null_mut()) }
 }
 
-unsafe fn op_function(oap: &oparg_T) {
+fn op_function(oap: &oparg_T) {
     unsafe {
         let orig_start = (*g_st().curbuf).b_op_start;
         let orig_end = (*g_st().curbuf).b_op_end;
@@ -3546,7 +3540,7 @@ unsafe fn op_function(oap: &oparg_T) {
     }
 }
 
-unsafe fn get_op_vcol(oap: &mut oparg_T, initial: bool) {
+fn get_op_vcol(oap: &mut oparg_T, initial: bool) {
     unsafe {
         let mut start: colnr_T = 0;
         let mut end: colnr_T = 0;
@@ -3622,9 +3616,8 @@ pub fn op_self_select(cap: &cmdarg_T) -> bool {
             || cap.nchar == b'v' as c_int)
 }
 
-unsafe fn op_ins_visual(oap: &mut oparg_T, cap: &mut cmdarg_T) -> VisualIns {
-    unsafe {
-        if !oap.is_VIsual {
+fn op_ins_visual(oap: &mut oparg_T, cap: &mut cmdarg_T) -> VisualIns {
+    if !oap.is_VIsual {
             return kVInsNone;
         }
         if is_ex_cmdchar(cap) || cap.cmdchar == K_LUA {
@@ -3644,10 +3637,9 @@ unsafe fn op_ins_visual(oap: &mut oparg_T, cap: &mut cmdarg_T) -> VisualIns {
         } else {
             kVInsOther
         }
-    }
 }
 
-pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
+pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
     unsafe {
         let oap = &mut *cap.oap;
         let lbr_saved = (**curwin.as_ptr()).w_onebuf_opt.wo_lbr != 0;
@@ -4143,7 +4135,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
 }
 
 /// Get the byte count of buffer region. End-exclusive.
-pub unsafe fn get_region_bytecount(
+pub fn get_region_bytecount(
     buf: &mut buf_T,
     start_lnum: linenr_T,
     end_lnum: linenr_T,

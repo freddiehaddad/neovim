@@ -381,13 +381,13 @@ fn tag_st() -> &'static mut TagModuleState {
 
 use crate::charset::toupper_asc;
 
-pub unsafe fn free_tagfunc_option() {
+pub fn free_tagfunc_option() {
     callback_free(&mut opt_vars().p_tfu);
 }
 
 /// Mark the global `'tagfunc'` callback with `copyID` so that it is not garbage
 /// collected.
-pub unsafe fn set_ref_in_tagfunc(copyID: c_int) -> bool {
+pub fn set_ref_in_tagfunc(copyID: c_int) -> bool {
     unsafe { set_ref_in_callback(&mut opt_vars().p_tfu, copyID, ptr::null_mut(), ptr::null_mut()) }
 }
 
@@ -1109,7 +1109,7 @@ pub fn tag_freematch() {
 }
 
 /// Print the tag stack.
-pub unsafe fn do_tags(_eap: &mut exarg_T) {
+pub fn do_tags(_eap: &mut exarg_T) {
     unsafe {
         let tagstack: *mut taggy_T = (&raw mut (**curwin.as_ptr()).w_tagstack).cast::<taggy_T>();
         let tagstackidx = (**curwin.as_ptr()).w_tagstackidx;
@@ -1177,7 +1177,7 @@ unsafe fn tag_strnicmp(mut s1: *const c_char, mut s2: *const c_char, mut len: us
     }
 }
 
-unsafe fn prepare_pats(pats: &mut pat_T, has_re: bool) {
+fn prepare_pats(pats: &mut pat_T, has_re: bool) {
     unsafe {
         pats.head = pats.pat;
         pats.headlen = pats.len;
@@ -1664,7 +1664,7 @@ unsafe fn findtags_apply_tfu(
     }
 }
 
-unsafe fn findtags_get_next_line(
+fn findtags_get_next_line(
     st: &mut findtags_state_T,
     sinfo_p: &mut tagsearch_info_T,
 ) -> tags_read_status_T {
@@ -1732,7 +1732,7 @@ unsafe fn findtags_get_next_line(
     }
 }
 
-unsafe fn findtags_hdr_parse(st: &mut findtags_state_T) -> bool {
+fn findtags_hdr_parse(st: &mut findtags_state_T) -> bool {
     unsafe {
         let lbuf = st.lbuf.as_mut_ptr();
         if !(crate::memory::cstr_prefix_bytes(lbuf, 6) == &b"!_TAG_"[..6]) {
@@ -1941,7 +1941,7 @@ fn findtags_matchargs_init(margs: &mut findtags_match_args_T, flags: c_int) {
     margs.sort_error = false;
 }
 
-unsafe fn findtags_match_tag(
+fn findtags_match_tag(
     st: &mut findtags_state_T,
     tagpp: &mut tagptrs_T,
     margs: &mut findtags_match_args_T,
@@ -2255,7 +2255,7 @@ unsafe fn findtags_in_file(st: &mut findtags_state_T, _flags: c_int, buf_ffname:
     }
 }
 
-unsafe fn findtags_copy_matches(st: &mut findtags_state_T, matches: &mut Vec<Vec<c_char>>) {
+fn findtags_copy_matches(st: &mut findtags_state_T, matches: &mut Vec<Vec<c_char>>) {
     unsafe {
         let name_only = (st.flags & TAG_NAMES) != 0;
         let keep = st.match_count > 0;
@@ -2430,7 +2430,7 @@ pub unsafe fn find_tags(
     }
 }
 
-pub unsafe fn found_tagfile_cb(fnames: &[std::ffi::CString], all: bool) -> bool {
+pub fn found_tagfile_cb(fnames: &[std::ffi::CString], all: bool) -> bool {
     unsafe {
         let tf = &raw mut tag_st().tag_fnames;
         for fname in fnames {
@@ -2447,7 +2447,7 @@ pub unsafe fn found_tagfile_cb(fnames: &[std::ffi::CString], all: bool) -> bool 
     }
 }
 
-pub unsafe fn free_tag_stuff() {
+pub fn free_tag_stuff() {
     unsafe {
         let tf = &raw mut tag_st().tag_fnames;
         *tf = Vec::new();
@@ -2594,7 +2594,7 @@ unsafe fn parse_tag_line(lbuf: *mut c_char, tagp: &mut tagptrs_T) -> c_int {
     }
 }
 
-unsafe fn test_for_static(tagp: &tagptrs_T) -> bool {
+fn test_for_static(tagp: &tagptrs_T) -> bool {
     unsafe {
         let mut p = tagp.command;
         loop {
@@ -2695,7 +2695,7 @@ unsafe fn parse_match(mut lbuf: *mut c_char, tagp: &mut tagptrs_T) -> c_int {
     }
 }
 
-unsafe fn tag_full_fname(tagp: &mut tagptrs_T) -> std::ffi::CString {
+fn tag_full_fname(tagp: &mut tagptrs_T) -> std::ffi::CString {
     unsafe {
         let c = *tagp.fname_end;
         *tagp.fname_end = NUL;
@@ -3127,7 +3127,7 @@ pub fn tagstack_clear_entry(item: &mut taggy_T) {
         item.user_data = None;
 }
 
-pub unsafe fn tag_listfiles_extra(idx: usize) -> Option<(*const c_char, *const c_char)> {
+pub fn tag_listfiles_extra(idx: usize) -> Option<(*const c_char, *const c_char)> {
     unsafe {
         let extra = &raw const tag_st().TAG_LISTFILES_EXTRA;
         (*extra)
@@ -3409,7 +3409,7 @@ pub unsafe fn get_tagstack(wp: &mut win_T, retdict: *mut dict_T) {
     }
 }
 
-unsafe fn tagstack_clear(wp: &mut win_T) {
+fn tagstack_clear(wp: &mut win_T) {
     unsafe {
         let tagstack = (&raw mut wp.w_tagstack).cast::<taggy_T>();
         for i in 0..wp.w_tagstacklen as usize {

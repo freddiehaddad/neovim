@@ -420,8 +420,7 @@ pub fn ui_attach(
 //   FUNC_API_SINCE(11) FUNC_API_REMOTE_ONLY;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_ui_set_focus(channel_id: u64, gained: Boolean, error: &mut Error) {
-    unsafe {
-        if get_ui_or_err(channel_id, error).is_none() {
+    if get_ui_or_err(channel_id, error).is_none() {
             return;
         }
         if gained {
@@ -429,7 +428,6 @@ pub unsafe extern "C" fn nvim_ui_set_focus(channel_id: u64, gained: Boolean, err
             may_trigger_vim_suspend_resume(false);
         }
         do_autocmd_focusgained(gained);
-    }
 }
 
 /// Deactivates UI events on the channel.

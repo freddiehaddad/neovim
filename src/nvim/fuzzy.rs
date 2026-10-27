@@ -106,9 +106,8 @@ unsafe fn has_match(needle: *const c_char, haystack: *const c_char) -> c_int {
     }
 }
 
-unsafe fn compute_bonus_codepoint(last_c: c_int, c: c_int) -> f64 {
-    unsafe {
-        if ascii_isalnum(c) || vim_iswordc(c) {
+fn compute_bonus_codepoint(last_c: c_int, c: c_int) -> f64 {
+    if ascii_isalnum(c) || vim_iswordc(c) {
             if last_c == (b'/' as c_int) {
                 return SCORE_MATCH_SLASH;
             }
@@ -123,7 +122,6 @@ unsafe fn compute_bonus_codepoint(last_c: c_int, c: c_int) -> f64 {
             }
         }
         0.0
-    }
 }
 
 unsafe fn setup_match_struct(

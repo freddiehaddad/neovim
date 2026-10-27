@@ -287,7 +287,7 @@ unsafe fn buf_write_convert(ip: &mut bw_info, bufp: *mut *mut c_char, lenp: &mut
     }
 }
 
-unsafe fn buf_write_bytes(ip: &mut bw_info) -> c_int {
+fn buf_write_bytes(ip: &mut bw_info) -> c_int {
     unsafe {
         let mut buf = ip.bw_buf.as_mut_ptr();
         let mut len = ip.bw_len;

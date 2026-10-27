@@ -76,71 +76,71 @@ pub(crate) const BF_SYN_SET: c_int = 0x200;
 const E_COMPILER_NOT_SUPPORTED_STR: &CStr = c"E666: Compiler not supported: %s";
 
 #[inline]
-unsafe fn curwin_argcount() -> c_int {
-    unsafe { crate::arglist::argcount() }
+fn curwin_argcount() -> c_int {
+    crate::arglist::argcount()
 }
 
 #[inline]
-unsafe fn curwin_arglist() -> *mut aentry_T {
-    unsafe { crate::arglist::arglist() }
+fn curwin_arglist() -> *mut aentry_T {
+    crate::arglist::arglist()
 }
 
-pub unsafe fn ex_ruby(eap: &mut exarg_T) {
+pub fn ex_ruby(eap: &mut exarg_T) {
     unsafe {
         script_host_execute(c"ruby".as_ptr(), eap);
     }
 }
 
-pub unsafe fn ex_rubyfile(eap: &mut exarg_T) {
+pub fn ex_rubyfile(eap: &mut exarg_T) {
     unsafe {
         script_host_execute_file(c"ruby".as_ptr(), eap);
     }
 }
 
-pub unsafe fn ex_rubydo(eap: &mut exarg_T) {
+pub fn ex_rubydo(eap: &mut exarg_T) {
     unsafe {
         script_host_do_range(c"ruby".as_ptr(), eap);
     }
 }
 
-pub unsafe fn ex_python3(eap: &mut exarg_T) {
+pub fn ex_python3(eap: &mut exarg_T) {
     unsafe {
         script_host_execute(c"python3".as_ptr(), eap);
     }
 }
 
-pub unsafe fn ex_py3file(eap: &mut exarg_T) {
+pub fn ex_py3file(eap: &mut exarg_T) {
     unsafe {
         script_host_execute_file(c"python3".as_ptr(), eap);
     }
 }
 
-pub unsafe fn ex_pydo3(eap: &mut exarg_T) {
+pub fn ex_pydo3(eap: &mut exarg_T) {
     unsafe {
         script_host_do_range(c"python3".as_ptr(), eap);
     }
 }
 
-pub unsafe fn ex_perl(eap: &mut exarg_T) {
+pub fn ex_perl(eap: &mut exarg_T) {
     unsafe {
         script_host_execute(c"perl".as_ptr(), eap);
     }
 }
 
-pub unsafe fn ex_perlfile(eap: &mut exarg_T) {
+pub fn ex_perlfile(eap: &mut exarg_T) {
     unsafe {
         script_host_execute_file(c"perl".as_ptr(), eap);
     }
 }
 
-pub unsafe fn ex_perldo(eap: &mut exarg_T) {
+pub fn ex_perldo(eap: &mut exarg_T) {
     unsafe {
         script_host_do_range(c"perl".as_ptr(), eap);
     }
 }
 
 /// If `'autowrite'` option set, try to write the file (`autowrite`).
-pub unsafe fn autowrite(buf: &mut buf_T, forceit: bool) -> c_int {
+pub fn autowrite(buf: &mut buf_T, forceit: bool) -> c_int {
     unsafe {
         if (opt_vars().p_aw == 0 && opt_vars().p_awa == 0)
             || opt_vars().p_write == 0
@@ -162,7 +162,7 @@ pub unsafe fn autowrite(buf: &mut buf_T, forceit: bool) -> c_int {
 }
 
 /// Flush all buffers, except the ones that are readonly or are never written (`autowrite_all`).
-pub unsafe fn autowrite_all() {
+pub fn autowrite_all() {
     unsafe {
         if (opt_vars().p_aw == 0 && opt_vars().p_awa == 0) || opt_vars().p_write == 0 {
             return;
@@ -185,7 +185,7 @@ pub unsafe fn autowrite_all() {
 }
 
 /// Return true if buffer was changed and cannot be abandoned (`check_changed`).
-pub unsafe fn check_changed(buf: &mut buf_T, flags: c_int) -> bool {
+pub fn check_changed(buf: &mut buf_T, flags: c_int) -> bool {
     unsafe {
         let forceit = (flags & CCGD_FORCEIT) != 0;
         let mut bufref: bufref_T = bufref_T::new();
@@ -229,7 +229,7 @@ pub unsafe fn check_changed(buf: &mut buf_T, flags: c_int) -> bool {
 }
 
 /// Ask the user what to do when abandoning a changed buffer (`dialog_changed`).
-pub unsafe fn dialog_changed(buf: &mut buf_T, checkall: bool) {
+pub fn dialog_changed(buf: &mut buf_T, checkall: bool) {
     unsafe {
         let mut buff = [0 as c_char; DIALOG_MSG_SIZE];
         let mut ea: exarg_T = exarg_T::new();
@@ -305,7 +305,7 @@ pub unsafe fn dialog_changed(buf: &mut buf_T, checkall: bool) {
 }
 
 /// Ask the user whether to close the terminal buffer or not (`dialog_close_terminal`).
-pub unsafe fn dialog_close_terminal(buf: &mut buf_T) -> bool {
+pub fn dialog_close_terminal(buf: &mut buf_T) -> bool {
     unsafe {
         let mut buff = [0 as c_char; DIALOG_MSG_SIZE];
         let fname = if !buf.b_fname.is_null() {
@@ -324,14 +324,12 @@ pub unsafe fn dialog_close_terminal(buf: &mut buf_T) -> bool {
 }
 
 /// Return true if the buffer `buf` can be abandoned (`can_abandon`).
-pub unsafe fn can_abandon(buf: &mut buf_T, forceit: bool) -> bool {
-    unsafe {
-        buf_hide(buf)
+pub fn can_abandon(buf: &mut buf_T, forceit: bool) -> bool {
+    buf_hide(buf)
             || !bufIsChanged(buf)
             || buf.b_nwindows > 1
             || autowrite(buf, forceit) == OK
             || forceit
-    }
 }
 
 fn add_bufnum(bufnrs: &mut Vec<c_int>, nr: c_int) {
@@ -341,7 +339,7 @@ fn add_bufnum(bufnrs: &mut Vec<c_int>, nr: c_int) {
 }
 
 /// Check if any buffer was changed and cannot be abandoned (`check_changed_any`).
-pub unsafe fn check_changed_any(hidden: bool, unload: bool) -> bool {
+pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
     unsafe {
         let mut ret = false;
         let mut bufcount: usize = 0;
@@ -469,7 +467,7 @@ pub unsafe fn check_changed_any(hidden: bool, unload: bool) -> bool {
 }
 
 /// Return `FAIL` if there is no file name, `OK` if there is one (`check_fname`).
-pub unsafe fn check_fname() -> c_int {
+pub fn check_fname() -> c_int {
     unsafe {
         if (*g_st().curbuf).b_ffname.is_null() {
             emsg(gettext((&raw const e_noname).cast()));
@@ -480,7 +478,7 @@ pub unsafe fn check_fname() -> c_int {
 }
 
 /// Flush the contents of a buffer, unless it has no file name (`buf_write_all`).
-pub unsafe fn buf_write_all(buf: &mut buf_T, forceit: bool) -> c_int {
+pub fn buf_write_all(buf: &mut buf_T, forceit: bool) -> c_int {
     unsafe {
         let old_curbuf = g_st().curbuf;
         let retval = buf_write(
@@ -509,7 +507,7 @@ pub unsafe fn buf_write_all(buf: &mut buf_T, forceit: bool) -> c_int {
 }
 
 /// `:argdo`, `:windo`, `:bufdo`, `:tabdo`, `:cdo`, `:ldo`, `:cfdo` and `:lfdo` (`ex_listdo`).
-pub unsafe fn ex_listdo(eap: &mut exarg_T) {
+pub fn ex_listdo(eap: &mut exarg_T) {
     unsafe {
         if (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0
             && eap.cmdidx != CMD_windo
@@ -761,7 +759,7 @@ pub unsafe fn ex_listdo(eap: &mut exarg_T) {
 }
 
 /// `:compiler[!] {name}` (`ex_compiler`).
-pub unsafe fn ex_compiler(eap: &mut exarg_T) {
+pub fn ex_compiler(eap: &mut exarg_T) {
     unsafe {
         let mut old_cur_comp: Option<std::ffi::CString> = None;
 
@@ -816,7 +814,7 @@ pub unsafe fn ex_compiler(eap: &mut exarg_T) {
 }
 
 /// `:checktime [buffer]` (`ex_checktime`).
-pub unsafe fn ex_checktime(eap: &mut exarg_T) {
+pub fn ex_checktime(eap: &mut exarg_T) {
     unsafe {
         let save_no_check_timestamps = g_st().no_check_timestamps;
 
@@ -880,7 +878,7 @@ unsafe fn script_host_do_range(name: *const c_char, eap: &mut exarg_T) {
 }
 
 /// `:drop` (`ex_drop`).
-pub unsafe fn ex_drop(eap: &mut exarg_T) {
+pub fn ex_drop(eap: &mut exarg_T) {
     unsafe {
         let mut split = false;
 

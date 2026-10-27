@@ -338,7 +338,7 @@ unsafe fn write_dec(buf: *mut c_char, cap: usize, val: c_int) {
 }
 
 #[inline]
-unsafe fn hl_table() -> *mut HlGroup {
+fn hl_table() -> *mut HlGroup {
     unsafe {
         let ga = &raw mut hlg_st().highlight_ga;
         (*ga).as_mut_ptr()
@@ -346,7 +346,7 @@ unsafe fn hl_table() -> *mut HlGroup {
 }
 
 #[inline]
-unsafe fn hl_len() -> c_int {
+fn hl_len() -> c_int {
     unsafe {
         let ga = &raw const hlg_st().highlight_ga;
         (*ga).len() as c_int
@@ -846,19 +846,19 @@ pub static highlight_init_cmdline: [&CStr; 140] = [
     c"default link NvimDoubleQuotedUnknownEscape NvimInvalidValue",
 ];
 
-pub unsafe fn highlight_num_groups() -> c_int {
-    unsafe { hl_len() }
+pub fn highlight_num_groups() -> c_int {
+    hl_len()
 }
 
-pub unsafe fn highlight_group_name(id: c_int) -> *mut c_char {
+pub fn highlight_group_name(id: c_int) -> *mut c_char {
     unsafe { (*hl_table().add(id as usize)).sg_name.as_ptr().cast_mut() }
 }
 
-pub unsafe fn highlight_link_id(id: c_int) -> c_int {
+pub fn highlight_link_id(id: c_int) -> c_int {
     unsafe { (*hl_table().add(id as usize)).sg_link }
 }
 
-pub unsafe fn syn_init_cmdline_highlight(reset: bool, init: bool) {
+pub fn syn_init_cmdline_highlight(reset: bool, init: bool) {
     unsafe {
         for &cmd in &highlight_init_cmdline {
             do_highlight(cmd.as_ptr(), reset, init);
@@ -866,7 +866,7 @@ pub unsafe fn syn_init_cmdline_highlight(reset: bool, init: bool) {
     }
 }
 
-pub unsafe fn init_highlight(both: bool, reset: bool) {
+pub fn init_highlight(both: bool, reset: bool) {
     unsafe {
         let p = get_var_value(c"g:colors_name".as_ptr());
         if !p.is_null() {
@@ -1609,7 +1609,7 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
     }
 }
 
-pub unsafe fn free_highlight() {
+pub fn free_highlight() {
     unsafe {
         let ga = &raw mut hlg_st().highlight_ga;
         *ga = Vec::new();
@@ -1626,7 +1626,7 @@ pub fn restore_cterm_colors() {
         g_st().cterm_normal_bg_color = 0;
 }
 
-unsafe fn hl_has_settings(idx: c_int, check_link: bool) -> bool {
+fn hl_has_settings(idx: c_int, check_link: bool) -> bool {
     unsafe {
         let g = &*hl_table().add(idx as usize);
         !g.sg_cleared
@@ -1640,7 +1640,7 @@ unsafe fn hl_has_settings(idx: c_int, check_link: bool) -> bool {
     }
 }
 
-unsafe fn highlight_clear(idx: c_int) {
+fn highlight_clear(idx: c_int) {
     unsafe {
         let g = &mut *hl_table().add(idx as usize);
         g.sg_cleared = true;
@@ -1663,7 +1663,7 @@ unsafe fn highlight_clear(idx: c_int) {
     }
 }
 
-unsafe fn highlight_list_one(id: c_int) {
+fn highlight_list_one(id: c_int) {
     unsafe {
         let sgp = &*hl_table().add((id - 1) as usize);
         let mut didh = false;
@@ -1967,7 +1967,7 @@ unsafe fn highlight_list_arg(
     }
 }
 
-pub unsafe fn highlight_has_attr(id: c_int, flag: c_int, modec: c_int) -> *const c_char {
+pub fn highlight_has_attr(id: c_int, flag: c_int, modec: c_int) -> *const c_char {
     unsafe {
         if id <= 0 || id > hl_len() {
             return ptr::null();
@@ -2069,7 +2069,7 @@ pub unsafe fn highlight_color(id: c_int, what: *const c_char, modec: c_int) -> *
     }
 }
 
-pub unsafe fn syn_list_header(
+pub fn syn_list_header(
     did_header: bool,
     outlen: c_int,
     id: c_int,
@@ -2126,7 +2126,7 @@ pub unsafe fn syn_list_header(
     }
 }
 
-unsafe fn set_hl_attr(idx: c_int) {
+fn set_hl_attr(idx: c_int) {
     unsafe {
         let mut at_en = HLATTRS_INIT;
         let sgp = &mut *hl_table().add(idx as usize);
@@ -2206,7 +2206,7 @@ pub unsafe fn highlight_exists(name: *const c_char) -> c_int {
     unsafe { c_int::from(syn_name2id(name) > 0) }
 }
 
-pub unsafe fn syn_id2name(id: c_int) -> *mut c_char {
+pub fn syn_id2name(id: c_int) -> *mut c_char {
     unsafe {
         if id <= 0 || id > hl_len() {
             return c"".as_ptr().cast_mut();
@@ -2292,14 +2292,12 @@ unsafe fn syn_add_group(name: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn syn_id2attr(hl_id: c_int) -> c_int {
-    unsafe {
-        let mut optional = false;
+pub fn syn_id2attr(hl_id: c_int) -> c_int {
+    let mut optional = false;
         syn_ns_id2attr(-1, hl_id, &mut optional)
-    }
 }
 
-pub unsafe fn syn_ns_id2attr(mut ns_id: c_int, mut hl_id: c_int, optional: &mut bool) -> c_int {
+pub fn syn_ns_id2attr(mut ns_id: c_int, mut hl_id: c_int, optional: &mut bool) -> c_int {
     unsafe {
         if syn_ns_get_final_id(&raw mut ns_id, &raw mut hl_id) {
             *optional = false;
@@ -2315,7 +2313,7 @@ pub unsafe fn syn_ns_id2attr(mut ns_id: c_int, mut hl_id: c_int, optional: &mut 
     }
 }
 
-pub unsafe fn syn_get_final_id(mut hl_id: c_int) -> c_int {
+pub fn syn_get_final_id(mut hl_id: c_int) -> c_int {
     unsafe {
         let mut ns_id = (**curwin.as_ptr()).w_ns_hl_active;
         syn_ns_get_final_id(&raw mut ns_id, &raw mut hl_id);
@@ -2362,7 +2360,7 @@ pub unsafe fn syn_ns_get_final_id(ns_id: *mut c_int, hl_idp: *mut c_int) -> bool
     }
 }
 
-pub unsafe fn highlight_attr_set_all() {
+pub fn highlight_attr_set_all() {
     unsafe {
         for idx in 0..hl_len() {
             let sgp = &mut *hl_table().add(idx as usize);
@@ -2432,7 +2430,7 @@ unsafe fn combine_stl_hlt(
     }
 }
 
-pub unsafe fn highlight_changed() {
+pub fn highlight_changed() {
     unsafe {
         let mut userhl = [0 as c_char; 30];
         let mut id_S: c_int = -1;
@@ -2556,9 +2554,8 @@ pub unsafe fn set_context_in_highlight_cmd(xp: &mut expand_T, mut arg: *const c_
     }
 }
 
-unsafe fn highlight_list() {
-    unsafe {
-        let mut i = 9;
+fn highlight_list() {
+    let mut i = 9;
         while i >= 0 {
             highlight_list_two(i, HLF_D);
             i -= 1;
@@ -2568,10 +2565,9 @@ unsafe fn highlight_list() {
             highlight_list_two(99, 0);
             j -= 1;
         }
-    }
 }
 
-unsafe fn highlight_list_two(cnt: c_int, id: c_int) {
+fn highlight_list_two(cnt: c_int, id: c_int) {
     unsafe {
         const MSG: &CStr = c"N \x08I \x08!  \x08";
         msg_puts_hl(MSG.as_ptr().add((cnt / 11) as usize), id, false);
@@ -2581,11 +2577,11 @@ unsafe fn highlight_list_two(cnt: c_int, id: c_int) {
     }
 }
 
-pub unsafe fn get_highlight_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
-    unsafe { get_highlight_name_ext(xp, idx, true).cast_mut() }
+pub fn get_highlight_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
+    get_highlight_name_ext(xp, idx, true).cast_mut()
 }
 
-pub unsafe fn get_highlight_name_ext(
+pub fn get_highlight_name_ext(
     _xp: &mut expand_T,
     idx: c_int,
     skip_cleared: bool,

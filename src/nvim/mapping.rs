@@ -117,7 +117,7 @@ impl mapblock_T {
     }
 
     #[inline]
-    unsafe fn clear_alt_or_luaref(&mut self) {
+    fn clear_alt_or_luaref(&mut self) {
         if let Some(alt) = self.m_alt.take() {
             alt.keys[0].set(None);
             alt.keys[1].set(None);
@@ -132,9 +132,7 @@ impl mapblock_T {
 
 impl Drop for mapblock_T {
     fn drop(&mut self) {
-        unsafe {
-            self.clear_alt_or_luaref();
-        }
+        self.clear_alt_or_luaref();
     }
 }
 
@@ -282,7 +280,7 @@ const fn map_hash(mode: c_int, c1: u8) -> usize {
 use crate::keycodes::{k_second, k_third};
 
 /// Get the start of the hashed map list for "state" and first character "c".
-pub unsafe fn get_maphash_list(state: c_int, c: c_int) -> &'static [mapblock_T] {
+pub fn get_maphash_list(state: c_int, c: c_int) -> &'static [mapblock_T] {
     unsafe {
         (&raw const map_st().maphash[map_hash(state, c as u8)])
             .as_ref()
@@ -292,7 +290,7 @@ pub unsafe fn get_maphash_list(state: c_int, c: c_int) -> &'static [mapblock_T] 
 }
 
 /// Get the buffer-local hashed map list for "state" and first character "c".
-pub unsafe fn get_buf_maphash_list(state: c_int, c: c_int) -> &'static [mapblock_T] {
+pub fn get_buf_maphash_list(state: c_int, c: c_int) -> &'static [mapblock_T] {
     unsafe { (*g_st().curbuf).b_maphash[map_hash(state, c as u8)].as_slice() }
 }
 
@@ -314,7 +312,7 @@ unsafe fn get_map_buckets(buf: *const buf_T, is_abbrev: bool) -> &'static [Vec<m
 }
 
 /// Finds the Lua mapping whose `m_str` embeds `id`.
-unsafe fn map_luaid_scan(mappings: &[Vec<mapblock_T>], id: c_int) -> Option<&mapblock_T> {
+fn map_luaid_scan(mappings: &[Vec<mapblock_T>], id: c_int) -> Option<&mapblock_T> {
     unsafe {
         for bucket in mappings {
             for mp in bucket {
@@ -328,7 +326,7 @@ unsafe fn map_luaid_scan(mappings: &[Vec<mapblock_T>], id: c_int) -> Option<&map
 }
 
 /// Resolves a Lua-mapping id to its callback.
-pub unsafe fn map_luaid_get(n: c_int) -> LuaRef {
+pub fn map_luaid_get(n: c_int) -> LuaRef {
     unsafe {
         let maphash_ref = &map_st().maphash;
         let first_abbr_ref = &map_st().first_abbr;
@@ -402,7 +400,7 @@ pub unsafe fn map_mode_to_chars(mode: c_int, buf: *mut c_char) {
     }
 }
 
-unsafe fn showmap(mp: &mapblock_T, local: bool) {
+fn showmap(mp: &mapblock_T, local: bool) {
     unsafe {
         if message_filtered(mp.m_keys.as_ptr())
             && message_filtered(mp.m_str.as_ptr())
@@ -757,7 +755,7 @@ unsafe fn map_add(
     }
 }
 
-unsafe fn buf_do_map(
+fn buf_do_map(
     mut maptype: c_int,
     args: &mut MapArguments,
     mode: c_int,
@@ -1686,7 +1684,7 @@ pub unsafe fn check_abbr(
 
 /// Evaluate the RHS of a mapping or abbreviations and take care of escaping
 /// special characters.
-pub unsafe fn eval_map_expr(mp: &mapblock_T, c: c_int) -> Option<CString> {
+pub fn eval_map_expr(mp: &mapblock_T, c: c_int) -> Option<CString> {
     unsafe {
         let mut p: Option<CString> = None;
         let mut expr_bytes: Vec<c_char> = Vec::new();
@@ -2619,7 +2617,7 @@ pub unsafe fn add_map(lhs: *mut c_char, rhs: *mut c_char, mode: c_int, buffer: b
     }
 }
 
-unsafe fn langmap_set_entry(from: c_int, to: c_int) {
+fn langmap_set_entry(from: c_int, to: c_int) {
     unsafe {
         let ptr = &raw mut map_st().langmap_mapga;
         let entries = &mut *ptr;
@@ -2638,7 +2636,7 @@ pub fn langmap_adjust_mb(c: c_int) -> c_int {
         .map_or(c, |idx| entries[idx].to)
 }
 
-pub unsafe fn langmap_init() {
+pub fn langmap_init() {
     unsafe {
         for i in 0..256 {
             *(&raw mut g_st().langmap_mapchar).cast::<u8>().add(i) = i as u8;
@@ -2649,7 +2647,7 @@ pub unsafe fn langmap_init() {
 
 /// Called when langmap option is set; the language map can be
 /// changed at any time!
-pub unsafe fn did_set_langmap(args: &mut optset_T) -> *const c_char {
+pub fn did_set_langmap(args: &mut optset_T) -> *const c_char {
     unsafe {
         langmap_init();
 
@@ -2745,7 +2743,7 @@ pub unsafe fn did_set_langmap(args: &mut optset_T) -> *const c_char {
     }
 }
 
-unsafe fn do_exmap(eap: &mut exarg_T, isabbrev: bool) {
+fn do_exmap(eap: &mut exarg_T, isabbrev: bool) {
     unsafe {
         let mut cmdp = eap.cmd;
         let mode = get_map_mode(&mut cmdp, eap.forceit != 0 || isabbrev);
@@ -2804,14 +2802,12 @@ unsafe fn do_exmap(eap: &mut exarg_T, isabbrev: bool) {
 }
 
 /// ":abbreviate" and friends.
-pub unsafe fn ex_abbreviate(eap: &mut exarg_T) {
-    unsafe {
-        do_exmap(eap, true);
-    }
+pub fn ex_abbreviate(eap: &mut exarg_T) {
+    do_exmap(eap, true);
 }
 
 /// ":map" and friends.
-pub unsafe fn ex_map(eap: &mut exarg_T) {
+pub fn ex_map(eap: &mut exarg_T) {
     unsafe {
         if g_st().secure != 0 {
             g_st().secure = 2;
@@ -2823,21 +2819,19 @@ pub unsafe fn ex_map(eap: &mut exarg_T) {
 }
 
 /// ":unmap" and friends.
-pub unsafe fn ex_unmap(eap: &mut exarg_T) {
-    unsafe {
-        do_exmap(eap, false);
-    }
+pub fn ex_unmap(eap: &mut exarg_T) {
+    do_exmap(eap, false);
 }
 
 /// ":mapclear" and friends.
-pub unsafe fn ex_mapclear(eap: &mut exarg_T) {
+pub fn ex_mapclear(eap: &mut exarg_T) {
     unsafe {
         do_mapclear(eap.cmd, eap.arg, eap.forceit, 0);
     }
 }
 
 /// ":abclear" and friends.
-pub unsafe fn ex_abclear(eap: &mut exarg_T) {
+pub fn ex_abclear(eap: &mut exarg_T) {
     unsafe {
         do_mapclear(eap.cmd, eap.arg, 1, 1);
     }

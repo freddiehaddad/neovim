@@ -1521,8 +1521,7 @@ pub unsafe fn get_default_stl_hl(
 }
 
 pub fn api_set_sctx(channel_id: u64) -> sctx_T {
-    unsafe {
-        let old_current_sctx = g_st().current_sctx;
+    let old_current_sctx = g_st().current_sctx;
         if channel_id != VIML_INTERNAL_CALL {
             g_st().current_sctx.sc_lnum = 0;
             if channel_id == LUA_INTERNAL_CALL {
@@ -1535,7 +1534,6 @@ pub fn api_set_sctx(channel_id: u64) -> sctx_T {
             }
         }
         old_current_sctx
-    }
 }
 
 struct ApiMetadataState {

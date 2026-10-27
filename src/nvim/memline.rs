@@ -378,12 +378,12 @@ fn pb_count_max(mfp: &memfile_T) -> u16 {
 }
 
 #[inline]
-unsafe fn pb_ptr(pp: &mut PointerBlock, idx: usize) -> *mut PointerEntry {
+fn pb_ptr(pp: &mut PointerBlock, idx: usize) -> *mut PointerEntry {
     unsafe { (&raw mut pp.pb_pointer).cast::<PointerEntry>().add(idx) }
 }
 
 #[inline]
-unsafe fn db_idx_ptr(dp: &mut DataBlock, idx: usize) -> *mut c_uint {
+fn db_idx_ptr(dp: &mut DataBlock, idx: usize) -> *mut c_uint {
     unsafe { (&raw mut dp.db_index).cast::<c_uint>().add(idx) }
 }
 
@@ -398,7 +398,7 @@ unsafe fn sb_push_cstr(sb: &mut Vec<u8>, s: *const c_char) {
 }
 
 /// Open a new memline for `buf`.
-pub unsafe fn ml_open(buf: &mut buf_T) -> c_int {
+pub fn ml_open(buf: &mut buf_T) -> c_int {
     unsafe {
         buf.b_ml.ml_stack.clear();
         buf.b_ml.ml_stack_top = 0;
@@ -575,7 +575,7 @@ pub unsafe fn ml_setname(buf: *mut buf_T) {
 }
 
 /// Open a file for the memfile for all buffers that are not readonly or have been modified.
-pub unsafe fn ml_open_files() {
+pub fn ml_open_files() {
     unsafe {
         let mut buf = g_st().firstbuf;
         while !buf.is_null() {
@@ -657,7 +657,7 @@ pub unsafe fn ml_open_file(buf: *mut buf_T) {
 }
 
 /// If still need to create a swapfile, create a swapfile now.
-pub unsafe fn check_need_swap(newfile: bool) {
+pub fn check_need_swap(newfile: bool) {
     unsafe {
         let old_msg_silent = g_st().msg_silent;
         g_st().msg_silent = 0;
@@ -686,7 +686,7 @@ pub unsafe fn ml_close(buf: *mut buf_T, del_file: c_int) {
 }
 
 /// Close all existing memlines and memfiles.
-pub unsafe fn ml_close_all(del_file: bool) {
+pub fn ml_close_all(del_file: bool) {
     unsafe {
         let mut buf = g_st().firstbuf;
         while !buf.is_null() {
@@ -699,7 +699,7 @@ pub unsafe fn ml_close_all(del_file: bool) {
 }
 
 /// Close all memfiles for not modified buffers.
-pub unsafe fn ml_close_notmod() {
+pub fn ml_close_notmod() {
     unsafe {
         let mut buf = g_st().firstbuf;
         while !buf.is_null() {
@@ -855,7 +855,7 @@ unsafe fn swapfile_proc_running(b0p: *const ZeroBlock, swap_fname: *const c_char
 }
 
 /// Try to recover `curbuf` from the `.swp` file.
-pub unsafe fn ml_recover(checkext: bool) {
+pub fn ml_recover(checkext: bool) {
     unsafe {
         let mut buf_box: Option<Box<buf_T>> = None;
         let mut mfp: *mut memfile_T = ptr::null_mut();
@@ -1945,7 +1945,7 @@ unsafe fn recov_file_names(
 }
 
 /// Sync all memlines.
-pub unsafe fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool) {
+pub fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool) {
     unsafe {
         let mut buf = g_st().firstbuf;
         while !buf.is_null() {
@@ -2044,7 +2044,7 @@ pub unsafe fn ml_preserve(buf: *mut buf_T, message: bool, do_fsync: bool) {
 }
 
 /// Return a pointer to a (read-only copy of a) line in `curbuf`.
-pub unsafe fn ml_get(lnum: linenr_T) -> *mut c_char {
+pub fn ml_get(lnum: linenr_T) -> *mut c_char {
     unsafe { ml_get_buf_impl(g_st().curbuf, lnum, false) }
 }
 
@@ -2059,17 +2059,17 @@ pub unsafe fn ml_get_buf_mut(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char {
 }
 
 /// Return pointer to position `pos`.
-pub unsafe fn ml_get_pos(pos: &pos_T) -> *mut c_char {
+pub fn ml_get_pos(pos: &pos_T) -> *mut c_char {
     unsafe { ml_get_buf(g_st().curbuf, pos.lnum).offset(pos.col as isize) }
 }
 
 /// Return length (excluding NUL) of the given line.
-pub unsafe fn ml_get_len(lnum: linenr_T) -> colnr_T {
+pub fn ml_get_len(lnum: linenr_T) -> colnr_T {
     unsafe { ml_get_buf_len(g_st().curbuf, lnum) }
 }
 
 /// Return length (excluding NUL) of the text after position `pos`.
-pub unsafe fn ml_get_pos_len(pos: &mut pos_T) -> colnr_T {
+pub fn ml_get_pos_len(pos: &mut pos_T) -> colnr_T {
     unsafe { ml_get_buf_len(g_st().curbuf, pos.lnum) - pos.col }
 }
 
@@ -2116,7 +2116,7 @@ pub unsafe fn ml_region_text(buf: *mut buf_T, start: pos_T, end: pos_T) -> Vec<u
 }
 
 /// Return codepoint at `pos`.
-pub unsafe fn gchar_pos(pos: &mut pos_T) -> c_int {
+pub fn gchar_pos(pos: &mut pos_T) -> c_int {
     unsafe {
         if pos.col == MAXCOL || pos.col > ml_get_len(pos.lnum) {
             return c_int::from(NUL);
@@ -2201,7 +2201,7 @@ unsafe fn ml_get_errorret(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char {
 }
 
 /// Check if a line that was just obtained by `ml_get` is in allocated memory.
-pub unsafe fn ml_line_alloced() -> c_int {
+pub fn ml_line_alloced() -> c_int {
     unsafe { (*g_st().curbuf).b_ml.ml_flags & ML_LINE_DIRTY }
 }
 
@@ -2916,12 +2916,12 @@ unsafe fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int 
 }
 
 /// Delete line `lnum` in the current buffer.
-pub unsafe fn ml_delete(lnum: linenr_T) -> c_int {
-    unsafe { ml_delete_flags(lnum, 0) }
+pub fn ml_delete(lnum: linenr_T) -> c_int {
+    ml_delete_flags(lnum, 0)
 }
 
 /// Like `ml_delete()` but using flags.
-pub unsafe fn ml_delete_flags(lnum: linenr_T, flags: c_int) -> c_int {
+pub fn ml_delete_flags(lnum: linenr_T, flags: c_int) -> c_int {
     unsafe {
         ml_flush_line(g_st().curbuf, false);
         if lnum < 1 || lnum > (*g_st().curbuf).b_ml.ml_line_count {
@@ -2932,7 +2932,7 @@ pub unsafe fn ml_delete_flags(lnum: linenr_T, flags: c_int) -> c_int {
 }
 
 /// Set the `DB_MARKED` flag for line `lnum`.
-pub unsafe fn ml_setmarked(lnum: linenr_T) {
+pub fn ml_setmarked(lnum: linenr_T) {
     unsafe {
         if lnum < 1 || lnum > (*g_st().curbuf).b_ml.ml_line_count || (*g_st().curbuf).b_ml.ml_mfp.is_none() {
             return;
@@ -2952,7 +2952,7 @@ pub unsafe fn ml_setmarked(lnum: linenr_T) {
 }
 
 /// Find the first line with its `DB_MARKED` flag set.
-pub unsafe fn ml_firstmarked() -> linenr_T {
+pub fn ml_firstmarked() -> linenr_T {
     unsafe {
         if (*g_st().curbuf).b_ml.ml_mfp.is_none() {
             return 0;
@@ -2984,7 +2984,7 @@ pub unsafe fn ml_firstmarked() -> linenr_T {
 }
 
 /// Clear all `DB_MARKED` flags.
-pub unsafe fn ml_clearmarked() {
+pub fn ml_clearmarked() {
     unsafe {
         if (*g_st().curbuf).b_ml.ml_mfp.is_none() {
             return;
@@ -3119,7 +3119,7 @@ unsafe fn ml_flush_line(buf: *mut buf_T, noalloc: bool) {
     }
 }
 
-unsafe fn ml_new_data(mfp: &mut memfile_T, negative: bool, page_count: i64) -> *mut bhdr_T {
+fn ml_new_data(mfp: &mut memfile_T, negative: bool, page_count: i64) -> *mut bhdr_T {
     unsafe {
         assert!(page_count >= 0);
         let hp = mf_new(mfp, negative, page_count as c_uint);
@@ -3133,7 +3133,7 @@ unsafe fn ml_new_data(mfp: &mut memfile_T, negative: bool, page_count: i64) -> *
     }
 }
 
-unsafe fn ml_new_ptr(mfp: &mut memfile_T) -> *mut bhdr_T {
+fn ml_new_ptr(mfp: &mut memfile_T) -> *mut bhdr_T {
     unsafe {
         let hp = mf_new(mfp, false, 1);
         let pp = (*hp).data_ptr().cast::<PointerBlock>();
@@ -4205,7 +4205,7 @@ pub unsafe fn ml_find_line_or_offset(
 }
 
 /// Goto byte in buffer with offset `cnt`.
-pub unsafe fn goto_byte(cnt: c_int) {
+pub fn goto_byte(cnt: c_int) {
     unsafe {
         let mut boff = cnt;
         ml_flush_line(g_st().curbuf, false);
@@ -4230,7 +4230,7 @@ pub unsafe fn goto_byte(cnt: c_int) {
 }
 
 /// Increment the line pointer `lp` crossing line boundaries as necessary.
-pub unsafe fn inc(lp: &mut pos_T) -> c_int {
+pub fn inc(lp: &mut pos_T) -> c_int {
     unsafe {
         if lp.col != MAXCOL {
             let p = ml_get_pos(lp);
@@ -4251,18 +4251,16 @@ pub unsafe fn inc(lp: &mut pos_T) -> c_int {
 }
 
 /// Same as `inc()`, but skip NUL at the end of non-empty lines.
-pub unsafe fn incl(lp: &mut pos_T) -> c_int {
-    unsafe {
-        let mut r = inc(lp);
+pub fn incl(lp: &mut pos_T) -> c_int {
+    let mut r = inc(lp);
         if r >= 1 && lp.col != 0 {
             r = inc(lp);
         }
         r
-    }
 }
 
 /// Decrements position `lp` by one character (multibyte-aware), crossing line boundaries.
-pub unsafe fn dec(lp: &mut pos_T) -> c_int {
+pub fn dec(lp: &mut pos_T) -> c_int {
     unsafe {
         lp.coladd = 0;
         if lp.col == MAXCOL {
@@ -4291,12 +4289,10 @@ pub unsafe fn dec(lp: &mut pos_T) -> c_int {
 }
 
 /// Same as `dec()`, but skip NUL at the end of non-empty lines.
-pub unsafe fn decl(lp: &mut pos_T) -> c_int {
-    unsafe {
-        let mut r = dec(lp);
+pub fn decl(lp: &mut pos_T) -> c_int {
+    let mut r = dec(lp);
         if r == 1 && lp.col != 0 {
             r = dec(lp);
         }
         r
-    }
 }

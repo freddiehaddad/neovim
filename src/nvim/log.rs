@@ -75,7 +75,7 @@ unsafe extern "C" {
     static c_stdout: *mut FILE;
 }
 
-pub unsafe fn log_get_stdout() -> *mut FILE {
+pub fn log_get_stdout() -> *mut FILE {
     #[cfg(windows)]
     unsafe {
         __acrt_iob_func(1)
@@ -86,7 +86,7 @@ pub unsafe fn log_get_stdout() -> *mut FILE {
     }
 }
 
-pub unsafe fn log_get_stderr() -> *mut FILE {
+pub fn log_get_stderr() -> *mut FILE {
     #[cfg(windows)]
     unsafe {
         __acrt_iob_func(2)
@@ -98,7 +98,7 @@ pub unsafe fn log_get_stderr() -> *mut FILE {
 }
 
 pub unsafe fn log_is_std_stream(fp: *mut FILE) -> bool {
-    unsafe { fp == log_get_stderr() || fp == log_get_stdout() }
+    fp == log_get_stderr() || fp == log_get_stdout()
 }
 
 #[macro_export]
@@ -165,7 +165,7 @@ unsafe fn log_try_create(fname: *const c_char) -> bool {
 }
 
 /// Initializes the log file path and sets `$NVIM_LOG_FILE` if empty.
-unsafe fn log_path_init() {
+fn log_path_init() {
     unsafe {
         let size = MAXPATHL + 1;
         let path_ptr = (&raw mut log_st().LOG_FILE_PATH).cast::<c_char>();
@@ -243,7 +243,7 @@ unsafe fn log_path_init() {
     }
 }
 
-pub unsafe fn log_init() {
+pub fn log_init() {
     unsafe {
         uv_mutex_init_recursive((&raw mut log_st().MUTEX).cast());
         log_path_init();
@@ -251,13 +251,13 @@ pub unsafe fn log_init() {
     }
 }
 
-pub unsafe fn log_lock() {
+pub fn log_lock() {
     unsafe {
         uv_mutex_lock((&raw mut log_st().MUTEX).cast());
     }
 }
 
-pub unsafe fn log_unlock() {
+pub fn log_unlock() {
     unsafe {
         uv_mutex_unlock((&raw mut log_st().MUTEX).cast());
     }
@@ -349,7 +349,7 @@ pub unsafe fn log_uv_handles(loop_: *mut crate::event::r#loop::uv_loop_t) {
 /// Open the log file for appending.
 ///
 /// @return Log file, or `stderr` on failure
-pub unsafe fn open_log_file() -> *mut FILE {
+pub fn open_log_file() -> *mut FILE {
     unsafe {
         let path_ptr = (&raw const log_st().LOG_FILE_PATH).cast::<c_char>();
         let mut errnum: c_int = 0;

@@ -140,7 +140,7 @@ pub unsafe fn win_new_float(
     }
 }
 
-pub unsafe fn win_set_minimal_style(wp: &mut win_T) {
+pub fn win_set_minimal_style(wp: &mut win_T) {
     unsafe {
         let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
         wp.w_onebuf_opt.wo_nu = 0;
@@ -333,7 +333,7 @@ pub unsafe fn win_config_float(wp: *mut win_T, mut fconfig: WinConfig) {
     }
 }
 
-pub unsafe fn win_float_remove(bang: bool, mut count: c_int) {
+pub fn win_float_remove(bang: bool, mut count: c_int) {
     unsafe {
         let mut float_win_arr: Vec<*mut win_T> = Vec::new();
         let mut wp = g_st().lastwin;
@@ -374,7 +374,7 @@ pub unsafe fn win_check_anchored_floats(win: *mut win_T) {
     }
 }
 
-pub unsafe fn win_float_update_statusline() {
+pub fn win_float_update_statusline() {
     unsafe {
         let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
@@ -388,7 +388,7 @@ pub unsafe fn win_float_update_statusline() {
     }
 }
 
-pub unsafe fn win_float_anchor_laststatus() {
+pub fn win_float_anchor_laststatus() {
     unsafe {
         let mut win = g_st().firstwin;
         while !win.is_null() {
@@ -400,7 +400,7 @@ pub unsafe fn win_float_anchor_laststatus() {
     }
 }
 
-pub unsafe fn win_reconfig_floats() {
+pub fn win_reconfig_floats() {
     unsafe {
         let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
@@ -411,7 +411,7 @@ pub unsafe fn win_reconfig_floats() {
 }
 
 /// Find the floating window of the given kind in the current tabpage (`win_float_find`).
-pub unsafe fn win_float_find(kind: WinKind) -> *mut win_T {
+pub fn win_float_find(kind: WinKind) -> *mut win_T {
     unsafe {
         let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
@@ -472,7 +472,7 @@ unsafe fn win_float_special_fail(wp: *mut win_T, err: &mut Error) -> *mut win_T 
 }
 
 /// Snapshot a 'previewpopup' preview's anchor: the current cursor's screen cell (`win_float_anchor_preview`).
-pub unsafe fn win_float_anchor_preview(wp: &mut win_T) {
+pub fn win_float_anchor_preview(wp: &mut win_T) {
     unsafe {
         wp.w_wantline = (**curwin.as_ptr()).w_winrow + (**curwin.as_ptr()).w_wrow;
         wp.w_wantcol = (**curwin.as_ptr()).w_wincol + (**curwin.as_ptr()).w_wcol;
@@ -480,7 +480,7 @@ pub unsafe fn win_float_anchor_preview(wp: &mut win_T) {
 }
 
 /// Creates a special floatwin: a 'previewpopup' preview or a pum-info popup (`win_float_special`).
-pub unsafe fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut win_T {
+pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut win_T {
     unsafe {
         let mut config = WIN_CONFIG_INIT;
         config.col = (**curwin.as_ptr()).w_wcol as f64;
@@ -548,7 +548,7 @@ pub unsafe fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *m
 }
 
 /// Closes a specified floating window used for previews or popups (`win_float_close`).
-pub unsafe fn win_float_close(kind: WinKind) {
+pub fn win_float_close(kind: WinKind) {
     unsafe {
         let wp = win_float_find(kind);
         if !wp.is_null() {
@@ -558,7 +558,7 @@ pub unsafe fn win_float_close(kind: WinKind) {
 }
 
 /// Re-layout a 'previewpopup' window for its current content (`win_float_update_preview`).
-pub unsafe fn win_float_update_preview(wp: &mut win_T) {
+pub fn win_float_update_preview(wp: &mut win_T) {
     unsafe {
         if wp.w_kind != kWinPreview || !wp.w_floating || wp.w_buffer.is_null() {
             return;

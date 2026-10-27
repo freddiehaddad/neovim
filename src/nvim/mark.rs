@@ -164,11 +164,9 @@ impl WinInfo {
 
 impl Drop for WinInfo {
     fn drop(&mut self) {
-        unsafe {
-            if self.wi_optset {
+        if self.wi_optset {
                 crate::option::clear_winopt(&mut self.wi_opt);
             }
-        }
     }
 }
 
@@ -277,7 +275,7 @@ unsafe fn reset_xfmark(
 }
 
 /// Set named mark `c` at current cursor position (`setmark`).
-pub unsafe fn setmark(c: c_int) -> c_int {
+pub fn setmark(c: c_int) -> c_int {
     unsafe {
         let view = mark_view_make(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor);
         setmark_pos(
@@ -488,7 +486,7 @@ pub fn mark_forget_file(wp: &mut win_T, fnum: c_int) {
 }
 
 /// Set the previous context mark to the current position and add it to the jump list (`setpcmark`).
-pub unsafe fn setpcmark() {
+pub fn setpcmark() {
     unsafe {
         if g_st().global_busy != 0
             || g_st().listcmd_busy
@@ -526,7 +524,7 @@ pub unsafe fn setpcmark() {
 }
 
 /// Check previous context mark (`checkpcmark`).
-pub unsafe fn checkpcmark() {
+pub fn checkpcmark() {
     unsafe {
         if (**curwin.as_ptr()).w_prev_pcmark.lnum != 0
             && (equalpos((**curwin.as_ptr()).w_pcmark, (**curwin.as_ptr()).w_cursor) || (**curwin.as_ptr()).w_pcmark.lnum == 0)
@@ -538,7 +536,7 @@ pub unsafe fn checkpcmark() {
 }
 
 /// Get mark in `count` position in the jumplist relative to the current index (`get_jumplist`).
-pub unsafe fn get_jumplist(win: &mut win_T, mut count: c_int) -> *mut fmark_T {
+pub fn get_jumplist(win: &mut win_T, mut count: c_int) -> *mut fmark_T {
     unsafe {
         cleanup_jumplist(win, true);
 
@@ -578,7 +576,7 @@ pub unsafe fn get_jumplist(win: &mut win_T, mut count: c_int) -> *mut fmark_T {
 }
 
 /// Get mark in `count` position in the changelist relative to the current index (`get_changelist`).
-pub unsafe fn get_changelist(buf: &mut buf_T, win: &mut win_T, count: c_int) -> *mut fmark_T {
+pub fn get_changelist(buf: &mut buf_T, win: &mut win_T, count: c_int) -> *mut fmark_T {
     unsafe {
         if buf.b_changelistlen == 0 {
             return ptr::null_mut();
@@ -641,7 +639,7 @@ pub unsafe fn mark_get(
 }
 
 /// Get a global mark `{A-Z0-9}` (`mark_get_global`).
-pub unsafe fn mark_get_global(resolve: bool, mut name: c_int) -> *mut xfmark_T {
+pub fn mark_get_global(resolve: bool, mut name: c_int) -> *mut xfmark_T {
     unsafe {
         if ascii_isdigit(name) {
             name = name - b'0' as c_int + NMARKS as c_int;
@@ -732,7 +730,7 @@ pub unsafe fn mark_get_motion(buf: *mut buf_T, win: *mut win_T, name: c_int) -> 
 }
 
 /// Get visual marks `'<'`, `'>'` (`mark_get_visual`).
-pub unsafe fn mark_get_visual(buf: &mut buf_T, name: c_int) -> *mut fmark_T {
+pub fn mark_get_visual(buf: &mut buf_T, name: c_int) -> *mut fmark_T {
     unsafe {
         let mut mark: *mut fmark_T = ptr::null_mut();
         if name == b'<' as c_int || name == b'>' as c_int {
@@ -867,7 +865,7 @@ pub unsafe fn mark_view_make(wp: *const win_T, pos: pos_T) -> fmarkv_T {
 }
 
 /// Search for the next named mark in the current file from a start position (`getnextmark`).
-pub unsafe fn getnextmark(startpos: &mut pos_T, dir: c_int, begin_line: c_int) -> *mut fmark_T {
+pub fn getnextmark(startpos: &mut pos_T, dir: c_int, begin_line: c_int) -> *mut fmark_T {
     unsafe {
         let mut result: *mut fmark_T = ptr::null_mut();
         let mut pos = *startpos;
@@ -899,7 +897,7 @@ pub unsafe fn getnextmark(startpos: &mut pos_T, dir: c_int, begin_line: c_int) -
 }
 
 /// For an extended filemark: set the `fnum` from the `fname` (`fname2fnum`).
-unsafe fn fname2fnum(fm: &mut xfmark_T) {
+fn fname2fnum(fm: &mut xfmark_T) {
     unsafe {
         let Some(ref fname_cstr) = fm.fname else {
             return;
@@ -1016,7 +1014,7 @@ pub fn clrallmarks(buf: &mut buf_T, timestamp: Timestamp) {
 }
 
 /// Get name of file from a filemark (`fm_getname`).
-pub unsafe fn fm_getname(fmark: &mut fmark_T, lead_len: c_int) -> Option<std::ffi::CString> {
+pub fn fm_getname(fmark: &mut fmark_T, lead_len: c_int) -> Option<std::ffi::CString> {
     unsafe {
         if fmark.fnum == (*g_st().curbuf).b_fnum {
             return Some(mark_line(&mut fmark.mark, lead_len));
@@ -1026,7 +1024,7 @@ pub unsafe fn fm_getname(fmark: &mut fmark_T, lead_len: c_int) -> Option<std::ff
 }
 
 /// Return the line at mark `mp`, truncated to fit in window (`mark_line`).
-unsafe fn mark_line(mp: &mut pos_T, lead_len: c_int) -> std::ffi::CString {
+fn mark_line(mp: &mut pos_T, lead_len: c_int) -> std::ffi::CString {
     unsafe {
         if mp.lnum == 0 || mp.lnum > (*g_st().curbuf).b_ml.ml_line_count {
             return c"-invalid-".to_owned();
@@ -1055,7 +1053,7 @@ unsafe fn mark_line(mp: &mut pos_T, lead_len: c_int) -> std::ffi::CString {
 }
 
 /// `:marks {arg}` (`ex_marks`).
-pub unsafe fn ex_marks(eap: &mut exarg_T) {
+pub fn ex_marks(eap: &mut exarg_T) {
     unsafe {
         nlua_call_excmd(
             c"vim._core.marks".as_ptr(),
@@ -1068,7 +1066,7 @@ pub unsafe fn ex_marks(eap: &mut exarg_T) {
 }
 
 /// `:delmarks[!] [marks]` (`ex_delmarks`).
-pub unsafe fn ex_delmarks(eap: &mut exarg_T) {
+pub fn ex_delmarks(eap: &mut exarg_T) {
     unsafe {
         let pos = pos_T {
             lnum: 0,
@@ -1218,7 +1216,7 @@ pub unsafe fn ex_delmarks(eap: &mut exarg_T) {
 }
 
 /// Print the jumplist (`ex_jumps`).
-pub unsafe fn ex_jumps(_eap: &mut exarg_T) {
+pub fn ex_jumps(_eap: &mut exarg_T) {
     unsafe {
         cleanup_jumplist(&mut **curwin.as_ptr(), true);
         msg_ext_set_kind(c"list_cmd".as_ptr());
@@ -1283,7 +1281,7 @@ pub unsafe fn ex_jumps(_eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_clearjumps(_eap: &mut exarg_T) {
+pub fn ex_clearjumps(_eap: &mut exarg_T) {
     unsafe {
         free_jumplist(*curwin.as_ptr());
         (**curwin.as_ptr()).w_jumplistlen = 0;
@@ -1292,7 +1290,7 @@ pub unsafe fn ex_clearjumps(_eap: &mut exarg_T) {
 }
 
 /// Print the changelist (`ex_changes`).
-pub unsafe fn ex_changes(_eap: &mut exarg_T) {
+pub fn ex_changes(_eap: &mut exarg_T) {
     unsafe {
         msg_ext_set_kind(c"list_cmd".as_ptr());
         msg_puts_title(gettext(c"\nchange line  col text".as_ptr()));
@@ -1395,7 +1393,7 @@ fn one_adjust_cursor(
 }
 
 /// Adjust marks between `line1` and `line2` (inclusive) to move `amount` lines (`mark_adjust`).
-pub unsafe fn mark_adjust(
+pub fn mark_adjust(
     line1: linenr_T,
     line2: linenr_T,
     amount: linenr_T,
@@ -1417,7 +1415,7 @@ pub unsafe fn mark_adjust(
 }
 
 /// Adjust marks without adjusting folds (`mark_adjust_nofold`).
-pub unsafe fn mark_adjust_nofold(
+pub fn mark_adjust_nofold(
     line1: linenr_T,
     line2: linenr_T,
     amount: linenr_T,
@@ -1745,7 +1743,7 @@ fn col_adjust(
 }
 
 /// Adjust marks in line `lnum` at column `mincol` and further (`mark_col_adjust`).
-pub unsafe fn mark_col_adjust(
+pub fn mark_col_adjust(
     lnum: linenr_T,
     mincol: colnr_T,
     lnum_amount: linenr_T,
@@ -1922,7 +1920,7 @@ pub unsafe fn mark_col_adjust(
 }
 
 /// Remove duplicate marks in the jumplist (`cleanup_jumplist`).
-pub unsafe fn cleanup_jumplist(wp: &mut win_T, loadfiles: bool) {
+pub fn cleanup_jumplist(wp: &mut win_T, loadfiles: bool) {
     unsafe {
         if loadfiles {
             for i in 0..(wp.w_jumplistlen as usize) {
@@ -2092,7 +2090,7 @@ pub fn mark_buffer_iter(
 }
 
 /// Set global mark (`mark_set_global`).
-pub unsafe fn mark_set_global(name: c_char, fm: xfmark_T, update: bool) -> bool {
+pub fn mark_set_global(name: c_char, fm: xfmark_T, update: bool) -> bool {
     unsafe {
         let idx = mark_global_index(name);
         if idx == -1 {
@@ -2111,7 +2109,7 @@ pub unsafe fn mark_set_global(name: c_char, fm: xfmark_T, update: bool) -> bool 
 }
 
 /// Set local mark (`mark_set_local`).
-pub unsafe fn mark_set_local(name: c_char, buf: &mut buf_T, fm: fmark_T, update: bool) -> bool {
+pub fn mark_set_local(name: c_char, buf: &mut buf_T, fm: fmark_T, update: bool) -> bool {
     unsafe {
         let ch = c_int::from(name as u8);
         let fm_tgt = if ascii_islower(ch) {
@@ -2158,7 +2156,7 @@ pub unsafe fn set_last_cursor(win: *mut win_T) {
     }
 }
 
-pub unsafe fn free_all_marks() {
+pub fn free_all_marks() {
     unsafe {
         let fm_base = (&raw mut g_st().namedfm).cast::<xfmark_T>();
         for i in 0..NGLOBALMARKS {
@@ -2383,8 +2381,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        unsafe {
-            assert_eq!(mark_global_index(b'A' as c_char), 0);
+        assert_eq!(mark_global_index(b'A' as c_char), 0);
             assert_eq!(mark_global_index(b'Z' as c_char), 25);
             assert_eq!(mark_global_index(b'0' as c_char), 26);
             assert_eq!(mark_global_index(b'9' as c_char), 35);
@@ -2403,6 +2400,5 @@ mod tests {
             assert_eq!(got.fmark.mark.lnum, 42);
             assert_eq!(got.fmark.mark.col, 7);
             free_all_marks();
-        }
     }
 }

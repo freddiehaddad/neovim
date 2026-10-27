@@ -125,9 +125,7 @@ impl Drop for vimconv_T {
         if self.vc_type == CONV_ICONV
             && let Some(fd) = self.vc_fd.take()
         {
-            unsafe {
-                call_iconv_close(fd as *mut c_void);
-            }
+            call_iconv_close(fd as *mut c_void);
         }
         self.vc_type = CONV_NONE;
         self.vc_fd = None;
@@ -884,7 +882,7 @@ use crate::regexp::{GRAPHEME_STATE_INIT, NUMBUFLEN};
 use crate::viml::parser::parser::CONV_NONE;
 
 #[inline]
-pub unsafe fn mb_ptr_adv(p: &mut *mut c_char) {
+pub fn mb_ptr_adv(p: &mut *mut c_char) {
     unsafe {
         *p = (*p).add(utfc_ptr2len(*p) as usize);
     }
@@ -896,13 +894,13 @@ const fn utf_is_trail_byte(byte: u8) -> bool {
 }
 
 #[inline]
-pub unsafe fn basechar_cells_impl(c: CharInfo) -> c_int {
+pub fn basechar_cells_impl(c: CharInfo) -> c_int {
     if c.value < 0 {
         4
     } else if c.value < 0x80 {
         ascii2cells(c.value)
     } else {
-        unsafe { utf_char2cells(c.value) }
+        utf_char2cells(c.value)
     }
 }
 
@@ -991,7 +989,7 @@ pub unsafe fn utf_ptr2StrCharInfo_len(ptr: *const c_char, size: c_int) -> StrCha
 }
 
 #[inline]
-pub unsafe fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
+pub fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
     unsafe {
         if *cur.ptr == NUL {
             return ClusterInfo {
@@ -1018,7 +1016,7 @@ pub unsafe fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
 }
 
 #[inline]
-pub unsafe fn utf_ClusterInfo_len(cur: StrCharInfo, size: &mut c_int) -> ClusterInfo {
+pub fn utf_ClusterInfo_len(cur: StrCharInfo, size: &mut c_int) -> ClusterInfo {
     unsafe {
         *size -= cur.chr.len;
         let next = cur.ptr.add(cur.chr.len as usize).cast::<u8>();
@@ -1074,7 +1072,7 @@ pub unsafe fn enc_canon_props(name: *const c_char) -> c_int {
     }
 }
 
-pub unsafe fn bomb_size() -> c_int {
+pub fn bomb_size() -> c_int {
     unsafe {
         let mut n = 0;
         if (*g_st().curbuf).b_p_bomb != 0 && (*g_st().curbuf).b_p_bin == 0 {
@@ -1131,7 +1129,7 @@ fn prop_is_emojilike(prop: &utf8proc_property_t) -> bool {
     bc == UTF8PROC_BOUNDCLASS_EXTENDED_PICTOGRAPHIC || bc == UTF8PROC_BOUNDCLASS_REGIONAL_INDICATOR
 }
 
-pub unsafe fn utf_char2cells(c: c_int) -> c_int {
+pub fn utf_char2cells(c: c_int) -> c_int {
     unsafe {
         if c < 0x80 {
             return 1;
@@ -1333,7 +1331,7 @@ pub unsafe fn utf_ptr2char(p_in: *const c_char) -> c_int {
     }
 }
 
-unsafe fn utf_safe_read_char_adv(s: &mut *const c_char, n: &mut usize) -> c_int {
+fn utf_safe_read_char_adv(s: &mut *const c_char, n: &mut usize) -> c_int {
     unsafe {
         if *n == 0 {
             return 0;
@@ -1676,7 +1674,7 @@ pub fn utf_printable(c: c_int) -> bool {
     !intable(NONPRINT, c)
 }
 
-pub unsafe fn utf_class(c: c_int) -> c_int {
+pub fn utf_class(c: c_int) -> c_int {
     unsafe { utf_class_tab(c, (*g_st().curbuf).b_chartab.as_ptr()) }
 }
 
@@ -2106,7 +2104,7 @@ pub fn utf_fold(a: c_int) -> c_int {
     if res == 1 { result[0] } else { a }
 }
 
-pub unsafe fn mb_toupper(a: c_int) -> c_int {
+pub fn mb_toupper(a: c_int) -> c_int {
     unsafe {
         if a < 128 && (opt_vars().cmp_flags & kOptCmpFlagKeepascii) != 0 {
             return toupper_asc(a);
@@ -2121,11 +2119,11 @@ pub unsafe fn mb_toupper(a: c_int) -> c_int {
     }
 }
 
-pub unsafe fn mb_islower(a: c_int) -> bool {
-    unsafe { mb_toupper(a) != a }
+pub fn mb_islower(a: c_int) -> bool {
+    mb_toupper(a) != a
 }
 
-pub unsafe fn mb_tolower(a: c_int) -> c_int {
+pub fn mb_tolower(a: c_int) -> c_int {
     unsafe {
         if a < 128 && (opt_vars().cmp_flags & kOptCmpFlagKeepascii) != 0 {
             return tolower_asc(a);
@@ -2140,13 +2138,13 @@ pub unsafe fn mb_tolower(a: c_int) -> c_int {
     }
 }
 
-pub unsafe fn mb_isupper(a: c_int) -> bool {
-    unsafe { mb_tolower(a) != a }
+pub fn mb_isupper(a: c_int) -> bool {
+    mb_tolower(a) != a
 }
 
 #[cfg(unix)]
-pub unsafe fn mb_isalpha(a: c_int) -> bool {
-    unsafe { mb_islower(a) || mb_isupper(a) }
+pub fn mb_isalpha(a: c_int) -> bool {
+    mb_islower(a) || mb_isupper(a)
 }
 
 pub unsafe fn utf_strnicmp(
@@ -2347,7 +2345,7 @@ pub unsafe fn mb_stricmp(s1: *const c_char, s2: *const c_char) -> c_int {
     unsafe { mb_strnicmp(s1, s2, MAXCOL) }
 }
 
-pub unsafe fn show_utf8() {
+pub fn show_utf8() {
     unsafe {
         let line = get_cursor_pos_ptr();
         let len = utfc_ptr2len(line);
@@ -2478,7 +2476,7 @@ pub unsafe fn utf_head_off(base_in: *const c_char, p_in: *const c_char) -> c_int
     }
 }
 
-pub unsafe fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: &mut c_int) -> ClusterInfo {
+pub fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: &mut c_int) -> ClusterInfo {
     unsafe {
         let mut cells = basechar_cells_impl(base.chr);
         let mut prev_code = base.chr.value;
@@ -2721,7 +2719,7 @@ pub unsafe fn utf_cp_bounds(base: *const c_char, p_in: *const c_char) -> CharBou
     unsafe { utf_cp_bounds_len(base, p_in, c_int::MAX) }
 }
 
-pub unsafe fn utf_find_illegal() {
+pub fn utf_find_illegal() {
     unsafe {
         let pos: pos_T = (**curwin.as_ptr()).w_cursor;
         let mut vimconv = vimconv_T {
@@ -2816,13 +2814,13 @@ pub unsafe fn utf_valid_string(s: *const c_char, end: *const c_char) -> bool {
     }
 }
 
-pub unsafe fn mb_adjust_cursor() {
+pub fn mb_adjust_cursor() {
     unsafe {
         mark_mb_adjustpos(g_st().curbuf.cast(), &mut (**curwin.as_ptr()).w_cursor);
     }
 }
 
-pub unsafe fn mb_check_adjust_col(win: &mut win_T) {
+pub fn mb_check_adjust_col(win: &mut win_T) {
     unsafe {
         let oldcol = win.w_cursor.col;
 
@@ -3010,7 +3008,7 @@ pub unsafe fn enc_canonize(enc: *const c_char) -> std::ffi::CString {
     }
 }
 
-pub unsafe fn enc_locale() -> Option<std::ffi::CString> {
+pub fn enc_locale() -> Option<std::ffi::CString> {
     unsafe {
         #[cfg(unix)]
         let mut s: *const c_char = nl_langinfo(CODESET);
