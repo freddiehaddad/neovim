@@ -495,7 +495,7 @@ unsafe fn setpenattr(
         if let Some(callbacks) = (*state).callbacks
             && let Some(cb) = callbacks.setpenattr
         {
-            cb(attr, val, (*state).cbdata);
+            cb(attr, val, (*state).screen_ptr());
         }
     }
 }
@@ -1013,7 +1013,7 @@ pub unsafe fn vterm_state_set_penattr(
         if let Some(callbacks) = (*state).callbacks
             && let Some(cb) = callbacks.setpenattr
         {
-            cb(attr, val, (*state).cbdata);
+            cb(attr, val, (*state).screen_ptr());
         }
 
         1

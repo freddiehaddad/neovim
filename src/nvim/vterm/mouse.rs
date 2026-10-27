@@ -98,7 +98,6 @@ pub struct VTermParser {
     pub osc: VTermParserOsc,
     pub dcs: VTermParserDcs,
     pub callbacks: Option<&'static crate::vterm::parser::VTermParserCallbacks>,
-    pub cbdata: *mut VTermStateFull,
     pub string_initial: bool,
     pub emit_nul: bool,
 }
@@ -114,7 +113,6 @@ impl VTermParser {
             osc: VTermParserOsc::new(),
             dcs: VTermParserDcs::new(),
             callbacks: None,
-            cbdata: std::ptr::null_mut(),
             string_initial: false,
             emit_nul: false,
         }

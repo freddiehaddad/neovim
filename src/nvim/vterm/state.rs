@@ -296,7 +296,7 @@ unsafe fn putglyph(state: *mut VTermStateFull, schar: schar_T, width: c_int, pos
         if let Some(callbacks) = (*state).callbacks
             && let Some(cb) = callbacks.putglyph
         {
-            let _ = cb(&raw mut info, pos, (*state).cbdata);
+            let _ = cb(&raw mut info, pos, (*state).screen_ptr());
         }
     }
 }
@@ -315,7 +315,7 @@ unsafe fn updatecursor(state: *mut VTermStateFull, oldpos: *const VTermPos, canc
             && let Some(cb) = callbacks.movecursor
         {
             let visible = c_int::from(((*state).mode & MODE_CURSOR_VISIBLE) != 0);
-            let _ = cb((*state).pos, *oldpos, visible, (*state).cbdata);
+            let _ = cb((*state).pos, *oldpos, visible, (*state).screen_ptr());
         }
     }
 }
@@ -335,7 +335,7 @@ unsafe fn erase(state: *mut VTermStateFull, rect: VTermRect, selective: c_int) {
         if let Some(callbacks) = (*state).callbacks
             && let Some(cb) = callbacks.erase
         {
-            let _ = cb(rect, selective, (*state).cbdata);
+            let _ = cb(rect, selective, (*state).screen_ptr());
         }
     }
 }
@@ -347,9 +347,7 @@ unsafe fn vterm_state_new(vt: *mut VTerm) -> Box<VTermStateFull> {
         let mut state = Box::new(VTermStateFull {
             vt,
             callbacks: None,
-            cbdata: ptr::null_mut(),
             fallbacks: None,
-            fbdata: ptr::null_mut(),
             rows,
             cols,
             pos: VTermPos::default(),
@@ -390,7 +388,6 @@ unsafe fn vterm_state_new(vt: *mut VTerm) -> Box<VTermStateFull> {
             tmp: Default::default(),
             selection: VTermStateSelection {
                 callbacks: None,
-                user: ptr::null_mut(),
                 buffer: Vec::new(),
             },
             key_encoding_stacks: [
@@ -465,7 +462,7 @@ unsafe fn scroll(
         let callbacks = (*state).callbacks;
         if let Some(cbs) = callbacks
             && let Some(cb) = cbs.scrollrect
-            && cb(rect, downward, rightward, (*state).cbdata) != 0
+            && cb(rect, downward, rightward, (*state).screen_ptr()) != 0
         {
             return;
         }
@@ -477,7 +474,7 @@ unsafe fn scroll(
                 rightward,
                 cbs.moverect,
                 cbs.erase,
-                (*state).cbdata,
+                (*state).screen_ptr(),
             );
         }
     }
@@ -591,7 +588,7 @@ unsafe fn set_lineinfo(
 
         let cb_ok = (*state).callbacks.is_some_and(|cbs| {
             cbs.setlineinfo.is_some_and(|cb| {
-                cb(row, &raw const info, &raw const oldinfo, (*state).cbdata) != 0
+                cb(row, &raw const info, &raw const oldinfo, (*state).screen_ptr()) != 0
             })
         });
 
@@ -749,7 +746,7 @@ unsafe fn on_control(control: u8, state: *mut VTermStateFull) -> c_int {
                 if let Some(callbacks) = (*state).callbacks
                     && let Some(cb) = callbacks.bell
                 {
-                    let _ = cb((*state).cbdata);
+                    let _ = cb((*state).screen_ptr());
                 }
             }
             0x08 => {
@@ -820,7 +817,7 @@ unsafe fn on_control(control: u8, state: *mut VTermStateFull) -> c_int {
             _ => {
                 if let Some(fallbacks) = (*state).fallbacks
                     && let Some(cb) = fallbacks.control
-                    && cb(control, (*state).fbdata) != 0
+                    && cb(control, (*state).term_ptr()) != 0
                 {
                     return 1;
                 }
@@ -997,7 +994,7 @@ unsafe fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull
                     && let Some(cb) = callbacks.movecursor
                 {
                     let visible = c_int::from(((*state).mode & MODE_CURSOR_VISIBLE) != 0);
-                    let _ = cb((*state).pos, oldpos, visible, (*state).cbdata);
+                    let _ = cb((*state).pos, oldpos, visible, (*state).screen_ptr());
                 }
                 1
             }
@@ -1497,7 +1494,7 @@ unsafe fn on_csi(
                     3 => {
                         if let Some(callbacks) = (*state).callbacks
                             && let Some(cb) = callbacks.sb_clear
-                            && cb((*state).cbdata) != 0
+                            && cb((*state).screen_ptr()) != 0
                         {
                             return 1;
                         }
@@ -1798,7 +1795,7 @@ unsafe fn on_csi(
                     996 => {
                         if let Some(callbacks) = (*state).callbacks
                             && let Some(cb) = callbacks.theme
-                            && cb(&raw mut dark, (*state).cbdata) != 0
+                            && cb(&raw mut dark, (*state).screen_ptr()) != 0
                         {
                             let s: &[u8] = if dark { b"?997;1n" } else { b"?997;2n" };
                             vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, s);
@@ -1996,7 +1993,7 @@ unsafe fn on_csi(
                         argcount,
                         intermed_ptr,
                         command,
-                        (*state).fbdata,
+                        (*state).term_ptr(),
                     ) != 0
                 {
                     return 1;
@@ -2109,6 +2106,7 @@ unsafe fn osc_selection(state: *mut VTermStateFull, frag: VTermStringFragment) {
         }
 
         let sel_callbacks = (*state).selection.callbacks;
+        let sel_user = (*state).term_ptr();
 
         if frag_len == 0 {
             if frag_final
@@ -2122,11 +2120,7 @@ unsafe fn osc_selection(state: *mut VTermStateFull, frag: VTermStringFragment) {
                     true,
                     0 as VTermTerminator,
                 );
-                let _ = set_cb(
-                    c_int::from(tmp_selection_mask(state)),
-                    empty_frag,
-                    (*state).selection.user,
-                );
+                let _ = set_cb(c_int::from(tmp_selection_mask(state)), empty_frag, sel_user);
             }
             return;
         }
@@ -2144,10 +2138,7 @@ unsafe fn osc_selection(state: *mut VTermStateFull, frag: VTermStringFragment) {
             if let Some(sel_cbs) = sel_callbacks
                 && let Some(query_cb) = sel_cbs.query
             {
-                let _ = query_cb(
-                    c_int::from(tmp_selection_mask(state)),
-                    (*state).selection.user,
-                );
+                let _ = query_cb(c_int::from(tmp_selection_mask(state)), sel_user);
             }
             return;
         }
@@ -2201,11 +2192,7 @@ unsafe fn osc_selection(state: *mut VTermStateFull, frag: VTermStringFragment) {
                             true,
                             0 as VTermTerminator,
                         );
-                        let _ = set_cb(
-                            c_int::from(tmp_selection_mask(state)),
-                            err_frag,
-                            (*state).selection.user,
-                        );
+                        let _ = set_cb(c_int::from(tmp_selection_mask(state)), err_frag, sel_user);
                         break;
                     }
 
@@ -2234,11 +2221,8 @@ unsafe fn osc_selection(state: *mut VTermStateFull, frag: VTermStringFragment) {
                             frag_final && frag_len == 0,
                             0 as VTermTerminator,
                         );
-                        let _ = set_cb(
-                            c_int::from(tmp_selection_mask(state)),
-                            chunk_frag,
-                            (*state).selection.user,
-                        );
+                        let _ =
+                            set_cb(c_int::from(tmp_selection_mask(state)), chunk_frag, sel_user);
                         set_tmp_selection_state(state, SELECTION_SET);
                     }
 
@@ -2274,7 +2258,7 @@ unsafe fn on_osc(command: c_int, frag: VTermStringFragment, state: *mut VTermSta
 
         if let Some(fallbacks) = (*state).fallbacks
             && let Some(cb) = fallbacks.osc
-            && cb(command, frag, (*state).fbdata) != 0
+            && cb(command, frag, (*state).term_ptr()) != 0
         {
             return 1;
         }
@@ -2398,7 +2382,7 @@ unsafe fn on_dcs(
             return 1;
         } else if let Some(fallbacks) = (*state).fallbacks
             && let Some(cb) = fallbacks.dcs
-            && cb(command, commandlen, frag, (*state).fbdata) != 0
+            && cb(command, commandlen, frag, (*state).term_ptr()) != 0
         {
             return 1;
         }
@@ -2411,7 +2395,7 @@ unsafe fn on_apc(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int
     unsafe {
         if let Some(fallbacks) = (*state).fallbacks
             && let Some(cb) = fallbacks.apc
-            && cb(frag, (*state).fbdata) != 0
+            && cb(frag, (*state).term_ptr()) != 0
         {
             return 1;
         }
@@ -2423,7 +2407,7 @@ unsafe fn on_pm(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int 
     unsafe {
         if let Some(fallbacks) = (*state).fallbacks
             && let Some(cb) = fallbacks.pm
-            && cb(frag, (*state).fbdata) != 0
+            && cb(frag, (*state).term_ptr()) != 0
         {
             return 1;
         }
@@ -2435,7 +2419,7 @@ unsafe fn on_sos(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int
     unsafe {
         if let Some(fallbacks) = (*state).fallbacks
             && let Some(cb) = fallbacks.sos
-            && cb(frag, (*state).fbdata) != 0
+            && cb(frag, (*state).term_ptr()) != 0
         {
             return 1;
         }
@@ -2493,7 +2477,7 @@ unsafe fn on_resize(rows: c_int, cols: c_int, state: *mut VTermStateFull) -> c_i
                 pos: state_ref.pos,
                 lineinfos: std::mem::take(&mut state_ref.lineinfos),
             };
-            let _ = resize_cb(rows, cols, &raw mut fields, state_ref.cbdata);
+            let _ = resize_cb(rows, cols, &raw mut fields, state_ref.screen_ptr());
             state_ref.pos = fields.pos;
             state_ref.lineinfos = fields.lineinfos;
         } else if rows != old_rows {
@@ -2590,7 +2574,7 @@ pub unsafe fn vterm_state_reset(state: *mut VTermStateFull, hard: c_int) {
         if let Some(callbacks) = (*state).callbacks
             && let Some(cb) = callbacks.initpen
         {
-            let _ = cb((*state).cbdata);
+            let _ = cb((*state).screen_ptr());
         }
 
         vterm_state_resetpen(state);
@@ -2635,19 +2619,17 @@ pub unsafe fn vterm_state_reset(state: *mut VTermStateFull, hard: c_int) {
 pub unsafe fn vterm_state_set_callbacks(
     state: *mut VTermStateFull,
     callbacks: Option<&'static VTermStateCallbacks>,
-    user: *mut VTermScreen,
+    _user: *mut VTermScreen,
 ) {
     unsafe {
         if let Some(cbs) = callbacks {
             (*state).callbacks = Some(cbs);
-            (*state).cbdata = user;
 
             if let Some(cb) = cbs.initpen {
-                let _ = cb((*state).cbdata);
+                let _ = cb((*state).screen_ptr());
             }
         } else {
             (*state).callbacks = None;
-            (*state).cbdata = ptr::null_mut();
         }
     }
 }
@@ -2660,10 +2642,11 @@ pub unsafe fn vterm_state_set_unrecognised_fallbacks(
     unsafe {
         if let Some(fbs) = fallbacks {
             (*state).fallbacks = Some(fbs);
-            (*state).fbdata = user;
+            if !user.is_null() {
+                (*(*state).vt).outdata = user;
+            }
         } else {
             (*state).fallbacks = None;
-            (*state).fbdata = ptr::null_mut();
         }
     }
 }
@@ -2676,7 +2659,7 @@ pub unsafe fn vterm_state_set_termprop(
     unsafe {
         if let Some(callbacks) = (*state).callbacks
             && let Some(cb) = callbacks.settermprop
-            && cb(prop, val, (*state).cbdata) == 0
+            && cb(prop, val, (*state).screen_ptr()) == 0
         {
             return 0;
         }
@@ -2782,7 +2765,11 @@ pub fn vterm_state_set_selection_callbacks(
     buflen: usize,
 ) {
     state.selection.callbacks = callbacks;
-    state.selection.user = user;
+    if !user.is_null() {
+        unsafe {
+            (*state.vt).outdata = user;
+        }
+    }
     state.selection.buffer = vec![0 as c_char; buflen];
 }
 

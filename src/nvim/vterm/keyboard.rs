@@ -72,7 +72,6 @@ pub struct VTermStateTmp {
 #[repr(C)]
 pub struct VTermStateSelection {
     pub callbacks: Option<&'static crate::vterm::state::VTermSelectionCallbacks>,
-    pub user: *mut Terminal,
     pub buffer: Vec<c_char>,
 }
 
@@ -87,9 +86,7 @@ pub struct VTermKeyEncodingStack {
 pub struct VTermStateFull {
     pub vt: *mut VTerm,
     pub callbacks: Option<&'static crate::vterm::pen::VTermStateCallbacks>,
-    pub cbdata: *mut VTermScreen,
     pub fallbacks: Option<&'static crate::vterm::state::VTermStateFallbacks>,
-    pub fbdata: *mut Terminal,
     pub rows: c_int,
     pub cols: c_int,
     pub pos: VTermPos,
@@ -130,6 +127,16 @@ pub struct VTermStateFull {
 }
 
 impl VTermStateFull {
+    #[inline]
+    pub unsafe fn screen_ptr(&self) -> *mut VTermScreen {
+        unsafe { (*self.vt).screen_mut_ptr() }
+    }
+
+    #[inline]
+    pub unsafe fn term_ptr(&self) -> *mut Terminal {
+        unsafe { (*self.vt).outdata }
+    }
+
     #[inline]
     pub fn lineinfo(&self) -> &[crate::vterm::screen::VTermLineInfo] {
         let idx = if (self.mode & MODE_ALT_SCREEN_BIT) != 0 {

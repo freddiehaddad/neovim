@@ -123,7 +123,7 @@ unsafe fn do_control(vt: *mut VTerm, control: u8) {
         if let Some(callbacks) = (*vt).parser.callbacks
             && let Some(cb) = callbacks.control
         {
-            cb(control, (*vt).parser.cbdata);
+            cb(control, (*vt).state_mut_ptr());
         }
     }
 }
@@ -149,7 +149,7 @@ unsafe fn do_csi(vt: *mut VTerm, command: c_char) {
                 (*vt).parser.csi.argi,
                 intermed,
                 command,
-                (*vt).parser.cbdata,
+                (*vt).state_mut_ptr(),
             );
         }
     }
@@ -167,7 +167,7 @@ unsafe fn do_escape(vt: *mut VTerm, command: c_char) {
         if let Some(callbacks) = (*vt).parser.callbacks
             && let Some(cb) = callbacks.escape
         {
-            cb(seq.as_ptr(), len, (*vt).parser.cbdata);
+            cb(seq.as_ptr(), len, (*vt).state_mut_ptr());
         }
     }
 }
@@ -183,13 +183,14 @@ unsafe fn string_fragment(
         let frag =
             VTermStringFragment::new(str_, len, (*vt).parser.string_initial, final_, terminator);
         let callbacks = (*vt).parser.callbacks;
+        let state = (*vt).state_mut_ptr();
 
         match (*vt).parser.state {
             OSC => {
                 if let Some(cbs) = callbacks
                     && let Some(cb) = cbs.osc
                 {
-                    cb((*vt).parser.osc.command, frag, (*vt).parser.cbdata);
+                    cb((*vt).parser.osc.command, frag, state);
                 }
             }
             DCS_VTERM => {
@@ -200,7 +201,7 @@ unsafe fn string_fragment(
                         (*vt).parser.dcs.command.as_ptr(),
                         (*vt).parser.dcs.commandlen as usize,
                         frag,
-                        (*vt).parser.cbdata,
+                        state,
                     );
                 }
             }
@@ -208,21 +209,21 @@ unsafe fn string_fragment(
                 if let Some(cbs) = callbacks
                     && let Some(cb) = cbs.apc
                 {
-                    cb(frag, (*vt).parser.cbdata);
+                    cb(frag, state);
                 }
             }
             PM => {
                 if let Some(cbs) = callbacks
                     && let Some(cb) = cbs.pm
                 {
-                    cb(frag, (*vt).parser.cbdata);
+                    cb(frag, state);
                 }
             }
             SOS => {
                 if let Some(cbs) = callbacks
                     && let Some(cb) = cbs.sos
                 {
-                    cb(frag, (*vt).parser.cbdata);
+                    cb(frag, state);
                 }
             }
             _ => return,
@@ -506,7 +507,8 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
                             if let Some(callbacks) = (*vt).parser.callbacks
                                 && let Some(cb) = callbacks.text
                             {
-                                eaten = cb(bytes.add(pos), len - pos, (*vt).parser.cbdata) as usize;
+                                eaten =
+                                    cb(bytes.add(pos), len - pos, (*vt).state_mut_ptr()) as usize;
                             }
 
                             if eaten == 0 {
@@ -540,10 +542,9 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
 pub unsafe fn vterm_parser_set_callbacks(
     vt: *mut VTerm,
     callbacks: Option<&'static VTermParserCallbacks>,
-    user: *mut VTermStateFull,
+    _user: *mut VTermStateFull,
 ) {
     unsafe {
         (*vt).parser.callbacks = callbacks;
-        (*vt).parser.cbdata = user;
     }
 }
