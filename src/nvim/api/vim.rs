@@ -1569,7 +1569,7 @@ pub unsafe extern "C" fn nvim_set_current_win(win: Window, err: &mut Error) {
         if (*w).w_buffer != g_st().curbuf {
             reset_VIsual_and_resel();
         }
-        goto_tabpage_win(win_find_tabpage(w), w);
+        goto_tabpage_win(&mut *win_find_tabpage(w), w);
         try_leave(&tstate, err);
     }
 }

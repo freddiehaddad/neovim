@@ -2394,9 +2394,9 @@ unsafe fn copy_pim(to: *mut nfa_pim_T, from: *mut nfa_pim_T) {
     unsafe {
         (*to).result = (*from).result;
         (*to).state = (*from).state;
-        copy_sub(&raw mut (*to).subs.norm, &raw mut (*from).subs.norm);
+        copy_sub(&mut (*to).subs.norm, &mut (*from).subs.norm);
         if re_st().rex.nfa_has_zsubexpr != 0 {
-            copy_sub(&raw mut (*to).subs.synt, &raw mut (*from).subs.synt);
+            copy_sub(&mut (*to).subs.synt, &mut (*from).subs.synt);
         }
         (*to).end = (*from).end;
     }
@@ -2421,72 +2421,72 @@ unsafe fn clear_sub(sub: *mut regsub_T) {
 }
 
 #[inline]
-unsafe fn copy_sub(to: *mut regsub_T, from: *mut regsub_T) {
+unsafe fn copy_sub(to: &mut regsub_T, from: &mut regsub_T) {
     unsafe {
-        (*to).in_use = (*from).in_use;
-        if (*from).in_use <= 0 {
+        to.in_use = from.in_use;
+        if from.in_use <= 0 {
             return;
         }
-        let n = (*from).in_use as usize;
+        let n = from.in_use as usize;
         if REG_MULTI() {
-            (*to).list.multi_mut()[..n].copy_from_slice(&(*from).list.multi()[..n]);
-            (*to).orig_start_col = (*from).orig_start_col;
+            to.list.multi_mut()[..n].copy_from_slice(&from.list.multi()[..n]);
+            to.orig_start_col = from.orig_start_col;
         } else {
-            (*to).list.line_mut()[..n].copy_from_slice(&(*from).list.line()[..n]);
+            to.list.line_mut()[..n].copy_from_slice(&from.list.line()[..n]);
         }
     }
 }
 
-unsafe fn copy_sub_off(to: *mut regsub_T, from: *mut regsub_T) {
+unsafe fn copy_sub_off(to: &mut regsub_T, from: &mut regsub_T) {
     unsafe {
-        if (*to).in_use < (*from).in_use {
-            (*to).in_use = (*from).in_use;
+        if to.in_use < from.in_use {
+            to.in_use = from.in_use;
         }
-        if (*from).in_use <= 1 {
+        if from.in_use <= 1 {
             return;
         }
-        let n = (*from).in_use as usize;
+        let n = from.in_use as usize;
         if REG_MULTI() {
-            (*to).list.multi_mut()[1..n].copy_from_slice(&(*from).list.multi()[1..n]);
+            to.list.multi_mut()[1..n].copy_from_slice(&from.list.multi()[1..n]);
         } else {
-            (*to).list.line_mut()[1..n].copy_from_slice(&(*from).list.line()[1..n]);
+            to.list.line_mut()[1..n].copy_from_slice(&from.list.line()[1..n]);
         }
     }
 }
 
-unsafe fn copy_ze_off(to: *mut regsub_T, from: *mut regsub_T) {
+unsafe fn copy_ze_off(to: &mut regsub_T, from: &mut regsub_T) {
     unsafe {
         if re_st().rex.nfa_has_zend == 0 {
             return;
         }
         if REG_MULTI() {
-            let from_m = (*from).list.multi()[0];
+            let from_m = from.list.multi()[0];
             if from_m.end_lnum >= 0 {
-                (*to).list.multi_mut()[0].end_lnum = from_m.end_lnum;
-                (*to).list.multi_mut()[0].end_col = from_m.end_col;
+                to.list.multi_mut()[0].end_lnum = from_m.end_lnum;
+                to.list.multi_mut()[0].end_col = from_m.end_col;
             }
         } else {
-            let from_end = (*from).list.line()[0].end;
+            let from_end = from.list.line()[0].end;
             if !from_end.is_null() {
-                (*to).list.line_mut()[0].end = from_end;
+                to.list.line_mut()[0].end = from_end;
             }
         }
     }
 }
 
-unsafe fn sub_equal(sub1: *mut regsub_T, sub2: *mut regsub_T) -> bool {
+unsafe fn sub_equal(sub1: &mut regsub_T, sub2: &mut regsub_T) -> bool {
     unsafe {
-        let todo = (*sub1).in_use.max((*sub2).in_use) as usize;
+        let todo = sub1.in_use.max(sub2.in_use) as usize;
         if REG_MULTI() {
-            let m1 = (*sub1).list.multi();
-            let m2 = (*sub2).list.multi();
+            let m1 = sub1.list.multi();
+            let m2 = sub2.list.multi();
             for i in 0..todo {
-                let s1 = if (i as c_int) < (*sub1).in_use {
+                let s1 = if (i as c_int) < sub1.in_use {
                     m1[i].start_lnum
                 } else {
                     -1
                 };
-                let s2 = if (i as c_int) < (*sub2).in_use {
+                let s2 = if (i as c_int) < sub2.in_use {
                     m2[i].start_lnum
                 } else {
                     -1
@@ -2498,12 +2498,12 @@ unsafe fn sub_equal(sub1: *mut regsub_T, sub2: *mut regsub_T) -> bool {
                     return false;
                 }
                 if re_st().rex.nfa_has_backref != 0 {
-                    let e1 = if (i as c_int) < (*sub1).in_use {
+                    let e1 = if (i as c_int) < sub1.in_use {
                         m1[i].end_lnum
                     } else {
                         -1
                     };
-                    let e2 = if (i as c_int) < (*sub2).in_use {
+                    let e2 = if (i as c_int) < sub2.in_use {
                         m2[i].end_lnum
                     } else {
                         -1
@@ -2517,15 +2517,15 @@ unsafe fn sub_equal(sub1: *mut regsub_T, sub2: *mut regsub_T) -> bool {
                 }
             }
         } else {
-            let l1 = (*sub1).list.line();
-            let l2 = (*sub2).list.line();
+            let l1 = sub1.list.line();
+            let l2 = sub2.list.line();
             for i in 0..todo {
-                let sp1 = if (i as c_int) < (*sub1).in_use {
+                let sp1 = if (i as c_int) < sub1.in_use {
                     l1[i].start
                 } else {
                     ptr::null_mut()
                 };
-                let sp2 = if (i as c_int) < (*sub2).in_use {
+                let sp2 = if (i as c_int) < sub2.in_use {
                     l2[i].start
                 } else {
                     ptr::null_mut()
@@ -2534,12 +2534,12 @@ unsafe fn sub_equal(sub1: *mut regsub_T, sub2: *mut regsub_T) -> bool {
                     return false;
                 }
                 if re_st().rex.nfa_has_backref != 0 {
-                    let ep1 = if (i as c_int) < (*sub1).in_use {
+                    let ep1 = if (i as c_int) < sub1.in_use {
                         l1[i].end
                     } else {
                         ptr::null_mut()
                     };
-                    let ep2 = if (i as c_int) < (*sub2).in_use {
+                    let ep2 = if (i as c_int) < sub2.in_use {
                         l2[i].end
                     } else {
                         ptr::null_mut()
@@ -2565,9 +2565,9 @@ unsafe fn has_state_with_pos(
         for i in 0..(*l).n as usize {
             let thread = tp.add(i);
             if (*thread).state == Some(state)
-                && sub_equal(&raw mut (*thread).subs.norm, &raw mut (*subs).norm)
+                && sub_equal(&mut (*thread).subs.norm, &mut (*subs).norm)
                 && (re_st().rex.nfa_has_zsubexpr == 0
-                    || sub_equal(&raw mut (*thread).subs.synt, &raw mut (*subs).synt))
+                    || sub_equal(&mut (*thread).subs.synt, &mut (*subs).synt))
                 && pim_equal(&raw const (*thread).pim, pim)
             {
                 return true;
@@ -2746,9 +2746,9 @@ unsafe fn addstate(
                         return ptr::null_mut();
                     }
                     if subs != &raw mut nfa_st().temp_subs {
-                        copy_sub(&raw mut nfa_st().temp_subs.norm, &raw mut (*subs).norm);
+                        copy_sub(&mut nfa_st().temp_subs.norm, &mut (*subs).norm);
                         if re_st().rex.nfa_has_zsubexpr != 0 {
-                            copy_sub(&raw mut nfa_st().temp_subs.synt, &raw mut (*subs).synt);
+                            copy_sub(&mut nfa_st().temp_subs.synt, &mut (*subs).synt);
                         }
                         subs = &raw mut nfa_st().temp_subs;
                     }
@@ -2766,9 +2766,9 @@ unsafe fn addstate(
                     copy_pim(&raw mut thread.pim, pim);
                     (*l).has_pim = 1;
                 }
-                copy_sub(&raw mut thread.subs.norm, &raw mut (*subs).norm);
+                copy_sub(&mut thread.subs.norm, &mut (*subs).norm);
                 if re_st().rex.nfa_has_zsubexpr != 0 {
-                    copy_sub(&raw mut thread.subs.synt, &raw mut (*subs).synt);
+                    copy_sub(&mut thread.subs.synt, &mut (*subs).synt);
                 }
             }
         }
@@ -3092,15 +3092,15 @@ unsafe fn check_char_class(cls: c_int, c: c_int) -> c_int {
     }
 }
 
-unsafe fn match_backref(sub: *mut regsub_T, subidx: c_int, bytelen: *mut c_int) -> bool {
+unsafe fn match_backref(sub: &mut regsub_T, subidx: c_int, bytelen: *mut c_int) -> bool {
     unsafe {
-        if (*sub).in_use <= subidx {
+        if sub.in_use <= subidx {
             *bytelen = 0;
             return true;
         }
         let idx = subidx as usize;
         if REG_MULTI() {
-            let mpos = (*sub).list.multi()[idx];
+            let mpos = sub.list.multi()[idx];
             if mpos.start_lnum < 0 || mpos.end_lnum < 0 {
                 *bytelen = 0;
                 return true;
@@ -3127,7 +3127,7 @@ unsafe fn match_backref(sub: *mut regsub_T, subidx: c_int, bytelen: *mut c_int) 
                 return true;
             }
         } else {
-            let lpos = (*sub).list.line()[idx];
+            let lpos = sub.list.line()[idx];
             if lpos.start.is_null() || lpos.end.is_null() {
                 *bytelen = 0;
                 return true;
@@ -3664,9 +3664,9 @@ unsafe fn nfa_regmatch(
                             continue;
                         }
                         nfa_st().nfa_match = 1;
-                        copy_sub(&raw mut (*submatch).norm, &raw mut (*t).subs.norm);
+                        copy_sub(&mut (*submatch).norm, &mut (*t).subs.norm);
                         if re_st().rex.nfa_has_zsubexpr != 0 {
-                            copy_sub(&raw mut (*submatch).synt, &raw mut (*t).subs.synt);
+                            copy_sub(&mut (*submatch).synt, &mut (*t).subs.synt);
                         }
                         if (*nextlist).n == 0 {
                             clen = 0;
@@ -3688,9 +3688,9 @@ unsafe fn nfa_regmatch(
                             continue;
                         }
                         if t_st.c != NFA_END_INVISIBLE_NEG {
-                            copy_sub(&raw mut (*m).norm, &raw mut (*t).subs.norm);
+                            copy_sub(&mut (*m).norm, &mut (*t).subs.norm);
                             if re_st().rex.nfa_has_zsubexpr != 0 {
-                                copy_sub(&raw mut (*m).synt, &raw mut (*t).subs.synt);
+                                copy_sub(&mut (*m).synt, &mut (*t).subs.synt);
                             }
                         }
                         nfa_st().nfa_match = 1;
@@ -3717,9 +3717,9 @@ unsafe fn nfa_regmatch(
                             || st_c == NFA_START_INVISIBLE_BEFORE_NEG_FIRST
                         {
                             let in_use = (*m).norm.in_use;
-                            copy_sub_off(&raw mut (*m).norm, &raw mut (*t).subs.norm);
+                            copy_sub_off(&mut (*m).norm, &mut (*t).subs.norm);
                             if re_st().rex.nfa_has_zsubexpr != 0 {
-                                copy_sub_off(&raw mut (*m).synt, &raw mut (*t).subs.synt);
+                                copy_sub_off(&mut (*m).synt, &mut (*t).subs.synt);
                             }
                             let res = recursive_regmatch(
                                 t_state_idx,
@@ -3738,11 +3738,11 @@ unsafe fn nfa_regmatch(
                                 || st_c == NFA_START_INVISIBLE_BEFORE_NEG
                                 || st_c == NFA_START_INVISIBLE_BEFORE_NEG_FIRST;
                             if (res != 0) != is_neg {
-                                copy_sub_off(&raw mut (*t).subs.norm, &raw mut (*m).norm);
+                                copy_sub_off(&mut (*t).subs.norm, &mut (*m).norm);
                                 if re_st().rex.nfa_has_zsubexpr != 0 {
-                                    copy_sub_off(&raw mut (*t).subs.synt, &raw mut (*m).synt);
+                                    copy_sub_off(&mut (*t).subs.synt, &mut (*m).synt);
                                 }
-                                copy_ze_off(&raw mut (*t).subs.norm, &raw mut (*m).norm);
+                                copy_ze_off(&mut (*t).subs.norm, &mut (*m).norm);
                                 add_here = true;
                                 add_state = out1_out;
                             }
@@ -3802,9 +3802,9 @@ unsafe fn nfa_regmatch(
                             None
                         };
                         if skip.is_none() {
-                            copy_sub_off(&raw mut (*m).norm, &raw mut (*t).subs.norm);
+                            copy_sub_off(&mut (*m).norm, &mut (*t).subs.norm);
                             if re_st().rex.nfa_has_zsubexpr != 0 {
-                                copy_sub_off(&raw mut (*m).synt, &raw mut (*t).subs.synt);
+                                copy_sub_off(&mut (*m).synt, &mut (*t).subs.synt);
                             }
                             let res = recursive_regmatch(
                                 t_state_idx,
@@ -3819,9 +3819,9 @@ unsafe fn nfa_regmatch(
                                 return finish_nfa_regmatch(prog, &mut list);
                             }
                             if res != 0 {
-                                copy_sub_off(&raw mut (*t).subs.norm, &raw mut (*m).norm);
+                                copy_sub_off(&mut (*t).subs.norm, &mut (*m).norm);
                                 if re_st().rex.nfa_has_zsubexpr != 0 {
-                                    copy_sub_off(&raw mut (*t).subs.synt, &raw mut (*m).synt);
+                                    copy_sub_off(&mut (*t).subs.synt, &mut (*m).synt);
                                 }
                                 let bytelen = if REG_MULTI() {
                                     (*m).norm.list.multi()[0].end_col
@@ -4189,7 +4189,7 @@ unsafe fn nfa_regmatch(
                         let mut bytelen: c_int = 0;
                         let matched = if (NFA_BACKREF1..=NFA_BACKREF9).contains(&c) {
                             let subidx = c - NFA_BACKREF1 + 1;
-                            match_backref(&raw mut (*t).subs.norm, subidx, &raw mut bytelen)
+                            match_backref(&mut (*t).subs.norm, subidx, &raw mut bytelen)
                         } else {
                             let subidx = c - NFA_ZREF1 + 1;
                             match_zref(subidx, &raw mut bytelen)
@@ -4395,9 +4395,9 @@ unsafe fn nfa_regmatch(
                                 NFA_PIM_NOMATCH
                             };
                             if (r != 0) != is_neg {
-                                copy_sub_off(&raw mut (*pim).subs.norm, &raw mut (*m).norm);
+                                copy_sub_off(&mut (*pim).subs.norm, &mut (*m).norm);
                                 if re_st().rex.nfa_has_zsubexpr != 0 {
-                                    copy_sub_off(&raw mut (*pim).subs.synt, &raw mut (*m).synt);
+                                    copy_sub_off(&mut (*pim).subs.synt, &mut (*m).synt);
                                 }
                             }
                             r != 0
@@ -4406,9 +4406,9 @@ unsafe fn nfa_regmatch(
                         };
 
                         if res != is_neg {
-                            copy_sub_off(&raw mut (*t).subs.norm, &raw mut (*pim).subs.norm);
+                            copy_sub_off(&mut (*t).subs.norm, &mut (*pim).subs.norm);
                             if re_st().rex.nfa_has_zsubexpr != 0 {
-                                copy_sub_off(&raw mut (*t).subs.synt, &raw mut (*pim).subs.synt);
+                                copy_sub_off(&mut (*t).subs.synt, &mut (*pim).subs.synt);
                             }
                         } else {
                             listidx += 1;
@@ -4896,7 +4896,7 @@ pub(super) unsafe fn nfa_regexec_nl(
 }
 
 pub(super) unsafe fn nfa_regexec_multi(
-    rmp: *mut regmmatch_T,
+    rmp: &mut regmmatch_T,
     win: *mut win_T,
     buf: *mut buf_T,
     lnum: linenr_T,

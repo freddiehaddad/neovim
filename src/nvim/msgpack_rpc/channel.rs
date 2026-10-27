@@ -676,7 +676,7 @@ unsafe fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> 
             }
         } else {
             let in_stream = channel_instream(channel);
-            err = wstream_write(in_stream, buffer);
+            err = wstream_write(&mut *in_stream, buffer);
         }
 
         if err != 0 {

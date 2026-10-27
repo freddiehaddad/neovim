@@ -2011,7 +2011,7 @@ pub unsafe fn win_line(
                 lnum,
                 v,
                 &raw mut line,
-                &raw mut g_st().screen_search_hl,
+                &mut g_st().screen_search_hl,
                 &raw mut search_attr,
                 &raw mut search_attr_from_match,
             );
@@ -2291,7 +2291,7 @@ pub unsafe fn win_line(
                             lnum,
                             v,
                             &raw mut line,
-                            &raw mut g_st().screen_search_hl,
+                            &mut g_st().screen_search_hl,
                             &raw mut has_match_conc,
                             &raw mut match_conc,
                             lcs_eol_todo,
@@ -3174,7 +3174,7 @@ pub unsafe fn win_line(
                 if mb_schar == 0 && eol_hl_off == 0 {
                     let prevcol_hl_flag = get_prevcol_hl_flag(
                         wp,
-                        &raw mut g_st().screen_search_hl,
+                        &mut g_st().screen_search_hl,
                         (ptr.offset_from(line) as colnr_T) - 1,
                     );
 
@@ -3196,7 +3196,7 @@ pub unsafe fn win_line(
                         if area_attr == 0 && !has_fold {
                             get_search_match_hl(
                                 wp,
-                                &raw mut g_st().screen_search_hl,
+                                &mut g_st().screen_search_hl,
                                 ptr.offset_from(line) as colnr_T,
                                 &raw mut wlv.char_attr,
                             );

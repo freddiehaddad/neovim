@@ -70,7 +70,7 @@ unsafe fn rstream_space(stream: &mut RStream) -> usize {
 
 pub unsafe fn rstream_init_fd(loop_: *mut Loop, stream: *mut RStream, fd: c_int) {
     unsafe {
-        stream_init(loop_, &raw mut (*stream).s, fd, false);
+        stream_init(loop_, &mut (*stream).s, fd, false);
         rstream_init(stream);
     }
 }
@@ -217,7 +217,7 @@ pub unsafe fn read_event(stream: &mut RStream) {
         }
         stream.s.pending_reqs -= 1;
         if stream.s.closed && stream.s.pending_reqs == 0 {
-            stream_close_handle(&raw mut stream.s);
+            stream_close_handle(&mut stream.s);
         }
     }
 }
@@ -272,9 +272,9 @@ unsafe fn invoke_read_cb(stream: &mut RStream, eof: bool) {
     }
 }
 
-pub(crate) unsafe fn rstream_close_cb(s: *mut Stream) {
+pub(crate) unsafe fn rstream_close_cb(s: &mut Stream) {
     unsafe {
-        let stream = s.cast::<RStream>();
+        let stream = (&raw mut *s).cast::<RStream>();
         assert!(!stream.is_null());
         (*stream).buffer = Vec::new();
     }
@@ -282,6 +282,6 @@ pub(crate) unsafe fn rstream_close_cb(s: *mut Stream) {
 
 pub unsafe fn rstream_may_close(stream: &mut RStream) {
     unsafe {
-        stream_may_close(&raw mut stream.s);
+        stream_may_close(&mut stream.s);
     }
 }

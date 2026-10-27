@@ -896,7 +896,7 @@ unsafe fn do_os_system(
             let r_err = &raw mut (*proc_).err;
 
             if has_input {
-                wstream_init(s_in, 0);
+                wstream_init(&mut *s_in, 0);
             }
             rstream_init(r_out);
             rstream_start(&mut *r_out, cb_data);
@@ -906,11 +906,11 @@ unsafe fn do_os_system(
             if has_input {
                 let input_buffer =
                     wstream_new_vec_buffer(std::slice::from_raw_parts(input, len).to_vec());
-                if wstream_write(s_in, input_buffer) != 0 {
+                if wstream_write(&mut *s_in, input_buffer) != 0 {
                     proc_stop(&mut *proc_);
                     break 'end;
                 }
-                wstream_set_write_cb(s_in);
+                wstream_set_write_cb(&mut *s_in);
             }
 
             ui_busy_start();
@@ -1236,7 +1236,7 @@ unsafe fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool)
     }
 }
 
-pub(crate) unsafe fn shell_write_cb(stream: *mut Stream, status: c_int) {
+pub(crate) unsafe fn shell_write_cb(stream: &mut Stream, status: c_int) {
     unsafe {
         if status != 0 {
             msg_schedule_semsg!(

@@ -481,7 +481,7 @@ unsafe fn damagerect(screen: &mut VTermScreen, rect: VTermRect) {
                 if screen.damaged.start_row == -1 {
                     screen.damaged = rect;
                 } else {
-                    rect_expand(&raw mut screen.damaged, &raw const rect as *mut _);
+                    rect_expand(&mut screen.damaged, &rect);
                 }
                 return;
             }
@@ -705,7 +705,7 @@ unsafe fn scrollrect(
         }
 
         if screen.damaged.start_row != -1
-            && rect_intersects(&raw mut rect, &raw mut screen.damaged) == 0
+            && rect_intersects(&mut rect, &mut screen.damaged) == 0
         {
             vterm_screen_flush_damage(screen);
         }
@@ -714,7 +714,7 @@ unsafe fn scrollrect(
             screen.pending_scrollrect = rect;
             screen.pending_scroll_downward = downward;
             screen.pending_scroll_rightward = rightward;
-        } else if rect_equal(&raw mut screen.pending_scrollrect, &raw mut rect) != 0
+        } else if rect_equal(&mut screen.pending_scrollrect, &mut rect) != 0
             && ((screen.pending_scroll_downward == 0 && downward == 0)
                 || (screen.pending_scroll_rightward == 0 && rightward == 0))
         {
@@ -741,9 +741,9 @@ unsafe fn scrollrect(
             return 1;
         }
 
-        if rect_contains(&raw mut rect, &raw mut screen.damaged) != 0 {
+        if rect_contains(&mut rect, &mut screen.damaged) != 0 {
             vterm_rect_move(&mut screen.damaged, -downward, -rightward);
-            rect_clip(&raw mut screen.damaged, &raw mut rect);
+            rect_clip(&mut screen.damaged, &mut rect);
         } else if rect.start_col <= screen.damaged.start_col
             && rect.end_col >= screen.damaged.end_col
             && rightward == 0
@@ -1533,89 +1533,79 @@ pub unsafe fn vterm_screen_set_damage_merge(screen: &mut VTermScreen, size: VTer
 }
 
 #[cfg(test)]
-pub unsafe fn vterm_screen_convert_color_to_rgb(screen: &VTermScreen, col: *mut VTermColor) {
+pub unsafe fn vterm_screen_convert_color_to_rgb(screen: &VTermScreen, col: &mut VTermColor) {
     unsafe {
         crate::vterm::pen::vterm_state_convert_color_to_rgb(&*screen.state_ptr(), col);
     }
 }
 
-pub unsafe fn rect_expand(dst: *mut VTermRect, src: *mut VTermRect) {
-    unsafe {
-        if (*dst).start_row > (*src).start_row {
-            (*dst).start_row = (*src).start_row;
+pub unsafe fn rect_expand(dst: &mut VTermRect, src: &VTermRect) {
+    if dst.start_row > src.start_row {
+            dst.start_row = src.start_row;
         }
-        if (*dst).start_col > (*src).start_col {
-            (*dst).start_col = (*src).start_col;
+        if dst.start_col > src.start_col {
+            dst.start_col = src.start_col;
         }
-        if (*dst).end_row < (*src).end_row {
-            (*dst).end_row = (*src).end_row;
+        if dst.end_row < src.end_row {
+            dst.end_row = src.end_row;
         }
-        if (*dst).end_col < (*src).end_col {
-            (*dst).end_col = (*src).end_col;
+        if dst.end_col < src.end_col {
+            dst.end_col = src.end_col;
         }
-    }
 }
 
-pub unsafe fn rect_clip(dst: *mut VTermRect, bounds: *mut VTermRect) {
-    unsafe {
-        if (*dst).start_row < (*bounds).start_row {
-            (*dst).start_row = (*bounds).start_row;
+pub unsafe fn rect_clip(dst: &mut VTermRect, bounds: &mut VTermRect) {
+    if dst.start_row < bounds.start_row {
+            dst.start_row = bounds.start_row;
         }
-        if (*dst).start_col < (*bounds).start_col {
-            (*dst).start_col = (*bounds).start_col;
+        if dst.start_col < bounds.start_col {
+            dst.start_col = bounds.start_col;
         }
-        if (*dst).end_row > (*bounds).end_row {
-            (*dst).end_row = (*bounds).end_row;
+        if dst.end_row > bounds.end_row {
+            dst.end_row = bounds.end_row;
         }
-        if (*dst).end_col > (*bounds).end_col {
-            (*dst).end_col = (*bounds).end_col;
+        if dst.end_col > bounds.end_col {
+            dst.end_col = bounds.end_col;
         }
-        if (*dst).end_row < (*dst).start_row {
-            (*dst).end_row = (*dst).start_row;
+        if dst.end_row < dst.start_row {
+            dst.end_row = dst.start_row;
         }
-        if (*dst).end_col < (*dst).start_col {
-            (*dst).end_col = (*dst).start_col;
+        if dst.end_col < dst.start_col {
+            dst.end_col = dst.start_col;
         }
-    }
 }
 
-pub unsafe fn rect_equal(a: *mut VTermRect, b: *mut VTermRect) -> c_int {
-    unsafe {
-        c_int::from(
-            (*a).start_row == (*b).start_row
-                && (*a).start_col == (*b).start_col
-                && (*a).end_row == (*b).end_row
-                && (*a).end_col == (*b).end_col,
+pub unsafe fn rect_equal(a: &mut VTermRect, b: &mut VTermRect) -> c_int {
+    c_int::from(
+            a.start_row == b.start_row
+                && a.start_col == b.start_col
+                && a.end_row == b.end_row
+                && a.end_col == b.end_col,
         )
-    }
 }
 
-pub unsafe fn rect_contains(big: *mut VTermRect, small: *mut VTermRect) -> c_int {
-    unsafe {
-        if (*small).start_row < (*big).start_row
-            || (*small).start_col < (*big).start_col
-            || (*small).end_row > (*big).end_row
-            || (*small).end_col > (*big).end_col
+pub unsafe fn rect_contains(big: &mut VTermRect, small: &mut VTermRect) -> c_int {
+    if small.start_row < big.start_row
+            || small.start_col < big.start_col
+            || small.end_row > big.end_row
+            || small.end_col > big.end_col
         {
             0
         } else {
             1
         }
-    }
 }
 
-pub unsafe fn rect_intersects(a: *mut VTermRect, b: *mut VTermRect) -> c_int {
-    unsafe {
-        if (*a).start_row > (*b).end_row
-            || (*b).start_row > (*a).end_row
-            || (*a).start_col > (*b).end_col
-            || (*b).start_col > (*a).end_col
+pub unsafe fn rect_intersects(a: &mut VTermRect, b: &mut VTermRect) -> c_int {
+    if a.start_row > b.end_row
+            || b.start_row > a.end_row
+            || a.start_col > b.end_col
+            || b.start_col > a.end_col
         {
             0
         } else {
             1
         }
-    }
 }
 
 #[cfg(test)]
@@ -1637,14 +1627,14 @@ mod tests {
             end_col: 10,
         };
         unsafe {
-            assert_eq!(rect_intersects(&raw mut r1, &raw mut r2), 1);
-            assert_eq!(rect_equal(&raw mut r1, &raw mut r2), 0);
-            rect_expand(&raw mut r1, &raw mut r2);
+            assert_eq!(rect_intersects(&mut r1, &mut r2), 1);
+            assert_eq!(rect_equal(&mut r1, &mut r2), 0);
+            rect_expand(&mut r1, &mut r2);
             assert_eq!(
                 (r1.start_row, r1.end_row, r1.start_col, r1.end_col),
                 (1, 5, 3, 10)
             );
-            assert_eq!(rect_contains(&raw mut r1, &raw mut r2), 1);
+            assert_eq!(rect_contains(&mut r1, &mut r2), 1);
         }
     }
 }

@@ -349,7 +349,7 @@ pub unsafe fn search_regcomp(
     pat_use: c_int,
     options: c_int,
     mut magic: bool,
-    regmatch: *mut regmmatch_T,
+    regmatch: &mut regmmatch_T,
 ) -> c_int {
     unsafe {
         g_st().rc_did_emsg = false;
@@ -401,10 +401,10 @@ pub unsafe fn search_regcomp(
             }
         }
 
-        (*regmatch).rmm_ic = ignorecase(pat);
-        (*regmatch).rmm_maxcol = 0;
-        (*regmatch).regprog = vim_regcomp(pat, if magic { RE_MAGIC } else { 0 });
-        if (*regmatch).regprog.is_null() {
+        regmatch.rmm_ic = ignorecase(pat);
+        regmatch.rmm_maxcol = 0;
+        regmatch.regprog = vim_regcomp(pat, if magic { RE_MAGIC } else { 0 });
+        if regmatch.regprog.is_null() {
             return FAIL;
         }
         OK
@@ -695,10 +695,10 @@ pub unsafe fn set_last_search_pat(s: *const c_char, idx: c_int, magic: c_int, se
     }
 }
 
-pub unsafe fn last_pat_prog(regmatch: *mut regmmatch_T) {
+pub unsafe fn last_pat_prog(regmatch: &mut regmmatch_T) {
     unsafe {
         if srch().spats[srch().last_idx as usize].pat.is_none() {
-            (*regmatch).regprog = ptr::null_mut();
+            regmatch.regprog = ptr::null_mut();
             return;
         }
         g_st().emsg_off += 1;
@@ -2770,12 +2770,13 @@ unsafe fn is_zero_width(
             let mut nmatched: c_int;
             loop {
                 regmatch.startpos[0].col += 1;
+                let start_col = regmatch.startpos[0].col;
                 nmatched = vim_regexec_multi(
                     &mut regmatch,
                     *curwin.as_ptr(),
                     g_st().curbuf,
                     pos.lnum,
-                    regmatch.startpos[0].col,
+                    start_col,
                     None,
                     ptr::null_mut(),
                 );

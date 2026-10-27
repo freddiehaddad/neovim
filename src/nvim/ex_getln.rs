@@ -524,7 +524,7 @@ pub unsafe fn parse_pattern_and_range(
 
         let mut dummy_cmdmod: cmdmod_T = cmdmod_T::new();
         // Skip over command modifiers
-        parse_command_modifiers(&raw mut ea, &raw mut dummy, &raw mut dummy_cmdmod, true);
+        parse_command_modifiers(&raw mut ea, &raw mut dummy, &mut dummy_cmdmod, true);
 
         // Skip over the range to find the command.
         let cmd = skip_range(ea.cmd, ptr::null_mut());
@@ -2973,7 +2973,7 @@ unsafe fn cmdpreview_open_buf() -> *mut buf_T {
             kCtxKeepDirs,
         );
         let retv = rename_buffer(c"[Preview]".as_ptr().cast_mut());
-        ctx_restore(&raw mut aco);
+        ctx_restore(&mut aco);
 
         if retv == FAIL {
             return ptr::null_mut();
@@ -2990,7 +2990,7 @@ unsafe fn cmdpreview_open_buf() -> *mut buf_T {
         (*g_st().curbuf).b_p_ma = 1;
         (*g_st().curbuf).b_p_ul = -1;
         (*g_st().curbuf).b_p_tw = 0;
-        ctx_restore(&raw mut aco);
+        ctx_restore(&mut aco);
         getln_st().cmdpreview_bufnr = (*cmdpreview_buf).b_fnum;
 
         cmdpreview_buf
@@ -3162,7 +3162,7 @@ unsafe fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
             &raw mut cmdline,
             &raw mut cmdline_vec,
             &raw mut ea,
-            &raw mut cmod,
+            &mut cmod,
             &mut errormsg,
             false,
         );
@@ -3172,7 +3172,7 @@ unsafe fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
         }
 
         if (ea.argt & EX_PREVIEW) == 0 {
-            undo_cmdmod(&raw mut cmod);
+            undo_cmdmod(&mut cmod);
             return false;
         }
 
@@ -3217,7 +3217,7 @@ unsafe fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
         let mut err = error_init();
         let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
-        cmdpreview_type = execute_cmd(&mut ea, &raw mut cmod, true);
+        cmdpreview_type = execute_cmd(&mut ea, &mut cmod, true);
         try_leave(&raw const tstate, &mut err);
         if error_set(&err) {
             api_clear_error(&mut err);

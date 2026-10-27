@@ -73,7 +73,7 @@ impl viewstate_T {
 
 pub unsafe fn win_has_winnr(wp: *mut win_T, tp: *mut tabpage_T) -> bool {
     unsafe {
-        let cur = if tp == g_st().curtab {
+        let cur = if ptr::eq(tp, g_st().curtab) {
             *curwin.as_ptr()
         } else {
             (*tp).tp_curwin
@@ -328,14 +328,14 @@ unsafe fn get_framelayout(fr: *const frame_T, l: *mut list_T, outer: bool) {
 }
 
 /// Common code for `tabpagewinnr()` and `winnr()` (`get_winnr`).
-unsafe fn get_winnr(tp: *mut tabpage_T, argvar: *mut typval_T) -> c_int {
+unsafe fn get_winnr(tp: &mut tabpage_T, argvar: *mut typval_T) -> c_int {
     unsafe {
         let mut nr: c_int = 1;
 
-        let mut twin = if tp == g_st().curtab {
+        let mut twin = if ptr::eq(tp, g_st().curtab) {
             *curwin.as_ptr()
         } else {
-            (*tp).tp_curwin
+            tp.tp_curwin
         };
         if (*argvar).v_type != VarType::VAR_UNKNOWN {
             let mut invalid_arg = false;
@@ -345,16 +345,16 @@ unsafe fn get_winnr(tp: *mut tabpage_T, argvar: *mut typval_T) -> c_int {
             } else {
                 let bytes = CStr::from_ptr(arg).to_bytes();
                 if bytes == b"$" {
-                    twin = if tp == g_st().curtab {
+                    twin = if ptr::eq(tp, g_st().curtab) {
                         g_st().lastwin
                     } else {
-                        (*tp).tp_lastwin
+                        tp.tp_lastwin
                     };
                 } else if bytes == b"#" {
-                    twin = if tp == g_st().curtab {
+                    twin = if ptr::eq(tp, g_st().curtab) {
                         g_st().prevwin
                     } else {
-                        (*tp).tp_prevwin
+                        tp.tp_prevwin
                     };
                     if twin.is_null() {
                         nr = 0;
@@ -388,7 +388,7 @@ unsafe fn get_winnr(tp: *mut tabpage_T, argvar: *mut typval_T) -> c_int {
                 semsg!(gettext((&raw const e_invexpr2).cast()), arg);
                 nr = 0;
             }
-        } else if !win_has_winnr(twin, tp) {
+        } else if !win_has_winnr(twin, &raw mut *tp) {
             nr = 0;
         }
 
@@ -397,9 +397,9 @@ unsafe fn get_winnr(tp: *mut tabpage_T, argvar: *mut typval_T) -> c_int {
         }
 
         nr = 0;
-        let mut wp = first_win_in_tab(tp);
+        let mut wp = first_win_in_tab(&raw mut *tp);
         while !wp.is_null() {
-            nr += c_int::from(win_has_winnr(wp, tp));
+            nr += c_int::from(win_has_winnr(wp, &raw mut *tp));
             if wp == twin {
                 break;
             }
@@ -499,21 +499,21 @@ unsafe fn get_win_info(wp: *mut win_T, tpnr: i16, winnr: i16) -> *mut dict_T {
 }
 
 /// Information about a tab page as a dictionary (`get_tabpage_info`).
-unsafe fn get_tabpage_info(tp: *mut tabpage_T, tp_idx: c_int) -> *mut dict_T {
+unsafe fn get_tabpage_info(tp: &mut tabpage_T, tp_idx: c_int) -> *mut dict_T {
     unsafe {
         let dict = tv_dict_alloc();
 
         tv_dict_add_nr(dict, c"tabnr".as_ptr(), 5, tp_idx as varnumber_T);
 
         let l = tv_list_alloc(kListLenMayKnow);
-        let mut wp = first_win_in_tab(tp);
+        let mut wp = first_win_in_tab(&raw mut *tp);
         while !wp.is_null() {
             tv_list_append_number(l, (*wp).handle as varnumber_T);
             wp = (*wp).w_next;
         }
         tv_dict_add_list(dict, c"windows".as_ptr(), 7, l);
 
-        tv_dict_add_dict(dict, c"variables".as_ptr(), 9, (*tp).tp_vars());
+        tv_dict_add_dict(dict, c"variables".as_ptr(), 9, tp.tp_vars());
 
         dict
     }
@@ -548,7 +548,7 @@ pub unsafe fn f_gettabinfo(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
                 tp = (*tp).tp_next;
                 continue;
             }
-            let d = get_tabpage_info(tp, tpnr);
+            let d = get_tabpage_info(&mut *tp, tpnr);
             tv_list_append_dict(rettv.vval.v_list(), d);
             if !tparg.is_null() {
                 return;
@@ -651,7 +651,7 @@ pub unsafe fn f_tabpagewinnr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
         let nr = if tp.is_null() {
             0
         } else {
-            get_winnr(tp, argvars.add(1))
+            get_winnr(&mut *tp, argvars.add(1))
         };
         rettv.vval = crate::eval::typval::TypvalVval::Number(nr as varnumber_T);
     }
@@ -680,7 +680,7 @@ pub unsafe fn f_win_execute(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
         ) {
             execute_common(argvars, rettv, 1);
         }
-        ctx_restore(&raw mut cs);
+        ctx_restore(&mut cs);
     }
 }
 
@@ -719,7 +719,7 @@ pub unsafe fn f_win_gotoid(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
                     if g_st().Visual.active && (*wp).w_buffer != g_st().curbuf {
                         end_visual_mode();
                     }
-                    goto_tabpage_win(tp, wp);
+                    goto_tabpage_win(&mut *tp, wp);
                     rettv.vval = crate::eval::typval::TypvalVval::Number(1);
                     return;
                 }
@@ -985,7 +985,7 @@ pub unsafe fn f_winline(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 /// `winnr()` function (`f_winnr`).
 pub unsafe fn f_winnr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(get_winnr(g_st().curtab, argvars) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(get_winnr(&mut *g_st().curtab, argvars) as varnumber_T);
     }
 }
 

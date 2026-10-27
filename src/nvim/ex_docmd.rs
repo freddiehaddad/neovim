@@ -5275,12 +5275,15 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                             *dbg_tick = g_st().debug_tick;
                         }
                     } else if cstack.cs_idx >= 0 {
+                        let prev_idx = cstack.cs_idx - 1;
+                        let mut looplevel = cstack.cs_looplevel;
                         rewind_conditionals(
-                            &raw mut cstack,
-                            cstack.cs_idx - 1,
+                            &mut cstack,
+                            prev_idx,
                             CSF_WHILE | CSF_FOR,
-                            &raw mut cstack.cs_looplevel,
+                            &raw mut looplevel,
                         );
+                        cstack.cs_looplevel = looplevel;
                     }
                 } else if (cstack.cs_lflags & CSL_HAD_LOOP) != 0 {
                     cstack.cs_lflags &= !CSL_HAD_LOOP;
@@ -5364,12 +5367,14 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                 if idx >= 0 {
                     idx -= 1;
                 }
+                let mut looplevel = cstack.cs_looplevel;
                 rewind_conditionals(
-                    &raw mut cstack,
+                    &mut cstack,
                     idx,
                     CSF_WHILE | CSF_FOR,
-                    &raw mut cstack.cs_looplevel,
+                    &raw mut looplevel,
                 );
+                cstack.cs_looplevel = looplevel;
                 if cstack.cs_idx < 0 {
                     break;
                 }
@@ -5965,7 +5970,7 @@ pub unsafe fn parse_cmdline(
     cmdline: *mut *mut c_char,
     cmdline_buf: *mut Vec<c_char>,
     eap: *mut exarg_T,
-    cmod: *mut cmdmod_T,
+    cmod: &mut cmdmod_T,
     errormsg: *mut *const c_char,
     skipmods: bool,
 ) -> bool {
@@ -6216,7 +6221,7 @@ unsafe fn execute_cmd0(
     }
 }
 
-pub unsafe fn execute_cmd(eap: &mut exarg_T, cmod: *mut cmdmod_T, preview: bool) -> c_int {
+pub unsafe fn execute_cmd(eap: &mut exarg_T, cmod: &mut cmdmod_T, preview: bool) -> c_int {
     unsafe {
         let mut retv: c_int = 0;
         if do_cmdline_start() == FAIL {
@@ -6227,7 +6232,7 @@ pub unsafe fn execute_cmd(eap: &mut exarg_T, cmod: *mut cmdmod_T, preview: bool)
         let mut errormsg: *const c_char = ptr::null();
         let save_cmdmod = ptr::replace(&raw mut g_st().cmdmod, std::mem::take(&mut *cmod));
 
-        apply_cmdmod(&raw mut g_st().cmdmod);
+        apply_cmdmod(&mut g_st().cmdmod);
 
         'end: {
             if (*g_st().curbuf).b_p_ma == 0
@@ -6281,7 +6286,7 @@ pub unsafe fn execute_cmd(eap: &mut exarg_T, cmod: *mut cmdmod_T, preview: bool)
             let _ = emsg(errormsg);
         }
 
-        undo_cmdmod(&raw mut g_st().cmdmod);
+        undo_cmdmod(&mut g_st().cmdmod);
         g_st().cmdmod = save_cmdmod;
 
         do_cmdline_end();
@@ -6462,12 +6467,12 @@ unsafe fn do_one_cmd(
             ea.ea_getline = fgetline;
             ea.cstack = cstack.cast();
 
-            if parse_command_modifiers(&raw mut ea, &mut errormsg, &raw mut g_st().cmdmod, false)
+            if parse_command_modifiers(&raw mut ea, &mut errormsg, &mut g_st().cmdmod, false)
                 == FAIL
             {
                 break 'doend;
             }
-            apply_cmdmod(&raw mut g_st().cmdmod);
+            apply_cmdmod(&mut g_st().cmdmod);
 
             let after_modifier = ea.cmd;
 
@@ -6808,7 +6813,7 @@ unsafe fn do_one_cmd(
             },
         );
 
-        undo_cmdmod(&raw mut g_st().cmdmod);
+        undo_cmdmod(&mut g_st().cmdmod);
         g_st().cmdmod = save_cmdmod;
         g_st().reg_executing = save_reg_executing;
         g_st().pending_end_reg_executing = save_pending_end_reg_executing;
@@ -6856,7 +6861,7 @@ unsafe fn ex_range_without_command(eap: &mut exarg_T) -> *mut c_char {
 pub unsafe fn parse_command_modifiers(
     eap: *mut exarg_T,
     errormsg: *mut *const c_char,
-    cmod: *mut cmdmod_T,
+    cmod: &mut cmdmod_T,
     skip_only: bool,
 ) -> c_int {
     unsafe {
@@ -6903,48 +6908,48 @@ pub unsafe fn parse_command_modifiers(
                     if !checkforcmd(&raw mut (*eap).cmd, c"aboveleft".as_ptr(), 3) {
                         break;
                     }
-                    (*cmod).cmod_split |= WSP_ABOVE;
+                    cmod.cmod_split |= WSP_ABOVE;
                     continue;
                 }
                 b'b' => {
                     if checkforcmd(&raw mut (*eap).cmd, c"belowright".as_ptr(), 3) {
-                        (*cmod).cmod_split |= WSP_BELOW;
+                        cmod.cmod_split |= WSP_BELOW;
                         continue;
                     }
                     if checkforcmd(&raw mut (*eap).cmd, c"browse".as_ptr(), 3) {
-                        (*cmod).cmod_flags |= CMOD_BROWSE;
+                        cmod.cmod_flags |= CMOD_BROWSE;
                         continue;
                     }
                     if !checkforcmd(&raw mut (*eap).cmd, c"botright".as_ptr(), 2) {
                         break;
                     }
-                    (*cmod).cmod_split |= WSP_BOT;
+                    cmod.cmod_split |= WSP_BOT;
                     continue;
                 }
                 b'c' => {
                     if !checkforcmd(&raw mut (*eap).cmd, c"confirm".as_ptr(), 4) {
                         break;
                     }
-                    (*cmod).cmod_flags |= CMOD_CONFIRM;
+                    cmod.cmod_flags |= CMOD_CONFIRM;
                     continue;
                 }
                 b'k' => {
                     if checkforcmd(&raw mut (*eap).cmd, c"keepmarks".as_ptr(), 3) {
-                        (*cmod).cmod_flags |= CMOD_KEEPMARKS;
+                        cmod.cmod_flags |= CMOD_KEEPMARKS;
                         continue;
                     }
                     if checkforcmd(&raw mut (*eap).cmd, c"keepalt".as_ptr(), 5) {
-                        (*cmod).cmod_flags |= CMOD_KEEPALT;
+                        cmod.cmod_flags |= CMOD_KEEPALT;
                         continue;
                     }
                     if checkforcmd(&raw mut (*eap).cmd, c"keeppatterns".as_ptr(), 5) {
-                        (*cmod).cmod_flags |= CMOD_KEEPPATTERNS;
+                        cmod.cmod_flags |= CMOD_KEEPPATTERNS;
                         continue;
                     }
                     if !checkforcmd(&raw mut (*eap).cmd, c"keepjumps".as_ptr(), 5) {
                         break;
                     }
-                    (*cmod).cmod_flags |= CMOD_KEEPJUMPS;
+                    cmod.cmod_flags |= CMOD_KEEPJUMPS;
                     continue;
                 }
                 b'f' => {
@@ -6956,7 +6961,7 @@ pub unsafe fn parse_command_modifiers(
                         break;
                     }
                     if *p == b'!' as c_char {
-                        (*cmod).cmod_filter_force = true;
+                        cmod.cmod_filter_force = true;
                         p = skipwhite(p.add(1));
                         if *p == NUL || ends_excmd(c_int::from(*p)) != 0 {
                             break;
@@ -6971,9 +6976,9 @@ pub unsafe fn parse_command_modifiers(
                         break;
                     }
                     if !skip_only {
-                        (*cmod).cmod_filter_pat = Some(cstr_to_cstring(reg_pat));
-                        (*cmod).cmod_filter_regmatch.regprog = vim_regcomp(reg_pat, RE_MAGIC);
-                        if (*cmod).cmod_filter_regmatch.regprog.is_null() {
+                        cmod.cmod_filter_pat = Some(cstr_to_cstring(reg_pat));
+                        cmod.cmod_filter_regmatch.regprog = vim_regcomp(reg_pat, RE_MAGIC);
+                        if cmod.cmod_filter_regmatch.regprog.is_null() {
                             break;
                         }
                     }
@@ -6982,7 +6987,7 @@ pub unsafe fn parse_command_modifiers(
                 }
                 b'h' => {
                     if checkforcmd(&raw mut (*eap).cmd, c"horizontal".as_ptr(), 3) {
-                        (*cmod).cmod_split |= WSP_HOR;
+                        cmod.cmod_split |= WSP_HOR;
                         continue;
                     }
                     if p != (*eap).cmd
@@ -6993,50 +6998,50 @@ pub unsafe fn parse_command_modifiers(
                         break;
                     }
                     (*eap).cmd = p;
-                    (*cmod).cmod_flags |= CMOD_HIDE;
+                    cmod.cmod_flags |= CMOD_HIDE;
                     continue;
                 }
                 b'l' => {
                     if checkforcmd(&raw mut (*eap).cmd, c"lockmarks".as_ptr(), 3) {
-                        (*cmod).cmod_flags |= CMOD_LOCKMARKS;
+                        cmod.cmod_flags |= CMOD_LOCKMARKS;
                         continue;
                     }
                     if !checkforcmd(&raw mut (*eap).cmd, c"leftabove".as_ptr(), 5) {
                         break;
                     }
-                    (*cmod).cmod_split |= WSP_ABOVE;
+                    cmod.cmod_split |= WSP_ABOVE;
                     continue;
                 }
                 b'n' => {
                     if checkforcmd(&raw mut (*eap).cmd, c"noautocmd".as_ptr(), 3) {
-                        (*cmod).cmod_flags |= CMOD_NOAUTOCMD;
+                        cmod.cmod_flags |= CMOD_NOAUTOCMD;
                         continue;
                     }
                     if !checkforcmd(&raw mut (*eap).cmd, c"noswapfile".as_ptr(), 3) {
                         break;
                     }
-                    (*cmod).cmod_flags |= CMOD_NOSWAPFILE;
+                    cmod.cmod_flags |= CMOD_NOSWAPFILE;
                     continue;
                 }
                 b'r' => {
                     if !checkforcmd(&raw mut (*eap).cmd, c"rightbelow".as_ptr(), 6) {
                         break;
                     }
-                    (*cmod).cmod_split |= WSP_BELOW;
+                    cmod.cmod_split |= WSP_BELOW;
                     continue;
                 }
                 b's' => {
                     if checkforcmd(&raw mut (*eap).cmd, c"sandbox".as_ptr(), 3) {
-                        (*cmod).cmod_flags |= CMOD_SANDBOX;
+                        cmod.cmod_flags |= CMOD_SANDBOX;
                         continue;
                     }
                     if !checkforcmd(&raw mut (*eap).cmd, c"silent".as_ptr(), 3) {
                         break;
                     }
-                    (*cmod).cmod_flags |= CMOD_SILENT;
+                    cmod.cmod_flags |= CMOD_SILENT;
                     if *(*eap).cmd == b'!' as c_char && !ascii_iswhite(*(*eap).cmd.sub(1)) {
                         (*eap).cmd = skipwhite((*eap).cmd.add(1));
-                        (*cmod).cmod_flags |= CMOD_ERRSILENT;
+                        cmod.cmod_flags |= CMOD_ERRSILENT;
                     }
                     continue;
                 }
@@ -7057,13 +7062,13 @@ pub unsafe fn parse_command_modifiers(
                                 return FAIL;
                             }
                             if tabnr == MAXLNUM {
-                                (*cmod).cmod_tab = tabpage_index(g_st().curtab) + 1;
+                                cmod.cmod_tab = tabpage_index(g_st().curtab) + 1;
                             } else {
                                 if tabnr < 0 || tabnr > current_tab_nr(ptr::null_mut()) {
                                     *errormsg = gettext(e_invrange.as_ptr());
                                     return FAIL;
                                 }
-                                (*cmod).cmod_tab = tabnr + 1;
+                                cmod.cmod_tab = tabnr + 1;
                             }
                         }
                         (*eap).cmd = p;
@@ -7072,28 +7077,28 @@ pub unsafe fn parse_command_modifiers(
                     if !checkforcmd(&raw mut (*eap).cmd, c"topleft".as_ptr(), 2) {
                         break;
                     }
-                    (*cmod).cmod_split |= WSP_TOP;
+                    cmod.cmod_split |= WSP_TOP;
                     continue;
                 }
                 b'u' => {
                     if !checkforcmd(&raw mut (*eap).cmd, c"unsilent".as_ptr(), 3) {
                         break;
                     }
-                    (*cmod).cmod_flags |= CMOD_UNSILENT;
+                    cmod.cmod_flags |= CMOD_UNSILENT;
                     continue;
                 }
                 b'v' => {
                     if checkforcmd(&raw mut (*eap).cmd, c"vertical".as_ptr(), 4) {
-                        (*cmod).cmod_split |= WSP_VERT;
+                        cmod.cmod_split |= WSP_VERT;
                         continue;
                     }
                     if !checkforcmd(&raw mut p, c"verbose".as_ptr(), 4) {
                         break;
                     }
                     if ascii_isdigit(*(*eap).cmd) {
-                        (*cmod).cmod_verbose = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*eap).cmd).to_bytes()) as c_int + 1;
+                        cmod.cmod_verbose = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*eap).cmd).to_bytes()) as c_int + 1;
                     } else {
-                        (*cmod).cmod_verbose = 2;
+                        cmod.cmod_verbose = 2;
                     }
                     (*eap).cmd = p;
                     continue;
@@ -7121,79 +7126,79 @@ pub unsafe fn parse_command_modifiers(
     }
 }
 
-pub unsafe fn apply_cmdmod(cmod: *mut cmdmod_T) {
+pub unsafe fn apply_cmdmod(cmod: &mut cmdmod_T) {
     unsafe {
-        if ((*cmod).cmod_flags & CMOD_SANDBOX) != 0 && (*cmod).cmod_did_sandbox == 0 {
+        if (cmod.cmod_flags & CMOD_SANDBOX) != 0 && cmod.cmod_did_sandbox == 0 {
             g_st().sandbox += 1;
-            (*cmod).cmod_did_sandbox = 1;
+            cmod.cmod_did_sandbox = 1;
         }
-        if (*cmod).cmod_verbose > 0 {
-            if (*cmod).cmod_verbose_save == 0 {
-                (*cmod).cmod_verbose_save = opt_vars().p_verbose + 1;
+        if cmod.cmod_verbose > 0 {
+            if cmod.cmod_verbose_save == 0 {
+                cmod.cmod_verbose_save = opt_vars().p_verbose + 1;
             }
-            opt_vars().p_verbose = OptInt::from((*cmod).cmod_verbose - 1);
+            opt_vars().p_verbose = OptInt::from(cmod.cmod_verbose - 1);
         }
 
-        if ((*cmod).cmod_flags & (CMOD_SILENT | CMOD_UNSILENT)) != 0
-            && (*cmod).cmod_save_msg_silent == 0
+        if (cmod.cmod_flags & (CMOD_SILENT | CMOD_UNSILENT)) != 0
+            && cmod.cmod_save_msg_silent == 0
         {
-            (*cmod).cmod_save_msg_silent = g_st().msg_silent + 1;
-            (*cmod).cmod_save_msg_scroll = g_st().msg_scroll;
+            cmod.cmod_save_msg_silent = g_st().msg_silent + 1;
+            cmod.cmod_save_msg_scroll = g_st().msg_scroll;
         }
-        if ((*cmod).cmod_flags & CMOD_SILENT) != 0 {
+        if (cmod.cmod_flags & CMOD_SILENT) != 0 {
             g_st().msg_silent += 1;
         }
-        if ((*cmod).cmod_flags & CMOD_UNSILENT) != 0 {
+        if (cmod.cmod_flags & CMOD_UNSILENT) != 0 {
             g_st().msg_silent = 0;
         }
 
-        if ((*cmod).cmod_flags & CMOD_ERRSILENT) != 0 {
+        if (cmod.cmod_flags & CMOD_ERRSILENT) != 0 {
             g_st().emsg_silent += 1;
-            (*cmod).cmod_did_esilent += 1;
+            cmod.cmod_did_esilent += 1;
         }
 
-        if ((*cmod).cmod_flags & CMOD_NOAUTOCMD) != 0 && (*cmod).cmod_save_ei.is_none() {
-            (*cmod).cmod_save_ei = Some(cstr_to_cstring(opt_vars().p_ei));
+        if (cmod.cmod_flags & CMOD_NOAUTOCMD) != 0 && cmod.cmod_save_ei.is_none() {
+            cmod.cmod_save_ei = Some(cstr_to_cstring(opt_vars().p_ei));
             set_option_direct(kOptEventignore, cstr_as_obj(c"all".as_ptr()), 0, SID_NONE);
         }
     }
 }
 
-pub unsafe fn undo_cmdmod(cmod: *mut cmdmod_T) {
+pub unsafe fn undo_cmdmod(cmod: &mut cmdmod_T) {
     unsafe {
-        if (*cmod).cmod_verbose_save > 0 {
-            opt_vars().p_verbose = (*cmod).cmod_verbose_save - 1;
-            (*cmod).cmod_verbose_save = 0;
+        if cmod.cmod_verbose_save > 0 {
+            opt_vars().p_verbose = cmod.cmod_verbose_save - 1;
+            cmod.cmod_verbose_save = 0;
         }
 
-        if (*cmod).cmod_did_sandbox != 0 {
+        if cmod.cmod_did_sandbox != 0 {
             g_st().sandbox -= 1;
-            (*cmod).cmod_did_sandbox = 0;
+            cmod.cmod_did_sandbox = 0;
         }
 
-        if let Some(save_ei) = (*cmod).cmod_save_ei.take() {
+        if let Some(save_ei) = cmod.cmod_save_ei.take() {
             set_option_direct(kOptEventignore, cstr_as_obj(save_ei.as_ptr()), 0, SID_NONE);
         }
 
-        (*cmod).cmod_filter_pat = None;
-        vim_regfree((*cmod).cmod_filter_regmatch.regprog);
+        cmod.cmod_filter_pat = None;
+        vim_regfree(cmod.cmod_filter_regmatch.regprog);
 
-        if (*cmod).cmod_save_msg_silent > 0 {
-            if g_st().did_emsg == 0 || g_st().msg_silent > (*cmod).cmod_save_msg_silent - 1 {
-                g_st().msg_silent = (*cmod).cmod_save_msg_silent - 1;
+        if cmod.cmod_save_msg_silent > 0 {
+            if g_st().did_emsg == 0 || g_st().msg_silent > cmod.cmod_save_msg_silent - 1 {
+                g_st().msg_silent = cmod.cmod_save_msg_silent - 1;
             }
-            g_st().emsg_silent -= (*cmod).cmod_did_esilent;
+            g_st().emsg_silent -= cmod.cmod_did_esilent;
             if g_st().emsg_silent < 0 {
                 g_st().emsg_silent = 0;
             }
-            g_st().msg_scroll = (*cmod).cmod_save_msg_scroll;
+            g_st().msg_scroll = cmod.cmod_save_msg_scroll;
 
             if redirecting() != 0 {
                 g_st().msg_col = 0;
             }
 
-            (*cmod).cmod_save_msg_silent = 0;
-            (*cmod).cmod_did_esilent = 0;
+            cmod.cmod_save_msg_silent = 0;
+            cmod.cmod_did_esilent = 0;
         }
     }
 }
@@ -9209,7 +9214,7 @@ unsafe fn ex_restart(eap: &mut exarg_T) {
                 c"vim._core.server".as_ptr(),
                 c"ex_session_restart".as_ptr(),
                 eap,
-                &raw mut g_st().cmdmod,
+                &g_st().cmdmod,
                 &raw mut extra_tv,
             );
             tv_clear(&raw mut extra_tv);
@@ -9707,7 +9712,7 @@ unsafe fn ex_tabclose(eap: &mut exarg_T) {
             return;
         }
         if tp != g_st().curtab {
-            tabpage_close_other(tp, eap.forceit);
+            tabpage_close_other(&mut *tp, eap.forceit);
         } else if !text_locked() && !curbuf_locked() {
             tabpage_close(eap.forceit);
         }
@@ -9736,7 +9741,7 @@ unsafe fn ex_tabonly(eap: &mut exarg_T) {
             let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
                 if (*tp).tp_topframe != g_st().topframe.cast() {
-                    tabpage_close_other(tp, eap.forceit);
+                    tabpage_close_other(&mut *tp, eap.forceit);
                     if valid_tabpage(tp) {
                         done = 1000;
                     }
@@ -9786,19 +9791,19 @@ pub unsafe fn tabpage_close(forceit: c_int) {
     }
 }
 
-pub unsafe fn tabpage_close_other(tp: *mut tabpage_T, forceit: c_int) {
+pub unsafe fn tabpage_close_other(tp: &mut tabpage_T, forceit: c_int) {
     unsafe {
         let mut done: c_int = 0;
         let mut prev_idx = [0 as c_char; NUMBUFLEN];
 
-        debug_assert!(tp != g_st().curtab);
+        debug_assert!(!ptr::eq(tp, g_st().curtab));
 
         if window_layout_locked(cmdidx_T::CMD_SIZE) {
             return;
         }
 
-        trigger_tabclosedpre(tp);
-        (*tp).tp_did_tabclosedpre = true;
+        trigger_tabclosedpre(&raw mut *tp);
+        tp.tp_did_tabclosedpre = true;
 
         while {
             done += 1;
@@ -9808,27 +9813,27 @@ pub unsafe fn tabpage_close_other(tp: *mut tabpage_T, forceit: c_int) {
                 prev_idx.as_mut_ptr(),
                 NUMBUFLEN,
                 c"%i".as_ptr(),
-                tabpage_index(tp),
+                tabpage_index(&raw mut *tp),
             );
-            let wp = (*tp).tp_lastwin;
+            let wp = tp.tp_lastwin;
 
-            if tp == g_st().curtab {
+            if ptr::eq(tp, g_st().curtab) {
                 done = 1000;
                 break;
             }
-            ex_win_close(forceit, wp, tp);
+            ex_win_close(forceit, wp, &raw mut *tp);
 
-            if !valid_tabpage(tp) {
+            if !valid_tabpage(&raw mut *tp) {
                 break;
             }
 
-            if (*tp).tp_lastwin == wp {
+            if tp.tp_lastwin == wp {
                 done = 1000;
                 break;
             }
         }
         if done >= 1000 {
-            (*tp).tp_did_tabclosedpre = false;
+            tp.tp_did_tabclosedpre = false;
         }
     }
 }
@@ -10327,7 +10332,7 @@ unsafe fn ex_tabs(_eap: &mut exarg_T) {
             let _ = msg_outtrans((&raw const g_st().IObuff).cast(), HLF_T, false);
             os_breakcheck();
 
-            let mut wp = if tp == g_st().curtab {
+            let mut wp = if ptr::eq(tp, g_st().curtab) {
                 g_st().firstwin
             } else {
                 (*tp).tp_firstwin
@@ -12791,7 +12796,7 @@ unsafe fn ex_checkhealth(eap: &mut exarg_T) {
             c"vim.health".as_ptr(),
             c"_check".as_ptr(),
             eap,
-            &raw mut g_st().cmdmod,
+            &g_st().cmdmod,
             ptr::null_mut(),
         );
         g_st().emsg_off -= 1;
@@ -12828,7 +12833,7 @@ unsafe fn ex_terminal(eap: &mut exarg_T) {
                 c"vim._core.ex_cmd".as_ptr(),
                 c"ex_terminal".as_ptr(),
                 eap,
-                &raw mut g_st().cmdmod,
+                &g_st().cmdmod,
                 ptr::null_mut(),
             );
         } else {
@@ -12850,7 +12855,7 @@ unsafe fn ex_terminal(eap: &mut exarg_T) {
                 c"vim._core.ex_cmd".as_ptr(),
                 c"ex_terminal".as_ptr(),
                 eap,
-                &raw mut g_st().cmdmod,
+                &g_st().cmdmod,
                 &raw mut shell_tv,
             );
             tv_clear(&raw mut shell_tv);
@@ -12864,7 +12869,7 @@ unsafe fn ex_log(eap: &mut exarg_T) {
             c"vim._core.ex_cmd".as_ptr(),
             c"ex_log".as_ptr(),
             eap,
-            &raw mut g_st().cmdmod,
+            &g_st().cmdmod,
             ptr::null_mut(),
         );
     }
@@ -12876,7 +12881,7 @@ unsafe fn ex_lsp(eap: &mut exarg_T) {
             c"vim._core.ex_cmd".as_ptr(),
             c"ex_lsp".as_ptr(),
             eap,
-            &raw mut g_st().cmdmod,
+            &g_st().cmdmod,
             ptr::null_mut(),
         );
     }
@@ -12888,7 +12893,7 @@ unsafe fn ex_packdel(eap: &mut exarg_T) {
             c"vim._core.ex_cmd".as_ptr(),
             c"ex_packdel".as_ptr(),
             eap,
-            &raw mut g_st().cmdmod,
+            &g_st().cmdmod,
             ptr::null_mut(),
         );
     }
@@ -12900,7 +12905,7 @@ unsafe fn ex_packupdate(eap: &mut exarg_T) {
             c"vim._core.ex_cmd".as_ptr(),
             c"ex_packupdate".as_ptr(),
             eap,
-            &raw mut g_st().cmdmod,
+            &g_st().cmdmod,
             ptr::null_mut(),
         );
     }
@@ -12912,7 +12917,7 @@ unsafe fn ex_uptime(eap: &mut exarg_T) {
             c"vim._core.ex_cmd".as_ptr(),
             c"ex_uptime".as_ptr(),
             eap,
-            &raw mut g_st().cmdmod,
+            &g_st().cmdmod,
             ptr::null_mut(),
         );
     }

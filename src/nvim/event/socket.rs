@@ -271,7 +271,7 @@ unsafe fn socket_alive(loop_: &mut Loop, addr: *const c_char) -> bool {
         let mut closed = false;
         let closed_ptr: *mut bool = &raw mut closed;
         stream.s.internal_data = StreamInternalData::Closed(closed_ptr);
-        stream_may_close(&raw mut stream.s);
+        stream_may_close(&mut stream.s);
         poll_main_loop_until(-1, || ptr::read_volatile(closed_ptr));
 
         true
@@ -410,7 +410,7 @@ pub unsafe fn socket_watcher_accept(watcher: *mut SocketWatcher, stream: &mut RS
             return result;
         }
 
-        stream_init(ptr::null_mut(), &raw mut stream.s, -1, true);
+        stream_init(ptr::null_mut(), &mut stream.s, -1, true);
         0
     }
 }
@@ -455,7 +455,7 @@ unsafe extern "C" fn connect_cb(req: *mut uv_connect_t, status: c_int) {
         let handle = connect_req_handle(req);
         if status != 0 {
             let stream = *handle.cast::<*mut Stream>();
-            stream_may_close(stream);
+            stream_may_close(&mut *stream);
         }
     }
 }
@@ -536,7 +536,7 @@ pub unsafe fn socket_connect(
                     uv_pipe_init((&raw mut loop_.uv).cast(), pipe, 0);
                     uv_pipe_connect(req_ptr, pipe, address, Some(connect_cb));
                 }
-                stream_init(ptr::null_mut(), s_ptr, -1, true);
+                stream_init(ptr::null_mut(), &mut *s_ptr, -1, true);
                 (*fields).internal_data = StreamInternalData::Closed(closed_ptr);
                 ptr::write_volatile(closed_ptr, false);
                 ptr::write_volatile(status_ptr, 1);
@@ -545,7 +545,7 @@ pub unsafe fn socket_connect(
                     success = true;
                     break;
                 } else {
-                    stream_may_close(s_ptr);
+                    stream_may_close(&mut *s_ptr);
                     poll_main_loop_until(-1, || ptr::read_volatile(closed_ptr));
 
                     if is_tcp && !(*cur_addrinfo).ai_next.is_null() {

@@ -669,7 +669,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
         }
         let save_cmdmod = ptr::replace(&raw mut g_st().cmdmod, crate::ex_docmd::cmdmod_T::new());
         g_st().cmdmod.cmod_flags = flags;
-        apply_cmdmod(&raw mut g_st().cmdmod);
+        apply_cmdmod(&mut g_st().cmdmod);
 
         let mut err = Error::new();
         let mut tstate = TryState::new();
@@ -705,11 +705,11 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
                 rets = lua_gettop(lstate) - s;
             }
 
-            ctx_restore(&raw mut cs);
+            ctx_restore(&mut cs);
         }
         try_leave(&raw const tstate, &mut err);
 
-        undo_cmdmod(&raw mut g_st().cmdmod);
+        undo_cmdmod(&mut g_st().cmdmod);
         g_st().cmdmod = save_cmdmod;
         if log_level >= 0 {
             log_st().g_min_log_level = save_min_log_level;

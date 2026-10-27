@@ -253,7 +253,7 @@ pub unsafe fn win_config_float(wp: *mut win_T, mut fconfig: WinConfig) {
         let mut change_border = fconfig.border != (*wp).w_config.border
             || fconfig.border_hl_ids != (*wp).w_config.border_hl_ids;
 
-        merge_win_config(&raw mut (*wp).w_config, fconfig);
+        merge_win_config(&mut (*wp).w_config, fconfig);
 
         let has_border = (*wp).w_floating && (*wp).w_config.border;
         for i in 0..4 {
@@ -494,7 +494,7 @@ pub unsafe fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *m
         config.style = kWinStyleMinimal;
         let mut err = error_init();
         let preview = kind == kWinPreview;
-        if preview && !win_previewpopup_config(opt_vars().p_pvp, &raw mut config) {
+        if preview && !win_previewpopup_config(opt_vars().p_pvp, &mut config) {
             emsg(gettext((&raw const e_invarg).cast()));
             return ptr::null_mut();
         }
@@ -575,7 +575,7 @@ pub unsafe fn win_float_update_preview(wp: *mut win_T) {
             parse_bordertext(
                 cstr_as_obj((*(*wp).w_buffer).b_fname),
                 kBorderTextTitle,
-                &raw mut (*wp).w_config,
+                &mut (*wp).w_config,
                 &mut err,
             );
             api_clear_error(&mut err);
@@ -638,7 +638,7 @@ pub unsafe fn win_float_update_preview(wp: *mut win_T) {
 }
 
 /// Applies a 'previewpopup' value ("height:N,width:N,border:style") to `config` (`win_previewpopup_config`).
-pub unsafe fn win_previewpopup_config(value: *const c_char, config: *mut WinConfig) -> bool {
+pub unsafe fn win_previewpopup_config(value: *const c_char, config: &mut WinConfig) -> bool {
     unsafe {
         let v = opt_keyset(value, kOptPreviewpopup, ptr::null_mut()).cast::<OptKeyDict_pvp>();
 
@@ -647,12 +647,12 @@ pub unsafe fn win_previewpopup_config(value: *const c_char, config: *mut WinConf
         {
             return false;
         }
-        (*config).height = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_pvp__height) {
+        config.height = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_pvp__height) {
             (*v).height as c_int
         } else {
             0
         };
-        (*config).width = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_pvp__width) {
+        config.width = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_pvp__width) {
             (*v).width as c_int
         } else {
             0
@@ -667,15 +667,15 @@ pub unsafe fn win_previewpopup_config(value: *const c_char, config: *mut WinConf
         }
         if !border.is_null() {
             let mut err = error_init();
-            let ok = parse_winborder(config, border, &mut err);
+            let ok = parse_winborder(&raw mut *config, border, &mut err);
             api_clear_error(&mut err);
             if !ok {
                 return false;
             }
         }
 
-        if !(*config).border {
-            (*config).title = false;
+        if !config.border {
+            config.title = false;
         }
         true
     }

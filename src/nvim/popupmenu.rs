@@ -898,7 +898,7 @@ pub unsafe fn pum_redraw() {
         if fconfig.border {
             grid_draw_border(
                 &mut g_st().pum_grid,
-                &raw mut fconfig,
+                &mut fconfig,
                 ptr::null_mut(),
                 0,
                 None,

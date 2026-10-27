@@ -80,63 +80,59 @@ struct WRequest {
 
 use crate::event::r#loop::uv_fs_write;
 
-pub unsafe fn wstream_init_fd(loop_: &mut Loop, stream: *mut Stream, fd: c_int, maxmem: usize) {
+pub unsafe fn wstream_init_fd(loop_: &mut Loop, stream: &mut Stream, fd: c_int, maxmem: usize) {
     unsafe {
         stream_init(&raw mut *loop_, stream, fd, false);
         wstream_init(stream, maxmem);
     }
 }
 
-pub unsafe fn wstream_init(stream: *mut Stream, maxmem: usize) {
-    unsafe {
-        (*stream).maxmem = if maxmem != 0 { maxmem } else { DEFAULT_MAXMEM };
-    }
+pub unsafe fn wstream_init(stream: &mut Stream, maxmem: usize) {
+    stream.maxmem = if maxmem != 0 { maxmem } else { DEFAULT_MAXMEM };
 }
 
-pub unsafe fn wstream_set_write_cb(stream: *mut Stream) {
-    unsafe {
-        (*stream).notify_write = true;
-    }
+pub unsafe fn wstream_set_write_cb(stream: &mut Stream) {
+    stream.notify_write = true;
 }
 
-pub unsafe fn wstream_write(stream: *mut Stream, buffer: std::rc::Rc<WBuffer>) -> c_int {
+pub unsafe fn wstream_write(stream: &mut Stream, buffer: std::rc::Rc<WBuffer>) -> c_int {
     unsafe {
-        assert!((*stream).maxmem != 0);
-        assert!(!(*stream).closed);
+        assert!(stream.maxmem != 0);
+        assert!(!stream.closed);
 
         let uvbuf = uv_buf_t::new(buffer.data_ptr(), buffer.size());
 
-        if !(*stream).has_uvstream {
+        if !stream.has_uvstream {
             let mut req_buf = [0u64; 128];
             let req_ptr = req_buf.as_mut_ptr().cast::<uv_fs_t>();
-            let idle_loop = uv_handle_get_loop((&raw mut (*stream).uv).cast());
+            let idle_loop = uv_handle_get_loop((&raw mut stream.uv).cast());
             let err = uv_fs_write(
                 idle_loop,
                 req_ptr,
-                (*stream).fd,
+                stream.fd,
                 &uvbuf,
                 1,
-                (*stream).fpos,
+                stream.fpos,
                 None,
             );
             let req_result = uv_fs_get_result(req_ptr);
             uv_fs_req_cleanup(req_ptr);
 
             drop(buffer);
-            assert!(!(*stream).notify_write);
+            assert!(!stream.notify_write);
 
             if req_result > 0 {
-                (*stream).fpos += req_result as i64;
+                stream.fpos += req_result as i64;
                 return 0;
             }
             return if err != 0 { err } else { UV_UNKNOWN };
         }
 
-        if (*stream).curmem > (*stream).maxmem {
+        if stream.curmem > stream.maxmem {
             return UV_ENOMEM;
         }
 
-        (*stream).curmem += buffer.size();
+        stream.curmem += buffer.size();
 
         let data = Box::into_raw(Box::new(WRequest {
             stream,
@@ -146,13 +142,13 @@ pub unsafe fn wstream_write(stream: *mut Stream, buffer: std::rc::Rc<WBuffer>) -
         let uv_req: *mut uv_write_t = (&raw mut (*data).uv).cast();
         *uv_req.cast::<*mut WRequest>() = data;
 
-        let err = uv_write(uv_req, (*stream).uvstream_ptr(), &uvbuf, 1, Some(write_cb));
+        let err = uv_write(uv_req, stream.uvstream_ptr(), &uvbuf, 1, Some(write_cb));
         if err != 0 {
             let _ = Box::from_raw(data);
             return err;
         }
 
-        (*stream).pending_reqs += 1;
+        stream.pending_reqs += 1;
         0
     }
 }
@@ -170,13 +166,13 @@ unsafe extern "C" fn write_cb(req: *mut uv_write_t, status: c_int) {
         drop(data);
 
         if (*stream).notify_write {
-            crate::os::shell::shell_write_cb(stream, status);
+            crate::os::shell::shell_write_cb(&mut *stream, status);
         }
 
         (*stream).pending_reqs -= 1;
 
         if (*stream).closed && (*stream).pending_reqs == 0 {
-            stream_close_handle(stream);
+            stream_close_handle(&mut *stream);
         }
     }
 }

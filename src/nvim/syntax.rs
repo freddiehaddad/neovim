@@ -2499,12 +2499,12 @@ unsafe fn find_endpos(
             }
 
             spp = syn_items(syn_st().syn_block).offset(best_idx as isize);
-            syn_add_end_off(m_endpos, &raw mut best_regmatch, spp, SPO_ME_OFF, 1);
+            syn_add_end_off(m_endpos, &mut best_regmatch, spp, SPO_ME_OFF, 1);
             if m_endpos.lnum == startpos.lnum && m_endpos.col < startpos.col {
                 m_endpos.col = startpos.col;
             }
 
-            syn_add_end_off(end_endpos, &raw mut best_regmatch, spp, SPO_HE_OFF, 1);
+            syn_add_end_off(end_endpos, &mut best_regmatch, spp, SPO_HE_OFF, 1);
             if end_endpos.lnum == startpos.lnum && end_endpos.col < startpos.col {
                 end_endpos.col = startpos.col;
             }
@@ -2567,7 +2567,7 @@ unsafe fn limit_pos_zero(pos: &mut lpos_T, limit: &mut lpos_T) {
 
 unsafe fn syn_add_end_off(
     result: &mut lpos_T,
-    regmatch: *mut regmmatch_T,
+    regmatch: &mut regmmatch_T,
     spp: *mut synpat_T,
     idx: usize,
     extra: c_int,
@@ -2577,12 +2577,12 @@ unsafe fn syn_add_end_off(
         let mut off: c_int;
 
         if ((*spp).sp_off_flags & (1 << idx)) != 0 {
-            result.lnum = (*regmatch).startpos[0].lnum;
-            col = (*regmatch).startpos[0].col;
+            result.lnum = regmatch.startpos[0].lnum;
+            col = regmatch.startpos[0].col;
             off = (*spp).sp_offsets[idx] + extra;
         } else {
-            result.lnum = (*regmatch).endpos[0].lnum;
-            col = (*regmatch).endpos[0].col;
+            result.lnum = regmatch.endpos[0].lnum;
+            col = regmatch.endpos[0].col;
             off = (*spp).sp_offsets[idx];
         }
 
@@ -2610,7 +2610,7 @@ unsafe fn syn_add_end_off(
 
 unsafe fn syn_add_start_off(
     result: &mut lpos_T,
-    regmatch: *mut regmmatch_T,
+    regmatch: &mut regmmatch_T,
     spp: *mut synpat_T,
     idx: usize,
     extra: c_int,
@@ -2620,12 +2620,12 @@ unsafe fn syn_add_start_off(
         let mut off: c_int;
 
         if ((*spp).sp_off_flags & (1 << (idx + SPO_COUNT))) != 0 {
-            result.lnum = (*regmatch).endpos[0].lnum;
-            col = (*regmatch).endpos[0].col;
+            result.lnum = regmatch.endpos[0].lnum;
+            col = regmatch.endpos[0].col;
             off = (*spp).sp_offsets[idx] + extra;
         } else {
-            result.lnum = (*regmatch).startpos[0].lnum;
-            col = (*regmatch).startpos[0].col;
+            result.lnum = regmatch.startpos[0].lnum;
+            col = regmatch.startpos[0].col;
             off = (*spp).sp_offsets[idx];
         }
         if result.lnum > (*syn_st().syn_buf).b_ml.ml_line_count {
@@ -2663,7 +2663,7 @@ unsafe fn syn_getcurline_len() -> colnr_T {
 }
 
 unsafe fn syn_regexec(
-    rmp: *mut regmmatch_T,
+    rmp: &mut regmmatch_T,
     lnum: linenr_T,
     col: colnr_T,
     st: *mut syn_time_T,
@@ -2677,11 +2677,11 @@ unsafe fn syn_regexec(
             pt = profile_start();
         }
 
-        if (*rmp).regprog.is_null() {
+        if rmp.regprog.is_null() {
             return false;
         }
 
-        (*rmp).rmm_maxcol = (*syn_st().syn_buf).b_p_smc as colnr_T;
+        rmp.rmm_maxcol = (*syn_st().syn_buf).b_p_smc as colnr_T;
         let r = vim_regexec_multi(rmp, syn_st().syn_win, syn_st().syn_buf, lnum, col, syn_st().syn_tm, &raw mut timed_out);
 
         if l_syn_time_on {
@@ -2704,8 +2704,8 @@ unsafe fn syn_regexec(
         }
 
         if r > 0 {
-            (*rmp).startpos[0].lnum += lnum;
-            (*rmp).endpos[0].lnum += lnum;
+            rmp.startpos[0].lnum += lnum;
+            rmp.endpos[0].lnum += lnum;
             return true;
         }
         false

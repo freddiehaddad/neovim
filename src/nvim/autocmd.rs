@@ -2395,12 +2395,12 @@ pub unsafe fn autocmd_register(
                 let save_curtab = g_st().curtab;
                 let mut tp = g_st().first_tabpage;
                 while !tp.is_null() {
-                    unuse_tabpage(g_st().curtab);
+                    unuse_tabpage(&mut *g_st().curtab);
                     use_tabpage(tp);
                     snapshot_windows_scroll_size();
                     tp = (*tp).tp_next;
                 }
-                unuse_tabpage(g_st().curtab);
+                unuse_tabpage(&mut *g_st().curtab);
                 use_tabpage(save_curtab);
             }
 
@@ -2551,7 +2551,7 @@ pub unsafe fn ex_doautoall(eap: &mut exarg_T) {
                 do_modelines(if is_ctx_win(*curwin.as_ptr()) { OPT_NOWIN } else { 0 });
             }
 
-            ctx_restore(&raw mut aco);
+            ctx_restore(&mut aco);
 
             if retval == FAIL || !bufref_valid(&raw mut bufref) {
                 retval = FAIL;
@@ -2651,7 +2651,7 @@ pub unsafe fn deferred_event(mut e: AutoCmdEvent) {
                 data,
                 false,
             );
-            ctx_restore(&raw mut aco);
+            ctx_restore(&mut aco);
 
             restore_v_event(v_event, &raw mut save_v_event);
         }
@@ -2669,7 +2669,7 @@ pub unsafe fn deferred_optionset_modified(bufnr: c_int, new_val: bool) {
             let mut aco: CtxSwitch = CtxSwitch::new();
             ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
             apply_optionset_autocmd_now(kOptModified, OPT_LOCAL, old, old, old, new);
-            ctx_restore(&raw mut aco);
+            ctx_restore(&mut aco);
         }
     }
 }
@@ -3188,7 +3188,7 @@ pub unsafe fn apply_autocmds_group(
             (*g_st().curbuf).b_au_did_filetype = true;
         }
 
-        ctx_restore(&raw mut aco);
+        ctx_restore(&mut aco);
 
         retval
     }

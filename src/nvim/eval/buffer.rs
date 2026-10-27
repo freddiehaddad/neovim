@@ -140,7 +140,7 @@ unsafe fn change_other_buffer_prepare(cob: *mut cob_T, buf: *mut buf_T) {
 unsafe fn change_other_buffer_restore(cob: *mut cob_T) {
     unsafe {
         if (*cob).cob_using_aco != 0 {
-            ctx_restore(&raw mut (*cob).cob_aco);
+            ctx_restore(&mut (*cob).cob_aco);
         } else {
             *curwin.as_ptr() = (*cob).cob_curwin_save;
             g_st().curbuf = (**curwin.as_ptr()).w_buffer;

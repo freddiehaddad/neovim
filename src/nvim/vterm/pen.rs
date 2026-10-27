@@ -401,12 +401,10 @@ fn lookup_default_colour_ansi(idx: isize, col: &mut VTermColor) {
 unsafe fn lookup_colour_ansi(
     state: &VTermStateFull,
     index: isize,
-    col: *mut VTermColor,
+    col: &mut VTermColor,
 ) -> bool {
     if (0..16).contains(&index) {
-        unsafe {
-            *col = state.colors[index as usize];
-        }
+        *col = state.colors[index as usize];
         return true;
     }
     false
@@ -415,23 +413,19 @@ unsafe fn lookup_colour_ansi(
 unsafe fn lookup_colour_palette(
     state: &VTermStateFull,
     mut index: isize,
-    col: *mut VTermColor,
+    col: &mut VTermColor,
 ) -> bool {
     if (0..16).contains(&index) {
         unsafe { lookup_colour_ansi(state, index, col) }
     } else if (16..232).contains(&index) {
         index -= 16;
         let idx = index as usize;
-        unsafe {
-            (*col).set_rgb(RAMP6[(idx / 36) % 6], RAMP6[(idx / 6) % 6], RAMP6[idx % 6]);
-        }
+        col.set_rgb(RAMP6[(idx / 36) % 6], RAMP6[(idx / 6) % 6], RAMP6[idx % 6]);
         true
     } else if (232..256).contains(&index) {
         index -= 232;
         let v = RAMP24[index as usize];
-        unsafe {
-            (*col).set_rgb(v, v, v);
-        }
+        col.set_rgb(v, v, v);
         true
     } else {
         false
@@ -443,7 +437,7 @@ unsafe fn lookup_colour(
     palette: c_int,
     args: *const c_long,
     argcount: c_int,
-    col: *mut VTermColor,
+    col: &mut VTermColor,
 ) -> c_int {
     unsafe {
         match palette {
@@ -463,7 +457,7 @@ unsafe fn lookup_colour(
                     return argcount;
                 }
 
-                (*col).set_rgb(
+                col.set_rgb(
                     csi_arg(*args.add(skip as usize)) as u8,
                     csi_arg(*args.add((skip + 1) as usize)) as u8,
                     csi_arg(*args.add((skip + 2) as usize)) as u8,
@@ -476,7 +470,7 @@ unsafe fn lookup_colour(
                     return c_int::from(argcount != 0);
                 }
 
-                (*col).set_indexed((*args) as u8);
+                col.set_indexed((*args) as u8);
 
                 c_int::from(argcount != 0)
             }
@@ -641,22 +635,20 @@ pub unsafe fn vterm_state_set_default_colors(
 pub unsafe fn vterm_state_set_palette_color(
     state: &mut VTermStateFull,
     index: c_int,
-    col: *const VTermColor,
+    col: &VTermColor,
 ) {
     if (0..16).contains(&index) {
-        unsafe {
-            state.colors[index as usize] = *col;
-        }
+        state.colors[index as usize] = *col;
     }
 }
 
-pub unsafe fn vterm_state_convert_color_to_rgb(state: &VTermStateFull, col: *mut VTermColor) {
+pub unsafe fn vterm_state_convert_color_to_rgb(state: &VTermStateFull, col: &mut VTermColor) {
     unsafe {
-        if (*col).is_indexed() {
-            lookup_colour_palette(state, (*col).idx() as isize, col);
+        if col.is_indexed() {
+            lookup_colour_palette(state, col.idx() as isize, col);
         }
-        let t = (*col).type_byte() & VTERM_COLOR_TYPE_MASK;
-        (*col).set_type_byte(t);
+        let t = col.type_byte() & VTERM_COLOR_TYPE_MASK;
+        col.set_type_byte(t);
     }
 }
 
@@ -785,7 +777,7 @@ pub unsafe fn vterm_state_setpen(state: &mut VTermStateFull, args: *const c_long
                         csi_arg(*args.add((argi + 1) as usize)),
                         args.add((argi + 2) as usize),
                         argcount - argi - 2,
-                        &raw mut fg,
+                        &mut fg,
                     );
                     state.pen.fg = fg;
                     setpenattr_col(state, VTERM_ATTR_FOREGROUND, fg);
@@ -808,7 +800,7 @@ pub unsafe fn vterm_state_setpen(state: &mut VTermStateFull, args: *const c_long
                         csi_arg(*args.add((argi + 1) as usize)),
                         args.add((argi + 2) as usize),
                         argcount - argi - 2,
-                        &raw mut bg,
+                        &mut bg,
                     );
                     state.pen.bg = bg;
                     setpenattr_col(state, VTERM_ATTR_BACKGROUND, bg);

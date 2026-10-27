@@ -350,7 +350,7 @@ pub unsafe fn screen_resize(mut width: c_int, mut height: c_int) {
         g_st().Columns = width;
         check_screensize();
         if !ui_has(kUIMessages) {
-            let max_p_ch = OptInt::from(g_st().Rows - min_rows(g_st().curtab) + 1);
+            let max_p_ch = OptInt::from(g_st().Rows - min_rows(&mut *g_st().curtab) + 1);
             if opt_vars().p_ch > 0 && opt_vars().p_ch > max_p_ch {
                 opt_vars().p_ch = max_p_ch.max(1);
                 (*g_st().curtab).tp_ch_used = opt_vars().p_ch;
@@ -358,7 +358,7 @@ pub unsafe fn screen_resize(mut width: c_int, mut height: c_int) {
             let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
                 if !ptr::eq(tp, g_st().curtab) {
-                    let max_tp_ch = OptInt::from(g_st().Rows - min_rows(tp) + 1);
+                    let max_tp_ch = OptInt::from(g_st().Rows - min_rows(&mut *tp) + 1);
                     if (*tp).tp_ch_used > 0 && (*tp).tp_ch_used > max_tp_ch {
                         (*tp).tp_ch_used = max_tp_ch.max(1);
                     }
@@ -701,7 +701,7 @@ pub unsafe fn update_screen() -> c_int {
             if (*wp).w_redr_border || (*wp).w_redr_type >= UPD_NOT_VALID {
                 grid_draw_border(
                     &mut (*wp).w_grid_alloc,
-                    &raw mut (*wp).w_config,
+                    &mut (*wp).w_config,
                     (*wp).w_border_adj.as_mut_ptr(),
                     (*wp).w_onebuf_opt.wo_winbl as c_int,
                     (*wp).w_ns_hl_attr.as_deref(),
@@ -787,7 +787,7 @@ pub unsafe fn start_search_hl() {
         }
 
         end_search_hl();
-        last_pat_prog(&raw mut g_st().screen_search_hl.rm);
+        last_pat_prog(&mut g_st().screen_search_hl.rm);
         g_st().screen_search_hl.tm = profile_setlimit(opt_vars().p_rdt);
     }
 }
@@ -1487,7 +1487,7 @@ unsafe fn win_update(wp: *mut win_T) {
         validate_virtcol(wp);
         type_ = (*wp).w_redr_type;
 
-        init_search_hl(wp, &raw mut g_st().screen_search_hl);
+        init_search_hl(wp, &mut g_st().screen_search_hl);
 
         if (*wp).w_skipcol > 0 && (*wp).w_view_width > win_col_off(wp) {
             let mut w: c_int = 0;
@@ -2145,7 +2145,7 @@ unsafe fn win_update(wp: *mut win_T) {
                     {
                         row = (*wp).w_view_height + 1;
                     } else {
-                        prepare_search_hl(wp, &raw mut g_st().screen_search_hl, lnum);
+                        prepare_search_hl(wp, &mut g_st().screen_search_hl, lnum);
                         if syntax_last_parsed != 0
                             && syntax_last_parsed + 1 < lnum
                             && syntax_present(wp)

@@ -295,7 +295,7 @@ unsafe fn mouse_tab_close(c1: c_int) {
                 tabpage_close(0);
             }
         } else if !tp.is_null() {
-            tabpage_close_other(tp, 0);
+            tabpage_close_other(&mut *tp, 0);
         }
     }
 }

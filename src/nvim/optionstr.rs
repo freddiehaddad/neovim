@@ -4402,7 +4402,7 @@ pub unsafe fn check_chars_options() -> *const c_char {
 pub unsafe fn validate_previewpopup(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut fconfig = WIN_CONFIG_INIT;
-        if !win_previewpopup_config(args.os_newval.data.string().data, &raw mut fconfig) {
+        if !win_previewpopup_config(args.os_newval.data.string().data, &mut fconfig) {
             return e_invarg.as_ptr();
         }
         ptr::null()

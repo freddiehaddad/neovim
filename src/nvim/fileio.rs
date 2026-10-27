@@ -4110,7 +4110,7 @@ pub unsafe fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool
 
         do_modelines(0);
 
-        ctx_restore(&raw mut aco);
+        ctx_restore(&mut aco);
     }
 }
 

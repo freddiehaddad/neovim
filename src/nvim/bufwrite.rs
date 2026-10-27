@@ -462,7 +462,7 @@ unsafe fn buf_write_do_autocmds(
             }
         }
 
-        ctx_restore(&raw mut aco);
+        ctx_restore(&mut aco);
 
         if !bufref_valid(&raw mut bufref) {
             buf = ptr::null_mut();
@@ -585,7 +585,7 @@ unsafe fn buf_write_do_post_autocmds(
             let _ = apply_autocmds_exarg(EVENT_FILEWRITEPOST, fname, fname, false, g_st().curbuf, eap);
         }
 
-        ctx_restore(&raw mut aco);
+        ctx_restore(&mut aco);
     }
 }
 

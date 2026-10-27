@@ -1432,7 +1432,7 @@ pub unsafe fn ins_redraw(ready: bool) {
                 false,
                 g_st().curbuf,
             );
-            ctx_restore(&raw mut aco);
+            ctx_restore(&mut aco);
             (*g_st().curbuf).b_last_changedtick_i = buf_get_changedtick(g_st().curbuf);
             if tick != buf_get_changedtick(g_st().curbuf) {
                 u_save((**curwin.as_ptr()).w_cursor.lnum, (**curwin.as_ptr()).w_cursor.lnum + 1);
@@ -1454,7 +1454,7 @@ pub unsafe fn ins_redraw(ready: bool) {
                 false,
                 g_st().curbuf,
             );
-            ctx_restore(&raw mut aco);
+            ctx_restore(&mut aco);
             (*g_st().curbuf).b_last_changedtick_pum = buf_get_changedtick(g_st().curbuf);
             if tick != buf_get_changedtick(g_st().curbuf) {
                 u_save((**curwin.as_ptr()).w_cursor.lnum, (**curwin.as_ptr()).w_cursor.lnum + 1);
@@ -2906,7 +2906,7 @@ unsafe fn ins_esc(count: *mut c_int, cmdchar: c_int, nomove: bool) -> bool {
         if (g_st().cmdmod.cmod_flags & CMOD_KEEPJUMPS) == 0 {
             let view = mark_view_make(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor);
             reset_fmark(
-                &raw mut (*g_st().curbuf).b_last_insert,
+                &mut (*g_st().curbuf).b_last_insert,
                 (**curwin.as_ptr()).w_cursor,
                 (*g_st().curbuf).b_fnum,
                 view,

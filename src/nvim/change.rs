@@ -331,7 +331,7 @@ unsafe fn changed_common(
                 view = mark_view_make(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor);
             }
             reset_fmark(
-                &raw mut (*buf).b_last_change,
+                &mut (*buf).b_last_change,
                 pos_T {
                     lnum,
                     col,

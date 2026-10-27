@@ -708,7 +708,7 @@ pub unsafe fn terminal_init() {
         let timer = refresh_timer_ptr();
         time_watcher_init(
             &mut *(&raw mut g_st().main_loop).cast(),
-            timer,
+            &mut *timer,
             TimeWatcherData::TerminalRefresh,
         );
         (*timer).events = multiqueue_new_child((*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events);
@@ -718,9 +718,9 @@ pub unsafe fn terminal_init() {
 pub unsafe fn terminal_teardown() {
     unsafe {
         let timer = refresh_timer_ptr();
-        time_watcher_stop(timer);
+        time_watcher_stop(&mut *timer);
         multiqueue_free((*timer).events);
-        time_watcher_close(timer);
+        time_watcher_close(&mut *timer);
         let inv_ptr = &raw mut term_st().INVALIDATED_TERMINALS;
         *inv_ptr = Vec::new();
     }
@@ -2416,7 +2416,7 @@ unsafe fn invalidate_terminal(term: &mut Terminal, start_row: c_int, end_row: c_
 
         invalidate_terminal_add(term);
         if !term_st().REFRESH_PENDING {
-            time_watcher_start(refresh_timer_ptr(), REFRESH_DELAY, 0);
+            time_watcher_start(&mut *refresh_timer_ptr(), REFRESH_DELAY, 0);
             term_st().REFRESH_PENDING = true;
         }
     }

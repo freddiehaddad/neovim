@@ -747,9 +747,8 @@ pub unsafe fn vterm_state_get_penattr(
     }
 }
 
-pub unsafe fn vterm_color_is_equal(a: *const VTermColor, b: *const VTermColor) -> c_int {
-    unsafe {
-        let ca = &*a;
+pub unsafe fn vterm_color_is_equal(a: &VTermColor, b: &VTermColor) -> c_int {
+    let ca = &*a;
         let cb = &*b;
         if ca.type_byte() != cb.type_byte() {
             return 0;
@@ -761,7 +760,6 @@ pub unsafe fn vterm_color_is_equal(a: *const VTermColor, b: *const VTermColor) -
         } else {
             0
         }
-    }
 }
 
 unsafe fn attrs_differ(attrs: VTermAttrMask, a: *const ScreenCell, b: *const ScreenCell) -> bool {
@@ -793,12 +791,12 @@ unsafe fn attrs_differ(attrs: VTermAttrMask, a: *const ScreenCell, b: *const Scr
             return true;
         }
         if (attrs & VTERM_ATTR_FOREGROUND_MASK) != 0
-            && vterm_color_is_equal(&raw const pa.fg, &raw const pb.fg) == 0
+            && vterm_color_is_equal(&pa.fg, &pb.fg) == 0
         {
             return true;
         }
         if (attrs & VTERM_ATTR_BACKGROUND_MASK) != 0
-            && vterm_color_is_equal(&raw const pa.bg, &raw const pb.bg) == 0
+            && vterm_color_is_equal(&pa.bg, &pb.bg) == 0
         {
             return true;
         }
@@ -823,38 +821,38 @@ unsafe fn attrs_differ(attrs: VTermAttrMask, a: *const ScreenCell, b: *const Scr
 
 pub unsafe fn vterm_screen_get_attrs_extent(
     screen: &VTermScreen,
-    extent: *mut VTermRect,
+    extent: &mut VTermRect,
     pos: VTermPos,
     attrs: VTermAttrMask,
 ) -> c_int {
     unsafe {
         let target = getcell(screen, pos.row, pos.col);
-        (*extent).start_row = pos.row;
-        (*extent).end_row = pos.row + 1;
-        if (*extent).start_col < 0 {
-            (*extent).start_col = 0;
+        extent.start_row = pos.row;
+        extent.end_row = pos.row + 1;
+        if extent.start_col < 0 {
+            extent.start_col = 0;
         }
-        if (*extent).end_col < 0 {
-            (*extent).end_col = screen.cols;
+        if extent.end_col < 0 {
+            extent.end_col = screen.cols;
         }
 
         let mut col = pos.col - 1;
-        while col >= (*extent).start_col {
+        while col >= extent.start_col {
             if attrs_differ(attrs, target, getcell(screen, pos.row, col)) {
                 break;
             }
             col -= 1;
         }
-        (*extent).start_col = col + 1;
+        extent.start_col = col + 1;
 
         col = pos.col + 1;
-        while col < (*extent).end_col {
+        while col < extent.end_col {
             if attrs_differ(attrs, target, getcell(screen, pos.row, col)) {
                 break;
             }
             col += 1;
         }
-        (*extent).end_col = col - 1;
+        extent.end_col = col - 1;
         1
     }
 }
@@ -1356,11 +1354,11 @@ mod tests {
                 let _ = write!(actual, "dhl-{} ", if dhl == 2 { "bottom" } else { "top" });
             }
             actual.push_str("fg=");
-            vterm_screen_convert_color_to_rgb(screen, &raw mut cell.fg);
+            vterm_screen_convert_color_to_rgb(screen, &mut cell.fg);
             print_color(&raw const cell.fg);
             actual.push_str(&String::from_utf8_lossy(&take_test_output()));
             actual.push_str(" bg=");
-            vterm_screen_convert_color_to_rgb(screen, &raw mut cell.bg);
+            vterm_screen_convert_color_to_rgb(screen, &mut cell.bg);
             print_color(&raw const cell.bg);
             actual.push_str(&String::from_utf8_lossy(&take_test_output()));
 
@@ -1387,7 +1385,7 @@ mod tests {
                 start_col: 0,
                 end_col: -1,
             };
-            vterm_screen_get_attrs_extent(screen, &raw mut rect, VTermPos { row, col }, 1);
+            vterm_screen_get_attrs_extent(screen, &mut rect, VTermPos { row, col }, 1);
             let actual = format!(
                 "{},{}-{},{}",
                 rect.start_row, rect.start_col, rect.end_row, rect.end_col
@@ -1469,9 +1467,9 @@ mod tests {
             let mut c2 = VTermColor { bytes: [0; 4] };
             c1.set_rgb(10, 20, 30);
             c2.set_rgb(10, 20, 30);
-            assert_eq!(vterm_color_is_equal(&raw const c1, &raw const c2), 1);
+            assert_eq!(vterm_color_is_equal(&c1, &c2), 1);
             c2.set_rgb(10, 20, 31);
-            assert_eq!(vterm_color_is_equal(&raw const c1, &raw const c2), 0);
+            assert_eq!(vterm_color_is_equal(&c1, &c2), 0);
         }
     }
 

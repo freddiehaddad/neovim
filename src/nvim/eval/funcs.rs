@@ -3706,7 +3706,7 @@ pub unsafe fn f_gettagstack(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
     }
 }
 
-pub(crate) unsafe fn dummy_timer_due_cb(tw: *mut TimeWatcher) {
+pub(crate) unsafe fn dummy_timer_due_cb(tw: &mut TimeWatcher) {
     unsafe {
         if *loop_closing_ptr(&mut *(&raw mut g_st().main_loop).cast()) {
             time_watcher_stop(tw);
@@ -3744,9 +3744,9 @@ pub unsafe fn f_wait(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFu
         let tw = Box::into_raw(Box::new(TimeWatcher::new()));
 
         let main_loop_ptr: *mut Loop = (&raw mut g_st().main_loop).cast();
-        time_watcher_init(&mut *main_loop_ptr, tw, TimeWatcherData::WaitDummy);
+        time_watcher_init(&mut *main_loop_ptr, &mut *tw, TimeWatcherData::WaitDummy);
         (*tw).events = ptr::null_mut();
-        time_watcher_start(tw, interval as u64, interval as u64);
+        time_watcher_start(&mut *tw, interval as u64, interval as u64);
 
         let mut argv = tv_initial_value();
         let mut exprval = tv_initial_value();
@@ -3791,8 +3791,8 @@ pub unsafe fn f_wait(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFu
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
 
-        time_watcher_stop(tw);
-        time_watcher_close(tw);
+        time_watcher_stop(&mut *tw);
+        time_watcher_close(&mut *tw);
     }
 }
 
@@ -9147,10 +9147,10 @@ pub unsafe fn f_timer_pause(argvars: *mut typval_T, _unused: &mut typval_T, _fpt
         let timer = find_timer_by_nr(tv_get_number(argvars));
         if !timer.is_null() {
             if !(*timer).paused && paused {
-                time_watcher_stop(&raw mut (*timer).watcher);
+                time_watcher_stop(&mut (*timer).watcher);
             } else if (*timer).paused && !paused {
                 time_watcher_start(
-                    &raw mut (*timer).watcher,
+                    &mut (*timer).watcher,
                     (*timer).timeout as u64,
                     (*timer).timeout as u64,
                 );

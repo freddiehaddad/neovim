@@ -221,13 +221,13 @@ unsafe fn exeval_st() -> &'static mut ExEvalModuleState {
 }
 
 #[inline]
-unsafe fn check_skip(cstack: *const cstack_T) -> bool {
+unsafe fn check_skip(cstack: &cstack_T) -> bool {
     unsafe {
         g_st().did_emsg != 0
             || g_st().got_int
             || g_st().did_throw
-            || ((*cstack).cs_idx > 0
-                && ((*cstack).cs_flags[((*cstack).cs_idx - 1) as usize] & CSF_ACTIVE) == 0)
+            || (cstack.cs_idx > 0
+                && (cstack.cs_flags[(cstack.cs_idx - 1) as usize] & CSF_ACTIVE) == 0)
     }
 }
 
@@ -874,7 +874,7 @@ pub unsafe fn ex_if(eap: &mut exarg_T) {
             let idx = (*cstack).cs_idx as usize;
             (*cstack).cs_flags[idx] = 0;
 
-            let skip = check_skip(cstack);
+            let skip = check_skip(&*cstack);
             let mut error = false;
             let result = eval_to_bool(eap.arg, &mut error, eap, skip, false);
 
@@ -912,7 +912,7 @@ pub unsafe fn ex_endif(eap: &mut exarg_T) {
 pub unsafe fn ex_else(eap: &mut exarg_T) {
     unsafe {
         let cstack = eap.cstack.cast::<cstack_T>();
-        let mut skip = check_skip(cstack);
+        let mut skip = check_skip(&*cstack);
 
         if (*cstack).cs_idx < 0
             || ((*cstack).cs_flags[(*cstack).cs_idx as usize] & (CSF_WHILE | CSF_FOR | CSF_TRY))
@@ -995,7 +995,7 @@ pub unsafe fn ex_while(eap: &mut exarg_T) {
                 CSF_FOR
             };
 
-            let skip = check_skip(cstack);
+            let skip = check_skip(&*cstack);
             let result = if eap.cmdidx == CMD_while {
                 eval_to_bool(eap.arg, &mut error, eap, skip, false)
             } else {
@@ -1048,7 +1048,7 @@ pub unsafe fn ex_continue(eap: &mut exarg_T) {
             let idx = cleanup_conditionals(cstack, CSF_WHILE | CSF_FOR, 0);
             assert!(idx >= 0);
             if ((*cstack).cs_flags[idx as usize] & (CSF_WHILE | CSF_FOR)) != 0 {
-                rewind_conditionals(cstack, idx, CSF_TRY, &mut (*cstack).cs_trylevel);
+                rewind_conditionals(&mut *cstack, idx, CSF_TRY, &mut (*cstack).cs_trylevel);
                 (*cstack).cs_lflags |= CSL_HAD_CONT;
             } else {
                 (*cstack).cs_pending[idx as usize] = CSTP_CONTINUE as c_char;
@@ -1113,7 +1113,7 @@ pub unsafe fn ex_endwhile(eap: &mut exarg_T) {
                     idx -= 1;
                 }
                 cleanup_conditionals(cstack, CSF_WHILE | CSF_FOR, 0);
-                rewind_conditionals(cstack, idx, CSF_TRY, &mut (*cstack).cs_trylevel);
+                rewind_conditionals(&mut *cstack, idx, CSF_TRY, &mut (*cstack).cs_trylevel);
             } else if ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_TRUE) != 0
                 && ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_ACTIVE) == 0
                 && dbg_check_skipped(eap)
@@ -1179,7 +1179,7 @@ pub unsafe fn ex_try(eap: &mut exarg_T) {
             (*cstack).cs_flags[idx] = CSF_TRY;
             (*cstack).cs_pending[idx] = CSTP_NONE as c_char;
 
-            let skip = check_skip(cstack);
+            let skip = check_skip(&*cstack);
             if !skip {
                 (*cstack).cs_flags[idx] |= CSF_ACTIVE | CSF_TRUE;
 
@@ -1205,7 +1205,7 @@ pub unsafe fn ex_catch(eap: &mut exarg_T) {
             give_up = true;
         } else {
             if ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_TRY) == 0 {
-                eap.errmsg = get_end_emsg(cstack);
+                eap.errmsg = get_end_emsg(&*cstack);
                 skip = true;
             }
             idx = (*cstack).cs_idx;
@@ -1220,7 +1220,7 @@ pub unsafe fn ex_catch(eap: &mut exarg_T) {
                 give_up = true;
             } else {
                 rewind_conditionals(
-                    cstack,
+                    &mut *cstack,
                     idx,
                     CSF_WHILE | CSF_FOR,
                     &mut (*cstack).cs_looplevel,
@@ -1341,7 +1341,7 @@ pub unsafe fn ex_finally(eap: &mut exarg_T) {
         }
 
         if ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_TRY) == 0 {
-            eap.errmsg = get_end_emsg(cstack);
+            eap.errmsg = get_end_emsg(&*cstack);
             pending = CSTP_ERROR;
         }
 
@@ -1350,7 +1350,7 @@ pub unsafe fn ex_finally(eap: &mut exarg_T) {
             return;
         }
         rewind_conditionals(
-            cstack,
+            &mut *cstack,
             idx,
             CSF_WHILE | CSF_FOR,
             &mut (*cstack).cs_looplevel,
@@ -1428,9 +1428,9 @@ pub unsafe fn ex_endtry(eap: &mut exarg_T) {
             || ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_TRUE) == 0;
 
         if ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_TRY) == 0 {
-            eap.errmsg = get_end_emsg(cstack);
+            eap.errmsg = get_end_emsg(&*cstack);
             rewind_conditionals(
-                cstack,
+                &mut *cstack,
                 idx,
                 CSF_WHILE | CSF_FOR,
                 &mut (*cstack).cs_looplevel,
@@ -1695,9 +1695,9 @@ pub unsafe fn cleanup_conditionals(
     }
 }
 
-unsafe fn get_end_emsg(cstack: *const cstack_T) -> *mut c_char {
+unsafe fn get_end_emsg(cstack: &cstack_T) -> *mut c_char {
     unsafe {
-        let fl = (*cstack).cs_flags[(*cstack).cs_idx as usize];
+        let fl = cstack.cs_flags[cstack.cs_idx as usize];
         if (fl & CSF_WHILE) != 0 {
             return gettext(e_endwhile.as_ptr());
         }
@@ -1709,21 +1709,21 @@ unsafe fn get_end_emsg(cstack: *const cstack_T) -> *mut c_char {
 }
 
 pub unsafe fn rewind_conditionals(
-    cstack: *mut cstack_T,
+    cstack: &mut cstack_T,
     idx: c_int,
     cond_type: c_int,
     cond_level: *mut c_int,
 ) {
     unsafe {
-        while (*cstack).cs_idx > idx {
-            let cur_idx = (*cstack).cs_idx as usize;
-            if ((*cstack).cs_flags[cur_idx] & cond_type) != 0 {
+        while cstack.cs_idx > idx {
+            let cur_idx = cstack.cs_idx as usize;
+            if (cstack.cs_flags[cur_idx] & cond_type) != 0 {
                 *cond_level -= 1;
             }
-            if ((*cstack).cs_flags[cur_idx] & CSF_FOR) != 0 {
-                (&mut (*cstack).cs_forinfo)[cur_idx] = None;
+            if (cstack.cs_flags[cur_idx] & CSF_FOR) != 0 {
+                (&mut cstack.cs_forinfo)[cur_idx] = None;
             }
-            (*cstack).cs_idx -= 1;
+            cstack.cs_idx -= 1;
         }
     }
 }

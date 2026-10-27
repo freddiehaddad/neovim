@@ -1389,7 +1389,7 @@ fn get_bordertext_col(total_col: c_int, text_width: c_int, align: AlignTextPos) 
 /// Draw border on floating window grid (`grid_draw_border`).
 pub unsafe fn grid_draw_border(
     grid: &mut ScreenGrid,
-    config: *mut WinConfig,
+    config: &mut WinConfig,
     mut adj: *mut c_int,
     winbl: c_int,
     hl_attr: Option<&crate::highlight::NSHlAttr>,
@@ -1404,8 +1404,8 @@ pub unsafe fn grid_draw_border(
         let mut border_attrs = [0 as c_int; 8];
 
         for i in 0..8 {
-            chars[i] = schar_from_str((*config).border_chars[i].as_ptr());
-            border_attrs[i] = hl_combine_attr(win_hl_attr_normal, (*config).border_attr[i]);
+            chars[i] = schar_from_str(config.border_chars[i].as_ptr());
+            border_attrs[i] = hl_combine_attr(win_hl_attr_normal, config.border_attr[i]);
         }
 
         let adj0 = *adj;
@@ -1426,17 +1426,17 @@ pub unsafe fn grid_draw_border(
                 grid_line_put_schar(i + adj3, chars[1], border_attrs[1]);
             }
 
-            if (*config).title {
+            if config.title {
                 let title_col =
-                    get_bordertext_col(icol, (*config).title_width, (*config).title_pos);
+                    get_bordertext_col(icol, config.title_width, config.title_pos);
                 grid_draw_bordertext(
-                    &(*config).title_chunks,
+                    &config.title_chunks,
                     title_col,
                     winbl,
                     hl_attr,
                     win_hl_attr_normal,
                     kBorderTextTitle,
-                    (*config).title_width - icol,
+                    config.title_width - icol,
                 );
             }
             if adj1 != 0 {
@@ -1478,17 +1478,17 @@ pub unsafe fn grid_draw_border(
                 grid_line_put_schar(i + adj3, chars[ic], border_attrs[ic]);
             }
 
-            if (*config).footer {
+            if config.footer {
                 let footer_col =
-                    get_bordertext_col(icol, (*config).footer_width, (*config).footer_pos);
+                    get_bordertext_col(icol, config.footer_width, config.footer_pos);
                 grid_draw_bordertext(
-                    &(*config).footer_chunks,
+                    &config.footer_chunks,
                     footer_col,
                     winbl,
                     hl_attr,
                     win_hl_attr_normal,
                     kBorderTextFooter,
-                    (*config).footer_width - icol,
+                    config.footer_width - icol,
                 );
             }
             if adj1 != 0 {

@@ -482,7 +482,7 @@ pub unsafe fn u_savecommon(
                     0
                 });
 
-            zero_fmark_additional_data((&raw mut (*buf).b_namedm).cast::<fmark_T>());
+            zero_fmark_additional_data(&mut *(&raw mut (*buf).b_namedm).cast::<fmark_T>());
             uhp_mut(buf, uhp).uh_namedm = (*buf).b_namedm.clone();
             uhp_mut(buf, uhp).uh_visual = (*buf).b_visual;
 
@@ -2110,7 +2110,7 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
         }) | (old_flags & UH_RELOAD);
         setpcmark();
 
-        zero_fmark_additional_data((&raw mut (*g_st().curbuf).b_namedm).cast::<fmark_T>());
+        zero_fmark_additional_data(&mut *(&raw mut (*g_st().curbuf).b_namedm).cast::<fmark_T>());
         let namedm = (*g_st().curbuf).b_namedm.clone();
         let visualinfo = (*g_st().curbuf).b_visual;
         (*g_st().curbuf).b_op_start.lnum = (*g_st().curbuf).b_ml.ml_line_count;
@@ -3197,7 +3197,7 @@ pub unsafe fn u_rollback(uc: *mut UndoCheckpoint, buf: *mut buf_T) {
             if !u_undo_and_forget(count, false) {
                 std::process::abort();
             }
-            ctx_restore(&raw mut cs);
+            ctx_restore(&mut cs);
         }
 
         u_blockfree(buf);

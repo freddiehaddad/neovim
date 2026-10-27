@@ -278,7 +278,7 @@ pub unsafe fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c
             kChannelStreamProc => {
                 let proc_ptr = &raw mut (*chan).uv.proc_;
                 if part == kChannelPartStdin || close_main {
-                    stream_may_close(&raw mut (*proc_ptr).r#in);
+                    stream_may_close(&mut (*proc_ptr).r#in);
                 }
                 if part == kChannelPartStdout || close_main {
                     rstream_may_close(&mut (*proc_ptr).out);
@@ -295,7 +295,7 @@ pub unsafe fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c
                     rstream_may_close(&mut (*chan).stdio_in);
                 }
                 if part == kChannelPartStdout || close_main {
-                    stream_may_close(&raw mut (*chan).stdio_out);
+                    stream_may_close(&mut (*chan).stdio_out);
                 }
                 if part == kChannelPartStderr {
                     {
@@ -602,7 +602,7 @@ pub unsafe fn channel_job_start(
         }
 
         if has_in {
-            wstream_init(&raw mut (*proc_ptr).r#in, 0);
+            wstream_init(&mut (*proc_ptr).r#in, 0);
         }
         if has_out {
             rstream_init(&raw mut (*proc_ptr).out);
@@ -660,7 +660,7 @@ pub unsafe fn channel_connect(
         }
 
         (*socket_stream).s.internal_data = StreamInternalData::Channel(channel);
-        wstream_init(&raw mut (*socket_stream).s, 0);
+        wstream_init(&mut (*socket_stream).s, 0);
         rstream_init(socket_stream);
 
         if rpc {
@@ -687,7 +687,7 @@ pub unsafe fn channel_from_connection(watcher: *mut SocketWatcher) {
             return;
         }
         (*socket_stream).s.internal_data = StreamInternalData::Channel(channel);
-        wstream_init(&raw mut (*socket_stream).s, 0);
+        wstream_init(&mut (*socket_stream).s, 0);
         rstream_init(socket_stream);
         rpc_start(&mut *channel);
         channel_create_event(&mut *channel, (*watcher).addr.as_ptr());
@@ -737,7 +737,7 @@ pub unsafe fn channel_from_stdio(
         let stdio_out = &raw mut (*channel).stdio_out;
         {
             rstream_init_fd((&raw mut g_st().main_loop).cast(), stdio_in, stdin_dup_fd);
-            wstream_init_fd(&mut *(&raw mut g_st().main_loop).cast(), stdio_out, stdout_dup_fd, 0);
+            wstream_init_fd(&mut *(&raw mut g_st().main_loop).cast(), &mut *stdio_out, stdout_dup_fd, 0);
         }
 
         if rpc {
@@ -800,7 +800,7 @@ pub unsafe fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char
         }
 
         let buf = wstream_new_vec_buffer(data);
-        if wstream_write(in_stream, buf) == 0 {
+        if wstream_write(&mut *in_stream, buf) == 0 {
             len
         } else {
             0
@@ -1127,7 +1127,7 @@ pub unsafe fn channel_term_write(buf: *const c_char, size: usize, chan: &mut Cha
             std::slice::from_raw_parts(buf, size).to_vec()
         };
         let wbuf = wstream_new_vec_buffer(data);
-        let _ = wstream_write(in_stream, wbuf);
+        let _ = wstream_write(&mut *in_stream, wbuf);
     }
 }
 

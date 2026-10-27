@@ -1022,7 +1022,7 @@ pub unsafe fn buf_ensure_loaded(buf: *mut buf_T) -> bool {
         let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
         let status = open_buffer(false, ptr::null_mut(), 0);
-        ctx_restore(&raw mut aco);
+        ctx_restore(&mut aco);
         status != FAIL && bufref_valid(&raw mut bufref) && (*buf).b_ml.ml_mfp.is_some()
     }
 }
@@ -1265,7 +1265,7 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
                 );
             }
 
-            ctx_restore(&raw mut aco);
+            ctx_restore(&mut aco);
         }
 
         retval
@@ -1464,7 +1464,7 @@ pub unsafe fn close_buffer(
 
         if is_curwin && *curwin.as_ptr() != win && win_valid {
             block_autocmds();
-            goto_tabpage_win(the_curtab, win);
+            goto_tabpage_win(&mut *the_curtab, win);
             unblock_autocmds();
         }
 
@@ -1630,7 +1630,7 @@ pub unsafe fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
 
         if is_curwin && *curwin.as_ptr() != the_curwin && win_valid_any_tab(the_curwin) {
             block_autocmds();
-            goto_tabpage_win(the_curtab, the_curwin);
+            goto_tabpage_win(&mut *the_curtab, the_curwin);
             unblock_autocmds();
         }
         if (flags & BFA_IGNORE_ABORT) == 0 && aborting() {
@@ -1763,10 +1763,10 @@ impl Drop for buf_T {
             self.b_prompt_text = None;
             callback_free(&mut self.b_prompt_callback);
             callback_free(&mut self.b_prompt_interrupt);
-            clear_fmark(&raw mut self.b_last_cursor, 0);
-            clear_fmark(&raw mut self.b_last_insert, 0);
-            clear_fmark(&raw mut self.b_last_change, 0);
-            clear_fmark(&raw mut self.b_prompt_start, 0);
+            clear_fmark(&mut self.b_last_cursor, 0);
+            clear_fmark(&mut self.b_last_insert, 0);
+            clear_fmark(&mut self.b_last_change, 0);
+            clear_fmark(&mut self.b_prompt_start, 0);
             self.b_changelistlen = 0;
         }
     }
@@ -1791,10 +1791,10 @@ unsafe fn free_buffer(buf: *mut buf_T) {
             (*buf).b_prompt_text = None;
             callback_free(&mut (*buf).b_prompt_callback);
             callback_free(&mut (*buf).b_prompt_interrupt);
-            clear_fmark(&raw mut (*buf).b_last_cursor, 0);
-            clear_fmark(&raw mut (*buf).b_last_insert, 0);
-            clear_fmark(&raw mut (*buf).b_last_change, 0);
-            clear_fmark(&raw mut (*buf).b_prompt_start, 0);
+            clear_fmark(&mut (*buf).b_last_cursor, 0);
+            clear_fmark(&mut (*buf).b_last_insert, 0);
+            clear_fmark(&mut (*buf).b_last_change, 0);
+            clear_fmark(&mut (*buf).b_prompt_start, 0);
             (*buf).b_changelistlen = 0;
             (*buf).b_namedm.fill(fmark_T::new());
             (*buf).b_changelist.fill(fmark_T::new());
@@ -2327,7 +2327,7 @@ unsafe fn do_buffer_ext(
                     );
                     debug_assert!(rv);
                     do_buffer_ext(action, start, dir, count, flags);
-                    ctx_restore(&raw mut switchwin);
+                    ctx_restore(&mut switchwin);
                 }
 
                 if buf != g_st().curbuf && bufref_valid(&raw mut bufref) && (*buf).b_nwindows <= 0 {
@@ -5056,7 +5056,7 @@ pub unsafe fn buf_contents_changed(buf: *mut buf_T) -> bool {
         }
         drop(_ea_cmd);
 
-        ctx_restore(&raw mut aco);
+        ctx_restore(&mut aco);
 
         if g_st().curbuf != newbuf {
             wipe_buffer(newbuf, false);

@@ -5444,7 +5444,7 @@ unsafe fn nv_brackets(cap: &mut cmdarg_T) {
             if cap.nchar == b'\'' as c_int {
                 flags |= kMarkBeginLine;
             }
-            nv_mark_move_to(cap, flags, fm);
+            nv_mark_move_to(cap, flags, &mut *fm);
         } else if cap.nchar >= K_RIGHTRELEASE && cap.nchar <= K_LEFTMOUSE {
             do_mouse(
                 cap.oap,
@@ -6034,9 +6034,9 @@ unsafe fn n_swapchar(cap: &mut cmdarg_T) {
     }
 }
 
-unsafe fn nv_mark_move_to(cap: &mut cmdarg_T, flags: MarkMove, fm: *mut fmark_T) -> MarkMoveRes {
+unsafe fn nv_mark_move_to(cap: &mut cmdarg_T, flags: MarkMove, fm: &mut fmark_T) -> MarkMoveRes {
     unsafe {
-        let res = mark_move_to(fm, flags);
+        let res = mark_move_to(&raw mut *fm, flags);
         if (res & kMarkMoveFailed) != 0 {
             clearop(&mut *cap.oap);
         }
@@ -6147,7 +6147,7 @@ unsafe fn nv_gomark(cap: &mut cmdarg_T) {
         }
 
         let fm = mark_get(g_st().curbuf, *curwin.as_ptr(), ptr::null_mut(), kMarkAll, name);
-        let move_res = nv_mark_move_to(cap, flags, fm);
+        let move_res = nv_mark_move_to(cap, flags, &mut *fm);
 
         if !virtual_active(*curwin.as_ptr()) {
             (**curwin.as_ptr()).w_cursor.coladd = 0;
@@ -6193,7 +6193,7 @@ unsafe fn nv_pcmark(cap: &mut cmdarg_T) {
         };
 
         if !fm.is_null() {
-            move_res = nv_mark_move_to(cap, flags, fm);
+            move_res = nv_mark_move_to(cap, flags, &mut *fm);
         } else if cap.cmdchar == b'g' as c_int {
             if (*g_st().curbuf).b_changelistlen == 0 {
                 emsg(tr(e_changelist_is_empty.as_ptr()));

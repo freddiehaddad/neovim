@@ -446,7 +446,7 @@ pub unsafe fn check_changed_any(hidden: bool, unload: bool) -> bool {
                         if (*wp).w_buffer == buf {
                             let mut bufref: bufref_T = bufref_T::new();
                             set_bufref(&raw mut bufref, buf);
-                            goto_tabpage_win(tp, wp);
+                            goto_tabpage_win(&mut *tp, wp);
                             if !bufref_valid(&raw mut bufref) {
                                 wiped = true;
                             }
@@ -749,7 +749,7 @@ pub unsafe fn ex_listdo(eap: &mut exarg_T) {
                     } else {
                         ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
                         apply_autocmds(EVENT_SYNTAX, (*buf).b_p_syn, (*buf).b_fname, true, buf);
-                        ctx_restore(&raw mut aco);
+                        ctx_restore(&mut aco);
                     }
 
                     bnext = g_st().firstbuf;
@@ -904,7 +904,7 @@ pub unsafe fn ex_drop(eap: &mut exarg_T) {
             let mut wp = first_win_in_tab(tp);
             while !wp.is_null() {
                 if (*wp).w_buffer == buf {
-                    goto_tabpage_win(tp, wp);
+                    goto_tabpage_win(&mut *tp, wp);
                     (**curwin.as_ptr()).w_arg_idx = 0;
                     if !bufIsChanged(g_st().curbuf) {
                         let save_ar = (*g_st().curbuf).b_p_ar;

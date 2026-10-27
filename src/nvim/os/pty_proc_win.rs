@@ -174,9 +174,9 @@ mod win_impl {
         }
     }
 
-    pub(crate) unsafe fn pty_proc_close_console(stream: *mut Stream) {
+    pub(crate) unsafe fn pty_proc_close_console(stream: &mut Stream) {
         unsafe {
-            let ptyproc = (*stream).internal_data.as_proc();
+            let ptyproc = stream.internal_data.as_proc();
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
             let r_out = &raw mut (*proc_).out;

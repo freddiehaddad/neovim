@@ -376,7 +376,7 @@ unsafe fn get_match(wp: *mut win_T, id: c_int) -> *mut matchitem_T {
 }
 
 /// Init for calling `prepare_search_hl()` (`init_search_hl`).
-pub unsafe fn init_search_hl(wp: *mut win_T, search_hl: *mut match_T) {
+pub unsafe fn init_search_hl(wp: *mut win_T, search_hl: &mut match_T) {
     unsafe {
         let buf = (*wp).w_buffer;
         for cur in &mut (*wp).w_match_head {
@@ -391,15 +391,15 @@ pub unsafe fn init_search_hl(wp: *mut win_T, search_hl: *mut match_T) {
             cur.mit_hl.first_lnum = 0;
             cur.mit_hl.tm = profile_setlimit(opt_vars().p_rdt);
         }
-        (*search_hl).buf = (*wp).w_buffer;
-        (*search_hl).lnum = 0;
-        (*search_hl).first_lnum = 0;
-        (*search_hl).attr = win_hl_attr(wp, HLF_L as c_int);
+        search_hl.buf = (*wp).w_buffer;
+        search_hl.lnum = 0;
+        search_hl.first_lnum = 0;
+        search_hl.attr = win_hl_attr(wp, HLF_L as c_int);
     }
 }
 
 unsafe fn next_search_hl_pos(
-    shl: *mut match_T,
+    shl: &mut match_T,
     lnum: linenr_T,
     match_item: *mut matchitem_T,
     mincol: colnr_T,
@@ -407,7 +407,7 @@ unsafe fn next_search_hl_pos(
     unsafe {
         let mut found: isize = -1;
 
-        (*shl).lnum = 0;
+        shl.lnum = 0;
         let mit_pos = &mut (*match_item).mit_pos;
         let pos_count = mit_pos.len() as c_int;
         for i in (*match_item).mit_pos_cur..pos_count {
@@ -442,13 +442,13 @@ unsafe fn next_search_hl_pos(
                 start + found_pos.len
             };
 
-            (*shl).lnum = lnum;
-            (*shl).rm.startpos[0].lnum = 0;
-            (*shl).rm.startpos[0].col = start;
-            (*shl).rm.endpos[0].lnum = 0;
-            (*shl).rm.endpos[0].col = end;
-            (*shl).is_addpos = true;
-            (*shl).has_cursor = false;
+            shl.lnum = lnum;
+            shl.rm.startpos[0].lnum = 0;
+            shl.rm.startpos[0].col = start;
+            shl.rm.endpos[0].lnum = 0;
+            shl.rm.endpos[0].col = end;
+            shl.is_addpos = true;
+            shl.has_cursor = false;
             (*match_item).mit_pos_cur = (found as c_int) + 1;
             return 1;
         }
@@ -459,8 +459,8 @@ unsafe fn next_search_hl_pos(
 /// Search for a next `'hlsearch'` or match (`next_search_hl`).
 unsafe fn next_search_hl(
     win: *mut win_T,
-    search_hl: *mut match_T,
-    shl: *mut match_T,
+    search_hl: &mut match_T,
+    shl: &mut match_T,
     lnum: linenr_T,
     mincol: colnr_T,
     cur: *mut matchitem_T,
@@ -471,68 +471,68 @@ unsafe fn next_search_hl(
         let called_emsg_before = g_st().called_emsg;
 
         if (lnum < g_st().Search.first_line || lnum > g_st().Search.last_line) && cur.is_null() {
-            (*shl).lnum = 0;
+            shl.lnum = 0;
             return;
         }
 
-        if (*shl).lnum != 0 {
-            let l = (*shl).lnum + (*shl).rm.endpos[0].lnum - (*shl).rm.startpos[0].lnum;
+        if shl.lnum != 0 {
+            let l = shl.lnum + shl.rm.endpos[0].lnum - shl.rm.startpos[0].lnum;
             if lnum > l {
-                (*shl).lnum = 0;
-            } else if lnum < l || (*shl).rm.endpos[0].col > mincol {
+                shl.lnum = 0;
+            } else if lnum < l || shl.rm.endpos[0].col > mincol {
                 return;
             }
         }
 
         loop {
-            if profile_passed_limit((*shl).tm) {
-                (*shl).lnum = 0;
+            if profile_passed_limit(shl.tm) {
+                shl.lnum = 0;
                 break;
             }
-            if (*shl).lnum == 0 {
+            if shl.lnum == 0 {
                 matchcol = 0;
             } else if vim_strchr(opt_vars().p_cpo, kCpoSearch).is_null()
-                || ((*shl).rm.endpos[0].lnum == 0
-                    && (*shl).rm.endpos[0].col <= (*shl).rm.startpos[0].col)
+                || (shl.rm.endpos[0].lnum == 0
+                    && shl.rm.endpos[0].col <= shl.rm.startpos[0].col)
             {
-                matchcol = (*shl).rm.startpos[0].col;
-                let ml = ml_get_buf((*shl).buf, lnum).add(matchcol as usize);
+                matchcol = shl.rm.startpos[0].col;
+                let ml = ml_get_buf(shl.buf, lnum).add(matchcol as usize);
                 if *ml == NUL {
-                    (*shl).lnum = 0;
+                    shl.lnum = 0;
                     break;
                 }
                 matchcol += utfc_ptr2len(ml);
             } else {
-                matchcol = (*shl).rm.endpos[0].col;
+                matchcol = shl.rm.endpos[0].col;
             }
 
-            (*shl).lnum = lnum;
-            if !(*shl).rm.regprog.is_null() {
-                let regprog_is_copy = shl != search_hl
+            shl.lnum = lnum;
+            if !shl.rm.regprog.is_null() {
+                let regprog_is_copy = !ptr::eq(shl, search_hl)
                     && !cur.is_null()
                     && ptr::eq(shl, &raw const (*cur).mit_hl)
                     && (*cur).mit_match.regprog == (*cur).mit_hl.rm.regprog;
                 let mut timed_out: c_int = 0;
 
                 nmatched = vim_regexec_multi(
-                    &raw mut (*shl).rm,
+                    &mut shl.rm,
                     win,
-                    (*shl).buf,
+                    shl.buf,
                     lnum,
                     matchcol,
-                    Some((*shl).tm),
+                    Some(shl.tm),
                     &raw mut timed_out,
                 );
                 if regprog_is_copy {
                     (*cur).mit_match.regprog = (*cur).mit_hl.rm.regprog;
                 }
                 if g_st().called_emsg > called_emsg_before || g_st().got_int || timed_out != 0 {
-                    if shl == search_hl {
-                        vim_regfree((*shl).rm.regprog);
+                    if ptr::eq(shl, search_hl) {
+                        vim_regfree(shl.rm.regprog);
                         set_no_hlsearch(true);
                     }
-                    (*shl).rm.regprog = ptr::null_mut();
-                    (*shl).lnum = 0;
+                    shl.rm.regprog = ptr::null_mut();
+                    shl.lnum = 0;
                     g_st().got_int = false;
                     break;
                 }
@@ -540,15 +540,15 @@ unsafe fn next_search_hl(
                 nmatched = next_search_hl_pos(shl, lnum, cur, matchcol);
             }
             if nmatched == 0 {
-                (*shl).lnum = 0;
+                shl.lnum = 0;
                 break;
             }
-            if (*shl).rm.startpos[0].lnum > 0
-                || (*shl).rm.startpos[0].col >= mincol
+            if shl.rm.startpos[0].lnum > 0
+                || shl.rm.startpos[0].col >= mincol
                 || nmatched > 1
-                || (*shl).rm.endpos[0].col > mincol
+                || shl.rm.endpos[0].col > mincol
             {
-                (*shl).lnum += (*shl).rm.startpos[0].lnum;
+                shl.lnum += shl.rm.startpos[0].lnum;
                 break;
             }
         }
@@ -556,7 +556,7 @@ unsafe fn next_search_hl(
 }
 
 /// Advance to the match in window `wp` line `lnum` or past it (`prepare_search_hl`).
-pub unsafe fn prepare_search_hl(wp: *mut win_T, search_hl: *mut match_T, lnum: linenr_T) {
+pub unsafe fn prepare_search_hl(wp: *mut win_T, search_hl: &mut match_T, lnum: linenr_T) {
     unsafe {
         let mut idx = 0usize;
         let len = (*wp).w_match_head.len();
@@ -569,8 +569,9 @@ pub unsafe fn prepare_search_hl(wp: *mut win_T, search_hl: *mut match_T, lnum: l
             } else {
                 ptr::null_mut()
             };
+            let search_hl_ptr = &raw mut *search_hl;
             if !shl_flag {
-                shl = search_hl;
+                shl = search_hl_ptr;
                 shl_flag = true;
             } else {
                 shl = &raw mut (*cur).mit_hl;
@@ -598,11 +599,11 @@ pub unsafe fn prepare_search_hl(wp: *mut win_T, search_hl: *mut match_T, lnum: l
                 {
                     next_search_hl(
                         wp,
-                        search_hl,
-                        shl,
+                        &mut *search_hl_ptr,
+                        &mut *shl,
                         (*shl).first_lnum,
                         n,
-                        if shl == search_hl {
+                        if ptr::eq(shl, search_hl_ptr) {
                             ptr::null_mut()
                         } else {
                             cur
@@ -619,7 +620,7 @@ pub unsafe fn prepare_search_hl(wp: *mut win_T, search_hl: *mut match_T, lnum: l
                     }
                 }
             }
-            if shl != search_hl && !cur.is_null() {
+            if !ptr::eq(shl, search_hl_ptr) && !cur.is_null() {
                 idx += 1;
             }
         }
@@ -627,15 +628,15 @@ pub unsafe fn prepare_search_hl(wp: *mut win_T, search_hl: *mut match_T, lnum: l
 }
 
 /// Update `shl->has_cursor` based on the match in `shl` and the cursor position (`check_cur_search_hl`).
-unsafe fn check_cur_search_hl(wp: *mut win_T, shl: *mut match_T) {
+unsafe fn check_cur_search_hl(wp: *mut win_T, shl: &mut match_T) {
     unsafe {
-        let linecount = (*shl).rm.endpos[0].lnum - (*shl).rm.startpos[0].lnum;
-        (*shl).has_cursor = (*wp).w_cursor.lnum >= (*shl).lnum
-            && (*wp).w_cursor.lnum <= (*shl).lnum + linecount
-            && ((*wp).w_cursor.lnum > (*shl).lnum
-                || (*wp).w_cursor.col >= (*shl).rm.startpos[0].col)
-            && ((*wp).w_cursor.lnum < (*shl).lnum + linecount
-                || (*wp).w_cursor.col < (*shl).rm.endpos[0].col);
+        let linecount = shl.rm.endpos[0].lnum - shl.rm.startpos[0].lnum;
+        shl.has_cursor = (*wp).w_cursor.lnum >= shl.lnum
+            && (*wp).w_cursor.lnum <= shl.lnum + linecount
+            && ((*wp).w_cursor.lnum > shl.lnum
+                || (*wp).w_cursor.col >= shl.rm.startpos[0].col)
+            && ((*wp).w_cursor.lnum < shl.lnum + linecount
+                || (*wp).w_cursor.col < shl.rm.endpos[0].col);
     }
 }
 
@@ -645,7 +646,7 @@ pub unsafe fn prepare_search_hl_line(
     lnum: linenr_T,
     mincol: colnr_T,
     line: *mut *mut c_char,
-    search_hl: *mut match_T,
+    search_hl: &mut match_T,
     search_attr: *mut c_int,
     search_attr_from_match: *mut bool,
 ) -> bool {
@@ -662,8 +663,9 @@ pub unsafe fn prepare_search_hl_line(
             } else {
                 ptr::null_mut()
             };
+            let search_hl_ptr = &raw mut *search_hl;
             if !shl_flag {
-                shl = search_hl;
+                shl = search_hl_ptr;
                 shl_flag = true;
             } else {
                 shl = &raw mut (*cur).mit_hl;
@@ -678,11 +680,11 @@ pub unsafe fn prepare_search_hl_line(
             }
             next_search_hl(
                 wp,
-                search_hl,
-                shl,
+                &mut *search_hl_ptr,
+                &mut *shl,
                 lnum,
                 mincol,
-                if shl == search_hl {
+                if ptr::eq(shl, search_hl_ptr) {
                     ptr::null_mut()
                 } else {
                     cur
@@ -705,8 +707,8 @@ pub unsafe fn prepare_search_hl_line(
                     MAXCOL
                 };
 
-                if shl == search_hl {
-                    check_cur_search_hl(wp, shl);
+                if ptr::eq(shl, search_hl) {
+                    check_cur_search_hl(wp, &mut *shl);
                 }
 
                 if (*shl).startcol == (*shl).endcol {
@@ -724,7 +726,7 @@ pub unsafe fn prepare_search_hl_line(
                 }
                 area_highlighting = true;
             }
-            if shl != search_hl && !cur.is_null() {
+            if !ptr::eq(shl, search_hl_ptr) && !cur.is_null() {
                 idx += 1;
             }
         }
@@ -738,7 +740,7 @@ pub unsafe fn update_search_hl(
     lnum: linenr_T,
     col: colnr_T,
     line: *mut *mut c_char,
-    search_hl: *mut match_T,
+    search_hl: &mut match_T,
     has_match_conc: *mut c_int,
     match_conc: *mut c_int,
     lcs_eol_todo: bool,
@@ -748,6 +750,7 @@ pub unsafe fn update_search_hl(
     unsafe {
         let mut idx = 0usize;
         let len = (*wp).w_match_head.len();
+        let search_hl_ptr = &raw mut *search_hl;
         let mut shl: *mut match_T;
         let mut shl_flag = false;
 
@@ -758,7 +761,7 @@ pub unsafe fn update_search_hl(
                 ptr::null_mut()
             };
             if !shl_flag && (cur.is_null() || (*cur).mit_priority > SEARCH_HL_PRIORITY) {
-                shl = search_hl;
+                shl = search_hl_ptr;
                 shl_flag = true;
             } else {
                 shl = &raw mut (*cur).mit_hl;
@@ -773,7 +776,7 @@ pub unsafe fn update_search_hl(
                     if (*shl).endcol < next_col {
                         (*shl).endcol = next_col;
                     }
-                    if shl == search_hl && (*shl).has_cursor {
+                    if ptr::eq(shl, search_hl_ptr) && (*shl).has_cursor {
                         (*shl).attr_cur = win_hl_attr(wp, HLF_LC as c_int);
                         if (*shl).attr_cur != (*shl).attr {
                             g_st().search_hl_has_cursor_lnum = lnum;
@@ -782,7 +785,7 @@ pub unsafe fn update_search_hl(
                         (*shl).attr_cur = (*shl).attr;
                     }
                     if !cur.is_null()
-                        && shl != search_hl
+                        && !ptr::eq(shl, search_hl_ptr)
                         && syn_name2id(c"Conceal".as_ptr()) == (*cur).mit_hlg_id
                     {
                         *has_match_conc = if col == (*shl).startcol { 2 } else { 1 };
@@ -795,11 +798,11 @@ pub unsafe fn update_search_hl(
 
                     next_search_hl(
                         wp,
-                        search_hl,
-                        shl,
+                        &mut *search_hl_ptr,
+                        &mut *shl,
                         lnum,
                         col,
-                        if shl == search_hl {
+                        if ptr::eq(shl, search_hl_ptr) {
                             ptr::null_mut()
                         } else {
                             cur
@@ -817,8 +820,8 @@ pub unsafe fn update_search_hl(
                             MAXCOL
                         };
 
-                        if shl == search_hl {
-                            check_cur_search_hl(wp, shl);
+                        if ptr::eq(shl, search_hl_ptr) {
+                            check_cur_search_hl(wp, &mut *shl);
                         }
 
                         if (*shl).startcol == (*shl).endcol {
@@ -834,13 +837,13 @@ pub unsafe fn update_search_hl(
                 }
                 break;
             }
-            if shl != search_hl && !cur.is_null() {
+            if !ptr::eq(shl, search_hl_ptr) && !cur.is_null() {
                 idx += 1;
             }
         }
 
         *search_attr_from_match = false;
-        let mut search_attr = (*search_hl).attr_cur;
+        let mut search_attr = (*search_hl_ptr).attr_cur;
         idx = 0;
         shl_flag = false;
         while idx < len || !shl_flag {
@@ -850,7 +853,7 @@ pub unsafe fn update_search_hl(
                 ptr::null_mut()
             };
             if !shl_flag && (cur.is_null() || (*cur).mit_priority > SEARCH_HL_PRIORITY) {
-                shl = search_hl;
+                shl = search_hl_ptr;
                 shl_flag = true;
             } else {
                 shl = &raw mut (*cur).mit_hl;
@@ -858,9 +861,9 @@ pub unsafe fn update_search_hl(
             if (*shl).attr_cur != 0 {
                 search_attr = (*shl).attr_cur;
                 *on_last_col = col + 1 >= (*shl).endcol;
-                *search_attr_from_match = shl != search_hl;
+                *search_attr_from_match = !ptr::eq(shl, search_hl_ptr);
             }
-            if shl != search_hl && !cur.is_null() {
+            if !ptr::eq(shl, search_hl_ptr) && !cur.is_null() {
                 idx += 1;
             }
         }
@@ -873,7 +876,7 @@ pub unsafe fn update_search_hl(
 
 pub unsafe fn get_prevcol_hl_flag(
     wp: *mut win_T,
-    search_hl: *mut match_T,
+    search_hl: &mut match_T,
     curcol: colnr_T,
 ) -> bool {
     unsafe {
@@ -887,9 +890,9 @@ pub unsafe fn get_prevcol_hl_flag(
             prevcol += 1;
         }
 
-        if !(*search_hl).is_addpos
-            && (prevcol == (*search_hl).startcol
-                || (prevcol > (*search_hl).startcol && (*search_hl).endcol == MAXCOL))
+        if !search_hl.is_addpos
+            && (prevcol == search_hl.startcol
+                || (prevcol > search_hl.startcol && search_hl.endcol == MAXCOL))
         {
             return true;
         }
@@ -908,13 +911,14 @@ pub unsafe fn get_prevcol_hl_flag(
 /// Get highlighting for the char after the text in `char_attr` (`get_search_match_hl`).
 pub unsafe fn get_search_match_hl(
     wp: *mut win_T,
-    search_hl: *mut match_T,
+    search_hl: &mut match_T,
     col: colnr_T,
     char_attr: *mut c_int,
 ) {
     unsafe {
         let mut idx = 0usize;
         let len = (*wp).w_match_head.len();
+        let search_hl_ptr = &raw mut *search_hl;
         let mut shl: *mut match_T;
         let mut shl_flag = false;
 
@@ -925,15 +929,15 @@ pub unsafe fn get_search_match_hl(
                 ptr::null_mut()
             };
             if !shl_flag && (cur.is_null() || (*cur).mit_priority > SEARCH_HL_PRIORITY) {
-                shl = search_hl;
+                shl = search_hl_ptr;
                 shl_flag = true;
             } else {
                 shl = &raw mut (*cur).mit_hl;
             }
-            if col - 1 == (*shl).startcol && (shl == search_hl || !(*shl).is_addpos) {
+            if col - 1 == (*shl).startcol && (ptr::eq(shl, search_hl_ptr) || !(*shl).is_addpos) {
                 *char_attr = (*shl).attr;
             }
-            if shl != search_hl && !cur.is_null() {
+            if !ptr::eq(shl, search_hl_ptr) && !cur.is_null() {
                 idx += 1;
             }
         }

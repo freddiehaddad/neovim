@@ -96,8 +96,8 @@ impl Event {
                 Self::LoopDeferred { loop_, event } => {
                     crate::event::r#loop::loop_deferred_event(&mut *loop_, *event);
                 }
-                Self::TimeWatcher(watcher) => crate::event::time::time_event(watcher),
-                Self::TimeWatcherClose(watcher) => crate::event::time::close_event(watcher),
+                Self::TimeWatcher(watcher) => crate::event::time::time_event(&mut *watcher),
+                Self::TimeWatcherClose(watcher) => crate::event::time::close_event(&mut *watcher),
                 Self::Signal(watcher) => crate::event::signal::signal_event(watcher),
                 Self::RStreamRead(stream) => crate::event::rstream::read_event(&mut *stream),
                 Self::SocketConnection { watcher, status } => {

@@ -404,23 +404,23 @@ unsafe fn push_all_typvals(
     }
 }
 
-unsafe fn nlua_push_cmdmod(lstate: *mut lua_State, cmod: *const cmdmod_T) {
+unsafe fn nlua_push_cmdmod(lstate: *mut lua_State, cmod: &cmdmod_T) {
     unsafe {
         lua_newtable(lstate);
 
-        lua_pushinteger(lstate, ((*cmod).cmod_tab - 1) as lua_Integer);
+        lua_pushinteger(lstate, (cmod.cmod_tab - 1) as lua_Integer);
         lua_setfield(lstate, -2, c"tab".as_ptr());
 
-        lua_pushinteger(lstate, ((*cmod).cmod_verbose - 1) as lua_Integer);
+        lua_pushinteger(lstate, (cmod.cmod_verbose - 1) as lua_Integer);
         lua_setfield(lstate, -2, c"verbose".as_ptr());
 
-        let split_str = if ((*cmod).cmod_split & WSP_ABOVE) != 0 {
+        let split_str = if (cmod.cmod_split & WSP_ABOVE) != 0 {
             c"aboveleft"
-        } else if ((*cmod).cmod_split & WSP_BELOW) != 0 {
+        } else if (cmod.cmod_split & WSP_BELOW) != 0 {
             c"belowright"
-        } else if ((*cmod).cmod_split & WSP_TOP) != 0 {
+        } else if (cmod.cmod_split & WSP_TOP) != 0 {
             c"topleft"
-        } else if ((*cmod).cmod_split & WSP_BOT) != 0 {
+        } else if (cmod.cmod_split & WSP_BOT) != 0 {
             c"botright"
         } else {
             c""
@@ -428,69 +428,69 @@ unsafe fn nlua_push_cmdmod(lstate: *mut lua_State, cmod: *const cmdmod_T) {
         lua_pushstring(lstate, split_str.as_ptr());
         lua_setfield(lstate, -2, c"split".as_ptr());
 
-        lua_pushboolean(lstate, c_int::from(((*cmod).cmod_split & WSP_VERT) != 0));
+        lua_pushboolean(lstate, c_int::from((cmod.cmod_split & WSP_VERT) != 0));
         lua_setfield(lstate, -2, c"vertical".as_ptr());
-        lua_pushboolean(lstate, c_int::from(((*cmod).cmod_split & WSP_HOR) != 0));
+        lua_pushboolean(lstate, c_int::from((cmod.cmod_split & WSP_HOR) != 0));
         lua_setfield(lstate, -2, c"horizontal".as_ptr());
-        lua_pushboolean(lstate, c_int::from(((*cmod).cmod_flags & CMOD_SILENT) != 0));
+        lua_pushboolean(lstate, c_int::from((cmod.cmod_flags & CMOD_SILENT) != 0));
         lua_setfield(lstate, -2, c"silent".as_ptr());
         lua_pushboolean(
             lstate,
-            c_int::from(((*cmod).cmod_flags & CMOD_ERRSILENT) != 0),
+            c_int::from((cmod.cmod_flags & CMOD_ERRSILENT) != 0),
         );
         lua_setfield(lstate, -2, c"emsg_silent".as_ptr());
         lua_pushboolean(
             lstate,
-            c_int::from(((*cmod).cmod_flags & CMOD_UNSILENT) != 0),
+            c_int::from((cmod.cmod_flags & CMOD_UNSILENT) != 0),
         );
         lua_setfield(lstate, -2, c"unsilent".as_ptr());
         lua_pushboolean(
             lstate,
-            c_int::from(((*cmod).cmod_flags & CMOD_SANDBOX) != 0),
+            c_int::from((cmod.cmod_flags & CMOD_SANDBOX) != 0),
         );
         lua_setfield(lstate, -2, c"sandbox".as_ptr());
         lua_pushboolean(
             lstate,
-            c_int::from(((*cmod).cmod_flags & CMOD_NOAUTOCMD) != 0),
+            c_int::from((cmod.cmod_flags & CMOD_NOAUTOCMD) != 0),
         );
         lua_setfield(lstate, -2, c"noautocmd".as_ptr());
-        lua_pushboolean(lstate, c_int::from(((*cmod).cmod_flags & CMOD_BROWSE) != 0));
+        lua_pushboolean(lstate, c_int::from((cmod.cmod_flags & CMOD_BROWSE) != 0));
         lua_setfield(lstate, -2, c"browse".as_ptr());
         lua_pushboolean(
             lstate,
-            c_int::from(((*cmod).cmod_flags & CMOD_CONFIRM) != 0),
+            c_int::from((cmod.cmod_flags & CMOD_CONFIRM) != 0),
         );
         lua_setfield(lstate, -2, c"confirm".as_ptr());
-        lua_pushboolean(lstate, c_int::from(((*cmod).cmod_flags & CMOD_HIDE) != 0));
+        lua_pushboolean(lstate, c_int::from((cmod.cmod_flags & CMOD_HIDE) != 0));
         lua_setfield(lstate, -2, c"hide".as_ptr());
         lua_pushboolean(
             lstate,
-            c_int::from(((*cmod).cmod_flags & CMOD_KEEPALT) != 0),
+            c_int::from((cmod.cmod_flags & CMOD_KEEPALT) != 0),
         );
         lua_setfield(lstate, -2, c"keepalt".as_ptr());
         lua_pushboolean(
             lstate,
-            c_int::from(((*cmod).cmod_flags & CMOD_KEEPJUMPS) != 0),
+            c_int::from((cmod.cmod_flags & CMOD_KEEPJUMPS) != 0),
         );
         lua_setfield(lstate, -2, c"keepjumps".as_ptr());
         lua_pushboolean(
             lstate,
-            c_int::from(((*cmod).cmod_flags & CMOD_KEEPMARKS) != 0),
+            c_int::from((cmod.cmod_flags & CMOD_KEEPMARKS) != 0),
         );
         lua_setfield(lstate, -2, c"keepmarks".as_ptr());
         lua_pushboolean(
             lstate,
-            c_int::from(((*cmod).cmod_flags & CMOD_KEEPPATTERNS) != 0),
+            c_int::from((cmod.cmod_flags & CMOD_KEEPPATTERNS) != 0),
         );
         lua_setfield(lstate, -2, c"keeppatterns".as_ptr());
         lua_pushboolean(
             lstate,
-            c_int::from(((*cmod).cmod_flags & CMOD_LOCKMARKS) != 0),
+            c_int::from((cmod.cmod_flags & CMOD_LOCKMARKS) != 0),
         );
         lua_setfield(lstate, -2, c"lockmarks".as_ptr());
         lua_pushboolean(
             lstate,
-            c_int::from(((*cmod).cmod_flags & CMOD_NOSWAPFILE) != 0),
+            c_int::from((cmod.cmod_flags & CMOD_NOSWAPFILE) != 0),
         );
         lua_setfield(lstate, -2, c"noswapfile".as_ptr());
 
@@ -503,13 +503,13 @@ unsafe fn nlua_push_cmdmod(lstate: *mut lua_State, cmod: *const cmdmod_T) {
                 .map_or(c"".as_ptr(), |s| s.as_ptr()),
         );
         lua_setfield(lstate, -2, c"pattern".as_ptr());
-        lua_pushboolean(lstate, c_int::from((*cmod).cmod_filter_force));
+        lua_pushboolean(lstate, c_int::from(cmod.cmod_filter_force));
         lua_setfield(lstate, -2, c"force".as_ptr());
         lua_setfield(lstate, -2, c"filter".as_ptr());
     }
 }
 
-unsafe fn nlua_push_eap(lstate: *mut lua_State, eap: *mut exarg_T, cmod: *const cmdmod_T) {
+unsafe fn nlua_push_eap(lstate: *mut lua_State, eap: *mut exarg_T, cmod: &cmdmod_T) {
     unsafe {
         if !is_user_cmdidx((*eap).cmdidx) && (*eap).cmdidx < CMD_SIZE {
             lua_pushstring(lstate, get_command_name(&mut crate::os::env::expand_T::new(), (*eap).cmdidx));
@@ -2147,7 +2147,7 @@ pub unsafe fn nlua_call_excmd(
     module: *const c_char,
     func: *const c_char,
     eap: *mut exarg_T,
-    cmod: *const cmdmod_T,
+    cmod: &cmdmod_T,
     extra: *mut typval_T,
 ) -> bool {
     unsafe {
@@ -2757,7 +2757,7 @@ pub unsafe fn nlua_do_ucmd(cmd: *mut ucmd_T, eap: &mut exarg_T, preview: bool) -
         );
 
         lua_newtable(lstate);
-        nlua_push_eap(lstate, &raw mut *eap, &raw const g_st().cmdmod);
+        nlua_push_eap(lstate, &raw mut *eap, &g_st().cmdmod);
 
         lua_pushstring(lstate, (*cmd).uc_name.as_ptr());
         lua_setfield(lstate, -2, c"name".as_ptr());

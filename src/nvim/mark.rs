@@ -235,18 +235,16 @@ pub const fn mark_global_index(name: c_char) -> c_int {
 }
 
 #[inline]
-unsafe fn set_fmark(fmarkp: *mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv_T) {
-    unsafe {
-        (*fmarkp).mark = mark;
-        (*fmarkp).fnum = fnum;
-        (*fmarkp).timestamp = os_time();
-        (*fmarkp).view = view;
-        (*fmarkp).additional_data = None;
-    }
+unsafe fn set_fmark(fmarkp: &mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv_T) {
+    fmarkp.mark = mark;
+        fmarkp.fnum = fnum;
+        fmarkp.timestamp = os_time();
+        fmarkp.view = view;
+        fmarkp.additional_data = None;
 }
 
 #[inline]
-pub unsafe fn reset_fmark(fmarkp: *mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv_T) {
+pub unsafe fn reset_fmark(fmarkp: &mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv_T) {
     unsafe {
         set_fmark(fmarkp, mark, fnum, view);
     }
@@ -262,7 +260,7 @@ unsafe fn set_xfmark(
 ) {
     unsafe {
         (*xfmarkp).fname = fname;
-        set_fmark(&raw mut (*xfmarkp).fmark, mark, fnum, view);
+        set_fmark(&mut (*xfmarkp).fmark, mark, fnum, view);
     }
 }
 
@@ -300,11 +298,9 @@ pub unsafe fn free_xfmark(fm: &mut xfmark_T) {
 }
 
 /// Free and clear `fmark_T` item (`clear_fmark`).
-pub unsafe fn clear_fmark(fm: *mut fmark_T, timestamp: Timestamp) {
-    unsafe {
-        *fm = INIT_FMARK;
-        (*fm).timestamp = timestamp;
-    }
+pub unsafe fn clear_fmark(fm: &mut fmark_T, timestamp: Timestamp) {
+    *fm = INIT_FMARK;
+        fm.timestamp = timestamp;
 }
 
 /// Schedules `"MarkSet"` event (`do_markset_autocmd`).
@@ -399,7 +395,7 @@ pub unsafe fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int, view_pt: *mut 
         }
 
         if c == b'"' as c_int {
-            reset_fmark(&raw mut (*buf).b_last_cursor, *pos, (*buf).b_fnum, view);
+            reset_fmark(&mut (*buf).b_last_cursor, *pos, (*buf).b_fnum, view);
             do_markset_autocmd(c as c_char, pos, buf);
             return OK;
         }
@@ -429,13 +425,13 @@ pub unsafe fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int, view_pt: *mut 
         }
 
         if c == b':' as c_int && bt_prompt(buf) {
-            reset_fmark(&raw mut (*buf).b_prompt_start, *pos, (*buf).b_fnum, view);
+            reset_fmark(&mut (*buf).b_prompt_start, *pos, (*buf).b_fnum, view);
             return OK;
         }
 
         if ascii_islower(c) {
             let i = (c - b'a' as c_int) as usize;
-            reset_fmark(&raw mut (*buf).b_namedm[i], *pos, fnum, view);
+            reset_fmark(&mut (*buf).b_namedm[i], *pos, fnum, view);
             u_update_named_mark(buf, i as c_int);
             do_markset_autocmd(c as c_char, pos, buf);
             return OK;
@@ -1012,28 +1008,28 @@ pub unsafe fn mark_check_line_bounds(
 pub unsafe fn clrallmarks(buf: *mut buf_T, timestamp: Timestamp) {
     unsafe {
         for i in 0..NMARKS {
-            clear_fmark(&raw mut (*buf).b_namedm[i], timestamp);
+            clear_fmark(&mut (*buf).b_namedm[i], timestamp);
         }
-        clear_fmark(&raw mut (*buf).b_last_cursor, timestamp);
+        clear_fmark(&mut (*buf).b_last_cursor, timestamp);
         (*buf).b_last_cursor.mark.lnum = 1;
-        clear_fmark(&raw mut (*buf).b_last_insert, timestamp);
-        clear_fmark(&raw mut (*buf).b_last_change, timestamp);
+        clear_fmark(&mut (*buf).b_last_insert, timestamp);
+        clear_fmark(&mut (*buf).b_last_change, timestamp);
         (*buf).b_op_start.lnum = 0;
         (*buf).b_op_end.lnum = 0;
         for i in 0..((*buf).b_changelistlen as usize) {
-            clear_fmark(&raw mut (*buf).b_changelist[i], timestamp);
+            clear_fmark(&mut (*buf).b_changelist[i], timestamp);
         }
         (*buf).b_changelistlen = 0;
     }
 }
 
 /// Get name of file from a filemark (`fm_getname`).
-pub unsafe fn fm_getname(fmark: *mut fmark_T, lead_len: c_int) -> Option<std::ffi::CString> {
+pub unsafe fn fm_getname(fmark: &mut fmark_T, lead_len: c_int) -> Option<std::ffi::CString> {
     unsafe {
-        if (*fmark).fnum == (*g_st().curbuf).b_fnum {
-            return Some(mark_line(&mut (*fmark).mark, lead_len));
+        if fmark.fnum == (*g_st().curbuf).b_fnum {
+            return Some(mark_line(&mut fmark.mark, lead_len));
         }
-        buflist_nr2name((*fmark).fnum, 0, 1)
+        buflist_nr2name(fmark.fnum, 0, 1)
     }
 }
 
@@ -1073,7 +1069,7 @@ pub unsafe fn ex_marks(eap: &mut exarg_T) {
             c"vim._core.marks".as_ptr(),
             c"ex_marks".as_ptr(),
             eap,
-            &raw const g_st().cmdmod,
+            &g_st().cmdmod,
             ptr::null_mut(),
         );
     }
@@ -1177,20 +1173,20 @@ pub unsafe fn ex_delmarks(eap: &mut exarg_T) {
                             if (*g_st().curbuf).b_last_cursor.mark.lnum != 0 {
                                 do_markset_autocmd(*p, &pos, g_st().curbuf);
                             }
-                            clear_fmark(&raw mut (*g_st().curbuf).b_last_cursor, timestamp);
+                            clear_fmark(&mut (*g_st().curbuf).b_last_cursor, timestamp);
                         }
                         b'^' => {
                             if (*g_st().curbuf).b_last_insert.mark.lnum != 0 {
                                 do_markset_autocmd(*p, &pos, g_st().curbuf);
                             }
-                            clear_fmark(&raw mut (*g_st().curbuf).b_last_insert, timestamp);
+                            clear_fmark(&mut (*g_st().curbuf).b_last_insert, timestamp);
                         }
                         b':' => {}
                         b'.' => {
                             if (*g_st().curbuf).b_last_change.mark.lnum != 0 {
                                 do_markset_autocmd(*p, &pos, g_st().curbuf);
                             }
-                            clear_fmark(&raw mut (*g_st().curbuf).b_last_change, timestamp);
+                            clear_fmark(&mut (*g_st().curbuf).b_last_change, timestamp);
                         }
                         b'[' => {
                             if (*g_st().curbuf).b_op_start.lnum != 0 {
@@ -1239,7 +1235,7 @@ pub unsafe fn ex_jumps(_eap: &mut exarg_T) {
         while i < (**curwin.as_ptr()).w_jumplistlen && !g_st().got_int {
             let idx = i as usize;
             if (**curwin.as_ptr()).w_jumplist[idx].fmark.mark.lnum != 0 {
-                let mut name = fm_getname(&raw mut (**curwin.as_ptr()).w_jumplist[idx].fmark, 16);
+                let mut name = fm_getname(&mut (**curwin.as_ptr()).w_jumplist[idx].fmark, 16);
 
                 if name.is_none() && i == (**curwin.as_ptr()).w_jumplistidx {
                     name = Some(c"-invalid-".to_owned());
@@ -2167,7 +2163,7 @@ pub unsafe fn set_last_cursor(win: *mut win_T) {
     unsafe {
         if !(*win).w_buffer.is_null() {
             reset_fmark(
-                &raw mut (*(*win).w_buffer).b_last_cursor,
+                &mut (*(*win).w_buffer).b_last_cursor,
                 (*win).w_cursor,
                 0,
                 INIT_FMARKV,

@@ -3395,7 +3395,7 @@ unsafe fn get_var_from(
             }
 
             if need_switch_win {
-                ctx_restore(&raw mut switchwin);
+                ctx_restore(&mut switchwin);
             }
         }
 
@@ -3635,7 +3635,7 @@ unsafe fn setwinvar(argvars: *mut typval_T, off: usize) {
             }
         }
         if need_switch_win {
-            ctx_restore(&raw mut switchwin);
+            ctx_restore(&mut switchwin);
         }
     }
 }
@@ -3968,7 +3968,7 @@ pub unsafe fn f_setbufvar(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr: 
             let mut aco: CtxSwitch = CtxSwitch::new();
             ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
             set_option_from_tv(varname.add(1), varp);
-            ctx_restore(&raw mut aco);
+            ctx_restore(&mut aco);
         } else {
             let varname_len = std::ffi::CStr::from_ptr(varname).to_bytes().len();
             let mut bufvarname = Vec::with_capacity(varname_len + 3);

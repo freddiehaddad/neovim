@@ -4417,9 +4417,10 @@ unsafe fn do_sub(
                             let subflags_save = excmds_st().subflags;
 
                             g_st().textlock += 1;
+                            let rel_lnum = sub_firstlnum - regmatch.startpos[0].lnum;
                             let sublen_i = vim_regsub_multi(
                                 &mut regmatch,
-                                sub_firstlnum - regmatch.startpos[0].lnum,
+                                rel_lnum,
                                 sub,
                                 sub_firstline.data(),
                                 0,
@@ -4471,9 +4472,10 @@ unsafe fn do_sub(
                             current_match.start.col = start_col;
 
                             g_st().textlock += 1;
+                            let rel_lnum = sub_firstlnum - regmatch.startpos[0].lnum;
                             let mut n = vim_regsub_multi(
                                 &mut regmatch,
-                                sub_firstlnum - regmatch.startpos[0].lnum,
+                                rel_lnum,
                                 sub,
                                 new_end,
                                 sublen as colnr_T,
@@ -5359,7 +5361,7 @@ pub unsafe fn ex_oldfiles(eap: &mut exarg_T) {
             c"vim._core.ex_cmd".as_ptr(),
             c"ex_oldfiles".as_ptr(),
             eap,
-            &raw const g_st().cmdmod,
+            &g_st().cmdmod,
             ptr::null_mut(),
         );
     }

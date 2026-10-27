@@ -253,7 +253,7 @@ unsafe fn validate_option_value_args(
     }
 }
 
-unsafe fn do_ft_buf(filetype: *const c_char, aco: *mut CtxSwitch, err: &mut Error) -> *mut buf_T {
+unsafe fn do_ft_buf(filetype: *const c_char, aco: &mut CtxSwitch, err: &mut Error) -> *mut buf_T {
     unsafe {
         if filetype.is_null() {
             return ptr::null_mut();
@@ -285,7 +285,7 @@ unsafe fn do_ft_buf(filetype: *const c_char, aco: *mut CtxSwitch, err: &mut Erro
         };
         set_bufref(&mut bufref, ftbuf);
 
-        ctx_switch(aco, ptr::null_mut(), ptr::null_mut(), ftbuf.cast(), 0);
+        ctx_switch(&raw mut *aco, ptr::null_mut(), ptr::null_mut(), ftbuf.cast(), 0);
 
         set_option_direct(
             kOptBufhidden,

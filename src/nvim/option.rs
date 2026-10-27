@@ -2842,8 +2842,8 @@ pub unsafe fn did_set_cmdheight(args: &mut optset_T) -> *const c_char {
     unsafe {
         let old_value = args.os_oldval.data.integer();
 
-        if opt_vars().p_ch > OptInt::from(g_st().Rows - min_rows(g_st().curtab) + 1) {
-            opt_vars().p_ch = OptInt::from(g_st().Rows - min_rows(g_st().curtab) + 1);
+        if opt_vars().p_ch > OptInt::from(g_st().Rows - min_rows(&mut *g_st().curtab) + 1) {
+            opt_vars().p_ch = OptInt::from(g_st().Rows - min_rows(&mut *g_st().curtab) + 1);
         }
 
         if (opt_vars().p_ch != old_value
@@ -6227,7 +6227,7 @@ unsafe fn switch_option_context(
                     ptr::null_mut(),
                     kCtxNoDisplay,
                 ) {
-                    ctx_restore(&raw mut cs);
+                    ctx_restore(&mut cs);
                     if !error_set(err) {
                         api_set_error!(
                             err,
@@ -6260,7 +6260,7 @@ unsafe fn switch_option_context(
                     return false;
                 }
                 *ctx = OptSavedCtx::Tab(g_st().curtab);
-                unuse_tabpage(g_st().curtab);
+                unuse_tabpage(&mut *g_st().curtab);
                 use_tabpage(tab);
                 true
             }
@@ -6277,7 +6277,7 @@ unsafe fn restore_option_context(ctx: &mut OptSavedCtx, scope: OptScope) {
                 ctx_restore(cs);
             }
             (kOptScopeTab, OptSavedCtx::Tab(saved_curtab)) => {
-                unuse_tabpage(g_st().curtab);
+                unuse_tabpage(&mut *g_st().curtab);
                 use_tabpage(*saved_curtab);
             }
             _ => {}

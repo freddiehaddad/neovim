@@ -4097,7 +4097,7 @@ pub(super) unsafe fn bt_regexec_nl(
 }
 
 pub(super) unsafe fn bt_regexec_multi(
-    rmp: *mut regmmatch_T,
+    rmp: &mut regmmatch_T,
     win: *mut win_T,
     buf: *mut buf_T,
     lnum: linenr_T,

@@ -234,19 +234,19 @@ pub unsafe fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> c
         }
 
         if in_ {
-            stream_init(ptr::null_mut(), s_in, -1, true);
+            stream_init(ptr::null_mut(), &mut *s_in, -1, true);
             (*s_in).internal_data = StreamInternalData::Proc(proc_);
             proc_.refcount += 1;
         }
 
         if out {
-            stream_init(ptr::null_mut(), s_out, -1, true);
+            stream_init(ptr::null_mut(), &mut *s_out, -1, true);
             (*s_out).internal_data = StreamInternalData::Proc(proc_);
             proc_.refcount += 1;
         }
 
         if err {
-            stream_init(ptr::null_mut(), s_err, -1, true);
+            stream_init(ptr::null_mut(), &mut *s_err, -1, true);
             (*s_err).internal_data = StreamInternalData::Proc(proc_);
             proc_.refcount += 1;
         }
@@ -285,7 +285,7 @@ pub unsafe fn proc_teardown(loop_: &mut Loop) {
 
 pub unsafe fn proc_close_streams(proc_: &mut Proc) {
     unsafe {
-        stream_may_close(&raw mut proc_.r#in);
+        stream_may_close(&mut proc_.r#in);
         rstream_may_close(&mut proc_.out);
         rstream_may_close(&mut proc_.err);
     }

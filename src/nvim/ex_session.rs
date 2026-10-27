@@ -154,22 +154,22 @@ unsafe fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut win
     }
 }
 
-unsafe fn ses_win_rec(fd: *mut FILE, fr: *mut frame_T) -> c_int {
+unsafe fn ses_win_rec(fd: *mut FILE, fr: &mut frame_T) -> c_int {
     unsafe {
         let mut count: c_int = 0;
 
-        if (*fr).fr_layout == FR_LEAF {
+        if fr.fr_layout == FR_LEAF {
             return OK;
         }
 
-        let mut frc = ses_skipframe((*fr).fr_child);
+        let mut frc = ses_skipframe(&mut *fr.fr_child);
         if !frc.is_null() {
             loop {
-                frc = ses_skipframe((*frc).fr_next);
+                frc = ses_skipframe(&mut *(*frc).fr_next);
                 if frc.is_null() {
                     break;
                 }
-                let split_cmd = if (*fr).fr_layout == FR_COL {
+                let split_cmd = if fr.fr_layout == FR_COL {
                     b"wincmd _ | wincmd |\nsplit\n" as &[u8]
                 } else {
                     b"wincmd _ | wincmd |\nvsplit\n" as &[u8]
@@ -182,7 +182,7 @@ unsafe fn ses_win_rec(fd: *mut FILE, fr: *mut frame_T) -> c_int {
         }
 
         if count > 0 {
-            let back_cmd = if (*fr).fr_layout == FR_COL {
+            let back_cmd = if fr.fr_layout == FR_COL {
                 format!("{count}wincmd k\n")
             } else {
                 format!("{count}wincmd h\n")
@@ -192,10 +192,10 @@ unsafe fn ses_win_rec(fd: *mut FILE, fr: *mut frame_T) -> c_int {
             }
         }
 
-        frc = ses_skipframe((*fr).fr_child);
+        frc = ses_skipframe(&mut *fr.fr_child);
         while !frc.is_null() {
-            ses_win_rec(fd, frc);
-            frc = ses_skipframe((*frc).fr_next);
+            ses_win_rec(fd, &mut *frc);
+            frc = ses_skipframe(&mut *(*frc).fr_next);
             if !frc.is_null() && put_line(fd, c"wincmd w".as_ptr().cast_mut()) == FAIL {
                 return FAIL;
             }
@@ -205,11 +205,11 @@ unsafe fn ses_win_rec(fd: *mut FILE, fr: *mut frame_T) -> c_int {
     }
 }
 
-unsafe fn ses_skipframe(fr: *mut frame_T) -> *mut frame_T {
+unsafe fn ses_skipframe(fr: &mut frame_T) -> *mut frame_T {
     unsafe {
-        let mut frc = fr;
+        let mut frc = &raw mut *fr;
         while !frc.is_null() {
-            if ses_do_frame(frc) {
+            if ses_do_frame(&*frc) {
                 break;
             }
             frc = (*frc).fr_next;
@@ -218,14 +218,14 @@ unsafe fn ses_skipframe(fr: *mut frame_T) -> *mut frame_T {
     }
 }
 
-unsafe fn ses_do_frame(fr: *const frame_T) -> bool {
+unsafe fn ses_do_frame(fr: &frame_T) -> bool {
     unsafe {
-        if (*fr).fr_layout == FR_LEAF {
-            return ses_do_win((*fr).fr_win) != 0;
+        if fr.fr_layout == FR_LEAF {
+            return ses_do_win(fr.fr_win) != 0;
         }
-        let mut frc: *const frame_T = (*fr).fr_child;
+        let mut frc: *const frame_T = fr.fr_child;
         while !frc.is_null() {
-            if ses_do_frame(frc) {
+            if ses_do_frame(&*frc) {
                 return true;
             }
             frc = (*frc).fr_next;
@@ -340,7 +340,7 @@ unsafe fn ses_put_fname(fd: *mut FILE, name: *mut c_char, flagp: *mut c_uint) ->
 unsafe fn put_view(
     fd: *mut FILE,
     wp: *mut win_T,
-    tp: *mut tabpage_T,
+    tp: &mut tabpage_T,
     add_edit: bool,
     flagp: *mut c_uint,
     current_arg_idx: c_int,
@@ -362,7 +362,7 @@ unsafe fn put_view(
                 &(*alist).al_ga,
                 ptr::eq(flagp, &raw mut opt_vars().vop_flags)
                     || (*flagp & kOptSsopFlagCurdir) == 0
-                    || (*tp).tp_localdir.is_some()
+                    || tp.tp_localdir.is_some()
                     || (*wp).w_localdir.is_some(),
                 flagp,
             ) == FAIL
@@ -885,7 +885,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                         c"let s:save_splitright = &splitright".as_ptr().cast_mut(),
                     ) == FAIL
                     || put_line(fd, c"set splitbelow splitright".as_ptr().cast_mut()) == FAIL
-                    || ses_win_rec(fd, tab_topframe) == FAIL
+                    || ses_win_rec(fd, &mut *tab_topframe) == FAIL
                     || put_line(
                         fd,
                         c"let &splitbelow = s:save_splitbelow".as_ptr().cast_mut(),
@@ -952,7 +952,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                 if put_view(
                     fd,
                     wp,
-                    tp,
+                    &mut *tp,
                     !ptr::eq(wp, edited_win),
                     &raw mut opt_vars().ssop_flags,
                     cur_arg_idx,
@@ -1170,7 +1170,7 @@ pub unsafe fn ex_mkrc(eap: &mut exarg_T) {
                         shorten_fnames(1);
                     }
                 } else {
-                    failed |= put_view(fd, *curwin.as_ptr(), g_st().curtab, !using_vdir, flagp, -1) == FAIL;
+                    failed |= put_view(fd, *curwin.as_ptr(), &mut *g_st().curtab, !using_vdir, flagp, -1) == FAIL;
                 }
                 if !write_bytes(fd, b"let &g:so = s:so_save | let &g:siso = s:siso_save\n") {
                     failed = true;

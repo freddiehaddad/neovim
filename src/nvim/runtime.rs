@@ -2572,7 +2572,7 @@ pub unsafe fn ex_options(_eap: &mut exarg_T) {
         let mut buf = [0 as c_char; 500];
         let mut multi_mods = false;
 
-        add_win_cmd_modifiers(buf.as_mut_ptr(), &raw mut g_st().cmdmod, &mut multi_mods);
+        add_win_cmd_modifiers(buf.as_mut_ptr(), &g_st().cmdmod, &mut multi_mods);
 
         os_setenv(c"OPTWIN_CMD".as_ptr(), buf.as_ptr(), 1);
         cmd_source(
