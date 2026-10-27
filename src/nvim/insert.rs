@@ -284,23 +284,47 @@ impl Default for InsertState {
     }
 }
 
-static mut compl_busy: bool = false;
-static mut last_insert: Option<std::ffi::CString> = None;
-static mut last_insert_skip: c_int = 0;
-static mut replace_stack: Vec<c_char> = Vec::new();
+struct InsertModuleState {
+    compl_busy: bool,
+    last_insert: Option<std::ffi::CString>,
+    last_insert_skip: c_int,
+    replace_stack: Vec<c_char>,
+    pc_status: c_int,
+    pc_schar: schar_T,
+    pc_attr: c_int,
+    pc_row: c_int,
+    pc_col: c_int,
+    ins_esc_disabled_redraw: bool,
+}
+
+impl InsertModuleState {
+    const fn new() -> Self {
+        Self {
+            compl_busy: false,
+            last_insert: None,
+            last_insert_skip: 0,
+            replace_stack: Vec::new(),
+            pc_status: PC_STATUS_UNSET,
+            pc_schar: 0,
+            pc_attr: 0,
+            pc_row: 0,
+            pc_col: 0,
+            ins_esc_disabled_redraw: false,
+        }
+    }
+}
+
+static INS_MOD_STATE: GlobalState<InsertModuleState> = GlobalState::new(InsertModuleState::new());
+
+#[inline]
+unsafe fn ins_st() -> &'static mut InsertModuleState {
+    unsafe { &mut *INS_MOD_STATE.as_ptr() }
+}
 
 #[inline]
 unsafe fn replace_stack_mut() -> &'static mut Vec<c_char> {
-    let ptr = &raw mut replace_stack;
-    unsafe { &mut *ptr }
+    unsafe { &mut (*INS_MOD_STATE.as_ptr()).replace_stack }
 }
-
-static mut pc_status: c_int = PC_STATUS_UNSET;
-static mut pc_schar: schar_T = 0;
-static mut pc_attr: c_int = 0;
-static mut pc_row: c_int = 0;
-static mut pc_col: c_int = 0;
-static mut ins_esc_disabled_redraw: bool = false;
 
 #[inline]
 const fn is_special_ins(c: c_int) -> bool {
@@ -1303,13 +1327,13 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
 unsafe fn insert_do_complete(s: *mut InsertState) {
     unsafe {
         ins_compl_clear_autocomplete_delay();
-        compl_busy = true;
+        ins_st().compl_busy = true;
         disable_fold_update += 1;
         if ins_complete((*s).c, true) == FAIL {
             compl_status_clear();
         }
         disable_fold_update -= 1;
-        compl_busy = false;
+        ins_st().compl_busy = false;
         Ins.can_si = may_do_si();
     }
 }
@@ -1359,7 +1383,7 @@ pub unsafe fn edit(cmdchar: c_int, startln: bool, count: c_int) -> bool {
             return false;
         }
 
-        if textlock != 0 || ins_compl_active() || compl_busy || pum_visible() || expr_map_locked() {
+        if textlock != 0 || ins_compl_active() || ins_st().compl_busy || pum_visible() || expr_map_locked() {
             emsg(gettext(e_textlock.as_ptr()));
             return false;
         }
@@ -1499,31 +1523,31 @@ pub unsafe fn edit_putchar(c: c_int, highlight: bool) {
         } else {
             0
         };
-        pc_row = (*curwin).w_wrow;
-        pc_status = PC_STATUS_UNSET;
-        grid_line_start(&raw mut (*curwin).w_grid, pc_row);
+        ins_st().pc_row = (*curwin).w_wrow;
+        ins_st().pc_status = PC_STATUS_UNSET;
+        grid_line_start(&raw mut (*curwin).w_grid, ins_st().pc_row);
         if (*curwin).w_onebuf_opt.wo_rl != 0 {
-            pc_col = (*curwin).w_view_width - 1 - (*curwin).w_wcol;
-            if grid_line_getchar(pc_col, ptr::null_mut()) == 0 {
-                grid_line_put_schar(pc_col - 1, schar_from_ascii(b' '), attr);
+            ins_st().pc_col = (*curwin).w_view_width - 1 - (*curwin).w_wcol;
+            if grid_line_getchar(ins_st().pc_col, ptr::null_mut()) == 0 {
+                grid_line_put_schar(ins_st().pc_col - 1, schar_from_ascii(b' '), attr);
                 (*curwin).w_wcol -= 1;
-                pc_status = PC_STATUS_RIGHT;
+                ins_st().pc_status = PC_STATUS_RIGHT;
             }
         } else {
-            pc_col = (*curwin).w_wcol;
-            if grid_line_getchar(pc_col + 1, ptr::null_mut()) == 0 {
-                pc_status = PC_STATUS_LEFT;
+            ins_st().pc_col = (*curwin).w_wcol;
+            if grid_line_getchar(ins_st().pc_col + 1, ptr::null_mut()) == 0 {
+                ins_st().pc_status = PC_STATUS_LEFT;
             }
         }
 
-        if pc_status == PC_STATUS_UNSET {
-            pc_schar = grid_line_getchar(pc_col, &raw mut pc_attr);
-            pc_status = PC_STATUS_SET;
+        if ins_st().pc_status == PC_STATUS_UNSET {
+            ins_st().pc_schar = grid_line_getchar(ins_st().pc_col, &raw mut ins_st().pc_attr);
+            ins_st().pc_status = PC_STATUS_SET;
         }
 
         let mut buf = [0 as c_char; MB_MAXCHAR + 1];
         let len = utf_char2bytes(c, (&raw mut buf).cast());
-        grid_line_puts(pc_col, (&raw const buf).cast(), len, attr);
+        grid_line_puts(ins_st().pc_col, (&raw const buf).cast(), len, attr);
         grid_line_flush();
     }
 }
@@ -1636,15 +1660,15 @@ unsafe fn set_insstart(lnum: linenr_T, col: colnr_T) {
 
 pub unsafe fn edit_unputchar() {
     unsafe {
-        if pc_status != PC_STATUS_UNSET && pc_row >= 0 {
-            if pc_status == PC_STATUS_RIGHT {
+        if ins_st().pc_status != PC_STATUS_UNSET && ins_st().pc_row >= 0 {
+            if ins_st().pc_status == PC_STATUS_RIGHT {
                 (*curwin).w_wcol += 1;
             }
-            if pc_status == PC_STATUS_RIGHT || pc_status == PC_STATUS_LEFT {
+            if ins_st().pc_status == PC_STATUS_RIGHT || ins_st().pc_status == PC_STATUS_LEFT {
                 redrawWinline(curwin, (*curwin).w_cursor.lnum);
             } else {
-                grid_line_start(&raw mut (*curwin).w_grid, pc_row);
-                grid_line_put_schar(pc_col, pc_schar, pc_attr);
+                grid_line_start(&raw mut (*curwin).w_grid, ins_st().pc_row);
+                grid_line_put_schar(ins_st().pc_col, ins_st().pc_schar, ins_st().pc_attr);
                 grid_line_flush();
             }
         }
@@ -2127,7 +2151,7 @@ pub unsafe fn stop_arrow() -> c_int {
 unsafe fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
     unsafe {
         stop_redo_ins();
-        replace_stack = Vec::new();
+        ins_st().replace_stack = Vec::new();
 
         let redo_cstr = redo_keys(ptr::null());
         let added = match redo_cstr {
@@ -2135,8 +2159,8 @@ unsafe fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
             Some(ref s) => (s.as_bytes().len() as c_int) - Ins.new_insert_skip,
         };
         if Ins.did_restart_edit == 0 || added > 0 {
-            last_insert = redo_cstr;
-            last_insert_skip = if added < 0 { 0 } else { Ins.new_insert_skip };
+            ins_st().last_insert = redo_cstr;
+            ins_st().last_insert_skip = if added < 0 { 0 } else { Ins.new_insert_skip };
         }
 
         if Ins.moved == kInsNone && !end_insert_pos.is_null() {
@@ -2246,14 +2270,14 @@ pub unsafe fn set_last_insert(c: c_int) {
         *s = ESC as c_char;
         s = s.add(1);
         *s = NUL;
-        last_insert = Some(CStr::from_ptr(buf.as_ptr()).to_owned());
-        last_insert_skip = 0;
+        ins_st().last_insert = Some(CStr::from_ptr(buf.as_ptr()).to_owned());
+        ins_st().last_insert_skip = 0;
     }
 }
 
 pub unsafe fn free_last_insert() {
     unsafe {
-        last_insert = None;
+        ins_st().last_insert = None;
     }
 }
 
@@ -2527,8 +2551,8 @@ pub unsafe fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> c_int
 
 pub unsafe fn get_last_insert() -> NvimString {
     unsafe {
-        if let Some(li) = (&raw const last_insert).as_ref().unwrap() {
-            let skip = last_insert_skip as usize;
+        if let Some(li) = (&raw const ins_st().last_insert).as_ref().unwrap() {
+            let skip = ins_st().last_insert_skip as usize;
             let bytes = li.as_bytes();
             NvimString {
                 data: li.as_ptr().add(skip).cast_mut(),
@@ -2706,7 +2730,7 @@ unsafe fn ins_reg() {
         let mut literally: c_int = 0;
         let vis_active = Visual.active;
 
-        pc_status = PC_STATUS_UNSET;
+        ins_st().pc_status = PC_STATUS_UNSET;
         if redrawing() && !char_avail() {
             ins_redraw(false);
             edit_putchar(b'"' as c_int, true);
@@ -2837,9 +2861,9 @@ unsafe fn ins_esc(count: *mut c_int, cmdchar: c_int, nomove: bool) -> bool {
         check_spell_redraw();
 
         let temp = (*curwin).w_cursor.col;
-        if ins_esc_disabled_redraw {
+        if ins_st().ins_esc_disabled_redraw {
             RedrawingDisabled -= 1;
-            ins_esc_disabled_redraw = false;
+            ins_st().ins_esc_disabled_redraw = false;
         }
         if Ins.moved == kInsNone {
             if cmdchar != b'r' as c_int && cmdchar != b'v' as c_int {
@@ -2864,7 +2888,7 @@ unsafe fn ins_esc(count: *mut c_int, cmdchar: c_int, nomove: bool) -> bool {
                     stuffRedoReadbuff(c"\x1b".as_ptr());
                 }
                 RedrawingDisabled += 1;
-                ins_esc_disabled_redraw = true;
+                ins_st().ins_esc_disabled_redraw = true;
                 return false;
             }
             stop_insert(&raw mut (*curwin).w_cursor, 1, c_int::from(nomove));
@@ -3892,7 +3916,7 @@ unsafe fn ins_digraph() -> c_int {
     unsafe {
         let mut did_putchar = false;
 
-        pc_status = PC_STATUS_UNSET;
+        ins_st().pc_status = PC_STATUS_UNSET;
         if redrawing() && !char_avail() {
             ins_redraw(false);
             edit_putchar(b'?' as c_int, true);

@@ -94,20 +94,46 @@ struct fline_T {
     had_end: c_int,
 }
 
-static mut fold_changed: bool = false;
-static mut invalid_top: linenr_T = 0;
-static mut invalid_bot: linenr_T = 0;
-static mut prev_lnum: linenr_T = 0;
-static mut prev_lnum_lvl: c_int = -1;
+struct FoldModuleState {
+    fold_changed: bool,
+    invalid_top: linenr_T,
+    invalid_bot: linenr_T,
+    prev_lnum: linenr_T,
+    prev_lnum_lvl: c_int,
+    foldstartmarkerlen: usize,
+    foldendmarker: *mut c_char,
+    foldendmarkerlen: usize,
+    got_fdt_error: bool,
+    last_wp: *mut win_T,
+    fdt_last_lnum: linenr_T,
+    fdt_result_entered: bool,
+}
 
-static mut foldstartmarkerlen: usize = 0;
-static mut foldendmarker: *mut c_char = ptr::null_mut();
-static mut foldendmarkerlen: usize = 0;
+impl FoldModuleState {
+    const fn new() -> Self {
+        Self {
+            fold_changed: false,
+            invalid_top: 0,
+            invalid_bot: 0,
+            prev_lnum: 0,
+            prev_lnum_lvl: -1,
+            foldstartmarkerlen: 0,
+            foldendmarker: ptr::null_mut(),
+            foldendmarkerlen: 0,
+            got_fdt_error: false,
+            last_wp: ptr::null_mut(),
+            fdt_last_lnum: 0,
+            fdt_result_entered: false,
+        }
+    }
+}
 
-static mut got_fdt_error: bool = false;
-static mut last_wp: *mut win_T = ptr::null_mut();
-static mut fdt_last_lnum: linenr_T = 0;
-static mut fdt_result_entered: bool = false;
+static FOLD_STATE: GlobalState<FoldModuleState> = GlobalState::new(FoldModuleState::new());
+
+#[inline]
+unsafe fn fold_st() -> &'static mut FoldModuleState {
+    unsafe { &mut *FOLD_STATE.as_ptr() }
+}
 
 static E_NOFOLD: &CStr = c"E490: No fold found";
 
@@ -241,11 +267,11 @@ pub unsafe fn hasFoldingWin(
 
 unsafe fn foldLevel(lnum: linenr_T) -> c_int {
     unsafe {
-        if invalid_top == 0 {
+        if fold_st().invalid_top == 0 {
             checkupdate(curwin);
-        } else if lnum == prev_lnum && prev_lnum_lvl >= 0 {
-            return prev_lnum_lvl;
-        } else if lnum >= invalid_top && lnum <= invalid_bot {
+        } else if lnum == fold_st().prev_lnum && fold_st().prev_lnum_lvl >= 0 {
+            return fold_st().prev_lnum_lvl;
+        } else if lnum >= fold_st().invalid_top && lnum <= fold_st().invalid_bot {
             return -1;
         }
 
@@ -1309,8 +1335,8 @@ unsafe fn foldCreateMarkers(wp: *mut win_T, start: pos_T, end: pos_T) {
         }
         parseMarker(wp);
 
-        foldAddMarker(buf, start, (*wp).w_onebuf_opt.wo_fmr, foldstartmarkerlen);
-        foldAddMarker(buf, end, foldendmarker, foldendmarkerlen);
+        foldAddMarker(buf, start, (*wp).w_onebuf_opt.wo_fmr, fold_st().foldstartmarkerlen);
+        foldAddMarker(buf, end, fold_st().foldendmarker, fold_st().foldendmarkerlen);
 
         changed_lines(buf, start.lnum, 0, end.lnum, 0, false);
 
@@ -1378,13 +1404,13 @@ unsafe fn deleteFoldMarkers(wp: *mut win_T, fp: *mut fold_T, recursive: bool, ln
             (*wp).w_buffer,
             (*fp).fd_top + lnum_off,
             (*wp).w_onebuf_opt.wo_fmr,
-            foldstartmarkerlen,
+            fold_st().foldstartmarkerlen,
         );
         foldDelMarker(
             (*wp).w_buffer,
             (*fp).fd_top + lnum_off + (*fp).fd_len - 1,
-            foldendmarker,
-            foldendmarkerlen,
+            fold_st().foldendmarker,
+            fold_st().foldendmarkerlen,
         );
     }
 }
@@ -1465,12 +1491,12 @@ pub unsafe fn get_foldtext(
         let mut text: Option<std::ffi::CString> = None;
         let save_did_emsg = did_emsg;
 
-        if last_wp.is_null() || !ptr::eq(last_wp, wp) || fdt_last_lnum > lnum || fdt_last_lnum == 0
+        if fold_st().last_wp.is_null() || !ptr::eq(fold_st().last_wp, wp) || fold_st().fdt_last_lnum > lnum || fold_st().fdt_last_lnum == 0
         {
-            got_fdt_error = false;
+            fold_st().got_fdt_error = false;
         }
 
-        if !got_fdt_error {
+        if !fold_st().got_fdt_error {
             did_emsg = 0;
         }
 
@@ -1486,7 +1512,7 @@ pub unsafe fn get_foldtext(
             set_vim_var_string(VV_FOLDDASHES, dashes.as_ptr(), level as isize);
             set_vim_var_nr(VV_FOLDLEVEL, varnumber_T::from(level));
 
-            if !got_fdt_error {
+            if !fold_st().got_fdt_error {
                 let save_curwin = curwin;
                 let saved_sctx = current_sctx;
 
@@ -1513,15 +1539,15 @@ pub unsafe fn get_foldtext(
                 emsg_off -= 1;
 
                 if text.is_none() || did_emsg != 0 {
-                    got_fdt_error = true;
+                    fold_st().got_fdt_error = true;
                 }
 
                 curwin = save_curwin;
                 curbuf = (*curwin).w_buffer;
                 current_sctx = saved_sctx;
             }
-            fdt_last_lnum = lnum;
-            last_wp = wp;
+            fold_st().fdt_last_lnum = lnum;
+            fold_st().last_wp = wp;
             set_vim_var_string(VV_FOLDDASHES, ptr::null(), -1);
 
             if did_emsg == 0 && save_did_emsg != 0 {
@@ -1600,18 +1626,18 @@ unsafe fn foldtext_cleanup(str_ptr: *mut c_char) {
 
         let fmr_slice = std::slice::from_raw_parts(
             (*curwin).w_onebuf_opt.wo_fmr.cast::<u8>(),
-            foldstartmarkerlen,
+            fold_st().foldstartmarkerlen,
         );
-        let end_slice = std::slice::from_raw_parts(foldendmarker.cast::<u8>(), foldendmarkerlen);
+        let end_slice = std::slice::from_raw_parts(fold_st().foldendmarker.cast::<u8>(), fold_st().foldendmarkerlen);
 
         let mut s = str_ptr;
         while *s != NUL {
             let s_bytes = CStr::from_ptr(s).to_bytes();
             let mut len: usize = 0;
             if s_bytes.starts_with(fmr_slice) {
-                len = foldstartmarkerlen;
+                len = fold_st().foldstartmarkerlen;
             } else if s_bytes.starts_with(end_slice) {
-                len = foldendmarkerlen;
+                len = fold_st().foldendmarkerlen;
             }
             if len > 0 {
                 if ascii_isdigit(*s.add(len) as u8 as c_int) {
@@ -1673,7 +1699,7 @@ unsafe fn call_getlevel(kind: LevelGetterKind, flp: &mut fline_T) {
 
 unsafe fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
     unsafe {
-        if invalid_top != 0 {
+        if fold_st().invalid_top != 0 {
             return;
         }
 
@@ -1696,7 +1722,7 @@ unsafe fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
 
         top = top.min((*(*wp).w_buffer).b_ml.ml_line_count);
 
-        fold_changed = false;
+        fold_st().fold_changed = false;
         let mut fline = fline_T {
             wp,
             lnum: 0,
@@ -1709,8 +1735,8 @@ unsafe fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
             had_end: MAX_LEVEL + 1,
         };
 
-        invalid_top = top;
-        invalid_bot = bot;
+        fold_st().invalid_top = top;
+        fold_st().invalid_bot = bot;
 
         let getlevel: LevelGetterKind;
 
@@ -1829,8 +1855,8 @@ unsafe fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
             }
 
             if fline.lvl > 0 {
-                invalid_top = fline.lnum;
-                invalid_bot = end;
+                fold_st().invalid_top = fline.lnum;
+                fold_st().invalid_bot = end;
                 end = foldUpdateIEMSRecurse(
                     &mut (*wp).w_folds,
                     1,
@@ -1853,7 +1879,7 @@ unsafe fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
 
         foldRemove(&mut (*wp).w_folds, start, end);
 
-        if fold_changed && (*wp).w_onebuf_opt.wo_fen != 0 {
+        if fold_st().fold_changed && (*wp).w_onebuf_opt.wo_fen != 0 {
             changed_window_setting(wp);
         }
 
@@ -1861,7 +1887,7 @@ unsafe fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
             redraw_win_range_later(wp, top, end);
         }
 
-        invalid_top = 0;
+        fold_st().invalid_top = 0;
     }
 }
 
@@ -1989,7 +2015,7 @@ unsafe fn foldUpdateIEMSRecurse(
                                 fp.fd_len += fp.fd_top - firstlnum;
                                 fp.fd_top = firstlnum;
                                 fp.fd_small = kNone;
-                                fold_changed = true;
+                                fold_st().fold_changed = true;
                             } else if (flp.start != 0 && lvl == level) || firstlnum != startlnum {
                                 let (breakstart, breakend) = if firstlnum != startlnum {
                                     (startlnum, firstlnum)
@@ -2034,7 +2060,7 @@ unsafe fn foldUpdateIEMSRecurse(
                                 MAXLNUM,
                                 0,
                             );
-                            fold_changed = true;
+                            fold_st().fold_changed = true;
                         }
                     } else {
                         let i = cand_idx;
@@ -2061,7 +2087,7 @@ unsafe fn foldUpdateIEMSRecurse(
                         {
                             finish = true;
                         }
-                        fold_changed = true;
+                        fold_st().fold_changed = true;
                         fp_idx = Some(i);
                         break;
                     }
@@ -2100,8 +2126,8 @@ unsafe fn foldUpdateIEMSRecurse(
                 flp.lnum = flp.lnum_save;
                 let ll = flp.lnum + 1;
                 while !got_int {
-                    prev_lnum = flp.lnum;
-                    prev_lnum_lvl = flp.lvl;
+                    fold_st().prev_lnum = flp.lnum;
+                    fold_st().prev_lnum_lvl = flp.lvl;
 
                     flp.lnum += 1;
                     if flp.lnum > linecount {
@@ -2113,7 +2139,7 @@ unsafe fn foldUpdateIEMSRecurse(
                         break;
                     }
                 }
-                prev_lnum = 0;
+                fold_st().prev_lnum = 0;
                 if flp.lnum > linecount {
                     break;
                 }
@@ -2130,7 +2156,7 @@ unsafe fn foldUpdateIEMSRecurse(
         if gap[fpi].fd_len < flp.lnum - gap[fpi].fd_top {
             gap[fpi].fd_len = flp.lnum - gap[fpi].fd_top;
             gap[fpi].fd_small = kNone;
-            fold_changed = true;
+            fold_st().fold_changed = true;
         } else if gap[fpi].fd_top + gap[fpi].fd_len > linecount {
             gap[fpi].fd_len = linecount - gap[fpi].fd_top + 1;
         }
@@ -2156,7 +2182,7 @@ unsafe fn foldUpdateIEMSRecurse(
             } else {
                 gap[fpi].fd_len = flp.lnum - gap[fpi].fd_top;
             }
-            fold_changed = true;
+            fold_st().fold_changed = true;
         }
 
         loop {
@@ -2176,7 +2202,7 @@ unsafe fn foldUpdateIEMSRecurse(
                     );
                     fp2.fd_len -= flp.lnum - fp2.fd_top;
                     fp2.fd_top = flp.lnum;
-                    fold_changed = true;
+                    fold_st().fold_changed = true;
                 }
 
                 if lvl >= level {
@@ -2184,7 +2210,7 @@ unsafe fn foldUpdateIEMSRecurse(
                 }
                 break;
             }
-            fold_changed = true;
+            fold_st().fold_changed = true;
             deleteFoldEntry(gap, next_idx as c_int, true);
         }
 
@@ -2230,7 +2256,7 @@ unsafe fn foldSplit(gap: &mut Vec<fold_T>, i: c_int, top: linenr_T, bot: linenr_
             }
         }
         fp.fd_len = top - fp.fd_top;
-        fold_changed = true;
+        fold_st().fold_changed = true;
     }
 }
 
@@ -2253,14 +2279,14 @@ unsafe fn foldRemove(gap: &mut Vec<fold_T>, top: linenr_T, bot: linenr_T) {
                 } else {
                     gap[idx].fd_len = top - gap[idx].fd_top;
                 }
-                fold_changed = true;
+                fold_st().fold_changed = true;
                 continue;
             }
             if idx >= gap.len() || gap[idx].fd_top > bot {
                 break;
             }
             if gap[idx].fd_top >= top {
-                fold_changed = true;
+                fold_st().fold_changed = true;
                 if gap[idx].fd_top + gap[idx].fd_len - 1 > bot {
                     let fp = &mut gap[idx];
                     foldMarkAdjustRecurse(
@@ -2417,7 +2443,7 @@ unsafe fn foldMergeInto(fp1: &mut fold_T, mut fp2: fold_T) {
         }
 
         fp1.fd_len += fp2.fd_len;
-        fold_changed = true;
+        fold_st().fold_changed = true;
     }
 }
 
@@ -2533,9 +2559,9 @@ unsafe fn parseMarker(wp: *mut win_T) {
     unsafe {
         let fmr = (*wp).w_onebuf_opt.wo_fmr;
         let comma = vim_strchr(fmr, b',' as c_int);
-        foldstartmarkerlen = (comma as usize) - (fmr as usize);
-        foldendmarker = comma.add(1);
-        foldendmarkerlen = CStr::from_ptr(foldendmarker).to_bytes().len();
+        fold_st().foldstartmarkerlen = (comma as usize) - (fmr as usize);
+        fold_st().foldendmarker = comma.add(1);
+        fold_st().foldendmarkerlen = CStr::from_ptr(fold_st().foldendmarker).to_bytes().len();
     }
 }
 
@@ -2545,12 +2571,12 @@ unsafe fn foldlevelMarker(flp: &mut fline_T) {
         let startmarker_full = (*flp.wp).w_onebuf_opt.wo_fmr;
         let cstart = *startmarker_full;
         let startmarker = startmarker_full.add(1);
-        let cend = *foldendmarker;
+        let cend = *fold_st().foldendmarker;
 
         let start_rest =
-            std::slice::from_raw_parts(startmarker.cast::<u8>(), foldstartmarkerlen - 1);
+            std::slice::from_raw_parts(startmarker.cast::<u8>(), fold_st().foldstartmarkerlen - 1);
         let end_rest =
-            std::slice::from_raw_parts(foldendmarker.add(1).cast::<u8>(), foldendmarkerlen - 1);
+            std::slice::from_raw_parts(fold_st().foldendmarker.add(1).cast::<u8>(), fold_st().foldendmarkerlen - 1);
 
         flp.start = 0;
         flp.lvl_next = flp.lvl;
@@ -2559,7 +2585,7 @@ unsafe fn foldlevelMarker(flp: &mut fline_T) {
         while *s != NUL {
             let rem_bytes = CStr::from_ptr(s.add(1)).to_bytes();
             if *s == cstart && rem_bytes.starts_with(start_rest) {
-                s = s.add(foldstartmarkerlen);
+                s = s.add(fold_st().foldstartmarkerlen);
                 if ascii_isdigit(*s as u8 as c_int) {
                     let n = atoi(s);
                     if n > 0 {
@@ -2573,7 +2599,7 @@ unsafe fn foldlevelMarker(flp: &mut fline_T) {
                     flp.start += 1;
                 }
             } else if *s == cend && rem_bytes.starts_with(end_rest) {
-                s = s.add(foldendmarkerlen);
+                s = s.add(fold_st().foldendmarkerlen);
                 if ascii_isdigit(*s as u8 as c_int) {
                     let n = atoi(s);
                     if n > 0 {
@@ -2813,10 +2839,10 @@ pub unsafe fn f_foldtextresult(argvars: *mut typval_T, rettv: *mut typval_T, _fp
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-        if fdt_result_entered {
+        if fold_st().fdt_result_entered {
             return;
         }
-        fdt_result_entered = true;
+        fold_st().fdt_result_entered = true;
         let lnum = tv_get_lnum(argvars).max(0);
 
         let info = fold_info(curwin, lnum);
@@ -2843,7 +2869,7 @@ pub unsafe fn f_foldtextresult(argvars: *mut typval_T, rettv: *mut typval_T, _fp
             );
         }
 
-        fdt_result_entered = false;
+        fold_st().fdt_result_entered = false;
     }
 }
 

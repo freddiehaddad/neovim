@@ -39,29 +39,56 @@ const CMD_FRAME: c_int = 8;
 const CMD_UP: c_int = 9;
 const CMD_DOWN: c_int = 10;
 
-static mut DEBUG_GREEDY: bool = false;
-static mut LAST_CMD: c_int = 0;
-static mut LAST_BREAKP: c_int = 0;
-static mut HAS_EXPR_BREAKPOINT: bool = false;
-static mut DEBUG_SKIPPED: bool = false;
-static mut DEBUG_BREAKPOINT_LNUM: c_int = 0;
+struct DebuggerState {
+    DEBUG_GREEDY: bool,
+    LAST_CMD: c_int,
+    LAST_BREAKP: c_int,
+    HAS_EXPR_BREAKPOINT: bool,
+    DEBUG_SKIPPED: bool,
+    DEBUG_BREAKPOINT_LNUM: c_int,
+    DEBUG_OLDVAL: Option<CString>,
+    DEBUG_NEWVAL: Option<CString>,
+    DEBUG_BREAKPOINT_NAME: *mut c_char,
+    DEBUG_SKIPPED_NAME: *mut c_char,
+    DBG_BREAKP: Vec<debuggy>,
+    PROF_GA: Vec<debuggy>,
+}
 
-static mut DEBUG_OLDVAL: Option<CString> = None;
-static mut DEBUG_NEWVAL: Option<CString> = None;
-static mut DEBUG_BREAKPOINT_NAME: *mut c_char = std::ptr::null_mut();
-static mut DEBUG_SKIPPED_NAME: *mut c_char = std::ptr::null_mut();
+impl DebuggerState {
+    const fn new() -> Self {
+        Self {
+            DEBUG_GREEDY: false,
+            LAST_CMD: 0,
+            LAST_BREAKP: 0,
+            HAS_EXPR_BREAKPOINT: false,
+            DEBUG_SKIPPED: false,
+            DEBUG_BREAKPOINT_LNUM: 0,
+            DEBUG_OLDVAL: None,
+            DEBUG_NEWVAL: None,
+            DEBUG_BREAKPOINT_NAME: std::ptr::null_mut(),
+            DEBUG_SKIPPED_NAME: std::ptr::null_mut(),
+            DBG_BREAKP: Vec::new(),
+            PROF_GA: Vec::new(),
+        }
+    }
+}
 
-static mut DBG_BREAKP: Vec<debuggy> = Vec::new();
-static mut PROF_GA: Vec<debuggy> = Vec::new();
+static DBG_STATE: GlobalState<DebuggerState> = GlobalState::new(DebuggerState::new());
+
+#[inline]
+unsafe fn dbg_st() -> &'static mut DebuggerState {
+    unsafe { &mut *DBG_STATE.as_ptr() }
+}
 
 #[inline]
 unsafe fn dbg_vec_mut(is_prof: bool) -> &'static mut Vec<debuggy> {
-    let ptr = if is_prof {
-        &raw mut PROF_GA
-    } else {
-        &raw mut DBG_BREAKP
-    };
-    unsafe { &mut *ptr }
+    unsafe {
+        if is_prof {
+            &mut dbg_st().PROF_GA
+        } else {
+            &mut dbg_st().DBG_BREAKP
+        }
+    }
 }
 
 #[repr(C)]
@@ -215,10 +242,10 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
                 0,
             );
         }
-        if let Some(oldval) = (&raw mut DEBUG_OLDVAL).as_mut().unwrap().take() {
+        if let Some(oldval) = (&raw mut dbg_st().DEBUG_OLDVAL).as_mut().unwrap().take() {
             smsg!(0, c"Oldval = \"%s\"".as_ptr(), oldval.as_ptr());
         }
-        if let Some(newval) = (&raw mut DEBUG_NEWVAL).as_mut().unwrap().take() {
+        if let Some(newval) = (&raw mut dbg_st().DEBUG_NEWVAL).as_mut().unwrap().take() {
             smsg!(0, c"Newval = \"%s\"".as_ptr(), newval.as_ptr());
         }
         if let Some(sname) = estack_sfile(ESTACK_NONE) {
@@ -238,7 +265,7 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
 
             let save_ex_normal_busy = ex_normal_busy;
             ex_normal_busy = 0;
-            if !DEBUG_GREEDY {
+            if !dbg_st().DEBUG_GREEDY {
                 save_typeahead(&mut typeaheadbuf);
                 typeahead_saved = true;
                 save_ignore_script = ignore_script;
@@ -312,10 +339,10 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
                             lcmd = 0;
                         }
                     }
-                    LAST_CMD = lcmd;
+                    dbg_st().LAST_CMD = lcmd;
                 }
 
-                let cur_last = LAST_CMD;
+                let cur_last = dbg_st().LAST_CMD;
                 if cur_last != 0 {
                     match cur_last {
                         CMD_CONT => {
@@ -337,7 +364,7 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
                         CMD_INTERRUPT => {
                             got_int = true;
                             debug_break_level = 9999;
-                            LAST_CMD = CMD_STEP;
+                            dbg_st().LAST_CMD = CMD_STEP;
                         }
                         CMD_BACKTRACE => {
                             do_showbacktrace(cmd);
@@ -411,11 +438,11 @@ pub unsafe fn ex_debug(eap: *mut exarg_T) {
 /// Check if a breakpoint or debug break level was hit (`dbg_check_breakpoint`).
 pub unsafe fn dbg_check_breakpoint(eap: *mut exarg_T) {
     unsafe {
-        DEBUG_SKIPPED = false;
+        dbg_st().DEBUG_SKIPPED = false;
         let eap = &mut *eap;
-        if !DEBUG_BREAKPOINT_NAME.is_null() {
+        if !dbg_st().DEBUG_BREAKPOINT_NAME.is_null() {
             if eap.skip == 0 {
-                let bp_name = DEBUG_BREAKPOINT_NAME;
+                let bp_name = dbg_st().DEBUG_BREAKPOINT_NAME;
                 let is_snr = (*bp_name as u8) == K_SPECIAL
                     && (*bp_name.add(1) as u8) == KS_EXTRA
                     && (*bp_name.add(2) as u8) == KE_SNR;
@@ -424,22 +451,22 @@ pub unsafe fn dbg_check_breakpoint(eap: *mut exarg_T) {
                 } else {
                     (c"".as_ptr(), bp_name)
                 };
-                let lnum = DEBUG_BREAKPOINT_LNUM;
+                let lnum = dbg_st().DEBUG_BREAKPOINT_LNUM;
                 let fmt_str = format!("Breakpoint in \"%s%s\" line {lnum}\0");
                 smsg!(0, fmt_str.as_ptr().cast::<c_char>(), prefix, rest);
-                DEBUG_BREAKPOINT_NAME = std::ptr::null_mut();
+                dbg_st().DEBUG_BREAKPOINT_NAME = std::ptr::null_mut();
                 do_debug(eap.cmd);
             } else {
-                DEBUG_SKIPPED = true;
-                DEBUG_SKIPPED_NAME = DEBUG_BREAKPOINT_NAME;
-                DEBUG_BREAKPOINT_NAME = std::ptr::null_mut();
+                dbg_st().DEBUG_SKIPPED = true;
+                dbg_st().DEBUG_SKIPPED_NAME = dbg_st().DEBUG_BREAKPOINT_NAME;
+                dbg_st().DEBUG_BREAKPOINT_NAME = std::ptr::null_mut();
             }
         } else if ex_nesting_level <= debug_break_level {
             if eap.skip == 0 {
                 do_debug(eap.cmd);
             } else {
-                DEBUG_SKIPPED = true;
-                DEBUG_SKIPPED_NAME = std::ptr::null_mut();
+                dbg_st().DEBUG_SKIPPED = true;
+                dbg_st().DEBUG_SKIPPED_NAME = std::ptr::null_mut();
             }
         }
     }
@@ -448,12 +475,12 @@ pub unsafe fn dbg_check_breakpoint(eap: *mut exarg_T) {
 /// Enter debug mode if previously skipped by `dbg_check_breakpoint()` (`dbg_check_skipped`).
 pub unsafe fn dbg_check_skipped(eap: *mut exarg_T) -> bool {
     unsafe {
-        if !DEBUG_SKIPPED {
+        if !dbg_st().DEBUG_SKIPPED {
             return false;
         }
         let prev_got_int = got_int;
         got_int = false;
-        DEBUG_BREAKPOINT_NAME = DEBUG_SKIPPED_NAME;
+        dbg_st().DEBUG_BREAKPOINT_NAME = dbg_st().DEBUG_SKIPPED_NAME;
         (*eap).skip = 0;
         dbg_check_breakpoint(eap);
         (*eap).skip = 1;
@@ -582,19 +609,19 @@ pub unsafe fn ex_breakadd(eap: *mut exarg_T) {
                     bp.dbg_lnum = 1;
                 }
                 if eap.cmdidx != CMD_PROFILE {
-                    LAST_BREAKP += 1;
-                    bp.dbg_nr = LAST_BREAKP;
+                    dbg_st().LAST_BREAKP += 1;
+                    bp.dbg_nr = dbg_st().LAST_BREAKP;
                     debug_tick += 1;
                 }
                 gap.push(bp);
             }
         } else {
-            LAST_BREAKP += 1;
-            bp.dbg_nr = LAST_BREAKP;
+            dbg_st().LAST_BREAKP += 1;
+            bp.dbg_nr = dbg_st().LAST_BREAKP;
             gap.push(bp);
             debug_tick += 1;
             if !is_prof {
-                HAS_EXPR_BREAKPOINT = true;
+                dbg_st().HAS_EXPR_BREAKPOINT = true;
             }
         }
     }
@@ -604,13 +631,13 @@ pub unsafe fn ex_breakadd(eap: *mut exarg_T) {
 pub unsafe fn ex_debuggreedy(eap: *mut exarg_T) {
     let eap = unsafe { &*eap };
     let greedy = eap.addr_count == 0 || eap.line2 != 0;
-    unsafe { DEBUG_GREEDY = greedy };
+    unsafe { dbg_st().DEBUG_GREEDY = greedy };
 }
 
 unsafe fn update_has_expr_breakpoint() {
     unsafe {
         let bps = dbg_vec_mut(false);
-        HAS_EXPR_BREAKPOINT = bps.iter().any(|bp| bp.dbg_type == DBG_EXPR);
+        dbg_st().HAS_EXPR_BREAKPOINT = bps.iter().any(|bp| bp.dbg_type == DBG_EXPR);
     }
 }
 
@@ -760,22 +787,22 @@ unsafe fn debuggy_find(
                             && tv.vval.v_number() == 0
                         {
                             line = true;
-                            DEBUG_OLDVAL = Some(typval_tostring(Some(old_val), true));
+                            dbg_st().DEBUG_OLDVAL = Some(typval_tostring(Some(old_val), true));
                             let mut v = eval_expr_no_emsg(bp.dbg_name.as_ptr().cast_mut());
-                            DEBUG_NEWVAL = Some(typval_tostring(v.as_mut(), true));
+                            dbg_st().DEBUG_NEWVAL = Some(typval_tostring(v.as_mut(), true));
                             tv_clear(old_val);
                             bp.dbg_val = v;
                         }
                         tv_clear(&raw mut tv);
                     } else {
-                        DEBUG_OLDVAL = Some(typval_tostring(None, true));
+                        dbg_st().DEBUG_OLDVAL = Some(typval_tostring(None, true));
                         bp.dbg_val = Some(tv);
-                        DEBUG_NEWVAL = Some(typval_tostring(bp.dbg_val.as_mut(), true));
+                        dbg_st().DEBUG_NEWVAL = Some(typval_tostring(bp.dbg_val.as_mut(), true));
                         line = true;
                     }
                 } else if let Some(ref mut old_val) = bp.dbg_val {
-                    DEBUG_OLDVAL = Some(typval_tostring(Some(old_val), true));
-                    DEBUG_NEWVAL = Some(typval_tostring(None, true));
+                    dbg_st().DEBUG_OLDVAL = Some(typval_tostring(Some(old_val), true));
+                    dbg_st().DEBUG_NEWVAL = Some(typval_tostring(None, true));
                     tv_clear(old_val);
                     bp.dbg_val = None;
                     line = true;
@@ -811,9 +838,9 @@ pub unsafe fn has_profiling(file: bool, fname: *mut c_char, fp: *mut bool) -> bo
 /// Record that a breakpoint was encountered (`dbg_breakpoint`).
 pub unsafe fn dbg_breakpoint(name: *mut c_char, lnum: i32) {
     unsafe {
-        DEBUG_BREAKPOINT_NAME = name;
+        dbg_st().DEBUG_BREAKPOINT_NAME = name;
     }
-    unsafe { DEBUG_BREAKPOINT_LNUM = lnum };
+    unsafe { dbg_st().DEBUG_BREAKPOINT_LNUM = lnum };
 }
 
 #[cfg(test)]

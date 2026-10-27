@@ -413,36 +413,44 @@ struct CpInfo {
     save_view: Vec<c_int>,
 }
 
-/// Last value of `prompt_id`, incremented when doing new prompt.
-static mut last_prompt_id: c_uint = 0;
+struct ExGetlnState {
+    last_prompt_id: c_uint,
+    cmdline_level: c_int,
+    ccline: CmdlineInfo,
+    new_cmdpos: c_int,
+    cmdline_block: Array,
+    getln_interrupted_highlight: bool,
+    cedit_key: c_int,
+    cmdpreview_bufnr: handle_T,
+    cmdpreview_ns: c_int,
+    prev_prompt_id: c_uint,
+    prev_prompt_errors: c_int,
+}
 
-/// Recursive invocation depth of `command_line_enter`.
-static mut cmdline_level: c_int = 0;
+impl ExGetlnState {
+    const fn new() -> Self {
+        Self {
+            last_prompt_id: 0,
+            cmdline_level: 0,
+            ccline: CmdlineInfo::new(),
+            new_cmdpos: 0,
+            cmdline_block: Array { size: 0, capacity: 0, items: ptr::null_mut() },
+            getln_interrupted_highlight: false,
+            cedit_key: -1,
+            cmdpreview_bufnr: 0,
+            cmdpreview_ns: 0,
+            prev_prompt_id: c_uint::MAX,
+            prev_prompt_errors: 0,
+        }
+    }
+}
 
-/// The current `cmdline_info`.
-static mut ccline: CmdlineInfo = CmdlineInfo::new();
+static GETLN_STATE: GlobalState<ExGetlnState> = GlobalState::new(ExGetlnState::new());
 
-/// Position set by `set_cmdline_pos()`.
-static mut new_cmdpos: c_int = 0;
-
-/// Currently displayed block of context.
-static mut cmdline_block: Array = Array {
-    size: 0,
-    capacity: 0,
-    items: ptr::null_mut(),
-};
-
-/// Flag for `command_line_handle_key` to ignore `<C-c>`.
-static mut getln_interrupted_highlight: bool = false;
-
-/// Key value of `'cedit'` option.
-static mut cedit_key: c_int = -1;
-
-static mut cmdpreview_bufnr: handle_T = 0;
-static mut cmdpreview_ns: c_int = 0;
-
-static mut prev_prompt_id: c_uint = c_uint::MAX;
-static mut prev_prompt_errors: c_int = 0;
+#[inline]
+unsafe fn getln_st() -> &'static mut ExGetlnState {
+    unsafe { &mut *GETLN_STATE.as_ptr() }
+}
 
 use crate::api::private::helpers::array_add;
 
@@ -502,7 +510,7 @@ pub unsafe fn parse_pattern_and_range(
         let mut magic: magic_T = 0;
 
         *skiplen = 0;
-        *patlen = ccline.cmdlen;
+        *patlen = getln_st().ccline.cmdlen;
 
         // Default range
         Search.first_line = 0;
@@ -511,7 +519,7 @@ pub unsafe fn parse_pattern_and_range(
         let mut ea: exarg_T = exarg_T::new();
         ea.line1 = 1;
         ea.line2 = 1;
-        ea.cmd = ccline.cmdbuff;
+        ea.cmd = getln_st().ccline.cmdbuff;
         ea.addr_type = ADDR_LINES;
 
         let mut dummy_cmdmod: cmdmod_T = cmdmod_T::new();
@@ -618,7 +626,7 @@ pub unsafe fn parse_pattern_and_range(
         }
 
         // Found a non-empty pattern or //
-        *skiplen = p.offset_from(ccline.cmdbuff) as c_int;
+        *skiplen = p.offset_from(getln_st().ccline.cmdbuff) as c_int;
         *patlen = end.offset_from(p) as c_int;
 
         // Parse the address range
@@ -655,7 +663,7 @@ unsafe fn do_incsearch_highlighting(
 ) -> bool {
     unsafe {
         *skiplen = 0;
-        *patlen = ccline.cmdlen;
+        *patlen = getln_st().ccline.cmdlen;
 
         if p_is == 0 || cmd_silent {
             return false;
@@ -722,9 +730,9 @@ unsafe fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut inc
         (*s).incsearch_postponed = false;
 
         // Use the previous pattern for ":s//".
-        let mut next_char = *ccline.cmdbuff.add((skiplen + patlen) as usize);
+        let mut next_char = *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize);
         let use_last_pat =
-            patlen == 0 && skiplen > 0 && *ccline.cmdbuff.add((skiplen - 1) as usize) == next_char;
+            patlen == 0 && skiplen > 0 && *getln_st().ccline.cmdbuff.add((skiplen - 1) as usize) == next_char;
 
         if patlen != 0 || use_last_pat {
             ui_busy_start();
@@ -762,7 +770,7 @@ unsafe fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut inc
                 sa_timed_out: 0,
                 sa_wrapped: 0,
             };
-            *ccline.cmdbuff.add((skiplen + patlen) as usize) = NUL;
+            *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize) = NUL;
             emsg_off += 1; // So it doesn't beep if bad expr
             found = do_search(
                 ptr::null_mut(),
@@ -772,7 +780,7 @@ unsafe fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut inc
                     firstc
                 },
                 search_delim,
-                ccline.cmdbuff.add(skiplen as usize),
+                getln_st().ccline.cmdbuff.add(skiplen as usize),
                 patlen as usize,
                 count,
                 search_flags,
@@ -780,7 +788,7 @@ unsafe fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut inc
                 &raw mut sia,
             );
             emsg_off -= 1;
-            *ccline.cmdbuff.add((skiplen + patlen) as usize) = next_char;
+            *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize) = next_char;
             if (*curwin).w_cursor.lnum < Search.first_line
                 || (*curwin).w_cursor.lnum > Search.last_line
             {
@@ -825,10 +833,10 @@ unsafe fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut inc
         // Disable 'hlsearch' highlighting if the pattern matches
         // everything. Avoids a flash when typing "foo\|".
         if !use_last_pat {
-            next_char = *ccline.cmdbuff.add((skiplen + patlen) as usize);
-            *ccline.cmdbuff.add((skiplen + patlen) as usize) = NUL;
+            next_char = *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize);
+            *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize) = NUL;
             if empty_pattern(
-                ccline.cmdbuff.add(skiplen as usize),
+                getln_st().ccline.cmdbuff.add(skiplen as usize),
                 patlen as usize,
                 search_delim,
             ) && !Search.no_hlsearch
@@ -836,7 +844,7 @@ unsafe fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut inc
                 redraw_all_later(UPD_SOME_VALID);
                 set_no_hlsearch(true);
             }
-            *ccline.cmdbuff.add((skiplen + patlen) as usize) = next_char;
+            *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize) = next_char;
         }
 
         validate_cursor(curwin);
@@ -853,7 +861,7 @@ unsafe fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut inc
 
         // Leave it at the end to make CTRL-R CTRL-W work.  But not when beyond the
         // end of the pattern, e.g. for ":s/pat/".
-        if *ccline.cmdbuff.add((skiplen + patlen) as usize) != NUL {
+        if *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize) != NUL {
             (*curwin).w_cursor = (*s).search_start;
         } else if found != 0 {
             (*curwin).w_cursor = end_pos;
@@ -864,7 +872,7 @@ unsafe fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut inc
         redrawcmdline();
         (*s).did_incsearch = true;
         // Fire WinScrolled/WinResized last, after all state is finalized: the
-        // autocmd may mutate curwin or ccline via arbitrary user code.
+        // autocmd may mutate curwin or getln_st().ccline via arbitrary user code.
         may_trigger_win_scrolled_resized();
     }
 }
@@ -906,7 +914,7 @@ unsafe fn may_add_char_to_search(firstc: c_int, c: *mut c_int, s: *mut incsearch
                 // the character to lowercase
                 if p_ic != 0
                     && p_scs != 0
-                    && !pat_has_uppercase(ccline.cmdbuff.add(skiplen as usize))
+                    && !pat_has_uppercase(getln_st().ccline.cmdbuff.add(skiplen as usize))
                 {
                     *c = mb_tolower(*c);
                 }
@@ -978,30 +986,30 @@ unsafe fn finish_incsearch_highlighting(
 /// Initialize the current command-line info.
 unsafe fn init_ccline(firstc: c_int, indent: c_int) {
     unsafe {
-        ccline.overstrike = 0; // always start in insert mode
+        getln_st().ccline.overstrike = 0; // always start in insert mode
 
         debug_assert!(indent >= 0);
 
         // set some variables for redrawcmd()
-        ccline.cmdfirstc = if firstc == b'@' as c_int { 0 } else { firstc };
-        ccline.cmdindent = if firstc > 0 { indent } else { 0 };
+        getln_st().ccline.cmdfirstc = if firstc == b'@' as c_int { 0 } else { firstc };
+        getln_st().ccline.cmdindent = if firstc > 0 { indent } else { 0 };
 
-        // alloc initial ccline.cmdbuff
+        // alloc initial getln_st().ccline.cmdbuff
         alloc_cmdbuff(indent + 50);
-        ccline.cmdpos = 0;
-        ccline.cmdlen = 0;
-        *ccline.cmdbuff = NUL;
+        getln_st().ccline.cmdpos = 0;
+        getln_st().ccline.cmdlen = 0;
+        *getln_st().ccline.cmdbuff = NUL;
 
-        ccline.last_colors = ColoredCmdline::new();
+        getln_st().ccline.last_colors = ColoredCmdline::new();
         sb_text_start_cmdline();
 
         // autoindent for :insert and :append
         if firstc <= 0 {
-            ptr::write_bytes(ccline.cmdbuff.cast::<u8>(), b' ', indent as usize);
-            *ccline.cmdbuff.add(indent as usize) = NUL;
-            ccline.cmdpos = indent;
-            ccline.cmdspos = indent;
-            ccline.cmdlen = indent;
+            ptr::write_bytes(getln_st().ccline.cmdbuff.cast::<u8>(), b' ', indent as usize);
+            *getln_st().ccline.cmdbuff.add(indent as usize) = NUL;
+            getln_st().ccline.cmdpos = indent;
+            getln_st().ccline.cmdspos = indent;
+            getln_st().ccline.cmdlen = indent;
         }
     }
 }
@@ -1010,8 +1018,8 @@ unsafe fn ui_ext_cmdline_hide(abort: bool) {
     unsafe {
         if ui_has(kUICmdline) {
             cmdline_was_last_drawn = false;
-            ccline.redraw_state = kCmdRedrawNone;
-            ui_call_cmdline_hide(ccline.level as Integer, abort);
+            getln_st().ccline.redraw_state = kCmdRedrawNone;
+            ui_call_cmdline_hide(getln_st().ccline.level as Integer, abort);
         }
     }
 }
@@ -1024,7 +1032,7 @@ unsafe fn command_line_enter(
     clear_ccline: bool,
 ) -> Option<std::ffi::CString> {
     unsafe {
-        cmdline_level += 1;
+        getln_st().cmdline_level += 1;
 
         let save_cmdpreview = cmdpreview;
         cmdpreview = false;
@@ -1041,7 +1049,7 @@ unsafe fn command_line_enter(
         init_incsearch_state(&raw mut (*s).is_state);
         let mut did_save_ccline = false;
 
-        let cc = &raw mut ccline;
+        let cc = &raw mut getln_st().ccline;
         if !(*cc).cmdbuff.is_null() {
             debug_assert!(clear_ccline);
             save_cmdline();
@@ -1056,14 +1064,14 @@ unsafe fn command_line_enter(
         }
 
         init_ccline((*s).firstc, (*s).indent);
-        debug_assert!(!ccline.cmdbuff.is_null());
-        ccline.prompt_id = last_prompt_id;
-        last_prompt_id = last_prompt_id.wrapping_add(1);
-        ccline.level = cmdline_level;
+        debug_assert!(!getln_st().ccline.cmdbuff.is_null());
+        getln_st().ccline.prompt_id = getln_st().last_prompt_id;
+        getln_st().last_prompt_id = getln_st().last_prompt_id.wrapping_add(1);
+        getln_st().ccline.level = getln_st().cmdline_level;
 
-        if cmdline_level != 50 {
+        if getln_st().cmdline_level != 50 {
             ExpandInit(&raw mut (*s).xpc);
-            ccline.xpc = &raw mut (*s).xpc;
+            getln_st().ccline.xpc = &raw mut (*s).xpc;
             clear_cmdline_orig();
 
             cmdmsg_rl = (*curwin).w_onebuf_opt.wo_rl != 0
@@ -1076,7 +1084,7 @@ unsafe fn command_line_enter(
             if !cmd_silent {
                 gotocmdline(true);
                 redrawcmdprompt(); // draw prompt or indent
-                ccline.cmdspos = cmd_startcol();
+                getln_st().ccline.cmdspos = cmd_startcol();
             }
             (*s).xpc.xp_context = EXPAND_NOTHING;
             (*s).xpc.xp_backslash = XP_BS_NONE;
@@ -1085,10 +1093,10 @@ unsafe fn command_line_enter(
                 (*s).xpc.xp_shell = false;
             }
 
-            if ccline.input_fn != 0 {
-                (*s).xpc.xp_context = ccline.xp_context;
-                (*s).xpc.xp_pattern = ccline.cmdbuff;
-                (*s).xpc.xp_arg = (&raw const ccline.xp_arg)
+            if getln_st().ccline.input_fn != 0 {
+                (*s).xpc.xp_context = getln_st().ccline.xp_context;
+                (*s).xpc.xp_pattern = getln_st().ccline.cmdbuff;
+                (*s).xpc.xp_arg = (&raw const getln_st().ccline.xp_arg)
                     .as_ref()
                     .unwrap()
                     .as_ref()
@@ -1126,7 +1134,7 @@ unsafe fn command_line_enter(
                 let dict = get_v_event(&raw mut save_v_event);
 
                 tv_dict_add_str(dict, c"cmdtype".as_ptr(), 7, firstcbuf.as_ptr());
-                tv_dict_add_nr(dict, c"cmdlevel".as_ptr(), 8, ccline.level as varnumber_T);
+                tv_dict_add_nr(dict, c"cmdlevel".as_ptr(), 8, getln_st().ccline.level as varnumber_T);
                 tv_dict_set_keys_readonly(dict);
                 let mut tstate = TryState::new();
                 try_enter(&raw mut tstate);
@@ -1207,7 +1215,7 @@ unsafe fn command_line_enter(
                 let dict = get_v_event(&raw mut save_v_event);
 
                 tv_dict_add_str(dict, c"cmdtype".as_ptr(), 7, firstcbuf.as_ptr());
-                tv_dict_add_nr(dict, c"cmdlevel".as_ptr(), 8, ccline.level as varnumber_T);
+                tv_dict_add_nr(dict, c"cmdlevel".as_ptr(), 8, getln_st().ccline.level as varnumber_T);
                 tv_dict_set_keys_readonly(dict);
                 tv_dict_add_bool(
                     dict,
@@ -1243,26 +1251,26 @@ unsafe fn command_line_enter(
             } else {
                 pum_check_clear();
             }
-            wildmenu_cleanup(&raw mut ccline);
+            wildmenu_cleanup(&raw mut getln_st().ccline);
             (*s).did_wild_list = false;
             (*s).wim_index = 0;
 
             ExpandCleanup(&raw mut (*s).xpc);
-            ccline.xpc = ptr::null_mut();
+            getln_st().ccline.xpc = ptr::null_mut();
             clear_cmdline_orig();
 
             finish_incsearch_highlighting((*s).gotesc, &raw mut (*s).is_state, false);
 
-            if !ccline.cmdbuff.is_null() {
+            if !getln_st().ccline.cmdbuff.is_null() {
                 if (*s).histype != HIST_INVALID
-                    && ccline.cmdlen != 0
+                    && getln_st().ccline.cmdlen != 0
                     && (*s).firstc != NUL as c_int
                     && ((*s).some_key_typed || (*s).histype == HIST_SEARCH)
                 {
                     add_to_history(
                         (*s).histype,
-                        ccline.cmdbuff,
-                        ccline.cmdlen as usize,
+                        getln_st().ccline.cmdbuff,
+                        getln_st().ccline.cmdlen as usize,
                         true,
                         if (*s).histype == HIST_SEARCH {
                             (*s).firstc
@@ -1273,15 +1281,15 @@ unsafe fn command_line_enter(
                     if (*s).firstc == b':' as c_int {
                         new_last_cmdline = Some(crate::memory::cstr_from_bytes(
                             std::slice::from_raw_parts(
-                                ccline.cmdbuff.cast::<u8>(),
-                                ccline.cmdlen as usize,
+                                getln_st().ccline.cmdbuff.cast::<u8>(),
+                                getln_st().ccline.cmdlen as usize,
                             ),
                         ));
                     }
                 }
 
-                if !(*s).gotesc && ccline.level == 1 {
-                    atom_cmdline_set((*s).firstc, ccline.cmdbuff, ccline.cmdlen as usize);
+                if !(*s).gotesc && getln_st().ccline.level == 1 {
+                    atom_cmdline_set((*s).firstc, getln_st().ccline.cmdbuff, getln_st().ccline.cmdlen as usize);
                 }
 
                 if (*s).gotesc {
@@ -1333,12 +1341,12 @@ unsafe fn command_line_enter(
 
         // theend:
         (*s).save_p_icm = None;
-        ccline.last_colors.cmdbuff = None;
-        let lc_colors = &raw mut ccline.last_colors.colors;
+        getln_st().ccline.last_colors.cmdbuff = None;
+        let lc_colors = &raw mut getln_st().ccline.last_colors.colors;
         *lc_colors = Vec::new();
 
-        let ret = if !ccline.cmdbuff.is_null() {
-            Some(CStr::from_ptr(ccline.cmdbuff).to_owned())
+        let ret = if !getln_st().ccline.cmdbuff.is_null() {
+            Some(CStr::from_ptr(getln_st().ccline.cmdbuff).to_owned())
         } else {
             None
         };
@@ -1351,7 +1359,7 @@ unsafe fn command_line_enter(
             status_redraw_all();
         }
 
-        cmdline_level -= 1;
+        getln_st().cmdline_level -= 1;
 
         if did_save_ccline {
             restore_cmdline();
@@ -1366,7 +1374,7 @@ unsafe fn command_line_enter(
 
 unsafe fn command_line_check(s: *mut CommandLineState) -> c_int {
     unsafe {
-        (*s).prev_cmdpos = ccline.cmdpos;
+        (*s).prev_cmdpos = getln_st().ccline.cmdpos;
         (*s).prev_cmdbuff = None;
 
         redir_off = true;
@@ -1379,8 +1387,8 @@ unsafe fn command_line_check(s: *mut CommandLineState) -> c_int {
 
         may_trigger_safestate((*s).xpc.xp_numfiles <= 0);
 
-        if !ccline.cmdbuff.is_null() {
-            (*s).prev_cmdbuff = Some(CStr::from_ptr(ccline.cmdbuff).to_owned());
+        if !getln_st().ccline.cmdbuff.is_null() {
+            (*s).prev_cmdbuff = Some(CStr::from_ptr(getln_st().ccline.cmdbuff).to_owned());
         }
 
         if (*s).c == K_WILD && (*s).firstc != b'@' as c_int {
@@ -1405,7 +1413,7 @@ unsafe fn command_line_handle_ctrl_bsl(s: *mut CommandLineState) -> c_int {
         if (*s).c != Ctrl_N
             && (*s).c != Ctrl_G
             && ((*s).c != b'e' as c_int
-                || (ccline.cmdfirstc == b'=' as c_int && KeyTyped)
+                || (getln_st().ccline.cmdfirstc == b'=' as c_int && KeyTyped)
                 || cmdline_star > 0)
         {
             vungetc((*s).c);
@@ -1413,10 +1421,10 @@ unsafe fn command_line_handle_ctrl_bsl(s: *mut CommandLineState) -> c_int {
         }
 
         if (*s).c == b'e' as c_int {
-            if ccline.cmdpos == ccline.cmdlen {
-                new_cmdpos = 99999;
+            if getln_st().ccline.cmdpos == getln_st().ccline.cmdlen {
+                getln_st().new_cmdpos = 99999;
             } else {
-                new_cmdpos = ccline.cmdpos;
+                getln_st().new_cmdpos = getln_st().ccline.cmdpos;
             }
 
             (*s).c = get_expr_register();
@@ -1428,10 +1436,10 @@ unsafe fn command_line_handle_ctrl_bsl(s: *mut CommandLineState) -> c_int {
                 if let Some(p) = p {
                     let len = p.as_bytes().len() as c_int;
                     realloc_cmdbuff(len + 1);
-                    ccline.cmdlen = len;
-                    strcpy(ccline.cmdbuff, p.as_ptr());
+                    getln_st().ccline.cmdlen = len;
+                    strcpy(getln_st().ccline.cmdbuff, p.as_ptr());
 
-                    ccline.cmdpos = ccline.cmdlen.min(new_cmdpos);
+                    getln_st().ccline.cmdpos = getln_st().ccline.cmdlen.min(getln_st().new_cmdpos);
 
                     KeyTyped = false;
                     redrawcmd();
@@ -1506,7 +1514,7 @@ unsafe fn command_line_wildchar_complete(s: *mut CommandLineState) -> c_int {
                 }
                 (*s).xpc.xp_pre_incsearch_pos = (*s).is_state.search_start;
             }
-            let cmdpos_before = ccline.cmdpos;
+            let cmdpos_before = getln_st().ccline.cmdpos;
 
             if wim_longest {
                 res = nextwild(&raw mut (*s).xpc, WILD_LONGEST, options, escape);
@@ -1535,7 +1543,7 @@ unsafe fn command_line_wildchar_complete(s: *mut CommandLineState) -> c_int {
             if res == OK && (*s).xpc.xp_numfiles > if wim_noselect || wim_noinsert { 0 } else { 1 }
             {
                 if wim_longest {
-                    let found_longest_prefix = ccline.cmdpos != cmdpos_before;
+                    let found_longest_prefix = getln_st().ccline.cmdpos != cmdpos_before;
                     let show_menu = p_wmnu != 0 && wim_full;
                     if wim_list || show_menu {
                         showmatches(
@@ -1640,7 +1648,7 @@ unsafe fn command_line_end_wildmenu(s: *mut CommandLineState, key_is_wc: bool, c
             (*s).xpc.xp_context = EXPAND_NOTHING;
         }
         (*s).wim_index = 0;
-        wildmenu_cleanup(&raw mut ccline);
+        wildmenu_cleanup(&raw mut getln_st().ccline);
     }
 }
 
@@ -1653,10 +1661,10 @@ unsafe fn command_line_execute(s: *mut CommandLineState, key: c_int) -> c_int {
         let display_tick_saved: disptick_T = (*curwin).w_display_tick;
         (*s).c = key;
 
-        if ccline.cmdbuff_replaced && (*s).xpc.xp_numfiles > 0 {
+        if getln_st().ccline.cmdbuff_replaced && (*s).xpc.xp_numfiles > 0 {
             command_line_end_wildmenu(s, false, -1);
         }
-        ccline.cmdbuff_replaced = false;
+        getln_st().ccline.cmdbuff_replaced = false;
 
         if (*s).c == K_WILD && (*s).did_hist_navigate {
             (*s).did_hist_navigate = false;
@@ -1681,7 +1689,7 @@ unsafe fn command_line_execute(s: *mut CommandLineState, key: c_int) -> c_int {
             if (*curwin).w_display_tick > display_tick_saved && (*s).is_state.did_incsearch {
                 may_do_incsearch_highlighting((*s).firstc, (*s).count, &raw mut (*s).is_state);
             }
-            if ccline.cmdbuff_replaced {
+            if getln_st().ccline.cmdbuff_replaced {
                 command_line_changed(s);
             }
 
@@ -1759,7 +1767,7 @@ unsafe fn command_line_execute(s: *mut CommandLineState, key: c_int) -> c_int {
 
         if p_wmnu != 0 {
             (*s).c = wildmenu_translate_key(
-                &raw mut ccline,
+                &raw mut getln_st().ccline,
                 (*s).c,
                 &raw mut (*s).xpc,
                 (*s).did_wild_list,
@@ -1823,7 +1831,7 @@ unsafe fn command_line_execute(s: *mut CommandLineState, key: c_int) -> c_int {
         }
 
         if p_wmnu != 0 {
-            (*s).c = wildmenu_process_key(&raw mut ccline, (*s).c, &raw mut (*s).xpc);
+            (*s).c = wildmenu_process_key(&raw mut getln_st().ccline, (*s).c, &raw mut (*s).xpc);
         }
 
         if (*s).c == Ctrl_BSL {
@@ -1837,7 +1845,7 @@ unsafe fn command_line_execute(s: *mut CommandLineState, key: c_int) -> c_int {
             }
         }
 
-        if (*s).c == cedit_key {
+        if (*s).c == getln_st().cedit_key {
             if ex_normal_busy == 0 && !got_int {
                 (*s).c = open_cmdwin();
                 (*s).some_key_typed = true;
@@ -1976,7 +1984,7 @@ unsafe fn may_do_command_line_next_incsearch(
             restore_last_search_pattern();
             return OK;
         }
-        if patlen == 0 && *ccline.cmdbuff.add(skiplen as usize) == NUL {
+        if patlen == 0 && *getln_st().ccline.cmdbuff.add(skiplen as usize) == NUL {
             restore_last_search_pattern();
             return FAIL;
         }
@@ -1985,14 +1993,14 @@ unsafe fn may_do_command_line_next_incsearch(
         ui_flush();
 
         let mut t: pos_T;
-        let mut pat = ccline.cmdbuff.add(skiplen as usize);
+        let mut pat = getln_st().ccline.cmdbuff.add(skiplen as usize);
         let mut dircp: *mut c_char = ptr::null_mut();
         let mut searchstr = pat;
         let mut strcopy: Vec<c_char> = Vec::new();
         let mut searchstrlen = patlen as usize;
         let mut offset = SearchOffset::new();
         let mut search_flags = SEARCH_NOOF;
-        let mut patlen_s = (ccline.cmdlen - skiplen) as usize;
+        let mut patlen_s = (getln_st().ccline.cmdlen - skiplen) as usize;
 
         parse_search_pattern_offset(
             &raw mut pat,
@@ -2107,26 +2115,26 @@ unsafe fn command_line_erase_chars(s: *mut CommandLineState) -> c_int {
             (*s).c = K_DEL;
         }
 
-        if (*s).c == K_DEL && ccline.cmdpos != ccline.cmdlen {
-            ccline.cmdpos += 1;
+        if (*s).c == K_DEL && getln_st().ccline.cmdpos != getln_st().ccline.cmdlen {
+            getln_st().ccline.cmdpos += 1;
         }
         if (*s).c == K_DEL {
-            ccline.cmdpos +=
-                mb_off_next(ccline.cmdbuff, ccline.cmdbuff.add(ccline.cmdpos as usize));
+            getln_st().ccline.cmdpos +=
+                mb_off_next(getln_st().ccline.cmdbuff, getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdpos as usize));
         }
 
-        if ccline.cmdpos > 0 {
-            let mut j = ccline.cmdpos;
-            let mut p = mb_prevptr(ccline.cmdbuff, ccline.cmdbuff.add(j as usize));
+        if getln_st().ccline.cmdpos > 0 {
+            let mut j = getln_st().ccline.cmdpos;
+            let mut p = mb_prevptr(getln_st().ccline.cmdbuff, getln_st().ccline.cmdbuff.add(j as usize));
 
             if (*s).c == Ctrl_W {
-                while p > ccline.cmdbuff && ascii_isspace(*p as c_int) {
-                    p = mb_prevptr(ccline.cmdbuff, p);
+                while p > getln_st().ccline.cmdbuff && ascii_isspace(*p as c_int) {
+                    p = mb_prevptr(getln_st().ccline.cmdbuff, p);
                 }
 
                 let cls = mb_get_class(p);
-                while p > ccline.cmdbuff && mb_get_class(p) == cls {
-                    p = mb_prevptr(ccline.cmdbuff, p);
+                while p > getln_st().ccline.cmdbuff && mb_get_class(p) == cls {
+                    p = mb_prevptr(getln_st().ccline.cmdbuff, p);
                 }
 
                 if mb_get_class(p) != cls {
@@ -2134,28 +2142,28 @@ unsafe fn command_line_erase_chars(s: *mut CommandLineState) -> c_int {
                 }
             }
 
-            ccline.cmdpos = p.offset_from(ccline.cmdbuff) as c_int;
-            ccline.cmdlen -= j - ccline.cmdpos;
-            let mut i = ccline.cmdpos;
+            getln_st().ccline.cmdpos = p.offset_from(getln_st().ccline.cmdbuff) as c_int;
+            getln_st().ccline.cmdlen -= j - getln_st().ccline.cmdpos;
+            let mut i = getln_st().ccline.cmdpos;
 
-            while i < ccline.cmdlen {
-                *ccline.cmdbuff.add(i as usize) = *ccline.cmdbuff.add(j as usize);
+            while i < getln_st().ccline.cmdlen {
+                *getln_st().ccline.cmdbuff.add(i as usize) = *getln_st().ccline.cmdbuff.add(j as usize);
                 i += 1;
                 j += 1;
             }
 
-            *ccline.cmdbuff.add(ccline.cmdlen as usize) = NUL;
-            if ccline.cmdlen == 0 {
+            *getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdlen as usize) = NUL;
+            if getln_st().ccline.cmdlen == 0 {
                 (*s).is_state.search_start = (*s).is_state.save_cursor;
                 (*s).is_state.old_viewstate = (*s).is_state.init_viewstate;
             }
             redrawcmd();
-        } else if ccline.cmdlen == 0
+        } else if getln_st().ccline.cmdlen == 0
             && (*s).c != Ctrl_W
-            && (&raw const ccline.cmdprompt).as_ref().unwrap().is_none()
+            && (&raw const getln_st().ccline.cmdprompt).as_ref().unwrap().is_none()
             && (*s).indent == 0
         {
-            if ccline.cmdfirstc == b'>' as c_int {
+            if getln_st().ccline.cmdfirstc == b'>' as c_int {
                 return CMDLINE_NOT_CHANGED;
             }
 
@@ -2215,7 +2223,7 @@ unsafe fn command_line_toggle_langmap(s: *mut CommandLineState) {
 /// numbered or named register.
 unsafe fn command_line_insert_reg(s: *mut CommandLineState) -> c_int {
     unsafe {
-        let save_new_cmdpos = new_cmdpos;
+        let save_new_cmdpos = getln_st().new_cmdpos;
 
         putcmdline(b'"' as c_char, true);
         no_mapping += 1;
@@ -2231,9 +2239,9 @@ unsafe fn command_line_insert_reg(s: *mut CommandLineState) -> c_int {
         }
         no_mapping -= 1;
         allow_keys -= 1;
-        new_cmdpos = -1;
+        getln_st().new_cmdpos = -1;
         if (*s).c == b'=' as c_int {
-            if ccline.cmdfirstc == b'=' as c_int || cmdline_star > 0 {
+            if getln_st().ccline.cmdfirstc == b'=' as c_int || cmdline_star > 0 {
                 beep_flush();
                 (*s).c = ESC;
             } else {
@@ -2251,13 +2259,13 @@ unsafe fn command_line_insert_reg(s: *mut CommandLineState) -> c_int {
                 return GOTO_NORMAL_MODE;
             }
             KeyTyped = false;
-            if new_cmdpos >= 0 {
-                ccline.cmdpos = ccline.cmdlen.min(new_cmdpos);
+            if getln_st().new_cmdpos >= 0 {
+                getln_st().ccline.cmdpos = getln_st().ccline.cmdlen.min(getln_st().new_cmdpos);
             }
         }
-        new_cmdpos = save_new_cmdpos;
+        getln_st().new_cmdpos = save_new_cmdpos;
 
-        ccline.special_char = NUL;
+        getln_st().ccline.special_char = NUL;
         redrawcmd();
 
         if literally {
@@ -2273,20 +2281,20 @@ unsafe fn command_line_left_right_mouse(s: *mut CommandLineState) {
     unsafe {
         (*s).ignore_drag_release = (*s).c == K_LEFTRELEASE || (*s).c == K_RIGHTRELEASE;
 
-        ccline.cmdspos = cmd_startcol();
-        ccline.cmdpos = 0;
-        while ccline.cmdpos < ccline.cmdlen {
-            let cells = cmdline_charsize(ccline.cmdpos);
-            if mouse_row <= cmdline_row + ccline.cmdspos / Columns
-                && mouse_col < ccline.cmdspos % Columns + cells
+        getln_st().ccline.cmdspos = cmd_startcol();
+        getln_st().ccline.cmdpos = 0;
+        while getln_st().ccline.cmdpos < getln_st().ccline.cmdlen {
+            let cells = cmdline_charsize(getln_st().ccline.cmdpos);
+            if mouse_row <= cmdline_row + getln_st().ccline.cmdspos / Columns
+                && mouse_col < getln_st().ccline.cmdspos % Columns + cells
             {
                 break;
             }
 
-            correct_screencol(ccline.cmdpos, cells, &raw mut ccline.cmdspos);
-            ccline.cmdpos += utfc_ptr2len(ccline.cmdbuff.add(ccline.cmdpos as usize)) - 1;
-            ccline.cmdspos += cells;
-            ccline.cmdpos += 1;
+            correct_screencol(getln_st().ccline.cmdpos, cells, &raw mut getln_st().ccline.cmdspos);
+            getln_st().ccline.cmdpos += utfc_ptr2len(getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdpos as usize)) - 1;
+            getln_st().ccline.cmdspos += cells;
+            getln_st().ccline.cmdpos += 1;
         }
     }
 }
@@ -2358,10 +2366,10 @@ unsafe fn command_line_browse_history(s: *mut CommandLineState) -> c_int {
         (*s).save_hiscnt = (*s).hiscnt;
 
         if (*s).lookfor.is_none() {
-            let prefix_len = ccline.cmdpos as usize;
-            let bytes = std::slice::from_raw_parts(ccline.cmdbuff.cast::<u8>(), prefix_len);
+            let prefix_len = getln_st().ccline.cmdpos as usize;
+            let bytes = std::slice::from_raw_parts(getln_st().ccline.cmdbuff.cast::<u8>(), prefix_len);
             (*s).lookfor = Some(std::ffi::CString::new(bytes).unwrap_or_default());
-            (*s).lookforlen = ccline.cmdpos;
+            (*s).lookforlen = getln_st().ccline.cmdpos;
         }
 
         let next_match = (*s).c == K_DOWN
@@ -2407,20 +2415,20 @@ unsafe fn command_line_browse_history(s: *mut CommandLineState) -> c_int {
                             && (j == 0 || *p.add(j - 1) != b'\\' as c_char)
                         {
                             if i > 0 {
-                                *ccline.cmdbuff.add(len as usize) = (*s).firstc as c_char;
+                                *getln_st().ccline.cmdbuff.add(len as usize) = (*s).firstc as c_char;
                             }
                         } else {
                             if *p.add(j) as c_int == (*s).firstc
                                 && (j == 0 || *p.add(j - 1) != b'\\' as c_char)
                             {
                                 if i > 0 {
-                                    *ccline.cmdbuff.add(len as usize) = b'\\' as c_char;
+                                    *getln_st().ccline.cmdbuff.add(len as usize) = b'\\' as c_char;
                                 }
                                 len += 1;
                             }
 
                             if i > 0 {
-                                *ccline.cmdbuff.add(len as usize) = *p.add(j);
+                                *getln_st().ccline.cmdbuff.add(len as usize) = *p.add(j);
                             }
                         }
                         len += 1;
@@ -2431,14 +2439,14 @@ unsafe fn command_line_browse_history(s: *mut CommandLineState) -> c_int {
                         alloc_cmdbuff(len);
                     }
                 }
-                *ccline.cmdbuff.add(len as usize) = NUL;
-                ccline.cmdlen = len;
-                ccline.cmdpos = len;
+                *getln_st().ccline.cmdbuff.add(len as usize) = NUL;
+                getln_st().ccline.cmdlen = len;
+                getln_st().ccline.cmdpos = len;
             } else {
                 alloc_cmdbuff(plen);
-                strcpy(ccline.cmdbuff, p);
-                ccline.cmdlen = plen;
-                ccline.cmdpos = plen;
+                strcpy(getln_st().ccline.cmdbuff, p);
+                getln_st().ccline.cmdlen = plen;
+                getln_st().ccline.cmdpos = plen;
             }
 
             redrawcmd();
@@ -2451,7 +2459,7 @@ unsafe fn command_line_browse_history(s: *mut CommandLineState) -> c_int {
 
 unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
     unsafe {
-        if !(ccline.one_key && (*s).c != ESC && (*s).c != Ctrl_C) {
+        if !(getln_st().ccline.one_key && (*s).c != ESC && (*s).c != Ctrl_C) {
             'key_switch: {
                 match (*s).c {
                     K_BS | Ctrl_H | K_DEL | K_KDEL | Ctrl_W => {
@@ -2463,7 +2471,7 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
                     }
 
                     K_INS | K_KINS => {
-                        ccline.overstrike = if ccline.overstrike != 0 { 0 } else { 1 };
+                        getln_st().ccline.overstrike = if getln_st().ccline.overstrike != 0 { 0 } else { 1 };
                         ui_cursor_shape();
                         may_trigger_modechanged();
                         status_redraw_curbuf();
@@ -2477,18 +2485,18 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
                     }
 
                     Ctrl_U => {
-                        let mut j = ccline.cmdpos;
-                        ccline.cmdlen -= j;
-                        ccline.cmdpos = 0;
+                        let mut j = getln_st().ccline.cmdpos;
+                        getln_st().ccline.cmdlen -= j;
+                        getln_st().ccline.cmdpos = 0;
                         let mut i = 0;
-                        while i < ccline.cmdlen {
-                            *ccline.cmdbuff.add(i as usize) = *ccline.cmdbuff.add(j as usize);
+                        while i < getln_st().ccline.cmdlen {
+                            *getln_st().ccline.cmdbuff.add(i as usize) = *getln_st().ccline.cmdbuff.add(j as usize);
                             i += 1;
                             j += 1;
                         }
 
-                        *ccline.cmdbuff.add(ccline.cmdlen as usize) = NUL;
-                        if ccline.cmdlen == 0 {
+                        *getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdlen as usize) = NUL;
+                        if getln_st().ccline.cmdlen == 0 {
                             (*s).is_state.search_start = (*s).is_state.save_cursor;
                         }
                         redrawcmd();
@@ -2496,8 +2504,8 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
                     }
 
                     ESC | Ctrl_C => {
-                        if getln_interrupted_highlight && (*s).c == Ctrl_C {
-                            getln_interrupted_highlight = false;
+                        if getln_st().getln_interrupted_highlight && (*s).c == Ctrl_C {
+                            getln_st().getln_interrupted_highlight = false;
                             return command_line_not_changed(s);
                         }
 
@@ -2534,58 +2542,58 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
 
                     K_RIGHT | K_S_RIGHT | K_C_RIGHT => {
                         loop {
-                            if ccline.cmdpos >= ccline.cmdlen {
+                            if getln_st().ccline.cmdpos >= getln_st().ccline.cmdlen {
                                 break;
                             }
 
-                            let cells = cmdline_charsize(ccline.cmdpos);
-                            if KeyTyped && ccline.cmdspos + cells >= Columns * Rows {
+                            let cells = cmdline_charsize(getln_st().ccline.cmdpos);
+                            if KeyTyped && getln_st().ccline.cmdspos + cells >= Columns * Rows {
                                 break;
                             }
 
-                            ccline.cmdspos += cells;
-                            ccline.cmdpos +=
-                                utfc_ptr2len(ccline.cmdbuff.add(ccline.cmdpos as usize));
+                            getln_st().ccline.cmdspos += cells;
+                            getln_st().ccline.cmdpos +=
+                                utfc_ptr2len(getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdpos as usize));
 
                             if !(((*s).c == K_S_RIGHT
                                 || (*s).c == K_C_RIGHT
                                 || (mod_mask & ((MOD_MASK_SHIFT | MOD_MASK_CTRL) as c_int)) != 0)
-                                && *ccline.cmdbuff.add(ccline.cmdpos as usize) != b' ' as c_char)
+                                && *getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdpos as usize) != b' ' as c_char)
                             {
                                 break;
                             }
                         }
-                        ccline.cmdspos = cmd_screencol(ccline.cmdpos);
+                        getln_st().ccline.cmdspos = cmd_screencol(getln_st().ccline.cmdpos);
                         return command_line_not_changed(s);
                     }
 
                     K_LEFT | K_S_LEFT | K_C_LEFT => {
-                        if ccline.cmdpos == 0 {
+                        if getln_st().ccline.cmdpos == 0 {
                             return command_line_not_changed(s);
                         }
                         loop {
-                            ccline.cmdpos -= 1;
-                            ccline.cmdpos -= utf_head_off(
-                                ccline.cmdbuff,
-                                ccline.cmdbuff.add(ccline.cmdpos as usize),
+                            getln_st().ccline.cmdpos -= 1;
+                            getln_st().ccline.cmdpos -= utf_head_off(
+                                getln_st().ccline.cmdbuff,
+                                getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdpos as usize),
                             );
-                            ccline.cmdspos -= cmdline_charsize(ccline.cmdpos);
+                            getln_st().ccline.cmdspos -= cmdline_charsize(getln_st().ccline.cmdpos);
 
-                            if !(ccline.cmdpos > 0
+                            if !(getln_st().ccline.cmdpos > 0
                                 && ((*s).c == K_S_LEFT
                                     || (*s).c == K_C_LEFT
                                     || (mod_mask & ((MOD_MASK_SHIFT | MOD_MASK_CTRL) as c_int))
                                         != 0)
-                                && *ccline.cmdbuff.add((ccline.cmdpos - 1) as usize)
+                                && *getln_st().ccline.cmdbuff.add((getln_st().ccline.cmdpos - 1) as usize)
                                     != b' ' as c_char)
                             {
                                 break;
                             }
                         }
 
-                        ccline.cmdspos = cmd_screencol(ccline.cmdpos);
-                        if ccline.special_char != NUL {
-                            putcmdline(ccline.special_char, ccline.special_shift);
+                        getln_st().ccline.cmdspos = cmd_screencol(getln_st().ccline.cmdpos);
+                        if getln_st().ccline.special_char != NUL {
+                            putcmdline(getln_st().ccline.special_char, getln_st().ccline.special_shift);
                         }
 
                         return command_line_not_changed(s);
@@ -2613,8 +2621,8 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
                         if (*s).ignore_drag_release {
                             return command_line_not_changed(s);
                         }
-                        if { ccline.mouse_used }.is_some() && mouse_row < cmdline_row {
-                            ccline.mouse_used = Some(true);
+                        if { getln_st().ccline.mouse_used }.is_some() && mouse_row < cmdline_row {
+                            getln_st().ccline.mouse_used = Some(true);
                             return 0;
                         }
                         command_line_left_right_mouse(s);
@@ -2622,8 +2630,8 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
                     }
 
                     K_LEFTMOUSE => {
-                        if { ccline.mouse_used }.is_some() && mouse_row < cmdline_row {
-                            ccline.mouse_used = Some(true);
+                        if { getln_st().ccline.mouse_used }.is_some() && mouse_row < cmdline_row {
+                            getln_st().ccline.mouse_used = Some(true);
                             return 0;
                         }
                         command_line_left_right_mouse(s);
@@ -2656,20 +2664,20 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
                     }
 
                     Ctrl_B | K_HOME | K_KHOME | K_S_HOME | K_C_HOME => {
-                        ccline.cmdpos = 0;
-                        ccline.cmdspos = cmd_startcol();
+                        getln_st().ccline.cmdpos = 0;
+                        getln_st().ccline.cmdspos = cmd_startcol();
                         return command_line_not_changed(s);
                     }
 
                     Ctrl_E | K_END | K_KEND | K_S_END | K_C_END => {
-                        ccline.cmdpos = ccline.cmdlen;
-                        ccline.cmdspos = cmd_screencol(ccline.cmdpos);
+                        getln_st().ccline.cmdpos = getln_st().ccline.cmdlen;
+                        getln_st().ccline.cmdspos = cmd_screencol(getln_st().ccline.cmdpos);
                         return command_line_not_changed(s);
                     }
 
                     Ctrl_A => {
                         if cmdline_pum_active() {
-                            cmdline_pum_cleanup(&raw mut ccline);
+                            cmdline_pum_cleanup(&raw mut getln_st().ccline);
                         }
 
                         if nextwild(&raw mut (*s).xpc, WILD_ALL, 0, (*s).firstc != b'@' as c_int)
@@ -2786,12 +2794,12 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
                         (*s).c = get_literal((mod_mask & (MOD_MASK_SHIFT as c_int)) != 0);
 
                         (*s).do_abbr = false;
-                        ccline.special_char = NUL;
+                        getln_st().ccline.special_char = NUL;
                         if utf_iscomposing_first((*s).c) && !cmd_silent {
                             if ui_has(kUICmdline) {
                                 unputcmdline();
                             } else {
-                                draw_cmdline(ccline.cmdpos, ccline.cmdlen - ccline.cmdpos);
+                                draw_cmdline(getln_st().ccline.cmdpos, getln_st().ccline.cmdlen - getln_st().ccline.cmdpos);
                                 msg_putchar(b' ' as c_int);
                                 cursorcmd();
                             }
@@ -2802,7 +2810,7 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
                         (*s).ignore_drag_release = true;
                         putcmdline(b'?' as c_char, true);
                         (*s).c = get_digraph(true);
-                        ccline.special_char = NUL;
+                        getln_st().ccline.special_char = NUL;
 
                         if (*s).c != NUL as c_int {
                             break 'key_switch;
@@ -2820,8 +2828,8 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
                     }
 
                     c if c == b'q' as c_int => {
-                        if { ccline.mouse_used }.is_some() {
-                            *ccline.cmdbuff = NUL;
+                        if { getln_st().ccline.mouse_used }.is_some() {
+                            *getln_st().ccline.cmdbuff = NUL;
                             return 0;
                         }
                         if !is_special((*s).c) {
@@ -2859,7 +2867,7 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
             *iobuff_ptr.add(j as usize) = NUL;
             put_on_cmdline(iobuff_ptr, j, true);
         }
-        if ccline.one_key {
+        if getln_st().ccline.one_key {
             0
         } else {
             command_line_changed(s)
@@ -2870,9 +2878,9 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
 /// Trigger `CursorMovedC` autocommands.
 unsafe fn may_trigger_cursormovedc(s: *mut CommandLineState) {
     unsafe {
-        if ccline.cmdpos != (*s).prev_cmdpos {
+        if getln_st().ccline.cmdpos != (*s).prev_cmdpos {
             trigger_cmd_autocmd((*s).cmdline_type, EVENT_CURSORMOVEDC);
-            ccline.redraw_state = ccline.redraw_state.max(kCmdRedrawPos);
+            getln_st().ccline.redraw_state = getln_st().ccline.redraw_state.max(kCmdRedrawPos);
         }
     }
 }
@@ -2880,7 +2888,7 @@ unsafe fn may_trigger_cursormovedc(s: *mut CommandLineState) {
 unsafe fn command_line_not_changed(s: *mut CommandLineState) -> c_int {
     unsafe {
         may_trigger_cursormovedc(s);
-        (*s).prev_cmdpos = ccline.cmdpos;
+        (*s).prev_cmdpos = getln_st().ccline.cmdpos;
         if !(*s).is_state.incsearch_postponed {
             return 1;
         }
@@ -2929,18 +2937,18 @@ unsafe fn empty_pattern_magic(p: *mut c_char, mut len: usize, magic_val: magic_T
 }
 
 pub unsafe fn cmdpreview_get_bufnr() -> handle_T {
-    unsafe { cmdpreview_bufnr }
+    unsafe { getln_st().cmdpreview_bufnr }
 }
 
 pub unsafe fn cmdpreview_get_ns() -> c_int {
-    unsafe { cmdpreview_ns }
+    unsafe { getln_st().cmdpreview_ns }
 }
 
 /// Sets up command preview buffer.
 unsafe fn cmdpreview_open_buf() -> *mut buf_T {
     unsafe {
-        let mut cmdpreview_buf = if cmdpreview_bufnr != 0 {
-            buflist_findnr(cmdpreview_bufnr)
+        let mut cmdpreview_buf = if getln_st().cmdpreview_bufnr != 0 {
+            buflist_findnr(getln_st().cmdpreview_bufnr)
         } else {
             ptr::null_mut()
         };
@@ -2987,7 +2995,7 @@ unsafe fn cmdpreview_open_buf() -> *mut buf_T {
         (*curbuf).b_p_ul = -1;
         (*curbuf).b_p_tw = 0;
         ctx_restore(&raw mut aco);
-        cmdpreview_bufnr = (*cmdpreview_buf).b_fnum;
+        getln_st().cmdpreview_bufnr = (*cmdpreview_buf).b_fnum;
 
         cmdpreview_buf
     }
@@ -3033,8 +3041,8 @@ unsafe fn cmdpreview_open_win(cmdpreview_buf: *mut buf_T) -> *mut win_T {
 /// Closes any open command preview windows.
 unsafe fn cmdpreview_close_win() {
     unsafe {
-        let buf = if cmdpreview_bufnr != 0 {
-            buflist_findnr(cmdpreview_bufnr)
+        let buf = if getln_st().cmdpreview_bufnr != 0 {
+            buflist_findnr(getln_st().cmdpreview_bufnr)
         } else {
             ptr::null_mut()
         };
@@ -3061,7 +3069,7 @@ unsafe fn cmdpreview_prepare() -> CpInfo {
         while !win.is_null() {
             let buf = (*win).w_buffer;
 
-            if (*buf).b_fnum != cmdpreview_bufnr {
+            if (*buf).b_fnum != getln_st().cmdpreview_bufnr {
                 if saved_bufs.insert(buf) {
                     let mut cp_bufinfo = CpBufInfo::new();
                     cp_bufinfo.buf = buf;
@@ -3112,7 +3120,7 @@ unsafe fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
 
             (*buf).b_changed = cp_bufinfo.save_b_changed;
 
-            extmark_clear(buf, cmdpreview_ns as u32, 0, 0, MAXLNUM, MAXCOL);
+            extmark_clear(buf, getln_st().cmdpreview_ns as u32, 0, 0, MAXLNUM, MAXCOL);
 
             u_rollback(&raw mut cp_bufinfo.undo_checkpoint, buf);
 
@@ -3146,7 +3154,7 @@ unsafe fn cmdpreview_may_show(_s: *mut CommandLineState) -> bool {
         let mut ea: exarg_T = exarg_T::new();
         let mut cmod: cmdmod_T = cmdmod_T::new();
         let mut cmdpreview_type: c_int;
-        let mut cmdline_vec: Vec<c_char> = CStr::from_ptr(ccline.cmdbuff)
+        let mut cmdline_vec: Vec<c_char> = CStr::from_ptr(getln_st().ccline.cmdbuff)
             .to_bytes_with_nul()
             .iter()
             .map(|&b| b as c_char)
@@ -3201,8 +3209,8 @@ unsafe fn cmdpreview_may_show(_s: *mut CommandLineState) -> bool {
                 icm_split = false;
             }
         }
-        if cmdpreview_ns == 0 {
-            cmdpreview_ns = nvim_create_namespace(NvimString {
+        if getln_st().cmdpreview_ns == 0 {
+            getln_st().cmdpreview_ns = nvim_create_namespace(NvimString {
                 data: ptr::null_mut(),
                 size: 0,
             }) as c_int;
@@ -3261,7 +3269,7 @@ unsafe fn do_autocmd_cmdlinechanged(firstc: c_int) {
             let mut firstcbuf: [c_char; 2] = [firstc as c_char, 0];
 
             tv_dict_add_str(dict, c"cmdtype".as_ptr(), 7, firstcbuf.as_ptr());
-            tv_dict_add_nr(dict, c"cmdlevel".as_ptr(), 8, ccline.level as varnumber_T);
+            tv_dict_add_nr(dict, c"cmdlevel".as_ptr(), 8, getln_st().ccline.level as varnumber_T);
             tv_dict_set_keys_readonly(dict);
             let mut tstate = TryState::new();
             try_enter(&raw mut tstate);
@@ -3308,12 +3316,12 @@ unsafe fn command_line_changed(s: *mut CommandLineState) -> c_int {
             }
         }
 
-        if !ccline.cmdbuff_replaced
-            && (ccline.cmdpos != (*s).prev_cmdpos
+        if !getln_st().ccline.cmdbuff_replaced
+            && (getln_st().ccline.cmdpos != (*s).prev_cmdpos
                 || (*s)
                     .prev_cmdbuff
                     .as_ref()
-                    .is_some_and(|prev| strcmp(prev.as_ptr(), ccline.cmdbuff) != 0))
+                    .is_some_and(|prev| strcmp(prev.as_ptr(), getln_st().ccline.cmdbuff) != 0))
         {
             do_autocmd_cmdlinechanged(if (*s).firstc > 0 {
                 (*s).firstc
@@ -3339,7 +3347,7 @@ unsafe fn abandon_cmdline() {
         if msg_scrolled == 0 {
             compute_cmdrow();
         }
-        if !ccline.one_key {
+        if !getln_st().ccline.one_key {
             msg(c"".as_ptr(), 0);
             redraw_cmdline = true;
         }
@@ -3371,31 +3379,31 @@ pub unsafe fn getcmdline_prompt(
         let msg_col_save = msg_col;
 
         let mut did_save_ccline = false;
-        let cc = &raw mut ccline;
+        let cc = &raw mut getln_st().ccline;
         if !(*cc).cmdbuff.is_null() {
             save_cmdline();
             did_save_ccline = true;
         } else {
             *cc = CmdlineInfo::new();
         }
-        ccline.prompt_id = last_prompt_id;
-        last_prompt_id = last_prompt_id.wrapping_add(1);
-        ccline.cmdprompt = if prompt.is_null() {
+        getln_st().ccline.prompt_id = getln_st().last_prompt_id;
+        getln_st().last_prompt_id = getln_st().last_prompt_id.wrapping_add(1);
+        getln_st().ccline.cmdprompt = if prompt.is_null() {
             None
         } else {
             Some(CStr::from_ptr(prompt).to_owned())
         };
-        ccline.hl_id = hl_id;
-        ccline.xp_context = xp_context;
-        ccline.xp_arg = if xp_arg.is_null() {
+        getln_st().ccline.hl_id = hl_id;
+        getln_st().ccline.xp_context = xp_context;
+        getln_st().ccline.xp_arg = if xp_arg.is_null() {
             None
         } else {
             Some(CStr::from_ptr(xp_arg).to_owned())
         };
-        ccline.input_fn = c_int::from(firstc == b'@' as c_int);
-        ccline.highlight_callback = highlight_callback;
-        ccline.one_key = one_key;
-        ccline.mouse_used = (!mouse_used.is_null()).then_some(false);
+        getln_st().ccline.input_fn = c_int::from(firstc == b'@' as c_int);
+        getln_st().ccline.highlight_callback = highlight_callback;
+        getln_st().ccline.one_key = one_key;
+        getln_st().ccline.mouse_used = (!mouse_used.is_null()).then_some(false);
 
         let cmd_silent_saved = cmd_silent;
         let msg_silent_saved = msg_silent;
@@ -3404,17 +3412,17 @@ pub unsafe fn getcmdline_prompt(
 
         let ret = command_line_enter(firstc, 1, 0, false);
         if !mouse_used.is_null() {
-            *mouse_used = ccline.mouse_used.unwrap_or(false);
+            *mouse_used = getln_st().ccline.mouse_used.unwrap_or(false);
         }
-        ccline.redraw_state = kCmdRedrawNone;
-        ccline.highlight_callback = Callback::NONE;
+        getln_st().ccline.redraw_state = kCmdRedrawNone;
+        getln_st().ccline.highlight_callback = Callback::NONE;
 
         if did_save_ccline {
             restore_cmdline();
         }
         msg_silent = msg_silent_saved;
         cmd_silent = cmd_silent_saved;
-        if !ccline.cmdbuff.is_null() {
+        if !getln_st().ccline.cmdbuff.is_null() {
             msg_col = msg_col_save;
         }
 
@@ -3537,7 +3545,7 @@ unsafe fn cmdline_charsize(idx: c_int) -> c_int {
         if cmdline_star > 0 {
             return 1;
         }
-        ptr2cells(ccline.cmdbuff.add(idx as usize))
+        ptr2cells(getln_st().ccline.cmdbuff.add(idx as usize))
     }
 }
 
@@ -3545,8 +3553,8 @@ unsafe fn cmdline_charsize(idx: c_int) -> c_int {
 /// indent.
 unsafe fn cmd_startcol() -> c_int {
     unsafe {
-        ccline.cmdindent
-            + if ccline.cmdfirstc != NUL as c_int {
+        getln_st().ccline.cmdindent
+            + if getln_st().ccline.cmdfirstc != NUL as c_int {
                 1
             } else {
                 0
@@ -3573,7 +3581,7 @@ pub unsafe fn cmd_screencol(bytepos: c_int) -> c_int {
         }
 
         let mut i: c_int = 0;
-        while i < ccline.cmdlen && i < bytepos {
+        while i < getln_st().ccline.cmdlen && i < bytepos {
             let c = cmdline_charsize(i);
             correct_screencol(i, c, &raw mut col);
 
@@ -3582,7 +3590,7 @@ pub unsafe fn cmd_screencol(bytepos: c_int) -> c_int {
                 col -= c;
                 break;
             }
-            i += utfc_ptr2len(ccline.cmdbuff.add(i as usize));
+            i += utfc_ptr2len(getln_st().ccline.cmdbuff.add(i as usize));
         }
         col
     }
@@ -3592,8 +3600,8 @@ pub unsafe fn cmd_screencol(bytepos: c_int) -> c_int {
 /// character that doesn't fit, so that a `>` must be displayed.
 unsafe fn correct_screencol(idx: c_int, cells: c_int, col: *mut c_int) {
     unsafe {
-        if utfc_ptr2len(ccline.cmdbuff.add(idx as usize)) > 1
-            && utf_ptr2cells(ccline.cmdbuff.add(idx as usize)) > 1
+        if utfc_ptr2len(getln_st().ccline.cmdbuff.add(idx as usize)) > 1
+            && utf_ptr2cells(getln_st().ccline.cmdbuff.add(idx as usize)) > 1
             && (*col) % Columns + cells > Columns
         {
             *col += 1;
@@ -3613,22 +3621,22 @@ pub unsafe fn getexline(c: c_int, indent: c_int, do_concat: bool) -> Option<std:
 }
 
 pub unsafe fn cmdline_overstrike() -> bool {
-    unsafe { ccline.overstrike != 0 }
+    unsafe { getln_st().ccline.overstrike != 0 }
 }
 
 /// Return true if the cursor is at the end of the cmdline.
 pub unsafe fn cmdline_at_end() -> bool {
-    unsafe { ccline.cmdpos >= ccline.cmdlen }
+    unsafe { getln_st().ccline.cmdpos >= getln_st().ccline.cmdlen }
 }
 
 /// Deallocate a command line buffer, updating the buffer size and length.
 unsafe fn dealloc_cmdbuff() {
     unsafe {
-        let cb = &raw mut ccline.cmdbuff_vec;
+        let cb = &raw mut getln_st().ccline.cmdbuff_vec;
         *cb = Vec::new();
-        ccline.cmdbuff = ptr::null_mut();
-        ccline.cmdbufflen = 0;
-        ccline.cmdlen = 0;
+        getln_st().ccline.cmdbuff = ptr::null_mut();
+        getln_st().ccline.cmdbufflen = 0;
+        getln_st().ccline.cmdlen = 0;
     }
 }
 
@@ -3641,17 +3649,17 @@ unsafe fn alloc_cmdbuff(mut len: c_int) {
             len += 20;
         }
 
-        let cb = &raw mut ccline.cmdbuff_vec;
+        let cb = &raw mut getln_st().ccline.cmdbuff_vec;
         *cb = vec![0; len as usize];
-        ccline.cmdbuff = (*cb).as_mut_ptr();
-        ccline.cmdbufflen = len;
+        getln_st().ccline.cmdbuff = (*cb).as_mut_ptr();
+        getln_st().ccline.cmdbufflen = len;
     }
 }
 
 /// Re-allocate the command line to length `len` + something extra.
 pub unsafe fn realloc_cmdbuff(mut len: c_int) {
     unsafe {
-        if len < ccline.cmdbufflen {
+        if len < getln_st().ccline.cmdbufflen {
             return;
         }
 
@@ -3661,22 +3669,22 @@ pub unsafe fn realloc_cmdbuff(mut len: c_int) {
             len += 20;
         }
 
-        let p = ccline.cmdbuff;
-        let cb = &raw mut ccline.cmdbuff_vec;
+        let p = getln_st().ccline.cmdbuff;
+        let cb = &raw mut getln_st().ccline.cmdbuff_vec;
         (*cb).resize(len as usize, 0);
-        ccline.cmdbuff = (*cb).as_mut_ptr();
-        ccline.cmdbufflen = len;
-        *ccline.cmdbuff.add(ccline.cmdlen as usize) = NUL;
+        getln_st().ccline.cmdbuff = (*cb).as_mut_ptr();
+        getln_st().ccline.cmdbufflen = len;
+        *getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdlen as usize) = NUL;
 
-        if !ccline.xpc.is_null()
-            && !(*ccline.xpc).xp_pattern.is_null()
-            && (*ccline.xpc).xp_context != EXPAND_NOTHING
-            && (*ccline.xpc).xp_context != EXPAND_UNSUCCESSFUL
+        if !getln_st().ccline.xpc.is_null()
+            && !(*getln_st().ccline.xpc).xp_pattern.is_null()
+            && (*getln_st().ccline.xpc).xp_context != EXPAND_NOTHING
+            && (*getln_st().ccline.xpc).xp_context != EXPAND_UNSUCCESSFUL
         {
-            let i = (*ccline.xpc).xp_pattern.offset_from(p) as c_int;
+            let i = (*getln_st().ccline.xpc).xp_pattern.offset_from(p) as c_int;
 
-            if i >= 0 && i <= ccline.cmdlen {
-                (*ccline.xpc).xp_pattern = ccline.cmdbuff.add(i as usize);
+            if i >= 0 && i <= getln_st().ccline.cmdlen {
+                (*getln_st().ccline.xpc).xp_pattern = getln_st().ccline.cmdbuff.add(i as usize);
             }
         }
     }
@@ -3780,10 +3788,10 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
 
         'color_cmdline_end: {
             'color_cmdline_error: {
-                if (*colored_ccline).prompt_id != prev_prompt_id {
-                    prev_prompt_errors = 0;
-                    prev_prompt_id = (*colored_ccline).prompt_id;
-                } else if prev_prompt_errors >= MAX_CB_ERRORS {
+                if (*colored_ccline).prompt_id != getln_st().prev_prompt_id {
+                    getln_st().prev_prompt_errors = 0;
+                    getln_st().prev_prompt_id = (*colored_ccline).prompt_id;
+                } else if getln_st().prev_prompt_errors >= MAX_CB_ERRORS {
                     break 'color_cmdline_end;
                 }
                 if (*colored_ccline).highlight_callback.cb_type() != kCallbackNone {
@@ -3825,7 +3833,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                     arg_owned = Some(cstr);
                 }
 
-                getln_interrupted_highlight = false;
+                getln_st().getln_interrupted_highlight = false;
                 let mut tstate = TryState::new();
                 try_enter(&raw mut tstate);
                 err_errmsg = c"E5407: Callback has thrown an exception: %s".as_ptr();
@@ -3835,7 +3843,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                 msg_silent -= 1;
                 msg_col = saved_msg_col;
                 if got_int {
-                    getln_interrupted_highlight = true;
+                    getln_st().getln_interrupted_highlight = true;
                 }
                 try_leave(&raw const tstate, &raw mut err);
                 if error_set(&err) || !cbcall_ret {
@@ -3985,7 +3993,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                         hl_id: 0,
                     });
                 }
-                prev_prompt_errors = 0;
+                getln_st().prev_prompt_errors = 0;
                 break 'color_cmdline_end;
             }
 
@@ -3999,7 +4007,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
             }
             let _ = printed_errmsg;
 
-            prev_prompt_errors += 1;
+            getln_st().prev_prompt_errors += 1;
             (*ccline_colors).colors.clear();
             redrawcmdline();
             ret = false;
@@ -4028,22 +4036,22 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
 /// Draw part of the cmdline at the current cursor position.
 unsafe fn draw_cmdline(start: c_int, len: c_int) {
     unsafe {
-        if ccline.cmdbuff.is_null() || !color_cmdline(&raw mut ccline) {
+        if getln_st().ccline.cmdbuff.is_null() || !color_cmdline(&raw mut getln_st().ccline) {
             return;
         }
 
         if ui_has(kUICmdline) {
-            ccline.special_char = NUL;
-            ccline.redraw_state = kCmdRedrawAll;
+            getln_st().ccline.special_char = NUL;
+            getln_st().ccline.redraw_state = kCmdRedrawAll;
             return;
         }
 
-        let lc_colors = &raw const ccline.last_colors.colors;
+        let lc_colors = &raw const getln_st().ccline.last_colors.colors;
         if cmdline_star > 0 {
             let mut i: c_int = 0;
             while i < len {
                 msg_putchar(b'*' as c_int);
-                i += utfc_ptr2len(ccline.cmdbuff.add((start + i) as usize)) - 1;
+                i += utfc_ptr2len(getln_st().ccline.cmdbuff.add((start + i) as usize)) - 1;
                 i += 1;
             }
         } else if !(*lc_colors).is_empty() {
@@ -4053,14 +4061,14 @@ unsafe fn draw_cmdline(start: c_int, len: c_int) {
                 }
                 let chunk_start = chunk.start.max(start);
                 msg_outtrans_len(
-                    ccline.cmdbuff.add(chunk_start as usize),
+                    getln_st().ccline.cmdbuff.add(chunk_start as usize),
                     chunk.end - chunk_start,
                     chunk.hl_id,
                     false,
                 );
             }
         } else {
-            msg_outtrans_len(ccline.cmdbuff.add(start as usize), len, 0, false);
+            msg_outtrans_len(getln_st().ccline.cmdbuff.add(start as usize), len, 0, false);
         }
     }
 }
@@ -4076,7 +4084,7 @@ unsafe fn ui_ext_cmdline_show(line: *mut CmdlineInfo) {
         if cmdline_star != 0 {
             content = arena_array(&raw mut arena, 1);
             let mut len: usize = 0;
-            let mut p = ccline.cmdbuff;
+            let mut p = getln_st().ccline.cmdbuff;
             while *p != NUL {
                 p = p.add(utfc_ptr2len(p) as usize);
                 len += 1;
@@ -4178,7 +4186,7 @@ pub unsafe fn ui_ext_cmdline_block_append(indent: usize, line: *const c_char) {
             items: ptr::null_mut(),
         };
         array_add(&mut content, array_obj(item));
-        let block_ptr = &raw mut cmdline_block;
+        let block_ptr = &raw mut getln_st().cmdline_block;
         array_add(&mut *block_ptr, array_obj(content));
         if (*block_ptr).size > 1 {
             ui_call_cmdline_block_append(content);
@@ -4190,8 +4198,8 @@ pub unsafe fn ui_ext_cmdline_block_append(indent: usize, line: *const c_char) {
 
 pub unsafe fn ui_ext_cmdline_block_leave() {
     unsafe {
-        api_free_array(cmdline_block);
-        cmdline_block = Array {
+        api_free_array(getln_st().cmdline_block);
+        getln_st().cmdline_block = Array {
             size: 0,
             capacity: 0,
             items: ptr::null_mut(),
@@ -4207,12 +4215,12 @@ pub unsafe fn cmdline_screen_cleared() {
             return;
         }
 
-        if cmdline_block.size != 0 {
-            ui_call_cmdline_block_show(cmdline_block);
+        if getln_st().cmdline_block.size != 0 {
+            ui_call_cmdline_block_show(getln_st().cmdline_block);
         }
 
-        let mut prev_level = ccline.level - 1;
-        let mut line = (&raw mut ccline.prev_ccline)
+        let mut prev_level = getln_st().ccline.level - 1;
+        let mut line = (&raw mut getln_st().ccline.prev_ccline)
             .as_mut()
             .unwrap()
             .as_deref_mut()
@@ -4237,8 +4245,8 @@ pub unsafe fn cmdline_ui_flush() {
         if !ui_has(kUICmdline) {
             return;
         }
-        let mut level = ccline.level;
-        let mut line: *mut CmdlineInfo = &raw mut ccline;
+        let mut level = getln_st().ccline.level;
+        let mut line: *mut CmdlineInfo = &raw mut getln_st().ccline;
         while level > 0 && !line.is_null() {
             if (*line).level == level {
                 let redraw_state = (*line).redraw_state;
@@ -4269,20 +4277,20 @@ pub unsafe fn putcmdline(c: c_char, shift: bool) {
             msg_no_more = true;
             msg_putchar((c as u8) as c_int);
             if shift {
-                draw_cmdline(ccline.cmdpos, ccline.cmdlen - ccline.cmdpos);
+                draw_cmdline(getln_st().ccline.cmdpos, getln_st().ccline.cmdlen - getln_st().ccline.cmdpos);
             }
             msg_no_more = false;
-        } else if ccline.redraw_state != kCmdRedrawAll {
+        } else if getln_st().ccline.redraw_state != kCmdRedrawAll {
             let charbuf: [c_char; 2] = [c, 0];
             ui_call_cmdline_special_char(
                 cstr_as_string(charbuf.as_ptr()),
                 shift,
-                ccline.level as Integer,
+                getln_st().ccline.level as Integer,
             );
         }
         cursorcmd();
-        ccline.special_char = c;
-        ccline.special_shift = shift;
+        getln_st().ccline.special_char = c;
+        getln_st().ccline.special_shift = shift;
         ui_cursor_shape();
     }
 }
@@ -4294,17 +4302,17 @@ pub unsafe fn unputcmdline() {
             return;
         }
         msg_no_more = true;
-        if ccline.cmdlen == ccline.cmdpos && !ui_has(kUICmdline) {
+        if getln_st().ccline.cmdlen == getln_st().ccline.cmdpos && !ui_has(kUICmdline) {
             msg_putchar(b' ' as c_int);
         } else {
             draw_cmdline(
-                ccline.cmdpos,
-                utfc_ptr2len(ccline.cmdbuff.add(ccline.cmdpos as usize)),
+                getln_st().ccline.cmdpos,
+                utfc_ptr2len(getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdpos as usize)),
             );
         }
         msg_no_more = false;
         cursorcmd();
-        ccline.special_char = NUL;
+        getln_st().ccline.special_char = NUL;
         ui_cursor_shape();
     }
 }
@@ -4316,15 +4324,15 @@ pub unsafe fn put_on_cmdline(str: *const c_char, mut len: c_int, redraw: bool) {
             len = strlen(str) as c_int;
         }
 
-        realloc_cmdbuff(ccline.cmdlen + len + 1);
+        realloc_cmdbuff(getln_st().ccline.cmdlen + len + 1);
 
-        if ccline.overstrike == 0 {
+        if getln_st().ccline.overstrike == 0 {
             ptr::copy(
-                ccline.cmdbuff.add(ccline.cmdpos as usize),
-                ccline.cmdbuff.add((ccline.cmdpos + len) as usize),
-                (ccline.cmdlen - ccline.cmdpos) as usize,
+                getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdpos as usize),
+                getln_st().ccline.cmdbuff.add((getln_st().ccline.cmdpos + len) as usize),
+                (getln_st().ccline.cmdlen - getln_st().ccline.cmdpos) as usize,
             );
-            ccline.cmdlen += len;
+            getln_st().ccline.cmdlen += len;
         } else {
             let mut m: c_int = 0;
             let mut i: c_int = 0;
@@ -4332,35 +4340,35 @@ pub unsafe fn put_on_cmdline(str: *const c_char, mut len: c_int, redraw: bool) {
                 m += 1;
                 i += utfc_ptr2len(str.add(i as usize));
             }
-            i = ccline.cmdpos;
-            while i < ccline.cmdlen && m > 0 {
+            i = getln_st().ccline.cmdpos;
+            while i < getln_st().ccline.cmdlen && m > 0 {
                 m -= 1;
-                i += utfc_ptr2len(ccline.cmdbuff.add(i as usize));
+                i += utfc_ptr2len(getln_st().ccline.cmdbuff.add(i as usize));
             }
-            if i < ccline.cmdlen {
+            if i < getln_st().ccline.cmdlen {
                 ptr::copy(
-                    ccline.cmdbuff.add(i as usize),
-                    ccline.cmdbuff.add((ccline.cmdpos + len) as usize),
-                    (ccline.cmdlen - i) as usize,
+                    getln_st().ccline.cmdbuff.add(i as usize),
+                    getln_st().ccline.cmdbuff.add((getln_st().ccline.cmdpos + len) as usize),
+                    (getln_st().ccline.cmdlen - i) as usize,
                 );
-                ccline.cmdlen += ccline.cmdpos + len - i;
+                getln_st().ccline.cmdlen += getln_st().ccline.cmdpos + len - i;
             } else {
-                ccline.cmdlen = ccline.cmdpos + len;
+                getln_st().ccline.cmdlen = getln_st().ccline.cmdpos + len;
             }
         }
         ptr::copy(
             str,
-            ccline.cmdbuff.add(ccline.cmdpos as usize),
+            getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdpos as usize),
             len as usize,
         );
-        *ccline.cmdbuff.add(ccline.cmdlen as usize) = NUL;
+        *getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdlen as usize) = NUL;
 
-        if ccline.cmdpos > 0 && (*ccline.cmdbuff.add(ccline.cmdpos as usize) as u8) >= 0x80 {
-            let i = utf_head_off(ccline.cmdbuff, ccline.cmdbuff.add(ccline.cmdpos as usize));
+        if getln_st().ccline.cmdpos > 0 && (*getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdpos as usize) as u8) >= 0x80 {
+            let i = utf_head_off(getln_st().ccline.cmdbuff, getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdpos as usize));
             if i != 0 {
-                ccline.cmdpos -= i;
+                getln_st().ccline.cmdpos -= i;
                 len += i;
-                ccline.cmdspos = cmd_screencol(ccline.cmdpos);
+                getln_st().ccline.cmdspos = cmd_screencol(getln_st().ccline.cmdpos);
             }
         }
 
@@ -4368,8 +4376,8 @@ pub unsafe fn put_on_cmdline(str: *const c_char, mut len: c_int, redraw: bool) {
             msg_no_more = true;
             let i = cmdline_row;
             cursorcmd();
-            draw_cmdline(ccline.cmdpos, ccline.cmdlen - ccline.cmdpos);
-            if cmdline_row != i || ccline.overstrike != 0 {
+            draw_cmdline(getln_st().ccline.cmdpos, getln_st().ccline.cmdlen - getln_st().ccline.cmdpos);
+            if cmdline_row != i || getln_st().ccline.overstrike != 0 {
                 msg_clr_eos();
             }
             msg_no_more = false;
@@ -4385,16 +4393,16 @@ pub unsafe fn put_on_cmdline(str: *const c_char, mut len: c_int, redraw: bool) {
         }
         let mut i: c_int = 0;
         while i < len {
-            let mut c = cmdline_charsize(ccline.cmdpos);
-            correct_screencol(ccline.cmdpos, c, &raw mut ccline.cmdspos);
-            if ccline.cmdspos + c < m {
-                ccline.cmdspos += c;
+            let mut c = cmdline_charsize(getln_st().ccline.cmdpos);
+            correct_screencol(getln_st().ccline.cmdpos, c, &raw mut getln_st().ccline.cmdspos);
+            if getln_st().ccline.cmdspos + c < m {
+                getln_st().ccline.cmdspos += c;
             }
-            c = utfc_ptr2len(ccline.cmdbuff.add(ccline.cmdpos as usize)) - 1;
+            c = utfc_ptr2len(getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdpos as usize)) - 1;
             c = c.min(len - i - 1);
-            ccline.cmdpos += c;
+            getln_st().ccline.cmdpos += c;
             i += c;
-            ccline.cmdpos += 1;
+            getln_st().ccline.cmdpos += 1;
             i += 1;
         }
 
@@ -4404,19 +4412,19 @@ pub unsafe fn put_on_cmdline(str: *const c_char, mut len: c_int, redraw: bool) {
     }
 }
 
-/// Save `ccline`.
+/// Save `getln_st().ccline`.
 unsafe fn save_cmdline() {
     unsafe {
-        let cc = &raw mut ccline;
+        let cc = &raw mut getln_st().ccline;
         let prev = std::mem::replace(&mut *cc, CmdlineInfo::new());
         (*cc).prev_ccline = Some(Box::new(prev));
     }
 }
 
-/// Restore `ccline` after it has been saved with `save_cmdline()`.
+/// Restore `getln_st().ccline` after it has been saved with `save_cmdline()`.
 unsafe fn restore_cmdline() {
     unsafe {
-        let cc = &raw mut ccline;
+        let cc = &raw mut getln_st().ccline;
         let prev = (*cc).prev_ccline.take();
         *cc = prev.map_or_else(CmdlineInfo::new, |b| *b);
     }
@@ -4454,15 +4462,15 @@ unsafe fn cmdline_paste(regname: c_int, literally: bool, remcr: bool) -> bool {
 
             let mut p = arg;
             if p_is != 0 && regname == Ctrl_W {
-                let mut w = ccline.cmdbuff.add(ccline.cmdpos as usize);
-                while w > ccline.cmdbuff {
-                    let len = utf_head_off(ccline.cmdbuff, w.sub(1)) + 1;
+                let mut w = getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdpos as usize);
+                while w > getln_st().ccline.cmdbuff {
+                    let len = utf_head_off(getln_st().ccline.cmdbuff, w.sub(1)) + 1;
                     if !vim_iswordc(utf_ptr2char(w.sub(len as usize))) {
                         break;
                     }
                     w = w.sub(len as usize);
                 }
-                let len = ccline.cmdbuff.add(ccline.cmdpos as usize).offset_from(w) as usize;
+                let len = getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdpos as usize).offset_from(w) as usize;
                 let matches = if p_ic != 0 {
                     vim_strnicmp(w, arg, len) == 0
                 } else {
@@ -4528,21 +4536,21 @@ unsafe fn redrawcmdprompt() {
             return;
         }
         if ui_has(kUICmdline) {
-            ccline.redraw_state = kCmdRedrawAll;
+            getln_st().ccline.redraw_state = kCmdRedrawAll;
             return;
         }
-        if ccline.cmdfirstc != NUL as c_int {
-            msg_putchar(ccline.cmdfirstc);
+        if getln_st().ccline.cmdfirstc != NUL as c_int {
+            msg_putchar(getln_st().ccline.cmdfirstc);
         }
-        let cp = &raw const ccline.cmdprompt;
+        let cp = &raw const getln_st().ccline.cmdprompt;
         if let Some(ref prompt) = *cp {
-            msg_puts_hl(prompt.as_ptr(), ccline.hl_id, false);
-            ccline.cmdindent = msg_col + (msg_row - cmdline_row) * Columns;
-            if ccline.cmdfirstc != NUL as c_int {
-                ccline.cmdindent -= 1;
+            msg_puts_hl(prompt.as_ptr(), getln_st().ccline.hl_id, false);
+            getln_st().ccline.cmdindent = msg_col + (msg_row - cmdline_row) * Columns;
+            if getln_st().ccline.cmdfirstc != NUL as c_int {
+                getln_st().ccline.cmdindent -= 1;
             }
         } else {
-            let mut i = ccline.cmdindent;
+            let mut i = getln_st().ccline.cmdindent;
             while i > 0 {
                 msg_putchar(b' ' as c_int);
                 i -= 1;
@@ -4559,11 +4567,11 @@ pub unsafe fn redrawcmd() {
         }
 
         if ui_has(kUICmdline) {
-            draw_cmdline(0, ccline.cmdlen);
+            draw_cmdline(0, getln_st().ccline.cmdlen);
             return;
         }
 
-        if ccline.cmdbuff.is_null() {
+        if getln_st().ccline.cmdbuff.is_null() {
             msg_cursor_goto(cmdline_row, 0);
             msg_clr_eos();
             return;
@@ -4577,14 +4585,14 @@ pub unsafe fn redrawcmd() {
         redrawcmdprompt();
 
         msg_no_more = true;
-        draw_cmdline(0, ccline.cmdlen);
+        draw_cmdline(0, getln_st().ccline.cmdlen);
         msg_clr_eos();
         msg_no_more = false;
 
-        ccline.cmdspos = cmd_screencol(ccline.cmdpos);
+        getln_st().ccline.cmdspos = cmd_screencol(getln_st().ccline.cmdpos);
 
-        if ccline.special_char != NUL {
-            putcmdline(ccline.special_char, ccline.special_shift);
+        if getln_st().ccline.special_char != NUL {
+            putcmdline(getln_st().ccline.special_char, getln_st().ccline.special_shift);
         }
 
         msg_scroll = 0;
@@ -4619,8 +4627,8 @@ pub unsafe fn cursorcmd() {
             return;
         }
 
-        msg_row = cmdline_row + (ccline.cmdspos / Columns);
-        msg_col = ccline.cmdspos % Columns;
+        msg_row = cmdline_row + (getln_st().ccline.cmdspos / Columns);
+        msg_col = getln_st().ccline.cmdspos % Columns;
         msg_row = msg_row.min(Rows - 1);
 
         msg_cursor_goto(msg_row, msg_col);
@@ -4650,20 +4658,20 @@ unsafe fn ccheck_abbr(c: c_int) -> c_int {
             return 0;
         }
 
-        while spos < ccline.cmdlen && ascii_iswhite(*ccline.cmdbuff.add(spos as usize) as c_int) {
+        while spos < getln_st().ccline.cmdlen && ascii_iswhite(*getln_st().ccline.cmdbuff.add(spos as usize) as c_int) {
             spos += 1;
         }
-        if ccline.cmdlen - spos > 5
-            && *ccline.cmdbuff.add(spos as usize) == b'\'' as c_char
-            && *ccline.cmdbuff.add((spos + 2) as usize) == b',' as c_char
-            && *ccline.cmdbuff.add((spos + 3) as usize) == b'\'' as c_char
+        if getln_st().ccline.cmdlen - spos > 5
+            && *getln_st().ccline.cmdbuff.add(spos as usize) == b'\'' as c_char
+            && *getln_st().ccline.cmdbuff.add((spos + 2) as usize) == b',' as c_char
+            && *getln_st().ccline.cmdbuff.add((spos + 3) as usize) == b'\'' as c_char
         {
             spos += 5;
         } else {
             spos = 0;
         }
 
-        c_int::from(check_abbr(c, ccline.cmdbuff, ccline.cmdpos, spos))
+        c_int::from(check_abbr(c, getln_st().ccline.cmdbuff, getln_st().ccline.cmdpos, spos))
     }
 }
 
@@ -4740,21 +4748,21 @@ pub unsafe fn tilde_replace(orig_pat: *mut c_char, files: &mut [std::ffi::CStrin
 
 /// Get a pointer to the current command line info.
 pub unsafe fn get_cmdline_info() -> *mut CmdlineInfo {
-    &raw mut ccline
+    unsafe { &raw mut getln_st().ccline }
 }
 
 pub unsafe fn get_cmdline_last_prompt_id() -> c_uint {
-    unsafe { last_prompt_id }
+    unsafe { getln_st().last_prompt_id }
 }
 
 /// Get pointer to the command line info to use.
 unsafe fn get_ccline_ptr() -> *mut CmdlineInfo {
     unsafe {
-        let prev_ptr = &raw mut ccline.prev_ccline;
+        let prev_ptr = &raw mut getln_st().ccline.prev_ccline;
         if (State & MODE_CMDLINE) == 0 {
             ptr::null_mut()
-        } else if !ccline.cmdbuff.is_null() {
-            &raw mut ccline
+        } else if !getln_st().ccline.cmdbuff.is_null() {
+            &raw mut getln_st().ccline
         } else if let Some(ref mut prev) = *prev_ptr
             && !prev.cmdbuff.is_null()
         {
@@ -4971,7 +4979,7 @@ unsafe fn set_cmdline_str(str: *const c_char, pos: c_int) -> c_int {
         } else {
             pos
         };
-        new_cmdpos = (*p).cmdpos;
+        getln_st().new_cmdpos = (*p).cmdpos;
         (*p).cmdbuff_replaced = true;
 
         redrawcmd();
@@ -4991,7 +4999,7 @@ unsafe fn set_cmdline_pos(pos: c_int) -> c_int {
             return 1;
         }
 
-        new_cmdpos = pos.max(0);
+        getln_st().new_cmdpos = pos.max(0);
 
         0
     }
@@ -5037,7 +5045,7 @@ pub unsafe fn f_setcmdpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
 
 /// Return the first character of the current command line.
 pub unsafe fn get_cmdline_firstc() -> c_int {
-    unsafe { ccline.cmdfirstc }
+    unsafe { getln_st().ccline.cmdfirstc }
 }
 
 /// Get indices that specify a range within a list from a string.
@@ -5101,7 +5109,7 @@ pub unsafe fn get_list_range(str: *mut *mut c_char, num1: *mut c_int, num2: *mut
 
 pub unsafe fn cmdline_init() {
     unsafe {
-        let cc = &raw mut ccline;
+        let cc = &raw mut getln_st().ccline;
         *cc = CmdlineInfo::new();
     }
 }
@@ -5123,7 +5131,7 @@ pub unsafe fn validate_cedit(args: *mut optset_T) -> *const c_char {
 /// The `'cedit'` option is changed.
 pub unsafe fn did_set_cedit(_args: *mut optset_T) -> *const c_char {
     unsafe {
-        cedit_key = if *p_cedit == NUL {
+        getln_st().cedit_key = if *p_cedit == NUL {
             -1
         } else {
             string_to_key(p_cedit)
@@ -5209,15 +5217,15 @@ unsafe fn open_cmdwin() -> c_int {
             return K_IGNORE;
         }
 
-        let content = (!ccline.cmdbuff.is_null()).then(|| {
+        let content = (!getln_st().ccline.cmdbuff.is_null()).then(|| {
             let bytes =
-                std::slice::from_raw_parts(ccline.cmdbuff.cast::<u8>(), ccline.cmdlen as usize);
+                std::slice::from_raw_parts(getln_st().ccline.cmdbuff.cast::<u8>(), getln_st().ccline.cmdlen as usize);
             let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
             std::ffi::CString::new(&bytes[..end]).unwrap()
         });
-        let pos = ccline.cmdpos;
-        ccline.cmdlen = 0;
-        ccline.cmdpos = 0;
+        let pos = getln_st().ccline.cmdpos;
+        getln_st().ccline.cmdlen = 0;
+        getln_st().ccline.cmdpos = 0;
 
         loop_schedule_deferred(
             (&raw mut main_loop).cast(),

@@ -177,19 +177,44 @@ struct winlinevars_T<'a> {
     color_cols: &'a [c_int],
 }
 
-static mut extra_buf: Vec<c_char> = Vec::new();
+struct DrawlineState {
+    extra_buf: Vec<c_char>,
+    saved_w_virtcol: c_int,
+    margin_prev_wp: *mut win_T,
+    prev_width1: c_int,
+    prev_width2: c_int,
+    prev_left_col: c_int,
+    prev_right_col: c_int,
+    stc_prev_virtnum: c_int,
+    stc_prev_wp: *mut win_T,
+    stc_prev_lnum: linenr_T,
+    stc_prev_tick: disptick_T,
+}
 
-static mut saved_w_virtcol: c_int = 0;
-static mut margin_prev_wp: *mut win_T = ptr::null_mut();
-static mut prev_width1: c_int = 0;
-static mut prev_width2: c_int = 0;
-static mut prev_left_col: c_int = 0;
-static mut prev_right_col: c_int = 0;
+impl DrawlineState {
+    const fn new() -> Self {
+        Self {
+            extra_buf: Vec::new(),
+            saved_w_virtcol: 0,
+            margin_prev_wp: ptr::null_mut(),
+            prev_width1: 0,
+            prev_width2: 0,
+            prev_left_col: 0,
+            prev_right_col: 0,
+            stc_prev_virtnum: 0,
+            stc_prev_wp: ptr::null_mut(),
+            stc_prev_lnum: 0,
+            stc_prev_tick: 0,
+        }
+    }
+}
 
-static mut stc_prev_virtnum: c_int = 0;
-static mut stc_prev_wp: *mut win_T = ptr::null_mut();
-static mut stc_prev_lnum: linenr_T = 0;
-static mut stc_prev_tick: disptick_T = 0;
+static DL_STATE: GlobalState<DrawlineState> = GlobalState::new(DrawlineState::new());
+
+#[inline]
+unsafe fn dl_st() -> &'static mut DrawlineState {
+    unsafe { &mut *DL_STATE.as_ptr() }
+}
 
 #[inline]
 const fn tristate_to_bool(val: TriState, default: bool) -> bool {
@@ -210,7 +235,7 @@ const fn vcol_hlc(wlv: &winlinevars_T) -> c_int {
 unsafe fn get_extra_buf(mut size: usize) -> *mut c_char {
     unsafe {
         size = size.max(64);
-        let buf = (&raw mut extra_buf).as_mut().unwrap();
+        let buf = (&raw mut dl_st().extra_buf).as_mut().unwrap();
         if buf.len() < size {
             buf.resize(size, 0);
         }
@@ -220,7 +245,7 @@ unsafe fn get_extra_buf(mut size: usize) -> *mut c_char {
 
 pub unsafe fn drawline_free_all_mem() {
     unsafe {
-        extra_buf = Vec::new();
+        dl_st().extra_buf = Vec::new();
     }
 }
 
@@ -265,13 +290,13 @@ unsafe fn margin_columns_win(wp: *mut win_T, left_col: *mut c_int, right_col: *m
         let width1 = (*wp).w_view_width - cur_col_off;
         let width2 = width1 + win_col_off2(wp);
 
-        if saved_w_virtcol == (*wp).w_virtcol
-            && margin_prev_wp == wp
-            && prev_width1 == width1
-            && prev_width2 == width2
+        if dl_st().saved_w_virtcol == (*wp).w_virtcol
+            && dl_st().margin_prev_wp == wp
+            && dl_st().prev_width1 == width1
+            && dl_st().prev_width2 == width2
         {
-            *right_col = prev_right_col;
-            *left_col = prev_left_col;
+            *right_col = dl_st().prev_right_col;
+            *left_col = dl_st().prev_left_col;
             return;
         }
 
@@ -285,12 +310,12 @@ unsafe fn margin_columns_win(wp: *mut win_T, left_col: *mut c_int, right_col: *m
             *left_col = ((*wp).w_virtcol - width1) / width2 * width2 + width1;
         }
 
-        prev_left_col = *left_col;
-        prev_right_col = *right_col;
-        margin_prev_wp = wp;
-        prev_width1 = width1;
-        prev_width2 = width2;
-        saved_w_virtcol = (*wp).w_virtcol;
+        dl_st().prev_left_col = *left_col;
+        dl_st().prev_right_col = *right_col;
+        dl_st().margin_prev_wp = wp;
+        dl_st().prev_width1 = width1;
+        dl_st().prev_width2 = width2;
+        dl_st().saved_w_virtcol = (*wp).w_virtcol;
     }
 }
 
@@ -888,7 +913,7 @@ unsafe fn draw_statuscol(
     unsafe {
         let lnum = wlv.lnum - c_int::from((wlv.n_virt_lines - wlv.filler_todo) < wlv.n_virt_below);
 
-        let reset = stc_prev_wp != wp || stc_prev_tick != display_tick || lnum != stc_prev_lnum;
+        let reset = dl_st().stc_prev_wp != wp || dl_st().stc_prev_tick != display_tick || lnum != dl_st().stc_prev_lnum;
         let mut reset_virt = if lnum == wlv.lnum {
             wlv.filler_lines_skip
         } else {
@@ -907,10 +932,10 @@ unsafe fn draw_statuscol(
             let diff_fill_prev = diff_check_fill(wp, lnum - 1);
             reset_virt += virt_lines_prev + diff_fill_prev - virt_below_prev;
         }
-        stc_prev_virtnum =
-            (if reset { -reset_virt } else { stc_prev_virtnum }) - c_int::from(wlv.filler_todo > 0);
+        dl_st().stc_prev_virtnum =
+            (if reset { -reset_virt } else { dl_st().stc_prev_virtnum }) - c_int::from(wlv.filler_todo > 0);
         let virtnum = if wlv.filler_todo > 0 {
-            stc_prev_virtnum
+            dl_st().stc_prev_virtnum
         } else {
             wlv.row - wlv.startrow - wlv.filler_lines
         };
@@ -920,9 +945,9 @@ unsafe fn draw_statuscol(
             -1
         };
 
-        stc_prev_tick = display_tick;
-        stc_prev_lnum = lnum;
-        stc_prev_wp = wp;
+        dl_st().stc_prev_tick = display_tick;
+        dl_st().stc_prev_lnum = lnum;
+        dl_st().stc_prev_wp = wp;
 
         let mut buf = [0 as c_char; MAXPATHL];
         let buf_ptr = (&raw mut buf).cast::<c_char>();
@@ -945,7 +970,7 @@ unsafe fn draw_statuscol(
                 (*wp).w_nrwidth_width = (*wp).w_nrwidth;
                 if col_rows > 0 {
                     (*wp).w_redr_statuscol = true;
-                    stc_prev_lnum = 0;
+                    dl_st().stc_prev_lnum = 0;
                     return;
                 }
                 (*stcp).width += addwidth;
@@ -977,7 +1002,7 @@ unsafe fn draw_statuscol(
                 (*wp).w_nrwidth_width = (*wp).w_nrwidth;
             }
             (*wp).w_redr_statuscol = true;
-            stc_prev_lnum = 0;
+            dl_st().stc_prev_lnum = 0;
             return;
         }
 

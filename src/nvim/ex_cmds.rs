@@ -279,37 +279,48 @@ struct LineData {
     lnum_after: linenr_T,
 }
 
-static mut sort_lc: bool = false;
-static mut sort_ic: bool = false;
-static mut sort_nr: c_int = 0;
-static mut sort_rx: bool = false;
-static mut sort_flt: bool = false;
-static mut sort_abort: bool = false;
+struct ExCmdsState {
+    sort_lc: bool,
+    sort_ic: bool,
+    sort_nr: c_int,
+    sort_rx: bool,
+    sort_flt: bool,
+    sort_abort: bool,
+    prevcmd: Option<std::ffi::CString>,
+    global_need_msg_kind: bool,
+    append_indent: c_int,
+    old_sub: SubReplacementString,
+    global_need_beginline: bool,
+    subflags: subflags_T,
+    pre_hl_id: c_int,
+}
 
-static mut prevcmd: Option<std::ffi::CString> = None;
-static mut global_need_msg_kind: bool = false;
-static mut append_indent: c_int = 0;
+impl ExCmdsState {
+    const fn new() -> Self {
+        Self {
+            sort_lc: false,
+            sort_ic: false,
+            sort_nr: 0,
+            sort_rx: false,
+            sort_flt: false,
+            sort_abort: false,
+            prevcmd: None,
+            global_need_msg_kind: false,
+            append_indent: 0,
+            old_sub: SubReplacementString { sub: None, timestamp: 0, additional_data: None },
+            global_need_beginline: false,
+            subflags: subflags_T { do_all: false, do_ask: false, do_count: false, do_error: true, do_print: false, do_list: false, do_number: false, do_ic: SubIgnoreType::kSubHonorOptions },
+            pre_hl_id: 0,
+        }
+    }
+}
 
-static mut old_sub: SubReplacementString = SubReplacementString {
-    sub: None,
-    timestamp: 0,
-    additional_data: None,
-};
+static EXCMDS_STATE: GlobalState<ExCmdsState> = GlobalState::new(ExCmdsState::new());
 
-static mut global_need_beginline: bool = false;
-
-static mut subflags: subflags_T = subflags_T {
-    do_all: false,
-    do_ask: false,
-    do_count: false,
-    do_error: true,
-    do_print: false,
-    do_list: false,
-    do_number: false,
-    do_ic: SubIgnoreType::kSubHonorOptions,
-};
-
-static mut pre_hl_id: c_int = 0;
+#[inline]
+unsafe fn excmds_st() -> &'static mut ExCmdsState {
+    unsafe { &mut *EXCMDS_STATE.as_ptr() }
+}
 
 use crate::buffer::bt_dontwrite_msg;
 use crate::undo::{bufIsChanged, curbufIsChanged};
@@ -571,10 +582,10 @@ unsafe fn linelen(has_tab: *mut c_int) -> c_int {
 
 unsafe fn string_compare(s1: *const c_char, s2: *const c_char) -> c_int {
     unsafe {
-        if sort_lc {
+        if excmds_st().sort_lc {
             return strcoll(s1, s2);
         }
-        if sort_ic {
+        if excmds_st().sort_ic {
             vim_stricmp(s1, s2)
         } else {
             strcmp(s1, s2)
@@ -593,12 +604,12 @@ unsafe fn sort_compare(
         let l2 = *l2;
         let result: c_int;
 
-        if sort_abort {
+        if excmds_st().sort_abort {
             return 0;
         }
         fast_breakcheck();
         if got_int {
-            sort_abort = true;
+            excmds_st().sort_abort = true;
         }
 
         match (l1.st_u, l2.st_u) {
@@ -681,12 +692,12 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
         regmatch.regprog = ptr::null_mut();
         let mut nrs_vec: Vec<sorti_T> = Vec::with_capacity(count);
 
-        sort_abort = false;
-        sort_ic = false;
-        sort_lc = false;
-        sort_rx = false;
-        sort_nr = 0;
-        sort_flt = false;
+        excmds_st().sort_abort = false;
+        excmds_st().sort_ic = false;
+        excmds_st().sort_lc = false;
+        excmds_st().sort_rx = false;
+        excmds_st().sort_nr = 0;
+        excmds_st().sort_flt = false;
         let mut format_found: usize = 0;
         let mut change_occurred = false;
 
@@ -696,16 +707,16 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
                 if ascii_iswhite(*p as c_int) {
                     // Skip
                 } else if *p == b'i' as c_char {
-                    sort_ic = true;
+                    excmds_st().sort_ic = true;
                 } else if *p == b'l' as c_char {
-                    sort_lc = true;
+                    excmds_st().sort_lc = true;
                 } else if *p == b'r' as c_char {
-                    sort_rx = true;
+                    excmds_st().sort_rx = true;
                 } else if *p == b'n' as c_char {
-                    sort_nr = 1;
+                    excmds_st().sort_nr = 1;
                     format_found += 1;
                 } else if *p == b'f' as c_char {
-                    sort_flt = true;
+                    excmds_st().sort_flt = true;
                     format_found += 1;
                 } else if *p == b'b' as c_char {
                     sort_what = STR2NR_BIN + STR2NR_FORCE;
@@ -755,7 +766,7 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
                 break 'sortend;
             }
 
-            sort_nr |= sort_what;
+            excmds_st().sort_nr |= sort_what;
 
             for lnum in (*eap).line1..=(*eap).line2 {
                 let mut s = ml_get(lnum);
@@ -765,7 +776,7 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
                 let mut start_col: colnr_T = 0;
                 let mut end_col: colnr_T = len;
                 if !regmatch.regprog.is_null() && vim_regexec(&raw mut regmatch, s, 0) {
-                    if sort_rx {
+                    if excmds_st().sort_rx {
                         start_col = regmatch.startp[0].offset_from(s) as colnr_T;
                         end_col = regmatch.endp[0].offset_from(s) as colnr_T;
                     } else {
@@ -775,12 +786,12 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
                     end_col = 0;
                 }
 
-                let st_u = if sort_nr != 0 || sort_flt {
+                let st_u = if excmds_st().sort_nr != 0 || excmds_st().sort_flt {
                     let s2 = s.add(end_col as usize);
                     let c = *s2;
                     *s2 = NUL;
                     let p = s.add(start_col as usize);
-                    let key = if sort_nr != 0 {
+                    let key = if excmds_st().sort_nr != 0 {
                         if (sort_what & STR2NR_HEX) != 0 {
                             s = skiptohex(p);
                         } else if (sort_what & STR2NR_BIN) != 0 {
@@ -852,7 +863,7 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
 
             sort_slice_by(&mut nrs_vec, |a, b| sort_compare(a, b, sortbuf1, sortbuf2));
 
-            if sort_abort {
+            if excmds_st().sort_abort {
                 break 'sortend;
             }
 
@@ -959,12 +970,12 @@ pub unsafe fn ex_uniq(eap: *mut exarg_T) {
         }
         regmatch.regprog = ptr::null_mut();
 
-        sort_abort = false;
-        sort_ic = false;
-        sort_lc = false;
-        sort_rx = false;
-        sort_nr = 0;
-        sort_flt = false;
+        excmds_st().sort_abort = false;
+        excmds_st().sort_ic = false;
+        excmds_st().sort_lc = false;
+        excmds_st().sort_rx = false;
+        excmds_st().sort_nr = 0;
+        excmds_st().sort_flt = false;
         let mut change_occurred = false;
 
         'uniqend: {
@@ -973,11 +984,11 @@ pub unsafe fn ex_uniq(eap: *mut exarg_T) {
                 if ascii_iswhite(*p as c_int) {
                     // Skip
                 } else if *p == b'i' as c_char {
-                    sort_ic = true;
+                    excmds_st().sort_ic = true;
                 } else if *p == b'l' as c_char {
-                    sort_lc = true;
+                    excmds_st().sort_lc = true;
                 } else if *p == b'r' as c_char {
-                    sort_rx = true;
+                    excmds_st().sort_rx = true;
                 } else if *p == b'u' as c_char {
                     if !keep_only_not_unique {
                         keep_only_unique = true;
@@ -1041,7 +1052,7 @@ pub unsafe fn ex_uniq(eap: *mut exarg_T) {
                 let mut start_col: colnr_T = 0;
                 let mut end_col: colnr_T = len;
                 if !regmatch.regprog.is_null() && vim_regexec(&raw mut regmatch, s, 0) {
-                    if sort_rx {
+                    if excmds_st().sort_rx {
                         start_col = regmatch.startp[0].offset_from(s) as colnr_T;
                         end_col = regmatch.endp[0].offset_from(s) as colnr_T;
                     } else {
@@ -1380,14 +1391,14 @@ pub unsafe fn ex_copy(mut line1: linenr_T, mut line2: linenr_T, n: linenr_T) {
 
 pub unsafe fn free_prev_shellcmd() {
     unsafe {
-        prevcmd = None;
+        excmds_st().prevcmd = None;
     }
 }
 
-/// Check that `prevcmd` is not NULL.
+/// Check that `excmds_st().prevcmd` is not NULL.
 unsafe fn prevcmd_is_set() -> bool {
     unsafe {
-        if (&raw const prevcmd).as_ref().unwrap().is_none() {
+        if (&raw const excmds_st().prevcmd).as_ref().unwrap().is_none() {
             emsg(gettext(e_noprev.as_ptr()));
             return false;
         }
@@ -1432,7 +1443,7 @@ pub unsafe fn do_bang(
                 if !prevcmd_is_set() {
                     return;
                 }
-                len += (&raw const prevcmd)
+                len += (&raw const excmds_st().prevcmd)
                     .as_ref()
                     .unwrap()
                     .as_ref()
@@ -1447,7 +1458,7 @@ pub unsafe fn do_bang(
             if ins_prevcmd {
                 strcat(
                     t.as_mut_ptr(),
-                    (&raw const prevcmd)
+                    (&raw const excmds_st().prevcmd)
                         .as_ref()
                         .unwrap()
                         .as_ref()
@@ -1489,7 +1500,7 @@ pub unsafe fn do_bang(
         }
 
         if strlen(newcmd.as_ptr()) > 0 {
-            prevcmd = Some(CStr::from_ptr(newcmd.as_ptr()).to_owned());
+            excmds_st().prevcmd = Some(CStr::from_ptr(newcmd.as_ptr()).to_owned());
         }
 
         'theend: {
@@ -1498,7 +1509,7 @@ pub unsafe fn do_bang(
                     break 'theend;
                 }
 
-                let prev_ptr = (&raw const prevcmd)
+                let prev_ptr = (&raw const excmds_st().prevcmd)
                     .as_ref()
                     .unwrap()
                     .as_ref()
@@ -1510,7 +1521,7 @@ pub unsafe fn do_bang(
                 bangredo = false;
             }
             if *p_shq != NUL {
-                let prev_ptr = (&raw const prevcmd)
+                let prev_ptr = (&raw const excmds_st().prevcmd)
                     .as_ref()
                     .unwrap()
                     .as_ref()
@@ -2056,10 +2067,10 @@ pub unsafe fn print_line(lnum: linenr_T, use_number: bool, list: bool, first: bo
 
         silent_mode = false;
         info_message = true;
-        if (global_busy == 0 || global_need_msg_kind) && first {
+        if (global_busy == 0 || excmds_st().global_need_msg_kind) && first {
             msg_start();
             msg_ext_set_kind(c"list_cmd".as_ptr());
-            global_need_msg_kind = false;
+            excmds_st().global_need_msg_kind = false;
         } else if !save_silent {
             msg_putchar(b'\n' as c_int);
         }
@@ -3381,7 +3392,7 @@ pub unsafe fn ex_append(eap: *mut exarg_T) {
         }
 
         if (*eap).cmdidx != cmdidx_T::CMD_change as c_int && (*curbuf).b_p_ai != 0 && lnum > 0 {
-            append_indent = get_indent_lnum(lnum);
+            excmds_st().append_indent = get_indent_lnum(lnum);
         }
 
         if (*eap).cmdidx != cmdidx_T::CMD_append as c_int {
@@ -3402,9 +3413,9 @@ pub unsafe fn ex_append(eap: *mut exarg_T) {
             msg_scroll = 1;
             need_wait_return = false;
             if (*curbuf).b_p_ai != 0 {
-                if append_indent >= 0 {
-                    indent = append_indent;
-                    append_indent = -1;
+                if excmds_st().append_indent >= 0 {
+                    indent = excmds_st().append_indent;
+                    excmds_st().append_indent = -1;
                 } else if lnum > 0 {
                     indent = get_indent_lnum(lnum);
                 }
@@ -3502,7 +3513,7 @@ pub unsafe fn ex_change(eap: *mut exarg_T) {
         } else {
             (*curbuf).b_p_ai != 0
         } {
-            append_indent = get_indent_lnum((*eap).line1);
+            excmds_st().append_indent = get_indent_lnum((*eap).line1);
         }
 
         let mut lnum = (*eap).line2;
@@ -3670,14 +3681,14 @@ pub unsafe fn check_secure() -> bool {
 /// Get old substitute replacement string.
 pub unsafe fn sub_get_replacement(ret_sub: *mut SubReplacementString) {
     unsafe {
-        *ret_sub = (&raw const old_sub).as_ref().unwrap().clone();
+        *ret_sub = (&raw const excmds_st().old_sub).as_ref().unwrap().clone();
     }
 }
 
 /// Set substitute string and timestamp.
 pub unsafe fn sub_set_replacement(sub: SubReplacementString) {
     unsafe {
-        old_sub = sub;
+        excmds_st().old_sub = sub;
     }
 }
 
@@ -4028,7 +4039,7 @@ unsafe fn do_sub(
                 });
             }
         } else if (*eap).skip == 0 {
-            let Some(ref old_sub_cstr) = *(&raw const old_sub.sub).as_ref().unwrap() else {
+            let Some(ref old_sub_cstr) = *(&raw const excmds_st().old_sub.sub).as_ref().unwrap() else {
                 emsg(gettext(e_nopresub.as_ptr()));
                 return 0;
             };
@@ -4047,16 +4058,16 @@ unsafe fn do_sub(
             return 0;
         }
 
-        cmd = sub_parse_flags(cmd, &raw mut subflags, &raw mut which_pat);
+        cmd = sub_parse_flags(cmd, &raw mut excmds_st().subflags, &raw mut which_pat);
 
-        let save_do_all = subflags.do_all;
-        let save_do_ask = subflags.do_ask;
+        let save_do_all = excmds_st().subflags.do_all;
+        let save_do_ask = excmds_st().subflags.do_ask;
 
         cmd = skipwhite(cmd);
         if ascii_isdigit(*cmd as c_int) {
             let count_arg = cmd;
             i = getdigits_int(&raw mut cmd, false, c_int::MAX);
-            if i <= 0 && (*eap).skip == 0 && subflags.do_error {
+            if i <= 0 && (*eap).skip == 0 && excmds_st().subflags.do_error {
                 emsg(gettext(e_zerocount.as_ptr()));
                 return 0;
             } else if i == c_int::MAX {
@@ -4085,7 +4096,7 @@ unsafe fn do_sub(
             return 0;
         }
 
-        if !subflags.do_count && !modifiable(curbuf) {
+        if !excmds_st().subflags.do_count && !modifiable(curbuf) {
             emsg(gettext(e_modifiable.as_ptr()));
             return 0;
         }
@@ -4108,15 +4119,15 @@ unsafe fn do_sub(
             &raw mut regmatch,
         ) == FAIL
         {
-            if subflags.do_error {
+            if excmds_st().subflags.do_error {
                 emsg(gettext(e_invcmd.as_ptr()));
             }
             return 0;
         }
 
-        if subflags.do_ic == SubIgnoreType::kSubIgnoreCase {
+        if excmds_st().subflags.do_ic == SubIgnoreType::kSubIgnoreCase {
             regmatch.rmm_ic = 1;
-        } else if subflags.do_ic == SubIgnoreType::kSubMatchCase {
+        } else if excmds_st().subflags.do_ic == SubIgnoreType::kSubMatchCase {
             regmatch.rmm_ic = 0;
         }
 
@@ -4223,7 +4234,7 @@ unsafe fn do_sub(
                         matchcol = regmatch.endpos[0].col;
                         prev_matchcol = matchcol;
 
-                        if subflags.do_count {
+                        if excmds_st().subflags.do_count {
                             if nmatch > 1 {
                                 matchcol = sub_firstline.size as colnr_T;
                                 nmatch = 1;
@@ -4236,7 +4247,7 @@ unsafe fn do_sub(
                             }
                         }
 
-                        if subflags.do_ask && cmdpreview_ns <= 0 {
+                        if excmds_st().subflags.do_ask && cmdpreview_ns <= 0 {
                             let mut typed: c_int = 0;
                             let save_State = State;
                             (*curwin).w_cursor.col = regmatch.startpos[0].col;
@@ -4249,7 +4260,7 @@ unsafe fn do_sub(
                                 no_u_sync += 1;
                             }
 
-                            while subflags.do_ask {
+                            while excmds_st().subflags.do_ask {
                                 let mut orig_line = SubBuf::new();
                                 let mut len_change: c_int = 0;
                                 let save_p_lz = p_lz;
@@ -4340,12 +4351,12 @@ unsafe fn do_sub(
                                     break;
                                 }
                                 if typed == b'l' as c_int {
-                                    subflags.do_all = false;
+                                    excmds_st().subflags.do_all = false;
                                     line2 = lnum;
                                     break;
                                 }
                                 if typed == b'a' as c_char as c_int {
-                                    subflags.do_ask = false;
+                                    excmds_st().subflags.do_ask = false;
                                     break;
                                 }
                                 if typed == Ctrl_E {
@@ -4399,7 +4410,7 @@ unsafe fn do_sub(
                                 if sub_firstlnum <= line2 {
                                     do_again = true;
                                 } else {
-                                    subflags.do_all = false;
+                                    excmds_st().subflags.do_all = false;
                                 }
                             }
                             if skip_match {
@@ -4415,11 +4426,11 @@ unsafe fn do_sub(
                             lnum_start = lnum;
                             let save_ma = (*curbuf).b_p_ma;
                             let save_sandbox = sandbox;
-                            if subflags.do_count {
+                            if excmds_st().subflags.do_count {
                                 (*curbuf).b_p_ma = 0;
                                 sandbox += 1;
                             }
-                            let subflags_save = subflags;
+                            let subflags_save = excmds_st().subflags;
 
                             textlock += 1;
                             let sublen_i = vim_regsub_multi(
@@ -4433,8 +4444,8 @@ unsafe fn do_sub(
                             let mut sublen = sublen_i as usize;
                             textlock -= 1;
 
-                            subflags = subflags_save;
-                            if sublen == 0 || aborting() || subflags.do_count {
+                            excmds_st().subflags = subflags_save;
+                            if sublen == 0 || aborting() || excmds_st().subflags.do_count {
                                 (*curbuf).b_p_ma = save_ma;
                                 sandbox = save_sandbox;
                                 break 'skip;
@@ -4506,7 +4517,7 @@ unsafe fn do_sub(
                                 if sub_firstlnum <= line2 {
                                     do_again = true;
                                 } else {
-                                    subflags.do_all = false;
+                                    excmds_st().subflags.do_all = false;
                                 }
                             }
                             if skip_match {
@@ -4540,7 +4551,7 @@ unsafe fn do_sub(
                                         ml_append(lnum - 1, new_start.data(), plen, false);
                                         mark_adjust(lnum + 1, MAXLNUM, 1, 0, kExtmarkNOOP);
 
-                                        if subflags.do_ask {
+                                        if excmds_st().subflags.do_ask {
                                             appended_lines(lnum - 1, 1);
                                         } else {
                                             if first_line == 0 {
@@ -4595,7 +4606,7 @@ unsafe fn do_sub(
                         || got_int
                         || got_quit
                         || lnum > line2
-                        || !(subflags.do_all || do_again)
+                        || !(excmds_st().subflags.do_all || do_again)
                         || (*sub_firstline.data().add(matchcol as usize) == NUL
                             && nmatch <= 1
                             && re_multiline(regmatch.regprog) == 0);
@@ -4661,7 +4672,7 @@ unsafe fn do_sub(
                                     -nmatch_tl,
                                     kExtmarkNOOP,
                                 );
-                                if subflags.do_ask {
+                                if excmds_st().subflags.do_ask {
                                     deleted_lines(lnum, nmatch_tl);
                                 }
                                 lnum -= 1;
@@ -4669,7 +4680,7 @@ unsafe fn do_sub(
                                 nmatch_tl = 0;
                             }
 
-                            if subflags.do_ask {
+                            if excmds_st().subflags.do_ask {
                                 changed_bytes(lnum, 0);
                             } else {
                                 if first_line == 0 {
@@ -4737,7 +4748,7 @@ unsafe fn do_sub(
 
         drop(sub_firstline);
 
-        if subflags.do_count {
+        if excmds_st().subflags.do_count {
             (*curwin).w_cursor = old_cursor;
         }
 
@@ -4750,7 +4761,7 @@ unsafe fn do_sub(
             }
 
             if global_busy == 0 {
-                if !subflags.do_ask {
+                if !excmds_st().subflags.do_ask {
                     if endcolumn {
                         coladvance(curwin, MAXCOL);
                     } else {
@@ -4758,20 +4769,20 @@ unsafe fn do_sub(
                     }
                 }
                 if cmdpreview_ns <= 0
-                    && !do_sub_msg(subflags.do_count)
-                    && subflags.do_ask
+                    && !do_sub_msg(excmds_st().subflags.do_count)
+                    && excmds_st().subflags.do_ask
                     && p_ch > 0
                 {
                     msg(c"".as_ptr(), 0);
                 }
             } else {
-                global_need_beginline = true;
+                excmds_st().global_need_beginline = true;
             }
-            if subflags.do_print {
+            if excmds_st().subflags.do_print {
                 print_line(
                     (*curwin).w_cursor.lnum,
-                    subflags.do_number,
-                    subflags.do_list,
+                    excmds_st().subflags.do_number,
+                    excmds_st().subflags.do_list,
                     true,
                 );
             }
@@ -4782,20 +4793,20 @@ unsafe fn do_sub(
                 if p_ch > 0 && !ui_has(kUIMessages) {
                     msg(c"".as_ptr(), 0);
                 }
-            } else if subflags.do_error {
+            } else if excmds_st().subflags.do_error {
                 semsg!(gettext(e_patnotf2.as_ptr()), get_search_pat());
             }
         }
 
-        if subflags.do_ask && hasAnyFolding(curwin) != 0 {
+        if excmds_st().subflags.do_ask && hasAnyFolding(curwin) != 0 {
             changed_window_setting(curwin);
         }
 
         vim_regfree(regmatch.regprog);
         drop(sub_owned);
 
-        subflags.do_all = save_do_all;
-        subflags.do_ask = save_do_ask;
+        excmds_st().subflags.do_all = save_do_all;
+        excmds_st().subflags.do_ask = save_do_ask;
 
         let mut retv: c_int = 0;
 
@@ -4803,14 +4814,14 @@ unsafe fn do_sub(
             if got_quit || profile_passed_limit(tm) {
                 set_option_direct(kOptInccommand, cstr_as_obj(c"".as_ptr()), 0, SID_NONE);
             } else if *p_icm != NUL && !pat.data.is_null() {
-                if pre_hl_id == 0 {
-                    pre_hl_id = syn_check_group(c"Substitute".as_ptr(), 10);
+                if excmds_st().pre_hl_id == 0 {
+                    excmds_st().pre_hl_id = syn_check_group(c"Substitute".as_ptr(), 10);
                 }
                 retv = show_sub(
                     eap,
                     old_cursor,
                     &raw mut preview_lines,
-                    pre_hl_id,
+                    excmds_st().pre_hl_id,
                     cmdpreview_ns,
                     cmdpreview_bufnr,
                 );
@@ -5053,8 +5064,8 @@ pub unsafe fn global_exe(cmd: *mut c_char) {
 
         sub_nsubs = 0;
         sub_nlines = 0;
-        global_need_msg_kind = true;
-        global_need_beginline = false;
+        excmds_st().global_need_msg_kind = true;
+        excmds_st().global_need_beginline = false;
         global_busy = 1;
         let old_lcount = (*curbuf).b_ml.ml_line_count;
 
@@ -5068,7 +5079,7 @@ pub unsafe fn global_exe(cmd: *mut c_char) {
         }
 
         global_busy = 0;
-        if global_need_beginline {
+        if excmds_st().global_need_beginline {
             beginline(BL_WHITE | BL_FIX);
         } else {
             check_cursor(curwin);

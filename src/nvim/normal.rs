@@ -399,20 +399,44 @@ struct nv_cmd {
     cmd_arg: i16,
 }
 
-static mut VIsual_mode_orig: c_int = 0;
-static mut current_oap: *mut oparg_T = ptr::null_mut();
+struct NormalModuleState {
+    VIsual_mode_orig: c_int,
+    current_oap: *mut oparg_T,
+    old_showcmd_buf: [c_char; SHOWCMD_BUFLEN],
+    showcmd_is_clear: bool,
+    showcmd_visual: bool,
+    do_check_scrollbind_old_curwin: *mut win_T,
+    do_check_scrollbind_old_vtopline: linenr_T,
+    do_check_scrollbind_old_buf: *mut buf_T,
+    do_check_scrollbind_old_leftcol: colnr_T,
+    nv_cmd_idx: [i16; NV_CMDS_SIZE],
+    nv_max_linear: c_int,
+}
 
-static e_changelist_is_empty: &CStr = c"E664: Changelist is empty";
-static e_cmdline_window_already_open: &CStr = c"E1292: Command-line window is already open";
+impl NormalModuleState {
+    const fn new() -> Self {
+        Self {
+            VIsual_mode_orig: 0,
+            current_oap: ptr::null_mut(),
+            old_showcmd_buf: [0; SHOWCMD_BUFLEN],
+            showcmd_is_clear: true,
+            showcmd_visual: false,
+            do_check_scrollbind_old_curwin: ptr::null_mut(),
+            do_check_scrollbind_old_vtopline: 0,
+            do_check_scrollbind_old_buf: ptr::null_mut(),
+            do_check_scrollbind_old_leftcol: 0,
+            nv_cmd_idx: [0; NV_CMDS_SIZE],
+            nv_max_linear: 0,
+        }
+    }
+}
 
-static mut old_showcmd_buf: [c_char; SHOWCMD_BUFLEN] = [0; SHOWCMD_BUFLEN];
-static mut showcmd_is_clear: bool = true;
-static mut showcmd_visual: bool = false;
+static NORM_STATE: GlobalState<NormalModuleState> = GlobalState::new(NormalModuleState::new());
 
-static mut do_check_scrollbind_old_curwin: *mut win_T = ptr::null_mut();
-static mut do_check_scrollbind_old_vtopline: linenr_T = 0;
-static mut do_check_scrollbind_old_buf: *mut buf_T = ptr::null_mut();
-static mut do_check_scrollbind_old_leftcol: colnr_T = 0;
+#[inline]
+unsafe fn norm_st() -> &'static mut NormalModuleState {
+    unsafe { &mut *NORM_STATE.as_ptr() }
+}
 
 #[inline]
 pub unsafe fn lineempty(lnum: linenr_T) -> bool {
@@ -1563,14 +1587,14 @@ const nv_cmds: [nv_cmd; NV_CMDS_SIZE] = [
     },
 ];
 
-static mut nv_cmd_idx: [i16; NV_CMDS_SIZE] = [0; NV_CMDS_SIZE];
-static mut nv_max_linear: c_int = 0;
+static e_changelist_is_empty: &CStr = c"E664: Changelist is empty";
+static e_cmdline_window_already_open: &CStr = c"E1292: Command-line window is already open";
 
-/// Initialize the nv_cmd_idx[] table.
+/// Initialize the norm_st().nv_cmd_idx[] table.
 pub unsafe fn init_normal_cmds() {
     unsafe {
         assert!(NV_CMDS_SIZE <= i16::MAX as usize);
-        let idx_ptr = (&raw mut nv_cmd_idx).cast::<i16>();
+        let idx_ptr = (&raw mut norm_st().nv_cmd_idx).cast::<i16>();
 
         for i in 0..(NV_CMDS_SIZE as i16) {
             *idx_ptr.add(i as usize) = i;
@@ -1586,7 +1610,7 @@ pub unsafe fn init_normal_cmds() {
             }
             i += 1;
         }
-        nv_max_linear = c_int::from(i) - 1;
+        norm_st().nv_max_linear = c_int::from(i) - 1;
     }
 }
 
@@ -1606,13 +1630,13 @@ unsafe fn find_command(mut cmdchar: c_int) -> c_int {
         if cmdchar < 0 {
             cmdchar = -cmdchar;
         }
-        assert!(nv_max_linear < NV_CMDS_SIZE as c_int);
-        let idx_ptr = (&raw const nv_cmd_idx).cast::<i16>();
-        if cmdchar <= nv_max_linear {
+        assert!(norm_st().nv_max_linear < NV_CMDS_SIZE as c_int);
+        let idx_ptr = (&raw const norm_st().nv_cmd_idx).cast::<i16>();
+        if cmdchar <= norm_st().nv_max_linear {
             return c_int::from(*idx_ptr.add(cmdchar as usize));
         }
 
-        let mut bot = nv_max_linear + 1;
+        let mut bot = norm_st().nv_max_linear + 1;
         let mut top = NV_CMDS_SIZE as c_int - 1;
         let mut idx = -1;
         while bot <= top {
@@ -1666,12 +1690,12 @@ pub unsafe fn check_text_or_curbuf_locked(oap: *mut oparg_T) -> bool {
 /// Check if an operator was started but not finished yet.
 pub unsafe fn op_pending() -> bool {
     unsafe {
-        !(!current_oap.is_null()
+        !(!norm_st().current_oap.is_null()
             && !finish_op
-            && (*current_oap).prev_opcount == 0
-            && (*current_oap).prev_count0 == 0
-            && (*current_oap).op_type == OP_NOP
-            && (*current_oap).regname == NUL as c_int)
+            && (*norm_st().current_oap).prev_opcount == 0
+            && (*norm_st().current_oap).prev_count0 == 0
+            && (*norm_st().current_oap).op_type == OP_NOP
+            && (*norm_st().current_oap).regname == NUL as c_int)
     }
 }
 
@@ -1680,11 +1704,11 @@ pub unsafe fn normal_enter() {
     unsafe {
         let mut state = NormalState::new();
         normal_state_init(&raw mut state);
-        let prev_oap = current_oap;
-        current_oap = &raw mut state.oa;
+        let prev_oap = norm_st().current_oap;
+        norm_st().current_oap = &raw mut state.oa;
         state.toplevel = true;
         state_enter(&raw mut state);
-        current_oap = prev_oap;
+        norm_st().current_oap = prev_oap;
     }
 }
 
@@ -2569,9 +2593,9 @@ pub unsafe fn reset_VIsual() {
 
 pub unsafe fn restore_visual_mode() {
     unsafe {
-        if VIsual_mode_orig != NUL as c_int {
-            (*curbuf).b_visual.vi_mode = VIsual_mode_orig;
-            VIsual_mode_orig = NUL as c_int;
+        if norm_st().VIsual_mode_orig != NUL as c_int {
+            (*curbuf).b_visual.vi_mode = norm_st().VIsual_mode_orig;
+            norm_st().VIsual_mode_orig = NUL as c_int;
         }
     }
 }
@@ -2906,12 +2930,12 @@ pub unsafe fn clear_showcmd() {
                 SHOWCMD_COLS
             };
             *sc_buf.add(limit) = NUL;
-            showcmd_visual = true;
+            norm_st().showcmd_visual = true;
         } else {
             *sc_buf = NUL;
-            showcmd_visual = false;
+            norm_st().showcmd_visual = false;
 
-            if showcmd_is_clear {
+            if norm_st().showcmd_is_clear {
                 return;
             }
         }
@@ -2955,9 +2979,9 @@ pub unsafe fn add_to_showcmd(c: c_int) -> bool {
 
         let sc_buf = (&raw mut showcmd_buf).cast::<c_char>();
 
-        if showcmd_visual {
+        if norm_st().showcmd_visual {
             *sc_buf = NUL;
-            showcmd_visual = false;
+            norm_st().showcmd_visual = false;
         }
 
         if is_special(c) && IGNORE.contains(&c) {
@@ -3026,7 +3050,7 @@ pub unsafe fn push_showcmd() {
     unsafe {
         if p_sc != 0 {
             strcpy(
-                (&raw mut old_showcmd_buf).cast::<c_char>(),
+                (&raw mut norm_st().old_showcmd_buf).cast::<c_char>(),
                 (&raw const showcmd_buf).cast::<c_char>(),
             );
         }
@@ -3040,7 +3064,7 @@ pub unsafe fn pop_showcmd() {
         }
         strcpy(
             (&raw mut showcmd_buf).cast::<c_char>(),
-            (&raw const old_showcmd_buf).cast::<c_char>(),
+            (&raw const norm_st().old_showcmd_buf).cast::<c_char>(),
         );
         display_showcmd();
     }
@@ -3048,7 +3072,7 @@ pub unsafe fn pop_showcmd() {
 
 pub unsafe fn showcmd_update_clear_state() {
     unsafe {
-        showcmd_is_clear = *(&raw const showcmd_buf).cast::<c_char>() == NUL;
+        norm_st().showcmd_is_clear = *(&raw const showcmd_buf).cast::<c_char>() == NUL;
     }
 }
 
@@ -3061,7 +3085,7 @@ pub unsafe fn display_showcmd() {
         showcmd_update_clear_state();
 
         if *p_sloc == b's' as c_char {
-            if showcmd_is_clear && vgetc_busy == 0 {
+            if norm_st().showcmd_is_clear && vgetc_busy == 0 {
                 (*curwin).w_redr_status = true;
             } else {
                 win_redr_status(curwin);
@@ -3070,7 +3094,7 @@ pub unsafe fn display_showcmd() {
             return;
         }
         if *p_sloc == b't' as c_char {
-            if showcmd_is_clear && vgetc_busy == 0 {
+            if norm_st().showcmd_is_clear && vgetc_busy == 0 {
                 redraw_tabline = true;
             } else {
                 draw_tabline();
@@ -3090,7 +3114,7 @@ pub unsafe fn display_showcmd() {
             strcpy(ext_buf.as_mut_ptr(), mc_buf.as_ptr());
             xstrlcpy(
                 ext_buf.as_mut_ptr().add(mc_len),
-                if showcmd_is_clear {
+                if norm_st().showcmd_is_clear {
                     c"".as_ptr()
                 } else {
                     sc_buf
@@ -3131,7 +3155,7 @@ pub unsafe fn display_showcmd() {
         } else {
             0
         };
-        if !showcmd_is_clear {
+        if !norm_st().showcmd_is_clear {
             len += grid_line_puts(sc_col + len, sc_buf, -1, hl_attr(HLF_MSG as c_int));
         }
         len = len.min(SHOWCMD_COLS as c_int);
@@ -3158,15 +3182,15 @@ pub unsafe fn do_check_scrollbind(check: bool) {
         if check && (*curwin).w_onebuf_opt.wo_scb != 0 {
             if did_syncbind {
                 did_syncbind = false;
-            } else if ptr::eq(curwin, do_check_scrollbind_old_curwin) {
-                if (ptr::eq((*curwin).w_buffer, do_check_scrollbind_old_buf)
+            } else if ptr::eq(curwin, norm_st().do_check_scrollbind_old_curwin) {
+                if (ptr::eq((*curwin).w_buffer, norm_st().do_check_scrollbind_old_buf)
                     || (*curwin).w_onebuf_opt.wo_diff != 0)
-                    && (vtopline != do_check_scrollbind_old_vtopline
-                        || (*curwin).w_leftcol != do_check_scrollbind_old_leftcol)
+                    && (vtopline != norm_st().do_check_scrollbind_old_vtopline
+                        || (*curwin).w_leftcol != norm_st().do_check_scrollbind_old_leftcol)
                 {
                     check_scrollbind(
-                        vtopline - do_check_scrollbind_old_vtopline,
-                        (*curwin).w_leftcol - do_check_scrollbind_old_leftcol,
+                        vtopline - norm_st().do_check_scrollbind_old_vtopline,
+                        (*curwin).w_leftcol - norm_st().do_check_scrollbind_old_leftcol,
                     );
                 }
             } else if !vim_strchr(p_sbo, b'j' as c_int).is_null() {
@@ -3175,10 +3199,10 @@ pub unsafe fn do_check_scrollbind(check: bool) {
             (*curwin).w_scbind_pos = vtopline;
         }
 
-        do_check_scrollbind_old_curwin = curwin;
-        do_check_scrollbind_old_vtopline = vtopline;
-        do_check_scrollbind_old_buf = (*curwin).w_buffer;
-        do_check_scrollbind_old_leftcol = (*curwin).w_leftcol;
+        norm_st().do_check_scrollbind_old_curwin = curwin;
+        norm_st().do_check_scrollbind_old_vtopline = vtopline;
+        norm_st().do_check_scrollbind_old_buf = (*curwin).w_buffer;
+        norm_st().do_check_scrollbind_old_leftcol = (*curwin).w_leftcol;
     }
 }
 
@@ -5896,7 +5920,7 @@ unsafe fn nv_Replace(cap: *mut cmdarg_T) {
         if Visual.active {
             (*cap).cmdchar = b'c' as c_int;
             (*cap).nchar = NUL as c_int;
-            VIsual_mode_orig = Visual.mode;
+            norm_st().VIsual_mode_orig = Visual.mode;
             Visual.mode = b'V' as c_int;
             nv_operator(cap);
             return;
@@ -6047,7 +6071,7 @@ unsafe fn v_visop(cap: *mut cmdarg_T) {
 
         if ((*cap).cmdchar as u8).is_ascii_uppercase() {
             if Visual.mode != Ctrl_V {
-                VIsual_mode_orig = Visual.mode;
+                norm_st().VIsual_mode_orig = Visual.mode;
                 Visual.mode = b'V' as c_int;
             } else if (*cap).cmdchar == b'C' as c_int || (*cap).cmdchar == b'D' as c_int {
                 (*curwin).w_curswant = MAXCOL;
@@ -6066,7 +6090,7 @@ unsafe fn nv_subst(cap: *mut cmdarg_T) {
         }
         if Visual.active {
             if (*cap).cmdchar == b'S' as c_int {
-                VIsual_mode_orig = Visual.mode;
+                norm_st().VIsual_mode_orig = Visual.mode;
                 Visual.mode = b'V' as c_int;
             }
             (*cap).cmdchar = b'c' as c_int;

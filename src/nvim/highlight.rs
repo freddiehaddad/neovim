@@ -219,25 +219,46 @@ pub type NSHlAttr = [std::cell::Cell<c_int>; HLF_COUNT];
 
 use crate::api::private::helpers::has_key;
 
-static mut hlstate_active: bool = false;
-static mut attr_entries: Vec<HlEntry> = Vec::new();
-static mut attr_entry_ids: std::collections::BTreeMap<HlEntry, u32> =
-    std::collections::BTreeMap::new();
-static mut combine_attr_entries: std::collections::BTreeMap<u64, c_int> =
-    std::collections::BTreeMap::new();
-static mut blend_attr_entries: std::collections::BTreeMap<u64, c_int> =
-    std::collections::BTreeMap::new();
-static mut blendthrough_attr_entries: std::collections::BTreeMap<u64, c_int> =
-    std::collections::BTreeMap::new();
-static mut urls: Vec<std::ffi::CString> = Vec::new();
-static mut fonts: Vec<std::ffi::CString> = Vec::new();
-static mut ns_hls: std::collections::BTreeMap<ColorKey, ColorItem> =
-    std::collections::BTreeMap::new();
-static mut ns_hl_attr: std::collections::BTreeMap<c_int, std::rc::Rc<NSHlAttr>> =
-    std::collections::BTreeMap::new();
+struct HighlightModuleState {
+    hlstate_active: bool,
+    attr_entries: Vec<HlEntry>,
+    attr_entry_ids: std::collections::BTreeMap<HlEntry, u32>,
+    combine_attr_entries: std::collections::BTreeMap<u64, c_int>,
+    blend_attr_entries: std::collections::BTreeMap<u64, c_int>,
+    blendthrough_attr_entries: std::collections::BTreeMap<u64, c_int>,
+    urls: Vec<std::ffi::CString>,
+    fonts: Vec<std::ffi::CString>,
+    ns_hls: std::collections::BTreeMap<ColorKey, ColorItem>,
+    ns_hl_attr: std::collections::BTreeMap<c_int, std::rc::Rc<NSHlAttr>>,
+    get_attr_entry_recursive: bool,
+    ns_get_hl_recursive: c_int,
+}
 
-static mut get_attr_entry_recursive: bool = false;
-static mut ns_get_hl_recursive: c_int = 0;
+impl HighlightModuleState {
+    const fn new() -> Self {
+        Self {
+            hlstate_active: false,
+            attr_entries: Vec::new(),
+            attr_entry_ids: std::collections::BTreeMap::new(),
+            combine_attr_entries: std::collections::BTreeMap::new(),
+            blend_attr_entries: std::collections::BTreeMap::new(),
+            blendthrough_attr_entries: std::collections::BTreeMap::new(),
+            urls: Vec::new(),
+            fonts: Vec::new(),
+            ns_hls: std::collections::BTreeMap::new(),
+            ns_hl_attr: std::collections::BTreeMap::new(),
+            get_attr_entry_recursive: false,
+            ns_get_hl_recursive: 0,
+        }
+    }
+}
+
+static HL_STATE: GlobalState<HighlightModuleState> = GlobalState::new(HighlightModuleState::new());
+
+#[inline]
+unsafe fn hl_st() -> &'static mut HighlightModuleState {
+    unsafe { &mut *HL_STATE.as_ptr() }
+}
 
 #[inline]
 unsafe fn is_none_str(s: *const c_char) -> bool {
@@ -286,8 +307,8 @@ const fn hl_attr_key(a: c_int, b: c_int) -> u64 {
 
 pub unsafe fn highlight_init() {
     unsafe {
-        let entries_ptr = &raw mut attr_entries;
-        let ids_ptr = &raw mut attr_entry_ids;
+        let entries_ptr = &raw mut hl_st().attr_entries;
+        let ids_ptr = &raw mut hl_st().attr_entry_ids;
         if (*entries_ptr).is_empty() {
             let entry = HlEntry {
                 attr: HLATTRS_INIT,
@@ -304,10 +325,10 @@ pub unsafe fn highlight_init() {
 
 pub unsafe fn highlight_use_hlstate() -> bool {
     unsafe {
-        if hlstate_active {
+        if hl_st().hlstate_active {
             return false;
         }
-        hlstate_active = true;
+        hl_st().hlstate_active = true;
         clear_hl_tables(true);
         true
     }
@@ -316,29 +337,29 @@ pub unsafe fn highlight_use_hlstate() -> bool {
 unsafe fn get_attr_entry(mut entry: HlEntry) -> c_int {
     unsafe {
         let mut retried = false;
-        if !hlstate_active {
+        if !hl_st().hlstate_active {
             entry.kind = kHlUnknown;
             entry.id1 = 0;
             entry.id2 = 0;
         }
 
         loop {
-            let entries_ptr = &raw mut attr_entries;
-            let ids_ptr = &raw mut attr_entry_ids;
+            let entries_ptr = &raw mut hl_st().attr_entries;
+            let ids_ptr = &raw mut hl_st().attr_entry_ids;
             if let Some(&k) = (*ids_ptr).get(&entry) {
                 return k as c_int;
             }
 
             if (*entries_ptr).len() as u32 >= MAX_TYPENR {
-                if get_attr_entry_recursive || retried {
+                if hl_st().get_attr_entry_recursive || retried {
                     emsg(gettext(
                         c"E424: Too many different highlighting attributes in use".as_ptr(),
                     ));
                     return 0;
                 }
-                get_attr_entry_recursive = true;
+                hl_st().get_attr_entry_recursive = true;
                 clear_hl_tables(true);
-                get_attr_entry_recursive = false;
+                hl_st().get_attr_entry_recursive = false;
 
                 if entry.kind == kHlCombine {
                     return 0;
@@ -367,7 +388,7 @@ unsafe fn get_attr_entry(mut entry: HlEntry) -> c_int {
 
 pub unsafe fn ui_send_all_hls(ui: *mut RemoteUI) {
     unsafe {
-        let entries_ptr = &raw const attr_entries;
+        let entries_ptr = &raw const hl_st().attr_entries;
         let len = (*entries_ptr).len();
         for i in 1..len {
             let mut arena = Arena {
@@ -431,7 +452,7 @@ pub unsafe fn ns_hl_def(
             ns_id,
             syn_id: hl_id,
         };
-        let ns_hls_ptr = &raw const ns_hls;
+        let ns_hls_ptr = &raw const hl_st().ns_hls;
         if (attrs.rgb_ae_attr & HL_DEFAULT) != 0 && (*ns_hls_ptr).contains_key(&key) {
             return;
         }
@@ -448,7 +469,7 @@ pub unsafe fn ns_hl_def(
             is_default: (attrs.rgb_ae_attr & HL_DEFAULT) != 0,
             link_global: (attrs.rgb_ae_attr & HL_GLOBAL) != 0,
         };
-        let ns_hls_ptr = &raw mut ns_hls;
+        let ns_hls_ptr = &raw mut hl_st().ns_hls;
         (*ns_hls_ptr).insert(key, it);
         (*p).hl_cached = false;
     }
@@ -473,7 +494,7 @@ pub unsafe fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: boo
             ns_id,
             syn_id: hl_id,
         };
-        let ns_hls_ptr = &raw mut ns_hls;
+        let ns_hls_ptr = &raw mut hl_st().ns_hls;
         let mut it = (*ns_hls_ptr).get(&key).copied().unwrap_or(ColorItem {
             attr_id: -1,
             link_id: -1,
@@ -483,7 +504,7 @@ pub unsafe fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: boo
         });
         let mut valid_item = it.version >= (*p).hl_valid;
 
-        if !valid_item && (*p).hl_def != LUA_NOREF && ns_get_hl_recursive == 0 {
+        if !valid_item && (*p).hl_def != LUA_NOREF && hl_st().ns_get_hl_recursive == 0 {
             let mut args_storage = [Object {
                 obj_type: ObjectType::kObjectTypeNil,
                 data: ObjectData::Integer(0),
@@ -498,7 +519,7 @@ pub unsafe fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: boo
             add_c(&mut args, boolean_obj(link));
 
             let mut err = Error::new();
-            ns_get_hl_recursive += 1;
+            hl_st().ns_get_hl_recursive += 1;
             let ret = nlua_call_ref(
                 (*p).hl_def,
                 c"hl_def".as_ptr(),
@@ -507,7 +528,7 @@ pub unsafe fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: boo
                 ptr::null_mut(),
                 &raw mut err,
             );
-            ns_get_hl_recursive -= 1;
+            hl_st().ns_get_hl_recursive -= 1;
 
             let mut fallback = true;
             let mut tmp = false;
@@ -588,7 +609,7 @@ pub unsafe fn hl_check_ns() -> bool {
         hl_attr_active = None;
         if ns > 0 {
             update_ns_hl(ns);
-            let ns_hl_attr_ptr = &raw const ns_hl_attr;
+            let ns_hl_attr_ptr = &raw const hl_st().ns_hl_attr;
             if let Some(hl_def) = (*ns_hl_attr_ptr).get(&ns) {
                 hl_attr_active = Some(hl_def.clone());
             }
@@ -662,7 +683,7 @@ pub unsafe fn hl_get_ui_attr(
 
 pub unsafe fn hl_apply_winblend(winbl: c_int, mut attr: c_int) -> c_int {
     unsafe {
-        let entries_ptr = &raw const attr_entries;
+        let entries_ptr = &raw const hl_st().attr_entries;
         let mut entry = (*entries_ptr).as_slice()[attr as usize];
         if entry.attr.hl_blend == -1 && winbl > 0 {
             entry.attr.hl_blend = winbl;
@@ -680,7 +701,7 @@ pub unsafe fn update_window_hl(wp: *mut win_T, invalid: bool) {
         if ns_id != (*wp).w_ns_hl_active {
             (*wp).w_ns_hl_active = ns_id;
 
-            let ns_hl_attr_ptr = &raw const ns_hl_attr;
+            let ns_hl_attr_ptr = &raw const hl_st().ns_hl_attr;
             (*wp).w_ns_hl_attr = (*ns_hl_attr_ptr).get(&ns_id).cloned();
         }
 
@@ -766,7 +787,7 @@ pub unsafe fn update_ns_hl(ns_id: c_int) {
             return;
         }
 
-        let ns_hl_attr_ptr = &raw mut ns_hl_attr;
+        let ns_hl_attr_ptr = &raw mut hl_st().ns_hl_attr;
         let alloc = (*ns_hl_attr_ptr)
             .entry(ns_id)
             .or_insert_with(|| std::rc::Rc::new([const { std::cell::Cell::new(0) }; HLF_COUNT]))
@@ -827,7 +848,7 @@ pub unsafe fn hl_add_url(attr: c_int, url: *const c_char) -> c_int {
     unsafe {
         let mut attrs = HLATTRS_INIT;
         let url_cstr = CStr::from_ptr(url);
-        let urls_ptr = &raw mut urls;
+        let urls_ptr = &raw mut hl_st().urls;
         let k = if let Some(pos) = (*urls_ptr).iter().position(|u| u.as_c_str() == url_cstr) {
             pos
         } else {
@@ -850,7 +871,7 @@ pub unsafe fn hl_add_url(attr: c_int, url: *const c_char) -> c_int {
 
 pub unsafe fn hl_get_url(index: u32) -> *const c_char {
     unsafe {
-        let urls_ptr = &raw const urls;
+        let urls_ptr = &raw const hl_st().urls;
         (*urls_ptr).as_slice()[index as usize].as_ptr()
     }
 }
@@ -861,7 +882,7 @@ pub unsafe fn hl_add_font_idx(font_name: *const c_char) -> i32 {
             return -1;
         }
         let font_cstr = CStr::from_ptr(font_name);
-        let fonts_ptr = &raw mut fonts;
+        let fonts_ptr = &raw mut hl_st().fonts;
         if let Some(pos) = (*fonts_ptr).iter().position(|f| f.as_c_str() == font_cstr) {
             return pos as i32;
         }
@@ -873,7 +894,7 @@ pub unsafe fn hl_add_font_idx(font_name: *const c_char) -> i32 {
 
 pub unsafe fn hl_get_font(index: i32) -> *const c_char {
     unsafe {
-        let fonts_ptr = &raw const fonts;
+        let fonts_ptr = &raw const hl_st().fonts;
         if index < 0 || (index as usize) >= (*fonts_ptr).len() {
             return ptr::null();
         }
@@ -895,12 +916,12 @@ pub unsafe fn hl_get_term_attr(aep: *mut HlAttrs) -> c_int {
 
 pub unsafe fn clear_hl_tables(reinit: bool) {
     unsafe {
-        let entries_ptr = &raw mut attr_entries;
-        let ids_ptr = &raw mut attr_entry_ids;
-        let combine_ptr = &raw mut combine_attr_entries;
-        let blend_ptr = &raw mut blend_attr_entries;
-        let blendthrough_ptr = &raw mut blendthrough_attr_entries;
-        let urls_ptr = &raw mut urls;
+        let entries_ptr = &raw mut hl_st().attr_entries;
+        let ids_ptr = &raw mut hl_st().attr_entry_ids;
+        let combine_ptr = &raw mut hl_st().combine_attr_entries;
+        let blend_ptr = &raw mut hl_st().blend_attr_entries;
+        let blendthrough_ptr = &raw mut hl_st().blendthrough_attr_entries;
+        let urls_ptr = &raw mut hl_st().urls;
         if reinit {
             (*entries_ptr).clear();
             (*ids_ptr).clear();
@@ -919,12 +940,12 @@ pub unsafe fn clear_hl_tables(reinit: bool) {
             *combine_ptr = std::collections::BTreeMap::new();
             *blend_ptr = std::collections::BTreeMap::new();
             *blendthrough_ptr = std::collections::BTreeMap::new();
-            let ns_hls_ptr = &raw mut ns_hls;
+            let ns_hls_ptr = &raw mut hl_st().ns_hls;
             *ns_hls_ptr = std::collections::BTreeMap::new();
-            let ns_hl_attr_ptr = &raw mut ns_hl_attr;
+            let ns_hl_attr_ptr = &raw mut hl_st().ns_hl_attr;
             *ns_hl_attr_ptr = std::collections::BTreeMap::new();
             *urls_ptr = Vec::new();
-            let fonts_ptr = &raw mut fonts;
+            let fonts_ptr = &raw mut hl_st().fonts;
             *fonts_ptr = Vec::new();
         }
     }
@@ -932,9 +953,9 @@ pub unsafe fn clear_hl_tables(reinit: bool) {
 
 pub unsafe fn hl_invalidate_blends() {
     unsafe {
-        let blend_ptr = &raw mut blend_attr_entries;
+        let blend_ptr = &raw mut hl_st().blend_attr_entries;
         (*blend_ptr).clear();
-        let blendthrough_ptr = &raw mut blendthrough_attr_entries;
+        let blendthrough_ptr = &raw mut hl_st().blendthrough_attr_entries;
         (*blendthrough_ptr).clear();
         highlight_changed();
         update_window_hl(curwin, true);
@@ -958,7 +979,7 @@ pub unsafe fn hl_combine_attr(char_attr: c_int, prim_attr: c_int) -> c_int {
         }
 
         let combine_tag = hl_attr_key(char_attr, prim_attr);
-        let combine_ptr = &raw mut combine_attr_entries;
+        let combine_ptr = &raw mut hl_st().combine_attr_entries;
         let mut id = (*combine_ptr).get(&combine_tag).copied().unwrap_or(0);
         if id > 0 {
             return id;
@@ -1078,9 +1099,9 @@ pub unsafe fn hl_blend_attrs(back_attr: c_int, front_attr: c_int, through: *mut 
 
         let combine_tag = hl_attr_key(back_attr, front_attr);
         let map_ptr = if *through {
-            &raw mut blendthrough_attr_entries
+            &raw mut hl_st().blendthrough_attr_entries
         } else {
-            &raw mut blend_attr_entries
+            &raw mut hl_st().blend_attr_entries
         };
         let map = &mut *map_ptr;
         let mut id = map.get(&combine_tag).copied().unwrap_or(0);
@@ -1223,7 +1244,7 @@ const fn hl_cterm2rgb_color(nr: c_int) -> c_int {
 
 pub unsafe fn syn_attr2entry(attr: c_int) -> HlAttrs {
     unsafe {
-        let entries_ptr = &raw const attr_entries;
+        let entries_ptr = &raw const hl_st().attr_entries;
         if attr <= 0 || (attr as usize) >= (*entries_ptr).len() {
             return HLATTRS_INIT;
         }
@@ -1248,7 +1269,7 @@ pub unsafe fn hl_get_attr_by_id(
             return dic;
         }
 
-        let entries_ptr = &raw const attr_entries;
+        let entries_ptr = &raw const hl_st().attr_entries;
         if attr_id < 0 || (attr_id as usize) >= (*entries_ptr).len() {
             api_set_error!(
                 err,
@@ -1809,7 +1830,7 @@ pub unsafe fn object_to_color(val: Object, key: *mut c_char, rgb: bool, err: *mu
 
 pub unsafe fn hl_inspect(attr: c_int, arena: *mut Arena) -> Array {
     unsafe {
-        if !hlstate_active {
+        if !hl_st().hlstate_active {
             return Array {
                 size: 0,
                 capacity: 0,
@@ -1824,7 +1845,7 @@ pub unsafe fn hl_inspect(attr: c_int, arena: *mut Arena) -> Array {
 
 unsafe fn hl_inspect_size(attr: c_int) -> usize {
     unsafe {
-        let entries_ptr = &raw const attr_entries;
+        let entries_ptr = &raw const hl_st().attr_entries;
         if attr <= 0 || (attr as usize) >= (*entries_ptr).len() {
             return 0;
         }
@@ -1839,7 +1860,7 @@ unsafe fn hl_inspect_size(attr: c_int) -> usize {
 
 unsafe fn hl_inspect_impl(arr: *mut Array, attr: c_int, arena: *mut Arena) {
     unsafe {
-        let entries_ptr = &raw const attr_entries;
+        let entries_ptr = &raw const hl_st().attr_entries;
         if attr <= 0 || (attr as usize) >= (*entries_ptr).len() {
             return;
         }
