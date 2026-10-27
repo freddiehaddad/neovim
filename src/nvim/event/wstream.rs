@@ -7,7 +7,6 @@ use crate::event::stream::{Stream, stream_close_handle, stream_init};
 #[cfg(windows)]
 use std::ffi::c_ulong;
 use std::ffi::{c_char, c_int, c_void};
-use std::ptr;
 
 use crate::os::fs::UV_UNKNOWN;
 
@@ -91,7 +90,7 @@ use crate::event::r#loop::uv_fs_write;
 
 pub unsafe fn wstream_init_fd(loop_: *mut Loop, stream: *mut Stream, fd: c_int, maxmem: usize) {
     unsafe {
-        stream_init(loop_, stream, fd, ptr::null_mut());
+        stream_init(loop_, stream, fd, false);
         wstream_init(stream, maxmem);
     }
 }
@@ -115,7 +114,7 @@ pub unsafe fn wstream_write(stream: *mut Stream, buffer: std::rc::Rc<WBuffer>) -
 
         let uvbuf = uv_buf_t::new(buffer.data, buffer.size);
 
-        if (*stream).uvstream.is_null() {
+        if !(*stream).has_uvstream {
             let mut req_buf = [0u64; 128];
             let req_ptr = req_buf.as_mut_ptr().cast::<uv_fs_t>();
             let idle_loop = uv_handle_get_loop((&raw mut (*stream).uv).cast());
@@ -155,7 +154,7 @@ pub unsafe fn wstream_write(stream: *mut Stream, buffer: std::rc::Rc<WBuffer>) -
         let uv_req: *mut uv_write_t = (&raw mut (*data).uv).cast();
         *uv_req.cast::<*mut WRequest>() = data;
 
-        let err = uv_write(uv_req, (*stream).uvstream, &uvbuf, 1, Some(write_cb));
+        let err = uv_write(uv_req, (*stream).uvstream_ptr(), &uvbuf, 1, Some(write_cb));
         if err != 0 {
             let _ = Box::from_raw(data);
             return err;

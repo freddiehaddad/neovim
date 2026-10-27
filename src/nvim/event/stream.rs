@@ -109,7 +109,7 @@ pub struct UvStreamHandle(pub [u8; 640]);
 pub struct Stream {
     pub closed: bool,
     pub uv: UvStreamHandle,
-    pub uvstream: *mut uv_stream_t,
+    pub has_uvstream: bool,
     pub fd: c_int,
     pub fpos: i64,
     pub cb_data: StreamCbData,
@@ -129,7 +129,7 @@ impl Stream {
         Self {
             closed: false,
             uv: UvStreamHandle([0; 640]),
-            uvstream: ptr::null_mut(),
+            has_uvstream: false,
             fd: -1,
             fpos: 0,
             cb_data: StreamCbData::NONE,
@@ -142,6 +142,15 @@ impl Stream {
             notify_write: false,
             curmem: 0,
             maxmem: 0,
+        }
+    }
+
+    #[inline]
+    pub fn uvstream_ptr(&mut self) -> *mut uv_stream_t {
+        if self.has_uvstream {
+            (&raw mut self.uv).cast()
+        } else {
+            ptr::null_mut()
         }
     }
 }
@@ -172,16 +181,16 @@ pub unsafe fn stream_init(
     loop_: *mut Loop,
     stream: *mut Stream,
     fd: c_int,
-    uvstream: *mut uv_stream_t,
+    has_uvstream: bool,
 ) {
     unsafe {
-        assert!(if uvstream.is_null() {
+        assert!(if !has_uvstream {
             fd >= 0 && !loop_.is_null()
         } else {
             fd < 0 && loop_.is_null()
         });
         let uv_ptr: *mut c_void = (&raw mut (*stream).uv).cast();
-        (*stream).uvstream = uvstream;
+        (*stream).has_uvstream = has_uvstream;
 
         if fd >= 0 {
             let h_type = uv_guess_handle(fd);
@@ -204,12 +213,12 @@ pub unsafe fn stream_init(
                         dw_mode |= ENABLE_VIRTUAL_TERMINAL_INPUT;
                         SetConsoleMode(tty_handle, dw_mode);
                     }
-                    (*stream).uvstream = uv_ptr.cast();
+                    (*stream).has_uvstream = true;
                 } else {
                     assert!(h_type == UV_NAMED_PIPE || h_type == UV_TTY);
                     uv_pipe_init(loop_.cast(), uv_ptr.cast(), 0);
                     uv_pipe_open(uv_ptr.cast(), fd);
-                    (*stream).uvstream = uv_ptr.cast();
+                    (*stream).has_uvstream = true;
                 }
 
                 #[cfg(not(windows))]
@@ -217,13 +226,13 @@ pub unsafe fn stream_init(
                     assert!(h_type == UV_NAMED_PIPE || h_type == UV_TTY);
                     uv_pipe_init(loop_.cast(), uv_ptr.cast(), 0);
                     uv_pipe_open(uv_ptr.cast(), fd);
-                    (*stream).uvstream = uv_ptr.cast();
+                    (*stream).has_uvstream = true;
                 }
             }
         }
 
-        if !(*stream).uvstream.is_null() {
-            *(*stream).uvstream.cast::<*mut Stream>() = stream;
+        if (*stream).has_uvstream {
+            *(*stream).uvstream_ptr().cast::<*mut Stream>() = stream;
         }
 
         (*stream).fpos = 0;
@@ -275,8 +284,8 @@ pub unsafe fn stream_may_close(stream: *mut Stream) {
 
 pub unsafe fn stream_close_handle(stream: *mut Stream) {
     unsafe {
-        let handle: *mut uv_handle_t = if !(*stream).uvstream.is_null() {
-            let queued = uv_stream_get_write_queue_size((*stream).uvstream);
+        let handle: *mut uv_handle_t = if (*stream).has_uvstream {
+            let queued = uv_stream_get_write_queue_size((*stream).uvstream_ptr());
             if queued > 0 {
                 logmsg!(
                     LOGLVL_WRN,
@@ -289,7 +298,7 @@ pub unsafe fn stream_close_handle(stream: *mut Stream) {
                     queued,
                 );
             }
-            (*stream).uvstream.cast()
+            (*stream).uvstream_ptr().cast()
         } else {
             (&raw mut (*stream).uv).cast()
         };

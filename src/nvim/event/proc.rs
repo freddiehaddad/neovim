@@ -215,19 +215,19 @@ pub unsafe fn proc_spawn(proc_: *mut Proc, in_: bool, out: bool, err: bool) -> c
         }
 
         if in_ {
-            stream_init(ptr::null_mut(), s_in, -1, (&raw mut (*s_in).uv).cast());
+            stream_init(ptr::null_mut(), s_in, -1, true);
             (*s_in).internal_data = StreamInternalData::Proc(proc_);
             (*proc_).refcount += 1;
         }
 
         if out {
-            stream_init(ptr::null_mut(), s_out, -1, (&raw mut (*s_out).uv).cast());
+            stream_init(ptr::null_mut(), s_out, -1, true);
             (*s_out).internal_data = StreamInternalData::Proc(proc_);
             (*proc_).refcount += 1;
         }
 
         if err {
-            stream_init(ptr::null_mut(), s_err, -1, (&raw mut (*s_err).uv).cast());
+            stream_init(ptr::null_mut(), s_err, -1, true);
             (*s_err).internal_data = StreamInternalData::Proc(proc_);
             (*proc_).refcount += 1;
         }

@@ -237,7 +237,7 @@ pub unsafe fn server_start(addr: *const c_char) -> c_int {
                     c"Already listening on %s".as_ptr(),
                     (*watcher).addr.as_ptr(),
                 );
-                if uv_handle_get_type((*watcher).stream.cast()) == UV_TCP {
+                if uv_handle_get_type((*watcher).stream_ptr().cast()) == UV_TCP {
                     uv_freeaddrinfo((*watcher).tcp_addrinfo.cast());
                 }
                 socket_watcher_close(watcher);

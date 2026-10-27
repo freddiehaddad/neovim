@@ -65,7 +65,7 @@ unsafe fn rstream_space(stream: *mut RStream) -> usize {
 
 pub unsafe fn rstream_init_fd(loop_: *mut Loop, stream: *mut RStream, fd: c_int) {
     unsafe {
-        stream_init(loop_, &raw mut (*stream).s, fd, ptr::null_mut());
+        stream_init(loop_, &raw mut (*stream).s, fd, false);
         rstream_init(stream);
     }
 }
@@ -82,8 +82,8 @@ pub unsafe fn rstream_init(stream: *mut RStream) {
 
 pub unsafe fn rstream_start_inner(stream: *mut RStream) {
     unsafe {
-        if !(*stream).s.uvstream.is_null() {
-            uv_read_start((*stream).s.uvstream, Some(alloc_cb), Some(read_cb));
+        if (*stream).s.has_uvstream {
+            uv_read_start((*stream).s.uvstream_ptr(), Some(alloc_cb), Some(read_cb));
         } else {
             uv_idle_start((&raw mut (*stream).s.uv).cast(), Some(fread_idle_cb));
         }
@@ -102,8 +102,8 @@ pub unsafe fn rstream_start(stream: *mut RStream, data: StreamCbData) {
 
 pub unsafe fn rstream_stop_inner(stream: *mut RStream) {
     unsafe {
-        if !(*stream).s.uvstream.is_null() {
-            uv_read_stop((*stream).s.uvstream);
+        if (*stream).s.has_uvstream {
+            uv_read_stop((*stream).s.uvstream_ptr());
         } else {
             uv_idle_stop((&raw mut (*stream).s.uv).cast());
         }
