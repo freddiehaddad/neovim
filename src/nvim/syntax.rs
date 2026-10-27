@@ -283,9 +283,17 @@ use crate::sign::EXP_SUBCMD;
 pub type SynIdList = Option<std::rc::Rc<[i16]>>;
 
 #[inline]
-fn syn_id_list_ptr(list: &SynIdList) -> *mut i16 {
-    list.as_ref()
-        .map_or(ptr::null_mut(), |rc| rc.as_ptr().cast_mut())
+fn syn_id_list_eq(a: &SynIdList, b: &SynIdList) -> bool {
+    match (a, b) {
+        (None, None) => true,
+        (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b) || (a.is_empty() && b.is_empty()),
+        _ => false,
+    }
+}
+
+#[inline]
+fn is_id_list_all(list: &SynIdList) -> bool {
+    list.as_ref().is_some_and(|rc| rc.is_empty())
 }
 
 #[repr(C)]
@@ -336,7 +344,7 @@ pub struct synstate_T {
     pub sst_lnum: linenr_T,
     pub sst_stack: Vec<bufstate_T>,
     pub sst_next_flags: c_int,
-    pub sst_next_list: *mut i16,
+    pub sst_next_list: SynIdList,
     pub sst_tick: disptick_T,
     pub sst_change_lnum: linenr_T,
 }
@@ -416,8 +424,8 @@ struct stateitem_T {
     si_flags: c_int,
     si_seqnr: c_int,
     si_cchar: c_int,
-    si_cont_list: *mut i16,
-    si_next_list: *mut i16,
+    si_cont_list: SynIdList,
+    si_next_list: SynIdList,
     si_extmatch: Option<std::rc::Rc<reg_extmatch_T>>,
 }
 
@@ -439,8 +447,8 @@ impl stateitem_T {
             si_flags: 0,
             si_seqnr: 0,
             si_cchar: 0,
-            si_cont_list: ptr::null_mut(),
-            si_next_list: ptr::null_mut(),
+            si_cont_list: None,
+            si_next_list: None,
             si_extmatch: None,
         }
     }
@@ -464,7 +472,7 @@ struct syn_opt_arg_T {
 
 #[derive(Default)]
 pub struct idl_entry_T {
-    idl_key: *mut i16,
+    idl_key: SynIdList,
     idl_ids: Vec<i16>,
     idl_marker: i16,
     idl_usable: bool,
@@ -533,7 +541,7 @@ static mut current_state_stored: bool = false;
 static mut current_finished: bool = false;
 static mut current_state_valid: bool = false;
 static mut current_state: Vec<stateitem_T> = Vec::new();
-static mut current_next_list: *mut i16 = ptr::null_mut();
+static mut current_next_list: SynIdList = None;
 static mut current_next_flags: c_int = 0;
 static mut current_line_id: c_int = 0;
 static mut syn_time_on: bool = false;
@@ -585,8 +593,8 @@ unsafe fn ke2hikey(kp: *const keyentry_T) -> *const c_char {
 }
 
 #[inline]
-fn id_list_all() -> *mut i16 {
-    usize::MAX as *mut i16
+fn id_list_all() -> SynIdList {
+    Some(std::rc::Rc::from([] as [i16; 0]))
 }
 
 #[inline]
@@ -1310,7 +1318,7 @@ unsafe fn store_current_state() -> Option<usize> {
                 });
             }
             sp.sst_next_flags = current_next_flags;
-            sp.sst_next_list = current_next_list;
+            sp.sst_next_list = (&raw const current_next_list).as_ref().unwrap().clone();
             sp.sst_tick = display_tick;
             sp.sst_change_lnum = 0;
         }
@@ -1342,17 +1350,17 @@ unsafe fn load_current_state(from: *const synstate_T) {
                 item.si_ends = 0;
                 item.si_m_lnum = 0;
                 if item.si_idx >= 0 {
-                    item.si_next_list = syn_id_list_ptr(
-                        &(*syn_items(syn_block).offset(item.si_idx as isize)).sp_next_list,
-                    );
+                    item.si_next_list = (*syn_items(syn_block).offset(item.si_idx as isize))
+                        .sp_next_list
+                        .clone();
                 } else {
-                    item.si_next_list = ptr::null_mut();
+                    item.si_next_list = None;
                 }
                 (*cs_ptr).push(item);
                 update_si_attr(i_c);
             }
         }
-        current_next_list = (*from).sst_next_list;
+        current_next_list = (*from).sst_next_list.clone();
         current_next_flags = (*from).sst_next_flags;
         current_lnum = (*from).sst_lnum;
     }
@@ -1361,7 +1369,10 @@ unsafe fn load_current_state(from: *const synstate_T) {
 unsafe fn syn_stack_equal(sp: *const synstate_T) -> bool {
     unsafe {
         if (*sp).sst_stack.len() as c_int != cur_state_len()
-            || (*sp).sst_next_list != current_next_list
+            || !syn_id_list_eq(
+                &(*sp).sst_next_list,
+                (&raw const current_next_list).as_ref().unwrap(),
+            )
         {
             return false;
         }
@@ -1436,7 +1447,7 @@ unsafe fn invalidate_current_state() {
     unsafe {
         clear_current_state();
         current_state_valid = false;
-        current_next_list = ptr::null_mut();
+        current_next_list = None;
         keepend_level = -1;
     }
 }
@@ -1566,7 +1577,7 @@ unsafe fn syn_current_attr(
         let mut endcol: c_int = 0;
         let mut flags: c_int = 0;
         let mut cchar: c_int = 0;
-        let mut next_list: *mut i16 = ptr::null_mut();
+        let mut next_list: SynIdList = None;
         let mut found_match: bool;
         let mut regmatch: regmmatch_T = regmmatch_T::new();
         let mut pos = lpos_T { lnum: 0, col: 0 };
@@ -1618,7 +1629,7 @@ unsafe fn syn_current_attr(
 
             if (*syn_block).b_syn_containedin != 0
                 || cur_si.is_null()
-                || !(*cur_si).si_cont_list.is_null()
+                || (*cur_si).si_cont_list.is_some()
             {
                 if do_keywords {
                     line = syn_getcurline();
@@ -1637,7 +1648,7 @@ unsafe fn syn_current_attr(
                             current_col,
                             &raw mut endcol,
                             &raw mut flags,
-                            &raw mut next_list,
+                            &mut next_list,
                             cur_si,
                             &raw mut cchar,
                         );
@@ -1675,8 +1686,8 @@ unsafe fn syn_current_attr(
                             } else {
                                 (*cur_si).si_attr = syn_id2attr(syn_id);
                             }
-                            (*cur_si).si_cont_list = ptr::null_mut();
-                            (*cur_si).si_next_list = next_list;
+                            (*cur_si).si_cont_list = None;
+                            (*cur_si).si_next_list = next_list.take();
                             check_keepend();
                         }
                     }
@@ -1689,14 +1700,15 @@ unsafe fn syn_current_attr(
                         let mut idx = (*syn_block).b_syn_patterns.len() as c_int - 1;
                         while idx >= 0 {
                             let spp = syn_items(syn_block).offset(idx as isize);
+                            let cur_next_list = (&raw const current_next_list).as_ref().unwrap();
                             if (*spp).sp_syncing == syncing
                                 && (displaying || ((*spp).sp_flags & HL_DISPLAY) == 0)
                                 && ((*spp).sp_type == SPTYPE_MATCH
                                     || (*spp).sp_type == SPTYPE_START)
-                                && if !current_next_list.is_null() {
+                                && if cur_next_list.is_some() {
                                     in_id_list(
                                         ptr::null_mut(),
-                                        current_next_list,
+                                        cur_next_list,
                                         &raw mut (*spp).sp_syn,
                                         0,
                                     ) != 0
@@ -1705,7 +1717,7 @@ unsafe fn syn_current_attr(
                                 } else {
                                     in_id_list(
                                         cur_si,
-                                        (*cur_si).si_cont_list,
+                                        &(*cur_si).si_cont_list,
                                         &raw mut (*spp).sp_syn,
                                         (*spp).sp_flags,
                                     ) != 0
@@ -1860,7 +1872,7 @@ unsafe fn syn_current_attr(
                             && next_match_m_endpos.col == current_col
                             && (*lspp).sp_next_list.is_some()
                         {
-                            current_next_list = syn_id_list_ptr(&(*lspp).sp_next_list);
+                            current_next_list = (*lspp).sp_next_list.clone();
                             current_next_flags = (*lspp).sp_flags;
                             keep_next_list = true;
                             zero_width_next_list = true;
@@ -1875,7 +1887,7 @@ unsafe fn syn_current_attr(
                 }
             }
 
-            if !current_next_list.is_null() && !keep_next_list {
+            if (&raw const current_next_list).as_ref().unwrap().is_some() && !keep_next_list {
                 if !found_match {
                     line = syn_getcurline();
                     if ((current_next_flags & HL_SKIPWHITE) != 0
@@ -1886,7 +1898,7 @@ unsafe fn syn_current_attr(
                     }
                 }
 
-                current_next_list = ptr::null_mut();
+                current_next_list = None;
                 next_match_idx = -1;
                 if !zero_width_next_list {
                     found_match = true;
@@ -1940,17 +1952,17 @@ unsafe fn syn_current_attr(
                         *can_spell = (*syn_block).b_syn_spell != SYNSPL_NOTOP;
                     } else {
                         sps.id = (*syn_block).b_nospell_cluster_id as i16;
-                        *can_spell = in_id_list(sip, (*sip).si_cont_list, &raw mut sps, 0) == 0;
+                        *can_spell = in_id_list(sip, &(*sip).si_cont_list, &raw mut sps, 0) == 0;
                     }
                 } else if current_trans_id == 0 {
                     *can_spell = (*syn_block).b_syn_spell == SYNSPL_TOP;
                 } else {
                     sps.id = (*syn_block).b_spell_cluster_id as i16;
-                    *can_spell = in_id_list(sip, (*sip).si_cont_list, &raw mut sps, 0) != 0;
+                    *can_spell = in_id_list(sip, &(*sip).si_cont_list, &raw mut sps, 0) != 0;
 
                     if (*syn_block).b_nospell_cluster_id != 0 {
                         sps.id = (*syn_block).b_nospell_cluster_id as i16;
-                        if in_id_list(sip, (*sip).si_cont_list, &raw mut sps, 0) != 0 {
+                        if in_id_list(sip, &(*sip).si_cont_list, &raw mut sps, 0) != 0 {
                             *can_spell = false;
                         }
                     }
@@ -1973,13 +1985,13 @@ unsafe fn syn_current_attr(
             };
         }
 
-        if !current_next_list.is_null() {
+        if (&raw const current_next_list).as_ref().unwrap().is_some() {
             line = syn_getcurline();
             if *line.offset(current_col as isize) != NUL
                 && *line.offset((current_col + 1) as isize) == NUL
                 && (current_next_flags & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
             {
-                current_next_list = ptr::null_mut();
+                current_next_list = None;
             }
         }
 
@@ -2027,7 +2039,7 @@ unsafe fn push_next_match() -> *mut stateitem_T {
         if len > 1 {
             (*cur_si).si_flags |= (*cur_state_at(len - 2)).si_flags & HL_CONCEAL;
         }
-        (*cur_si).si_next_list = syn_id_list_ptr(&(*spp).sp_next_list);
+        (*cur_si).si_next_list = (*spp).sp_next_list.clone();
         let next_ext = &raw const next_match_extmatch;
         (*cur_si).si_extmatch = (*next_ext).clone();
         if (*spp).sp_type == SPTYPE_START && ((*spp).sp_flags & HL_ONELINE) == 0 {
@@ -2066,7 +2078,7 @@ unsafe fn push_next_match() -> *mut stateitem_T {
             if ((*cur_si).si_flags & HL_CONCEALENDS) != 0 {
                 (*cur_si).si_flags |= HL_CONCEAL;
             }
-            (*cur_si).si_next_list = ptr::null_mut();
+            (*cur_si).si_next_list = None;
             check_keepend();
             update_si_attr(len2 - 1);
         }
@@ -2102,18 +2114,18 @@ unsafe fn check_state_ends() {
                     }
                     update_si_attr(cur_state_len() - 1);
 
-                    current_next_list = ptr::null_mut();
+                    current_next_list = None;
                     next_match_idx = 0;
                     next_match_col = MAXCOL;
                     break;
                 }
 
-                current_next_list = (*cur_si).si_next_list;
+                current_next_list = (*cur_si).si_next_list.clone();
                 current_next_flags = (*cur_si).si_flags;
                 if (current_next_flags & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
                     && *syn_getcurline().offset(current_col as isize) == NUL
                 {
-                    current_next_list = ptr::null_mut();
+                    current_next_list = None;
                 }
 
                 let had_extend = ((*cur_si).si_flags & HL_EXTEND) != 0;
@@ -2170,25 +2182,25 @@ unsafe fn update_si_attr(idx: c_int) {
         (*sip).si_attr = syn_id2attr((*sip).si_id);
         (*sip).si_trans_id = (*sip).si_id;
         if ((*sip).si_flags & HL_MATCH) != 0 {
-            (*sip).si_cont_list = ptr::null_mut();
+            (*sip).si_cont_list = None;
         } else {
-            (*sip).si_cont_list = syn_id_list_ptr(&(*spp).sp_cont_list);
+            (*sip).si_cont_list = (*spp).sp_cont_list.clone();
         }
 
         if ((*spp).sp_flags & HL_TRANSP) != 0 && ((*sip).si_flags & HL_MATCH) == 0 {
             if idx == 0 {
                 (*sip).si_attr = 0;
                 (*sip).si_trans_id = 0;
-                if (*sip).si_cont_list.is_null() {
+                if (*sip).si_cont_list.is_none() {
                     (*sip).si_cont_list = id_list_all();
                 }
             } else {
                 let prev_si = cur_state_at(idx - 1);
                 (*sip).si_attr = (*prev_si).si_attr;
                 (*sip).si_trans_id = (*prev_si).si_trans_id;
-                if (*sip).si_cont_list.is_null() {
+                if (*sip).si_cont_list.is_none() {
                     (*sip).si_flags |= HL_TRANS_CONT;
-                    (*sip).si_cont_list = (*prev_si).si_cont_list;
+                    (*sip).si_cont_list = (*prev_si).si_cont_list.clone();
                 }
             }
         }
@@ -2657,7 +2669,7 @@ unsafe fn check_keyword_id(
     startcol: c_int,
     endcolp: *mut c_int,
     flagsp: *mut c_int,
-    next_listp: *mut *mut i16,
+    next_listp: &mut SynIdList,
     cur_si: *mut stateitem_T,
     ccharp: *mut c_int,
 ) -> c_int {
@@ -2692,7 +2704,7 @@ unsafe fn check_keyword_id(
         if !kp.is_null() {
             *endcolp = startcol + kwlen;
             *flagsp = (*kp).flags;
-            *next_listp = syn_id_list_ptr(&(*kp).next_list);
+            *next_listp = (*kp).next_list.clone();
             *ccharp = (*kp).k_char;
             return (*kp).k_syn.id as c_int;
         }
@@ -2709,14 +2721,15 @@ unsafe fn match_keyword(
     unsafe {
         let key_bytes = std::ffi::CStr::from_ptr(keyword).to_bytes();
         if let Some(entries) = ht.get(key_bytes) {
+            let cur_next_list = (&raw const current_next_list).as_ref().unwrap();
             for kp in entries {
                 let mut k_syn = kp.k_syn.clone();
-                if if !current_next_list.is_null() {
-                    in_id_list(ptr::null_mut(), current_next_list, &raw mut k_syn, 0) != 0
+                if if cur_next_list.is_some() {
+                    in_id_list(ptr::null_mut(), cur_next_list, &raw mut k_syn, 0) != 0
                 } else if cur_si.is_null() {
                     (kp.flags & HL_CONTAINED) == 0
                 } else {
-                    in_id_list(cur_si, (*cur_si).si_cont_list, &raw mut k_syn, kp.flags) != 0
+                    in_id_list(cur_si, &(*cur_si).si_cont_list, &raw mut k_syn, kp.flags) != 0
                 } {
                     return kp;
                 }
@@ -3478,8 +3491,8 @@ unsafe fn syn_list_keywords(
 ) -> bool {
     unsafe {
         let mut prev_contained: c_int = 0;
-        let mut prev_next_list: *const i16 = ptr::null();
-        let mut prev_cont_in_list: *const i16 = ptr::null();
+        let mut prev_next_list: SynIdList = None;
+        let mut prev_cont_in_list: SynIdList = None;
         let mut prev_skipnl: c_int = 0;
         let mut prev_skipwhite: c_int = 0;
         let mut prev_skipempty: c_int = 0;
@@ -3495,14 +3508,12 @@ unsafe fn syn_list_keywords(
                 if kp.k_syn.id as c_int == id {
                     let mut outlen: c_int = 0;
                     let mut force_newline = false;
-                    let kp_cont_in = syn_id_list_ptr(&kp.k_syn.cont_in_list).cast_const();
-                    let kp_next = syn_id_list_ptr(&kp.next_list).cast_const();
                     if prev_contained != (kp.flags & HL_CONTAINED)
                         || prev_skipnl != (kp.flags & HL_SKIPNL)
                         || prev_skipwhite != (kp.flags & HL_SKIPWHITE)
                         || prev_skipempty != (kp.flags & HL_SKIPEMPTY)
-                        || prev_cont_in_list != kp_cont_in
-                        || prev_next_list != kp_next
+                        || !syn_id_list_eq(&prev_cont_in_list, &kp.k_syn.cont_in_list)
+                        || !syn_id_list_eq(&prev_next_list, &kp.next_list)
                     {
                         force_newline = true;
                     } else {
@@ -3510,8 +3521,8 @@ unsafe fn syn_list_keywords(
                     }
                     if syn_list_header(did_header, outlen, id, force_newline) {
                         prev_contained = 0;
-                        prev_next_list = ptr::null();
-                        prev_cont_in_list = ptr::null();
+                        prev_next_list = None;
+                        prev_cont_in_list = None;
                         prev_skipnl = 0;
                         prev_skipwhite = 0;
                         prev_skipempty = 0;
@@ -3522,15 +3533,19 @@ unsafe fn syn_list_keywords(
                         msg_putchar(b' ' as c_int);
                         prev_contained = kp.flags & HL_CONTAINED;
                     }
-                    if !ptr::eq(kp_cont_in, prev_cont_in_list) {
-                        put_id_list(c"containedin".as_ptr(), kp_cont_in, hl_id);
-                        msg_putchar(b' ' as c_int);
-                        prev_cont_in_list = kp_cont_in;
+                    if !syn_id_list_eq(&kp.k_syn.cont_in_list, &prev_cont_in_list) {
+                        if let Some(ref list) = kp.k_syn.cont_in_list {
+                            put_id_list(c"containedin".as_ptr(), list.as_ptr(), hl_id);
+                            msg_putchar(b' ' as c_int);
+                        }
+                        prev_cont_in_list = kp.k_syn.cont_in_list.clone();
                     }
-                    if !ptr::eq(kp_next, prev_next_list) {
-                        put_id_list(c"nextgroup".as_ptr(), kp_next, hl_id);
-                        msg_putchar(b' ' as c_int);
-                        prev_next_list = kp_next;
+                    if !syn_id_list_eq(&kp.next_list, &prev_next_list) {
+                        if let Some(ref list) = kp.next_list {
+                            put_id_list(c"nextgroup".as_ptr(), list.as_ptr(), hl_id);
+                            msg_putchar(b' ' as c_int);
+                        }
+                        prev_next_list = kp.next_list.clone();
                         if (kp.flags & HL_SKIPNL) != 0 {
                             msg_puts_hl(c"skipnl".as_ptr(), hl_id, false);
                             msg_putchar(b' ' as c_int);
@@ -4813,14 +4828,15 @@ unsafe fn get_id_list(
     }
 }
 
-unsafe fn idl_collect(list: *mut i16, ga: &mut Vec<i16>, seen: &mut Vec<i16>) -> bool {
+unsafe fn idl_collect(list: &[i16], ga: &mut Vec<i16>, seen: &mut Vec<i16>) -> bool {
     unsafe {
-        if list.is_null() || list == id_list_all() {
+        if list.is_empty() {
             return false;
         }
-        let mut cur = list;
-        while *cur != 0 {
-            let item = *cur;
+        for &item in list {
+            if item == 0 {
+                break;
+            }
             if (SYNID_ALLBUT..SYNID_CLUSTER).contains(&item) {
                 return false;
             }
@@ -4829,33 +4845,32 @@ unsafe fn idl_collect(list: *mut i16, ga: &mut Vec<i16>, seen: &mut Vec<i16>) ->
                     seen.push(item);
                     ga.push(item);
 
-                    let scl_list = syn_id_list_ptr(
-                        &(*syn_clstr(syn_block).offset((item - SYNID_CLUSTER) as isize)).scl_list,
-                    );
-                    if !scl_list.is_null() && !idl_collect(scl_list, ga, seen) {
+                    let scl = &(*syn_clstr(syn_block).offset((item - SYNID_CLUSTER) as isize));
+                    if !scl.scl_list.as_ref().is_some_and(|rc| !rc.is_empty())
+                        || !idl_collect(scl.scl_list.as_deref().unwrap(), ga, seen)
+                    {
                         return false;
                     }
                 }
             } else {
                 ga.push(item);
             }
-            cur = cur.add(1);
         }
         true
     }
 }
 
-unsafe fn idl_get_entry(mut list: *mut i16) -> *mut idl_entry_T {
+unsafe fn idl_get_entry(list: &SynIdList) -> *mut idl_entry_T {
     unsafe {
         let cache = (*syn_block)
             .b_idlist_cache
             .get_or_insert_with(|| Box::new(idl_cache_T::default()));
         let last = cache.last as usize;
-        if cache.ent[last].idl_key == list {
+        if syn_id_list_eq(&cache.ent[last].idl_key, list) {
             return &raw mut cache.ent[last];
         }
         for i in 0..IDL_CACHE_SIZE {
-            if cache.ent[i].idl_key == list {
+            if syn_id_list_eq(&cache.ent[i].idl_key, list) {
                 cache.last = i as c_int;
                 return &raw mut cache.ent[i];
             }
@@ -4866,18 +4881,21 @@ unsafe fn idl_get_entry(mut list: *mut i16) -> *mut idl_entry_T {
         let e = &raw mut cache.ent[round];
         cache.round = (cache.round + 1) % (IDL_CACHE_SIZE as c_int);
         (*e).idl_ids.clear();
-        (*e).idl_key = list;
+        (*e).idl_key = list.clone();
         (*e).idl_marker = 0;
         (*e).idl_usable = true;
 
-        if *list >= SYNID_ALLBUT && *list < SYNID_CLUSTER {
-            (*e).idl_marker = *list;
-            list = list.add(1);
+        let mut slice: &[i16] = list.as_deref().unwrap_or(&[]);
+        if let Some(&first) = slice.first()
+            && (SYNID_ALLBUT..SYNID_CLUSTER).contains(&first)
+        {
+            (*e).idl_marker = first;
+            slice = &slice[1..];
         }
 
         let mut ga: Vec<i16> = Vec::with_capacity(50);
         let mut seen: Vec<i16> = Vec::with_capacity(10);
-        if !idl_collect(list, &mut ga, &mut seen) {
+        if !idl_collect(slice, &mut ga, &mut seen) {
             (*e).idl_usable = false;
             return e;
         }
@@ -4901,7 +4919,7 @@ unsafe fn idl_cache_clear(block: *mut synblock_T) {
 
 unsafe fn in_id_list(
     mut cur_si: *mut stateitem_T,
-    mut list: *mut i16,
+    list: &SynIdList,
     ssp: *mut sp_syn,
     flags: c_int,
 ) -> c_int {
@@ -4919,7 +4937,7 @@ unsafe fn in_id_list(
                 let c_spp = syn_items(syn_block).offset((*cur_si).si_idx as isize);
                 if in_id_list(
                     ptr::null_mut(),
-                    syn_id_list_ptr(&(*ssp).cont_in_list),
+                    &(*ssp).cont_in_list,
                     &raw mut (*c_spp).sp_syn,
                     (*c_spp).sp_flags,
                 ) != 0
@@ -4929,11 +4947,11 @@ unsafe fn in_id_list(
             }
         }
 
-        if list.is_null() {
+        let Some(ref list_rc) = *list else {
             return 0;
-        }
+        };
 
-        if list == id_list_all() {
+        if is_id_list_all(list) {
             return c_int::from((flags & HL_CONTAINED) == 0);
         }
 
@@ -4961,35 +4979,37 @@ unsafe fn in_id_list(
             return c_int::from(if idl_contains(e, id) { retval } else { !retval });
         }
 
-        let mut item = *list;
-        let retval = if (SYNID_ALLBUT..SYNID_CLUSTER).contains(&item) {
-            if item < SYNID_TOP {
-                if (item - SYNID_ALLBUT) as c_int != (*ssp).inc_tag {
+        let mut slice: &[i16] = list_rc;
+        let first = slice.first().copied().unwrap_or(0);
+        let retval = if (SYNID_ALLBUT..SYNID_CLUSTER).contains(&first) {
+            if first < SYNID_TOP {
+                if (first - SYNID_ALLBUT) as c_int != (*ssp).inc_tag {
                     return 0;
                 }
-            } else if item < SYNID_CONTAINED {
-                if (item - SYNID_TOP) as c_int != (*ssp).inc_tag || !toplevel {
+            } else if first < SYNID_CONTAINED {
+                if (first - SYNID_TOP) as c_int != (*ssp).inc_tag || !toplevel {
                     return 0;
                 }
-            } else if (item - SYNID_CONTAINED) as c_int != (*ssp).inc_tag || toplevel {
+            } else if (first - SYNID_CONTAINED) as c_int != (*ssp).inc_tag || toplevel {
                 return 0;
             }
-            list = list.add(1);
-            item = *list;
+            slice = &slice[1..];
             false
         } else {
             true
         };
 
-        while item != 0 {
+        for &item in slice {
+            if item == 0 {
+                break;
+            }
             if item == id {
                 return c_int::from(retval);
             }
             if item >= SYNID_CLUSTER {
-                let scl_list = syn_id_list_ptr(
-                    &(*syn_clstr(syn_block).offset((item - SYNID_CLUSTER) as isize)).scl_list,
-                );
-                if !scl_list.is_null() && in_id_list_depth < 30 {
+                let scl_list =
+                    &(*syn_clstr(syn_block).offset((item - SYNID_CLUSTER) as isize)).scl_list;
+                if scl_list.is_some() && in_id_list_depth < 30 {
                     in_id_list_depth += 1;
                     let r = in_id_list(ptr::null_mut(), scl_list, ssp, flags);
                     in_id_list_depth -= 1;
@@ -4998,8 +5018,6 @@ unsafe fn in_id_list(
                     }
                 }
             }
-            list = list.add(1);
-            item = *list;
         }
         c_int::from(!retval)
     }
