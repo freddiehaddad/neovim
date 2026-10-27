@@ -1398,7 +1398,7 @@ pub unsafe fn free_prev_shellcmd() {
 /// Check that `excmds_st().prevcmd` is not NULL.
 unsafe fn prevcmd_is_set() -> bool {
     unsafe {
-        if (&raw const excmds_st().prevcmd).as_ref().unwrap().is_none() {
+        if excmds_st().prevcmd.is_none() {
             emsg(gettext(e_noprev.as_ptr()));
             return false;
         }
@@ -3681,7 +3681,7 @@ pub unsafe fn check_secure() -> bool {
 /// Get old substitute replacement string.
 pub unsafe fn sub_get_replacement(ret_sub: *mut SubReplacementString) {
     unsafe {
-        *ret_sub = (&raw const excmds_st().old_sub).as_ref().unwrap().clone();
+        *ret_sub = excmds_st().old_sub.clone();
     }
 }
 
@@ -4039,7 +4039,7 @@ unsafe fn do_sub(
                 });
             }
         } else if (*eap).skip == 0 {
-            let Some(ref old_sub_cstr) = *(&raw const excmds_st().old_sub.sub).as_ref().unwrap() else {
+            let Some(ref old_sub_cstr) = excmds_st().old_sub.sub else {
                 emsg(gettext(e_nopresub.as_ptr()));
                 return 0;
             };

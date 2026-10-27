@@ -2292,7 +2292,7 @@ pub unsafe fn set_vim_var_tv(idx: VimVarIndex, tv: *mut typval_T) {
 
 pub unsafe fn get_vim_var_name(idx: VimVarIndex) -> *mut c_char {
     unsafe {
-        (*(&raw const vars_st().vimvars).cast::<VimVar>().add(idx as usize))
+        vars_st().vimvars[idx as usize]
             .vv_name
             .as_ptr()
             .cast_mut()

@@ -336,7 +336,7 @@ pub unsafe fn set_expr_line(new_line: Option<std::ffi::CString>) {
 
 pub unsafe fn get_expr_line() -> Option<std::ffi::CString> {
     unsafe {
-        let expr_copy = (&raw const reg_st().expr_line).as_ref().unwrap().clone()?;
+        let expr_copy = reg_st().expr_line.clone()?;
         if reg_st().get_expr_line_nested >= 10 {
             return Some(expr_copy);
         }
@@ -349,7 +349,7 @@ pub unsafe fn get_expr_line() -> Option<std::ffi::CString> {
 }
 
 pub unsafe fn get_expr_line_src() -> Option<std::ffi::CString> {
-    unsafe { (&raw const reg_st().expr_line).as_ref().unwrap().clone() }
+    unsafe { reg_st().expr_line.clone() }
 }
 
 pub unsafe fn valid_yank_reg(regname: c_int, writing: bool) -> bool {
@@ -412,7 +412,7 @@ pub unsafe fn op_global_reg_iter(
     unsafe {
         op_reg_iter(
             iter,
-            (&raw const reg_st().y_regs).as_ref().unwrap(),
+            &reg_st().y_regs,
             name,
             reg,
             is_unnamed,
@@ -2675,7 +2675,7 @@ pub unsafe fn ex_display(eap: *mut exarg_T) {
             dis_msg(last_search_pat(), false);
         }
 
-        if let Some(el) = (&raw const reg_st().expr_line).as_ref().unwrap()
+        if let Some(el) = &reg_st().expr_line
             && (arg.is_null() || !vim_strchr(arg, c_int::from(b'=')).is_null())
             && !g_st().got_int
             && !message_filtered(el.as_ptr())
@@ -3083,7 +3083,7 @@ pub unsafe fn write_reg_contents_ex(
         if name == c_int::from(b'=') {
             let mut out: Vec<u8> = Vec::new();
             if must_append
-                && let Some(el) = (&raw const reg_st().expr_line).as_ref().unwrap()
+                && let Some(el) = &reg_st().expr_line
             {
                 out.extend_from_slice(el.as_bytes());
             }

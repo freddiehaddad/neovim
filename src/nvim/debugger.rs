@@ -242,10 +242,10 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
                 0,
             );
         }
-        if let Some(oldval) = (&raw mut dbg_st().DEBUG_OLDVAL).as_mut().unwrap().take() {
+        if let Some(oldval) = dbg_st().DEBUG_OLDVAL.take() {
             smsg!(0, c"Oldval = \"%s\"".as_ptr(), oldval.as_ptr());
         }
-        if let Some(newval) = (&raw mut dbg_st().DEBUG_NEWVAL).as_mut().unwrap().take() {
+        if let Some(newval) = dbg_st().DEBUG_NEWVAL.take() {
             smsg!(0, c"Newval = \"%s\"".as_ptr(), newval.as_ptr());
         }
         if let Some(sname) = estack_sfile(ESTACK_NONE) {

@@ -298,7 +298,7 @@ pub unsafe fn ui_client_run() -> ! {
         ui_client_attach(
             uic_st().tui_width,
             uic_st().tui_height,
-            (&raw const uic_st().tui_term).as_ref().unwrap().as_deref(),
+            uic_st().tui_term.as_deref(),
             uic_st().tui_rgb,
         );
 
@@ -519,7 +519,7 @@ pub unsafe fn channel_connect_event(server_addr: std::ffi::CString) {
         ui_client_attach(
             uic_st().tui_width,
             uic_st().tui_height,
-            (&raw const uic_st().tui_term).as_ref().unwrap().as_deref(),
+            uic_st().tui_term.as_deref(),
             uic_st().tui_rgb,
         );
 
@@ -650,7 +650,7 @@ pub unsafe fn ui_client_attach_to_restarted_server(error_restart: bool) {
         ui_client_attach(
             uic_st().tui_width,
             uic_st().tui_height,
-            (&raw const uic_st().tui_term).as_ref().unwrap().as_deref(),
+            uic_st().tui_term.as_deref(),
             uic_st().tui_rgb,
         );
 

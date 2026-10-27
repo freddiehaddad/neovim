@@ -307,12 +307,12 @@ unsafe fn get_map_buckets(buf: *const buf_T, is_abbrev: bool) -> &'static [Vec<m
             if !buf.is_null() {
                 std::slice::from_ref(&(*buf).b_first_abbr)
             } else {
-                std::slice::from_ref((&raw const map_st().first_abbr).as_ref().unwrap())
+                std::slice::from_ref(&map_st().first_abbr)
             }
         } else if !buf.is_null() {
             &(*buf).b_maphash
         } else {
-            (&raw const map_st().maphash).as_ref().unwrap()
+            &map_st().maphash
         }
     }
 }
@@ -334,8 +334,8 @@ unsafe fn map_luaid_scan(mappings: &[Vec<mapblock_T>], id: c_int) -> Option<&map
 /// Resolves a Lua-mapping id to its callback.
 pub unsafe fn map_luaid_get(n: c_int) -> LuaRef {
     unsafe {
-        let maphash_ref = (&raw const map_st().maphash).as_ref().unwrap();
-        let first_abbr_ref = (&raw const map_st().first_abbr).as_ref().unwrap();
+        let maphash_ref = &map_st().maphash;
+        let first_abbr_ref = &map_st().first_abbr;
         let mut mp = map_luaid_scan(maphash_ref, n);
         if mp.is_none() {
             mp = map_luaid_scan(std::slice::from_ref(first_abbr_ref), n);
@@ -1600,7 +1600,7 @@ pub unsafe fn check_abbr(
             ptr_arg = ptr_arg.add(scol as usize);
             let mut len = col - scol;
             let mut mp_opt: Option<&mapblock_T> = None;
-            let first_abbr_slice = (&raw const map_st().first_abbr).as_ref().unwrap().as_slice();
+            let first_abbr_slice = map_st().first_abbr.as_slice();
             for cand in (*g_st().curbuf).b_first_abbr.iter().chain(first_abbr_slice) {
                 let mut qlen = cand.m_keylen;
                 let mut q_vec: Vec<c_char>;

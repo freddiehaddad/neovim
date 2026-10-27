@@ -755,7 +755,7 @@ pub unsafe fn hist_iter(
         }
         let hislen = hist_st().HISLEN as usize;
         let last_idx = last as usize;
-        let history = (&raw mut hist_st().HISTORY[htype]).as_mut().unwrap().as_mut_slice();
+        let history = hist_st().HISTORY[htype].as_mut_slice();
 
         let hiter = if let Some(idx) = iter {
             idx
@@ -797,9 +797,9 @@ pub unsafe fn hist_get_array(
         init_history();
         let htype = history_type as usize;
         (
-            (&raw mut hist_st().HISTORY[htype]).as_mut().unwrap().as_mut_slice(),
-            (&raw mut hist_st().HISIDX[htype]).as_mut().unwrap(),
-            (&raw mut hist_st().HISNUM[htype]).as_mut().unwrap(),
+            hist_st().HISTORY[htype].as_mut_slice(),
+            &mut hist_st().HISIDX[htype],
+            &mut hist_st().HISNUM[htype],
         )
     }
 }

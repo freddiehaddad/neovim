@@ -5267,9 +5267,9 @@ pub unsafe fn spell_add_word(
         }
 
         let fname: *mut c_char = if idx == 0 {
-            if (&raw const spell_priv_st().int_wordlist).as_ref().unwrap().is_none() {
+            if spell_priv_st().int_wordlist.is_none() {
                 spell_priv_st().int_wordlist = vim_tempname();
-                if (&raw const spell_priv_st().int_wordlist).as_ref().unwrap().is_none() {
+                if spell_priv_st().int_wordlist.is_none() {
                     return;
                 }
             }

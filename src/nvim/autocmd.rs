@@ -1726,7 +1726,7 @@ unsafe fn au_cleanup() {
 }
 
 pub unsafe fn au_get_autocmds_for_event(event: event_T) -> &'static mut AutoCmdVec {
-    unsafe { (&raw mut au_st().autocmds[event as usize]).as_mut().unwrap() }
+    unsafe { &mut au_st().autocmds[event as usize] }
 }
 
 pub unsafe fn aubuflocal_remove(buf: *mut buf_T) {
@@ -2913,11 +2913,11 @@ pub unsafe fn apply_autocmds_group(
                 break 'bypass_au;
             }
 
-            let save_autocmd_fname = (&raw mut g_st().autocmd_fname).as_mut().unwrap().take();
+            let save_autocmd_fname = g_st().autocmd_fname.take();
             let save_autocmd_fname_full = g_st().autocmd_fname_full;
             let save_autocmd_bufnr = g_st().autocmd_bufnr;
             let save_autocmd_winid = au_st().autocmd_winid;
-            let save_autocmd_match = (&raw mut g_st().autocmd_match).as_mut().unwrap().take();
+            let save_autocmd_match = g_st().autocmd_match.take();
             let save_autocmd_busy = g_st().autocmd_busy;
             let save_autocmd_nested = au_st().autocmd_nested;
 

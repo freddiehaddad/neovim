@@ -958,7 +958,7 @@ pub unsafe fn mc_ins_cascade() {
             if !g_st().Ins.did_ai && !ins.data.is_null() && ins.size > 0 {
                 let mut keys: Vec<u8> = Vec::new();
                 let mut skip = 0;
-                if let Some(vsel) = (&raw mut mc_st().mc_ins_span.vsel).as_mut().unwrap().take() {
+                if let Some(vsel) = mc_st().mc_ins_span.vsel.take() {
                     assert!(ins.size >= 2 && strncmp(ins.data, c"1v".as_ptr(), 2) == 0);
                     keys.extend_from_slice(vsel.to_bytes());
                     skip = 2;

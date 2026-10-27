@@ -854,7 +854,7 @@ unsafe fn script_dump_profile(fd: *mut FILE) {
 /// Dump the profiling info (`profile_dump`).
 pub unsafe fn profile_dump() {
     unsafe {
-        let Some(ref profile_fname) = *(&raw const prof_st().PROFILE_FNAME).as_ref().unwrap() else {
+        let Some(ref profile_fname) = prof_st().PROFILE_FNAME else {
             return;
         };
 
@@ -958,7 +958,7 @@ unsafe fn time_diff(then: proftime_T, now: proftime_T) {
     let diff = profile_sub(now, then);
     let s = format!("{:07.3}\0", (diff as f64) / 1.0e6);
     unsafe {
-        if let Some(ref tf) = *(&raw const g_st().time_fd) {
+        if let Some(ref tf) = g_st().time_fd {
             fprintf!(tf.as_ptr(), c"%s".as_ptr(), s.as_ptr().cast::<c_char>());
         }
     }
@@ -967,7 +967,7 @@ unsafe fn time_diff(then: proftime_T, now: proftime_T) {
 /// Initializes the startuptime code (`time_start`).
 pub unsafe fn time_start(message: *const c_char) {
     unsafe {
-        let Some(ref tf) = *(&raw const g_st().time_fd) else {
+        let Some(ref tf) = g_st().time_fd else {
             return;
         };
         let fp = tf.as_ptr();
@@ -993,7 +993,7 @@ pub unsafe fn time_start(message: *const c_char) {
 /// Prints out timing info (`time_msg`).
 pub unsafe fn time_msg(mesg: *const c_char, start: *const proftime_T) {
     unsafe {
-        let Some(ref tf) = *(&raw const g_st().time_fd) else {
+        let Some(ref tf) = g_st().time_fd else {
             return;
         };
         let fp = tf.as_ptr();
@@ -1020,7 +1020,7 @@ pub unsafe fn time_init(fname: *const c_char, proc_name: *const c_char) {
     unsafe {
         const BUFSIZE: usize = 8192;
         g_st().time_fd = crate::os::fs::CFile::from_raw(fopen(fname, c"a".as_ptr()));
-        let Some(ref tf) = *(&raw const g_st().time_fd) else {
+        let Some(ref tf) = g_st().time_fd else {
             let fname_str = CStr::from_ptr(fname).to_string_lossy();
             eprint!("E484: Can't open file {fname_str}");
             return;
@@ -1029,7 +1029,7 @@ pub unsafe fn time_init(fname: *const c_char, proc_name: *const c_char) {
         prof_st().STARTUPTIME_BUF = vec![0; BUFSIZE + 1];
         let r = setvbuf(
             fp,
-            (&raw mut prof_st().STARTUPTIME_BUF).as_mut().unwrap().as_mut_ptr(),
+            prof_st().STARTUPTIME_BUF.as_mut_ptr(),
             IOFBF,
             BUFSIZE + 1,
         );
@@ -1054,7 +1054,7 @@ pub unsafe fn time_finish() {
         if !has_time_fd() {
             return;
         }
-        assert!(!(&raw const prof_st().STARTUPTIME_BUF).as_ref().unwrap().is_empty());
+        assert!(!prof_st().STARTUPTIME_BUF.is_empty());
         time_msg(c"--- NVIM STARTED ---\n".as_ptr(), std::ptr::null());
 
         g_st().time_fd = None;

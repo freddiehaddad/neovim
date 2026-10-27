@@ -7196,8 +7196,8 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
 
         if l_provider_call_nesting != 0 {
             save_current_sctx = g_st().current_sctx;
-            save_autocmd_fname = (&raw mut g_st().autocmd_fname).as_mut().unwrap().take();
-            save_autocmd_match = (&raw mut g_st().autocmd_match).as_mut().unwrap().take();
+            save_autocmd_fname = g_st().autocmd_fname.take();
+            save_autocmd_match = g_st().autocmd_match.take();
             save_autocmd_fname_full = g_st().autocmd_fname_full;
             save_autocmd_bufnr = g_st().autocmd_bufnr;
             save_funccal();

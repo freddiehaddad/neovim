@@ -995,7 +995,7 @@ unsafe fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_
         } else {
             let children = if menu.is_null() {
                 depth -= 1;
-                (&raw mut g_st().root_menu).as_mut().unwrap().as_mut_slice()
+                g_st().root_menu.as_mut_slice()
             } else {
                 (*menu).children.as_mut_slice()
             };

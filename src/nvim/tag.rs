@@ -515,7 +515,7 @@ pub unsafe fn do_tag(
                     new_tag = true;
                 } else {
                     if if g_st().g_do_tagpreview != 0 {
-                        (&raw const tag_st().ptag_entry.tagname).as_ref().unwrap().is_none()
+                        tag_st().ptag_entry.tagname.is_none()
                     } else {
                         tagstacklen == 0
                     } {
@@ -772,7 +772,7 @@ pub unsafe fn do_tag(
 
                     if cur_match >= do_tag_num_matches {
                         if (type_ == DT_NEXT || type_ == DT_FIRST)
-                            && (&raw const tag_st().nofile_fname).as_ref().unwrap().is_none()
+                            && tag_st().nofile_fname.is_none()
                         {
                             if do_tag_num_matches == 1 {
                                 emsg(gettext(c"E427: There is only one matching tag".as_ptr()));
@@ -814,7 +814,7 @@ pub unsafe fn do_tag(
                         tag_st().ptag_entry.cur_fnum = cur_fnum;
                     }
 
-                    if let Some(ref nf) = *(&raw const tag_st().nofile_fname).as_ref().unwrap()
+                    if let Some(ref nf) = tag_st().nofile_fname
                         && error_cur_match != cur_match
                     {
                         smsg!(

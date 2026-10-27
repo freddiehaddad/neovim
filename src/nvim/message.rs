@@ -967,7 +967,7 @@ unsafe fn other_sourcing_name() -> bool {
     unsafe {
         let sname = sourcing_name();
         if have_sourcing_info() && !sname.is_null() {
-            if let Some(ref last) = *(&raw const msg_st().last_sourcing_name).as_ref().unwrap() {
+            if let Some(ref last) = msg_st().last_sourcing_name {
                 return CStr::from_ptr(sname) != last.as_c_str();
             }
             return true;
@@ -1869,7 +1869,7 @@ pub unsafe fn wait_return(redraw: c_int) {
                     g_st().allow_keys += 1;
 
                     let save_reg_recording = g_st().reg_recording;
-                    let save_scriptout = (&raw mut g_st().scriptout).as_mut().unwrap().take();
+                    let save_scriptout = g_st().scriptout.take();
                     g_st().reg_recording = 0;
                     c = safe_vgetc();
                     if had_got_int && g_st().global_busy == 0 {
@@ -1973,7 +1973,7 @@ pub unsafe fn wait_return(redraw: c_int) {
         g_st().emsg_on_display = false;
         g_st().lines_left = -1;
         reset_last_sourcing();
-        if (&raw const g_st().keep_msg).as_ref().unwrap().as_ref().is_some_and(
+        if g_st().keep_msg.as_ref().is_some_and(
             |km| vim_strsize(km.as_ptr()) >= (g_st().Rows - g_st().cmdline_row - 1) * g_st().Columns + g_st().sc_col,
         ) {
             g_st().keep_msg = None;
@@ -2043,7 +2043,7 @@ pub unsafe fn msgmore(n: c_int) {
             return;
         }
 
-        if (&raw const g_st().keep_msg).as_ref().unwrap().is_some() && !msg_st().keep_msg_more {
+        if g_st().keep_msg.is_some() && !msg_st().keep_msg_more {
             return;
         }
 
@@ -2954,7 +2954,7 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
 
                     if opt_vars().p_more != 0 && g_st().lines_left == 0 && g_st().State != MODE_HITRETURN && !g_st().msg_no_more {
                         if do_more_prompt(NUL as c_int) {
-                            s = (&raw const dlg_st().confirm_buttons).as_ref().unwrap().as_ptr();
+                            s = dlg_st().confirm_buttons.as_ptr();
                         }
                         if g_st().quit_more {
                             return;
@@ -3755,7 +3755,7 @@ pub unsafe fn repeat_message() {
             msg_moremsg(true);
             g_st().msg_row = g_st().Rows - 1;
         } else if (g_st().State & MODE_CMDLINE) != 0
-            && (&raw const dlg_st().confirm_msg).as_ref().unwrap().is_some()
+            && dlg_st().confirm_msg.is_some()
         {
             display_confirm_msg();
             g_st().msg_row = g_st().Rows - 1;
@@ -3967,7 +3967,7 @@ unsafe fn redir_write(str_: *const c_char, maxlen: isize) {
             return;
         }
 
-        if *opt_vars().p_vfile != NUL && (*(&raw const msg_st().verbose_fd)).is_none() {
+        if *opt_vars().p_vfile != NUL && msg_st().verbose_fd.is_none() {
             verbose_open();
         }
 
@@ -3981,10 +3981,10 @@ unsafe fn redir_write(str_: *const c_char, maxlen: isize) {
                         write_reg_contents(g_st().redir_reg, c" ".as_ptr(), 1, 1);
                     } else if g_st().redir_vname {
                         var_redir_str(c" ".as_ptr(), -1);
-                    } else if let Some(ref rf) = *(&raw const g_st().redir_fd) {
+                    } else if let Some(ref rf) = g_st().redir_fd {
                         fputs(c" ".as_ptr(), rf.as_ptr());
                     }
-                    if let Some(ref vf) = *(&raw const msg_st().verbose_fd) {
+                    if let Some(ref vf) = msg_st().verbose_fd {
                         fputs(c" ".as_ptr(), vf.as_ptr());
                     }
                     msg_st().redir_col += 1;
@@ -4010,11 +4010,11 @@ unsafe fn redir_write(str_: *const c_char, maxlen: isize) {
                 if g_st().redir_reg == 0
                     && !g_st().redir_vname
                     && g_st().capture_ga.is_null()
-                    && let Some(ref rf) = *(&raw const g_st().redir_fd)
+                    && let Some(ref rf) = g_st().redir_fd
                 {
                     fputc(c_int::from(*s), rf.as_ptr());
                 }
-                if let Some(ref vf) = *(&raw const msg_st().verbose_fd) {
+                if let Some(ref vf) = msg_st().verbose_fd {
                     fputc(c_int::from(*s), vf.as_ptr());
                 }
                 if *s == CAR as c_char || *s == NL as c_char {
@@ -4113,11 +4113,11 @@ pub unsafe fn verbose_stop() {
 /// @return  FAIL or OK.
 pub unsafe fn verbose_open() -> c_int {
     unsafe {
-        if (*(&raw const msg_st().verbose_fd)).is_none() && !msg_st().verbose_did_open {
+        if msg_st().verbose_fd.is_none() && !msg_st().verbose_did_open {
             msg_st().verbose_did_open = true;
 
             msg_st().verbose_fd = crate::os::fs::CFile::from_raw(os_fopen(opt_vars().p_vfile, c"a".as_ptr()));
-            if (*(&raw const msg_st().verbose_fd)).is_none() {
+            if msg_st().verbose_fd.is_none() {
                 semsg!(gettext(e_notopen.as_ptr()), opt_vars().p_vfile);
                 return FAIL;
             }
@@ -4181,7 +4181,7 @@ pub unsafe fn msg_advance(mut col: c_int) {
 pub unsafe fn display_confirm_msg() {
     unsafe {
         msg_st().confirm_msg_used += 1;
-        if let Some(ref msg) = *(&raw const dlg_st().confirm_msg).as_ref().unwrap() {
+        if let Some(ref msg) = dlg_st().confirm_msg {
             msg_ext_set_kind(c"confirm".as_ptr());
             msg_puts_hl(msg.as_ptr(), HLF_M, false);
         }

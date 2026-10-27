@@ -963,7 +963,7 @@ pub unsafe fn f_getcwd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
             }
         }
         if cur_scope == kCdScopeGlobal {
-            if let Some(ref gdir) = *(&raw const g_st().globaldir).as_ref().unwrap() {
+            if let Some(ref gdir) = g_st().globaldir {
                 from = gdir.as_ptr();
             } else {
                 cur_scope = kCdScopeInvalid;

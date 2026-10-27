@@ -2040,7 +2040,7 @@ pub unsafe fn mark_global_iter(
 ) -> Option<usize> {
     unsafe {
         *name = NUL;
-        let marks = (&raw const g_st().namedfm).as_ref().unwrap();
+        let marks = &g_st().namedfm;
         let mut idx = iter.unwrap_or(0);
         while idx < NGLOBALMARKS && marks[idx].fmark.mark.lnum == 0 {
             idx += 1;

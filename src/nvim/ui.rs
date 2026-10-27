@@ -788,7 +788,7 @@ unsafe fn ui_cursor_is_behind_floatwin() -> bool {
 }
 
 pub unsafe fn ui_has(ext: UIExtension) -> bool {
-    unsafe { *(&raw const ui_state().ui_ext).cast::<bool>().add(ext as usize) }
+    unsafe { ui_state().ui_ext[ext as usize] }
 }
 
 pub unsafe fn ui_array(arena: *mut Arena) -> Array {
@@ -836,8 +836,8 @@ pub unsafe fn ui_array(arena: *mut Arena) -> Array {
             put_info(c"stdin_tty".as_ptr(), boolean_obj((*ui).stdin_tty));
             put_info(c"stdout_tty".as_ptr(), boolean_obj((*ui).stdout_tty));
 
-            for j in 0..kUIExtCount {
-                let ename = ui_ext_names[j].as_ptr();
+            for (j, ext_name) in ui_ext_names.iter().enumerate().take(kUIExtCount) {
+                let ename = ext_name.as_ptr();
                 if *ename != b'_' as c_char || (*ui).ui_ext[j] {
                     put_info(ename, boolean_obj((*ui).ui_ext[j]));
                 }

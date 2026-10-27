@@ -6162,7 +6162,7 @@ pub unsafe fn update_cwd(cause: CdCause) {
 
         if let Some(ref new_dir_cstr) = new_dir {
             let new_dir_ptr = new_dir_cstr.as_ptr().cast_mut();
-            if (&raw const g_st().globaldir).as_ref().unwrap().is_none() && cwd[0] != NUL {
+            if g_st().globaldir.is_none() && cwd[0] != NUL {
                 g_st().globaldir = Some(std::ffi::CStr::from_ptr(cwd.as_ptr()).to_owned());
             }
             let dir_differs = !path_equal(new_dir_ptr, cwd.as_ptr(), kPathCmpLiteral);
@@ -6174,7 +6174,7 @@ pub unsafe fn update_cwd(cause: CdCause) {
             }
             g_st().last_chdir_reason = None;
             shorten_fnames(1);
-        } else if let Some(gdir) = (&raw mut g_st().globaldir).as_mut().unwrap().take() {
+        } else if let Some(gdir) = g_st().globaldir.take() {
             let gdir_ptr = gdir.as_ptr().cast_mut();
             let dir_differs = !path_equal(gdir_ptr, cwd.as_ptr(), kPathCmpLiteral);
             if opt_vars().p_acd == 0 && dir_differs {

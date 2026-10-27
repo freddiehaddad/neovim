@@ -4244,8 +4244,8 @@ pub unsafe fn maketitle() {
         g_st().need_maketitle = false;
         if opt_vars().p_title == 0
             && opt_vars().p_icon == 0
-            && (&raw const buf_st().lasttitle).as_ref().unwrap().is_none()
-            && (&raw const buf_st().lasticon).as_ref().unwrap().is_none()
+            && buf_st().lasttitle.is_none()
+            && buf_st().lasticon.is_none()
         {
             return;
         }
@@ -4306,7 +4306,7 @@ pub unsafe fn maketitle() {
                 }
             }
         }
-        let mut mustset = value_change(title_str, (&raw mut buf_st().lasttitle).as_mut().unwrap());
+        let mut mustset = value_change(title_str, &mut buf_st().lasttitle);
 
         if opt_vars().p_icon != 0 {
             icon_str = buf.as_mut_ptr();
@@ -4344,7 +4344,7 @@ pub unsafe fn maketitle() {
             }
         }
 
-        mustset |= value_change(icon_str, (&raw mut buf_st().lasticon).as_mut().unwrap());
+        mustset |= value_change(icon_str, &mut buf_st().lasticon);
 
         if mustset {
             resettitle();

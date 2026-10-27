@@ -10873,7 +10873,7 @@ unsafe fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
 
         if scope < kCdScopeGlobal {
             let pdir = &*get_prevdir(scope);
-            if (&raw const g_st().globaldir).as_ref().unwrap().is_none() && pdir.is_some() {
+            if g_st().globaldir.is_none() && pdir.is_some() {
                 g_st().globaldir = pdir.clone();
             }
         }
@@ -12319,7 +12319,7 @@ pub unsafe fn eval_vars(
                 SPEC_AFILE => {
                     use_shellslash = !g_st().autocmd_fname_full;
                     if !g_st().autocmd_fname_full
-                        && let Some(ref cur_fname) = *(&raw const g_st().autocmd_fname)
+                        && let Some(ref cur_fname) = g_st().autocmd_fname
                     {
                         g_st().autocmd_fname_full = true;
                         if let Some(full) = FullName_save(cur_fname.as_ptr(), false) {

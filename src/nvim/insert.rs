@@ -2551,7 +2551,7 @@ pub unsafe fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> c_int
 
 pub unsafe fn get_last_insert() -> NvimString {
     unsafe {
-        if let Some(li) = (&raw const ins_st().last_insert).as_ref().unwrap() {
+        if let Some(li) = &ins_st().last_insert {
             let skip = ins_st().last_insert_skip as usize;
             let bytes = li.as_bytes();
             NvimString {

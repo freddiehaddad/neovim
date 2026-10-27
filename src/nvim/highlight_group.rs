@@ -2440,8 +2440,8 @@ pub unsafe fn highlight_changed() {
 
         g_st().highlight_attr[HLF_NONE] = 0;
 
-        for hlf in 1..HLF_COUNT {
-            let name_cstr = hlf_names[hlf].unwrap();
+        for (hlf, name_opt) in hlf_names.iter().enumerate().take(HLF_COUNT).skip(1) {
+            let name_cstr = name_opt.unwrap();
             let id = syn_check_group(name_cstr.as_ptr(), name_cstr.to_bytes().len());
             if id == 0 {
                 std::process::abort();

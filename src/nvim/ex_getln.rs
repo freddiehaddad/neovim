@@ -2160,7 +2160,7 @@ unsafe fn command_line_erase_chars(s: *mut CommandLineState) -> c_int {
             redrawcmd();
         } else if getln_st().ccline.cmdlen == 0
             && (*s).c != Ctrl_W
-            && (&raw const getln_st().ccline.cmdprompt).as_ref().unwrap().is_none()
+            && getln_st().ccline.cmdprompt.is_none()
             && (*s).indent == 0
         {
             if getln_st().ccline.cmdfirstc == b'>' as c_int {

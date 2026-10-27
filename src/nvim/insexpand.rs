@@ -2590,7 +2590,7 @@ pub unsafe fn ins_compl_bs() -> c_int {
         );
 
         if insexp().compl_autocomplete
-            && !(&raw const insexp().compl_list).as_ref().unwrap().is_empty()
+            && !insexp().compl_list.is_empty()
             && !ins_compl_has_preinsert()
         {
             insexp().compl_shown_idx = Some(0);
@@ -2969,7 +2969,7 @@ unsafe fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
             if !insexp().compl_leader.data.is_null() {
                 p = insexp().compl_leader.data;
                 plen = insexp().compl_leader.size;
-            } else if !(&raw const insexp().compl_list).as_ref().unwrap().is_empty() {
+            } else if !insexp().compl_list.is_empty() {
                 p = insexp().compl_orig_text.data;
                 plen = insexp().compl_orig_text.size;
             }
@@ -5734,7 +5734,7 @@ unsafe fn find_next_completion_match(
                     insexp().compl_shown_idx = compl_next_idx(shown_idx);
                 }
                 let new_shown = insexp().compl_shown_idx.unwrap();
-                found_end = !(&raw const insexp().compl_list).as_ref().unwrap().is_empty()
+                found_end = !insexp().compl_list.is_empty()
                     && (compl_next_idx(new_shown) == Some(0) || new_shown == 0);
             } else if compl_shows_dir_backward() && compl_prev_idx(shown_idx).is_some() {
                 found_end = shown_idx == 0;

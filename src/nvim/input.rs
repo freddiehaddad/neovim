@@ -1429,7 +1429,7 @@ unsafe fn save_typebuf() {
         init_typebuf();
         let prev_cnt = g_st().typebuf.tb_change_cnt;
         inp_st().saved_typebuf[inp_st().curscript as usize] =
-            std::mem::replace((&raw mut g_st().typebuf).as_mut().unwrap(), typebuf_T::ZERO);
+            std::mem::replace(&mut g_st().typebuf, typebuf_T::ZERO);
         g_st().typebuf.tb_change_cnt = prev_cnt;
         alloc_typebuf();
     }
@@ -1444,7 +1444,7 @@ pub unsafe fn save_typeahead(tp: *mut tasave_T) {
     unsafe {
         let prev_cnt = g_st().typebuf.tb_change_cnt;
         (*tp).save_typebuf =
-            std::mem::replace((&raw mut g_st().typebuf).as_mut().unwrap(), typebuf_T::ZERO);
+            std::mem::replace(&mut g_st().typebuf, typebuf_T::ZERO);
         g_st().typebuf.tb_change_cnt = prev_cnt;
         alloc_typebuf();
         (*tp).ungot = inp_st().ungot;
@@ -1540,7 +1540,7 @@ unsafe fn closescript() {
         assert!(inp_st().curscript >= 0);
         free_typebuf();
         g_st().typebuf = std::mem::replace(
-            &mut (&raw mut inp_st().saved_typebuf).as_mut().unwrap()[inp_st().curscript as usize],
+            &mut inp_st().saved_typebuf[inp_st().curscript as usize],
             typebuf_T::ZERO,
         );
 
@@ -1619,7 +1619,7 @@ pub unsafe fn before_blocking() {
 unsafe fn updatescript(c: c_int) {
     unsafe {
         if c != 0
-            && let Some(ref so) = *(&raw const g_st().scriptout)
+            && let Some(ref so) = g_st().scriptout
         {
             fputc(c, so.as_ptr());
         }

@@ -1369,7 +1369,7 @@ unsafe fn store_current_state() -> Option<usize> {
                 });
             }
             sp.sst_next_flags = syn_st().current_next_flags;
-            sp.sst_next_list = (&raw const syn_st().current_next_list).as_ref().unwrap().clone();
+            sp.sst_next_list = syn_st().current_next_list.clone();
             sp.sst_tick = *display_tick.as_ptr();
             sp.sst_change_lnum = 0;
         }
@@ -1422,7 +1422,7 @@ unsafe fn syn_stack_equal(sp: *const synstate_T) -> bool {
         if (*sp).sst_stack.len() as c_int != cur_state_len()
             || !syn_id_list_eq(
                 &(*sp).sst_next_list,
-                (&raw const syn_st().current_next_list).as_ref().unwrap(),
+                &syn_st().current_next_list,
             )
         {
             return false;
@@ -1751,7 +1751,7 @@ unsafe fn syn_current_attr(
                         let mut idx = (*syn_st().syn_block).b_syn_patterns.len() as c_int - 1;
                         while idx >= 0 {
                             let spp = syn_items(syn_st().syn_block).offset(idx as isize);
-                            let cur_next_list = (&raw const syn_st().current_next_list).as_ref().unwrap();
+                            let cur_next_list = &syn_st().current_next_list;
                             if (*spp).sp_syncing == syncing
                                 && (displaying || ((*spp).sp_flags & HL_DISPLAY) == 0)
                                 && ((*spp).sp_type == SPTYPE_MATCH
@@ -1938,7 +1938,7 @@ unsafe fn syn_current_attr(
                 }
             }
 
-            if (&raw const syn_st().current_next_list).as_ref().unwrap().is_some() && !keep_next_list {
+            if syn_st().current_next_list.is_some() && !keep_next_list {
                 if !found_match {
                     line = syn_getcurline();
                     if ((syn_st().current_next_flags & HL_SKIPWHITE) != 0
@@ -2036,7 +2036,7 @@ unsafe fn syn_current_attr(
             };
         }
 
-        if (&raw const syn_st().current_next_list).as_ref().unwrap().is_some() {
+        if syn_st().current_next_list.is_some() {
             line = syn_getcurline();
             if *line.offset(syn_st().current_col as isize) != NUL
                 && *line.offset((syn_st().current_col + 1) as isize) == NUL
@@ -2772,7 +2772,7 @@ unsafe fn match_keyword(
     unsafe {
         let key_bytes = std::ffi::CStr::from_ptr(keyword).to_bytes();
         if let Some(entries) = ht.get(key_bytes) {
-            let cur_next_list = (&raw const syn_st().current_next_list).as_ref().unwrap();
+            let cur_next_list = &syn_st().current_next_list;
             for kp in entries {
                 let mut k_syn = kp.k_syn.clone();
                 if if cur_next_list.is_some() {

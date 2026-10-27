@@ -472,7 +472,7 @@ pub unsafe fn os_get_hostname(hostname: *mut c_char, size: usize) {
 #[cfg(windows)]
 pub unsafe fn os_homedir() -> *const c_char {
     unsafe {
-        let Some(ref hd) = *(&raw const env_st().HOMEDIR).as_ref().unwrap() else {
+        let Some(ref hd) = env_st().HOMEDIR else {
             emsg(c"os_homedir failed: homedir not initialized".as_ptr());
             return ptr::null();
         };
@@ -921,7 +921,7 @@ pub unsafe fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
 
         #[cfg(windows)]
         if CStr::from_ptr(name).to_bytes() == b"HOME" {
-            return (&raw const env_st().HOMEDIR).as_ref().unwrap().clone();
+            return env_st().HOMEDIR.clone();
         }
 
         let kos_env_path = os_getenv_cstr(name);

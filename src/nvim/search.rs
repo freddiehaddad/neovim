@@ -456,7 +456,7 @@ pub unsafe fn save_search_patterns() {
         for i in 0..2 {
             srch().saved_spats[i] = srch().spats[i].clone();
         }
-        srch().saved_mr_pattern = (&raw const srch().mr_pattern).as_ref().unwrap().clone();
+        srch().saved_mr_pattern = srch().mr_pattern.clone();
         srch().saved_spats_last_idx = srch().last_idx;
         srch().saved_spats_no_hlsearch = g_st().Search.no_hlsearch;
     }
@@ -474,7 +474,7 @@ pub unsafe fn restore_search_patterns() {
             srch().spats[i] = std::mem::replace(&mut srch().saved_spats[i], EMPTY_SEARCH_PATTERN);
         }
         set_vv_searchforward();
-        srch().mr_pattern = (&raw mut srch().saved_mr_pattern).as_mut().unwrap().take();
+        srch().mr_pattern = srch().saved_mr_pattern.take();
         srch().last_idx = srch().saved_spats_last_idx;
         set_no_hlsearch(srch().saved_spats_no_hlsearch);
     }
@@ -525,7 +525,7 @@ pub unsafe fn restore_last_search_pattern() {
         }
 
         srch().spats[RE_SEARCH as usize] = std::mem::replace(
-            (&raw mut srch().saved_last_search_spat).as_mut().unwrap(),
+            &mut srch().saved_last_search_spat,
             EMPTY_SEARCH_PATTERN,
         );
         set_vv_searchforward();
@@ -2951,8 +2951,8 @@ unsafe fn update_search_stat(
             || (dirc == b'/' as c_int && lt(p, srch().stat_lastpos));
 
         if !(i64::from(srch().stat_chgtick) == buf_get_changedtick(g_st().curbuf)
-            && (&raw const srch().stat_lastpat).as_ref().unwrap().is_some()
-            && (&raw const srch().stat_lastpat).as_ref().unwrap().as_deref()
+            && srch().stat_lastpat.is_some()
+            && srch().stat_lastpat.as_deref()
                 == srch().spats[srch().last_idx as usize].pat.as_deref()
             && equalpos(srch().stat_lastpos, *cursor_pos)
             && srch().stat_lbuf == g_st().curbuf)

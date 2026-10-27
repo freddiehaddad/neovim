@@ -1822,10 +1822,10 @@ unsafe fn normal_redraw_mode_message(_s: *mut NormalState) {
         }
 
         if g_st().must_redraw != 0
-            && (&raw const g_st().keep_msg).as_ref().unwrap().is_some()
+            && g_st().keep_msg.is_some()
             && !g_st().emsg_on_display
         {
-            let kmsg = (&raw mut g_st().keep_msg).as_mut().unwrap().take();
+            let kmsg = g_st().keep_msg.take();
             setcursor();
             update_screen();
             if let Some(kmsg_cstr) = kmsg {
@@ -2452,7 +2452,7 @@ unsafe fn normal_redraw(_s: *mut NormalState) {
 
         (*g_st().curbuf).b_last_used = os_time() as time_t;
 
-        if let Some(p) = (&raw const g_st().keep_msg).as_ref().unwrap().clone() {
+        if let Some(p) = g_st().keep_msg.clone() {
             g_st().msg_hist_off = true;
             msg(p.as_ptr(), g_st().keep_msg_hl_id);
             g_st().msg_hist_off = false;
@@ -3072,7 +3072,7 @@ pub unsafe fn pop_showcmd() {
 
 pub unsafe fn showcmd_update_clear_state() {
     unsafe {
-        norm_st().showcmd_is_clear = *(&raw const g_st().showcmd_buf).cast::<c_char>() == NUL;
+        norm_st().showcmd_is_clear = g_st().showcmd_buf[0] == NUL;
     }
 }
 

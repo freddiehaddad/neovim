@@ -137,7 +137,7 @@ unsafe fn copy_confirm_hotkeys(
         *hotkeys_ptr.add(first_len) = 0;
 
         let mut first_hotkey = !has_hotkey[0];
-        let mut msgp = (&raw mut dlg_st().confirm_buttons).as_mut().unwrap().as_mut_ptr();
+        let mut msgp = dlg_st().confirm_buttons.as_mut_ptr();
         let mut idx = 0usize;
         let mut r = buttons;
 
@@ -265,7 +265,7 @@ pub unsafe fn prompt_for_input(
 ) -> c_int {
     unsafe {
         let mut ret = if one_key { ESC } else { 0 };
-        let kmsg = (&raw const g_st().keep_msg).as_ref().unwrap().clone();
+        let kmsg = g_st().keep_msg.clone();
 
         let prompt_ptr: *const c_char = if prompt.is_null() {
             if !mouse_used.is_null() && ui_mouse_has(K_MOUSE_COMMAND) {
@@ -362,7 +362,7 @@ pub unsafe fn do_dialog(
             }
 
             let mut c = prompt_for_input(
-                (&raw mut dlg_st().confirm_buttons).as_mut().unwrap().as_mut_ptr(),
+                dlg_st().confirm_buttons.as_mut_ptr(),
                 HLF_M,
                 true,
                 std::ptr::null_mut(),

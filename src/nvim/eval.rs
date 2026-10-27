@@ -7065,8 +7065,8 @@ pub unsafe fn eval_call_provider(
         let new_scope = caller_scope {
             script_ctx: g_st().current_sctx,
             es_entry: (*es).last().unwrap().clone(),
-            autocmd_fname: (&raw const g_st().autocmd_fname).as_ref().unwrap().clone(),
-            autocmd_match: (&raw const g_st().autocmd_match).as_ref().unwrap().clone(),
+            autocmd_fname: g_st().autocmd_fname.clone(),
+            autocmd_match: g_st().autocmd_match.clone(),
             autocmd_fname_full: g_st().autocmd_fname_full,
             autocmd_bufnr: g_st().autocmd_bufnr,
             funccalp: get_current_funccal().cast(),

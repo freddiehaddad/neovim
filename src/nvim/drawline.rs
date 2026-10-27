@@ -235,7 +235,7 @@ const fn vcol_hlc(wlv: &winlinevars_T) -> c_int {
 unsafe fn get_extra_buf(mut size: usize) -> *mut c_char {
     unsafe {
         size = size.max(64);
-        let buf = (&raw mut dl_st().extra_buf).as_mut().unwrap();
+        let buf = &mut dl_st().extra_buf;
         if buf.len() < size {
             buf.resize(size, 0);
         }

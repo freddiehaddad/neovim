@@ -4391,7 +4391,7 @@ unsafe fn vim_opentempdir() {
             return;
         }
 
-        let Some(ref td) = *(&raw const fio_st().VIM_TEMPDIR).as_ref().unwrap() else {
+        let Some(ref td) = fio_st().VIM_TEMPDIR else {
             return;
         };
         let dp = opendir(td.as_ptr());
@@ -4419,7 +4419,7 @@ unsafe fn vim_closetempdir() {
 /// Delete the temp directory and all files it contains.
 pub unsafe fn vim_deltempdir() {
     unsafe {
-        let Some(td) = (&raw mut fio_st().VIM_TEMPDIR).as_mut().unwrap().take() else {
+        let Some(td) = fio_st().VIM_TEMPDIR.take() else {
             return;
         };
 

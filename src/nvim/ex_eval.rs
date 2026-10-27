@@ -1578,7 +1578,7 @@ pub unsafe fn leave_cleanup(csp: *mut cleanup_T) {
                 report_discard_pending(pending, PendingVal::None);
             }
 
-            if (&raw const g_st().msg_list).as_ref().unwrap().is_some() {
+            if g_st().msg_list.is_some() {
                 free_global_msglist();
             }
         } else {

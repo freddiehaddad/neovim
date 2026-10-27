@@ -1152,7 +1152,7 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
                         }
                     } else if *dirnow != NUL
                         && (opt_vars().ssop_flags & kOptSsopFlagCurdir) != 0
-                        && let Some(ref gdir) = *(&raw const g_st().globaldir).as_ref().unwrap()
+                        && let Some(ref gdir) = g_st().globaldir
                         && os_chdir(gdir.as_ptr()) == 0
                     {
                         shorten_fnames(1);
@@ -1163,7 +1163,7 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
                     if *dirnow != NUL
                         && ((opt_vars().ssop_flags & kOptSsopFlagSesdir) != 0
                             || ((opt_vars().ssop_flags & kOptSsopFlagCurdir) != 0
-                                && (&raw const g_st().globaldir).as_ref().unwrap().is_some()))
+                                && g_st().globaldir.is_some()))
                     {
                         if os_chdir(dirnow) != 0 {
                             emsg(gettext(e_prev_dir.as_ptr()));

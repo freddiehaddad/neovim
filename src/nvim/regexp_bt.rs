@@ -2293,7 +2293,7 @@ unsafe fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
                             break;
                         }
                         *scan = (*scan).add(l as usize);
-                    } else if ((*(&raw const re_st().class_tab).cast::<i16>().add(**scan as usize) & mask)
+                    } else if ((re_st().class_tab[**scan as usize] & mask)
                         == testval)
                         || (re_st().rex.reg_line_lbr && **scan == b'\n' && WITH_NL(op))
                     {
@@ -3331,8 +3331,8 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                         x if (BRACE_COMPLEX..=BRACE_COMPLEX + 9).contains(&x) => {
                             let no = (op - BRACE_COMPLEX) as usize;
                             let bcount = (&raw mut re_st().brace_count).cast::<c_int>().add(no);
-                            let bmin = *(&raw const re_st().brace_min).cast::<i64>().add(no);
-                            let bmax = *(&raw const re_st().brace_max).cast::<i64>().add(no);
+                            let bmin = re_st().brace_min[no];
+                            let bmax = re_st().brace_max[no];
                             *bcount += 1;
 
                             if i64::from(*bcount) <= bmin.min(bmax) {
@@ -3859,8 +3859,8 @@ unsafe fn regtry(
             let mut extmatch = reg_extmatch_T::default();
             for i in 0..NSUBEXP {
                 if REG_MULTI() {
-                    let sz = *(&raw const re_st().reg_startzpos).cast::<lpos_T>().add(i);
-                    let ez = *(&raw const re_st().reg_endzpos).cast::<lpos_T>().add(i);
+                    let sz = re_st().reg_startzpos[i];
+                    let ez = re_st().reg_endzpos[i];
                     if sz.lnum >= 0 && ez.lnum == sz.lnum && ez.col >= sz.col {
                         extmatch.matches[i] = cstring_from_bytes(
                             reg_getline(sz.lnum).add(sz.col as usize),
@@ -3868,8 +3868,8 @@ unsafe fn regtry(
                         );
                     }
                 } else {
-                    let szp = *(&raw const re_st().reg_startzp).cast::<*mut u8>().add(i);
-                    let ezp = *(&raw const re_st().reg_endzp).cast::<*mut u8>().add(i);
+                    let szp = re_st().reg_startzp[i];
+                    let ezp = re_st().reg_endzp[i];
                     if !szp.is_null() && !ezp.is_null() {
                         extmatch.matches[i] =
                             cstring_from_bytes(szp.cast(), ezp.offset_from(szp) as usize);

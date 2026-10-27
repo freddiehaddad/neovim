@@ -1517,56 +1517,56 @@ pub(super) unsafe fn init_class_tab() {
 pub(super) unsafe fn ri_digit(c: c_int) -> bool {
     unsafe {
         (0..0x100).contains(&c)
-            && (*(&raw const re_st().class_tab).cast::<i16>().add(c as usize) & RI_DIGIT) != 0
+            && (re_st().class_tab[c as usize] & RI_DIGIT) != 0
     }
 }
 #[inline]
 pub(super) unsafe fn ri_hex(c: c_int) -> bool {
     unsafe {
         (0..0x100).contains(&c)
-            && (*(&raw const re_st().class_tab).cast::<i16>().add(c as usize) & RI_HEX) != 0
+            && (re_st().class_tab[c as usize] & RI_HEX) != 0
     }
 }
 #[inline]
 pub(super) unsafe fn ri_octal(c: c_int) -> bool {
     unsafe {
         (0..0x100).contains(&c)
-            && (*(&raw const re_st().class_tab).cast::<i16>().add(c as usize) & RI_OCTAL) != 0
+            && (re_st().class_tab[c as usize] & RI_OCTAL) != 0
     }
 }
 #[inline]
 pub(super) unsafe fn ri_word(c: c_int) -> bool {
     unsafe {
         (0..0x100).contains(&c)
-            && (*(&raw const re_st().class_tab).cast::<i16>().add(c as usize) & RI_WORD) != 0
+            && (re_st().class_tab[c as usize] & RI_WORD) != 0
     }
 }
 #[inline]
 pub(super) unsafe fn ri_head(c: c_int) -> bool {
     unsafe {
         (0..0x100).contains(&c)
-            && (*(&raw const re_st().class_tab).cast::<i16>().add(c as usize) & RI_HEAD) != 0
+            && (re_st().class_tab[c as usize] & RI_HEAD) != 0
     }
 }
 #[inline]
 pub(super) unsafe fn ri_alpha(c: c_int) -> bool {
     unsafe {
         (0..0x100).contains(&c)
-            && (*(&raw const re_st().class_tab).cast::<i16>().add(c as usize) & RI_ALPHA) != 0
+            && (re_st().class_tab[c as usize] & RI_ALPHA) != 0
     }
 }
 #[inline]
 pub(super) unsafe fn ri_lower(c: c_int) -> bool {
     unsafe {
         (0..0x100).contains(&c)
-            && (*(&raw const re_st().class_tab).cast::<i16>().add(c as usize) & RI_LOWER) != 0
+            && (re_st().class_tab[c as usize] & RI_LOWER) != 0
     }
 }
 #[inline]
 pub(super) unsafe fn ri_upper(c: c_int) -> bool {
     unsafe {
         (0..0x100).contains(&c)
-            && (*(&raw const re_st().class_tab).cast::<i16>().add(c as usize) & RI_UPPER) != 0
+            && (re_st().class_tab[c as usize] & RI_UPPER) != 0
     }
 }
 
@@ -2688,7 +2688,7 @@ unsafe fn vim_regsub_both(
             return 0;
         }
         let nested = re_st().regsub_nesting;
-        let eval_slot = (&raw mut re_st().eval_result[nested]).as_mut().unwrap();
+        let eval_slot = &mut re_st().eval_result[nested];
         let mut src = source;
         let mut dst = dest;
 
@@ -3333,7 +3333,7 @@ pub(super) unsafe fn regcomp_start(expr: *mut u8, re_flags: c_int) {
 
 pub(super) unsafe fn seen_endbrace(refnum: c_int) -> bool {
     unsafe {
-        if *(&raw const re_st().had_endbrace).cast::<u8>().add(refnum as usize) == 0 {
+        if re_st().had_endbrace[refnum as usize] == 0 {
             let mut p = re_st().regparse.cast::<u8>();
             while *p != NUL {
                 if *p == b'@' && *p.add(1) == b'<' && (*p.add(2) == b'!' || *p.add(2) == b'=') {

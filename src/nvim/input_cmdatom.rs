@@ -1625,7 +1625,7 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: *mut cmdarg_T, redo_yank: 
                 }
                 redo_append_str(c"\n".as_ptr(), 1);
             } else if excmd {
-                let rc = (&raw mut g_st().repeat_cmdline).as_mut().unwrap().take();
+                let rc = g_st().repeat_cmdline.take();
                 if let Some(ref rc) = rc {
                     if (*cap).cmdchar == b':' as c_int {
                         redo_append_lit(rc.as_ptr(), -1);

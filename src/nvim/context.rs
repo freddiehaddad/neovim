@@ -584,7 +584,7 @@ unsafe fn ctx_win_dirs_save(cs: *mut CtxSwitch, cw_win: *mut win_T, buf: *mut bu
         (*cw_win).w_localdir = None;
         (*cs).cs_b_localdir = (*buf).b_localdir.take();
         (*cs).cs_tp_localdir = (*g_st().curtab).tp_localdir.take();
-        (*cs).cs_globaldir = (&raw mut g_st().globaldir).as_mut().unwrap().take();
+        (*cs).cs_globaldir = g_st().globaldir.take();
     }
 }
 
@@ -628,7 +628,7 @@ unsafe fn ctx_localdirs_restore(
 
         if !(persist
             && (*cs).cs_globaldir.is_none()
-            && (&raw const g_st().globaldir).as_ref().unwrap().is_some())
+            && g_st().globaldir.is_some())
         {
             g_st().globaldir = (*cs).cs_globaldir.take();
         }
@@ -641,7 +641,7 @@ unsafe fn ctx_dirs_save(cs: *mut CtxSwitch, wp: *mut win_T, tp: *mut tabpage_T, 
             return;
         }
 
-        (*cs).cs_globaldir = (&raw const g_st().globaldir).as_ref().unwrap().clone();
+        (*cs).cs_globaldir = g_st().globaldir.clone();
 
         if ((*cs).cs_flags & kCtxKeepDirs) != 0 {
             let target_buf = if !buf.is_null() { buf } else { (*wp).w_buffer };

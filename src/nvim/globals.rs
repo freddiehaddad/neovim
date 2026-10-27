@@ -894,15 +894,15 @@ pub static no_lines_msg: [c_char; 23] = bytes_to_chars(b"--No lines in buffer--\
 pub static display_tick: GlobalState<disptick_T> = GlobalState::new(0);
 #[inline]
 pub fn has_time_fd() -> bool {
-    unsafe { (*(&raw const g_st().time_fd)).is_some() }
+    unsafe { g_st().time_fd.is_some() }
 }
 #[inline]
 pub fn has_redir_fd() -> bool {
-    unsafe { (*(&raw const g_st().redir_fd)).is_some() }
+    unsafe { g_st().redir_fd.is_some() }
 }
 #[inline]
 pub fn has_scriptout() -> bool {
-    unsafe { (*(&raw const g_st().scriptout)).is_some() }
+    unsafe { g_st().scriptout.is_some() }
 }
 pub const SCREEN_GRID_INIT: ScreenGrid = ScreenGrid {
     handle: 0,

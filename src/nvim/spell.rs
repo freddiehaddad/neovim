@@ -1827,7 +1827,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                 round += 1;
                 let spf_ptr = (&raw mut spf_name).cast::<c_char>();
                 if cur_round == 0 {
-                    if (&raw const spell_priv_st().int_wordlist).as_ref().unwrap().is_none() {
+                    if spell_priv_st().int_wordlist.is_none() {
                         continue;
                     }
                     int_wordlist_spl(spf_ptr);
@@ -2022,7 +2022,7 @@ pub unsafe fn captype(word: *const c_char, end: *const c_char) -> c_int {
 }
 pub unsafe fn spell_delete_wordlist() {
     unsafe {
-        let Some(ref wl) = *(&raw const spell_priv_st().int_wordlist).as_ref().unwrap() else {
+        let Some(ref wl) = spell_priv_st().int_wordlist else {
             return;
         };
         let mut fname: [c_char; MAXPATHL] = [0; MAXPATHL];
@@ -2286,8 +2286,8 @@ pub unsafe fn ex_spellrepall(_eap: *mut exarg_T) {
         let save_ws = opt_vars().p_ws;
         let mut prev_lnum: linenr_T = 0;
         let (Some(repl_from_cstr), Some(repl_to_cstr)) = (
-            (&raw const spell_priv_st().repl_from).as_ref().unwrap().as_ref(),
-            (&raw const spell_priv_st().repl_to).as_ref().unwrap().as_ref(),
+            spell_priv_st().repl_from.as_ref(),
+            spell_priv_st().repl_to.as_ref(),
         ) else {
             emsg(gettext(c"E752: No previous spell replacement".as_ptr()));
             return;
