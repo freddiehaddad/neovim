@@ -92,10 +92,3 @@ jobs:
           echo "$found"
           exit 1
         fi
-
-  request-reviewer:
-    if: github.event.action == 'opened'
-    needs: label
-    permissions:
-      pull-requests: write
-    uses: ./.github/workflows/reviewers_add.yml

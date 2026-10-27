@@ -1,2 +1,2 @@
-To report a security vulnerability to Neovim, use
-https://github.com/neovim/neovim/security/advisories/new
+To report a security vulnerability, use
+https://github.com/freddiehaddad/neovim/security/advisories/new
