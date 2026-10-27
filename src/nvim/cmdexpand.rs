@@ -2013,29 +2013,30 @@ unsafe fn cmdline_pum_create(
                 .xp_files_abbr
                 .as_slice()
                 .get(i)
-                .and_then(|opt| opt.as_ref())
-                .map_or_else(
-                    || show_match(matches, i, showtail),
-                    |s| s.as_ptr().cast_mut(),
-                );
+                .and_then(|opt| opt.clone())
+                .or_else(|| {
+                    let p = show_match(matches, i, showtail);
+                    if p.is_null() {
+                        None
+                    } else {
+                        Some(CStr::from_ptr(p).to_owned())
+                    }
+                });
             let pum_info = (*xp)
                 .xp_files_info
                 .as_slice()
                 .get(i)
-                .and_then(|opt| opt.as_ref())
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                .and_then(|opt| opt.clone());
             let pum_extra = (*xp)
                 .xp_files_menu
                 .as_slice()
                 .get(i)
-                .and_then(|opt| opt.as_ref())
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                .and_then(|opt| opt.clone());
             let pum_kind = (*xp)
                 .xp_files_kind
                 .as_slice()
                 .get(i)
-                .and_then(|opt| opt.as_ref())
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                .and_then(|opt| opt.clone());
             items.push(pumitem_T {
                 pum_text,
                 pum_kind,
@@ -2044,6 +2045,7 @@ unsafe fn cmdline_pum_create(
                 pum_cpt_source_idx: 0,
                 pum_user_abbr_hlattr: -1,
                 pum_user_kind_hlattr: -1,
+                pum_comp_idx: None,
             });
         }
         compl_match_array = items;

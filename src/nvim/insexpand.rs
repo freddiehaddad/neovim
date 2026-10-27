@@ -1838,26 +1838,22 @@ unsafe fn ins_compl_build_pum() -> c_int {
                 if !match_limit_exceeded {
                     comp.cp_in_match_array = true;
                     items.push(pumitem_T {
-                        pum_text: comp.cp_text[CPT_ABBR]
-                            .as_ref()
-                            .map_or(comp.cp_str.data, |s| s.as_ptr().cast_mut()),
-                        pum_kind: comp.cp_text[CPT_KIND]
-                            .as_ref()
-                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
-                        pum_extra: comp.cp_text[CPT_MENU].as_ref().map_or_else(
-                            || {
-                                comp.cp_fname
-                                    .as_ref()
-                                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
-                            },
-                            |s| s.as_ptr().cast_mut(),
-                        ),
-                        pum_info: comp.cp_text[CPT_INFO]
-                            .as_ref()
-                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+                        pum_text: comp.cp_text[CPT_ABBR].clone().or_else(|| {
+                            if comp.cp_str.data.is_null() {
+                                None
+                            } else {
+                                Some(CStr::from_ptr(comp.cp_str.data).to_owned())
+                            }
+                        }),
+                        pum_kind: comp.cp_text[CPT_KIND].clone(),
+                        pum_extra: comp.cp_text[CPT_MENU]
+                            .clone()
+                            .or_else(|| comp.cp_fname.clone()),
+                        pum_info: comp.cp_text[CPT_INFO].clone(),
                         pum_cpt_source_idx: comp.cp_cpt_source_idx,
                         pum_user_abbr_hlattr: get_user_highlight_attr(comp.cp_user_abbr_hl_id),
                         pum_user_kind_hlattr: get_user_highlight_attr(comp.cp_user_kind_hl_id),
+                        pum_comp_idx: Some(comp_idx),
                     });
 
                     if !shown_match_ok && !cot_fuzzy() {
@@ -1938,14 +1934,8 @@ pub unsafe fn ins_compl_show_pum() {
             array_changed = true;
             cur = ins_compl_build_pum();
         } else {
-            let shown = compl_opt(compl_shown_idx);
             for (i, item) in (*arr).iter().enumerate() {
-                let pum_text = item.pum_text;
-                if ptr::eq(pum_text, (*shown).cp_str.data)
-                    || (*shown).cp_text[CPT_ABBR]
-                        .as_ref()
-                        .is_some_and(|s| ptr::eq(pum_text, s.as_ptr()))
-                {
+                if item.pum_comp_idx == compl_shown_idx {
                     cur = i as c_int;
                     break;
                 }

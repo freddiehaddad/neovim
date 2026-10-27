@@ -73,34 +73,58 @@ use crate::regexp::MAXCOL;
 use crate::state::MODE_CMDLINE;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Default)]
 pub struct pumitem_T {
-    pub pum_text: *mut c_char,
-    pub pum_kind: *mut c_char,
-    pub pum_extra: *mut c_char,
-    pub pum_info: *mut c_char,
+    pub pum_text: Option<std::ffi::CString>,
+    pub pum_kind: Option<std::ffi::CString>,
+    pub pum_extra: Option<std::ffi::CString>,
+    pub pum_info: Option<std::ffi::CString>,
     pub pum_cpt_source_idx: c_int,
     pub pum_user_abbr_hlattr: c_int,
     pub pum_user_kind_hlattr: c_int,
+    pub pum_comp_idx: Option<usize>,
 }
 
 impl pumitem_T {
     pub const fn new() -> Self {
         Self {
-            pum_text: ptr::null_mut(),
-            pum_kind: ptr::null_mut(),
-            pum_extra: ptr::null_mut(),
-            pum_info: ptr::null_mut(),
+            pum_text: None,
+            pum_kind: None,
+            pum_extra: None,
+            pum_info: None,
             pum_cpt_source_idx: 0,
             pum_user_abbr_hlattr: 0,
             pum_user_kind_hlattr: 0,
+            pum_comp_idx: None,
         }
     }
-}
 
-impl Default for pumitem_T {
-    fn default() -> Self {
-        Self::new()
+    #[inline]
+    pub fn text_ptr(&self) -> *mut c_char {
+        self.pum_text
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    }
+
+    #[inline]
+    pub fn kind_ptr(&self) -> *mut c_char {
+        self.pum_kind
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    }
+
+    #[inline]
+    pub fn extra_ptr(&self) -> *mut c_char {
+        self.pum_extra
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    }
+
+    #[inline]
+    pub fn info_ptr(&self) -> *mut c_char {
+        self.pum_info
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
     }
 }
 
@@ -170,20 +194,20 @@ unsafe fn pum_compute_size() {
         PUM_EXTRA_WIDTH = 0;
         for i in 0..(PUM_SIZE as usize) {
             let item = &*PUM_ARRAY.add(i);
-            if !item.pum_text.is_null() {
-                let w = vim_strsize(item.pum_text);
+            if let Some(ref text) = item.pum_text {
+                let w = vim_strsize(text.as_ptr().cast_mut());
                 if PUM_BASE_WIDTH < w {
                     PUM_BASE_WIDTH = w;
                 }
             }
-            if !item.pum_kind.is_null() {
-                let w = vim_strsize(item.pum_kind) + 1;
+            if let Some(ref kind) = item.pum_kind {
+                let w = vim_strsize(kind.as_ptr().cast_mut()) + 1;
                 if PUM_KIND_WIDTH < w {
                     PUM_KIND_WIDTH = w;
                 }
             }
-            if !item.pum_extra.is_null() {
-                let w = vim_strsize(item.pum_extra) + 1;
+            if let Some(ref extra) = item.pum_extra {
+                let w = vim_strsize(extra.as_ptr().cast_mut()) + 1;
                 if PUM_EXTRA_WIDTH < w {
                     PUM_EXTRA_WIDTH = w;
                 }
@@ -465,10 +489,10 @@ pub unsafe fn pum_display(
                     for i in 0..(size as usize) {
                         let elem = &*array.add(i);
                         let mut item = arena_array(&raw mut arena, 4);
-                        add_c(&mut item, cstr_as_obj(elem.pum_text));
-                        add_c(&mut item, cstr_as_obj(elem.pum_kind));
-                        add_c(&mut item, cstr_as_obj(elem.pum_extra));
-                        add_c(&mut item, cstr_as_obj(elem.pum_info));
+                        add_c(&mut item, cstr_as_obj(elem.text_ptr()));
+                        add_c(&mut item, cstr_as_obj(elem.kind_ptr()));
+                        add_c(&mut item, cstr_as_obj(elem.extra_ptr()));
+                        add_c(&mut item, cstr_as_obj(elem.info_ptr()));
                         add_c(&mut arr, array_obj(item));
                     }
                     ui_call_popupmenu_show(
@@ -686,9 +710,9 @@ unsafe fn pum_get_item(index: c_int, type_: c_int) -> *mut c_char {
     unsafe {
         let item = &*PUM_ARRAY.add(index as usize);
         match type_ {
-            CPT_ABBR => item.pum_text,
-            CPT_KIND => item.pum_kind,
-            CPT_MENU => item.pum_extra,
+            CPT_ABBR => item.text_ptr(),
+            CPT_KIND => item.kind_ptr(),
+            CPT_MENU => item.extra_ptr(),
             _ => ptr::null_mut(),
         }
     }
@@ -1279,7 +1303,7 @@ unsafe fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
         let use_float = (cur_cot_flags & kOptCotFlagPopup) != 0;
 
         if use_float
-            && (PUM_SELECTED < 0 || (*PUM_ARRAY.add(PUM_SELECTED as usize)).pum_info.is_null())
+            && (PUM_SELECTED < 0 || (*PUM_ARRAY.add(PUM_SELECTED as usize)).pum_info.is_none())
         {
             let wp = win_float_find(kWinInfo);
             if !wp.is_null() {
@@ -1319,10 +1343,10 @@ unsafe fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
             }
             PUM_FIRST = PUM_FIRST.min(PUM_SIZE - PUM_HEIGHT);
 
-            if !(*PUM_ARRAY.add(PUM_SELECTED as usize)).pum_info.is_null()
+            if (*PUM_ARRAY.add(PUM_SELECTED as usize)).pum_info.is_some()
                 && Rows > 10
                 && repeat <= 1
-                && (cur_cot_flags & (kOptCotFlagPreview | kOptCotFlagPopup)) != 0
+                && (cur_cot_flags & (kOptCotFlagPopup | kOptCotFlagPreview)) != 0
                 && !((cur_cot_flags & kOptCotFlagPreview) != 0 && !cmdwin_buf.is_null())
             {
                 let curwin_save = curwin;
@@ -1401,7 +1425,7 @@ unsafe fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                         let mut max_info_width: c_int = 0;
                         pum_preview_set_text(
                             curwin,
-                            (*PUM_ARRAY.add(PUM_SELECTED as usize)).pum_info,
+                            (*PUM_ARRAY.add(PUM_SELECTED as usize)).info_ptr(),
                             &raw mut lnum,
                             &raw mut max_info_width,
                         );
@@ -1712,7 +1736,11 @@ unsafe fn pum_select_mouse_pos() {
 
         if idx < 0 || idx >= PUM_HEIGHT {
             PUM_SELECTED = -1;
-        } else if *(*PUM_ARRAY.add(idx as usize)).pum_text != NUL {
+        } else if (*PUM_ARRAY.add(idx as usize))
+            .pum_text
+            .as_ref()
+            .is_some_and(|s| !s.to_bytes().is_empty())
+        {
             PUM_SELECTED = idx;
         }
     }
@@ -1757,7 +1785,6 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
         }
 
         let mut idx: usize = 0;
-        let mut owned_texts: Vec<std::ffi::CString> = Vec::with_capacity(PUM_SIZE as usize);
         let mut array_vec: Vec<pumitem_T> = vec![pumitem_T::new(); PUM_SIZE as usize];
         let array = array_vec.as_mut_ptr();
 
@@ -1769,8 +1796,7 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
                 s = mp.dname.as_ptr();
             }
             if !s.is_null() {
-                owned_texts.push(CStr::from_ptr(s).to_owned());
-                array_vec[idx].pum_text = owned_texts.last().unwrap().as_ptr().cast_mut();
+                array_vec[idx].pum_text = Some(CStr::from_ptr(s).to_owned());
                 idx += 1;
             }
         }
@@ -1811,14 +1837,22 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
             } else if c == b'k' as c_int || c == K_UP || c == K_MOUSEUP {
                 while PUM_SELECTED > 0 {
                     PUM_SELECTED -= 1;
-                    if *(*array.add(PUM_SELECTED as usize)).pum_text != NUL {
+                    if (*array.add(PUM_SELECTED as usize))
+                        .pum_text
+                        .as_ref()
+                        .is_some_and(|s| !s.to_bytes().is_empty())
+                    {
                         break;
                     }
                 }
             } else if c == b'j' as c_int || c == K_DOWN || c == K_MOUSEDOWN {
                 while PUM_SELECTED < PUM_SIZE - 1 {
                     PUM_SELECTED += 1;
-                    if *(*array.add(PUM_SELECTED as usize)).pum_text != NUL {
+                    if (*array.add(PUM_SELECTED as usize))
+                        .pum_text
+                        .as_ref()
+                        .is_some_and(|s| !s.to_bytes().is_empty())
+                    {
                         break;
                     }
                 }
