@@ -79,13 +79,8 @@ unsafe fn uic_st() -> &'static mut UiClientState {
 }
 
 #[inline]
-unsafe fn tui_ptr() -> *mut TUIData {
-    unsafe {
-        uic_st()
-            .tui
-            .as_deref_mut()
-            .map_or(ptr::null_mut(), |t| &raw mut *t)
-    }
+unsafe fn tui_ptr() -> &'static mut TUIData {
+    unsafe { uic_st().tui.as_deref_mut().unwrap() }
 }
 
 use crate::event::r#loop::uv_os_getpid;

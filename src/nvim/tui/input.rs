@@ -635,7 +635,7 @@ unsafe extern "C" fn tinput_timer_cb(handle: *mut uv_timer_t) {
 unsafe extern "C" fn bg_query_timer_cb(handle: *mut uv_timer_t) {
     unsafe {
         let input = *handle.cast::<*mut TermInput>();
-        tui_query_bg_color((*input).tui_data);
+        tui_query_bg_color(&mut *(*input).tui_data);
     }
 }
 
@@ -727,7 +727,7 @@ unsafe fn handle_term_response(input: *mut TermInput, key: *const TermKeyKey) {
             if (*key).r#type == TERMKEY_TYPE_DCS
                 && (s_bytes.starts_with(b"1$r4:3m") || s_bytes.starts_with(b"1$r0;4:3m"))
             {
-                tui_enable_extended_underline((*input).tui_data);
+                tui_enable_extended_underline(&mut *(*input).tui_data);
             }
 
             let prefix: &[u8] = match (*key).r#type {
@@ -755,7 +755,7 @@ unsafe fn handle_primary_device_attr(
     unsafe {
         let p = input;
         if let Some(action) = (*p).primary_device_attr.take() {
-            tui_handle_primary_device_attr((*input).tui_data, action);
+            tui_handle_primary_device_attr(&mut *(*input).tui_data, action);
         }
 
         if nparams == 0 {
@@ -801,7 +801,7 @@ unsafe fn handle_modereport(input: *mut TermInput, key: *const TermKeyKey) {
             &raw mut value,
         ) == TERMKEY_RES_KEY
         {
-            tui_handle_term_mode((*input).tui_data, mode, value);
+            tui_handle_term_mode(&mut *(*input).tui_data, mode, value);
         }
     }
 }
@@ -881,7 +881,7 @@ unsafe fn handle_unknown_csi(input: *mut TermInput, key: *const TermKeyKey) {
                     if args[0] == 48 {
                         let height_chars = args[1];
                         let width_chars = args[2];
-                        tui_set_size((*input).tui_data, width_chars, height_chars);
+                        tui_set_size(&mut *(*input).tui_data, width_chars, height_chars);
                     }
                 }
             }

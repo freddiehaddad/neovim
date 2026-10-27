@@ -94,17 +94,15 @@ unsafe fn api_ui_st() -> &'static mut ApiUiState {
 use crate::msgpack_rpc::packer::mpack_w2;
 
 #[inline]
-unsafe fn buf_pos(ui: *const RemoteUI) -> usize {
-    unsafe { (*ui).packer.ptr.offset_from((*ui).packer.startptr) as usize }
+unsafe fn buf_pos(ui: &RemoteUI) -> usize {
+    unsafe { ui.packer.ptr.offset_from(ui.packer.startptr) as usize }
 }
 
-unsafe fn get_ui_or_err(chan_id: u64, err: *mut Error) -> *mut RemoteUI {
+unsafe fn get_ui_or_err(chan_id: u64, err: *mut Error) -> Option<&'static mut RemoteUI> {
     unsafe {
         let uis_ptr = &raw mut api_ui_st().connected_uis;
-        let ui = (*uis_ptr)
-            .get_mut(&chan_id)
-            .map_or(ptr::null_mut(), |b| &raw mut **b);
-        if ui.is_null() && !err.is_null() {
+        let ui = (*uis_ptr).get_mut(&chan_id).map(|b| &mut **b);
+        if ui.is_none() && !err.is_null() {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -141,10 +139,9 @@ unsafe fn mpack_str_small(buf: *mut *mut c_char, str_: *const c_char, len: usize
 // DLLEXPORT void remote_ui_disconnect(uint64_t channel_id, Error *err, bool send_error_exit);
 pub unsafe fn remote_ui_disconnect(channel_id: u64, err: *mut Error, send_error_exit: bool) {
     unsafe {
-        let ui = get_ui_or_err(channel_id, err);
-        if ui.is_null() {
+        let Some(ui) = get_ui_or_err(channel_id, err) else {
             return;
-        }
+        };
         if send_error_exit {
             let mut args_items: [Object; 1] = [integer_obj(0)];
             let args = Array {
@@ -157,8 +154,8 @@ pub unsafe fn remote_ui_disconnect(channel_id: u64, err: *mut Error, send_error_
         }
         let uis_ptr = &raw mut api_ui_st().connected_uis;
         let mut ui_box = (*uis_ptr).remove(&channel_id);
-        let ui_detached = ui_box.as_deref_mut().map_or(ui, |b| &raw mut *b);
-        ui_detach_impl(ui_detached.cast(), channel_id);
+        let ui_detached = ui_box.as_deref_mut().unwrap_or(ui);
+        ui_detach_impl(ui_detached, channel_id);
         let chan = find_channel(channel_id);
         if !chan.is_null() {
             (*chan).rpc.has_ui = false;
@@ -341,7 +338,7 @@ pub unsafe extern "C" fn nvim_ui_attach(
             client_col: -1,
             wildmenu_active: false,
         });
-        let ui: *mut RemoteUI = &raw mut *ui_box;
+        let ui: &mut RemoteUI = &mut *ui_box;
 
         for i in 0..options.size {
             let item = options[i];
@@ -351,39 +348,39 @@ pub unsafe extern "C" fn nvim_ui_attach(
             }
         }
 
-        if (*ui).ui_ext[kUIHlState] || (*ui).ui_ext[kUIMultigrid] {
-            (*ui).ui_ext[kUILinegrid] = true;
+        if ui.ui_ext[kUIHlState] || ui.ui_ext[kUIMultigrid] {
+            ui.ui_ext[kUILinegrid] = true;
         }
-        if (*ui).ui_ext[kUIMessages] {
-            (*ui).ui_ext[kUILinegrid] = true;
-            (*ui).ui_ext[kUICmdline] = true;
+        if ui.ui_ext[kUIMessages] {
+            ui.ui_ext[kUILinegrid] = true;
+            ui.ui_ext[kUICmdline] = true;
         }
 
-        (*ui).cur_event = None;
-        (*ui).hl_id = 0;
-        (*ui).client_col = -1;
-        (*ui).nevents_pos = None;
-        (*ui).nevents = 0;
-        (*ui).flushed_events = false;
-        (*ui).incomplete_event = false;
-        (*ui).ncalls_pos = None;
-        (*ui).ncalls = 0;
-        (*ui).ncells_pending = 0;
+        ui.cur_event = None;
+        ui.hl_id = 0;
+        ui.client_col = -1;
+        ui.nevents_pos = None;
+        ui.nevents = 0;
+        ui.flushed_events = false;
+        ui.incomplete_event = false;
+        ui.ncalls_pos = None;
+        ui.ncalls = 0;
+        ui.ncells_pending = 0;
         let uis_ptr = &raw mut api_ui_st().connected_uis;
         (*uis_ptr).insert(channel_id, ui_box);
-        let ui: *mut RemoteUI = &raw mut **(*uis_ptr).get_mut(&channel_id).unwrap();
-        (*ui).packer = PackerBuffer {
+        let ui: &mut RemoteUI = &mut **(*uis_ptr).get_mut(&channel_id).unwrap();
+        ui.packer = PackerBuffer {
             startptr: ptr::null_mut(),
             ptr: ptr::null_mut(),
             endptr: ptr::null_mut(),
-            anydata: crate::msgpack_rpc::packer::PackerData::Ui(ui),
+            anydata: crate::msgpack_rpc::packer::PackerData::Ui(&raw mut *ui),
             anyint: 0,
             owned_buf: Vec::new(),
         };
-        (*ui).wildmenu_active = false;
+        ui.wildmenu_active = false;
 
         g_st().current_ui = channel_id;
-        ui_attach_impl(ui.cast(), channel_id);
+        ui_attach_impl(ui, channel_id);
 
         let chan = find_channel(channel_id);
         if !chan.is_null() {
@@ -424,7 +421,7 @@ pub unsafe fn ui_attach(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_ui_set_focus(channel_id: u64, gained: Boolean, error: *mut Error) {
     unsafe {
-        if get_ui_or_err(channel_id, error).is_null() {
+        if get_ui_or_err(channel_id, error).is_none() {
             return;
         }
         if gained {
@@ -453,10 +450,9 @@ pub unsafe extern "C" fn nvim_ui_detach(channel_id: u64, err: *mut Error) {
 // DLLEXPORT void remote_ui_connect(uint64_t channel_id, char *server_addr, Error *err);
 pub unsafe fn remote_ui_connect(channel_id: u64, server_addr: *mut c_char, err: *mut Error) {
     unsafe {
-        let ui = get_ui_or_err(channel_id, err);
-        if ui.is_null() {
+        let Some(ui) = get_ui_or_err(channel_id, err) else {
             return;
-        }
+        };
         let mut args_items: [Object; 1] = [string_obj(cstr_as_string(server_addr))];
         let args = Array {
             items: args_items.as_mut_ptr(),
@@ -490,7 +486,7 @@ pub unsafe fn remote_ui_restart(listen_addr: NvimString) {
                 size: 2,
                 capacity: 2,
             };
-            push_call(&raw mut **ui, c"restart", args);
+            push_call(&mut **ui, c"restart", args);
         }
     }
 }
@@ -505,10 +501,9 @@ pub unsafe extern "C" fn nvim_ui_try_resize(
     err: *mut Error,
 ) {
     unsafe {
-        let ui = get_ui_or_err(channel_id, err);
-        if ui.is_null() {
+        let Some(ui) = get_ui_or_err(channel_id, err) else {
             return;
-        }
+        };
         if width <= 0 || height <= 0 {
             api_set_error!(
                 err,
@@ -517,8 +512,8 @@ pub unsafe extern "C" fn nvim_ui_try_resize(
             );
             return;
         }
-        (*ui).width = width as c_int;
-        (*ui).height = height as c_int;
+        ui.width = width as c_int;
+        ui.height = height as c_int;
         ui_refresh();
     }
 }
@@ -533,16 +528,15 @@ pub unsafe extern "C" fn nvim_ui_set_option(
     error: *mut Error,
 ) {
     unsafe {
-        let ui = get_ui_or_err(channel_id, error);
-        if ui.is_null() {
+        let Some(ui) = get_ui_or_err(channel_id, error) else {
             return;
-        }
+        };
         ui_set_option(ui, false, name, value, error);
     }
 }
 
 unsafe fn ui_set_option(
-    ui: *mut RemoteUI,
+    ui: &mut RemoteUI,
     init: bool,
     name: NvimString,
     value: Object,
@@ -559,7 +553,7 @@ unsafe fn ui_set_option(
                 );
                 return;
             }
-            (*ui).r#override = value.data.boolean();
+            ui.r#override = value.data.boolean();
             return;
         }
 
@@ -573,8 +567,8 @@ unsafe fn ui_set_option(
                 );
                 return;
             }
-            (*ui).rgb = value.data.boolean();
-            if !init && !(*ui).ui_ext[kUILinegrid] {
+            ui.rgb = value.data.boolean();
+            if !init && !ui.ui_ext[kUILinegrid] {
                 ui_refresh();
             }
             return;
@@ -598,7 +592,7 @@ unsafe fn ui_set_option(
             };
             let term_cstr = std::ffi::CString::new(slice).unwrap();
             set_tty_option(c"term".as_ptr(), Some(term_cstr.clone()));
-            (*ui).term_name = Some(term_cstr);
+            ui.term_name = Some(term_cstr);
             return;
         }
 
@@ -613,7 +607,7 @@ unsafe fn ui_set_option(
                 return;
             }
             g_st().t_colors = value.data.integer() as c_int;
-            (*ui).term_colors = value.data.integer() as c_int;
+            ui.term_colors = value.data.integer() as c_int;
             return;
         }
 
@@ -659,10 +653,10 @@ unsafe fn ui_set_option(
                 );
                 return;
             }
-            if (*ui).channel_id == CHAN_STDIO {
+            if ui.channel_id == CHAN_STDIO {
                 g_st().stdin_isatty = value.data.boolean();
             }
-            (*ui).stdin_tty = value.data.boolean();
+            ui.stdin_tty = value.data.boolean();
             return;
         }
 
@@ -676,10 +670,10 @@ unsafe fn ui_set_option(
                 );
                 return;
             }
-            if (*ui).channel_id == CHAN_STDIO {
+            if ui.channel_id == CHAN_STDIO {
                 g_st().stdout_isatty = value.data.boolean();
             }
-            (*ui).stdout_tty = value.data.boolean();
+            ui.stdout_tty = value.data.boolean();
             return;
         }
 
@@ -696,16 +690,16 @@ unsafe fn ui_set_option(
                     return;
                 }
                 let boolval = value.data.boolean();
-                if !init && i == kUILinegrid && boolval != (*ui).ui_ext[i] {
+                if !init && i == kUILinegrid && boolval != ui.ui_ext[i] {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"ext_linegrid option cannot be changed".as_ptr(),
                     );
                 }
-                (*ui).ui_ext[i] = boolval;
+                ui.ui_ext[i] = boolval;
                 if !init {
-                    ui_set_ext_option(ui.cast(), i as UIExtension, boolval);
+                    ui_set_ext_option(ui, i as UIExtension, boolval);
                 }
                 return;
             }
@@ -742,7 +736,7 @@ pub unsafe extern "C" fn nvim_ui_try_resize_grid(
     err: *mut Error,
 ) {
     unsafe {
-        if get_ui_or_err(channel_id, err).is_null() {
+        if get_ui_or_err(channel_id, err).is_none() {
             return;
         }
         if grid == Integer::from(crate::drawscreen::DEFAULT_GRID_HANDLE) {
@@ -764,10 +758,9 @@ pub unsafe extern "C" fn nvim_ui_try_resize_grid(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_ui_pum_set_height(channel_id: u64, height: Integer, err: *mut Error) {
     unsafe {
-        let ui = get_ui_or_err(channel_id, err);
-        if ui.is_null() {
+        let Some(ui) = get_ui_or_err(channel_id, err) else {
             return;
-        }
+        };
         if height <= 0 {
             api_set_error!(
                 err,
@@ -776,7 +769,7 @@ pub unsafe extern "C" fn nvim_ui_pum_set_height(channel_id: u64, height: Integer
             );
             return;
         }
-        if !(*ui).ui_ext[kUIPopupmenu] {
+        if !ui.ui_ext[kUIPopupmenu] {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
@@ -784,7 +777,7 @@ pub unsafe extern "C" fn nvim_ui_pum_set_height(channel_id: u64, height: Integer
             );
             return;
         }
-        (*ui).pum_nlines = height as c_int;
+        ui.pum_nlines = height as c_int;
     }
 }
 
@@ -817,11 +810,10 @@ pub unsafe extern "C" fn nvim_ui_pum_set_bounds(
     err: *mut Error,
 ) {
     unsafe {
-        let ui = get_ui_or_err(channel_id, err);
-        if ui.is_null() {
+        let Some(ui) = get_ui_or_err(channel_id, err) else {
             return;
-        }
-        if !(*ui).ui_ext[kUIPopupmenu] {
+        };
+        if !ui.ui_ext[kUIPopupmenu] {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
@@ -844,99 +836,99 @@ pub unsafe extern "C" fn nvim_ui_pum_set_bounds(
             );
             return;
         }
-        (*ui).pum_row = row;
-        (*ui).pum_col = col;
-        (*ui).pum_width = width;
-        (*ui).pum_height = height;
-        (*ui).pum_pos = true;
+        ui.pum_row = row;
+        ui.pum_col = col;
+        ui.pum_width = width;
+        ui.pum_height = height;
+        ui.pum_pos = true;
     }
 }
 
-unsafe fn flush_event(ui: *mut RemoteUI) {
+unsafe fn flush_event(ui: &mut RemoteUI) {
     unsafe {
-        if (*ui).cur_event.is_some() {
-            if let Some(off) = (*ui).ncalls_pos {
-                let mut pos = (*ui).packer.startptr.add(off);
-                mpack_w2(&raw mut pos, 1 + (*ui).ncalls);
+        if ui.cur_event.is_some() {
+            if let Some(off) = ui.ncalls_pos {
+                let mut pos = ui.packer.startptr.add(off);
+                mpack_w2(&raw mut pos, 1 + ui.ncalls);
             }
-            (*ui).cur_event = None;
-            (*ui).ncalls_pos = None;
-            (*ui).ncalls = 0;
+            ui.cur_event = None;
+            ui.ncalls_pos = None;
+            ui.ncalls = 0;
         }
     }
 }
 
-unsafe fn ui_alloc_buf(ui: *mut RemoteUI) {
+unsafe fn ui_alloc_buf(ui: &mut RemoteUI) {
     unsafe {
-        (*ui).packer.owned_buf = vec![0; UI_BUF_SIZE];
-        (*ui).packer.startptr = (*ui).packer.owned_buf.as_mut_ptr();
-        (*ui).packer.ptr = (*ui).packer.startptr;
-        (*ui).packer.endptr = (*ui).packer.startptr.add(UI_BUF_SIZE);
+        ui.packer.owned_buf = vec![0; UI_BUF_SIZE];
+        ui.packer.startptr = ui.packer.owned_buf.as_mut_ptr();
+        ui.packer.ptr = ui.packer.startptr;
+        ui.packer.endptr = ui.packer.startptr.add(UI_BUF_SIZE);
     }
 }
 
-unsafe fn prepare_call(ui: *mut RemoteUI, name: &'static CStr) {
+unsafe fn prepare_call(ui: &mut RemoteUI, name: &'static CStr) {
     unsafe {
-        if !(*ui).packer.startptr.is_null()
-            && (buf_pos(ui) > UI_BUF_SIZE - EVENT_BUF_SIZE || (*ui).ncells_pending >= 500)
+        if !ui.packer.startptr.is_null()
+            && (buf_pos(ui) > UI_BUF_SIZE - EVENT_BUF_SIZE || ui.ncells_pending >= 500)
         {
             ui_flush_buf(ui, false);
         }
 
-        if (*ui).packer.startptr.is_null() {
+        if ui.packer.startptr.is_null() {
             ui_alloc_buf(ui);
         }
 
-        if (*ui).cur_event != Some(name) {
-            let buf = &raw mut (*ui).packer.ptr;
-            if (*ui).nevents_pos.is_none() {
+        if ui.cur_event != Some(name) {
+            let buf = &raw mut ui.packer.ptr;
+            if ui.nevents_pos.is_none() {
                 mpack_array(buf, 3);
                 mpack_uint(buf, 2);
                 mpack_str_small(buf, c"redraw".as_ptr(), 6);
                 let pos = mpack_array_dyn16(buf);
-                (*ui).nevents_pos = Some(pos.offset_from((*ui).packer.startptr) as usize);
-                debug_assert!((*ui).cur_event.is_none());
+                ui.nevents_pos = Some(pos.offset_from(ui.packer.startptr) as usize);
+                debug_assert!(ui.cur_event.is_none());
             }
             flush_event(ui);
-            (*ui).cur_event = Some(name);
+            ui.cur_event = Some(name);
             let pos = mpack_array_dyn16(buf);
-            (*ui).ncalls_pos = Some(pos.offset_from((*ui).packer.startptr) as usize);
+            ui.ncalls_pos = Some(pos.offset_from(ui.packer.startptr) as usize);
             mpack_str_small(buf, name.as_ptr(), name.to_bytes().len());
-            (*ui).nevents += 1;
-            (*ui).ncalls = 1;
+            ui.nevents += 1;
+            ui.ncalls = 1;
         } else {
-            (*ui).ncalls += 1;
+            ui.ncalls += 1;
         }
     }
 }
 
 /// Pushes data into RemoteUI, to be consumed later by remote_ui_flush().
 // DLLEXPORT void push_call(RemoteUI *ui, const char *name, Array args);
-pub unsafe fn push_call(ui: *mut RemoteUI, name: &'static CStr, args: Array) {
+pub unsafe fn push_call(ui: &mut RemoteUI, name: &'static CStr, args: Array) {
     unsafe {
         prepare_call(ui, name);
-        mpack_object_array(args, &raw mut (*ui).packer);
+        mpack_object_array(args, &raw mut ui.packer);
     }
 }
 
 pub(crate) unsafe fn ui_flush_callback(packer: *mut PackerBuffer) {
     unsafe {
-        let ui = (*packer).anydata.as_ui();
+        let ui = &mut *(*packer).anydata.as_ui();
         ui_flush_buf(ui, true);
         ui_alloc_buf(ui);
     }
 }
 
 // DLLEXPORT void remote_ui_grid_clear(RemoteUI *ui, Integer grid);
-pub unsafe fn remote_ui_grid_clear(ui: *mut RemoteUI, grid: Integer) {
+pub unsafe fn remote_ui_grid_clear(ui: &mut RemoteUI, grid: Integer) {
     unsafe {
         let mut args_items: [Object; 1] = [integer_obj(grid)];
         let args = Array {
             items: args_items.as_mut_ptr(),
-            size: usize::from((*ui).ui_ext[kUILinegrid]),
+            size: usize::from(ui.ui_ext[kUILinegrid]),
             capacity: 1,
         };
-        let name = if (*ui).ui_ext[kUILinegrid] {
+        let name = if ui.ui_ext[kUILinegrid] {
             c"grid_clear"
         } else {
             c"clear"
@@ -947,7 +939,7 @@ pub unsafe fn remote_ui_grid_clear(ui: *mut RemoteUI, grid: Integer) {
 
 // DLLEXPORT void remote_ui_grid_resize(RemoteUI *ui, Integer grid, Integer width, Integer height);
 pub unsafe fn remote_ui_grid_resize(
-    ui: *mut RemoteUI,
+    ui: &mut RemoteUI,
     grid: Integer,
     width: Integer,
     height: Integer,
@@ -955,11 +947,11 @@ pub unsafe fn remote_ui_grid_resize(
     unsafe {
         let mut args_items = [Object::default(); 3];
         let mut size = 0;
-        if (*ui).ui_ext[kUILinegrid] {
+        if ui.ui_ext[kUILinegrid] {
             args_items[size] = integer_obj(grid);
             size += 1;
         } else {
-            (*ui).client_col = -1;
+            ui.client_col = -1;
         }
         args_items[size] = integer_obj(width);
         size += 1;
@@ -970,7 +962,7 @@ pub unsafe fn remote_ui_grid_resize(
             size,
             capacity: 3,
         };
-        let name = if (*ui).ui_ext[kUILinegrid] {
+        let name = if ui.ui_ext[kUILinegrid] {
             c"grid_resize"
         } else {
             c"resize"
@@ -982,7 +974,7 @@ pub unsafe fn remote_ui_grid_resize(
 // DLLEXPORT void remote_ui_grid_scroll(RemoteUI *ui, Integer grid, Integer top, Integer bot,
 //                                      Integer left, Integer right, Integer rows, Integer cols);
 pub unsafe fn remote_ui_grid_scroll(
-    ui: *mut RemoteUI,
+    ui: &mut RemoteUI,
     grid: Integer,
     top: Integer,
     bot: Integer,
@@ -992,7 +984,7 @@ pub unsafe fn remote_ui_grid_scroll(
     cols: Integer,
 ) {
     unsafe {
-        if (*ui).ui_ext[kUILinegrid] {
+        if ui.ui_ext[kUILinegrid] {
             let mut args_items: [Object; 7] = [
                 integer_obj(grid),
                 integer_obj(top),
@@ -1037,9 +1029,9 @@ pub unsafe fn remote_ui_grid_scroll(
             );
 
             args_items[0] = integer_obj(0);
-            args_items[1] = integer_obj(Integer::from((*ui).height - 1));
+            args_items[1] = integer_obj(Integer::from(ui.height - 1));
             args_items[2] = integer_obj(0);
-            args_items[3] = integer_obj(Integer::from((*ui).width - 1));
+            args_items[3] = integer_obj(Integer::from(ui.width - 1));
             push_call(
                 ui,
                 c"set_scroll_region",
@@ -1056,7 +1048,7 @@ pub unsafe fn remote_ui_grid_scroll(
 // DLLEXPORT void remote_ui_default_colors_set(RemoteUI *ui, Integer rgb_fg, Integer rgb_bg,
 //                                             Integer rgb_sp, Integer cterm_fg, Integer cterm_bg);
 pub unsafe fn remote_ui_default_colors_set(
-    ui: *mut RemoteUI,
+    ui: &mut RemoteUI,
     mut rgb_fg: Integer,
     mut rgb_bg: Integer,
     mut rgb_sp: Integer,
@@ -1064,7 +1056,7 @@ pub unsafe fn remote_ui_default_colors_set(
     cterm_bg: Integer,
 ) {
     unsafe {
-        if !(*ui).ui_ext[kUITermColors] {
+        if !ui.ui_ext[kUITermColors] {
             let dark = *opt_vars().p_bg == b'd' as c_char;
             if rgb_fg == -1 {
                 rgb_fg = if dark { 0xFFFFFF } else { 0x000000 };
@@ -1093,8 +1085,8 @@ pub unsafe fn remote_ui_default_colors_set(
             },
         );
 
-        if !(*ui).ui_ext[kUILinegrid] {
-            args_items[0] = integer_obj(if (*ui).rgb { rgb_fg } else { cterm_fg - 1 });
+        if !ui.ui_ext[kUILinegrid] {
+            args_items[0] = integer_obj(if ui.rgb { rgb_fg } else { cterm_fg - 1 });
             push_call(
                 ui,
                 c"update_fg",
@@ -1105,7 +1097,7 @@ pub unsafe fn remote_ui_default_colors_set(
                 },
             );
 
-            args_items[0] = integer_obj(if (*ui).rgb { rgb_bg } else { cterm_bg - 1 });
+            args_items[0] = integer_obj(if ui.rgb { rgb_bg } else { cterm_bg - 1 });
             push_call(
                 ui,
                 c"update_bg",
@@ -1116,7 +1108,7 @@ pub unsafe fn remote_ui_default_colors_set(
                 },
             );
 
-            args_items[0] = integer_obj(if (*ui).rgb { rgb_sp } else { -1 });
+            args_items[0] = integer_obj(if ui.rgb { rgb_sp } else { -1 });
             push_call(
                 ui,
                 c"update_sp",
@@ -1133,14 +1125,14 @@ pub unsafe fn remote_ui_default_colors_set(
 // DLLEXPORT void remote_ui_hl_attr_define(RemoteUI *ui, Integer id, HlAttrs rgb_attrs,
 //                                         HlAttrs cterm_attrs, Array info);
 pub unsafe fn remote_ui_hl_attr_define(
-    ui: *mut RemoteUI,
+    ui: &mut RemoteUI,
     id: Integer,
     rgb_attrs: HlAttrs,
     _cterm_attrs: HlAttrs,
     info: Array,
 ) {
     unsafe {
-        if !(*ui).ui_ext[kUILinegrid] {
+        if !ui.ui_ext[kUILinegrid] {
             return;
         }
 
@@ -1172,7 +1164,7 @@ pub unsafe fn remote_ui_hl_attr_define(
             integer_obj(id),
             dict_obj(rgb),
             dict_obj(cterm),
-            array_obj(if (*ui).ui_ext[kUIHlState] {
+            array_obj(if ui.ui_ext[kUIHlState] {
                 info
             } else {
                 ARRAY_INIT
@@ -1188,12 +1180,12 @@ pub unsafe fn remote_ui_hl_attr_define(
 }
 
 // DLLEXPORT void remote_ui_highlight_set(RemoteUI *ui, int id);
-pub unsafe fn remote_ui_highlight_set(ui: *mut RemoteUI, id: c_int) {
+pub unsafe fn remote_ui_highlight_set(ui: &mut RemoteUI, id: c_int) {
     unsafe {
-        if (*ui).hl_id == id {
+        if ui.hl_id == id {
             return;
         }
-        (*ui).hl_id = id;
+        ui.hl_id = id;
         let mut dict_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
         let mut dict = Dict {
             items: dict_items.as_mut_ptr(),
@@ -1204,7 +1196,7 @@ pub unsafe fn remote_ui_highlight_set(ui: *mut RemoteUI, id: c_int) {
             &raw mut dict,
             ptr::null_mut(),
             syn_attr2entry(id),
-            (*ui).rgb,
+            ui.rgb,
             false,
         );
         let mut args_items: [Object; 1] = [dict_obj(dict)];
@@ -1220,13 +1212,13 @@ pub unsafe fn remote_ui_highlight_set(ui: *mut RemoteUI, id: c_int) {
 /// "true" cursor used only for input focus
 // DLLEXPORT void remote_ui_grid_cursor_goto(RemoteUI *ui, Integer grid, Integer row, Integer col);
 pub unsafe fn remote_ui_grid_cursor_goto(
-    ui: *mut RemoteUI,
+    ui: &mut RemoteUI,
     grid: Integer,
     row: Integer,
     col: Integer,
 ) {
     unsafe {
-        if (*ui).ui_ext[kUILinegrid] {
+        if ui.ui_ext[kUILinegrid] {
             let mut args_items: [Object; 3] =
                 [integer_obj(grid), integer_obj(row), integer_obj(col)];
             let args = Array {
@@ -1236,8 +1228,8 @@ pub unsafe fn remote_ui_grid_cursor_goto(
             };
             push_call(ui, c"grid_cursor_goto", args);
         } else {
-            (*ui).cursor_row = row;
-            (*ui).cursor_col = col;
+            ui.cursor_row = row;
+            ui.cursor_col = col;
             remote_ui_cursor_goto(ui, row, col);
         }
     }
@@ -1245,13 +1237,13 @@ pub unsafe fn remote_ui_grid_cursor_goto(
 
 /// emulated cursor used both for drawing and for input focus
 // DLLEXPORT void remote_ui_cursor_goto(RemoteUI *ui, Integer row, Integer col);
-pub unsafe fn remote_ui_cursor_goto(ui: *mut RemoteUI, row: Integer, col: Integer) {
+pub unsafe fn remote_ui_cursor_goto(ui: &mut RemoteUI, row: Integer, col: Integer) {
     unsafe {
-        if (*ui).client_row == row && (*ui).client_col == col {
+        if ui.client_row == row && ui.client_col == col {
             return;
         }
-        (*ui).client_row = row;
-        (*ui).client_col = col;
+        ui.client_row = row;
+        ui.client_col = col;
         let mut args_items: [Object; 2] = [integer_obj(row), integer_obj(col)];
         let args = Array {
             items: args_items.as_mut_ptr(),
@@ -1263,9 +1255,9 @@ pub unsafe fn remote_ui_cursor_goto(ui: *mut RemoteUI, row: Integer, col: Intege
 }
 
 // DLLEXPORT void remote_ui_put(RemoteUI *ui, const char *cell);
-pub unsafe fn remote_ui_put(ui: *mut RemoteUI, cell: *const c_char) {
+pub unsafe fn remote_ui_put(ui: &mut RemoteUI, cell: *const c_char) {
     unsafe {
-        (*ui).client_col += 1;
+        ui.client_col += 1;
         let mut args_items: [Object; 1] = [string_obj(cstr_as_string(cell))];
         let args = Array {
             items: args_items.as_mut_ptr(),
@@ -1280,7 +1272,7 @@ pub unsafe fn remote_ui_put(ui: *mut RemoteUI, cell: *const c_char) {
 //                                   Integer endcol, Integer clearcol, Integer clearattr,
 //                                   LineFlags flags, const schar_T *chunk, const sattr_T *attrs);
 pub unsafe fn remote_ui_raw_line(
-    ui: *mut RemoteUI,
+    ui: &mut RemoteUI,
     grid: Integer,
     row: Integer,
     startcol: Integer,
@@ -1292,10 +1284,10 @@ pub unsafe fn remote_ui_raw_line(
     attrs: *const sattr_T,
 ) {
     unsafe {
-        if (*ui).ui_ext[kUILinegrid] {
+        if ui.ui_ext[kUILinegrid] {
             prepare_call(ui, c"grid_line");
 
-            let buf = &raw mut (*ui).packer.ptr;
+            let buf = &raw mut ui.packer.ptr;
             mpack_array(buf, 5);
             mpack_uint(buf, grid as u32);
             mpack_uint(buf, row as u32);
@@ -1315,11 +1307,11 @@ pub unsafe fn remote_ui_raw_line(
                     || *chunk.add(i) != *chunk.add(i + 1)
                 {
                     if UI_BUF_SIZE - buf_pos(ui) < 2 * (1 + 2 + MAX_SCHAR_SIZE + 5 + 5) + 1
-                        || (*ui).ncells_pending >= 500
+                        || ui.ncells_pending >= 500
                     {
                         if was_space {
                             nelem += 1;
-                            (*ui).ncells_pending += 1;
+                            ui.ncells_pending += 1;
                             mpack_array(buf, 3);
                             mpack_str_small(buf, c" ".as_ptr(), 1);
                             mpack_uint(buf, clearattr as u32);
@@ -1357,7 +1349,7 @@ pub unsafe fn remote_ui_raw_line(
                             mpack_uint(buf, repeat);
                         }
                     }
-                    (*ui).ncells_pending += repeat.min(2) as usize;
+                    ui.ncells_pending += repeat.min(2) as usize;
                     last_hl = c_int::from(*attrs.add(i));
                     repeat = 0;
                     was_space = *chunk.add(i) == schar_from_ascii(b' ');
@@ -1366,7 +1358,7 @@ pub unsafe fn remote_ui_raw_line(
 
             if endcol < clearcol || was_space {
                 nelem += 1;
-                (*ui).ncells_pending += 1;
+                ui.ncells_pending += 1;
                 mpack_array(buf, 3);
                 mpack_str_small(buf, c" ".as_ptr(), 1);
                 mpack_uint(buf, clearattr as u32);
@@ -1383,7 +1375,7 @@ pub unsafe fn remote_ui_raw_line(
                 schar_get(sc_buf.as_mut_ptr(), *chunk.add(i));
                 remote_ui_put(ui, sc_buf.as_ptr());
                 if utf_ambiguous_width(sc_buf.as_ptr()) {
-                    (*ui).client_col = -1;
+                    ui.client_col = -1;
                 }
             }
             if endcol < clearcol {
@@ -1403,40 +1395,41 @@ pub unsafe fn remote_ui_raw_line(
     }
 }
 
-unsafe fn ui_flush_buf(ui: *mut RemoteUI, incomplete_event: bool) {
+unsafe fn ui_flush_buf(ui: &mut RemoteUI, incomplete_event: bool) {
     unsafe {
-        if (*ui).packer.startptr.is_null() || buf_pos(ui) == 0 {
+        if ui.packer.startptr.is_null() || buf_pos(ui) == 0 {
             return;
         }
-        (*ui).incomplete_event = incomplete_event;
+        ui.incomplete_event = incomplete_event;
 
         flush_event(ui);
-        if let Some(off) = (*ui).nevents_pos {
-            let mut pos = (*ui).packer.startptr.add(off);
-            mpack_w2(&raw mut pos, (*ui).nevents);
-            (*ui).nevents = 0;
-            (*ui).nevents_pos = None;
+        if let Some(off) = ui.nevents_pos {
+            let mut pos = ui.packer.startptr.add(off);
+            mpack_w2(&raw mut pos, ui.nevents);
+            ui.nevents = 0;
+            ui.nevents_pos = None;
         }
 
         let len = buf_pos(ui);
-        let mut vec = std::mem::take(&mut (*ui).packer.owned_buf);
+        let mut vec = std::mem::take(&mut ui.packer.owned_buf);
         vec.truncate(len);
         let buf = wstream_new_vec_buffer(vec);
-        rpc_write_raw((*ui).channel_id, buf);
+        rpc_write_raw(ui.channel_id, buf);
 
-        (*ui).packer.startptr = ptr::null_mut();
-        (*ui).packer.ptr = ptr::null_mut();
-        (*ui).packer.endptr = ptr::null_mut();
+        ui.packer.startptr = ptr::null_mut();
+        ui.packer.ptr = ptr::null_mut();
+        ui.packer.endptr = ptr::null_mut();
 
-        (*ui).flushed_events = true;
-        (*ui).ncells_pending = 0;
+        ui.flushed_events = true;
+        ui.ncells_pending = 0;
     }
 }
 
 pub(crate) unsafe fn remote_ui_flush_if_incomplete(channel_id: u64) {
     unsafe {
-        let ui = get_ui_or_err(channel_id, ptr::null_mut());
-        if !ui.is_null() && (*ui).incomplete_event {
+        if let Some(ui) = get_ui_or_err(channel_id, ptr::null_mut())
+            && ui.incomplete_event
+        {
             remote_ui_flush_pending_data(ui);
         }
     }
@@ -1447,23 +1440,23 @@ pub(crate) unsafe fn remote_ui_flush_if_incomplete(channel_id: u64) {
 /// Clients can know this happened by a final "flush" event at the end of the
 /// "redraw" batch.
 // DLLEXPORT void remote_ui_flush(RemoteUI *ui);
-pub unsafe fn remote_ui_flush(ui: *mut RemoteUI) {
+pub unsafe fn remote_ui_flush(ui: &mut RemoteUI) {
     unsafe {
-        if (*ui).nevents > 0 || (*ui).flushed_events {
-            if !(*ui).ui_ext[kUILinegrid] {
-                remote_ui_cursor_goto(ui, (*ui).cursor_row, (*ui).cursor_col);
+        if ui.nevents > 0 || ui.flushed_events {
+            if !ui.ui_ext[kUILinegrid] {
+                remote_ui_cursor_goto(ui, ui.cursor_row, ui.cursor_col);
             }
             push_call(ui, c"flush", ARRAY_INIT);
             ui_flush_buf(ui, false);
-            (*ui).flushed_events = false;
+            ui.flushed_events = false;
         }
     }
 }
 
 // DLLEXPORT void remote_ui_ui_send(RemoteUI *ui, String content);
-pub unsafe fn remote_ui_ui_send(ui: *mut RemoteUI, content: NvimString) {
+pub unsafe fn remote_ui_ui_send(ui: &mut RemoteUI, content: NvimString) {
     unsafe {
-        if !(*ui).stdout_tty {
+        if !ui.stdout_tty {
             return;
         }
         let mut args_items: [Object; 1] = [string_obj(content)];
@@ -1477,13 +1470,13 @@ pub unsafe fn remote_ui_ui_send(ui: *mut RemoteUI, content: NvimString) {
 }
 
 // DLLEXPORT void remote_ui_flush_pending_data(RemoteUI *ui);
-pub unsafe fn remote_ui_flush_pending_data(ui: *mut RemoteUI) {
+pub unsafe fn remote_ui_flush_pending_data(ui: &mut RemoteUI) {
     unsafe {
         ui_flush_buf(ui, false);
     }
 }
 
-unsafe fn translate_contents(ui: *mut RemoteUI, contents: Array, arena: *mut Arena) -> Array {
+unsafe fn translate_contents(ui: &mut RemoteUI, contents: Array, arena: *mut Arena) -> Array {
     unsafe {
         let mut new_contents = arena_array(arena, contents.size);
         for i in 0..contents.size {
@@ -1496,7 +1489,7 @@ unsafe fn translate_contents(ui: *mut RemoteUI, contents: Array, arena: *mut Are
                     &raw mut rgb_attrs,
                     ptr::null_mut(),
                     syn_attr2entry(attr),
-                    (*ui).rgb,
+                    ui.rgb,
                     false,
                 );
                 *new_item.items.add(0) = dict_obj(rgb_attrs);
@@ -1512,7 +1505,7 @@ unsafe fn translate_contents(ui: *mut RemoteUI, contents: Array, arena: *mut Are
     }
 }
 
-unsafe fn translate_firstarg(ui: *mut RemoteUI, args: Array, arena: *mut Arena) -> Array {
+unsafe fn translate_firstarg(ui: &mut RemoteUI, args: Array, arena: *mut Arena) -> Array {
     unsafe {
         let mut new_args = arena_array(arena, args.size);
         let contents = (*args.items).data.array();
@@ -1526,14 +1519,14 @@ unsafe fn translate_firstarg(ui: *mut RemoteUI, args: Array, arena: *mut Arena) 
 }
 
 // DLLEXPORT void remote_ui_event(RemoteUI *ui, char *name, Array args);
-pub unsafe fn remote_ui_event(ui: *mut RemoteUI, mut name: &'static CStr, args: Array) {
+pub unsafe fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) {
     unsafe {
         let mut arena = Arena {
             cur_blk: ptr::null_mut(),
             pos: 0,
             size: 0,
         };
-        if !(*ui).ui_ext[kUILinegrid] {
+        if !ui.ui_ext[kUILinegrid] {
             if name == c"cmdline_show" {
                 let new_args = translate_firstarg(ui, args, &raw mut arena);
                 push_call(ui, name, new_args);
@@ -1567,11 +1560,11 @@ pub unsafe fn remote_ui_event(ui: *mut RemoteUI, mut name: &'static CStr, args: 
             }
         }
 
-        if (*ui).ui_ext[kUIWildmenu] {
+        if ui.ui_ext[kUIWildmenu] {
             if name == c"popupmenu_show" {
-                (*ui).wildmenu_active =
-                    args[4].data.integer() == -1 || !(*ui).ui_ext[kUIPopupmenu];
-                if (*ui).wildmenu_active {
+                ui.wildmenu_active =
+                    args[4].data.integer() == -1 || !ui.ui_ext[kUIPopupmenu];
+                if ui.wildmenu_active {
                     let items = (*args.items).data.array();
                     let mut new_items = arena_array(&raw mut arena, items.size);
                     for i in 0..items.size {
@@ -1604,10 +1597,10 @@ pub unsafe fn remote_ui_event(ui: *mut RemoteUI, mut name: &'static CStr, args: 
                     return;
                 }
             } else if name == c"popupmenu_select" {
-                if (*ui).wildmenu_active {
+                if ui.wildmenu_active {
                     name = c"wildmenu_select";
                 }
-            } else if name == c"popupmenu_hide" && (*ui).wildmenu_active {
+            } else if name == c"popupmenu_hide" && ui.wildmenu_active {
                 name = c"wildmenu_hide";
             }
         }
@@ -1633,7 +1626,7 @@ pub unsafe extern "C" fn nvim_ui_send(_channel_id: u64, content: NvimString, _er
     }
 }
 
-pub unsafe fn remote_ui_mode_info_set(ui: *mut RemoteUI, enabled: Boolean, cursor_styles: Array) {
+pub unsafe fn remote_ui_mode_info_set(ui: &mut RemoteUI, enabled: Boolean, cursor_styles: Array) {
     unsafe {
         let mut items = [boolean_obj(enabled), array_obj(cursor_styles)];
         let args = Array {
@@ -1645,37 +1638,37 @@ pub unsafe fn remote_ui_mode_info_set(ui: *mut RemoteUI, enabled: Boolean, curso
     }
 }
 
-pub unsafe fn remote_ui_update_menu(ui: *mut RemoteUI) {
+pub unsafe fn remote_ui_update_menu(ui: &mut RemoteUI) {
     unsafe {
         push_call(ui, c"update_menu", ARRAY_INIT);
     }
 }
 
-pub unsafe fn remote_ui_busy_start(ui: *mut RemoteUI) {
+pub unsafe fn remote_ui_busy_start(ui: &mut RemoteUI) {
     unsafe {
         push_call(ui, c"busy_start", ARRAY_INIT);
     }
 }
 
-pub unsafe fn remote_ui_busy_stop(ui: *mut RemoteUI) {
+pub unsafe fn remote_ui_busy_stop(ui: &mut RemoteUI) {
     unsafe {
         push_call(ui, c"busy_stop", ARRAY_INIT);
     }
 }
 
-pub unsafe fn remote_ui_mouse_on(ui: *mut RemoteUI) {
+pub unsafe fn remote_ui_mouse_on(ui: &mut RemoteUI) {
     unsafe {
         push_call(ui, c"mouse_on", ARRAY_INIT);
     }
 }
 
-pub unsafe fn remote_ui_mouse_off(ui: *mut RemoteUI) {
+pub unsafe fn remote_ui_mouse_off(ui: &mut RemoteUI) {
     unsafe {
         push_call(ui, c"mouse_off", ARRAY_INIT);
     }
 }
 
-pub unsafe fn remote_ui_mode_change(ui: *mut RemoteUI, mode: NvimString, mode_idx: Integer) {
+pub unsafe fn remote_ui_mode_change(ui: &mut RemoteUI, mode: NvimString, mode_idx: Integer) {
     unsafe {
         let mut items = [string_obj(mode), integer_obj(mode_idx)];
         let args = Array {
@@ -1687,25 +1680,25 @@ pub unsafe fn remote_ui_mode_change(ui: *mut RemoteUI, mode: NvimString, mode_id
     }
 }
 
-pub unsafe fn remote_ui_bell(ui: *mut RemoteUI) {
+pub unsafe fn remote_ui_bell(ui: &mut RemoteUI) {
     unsafe {
         push_call(ui, c"bell", ARRAY_INIT);
     }
 }
 
-pub unsafe fn remote_ui_visual_bell(ui: *mut RemoteUI) {
+pub unsafe fn remote_ui_visual_bell(ui: &mut RemoteUI) {
     unsafe {
         push_call(ui, c"visual_bell", ARRAY_INIT);
     }
 }
 
-pub unsafe fn remote_ui_suspend(ui: *mut RemoteUI) {
+pub unsafe fn remote_ui_suspend(ui: &mut RemoteUI) {
     unsafe {
         push_call(ui, c"suspend", ARRAY_INIT);
     }
 }
 
-pub unsafe fn remote_ui_set_title(ui: *mut RemoteUI, title: NvimString) {
+pub unsafe fn remote_ui_set_title(ui: &mut RemoteUI, title: NvimString) {
     unsafe {
         let mut items = [string_obj(title)];
         let args = Array {
@@ -1717,7 +1710,7 @@ pub unsafe fn remote_ui_set_title(ui: *mut RemoteUI, title: NvimString) {
     }
 }
 
-pub unsafe fn remote_ui_set_icon(ui: *mut RemoteUI, icon: NvimString) {
+pub unsafe fn remote_ui_set_icon(ui: &mut RemoteUI, icon: NvimString) {
     unsafe {
         let mut items = [string_obj(icon)];
         let args = Array {
@@ -1729,7 +1722,7 @@ pub unsafe fn remote_ui_set_icon(ui: *mut RemoteUI, icon: NvimString) {
     }
 }
 
-pub unsafe fn remote_ui_screenshot(ui: *mut RemoteUI, path: NvimString) {
+pub unsafe fn remote_ui_screenshot(ui: &mut RemoteUI, path: NvimString) {
     unsafe {
         let mut items = [string_obj(path)];
         let args = Array {
@@ -1741,7 +1734,7 @@ pub unsafe fn remote_ui_screenshot(ui: *mut RemoteUI, path: NvimString) {
     }
 }
 
-pub unsafe fn remote_ui_option_set(ui: *mut RemoteUI, name: NvimString, value: Object) {
+pub unsafe fn remote_ui_option_set(ui: &mut RemoteUI, name: NvimString, value: Object) {
     unsafe {
         let mut items = [string_obj(name), value];
         let args = Array {
@@ -1753,7 +1746,7 @@ pub unsafe fn remote_ui_option_set(ui: *mut RemoteUI, name: NvimString, value: O
     }
 }
 
-pub unsafe fn remote_ui_chdir(ui: *mut RemoteUI, path: NvimString) {
+pub unsafe fn remote_ui_chdir(ui: &mut RemoteUI, path: NvimString) {
     unsafe {
         let mut items = [string_obj(path)];
         let args = Array {
@@ -1765,7 +1758,7 @@ pub unsafe fn remote_ui_chdir(ui: *mut RemoteUI, path: NvimString) {
     }
 }
 
-pub unsafe fn remote_ui_hl_group_set(ui: *mut RemoteUI, name: NvimString, id: Integer) {
+pub unsafe fn remote_ui_hl_group_set(ui: &mut RemoteUI, name: NvimString, id: Integer) {
     unsafe {
         let mut items = [string_obj(name), integer_obj(id)];
         let args = Array {
@@ -1778,7 +1771,7 @@ pub unsafe fn remote_ui_hl_group_set(ui: *mut RemoteUI, name: NvimString, id: In
 }
 
 pub unsafe fn remote_ui_msg_set_pos(
-    ui: *mut RemoteUI,
+    ui: &mut RemoteUI,
     grid: Integer,
     row: Integer,
     scrolled: Boolean,
@@ -1805,7 +1798,7 @@ pub unsafe fn remote_ui_msg_set_pos(
 }
 
 pub unsafe fn remote_ui_win_viewport(
-    ui: *mut RemoteUI,
+    ui: &mut RemoteUI,
     grid: Integer,
     win: handle_T,
     topline: Integer,
@@ -1836,7 +1829,7 @@ pub unsafe fn remote_ui_win_viewport(
 }
 
 pub unsafe fn remote_ui_win_viewport_margins(
-    ui: *mut RemoteUI,
+    ui: &mut RemoteUI,
     grid: Integer,
     win: handle_T,
     top: Integer,
@@ -1862,7 +1855,7 @@ pub unsafe fn remote_ui_win_viewport_margins(
     }
 }
 
-pub unsafe fn remote_ui_error_exit(ui: *mut RemoteUI, status: Integer) {
+pub unsafe fn remote_ui_error_exit(ui: &mut RemoteUI, status: Integer) {
     unsafe {
         let mut items = [integer_obj(status)];
         let args = Array {
@@ -1875,7 +1868,7 @@ pub unsafe fn remote_ui_error_exit(ui: *mut RemoteUI, status: Integer) {
 }
 
 pub unsafe fn remote_ui__set_restart_on_crash_exit(
-    ui: *mut RemoteUI,
+    ui: &mut RemoteUI,
     progpath: NvimString,
     argv: Array,
 ) {

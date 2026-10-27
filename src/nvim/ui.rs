@@ -188,9 +188,10 @@ pub unsafe fn ui_rgb_attached() -> bool {
             return true;
         }
         let uis_ptr = &raw const ui_state().uis;
-        for &ui in &*uis_ptr {
-            let is_tui = (*ui).stdin_tty || (*ui).stdout_tty;
-            if !is_tui && (*ui).rgb {
+        for &ui_ptr in &*uis_ptr {
+            let ui = &mut *ui_ptr;
+            let is_tui = ui.stdin_tty || ui.stdout_tty;
+            if !is_tui && ui.rgb {
                 return true;
             }
         }
@@ -201,8 +202,9 @@ pub unsafe fn ui_rgb_attached() -> bool {
 pub unsafe fn ui_gui_attached() -> bool {
     unsafe {
         let uis_ptr = &raw const ui_state().uis;
-        for &ui in &*uis_ptr {
-            let is_tui = (*ui).stdin_tty || (*ui).stdout_tty;
+        for &ui_ptr in &*uis_ptr {
+            let ui = &mut *ui_ptr;
+            let is_tui = ui.stdin_tty || ui.stdout_tty;
             if !is_tui {
                 return true;
             }
@@ -214,8 +216,9 @@ pub unsafe fn ui_gui_attached() -> bool {
 pub unsafe fn ui_override() -> bool {
     unsafe {
         let uis_ptr = &raw const ui_state().uis;
-        for &ui in &*uis_ptr {
-            if (*ui).r#override {
+        for &ui_ptr in &*uis_ptr {
+            let ui = &mut *ui_ptr;
+            if ui.r#override {
                 return true;
             }
         }
@@ -243,11 +246,12 @@ pub unsafe fn ui_refresh() {
         let inclusive = ui_override();
         let uis_ptr = &raw const ui_state().uis;
 
-        for &ui in &*uis_ptr {
-            width = width.min((*ui).width);
-            height = height.min((*ui).height);
+        for &ui_ptr in &*uis_ptr {
+            let ui = &mut *ui_ptr;
+            width = width.min(ui.width);
+            height = height.min(ui.height);
             for (j, widget) in ext_widgets.iter_mut().enumerate().take(kUIExtCount) {
-                *widget &= (*ui).ui_ext[j] || inclusive;
+                *widget &= ui.ui_ext[j] || inclusive;
             }
         }
 
@@ -313,8 +317,9 @@ pub unsafe fn ui_pum_get_height() -> c_int {
     unsafe {
         let mut pum_height: c_int = 0;
         let uis_ptr = &raw const ui_state().uis;
-        for &ui in &*uis_ptr {
-            let ui_pum_height = (*ui).pum_nlines;
+        for &ui_ptr in &*uis_ptr {
+            let ui = &mut *ui_ptr;
+            let ui_pum_height = ui.pum_nlines;
             if ui_pum_height != 0 {
                 pum_height = if pum_height != 0 {
                     pum_height.min(ui_pum_height)
@@ -335,14 +340,15 @@ pub unsafe fn ui_pum_get_pos(
 ) -> bool {
     unsafe {
         let uis_ptr = &raw const ui_state().uis;
-        for &ui in &*uis_ptr {
-            if !(*ui).pum_pos {
+        for &ui_ptr in &*uis_ptr {
+            let ui = &mut *ui_ptr;
+            if !ui.pum_pos {
                 continue;
             }
-            *pwidth = (*ui).pum_width;
-            *pheight = (*ui).pum_height;
-            *prow = (*ui).pum_row;
-            *pcol = (*ui).pum_col;
+            *pwidth = ui.pum_width;
+            *pheight = ui.pum_height;
+            *prow = ui.pum_row;
+            *pcol = ui.pum_col;
             return true;
         }
         false
@@ -438,8 +444,9 @@ pub unsafe fn vim_beep(val: c_uint) {
 pub unsafe fn do_autocmd_uienter_all() {
     unsafe {
         let uis_ptr = &raw const ui_state().uis;
-        for &ui in &*uis_ptr {
-            do_autocmd_uienter((*ui).channel_id, true);
+        for &ui_ptr in &*uis_ptr {
+            let ui = &mut *ui_ptr;
+            do_autocmd_uienter(ui.channel_id, true);
         }
     }
 }
@@ -451,18 +458,18 @@ pub unsafe fn ui_can_attach_more() -> bool {
     }
 }
 
-pub unsafe fn ui_attach_impl(ui: *mut RemoteUI, chanid: u64) {
+pub unsafe fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
     unsafe {
         let uis_ptr = &raw mut ui_state().uis;
         if (*uis_ptr).len() >= MAX_UI_COUNT {
             std::process::abort();
         }
-        if !(*ui).ui_ext[kUIMultigrid] && !(*ui).ui_ext[kUIFloatDebug] && g_st().ui_client_channel_id == 0
+        if !ui.ui_ext[kUIMultigrid] && !ui.ui_ext[kUIFloatDebug] && g_st().ui_client_channel_id == 0
         {
-            ui_comp_attach(ui.cast());
+            ui_comp_attach(ui);
         }
 
-        (*uis_ptr).push(ui);
+        (*uis_ptr).push(&raw mut *ui);
         ui_refresh_options();
         resettitle();
 
@@ -476,15 +483,15 @@ pub unsafe fn ui_attach_impl(ui: *mut RemoteUI, chanid: u64) {
         }
 
         for i in kUIGlobalCount..kUIExtCount {
-            ui_set_ext_option(ui, i as UIExtension, (*ui).ui_ext[i]);
+            ui_set_ext_option(ui, i as UIExtension, ui.ui_ext[i]);
         }
 
         let mut sent = false;
-        if (*ui).ui_ext[kUIHlState] {
+        if ui.ui_ext[kUIHlState] {
             sent = highlight_use_hlstate();
         }
         if !sent {
-            ui_send_all_hls(ui.cast());
+            ui_send_all_hls(ui);
         }
         ui_refresh();
 
@@ -492,7 +499,7 @@ pub unsafe fn ui_attach_impl(ui: *mut RemoteUI, chanid: u64) {
     }
 }
 
-pub unsafe fn ui_detach_impl(ui: *mut RemoteUI, chanid: u64) {
+pub unsafe fn ui_detach_impl(ui: &mut RemoteUI, chanid: u64) {
     unsafe {
         let uis_ptr = &raw mut ui_state().uis;
         if (*uis_ptr).len() > MAX_UI_COUNT {
@@ -507,15 +514,15 @@ pub unsafe fn ui_detach_impl(ui: *mut RemoteUI, chanid: u64) {
             ui_schedule_refresh();
         }
 
-        if !(*ui).ui_ext[kUIMultigrid] && !(*ui).ui_ext[kUIFloatDebug] {
-            ui_comp_detach(ui.cast());
+        if !ui.ui_ext[kUIMultigrid] && !ui.ui_ext[kUIFloatDebug] {
+            ui_comp_detach(ui);
         }
 
         do_autocmd_uienter(chanid, false);
     }
 }
 
-pub unsafe fn ui_set_ext_option(ui: *mut RemoteUI, ext: UIExtension, active: bool) {
+pub unsafe fn ui_set_ext_option(ui: &mut RemoteUI, ext: UIExtension, active: bool) {
     unsafe {
         let idx = ext as usize;
         if idx < kUIGlobalCount {
@@ -796,7 +803,8 @@ pub unsafe fn ui_array(arena: *mut Arena) -> Array {
         let uis_ptr = &raw const ui_state().uis;
         let mut all_uis = arena_array(arena, (*uis_ptr).len());
 
-        for &ui in &*uis_ptr {
+        for &ui_ptr in &*uis_ptr {
+            let ui = &mut *ui_ptr;
             let mut info = arena_dict(arena, 10 + kUIExtCount);
             let mut put_info = |k: *const c_char, v: Object| {
                 *info.items.add(info.size) = KeyValuePair {
@@ -806,16 +814,16 @@ pub unsafe fn ui_array(arena: *mut Arena) -> Array {
                 info.size += 1;
             };
 
-            put_info(c"width".as_ptr(), integer_obj(Integer::from((*ui).width)));
-            put_info(c"height".as_ptr(), integer_obj(Integer::from((*ui).height)));
-            put_info(c"rgb".as_ptr(), boolean_obj((*ui).rgb));
-            put_info(c"override".as_ptr(), boolean_obj((*ui).r#override));
+            put_info(c"width".as_ptr(), integer_obj(Integer::from(ui.width)));
+            put_info(c"height".as_ptr(), integer_obj(Integer::from(ui.height)));
+            put_info(c"rgb".as_ptr(), boolean_obj(ui.rgb));
+            put_info(c"override".as_ptr(), boolean_obj(ui.r#override));
             put_info(
                 c"term_name".as_ptr(),
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
                     data: ObjectData::String(cstr_as_string(
-                            (*ui).term_name.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                            ui.term_name.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                         )),
                 },
             );
@@ -831,18 +839,18 @@ pub unsafe fn ui_array(arena: *mut Arena) -> Array {
             );
             put_info(
                 c"term_colors".as_ptr(),
-                integer_obj(Integer::from((*ui).term_colors)),
+                integer_obj(Integer::from(ui.term_colors)),
             );
-            put_info(c"stdin_tty".as_ptr(), boolean_obj((*ui).stdin_tty));
-            put_info(c"stdout_tty".as_ptr(), boolean_obj((*ui).stdout_tty));
+            put_info(c"stdin_tty".as_ptr(), boolean_obj(ui.stdin_tty));
+            put_info(c"stdout_tty".as_ptr(), boolean_obj(ui.stdout_tty));
 
             for (j, ext_name) in ui_ext_names.iter().enumerate().take(kUIExtCount) {
                 let ename = ext_name.as_ptr();
-                if *ename != b'_' as c_char || (*ui).ui_ext[j] {
-                    put_info(ename, boolean_obj((*ui).ui_ext[j]));
+                if *ename != b'_' as c_char || ui.ui_ext[j] {
+                    put_info(ename, boolean_obj(ui.ui_ext[j]));
                 }
             }
-            put_info(c"chan".as_ptr(), integer_obj((*ui).channel_id as Integer));
+            put_info(c"chan".as_ptr(), integer_obj(ui.channel_id as Integer));
 
             *all_uis.items.add(all_uis.size) = Object {
                 obj_type: ObjectType::kObjectTypeDict,
@@ -950,8 +958,8 @@ pub unsafe fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
 
         if !handled {
             let uis_ptr = &raw const ui_state().uis;
-            for &ui in &*uis_ptr {
-                remote_ui_event(ui, name, args);
+            for &ui_ptr in &*uis_ptr {
+                remote_ui_event(&mut *ui_ptr, name, args);
             }
         }
     }
@@ -1093,7 +1101,8 @@ macro_rules! ui_call_loop {
         unsafe {
             let mut any_call = false;
             let uis_ptr = &raw const ui_state().uis;
-            for &$ui in &*uis_ptr {
+            for &_ui_ptr in &*uis_ptr {
+                let $ui = &mut *_ui_ptr;
                 if $cond {
                     $call;
                     any_call = true;
@@ -1243,13 +1252,13 @@ pub unsafe fn ui_call_grid_resize(grid: Integer, width: Integer, height: Integer
     unsafe {
         ui_comp_grid_resize(grid, width, height);
     }
-    ui_call_loop!(!(*ui).composed, c"grid_resize", |ui| {
+    ui_call_loop!(!ui.composed, c"grid_resize", |ui| {
         remote_ui_grid_resize(ui, grid, width, height)
     });
 }
 
 pub unsafe fn ui_composed_call_grid_resize(grid: Integer, width: Integer, height: Integer) {
-    ui_call_loop!((*ui).composed, c"grid_resize", |ui| {
+    ui_call_loop!(ui.composed, c"grid_resize", |ui| {
         remote_ui_grid_resize(ui, grid, width, height)
     });
 }
@@ -1262,13 +1271,13 @@ pub unsafe fn ui_call_grid_cursor_goto(grid: Integer, row: Integer, col: Integer
     unsafe {
         ui_comp_grid_cursor_goto(grid, row, col);
     }
-    ui_call_loop!(!(*ui).composed, c"grid_cursor_goto", |ui| {
+    ui_call_loop!(!ui.composed, c"grid_cursor_goto", |ui| {
         remote_ui_grid_cursor_goto(ui, grid, row, col)
     });
 }
 
 pub unsafe fn ui_composed_call_grid_cursor_goto(grid: Integer, row: Integer, col: Integer) {
-    ui_call_loop!((*ui).composed, c"grid_cursor_goto", |ui| {
+    ui_call_loop!(ui.composed, c"grid_cursor_goto", |ui| {
         remote_ui_grid_cursor_goto(ui, grid, row, col)
     });
 }
@@ -1285,7 +1294,7 @@ pub unsafe fn ui_call_grid_scroll(
     unsafe {
         ui_comp_grid_scroll(grid, top, bot, left, right, rows, cols);
     }
-    ui_call_loop!(!(*ui).composed, c"grid_scroll", |ui| {
+    ui_call_loop!(!ui.composed, c"grid_scroll", |ui| {
         remote_ui_grid_scroll(ui, grid, top, bot, left, right, rows, cols)
     });
 }
@@ -1299,7 +1308,7 @@ pub unsafe fn ui_composed_call_grid_scroll(
     rows: Integer,
     cols: Integer,
 ) {
-    ui_call_loop!((*ui).composed, c"grid_scroll", |ui| {
+    ui_call_loop!(ui.composed, c"grid_scroll", |ui| {
         remote_ui_grid_scroll(ui, grid, top, bot, left, right, rows, cols)
     });
 }
@@ -1324,7 +1333,7 @@ pub unsafe fn ui_call_raw_line(
             grid, row, startcol, endcol, clearcol, clearattr, flags, chunk, attrs,
         );
     }
-    ui_call_loop!(!(*ui).composed, c"raw_line", |ui| {
+    ui_call_loop!(!ui.composed, c"raw_line", |ui| {
         remote_ui_raw_line(
             ui, grid, row, startcol, endcol, clearcol, clearattr, flags, chunk, attrs,
         )
@@ -1342,7 +1351,7 @@ pub unsafe fn ui_composed_call_raw_line(
     chunk: *const schar_T,
     attrs: *const sattr_T,
 ) {
-    ui_call_loop!((*ui).composed, c"raw_line", |ui| {
+    ui_call_loop!(ui.composed, c"raw_line", |ui| {
         remote_ui_raw_line(
             ui, grid, row, startcol, endcol, clearcol, clearattr, flags, chunk, attrs,
         )
@@ -1424,7 +1433,7 @@ pub unsafe fn ui_call_msg_set_pos(
     unsafe {
         ui_comp_msg_set_pos(grid, row, scrolled, sep_char, zindex, compindex);
     }
-    ui_call_loop!(!(*ui).composed, c"msg_set_pos", |ui| {
+    ui_call_loop!(!ui.composed, c"msg_set_pos", |ui| {
         remote_ui_msg_set_pos(ui, grid, row, scrolled, sep_char, zindex, compindex)
     });
 }

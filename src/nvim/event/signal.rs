@@ -75,7 +75,7 @@ pub unsafe fn signal_event(watcher: *mut SignalWatcher) {
         if (*watcher).data.is_null() {
             crate::os::signal::on_signal((*watcher).signum);
         } else {
-            crate::tui::tui::sigwinch_cb((*watcher).data);
+            crate::tui::tui::sigwinch_cb(&mut *(*watcher).data);
         }
     }
 }

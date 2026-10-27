@@ -118,21 +118,21 @@ pub unsafe fn ui_comp_syn_init() {
     }
 }
 
-pub unsafe fn ui_comp_attach(ui: *mut RemoteUI) {
+pub unsafe fn ui_comp_attach(ui: &mut RemoteUI) {
     unsafe {
         comp().composed_uis += 1;
-        (*ui).composed = true;
+        ui.composed = true;
     }
 }
 
-pub unsafe fn ui_comp_detach(ui: *mut RemoteUI) {
+pub unsafe fn ui_comp_detach(ui: &mut RemoteUI) {
     unsafe {
         comp().composed_uis -= 1;
         if comp().composed_uis == 0 {
             comp().linebuf = Vec::new();
             comp().attrbuf = Vec::new();
         }
-        (*ui).composed = false;
+        ui.composed = false;
     }
 }
 

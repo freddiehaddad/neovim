@@ -386,7 +386,7 @@ unsafe fn get_attr_entry(mut entry: HlEntry) -> c_int {
     }
 }
 
-pub unsafe fn ui_send_all_hls(ui: *mut RemoteUI) {
+pub unsafe fn ui_send_all_hls(ui: &mut RemoteUI) {
     unsafe {
         let entries_ptr = &raw const hl_st().attr_entries;
         let len = (*entries_ptr).len();
