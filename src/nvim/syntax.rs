@@ -534,7 +534,7 @@ static mut next_match_extmatch: Option<std::rc::Rc<reg_extmatch_T>> = None;
 static mut syn_win: *mut win_T = ptr::null_mut();
 static mut syn_buf: *mut buf_T = ptr::null_mut();
 static mut syn_block: *mut synblock_T = ptr::null_mut();
-static mut syn_tm: *mut proftime_T = ptr::null_mut();
+static mut syn_tm: Option<proftime_T> = None;
 static mut current_lnum: linenr_T = 0;
 static mut current_col: colnr_T = 0;
 static mut current_state_stored: bool = false;
@@ -608,7 +608,7 @@ unsafe fn valid_state() -> bool {
 }
 
 /// Set the timeout used for syntax highlighting.
-pub unsafe fn syn_set_timeout(tm: *mut proftime_T) {
+pub unsafe fn syn_set_timeout(tm: Option<proftime_T>) {
     unsafe {
         syn_tm = tm;
     }

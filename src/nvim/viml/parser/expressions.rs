@@ -1210,7 +1210,7 @@ fn is_opt_scope(b: u8) -> bool {
 }
 
 #[inline]
-fn viml_parser_advance(pstate: &mut ParserState, len: usize) {
+fn viml_parser_advance(pstate: &mut ParserState<'_>, len: usize) {
     debug_assert_eq!(pstate.pos.line, pstate.reader.lines.len() - 1);
     let pline = *pstate.reader.lines.last().unwrap();
     if pstate.pos.col + len >= pline.size {
@@ -1223,7 +1223,7 @@ fn viml_parser_advance(pstate: &mut ParserState, len: usize) {
 
 #[inline]
 fn viml_parser_highlight(
-    pstate: &mut ParserState,
+    pstate: &mut ParserState<'_>,
     start: ParserPosition,
     len: usize,
     group: &'static std::ffi::CStr,
@@ -1287,7 +1287,7 @@ unsafe fn get_ccs(ret: &mut LexExprToken, bytes: &[u8]) {
 }
 
 /// Get next token for the Vimscript expression input (`viml_pexpr_next_token`).
-pub unsafe fn viml_pexpr_next_token(pstate: &mut ParserState, flags: c_int) -> LexExprToken {
+pub unsafe fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: c_int) -> LexExprToken {
     unsafe {
         let mut ret = LexExprToken::new();
         ret.r#type = kExprLexInvalid;
@@ -1296,7 +1296,6 @@ pub unsafe fn viml_pexpr_next_token(pstate: &mut ParserState, flags: c_int) -> L
         let mut pline = ParserLine {
             data: std::ptr::null(),
             size: 0,
-            allocated: false,
         };
         if !viml_parser_get_remaining_line(pstate, &mut pline) {
             ret.r#type = kExprLexEOC;
@@ -1761,7 +1760,7 @@ const fn recol_pos(pos: ParserPosition, new_col: usize) -> ParserPosition {
 
 #[inline]
 unsafe fn east_set_error(
-    pstate: &ParserState,
+    pstate: &ParserState<'_>,
     ret_ast_err: &mut ExprASTError,
     msg: &'static std::ffi::CStr,
     start: ParserPosition,
@@ -1782,7 +1781,7 @@ unsafe fn east_set_error(
 }
 
 unsafe fn viml_pexpr_handle_bop(
-    pstate: &ParserState,
+    pstate: &ParserState<'_>,
     ast_stack: &mut ExprASTStack,
     mut bop_node: Box<ExprASTNode>,
     want_node_p: &mut ExprASTWantedNode,
@@ -1895,7 +1894,7 @@ macro_rules! hl_group {
 }
 
 unsafe fn parse_quoted_string(
-    pstate: &mut ParserState,
+    pstate: &mut ParserState<'_>,
     node: &mut ExprASTNode,
     token: LexExprToken,
     _ast_stack: &ExprASTStack,
@@ -2288,7 +2287,7 @@ const WANT_NODE_TO_LEXER_FLAGS: [c_int; 2] = [
 const BASE_TO_PREFIX_LENGTH: [usize; 17] = [0, 0, 2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2];
 
 /// Parse one Vimscript expression (`viml_pexpr_parse`).
-pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState, flags: c_int) -> ExprAST {
+pub unsafe fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: c_int) -> ExprAST {
     unsafe {
         let mut ast = ExprAST {
             err: ExprASTError {
@@ -4216,21 +4215,19 @@ mod tests {
     use super::*;
     use crate::viml::parser::parser::{ParserHighlight, ParserInputReader};
 
-    unsafe fn with_pstate<R>(input: &[u8], f: impl FnOnce(&mut ParserState) -> R) -> R {
+    unsafe fn with_pstate<R>(input: &[u8], f: impl FnOnce(&mut ParserState<'_>) -> R) -> R {
         let lines = [
             ParserLine {
                 data: input.as_ptr().cast::<c_char>(),
                 size: input.len(),
-                allocated: false,
             },
             ParserLine {
                 data: std::ptr::null(),
                 size: 0,
-                allocated: false,
             },
         ];
         let mut pstate = ParserState {
-            reader: ParserInputReader::new(lines.as_ptr()),
+            reader: ParserInputReader::new(&lines),
             pos: ParserPosition { line: 0, col: 0 },
             colors: Some(ParserHighlight::new()),
         };

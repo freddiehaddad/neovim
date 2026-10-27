@@ -3554,7 +3554,7 @@ pub unsafe fn vim_regexec_multi(
     buf: *mut buf_T,
     lnum: linenr_T,
     col: colnr_T,
-    tm: *mut proftime_T,
+    tm: Option<proftime_T>,
     timed_out: *mut c_int,
 ) -> c_int {
     unsafe {

@@ -6960,7 +6960,7 @@ unsafe fn search_cmn(argvars: *mut typval_T, match_pos: *mut pos_T, flagsp: *mut
                 }
             }
 
-            let mut tm = profile_setlimit(time_limit);
+            let tm = profile_setlimit(time_limit);
 
             if ((flags & (SP_REPEAT | SP_RETCOUNT)) != 0)
                 || ((flags & SP_NOMOVE) != 0 && (flags & SP_SETPCMARK) != 0)
@@ -6982,7 +6982,7 @@ unsafe fn search_cmn(argvars: *mut typval_T, match_pos: *mut pos_T, flagsp: *mut
             };
             let mut sia = searchit_arg_T {
                 sa_stop_lnum: lnum_stop,
-                sa_tm: &raw mut tm,
+                sa_tm: Some(tm),
                 sa_timed_out: 0,
                 sa_wrapped: 0,
             };
@@ -7530,7 +7530,7 @@ pub unsafe fn do_searchpair(
         let save_cpo = p_cpo;
         p_cpo = (&raw mut empty_string_option).cast();
 
-        let mut tm = profile_setlimit(time_limit);
+        let tm = profile_setlimit(time_limit);
 
         let spatlen = strlen(spat);
         let epatlen = strlen(epat);
@@ -7592,7 +7592,7 @@ pub unsafe fn do_searchpair(
         loop {
             let mut sia = searchit_arg_T {
                 sa_stop_lnum: lnum_stop,
-                sa_tm: &raw mut tm,
+                sa_tm: Some(tm),
                 sa_timed_out: 0,
                 sa_wrapped: 0,
             };

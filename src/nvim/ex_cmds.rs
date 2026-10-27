@@ -3929,7 +3929,7 @@ unsafe fn push_preview_lines(
 /// Perform a substitution from line `eap->line1` to line `eap->line2`.
 unsafe fn do_sub(
     eap: *mut exarg_T,
-    mut tm: proftime_T,
+    tm: proftime_T,
     cmdpreview_ns: c_int,
     cmdpreview_bufnr: handle_T,
 ) -> c_int {
@@ -4156,7 +4156,7 @@ unsafe fn do_sub(
                 curbuf,
                 lnum,
                 0,
-                &raw mut tm,
+                Some(tm),
                 &raw mut timed_out,
             );
             if nmatch != 0 {
@@ -4617,7 +4617,7 @@ unsafe fn do_sub(
                                 curbuf,
                                 sub_firstlnum,
                                 matchcol,
-                                &raw mut tm,
+                                Some(tm),
                                 &raw mut timed_out,
                             );
                             nmatch == 0
@@ -4698,7 +4698,7 @@ unsafe fn do_sub(
                                 curbuf,
                                 sub_firstlnum,
                                 matchcol,
-                                &raw mut tm,
+                                Some(tm),
                                 &raw mut timed_out,
                             );
                         }
@@ -4994,7 +4994,7 @@ pub unsafe fn ex_global(eap: *mut exarg_T) {
                 curbuf,
                 lnum,
                 0,
-                ptr::null_mut(),
+                None,
                 ptr::null_mut(),
             );
             if (type_char == b'g' as c_int && matched != 0)
@@ -5012,7 +5012,7 @@ pub unsafe fn ex_global(eap: *mut exarg_T) {
                     curbuf,
                     lnum,
                     0,
-                    ptr::null_mut(),
+                    None,
                     ptr::null_mut(),
                 );
                 if regmatch.regprog.is_null() {

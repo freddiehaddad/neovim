@@ -10,7 +10,6 @@ pub const CONV_NONE: c_int = 0;
 pub struct ParserLine {
     pub data: *const c_char,
     pub size: usize,
-    pub allocated: bool,
 }
 
 #[repr(C)]
@@ -26,15 +25,15 @@ impl ParserPosition {
     }
 }
 
-pub struct ParserInputReader {
-    pub cursor: *const ParserLine,
+pub struct ParserInputReader<'a> {
+    pub cursor: &'a [ParserLine],
     pub lines: Vec<ParserLine>,
     pub owned_lines: Vec<Vec<u8>>,
     pub conv: vimconv_T,
 }
 
-impl ParserInputReader {
-    pub const fn new(cursor: *const ParserLine) -> Self {
+impl<'a> ParserInputReader<'a> {
+    pub const fn new(cursor: &'a [ParserLine]) -> Self {
         Self {
             cursor,
             lines: Vec::new(),
@@ -59,31 +58,26 @@ pub struct ParserHighlightChunk {
 
 pub type ParserHighlight = Vec<ParserHighlightChunk>;
 
-pub struct ParserState {
-    pub reader: ParserInputReader,
+pub struct ParserState<'a> {
+    pub reader: ParserInputReader<'a>,
     pub pos: ParserPosition,
     pub colors: Option<ParserHighlight>,
 }
 
-unsafe fn viml_preader_get_line(preader: &mut ParserInputReader, ret_pline: &mut ParserLine) {
-    let mut pline = if !preader.cursor.is_null() {
-        unsafe {
-            let p = *preader.cursor;
-            preader.cursor = preader.cursor.add(1);
-            p
-        }
+unsafe fn viml_preader_get_line(preader: &mut ParserInputReader<'_>, ret_pline: &mut ParserLine) {
+    let mut pline = if let Some((first, rest)) = preader.cursor.split_first() {
+        preader.cursor = rest;
+        *first
     } else {
         ParserLine {
             data: std::ptr::null(),
             size: 0,
-            allocated: false,
         }
     };
     if preader.conv.vc_type != CONV_NONE && pline.size != 0 {
         let mut cpline = ParserLine {
             data: std::ptr::null(),
             size: pline.size,
-            allocated: false,
         };
         if let Some(conv_bytes) =
             unsafe { string_convert(&preader.conv, pline.data.cast_mut(), &mut cpline.size) }
@@ -99,7 +93,7 @@ unsafe fn viml_preader_get_line(preader: &mut ParserInputReader, ret_pline: &mut
 
 /// Get the currently parsed line shifted to `pstate.pos.col` (`viml_parser_get_remaining_line`).
 pub unsafe fn viml_parser_get_remaining_line(
-    pstate: &mut ParserState,
+    pstate: &mut ParserState<'_>,
     ret_pline: &mut ParserLine,
 ) -> bool {
     let num_lines = pstate.reader.lines.len();
@@ -128,19 +122,16 @@ mod tests {
             ParserLine {
                 data: c"let x = 1".as_ptr(),
                 size: 9,
-                allocated: false,
             },
             ParserLine {
                 data: std::ptr::null(),
                 size: 0,
-                allocated: false,
             },
         ];
-        let mut reader = ParserInputReader::new(lines.as_ptr());
+        let mut reader = ParserInputReader::new(&lines);
         let mut out = ParserLine {
             data: std::ptr::null(),
             size: 0,
-            allocated: false,
         };
         unsafe {
             viml_preader_get_line(&mut reader, &mut out);

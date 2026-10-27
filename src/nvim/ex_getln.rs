@@ -747,10 +747,10 @@ unsafe fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut inc
                 search_flags += SEARCH_START;
             }
             // Set the time limit to half a second.
-            let mut tm: proftime_T = profile_setlimit(500);
+            let tm: proftime_T = profile_setlimit(500);
             let mut sia = searchit_arg_T {
                 sa_stop_lnum: 0,
-                sa_tm: &raw mut tm,
+                sa_tm: Some(tm),
                 sa_timed_out: 0,
                 sa_wrapped: 0,
             };
@@ -3679,16 +3679,14 @@ unsafe fn color_expr_cmdline(
             ParserLine {
                 data: (*colored_ccline).cmdbuff,
                 size: strlen((*colored_ccline).cmdbuff),
-                allocated: false,
             },
             ParserLine {
                 data: ptr::null(),
                 size: 0,
-                allocated: false,
             },
         ];
         let mut pstate = ParserState {
-            reader: ParserInputReader::new(parser_lines.as_ptr()),
+            reader: ParserInputReader::new(&parser_lines),
             pos: ParserPosition { line: 0, col: 0 },
             colors: Some(ParserHighlight::new()),
         };

@@ -168,7 +168,7 @@ impl Default for SearchPattern {
 #[derive(Clone, Copy)]
 pub struct searchit_arg_T {
     pub sa_stop_lnum: linenr_T,
-    pub sa_tm: *mut proftime_T,
+    pub sa_tm: Option<proftime_T>,
     pub sa_timed_out: c_int,
     pub sa_wrapped: c_int,
 }
@@ -177,7 +177,7 @@ impl searchit_arg_T {
     pub const fn new() -> Self {
         Self {
             sa_stop_lnum: 0,
-            sa_tm: ptr::null_mut(),
+            sa_tm: None,
             sa_timed_out: 0,
             sa_wrapped: 0,
         }
@@ -705,7 +705,7 @@ pub unsafe fn searchit(
         let called_emsg_before = called_emsg;
         let mut break_loop = false;
         let mut stop_lnum: linenr_T = 0;
-        let mut tm: *mut proftime_T = ptr::null_mut();
+        let mut tm: Option<proftime_T> = None;
         let mut timed_out: *mut c_int = ptr::null_mut();
 
         if !extra_arg.is_null() {
@@ -793,7 +793,7 @@ pub unsafe fn searchit(
                     {
                         break;
                     }
-                    if !tm.is_null() && profile_passed_limit(*tm) {
+                    if tm.is_some_and(profile_passed_limit) {
                         break;
                     }
 
@@ -941,7 +941,7 @@ pub unsafe fn searchit(
                                     );
                                     nmatched == 0
                                 } {
-                                    if !tm.is_null() && profile_passed_limit(*tm) {
+                                    if tm.is_some_and(profile_passed_limit) {
                                         match_ok = false;
                                     }
                                     break;
@@ -2738,7 +2738,7 @@ unsafe fn is_zero_width(
                     curbuf,
                     pos.lnum,
                     regmatch.startpos[0].col,
-                    ptr::null_mut(),
+                    None,
                     ptr::null_mut(),
                 );
                 if nmatched != 0 {

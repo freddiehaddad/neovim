@@ -582,16 +582,14 @@ pub unsafe extern "C" fn nvim_parse_expression(
             ParserLine {
                 data: expr.data,
                 size: expr.size,
-                allocated: false,
             },
             ParserLine {
                 data: std::ptr::null(),
                 size: 0,
-                allocated: false,
             },
         ];
         let mut pstate = ParserState {
-            reader: ParserInputReader::new(parser_lines.as_ptr()),
+            reader: ParserInputReader::new(&parser_lines),
             pos: ParserPosition { line: 0, col: 0 },
             colors: hl.then(ParserHighlight::new),
         };

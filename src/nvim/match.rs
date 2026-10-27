@@ -520,7 +520,7 @@ unsafe fn next_search_hl(
                     (*shl).buf,
                     lnum,
                     matchcol,
-                    &raw mut (*shl).tm,
+                    Some((*shl).tm),
                     &raw mut timed_out,
                 );
                 if regprog_is_copy {

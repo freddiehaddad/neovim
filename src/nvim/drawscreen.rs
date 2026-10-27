@@ -1430,8 +1430,8 @@ unsafe fn win_update(wp: *mut win_T) {
 
         let save_got_int = got_int;
         got_int = false;
-        let mut syntax_tm = profile_setlimit(p_rdt);
-        syn_set_timeout(&raw mut syntax_tm);
+        let syntax_tm = profile_setlimit(p_rdt);
+        syn_set_timeout(Some(syntax_tm));
 
         let extmarks = &raw mut win_extmark_arr;
         (*extmarks).clear();
@@ -2395,7 +2395,7 @@ unsafe fn win_update(wp: *mut win_T) {
                 draw_vsep_win(wp);
                 draw_hsep_win(wp);
             }
-            syn_set_timeout(ptr::null_mut());
+            syn_set_timeout(None);
 
             (*wp).w_redr_type = 0;
             (*wp).w_old_topfill = (*wp).w_topfill;

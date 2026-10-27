@@ -5586,7 +5586,7 @@ unsafe fn vgr_match_buflines(
                     buf,
                     lnum,
                     col,
-                    ptr::null_mut(),
+                    None,
                     ptr::null_mut(),
                 ) > 0
                 {

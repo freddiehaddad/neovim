@@ -180,7 +180,7 @@ static mut empty_frag: Frag_T = Frag_T {
 };
 static mut temp_subs: regsubs_T = regsubs_T::new();
 static mut nfa_match: c_int = 0;
-static mut nfa_time_limit: *mut proftime_T = ptr::null_mut();
+static mut nfa_time_limit: Option<proftime_T> = None;
 static mut nfa_timed_out: *mut c_int = ptr::null_mut();
 static mut nfa_time_count: c_int = 0;
 
@@ -3476,7 +3476,7 @@ unsafe fn match_composing(mut sta: *mut nfa_state_T, curc: c_int, clen: c_int) -
 
 unsafe fn nfa_did_time_out() -> bool {
     unsafe {
-        if !nfa_time_limit.is_null() && profile_passed_limit(*nfa_time_limit) {
+        if nfa_time_limit.is_some_and(profile_passed_limit) {
             if !nfa_timed_out.is_null() {
                 *nfa_timed_out = 1;
             }
@@ -3603,7 +3603,7 @@ unsafe fn nfa_regmatch(
                 if got_int {
                     break;
                 }
-                if !nfa_time_limit.is_null() {
+                if { nfa_time_limit }.is_some() {
                     nfa_time_count += 1;
                     if nfa_time_count == 20 {
                         nfa_time_count = 0;
@@ -4478,7 +4478,7 @@ unsafe fn nfa_regmatch(
             if got_int {
                 break;
             }
-            if !nfa_time_limit.is_null() {
+            if { nfa_time_limit }.is_some() {
                 nfa_time_count += 1;
                 if nfa_time_count == 20 {
                     nfa_time_count = 0;
@@ -4506,7 +4506,7 @@ unsafe fn finish_nfa_regmatch(prog: *mut nfa_regprog_T, list: &mut [nfa_list_T; 
 unsafe fn nfa_regtry(
     prog: *mut nfa_regprog_T,
     col: colnr_T,
-    tm: *mut proftime_T,
+    tm: Option<proftime_T>,
     timed_out: *mut c_int,
 ) -> c_int {
     unsafe {
@@ -4604,7 +4604,7 @@ unsafe fn nfa_regtry(
 unsafe fn nfa_regexec_both(
     mut line: *mut u8,
     startcol: colnr_T,
-    tm: *mut proftime_T,
+    tm: Option<proftime_T>,
     timed_out: *mut c_int,
 ) -> c_int {
     unsafe {
@@ -4810,7 +4810,7 @@ pub(super) unsafe fn nfa_regexec_nl(
         rex.reg_icombine = false;
         rex.reg_nobreak = ((*(*rmp).regprog).re_flags & (RE_NOBREAK as c_uint)) != 0;
         rex.reg_maxcol = 0;
-        nfa_regexec_both(line, col, ptr::null_mut(), ptr::null_mut())
+        nfa_regexec_both(line, col, None, ptr::null_mut())
     }
 }
 
@@ -4820,7 +4820,7 @@ pub(super) unsafe fn nfa_regexec_multi(
     buf: *mut buf_T,
     lnum: linenr_T,
     col: colnr_T,
-    tm: *mut proftime_T,
+    tm: Option<proftime_T>,
     timed_out: *mut c_int,
 ) -> c_int {
     unsafe {

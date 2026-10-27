@@ -2630,7 +2630,7 @@ unsafe fn restore_subexpr(bp: *mut regbehind_T) {
     }
 }
 
-unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_int) -> bool {
+unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_int) -> bool {
     unsafe {
         let mut status: c_int;
         let mut tm_count: c_int = 0;
@@ -2648,11 +2648,11 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                     status = RA_FAIL;
                     break;
                 }
-                if !tm.is_null() {
+                if let Some(tm_val) = tm {
                     tm_count += 1;
                     if tm_count == 100 {
                         tm_count = 0;
-                        if profile_passed_limit(*tm) {
+                        if profile_passed_limit(tm_val) {
                             if !timed_out.is_null() {
                                 *timed_out = 1;
                             }
@@ -3799,7 +3799,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
 unsafe fn regtry(
     prog: *mut bt_regprog_T,
     col: colnr_T,
-    tm: *mut proftime_T,
+    tm: Option<proftime_T>,
     timed_out: *mut c_int,
 ) -> c_int {
     unsafe {
@@ -3865,7 +3865,7 @@ unsafe fn regtry(
 unsafe fn bt_regexec_both(
     mut line: *mut u8,
     startcol: colnr_T,
-    tm: *mut proftime_T,
+    tm: Option<proftime_T>,
     timed_out: *mut c_int,
 ) -> c_int {
     unsafe {
@@ -3999,11 +3999,11 @@ unsafe fn bt_regexec_both(
                     break;
                 }
                 col += utfc_ptr2len(rex.line.add(col as usize).cast());
-                if !tm.is_null() {
+                if let Some(tm_val) = tm {
                     tm_count += 1;
                     if tm_count == 20 {
                         tm_count = 0;
-                        if profile_passed_limit(*tm) {
+                        if profile_passed_limit(tm_val) {
                             if !timed_out.is_null() {
                                 *timed_out = 1;
                             }
@@ -4071,7 +4071,7 @@ pub(super) unsafe fn bt_regexec_nl(
         rex.reg_nobreak = ((*(*rmp).regprog).re_flags & (RE_NOBREAK as c_uint)) != 0;
         rex.reg_maxcol = 0;
 
-        bt_regexec_both(line, col, ptr::null_mut(), ptr::null_mut())
+        bt_regexec_both(line, col, None, ptr::null_mut())
     }
 }
 
@@ -4081,7 +4081,7 @@ pub(super) unsafe fn bt_regexec_multi(
     buf: *mut buf_T,
     lnum: linenr_T,
     col: colnr_T,
-    tm: *mut proftime_T,
+    tm: Option<proftime_T>,
     timed_out: *mut c_int,
 ) -> c_int {
     unsafe {
