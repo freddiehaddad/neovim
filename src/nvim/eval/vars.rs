@@ -1489,7 +1489,7 @@ unsafe fn list_glob_vars(first: *mut c_int) {
 unsafe fn list_buf_vars(first: *mut c_int) {
     unsafe {
         list_hashtable_vars(
-            &raw mut (*(*curbuf).b_vars).dv_hashtab,
+            &raw mut (*(*curbuf).b_vars()).dv_hashtab,
             c"b:".as_ptr(),
             true as c_int,
             first,
@@ -1500,7 +1500,7 @@ unsafe fn list_buf_vars(first: *mut c_int) {
 unsafe fn list_win_vars(first: *mut c_int) {
     unsafe {
         list_hashtable_vars(
-            &raw mut (*(*curwin).w_vars).dv_hashtab,
+            &raw mut (*(*curwin).w_vars()).dv_hashtab,
             c"w:".as_ptr(),
             true as c_int,
             first,
@@ -1511,7 +1511,7 @@ unsafe fn list_win_vars(first: *mut c_int) {
 unsafe fn list_tab_vars(first: *mut c_int) {
     unsafe {
         list_hashtable_vars(
-            &raw mut (*(*curtab).tp_vars).dv_hashtab,
+            &raw mut (*(*curtab).tp_vars()).dv_hashtab,
             c"t:".as_ptr(),
             true as c_int,
             first,
@@ -2335,7 +2335,7 @@ pub unsafe fn get_user_var_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
         }
 
         let mut ht: *const hashtab_T =
-            &raw const (*(*(*prevwin_curwin()).w_buffer).b_vars).dv_hashtab;
+            &raw const (*(*(*prevwin_curwin()).w_buffer).b_vars()).dv_hashtab;
         if BDONE < (*ht).ht_used {
             if BDONE == 0 {
                 HI = (*ht).ht_array;
@@ -2349,7 +2349,7 @@ pub unsafe fn get_user_var_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
             return cat_prefix_varname(b'b' as c_int, (*HI).hi_key);
         }
 
-        ht = &raw const (*(*prevwin_curwin()).w_vars).dv_hashtab;
+        ht = &raw const (*(*prevwin_curwin()).w_vars()).dv_hashtab;
         if WDONE < (*ht).ht_used {
             if WDONE == 0 {
                 HI = (*ht).ht_array;
@@ -2363,7 +2363,7 @@ pub unsafe fn get_user_var_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
             return cat_prefix_varname(b'w' as c_int, (*HI).hi_key);
         }
 
-        ht = &raw const (*(*curtab).tp_vars).dv_hashtab;
+        ht = &raw const (*(*curtab).tp_vars()).dv_hashtab;
         if TDONE < (*ht).ht_used {
             if TDONE == 0 {
                 HI = (*ht).ht_array;
@@ -2778,11 +2778,11 @@ unsafe fn find_var_ht_dict(
         }
 
         if *name == b'b' as c_char {
-            *d = (*curbuf).b_vars;
+            *d = (*curbuf).b_vars();
         } else if *name == b'w' as c_char {
-            *d = (*curwin).w_vars;
+            *d = (*curwin).w_vars();
         } else if *name == b't' as c_char {
-            *d = (*curtab).tp_vars;
+            *d = (*curtab).tp_vars();
         } else if *name == b'v' as c_char {
             *d = get_vimvar_dict();
         } else if *name == b'a' as c_char {
@@ -3341,11 +3341,11 @@ unsafe fn get_var_from(
                     done = true;
                 } else {
                     let ht = if htname == b'b' as c_int {
-                        &raw mut (*(*buf).b_vars).dv_hashtab
+                        &raw mut (*(*buf).b_vars()).dv_hashtab
                     } else if htname == b'w' as c_int {
-                        &raw mut (*(*win).w_vars).dv_hashtab
+                        &raw mut (*(*win).w_vars()).dv_hashtab
                     } else {
-                        &raw mut (*(*tp).tp_vars).dv_hashtab
+                        &raw mut (*(*tp).tp_vars()).dv_hashtab
                     };
 
                     let v = find_var_in_ht(ht, htname, varname, strlen(varname), 0);

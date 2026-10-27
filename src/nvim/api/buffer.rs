@@ -1210,7 +1210,7 @@ pub unsafe extern "C" fn nvim_buf_get_var(
         if b.is_null() {
             return OBJECT_NIL;
         }
-        dict_get_value((*b).b_vars, name, arena, err)
+        dict_get_value((*b).b_vars(), name, arena, err)
     }
 }
 
@@ -1346,7 +1346,7 @@ pub unsafe extern "C" fn nvim_buf_set_var(
         if b.is_null() {
             return;
         }
-        dict_set_var((*b).b_vars, name, value, false, false, ptr::null_mut(), err);
+        dict_set_var((*b).b_vars(), name, value, false, false, ptr::null_mut(), err);
     }
 }
 
@@ -1365,7 +1365,7 @@ pub unsafe extern "C" fn nvim_buf_del_var(buf: Buffer, name: NvimString, err: *m
             return;
         }
         dict_set_var(
-            (*b).b_vars,
+            (*b).b_vars(),
             name,
             OBJECT_NIL,
             true,

@@ -616,7 +616,7 @@ pub unsafe fn buffer_set_var(
         if buf.is_null() {
             return OBJECT_NIL;
         }
-        dict_set_var((*buf).b_vars, name, value, false, true, arena, err)
+        dict_set_var((*buf).b_vars(), name, value, false, true, arena, err)
     }
 }
 
@@ -641,7 +641,7 @@ pub unsafe fn buffer_del_var(
         if buf.is_null() {
             return OBJECT_NIL;
         }
-        dict_set_var((*buf).b_vars, name, OBJECT_NIL, true, true, arena, err)
+        dict_set_var((*buf).b_vars(), name, OBJECT_NIL, true, true, arena, err)
     }
 }
 
@@ -668,7 +668,7 @@ pub unsafe fn window_set_var(
         if win.is_null() {
             return OBJECT_NIL;
         }
-        dict_set_var((*win).w_vars, name, value, false, true, arena, err)
+        dict_set_var((*win).w_vars(), name, value, false, true, arena, err)
     }
 }
 
@@ -693,7 +693,7 @@ pub unsafe fn window_del_var(
         if win.is_null() {
             return OBJECT_NIL;
         }
-        dict_set_var((*win).w_vars, name, OBJECT_NIL, true, true, arena, err)
+        dict_set_var((*win).w_vars(), name, OBJECT_NIL, true, true, arena, err)
     }
 }
 
@@ -721,7 +721,7 @@ pub unsafe fn tabpage_set_var(
         if tab.is_null() {
             return OBJECT_NIL;
         }
-        dict_set_var((*tab).tp_vars, name, value, false, true, arena, err)
+        dict_set_var((*tab).tp_vars(), name, value, false, true, arena, err)
     }
 }
 
@@ -746,7 +746,7 @@ pub unsafe fn tabpage_del_var(
         if tab.is_null() {
             return OBJECT_NIL;
         }
-        dict_set_var((*tab).tp_vars, name, OBJECT_NIL, true, true, arena, err)
+        dict_set_var((*tab).tp_vars(), name, OBJECT_NIL, true, true, arena, err)
     }
 }
 

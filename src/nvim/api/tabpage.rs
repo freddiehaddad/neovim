@@ -99,7 +99,7 @@ pub unsafe extern "C" fn nvim_tabpage_get_var(
         if tab.is_null() {
             return nil_obj();
         }
-        dict_get_value((*tab).tp_vars, name, arena, err)
+        dict_get_value((*tab).tp_vars(), name, arena, err)
     }
 }
 
@@ -124,7 +124,7 @@ pub unsafe extern "C" fn nvim_tabpage_set_var(
             return;
         }
         dict_set_var(
-            (*tab).tp_vars,
+            (*tab).tp_vars(),
             name,
             value,
             false,
@@ -149,7 +149,7 @@ pub unsafe extern "C" fn nvim_tabpage_del_var(tabpage: Tabpage, name: NvimString
             return;
         }
         dict_set_var(
-            (*tab).tp_vars,
+            (*tab).tp_vars(),
             name,
             nil_obj(),
             true,

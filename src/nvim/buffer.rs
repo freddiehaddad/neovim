@@ -417,7 +417,6 @@ pub struct buf_T {
     pub b_bad_char: c_int,
     pub b_start_bomb: c_int,
     pub b_bufvar: crate::eval::typval::ScopeDictDictItem,
-    pub b_vars: *mut crate::eval::typval::dict_T,
     pub b_may_swap: bool,
     pub b_did_warn: bool,
     pub b_help: bool,
@@ -700,7 +699,6 @@ impl buf_T {
             b_bad_char: 0,
             b_start_bomb: 0,
             b_bufvar: crate::eval::typval::ScopeDictDictItem::new(),
-            b_vars: ptr::null_mut(),
             b_may_swap: false,
             b_did_warn: false,
             b_help: false,
@@ -739,6 +737,11 @@ impl buf_T {
 
     pub unsafe fn alloc() -> *mut Self {
         Box::into_raw(Box::new(Self::new()))
+    }
+
+    #[inline]
+    pub const fn b_vars(&self) -> *mut crate::eval::typval::dict_T {
+        self.b_bufvar.di_tv.vval.v_dict()
     }
 }
 
@@ -1759,13 +1762,13 @@ unsafe fn free_buffer(buf: *mut buf_T) {
         (*map_ptr).remove(&(*buf).b_fnum);
         buf_free_count += 1;
         free_buffer_stuff(buf, kBffClearWinInfo);
-        if (*(*buf).b_vars).dv_refcount > DO_NOT_FREE_CNT {
+        if (*(*buf).b_vars()).dv_refcount > DO_NOT_FREE_CNT {
             tv_dict_add(
-                (*buf).b_vars,
+                (*buf).b_vars(),
                 tv_dict_item_copy((&raw mut (*buf).changedtick_di).cast()),
             );
         }
-        unref_var_dict((*buf).b_vars);
+        unref_var_dict((*buf).b_vars());
         aubuflocal_remove(buf);
         if autocmd_busy {
             (*buf).additional_data = None;
@@ -1805,13 +1808,13 @@ unsafe fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
         }
         {
             let changedtick_hi = hash_find(
-                &raw const (*(*buf).b_vars).dv_hashtab,
+                &raw const (*(*buf).b_vars()).dv_hashtab,
                 c"changedtick".as_ptr(),
             );
             debug_assert!(!changedtick_hi.is_null());
-            hash_remove(&raw mut (*(*buf).b_vars).dv_hashtab, changedtick_hi);
+            hash_remove(&raw mut (*(*buf).b_vars()).dv_hashtab, changedtick_hi);
         }
-        vars_clear(&raw mut (*(*buf).b_vars).dv_hashtab);
+        vars_clear(&raw mut (*(*buf).b_vars()).dv_hashtab);
         if (free_flags & kBffInitChangedtick) != 0 {
             buf_init_changedtick(buf);
         }
@@ -2749,7 +2752,7 @@ unsafe fn buf_init_changedtick(buf: *mut buf_T) {
             vval: TypvalVval::Number(buf_get_changedtick(buf)),
         };
         (*buf).changedtick_di.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
-        tv_dict_add((*buf).b_vars, (&raw mut (*buf).changedtick_di).cast());
+        tv_dict_add((*buf).b_vars(), (&raw mut (*buf).changedtick_di).cast());
     }
 }
 
@@ -2829,8 +2832,7 @@ pub unsafe fn buflist_new(
         }
         if buf != curbuf || curbuf.is_null() {
             buf = buf_T::alloc();
-            (*buf).b_vars = tv_dict_alloc();
-            init_var_dict((*buf).b_vars, (&raw mut (*buf).b_bufvar).cast(), VAR_SCOPE);
+            init_var_dict(tv_dict_alloc(), (&raw mut (*buf).b_bufvar).cast(), VAR_SCOPE);
             (*buf).changedtick_di.di_key = b"changedtick\0".iter().map(|&b| b as c_char).collect();
             buf_init_changedtick(buf);
         }
@@ -5079,7 +5081,7 @@ pub unsafe fn buf_set_changedtick(buf: *mut buf_T, changedtick: varnumber_T) {
     unsafe {
         let old_val = (*buf).changedtick_di.di_tv;
 
-        let changedtick_di = tv_dict_find((*buf).b_vars, c"changedtick".as_ptr(), 11);
+        let changedtick_di = tv_dict_find((*buf).b_vars(), c"changedtick".as_ptr(), 11);
         debug_assert!(!changedtick_di.is_null());
         debug_assert!((*changedtick_di).di_tv.v_type == VarType::VAR_NUMBER);
         debug_assert!((*changedtick_di).di_tv.v_lock == VAR_FIXED);
@@ -5089,10 +5091,10 @@ pub unsafe fn buf_set_changedtick(buf: *mut buf_T, changedtick: varnumber_T) {
 
         (*buf).changedtick_di.di_tv.vval = crate::eval::typval::TypvalVval::Number(changedtick);
 
-        if tv_dict_is_watched((*buf).b_vars) {
+        if tv_dict_is_watched((*buf).b_vars()) {
             (*buf).b_locked += 1;
             tv_dict_watcher_notify(
-                (*buf).b_vars,
+                (*buf).b_vars(),
                 (*buf).changedtick_di.di_key.as_ptr(),
                 &raw mut (*buf).changedtick_di.di_tv,
                 &raw const old_val as *mut _,

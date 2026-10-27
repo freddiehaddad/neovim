@@ -1845,7 +1845,7 @@ unsafe fn buf_set_term_title(buf: *mut buf_T, title: *const c_char, len: usize) 
         let mut err = Error::new();
         (*buf).b_locked += 1;
         dict_set_var(
-            (*buf).b_vars,
+            (*buf).b_vars(),
             cstr_slice_as_string(b"term_title\0"),
             string_obj(NvimString {
                 data: title.cast_mut(),
@@ -2727,7 +2727,7 @@ unsafe fn get_config_string(buf: *mut buf_T, key: *mut c_char) -> *mut c_char {
             data: key,
             size: CStr::from_ptr(key).to_bytes().len(),
         };
-        let mut obj = dict_get_value((*buf).b_vars, key_str, ptr::null_mut(), &mut err);
+        let mut obj = dict_get_value((*buf).b_vars(), key_str, ptr::null_mut(), &mut err);
         api_clear_error(&mut err);
         if obj.obj_type == ObjectType::kObjectTypeNil {
             obj = dict_get_value(get_globvar_dict(), key_str, ptr::null_mut(), &mut err);

@@ -947,7 +947,7 @@ pub unsafe fn ctx_restore(cs: *mut CtxSwitch) {
                 (*curbuf).b_prompt_insert = (*cs).cs_prompt_insert;
             }
 
-            vars_clear(&raw mut (*(*cwp).w_vars).dv_hashtab);
+            vars_clear(&raw mut (*(*cwp).w_vars()).dv_hashtab);
 
             ctx_localdirs_restore(cs, cwp, curtab, ((*cs).cs_flags & kCtxKeepDirs) == 0);
 

@@ -364,19 +364,19 @@ unsafe fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut dict_T {
             b"b" => {
                 let buf = find_buffer_by_handle(handle, &raw mut err);
                 if !buf.is_null() {
-                    dict = (*buf).b_vars;
+                    dict = (*buf).b_vars();
                 }
             }
             b"w" => {
                 let win = find_window_by_handle(handle, &raw mut err);
                 if !win.is_null() {
-                    dict = (*win).w_vars;
+                    dict = (*win).w_vars();
                 }
             }
             b"t" => {
                 let tabpage = find_tab_by_handle(handle, &raw mut err);
                 if !tabpage.is_null() {
-                    dict = (*tabpage).tp_vars;
+                    dict = (*tabpage).tp_vars();
                 }
             }
             _ => {

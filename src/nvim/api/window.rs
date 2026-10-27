@@ -258,7 +258,7 @@ pub unsafe extern "C" fn nvim_win_get_var(
         if w.is_null() {
             return OBJECT_NIL;
         }
-        dict_get_value((*w).w_vars, name, arena, err)
+        dict_get_value((*w).w_vars(), name, arena, err)
     }
 }
 
@@ -282,7 +282,7 @@ pub unsafe extern "C" fn nvim_win_set_var(
         if w.is_null() {
             return;
         }
-        dict_set_var((*w).w_vars, name, value, false, false, ptr::null_mut(), err);
+        dict_set_var((*w).w_vars(), name, value, false, false, ptr::null_mut(), err);
     }
 }
 
@@ -301,7 +301,7 @@ pub unsafe extern "C" fn nvim_win_del_var(win: Window, name: NvimString, err: *m
             return;
         }
         dict_set_var(
-            (*w).w_vars,
+            (*w).w_vars(),
             name,
             OBJECT_NIL,
             true,

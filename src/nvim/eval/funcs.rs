@@ -4886,7 +4886,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                 (*buf).b_locked += 1;
                 let cp = chan;
                 dict_set_var(
-                    (*buf).b_vars,
+                    (*buf).b_vars(),
                     cstr_as_string(c"terminal_job_id".as_ptr()),
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
@@ -4899,7 +4899,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
                 );
                 api_clear_error(&raw mut err);
                 dict_set_var(
-                    (*buf).b_vars,
+                    (*buf).b_vars(),
                     cstr_as_string(c"terminal_job_pid".as_ptr()),
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,

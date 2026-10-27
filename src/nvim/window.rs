@@ -563,7 +563,6 @@ pub struct win_T {
     pub w_briopt_vcol: c_int,
     pub w_scbind_pos: c_int,
     pub w_winvar: crate::eval::typval::ScopeDictDictItem,
-    pub w_vars: *mut dict_T,
     pub w_pcmark: pos_T,
     pub w_prev_pcmark: pos_T,
     pub w_jumplist: [crate::mark::xfmark_T; 100],
@@ -763,7 +762,6 @@ impl win_T {
             w_briopt_vcol: 0,
             w_scbind_pos: 1,
             w_winvar: crate::eval::typval::ScopeDictDictItem::new(),
-            w_vars: ptr::null_mut(),
             w_pcmark: ZERO_POS,
             w_prev_pcmark: ZERO_POS,
             w_jumplist: [const { crate::mark::xfmark_T::ZERO }; 100],
@@ -806,6 +804,11 @@ impl win_T {
             unsafe { &raw mut (*self.w_buffer).b_s }
         }
     }
+
+    #[inline]
+    pub const fn w_vars(&self) -> *mut dict_T {
+        self.w_winvar.di_tv.vval.v_dict()
+    }
 }
 
 pub type StcClick = Vec<crate::mouse::StlClickDefinition>;
@@ -839,7 +842,6 @@ pub struct tabpage_T {
     pub tp_diff_update: c_int,
     pub tp_snapshot: [Option<Box<SnapshotFrame>>; 3],
     pub tp_winvar: crate::eval::typval::ScopeDictDictItem,
-    pub tp_vars: *mut dict_T,
     pub tp_localdir: Option<std::ffi::CString>,
     pub tp_prevdir: Option<std::ffi::CString>,
 }
@@ -864,10 +866,14 @@ impl tabpage_T {
             tp_diff_update: 0,
             tp_snapshot: [None, None, None],
             tp_winvar: crate::eval::typval::ScopeDictDictItem::new(),
-            tp_vars: ptr::null_mut(),
             tp_localdir: None,
             tp_prevdir: None,
         }
+    }
+
+    #[inline]
+    pub const fn tp_vars(&self) -> *mut dict_T {
+        self.tp_winvar.di_tv.vval.v_dict()
     }
 }
 
@@ -5102,8 +5108,7 @@ unsafe fn alloc_tabpage() -> *mut tabpage_T {
         let map_ptr = &raw mut tabpage_handles;
         (*map_ptr).insert((*tp).handle, tp);
 
-        (*tp).tp_vars = tv_dict_alloc();
-        init_var_dict((*tp).tp_vars, (&raw mut (*tp).tp_winvar).cast(), VAR_SCOPE);
+        init_var_dict(tv_dict_alloc(), (&raw mut (*tp).tp_winvar).cast(), VAR_SCOPE);
         (*tp).tp_ch_used = p_ch;
 
         tp
@@ -5119,9 +5124,9 @@ impl Drop for tabpage_T {
             for idx in 0..SNAP_COUNT {
                 clear_snapshot(self, idx as c_int);
             }
-            if !self.tp_vars.is_null() {
-                vars_clear(&raw mut (*self.tp_vars).dv_hashtab);
-                unref_var_dict(self.tp_vars);
+            if !self.tp_vars().is_null() {
+                vars_clear(&raw mut (*self.tp_vars()).dv_hashtab);
+                unref_var_dict(self.tp_vars());
             }
             if ptr::eq(self, lastused_tabpage) {
                 lastused_tabpage = ptr::null_mut();
@@ -6218,9 +6223,8 @@ pub unsafe fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
 
         grid_assign_handle(&raw mut (*new_wp).w_grid_alloc);
 
-        (*new_wp).w_vars = tv_dict_alloc();
         init_var_dict(
-            (*new_wp).w_vars,
+            tv_dict_alloc(),
             (&raw mut (*new_wp).w_winvar).cast(),
             VAR_SCOPE,
         );
@@ -6276,8 +6280,8 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         (*wp).w_p_lcs_chars.multispace = Vec::new();
         (*wp).w_p_lcs_chars.leadmultispace = Vec::new();
 
-        vars_clear(&raw mut (*(*wp).w_vars).dv_hashtab);
-        unref_var_dict((*wp).w_vars);
+        vars_clear(&raw mut (*(*wp).w_vars()).dv_hashtab);
+        unref_var_dict((*wp).w_vars());
 
         if ptr::eq(prevwin, wp) {
             prevwin = ptr::null_mut();

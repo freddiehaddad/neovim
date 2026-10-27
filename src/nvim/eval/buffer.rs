@@ -790,7 +790,7 @@ unsafe fn get_buffer_info(buf: *mut buf_T) -> *mut dict_T {
             varnumber_T::from(bt_cmdwin(buf)),
         );
 
-        tv_dict_add_dict(dict, c"variables".as_ptr(), 9, (*buf).b_vars);
+        tv_dict_add_dict(dict, c"variables".as_ptr(), 9, (*buf).b_vars());
 
         let windows = tv_list_alloc(kListLenMayKnow);
         let mut tp = first_tabpage;
