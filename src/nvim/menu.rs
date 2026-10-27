@@ -1013,7 +1013,7 @@ unsafe fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_
 
 /// Work out what to complete when doing command line completion of menu names (`set_context_in_menu_cmd`).
 pub unsafe fn set_context_in_menu_cmd(
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     cmd: *const c_char,
     mut arg: *mut c_char,
     forceit: bool,
@@ -1022,7 +1022,7 @@ pub unsafe fn set_context_in_menu_cmd(
         let mut path_name: *mut c_char = ptr::null_mut();
         let mut unmenu = false;
 
-        (*xp).xp_context = EXPAND_UNSUCCESSFUL;
+        xp.xp_context = EXPAND_UNSUCCESSFUL;
 
         let mut p = arg;
         while *p != NUL {
@@ -1104,22 +1104,22 @@ pub unsafe fn set_context_in_menu_cmd(
                 menu_list = &raw const (*found).children;
             }
 
-            (*xp).xp_context = if expand_menus {
+            xp.xp_context = if expand_menus {
                 EXPAND_MENUNAMES
             } else {
                 EXPAND_MENUS
             };
-            (*xp).xp_pattern = after_dot;
+            xp.xp_pattern = after_dot;
             menu_st().EXPAND_MENU = menu_list;
         } else {
-            (*xp).xp_context = EXPAND_NOTHING;
+            xp.xp_context = EXPAND_NOTHING;
         }
         ptr::null_mut()
     }
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of (sub)menus (not entries) (`get_menu_name`).
-pub unsafe fn get_menu_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_menu_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
             menu_st().GET_MENU_NAME_IDX = 0;
@@ -1173,7 +1173,7 @@ pub unsafe fn get_menu_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of menus and menu entries (`get_menu_names`).
-pub unsafe fn get_menu_names(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_menu_names(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
             menu_st().GET_MENU_NAMES_IDX = 0;

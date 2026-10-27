@@ -2509,10 +2509,10 @@ pub unsafe fn highlight_changed() {
     }
 }
 
-pub unsafe fn set_context_in_highlight_cmd(xp: *mut expand_T, mut arg: *const c_char) {
+pub unsafe fn set_context_in_highlight_cmd(xp: &mut expand_T, mut arg: *const c_char) {
     unsafe {
-        (*xp).xp_context = EXPAND_HIGHLIGHT;
-        (*xp).xp_pattern = arg.cast_mut();
+        xp.xp_context = EXPAND_HIGHLIGHT;
+        xp.xp_pattern = arg.cast_mut();
         g_st().include_link = 2;
         g_st().include_default = 1;
 
@@ -2528,7 +2528,7 @@ pub unsafe fn set_context_in_highlight_cmd(xp: *mut expand_T, mut arg: *const c_
         g_st().include_default = 0;
         if { let _p1 = c"default".as_ptr(); let _p2 = arg; let _n = p as usize - arg as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
             arg = skipwhite(p);
-            (*xp).xp_pattern = arg.cast_mut();
+            xp.xp_pattern = arg.cast_mut();
             p = skiptowhite(arg);
         }
         if *p == NUL {
@@ -2541,15 +2541,15 @@ pub unsafe fn set_context_in_highlight_cmd(xp: *mut expand_T, mut arg: *const c_
         }
         let len = p as usize - arg as usize;
         if { let _p1 = c"link".as_ptr(); let _p2 = arg; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } || { let _p1 = c"clear".as_ptr(); let _p2 = arg; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
-            (*xp).xp_pattern = skipwhite(p);
-            p = skiptowhite((*xp).xp_pattern);
+            xp.xp_pattern = skipwhite(p);
+            p = skiptowhite(xp.xp_pattern);
             if *p != NUL {
-                (*xp).xp_pattern = skipwhite(p);
-                p = skiptowhite((*xp).xp_pattern);
+                xp.xp_pattern = skipwhite(p);
+                p = skiptowhite(xp.xp_pattern);
             }
         }
         if *p != NUL {
-            (*xp).xp_context = EXPAND_NOTHING;
+            xp.xp_context = EXPAND_NOTHING;
         }
     }
 }
@@ -2579,12 +2579,12 @@ unsafe fn highlight_list_two(cnt: c_int, id: c_int) {
     }
 }
 
-pub unsafe fn get_highlight_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_highlight_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe { get_highlight_name_ext(xp, idx, true).cast_mut() }
 }
 
 pub unsafe fn get_highlight_name_ext(
-    _xp: *mut expand_T,
+    _xp: &mut expand_T,
     idx: c_int,
     skip_cleared: bool,
 ) -> *const c_char {

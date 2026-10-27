@@ -824,7 +824,7 @@ pub unsafe fn free_locales() {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the possible arguments of `":language"`.
-pub unsafe fn get_lang_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_lang_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     match idx {
         0 => c"messages".as_ptr().cast_mut(),
         1 => c"ctype".as_ptr().cast_mut(),
@@ -835,7 +835,7 @@ pub unsafe fn get_lang_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the available locales.
-pub unsafe fn get_locales(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_locales(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 {
         return ptr::null_mut();
     }
@@ -874,11 +874,11 @@ mod tests {
             assert!(is_valid_mess_lang(c"en_US.UTF-8".as_ptr()));
 
             assert_eq!(
-                CStr::from_ptr(get_lang_arg(ptr::null_mut(), 0)).to_bytes(),
+                CStr::from_ptr(get_lang_arg(&mut crate::os::env::expand_T::new(), 0)).to_bytes(),
                 b"messages"
             );
             assert_eq!(
-                CStr::from_ptr(get_lang_arg(ptr::null_mut(), 3)).to_bytes(),
+                CStr::from_ptr(get_lang_arg(&mut crate::os::env::expand_T::new(), 3)).to_bytes(),
                 b"collate"
             );
 

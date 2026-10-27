@@ -129,9 +129,7 @@ impl Default for expand_T {
 
 impl Drop for expand_T {
     fn drop(&mut self) {
-        unsafe {
-            crate::cmdexpand::ExpandCleanup(self);
-        }
+        crate::cmdexpand::ExpandCleanup(self);
     }
 }
 
@@ -1183,12 +1181,12 @@ pub unsafe fn home_replace_save(buf: *mut buf_T, src: *const c_char) -> std::ffi
 }
 
 /// Function given to `ExpandGeneric()` to obtain an environment variable name.
-pub unsafe fn get_env_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_env_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     assert!(idx >= 0);
     unsafe {
         if let Some(envname) = os_getenvname_at_index(idx as usize) {
-            xstrlcpy((*xp).xp_buf.as_mut_ptr(), envname.as_ptr(), EXPAND_BUF_LEN);
-            return (*xp).xp_buf.as_mut_ptr();
+            xstrlcpy(xp.xp_buf.as_mut_ptr(), envname.as_ptr(), EXPAND_BUF_LEN);
+            return xp.xp_buf.as_mut_ptr();
         }
         ptr::null_mut()
     }

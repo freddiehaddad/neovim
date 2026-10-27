@@ -2609,7 +2609,7 @@ pub unsafe fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> c_int 
             }
 
             if (**curwin.as_ptr()).w_onebuf_opt.wo_wrap != 0 {
-                nv_screengo(&raw mut oa, dir, curscount, true);
+                nv_screengo(&mut oa, dir, curscount, true);
             } else if dir == FORWARD {
                 cursor_down_inner(*curwin.as_ptr(), curscount, true);
             } else {

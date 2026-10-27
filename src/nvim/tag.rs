@@ -3040,7 +3040,7 @@ unsafe fn expand_tag_fname(
         {
             xpc.xp_context = EXPAND_FILES;
             if let Some(exp) = ExpandOne(
-                &raw mut xpc,
+                &mut xpc,
                 fname.as_ptr().cast_mut(),
                 None,
                 WILD_LIST_NOTFOUND | WILD_SILENT,

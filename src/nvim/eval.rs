@@ -1941,7 +1941,7 @@ impl Drop for forinfo_T {
 }
 
 pub unsafe fn set_context_for_expression(
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     mut arg: *mut c_char,
     cmdidx: cmdidx_T,
 ) {
@@ -1949,11 +1949,11 @@ pub unsafe fn set_context_for_expression(
         let mut got_eq = false;
 
         if cmdidx == cmdidx_T::CMD_let || cmdidx == cmdidx_T::CMD_const {
-            (*xp).xp_context = EXPAND_USER_VARS;
+            xp.xp_context = EXPAND_USER_VARS;
             if !CStr::from_ptr(arg).to_bytes().iter().any(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b)) {
                 let mut p = arg.add(std::ffi::CStr::from_ptr(arg).to_bytes().len());
                 while (p as usize) >= (arg as usize) {
-                    (*xp).xp_pattern = p;
+                    xp.xp_pattern = p;
                     p = p.offset(-((utf_head_off(arg, p.sub(1)) + 1) as isize));
                     if (p as usize) >= (arg as usize) && ascii_iswhite(*p) {
                         break;
@@ -1962,81 +1962,81 @@ pub unsafe fn set_context_for_expression(
                 return;
             }
         } else {
-            (*xp).xp_context = if cmdidx == cmdidx_T::CMD_call {
+            xp.xp_context = if cmdidx == cmdidx_T::CMD_call {
                 EXPAND_FUNCTIONS
             } else {
                 EXPAND_EXPRESSION
             };
         }
         while {
-            (*xp).xp_pattern = CStr::from_ptr(arg).to_bytes().iter().position(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b)).map_or(ptr::null_mut(), |i| arg.add(i));
-            !(*xp).xp_pattern.is_null()
+            xp.xp_pattern = CStr::from_ptr(arg).to_bytes().iter().position(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b)).map_or(ptr::null_mut(), |i| arg.add(i));
+            !xp.xp_pattern.is_null()
         } {
-            let mut c = c_int::from(*(*xp).xp_pattern as u8);
+            let mut c = c_int::from(*xp.xp_pattern as u8);
             if c == b'&' as c_int {
-                c = c_int::from(*(*xp).xp_pattern.add(1) as u8);
+                c = c_int::from(*xp.xp_pattern.add(1) as u8);
                 if c == b'&' as c_int {
-                    (*xp).xp_pattern = (*xp).xp_pattern.add(1);
-                    (*xp).xp_context = if cmdidx != cmdidx_T::CMD_let || got_eq {
+                    xp.xp_pattern = xp.xp_pattern.add(1);
+                    xp.xp_context = if cmdidx != cmdidx_T::CMD_let || got_eq {
                         EXPAND_EXPRESSION
                     } else {
                         EXPAND_NOTHING
                     };
                 } else if c != b' ' as c_int {
-                    (*xp).xp_context = EXPAND_SETTINGS;
+                    xp.xp_context = EXPAND_SETTINGS;
                     if (c == b'l' as c_int || c == b'g' as c_int)
-                        && *(*xp).xp_pattern.add(2) == b':' as c_char
+                        && *xp.xp_pattern.add(2) == b':' as c_char
                     {
-                        (*xp).xp_pattern = (*xp).xp_pattern.add(2);
+                        xp.xp_pattern = xp.xp_pattern.add(2);
                     }
                 }
             } else if c == b'$' as c_int {
-                (*xp).xp_context = EXPAND_ENV_VARS;
+                xp.xp_context = EXPAND_ENV_VARS;
             } else if c == b'=' as c_int {
                 got_eq = true;
-                (*xp).xp_context = EXPAND_EXPRESSION;
-            } else if (c == b'#' as c_int && (*xp).xp_context == EXPAND_EXPRESSION)
+                xp.xp_context = EXPAND_EXPRESSION;
+            } else if (c == b'#' as c_int && xp.xp_context == EXPAND_EXPRESSION)
                 || ((c == b'<' as c_int || c == b'#' as c_int)
-                    && (*xp).xp_context == EXPAND_FUNCTIONS
-                    && vim_strchr((*xp).xp_pattern, b'(' as c_int).is_null())
+                    && xp.xp_context == EXPAND_FUNCTIONS
+                    && vim_strchr(xp.xp_pattern, b'(' as c_int).is_null())
             {
                 break;
             } else if cmdidx != cmdidx_T::CMD_let || got_eq {
                 if c == b'"' as c_int {
                     loop {
-                        (*xp).xp_pattern = (*xp).xp_pattern.add(1);
-                        c = c_int::from(*(*xp).xp_pattern as u8);
+                        xp.xp_pattern = xp.xp_pattern.add(1);
+                        c = c_int::from(*xp.xp_pattern as u8);
                         if c == NUL as c_int || c == b'"' as c_int {
                             break;
                         }
-                        if c == b'\\' as c_int && *(*xp).xp_pattern.add(1) != NUL {
-                            (*xp).xp_pattern = (*xp).xp_pattern.add(1);
+                        if c == b'\\' as c_int && *xp.xp_pattern.add(1) != NUL {
+                            xp.xp_pattern = xp.xp_pattern.add(1);
                         }
                     }
-                    (*xp).xp_context = EXPAND_NOTHING;
+                    xp.xp_context = EXPAND_NOTHING;
                 } else if c == b'\'' as c_int {
                     loop {
-                        (*xp).xp_pattern = (*xp).xp_pattern.add(1);
-                        c = c_int::from(*(*xp).xp_pattern as u8);
+                        xp.xp_pattern = xp.xp_pattern.add(1);
+                        c = c_int::from(*xp.xp_pattern as u8);
                         if c == NUL as c_int || c == b'\'' as c_int {
                             break;
                         }
                     }
-                    (*xp).xp_context = EXPAND_NOTHING;
+                    xp.xp_context = EXPAND_NOTHING;
                 } else if c == b'|' as c_int {
-                    if *(*xp).xp_pattern.add(1) == b'|' as c_char {
-                        (*xp).xp_pattern = (*xp).xp_pattern.add(1);
-                        (*xp).xp_context = EXPAND_EXPRESSION;
+                    if *xp.xp_pattern.add(1) == b'|' as c_char {
+                        xp.xp_pattern = xp.xp_pattern.add(1);
+                        xp.xp_context = EXPAND_EXPRESSION;
                     } else {
-                        (*xp).xp_context = EXPAND_COMMANDS;
+                        xp.xp_context = EXPAND_COMMANDS;
                     }
                 } else {
-                    (*xp).xp_context = EXPAND_EXPRESSION;
+                    xp.xp_context = EXPAND_EXPRESSION;
                 }
             } else {
-                (*xp).xp_context = EXPAND_EXPRESSION;
+                xp.xp_context = EXPAND_EXPRESSION;
             }
-            arg = (*xp).xp_pattern;
+            arg = xp.xp_pattern;
             if *arg != NUL {
                 loop {
                     arg = arg.add(1);
@@ -2048,7 +2048,7 @@ pub unsafe fn set_context_for_expression(
             }
         }
 
-        if cmd_has_expr_args(cmdidx) && (*xp).xp_context == EXPAND_EXPRESSION {
+        if cmd_has_expr_args(cmdidx) && xp.xp_context == EXPAND_EXPRESSION {
             loop {
                 let n = skiptowhite(arg);
                 if n == arg || ascii_iswhite_or_nul(*skipwhite(n)) {
@@ -2058,7 +2058,7 @@ pub unsafe fn set_context_for_expression(
             }
         }
 
-        (*xp).xp_pattern = arg;
+        xp.xp_pattern = arg;
     }
 }
 

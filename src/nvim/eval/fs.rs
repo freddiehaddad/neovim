@@ -1108,7 +1108,7 @@ pub unsafe fn f_glob(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFu
             }
             if rettv.v_type == VarType::VAR_STRING {
                 if let Some(exp) = ExpandOne(
-                    &raw mut xpc,
+                    &mut xpc,
                     tv_get_string(argvars).cast_mut(),
                     None,
                     options,
@@ -1120,7 +1120,7 @@ pub unsafe fn f_glob(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFu
                 }
             } else {
                 ExpandOne(
-                    &raw mut xpc,
+                    &mut xpc,
                     tv_get_string(argvars).cast_mut(),
                     None,
                     options,

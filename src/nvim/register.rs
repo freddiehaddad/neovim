@@ -1138,18 +1138,18 @@ unsafe fn yank_copy_line(
     }
 }
 
-pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankreg_T, append: bool) {
+pub unsafe fn op_yank_reg(oap: &mut oparg_T, message: bool, mut reg: *mut yankreg_T, append: bool) {
     unsafe {
         let mut newreg = EMPTY_YANKREG;
-        let orig_motion = match (*oap).motion_type {
+        let orig_motion = match oap.motion_type {
             0 => MotionType::kMTCharWise,
             1 => MotionType::kMTLineWise,
             2 => MotionType::kMTBlockWise,
             _ => MotionType::kMTUnknown,
         };
         let mut yank_type = orig_motion;
-        let mut yanklines = (*oap).line_count as usize;
-        let mut yankendlnum = (*oap).end.lnum;
+        let mut yanklines = oap.line_count as usize;
+        let mut yankendlnum = oap.end.lnum;
         let mut bd = block_def::default();
 
         let curr = reg;
@@ -1160,10 +1160,10 @@ pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankre
         }
 
         if orig_motion == MotionType::kMTCharWise
-            && (*oap).start.col == 0
-            && !(*oap).inclusive
-            && (!(*oap).is_VIsual || *opt_vars().p_sel == b'o' as c_char)
-            && (*oap).end.col == 0
+            && oap.start.col == 0
+            && !oap.inclusive
+            && (!oap.is_VIsual || *opt_vars().p_sel == b'o' as c_char)
+            && oap.end.col == 0
             && yanklines > 1
         {
             yank_type = MotionType::kMTLineWise;
@@ -1185,10 +1185,10 @@ pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankre
         (*reg).timestamp = os_realtime() as u64;
 
         let mut y_idx: usize = 0;
-        let mut lnum = (*oap).start.lnum;
+        let mut lnum = oap.start.lnum;
 
         if yank_type == MotionType::kMTBlockWise {
-            (*reg).y_width = (*oap).end_vcol - (*oap).start_vcol;
+            (*reg).y_width = oap.end_vcol - oap.start_vcol;
             if (**curwin.as_ptr()).w_curswant == MAXCOL && (*reg).y_width > 0 {
                 (*reg).y_width -= 1;
             }
@@ -1198,7 +1198,7 @@ pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankre
             match (*reg).y_type {
                 MotionType::kMTBlockWise => {
                     block_prep(oap, &raw mut bd, lnum, false);
-                    yank_copy_line(reg, &raw mut bd, y_idx, (*oap).excl_tr_ws);
+                    yank_copy_line(reg, &raw mut bd, y_idx, oap.excl_tr_ws);
                 }
                 MotionType::kMTLineWise => {
                     (&mut *reg).y_array[y_idx] =
@@ -1206,11 +1206,11 @@ pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankre
                 }
                 MotionType::kMTCharWise => {
                     charwise_block_prep(
-                        (*oap).start,
-                        (*oap).end,
+                        oap.start,
+                        oap.end,
                         &raw mut bd,
                         lnum,
-                        (*oap).inclusive,
+                        oap.inclusive,
                     );
                     let tmp = CStr::from_ptr(bd.textstart).to_bytes().len() as c_int;
                     if tmp < bd.textlen {
@@ -1266,14 +1266,14 @@ pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankre
             }
             if yanklines > opt_vars().p_report as usize {
                 let mut namebuf = [0 as c_char; 100];
-                if (*oap).regname == 0 {
+                if oap.regname == 0 {
                     namebuf[0] = NUL;
                 } else {
                     vim_snprintf!(
                         namebuf.as_mut_ptr(),
                         namebuf.len(),
                         gettext(c" into \"%c".as_ptr()),
-                        (*oap).regname,
+                        oap.regname,
                     );
                 }
 
@@ -1326,13 +1326,13 @@ pub unsafe fn op_yank_reg(oap: *mut oparg_T, message: bool, mut reg: *mut yankre
         }
 
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-            (*g_st().curbuf).b_op_start = (*oap).start;
-            (*g_st().curbuf).b_op_end = (*oap).end;
+            (*g_st().curbuf).b_op_start = oap.start;
+            (*g_st().curbuf).b_op_end = oap.end;
             if yank_type == MotionType::kMTLineWise {
                 (*g_st().curbuf).b_op_start.col = 0;
                 (*g_st().curbuf).b_op_end.col = MAXCOL;
             }
-            if yank_type == MotionType::kMTCharWise && !(*oap).inclusive {
+            if yank_type == MotionType::kMTCharWise && !oap.inclusive {
                 decl(&raw mut (*g_st().curbuf).b_op_end);
             }
         }
@@ -1390,7 +1390,7 @@ unsafe fn add_regtype_to_dict(
     }
 }
 
-pub unsafe fn do_autocmd_textyankpost(oap: *mut oparg_T, reg: *mut yankreg_T) {
+pub unsafe fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: *mut yankreg_T) {
     unsafe {
         if reg_st().textyankpost_recursive || !has_event(EVENT_TEXTYANKPOST) {
             return;
@@ -1412,7 +1412,7 @@ pub unsafe fn do_autocmd_textyankpost(oap: *mut oparg_T, reg: *mut yankreg_T) {
         let mut buf = [0 as c_char; NUMBUFLEN + 2];
         add_regtype_to_dict(reg, dict, buf.as_mut_ptr(), buf.len());
 
-        buf[0] = (*oap).regname as u8 as c_char;
+        buf[0] = oap.regname as u8 as c_char;
         buf[1] = NUL;
         tv_dict_add_str(dict, c"regname".as_ptr(), 7, buf.as_ptr());
 
@@ -1420,14 +1420,14 @@ pub unsafe fn do_autocmd_textyankpost(oap: *mut oparg_T, reg: *mut yankreg_T) {
             dict,
             c"inclusive".as_ptr(),
             9,
-            if (*oap).inclusive {
+            if oap.inclusive {
                 kBoolVarTrue
             } else {
                 kBoolVarFalse
             },
         );
 
-        buf[0] = get_op_char((*oap).op_type) as u8 as c_char;
+        buf[0] = get_op_char(oap.op_type) as u8 as c_char;
         buf[1] = NUL;
         tv_dict_add_str(dict, c"operator".as_ptr(), 8, buf.as_ptr());
 
@@ -1435,7 +1435,7 @@ pub unsafe fn do_autocmd_textyankpost(oap: *mut oparg_T, reg: *mut yankreg_T) {
             dict,
             c"visual".as_ptr(),
             6,
-            if (*oap).is_VIsual {
+            if oap.is_VIsual {
                 kBoolVarTrue
             } else {
                 kBoolVarFalse
@@ -1550,19 +1550,19 @@ unsafe fn put_do_autocmd(
     }
 }
 
-pub unsafe fn op_yank(oap: *mut oparg_T, message: bool) -> bool {
+pub unsafe fn op_yank(oap: &mut oparg_T, message: bool) -> bool {
     unsafe {
-        if (*oap).regname != 0 && !valid_yank_reg((*oap).regname, true) {
+        if oap.regname != 0 && !valid_yank_reg(oap.regname, true) {
             beep_flush();
             return false;
         }
-        if (*oap).regname == c_int::from(b'_') {
+        if oap.regname == c_int::from(b'_') {
             return true;
         }
 
-        let reg = get_yank_register((*oap).regname, YREG_YANK);
-        op_yank_reg(oap, message, reg, is_append_register((*oap).regname));
-        set_clipboard((*oap).regname, reg);
+        let reg = get_yank_register(oap.regname, YREG_YANK);
+        op_yank_reg(oap, message, reg, is_append_register(oap.regname));
+        set_clipboard(oap.regname, reg);
         do_autocmd_textyankpost(oap, reg);
         true
     }

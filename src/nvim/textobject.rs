@@ -604,7 +604,7 @@ unsafe fn findsent_forward(mut count: c_int, mut at_start_sent: bool) {
 
 /// Find word under cursor, cursor at end (`current_word`).
 pub unsafe fn current_word(
-    oap: *mut oparg_T,
+    oap: &mut oparg_T,
     mut count: c_int,
     include: bool,
     bigword: bool,
@@ -650,8 +650,8 @@ pub unsafe fn current_word(
                 g_st().Visual.start = start_pos;
                 redraw_curbuf_later(UPD_INVERTED);
             } else {
-                (*oap).start = start_pos;
-                (*oap).motion_type = kMTCharWise;
+                oap.start = start_pos;
+                oap.motion_type = kMTCharWise;
             }
             count -= 1;
         }
@@ -699,7 +699,7 @@ pub unsafe fn current_word(
                     if g_st().Visual.active {
                         g_st().Visual.start = (**curwin.as_ptr()).w_cursor;
                     } else {
-                        (*oap).start = (**curwin.as_ptr()).w_cursor;
+                        oap.start = (**curwin.as_ptr()).w_cursor;
                     }
                 }
             }
@@ -715,7 +715,7 @@ pub unsafe fn current_word(
                 g_st().redraw_cmdline = true;
             }
         } else {
-            (*oap).inclusive = inclusive;
+            oap.inclusive = inclusive;
         }
 
         OK
@@ -723,7 +723,7 @@ pub unsafe fn current_word(
 }
 
 /// Find the current line ("il") or all lines ("al") (`current_line`).
-pub unsafe fn current_line(oap: *mut oparg_T, include: bool) -> c_int {
+pub unsafe fn current_line(oap: &mut oparg_T, include: bool) -> c_int {
     unsafe {
         if include {
             if g_st().Visual.active {
@@ -734,12 +734,12 @@ pub unsafe fn current_line(oap: *mut oparg_T, include: bool) -> c_int {
                 redraw_curbuf_later(UPD_INVERTED);
                 showmode();
             } else {
-                (*oap).cursor_start = (**curwin.as_ptr()).w_cursor;
-                (*oap).restore_cursor = true;
-                (*oap).start.lnum = 1;
-                (*oap).start.col = 0;
-                (*oap).start.coladd = 0;
-                (*oap).motion_type = kMTLineWise;
+                oap.cursor_start = (**curwin.as_ptr()).w_cursor;
+                oap.restore_cursor = true;
+                oap.start.lnum = 1;
+                oap.start.col = 0;
+                oap.start.coladd = 0;
+                oap.motion_type = kMTLineWise;
             }
             (**curwin.as_ptr()).w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
             (**curwin.as_ptr()).w_cursor.col = 0;
@@ -779,9 +779,9 @@ pub unsafe fn current_line(oap: *mut oparg_T, include: bool) -> c_int {
             redraw_curbuf_later(UPD_INVERTED);
             showmode();
         } else {
-            (*oap).start = start_pos;
-            (*oap).motion_type = kMTCharWise;
-            (*oap).inclusive = true;
+            oap.start = start_pos;
+            oap.motion_type = kMTCharWise;
+            oap.inclusive = true;
             (**curwin.as_ptr()).w_cursor = end_pos;
         }
 
@@ -790,7 +790,7 @@ pub unsafe fn current_line(oap: *mut oparg_T, include: bool) -> c_int {
 }
 
 /// Find sentence(s) under the cursor, cursor at end (`current_sent`).
-pub unsafe fn current_sent(oap: *mut oparg_T, mut count: c_int, include: bool) -> c_int {
+pub unsafe fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -> c_int {
     unsafe {
         let mut start_pos = (**curwin.as_ptr()).w_cursor;
         let mut pos = start_pos;
@@ -849,9 +849,9 @@ pub unsafe fn current_sent(oap: *mut oparg_T, mut count: c_int, include: bool) -
                     return OK;
                 }
             } else {
-                (*oap).inclusive = incl(&raw mut (**curwin.as_ptr()).w_cursor) == -1;
-                (*oap).start = start_pos;
-                (*oap).motion_type = kMTCharWise;
+                oap.inclusive = incl(&raw mut (**curwin.as_ptr()).w_cursor) == -1;
+                oap.start = start_pos;
+                oap.motion_type = kMTCharWise;
                 return OK;
             }
             let _ = &mut ncount;
@@ -928,7 +928,7 @@ pub unsafe fn current_sent(oap: *mut oparg_T, mut count: c_int, include: bool) -
 
 /// Find block under the cursor, cursor at end (`current_block`).
 pub unsafe fn current_block(
-    oap: *mut oparg_T,
+    oap: &mut oparg_T,
     mut count: c_int,
     include: bool,
     what: c_int,
@@ -1067,13 +1067,13 @@ pub unsafe fn current_block(
             redraw_curbuf_later(UPD_INVERTED);
             showmode();
         } else {
-            (*oap).start = start_pos;
-            (*oap).motion_type = kMTCharWise;
-            (*oap).inclusive = false;
+            oap.start = start_pos;
+            oap.motion_type = kMTCharWise;
+            oap.inclusive = false;
             if sol {
                 incl(&raw mut (**curwin.as_ptr()).w_cursor);
             } else if ltoreq(start_pos, (**curwin.as_ptr()).w_cursor) {
-                (*oap).inclusive = true;
+                oap.inclusive = true;
             } else {
                 (**curwin.as_ptr()).w_cursor = start_pos;
             }
@@ -1134,7 +1134,7 @@ unsafe fn in_html_tag(end_tag: bool) -> bool {
 }
 
 /// Find tag block under the cursor, cursor at end (`current_tagblock`).
-pub unsafe fn current_tagblock(oap: *mut oparg_T, count_arg: c_int, include: bool) -> c_int {
+pub unsafe fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> c_int {
     unsafe {
         let mut count = count_arg;
         let mut do_include = include;
@@ -1295,13 +1295,13 @@ pub unsafe fn current_tagblock(oap: *mut oparg_T, count_arg: c_int, include: boo
                 redraw_curbuf_later(UPD_INVERTED);
                 showmode();
             } else {
-                (*oap).start = start_pos;
-                (*oap).motion_type = kMTCharWise;
+                oap.start = start_pos;
+                oap.motion_type = kMTCharWise;
                 if lt(end_pos, start_pos) {
                     (**curwin.as_ptr()).w_cursor = start_pos;
-                    (*oap).inclusive = false;
+                    oap.inclusive = false;
                 } else {
-                    (*oap).inclusive = is_inclusive;
+                    oap.inclusive = is_inclusive;
                 }
             }
             retval = OK;
@@ -1314,7 +1314,7 @@ pub unsafe fn current_tagblock(oap: *mut oparg_T, count_arg: c_int, include: boo
 }
 
 /// Find paragraph under the cursor (`current_par`).
-pub unsafe fn current_par(oap: *mut oparg_T, count: c_int, include: bool, type_: c_int) -> c_int {
+pub unsafe fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int) -> c_int {
     unsafe {
         let mut retval = OK;
         let mut do_white = false;
@@ -1403,9 +1403,9 @@ pub unsafe fn current_par(oap: *mut oparg_T, count: c_int, include: bool, type_:
                     return OK;
                 }
             } else {
-                (*oap).start.lnum = start_lnum;
-                (*oap).start.col = 0;
-                (*oap).motion_type = kMTLineWise;
+                oap.start.lnum = start_lnum;
+                oap.start.col = 0;
+                oap.motion_type = kMTLineWise;
                 (**curwin.as_ptr()).w_cursor.lnum = end_lnum;
                 (**curwin.as_ptr()).w_cursor.col = 0;
                 return OK;
@@ -1542,7 +1542,7 @@ unsafe fn find_prev_quote(
 
 /// Find quote under the cursor, cursor at end (`current_quote`).
 pub unsafe fn current_quote(
-    oap: *mut oparg_T,
+    oap: &mut oparg_T,
     count: c_int,
     include: bool,
     quotechar: c_int,
@@ -1722,8 +1722,8 @@ pub unsafe fn current_quote(
                 redraw_curbuf_later(UPD_INVERTED);
             }
         } else {
-            (*oap).start = (**curwin.as_ptr()).w_cursor;
-            (*oap).motion_type = kMTCharWise;
+            oap.start = (**curwin.as_ptr()).w_cursor;
+            oap.motion_type = kMTCharWise;
         }
 
         (**curwin.as_ptr()).w_cursor.col = col_end;
@@ -1753,7 +1753,7 @@ pub unsafe fn current_quote(
                 g_st().redraw_cmdline = true;
             }
         } else {
-            (*oap).inclusive = inclusive;
+            oap.inclusive = inclusive;
         }
 
         true

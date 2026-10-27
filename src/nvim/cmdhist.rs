@@ -153,7 +153,7 @@ pub const fn hist_char2type(c: c_int) -> c_int {
 }
 
 /// Obtain possible first arguments of `:history` for completion (`get_history_arg`).
-pub unsafe fn get_history_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_history_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx >= 0 && (idx as usize) < HISTORY_EXPAND_ARGS.len() {
         HISTORY_EXPAND_ARGS[idx as usize].as_ptr().cast_mut()
     } else {

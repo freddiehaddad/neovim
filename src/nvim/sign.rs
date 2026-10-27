@@ -686,7 +686,7 @@ unsafe fn sign_list_defined(sp: *mut sign_T) {
         for i in 0..4 {
             if hls[i] > 0 {
                 msg_puts(args[i]);
-                let p = get_highlight_name_ext(ptr::null_mut(), hls[i] - 1, false);
+                let p = get_highlight_name_ext(&mut crate::os::env::expand_T::new(), hls[i] - 1, false);
                 msg_puts(if !p.is_null() { p } else { c"NONE".as_ptr() });
             }
         }
@@ -1138,7 +1138,7 @@ unsafe fn sign_get_info_dict(sp: *mut sign_T) -> *mut dict_T {
         ];
         for (name, len, hl) in args {
             if hl > 0 {
-                let p = get_highlight_name_ext(ptr::null_mut(), hl - 1, false);
+                let p = get_highlight_name_ext(&mut crate::os::env::expand_T::new(), hl - 1, false);
                 if p.is_null() {
                     tv_dict_add_str_len(d, name, len, c"NONE".as_ptr(), 4);
                 } else {
@@ -1294,7 +1294,7 @@ unsafe fn get_nth_sign_group_name(idx: c_int) -> *mut c_char {
     }
 }
 
-pub unsafe fn get_sign_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_sign_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         match sign_st().expand_what {
             EXP_SUBCMD => CMDS[idx as usize].cast_mut(),
@@ -1339,11 +1339,11 @@ pub unsafe fn get_sign_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-pub unsafe fn set_context_in_sign_cmd(xp: *mut expand_T, arg: *mut c_char) {
+pub unsafe fn set_context_in_sign_cmd(xp: &mut expand_T, arg: *mut c_char) {
     unsafe {
-        (*xp).xp_context = EXPAND_SIGN;
+        xp.xp_context = EXPAND_SIGN;
         sign_st().expand_what = EXP_SUBCMD;
-        (*xp).xp_pattern = arg;
+        xp.xp_pattern = arg;
 
         let end_subcmd = skiptowhite(arg);
         if *end_subcmd == NUL {
@@ -1366,7 +1366,7 @@ pub unsafe fn set_context_in_sign_cmd(xp: *mut expand_T, arg: *mut c_char) {
 
         p = vim_strchr(last, b'=' as c_int);
         if p.is_null() {
-            (*xp).xp_pattern = last;
+            xp.xp_pattern = last;
             match cmd_idx {
                 SIGNCMD_DEFINE => sign_st().expand_what = EXP_DEFINE,
                 SIGNCMD_PLACE => {
@@ -1378,10 +1378,10 @@ pub unsafe fn set_context_in_sign_cmd(xp: *mut expand_T, arg: *mut c_char) {
                 }
                 SIGNCMD_LIST | SIGNCMD_UNDEFINE => sign_st().expand_what = EXP_SIGN_NAMES,
                 SIGNCMD_JUMP | SIGNCMD_UNPLACE => sign_st().expand_what = EXP_UNPLACE,
-                _ => (*xp).xp_context = EXPAND_NOTHING,
+                _ => xp.xp_context = EXPAND_NOTHING,
             }
         } else {
-            (*xp).xp_pattern = p.add(1);
+            xp.xp_pattern = p.add(1);
             match cmd_idx {
                 SIGNCMD_DEFINE => {
                     if { let _p = last; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"texthl"[..6] }
@@ -1389,11 +1389,11 @@ pub unsafe fn set_context_in_sign_cmd(xp: *mut expand_T, arg: *mut c_char) {
                         || { let _p = last; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"culhl"[..5] }
                         || { let _p = last; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"numhl"[..5] }
                     {
-                        (*xp).xp_context = EXPAND_HIGHLIGHT;
+                        xp.xp_context = EXPAND_HIGHLIGHT;
                     } else if { let _p = last; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"icon"[..4] } {
-                        (*xp).xp_context = EXPAND_FILES;
+                        xp.xp_context = EXPAND_FILES;
                     } else {
-                        (*xp).xp_context = EXPAND_NOTHING;
+                        xp.xp_context = EXPAND_NOTHING;
                     }
                 }
                 SIGNCMD_PLACE => {
@@ -1402,21 +1402,21 @@ pub unsafe fn set_context_in_sign_cmd(xp: *mut expand_T, arg: *mut c_char) {
                     } else if { let _p = last; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"group"[..5] } {
                         sign_st().expand_what = EXP_SIGN_GROUPS;
                     } else if { let _p = last; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"file"[..4] } {
-                        (*xp).xp_context = EXPAND_BUFFERS;
+                        xp.xp_context = EXPAND_BUFFERS;
                     } else {
-                        (*xp).xp_context = EXPAND_NOTHING;
+                        xp.xp_context = EXPAND_NOTHING;
                     }
                 }
                 SIGNCMD_UNPLACE | SIGNCMD_JUMP => {
                     if { let _p = last; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"group"[..5] } {
                         sign_st().expand_what = EXP_SIGN_GROUPS;
                     } else if { let _p = last; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"file"[..4] } {
-                        (*xp).xp_context = EXPAND_BUFFERS;
+                        xp.xp_context = EXPAND_BUFFERS;
                     } else {
-                        (*xp).xp_context = EXPAND_NOTHING;
+                        xp.xp_context = EXPAND_NOTHING;
                     }
                 }
-                _ => (*xp).xp_context = EXPAND_NOTHING,
+                _ => xp.xp_context = EXPAND_NOTHING,
             }
         }
     }

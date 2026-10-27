@@ -1544,28 +1544,28 @@ pub unsafe fn atom_visual_end(spec: CmdSpec, redoable: bool) -> bool {
     }
 }
 
-pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: &mut cmdarg_T, redo_yank: bool) {
+pub unsafe fn atom_capture_op(oap: &mut oparg_T, cap: &mut cmdarg_T, redo_yank: bool) {
     unsafe {
-        let redoable = op_redoable((*oap).op_type, redo_yank);
-        let ins_op = (*oap).op_type == OP_CHANGE
-            || (*oap).op_type == OP_INSERT
-            || (*oap).op_type == OP_APPEND;
+        let redoable = op_redoable(oap.op_type, redo_yank);
+        let ins_op = oap.op_type == OP_CHANGE
+            || oap.op_type == OP_INSERT
+            || oap.op_type == OP_APPEND;
         let payload_motion = cap.cmdchar >= 0x100
             || (cap.cmdchar != NUL && b"/?:!".contains(&(cap.cmdchar as u8)));
         let excmd = cap.cmdchar == b':' as c_int || cap.cmdchar == K_COMMAND;
         if !ins_op && !payload_motion {
             let prep_exempt = !redoable || cap.cmdchar == b'D' as c_int;
             let mut spec = CmdSpec {
-                regname: (*oap).regname,
+                regname: oap.regname,
                 count: c_long::from(cap.count0),
-                op: get_op_char((*oap).op_type),
-                op_extra: get_extra_op_char((*oap).op_type),
+                op: get_op_char(oap.op_type),
+                op_extra: get_extra_op_char(oap.op_type),
                 ..CmdSpec::default()
             };
-            if prep_exempt && (!g_st().Visual.active || (*oap).motion_force != 0) {
+            if prep_exempt && (!g_st().Visual.active || oap.motion_force != 0) {
                 if atom_capturable(atom_buf_has_consumers(), g_st().KeyTyped) {
                     let operand = nv_is(cap.cmdchar, NV_LANG | NV_NCH_ARG);
-                    spec.motion_force = (*oap).motion_force;
+                    spec.motion_force = oap.motion_force;
                     spec.cmd = cap.cmdchar;
                     spec.cmd2 = if operand { NUL } else { cap.nchar };
                     spec.cmdarg = if operand { cap.nchar } else { NUL };
@@ -1573,9 +1573,9 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: &mut cmdarg_T, redo_yank: 
                     op_atom.origin = (*cur_frame_ptr()).origin;
                     atom_stage_set(&mut op_atom);
                 }
-            } else if !g_st().Visual.active || (*oap).motion_force != 0 {
+            } else if !g_st().Visual.active || oap.motion_force != 0 {
                 // Prepped: atom_cmd_end() derives the atom from redobuff.
-            } else if (*oap).op_type == OP_REPLACE && cap.nchar <= 0 {
+            } else if oap.op_type == OP_REPLACE && cap.nchar <= 0 {
                 let suffix: [c_char; 4] = [
                     b'r' as c_char,
                     Ctrl_V as c_char,
@@ -1588,12 +1588,12 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: &mut cmdarg_T, redo_yank: 
                 ];
                 atom_visual_end_suffix(Some(cstr_to_cstring(suffix.as_ptr())), &spec, redoable);
             } else {
-                spec.cmdarg = if (*oap).op_type == OP_REPLACE {
+                spec.cmdarg = if oap.op_type == OP_REPLACE {
                     cap.nchar
                 } else {
                     NUL
                 };
-                if ((*oap).op_type == OP_NR_ADD || (*oap).op_type == OP_NR_SUB) && cap.arg != 0 {
+                if (oap.op_type == OP_NR_ADD || oap.op_type == OP_NR_SUB) && cap.arg != 0 {
                     spec.op_extra = spec.op;
                     spec.op = b'g' as c_int;
                 }
@@ -1603,17 +1603,17 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: &mut cmdarg_T, redo_yank: 
 
         if redoable
             && cap.cmdchar != b'D' as c_int
-            && ((!g_st().Visual.active || (*oap).motion_force != 0) || excmd || cap.cmdchar == K_LUA)
+            && ((!g_st().Visual.active || oap.motion_force != 0) || excmd || cap.cmdchar == K_LUA)
         {
             prep_redo(
                 true,
                 false,
                 CmdSpec {
-                    regname: (*oap).regname,
+                    regname: oap.regname,
                     count: c_long::from(cap.count0),
-                    op: get_op_char((*oap).op_type),
-                    op_extra: get_extra_op_char((*oap).op_type),
-                    motion_force: (*oap).motion_force,
+                    op: get_op_char(oap.op_type),
+                    op_extra: get_extra_op_char(oap.op_type),
+                    motion_force: oap.motion_force,
                     cmd: cap.cmdchar,
                     cmd2: cap.nchar,
                     ..CmdSpec::default()
@@ -1647,17 +1647,17 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: &mut cmdarg_T, redo_yank: 
                 redo_append_str(lua_id.as_ptr(), n as isize);
                 redo_append_str(c"\n".as_ptr(), 1);
             }
-        } else if g_st().Visual.active && redoable && (*oap).motion_force == NUL {
+        } else if g_st().Visual.active && redoable && oap.motion_force == NUL {
             if op_self_select(cap) {
                 prep_redo(
                     true,
                     false,
                     CmdSpec {
-                        regname: (*oap).regname,
+                        regname: oap.regname,
                         count: c_long::from(cap.count0),
-                        op: get_op_char((*oap).op_type),
-                        op_extra: get_extra_op_char((*oap).op_type),
-                        motion_force: (*oap).motion_force,
+                        op: get_op_char(oap.op_type),
+                        op_extra: get_extra_op_char(oap.op_type),
+                        motion_force: oap.motion_force,
                         cmd: cap.cmdchar,
                         cmd2: cap.nchar,
                         ..CmdSpec::default()
@@ -1678,9 +1678,9 @@ pub unsafe fn atom_capture_op(oap: *mut oparg_T, cap: &mut cmdarg_T, redo_yank: 
                     v_ptr,
                     v_len,
                     CmdSpec {
-                        regname: (*oap).regname,
-                        op: get_op_char((*oap).op_type),
-                        op_extra: get_extra_op_char((*oap).op_type),
+                        regname: oap.regname,
+                        op: get_op_char(oap.op_type),
+                        op_extra: get_extra_op_char(oap.op_type),
                         ..CmdSpec::default()
                     },
                 );

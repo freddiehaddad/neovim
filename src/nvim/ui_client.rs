@@ -241,7 +241,7 @@ pub unsafe fn ui_client_attach(
         };
 
         let mut args2_items: [Object; 5] = [
-            cstr_as_obj(c"nvim-uic_st().tui".as_ptr()),
+            cstr_as_obj(c"nvim-tui".as_ptr()),
             Object {
                 obj_type: ObjectType::kObjectTypeDict,
                 data: ObjectData::Dict(version),

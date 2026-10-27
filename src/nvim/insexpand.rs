@@ -4520,7 +4520,7 @@ unsafe fn get_next_cmdline_completion() {
     unsafe {
         let mut matches: Vec<std::ffi::CString> = Vec::new();
         if expand_cmdline(
-            &raw mut insexp().compl_xp,
+            &mut insexp().compl_xp,
             compl_pattern_ptr(),
             compl_pattern_len() as c_int,
             &mut matches,
@@ -4568,7 +4568,7 @@ unsafe fn get_next_cmdline_completion() {
                     dir = FORWARD;
                 }
             }
-            free_xp_files_extra(&raw mut insexp().compl_xp);
+            free_xp_files_extra(&mut insexp().compl_xp);
         }
     }
 }
@@ -6195,14 +6195,14 @@ unsafe fn get_cmdline_compl_info(line: *mut c_char, curs_col: colnr_T) -> c_int 
     unsafe {
         set_compl_pattern_bytes(line, curs_col as usize);
         set_cmd_context(
-            &raw mut insexp().compl_xp,
+            &mut insexp().compl_xp,
             compl_pattern_ptr(),
             compl_pattern_len() as c_int,
             curs_col,
             0,
         );
         if insexp().compl_xp.xp_context == EXPAND_LUA {
-            nlua_expand_pat(&raw mut insexp().compl_xp);
+            nlua_expand_pat(&mut insexp().compl_xp);
         }
         if insexp().compl_xp.xp_context == EXPAND_UNSUCCESSFUL || insexp().compl_xp.xp_context == EXPAND_NOTHING {
             insexp().compl_col = curs_col;

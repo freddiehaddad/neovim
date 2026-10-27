@@ -487,7 +487,7 @@ unsafe fn get_function_args(
     }
 }
 
-/// Register function "fp" as using "uf_st().current_funccal" as its scope.
+/// Register function "fp" as using "current_funccal" as its scope.
 unsafe fn register_closure(fp: *mut ufunc_T) {
     unsafe {
         if (*fp).uf_scoped == uf_st().current_funccal {
@@ -3350,7 +3350,7 @@ pub unsafe fn function_exists(name: *const c_char, no_deref: bool) -> bool {
 
 /// Function given to `ExpandGeneric()` to obtain the list of user defined
 /// function names.
-pub unsafe fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_user_func_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
             uf_st().get_uf_done = 0;
@@ -3376,7 +3376,7 @@ pub unsafe fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
 
             let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
             let mut len = cat_func_name(iobuff_ptr, IOSIZE, fp);
-            if (*xp).xp_context != EXPAND_USER_FUNC {
+            if xp.xp_context != EXPAND_USER_FUNC {
                 xstrlcpy(
                     iobuff_ptr.add(len as usize),
                     c"(".as_ptr(),

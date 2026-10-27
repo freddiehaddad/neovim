@@ -1070,8 +1070,8 @@ unsafe fn command_line_enter(
         getln_st().ccline.level = getln_st().cmdline_level;
 
         if getln_st().cmdline_level != 50 {
-            ExpandInit(&raw mut (*s).xpc);
-            getln_st().ccline.xpc = &raw mut (*s).xpc;
+            ExpandInit(&mut (*s).xpc);
+            getln_st().ccline.xpc = &mut (*s).xpc;
             clear_cmdline_orig();
 
             g_st().cmdmsg_rl = (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0
@@ -1255,7 +1255,7 @@ unsafe fn command_line_enter(
             (*s).did_wild_list = false;
             (*s).wim_index = 0;
 
-            ExpandCleanup(&raw mut (*s).xpc);
+            ExpandCleanup(&mut (*s).xpc);
             getln_st().ccline.xpc = ptr::null_mut();
             clear_cmdline_orig();
 
@@ -1478,7 +1478,7 @@ unsafe fn command_line_wildchar_complete(s: *mut CommandLineState) -> c_int {
                 && (g_st().wim_flags[(*s).wim_index as usize] & kOptWimFlagList) != 0
             {
                 showmatches(
-                    &raw mut (*s).xpc,
+                    &mut (*s).xpc,
                     false,
                     true,
                     if opt_vars().p_wmnu != 0 {
@@ -1491,9 +1491,9 @@ unsafe fn command_line_wildchar_complete(s: *mut CommandLineState) -> c_int {
                 (*s).did_wild_list = true;
             }
             if (g_st().wim_flags[(*s).wim_index as usize] & kOptWimFlagLongest) != 0 {
-                res = nextwild(&raw mut (*s).xpc, WILD_LONGEST, options, escape);
+                res = nextwild(&mut (*s).xpc, WILD_LONGEST, options, escape);
             } else if (g_st().wim_flags[(*s).wim_index as usize] & kOptWimFlagFull) != 0 {
-                res = nextwild(&raw mut (*s).xpc, WILD_NEXT, options, escape);
+                res = nextwild(&mut (*s).xpc, WILD_NEXT, options, escape);
             } else {
                 res = OK;
             }
@@ -1517,7 +1517,7 @@ unsafe fn command_line_wildchar_complete(s: *mut CommandLineState) -> c_int {
             let cmdpos_before = getln_st().ccline.cmdpos;
 
             if wim_longest {
-                res = nextwild(&raw mut (*s).xpc, WILD_LONGEST, options, escape);
+                res = nextwild(&mut (*s).xpc, WILD_LONGEST, options, escape);
             } else {
                 if wim_noselect || (wim_list && !wim_full) {
                     options |= WILD_NOSELECT;
@@ -1525,7 +1525,7 @@ unsafe fn command_line_wildchar_complete(s: *mut CommandLineState) -> c_int {
                 if wim_noinsert {
                     options |= WILD_NOINSERT;
                 }
-                res = nextwild(&raw mut (*s).xpc, WILD_EXPAND_KEEP, options, escape);
+                res = nextwild(&mut (*s).xpc, WILD_EXPAND_KEEP, options, escape);
             }
 
             if redraw_if_menu_empty && (*s).xpc.xp_numfiles <= 0 {
@@ -1535,7 +1535,7 @@ unsafe fn command_line_wildchar_complete(s: *mut CommandLineState) -> c_int {
             if g_st().got_int {
                 vpeekc();
                 g_st().got_int = false;
-                ExpandOne(&raw mut (*s).xpc, ptr::null_mut(), None, 0, WILD_FREE);
+                ExpandOne(&mut (*s).xpc, ptr::null_mut(), None, 0, WILD_FREE);
                 (*s).xpc.xp_context = EXPAND_NOTHING;
                 return CMDLINE_CHANGED;
             }
@@ -1547,7 +1547,7 @@ unsafe fn command_line_wildchar_complete(s: *mut CommandLineState) -> c_int {
                     let show_menu = opt_vars().p_wmnu != 0 && wim_full;
                     if wim_list || show_menu {
                         showmatches(
-                            &raw mut (*s).xpc,
+                            &mut (*s).xpc,
                             show_menu,
                             wim_list,
                             kOptWimFlagNoselect as c_int,
@@ -1562,10 +1562,10 @@ unsafe fn command_line_wildchar_complete(s: *mut CommandLineState) -> c_int {
                                 && (wim_full_next || wim_noselect_next || wim_noinsert_next))
                         {
                             if wim_full_next && !wim_noselect_next && !wim_noinsert_next {
-                                nextwild(&raw mut (*s).xpc, WILD_NEXT, options, escape);
+                                nextwild(&mut (*s).xpc, WILD_NEXT, options, escape);
                             } else {
                                 showmatches(
-                                    &raw mut (*s).xpc,
+                                    &mut (*s).xpc,
                                     opt_vars().p_wmnu != 0 && (wim_noselect_next || wim_noinsert_next),
                                     wim_list_next,
                                     if opt_vars().p_wmnu != 0 {
@@ -1584,7 +1584,7 @@ unsafe fn command_line_wildchar_complete(s: *mut CommandLineState) -> c_int {
                     let show_menu = opt_vars().p_wmnu != 0 && (wim_full || wim_noselect || wim_noinsert);
                     if wim_list || show_menu {
                         showmatches(
-                            &raw mut (*s).xpc,
+                            &mut (*s).xpc,
                             show_menu,
                             wim_list,
                             if opt_vars().p_wmnu != 0 {
@@ -1641,7 +1641,7 @@ unsafe fn command_line_end_wildmenu(s: *mut CommandLineState, key_is_wc: bool, c
             cmdline_pum_remove(c != -1 && (*s).skip_pum_redraw);
         }
         if (*s).xpc.xp_numfiles != -1 {
-            ExpandOne(&raw mut (*s).xpc, ptr::null_mut(), None, 0, WILD_FREE);
+            ExpandOne(&mut (*s).xpc, ptr::null_mut(), None, 0, WILD_FREE);
         }
         (*s).did_wild_list = false;
         if opt_vars().p_wmnu == 0 || (c != K_UP && c != K_DOWN) {
@@ -1696,14 +1696,14 @@ unsafe fn command_line_execute(s: *mut CommandLineState, key: c_int) -> c_int {
             if g_st().pum_want.active {
                 if cmdline_pum_active() {
                     nextwild(
-                        &raw mut (*s).xpc,
+                        &mut (*s).xpc,
                         WILD_PUM_WANT,
                         0,
                         (*s).firstc != b'@' as c_int,
                     );
                     if g_st().pum_want.finish {
                         nextwild(
-                            &raw mut (*s).xpc,
+                            &mut (*s).xpc,
                             WILD_APPLY,
                             WILD_NO_BEEP,
                             (*s).firstc != b'@' as c_int,
@@ -1769,7 +1769,7 @@ unsafe fn command_line_execute(s: *mut CommandLineState, key: c_int) -> c_int {
             (*s).c = wildmenu_translate_key(
                 &raw mut getln_st().ccline,
                 (*s).c,
-                &raw mut (*s).xpc,
+                &mut (*s).xpc,
                 (*s).did_wild_list,
             );
         }
@@ -1787,7 +1787,7 @@ unsafe fn command_line_execute(s: *mut CommandLineState, key: c_int) -> c_int {
                 WILD_APPLY
             };
             nextwild(
-                &raw mut (*s).xpc,
+                &mut (*s).xpc,
                 wild_type,
                 WILD_NO_BEEP,
                 (*s).firstc != b'@' as c_int,
@@ -1831,7 +1831,7 @@ unsafe fn command_line_execute(s: *mut CommandLineState, key: c_int) -> c_int {
         }
 
         if opt_vars().p_wmnu != 0 {
-            (*s).c = wildmenu_process_key(&raw mut getln_st().ccline, (*s).c, &raw mut (*s).xpc);
+            (*s).c = wildmenu_process_key(&raw mut getln_st().ccline, (*s).c, &mut (*s).xpc);
         }
 
         if (*s).c == Ctrl_BSL {
@@ -1898,7 +1898,7 @@ unsafe fn command_line_execute(s: *mut CommandLineState, key: c_int) -> c_int {
         if (*s).c == K_S_TAB
             && g_st().KeyTyped
             && nextwild(
-                &raw mut (*s).xpc,
+                &mut (*s).xpc,
                 WILD_EXPAND_KEEP,
                 0,
                 (*s).firstc != b'@' as c_int,
@@ -1911,7 +1911,7 @@ unsafe fn command_line_execute(s: *mut CommandLineState, key: c_int) -> c_int {
             {
                 let list = (g_st().wim_flags[(*s).wim_index as usize] & kOptWimFlagList) != 0;
                 showmatches(
-                    &raw mut (*s).xpc,
+                    &mut (*s).xpc,
                     opt_vars().p_wmnu != 0 && !list,
                     list,
                     if opt_vars().p_wmnu != 0 {
@@ -1922,13 +1922,13 @@ unsafe fn command_line_execute(s: *mut CommandLineState, key: c_int) -> c_int {
                 );
             }
             nextwild(
-                &raw mut (*s).xpc,
+                &mut (*s).xpc,
                 WILD_PREV,
                 0,
                 (*s).firstc != b'@' as c_int,
             );
             nextwild(
-                &raw mut (*s).xpc,
+                &mut (*s).xpc,
                 WILD_PREV,
                 0,
                 (*s).firstc != b'@' as c_int,
@@ -2519,7 +2519,7 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
 
                     Ctrl_D => {
                         if showmatches(
-                            &raw mut (*s).xpc,
+                            &mut (*s).xpc,
                             false,
                             true,
                             if opt_vars().p_wmnu != 0 {
@@ -2676,7 +2676,7 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
                             cmdline_pum_cleanup(&raw mut getln_st().ccline);
                         }
 
-                        if nextwild(&raw mut (*s).xpc, WILD_ALL, 0, (*s).firstc != b'@' as c_int)
+                        if nextwild(&mut (*s).xpc, WILD_ALL, 0, (*s).firstc != b'@' as c_int)
                             == FAIL
                         {
                             break 'key_switch;
@@ -2697,7 +2697,7 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
                         }
 
                         if nextwild(
-                            &raw mut (*s).xpc,
+                            &mut (*s).xpc,
                             WILD_LONGEST,
                             0,
                             (*s).firstc != b'@' as c_int,
@@ -2716,7 +2716,7 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
                                 WILD_NEXT
                             };
                             if nextwild(
-                                &raw mut (*s).xpc,
+                                &mut (*s).xpc,
                                 wild_type,
                                 0,
                                 (*s).firstc != b'@' as c_int,
@@ -2750,7 +2750,7 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
                                 WILD_PAGEUP
                             };
                             if nextwild(
-                                &raw mut (*s).xpc,
+                                &mut (*s).xpc,
                                 wild_type,
                                 0,
                                 (*s).firstc != b'@' as c_int,
@@ -4819,7 +4819,7 @@ unsafe fn get_cmdline_completion_pattern() -> Option<std::ffi::CString> {
 
         let mut xp_context = (*(*p).xpc).xp_context;
         if xp_context == EXPAND_NOTHING {
-            set_expand_context((*p).xpc);
+            set_expand_context(&mut *(*p).xpc);
             xp_context = (*(*p).xpc).xp_context;
             (*(*p).xpc).xp_context = EXPAND_NOTHING;
         }
@@ -4850,7 +4850,7 @@ unsafe fn get_cmdline_completion() -> Option<std::ffi::CString> {
 
         let mut xp_context = (*(*p).xpc).xp_context;
         if xp_context == EXPAND_NOTHING {
-            set_expand_context((*p).xpc);
+            set_expand_context(&mut *(*p).xpc);
             xp_context = (*(*p).xpc).xp_context;
             (*(*p).xpc).xp_context = EXPAND_NOTHING;
         }
@@ -5398,7 +5398,7 @@ pub unsafe fn get_user_input(
             if parse_compl_arg(
                 xp_name,
                 xp_namelen,
-                &raw mut xp_type,
+                &mut xp_type,
                 &raw mut argt,
                 &mut xp_arg,
             ) == FAIL

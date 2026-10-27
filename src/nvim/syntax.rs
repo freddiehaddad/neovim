@@ -5181,19 +5181,19 @@ pub unsafe fn reset_expand_highlight() {
     }
 }
 
-pub unsafe fn set_context_in_echohl_cmd(xp: *mut expand_T, arg: *const c_char) {
+pub unsafe fn set_context_in_echohl_cmd(xp: &mut expand_T, arg: *const c_char) {
     unsafe {
-        (*xp).xp_context = EXPAND_HIGHLIGHT;
-        (*xp).xp_pattern = arg.cast_mut();
+        xp.xp_context = EXPAND_HIGHLIGHT;
+        xp.xp_pattern = arg.cast_mut();
         g_st().include_none = 1;
     }
 }
 
-pub unsafe fn set_context_in_syntax_cmd(xp: *mut expand_T, arg: *const c_char) {
+pub unsafe fn set_context_in_syntax_cmd(xp: &mut expand_T, arg: *const c_char) {
     unsafe {
-        (*xp).xp_context = EXPAND_SYNTAX;
+        xp.xp_context = EXPAND_SYNTAX;
         syn_st().expand_what = EXP_SUBCMD;
-        (*xp).xp_pattern = arg.cast_mut();
+        xp.xp_pattern = arg.cast_mut();
         g_st().include_link = 0;
         g_st().include_default = 0;
 
@@ -5206,9 +5206,9 @@ pub unsafe fn set_context_in_syntax_cmd(xp: *mut expand_T, arg: *const c_char) {
             return;
         }
 
-        (*xp).xp_pattern = skipwhite(p);
-        if *skiptowhite((*xp).xp_pattern) != NUL {
-            (*xp).xp_context = EXPAND_NOTHING;
+        xp.xp_pattern = skipwhite(p);
+        if *skiptowhite(xp.xp_pattern) != NUL {
+            xp.xp_context = EXPAND_NOTHING;
         } else {
             let n = p.offset_from(arg) as usize;
             if vim_strnicmp(arg, c"case".as_ptr(), n) == 0 {
@@ -5222,21 +5222,21 @@ pub unsafe fn set_context_in_syntax_cmd(xp: *mut expand_T, arg: *const c_char) {
                 if *p2 == b'@' as c_char {
                     syn_st().expand_what = EXP_CLUSTER;
                 } else {
-                    (*xp).xp_context = EXPAND_HIGHLIGHT;
+                    xp.xp_context = EXPAND_HIGHLIGHT;
                 }
             } else if vim_strnicmp(arg, c"keyword".as_ptr(), n) == 0
                 || vim_strnicmp(arg, c"region".as_ptr(), n) == 0
                 || vim_strnicmp(arg, c"match".as_ptr(), n) == 0
             {
-                (*xp).xp_context = EXPAND_HIGHLIGHT;
+                xp.xp_context = EXPAND_HIGHLIGHT;
             } else {
-                (*xp).xp_context = EXPAND_NOTHING;
+                xp.xp_context = EXPAND_NOTHING;
             }
         }
     }
 }
 
-pub unsafe fn get_syntax_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_syntax_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx < 0 {
             return ptr::null_mut();
@@ -5294,7 +5294,7 @@ pub unsafe fn get_syntax_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
             }
             EXP_CLUSTER => {
                 if (idx as usize) < (*win_s(*curwin.as_ptr())).b_syn_clusters.len() {
-                    let xp_buf = (&raw mut (*xp).xp_buf).cast::<c_char>();
+                    let xp_buf = xp.xp_buf.as_mut_ptr();
                     vim_snprintf!(
                         xp_buf,
                         EXPAND_BUF_LEN,
@@ -5448,7 +5448,7 @@ unsafe fn syntime_clear() {
     }
 }
 
-pub unsafe fn get_syntime_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_syntime_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     match idx {
         0 => c"on".as_ptr().cast_mut(),
         1 => c"off".as_ptr().cast_mut(),
@@ -5549,14 +5549,14 @@ mod tests {
     fn get_syntime_arg_and_limit_pos_work() {
         unsafe {
             assert_eq!(
-                std::ffi::CStr::from_ptr(get_syntime_arg(ptr::null_mut(), 0)).to_bytes(),
+                std::ffi::CStr::from_ptr(get_syntime_arg(&mut crate::os::env::expand_T::new(), 0)).to_bytes(),
                 b"on"
             );
             assert_eq!(
-                std::ffi::CStr::from_ptr(get_syntime_arg(ptr::null_mut(), 3)).to_bytes(),
+                std::ffi::CStr::from_ptr(get_syntime_arg(&mut crate::os::env::expand_T::new(), 3)).to_bytes(),
                 b"report"
             );
-            assert!(get_syntime_arg(ptr::null_mut(), 4).is_null());
+            assert!(get_syntime_arg(&mut crate::os::env::expand_T::new(), 4).is_null());
 
             let mut pos = lpos_T { lnum: 5, col: 10 };
             let mut limit = lpos_T { lnum: 5, col: 4 };

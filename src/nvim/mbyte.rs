@@ -3559,7 +3559,7 @@ pub unsafe fn f_charclass(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
     }
 }
 
-pub unsafe fn get_encoding_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_encoding_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 || (idx as usize) >= ENC_CANON_TABLE.len() {
         return ptr::null_mut();
     }

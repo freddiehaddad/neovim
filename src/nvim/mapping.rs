@@ -1361,7 +1361,7 @@ unsafe fn translate_mapping(str_in: *const c_char, cpo_val: *const c_char) -> CS
 /// Work out what to complete when doing command line completion of mapping
 /// or abbreviation names.
 pub unsafe fn set_context_in_map_cmd(
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     mut cmd: *mut c_char,
     mut arg: *mut c_char,
     forceit: bool,
@@ -1374,7 +1374,7 @@ pub unsafe fn set_context_in_map_cmd(
             && cmdidx != crate::cmdexpand::cmdidx_T::CMD_map
             && cmdidx != crate::cmdexpand::cmdidx_T::CMD_unmap
         {
-            (*xp).xp_context = EXPAND_NOTHING;
+            xp.xp_context = EXPAND_NOTHING;
         } else {
             if isunmap {
                 map_st().expand_mapmodes = get_map_mode(&mut cmd, forceit || isabbrev);
@@ -1385,7 +1385,7 @@ pub unsafe fn set_context_in_map_cmd(
                 }
             }
             map_st().expand_isabbrev = isabbrev;
-            (*xp).xp_context = EXPAND_MAPPINGS;
+            xp.xp_context = EXPAND_MAPPINGS;
             map_st().expand_buffer = false;
             loop {
                 let bytes = CStr::from_ptr(arg).to_bytes();
@@ -1420,7 +1420,7 @@ pub unsafe fn set_context_in_map_cmd(
                 }
                 break;
             }
-            (*xp).xp_pattern = arg;
+            xp.xp_pattern = arg;
         }
 
         ptr::null_mut()

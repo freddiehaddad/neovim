@@ -659,7 +659,7 @@ pub unsafe fn ex_runtime(eap: &mut exarg_T) {
 }
 
 /// Set the completion context for the :runtime command.
-pub unsafe fn set_context_in_runtime_cmd(xp: *mut expand_T, mut arg: *const c_char) {
+pub unsafe fn set_context_in_runtime_cmd(xp: &mut expand_T, mut arg: *const c_char) {
     unsafe {
         let mut p = skiptowhite(arg);
         let mut arg_mut = arg as *mut c_char;
@@ -679,8 +679,8 @@ pub unsafe fn set_context_in_runtime_cmd(xp: *mut expand_T, mut arg: *const c_ch
             }
             arg = skipwhite(p);
         }
-        (*xp).xp_context = EXPAND_RUNTIME;
-        (*xp).xp_pattern = arg as *mut c_char;
+        xp.xp_context = EXPAND_RUNTIME;
+        xp.xp_pattern = arg as *mut c_char;
     }
 }
 

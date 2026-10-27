@@ -122,7 +122,7 @@ use std::ptr;
 
 use crate::api::win_config::UIExtension;
 pub type xp_prefix_T = c_int;
-pub type CompleteListItemGetter = Option<unsafe fn(*mut expand_T, c_int) -> *mut c_char>;
+pub type CompleteListItemGetter = Option<unsafe fn(&mut expand_T, c_int) -> *mut c_char>;
 #[derive(Clone, Copy)]
 pub enum LineGetter {
     None,
@@ -1730,9 +1730,9 @@ unsafe fn show_match(matches: &[CString], m: usize, showtail: bool) -> *mut c_ch
 }
 
 /// Returns true if fuzzy completion is supported for a given cmdline completion context.
-unsafe fn cmdline_fuzzy_completion_supported(xp: *const expand_T) -> bool {
+unsafe fn cmdline_fuzzy_completion_supported(xp: &expand_T) -> bool {
     unsafe {
-        match (*xp).xp_context {
+        match xp.xp_context {
             EXPAND_BOOL_SETTINGS
             | EXPAND_COLORS
             | EXPAND_COMPILER
@@ -1784,24 +1784,24 @@ unsafe fn sort_func_compare(p1: &CString, p2: &CString) -> c_int {
 }
 
 /// Escape special characters in the cmdline completion matches.
-unsafe fn wildescape(xp: *mut expand_T, str_arg: *const c_char, files: &mut [CString]) {
+unsafe fn wildescape(xp: &mut expand_T, str_arg: *const c_char, files: &mut [CString]) {
     unsafe {
-        let vse_what = if (*xp).xp_context == EXPAND_BUFFERS {
+        let vse_what = if xp.xp_context == EXPAND_BUFFERS {
             VSE_BUFFER
         } else {
             VSE_NONE
         };
 
-        if (*xp).xp_context == EXPAND_FILES
-            || (*xp).xp_context == EXPAND_FILES_IN_PATH
-            || (*xp).xp_context == EXPAND_SHELLCMD
-            || (*xp).xp_context == EXPAND_BUFFERS
-            || (*xp).xp_context == EXPAND_DIRECTORIES
-            || (*xp).xp_context == EXPAND_DIRS_IN_CDPATH
+        if xp.xp_context == EXPAND_FILES
+            || xp.xp_context == EXPAND_FILES_IN_PATH
+            || xp.xp_context == EXPAND_SHELLCMD
+            || xp.xp_context == EXPAND_BUFFERS
+            || xp.xp_context == EXPAND_DIRECTORIES
+            || xp.xp_context == EXPAND_DIRS_IN_CDPATH
         {
             for file_slot in files.iter_mut() {
-                if ((*xp).xp_backslash & XP_BS_THREE) != 0 {
-                    let pat = if ((*xp).xp_backslash & XP_BS_COMMA) != 0 {
+                if (xp.xp_backslash & XP_BS_THREE) != 0 {
+                    let pat = if (xp.xp_backslash & XP_BS_COMMA) != 0 {
                         c" ,".as_ptr()
                     } else {
                         c" ".as_ptr()
@@ -1811,7 +1811,7 @@ unsafe fn wildescape(xp: *mut expand_T, str_arg: *const c_char, files: &mut [CSt
                     {
                         *file_slot = vim_strsave_escaped(file_slot.as_ptr(), c" ".as_ptr());
                     }
-                } else if ((*xp).xp_backslash & XP_BS_COMMA) != 0
+                } else if (xp.xp_backslash & XP_BS_COMMA) != 0
                     && file_slot.as_bytes().contains(&b',')
                 {
                     *file_slot = vim_strsave_escaped(file_slot.as_ptr(), c",".as_ptr());
@@ -1825,7 +1825,7 @@ unsafe fn wildescape(xp: *mut expand_T, str_arg: *const c_char, files: &mut [CSt
                 {
                     *file_slot = vim_strsave_fnameescape(
                         file_slot.as_ptr(),
-                        if (*xp).xp_shell { VSE_SHELL } else { vse_what },
+                        if xp.xp_shell { VSE_SHELL } else { vse_what },
                     );
                 }
 
@@ -1836,14 +1836,14 @@ unsafe fn wildescape(xp: *mut expand_T, str_arg: *const c_char, files: &mut [CSt
                     escape_fname_cstr(file_slot);
                 }
             }
-            (*xp).xp_backslash = XP_BS_NONE;
+            xp.xp_backslash = XP_BS_NONE;
 
             if let Some(first) = files.first_mut()
                 && first.as_bytes().first() == Some(&b'+')
             {
                 escape_fname_cstr(first);
             }
-        } else if (*xp).xp_context == EXPAND_TAGS {
+        } else if xp.xp_context == EXPAND_TAGS {
             for file_slot in files.iter_mut() {
                 *file_slot = vim_strsave_escaped(file_slot.as_ptr(), c"\\|\"".as_ptr());
             }
@@ -1853,7 +1853,7 @@ unsafe fn wildescape(xp: *mut expand_T, str_arg: *const c_char, files: &mut [CSt
 
 /// Escape special characters in the cmdline completion matches.
 unsafe fn ExpandEscape(
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     str_arg: *mut c_char,
     files: &mut [CString],
     options: c_int,
@@ -1871,7 +1871,7 @@ unsafe fn ExpandEscape(
 
 /// Return FAIL if this is not an appropriate context in which to do
 /// completion of anything, return OK if it is (even if there are no matches).
-pub unsafe fn nextwild(xp: *mut expand_T, type_arg: c_int, options: c_int, escape: bool) -> c_int {
+pub unsafe fn nextwild(xp: &mut expand_T, type_arg: c_int, options: c_int, escape: bool) -> c_int {
     unsafe {
         let ccline = get_cmdline_info();
         let mut p: Option<CString>;
@@ -1882,8 +1882,8 @@ pub unsafe fn nextwild(xp: *mut expand_T, type_arg: c_int, options: c_int, escap
             || type_arg == WILD_PAGEDOWN
             || type_arg == WILD_PUM_WANT;
 
-        if (*xp).xp_numfiles == -1 {
-            cmdexp().pre_incsearch_pos = (*xp).xp_pre_incsearch_pos;
+        if xp.xp_numfiles == -1 {
+            cmdexp().pre_incsearch_pos = xp.xp_pre_incsearch_pos;
             if (*ccline).input_fn != 0 && (*ccline).xp_context == EXPAND_COMMANDS {
                 set_cmd_context(
                     xp,
@@ -1897,25 +1897,25 @@ pub unsafe fn nextwild(xp: *mut expand_T, type_arg: c_int, options: c_int, escap
                 set_expand_context(xp);
                 cmdexp().may_expand_pattern = false;
             }
-            if (*xp).xp_context == EXPAND_LUA {
+            if xp.xp_context == EXPAND_LUA {
                 nlua_expand_pat(xp);
             }
             cmdexp().cmd_showtail = expand_showtail(xp);
         }
 
-        if (*xp).xp_context == EXPAND_UNSUCCESSFUL {
+        if xp.xp_context == EXPAND_UNSUCCESSFUL {
             beep_flush();
             return OK;
         }
-        if (*xp).xp_context == EXPAND_NOTHING {
+        if xp.xp_context == EXPAND_NOTHING {
             return FAIL;
         }
 
-        let i = (*xp).xp_pattern.offset_from((*ccline).cmdbuff) as c_int;
+        let i = xp.xp_pattern.offset_from((*ccline).cmdbuff) as c_int;
         debug_assert!((*ccline).cmdpos >= i);
-        (*xp).xp_pattern_len = ((*ccline).cmdpos as usize) - (i as usize);
+        xp.xp_pattern_len = ((*ccline).cmdpos as usize) - (i as usize);
 
-        if from_wildtrigger_func && (*xp).xp_context == EXPAND_COMMANDS && (*xp).xp_pattern_len == 0
+        if from_wildtrigger_func && xp.xp_context == EXPAND_COMMANDS && xp.xp_pattern_len == 0
         {
             return FAIL;
         }
@@ -1933,14 +1933,14 @@ pub unsafe fn nextwild(xp: *mut expand_T, type_arg: c_int, options: c_int, escap
             p = ExpandOne(xp, ptr::null_mut(), None, 0, type_arg);
         } else {
             let tmp = if cmdline_fuzzy_completion_supported(xp)
-                || (*xp).xp_context == EXPAND_PATTERN_IN_BUF
+                || xp.xp_context == EXPAND_PATTERN_IN_BUF
             {
                 cstr_from_bytes(std::slice::from_raw_parts(
-                    (*xp).xp_pattern.cast::<u8>(),
-                    (*xp).xp_pattern_len,
+                    xp.xp_pattern.cast::<u8>(),
+                    xp.xp_pattern_len,
                 ))
             } else {
-                addstar((*xp).xp_pattern, (*xp).xp_pattern_len, (*xp).xp_context)
+                addstar(xp.xp_pattern, xp.xp_pattern_len, xp.xp_context)
             };
             let use_options = options
                 | WILD_USE_COMPLETESLASH
@@ -1951,7 +1951,7 @@ pub unsafe fn nextwild(xp: *mut expand_T, type_arg: c_int, options: c_int, escap
                 | if opt_vars().p_wic != 0 { WILD_ICASE } else { 0 };
             let orig = cstr_from_bytes(std::slice::from_raw_parts(
                 (*ccline).cmdbuff.add(i as usize).cast::<u8>(),
-                (*xp).xp_pattern_len,
+                xp.xp_pattern_len,
             ));
             p = ExpandOne(
                 xp,
@@ -1964,7 +1964,7 @@ pub unsafe fn nextwild(xp: *mut expand_T, type_arg: c_int, options: c_int, escap
                 && type_arg == WILD_LONGEST
             {
                 let mut j: usize = 0;
-                while j < (*xp).xp_pattern_len {
+                while j < xp.xp_pattern_len {
                     let c = *(*ccline).cmdbuff.add((i as usize) + j);
                     if c == b'*' as c_char || c == b'?' as c_char {
                         break;
@@ -1989,10 +1989,10 @@ pub unsafe fn nextwild(xp: *mut expand_T, type_arg: c_int, options: c_int, escap
             && (options & (WILD_NOSELECT | WILD_NOINSERT)) == 0
         {
             let plen = p_str.to_bytes().len();
-            let difflen = (plen as c_int) - ((*xp).xp_pattern_len as c_int);
+            let difflen = (plen as c_int) - (xp.xp_pattern_len as c_int);
             if (*ccline).cmdlen + difflen + 4 > (*ccline).cmdbufflen {
                 realloc_cmdbuff((*ccline).cmdlen + difflen + 4);
-                (*xp).xp_pattern = (*ccline).cmdbuff.add(i as usize);
+                xp.xp_pattern = (*ccline).cmdbuff.add(i as usize);
             }
             debug_assert!((*ccline).cmdpos <= (*ccline).cmdlen);
             ptr::copy(
@@ -2008,13 +2008,13 @@ pub unsafe fn nextwild(xp: *mut expand_T, type_arg: c_int, options: c_int, escap
         redrawcmd();
         cursorcmd();
 
-        if (*xp).xp_context == EXPAND_MAPPINGS && p.is_none() {
+        if xp.xp_context == EXPAND_MAPPINGS && p.is_none() {
             return FAIL;
         }
 
-        if (*xp).xp_numfiles <= 0 && p.is_none() {
+        if xp.xp_numfiles <= 0 && p.is_none() {
             beep_flush();
-        } else if (*xp).xp_numfiles == 1
+        } else if xp.xp_numfiles == 1
             && (options & (WILD_NOSELECT | WILD_NOINSERT)) == 0
             && !wild_navigate
         {
@@ -2028,7 +2028,7 @@ pub unsafe fn nextwild(xp: *mut expand_T, type_arg: c_int, options: c_int, escap
 /// Create completion popup menu with items from "matches".
 unsafe fn cmdline_pum_create(
     ccline: *const CmdlineInfo,
-    xp: *mut expand_T,
+    xp: &expand_T,
     matches: &[CString],
     showtail: bool,
     cmdline_unchanged: bool,
@@ -2078,9 +2078,9 @@ unsafe fn cmdline_pum_create(
         cmdexp().compl_match_array = items;
 
         let endpos = if showtail {
-            showmatches_gettail((*xp).xp_pattern, cmdline_unchanged)
+            showmatches_gettail(xp.xp_pattern, cmdline_unchanged)
         } else {
-            (*xp).xp_pattern
+            xp.xp_pattern
         };
         if ui_has(kUICmdline) && g_st().cmdline_win.is_null() {
             cmdexp().compl_startcol = endpos.offset_from((*ccline).cmdbuff) as c_int;
@@ -2130,7 +2130,7 @@ pub unsafe fn cmdline_pum_cleanup(cclp: *mut CmdlineInfo) {
 pub unsafe fn cmdline_compl_pattern() -> *mut c_char {
     unsafe {
         let xp = (*get_cmdline_info()).xpc;
-        if xp.is_null() {
+        if false {
             ptr::null_mut()
         } else {
             (*xp)
@@ -2145,7 +2145,7 @@ pub unsafe fn cmdline_compl_pattern() -> *mut c_char {
 pub unsafe fn cmdline_compl_is_fuzzy() -> bool {
     unsafe {
         let xp = (*get_cmdline_info()).xpc;
-        !xp.is_null() && cmdline_fuzzy_completion_supported(xp)
+        !xp.is_null() && cmdline_fuzzy_completion_supported(&*xp)
     }
 }
 
@@ -2161,16 +2161,16 @@ unsafe fn cmdline_compl_use_pum(need_wildmenu: bool) -> bool {
 }
 
 /// Return the number of characters that should be skipped in the wildmenu.
-unsafe fn skip_wildmenu_char(xp: *mut expand_T, s: *mut c_char) -> c_int {
+unsafe fn skip_wildmenu_char(xp: &expand_T, s: *mut c_char) -> c_int {
     unsafe {
         if (rem_backslash(s)
-            && (*xp).xp_context != EXPAND_HELP
-            && (*xp).xp_context != EXPAND_PATTERN_IN_BUF)
-            || (((*xp).xp_context == EXPAND_MENUS || (*xp).xp_context == EXPAND_MENUNAMES)
+            && xp.xp_context != EXPAND_HELP
+            && xp.xp_context != EXPAND_PATTERN_IN_BUF)
+            || ((xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES)
                 && (*s == b'\t' as c_char || (*s == b'\\' as c_char && *s.add(1) != NUL)))
         {
             #[cfg(not(windows))]
-            if (*xp).xp_shell
+            if xp.xp_shell
                 && csh_like_shell() != 0
                 && *s.add(1) == b'\\' as c_char
                 && *s.add(2) == b'!' as c_char
@@ -2184,10 +2184,10 @@ unsafe fn skip_wildmenu_char(xp: *mut expand_T, s: *mut c_char) -> c_int {
 }
 
 /// Get the length of an item as it will be shown in the status line.
-unsafe fn wildmenu_match_len(xp: *mut expand_T, mut s: *mut c_char) -> c_int {
+unsafe fn wildmenu_match_len(xp: &expand_T, mut s: *mut c_char) -> c_int {
     unsafe {
         let mut len: c_int = 0;
-        let emenu = (*xp).xp_context == EXPAND_MENUS || (*xp).xp_context == EXPAND_MENUNAMES;
+        let emenu = xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES;
 
         if emenu && menu_is_separator(s) {
             return 1;
@@ -2205,7 +2205,7 @@ unsafe fn wildmenu_match_len(xp: *mut expand_T, mut s: *mut c_char) -> c_int {
 
 /// Show wildchar matches in the status line.
 unsafe fn redraw_wildmenu(
-    xp: *mut expand_T,
+    xp: &expand_T,
     matches: &[CString],
     mut match_idx: c_int,
     showtail: bool,
@@ -2295,7 +2295,7 @@ unsafe fn redraw_wildmenu(
             }
 
             let mut s = show_match(matches, i as usize, showtail);
-            let emenu = (*xp).xp_context == EXPAND_MENUS || (*xp).xp_context == EXPAND_MENUNAMES;
+            let emenu = xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES;
             if emenu && menu_is_separator(s) {
                 { let s = transchar(b'|' as c_int); std::ptr::copy_nonoverlapping(s, buf.add(len), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 let l = std::ffi::CStr::from_ptr(buf.add(len)).to_bytes().len();
@@ -2389,17 +2389,17 @@ unsafe fn redraw_wildmenu(
 }
 
 /// Get the next or prev cmdline completion match.
-unsafe fn get_next_or_prev_match(mode: c_int, xp: *mut expand_T) -> Option<CString> {
+unsafe fn get_next_or_prev_match(mode: c_int, xp: &mut expand_T) -> Option<CString> {
     unsafe {
-        if (*xp).xp_numfiles <= 0 {
+        if xp.xp_numfiles <= 0 {
             return None;
         }
 
-        let mut findex = (*xp).xp_selected;
+        let mut findex = xp.xp_selected;
 
         if mode == WILD_PREV {
             if findex == -1 {
-                findex = (*xp).xp_numfiles;
+                findex = xp.xp_numfiles;
             }
             findex -= 1;
         } else if mode == WILD_NEXT {
@@ -2414,27 +2414,27 @@ unsafe fn get_next_or_prev_match(mode: c_int, xp: *mut expand_T) -> Option<CStri
                 if findex == 0 {
                     findex = -1;
                 } else if findex < 0 {
-                    findex = (*xp).xp_numfiles - 1;
+                    findex = xp.xp_numfiles - 1;
                 } else {
                     findex = (findex - ht).max(0);
                 }
-            } else if findex == (*xp).xp_numfiles - 1 {
+            } else if findex == xp.xp_numfiles - 1 {
                 findex = -1;
             } else if findex < 0 {
                 findex = 0;
             } else {
-                findex = (findex + ht).min((*xp).xp_numfiles - 1);
+                findex = (findex + ht).min(xp.xp_numfiles - 1);
             }
         } else {
             debug_assert!(g_st().pum_want.active);
             findex = g_st().pum_want.item;
         }
 
-        if findex < 0 || findex >= (*xp).xp_numfiles {
-            if (*xp).xp_orig.is_some() {
+        if findex < 0 || findex >= xp.xp_numfiles {
+            if xp.xp_orig.is_some() {
                 findex = -1;
             } else {
-                findex = if findex < 0 { (*xp).xp_numfiles - 1 } else { 0 };
+                findex = if findex < 0 { xp.xp_numfiles - 1 } else { 0 };
             }
         }
 
@@ -2447,7 +2447,7 @@ unsafe fn get_next_or_prev_match(mode: c_int, xp: *mut expand_T) -> Option<CStri
                 cmdline_pum_create(
                     get_cmdline_info(),
                     xp,
-                    &(*xp).xp_files.as_slice()[..(*xp).xp_numfiles as usize],
+                    &xp.xp_files.as_slice()[..xp.xp_numfiles as usize],
                     cmdexp().cmd_showtail,
                     false,
                 );
@@ -2457,18 +2457,18 @@ unsafe fn get_next_or_prev_match(mode: c_int, xp: *mut expand_T) -> Option<CStri
             } else {
                 redraw_wildmenu(
                     xp,
-                    &(*xp).xp_files.as_slice()[..(*xp).xp_numfiles as usize],
+                    &xp.xp_files.as_slice()[..xp.xp_numfiles as usize],
                     findex,
                     cmdexp().cmd_showtail,
                 );
             }
         }
 
-        (*xp).xp_selected = findex;
+        xp.xp_selected = findex;
         if findex == -1 {
-            (*xp).xp_orig.clone()
+            xp.xp_orig.clone()
         } else {
-            Some((*xp).xp_files.as_slice()[findex as usize].clone())
+            Some(xp.xp_files.as_slice()[findex as usize].clone())
         }
     }
 }
@@ -2476,46 +2476,51 @@ unsafe fn get_next_or_prev_match(mode: c_int, xp: *mut expand_T) -> Option<CStri
 /// Start the command-line expansion and get the matches.
 unsafe fn ExpandOne_start(
     mode: c_int,
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     str_arg: *mut c_char,
     options: c_int,
 ) -> Option<CString> {
     unsafe {
         let mut ss: Option<CString> = None;
 
-        if ExpandFromContext(xp, str_arg, &mut (*xp).xp_files, options) == FAIL {
-            (*xp).xp_numfiles = 0;
+        let mut xp_files = std::mem::take(&mut xp.xp_files);
+        let expand_res = ExpandFromContext(xp, str_arg, &mut xp_files, options);
+        xp.xp_files = xp_files;
+        if expand_res == FAIL {
+            xp.xp_numfiles = 0;
             #[cfg(windows)]
             if (options & WILD_SILENT) == 0 && (options & WILD_LIST_NOTFOUND) != 0 {
                 semsg!(gettext(e_nomatch2.as_ptr()), str_arg);
             }
         } else {
-            (*xp).xp_numfiles = (*xp).xp_files.len() as c_int;
-            if (*xp).xp_numfiles == 0 {
+            xp.xp_numfiles = xp.xp_files.len() as c_int;
+            if xp.xp_numfiles == 0 {
                 if (options & WILD_SILENT) == 0 {
                     semsg!(gettext(e_nomatch2.as_ptr()), str_arg);
                 }
             } else {
-                let nfiles = (*xp).xp_numfiles as usize;
+                let nfiles = xp.xp_numfiles as usize;
+                let mut xp_files = std::mem::take(&mut xp.xp_files);
                 ExpandEscape(
                     xp,
                     str_arg,
-                    &mut (*xp).xp_files.as_mut_slice()[..nfiles],
+                    &mut xp_files.as_mut_slice()[..nfiles],
                     options,
                 );
+                xp.xp_files = xp_files;
 
                 if mode != WILD_ALL && mode != WILD_ALL_KEEP && mode != WILD_LONGEST {
-                    let mut non_suf_match = if (*xp).xp_numfiles != 0 {
-                        (*xp).xp_numfiles
+                    let mut non_suf_match = if xp.xp_numfiles != 0 {
+                        xp.xp_numfiles
                     } else {
                         1
                     };
-                    if ((*xp).xp_context == EXPAND_FILES || (*xp).xp_context == EXPAND_DIRECTORIES)
-                        && (*xp).xp_numfiles > 1
+                    if (xp.xp_context == EXPAND_FILES || xp.xp_context == EXPAND_DIRECTORIES)
+                        && xp.xp_numfiles > 1
                     {
                         non_suf_match = 0;
                         for i in 0..2 {
-                            if match_suffix((*xp).xp_files.as_slice()[i].as_ptr().cast_mut()) {
+                            if match_suffix(xp.xp_files.as_slice()[i].as_ptr().cast_mut()) {
                                 non_suf_match += 1;
                             }
                         }
@@ -2528,7 +2533,7 @@ unsafe fn ExpandOne_start(
                         }
                     }
                     if !(non_suf_match != 1 && mode == WILD_EXPAND_FREE) {
-                        ss = Some((*xp).xp_files.as_slice()[0].clone());
+                        ss = Some(xp.xp_files.as_slice()[0].clone());
                     }
                 }
             }
@@ -2539,24 +2544,24 @@ unsafe fn ExpandOne_start(
 }
 
 /// Return the longest common part in the list of cmdline completion matches.
-unsafe fn find_longest_match(xp: *mut expand_T, options: c_int) -> CString {
+unsafe fn find_longest_match(xp: &mut expand_T, options: c_int) -> CString {
     unsafe {
         let mut len: usize = 0;
-        let files = (*xp).xp_files.as_slice();
+        let files = xp.xp_files.as_slice();
         let first_file = files[0].as_ptr();
 
         while *first_file.add(len) != NUL {
             let mb_len = utfc_ptr2len(first_file.add(len)) as usize;
             let c0 = utf_ptr2char(first_file.add(len));
             let mut i: usize = 1;
-            while (i as c_int) < (*xp).xp_numfiles {
+            while (i as c_int) < xp.xp_numfiles {
                 let ci = utf_ptr2char(files[i].as_ptr().add(len));
 
                 if opt_vars().p_fic != 0
-                    && ((*xp).xp_context == EXPAND_DIRECTORIES
-                        || (*xp).xp_context == EXPAND_FILES
-                        || (*xp).xp_context == EXPAND_SHELLCMD
-                        || (*xp).xp_context == EXPAND_BUFFERS)
+                    && (xp.xp_context == EXPAND_DIRECTORIES
+                        || xp.xp_context == EXPAND_FILES
+                        || xp.xp_context == EXPAND_SHELLCMD
+                        || xp.xp_context == EXPAND_BUFFERS)
                 {
                     if mb_tolower(c0) != mb_tolower(ci) {
                         break;
@@ -2566,7 +2571,7 @@ unsafe fn find_longest_match(xp: *mut expand_T, options: c_int) -> CString {
                 }
                 i += 1;
             }
-            if (i as c_int) < (*xp).xp_numfiles {
+            if (i as c_int) < xp.xp_numfiles {
                 if (options & WILD_NO_BEEP) == 0 {
                     vim_beep(kOptBoFlagWildmode);
                 }
@@ -2579,18 +2584,16 @@ unsafe fn find_longest_match(xp: *mut expand_T, options: c_int) -> CString {
     }
 }
 
-pub unsafe fn free_xp_files_extra(xp: *mut expand_T) {
-    unsafe {
-        (*xp).xp_files_abbr.clear();
-        (*xp).xp_files_kind.clear();
-        (*xp).xp_files_menu.clear();
-        (*xp).xp_files_info.clear();
-    }
+pub fn free_xp_files_extra(xp: &mut expand_T) {
+    xp.xp_files_abbr.clear();
+    xp.xp_files_kind.clear();
+    xp.xp_files_menu.clear();
+    xp.xp_files_info.clear();
 }
 
 /// Do wildcard expansion on the string "str".
 pub unsafe fn ExpandOne(
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     str_arg: *mut c_char,
     orig: Option<CString>,
     options: c_int,
@@ -2609,30 +2612,30 @@ pub unsafe fn ExpandOne(
         }
 
         if mode == WILD_CANCEL {
-            ss = Some((*xp).xp_orig.clone().unwrap_or_default());
+            ss = Some(xp.xp_orig.clone().unwrap_or_default());
         } else if mode == WILD_APPLY {
-            ss = Some(if (*xp).xp_selected == -1 {
-                (*xp).xp_orig.clone().unwrap_or_default()
+            ss = Some(if xp.xp_selected == -1 {
+                xp.xp_orig.clone().unwrap_or_default()
             } else {
-                (*xp).xp_files.as_slice()[(*xp).xp_selected as usize].clone()
+                xp.xp_files.as_slice()[xp.xp_selected as usize].clone()
             });
         }
 
-        if (*xp).xp_numfiles != -1 && mode != WILD_ALL && mode != WILD_LONGEST {
-            (*xp).xp_files.clear();
+        if xp.xp_numfiles != -1 && mode != WILD_ALL && mode != WILD_LONGEST {
+            xp.xp_files.clear();
             if mode != WILD_FREE && mode != WILD_CANCEL && mode != WILD_APPLY {
-                (*xp).xp_files = Vec::new();
+                xp.xp_files = Vec::new();
             }
             free_xp_files_extra(xp);
-            (*xp).xp_numfiles = -1;
-            (*xp).xp_orig = None;
+            xp.xp_numfiles = -1;
+            xp.xp_orig = None;
 
             let arr = &raw const cmdexp().compl_match_array;
             if !(*arr).is_empty() {
                 cmdline_pum_remove(false);
             }
         }
-        (*xp).xp_selected = if (options & WILD_NOSELECT) != 0 {
+        xp.xp_selected = if (options & WILD_NOSELECT) != 0 {
             -1
         } else {
             0
@@ -2642,21 +2645,21 @@ pub unsafe fn ExpandOne(
             return None;
         }
 
-        if (*xp).xp_numfiles == -1 && mode != WILD_APPLY && mode != WILD_CANCEL {
-            (*xp).xp_orig = orig;
+        if xp.xp_numfiles == -1 && mode != WILD_APPLY && mode != WILD_CANCEL {
+            xp.xp_orig = orig;
 
             ss = ExpandOne_start(mode, xp, str_arg, options);
         }
 
-        if mode == WILD_LONGEST && (*xp).xp_numfiles > 0 {
+        if mode == WILD_LONGEST && xp.xp_numfiles > 0 {
             ss = Some(find_longest_match(xp, options));
-            (*xp).xp_selected = -1;
+            xp.xp_selected = -1;
         }
 
-        if mode == WILD_ALL && (*xp).xp_numfiles > 0 && !g_st().got_int {
-            let prefix: &[u8] = if (*xp).xp_prefix == XP_PREFIX_NO {
+        if mode == WILD_ALL && xp.xp_numfiles > 0 && !g_st().got_int {
+            let prefix: &[u8] = if xp.xp_prefix == XP_PREFIX_NO {
                 b"no"
-            } else if (*xp).xp_prefix == XP_PREFIX_INV {
+            } else if xp.xp_prefix == XP_PREFIX_INV {
                 b"inv"
             } else {
                 b""
@@ -2666,11 +2669,11 @@ pub unsafe fn ExpandOne(
             } else {
                 b" "
             };
-            let n = (*xp).xp_numfiles - 1;
+            let n = xp.xp_numfiles - 1;
 
-            let files = (*xp).xp_files.as_slice();
+            let files = xp.xp_files.as_slice();
             let mut out = Vec::new();
-            for (idx, f) in files.iter().take((*xp).xp_numfiles as usize).enumerate() {
+            for (idx, f) in files.iter().take(xp.xp_numfiles as usize).enumerate() {
                 let i = idx as c_int;
                 if i > 0 {
                     out.extend_from_slice(prefix);
@@ -2692,22 +2695,18 @@ pub unsafe fn ExpandOne(
 }
 
 /// Prepare an expand structure for use.
-pub unsafe fn ExpandInit(xp: *mut expand_T) {
-    unsafe {
-        *xp = expand_T::new();
-    }
+pub fn ExpandInit(xp: &mut expand_T) {
+    *xp = expand_T::new();
 }
 
 /// Cleanup an expand structure after use.
-pub unsafe fn ExpandCleanup(xp: *mut expand_T) {
-    unsafe {
-        if (*xp).xp_numfiles >= 0 {
-            free_xp_files_extra(xp);
-            (*xp).xp_numfiles = -1;
-        }
-        (*xp).xp_files = Vec::new();
-        (*xp).xp_orig = None;
+pub fn ExpandCleanup(xp: &mut expand_T) {
+    if xp.xp_numfiles >= 0 {
+        free_xp_files_extra(xp);
+        xp.xp_numfiles = -1;
     }
+    xp.xp_files = Vec::new();
+    xp.xp_orig = None;
 }
 
 pub unsafe fn clear_cmdline_orig() {
@@ -2718,7 +2717,7 @@ pub unsafe fn clear_cmdline_orig() {
 
 /// Display one line of completion matches.
 unsafe fn showmatches_oneline(
-    xp: *mut expand_T,
+    xp: &expand_T,
     matches: &[CString],
     lines: c_int,
     linenr: c_int,
@@ -2730,7 +2729,7 @@ unsafe fn showmatches_oneline(
         let mut lastlen: c_int = 999;
         let mut j = linenr;
         while j < numMatches {
-            if (*xp).xp_context == EXPAND_TAGS_LISTFILES {
+            if xp.xp_context == EXPAND_TAGS_LISTFILES {
                 let m = matches[j as usize].as_ptr();
                 msg_outtrans(m, HLF_D, false);
                 if let Some((kind_str, fname_str)) = crate::tag::tag_listfiles_extra(j as usize) {
@@ -2750,12 +2749,12 @@ unsafe fn showmatches_oneline(
             }
             let isdir: bool;
             let p: *mut c_char;
-            if (*xp).xp_context == EXPAND_FILES
-                || (*xp).xp_context == EXPAND_SHELLCMD
-                || (*xp).xp_context == EXPAND_BUFFERS
+            if xp.xp_context == EXPAND_FILES
+                || xp.xp_context == EXPAND_SHELLCMD
+                || xp.xp_context == EXPAND_BUFFERS
             {
                 let match_j = matches[j as usize].as_ptr();
-                if (*xp).xp_numfiles != -1 {
+                if xp.xp_numfiles != -1 {
                     let exp_path = expand_env_save_opt(match_j.cast_mut(), true, ptr::null_mut());
                     let halved_slash = backslash_halve_save(exp_path.as_ptr());
                     isdir = os_isdir(halved_slash.as_ptr());
@@ -2786,7 +2785,7 @@ unsafe fn showmatches_oneline(
 #[inline]
 unsafe fn show_pum_matches(
     ccline: *mut CmdlineInfo,
-    xp: *mut expand_T,
+    xp: &expand_T,
     matches: &[CString],
     showtail: bool,
     noselect: bool,
@@ -2802,7 +2801,7 @@ unsafe fn show_pum_matches(
 
 /// Display completion matches.
 pub unsafe fn showmatches(
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     display_wildmenu: bool,
     display_list: bool,
     wim_flags_arg: c_int,
@@ -2815,9 +2814,9 @@ pub unsafe fn showmatches(
         let noinsert = (wim_flags_arg & c_int::from(kOptWimFlagNoinsert)) != 0;
         let cmdline_unchanged = noselect || noinsert;
 
-        let matches: &[CString] = if (*xp).xp_numfiles == -1 {
+        let matches: &[CString] = if xp.xp_numfiles == -1 {
             set_expand_context(xp);
-            if (*xp).xp_context == EXPAND_LUA {
+            if xp.xp_context == EXPAND_LUA {
                 nlua_expand_pat(xp);
             }
             let retval = expand_cmdline(xp, (*ccline).cmdbuff, (*ccline).cmdpos, &mut temp_matches);
@@ -2828,12 +2827,12 @@ pub unsafe fn showmatches(
             &temp_matches
         } else {
             showtail = cmdexp().cmd_showtail;
-            &(*xp).xp_files.as_slice()[..(*xp).xp_numfiles as usize]
+            &xp.xp_files.as_slice()[..xp.xp_numfiles as usize]
         };
 
         if cmdline_compl_use_pum(display_wildmenu && !display_list) {
             show_pum_matches(ccline, xp, matches, showtail, noselect, cmdline_unchanged);
-            if (*xp).xp_numfiles == -1 {
+            if xp.xp_numfiles == -1 {
                 free_xp_files_extra(xp);
             }
             return EXPAND_OK;
@@ -2861,9 +2860,9 @@ pub unsafe fn showmatches(
             let mut maxlen: c_int = 0;
             for (i, match_i) in matches.iter().enumerate() {
                 let len = if !showtail
-                    && ((*xp).xp_context == EXPAND_FILES
-                        || (*xp).xp_context == EXPAND_SHELLCMD
-                        || (*xp).xp_context == EXPAND_BUFFERS)
+                    && (xp.xp_context == EXPAND_FILES
+                        || xp.xp_context == EXPAND_SHELLCMD
+                        || xp.xp_context == EXPAND_BUFFERS)
                 {
                     let name_buff = (&raw mut g_st().NameBuff).cast::<c_char>();
                     home_replace(ptr::null(), match_i.as_ptr(), name_buff, MAXPATHL, true);
@@ -2874,7 +2873,7 @@ pub unsafe fn showmatches(
                 maxlen = maxlen.max(len);
             }
 
-            let lines = if (*xp).xp_context == EXPAND_TAGS_LISTFILES {
+            let lines = if xp.xp_context == EXPAND_TAGS_LISTFILES {
                 numMatches
             } else {
                 maxlen += 2;
@@ -2885,7 +2884,7 @@ pub unsafe fn showmatches(
                 (numMatches + columns - 1) / columns
             };
 
-            if (*xp).xp_context == EXPAND_TAGS_LISTFILES {
+            if xp.xp_context == EXPAND_TAGS_LISTFILES {
                 msg_puts_hl(gettext(c"tagname".as_ptr()), HLF_T, false);
                 msg_clr_eos();
                 msg_advance(maxlen - 3);
@@ -2911,7 +2910,7 @@ pub unsafe fn showmatches(
             }
         }
 
-        if (*xp).xp_numfiles == -1 {
+        if xp.xp_numfiles == -1 {
             free_xp_files_extra(xp);
         }
 
@@ -2949,21 +2948,21 @@ unsafe fn showmatches_gettail(s: *mut c_char, eager: bool) -> *mut c_char {
 }
 
 /// Return true if we only need to show the tail of completion matches.
-unsafe fn expand_showtail(xp: *mut expand_T) -> bool {
+unsafe fn expand_showtail(xp: &mut expand_T) -> bool {
     unsafe {
-        if (*xp).xp_context != EXPAND_FILES
-            && (*xp).xp_context != EXPAND_SHELLCMD
-            && (*xp).xp_context != EXPAND_DIRECTORIES
+        if xp.xp_context != EXPAND_FILES
+            && xp.xp_context != EXPAND_SHELLCMD
+            && xp.xp_context != EXPAND_DIRECTORIES
         {
             return false;
         }
 
-        let end = path_tail((*xp).xp_pattern);
-        if end == (*xp).xp_pattern {
+        let end = path_tail(xp.xp_pattern);
+        if end == xp.xp_pattern {
             return false;
         }
 
-        let mut s = (*xp).xp_pattern;
+        let mut s = xp.xp_pattern;
         while (s as usize) < (end as usize) {
             if rem_backslash(s) {
                 s = s.add(1);
@@ -3105,21 +3104,21 @@ pub unsafe fn addstar(fname: *mut c_char, mut len: usize, context: c_int) -> CSt
 }
 
 /// Must parse the command line so far to work out what context we are in.
-pub unsafe fn set_expand_context(xp: *mut expand_T) {
+pub unsafe fn set_expand_context(xp: &mut expand_T) {
     unsafe {
         let ccline = get_cmdline_info();
 
         if ((*ccline).cmdfirstc == b'/' as c_int || (*ccline).cmdfirstc == b'?' as c_int)
             && cmdexp().may_expand_pattern
         {
-            (*xp).xp_context = EXPAND_PATTERN_IN_BUF;
-            (*xp).xp_search_dir = if (*ccline).cmdfirstc == b'/' as c_int {
+            xp.xp_context = EXPAND_PATTERN_IN_BUF;
+            xp.xp_search_dir = if (*ccline).cmdfirstc == b'/' as c_int {
                 FORWARD
             } else {
                 BACKWARD
             };
-            (*xp).xp_pattern = (*ccline).cmdbuff;
-            (*xp).xp_pattern_len = (*ccline).cmdpos as usize;
+            xp.xp_pattern = (*ccline).cmdbuff;
+            xp.xp_pattern_len = (*ccline).cmdpos as usize;
             g_st().Search.first_line = 0;
             return;
         }
@@ -3129,7 +3128,7 @@ pub unsafe fn set_expand_context(xp: *mut expand_T) {
             && (*ccline).cmdfirstc != b'=' as c_int
             && (*ccline).input_fn == 0
         {
-            (*xp).xp_context = EXPAND_NOTHING;
+            xp.xp_context = EXPAND_NOTHING;
             return;
         }
 
@@ -3147,7 +3146,7 @@ pub unsafe fn set_expand_context(xp: *mut expand_T) {
 unsafe fn set_cmd_index(
     cmd: *const c_char,
     eap: *mut exarg_T,
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     complp: *mut c_int,
 ) -> *const c_char {
     unsafe {
@@ -3183,7 +3182,7 @@ unsafe fn set_cmd_index(
             let len = p.offset_from(cmd) as usize;
 
             if len == 0 {
-                (*xp).xp_context = EXPAND_UNSUCCESSFUL;
+                xp.xp_context = EXPAND_UNSUCCESSFUL;
                 return ptr::null();
             }
 
@@ -3217,7 +3216,7 @@ unsafe fn set_cmd_index(
             }
         }
         if (*eap).cmdidx == cmdidx_T::CMD_SIZE as c_int as c_int {
-            (*xp).xp_context = EXPAND_UNSUCCESSFUL;
+            xp.xp_context = EXPAND_UNSUCCESSFUL;
             return ptr::null();
         }
 
@@ -3230,7 +3229,7 @@ unsafe fn set_context_for_wildcard_arg(
     eap: *mut exarg_T,
     arg: *const c_char,
     usefilter: bool,
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     complp: *mut c_int,
 ) {
     unsafe {
@@ -3238,15 +3237,15 @@ unsafe fn set_context_for_wildcard_arg(
         let mut bow: *const c_char = ptr::null();
         let mut len: usize;
 
-        (*xp).xp_pattern = skipwhite(arg);
-        let mut p: *const c_char = (*xp).xp_pattern;
+        xp.xp_pattern = skipwhite(arg);
+        let mut p: *const c_char = xp.xp_pattern;
         while *p != NUL {
             let mut c = utf_ptr2char(p);
             if c == b'\\' as c_int && *p.add(1) != NUL {
                 p = p.add(1);
             } else if c == b'`' as c_int {
                 if !in_quote {
-                    (*xp).xp_pattern = p.cast_mut();
+                    xp.xp_pattern = p.cast_mut();
                     bow = p.add(1);
                 }
                 in_quote = !in_quote;
@@ -3268,7 +3267,7 @@ unsafe fn set_context_for_wildcard_arg(
                 if in_quote {
                     bow = p;
                 } else {
-                    (*xp).xp_pattern = p.cast_mut();
+                    xp.xp_pattern = p.cast_mut();
                 }
                 p = p.sub(len);
             }
@@ -3276,9 +3275,9 @@ unsafe fn set_context_for_wildcard_arg(
         }
 
         if !bow.is_null() && in_quote {
-            (*xp).xp_pattern = bow.cast_mut();
+            xp.xp_pattern = bow.cast_mut();
         }
-        (*xp).xp_context = EXPAND_FILES;
+        xp.xp_context = EXPAND_FILES;
 
         if usefilter
             || (!eap.is_null()
@@ -3288,64 +3287,64 @@ unsafe fn set_context_for_wildcard_arg(
         {
             #[cfg(not(windows))]
             {
-                (*xp).xp_shell = true;
+                xp.xp_shell = true;
             }
-            if (*xp).xp_pattern == skipwhite(arg) {
-                (*xp).xp_context = EXPAND_SHELLCMD;
+            if xp.xp_pattern == skipwhite(arg) {
+                xp.xp_context = EXPAND_SHELLCMD;
             }
         }
 
-        if *(*xp).xp_pattern == b'$' as c_char {
-            p = (*xp).xp_pattern.add(1);
+        if *xp.xp_pattern == b'$' as c_char {
+            p = xp.xp_pattern.add(1);
             p = p.add(env_name_len(p));
             if *p == NUL {
-                (*xp).xp_context = EXPAND_ENV_VARS;
-                (*xp).xp_pattern = (*xp).xp_pattern.add(1);
+                xp.xp_context = EXPAND_ENV_VARS;
+                xp.xp_pattern = xp.xp_pattern.add(1);
                 if *complp != EXPAND_USER_DEFINED && *complp != EXPAND_USER_LIST {
                     *complp = EXPAND_ENV_VARS;
                 }
             }
         }
 
-        if *(*xp).xp_pattern == b'~' as c_char {
-            p = (*xp).xp_pattern.add(1);
+        if *xp.xp_pattern == b'~' as c_char {
+            p = xp.xp_pattern.add(1);
             while *p != NUL && *p != b'/' as c_char {
                 p = p.add(1);
             }
             if *p == NUL
-                && (p as usize) > ((*xp).xp_pattern.add(1) as usize)
-                && match_user((*xp).xp_pattern.add(1)) >= 1
+                && (p as usize) > (xp.xp_pattern.add(1) as usize)
+                && match_user(xp.xp_pattern.add(1)) >= 1
             {
-                (*xp).xp_context = EXPAND_USER;
-                (*xp).xp_pattern = (*xp).xp_pattern.add(1);
+                xp.xp_context = EXPAND_USER;
+                xp.xp_pattern = xp.xp_pattern.add(1);
             }
         }
     }
 }
 
 /// Set the completion context for the "++opt=arg" argument. Always returns NULL.
-unsafe fn set_context_in_argopt(xp: *mut expand_T, arg: *const c_char) -> *const c_char {
+unsafe fn set_context_in_argopt(xp: &mut expand_T, arg: *const c_char) -> *const c_char {
     unsafe {
         let p = vim_strchr(arg, b'=' as c_int);
         if p.is_null() {
-            (*xp).xp_pattern = arg.cast_mut();
+            xp.xp_pattern = arg.cast_mut();
         } else {
-            (*xp).xp_pattern = p.add(1);
+            xp.xp_pattern = p.add(1);
         }
 
-        (*xp).xp_context = EXPAND_ARGOPT;
+        xp.xp_context = EXPAND_ARGOPT;
         ptr::null()
     }
 }
 
 /// Set the completion context for the :filter command.
-unsafe fn set_context_in_filter_cmd(xp: *mut expand_T, mut arg: *const c_char) -> *const c_char {
+unsafe fn set_context_in_filter_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const c_char {
     unsafe {
         if *arg != NUL {
             arg = skip_vimgrep_pat(arg.cast_mut(), ptr::null_mut(), ptr::null_mut());
         }
         if arg.is_null() || *arg == NUL {
-            (*xp).xp_context = EXPAND_NOTHING;
+            xp.xp_context = EXPAND_NOTHING;
             return ptr::null();
         }
         skipwhite(arg)
@@ -3353,13 +3352,13 @@ unsafe fn set_context_in_filter_cmd(xp: *mut expand_T, mut arg: *const c_char) -
 }
 
 /// Set the completion context for the :match command.
-unsafe fn set_context_in_match_cmd(xp: *mut expand_T, mut arg: *const c_char) -> *const c_char {
+unsafe fn set_context_in_match_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const c_char {
     unsafe {
         if *arg == NUL || ends_excmd(*arg as c_int) == 0 {
             set_context_in_echohl_cmd(xp, arg);
             arg = skipwhite(skiptowhite(arg));
             if *arg != NUL {
-                (*xp).xp_context = EXPAND_NOTHING;
+                xp.xp_context = EXPAND_NOTHING;
                 arg = skip_regexp(arg.add(1).cast_mut(), *arg as u8 as c_int, opt_vars().p_magic);
             }
         }
@@ -3422,7 +3421,7 @@ unsafe fn find_cmd_after_substitute_cmd(mut arg: *const c_char) -> *const c_char
 }
 
 /// Returns a pointer to the next command after an :isearch/:dsearch/etc. command.
-unsafe fn find_cmd_after_isearch_cmd(xp: *mut expand_T, mut arg: *const c_char) -> *const c_char {
+unsafe fn find_cmd_after_isearch_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const c_char {
     unsafe {
         arg = skipwhite(skipdigits(arg));
         if *arg != b'/' as c_char {
@@ -3440,7 +3439,7 @@ unsafe fn find_cmd_after_isearch_cmd(xp: *mut expand_T, mut arg: *const c_char) 
             arg = skipwhite(arg.add(1));
 
             if *arg == NUL || c_strchr(c"|\"\n".as_ptr(), *arg).is_null() {
-                (*xp).xp_context = EXPAND_NOTHING;
+                xp.xp_context = EXPAND_NOTHING;
             } else {
                 return arg;
             }
@@ -3451,21 +3450,21 @@ unsafe fn find_cmd_after_isearch_cmd(xp: *mut expand_T, mut arg: *const c_char) 
 }
 
 /// Set the completion context for the :unlet command. Always returns NULL.
-unsafe fn set_context_in_unlet_cmd(xp: *mut expand_T, mut arg: *const c_char) -> *const c_char {
+unsafe fn set_context_in_unlet_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const c_char {
     unsafe {
         while {
-            (*xp).xp_pattern = c_strchr(arg, b' ' as c_char);
-            !(*xp).xp_pattern.is_null()
+            xp.xp_pattern = c_strchr(arg, b' ' as c_char);
+            !xp.xp_pattern.is_null()
         } {
-            arg = (*xp).xp_pattern.add(1);
+            arg = xp.xp_pattern.add(1);
         }
 
-        (*xp).xp_context = EXPAND_USER_VARS;
-        (*xp).xp_pattern = arg.cast_mut();
+        xp.xp_context = EXPAND_USER_VARS;
+        xp.xp_pattern = arg.cast_mut();
 
-        if *(*xp).xp_pattern == b'$' as c_char {
-            (*xp).xp_context = EXPAND_ENV_VARS;
-            (*xp).xp_pattern = (*xp).xp_pattern.add(1);
+        if *xp.xp_pattern == b'$' as c_char {
+            xp.xp_context = EXPAND_ENV_VARS;
+            xp.xp_pattern = xp.xp_pattern.add(1);
         }
 
         ptr::null()
@@ -3473,12 +3472,12 @@ unsafe fn set_context_in_unlet_cmd(xp: *mut expand_T, mut arg: *const c_char) ->
 }
 
 /// Set the completion context for the :language command. Always returns NULL.
-unsafe fn set_context_in_lang_cmd(xp: *mut expand_T, arg: *const c_char) -> *const c_char {
+unsafe fn set_context_in_lang_cmd(xp: &mut expand_T, arg: *const c_char) -> *const c_char {
     unsafe {
         let p = skiptowhite(arg);
         if *p == NUL {
-            (*xp).xp_context = EXPAND_LANGUAGE;
-            (*xp).xp_pattern = arg.cast_mut();
+            xp.xp_context = EXPAND_LANGUAGE;
+            xp.xp_pattern = arg.cast_mut();
         } else {
             let n = p.offset_from(arg) as usize;
             if { let _p1 = arg; let _p2 = c"messages".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
@@ -3486,10 +3485,10 @@ unsafe fn set_context_in_lang_cmd(xp: *mut expand_T, arg: *const c_char) -> *con
                 || { let _p1 = arg; let _p2 = c"time".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                 || { let _p1 = arg; let _p2 = c"collate".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
             {
-                (*xp).xp_context = EXPAND_LOCALES;
-                (*xp).xp_pattern = skipwhite(p);
+                xp.xp_context = EXPAND_LOCALES;
+                xp.xp_pattern = skipwhite(p);
             } else {
-                (*xp).xp_context = EXPAND_NOTHING;
+                xp.xp_context = EXPAND_NOTHING;
             }
         }
 
@@ -3499,13 +3498,13 @@ unsafe fn set_context_in_lang_cmd(xp: *mut expand_T, arg: *const c_char) -> *con
 
 /// Set the completion context for the :breakadd command. Always returns NULL.
 unsafe fn set_context_in_breakadd_cmd(
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     arg: *const c_char,
     cmdidx: cmdidx_T,
 ) -> *const c_char {
     unsafe {
-        (*xp).xp_context = EXPAND_BREAKPOINT;
-        (*xp).xp_pattern = arg.cast_mut();
+        xp.xp_context = EXPAND_BREAKPOINT;
+        xp.xp_pattern = arg.cast_mut();
 
         if cmdidx == cmdidx_T::CMD_breakadd {
             cmdexp().breakpt_expand_what = BreakptExpandWhat::Add;
@@ -3528,48 +3527,48 @@ unsafe fn set_context_in_breakadd_cmd(
             if ascii_isdigit(*p as c_int) {
                 p = skipdigits(p);
                 if *p != b' ' as c_char {
-                    (*xp).xp_context = EXPAND_NOTHING;
+                    xp.xp_context = EXPAND_NOTHING;
                     return ptr::null();
                 }
                 p = skipwhite(p);
             }
             if { let _p1 = c"file".as_ptr(); let _p2 = subcmd_start; let _n = 4; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
-                (*xp).xp_context = EXPAND_FILES;
+                xp.xp_context = EXPAND_FILES;
             } else {
-                (*xp).xp_context = EXPAND_USER_FUNC;
+                xp.xp_context = EXPAND_USER_FUNC;
             }
-            (*xp).xp_pattern = p.cast_mut();
+            xp.xp_pattern = p.cast_mut();
         } else if { let _p1 = c"expr ".as_ptr(); let _p2 = p; let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
-            (*xp).xp_context = EXPAND_EXPRESSION;
-            (*xp).xp_pattern = skipwhite(p.add(5));
+            xp.xp_context = EXPAND_EXPRESSION;
+            xp.xp_pattern = skipwhite(p.add(5));
         }
 
         ptr::null()
     }
 }
 
-unsafe fn set_context_in_scriptnames_cmd(xp: *mut expand_T, arg: *const c_char) -> *const c_char {
+unsafe fn set_context_in_scriptnames_cmd(xp: &mut expand_T, arg: *const c_char) -> *const c_char {
     unsafe {
-        (*xp).xp_context = EXPAND_NOTHING;
-        (*xp).xp_pattern = ptr::null_mut();
+        xp.xp_context = EXPAND_NOTHING;
+        xp.xp_pattern = ptr::null_mut();
 
         let p = skipwhite(arg);
         if ascii_isdigit(*p as c_int) {
             return ptr::null();
         }
 
-        (*xp).xp_context = EXPAND_SCRIPTNAMES;
-        (*xp).xp_pattern = p;
+        xp.xp_context = EXPAND_SCRIPTNAMES;
+        xp.xp_pattern = p;
 
         ptr::null()
     }
 }
 
 /// Set the completion context for the :filetype command. Always returns NULL.
-unsafe fn set_context_in_filetype_cmd(xp: *mut expand_T, arg: *const c_char) -> *const c_char {
+unsafe fn set_context_in_filetype_cmd(xp: &mut expand_T, arg: *const c_char) -> *const c_char {
     unsafe {
-        (*xp).xp_context = EXPAND_FILETYPECMD;
-        (*xp).xp_pattern = arg.cast_mut();
+        xp.xp_context = EXPAND_FILETYPECMD;
+        xp.xp_pattern = arg.cast_mut();
         cmdexp().filetype_expand_what = FiletypeExpandWhat::All;
 
         let mut p = skipwhite(arg);
@@ -3601,14 +3600,14 @@ unsafe fn set_context_in_filetype_cmd(xp: *mut expand_T, arg: *const c_char) -> 
             cmdexp().filetype_expand_what = FiletypeExpandWhat::Plugin;
         }
 
-        (*xp).xp_pattern = p;
+        xp.xp_pattern = p;
 
         ptr::null()
     }
 }
 
 /// Sets the completion context for commands that involve a search pattern and a line range.
-unsafe fn set_context_with_pattern(xp: *mut expand_T) {
+unsafe fn set_context_with_pattern(xp: &mut expand_T) {
     unsafe {
         let ccline = get_cmdline_info();
 
@@ -3630,10 +3629,10 @@ unsafe fn set_context_with_pattern(xp: *mut expand_T) {
             return;
         }
 
-        (*xp).xp_pattern = (*ccline).cmdbuff.add(skiplen as usize);
-        (*xp).xp_pattern_len = ((*ccline).cmdpos - skiplen) as usize;
-        (*xp).xp_context = EXPAND_PATTERN_IN_BUF;
-        (*xp).xp_search_dir = FORWARD;
+        xp.xp_pattern = (*ccline).cmdbuff.add(skiplen as usize);
+        xp.xp_pattern_len = ((*ccline).cmdpos - skiplen) as usize;
+        xp.xp_context = EXPAND_PATTERN_IN_BUF;
+        xp.xp_search_dir = FORWARD;
     }
 }
 
@@ -3641,7 +3640,7 @@ unsafe fn set_context_with_pattern(xp: *mut expand_T) {
 unsafe fn set_context_by_cmdname(
     cmd: *const c_char,
     cmdidx: cmdidx_T,
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     mut arg: *const c_char,
     argt: u32,
     context: c_int,
@@ -3650,8 +3649,8 @@ unsafe fn set_context_by_cmdname(
     unsafe {
         match cmdidx {
             cmdidx_T::CMD_find | cmdidx_T::CMD_sfind | cmdidx_T::CMD_tabfind => {
-                if (*xp).xp_context == EXPAND_FILES {
-                    (*xp).xp_context = if (*get_findfunc()).cb_type() != 0 {
+                if xp.xp_context == EXPAND_FILES {
+                    xp.xp_context = if (*get_findfunc()).cb_type() != 0 {
                         EXPAND_FINDFUNC
                     } else {
                         EXPAND_FILES_IN_PATH
@@ -3666,13 +3665,13 @@ unsafe fn set_context_by_cmdname(
             | cmdidx_T::CMD_lchdir
             | cmdidx_T::CMD_tcd
             | cmdidx_T::CMD_tchdir => {
-                if (*xp).xp_context == EXPAND_FILES {
-                    (*xp).xp_context = EXPAND_DIRS_IN_CDPATH;
+                if xp.xp_context == EXPAND_FILES {
+                    xp.xp_context = EXPAND_DIRS_IN_CDPATH;
                 }
             }
             cmdidx_T::CMD_help => {
-                (*xp).xp_context = EXPAND_HELP;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_HELP;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_aboveleft
             | cmdidx_T::CMD_argdo
@@ -3721,8 +3720,8 @@ unsafe fn set_context_by_cmdname(
                 return set_context_in_user_cmd(xp, arg);
             }
             cmdidx_T::CMD_delcommand => {
-                (*xp).xp_context = EXPAND_USER_COMMANDS;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_USER_COMMANDS;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_global | cmdidx_T::CMD_vglobal => {
                 let nextcmd = find_cmd_after_global_cmd(arg);
@@ -3775,15 +3774,15 @@ unsafe fn set_context_by_cmdname(
             | cmdidx_T::CMD_stjump
             | cmdidx_T::CMD_ptjump => {
                 if (opt_vars().wop_flags & kOptWopFlagTagfile) != 0 {
-                    (*xp).xp_context = EXPAND_TAGS_LISTFILES;
+                    xp.xp_context = EXPAND_TAGS_LISTFILES;
                 } else {
-                    (*xp).xp_context = EXPAND_TAGS;
+                    xp.xp_context = EXPAND_TAGS;
                 }
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_augroup => {
-                (*xp).xp_context = EXPAND_AUGROUP;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_AUGROUP;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_syntax => {
                 set_context_in_syntax_cmd(xp, arg);
@@ -3813,8 +3812,8 @@ unsafe fn set_context_by_cmdname(
                 return set_context_in_unlet_cmd(xp, arg);
             }
             cmdidx_T::CMD_function | cmdidx_T::CMD_delfunction => {
-                (*xp).xp_context = EXPAND_USER_FUNC;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_USER_FUNC;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_echohl => {
                 set_context_in_echohl_cmd(xp, arg);
@@ -3827,24 +3826,24 @@ unsafe fn set_context_by_cmdname(
             }
             cmdidx_T::CMD_bdelete | cmdidx_T::CMD_bwipeout | cmdidx_T::CMD_bunload => {
                 while {
-                    (*xp).xp_pattern = c_strchr(arg, b' ' as c_char);
-                    !(*xp).xp_pattern.is_null()
+                    xp.xp_pattern = c_strchr(arg, b' ' as c_char);
+                    !xp.xp_pattern.is_null()
                 } {
-                    arg = (*xp).xp_pattern.add(1);
+                    arg = xp.xp_pattern.add(1);
                 }
-                (*xp).xp_context = EXPAND_BUFFERS;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_BUFFERS;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_buffer
             | cmdidx_T::CMD_sbuffer
             | cmdidx_T::CMD_pbuffer
             | cmdidx_T::CMD_checktime => {
-                (*xp).xp_context = EXPAND_BUFFERS;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_BUFFERS;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_diffget | cmdidx_T::CMD_diffput => {
-                (*xp).xp_context = EXPAND_DIFF_BUFFERS;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_DIFF_BUFFERS;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_USER | cmdidx_T::CMD_USER_BUF => {
                 return set_context_in_user_cmdarg(cmd, arg, argt, context, xp, forceit);
@@ -3905,8 +3904,8 @@ unsafe fn set_context_by_cmdname(
             | cmdidx_T::CMD_lmapclear
             | cmdidx_T::CMD_smapclear
             | cmdidx_T::CMD_xmapclear => {
-                (*xp).xp_context = EXPAND_MAPCLEAR;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_MAPCLEAR;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_abbreviate
             | cmdidx_T::CMD_noreabbrev
@@ -3966,24 +3965,24 @@ unsafe fn set_context_by_cmdname(
                 return set_context_in_menu_cmd(xp, cmd, arg.cast_mut(), forceit);
             }
             cmdidx_T::CMD_colorscheme => {
-                (*xp).xp_context = EXPAND_COLORS;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_COLORS;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_compiler => {
-                (*xp).xp_context = EXPAND_COMPILER;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_COMPILER;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_ownsyntax => {
-                (*xp).xp_context = EXPAND_OWNSYNTAX;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_OWNSYNTAX;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_setfiletype => {
-                (*xp).xp_context = EXPAND_FILETYPE;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_FILETYPE;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_packadd => {
-                (*xp).xp_context = EXPAND_PACKADD;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_PACKADD;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_runtime => {
                 set_context_in_runtime_cmd(xp, arg);
@@ -3995,48 +3994,48 @@ unsafe fn set_context_by_cmdname(
                 set_context_in_profile_cmd(xp, arg);
             }
             cmdidx_T::CMD_checkhealth => {
-                (*xp).xp_context = EXPAND_CHECKHEALTH;
+                xp.xp_context = EXPAND_CHECKHEALTH;
             }
             cmdidx_T::CMD_marks => {
-                (*xp).xp_context = EXPAND_MARKS;
+                xp.xp_context = EXPAND_MARKS;
             }
             cmdidx_T::CMD_log => {
-                (*xp).xp_context = EXPAND_LOG;
+                xp.xp_context = EXPAND_LOG;
             }
             cmdidx_T::CMD_lsp => {
-                (*xp).xp_context = EXPAND_LSP;
+                xp.xp_context = EXPAND_LSP;
             }
             cmdidx_T::CMD_packdel => {
-                (*xp).xp_context = EXPAND_PACKDEL;
+                xp.xp_context = EXPAND_PACKDEL;
             }
             cmdidx_T::CMD_packupdate => {
-                (*xp).xp_context = EXPAND_PACKUPDATE;
+                xp.xp_context = EXPAND_PACKUPDATE;
             }
             cmdidx_T::CMD_retab => {
-                (*xp).xp_context = EXPAND_RETAB;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_RETAB;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_messages => {
-                (*xp).xp_context = EXPAND_MESSAGES;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_MESSAGES;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_history => {
-                (*xp).xp_context = EXPAND_HISTORY;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_HISTORY;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_syntime => {
-                (*xp).xp_context = EXPAND_SYNTIME;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_SYNTIME;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_argdelete => {
                 while {
-                    (*xp).xp_pattern = vim_strchr(arg, b' ' as c_int);
-                    !(*xp).xp_pattern.is_null()
+                    xp.xp_pattern = vim_strchr(arg, b' ' as c_int);
+                    !xp.xp_pattern.is_null()
                 } {
-                    arg = (*xp).xp_pattern.add(1);
+                    arg = xp.xp_pattern.add(1);
                 }
-                (*xp).xp_context = EXPAND_ARGLIST;
-                (*xp).xp_pattern = arg.cast_mut();
+                xp.xp_context = EXPAND_ARGLIST;
+                xp.xp_pattern = arg.cast_mut();
             }
             cmdidx_T::CMD_breakadd | cmdidx_T::CMD_profdel | cmdidx_T::CMD_breakdel => {
                 return set_context_in_breakadd_cmd(xp, arg, cmdidx);
@@ -4048,7 +4047,7 @@ unsafe fn set_context_by_cmdname(
                 return set_context_in_filetype_cmd(xp, arg);
             }
             cmdidx_T::CMD_lua | cmdidx_T::CMD_equal => {
-                (*xp).xp_context = EXPAND_LUA;
+                xp.xp_context = EXPAND_LUA;
             }
             _ => {}
         }
@@ -4057,7 +4056,7 @@ unsafe fn set_context_by_cmdname(
 }
 
 /// Parse one command from `buff` and set completion context in `xp`.
-unsafe fn set_one_cmd_context(xp: *mut expand_T, buff: *const c_char) -> *const c_char {
+unsafe fn set_one_cmd_context(xp: &mut expand_T, buff: *const c_char) -> *const c_char {
     unsafe {
         let mut ea: exarg_T = exarg_T::new();
         let mut context: c_int = EXPAND_NOTHING;
@@ -4065,32 +4064,32 @@ unsafe fn set_one_cmd_context(xp: *mut expand_T, buff: *const c_char) -> *const 
         let mut usefilter = false;
 
         ExpandInit(xp);
-        (*xp).xp_pattern = buff.cast_mut();
-        (*xp).xp_line = buff.cast_mut();
-        (*xp).xp_context = EXPAND_COMMANDS;
+        xp.xp_pattern = buff.cast_mut();
+        xp.xp_line = buff.cast_mut();
+        xp.xp_context = EXPAND_COMMANDS;
         ea.argt = 0;
 
         let mut cmd = buff;
         while !vim_strchr(c" \t:|".as_ptr(), *cmd as u8 as c_int).is_null() {
             cmd = cmd.add(1);
         }
-        (*xp).xp_pattern = cmd.cast_mut();
+        xp.xp_pattern = cmd.cast_mut();
 
         if *cmd == NUL {
             return ptr::null();
         }
         if *cmd == b'"' as c_char {
-            (*xp).xp_context = EXPAND_NOTHING;
+            xp.xp_context = EXPAND_NOTHING;
             return ptr::null();
         }
 
-        cmd = skip_range(cmd, &raw mut (*xp).xp_context);
-        (*xp).xp_pattern = cmd.cast_mut();
+        cmd = skip_range(cmd, &mut xp.xp_context);
+        xp.xp_pattern = cmd.cast_mut();
         if *cmd == NUL {
             return ptr::null();
         }
         if *cmd == b'"' as c_char {
-            (*xp).xp_context = EXPAND_NOTHING;
+            xp.xp_context = EXPAND_NOTHING;
             return ptr::null();
         }
 
@@ -4103,7 +4102,7 @@ unsafe fn set_one_cmd_context(xp: *mut expand_T, buff: *const c_char) -> *const 
             return ptr::null();
         }
 
-        (*xp).xp_context = EXPAND_NOTHING;
+        xp.xp_context = EXPAND_NOTHING;
 
         if *p == b'!' as c_char {
             forceit = true;
@@ -4203,12 +4202,12 @@ unsafe fn set_one_cmd_context(xp: *mut expand_T, buff: *const c_char) -> *const 
         }
 
         p = buff;
-        (*xp).xp_pattern = p.cast_mut();
+        xp.xp_pattern = p.cast_mut();
         let len = std::ffi::CStr::from_ptr(buff).to_bytes().len();
         while *p != NUL && (p as usize) < (buff.add(len) as usize) {
             if *p == b' ' as c_char || *p == TAB {
                 p = p.add(1);
-                (*xp).xp_pattern = p.cast_mut();
+                xp.xp_pattern = p.cast_mut();
             } else {
                 if *p == b'\\' as c_char && *p.add(1) != NUL {
                     p = p.add(1);
@@ -4235,7 +4234,7 @@ unsafe fn set_one_cmd_context(xp: *mut expand_T, buff: *const c_char) -> *const 
 
 /// Set the completion context in "xp" for command "str".
 pub unsafe fn set_cmd_context(
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     str_arg: *mut c_char,
     len: c_int,
     col: c_int,
@@ -4257,17 +4256,17 @@ pub unsafe fn set_cmd_context(
         if use_ccline != 0 && (*ccline).cmdfirstc == b'=' as c_int {
             set_context_for_expression(xp, str_arg, cmdidx_T::CMD_SIZE);
         } else if use_ccline != 0 && (*ccline).input_fn != 0 {
-            (*xp).xp_context = (*ccline).xp_context;
-            (*xp).xp_pattern = (*ccline).cmdbuff;
-            (*xp).xp_arg = (*ccline)
+            xp.xp_context = (*ccline).xp_context;
+            xp.xp_pattern = (*ccline).cmdbuff;
+            xp.xp_arg = (*ccline)
                 .xp_arg
                 .as_ref()
                 .map_or(ptr::null_mut(), |a| a.as_ptr().cast_mut());
-            if (*xp).xp_context == EXPAND_SHELLCMDLINE {
-                let mut context = (*xp).xp_context;
+            if xp.xp_context == EXPAND_SHELLCMDLINE {
+                let mut context = xp.xp_context;
                 set_context_for_wildcard_arg(
                     ptr::null_mut(),
-                    (*xp).xp_pattern,
+                    xp.xp_pattern,
                     false,
                     xp,
                     &raw mut context,
@@ -4279,8 +4278,8 @@ pub unsafe fn set_cmd_context(
             }
         }
 
-        (*xp).xp_line = str_arg;
-        (*xp).xp_col = col;
+        xp.xp_line = str_arg;
+        xp.xp_col = col;
 
         if col < len {
             *str_arg.add(col as usize) = old_char;
@@ -4290,7 +4289,7 @@ pub unsafe fn set_cmd_context(
 
 /// Expand the command line "str" from context "xp".
 pub unsafe fn expand_cmdline(
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     str_arg: *const c_char,
     col: c_int,
     matches: &mut Vec<CString>,
@@ -4298,20 +4297,20 @@ pub unsafe fn expand_cmdline(
     unsafe {
         let mut options = WILD_ADD_SLASH | WILD_SILENT;
 
-        if (*xp).xp_context == EXPAND_UNSUCCESSFUL {
+        if xp.xp_context == EXPAND_UNSUCCESSFUL {
             beep_flush();
             return EXPAND_UNSUCCESSFUL;
         }
-        if (*xp).xp_context == EXPAND_NOTHING {
+        if xp.xp_context == EXPAND_NOTHING {
             return EXPAND_NOTHING;
         }
 
-        debug_assert!(str_arg.add(col as usize).offset_from((*xp).xp_pattern) >= 0);
-        (*xp).xp_pattern_len = str_arg.add(col as usize).offset_from((*xp).xp_pattern) as usize;
+        debug_assert!(str_arg.add(col as usize).offset_from(xp.xp_pattern) >= 0);
+        xp.xp_pattern_len = str_arg.add(col as usize).offset_from(xp.xp_pattern) as usize;
         let file_str = if cmdline_fuzzy_completion_supported(xp) {
-            cstr_to_cstring((*xp).xp_pattern)
+            cstr_to_cstring(xp.xp_pattern)
         } else {
-            addstar((*xp).xp_pattern, (*xp).xp_pattern_len, (*xp).xp_context)
+            addstar(xp.xp_pattern, xp.xp_pattern_len, xp.xp_context)
         };
 
         if opt_vars().p_wic != 0 {
@@ -4328,7 +4327,7 @@ pub unsafe fn expand_cmdline(
 
 /// Expand file or directory names.
 unsafe fn expand_files_and_dirs(
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     mut pat: *mut c_char,
     matches: &mut Vec<CString>,
     mut flags: c_int,
@@ -4337,7 +4336,7 @@ unsafe fn expand_files_and_dirs(
     unsafe {
         let mut pat_owned: Option<Vec<c_char>> = None;
 
-        if (*xp).xp_backslash != XP_BS_NONE {
+        if xp.xp_backslash != XP_BS_NONE {
             let pat_len = std::ffi::CStr::from_ptr(pat).to_bytes().len();
             let mut pat_vec = vec![0 as c_char; pat_len + 1];
             { let _d = (pat_vec.as_mut_ptr()).cast::<u8>(); let _n = pat_len; if _n > 0 { std::ptr::copy_nonoverlapping((pat).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
@@ -4348,7 +4347,7 @@ unsafe fn expand_files_and_dirs(
             let mut p = pat;
             while *p != NUL {
                 if *p == b'\\' as c_char {
-                    if ((*xp).xp_backslash & XP_BS_THREE) != 0
+                    if (xp.xp_backslash & XP_BS_THREE) != 0
                         && *p.add(1) == b'\\' as c_char
                         && *p.add(2) == b'\\' as c_char
                         && *p.add(3) == b' ' as c_char
@@ -4356,11 +4355,11 @@ unsafe fn expand_files_and_dirs(
                         let from = p.add(3);
                         ptr::copy(from, p, (pat_end.offset_from(from) as usize) + 1);
                         pat_end = pat_end.sub(3);
-                    } else if ((*xp).xp_backslash & XP_BS_ONE) != 0 && *p.add(1) == b' ' as c_char {
+                    } else if (xp.xp_backslash & XP_BS_ONE) != 0 && *p.add(1) == b' ' as c_char {
                         let from = p.add(1);
                         ptr::copy(from, p, (pat_end.offset_from(from) as usize) + 1);
                         pat_end = pat_end.sub(1);
-                    } else if ((*xp).xp_backslash & XP_BS_COMMA) != 0 {
+                    } else if (xp.xp_backslash & XP_BS_COMMA) != 0 {
                         if *p.add(1) == b'\\' as c_char && *p.add(2) == b',' as c_char {
                             let from = p.add(2);
                             ptr::copy(from, p, (pat_end.offset_from(from) as usize) + 1);
@@ -4379,14 +4378,14 @@ unsafe fn expand_files_and_dirs(
             }
         }
 
-        let ret = if (*xp).xp_context == EXPAND_FINDFUNC {
+        let ret = if xp.xp_context == EXPAND_FINDFUNC {
             expand_findfunc(xp, pat, matches)
         } else {
-            if (*xp).xp_context == EXPAND_FILES {
+            if xp.xp_context == EXPAND_FILES {
                 flags |= EW_FILE;
-            } else if (*xp).xp_context == EXPAND_FILES_IN_PATH {
+            } else if xp.xp_context == EXPAND_FILES_IN_PATH {
                 flags |= EW_FILE | EW_PATH;
-            } else if (*xp).xp_context == EXPAND_DIRS_IN_CDPATH {
+            } else if xp.xp_context == EXPAND_DIRS_IN_CDPATH {
                 flags = (flags | EW_DIR | EW_CDPATH) & !EW_FILE;
             } else {
                 flags = (flags | EW_DIR) & !EW_FILE;
@@ -4418,7 +4417,7 @@ unsafe fn expand_files_and_dirs(
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of ":filetype".
-unsafe fn get_filetypecmd_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_filetypecmd_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 {
         return ptr::null_mut();
     }
@@ -4446,7 +4445,7 @@ unsafe fn get_filetypecmd_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of ":breakadd" / ":breakdel" / ":profdel".
-unsafe fn get_breakadd_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_breakadd_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if (0..=3).contains(&idx) {
         const OPTS: [&CStr; 4] = [c"expr", c"file", c"func", c"here"];
         let i = idx as usize;
@@ -4467,7 +4466,7 @@ unsafe fn get_breakadd_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments for ":scriptnames".
-unsafe fn get_scriptnames_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_scriptnames_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if !script_id_valid(idx + 1) {
             return ptr::null_mut();
@@ -4481,7 +4480,7 @@ unsafe fn get_scriptnames_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of ":retab".
-unsafe fn get_retab_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_retab_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx == 0 {
         c"-indentonly".as_ptr().cast_mut()
     } else {
@@ -4490,7 +4489,7 @@ unsafe fn get_retab_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of ":messages".
-unsafe fn get_messages_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_messages_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx == 0 {
         c"clear".as_ptr().cast_mut()
     } else {
@@ -4498,7 +4497,7 @@ unsafe fn get_messages_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-unsafe fn get_mapclear_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_mapclear_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx == 0 {
         c"<buffer>".as_ptr().cast_mut()
     } else {
@@ -4507,7 +4506,7 @@ unsafe fn get_mapclear_arg(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Completion for |:checkhealth| command.
-unsafe fn get_healthcheck_names(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_healthcheck_names(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         let prompt_id = get_cmdline_last_prompt_id();
         if cmdexp().HEALTHCHECK_LAST_GEN != prompt_id || cmdexp().HEALTHCHECK_LAST_GEN == 0 {
@@ -4545,24 +4544,24 @@ unsafe fn get_healthcheck_names(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Completes arg1 via Lua.
-unsafe fn get_arg1_from_lua(lua: *const c_char, xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_arg1_from_lua(lua: *const c_char, xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         let prompt_id = get_cmdline_last_prompt_id();
         let last_line_ptr = &raw const cmdexp().ARG1_LUA_LAST_XP_LINE;
         if (*last_line_ptr)
             .as_ref()
-            .is_none_or(|s| std::ffi::CStr::from_ptr(s.as_ptr()).to_bytes() != std::ffi::CStr::from_ptr((*xp).xp_line).to_bytes())
+            .is_none_or(|s| std::ffi::CStr::from_ptr(s.as_ptr()).to_bytes() != std::ffi::CStr::from_ptr(xp.xp_line).to_bytes())
             || cmdexp().ARG1_LUA_LAST_GEN != prompt_id
         {
-            cmdexp().ARG1_LUA_LAST_XP_LINE = Some(cstr_to_cstring((*xp).xp_line));
+            cmdexp().ARG1_LUA_LAST_XP_LINE = Some(cstr_to_cstring(xp.xp_line));
             let mut args_items = [
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData::String(cstr_as_string((*xp).xp_pattern)),
+                    data: ObjectData::String(cstr_as_string(xp.xp_pattern)),
                 },
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData::String(cstr_as_string((*xp).xp_line)),
+                    data: ObjectData::String(cstr_as_string(xp.xp_line)),
                 },
             ];
             let args = Array {
@@ -4598,7 +4597,7 @@ unsafe fn get_arg1_from_lua(lua: *const c_char, xp: *mut expand_T, idx: c_int) -
     }
 }
 
-unsafe fn get_marks_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_marks_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         get_arg1_from_lua(
             c"return require'vim._core.marks'.complete(...)".as_ptr(),
@@ -4608,7 +4607,7 @@ unsafe fn get_marks_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-unsafe fn get_log_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_log_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         get_arg1_from_lua(
             c"return require'vim._core.ex_cmd'.log_complete(...)".as_ptr(),
@@ -4618,7 +4617,7 @@ unsafe fn get_log_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-unsafe fn get_lsp_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_lsp_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         get_arg1_from_lua(
             c"return require'vim._core.ex_cmd'.lsp_complete(...)".as_ptr(),
@@ -4628,7 +4627,7 @@ unsafe fn get_lsp_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-unsafe fn get_packdel_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_packdel_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         get_arg1_from_lua(
             c"return require'vim._core.ex_cmd'.packdel_complete(...)".as_ptr(),
@@ -4638,7 +4637,7 @@ unsafe fn get_packdel_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-unsafe fn get_packupdate_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_packupdate_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         get_arg1_from_lua(
             c"return require'vim._core.ex_cmd'.packupdate_complete(...)".as_ptr(),
@@ -4651,13 +4650,13 @@ unsafe fn get_packupdate_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char {
 /// Do the expansion based on xp->xp_context and "rmp".
 unsafe fn ExpandOther(
     pat: *mut c_char,
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     rmp: *mut regmatch_T,
     matches: &mut Vec<CString>,
 ) -> c_int {
     struct ExpGen {
         context: c_int,
-        func: unsafe fn(*mut expand_T, c_int) -> *mut c_char,
+        func: unsafe fn(&mut expand_T, c_int) -> *mut c_char,
         ic: bool,
         escaped: bool,
     }
@@ -4889,7 +4888,7 @@ unsafe fn ExpandOther(
 
     unsafe {
         for entry in &tab {
-            if (*xp).xp_context == entry.context {
+            if xp.xp_context == entry.context {
                 if entry.ic {
                     (*rmp).rm_ic = true;
                 }
@@ -4927,7 +4926,7 @@ fn map_wildopts_to_ewflags(options: c_int) -> c_int {
 
 /// Do the expansion based on xp->xp_context and "pat".
 unsafe fn ExpandFromContext(
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     mut pat: *mut c_char,
     matches: &mut Vec<CString>,
     options: c_int,
@@ -4937,17 +4936,17 @@ unsafe fn ExpandFromContext(
         let flags = map_wildopts_to_ewflags(options);
         let fuzzy = cmdline_fuzzy_complete(pat) && cmdline_fuzzy_completion_supported(xp);
 
-        if (*xp).xp_context == EXPAND_FILES
-            || (*xp).xp_context == EXPAND_DIRECTORIES
-            || (*xp).xp_context == EXPAND_FILES_IN_PATH
-            || (*xp).xp_context == EXPAND_FINDFUNC
-            || (*xp).xp_context == EXPAND_DIRS_IN_CDPATH
+        if xp.xp_context == EXPAND_FILES
+            || xp.xp_context == EXPAND_DIRECTORIES
+            || xp.xp_context == EXPAND_FILES_IN_PATH
+            || xp.xp_context == EXPAND_FINDFUNC
+            || xp.xp_context == EXPAND_DIRS_IN_CDPATH
         {
             return expand_files_and_dirs(xp, pat, matches, flags, options);
         }
 
         matches.clear();
-        if (*xp).xp_context == EXPAND_HELP {
+        if xp.xp_context == EXPAND_HELP {
             if find_help_tags(
                 if *pat == NUL { c"help".as_ptr() } else { pat },
                 matches,
@@ -4960,38 +4959,38 @@ unsafe fn ExpandFromContext(
             return FAIL;
         }
 
-        if (*xp).xp_context == EXPAND_SHELLCMD {
+        if xp.xp_context == EXPAND_SHELLCMD {
             expand_shellcmd(pat, matches, flags);
             return OK;
         }
-        if (*xp).xp_context == EXPAND_OLD_SETTING {
+        if xp.xp_context == EXPAND_OLD_SETTING {
             return ExpandOldSetting(matches);
         }
-        if (*xp).xp_context == EXPAND_BUFFERS {
+        if xp.xp_context == EXPAND_BUFFERS {
             return ExpandBufnames(pat, matches, options);
         }
-        if (*xp).xp_context == EXPAND_DIFF_BUFFERS {
+        if xp.xp_context == EXPAND_DIFF_BUFFERS {
             return ExpandBufnames(pat, matches, options | BUF_DIFF_FILTER);
         }
-        if (*xp).xp_context == EXPAND_TAGS || (*xp).xp_context == EXPAND_TAGS_LISTFILES {
-            return expand_tags((*xp).xp_context == EXPAND_TAGS, pat, matches);
+        if xp.xp_context == EXPAND_TAGS || xp.xp_context == EXPAND_TAGS_LISTFILES {
+            return expand_tags(xp.xp_context == EXPAND_TAGS, pat, matches);
         }
-        if (*xp).xp_context == EXPAND_COLORS {
+        if xp.xp_context == EXPAND_COLORS {
             let mut directories: [*mut c_char; 2] =
                 [c"colors".as_ptr().cast_mut(), ptr::null_mut()];
             return ExpandRTDir(pat, DIP_START + DIP_OPT, matches, directories.as_mut_ptr());
         }
-        if (*xp).xp_context == EXPAND_COMPILER {
+        if xp.xp_context == EXPAND_COMPILER {
             let mut directories: [*mut c_char; 2] =
                 [c"compiler".as_ptr().cast_mut(), ptr::null_mut()];
             return ExpandRTDir(pat, 0, matches, directories.as_mut_ptr());
         }
-        if (*xp).xp_context == EXPAND_OWNSYNTAX {
+        if xp.xp_context == EXPAND_OWNSYNTAX {
             let mut directories: [*mut c_char; 2] =
                 [c"syntax".as_ptr().cast_mut(), ptr::null_mut()];
             return ExpandRTDir(pat, 0, matches, directories.as_mut_ptr());
         }
-        if (*xp).xp_context == EXPAND_FILETYPE {
+        if xp.xp_context == EXPAND_FILETYPE {
             let mut directories: [*mut c_char; 4] = [
                 c"syntax".as_ptr().cast_mut(),
                 c"indent".as_ptr().cast_mut(),
@@ -5000,29 +4999,29 @@ unsafe fn ExpandFromContext(
             ];
             return ExpandRTDir(pat, 0, matches, directories.as_mut_ptr());
         }
-        if (*xp).xp_context == EXPAND_KEYMAP {
+        if xp.xp_context == EXPAND_KEYMAP {
             let mut directories: [*mut c_char; 2] =
                 [c"keymap".as_ptr().cast_mut(), ptr::null_mut()];
             return ExpandRTDir(pat, 0, matches, directories.as_mut_ptr());
         }
-        if (*xp).xp_context == EXPAND_USER_LIST {
+        if xp.xp_context == EXPAND_USER_LIST {
             return ExpandUserList(xp, matches);
         }
-        if (*xp).xp_context == EXPAND_USER_LUA {
+        if xp.xp_context == EXPAND_USER_LUA {
             return ExpandUserLua(xp, matches);
         }
-        if (*xp).xp_context == EXPAND_PACKADD {
+        if xp.xp_context == EXPAND_PACKADD {
             return ExpandPackAddDir(pat, matches);
         }
-        if (*xp).xp_context == EXPAND_RUNTIME {
+        if xp.xp_context == EXPAND_RUNTIME {
             return expand_runtime_cmd(pat, matches);
         }
-        if (*xp).xp_context == EXPAND_PATTERN_IN_BUF {
-            return expand_pattern_in_buf(pat, (*xp).xp_search_dir, matches);
+        if xp.xp_context == EXPAND_PATTERN_IN_BUF {
+            return expand_pattern_in_buf(pat, xp.xp_search_dir, matches);
         }
 
         let mut tofree: Option<Vec<c_char>> = None;
-        if (*xp).xp_context == EXPAND_USER_FUNC && { let _p = pat; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"^s:"[..3] } {
+        if xp.xp_context == EXPAND_USER_FUNC && { let _p = pat; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"^s:"[..3] } {
             let len = std::ffi::CStr::from_ptr(pat).to_bytes().len() + 20;
             let mut buf = vec![0 as c_char; len];
             vim_snprintf!(buf.as_mut_ptr(), len, c"^<SNR>\\d\\+_%s".as_ptr(), pat.add(3));
@@ -5030,7 +5029,7 @@ unsafe fn ExpandFromContext(
             tofree = Some(buf);
         }
 
-        if (*xp).xp_context == EXPAND_LUA {
+        if xp.xp_context == EXPAND_LUA {
             return nlua_expand_get_matches(matches);
         }
 
@@ -5042,18 +5041,18 @@ unsafe fn ExpandFromContext(
             regmatch.rm_ic = ignorecase(pat) != 0;
         }
 
-        let ret = if (*xp).xp_context == EXPAND_SETTINGS || (*xp).xp_context == EXPAND_BOOL_SETTINGS
+        let ret = if xp.xp_context == EXPAND_SETTINGS || xp.xp_context == EXPAND_BOOL_SETTINGS
         {
             ExpandSettings(xp, &raw mut regmatch, pat, matches, fuzzy)
-        } else if (*xp).xp_context == EXPAND_STRING_SETTING {
+        } else if xp.xp_context == EXPAND_STRING_SETTING {
             ExpandStringSetting(xp, &raw mut regmatch, matches)
-        } else if (*xp).xp_context == EXPAND_SETTING_SUBTRACT {
+        } else if xp.xp_context == EXPAND_SETTING_SUBTRACT {
             ExpandSettingSubtract(xp, &raw mut regmatch, matches)
-        } else if (*xp).xp_context == EXPAND_MAPPINGS {
+        } else if xp.xp_context == EXPAND_MAPPINGS {
             ExpandMappings(pat, &raw mut regmatch, matches)
-        } else if (*xp).xp_context == EXPAND_ARGOPT {
+        } else if xp.xp_context == EXPAND_ARGOPT {
             expand_argopt(pat, xp, &raw mut regmatch, matches)
-        } else if (*xp).xp_context == EXPAND_USER_DEFINED {
+        } else if xp.xp_context == EXPAND_USER_DEFINED {
             ExpandUserDefined(pat, xp, &raw mut regmatch, matches)
         } else {
             ExpandOther(pat, xp, &raw mut regmatch, matches)
@@ -5071,7 +5070,7 @@ unsafe fn ExpandFromContext(
 /// Expand a list of names.
 pub unsafe fn ExpandGeneric(
     pat: *const c_char,
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     regmatch: *mut regmatch_T,
     matches: &mut Vec<CString>,
     func: CompleteListItemGetter,
@@ -5101,7 +5100,7 @@ pub unsafe fn ExpandGeneric(
 
             let match_ok: bool;
             let mut score: c_int = 0;
-            if *(*xp).xp_pattern != NUL {
+            if *xp.xp_pattern != NUL {
                 if !fuzzy {
                     match_ok = vim_regexec(regmatch, str_item, 0);
                 } else {
@@ -5124,7 +5123,7 @@ pub unsafe fn ExpandGeneric(
 
             if ptr::fn_addr_eq(
                 func_fn,
-                get_menu_names as unsafe fn(*mut expand_T, c_int) -> *mut c_char,
+                get_menu_names as unsafe fn(&mut expand_T, c_int) -> *mut c_char,
             ) && item_cstr.as_bytes().last() == Some(&1)
             {
                 let mut bytes = item_cstr.into_bytes();
@@ -5150,15 +5149,15 @@ pub unsafe fn ExpandGeneric(
         }
 
         let sort_matches = !fuzzy
-            && (*xp).xp_context != EXPAND_MENUNAMES
-            && (*xp).xp_context != EXPAND_STRING_SETTING
-            && (*xp).xp_context != EXPAND_MENUS
-            && (*xp).xp_context != EXPAND_SCRIPTNAMES
-            && (*xp).xp_context != EXPAND_ARGOPT;
+            && xp.xp_context != EXPAND_MENUNAMES
+            && xp.xp_context != EXPAND_STRING_SETTING
+            && xp.xp_context != EXPAND_MENUS
+            && xp.xp_context != EXPAND_SCRIPTNAMES
+            && xp.xp_context != EXPAND_ARGOPT;
 
-        let funcsort = (*xp).xp_context == EXPAND_EXPRESSION
-            || (*xp).xp_context == EXPAND_FUNCTIONS
-            || (*xp).xp_context == EXPAND_USER_FUNC;
+        let funcsort = xp.xp_context == EXPAND_EXPRESSION
+            || xp.xp_context == EXPAND_FUNCTIONS
+            || xp.xp_context == EXPAND_USER_FUNC;
 
         if sort_matches {
             if funcsort {
@@ -5360,7 +5359,7 @@ unsafe fn call_user_expand_func<R>(
 /// Expand names with a function defined by the user (EXPAND_USER_DEFINED).
 unsafe fn ExpandUserDefined(
     pat: *const c_char,
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     regmatch: *mut regmatch_T,
     matches: &mut Vec<CString>,
 ) -> c_int {
@@ -5388,7 +5387,7 @@ unsafe fn ExpandUserDefined(
 
             let match_ok: bool;
             let mut score: c_int = 0;
-            if *(*xp).xp_pattern != NUL {
+            if *xp.xp_pattern != NUL {
                 if !fuzzy {
                     match_ok = vim_regexec(regmatch, s, 0);
                 } else {
@@ -5440,7 +5439,7 @@ unsafe fn ExpandUserDefined(
 pub unsafe fn expand_process_user_list(
     retlist: *mut list_T,
     matches: &mut Vec<CString>,
-    xp: *mut expand_T,
+    xp: &mut expand_T,
 ) {
     unsafe {
         matches.clear();
@@ -5497,16 +5496,16 @@ pub unsafe fn expand_process_user_list(
         }
 
         if have_extra && !matches.is_empty() {
-            (*xp).xp_files_abbr = ga_abbr;
-            (*xp).xp_files_kind = ga_kind;
-            (*xp).xp_files_menu = ga_menu;
-            (*xp).xp_files_info = ga_info;
+            xp.xp_files_abbr = ga_abbr;
+            xp.xp_files_kind = ga_kind;
+            xp.xp_files_menu = ga_menu;
+            xp.xp_files_info = ga_info;
         }
     }
 }
 
 /// Expand names with a list returned by a function defined by the user.
-unsafe fn ExpandUserList(xp: *mut expand_T, matches: &mut Vec<CString>) -> c_int {
+unsafe fn ExpandUserList(xp: &mut expand_T, matches: &mut Vec<CString>) -> c_int {
     unsafe {
         matches.clear();
         let retlist = call_user_expand_func(call_func_retlist, xp, ptr::null_mut());
@@ -5520,7 +5519,7 @@ unsafe fn ExpandUserList(xp: *mut expand_T, matches: &mut Vec<CString>) -> c_int
     }
 }
 
-unsafe fn ExpandUserLua(xp: *mut expand_T, matches: &mut Vec<CString>) -> c_int {
+unsafe fn ExpandUserLua(xp: &mut expand_T, matches: &mut Vec<CString>) -> c_int {
     unsafe {
         let mut rettv: typval_T = typval_T::new();
         nlua_call_user_expand_func(xp, &raw mut rettv);
@@ -5573,9 +5572,9 @@ pub unsafe fn globpath(
                 { let _d = (buf.add(pathlen)).cast::<u8>(); let _n = filelen; if _n > 0 { std::ptr::copy_nonoverlapping((file).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
 
                 let mut p: Vec<CString> = Vec::new();
-                ExpandFromContext(&raw mut xpc, buf, &mut p, WILD_SILENT | expand_options);
+                ExpandFromContext(&mut xpc, buf, &mut p, WILD_SILENT | expand_options);
                 if !p.is_empty() {
-                    ExpandEscape(&raw mut xpc, buf, &mut p, WILD_SILENT | expand_options);
+                    ExpandEscape(&mut xpc, buf, &mut p, WILD_SILENT | expand_options);
                     ga.extend(p);
                 }
             }
@@ -5587,7 +5586,7 @@ pub unsafe fn globpath(
 pub unsafe fn wildmenu_translate_key(
     cclp: *mut CmdlineInfo,
     key: c_int,
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     did_wild_list: bool,
 ) -> c_int {
     unsafe {
@@ -5601,7 +5600,7 @@ pub unsafe fn wildmenu_translate_key(
             }
         }
 
-        if (*xp).xp_context == EXPAND_MENUNAMES
+        if xp.xp_context == EXPAND_MENUNAMES
             && (*cclp).cmdpos > 1
             && *(*cclp).cmdbuff.add(((*cclp).cmdpos - 1) as usize) == b'.' as c_char
             && *(*cclp).cmdbuff.add(((*cclp).cmdpos - 2) as usize) != b'\\' as c_char
@@ -5632,7 +5631,7 @@ unsafe fn cmdline_del(cclp: *mut CmdlineInfo, from: c_int) {
 unsafe fn wildmenu_process_key_menunames(
     cclp: *mut CmdlineInfo,
     mut key: c_int,
-    xp: *mut expand_T,
+    xp: &mut expand_T,
 ) -> c_int {
     unsafe {
         if key == K_DOWN
@@ -5644,7 +5643,7 @@ unsafe fn wildmenu_process_key_menunames(
         } else if key == K_UP {
             let mut found = false;
 
-            let mut j = (*xp).xp_pattern.offset_from((*cclp).cmdbuff) as c_int;
+            let mut j = xp.xp_pattern.offset_from((*cclp).cmdbuff) as c_int;
             let mut i: c_int = 0;
             while {
                 j -= 1;
@@ -5672,7 +5671,7 @@ unsafe fn wildmenu_process_key_menunames(
             }
             key = opt_vars().p_wc as c_int;
             g_st().KeyTyped = true;
-            (*xp).xp_context = EXPAND_NOTHING;
+            xp.xp_context = EXPAND_NOTHING;
         }
 
         key
@@ -5683,7 +5682,7 @@ unsafe fn wildmenu_process_key_menunames(
 unsafe fn wildmenu_process_key_filenames(
     cclp: *mut CmdlineInfo,
     mut key: c_int,
-    xp: *mut expand_T,
+    xp: &mut expand_T,
 ) -> c_int {
     unsafe {
         let upseg: [c_char; 5] = [
@@ -5703,11 +5702,11 @@ unsafe fn wildmenu_process_key_filenames(
         {
             key = opt_vars().p_wc as c_int;
             g_st().KeyTyped = true;
-        } else if { let _p1 = (*xp).xp_pattern; let _p2 = upseg.as_ptr().add(1); let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } && key == K_DOWN {
+        } else if { let _p1 = xp.xp_pattern; let _p2 = upseg.as_ptr().add(1); let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } && key == K_DOWN {
             let mut found = false;
 
             let mut j = (*cclp).cmdpos;
-            let i = (*xp).xp_pattern.offset_from((*cclp).cmdbuff) as c_int;
+            let i = xp.xp_pattern.offset_from((*cclp).cmdbuff) as c_int;
             while {
                 j -= 1;
                 j > i
@@ -5731,7 +5730,7 @@ unsafe fn wildmenu_process_key_filenames(
             let mut found = false;
 
             let mut j = (*cclp).cmdpos - 1;
-            let mut i = (*xp).xp_pattern.offset_from((*cclp).cmdbuff) as c_int;
+            let mut i = xp.xp_pattern.offset_from((*cclp).cmdbuff) as c_int;
             while {
                 j -= 1;
                 j > i
@@ -5785,14 +5784,14 @@ unsafe fn wildmenu_process_key_filenames(
 }
 
 /// Handle a key pressed when wild menu is displayed.
-pub unsafe fn wildmenu_process_key(cclp: *mut CmdlineInfo, key: c_int, xp: *mut expand_T) -> c_int {
+pub unsafe fn wildmenu_process_key(cclp: *mut CmdlineInfo, key: c_int, xp: &mut expand_T) -> c_int {
     unsafe {
-        if (*xp).xp_context == EXPAND_MENUNAMES {
+        if xp.xp_context == EXPAND_MENUNAMES {
             return wildmenu_process_key_menunames(cclp, key, xp);
         }
-        if (*xp).xp_context == EXPAND_FILES
-            || (*xp).xp_context == EXPAND_DIRECTORIES
-            || (*xp).xp_context == EXPAND_SHELLCMD
+        if xp.xp_context == EXPAND_FILES
+            || xp.xp_context == EXPAND_DIRECTORIES
+            || xp.xp_context == EXPAND_SHELLCMD
         {
             return wildmenu_process_key_filenames(cclp, key, xp);
         }
@@ -5878,7 +5877,7 @@ pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: &mut typval_T, _fpt
         if std::ffi::CStr::from_ptr(type_str).to_bytes() == b"cmdline" {
             let cmdline_len = std::ffi::CStr::from_ptr(pattern).to_bytes().len() as c_int;
             set_cmd_context(
-                &raw mut xpc,
+                &mut xpc,
                 pattern.cast_mut(),
                 cmdline_len,
                 cmdline_len,
@@ -5913,24 +5912,28 @@ pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: &mut typval_T, _fpt
                     xpc.xp_arg = type_str.add(11).cast_mut();
                 }
                 EXPAND_MENUS => {
-                    set_context_in_menu_cmd(&raw mut xpc, c"menu".as_ptr(), xpc.xp_pattern, false);
+                    let pat_p = xpc.xp_pattern;
+                    set_context_in_menu_cmd(&mut xpc, c"menu".as_ptr(), pat_p, false);
                     xpc.xp_pattern_len -= xpc.xp_pattern.offset_from(pattern_start) as usize;
                 }
                 EXPAND_SIGN => {
-                    set_context_in_sign_cmd(&raw mut xpc, xpc.xp_pattern);
+                    let pat_p = xpc.xp_pattern;
+                    set_context_in_sign_cmd(&mut xpc, pat_p);
                     xpc.xp_pattern_len -= xpc.xp_pattern.offset_from(pattern_start) as usize;
                 }
                 EXPAND_RUNTIME => {
-                    set_context_in_runtime_cmd(&raw mut xpc, xpc.xp_pattern);
+                    let pat_p = xpc.xp_pattern;
+                    set_context_in_runtime_cmd(&mut xpc, pat_p);
                     xpc.xp_pattern_len -= xpc.xp_pattern.offset_from(pattern_start) as usize;
                 }
                 EXPAND_SHELLCMDLINE => {
                     let mut context = EXPAND_SHELLCMDLINE;
+                    let pat_p = xpc.xp_pattern;
                     set_context_for_wildcard_arg(
                         ptr::null_mut(),
-                        xpc.xp_pattern,
+                        pat_p,
                         false,
-                        &raw mut xpc,
+                        &mut xpc,
                         &raw mut context,
                     );
                     xpc.xp_pattern_len -= xpc.xp_pattern.offset_from(pattern_start) as usize;
@@ -5947,10 +5950,10 @@ pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: &mut typval_T, _fpt
 
         if xpc.xp_context == EXPAND_LUA {
             xpc.xp_col = std::ffi::CStr::from_ptr(xpc.xp_line).to_bytes().len() as c_int;
-            nlua_expand_pat(&raw mut xpc);
+            nlua_expand_pat(&mut xpc);
             xpc.xp_pattern_len -= xpc.xp_pattern.offset_from(pattern_start) as usize;
         }
-        let pat = if cmdline_fuzzy_completion_supported(&raw const xpc) {
+        let pat = if cmdline_fuzzy_completion_supported(&xpc) {
             cstr_from_bytes(std::slice::from_raw_parts(
                 xpc.xp_pattern.cast::<u8>(),
                 xpc.xp_pattern_len,
@@ -5960,7 +5963,7 @@ pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: &mut typval_T, _fpt
         };
 
         ExpandOne(
-            &raw mut xpc,
+            &mut xpc,
             pat.as_ptr().cast_mut(),
             None,
             options,
@@ -5993,7 +5996,7 @@ pub unsafe fn f_getcompletiontype(
 
         let cmdline_len = std::ffi::CStr::from_ptr(pat).to_bytes().len() as c_int;
         set_cmd_context(
-            &raw mut xpc,
+            &mut xpc,
             pat.cast_mut(),
             cmdline_len,
             cmdline_len,
@@ -6028,7 +6031,7 @@ pub unsafe fn f_cmdcomplete_info(
         let retdict = rettv.vval.v_dict();
         let mut ret = tv_dict_add_str_len(
             retdict,
-            c"cmdexp().cmdline_orig".as_ptr(),
+            c"cmdline_orig".as_ptr(),
             12,
             orig_ref.map_or(ptr::null(), |v| v.as_ptr().cast::<c_char>()),
             orig_ref.map_or(0, |v| v.len() as c_int),
@@ -6361,10 +6364,10 @@ mod tests {
     fn expand_init_and_cleanup_work() {
         unsafe {
             let mut xp: expand_T = expand_T::new();
-            ExpandInit(&raw mut xp);
+            ExpandInit(&mut xp);
             assert_eq!(xp.xp_context, EXPAND_NOTHING);
             assert_eq!(xp.xp_backslash, XP_BS_NONE);
-            ExpandCleanup(&raw mut xp);
+            ExpandCleanup(&mut xp);
             assert!(!cmdline_pum_active());
         }
     }

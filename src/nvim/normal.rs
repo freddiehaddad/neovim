@@ -1664,7 +1664,7 @@ unsafe fn check_text_locked(oap: *mut oparg_T) -> bool {
             return false;
         }
         if !oap.is_null() {
-            clearopbeep(oap);
+            clearopbeep(&mut *oap);
         }
         text_locked_msg();
         true
@@ -1680,7 +1680,7 @@ pub unsafe fn check_text_or_curbuf_locked(oap: *mut oparg_T) -> bool {
             return false;
         }
         if !oap.is_null() {
-            clearop(oap);
+            clearop(&mut *oap);
         }
         true
     }
@@ -1714,7 +1714,7 @@ pub unsafe fn normal_enter() {
 unsafe fn normal_prepare(s: *mut NormalState) {
     unsafe {
         (*s).ca = cmdarg_T::new();
-        (*s).ca.oap = &raw mut (*s).oa;
+        (*s).ca.oap = &mut (*s).oa;
 
         (*s).ca.opcount = g_st().opcount;
 
@@ -1760,7 +1760,7 @@ unsafe fn normal_handle_special_visual_command(s: *mut NormalState) -> bool {
                 unshift_special(&mut (*s).ca);
                 (*s).idx = find_command((*s).ca.cmdchar);
                 if (*s).idx < 0 {
-                    clearopbeep(&raw mut (*s).oa);
+                    clearopbeep(&mut (*s).oa);
                     return true;
                 }
             } else if (flags & NV_SSS) != 0 && (g_st().mod_mask & c_int::from(MOD_MASK_SHIFT)) != 0 {
@@ -2092,7 +2092,7 @@ unsafe fn normal_finish_command(s: *mut NormalState) {
                 && (*s).oa.op_type == 0
                 && ((*s).idx < 0 || (nv_cmds[(*s).idx as usize].cmd_flags & NV_KEEPREG) == 0)
             {
-                clearop(&raw mut (*s).oa);
+                clearop(&mut (*s).oa);
                 set_reg_var(get_default_register_name());
             }
 
@@ -2262,13 +2262,13 @@ unsafe fn normal_execute(s: *mut NormalState, key: c_int) -> c_int {
 
         'finish: {
             if (*s).idx < 0 {
-                clearopbeep(&raw mut (*s).oa);
+                clearopbeep(&mut (*s).oa);
                 (*s).command_finished = true;
                 break 'finish;
             }
 
             if (nv_cmds[(*s).idx as usize].cmd_flags & NV_NCW) != 0
-                && check_text_or_curbuf_locked(&raw mut (*s).oa)
+                && check_text_or_curbuf_locked(&mut (*s).oa)
             {
                 (*s).command_finished = true;
                 break 'finish;
@@ -2302,7 +2302,7 @@ unsafe fn normal_execute(s: *mut NormalState, key: c_int) -> c_int {
             g_st().State = MODE_NORMAL;
 
             if (*s).ca.nchar == ESC || (*s).ca.extra_char == ESC {
-                clearop(&raw mut (*s).oa);
+                clearop(&mut (*s).oa);
                 (*s).command_finished = true;
                 break 'finish;
             }
@@ -2767,43 +2767,43 @@ unsafe fn prep_redo_cmd(cap: &mut cmdarg_T) {
     }
 }
 
-unsafe fn checkclearop(oap: *mut oparg_T) -> bool {
+unsafe fn checkclearop(oap: &mut oparg_T) -> bool {
     unsafe {
-        if (*oap).op_type == OP_NOP {
+        if oap.op_type == OP_NOP {
             return false;
         }
-        clearopbeep(oap);
+        clearopbeep(&mut *oap);
         true
     }
 }
 
-unsafe fn checkclearopq(oap: *mut oparg_T) -> bool {
+unsafe fn checkclearopq(oap: &mut oparg_T) -> bool {
     unsafe {
-        if (*oap).op_type == OP_NOP && !g_st().Visual.active {
+        if oap.op_type == OP_NOP && !g_st().Visual.active {
             return false;
         }
-        clearopbeep(oap);
+        clearopbeep(&mut *oap);
         true
     }
 }
 
-pub unsafe fn clearop(oap: *mut oparg_T) {
+pub unsafe fn clearop(oap: &mut oparg_T) {
     unsafe {
-        (*oap).op_type = OP_NOP;
-        (*oap).regname = 0;
-        (*oap).motion_force = NUL as c_int;
-        (*oap).use_reg_one = false;
-        (*oap).restore_cursor = false;
+        oap.op_type = OP_NOP;
+        oap.regname = 0;
+        oap.motion_force = NUL as c_int;
+        oap.use_reg_one = false;
+        oap.restore_cursor = false;
         g_st().motion_force = NUL as c_int;
     }
 }
 
-pub unsafe fn clearopbeep(oap: *mut oparg_T) {
+pub unsafe fn clearopbeep(oap: &mut oparg_T) {
     unsafe {
-        if (*oap).op_type == OP_MCURSOR && (*oap).motion_type != kMTUnknown {
+        if oap.op_type == OP_MCURSOR && oap.motion_type != kMTUnknown {
             return;
         }
-        clearop(oap);
+        clearop(&mut *oap);
         beep_flush();
     }
 }
@@ -3270,13 +3270,13 @@ unsafe fn nv_nop(_cap: &mut cmdarg_T) {}
 
 unsafe fn nv_error(cap: &mut cmdarg_T) {
     unsafe {
-        clearopbeep(cap.oap);
+        clearopbeep(&mut *cap.oap);
     }
 }
 
 unsafe fn nv_help(cap: &mut cmdarg_T) {
     unsafe {
-        if !checkclearopq(cap.oap) {
+        if !checkclearopq(&mut *cap.oap) {
             ex_help(&mut crate::ex_docmd::exarg_T::new());
         }
     }
@@ -3285,7 +3285,7 @@ unsafe fn nv_help(cap: &mut cmdarg_T) {
 unsafe fn nv_addsub(cap: &mut cmdarg_T) {
     unsafe {
         if bt_prompt(g_st().curbuf) && !prompt_curpos_editable() {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
         } else if !g_st().Visual.active && (*cap.oap).op_type == OP_NOP {
             prep_redo_cmd(cap);
             (*cap.oap).op_type = if cap.cmdchar == Ctrl_A {
@@ -3293,19 +3293,19 @@ unsafe fn nv_addsub(cap: &mut cmdarg_T) {
             } else {
                 OP_NR_SUB
             };
-            op_addsub(cap.oap, cap.count1, cap.arg != 0);
+            op_addsub(&mut *cap.oap, cap.count1, cap.arg != 0);
             (*cap.oap).op_type = OP_NOP;
         } else if g_st().Visual.active {
             nv_operator(cap);
         } else {
-            clearop(cap.oap);
+            clearop(&mut *cap.oap);
         }
     }
 }
 
 unsafe fn nv_page(cap: &mut cmdarg_T) {
     unsafe {
-        if checkclearop(cap.oap) {
+        if checkclearop(&mut *cap.oap) {
             return;
         }
 
@@ -3321,7 +3321,7 @@ unsafe fn nv_page(cap: &mut cmdarg_T) {
     }
 }
 
-unsafe fn nv_gd(oap: *mut oparg_T, nchar: c_int, thisblock: c_int) {
+unsafe fn nv_gd(oap: &mut oparg_T, nchar: c_int, thisblock: c_int) {
     unsafe {
         let mut ptr: *mut c_char = ptr::null_mut();
         let len = find_ident_under_cursor(&raw mut ptr, FIND_IDENT, ptr::null_mut());
@@ -3334,11 +3334,11 @@ unsafe fn nv_gd(oap: *mut oparg_T, nchar: c_int, thisblock: c_int) {
                 SEARCH_START,
             )
         {
-            clearopbeep(oap);
+            clearopbeep(&mut *oap);
             return;
         }
 
-        if (opt_vars().fdo_flags & kOptFdoFlagSearch) != 0 && g_st().KeyTyped && (*oap).op_type == OP_NOP {
+        if (opt_vars().fdo_flags & kOptFdoFlagSearch) != 0 && g_st().KeyTyped && oap.op_type == OP_NOP {
             foldOpenCursor();
         }
         if messaging() && g_st().msg_silent == 0 && !shortmess(kShmSearchcount) {
@@ -3517,7 +3517,7 @@ pub unsafe fn find_decl(
 }
 
 pub unsafe fn nv_screengo(
-    oap: *mut oparg_T,
+    oap: &mut oparg_T,
     dir: c_int,
     mut dist: c_int,
     skip_conceal: bool,
@@ -3527,8 +3527,8 @@ pub unsafe fn nv_screengo(
         let mut retval = true;
         let mut atend = false;
 
-        (*oap).motion_type = kMTCharWise;
-        (*oap).inclusive = (**curwin.as_ptr()).w_curswant == MAXCOL;
+        oap.motion_type = kMTCharWise;
+        oap.inclusive = (**curwin.as_ptr()).w_curswant == MAXCOL;
 
         let col_off1 = win_col_off(*curwin.as_ptr());
         let col_off2 = col_off1 - win_col_off2(*curwin.as_ptr());
@@ -3666,7 +3666,7 @@ pub unsafe fn nv_screengo(
 
 pub unsafe fn nv_scroll_line(cap: &mut cmdarg_T) {
     unsafe {
-        if !checkclearop(cap.oap) {
+        if !checkclearop(&mut *cap.oap) {
             scroll_redraw(cap.arg, cap.count1);
         }
     }
@@ -3676,7 +3676,7 @@ unsafe fn nv_z_get_count(cap: &mut cmdarg_T, nchar_arg: *mut c_int) -> bool {
     unsafe {
         let mut nchar = *nchar_arg;
 
-        if checkclearop(cap.oap) {
+        if checkclearop(&mut *cap.oap) {
             return false;
         }
         let mut n = nchar - b'0' as c_int;
@@ -3694,7 +3694,7 @@ unsafe fn nv_z_get_count(cap: &mut cmdarg_T, nchar_arg: *mut c_int) -> bool {
                 n /= 10;
             } else if ascii_isdigit(nchar) {
                 if vim_append_digit_int(&mut n, nchar - b'0' as c_int) == FAIL {
-                    clearopbeep(cap.oap);
+                    clearopbeep(&mut *cap.oap);
                     break;
                 }
             } else if nchar == CAR {
@@ -3713,7 +3713,7 @@ unsafe fn nv_z_get_count(cap: &mut cmdarg_T, nchar_arg: *mut c_int) -> bool {
                 *nchar_arg = nchar;
                 return true;
             } else {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
                 break;
             }
         }
@@ -3736,13 +3736,13 @@ unsafe fn nv_zg_zw(cap: &mut cmdarg_T, mut nchar: c_int) -> c_int {
             add_to_showcmd(nchar);
 
             if vim_strchr(c"gGwW".as_ptr(), nchar).is_null() {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
                 return OK;
             }
             undo = true;
         }
 
-        if checkclearop(cap.oap) {
+        if checkclearop(&mut *cap.oap) {
             return OK;
         }
         let mut ptr: *mut c_char = ptr::null_mut();
@@ -3807,7 +3807,7 @@ unsafe fn nv_zet(cap: &mut cmdarg_T) {
             && !(g_st().Visual.active && !vim_strchr(c"dcCoO".as_ptr(), cap.nchar).is_null())
             && cap.nchar != b'j' as c_int
             && cap.nchar != b'k' as c_int
-            && checkclearop(cap.oap)
+            && checkclearop(&mut *cap.oap)
         {
             return;
         }
@@ -3960,7 +3960,7 @@ unsafe fn nv_zet(cap: &mut cmdarg_T) {
             }
             c if c == b'q' as c_int => {
                 if g_st().reg_recording != 0 || g_st().reg_executing != 0 {
-                    clearopbeep(cap.oap);
+                    clearopbeep(&mut *cap.oap);
                 } else {
                     mc_zq_start(cap);
                     nv_operator(cap);
@@ -3972,7 +3972,7 @@ unsafe fn nv_zet(cap: &mut cmdarg_T) {
                     nv_operator(cap);
                     foldenable = 1;
                 } else {
-                    clearopbeep(cap.oap);
+                    clearopbeep(&mut *cap.oap);
                 }
             }
             c if c == b'd' as c_int || c == b'D' as c_int => {
@@ -4104,7 +4104,7 @@ unsafe fn nv_zet(cap: &mut cmdarg_T) {
                     cap.count1,
                 ) == 0
                 {
-                    clearopbeep(cap.oap);
+                    clearopbeep(&mut *cap.oap);
                 }
             }
             c if c == b'u' as c_int
@@ -4118,12 +4118,12 @@ unsafe fn nv_zet(cap: &mut cmdarg_T) {
                 }
             }
             c if c == b'=' as c_int => {
-                if !checkclearop(cap.oap) {
+                if !checkclearop(&mut *cap.oap) {
                     spell_suggest(cap.count0);
                 }
             }
             _ => {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
             }
         }
 
@@ -4138,7 +4138,7 @@ unsafe fn nv_zet(cap: &mut cmdarg_T) {
                 None,
             );
             if (**curwin.as_ptr()).handle != win_handle || (*g_st().curbuf).b_fnum != buf_handle {
-                clearop(cap.oap);
+                clearop(&mut *cap.oap);
                 return;
             }
         }
@@ -4168,7 +4168,7 @@ unsafe fn nv_Q(cap: &mut cmdarg_T) {
     unsafe {
         if g_st().reg_recording != 0 || g_st().reg_executing != 0 || (!g_st().Visual.active && cap.count0 > 2) {
             vim_beep(0);
-        } else if !checkclearop(cap.oap) {
+        } else if !checkclearop(&mut *cap.oap) {
             if g_st().Visual.active {
                 do_cmdline_cmd(c"normal! zqj".as_ptr());
                 mc_follow_set(kTrue);
@@ -4236,13 +4236,13 @@ unsafe fn nv_colon(cap: &mut cmdarg_T) {
         msg_ext_set_trigger(c"".as_ptr());
 
         if !cmd_result {
-            clearop(cap.oap);
+            clearop(&mut *cap.oap);
         } else if (*cap.oap).op_type != OP_NOP
             && ((*cap.oap).start.lnum > (*g_st().curbuf).b_ml.ml_line_count
                 || (*cap.oap).start.col > ml_get_len((*cap.oap).start.lnum)
                 || g_st().did_emsg != 0)
         {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
         }
     }
 }
@@ -4253,7 +4253,7 @@ unsafe fn nv_ctrlg(cap: &mut cmdarg_T) {
             g_st().Visual.select = !g_st().Visual.select;
             may_trigger_modechanged();
             showmode();
-        } else if !checkclearop(cap.oap) {
+        } else if !checkclearop(&mut *cap.oap) {
             fileinfo(cap.count0, 0, true);
         }
     }
@@ -4272,7 +4272,7 @@ unsafe fn nv_ctrlh(cap: &mut cmdarg_T) {
 
 unsafe fn nv_clear(cap: &mut cmdarg_T) {
     unsafe {
-        if checkclearop(cap.oap) {
+        if checkclearop(&mut *cap.oap) {
             return;
         }
 
@@ -4302,7 +4302,7 @@ unsafe fn nv_ctrlo(cap: &mut cmdarg_T) {
 
 unsafe fn nv_hat(cap: &mut cmdarg_T) {
     unsafe {
-        if !checkclearopq(cap.oap) {
+        if !checkclearopq(&mut *cap.oap) {
             buflist_getfile(cap.count0, 0, GETF_SETMARK | GETF_ALT, 0);
         }
     }
@@ -4310,7 +4310,7 @@ unsafe fn nv_hat(cap: &mut cmdarg_T) {
 
 unsafe fn nv_Zet(cap: &mut cmdarg_T) {
     unsafe {
-        if checkclearopq(cap.oap) {
+        if checkclearopq(&mut *cap.oap) {
             return;
         }
 
@@ -4331,7 +4331,7 @@ unsafe fn nv_Zet(cap: &mut cmdarg_T) {
                 }
             }
             _ => {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
             }
         }
     }
@@ -4453,7 +4453,7 @@ unsafe fn nv_ident(cap: &mut cmdarg_T) {
                 return;
             }
             visual_sel = !ptr.is_null();
-            if checkclearopq(cap.oap) {
+            if checkclearopq(&mut *cap.oap) {
                 return;
             }
         }
@@ -4470,7 +4470,7 @@ unsafe fn nv_ident(cap: &mut cmdarg_T) {
                 &raw mut ident_offset,
             );
             if n == 0 {
-                clearop(cap.oap);
+                clearop(&mut *cap.oap);
                 return;
             }
         }
@@ -4658,7 +4658,7 @@ pub unsafe fn get_visual_text(cap: Option<&mut cmdarg_T>, pp: &mut *mut c_char, 
         }
         if g_st().Visual.start.lnum != (**curwin.as_ptr()).w_cursor.lnum {
             if let Some(cap) = cap {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
             }
             return false;
         }
@@ -4688,7 +4688,7 @@ pub unsafe fn get_visual_text(cap: Option<&mut cmdarg_T>, pp: &mut *mut c_char, 
 
 unsafe fn nv_tagpop(cap: &mut cmdarg_T) {
     unsafe {
-        if !checkclearopq(cap.oap) {
+        if !checkclearopq(&mut *cap.oap) {
             do_tag(
                 ptr::null_mut(),
                 c"".as_ptr().cast_mut(),
@@ -4920,7 +4920,7 @@ unsafe fn nv_up(cap: &mut cmdarg_T) {
 
         (*cap.oap).motion_type = kMTLineWise;
         if cursor_up(cap.count1, (*cap.oap).op_type == OP_NOP) == 0 {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
         } else if cap.arg != 0 {
             beginline(BL_WHITE | BL_FIX);
         }
@@ -4947,7 +4947,7 @@ unsafe fn nv_down(cap: &mut cmdarg_T) {
         } else {
             (*cap.oap).motion_type = kMTLineWise;
             if cursor_down(cap.count1, (*cap.oap).op_type == OP_NOP) == 0 {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
             } else if cap.arg != 0 {
                 beginline(BL_WHITE | BL_FIX);
             }
@@ -4990,7 +4990,7 @@ unsafe fn nv_gotofile(cap: &mut cmdarg_T) {
                 beginline(BL_SOL | BL_FIX);
             }
         } else {
-            clearop(cap.oap);
+            clearop(&mut *cap.oap);
         }
     }
 }
@@ -5017,7 +5017,7 @@ unsafe fn nv_dollar(cap: &mut cmdarg_T) {
             (**curwin.as_ptr()).w_curswant = MAXCOL;
         }
         if cursor_down(cap.count1 - 1, (*cap.oap).op_type == OP_NOP) == 0 {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
         } else if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped && (*cap.oap).op_type == OP_NOP {
             foldOpenCursor();
         }
@@ -5039,7 +5039,7 @@ unsafe fn nv_search(cap: &mut cmdarg_T) {
         cap.searchbuf = getcmdline(cap.cmdchar, cap.count1, 0, true);
 
         let Some(ref sbuf) = cap.searchbuf else {
-            clearop(oap);
+            clearop(&mut *oap);
             return;
         };
         let sbuf_ptr = sbuf.as_ptr().cast_mut();
@@ -5128,7 +5128,7 @@ unsafe fn normal_search(
             *wrapped = sia.sa_wrapped;
         }
         if i == 0 {
-            clearop(cap.oap);
+            clearop(&mut *cap.oap);
         } else {
             if i == 2 {
                 (*cap.oap).motion_type = kMTLineWise;
@@ -5168,7 +5168,7 @@ unsafe fn nv_csearch(cap: &mut cmdarg_T) {
 
         (*cap.oap).motion_type = kMTCharWise;
         if is_special(cap.nchar) || searchc(cap, t_cmd) == 0 {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
             if cursor_dec {
                 adjust_for_sel(cap);
             }
@@ -5246,7 +5246,7 @@ unsafe fn nv_bracket_block(cap: &mut cmdarg_T, old_pos: *const pos_T) {
             if pos.is_null() {
                 if new_pos.lnum == 0 {
                     if cap.nchar != b'm' as c_int && cap.nchar != b'M' as c_int {
-                        clearopbeep(cap.oap);
+                        clearopbeep(&mut *cap.oap);
                     }
                 } else {
                     pos = &raw mut new_pos;
@@ -5282,7 +5282,7 @@ unsafe fn nv_bracket_block(cap: &mut cmdarg_T, old_pos: *const pos_T) {
                     };
                     if step_res < 0 {
                         if pos.is_null() {
-                            clearopbeep(cap.oap);
+                            clearopbeep(&mut *cap.oap);
                         }
                         n = 0;
                         break;
@@ -5320,7 +5320,7 @@ unsafe fn nv_bracket_block(cap: &mut cmdarg_T, old_pos: *const pos_T) {
             }
             (**curwin.as_ptr()).w_cursor = *old_pos;
             if pos.is_null() && new_pos.lnum != 0 {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
             }
         }
         if !pos.is_null() {
@@ -5347,7 +5347,7 @@ unsafe fn nv_brackets(cap: &mut cmdarg_T) {
             let mut ptr: *mut c_char = ptr::null_mut();
             let len = find_ident_under_cursor(&raw mut ptr, FIND_IDENT, ptr::null_mut());
             if len == 0 {
-                clearop(cap.oap);
+                clearop(&mut *cap.oap);
             } else {
                 let mut ptr_vec = Vec::with_capacity(len + 1);
                 ptr_vec.extend_from_slice(std::slice::from_raw_parts(ptr, len));
@@ -5404,7 +5404,7 @@ unsafe fn nv_brackets(cap: &mut cmdarg_T) {
                 flag,
                 (*cap.oap).op_type != OP_NOP && cap.arg == FORWARD && flag == b'{' as c_int,
             ) {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
             } else {
                 if (*cap.oap).op_type == OP_NOP {
                     beginline(BL_WHITE | BL_FIX);
@@ -5470,7 +5470,7 @@ unsafe fn nv_brackets(cap: &mut cmdarg_T) {
                 cap.count1,
             ) == 0
             {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
             }
         } else if cap.nchar == b'c' as c_int {
             if diff_move_to(
@@ -5482,11 +5482,11 @@ unsafe fn nv_brackets(cap: &mut cmdarg_T) {
                 cap.count1,
             ) == 0
             {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
             }
         } else if cap.nchar == b'C' as c_int {
             if (*cap.oap).op_type != OP_NOP && mc_buf_has_cursors(g_st().curbuf) {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
             } else {
                 let mut tv_args: [typval_T; 3] = [
                     typval_T {
@@ -5521,7 +5521,7 @@ unsafe fn nv_brackets(cap: &mut cmdarg_T) {
                     &raw mut rettv,
                 );
                 if rettv.v_type != VarType::VAR_BOOL || rettv.vval.v_bool() != kBoolVarTrue {
-                    clearopbeep(cap.oap);
+                    clearopbeep(&mut *cap.oap);
                 }
                 tv_clear(&raw mut rettv);
             }
@@ -5549,7 +5549,7 @@ unsafe fn nv_brackets(cap: &mut cmdarg_T) {
                     ptr::null_mut(),
                 ) == 0
                 {
-                    clearopbeep(cap.oap);
+                    clearopbeep(&mut *cap.oap);
                     break;
                 }
                 (**curwin.as_ptr()).w_set_curswant = true;
@@ -5558,7 +5558,7 @@ unsafe fn nv_brackets(cap: &mut cmdarg_T) {
                 foldOpenCursor();
             }
         } else {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
         }
     }
 }
@@ -5593,7 +5593,7 @@ unsafe fn nv_percent(cap: &mut cmdarg_T) {
         (*cap.oap).inclusive = true;
         if cap.count0 != 0 {
             if cap.count0 > 100 {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
             } else {
                 (*cap.oap).motion_type = kMTLineWise;
                 setpcmark();
@@ -5624,7 +5624,7 @@ unsafe fn nv_percent(cap: &mut cmdarg_T) {
             (*cap.oap).use_reg_one = true;
             let pos = findmatchlimit(cap.oap, NUL as c_int, flags, 0);
             if pos.is_null() {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
             } else {
                 setpcmark();
                 (**curwin.as_ptr()).w_cursor = *pos;
@@ -5651,11 +5651,11 @@ unsafe fn nv_brace(cap: &mut cmdarg_T) {
         (**curwin.as_ptr()).w_set_curswant = true;
 
         if findsent(cap.arg, cap.count1) == FAIL {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
             return;
         }
 
-        adjust_cursor(cap.oap);
+        adjust_cursor(&mut *cap.oap);
         (**curwin.as_ptr()).w_cursor.coladd = 0;
         if (opt_vars().fdo_flags & kOptFdoFlagBlock) != 0 && g_st().KeyTyped && (*cap.oap).op_type == OP_NOP {
             foldOpenCursor();
@@ -5665,12 +5665,12 @@ unsafe fn nv_brace(cap: &mut cmdarg_T) {
 
 unsafe fn nv_mark(cap: &mut cmdarg_T) {
     unsafe {
-        if checkclearop(cap.oap) {
+        if checkclearop(&mut *cap.oap) {
             return;
         }
 
         if setmark(cap.nchar) == 0 {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
         }
     }
 }
@@ -5688,7 +5688,7 @@ unsafe fn nv_findpar(cap: &mut cmdarg_T) {
             NUL as c_int,
             false,
         ) {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
             return;
         }
 
@@ -5713,7 +5713,7 @@ unsafe fn nv_undo(cap: &mut cmdarg_T) {
 
 unsafe fn nv_kundo(cap: &mut cmdarg_T) {
     unsafe {
-        if checkclearopq(cap.oap) {
+        if checkclearopq(&mut *cap.oap) {
             return;
         }
 
@@ -5726,11 +5726,11 @@ unsafe fn nv_replace(cap: &mut cmdarg_T) {
     unsafe {
         let mut had_ctrl_v: c_int;
 
-        if checkclearop(cap.oap) {
+        if checkclearop(&mut *cap.oap) {
             return;
         }
         if bt_prompt(g_st().curbuf) && !prompt_curpos_editable() {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
             return;
         }
 
@@ -5745,7 +5745,7 @@ unsafe fn nv_replace(cap: &mut cmdarg_T) {
         }
 
         if is_special(cap.nchar) {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
             return;
         }
 
@@ -5779,7 +5779,7 @@ unsafe fn nv_replace(cap: &mut cmdarg_T) {
         if (get_cursor_pos_len() as usize) < (cap.count1 as c_uint as usize)
             || mb_charlen(get_cursor_pos_ptr()) < cap.count1
         {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
             return;
         }
 
@@ -5917,7 +5917,7 @@ unsafe fn nv_Replace(cap: &mut cmdarg_T) {
             return;
         }
 
-        if checkclearopq(cap.oap) {
+        if checkclearopq(&mut *cap.oap) {
             return;
         }
 
@@ -5950,7 +5950,7 @@ unsafe fn nv_vreplace(cap: &mut cmdarg_T) {
             return;
         }
 
-        if checkclearopq(cap.oap) {
+        if checkclearopq(&mut *cap.oap) {
             return;
         }
 
@@ -5977,12 +5977,12 @@ unsafe fn n_swapchar(cap: &mut cmdarg_T) {
     unsafe {
         let mut did_change = false;
 
-        if checkclearopq(cap.oap) {
+        if checkclearopq(&mut *cap.oap) {
             return;
         }
 
         if lineempty((**curwin.as_ptr()).w_cursor.lnum) && vim_strchr(opt_vars().p_ww, b'~' as c_int).is_null() {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
             return;
         }
 
@@ -6040,7 +6040,7 @@ unsafe fn nv_mark_move_to(cap: &mut cmdarg_T, flags: MarkMove, fm: *mut fmark_T)
     unsafe {
         let res = mark_move_to(fm, flags);
         if (res & kMarkMoveFailed) != 0 {
-            clearop(cap.oap);
+            clearop(&mut *cap.oap);
         }
         (*cap.oap).motion_type = if (flags & kMarkBeginLine) != 0 {
             kMTLineWise
@@ -6076,7 +6076,7 @@ unsafe fn v_visop(cap: &mut cmdarg_T) {
 unsafe fn nv_subst(cap: &mut cmdarg_T) {
     unsafe {
         if bt_prompt(g_st().curbuf) && !prompt_curpos_editable() {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
             return;
         }
         if g_st().Visual.active {
@@ -6110,7 +6110,7 @@ unsafe fn nv_optrans(cap: &mut cmdarg_T) {
         const AR: [&CStr; 8] = [c"dl", c"dh", c"d$", c"c$", c"cl", c"cc", c"yy", c":s\r"];
         let str_p = c"xXDCsSY&".as_ptr();
 
-        if !checkclearopq(cap.oap) {
+        if !checkclearopq(&mut *cap.oap) {
             if cap.count0 != 0 {
                 stuffnumReadbuff(cap.count0);
             }
@@ -6176,13 +6176,13 @@ unsafe fn nv_pcmark(cap: &mut cmdarg_T) {
         let mut move_res: MarkMoveRes = 0;
         let old_KeyTyped = g_st().KeyTyped;
 
-        if checkclearopq(cap.oap) {
+        if checkclearopq(&mut *cap.oap) {
             return;
         }
 
         if cap.cmdchar == TAB && g_st().mod_mask == MOD_MASK_CTRL {
             if !goto_tabpage_lastused() {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
             }
             return;
         }
@@ -6205,7 +6205,7 @@ unsafe fn nv_pcmark(cap: &mut cmdarg_T) {
                 emsg(tr(c"E663: At end of changelist".as_ptr()));
             }
         } else {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
         }
 
         if (*cap.oap).op_type == OP_NOP
@@ -6220,7 +6220,7 @@ unsafe fn nv_pcmark(cap: &mut cmdarg_T) {
 
 unsafe fn nv_regname(cap: &mut cmdarg_T) {
     unsafe {
-        if checkclearop(cap.oap) {
+        if checkclearop(&mut *cap.oap) {
             return;
         }
         if cap.nchar == b'=' as c_int {
@@ -6231,7 +6231,7 @@ unsafe fn nv_regname(cap: &mut cmdarg_T) {
             cap.opcount = cap.count0;
             set_reg_var((*cap.oap).regname);
         } else {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
         }
     }
 }
@@ -6377,7 +6377,7 @@ unsafe fn nv_window(cap: &mut cmdarg_T) {
             cap.cmdchar = b':' as c_int;
             cap.nchar = NUL as c_int;
             nv_colon(cap);
-        } else if !checkclearop(cap.oap) {
+        } else if !checkclearop(&mut *cap.oap) {
             do_window(cap.nchar, cap.count0, NUL as c_int);
         }
     }
@@ -6385,7 +6385,7 @@ unsafe fn nv_window(cap: &mut cmdarg_T) {
 
 unsafe fn nv_suspend(cap: &mut cmdarg_T) {
     unsafe {
-        clearop(cap.oap);
+        clearop(&mut *cap.oap);
         if g_st().Visual.active {
             end_visual_mode();
         }
@@ -6497,7 +6497,7 @@ unsafe fn nv_g_underscore_cmd(cap: &mut cmdarg_T) {
         (*cap.oap).inclusive = true;
         (**curwin.as_ptr()).w_curswant = MAXCOL;
         if cursor_down(cap.count1 - 1, (*cap.oap).op_type == OP_NOP) == 0 {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
             return;
         }
 
@@ -6546,8 +6546,8 @@ unsafe fn nv_g_dollar_cmd(cap: &mut cmdarg_T) {
                 {
                     (**curwin.as_ptr()).w_cursor.col -= 1;
                 }
-            } else if !nv_screengo(oap, FORWARD, cap.count1 - 1, false) {
-                clearopbeep(oap);
+            } else if !nv_screengo(&mut *oap, FORWARD, cap.count1 - 1, false) {
+                clearopbeep(&mut *oap);
             }
         } else {
             if cap.count1 > 1 {
@@ -6620,7 +6620,7 @@ unsafe fn nv_g_cmd(cap: &mut cmdarg_T) {
                 {
                     mc_counter(c_long::from(cap.count1));
                 } else {
-                    clearopbeep(oap);
+                    clearopbeep(&mut *oap);
                 }
             }
             c if c == b'R' as c_int => {
@@ -6669,7 +6669,7 @@ unsafe fn nv_g_cmd(cap: &mut cmdarg_T) {
             }
             c if c == b'N' as c_int || c == b'n' as c_int => {
                 if current_search(cap.count1, cap.nchar == b'n' as c_int) == 0 {
-                    clearopbeep(oap);
+                    clearopbeep(&mut *oap);
                 }
             }
             c if c == b'j' as c_int || c == K_DOWN => {
@@ -6677,10 +6677,10 @@ unsafe fn nv_g_cmd(cap: &mut cmdarg_T) {
                     (*oap).motion_type = kMTLineWise;
                     cursor_down(cap.count1, (*oap).op_type == OP_NOP) != 0
                 } else {
-                    nv_screengo(oap, FORWARD, cap.count1, false)
+                    nv_screengo(&mut *oap, FORWARD, cap.count1, false)
                 };
                 if !ok {
-                    clearopbeep(oap);
+                    clearopbeep(&mut *oap);
                 }
             }
             c if c == b'k' as c_int || c == K_UP => {
@@ -6688,10 +6688,10 @@ unsafe fn nv_g_cmd(cap: &mut cmdarg_T) {
                     (*oap).motion_type = kMTLineWise;
                     cursor_up(cap.count1, (*oap).op_type == OP_NOP) != 0
                 } else {
-                    nv_screengo(oap, BACKWARD, cap.count1, false)
+                    nv_screengo(&mut *oap, BACKWARD, cap.count1, false)
                 };
                 if !ok {
-                    clearopbeep(oap);
+                    clearopbeep(&mut *oap);
                 }
             }
             c if c == b'J' as c_int => {
@@ -6735,7 +6735,7 @@ unsafe fn nv_g_cmd(cap: &mut cmdarg_T) {
                 (**curwin.as_ptr()).w_set_curswant = true;
                 (*oap).inclusive = true;
                 if bckend_word(cap.count1, cap.nchar == b'E' as c_int, false) == 0 {
-                    clearopbeep(oap);
+                    clearopbeep(&mut *oap);
                 }
             }
             Ctrl_G => {
@@ -6746,7 +6746,7 @@ unsafe fn nv_g_cmd(cap: &mut cmdarg_T) {
             }
             c if c == b'I' as c_int => {
                 beginline(0);
-                if !checkclearopq(oap) {
+                if !checkclearopq(&mut *oap) {
                     invoke_edit(cap, 0, b'g' as c_int, 0);
                 }
             }
@@ -6793,7 +6793,7 @@ unsafe fn nv_g_cmd(cap: &mut cmdarg_T) {
                 nv_operator(cap);
             }
             c if c == b'd' as c_int || c == b'D' as c_int => {
-                nv_gd(oap, cap.nchar, cap.count0);
+                nv_gd(&mut *oap, cap.nchar, cap.count0);
             }
             K_LEFTMOUSE => {
                 if do_mouse(oap, cap.nchar, BACKWARD, cap.count1, false) {
@@ -6823,22 +6823,22 @@ unsafe fn nv_g_cmd(cap: &mut cmdarg_T) {
                 nv_pcmark(cap);
             }
             c if c == b't' as c_int => {
-                if !checkclearop(oap) {
+                if !checkclearop(&mut *oap) {
                     goto_tabpage(cap.count0);
                 }
             }
             c if c == b'T' as c_int => {
-                if !checkclearop(oap) {
+                if !checkclearop(&mut *oap) {
                     goto_tabpage(-cap.count1);
                 }
             }
             TAB => {
-                if !checkclearop(oap) && !goto_tabpage_lastused() {
-                    clearopbeep(oap);
+                if !checkclearop(&mut *oap) && !goto_tabpage_lastused() {
+                    clearopbeep(&mut *oap);
                 }
             }
             c if c == b'+' as c_int || c == b'-' as c_int => {
-                if !checkclearopq(oap) {
+                if !checkclearopq(&mut *oap) {
                     undo_time(
                         if cap.nchar == b'-' as c_int {
                             -cap.count1
@@ -6852,7 +6852,7 @@ unsafe fn nv_g_cmd(cap: &mut cmdarg_T) {
                 }
             }
             _ => {
-                clearopbeep(oap);
+                clearopbeep(&mut *oap);
             }
         }
     }
@@ -6860,7 +6860,7 @@ unsafe fn nv_g_cmd(cap: &mut cmdarg_T) {
 
 unsafe fn n_opencmd(cap: &mut cmdarg_T) {
     unsafe {
-        if checkclearopq(cap.oap) {
+        if checkclearopq(&mut *cap.oap) {
             return;
         }
 
@@ -6909,12 +6909,12 @@ unsafe fn n_opencmd(cap: &mut cmdarg_T) {
 
 unsafe fn nv_dot(cap: &mut cmdarg_T) {
     unsafe {
-        if checkclearopq(cap.oap) {
+        if checkclearopq(&mut *cap.oap) {
             return;
         }
 
         if start_redo(cap.count0, g_st().restart_edit != 0 && g_st().Ins.moved == kInsNone) == 0 {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
             return;
         }
         exec_stuffed(Some(cap));
@@ -6937,7 +6937,7 @@ unsafe fn nv_redo_or_register(cap: &mut cmdarg_T) {
             return;
         }
 
-        if checkclearopq(cap.oap) {
+        if checkclearopq(&mut *cap.oap) {
             return;
         }
 
@@ -6955,7 +6955,7 @@ unsafe fn nv_Undo(cap: &mut cmdarg_T) {
             return;
         }
 
-        if checkclearopq(cap.oap) {
+        if checkclearopq(&mut *cap.oap) {
             return;
         }
 
@@ -6968,7 +6968,7 @@ unsafe fn nv_tilde(cap: &mut cmdarg_T) {
     unsafe {
         if opt_vars().p_to == 0 && !g_st().Visual.active && (*cap.oap).op_type != OP_TILDE {
             if bt_prompt(g_st().curbuf) && !prompt_curpos_editable() {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
                 return;
             }
             n_swapchar(cap);
@@ -6983,13 +6983,13 @@ unsafe fn nv_operator(cap: &mut cmdarg_T) {
         let op_type = get_op_type(cap.cmdchar, cap.nchar);
 
         if bt_prompt(g_st().curbuf) && op_is_change(op_type) != 0 && !prompt_curpos_editable() {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
             return;
         }
 
         if op_type == (*cap.oap).op_type {
             nv_lineop(cap);
-        } else if !checkclearop(cap.oap) {
+        } else if !checkclearop(&mut *cap.oap) {
             (*cap.oap).start = (**curwin.as_ptr()).w_cursor;
             (*cap.oap).op_type = op_type;
             set_op_var(op_type);
@@ -7016,7 +7016,7 @@ unsafe fn nv_lineop(cap: &mut cmdarg_T) {
     unsafe {
         (*cap.oap).motion_type = kMTLineWise;
         if cursor_down(cap.count1 - 1, (*cap.oap).op_type == OP_NOP) == 0 {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
         } else if ((*cap.oap).op_type == OP_DELETE
             && (*cap.oap).motion_force != b'v' as c_int
             && (*cap.oap).motion_force != Ctrl_V)
@@ -7065,7 +7065,7 @@ unsafe fn nv_bck_word(cap: &mut cmdarg_T) {
         (*cap.oap).inclusive = false;
         (**curwin.as_ptr()).w_set_curswant = true;
         if bck_word(cap.count1, cap.arg != 0, false) == 0 {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
         } else if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped && (*cap.oap).op_type == OP_NOP {
             foldOpenCursor();
         }
@@ -7104,11 +7104,11 @@ unsafe fn nv_wordcmd(cap: &mut cmdarg_T) {
         };
 
         if lt(startpos, (**curwin.as_ptr()).w_cursor) {
-            adjust_cursor(cap.oap);
+            adjust_cursor(&mut *cap.oap);
         }
 
         if n == 0 && (*cap.oap).op_type == OP_NOP {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
         } else {
             adjust_for_sel(cap);
             if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped && (*cap.oap).op_type == OP_NOP {
@@ -7118,7 +7118,7 @@ unsafe fn nv_wordcmd(cap: &mut cmdarg_T) {
     }
 }
 
-unsafe fn adjust_cursor(oap: *mut oparg_T) {
+unsafe fn adjust_cursor(oap: &mut oparg_T) {
     unsafe {
         if (**curwin.as_ptr()).w_cursor.col > 0
             && gchar_cursor() == NUL as c_int
@@ -7128,7 +7128,7 @@ unsafe fn adjust_cursor(oap: *mut oparg_T) {
         {
             (**curwin.as_ptr()).w_cursor.col -= 1;
             mb_adjust_cursor();
-            (*oap).inclusive = true;
+            oap.inclusive = true;
         }
     }
 }
@@ -7236,7 +7236,7 @@ unsafe fn nv_goto(cap: &mut cmdarg_T) {
 unsafe fn nv_normal(cap: &mut cmdarg_T) {
     unsafe {
         if cap.nchar == Ctrl_N || cap.nchar == Ctrl_G {
-            clearop(cap.oap);
+            clearop(&mut *cap.oap);
             if g_st().restart_edit != 0 && g_st().mode_displayed {
                 g_st().clear_cmdline = true;
             }
@@ -7246,7 +7246,7 @@ unsafe fn nv_normal(cap: &mut cmdarg_T) {
                 redraw_curbuf_later(UPD_INVERTED);
             }
         } else {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
         }
     }
 }
@@ -7292,7 +7292,7 @@ unsafe fn nv_esc(cap: &mut cmdarg_T) {
         } else if no_reason && !cmdwin_cancel {
             vim_beep(kOptBoFlagEsc);
         }
-        clearop(cap.oap);
+        clearop(&mut *cap.oap);
     }
 }
 
@@ -7324,8 +7324,8 @@ unsafe fn nv_edit(cap: &mut cmdarg_T) {
             nv_object(cap);
         } else if (*g_st().curbuf).b_p_ma == 0 && (*g_st().curbuf).terminal.is_null() {
             emsg(tr(e_modifiable.as_ptr()));
-            clearop(cap.oap);
-        } else if !checkclearopq(cap.oap) {
+            clearop(&mut *cap.oap);
+        } else if !checkclearopq(&mut *cap.oap) {
             match cap.cmdchar {
                 c if c == b'A' as c_int => {
                     set_cursor_for_append_to_line();
@@ -7394,11 +7394,11 @@ unsafe fn nv_object(cap: &mut cmdarg_T) {
         (*g_st().curbuf).b_p_mps = c"(:),{:},[:],<:>".as_ptr().cast_mut();
 
         let flag = match cap.nchar {
-            c if c == b'w' as c_int => current_word(cap.oap, cap.count1, include, false) != 0,
-            c if c == b'W' as c_int => current_word(cap.oap, cap.count1, include, true) != 0,
+            c if c == b'w' as c_int => current_word(&mut *cap.oap, cap.count1, include, false) != 0,
+            c if c == b'W' as c_int => current_word(&mut *cap.oap, cap.count1, include, true) != 0,
             c if c == b'b' as c_int || c == b'(' as c_int || c == b')' as c_int => {
                 current_block(
-                    cap.oap,
+                    &mut *cap.oap,
                     cap.count1,
                     include,
                     b'(' as c_int,
@@ -7407,7 +7407,7 @@ unsafe fn nv_object(cap: &mut cmdarg_T) {
             }
             c if c == b'B' as c_int || c == b'{' as c_int || c == b'}' as c_int => {
                 current_block(
-                    cap.oap,
+                    &mut *cap.oap,
                     cap.count1,
                     include,
                     b'{' as c_int,
@@ -7416,7 +7416,7 @@ unsafe fn nv_object(cap: &mut cmdarg_T) {
             }
             c if c == b'[' as c_int || c == b']' as c_int => {
                 current_block(
-                    cap.oap,
+                    &mut *cap.oap,
                     cap.count1,
                     include,
                     b'[' as c_int,
@@ -7425,7 +7425,7 @@ unsafe fn nv_object(cap: &mut cmdarg_T) {
             }
             c if c == b'<' as c_int || c == b'>' as c_int => {
                 current_block(
-                    cap.oap,
+                    &mut *cap.oap,
                     cap.count1,
                     include,
                     b'<' as c_int,
@@ -7434,22 +7434,22 @@ unsafe fn nv_object(cap: &mut cmdarg_T) {
             }
             c if c == b't' as c_int => {
                 cap.retval |= CA_NO_ADJ_OP_END;
-                current_tagblock(cap.oap, cap.count1, include) != 0
+                current_tagblock(&mut *cap.oap, cap.count1, include) != 0
             }
             c if c == b'p' as c_int => {
-                current_par(cap.oap, cap.count1, include, b'p' as c_int) != 0
+                current_par(&mut *cap.oap, cap.count1, include, b'p' as c_int) != 0
             }
-            c if c == b'l' as c_int => current_line(cap.oap, include) != 0,
-            c if c == b's' as c_int => current_sent(cap.oap, cap.count1, include) != 0,
+            c if c == b'l' as c_int => current_line(&mut *cap.oap, include) != 0,
+            c if c == b's' as c_int => current_sent(&mut *cap.oap, cap.count1, include) != 0,
             c if c == b'"' as c_int || c == b'\'' as c_int || c == b'`' as c_int => {
-                current_quote(cap.oap, cap.count1, include, cap.nchar)
+                current_quote(&mut *cap.oap, cap.count1, include, cap.nchar)
             }
             _ => false,
         };
 
         (*g_st().curbuf).b_p_mps = mps_save;
         if !flag {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
         }
         adjust_cursor_col();
         (**curwin.as_ptr()).w_set_curswant = true;
@@ -7465,12 +7465,12 @@ unsafe fn nv_q(cap: &mut cmdarg_T) {
             return;
         }
 
-        if checkclearop(cap.oap) {
+        if checkclearop(&mut *cap.oap) {
             return;
         }
 
         if cap.nchar == b'=' as c_int && cap.count0 > 2 {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
         } else if cap.nchar == b'=' as c_int {
             mc_follow_set(if cap.count0 == 0 {
                 kNone
@@ -7526,14 +7526,14 @@ unsafe fn nv_q(cap: &mut cmdarg_T) {
                 ptr::null_mut(),
             );
         } else if g_st().reg_executing == 0 && do_record(cap.nchar) == FAIL {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
         }
     }
 }
 
 unsafe fn nv_at(cap: &mut cmdarg_T) {
     unsafe {
-        if checkclearop(cap.oap) {
+        if checkclearop(&mut *cap.oap) {
             return;
         }
         if cap.nchar == b'=' as c_int && get_expr_register() == NUL as c_int {
@@ -7546,7 +7546,7 @@ unsafe fn nv_at(cap: &mut cmdarg_T) {
             prev != 0 && !g_st().got_int
         } {
             if do_execreg(cap.nchar, 0, 0, 0) == 0 {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
                 break;
             }
             line_breakcheck();
@@ -7556,7 +7556,7 @@ unsafe fn nv_at(cap: &mut cmdarg_T) {
 
 unsafe fn nv_halfpage(cap: &mut cmdarg_T) {
     unsafe {
-        if !checkclearop(cap.oap) {
+        if !checkclearop(&mut *cap.oap) {
             pagescroll(
                 if cap.cmdchar == Ctrl_D {
                     FORWARD
@@ -7577,7 +7577,7 @@ unsafe fn nv_join(cap: &mut cmdarg_T) {
             return;
         }
 
-        if checkclearop(cap.oap) {
+        if checkclearop(&mut *cap.oap) {
             return;
         }
 
@@ -7585,7 +7585,7 @@ unsafe fn nv_join(cap: &mut cmdarg_T) {
 
         if (**curwin.as_ptr()).w_cursor.lnum + cap.count0 - 1 > (*g_st().curbuf).b_ml.ml_line_count {
             if cap.count0 <= 2 {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
                 return;
             }
             cap.count0 = (*g_st().curbuf).b_ml.ml_line_count - (**curwin.as_ptr()).w_cursor.lnum + 1;
@@ -7619,12 +7619,12 @@ unsafe fn nv_put_opt(cap: &mut cmdarg_T, fix_indent: bool) {
 
         if (*cap.oap).op_type != OP_NOP {
             if (*cap.oap).op_type == OP_DELETE && cap.cmdchar == b'p' as c_int {
-                atom_capture_op(cap.oap, cap, false);
-                clearop(cap.oap);
+                atom_capture_op(&mut *cap.oap, cap, false);
+                clearop(&mut *cap.oap);
                 assert!(cap.opcount >= 0);
                 nv_diffgetput(true, cap.opcount as usize);
             } else {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
             }
             return;
         }
@@ -7634,7 +7634,7 @@ unsafe fn nv_put_opt(cap: &mut cmdarg_T, fix_indent: bool) {
                 (**curwin.as_ptr()).w_cursor.col = (*g_st().curbuf).b_prompt_start.mark.col;
                 cap.cmdchar = b'P' as c_int;
             } else {
-                clearopbeep(cap.oap);
+                clearopbeep(&mut *cap.oap);
                 return;
             }
         }
@@ -7766,15 +7766,15 @@ unsafe fn nv_put_opt(cap: &mut cmdarg_T, fix_indent: bool) {
 unsafe fn nv_open(cap: &mut cmdarg_T) {
     unsafe {
         if (*cap.oap).op_type == OP_DELETE && cap.cmdchar == b'o' as c_int {
-            atom_capture_op(cap.oap, cap, false);
-            clearop(cap.oap);
+            atom_capture_op(&mut *cap.oap, cap, false);
+            clearop(&mut *cap.oap);
             assert!(cap.opcount >= 0);
             nv_diffgetput(false, cap.opcount as usize);
         } else if g_st().Visual.active {
             v_swap_corners(cap.cmdchar);
         } else if bt_prompt(g_st().curbuf) && (**curwin.as_ptr()).w_cursor.lnum < (*g_st().curbuf).b_prompt_start.mark.lnum
         {
-            clearopbeep(cap.oap);
+            clearopbeep(&mut *cap.oap);
         } else {
             n_opencmd(cap);
         }
@@ -7799,7 +7799,7 @@ unsafe fn nv_event(cap: &mut cmdarg_T) {
     }
 }
 
-pub unsafe fn normal_cmd(oap: *mut oparg_T, toplevel: bool) {
+pub unsafe fn normal_cmd(oap: &mut oparg_T, toplevel: bool) {
     unsafe {
         let mut s = NormalState::new();
         normal_state_init(&raw mut s);
@@ -7828,7 +7828,7 @@ pub unsafe fn exec_stuffed(mut cap: Option<&mut cmdarg_T>) {
         g_st().finish_op = false;
         while !stuff_empty() && !g_st().got_int {
             update_topline_cursor();
-            normal_cmd(oap, true);
+            normal_cmd(&mut *oap, true);
         }
         g_st().finish_op = false;
         if let Some(ref mut cap) = cap

@@ -908,7 +908,7 @@ pub unsafe fn inindent(extra: c_int) -> bool {
 }
 
 /// Handle reindenting a block of lines (`op_reindent`).
-pub unsafe fn op_reindent(oap: *mut oparg_T, how: Indenter) {
+pub unsafe fn op_reindent(oap: &mut oparg_T, how: Indenter) {
     unsafe {
         let mut i: c_int = 0;
         let mut first_changed: linenr_T = 0;
@@ -923,16 +923,16 @@ pub unsafe fn op_reindent(oap: *mut oparg_T, how: Indenter) {
         if u_savecommon(
             g_st().curbuf,
             start_lnum - 1,
-            start_lnum + (*oap).line_count,
-            start_lnum + (*oap).line_count,
+            start_lnum + oap.line_count,
+            start_lnum + oap.line_count,
             false,
         ) == OK
         {
-            i = (*oap).line_count - 1;
+            i = oap.line_count - 1;
             while i >= 0 && !g_st().got_int {
                 if i > 1
-                    && (i % 50 == 0 || i == (*oap).line_count - 1)
-                    && i64::from((*oap).line_count) > opt_vars().p_report
+                    && (i % 50 == 0 || i == oap.line_count - 1)
+                    && i64::from(oap.line_count) > opt_vars().p_report
                 {
                     let fmt_ptr = gettext(c"%ld lines to indent... ".as_ptr());
                     let fmt_str = CStr::from_ptr(fmt_ptr).to_string_lossy();
@@ -961,8 +961,8 @@ pub unsafe fn op_reindent(oap: *mut oparg_T, how: Indenter) {
                     (**curwin.as_ptr()).w_cursor.lnum = save_lnum;
                 }
 
-                if i != (*oap).line_count - 1
-                    || (*oap).line_count == 1
+                if i != oap.line_count - 1
+                    || oap.line_count == 1
                     || !std::ptr::fn_addr_eq(how, get_lisp_indent as Indenter)
                 {
                     let l = skipwhite(get_cursor_line_ptr());
@@ -988,20 +988,20 @@ pub unsafe fn op_reindent(oap: *mut oparg_T, how: Indenter) {
                 g_st().curbuf,
                 first_changed,
                 0,
-                if (*oap).is_VIsual {
-                    start_lnum + (*oap).line_count
+                if oap.is_VIsual {
+                    start_lnum + oap.line_count
                 } else {
                     last_changed + 1
                 },
                 0,
                 true,
             );
-        } else if (*oap).is_VIsual {
+        } else if oap.is_VIsual {
             redraw_curbuf_later(UPD_INVERTED);
         }
 
-        if i64::from((*oap).line_count) > opt_vars().p_report {
-            i = (*oap).line_count - (i + 1);
+        if i64::from(oap.line_count) > opt_vars().p_report {
+            i = oap.line_count - (i + 1);
             let fmt_ptr = ngettext(
                 c"%ld line indented ".as_ptr(),
                 c"%ld lines indented ".as_ptr(),
@@ -1029,8 +1029,8 @@ pub unsafe fn op_reindent(oap: *mut oparg_T, how: Indenter) {
             );
         }
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-            (*g_st().curbuf).b_op_start = (*oap).start;
-            (*g_st().curbuf).b_op_end = (*oap).end;
+            (*g_st().curbuf).b_op_start = oap.start;
+            (*g_st().curbuf).b_op_end = oap.end;
         }
     }
 }

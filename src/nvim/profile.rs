@@ -423,7 +423,7 @@ pub unsafe fn ex_profile(eap: &mut exarg_T) {
 }
 
 /// Command-line completion item getter for `:profile` (`get_profile_name`).
-pub unsafe fn get_profile_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_profile_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if unsafe { prof_st().PEXPAND_WHAT } == PEXP_SUBCMD && idx >= 0 && (idx as usize) < PEXPAND_CMDS.len() {
         PEXPAND_CMDS[idx as usize].as_ptr().cast_mut()
     } else {
@@ -432,8 +432,7 @@ pub unsafe fn get_profile_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Set command-line completion context for `:profile` (`set_context_in_profile_cmd`).
-pub unsafe fn set_context_in_profile_cmd(xp: *mut expand_T, arg: *const c_char) {
-    let xp = unsafe { &mut *xp };
+pub unsafe fn set_context_in_profile_cmd(xp: &mut expand_T, arg: *const c_char) {
     xp.xp_context = EXPAND_PROFILE;
     unsafe {
         prof_st().PEXPAND_WHAT = PEXP_SUBCMD;

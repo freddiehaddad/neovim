@@ -374,7 +374,7 @@ pub unsafe extern "C" fn nvim_parse_cmd(
         } else if let Some(cmd) = cmd {
             cmd.uc_name.as_ptr()
         } else {
-            get_command_name(ptr::null_mut(), ea.cmdidx)
+            get_command_name(&mut crate::os::env::expand_T::new(), ea.cmdidx)
         };
 
         result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_cmd__cmd;
@@ -715,7 +715,7 @@ pub unsafe extern "C" fn nvim_cmd(
                 let fullname = if is_user_cmdidx(ea.cmdidx) {
                     get_user_command_name(ea.useridx, ea.cmdidx)
                 } else {
-                    get_command_name(ptr::null_mut(), ea.cmdidx)
+                    get_command_name(&mut crate::os::env::expand_T::new(), ea.cmdidx)
                 };
                 let cmdname_bytes = CStr::from_ptr(cmdname).to_bytes();
                 let fullname_bytes = CStr::from_ptr(fullname).to_bytes();

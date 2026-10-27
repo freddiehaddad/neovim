@@ -451,7 +451,7 @@ unsafe fn proc_is_stopped(proc_: *mut Proc) -> bool {
 
 /// Function given to `ExpandGeneric()` to obtain the list of internal
 /// or user defined function names.
-pub unsafe fn get_function_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_function_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
             funcs_st().GET_FUNC_NAME_INTIDX = -1;
@@ -461,7 +461,7 @@ pub unsafe fn get_function_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
             if !name.is_null() {
                 if *name != NUL
                     && *name != b'<' as c_char
-                    && { let _p1 = c"g:".as_ptr(); let _p2 = (*xp).xp_pattern; let _n = 2; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                    && { let _p1 = c"g:".as_ptr(); let _p2 = xp.xp_pattern; let _n = 2; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                 {
                     return cat_prefix_varname(b'g' as c_int, name);
                 }
@@ -491,7 +491,7 @@ pub unsafe fn get_function_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
 
 /// Function given to `ExpandGeneric()` to obtain the list of internal or
 /// user defined variable or function names.
-pub unsafe fn get_expr_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_expr_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
             funcs_st().GET_EXPR_NAME_INTIDX = -1;
@@ -2402,14 +2402,14 @@ pub unsafe fn f_expand(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
                 }
                 if rettv.v_type == VarType::VAR_STRING {
                     if let Some(exp) =
-                        ExpandOne(&raw mut xpc, s.cast_mut(), None, options, WILD_ALL)
+                        ExpandOne(&mut xpc, s.cast_mut(), None, options, WILD_ALL)
                     {
                         crate::eval::typval::tv_set_string(rettv, exp.as_ptr());
                     } else {
                         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                     }
                 } else {
-                    ExpandOne(&raw mut xpc, s.cast_mut(), None, options, WILD_ALL_KEEP);
+                    ExpandOne(&mut xpc, s.cast_mut(), None, options, WILD_ALL_KEEP);
                     tv_list_alloc_ret(rettv, xpc.xp_numfiles as isize);
                     for f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
                         tv_list_append_string(
@@ -3269,7 +3269,7 @@ unsafe fn getregionpos(
     p2: *mut pos_T,
     inclusive: *mut bool,
     region_type: *mut c_int,
-    oap: *mut oparg_T,
+    oap: &mut oparg_T,
 ) -> c_int {
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
@@ -3415,7 +3415,7 @@ pub unsafe fn f_getregion(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
             &raw mut p2,
             &raw mut inclusive,
             &raw mut region_type,
-            &raw mut oa,
+            &mut oa,
         ) == FAIL
         {
             return;
@@ -3424,7 +3424,7 @@ pub unsafe fn f_getregion(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
         for lnum in p1.lnum..=p2.lnum {
             if region_type == kMTBlockWise {
                 let mut bd = block_def::new();
-                block_prep(&raw mut oa, &raw mut bd, lnum, false);
+                block_prep(&mut oa, &raw mut bd, lnum, false);
                 let akt = block_def2str(&raw const bd);
                 tv_list_append_string(rettv.vval.v_list(), akt.as_ptr(), akt.len() as isize);
             } else if region_type == kMTLineWise || (p1.lnum < lnum && lnum < p2.lnum) {
@@ -3513,7 +3513,7 @@ pub unsafe fn f_getregionpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
             &raw mut p2,
             &raw mut inclusive,
             &raw mut region_type,
-            &raw mut oa,
+            &mut oa,
         ) == FAIL
         {
             return;
@@ -3553,7 +3553,7 @@ pub unsafe fn f_getregionpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
                 tab_p2,
                 inclusive,
                 region_type,
-                &raw mut oa,
+                &mut oa,
                 allow_eol,
                 start_pos.cast(),
                 end_pos.cast(),
@@ -3570,7 +3570,7 @@ pub unsafe fn f_getregionpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
                     tab_p2,
                     inclusive,
                     region_type,
-                    &raw mut oa,
+                    &mut oa,
                     allow_eol,
                     unused.cast(),
                     end_pos.cast(),
@@ -3595,7 +3595,7 @@ pub unsafe fn f_getregionpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
                     tab_p2,
                     inclusive,
                     region_type,
-                    &raw mut oa,
+                    &mut oa,
                     allow_eol,
                     ret_p1.cast(),
                     ret_p2.cast(),
@@ -8932,7 +8932,7 @@ pub unsafe fn f_synIDattr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
                 if w(1) == b'o' {
                     p = highlight_has_attr(id, HL_NOCOMBINE, modec);
                 } else {
-                    p = get_highlight_name_ext(ptr::null_mut(), id - 1, false);
+                    p = get_highlight_name_ext(&mut crate::os::env::expand_T::new(), id - 1, false);
                 }
             }
             b'r' => p = highlight_has_attr(id, HL_INVERSE, modec),

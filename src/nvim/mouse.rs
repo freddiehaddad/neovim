@@ -615,7 +615,7 @@ pub unsafe fn do_mouse(
         if which_button == MOUSE_MIDDLE {
             if g_st().State == MODE_NORMAL {
                 if !oap.is_null() && (*oap).op_type != OP_NOP {
-                    clearopbeep(oap);
+                    clearopbeep(&mut *oap);
                     return false;
                 }
 
@@ -924,7 +924,7 @@ pub unsafe fn do_mouse(
         }
 
         if *curwin.as_ptr() != old_curwin && !oap.is_null() && (*oap).op_type != OP_NOP {
-            clearop(oap);
+            clearop(&mut *oap);
         }
 
         if g_st().Visual.active && is_drag && get_scrolloff_value(*curwin.as_ptr()) != 0 {

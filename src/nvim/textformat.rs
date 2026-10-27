@@ -834,32 +834,32 @@ pub unsafe fn comp_textwidth(ff: bool) -> c_int {
 }
 
 /// Implementation of the format operator `gq` (`op_format`).
-pub unsafe fn op_format(oap: *mut oparg_T, keep_cursor: bool) {
+pub unsafe fn op_format(oap: &mut oparg_T, keep_cursor: bool) {
     unsafe {
         let mut old_line_count = (*g_st().curbuf).b_ml.ml_line_count;
 
-        (**curwin.as_ptr()).w_cursor = (*oap).cursor_start;
+        (**curwin.as_ptr()).w_cursor = oap.cursor_start;
 
-        if u_save((*oap).start.lnum - 1, (*oap).end.lnum + 1) == FAIL {
+        if u_save(oap.start.lnum - 1, oap.end.lnum + 1) == FAIL {
             return;
         }
-        (**curwin.as_ptr()).w_cursor = (*oap).start;
+        (**curwin.as_ptr()).w_cursor = oap.start;
 
-        if (*oap).is_VIsual {
+        if oap.is_VIsual {
             redraw_curbuf_later(UPD_INVERTED);
         }
 
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-            (*g_st().curbuf).b_op_start = (*oap).start;
+            (*g_st().curbuf).b_op_start = oap.start;
         }
 
         if keep_cursor {
-            g_st().saved_cursor = (*oap).cursor_start;
+            g_st().saved_cursor = oap.cursor_start;
         }
 
-        format_lines((*oap).line_count, keep_cursor);
+        format_lines(oap.line_count, keep_cursor);
 
-        if (*oap).end_adjusted && (**curwin.as_ptr()).w_cursor.lnum < (*g_st().curbuf).b_ml.ml_line_count {
+        if oap.end_adjusted && (**curwin.as_ptr()).w_cursor.lnum < (*g_st().curbuf).b_ml.ml_line_count {
             (**curwin.as_ptr()).w_cursor.lnum += 1;
         }
         beginline(BL_WHITE | BL_FIX);
@@ -876,7 +876,7 @@ pub unsafe fn op_format(oap: *mut oparg_T, keep_cursor: bool) {
             check_cursor(*curwin.as_ptr());
         }
 
-        if (*oap).is_VIsual {
+        if oap.is_VIsual {
             let mut wp = g_st().firstwin;
             while !wp.is_null() {
                 if (*wp).w_old_cursor_lnum != 0 {
@@ -893,13 +893,13 @@ pub unsafe fn op_format(oap: *mut oparg_T, keep_cursor: bool) {
 }
 
 /// Implementation of the format operator `gq` for when using `'formatexpr'` (`op_formatexpr`).
-pub unsafe fn op_formatexpr(oap: *mut oparg_T) {
+pub unsafe fn op_formatexpr(oap: &mut oparg_T) {
     unsafe {
-        if (*oap).is_VIsual {
+        if oap.is_VIsual {
             redraw_curbuf_later(UPD_INVERTED);
         }
 
-        if fex_format((*oap).start.lnum, c_long::from((*oap).line_count), 0) != 0 {
+        if fex_format(oap.start.lnum, c_long::from(oap.line_count), 0) != 0 {
             op_format(oap, false);
         }
     }

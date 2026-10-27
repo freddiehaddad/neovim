@@ -872,7 +872,7 @@ pub unsafe fn ex_argdelete(eap: &mut exarg_T) {
 }
 
 /// Obtain the possible arguments of the `argedit` and `argdelete` commands (`get_arglist_name`).
-pub unsafe fn get_arglist_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_arglist_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx >= argcount() {
             return ptr::null_mut();

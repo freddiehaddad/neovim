@@ -342,7 +342,7 @@ pub unsafe fn find_ucmd(
 }
 
 /// Set completion context for `:command` (`set_context_in_user_cmd`).
-pub unsafe fn set_context_in_user_cmd(xp: *mut expand_T, arg_in: *const c_char) -> *const c_char {
+pub unsafe fn set_context_in_user_cmd(xp: &mut expand_T, arg_in: *const c_char) -> *const c_char {
     unsafe {
         let mut arg = arg_in;
         let mut p: *const c_char;
@@ -353,23 +353,23 @@ pub unsafe fn set_context_in_user_cmd(xp: *mut expand_T, arg_in: *const c_char) 
             if *p == NUL {
                 p = CStr::from_ptr(arg).to_bytes().iter().position(|&b| b == b'=').map_or(ptr::null(), |i| arg.add(i));
                 if p.is_null() {
-                    (*xp).xp_context = EXPAND_USER_CMD_FLAGS;
-                    (*xp).xp_pattern = arg.cast_mut();
+                    xp.xp_context = EXPAND_USER_CMD_FLAGS;
+                    xp.xp_pattern = arg.cast_mut();
                     return ptr::null();
                 }
 
                 let attr_len = p.offset_from(arg) as usize;
                 if { let _p1 = arg; let _p2 = c"complete".as_ptr(); let _n = attr_len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
-                    (*xp).xp_context = EXPAND_USER_COMPLETE;
-                    (*xp).xp_pattern = p.add(1).cast_mut();
+                    xp.xp_context = EXPAND_USER_COMPLETE;
+                    xp.xp_pattern = p.add(1).cast_mut();
                     return ptr::null();
                 } else if { let _p1 = arg; let _p2 = c"nargs".as_ptr(); let _n = attr_len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
-                    (*xp).xp_context = EXPAND_USER_NARGS;
-                    (*xp).xp_pattern = p.add(1).cast_mut();
+                    xp.xp_context = EXPAND_USER_NARGS;
+                    xp.xp_pattern = p.add(1).cast_mut();
                     return ptr::null();
                 } else if { let _p1 = arg; let _p2 = c"addr".as_ptr(); let _n = attr_len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
-                    (*xp).xp_context = EXPAND_USER_ADDR_TYPE;
-                    (*xp).xp_pattern = p.add(1).cast_mut();
+                    xp.xp_context = EXPAND_USER_ADDR_TYPE;
+                    xp.xp_pattern = p.add(1).cast_mut();
                     return ptr::null();
                 }
                 return ptr::null();
@@ -379,8 +379,8 @@ pub unsafe fn set_context_in_user_cmd(xp: *mut expand_T, arg_in: *const c_char) 
 
         p = skiptowhite(arg);
         if *p == NUL {
-            (*xp).xp_context = EXPAND_USER_COMMANDS;
-            (*xp).xp_pattern = arg.cast_mut();
+            xp.xp_context = EXPAND_USER_COMMANDS;
+            xp.xp_pattern = arg.cast_mut();
             return ptr::null();
         }
 
@@ -394,7 +394,7 @@ pub unsafe fn set_context_in_user_cmdarg(
     mut arg: *const c_char,
     argt: u32,
     context: c_int,
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     forceit: bool,
 ) -> *const c_char {
     unsafe {
@@ -434,19 +434,19 @@ pub unsafe fn set_context_in_user_cmdarg(
                 p = p.add(utfc_ptr2len(p) as usize);
             }
         }
-        (*xp).xp_pattern = arg.cast_mut();
-        (*xp).xp_context = context;
+        xp.xp_pattern = arg.cast_mut();
+        xp.xp_context = context;
 
         ptr::null()
     }
 }
 
 pub unsafe fn expand_user_command_name(idx: c_int) -> *mut c_char {
-    unsafe { get_user_commands(ptr::null_mut(), idx - CMD_SIZE) }
+    unsafe { get_user_commands(&mut crate::os::env::expand_T::new(), idx - CMD_SIZE) }
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user command names (`get_user_commands`).
-pub unsafe fn get_user_commands(_xp: *mut expand_T, mut idx: c_int) -> *mut c_char {
+pub unsafe fn get_user_commands(_xp: &mut expand_T, mut idx: c_int) -> *mut c_char {
     unsafe {
         let buf = (*prevwin_curwin()).w_buffer;
         let b_len = (*buf).b_ucmds.len() as c_int;
@@ -491,7 +491,7 @@ pub unsafe fn get_user_command_name(idx: c_int, cmdidx: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user address type names (`get_user_cmd_addr_type`).
-pub unsafe fn get_user_cmd_addr_type(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_user_cmd_addr_type(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 || (idx as usize) >= ADDR_TYPE_COMPLETE.len() {
         return ptr::null_mut();
     }
@@ -502,7 +502,7 @@ pub unsafe fn get_user_cmd_addr_type(_xp: *mut expand_T, idx: c_int) -> *mut c_c
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user command attributes (`get_user_cmd_flags`).
-pub unsafe fn get_user_cmd_flags(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_user_cmd_flags(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     const USER_CMD_FLAGS: [&CStr; 10] = [
         c"addr",
         c"bang",
@@ -522,7 +522,7 @@ pub unsafe fn get_user_cmd_flags(_xp: *mut expand_T, idx: c_int) -> *mut c_char 
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of values for `-nargs` (`get_user_cmd_nargs`).
-pub unsafe fn get_user_cmd_nargs(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_user_cmd_nargs(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     const USER_CMD_NARGS: [&CStr; 6] = [c"0", c"1", c"_", c"*", c"?", c"+"];
     if idx < 0 || (idx as usize) >= USER_CMD_NARGS.len() {
         return ptr::null_mut();
@@ -541,7 +541,7 @@ fn get_command_complete(arg: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of values for `-complete` (`get_user_cmd_complete`).
-pub unsafe fn get_user_cmd_complete(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_user_cmd_complete(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 || (idx as usize) >= COMMAND_COMPLETE_LEN {
         return ptr::null_mut();
     }

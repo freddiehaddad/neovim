@@ -2342,7 +2342,7 @@ pub unsafe fn cat_prefix_varname(prefix: c_int, name: *const c_char) -> *mut c_c
 }
 
 /// Function given to ExpandGeneric() to obtain the list of user defined variable names.
-pub unsafe fn get_user_var_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_user_var_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
 
     unsafe {
         if idx == 0 {
@@ -2364,7 +2364,7 @@ pub unsafe fn get_user_var_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
                 vars_st().HI = vars_st().HI.add(1);
             }
             let hi_key = (&*vars_st().HI).key_ptr();
-            if { let _p1 = c"g:".as_ptr(); let _p2 = (*xp).xp_pattern; let _n = 2; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+            if { let _p1 = c"g:".as_ptr(); let _p2 = xp.xp_pattern; let _n = 2; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                 return cat_prefix_varname(b'g' as c_int, hi_key);
             }
             return hi_key;

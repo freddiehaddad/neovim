@@ -512,7 +512,7 @@ unsafe fn nlua_push_cmdmod(lstate: *mut lua_State, cmod: *const cmdmod_T) {
 unsafe fn nlua_push_eap(lstate: *mut lua_State, eap: *mut exarg_T, cmod: *const cmdmod_T) {
     unsafe {
         if !is_user_cmdidx((*eap).cmdidx) && (*eap).cmdidx < CMD_SIZE {
-            lua_pushstring(lstate, get_command_name(ptr::null_mut(), (*eap).cmdidx));
+            lua_pushstring(lstate, get_command_name(&mut crate::os::env::expand_T::new(), (*eap).cmdidx));
             lua_setfield(lstate, -2, c"name".as_ptr());
         }
 
@@ -1968,14 +1968,14 @@ pub unsafe fn nlua_call_vlua(
     }
 }
 
-pub unsafe fn nlua_call_user_expand_func(xp: *mut expand_T, ret_tv: *mut typval_T) {
+pub unsafe fn nlua_call_user_expand_func(xp: &mut expand_T, ret_tv: *mut typval_T) {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
 
-        nlua_pushref(lstate, (*xp).xp_luaref);
-        lua_pushstring(lstate, (*xp).xp_pattern);
-        lua_pushstring(lstate, (*xp).xp_line);
-        lua_pushinteger(lstate, (*xp).xp_col as lua_Integer);
+        nlua_pushref(lstate, xp.xp_luaref);
+        lua_pushstring(lstate, xp.xp_pattern);
+        lua_pushstring(lstate, xp.xp_line);
+        lua_pushinteger(lstate, xp.xp_col as lua_Integer);
 
         if nlua_pcall(lstate, 3, 1) != 0 {
             nlua_error(lstate, gettext(c"E5108: Lua function: %.*s".as_ptr()));
@@ -2530,7 +2530,7 @@ pub unsafe fn nlua_exec_file(path: *const c_char) -> bool {
     }
 }
 
-pub unsafe fn nlua_expand_pat(xp: *mut expand_T) {
+pub unsafe fn nlua_expand_pat(xp: &mut expand_T) {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
         let mut status = FAIL;
@@ -2539,8 +2539,8 @@ pub unsafe fn nlua_expand_pat(xp: *mut expand_T) {
         lua_getfield(lstate, -1, c"_expand_pat".as_ptr());
         luaL_checktype(lstate, -1, LUA_TFUNCTION);
 
-        let pat = (*xp).xp_pattern;
-        let line_end = (*xp).xp_line.add((*xp).xp_col as usize);
+        let pat = xp.xp_pattern;
+        let line_end = xp.xp_line.add(xp.xp_col as usize);
         assert!(line_end >= pat);
         let patlen = line_end.offset_from(pat);
         lua_pushlstring(lstate, pat, patlen as usize);
@@ -2577,7 +2577,7 @@ pub unsafe fn nlua_expand_pat(xp: *mut expand_T) {
                 }
 
                 if all_strings {
-                    (*xp).xp_pattern = (*xp).xp_pattern.offset(prefix_len);
+                    xp.xp_pattern = xp.xp_pattern.offset(prefix_len);
                     status = OK;
                 }
             }

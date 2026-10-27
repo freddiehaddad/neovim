@@ -1520,7 +1520,7 @@ pub unsafe fn openscript(name: *mut c_char, directly: bool) {
             let oldcurscript = inp_st().curscript;
             loop {
                 update_topline_cursor();
-                normal_cmd(&raw mut oa, false);
+                normal_cmd(&mut oa, false);
                 vpeekc();
                 if inp_st().curscript < oldcurscript {
                     break;

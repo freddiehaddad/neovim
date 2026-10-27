@@ -8356,7 +8356,7 @@ pub unsafe fn expand_filename(
                     options += WILD_ICASE;
                 }
                 let Some(expanded) = ExpandOne(
-                    &raw mut xpc,
+                    &mut xpc,
                     (*eap).arg,
                     None,
                     options,
@@ -8547,7 +8547,7 @@ pub unsafe fn get_bad_opt(p: *const c_char, eap: *mut exarg_T) -> c_int {
     }
 }
 
-unsafe fn get_bad_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_bad_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     const P_BAD_VALUES: [&CStr; 3] = [c"?", c"keep", c"drop"];
     if idx >= 0 && (idx as usize) < P_BAD_VALUES.len() {
         P_BAD_VALUES[idx as usize].as_ptr().cast_mut()
@@ -8635,7 +8635,7 @@ pub unsafe fn getargopt(eap: *mut exarg_T) -> c_int {
     }
 }
 
-unsafe fn get_argopt_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_argopt_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     const P_OPT_VALUES: [&CStr; 7] = [
         c"fileformat=",
         c"encoding=",
@@ -8654,15 +8654,15 @@ unsafe fn get_argopt_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
 
 pub unsafe fn expand_argopt(
     pat: *mut c_char,
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     rmp: *mut regmatch_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
     unsafe {
-        if (*xp).xp_pattern > (*xp).xp_line && *(*xp).xp_pattern.sub(1) == b'=' as c_char {
+        if xp.xp_pattern > xp.xp_line && *xp.xp_pattern.sub(1) == b'=' as c_char {
             let mut cb: CompleteListItemGetter = None;
-            let name_end = (*xp).xp_pattern.sub(1);
-            let diff = (name_end as usize) - ((*xp).xp_line as usize);
+            let name_end = xp.xp_pattern.sub(1);
+            let diff = (name_end as usize) - (xp.xp_line as usize);
             if (diff >= 2 && { let _p = name_end.sub(2); crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"ff"[..2] })
                 || (diff >= 10 && { let _p = name_end.sub(10); crate::memory::xstrnlen(_p, 10) == 10 && std::slice::from_raw_parts(_p.cast::<u8>(), 10) == &b"fileformat"[..10] })
             {
@@ -8682,8 +8682,8 @@ pub unsafe fn expand_argopt(
             return FAIL;
         }
 
-        if (*xp).xp_pattern_len == 2
-            && { let _p1 = (*xp).xp_pattern; let _p2 = c"ff".as_ptr(); let _n = (*xp).xp_pattern_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+        if xp.xp_pattern_len == 2
+            && { let _p1 = xp.xp_pattern; let _p2 = c"ff".as_ptr(); let _n = xp.xp_pattern_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
         {
             *matches = vec![c"fileformat=".to_owned()];
             return OK;
@@ -8977,7 +8977,7 @@ unsafe fn check_more(message: bool, forceit: bool) -> c_int {
     }
 }
 
-pub unsafe fn get_command_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_command_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx >= CMD_SIZE_I32 {
             return expand_user_command_name(idx);
@@ -10034,7 +10034,7 @@ unsafe fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut lis
 }
 
 pub unsafe fn expand_findfunc(
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     pat: *mut c_char,
     files: &mut Vec<std::ffi::CString>,
 ) -> c_int {
@@ -11213,10 +11213,10 @@ unsafe fn ex_operators(eap: &mut exarg_T) {
 
         if eap.cmdidx == cmdidx_T::CMD_delete as c_int {
             oa.op_type = OP_DELETE;
-            op_delete(&raw mut oa);
+            op_delete(&mut oa);
         } else if eap.cmdidx == cmdidx_T::CMD_yank as c_int {
             oa.op_type = OP_YANK;
-            op_yank(&raw mut oa, true);
+            op_yank(&mut oa, true);
         } else {
             if (eap.cmdidx == cmdidx_T::CMD_rshift as c_int)
                 ^ ((**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0)
@@ -11225,7 +11225,7 @@ unsafe fn ex_operators(eap: &mut exarg_T) {
             } else {
                 oa.op_type = OP_LSHIFT;
             }
-            op_shift(&raw mut oa, false, eap.amount);
+            op_shift(&mut oa, false, eap.amount);
         }
         g_st().virtual_op = kNone;
         ex_may_print(eap);
@@ -11950,7 +11950,7 @@ pub unsafe fn exec_normal(was_typed: bool, use_vpeekc: bool) {
             && !g_st().got_int
         {
             update_topline_cursor();
-            normal_cmd(&raw mut oa, true);
+            normal_cmd(&mut oa, true);
         }
     }
 }

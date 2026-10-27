@@ -1937,7 +1937,7 @@ pub unsafe fn ui_ext_win_viewport(wp: *mut win_T) {
     }
 }
 
-/// If "win_st().split_disallowed" is set, or "wp"'s buffer is closing, give an error and return FAIL.
+/// If "split_disallowed" is set, or "wp"'s buffer is closing, give an error and return FAIL.
 /// Otherwise return OK.
 pub unsafe fn check_split_disallowed(wp: *const win_T) -> c_int {
     unsafe {

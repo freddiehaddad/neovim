@@ -274,45 +274,45 @@ pub unsafe fn get_extra_op_char(optype: c_int) -> c_int {
 }
 
 /// Handle a shift operation.
-pub unsafe fn op_shift(oap: *mut oparg_T, curs_top: bool, amount: c_int) {
+pub unsafe fn op_shift(oap: &mut oparg_T, curs_top: bool, amount: c_int) {
     unsafe {
         let mut block_col: c_int = 0;
 
-        if u_save((*oap).start.lnum - 1, (*oap).end.lnum + 1) == FAIL {
+        if u_save(oap.start.lnum - 1, oap.end.lnum + 1) == FAIL {
             return;
         }
 
-        if (*oap).motion_type == kMTBlockWise {
+        if oap.motion_type == kMTBlockWise {
             block_col = (**curwin.as_ptr()).w_cursor.col;
         }
 
-        let mut i = (*oap).line_count - 1;
+        let mut i = oap.line_count - 1;
         while i >= 0 {
             let first_char = c_int::from(*get_cursor_line_ptr() as u8);
             if first_char == 0 {
                 (**curwin.as_ptr()).w_cursor.col = 0;
-            } else if (*oap).motion_type == kMTBlockWise {
+            } else if oap.motion_type == kMTBlockWise {
                 shift_block(oap, amount);
             } else if first_char != b'#' as c_int || !preprocs_left() {
-                shift_line((*oap).op_type == OP_LSHIFT, opt_vars().p_sr != 0, amount, 0);
+                shift_line(oap.op_type == OP_LSHIFT, opt_vars().p_sr != 0, amount, 0);
             }
             (**curwin.as_ptr()).w_cursor.lnum += 1;
             i -= 1;
         }
 
-        if (*oap).motion_type == kMTBlockWise {
-            (**curwin.as_ptr()).w_cursor.lnum = (*oap).start.lnum;
+        if oap.motion_type == kMTBlockWise {
+            (**curwin.as_ptr()).w_cursor.lnum = oap.start.lnum;
             (**curwin.as_ptr()).w_cursor.col = block_col;
         } else if curs_top {
-            (**curwin.as_ptr()).w_cursor.lnum = (*oap).start.lnum;
+            (**curwin.as_ptr()).w_cursor.lnum = oap.start.lnum;
             beginline(BL_SOL | BL_FIX);
         } else {
             (**curwin.as_ptr()).w_cursor.lnum -= 1;
         }
         foldOpenCursor();
 
-        if i64::from((*oap).line_count) > opt_vars().p_report {
-            let op = if (*oap).op_type == OP_RSHIFT {
+        if i64::from(oap.line_count) > opt_vars().p_report {
+            let op = if oap.op_type == OP_RSHIFT {
                 c">".as_ptr()
             } else {
                 c"<".as_ptr()
@@ -335,9 +335,9 @@ pub unsafe fn op_shift(oap: *mut oparg_T, curs_top: bool, amount: c_int) {
                 ngettext(
                     msg_line_single,
                     msg_line_plural,
-                    (*oap).line_count as c_ulong,
+                    oap.line_count as c_ulong,
                 ),
-                i64::from((*oap).line_count) as std::ffi::c_longlong,
+                i64::from(oap.line_count) as std::ffi::c_longlong,
                 op,
                 amount,
             );
@@ -345,15 +345,15 @@ pub unsafe fn op_shift(oap: *mut oparg_T, curs_top: bool, amount: c_int) {
         }
 
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-            (*g_st().curbuf).b_op_start = (*oap).start;
-            (*g_st().curbuf).b_op_end.lnum = (*oap).end.lnum;
-            (*g_st().curbuf).b_op_end.col = ml_get_len((*oap).end.lnum);
+            (*g_st().curbuf).b_op_start = oap.start;
+            (*g_st().curbuf).b_op_end.lnum = oap.end.lnum;
+            (*g_st().curbuf).b_op_end.col = ml_get_len(oap.end.lnum);
             if (*g_st().curbuf).b_op_end.col > 0 {
                 (*g_st().curbuf).b_op_end.col -= 1;
             }
         }
 
-        changed_lines(g_st().curbuf, (*oap).start.lnum, 0, (*oap).end.lnum + 1, 0, true);
+        changed_lines(g_st().curbuf, oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
     }
 }
 
@@ -478,9 +478,9 @@ pub unsafe fn shift_line(left: bool, round: bool, amount: c_int, call_changed_by
     }
 }
 
-unsafe fn shift_block(oap: *mut oparg_T, amount: c_int) {
+unsafe fn shift_block(oap: &mut oparg_T, amount: c_int) {
     unsafe {
-        let left = (*oap).op_type == OP_LSHIFT;
+        let left = oap.op_type == OP_LSHIFT;
         let oldstate = g_st().State;
         let oldcol = (**curwin.as_ptr()).w_cursor.col;
         let sw_val = get_sw_value_indent(g_st().curbuf, left);
@@ -616,7 +616,7 @@ unsafe fn shift_block(oap: *mut oparg_T, amount: c_int) {
                 non_white = non_white.add(1);
             }
 
-            let block_space_width = non_white_col - (*oap).start_vcol;
+            let block_space_width = non_white_col - oap.start_vcol;
             let shift_amount = block_space_width.min(total);
             let destination_col = non_white_col - shift_amount;
 
@@ -683,7 +683,7 @@ unsafe fn shift_block(oap: *mut oparg_T, amount: c_int) {
 }
 
 unsafe fn block_insert(
-    oap: *mut oparg_T,
+    oap: &mut oparg_T,
     s: *const c_char,
     slen: usize,
     b_insert: bool,
@@ -697,7 +697,7 @@ unsafe fn block_insert(
         let oldstate = g_st().State;
         g_st().State = MODE_INSERT;
 
-        for lnum in ((*oap).start.lnum + 1)..=(*oap).end.lnum {
+        for lnum in (oap.start.lnum + 1)..=oap.end.lnum {
             block_prep(oap, bdp, lnum, true);
             if (*bdp).is_short != 0 && b_insert {
                 continue;
@@ -726,7 +726,7 @@ unsafe fn block_insert(
                     offset = (*bdp).textcol + (*bdp).textlen - c_int::from(spaces != 0);
                 } else {
                     if (*bdp).is_MAX == 0 {
-                        spaces = ((*oap).end_vcol - (*bdp).end_vcol) + 1;
+                        spaces = (oap.end_vcol - (*bdp).end_vcol) + 1;
                     } else {
                         spaces = 0;
                     }
@@ -795,8 +795,8 @@ unsafe fn block_insert(
                 kExtmarkUndo,
             );
 
-            if lnum == (*oap).end.lnum {
-                (*g_st().curbuf).b_op_end.lnum = (*oap).end.lnum;
+            if lnum == oap.end.lnum {
+                (*g_st().curbuf).b_op_end.lnum = oap.end.lnum;
                 (*g_st().curbuf).b_op_end.col = offset;
                 if (*g_st().curbuf).b_visual.vi_end.coladd != 0 {
                     (*g_st().curbuf).b_visual.vi_end.col += (*g_st().curbuf).b_visual.vi_end.coladd;
@@ -807,12 +807,12 @@ unsafe fn block_insert(
 
         g_st().State = oldstate;
 
-        if (*oap).start.lnum < (*oap).end.lnum {
+        if oap.start.lnum < oap.end.lnum {
             changed_lines(
                 g_st().curbuf,
-                (*oap).start.lnum + 1,
+                oap.start.lnum + 1,
                 0,
-                (*oap).end.lnum + 1,
+                oap.end.lnum + 1,
                 0,
                 true,
             );
@@ -821,7 +821,7 @@ unsafe fn block_insert(
 }
 
 /// Handle a delete operation.
-pub unsafe fn op_delete(oap: *mut oparg_T) -> c_int {
+pub unsafe fn op_delete(oap: &mut oparg_T) -> c_int {
     unsafe {
         let mut bd = block_def::new();
         let old_lcount = (*g_st().curbuf).b_ml.ml_line_count;
@@ -830,7 +830,7 @@ pub unsafe fn op_delete(oap: *mut oparg_T) -> c_int {
             return OK;
         }
 
-        if (*oap).empty {
+        if oap.empty {
             return u_save_cursor();
         }
 
@@ -839,33 +839,33 @@ pub unsafe fn op_delete(oap: *mut oparg_T) -> c_int {
             return FAIL;
         }
 
-        if g_st().Visual.select && (*oap).is_VIsual {
-            (*oap).regname = g_st().Visual.select_reg;
+        if g_st().Visual.select && oap.is_VIsual {
+            oap.regname = g_st().Visual.select_reg;
         }
 
         mb_adjust_opend(oap);
 
-        if (*oap).motion_type == kMTCharWise
-            && !(*oap).is_VIsual
-            && (*oap).line_count > 1
-            && (*oap).motion_force == c_int::from(NUL)
-            && (*oap).op_type == OP_DELETE
+        if oap.motion_type == kMTCharWise
+            && !oap.is_VIsual
+            && oap.line_count > 1
+            && oap.motion_force == c_int::from(NUL)
+            && oap.op_type == OP_DELETE
         {
-            let mut ptr_line = ml_get((*oap).end.lnum).add((*oap).end.col as usize);
+            let mut ptr_line = ml_get(oap.end.lnum).add(oap.end.col as usize);
             if *ptr_line != NUL {
-                ptr_line = ptr_line.add(usize::from((*oap).inclusive));
+                ptr_line = ptr_line.add(usize::from(oap.inclusive));
             }
             ptr_line = skipwhite(ptr_line);
             if *ptr_line == NUL && inindent(0) {
-                (*oap).motion_type = kMTLineWise;
+                oap.motion_type = kMTLineWise;
             }
         }
 
         let mut only_setmarks = false;
-        if (*oap).motion_type != kMTLineWise
-            && (*oap).line_count == 1
-            && (*oap).op_type == OP_DELETE
-            && *ml_get((*oap).start.lnum) == NUL
+        if oap.motion_type != kMTLineWise
+            && oap.line_count == 1
+            && oap.op_type == OP_DELETE
+            && *ml_get(oap.start.lnum) == NUL
         {
             if g_st().virtual_op != 0 {
                 only_setmarks = true;
@@ -878,51 +878,51 @@ pub unsafe fn op_delete(oap: *mut oparg_T) -> c_int {
         }
 
         if !only_setmarks {
-            if (*oap).regname != b'_' as c_int {
+            if oap.regname != b'_' as c_int {
                 let mut reg: *mut yankreg_T = ptr::null_mut();
                 let mut did_yank = false;
-                if (*oap).regname != 0 {
-                    if !valid_yank_reg((*oap).regname, true) {
+                if oap.regname != 0 {
+                    if !valid_yank_reg(oap.regname, true) {
                         beep_flush();
                         return OK;
                     }
-                    reg = get_yank_register((*oap).regname, YREG_YANK);
-                    op_yank_reg(oap, false, reg, is_append_register((*oap).regname));
+                    reg = get_yank_register(oap.regname, YREG_YANK);
+                    op_yank_reg(oap, false, reg, is_append_register(oap.regname));
                     did_yank = true;
                 }
 
-                if (*oap).motion_type == kMTLineWise || (*oap).line_count > 1 || (*oap).use_reg_one
+                if oap.motion_type == kMTLineWise || oap.line_count > 1 || oap.use_reg_one
                 {
-                    shift_delete_registers(is_append_register((*oap).regname));
+                    shift_delete_registers(is_append_register(oap.regname));
                     reg = get_y_register(1);
                     op_yank_reg(oap, false, reg, false);
                     did_yank = true;
                 }
 
-                if (*oap).regname == 0
-                    && (*oap).motion_type != kMTLineWise
-                    && (*oap).line_count == 1
+                if oap.regname == 0
+                    && oap.motion_type != kMTLineWise
+                    && oap.line_count == 1
                 {
                     reg = get_yank_register(b'-' as c_int, YREG_YANK);
                     op_yank_reg(oap, false, reg, false);
                     did_yank = true;
                 }
 
-                if did_yank || (*oap).regname == 0 {
+                if did_yank || oap.regname == 0 {
                     if reg.is_null() {
                         std::process::abort();
                     }
-                    set_clipboard((*oap).regname, reg);
+                    set_clipboard(oap.regname, reg);
                     do_autocmd_textyankpost(oap, reg);
                 }
             }
 
-            if (*oap).motion_type == kMTBlockWise {
-                if u_save((*oap).start.lnum - 1, (*oap).end.lnum + 1) == FAIL {
+            if oap.motion_type == kMTBlockWise {
+                if u_save(oap.start.lnum - 1, oap.end.lnum + 1) == FAIL {
                     return FAIL;
                 }
 
-                for lnum in (**curwin.as_ptr()).w_cursor.lnum..=(*oap).end.lnum {
+                for lnum in (**curwin.as_ptr()).w_cursor.lnum..=oap.end.lnum {
                     block_prep(oap, &raw mut bd, lnum, true);
                     if bd.textlen == 0 {
                         continue;
@@ -962,17 +962,17 @@ pub unsafe fn op_delete(oap: *mut oparg_T) -> c_int {
                     g_st().curbuf,
                     (**curwin.as_ptr()).w_cursor.lnum,
                     (**curwin.as_ptr()).w_cursor.col,
-                    (*oap).end.lnum + 1,
+                    oap.end.lnum + 1,
                     0,
                     true,
                 );
-                (*oap).line_count = 0;
-            } else if (*oap).motion_type == kMTLineWise {
-                if (*oap).op_type == OP_CHANGE {
-                    if (*oap).line_count > 1 {
+                oap.line_count = 0;
+            } else if oap.motion_type == kMTLineWise {
+                if oap.op_type == OP_CHANGE {
+                    if oap.line_count > 1 {
                         let lnum = (**curwin.as_ptr()).w_cursor.lnum;
                         (**curwin.as_ptr()).w_cursor.lnum += 1;
-                        del_lines((*oap).line_count - 1, true);
+                        del_lines(oap.line_count - 1, true);
                         (**curwin.as_ptr()).w_cursor.lnum = lnum;
                     }
                     if u_save_cursor() == FAIL {
@@ -986,75 +986,75 @@ pub unsafe fn op_delete(oap: *mut oparg_T) -> c_int {
                         beginline(0);
                     }
                     truncate_line(0);
-                    if (*oap).line_count > 1 {
+                    if oap.line_count > 1 {
                         u_clearline(g_st().curbuf);
                     }
                 } else {
-                    del_lines((*oap).line_count, true);
+                    del_lines(oap.line_count, true);
                     beginline(BL_WHITE | BL_FIX);
                     u_clearline(g_st().curbuf);
                 }
             } else {
                 if g_st().virtual_op != 0 {
-                    if gchar_pos(&raw mut (*oap).start) == TAB {
+                    if gchar_pos(&raw mut oap.start) == TAB {
                         let mut endcol: c_int = 0;
                         if u_save_cursor() == FAIL {
                             return FAIL;
                         }
-                        if (*oap).line_count == 1 {
-                            endcol = getviscol2((*oap).end.col, (*oap).end.coladd);
+                        if oap.line_count == 1 {
+                            endcol = getviscol2(oap.end.col, oap.end.coladd);
                         }
-                        coladvance_force(getviscol2((*oap).start.col, (*oap).start.coladd));
-                        (*oap).start = (**curwin.as_ptr()).w_cursor;
-                        if (*oap).line_count == 1 {
+                        coladvance_force(getviscol2(oap.start.col, oap.start.coladd));
+                        oap.start = (**curwin.as_ptr()).w_cursor;
+                        if oap.line_count == 1 {
                             coladvance(*curwin.as_ptr(), endcol);
-                            (*oap).end.col = (**curwin.as_ptr()).w_cursor.col;
-                            (*oap).end.coladd = (**curwin.as_ptr()).w_cursor.coladd;
-                            (**curwin.as_ptr()).w_cursor = (*oap).start;
+                            oap.end.col = (**curwin.as_ptr()).w_cursor.col;
+                            oap.end.coladd = (**curwin.as_ptr()).w_cursor.coladd;
+                            (**curwin.as_ptr()).w_cursor = oap.start;
                         }
                     }
 
-                    if gchar_pos(&raw mut (*oap).end) == TAB
-                        && (*oap).end.coladd == 0
-                        && (*oap).inclusive
+                    if gchar_pos(&raw mut oap.end) == TAB
+                        && oap.end.coladd == 0
+                        && oap.inclusive
                     {
-                        if u_save((*oap).end.lnum - 1, (*oap).end.lnum + 1) == FAIL {
+                        if u_save(oap.end.lnum - 1, oap.end.lnum + 1) == FAIL {
                             return FAIL;
                         }
-                        (**curwin.as_ptr()).w_cursor = (*oap).end;
-                        coladvance_force(getviscol2((*oap).end.col, (*oap).end.coladd));
-                        (*oap).end = (**curwin.as_ptr()).w_cursor;
-                        (**curwin.as_ptr()).w_cursor = (*oap).start;
+                        (**curwin.as_ptr()).w_cursor = oap.end;
+                        coladvance_force(getviscol2(oap.end.col, oap.end.coladd));
+                        oap.end = (**curwin.as_ptr()).w_cursor;
+                        (**curwin.as_ptr()).w_cursor = oap.start;
                     }
                     mb_adjust_opend(oap);
                 }
 
-                if (*oap).line_count == 1 {
+                if oap.line_count == 1 {
                     if u_save_cursor() == FAIL {
                         return FAIL;
                     }
 
                     if !vim_strchr(opt_vars().p_cpo, kCpoDollar).is_null()
-                        && (*oap).op_type == OP_CHANGE
-                        && (*oap).end.lnum == (**curwin.as_ptr()).w_cursor.lnum
-                        && !(*oap).is_VIsual
+                        && oap.op_type == OP_CHANGE
+                        && oap.end.lnum == (**curwin.as_ptr()).w_cursor.lnum
+                        && !oap.is_VIsual
                     {
-                        display_dollar((*oap).end.col - c_int::from(!(*oap).inclusive));
+                        display_dollar(oap.end.col - c_int::from(!oap.inclusive));
                     }
 
                     let mut n =
-                        (*oap).end.col - (*oap).start.col + 1 - c_int::from(!(*oap).inclusive);
+                        oap.end.col - oap.start.col + 1 - c_int::from(!oap.inclusive);
 
                     if g_st().virtual_op != 0 {
                         let len = get_cursor_line_len();
 
-                        if (*oap).end.coladd != 0
-                            && (*oap).end.col >= len - 1
-                            && !((*oap).start.coladd != 0 && (*oap).end.col >= len - 1)
+                        if oap.end.coladd != 0
+                            && oap.end.col >= len - 1
+                            && !(oap.start.coladd != 0 && oap.end.col >= len - 1)
                         {
                             n += 1;
                         }
-                        if n == 0 && (*oap).start.coladd != (*oap).end.coladd {
+                        if n == 0 && oap.start.coladd != oap.end.coladd {
                             n = 1;
                         }
 
@@ -1066,12 +1066,12 @@ pub unsafe fn op_delete(oap: *mut oparg_T) -> c_int {
                     del_bytes(
                         n,
                         g_st().virtual_op == 0,
-                        (*oap).op_type == OP_DELETE && !(*oap).is_VIsual,
+                        oap.op_type == OP_DELETE && !oap.is_VIsual,
                     );
                 } else {
                     if u_save(
                         (**curwin.as_ptr()).w_cursor.lnum - 1,
-                        (**curwin.as_ptr()).w_cursor.lnum + (*oap).line_count,
+                        (**curwin.as_ptr()).w_cursor.lnum + oap.line_count,
                     ) == FAIL
                     {
                         return FAIL;
@@ -1082,23 +1082,23 @@ pub unsafe fn op_delete(oap: *mut oparg_T) -> c_int {
                     let deleted_bytes = get_region_bytecount(
                         g_st().curbuf,
                         startpos.lnum,
-                        (*oap).end.lnum,
+                        oap.end.lnum,
                         startpos.col,
-                        (*oap).end.col,
-                    ) + isize::from((*oap).inclusive);
+                        oap.end.col,
+                    ) + isize::from(oap.inclusive);
                     truncate_line(1);
 
                     let curpos = (**curwin.as_ptr()).w_cursor;
                     (**curwin.as_ptr()).w_cursor.lnum += 1;
 
-                    del_lines((*oap).line_count - 2, false);
+                    del_lines(oap.line_count - 2, false);
 
-                    let n = (*oap).end.col + 1 - c_int::from(!(*oap).inclusive);
+                    let n = oap.end.col + 1 - c_int::from(!oap.inclusive);
                     (**curwin.as_ptr()).w_cursor.col = 0;
                     del_bytes(
                         n,
                         g_st().virtual_op == 0,
-                        (*oap).op_type == OP_DELETE && !(*oap).is_VIsual,
+                        oap.op_type == OP_DELETE && !oap.is_VIsual,
                     );
                     (**curwin.as_ptr()).w_cursor = curpos;
                     do_join(2, false, false, false, false);
@@ -1107,7 +1107,7 @@ pub unsafe fn op_delete(oap: *mut oparg_T) -> c_int {
                         g_st().curbuf,
                         startpos.lnum - 1,
                         startpos.col,
-                        (*oap).line_count - 1,
+                        oap.line_count - 1,
                         n,
                         deleted_bytes,
                         0,
@@ -1116,7 +1116,7 @@ pub unsafe fn op_delete(oap: *mut oparg_T) -> c_int {
                         kExtmarkUndo,
                     );
                 }
-                if (*oap).op_type == OP_DELETE {
+                if oap.op_type == OP_DELETE {
                     auto_format(false, true);
                 }
             }
@@ -1125,31 +1125,31 @@ pub unsafe fn op_delete(oap: *mut oparg_T) -> c_int {
         }
 
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-            if (*oap).motion_type == kMTBlockWise {
-                (*g_st().curbuf).b_op_end.lnum = (*oap).end.lnum;
-                (*g_st().curbuf).b_op_end.col = (*oap).start.col;
+            if oap.motion_type == kMTBlockWise {
+                (*g_st().curbuf).b_op_end.lnum = oap.end.lnum;
+                (*g_st().curbuf).b_op_end.col = oap.start.col;
             } else {
-                (*g_st().curbuf).b_op_end = (*oap).start;
+                (*g_st().curbuf).b_op_end = oap.start;
             }
-            (*g_st().curbuf).b_op_start = (*oap).start;
+            (*g_st().curbuf).b_op_start = oap.start;
         }
 
         OK
     }
 }
 
-unsafe fn mb_adjust_opend(oap: *mut oparg_T) {
+unsafe fn mb_adjust_opend(oap: &mut oparg_T) {
     unsafe {
-        if !(*oap).inclusive {
+        if !oap.inclusive {
             return;
         }
 
-        let line = ml_get((*oap).end.lnum);
-        let mut ptr_line = line.add((*oap).end.col as usize);
+        let line = ml_get(oap.end.lnum);
+        let mut ptr_line = line.add(oap.end.col as usize);
         if *ptr_line != NUL {
             ptr_line = ptr_line.sub(utf_head_off(line, ptr_line) as usize);
             ptr_line = ptr_line.add((utfc_ptr2len(ptr_line) - 1) as usize);
-            (*oap).end.col = ptr_line.offset_from(line) as colnr_T;
+            oap.end.col = ptr_line.offset_from(line) as colnr_T;
         }
     }
 }
@@ -1181,14 +1181,14 @@ unsafe fn replace_character(c: c_int) {
     }
 }
 
-unsafe fn op_replace(oap: *mut oparg_T, mut c: c_int) -> c_int {
+unsafe fn op_replace(oap: &mut oparg_T, mut c: c_int) -> c_int {
     unsafe {
         let mut n: c_int;
         let mut bd = block_def::new();
         let mut after_p: Vec<c_char> = Vec::new();
         let mut had_ctrl_v_cr = false;
 
-        if ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) != 0 || (*oap).empty {
+        if ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) != 0 || oap.empty {
             return OK;
         }
         if c == REPLACE_CR_NCHAR {
@@ -1201,13 +1201,13 @@ unsafe fn op_replace(oap: *mut oparg_T, mut c: c_int) -> c_int {
 
         mb_adjust_opend(oap);
 
-        if u_save((*oap).start.lnum - 1, (*oap).end.lnum + 1) == FAIL {
+        if u_save(oap.start.lnum - 1, oap.end.lnum + 1) == FAIL {
             return FAIL;
         }
 
-        if (*oap).motion_type == kMTBlockWise {
+        if oap.motion_type == kMTBlockWise {
             bd.is_MAX = c_int::from((**curwin.as_ptr()).w_curswant == MAXCOL);
-            while (**curwin.as_ptr()).w_cursor.lnum <= (*oap).end.lnum {
+            while (**curwin.as_ptr()).w_cursor.lnum <= oap.end.lnum {
                 (**curwin.as_ptr()).w_cursor.col = 0;
                 block_prep(oap, &raw mut bd, (**curwin.as_ptr()).w_cursor.lnum, true);
                 if bd.textlen == 0 && (g_st().virtual_op == 0 || bd.is_MAX != 0) {
@@ -1221,7 +1221,7 @@ unsafe fn op_replace(oap: *mut oparg_T, mut c: c_int) -> c_int {
                         col: 0,
                         coladd: 0,
                     };
-                    getvpos(*curwin.as_ptr(), &raw mut vpos, (*oap).start_vcol);
+                    getvpos(*curwin.as_ptr(), &raw mut vpos, oap.start_vcol);
                     bd.startspaces += vpos.coladd;
                     n = bd.startspaces;
                 } else {
@@ -1237,9 +1237,9 @@ unsafe fn op_replace(oap: *mut oparg_T, mut c: c_int) -> c_int {
                 } else {
                     0
                 };
-                let mut numc = (*oap).end_vcol - (*oap).start_vcol + 1;
+                let mut numc = oap.end_vcol - oap.start_vcol + 1;
                 if bd.is_short != 0 && (g_st().virtual_op == 0 || bd.is_MAX != 0) {
-                    numc -= ((*oap).end_vcol - bd.end_vcol) + 1;
+                    numc -= (oap.end_vcol - bd.end_vcol) + 1;
                 }
 
                 if utf_char2cells(c) > 1 {
@@ -1304,7 +1304,7 @@ unsafe fn op_replace(oap: *mut oparg_T, mut c: c_int) -> c_int {
                         false,
                     );
                     appended_lines_mark((**curwin.as_ptr()).w_cursor.lnum, 1);
-                    (*oap).end.lnum += 1;
+                    oap.end.lnum += 1;
                     after_p.clear();
                 }
                 g_st().curbuf_splice_pending -= 1;
@@ -1323,18 +1323,18 @@ unsafe fn op_replace(oap: *mut oparg_T, mut c: c_int) -> c_int {
                 (**curwin.as_ptr()).w_cursor.lnum += 1;
             }
         } else {
-            if (*oap).motion_type == kMTLineWise {
-                (*oap).start.col = 0;
+            if oap.motion_type == kMTLineWise {
+                oap.start.col = 0;
                 (**curwin.as_ptr()).w_cursor.col = 0;
-                (*oap).end.col = ml_get_len((*oap).end.lnum);
-                if (*oap).end.col != 0 {
-                    (*oap).end.col -= 1;
+                oap.end.col = ml_get_len(oap.end.lnum);
+                if oap.end.col != 0 {
+                    oap.end.col -= 1;
                 }
-            } else if !(*oap).inclusive {
-                dec(&raw mut (*oap).end);
+            } else if !oap.inclusive {
+                dec(&raw mut oap.end);
             }
 
-            while ltoreq((**curwin.as_ptr()).w_cursor, (*oap).end) {
+            while ltoreq((**curwin.as_ptr()).w_cursor, oap.end) {
                 let mut done = false;
 
                 n = gchar_cursor();
@@ -1343,8 +1343,8 @@ unsafe fn op_replace(oap: *mut oparg_T, mut c: c_int) -> c_int {
                     let old_byte_len = utfc_ptr2len(get_cursor_pos_ptr());
 
                     if new_byte_len > 1 || old_byte_len > 1 {
-                        if (**curwin.as_ptr()).w_cursor.lnum == (*oap).end.lnum {
-                            (*oap).end.col += new_byte_len - old_byte_len;
+                        if (**curwin.as_ptr()).w_cursor.lnum == oap.end.lnum {
+                            oap.end.col += new_byte_len - old_byte_len;
                         }
                         replace_character(c);
                         done = true;
@@ -1352,12 +1352,12 @@ unsafe fn op_replace(oap: *mut oparg_T, mut c: c_int) -> c_int {
                         if n == TAB {
                             let mut end_vcol: c_int = 0;
 
-                            if (**curwin.as_ptr()).w_cursor.lnum == (*oap).end.lnum {
-                                end_vcol = getviscol2((*oap).end.col, (*oap).end.coladd);
+                            if (**curwin.as_ptr()).w_cursor.lnum == oap.end.lnum {
+                                end_vcol = getviscol2(oap.end.col, oap.end.coladd);
                             }
                             coladvance_force(getviscol());
-                            if (**curwin.as_ptr()).w_cursor.lnum == (*oap).end.lnum {
-                                getvpos(*curwin.as_ptr(), &raw mut (*oap).end, end_vcol);
+                            if (**curwin.as_ptr()).w_cursor.lnum == oap.end.lnum {
+                                getvpos(*curwin.as_ptr(), &raw mut oap.end, end_vcol);
                             }
                         }
                         if gchar_cursor() != c_int::from(NUL) {
@@ -1366,17 +1366,17 @@ unsafe fn op_replace(oap: *mut oparg_T, mut c: c_int) -> c_int {
                         }
                     }
                 }
-                if !done && g_st().virtual_op != 0 && (**curwin.as_ptr()).w_cursor.lnum == (*oap).end.lnum {
-                    let mut virtcols = (*oap).end.coladd;
+                if !done && g_st().virtual_op != 0 && (**curwin.as_ptr()).w_cursor.lnum == oap.end.lnum {
+                    let mut virtcols = oap.end.coladd;
 
-                    if (**curwin.as_ptr()).w_cursor.lnum == (*oap).start.lnum
-                        && (*oap).start.col == (*oap).end.col
-                        && (*oap).start.coladd != 0
+                    if (**curwin.as_ptr()).w_cursor.lnum == oap.start.lnum
+                        && oap.start.col == oap.end.col
+                        && oap.start.coladd != 0
                     {
-                        virtcols -= (*oap).start.coladd;
+                        virtcols -= oap.start.coladd;
                     }
 
-                    coladvance_force(getviscol2((*oap).end.col, (*oap).end.coladd) + 1);
+                    coladvance_force(getviscol2(oap.end.col, oap.end.coladd) + 1);
                     (**curwin.as_ptr()).w_cursor.col -= virtcols + 1;
                     while virtcols >= 0 {
                         if utf_char2len(c) > 1 {
@@ -1397,20 +1397,20 @@ unsafe fn op_replace(oap: *mut oparg_T, mut c: c_int) -> c_int {
             }
         }
 
-        (**curwin.as_ptr()).w_cursor = (*oap).start;
+        (**curwin.as_ptr()).w_cursor = oap.start;
         check_cursor(*curwin.as_ptr());
         changed_lines(
             g_st().curbuf,
-            (*oap).start.lnum,
-            (*oap).start.col,
-            (*oap).end.lnum + 1,
+            oap.start.lnum,
+            oap.start.col,
+            oap.end.lnum + 1,
             0,
             true,
         );
 
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-            (*g_st().curbuf).b_op_start = (*oap).start;
-            (*g_st().curbuf).b_op_end = (*oap).end;
+            (*g_st().curbuf).b_op_start = oap.start;
+            (*g_st().curbuf).b_op_end = oap.end;
         }
 
         OK
@@ -1418,51 +1418,51 @@ unsafe fn op_replace(oap: *mut oparg_T, mut c: c_int) -> c_int {
 }
 
 /// Handle the (non-standard vi) tilde operator. Also for "gu", "gU" and "g?".
-pub unsafe fn op_tilde(oap: *mut oparg_T) {
+pub unsafe fn op_tilde(oap: &mut oparg_T) {
     unsafe {
         let mut bd = block_def::new();
         let mut did_change = false;
 
-        if u_save((*oap).start.lnum - 1, (*oap).end.lnum + 1) == FAIL {
+        if u_save(oap.start.lnum - 1, oap.end.lnum + 1) == FAIL {
             return;
         }
 
-        let mut pos = (*oap).start;
-        if (*oap).motion_type == kMTBlockWise {
-            while pos.lnum <= (*oap).end.lnum {
+        let mut pos = oap.start;
+        if oap.motion_type == kMTBlockWise {
+            while pos.lnum <= oap.end.lnum {
                 block_prep(oap, &raw mut bd, pos.lnum, false);
                 pos.col = bd.textcol;
-                let one_change = swapchars((*oap).op_type, &raw mut pos, bd.textlen) != 0;
+                let one_change = swapchars(oap.op_type, &raw mut pos, bd.textlen) != 0;
                 did_change |= one_change;
                 pos.lnum += 1;
             }
             if did_change {
-                changed_lines(g_st().curbuf, (*oap).start.lnum, 0, (*oap).end.lnum + 1, 0, true);
+                changed_lines(g_st().curbuf, oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
             }
         } else {
-            if (*oap).motion_type == kMTLineWise {
-                (*oap).start.col = 0;
+            if oap.motion_type == kMTLineWise {
+                oap.start.col = 0;
                 pos.col = 0;
-                (*oap).end.col = ml_get_len((*oap).end.lnum);
-                if (*oap).end.col != 0 {
-                    (*oap).end.col -= 1;
+                oap.end.col = ml_get_len(oap.end.lnum);
+                if oap.end.col != 0 {
+                    oap.end.col -= 1;
                 }
-            } else if !(*oap).inclusive {
-                dec(&raw mut (*oap).end);
+            } else if !oap.inclusive {
+                dec(&raw mut oap.end);
             }
 
-            if pos.lnum == (*oap).end.lnum {
+            if pos.lnum == oap.end.lnum {
                 did_change =
-                    swapchars((*oap).op_type, &raw mut pos, (*oap).end.col - pos.col + 1) != 0;
+                    swapchars(oap.op_type, &raw mut pos, oap.end.col - pos.col + 1) != 0;
             } else {
                 loop {
-                    let len = if pos.lnum == (*oap).end.lnum {
-                        (*oap).end.col + 1
+                    let len = if pos.lnum == oap.end.lnum {
+                        oap.end.col + 1
                     } else {
                         ml_get_pos_len(&raw mut pos)
                     };
-                    did_change |= swapchars((*oap).op_type, &raw mut pos, len) != 0;
-                    if ltoreq((*oap).end, pos) || inc(&raw mut pos) == -1 {
+                    did_change |= swapchars(oap.op_type, &raw mut pos, len) != 0;
+                    if ltoreq(oap.end, pos) || inc(&raw mut pos) == -1 {
                         break;
                     }
                 }
@@ -1470,33 +1470,33 @@ pub unsafe fn op_tilde(oap: *mut oparg_T) {
             if did_change {
                 changed_lines(
                     g_st().curbuf,
-                    (*oap).start.lnum,
-                    (*oap).start.col,
-                    (*oap).end.lnum + 1,
+                    oap.start.lnum,
+                    oap.start.col,
+                    oap.end.lnum + 1,
                     0,
                     true,
                 );
             }
         }
 
-        if !did_change && (*oap).is_VIsual {
+        if !did_change && oap.is_VIsual {
             redraw_curbuf_later(UPD_INVERTED);
         }
 
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-            (*g_st().curbuf).b_op_start = (*oap).start;
-            (*g_st().curbuf).b_op_end = (*oap).end;
+            (*g_st().curbuf).b_op_start = oap.start;
+            (*g_st().curbuf).b_op_end = oap.end;
         }
 
-        if i64::from((*oap).line_count) > opt_vars().p_report {
+        if i64::from(oap.line_count) > opt_vars().p_report {
             smsg!(
                 0,
                 ngettext(
                     c"%lld line changed".as_ptr(),
                     c"%lld lines changed".as_ptr(),
-                    (*oap).line_count as c_ulong,
+                    oap.line_count as c_ulong,
                 ),
-                i64::from((*oap).line_count) as std::ffi::c_longlong,
+                i64::from(oap.line_count) as std::ffi::c_longlong,
             );
         }
     }
@@ -1562,7 +1562,7 @@ pub unsafe fn swapchar(op_type: c_int, pos: *mut pos_T) -> bool {
 }
 
 /// Insert and append operators for Visual mode.
-pub unsafe fn op_insert(oap: *mut oparg_T, count1: c_int) {
+pub unsafe fn op_insert(oap: &mut oparg_T, count1: c_int) {
     unsafe {
         let mut pre_textlen: c_int = 0;
         let mut ind_pre_col: colnr_T = 0;
@@ -1571,11 +1571,11 @@ pub unsafe fn op_insert(oap: *mut oparg_T, count1: c_int) {
 
         bd.is_MAX = c_int::from((**curwin.as_ptr()).w_curswant == MAXCOL);
 
-        (**curwin.as_ptr()).w_cursor.lnum = (*oap).start.lnum;
+        (**curwin.as_ptr()).w_cursor.lnum = oap.start.lnum;
         redraw_curbuf_later(UPD_INVERTED);
         update_screen();
 
-        if (*oap).motion_type == kMTBlockWise {
+        if oap.motion_type == kMTBlockWise {
             if (**curwin.as_ptr()).w_cursor.coladd > 0 {
                 let old_ve_flags = (**curwin.as_ptr()).w_onebuf_opt.wo_ve_flags;
 
@@ -1583,27 +1583,27 @@ pub unsafe fn op_insert(oap: *mut oparg_T, count1: c_int) {
                     return;
                 }
                 (**curwin.as_ptr()).w_onebuf_opt.wo_ve_flags = kOptVeFlagAll;
-                coladvance_force(if (*oap).op_type == OP_APPEND {
-                    (*oap).end_vcol + 1
+                coladvance_force(if oap.op_type == OP_APPEND {
+                    oap.end_vcol + 1
                 } else {
                     getviscol()
                 });
-                if (*oap).op_type == OP_APPEND {
+                if oap.op_type == OP_APPEND {
                     (**curwin.as_ptr()).w_cursor.col -= 1;
                 }
                 (**curwin.as_ptr()).w_onebuf_opt.wo_ve_flags = old_ve_flags;
             }
-            block_prep(oap, &raw mut bd, (*oap).start.lnum, true);
+            block_prep(oap, &raw mut bd, oap.start.lnum, true);
             ind_pre_col = getwhitecols_curline() as colnr_T;
             ind_pre_vcol = get_indent();
-            pre_textlen = ml_get_len((*oap).start.lnum) - bd.textcol;
-            if (*oap).op_type == OP_APPEND {
+            pre_textlen = ml_get_len(oap.start.lnum) - bd.textcol;
+            if oap.op_type == OP_APPEND {
                 pre_textlen -= bd.textlen;
             }
         }
 
-        if (*oap).op_type == OP_APPEND {
-            if (*oap).motion_type == kMTBlockWise && (**curwin.as_ptr()).w_cursor.coladd == 0 {
+        if oap.op_type == OP_APPEND {
+            if oap.motion_type == kMTBlockWise && (**curwin.as_ptr()).w_cursor.coladd == 0 {
                 (**curwin.as_ptr()).w_set_curswant = true;
                 while *get_cursor_pos_ptr() != NUL
                     && (**curwin.as_ptr()).w_cursor.col < bd.textcol + bd.textlen
@@ -1620,28 +1620,28 @@ pub unsafe fn op_insert(oap: *mut oparg_T, count1: c_int) {
                     bd.textlen += bd.endspaces;
                 }
             } else {
-                (**curwin.as_ptr()).w_cursor = (*oap).end;
+                (**curwin.as_ptr()).w_cursor = oap.end;
                 check_cursor_col(*curwin.as_ptr());
 
-                if !lineempty((**curwin.as_ptr()).w_cursor.lnum) && (*oap).start_vcol != (*oap).end_vcol {
+                if !lineempty((**curwin.as_ptr()).w_cursor.lnum) && oap.start_vcol != oap.end_vcol {
                     inc_cursor();
                 }
             }
         }
 
-        let t1 = (*oap).start;
+        let t1 = oap.start;
         let start_insert = (**curwin.as_ptr()).w_cursor;
         edit(c_int::from(NUL), false, count1);
 
         if t1.lnum == (*g_st().curbuf).b_op_start_orig.lnum && lt((*g_st().curbuf).b_op_start_orig, t1) {
-            (*oap).start = (*g_st().curbuf).b_op_start_orig;
+            oap.start = (*g_st().curbuf).b_op_start_orig;
         }
 
-        if (**curwin.as_ptr()).w_cursor.lnum != (*oap).start.lnum || g_st().got_int {
+        if (**curwin.as_ptr()).w_cursor.lnum != oap.start.lnum || g_st().got_int {
             return;
         }
 
-        if (*oap).motion_type == kMTBlockWise {
+        if oap.motion_type == kMTBlockWise {
             let mut ind_post_vcol: c_int = 0;
             let mut bd2 = block_def::new();
             let mut did_indent = false;
@@ -1654,47 +1654,47 @@ pub unsafe fn op_insert(oap: *mut oparg_T, count1: c_int) {
                 did_indent = true;
             }
 
-            if (*oap).start.lnum == (*g_st().curbuf).b_op_start_orig.lnum && bd.is_MAX == 0 && !did_indent
+            if oap.start.lnum == (*g_st().curbuf).b_op_start_orig.lnum && bd.is_MAX == 0 && !did_indent
             {
                 let t = getviscol2(
                     (*g_st().curbuf).b_op_start_orig.col,
                     (*g_st().curbuf).b_op_start_orig.coladd,
                 );
 
-                if (*oap).op_type == OP_INSERT
-                    && (*oap).start.col + (*oap).start.coladd
+                if oap.op_type == OP_INSERT
+                    && oap.start.col + oap.start.coladd
                         != (*g_st().curbuf).b_op_start_orig.col + (*g_st().curbuf).b_op_start_orig.coladd
                 {
-                    (*oap).start.col = (*g_st().curbuf).b_op_start_orig.col;
-                    pre_textlen -= t - (*oap).start_vcol;
-                    (*oap).start_vcol = t;
-                } else if (*oap).op_type == OP_APPEND
-                    && (*oap).start.col + (*oap).start.coladd
+                    oap.start.col = (*g_st().curbuf).b_op_start_orig.col;
+                    pre_textlen -= t - oap.start_vcol;
+                    oap.start_vcol = t;
+                } else if oap.op_type == OP_APPEND
+                    && oap.start.col + oap.start.coladd
                         >= (*g_st().curbuf).b_op_start_orig.col + (*g_st().curbuf).b_op_start_orig.coladd
                 {
-                    (*oap).start.col = (*g_st().curbuf).b_op_start_orig.col;
+                    oap.start.col = (*g_st().curbuf).b_op_start_orig.col;
                     pre_textlen += bd.textlen;
-                    pre_textlen -= t - (*oap).start_vcol;
-                    (*oap).start_vcol = t;
-                    (*oap).op_type = OP_INSERT;
+                    pre_textlen -= t - oap.start_vcol;
+                    oap.start_vcol = t;
+                    oap.op_type = OP_INSERT;
                 }
             }
 
             if did_indent && bd.textcol - ind_post_col > 0 {
-                (*oap).start.col += ind_post_col - ind_pre_col;
-                (*oap).start_vcol += ind_post_vcol - ind_pre_vcol;
-                (*oap).end.col += ind_post_col - ind_pre_col;
-                (*oap).end_vcol += ind_post_vcol - ind_pre_vcol;
+                oap.start.col += ind_post_col - ind_pre_col;
+                oap.start_vcol += ind_post_vcol - ind_pre_vcol;
+                oap.end.col += ind_post_col - ind_pre_col;
+                oap.end_vcol += ind_post_vcol - ind_pre_vcol;
             }
-            block_prep(oap, &raw mut bd2, (*oap).start.lnum, true);
+            block_prep(oap, &raw mut bd2, oap.start.lnum, true);
             if did_indent && bd.textcol - ind_post_col > 0 {
-                (*oap).start.col -= ind_post_col - ind_pre_col;
-                (*oap).start_vcol -= ind_post_vcol - ind_pre_vcol;
-                (*oap).end.col -= ind_post_col - ind_pre_col;
-                (*oap).end_vcol -= ind_post_vcol - ind_pre_vcol;
+                oap.start.col -= ind_post_col - ind_pre_col;
+                oap.start_vcol -= ind_post_vcol - ind_pre_vcol;
+                oap.end.col -= ind_post_col - ind_pre_col;
+                oap.end_vcol -= ind_post_vcol - ind_pre_vcol;
             }
             if bd.is_MAX == 0 || bd2.textlen < bd.textlen {
-                if (*oap).op_type == OP_APPEND {
+                if oap.op_type == OP_APPEND {
                     pre_textlen += bd2.textlen - bd.textlen;
                     if bd2.endspaces != 0 {
                         bd2.textlen -= 1;
@@ -1704,11 +1704,11 @@ pub unsafe fn op_insert(oap: *mut oparg_T, count1: c_int) {
                 bd.textlen = bd2.textlen;
             }
 
-            let mut firstline = ml_get((*oap).start.lnum);
-            let mut len = ml_get_len((*oap).start.lnum);
+            let mut firstline = ml_get(oap.start.lnum);
+            let mut len = ml_get_len(oap.start.lnum);
             let mut add = bd.textcol;
             let mut offset: colnr_T = 0;
-            if (*oap).op_type == OP_APPEND {
+            if oap.op_type == OP_APPEND {
                 add += bd.textlen;
                 if bd.is_MAX != 0
                     && start_insert.lnum == g_st().Ins.start.lnum
@@ -1716,8 +1716,8 @@ pub unsafe fn op_insert(oap: *mut oparg_T, count1: c_int) {
                 {
                     offset = start_insert.col - g_st().Ins.start.col;
                     add -= offset;
-                    if (*oap).end_vcol > offset {
-                        (*oap).end_vcol -= offset + 1;
+                    if oap.end_vcol > offset {
+                        oap.end_vcol -= offset + 1;
                     } else {
                         return;
                     }
@@ -1731,17 +1731,17 @@ pub unsafe fn op_insert(oap: *mut oparg_T, count1: c_int) {
                 let mut ins_text = Vec::with_capacity(ins_len as usize + 1);
                 ins_text.extend_from_slice(std::slice::from_raw_parts(firstline, ins_len as usize));
                 ins_text.push(NUL);
-                if u_save((*oap).start.lnum, (*oap).end.lnum + 1) == OK {
+                if u_save(oap.start.lnum, oap.end.lnum + 1) == OK {
                     block_insert(
                         oap,
                         ins_text.as_ptr(),
                         ins_len as usize,
-                        (*oap).op_type == OP_INSERT,
+                        oap.op_type == OP_INSERT,
                         &raw mut bd,
                     );
                 }
 
-                (**curwin.as_ptr()).w_cursor.col = (*oap).start.col;
+                (**curwin.as_ptr()).w_cursor.col = oap.start.col;
                 check_cursor(*curwin.as_ptr());
             }
         }
@@ -1749,15 +1749,15 @@ pub unsafe fn op_insert(oap: *mut oparg_T, count1: c_int) {
 }
 
 /// Handle a change operation.
-pub unsafe fn op_change(oap: *mut oparg_T) -> c_int {
+pub unsafe fn op_change(oap: &mut oparg_T) -> c_int {
     unsafe {
         let mut pre_textlen: c_int = 0;
         let mut pre_indent: c_int = 0;
         let mut firstline: *mut c_char;
         let mut bd = block_def::new();
 
-        let mut l = (*oap).start.col;
-        if (*oap).motion_type == kMTLineWise {
+        let mut l = oap.start.col;
+        if oap.motion_type == kMTLineWise {
             l = 0;
             g_st().Ins.can_si = may_do_si();
         }
@@ -1774,19 +1774,19 @@ pub unsafe fn op_change(oap: *mut oparg_T) -> c_int {
             inc_cursor();
         }
 
-        if (*oap).motion_type == kMTBlockWise {
+        if oap.motion_type == kMTBlockWise {
             if g_st().virtual_op != 0
                 && ((**curwin.as_ptr()).w_cursor.coladd > 0 || gchar_cursor() == c_int::from(NUL))
             {
                 coladvance_force(getviscol());
             }
-            firstline = ml_get((*oap).start.lnum);
-            pre_textlen = ml_get_len((*oap).start.lnum);
+            firstline = ml_get(oap.start.lnum);
+            pre_textlen = ml_get_len(oap.start.lnum);
             pre_indent = getwhitecols(firstline) as c_int;
             bd.textcol = (**curwin.as_ptr()).w_cursor.col;
         }
 
-        if (*oap).motion_type == kMTLineWise {
+        if oap.motion_type == kMTLineWise {
             fix_indent();
         }
 
@@ -1797,19 +1797,19 @@ pub unsafe fn op_change(oap: *mut oparg_T) -> c_int {
 
         g_st().finish_op = save_finish_op;
 
-        if (*oap).motion_type == kMTBlockWise && (*oap).start.lnum != (*oap).end.lnum && !g_st().got_int {
-            firstline = ml_get((*oap).start.lnum);
+        if oap.motion_type == kMTBlockWise && oap.start.lnum != oap.end.lnum && !g_st().got_int {
+            firstline = ml_get(oap.start.lnum);
             if bd.textcol > pre_indent {
                 let new_indent = getwhitecols(firstline) as c_int;
                 pre_textlen += new_indent - pre_indent;
                 bd.textcol += new_indent - pre_indent;
             }
 
-            let ins_len = ml_get_len((*oap).start.lnum) - pre_textlen;
+            let ins_len = ml_get_len(oap.start.lnum) - pre_textlen;
             if ins_len > 0 {
                 let mut ins_text = vec![0 as c_char; (ins_len as usize) + 1];
                 { let _d = (ins_text.as_mut_ptr()).cast::<u8>(); let _n = ins_len as usize; if _n > 0 { std::ptr::copy_nonoverlapping((firstline.add(bd.textcol as usize)).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
-                for linenr in ((*oap).start.lnum + 1)..=(*oap).end.lnum {
+                for linenr in (oap.start.lnum + 1)..=oap.end.lnum {
                     block_prep(oap, &raw mut bd, linenr, true);
                     if bd.is_short == 0 || g_st().virtual_op != 0 {
                         let mut vpos = pos_T {
@@ -1818,7 +1818,7 @@ pub unsafe fn op_change(oap: *mut oparg_T) -> c_int {
                             coladd: 0,
                         };
                         if bd.is_short != 0 {
-                            getvpos(*curwin.as_ptr(), &raw mut vpos, (*oap).start_vcol);
+                            getvpos(*curwin.as_ptr(), &raw mut vpos, oap.start_vcol);
                         } else {
                             vpos.coladd = 0;
                         }
@@ -1857,9 +1857,9 @@ pub unsafe fn op_change(oap: *mut oparg_T) -> c_int {
                 check_cursor(*curwin.as_ptr());
                 changed_lines(
                     g_st().curbuf,
-                    (*oap).start.lnum + 1,
+                    oap.start.lnum + 1,
                     0,
-                    (*oap).end.lnum + 1,
+                    oap.end.lnum + 1,
                     0,
                     true,
                 );
@@ -2183,7 +2183,7 @@ pub unsafe fn restore_lbr(lbr_saved: bool) {
 }
 
 /// Prepare a few things for block mode yank/delete/tilde.
-pub unsafe fn block_prep(oap: *mut oparg_T, bdp: *mut block_def, lnum: linenr_T, is_del: bool) {
+pub unsafe fn block_prep(oap: &mut oparg_T, bdp: *mut block_def, lnum: linenr_T, is_del: bool) {
     unsafe {
         let mut incr: c_int = 0;
         let lbr_saved = reset_lbr();
@@ -2207,7 +2207,7 @@ pub unsafe fn block_prep(oap: *mut oparg_T, bdp: *mut block_def, lnum: linenr_T,
         let mut cstype = init_charsize_arg(&raw mut csarg, *curwin.as_ptr(), lnum, line);
         let mut ci = utf_ptr2StrCharInfo(line);
         let mut vcol = (*bdp).start_vcol;
-        while vcol < (*oap).start_vcol && *ci.ptr != NUL {
+        while vcol < oap.start_vcol && *ci.ptr != NUL {
             let cli = utf_ClusterInfo(ci);
             incr = win_charsize(
                 cstype,
@@ -2233,32 +2233,32 @@ pub unsafe fn block_prep(oap: *mut oparg_T, bdp: *mut block_def, lnum: linenr_T,
         let mut pstart = ci.ptr.cast_mut();
 
         (*bdp).start_char_vcols = incr;
-        if (*bdp).start_vcol < (*oap).start_vcol {
+        if (*bdp).start_vcol < oap.start_vcol {
             (*bdp).end_vcol = (*bdp).start_vcol;
             (*bdp).is_short = 1;
-            if !is_del || (*oap).op_type == OP_APPEND {
-                (*bdp).endspaces = (*oap).end_vcol - (*oap).start_vcol + 1;
+            if !is_del || oap.op_type == OP_APPEND {
+                (*bdp).endspaces = oap.end_vcol - oap.start_vcol + 1;
             }
         } else {
-            (*bdp).startspaces = (*bdp).start_vcol - (*oap).start_vcol;
+            (*bdp).startspaces = (*bdp).start_vcol - oap.start_vcol;
             if is_del && (*bdp).startspaces != 0 {
                 (*bdp).startspaces = (*bdp).start_char_vcols - (*bdp).startspaces;
             }
             let mut pend: *const c_char = pstart;
             (*bdp).end_vcol = (*bdp).start_vcol;
-            if (*bdp).end_vcol > (*oap).end_vcol {
+            if (*bdp).end_vcol > oap.end_vcol {
                 (*bdp).is_oneChar = 1;
-                if (*oap).op_type == OP_INSERT {
+                if oap.op_type == OP_INSERT {
                     (*bdp).endspaces = (*bdp).start_char_vcols - (*bdp).startspaces;
-                } else if (*oap).op_type == OP_APPEND {
-                    (*bdp).startspaces += (*oap).end_vcol - (*oap).start_vcol + 1;
+                } else if oap.op_type == OP_APPEND {
+                    (*bdp).startspaces += oap.end_vcol - oap.start_vcol + 1;
                     (*bdp).endspaces = (*bdp).start_char_vcols - (*bdp).startspaces;
                 } else {
-                    (*bdp).startspaces = (*oap).end_vcol - (*oap).start_vcol + 1;
-                    if is_del && (*oap).op_type != OP_LSHIFT {
+                    (*bdp).startspaces = oap.end_vcol - oap.start_vcol + 1;
+                    if is_del && oap.op_type != OP_LSHIFT {
                         (*bdp).startspaces =
-                            (*bdp).start_char_vcols - ((*bdp).start_vcol - (*oap).start_vcol);
-                        (*bdp).endspaces = (*bdp).end_vcol - (*oap).end_vcol - 1;
+                            (*bdp).start_char_vcols - ((*bdp).start_vcol - oap.start_vcol);
+                        (*bdp).endspaces = (*bdp).end_vcol - oap.end_vcol - 1;
                     }
                 }
             } else {
@@ -2266,7 +2266,7 @@ pub unsafe fn block_prep(oap: *mut oparg_T, bdp: *mut block_def, lnum: linenr_T,
                 ci = utf_ptr2StrCharInfo(pend);
                 vcol = (*bdp).end_vcol;
                 let mut prev_pend = pend;
-                while vcol <= (*oap).end_vcol && *ci.ptr != NUL {
+                while vcol <= oap.end_vcol && *ci.ptr != NUL {
                     prev_pend = ci.ptr;
                     let cli = utf_ClusterInfo(ci);
                     incr = win_charsize(
@@ -2284,16 +2284,16 @@ pub unsafe fn block_prep(oap: *mut oparg_T, bdp: *mut block_def, lnum: linenr_T,
                 (*bdp).end_vcol = vcol;
                 pend = ci.ptr;
 
-                if (*bdp).end_vcol <= (*oap).end_vcol
-                    && (!is_del || (*oap).op_type == OP_APPEND || (*oap).op_type == OP_REPLACE)
+                if (*bdp).end_vcol <= oap.end_vcol
+                    && (!is_del || oap.op_type == OP_APPEND || oap.op_type == OP_REPLACE)
                 {
                     (*bdp).is_short = 1;
-                    if (*oap).op_type == OP_APPEND || g_st().virtual_op != 0 {
+                    if oap.op_type == OP_APPEND || g_st().virtual_op != 0 {
                         (*bdp).endspaces =
-                            (*oap).end_vcol - (*bdp).end_vcol + c_int::from((*oap).inclusive);
+                            oap.end_vcol - (*bdp).end_vcol + c_int::from(oap.inclusive);
                     }
-                } else if (*bdp).end_vcol > (*oap).end_vcol {
-                    (*bdp).endspaces = (*bdp).end_vcol - (*oap).end_vcol - 1;
+                } else if (*bdp).end_vcol > oap.end_vcol {
+                    (*bdp).endspaces = (*bdp).end_vcol - oap.end_vcol - 1;
                     if !is_del && (*bdp).endspaces != 0 {
                         (*bdp).endspaces = incr - (*bdp).endspaces;
                         if !ptr::eq(pend, pstart) {
@@ -2321,7 +2321,7 @@ pub unsafe fn getregionpos_prep(
     exclusive: bool,
     block_width: c_int,
     inclusive: *mut bool,
-    oap: *mut oparg_T,
+    oap: &mut oparg_T,
 ) {
     unsafe {
         *inclusive = true;
@@ -2345,18 +2345,18 @@ pub unsafe fn getregionpos_prep(
             getvvcol(*curwin.as_ptr(), p1, &raw mut sc1, ptr::null_mut(), &raw mut ec1, 0);
             getvvcol(*curwin.as_ptr(), p2, &raw mut sc2, ptr::null_mut(), &raw mut ec2, 0);
             restore_lbr(lbr_saved);
-            (*oap).motion_type = kMTBlockWise;
-            (*oap).inclusive = true;
-            (*oap).op_type = OP_NOP;
-            (*oap).start = *p1;
-            (*oap).end = *p2;
-            (*oap).start_vcol = sc1.min(sc2);
+            oap.motion_type = kMTBlockWise;
+            oap.inclusive = true;
+            oap.op_type = OP_NOP;
+            oap.start = *p1;
+            oap.end = *p2;
+            oap.start_vcol = sc1.min(sc2);
             if block_width > 0 {
-                (*oap).end_vcol = (*oap).start_vcol + block_width - 1;
+                oap.end_vcol = oap.start_vcol + block_width - 1;
             } else if exclusive && ec1 < sc2 && 0 < sc2 && ec2 > ec1 {
-                (*oap).end_vcol = sc2 - 1;
+                oap.end_vcol = sc2 - 1;
             } else {
-                (*oap).end_vcol = ec1.max(ec2);
+                oap.end_vcol = ec1.max(ec2);
             }
         }
 
@@ -2373,7 +2373,7 @@ pub unsafe fn getregionpos_line(
     p2: pos_T,
     inclusive: bool,
     region_type: c_int,
-    oap: *mut oparg_T,
+    oap: &mut oparg_T,
     allow_eol: bool,
     ret_p1: *mut pos_T,
     ret_p2: *mut pos_T,
@@ -2400,14 +2400,14 @@ pub unsafe fn getregionpos_line(
                 if region_type == kMTBlockWise {
                     (*ret_p1).col =
                         (mb_prevptr(line, bd.textstart).offset_from(line) as colnr_T) + 1;
-                    (*ret_p1).coladd = bd.start_char_vcols - (bd.start_vcol - (*oap).start_vcol);
+                    (*ret_p1).coladd = bd.start_char_vcols - (bd.start_vcol - oap.start_vcol);
                 } else {
                     (*ret_p1).col = p1.col + 1;
                     (*ret_p1).coladd = p1.coladd;
                 }
-            } else if region_type == kMTBlockWise && (*oap).start_vcol > bd.start_vcol {
+            } else if region_type == kMTBlockWise && oap.start_vcol > bd.start_vcol {
                 (*ret_p1).col = MAXCOL;
-                (*ret_p1).coladd = (*oap).start_vcol - bd.start_vcol;
+                (*ret_p1).coladd = oap.start_vcol - bd.start_vcol;
                 bd.is_oneChar = 1;
             } else if bd.startspaces > 0 {
                 (*ret_p1).col = (mb_prevptr(line, bd.textstart).offset_from(line) as colnr_T) + 1;
@@ -2529,7 +2529,7 @@ pub unsafe fn charwise_block_prep(
     }
 }
 
-pub unsafe fn op_addsub(oap: *mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
+pub unsafe fn op_addsub(oap: &mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
     unsafe {
         let mut bd = block_def::new();
         let mut change_cnt: isize = 0;
@@ -2543,7 +2543,7 @@ pub unsafe fn op_addsub(oap: *mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
                 g_st().disable_fold_update -= 1;
                 return;
             }
-            change_cnt = isize::from(do_addsub((*oap).op_type, &raw mut pos, 0, amount));
+            change_cnt = isize::from(do_addsub(oap.op_type, &raw mut pos, 0, amount));
             g_st().disable_fold_update -= 1;
             if change_cnt != 0 {
                 changed_lines(g_st().curbuf, pos.lnum, 0, pos.lnum + 1, 0, true);
@@ -2556,38 +2556,38 @@ pub unsafe fn op_addsub(oap: *mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
                 coladd: 0,
             };
 
-            if u_save((*oap).start.lnum - 1, (*oap).end.lnum + 1) == FAIL {
+            if u_save(oap.start.lnum - 1, oap.end.lnum + 1) == FAIL {
                 g_st().disable_fold_update -= 1;
                 return;
             }
 
-            let mut pos = (*oap).start;
-            while pos.lnum <= (*oap).end.lnum {
-                if (*oap).motion_type == kMTBlockWise {
+            let mut pos = oap.start;
+            while pos.lnum <= oap.end.lnum {
+                if oap.motion_type == kMTBlockWise {
                     block_prep(oap, &raw mut bd, pos.lnum, false);
                     pos.col = bd.textcol;
                     length = bd.textlen;
-                } else if (*oap).motion_type == kMTLineWise {
+                } else if oap.motion_type == kMTLineWise {
                     (**curwin.as_ptr()).w_cursor.col = 0;
                     pos.col = 0;
                     length = ml_get_len(pos.lnum);
                 } else {
-                    if pos.lnum == (*oap).start.lnum && !(*oap).inclusive {
-                        dec(&raw mut (*oap).end);
+                    if pos.lnum == oap.start.lnum && !oap.inclusive {
+                        dec(&raw mut oap.end);
                     }
                     length = ml_get_len(pos.lnum);
                     pos.col = 0;
-                    if pos.lnum == (*oap).start.lnum {
-                        pos.col += (*oap).start.col;
-                        length -= (*oap).start.col;
+                    if pos.lnum == oap.start.lnum {
+                        pos.col += oap.start.col;
+                        length -= oap.start.col;
                     }
-                    if pos.lnum == (*oap).end.lnum {
-                        length = ml_get_len((*oap).end.lnum);
-                        (*oap).end.col = (*oap).end.col.min(length - 1);
-                        length = (*oap).end.col - pos.col + 1;
+                    if pos.lnum == oap.end.lnum {
+                        length = ml_get_len(oap.end.lnum);
+                        oap.end.col = oap.end.col.min(length - 1);
+                        length = oap.end.col - pos.col + 1;
                     }
                 }
-                let one_change = do_addsub((*oap).op_type, &raw mut pos, length, amount);
+                let one_change = do_addsub(oap.op_type, &raw mut pos, length, amount);
                 if one_change {
                     if change_cnt == 0 {
                         startpos = (*g_st().curbuf).b_op_start;
@@ -2603,10 +2603,10 @@ pub unsafe fn op_addsub(oap: *mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
 
             g_st().disable_fold_update -= 1;
             if change_cnt != 0 {
-                changed_lines(g_st().curbuf, (*oap).start.lnum, 0, (*oap).end.lnum + 1, 0, true);
+                changed_lines(g_st().curbuf, oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
             }
 
-            if change_cnt == 0 && (*oap).is_VIsual {
+            if change_cnt == 0 && oap.is_VIsual {
                 redraw_curbuf_later(UPD_INVERTED);
             }
 
@@ -3182,7 +3182,7 @@ pub unsafe fn cursor_pos_info(dict: *mut dict_T) {
 
                     if l_VIsual_mode == Ctrl_V {
                         g_st().virtual_op = TriState::from(virtual_active(*curwin.as_ptr()));
-                        block_prep(&raw mut oparg, &raw mut bd, lnum, false);
+                        block_prep(&mut oparg, &raw mut bd, lnum, false);
                         g_st().virtual_op = kNone;
                         s = bd.textstart;
                         len = bd.textlen;
@@ -3418,47 +3418,47 @@ pub unsafe fn cursor_pos_info(dict: *mut dict_T) {
     }
 }
 
-unsafe fn op_colon(oap: *mut oparg_T) {
+unsafe fn op_colon(oap: &mut oparg_T) {
     unsafe {
-        if (*oap).is_VIsual {
+        if oap.is_VIsual {
             stuffReadbuff(c"'<,'>".as_ptr());
         } else {
-            if (*oap).start.lnum == (**curwin.as_ptr()).w_cursor.lnum {
+            if oap.start.lnum == (**curwin.as_ptr()).w_cursor.lnum {
                 stuffcharReadbuff(b'.' as c_int);
             } else {
-                stuffnumReadbuff((*oap).start.lnum);
+                stuffnumReadbuff(oap.start.lnum);
             }
 
-            let mut endOfStartFold = (*oap).start.lnum;
+            let mut endOfStartFold = oap.start.lnum;
             hasFolding(
                 *curwin.as_ptr(),
-                (*oap).start.lnum,
+                oap.start.lnum,
                 ptr::null_mut(),
                 &raw mut endOfStartFold,
             );
-            if (*oap).end.lnum != (*oap).start.lnum && (*oap).end.lnum != endOfStartFold {
+            if oap.end.lnum != oap.start.lnum && oap.end.lnum != endOfStartFold {
                 stuffcharReadbuff(b',' as c_int);
-                if (*oap).end.lnum == (**curwin.as_ptr()).w_cursor.lnum {
+                if oap.end.lnum == (**curwin.as_ptr()).w_cursor.lnum {
                     stuffcharReadbuff(b'.' as c_int);
-                } else if (*oap).end.lnum == (*g_st().curbuf).b_ml.ml_line_count {
+                } else if oap.end.lnum == (*g_st().curbuf).b_ml.ml_line_count {
                     stuffcharReadbuff(b'$' as c_int);
-                } else if (*oap).start.lnum == (**curwin.as_ptr()).w_cursor.lnum
-                    && !hasFolding(*curwin.as_ptr(), (*oap).end.lnum, ptr::null_mut(), ptr::null_mut())
+                } else if oap.start.lnum == (**curwin.as_ptr()).w_cursor.lnum
+                    && !hasFolding(*curwin.as_ptr(), oap.end.lnum, ptr::null_mut(), ptr::null_mut())
                 {
                     stuffReadbuff(c".+".as_ptr());
-                    stuffnumReadbuff((*oap).line_count - 1);
+                    stuffnumReadbuff(oap.line_count - 1);
                 } else {
-                    stuffnumReadbuff((*oap).end.lnum);
+                    stuffnumReadbuff(oap.end.lnum);
                 }
             }
         }
-        if (*oap).op_type != OP_COLON {
+        if oap.op_type != OP_COLON {
             stuffReadbuff(c"!".as_ptr());
         }
-        if (*oap).op_type == OP_INDENT {
+        if oap.op_type == OP_INDENT {
             stuffReadbuff(get_equalprg());
             stuffReadbuff(c"\n".as_ptr());
-        } else if (*oap).op_type == OP_FORMAT {
+        } else if oap.op_type == OP_FORMAT {
             if *(*g_st().curbuf).b_p_fp != NUL {
                 stuffReadbuff((*g_st().curbuf).b_p_fp);
             } else if *opt_vars().p_fp != NUL {
@@ -3486,7 +3486,7 @@ pub unsafe fn set_ref_in_opfunc(copyID: c_int) -> bool {
     unsafe { set_ref_in_callback(&raw mut opt_vars().p_opfunc, copyID, ptr::null_mut(), ptr::null_mut()) }
 }
 
-unsafe fn op_function(oap: *const oparg_T) {
+unsafe fn op_function(oap: &oparg_T) {
     unsafe {
         let orig_start = (*g_st().curbuf).b_op_start;
         let orig_end = (*g_st().curbuf).b_op_end;
@@ -3494,13 +3494,13 @@ unsafe fn op_function(oap: *const oparg_T) {
         if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_opfunc) == kCallbackNone {
             emsg(tr(c"E774: 'operatorfunc' is empty".as_ptr()));
         } else {
-            (*g_st().curbuf).b_op_start = (*oap).start;
-            (*g_st().curbuf).b_op_end = (*oap).end;
-            if (*oap).motion_type == kMTCharWise && !(*oap).inclusive {
+            (*g_st().curbuf).b_op_start = oap.start;
+            (*g_st().curbuf).b_op_end = oap.end;
+            if oap.motion_type == kMTCharWise && !oap.inclusive {
                 decl(&raw mut (*g_st().curbuf).b_op_end);
             }
 
-            let mode_str = match (*oap).motion_type {
+            let mode_str = match oap.motion_type {
                 kMTBlockWise => c"block".as_ptr(),
                 kMTLineWise => c"line".as_ptr(),
                 _ => c"char".as_ptr(),
@@ -3548,48 +3548,48 @@ unsafe fn op_function(oap: *const oparg_T) {
     }
 }
 
-unsafe fn get_op_vcol(oap: *mut oparg_T, initial: bool) {
+unsafe fn get_op_vcol(oap: &mut oparg_T, initial: bool) {
     unsafe {
         let mut start: colnr_T = 0;
         let mut end: colnr_T = 0;
 
-        if g_st().Visual.mode != Ctrl_V || (!initial && (*oap).end.col < (**curwin.as_ptr()).w_view_width) {
+        if g_st().Visual.mode != Ctrl_V || (!initial && oap.end.col < (**curwin.as_ptr()).w_view_width) {
             return;
         }
 
-        mark_mb_adjustpos((**curwin.as_ptr()).w_buffer, &raw mut (*oap).end);
+        mark_mb_adjustpos((**curwin.as_ptr()).w_buffer, &raw mut oap.end);
 
         getvvcol(
             *curwin.as_ptr(),
-            &raw mut (*oap).start,
-            &raw mut (*oap).start_vcol,
+            &raw mut oap.start,
+            &raw mut oap.start_vcol,
             ptr::null_mut(),
-            &raw mut (*oap).end_vcol,
+            &raw mut oap.end_vcol,
             0,
         );
         getvvcol(
             *curwin.as_ptr(),
-            &raw mut (*oap).end,
+            &raw mut oap.end,
             &raw mut start,
             ptr::null_mut(),
             &raw mut end,
             0,
         );
 
-        (*oap).start_vcol = (*oap).start_vcol.min(start);
-        if end > (*oap).end_vcol {
-            if initial && *opt_vars().p_sel == b'e' as c_char && start >= 1 && start > (*oap).end_vcol {
-                (*oap).end_vcol = start - 1;
+        oap.start_vcol = oap.start_vcol.min(start);
+        if end > oap.end_vcol {
+            if initial && *opt_vars().p_sel == b'e' as c_char && start >= 1 && start > oap.end_vcol {
+                oap.end_vcol = start - 1;
             } else {
-                (*oap).end_vcol = end;
+                oap.end_vcol = end;
             }
         }
 
         if (**curwin.as_ptr()).w_curswant == MAXCOL {
             (**curwin.as_ptr()).w_cursor.col = MAXCOL;
-            (*oap).end_vcol = 0;
-            (**curwin.as_ptr()).w_cursor.lnum = (*oap).start.lnum;
-            while (**curwin.as_ptr()).w_cursor.lnum <= (*oap).end.lnum {
+            oap.end_vcol = 0;
+            (**curwin.as_ptr()).w_cursor.lnum = oap.start.lnum;
+            while (**curwin.as_ptr()).w_cursor.lnum <= oap.end.lnum {
                 getvvcol(
                     *curwin.as_ptr(),
                     &raw mut (**curwin.as_ptr()).w_cursor,
@@ -3598,18 +3598,18 @@ unsafe fn get_op_vcol(oap: *mut oparg_T, initial: bool) {
                     &raw mut end,
                     0,
                 );
-                (*oap).end_vcol = (*oap).end_vcol.max(end);
+                oap.end_vcol = oap.end_vcol.max(end);
                 (**curwin.as_ptr()).w_cursor.lnum += 1;
             }
         }
 
-        (**curwin.as_ptr()).w_cursor.lnum = (*oap).end.lnum;
-        coladvance(*curwin.as_ptr(), (*oap).end_vcol);
-        (*oap).end = (**curwin.as_ptr()).w_cursor;
+        (**curwin.as_ptr()).w_cursor.lnum = oap.end.lnum;
+        coladvance(*curwin.as_ptr(), oap.end_vcol);
+        oap.end = (**curwin.as_ptr()).w_cursor;
 
-        (**curwin.as_ptr()).w_cursor = (*oap).start;
-        coladvance(*curwin.as_ptr(), (*oap).start_vcol);
-        (*oap).start = (**curwin.as_ptr()).w_cursor;
+        (**curwin.as_ptr()).w_cursor = oap.start;
+        coladvance(*curwin.as_ptr(), oap.start_vcol);
+        oap.start = (**curwin.as_ptr()).w_cursor;
     }
 }
 
@@ -3624,9 +3624,9 @@ pub fn op_self_select(cap: &cmdarg_T) -> bool {
             || cap.nchar == b'v' as c_int)
 }
 
-unsafe fn op_ins_visual(oap: *mut oparg_T, cap: &mut cmdarg_T) -> VisualIns {
+unsafe fn op_ins_visual(oap: &mut oparg_T, cap: &mut cmdarg_T) -> VisualIns {
     unsafe {
-        if !(*oap).is_VIsual {
+        if !oap.is_VIsual {
             return kVInsNone;
         }
         if is_ex_cmdchar(cap) || cap.cmdchar == K_LUA {
@@ -3634,11 +3634,11 @@ unsafe fn op_ins_visual(oap: *mut oparg_T, cap: &mut cmdarg_T) -> VisualIns {
         }
         if op_self_select(cap)
             && cap.nchar != b'v' as c_int
-            && (*oap).motion_force == c_int::from(NUL)
+            && oap.motion_force == c_int::from(NUL)
         {
             return kVInsMotion;
         }
-        if (*oap).motion_force != c_int::from(NUL) || op_self_select(cap) {
+        if oap.motion_force != c_int::from(NUL) || op_self_select(cap) {
             return kVInsOther;
         }
         if atom_visual_redoable() {
@@ -3651,7 +3651,7 @@ unsafe fn op_ins_visual(oap: *mut oparg_T, cap: &mut cmdarg_T) -> VisualIns {
 
 pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
     unsafe {
-        let oap = cap.oap;
+        let oap = &mut *cap.oap;
         let lbr_saved = (**curwin.as_ptr()).w_onebuf_opt.wo_lbr != 0;
 
         let old_cursor = (**curwin.as_ptr()).w_cursor;
@@ -3770,7 +3770,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
             g_st().virtual_op = TriState::from(virtual_active(*curwin.as_ptr()));
 
             if g_st().Visual.active {
-                get_op_vcol(oap, true);
+                get_op_vcol(&mut *oap, true);
 
                 if !gui_yank {
                     g_st().Visual.resel.mode = g_st().Visual.mode;

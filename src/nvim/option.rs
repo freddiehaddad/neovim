@@ -7765,19 +7765,19 @@ pub unsafe fn set_imsearch_global(buf: *mut buf_T) {
     }
 }
 
-pub unsafe fn set_context_in_set_cmd(xp: *mut expand_T, mut arg: *mut c_char, opt_flags: c_int) {
+pub unsafe fn set_context_in_set_cmd(xp: &mut expand_T, mut arg: *mut c_char, opt_flags: c_int) {
     unsafe {
         opt_st().EXPAND_OPTION_FLAGS = opt_flags;
 
-        (*xp).xp_context = EXPAND_SETTINGS;
+        xp.xp_context = EXPAND_SETTINGS;
         if *arg == NUL {
-            (*xp).xp_pattern = arg;
+            xp.xp_pattern = arg;
             return;
         }
         let argend = arg.add(std::ffi::CStr::from_ptr(arg).to_bytes().len());
         let mut p = argend.offset(-1);
         if *p == b' ' as c_char && *p.offset(-1) != b'\\' as c_char {
-            (*xp).xp_pattern = p.add(1);
+            xp.xp_pattern = p.add(1);
             return;
         }
         while p > arg {
@@ -7794,15 +7794,15 @@ pub unsafe fn set_context_in_set_cmd(xp: *mut expand_T, mut arg: *mut c_char, op
             p = p.offset(-1);
         }
         if { let _p = p; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"no"[..2] } {
-            (*xp).xp_context = EXPAND_BOOL_SETTINGS;
-            (*xp).xp_prefix = XP_PREFIX_NO;
+            xp.xp_context = EXPAND_BOOL_SETTINGS;
+            xp.xp_prefix = XP_PREFIX_NO;
             p = p.add(2);
         } else if { let _p = p; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"inv"[..3] } {
-            (*xp).xp_context = EXPAND_BOOL_SETTINGS;
-            (*xp).xp_prefix = XP_PREFIX_INV;
+            xp.xp_context = EXPAND_BOOL_SETTINGS;
+            xp.xp_prefix = XP_PREFIX_INV;
             p = p.add(3);
         }
-        (*xp).xp_pattern = p;
+        xp.xp_pattern = p;
         arg = p;
 
         let mut nextchar: c_char;
@@ -7820,7 +7820,7 @@ pub unsafe fn set_context_in_set_cmd(xp: *mut expand_T, mut arg: *mut c_char, op
             p = p.add(1);
             let key = get_special_key_code(arg.add(1));
             if key == 0 {
-                (*xp).xp_context = EXPAND_NOTHING;
+                xp.xp_context = EXPAND_NOTHING;
                 return;
             }
             nextchar = *p;
@@ -7850,12 +7850,12 @@ pub unsafe fn set_context_in_set_cmd(xp: *mut expand_T, mut arg: *mut c_char, op
             nextchar = *p;
             opt_idx = find_option_len(arg, p.offset_from(arg) as usize);
             if opt_idx == kOptInvalid || is_option_hidden(opt_idx) {
-                (*xp).xp_context = EXPAND_NOTHING;
+                xp.xp_context = EXPAND_NOTHING;
                 return;
             }
             flags = (*get_option(opt_idx)).flags;
             if option_has_type(opt_idx, ObjectType::kObjectTypeBoolean) {
-                (*xp).xp_context = EXPAND_NOTHING;
+                xp.xp_context = EXPAND_NOTHING;
                 return;
             }
         }
@@ -7875,9 +7875,9 @@ pub unsafe fn set_context_in_set_cmd(xp: *mut expand_T, mut arg: *mut c_char, op
             nextchar = b'=' as c_char;
         }
         if (nextchar != b'=' as c_char && nextchar != b':' as c_char)
-            || (*xp).xp_context == EXPAND_BOOL_SETTINGS
+            || xp.xp_context == EXPAND_BOOL_SETTINGS
         {
-            (*xp).xp_context = EXPAND_UNSUCCESSFUL;
+            xp.xp_context = EXPAND_UNSUCCESSFUL;
             return;
         }
 
@@ -7887,35 +7887,35 @@ pub unsafe fn set_context_in_set_cmd(xp: *mut expand_T, mut arg: *mut c_char, op
             opt_st().EXPAND_OPTION_IDX = opt_idx;
         }
 
-        (*xp).xp_pattern = p.add(1);
-        opt_st().EXPAND_OPTION_START_COL = p.add(1).offset_from((*xp).xp_line) as c_int;
+        xp.xp_pattern = p.add(1);
+        opt_st().EXPAND_OPTION_START_COL = p.add(1).offset_from(xp.xp_line) as c_int;
 
         let opt_var = (*get_option(opt_idx)).var;
         if opt_var == (&raw mut opt_vars().p_syn).cast::<c_void>() {
-            (*xp).xp_context = EXPAND_OWNSYNTAX;
+            xp.xp_context = EXPAND_OWNSYNTAX;
             return;
         }
         if opt_var == (&raw mut opt_vars().p_ft).cast::<c_void>() {
-            (*xp).xp_context = EXPAND_FILETYPE;
+            xp.xp_context = EXPAND_FILETYPE;
             return;
         }
         if opt_var == (&raw mut opt_vars().p_keymap).cast::<c_void>() {
-            (*xp).xp_context = EXPAND_KEYMAP;
+            xp.xp_context = EXPAND_KEYMAP;
             return;
         }
 
         if expand_option_subtract {
-            (*xp).xp_context = EXPAND_SETTING_SUBTRACT;
+            xp.xp_context = EXPAND_SETTING_SUBTRACT;
             return;
         } else if opt_st().EXPAND_OPTION_IDX != kOptInvalid
             && (*get_option(opt_st().EXPAND_OPTION_IDX)).opt_expand_cb.is_some()
         {
-            (*xp).xp_context = EXPAND_STRING_SETTING;
-        } else if *(*xp).xp_pattern == NUL {
-            (*xp).xp_context = EXPAND_OLD_SETTING;
+            xp.xp_context = EXPAND_STRING_SETTING;
+        } else if *xp.xp_pattern == NUL {
+            xp.xp_context = EXPAND_OLD_SETTING;
             return;
         } else {
-            (*xp).xp_context = EXPAND_NOTHING;
+            xp.xp_context = EXPAND_NOTHING;
         }
 
         if is_term_option || option_has_type(opt_idx, ObjectType::kObjectTypeInteger) {
@@ -7932,22 +7932,22 @@ pub unsafe fn set_context_in_set_cmd(xp: *mut expand_T, mut arg: *mut c_char, op
                 || v == (&raw mut opt_vars().p_cdpath).cast()
                 || v == (&raw mut opt_vars().p_vdir).cast()
             {
-                (*xp).xp_context = EXPAND_DIRECTORIES;
+                xp.xp_context = EXPAND_DIRECTORIES;
                 if v == (&raw mut opt_vars().p_path).cast() || v == (&raw mut opt_vars().p_cdpath).cast() {
-                    (*xp).xp_backslash = XP_BS_THREE;
+                    xp.xp_backslash = XP_BS_THREE;
                 } else {
-                    (*xp).xp_backslash = XP_BS_ONE;
+                    xp.xp_backslash = XP_BS_ONE;
                 }
             } else {
-                (*xp).xp_context = EXPAND_FILES;
+                xp.xp_context = EXPAND_FILES;
                 if v == (&raw mut opt_vars().p_tags).cast() {
-                    (*xp).xp_backslash = XP_BS_THREE;
+                    xp.xp_backslash = XP_BS_THREE;
                 } else {
-                    (*xp).xp_backslash = XP_BS_ONE;
+                    xp.xp_backslash = XP_BS_ONE;
                 }
             }
             if (flags & kOptFlagComma) != 0 {
-                (*xp).xp_backslash |= XP_BS_COMMA;
+                xp.xp_backslash |= XP_BS_COMMA;
             }
         }
 
@@ -7956,13 +7956,13 @@ pub unsafe fn set_context_in_set_cmd(xp: *mut expand_T, mut arg: *mut c_char, op
             || (flags & kOptFlagColon) != 0
         {
             p = argend.offset(-1);
-            while p > (*xp).xp_pattern {
+            while p > xp.xp_pattern {
                 if *p == b' ' as c_char
                     || *p == b',' as c_char
                     || (*p == b':' as c_char && (flags & kOptFlagColon) != 0)
                 {
                     let mut s = p;
-                    while s > (*xp).xp_pattern && *s.offset(-1) == b'\\' as c_char {
+                    while s > xp.xp_pattern && *s.offset(-1) == b'\\' as c_char {
                         s = s.offset(-1);
                     }
                     #[cfg(windows)]
@@ -7975,11 +7975,11 @@ pub unsafe fn set_context_in_set_cmd(xp: *mut expand_T, mut arg: *mut c_char, op
                         && p.offset_from(s) < 2;
 
                     if (*p == b' ' as c_char
-                        && (((*xp).xp_backslash & XP_BS_THREE) != 0 && p.offset_from(s) < 3))
+                        && ((xp.xp_backslash & XP_BS_THREE) != 0 && p.offset_from(s) < 3))
                         || comma_unesc
                         || (*p == b':' as c_char && (flags & kOptFlagColon) != 0)
                     {
-                        (*xp).xp_pattern = p.add(1);
+                        xp.xp_pattern = p.add(1);
                         break;
                     }
                 }
@@ -7988,14 +7988,14 @@ pub unsafe fn set_context_in_set_cmd(xp: *mut expand_T, mut arg: *mut c_char, op
         }
 
         if (flags & kOptFlagFlagList) != 0 {
-            (*xp).xp_pattern = argend;
+            xp.xp_pattern = argend;
         }
 
         if (*get_option(opt_idx)).var == (&raw mut opt_vars().p_sps).cast() {
-            if { let _p = (*xp).xp_pattern; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"file:"[..5] } {
-                (*xp).xp_pattern = (*xp).xp_pattern.add(5);
+            if { let _p = xp.xp_pattern; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"file:"[..5] } {
+                xp.xp_pattern = xp.xp_pattern.add(5);
             } else if (*get_option(opt_st().EXPAND_OPTION_IDX)).opt_expand_cb.is_some() {
-                (*xp).xp_context = EXPAND_STRING_SETTING;
+                xp.xp_context = EXPAND_STRING_SETTING;
             }
         }
     }
@@ -8032,7 +8032,7 @@ unsafe fn match_str(
 }
 
 pub unsafe fn ExpandSettings(
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     regmatch: *mut regmatch_T,
     fuzzystr: *mut c_char,
     matches: &mut Vec<std::ffi::CString>,
@@ -8047,7 +8047,7 @@ pub unsafe fn ExpandSettings(
         let fuzzy = can_fuzzy && cmdline_fuzzy_complete(fuzzystr);
 
         (*regmatch).rm_ic = ic;
-        if (*xp).xp_context != EXPAND_BOOL_SETTINGS {
+        if xp.xp_context != EXPAND_BOOL_SETTINGS {
             for &name in &names {
                 match_str(name, regmatch, matches, fuzzy, fuzzystr, &mut fuzmatch);
             }
@@ -8058,7 +8058,7 @@ pub unsafe fn ExpandSettings(
             if is_option_hidden(opt_idx) {
                 continue;
             }
-            if (*xp).xp_context == EXPAND_BOOL_SETTINGS
+            if xp.xp_context == EXPAND_BOOL_SETTINGS
                 && !option_has_type(opt_idx, ObjectType::kObjectTypeBoolean)
             {
                 continue;
@@ -8148,7 +8148,7 @@ pub unsafe fn ExpandOldSetting(matches: &mut Vec<std::ffi::CString>) -> c_int {
 
 /// Expansion handler for :set=/:set+= when the option has a custom expansion handler.
 pub unsafe fn ExpandStringSetting(
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     regmatch: *mut regmatch_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
@@ -8161,7 +8161,7 @@ pub unsafe fn ExpandStringSetting(
             return FAIL;
         };
 
-        let set_arg = (*xp).xp_line.add(opt_st().EXPAND_OPTION_START_COL as usize);
+        let set_arg = xp.xp_line.add(opt_st().EXPAND_OPTION_START_COL as usize);
         let mut args = optexpand_T {
             oe_varp: get_varp_scope(opt, opt_st().EXPAND_OPTION_FLAGS).cast::<c_char>(),
             oe_idx: opt_st().EXPAND_OPTION_IDX,
@@ -8183,7 +8183,7 @@ pub unsafe fn ExpandStringSetting(
 
 /// Expansion handler for :set-=
 pub unsafe fn ExpandSettingSubtract(
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     regmatch: *mut regmatch_T,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
@@ -8237,7 +8237,7 @@ pub unsafe fn ExpandSettingSubtract(
 
             return OK;
         } else if (option_flags & kOptFlagFlagList) != 0 {
-            if *(*xp).xp_pattern != NUL {
+            if *xp.xp_pattern != NUL {
                 return FAIL;
             }
 

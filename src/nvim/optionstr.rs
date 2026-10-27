@@ -1416,7 +1416,7 @@ unsafe fn expand_set_opt_string(
 }
 
 /// Callback used by expand_set_opt_generic to also include the original value.
-unsafe fn expand_set_opt_callback(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn expand_set_opt_callback(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
             if !optstr_st().set_opt_callback_orig_option.is_null() {
@@ -1449,7 +1449,7 @@ unsafe fn expand_set_opt_generic(
 
         ExpandGeneric(
             c"".as_ptr(),
-            args.oe_xp,
+            &mut *args.oe_xp,
             args.oe_regmatch,
             matches,
             Some(expand_set_opt_callback),
@@ -2331,9 +2331,9 @@ pub unsafe fn validate_eventignore(args: &mut optset_T) -> *const c_char {
     }
 }
 
-unsafe fn get_eventignore_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
+unsafe fn get_eventignore_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
-        let subtract = *(*xp).xp_pattern == b'-' as c_char;
+        let subtract = *xp.xp_pattern == b'-' as c_char;
         if !subtract && idx == 0 {
             return c"all".as_ptr().cast_mut();
         }
@@ -2395,7 +2395,7 @@ pub unsafe fn did_set_fileformat(args: &mut optset_T) -> *const c_char {
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of fileformat options.
-pub unsafe fn get_fileformat_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_fileformat_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 {
         return ptr::null_mut();
     }
@@ -4337,7 +4337,7 @@ pub unsafe fn set_chars_option(
 }
 
 /// Function given to ExpandGeneric() to obtain possible arguments of the 'fillchars' option.
-pub unsafe fn get_fillchars_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_fillchars_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 || (idx as usize) >= FCS_TAB.len() {
         return ptr::null_mut();
     }
@@ -4345,7 +4345,7 @@ pub unsafe fn get_fillchars_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char 
 }
 
 /// Function given to ExpandGeneric() to obtain possible arguments of the 'listchars' option.
-pub unsafe fn get_listchars_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn get_listchars_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 || (idx as usize) >= LCS_TAB.len() {
         return ptr::null_mut();
     }

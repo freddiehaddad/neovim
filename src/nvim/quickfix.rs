@@ -2252,7 +2252,7 @@ pub unsafe fn check_quickfix_busy() {
     unsafe {
         if qf_st().quickfix_busy != 0 {
             semsg!(
-                c"qf_st().quickfix_busy not zero on exit: %lld".as_ptr(),
+                c"quickfix_busy not zero on exit: %lld".as_ptr(),
                 c_longlong::from(qf_st().quickfix_busy),
             );
         }

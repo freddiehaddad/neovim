@@ -1612,11 +1612,11 @@ pub unsafe fn mc_zq_start(cap: &mut cmdarg_T) {
     }
 }
 
-pub unsafe fn mc_zq(oap: *mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
+pub unsafe fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
     unsafe {
         atom_did_global_op();
         if mc_replaying()
-            || (*oap).motion_type == kMTUnknown
+            || oap.motion_type == kMTUnknown
             || cap.cmdchar == b'i' as c_int
             || cap.cmdchar == b'a' as c_int
             || cap.cmdchar == K_LUA
@@ -1638,18 +1638,18 @@ pub unsafe fn mc_zq(oap: *mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
                 coladd: 0,
             },
         ];
-        if (*oap).from_visual {
+        if oap.from_visual {
             bounds[0] = (*mark_get_visual(g_st().curbuf, b'<' as c_int)).mark;
             bounds[1] = (*mark_get_visual(g_st().curbuf, b'>' as c_int)).mark;
         }
 
-        let lines = (*oap).motion_type == kMTLineWise;
+        let lines = oap.motion_type == kMTLineWise;
         if lines {
             bounds[0].col = 0;
             bounds[1].col = MAXCOL;
         }
         let mut vcols: [colnr_T; 2] = [0, MAXCOL];
-        let blockwise = (*oap).from_visual && v.vi_mode == Ctrl_V && !lines;
+        let blockwise = oap.from_visual && v.vi_mode == Ctrl_V && !lines;
         if blockwise {
             getvcols(
                 *curwin.as_ptr(),
@@ -1686,20 +1686,20 @@ pub unsafe fn mc_zq(oap: *mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
             redo_keys(&spec).unwrap_or_default()
         };
         let keys_data = keys_cstr.as_ptr().cast_mut();
-        if !(*oap).from_visual && search {
-            first = mc_zq_target(primary, true, (*oap).motion_type, ptr::null_mut()).vi_start;
+        if !oap.from_visual && search {
+            first = mc_zq_target(primary, true, oap.motion_type, ptr::null_mut()).vi_start;
             if first.lnum != 0 {
-                placed = mc_zq_run(keys_data, search, (*oap).motion_type, bounds[1], first);
+                placed = mc_zq_run(keys_data, search, oap.motion_type, bounds[1], first);
             }
         } else if !blockwise {
             if mc_zq_first(
                 keys_data,
                 search,
-                (*oap).motion_type,
+                oap.motion_type,
                 bounds.as_ptr(),
                 &mut first,
             ) {
-                placed = mc_zq_run(keys_data, search, (*oap).motion_type, bounds[1], first);
+                placed = mc_zq_run(keys_data, search, oap.motion_type, bounds[1], first);
             }
         } else {
             for lnum in bounds[0].lnum..=bounds[1].lnum {
@@ -1724,14 +1724,14 @@ pub unsafe fn mc_zq(oap: *mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
                 if mc_zq_first(
                     keys_data,
                     search,
-                    (*oap).motion_type,
+                    oap.motion_type,
                     line.as_ptr(),
                     &mut step,
                 ) {
                     if first.lnum == 0 {
                         first = step;
                     }
-                    placed += mc_zq_run(keys_data, search, (*oap).motion_type, line[1], step);
+                    placed += mc_zq_run(keys_data, search, oap.motion_type, line[1], step);
                 }
             }
         }
@@ -1745,7 +1745,7 @@ pub unsafe fn mc_zq(oap: *mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
                 primary = first;
                 (**curwin.as_ptr()).w_set_curswant = true;
             }
-            (*g_st().curbuf).b_visual = mc_zq_target(primary, search, (*oap).motion_type, ptr::null_mut());
+            (*g_st().curbuf).b_visual = mc_zq_target(primary, search, oap.motion_type, ptr::null_mut());
             (*g_st().curbuf).b_visual_mode_eval = (*g_st().curbuf).b_visual.vi_mode;
             set_no_hlsearch(true);
             redraw_all_later(UPD_SOME_VALID);

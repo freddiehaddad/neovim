@@ -3578,17 +3578,17 @@ pub unsafe fn has_autocmd_fullname(event: event_T, fname: *mut c_char, buf: *mut
     unsafe { has_autocmd_ext(event, fname, buf, true) }
 }
 
-pub unsafe fn expand_get_augroup_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn expand_get_augroup_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe { augroup_name(idx + 1) }
 }
 
 pub unsafe fn aucmd_set_expand_context(
-    xp: *mut expand_T,
+    xp: &mut expand_T,
     mut arg: *mut c_char,
     doautocmd: bool,
 ) -> *mut c_char {
     unsafe {
-        let xp_pref = xp.cast::<ExpandPrefix>();
+        let xp_pref = (&raw mut *xp).cast::<ExpandPrefix>();
         au_st().autocmd_include_groups = false;
         let mut p = arg;
         let mut group = arg_augroup_get(&raw mut arg);
@@ -3646,7 +3646,7 @@ pub unsafe fn aucmd_set_expand_context(
     }
 }
 
-pub unsafe fn expand_get_event_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
+pub unsafe fn expand_get_event_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         let name = augroup_name(idx + 1);
         if !name.is_null() {
@@ -3665,7 +3665,7 @@ pub unsafe fn expand_get_event_name(_xp: *mut expand_T, idx: c_int) -> *mut c_ch
     }
 }
 
-pub unsafe fn get_event_name_no_group(_xp: *mut expand_T, idx: c_int, win: bool) -> *mut c_char {
+pub unsafe fn get_event_name_no_group(_xp: &mut expand_T, idx: c_int, win: bool) -> *mut c_char {
     if idx < 0 || (idx as usize) >= NUM_EVENTS {
         return ptr::null_mut();
     }

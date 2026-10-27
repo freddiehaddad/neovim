@@ -962,7 +962,7 @@ pub unsafe fn reset_last_sourcing() {
     }
 }
 
-/// @return  true if "SOURCING_NAME" differs from "msg_st().last_sourcing_name".
+/// @return  true if "SOURCING_NAME" differs from "last_sourcing_name".
 unsafe fn other_sourcing_name() -> bool {
     unsafe {
         let sname = sourcing_name();
@@ -3854,7 +3854,7 @@ pub unsafe fn msg_end() -> bool {
     }
 }
 
-/// Clear "msg_st().msg_ext_chunks" before flushing so that ui_flush() does not re-emit
+/// Clear "msg_ext_chunks" before flushing so that ui_flush() does not re-emit
 /// the same message recursively.
 unsafe fn msg_ext_init_chunks() -> Array {
     unsafe {
