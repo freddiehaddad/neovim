@@ -101,28 +101,68 @@ impl Drop for UIEventCallback {
     }
 }
 
-pub static mut uis: Vec<*mut RemoteUI> = Vec::new();
-static mut ui_ext: [bool; kUIExtCount] = [false; kUIExtCount];
-static mut ui_mode_idx: c_int = SHAPE_IDX_N;
-static mut cursor_row: c_int = 0;
-static mut cursor_col: c_int = 0;
-static mut pending_cursor_update: bool = false;
-static mut busy: c_int = 0;
-static mut pending_mode_info_update: bool = false;
-static mut pending_mode_update: bool = false;
-static mut cursor_grid_handle: handle_T = DEFAULT_GRID_HANDLE;
+struct UiState {
+    uis: Vec<*mut RemoteUI>,
+    ui_ext: [bool; kUIExtCount],
+    ui_mode_idx: c_int,
+    cursor_row: c_int,
+    cursor_col: c_int,
+    pending_cursor_update: bool,
+    busy: c_int,
+    pending_mode_info_update: bool,
+    pending_mode_update: bool,
+    cursor_grid_handle: handle_T,
+    ui_event_cbs: std::collections::BTreeMap<u32, UIEventCallback>,
+    ui_cb_ext: [bool; kUIExtCount],
+    has_mouse: bool,
+    pending_has_mouse: c_int,
+    pending_default_colors: bool,
+    beep_count: c_int,
+    beep_start_time: u64,
+    ui_flush_was_busy: bool,
+    ui_flush_cursor_was_obscured: bool,
+    #[cfg(debug_assertions)]
+    uilog_seen: usize,
+    #[cfg(debug_assertions)]
+    uilog_last_event: Option<&'static std::ffi::CStr>,
+}
 
-static mut ui_event_cbs: std::collections::BTreeMap<u32, UIEventCallback> =
-    std::collections::BTreeMap::new();
-static mut ui_cb_ext: [bool; kUIExtCount] = [false; kUIExtCount];
+impl UiState {
+    const fn new() -> Self {
+        Self {
+            uis: Vec::new(),
+            ui_ext: [false; kUIExtCount],
+            ui_mode_idx: SHAPE_IDX_N,
+            cursor_row: 0,
+            cursor_col: 0,
+            pending_cursor_update: false,
+            busy: 0,
+            pending_mode_info_update: false,
+            pending_mode_update: false,
+            cursor_grid_handle: DEFAULT_GRID_HANDLE,
+            ui_event_cbs: std::collections::BTreeMap::new(),
+            ui_cb_ext: [false; kUIExtCount],
+            has_mouse: false,
+            pending_has_mouse: -1,
+            pending_default_colors: false,
+            beep_count: 0,
+            beep_start_time: 0,
+            ui_flush_was_busy: false,
+            ui_flush_cursor_was_obscured: false,
+            #[cfg(debug_assertions)]
+            uilog_seen: 0,
+            #[cfg(debug_assertions)]
+            uilog_last_event: None,
+        }
+    }
+}
 
-static mut has_mouse: bool = false;
-static mut pending_has_mouse: c_int = -1;
-static mut pending_default_colors: bool = false;
-static mut beep_count: c_int = 0;
-static mut beep_start_time: u64 = 0;
-static mut ui_flush_was_busy: bool = false;
-static mut ui_flush_cursor_was_obscured: bool = false;
+static UI_STATE: GlobalState<UiState> = GlobalState::new(UiState::new());
+
+#[inline]
+unsafe fn ui_state() -> &'static mut UiState {
+    unsafe { &mut *UI_STATE.as_ptr() }
+}
 
 pub unsafe fn ui_init() {
     unsafe {
@@ -134,9 +174,9 @@ pub unsafe fn ui_init() {
 
 pub unsafe fn ui_free_all_mem() {
     unsafe {
-        let cbs_ptr = &raw mut ui_event_cbs;
+        let cbs_ptr = &raw mut ui_state().ui_event_cbs;
         (*cbs_ptr).clear();
-        uis = Vec::new();
+        ui_state().uis = Vec::new();
 
         multiqueue_free(resize_events);
     }
@@ -147,7 +187,7 @@ pub unsafe fn ui_rgb_attached() -> bool {
         if p_tgc != 0 {
             return true;
         }
-        let uis_ptr = &raw const uis;
+        let uis_ptr = &raw const ui_state().uis;
         for &ui in &*uis_ptr {
             let is_tui = (*ui).stdin_tty || (*ui).stdout_tty;
             if !is_tui && (*ui).rgb {
@@ -160,7 +200,7 @@ pub unsafe fn ui_rgb_attached() -> bool {
 
 pub unsafe fn ui_gui_attached() -> bool {
     unsafe {
-        let uis_ptr = &raw const uis;
+        let uis_ptr = &raw const ui_state().uis;
         for &ui in &*uis_ptr {
             let is_tui = (*ui).stdin_tty || (*ui).stdout_tty;
             if !is_tui {
@@ -173,7 +213,7 @@ pub unsafe fn ui_gui_attached() -> bool {
 
 pub unsafe fn ui_override() -> bool {
     unsafe {
-        let uis_ptr = &raw const uis;
+        let uis_ptr = &raw const ui_state().uis;
         for &ui in &*uis_ptr {
             if (*ui).r#override {
                 return true;
@@ -185,7 +225,7 @@ pub unsafe fn ui_override() -> bool {
 
 pub unsafe fn ui_active() -> usize {
     unsafe {
-        let uis_ptr = &raw const uis;
+        let uis_ptr = &raw const ui_state().uis;
         (*uis_ptr).len()
     }
 }
@@ -201,7 +241,7 @@ pub unsafe fn ui_refresh() {
         let active = ui_active() != 0;
         let mut ext_widgets = [active; kUIExtCount];
         let inclusive = ui_override();
-        let uis_ptr = &raw const uis;
+        let uis_ptr = &raw const ui_state().uis;
 
         for &ui in &*uis_ptr {
             width = width.min((*ui).width);
@@ -211,12 +251,12 @@ pub unsafe fn ui_refresh() {
             }
         }
 
-        cursor_row = 0;
-        cursor_col = 0;
-        pending_cursor_update = true;
+        ui_state().cursor_row = 0;
+        ui_state().cursor_col = 0;
+        ui_state().pending_cursor_update = true;
 
-        let ui_ext_ptr = (&raw mut ui_ext).cast::<bool>();
-        let ui_cb_ext_ptr = (&raw const ui_cb_ext).cast::<bool>();
+        let ui_ext_ptr = (&raw mut ui_state().ui_ext).cast::<bool>();
+        let ui_cb_ext_ptr = (&raw const ui_state().ui_cb_ext).cast::<bool>();
         let had_message = *ui_ext_ptr.add(kUIMessages);
 
         for (i, &widget) in ext_widgets.iter().enumerate().take(kUIExtCount) {
@@ -263,16 +303,16 @@ pub unsafe fn ui_refresh() {
         p_lz = save_p_lz;
 
         ui_mode_info_set();
-        pending_mode_update = true;
+        ui_state().pending_mode_update = true;
         ui_cursor_shape();
-        pending_has_mouse = -1;
+        ui_state().pending_has_mouse = -1;
     }
 }
 
 pub unsafe fn ui_pum_get_height() -> c_int {
     unsafe {
         let mut pum_height: c_int = 0;
-        let uis_ptr = &raw const uis;
+        let uis_ptr = &raw const ui_state().uis;
         for &ui in &*uis_ptr {
             let ui_pum_height = (*ui).pum_nlines;
             if ui_pum_height != 0 {
@@ -294,7 +334,7 @@ pub unsafe fn ui_pum_get_pos(
     pcol: *mut f64,
 ) -> bool {
     unsafe {
-        let uis_ptr = &raw const uis;
+        let uis_ptr = &raw const ui_state().uis;
         for &ui in &*uis_ptr {
             if !(*ui).pum_pos {
                 continue;
@@ -323,7 +363,7 @@ pub unsafe fn ui_schedule_refresh() {
 
 pub unsafe fn ui_default_colors_set() {
     unsafe {
-        pending_default_colors = true;
+        ui_state().pending_default_colors = true;
         if starting == 0 {
             ui_may_set_default_colors();
         }
@@ -332,8 +372,8 @@ pub unsafe fn ui_default_colors_set() {
 
 unsafe fn ui_may_set_default_colors() {
     unsafe {
-        if pending_default_colors {
-            pending_default_colors = false;
+        if ui_state().pending_default_colors {
+            ui_state().pending_default_colors = false;
             ui_call_default_colors_set(
                 Integer::from(normal_fg),
                 Integer::from(normal_bg),
@@ -347,8 +387,8 @@ unsafe fn ui_may_set_default_colors() {
 
 pub unsafe fn ui_busy_start() {
     unsafe {
-        let prev = busy;
-        busy += 1;
+        let prev = ui_state().busy;
+        ui_state().busy += 1;
         if prev == 0 {
             ui_call_busy_start();
         }
@@ -357,8 +397,8 @@ pub unsafe fn ui_busy_start() {
 
 pub unsafe fn ui_busy_stop() {
     unsafe {
-        busy -= 1;
-        if busy == 0 {
+        ui_state().busy -= 1;
+        if ui_state().busy == 0 {
             ui_call_busy_stop();
         }
     }
@@ -374,12 +414,12 @@ pub unsafe fn vim_beep(val: c_uint) {
 
         if (bo_flags & val) == 0 && (bo_flags & kOptBoFlagAll) == 0 {
             let now = os_hrtime();
-            if beep_start_time == 0 || now.wrapping_sub(beep_start_time) > 500_000_000 {
-                beep_count = 0;
-                beep_start_time = now;
+            if ui_state().beep_start_time == 0 || now.wrapping_sub(ui_state().beep_start_time) > 500_000_000 {
+                ui_state().beep_count = 0;
+                ui_state().beep_start_time = now;
             }
-            beep_count += 1;
-            if beep_count <= 3 {
+            ui_state().beep_count += 1;
+            if ui_state().beep_count <= 3 {
                 if p_vb != 0 {
                     ui_call_visual_bell();
                 } else {
@@ -397,7 +437,7 @@ pub unsafe fn vim_beep(val: c_uint) {
 
 pub unsafe fn do_autocmd_uienter_all() {
     unsafe {
-        let uis_ptr = &raw const uis;
+        let uis_ptr = &raw const ui_state().uis;
         for &ui in &*uis_ptr {
             do_autocmd_uienter((*ui).channel_id, true);
         }
@@ -406,14 +446,14 @@ pub unsafe fn do_autocmd_uienter_all() {
 
 pub unsafe fn ui_can_attach_more() -> bool {
     unsafe {
-        let uis_ptr = &raw const uis;
+        let uis_ptr = &raw const ui_state().uis;
         (*uis_ptr).len() < MAX_UI_COUNT
     }
 }
 
 pub unsafe fn ui_attach_impl(ui: *mut RemoteUI, chanid: u64) {
     unsafe {
-        let uis_ptr = &raw mut uis;
+        let uis_ptr = &raw mut ui_state().uis;
         if (*uis_ptr).len() >= MAX_UI_COUNT {
             std::process::abort();
         }
@@ -454,7 +494,7 @@ pub unsafe fn ui_attach_impl(ui: *mut RemoteUI, chanid: u64) {
 
 pub unsafe fn ui_detach_impl(ui: *mut RemoteUI, chanid: u64) {
     unsafe {
-        let uis_ptr = &raw mut uis;
+        let uis_ptr = &raw mut ui_state().uis;
         if (*uis_ptr).len() > MAX_UI_COUNT {
             std::process::abort();
         }
@@ -533,7 +573,7 @@ pub unsafe fn ui_line(
             );
             ui_call_flush();
             os_sleep(p_wd.unsigned_abs());
-            pending_cursor_update = true;
+            ui_state().pending_cursor_update = true;
         }
     }
 }
@@ -546,36 +586,36 @@ pub unsafe fn ui_cursor_goto(new_row: c_int, new_col: c_int) {
 
 pub unsafe fn ui_grid_cursor_goto(grid_handle: handle_T, new_row: c_int, new_col: c_int) {
     unsafe {
-        if new_row == cursor_row && new_col == cursor_col && grid_handle == cursor_grid_handle {
+        if new_row == ui_state().cursor_row && new_col == ui_state().cursor_col && grid_handle == ui_state().cursor_grid_handle {
             return;
         }
-        cursor_row = new_row;
-        cursor_col = new_col;
-        cursor_grid_handle = grid_handle;
-        pending_cursor_update = true;
+        ui_state().cursor_row = new_row;
+        ui_state().cursor_col = new_col;
+        ui_state().cursor_grid_handle = grid_handle;
+        ui_state().pending_cursor_update = true;
     }
 }
 
 pub unsafe fn ui_check_cursor_grid(grid_handle: handle_T) {
     unsafe {
-        if cursor_grid_handle == grid_handle {
-            pending_cursor_update = true;
+        if ui_state().cursor_grid_handle == grid_handle {
+            ui_state().pending_cursor_update = true;
         }
     }
 }
 
 pub unsafe fn ui_mode_info_set() {
     unsafe {
-        pending_mode_info_update = true;
+        ui_state().pending_mode_info_update = true;
     }
 }
 
 pub unsafe fn ui_current_row() -> c_int {
-    unsafe { cursor_row }
+    unsafe { ui_state().cursor_row }
 }
 
 pub unsafe fn ui_current_col() -> c_int {
-    unsafe { cursor_col }
+    unsafe { ui_state().cursor_col }
 }
 
 pub unsafe fn ui_flush() {
@@ -586,13 +626,13 @@ pub unsafe fn ui_flush() {
         }
 
         if (State & MODE_CMDLINE) == 0 && (*curwin).w_floating && (*curwin).w_config.hide {
-            if !ui_flush_was_busy {
+            if !ui_state().ui_flush_was_busy {
                 ui_call_busy_start();
-                ui_flush_was_busy = true;
+                ui_state().ui_flush_was_busy = true;
             }
-        } else if ui_flush_was_busy {
+        } else if ui_state().ui_flush_was_busy {
             ui_call_busy_stop();
-            ui_flush_was_busy = false;
+            ui_state().ui_flush_was_busy = false;
         }
 
         win_ui_flush(false);
@@ -602,16 +642,16 @@ pub unsafe fn ui_flush() {
         }
         msg_scroll_flush();
 
-        if pending_cursor_update {
+        if ui_state().pending_cursor_update {
             ui_call_grid_cursor_goto(
-                Integer::from(cursor_grid_handle),
-                Integer::from(cursor_row),
-                Integer::from(cursor_col),
+                Integer::from(ui_state().cursor_grid_handle),
+                Integer::from(ui_state().cursor_row),
+                Integer::from(ui_state().cursor_col),
             );
-            pending_cursor_update = false;
+            ui_state().pending_cursor_update = false;
             win_ui_flush(false);
         }
-        if pending_mode_info_update {
+        if ui_state().pending_mode_info_update {
             let mut arena = Arena {
                 cur_blk: ptr::null_mut(),
                 pos: 0,
@@ -621,33 +661,33 @@ pub unsafe fn ui_flush() {
             let enabled = *p_guicursor != NUL;
             ui_call_mode_info_set(enabled, style);
             arena_mem_free(arena_finish(&raw mut arena));
-            pending_mode_info_update = false;
+            ui_state().pending_mode_info_update = false;
         }
 
         let cursor_obscured = ui_cursor_is_behind_floatwin();
-        if (cursor_obscured != ui_flush_cursor_was_obscured || pending_mode_update) && starting == 0
+        if (cursor_obscured != ui_state().ui_flush_cursor_was_obscured || ui_state().pending_mode_update) && starting == 0
         {
             let idx = if cursor_obscured {
                 SHAPE_IDX_R
             } else {
-                ui_mode_idx
+                ui_state().ui_mode_idx
             };
             let full_name = (*(&raw const shape_table)
                 .cast::<cursorentry_T>()
                 .add(idx as usize))
             .full_name;
             ui_call_mode_change(cstr_as_string(full_name.as_ptr()), Integer::from(idx));
-            pending_mode_update = false;
-            ui_flush_cursor_was_obscured = cursor_obscured;
+            ui_state().pending_mode_update = false;
+            ui_state().ui_flush_cursor_was_obscured = cursor_obscured;
         }
 
-        if pending_has_mouse != c_int::from(has_mouse) {
-            if has_mouse {
+        if ui_state().pending_has_mouse != c_int::from(ui_state().has_mouse) {
+            if ui_state().has_mouse {
                 ui_call_mouse_on();
             } else {
                 ui_call_mouse_off();
             }
-            pending_has_mouse = c_int::from(has_mouse);
+            ui_state().pending_has_mouse = c_int::from(ui_state().has_mouse);
         }
         ui_call_flush();
 
@@ -659,7 +699,7 @@ pub unsafe fn ui_flush() {
 
 pub unsafe fn ui_check_mouse() {
     unsafe {
-        has_mouse = false;
+        ui_state().has_mouse = false;
         if *p_mouse == NUL {
             return;
         }
@@ -679,7 +719,7 @@ pub unsafe fn ui_check_mouse() {
         };
 
         if ui_mouse_has(checkfor) {
-            has_mouse = true;
+            ui_state().has_mouse = true;
         }
     }
 }
@@ -711,9 +751,9 @@ pub unsafe fn ui_cursor_shape_no_check_conceal() {
             return;
         }
         let new_mode_idx = cursor_get_mode_idx();
-        if new_mode_idx != ui_mode_idx {
-            ui_mode_idx = new_mode_idx;
-            pending_mode_update = true;
+        if new_mode_idx != ui_state().ui_mode_idx {
+            ui_state().ui_mode_idx = new_mode_idx;
+            ui_state().pending_mode_update = true;
         }
     }
 }
@@ -748,12 +788,12 @@ unsafe fn ui_cursor_is_behind_floatwin() -> bool {
 }
 
 pub unsafe fn ui_has(ext: UIExtension) -> bool {
-    unsafe { *(&raw const ui_ext).cast::<bool>().add(ext as usize) }
+    unsafe { *(&raw const ui_state().ui_ext).cast::<bool>().add(ext as usize) }
 }
 
 pub unsafe fn ui_array(arena: *mut Arena) -> Array {
     unsafe {
-        let uis_ptr = &raw const uis;
+        let uis_ptr = &raw const ui_state().uis;
         let mut all_uis = arena_array(arena, (*uis_ptr).len());
 
         for &ui in &*uis_ptr {
@@ -878,7 +918,7 @@ pub unsafe fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
 
         let mut handled = false;
         let fast = msg_ext_fast && name == c"msg_show";
-        let cbs_ptr = &raw const ui_event_cbs;
+        let cbs_ptr = &raw const ui_state().ui_event_cbs;
         let entries: Vec<(u32, LuaRef)> = (*cbs_ptr).iter().map(|(&k, v)| (k, v.cb)).collect();
         for (ns_id, cb_ref) in entries {
             if !(*cbs_ptr).contains_key(&ns_id) {
@@ -909,7 +949,7 @@ pub unsafe fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
         textlock = save_textlock;
 
         if !handled {
-            let uis_ptr = &raw const uis;
+            let uis_ptr = &raw const ui_state().uis;
             for &ui in &*uis_ptr {
                 remote_ui_event(ui, name, args);
             }
@@ -919,10 +959,10 @@ pub unsafe fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
 
 unsafe fn ui_cb_update_ext() {
     unsafe {
-        ui_cb_ext = [false; kUIExtCount];
-        let ui_cb_ext_ptr = (&raw mut ui_cb_ext).cast::<bool>();
+        ui_state().ui_cb_ext = [false; kUIExtCount];
+        let ui_cb_ext_ptr = (&raw mut ui_state().ui_cb_ext).cast::<bool>();
 
-        let cbs_ptr = &raw const ui_event_cbs;
+        let cbs_ptr = &raw const ui_state().ui_event_cbs;
         for i in 0..kUIGlobalCount {
             for event_cb in (*cbs_ptr).values() {
                 if event_cb.ext_widgets[i] {
@@ -950,7 +990,7 @@ pub unsafe fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: *mut bool) {
             event_cb.ext_widgets[kUICmdline] = true;
         }
 
-        let cbs_ptr = &raw mut ui_event_cbs;
+        let cbs_ptr = &raw mut ui_state().ui_event_cbs;
         (*cbs_ptr).insert(ns_id, event_cb);
 
         ui_cb_update_ext();
@@ -960,7 +1000,7 @@ pub unsafe fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: *mut bool) {
 
 pub unsafe fn ui_remove_cb(ns_id: u32, checkerr: bool) {
     unsafe {
-        let cbs_ptr = &raw mut ui_event_cbs;
+        let cbs_ptr = &raw mut ui_state().ui_event_cbs;
         let should_remove = if let Some(item) = (*cbs_ptr).get_mut(&ns_id) {
             if !checkerr {
                 true
@@ -986,10 +1026,6 @@ pub unsafe fn ui_remove_cb(ns_id: u32, checkerr: bool) {
     }
 }
 
-#[cfg(debug_assertions)]
-static mut UILOG_SEEN: usize = 0;
-#[cfg(debug_assertions)]
-static mut UILOG_LAST_EVENT: Option<&'static std::ffi::CStr> = None;
 
 pub unsafe fn ui_log(funname: &'static std::ffi::CStr) {
     #[cfg(not(debug_assertions))]
@@ -1000,10 +1036,10 @@ pub unsafe fn ui_log(funname: &'static std::ffi::CStr) {
             return;
         }
 
-        if UILOG_LAST_EVENT == Some(funname) {
-            UILOG_SEEN += 1;
+        if ui_state().uilog_last_event == Some(funname) {
+            ui_state().uilog_seen += 1;
         } else {
-            if UILOG_SEEN > 0 {
+            if ui_state().uilog_seen > 0 {
                 logmsg!(
                     LOGLVL_DBG,
                     c"UI: ".as_ptr(),
@@ -1011,8 +1047,8 @@ pub unsafe fn ui_log(funname: &'static std::ffi::CStr) {
                     -1,
                     true,
                     c"%s (+%zu times...)".as_ptr(),
-                    UILOG_LAST_EVENT.map_or(ptr::null(), |s| s.as_ptr()),
-                    UILOG_SEEN,
+                    ui_state().uilog_last_event.map_or(ptr::null(), |s| s.as_ptr()),
+                    ui_state().uilog_seen,
                 );
             }
             logmsg!(
@@ -1024,8 +1060,8 @@ pub unsafe fn ui_log(funname: &'static std::ffi::CStr) {
                 c"%s".as_ptr(),
                 funname.as_ptr(),
             );
-            UILOG_SEEN = 0;
-            UILOG_LAST_EVENT = Some(funname);
+            ui_state().uilog_seen = 0;
+            ui_state().uilog_last_event = Some(funname);
         }
     }
 }
@@ -1056,7 +1092,7 @@ macro_rules! ui_call_loop {
     ($cond:expr, $funname:literal, |$ui:ident| $call:expr) => {
         unsafe {
             let mut any_call = false;
-            let uis_ptr = &raw const uis;
+            let uis_ptr = &raw const ui_state().uis;
             for &$ui in &*uis_ptr {
                 if $cond {
                     $call;

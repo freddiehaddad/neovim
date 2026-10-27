@@ -47,6 +47,23 @@ pub(crate) const PROF_NONE: c_int = 0;
 use crate::errors::bytes_to_chars;
 use crate::event::r#loop::Loop;
 
+#[repr(transparent)]
+pub struct GlobalState<T>(std::cell::UnsafeCell<T>);
+
+unsafe impl<T> Sync for GlobalState<T> {}
+
+impl<T> GlobalState<T> {
+    #[inline]
+    pub const fn new(val: T) -> Self {
+        Self(std::cell::UnsafeCell::new(val))
+    }
+
+    #[inline]
+    pub const fn as_ptr(&self) -> *mut T {
+        self.0.get()
+    }
+}
+
 pub static mut main_loop: Loop = Loop::new();
 
 pub static mut g_stats: NvimStats = NvimStats {
