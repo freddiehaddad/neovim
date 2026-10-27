@@ -11,7 +11,7 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::{Buffer, Window};
 use crate::buffer::buf_T;
-use crate::charset::{NUL, transstr, vim_isprintc};
+use crate::charset::{NUL, transstr};
 use crate::decoration::{
     DECOR_ID_INVALID, DECOR_SIGN_HIGHLIGHT_INIT, DecorInline, DecorPriority, DecorVirtText,
     DecorVirtTextData, HLGroupID, NS, VirtLine, VirtText, VirtTextChunk, decor_free, decor_put_sh,
@@ -33,7 +33,7 @@ use crate::extmark::{
     kExtmarkNone, kExtmarkSign, kExtmarkVirtLines, kExtmarkVirtText,
 };
 use crate::globals::*;
-use crate::grid::schar_high;
+use crate::grid::{schar_from_cluster, schar_high};
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
 use crate::marktree::{
@@ -42,7 +42,7 @@ use crate::marktree::{
     MT_FLAG_DECOR_VIRT_LINES, MT_FLAG_DECOR_VIRT_TEXT_INLINE, MTPair, mt_decor, mt_inspect,
     mt_invalid, mt_invalidate, mt_no_undo, mt_paired, mt_right,
 };
-use crate::mbyte::{mb_string2cells, utfc_ptr2schar};
+use crate::mbyte::{mb_string2cells, utf_ClusterInfo, utf_ptr2StrCharInfo};
 use crate::memline::ml_get_buf_len;
 use crate::memory::{Arena};
 use crate::r#move::changed_window_setting;
@@ -896,9 +896,9 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                     let conceal_str = (*opts).conceal.data.string();
                     hl.flags |= kSHConceal;
                     if conceal_str.size > 0 {
-                        let mut ch: c_int = 0;
-                        hl.conceal_char = utfc_ptr2schar(conceal_str.data, &mut ch);
-                        if hl.conceal_char == 0 || !vim_isprintc(ch) {
+                        let ci = utf_ptr2StrCharInfo(conceal_str.data);
+                        let cli = utf_ClusterInfo(ci);
+                        if ci.chr.value < 0x20 || cli.cells > 2 {
                             api_set_error!(
                                 err,
                                 ErrorType::kErrorTypeValidation,
@@ -907,6 +907,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                             );
                             break 'error;
                         }
+                        hl.conceal_char = schar_from_cluster(ci, cli);
                     }
                 }
             }

@@ -81,7 +81,7 @@ use crate::lua::executor::{
 use crate::mapping::{MAPTYPE_MAP, REMAP_NONE, REMAP_YES, keymap_array, modify_keymap};
 use crate::mark::mark_get_global;
 use crate::math::{FAIL, xpopcount};
-use crate::mbyte::{mb_string2cells, utfc_ptr2len, utfc_ptr2schar};
+use crate::mbyte::{mb_string2cells, utf_ClusterInfo, utf_ptr2StrCharInfo};
 use crate::memline::ml_open;
 use crate::memory::{Arena, arena_alloc, arena_strdup};
 use crate::message::{
@@ -2977,19 +2977,18 @@ pub unsafe extern "C" fn nvim_eval_statusline(
         if ((*opts).is_set__eval_statusline_ & (1u64 << KEYSET_OPTIDX_eval_statusline__fillchar))
             != 0
         {
-            if *(*opts).fillchar.data == 0
-                || (utfc_ptr2len((*opts).fillchar.data) as usize) != (*opts).fillchar.size
-            {
+            let ci = utf_ptr2StrCharInfo((*opts).fillchar.data);
+            let cli = utf_ClusterInfo(ci);
+            if *ci.ptr == 0 || *cli.next.ptr != NUL || cli.cells != 1 {
                 api_err_exp(
                     err,
                     c"fillchar".as_ptr(),
-                    c"single character".as_ptr(),
+                    c"one single-width character".as_ptr(),
                     ptr::null(),
                 );
                 return result;
             }
-            let mut c: c_int = 0;
-            fillchar = utfc_ptr2schar((*opts).fillchar.data, &mut c);
+            fillchar = crate::grid::schar_from_cluster(ci, cli);
         }
 
         let mut use_bools = c_int::from((*opts).use_winbar) + c_int::from((*opts).use_tabline);

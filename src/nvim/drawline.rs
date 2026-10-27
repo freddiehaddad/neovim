@@ -1,6 +1,7 @@
 //! Functions for drawing window lines on the screen (`src/nvim/drawline.c`).
 //! This is the middle level, `drawscreen.rs` is the top and `grid.rs` the lower level.
 
+use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::{HLF_CLN, HLF_CLS, HLF_LNA, HLF_LNB, HLF_N, HLF_SC, SIGN_SHOW_MAX};
 use crate::autocmd::HLF_8;
 use crate::buffer::{bt_quickfix, buf_T, buf_meta_total};
@@ -33,9 +34,9 @@ use crate::extmark::{TriState, kFalse, kTrue};
 use crate::fold::get_foldtext;
 use crate::globals::*;
 use crate::grid::{
-    GridView, grid_adjust, grid_put_linebuf, linebuf_mirror, schar_T, schar_cells,
-    schar_from_ascii, schar_from_char, schar_get_adv, schar_get_ascii, schar_get_first_codepoint,
-    schar_len,
+    GridView, grid_adjust, grid_put_linebuf, linebuf_mirror, schar_T, schar_from_ascii,
+    schar_from_char, schar_from_cluster, schar_get, schar_get_adv, schar_get_ascii,
+    schar_invisible, schar_len,
 };
 use crate::highlight::{
     hl_attr, hl_blend_attrs, hl_combine_attr, hl_get_underline, syn_attr2entry, win_bg_attr,
@@ -49,8 +50,8 @@ use crate::r#match::{
     get_prevcol_hl_flag, get_search_match_hl, prepare_search_hl_line, update_search_hl,
 };
 use crate::mbyte::{
-    mb_charlen, mb_off_next, mb_ptr2char_adv, mb_string2cells, utf_ClusterInfo, utf_head_off,
-    utf_ptr2StrCharInfo, utf_ptr2cells, utfc_ptr2len, utfc_ptr2schar,
+    mb_charlen, mb_off_next, mb_string2cells, ptr2cells, utf_ClusterInfo, utf_head_off,
+    utf_ptr2StrCharInfo, utf_ptr2cells, utfc_ptr2len,
 };
 use crate::memline::{gchar_pos, ml_get_buf, ml_get_buf_len};
 use crate::memory::xstrlcpy;
@@ -60,7 +61,7 @@ use crate::option_vars::*;
 use crate::optionstr::CharBuf;
 use crate::os::fs::MAXPATHL;
 use crate::plines::{
-    CSType, CharSize, CharsizeArg, getvcol, getvvcol, init_charsize_arg,
+    CSType, CharInfo, CharSize, CharsizeArg, StrCharInfo, getvcol, getvvcol, init_charsize_arg,
     init_charsize_arg_skip_cur_text, vim_isbreak, win_charsize,
 };
 use crate::quickfix::qf_current_entry;
@@ -317,52 +318,6 @@ fn margin_columns_win(wp: *mut win_T, left_col: &mut c_int, right_col: &mut c_in
 ///
 /// If `*pp` is a double-width char and only one cell is left, emit a space,
 /// and don't advance `*pp`.
-///
-/// Handles composing chars.
-fn line_putchar(
-    buf: *mut buf_T,
-    pp: *mut *const c_char,
-    dest: *mut schar_T,
-    maxcells: c_int,
-    vcol: c_int,
-) -> c_int {
-    unsafe {
-        debug_assert!(*dest != 0);
-
-        let p = *pp;
-        let mut cells = utf_ptr2cells(p);
-        let c_len = utfc_ptr2len(p);
-        debug_assert!(maxcells > 0);
-        if cells > maxcells {
-            *dest = schar_from_ascii(b' ');
-            return 1;
-        }
-
-        if *p == TAB {
-            cells = tabstop_padding(vcol, (*buf).b_p_ts, &(*buf).b_p_vts_array);
-            cells = cells.min(maxcells);
-        }
-
-        if cells < maxcells && *dest.add(cells as usize) == 0 {
-            *dest.add(cells as usize) = schar_from_ascii(b' ');
-        }
-        if *p == TAB {
-            for c in 0..cells {
-                *dest.add(c as usize) = schar_from_ascii(b' ');
-            }
-        } else {
-            let mut u8c: c_int = 0;
-            *dest = utfc_ptr2schar(p, &mut u8c);
-            if cells > 1 {
-                *dest.add(1) = 0;
-            }
-        }
-
-        *pp = p.add(c_len as usize);
-        cells
-    }
-}
-
 fn draw_virt_text(
     wp: &mut win_T,
     buf: *mut buf_T,
@@ -495,7 +450,6 @@ fn draw_virt_text_item(
     mut eol_hl: bool,
 ) -> c_int {
     unsafe {
-        let mut virt_str: *const c_char = c"".as_ptr();
         let mut virt_attr: c_int = 0;
         let mut virt_pos: usize = 0;
         eol_hl &= vt
@@ -503,71 +457,97 @@ fn draw_virt_text_item(
             .and_then(|c| c.text.as_ref())
             .is_some_and(|s| s.as_bytes().is_empty());
 
+        let mut ci = StrCharInfo {
+            ptr: c"".as_ptr(),
+            chr: CharInfo { value: -1, len: 0 },
+        };
+
         while col < max_col {
-            if eol_hl && *virt_str == NUL && virt_pos == vt.len() {
-                virt_str = c" ".as_ptr();
-            }
-            if skip_cells >= 0 && *virt_str == NUL {
+            debug_assert!(skip_cells >= 0);
+            while *ci.ptr == NUL {
                 if virt_pos >= vt.len() {
-                    break;
-                }
-                virt_attr = 0;
-                virt_str = next_virt_text_chunk(vt, &mut virt_pos, &mut virt_attr);
-                if virt_str.is_null() {
-                    break;
-                }
-            }
-            while skip_cells > 0 && *virt_str != NUL {
-                let c_len = utfc_ptr2len(virt_str);
-                let cells = if *virt_str == TAB {
-                    tabstop_padding(vcol, (*buf).b_p_ts, &(*buf).b_p_vts_array)
+                    if eol_hl {
+                        ci = utf_ptr2StrCharInfo(c" ".as_ptr());
+                    } else {
+                        break;
+                    }
                 } else {
-                    utf_ptr2cells(virt_str)
-                };
-                skip_cells -= cells;
-                vcol += cells;
-                virt_str = virt_str.add(c_len as usize);
+                    virt_attr = 0;
+                    let next = next_virt_text_chunk(vt, &mut virt_pos, &mut virt_attr);
+                    if next.is_null() {
+                        break;
+                    }
+                    ci = utf_ptr2StrCharInfo(next);
+                }
             }
-            let mut draw_str: *const c_char = if skip_cells < 0 {
-                c" ".as_ptr()
-            } else {
-                virt_str
-            };
-            if *draw_str == NUL {
-                continue;
+            if *ci.ptr == NUL {
+                break;
             }
-            debug_assert!(skip_cells <= 0);
+
+            let cli = utf_ClusterInfo(ci);
+            let mut draw_cells = cli.cells;
+            if ci.chr.value == c_int::from(TAB) {
+                draw_cells = tabstop_padding(vcol, (*buf).b_p_ts, &(*buf).b_p_vts_array);
+            }
+            if skip_cells > 0 {
+                skip_cells -= draw_cells;
+                vcol += draw_cells;
+                ci = cli.next;
+                if skip_cells < 0 {
+                    draw_cells = -skip_cells;
+                } else {
+                    continue;
+                }
+            }
+
+            let maxcells = max_col - col;
+            let mut sc = schar_from_ascii(b' ');
+            if skip_cells >= 0 && ci.chr.value != c_int::from(TAB) && cli.cells <= maxcells {
+                sc = schar_from_cluster(ci, cli);
+            }
+            draw_cells = draw_cells.min(maxcells);
+
             let mut through = false;
             let attr = if hl_mode == kHlModeCombine {
                 hl_combine_attr(g_st().linebuf_attr[col as usize], virt_attr)
             } else if hl_mode == kHlModeBlend {
-                through = *draw_str == b' ' as c_char;
+                through = schar_invisible(sc);
                 hl_blend_attrs(g_st().linebuf_attr[col as usize], virt_attr, &raw mut through)
             } else {
                 virt_attr
             };
-            let mut dummy: [schar_T; 2] = [schar_from_ascii(b' '), schar_from_ascii(b' ')];
-            let maxcells = max_col - col;
+
             if !through && g_st().linebuf_char[col as usize] == 0 {
                 debug_assert!(col > 0);
                 g_st().linebuf_char[(col - 1) as usize] = schar_from_ascii(b' ');
                 g_st().linebuf_char[col as usize] = schar_from_ascii(b' ');
             }
-            let dest = if through {
-                dummy.as_mut_ptr()
-            } else {
-                &raw mut g_st().linebuf_char[col as usize]
-            };
-            let cells = line_putchar(buf, &raw mut draw_str, dest, maxcells, vcol);
-            for _ in 0..cells {
+
+            if !through {
+                if sc == schar_from_ascii(b' ') {
+                    for c in 0..draw_cells {
+                        g_st().linebuf_char[(col + c) as usize] = schar_from_ascii(b' ');
+                    }
+                } else {
+                    debug_assert!(draw_cells <= 2);
+                    g_st().linebuf_char[col as usize] = sc;
+                    if draw_cells == 2 {
+                        g_st().linebuf_char[(col + 1) as usize] = 0;
+                    }
+                }
+                if draw_cells < maxcells && g_st().linebuf_char[(col + draw_cells) as usize] == 0 {
+                    g_st().linebuf_char[(col + draw_cells) as usize] = schar_from_ascii(b' ');
+                }
+            }
+            for _ in 0..draw_cells {
                 g_st().linebuf_attr[col as usize] = attr;
                 col += 1;
             }
             if skip_cells < 0 {
-                skip_cells += 1;
+                skip_cells = 0;
             } else {
-                vcol += cells;
-                virt_str = draw_str;
+                vcol += draw_cells;
+                ci = cli.next;
             }
         }
         col
@@ -584,16 +564,23 @@ fn draw_col_buf(
     inc_vcol: bool,
 ) {
     unsafe {
-        let mut ptr = text;
+        let mut ci = utf_ptr2StrCharInfo(text);
         let end = text.add(len);
-        while ptr < end && wlv.off < (*wp).w_view_width {
-            let cells = line_putchar(
-                (*wp).w_buffer,
-                &raw mut ptr,
-                &raw mut g_st().linebuf_char[wlv.off as usize],
-                (*wp).w_view_width - wlv.off,
-                wlv.off,
-            );
+        while ci.ptr < end && wlv.off < (*wp).w_view_width {
+            let cli = utf_ClusterInfo(ci);
+            let maxcells = (*wp).w_view_width - wlv.off;
+            debug_assert!(cli.cells <= 2 && ci.chr.value >= 0x20);
+            let mut cells = cli.cells;
+            if cli.cells > maxcells {
+                g_st().linebuf_char[wlv.off as usize] = schar_from_ascii(b' ');
+                cells = 1;
+            } else {
+                g_st().linebuf_char[wlv.off as usize] = schar_from_cluster(ci, cli);
+                if cells == 2 {
+                    g_st().linebuf_char[(wlv.off + 1) as usize] = 0;
+                }
+            }
+
             let mut myattr = attr;
             if inc_vcol {
                 advance_color_col(wlv, wlv.vcol);
@@ -616,6 +603,7 @@ fn draw_col_buf(
                 };
                 wlv.off += 1;
             }
+            ci = cli.next;
         }
     }
 }
@@ -1343,6 +1331,18 @@ fn get_rightmost_vcol(wp: &mut win_T, color_cols: &[c_int]) -> c_int {
         ret
 }
 
+#[inline]
+fn schar_get_single_width(mb_schar: schar_T) -> c_int {
+    #[cfg(debug_assertions)]
+    {
+        let mut sc_buf = [0 as c_char; MAX_SCHAR_SIZE];
+        schar_get(sc_buf.as_mut_ptr(), mb_schar);
+        debug_assert_eq!(ptr2cells(sc_buf.as_ptr()), 1);
+    }
+    let _ = mb_schar;
+    1
+}
+
 /// Display line "lnum" of window "wp" on the screen.
 pub fn win_line(
     wp: &mut win_T,
@@ -1393,9 +1393,8 @@ pub fn win_line(
         let mut cur_checked_col: c_int = 0;
         let mut extra_check = false;
         let mut multi_attr: c_int = 0;
-        let mut mb_l: c_int;
-        let mut mb_c: c_int = 0;
         let mut mb_schar: schar_T;
+        let mut mb_schar_width: c_int = 0;
         let mut change_start: c_int = MAXCOL;
         let mut change_end: c_int = -1;
         let mut in_multispace = false;
@@ -2392,20 +2391,23 @@ pub fn win_line(
                         } else {
                             wlv.sc_extra
                         };
-                        mb_c = schar_get_first_codepoint(mb_schar);
+                        mb_schar_width = schar_get_single_width(mb_schar);
                         wlv.n_extra -= 1;
                     } else {
                         debug_assert!(!wlv.p_extra.is_null());
-                        mb_l = utfc_ptr2len(wlv.p_extra);
-                        mb_schar = utfc_ptr2schar(wlv.p_extra, &mut mb_c);
+                        let ci = utf_ptr2StrCharInfo(wlv.p_extra);
+                        let cli = utf_ClusterInfo(ci);
+                        let mut mb_l = cli.next.ptr.offset_from(ci.ptr) as c_int;
+                        mb_schar = schar_from_cluster(ci, cli);
+                        mb_schar_width = cli.cells;
                         if mb_l > wlv.n_extra || mb_l == 0 {
                             mb_l = 1;
                         }
 
-                        if wlv.col >= view_width - 1 && schar_cells(mb_schar) == 2 {
-                            mb_c = b'>' as c_int;
+                        if wlv.col >= view_width - 1 && mb_schar_width == 2 {
                             mb_l = 1;
-                            mb_schar = schar_from_ascii(mb_c as u8);
+                            mb_schar = schar_from_ascii(b'>');
+                            mb_schar_width = 1;
                             multi_attr = win_hl_attr(&raw mut *wp, HLF_AT);
 
                             if wlv.cul_attr != 0 {
@@ -2429,7 +2431,7 @@ pub fn win_line(
                             wlv.sc_extra = schar_from_ascii(MB_FILLER_CHAR);
                             wlv.sc_final = 0;
                             mb_schar = schar_from_ascii(b' ');
-                            mb_c = b' ' as c_int;
+                            mb_schar_width = 1;
                             wlv.n_attr += 1;
                             wlv.extra_attr = win_hl_attr(&raw mut *wp, HLF_AT);
                         }
@@ -2466,38 +2468,36 @@ pub fn win_line(
                         }
                     }
                 } else if wlv.filler_todo > 0 {
-                    mb_c = b' ' as c_int;
                     mb_schar = schar_from_ascii(b' ');
+                    mb_schar_width = 1;
                 } else if has_foldtext || (has_fold && wlv.col >= view_width) {
                     mb_schar = 0;
                 } else {
                     let mut prev_ptr = ptr;
 
-                    let mut c0 = c_int::from(*ptr as u8);
-                    if c0 == 0 {
+                    if *ptr == NUL {
                         wlv.skip_cells = 0;
                     }
 
-                    mb_l = utfc_ptr2len(ptr);
-                    mb_schar = utfc_ptr2schar(ptr, &mut mb_c);
+                    let ci = utf_ptr2StrCharInfo(ptr);
+                    let cli = utf_ClusterInfo(ci);
+                    let mut mb_l = cli.next.ptr.offset_from(ci.ptr) as c_int;
+                    let mb_c = ci.chr.value;
+                    let mut unprintable_ascii = false;
 
-                    if mb_l > 1 && mb_c < 0x80 {
-                        c0 = mb_c;
-                    }
-
-                    if (mb_l == 1 && c0 >= 0x80)
+                    if mb_c < 0
                         || (mb_l >= 1 && mb_c == 0)
                         || (mb_l > 1 && !vim_isprintc(mb_c))
                     {
                         let extra_ptr = (&raw mut wlv.extra).cast::<c_char>();
-                        transchar_hex(extra_ptr, mb_c);
+                        transchar_hex(extra_ptr, if mb_c < 0 { c_int::from(*ptr as u8) } else { mb_c });
                         if wp.w_onebuf_opt.wo_rl != 0 {
                             rl_mirror_ascii(extra_ptr, ptr::null_mut());
                         }
 
-                        wlv.p_extra = extra_ptr;
-                        mb_c = mb_ptr2char_adv((&raw mut wlv.p_extra).cast::<*const c_char>());
-                        mb_schar = schar_from_char(mb_c);
+                        wlv.p_extra = extra_ptr.add(1);
+                        mb_schar = schar_from_ascii(wlv.extra[0] as u8);
+                        mb_schar_width = 1;
                         wlv.n_extra = CStr::from_ptr(wlv.p_extra).to_bytes().len() as c_int;
                         wlv.sc_extra = 0;
                         wlv.sc_final = 0;
@@ -2508,10 +2508,17 @@ pub fn win_line(
                         }
                     } else if mb_l == 0 {
                         mb_l = 1;
+                        mb_schar = 0;
+                        mb_schar_width = 1;
+                        unprintable_ascii = true;
+                    } else {
+                        mb_schar = schar_from_cluster(ci, cli);
+                        mb_schar_width = cli.cells;
+                        unprintable_ascii = mb_c < 0x80 && !vim_isprintc(mb_c);
                     }
-                    if wlv.col >= view_width - 1 && schar_cells(mb_schar) == 2 {
+                    if wlv.col >= view_width - 1 && mb_schar_width == 2 && !unprintable_ascii {
                         mb_schar = schar_from_ascii(b'>');
-                        mb_c = b'>' as c_int;
+                        mb_schar_width = 1;
                         mb_l = 1;
                         multi_attr = win_hl_attr(&raw mut *wp, HLF_AT);
                         ptr = ptr.sub(1);
@@ -2525,7 +2532,7 @@ pub fn win_line(
                         wlv.sc_extra = schar_from_ascii(MB_FILLER_CHAR);
                         wlv.sc_final = 0;
                         mb_schar = schar_from_ascii(b' ');
-                        mb_c = b' ' as c_int;
+                        mb_schar_width = 1;
                         mb_l = 1;
                         if area_attr == 0 && search_attr == 0 {
                             wlv.n_attr = wlv.n_extra + 1;
@@ -2688,7 +2695,7 @@ pub fn win_line(
                             wlv.need_lbr = true;
                         }
                         if wp.w_onebuf_opt.wo_lbr != 0
-                            && c0 == mb_c
+                            && mb_c > 0
                             && mb_c < 128
                             && wlv.need_lbr
                             && vim_isbreak(mb_c)
@@ -2700,15 +2707,15 @@ pub fn win_line(
                             let mut csarg = CharsizeArg::new();
                             let cstype =
                                 init_charsize_arg_skip_cur_text(&mut csarg, wp, lnum, line);
-                            let ci = utf_ptr2StrCharInfo(p);
-                            let cli = utf_ClusterInfo(ci);
+                            let cs_ci = utf_ptr2StrCharInfo(p);
+                            let cs_cli = utf_ClusterInfo(cs_ci);
                             wlv.n_extra = win_charsize(
                                 cstype,
                                 wlv.vcol,
                                 p,
-                                ci.chr.value,
+                                cs_ci.chr.value,
                                 &raw mut csarg,
-                                cli.cells,
+                                cs_cli.cells,
                             )
                             .width
                                 - 1;
@@ -2743,8 +2750,9 @@ pub fn win_line(
                                     fix_for_boguscols(&mut wlv);
                                 }
                                 if wp.w_onebuf_opt.wo_list == 0 {
-                                    mb_c = b' ' as c_int;
-                                    mb_schar = schar_from_ascii(mb_c as u8);
+                                    mb_schar = schar_from_ascii(b' ');
+                                    mb_schar_width = 1;
+                                    unprintable_ascii = false;
                                 }
                             }
                         }
@@ -2787,7 +2795,7 @@ pub fn win_line(
                             wlv.n_attr = 1;
                             wlv.extra_attr = win_hl_attr(&raw mut *wp, HLF_0);
                             saved_attr2 = wlv.char_attr;
-                            mb_c = schar_get_first_codepoint(mb_schar);
+                            mb_schar_width = schar_get_single_width(mb_schar);
                         }
 
                         if mb_c == b' ' as c_int
@@ -2823,11 +2831,11 @@ pub fn win_line(
                             wlv.n_attr = 1;
                             wlv.extra_attr = win_hl_attr(&raw mut *wp, HLF_0);
                             saved_attr2 = wlv.char_attr;
-                            mb_c = schar_get_first_codepoint(mb_schar);
+                            mb_schar_width = schar_get_single_width(mb_schar);
                         }
                     }
 
-                    if !vim_isprintc(mb_c) {
+                    if unprintable_ascii {
                         if mb_c == c_int::from(TAB)
                             && (wp.w_onebuf_opt.wo_list == 0 || wp.w_p_lcs_chars.tab1 != 0)
                         {
@@ -2879,8 +2887,6 @@ pub fn win_line(
                                     if wlv.n_extra > 0 {
                                         len += (wlv.n_extra - tab_len) as usize;
                                     }
-                                    mb_schar = lcs_tab1;
-                                    let _ = schar_get_first_codepoint(mb_schar);
                                     let mut p = get_extra_buf(len + 1);
                                     ptr::write_bytes(p, b' ', len);
                                     *p.add(len) = NUL;
@@ -2939,7 +2945,7 @@ pub fn win_line(
                                 wlv.sc_extra = schar_from_ascii(b' ');
                                 mb_schar = schar_from_ascii(b' ');
                             }
-                            let _ = schar_get_first_codepoint(mb_schar);
+                            mb_schar_width = schar_get_single_width(mb_schar);
                         } else if mb_schar == 0
                             && (wp.w_onebuf_opt.wo_list != 0
                                 || (wlv.fromcol >= 0
@@ -2969,7 +2975,7 @@ pub fn win_line(
                             ptr = ptr.sub(1);
                             wlv.extra_attr = win_hl_attr(&raw mut *wp, HLF_AT);
                             wlv.n_attr = 1;
-                            let _ = schar_get_first_codepoint(mb_schar);
+                            mb_schar_width = schar_get_single_width(mb_schar);
                         } else if mb_schar != 0 {
                             let extra_ptr = (&raw mut wlv.extra).cast::<c_char>();
                             xstrlcpy(
@@ -2986,8 +2992,9 @@ pub fn win_line(
                             }
                             wlv.sc_extra = 0;
                             wlv.sc_final = 0;
+                            mb_schar = schar_from_ascii(*wlv.p_extra as u8);
+                            mb_schar_width = 1;
                             if wp.w_onebuf_opt.wo_lbr != 0 {
-                                mb_c = c_int::from(*wlv.p_extra as u8);
                                 let p = get_extra_buf((wlv.n_extra as usize) + 1);
                                 ptr::write_bytes(p, b' ', wlv.n_extra as usize);
                                 let rem_len = CStr::from_ptr(wlv.p_extra)
@@ -2999,13 +3006,11 @@ pub fn win_line(
                                 wlv.p_extra = p;
                             } else {
                                 wlv.n_extra = opt_vars().dy_escape_width - 1;
-                                mb_c = c_int::from(*wlv.p_extra as u8);
                                 wlv.p_extra = wlv.p_extra.add(1);
                             }
                             wlv.n_attr = wlv.n_extra + 1;
                             wlv.extra_attr = win_hl_attr(&raw mut *wp, HLF_8);
                             saved_attr2 = wlv.char_attr;
-                            mb_schar = schar_from_ascii(mb_c as u8);
                         } else if g_st().Visual.active
                             && (g_st().Visual.mode == Ctrl_V || g_st().Visual.mode == b'v' as c_int)
                             && virtual_active(&raw mut *wp)
@@ -3013,7 +3018,8 @@ pub fn win_line(
                             && wlv.vcol < wlv.tocol
                             && wlv.col < view_width
                         {
-                            mb_schar = schar_from_char(b' ' as c_int);
+                            mb_schar = schar_from_ascii(b' ');
+                            mb_schar_width = 1;
                             ptr = ptr.sub(1);
                         }
                     }
@@ -3037,7 +3043,7 @@ pub fn win_line(
                                 || wp.w_onebuf_opt.wo_cole == 1)
                             && wp.w_onebuf_opt.wo_cole != 3
                         {
-                            if schar_cells(mb_schar) > 1 {
+                            if mb_schar_width > 1 {
                                 wlv.n_extra += 1;
                             }
 
@@ -3056,7 +3062,9 @@ pub fn win_line(
                                 mb_schar = schar_from_ascii(b' ');
                             }
 
-                            let _ = schar_get_first_codepoint(mb_schar);
+                            let mut sc_buf = [0 as c_char; MAX_SCHAR_SIZE];
+                            schar_get(sc_buf.as_mut_ptr(), mb_schar);
+                            mb_schar_width = utf_ptr2cells(sc_buf.as_ptr());
 
                             prev_syntax_id = syntax_seqnr;
 
@@ -3126,7 +3134,7 @@ pub fn win_line(
                     && mb_schar != 0
                 {
                     lcs_prec_todo = 0;
-                    if schar_cells(mb_schar) > 1 {
+                    if mb_schar_width > 1 {
                         wlv.sc_extra = schar_from_ascii(MB_FILLER_CHAR);
                         wlv.sc_final = 0;
                         if wlv.n_extra > 0 {
@@ -3141,7 +3149,7 @@ pub fn win_line(
                         wlv.extra_attr = win_hl_attr(&raw mut *wp, HLF_AT);
                     }
                     mb_schar = wp.w_p_lcs_chars.prec;
-                    let _ = schar_get_first_codepoint(mb_schar);
+                    mb_schar_width = schar_get_single_width(mb_schar);
                     saved_attr3 = wlv.char_attr;
                     wlv.char_attr = win_hl_attr(&raw mut *wp, HLF_AT);
                     n_attr3 = 1;
@@ -3342,8 +3350,8 @@ pub fn win_line(
                             && has_more_inline_virt(&wlv, ptr.offset_from(line)))
                     {
                         mb_schar = lcs_ext;
+                        mb_schar_width = schar_get_single_width(mb_schar);
                         wlv.char_attr = win_hl_attr(&raw mut *wp, HLF_AT);
-                        let _ = schar_get_first_codepoint(mb_schar);
                     }
                 }
 
@@ -3412,7 +3420,7 @@ pub fn win_line(
 
                     g_st().linebuf_vcol[wlv.off as usize] = wlv.vcol;
 
-                    if schar_cells(mb_schar) > 1 {
+                    if mb_schar_width > 1 {
                         wlv.off += 1;
                         wlv.col += 1;
                         g_st().linebuf_char[wlv.off as usize] = 0;
@@ -3428,7 +3436,7 @@ pub fn win_line(
                     wlv.off += 1;
                     wlv.col += 1;
                 } else if wp.w_onebuf_opt.wo_cole > 0 && is_concealing {
-                    let concealed_wide = schar_cells(mb_schar) > 1;
+                    let concealed_wide = mb_schar_width > 1;
 
                     wlv.skip_cells -= 1;
                     wlv.vcol_off_co += 1;

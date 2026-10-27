@@ -101,6 +101,7 @@ pub struct StrCharInfo {
 pub struct ClusterInfo {
     pub next: StrCharInfo,
     pub cells: c_int,
+    pub first_compose: bool,
 }
 
 #[inline]

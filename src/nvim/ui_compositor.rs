@@ -4,8 +4,8 @@
 use crate::api::private::validate::NvimString;
 use crate::globals::*;
 use crate::grid::{
-    ScreenGrid, kOptRdbFlagInvalid, sattr_T, schar_T, schar_from_ascii, schar_from_buf,
-    schar_from_char,
+    ScreenGrid, braille_space, kOptRdbFlagInvalid, sattr_T, schar_T, schar_from_ascii,
+    schar_from_buf, schar_from_char, schar_invisible,
 };
 use crate::highlight::hl_blend_attrs;
 use crate::highlight_group::{syn_check_group, syn_id2attr};
@@ -114,7 +114,8 @@ pub fn ui_comp_syn_init() {
 
 pub fn ui_comp_attach(ui: &mut RemoteUI) {
     comp().composed_uis += 1;
-        ui.composed = true;
+    ui.composed = true;
+    debug_assert_eq!(braille_space, schar_from_char(0x2800));
 }
 
 pub fn ui_comp_detach(ui: &mut RemoteUI) {
@@ -486,20 +487,16 @@ fn compose_line(
             }
 
             if (*grid).blending {
-                let braille_blank = schar_from_char(0x2800);
                 let mut i = col - (startcol as c_int);
                 let limit = until - (startcol as c_int);
                 let end_rel = (endcol - startcol) as c_int;
                 while i < limit {
                     let mut width: c_int = 1;
                     let idx = i as usize;
-                    let mut thru = (*lbuf.add(idx) == schar_from_ascii(b' ')
-                        || *lbuf.add(idx) == braille_blank)
-                        && *bg_line.add(idx) != 0;
+                    let mut thru = schar_invisible(*lbuf.add(idx)) && *bg_line.add(idx) != 0;
                     if i + 1 < end_rel && *bg_line.add(idx + 1) == 0 {
                         width = 2;
-                        thru &= *lbuf.add(idx + 1) == schar_from_ascii(b' ')
-                            || *lbuf.add(idx + 1) == braille_blank;
+                        thru &= schar_invisible(*lbuf.add(idx + 1));
                     }
                     *abuf.add(idx) =
                         hl_blend_attrs(*bg_attrs.add(idx), *abuf.add(idx), &raw mut thru)

@@ -27,7 +27,7 @@ use crate::fold::{
     newFoldLevel,
 };
 use crate::globals::*;
-use crate::grid::{schar_T, schar_from_char, schar_from_str};
+use crate::grid::{schar_T, schar_from_char, schar_from_cluster, schar_from_str};
 use crate::highlight_group::{get_highlight_name, init_highlight};
 use crate::indent::{briopt_check, kOptBreakindentopt, tabstop_set};
 use crate::indent_c::parse_cino;
@@ -35,7 +35,10 @@ use crate::insexpand::{LSIZE, set_cpt_callbacks};
 use crate::lua::converter::{Boolean, FieldHashfn, KeySetLink, OptKeySet};
 use crate::mark::{fmark_T, fmarkv_T};
 use crate::math::{FAIL, OK};
-use crate::mbyte::{enc_canonize, get_encoding_name, utf_ptr2char, utfc_ptr2len, utfc_ptr2schar};
+use crate::mbyte::{
+    enc_canonize, get_encoding_name, utf_ClusterInfo, utf_ptr2StrCharInfo, utf_ptr2char,
+    utfc_ptr2len,
+};
 use crate::memline::ml_setflags;
 use crate::message::{kOptMessagesopt, msg_grid_validate, verbose_open, verbose_stop};
 use crate::r#move::validate_virtcol;
@@ -3646,14 +3649,13 @@ fn get_encoded_char_adv(p: *mut *const c_char) -> schar_T {
             };
         }
 
-        let clen = utfc_ptr2len(s);
-        let mut firstc: c_int = 0;
-        let c = utfc_ptr2schar(s, &mut firstc);
-        *p = (*p).add(clen as usize);
-        if (clen == 1 && firstc > 127) || char2cells(firstc) > 1 {
+        let ci = utf_ptr2StrCharInfo(s);
+        let cli = utf_ClusterInfo(ci);
+        *p = cli.next.ptr;
+        if cli.cells > 1 {
             0
         } else {
-            c
+            schar_from_cluster(ci, cli)
         }
     }
 }

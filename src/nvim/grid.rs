@@ -6,13 +6,13 @@ use crate::decoration::{VirtTextChunk, decor_check_invalid_glyphs, next_virt_tex
 use crate::globals::*;
 use crate::highlight::{hl_apply_winblend, hl_combine_attr};
 use crate::mbyte::{
-    mb_string2cells, ptr2cells, utf_ClusterInfo_len, utf_char2bytes, utf_char2len, utf_cp_bounds,
+    mb_string2cells, utf_ClusterInfo_len, utf_char2bytes, utf_char2len, utf_cp_bounds,
     utf_ptr2StrCharInfo_len, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
-    utfc_ptrlen2schar,
 };
 use crate::msgpack_rpc::packer::handle_T;
 use crate::option_vars::*;
 use crate::optionstr::check_chars_options;
+use crate::plines::{ClusterInfo, StrCharInfo};
 use crate::ui::{
     ui_call_grid_resize, ui_call_grid_scroll, ui_check_cursor_grid, ui_grid_cursor_goto, ui_has,
     ui_line,
@@ -312,21 +312,6 @@ pub fn schar_len(sc: schar_T) -> usize {
     }
 }
 
-pub fn schar_cells(sc: schar_T) -> c_int {
-    #[cfg(target_endian = "big")]
-        if (sc & 0x80FF_FFFF) == 0 {
-            return 1;
-        }
-        #[cfg(not(target_endian = "big"))]
-        if sc < 0x80 {
-            return 1;
-        }
-
-        let mut sc_buf = [0 as c_char; MAX_SCHAR_SIZE];
-        schar_get(sc_buf.as_mut_ptr(), sc);
-        ptr2cells(sc_buf.as_ptr())
-}
-
 #[inline]
 fn schar_get_first_byte(sc: schar_T) -> c_char {
     unsafe {
@@ -587,16 +572,12 @@ pub fn grid_line_puts(
         while col < max_col && len > 0 && *ci.ptr != NUL {
             let cli = utf_ClusterInfo_len(ci, &mut len);
             let mut mbyte_cells = cli.cells;
-            let mut firstc: c_int = 0;
-            let mut schar = utfc_ptrlen2schar(
-                ci.ptr,
-                cli.next.ptr.offset_from(ci.ptr) as c_int,
-                &mut firstc,
-            );
-            if mbyte_cells > 2 || schar == 0 {
+            let mut schar = if mbyte_cells > 2 || ci.chr.value < 0x20 {
                 mbyte_cells = 1;
-                schar = schar_from_char(0xFFFD);
-            }
+                schar_from_char(0xFFFD)
+            } else {
+                schar_from_cluster(ci, cli)
+            };
 
             if col + mbyte_cells > max_col {
                 schar = schar_from_ascii(b'>');
@@ -1503,11 +1484,75 @@ pub fn get_win_by_grid_handle(handle: handle_T) -> *mut win_T {
 /// Put a unicode character in a screen cell (`schar_from_char`).
 pub fn schar_from_char(mut c: c_int) -> schar_T {
     let mut sc: schar_T = 0;
-        if c >= 0x20_0000 {
-            c = 0xFFFD;
+    if c >= 0x20_0000 {
+        c = 0xFFFD;
+    }
+    utf_char2bytes(c, (&raw mut sc).cast::<c_char>());
+    sc
+}
+
+#[cfg(target_endian = "big")]
+pub const braille_space: schar_T = 0xe2a0_8000;
+#[cfg(not(target_endian = "big"))]
+pub const braille_space: schar_T = 0x0080_a0e2;
+
+#[inline]
+pub fn schar_invisible(sc: schar_T) -> bool {
+    sc == schar_from_ascii(b' ') || sc == braille_space
+}
+
+pub fn schar_from_cluster_impl(
+    buf: *const c_char,
+    mut len: usize,
+    first_compose: bool,
+) -> schar_T {
+    unsafe {
+        let maxlen = MAX_SCHAR_SIZE - 1 - usize::from(first_compose);
+        if len > maxlen {
+            len = maxlen;
+            while (*buf.add(len).cast::<u8>() & 0xC0) != 0xC0 {
+                len -= 1;
+            }
         }
-        utf_char2bytes(c, (&raw mut sc).cast::<c_char>());
-        sc
+
+        if first_compose {
+            let mut cbuf = [0 as c_char; MAX_SCHAR_SIZE];
+            cbuf[0] = b' ' as c_char;
+            ptr::copy_nonoverlapping(buf, cbuf.as_mut_ptr().add(1), len);
+            schar_from_buf(cbuf.as_ptr(), len + 1)
+        } else {
+            schar_from_buf(buf, len)
+        }
+    }
+}
+
+#[inline]
+pub fn schar_from_cluster(ci: StrCharInfo, cli: ClusterInfo) -> schar_T {
+    assert!(ci.chr.value >= 0);
+    let len = unsafe { cli.next.ptr.offset_from(ci.ptr) as usize };
+    if len == 1 {
+        return schar_from_ascii(ci.chr.value as u8);
+    }
+    if cli.first_compose || len > 4 {
+        return schar_from_cluster_impl(ci.ptr, len, cli.first_compose);
+    }
+    let mut sc: schar_T = 0;
+    unsafe {
+        ptr::copy_nonoverlapping(ci.ptr, (&raw mut sc).cast::<c_char>(), len);
+    }
+    sc
+}
+
+#[cfg(test)]
+pub fn unittest_schar_from_cluster(buf: *const c_char, firstc: &mut c_int) -> schar_T {
+    let ci = crate::mbyte::utf_ptr2StrCharInfo(buf);
+    let cli = crate::mbyte::utf_ClusterInfo(ci);
+    *firstc = ci.chr.value;
+    if ci.chr.value >= 0 {
+        schar_from_cluster(ci, cli)
+    } else {
+        0
+    }
 }
 
 #[cfg(test)]

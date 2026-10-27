@@ -16,7 +16,7 @@ use crate::eval::typval::{
 use crate::event::r#loop::uv_translate_sys_error;
 use crate::fileio::{call_iconv, call_iconv_close, call_iconv_open};
 use crate::globals::*;
-use crate::grid::{CharBoundsOff, schar_T, schar_from_buf};
+use crate::grid::CharBoundsOff;
 use crate::input::beep_flush;
 use crate::mark::mark_mb_adjustpos;
 use crate::memline::ml_get_buf;
@@ -991,6 +991,7 @@ pub fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
             return ClusterInfo {
                 next: cur,
                 cells: opt_vars().dy_escape_width,
+                first_compose: false,
             };
         }
         let next = cur.ptr.add(cur.chr.len as usize).cast::<u8>();
@@ -1004,6 +1005,7 @@ pub fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
                     },
                 },
                 cells: basechar_cells_impl(cur.chr),
+                first_compose: utf_iscomposing_first(cur.chr.value),
             };
         }
         let mut scratch = c_int::MAX;
@@ -1015,26 +1017,19 @@ pub fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
 pub fn utf_ClusterInfo_len(cur: StrCharInfo, size: &mut c_int) -> ClusterInfo {
     unsafe {
         *size -= cur.chr.len;
-        let next = cur.ptr.add(cur.chr.len as usize).cast::<u8>();
-        if *size == 0 {
+        let nextptr = cur.ptr.add(cur.chr.len as usize).cast::<u8>();
+        let nextval = if *size == 0 { -1 } else { i32::from(*nextptr) };
+        if nextval < 0x80 {
             return ClusterInfo {
                 next: StrCharInfo {
-                    ptr: next.cast::<c_char>(),
-                    chr: CharInfo { value: -1, len: 1 },
-                },
-                cells: basechar_cells_impl(cur.chr),
-            };
-        }
-        if *next < 0x80 {
-            return ClusterInfo {
-                next: StrCharInfo {
-                    ptr: next.cast::<c_char>(),
+                    ptr: nextptr.cast::<c_char>(),
                     chr: CharInfo {
-                        value: i32::from(*next),
+                        value: nextval,
                         len: 1,
                     },
                 },
                 cells: basechar_cells_impl(cur.chr),
+                first_compose: utf_iscomposing_first(cur.chr.value),
             };
         }
         utf_ClusterInfo_impl(cur, size)
@@ -1392,50 +1387,6 @@ pub fn utf_composinglike(
 
 pub fn utf_iscomposing(c1: c_int, c2: c_int, state: *mut GraphemeState) -> bool {
     unsafe { !utf8proc_grapheme_break_stateful(c1, c2, state.as_mut()) || arabic_combine(c1, c2) }
-}
-
-fn schar_from_buf_first(buf: *const c_char, len: usize, first_compose: bool) -> schar_T {
-    unsafe {
-        if first_compose {
-            let mut cbuf = [0 as c_char; MAX_SCHAR_SIZE];
-            cbuf[0] = b' ' as c_char;
-            ptr::copy_nonoverlapping(buf, cbuf.as_mut_ptr().add(1), len);
-            schar_from_buf(cbuf.as_ptr(), len + 1)
-        } else {
-            schar_from_buf(buf, len)
-        }
-    }
-}
-
-pub fn utfc_ptr2schar(p: *const c_char, firstc: &mut c_int) -> schar_T {
-    unsafe {
-        let c = utf_ptr2char(p);
-        *firstc = c;
-        let first_compose = utf_iscomposing_first(c);
-        let maxlen = MAX_SCHAR_SIZE - 1 - usize::from(first_compose);
-        let len = utfc_ptr2len_len(p, maxlen as c_int) as usize;
-        if len == 1 && *p.cast::<u8>() >= 0x80 {
-            return 0;
-        }
-        schar_from_buf_first(p, len, first_compose)
-    }
-}
-
-pub fn utfc_ptrlen2schar(p: *const c_char, mut len: c_int, firstc: &mut c_int) -> schar_T {
-    unsafe {
-        if (len == 1 && *p.cast::<u8>() >= 0x80) || len == 0 {
-            *firstc = c_int::from(*p.cast::<u8>());
-            return 0;
-        }
-        let c = utf_ptr2char(p);
-        *firstc = c;
-        let first_compose = utf_iscomposing_first(c);
-        let maxlen = (MAX_SCHAR_SIZE - 1 - usize::from(first_compose)) as c_int;
-        if len > maxlen {
-            len = utfc_ptr2len_len(p, maxlen);
-        }
-        schar_from_buf_first(p, len as usize, first_compose)
-    }
 }
 
 pub fn utf_ptr2len(p_in: *const c_char) -> c_int {
@@ -2471,10 +2422,12 @@ pub fn utf_head_off(base_in: *const c_char, p_in: *const c_char) -> c_int {
 pub fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: &mut c_int) -> ClusterInfo {
     unsafe {
         let mut cells = basechar_cells_impl(base.chr);
+        let first_compose = utf_iscomposing_first(base.chr.value);
         let mut prev_code = base.chr.value;
         let mut next = base.ptr.add(base.chr.len as usize).cast::<u8>();
         let mut state: GraphemeState = GRAPHEME_STATE_INIT;
         assert!(*next >= 0x80 && *max_len > 0);
+        let mut cluster_len = base.chr.len;
 
         let mut check_emoji =
             cells == 1 && opt_vars().p_emoji != 0 && prop_is_emojilike(utf8proc_get_property(base.chr.value));
@@ -2488,11 +2441,12 @@ pub fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: &mut c_int) -> ClusterIn
                         chr: CharInfo { value: -1, len: 1 },
                     },
                     cells,
+                    first_compose,
                 };
             }
 
             let next_code = utf_ptr2CharInfo_impl(next, usize::from(next_len));
-            if !utf_iscomposing(prev_code, next_code, &raw mut state) {
+            if next_code < 0 || !utf_iscomposing(prev_code, next_code, &raw mut state) {
                 return ClusterInfo {
                     next: StrCharInfo {
                         ptr: next.cast::<c_char>(),
@@ -2506,6 +2460,7 @@ pub fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: &mut c_int) -> ClusterIn
                         },
                     },
                     cells,
+                    first_compose,
                 };
             }
 
@@ -2516,11 +2471,13 @@ pub fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: &mut c_int) -> ClusterIn
                 check_emoji = false;
             }
 
+            cluster_len += c_int::from(next_len);
             if cells == 1
                 && (utf8proc_get_property(next_code).boundclass()
                     == UTF8PROC_BOUNDCLASS_SPACINGMARK
                     || (next_code & !1) == 0xFF9E)
                 && base.chr.len != 1
+                && (cluster_len as usize) < MAX_SCHAR_SIZE - 1 - usize::from(first_compose)
             {
                 cells = 2;
             }
@@ -2538,6 +2495,7 @@ pub fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: &mut c_int) -> ClusterIn
                         },
                     },
                     cells,
+                    first_compose,
                 };
             }
         }
@@ -3623,7 +3581,10 @@ mod tests {
 
             let mut firstc: c_int = 0;
             let mut sbuf = [0 as c_char; 32];
-            let sc = utfc_ptr2schar(c")\xcc\x80\xcc\x81".as_ptr(), &mut firstc);
+            let sc = crate::grid::unittest_schar_from_cluster(
+                c")\xcc\x80\xcc\x81".as_ptr(),
+                &mut firstc,
+            );
             schar_get(sbuf.as_mut_ptr(), sc);
             assert_eq!(firstc, 0x29);
             assert_eq!(

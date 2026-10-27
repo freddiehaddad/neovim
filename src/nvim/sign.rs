@@ -29,7 +29,7 @@ use crate::ex_docmd::exarg_T;
 use crate::extmark::{extmark_del, extmark_del_id, extmark_set};
 use crate::fold::foldOpenCursor;
 use crate::globals::*;
-use crate::grid::{schar_T, schar_from_ascii, schar_get};
+use crate::grid::{schar_T, schar_from_ascii, schar_from_cluster, schar_get};
 use crate::highlight_group::{get_highlight_name_ext, syn_check_group};
 use crate::insert::beginline;
 use crate::mark::setpcmark;
@@ -39,7 +39,7 @@ use crate::marktree::{
     marktree_itr_get_overlap, marktree_itr_next, marktree_itr_step_overlap, marktree_lookup_ns,
     mt_decor, mt_decor_sign, mt_end,
 };
-use crate::mbyte::{utf_ptr2cells, utfc_ptr2len, utfc_ptr2schar};
+use crate::mbyte::{utf_ClusterInfo, utf_ptr2StrCharInfo};
 use crate::message::{
     emsg, msg_outtrans, msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg, smsg,
 };
@@ -501,26 +501,22 @@ pub fn init_sign_text(sp: *mut sign_T, sign_text: *mut schar_T, text: *mut c_cha
         }
 
         let mut cells: usize = 0;
-        s = text;
-        while s < endp {
-            let mut c: c_int = 0;
-            *sign_text.add(cells) = utfc_ptr2schar(s, &mut c);
-            if !vim_isprintc(c) {
-                break;
+        let mut ci = utf_ptr2StrCharInfo(text);
+        while *ci.ptr != NUL {
+            let cli = utf_ClusterInfo(ci);
+            if !vim_isprintc(ci.chr.value) || cells + (cli.cells as usize) > SIGN_WIDTH {
+                if !sp.is_null() {
+                    semsg!(gettext(c"E239: Invalid sign text: %s".as_ptr()), text);
+                }
+                return FAIL;
             }
-            let width = utf_ptr2cells(s) as usize;
-            if width == 2 {
+            *sign_text.add(cells) = schar_from_cluster(ci, cli);
+            debug_assert!(cli.cells <= 2);
+            if cli.cells == 2 {
                 *sign_text.add(cells + 1) = 0;
             }
-            cells += width;
-            s = s.add(utfc_ptr2len(s) as usize);
-        }
-
-        if s != endp || cells > SIGN_WIDTH {
-            if !sp.is_null() {
-                semsg!(gettext(c"E239: Invalid sign text: %s".as_ptr()), text);
-            }
-            return FAIL;
+            cells += cli.cells as usize;
+            ci = cli.next;
         }
 
         if cells < 1 {
