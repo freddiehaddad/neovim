@@ -47,7 +47,6 @@ static mut DID_ECHO_STRING_EMSG: bool = false;
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ListReaderState {
-    pub list: *const list_T,
     pub li: *const listitem_T,
     pub offset: usize,
     pub li_length: usize,
@@ -187,7 +186,6 @@ pub unsafe fn encode_init_lrstate(list: *const list_T) -> ListReaderState {
         }
     };
     ListReaderState {
-        list,
         li: first,
         offset: 0,
         li_length,

@@ -310,7 +310,6 @@ enum SomeMatchType {
 
 #[repr(C)]
 pub struct GetListLineCookie {
-    l: *const list_T,
     li: *const listitem_T,
 }
 
@@ -2242,7 +2241,6 @@ pub unsafe fn execute_common(argvars: *mut typval_T, rettv: *mut typval_T, arg_o
             let list = (*argvars.add(off)).vval.v_list();
             tv_list_ref(list);
             let mut cookie = GetListLineCookie {
-                l: list,
                 li: tv_list_first(list),
             };
             do_cmdline(

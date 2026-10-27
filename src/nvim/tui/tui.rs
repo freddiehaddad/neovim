@@ -50,8 +50,8 @@ use crate::os::fs::UV_EINTR;
 use crate::os::input::os_isatty;
 use crate::os::time::os_hrtime;
 use crate::tui::input::{
-    TermInput, kKeyEncodingKitty, kKeyEncodingLegacy, kKeyEncodingXterm, tinput_destroy,
-    tinput_init, tinput_start, tinput_stop,
+    PrimaryDeviceAttrAction, TermInput, kKeyEncodingKitty, kKeyEncodingLegacy, kKeyEncodingXterm,
+    tinput_destroy, tinput_init, tinput_start, tinput_stop,
 };
 use crate::tui::termkey::driver_ti::{TerminfoEntry, kTermCount, kTerminfoFuncKeyMax};
 use crate::tui::ugrid::{
@@ -483,15 +483,23 @@ pub unsafe fn tui_enable_extended_underline(tui: *mut TUIData) {
     }
 }
 
-unsafe fn tui_set_key_encoding_cb(tui: *mut TUIData) {
+pub unsafe fn tui_handle_primary_device_attr(
+    tui: *mut TUIData,
+    action: PrimaryDeviceAttrAction,
+) {
     unsafe {
-        tui_set_key_encoding(tui);
+        match action {
+            PrimaryDeviceAttrAction::SetKeyEncoding => tui_set_key_encoding(tui),
+            PrimaryDeviceAttrAction::Stop => tui_stop_cb(tui),
+            #[cfg(unix)]
+            PrimaryDeviceAttrAction::Suspend => tui_suspend_cb(tui),
+        }
     }
 }
 
 unsafe fn tui_query_kitty_keyboard(tui: *mut TUIData) {
     unsafe {
-        (*tui).input.callbacks.primary_device_attr = Some(tui_set_key_encoding_cb);
+        (*tui).input.primary_device_attr = Some(PrimaryDeviceAttrAction::SetKeyEncoding);
         let seq = b"\x1b[?u\x1b[c";
         out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
     }
@@ -1159,7 +1167,7 @@ pub unsafe fn tui_stop(tui: *mut TUIData) {
         }
 
         let input = tui_input(tui);
-        (*input).callbacks.primary_device_attr = Some(tui_stop_cb);
+        (*input).primary_device_attr = Some(PrimaryDeviceAttrAction::Stop);
         terminfo_disable(tui);
 
         let wait_start = os_hrtime();
@@ -2306,7 +2314,7 @@ pub unsafe fn tui_suspend(tui: *mut TUIData) {
     unsafe {
         ui_client_detach();
         (*tui).mouse_enabled_save = (*tui).mouse_enabled;
-        (*tui).input.callbacks.primary_device_attr = Some(tui_suspend_cb);
+        (*tui).input.primary_device_attr = Some(PrimaryDeviceAttrAction::Suspend);
         terminfo_disable(tui);
     }
     #[cfg(not(unix))]

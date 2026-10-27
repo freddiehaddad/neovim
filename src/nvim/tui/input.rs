@@ -37,7 +37,8 @@ use crate::tui::termkey::termkey::{
     termkey_start, termkey_strfkey,
 };
 use crate::tui::tui::{
-    TUIData, tui_enable_extended_underline, tui_handle_term_mode, tui_query_bg_color, tui_set_size,
+    TUIData, tui_enable_extended_underline, tui_handle_primary_device_attr, tui_handle_term_mode,
+    tui_query_bg_color, tui_set_size,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
@@ -63,17 +64,19 @@ const KEYMOD_RECOGNIZED: c_int =
 const START_PASTE: &[u8; 6] = b"\x1b[200~";
 const END_PASTE: &[u8; 6] = b"\x1b[201~";
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct TermInputCallbacks {
-    pub primary_device_attr: Option<unsafe fn(tui: *mut TUIData)>,
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum PrimaryDeviceAttrAction {
+    SetKeyEncoding,
+    Stop,
+    #[cfg(unix)]
+    Suspend,
 }
 
 pub struct TermInput {
     pub in_fd: c_int,
     pub paste: i8,
     pub ttimeout: bool,
-    pub callbacks: TermInputCallbacks,
+    pub primary_device_attr: Option<PrimaryDeviceAttrAction>,
     pub key_encoding: KeyEncoding,
     pub ttimeoutlen: OptInt,
     pub tk: Option<TermKey>,
@@ -93,9 +96,7 @@ impl TermInput {
             in_fd: 0,
             paste: 0,
             ttimeout: false,
-            callbacks: TermInputCallbacks {
-                primary_device_attr: None,
-            },
+            primary_device_attr: None,
             key_encoding: kKeyEncodingLegacy,
             ttimeoutlen: 0,
             tk: None,
@@ -743,9 +744,8 @@ unsafe fn handle_primary_device_attr(
 ) {
     unsafe {
         let p = input;
-        if let Some(cb_save) = (*p).callbacks.primary_device_attr {
-            (*p).callbacks.primary_device_attr = None;
-            cb_save((*input).tui_data);
+        if let Some(action) = (*p).primary_device_attr.take() {
+            tui_handle_primary_device_attr((*input).tui_data, action);
         }
 
         if nparams == 0 {
