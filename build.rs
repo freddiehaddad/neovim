@@ -195,6 +195,7 @@ fn main() {
         println!("cargo:rustc-link-arg=/DEFAULTLIB:ucrt");
         println!("cargo:rustc-link-arg=/NODEFAULTLIB:libcmt");
         println!("cargo:rustc-link-arg=/NODEFAULTLIB:libucrt");
+        println!("cargo:rustc-link-arg-bin=nvim=/STACK:8388608");
         let manifest_path = manifest_dir
             .join("src")
             .join("nvim")

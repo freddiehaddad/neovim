@@ -1594,6 +1594,7 @@ fn main() -> ExitCode {
             let nvim_bin = stage_build_dir(&root, &profile_dir, &build_dir);
             let mut cmd = Command::new(&nvim_bin);
             cmd.current_dir(&root)
+                .env("VIMRUNTIME", root.join("runtime"))
                 .args(["--clean", "-l"])
                 .arg(root.join("test").join("old").join("runner.lua"));
             for a in &extra_args {
