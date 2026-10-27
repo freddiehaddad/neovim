@@ -147,8 +147,8 @@ describe('api metadata', function()
         if level == api_level and not api_info.version.api_prerelease then
           errstr = (
             errstr
-            .. 'If NVIM_API_CURRENT was bumped, '
-            .. "don't forget to set NVIM_API_PRERELEASE to true."
+            .. 'If api_level was bumped, '
+            .. "don't forget to use a -dev prerelease version in Cargo.toml."
           )
         end
         error(errstr)
@@ -207,8 +207,8 @@ describe('api metadata', function()
             if not api_info.version.api_prerelease then
               errstr = (
                 errstr
-                .. ' Also bump NVIM_API_CURRENT and set '
-                .. 'NVIM_API_PRERELEASE to true in CMakeLists.txt.'
+                .. ' Also bump api_level and use a '
+                .. '-dev prerelease version in Cargo.toml.'
               )
             end
             error(errstr)
@@ -224,8 +224,8 @@ describe('api metadata', function()
             'function '
               .. f.name
               .. ' has since value > api_level. '
-              .. 'Bump NVIM_API_CURRENT and set '
-              .. 'NVIM_API_PRERELEASE to true in CMakeLists.txt.'
+              .. 'Bump api_level and use a '
+              .. '-dev prerelease version in Cargo.toml.'
           )
         end
       end
@@ -297,8 +297,8 @@ describe('api metadata', function()
           if not api_info.version.api_prerelease then
             errstr = (
               errstr
-              .. ' Also bump NVIM_API_CURRENT and set '
-              .. 'NVIM_API_PRERELEASE to true in CMakeLists.txt.'
+              .. ' Also bump api_level and use a '
+              .. '-dev prerelease version in Cargo.toml.'
             )
           end
           error(errstr)
@@ -311,8 +311,8 @@ describe('api metadata', function()
             'UI event '
               .. e.name
               .. ' has since value > api_level. '
-              .. 'Bump NVIM_API_CURRENT and set '
-              .. 'NVIM_API_PRERELEASE to true in CMakeLists.txt.'
+              .. 'Bump api_level and use a '
+              .. '-dev prerelease version in Cargo.toml.'
           )
         end
       end

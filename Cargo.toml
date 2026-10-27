@@ -4,17 +4,11 @@ default-members = ["."]
 
 [package]
 name = "neovim"
-version = "0.1.0"
+version = "0.13.0-dev"
 edition = "2024"
 
 [package.metadata.nvim]
-version_major = 0
-version_minor = 13
-version_patch = 0
-version_prerelease = "-dev"
 api_level = 15
-api_level_compat = 0
-api_prerelease = true
 
 [lib]
 name = "neovim"

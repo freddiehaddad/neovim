@@ -50,33 +50,30 @@ fn main() {
     let cargo_toml = std::fs::read_to_string(manifest_dir.join("Cargo.toml")).unwrap_or_default();
 
     let ver_major = env::var("NVIM_VERSION_MAJOR")
-        .ok()
-        .or_else(|| parse_nvim_metadata(&cargo_toml, "version_major"))
-        .unwrap_or_else(|| "0".to_string());
+        .or_else(|_| env::var("CARGO_PKG_VERSION_MAJOR"))
+        .unwrap_or_else(|_| "0".to_string());
     let ver_minor = env::var("NVIM_VERSION_MINOR")
-        .ok()
-        .or_else(|| parse_nvim_metadata(&cargo_toml, "version_minor"))
-        .unwrap_or_else(|| "13".to_string());
+        .or_else(|_| env::var("CARGO_PKG_VERSION_MINOR"))
+        .unwrap_or_else(|_| "13".to_string());
     let ver_patch = env::var("NVIM_VERSION_PATCH")
-        .ok()
-        .or_else(|| parse_nvim_metadata(&cargo_toml, "version_patch"))
-        .unwrap_or_else(|| "0".to_string());
-    let ver_prerelease = env::var("NVIM_VERSION_PRERELEASE")
-        .ok()
-        .or_else(|| parse_nvim_metadata(&cargo_toml, "version_prerelease"))
-        .unwrap_or_else(|| "-dev".to_string());
+        .or_else(|_| env::var("CARGO_PKG_VERSION_PATCH"))
+        .unwrap_or_else(|_| "0".to_string());
+    let pkg_pre = env::var("CARGO_PKG_VERSION_PRE").unwrap_or_default();
+    let ver_prerelease = env::var("NVIM_VERSION_PRERELEASE").unwrap_or_else(|_| {
+        if pkg_pre.is_empty() {
+            String::new()
+        } else {
+            format!("-{pkg_pre}")
+        }
+    });
     let api_level = env::var("NVIM_API_LEVEL")
         .ok()
         .or_else(|| parse_nvim_metadata(&cargo_toml, "api_level"))
         .unwrap_or_else(|| "15".to_string());
-    let api_compat = env::var("NVIM_API_LEVEL_COMPAT")
-        .ok()
-        .or_else(|| parse_nvim_metadata(&cargo_toml, "api_level_compat"))
-        .unwrap_or_else(|| "0".to_string());
-    let api_prerelease = env::var("NVIM_API_PRERELEASE")
-        .ok()
-        .or_else(|| parse_nvim_metadata(&cargo_toml, "api_prerelease"))
-        .unwrap_or_else(|| "true".to_string());
+    let api_compat = env::var("NVIM_API_LEVEL_COMPAT").unwrap_or_else(|_| "0".to_string());
+    let is_api_prerelease = !ver_prerelease.is_empty() && ver_patch == "0";
+    let api_prerelease =
+        env::var("NVIM_API_PRERELEASE").unwrap_or_else(|_| is_api_prerelease.to_string());
 
     println!("cargo:rustc-env=NVIM_VERSION_MAJOR={ver_major}");
     println!("cargo:rustc-env=NVIM_VERSION_MINOR={ver_minor}");
