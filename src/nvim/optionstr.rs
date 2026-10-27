@@ -717,210 +717,145 @@ static PVP_TABLE: [KeySetLink; 4] = [
     },
 ];
 
-#[inline]
-unsafe fn c_memcmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
-    unsafe {
-        let p1 = s1.cast::<u8>();
-        let p2 = s2.cast::<u8>();
-        for i in 0..n {
-            let b1 = *p1.add(i);
-            let b2 = *p2.add(i);
-            if b1 != b2 {
-                return c_int::from(b1) - c_int::from(b2);
-            }
-        }
-        0
-    }
-}
-
 use crate::mbyte::ptr2cells;
 
-unsafe fn briopt_hash(str_arg: *const c_char, len: usize) -> isize {
-    unsafe {
-        let low: isize = match len {
-            3 => match *str_arg as u8 {
-                b'm' => 0,
-                b's' => 1,
-                _ => -1,
-            },
-            4 => 2,
-            5 => 3,
-            6 => 4,
+fn briopt_hash(key: &[u8]) -> isize {
+    let low: isize = match key.len() {
+        3 => match key[0] {
+            b'm' => 0,
+            b's' => 1,
             _ => -1,
-        };
-        if low < 0 || c_memcmp(str_arg, BRIOPT_TABLE[low as usize].str.unwrap().as_ptr(), len) != 0 {
-            return -1;
-        }
-        low
+        },
+        4 => 2,
+        5 => 3,
+        6 => 4,
+        _ => -1,
+    };
+    if low < 0 || BRIOPT_TABLE[low as usize].str.unwrap().to_bytes() != key {
+        return -1;
     }
+    low
 }
 
-unsafe fn OptKeyDict_briopt_get_field(str_arg: *const c_char, len: usize) -> *const KeySetLink {
-    unsafe {
-        let hash = briopt_hash(str_arg, len);
-        if hash == -1 {
-            ptr::null()
-        } else {
-            &raw const BRIOPT_TABLE[hash as usize]
-        }
-    }
+fn OptKeyDict_briopt_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = briopt_hash(key);
+    (hash >= 0).then(|| &BRIOPT_TABLE[hash as usize])
 }
 
-unsafe fn dip_hash(str_arg: *const c_char, len: usize) -> isize {
-    unsafe {
-        let (low, high): (usize, usize) = match len {
-            5 => (0, 1),
-            6 => match *str_arg.add(1) as u8 {
-                b'b' => (1, 2),
-                b'i' => (2, 3),
-                b'n' => (3, 5),
-                b'w' => (5, 6),
-                _ => (0, 0),
-            },
-            7 => (6, 7),
-            8 => match *str_arg as u8 {
-                b'c' => (7, 8),
-                b'i' => (8, 9),
-                b'v' => (9, 10),
-                _ => (0, 0),
-            },
-            9 => match *str_arg.add(7) as u8 {
-                b'c' => (10, 11),
-                b'f' => (11, 12),
-                b'h' => (12, 13),
-                b'l' => (13, 14),
-                b'o' => (14, 15),
-                _ => (0, 0),
-            },
-            10 => match *str_arg.add(3) as u8 {
-                b'd' => (15, 16),
-                b'i' => (16, 17),
-                b'l' => (17, 18),
-                _ => (0, 0),
-            },
-            16 => (18, 19),
+fn dip_hash(key: &[u8]) -> isize {
+    let (low, high): (usize, usize) = match key.len() {
+        5 => (0, 1),
+        6 => match key[1] {
+            b'b' => (1, 2),
+            b'i' => (2, 3),
+            b'n' => (3, 5),
+            b'w' => (5, 6),
             _ => (0, 0),
-        };
-        for (i, entry) in DIP_TABLE.iter().enumerate().take(high).skip(low) {
-            if c_memcmp(str_arg, entry.str.unwrap().as_ptr(), len) == 0 {
-                return i as isize;
-            }
+        },
+        7 => (6, 7),
+        8 => match key[0] {
+            b'c' => (7, 8),
+            b'i' => (8, 9),
+            b'v' => (9, 10),
+            _ => (0, 0),
+        },
+        9 => match key[7] {
+            b'c' => (10, 11),
+            b'f' => (11, 12),
+            b'h' => (12, 13),
+            b'l' => (13, 14),
+            b'o' => (14, 15),
+            _ => (0, 0),
+        },
+        10 => match key[3] {
+            b'd' => (15, 16),
+            b'i' => (16, 17),
+            b'l' => (17, 18),
+            _ => (0, 0),
+        },
+        16 => (18, 19),
+        _ => (0, 0),
+    };
+    for (i, entry) in DIP_TABLE.iter().enumerate().take(high).skip(low) {
+        if entry.str.unwrap().to_bytes() == key {
+            return i as isize;
         }
-        -1
     }
+    -1
 }
 
-unsafe fn OptKeyDict_dip_get_field(str_arg: *const c_char, len: usize) -> *const KeySetLink {
-    unsafe {
-        let hash = dip_hash(str_arg, len);
-        if hash == -1 {
-            ptr::null()
-        } else {
-            &raw const DIP_TABLE[hash as usize]
-        }
-    }
+fn OptKeyDict_dip_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = dip_hash(key);
+    (hash >= 0).then(|| &DIP_TABLE[hash as usize])
 }
 
-unsafe fn mopt_hash(str_arg: *const c_char, len: usize) -> isize {
-    unsafe {
-        let low: isize = match len {
-            4 => 0,
-            5 => 1,
-            7 => match *str_arg as u8 {
-                b'h' => 2,
-                b't' => 3,
-                _ => -1,
-            },
-            8 => 4,
-            9 => match *str_arg as u8 {
-                b'h' => 5,
-                b'm' => 6,
-                _ => -1,
-            },
+fn mopt_hash(key: &[u8]) -> isize {
+    let low: isize = match key.len() {
+        4 => 0,
+        5 => 1,
+        7 => match key[0] {
+            b'h' => 2,
+            b't' => 3,
             _ => -1,
-        };
-        if low < 0 || c_memcmp(str_arg, MOPT_TABLE[low as usize].str.unwrap().as_ptr(), len) != 0 {
-            return -1;
-        }
-        low
-    }
-}
-
-unsafe fn OptKeyDict_mopt_get_field(str_arg: *const c_char, len: usize) -> *const KeySetLink {
-    unsafe {
-        let hash = mopt_hash(str_arg, len);
-        if hash == -1 {
-            ptr::null()
-        } else {
-            &raw const MOPT_TABLE[hash as usize]
-        }
-    }
-}
-
-unsafe fn mousescroll_hash(str_arg: *const c_char, len: usize) -> isize {
-    unsafe {
-        let low: isize = match len {
-            3 => match *str_arg as u8 {
-                b'h' => 0,
-                b'v' => 1,
-                _ => -1,
-            },
+        },
+        8 => 4,
+        9 => match key[0] {
+            b'h' => 5,
+            b'm' => 6,
             _ => -1,
-        };
-        if low < 0
-            || c_memcmp(
-                str_arg,
-                MOUSESCROLL_TABLE[low as usize].str.unwrap().as_ptr(),
-                len,
-            ) != 0
-        {
-            return -1;
-        }
-        low
+        },
+        _ => -1,
+    };
+    if low < 0 || MOPT_TABLE[low as usize].str.unwrap().to_bytes() != key {
+        return -1;
     }
+    low
 }
 
-unsafe fn OptKeyDict_mousescroll_get_field(
-    str_arg: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    unsafe {
-        let hash = mousescroll_hash(str_arg, len);
-        if hash == -1 {
-            ptr::null()
-        } else {
-            &raw const MOUSESCROLL_TABLE[hash as usize]
-        }
-    }
+fn OptKeyDict_mopt_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = mopt_hash(key);
+    (hash >= 0).then(|| &MOPT_TABLE[hash as usize])
 }
 
-unsafe fn pvp_hash(str_arg: *const c_char, len: usize) -> isize {
-    unsafe {
-        let low: isize = match len {
-            5 => 0,
-            6 => match *str_arg as u8 {
-                b'b' => 1,
-                b'h' => 2,
-                _ => -1,
-            },
+fn mousescroll_hash(key: &[u8]) -> isize {
+    let low: isize = match key.len() {
+        3 => match key[0] {
+            b'h' => 0,
+            b'v' => 1,
             _ => -1,
-        };
-        if low < 0 || c_memcmp(str_arg, PVP_TABLE[low as usize].str.unwrap().as_ptr(), len) != 0 {
-            return -1;
-        }
-        low
+        },
+        _ => -1,
+    };
+    if low < 0 || MOUSESCROLL_TABLE[low as usize].str.unwrap().to_bytes() != key {
+        return -1;
     }
+    low
 }
 
-unsafe fn OptKeyDict_pvp_get_field(str_arg: *const c_char, len: usize) -> *const KeySetLink {
-    unsafe {
-        let hash = pvp_hash(str_arg, len);
-        if hash == -1 {
-            ptr::null()
-        } else {
-            &raw const PVP_TABLE[hash as usize]
-        }
+fn OptKeyDict_mousescroll_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = mousescroll_hash(key);
+    (hash >= 0).then(|| &MOUSESCROLL_TABLE[hash as usize])
+}
+
+fn pvp_hash(key: &[u8]) -> isize {
+    let low: isize = match key.len() {
+        5 => 0,
+        6 => match key[0] {
+            b'b' => 1,
+            b'h' => 2,
+            _ => -1,
+        },
+        _ => -1,
+    };
+    if low < 0 || PVP_TABLE[low as usize].str.unwrap().to_bytes() != key {
+        return -1;
     }
+    low
+}
+
+fn OptKeyDict_pvp_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = pvp_hash(key);
+    (hash >= 0).then(|| &PVP_TABLE[hash as usize])
 }
 
 pub(crate) fn opt_dict_schema(opt_idx: OptIndex) -> Option<&'static OptDictSchema> {
@@ -3671,21 +3606,25 @@ pub unsafe fn opt_fill(value: *const c_char, get_field: FieldHashfn, out: *mut O
             &raw mut v,
             &raw mut vlen,
         ) {
-            let f = get_field_fn(key, keylen);
-            if f.is_null() {
+            let key_bytes = if key.is_null() || keylen == 0 {
+                &[][..]
+            } else {
+                std::slice::from_raw_parts(key.cast::<u8>(), keylen)
+            };
+            let Some(f) = get_field_fn(key_bytes) else {
                 continue;
-            }
-            let field = out.cast::<u8>().add((*f).ptr_off);
-            if (*f).key_type == ObjectType::kObjectTypeBoolean as c_int {
+            };
+            let field = out.cast::<u8>().add(f.ptr_off);
+            if f.key_type == ObjectType::kObjectTypeBoolean as c_int {
                 *field.cast::<Boolean>() = true;
-            } else if (*f).key_type == ObjectType::kObjectTypeInteger as c_int {
+            } else if f.key_type == ObjectType::kObjectTypeInteger as c_int {
                 let mut end = v.cast_mut();
                 *field.cast::<Integer>() = Integer::from(getdigits_int(&raw mut end, false, 0));
-            } else if (*f).key_type == ObjectType::kObjectTypeString as c_int {
+            } else if f.key_type == ObjectType::kObjectTypeString as c_int {
                 ptr::copy_nonoverlapping(v.cast::<u8>(), field, vlen);
                 *field.add(vlen) = 0;
             }
-            (*out).is_set_ |= 1u64 << ((*f).opt_index as u32);
+            (*out).is_set_ |= 1u64 << (f.opt_index as u32);
         }
     }
 }

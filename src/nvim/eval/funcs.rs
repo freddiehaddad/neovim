@@ -1151,11 +1151,7 @@ const INTERNAL_FUNC_NAME_MAP: &[(&[u8], c_int)] = &[
 ];
 
 #[inline]
-pub unsafe fn find_internal_func_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() {
-        return -1;
-    }
-    let slice = unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) };
+pub fn find_internal_func_hash(slice: &[u8]) -> c_int {
     match INTERNAL_FUNC_NAME_MAP.binary_search_by_key(&slice, |&(k, _)| k) {
         Ok(i) => INTERNAL_FUNC_NAME_MAP[i].1,
         Err(_) => -1,
@@ -1165,8 +1161,7 @@ pub unsafe fn find_internal_func_hash(str_: *const c_char, len: usize) -> c_int 
 /// Gets a builtin (aka "vimfn", "eval") function from the generated hash table.
 pub unsafe fn find_internal_func(name: *const c_char) -> *const EvalFuncDef {
     unsafe {
-        let len = std::ffi::CStr::from_ptr(name).to_bytes().len();
-        let index = find_internal_func_hash(name, len);
+        let index = find_internal_func_hash(std::ffi::CStr::from_ptr(name).to_bytes());
         if index >= 0 {
             eval_func_def_at(index)
         } else {
@@ -1340,7 +1335,7 @@ pub fn api_wrapper(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFun
 
         let mut err = Error::new();
         let fn_ptr = handler.r#fn.unwrap();
-        let mut result = fn_ptr(VIML_INTERNAL_CALL, args, &raw mut arena, &mut err);
+        let mut result = fn_ptr(VIML_INTERNAL_CALL, args, &mut arena, &mut err);
 
         if err.err_type != ErrorType::kErrorTypeNone {
             semsg_multiline!(c"emsg".as_ptr(), e_api_error.as_ptr(), err.msg_ptr());
@@ -15558,7 +15553,7 @@ mod tests {
                 let fdef_name = fdef.name.unwrap();
                 let name = fdef_name.to_bytes();
                 assert_eq!(
-                    find_internal_func_hash(fdef_name.as_ptr(), name.len()),
+                    find_internal_func_hash(name),
                     idx as c_int
                 );
                 assert_eq!(
@@ -15572,7 +15567,7 @@ mod tests {
                     .is_none()
             );
             assert_eq!(
-                find_internal_func_hash(c"not_a_builtin_fn".as_ptr(), 16),
+                find_internal_func_hash(b"not_a_builtin_fn"),
                 -1
             );
             assert!(find_internal_func(c"not_a_builtin_fn".as_ptr()).is_null());

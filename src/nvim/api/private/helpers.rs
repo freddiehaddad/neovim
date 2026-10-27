@@ -1170,8 +1170,8 @@ pub unsafe fn api_dict_to_keydict(
         };
         for i in 0..dict.size {
             let k = dict[i].key;
-            let field = hashy_fn(k.data, k.size);
-            if field.is_null() {
+            let key_bytes = if k.data.is_null() || k.size == 0 { &[][..] } else { std::slice::from_raw_parts(k.data.cast::<u8>(), k.size) };
+            let Some(field) = hashy_fn(key_bytes) else {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
@@ -1180,24 +1180,24 @@ pub unsafe fn api_dict_to_keydict(
                     k.data,
                 );
                 return false;
+            };
+
+            if field.opt_index >= 0 {
+                (*retval).is_set_ |= 1u64 << field.opt_index;
             }
 
-            if (*field).opt_index >= 0 {
-                (*retval).is_set_ |= 1u64 << (*field).opt_index;
-            }
-
-            let field_name = (*field).str.map_or(ptr::null(), |s| s.as_ptr());
-            let mem = retval.cast::<u8>().add((*field).ptr_off);
+            let field_name = field.str.map_or(ptr::null(), |s| s.as_ptr());
+            let mem = retval.cast::<u8>().add(field.ptr_off);
             let value = &raw mut dict[i].value;
             let field_type =
-                ObjectType::from_raw((*field).key_type).unwrap_or(ObjectType::kObjectTypeUnset);
+                ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::kObjectTypeUnset);
 
             match field_type {
                 ObjectType::kObjectTypeNil => {
                     *mem.cast::<Object>() = *value;
                 }
                 ObjectType::kObjectTypeInteger => {
-                    if (*field).is_hlgroup {
+                    if field.is_hlgroup {
                         let mut hl_id: c_int = 0;
                         if (*value).obj_type != ObjectType::kObjectTypeNil {
                             hl_id = object_to_hl_id(*value, k.data, err);
@@ -1331,19 +1331,19 @@ pub unsafe fn api_keydict_to_dict(
         let mut rv = arena_dict(arena, max_size);
         let mut i: usize = 0;
         while let Some(field_str) = (*table.add(i)).str {
-            let field = table.add(i);
+            let field = &*table.add(i);
             let mut is_set = true;
-            if (*field).opt_index >= 0 {
-                is_set = ((*value).is_set_ & (1u64 << (*field).opt_index)) != 0;
+            if field.opt_index >= 0 {
+                is_set = ((*value).is_set_ & (1u64 << field.opt_index)) != 0;
             }
             if !is_set {
                 i += 1;
                 continue;
             }
 
-            let mem = value.cast::<u8>().add((*field).ptr_off);
+            let mem = value.cast::<u8>().add(field.ptr_off);
             let field_type =
-                ObjectType::from_raw((*field).key_type).unwrap_or(ObjectType::kObjectTypeUnset);
+                ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::kObjectTypeUnset);
             let val = match field_type {
                 ObjectType::kObjectTypeNil => *mem.cast::<Object>(),
                 ObjectType::kObjectTypeInteger => Object {
@@ -1404,10 +1404,10 @@ pub unsafe fn api_luarefs_free_keydict(dict: *mut OptKeySet, table: *mut KeySetL
     unsafe {
         let mut i: usize = 0;
         while (*table.add(i)).str.is_some() {
-            let field = table.add(i);
-            let mem = dict.cast::<u8>().add((*field).ptr_off);
+            let field = &*table.add(i);
+            let mem = dict.cast::<u8>().add(field.ptr_off);
             let field_type =
-                ObjectType::from_raw((*field).key_type).unwrap_or(ObjectType::kObjectTypeUnset);
+                ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::kObjectTypeUnset);
             match field_type {
                 ObjectType::kObjectTypeNil => api_luarefs_free_object(*mem.cast::<Object>()),
                 ObjectType::kObjectTypeLuaRef => api_free_luaref(*mem.cast::<LuaRef>()),

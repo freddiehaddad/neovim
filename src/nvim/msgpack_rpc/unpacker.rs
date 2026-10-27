@@ -1034,9 +1034,10 @@ pub unsafe fn unpack_keydict(
                 *error = Some(c"has empty key".to_owned());
                 return false;
             }
-            let field_ptr = hashy_fn(key.data, key.size);
+            let key_bytes = std::slice::from_raw_parts(key.data.cast::<u8>(), key.size);
+            let field_opt = hashy_fn(key_bytes);
 
-            if field_ptr.is_null() {
+            let Some(field) = field_opt else {
                 let status = unpack_skip(data, size);
                 if status != 0 {
                     return false;
@@ -1045,9 +1046,8 @@ pub unsafe fn unpack_keydict(
                     push_additional_data(ad, item_start, (*data as usize) - (item_start as usize));
                 }
                 continue;
-            }
+            };
 
-            let field = &*field_ptr;
             assert!(field.opt_index >= 0);
             let flag = 1u64 << (field.opt_index as u32);
             if ((*ks).is_set_ & flag) != 0 {

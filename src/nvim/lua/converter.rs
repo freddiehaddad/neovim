@@ -188,7 +188,7 @@ pub struct KeySetLink {
     pub is_hlgroup: bool,
 }
 
-pub type FieldHashfn = Option<unsafe fn(str: *const c_char, len: usize) -> *const KeySetLink>;
+pub type FieldHashfn = Option<fn(key: &[u8]) -> Option<&'static KeySetLink>>;
 
 #[derive(Clone, Copy)]
 struct LuaTableProps {
@@ -2148,8 +2148,8 @@ pub unsafe fn nlua_pop_keydict(
         while lua_next(L, -2) != 0 {
             let mut len = 0usize;
             let s = lua_tolstring(L, -2, &mut len);
-            let field_ptr = hashy_fn(s, len);
-            if field_ptr.is_null() {
+            let key_bytes = if s.is_null() || len == 0 { &[][..] } else { std::slice::from_raw_parts(s.cast::<u8>(), len) };
+            let Some(field) = hashy_fn(key_bytes) else {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
@@ -2159,8 +2159,7 @@ pub unsafe fn nlua_pop_keydict(
                 );
                 lua_pop(L, 3);
                 return;
-            }
-            let field = &*field_ptr;
+            };
             if field.opt_index >= 0 {
                 (*retval).is_set_ |= 1u64 << (field.opt_index as u32);
             }

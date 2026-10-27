@@ -124,7 +124,7 @@ use std::ptr;
 const kUnpackTypeStringArray: c_int = -1;
 
 pub type ApiDispatchWrapper =
-    Option<unsafe fn(channel_id: u64, args: Array, arena: *mut Arena, error: &mut Error) -> Object>;
+    Option<fn(channel_id: u64, args: Array, arena: &mut Arena, error: &mut Error) -> Object>;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -349,11 +349,8 @@ pub static _shada_buflist_item_table: [KeySetLink; 4] = [
     },
 ];
 
-pub unsafe fn _shada_buflist_item_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn _shada_buflist_item_hash(key: &[u8]) -> c_int {
+    match key {
         b"c" => 0,
         b"f" => 1,
         b"l" => 2,
@@ -361,16 +358,9 @@ pub unsafe fn _shada_buflist_item_hash(str_: *const c_char, len: usize) -> c_int
     }
 }
 
-pub unsafe fn KeyDict__shada_buflist_item_get_field(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    let hash = unsafe { _shada_buflist_item_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const _shada_buflist_item_table[hash as usize]
-    }
+pub fn KeyDict__shada_buflist_item_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = _shada_buflist_item_hash(key);
+    (hash >= 0).then(|| &_shada_buflist_item_table[hash as usize])
 }
 
 pub static _shada_mark_table: [KeySetLink; 5] = [
@@ -411,11 +401,8 @@ pub static _shada_mark_table: [KeySetLink; 5] = [
     },
 ];
 
-pub unsafe fn _shada_mark_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn _shada_mark_hash(key: &[u8]) -> c_int {
+    match key {
         b"c" => 0,
         b"f" => 1,
         b"l" => 2,
@@ -424,13 +411,9 @@ pub unsafe fn _shada_mark_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict__shada_mark_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { _shada_mark_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const _shada_mark_table[hash as usize]
-    }
+pub fn KeyDict__shada_mark_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = _shada_mark_hash(key);
+    (hash >= 0).then(|| &_shada_mark_table[hash as usize])
 }
 
 pub static _shada_register_table: [KeySetLink; 6] = [
@@ -478,11 +461,8 @@ pub static _shada_register_table: [KeySetLink; 6] = [
     },
 ];
 
-pub unsafe fn _shada_register_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn _shada_register_hash(key: &[u8]) -> c_int {
+    match key {
         b"n" => 0,
         b"rc" => 1,
         b"rt" => 2,
@@ -492,16 +472,9 @@ pub unsafe fn _shada_register_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict__shada_register_get_field(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    let hash = unsafe { _shada_register_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const _shada_register_table[hash as usize]
-    }
+pub fn KeyDict__shada_register_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = _shada_register_hash(key);
+    (hash >= 0).then(|| &_shada_register_table[hash as usize])
 }
 
 pub static _shada_search_pat_table: [KeySetLink; 11] = [
@@ -584,11 +557,8 @@ pub static _shada_search_pat_table: [KeySetLink; 11] = [
     },
 ];
 
-pub unsafe fn _shada_search_pat_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn _shada_search_pat_hash(key: &[u8]) -> c_int {
+    match key {
         b"sb" => 0,
         b"sc" => 1,
         b"se" => 2,
@@ -603,16 +573,9 @@ pub unsafe fn _shada_search_pat_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict__shada_search_pat_get_field(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    let hash = unsafe { _shada_search_pat_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const _shada_search_pat_table[hash as usize]
-    }
+pub fn KeyDict__shada_search_pat_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = _shada_search_pat_hash(key);
+    (hash >= 0).then(|| &_shada_search_pat_table[hash as usize])
 }
 
 pub static buf_attach_table: [KeySetLink; 8] = [
@@ -674,11 +637,8 @@ pub static buf_attach_table: [KeySetLink; 8] = [
     },
 ];
 
-pub unsafe fn buf_attach_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn buf_attach_hash(key: &[u8]) -> c_int {
+    match key {
         b"preview" => 0,
         b"on_bytes" => 1,
         b"on_lines" => 2,
@@ -690,13 +650,9 @@ pub unsafe fn buf_attach_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_buf_attach_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { buf_attach_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const buf_attach_table[hash as usize]
-    }
+pub fn KeyDict_buf_attach_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = buf_attach_hash(key);
+    (hash >= 0).then(|| &buf_attach_table[hash as usize])
 }
 
 pub static buf_delete_table: [KeySetLink; 3] = [
@@ -723,24 +679,17 @@ pub static buf_delete_table: [KeySetLink; 3] = [
     },
 ];
 
-pub unsafe fn buf_delete_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn buf_delete_hash(key: &[u8]) -> c_int {
+    match key {
         b"force" => 0,
         b"unload" => 1,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_buf_delete_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { buf_delete_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const buf_delete_table[hash as usize]
-    }
+pub fn KeyDict_buf_delete_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = buf_delete_hash(key);
+    (hash >= 0).then(|| &buf_delete_table[hash as usize])
 }
 
 pub static chan_set_table: [KeySetLink; 2] = [
@@ -760,23 +709,16 @@ pub static chan_set_table: [KeySetLink; 2] = [
     },
 ];
 
-pub unsafe fn chan_set_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn chan_set_hash(key: &[u8]) -> c_int {
+    match key {
         b"detach" => 0,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_chan_set_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { chan_set_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const chan_set_table[hash as usize]
-    }
+pub fn KeyDict_chan_set_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = chan_set_hash(key);
+    (hash >= 0).then(|| &chan_set_table[hash as usize])
 }
 
 pub static clear_autocmds_table: [KeySetLink; 6] = [
@@ -824,11 +766,8 @@ pub static clear_autocmds_table: [KeySetLink; 6] = [
     },
 ];
 
-pub unsafe fn clear_autocmds_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn clear_autocmds_hash(key: &[u8]) -> c_int {
+    match key {
         b"buf" => 0,
         b"event" => 1,
         b"group" => 2,
@@ -838,16 +777,9 @@ pub unsafe fn clear_autocmds_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_clear_autocmds_get_field(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    let hash = unsafe { clear_autocmds_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const clear_autocmds_table[hash as usize]
-    }
+pub fn KeyDict_clear_autocmds_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = clear_autocmds_hash(key);
+    (hash >= 0).then(|| &clear_autocmds_table[hash as usize])
 }
 
 pub static cmd_table: [KeySetLink; 12] = [
@@ -937,11 +869,8 @@ pub static cmd_table: [KeySetLink; 12] = [
     },
 ];
 
-pub unsafe fn cmd_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn cmd_hash(key: &[u8]) -> c_int {
+    match key {
         b"cmd" => 0,
         b"reg" => 1,
         b"bang" => 2,
@@ -957,13 +886,9 @@ pub unsafe fn cmd_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_cmd_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { cmd_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const cmd_table[hash as usize]
-    }
+pub fn KeyDict_cmd_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = cmd_hash(key);
+    (hash >= 0).then(|| &cmd_table[hash as usize])
 }
 
 pub static cmd_magic_table: [KeySetLink; 3] = [
@@ -990,24 +915,17 @@ pub static cmd_magic_table: [KeySetLink; 3] = [
     },
 ];
 
-pub unsafe fn cmd_magic_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn cmd_magic_hash(key: &[u8]) -> c_int {
+    match key {
         b"bar" => 0,
         b"file" => 1,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_cmd_magic_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { cmd_magic_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const cmd_magic_table[hash as usize]
-    }
+pub fn KeyDict_cmd_magic_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = cmd_magic_hash(key);
+    (hash >= 0).then(|| &cmd_magic_table[hash as usize])
 }
 
 pub static cmd_mods_table: [KeySetLink; 21] = [
@@ -1160,11 +1078,8 @@ pub static cmd_mods_table: [KeySetLink; 21] = [
     },
 ];
 
-pub unsafe fn cmd_mods_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn cmd_mods_hash(key: &[u8]) -> c_int {
+    match key {
         b"tab" => 0,
         b"hide" => 1,
         b"split" => 2,
@@ -1189,13 +1104,9 @@ pub unsafe fn cmd_mods_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_cmd_mods_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { cmd_mods_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const cmd_mods_table[hash as usize]
-    }
+pub fn KeyDict_cmd_mods_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = cmd_mods_hash(key);
+    (hash >= 0).then(|| &cmd_mods_table[hash as usize])
 }
 
 pub static cmd_mods_filter_table: [KeySetLink; 3] = [
@@ -1222,27 +1133,17 @@ pub static cmd_mods_filter_table: [KeySetLink; 3] = [
     },
 ];
 
-pub unsafe fn cmd_mods_filter_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn cmd_mods_filter_hash(key: &[u8]) -> c_int {
+    match key {
         b"force" => 0,
         b"pattern" => 1,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_cmd_mods_filter_get_field(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    let hash = unsafe { cmd_mods_filter_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const cmd_mods_filter_table[hash as usize]
-    }
+pub fn KeyDict_cmd_mods_filter_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = cmd_mods_filter_hash(key);
+    (hash >= 0).then(|| &cmd_mods_filter_table[hash as usize])
 }
 
 pub static cmd_opts_table: [KeySetLink; 2] = [
@@ -1262,23 +1163,16 @@ pub static cmd_opts_table: [KeySetLink; 2] = [
     },
 ];
 
-pub unsafe fn cmd_opts_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn cmd_opts_hash(key: &[u8]) -> c_int {
+    match key {
         b"output" => 0,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_cmd_opts_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { cmd_opts_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const cmd_opts_table[hash as usize]
-    }
+pub fn KeyDict_cmd_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = cmd_opts_hash(key);
+    (hash >= 0).then(|| &cmd_opts_table[hash as usize])
 }
 
 pub static complete_set_table: [KeySetLink; 2] = [
@@ -1298,23 +1192,16 @@ pub static complete_set_table: [KeySetLink; 2] = [
     },
 ];
 
-pub unsafe fn complete_set_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn complete_set_hash(key: &[u8]) -> c_int {
+    match key {
         b"info" => 0,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_complete_set_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { complete_set_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const complete_set_table[hash as usize]
-    }
+pub fn KeyDict_complete_set_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = complete_set_hash(key);
+    (hash >= 0).then(|| &complete_set_table[hash as usize])
 }
 
 pub static context_table: [KeySetLink; 2] = [
@@ -1334,23 +1221,16 @@ pub static context_table: [KeySetLink; 2] = [
     },
 ];
 
-pub unsafe fn context_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn context_hash(key: &[u8]) -> c_int {
+    match key {
         b"types" => 0,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_context_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { context_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const context_table[hash as usize]
-    }
+pub fn KeyDict_context_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = context_hash(key);
+    (hash >= 0).then(|| &context_table[hash as usize])
 }
 
 pub static create_augroup_table: [KeySetLink; 2] = [
@@ -1370,26 +1250,16 @@ pub static create_augroup_table: [KeySetLink; 2] = [
     },
 ];
 
-pub unsafe fn create_augroup_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn create_augroup_hash(key: &[u8]) -> c_int {
+    match key {
         b"clear" => 0,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_create_augroup_get_field(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    let hash = unsafe { create_augroup_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const create_augroup_table[hash as usize]
-    }
+pub fn KeyDict_create_augroup_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = create_augroup_hash(key);
+    (hash >= 0).then(|| &create_augroup_table[hash as usize])
 }
 
 pub static create_autocmd_table: [KeySetLink; 10] = [
@@ -1465,11 +1335,8 @@ pub static create_autocmd_table: [KeySetLink; 10] = [
     },
 ];
 
-pub unsafe fn create_autocmd_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn create_autocmd_hash(key: &[u8]) -> c_int {
+    match key {
         b"buf" => 0,
         b"desc" => 1,
         b"once" => 2,
@@ -1483,16 +1350,9 @@ pub unsafe fn create_autocmd_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_create_autocmd_get_field(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    let hash = unsafe { create_autocmd_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const create_autocmd_table[hash as usize]
-    }
+pub fn KeyDict_create_autocmd_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = create_autocmd_hash(key);
+    (hash >= 0).then(|| &create_autocmd_table[hash as usize])
 }
 
 pub static echo_opts_table: [KeySetLink; 11] = [
@@ -1575,11 +1435,8 @@ pub static echo_opts_table: [KeySetLink; 11] = [
     },
 ];
 
-pub unsafe fn echo_opts_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn echo_opts_hash(key: &[u8]) -> c_int {
+    match key {
         b"id" => 0,
         b"err" => 1,
         b"data" => 2,
@@ -1594,13 +1451,9 @@ pub unsafe fn echo_opts_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_echo_opts_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { echo_opts_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const echo_opts_table[hash as usize]
-    }
+pub fn KeyDict_echo_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = echo_opts_hash(key);
+    (hash >= 0).then(|| &echo_opts_table[hash as usize])
 }
 
 pub static empty_table: [KeySetLink; 1] = [KeySetLink {
@@ -1611,18 +1464,14 @@ pub static empty_table: [KeySetLink; 1] = [KeySetLink {
     is_hlgroup: false,
 }];
 
-pub unsafe fn empty_hash(str_: *const c_char, len: usize) -> c_int {
-    let _ = (str_, len);
+pub fn empty_hash(key: &[u8]) -> c_int {
+    let _ = key;
     -1
 }
 
-pub unsafe fn KeyDict_empty_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { empty_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const empty_table[hash as usize]
-    }
+pub fn KeyDict_empty_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = empty_hash(key);
+    (hash >= 0).then(|| &empty_table[hash as usize])
 }
 
 pub static eval_statusline_table: [KeySetLink; 8] = [
@@ -1684,11 +1533,8 @@ pub static eval_statusline_table: [KeySetLink; 8] = [
     },
 ];
 
-pub unsafe fn eval_statusline_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn eval_statusline_hash(key: &[u8]) -> c_int {
+    match key {
         b"winid" => 0,
         b"fillchar" => 1,
         b"maxwidth" => 2,
@@ -1700,16 +1546,9 @@ pub unsafe fn eval_statusline_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_eval_statusline_get_field(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    let hash = unsafe { eval_statusline_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const eval_statusline_table[hash as usize]
-    }
+pub fn KeyDict_eval_statusline_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = eval_statusline_hash(key);
+    (hash >= 0).then(|| &eval_statusline_table[hash as usize])
 }
 
 pub static exec_autocmds_table: [KeySetLink; 7] = [
@@ -1764,11 +1603,8 @@ pub static exec_autocmds_table: [KeySetLink; 7] = [
     },
 ];
 
-pub unsafe fn exec_autocmds_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn exec_autocmds_hash(key: &[u8]) -> c_int {
+    match key {
         b"buf" => 0,
         b"data" => 1,
         b"group" => 2,
@@ -1779,16 +1615,9 @@ pub unsafe fn exec_autocmds_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_exec_autocmds_get_field(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    let hash = unsafe { exec_autocmds_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const exec_autocmds_table[hash as usize]
-    }
+pub fn KeyDict_exec_autocmds_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = exec_autocmds_hash(key);
+    (hash >= 0).then(|| &exec_autocmds_table[hash as usize])
 }
 
 pub static exec_opts_table: [KeySetLink; 2] = [
@@ -1808,23 +1637,16 @@ pub static exec_opts_table: [KeySetLink; 2] = [
     },
 ];
 
-pub unsafe fn exec_opts_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn exec_opts_hash(key: &[u8]) -> c_int {
+    match key {
         b"output" => 0,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_exec_opts_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { exec_opts_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const exec_opts_table[hash as usize]
-    }
+pub fn KeyDict_exec_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = exec_opts_hash(key);
+    (hash >= 0).then(|| &exec_opts_table[hash as usize])
 }
 
 pub static get_autocmds_table: [KeySetLink; 7] = [
@@ -1879,11 +1701,8 @@ pub static get_autocmds_table: [KeySetLink; 7] = [
     },
 ];
 
-pub unsafe fn get_autocmds_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn get_autocmds_hash(key: &[u8]) -> c_int {
+    match key {
         b"id" => 0,
         b"buf" => 1,
         b"event" => 2,
@@ -1894,13 +1713,9 @@ pub unsafe fn get_autocmds_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_get_autocmds_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { get_autocmds_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const get_autocmds_table[hash as usize]
-    }
+pub fn KeyDict_get_autocmds_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = get_autocmds_hash(key);
+    (hash >= 0).then(|| &get_autocmds_table[hash as usize])
 }
 
 pub static get_commands_table: [KeySetLink; 2] = [
@@ -1920,23 +1735,16 @@ pub static get_commands_table: [KeySetLink; 2] = [
     },
 ];
 
-pub unsafe fn get_commands_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn get_commands_hash(key: &[u8]) -> c_int {
+    match key {
         b"builtin" => 0,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_get_commands_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { get_commands_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const get_commands_table[hash as usize]
-    }
+pub fn KeyDict_get_commands_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = get_commands_hash(key);
+    (hash >= 0).then(|| &get_commands_table[hash as usize])
 }
 
 pub static get_extmark_table: [KeySetLink; 3] = [
@@ -1963,24 +1771,17 @@ pub static get_extmark_table: [KeySetLink; 3] = [
     },
 ];
 
-pub unsafe fn get_extmark_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn get_extmark_hash(key: &[u8]) -> c_int {
+    match key {
         b"details" => 0,
         b"hl_name" => 1,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_get_extmark_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { get_extmark_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const get_extmark_table[hash as usize]
-    }
+pub fn KeyDict_get_extmark_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = get_extmark_hash(key);
+    (hash >= 0).then(|| &get_extmark_table[hash as usize])
 }
 
 pub static get_extmarks_table: [KeySetLink; 6] = [
@@ -2028,11 +1829,8 @@ pub static get_extmarks_table: [KeySetLink; 6] = [
     },
 ];
 
-pub unsafe fn get_extmarks_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn get_extmarks_hash(key: &[u8]) -> c_int {
+    match key {
         b"type" => 0,
         b"limit" => 1,
         b"details" => 2,
@@ -2042,13 +1840,9 @@ pub unsafe fn get_extmarks_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_get_extmarks_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { get_extmarks_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const get_extmarks_table[hash as usize]
-    }
+pub fn KeyDict_get_extmarks_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = get_extmarks_hash(key);
+    (hash >= 0).then(|| &get_extmarks_table[hash as usize])
 }
 
 pub static get_highlight_table: [KeySetLink; 5] = [
@@ -2089,11 +1883,8 @@ pub static get_highlight_table: [KeySetLink; 5] = [
     },
 ];
 
-pub unsafe fn get_highlight_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn get_highlight_hash(key: &[u8]) -> c_int {
+    match key {
         b"id" => 0,
         b"link" => 1,
         b"name" => 2,
@@ -2102,16 +1893,9 @@ pub unsafe fn get_highlight_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_get_highlight_get_field(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    let hash = unsafe { get_highlight_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const get_highlight_table[hash as usize]
-    }
+pub fn KeyDict_get_highlight_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = get_highlight_hash(key);
+    (hash >= 0).then(|| &get_highlight_table[hash as usize])
 }
 
 pub static get_ns_table: [KeySetLink; 2] = [
@@ -2131,23 +1915,16 @@ pub static get_ns_table: [KeySetLink; 2] = [
     },
 ];
 
-pub unsafe fn get_ns_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn get_ns_hash(key: &[u8]) -> c_int {
+    match key {
         b"winid" => 0,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_get_ns_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { get_ns_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const get_ns_table[hash as usize]
-    }
+pub fn KeyDict_get_ns_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = get_ns_hash(key);
+    (hash >= 0).then(|| &get_ns_table[hash as usize])
 }
 
 pub static highlight_table: [KeySetLink; 37] = [
@@ -2412,11 +2189,8 @@ pub static highlight_table: [KeySetLink; 37] = [
     },
 ];
 
-pub unsafe fn highlight_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn highlight_hash(key: &[u8]) -> c_int {
+    match key {
         b"bg" => 0,
         b"fg" => 1,
         b"sp" => 2,
@@ -2457,13 +2231,9 @@ pub unsafe fn highlight_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_highlight_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { highlight_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const highlight_table[hash as usize]
-    }
+pub fn KeyDict_highlight_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = highlight_hash(key);
+    (hash >= 0).then(|| &highlight_table[hash as usize])
 }
 
 pub static highlight_cterm_table: [KeySetLink; 17] = [
@@ -2588,11 +2358,8 @@ pub static highlight_cterm_table: [KeySetLink; 17] = [
     },
 ];
 
-pub unsafe fn highlight_cterm_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn highlight_cterm_hash(key: &[u8]) -> c_int {
+    match key {
         b"dim" => 0,
         b"bold" => 1,
         b"blink" => 2,
@@ -2613,16 +2380,9 @@ pub unsafe fn highlight_cterm_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_highlight_cterm_get_field(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    let hash = unsafe { highlight_cterm_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const highlight_cterm_table[hash as usize]
-    }
+pub fn KeyDict_highlight_cterm_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = highlight_cterm_hash(key);
+    (hash >= 0).then(|| &highlight_cterm_table[hash as usize])
 }
 
 pub static keymap_table: [KeySetLink; 10] = [
@@ -2698,11 +2458,8 @@ pub static keymap_table: [KeySetLink; 10] = [
     },
 ];
 
-pub unsafe fn keymap_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn keymap_hash(key: &[u8]) -> c_int {
+    match key {
         b"desc" => 0,
         b"expr" => 1,
         b"script" => 2,
@@ -2716,13 +2473,9 @@ pub unsafe fn keymap_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_keymap_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { keymap_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const keymap_table[hash as usize]
-    }
+pub fn KeyDict_keymap_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = keymap_hash(key);
+    (hash >= 0).then(|| &keymap_table[hash as usize])
 }
 
 pub static keymap_del_table: [KeySetLink; 2] = [
@@ -2742,23 +2495,16 @@ pub static keymap_del_table: [KeySetLink; 2] = [
     },
 ];
 
-pub unsafe fn keymap_del_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn keymap_del_hash(key: &[u8]) -> c_int {
+    match key {
         b"lhs" => 0,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_keymap_del_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { keymap_del_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const keymap_del_table[hash as usize]
-    }
+pub fn KeyDict_keymap_del_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = keymap_del_hash(key);
+    (hash >= 0).then(|| &keymap_del_table[hash as usize])
 }
 
 pub static ns_opts_table: [KeySetLink; 2] = [
@@ -2778,23 +2524,16 @@ pub static ns_opts_table: [KeySetLink; 2] = [
     },
 ];
 
-pub unsafe fn ns_opts_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn ns_opts_hash(key: &[u8]) -> c_int {
+    match key {
         b"wins" => 0,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_ns_opts_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { ns_opts_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const ns_opts_table[hash as usize]
-    }
+pub fn KeyDict_ns_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = ns_opts_hash(key);
+    (hash >= 0).then(|| &ns_opts_table[hash as usize])
 }
 
 pub static open_term_table: [KeySetLink; 3] = [
@@ -2821,24 +2560,17 @@ pub static open_term_table: [KeySetLink; 3] = [
     },
 ];
 
-pub unsafe fn open_term_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn open_term_hash(key: &[u8]) -> c_int {
+    match key {
         b"on_input" => 0,
         b"force_crlf" => 1,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_open_term_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { open_term_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const open_term_table[hash as usize]
-    }
+pub fn KeyDict_open_term_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = open_term_hash(key);
+    (hash >= 0).then(|| &open_term_table[hash as usize])
 }
 
 pub static option_table: [KeySetLink; 8] = [
@@ -2900,11 +2632,8 @@ pub static option_table: [KeySetLink; 8] = [
     },
 ];
 
-pub unsafe fn option_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn option_hash(key: &[u8]) -> c_int {
+    match key {
         b"buf" => 0,
         b"tab" => 1,
         b"win" => 2,
@@ -2916,13 +2645,9 @@ pub unsafe fn option_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_option_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { option_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const option_table[hash as usize]
-    }
+pub fn KeyDict_option_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = option_hash(key);
+    (hash >= 0).then(|| &option_table[hash as usize])
 }
 
 pub static redraw_table: [KeySetLink; 11] = [
@@ -3005,11 +2730,8 @@ pub static redraw_table: [KeySetLink; 11] = [
     },
 ];
 
-pub unsafe fn redraw_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn redraw_hash(key: &[u8]) -> c_int {
+    match key {
         b"buf" => 0,
         b"win" => 1,
         b"flush" => 2,
@@ -3024,13 +2746,9 @@ pub unsafe fn redraw_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_redraw_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { redraw_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const redraw_table[hash as usize]
-    }
+pub fn KeyDict_redraw_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = redraw_hash(key);
+    (hash >= 0).then(|| &redraw_table[hash as usize])
 }
 
 pub static runtime_table: [KeySetLink; 3] = [
@@ -3057,24 +2775,17 @@ pub static runtime_table: [KeySetLink; 3] = [
     },
 ];
 
-pub unsafe fn runtime_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn runtime_hash(key: &[u8]) -> c_int {
+    match key {
         b"is_lua" => 0,
         b"do_source" => 1,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_runtime_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { runtime_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const runtime_table[hash as usize]
-    }
+pub fn KeyDict_runtime_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = runtime_hash(key);
+    (hash >= 0).then(|| &runtime_table[hash as usize])
 }
 
 pub static set_decoration_provider_table: [KeySetLink; 10] = [
@@ -3150,11 +2861,8 @@ pub static set_decoration_provider_table: [KeySetLink; 10] = [
     },
 ];
 
-pub unsafe fn set_decoration_provider_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn set_decoration_provider_hash(key: &[u8]) -> c_int {
+    match key {
         b"on_buf" => 0,
         b"on_end" => 1,
         b"on_win" => 2,
@@ -3168,16 +2876,9 @@ pub unsafe fn set_decoration_provider_hash(str_: *const c_char, len: usize) -> c
     }
 }
 
-pub unsafe fn KeyDict_set_decoration_provider_get_field(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    let hash = unsafe { set_decoration_provider_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const set_decoration_provider_table[hash as usize]
-    }
+pub fn KeyDict_set_decoration_provider_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = set_decoration_provider_hash(key);
+    (hash >= 0).then(|| &set_decoration_provider_table[hash as usize])
 }
 
 pub static set_extmark_table: [KeySetLink; 36] = [
@@ -3435,11 +3136,8 @@ pub static set_extmark_table: [KeySetLink; 36] = [
     },
 ];
 
-pub unsafe fn set_extmark_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn set_extmark_hash(key: &[u8]) -> c_int {
+    match key {
         b"id" => 0,
         b"url" => 1,
         b"spell" => 2,
@@ -3479,13 +3177,9 @@ pub unsafe fn set_extmark_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_set_extmark_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { set_extmark_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const set_extmark_table[hash as usize]
-    }
+pub fn KeyDict_set_extmark_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = set_extmark_hash(key);
+    (hash >= 0).then(|| &set_extmark_table[hash as usize])
 }
 
 pub static tabpage_config_table: [KeySetLink; 2] = [
@@ -3505,26 +3199,16 @@ pub static tabpage_config_table: [KeySetLink; 2] = [
     },
 ];
 
-pub unsafe fn tabpage_config_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn tabpage_config_hash(key: &[u8]) -> c_int {
+    match key {
         b"after" => 0,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_tabpage_config_get_field(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    let hash = unsafe { tabpage_config_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const tabpage_config_table[hash as usize]
-    }
+pub fn KeyDict_tabpage_config_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = tabpage_config_hash(key);
+    (hash >= 0).then(|| &tabpage_config_table[hash as usize])
 }
 
 pub static user_command_table: [KeySetLink; 13] = [
@@ -3621,11 +3305,8 @@ pub static user_command_table: [KeySetLink; 13] = [
     },
 ];
 
-pub unsafe fn user_command_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn user_command_hash(key: &[u8]) -> c_int {
+    match key {
         b"bar" => 0,
         b"addr" => 1,
         b"bang" => 2,
@@ -3642,13 +3323,9 @@ pub unsafe fn user_command_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_user_command_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { user_command_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const user_command_table[hash as usize]
-    }
+pub fn KeyDict_user_command_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = user_command_hash(key);
+    (hash >= 0).then(|| &user_command_table[hash as usize])
 }
 
 pub static win_config_table: [KeySetLink; 25] = [
@@ -3829,11 +3506,8 @@ pub static win_config_table: [KeySetLink; 25] = [
     },
 ];
 
-pub unsafe fn win_config_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn win_config_hash(key: &[u8]) -> c_int {
+    match key {
         b"col" => 0,
         b"row" => 1,
         b"win" => 2,
@@ -3862,13 +3536,9 @@ pub unsafe fn win_config_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_win_config_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { win_config_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const win_config_table[hash as usize]
-    }
+pub fn KeyDict_win_config_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = win_config_hash(key);
+    (hash >= 0).then(|| &win_config_table[hash as usize])
 }
 
 pub static win_resize_table: [KeySetLink; 2] = [
@@ -3888,23 +3558,16 @@ pub static win_resize_table: [KeySetLink; 2] = [
     },
 ];
 
-pub unsafe fn win_resize_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn win_resize_hash(key: &[u8]) -> c_int {
+    match key {
         b"anchor" => 0,
         _ => -1,
     }
 }
 
-pub unsafe fn KeyDict_win_resize_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { win_resize_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const win_resize_table[hash as usize]
-    }
+pub fn KeyDict_win_resize_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = win_resize_hash(key);
+    (hash >= 0).then(|| &win_resize_table[hash as usize])
 }
 
 pub static win_text_height_table: [KeySetLink; 6] = [
@@ -3952,11 +3615,8 @@ pub static win_text_height_table: [KeySetLink; 6] = [
     },
 ];
 
-pub unsafe fn win_text_height_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn win_text_height_hash(key: &[u8]) -> c_int {
+    match key {
         b"end_row" => 0,
         b"end_vcol" => 1,
         b"start_row" => 2,
@@ -3966,16 +3626,9 @@ pub unsafe fn win_text_height_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_win_text_height_get_field(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    let hash = unsafe { win_text_height_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const win_text_height_table[hash as usize]
-    }
+pub fn KeyDict_win_text_height_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = win_text_height_hash(key);
+    (hash >= 0).then(|| &win_text_height_table[hash as usize])
 }
 
 pub static xdl_diff_table: [KeySetLink; 13] = [
@@ -4072,11 +3725,8 @@ pub static xdl_diff_table: [KeySetLink; 13] = [
     },
 ];
 
-pub unsafe fn xdl_diff_hash(str_: *const c_char, len: usize) -> c_int {
-    if str_.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+pub fn xdl_diff_hash(key: &[u8]) -> c_int {
+    match key {
         b"ctxlen" => 0,
         b"on_hunk" => 1,
         b"algorithm" => 2,
@@ -4093,19 +3743,15 @@ pub unsafe fn xdl_diff_hash(str_: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn KeyDict_xdl_diff_get_field(str_: *const c_char, len: usize) -> *const KeySetLink {
-    let hash = unsafe { xdl_diff_hash(str_, len) };
-    if hash == -1 {
-        ptr::null()
-    } else {
-        &raw const xdl_diff_table[hash as usize]
-    }
+pub fn KeyDict_xdl_diff_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+    let hash = xdl_diff_hash(key);
+    (hash >= 0).then(|| &xdl_diff_table[hash as usize])
 }
 
-pub unsafe fn handle_nvim_get_autocmds(
+pub fn handle_nvim_get_autocmds(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -4138,10 +3784,10 @@ pub unsafe fn handle_nvim_get_autocmds(
     }
 }
 
-pub unsafe fn handle_nvim_create_autocmd(
+pub fn handle_nvim_create_autocmd(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -4175,10 +3821,10 @@ pub unsafe fn handle_nvim_create_autocmd(
     }
 }
 
-pub unsafe fn handle_nvim_del_autocmd(
+pub fn handle_nvim_del_autocmd(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -4214,10 +3860,10 @@ pub unsafe fn handle_nvim_del_autocmd(
     }
 }
 
-pub unsafe fn handle_nvim_clear_autocmds(
+pub fn handle_nvim_clear_autocmds(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -4249,10 +3895,10 @@ pub unsafe fn handle_nvim_clear_autocmds(
     }
 }
 
-pub unsafe fn handle_nvim_create_augroup(
+pub fn handle_nvim_create_augroup(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -4295,10 +3941,10 @@ pub unsafe fn handle_nvim_create_augroup(
     }
 }
 
-pub unsafe fn handle_nvim_del_augroup_by_id(
+pub fn handle_nvim_del_augroup_by_id(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -4335,10 +3981,10 @@ pub unsafe fn handle_nvim_del_augroup_by_id(
     }
 }
 
-pub unsafe fn handle_nvim_del_augroup_by_name(
+pub fn handle_nvim_del_augroup_by_name(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -4375,10 +4021,10 @@ pub unsafe fn handle_nvim_del_augroup_by_name(
     }
 }
 
-pub unsafe fn handle_nvim_exec_autocmds(
+pub fn handle_nvim_exec_autocmds(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -4411,10 +4057,10 @@ pub unsafe fn handle_nvim_exec_autocmds(
     }
 }
 
-pub unsafe fn handle_nvim_buf_line_count(
+pub fn handle_nvim_buf_line_count(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -4453,10 +4099,10 @@ pub unsafe fn handle_nvim_buf_line_count(
     }
 }
 
-pub unsafe fn handle_nvim_buf_attach(
+pub fn handle_nvim_buf_attach(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -4508,10 +4154,10 @@ pub unsafe fn handle_nvim_buf_attach(
     }
 }
 
-pub unsafe fn handle_nvim_buf_detach(
+pub fn handle_nvim_buf_detach(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -4549,10 +4195,10 @@ pub unsafe fn handle_nvim_buf_detach(
     }
 }
 
-pub unsafe fn handle_nvim_buf_get_lines(
+pub fn handle_nvim_buf_get_lines(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -4629,10 +4275,10 @@ pub unsafe fn handle_nvim_buf_get_lines(
     }
 }
 
-pub unsafe fn handle_nvim_buf_set_lines(
+pub fn handle_nvim_buf_set_lines(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -4713,10 +4359,10 @@ pub unsafe fn handle_nvim_buf_set_lines(
     }
 }
 
-pub unsafe fn handle_nvim_buf_set_text(
+pub fn handle_nvim_buf_set_text(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -4805,10 +4451,10 @@ pub unsafe fn handle_nvim_buf_set_text(
     }
 }
 
-pub unsafe fn handle_nvim_buf_get_text(
+pub fn handle_nvim_buf_get_text(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -4898,10 +4544,10 @@ pub unsafe fn handle_nvim_buf_get_text(
     }
 }
 
-pub unsafe fn handle_nvim_buf_get_offset(
+pub fn handle_nvim_buf_get_offset(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -4950,10 +4596,10 @@ pub unsafe fn handle_nvim_buf_get_offset(
     }
 }
 
-pub unsafe fn handle_nvim_buf_get_var(
+pub fn handle_nvim_buf_get_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5000,10 +4646,10 @@ pub unsafe fn handle_nvim_buf_get_var(
     }
 }
 
-pub unsafe fn handle_nvim_buf_get_changedtick(
+pub fn handle_nvim_buf_get_changedtick(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5042,10 +4688,10 @@ pub unsafe fn handle_nvim_buf_get_changedtick(
     }
 }
 
-pub unsafe fn handle_nvim_buf_get_keymap(
+pub fn handle_nvim_buf_get_keymap(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5094,10 +4740,10 @@ pub unsafe fn handle_nvim_buf_get_keymap(
     }
 }
 
-pub unsafe fn handle_nvim_buf_set_keymap(
+pub fn handle_nvim_buf_set_keymap(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5178,10 +4824,10 @@ pub unsafe fn handle_nvim_buf_set_keymap(
     }
 }
 
-pub unsafe fn handle_nvim_buf_del_keymap(
+pub fn handle_nvim_buf_del_keymap(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5244,10 +4890,10 @@ pub unsafe fn handle_nvim_buf_del_keymap(
     }
 }
 
-pub unsafe fn handle_nvim_buf_set_var(
+pub fn handle_nvim_buf_set_var(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5294,10 +4940,10 @@ pub unsafe fn handle_nvim_buf_set_var(
     }
 }
 
-pub unsafe fn handle_nvim_buf_del_var(
+pub fn handle_nvim_buf_del_var(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5343,10 +4989,10 @@ pub unsafe fn handle_nvim_buf_del_var(
     }
 }
 
-pub unsafe fn handle_nvim_buf_get_name(
+pub fn handle_nvim_buf_get_name(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5384,10 +5030,10 @@ pub unsafe fn handle_nvim_buf_get_name(
     }
 }
 
-pub unsafe fn handle_nvim_buf_set_name(
+pub fn handle_nvim_buf_set_name(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5433,10 +5079,10 @@ pub unsafe fn handle_nvim_buf_set_name(
     }
 }
 
-pub unsafe fn handle_nvim_buf_is_loaded(
+pub fn handle_nvim_buf_is_loaded(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5471,10 +5117,10 @@ pub unsafe fn handle_nvim_buf_is_loaded(
     }
 }
 
-pub unsafe fn handle_nvim_buf_delete(
+pub fn handle_nvim_buf_delete(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5520,10 +5166,10 @@ pub unsafe fn handle_nvim_buf_delete(
     }
 }
 
-pub unsafe fn handle_nvim_buf_is_valid(
+pub fn handle_nvim_buf_is_valid(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5558,10 +5204,10 @@ pub unsafe fn handle_nvim_buf_is_valid(
     }
 }
 
-pub unsafe fn handle_nvim_buf_del_mark(
+pub fn handle_nvim_buf_del_mark(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5608,10 +5254,10 @@ pub unsafe fn handle_nvim_buf_del_mark(
     }
 }
 
-pub unsafe fn handle_nvim_buf_set_mark(
+pub fn handle_nvim_buf_set_mark(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5681,10 +5327,10 @@ pub unsafe fn handle_nvim_buf_set_mark(
     }
 }
 
-pub unsafe fn handle_nvim_buf_get_mark(
+pub fn handle_nvim_buf_get_mark(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5731,10 +5377,10 @@ pub unsafe fn handle_nvim_buf_get_mark(
     }
 }
 
-pub unsafe fn handle_nvim__buf_stats(
+pub fn handle_nvim__buf_stats(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5772,10 +5418,10 @@ pub unsafe fn handle_nvim__buf_stats(
     }
 }
 
-pub unsafe fn handle_nvim_parse_cmd(
+pub fn handle_nvim_parse_cmd(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5830,10 +5476,10 @@ pub unsafe fn handle_nvim_parse_cmd(
     }
 }
 
-pub unsafe fn handle_nvim_cmd(
+pub fn handle_nvim_cmd(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5884,10 +5530,10 @@ pub unsafe fn handle_nvim_cmd(
     }
 }
 
-pub unsafe fn handle_nvim_create_user_command(
+pub fn handle_nvim_create_user_command(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5930,10 +5576,10 @@ pub unsafe fn handle_nvim_create_user_command(
     }
 }
 
-pub unsafe fn handle_nvim_del_user_command(
+pub fn handle_nvim_del_user_command(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -5970,10 +5616,10 @@ pub unsafe fn handle_nvim_del_user_command(
     }
 }
 
-pub unsafe fn handle_nvim_buf_create_user_command(
+pub fn handle_nvim_buf_create_user_command(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6014,10 +5660,10 @@ pub unsafe fn handle_nvim_buf_create_user_command(
     }
 }
 
-pub unsafe fn handle_nvim_buf_del_user_command(
+pub fn handle_nvim_buf_del_user_command(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6065,10 +5711,10 @@ pub unsafe fn handle_nvim_buf_del_user_command(
     }
 }
 
-pub unsafe fn handle_nvim_get_commands(
+pub fn handle_nvim_get_commands(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6101,10 +5747,10 @@ pub unsafe fn handle_nvim_get_commands(
     }
 }
 
-pub unsafe fn handle_nvim_buf_get_commands(
+pub fn handle_nvim_buf_get_commands(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6148,10 +5794,10 @@ pub unsafe fn handle_nvim_buf_get_commands(
     }
 }
 
-pub unsafe fn handle_nvim_exec(
+pub fn handle_nvim_exec(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6197,10 +5843,10 @@ pub unsafe fn handle_nvim_exec(
     }
 }
 
-pub unsafe fn handle_nvim_command_output(
+pub fn handle_nvim_command_output(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6238,10 +5884,10 @@ pub unsafe fn handle_nvim_command_output(
     }
 }
 
-pub unsafe fn handle_nvim_execute_lua(
+pub fn handle_nvim_execute_lua(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6287,10 +5933,10 @@ pub unsafe fn handle_nvim_execute_lua(
     }
 }
 
-pub unsafe fn handle_nvim_buf_get_number(
+pub fn handle_nvim_buf_get_number(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6329,10 +5975,10 @@ pub unsafe fn handle_nvim_buf_get_number(
     }
 }
 
-pub unsafe fn handle_nvim_buf_clear_highlight(
+pub fn handle_nvim_buf_clear_highlight(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6400,10 +6046,10 @@ pub unsafe fn handle_nvim_buf_clear_highlight(
     }
 }
 
-pub unsafe fn handle_nvim_buf_add_highlight(
+pub fn handle_nvim_buf_add_highlight(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6492,10 +6138,10 @@ pub unsafe fn handle_nvim_buf_add_highlight(
     }
 }
 
-pub unsafe fn handle_nvim_buf_set_virtual_text(
+pub fn handle_nvim_buf_set_virtual_text(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6569,10 +6215,10 @@ pub unsafe fn handle_nvim_buf_set_virtual_text(
     }
 }
 
-pub unsafe fn handle_nvim_get_hl_by_id(
+pub fn handle_nvim_get_hl_by_id(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6618,10 +6264,10 @@ pub unsafe fn handle_nvim_get_hl_by_id(
     }
 }
 
-pub unsafe fn handle_nvim_get_hl_by_name(
+pub fn handle_nvim_get_hl_by_name(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6669,10 +6315,10 @@ pub unsafe fn handle_nvim_get_hl_by_name(
     }
 }
 
-pub unsafe fn handle_buffer_insert(
+pub fn handle_buffer_insert(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6728,10 +6374,10 @@ pub unsafe fn handle_buffer_insert(
     }
 }
 
-pub unsafe fn handle_buffer_get_line(
+pub fn handle_buffer_get_line(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6778,10 +6424,10 @@ pub unsafe fn handle_buffer_get_line(
     }
 }
 
-pub unsafe fn handle_buffer_set_line(
+pub fn handle_buffer_set_line(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6836,10 +6482,10 @@ pub unsafe fn handle_buffer_set_line(
     }
 }
 
-pub unsafe fn handle_buffer_del_line(
+pub fn handle_buffer_del_line(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6885,10 +6531,10 @@ pub unsafe fn handle_buffer_del_line(
     }
 }
 
-pub unsafe fn handle_buffer_get_line_slice(
+pub fn handle_buffer_get_line_slice(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -6967,10 +6613,10 @@ pub unsafe fn handle_buffer_get_line_slice(
     }
 }
 
-pub unsafe fn handle_buffer_set_line_slice(
+pub fn handle_buffer_set_line_slice(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7052,10 +6698,10 @@ pub unsafe fn handle_buffer_set_line_slice(
     }
 }
 
-pub unsafe fn handle_buffer_set_var(
+pub fn handle_buffer_set_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7103,10 +6749,10 @@ pub unsafe fn handle_buffer_set_var(
     }
 }
 
-pub unsafe fn handle_buffer_del_var(
+pub fn handle_buffer_del_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7153,10 +6799,10 @@ pub unsafe fn handle_buffer_del_var(
     }
 }
 
-pub unsafe fn handle_window_set_var(
+pub fn handle_window_set_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7204,10 +6850,10 @@ pub unsafe fn handle_window_set_var(
     }
 }
 
-pub unsafe fn handle_window_del_var(
+pub fn handle_window_del_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7254,10 +6900,10 @@ pub unsafe fn handle_window_del_var(
     }
 }
 
-pub unsafe fn handle_tabpage_set_var(
+pub fn handle_tabpage_set_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7305,10 +6951,10 @@ pub unsafe fn handle_tabpage_set_var(
     }
 }
 
-pub unsafe fn handle_tabpage_del_var(
+pub fn handle_tabpage_del_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7355,10 +7001,10 @@ pub unsafe fn handle_tabpage_del_var(
     }
 }
 
-pub unsafe fn handle_vim_set_var(
+pub fn handle_vim_set_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7396,10 +7042,10 @@ pub unsafe fn handle_vim_set_var(
     }
 }
 
-pub unsafe fn handle_vim_del_var(
+pub fn handle_vim_del_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7436,10 +7082,10 @@ pub unsafe fn handle_vim_del_var(
     }
 }
 
-pub unsafe fn handle_nvim_get_option_info(
+pub fn handle_nvim_get_option_info(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7477,10 +7123,10 @@ pub unsafe fn handle_nvim_get_option_info(
     }
 }
 
-pub unsafe fn handle_nvim_set_option(
+pub fn handle_nvim_set_option(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7517,10 +7163,10 @@ pub unsafe fn handle_nvim_set_option(
     }
 }
 
-pub unsafe fn handle_nvim_get_option(
+pub fn handle_nvim_get_option(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7557,10 +7203,10 @@ pub unsafe fn handle_nvim_get_option(
     }
 }
 
-pub unsafe fn handle_nvim_buf_get_option(
+pub fn handle_nvim_buf_get_option(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7609,10 +7255,10 @@ pub unsafe fn handle_nvim_buf_get_option(
     }
 }
 
-pub unsafe fn handle_nvim_buf_set_option(
+pub fn handle_nvim_buf_set_option(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7661,10 +7307,10 @@ pub unsafe fn handle_nvim_buf_set_option(
     }
 }
 
-pub unsafe fn handle_nvim_win_get_option(
+pub fn handle_nvim_win_get_option(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7713,10 +7359,10 @@ pub unsafe fn handle_nvim_win_get_option(
     }
 }
 
-pub unsafe fn handle_nvim_win_set_option(
+pub fn handle_nvim_win_set_option(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7765,10 +7411,10 @@ pub unsafe fn handle_nvim_win_set_option(
     }
 }
 
-pub unsafe fn handle_nvim_call_atomic(
+pub fn handle_nvim_call_atomic(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7805,10 +7451,10 @@ pub unsafe fn handle_nvim_call_atomic(
     }
 }
 
-pub unsafe fn handle_nvim_subscribe(
+pub fn handle_nvim_subscribe(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7841,10 +7487,10 @@ pub unsafe fn handle_nvim_subscribe(
     }
 }
 
-pub unsafe fn handle_nvim_unsubscribe(
+pub fn handle_nvim_unsubscribe(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7877,10 +7523,10 @@ pub unsafe fn handle_nvim_unsubscribe(
     }
 }
 
-pub unsafe fn handle_nvim_out_write(
+pub fn handle_nvim_out_write(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7913,10 +7559,10 @@ pub unsafe fn handle_nvim_out_write(
     }
 }
 
-pub unsafe fn handle_nvim_err_write(
+pub fn handle_nvim_err_write(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7949,10 +7595,10 @@ pub unsafe fn handle_nvim_err_write(
     }
 }
 
-pub unsafe fn handle_nvim_err_writeln(
+pub fn handle_nvim_err_writeln(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -7985,10 +7631,10 @@ pub unsafe fn handle_nvim_err_writeln(
     }
 }
 
-pub unsafe fn handle_nvim_notify(
+pub fn handle_nvim_notify(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8043,10 +7689,10 @@ pub unsafe fn handle_nvim_notify(
     }
 }
 
-pub unsafe fn handle_nvim_win_set_height(
+pub fn handle_nvim_win_set_height(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8094,10 +7740,10 @@ pub unsafe fn handle_nvim_win_set_height(
     }
 }
 
-pub unsafe fn handle_nvim_win_set_width(
+pub fn handle_nvim_win_set_width(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8144,10 +7790,10 @@ pub unsafe fn handle_nvim_win_set_width(
     }
 }
 
-pub unsafe fn handle_nvim_error_event(
+pub fn handle_nvim_error_event(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8189,10 +7835,10 @@ pub unsafe fn handle_nvim_error_event(
     }
 }
 
-pub unsafe fn handle_nvim_ui_term_event(
+pub fn handle_nvim_ui_term_event(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8229,10 +7875,10 @@ pub unsafe fn handle_nvim_ui_term_event(
     }
 }
 
-pub unsafe fn handle_nvim_create_namespace(
+pub fn handle_nvim_create_namespace(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8267,10 +7913,10 @@ pub unsafe fn handle_nvim_create_namespace(
     }
 }
 
-pub unsafe fn handle_nvim_get_namespaces(
+pub fn handle_nvim_get_namespaces(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8295,10 +7941,10 @@ pub unsafe fn handle_nvim_get_namespaces(
     }
 }
 
-pub unsafe fn handle_nvim_buf_get_extmark_by_id(
+pub fn handle_nvim_buf_get_extmark_by_id(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8362,10 +8008,10 @@ pub unsafe fn handle_nvim_buf_get_extmark_by_id(
     }
 }
 
-pub unsafe fn handle_nvim_buf_get_extmarks(
+pub fn handle_nvim_buf_get_extmarks(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8421,10 +8067,10 @@ pub unsafe fn handle_nvim_buf_get_extmarks(
     }
 }
 
-pub unsafe fn handle_nvim_buf_set_extmark(
+pub fn handle_nvim_buf_set_extmark(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8498,10 +8144,10 @@ pub unsafe fn handle_nvim_buf_set_extmark(
     }
 }
 
-pub unsafe fn handle_nvim_buf_del_extmark(
+pub fn handle_nvim_buf_del_extmark(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8560,10 +8206,10 @@ pub unsafe fn handle_nvim_buf_del_extmark(
     }
 }
 
-pub unsafe fn handle_nvim_buf_clear_namespace(
+pub fn handle_nvim_buf_clear_namespace(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8631,10 +8277,10 @@ pub unsafe fn handle_nvim_buf_clear_namespace(
     }
 }
 
-pub unsafe fn handle_nvim__buf_debug_extmarks(
+pub fn handle_nvim__buf_debug_extmarks(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8693,10 +8339,10 @@ pub unsafe fn handle_nvim__buf_debug_extmarks(
     }
 }
 
-pub unsafe fn handle_nvim__ns_set(
+pub fn handle_nvim__ns_set(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8745,10 +8391,10 @@ pub unsafe fn handle_nvim__ns_set(
     }
 }
 
-pub unsafe fn handle_nvim__ns_get(
+pub fn handle_nvim__ns_get(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8790,10 +8436,10 @@ pub unsafe fn handle_nvim__ns_get(
     }
 }
 
-pub unsafe fn handle_nvim_get_option_value(
+pub fn handle_nvim_get_option_value(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8836,10 +8482,10 @@ pub unsafe fn handle_nvim_get_option_value(
     }
 }
 
-pub unsafe fn handle_nvim_set_option_value(
+pub fn handle_nvim_set_option_value(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8883,10 +8529,10 @@ pub unsafe fn handle_nvim_set_option_value(
     }
 }
 
-pub unsafe fn handle_nvim_get_all_options_info(
+pub fn handle_nvim_get_all_options_info(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8914,10 +8560,10 @@ pub unsafe fn handle_nvim_get_all_options_info(
     }
 }
 
-pub unsafe fn handle_nvim_get_option_info2(
+pub fn handle_nvim_get_option_info2(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -8960,10 +8606,10 @@ pub unsafe fn handle_nvim_get_option_info2(
     }
 }
 
-pub unsafe fn handle_nvim_tabpage_list_wins(
+pub fn handle_nvim_tabpage_list_wins(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9002,10 +8648,10 @@ pub unsafe fn handle_nvim_tabpage_list_wins(
     }
 }
 
-pub unsafe fn handle_nvim_tabpage_get_var(
+pub fn handle_nvim_tabpage_get_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9054,10 +8700,10 @@ pub unsafe fn handle_nvim_tabpage_get_var(
     }
 }
 
-pub unsafe fn handle_nvim_tabpage_set_var(
+pub fn handle_nvim_tabpage_set_var(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9106,10 +8752,10 @@ pub unsafe fn handle_nvim_tabpage_set_var(
     }
 }
 
-pub unsafe fn handle_nvim_tabpage_del_var(
+pub fn handle_nvim_tabpage_del_var(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9157,10 +8803,10 @@ pub unsafe fn handle_nvim_tabpage_del_var(
     }
 }
 
-pub unsafe fn handle_nvim_tabpage_get_win(
+pub fn handle_nvim_tabpage_get_win(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9199,10 +8845,10 @@ pub unsafe fn handle_nvim_tabpage_get_win(
     }
 }
 
-pub unsafe fn handle_nvim_tabpage_set_win(
+pub fn handle_nvim_tabpage_set_win(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9251,10 +8897,10 @@ pub unsafe fn handle_nvim_tabpage_set_win(
     }
 }
 
-pub unsafe fn handle_nvim_tabpage_get_number(
+pub fn handle_nvim_tabpage_get_number(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9293,10 +8939,10 @@ pub unsafe fn handle_nvim_tabpage_get_number(
     }
 }
 
-pub unsafe fn handle_nvim_tabpage_is_valid(
+pub fn handle_nvim_tabpage_is_valid(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9332,10 +8978,10 @@ pub unsafe fn handle_nvim_tabpage_is_valid(
     }
 }
 
-pub unsafe fn handle_nvim_open_tabpage(
+pub fn handle_nvim_open_tabpage(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9390,10 +9036,10 @@ pub unsafe fn handle_nvim_open_tabpage(
     }
 }
 
-pub unsafe fn handle_nvim_ui_attach(
+pub fn handle_nvim_ui_attach(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9447,10 +9093,10 @@ pub unsafe fn handle_nvim_ui_attach(
     }
 }
 
-pub unsafe fn handle_ui_attach(
+pub fn handle_ui_attach(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9504,10 +9150,10 @@ pub unsafe fn handle_ui_attach(
     }
 }
 
-pub unsafe fn handle_nvim_ui_set_focus(
+pub fn handle_nvim_ui_set_focus(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9543,10 +9189,10 @@ pub unsafe fn handle_nvim_ui_set_focus(
     }
 }
 
-pub unsafe fn handle_nvim_ui_detach(
+pub fn handle_nvim_ui_detach(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9573,10 +9219,10 @@ pub unsafe fn handle_nvim_ui_detach(
     }
 }
 
-pub unsafe fn handle_nvim_ui_try_resize(
+pub fn handle_nvim_ui_try_resize(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9623,10 +9269,10 @@ pub unsafe fn handle_nvim_ui_try_resize(
     }
 }
 
-pub unsafe fn handle_nvim_ui_set_option(
+pub fn handle_nvim_ui_set_option(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9663,10 +9309,10 @@ pub unsafe fn handle_nvim_ui_set_option(
     }
 }
 
-pub unsafe fn handle_nvim_ui_try_resize_grid(
+pub fn handle_nvim_ui_try_resize_grid(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9723,10 +9369,10 @@ pub unsafe fn handle_nvim_ui_try_resize_grid(
     }
 }
 
-pub unsafe fn handle_nvim_ui_pum_set_height(
+pub fn handle_nvim_ui_pum_set_height(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9763,10 +9409,10 @@ pub unsafe fn handle_nvim_ui_pum_set_height(
     }
 }
 
-pub unsafe fn handle_nvim_ui_pum_set_bounds(
+pub fn handle_nvim_ui_pum_set_bounds(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9833,10 +9479,10 @@ pub unsafe fn handle_nvim_ui_pum_set_bounds(
     }
 }
 
-pub unsafe fn handle_nvim_ui_send(
+pub fn handle_nvim_ui_send(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9872,10 +9518,10 @@ pub unsafe fn handle_nvim_ui_send(
     }
 }
 
-pub unsafe fn handle_nvim_get_hl_id_by_name(
+pub fn handle_nvim_get_hl_id_by_name(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9913,10 +9559,10 @@ pub unsafe fn handle_nvim_get_hl_id_by_name(
     }
 }
 
-pub unsafe fn handle_nvim_get_hl(
+pub fn handle_nvim_get_hl(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -9958,10 +9604,10 @@ pub unsafe fn handle_nvim_get_hl(
     }
 }
 
-pub unsafe fn handle_nvim_set_hl(
+pub fn handle_nvim_set_hl(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10017,10 +9663,10 @@ pub unsafe fn handle_nvim_set_hl(
     }
 }
 
-pub unsafe fn handle_nvim_get_hl_ns(
+pub fn handle_nvim_get_hl_ns(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10061,10 +9707,10 @@ pub unsafe fn handle_nvim_get_hl_ns(
     }
 }
 
-pub unsafe fn handle_nvim_set_hl_ns(
+pub fn handle_nvim_set_hl_ns(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10100,10 +9746,10 @@ pub unsafe fn handle_nvim_set_hl_ns(
     }
 }
 
-pub unsafe fn handle_nvim_set_hl_ns_fast(
+pub fn handle_nvim_set_hl_ns_fast(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10140,10 +9786,10 @@ pub unsafe fn handle_nvim_set_hl_ns_fast(
     }
 }
 
-pub unsafe fn handle_nvim_feedkeys(
+pub fn handle_nvim_feedkeys(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10194,10 +9840,10 @@ pub unsafe fn handle_nvim_feedkeys(
     }
 }
 
-pub unsafe fn handle_nvim_input(
+pub fn handle_nvim_input(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10231,10 +9877,10 @@ pub unsafe fn handle_nvim_input(
     }
 }
 
-pub unsafe fn handle_nvim_input_mouse(
+pub fn handle_nvim_input_mouse(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10315,10 +9961,10 @@ pub unsafe fn handle_nvim_input_mouse(
     }
 }
 
-pub unsafe fn handle_nvim_replace_termcodes(
+pub fn handle_nvim_replace_termcodes(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10383,10 +10029,10 @@ pub unsafe fn handle_nvim_replace_termcodes(
     }
 }
 
-pub unsafe fn handle_nvim_exec_lua(
+pub fn handle_nvim_exec_lua(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10432,10 +10078,10 @@ pub unsafe fn handle_nvim_exec_lua(
     }
 }
 
-pub unsafe fn handle_nvim__exec_lua_fast(
+pub fn handle_nvim__exec_lua_fast(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10482,10 +10128,10 @@ pub unsafe fn handle_nvim__exec_lua_fast(
     }
 }
 
-pub unsafe fn handle_nvim_strwidth(
+pub fn handle_nvim_strwidth(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10522,10 +10168,10 @@ pub unsafe fn handle_nvim_strwidth(
     }
 }
 
-pub unsafe fn handle_nvim_list_runtime_paths(
+pub fn handle_nvim_list_runtime_paths(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10553,10 +10199,10 @@ pub unsafe fn handle_nvim_list_runtime_paths(
     }
 }
 
-pub unsafe fn handle_nvim__runtime_inspect(
+pub fn handle_nvim__runtime_inspect(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10581,10 +10227,10 @@ pub unsafe fn handle_nvim__runtime_inspect(
     }
 }
 
-pub unsafe fn handle_nvim_get_runtime_file(
+pub fn handle_nvim_get_runtime_file(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10632,10 +10278,10 @@ pub unsafe fn handle_nvim_get_runtime_file(
     }
 }
 
-pub unsafe fn handle_nvim__get_lib_dir(
+pub fn handle_nvim__get_lib_dir(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10660,10 +10306,10 @@ pub unsafe fn handle_nvim__get_lib_dir(
     }
 }
 
-pub unsafe fn handle_nvim__get_runtime(
+pub fn handle_nvim__get_runtime(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10715,10 +10361,10 @@ pub unsafe fn handle_nvim__get_runtime(
     }
 }
 
-pub unsafe fn handle_nvim_set_current_dir(
+pub fn handle_nvim_set_current_dir(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10755,10 +10401,10 @@ pub unsafe fn handle_nvim_set_current_dir(
     }
 }
 
-pub unsafe fn handle_nvim_get_current_line(
+pub fn handle_nvim_get_current_line(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10786,10 +10432,10 @@ pub unsafe fn handle_nvim_get_current_line(
     }
 }
 
-pub unsafe fn handle_nvim_set_current_line(
+pub fn handle_nvim_set_current_line(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10830,10 +10476,10 @@ pub unsafe fn handle_nvim_set_current_line(
     }
 }
 
-pub unsafe fn handle_nvim_del_current_line(
+pub fn handle_nvim_del_current_line(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10864,10 +10510,10 @@ pub unsafe fn handle_nvim_del_current_line(
     }
 }
 
-pub unsafe fn handle_nvim_get_var(
+pub fn handle_nvim_get_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10904,10 +10550,10 @@ pub unsafe fn handle_nvim_get_var(
     }
 }
 
-pub unsafe fn handle_nvim_set_var(
+pub fn handle_nvim_set_var(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10944,10 +10590,10 @@ pub unsafe fn handle_nvim_set_var(
     }
 }
 
-pub unsafe fn handle_nvim_del_var(
+pub fn handle_nvim_del_var(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -10983,10 +10629,10 @@ pub unsafe fn handle_nvim_del_var(
     }
 }
 
-pub unsafe fn handle_nvim_get_vvar(
+pub fn handle_nvim_get_vvar(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11023,10 +10669,10 @@ pub unsafe fn handle_nvim_get_vvar(
     }
 }
 
-pub unsafe fn handle_nvim_set_vvar(
+pub fn handle_nvim_set_vvar(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11063,10 +10709,10 @@ pub unsafe fn handle_nvim_set_vvar(
     }
 }
 
-pub unsafe fn handle_nvim_echo(
+pub fn handle_nvim_echo(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11120,10 +10766,10 @@ pub unsafe fn handle_nvim_echo(
     }
 }
 
-pub unsafe fn handle_nvim_list_bufs(
+pub fn handle_nvim_list_bufs(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11148,10 +10794,10 @@ pub unsafe fn handle_nvim_list_bufs(
     }
 }
 
-pub unsafe fn handle_nvim_get_current_buf(
+pub fn handle_nvim_get_current_buf(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11176,10 +10822,10 @@ pub unsafe fn handle_nvim_get_current_buf(
     }
 }
 
-pub unsafe fn handle_nvim_set_current_buf(
+pub fn handle_nvim_set_current_buf(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11221,10 +10867,10 @@ pub unsafe fn handle_nvim_set_current_buf(
     }
 }
 
-pub unsafe fn handle_nvim_list_wins(
+pub fn handle_nvim_list_wins(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11249,10 +10895,10 @@ pub unsafe fn handle_nvim_list_wins(
     }
 }
 
-pub unsafe fn handle_nvim_get_current_win(
+pub fn handle_nvim_get_current_win(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11277,10 +10923,10 @@ pub unsafe fn handle_nvim_get_current_win(
     }
 }
 
-pub unsafe fn handle_nvim_set_current_win(
+pub fn handle_nvim_set_current_win(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11322,10 +10968,10 @@ pub unsafe fn handle_nvim_set_current_win(
     }
 }
 
-pub unsafe fn handle_nvim_create_buf(
+pub fn handle_nvim_create_buf(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11371,10 +11017,10 @@ pub unsafe fn handle_nvim_create_buf(
     }
 }
 
-pub unsafe fn handle_nvim_open_term(
+pub fn handle_nvim_open_term(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11421,10 +11067,10 @@ pub unsafe fn handle_nvim_open_term(
     }
 }
 
-pub unsafe fn handle_nvim_chan_send(
+pub fn handle_nvim_chan_send(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11469,10 +11115,10 @@ pub unsafe fn handle_nvim_chan_send(
     }
 }
 
-pub unsafe fn handle_nvim_list_tabpages(
+pub fn handle_nvim_list_tabpages(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11497,10 +11143,10 @@ pub unsafe fn handle_nvim_list_tabpages(
     }
 }
 
-pub unsafe fn handle_nvim_get_current_tabpage(
+pub fn handle_nvim_get_current_tabpage(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11525,10 +11171,10 @@ pub unsafe fn handle_nvim_get_current_tabpage(
     }
 }
 
-pub unsafe fn handle_nvim_set_current_tabpage(
+pub fn handle_nvim_set_current_tabpage(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11570,10 +11216,10 @@ pub unsafe fn handle_nvim_set_current_tabpage(
     }
 }
 
-pub unsafe fn handle_nvim_paste(
+pub fn handle_nvim_paste(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11632,10 +11278,10 @@ pub unsafe fn handle_nvim_paste(
     }
 }
 
-pub unsafe fn handle_nvim_put(
+pub fn handle_nvim_put(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11702,10 +11348,10 @@ pub unsafe fn handle_nvim_put(
     }
 }
 
-pub unsafe fn handle_nvim_get_color_by_name(
+pub fn handle_nvim_get_color_by_name(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11740,10 +11386,10 @@ pub unsafe fn handle_nvim_get_color_by_name(
     }
 }
 
-pub unsafe fn handle_nvim_get_color_map(
+pub fn handle_nvim_get_color_map(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11768,10 +11414,10 @@ pub unsafe fn handle_nvim_get_color_map(
     }
 }
 
-pub unsafe fn handle_nvim_get_context(
+pub fn handle_nvim_get_context(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11804,10 +11450,10 @@ pub unsafe fn handle_nvim_get_context(
     }
 }
 
-pub unsafe fn handle_nvim_load_context(
+pub fn handle_nvim_load_context(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11844,10 +11490,10 @@ pub unsafe fn handle_nvim_load_context(
     }
 }
 
-pub unsafe fn handle_nvim_get_mode(
+pub fn handle_nvim_get_mode(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11872,10 +11518,10 @@ pub unsafe fn handle_nvim_get_mode(
     }
 }
 
-pub unsafe fn handle_nvim_get_keymap(
+pub fn handle_nvim_get_keymap(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11909,10 +11555,10 @@ pub unsafe fn handle_nvim_get_keymap(
     }
 }
 
-pub unsafe fn handle_nvim_set_keymap(
+pub fn handle_nvim_set_keymap(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -11979,10 +11625,10 @@ pub unsafe fn handle_nvim_set_keymap(
     }
 }
 
-pub unsafe fn handle_nvim_del_keymap(
+pub fn handle_nvim_del_keymap(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12032,10 +11678,10 @@ pub unsafe fn handle_nvim_del_keymap(
     }
 }
 
-pub unsafe fn handle_nvim_get_api_info(
+pub fn handle_nvim_get_api_info(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12060,10 +11706,10 @@ pub unsafe fn handle_nvim_get_api_info(
     }
 }
 
-pub unsafe fn handle_nvim_set_client_info(
+pub fn handle_nvim_set_client_info(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12137,10 +11783,10 @@ pub unsafe fn handle_nvim_set_client_info(
     }
 }
 
-pub unsafe fn handle_nvim_chan_set(
+pub fn handle_nvim_chan_set(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12187,10 +11833,10 @@ pub unsafe fn handle_nvim_chan_set(
     }
 }
 
-pub unsafe fn handle_nvim__cmdwin_set(
+pub fn handle_nvim__cmdwin_set(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12236,10 +11882,10 @@ pub unsafe fn handle_nvim__cmdwin_set(
     }
 }
 
-pub unsafe fn handle_nvim_get_chan_info(
+pub fn handle_nvim_get_chan_info(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12277,10 +11923,10 @@ pub unsafe fn handle_nvim_get_chan_info(
     }
 }
 
-pub unsafe fn handle_nvim_list_chans(
+pub fn handle_nvim_list_chans(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12305,10 +11951,10 @@ pub unsafe fn handle_nvim_list_chans(
     }
 }
 
-pub unsafe fn handle_nvim__id(
+pub fn handle_nvim__id(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12334,10 +11980,10 @@ pub unsafe fn handle_nvim__id(
     }
 }
 
-pub unsafe fn handle_nvim__id_array(
+pub fn handle_nvim__id_array(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12371,10 +12017,10 @@ pub unsafe fn handle_nvim__id_array(
     }
 }
 
-pub unsafe fn handle_nvim__id_dict(
+pub fn handle_nvim__id_dict(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12408,10 +12054,10 @@ pub unsafe fn handle_nvim__id_dict(
     }
 }
 
-pub unsafe fn handle_nvim__id_float(
+pub fn handle_nvim__id_float(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12445,10 +12091,10 @@ pub unsafe fn handle_nvim__id_float(
     }
 }
 
-pub unsafe fn handle_nvim__stats(
+pub fn handle_nvim__stats(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12473,10 +12119,10 @@ pub unsafe fn handle_nvim__stats(
     }
 }
 
-pub unsafe fn handle_nvim_list_uis(
+pub fn handle_nvim_list_uis(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12501,10 +12147,10 @@ pub unsafe fn handle_nvim_list_uis(
     }
 }
 
-pub unsafe fn handle_nvim_get_proc_children(
+pub fn handle_nvim_get_proc_children(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12542,10 +12188,10 @@ pub unsafe fn handle_nvim_get_proc_children(
     }
 }
 
-pub unsafe fn handle_nvim_get_proc(
+pub fn handle_nvim_get_proc(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12582,10 +12228,10 @@ pub unsafe fn handle_nvim_get_proc(
     }
 }
 
-pub unsafe fn handle_nvim_select_popupmenu_item(
+pub fn handle_nvim_select_popupmenu_item(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12647,10 +12293,10 @@ pub unsafe fn handle_nvim_select_popupmenu_item(
     }
 }
 
-pub unsafe fn handle_nvim__inspect_cell(
+pub fn handle_nvim__inspect_cell(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12708,10 +12354,10 @@ pub unsafe fn handle_nvim__inspect_cell(
     }
 }
 
-pub unsafe fn handle_nvim__screenshot(
+pub fn handle_nvim__screenshot(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12744,10 +12390,10 @@ pub unsafe fn handle_nvim__screenshot(
     }
 }
 
-pub unsafe fn handle_nvim__invalidate_glyph_cache(
+pub fn handle_nvim__invalidate_glyph_cache(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12771,10 +12417,10 @@ pub unsafe fn handle_nvim__invalidate_glyph_cache(
     }
 }
 
-pub unsafe fn handle_nvim__unpack(
+pub fn handle_nvim__unpack(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12811,10 +12457,10 @@ pub unsafe fn handle_nvim__unpack(
     }
 }
 
-pub unsafe fn handle_nvim_del_mark(
+pub fn handle_nvim_del_mark(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12851,10 +12497,10 @@ pub unsafe fn handle_nvim_del_mark(
     }
 }
 
-pub unsafe fn handle_nvim_get_mark(
+pub fn handle_nvim_get_mark(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12904,10 +12550,10 @@ pub unsafe fn handle_nvim_get_mark(
     }
 }
 
-pub unsafe fn handle_nvim_eval_statusline(
+pub fn handle_nvim_eval_statusline(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12950,10 +12596,10 @@ pub unsafe fn handle_nvim_eval_statusline(
     }
 }
 
-pub unsafe fn handle_nvim__complete_set(
+pub fn handle_nvim__complete_set(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -12996,10 +12642,10 @@ pub unsafe fn handle_nvim__complete_set(
     }
 }
 
-pub unsafe fn handle_nvim__redraw(
+pub fn handle_nvim__redraw(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13039,10 +12685,10 @@ pub unsafe fn handle_nvim__redraw(
     }
 }
 
-pub unsafe fn handle_nvim__set_restart_on_crash(
+pub fn handle_nvim__set_restart_on_crash(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13086,10 +12732,10 @@ pub unsafe fn handle_nvim__set_restart_on_crash(
     }
 }
 
-pub unsafe fn handle_nvim_exec2(
+pub fn handle_nvim_exec2(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13139,10 +12785,10 @@ pub unsafe fn handle_nvim_exec2(
     }
 }
 
-pub unsafe fn handle_nvim_command(
+pub fn handle_nvim_command(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13178,10 +12824,10 @@ pub unsafe fn handle_nvim_command(
     }
 }
 
-pub unsafe fn handle_nvim_eval(
+pub fn handle_nvim_eval(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13218,10 +12864,10 @@ pub unsafe fn handle_nvim_eval(
     }
 }
 
-pub unsafe fn handle_nvim_call_function(
+pub fn handle_nvim_call_function(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13267,10 +12913,10 @@ pub unsafe fn handle_nvim_call_function(
     }
 }
 
-pub unsafe fn handle_nvim_call_dict_function(
+pub fn handle_nvim_call_dict_function(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13319,10 +12965,10 @@ pub unsafe fn handle_nvim_call_dict_function(
     }
 }
 
-pub unsafe fn handle_nvim_parse_expression(
+pub fn handle_nvim_parse_expression(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13380,10 +13026,10 @@ pub unsafe fn handle_nvim_parse_expression(
     }
 }
 
-pub unsafe fn handle_nvim_open_win(
+pub fn handle_nvim_open_win(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13445,10 +13091,10 @@ pub unsafe fn handle_nvim_open_win(
     }
 }
 
-pub unsafe fn handle_nvim_win_set_config(
+pub fn handle_nvim_win_set_config(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13490,10 +13136,10 @@ pub unsafe fn handle_nvim_win_set_config(
     }
 }
 
-pub unsafe fn handle_nvim_win_get_config(
+pub fn handle_nvim_win_get_config(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13537,10 +13183,10 @@ pub unsafe fn handle_nvim_win_get_config(
     }
 }
 
-pub unsafe fn handle_nvim_win_get_buf(
+pub fn handle_nvim_win_get_buf(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13578,10 +13224,10 @@ pub unsafe fn handle_nvim_win_get_buf(
     }
 }
 
-pub unsafe fn handle_nvim_win_set_buf(
+pub fn handle_nvim_win_set_buf(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13632,10 +13278,10 @@ pub unsafe fn handle_nvim_win_set_buf(
     }
 }
 
-pub unsafe fn handle_nvim_win_get_cursor(
+pub fn handle_nvim_win_get_cursor(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13674,10 +13320,10 @@ pub unsafe fn handle_nvim_win_get_cursor(
     }
 }
 
-pub unsafe fn handle_nvim_win_set_cursor(
+pub fn handle_nvim_win_set_cursor(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13719,10 +13365,10 @@ pub unsafe fn handle_nvim_win_set_cursor(
     }
 }
 
-pub unsafe fn handle_nvim_win_get_height(
+pub fn handle_nvim_win_get_height(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13761,10 +13407,10 @@ pub unsafe fn handle_nvim_win_get_height(
     }
 }
 
-pub unsafe fn handle_nvim_win_get_width(
+pub fn handle_nvim_win_get_width(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13802,10 +13448,10 @@ pub unsafe fn handle_nvim_win_get_width(
     }
 }
 
-pub unsafe fn handle_nvim_win_get_var(
+pub fn handle_nvim_win_get_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13852,10 +13498,10 @@ pub unsafe fn handle_nvim_win_get_var(
     }
 }
 
-pub unsafe fn handle_nvim_win_set_var(
+pub fn handle_nvim_win_set_var(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13902,10 +13548,10 @@ pub unsafe fn handle_nvim_win_set_var(
     }
 }
 
-pub unsafe fn handle_nvim_win_del_var(
+pub fn handle_nvim_win_del_var(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13951,10 +13597,10 @@ pub unsafe fn handle_nvim_win_del_var(
     }
 }
 
-pub unsafe fn handle_nvim_win_get_position(
+pub fn handle_nvim_win_get_position(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -13993,10 +13639,10 @@ pub unsafe fn handle_nvim_win_get_position(
     }
 }
 
-pub unsafe fn handle_nvim_win_get_tabpage(
+pub fn handle_nvim_win_get_tabpage(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -14035,10 +13681,10 @@ pub unsafe fn handle_nvim_win_get_tabpage(
     }
 }
 
-pub unsafe fn handle_nvim_win_get_number(
+pub fn handle_nvim_win_get_number(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -14077,10 +13723,10 @@ pub unsafe fn handle_nvim_win_get_number(
     }
 }
 
-pub unsafe fn handle_nvim_win_is_valid(
+pub fn handle_nvim_win_is_valid(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -14115,10 +13761,10 @@ pub unsafe fn handle_nvim_win_is_valid(
     }
 }
 
-pub unsafe fn handle_nvim_win_hide(
+pub fn handle_nvim_win_hide(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -14159,10 +13805,10 @@ pub unsafe fn handle_nvim_win_hide(
     }
 }
 
-pub unsafe fn handle_nvim_win_close(
+pub fn handle_nvim_win_close(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -14212,10 +13858,10 @@ pub unsafe fn handle_nvim_win_close(
     }
 }
 
-pub unsafe fn handle_nvim_win_set_hl_ns(
+pub fn handle_nvim_win_set_hl_ns(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -14262,10 +13908,10 @@ pub unsafe fn handle_nvim_win_set_hl_ns(
     }
 }
 
-pub unsafe fn handle_nvim_win_text_height(
+pub fn handle_nvim_win_text_height(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -14309,10 +13955,10 @@ pub unsafe fn handle_nvim_win_text_height(
     }
 }
 
-pub unsafe fn handle_nvim_win_resize(
+pub fn handle_nvim_win_resize(
     channel_id: u64,
     args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {
@@ -16077,11 +15723,8 @@ pub static method_handlers: [MsgpackRpcRequestHandler; 283] = [
     },
 ];
 
-pub unsafe fn msgpack_rpc_get_handler_for_hash(str_in: *const c_char, len: usize) -> c_int {
-    if str_in.is_null() || len == 0 {
-        return -1;
-    }
-    match unsafe { std::slice::from_raw_parts(str_in.cast::<u8>(), len) } {
+pub fn msgpack_rpc_get_handler_for_hash(key: &[u8]) -> c_int {
+    match key {
         b"redraw" => 0,
         b"nvim__id" => 1,
         b"nvim_cmd" => 2,
@@ -16379,7 +16022,8 @@ pub unsafe fn msgpack_rpc_get_handler_for(
     error: &mut Error,
 ) -> MsgpackRpcRequestHandler {
     unsafe {
-        let hash = msgpack_rpc_get_handler_for_hash(name, name_len);
+        let key_bytes = if name.is_null() || name_len == 0 { &[][..] } else { std::slice::from_raw_parts(name.cast::<u8>(), name_len) };
+        let hash = msgpack_rpc_get_handler_for_hash(key_bytes);
         if hash < 0 {
             let empty = c"<empty>";
             api_set_error!(
@@ -25744,11 +25388,10 @@ mod tests {
 
     #[test]
     fn rpc_handler_lookup_resolves_all_methods() {
-        unsafe {
-            for (idx, handler) in method_handlers.iter().enumerate() {
+        for (idx, handler) in method_handlers.iter().enumerate() {
                 let name = handler.name.to_bytes();
                 assert_eq!(
-                    msgpack_rpc_get_handler_for_hash(handler.name.as_ptr(), name.len()),
+                    msgpack_rpc_get_handler_for_hash(name),
                     idx as c_int
                 );
                 let got = msgpack_rpc_get_handler_at(idx as c_int);
@@ -25757,20 +25400,16 @@ mod tests {
                 assert_eq!(got.ret_alloc, handler.ret_alloc);
             }
             assert_eq!(
-                msgpack_rpc_get_handler_for_hash(c"not_a_method".as_ptr(), 12),
+                msgpack_rpc_get_handler_for_hash(b"not_a_method"),
                 -1
             );
-            assert_eq!(msgpack_rpc_get_handler_for_hash(ptr::null(), 0), -1);
-        }
+            assert_eq!(msgpack_rpc_get_handler_for_hash(b""), -1);
     }
 
     #[test]
     fn keyset_lookup_resolves_known_and_unknown_fields() {
-        unsafe {
-            let link = KeyDict_get_autocmds_get_field(c"event".as_ptr(), 5);
-            assert!(!link.is_null());
-            assert_eq!((*link).str.unwrap().to_bytes(), b"event");
-            assert!(KeyDict_get_autocmds_get_field(c"nonexistent".as_ptr(), 11).is_null());
-        }
+        let link = KeyDict_get_autocmds_get_field(b"event").unwrap();
+            assert_eq!(link.str.unwrap().to_bytes(), b"event");
+            assert!(KeyDict_get_autocmds_get_field(b"nonexistent").is_none());
     }
 }

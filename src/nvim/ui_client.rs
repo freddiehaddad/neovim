@@ -349,10 +349,10 @@ pub fn ui_client_set_size(width: c_int, height: c_int) {
     }
 }
 
-pub unsafe fn handle_ui_client_redraw(
+pub fn handle_ui_client_redraw(
     _channel_id: u64,
     _args: Array,
-    _arena: *mut Arena,
+    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     unsafe {

@@ -1144,7 +1144,7 @@ pub unsafe extern "C" fn nvim_call_atomic(
                 }
 
                 let func = handler.r#fn.unwrap();
-                let result = func(channel_id, args, arena, &mut nested_error);
+                let result = func(channel_id, args, &mut *arena, &mut nested_error);
                 if error_set(&nested_error) {
                     break;
                 }
