@@ -198,20 +198,21 @@ unsafe fn fill_assert_error(
                 (*got_tv).vval = crate::eval::typval::TypvalVval::Dict(new_got_d);
 
                 let mut todo = (*exp_d).dv_hashtab.ht_used as c_int;
-                let mut hi = (*exp_d).dv_hashtab.ht_array;
+                let mut hi = (*exp_d).dv_hashtab.array_ptr();
                 while todo > 0 {
                     if !hashitem_empty(&*hi) {
                         let di1 = crate::eval::typval::tv_dict_hi2di(hi);
-                        let item2 = tv_dict_find(got_d, (*hi).hi_key, -1);
+                        let hi_key = (&*hi).key_ptr();
+                        let item2 = tv_dict_find(got_d, hi_key, -1);
                         if item2.is_null()
                             || !tv_equal(&mut (*di1).di_tv, &mut (*item2).di_tv, false)
                         {
-                            let key_len = CStr::from_ptr((*hi).hi_key).to_bytes().len();
-                            tv_dict_add_tv(new_exp_d, (*hi).hi_key, key_len, &mut (*di1).di_tv);
+                            let key_len = CStr::from_ptr(hi_key).to_bytes().len();
+                            tv_dict_add_tv(new_exp_d, hi_key, key_len, &mut (*di1).di_tv);
                             if !item2.is_null() {
                                 tv_dict_add_tv(
                                     new_got_d,
-                                    (*hi).hi_key,
+                                    hi_key,
                                     key_len,
                                     &mut (*item2).di_tv,
                                 );
@@ -225,14 +226,15 @@ unsafe fn fill_assert_error(
                 }
 
                 todo = (*got_d).dv_hashtab.ht_used as c_int;
-                hi = (*got_d).dv_hashtab.ht_array;
+                hi = (*got_d).dv_hashtab.array_ptr();
                 while todo > 0 {
                     if !hashitem_empty(&*hi) {
-                        let item2 = tv_dict_find(exp_d, (*hi).hi_key, -1);
+                        let hi_key = (&*hi).key_ptr();
+                        let item2 = tv_dict_find(exp_d, hi_key, -1);
                         if item2.is_null() {
                             let di2 = crate::eval::typval::tv_dict_hi2di(hi);
-                            let key_len = CStr::from_ptr((*hi).hi_key).to_bytes().len();
-                            tv_dict_add_tv(new_got_d, (*hi).hi_key, key_len, &mut (*di2).di_tv);
+                            let key_len = CStr::from_ptr(hi_key).to_bytes().len();
+                            tv_dict_add_tv(new_got_d, hi_key, key_len, &mut (*di2).di_tv);
                         }
                         todo -= 1;
                     }

@@ -1379,12 +1379,12 @@ unsafe fn find_tagfunc_tags(
             let item_dict = (*li).li_tv.vval.v_dict();
             if !item_dict.is_null() {
                 let mut todo = (*item_dict).dv_hashtab.ht_used;
-                let mut hi = (*item_dict).dv_hashtab.ht_array;
+                let mut hi = (*item_dict).dv_hashtab.array_ptr();
                 while todo > 0 {
                     if !hashitem_empty(&*hi) {
                         todo -= 1;
                         let di = crate::eval::typval::tv_dict_hi2di(hi);
-                        let dict_key = (*hi).hi_key;
+                        let dict_key = (&*hi).key_ptr();
                         let tv = &raw mut (*di).di_tv;
 
                         if (*tv).v_type == VarType::VAR_STRING && !(*tv).vval.v_string().is_null() {
@@ -1474,12 +1474,12 @@ unsafe fn find_tagfunc_tags(
 
                     if !item_dict.is_null() {
                         let mut todo = (*item_dict).dv_hashtab.ht_used;
-                        let mut hi = (*item_dict).dv_hashtab.ht_array;
+                        let mut hi = (*item_dict).dv_hashtab.array_ptr();
                         while todo > 0 {
                             if !hashitem_empty(&*hi) {
                                 todo -= 1;
                                 let di = crate::eval::typval::tv_dict_hi2di(hi);
-                                let dict_key = (*hi).hi_key;
+                                let dict_key = (&*hi).key_ptr();
                                 let tv = &raw mut (*di).di_tv;
 
                                 if (*tv).v_type == VarType::VAR_STRING

@@ -1241,7 +1241,7 @@ unsafe fn lua_convert_one_value(
                         data: MPConvStackData::Dict {
                             dict,
                             dictp: tv_ref.vval.v_dict_mut(),
-                            hi: (*dict).dv_hashtab.ht_array,
+                            hi: (*dict).dv_hashtab.array_ptr(),
                             todo: (*dict).dv_hashtab.ht_used,
                         },
                     });

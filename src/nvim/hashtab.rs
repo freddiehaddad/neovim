@@ -11,19 +11,25 @@ pub const HT_INIT_SIZE: usize = 16;
 const PERTURB_SHIFT: usize = 5;
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct hashitem_T {
     pub hi_hash: hash_T,
-    pub hi_key: *mut c_char,
+    pub hi_removed: bool,
     pub hi_di: *mut crate::eval::typval::dictitem_T,
 }
 
-impl Default for hashitem_T {
-    fn default() -> Self {
-        Self {
-            hi_hash: 0,
-            hi_key: std::ptr::null_mut(),
-            hi_di: std::ptr::null_mut(),
+impl hashitem_T {
+    #[inline]
+    pub const fn is_null_slot(&self) -> bool {
+        self.hi_di.is_null() && !self.hi_removed
+    }
+
+    #[inline]
+    pub unsafe fn key_ptr(&self) -> *mut c_char {
+        if self.hi_di.is_null() {
+            std::ptr::null_mut()
+        } else {
+            unsafe { (*self.hi_di).di_key.as_ptr().cast_mut() }
         }
     }
 }
@@ -36,7 +42,7 @@ pub struct hashtab_T {
     pub ht_filled: usize,
     pub ht_changed: c_int,
     pub ht_locked: c_int,
-    pub ht_array: *mut hashitem_T,
+    pub ht_array: Vec<hashitem_T>,
 }
 
 impl hashtab_T {
@@ -47,7 +53,16 @@ impl hashtab_T {
             ht_filled: 0,
             ht_changed: 0,
             ht_locked: 0,
-            ht_array: empty_hasharray_ptr(),
+            ht_array: Vec::new(),
+        }
+    }
+
+    #[inline]
+    pub fn array_ptr(&self) -> *mut hashitem_T {
+        if self.ht_array.is_empty() {
+            empty_hasharray_ptr()
+        } else {
+            self.ht_array.as_ptr().cast_mut()
         }
     }
 }
@@ -58,18 +73,9 @@ impl Default for hashtab_T {
     }
 }
 
-impl Drop for hashtab_T {
-    fn drop(&mut self) {
-        unsafe {
-            free_hasharray(self.ht_array, self.ht_mask + 1);
-            self.ht_array = empty_hasharray_ptr();
-        }
-    }
-}
-
 static mut EMPTY_HASHARRAY: [hashitem_T; HT_INIT_SIZE] = [hashitem_T {
     hi_hash: 0,
-    hi_key: std::ptr::null_mut(),
+    hi_removed: false,
     hi_di: std::ptr::null_mut(),
 }; HT_INIT_SIZE];
 
@@ -78,17 +84,9 @@ pub const fn empty_hasharray_ptr() -> *mut hashitem_T {
     (&raw mut EMPTY_HASHARRAY).cast::<hashitem_T>()
 }
 
-/// Sentinel object whose address (`&hash_removed`) marks a removed `hashitem_T`.
-pub static hash_removed: c_char = 0;
-
-#[inline]
-pub fn hi_key_removed() -> *mut c_char {
-    (&raw const hash_removed).cast_mut()
-}
-
 #[inline]
 pub fn hashitem_empty(hi: &hashitem_T) -> bool {
-    hi.hi_key.is_null() || std::ptr::eq(hi.hi_key, &raw const hash_removed)
+    hi.hi_di.is_null()
 }
 
 #[inline]
@@ -101,20 +99,6 @@ unsafe fn key_matches(hi_key: *const c_char, key: *const c_char, key_len: usize)
         }
     }
     unsafe { *hi_key.add(key_len) == 0 }
-}
-
-#[inline]
-fn alloc_hasharray(size: usize) -> *mut hashitem_T {
-    Box::into_raw(vec![hashitem_T::default(); size].into_boxed_slice()).cast::<hashitem_T>()
-}
-
-#[inline]
-unsafe fn free_hasharray(ptr: *mut hashitem_T, size: usize) {
-    if !ptr.is_null() && !std::ptr::eq(ptr, empty_hasharray_ptr()) {
-        unsafe {
-            drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(ptr, size)));
-        }
-    }
 }
 
 /// Free the array of a hash table without freeing contained values (`hash_clear`).
@@ -161,41 +145,41 @@ pub unsafe fn hash_lookup(
     hash: hash_T,
 ) -> *mut hashitem_T {
     let ht = unsafe { &*ht };
-    let removed_ptr = hi_key_removed();
+    let arr_ptr = ht.array_ptr();
 
     let mut idx = hash & ht.ht_mask;
-    let mut hi = unsafe { ht.ht_array.add(idx) };
+    let mut hi = unsafe { arr_ptr.add(idx) };
     let hi_ref = unsafe { &*hi };
 
-    if hi_ref.hi_key.is_null() {
+    if hi_ref.is_null_slot() {
         return hi;
     }
 
     let mut freeitem: *mut hashitem_T = std::ptr::null_mut();
-    if std::ptr::eq(hi_ref.hi_key, removed_ptr) {
+    if hi_ref.hi_removed {
         freeitem = hi;
-    } else if hi_ref.hi_hash == hash && unsafe { key_matches(hi_ref.hi_key, key, key_len) } {
+    } else if hi_ref.hi_hash == hash && unsafe { key_matches(hi_ref.key_ptr(), key, key_len) } {
         return hi;
     }
 
     let mut perturb = hash;
     loop {
         idx = idx.wrapping_mul(5).wrapping_add(perturb).wrapping_add(1);
-        hi = unsafe { ht.ht_array.add(idx & ht.ht_mask) };
+        hi = unsafe { arr_ptr.add(idx & ht.ht_mask) };
         let item = unsafe { &*hi };
 
-        if item.hi_key.is_null() {
+        if item.is_null_slot() {
             return if freeitem.is_null() { hi } else { freeitem };
         }
 
         if item.hi_hash == hash
-            && !std::ptr::eq(item.hi_key, removed_ptr)
-            && unsafe { key_matches(item.hi_key, key, key_len) }
+            && !item.hi_removed
+            && unsafe { key_matches(item.key_ptr(), key, key_len) }
         {
             return hi;
         }
 
-        if std::ptr::eq(item.hi_key, removed_ptr) && freeitem.is_null() {
+        if item.hi_removed && freeitem.is_null() {
             freeitem = hi;
         }
 
@@ -234,23 +218,23 @@ pub unsafe fn hash_add(ht: *mut hashtab_T, di: *mut crate::eval::typval::dictite
 pub unsafe fn hash_add_item(
     ht: *mut hashtab_T,
     mut hi: *mut hashitem_T,
-    key: *mut c_char,
+    _key: *mut c_char,
     di: *mut crate::eval::typval::dictitem_T,
     hash: hash_T,
 ) {
     let ht_ref = unsafe { &mut *ht };
-    if std::ptr::eq(ht_ref.ht_array, empty_hasharray_ptr()) {
-        let offset = unsafe { hi.offset_from(ht_ref.ht_array) as usize };
-        ht_ref.ht_array = alloc_hasharray(HT_INIT_SIZE);
-        hi = unsafe { ht_ref.ht_array.add(offset) };
+    if ht_ref.ht_array.is_empty() {
+        let offset = unsafe { hi.offset_from(empty_hasharray_ptr()) as usize };
+        ht_ref.ht_array = vec![hashitem_T::default(); HT_INIT_SIZE];
+        hi = unsafe { ht_ref.ht_array.as_mut_ptr().add(offset) };
     }
     let hi_ref = unsafe { &mut *hi };
     ht_ref.ht_used += 1;
     ht_ref.ht_changed += 1;
-    if hi_ref.hi_key.is_null() {
+    if hi_ref.is_null_slot() {
         ht_ref.ht_filled += 1;
     }
-    hi_ref.hi_key = key;
+    hi_ref.hi_removed = false;
     hi_ref.hi_di = di;
     hi_ref.hi_hash = hash;
 
@@ -268,7 +252,7 @@ pub unsafe fn hash_remove(ht: *mut hashtab_T, hi: *mut hashitem_T) {
     let hi_ref = unsafe { &mut *hi };
     ht_ref.ht_used -= 1;
     ht_ref.ht_changed += 1;
-    hi_ref.hi_key = hi_key_removed();
+    hi_ref.hi_removed = true;
     hi_ref.hi_di = std::ptr::null_mut();
     unsafe {
         hash_may_resize(ht_ref, 0);
@@ -336,51 +320,39 @@ unsafe fn hash_may_resize(ht: &mut hashtab_T, mut minitems: usize) {
     }
 
     if ht.ht_used == 0 && newarray_is_small {
-        unsafe {
-            free_hasharray(ht.ht_array, oldsize);
-        }
-        ht.ht_array = empty_hasharray_ptr();
+        ht.ht_array = Vec::new();
         ht.ht_mask = HT_INIT_SIZE - 1;
         ht.ht_filled = 0;
         ht.ht_changed += 1;
         return;
     }
 
-    let oldarray = ht.ht_array;
-    let newarray = alloc_hasharray(newsize);
+    let oldarray = std::mem::replace(&mut ht.ht_array, vec![hashitem_T::default(); newsize]);
 
     let newmask = newsize - 1;
     let mut todo = ht.ht_used;
-    let mut olditem = oldarray;
 
-    while todo > 0 {
-        let item = unsafe { &*olditem };
-        if !hashitem_empty(item) {
+    for item in oldarray {
+        if todo == 0 {
+            break;
+        }
+        if !hashitem_empty(&item) {
             let mut newi = item.hi_hash & newmask;
-            let mut newitem = unsafe { newarray.add(newi) };
-            if unsafe { !(*newitem).hi_key.is_null() } {
+            if !ht.ht_array[newi].is_null_slot() {
                 let mut perturb = item.hi_hash;
                 loop {
                     newi = newi.wrapping_mul(5).wrapping_add(perturb).wrapping_add(1);
-                    newitem = unsafe { newarray.add(newi & newmask) };
-                    if unsafe { (*newitem).hi_key.is_null() } {
+                    if ht.ht_array[newi & newmask].is_null_slot() {
                         break;
                     }
                     perturb >>= PERTURB_SHIFT;
                 }
             }
-            unsafe {
-                *newitem = *item;
-            }
+            ht.ht_array[newi & newmask] = item;
             todo -= 1;
         }
-        olditem = unsafe { olditem.add(1) };
     }
 
-    unsafe {
-        free_hasharray(oldarray, oldsize);
-    }
-    ht.ht_array = newarray;
     ht.ht_mask = newmask;
     ht.ht_filled = ht.ht_used;
     ht.ht_changed += 1;
@@ -457,7 +429,7 @@ mod tests {
             for (k, &di) in keys.iter().zip(&items) {
                 let hi = hash_find(ht, k.as_ptr());
                 assert!(!hashitem_empty(&*hi));
-                assert_eq!(CStr::from_ptr((*hi).hi_key), k.as_c_str());
+                assert_eq!(CStr::from_ptr((*hi).key_ptr()), k.as_c_str());
                 assert_eq!((*hi).hi_di, di);
             }
 
@@ -469,7 +441,7 @@ mod tests {
             assert_eq!((*ht).ht_used, 0);
             assert_eq!((*ht).ht_mask, HT_INIT_SIZE - 1);
             hash_clear(ht);
-            assert!(std::ptr::eq((*ht).ht_array, empty_hasharray_ptr()));
+            assert!(std::ptr::eq((*ht).array_ptr(), empty_hasharray_ptr()));
 
             for di in items {
                 crate::eval::typval::tv_dict_item_free(di);

@@ -4578,7 +4578,7 @@ pub unsafe fn create_environment(
                 if !d.is_null() {
                     let ht = &raw const (*d).dv_hashtab;
                     let mut todo = (*ht).ht_used;
-                    let mut hi = (*ht).ht_array;
+                    let mut hi = (&*ht).array_ptr();
                     while todo > 0 {
                         if !crate::hashtab::hashitem_empty(&*hi) {
                             todo -= 1;
@@ -5806,7 +5806,7 @@ unsafe fn max_min(tv: *const typval_T, rettv: *mut typval_T, domax: bool) {
             }
             let ht = &raw const (*d).dv_hashtab;
             let mut todo = (*ht).ht_used;
-            let mut hi = (*ht).ht_array;
+            let mut hi = (&*ht).array_ptr();
             while todo > 0 {
                 if !crate::hashtab::hashitem_empty(&*hi) {
                     todo -= 1;

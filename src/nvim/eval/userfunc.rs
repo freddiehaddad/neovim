@@ -1016,7 +1016,7 @@ unsafe fn cleanup_function_call(fc: *mut funccall_T) {
 
             {
                 let mut todo = (*fc).fc_l_avars.dv_hashtab.ht_used;
-                let mut hi = (*fc).fc_l_avars.dv_hashtab.ht_array;
+                let mut hi = (*fc).fc_l_avars.dv_hashtab.array_ptr();
                 while todo > 0 {
                     if !hashitem_empty(&*hi) {
                         todo -= 1;

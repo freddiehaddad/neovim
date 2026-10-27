@@ -4577,7 +4577,7 @@ pub unsafe fn set_ref_in_ht(
         loop {
             if !abort {
                 let mut todo = (*cur_ht).ht_used;
-                let mut hi = (*cur_ht).ht_array;
+                let mut hi = (&*cur_ht).array_ptr();
                 while todo > 0 {
                     if !hashitem_empty(&*hi) {
                         todo -= 1;

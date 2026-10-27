@@ -223,7 +223,7 @@ unsafe fn convert_one_value(
                 });
                 mpstack.push(ConvStackEntry::Dict {
                     dict,
-                    hi: (*dict).dv_hashtab.ht_array,
+                    hi: (*dict).dv_hashtab.array_ptr(),
                     todo: used,
                     saved_copy_id,
                     first: true,

@@ -1213,14 +1213,15 @@ unsafe fn var_shada_iter(
     unsafe {
         let globvarht = get_globvar_ht();
         let hinum = (*globvarht).ht_mask + 1;
-        let harray = std::slice::from_raw_parts((*globvarht).ht_array, hinum);
+        let harray = std::slice::from_raw_parts((&*globvarht).array_ptr(), hinum);
         *name = ptr::null();
         let mut idx = if let Some(i) = iter {
             i
         } else {
             let mut i = 0;
             while i < hinum
-                && (hashitem_empty(&harray[i]) || (var_flavour(harray[i].hi_key) & flavour) == 0)
+                && (hashitem_empty(&harray[i])
+                    || (var_flavour(harray[i].key_ptr()) & flavour) == 0)
             {
                 i += 1;
             }
@@ -1234,7 +1235,9 @@ unsafe fn var_shada_iter(
         tv_copy(&(*di).di_tv, rettv);
         idx += 1;
         while idx < hinum {
-            if !hashitem_empty(&harray[idx]) && (var_flavour(harray[idx].hi_key) & flavour) != 0 {
+            if !hashitem_empty(&harray[idx])
+                && (var_flavour(harray[idx].key_ptr()) & flavour) != 0
+            {
                 return Some(idx);
             }
             idx += 1;

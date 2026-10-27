@@ -125,7 +125,7 @@ unsafe fn filter_map_dict(
         hash_lock(&mut (*d).dv_hashtab);
 
         let mut todo = (*d).dv_hashtab.ht_used;
-        let mut hi = (*d).dv_hashtab.ht_array;
+        let mut hi = (*d).dv_hashtab.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
@@ -578,7 +578,7 @@ unsafe fn count_dict(d: *mut dict_T, needle: *mut typval_T, ic: bool) -> i64 {
         }
         let mut n: i64 = 0;
         let mut todo = (*d).dv_hashtab.ht_used;
-        let mut hi = (*d).dv_hashtab.ht_array;
+        let mut hi = (*d).dv_hashtab.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;

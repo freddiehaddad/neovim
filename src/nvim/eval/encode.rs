@@ -354,14 +354,14 @@ unsafe fn conv_error(
             match v.data {
                 MPConvStackData::Dict { dict, hi, .. } => {
                     let hi_ptr = if hi.is_null() {
-                        (*dict).dv_hashtab.ht_array
+                        (*dict).dv_hashtab.array_ptr()
                     } else {
                         hi.sub(1)
                     };
                     let mut key_tv = typval_T {
                         v_type: VarType::VAR_STRING,
                         v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval::String((*hi_ptr).hi_key),
+                        vval: TypvalVval::String((&*hi_ptr).key_ptr()),
                     };
                     let key = encode_tv2string(&mut key_tv, std::ptr::null_mut());
                     vim_snprintf!(
@@ -1487,7 +1487,7 @@ unsafe fn convert_one_value(
                         data: MPConvStackData::Dict {
                             dict,
                             dictp: tv_ref.vval.v_dict_mut(),
-                            hi: (*dict).dv_hashtab.ht_array,
+                            hi: (*dict).dv_hashtab.array_ptr(),
                             todo: (*dict).dv_hashtab.ht_used,
                         },
                     });
@@ -1670,7 +1670,7 @@ unsafe fn encode_vim_with_backend(
                                     data: MPConvStackData::Dict {
                                         dict,
                                         dictp: std::ptr::addr_of_mut!((*pt).pt_dict),
-                                        hi: (*dict).dv_hashtab.ht_array,
+                                        hi: (*dict).dv_hashtab.array_ptr(),
                                         todo: (*dict).dv_hashtab.ht_used,
                                     },
                                 });

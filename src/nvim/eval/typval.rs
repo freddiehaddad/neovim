@@ -2904,7 +2904,7 @@ pub unsafe fn tv_dict_free_contents(d: *mut dict_T) {
         hash_lock(&raw mut (*d).dv_hashtab);
         debug_assert!((*d).dv_hashtab.ht_locked > 0);
         let mut todo = (*d).dv_hashtab.ht_used;
-        let mut hi = (*d).dv_hashtab.ht_array;
+        let mut hi = (*d).dv_hashtab.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
@@ -3020,7 +3020,7 @@ pub unsafe fn tv_dict_to_env(denv: *mut dict_T) -> Vec<std::ffi::CString> {
 
         if !denv.is_null() {
             let mut todo = (*denv).dv_hashtab.ht_used;
-            let mut hi = (*denv).dv_hashtab.ht_array;
+            let mut hi = (*denv).dv_hashtab.array_ptr();
             while todo > 0 {
                 if !hashitem_empty(&*hi) {
                     todo -= 1;
@@ -3340,7 +3340,7 @@ pub unsafe fn tv_dict_clear(d: *mut dict_T) {
         debug_assert!((*d).dv_hashtab.ht_locked > 0);
 
         let mut todo = (*d).dv_hashtab.ht_used;
-        let mut hi = (*d).dv_hashtab.ht_array;
+        let mut hi = (*d).dv_hashtab.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
@@ -3366,7 +3366,7 @@ pub unsafe fn tv_dict_extend(d1: *mut dict_T, d2: *mut dict_T, action: *const c_
         }
 
         let mut todo = (*d2).dv_hashtab.ht_used;
-        let mut hi2 = (*d2).dv_hashtab.ht_array;
+        let mut hi2 = (*d2).dv_hashtab.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi2) {
                 todo -= 1;
@@ -3459,7 +3459,7 @@ pub unsafe fn tv_dict_equal(d1: *mut dict_T, d2: *mut dict_T, ic: bool) -> bool 
         }
 
         let mut todo = (*d1).dv_hashtab.ht_used;
-        let mut hi = (*d1).dv_hashtab.ht_array;
+        let mut hi = (*d1).dv_hashtab.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
@@ -3497,7 +3497,7 @@ pub unsafe fn tv_dict_copy(
             (*orig).dv_copydict = copy;
         }
         let mut todo = (*orig).dv_hashtab.ht_used;
-        let mut hi = (*orig).dv_hashtab.ht_array;
+        let mut hi = (*orig).dv_hashtab.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
@@ -3553,7 +3553,7 @@ pub unsafe fn tv_dict_copy(
 pub unsafe fn tv_dict_set_keys_readonly(dict: *mut dict_T) {
     unsafe {
         let mut todo = (*dict).dv_hashtab.ht_used;
-        let mut hi = (*dict).dv_hashtab.ht_array;
+        let mut hi = (*dict).dv_hashtab.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
@@ -3902,7 +3902,7 @@ unsafe fn tv_dict2list(argvars: *mut typval_T, rettv: *mut typval_T, what: DictL
         }
 
         let mut todo = (*d).dv_hashtab.ht_used;
-        let mut hi = (*d).dv_hashtab.ht_array;
+        let mut hi = (*d).dv_hashtab.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
@@ -4261,7 +4261,7 @@ unsafe fn nothing_convert_one_value(
                     data: MPConvStackData::Dict {
                         dict,
                         dictp,
-                        hi: (*dict).dv_hashtab.ht_array,
+                        hi: (*dict).dv_hashtab.array_ptr(),
                         todo: (*dict).dv_hashtab.ht_used,
                     },
                 };
@@ -4374,7 +4374,7 @@ unsafe fn encode_vim_to_nothing(top_tv: *mut typval_T) -> c_int {
                                     data: MPConvStackData::Dict {
                                         dict,
                                         dictp,
-                                        hi: (*dict).dv_hashtab.ht_array,
+                                        hi: (*dict).dv_hashtab.array_ptr(),
                                         todo: (*dict).dv_hashtab.ht_used,
                                     },
                                 };
@@ -4527,7 +4527,7 @@ pub unsafe fn tv_item_lock(tv: *mut typval_T, deep: c_int, lock: bool, check_ref
                     (*d).dv_lock = change_lock(lock, (*d).dv_lock);
                     if !(0..=1).contains(&deep) {
                         let mut todo = (*d).dv_hashtab.ht_used;
-                        let mut hi = (*d).dv_hashtab.ht_array;
+                        let mut hi = (*d).dv_hashtab.array_ptr();
                         while todo > 0 {
                             if !hashitem_empty(&*hi) {
                                 todo -= 1;

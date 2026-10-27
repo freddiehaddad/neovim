@@ -1449,7 +1449,7 @@ pub unsafe fn list_hashtable_vars(
 ) {
     unsafe {
         let mut todo = (*ht).ht_used as c_int;
-        let mut hi = (*ht).ht_array;
+        let mut hi = (&*ht).array_ptr();
         while todo > 0 && !got_int {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
@@ -2215,11 +2215,11 @@ pub unsafe fn del_menutrans_vars() {
         let ht = &raw mut globvardict.dv_hashtab;
         hash_lock(ht);
         let mut todo = (*ht).ht_used;
-        let mut hi = (*ht).ht_array;
+        let mut hi = (&*ht).array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
-                if strncmp((*hi).hi_key, c"menutrans_".as_ptr(), 10) == 0 {
+                if strncmp((&*hi).key_ptr(), c"menutrans_".as_ptr(), 10) == 0 {
                     delete_var(ht, hi);
                 }
             }
@@ -2320,7 +2320,7 @@ pub unsafe fn get_user_var_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
 
         if GDONE < globvardict.dv_hashtab.ht_used {
             if GDONE == 0 {
-                HI = globvardict.dv_hashtab.ht_array;
+                HI = (&*get_globvar_ht()).array_ptr();
             } else {
                 HI = HI.add(1);
             }
@@ -2328,17 +2328,18 @@ pub unsafe fn get_user_var_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
             while hashitem_empty(&*HI) {
                 HI = HI.add(1);
             }
+            let hi_key = (&*HI).key_ptr();
             if strncmp(c"g:".as_ptr(), (*xp).xp_pattern, 2) == 0 {
-                return cat_prefix_varname(b'g' as c_int, (*HI).hi_key);
+                return cat_prefix_varname(b'g' as c_int, hi_key);
             }
-            return (*HI).hi_key;
+            return hi_key;
         }
 
         let mut ht: *const hashtab_T =
             &raw const (*(*(*prevwin_curwin()).w_buffer).b_vars()).dv_hashtab;
         if BDONE < (*ht).ht_used {
             if BDONE == 0 {
-                HI = (*ht).ht_array;
+                HI = (&*ht).array_ptr();
             } else {
                 HI = HI.add(1);
             }
@@ -2346,13 +2347,13 @@ pub unsafe fn get_user_var_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
             while hashitem_empty(&*HI) {
                 HI = HI.add(1);
             }
-            return cat_prefix_varname(b'b' as c_int, (*HI).hi_key);
+            return cat_prefix_varname(b'b' as c_int, (&*HI).key_ptr());
         }
 
         ht = &raw const (*(*prevwin_curwin()).w_vars()).dv_hashtab;
         if WDONE < (*ht).ht_used {
             if WDONE == 0 {
-                HI = (*ht).ht_array;
+                HI = (&*ht).array_ptr();
             } else {
                 HI = HI.add(1);
             }
@@ -2360,13 +2361,13 @@ pub unsafe fn get_user_var_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
             while hashitem_empty(&*HI) {
                 HI = HI.add(1);
             }
-            return cat_prefix_varname(b'w' as c_int, (*HI).hi_key);
+            return cat_prefix_varname(b'w' as c_int, (&*HI).key_ptr());
         }
 
         ht = &raw const (*(*curtab).tp_vars()).dv_hashtab;
         if TDONE < (*ht).ht_used {
             if TDONE == 0 {
-                HI = (*ht).ht_array;
+                HI = (&*ht).array_ptr();
             } else {
                 HI = HI.add(1);
             }
@@ -2374,7 +2375,7 @@ pub unsafe fn get_user_var_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
             while hashitem_empty(&*HI) {
                 HI = HI.add(1);
             }
-            return cat_prefix_varname(b't' as c_int, (*HI).hi_key);
+            return cat_prefix_varname(b't' as c_int, (&*HI).key_ptr());
         }
 
         if VIDX < VV_LEN {
@@ -2879,7 +2880,7 @@ pub unsafe fn vars_clear_ext(ht: *mut hashtab_T, free_val: bool) {
     unsafe {
         hash_lock(ht);
         let mut todo = (*ht).ht_used as c_int;
-        let mut hi = (*ht).ht_array;
+        let mut hi = (&*ht).array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;

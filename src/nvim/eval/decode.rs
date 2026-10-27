@@ -1249,7 +1249,7 @@ unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_
                         let di = crate::eval::typval::tv_dict_item_alloc_len(key, keylen);
                         if tv_dict_add(dict, di) == FAIL {
                             let mut todo = (*dict).dv_hashtab.ht_used;
-                            let mut hi = (*dict).dv_hashtab.ht_array;
+                            let mut hi = (*dict).dv_hashtab.array_ptr();
                             while todo > 0 {
                                 if !hashitem_empty(&*hi) {
                                     todo -= 1;
