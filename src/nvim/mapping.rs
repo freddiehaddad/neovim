@@ -2747,10 +2747,10 @@ pub unsafe fn did_set_langmap(args: &mut optset_T) -> *const c_char {
     }
 }
 
-unsafe fn do_exmap(eap: *mut exarg_T, isabbrev: bool) {
+unsafe fn do_exmap(eap: &mut exarg_T, isabbrev: bool) {
     unsafe {
-        let mut cmdp = (*eap).cmd;
-        let mode = get_map_mode(&mut cmdp, (*eap).forceit != 0 || isabbrev);
+        let mut cmdp = eap.cmd;
+        let mode = get_map_mode(&mut cmdp, eap.forceit != 0 || isabbrev);
 
         let maptype = if *cmdp == b'n' as c_char {
             MAPTYPE_NOREMAP
@@ -2760,7 +2760,7 @@ unsafe fn do_exmap(eap: *mut exarg_T, isabbrev: bool) {
             MAPTYPE_MAP
         };
         let mut parsed_args = MapArguments::new();
-        let result = str_to_mapargs((*eap).arg, maptype == MAPTYPE_UNMAP, &mut parsed_args);
+        let result = str_to_mapargs(eap.arg, maptype == MAPTYPE_UNMAP, &mut parsed_args);
         match result {
             0 => match buf_do_map(maptype, &mut parsed_args, mode, isabbrev, g_st().curbuf) {
                 1 => {

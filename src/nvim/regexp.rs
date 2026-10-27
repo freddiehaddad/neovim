@@ -2192,7 +2192,7 @@ pub(super) unsafe fn reg_match_visual() -> bool {
             let mut bot_copy = bot;
             getvvcol(
                 wp,
-                &raw mut top_copy,
+                &mut top_copy,
                 &raw mut start,
                 ptr::null_mut(),
                 &raw mut end,
@@ -2200,7 +2200,7 @@ pub(super) unsafe fn reg_match_visual() -> bool {
             );
             getvvcol(
                 wp,
-                &raw mut bot_copy,
+                &mut bot_copy,
                 &raw mut start2,
                 ptr::null_mut(),
                 &raw mut end2,

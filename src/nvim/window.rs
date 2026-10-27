@@ -1759,7 +1759,7 @@ pub unsafe fn ui_ext_win_position(wp: *mut win_T, validate: bool) {
                         let mut tcole: c_int = 0;
                         textpos2screenpos(
                             win,
-                            &raw mut pos,
+                            &mut pos,
                             &raw mut trow,
                             &raw mut tcol,
                             &raw mut tcolc,

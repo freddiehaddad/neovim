@@ -853,12 +853,12 @@ unsafe fn unserialize_uhp(
             corruption_error(c"uh_seq".as_ptr(), file_name);
             return None;
         }
-        unserialize_pos(bi, &raw mut uhp.uh_cursor);
+        unserialize_pos(bi, &mut uhp.uh_cursor);
         uhp.uh_cursor_vcol = undo_read_4c(bi);
         uhp.uh_flags = undo_read_2c(bi);
         let cur_timestamp: Timestamp = os_time();
         for i in 0..NMARKS {
-            unserialize_pos(bi, &raw mut uhp.uh_namedm[i].mark);
+            unserialize_pos(bi, &mut uhp.uh_namedm[i].mark);
             uhp.uh_namedm[i].timestamp = cur_timestamp;
             uhp.uh_namedm[i].fnum = 0;
         }
@@ -1050,11 +1050,11 @@ unsafe fn serialize_pos(bi: &mut bufinfo_T, pos: pos_T) {
     }
 }
 
-unsafe fn unserialize_pos(bi: &mut bufinfo_T, pos: *mut pos_T) {
+unsafe fn unserialize_pos(bi: &mut bufinfo_T, pos: &mut pos_T) {
     unsafe {
-        (*pos).lnum = undo_read_4c(bi).max(0);
-        (*pos).col = undo_read_4c(bi).max(0);
-        (*pos).coladd = undo_read_4c(bi).max(0);
+        pos.lnum = undo_read_4c(bi).max(0);
+        pos.col = undo_read_4c(bi).max(0);
+        pos.coladd = undo_read_4c(bi).max(0);
     }
 }
 
@@ -1069,8 +1069,8 @@ unsafe fn serialize_visualinfo(bi: &mut bufinfo_T, info: *mut visualinfo_T) {
 
 unsafe fn unserialize_visualinfo(bi: &mut bufinfo_T, info: *mut visualinfo_T) {
     unsafe {
-        unserialize_pos(bi, &raw mut (*info).vi_start);
-        unserialize_pos(bi, &raw mut (*info).vi_end);
+        unserialize_pos(bi, &mut (*info).vi_start);
+        unserialize_pos(bi, &mut (*info).vi_end);
         (*info).vi_mode = undo_read_4c(bi);
         (*info).vi_curswant = undo_read_4c(bi);
     }
@@ -2408,7 +2408,7 @@ unsafe fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
         }
 
         if g_st().Visual.active {
-            check_pos(g_st().curbuf, &raw mut g_st().Visual.start);
+            check_pos(g_st().curbuf, &mut g_st().Visual.start);
         }
 
         smsg_keep!(

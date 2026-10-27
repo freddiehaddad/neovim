@@ -1381,7 +1381,7 @@ pub unsafe fn ex_copy(mut line1: linenr_T, mut line2: linenr_T, n: linenr_T) {
 
         appended_lines_mark(n, count);
         if g_st().Visual.active {
-            check_pos(g_st().curbuf, &raw mut g_st().Visual.start);
+            check_pos(g_st().curbuf, &mut g_st().Visual.start);
         }
 
         msgmore(count);
@@ -1557,7 +1557,7 @@ pub unsafe fn do_bang(
 unsafe fn do_filter(
     line1: linenr_T,
     line2: linenr_T,
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     cmd: *mut c_char,
     do_in: bool,
     do_out: bool,
@@ -1634,7 +1634,7 @@ unsafe fn do_filter(
                     ptr::null_mut(),
                     line1,
                     line2,
-                    eap,
+                    &raw mut *eap,
                     false,
                     false,
                     false,
@@ -1691,7 +1691,7 @@ unsafe fn do_filter(
                             line2,
                             0,
                             MAXLNUM,
-                            eap,
+                            &raw mut *eap,
                             READ_FILTER,
                             false,
                         ) != OK

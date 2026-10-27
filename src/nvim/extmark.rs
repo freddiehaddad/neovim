@@ -603,14 +603,14 @@ pub unsafe fn extmark_set_pos(
 }
 
 /// Gets the position of an extmark, shifted by buffer edits since it was set (`extmark_get_pos`).
-pub unsafe fn extmark_get_pos(buf: *mut buf_T, ns_id: u32, id: u32, pos: *mut pos_T) -> bool {
+pub unsafe fn extmark_get_pos(buf: *mut buf_T, ns_id: u32, id: u32, pos: &mut pos_T) -> bool {
     unsafe {
         let mtp = extmark_from_id(buf, ns_id, id);
         if mtp.start.id == 0 {
             return false;
         }
-        (*pos).lnum = mtp.start.pos.row + 1;
-        (*pos).col = mtp.start.pos.col;
+        pos.lnum = mtp.start.pos.row + 1;
+        pos.col = mtp.start.pos.col;
         true
     }
 }

@@ -1338,7 +1338,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                                         let mut vcol: colnr_T = 0;
                                         getvvcol(
                                             *curwin.as_ptr(),
-                                            &raw mut (**curwin.as_ptr()).w_cursor,
+                                            &mut (**curwin.as_ptr()).w_cursor,
                                             ptr::null_mut(),
                                             ptr::null_mut(),
                                             &raw mut vcol,

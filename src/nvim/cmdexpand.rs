@@ -3145,7 +3145,7 @@ pub unsafe fn set_expand_context(xp: &mut expand_T) {
 /// Sets the index of a built-in or user defined command "cmd" in eap->cmdidx.
 unsafe fn set_cmd_index(
     cmd: *const c_char,
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     xp: &mut expand_T,
     complp: *mut c_int,
 ) -> *const c_char {
@@ -3154,7 +3154,7 @@ unsafe fn set_cmd_index(
         let fuzzy = cmdline_fuzzy_complete(cmd);
 
         if !fuzzy && opt_vars().p_ic == 0 && *cmd == b'k' as c_char && *cmd.add(1) != b'e' as c_char {
-            (*eap).cmdidx = cmdidx_T::CMD_k as c_int;
+            eap.cmdidx = cmdidx_T::CMD_k as c_int;
             p = cmd.add(1);
         } else {
             p = cmd;
@@ -3186,10 +3186,10 @@ unsafe fn set_cmd_index(
                 return ptr::null();
             }
 
-            (*eap).cmdidx = excmd_get_cmdidx(cmd, len) as c_int;
+            eap.cmdidx = excmd_get_cmdidx(cmd, len) as c_int;
 
             if (*cmd >= b'A' as c_char && *cmd <= b'Z' as c_char)
-                || (fuzzy && (*eap).cmdidx != cmdidx_T::CMD_bang as c_int as c_int && *p != NUL)
+                || (fuzzy && eap.cmdidx != cmdidx_T::CMD_bang as c_int as c_int && *p != NUL)
             {
                 while ascii_isalnum(*p) || *p == b'*' as c_char {
                     p = p.add(1);
@@ -3201,21 +3201,21 @@ unsafe fn set_cmd_index(
             return ptr::null();
         }
 
-        if (*eap).cmdidx == cmdidx_T::CMD_SIZE as c_int as c_int {
+        if eap.cmdidx == cmdidx_T::CMD_SIZE as c_int as c_int {
             if *cmd == b's' as c_char
                 && !vim_strchr(c"cgriI".as_ptr(), *cmd.add(1) as u8 as c_int).is_null()
             {
-                (*eap).cmdidx = cmdidx_T::CMD_substitute as c_int;
+                eap.cmdidx = cmdidx_T::CMD_substitute as c_int;
                 p = cmd.add(1);
             } else if *cmd >= b'A' as c_char && *cmd <= b'Z' as c_char {
-                (*eap).cmd = cmd.cast_mut();
-                p = find_ucmd(eap.cast(), p.cast_mut(), ptr::null_mut(), xp, complp);
+                eap.cmd = cmd.cast_mut();
+                p = find_ucmd(eap, p.cast_mut(), ptr::null_mut(), xp, complp);
                 if p.is_null() {
-                    (*eap).cmdidx = cmdidx_T::CMD_SIZE as c_int;
+                    eap.cmdidx = cmdidx_T::CMD_SIZE as c_int;
                 }
             }
         }
-        if (*eap).cmdidx == cmdidx_T::CMD_SIZE as c_int as c_int {
+        if eap.cmdidx == cmdidx_T::CMD_SIZE as c_int as c_int {
             xp.xp_context = EXPAND_UNSUCCESSFUL;
             return ptr::null();
         }
@@ -3617,7 +3617,7 @@ unsafe fn set_context_with_pattern(xp: &mut expand_T) {
         let mut patlen: c_int = 0;
         let mut magic = opt_vars().p_magic != 0;
         let retval = parse_pattern_and_range(
-            &raw mut cmdexp().pre_incsearch_pos,
+            &mut cmdexp().pre_incsearch_pos,
             &raw mut dummy,
             &raw mut skiplen,
             &raw mut patlen,
@@ -4097,7 +4097,7 @@ unsafe fn set_one_cmd_context(xp: &mut expand_T, buff: *const c_char) -> *const 
             return cmd.add(1);
         }
 
-        let mut p = set_cmd_index(cmd, &raw mut ea, xp, &raw mut context);
+        let mut p = set_cmd_index(cmd, &mut ea, xp, &raw mut context);
         if p.is_null() {
             return ptr::null();
         }
@@ -6071,29 +6071,29 @@ pub unsafe fn f_cmdcomplete_info(
 
 /// Copy a substring from the current buffer (curbuf).
 unsafe fn copy_substring_from_pos(
-    start: *mut pos_T,
-    end: *mut pos_T,
-    match_end: *mut pos_T,
+    start: &mut pos_T,
+    end: &mut pos_T,
+    match_end: &mut pos_T,
 ) -> Option<CString> {
     unsafe {
         let exacttext = (opt_vars().wop_flags & kOptWopFlagExacttext) != 0;
 
-        if (*start).lnum > (*end).lnum
-            || ((*start).lnum == (*end).lnum && (*start).col >= (*end).col)
+        if start.lnum > end.lnum
+            || (start.lnum == end.lnum && start.col >= end.col)
         {
             return None;
         }
 
         let mut ga: Vec<u8> = Vec::with_capacity(128);
 
-        let start_line = ml_get((*start).lnum);
-        let start_ptr = start_line.add((*start).col as usize);
-        let is_single_line = (*start).lnum == (*end).lnum;
+        let start_line = ml_get(start.lnum);
+        let start_ptr = start_line.add(start.col as usize);
+        let is_single_line = start.lnum == end.lnum;
 
         let mut segment_len = if is_single_line {
-            (*end).col - (*start).col
+            end.col - start.col
         } else {
-            ml_get_len((*start).lnum) - (*start).col
+            ml_get_len(start.lnum) - start.col
         };
         ga.extend_from_slice(std::slice::from_raw_parts(
             start_ptr.cast::<u8>(),
@@ -6108,8 +6108,8 @@ unsafe fn copy_substring_from_pos(
         }
 
         if !is_single_line {
-            let mut lnum = (*start).lnum + 1;
-            while lnum < (*end).lnum {
+            let mut lnum = start.lnum + 1;
+            while lnum < end.lnum {
                 let line = ml_get(lnum);
                 let linelen = ml_get_len(lnum);
                 ga.extend_from_slice(std::slice::from_raw_parts(
@@ -6125,17 +6125,17 @@ unsafe fn copy_substring_from_pos(
             }
         }
 
-        let end_line = ml_get((*end).lnum);
-        let word_end = find_word_end(end_line.add((*end).col as usize));
+        let end_line = ml_get(end.lnum);
+        let word_end = find_word_end(end_line.add(end.col as usize));
         segment_len = word_end.offset_from(end_line) as c_int;
-        let start_off = if is_single_line { (*end).col } else { 0 };
+        let start_off = if is_single_line { end.col } else { 0 };
         ga.extend_from_slice(std::slice::from_raw_parts(
             end_line.add(start_off as usize).cast::<u8>(),
             (segment_len - start_off) as usize,
         ));
 
-        (*match_end).lnum = (*end).lnum;
-        (*match_end).col = segment_len;
+        match_end.lnum = end.lnum;
+        match_end.col = segment_len;
 
         Some(cstr_from_bytes(&ga))
     }
@@ -6179,13 +6179,13 @@ unsafe fn is_regex_match(pat: *const c_char, str_arg: *const c_char) -> bool {
 unsafe fn concat_pattern_with_buffer_match(
     pat: *mut c_char,
     pat_len: c_int,
-    end_match_pos: *mut pos_T,
+    end_match_pos: &mut pos_T,
     lowercase: bool,
 ) -> CString {
     unsafe {
-        let line = ml_get((*end_match_pos).lnum);
-        let word_end = find_word_end(line.add((*end_match_pos).col as usize));
-        let match_len = word_end.offset_from(line.add((*end_match_pos).col as usize)) as c_int;
+        let line = ml_get(end_match_pos.lnum);
+        let word_end = find_word_end(line.add(end_match_pos.col as usize));
+        let match_len = word_end.offset_from(line.add(end_match_pos.col as usize)) as c_int;
         let mut out = Vec::with_capacity((match_len as usize) + (pat_len as usize));
         out.extend_from_slice(std::slice::from_raw_parts(
             pat.cast::<u8>(),
@@ -6193,7 +6193,7 @@ unsafe fn concat_pattern_with_buffer_match(
         ));
         if match_len > 0 {
             let match_slice = std::slice::from_raw_parts(
-                line.add((*end_match_pos).col as usize).cast::<u8>(),
+                line.add(end_match_pos.col as usize).cast::<u8>(),
                 match_len as usize,
             );
             if lowercase {
@@ -6314,9 +6314,9 @@ unsafe fn expand_pattern_in_buf(
             }
 
             let Some(full_match) = copy_substring_from_pos(
-                &raw mut cur_match_pos,
-                &raw mut end_match_pos,
-                &raw mut word_end_pos,
+                &mut cur_match_pos,
+                &mut end_match_pos,
+                &mut word_end_pos,
             ) else {
                 break;
             };
@@ -6325,13 +6325,13 @@ unsafe fn expand_pattern_in_buf(
                 full_match
             } else {
                 let mut m =
-                    concat_pattern_with_buffer_match(pat, pat_len, &raw mut end_match_pos, false);
+                    concat_pattern_with_buffer_match(pat, pat_len, &mut end_match_pos, false);
 
                 if !is_regex_match(m.as_ptr(), full_match.as_ptr()) {
                     m = concat_pattern_with_buffer_match(
                         pat,
                         pat_len,
-                        &raw mut end_match_pos,
+                        &mut end_match_pos,
                         true,
                     );
                     if !is_regex_match(m.as_ptr(), full_match.as_ptr()) {

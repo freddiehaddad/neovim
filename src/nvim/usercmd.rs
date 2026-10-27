@@ -1668,7 +1668,7 @@ unsafe fn uc_check_code(
     len: usize,
     mut buf: *mut c_char,
     cmd: *mut ucmd_T,
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     split_buf: &mut Option<CString>,
     split_len: *mut usize,
 ) -> usize {
@@ -1718,7 +1718,7 @@ unsafe fn uc_check_code(
 
         match type_ {
             CodeType::Args => {
-                if *(*eap).arg == NUL {
+                if *eap.arg == NUL {
                     if quote == 1 {
                         result = 2;
                         if !buf.is_null() {
@@ -1728,20 +1728,20 @@ unsafe fn uc_check_code(
                         result = 0;
                     }
                 } else {
-                    if ((*eap).argt & EX_NOSPC) != 0 && quote == 2 {
+                    if (eap.argt & EX_NOSPC) != 0 && quote == 2 {
                         quote = 1;
                     }
 
                     match quote {
                         0 => {
-                            result = CStr::from_ptr((*eap).arg).to_bytes().len();
+                            result = CStr::from_ptr(eap.arg).to_bytes().len();
                             if !buf.is_null() {
-                                { let s = (*eap).arg; std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                                { let s = eap.arg; std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                             }
                         }
                         1 => {
-                            result = CStr::from_ptr((*eap).arg).to_bytes().len() + 2;
-                            let mut scan = (*eap).arg;
+                            result = CStr::from_ptr(eap.arg).to_bytes().len() + 2;
+                            let mut scan = eap.arg;
                             while *scan != NUL {
                                 if *scan == b'\\' as c_char || *scan == b'"' as c_char {
                                     result += 1;
@@ -1752,7 +1752,7 @@ unsafe fn uc_check_code(
                             if !buf.is_null() {
                                 *buf = b'"' as c_char;
                                 buf = buf.add(1);
-                                let mut scan = (*eap).arg;
+                                let mut scan = eap.arg;
                                 while *scan != NUL {
                                     if *scan == b'\\' as c_char || *scan == b'"' as c_char {
                                         *buf = b'\\' as c_char;
@@ -1768,9 +1768,9 @@ unsafe fn uc_check_code(
                         2 => {
                             if split_buf.is_none() {
                                 *split_buf = Some(uc_split_args(
-                                    (*eap).arg,
-                                    &(*eap).args,
-                                    &(*eap).arglens,
+                                    eap.arg,
+                                    &eap.args,
+                                    &eap.arglens,
                                     split_len,
                                 ));
                             }
@@ -1785,7 +1785,7 @@ unsafe fn uc_check_code(
                 }
             }
             CodeType::Bang => {
-                result = if (*eap).forceit != 0 { 1 } else { 0 };
+                result = if eap.forceit != 0 { 1 } else { 0 };
                 if quote != 0 {
                     result += 2;
                 }
@@ -1794,7 +1794,7 @@ unsafe fn uc_check_code(
                         *buf = b'"' as c_char;
                         buf = buf.add(1);
                     }
-                    if (*eap).forceit != 0 {
+                    if eap.forceit != 0 {
                         *buf = b'!' as c_char;
                         buf = buf.add(1);
                     }
@@ -1805,12 +1805,12 @@ unsafe fn uc_check_code(
             }
             CodeType::Line1 | CodeType::Line2 | CodeType::Range | CodeType::Count => {
                 let num: i64 = match type_ {
-                    CodeType::Line1 => i64::from((*eap).line1),
-                    CodeType::Line2 => i64::from((*eap).line2),
-                    CodeType::Range => i64::from((*eap).addr_count),
+                    CodeType::Line1 => i64::from(eap.line1),
+                    CodeType::Line2 => i64::from(eap.line2),
+                    CodeType::Range => i64::from(eap.addr_count),
                     _ => {
-                        if (*eap).addr_count > 0 {
-                            i64::from((*eap).line2)
+                        if eap.addr_count > 0 {
+                            i64::from(eap.line2)
                         } else {
                             (*cmd).uc_def
                         }
@@ -1838,7 +1838,7 @@ unsafe fn uc_check_code(
                 result = uc_mods(buf, &raw const g_st().cmdmod, quote != 0);
             }
             CodeType::Register => {
-                result = if (*eap).regname != 0 { 1 } else { 0 };
+                result = if eap.regname != 0 { 1 } else { 0 };
                 if quote != 0 {
                     result += 2;
                 }
@@ -1847,8 +1847,8 @@ unsafe fn uc_check_code(
                         *buf = b'\'' as c_char;
                         buf = buf.add(1);
                     }
-                    if (*eap).regname != 0 {
-                        *buf = (*eap).regname as c_char;
+                    if eap.regname != 0 {
+                        *buf = eap.regname as c_char;
                         buf = buf.add(1);
                     }
                     if quote != 0 {
@@ -1874,17 +1874,17 @@ unsafe fn uc_check_code(
     }
 }
 
-pub unsafe fn do_ucmd(eap: *mut exarg_T, preview: bool) -> c_int {
+pub unsafe fn do_ucmd(eap: &mut exarg_T, preview: bool) -> c_int {
     unsafe {
         let mut end: *mut c_char = ptr::null_mut();
         let mut split_len: usize = 0;
         let mut split_buf: Option<CString> = None;
 
-        let cmd = if (*eap).cmdidx == CMD_USER {
+        let cmd = if eap.cmdidx == CMD_USER {
             let u = &raw mut (*ucmds_mut());
-            &raw mut (&mut *u)[(*eap).useridx as usize]
+            &raw mut (&mut *u)[eap.useridx as usize]
         } else {
-            &raw mut (&mut (*(*prevwin_curwin()).w_buffer).b_ucmds)[(*eap).useridx as usize]
+            &raw mut (&mut (*(*prevwin_curwin()).w_buffer).b_ucmds)[eap.useridx as usize]
         };
 
         if preview {
@@ -1985,7 +1985,7 @@ pub unsafe fn do_ucmd(eap: *mut exarg_T, preview: bool) -> c_int {
         }
         do_cmdline(
             buf,
-            (*eap).ea_getline,
+            eap.ea_getline,
             DOCMD_VERBOSE | DOCMD_NOWAIT | DOCMD_KEYTYPED,
         );
 

@@ -306,7 +306,7 @@ pub unsafe fn win_config_float(wp: *mut win_T, mut fconfig: WinConfig) {
                     let mut tcole: c_int = 0;
                     textpos2screenpos(
                         parent,
-                        &raw mut pos,
+                        &mut pos,
                         &raw mut trow,
                         &raw mut tcol,
                         &raw mut tcolc,

@@ -231,41 +231,41 @@ unsafe fn get_mouse_class(p: *const c_char) -> c_int {
 }
 
 /// Move "pos" back to the start of the word it's in.
-unsafe fn find_start_of_word(pos: *mut pos_T) {
+unsafe fn find_start_of_word(pos: &mut pos_T) {
     unsafe {
-        let line = ml_get((*pos).lnum);
-        let cclass = get_mouse_class(line.add((*pos).col as usize));
+        let line = ml_get(pos.lnum);
+        let cclass = get_mouse_class(line.add(pos.col as usize));
 
-        while (*pos).col > 0 {
-            let mut col = (*pos).col - 1;
+        while pos.col > 0 {
+            let mut col = pos.col - 1;
             col -= utf_head_off(line, line.add(col as usize));
             if get_mouse_class(line.add(col as usize)) != cclass {
                 break;
             }
-            (*pos).col = col;
+            pos.col = col;
         }
     }
 }
 
 /// Move "pos" forward to the end of the word it's in.
 /// When 'selection' is "exclusive", the position is just after the word.
-unsafe fn find_end_of_word(pos: *mut pos_T) {
+unsafe fn find_end_of_word(pos: &mut pos_T) {
     unsafe {
-        let line = ml_get((*pos).lnum);
-        if *opt_vars().p_sel == b'e' as c_char && (*pos).col > 0 {
-            (*pos).col -= 1;
-            (*pos).col -= utf_head_off(line, line.add((*pos).col as usize));
+        let line = ml_get(pos.lnum);
+        if *opt_vars().p_sel == b'e' as c_char && pos.col > 0 {
+            pos.col -= 1;
+            pos.col -= utf_head_off(line, line.add(pos.col as usize));
         }
-        let cclass = get_mouse_class(line.add((*pos).col as usize));
-        while *line.add((*pos).col as usize) != NUL {
-            let col = (*pos).col + utfc_ptr2len(line.add((*pos).col as usize));
+        let cclass = get_mouse_class(line.add(pos.col as usize));
+        while *line.add(pos.col as usize) != NUL {
+            let col = pos.col + utfc_ptr2len(line.add(pos.col as usize));
             if get_mouse_class(line.add(col as usize)) != cclass {
                 if *opt_vars().p_sel == b'e' as c_char {
-                    (*pos).col = col;
+                    pos.col = col;
                 }
                 break;
             }
-            (*pos).col = col;
+            pos.col = col;
         }
     }
 }
@@ -396,7 +396,7 @@ unsafe fn call_click_def_func(
 
 /// Translate window coordinates to buffer position without any side effects.
 /// Returns IN_BUFFER and sets `mpos` (0-based column) when in buffer text.
-unsafe fn get_fpos_of_mouse(mpos: *mut pos_T, wpp: *mut *mut win_T) -> c_int {
+unsafe fn get_fpos_of_mouse(mpos: &mut pos_T, wpp: *mut *mut win_T) -> c_int {
     unsafe {
         let mut grid = g_st().mouse_grid;
         let mut row = g_st().mouse_row;
@@ -416,7 +416,7 @@ unsafe fn get_fpos_of_mouse(mpos: *mut pos_T, wpp: *mut *mut win_T) -> c_int {
         let winrow = row;
         let wincol = col;
 
-        let below_buffer = mouse_comp_pos(wp, &raw mut row, &raw mut col, &raw mut (*mpos).lnum);
+        let below_buffer = mouse_comp_pos(wp, &raw mut row, &raw mut col, &raw mut mpos.lnum);
 
         if !below_buffer
             && *(*wp).w_onebuf_opt.wo_stc != NUL
@@ -453,7 +453,7 @@ unsafe fn get_fpos_of_mouse(mpos: *mut pos_T, wpp: *mut *mut win_T) -> c_int {
             return IN_UNKNOWN;
         }
 
-        (*mpos).col = vcol2col(wp, (*mpos).lnum, col, &raw mut (*mpos).coladd);
+        mpos.col = vcol2col(wp, mpos.lnum, col, &raw mut mpos.coladd);
         IN_BUFFER
     }
 }
@@ -485,20 +485,22 @@ unsafe fn do_popup(which_button: c_int, m_pos_flag: c_int, mut m_pos: pos_T) -> 
                     let mut rightcol: colnr_T = 0;
                     getvcols(
                         *curwin.as_ptr(),
-                        &raw mut (**curwin.as_ptr()).w_cursor,
-                        &raw mut g_st().Visual.start,
+                        &mut (**curwin.as_ptr()).w_cursor,
+                        &mut g_st().Visual.start,
                         &raw mut leftcol,
                         &raw mut rightcol,
                         0,
                     );
+                    let mut col = m_pos.col;
                     getvcol(
                         *curwin.as_ptr(),
-                        &raw mut m_pos,
+                        &mut m_pos,
                         ptr::null_mut(),
-                        &raw mut m_pos.col,
+                        &raw mut col,
                         ptr::null_mut(),
                         0,
                     );
+                    m_pos.col = col;
                     if m_pos.col < leftcol || m_pos.col > rightcol {
                         jump_flags = MOUSE_MAY_STOP_VIS;
                     }
@@ -724,7 +726,7 @@ pub unsafe fn do_mouse(
         if is_click && (g_st().mod_mask & MOD_MASK_CTRL) != 0 && which_button == MOUSE_LEFT {
             let mut pos = ZERO_POS;
             let mut wp: *mut win_T = ptr::null_mut();
-            if get_fpos_of_mouse(&raw mut pos, &raw mut wp) == IN_BUFFER
+            if get_fpos_of_mouse(&mut pos, &raw mut wp) == IN_BUFFER
                 && !bt_quickfix((*wp).w_buffer)
             {
                 mouse_st().got_click = false;
@@ -739,7 +741,7 @@ pub unsafe fn do_mouse(
         let mut m_pos_flag = 0;
         let mut m_pos = ZERO_POS;
         if mouse_model_popup() {
-            m_pos_flag = get_fpos_of_mouse(&raw mut m_pos, ptr::null_mut());
+            m_pos_flag = get_fpos_of_mouse(&mut m_pos, ptr::null_mut());
             if (m_pos_flag & (IN_STATUS_LINE | MOUSE_WINBAR | MOUSE_STATUSCOL)) == 0
                 && which_button == MOUSE_RIGHT
                 && (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
@@ -951,8 +953,8 @@ pub unsafe fn do_mouse(
                 let mut rightcol: colnr_T = 0;
                 getvcols(
                     *curwin.as_ptr(),
-                    &raw mut start_visual,
-                    &raw mut end_visual,
+                    &mut start_visual,
+                    &mut end_visual,
                     &raw mut leftcol,
                     &raw mut rightcol,
                     0,
@@ -1120,15 +1122,15 @@ pub unsafe fn do_mouse(
 
                 if is_click {
                     end_visual = (**curwin.as_ptr()).w_cursor;
-                    while ascii_iswhite(gchar_pos(&raw mut end_visual)) {
-                        inc(&raw mut end_visual);
+                    while ascii_iswhite(gchar_pos(&mut end_visual)) {
+                        inc(&mut end_visual);
                     }
                     if !oap.is_null() {
                         (*oap).motion_type = kMTCharWise;
                     }
                     if !oap.is_null()
                         && g_st().Visual.mode == b'v' as c_int
-                        && !vim_iswordc(gchar_pos(&raw mut end_visual))
+                        && !vim_iswordc(gchar_pos(&mut end_visual))
                         && equalpos((**curwin.as_ptr()).w_cursor, g_st().Visual.start)
                     {
                         pos = findmatch(oap, 0);
@@ -1149,14 +1151,14 @@ pub unsafe fn do_mouse(
 
                 if pos.is_null() && (is_click || is_drag) {
                     if lt((**curwin.as_ptr()).w_cursor, mouse_st().orig_cursor) {
-                        find_start_of_word(&raw mut (**curwin.as_ptr()).w_cursor);
-                        find_end_of_word(&raw mut g_st().Visual.start);
+                        find_start_of_word(&mut (**curwin.as_ptr()).w_cursor);
+                        find_end_of_word(&mut g_st().Visual.start);
                     } else {
-                        find_start_of_word(&raw mut g_st().Visual.start);
+                        find_start_of_word(&mut g_st().Visual.start);
                         if *opt_vars().p_sel == b'e' as c_char && *get_cursor_pos_ptr() != NUL {
                             (**curwin.as_ptr()).w_cursor.col += utfc_ptr2len(get_cursor_pos_ptr());
                         }
-                        find_end_of_word(&raw mut (**curwin.as_ptr()).w_cursor);
+                        find_end_of_word(&mut (**curwin.as_ptr()).w_cursor);
                     }
                 }
                 (**curwin.as_ptr()).w_set_curswant = true;

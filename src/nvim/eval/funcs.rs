@@ -1889,7 +1889,7 @@ unsafe fn set_cursorpos(argvars: *mut typval_T, rettv: *mut typval_T, charcol: b
             let mut curswant: colnr_T = -1;
             if list2fpos(
                 argvars,
-                &raw mut pos,
+                &mut pos,
                 ptr::null_mut(),
                 &raw mut curswant,
                 charcol,
@@ -2484,7 +2484,7 @@ pub unsafe fn f_expandcmd(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
         if emsgoff {
             g_st().emsg_off += 1;
         }
-        if expand_filename(&raw mut eap, &raw mut cmdstr, &mut errormsg) == FAIL
+        if expand_filename(&mut eap, &raw mut cmdstr, &mut errormsg) == FAIL
             && !emsgoff
             && !errormsg.is_null()
             && *errormsg != NUL
@@ -3265,8 +3265,8 @@ unsafe fn block_def2str(bd: *const block_def) -> Vec<c_char> {
 unsafe fn getregionpos(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
-    p1: *mut pos_T,
-    p2: *mut pos_T,
+    p1: &mut pos_T,
+    p2: &mut pos_T,
     inclusive: *mut bool,
     region_type: *mut c_int,
     oap: &mut oparg_T,
@@ -3339,25 +3339,25 @@ unsafe fn getregionpos(
             return FAIL;
         }
 
-        if (*p1).lnum < 1 || (*p1).lnum > (*findbuf).b_ml.ml_line_count {
-            semsg!(gettext(e_invalid_line_number_nr.as_ptr()), (*p1).lnum);
+        if p1.lnum < 1 || p1.lnum > (*findbuf).b_ml.ml_line_count {
+            semsg!(gettext(e_invalid_line_number_nr.as_ptr()), p1.lnum);
             return FAIL;
         }
-        if (*p1).col == MAXCOL {
-            (*p1).col = ml_get_buf_len(findbuf, (*p1).lnum) + 1;
-        } else if (*p1).col < 1 || (*p1).col > ml_get_buf_len(findbuf, (*p1).lnum) + 1 {
-            semsg!(gettext(e_invalid_column_number_nr.as_ptr()), (*p1).col);
+        if p1.col == MAXCOL {
+            p1.col = ml_get_buf_len(findbuf, p1.lnum) + 1;
+        } else if p1.col < 1 || p1.col > ml_get_buf_len(findbuf, p1.lnum) + 1 {
+            semsg!(gettext(e_invalid_column_number_nr.as_ptr()), p1.col);
             return FAIL;
         }
 
-        if (*p2).lnum < 1 || (*p2).lnum > (*findbuf).b_ml.ml_line_count {
-            semsg!(gettext(e_invalid_line_number_nr.as_ptr()), (*p2).lnum);
+        if p2.lnum < 1 || p2.lnum > (*findbuf).b_ml.ml_line_count {
+            semsg!(gettext(e_invalid_line_number_nr.as_ptr()), p2.lnum);
             return FAIL;
         }
-        if (*p2).col == MAXCOL {
-            (*p2).col = ml_get_buf_len(findbuf, (*p2).lnum) + 1;
-        } else if (*p2).col < 1 || (*p2).col > ml_get_buf_len(findbuf, (*p2).lnum) + 1 {
-            semsg!(gettext(e_invalid_column_number_nr.as_ptr()), (*p2).col);
+        if p2.col == MAXCOL {
+            p2.col = ml_get_buf_len(findbuf, p2.lnum) + 1;
+        } else if p2.col < 1 || p2.col > ml_get_buf_len(findbuf, p2.lnum) + 1 {
+            semsg!(gettext(e_invalid_column_number_nr.as_ptr()), p2.col);
             return FAIL;
         }
 
@@ -3365,12 +3365,12 @@ unsafe fn getregionpos(
         (**curwin.as_ptr()).w_buffer = g_st().curbuf;
         g_st().virtual_op = TriState::from(virtual_active(*curwin.as_ptr()));
 
-        (*p1).col -= 1;
-        (*p2).col -= 1;
+        p1.col -= 1;
+        p2.col -= 1;
 
         getregionpos_prep(
-            (*p1).cast(),
-            (*p2).cast(),
+            p1,
+            p2,
             *region_type,
             is_select_exclusive,
             block_width,
@@ -3411,8 +3411,8 @@ pub unsafe fn f_getregion(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
         if getregionpos(
             argvars,
             rettv,
-            &raw mut p1,
-            &raw mut p2,
+            &mut p1,
+            &mut p2,
             &raw mut inclusive,
             &raw mut region_type,
             &mut oa,
@@ -3509,8 +3509,8 @@ pub unsafe fn f_getregionpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
         if getregionpos(
             argvars,
             rettv,
-            &raw mut p1,
-            &raw mut p2,
+            &mut p1,
+            &mut p2,
             &raw mut inclusive,
             &raw mut region_type,
             &mut oa,
@@ -3555,8 +3555,8 @@ pub unsafe fn f_getregionpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
                 region_type,
                 &mut oa,
                 allow_eol,
-                start_pos.cast(),
-                end_pos.cast(),
+                &mut start_pos,
+                &mut end_pos,
             );
             if p2.lnum != p1.lnum {
                 let mut unused = pos_T {
@@ -3572,8 +3572,8 @@ pub unsafe fn f_getregionpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
                     region_type,
                     &mut oa,
                     allow_eol,
-                    unused.cast(),
-                    end_pos.cast(),
+                    &mut unused,
+                    &mut end_pos,
                 );
             }
             add_regionpos_range(rettv, start_pos, end_pos);
@@ -3597,8 +3597,8 @@ pub unsafe fn f_getregionpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
                     region_type,
                     &mut oa,
                     allow_eol,
-                    ret_p1.cast(),
-                    ret_p2.cast(),
+                    &mut ret_p1,
+                    &mut ret_p2,
                 );
                 add_regionpos_range(rettv, ret_p1, ret_p2);
             }
@@ -7633,9 +7633,9 @@ pub unsafe fn do_searchpair(
             }
             if equalpos(pos, foundpos) {
                 if dir == BACKWARD {
-                    decl(&raw mut pos);
+                    decl(&mut pos);
                 } else {
-                    incl(&raw mut pos);
+                    incl(&mut pos);
                 }
             }
             foundpos = pos;
@@ -7853,7 +7853,7 @@ unsafe fn set_position(argvars: *mut typval_T, rettv: *mut typval_T, charpos: bo
         let mut fnum: c_int = 0;
         if list2fpos(
             argvars.add(1),
-            &raw mut pos,
+            &mut pos,
             &raw mut fnum,
             &raw mut curswant,
             charpos,
@@ -7881,7 +7881,7 @@ unsafe fn set_position(argvars: *mut typval_T, rettv: *mut typval_T, charpos: bo
         } else if *name == b'\'' as c_char && *name.add(1) != NUL && *name.add(2) == NUL {
             if setmark_pos(
                 c_int::from(*name.add(1) as u8),
-                pos.cast(),
+                &mut pos,
                 fnum,
                 ptr::null_mut(),
             ) == OK
@@ -9268,7 +9268,7 @@ pub unsafe fn f_virtcol(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
                 }
                 getvvcol(
                     wp,
-                    (*fp).cast(),
+                    &mut *fp,
                     &raw mut vcol_start,
                     ptr::null_mut(),
                     &raw mut vcol_end,

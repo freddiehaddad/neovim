@@ -82,7 +82,7 @@ use std::ptr;
 pub type VimVarIndex = c_int;
 pub type ScopeType = c_int;
 pub type scid_T = c_int;
-type ex_unletlock_callback = unsafe fn(*mut lval_T, *mut c_char, *mut exarg_T, c_int) -> c_int;
+type ex_unletlock_callback = unsafe fn(*mut lval_T, *mut c_char, &mut exarg_T, c_int) -> c_int;
 
 use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
 use crate::change::MB_MAXCHAR;
@@ -1052,7 +1052,7 @@ unsafe fn eval_all_expr_in_str(str_arg: *mut c_char) -> Option<std::ffi::CString
 
 /// Get a list of lines from a HERE document.
 pub unsafe fn heredoc_get(
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     mut cmd: *mut c_char,
     script_get: bool,
 ) -> *mut list_T {
@@ -1069,7 +1069,7 @@ pub unsafe fn heredoc_get(
             heredoc_in_string = true;
             line_arg = nl_ptr.add(1);
             *nl_ptr = NUL;
-        } else if (*eap).ea_getline.is_none() {
+        } else if eap.ea_getline.is_none() {
             emsg(gettext(E_CANNOT_USE_HEREDOC_HERE.as_ptr()));
             return ptr::null_mut();
         }
@@ -1083,7 +1083,7 @@ pub unsafe fn heredoc_get(
             {
                 cmd = skipwhite(cmd.add(4));
 
-                let mut p = *(*eap).cmdlinep;
+                let mut p = *eap.cmdlinep;
                 while ascii_iswhite(*p as c_int) {
                     p = p.add(1);
                     marker_indent_len += 1;
@@ -1148,7 +1148,7 @@ pub unsafe fn heredoc_get(
                 }
                 cur_line
             } else {
-                theline_owned = (*eap).ea_getline.call(0, 0, false);
+                theline_owned = eap.ea_getline.call(0, 0, false);
                 let Some(ref tl) = theline_owned else {
                     if !script_get {
                         semsg!(gettext(E_MISSING_END_MARKER_STR.as_ptr()), marker);
@@ -1159,7 +1159,7 @@ pub unsafe fn heredoc_get(
             };
 
             if marker_indent_len > 0
-                && { let _p1 = theline; let _p2 = *(*eap).cmdlinep; let _n = marker_indent_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                && { let _p1 = theline; let _p2 = *eap.cmdlinep; let _n = marker_indent_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
             {
                 mi = marker_indent_len;
             }
@@ -1192,7 +1192,7 @@ pub unsafe fn heredoc_get(
             }
 
             let str_line = theline.add(ti as usize);
-            if evalstr && (*eap).skip == 0 {
+            if evalstr && eap.skip == 0 {
                 let Some(evaluated) = eval_all_expr_in_str(str_line) else {
                     eval_failed = true;
                     continue;
@@ -1203,7 +1203,7 @@ pub unsafe fn heredoc_get(
             }
         }
         if heredoc_in_string {
-            (*eap).nextcmd = line_arg;
+            eap.nextcmd = line_arg;
         }
         drop(theline_owned);
         drop(text_indent);
@@ -1562,7 +1562,7 @@ unsafe fn list_tab_vars(first: *mut c_int) {
 
 /// List variables in "arg".
 unsafe fn list_arg_vars(
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     mut arg: *const c_char,
     first: *mut c_int,
 ) -> *const c_char {
@@ -1571,7 +1571,7 @@ unsafe fn list_arg_vars(
         let mut tv: typval_T = typval_T::new();
 
         while ends_excmd(*arg as c_int) == 0 && !g_st().got_int {
-            if error || (*eap).skip != 0 {
+            if error || eap.skip != 0 {
                 arg = find_name_end(
                     arg,
                     ptr::null_mut(),
@@ -1946,11 +1946,13 @@ unsafe fn ex_let_one(
 /// ":unlet[!] var1 ... " command.
 pub unsafe fn ex_unlet(eap: &mut exarg_T) {
     unsafe {
+        let arg = eap.arg;
+        let forceit = eap.forceit;
         ex_unletlock(
             eap,
-            eap.arg,
+            arg,
             0,
-            if eap.forceit != 0 { GLV_QUIET } else { 0 },
+            if forceit != 0 { GLV_QUIET } else { 0 },
             do_unlet_var,
         );
     }
@@ -1975,7 +1977,7 @@ pub unsafe fn ex_lockvar(eap: &mut exarg_T) {
 
 /// Common parsing logic for :unlet, :lockvar and :unlockvar.
 unsafe fn ex_unletlock(
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     argstart: *mut c_char,
     deep: c_int,
     glv_flags: c_int,
@@ -1998,7 +2000,7 @@ unsafe fn ex_unletlock(
                     return;
                 }
                 arg = arg_const.cast_mut();
-                if !error && (*eap).skip == 0 && callback(&raw mut lv, arg, eap, deep) == FAIL {
+                if !error && eap.skip == 0 && callback(&raw mut lv, arg, eap, deep) == FAIL {
                     error = true;
                 }
                 name_end = arg;
@@ -2008,7 +2010,7 @@ unsafe fn ex_unletlock(
                     ptr::null_mut(),
                     &raw mut lv,
                     true,
-                    (*eap).skip != 0 || error,
+                    eap.skip != 0 || error,
                     glv_flags,
                     FNE_CHECK_START,
                 );
@@ -2025,7 +2027,7 @@ unsafe fn ex_unletlock(
                     break;
                 }
 
-                if !error && (*eap).skip == 0 && callback(&raw mut lv, name_end, eap, deep) == FAIL
+                if !error && eap.skip == 0 && callback(&raw mut lv, name_end, eap, deep) == FAIL
                 {
                     error = true;
                 }
@@ -2036,7 +2038,7 @@ unsafe fn ex_unletlock(
             }
         }
 
-        (*eap).nextcmd = check_nextcmd(arg);
+        eap.nextcmd = check_nextcmd(arg);
     }
 }
 
@@ -2044,11 +2046,11 @@ unsafe fn ex_unletlock(
 unsafe fn do_unlet_var(
     lp: *mut lval_T,
     name_end: *mut c_char,
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     _deep: c_int,
 ) -> c_int {
     unsafe {
-        let forceit = (*eap).forceit != 0;
+        let forceit = eap.forceit != 0;
         let mut ret = OK;
 
         if (*lp).ll_tv.is_null() {
@@ -2199,11 +2201,11 @@ pub unsafe fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> c
 unsafe fn do_lock_var(
     lp: *mut lval_T,
     _name_end: *mut c_char,
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     deep: c_int,
 ) -> c_int {
     unsafe {
-        let lock = (*eap).cmdidx == cmdidx_T::CMD_lockvar as c_int;
+        let lock = eap.cmdidx == cmdidx_T::CMD_lockvar as c_int;
         let mut ret = OK;
 
         if (*lp).ll_tv.is_null() {

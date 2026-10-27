@@ -833,30 +833,30 @@ pub unsafe fn ex_checktime(eap: &mut exarg_T) {
     }
 }
 
-unsafe fn script_host_execute(name: *const c_char, eap: *mut exarg_T) {
+unsafe fn script_host_execute(name: *const c_char, eap: &mut exarg_T) {
     unsafe {
         let mut len: usize = 0;
         if let Some(script) = script_get(eap, &raw mut len) {
             let args = tv_list_alloc(3);
             crate::eval::typval::tv_list_append_string(args, script.as_ptr(), -1);
-            tv_list_append_number(args, (*eap).line1 as varnumber_T);
-            tv_list_append_number(args, (*eap).line2 as varnumber_T);
+            tv_list_append_number(args, eap.line1 as varnumber_T);
+            tv_list_append_number(args, eap.line2 as varnumber_T);
 
             eval_call_provider(name.cast_mut(), c"execute".as_ptr().cast_mut(), args, true);
         }
     }
 }
 
-unsafe fn script_host_execute_file(name: *const c_char, eap: *mut exarg_T) {
+unsafe fn script_host_execute_file(name: *const c_char, eap: &mut exarg_T) {
     unsafe {
-        if (*eap).skip == 0 {
+        if eap.skip == 0 {
             let mut buffer = [0 as c_char; MAXPATHL];
-            vim_FullName((*eap).arg, buffer.as_mut_ptr(), MAXPATHL, false);
+            vim_FullName(eap.arg, buffer.as_mut_ptr(), MAXPATHL, false);
 
             let args = tv_list_alloc(3);
             tv_list_append_string(args, buffer.as_ptr(), -1);
-            tv_list_append_number(args, (*eap).line1 as varnumber_T);
-            tv_list_append_number(args, (*eap).line2 as varnumber_T);
+            tv_list_append_number(args, eap.line1 as varnumber_T);
+            tv_list_append_number(args, eap.line2 as varnumber_T);
             eval_call_provider(
                 name.cast_mut(),
                 c"execute_file".as_ptr().cast_mut(),
@@ -867,13 +867,13 @@ unsafe fn script_host_execute_file(name: *const c_char, eap: *mut exarg_T) {
     }
 }
 
-unsafe fn script_host_do_range(name: *const c_char, eap: *mut exarg_T) {
+unsafe fn script_host_do_range(name: *const c_char, eap: &mut exarg_T) {
     unsafe {
-        if (*eap).skip == 0 {
+        if eap.skip == 0 {
             let args = tv_list_alloc(3);
-            tv_list_append_number(args, (*eap).line1 as varnumber_T);
-            tv_list_append_number(args, (*eap).line2 as varnumber_T);
-            tv_list_append_string(args, (*eap).arg, -1);
+            tv_list_append_number(args, eap.line1 as varnumber_T);
+            tv_list_append_number(args, eap.line2 as varnumber_T);
+            tv_list_append_string(args, eap.arg, -1);
             eval_call_provider(name.cast_mut(), c"do_range".as_ptr().cast_mut(), args, true);
         }
     }

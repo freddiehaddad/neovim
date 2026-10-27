@@ -1816,8 +1816,8 @@ unsafe fn win_update(wp: *mut win_T) {
                     let mut toc: colnr_T = 0;
                     getvcols(
                         wp,
-                        &raw mut g_st().Visual.start,
-                        &raw mut (**curwin.as_ptr()).w_cursor,
+                        &mut g_st().Visual.start,
+                        &mut (**curwin.as_ptr()).w_cursor,
                         &raw mut fromc,
                         &raw mut toc,
                         GETVCOL_END_EXCL_LBR,
@@ -1841,7 +1841,7 @@ unsafe fn win_update(wp: *mut win_T) {
                                 pos.col = ml_get_buf_len((*wp).w_buffer, pos.lnum);
                                 getvvcol(
                                     wp,
-                                    &raw mut pos,
+                                    &mut pos,
                                     ptr::null_mut(),
                                     ptr::null_mut(),
                                     &raw mut t,

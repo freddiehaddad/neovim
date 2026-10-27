@@ -2482,10 +2482,10 @@ unsafe fn qf_cmd_get_stack(eap: *mut exarg_T, print_emsg: bool) -> *mut qf_info_
     }
 }
 
-unsafe fn qf_cmd_get_or_alloc_stack(eap: *const exarg_T, pwinp: *mut *mut win_T) -> *mut qf_info_T {
+unsafe fn qf_cmd_get_or_alloc_stack(eap: &exarg_T, pwinp: *mut *mut win_T) -> *mut qf_info_T {
     unsafe {
         let mut qi = ql_info_ptr();
-        if is_loclist_cmd((*eap).cmdidx) {
+        if is_loclist_cmd(eap.cmdidx) {
             qi = ll_get_or_alloc_list(*curwin.as_ptr());
             *pwinp = *curwin.as_ptr();
         }
@@ -5157,25 +5157,25 @@ unsafe fn qf_find_last_entry_on_line(items: &[qfline_T], mut idx: usize) -> usiz
 }
 
 #[inline]
-unsafe fn qf_entry_after_pos(qfp: *const qfline_T, pos: *const pos_T, linewise: bool) -> bool {
+unsafe fn qf_entry_after_pos(qfp: *const qfline_T, pos: &pos_T, linewise: bool) -> bool {
     unsafe {
         if linewise {
-            (*qfp).qf_lnum > (*pos).lnum
+            (*qfp).qf_lnum > pos.lnum
         } else {
-            (*qfp).qf_lnum > (*pos).lnum
-                || ((*qfp).qf_lnum == (*pos).lnum && (*qfp).qf_col > (*pos).col)
+            (*qfp).qf_lnum > pos.lnum
+                || ((*qfp).qf_lnum == pos.lnum && (*qfp).qf_col > pos.col)
         }
     }
 }
 
 #[inline]
-unsafe fn qf_entry_before_pos(qfp: *const qfline_T, pos: *const pos_T, linewise: bool) -> bool {
+unsafe fn qf_entry_before_pos(qfp: *const qfline_T, pos: &pos_T, linewise: bool) -> bool {
     unsafe {
         if linewise {
-            (*qfp).qf_lnum < (*pos).lnum
+            (*qfp).qf_lnum < pos.lnum
         } else {
-            (*qfp).qf_lnum < (*pos).lnum
-                || ((*qfp).qf_lnum == (*pos).lnum && (*qfp).qf_col < (*pos).col)
+            (*qfp).qf_lnum < pos.lnum
+                || ((*qfp).qf_lnum == pos.lnum && (*qfp).qf_col < pos.col)
         }
     }
 }
@@ -5183,15 +5183,15 @@ unsafe fn qf_entry_before_pos(qfp: *const qfline_T, pos: *const pos_T, linewise:
 #[inline]
 unsafe fn qf_entry_on_or_after_pos(
     qfp: *const qfline_T,
-    pos: *const pos_T,
+    pos: &pos_T,
     linewise: bool,
 ) -> bool {
     unsafe {
         if linewise {
-            (*qfp).qf_lnum >= (*pos).lnum
+            (*qfp).qf_lnum >= pos.lnum
         } else {
-            (*qfp).qf_lnum > (*pos).lnum
-                || ((*qfp).qf_lnum == (*pos).lnum && (*qfp).qf_col >= (*pos).col)
+            (*qfp).qf_lnum > pos.lnum
+                || ((*qfp).qf_lnum == pos.lnum && (*qfp).qf_col >= pos.col)
         }
     }
 }
@@ -5199,15 +5199,15 @@ unsafe fn qf_entry_on_or_after_pos(
 #[inline]
 unsafe fn qf_entry_on_or_before_pos(
     qfp: *const qfline_T,
-    pos: *const pos_T,
+    pos: &pos_T,
     linewise: bool,
 ) -> bool {
     unsafe {
         if linewise {
-            (*qfp).qf_lnum <= (*pos).lnum
+            (*qfp).qf_lnum <= pos.lnum
         } else {
-            (*qfp).qf_lnum < (*pos).lnum
-                || ((*qfp).qf_lnum == (*pos).lnum && (*qfp).qf_col <= (*pos).col)
+            (*qfp).qf_lnum < pos.lnum
+                || ((*qfp).qf_lnum == pos.lnum && (*qfp).qf_col <= pos.col)
         }
     }
 }
@@ -5215,7 +5215,7 @@ unsafe fn qf_entry_on_or_before_pos(
 unsafe fn qf_find_entry_after_pos(
     items: &[qfline_T],
     bnr: c_int,
-    pos: *const pos_T,
+    pos: &pos_T,
     linewise: bool,
     mut idx: usize,
 ) -> Option<usize> {
@@ -5242,7 +5242,7 @@ unsafe fn qf_find_entry_after_pos(
 unsafe fn qf_find_entry_before_pos(
     items: &[qfline_T],
     bnr: c_int,
-    pos: *const pos_T,
+    pos: &pos_T,
     linewise: bool,
     mut idx: usize,
 ) -> Option<usize> {
@@ -5269,7 +5269,7 @@ unsafe fn qf_find_entry_before_pos(
 unsafe fn qf_find_closest_entry(
     items: &[qfline_T],
     bnr: c_int,
-    pos: *const pos_T,
+    pos: &pos_T,
     dir: Direction,
     linewise: bool,
 ) -> Option<usize> {
@@ -5338,7 +5338,7 @@ unsafe fn qf_get_nth_above_entry(
 unsafe fn qf_find_nth_adj_entry(
     qfl: &mut qf_list_T,
     bnr: c_int,
-    pos: *mut pos_T,
+    pos: &mut pos_T,
     mut n: linenr_T,
     dir: Direction,
     linewise: bool,
@@ -5410,7 +5410,7 @@ pub unsafe fn ex_cbelow(eap: &mut exarg_T) {
         let errornr = qf_find_nth_adj_entry(
             qfl,
             (*g_st().curbuf).b_fnum,
-            &raw mut pos,
+            &mut pos,
             if eap.addr_count > 0 {
                 eap.line2
             } else {
@@ -5779,20 +5779,20 @@ unsafe fn existing_swapfile(buf: *const buf_T) -> bool {
     }
 }
 
-unsafe fn vgr_process_args(eap: *mut exarg_T, args: *mut vgr_args_T) -> c_int {
+unsafe fn vgr_process_args(eap: &mut exarg_T, args: *mut vgr_args_T) -> c_int {
     unsafe {
         *args = vgr_args_T::new();
 
         (*args).regmatch.regprog = ptr::null_mut();
-        (*args).qf_title = Some(CStr::from_ptr(qf_cmdtitle(*(*eap).cmdlinep)).to_owned());
-        (*args).tomatch = if (*eap).addr_count > 0 {
-            (*eap).line2
+        (*args).qf_title = Some(CStr::from_ptr(qf_cmdtitle(*eap.cmdlinep)).to_owned());
+        (*args).tomatch = if eap.addr_count > 0 {
+            eap.line2
         } else {
             MAXLNUM
         };
 
         let mut spat: *mut c_char = ptr::null_mut();
-        let mut p = skip_vimgrep_pat((*eap).arg, &raw mut spat, &raw mut (*args).flags);
+        let mut p = skip_vimgrep_pat(eap.arg, &raw mut spat, &raw mut (*args).flags);
         if p.is_null() {
             emsg(gettext((&raw const e_invalpat).cast()));
             return FAIL;
@@ -7425,7 +7425,7 @@ unsafe fn cbuffer_get_auname(cmdidx: c_int) -> *const c_char {
 }
 
 unsafe fn cbuffer_process_args(
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     bufp: *mut *mut buf_T,
     line1: *mut linenr_T,
     line2: *mut linenr_T,
@@ -7433,10 +7433,10 @@ unsafe fn cbuffer_process_args(
     unsafe {
         let mut buf: *mut buf_T = ptr::null_mut();
 
-        if *(*eap).arg == NUL {
+        if *eap.arg == NUL {
             buf = g_st().curbuf;
-        } else if *skipwhite(skipdigits((*eap).arg)) == NUL {
-            buf = buflist_findnr(crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*eap).arg).to_bytes()) as c_int);
+        } else if *skipwhite(skipdigits(eap.arg)) == NUL {
+            buf = buflist_findnr(crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(eap.arg).to_bytes()) as c_int);
         }
 
         if buf.is_null() {
@@ -7449,22 +7449,22 @@ unsafe fn cbuffer_process_args(
             return FAIL;
         }
 
-        if (*eap).addr_count == 0 {
-            (*eap).line1 = 1;
-            (*eap).line2 = (*buf).b_ml.ml_line_count;
+        if eap.addr_count == 0 {
+            eap.line1 = 1;
+            eap.line2 = (*buf).b_ml.ml_line_count;
         }
 
-        if (*eap).line1 < 1
-            || (*eap).line1 > (*buf).b_ml.ml_line_count
-            || (*eap).line2 < 1
-            || (*eap).line2 > (*buf).b_ml.ml_line_count
+        if eap.line1 < 1
+            || eap.line1 > (*buf).b_ml.ml_line_count
+            || eap.line2 < 1
+            || eap.line2 > (*buf).b_ml.ml_line_count
         {
             emsg(gettext((&raw const e_invrange).cast()));
             return FAIL;
         }
 
-        *line1 = (*eap).line1;
-        *line2 = (*eap).line2;
+        *line1 = eap.line1;
+        *line2 = eap.line2;
         *bufp = buf;
 
         OK
@@ -7588,7 +7588,7 @@ unsafe fn trigger_cexpr_autocmd(cmdidx: c_int) -> c_int {
     }
 }
 
-pub unsafe fn cexpr_core(eap: *const exarg_T, tv: *mut typval_T) -> c_int {
+pub unsafe fn cexpr_core(eap: &exarg_T, tv: *mut typval_T) -> c_int {
     unsafe {
         let mut wp: *mut win_T = ptr::null_mut();
         let qi = qf_cmd_get_or_alloc_stack(eap, &raw mut wp);
@@ -7596,7 +7596,7 @@ pub unsafe fn cexpr_core(eap: *const exarg_T, tv: *mut typval_T) -> c_int {
         if ((*tv).v_type == VarType::VAR_STRING && !(*tv).vval.v_string().is_null())
             || (*tv).v_type == VarType::VAR_LIST
         {
-            let au_name = cexpr_get_auname((*eap).cmdidx);
+            let au_name = cexpr_get_auname(eap.cmdidx);
             incr_quickfix_busy();
             let res = qf_init_ext(
                 qi,
@@ -7605,10 +7605,10 @@ pub unsafe fn cexpr_core(eap: *const exarg_T, tv: *mut typval_T) -> c_int {
                 ptr::null_mut(),
                 tv,
                 opt_vars().p_efm,
-                (*eap).cmdidx != CMD_caddexpr && (*eap).cmdidx != CMD_laddexpr,
+                eap.cmdidx != CMD_caddexpr && eap.cmdidx != CMD_laddexpr,
                 0,
                 0,
-                qf_cmdtitle(*(*eap).cmdlinep),
+                qf_cmdtitle(*eap.cmdlinep),
                 ptr::null_mut(),
             );
             if qf_stack_empty(qi) {
@@ -7629,10 +7629,10 @@ pub unsafe fn cexpr_core(eap: *const exarg_T, tv: *mut typval_T) -> c_int {
                 );
             }
             if res > 0
-                && ((*eap).cmdidx == CMD_cexpr || (*eap).cmdidx == CMD_lexpr)
+                && (eap.cmdidx == CMD_cexpr || eap.cmdidx == CMD_lexpr)
                 && qflist_valid(wp, save_qfid)
             {
-                qf_jump_first(qi, save_qfid, (*eap).forceit);
+                qf_jump_first(qi, save_qfid, eap.forceit);
             }
             decr_quickfix_busy();
             return OK;
@@ -8044,26 +8044,26 @@ mod tests {
                 col: 5,
                 coladd: 0,
             };
-            assert!(!qf_entry_after_pos(&raw const qfp, &raw const pos, true));
-            assert!(!qf_entry_after_pos(&raw const qfp, &raw const pos, false));
+            assert!(!qf_entry_after_pos(&raw const qfp, &pos, true));
+            assert!(!qf_entry_after_pos(&raw const qfp, &pos, false));
             assert!(qf_entry_on_or_after_pos(
                 &raw const qfp,
-                &raw const pos,
+                &pos,
                 true
             ));
             assert!(qf_entry_on_or_after_pos(
                 &raw const qfp,
-                &raw const pos,
+                &pos,
                 false
             ));
             assert!(qf_entry_on_or_before_pos(
                 &raw const qfp,
-                &raw const pos,
+                &pos,
                 true
             ));
             assert!(qf_entry_on_or_before_pos(
                 &raw const qfp,
-                &raw const pos,
+                &pos,
                 false
             ));
         }

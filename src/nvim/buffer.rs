@@ -1848,11 +1848,11 @@ unsafe fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
 }
 
 /// Go to another buffer. Handles the result of the ATTENTION dialog.
-pub unsafe fn goto_buffer(eap: *mut exarg_T, start: c_int, dir: c_int, count: c_int) {
+pub unsafe fn goto_buffer(eap: &mut exarg_T, start: c_int, dir: c_int, count: c_int) {
     unsafe {
         let save_sea = g_st().swap_exists_action;
         let skip_help_buf = matches!(
-            cmdidx_T::from_raw((*eap).cmdidx),
+            cmdidx_T::from_raw(eap.cmdidx),
             cmdidx_T::CMD_bnext
                 | cmdidx_T::CMD_sbnext
                 | cmdidx_T::CMD_bNext
@@ -1868,7 +1868,7 @@ pub unsafe fn goto_buffer(eap: *mut exarg_T, start: c_int, dir: c_int, count: c_
             g_st().swap_exists_action = SEA_DIALOG;
         }
         let _ = do_buffer_ext(
-            if *(*eap).cmd == b's' as c_char {
+            if *eap.cmd == b's' as c_char {
                 DOBUF_SPLIT
             } else {
                 DOBUF_GOTO
@@ -1876,14 +1876,14 @@ pub unsafe fn goto_buffer(eap: *mut exarg_T, start: c_int, dir: c_int, count: c_
             start,
             dir,
             count,
-            (if (*eap).forceit != 0 {
+            (if eap.forceit != 0 {
                 DOBUF_FORCEIT
             } else {
                 0
             }) | (if skip_help_buf { DOBUF_SKIPHELP } else { 0 }),
         );
 
-        if g_st().swap_exists_action == SEA_QUIT && *(*eap).cmd == b's' as c_char {
+        if g_st().swap_exists_action == SEA_QUIT && *eap.cmd == b's' as c_char {
             let mut cs: cleanup_T = cleanup_T::new();
             enter_cleanup(&raw mut cs);
             win_close(*curwin.as_ptr(), true, false);
@@ -5026,7 +5026,7 @@ pub unsafe fn buf_contents_changed(buf: *mut buf_T) -> bool {
         }
 
         let mut ea: exarg_T = exarg_T::new();
-        let _ea_cmd = prep_exarg(&raw mut ea, buf);
+        let _ea_cmd = prep_exarg(&mut ea, buf);
 
         let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), newbuf, 0);

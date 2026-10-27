@@ -700,7 +700,7 @@ unsafe fn get_indent_nolabel(lnum: linenr_T) -> c_int {
         let mut col: colnr_T = 0;
         getvcol(
             *curwin.as_ptr(),
-            &raw mut fp,
+            &mut fp,
             &raw mut col,
             ptr::null_mut(),
             ptr::null_mut(),
@@ -772,7 +772,7 @@ unsafe fn cin_first_id_amount() -> c_int {
         let mut col: colnr_T = 0;
         getvcol(
             *curwin.as_ptr(),
-            &raw mut fp,
+            &mut fp,
             &raw mut col,
             ptr::null_mut(),
             ptr::null_mut(),
@@ -816,7 +816,7 @@ unsafe fn cin_get_equal_amount(lnum: linenr_T) -> c_int {
         let mut col: colnr_T = 0;
         getvcol(
             *curwin.as_ptr(),
-            &raw mut fp,
+            &mut fp,
             &raw mut col,
             ptr::null_mut(),
             ptr::null_mut(),
@@ -1043,7 +1043,7 @@ unsafe fn cin_iswhileofdo(mut p: *const c_char, lnum: linenr_T) -> bool {
                 FM_SKIPCOMM,
                 (*g_st().curbuf).b_ind_maxparen as i64,
             );
-            if !trypos.is_null() && *cin_skipcomment(ml_get_pos(trypos).add(1)) == b';' as c_char {
+            if !trypos.is_null() && *cin_skipcomment(ml_get_pos(&*trypos).add(1)) == b';' as c_char {
                 retval = true;
             }
             (**curwin.as_ptr()).w_cursor = cursor_save;
@@ -1267,7 +1267,7 @@ unsafe fn get_baseclass_amount(col: colnr_T) -> c_int {
             (**curwin.as_ptr()).w_cursor.col = col;
             getvcol(
                 *curwin.as_ptr(),
-                &raw mut (**curwin.as_ptr()).w_cursor,
+                &mut (**curwin.as_ptr()).w_cursor,
                 &raw mut vcol,
                 ptr::null_mut(),
                 ptr::null_mut(),
@@ -1351,11 +1351,11 @@ unsafe fn cin_is_cpp_extern_c(mut s: *const c_char) -> bool {
         false
     }
 }
-unsafe fn cin_skip2pos(trypos: *mut pos_T) -> c_int {
+unsafe fn cin_skip2pos(trypos: &mut pos_T) -> c_int {
     unsafe {
-        let line: *const c_char = ml_get((*trypos).lnum);
+        let line: *const c_char = ml_get(trypos.lnum);
         let mut p = line;
-        while *p != NUL && (p.offset_from(line) as colnr_T) < (*trypos).col {
+        while *p != NUL && (p.offset_from(line) as colnr_T) < trypos.col {
             if cin_iscomment(p) {
                 p = cin_skipcomment(p);
             } else {
@@ -1388,7 +1388,7 @@ unsafe fn find_start_brace() -> *mut pos_T {
             trypos = &raw mut indc_st().start_brace_pos_copy;
             (**curwin.as_ptr()).w_cursor = *trypos;
             let mut pos: *mut pos_T = ptr::null_mut();
-            if cin_skip2pos(trypos) as colnr_T == (*trypos).col && {
+            if cin_skip2pos(&mut *trypos) as colnr_T == (*trypos).col && {
                 pos = ind_find_start_CORS(ptr::null_mut());
                 pos.is_null()
             } {
@@ -1418,7 +1418,7 @@ unsafe fn find_match_char(c: c_char, ind_maxparen: c_int) -> *mut pos_T {
                 ind_maxp_wk as i64,
             );
             if !trypos.is_null() {
-                if (cin_skip2pos(trypos) as colnr_T) > (*trypos).col {
+                if (cin_skip2pos(&mut *trypos) as colnr_T) > (*trypos).col {
                     ind_maxp_wk = ind_maxparen - (cursor_save.lnum - (*trypos).lnum);
                     if ind_maxp_wk > 0 {
                         (**curwin.as_ptr()).w_cursor = *trypos;
@@ -1466,9 +1466,9 @@ unsafe fn find_match_paren_after_brace(ind_maxparen: c_int) -> *mut pos_T {
         trypos
     }
 }
-unsafe fn corr_ind_maxparen(startpos: *const pos_T) -> c_int {
+unsafe fn corr_ind_maxparen(startpos: &pos_T) -> c_int {
     unsafe {
-        let n = (*startpos).lnum - (**curwin.as_ptr()).w_cursor.lnum;
+        let n = startpos.lnum - (**curwin.as_ptr()).w_cursor.lnum;
         if n > 0 && n < (*g_st().curbuf).b_ind_maxparen / 2 {
             return (*g_st().curbuf).b_ind_maxparen - n;
         }
@@ -1728,7 +1728,7 @@ pub unsafe fn get_c_indent() -> c_int {
                     if !trypos.is_null() {
                         getvcol(
                             *curwin.as_ptr(),
-                            trypos,
+                            &mut *trypos,
                             &raw mut col,
                             ptr::null_mut(),
                             ptr::null_mut(),
@@ -1750,7 +1750,7 @@ pub unsafe fn get_c_indent() -> c_int {
                     let mut done = false;
                     getvcol(
                         *curwin.as_ptr(),
-                        comment_pos,
+                        &mut *comment_pos,
                         &raw mut col,
                         ptr::null_mut(),
                         ptr::null_mut(),
@@ -1863,7 +1863,7 @@ pub unsafe fn get_c_indent() -> c_int {
                             }
                             getvcol(
                                 *curwin.as_ptr(),
-                                comment_pos,
+                                &mut *comment_pos,
                                 &raw mut col,
                                 ptr::null_mut(),
                                 ptr::null_mut(),
@@ -1926,7 +1926,7 @@ pub unsafe fn get_c_indent() -> c_int {
                                     lnum = (*trypos).lnum;
                                     continue;
                                 }
-                                trypos = find_match_paren(corr_ind_maxparen(&raw const cur_curpos));
+                                trypos = find_match_paren(corr_ind_maxparen(&cur_curpos));
                                 if !trypos.is_null()
                                     && (*trypos).lnum == our_paren_pos.lnum
                                     && (*trypos).col == our_paren_pos.col
@@ -2028,7 +2028,7 @@ pub unsafe fn get_c_indent() -> c_int {
                                 if our_paren_pos.col > 0 {
                                     getvcol(
                                         *curwin.as_ptr(),
-                                        &raw mut our_paren_pos,
+                                        &mut our_paren_pos,
                                         &raw mut col,
                                         ptr::null_mut(),
                                         ptr::null_mut(),
@@ -2053,7 +2053,7 @@ pub unsafe fn get_c_indent() -> c_int {
                                 col = our_paren_pos.col;
                                 while our_paren_pos.col > ignore_paren_col {
                                     our_paren_pos.col -= 1;
-                                    match *ml_get_pos(&raw mut our_paren_pos) as u8 {
+                                    match *ml_get_pos(&our_paren_pos) as u8 {
                                         b'(' => {
                                             amount += (*g_st().curbuf).b_ind_unclosed2;
                                             col = our_paren_pos.col;
@@ -2098,7 +2098,7 @@ pub unsafe fn get_c_indent() -> c_int {
                         if *look == b'{' as c_char {
                             getvcol(
                                 *curwin.as_ptr(),
-                                trypos,
+                                &mut *trypos,
                                 &raw mut col,
                                 ptr::null_mut(),
                                 ptr::null_mut(),
@@ -2481,7 +2481,7 @@ pub unsafe fn get_c_indent() -> c_int {
                                     }
                                     let _ = find_last_paren(l, b'(' as c_char, b')' as c_char);
                                     trypos =
-                                        find_match_paren(corr_ind_maxparen(&raw const cur_curpos));
+                                        find_match_paren(corr_ind_maxparen(&cur_curpos));
                                     if !trypos.is_null()
                                         && ((*trypos).lnum < (*tryposBrace).lnum
                                             || ((*trypos).lnum == (*tryposBrace).lnum

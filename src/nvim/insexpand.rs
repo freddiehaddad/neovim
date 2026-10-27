@@ -4047,7 +4047,7 @@ unsafe fn may_advance_cpt_index(cpt: *const c_char) -> bool {
 unsafe fn process_next_cpt_value(
     st: *mut ins_compl_next_state_T,
     compl_type_arg: *mut c_int,
-    start_match_pos: *mut pos_T,
+    start_match_pos: &mut pos_T,
     fuzzy_collect: bool,
     advance_cpt_idx: *mut bool,
 ) -> c_int {
@@ -4070,7 +4070,7 @@ unsafe fn process_next_cpt_value(
         {
             (*st).ins_buf = g_st().curbuf;
             (*st).first_match_pos = *start_match_pos;
-            if ctrl_x_mode_normal() && !fuzzy_collect && dec(&raw mut (*st).first_match_pos) < 0 {
+            if ctrl_x_mode_normal() && !fuzzy_collect && dec(&mut (*st).first_match_pos) < 0 {
                 (*st).first_match_pos.lnum = (*(*st).ins_buf).b_ml.ml_line_count;
                 (*st).first_match_pos.col = ml_get_len((*st).first_match_pos.lnum);
             }
@@ -4585,21 +4585,21 @@ unsafe fn get_next_spell_completion(lnum: linenr_T) {
 
 unsafe fn ins_compl_get_next_word_or_line(
     ins_buf: *mut buf_T,
-    cur_match_pos: *mut pos_T,
+    cur_match_pos: &mut pos_T,
     match_len: *mut c_int,
     cont_s_ipos: *mut bool,
 ) -> *mut c_char {
     unsafe {
         *match_len = 0;
-        let mut ptr = ml_get_buf(ins_buf, (*cur_match_pos).lnum).add((*cur_match_pos).col as usize);
-        let mut len = ml_get_buf_len(ins_buf, (*cur_match_pos).lnum) - (*cur_match_pos).col;
+        let mut ptr = ml_get_buf(ins_buf, cur_match_pos.lnum).add(cur_match_pos.col as usize);
+        let mut len = ml_get_buf_len(ins_buf, cur_match_pos.lnum) - cur_match_pos.col;
         if ctrl_x_mode_line_or_eval() {
             if compl_status_adding() {
-                if (*cur_match_pos).lnum >= (*ins_buf).b_ml.ml_line_count {
+                if cur_match_pos.lnum >= (*ins_buf).b_ml.ml_line_count {
                     return ptr::null_mut();
                 }
-                ptr = ml_get_buf(ins_buf, (*cur_match_pos).lnum + 1);
-                len = ml_get_buf_len(ins_buf, (*cur_match_pos).lnum + 1);
+                ptr = ml_get_buf(ins_buf, cur_match_pos.lnum + 1);
+                len = ml_get_buf_len(ins_buf, cur_match_pos.lnum + 1);
                 if opt_vars().p_paste == 0 {
                     let tmp_ptr = ptr;
                     ptr = skipwhite(tmp_ptr);
@@ -4620,10 +4620,10 @@ unsafe fn ins_compl_get_next_word_or_line(
             len = tmp_ptr.offset_from(ptr) as c_int;
 
             if compl_status_adding() && len == insexp().compl_length {
-                if (*cur_match_pos).lnum < (*ins_buf).b_ml.ml_line_count {
+                if cur_match_pos.lnum < (*ins_buf).b_ml.ml_line_count {
                     let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
                     { let n = crate::memory::xstrnlen(ptr, len as usize); ptr::copy_nonoverlapping(ptr, iobuff_ptr, n); ptr::write_bytes(iobuff_ptr.add(n), 0, len as usize - n); }
-                    ptr = ml_get_buf(ins_buf, (*cur_match_pos).lnum + 1);
+                    ptr = ml_get_buf(ins_buf, cur_match_pos.lnum + 1);
                     ptr = skipwhite(ptr);
                     tmp_ptr = find_word_start(ptr);
                     tmp_ptr = find_word_end(tmp_ptr);
@@ -4669,7 +4669,7 @@ unsafe fn ins_compl_get_next_word_or_line(
 
 unsafe fn get_next_default_completion(
     st: *mut ins_compl_next_state_T,
-    start_pos: *mut pos_T,
+    start_pos: &mut pos_T,
 ) -> c_int {
     unsafe {
         let mut ptr: *mut c_char = ptr::null_mut();
@@ -4701,10 +4701,10 @@ unsafe fn get_next_default_completion(
             if in_fuzzy_collect {
                 found_new_match = c_int::from(search_for_fuzzy_match(
                     (*st).ins_buf,
-                    (*st).cur_match_pos_ptr(),
+                    &mut *(*st).cur_match_pos_ptr(),
                     leader,
                     insexp().compl_direction,
-                    start_pos.cast(),
+                    start_pos,
                     &raw mut len,
                     &raw mut ptr,
                     &raw mut score,
@@ -4715,7 +4715,7 @@ unsafe fn get_next_default_completion(
             {
                 found_new_match = search_for_exact_line(
                     (*st).ins_buf,
-                    (*st).cur_match_pos_ptr(),
+                    &mut *(*st).cur_match_pos_ptr(),
                     insexp().compl_direction,
                     compl_pattern_ptr(),
                 );
@@ -4768,8 +4768,8 @@ unsafe fn get_next_default_completion(
 
             if compl_status_adding()
                 && in_curbuf
-                && (*start_pos).lnum == cur_pos.lnum
-                && (*start_pos).col == cur_pos.col
+                && start_pos.lnum == cur_pos.lnum
+                && start_pos.col == cur_pos.col
             {
                 continue;
             }
@@ -4777,7 +4777,7 @@ unsafe fn get_next_default_completion(
             if !in_fuzzy_collect {
                 ptr = ins_compl_get_next_word_or_line(
                     (*st).ins_buf,
-                    (*st).cur_match_pos_ptr(),
+                    &mut *(*st).cur_match_pos_ptr(),
                     &raw mut len,
                     &raw mut cont_s_ipos,
                 );
@@ -4952,7 +4952,7 @@ unsafe fn get_callback_if_cpt_func(p: *mut c_char, idx: c_int) -> CptFuncSource 
 unsafe fn get_next_completion_match(
     type_: c_int,
     st: *mut ins_compl_next_state_T,
-    ini: *mut pos_T,
+    ini: &mut pos_T,
 ) -> bool {
     unsafe {
         let mut found_new_match = FAIL;
@@ -5143,7 +5143,7 @@ unsafe fn advance_cpt_sources_index_safe() -> c_int {
     }
 }
 
-unsafe fn ins_compl_get_exp(ini: *mut pos_T) -> c_int {
+unsafe fn ins_compl_get_exp(ini: &mut pos_T) -> c_int {
     unsafe {
         let st = &mut (*INSEXPAND.as_ptr()).next_state;
         let mut found_new_match: c_int;
@@ -5221,7 +5221,7 @@ unsafe fn ins_compl_get_exp(ini: *mut pos_T) -> c_int {
                 let status = process_next_cpt_value(
                     ptr::from_mut(st),
                     &raw mut type_,
-                    &raw mut start_pos,
+                    &mut start_pos,
                     cot_fuzzy(),
                     &raw mut may_advance_cpt_idx,
                 );
@@ -5252,7 +5252,7 @@ unsafe fn ins_compl_get_exp(ini: *mut pos_T) -> c_int {
             found_new_match = c_int::from(get_next_completion_match(
                 type_,
                 ptr::from_mut(st),
-                &raw mut start_pos,
+                &mut start_pos,
             ));
 
             if compl_pattern_ptr().is_null() {
@@ -5759,7 +5759,7 @@ unsafe fn find_next_completion_match(
                     }
                 }
 
-                *num_matches = ins_compl_get_exp(&raw mut insexp().compl_startpos);
+                *num_matches = ins_compl_get_exp(&mut insexp().compl_startpos);
 
                 while insexp().compl_pending != 0 && insexp().compl_direction == insexp().compl_shows_dir && advance {
                     let cur_shown = insexp().compl_shown_idx.unwrap();

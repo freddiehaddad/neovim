@@ -465,7 +465,7 @@ pub unsafe fn fill_evalarg_from_eap(evalarg: *mut evalarg_T, _eap: *mut exarg_T,
 pub unsafe fn eval_to_bool(
     arg: *mut c_char,
     error: *mut bool,
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     skip: bool,
     use_simple_function: bool,
 ) -> bool {
@@ -474,15 +474,15 @@ pub unsafe fn eval_to_bool(
         let mut retval = false;
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&raw mut evalarg, eap, skip);
+        fill_evalarg_from_eap(&raw mut evalarg, &raw mut *eap, skip);
 
         if skip {
             g_st().emsg_skip += 1;
         }
         let r = if use_simple_function {
-            eval0_simple_funccal(arg, &raw mut tv, eap, &raw mut evalarg)
+            eval0_simple_funccal(arg, &raw mut tv, &raw mut *eap, &raw mut evalarg)
         } else {
-            eval0(arg, &raw mut tv, eap, &raw mut evalarg)
+            eval0(arg, &raw mut tv, &raw mut *eap, &raw mut evalarg)
         };
         if r == FAIL {
             *error = true;
@@ -496,7 +496,7 @@ pub unsafe fn eval_to_bool(
         if skip {
             g_st().emsg_skip -= 1;
         }
-        clear_evalarg(&raw mut evalarg, eap);
+        clear_evalarg(&raw mut evalarg, &raw mut *eap);
 
         retval
     }
@@ -672,7 +672,7 @@ pub unsafe fn eval_expr_to_bool(expr: *const typval_T, error: *mut bool) -> bool
 /// Top level evaluation function, returning a string.
 pub unsafe fn eval_to_string_skip(
     arg: *mut c_char,
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     skip: bool,
 ) -> Option<std::ffi::CString> {
     unsafe {
@@ -680,11 +680,11 @@ pub unsafe fn eval_to_string_skip(
         let retval: Option<std::ffi::CString>;
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&raw mut evalarg, eap, skip);
+        fill_evalarg_from_eap(&raw mut evalarg, &raw mut *eap, skip);
         if skip {
             g_st().emsg_skip += 1;
         }
-        if eval0(arg, &raw mut tv, eap, &raw mut evalarg) == FAIL || skip {
+        if eval0(arg, &raw mut tv, &raw mut *eap, &raw mut evalarg) == FAIL || skip {
             retval = None;
         } else {
             retval = Some(cstr_to_cstring(tv_get_string(&raw const tv)));
@@ -693,7 +693,7 @@ pub unsafe fn eval_to_string_skip(
         if skip {
             g_st().emsg_skip -= 1;
         }
-        clear_evalarg(&raw mut evalarg, eap);
+        clear_evalarg(&raw mut evalarg, &raw mut *eap);
 
         retval
     }
@@ -1775,7 +1775,7 @@ pub unsafe fn set_var_lval(
 pub unsafe fn eval_for_line(
     arg: *const c_char,
     errp: &mut bool,
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     evalarg: &mut evalarg_T,
 ) -> Box<forinfo_T> {
     unsafe {
@@ -1812,7 +1812,7 @@ pub unsafe fn eval_for_line(
             g_st().emsg_skip += 1;
         }
         expr = skipwhite(expr.add(2));
-        if eval0(expr.cast_mut(), &raw mut tv, eap, evalarg) == OK {
+        if eval0(expr.cast_mut(), &raw mut tv, &raw mut *eap, evalarg) == OK {
             *errp = false;
             if !skip {
                 if tv.v_type == VarType::VAR_LIST {
@@ -5918,7 +5918,7 @@ pub unsafe fn var2fpos(
 /// Convert list in "arg" into position "posp" and optional file number "fnump".
 pub unsafe fn list2fpos(
     arg: *mut typval_T,
-    posp: *mut pos_T,
+    posp: &mut pos_T,
     fnump: *mut c_int,
     curswantp: *mut colnr_T,
     charcol: bool,
@@ -5956,7 +5956,7 @@ pub unsafe fn list2fpos(
         if n < 0 {
             return FAIL;
         }
-        (*posp).lnum = n;
+        posp.lnum = n;
 
         n = tv_list_find_nr(l, i, ptr::null_mut()) as c_int;
         i += 1;
@@ -5975,21 +5975,21 @@ pub unsafe fn list2fpos(
             let cur_lnum = (**curwin.as_ptr()).w_cursor.lnum;
             n = buf_charidx_to_byteidx(
                 buf,
-                if (*posp).lnum == 0 {
+                if posp.lnum == 0 {
                     cur_lnum
                 } else {
-                    (*posp).lnum
+                    posp.lnum
                 },
                 n,
             ) + 1;
         }
-        (*posp).col = n;
+        posp.col = n;
 
         n = tv_list_find_nr(l, i, ptr::null_mut()) as c_int;
         if n < 0 {
-            (*posp).coladd = 0;
+            posp.coladd = 0;
         } else {
-            (*posp).coladd = n;
+            posp.coladd = n;
         }
 
         if !curswantp.is_null() {

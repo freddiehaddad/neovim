@@ -1267,7 +1267,7 @@ unsafe fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int 
                             let mut vcol: colnr_T = 0;
                             getvvcol(
                                 *curwin.as_ptr(),
-                                &raw mut (**curwin.as_ptr()).w_cursor,
+                                &mut (**curwin.as_ptr()).w_cursor,
                                 ptr::null_mut(),
                                 ptr::null_mut(),
                                 &raw mut vcol,

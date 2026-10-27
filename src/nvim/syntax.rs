@@ -2789,11 +2789,11 @@ unsafe fn match_keyword(
     }
 }
 
-unsafe fn syn_cmd_conceal(eap: *mut exarg_T, _syncing: c_int) {
+unsafe fn syn_cmd_conceal(eap: &mut exarg_T, _syncing: c_int) {
     unsafe {
-        let arg = (*eap).arg;
-        (*eap).nextcmd = find_nextcmd(arg);
-        if (*eap).skip != 0 {
+        let arg = eap.arg;
+        eap.nextcmd = find_nextcmd(arg);
+        if eap.skip != 0 {
             return;
         }
 
@@ -2814,11 +2814,11 @@ unsafe fn syn_cmd_conceal(eap: *mut exarg_T, _syncing: c_int) {
     }
 }
 
-unsafe fn syn_cmd_case(eap: *mut exarg_T, _syncing: c_int) {
+unsafe fn syn_cmd_case(eap: &mut exarg_T, _syncing: c_int) {
     unsafe {
-        let arg = (*eap).arg;
-        (*eap).nextcmd = find_nextcmd(arg);
-        if (*eap).skip != 0 {
+        let arg = eap.arg;
+        eap.nextcmd = find_nextcmd(arg);
+        if eap.skip != 0 {
             return;
         }
 
@@ -2839,11 +2839,11 @@ unsafe fn syn_cmd_case(eap: *mut exarg_T, _syncing: c_int) {
     }
 }
 
-unsafe fn syn_cmd_foldlevel(eap: *mut exarg_T, _syncing: c_int) {
+unsafe fn syn_cmd_foldlevel(eap: &mut exarg_T, _syncing: c_int) {
     unsafe {
-        let mut arg = (*eap).arg;
-        (*eap).nextcmd = find_nextcmd(arg);
-        if (*eap).skip != 0 {
+        let mut arg = eap.arg;
+        eap.nextcmd = find_nextcmd(arg);
+        if eap.skip != 0 {
             return;
         }
 
@@ -2877,11 +2877,11 @@ unsafe fn syn_cmd_foldlevel(eap: *mut exarg_T, _syncing: c_int) {
     }
 }
 
-unsafe fn syn_cmd_spell(eap: *mut exarg_T, _syncing: c_int) {
+unsafe fn syn_cmd_spell(eap: &mut exarg_T, _syncing: c_int) {
     unsafe {
-        let arg = (*eap).arg;
-        (*eap).nextcmd = find_nextcmd(arg);
-        if (*eap).skip != 0 {
+        let arg = eap.arg;
+        eap.nextcmd = find_nextcmd(arg);
+        if eap.skip != 0 {
             return;
         }
 
@@ -2910,10 +2910,10 @@ unsafe fn syn_cmd_spell(eap: *mut exarg_T, _syncing: c_int) {
     }
 }
 
-unsafe fn syn_cmd_iskeyword(eap: *mut exarg_T, _syncing: c_int) {
+unsafe fn syn_cmd_iskeyword(eap: &mut exarg_T, _syncing: c_int) {
     unsafe {
-        let mut arg = (*eap).arg;
-        if (*eap).skip != 0 {
+        let mut arg = eap.arg;
+        if eap.skip != 0 {
             return;
         }
 
@@ -3032,11 +3032,11 @@ unsafe fn syn_remove_pattern(block: *mut synblock_T, idx: c_int) {
     }
 }
 
-unsafe fn syn_cmd_clear(eap: *mut exarg_T, syncing: c_int) {
+unsafe fn syn_cmd_clear(eap: &mut exarg_T, syncing: c_int) {
     unsafe {
-        let mut arg = (*eap).arg;
-        (*eap).nextcmd = find_nextcmd(arg);
-        if (*eap).skip != 0 {
+        let mut arg = eap.arg;
+        eap.nextcmd = find_nextcmd(arg);
+        if eap.skip != 0 {
             return;
         }
 
@@ -3100,37 +3100,37 @@ unsafe fn syn_clear_one(id: c_int, syncing: bool) {
     }
 }
 
-unsafe fn syn_cmd_on(eap: *mut exarg_T, _syncing: c_int) {
+unsafe fn syn_cmd_on(eap: &mut exarg_T, _syncing: c_int) {
     unsafe {
         syn_cmd_onoff(eap, c"syntax".as_ptr());
     }
 }
 
-unsafe fn syn_cmd_reset(eap: *mut exarg_T, _syncing: c_int) {
+unsafe fn syn_cmd_reset(eap: &mut exarg_T, _syncing: c_int) {
     unsafe {
-        (*eap).nextcmd = check_nextcmd((*eap).arg);
-        if (*eap).skip == 0 {
+        eap.nextcmd = check_nextcmd(eap.arg);
+        if eap.skip == 0 {
             init_highlight(true, true);
         }
     }
 }
 
-unsafe fn syn_cmd_manual(eap: *mut exarg_T, _syncing: c_int) {
+unsafe fn syn_cmd_manual(eap: &mut exarg_T, _syncing: c_int) {
     unsafe {
         syn_cmd_onoff(eap, c"manual".as_ptr());
     }
 }
 
-unsafe fn syn_cmd_off(eap: *mut exarg_T, _syncing: c_int) {
+unsafe fn syn_cmd_off(eap: &mut exarg_T, _syncing: c_int) {
     unsafe {
         syn_cmd_onoff(eap, c"nosyntax".as_ptr());
     }
 }
 
-unsafe fn syn_cmd_onoff(eap: *mut exarg_T, name: *const c_char) {
+unsafe fn syn_cmd_onoff(eap: &mut exarg_T, name: *const c_char) {
     unsafe {
-        (*eap).nextcmd = check_nextcmd((*eap).arg);
-        if (*eap).skip == 0 {
+        eap.nextcmd = check_nextcmd(eap.arg);
+        if eap.skip == 0 {
             syn_st().did_syntax_onoff = true;
             let mut buf = [0 as c_char; 100];
             ptr::copy_nonoverlapping(c"so ".as_ptr(), buf.as_mut_ptr(), 4);
@@ -3146,16 +3146,16 @@ pub unsafe fn syn_maybe_enable() {
             let mut ea: exarg_T = exarg_T::new();
             ea.arg = c"".as_ptr().cast_mut();
             ea.skip = 0;
-            syn_cmd_on(&raw mut ea, 0);
+            syn_cmd_on(&mut ea, 0);
         }
     }
 }
 
-unsafe fn syn_cmd_list(eap: *mut exarg_T, syncing: c_int) {
+unsafe fn syn_cmd_list(eap: &mut exarg_T, syncing: c_int) {
     unsafe {
-        let mut arg = (*eap).arg;
-        (*eap).nextcmd = find_nextcmd(arg);
-        if (*eap).skip != 0 {
+        let mut arg = eap.arg;
+        eap.nextcmd = find_nextcmd(arg);
+        if eap.skip != 0 {
             return;
         }
 
@@ -3233,7 +3233,7 @@ unsafe fn syn_cmd_list(eap: *mut exarg_T, syncing: c_int) {
                 arg = skipwhite(arg_end);
             }
         }
-        (*eap).nextcmd = check_nextcmd(arg);
+        eap.nextcmd = check_nextcmd(arg);
     }
 }
 
@@ -3865,16 +3865,16 @@ unsafe fn syn_incl_toplevel(id: c_int, flagsp: *mut c_int) {
     }
 }
 
-unsafe fn syn_cmd_include(eap: *mut exarg_T, _syncing: c_int) {
+unsafe fn syn_cmd_include(eap: &mut exarg_T, _syncing: c_int) {
     unsafe {
-        let mut arg = (*eap).arg;
+        let mut arg = eap.arg;
         let mut sgl_id: c_int = 1;
         let mut group_name_end: *mut c_char = ptr::null_mut();
         let mut errormsg: *const c_char = std::ptr::null();
         let mut source = false;
 
-        (*eap).nextcmd = find_nextcmd(arg);
-        if (*eap).skip != 0 {
+        eap.nextcmd = find_nextcmd(arg);
+        if eap.skip != 0 {
             return;
         }
 
@@ -3889,17 +3889,17 @@ unsafe fn syn_cmd_include(eap: *mut exarg_T, _syncing: c_int) {
             if sgl_id == 0 {
                 return;
             }
-            (*eap).arg = rest;
+            eap.arg = rest;
         }
 
-        (*eap).argt |= EX_XFILE | EX_NOSPC;
-        separate_nextcmd(eap);
-        if *(*eap).arg == b'<' as c_char
-            || *(*eap).arg == b'$' as c_char
-            || path_is_absolute((*eap).arg)
+        eap.argt |= EX_XFILE | EX_NOSPC;
+        separate_nextcmd(&raw mut *eap);
+        if *eap.arg == b'<' as c_char
+            || *eap.arg == b'$' as c_char
+            || path_is_absolute(eap.arg)
         {
             source = true;
-            if expand_filename(eap, (*eap).cmdlinep, &mut errormsg) == FAIL {
+            if expand_filename(eap, eap.cmdlinep, &mut errormsg) == FAIL {
                 if !errormsg.is_null() {
                     emsg(errormsg);
                 }
@@ -3907,7 +3907,7 @@ unsafe fn syn_cmd_include(eap: *mut exarg_T, _syncing: c_int) {
             }
         } else {
             #[cfg(windows)]
-            path_to_slash((*eap).arg);
+            path_to_slash(eap.arg);
         }
 
         if syn_st().running_syn_inc_tag >= MAX_SYN_INC_TAG {
@@ -3920,28 +3920,28 @@ unsafe fn syn_cmd_include(eap: *mut exarg_T, _syncing: c_int) {
         let prev_toplvl_grp = (*win_s(*curwin.as_ptr())).b_syn_topgrp;
         (*win_s(*curwin.as_ptr())).b_syn_topgrp = sgl_id;
         let res = if source {
-            do_source((*eap).arg, false, DOSO_NONE, ptr::null_mut())
+            do_source(eap.arg, false, DOSO_NONE, ptr::null_mut())
         } else {
-            source_runtime((*eap).arg, DIP_ALL)
+            source_runtime(eap.arg, DIP_ALL)
         };
         if res == FAIL {
-            semsg!(gettext((&raw const e_notopen).cast()), (*eap).arg);
+            semsg!(gettext((&raw const e_notopen).cast()), eap.arg);
         }
         (*win_s(*curwin.as_ptr())).b_syn_topgrp = prev_toplvl_grp;
         syn_st().current_syn_inc_tag = prev_syn_inc_tag;
     }
 }
 
-unsafe fn syn_cmd_keyword(eap: *mut exarg_T, _syncing: c_int) {
+unsafe fn syn_cmd_keyword(eap: &mut exarg_T, _syncing: c_int) {
     unsafe {
-        let arg = (*eap).arg;
+        let arg = eap.arg;
         let mut group_name_end: *mut c_char = ptr::null_mut();
         let mut conceal_char: c_int = NUL as c_int;
 
         let mut rest = get_group_name(arg, &raw mut group_name_end);
 
         if !rest.is_null() {
-            let syn_id = if (*eap).skip != 0 {
+            let syn_id = if eap.skip != 0 {
                 -1
             } else {
                 syn_check_group(arg, group_name_end.offset_from(arg) as usize)
@@ -3966,7 +3966,7 @@ unsafe fn syn_cmd_keyword(eap: *mut exarg_T, _syncing: c_int) {
                         rest,
                         &raw mut syn_opt_arg,
                         &raw mut conceal_char,
-                        (*eap).skip,
+                        eap.skip,
                     );
                     if rest.is_null() || ends_excmd(*rest as c_int) != 0 {
                         break;
@@ -3985,7 +3985,7 @@ unsafe fn syn_cmd_keyword(eap: *mut exarg_T, _syncing: c_int) {
                     rest = skipwhite(rest);
                 }
 
-                if (*eap).skip == 0 {
+                if eap.skip == 0 {
                     syn_incl_toplevel(syn_id, &raw mut syn_opt_arg.flags);
 
                     let mut kw = keyword_copy;
@@ -4040,7 +4040,7 @@ unsafe fn syn_cmd_keyword(eap: *mut exarg_T, _syncing: c_int) {
         }
 
         if !rest.is_null() {
-            (*eap).nextcmd = check_nextcmd(rest);
+            eap.nextcmd = check_nextcmd(rest);
         } else {
             semsg!(gettext((&raw const e_invarg2).cast()), arg);
         }
@@ -4050,9 +4050,9 @@ unsafe fn syn_cmd_keyword(eap: *mut exarg_T, _syncing: c_int) {
     }
 }
 
-unsafe fn syn_cmd_match(eap: *mut exarg_T, syncing: c_int) {
+unsafe fn syn_cmd_match(eap: &mut exarg_T, syncing: c_int) {
     unsafe {
-        let arg = (*eap).arg;
+        let arg = eap.arg;
         let mut group_name_end: *mut c_char = ptr::null_mut();
         let mut item = synpat_T::new();
         let mut conceal_char: c_int = NUL as c_int;
@@ -4072,7 +4072,7 @@ unsafe fn syn_cmd_match(eap: *mut exarg_T, syncing: c_int) {
             rest,
             &raw mut syn_opt_arg,
             &raw mut conceal_char,
-            (*eap).skip,
+            eap.skip,
         );
 
         rest = get_syn_pattern(rest, &raw mut item);
@@ -4084,12 +4084,12 @@ unsafe fn syn_cmd_match(eap: *mut exarg_T, syncing: c_int) {
             rest,
             &raw mut syn_opt_arg,
             &raw mut conceal_char,
-            (*eap).skip,
+            eap.skip,
         );
 
         if !rest.is_null() {
-            (*eap).nextcmd = check_nextcmd(rest);
-            if ends_excmd(*rest as c_int) == 0 || (*eap).skip != 0 {
+            eap.nextcmd = check_nextcmd(rest);
+            if ends_excmd(*rest as c_int) == 0 || eap.skip != 0 {
                 rest = ptr::null_mut();
             } else {
                 let syn_id = syn_check_group(arg, group_name_end.offset_from(arg) as usize);
@@ -4131,9 +4131,9 @@ unsafe fn syn_cmd_match(eap: *mut exarg_T, syncing: c_int) {
     }
 }
 
-unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
+unsafe fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
     unsafe {
-        let arg = (*eap).arg;
+        let arg = eap.arg;
         let mut group_name_end: *mut c_char = ptr::null_mut();
         let mut key: Option<std::ffi::CString> = None;
         let mut pat_ptrs: [Vec<pat_ptr_T>; 3] = [Vec::new(), Vec::new(), Vec::new()];
@@ -4161,7 +4161,7 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
                 rest,
                 &raw mut syn_opt_arg,
                 &raw mut conceal_char,
-                (*eap).skip,
+                eap.skip,
             );
             if rest.is_null() || ends_excmd(*rest as c_int) != 0 {
                 break;
@@ -4203,7 +4203,7 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
             if item == ITEM_MATCHGROUP {
                 let p = skiptowhite(rest);
                 if (p.offset_from(rest) == 4 && { let _p = rest; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"NONE"[..4] })
-                    || (*eap).skip != 0
+                    || eap.skip != 0
                 {
                     matchgroup_id = 0;
                 } else {
@@ -4251,8 +4251,8 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
         }
 
         if !rest.is_null() {
-            (*eap).nextcmd = check_nextcmd(rest);
-            if ends_excmd(*rest as c_int) == 0 || (*eap).skip != 0 {
+            eap.nextcmd = check_nextcmd(rest);
+            if ends_excmd(*rest as c_int) == 0 || eap.skip != 0 {
                 rest = ptr::null_mut();
             } else {
                 let syn_id = syn_check_group(arg, group_name_end.offset_from(arg) as usize);
@@ -4432,14 +4432,14 @@ unsafe fn syn_add_cluster(name: std::ffi::CString) -> c_int {
     }
 }
 
-unsafe fn syn_cmd_cluster(eap: *mut exarg_T, _syncing: c_int) {
+unsafe fn syn_cmd_cluster(eap: &mut exarg_T, _syncing: c_int) {
     unsafe {
-        let arg = (*eap).arg;
+        let arg = eap.arg;
         let mut group_name_end: *mut c_char = ptr::null_mut();
         let mut got_clstr = false;
 
-        (*eap).nextcmd = find_nextcmd(arg);
-        if (*eap).skip != 0 {
+        eap.nextcmd = find_nextcmd(arg);
+        if eap.skip != 0 {
             return;
         }
 
@@ -4474,7 +4474,7 @@ unsafe fn syn_cmd_cluster(eap: *mut exarg_T, _syncing: c_int) {
                     &raw mut rest,
                     opt_len,
                     &mut clstr_list,
-                    (*eap).skip != 0,
+                    eap.skip != 0,
                 ) == FAIL
                 {
                     semsg!(gettext((&raw const e_invarg2).cast()), rest);
@@ -4590,9 +4590,9 @@ unsafe fn get_syn_pattern(arg: *mut c_char, ci: *mut synpat_T) -> *mut c_char {
     }
 }
 
-unsafe fn syn_cmd_sync(eap: *mut exarg_T, _syncing: c_int) {
+unsafe fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
     unsafe {
-        let mut arg_start = (*eap).arg;
+        let mut arg_start = eap.arg;
         let mut key_owned: Option<std::ffi::CString>;
         let mut illegal = false;
         let mut finished = false;
@@ -4611,18 +4611,18 @@ unsafe fn syn_cmd_sync(eap: *mut exarg_T, _syncing: c_int) {
             ));
             let key = key_owned.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
             if std::ffi::CStr::from_ptr(key).to_bytes() == b"CCOMMENT" {
-                if (*eap).skip == 0 {
+                if eap.skip == 0 {
                     (*win_s(*curwin.as_ptr())).b_syn_sync_flags |= SF_CCOMMENT;
                 }
                 if ends_excmd(*next_arg as c_int) == 0 {
                     arg_end = skiptowhite(next_arg);
-                    if (*eap).skip == 0 {
+                    if eap.skip == 0 {
                         (*win_s(*curwin.as_ptr())).b_syn_sync_id =
                             syn_check_group(next_arg, arg_end.offset_from(next_arg) as usize)
                                 as i16;
                     }
                     next_arg = skipwhite(arg_end);
-                } else if (*eap).skip == 0 {
+                } else if eap.skip == 0 {
                     (*win_s(*curwin.as_ptr())).b_syn_sync_id = syn_name2id(c"Comment".as_ptr()) as i16;
                 }
             } else if { let _p = key; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"LINES"[..5] }
@@ -4643,7 +4643,7 @@ unsafe fn syn_cmd_sync(eap: *mut exarg_T, _syncing: c_int) {
                     break;
                 }
                 let n: linenr_T = getdigits_int32(&raw mut arg_end, false, 0);
-                if (*eap).skip == 0 {
+                if eap.skip == 0 {
                     if *key.add(4) == b'B' as c_char {
                         (*win_s(*curwin.as_ptr())).b_syn_sync_linebreaks = n;
                     } else if *key.add(1) == b'A' as c_char {
@@ -4653,7 +4653,7 @@ unsafe fn syn_cmd_sync(eap: *mut exarg_T, _syncing: c_int) {
                     }
                 }
             } else if std::ffi::CStr::from_ptr(key).to_bytes() == b"FROMSTART" {
-                if (*eap).skip == 0 {
+                if eap.skip == 0 {
                     (*win_s(*curwin.as_ptr())).b_syn_sync_minlines = MAXLNUM;
                     (*win_s(*curwin.as_ptr())).b_syn_sync_maxlines = 0;
                 }
@@ -4675,7 +4675,7 @@ unsafe fn syn_cmd_sync(eap: *mut exarg_T, _syncing: c_int) {
                     break;
                 }
 
-                if (*eap).skip == 0 {
+                if eap.skip == 0 {
                     let pat_slice = std::slice::from_raw_parts(
                         next_arg.add(1).cast::<u8>(),
                         arg_end.offset_from(next_arg) as usize - 1,
@@ -4699,7 +4699,7 @@ unsafe fn syn_cmd_sync(eap: *mut exarg_T, _syncing: c_int) {
                 }
                 next_arg = skipwhite(arg_end.add(1));
             } else {
-                (*eap).arg = next_arg;
+                eap.arg = next_arg;
                 if std::ffi::CStr::from_ptr(key).to_bytes() == b"MATCH" {
                     syn_cmd_match(eap, 1);
                 } else if std::ffi::CStr::from_ptr(key).to_bytes() == b"REGION" {
@@ -4717,7 +4717,7 @@ unsafe fn syn_cmd_sync(eap: *mut exarg_T, _syncing: c_int) {
         if illegal {
             semsg!(gettext(c"E404: Illegal arguments: %s".as_ptr()), arg_start);
         } else if !finished {
-            (*eap).nextcmd = check_nextcmd(arg_start);
+            eap.nextcmd = check_nextcmd(arg_start);
             redraw_curbuf_later(UPD_SOME_VALID);
             syn_stack_free_all(win_s(*curwin.as_ptr()));
         }
@@ -5065,7 +5065,7 @@ unsafe fn in_id_list(
     }
 }
 
-type SubcmdFn = unsafe fn(*mut exarg_T, c_int);
+type SubcmdFn = unsafe fn(&mut exarg_T, c_int);
 
 const SUBCOMMANDS: [(*const c_char, SubcmdFn); 19] = [
     (c"case".as_ptr(), syn_cmd_case),

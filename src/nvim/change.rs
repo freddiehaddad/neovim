@@ -770,7 +770,7 @@ pub unsafe fn ins_char_bytes(buf: *mut c_char, charlen: usize) {
                 let mut vcol: colnr_T = 0;
                 getvcol(
                     *curwin.as_ptr(),
-                    &raw mut (**curwin.as_ptr()).w_cursor,
+                    &mut (**curwin.as_ptr()).w_cursor,
                     ptr::null_mut(),
                     &raw mut vcol,
                     ptr::null_mut(),

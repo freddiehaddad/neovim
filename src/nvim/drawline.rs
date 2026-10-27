@@ -1565,13 +1565,13 @@ pub unsafe fn win_line(
                         } else {
                             getvvcol(
                                 wp,
-                                top,
+                                &mut *top,
                                 &raw mut wlv.fromcol,
                                 ptr::null_mut(),
                                 ptr::null_mut(),
                                 0,
                             );
-                            if gchar_pos(top) == c_int::from(NUL) {
+                            if gchar_pos(&mut *top) == c_int::from(NUL) {
                                 wlv.tocol = wlv.fromcol + 1;
                             }
                         }
@@ -1587,7 +1587,7 @@ pub unsafe fn win_line(
                             if *opt_vars().p_sel == b'e' as c_char {
                                 getvvcol(
                                     wp,
-                                    &raw mut pos,
+                                    &mut pos,
                                     &raw mut wlv.tocol,
                                     ptr::null_mut(),
                                     ptr::null_mut(),
@@ -1596,7 +1596,7 @@ pub unsafe fn win_line(
                             } else {
                                 getvvcol(
                                     wp,
-                                    &raw mut pos,
+                                    &mut pos,
                                     ptr::null_mut(),
                                     ptr::null_mut(),
                                     &raw mut wlv.tocol,
@@ -1621,7 +1621,7 @@ pub unsafe fn win_line(
                 if lnum == (**curwin.as_ptr()).w_cursor.lnum {
                     getvcol(
                         *curwin.as_ptr(),
-                        &raw mut (**curwin.as_ptr()).w_cursor,
+                        &mut (**curwin.as_ptr()).w_cursor,
                         &raw mut wlv.fromcol,
                         ptr::null_mut(),
                         ptr::null_mut(),
@@ -1638,7 +1638,7 @@ pub unsafe fn win_line(
                     };
                     getvcol(
                         *curwin.as_ptr(),
-                        &raw mut pos,
+                        &mut pos,
                         &raw mut wlv.tocol,
                         ptr::null_mut(),
                         ptr::null_mut(),

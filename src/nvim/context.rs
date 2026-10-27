@@ -432,7 +432,7 @@ pub unsafe fn ctx_load(ctx: *mut Context, flags: CtxStateFlags, loadflags: CtxLo
                 if pos_ptr.is_null() || (*ctx).pos_marks[i] == 0 {
                     continue;
                 }
-                extmark_get_pos(buf, ctx_marks_ns(), (*ctx).pos_marks[i], pos_ptr);
+                extmark_get_pos(buf, ctx_marks_ns(), (*ctx).pos_marks[i], &mut *pos_ptr);
             }
             if (flags & kCtxVisual) != 0 {
                 (*buf).b_visual = (*ctx).visual;
@@ -997,7 +997,7 @@ pub unsafe fn ctx_restore(cs: *mut CtxSwitch) {
         if (*cs).cs_mode == kCtxSwitchBuf {
             check_cursor(*curwin.as_ptr());
             if g_st().Visual.active {
-                check_pos(g_st().curbuf, &raw mut g_st().Visual.start);
+                check_pos(g_st().curbuf, &mut g_st().Visual.start);
             }
         }
 
@@ -1016,7 +1016,7 @@ pub unsafe fn ctx_restore(cs: *mut CtxSwitch) {
             }
             check_cursor(*curwin.as_ptr());
             if g_st().Visual.active {
-                check_pos(g_st().curbuf, &raw mut g_st().Visual.start);
+                check_pos(g_st().curbuf, &mut g_st().Visual.start);
             }
         }
         if (*cs).cs_mode == kCtxSwitchBuf && (*cs).cs_new_curwin != (*cs).cs_curwin {

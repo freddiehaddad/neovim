@@ -2867,8 +2867,8 @@ pub unsafe fn clear_showcmd() {
                 (**curwin.as_ptr()).w_onebuf_opt.wo_sbr = empty_string_option.as_ptr().cast::<c_char>();
                 getvcols(
                     *curwin.as_ptr(),
-                    &raw mut (**curwin.as_ptr()).w_cursor,
-                    &raw mut g_st().Visual.start,
+                    &mut (**curwin.as_ptr()).w_cursor,
+                    &mut g_st().Visual.start,
                     &raw mut leftcol,
                     &raw mut rightcol,
                     GETVCOL_END_EXCL_LBR,
@@ -2896,11 +2896,11 @@ pub unsafe fn clear_showcmd() {
                 let mut chars: c_int = 0;
 
                 if cursor_bot {
-                    s = ml_get_pos(&raw const g_st().Visual.start);
+                    s = ml_get_pos(&g_st().Visual.start);
                     e = get_cursor_pos_ptr();
                 } else {
                     s = get_cursor_pos_ptr();
-                    e = ml_get_pos(&raw const g_st().Visual.start);
+                    e = ml_get_pos(&g_st().Visual.start);
                 }
                 while if *opt_vars().p_sel != b'e' as c_char {
                     s <= e
@@ -3757,7 +3757,7 @@ unsafe fn nv_zg_zw(cap: &mut cmdarg_T, mut nchar: c_int) -> c_int {
             len = spell_move_to(*curwin.as_ptr(), FORWARD, SMT_ALL, true, ptr::null_mut());
             g_st().emsg_off -= 1;
             if len != 0 && (**curwin.as_ptr()).w_cursor.col <= pos.col {
-                ptr = ml_get_pos(&raw const (**curwin.as_ptr()).w_cursor);
+                ptr = ml_get_pos(&(**curwin.as_ptr()).w_cursor);
             }
             (**curwin.as_ptr()).w_cursor = pos;
         }
@@ -3901,7 +3901,7 @@ unsafe fn nv_zet(cap: &mut cmdarg_T) {
                     } else {
                         getvcol(
                             *curwin.as_ptr(),
-                            &raw mut (**curwin.as_ptr()).w_cursor,
+                            &mut (**curwin.as_ptr()).w_cursor,
                             &raw mut col,
                             ptr::null_mut(),
                             ptr::null_mut(),
@@ -3931,7 +3931,7 @@ unsafe fn nv_zet(cap: &mut cmdarg_T) {
                     } else {
                         getvcol(
                             *curwin.as_ptr(),
-                            &raw mut (**curwin.as_ptr()).w_cursor,
+                            &mut (**curwin.as_ptr()).w_cursor,
                             ptr::null_mut(),
                             ptr::null_mut(),
                             &raw mut col,
@@ -4667,10 +4667,10 @@ pub unsafe fn get_visual_text(cap: Option<&mut cmdarg_T>, pp: &mut *mut c_char, 
             *lenp = get_cursor_line_len() as usize;
         } else {
             if lt((**curwin.as_ptr()).w_cursor, g_st().Visual.start) {
-                *pp = ml_get_pos(&raw const (**curwin.as_ptr()).w_cursor);
+                *pp = ml_get_pos(&(**curwin.as_ptr()).w_cursor);
                 *lenp = (g_st().Visual.start.col - (**curwin.as_ptr()).w_cursor.col + 1) as usize;
             } else {
-                *pp = ml_get_pos(&raw const g_st().Visual.start);
+                *pp = ml_get_pos(&g_st().Visual.start);
                 *lenp = ((**curwin.as_ptr()).w_cursor.col - g_st().Visual.start.col + 1) as usize;
             }
             if **pp == NUL {
@@ -5185,7 +5185,7 @@ unsafe fn nv_csearch(cap: &mut cmdarg_T) {
             let mut ecol: colnr_T = 0;
             getvcol(
                 *curwin.as_ptr(),
-                &raw mut (**curwin.as_ptr()).w_cursor,
+                &mut (**curwin.as_ptr()).w_cursor,
                 &raw mut scol,
                 ptr::null_mut(),
                 &raw mut ecol,
@@ -5202,7 +5202,7 @@ unsafe fn nv_csearch(cap: &mut cmdarg_T) {
     }
 }
 
-unsafe fn nv_bracket_block(cap: &mut cmdarg_T, old_pos: *const pos_T) {
+unsafe fn nv_bracket_block(cap: &mut cmdarg_T, old_pos: &pos_T) {
     unsafe {
         let mut new_pos = pos_T {
             lnum: 0,
@@ -5389,7 +5389,7 @@ unsafe fn nv_brackets(cap: &mut cmdarg_T) {
             || (cap.cmdchar == b']' as c_int
                 && !vim_strchr(c"})*/#mM".as_ptr(), cap.nchar).is_null())
         {
-            nv_bracket_block(cap, &raw const old_pos);
+            nv_bracket_block(cap, &old_pos);
         } else if cap.nchar == b'[' as c_int || cap.nchar == b']' as c_int {
             let flag = if cap.nchar == cap.cmdchar {
                 b'{' as c_int
@@ -5426,7 +5426,7 @@ unsafe fn nv_brackets(cap: &mut cmdarg_T) {
             while n > 0 {
                 prev_fm = fm;
                 fm = getnextmark(
-                    &raw mut (*fm).mark,
+                    &mut (*fm).mark,
                     if cap.cmdchar == b'[' as c_int {
                         BACKWARD
                     } else {
@@ -5869,8 +5869,8 @@ unsafe fn v_swap_corners(cmdchar: c_int) {
             let mut old_cursor = (**curwin.as_ptr()).w_cursor;
             getvcols(
                 *curwin.as_ptr(),
-                &raw mut old_cursor,
-                &raw mut g_st().Visual.start,
+                &mut old_cursor,
+                &mut g_st().Visual.start,
                 &raw mut left,
                 &raw mut right,
                 0,
@@ -5995,7 +5995,7 @@ unsafe fn n_swapchar(cap: &mut cmdarg_T) {
         let startpos = (**curwin.as_ptr()).w_cursor;
         let mut n = cap.count1;
         while n > 0 {
-            did_change |= swapchar((*cap.oap).op_type, &raw mut (**curwin.as_ptr()).w_cursor);
+            did_change |= swapchar((*cap.oap).op_type, &mut (**curwin.as_ptr()).w_cursor);
             inc_cursor();
             if gchar_cursor() == NUL as c_int {
                 if !vim_strchr(opt_vars().p_ww, b'~' as c_int).is_null()
@@ -6560,7 +6560,7 @@ unsafe fn nv_g_dollar_cmd(cap: &mut cmdarg_T) {
                 let mut vcol: colnr_T = 0;
                 getvvcol(
                     *curwin.as_ptr(),
-                    &raw mut (**curwin.as_ptr()).w_cursor,
+                    &mut (**curwin.as_ptr()).w_cursor,
                     ptr::null_mut(),
                     ptr::null_mut(),
                     &raw mut vcol,
@@ -7164,33 +7164,33 @@ pub unsafe fn unadjust_for_sel() -> bool {
     unsafe {
         if *opt_vars().p_sel == b'e' as c_char && !equalpos(g_st().Visual.start, (**curwin.as_ptr()).w_cursor) {
             return unadjust_for_sel_inner(if lt(g_st().Visual.start, (**curwin.as_ptr()).w_cursor) {
-                &raw mut (**curwin.as_ptr()).w_cursor
+                &mut (**curwin.as_ptr()).w_cursor
             } else {
-                &raw mut g_st().Visual.start
+                &mut g_st().Visual.start
             });
         }
         false
     }
 }
 
-pub unsafe fn unadjust_for_sel_inner(pp: *mut pos_T) -> bool {
+pub unsafe fn unadjust_for_sel_inner(pp: &mut pos_T) -> bool {
     unsafe {
         g_st().Visual.select_exclu_adj = false;
 
-        if (*pp).coladd > 0 {
-            (*pp).coladd -= 1;
-        } else if (*pp).col > 0 {
-            (*pp).col -= 1;
+        if pp.coladd > 0 {
+            pp.coladd -= 1;
+        } else if pp.col > 0 {
+            pp.col -= 1;
             mark_mb_adjustpos(g_st().curbuf, pp);
             if virtual_active(*curwin.as_ptr()) {
                 let mut cs: colnr_T = 0;
                 let mut ce: colnr_T = 0;
                 getvcol(*curwin.as_ptr(), pp, &raw mut cs, ptr::null_mut(), &raw mut ce, 0);
-                (*pp).coladd = ce - cs;
+                pp.coladd = ce - cs;
             }
-        } else if (*pp).lnum > 1 {
-            (*pp).lnum -= 1;
-            (*pp).col = ml_get_len((*pp).lnum);
+        } else if pp.lnum > 1 {
+            pp.lnum -= 1;
+            pp.col = ml_get_len(pp.lnum);
             return true;
         }
 
@@ -7746,7 +7746,7 @@ unsafe fn nv_put_opt(cap: &mut cmdarg_T, fix_indent: bool) {
             (*g_st().curbuf).b_visual.vi_start = (*g_st().curbuf).b_op_start;
             (*g_st().curbuf).b_visual.vi_end = (*g_st().curbuf).b_op_end;
             if *opt_vars().p_sel == b'e' as c_char {
-                inc(&raw mut (*g_st().curbuf).b_visual.vi_end);
+                inc(&mut (*g_st().curbuf).b_visual.vi_end);
             }
         }
 

@@ -2818,24 +2818,24 @@ unsafe fn readfile_linenr(linecnt: linenr_T, p: *mut c_char, endp: *const c_char
 
 /// Fill "*eap" to force the 'fileencoding', 'fileformat' and 'binary' to be
 /// equal to the buffer "buf".
-pub unsafe fn prep_exarg(eap: *mut exarg_T, buf: *const buf_T) -> std::ffi::CString {
+pub unsafe fn prep_exarg(eap: &mut exarg_T, buf: *const buf_T) -> std::ffi::CString {
     unsafe {
         let fenc_bytes = CStr::from_ptr((*buf).b_p_fenc).to_bytes();
         let mut cmd_vec = Vec::with_capacity(8 + fenc_bytes.len());
         cmd_vec.extend_from_slice(b"e ++enc=");
         cmd_vec.extend_from_slice(fenc_bytes);
         let cmd_cstr = std::ffi::CString::new(cmd_vec).unwrap_or_default();
-        (*eap).cmd = cmd_cstr.as_ptr().cast_mut();
-        (*eap).force_enc = 8;
-        (*eap).bad_char = (*buf).b_bad_char;
-        (*eap).force_ff = (*(*buf).b_p_ff as u8) as c_int;
-        (*eap).force_bin = if (*buf).b_p_bin != 0 {
+        eap.cmd = cmd_cstr.as_ptr().cast_mut();
+        eap.force_enc = 8;
+        eap.bad_char = (*buf).b_bad_char;
+        eap.force_ff = (*(*buf).b_p_ff as u8) as c_int;
+        eap.force_bin = if (*buf).b_p_bin != 0 {
             FORCE_BIN
         } else {
             FORCE_NOBIN
         };
-        (*eap).read_edit = 0;
-        (*eap).forceit = 0;
+        eap.read_edit = 0;
+        eap.forceit = 0;
         cmd_cstr
     }
 }
@@ -3998,7 +3998,7 @@ pub unsafe fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool
         mc_buf_clear(buf);
 
         let _ea_cmd = if !reload_options {
-            Some(prep_exarg(&raw mut ea, buf))
+            Some(prep_exarg(&mut ea, buf))
         } else {
             None
         };

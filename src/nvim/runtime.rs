@@ -3590,8 +3590,8 @@ unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> Option<Vec<c_char>> {
 }
 
 /// Returns true if sourcing a script either from a file or a buffer or a string.
-pub unsafe fn sourcing_a_script(eap: *mut exarg_T) -> c_int {
-    unsafe { c_int::from((*eap).ea_getline.is_source()) }
+pub unsafe fn sourcing_a_script(eap: &mut exarg_T) -> c_int {
+    unsafe { c_int::from(eap.ea_getline.is_source()) }
 }
 
 /// ":scriptencoding": Set encoding conversion for a sourced script.
@@ -3630,14 +3630,14 @@ pub unsafe fn ex_finish(eap: &mut exarg_T) {
 }
 
 /// Mark a sourced file as finished.
-pub unsafe fn do_finish(eap: *mut exarg_T, reanimate: bool) {
+pub unsafe fn do_finish(eap: &mut exarg_T, reanimate: bool) {
     unsafe {
-        let sp = (*eap).ea_getline.as_source().unwrap();
+        let sp = eap.ea_getline.as_source().unwrap();
         if reanimate {
             (*sp).finished = false;
         }
 
-        let cstack = (*eap).cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<cstack_T>();
         let idx = cleanup_conditionals(cstack, 0, 1);
         if idx >= 0 {
             (*cstack).cs_pending[idx as usize] = CSTP_FINISH as c_char;

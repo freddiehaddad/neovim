@@ -707,19 +707,19 @@ unsafe fn virt_text_cursor_off(csarg: *const CharsizeArg, on_nul: bool) -> c_int
 
 pub unsafe fn getvcol(
     wp: *mut win_T,
-    pos: *mut pos_T,
+    pos: &mut pos_T,
     start: *mut colnr_T,
     cursor: *mut colnr_T,
     end: *mut colnr_T,
     flags: c_int,
 ) {
     unsafe {
-        let line = ml_get_buf((*wp).w_buffer, (*pos).lnum);
-        let end_col = (*pos).col;
+        let line = ml_get_buf((*wp).w_buffer, pos.lnum);
+        let end_col = pos.col;
 
         let mut csarg = CharsizeArg::new();
         let mut on_nul = false;
-        let cstype = init_charsize_arg(&mut csarg, wp, (*pos).lnum, line);
+        let cstype = init_charsize_arg(&mut csarg, wp, pos.lnum, line);
         csarg.max_head_vcol = -1;
 
         let mut vcol: colnr_T = 0;
@@ -765,7 +765,7 @@ pub unsafe fn getvcol(
         }
 
         if *ci.ptr == NUL && end_col < MAXCOL && end_col > (ci.ptr.offset_from(line) as colnr_T) {
-            (*pos).col = ci.ptr.offset_from(line) as colnr_T;
+            pos.col = ci.ptr.offset_from(line) as colnr_T;
         }
 
         let incr = char_size.width;
@@ -800,13 +800,13 @@ pub unsafe fn getvcol(
     }
 }
 
-pub unsafe fn getvcol_nolist(posp: *mut pos_T) -> colnr_T {
+pub unsafe fn getvcol_nolist(posp: &mut pos_T) -> colnr_T {
     unsafe {
         let list_save = (**curwin.as_ptr()).w_onebuf_opt.wo_list;
         let mut vcol: colnr_T = 0;
 
         (**curwin.as_ptr()).w_onebuf_opt.wo_list = 0;
-        if (*posp).coladd != 0 {
+        if posp.coladd != 0 {
             getvvcol(*curwin.as_ptr(), posp, ptr::null_mut(), &mut vcol, ptr::null_mut(), 0);
         } else {
             getvcol(*curwin.as_ptr(), posp, ptr::null_mut(), &mut vcol, ptr::null_mut(), 0);
@@ -818,7 +818,7 @@ pub unsafe fn getvcol_nolist(posp: *mut pos_T) -> colnr_T {
 
 pub unsafe fn getvvcol(
     wp: *mut win_T,
-    pos: *mut pos_T,
+    pos: &mut pos_T,
     start: *mut colnr_T,
     cursor: *mut colnr_T,
     end: *mut colnr_T,
@@ -829,14 +829,14 @@ pub unsafe fn getvvcol(
 
         if virtual_active(wp) {
             getvcol(wp, pos, &mut col, ptr::null_mut(), ptr::null_mut(), flags);
-            let mut coladd = (*pos).coladd;
+            let mut coladd = pos.coladd;
             let mut endadd: colnr_T = 0;
 
-            let ptr_val = ml_get_buf((*wp).w_buffer, (*pos).lnum);
-            if (*pos).col < ml_get_buf_len((*wp).w_buffer, (*pos).lnum) {
-                let c = utf_ptr2char(ptr_val.add((*pos).col as usize));
+            let ptr_val = ml_get_buf((*wp).w_buffer, pos.lnum);
+            if pos.col < ml_get_buf_len((*wp).w_buffer, pos.lnum) {
+                let c = utf_ptr2char(ptr_val.add(pos.col as usize));
                 if c != TAB && vim_isprintc(c) {
-                    endadd = ptr2cells(ptr_val.add((*pos).col as usize)) - 1;
+                    endadd = ptr2cells(ptr_val.add(pos.col as usize)) - 1;
                     if coladd > endadd {
                         endadd = 0;
                     } else {
@@ -863,8 +863,8 @@ pub unsafe fn getvvcol(
 
 pub unsafe fn getvcols(
     wp: *mut win_T,
-    pos1: *mut pos_T,
-    pos2: *mut pos_T,
+    pos1: &mut pos_T,
+    pos2: &mut pos_T,
     left: *mut colnr_T,
     right: *mut colnr_T,
     flags: c_int,

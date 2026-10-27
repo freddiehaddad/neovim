@@ -1497,7 +1497,7 @@ pub unsafe fn do_search(
                 if srch().spats[0].off.off > 0 {
                     c = srch().spats[0].off.off;
                     while c != 0 {
-                        if decl(&raw mut pos) == -1 {
+                        if decl(&mut pos) == -1 {
                             break;
                         }
                         c -= 1;
@@ -1509,7 +1509,7 @@ pub unsafe fn do_search(
                 } else {
                     c = srch().spats[0].off.off;
                     while c != 0 {
-                        if incl(&raw mut pos) == -1 {
+                        if incl(&mut pos) == -1 {
                             break;
                         }
                         c += 1;
@@ -1599,14 +1599,14 @@ pub unsafe fn do_search(
                     if c > 0 {
                         while c > 0 {
                             c -= 1;
-                            if incl(&raw mut pos) == -1 {
+                            if incl(&mut pos) == -1 {
                                 break;
                             }
                         }
                     } else {
                         while c < 0 {
                             c += 1;
-                            if decl(&raw mut pos) == -1 {
+                            if decl(&mut pos) == -1 {
                                 break;
                             }
                         }
@@ -1620,8 +1620,8 @@ pub unsafe fn do_search(
             if show_search_stats {
                 cmdline_search_stat(
                     dirc,
-                    &raw mut pos,
-                    &raw mut (**curwin.as_ptr()).w_cursor,
+                    &mut pos,
+                    &mut (**curwin.as_ptr()).w_cursor,
                     show_top_bot_msg,
                     msgbuf_vec.as_mut_ptr(),
                     msgbuflen,
@@ -1675,7 +1675,7 @@ pub unsafe fn do_search(
 
 pub unsafe fn search_for_exact_line(
     buf: *mut buf_T,
-    pos: *mut pos_T,
+    pos: &mut pos_T,
     dir: Direction,
     pat: *mut c_char,
 ) -> c_int {
@@ -1687,37 +1687,37 @@ pub unsafe fn search_for_exact_line(
             return FAIL;
         }
         loop {
-            (*pos).lnum += dir;
-            if (*pos).lnum < 1 {
+            pos.lnum += dir;
+            if pos.lnum < 1 {
                 if opt_vars().p_ws != 0 {
-                    (*pos).lnum = (*buf).b_ml.ml_line_count;
+                    pos.lnum = (*buf).b_ml.ml_line_count;
                     if !shortmess(kShmSearch) {
                         give_warning(tr(top_bot_msg.as_ptr()), true, false);
                     }
                 } else {
-                    (*pos).lnum = 1;
+                    pos.lnum = 1;
                     break;
                 }
-            } else if (*pos).lnum > (*buf).b_ml.ml_line_count {
+            } else if pos.lnum > (*buf).b_ml.ml_line_count {
                 if opt_vars().p_ws != 0 {
-                    (*pos).lnum = 1;
+                    pos.lnum = 1;
                     if !shortmess(kShmSearch) {
                         give_warning(tr(bot_top_msg.as_ptr()), true, false);
                     }
                 } else {
-                    (*pos).lnum = 1;
+                    pos.lnum = 1;
                     break;
                 }
             }
-            if (*pos).lnum == start {
+            if pos.lnum == start {
                 break;
             }
             if start == 0 {
-                start = (*pos).lnum;
+                start = pos.lnum;
             }
-            let ptr_line = ml_get_buf(buf, (*pos).lnum);
+            let ptr_line = ml_get_buf(buf, pos.lnum);
             let p = skipwhite(ptr_line);
-            (*pos).col = p.offset_from(ptr_line) as colnr_T;
+            pos.col = p.offset_from(ptr_line) as colnr_T;
 
             if compl_status_adding() && !compl_status_sol() {
                 if mb_strcmp_ic(opt_vars().p_ic != 0, p, pat) == 0 {
@@ -1846,32 +1846,32 @@ unsafe fn check_prevcol(
 
 unsafe fn find_rawstring_end(
     linep: *mut c_char,
-    startpos: *const pos_T,
-    endpos: *const pos_T,
+    startpos: &pos_T,
+    endpos: &pos_T,
 ) -> bool {
     unsafe {
-        let mut p = linep.add(((*startpos).col + 1) as usize);
+        let mut p = linep.add((startpos.col + 1) as usize);
         while *p != NUL && *p != b'(' as c_char {
             p = p.add(1);
         }
 
-        let delim_len = (p.offset_from(linep) as usize) - ((*startpos).col as usize) - 1;
+        let delim_len = (p.offset_from(linep) as usize) - (startpos.col as usize) - 1;
         let mut delim_copy: Vec<c_char> = vec![0; delim_len + 1];
         ptr::copy_nonoverlapping(
-            linep.add(((*startpos).col + 1) as usize),
+            linep.add((startpos.col + 1) as usize),
             delim_copy.as_mut_ptr(),
             delim_len,
         );
         let mut found = false;
-        for lnum in (*startpos).lnum..=(*endpos).lnum {
+        for lnum in startpos.lnum..=endpos.lnum {
             let line = ml_get(lnum);
-            p = line.add(if lnum == (*startpos).lnum {
-                ((*startpos).col + 1) as usize
+            p = line.add(if lnum == startpos.lnum {
+                (startpos.col + 1) as usize
             } else {
                 0
             });
             while *p != NUL {
-                if lnum == (*endpos).lnum && (p.offset_from(line) as colnr_T) >= (*endpos).col {
+                if lnum == endpos.lnum && (p.offset_from(line) as colnr_T) >= endpos.col {
                     break;
                 }
                 if *p == b')' as c_char
@@ -2271,11 +2271,11 @@ pub unsafe fn findmatchlimit(
                     {
                         if !find_rawstring_end(
                             linep,
-                            &raw const srch().findmatch_pos,
+                            &srch().findmatch_pos,
                             if count > 0 {
-                                &raw const match_pos
+                                &match_pos
                             } else {
-                                &raw const (**curwin.as_ptr()).w_cursor
+                                &(**curwin.as_ptr()).w_cursor
                             },
                         ) {
                             count += 1;
@@ -2531,7 +2531,7 @@ pub unsafe fn showmatch(c: c_int) {
         if (**curwin.as_ptr()).w_onebuf_opt.wo_wrap == 0 {
             getvcol(
                 *curwin.as_ptr(),
-                lpos,
+                &mut *lpos,
                 ptr::null_mut(),
                 &raw mut vcol,
                 ptr::null_mut(),
@@ -2595,9 +2595,9 @@ pub unsafe fn current_search(count: c_int, forward: bool) -> c_int {
         let orig_pos = (**curwin.as_ptr()).w_cursor;
         if g_st().Visual.active {
             if forward {
-                incl(&raw mut pos);
+                incl(&mut pos);
             } else {
-                decl(&raw mut pos);
+                decl(&mut pos);
             }
         }
 
@@ -2605,7 +2605,7 @@ pub unsafe fn current_search(count: c_int, forward: bool) -> c_int {
             srch().spats[srch().last_idx as usize].pat_ptr(),
             srch().spats[srch().last_idx as usize].patlen(),
             true,
-            &raw mut (**curwin.as_ptr()).w_cursor,
+            &mut (**curwin.as_ptr()).w_cursor,
             FORWARD,
         );
         if zero_width == -1 {
@@ -2691,7 +2691,7 @@ pub unsafe fn current_search(count: c_int, forward: bool) -> c_int {
             if forward && ltoreq(g_st().Visual.start, (**curwin.as_ptr()).w_cursor) {
                 inc_cursor();
             } else if !forward && ltoreq((**curwin.as_ptr()).w_cursor, g_st().Visual.start) {
-                inc(&raw mut g_st().Visual.start);
+                inc(&mut g_st().Visual.start);
             }
         }
 
@@ -2712,7 +2712,7 @@ unsafe fn is_zero_width(
     mut pattern: *mut c_char,
     mut patternlen: usize,
     move_to_start: bool,
-    cur: *mut pos_T,
+    cur: &mut pos_T,
     direction: Direction,
 ) -> c_int {
     unsafe {
@@ -2816,8 +2816,8 @@ pub unsafe fn linewhite(lnum: linenr_T) -> bool {
 
 unsafe fn cmdline_search_stat(
     dirc: c_int,
-    pos: *mut pos_T,
-    cursor_pos: *mut pos_T,
+    pos: &mut pos_T,
+    cursor_pos: &mut pos_T,
     show_top_bot_msg: bool,
     msgbuf: *mut c_char,
     msgbuflen: usize,
@@ -2921,8 +2921,8 @@ unsafe fn cmdline_search_stat(
 
 unsafe fn update_search_stat(
     dirc: c_int,
-    pos: *mut pos_T,
-    cursor_pos: *mut pos_T,
+    pos: &mut pos_T,
+    cursor_pos: &mut pos_T,
     stat: *mut searchstat_T,
     recompute: bool,
     maxcount: c_int,
@@ -3147,10 +3147,11 @@ pub unsafe fn f_searchcount(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
             && !srch().spats[srch().last_idx as usize].pat_ptr().is_null()
             && *srch().spats[srch().last_idx as usize].pat_ptr() != NUL
         {
+            let cursor_pos = pos;
             update_search_stat(
                 0,
-                &raw mut pos,
-                &raw mut pos,
+                &mut pos,
+                &mut { cursor_pos },
                 &raw mut stat,
                 recompute,
                 maxcount,

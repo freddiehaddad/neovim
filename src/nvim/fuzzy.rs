@@ -811,10 +811,10 @@ pub unsafe fn fuzzy_match_str_in_line(
 /// Search for the next fuzzy match in `buf` (`search_for_fuzzy_match`).
 pub unsafe fn search_for_fuzzy_match(
     buf: *mut buf_T,
-    pos: *mut pos_T,
+    pos: &mut pos_T,
     pattern: *mut c_char,
     dir: c_int,
-    start_pos: *mut pos_T,
+    start_pos: &pos_T,
     len: *mut c_int,
     ptr: *mut *mut c_char,
     score: *mut c_int,
@@ -835,7 +835,7 @@ pub unsafe fn search_for_fuzzy_match(
             }
         };
 
-        if whole_line && (*start_pos).lnum != (*pos).lnum {
+        if whole_line && start_pos.lnum != pos.lnum {
             current_pos.lnum += dir;
         }
 

@@ -2820,7 +2820,7 @@ pub unsafe fn utf_valid_string(s: *const c_char, end: *const c_char) -> bool {
 
 pub unsafe fn mb_adjust_cursor() {
     unsafe {
-        mark_mb_adjustpos(g_st().curbuf.cast(), (&raw mut (**curwin.as_ptr()).w_cursor).cast());
+        mark_mb_adjustpos(g_st().curbuf.cast(), &mut (**curwin.as_ptr()).w_cursor);
     }
 }
 

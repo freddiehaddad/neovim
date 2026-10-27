@@ -472,7 +472,7 @@ pub unsafe fn dbg_check_breakpoint(eap: *mut exarg_T) {
 }
 
 /// Enter debug mode if previously skipped by `dbg_check_breakpoint()` (`dbg_check_skipped`).
-pub unsafe fn dbg_check_skipped(eap: *mut exarg_T) -> bool {
+pub unsafe fn dbg_check_skipped(eap: &mut exarg_T) -> bool {
     unsafe {
         if !dbg_st().DEBUG_SKIPPED {
             return false;
@@ -480,9 +480,9 @@ pub unsafe fn dbg_check_skipped(eap: *mut exarg_T) -> bool {
         let prev_got_int = g_st().got_int;
         g_st().got_int = false;
         dbg_st().DEBUG_BREAKPOINT_NAME = dbg_st().DEBUG_SKIPPED_NAME;
-        (*eap).skip = 0;
-        dbg_check_breakpoint(eap);
-        (*eap).skip = 1;
+        eap.skip = 0;
+        dbg_check_breakpoint(&raw mut *eap);
+        eap.skip = 1;
         g_st().got_int |= prev_got_int;
         true
     }

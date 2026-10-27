@@ -727,7 +727,7 @@ unsafe fn mc_ins_regions_clear() {
 }
 
 #[inline]
-unsafe fn mc_ctx_resolve(ctx: *const Context, pos: *mut pos_T) -> bool {
+unsafe fn mc_ctx_resolve(ctx: *const Context, pos: &mut pos_T) -> bool {
     unsafe {
         handle_get_buffer((*ctx).buf) == g_st().curbuf
             && (*ctx).mark != 0
@@ -800,13 +800,13 @@ unsafe fn mc_region_range(p: MTPair, start: *mut pos_T, end: *mut pos_T) {
     }
 }
 
-unsafe fn mc_region_mark_range(mark: u32, start: *mut pos_T, end: *mut pos_T) -> bool {
+unsafe fn mc_region_mark_range(mark: u32, start: &mut pos_T, end: &mut pos_T) -> bool {
     unsafe {
         let p = extmark_from_id(g_st().curbuf, mc_session_ns(), mark);
         if p.start.id == 0 {
             return false;
         }
-        mc_region_range(p, start, end);
+        mc_region_range(p, &raw mut *start, &raw mut *end);
         true
     }
 }

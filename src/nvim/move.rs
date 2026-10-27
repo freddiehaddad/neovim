@@ -342,7 +342,7 @@ pub unsafe fn update_topline(wp: *mut win_T) {
                     let mut vcol: colnr_T = 0;
                     getvvcol(
                         wp,
-                        &raw mut (*wp).w_cursor,
+                        &mut (*wp).w_cursor,
                         &raw mut vcol,
                         ptr::null_mut(),
                         ptr::null_mut(),
@@ -832,7 +832,7 @@ pub unsafe fn validate_virtcol(wp: *mut win_T) {
 
         getvvcol(
             wp,
-            &raw mut (*wp).w_cursor,
+            &mut (*wp).w_cursor,
             ptr::null_mut(),
             &raw mut (*wp).w_virtcol,
             ptr::null_mut(),
@@ -944,7 +944,7 @@ pub unsafe fn curs_columns(wp: *mut win_T, may_scroll: c_int) {
         } else {
             getvvcol(
                 wp,
-                &raw mut (*wp).w_cursor,
+                &mut (*wp).w_cursor,
                 &raw mut startcol,
                 &raw mut (*wp).w_virtcol,
                 &raw mut endcol,
@@ -1136,7 +1136,7 @@ pub unsafe fn curs_columns(wp: *mut win_T, may_scroll: c_int) {
 /// Compute the screen position of text character at `pos` in window `wp`.
 pub unsafe fn textpos2screenpos(
     wp: *mut win_T,
-    pos: *mut pos_T,
+    pos: &mut pos_T,
     rowp: *mut c_int,
     scolp: *mut c_int,
     ccolp: *mut c_int,
@@ -1152,7 +1152,7 @@ pub unsafe fn textpos2screenpos(
         let mut visible_row = false;
         let mut is_folded = false;
 
-        let mut lnum = (*pos).lnum;
+        let mut lnum = pos.lnum;
         if lnum >= (*wp).w_topline && lnum <= (*wp).w_botline {
             is_folded = hasFolding(wp, lnum, &raw mut lnum, ptr::null_mut());
             row = plines_m_win(wp, (*wp).w_topline, lnum - 1, c_int::MAX);
@@ -1261,7 +1261,7 @@ pub unsafe fn f_screenpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
         let mut ecol: c_int = 0;
         textpos2screenpos(
             wp,
-            &raw mut pos,
+            &mut pos,
             &raw mut row,
             &raw mut scol,
             &raw mut ccol,

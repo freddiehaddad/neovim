@@ -1333,7 +1333,7 @@ pub unsafe fn op_yank_reg(oap: &mut oparg_T, message: bool, mut reg: *mut yankre
                 (*g_st().curbuf).b_op_end.col = MAXCOL;
             }
             if yank_type == MotionType::kMTCharWise && !oap.inclusive {
-                decl(&raw mut (*g_st().curbuf).b_op_end);
+                decl(&mut (*g_st().curbuf).b_op_end);
             }
         }
     }
@@ -1906,7 +1906,7 @@ pub unsafe fn do_put(
                     if cur_ve_flags == kOptVeFlagAll {
                         getvcol(
                             *curwin.as_ptr(),
-                            &raw mut (**curwin.as_ptr()).w_cursor,
+                            &mut (**curwin.as_ptr()).w_cursor,
                             &raw mut col,
                             ptr::null_mut(),
                             &raw mut endcol2,
@@ -1915,7 +1915,7 @@ pub unsafe fn do_put(
                     } else {
                         getvcol(
                             *curwin.as_ptr(),
-                            &raw mut (**curwin.as_ptr()).w_cursor,
+                            &mut (**curwin.as_ptr()).w_cursor,
                             ptr::null_mut(),
                             ptr::null_mut(),
                             &raw mut col,
@@ -1927,7 +1927,7 @@ pub unsafe fn do_put(
                 } else {
                     getvcol(
                         *curwin.as_ptr(),
-                        &raw mut (**curwin.as_ptr()).w_cursor,
+                        &mut (**curwin.as_ptr()).w_cursor,
                         &raw mut col,
                         ptr::null_mut(),
                         &raw mut endcol2,
@@ -2164,7 +2164,7 @@ pub unsafe fn do_put(
                             };
                             getvcol(
                                 *curwin.as_ptr(),
-                                &raw mut pos,
+                                &mut pos,
                                 ptr::null_mut(),
                                 &raw mut vcol,
                                 ptr::null_mut(),
@@ -2187,7 +2187,7 @@ pub unsafe fn do_put(
                                     col: 0,
                                     coladd: 0,
                                 };
-                                if getvpos(*curwin.as_ptr(), &raw mut pos, vcol) == OK {
+                                if getvpos(*curwin.as_ptr(), &mut pos, vcol) == OK {
                                     col = pos.col;
                                 } else {
                                     col = MAXCOL;

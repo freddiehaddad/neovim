@@ -996,7 +996,7 @@ pub unsafe fn op_delete(oap: &mut oparg_T) -> c_int {
                 }
             } else {
                 if g_st().virtual_op != 0 {
-                    if gchar_pos(&raw mut oap.start) == TAB {
+                    if gchar_pos(&mut oap.start) == TAB {
                         let mut endcol: c_int = 0;
                         if u_save_cursor() == FAIL {
                             return FAIL;
@@ -1014,7 +1014,7 @@ pub unsafe fn op_delete(oap: &mut oparg_T) -> c_int {
                         }
                     }
 
-                    if gchar_pos(&raw mut oap.end) == TAB
+                    if gchar_pos(&mut oap.end) == TAB
                         && oap.end.coladd == 0
                         && oap.inclusive
                     {
@@ -1221,7 +1221,7 @@ unsafe fn op_replace(oap: &mut oparg_T, mut c: c_int) -> c_int {
                         col: 0,
                         coladd: 0,
                     };
-                    getvpos(*curwin.as_ptr(), &raw mut vpos, oap.start_vcol);
+                    getvpos(*curwin.as_ptr(), &mut vpos, oap.start_vcol);
                     bd.startspaces += vpos.coladd;
                     n = bd.startspaces;
                 } else {
@@ -1331,7 +1331,7 @@ unsafe fn op_replace(oap: &mut oparg_T, mut c: c_int) -> c_int {
                     oap.end.col -= 1;
                 }
             } else if !oap.inclusive {
-                dec(&raw mut oap.end);
+                dec(&mut oap.end);
             }
 
             while ltoreq((**curwin.as_ptr()).w_cursor, oap.end) {
@@ -1357,7 +1357,7 @@ unsafe fn op_replace(oap: &mut oparg_T, mut c: c_int) -> c_int {
                             }
                             coladvance_force(getviscol());
                             if (**curwin.as_ptr()).w_cursor.lnum == oap.end.lnum {
-                                getvpos(*curwin.as_ptr(), &raw mut oap.end, end_vcol);
+                                getvpos(*curwin.as_ptr(), &mut oap.end, end_vcol);
                             }
                         }
                         if gchar_cursor() != c_int::from(NUL) {
@@ -1384,7 +1384,7 @@ unsafe fn op_replace(oap: &mut oparg_T, mut c: c_int) -> c_int {
                         } else {
                             pbyte((**curwin.as_ptr()).w_cursor, c);
                         }
-                        if inc(&raw mut (**curwin.as_ptr()).w_cursor) == -1 {
+                        if inc(&mut (**curwin.as_ptr()).w_cursor) == -1 {
                             break;
                         }
                         virtcols -= 1;
@@ -1432,7 +1432,7 @@ pub unsafe fn op_tilde(oap: &mut oparg_T) {
             while pos.lnum <= oap.end.lnum {
                 block_prep(oap, &raw mut bd, pos.lnum, false);
                 pos.col = bd.textcol;
-                let one_change = swapchars(oap.op_type, &raw mut pos, bd.textlen) != 0;
+                let one_change = swapchars(oap.op_type, &mut pos, bd.textlen) != 0;
                 did_change |= one_change;
                 pos.lnum += 1;
             }
@@ -1448,21 +1448,21 @@ pub unsafe fn op_tilde(oap: &mut oparg_T) {
                     oap.end.col -= 1;
                 }
             } else if !oap.inclusive {
-                dec(&raw mut oap.end);
+                dec(&mut oap.end);
             }
 
             if pos.lnum == oap.end.lnum {
-                did_change =
-                    swapchars(oap.op_type, &raw mut pos, oap.end.col - pos.col + 1) != 0;
+                let len = oap.end.col - pos.col + 1;
+                did_change = swapchars(oap.op_type, &mut pos, len) != 0;
             } else {
                 loop {
                     let len = if pos.lnum == oap.end.lnum {
                         oap.end.col + 1
                     } else {
-                        ml_get_pos_len(&raw mut pos)
+                        ml_get_pos_len(&mut pos)
                     };
-                    did_change |= swapchars(oap.op_type, &raw mut pos, len) != 0;
-                    if ltoreq(oap.end, pos) || inc(&raw mut pos) == -1 {
+                    did_change |= swapchars(oap.op_type, &mut pos, len) != 0;
+                    if ltoreq(oap.end, pos) || inc(&mut pos) == -1 {
                         break;
                     }
                 }
@@ -1502,7 +1502,7 @@ pub unsafe fn op_tilde(oap: &mut oparg_T) {
     }
 }
 
-unsafe fn swapchars(op_type: c_int, pos: *mut pos_T, length: c_int) -> c_int {
+unsafe fn swapchars(op_type: c_int, pos: &mut pos_T, length: c_int) -> c_int {
     unsafe {
         let mut did_change: c_int = 0;
         let mut todo = length;
@@ -1522,7 +1522,7 @@ unsafe fn swapchars(op_type: c_int, pos: *mut pos_T, length: c_int) -> c_int {
     }
 }
 
-pub unsafe fn swapchar(op_type: c_int, pos: *mut pos_T) -> bool {
+pub unsafe fn swapchar(op_type: c_int, pos: &mut pos_T) -> bool {
     unsafe {
         let c = gchar_pos(pos);
 
@@ -1818,7 +1818,7 @@ pub unsafe fn op_change(oap: &mut oparg_T) -> c_int {
                             coladd: 0,
                         };
                         if bd.is_short != 0 {
-                            getvpos(*curwin.as_ptr(), &raw mut vpos, oap.start_vcol);
+                            getvpos(*curwin.as_ptr(), &mut vpos, oap.start_vcol);
                         } else {
                             vpos.coladd = 0;
                         }
@@ -1894,7 +1894,7 @@ pub unsafe fn adjust_cursor_eol() {
 
             getvcol(
                 *curwin.as_ptr(),
-                &raw mut (**curwin.as_ptr()).w_cursor,
+                &mut (**curwin.as_ptr()).w_cursor,
                 &raw mut scol,
                 ptr::null_mut(),
                 &raw mut ecol,
@@ -2315,8 +2315,8 @@ pub unsafe fn block_prep(oap: &mut oparg_T, bdp: *mut block_def, lnum: linenr_T,
 }
 
 pub unsafe fn getregionpos_prep(
-    p1: *mut pos_T,
-    p2: *mut pos_T,
+    p1: &mut pos_T,
+    p2: &mut pos_T,
     region_type: c_int,
     exclusive: bool,
     block_width: c_int,
@@ -2362,7 +2362,7 @@ pub unsafe fn getregionpos_prep(
 
         let l = utfc_ptr2len(ml_get_pos(p2));
         if l > 1 {
-            (*p2).col += l - 1;
+            p2.col += l - 1;
         }
     }
 }
@@ -2375,18 +2375,18 @@ pub unsafe fn getregionpos_line(
     region_type: c_int,
     oap: &mut oparg_T,
     allow_eol: bool,
-    ret_p1: *mut pos_T,
-    ret_p2: *mut pos_T,
+    ret_p1: &mut pos_T,
+    ret_p2: &mut pos_T,
 ) {
     unsafe {
         let line = ml_get(lnum);
         let line_len = ml_get_len(lnum);
 
         if region_type == kMTLineWise {
-            (*ret_p1).col = 1;
-            (*ret_p1).coladd = 0;
-            (*ret_p2).col = MAXCOL;
-            (*ret_p2).coladd = 0;
+            ret_p1.col = 1;
+            ret_p1.coladd = 0;
+            ret_p2.col = MAXCOL;
+            ret_p2.coladd = 0;
         } else {
             let mut bd = block_def::new();
 
@@ -2398,53 +2398,53 @@ pub unsafe fn getregionpos_line(
 
             if bd.is_oneChar != 0 {
                 if region_type == kMTBlockWise {
-                    (*ret_p1).col =
+                    ret_p1.col =
                         (mb_prevptr(line, bd.textstart).offset_from(line) as colnr_T) + 1;
-                    (*ret_p1).coladd = bd.start_char_vcols - (bd.start_vcol - oap.start_vcol);
+                    ret_p1.coladd = bd.start_char_vcols - (bd.start_vcol - oap.start_vcol);
                 } else {
-                    (*ret_p1).col = p1.col + 1;
-                    (*ret_p1).coladd = p1.coladd;
+                    ret_p1.col = p1.col + 1;
+                    ret_p1.coladd = p1.coladd;
                 }
             } else if region_type == kMTBlockWise && oap.start_vcol > bd.start_vcol {
-                (*ret_p1).col = MAXCOL;
-                (*ret_p1).coladd = oap.start_vcol - bd.start_vcol;
+                ret_p1.col = MAXCOL;
+                ret_p1.coladd = oap.start_vcol - bd.start_vcol;
                 bd.is_oneChar = 1;
             } else if bd.startspaces > 0 {
-                (*ret_p1).col = (mb_prevptr(line, bd.textstart).offset_from(line) as colnr_T) + 1;
-                (*ret_p1).coladd = bd.start_char_vcols - bd.startspaces;
+                ret_p1.col = (mb_prevptr(line, bd.textstart).offset_from(line) as colnr_T) + 1;
+                ret_p1.coladd = bd.start_char_vcols - bd.startspaces;
             } else {
-                (*ret_p1).col = bd.textcol + 1;
-                (*ret_p1).coladd = 0;
+                ret_p1.col = bd.textcol + 1;
+                ret_p1.coladd = 0;
             }
 
             if bd.is_oneChar != 0 {
-                (*ret_p2).col = (*ret_p1).col;
-                (*ret_p2).coladd = (*ret_p1).coladd + bd.startspaces + bd.endspaces;
+                ret_p2.col = ret_p1.col;
+                ret_p2.coladd = ret_p1.coladd + bd.startspaces + bd.endspaces;
             } else if bd.endspaces > 0 {
-                (*ret_p2).col = bd.textcol + bd.textlen + 1;
-                (*ret_p2).coladd = bd.endspaces;
+                ret_p2.col = bd.textcol + bd.textlen + 1;
+                ret_p2.coladd = bd.endspaces;
             } else {
-                (*ret_p2).col = bd.textcol + bd.textlen;
-                (*ret_p2).coladd = 0;
+                ret_p2.col = bd.textcol + bd.textlen;
+                ret_p2.coladd = 0;
             }
         }
 
-        if !allow_eol && (*ret_p1).col > line_len {
-            (*ret_p1).col = 0;
-            (*ret_p1).coladd = 0;
-        } else if (*ret_p1).col > line_len + 1 {
-            (*ret_p1).col = line_len + 1;
+        if !allow_eol && ret_p1.col > line_len {
+            ret_p1.col = 0;
+            ret_p1.coladd = 0;
+        } else if ret_p1.col > line_len + 1 {
+            ret_p1.col = line_len + 1;
         }
 
-        if !allow_eol && (*ret_p2).col > line_len {
-            (*ret_p2).col = if (*ret_p1).col == 0 { 0 } else { line_len };
-            (*ret_p2).coladd = 0;
-        } else if (*ret_p2).col > line_len + 1 {
-            (*ret_p2).col = line_len + 1;
+        if !allow_eol && ret_p2.col > line_len {
+            ret_p2.col = if ret_p1.col == 0 { 0 } else { line_len };
+            ret_p2.coladd = 0;
+        } else if ret_p2.col > line_len + 1 {
+            ret_p2.col = line_len + 1;
         }
 
-        (*ret_p1).lnum = lnum;
-        (*ret_p2).lnum = lnum;
+        ret_p1.lnum = lnum;
+        ret_p2.lnum = lnum;
     }
 }
 
@@ -2473,7 +2473,7 @@ pub unsafe fn charwise_block_prep(
             if g_st().virtual_op != 0 {
                 getvcol(
                     *curwin.as_ptr(),
-                    &raw mut start,
+                    &mut start,
                     &raw mut cs,
                     ptr::null_mut(),
                     &raw mut ce,
@@ -2492,7 +2492,7 @@ pub unsafe fn charwise_block_prep(
             if g_st().virtual_op != 0 {
                 getvcol(
                     *curwin.as_ptr(),
-                    &raw mut end,
+                    &mut end,
                     &raw mut cs,
                     ptr::null_mut(),
                     &raw mut ce,
@@ -2543,7 +2543,7 @@ pub unsafe fn op_addsub(oap: &mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
                 g_st().disable_fold_update -= 1;
                 return;
             }
-            change_cnt = isize::from(do_addsub(oap.op_type, &raw mut pos, 0, amount));
+            change_cnt = isize::from(do_addsub(oap.op_type, &mut pos, 0, amount));
             g_st().disable_fold_update -= 1;
             if change_cnt != 0 {
                 changed_lines(g_st().curbuf, pos.lnum, 0, pos.lnum + 1, 0, true);
@@ -2573,7 +2573,7 @@ pub unsafe fn op_addsub(oap: &mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
                     length = ml_get_len(pos.lnum);
                 } else {
                     if pos.lnum == oap.start.lnum && !oap.inclusive {
-                        dec(&raw mut oap.end);
+                        dec(&mut oap.end);
                     }
                     length = ml_get_len(pos.lnum);
                     pos.col = 0;
@@ -2587,7 +2587,7 @@ pub unsafe fn op_addsub(oap: &mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
                         length = oap.end.col - pos.col + 1;
                     }
                 }
-                let one_change = do_addsub(oap.op_type, &raw mut pos, length, amount);
+                let one_change = do_addsub(oap.op_type, &mut pos, length, amount);
                 if one_change {
                     if change_cnt == 0 {
                         startpos = (*g_st().curbuf).b_op_start;
@@ -2631,7 +2631,7 @@ pub unsafe fn op_addsub(oap: &mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
 
 pub unsafe fn do_addsub(
     op_type: c_int,
-    pos: *mut pos_T,
+    pos: &mut pos_T,
     mut length: c_int,
     Prenum1: linenr_T,
 ) -> bool {
@@ -2657,14 +2657,14 @@ pub unsafe fn do_addsub(
         let do_blank = !vim_strchr((*g_st().curbuf).b_p_nf, b'k' as c_int).is_null();
 
         if virtual_active(*curwin.as_ptr()) {
-            save_coladd = (*pos).coladd;
-            (*pos).coladd = 0;
+            save_coladd = pos.coladd;
+            pos.coladd = 0;
         }
 
         (**curwin.as_ptr()).w_cursor = *pos;
-        let mut ptr_line = ml_get((*pos).lnum);
-        let linelen = ml_get_len((*pos).lnum);
-        let mut col = (*pos).col;
+        let mut ptr_line = ml_get(pos.lnum);
+        let linelen = ml_get_len(pos.lnum);
+        let mut col = pos.col;
 
         if col + c_int::from(save_coladd != 0) >= linelen {
             if visual {
@@ -2724,7 +2724,7 @@ pub unsafe fn do_addsub(
                 col -= 1;
                 col -= utf_head_off(ptr_line, ptr_line.add(col as usize));
             } else {
-                col = (*pos).col;
+                col = pos.col;
 
                 while *ptr_line.add(col as usize) != NUL
                     && !ascii_isdigit(c_int::from(*ptr_line.add(col as usize) as u8))
@@ -2758,7 +2758,7 @@ pub unsafe fn do_addsub(
                 return false;
             }
 
-            if col > (*pos).col
+            if col > pos.col
                 && *ptr_line.add((col - 1) as usize) == b'-' as c_char
                 && utf_head_off(ptr_line, ptr_line.add((col - 1) as usize)) == 0
                 && !do_unsigned
@@ -3149,8 +3149,8 @@ pub unsafe fn cursor_pos_info(dict: *mut dict_T) {
                     oparg.op_type = OP_NOP;
                     getvcols(
                         *curwin.as_ptr(),
-                        &raw mut min_pos,
-                        &raw mut max_pos,
+                        &mut min_pos,
+                        &mut max_pos,
                         &raw mut oparg.start_vcol,
                         &raw mut oparg.end_vcol,
                         0,
@@ -3245,12 +3245,14 @@ pub unsafe fn cursor_pos_info(dict: *mut dict_T) {
             if dict.is_null() {
                 if l_VIsual_active {
                     if l_VIsual_mode == Ctrl_V && (**curwin.as_ptr()).w_curswant < MAXCOL {
+                        let mut min_col = min_pos.col;
+                        let mut max_col = max_pos.col;
                         getvcols(
                             *curwin.as_ptr(),
-                            &raw mut min_pos,
-                            &raw mut max_pos,
-                            &raw mut min_pos.col,
-                            &raw mut max_pos.col,
+                            &mut min_pos,
+                            &mut max_pos,
+                            &raw mut min_col,
+                            &raw mut max_col,
                             0,
                         );
                         let cols = i64::from(oparg.end_vcol + 1)
@@ -3497,7 +3499,7 @@ unsafe fn op_function(oap: &oparg_T) {
             (*g_st().curbuf).b_op_start = oap.start;
             (*g_st().curbuf).b_op_end = oap.end;
             if oap.motion_type == kMTCharWise && !oap.inclusive {
-                decl(&raw mut (*g_st().curbuf).b_op_end);
+                decl(&mut (*g_st().curbuf).b_op_end);
             }
 
             let mode_str = match oap.motion_type {
@@ -3557,11 +3559,11 @@ unsafe fn get_op_vcol(oap: &mut oparg_T, initial: bool) {
             return;
         }
 
-        mark_mb_adjustpos((**curwin.as_ptr()).w_buffer, &raw mut oap.end);
+        mark_mb_adjustpos((**curwin.as_ptr()).w_buffer, &mut oap.end);
 
         getvvcol(
             *curwin.as_ptr(),
-            &raw mut oap.start,
+            &mut oap.start,
             &raw mut oap.start_vcol,
             ptr::null_mut(),
             &raw mut oap.end_vcol,
@@ -3569,7 +3571,7 @@ unsafe fn get_op_vcol(oap: &mut oparg_T, initial: bool) {
         );
         getvvcol(
             *curwin.as_ptr(),
-            &raw mut oap.end,
+            &mut oap.end,
             &raw mut start,
             ptr::null_mut(),
             &raw mut end,
@@ -3592,7 +3594,7 @@ unsafe fn get_op_vcol(oap: &mut oparg_T, initial: bool) {
             while (**curwin.as_ptr()).w_cursor.lnum <= oap.end.lnum {
                 getvvcol(
                     *curwin.as_ptr(),
-                    &raw mut (**curwin.as_ptr()).w_cursor,
+                    &mut (**curwin.as_ptr()).w_cursor,
                     ptr::null_mut(),
                     ptr::null_mut(),
                     &raw mut end,
@@ -3764,7 +3766,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                 (*oap).start = (**curwin.as_ptr()).w_cursor;
             }
 
-            check_pos((**curwin.as_ptr()).w_buffer, &raw mut (*oap).end);
+            check_pos((**curwin.as_ptr()).w_buffer, &mut (*oap).end);
             (*oap).line_count = (*oap).end.lnum - (*oap).start.lnum + 1;
 
             g_st().virtual_op = TriState::from(virtual_active(*curwin.as_ptr()));
@@ -3780,7 +3782,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                         if g_st().Visual.mode != Ctrl_V {
                             getvvcol(
                                 *curwin.as_ptr(),
-                                &raw mut (*oap).end,
+                                &mut (*oap).end,
                                 ptr::null_mut(),
                                 ptr::null_mut(),
                                 &raw mut (*oap).end_vcol,
@@ -3791,7 +3793,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                             if g_st().Visual.mode != Ctrl_V {
                                 getvvcol(
                                     *curwin.as_ptr(),
-                                    &raw mut (*oap).start,
+                                    &mut (*oap).start,
                                     &raw mut (*oap).start_vcol,
                                     ptr::null_mut(),
                                     ptr::null_mut(),
@@ -3813,7 +3815,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                     (*oap).motion_type = kMTLineWise;
                 } else if g_st().Visual.mode == b'v' as c_int {
                     (*oap).motion_type = kMTCharWise;
-                    if *ml_get_pos(&raw const (*oap).end) == NUL
+                    if *ml_get_pos(&(*oap).end) == NUL
                         && (include_line_break || g_st().virtual_op == 0)
                     {
                         (*oap).inclusive = false;
@@ -3849,7 +3851,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
             }
 
             if (*oap).inclusive {
-                let l = utfc_ptr2len(ml_get_pos(&raw const (*oap).end));
+                let l = utfc_ptr2len(ml_get_pos(&(*oap).end));
                 if l > 1 {
                     (*oap).end.col += l - 1;
                 }
@@ -3859,7 +3861,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
             (*oap).empty = (*oap).motion_type != kMTLineWise
                 && ((!(*oap).inclusive && (*oap).motion_type != kMTBlockWise)
                     || ((*oap).op_type == OP_YANK
-                        && gchar_pos(&raw mut (*oap).end) == c_int::from(NUL)))
+                        && gchar_pos(&mut (*oap).end) == c_int::from(NUL)))
                 && equalpos((*oap).start, (*oap).end)
                 && !(g_st().virtual_op != 0 && (*oap).start.coladd != (*oap).end.coladd);
             let empty_region_error = (*oap).empty && !vim_strchr(opt_vars().p_cpo, kCpoEmptyregion).is_null();

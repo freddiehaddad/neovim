@@ -2065,8 +2065,8 @@ pub unsafe fn ml_get_buf_mut(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char {
 }
 
 /// Return pointer to position `pos`.
-pub unsafe fn ml_get_pos(pos: *const pos_T) -> *mut c_char {
-    unsafe { ml_get_buf(g_st().curbuf, (*pos).lnum).offset((*pos).col as isize) }
+pub unsafe fn ml_get_pos(pos: &pos_T) -> *mut c_char {
+    unsafe { ml_get_buf(g_st().curbuf, pos.lnum).offset(pos.col as isize) }
 }
 
 /// Return length (excluding NUL) of the given line.
@@ -2075,8 +2075,8 @@ pub unsafe fn ml_get_len(lnum: linenr_T) -> colnr_T {
 }
 
 /// Return length (excluding NUL) of the text after position `pos`.
-pub unsafe fn ml_get_pos_len(pos: *mut pos_T) -> colnr_T {
-    unsafe { ml_get_buf_len(g_st().curbuf, (*pos).lnum) - (*pos).col }
+pub unsafe fn ml_get_pos_len(pos: &mut pos_T) -> colnr_T {
+    unsafe { ml_get_buf_len(g_st().curbuf, pos.lnum) - pos.col }
 }
 
 /// Return length (excluding NUL) of the given line in `buf`.
@@ -2122,9 +2122,9 @@ pub unsafe fn ml_region_text(buf: *mut buf_T, start: pos_T, end: pos_T) -> Vec<u
 }
 
 /// Return codepoint at `pos`.
-pub unsafe fn gchar_pos(pos: *mut pos_T) -> c_int {
+pub unsafe fn gchar_pos(pos: &mut pos_T) -> c_int {
     unsafe {
-        if (*pos).col == MAXCOL || (*pos).col > ml_get_len((*pos).lnum) {
+        if pos.col == MAXCOL || pos.col > ml_get_len(pos.lnum) {
             return c_int::from(NUL);
         }
         utf_ptr2char(ml_get_pos(pos))
@@ -4240,20 +4240,20 @@ pub unsafe fn goto_byte(cnt: c_int) {
 }
 
 /// Increment the line pointer `lp` crossing line boundaries as necessary.
-pub unsafe fn inc(lp: *mut pos_T) -> c_int {
+pub unsafe fn inc(lp: &mut pos_T) -> c_int {
     unsafe {
-        if (*lp).col != MAXCOL {
+        if lp.col != MAXCOL {
             let p = ml_get_pos(lp);
             if *p != NUL {
                 let l = utfc_ptr2len(p);
-                (*lp).col += l;
+                lp.col += l;
                 return if *p.add(l as usize) != NUL { 0 } else { 2 };
             }
         }
-        if (*lp).lnum != (*g_st().curbuf).b_ml.ml_line_count {
-            (*lp).col = 0;
-            (*lp).lnum += 1;
-            (*lp).coladd = 0;
+        if lp.lnum != (*g_st().curbuf).b_ml.ml_line_count {
+            lp.col = 0;
+            lp.lnum += 1;
+            lp.coladd = 0;
             return 1;
         }
         -1
@@ -4261,10 +4261,10 @@ pub unsafe fn inc(lp: *mut pos_T) -> c_int {
 }
 
 /// Same as `inc()`, but skip NUL at the end of non-empty lines.
-pub unsafe fn incl(lp: *mut pos_T) -> c_int {
+pub unsafe fn incl(lp: &mut pos_T) -> c_int {
     unsafe {
         let mut r = inc(lp);
-        if r >= 1 && (*lp).col != 0 {
+        if r >= 1 && lp.col != 0 {
             r = inc(lp);
         }
         r
@@ -4272,27 +4272,27 @@ pub unsafe fn incl(lp: *mut pos_T) -> c_int {
 }
 
 /// Decrements position `lp` by one character (multibyte-aware), crossing line boundaries.
-pub unsafe fn dec(lp: *mut pos_T) -> c_int {
+pub unsafe fn dec(lp: &mut pos_T) -> c_int {
     unsafe {
-        (*lp).coladd = 0;
-        if (*lp).col == MAXCOL {
-            let p = ml_get((*lp).lnum);
-            (*lp).col = ml_get_len((*lp).lnum);
-            (*lp).col -= utf_head_off(p, p.offset((*lp).col as isize));
+        lp.coladd = 0;
+        if lp.col == MAXCOL {
+            let p = ml_get(lp.lnum);
+            lp.col = ml_get_len(lp.lnum);
+            lp.col -= utf_head_off(p, p.offset(lp.col as isize));
             return 0;
         }
 
-        if (*lp).col > 0 {
-            (*lp).col -= 1;
-            let p = ml_get((*lp).lnum);
-            (*lp).col -= utf_head_off(p, p.offset((*lp).col as isize));
+        if lp.col > 0 {
+            lp.col -= 1;
+            let p = ml_get(lp.lnum);
+            lp.col -= utf_head_off(p, p.offset(lp.col as isize));
             return 0;
         }
-        if (*lp).lnum > 1 {
-            (*lp).lnum -= 1;
-            let p = ml_get((*lp).lnum);
-            (*lp).col = ml_get_len((*lp).lnum);
-            (*lp).col -= utf_head_off(p, p.offset((*lp).col as isize));
+        if lp.lnum > 1 {
+            lp.lnum -= 1;
+            let p = ml_get(lp.lnum);
+            lp.col = ml_get_len(lp.lnum);
+            lp.col -= utf_head_off(p, p.offset(lp.col as isize));
             return 1;
         }
 
@@ -4301,10 +4301,10 @@ pub unsafe fn dec(lp: *mut pos_T) -> c_int {
 }
 
 /// Same as `dec()`, but skip NUL at the end of non-empty lines.
-pub unsafe fn decl(lp: *mut pos_T) -> c_int {
+pub unsafe fn decl(lp: &mut pos_T) -> c_int {
     unsafe {
         let mut r = dec(lp);
-        if r == 1 && (*lp).col != 0 {
+        if r == 1 && lp.col != 0 {
             r = dec(lp);
         }
         r

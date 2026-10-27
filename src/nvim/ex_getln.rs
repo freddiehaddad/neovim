@@ -482,12 +482,12 @@ unsafe fn init_incsearch_state(s: *mut incsearch_state_T) {
     }
 }
 
-unsafe fn set_search_match(t: *mut pos_T) {
+unsafe fn set_search_match(t: &mut pos_T) {
     unsafe {
-        (*t).lnum += g_st().Search.match_lines;
-        (*t).col = g_st().Search.match_endcol;
-        if (*t).lnum > (*g_st().curbuf).b_ml.ml_line_count {
-            (*t).lnum = (*g_st().curbuf).b_ml.ml_line_count;
+        t.lnum += g_st().Search.match_lines;
+        t.col = g_st().Search.match_endcol;
+        if t.lnum > (*g_st().curbuf).b_ml.ml_line_count {
+            t.lnum = (*g_st().curbuf).b_ml.ml_line_count;
             coladvance(*curwin.as_ptr(), MAXCOL);
         }
     }
@@ -498,7 +498,7 @@ unsafe fn set_search_match(t: *mut pos_T) {
 /// Returns true if pattern is valid.
 /// Sets `skiplen`, `patlen`, `Search.first_line`, and `Search.last_line` and `magic` if overruled.
 pub unsafe fn parse_pattern_and_range(
-    incsearch_start: *mut pos_T,
+    incsearch_start: &mut pos_T,
     search_delim: *mut c_int,
     skiplen: *mut c_int,
     patlen: *mut c_int,
@@ -684,7 +684,7 @@ unsafe fn do_incsearch_highlighting(
 
         g_st().emsg_off += 1;
         let retval = parse_pattern_and_range(
-            &raw mut (*is_state).search_start,
+            &mut (*is_state).search_start,
             search_delim,
             skiplen,
             patlen,
@@ -823,7 +823,7 @@ unsafe fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut inc
         let mut end_pos = (**curwin.as_ptr()).w_cursor;
         if found != 0 {
             (*s).match_start = (**curwin.as_ptr()).w_cursor;
-            set_search_match(&raw mut (**curwin.as_ptr()).w_cursor);
+            set_search_match(&mut (**curwin.as_ptr()).w_cursor);
             validate_cursor(*curwin.as_ptr());
             (*s).match_end = (**curwin.as_ptr()).w_cursor;
             (**curwin.as_ptr()).w_cursor = end_pos;
@@ -2017,7 +2017,7 @@ unsafe fn may_do_command_line_next_incsearch(
         if next_match {
             t = (*s).match_end;
             if lt((*s).match_start, (*s).match_end) {
-                decl(&raw mut t);
+                decl(&mut t);
             }
             search_flags += SEARCH_COL;
         } else {
@@ -2055,16 +2055,16 @@ unsafe fn may_do_command_line_next_incsearch(
             if !offset.line && (offset.end || off != 0) {
                 if offset.end {
                     (*s).search_start = match_end;
-                    decl(&raw mut (*s).search_start);
+                    decl(&mut (*s).search_start);
                 }
                 while off > 0 {
-                    if incl(&raw mut (*s).search_start) == -1 {
+                    if incl(&mut (*s).search_start) == -1 {
                         break;
                     }
                     off -= 1;
                 }
                 while off < 0 {
-                    if decl(&raw mut (*s).search_start) == -1 {
+                    if decl(&mut (*s).search_start) == -1 {
                         break;
                     }
                     off += 1;
@@ -2074,21 +2074,21 @@ unsafe fn may_do_command_line_next_incsearch(
             (*s).match_start = t;
             if !next_match && firstc != b'?' as c_int {
                 (*s).search_start = t;
-                decl(&raw mut (*s).search_start);
+                decl(&mut (*s).search_start);
             } else if next_match && firstc == b'?' as c_int {
                 (*s).search_start = t;
-                incl(&raw mut (*s).search_start);
+                incl(&mut (*s).search_start);
             }
             if lt(t, (*s).search_start) && next_match {
                 (*s).search_start = t;
                 if firstc == b'?' as c_int {
-                    incl(&raw mut (*s).search_start);
+                    incl(&mut (*s).search_start);
                 } else {
-                    decl(&raw mut (*s).search_start);
+                    decl(&mut (*s).search_start);
                 }
             }
 
-            set_search_match(&raw mut (*s).match_end);
+            set_search_match(&mut (*s).match_end);
             (**curwin.as_ptr()).w_cursor = (*s).match_start;
             changed_cline_bef_curs(*curwin.as_ptr());
             update_topline(*curwin.as_ptr());
@@ -3217,7 +3217,7 @@ unsafe fn cmdpreview_may_show(_s: *mut CommandLineState) -> bool {
         let mut err = error_init();
         let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
-        cmdpreview_type = execute_cmd(&raw mut ea, &raw mut cmod, true);
+        cmdpreview_type = execute_cmd(&mut ea, &raw mut cmod, true);
         try_leave(&raw const tstate, &mut err);
         if error_set(&err) {
             api_clear_error(&mut err);
@@ -5241,16 +5241,16 @@ pub unsafe fn is_in_cmdwin() -> bool {
 }
 
 /// Get script string.
-pub unsafe fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> Option<std::ffi::CString> {
+pub unsafe fn script_get(eap: &mut exarg_T, lenp: *mut usize) -> Option<std::ffi::CString> {
     unsafe {
-        let mut cmd = (*eap).arg;
+        let mut cmd = eap.arg;
 
-        if *cmd != b'<' as c_char || *cmd.add(1) != b'<' as c_char || (*eap).ea_getline.is_none() {
-            *lenp = std::ffi::CStr::from_ptr((*eap).arg).to_bytes().len();
-            return if (*eap).skip != 0 {
+        if *cmd != b'<' as c_char || *cmd.add(1) != b'<' as c_char || eap.ea_getline.is_none() {
+            *lenp = std::ffi::CStr::from_ptr(eap.arg).to_bytes().len();
+            return if eap.skip != 0 {
                 None
             } else {
-                Some(CStr::from_ptr((*eap).arg).to_owned())
+                Some(CStr::from_ptr(eap.arg).to_owned())
             };
         }
         cmd = cmd.add(2);
@@ -5260,7 +5260,7 @@ pub unsafe fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> Option<std::ffi
             return None;
         }
 
-        let mut buf: Vec<u8> = if (*eap).skip == 0 {
+        let mut buf: Vec<u8> = if eap.skip == 0 {
             Vec::with_capacity(0x400)
         } else {
             Vec::new()
@@ -5268,7 +5268,7 @@ pub unsafe fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> Option<std::ffi
 
         let mut li = tv_list_first(l);
         while !li.is_null() {
-            if (*eap).skip == 0 {
+            if eap.skip == 0 {
                 let s = tv_get_string(&raw const (*li).li_tv);
                 if !s.is_null() {
                     buf.extend_from_slice(CStr::from_ptr(s).to_bytes());
@@ -5279,7 +5279,7 @@ pub unsafe fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> Option<std::ffi
         }
         *lenp = buf.len();
         tv_list_free(l);
-        if (*eap).skip == 0 {
+        if eap.skip == 0 {
             Some(std::ffi::CString::new(buf).unwrap_or_default())
         } else {
             None

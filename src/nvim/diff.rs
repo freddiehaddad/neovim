@@ -873,7 +873,7 @@ unsafe fn diff_write(
         r
     }
 }
-unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T) {
+unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: &mut exarg_T) {
     unsafe {
         let take_tempname = || vim_tempname();
         'theend: {
@@ -893,7 +893,7 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
                     break 'theend;
                 }
             }
-            if (*eap).forceit != 0 {
+            if eap.forceit != 0 {
                 for idx_new in idx_orig..DB_COUNT {
                     let buf = (*g_st().curtab).tp_diffbuf[idx_new];
                     if buf_valid(buf) {

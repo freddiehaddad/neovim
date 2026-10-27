@@ -927,7 +927,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
             if g_st().Visual.active && b == g_st().curbuf && g_st().Visual.mode != Ctrl_V {
                 fix_pos_col(
                     b,
-                    &raw mut g_st().Visual.start,
+                    &mut g_st().Visual.start,
                     start_row as linenr_T,
                     start_col as colnr_T,
                     end_row as linenr_T,
@@ -1820,7 +1820,7 @@ unsafe fn fix_cursor(win: *mut win_T, lo: linenr_T, hi: linenr_T, extra: linenr_
 
 unsafe fn fix_pos_col(
     buf: *mut buf_T,
-    pos: *mut pos_T,
+    pos: &mut pos_T,
     start_row: linenr_T,
     start_col: colnr_T,
     end_row: linenr_T,
@@ -1830,45 +1830,45 @@ unsafe fn fix_pos_col(
     mode_col_adj: colnr_T,
 ) {
     unsafe {
-        if (*pos).lnum < start_row {
+        if pos.lnum < start_row {
             return;
         }
 
         let old_rows = end_row - start_row + 1;
         let lnum_shift = new_rows - old_rows;
 
-        if (*pos).lnum > end_row {
-            (*pos).lnum += lnum_shift;
+        if pos.lnum > end_row {
+            pos.lnum += lnum_shift;
             return;
         }
 
         let end_row_change_start = if new_rows == 1 { start_col } else { 0 };
         let end_row_change_end = end_row_change_start + new_cols_at_end_row;
 
-        if (*pos).lnum == end_row && (*pos).col + mode_col_adj > end_col {
-            (*pos).lnum += lnum_shift;
-            (*pos).col += end_row_change_end - end_col;
+        if pos.lnum == end_row && pos.col + mode_col_adj > end_col {
+            pos.lnum += lnum_shift;
+            pos.col += end_row_change_end - end_col;
             return;
         }
 
-        let old_coladd = (*pos).coladd;
-        (*pos).col += (*pos).coladd;
-        (*pos).coladd = 0;
+        let old_coladd = pos.coladd;
+        pos.col += pos.coladd;
+        pos.coladd = 0;
 
         let new_end_row = start_row + new_rows - 1;
 
-        if (*pos).lnum > new_end_row {
-            (*pos).lnum = new_end_row;
+        if pos.lnum > new_end_row {
+            pos.lnum = new_end_row;
             let len = ml_get_buf_len(buf, new_end_row);
-            if (*pos).col < len {
-                (*pos).col = len;
+            if pos.col < len {
+                pos.col = len;
             }
         }
 
-        if (*pos).lnum == new_end_row && (*pos).col > end_row_change_end && old_coladd == 0 {
-            (*pos).col = end_row_change_end;
-            if (*pos).col - mode_col_adj >= end_row_change_start {
-                (*pos).col -= mode_col_adj;
+        if pos.lnum == new_end_row && pos.col > end_row_change_end && old_coladd == 0 {
+            pos.col = end_row_change_end;
+            if pos.col - mode_col_adj >= end_row_change_start {
+                pos.col -= mode_col_adj;
             }
         }
     }

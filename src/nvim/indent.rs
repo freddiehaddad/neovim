@@ -349,7 +349,7 @@ pub unsafe fn get_sw_value(buf: *mut buf_T) -> c_int {
     unsafe { get_sw_value_col(buf, 0, false) }
 }
 
-unsafe fn get_sw_value_pos(buf: *mut buf_T, pos: *const pos_T, left: bool) -> c_int {
+unsafe fn get_sw_value_pos(buf: *mut buf_T, pos: &pos_T, left: bool) -> c_int {
     unsafe {
         let save_cursor = (**curwin.as_ptr()).w_cursor;
         (**curwin.as_ptr()).w_cursor = *pos;
@@ -364,7 +364,7 @@ pub unsafe fn get_sw_value_indent(buf: *mut buf_T, left: bool) -> c_int {
     unsafe {
         let mut pos = (**curwin.as_ptr()).w_cursor;
         pos.col = getwhitecols_curline() as colnr_T;
-        get_sw_value_pos(buf, &raw const pos, left)
+        get_sw_value_pos(buf, &pos, left)
     }
 }
 
@@ -740,13 +740,13 @@ pub unsafe fn get_number_indent(lnum: linenr_T) -> c_int {
             vim_regfree(regmatch.regprog);
         }
 
-        if pos.lnum == 0 || *ml_get_pos(&raw const pos) == NUL {
+        if pos.lnum == 0 || *ml_get_pos(&pos) == NUL {
             return -1;
         }
         let mut col: colnr_T = 0;
         getvcol(
             *curwin.as_ptr(),
-            &raw mut pos,
+            &mut pos,
             &raw mut col,
             ptr::null_mut(),
             ptr::null_mut(),
@@ -1140,7 +1140,7 @@ pub unsafe fn change_indent(type_: c_int, amount: c_int, round: c_int, call_chan
 
         let save_p_list = (**curwin.as_ptr()).w_onebuf_opt.wo_list;
         (**curwin.as_ptr()).w_onebuf_opt.wo_list = 0;
-        let vc = getvcol_nolist(&raw mut (**curwin.as_ptr()).w_cursor);
+        let vc = getvcol_nolist(&mut (**curwin.as_ptr()).w_cursor);
         let mut vcol: c_int = vc;
 
         let mut start_col: c_int = (**curwin.as_ptr()).w_cursor.col;

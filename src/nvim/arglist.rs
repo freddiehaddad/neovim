@@ -633,9 +633,9 @@ pub unsafe fn ex_argument(eap: &mut exarg_T) {
 }
 
 /// Edit file `argn` of the argument lists (`do_argfile`).
-pub unsafe fn do_argfile(eap: *mut exarg_T, argn: c_int) {
+pub unsafe fn do_argfile(eap: &mut exarg_T, argn: c_int) {
     unsafe {
-        let is_split_cmd = *(*eap).cmd == b's' as c_char;
+        let is_split_cmd = *eap.cmd == b's' as c_char;
         let old_arg_idx = (**curwin.as_ptr()).w_arg_idx;
         let count = argcount();
 
@@ -652,7 +652,7 @@ pub unsafe fn do_argfile(eap: *mut exarg_T, argn: c_int) {
 
         if !is_split_cmd
             && (*arglist().add(argn as usize)).ae_fnum != (*g_st().curbuf).b_fnum
-            && !check_can_set_curbuf_forceit((*eap).forceit)
+            && !check_can_set_curbuf_forceit(eap.forceit)
         {
             return;
         }
@@ -679,7 +679,7 @@ pub unsafe fn do_argfile(eap: *mut exarg_T, argn: c_int) {
                     g_st().curbuf,
                     CCGD_AW
                         | if other { 0 } else { CCGD_MULTWIN }
-                        | if (*eap).forceit != 0 { CCGD_FORCEIT } else { 0 }
+                        | if eap.forceit != 0 { CCGD_FORCEIT } else { 0 }
                         | CCGD_EXCMD,
                 )
             {
@@ -696,18 +696,18 @@ pub unsafe fn do_argfile(eap: *mut exarg_T, argn: c_int) {
             0,
             alist_name(arglist().add((**curwin.as_ptr()).w_arg_idx as usize)),
             ptr::null_mut(),
-            eap,
+            &raw mut *eap,
             ECMD_LAST,
             (if buf_hide((**curwin.as_ptr()).w_buffer) {
                 ECMD_HIDE
             } else {
                 0
-            }) + (if (*eap).forceit != 0 { ECMD_FORCEIT } else { 0 }),
+            }) + (if eap.forceit != 0 { ECMD_FORCEIT } else { 0 }),
             *curwin.as_ptr(),
         ) == FAIL
         {
             (**curwin.as_ptr()).w_arg_idx = old_arg_idx;
-        } else if (*eap).cmdidx != CMD_argdo {
+        } else if eap.cmdidx != CMD_argdo {
             setmark(b'\'' as c_int);
         }
     }

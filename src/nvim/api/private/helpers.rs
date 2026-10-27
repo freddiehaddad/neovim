@@ -1487,7 +1487,7 @@ pub unsafe fn set_mark(
         };
         let res = setmark_pos(
             *name.data as c_int,
-            &raw mut pos,
+            &mut pos,
             (*buf).b_fnum,
             ptr::null_mut(),
         ) != 0;

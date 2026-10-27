@@ -2073,13 +2073,13 @@ pub unsafe fn start_arrow(end_insert_pos: *mut pos_T, end_change: bool, move_key
     }
 }
 
-unsafe fn start_arrow_with_change(end_insert_pos: *mut pos_T, end_change: bool, move_key: c_int) {
+unsafe fn start_arrow_with_change(end_insert_pos: &mut pos_T, end_change: bool, move_key: c_int) {
     unsafe {
         if !end_change && g_st().Ins.moved != kInsJump {
             redo_append_char(Ctrl_G);
             redo_append_char(b'U' as c_int);
         }
-        start_arrow(end_insert_pos, end_change, move_key);
+        start_arrow(&raw mut *end_insert_pos, end_change, move_key);
     }
 }
 
@@ -2229,7 +2229,7 @@ unsafe fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
                     } else if (**curwin.as_ptr()).w_cursor.col < prev_col {
                         tpos = (**curwin.as_ptr()).w_cursor;
                         tpos.col += 1;
-                        if cc != NUL as c_int && gchar_pos(&raw mut tpos) == NUL as c_int {
+                        if cc != NUL as c_int && gchar_pos(&mut tpos) == NUL as c_int {
                             (**curwin.as_ptr()).w_cursor.col += 1;
                         }
                     }
@@ -2682,7 +2682,7 @@ unsafe fn replace_do_bs(limit_col: c_int) {
             if (l_state & VREPLACE_FLAG) != 0 {
                 getvcol(
                     *curwin.as_ptr(),
-                    &raw mut (**curwin.as_ptr()).w_cursor,
+                    &mut (**curwin.as_ptr()).w_cursor,
                     ptr::null_mut(),
                     &raw mut start_vcol,
                     ptr::null_mut(),
@@ -3422,7 +3422,7 @@ unsafe fn ins_left() {
         undisplay_dollar();
         let mut tpos = (**curwin.as_ptr()).w_cursor;
         if oneleft() == OK {
-            start_arrow_with_change(&raw mut tpos, end_change, K_LEFT);
+            start_arrow_with_change(&mut tpos, end_change, K_LEFT);
             if g_st().Ins.revins_scol != -1 && (**curwin.as_ptr()).w_cursor.col >= g_st().Ins.revins_scol {
                 g_st().Ins.revins_legal += 1;
             }
@@ -3488,7 +3488,7 @@ unsafe fn ins_s_left() {
         }
         undisplay_dollar();
         if (**curwin.as_ptr()).w_cursor.lnum > 1 || (**curwin.as_ptr()).w_cursor.col > 0 {
-            start_arrow_with_change(&raw mut (**curwin.as_ptr()).w_cursor, end_change, K_S_LEFT);
+            start_arrow_with_change(&mut (**curwin.as_ptr()).w_cursor, end_change, K_S_LEFT);
             bck_word(1, false, false);
             (**curwin.as_ptr()).w_set_curswant = true;
         } else {
@@ -3506,7 +3506,7 @@ unsafe fn ins_right() {
         }
         undisplay_dollar();
         if gchar_cursor() != NUL as c_int || virtual_active(*curwin.as_ptr()) {
-            start_arrow_with_change(&raw mut (**curwin.as_ptr()).w_cursor, end_change, K_RIGHT);
+            start_arrow_with_change(&mut (**curwin.as_ptr()).w_cursor, end_change, K_RIGHT);
             (**curwin.as_ptr()).w_set_curswant = true;
             if virtual_active(*curwin.as_ptr()) {
                 oneright();
@@ -3541,7 +3541,7 @@ unsafe fn ins_s_right() {
         undisplay_dollar();
         if (**curwin.as_ptr()).w_cursor.lnum < (*g_st().curbuf).b_ml.ml_line_count || gchar_cursor() != NUL as c_int
         {
-            start_arrow_with_change(&raw mut (**curwin.as_ptr()).w_cursor, end_change, K_S_RIGHT);
+            start_arrow_with_change(&mut (**curwin.as_ptr()).w_cursor, end_change, K_S_RIGHT);
             fwd_word(1, false, false);
             (**curwin.as_ptr()).w_set_curswant = true;
         } else {
@@ -3560,7 +3560,7 @@ unsafe fn ins_up(startcol: bool) {
         let mut tpos = (**curwin.as_ptr()).w_cursor;
         if cursor_up(1, true) == OK {
             if startcol {
-                coladvance(*curwin.as_ptr(), getvcol_nolist(&raw mut g_st().Ins.start));
+                coladvance(*curwin.as_ptr(), getvcol_nolist(&mut g_st().Ins.start));
             }
             if old_topline != (**curwin.as_ptr()).w_topline || old_topfill != (**curwin.as_ptr()).w_topfill {
                 redraw_later(*curwin.as_ptr(), UPD_VALID);
@@ -3608,7 +3608,7 @@ unsafe fn ins_down(startcol: bool) {
         let mut tpos = (**curwin.as_ptr()).w_cursor;
         if cursor_down(1, true) == OK {
             if startcol {
-                coladvance(*curwin.as_ptr(), getvcol_nolist(&raw mut g_st().Ins.start));
+                coladvance(*curwin.as_ptr(), getvcol_nolist(&mut g_st().Ins.start));
             }
             if old_topline != (**curwin.as_ptr()).w_topline || old_topfill != (**curwin.as_ptr()).w_topfill {
                 redraw_later(*curwin.as_ptr(), UPD_VALID);
@@ -3766,7 +3766,7 @@ unsafe fn ins_tab() -> bool {
 
             getvcol(
                 *curwin.as_ptr(),
-                &raw mut fpos,
+                &mut fpos,
                 &raw mut vcol,
                 ptr::null_mut(),
                 ptr::null_mut(),
@@ -3774,7 +3774,7 @@ unsafe fn ins_tab() -> bool {
             );
             getvcol(
                 *curwin.as_ptr(),
-                cursor,
+                &mut *cursor,
                 &raw mut want_vcol,
                 ptr::null_mut(),
                 ptr::null_mut(),
@@ -4052,7 +4052,7 @@ pub unsafe fn get_nolist_virtcol() -> colnr_T {
             return 0;
         }
         if (**curwin.as_ptr()).w_onebuf_opt.wo_list != 0 && vim_strchr(opt_vars().p_cpo, kCpoListwm).is_null() {
-            return getvcol_nolist(&raw mut (**curwin.as_ptr()).w_cursor);
+            return getvcol_nolist(&mut (**curwin.as_ptr()).w_cursor);
         }
         validate_virtcol(*curwin.as_ptr());
         (**curwin.as_ptr()).w_virtcol

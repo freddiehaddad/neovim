@@ -901,7 +901,7 @@ pub unsafe extern "C" fn nvim_cmd(
             }
 
             if has_key(mask, KEYSET_OPTIDX_cmd__range)
-                && !invalid_range((&raw const ea).cast_mut()).is_null()
+                && !invalid_range(&mut ea).is_null()
             {
                 api_err_invalid(err, c"range".as_ptr(), c"".as_ptr(), 0, true);
                 break 'end;
@@ -1179,7 +1179,8 @@ pub unsafe extern "C" fn nvim_cmd(
                 }
             }
 
-            p = replace_makeprg(&mut ea, ea.arg, &mut cmdline);
+            let ea_arg = ea.arg;
+            p = replace_makeprg(&mut ea, ea_arg, &mut cmdline);
             if p != ea.arg {
                 ea.arg = p;
                 ea.args.clear();
@@ -1262,25 +1263,25 @@ unsafe fn string_iswhite(str_val: NvimString) -> bool {
 unsafe fn build_cmdline_str(
     cmdline_buf: &mut Vec<c_char>,
     cmdlinep: *mut *mut c_char,
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     args: Array,
 ) {
     unsafe {
         cmdline_buf.clear();
         cmdline_buf.reserve(32);
 
-        if ((*eap).argt & EX_RANGE) != 0 {
-            if (*eap).addr_count == 1 {
-                let s = (*eap).line2.to_string();
+        if (eap.argt & EX_RANGE) != 0 {
+            if eap.addr_count == 1 {
+                let s = eap.line2.to_string();
                 cmdline_buf.extend(s.as_bytes().iter().map(|&b| b as c_char));
-            } else if (*eap).addr_count > 1 {
-                let s = format!("{},{}", (*eap).line1, (*eap).line2);
+            } else if eap.addr_count > 1 {
+                let s = format!("{},{}", eap.line1, eap.line2);
                 cmdline_buf.extend(s.as_bytes().iter().map(|&b| b as c_char));
             }
         }
 
         cmdline_buf.extend(
-            CStr::from_ptr((*eap).cmd)
+            CStr::from_ptr(eap.cmd)
                 .to_bytes()
                 .iter()
                 .map(|&b| b as c_char),

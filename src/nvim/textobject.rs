@@ -54,7 +54,7 @@ unsafe fn tobj_st() -> &'static mut TextobjectState {
 pub unsafe fn findsent(dir: Direction, mut count: c_int) -> c_int {
     unsafe {
         let mut c: c_int;
-        let func: unsafe fn(*mut pos_T) -> c_int = if dir == FORWARD { incl } else { decl };
+        let func: unsafe fn(&mut pos_T) -> c_int = if dir == FORWARD { incl } else { decl };
         let mut noskip = false;
 
         let mut pos = (**curwin.as_ptr()).w_cursor;
@@ -68,12 +68,12 @@ pub unsafe fn findsent(dir: Direction, mut count: c_int) -> c_int {
             let mut goto_found = false;
 
             // if on an empty line, skip up to a non-empty line
-            if gchar_pos(&raw mut pos) == c_int::from(NUL) {
+            if gchar_pos(&mut pos) == c_int::from(NUL) {
                 loop {
-                    if func(&raw mut pos) == -1 {
+                    if func(&mut pos) == -1 {
                         break;
                     }
-                    if gchar_pos(&raw mut pos) != c_int::from(NUL) {
+                    if gchar_pos(&mut pos) != c_int::from(NUL) {
                         break;
                     }
                 }
@@ -89,18 +89,18 @@ pub unsafe fn findsent(dir: Direction, mut count: c_int) -> c_int {
                 pos.lnum += 1;
                 goto_found = true;
             } else if dir == BACKWARD {
-                decl(&raw mut pos);
+                decl(&mut pos);
             }
 
             if !goto_found {
                 // go back to the previous non-white non-punctuation character
                 let mut found_dot = false;
                 while {
-                    c = gchar_pos(&raw mut pos);
+                    c = gchar_pos(&mut pos);
                     ascii_iswhite(c) || !vim_strchr(c".!?)]\"'".as_ptr(), c).is_null()
                 } {
                     let mut tpos = pos;
-                    if decl(&raw mut tpos) == -1 || (lineempty(tpos.lnum) && dir == FORWARD) {
+                    if decl(&mut tpos) == -1 || (lineempty(tpos.lnum) && dir == FORWARD) {
                         break;
                     }
                     if found_dot {
@@ -110,11 +110,11 @@ pub unsafe fn findsent(dir: Direction, mut count: c_int) -> c_int {
                         found_dot = true;
                     }
                     if !vim_strchr(c")]\"'".as_ptr(), c).is_null()
-                        && vim_strchr(c".!?)]\"'".as_ptr(), gchar_pos(&raw mut tpos)).is_null()
+                        && vim_strchr(c".!?)]\"'".as_ptr(), gchar_pos(&mut tpos)).is_null()
                     {
                         break;
                     }
-                    decl(&raw mut pos);
+                    decl(&mut pos);
                 }
 
                 // remember the line where the search started
@@ -122,7 +122,7 @@ pub unsafe fn findsent(dir: Direction, mut count: c_int) -> c_int {
                 let cpo_J = !vim_strchr(opt_vars().p_cpo, kCpoEndofsent).is_null();
 
                 loop {
-                    c = gchar_pos(&raw mut pos);
+                    c = gchar_pos(&mut pos);
                     if c == c_int::from(NUL)
                         || (pos.col == 0 && startPS(pos.lnum, c_int::from(NUL), false))
                     {
@@ -134,11 +134,11 @@ pub unsafe fn findsent(dir: Direction, mut count: c_int) -> c_int {
                     if c == b'.' as c_int || c == b'!' as c_int || c == b'?' as c_int {
                         let mut tpos = pos;
                         loop {
-                            c = inc(&raw mut tpos);
+                            c = inc(&mut tpos);
                             if c == -1 {
                                 break;
                             }
-                            c = gchar_pos(&raw mut tpos);
+                            c = gchar_pos(&mut tpos);
                             if vim_strchr(c")]\"'".as_ptr(), c).is_null() {
                                 break;
                             }
@@ -148,17 +148,17 @@ pub unsafe fn findsent(dir: Direction, mut count: c_int) -> c_int {
                             || c == c_int::from(NUL)
                             || (cpo_J
                                 && c == b' ' as c_int
-                                && inc(&raw mut tpos) >= 0
-                                && gchar_pos(&raw mut tpos) == b' ' as c_int)
+                                && inc(&mut tpos) >= 0
+                                && gchar_pos(&mut tpos) == b' ' as c_int)
                         {
                             pos = tpos;
-                            if gchar_pos(&raw mut pos) == c_int::from(NUL) {
-                                inc(&raw mut pos);
+                            if gchar_pos(&mut pos) == c_int::from(NUL) {
+                                inc(&mut pos);
                             }
                             break;
                         }
                     }
-                    if func(&raw mut pos) == -1 {
+                    if func(&mut pos) == -1 {
                         if count != 0 {
                             return FAIL;
                         }
@@ -170,17 +170,17 @@ pub unsafe fn findsent(dir: Direction, mut count: c_int) -> c_int {
 
             // skip white space
             while !noskip && {
-                c = gchar_pos(&raw mut pos);
+                c = gchar_pos(&mut pos);
                 c == b' ' as c_int || c == b'\t' as c_int
             } {
-                if incl(&raw mut pos) == -1 {
+                if incl(&mut pos) == -1 {
                     break;
                 }
             }
 
             if equalpos(prev_pos, pos) {
                 // didn't actually move, advance one character and try again
-                if func(&raw mut pos) == -1 {
+                if func(&mut pos) == -1 {
                     if count != 0 {
                         return FAIL;
                     }
@@ -570,7 +570,7 @@ unsafe fn back_in_line() {
     }
 }
 
-unsafe fn find_first_blank(posp: *mut pos_T) {
+unsafe fn find_first_blank(posp: &mut pos_T) {
     unsafe {
         while decl(posp) != -1 {
             let c = gchar_pos(posp);
@@ -592,10 +592,10 @@ unsafe fn findsent_forward(mut count: c_int, mut at_start_sent: bool) {
         } {
             findsent(FORWARD, 1);
             if at_start_sent {
-                find_first_blank(&raw mut (**curwin.as_ptr()).w_cursor);
+                find_first_blank(&mut (**curwin.as_ptr()).w_cursor);
             }
             if count == 0 || at_start_sent {
-                decl(&raw mut (**curwin.as_ptr()).w_cursor);
+                decl(&mut (**curwin.as_ptr()).w_cursor);
             }
             at_start_sent = !at_start_sent;
         }
@@ -636,7 +636,7 @@ pub unsafe fn current_word(
             } else {
                 fwd_word(1, bigword, true);
                 if (**curwin.as_ptr()).w_cursor.col == 0 {
-                    decl(&raw mut (**curwin.as_ptr()).w_cursor);
+                    decl(&mut (**curwin.as_ptr()).w_cursor);
                 } else {
                     oneleft();
                 }
@@ -659,7 +659,7 @@ pub unsafe fn current_word(
         while count > 0 {
             inclusive = true;
             if g_st().Visual.active && lt((**curwin.as_ptr()).w_cursor, g_st().Visual.start) {
-                if decl(&raw mut (**curwin.as_ptr()).w_cursor) == -1 {
+                if decl(&mut (**curwin.as_ptr()).w_cursor) == -1 {
                     return FAIL;
                 }
                 if include != (cls() != 0) {
@@ -670,10 +670,10 @@ pub unsafe fn current_word(
                     if bckend_word(1, bigword, true) == FAIL {
                         return FAIL;
                     }
-                    let _ = incl(&raw mut (**curwin.as_ptr()).w_cursor);
+                    let _ = incl(&mut (**curwin.as_ptr()).w_cursor);
                 }
             } else {
-                if incl(&raw mut (**curwin.as_ptr()).w_cursor) == -1 {
+                if incl(&mut (**curwin.as_ptr()).w_cursor) == -1 {
                     return FAIL;
                 }
                 if include != (cls() == 0) {
@@ -798,11 +798,11 @@ pub unsafe fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -
 
         let do_extend = g_st().Visual.active && !equalpos(start_pos, g_st().Visual.start);
         if !do_extend {
-            while ascii_iswhite(gchar_pos(&raw mut pos)) {
-                incl(&raw mut pos);
+            while ascii_iswhite(gchar_pos(&mut pos)) {
+                incl(&mut pos);
             }
             let start_blank = if equalpos(pos, (**curwin.as_ptr()).w_cursor) {
-                find_first_blank(&raw mut start_pos);
+                find_first_blank(&mut start_pos);
                 true
             } else {
                 findsent(BACKWARD, 1);
@@ -822,18 +822,18 @@ pub unsafe fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -
             if ncount > 0 {
                 findsent_forward(ncount, true);
             } else {
-                decl(&raw mut (**curwin.as_ptr()).w_cursor);
+                decl(&mut (**curwin.as_ptr()).w_cursor);
             }
 
             if include {
                 if start_blank {
-                    find_first_blank(&raw mut (**curwin.as_ptr()).w_cursor);
-                    let c = gchar_pos(&raw mut (**curwin.as_ptr()).w_cursor);
+                    find_first_blank(&mut (**curwin.as_ptr()).w_cursor);
+                    let c = gchar_pos(&mut (**curwin.as_ptr()).w_cursor);
                     if ascii_iswhite(c) {
-                        decl(&raw mut (**curwin.as_ptr()).w_cursor);
+                        decl(&mut (**curwin.as_ptr()).w_cursor);
                     }
                 } else if !ascii_iswhite(gchar_cursor()) {
-                    find_first_blank(&raw mut start_pos);
+                    find_first_blank(&mut start_pos);
                 }
             }
 
@@ -849,7 +849,7 @@ pub unsafe fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -
                     return OK;
                 }
             } else {
-                oap.inclusive = incl(&raw mut (**curwin.as_ptr()).w_cursor) == -1;
+                oap.inclusive = incl(&mut (**curwin.as_ptr()).w_cursor) == -1;
                 oap.start = start_pos;
                 oap.motion_type = kMTCharWise;
                 return OK;
@@ -860,14 +860,14 @@ pub unsafe fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -
         // extend:
         if lt(start_pos, g_st().Visual.start) {
             let mut at_start_sent = true;
-            decl(&raw mut pos);
+            decl(&mut pos);
             while lt(pos, (**curwin.as_ptr()).w_cursor) {
-                let c = gchar_pos(&raw mut pos);
+                let c = gchar_pos(&mut pos);
                 if !ascii_iswhite(c) {
                     at_start_sent = false;
                     break;
                 }
-                incl(&raw mut pos);
+                incl(&mut pos);
             }
             if !at_start_sent {
                 findsent(BACKWARD, 1);
@@ -886,7 +886,7 @@ pub unsafe fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -
                 old != 0
             } {
                 if at_start_sent {
-                    find_first_blank(&raw mut (**curwin.as_ptr()).w_cursor);
+                    find_first_blank(&mut (**curwin.as_ptr()).w_cursor);
                 }
                 let c = gchar_cursor();
                 if !at_start_sent || (!include && !ascii_iswhite(c)) {
@@ -895,17 +895,17 @@ pub unsafe fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -
                 at_start_sent = !at_start_sent;
             }
         } else {
-            incl(&raw mut pos);
+            incl(&mut pos);
             let mut at_start_sent = true;
             if !equalpos(pos, (**curwin.as_ptr()).w_cursor) {
                 at_start_sent = false;
                 while lt(pos, (**curwin.as_ptr()).w_cursor) {
-                    let c = gchar_pos(&raw mut pos);
+                    let c = gchar_pos(&mut pos);
                     if !ascii_iswhite(c) {
                         at_start_sent = true;
                         break;
                     }
-                    incl(&raw mut pos);
+                    incl(&mut pos);
                 }
                 if at_start_sent {
                     findsent(BACKWARD, 1);
@@ -1014,12 +1014,12 @@ pub unsafe fn current_block(
 
         if !include {
             loop {
-                incl(&raw mut start_pos);
+                incl(&mut start_pos);
                 sol = (**curwin.as_ptr()).w_cursor.col == 0;
-                decl(&raw mut (**curwin.as_ptr()).w_cursor);
+                decl(&mut (**curwin.as_ptr()).w_cursor);
                 while inindent(1) {
                     sol = true;
-                    if decl(&raw mut (**curwin.as_ptr()).w_cursor) != 0 {
+                    if decl(&mut (**curwin.as_ptr()).w_cursor) != 0 {
                         break;
                     }
                 }
@@ -1035,7 +1035,7 @@ pub unsafe fn current_block(
                     && g_st().Visual.active
                 {
                     (**curwin.as_ptr()).w_cursor = old_start;
-                    decl(&raw mut (**curwin.as_ptr()).w_cursor);
+                    decl(&mut (**curwin.as_ptr()).w_cursor);
                     pos = findmatch(ptr::null_mut(), what);
                     if pos.is_null() {
                         (**curwin.as_ptr()).w_cursor = old_pos;
@@ -1057,10 +1057,10 @@ pub unsafe fn current_block(
 
         if g_st().Visual.active {
             if *opt_vars().p_sel == b'e' as c_char {
-                inc(&raw mut (**curwin.as_ptr()).w_cursor);
+                inc(&mut (**curwin.as_ptr()).w_cursor);
             }
             if sol && gchar_cursor() != c_int::from(NUL) {
-                inc(&raw mut (**curwin.as_ptr()).w_cursor);
+                inc(&mut (**curwin.as_ptr()).w_cursor);
             }
             g_st().Visual.start = start_pos;
             g_st().Visual.mode = b'v' as c_int;
@@ -1071,7 +1071,7 @@ pub unsafe fn current_block(
             oap.motion_type = kMTCharWise;
             oap.inclusive = false;
             if sol {
-                incl(&raw mut (**curwin.as_ptr()).w_cursor);
+                incl(&mut (**curwin.as_ptr()).w_cursor);
             } else if ltoreq(start_pos, (**curwin.as_ptr()).w_cursor) {
                 oap.inclusive = true;
             } else {
@@ -1120,10 +1120,10 @@ unsafe fn in_html_tag(end_tag: bool) -> bool {
         }
 
         loop {
-            if inc(&raw mut pos) < 0 {
+            if inc(&mut pos) < 0 {
                 return false;
             }
-            let c = c_int::from(*ml_get_pos(&raw const pos) as u8);
+            let c = c_int::from(*ml_get_pos(&pos) as u8);
             if c == b'>' as c_int {
                 break;
             }
@@ -1148,7 +1148,7 @@ pub unsafe fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: boo
         let mut old_end = (**curwin.as_ptr()).w_cursor;
         let mut old_start = old_end;
         if !g_st().Visual.active || *opt_vars().p_sel == b'e' as c_char {
-            decl(&raw mut old_end);
+            decl(&mut old_end);
         }
 
         if !g_st().Visual.active || equalpos(g_st().Visual.start, (**curwin.as_ptr()).w_cursor) {
@@ -1583,7 +1583,7 @@ pub unsafe fn current_quote(
                     dec_cursor();
                     did_exclusive_adj = true;
                 } else if !vis_empty {
-                    dec(&raw mut g_st().Visual.start);
+                    dec(&mut g_st().Visual.start);
                     did_exclusive_adj = true;
                 }
                 vis_empty = equalpos(g_st().Visual.start, (**curwin.as_ptr()).w_cursor);

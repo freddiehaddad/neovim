@@ -2067,7 +2067,7 @@ pub unsafe fn au_event_restore(old_ei: Option<std::ffi::CString>) {
     }
 }
 
-pub unsafe fn do_autocmd(eap: *mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
+pub unsafe fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
     unsafe {
         let mut arg = arg_in;
         let mut envpat: Option<CString> = None;
@@ -2076,7 +2076,7 @@ pub unsafe fn do_autocmd(eap: *mut exarg_T, arg_in: *mut c_char, forceit: c_int)
         let mut nested = false;
         let mut once = false;
         let group = if *arg == b'|' as c_char {
-            (*eap).nextcmd = arg.add(1);
+            eap.nextcmd = arg.add(1);
             arg = c"".as_ptr().cast_mut();
             AUGROUP_ALL
         } else {
@@ -2091,7 +2091,7 @@ pub unsafe fn do_autocmd(eap: *mut exarg_T, arg_in: *mut c_char, forceit: c_int)
         pat = skipwhite(pat);
         'run: {
             if *pat == b'|' as c_char {
-                (*eap).nextcmd = pat.add(1);
+                eap.nextcmd = pat.add(1);
                 pat = c"".as_ptr().cast_mut();
                 cmd = c"".as_ptr().cast_mut();
             } else {

@@ -2528,15 +2528,15 @@ unsafe fn list_functions(regmatch: *mut regmatch_T) {
     }
 }
 
-unsafe fn list_functions_matching_pat(eap: *mut exarg_T) -> *mut c_char {
+unsafe fn list_functions_matching_pat(eap: &mut exarg_T) -> *mut c_char {
     unsafe {
-        let mut p = skip_regexp((*eap).arg.add(1), b'/' as c_int, 1);
-        if (*eap).skip == 0 {
+        let mut p = skip_regexp(eap.arg.add(1), b'/' as c_int, 1);
+        if eap.skip == 0 {
             let mut regmatch: regmatch_T = regmatch_T::new();
 
             let c = *p;
             *p = NUL;
-            regmatch.regprog = vim_regcomp((*eap).arg.add(1), RE_MAGIC);
+            regmatch.regprog = vim_regcomp(eap.arg.add(1), RE_MAGIC);
             *p = c;
             if !regmatch.regprog.is_null() {
                 regmatch.rm_ic = opt_vars().p_ic != 0;
@@ -2552,20 +2552,20 @@ unsafe fn list_functions_matching_pat(eap: *mut exarg_T) -> *mut c_char {
     }
 }
 
-unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char) -> *mut ufunc_T {
+unsafe fn list_one_function(eap: &mut exarg_T, name: *mut c_char, p: *mut c_char) -> *mut ufunc_T {
     unsafe {
         if ends_excmd(*skipwhite(p) as c_int) == 0 {
             semsg!(gettext(e_trailing_arg.as_ptr()), p);
             return ptr::null_mut();
         }
 
-        (*eap).nextcmd = check_nextcmd(p);
+        eap.nextcmd = check_nextcmd(p);
 
-        if !(*eap).nextcmd.is_null() {
+        if !eap.nextcmd.is_null() {
             *p = NUL;
         }
 
-        if (*eap).skip != 0 || g_st().got_int {
+        if eap.skip != 0 || g_st().got_int {
             return ptr::null_mut();
         }
 
@@ -2578,7 +2578,7 @@ unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char
         let prev_ht_changed = uf_st().func_hashtab_changed;
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
-        if list_func_head(fp, (*eap).forceit == 0, (*eap).forceit != 0) != OK {
+        if list_func_head(fp, eap.forceit == 0, eap.forceit != 0) != OK {
             return fp;
         }
 
@@ -2590,7 +2590,7 @@ unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char
             };
             let line = line_cstr.as_ptr();
             msg_putchar(b'\n' as c_int);
-            if (*eap).forceit == 0 {
+            if eap.forceit == 0 {
                 msg_outnum(j + 1);
                 if j < 9 {
                     msg_putchar(b' ' as c_int);
@@ -2610,7 +2610,7 @@ unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char
         if !g_st().got_int {
             msg_putchar(b'\n' as c_int);
             if !function_list_modified(prev_ht_changed) {
-                msg_puts(if (*eap).forceit != 0 {
+                msg_puts(if eap.forceit != 0 {
                     c"endfunction".as_ptr()
                 } else {
                     c"   endfunction".as_ptr()
@@ -2623,7 +2623,7 @@ unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char
 }
 
 unsafe fn get_function_body(
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     newlines: &mut Vec<Option<std::ffi::CString>>,
     line_arg_in: *mut c_char,
     show_block: bool,
@@ -2662,10 +2662,10 @@ unsafe fn get_function_body(
                     line_arg = p.add(1);
                 }
             } else {
-                line_to_free = if (*eap).ea_getline.is_none() {
+                line_to_free = if eap.ea_getline.is_none() {
                     getcmdline(b':' as c_int, 0, indent, do_concat)
                 } else {
-                    (*eap).ea_getline.call(b':' as c_int, indent, do_concat)
+                    eap.ea_getline.call(b':' as c_int, indent, do_concat)
                 };
                 theline = line_to_free
                     .as_ref()
@@ -2691,7 +2691,7 @@ unsafe fn get_function_body(
                 ui_ext_cmdline_block_append(indent as usize, theline);
             }
 
-            let mut sourcing_lnum_off = get_sourced_lnum((*eap).ea_getline);
+            let mut sourcing_lnum_off = get_sourced_lnum(eap.ea_getline);
             let cur_sourcing_lnum = sourcing_lnum();
             if cur_sourcing_lnum < sourcing_lnum_off {
                 sourcing_lnum_off -= cur_sourcing_lnum;
@@ -2758,10 +2758,10 @@ unsafe fn get_function_body(
                                     .iter()
                                     .map(|&b| b as c_char)
                                     .collect();
-                                (*eap).set_cmdline_vec((*eap).cmdlinep, new_buf);
-                                (*eap).nextcmd = (*(*eap).cmdlinep).add(off);
+                                eap.set_cmdline_vec(eap.cmdlinep, new_buf);
+                                eap.nextcmd = (*eap.cmdlinep).add(off);
                             } else {
-                                (*eap).nextcmd = nextcmd;
+                                eap.nextcmd = nextcmd;
                             }
                         }
                         break;

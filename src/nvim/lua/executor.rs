@@ -2744,7 +2744,7 @@ pub unsafe fn nlua_set_sctx(current: *mut sctx_T) {
     }
 }
 
-pub unsafe fn nlua_do_ucmd(cmd: *mut ucmd_T, eap: *mut exarg_T, preview: bool) -> c_int {
+pub unsafe fn nlua_do_ucmd(cmd: *mut ucmd_T, eap: &mut exarg_T, preview: bool) -> c_int {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
         nlua_pushref(
@@ -2757,20 +2757,20 @@ pub unsafe fn nlua_do_ucmd(cmd: *mut ucmd_T, eap: *mut exarg_T, preview: bool) -
         );
 
         lua_newtable(lstate);
-        nlua_push_eap(lstate, eap, &raw const g_st().cmdmod);
+        nlua_push_eap(lstate, &raw mut *eap, &raw const g_st().cmdmod);
 
         lua_pushstring(lstate, (*cmd).uc_name.as_ptr());
         lua_setfield(lstate, -2, c"name".as_ptr());
 
-        if (*eap).addr_count == 0 {
+        if eap.addr_count == 0 {
             lua_pushinteger(lstate, (*cmd).uc_def as lua_Integer);
             lua_setfield(lstate, -2, c"count".as_ptr());
         }
 
         if ((*cmd).uc_argt & EX_NOSPC) != 0 {
             lua_createtable(lstate, 1, 0);
-            if ((*cmd).uc_argt & EX_NEEDARG) != 0 || *(*eap).arg != NUL {
-                lua_pushstring(lstate, (*eap).arg);
+            if ((*cmd).uc_argt & EX_NEEDARG) != 0 || *eap.arg != NUL {
+                lua_pushstring(lstate, eap.arg);
                 lua_rawseti(lstate, -2, 1);
             }
             lua_setfield(lstate, -2, c"fargs".as_ptr());
