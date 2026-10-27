@@ -68,15 +68,35 @@ const ENABLE_VIRTUAL_TERMINAL_PROCESSING: DWORD = 0x0004;
 const UV_TTY_SUPPORTED: c_int = 0;
 
 #[cfg(windows)]
-static mut ORIG_TITLE: [c_char; 256] = [0; 256];
+struct WinConsoleState {
+    ORIG_TITLE: [c_char; 256],
+    H_WND: HWND,
+    H_ORIG_ICON_SMALL: HICON,
+    H_ORIG_ICON: HICON,
+    CONSOLE_INHERITED: bool,
+}
+
 #[cfg(windows)]
-static mut H_WND: HWND = std::ptr::null_mut();
+impl WinConsoleState {
+    const fn new() -> Self {
+        Self {
+            ORIG_TITLE: [0; 256],
+            H_WND: std::ptr::null_mut(),
+            H_ORIG_ICON_SMALL: std::ptr::null_mut(),
+            H_ORIG_ICON: std::ptr::null_mut(),
+            CONSOLE_INHERITED: false,
+        }
+    }
+}
+
 #[cfg(windows)]
-static mut H_ORIG_ICON_SMALL: HICON = std::ptr::null_mut();
+static WINCON_STATE: crate::globals::GlobalState<WinConsoleState> = crate::globals::GlobalState::new(WinConsoleState::new());
+
 #[cfg(windows)]
-static mut H_ORIG_ICON: HICON = std::ptr::null_mut();
-#[cfg(windows)]
-static mut CONSOLE_INHERITED: bool = false;
+#[inline]
+unsafe fn wincon_st() -> &'static mut WinConsoleState {
+    unsafe { &mut *WINCON_STATE.as_ptr() }
+}
 
 #[cfg(windows)]
 #[repr(C)]
@@ -195,7 +215,7 @@ pub unsafe fn os_open_conin_fd() -> c_int {
 #[cfg(windows)]
 pub unsafe fn os_clear_hwnd() {
     unsafe {
-        H_WND = std::ptr::null_mut();
+        wincon_st().H_WND = std::ptr::null_mut();
     }
 }
 
@@ -246,16 +266,16 @@ pub unsafe fn os_swap_to_hidden_console() {
         AllocConsole();
         ShowWindow(GetConsoleWindow(), SW_HIDE);
         os_reattach_console_stdio();
-        CONSOLE_INHERITED = false;
+        wincon_st().CONSOLE_INHERITED = false;
     }
 }
 
 #[cfg(windows)]
 pub unsafe fn os_attach_parent_console() {
     unsafe {
-        CONSOLE_INHERITED =
+        wincon_st().CONSOLE_INHERITED =
             !GetConsoleWindow().is_null() || AttachConsole(ATTACH_PARENT_PROCESS) != 0;
-        if !CONSOLE_INHERITED {
+        if !wincon_st().CONSOLE_INHERITED {
             logmsg!(
                 LOGLVL_INF,
                 std::ptr::null(),
@@ -275,7 +295,7 @@ pub unsafe fn os_attach_parent_console() {
 #[cfg(windows)]
 pub unsafe fn os_detach_ui_console(stdio_ui: bool) {
     unsafe {
-        if stdio_ui || (CONSOLE_INHERITED && ui_active() == 0) {
+        if stdio_ui || (wincon_st().CONSOLE_INHERITED && ui_active() == 0) {
             os_swap_to_hidden_console();
         }
     }
@@ -284,14 +304,14 @@ pub unsafe fn os_detach_ui_console(stdio_ui: bool) {
 #[cfg(windows)]
 pub unsafe fn os_icon_reset() {
     unsafe {
-        if H_WND.is_null() {
+        if wincon_st().H_WND.is_null() {
             return;
         }
-        if !H_ORIG_ICON_SMALL.is_null() {
-            SendMessageA(H_WND, WM_SETICON, ICON_SMALL, H_ORIG_ICON_SMALL as LPARAM);
+        if !wincon_st().H_ORIG_ICON_SMALL.is_null() {
+            SendMessageA(wincon_st().H_WND, WM_SETICON, ICON_SMALL, wincon_st().H_ORIG_ICON_SMALL as LPARAM);
         }
-        if !H_ORIG_ICON.is_null() {
-            SendMessageA(H_WND, WM_SETICON, ICON_BIG, H_ORIG_ICON as LPARAM);
+        if !wincon_st().H_ORIG_ICON.is_null() {
+            SendMessageA(wincon_st().H_WND, WM_SETICON, ICON_BIG, wincon_st().H_ORIG_ICON as LPARAM);
         }
     }
 }
@@ -299,8 +319,8 @@ pub unsafe fn os_icon_reset() {
 #[cfg(windows)]
 pub unsafe fn os_icon_init() {
     unsafe {
-        H_WND = GetConsoleWindow();
-        if H_WND.is_null() {
+        wincon_st().H_WND = GetConsoleWindow();
+        if wincon_st().H_WND.is_null() {
             return;
         }
 
@@ -331,10 +351,10 @@ pub unsafe fn os_icon_init() {
                     64,
                     LR_LOADFROMFILE | LR_LOADMAP3DCOLORS,
                 );
-                H_ORIG_ICON_SMALL =
-                    SendMessageA(H_WND, WM_SETICON, ICON_SMALL, h_vim_icon as LPARAM) as HICON;
-                H_ORIG_ICON =
-                    SendMessageA(H_WND, WM_SETICON, ICON_BIG, h_vim_icon as LPARAM) as HICON;
+                wincon_st().H_ORIG_ICON_SMALL =
+                    SendMessageA(wincon_st().H_WND, WM_SETICON, ICON_SMALL, h_vim_icon as LPARAM) as HICON;
+                wincon_st().H_ORIG_ICON =
+                    SendMessageA(wincon_st().H_WND, WM_SETICON, ICON_BIG, h_vim_icon as LPARAM) as HICON;
             }
         }
     }
@@ -343,7 +363,7 @@ pub unsafe fn os_icon_init() {
 #[cfg(windows)]
 pub unsafe fn os_title_save() {
     unsafe {
-        let ptr = std::ptr::addr_of_mut!(ORIG_TITLE).cast::<c_char>();
+        let ptr = std::ptr::addr_of_mut!(wincon_st().ORIG_TITLE).cast::<c_char>();
         GetConsoleTitleA(ptr, 256);
     }
 }
@@ -351,7 +371,7 @@ pub unsafe fn os_title_save() {
 #[cfg(windows)]
 pub unsafe fn os_title_reset() {
     unsafe {
-        let ptr = std::ptr::addr_of!(ORIG_TITLE).cast::<c_char>();
+        let ptr = std::ptr::addr_of!(wincon_st().ORIG_TITLE).cast::<c_char>();
         SetConsoleTitleA(ptr);
     }
 }

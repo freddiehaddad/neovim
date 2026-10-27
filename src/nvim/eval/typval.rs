@@ -653,7 +653,31 @@ pub static mut tv_in_free_unref_items: bool = false;
 static TV_EMPTY_STRING_BYTE: c_char = 0;
 pub const tv_empty_string: *const c_char = &raw const TV_EMPTY_STRING_BYTE;
 
-static mut TV_EQUAL_RECURSE_LIMIT: c_int = 0;
+struct TypvalModuleState {
+    TV_EQUAL_RECURSE_LIMIT: c_int,
+    dict_numbuf: [c_char; NUMBUFLEN],
+    mybuf_chk: [c_char; NUMBUFLEN],
+    mybuf: [c_char; NUMBUFLEN],
+}
+
+impl TypvalModuleState {
+    const fn new() -> Self {
+        Self {
+            TV_EQUAL_RECURSE_LIMIT: 0,
+            dict_numbuf: [0; NUMBUFLEN],
+            mybuf_chk: [0; NUMBUFLEN],
+            mybuf: [0; NUMBUFLEN],
+        }
+    }
+}
+
+static TV_STATE: crate::globals::GlobalState<TypvalModuleState> =
+    crate::globals::GlobalState::new(TypvalModuleState::new());
+
+#[inline]
+unsafe fn tv_st() -> &'static mut TypvalModuleState {
+    unsafe { &mut *TV_STATE.as_ptr() }
+}
 
 static E_VARIABLE_NESTED_TOO_DEEP_FOR_UNLOCK: &CStr =
     c"E743: Variable nested too deep for (un)lock";
@@ -3023,8 +3047,8 @@ pub unsafe fn tv_dict_get_cstring(
     key: *const c_char,
 ) -> Option<std::ffi::CString> {
     unsafe {
-        static mut NUMBUF: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
-        let s = tv_dict_get_string_buf(d, key, (&raw mut NUMBUF).cast::<c_char>());
+        let mut numbuf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
+        let s = tv_dict_get_string_buf(d, key, numbuf.as_mut_ptr());
         if s.is_null() {
             None
         } else {
@@ -3035,10 +3059,7 @@ pub unsafe fn tv_dict_get_cstring(
 
 /// Get a string item from a dictionary.
 pub unsafe fn tv_dict_get_string(d: *const dict_T, key: *const c_char) -> *mut c_char {
-    unsafe {
-        static mut NUMBUF: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
-        tv_dict_get_string_buf(d, key, (&raw mut NUMBUF).cast::<c_char>()).cast_mut()
-    }
+    unsafe { tv_dict_get_string_buf(d, key, tv_st().dict_numbuf.as_mut_ptr()).cast_mut() }
 }
 
 /// Get a string item from a dictionary.
@@ -4624,10 +4645,10 @@ pub unsafe fn tv_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool
 
         let cur_cnt = RECURSIVE_CNT.load(std::sync::atomic::Ordering::Relaxed);
         if cur_cnt == 0 {
-            TV_EQUAL_RECURSE_LIMIT = 1000;
+            tv_st().TV_EQUAL_RECURSE_LIMIT = 1000;
         }
-        if cur_cnt >= TV_EQUAL_RECURSE_LIMIT {
-            TV_EQUAL_RECURSE_LIMIT -= 1;
+        if cur_cnt >= tv_st().TV_EQUAL_RECURSE_LIMIT {
+            tv_st().TV_EQUAL_RECURSE_LIMIT -= 1;
             return true;
         }
 
@@ -5249,18 +5270,12 @@ pub unsafe fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *c
 
 /// Get the string value of a "stringish" Vimscript object.
 pub unsafe fn tv_get_string_chk(tv: *const typval_T) -> *const c_char {
-    unsafe {
-        static mut MYBUF: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
-        tv_get_string_buf_chk(tv, (&raw mut MYBUF).cast::<c_char>())
-    }
+    unsafe { tv_get_string_buf_chk(tv, tv_st().mybuf_chk.as_mut_ptr()) }
 }
 
 /// Get the string value of a "stringish" Vimscript object.
 pub unsafe fn tv_get_string(tv: *const typval_T) -> *const c_char {
-    unsafe {
-        static mut MYBUF: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
-        tv_get_string_buf(tv, (&raw mut MYBUF).cast::<c_char>())
-    }
+    unsafe { tv_get_string_buf(tv, tv_st().mybuf.as_mut_ptr()) }
 }
 
 /// Get the string value of a "stringish" Vimscript object.

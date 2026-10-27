@@ -1202,9 +1202,17 @@ pub unsafe fn find_file_in_path_option(
     search_ctx: &mut Option<ff_search_ctx_T>,
 ) -> Option<std::ffi::CString> {
     unsafe {
-        static mut dir: *mut c_char = ptr::null_mut();
-        static mut did_findfile_init: bool = false;
-        static mut file_to_findlen: usize = 0;
+        struct FindFilePathOptState {
+            dir: *mut c_char,
+            did_findfile_init: bool,
+            file_to_findlen: usize,
+        }
+        static FF_OPT_STATE: GlobalState<FindFilePathOptState> = GlobalState::new(FindFilePathOptState {
+            dir: ptr::null_mut(),
+            did_findfile_init: false,
+            file_to_findlen: 0,
+        });
+        let ff_opt = &mut *FF_OPT_STATE.as_ptr();
         let mut file_name: Option<std::ffi::CString> = None;
         let name_buff = (&raw mut NameBuff).cast::<c_char>();
 
@@ -1219,7 +1227,7 @@ pub unsafe fn find_file_in_path_option(
 
             let save_char = *ptr.add(len);
             *ptr.add(len) = NUL;
-            file_to_findlen = expand_env_esc(
+            ff_opt.file_to_findlen = expand_env_esc(
                 ptr,
                 name_buff,
                 MAXPATHL as c_int,
@@ -1230,13 +1238,13 @@ pub unsafe fn find_file_in_path_option(
             *ptr.add(len) = save_char;
 
             let mut ftf_bytes =
-                std::slice::from_raw_parts(name_buff.cast::<u8>(), file_to_findlen).to_vec();
+                std::slice::from_raw_parts(name_buff.cast::<u8>(), ff_opt.file_to_findlen).to_vec();
             if (options & FNAME_UNESC) != 0 {
                 let mut i = 0;
                 while i + 1 < ftf_bytes.len() {
                     if ftf_bytes[i] == b'\\' && ftf_bytes[i + 1] == b' ' {
                         ftf_bytes.remove(i);
-                        file_to_findlen -= 1;
+                        ff_opt.file_to_findlen -= 1;
                     }
                     i += 1;
                 }
@@ -1262,7 +1270,7 @@ pub unsafe fn find_file_in_path_option(
                     return Some(
                         std::ffi::CString::new(std::slice::from_raw_parts(
                             ftf.cast::<u8>(),
-                            file_to_findlen,
+                            ff_opt.file_to_findlen,
                         ))
                         .unwrap_or_default(),
                     );
@@ -1276,7 +1284,7 @@ pub unsafe fn find_file_in_path_option(
 
                 let mut run = 1;
                 while run <= 2 {
-                    let mut l = file_to_findlen;
+                    let mut l = ff_opt.file_to_findlen;
                     if run == 1
                         && rel_to_curdir
                         && (options & FNAME_REL) != 0
@@ -1327,31 +1335,31 @@ pub unsafe fn find_file_in_path_option(
         } else {
             if first == c_int::from(true) {
                 vim_findfile_free_visited(search_ctx.as_mut());
-                dir = path_option;
-                did_findfile_init = false;
+                ff_opt.dir = path_option;
+                ff_opt.did_findfile_init = false;
             }
 
             loop {
-                if did_findfile_init {
+                if ff_opt.did_findfile_init {
                     file_name = vim_findfile(search_ctx.as_mut());
                     if file_name.is_some() {
                         break;
                     }
-                    did_findfile_init = false;
+                    ff_opt.did_findfile_init = false;
                 } else {
-                    if dir.is_null() || *dir == NUL {
+                    if ff_opt.dir.is_null() || *ff_opt.dir == NUL {
                         *search_ctx = None;
                         break;
                     }
 
                     let mut buf = [0 as c_char; MAXPATHL];
-                    copy_option_part(&raw mut dir, buf.as_mut_ptr(), MAXPATHL, c" ,".as_ptr());
+                    copy_option_part(&raw mut ff_opt.dir, buf.as_mut_ptr(), MAXPATHL, c" ,".as_ptr());
 
                     let r_ptr = vim_findfile_stopdir(buf.as_mut_ptr());
                     *search_ctx = vim_findfile_init(
                         buf.as_mut_ptr(),
                         ftf,
-                        file_to_findlen,
+                        ff_opt.file_to_findlen,
                         r_ptr,
                         100,
                         c_int::from(false),
@@ -1361,7 +1369,7 @@ pub unsafe fn find_file_in_path_option(
                         rel_fname,
                     );
                     if search_ctx.is_some() {
-                        did_findfile_init = true;
+                        ff_opt.did_findfile_init = true;
                     }
                 }
             }
@@ -1668,7 +1676,7 @@ pub unsafe fn do_autocmd_dirchanged(
     pre: bool,
 ) {
     unsafe {
-        static mut recursive: bool = false;
+        static RECURSIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
         let event = if pre {
             EVENT_DIRCHANGEDPRE
@@ -1676,11 +1684,11 @@ pub unsafe fn do_autocmd_dirchanged(
             EVENT_DIRCHANGED
         };
 
-        if recursive || !has_event(event) {
+        if RECURSIVE.load(std::sync::atomic::Ordering::Relaxed) || !has_event(event) {
             return;
         }
 
-        recursive = true;
+        RECURSIVE.store(true, std::sync::atomic::Ordering::Relaxed);
 
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let dict = get_v_event(&raw mut save_v_event);
@@ -1721,7 +1729,7 @@ pub unsafe fn do_autocmd_dirchanged(
 
         restore_v_event(dict, &raw mut save_v_event);
 
-        recursive = false;
+        RECURSIVE.store(false, std::sync::atomic::Ordering::Relaxed);
     }
 }
 

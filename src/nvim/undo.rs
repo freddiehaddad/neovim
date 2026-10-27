@@ -247,10 +247,30 @@ struct bufinfo_T {
     bi_fsize: off_T,
 }
 
-static mut u_newcount: c_int = 0;
-static mut u_oldcount: c_int = 0;
-static mut undo_undoes: bool = false;
-static mut lastmark: c_int = 0;
+struct UndoModuleState {
+    u_newcount: c_int,
+    u_oldcount: c_int,
+    undo_undoes: bool,
+    lastmark: c_int,
+}
+
+impl UndoModuleState {
+    const fn new() -> Self {
+        Self {
+            u_newcount: 0,
+            u_oldcount: 0,
+            undo_undoes: false,
+            lastmark: 0,
+        }
+    }
+}
+
+static UNDO_STATE: GlobalState<UndoModuleState> = GlobalState::new(UndoModuleState::new());
+
+#[inline]
+unsafe fn undo_st() -> &'static mut UndoModuleState {
+    unsafe { &mut *UNDO_STATE.as_ptr() }
+}
 
 /// Save the current line for both the `"u"` and `"U"` command.
 pub unsafe fn u_save_cursor() -> c_int {
@@ -555,7 +575,7 @@ pub unsafe fn u_savecommon(
             uhp_mut(buf, newhead).uh_flags |= UH_RELOAD;
         }
         (*buf).b_u_synced = false;
-        undo_undoes = false;
+        undo_st().undo_undoes = false;
 
         OK
     }
@@ -1205,8 +1225,8 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
                     break 'write_error;
                 }
 
-                lastmark += 1;
-                let mark = lastmark;
+                undo_st().lastmark += 1;
+                let mark = undo_st().lastmark;
                 let mut uhp = (*buf).b_u_oldhead;
                 while let Some(uh) = uhp {
                     if uhp_ref(buf, uh).uh_walk != mark {
@@ -1672,9 +1692,9 @@ pub unsafe fn u_undo(mut count: c_int) {
         }
 
         if vim_strchr(p_cpo, kCpoUndo).is_null() {
-            undo_undoes = true;
+            undo_st().undo_undoes = true;
         } else {
-            undo_undoes = !undo_undoes;
+            undo_st().undo_undoes = !undo_st().undo_undoes;
         }
         u_doit(count, false, true);
     }
@@ -1684,7 +1704,7 @@ pub unsafe fn u_undo(mut count: c_int) {
 pub unsafe fn u_redo(count: c_int) {
     unsafe {
         if vim_strchr(p_cpo, kCpoUndo).is_null() {
-            undo_undoes = false;
+            undo_st().undo_undoes = false;
         }
 
         u_doit(count, false, true);
@@ -1698,7 +1718,7 @@ pub unsafe fn u_undo_and_forget(mut count: c_int, do_buf_event: bool) -> bool {
             u_sync(true);
             count = 1;
         }
-        undo_undoes = true;
+        undo_st().undo_undoes = true;
         u_doit(count, true, do_buf_event);
 
         let Some(curhead) = (*curbuf).b_u_curhead else {
@@ -1717,10 +1737,10 @@ unsafe fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
         }
         atom_did_global_op();
 
-        u_newcount = 0;
-        u_oldcount = 0;
+        undo_st().u_newcount = 0;
+        undo_st().u_oldcount = 0;
         if ((*curbuf).b_ml.ml_flags & ML_EMPTY) != 0 {
-            u_oldcount = -1;
+            undo_st().u_oldcount = -1;
         }
 
         msg_ext_set_kind(c"undo".as_ptr());
@@ -1732,7 +1752,7 @@ unsafe fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
         } {
             change_warning(curbuf, 0);
 
-            if undo_undoes {
+            if undo_st().undo_undoes {
                 if (*curbuf).b_u_curhead.is_none() {
                     (*curbuf).b_u_curhead = (*curbuf).b_u_newhead;
                 } else if get_undolevel(curbuf) > 0 {
@@ -1774,7 +1794,7 @@ unsafe fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
                 (*curbuf).b_u_curhead = prev;
             }
         }
-        u_undo_end(undo_undoes, false, quiet);
+        u_undo_end(undo_st().undo_undoes, false, quiet);
     }
 }
 
@@ -1791,10 +1811,10 @@ pub unsafe fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
             u_sync(true);
         }
 
-        u_newcount = 0;
-        u_oldcount = 0;
+        undo_st().u_newcount = 0;
+        undo_st().u_oldcount = 0;
         if ((*curbuf).b_ml.ml_flags & ML_EMPTY) != 0 {
-            u_oldcount = -1;
+            undo_st().u_oldcount = -1;
         }
 
         let mut target: c_int;
@@ -1854,15 +1874,15 @@ pub unsafe fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
         }
         let closest_start = closest;
         let mut closest_seq = (*curbuf).b_u_seq_cur;
-        let mut mark = lastmark;
+        let mut mark = undo_st().lastmark;
         let mut nomark: c_int = 0;
 
         if target != 0 {
             for round in 1..=2 {
-                lastmark += 1;
-                mark = lastmark;
-                lastmark += 1;
-                nomark = lastmark;
+                undo_st().lastmark += 1;
+                mark = undo_st().lastmark;
+                undo_st().lastmark += 1;
+                nomark = undo_st().lastmark;
 
                 uhp = (*curbuf).b_u_curhead.or((*curbuf).b_u_newhead);
 
@@ -2221,8 +2241,8 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
                 (*curbuf).b_op_end.lnum = top + newsize;
             }
 
-            u_newcount += newsize;
-            u_oldcount += oldsize;
+            undo_st().u_newcount += newsize;
+            undo_st().u_oldcount += oldsize;
             (*uep).ue_array = newarray;
             (*uep).ue_bot = top + newsize + 1;
         }
@@ -2348,21 +2368,21 @@ unsafe fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
         }
 
         if ((*curbuf).b_ml.ml_flags & ML_EMPTY) != 0 {
-            u_newcount -= 1;
+            undo_st().u_newcount -= 1;
         }
 
-        u_oldcount -= u_newcount;
-        let msgstr = if u_oldcount == -1 {
+        undo_st().u_oldcount -= undo_st().u_newcount;
+        let msgstr = if undo_st().u_oldcount == -1 {
             c"more line".as_ptr()
-        } else if u_oldcount < 0 {
+        } else if undo_st().u_oldcount < 0 {
             c"more lines".as_ptr()
-        } else if u_oldcount == 1 {
+        } else if undo_st().u_oldcount == 1 {
             c"line less".as_ptr()
-        } else if u_oldcount > 1 {
+        } else if undo_st().u_oldcount > 1 {
             c"fewer lines".as_ptr()
         } else {
-            u_oldcount = u_newcount;
-            if u_newcount == 1 {
+            undo_st().u_oldcount = undo_st().u_newcount;
+            if undo_st().u_newcount == 1 {
                 c"change".as_ptr()
             } else {
                 c"changes".as_ptr()
@@ -2407,10 +2427,10 @@ unsafe fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
         smsg_keep!(
             0,
             gettext(c"%lld %s; %s #%lld  %s".as_ptr()),
-            if u_oldcount < 0 {
-                -(u_oldcount as i64)
+            if undo_st().u_oldcount < 0 {
+                -(undo_st().u_oldcount as i64)
             } else {
-                u_oldcount as i64
+                undo_st().u_oldcount as i64
             },
             gettext(msgstr),
             if did_undo {
@@ -2481,10 +2501,10 @@ pub unsafe fn ex_undolist(_eap: *mut exarg_T) {
     unsafe {
         let mut changes: c_int = 1;
 
-        lastmark += 1;
-        let mark = lastmark;
-        lastmark += 1;
-        let nomark = lastmark;
+        undo_st().lastmark += 1;
+        let mark = undo_st().lastmark;
+        undo_st().lastmark += 1;
+        let nomark = undo_st().lastmark;
         let mut lines: Vec<std::ffi::CString> = Vec::new();
 
         let iobuf_ptr = (&raw mut IObuff).cast::<c_char>();

@@ -94,11 +94,30 @@ const E_DIGRAPH_ARGUMENT_MUST_BE_ONE_CHARACTER_STR: &CStr =
 const E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS: &CStr =
     c"E1216: digraph_setlist() argument must be a list of lists with two items";
 
-static mut USER_DIGRAPHS: Vec<digr_T> = Vec::new();
+struct DigraphModuleState {
+    USER_DIGRAPHS: Vec<digr_T>,
+    BACKSPACED: c_int,
+    LASTCHAR: c_int,
+    DIGRAPH_FOR_CHAR_BUF: [c_char; 3],
+}
 
-static mut BACKSPACED: c_int = 0;
-static mut LASTCHAR: c_int = 0;
-static mut DIGRAPH_FOR_CHAR_BUF: [c_char; 3] = [0; 3];
+impl DigraphModuleState {
+    const fn new() -> Self {
+        Self {
+            USER_DIGRAPHS: Vec::new(),
+            BACKSPACED: 0,
+            LASTCHAR: 0,
+            DIGRAPH_FOR_CHAR_BUF: [0; 3],
+        }
+    }
+}
+
+static DIGR_STATE: GlobalState<DigraphModuleState> = GlobalState::new(DigraphModuleState::new());
+
+#[inline]
+unsafe fn digr_st() -> &'static mut DigraphModuleState {
+    unsafe { &mut *DIGR_STATE.as_ptr() }
+}
 
 const fn dg(c1: u8, c2: u8, res: result_T) -> digr_T {
     digr_T {
@@ -1597,18 +1616,18 @@ const HEADER_TABLE: [DgHeaderEntry; 27] = [
 pub unsafe fn do_digraph(mut c: c_int) -> c_int {
     unsafe {
         if c == -1 {
-            BACKSPACED = -1;
+            digr_st().BACKSPACED = -1;
         } else if p_dg != 0 {
-            if BACKSPACED >= 0 {
-                c = digraph_get(BACKSPACED, c, false);
+            if digr_st().BACKSPACED >= 0 {
+                c = digraph_get(digr_st().BACKSPACED, c, false);
             }
-            BACKSPACED = -1;
+            digr_st().BACKSPACED = -1;
 
-            if (c == K_BS || c == Ctrl_H) && LASTCHAR >= 0 {
-                BACKSPACED = LASTCHAR;
+            if (c == K_BS || c == Ctrl_H) && digr_st().LASTCHAR >= 0 {
+                digr_st().BACKSPACED = digr_st().LASTCHAR;
             }
         }
-        LASTCHAR = c;
+        digr_st().LASTCHAR = c;
         c
     }
 }
@@ -1616,13 +1635,13 @@ pub unsafe fn do_digraph(mut c: c_int) -> c_int {
 /// Find a digraph for `val` (`get_digraph_for_char`).
 pub unsafe fn get_digraph_for_char(val: c_int) -> *mut c_char {
     unsafe {
-        let user_ptr = &raw const USER_DIGRAPHS;
+        let user_ptr = &raw const digr_st().USER_DIGRAPHS;
         for dp in (*user_ptr).iter().chain(DIGRAPHDEFAULT.iter()) {
             if dp.result == val {
-                DIGRAPH_FOR_CHAR_BUF[0] = dp.char1 as c_char;
-                DIGRAPH_FOR_CHAR_BUF[1] = dp.char2 as c_char;
-                DIGRAPH_FOR_CHAR_BUF[2] = NUL;
-                return &raw mut DIGRAPH_FOR_CHAR_BUF[0];
+                digr_st().DIGRAPH_FOR_CHAR_BUF[0] = dp.char1 as c_char;
+                digr_st().DIGRAPH_FOR_CHAR_BUF[1] = dp.char2 as c_char;
+                digr_st().DIGRAPH_FOR_CHAR_BUF[2] = NUL;
+                return &raw mut digr_st().DIGRAPH_FOR_CHAR_BUF[0];
             }
         }
         ptr::null_mut()
@@ -1672,8 +1691,7 @@ unsafe fn getexactdigraph(char1: c_int, char2: c_int, meta_char: bool) -> c_int 
         return char2;
     }
 
-    let user_ptr = &raw const USER_DIGRAPHS;
-    let user_slice = unsafe { (*user_ptr).as_slice() };
+    let user_slice = unsafe { digr_st().USER_DIGRAPHS.as_slice() };
     for dp in user_slice.iter().chain(DIGRAPHDEFAULT.iter()) {
         if c_int::from(dp.char1) == char1 && c_int::from(dp.char2) == char2 {
             if dp.result != 0 {
@@ -1707,7 +1725,7 @@ pub unsafe fn digraph_get(char1: c_int, char2: c_int, meta_char: bool) -> c_int 
 /// Add a digraph to the digraph table (`registerdigraph`).
 unsafe fn registerdigraph(char1: c_int, char2: c_int, n: c_int) {
     unsafe {
-        let user_ptr = &raw mut USER_DIGRAPHS;
+        let user_ptr = &raw mut digr_st().USER_DIGRAPHS;
         let user_vec = &mut *user_ptr;
         for dp in user_vec.iter_mut() {
             if c_int::from(dp.char1) == char1 && c_int::from(dp.char2) == char2 {
@@ -1815,7 +1833,7 @@ pub unsafe fn listdigraphs(use_headers: bool) {
             fast_breakcheck();
         }
 
-        let user_ptr = &raw const USER_DIGRAPHS;
+        let user_ptr = &raw const digr_st().USER_DIGRAPHS;
         for dp in (*user_ptr).as_slice() {
             if got_int {
                 break;
@@ -1849,7 +1867,7 @@ unsafe fn digraph_getlist_appendpair(dp: *const digr_T, l: *mut list_T) {
 
 pub unsafe fn digraph_getlist_common(list_all: bool, rettv: *mut typval_T) {
     unsafe {
-        let user_ptr = &raw const USER_DIGRAPHS;
+        let user_ptr = &raw const digr_st().USER_DIGRAPHS;
         let user_slice = (*user_ptr).as_slice();
         let cap = (DIGRAPHDEFAULT.len() + user_slice.len()) as isize;
         tv_list_alloc_ret(rettv, cap);

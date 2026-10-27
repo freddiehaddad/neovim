@@ -127,8 +127,26 @@ pub(super) struct backpos_T {
     bp_pos: regsave_T,
 }
 
-static mut bl_minval: i64 = 0;
-static mut bl_maxval: i64 = 0;
+struct RegexpBtState {
+    bl_minval: i64,
+    bl_maxval: i64,
+}
+
+impl RegexpBtState {
+    const fn new() -> Self {
+        Self {
+            bl_minval: 0,
+            bl_maxval: 0,
+        }
+    }
+}
+
+static BT_STATE: GlobalState<RegexpBtState> = GlobalState::new(RegexpBtState::new());
+
+#[inline]
+unsafe fn bt_st() -> &'static mut RegexpBtState {
+    unsafe { &mut *BT_STATE.as_ptr() }
+}
 
 #[inline]
 fn WITH_NL(op: c_int) -> bool {
@@ -3298,8 +3316,8 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                         }
                         BRACE_LIMITS => {
                             if OP(next) == BRACE_SIMPLE {
-                                bl_minval = OPERAND_MIN(scan);
-                                bl_maxval = OPERAND_MAX(scan);
+                                bt_st().bl_minval = OPERAND_MIN(scan);
+                                bt_st().bl_maxval = OPERAND_MAX(scan);
                             } else if OP(next) >= BRACE_COMPLEX && OP(next) < BRACE_COMPLEX + 10 {
                                 let no = (OP(next) - BRACE_COMPLEX) as usize;
                                 *(&raw mut re_st().brace_min).cast::<i64>().add(no) = OPERAND_MIN(scan);
@@ -3367,8 +3385,8 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                                 rst.minval = if op == STAR { 0 } else { 1 };
                                 rst.maxval = i64::from(MAX_LIMIT);
                             } else {
-                                rst.minval = bl_minval;
-                                rst.maxval = bl_maxval;
+                                rst.minval = bt_st().bl_minval;
+                                rst.maxval = bt_st().bl_maxval;
                             }
 
                             rst.count = i64::from(regrepeat(OPERAND(scan), rst.maxval));

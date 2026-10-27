@@ -67,9 +67,7 @@ const LC_MESSAGES: c_int = 6;
 #[cfg(not(any(windows, target_os = "linux")))]
 const VIM_LC_MESSAGES: c_int = LC_MESSAGES;
 
-static mut LOCALES: Vec<CString> = Vec::new();
-#[cfg(not(windows))]
-static mut DID_INIT_LOCALES: bool = false;
+
 
 unsafe extern "C" {
     pub(crate) fn setlocale(category: c_int, locale: *const c_char) -> *mut c_char;
@@ -89,11 +87,39 @@ struct MoCatalog {
     entries: Box<[MoEntry]>,
 }
 
-static mut LOCALE_DIR: [u8; MAXPATHL] = [0; MAXPATHL];
-static mut LOCALE_DIR_LEN: usize = 0;
-static mut CATALOGS: Vec<MoCatalog> = Vec::new();
-static mut ACTIVE_CATALOG: Option<usize> = None;
-static mut CATALOG_VALID: bool = false;
+struct LangModuleState {
+    LOCALES: Vec<CString>,
+    #[cfg(not(windows))]
+    DID_INIT_LOCALES: bool,
+    LOCALE_DIR: [u8; MAXPATHL],
+    LOCALE_DIR_LEN: usize,
+    CATALOGS: Vec<MoCatalog>,
+    ACTIVE_CATALOG: Option<usize>,
+    CATALOG_VALID: bool,
+}
+
+impl LangModuleState {
+    const fn new() -> Self {
+        Self {
+            LOCALES: Vec::new(),
+            #[cfg(not(windows))]
+            DID_INIT_LOCALES: false,
+            LOCALE_DIR: [0; MAXPATHL],
+            LOCALE_DIR_LEN: 0,
+            CATALOGS: Vec::new(),
+            ACTIVE_CATALOG: None,
+            CATALOG_VALID: false,
+        }
+    }
+}
+
+static LANG_STATE: crate::globals::GlobalState<LangModuleState> =
+    crate::globals::GlobalState::new(LangModuleState::new());
+
+#[inline]
+unsafe fn lang_st() -> &'static mut LangModuleState {
+    unsafe { &mut *LANG_STATE.as_ptr() }
+}
 
 fn eval_plural_expr(expr: &[u8], n: u64) -> usize {
     struct Parser<'a> {
@@ -467,23 +493,23 @@ unsafe fn current_message_locale() -> Option<String> {
 
 unsafe fn ensure_catalog_loaded() -> Option<&'static MoCatalog> {
     unsafe {
-        let catalogs_ptr = &raw mut CATALOGS;
+        let catalogs_ptr = &raw mut lang_st().CATALOGS;
         let catalogs = &mut *catalogs_ptr;
-        if !CATALOG_VALID {
-            CATALOG_VALID = true;
-            ACTIVE_CATALOG = None;
-            if LOCALE_DIR_LEN == 0 {
+        if !lang_st().CATALOG_VALID {
+            lang_st().CATALOG_VALID = true;
+            lang_st().ACTIVE_CATALOG = None;
+            if lang_st().LOCALE_DIR_LEN == 0 {
                 return None;
             }
             let dir_slice =
-                std::slice::from_raw_parts((&raw const LOCALE_DIR).cast::<u8>(), LOCALE_DIR_LEN);
+                std::slice::from_raw_parts((&raw const lang_st().LOCALE_DIR).cast::<u8>(), lang_st().LOCALE_DIR_LEN);
             let dir_str = std::str::from_utf8(dir_slice).ok()?;
             let base_dir = Path::new(dir_str);
             let locale = current_message_locale()?;
             for cand in locale_candidates(&locale) {
                 let mo_path = base_dir.join(&cand).join("LC_MESSAGES").join("nvim.mo");
                 if let Some(idx) = catalogs.iter().position(|c| c.path == mo_path) {
-                    ACTIVE_CATALOG = Some(idx);
+                    lang_st().ACTIVE_CATALOG = Some(idx);
                     break;
                 }
                 if let Ok(bytes) = std::fs::read(&mo_path)
@@ -491,12 +517,12 @@ unsafe fn ensure_catalog_loaded() -> Option<&'static MoCatalog> {
                 {
                     let idx = catalogs.len();
                     catalogs.push(cat);
-                    ACTIVE_CATALOG = Some(idx);
+                    lang_st().ACTIVE_CATALOG = Some(idx);
                     break;
                 }
             }
         }
-        ACTIVE_CATALOG.and_then(|idx| catalogs.get(idx))
+        lang_st().ACTIVE_CATALOG.and_then(|idx| catalogs.get(idx))
     }
 }
 
@@ -658,9 +684,9 @@ pub unsafe fn init_locale() {
         if HAVE_LIBINTL {
             let bytes = CStr::from_ptr(localepath.as_ptr()).to_bytes();
             let len = bytes.len().min(MAXPATHL);
-            LOCALE_DIR[..len].copy_from_slice(&bytes[..len]);
-            LOCALE_DIR_LEN = len;
-            CATALOG_VALID = false;
+            lang_st().LOCALE_DIR[..len].copy_from_slice(&bytes[..len]);
+            lang_st().LOCALE_DIR_LEN = len;
+            lang_st().CATALOG_VALID = false;
         }
 
         if has_time_fd() {
@@ -736,7 +762,7 @@ pub unsafe fn ex_language(eap: *mut exarg_T) {
                     name,
                 );
             } else {
-                CATALOG_VALID = false;
+                lang_st().CATALOG_VALID = false;
                 let _ = os_setenv(c"LC_ALL".as_ptr(), c"".as_ptr(), 1);
 
                 if what != LC_TIME && what != LC_COLLATE {
@@ -783,17 +809,17 @@ unsafe fn find_locales() -> Vec<CString> {
 unsafe fn init_locales() {
     #[cfg(not(windows))]
     unsafe {
-        if DID_INIT_LOCALES {
+        if lang_st().DID_INIT_LOCALES {
             return;
         }
-        DID_INIT_LOCALES = true;
-        LOCALES = find_locales();
+        lang_st().DID_INIT_LOCALES = true;
+        lang_st().LOCALES = find_locales();
     }
 }
 
 pub unsafe fn free_locales() {
     unsafe {
-        LOCALES = Vec::new();
+        lang_st().LOCALES = Vec::new();
     }
 }
 
@@ -815,7 +841,7 @@ pub unsafe fn get_locales(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     }
     unsafe {
         init_locales();
-        let locales_ptr = &raw const LOCALES;
+        let locales_ptr = &raw const lang_st().LOCALES;
         let locales = &*locales_ptr;
         locales
             .get(idx as usize)

@@ -366,12 +366,30 @@ const E_CONFLICTS_WITH_VALUE_OF_FILLCHARS: &CStr = c"E835: Conflicts with value 
 
 const SHM_ALL: &CStr = c"rmlwaWtToOsAIcCqFSunfxi";
 
-static mut set_opt_callback_orig_option: *mut c_char = ptr::null_mut();
-static mut set_opt_callback_func: CompleteListItemGetter = None;
-static mut expand_eiw: bool = false;
+struct OptionStrState {
+    set_opt_callback_orig_option: *mut c_char,
+    set_opt_callback_func: CompleteListItemGetter,
+    expand_eiw: bool,
+    OPT_KEYSET_SHARED: [u64; std::mem::size_of::<OptKeyDict_mopt>().div_ceil(8)],
+}
 
-static mut OPT_KEYSET_SHARED: [u64; std::mem::size_of::<OptKeyDict_mopt>().div_ceil(8)] =
-    [0; std::mem::size_of::<OptKeyDict_mopt>().div_ceil(8)];
+impl OptionStrState {
+    const fn new() -> Self {
+        Self {
+            set_opt_callback_orig_option: ptr::null_mut(),
+            set_opt_callback_func: None,
+            expand_eiw: false,
+            OPT_KEYSET_SHARED: [0; std::mem::size_of::<OptKeyDict_mopt>().div_ceil(8)],
+        }
+    }
+}
+
+static OPTSTR_STATE: GlobalState<OptionStrState> = GlobalState::new(OptionStrState::new());
+
+#[inline]
+unsafe fn optstr_st() -> &'static mut OptionStrState {
+    unsafe { &mut *OPTSTR_STATE.as_ptr() }
+}
 
 static BRIOPT_TABLE: [KeySetLink; 6] = [
     KeySetLink {
@@ -1377,13 +1395,13 @@ unsafe fn expand_set_opt_string(
 unsafe fn expand_set_opt_callback(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
-            if !set_opt_callback_orig_option.is_null() {
-                return set_opt_callback_orig_option;
+            if !optstr_st().set_opt_callback_orig_option.is_null() {
+                return optstr_st().set_opt_callback_orig_option;
             } else {
                 return c"".as_ptr().cast_mut();
             }
         }
-        if let Some(f) = set_opt_callback_func {
+        if let Some(f) = optstr_st().set_opt_callback_func {
             f(xp, idx - 1)
         } else {
             ptr::null_mut()
@@ -1398,12 +1416,12 @@ unsafe fn expand_set_opt_generic(
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
     unsafe {
-        set_opt_callback_orig_option = if (*args).oe_include_orig_val {
+        optstr_st().set_opt_callback_orig_option = if (*args).oe_include_orig_val {
             (*args).oe_opt_value
         } else {
             ptr::null_mut()
         };
-        set_opt_callback_func = func;
+        optstr_st().set_opt_callback_func = func;
 
         ExpandGeneric(
             c"".as_ptr(),
@@ -1414,8 +1432,8 @@ unsafe fn expand_set_opt_generic(
             false,
         );
 
-        set_opt_callback_orig_option = ptr::null_mut();
-        set_opt_callback_func = None;
+        optstr_st().set_opt_callback_orig_option = ptr::null_mut();
+        optstr_st().set_opt_callback_func = None;
         OK
     }
 }
@@ -2296,7 +2314,7 @@ unsafe fn get_eventignore_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
             return c"all".as_ptr().cast_mut();
         }
 
-        let name = get_event_name_no_group(xp, idx - 1 + c_int::from(subtract), expand_eiw);
+        let name = get_event_name_no_group(xp, idx - 1 + c_int::from(subtract), optstr_st().expand_eiw);
         if name.is_null() {
             return ptr::null_mut();
         }
@@ -2322,7 +2340,7 @@ pub unsafe fn expand_set_eventignore(
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
     unsafe {
-        expand_eiw = !ptr::eq((*args).oe_varp, (&raw mut p_ei).cast::<c_char>());
+        optstr_st().expand_eiw = !ptr::eq((*args).oe_varp, (&raw mut p_ei).cast::<c_char>());
         expand_set_opt_generic(args, Some(get_eventignore_name), matches)
     }
 }
@@ -3690,7 +3708,7 @@ pub unsafe fn opt_keyset(
 ) -> *mut OptKeySet {
     unsafe {
         if keyset.is_null() {
-            keyset = (&raw mut OPT_KEYSET_SHARED).cast::<OptKeySet>();
+            keyset = (&raw mut optstr_st().OPT_KEYSET_SHARED).cast::<OptKeySet>();
         }
         let si = opt_dict_schema(opt_idx).unwrap();
         ptr::write_bytes(keyset.cast::<u8>(), 0, si.size);

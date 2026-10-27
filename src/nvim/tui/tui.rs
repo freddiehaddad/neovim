@@ -291,11 +291,30 @@ impl TUIData {
     }
 }
 
-static mut cursor_style_enabled: bool = false;
-static mut stty_erase_buf: [c_char; 2] = [0, 0];
-static mut stty_erase_ptr: *const c_char = ptr::null();
+struct TuiModuleState {
+    cursor_style_enabled: bool,
+    stty_erase_buf: [c_char; 2],
+    stty_erase_ptr: *const c_char,
+    urls: Vec<std::ffi::CString>,
+}
 
-static mut urls: Vec<std::ffi::CString> = Vec::new();
+impl TuiModuleState {
+    const fn new() -> Self {
+        Self {
+            cursor_style_enabled: false,
+            stty_erase_buf: [0, 0],
+            stty_erase_ptr: ptr::null(),
+            urls: Vec::new(),
+        }
+    }
+}
+
+static TUI_MOD_STATE: GlobalState<TuiModuleState> = GlobalState::new(TuiModuleState::new());
+
+#[inline]
+unsafe fn tui_st() -> &'static mut TuiModuleState {
+    unsafe { &mut *TUI_MOD_STATE.as_ptr() }
+}
 
 #[cfg(unix)]
 use crate::fileio::{getpgid, getpgrp, getppid, kill};
@@ -1234,7 +1253,7 @@ pub unsafe fn tui_is_stopped(tui: *mut TUIData) -> bool {
 
 pub unsafe fn tui_free_all_mem(tui: Option<Box<TUIData>>) {
     unsafe {
-        let urls_ptr = &raw mut urls;
+        let urls_ptr = &raw mut tui_st().urls;
         *urls_ptr = Vec::new();
 
         drop(tui);
@@ -1464,7 +1483,7 @@ unsafe fn update_attrs(tui: *mut TUIData, attr_id: c_int) {
 
         if (*tui).url != attrs.url {
             if attrs.url >= 0 {
-                let urls_ptr = &raw const urls;
+                let urls_ptr = &raw const tui_st().urls;
                 let url_str = (*urls_ptr).as_slice()[attrs.url as usize].to_string_lossy();
                 let id: u64 = 0xE1EA_0000u64 + u64::from(attrs.url as u32);
                 let formatted = format!("\x1b]8;id={id};{url_str}\x1b\\");
@@ -1857,7 +1876,7 @@ unsafe fn decode_cursor_entry(args: Dict) -> cursorentry_T {
 
 pub unsafe fn tui_mode_info_set(tui: *mut TUIData, guicursor_enabled: bool, args: Array) {
     unsafe {
-        cursor_style_enabled = guicursor_enabled;
+        tui_st().cursor_style_enabled = guicursor_enabled;
         if !guicursor_enabled {
             tui_cursor_reset_style(tui);
             return;
@@ -1918,7 +1937,7 @@ pub unsafe fn tui_mouse_off(tui: *mut TUIData) {
 
 unsafe fn tui_set_mode(tui: *mut TUIData, mode: ModeShape) {
     unsafe {
-        if !cursor_style_enabled {
+        if !tui_st().cursor_style_enabled {
             tui_cursor_reset_style(tui);
             return;
         }
@@ -2071,7 +2090,7 @@ pub unsafe fn tui_add_url(_tui: *mut TUIData, url: *const c_char) -> i32 {
         }
 
         let url_cstr = CStr::from_ptr(url);
-        let urls_ptr = &raw mut urls;
+        let urls_ptr = &raw mut tui_st().urls;
         if let Some(pos) = (*urls_ptr).iter().position(|u| u.as_c_str() == url_cstr) {
             return pos as i32;
         }
@@ -3243,8 +3262,8 @@ unsafe fn tui_get_stty_erase(input: *mut TermInput) -> *const c_char {
         {
             let mut t = unix_termios::termios::new();
             if unix_termios::tcgetattr((*input).in_fd, &raw mut t) != -1 {
-                stty_erase_buf[0] = t.c_cc[unix_termios::VERASE] as c_char;
-                stty_erase_buf[1] = NUL;
+                tui_st().stty_erase_buf[0] = t.c_cc[unix_termios::VERASE] as c_char;
+                tui_st().stty_erase_buf[1] = NUL;
                 if g_min_log_level <= LOGLVL_DBG {
                     logmsg!(
                         LOGLVL_DBG,
@@ -3253,7 +3272,7 @@ unsafe fn tui_get_stty_erase(input: *mut TermInput) -> *const c_char {
                         2684,
                         true,
                         c"stty/termios:erase=%s".as_ptr(),
-                        (&raw const stty_erase_buf).cast::<c_char>(),
+                        (&raw const tui_st().stty_erase_buf).cast::<c_char>(),
                     );
                 }
             }
@@ -3270,12 +3289,12 @@ unsafe fn tui_get_stty_erase(input: *mut TermInput) -> *const c_char {
                 if GetConsoleMode(tty_handle, &raw mut dw_mode) != 0
                     && (dw_mode & ENABLE_VIRTUAL_TERMINAL_INPUT) != 0
                 {
-                    stty_erase_buf[0] = 0x7f;
-                    stty_erase_buf[1] = NUL;
+                    tui_st().stty_erase_buf[0] = 0x7f;
+                    tui_st().stty_erase_buf[1] = NUL;
                 }
             }
         }
-        (&raw const stty_erase_buf).cast::<c_char>()
+        (&raw const tui_st().stty_erase_buf).cast::<c_char>()
     }
 }
 
@@ -3285,8 +3304,8 @@ pub(crate) unsafe fn tui_tk_ti_getstr(
     input: *mut TermInput,
 ) -> *const c_char {
     unsafe {
-        if stty_erase_ptr.is_null() {
-            stty_erase_ptr = tui_get_stty_erase(input);
+        if tui_st().stty_erase_ptr.is_null() {
+            tui_st().stty_erase_ptr = tui_get_stty_erase(input);
         }
 
         if strequal(name, c"key_backspace".as_ptr()) {
@@ -3301,8 +3320,8 @@ pub(crate) unsafe fn tui_tk_ti_getstr(
                     value,
                 );
             }
-            if *stty_erase_ptr != 0 {
-                return stty_erase_ptr;
+            if *tui_st().stty_erase_ptr != 0 {
+                return tui_st().stty_erase_ptr;
             }
         } else if strequal(name, c"key_dc".as_ptr()) {
             if g_min_log_level <= LOGLVL_DBG {
@@ -3318,9 +3337,9 @@ pub(crate) unsafe fn tui_tk_ti_getstr(
             }
             if !value.is_null()
                 && value != usize::MAX as *const c_char
-                && strequal(stty_erase_ptr, value)
+                && strequal(tui_st().stty_erase_ptr, value)
             {
-                return if *stty_erase_ptr == DEL {
+                return if *tui_st().stty_erase_ptr == DEL {
                     c"\x08".as_ptr()
                 } else {
                     c"\x7f".as_ptr()

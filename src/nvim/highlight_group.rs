@@ -170,12 +170,32 @@ impl Default for HlGroup {
     }
 }
 
-static mut highlight_ga: Vec<HlGroup> = Vec::new();
-static mut highlight_unames: std::collections::BTreeMap<Vec<u8>, c_int> =
-    std::collections::BTreeMap::new();
-static mut had_both: bool = false;
-static mut load_colors_recursive: bool = false;
-static mut highlight_color_name: [c_char; 20] = [0; 20];
+struct HighlightGroupState {
+    highlight_ga: Vec<HlGroup>,
+    highlight_unames: std::collections::BTreeMap<Vec<u8>, c_int>,
+    had_both: bool,
+    load_colors_recursive: bool,
+    highlight_color_name: [c_char; 20],
+}
+
+impl HighlightGroupState {
+    const fn new() -> Self {
+        Self {
+            highlight_ga: Vec::new(),
+            highlight_unames: std::collections::BTreeMap::new(),
+            had_both: false,
+            load_colors_recursive: false,
+            highlight_color_name: [0; 20],
+        }
+    }
+}
+
+static HLG_STATE: GlobalState<HighlightGroupState> = GlobalState::new(HighlightGroupState::new());
+
+#[inline]
+unsafe fn hlg_st() -> &'static mut HighlightGroupState {
+    unsafe { &mut *HLG_STATE.as_ptr() }
+}
 
 const HL_NAME_TABLE: [&CStr; 18] = [
     c"bold",
@@ -320,7 +340,7 @@ unsafe fn write_dec(buf: *mut c_char, cap: usize, val: c_int) {
 #[inline]
 unsafe fn hl_table() -> *mut HlGroup {
     unsafe {
-        let ga = &raw mut highlight_ga;
+        let ga = &raw mut hlg_st().highlight_ga;
         (*ga).as_mut_ptr()
     }
 }
@@ -328,7 +348,7 @@ unsafe fn hl_table() -> *mut HlGroup {
 #[inline]
 unsafe fn hl_len() -> c_int {
     unsafe {
-        let ga = &raw const highlight_ga;
+        let ga = &raw const hlg_st().highlight_ga;
         (*ga).len() as c_int
     }
 }
@@ -858,11 +878,11 @@ pub unsafe fn init_highlight(both: bool, reset: bool) {
         }
 
         if both {
-            had_both = true;
+            hlg_st().had_both = true;
             for &cmd in &HIGHLIGHT_INIT_BOTH {
                 do_highlight(cmd.as_ptr(), reset, true);
             }
-        } else if !had_both {
+        } else if !hlg_st().had_both {
             return;
         }
 
@@ -881,11 +901,11 @@ pub unsafe fn init_highlight(both: bool, reset: bool) {
 
 pub unsafe fn load_colors(name: *mut c_char) -> c_int {
     unsafe {
-        if load_colors_recursive {
+        if hlg_st().load_colors_recursive {
             return OK;
         }
 
-        load_colors_recursive = true;
+        hlg_st().load_colors_recursive = true;
         let name_bytes = CStr::from_ptr(name).to_bytes();
         let mut buf = Vec::with_capacity(name_bytes.len() + 12);
         apply_autocmds(EVENT_COLORSCHEMEPRE, name, (*curbuf).b_fname, false, curbuf);
@@ -897,7 +917,7 @@ pub unsafe fn load_colors(name: *mut c_char) -> c_int {
             apply_autocmds(EVENT_COLORSCHEME, name, (*curbuf).b_fname, false, curbuf);
         }
 
-        load_colors_recursive = false;
+        hlg_st().load_colors_recursive = false;
 
         retval
     }
@@ -1589,9 +1609,9 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
 
 pub unsafe fn free_highlight() {
     unsafe {
-        let ga = &raw mut highlight_ga;
+        let ga = &raw mut hlg_st().highlight_ga;
         *ga = Vec::new();
-        let unames_ptr = &raw mut highlight_unames;
+        let unames_ptr = &raw mut hlg_st().highlight_unames;
         *unames_ptr = std::collections::BTreeMap::new();
     }
 }
@@ -2005,7 +2025,7 @@ pub unsafe fn highlight_color(id: c_int, what: *const c_char, modec: c_int) -> *
         }
 
         let g = &*hl_table().add((id - 1) as usize);
-        let name_ptr = (&raw mut highlight_color_name).cast::<c_char>();
+        let name_ptr = (&raw mut hlg_st().highlight_color_name).cast::<c_char>();
 
         if modec == c_int::from(b'g') {
             if *what.add(2) == b'#' as c_char && ui_rgb_attached() {
@@ -2162,7 +2182,7 @@ pub unsafe fn syn_name2id_len(name: *const c_char, len: usize) -> c_int {
         vim_memcpy_up(name_u.as_mut_ptr(), name, len);
         name_u[len] = NUL;
 
-        let unames_ptr = &raw const highlight_unames;
+        let unames_ptr = &raw const hlg_st().highlight_unames;
         (*unames_ptr)
             .get(CStr::from_ptr(name_u.as_ptr()).to_bytes())
             .copied()
@@ -2235,7 +2255,7 @@ unsafe fn syn_add_group(name: *const c_char, len: usize) -> c_int {
             }
         }
 
-        let ga = &raw mut highlight_ga;
+        let ga = &raw mut hlg_st().highlight_ga;
         if (*ga).capacity() == 0 {
             (*ga).reserve(300);
         }
@@ -2263,7 +2283,7 @@ unsafe fn syn_add_group(name: *const c_char, len: usize) -> c_int {
         (*ga).push(hlg);
 
         let id = hl_len();
-        let unames_ptr = &raw mut highlight_unames;
+        let unames_ptr = &raw mut hlg_st().highlight_unames;
         (*unames_ptr).insert(name_u_bytes, id);
 
         id
@@ -2453,7 +2473,7 @@ pub unsafe fn highlight_changed() {
         }
 
         let hlcnt = hl_len();
-        let ga = &raw mut highlight_ga;
+        let ga = &raw mut hlg_st().highlight_ga;
         (*ga).resize((hlcnt + 10) as usize, HlGroup::new());
         if id_S == -1 {
             *hl_table().add((hlcnt + 9) as usize) = HlGroup::new();

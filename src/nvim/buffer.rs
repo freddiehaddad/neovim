@@ -857,22 +857,34 @@ struct bufmatch_T {
     match_: std::ffi::CString,
 }
 
-static mut buf_free_count: c_int = 0;
-static mut top_file_num: c_int = 1;
-static mut no_position: fmark_T = fmark_T {
-    mark: pos_T {
-        lnum: 1,
-        col: 0,
-        coladd: 0,
-    },
-    fnum: 0,
-    timestamp: 0,
-    view: INIT_FMARKV,
-    additional_data: None,
-};
-static mut lasttitle: Option<std::ffi::CString> = None;
-static mut lasticon: Option<std::ffi::CString> = None;
-static mut modelines_entered: c_int = 0;
+struct BufferModuleState {
+    buf_free_count: c_int,
+    top_file_num: c_int,
+    no_position: fmark_T,
+    lasttitle: Option<std::ffi::CString>,
+    lasticon: Option<std::ffi::CString>,
+    modelines_entered: c_int,
+}
+
+impl BufferModuleState {
+    const fn new() -> Self {
+        Self {
+            buf_free_count: 0,
+            top_file_num: 1,
+            no_position: fmark_T { mark: pos_T { lnum: 1, col: 0, coladd: 0 }, fnum: 0, timestamp: 0, view: INIT_FMARKV, additional_data: None },
+            lasttitle: None,
+            lasticon: None,
+            modelines_entered: 0,
+        }
+    }
+}
+
+static BUF_STATE: GlobalState<BufferModuleState> = GlobalState::new(BufferModuleState::new());
+
+#[inline]
+unsafe fn buf_st() -> &'static mut BufferModuleState {
+    unsafe { &mut *BUF_STATE.as_ptr() }
+}
 
 const E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR: &CStr =
     c"E937: Attempt to delete a buffer that is in use: %s";
@@ -938,7 +950,7 @@ pub unsafe fn calc_percentage(part: i64, whole: i64) -> c_int {
 
 /// Return the highest possible buffer number.
 pub unsafe fn get_highest_fnum() -> c_int {
-    unsafe { top_file_num - 1 }
+    unsafe { buf_st().top_file_num - 1 }
 }
 
 /// Read data from buffer for retrying.
@@ -1265,7 +1277,7 @@ pub unsafe fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T) {
     unsafe {
         (*bufref).br_buf = buf;
         (*bufref).br_fnum = if buf.is_null() { 0 } else { (*buf).b_fnum };
-        (*bufref).br_buf_free_count = buf_free_count;
+        (*bufref).br_buf_free_count = buf_st().buf_free_count;
     }
 }
 
@@ -1273,7 +1285,7 @@ pub unsafe fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T) {
 /// `set_bufref()` was called and it is a valid buffer.
 pub unsafe fn bufref_valid(bufref: *mut bufref_T) -> bool {
     unsafe {
-        if (*bufref).br_buf_free_count == buf_free_count {
+        if (*bufref).br_buf_free_count == buf_st().buf_free_count {
             true
         } else {
             buf_valid((*bufref).br_buf) && (*bufref).br_fnum == (*(*bufref).br_buf).b_fnum
@@ -1764,7 +1776,7 @@ unsafe fn free_buffer(buf: *mut buf_T) {
     unsafe {
         let map_ptr = &raw mut buffer_handles;
         (*map_ptr).remove(&(*buf).b_fnum);
-        buf_free_count += 1;
+        buf_st().buf_free_count += 1;
         free_buffer_stuff(buf, kBffClearWinInfo);
         if (*(*buf).b_vars()).dv_refcount > DO_NOT_FREE_CNT {
             tv_dict_add(
@@ -2868,18 +2880,18 @@ pub unsafe fn buflist_new(
             }
             lastbuf = buf;
 
-            (*buf).b_fnum = top_file_num;
-            top_file_num += 1;
+            (*buf).b_fnum = buf_st().top_file_num;
+            buf_st().top_file_num += 1;
             let map_ptr = &raw mut buffer_handles;
             (*map_ptr).insert((*buf).b_fnum, buf);
-            if top_file_num < 0 {
+            if buf_st().top_file_num < 0 {
                 emsg(gettext(
                     c"W14: Warning: List of file names overflow".as_ptr(),
                 ));
                 if emsg_silent == 0 && !in_assert_fails {
                     msg_delay(3001, true);
                 }
-                top_file_num = 1;
+                buf_st().top_file_num = 1;
             }
 
             buf_copy_options(buf, BCO_ALWAYS);
@@ -3640,7 +3652,7 @@ pub unsafe fn buflist_findfmark(buf: *mut buf_T) -> *mut fmark_T {
     unsafe {
         let wip = find_wininfo(buf, false, false);
         if wip.is_null() {
-            &raw mut no_position
+            &raw mut buf_st().no_position
         } else {
             &raw mut (*wip).wi_mark
         }
@@ -4232,8 +4244,8 @@ pub unsafe fn maketitle() {
         need_maketitle = false;
         if p_title == 0
             && p_icon == 0
-            && (&raw const lasttitle).as_ref().unwrap().is_none()
-            && (&raw const lasticon).as_ref().unwrap().is_none()
+            && (&raw const buf_st().lasttitle).as_ref().unwrap().is_none()
+            && (&raw const buf_st().lasticon).as_ref().unwrap().is_none()
         {
             return;
         }
@@ -4294,7 +4306,7 @@ pub unsafe fn maketitle() {
                 }
             }
         }
-        let mut mustset = value_change(title_str, (&raw mut lasttitle).as_mut().unwrap());
+        let mut mustset = value_change(title_str, (&raw mut buf_st().lasttitle).as_mut().unwrap());
 
         if p_icon != 0 {
             icon_str = buf.as_mut_ptr();
@@ -4332,7 +4344,7 @@ pub unsafe fn maketitle() {
             }
         }
 
-        mustset |= value_change(icon_str, (&raw mut lasticon).as_mut().unwrap());
+        mustset |= value_change(icon_str, (&raw mut buf_st().lasticon).as_mut().unwrap());
 
         if mustset {
             resettitle();
@@ -4361,12 +4373,12 @@ unsafe fn value_change(str_: *mut c_char, last: &mut Option<std::ffi::CString>) 
 /// Set current window title.
 pub unsafe fn resettitle() {
     unsafe {
-        let icon_ptr = (&raw const lasticon)
+        let icon_ptr = (&raw const buf_st().lasticon)
             .as_ref()
             .unwrap()
             .as_ref()
             .map_or(ptr::null(), |s| s.as_ptr());
-        let title_ptr = (&raw const lasttitle)
+        let title_ptr = (&raw const buf_st().lasttitle)
             .as_ref()
             .unwrap()
             .as_ref()
@@ -4378,8 +4390,8 @@ pub unsafe fn resettitle() {
 
 pub unsafe fn free_titles() {
     unsafe {
-        lasttitle = None;
-        lasticon = None;
+        buf_st().lasttitle = None;
+        buf_st().lasticon = None;
     }
 }
 
@@ -4698,11 +4710,11 @@ pub unsafe fn do_modelines(flags: c_int) {
             return;
         }
 
-        if modelines_entered != 0 {
+        if buf_st().modelines_entered != 0 {
             return;
         }
 
-        modelines_entered += 1;
+        buf_st().modelines_entered += 1;
         let mut lnum = 1;
         while (*curbuf).b_p_ml != 0 && lnum <= (*curbuf).b_ml.ml_line_count && lnum <= nmlines {
             if chk_modeline(lnum, flags) == FAIL {
@@ -4722,7 +4734,7 @@ pub unsafe fn do_modelines(flags: c_int) {
             }
             lnum -= 1;
         }
-        modelines_entered -= 1;
+        buf_st().modelines_entered -= 1;
     }
 }
 

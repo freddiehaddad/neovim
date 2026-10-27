@@ -19,10 +19,30 @@ const K_OPT_CB_FLAG_UNNAMEDPLUS: c_uint = 0x02;
 
 const CTRL_V: u8 = 0x16;
 
-static mut BATCH_CHANGE_COUNT: i32 = 0;
-static mut CLIPBOARD_DELAY_UPDATE: bool = false;
-static mut CLIPBOARD_NEEDS_UPDATE: bool = false;
-static mut CLIPBOARD_DIDWARN: bool = false;
+struct ClipboardModuleState {
+    BATCH_CHANGE_COUNT: i32,
+    CLIPBOARD_DELAY_UPDATE: bool,
+    CLIPBOARD_NEEDS_UPDATE: bool,
+    CLIPBOARD_DIDWARN: bool,
+}
+
+impl ClipboardModuleState {
+    const fn new() -> Self {
+        Self {
+            BATCH_CHANGE_COUNT: 0,
+            CLIPBOARD_DELAY_UPDATE: false,
+            CLIPBOARD_NEEDS_UPDATE: false,
+            CLIPBOARD_DIDWARN: false,
+        }
+    }
+}
+
+static CLIP_STATE: crate::globals::GlobalState<ClipboardModuleState> = crate::globals::GlobalState::new(ClipboardModuleState::new());
+
+#[inline]
+unsafe fn clip_st() -> &'static mut ClipboardModuleState {
+    unsafe { &mut *CLIP_STATE.as_ptr() }
+}
 
 const MSG_NO_CLIP: &CStr = c"clipboard: No provider. Try \":checkhealth\" or \":h clipboard\".";
 
@@ -43,11 +63,11 @@ pub unsafe fn adjust_clipboard_name(
         }
 
         if !eval_has_provider(c"clipboard".as_ptr(), false) {
-            if BATCH_CHANGE_COUNT <= 1
+            if clip_st().BATCH_CHANGE_COUNT <= 1
                 && !quiet
-                && (!CLIPBOARD_DIDWARN || (explicit_cb_reg && redirecting() == 0))
+                && (!clip_st().CLIPBOARD_DIDWARN || (explicit_cb_reg && redirecting() == 0))
             {
-                CLIPBOARD_DIDWARN = true;
+                clip_st().CLIPBOARD_DIDWARN = true;
                 msg(MSG_NO_CLIP.as_ptr(), 0);
             }
             return std::ptr::null_mut();
@@ -65,14 +85,14 @@ pub unsafe fn adjust_clipboard_name(
                 K_OPT_CB_FLAG_UNNAMEDPLUS
             };
             if writing && (flags & match_flag) != 0 {
-                CLIPBOARD_NEEDS_UPDATE = false;
+                clip_st().CLIPBOARD_NEEDS_UPDATE = false;
             }
             target
         } else {
-            if writing && CLIPBOARD_DELAY_UPDATE {
-                CLIPBOARD_NEEDS_UPDATE = true;
+            if writing && clip_st().CLIPBOARD_DELAY_UPDATE {
+                clip_st().CLIPBOARD_NEEDS_UPDATE = true;
                 return std::ptr::null_mut();
-            } else if !writing && CLIPBOARD_NEEDS_UPDATE {
+            } else if !writing && clip_st().CLIPBOARD_NEEDS_UPDATE {
                 return std::ptr::null_mut();
             }
 
@@ -259,24 +279,24 @@ pub unsafe fn set_clipboard(mut name: c_int, reg: *mut yankreg_T) {
 /// Defer clipboard updates during batch operations (`start_batch_changes`).
 pub fn start_batch_changes() {
     unsafe {
-        BATCH_CHANGE_COUNT += 1;
-        if BATCH_CHANGE_COUNT > 1 {
+        clip_st().BATCH_CHANGE_COUNT += 1;
+        if clip_st().BATCH_CHANGE_COUNT > 1 {
             return;
         }
-        CLIPBOARD_DELAY_UPDATE = true;
+        clip_st().CLIPBOARD_DELAY_UPDATE = true;
     }
 }
 
 /// End batch operation and flush deferred clipboard update if needed (`end_batch_changes`).
 pub fn end_batch_changes() {
     unsafe {
-        BATCH_CHANGE_COUNT -= 1;
-        if BATCH_CHANGE_COUNT > 0 {
+        clip_st().BATCH_CHANGE_COUNT -= 1;
+        if clip_st().BATCH_CHANGE_COUNT > 0 {
             return;
         }
-        CLIPBOARD_DELAY_UPDATE = false;
-        if CLIPBOARD_NEEDS_UPDATE {
-            CLIPBOARD_NEEDS_UPDATE = false;
+        clip_st().CLIPBOARD_DELAY_UPDATE = false;
+        if clip_st().CLIPBOARD_NEEDS_UPDATE {
+            clip_st().CLIPBOARD_NEEDS_UPDATE = false;
             set_clipboard(0, get_y_previous());
         }
     }
@@ -290,12 +310,12 @@ mod tests {
     fn batch_changes_nesting_toggles_delay_flag() {
         unsafe {
             start_batch_changes();
-            assert!(CLIPBOARD_DELAY_UPDATE);
+            assert!(clip_st().CLIPBOARD_DELAY_UPDATE);
             start_batch_changes();
             end_batch_changes();
-            assert!(CLIPBOARD_DELAY_UPDATE);
+            assert!(clip_st().CLIPBOARD_DELAY_UPDATE);
             end_batch_changes();
-            assert!(!CLIPBOARD_DELAY_UPDATE);
+            assert!(!clip_st().CLIPBOARD_DELAY_UPDATE);
         }
     }
 }

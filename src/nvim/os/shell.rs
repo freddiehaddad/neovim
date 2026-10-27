@@ -95,15 +95,39 @@ const STYLE_GLOBSTAR: c_int = 5;
 const HLF_SE: c_int = 72;
 const HLF_SO: c_int = 73;
 
-#[cfg(unix)]
-static mut did_find_nul: bool = false;
-static mut throttle_started: u64 = 0;
-static mut throttle_received: usize = 0;
-static mut throttle_visit: usize = 0;
-static mut throttle_pulse_msg: [c_char; 4] = [b' ' as c_char, b' ' as c_char, b' ' as c_char, NUL];
+struct ShellModuleState {
+    #[cfg(unix)]
+    did_find_nul: bool,
+    throttle_started: u64,
+    throttle_received: usize,
+    throttle_visit: usize,
+    throttle_pulse_msg: [c_char; 4],
+    last_skipped: [c_char; MAX_CHUNK_SIZE],
+    last_skipped_len: usize,
+}
 
-static mut last_skipped: [c_char; MAX_CHUNK_SIZE] = [0; MAX_CHUNK_SIZE];
-static mut last_skipped_len: usize = 0;
+impl ShellModuleState {
+    const fn new() -> Self {
+        Self {
+            #[cfg(unix)]
+            did_find_nul: false,
+            throttle_started: 0,
+            throttle_received: 0,
+            throttle_visit: 0,
+            throttle_pulse_msg: [b' ' as c_char, b' ' as c_char, b' ' as c_char, NUL],
+            last_skipped: [0; MAX_CHUNK_SIZE],
+            last_skipped_len: 0,
+        }
+    }
+}
+
+static SH_STATE: crate::globals::GlobalState<ShellModuleState> =
+    crate::globals::GlobalState::new(ShellModuleState::new());
+
+#[inline]
+unsafe fn sh_st() -> &'static mut ShellModuleState {
+    unsafe { &mut *SH_STATE.as_ptr() }
+}
 
 #[cfg(windows)]
 unsafe extern "system" {
@@ -455,10 +479,10 @@ pub unsafe fn os_expand_wildcards(
             }
         } else {
             let mut check_spaces = false;
-            if shell_style == STYLE_PRINT && !did_find_nul {
+            if shell_style == STYLE_PRINT && !sh_st().did_find_nul {
                 *buffer.add(len) = NUL;
                 if len != 0 && (strlen(buffer) as c_int) < (len as c_int) {
-                    did_find_nul = true;
+                    sh_st().did_find_nul = true;
                 } else {
                     check_spaces = true;
                 }
@@ -947,54 +971,54 @@ pub(crate) unsafe fn system_data_cb(
 unsafe fn out_data_decide_throttle(size: usize) -> bool {
     unsafe {
         if size == 0 {
-            let previous_decision = throttle_visit > 0;
-            throttle_started = 0;
-            throttle_received = 0;
-            throttle_visit = 0;
+            let previous_decision = sh_st().throttle_visit > 0;
+            sh_st().throttle_started = 0;
+            sh_st().throttle_received = 0;
+            sh_st().throttle_visit = 0;
             return previous_decision;
         }
 
-        throttle_received += size;
-        if throttle_received < OUT_DATA_THRESHOLD
-            || (throttle_started == 0 && throttle_received < size + 1000)
+        sh_st().throttle_received += size;
+        if sh_st().throttle_received < OUT_DATA_THRESHOLD
+            || (sh_st().throttle_started == 0 && sh_st().throttle_received < size + 1000)
         {
             return false;
-        } else if throttle_visit == 0 {
-            throttle_started = os_hrtime();
+        } else if sh_st().throttle_visit == 0 {
+            sh_st().throttle_started = os_hrtime();
         } else {
-            let since = os_hrtime() - throttle_started;
-            if since < (throttle_visit as u64) * (NS_PER_SEC / 10) {
+            let since = os_hrtime() - sh_st().throttle_started;
+            if since < (sh_st().throttle_visit as u64) * (NS_PER_SEC / 10) {
                 return true;
             }
             if since > 3 * NS_PER_SEC {
-                throttle_received = 0;
-                throttle_visit = 0;
+                sh_st().throttle_received = 0;
+                sh_st().throttle_visit = 0;
                 return false;
             }
         }
 
-        throttle_visit += 1;
-        let tick = throttle_visit % 4;
-        throttle_pulse_msg[0] = if tick > 0 {
+        sh_st().throttle_visit += 1;
+        let tick = sh_st().throttle_visit % 4;
+        sh_st().throttle_pulse_msg[0] = if tick > 0 {
             b'.' as c_char
         } else {
             b' ' as c_char
         };
-        throttle_pulse_msg[1] = if tick > 1 {
+        sh_st().throttle_pulse_msg[1] = if tick > 1 {
             b'.' as c_char
         } else {
             b' ' as c_char
         };
-        throttle_pulse_msg[2] = if tick > 2 {
+        sh_st().throttle_pulse_msg[2] = if tick > 2 {
             b'.' as c_char
         } else {
             b' ' as c_char
         };
-        if throttle_visit == 1 {
+        if sh_st().throttle_visit == 1 {
             msg_puts(c"...\n".as_ptr());
         }
         msg_putchar(b'\r' as c_int);
-        msg_puts((&raw const throttle_pulse_msg).cast());
+        msg_puts((&raw const sh_st().throttle_pulse_msg).cast());
         msg_putchar(b'\r' as c_int);
         ui_flush();
         true
@@ -1006,28 +1030,28 @@ unsafe fn out_data_ring(output: *const c_char, size: usize) {
         debug_assert!(!output.is_null() || size == 0 || size == usize::MAX);
 
         if output.is_null() && size == 0 {
-            last_skipped_len = 0;
+            sh_st().last_skipped_len = 0;
             return;
         }
 
-        let ring_ptr = (&raw mut last_skipped).cast::<c_char>();
+        let ring_ptr = (&raw mut sh_st().last_skipped).cast::<c_char>();
         if output.is_null() && size == usize::MAX {
-            out_data_append_to_screen(ring_ptr, &raw mut last_skipped_len, STDOUT_FILENO, true);
+            out_data_append_to_screen(ring_ptr, &raw mut sh_st().last_skipped_len, STDOUT_FILENO, true);
             return;
         }
 
         if size >= MAX_CHUNK_SIZE {
             let start = size - MAX_CHUNK_SIZE;
             ptr::copy_nonoverlapping(output.add(start), ring_ptr, MAX_CHUNK_SIZE);
-            last_skipped_len = MAX_CHUNK_SIZE;
+            sh_st().last_skipped_len = MAX_CHUNK_SIZE;
         } else if size > 0 {
-            let keep_len = last_skipped_len.min(MAX_CHUNK_SIZE - size);
-            let keep_start = last_skipped_len - keep_len;
+            let keep_len = sh_st().last_skipped_len.min(MAX_CHUNK_SIZE - size);
+            let keep_start = sh_st().last_skipped_len - keep_len;
             if keep_start != 0 {
                 ptr::copy(ring_ptr.add(keep_start), ring_ptr, keep_len);
             }
             ptr::copy_nonoverlapping(output, ring_ptr.add(keep_len), size);
-            last_skipped_len = keep_len + size;
+            sh_st().last_skipped_len = keep_len + size;
         }
     }
 }

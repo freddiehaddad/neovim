@@ -357,10 +357,30 @@ struct limitscore_T {
     goodi: c_int,
     score: c_int,
 }
-static mut spell_suggest_timeout: i64 = 5000;
-static mut sps_flags: c_int = SPS_BEST;
-static mut sps_limit: c_int = 9999;
-static mut expr_busy: bool = false;
+struct SpellSuggestState {
+    spell_suggest_timeout: i64,
+    sps_flags: c_int,
+    sps_limit: c_int,
+    expr_busy: bool,
+}
+
+impl SpellSuggestState {
+    const fn new() -> Self {
+        Self {
+            spell_suggest_timeout: 5000,
+            sps_flags: SPS_BEST,
+            sps_limit: 9999,
+            expr_busy: false,
+        }
+    }
+}
+
+static SPS_STATE: GlobalState<SpellSuggestState> = GlobalState::new(SpellSuggestState::new());
+
+#[inline]
+unsafe fn sps_st() -> &'static mut SpellSuggestState {
+    unsafe { &mut *SPS_STATE.as_ptr() }
+}
 #[inline]
 const fn rescore(word_score: c_int, sound_score: c_int) -> c_int {
     (3 * word_score + sound_score) / 4
@@ -599,8 +619,8 @@ pub unsafe fn spell_check_sps(
 /// Apply validated 'spellsuggest' flags and suggestion limit.
 pub unsafe fn spell_apply_sps(flags: c_int, limit: c_int) {
     unsafe {
-        sps_flags = flags;
-        sps_limit = limit;
+        sps_st().sps_flags = flags;
+        sps_st().sps_limit = limit;
     }
 }
 unsafe fn select_spell_suggestion(sug: *mut suginfo_T) {
@@ -631,7 +651,7 @@ unsafe fn select_spell_suggestion(sug: *mut suginfo_T) {
                 tv_dict_add_str_len(d, c"extra".as_ptr(), 5, (*sug).su_badptr, stp.st_orglen);
             }
             tv_dict_add_nr(d, c"score".as_ptr(), 5, stp.st_score as i64);
-            if (sps_flags & (SPS_DOUBLE | SPS_BEST)) != 0 {
+            if (sps_st().sps_flags & (SPS_DOUBLE | SPS_BEST)) != 0 {
                 tv_dict_add_nr(d, c"altscore".as_ptr(), 8, stp.st_altscore as i64);
                 tv_dict_add_bool(
                     d,
@@ -739,9 +759,9 @@ pub unsafe fn spell_suggest(count: c_int) {
             .to_vec();
             line_vec[get_cursor_line_len() as usize] = NUL;
             let line = line_vec.as_mut_ptr();
-            spell_suggest_timeout = 5000;
+            sps_st().spell_suggest_timeout = 5000;
             let mut sug = suginfo_T::default();
-            let limit = sps_limit.min(Rows - 2);
+            let limit = sps_st().sps_limit.min(Rows - 2);
             spell_find_suggest(
                 line.add((*curwin).w_cursor.col as usize),
                 badlen,
@@ -962,18 +982,18 @@ unsafe fn spell_find_suggest(
             copy_option_part(&raw mut p, (&raw mut buf).cast(), MAXPATHL, c",".as_ptr());
             let buf_ptr = (&raw mut buf).cast::<c_char>();
             if strncmp(buf_ptr, c"expr:".as_ptr(), 5) == 0 {
-                if !expr_busy {
-                    expr_busy = true;
+                if !sps_st().expr_busy {
+                    sps_st().expr_busy = true;
                     spell_suggest_expr(su, buf_ptr.add(5));
-                    expr_busy = false;
+                    sps_st().expr_busy = false;
                 }
             } else if strncmp(buf_ptr, c"file:".as_ptr(), 5) == 0 {
                 spell_suggest_file(su, buf_ptr.add(5));
             } else if strncmp(buf_ptr, c"timeout:".as_ptr(), 8) == 0 {
-                spell_suggest_timeout = atoi(buf_ptr.add(8)) as i64;
+                sps_st().spell_suggest_timeout = atoi(buf_ptr.add(8)) as i64;
             } else if !did_intern {
                 spell_suggest_intern(su, interactive);
-                if (sps_flags & SPS_DOUBLE) != 0 {
+                if (sps_st().sps_flags & SPS_DOUBLE) != 0 {
                     do_combine = true;
                 }
                 did_intern = true;
@@ -1069,11 +1089,11 @@ unsafe fn spell_suggest_intern(su: *mut suginfo_T, interactive: bool) {
         suggest_load_files();
         suggest_try_special(su);
         suggest_try_change(su);
-        if (sps_flags & SPS_DOUBLE) != 0 {
+        if (sps_st().sps_flags & SPS_DOUBLE) != 0 {
             score_comp_sal(su);
         }
-        if (sps_flags & SPS_FAST) == 0 {
-            if (sps_flags & SPS_BEST) != 0 {
+        if (sps_st().sps_flags & SPS_FAST) == 0 {
+            if (sps_st().sps_flags & SPS_BEST) != 0 {
                 rescore_suggestions(su);
             }
             suggest_try_soundalike_prep();
@@ -1096,8 +1116,8 @@ unsafe fn spell_suggest_intern(su: *mut suginfo_T, interactive: bool) {
             let _ = vgetc();
             got_int = false;
         }
-        if (sps_flags & SPS_DOUBLE) == 0 && !(*su).su_ga.is_empty() {
-            if (sps_flags & SPS_BEST) != 0 {
+        if (sps_st().sps_flags & SPS_DOUBLE) == 0 && !(*su).su_ga.is_empty() {
+            if (sps_st().sps_flags & SPS_BEST) != 0 {
                 rescore_suggestions(su);
             }
             check_suggestions(su, &mut (*su).su_ga);
@@ -1224,8 +1244,8 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
             }
         }
         let mut time_limit: proftime_T = 0;
-        if spell_suggest_timeout > 0 {
-            time_limit = profile_setlimit(spell_suggest_timeout);
+        if sps_st().spell_suggest_timeout > 0 {
+            time_limit = profile_setlimit(sps_st().spell_suggest_timeout);
         }
         while depth >= 0 && !got_int {
             let mut udepth = depth as usize;
@@ -2202,7 +2222,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                     if breakcheckcount == 0 {
                         os_breakcheck();
                         breakcheckcount = 1000;
-                        if spell_suggest_timeout > 0 && profile_passed_limit(time_limit) {
+                        if sps_st().spell_suggest_timeout > 0 && profile_passed_limit(time_limit) {
                             got_int = true;
                         }
                     }
@@ -2618,7 +2638,7 @@ unsafe fn add_sound_suggest(su: *mut suginfo_T, goodword: *mut c_char, score: c_
                         (&raw mut theword).cast()
                     }
                 };
-                if (sps_flags & SPS_DOUBLE) != 0 {
+                if (sps_st().sps_flags & SPS_DOUBLE) != 0 {
                     if score <= (*su).su_maxscore {
                         add_suggestion(
                             su,

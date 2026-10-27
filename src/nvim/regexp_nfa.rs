@@ -173,11 +173,32 @@ const e_misplaced: &CStr = c"E866: (NFA regexp) Misplaced %c";
 const e_ill_char_class: &CStr = c"E877: (NFA regexp) Invalid character class: %lld";
 const e_value_too_large: &CStr = c"E951: \\% value too large";
 
-static mut temp_subs: regsubs_T = regsubs_T::new();
-static mut nfa_match: c_int = 0;
-static mut nfa_time_limit: Option<proftime_T> = None;
-static mut nfa_timed_out: *mut c_int = ptr::null_mut();
-static mut nfa_time_count: c_int = 0;
+struct RegexpNfaState {
+    temp_subs: regsubs_T,
+    nfa_match: c_int,
+    nfa_time_limit: Option<proftime_T>,
+    nfa_timed_out: *mut c_int,
+    nfa_time_count: c_int,
+}
+
+impl RegexpNfaState {
+    const fn new() -> Self {
+        Self {
+            temp_subs: regsubs_T::new(),
+            nfa_match: 0,
+            nfa_time_limit: None,
+            nfa_timed_out: ptr::null_mut(),
+            nfa_time_count: 0,
+        }
+    }
+}
+
+static NFA_STATE: GlobalState<RegexpNfaState> = GlobalState::new(RegexpNfaState::new());
+
+#[inline]
+unsafe fn nfa_st() -> &'static mut RegexpNfaState {
+    unsafe { &mut *NFA_STATE.as_ptr() }
+}
 
 #[inline]
 unsafe fn EMIT(c: c_int) {
@@ -2724,12 +2745,12 @@ unsafe fn addstate(
                         emsg(tr(e_pattern_uses_more_memory_than_maxmempattern.as_ptr()));
                         return ptr::null_mut();
                     }
-                    if subs != &raw mut temp_subs {
-                        copy_sub(&raw mut temp_subs.norm, &raw mut (*subs).norm);
+                    if subs != &raw mut nfa_st().temp_subs {
+                        copy_sub(&raw mut nfa_st().temp_subs.norm, &raw mut (*subs).norm);
                         if re_st().rex.nfa_has_zsubexpr != 0 {
-                            copy_sub(&raw mut temp_subs.synt, &raw mut (*subs).synt);
+                            copy_sub(&raw mut nfa_st().temp_subs.synt, &raw mut (*subs).synt);
                         }
-                        subs = &raw mut temp_subs;
+                        subs = &raw mut nfa_st().temp_subs;
                     }
                     (*l).t.resize(newlen, nfa_thread_T::new());
                 }
@@ -3195,7 +3216,7 @@ unsafe fn recursive_regmatch(
     unsafe {
         let save_reginput_col = re_st().rex.input.offset_from(re_st().rex.line) as usize;
         let save_reglnum = re_st().rex.lnum;
-        let save_nfa_match = nfa_match;
+        let save_nfa_match = nfa_st().nfa_match;
         let save_nfa_listid = re_st().rex.nfa_listid;
         let save_nfa_endp = re_st().nfa_endp;
         let mut endpos = save_se_T::new();
@@ -3295,7 +3316,7 @@ unsafe fn recursive_regmatch(
         }
         re_st().rex.input = re_st().rex.line.add(save_reginput_col);
         if result != NFA_TOO_EXPENSIVE {
-            nfa_match = save_nfa_match;
+            nfa_st().nfa_match = save_nfa_match;
             re_st().rex.nfa_listid = save_nfa_listid;
         }
         re_st().nfa_endp = save_nfa_endp;
@@ -3468,9 +3489,9 @@ unsafe fn match_composing(
 
 unsafe fn nfa_did_time_out() -> bool {
     unsafe {
-        if nfa_time_limit.is_some_and(profile_passed_limit) {
-            if !nfa_timed_out.is_null() {
-                *nfa_timed_out = 1;
+        if nfa_st().nfa_time_limit.is_some_and(profile_passed_limit) {
+            if !nfa_st().nfa_timed_out.is_null() {
+                *nfa_st().nfa_timed_out = 1;
             }
             return true;
         }
@@ -3498,7 +3519,7 @@ unsafe fn nfa_regmatch(
             return 0;
         }
 
-        nfa_match = 0;
+        nfa_st().nfa_match = 0;
 
         let init_len = (*prog).nstate as usize + 1;
         let mut list: [nfa_list_T; 2] = if toplevel && !(*prog).listbuf[0].is_empty() {
@@ -3569,7 +3590,7 @@ unsafe fn nfa_regmatch(
             )
         };
         if r.is_null() {
-            nfa_match = NFA_TOO_EXPENSIVE;
+            nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
             return finish_nfa_regmatch(prog, &mut list);
         }
 
@@ -3597,7 +3618,7 @@ unsafe fn nfa_regmatch(
             (*nextlist).has_pim = 0;
             re_st().rex.nfa_listid += 1;
             if (*prog).re_engine == AUTOMATIC_ENGINE as c_uint && re_st().rex.nfa_listid >= NFA_MAX_STATES {
-                nfa_match = NFA_TOO_EXPENSIVE;
+                nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
                 return finish_nfa_regmatch(prog, &mut list);
             }
 
@@ -3615,10 +3636,10 @@ unsafe fn nfa_regmatch(
                 if got_int {
                     break;
                 }
-                if { nfa_time_limit }.is_some() {
-                    nfa_time_count += 1;
-                    if nfa_time_count == 20 {
-                        nfa_time_count = 0;
+                if { nfa_st().nfa_time_limit }.is_some() {
+                    nfa_st().nfa_time_count += 1;
+                    if nfa_st().nfa_time_count == 20 {
+                        nfa_st().nfa_time_count = 0;
                         if nfa_did_time_out() {
                             break;
                         }
@@ -3642,7 +3663,7 @@ unsafe fn nfa_regmatch(
                             listidx += 1;
                             continue;
                         }
-                        nfa_match = 1;
+                        nfa_st().nfa_match = 1;
                         copy_sub(&raw mut (*submatch).norm, &raw mut (*t).subs.norm);
                         if re_st().rex.nfa_has_zsubexpr != 0 {
                             copy_sub(&raw mut (*submatch).synt, &raw mut (*t).subs.synt);
@@ -3672,7 +3693,7 @@ unsafe fn nfa_regmatch(
                                 copy_sub(&raw mut (*m).synt, &raw mut (*t).subs.synt);
                             }
                         }
-                        nfa_match = 1;
+                        nfa_st().nfa_match = 1;
                         if (*nextlist).n == 0 {
                             clen = 0;
                         }
@@ -3709,7 +3730,7 @@ unsafe fn nfa_regmatch(
                                 &mut listids,
                             );
                             if res == NFA_TOO_EXPENSIVE {
-                                nfa_match = res;
+                                nfa_st().nfa_match = res;
                                 return finish_nfa_regmatch(prog, &mut list);
                             }
                             let is_neg = st_c == NFA_START_INVISIBLE_NEG
@@ -3750,7 +3771,7 @@ unsafe fn nfa_regmatch(
                             )
                             .is_null()
                             {
-                                nfa_match = NFA_TOO_EXPENSIVE;
+                                nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
                                 return finish_nfa_regmatch(prog, &mut list);
                             }
                         }
@@ -3794,7 +3815,7 @@ unsafe fn nfa_regmatch(
                                 &mut listids,
                             );
                             if res == NFA_TOO_EXPENSIVE {
-                                nfa_match = res;
+                                nfa_st().nfa_match = res;
                                 return finish_nfa_regmatch(prog, &mut list);
                             }
                             if res != 0 {
@@ -4427,7 +4448,7 @@ unsafe fn nfa_regmatch(
                         r
                     };
                     if r.is_null() {
-                        nfa_match = NFA_TOO_EXPENSIVE;
+                        nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
                         return finish_nfa_regmatch(prog, &mut list);
                     }
                 }
@@ -4436,7 +4457,7 @@ unsafe fn nfa_regmatch(
             }
 
             if !goto_nextchar
-                && nfa_match == 0
+                && nfa_st().nfa_match == 0
                 && ((toplevel
                     && re_st().rex.lnum == 0
                     && clen != 0
@@ -4490,7 +4511,7 @@ unsafe fn nfa_regmatch(
                         )
                         .is_null()
                         {
-                            nfa_match = NFA_TOO_EXPENSIVE;
+                            nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
                             return finish_nfa_regmatch(prog, &mut list);
                         }
                     }
@@ -4527,7 +4548,7 @@ unsafe fn nfa_regmatch(
                     re_st().rex.lnum = save_lnum;
 
                     if r.is_null() {
-                        nfa_match = NFA_TOO_EXPENSIVE;
+                        nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
                         return finish_nfa_regmatch(prog, &mut list);
                     }
                 }
@@ -4547,10 +4568,10 @@ unsafe fn nfa_regmatch(
             if got_int {
                 break;
             }
-            if { nfa_time_limit }.is_some() {
-                nfa_time_count += 1;
-                if nfa_time_count == 20 {
-                    nfa_time_count = 0;
+            if { nfa_st().nfa_time_limit }.is_some() {
+                nfa_st().nfa_time_count += 1;
+                if nfa_st().nfa_time_count == 20 {
+                    nfa_st().nfa_time_count = 0;
                     if nfa_did_time_out() {
                         break;
                     }
@@ -4568,7 +4589,7 @@ unsafe fn finish_nfa_regmatch(prog: *mut nfa_regprog_T, list: &mut [nfa_list_T; 
             (*prog).listbuf[0] = std::mem::take(&mut list[0].t);
             (*prog).listbuf[1] = std::mem::take(&mut list[1].t);
         }
-        nfa_match
+        nfa_st().nfa_match
     }
 }
 
@@ -4584,9 +4605,9 @@ unsafe fn nfa_regtry(
         let start = (*prog).start;
 
         re_st().rex.input = re_st().rex.line.add(col as usize);
-        nfa_time_limit = tm;
-        nfa_timed_out = timed_out;
-        nfa_time_count = 0;
+        nfa_st().nfa_time_limit = tm;
+        nfa_st().nfa_timed_out = timed_out;
+        nfa_st().nfa_time_count = 0;
 
         clear_sub(&raw mut subs.norm);
         clear_sub(&raw mut m.norm);

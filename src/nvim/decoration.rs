@@ -411,10 +411,30 @@ pub struct SignItem<'a> {
     pub id: u32,
 }
 
-static mut decor_freelist: u32 = u32::MAX;
-static mut to_free_virt: Vec<DecorVirtText> = Vec::new();
-static mut to_free_sh: u32 = u32::MAX;
-static mut sign_add_id: c_int = 0;
+struct DecorationModuleState {
+    decor_freelist: u32,
+    to_free_virt: Vec<DecorVirtText>,
+    to_free_sh: u32,
+    sign_add_id: c_int,
+}
+
+impl DecorationModuleState {
+    const fn new() -> Self {
+        Self {
+            decor_freelist: u32::MAX,
+            to_free_virt: Vec::new(),
+            to_free_sh: u32::MAX,
+            sign_add_id: 0,
+        }
+    }
+}
+
+static DECOR_MOD_STATE: GlobalState<DecorationModuleState> = GlobalState::new(DecorationModuleState::new());
+
+#[inline]
+unsafe fn decor_st() -> &'static mut DecorationModuleState {
+    unsafe { &mut *DECOR_MOD_STATE.as_ptr() }
+}
 
 #[inline]
 const fn mt_conceal_lines(key: MTKey) -> bool {
@@ -553,9 +573,9 @@ pub unsafe fn decor_redraw_sh(buf: *mut buf_T, row1: c_int, row2: c_int, sh: Dec
 pub unsafe fn decor_put_sh(item: DecorSignHighlight) -> u32 {
     unsafe {
         let items = &raw mut decor_items;
-        if decor_freelist != u32::MAX {
-            let pos = decor_freelist;
-            decor_freelist = (*items).as_slice()[decor_freelist as usize].next;
+        if decor_st().decor_freelist != u32::MAX {
+            let pos = decor_st().decor_freelist;
+            decor_st().decor_freelist = (*items).as_slice()[decor_st().decor_freelist as usize].next;
             (*items).as_mut_slice()[pos as usize] = item;
             pos
         } else {
@@ -636,8 +656,8 @@ pub unsafe fn buf_put_decor_sh(
 ) {
     unsafe {
         if (sh.flags & kSHIsSign) != 0 {
-            sh.sign_add_id = sign_add_id;
-            sign_add_id += 1;
+            sh.sign_add_id = decor_st().sign_add_id;
+            decor_st().sign_add_id += 1;
             if sh.text[0] != 0 {
                 buf_signcols_count_range(buf, row1, row2, 1, kFalse);
                 may_force_numberwidth_recompute(buf, false);
@@ -703,15 +723,15 @@ pub unsafe fn decor_free(decor: DecorInline) {
 
         if decor_state.running_decor_provider {
             if !vt.is_null() {
-                let list = &raw mut to_free_virt;
+                let list = &raw mut decor_st().to_free_virt;
                 (*list).push(*Box::from_raw(vt));
             }
             let items = &raw mut decor_items;
             while idx != DECOR_ID_INVALID {
                 let sh = &mut (&mut *items)[idx as usize];
                 if sh.next == DECOR_ID_INVALID {
-                    sh.next = to_free_sh;
-                    to_free_sh = ext.sh_idx;
+                    sh.next = decor_st().to_free_sh;
+                    decor_st().to_free_sh = ext.sh_idx;
                     break;
                 }
                 idx = sh.next;
@@ -735,8 +755,8 @@ unsafe fn decor_free_sh(first_idx: u32) {
             sh.flags = 0;
             sh.url = None;
             if sh.next == DECOR_ID_INVALID {
-                sh.next = decor_freelist;
-                decor_freelist = first_idx;
+                sh.next = decor_st().decor_freelist;
+                decor_st().decor_freelist = first_idx;
                 break;
             }
             idx = sh.next;
@@ -755,10 +775,10 @@ pub unsafe fn decor_state_invalidate(buf: *mut buf_T) {
 pub unsafe fn decor_check_to_be_deleted() {
     unsafe {
         assert!(!decor_state.running_decor_provider);
-        let list = &raw mut to_free_virt;
+        let list = &raw mut decor_st().to_free_virt;
         (*list).clear();
-        decor_free_sh(to_free_sh);
-        to_free_sh = DECOR_ID_INVALID;
+        decor_free_sh(decor_st().to_free_sh);
+        decor_st().to_free_sh = DECOR_ID_INVALID;
         decor_state.win = ptr::null_mut();
     }
 }

@@ -2657,27 +2657,43 @@ pub unsafe fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> c_int 
 
 pub unsafe fn do_check_cursorbind() {
     unsafe {
-        static mut prev_curwin: *mut win_T = ptr::null_mut();
-        static mut prev_curbuf: *mut buf_T = ptr::null_mut();
-        static mut prev_changedtick: varnumber_T = 0;
-        static mut prev_cursor: pos_T = pos_T {
-            lnum: 0,
-            col: 0,
-            coladd: 0,
-        };
+struct MoveCursorbindState {
+    prev_curwin: *mut win_T,
+    prev_curbuf: *mut buf_T,
+    prev_changedtick: varnumber_T,
+    prev_cursor: pos_T,
+}
+
+impl MoveCursorbindState {
+    const fn new() -> Self {
+        Self {
+            prev_curwin: ptr::null_mut(),
+            prev_curbuf: ptr::null_mut(),
+            prev_changedtick: 0,
+            prev_cursor: pos_T { lnum: 0, col: 0, coladd: 0 },
+        }
+    }
+}
+
+static MOVE_CB_STATE: GlobalState<MoveCursorbindState> = GlobalState::new(MoveCursorbindState::new());
+
+#[inline]
+unsafe fn move_cb_st() -> &'static mut MoveCursorbindState {
+    unsafe { &mut *MOVE_CB_STATE.as_ptr() }
+}
 
         debug_assert!(!curwin.is_null() && !curbuf.is_null());
-        if curwin == prev_curwin
-            && curbuf == prev_curbuf
-            && buf_get_changedtick(curbuf) == prev_changedtick
-            && equalpos((*curwin).w_cursor, prev_cursor)
+        if curwin == move_cb_st().prev_curwin
+            && curbuf == move_cb_st().prev_curbuf
+            && buf_get_changedtick(curbuf) == move_cb_st().prev_changedtick
+            && equalpos((*curwin).w_cursor, move_cb_st().prev_cursor)
         {
             return;
         }
-        prev_curwin = curwin;
-        prev_curbuf = curbuf;
-        prev_changedtick = buf_get_changedtick(curbuf);
-        prev_cursor = (*curwin).w_cursor;
+        move_cb_st().prev_curwin = curwin;
+        move_cb_st().prev_curbuf = curbuf;
+        move_cb_st().prev_changedtick = buf_get_changedtick(curbuf);
+        move_cb_st().prev_cursor = (*curwin).w_cursor;
 
         let line = (*curwin).w_cursor.lnum;
         let col = (*curwin).w_cursor.col;

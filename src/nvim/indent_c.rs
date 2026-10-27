@@ -53,26 +53,30 @@ struct cpp_baseclass_cache_T {
     found: c_int,
     lpos: lpos_T,
 }
-static mut comment_pos_copy: pos_T = pos_T {
-    lnum: 0,
-    col: 0,
-    coladd: 0,
-};
-static mut find_line_comment_pos: pos_T = pos_T {
-    lnum: 0,
-    col: 0,
-    coladd: 0,
-};
-static mut start_brace_pos_copy: pos_T = pos_T {
-    lnum: 0,
-    col: 0,
-    coladd: 0,
-};
-static mut match_char_pos_copy: pos_T = pos_T {
-    lnum: 0,
-    col: 0,
-    coladd: 0,
-};
+struct IndentCState {
+    comment_pos_copy: pos_T,
+    find_line_comment_pos: pos_T,
+    start_brace_pos_copy: pos_T,
+    match_char_pos_copy: pos_T,
+}
+
+impl IndentCState {
+    const fn new() -> Self {
+        Self {
+            comment_pos_copy: pos_T { lnum: 0, col: 0, coladd: 0 },
+            find_line_comment_pos: pos_T { lnum: 0, col: 0, coladd: 0 },
+            start_brace_pos_copy: pos_T { lnum: 0, col: 0, coladd: 0 },
+            match_char_pos_copy: pos_T { lnum: 0, col: 0, coladd: 0 },
+        }
+    }
+}
+
+static INDC_STATE: GlobalState<IndentCState> = GlobalState::new(IndentCState::new());
+
+#[inline]
+unsafe fn indc_st() -> &'static mut IndentCState {
+    unsafe { &mut *INDC_STATE.as_ptr() }
+}
 use crate::keycodes::ctrl_chr;
 /// Check if line[] contains a "//" comment, ignoring matches inside strings.
 /// Return MAXCOL if not, otherwise return the column.
@@ -162,8 +166,8 @@ unsafe fn ind_find_start_CORS(is_raw: *mut linenr_T) -> *mut pos_T {
     unsafe {
         let mut comment_pos = find_start_comment((*curbuf).b_ind_maxcomment);
         if !comment_pos.is_null() {
-            comment_pos_copy = *comment_pos;
-            comment_pos = &raw mut comment_pos_copy;
+            indc_st().comment_pos_copy = *comment_pos;
+            comment_pos = &raw mut indc_st().comment_pos_copy;
         }
         let rs_pos = find_start_rawstring((*curbuf).b_ind_maxcomment);
         if comment_pos.is_null() || (!rs_pos.is_null() && lt(*rs_pos, *comment_pos)) {
@@ -340,17 +344,17 @@ unsafe fn cin_nocode(s: *const c_char) -> bool {
 }
 unsafe fn find_line_comment() -> *mut pos_T {
     unsafe {
-        find_line_comment_pos = (*curwin).w_cursor;
+        indc_st().find_line_comment_pos = (*curwin).w_cursor;
         loop {
-            find_line_comment_pos.lnum -= 1;
-            if find_line_comment_pos.lnum <= 0 {
+            indc_st().find_line_comment_pos.lnum -= 1;
+            if indc_st().find_line_comment_pos.lnum <= 0 {
                 break;
             }
-            let line = ml_get(find_line_comment_pos.lnum);
+            let line = ml_get(indc_st().find_line_comment_pos.lnum);
             let p = skipwhite(line);
             if cin_islinecomment(p) {
-                find_line_comment_pos.col = p.offset_from(line) as colnr_T;
-                return &raw mut find_line_comment_pos;
+                indc_st().find_line_comment_pos.col = p.offset_from(line) as colnr_T;
+                return &raw mut indc_st().find_line_comment_pos;
             }
             if *p != NUL {
                 break;
@@ -1377,8 +1381,8 @@ unsafe fn find_start_brace() -> *mut pos_T {
             if trypos.is_null() {
                 break;
             }
-            start_brace_pos_copy = *trypos;
-            trypos = &raw mut start_brace_pos_copy;
+            indc_st().start_brace_pos_copy = *trypos;
+            trypos = &raw mut indc_st().start_brace_pos_copy;
             (*curwin).w_cursor = *trypos;
             let mut pos: *mut pos_T = ptr::null_mut();
             if cin_skip2pos(trypos) as colnr_T == (*trypos).col && {
@@ -1420,8 +1424,8 @@ unsafe fn find_match_char(c: c_char, ind_maxparen: c_int) -> *mut pos_T {
                     }
                     trypos = ptr::null_mut();
                 } else {
-                    match_char_pos_copy = *trypos;
-                    trypos = &raw mut match_char_pos_copy;
+                    indc_st().match_char_pos_copy = *trypos;
+                    trypos = &raw mut indc_st().match_char_pos_copy;
                     (*curwin).w_cursor = *trypos;
                     let trypos_wk = ind_find_start_CORS(ptr::null_mut());
                     if !trypos_wk.is_null() {
