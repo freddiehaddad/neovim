@@ -496,7 +496,7 @@ pub unsafe fn changed_bytes(lnum: linenr_T, col: colnr_T) {
             while !wp.is_null() {
                 if (*wp).w_onebuf_opt.wo_diff != 0 && wp != *curwin.as_ptr() {
                     redraw_later(wp, UPD_VALID);
-                    let wlnum = diff_lnum_win(lnum, wp);
+                    let wlnum = diff_lnum_win(lnum, &mut *wp);
                     if wlnum > 0 {
                         changed_lines_redraw_buf((*wp).w_buffer, wlnum, wlnum + 1, 0);
                     }
@@ -622,7 +622,7 @@ pub unsafe fn changed_lines(
             while !wp.is_null() {
                 if (*wp).w_onebuf_opt.wo_diff != 0 && wp != *curwin.as_ptr() {
                     redraw_later(wp, UPD_VALID);
-                    let wlnum = diff_lnum_win(lnum, wp);
+                    let wlnum = diff_lnum_win(lnum, &mut *wp);
                     if wlnum > 0 {
                         changed_lines_redraw_buf((*wp).w_buffer, wlnum, lnume - lnum + wlnum, 0);
                     }

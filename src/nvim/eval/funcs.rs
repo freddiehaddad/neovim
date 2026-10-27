@@ -1730,7 +1730,7 @@ pub unsafe fn f_char2nr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
 }
 
 /// Get the current cursor column and store it in `rettv`.
-unsafe fn get_col(argvars: *mut typval_T, rettv: *mut typval_T, charcol: bool) {
+unsafe fn get_col(argvars: *mut typval_T, rettv: &mut typval_T, charcol: bool) {
     unsafe {
         if tv_check_for_string_or_list_arg(argvars, 0) == FAIL
             || tv_check_for_opt_number_arg(argvars, 1) == FAIL
@@ -1775,7 +1775,7 @@ unsafe fn get_col(argvars: *mut typval_T, rettv: *mut typval_T, charcol: bool) {
                 }
             }
         }
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(col));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(col));
     }
 }
 
@@ -1867,7 +1867,7 @@ pub unsafe fn f_confirm(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
 /// "copy()" function
 pub unsafe fn f_copy(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        var_item_copy(None, argvars, rettv, false, 0);
+        var_item_copy(None, &mut *argvars, rettv, false, 0);
     }
 }
 
@@ -1997,7 +1997,7 @@ pub unsafe fn f_deepcopy(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
         }
         var_item_copy(
             None,
-            argvars,
+            &mut *argvars,
             rettv,
             true,
             if noref == 0 { get_copyID() } else { 0 },
@@ -2500,7 +2500,7 @@ pub unsafe fn f_expandcmd(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
 }
 
 /// "flatten()" and "flattennew()" functions
-unsafe fn flatten_common(argvars: *mut typval_T, rettv: *mut typval_T, make_copy: bool) {
+unsafe fn flatten_common(argvars: *mut typval_T, rettv: &mut typval_T, make_copy: bool) {
     unsafe {
         let mut error = false;
         if (*argvars).v_type != VarType::VAR_LIST {
@@ -2525,15 +2525,15 @@ unsafe fn flatten_common(argvars: *mut typval_T, rettv: *mut typval_T, make_copy
         };
 
         let mut list = (*argvars).vval.v_list();
-        (*rettv).v_type = VarType::VAR_LIST;
-        (*rettv).vval = crate::eval::typval::TypvalVval::List(list);
+        rettv.v_type = VarType::VAR_LIST;
+        rettv.vval = crate::eval::typval::TypvalVval::List(list);
         if list.is_null() {
             return;
         }
 
         if make_copy {
             list = tv_list_copy(None, list, false, get_copyID());
-            (*rettv).vval = crate::eval::typval::TypvalVval::List(list);
+            rettv.vval = crate::eval::typval::TypvalVval::List(list);
             if list.is_null() {
                 return;
             }
@@ -6598,11 +6598,11 @@ pub unsafe fn f_reltimestr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
     }
 }
 
-unsafe fn repeat_list(l: *mut list_T, mut n: varnumber_T, rettv: *mut typval_T) {
+unsafe fn repeat_list(l: *mut list_T, mut n: varnumber_T, rettv: &mut typval_T) {
     unsafe {
         let slen = tv_list_len(l);
         tv_list_alloc_ret(
-            rettv,
+            &raw mut *rettv,
             (varnumber_T::from(n > 0) * n * varnumber_T::from(slen)) as isize,
         );
         if l.is_null() || n <= 0 || slen == 0 {
@@ -6613,15 +6613,15 @@ unsafe fn repeat_list(l: *mut list_T, mut n: varnumber_T, rettv: *mut typval_T) 
         }
         while n > 0 {
             n -= 1;
-            tv_list_extend((*rettv).vval.v_list(), l, ptr::null_mut());
+            tv_list_extend(rettv.vval.v_list(), l, ptr::null_mut());
         }
     }
 }
 
-unsafe fn repeat_blob(blob_tv: *mut typval_T, n: varnumber_T, rettv: *mut typval_T) {
+unsafe fn repeat_blob(blob_tv: &mut typval_T, n: varnumber_T, rettv: &mut typval_T) {
     unsafe {
-        let blob = (*blob_tv).vval.v_blob().cast::<blob_T>();
-        tv_blob_alloc_ret(rettv);
+        let blob = blob_tv.vval.v_blob().cast::<blob_T>();
+        tv_blob_alloc_ret(&raw mut *rettv);
         if blob.is_null() || n <= 0 {
             return;
         }
@@ -6633,7 +6633,7 @@ unsafe fn repeat_blob(blob_tv: *mut typval_T, n: varnumber_T, rettv: *mut typval
             return;
         }
         let len = slen * (n as c_int);
-        let ret_blob = (*rettv).vval.v_blob().cast::<blob_T>();
+        let ret_blob = rettv.vval.v_blob().cast::<blob_T>();
         let ret_bv = &mut (*ret_blob).bv_ga;
         ret_bv.resize(len as usize, 0);
 
@@ -6652,7 +6652,7 @@ unsafe fn repeat_blob(blob_tv: *mut typval_T, n: varnumber_T, rettv: *mut typval
                 &mut *ret_blob,
                 varnumber_T::from(idx * slen),
                 varnumber_T::from((idx + 1) * slen - 1),
-                blob_tv,
+                &raw mut *blob_tv,
             );
         }
     }
@@ -6694,7 +6694,7 @@ pub unsafe fn f_repeat(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
         if (*argvars).v_type == VarType::VAR_LIST {
             repeat_list((*argvars).vval.v_list(), n, rettv);
         } else if (*argvars).v_type == VarType::VAR_BLOB {
-            repeat_blob(argvars, n, rettv);
+            repeat_blob(&mut *argvars, n, rettv);
         } else {
             repeat_string(argvars, n, rettv);
         }
@@ -8209,7 +8209,7 @@ pub unsafe fn f_settagstack(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
             }
         }
 
-        if set_tagstack(wp, d, c_int::from(action)) == OK {
+        if set_tagstack(&mut *wp, d, c_int::from(action)) == OK {
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
     }
@@ -8403,7 +8403,7 @@ pub unsafe fn f_spellbadword(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
         let mut attr: hlf_T = HLF_COUNT;
         let mut len: usize = 0;
         if (*argvars).v_type == VarType::VAR_UNKNOWN {
-            len = spell_move_to(*curwin.as_ptr(), FORWARD, SMT_ALL, true, &raw mut attr);
+            len = spell_move_to(&mut **curwin.as_ptr(), FORWARD, SMT_ALL, true, &raw mut attr);
             if len != 0 {
                 word = get_cursor_pos_ptr();
                 (**curwin.as_ptr()).w_set_curswant = true;

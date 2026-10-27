@@ -4198,7 +4198,7 @@ pub unsafe fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
             ) as usize;
         }
 
-        append_arg_number(*curwin.as_ptr(), buffer.add(bufferlen), IOSIZE - bufferlen);
+        append_arg_number(&mut **curwin.as_ptr(), buffer.add(bufferlen), IOSIZE - bufferlen);
 
         if dont_truncate {
             msg_start();
@@ -4396,18 +4396,18 @@ pub unsafe fn free_titles() {
 }
 
 /// Get relative cursor position in window into `buf[]`.
-pub unsafe fn get_rel_pos(wp: *mut win_T, buf: *mut c_char, buflen: c_int) -> c_int {
+pub unsafe fn get_rel_pos(wp: &mut win_T, buf: *mut c_char, buflen: c_int) -> c_int {
     unsafe {
         if buflen < 3 {
             return 0;
         }
 
-        let mut above = (*wp).w_topline - 1;
-        above += win_get_fill(wp, (*wp).w_topline) - (*wp).w_topfill;
-        if (*wp).w_topline == 1 && (*wp).w_topfill >= 1 {
+        let mut above = wp.w_topline - 1;
+        above += win_get_fill(&raw mut *wp, wp.w_topline) - wp.w_topfill;
+        if wp.w_topline == 1 && wp.w_topfill >= 1 {
             above = 0;
         }
-        let below = (*(*wp).w_buffer).b_ml.ml_line_count - (*wp).w_botline + 1;
+        let below = (*wp.w_buffer).b_ml.ml_line_count - wp.w_botline + 1;
         if below <= 0 {
             return vim_snprintf_safelen!(
                 buf,
@@ -4438,20 +4438,20 @@ pub unsafe fn get_rel_pos(wp: *mut win_T, buf: *mut c_char, buflen: c_int) -> c_
 }
 
 /// Append `(2 of 8)` to `buf[]`, if editing more than one file.
-pub unsafe fn append_arg_number(wp: *mut win_T, buf: *mut c_char, buflen: usize) -> c_int {
+pub unsafe fn append_arg_number(wp: &mut win_T, buf: *mut c_char, buflen: usize) -> c_int {
     unsafe {
         let argcount = crate::arglist::argcount();
         if argcount <= 1 {
             return 0;
         }
 
-        let msg = if (*wp).w_arg_idx_invalid {
+        let msg = if wp.w_arg_idx_invalid {
             gettext(c" ((%d) of %d)".as_ptr())
         } else {
             gettext(c" (%d of %d)".as_ptr())
         };
 
-        vim_snprintf_safelen!(buf, buflen, msg, (*wp).w_arg_idx + 1, argcount) as c_int
+        vim_snprintf_safelen!(buf, buflen, msg, wp.w_arg_idx + 1, argcount) as c_int
     }
 }
 
@@ -4627,7 +4627,7 @@ pub unsafe fn ex_buffer_all(eap: &mut exarg_T) {
                     wp = (*wp).w_next;
                 }
                 if !wp.is_null() {
-                    win_move_after(wp, *curwin.as_ptr());
+                    win_move_after(&mut *wp, &mut **curwin.as_ptr());
                 }
             }
 

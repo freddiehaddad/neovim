@@ -446,7 +446,7 @@ pub unsafe extern "C" fn nvim_win_close(win: Window, force: Boolean, err: &mut E
         try_wrap(err, || {
             ex_win_close(
                 c_int::from(force),
-                w,
+                &mut *w,
                 if tabpage == g_st().curtab {
                     ptr::null_mut()
                 } else {

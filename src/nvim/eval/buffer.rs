@@ -358,7 +358,7 @@ unsafe fn prompt_trim_scrollback(buf: &mut buf_T) {
 pub unsafe fn prompt_invoke_callback() {
     unsafe {
         let lnum = (*g_st().curbuf).b_ml.ml_line_count;
-        let Some(user_input) = prompt_get_input(g_st().curbuf) else {
+        let Some(user_input) = prompt_get_input(&mut *g_st().curbuf) else {
             return;
         };
 
@@ -1069,7 +1069,7 @@ pub unsafe fn f_prompt_getinput(argvars: *mut typval_T, rettv: &mut typval_T, _f
 
         tv_set_string(
             rettv,
-            prompt_get_input(buf)
+            prompt_get_input(&mut *buf)
                 .as_ref()
                 .map_or(ptr::null(), |s| s.as_ptr()),
         );

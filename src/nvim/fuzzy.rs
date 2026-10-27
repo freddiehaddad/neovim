@@ -570,7 +570,7 @@ unsafe fn fuzzy_match_in_list(
     }
 }
 
-unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: *mut typval_T, retmatchpos: bool) {
+unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: &mut typval_T, retmatchpos: bool) {
     unsafe {
         let arg0 = &*argvars;
         let arg1 = &*argvars.add(1);
@@ -637,8 +637,8 @@ unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: *mut typval_T, retmatch
             }
         }
 
-        tv_list_alloc_ret(rettv, if retmatchpos { 3 } else { K_LIST_LEN_UNKNOWN });
-        let out_list = (*rettv).vval.v_list();
+        tv_list_alloc_ret(&raw mut *rettv, if retmatchpos { 3 } else { K_LIST_LEN_UNKNOWN });
+        let out_list = rettv.vval.v_list();
         if retmatchpos {
             tv_list_append_list(out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
             tv_list_append_list(out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));

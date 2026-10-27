@@ -643,7 +643,7 @@ unsafe fn parse_json_number(
 pub unsafe fn json_decode_string(
     buf: *const c_char,
     buf_len: usize,
-    rettv: *mut typval_T,
+    rettv: &mut typval_T,
 ) -> c_int {
     unsafe {
         let mut p = buf;
@@ -658,7 +658,7 @@ pub unsafe fn json_decode_string(
 
         let mut stack: Vec<ValuesStackItem> = Vec::new();
         let mut container_stack: Vec<JsonContainerStackItem> = Vec::new();
-        (*rettv).v_type = VarType::VAR_UNKNOWN;
+        rettv.v_type = VarType::VAR_UNKNOWN;
         let mut didcomma = false;
         let mut didcolon = false;
         let mut next_map_special = false;

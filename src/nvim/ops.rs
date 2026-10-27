@@ -4077,7 +4077,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                 }
                 OP_FOLD => {
                     g_st().Visual.reselect = 0;
-                    foldCreate(*curwin.as_ptr(), (*oap).start, (*oap).end);
+                    foldCreate(&mut **curwin.as_ptr(), (*oap).start, (*oap).end);
                 }
                 OP_MCURSOR => {
                     restore_lbr(lbr_saved);

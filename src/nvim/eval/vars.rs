@@ -1266,7 +1266,7 @@ pub unsafe fn ex_let(eap: &mut exarg_T) {
                     op[1] = NUL;
                     ex_let_vars(
                         eap.arg,
-                        &raw mut rettv,
+                        &mut rettv,
                         0,
                         semicolon,
                         var_count,
@@ -1311,7 +1311,7 @@ pub unsafe fn ex_let(eap: &mut exarg_T) {
         if eap.skip == 0 && eval_res != FAIL {
             ex_let_vars(
                 eap.arg,
-                &raw mut rettv,
+                &mut rettv,
                 0,
                 semicolon,
                 var_count,
@@ -1328,7 +1328,7 @@ pub unsafe fn ex_let(eap: &mut exarg_T) {
 /// Assign the typevalue "tv" to the variable or variables at "arg_start".
 pub unsafe fn ex_let_vars(
     arg_start: *mut c_char,
-    tv: *mut typval_T,
+    tv: &mut typval_T,
     copy: c_int,
     semicolon: c_int,
     var_count: c_int,
@@ -1340,17 +1340,17 @@ pub unsafe fn ex_let_vars(
         let mut ltv: typval_T = typval_T::new();
 
         if *arg != b'[' as c_char {
-            if ex_let_one(arg, tv, copy != 0, is_const != 0, op, op).is_null() {
+            if ex_let_one(arg, &raw mut *tv, copy != 0, is_const != 0, op, op).is_null() {
                 return FAIL;
             }
             return OK;
         }
 
-        if (*tv).v_type != VarType::VAR_LIST {
+        if tv.v_type != VarType::VAR_LIST {
             emsg(gettext(e_listreq.as_ptr()));
             return FAIL;
         }
-        let l = (*tv).vval.v_list();
+        let l = tv.vval.v_list();
 
         let len = tv_list_len(l);
         if semicolon == 0 && var_count < len {
@@ -2229,7 +2229,7 @@ unsafe fn do_lock_var(
                         (*di).di_flags &= !DI_FLAGS_LOCK;
                     }
                     if deep != 0 {
-                        tv_item_lock(&raw mut (*di).di_tv, deep, lock, false);
+                        tv_item_lock(&mut (*di).di_tv, deep, lock, false);
                     }
                 }
             }
@@ -2238,14 +2238,14 @@ unsafe fn do_lock_var(
         } else if lp.ll_range {
             let mut li = lp.ll_li;
             while !li.is_null() && (lp.ll_empty2 || lp.ll_n2 >= lp.ll_n1) {
-                tv_item_lock(&raw mut (*li).li_tv, deep, lock, false);
+                tv_item_lock(&mut (*li).li_tv, deep, lock, false);
                 li = (*li).li_next;
                 lp.ll_n1 += 1;
             }
         } else if !lp.ll_list.is_null() {
-            tv_item_lock(&raw mut (*lp.ll_li).li_tv, deep, lock, false);
+            tv_item_lock(&mut (*lp.ll_li).li_tv, deep, lock, false);
         } else {
-            tv_item_lock(&raw mut (*lp.ll_di).di_tv, deep, lock, false);
+            tv_item_lock(&mut (*lp.ll_di).di_tv, deep, lock, false);
         }
 
         ret
@@ -3191,7 +3191,7 @@ pub unsafe fn set_var_const(
         }
 
         if is_const {
-            tv_item_lock(&raw mut (*di).di_tv, DICT_MAXNEST, true, true);
+            tv_item_lock(&mut (*di).di_tv, DICT_MAXNEST, true, true);
         }
     }
 }

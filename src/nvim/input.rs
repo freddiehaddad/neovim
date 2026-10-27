@@ -1937,7 +1937,7 @@ pub unsafe fn char_avail() -> bool {
     }
 }
 
-unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow_number: bool) {
+unsafe fn getchar_common(argvars: *mut typval_T, rettv: &mut typval_T, mut allow_number: bool) {
     unsafe {
         let mut n: varnumber_T;
         let called_emsg_start = g_st().called_emsg;
@@ -2066,7 +2066,7 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow
             }
             assert!(i < 10);
             temp[i] = NUL as c_char;
-            crate::eval::typval::tv_set_string_len(rettv, temp.as_ptr(), i);
+            crate::eval::typval::tv_set_string_len(&raw mut *rettv, temp.as_ptr(), i);
 
             if is_mouse_key(ni) {
                 let mut row = g_st().mouse_row;
@@ -2093,9 +2093,9 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow
                 }
             }
         } else if !allow_number {
-            (*rettv).v_type = VarType::VAR_STRING;
+            rettv.v_type = VarType::VAR_STRING;
         } else {
-            (*rettv).vval = crate::eval::typval::TypvalVval::Number(n);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(n);
         }
     }
 }

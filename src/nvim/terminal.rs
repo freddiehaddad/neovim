@@ -864,7 +864,7 @@ pub unsafe fn terminal_open(termpp: *mut *mut Terminal, buf: &mut buf_T) {
         } else {
             debug_assert!(term.invalid_start >= 0);
         }
-        refresh_screen(term, &raw mut *buf);
+        refresh_screen(term, &mut *buf);
         buf.b_locked += 1;
         set_option_value(
             kOptBuftype,
@@ -2438,7 +2438,7 @@ unsafe fn refresh_terminal(term: &mut Terminal) {
 
         let resized = refresh_size(term, buf);
         refresh_scrollback(term, &mut *buf);
-        refresh_screen(term, buf);
+        refresh_screen(term, &mut *buf);
 
         let ml_added = (*buf).b_ml.ml_line_count - ml_before;
         adjust_topline_cursor(term, &mut *buf, ml_added);
@@ -2650,7 +2650,7 @@ unsafe fn refresh_scrollback(term: &mut Terminal, buf: &mut buf_T) {
     }
 }
 
-unsafe fn refresh_screen(term: &mut Terminal, buf: *mut buf_T) {
+unsafe fn refresh_screen(term: &mut Terminal, buf: &mut buf_T) {
     unsafe {
         let mut changed: c_int = 0;
         let mut added: c_int = 0;
@@ -2671,11 +2671,11 @@ unsafe fn refresh_screen(term: &mut Terminal, buf: *mut buf_T) {
         while r < term.invalid_end {
             fetch_row(term, r, width);
 
-            if linenr <= (*buf).b_ml.ml_line_count {
-                ml_replace_buf(buf, linenr, textbuf_ptr, true, false);
+            if linenr <= buf.b_ml.ml_line_count {
+                ml_replace_buf(&raw mut *buf, linenr, textbuf_ptr, true, false);
                 changed += 1;
             } else {
-                ml_append_buf(buf, linenr - 1, textbuf_ptr, 0, false);
+                ml_append_buf(&raw mut *buf, linenr - 1, textbuf_ptr, 0, false);
                 added += 1;
             }
             r += 1;
@@ -2687,7 +2687,7 @@ unsafe fn refresh_screen(term: &mut Terminal, buf: *mut buf_T) {
         let change_end = change_start + changed;
         term.invalid_start = c_int::MAX;
         term.invalid_end = -1;
-        changed_lines(buf, change_start, 0, change_end, added, true);
+        changed_lines(&raw mut *buf, change_start, 0, change_end, added, true);
     }
 }
 

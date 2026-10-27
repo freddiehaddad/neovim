@@ -313,7 +313,7 @@ unsafe fn do_ft_buf(filetype: *const c_char, aco: &mut CtxSwitch, err: &mut Erro
 
         let mut did_au_ft = false;
         try_wrap(err, || {
-            did_au_ft = do_filetype_autocmd(ftbuf, true);
+            did_au_ft = do_filetype_autocmd(&mut *ftbuf, true);
         });
 
         if !bufref_valid(&mut bufref) {

@@ -2997,7 +2997,7 @@ unsafe fn cmdpreview_open_buf() -> *mut buf_T {
 }
 
 /// Open command preview window if it's not already open.
-unsafe fn cmdpreview_open_win(cmdpreview_buf: *mut buf_T) -> *mut win_T {
+unsafe fn cmdpreview_open_win(cmdpreview_buf: &mut buf_T) -> *mut win_T {
     unsafe {
         let save_curwin = *curwin.as_ptr();
 
@@ -3014,7 +3014,7 @@ unsafe fn cmdpreview_open_win(cmdpreview_buf: *mut buf_T) -> *mut win_T {
             DOBUF_GOTO,
             DOBUF_FIRST,
             FORWARD,
-            (*cmdpreview_buf).b_fnum,
+            cmdpreview_buf.b_fnum,
             0,
         );
         try_leave(&tstate, &mut err);
@@ -3224,7 +3224,7 @@ unsafe fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
         }
 
         if icm_split && cmdpreview_type == 2 {
-            cmdpreview_win = cmdpreview_open_win(cmdpreview_buf);
+            cmdpreview_win = cmdpreview_open_win(&mut *cmdpreview_buf);
             if cmdpreview_win.is_null() {
                 cmdpreview_type = 1;
             }

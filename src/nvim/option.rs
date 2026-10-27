@@ -1746,7 +1746,7 @@ unsafe fn get_option_prefix(argp: *mut *mut c_char) -> set_prefix_T {
 }
 
 unsafe fn validate_opt_idx(
-    win: *mut win_T,
+    win: &mut win_T,
     opt_idx: OptIndex,
     opt_flags: c_int,
     flags: u32,
@@ -1776,7 +1776,7 @@ unsafe fn validate_opt_idx(
                 *errmsg = E_NOT_ALLOWED_IN_MODELINE_WHEN_MODELINEEXPR_IS_OFF;
                 return FAIL;
             }
-            if (*win).w_onebuf_opt.wo_diff != 0
+            if win.w_onebuf_opt.wo_diff != 0
                 && (opt_idx == kOptFoldmethod || opt_idx == kOptWrap)
             {
                 return FAIL;
@@ -2040,7 +2040,7 @@ unsafe fn do_one_set_option(
         let varp = get_varp_scope(opt, opt_flags);
 
         let mut errmsg: *const c_char = ptr::null();
-        if validate_opt_idx(*curwin.as_ptr(), opt_idx, opt_flags, flags, prefix, &mut errmsg) == FAIL {
+        if validate_opt_idx(&mut **curwin.as_ptr(), opt_idx, opt_flags, flags, prefix, &mut errmsg) == FAIL {
             return errmsg;
         }
 
@@ -5748,7 +5748,7 @@ unsafe fn did_set_option(
             do_syntax_autocmd(&mut *g_st().curbuf, args.os_value_changed);
         } else if varp == (&raw mut (*g_st().curbuf).b_p_ft).cast::<c_void>() {
             if (opt_flags & OPT_MODELINE) == 0 || args.os_value_changed {
-                do_filetype_autocmd(g_st().curbuf, args.os_value_changed);
+                do_filetype_autocmd(&mut *g_st().curbuf, args.os_value_changed);
             }
         } else if varp == (&raw mut (*ws).b_p_spl).cast::<c_void>() {
             do_spelllang_source(&mut **curwin.as_ptr());

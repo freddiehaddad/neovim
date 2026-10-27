@@ -9628,7 +9628,7 @@ unsafe fn ex_close(eap: &mut exarg_T) {
                 let w = win_find_nr(eap.line2, g_st().curtab);
                 if w.is_null() { g_st().lastwin } else { w }
             };
-            ex_win_close(eap.forceit, win, ptr::null_mut());
+            ex_win_close(eap.forceit, &mut *win, ptr::null_mut());
         }
     }
 }
@@ -9638,7 +9638,7 @@ unsafe fn ex_pclose(eap: &mut exarg_T) {
         let mut win = g_st().firstwin;
         while !win.is_null() {
             if (*win).w_onebuf_opt.wo_pvw != 0 {
-                ex_win_close(eap.forceit, win, ptr::null_mut());
+                ex_win_close(eap.forceit, &mut *win, ptr::null_mut());
                 break;
             }
             win = (*win).w_next;
@@ -9647,19 +9647,19 @@ unsafe fn ex_pclose(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_win_close(forceit: c_int, win: *mut win_T, tp: *mut tabpage_T) {
+pub unsafe fn ex_win_close(forceit: c_int, win: &mut win_T, tp: *mut tabpage_T) {
     unsafe {
         debug_assert!(tp.is_null() || tp != g_st().curtab);
 
-        if is_ctx_win(win) {
+        if is_ctx_win(&raw mut *win) {
             let _ = emsg(gettext(e_autocmd_close.as_ptr()));
             return;
         }
-        if !(*win).w_floating && window_layout_locked(cmdidx_T::CMD_close) {
+        if !win.w_floating && window_layout_locked(cmdidx_T::CMD_close) {
             return;
         }
 
-        let buf = (*win).w_buffer;
+        let buf = win.w_buffer;
 
         let mut need_hide = bufIsChanged(&mut *buf) && (*buf).b_nwindows <= 1;
         if need_hide && !buf_hide(&*buf) && forceit == 0 {
@@ -9678,10 +9678,10 @@ pub unsafe fn ex_win_close(forceit: c_int, win: *mut win_T, tp: *mut tabpage_T) 
         }
 
         if tp.is_null() {
-            win_close(win, !need_hide && !buf_hide(&*buf), forceit != 0);
+            win_close(&raw mut *win, !need_hide && !buf_hide(&*buf), forceit != 0);
         } else {
             win_close_othertab(
-                win,
+                &raw mut *win,
                 c_int::from(!need_hide && !buf_hide(&*buf)),
                 tp,
                 forceit != 0,
@@ -9773,7 +9773,7 @@ pub unsafe fn tabpage_close(forceit: c_int) {
             done += 1;
             done < 1000
         } {
-            ex_win_close(forceit, *curwin.as_ptr(), ptr::null_mut());
+            ex_win_close(forceit, &mut **curwin.as_ptr(), ptr::null_mut());
         }
         if done == 1000 {
             return;
@@ -9783,7 +9783,7 @@ pub unsafe fn tabpage_close(forceit: c_int) {
             close_others(1, forceit, true);
         }
         if g_st().firstwin == g_st().lastwin {
-            ex_win_close(forceit, *curwin.as_ptr(), ptr::null_mut());
+            ex_win_close(forceit, &mut **curwin.as_ptr(), ptr::null_mut());
         }
         if g_st().curtab == save_curtab {
             (*g_st().curtab).tp_did_tabclosedpre = false;
@@ -9821,7 +9821,7 @@ pub unsafe fn tabpage_close_other(tp: &mut tabpage_T, forceit: c_int) {
                 done = 1000;
                 break;
             }
-            ex_win_close(forceit, wp, &raw mut *tp);
+            ex_win_close(forceit, &mut *wp, &raw mut *tp);
 
             if !valid_tabpage(&raw mut *tp) {
                 break;
@@ -12738,7 +12738,7 @@ unsafe fn ex_fold(eap: &mut exarg_T) {
                 col: 1,
                 coladd: 0,
             };
-            foldCreate(*curwin.as_ptr(), start, end);
+            foldCreate(&mut **curwin.as_ptr(), start, end);
         }
     }
 }

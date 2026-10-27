@@ -4186,7 +4186,7 @@ pub unsafe fn ex_copen(eap: &mut exarg_T) {
         qf_set_title_var(qfl);
         let lnum = qfl.qf_index;
 
-        qf_fill_buffer(qfl, g_st().curbuf, 0, (**curwin.as_ptr()).handle);
+        qf_fill_buffer(qfl, &mut *g_st().curbuf, 0, (**curwin.as_ptr()).handle);
 
         decr_quickfix_busy();
 
@@ -4369,7 +4369,7 @@ unsafe fn qf_update_buffer(qi: &mut qf_info_T, old_count: usize) {
 
         qf_update_win_titlevar(qi);
 
-        qf_fill_buffer(qf_get_curlist(&raw mut *qi), buf, old_count, qf_winid);
+        qf_fill_buffer(qf_get_curlist(&raw mut *qi), &mut *buf, old_count, qf_winid);
 
         let new_line_count = (*buf).b_ml.ml_line_count;
         let new_endcol = ml_get_buf_len(buf, new_line_count);
@@ -4560,12 +4560,12 @@ unsafe fn call_qftf_func(
     }
 }
 
-unsafe fn qf_fill_buffer(qfl: *mut qf_list_T, buf: *mut buf_T, old_count: usize, qf_winid: c_int) {
+unsafe fn qf_fill_buffer(qfl: *mut qf_list_T, buf: &mut buf_T, old_count: usize, qf_winid: c_int) {
     unsafe {
         let old_KeyTyped = g_st().KeyTyped;
 
         if old_count == 0 {
-            if buf != g_st().curbuf {
+            if !ptr::eq(buf, g_st().curbuf) {
                 internal_error(c"qf_fill_buffer()".as_ptr());
                 return;
             }
@@ -4597,7 +4597,7 @@ unsafe fn qf_fill_buffer(qfl: *mut qf_list_T, buf: *mut buf_T, old_count: usize,
             let mut lnum: linenr_T = if old_count == 0 {
                 0
             } else {
-                (*buf).b_ml.ml_line_count
+                buf.b_ml.ml_line_count
             };
 
             let qftf_list = call_qftf_func(&mut *qfl, qf_winid, lnum + 1, (*qfl).count());
@@ -4620,7 +4620,7 @@ unsafe fn qf_fill_buffer(qfl: *mut qf_list_T, buf: *mut buf_T, old_count: usize,
                 let qfp_fnum = (*qfp).qf_fnum;
                 if qf_buf_add_line(
                     &*qfl,
-                    buf,
+                    &raw mut *buf,
                     lnum,
                     &*qfp,
                     dirname.as_mut_ptr(),

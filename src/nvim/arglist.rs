@@ -1066,7 +1066,7 @@ unsafe fn arg_all_open_windows(aall: &mut arg_all_state_T, count: c_int) {
                                 i = count;
                                 break;
                             } else {
-                                win_move_after(wp, *curwin.as_ptr());
+                                win_move_after(&mut *wp, &mut **curwin.as_ptr());
                             }
                             break;
                         }

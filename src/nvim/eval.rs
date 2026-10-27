@@ -873,7 +873,7 @@ pub unsafe fn call_vim_function(
     mut func: *const c_char,
     argc: c_int,
     argv: *mut typval_T,
-    rettv: *mut typval_T,
+    rettv: &mut typval_T,
 ) -> c_int {
     unsafe {
         let mut len = std::ffi::CStr::from_ptr(func).to_bytes().len() as c_int;
@@ -883,13 +883,13 @@ pub unsafe fn call_vim_function(
             func = func.add(6);
             len = check_luafunc_name(func, false);
             if len == 0 {
-                tv_clear(rettv);
+                tv_clear(&raw mut *rettv);
                 return FAIL;
             }
             pt = get_vim_var_partial(VV_LUA);
         }
 
-        (*rettv).v_type = VarType::VAR_UNKNOWN;
+        rettv.v_type = VarType::VAR_UNKNOWN;
         let lnum = (**curwin.as_ptr()).w_cursor.lnum;
         let mut funcexe = funcexe_T {
             fe_fill_submatch: false,
@@ -902,10 +902,10 @@ pub unsafe fn call_vim_function(
             fe_basetv: ptr::null_mut(),
             fe_found_var: false,
         };
-        let ret = call_func(func, len, rettv, argc, argv, &mut funcexe);
+        let ret = call_func(func, len, &raw mut *rettv, argc, argv, &mut funcexe);
 
         if ret == FAIL {
-            tv_clear(rettv);
+            tv_clear(&raw mut *rettv);
         }
 
         ret
@@ -920,7 +920,7 @@ pub unsafe fn call_func_retstr(
 ) -> Option<std::ffi::CString> {
     unsafe {
         let mut rettv = tv_initial_value();
-        if call_vim_function(func, argc, argv, &raw mut rettv) == FAIL {
+        if call_vim_function(func, argc, argv, &mut rettv) == FAIL {
             return None;
         }
 
@@ -939,7 +939,7 @@ pub unsafe fn call_func_retlist(
     unsafe {
         let mut rettv = tv_initial_value();
 
-        if call_vim_function(func, argc, argv, &raw mut rettv) == FAIL {
+        if call_vim_function(func, argc, argv, &mut rettv) == FAIL {
             return ptr::null_mut();
         }
 
@@ -1871,7 +1871,7 @@ pub unsafe fn next_for_item(fi: &mut forinfo_T, arg: *mut c_char) -> bool {
                 *idx += 1;
                 ex_let_vars(
                     arg,
-                    &raw mut tv,
+                    &mut tv,
                     1,
                     fi.fi_semicolon,
                     fi.fi_varcount,
@@ -1895,7 +1895,7 @@ pub unsafe fn next_for_item(fi: &mut forinfo_T, arg: *mut c_char) -> bool {
                 *byte_idx += len as usize;
                 let result = ex_let_vars(
                     arg,
-                    &raw mut tv,
+                    &mut tv,
                     1,
                     fi.fi_semicolon,
                     fi.fi_varcount,
@@ -1913,7 +1913,7 @@ pub unsafe fn next_for_item(fi: &mut forinfo_T, arg: *mut c_char) -> bool {
                 lw.lw_item.set(tv_list_item_next(*list, item));
                 ex_let_vars(
                     arg,
-                    tv_list_item_tv(&mut *item),
+                    &mut *tv_list_item_tv(&mut *item),
                     1,
                     fi.fi_semicolon,
                     fi.fi_varcount,
@@ -6522,8 +6522,8 @@ pub unsafe fn set_selfdict(rettv: *mut typval_T, selfdict: *mut dict_T) {
 /// Make a copy of an item.
 pub unsafe fn var_item_copy(
     conv: Option<&vimconv_T>,
-    from: *mut typval_T,
-    to: *mut typval_T,
+    from: &mut typval_T,
+    to: &mut typval_T,
     deep: bool,
     copyID: c_int,
 ) -> c_int {
@@ -6536,64 +6536,64 @@ pub unsafe fn var_item_copy(
         }
         eval_st().VAR_ITEM_COPY_RECURSE += 1;
 
-        match (*from).v_type {
+        match from.v_type {
             VarType::VAR_NUMBER
             | VarType::VAR_FLOAT
             | VarType::VAR_FUNC
             | VarType::VAR_PARTIAL
             | VarType::VAR_BOOL
             | VarType::VAR_SPECIAL => {
-                tv_copy(from, to);
+                tv_copy(&raw mut *from, &raw mut *to);
             }
             VarType::VAR_STRING => {
                 let Some(conv) = conv.filter(|c| c.vc_type != CONV_NONE) else {
-                    tv_copy(from, to);
+                    tv_copy(&raw mut *from, &raw mut *to);
                     eval_st().VAR_ITEM_COPY_RECURSE -= 1;
                     return ret;
                 };
-                if (*from).vval.v_string().is_null() {
-                    tv_copy(from, to);
+                if from.vval.v_string().is_null() {
+                    tv_copy(&raw mut *from, &raw mut *to);
                 } else {
                     if let Some(conv_bytes) =
-                        string_convert(conv, (*from).vval.v_string(), ptr::null_mut())
+                        string_convert(conv, from.vval.v_string(), ptr::null_mut())
                     {
-                        crate::eval::typval::tv_set_string(to, conv_bytes.as_ptr().cast());
+                        crate::eval::typval::tv_set_string(&raw mut *to, conv_bytes.as_ptr().cast());
                     } else {
-                        crate::eval::typval::tv_set_string(to, (*from).vval.v_string());
+                        crate::eval::typval::tv_set_string(&raw mut *to, from.vval.v_string());
                     }
-                    (*to).v_lock = VAR_UNLOCKED;
+                    to.v_lock = VAR_UNLOCKED;
                 }
             }
             VarType::VAR_LIST => {
-                (*to).v_type = VarType::VAR_LIST;
-                (*to).v_lock = VAR_UNLOCKED;
-                if (*from).vval.v_list().is_null() {
-                    (*to).vval = crate::eval::typval::TypvalVval::List(ptr::null_mut());
-                } else if copyID != 0 && tv_list_copyid(&*(*from).vval.v_list()) == copyID {
-                    (*to).vval = crate::eval::typval::TypvalVval::List(tv_list_latest_copy(&*(*from).vval.v_list()));
-                    tv_list_ref((*to).vval.v_list());
+                to.v_type = VarType::VAR_LIST;
+                to.v_lock = VAR_UNLOCKED;
+                if from.vval.v_list().is_null() {
+                    to.vval = crate::eval::typval::TypvalVval::List(ptr::null_mut());
+                } else if copyID != 0 && tv_list_copyid(&*from.vval.v_list()) == copyID {
+                    to.vval = crate::eval::typval::TypvalVval::List(tv_list_latest_copy(&*from.vval.v_list()));
+                    tv_list_ref(to.vval.v_list());
                 } else {
-                    (*to).vval = crate::eval::typval::TypvalVval::List(tv_list_copy(conv, (*from).vval.v_list(), deep, copyID));
+                    to.vval = crate::eval::typval::TypvalVval::List(tv_list_copy(conv, from.vval.v_list(), deep, copyID));
                 }
-                if (*to).vval.v_list().is_null() && !(*from).vval.v_list().is_null() {
+                if to.vval.v_list().is_null() && !from.vval.v_list().is_null() {
                     ret = FAIL;
                 }
             }
             VarType::VAR_BLOB => {
-                tv_blob_copy((*from).vval.v_blob(), to);
+                tv_blob_copy(from.vval.v_blob(), to);
             }
             VarType::VAR_DICT => {
-                (*to).v_type = VarType::VAR_DICT;
-                (*to).v_lock = VAR_UNLOCKED;
-                if (*from).vval.v_dict().is_null() {
-                    (*to).vval = crate::eval::typval::TypvalVval::Dict(ptr::null_mut());
-                } else if copyID != 0 && (*(*from).vval.v_dict()).dv_copyID == copyID {
-                    (*to).vval = crate::eval::typval::TypvalVval::Dict((*(*from).vval.v_dict()).dv_copydict);
-                    (*(*to).vval.v_dict()).dv_refcount += 1;
+                to.v_type = VarType::VAR_DICT;
+                to.v_lock = VAR_UNLOCKED;
+                if from.vval.v_dict().is_null() {
+                    to.vval = crate::eval::typval::TypvalVval::Dict(ptr::null_mut());
+                } else if copyID != 0 && (*from.vval.v_dict()).dv_copyID == copyID {
+                    to.vval = crate::eval::typval::TypvalVval::Dict((*from.vval.v_dict()).dv_copydict);
+                    (*to.vval.v_dict()).dv_refcount += 1;
                 } else {
-                    (*to).vval = crate::eval::typval::TypvalVval::Dict(tv_dict_copy(conv, (*from).vval.v_dict(), deep, copyID));
+                    to.vval = crate::eval::typval::TypvalVval::Dict(tv_dict_copy(conv, from.vval.v_dict(), deep, copyID));
                 }
-                if (*to).vval.v_dict().is_null() && !(*from).vval.v_dict().is_null() {
+                if to.vval.v_dict().is_null() && !from.vval.v_dict().is_null() {
                     ret = FAIL;
                 }
             }
@@ -7219,23 +7219,23 @@ pub unsafe fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> boo
 }
 
 /// Gets the current user-input in prompt buffer `buf`, or `None` if buffer is not a prompt buffer.
-pub unsafe fn prompt_get_input(buf: *mut buf_T) -> Option<std::ffi::CString> {
+pub unsafe fn prompt_get_input(buf: &mut buf_T) -> Option<std::ffi::CString> {
     unsafe {
-        if !bt_prompt(buf) {
+        if !bt_prompt(&raw mut *buf) {
             return None;
         }
-        let lnum_start = (*buf).b_prompt_start.mark.lnum;
-        let lnum_last = (*buf).b_ml.ml_line_count;
+        let lnum_start = buf.b_prompt_start.mark.lnum;
+        let lnum_last = buf.b_ml.ml_line_count;
 
-        let mut text = ml_get_buf(buf, lnum_start);
-        if (std::ffi::CStr::from_ptr(text).to_bytes().len() as c_int) >= (*buf).b_prompt_start.mark.col {
-            text = text.add((*buf).b_prompt_start.mark.col as usize);
+        let mut text = ml_get_buf(&raw mut *buf, lnum_start);
+        if (std::ffi::CStr::from_ptr(text).to_bytes().len() as c_int) >= buf.b_prompt_start.mark.col {
+            text = text.add(buf.b_prompt_start.mark.col as usize);
         }
 
         let mut bytes = CStr::from_ptr(text).to_bytes().to_vec();
         for i in (lnum_start + 1)..=lnum_last {
             bytes.push(b'\n');
-            bytes.extend_from_slice(CStr::from_ptr(ml_get_buf(buf, i)).to_bytes());
+            bytes.extend_from_slice(CStr::from_ptr(ml_get_buf(&raw mut *buf, i)).to_bytes());
         }
         Some(std::ffi::CString::new(bytes).unwrap_or_default())
     }

@@ -4002,7 +4002,7 @@ pub unsafe fn do_autocmd_focusgained(gained: bool) {
     }
 }
 
-pub unsafe fn do_filetype_autocmd(buf: *mut buf_T, force: bool) -> bool {
+pub unsafe fn do_filetype_autocmd(buf: &mut buf_T, force: bool) -> bool {
     unsafe {
         if au_st().ft_recursive > 0 && !force {
             return false;
@@ -4012,13 +4012,13 @@ pub unsafe fn do_filetype_autocmd(buf: *mut buf_T, force: bool) -> bool {
         g_st().secure = 0;
 
         au_st().ft_recursive += 1;
-        (*buf).b_did_filetype = true;
+        buf.b_did_filetype = true;
         let ret = apply_autocmds(
             EVENT_FILETYPE,
-            (*buf).b_p_ft,
-            (*buf).b_fname,
+            buf.b_p_ft,
+            buf.b_fname,
             force || au_st().ft_recursive == 1,
-            buf,
+            &raw mut *buf,
         );
         au_st().ft_recursive -= 1;
 

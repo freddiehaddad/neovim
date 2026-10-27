@@ -1346,8 +1346,8 @@ pub unsafe fn tv_list_copy(
             if deep {
                 if var_item_copy(
                     conv,
-                    &raw mut (*item).li_tv,
-                    &raw mut (*ni).li_tv,
+                    &mut (*item).li_tv,
+                    &mut (*ni).li_tv,
                     deep,
                     copyID,
                 ) == FAIL
@@ -1561,11 +1561,11 @@ unsafe fn tv_dict2items(argvars: *mut typval_T, rettv: *mut typval_T) {
 }
 
 /// "items(list)" function.
-unsafe fn tv_list2items(argvars: *mut typval_T, rettv: *mut typval_T) {
+unsafe fn tv_list2items(argvars: *mut typval_T, rettv: &mut typval_T) {
     unsafe {
         let l = (*argvars).vval.v_list();
 
-        tv_list_alloc_ret(rettv, tv_list_len_inline(l) as isize);
+        tv_list_alloc_ret(&raw mut *rettv, tv_list_len_inline(l) as isize);
         if l.is_null() {
             return;
         }
@@ -1574,7 +1574,7 @@ unsafe fn tv_list2items(argvars: *mut typval_T, rettv: *mut typval_T) {
         let mut li = (*l).lv_first;
         while !li.is_null() {
             let l2 = tv_list_alloc(2);
-            tv_list_append_list((*rettv).vval.v_list(), l2);
+            tv_list_append_list(rettv.vval.v_list(), l2);
             tv_list_append_number(l2, idx);
             tv_list_append_tv(l2, &raw mut (*li).li_tv);
             idx += 1;
@@ -1584,11 +1584,11 @@ unsafe fn tv_list2items(argvars: *mut typval_T, rettv: *mut typval_T) {
 }
 
 /// "items(string)" function.
-unsafe fn tv_string2items(argvars: *mut typval_T, rettv: *mut typval_T) {
+unsafe fn tv_string2items(argvars: *mut typval_T, rettv: &mut typval_T) {
     unsafe {
         let mut p: *const c_char = (*argvars).vval.v_string();
 
-        tv_list_alloc_ret(rettv, kListLenMayKnow);
+        tv_list_alloc_ret(&raw mut *rettv, kListLenMayKnow);
         if p.is_null() {
             return;
         }
@@ -1600,7 +1600,7 @@ unsafe fn tv_string2items(argvars: *mut typval_T, rettv: *mut typval_T) {
                 break;
             }
             let l2 = tv_list_alloc(2);
-            tv_list_append_list((*rettv).vval.v_list(), l2);
+            tv_list_append_list(rettv.vval.v_list(), l2);
             tv_list_append_number(l2, idx);
             tv_list_append_string(l2, p, len as isize);
             p = p.add(len as usize);
@@ -3503,8 +3503,8 @@ pub unsafe fn tv_dict_copy(
                 if deep {
                     if var_item_copy(
                         conv,
-                        &raw mut (*di).di_tv,
-                        &raw mut (*new_di).di_tv,
+                        &mut (*di).di_tv,
+                        &mut (*new_di).di_tv,
                         deep,
                         copyID,
                     ) == FAIL
@@ -3743,7 +3743,7 @@ pub unsafe fn tv_blob_set_append(blob: &mut blob_T, idx: c_int, byte: u8) {
 /// "remove({blob})" function.
 pub unsafe fn tv_blob_remove(
     argvars: *mut typval_T,
-    rettv: *mut typval_T,
+    rettv: &mut typval_T,
     arg_errmsg: *const c_char,
 ) {
     unsafe {
@@ -3767,7 +3767,7 @@ pub unsafe fn tv_blob_remove(
             if (*argvars.add(2)).v_type == VarType::VAR_UNKNOWN {
                 let bv = &mut (*b).bv_ga;
                 let removed = bv.remove(idx as usize);
-                (*rettv).vval = crate::eval::typval::TypvalVval::Number(i64::from(removed));
+                rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(removed));
             } else {
                 let mut end = tv_get_number_chk(argvars.add(2), &mut error);
                 if error {
@@ -3784,7 +3784,7 @@ pub unsafe fn tv_blob_remove(
                 let src_bv = &mut (*b).bv_ga;
                 let dst_bv = &mut (*blob).bv_ga;
                 dst_bv.extend(src_bv.drain((idx as usize)..=(end as usize)));
-                tv_blob_set_ret_inline(rettv, blob);
+                tv_blob_set_ret_inline(&raw mut *rettv, blob);
             }
         }
     }
@@ -4014,14 +4014,14 @@ pub unsafe fn tv_blob_alloc_ret(ret_tv: *mut typval_T) -> *mut blob_T {
 }
 
 /// Copy a blob typval to a different typval.
-pub unsafe fn tv_blob_copy(from: *mut blob_T, to: *mut typval_T) {
+pub unsafe fn tv_blob_copy(from: *mut blob_T, to: &mut typval_T) {
     unsafe {
-        (*to).v_type = VarType::VAR_BLOB;
-        (*to).v_lock = VAR_UNLOCKED;
+        to.v_type = VarType::VAR_BLOB;
+        to.v_lock = VAR_UNLOCKED;
         if from.is_null() {
-            (*to).vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
+            to.vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
         } else {
-            let dst_blob = &mut *tv_blob_alloc_ret(to);
+            let dst_blob = &mut *tv_blob_alloc_ret(&raw mut *to);
             dst_blob.bv_ga.extend_from_slice(&(*from).bv_ga);
         }
     }
@@ -4468,7 +4468,7 @@ const fn change_lock(lock: bool, var: VarLockStatus) -> VarLockStatus {
 }
 
 /// Lock or unlock an item.
-pub unsafe fn tv_item_lock(tv: *mut typval_T, deep: c_int, lock: bool, check_refcount: bool) {
+pub unsafe fn tv_item_lock(tv: &mut typval_T, deep: c_int, lock: bool, check_refcount: bool) {
     unsafe {
         static RECURSE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
@@ -4481,30 +4481,30 @@ pub unsafe fn tv_item_lock(tv: *mut typval_T, deep: c_int, lock: bool, check_ref
         }
         RECURSE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-        (*tv).v_lock = change_lock(lock, (*tv).v_lock);
+        tv.v_lock = change_lock(lock, tv.v_lock);
 
-        match (*tv).v_type {
+        match tv.v_type {
             VarType::VAR_BLOB => {
-                let b = (*tv).vval.v_blob();
+                let b = tv.vval.v_blob();
                 if !b.is_null() && !(check_refcount && (*b).bv_refcount > 1) {
                     (*b).bv_lock = change_lock(lock, (*b).bv_lock);
                 }
             }
             VarType::VAR_LIST => {
-                let l = (*tv).vval.v_list();
+                let l = tv.vval.v_list();
                 if !l.is_null() && !(check_refcount && (*l).lv_refcount > 1) {
                     (*l).lv_lock = change_lock(lock, (*l).lv_lock);
                     if !(0..=1).contains(&deep) {
                         let mut li = (*l).lv_first;
                         while !li.is_null() {
-                            tv_item_lock(&raw mut (*li).li_tv, deep - 1, lock, check_refcount);
+                            tv_item_lock(&mut (*li).li_tv, deep - 1, lock, check_refcount);
                             li = (*li).li_next;
                         }
                     }
                 }
             }
             VarType::VAR_DICT => {
-                let d = (*tv).vval.v_dict();
+                let d = tv.vval.v_dict();
                 if !d.is_null() && !(check_refcount && (*d).dv_refcount > 1) {
                     (*d).dv_lock = change_lock(lock, (*d).dv_lock);
                     if !(0..=1).contains(&deep) {
@@ -4514,7 +4514,7 @@ pub unsafe fn tv_item_lock(tv: *mut typval_T, deep: c_int, lock: bool, check_ref
                             if !hashitem_empty(&*hi) {
                                 todo -= 1;
                                 let di = tv_dict_hi2di(hi);
-                                tv_item_lock(&raw mut (*di).di_tv, deep - 1, lock, check_refcount);
+                                tv_item_lock(&mut (*di).di_tv, deep - 1, lock, check_refcount);
                             }
                             hi = hi.add(1);
                         }
@@ -5543,10 +5543,10 @@ mod tests {
             tv_list_alloc_ret(&raw mut tv_l, 0);
             tv_list_append_number(tv_l.vval.v_list(), 1);
             assert!(!tv_islocked(&tv_l));
-            tv_item_lock(&raw mut tv_l, 2, true, false);
+            tv_item_lock(&mut tv_l, 2, true, false);
             assert!(tv_islocked(&tv_l));
             assert!(tv_check_lock(&tv_l, c"test".as_ptr(), 4));
-            tv_item_lock(&raw mut tv_l, 2, false, false);
+            tv_item_lock(&mut tv_l, 2, false, false);
             assert!(!tv_islocked(&tv_l));
 
             let mut tv_d = tv_initial_value();

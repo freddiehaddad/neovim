@@ -732,9 +732,9 @@ pub unsafe fn diff_redraw(dofold: bool) {
         }
         if !wp_other.is_null() && (**curwin.as_ptr()).w_onebuf_opt.wo_scb != 0 {
             if used_max_fill_curwin {
-                diff_set_topline(wp_other, *curwin.as_ptr());
+                diff_set_topline(&mut *wp_other, &mut **curwin.as_ptr());
             } else if used_max_fill_other {
-                diff_set_topline(*curwin.as_ptr(), wp_other);
+                diff_set_topline(&mut **curwin.as_ptr(), &mut *wp_other);
             }
         }
     }
@@ -760,7 +760,7 @@ unsafe fn clear_diffout(dout: &mut diffout_T) {
     }
 }
 unsafe fn diff_write_buffer(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     m: &mut mmfile_t,
     backing: &mut Vec<c_char>,
     start: linenr_T,
@@ -768,9 +768,9 @@ unsafe fn diff_write_buffer(
 ) -> c_int {
     unsafe {
         if end < 0 {
-            end = (*buf).b_ml.ml_line_count;
+            end = buf.b_ml.ml_line_count;
         }
-        if ((*buf).b_ml.ml_flags & ML_EMPTY) != 0 || end < start {
+        if (buf.b_ml.ml_flags & ML_EMPTY) != 0 || end < start {
             *backing = Vec::new();
             m.ptr = ptr::null_mut();
             m.size = 0;
@@ -778,7 +778,7 @@ unsafe fn diff_write_buffer(
         }
         let mut len: usize = 0;
         for lnum in start..=end {
-            len += ml_get_buf_len(buf, lnum) as usize + 1;
+            len += ml_get_buf_len(&raw mut *buf, lnum) as usize + 1;
         }
         *backing = vec![0; len];
         let ptr = backing.as_mut_ptr();
@@ -786,7 +786,7 @@ unsafe fn diff_write_buffer(
         m.size = len as c_int;
         len = 0;
         for lnum in start..=end {
-            let mut s = ml_get_buf(buf, lnum);
+            let mut s = ml_get_buf(&raw mut *buf, lnum);
             if (diff_st().diff_flags & DIFF_ICASE) != 0 {
                 while *s != NUL {
                     let c: c_int;
@@ -828,7 +828,7 @@ unsafe fn diff_write_buffer(
     }
 }
 unsafe fn diff_write(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     din: &mut diffin_T,
     start: linenr_T,
     mut end: linenr_T,
@@ -841,19 +841,19 @@ unsafe fn diff_write(
             return FAIL;
         }
         if end < 0 {
-            end = (*buf).b_ml.ml_line_count;
+            end = buf.b_ml.ml_line_count;
         }
-        let save_ml_flags = (*buf).b_ml.ml_flags;
-        let save_ff = (*buf).b_p_ff;
-        (*buf).b_p_ff = alloc_string_option(c"unix".as_ptr());
+        let save_ml_flags = buf.b_ml.ml_flags;
+        let save_ff = buf.b_p_ff;
+        buf.b_p_ff = alloc_string_option(c"unix".as_ptr());
         let save_cmod_flags = g_st().cmdmod.cmod_flags != 0;
         g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
         if end < start {
             end = start;
-            (*buf).b_ml.ml_flags |= ML_EMPTY;
+            buf.b_ml.ml_flags |= ML_EMPTY;
         }
         let r = buf_write(
-            buf,
+            &raw mut *buf,
             din_fname.as_ptr().cast_mut(),
             ptr::null_mut(),
             start,
@@ -865,9 +865,9 @@ unsafe fn diff_write(
             true,
         );
         g_st().cmdmod.cmod_flags = c_int::from(save_cmod_flags);
-        free_string_option((*buf).b_p_ff);
-        (*buf).b_p_ff = save_ff;
-        (*buf).b_ml.ml_flags = ((*buf).b_ml.ml_flags & !ML_EMPTY) | (save_ml_flags & ML_EMPTY);
+        free_string_option(buf.b_p_ff);
+        buf.b_p_ff = save_ff;
+        buf.b_ml.ml_flags = (buf.b_ml.ml_flags & !ML_EMPTY) | (save_ml_flags & ML_EMPTY);
         r
     }
 }
@@ -949,7 +949,7 @@ unsafe fn diff_try_update(dio: &mut diffio_T, idx_orig: usize, eap: &mut exarg_T
                     anchors[idx_orig][anchor_i] - 1
                 };
                 let mut buf = (*g_st().curtab).tp_diffbuf[idx_orig];
-                if diff_write(buf, &mut dio.dio_orig, lnum_start, lnum_end) == FAIL {
+                if diff_write(&mut *buf, &mut dio.dio_orig, lnum_start, lnum_end) == FAIL {
                     diff_clear(&mut *g_st().curtab);
                     break 'theend;
                 }
@@ -970,7 +970,7 @@ unsafe fn diff_try_update(dio: &mut diffio_T, idx_orig: usize, eap: &mut exarg_T
                     } else {
                         anchor_row[anchor_i] - 1
                     };
-                    if diff_write(buf, &mut dio.dio_new, lnum_start, lnum_end) == FAIL {
+                    if diff_write(&mut *buf, &mut dio.dio_new, lnum_start, lnum_end) == FAIL {
                         continue;
                     }
                     if diff_file(dio) == FAIL {
@@ -2041,7 +2041,7 @@ unsafe fn run_linematch_algorithm(dp_idx: usize) {
             if !(*g_st().curtab).tp_diffbuf[i].is_null() {
                 if dp_count[i] > 0 {
                     diff_write_buffer(
-                        (*g_st().curtab).tp_diffbuf[i],
+                        &mut *(*g_st().curtab).tp_diffbuf[i],
                         &mut diffbufs_mm[ndiffs],
                         &mut diffbufs_vec[ndiffs],
                         dp_lnum[i],
@@ -2279,9 +2279,9 @@ unsafe fn diff_cmp(s1: *const c_char, s2: *const c_char) -> c_int {
         0
     }
 }
-pub unsafe fn diff_set_topline(fromwin: *mut win_T, towin: *mut win_T) {
+pub unsafe fn diff_set_topline(fromwin: &mut win_T, towin: &mut win_T) {
     unsafe {
-        let frombuf = (*fromwin).w_buffer;
+        let frombuf = fromwin.w_buffer;
         let fromidx = diff_buf_idx(frombuf, &mut *g_st().curtab);
         if fromidx == DB_COUNT as c_int {
             return;
@@ -2290,49 +2290,49 @@ pub unsafe fn diff_set_topline(fromwin: *mut win_T, towin: *mut win_T) {
         if (*g_st().curtab).tp_diff_invalid != 0 {
             ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
         }
-        let lnum = (*fromwin).w_topline;
-        (*towin).w_topfill = 0;
+        let lnum = fromwin.w_topline;
+        towin.w_topfill = 0;
         let dp_opt = (*g_st().curtab)
             .tp_diffs
             .iter()
             .find(|dp| lnum <= dp.df_lnum[u_fromidx] + dp.df_count[u_fromidx]);
         if let Some(dp) = dp_opt {
-            let toidx = diff_buf_idx((*towin).w_buffer, &mut *g_st().curtab);
+            let toidx = diff_buf_idx(towin.w_buffer, &mut *g_st().curtab);
             if toidx == DB_COUNT as c_int {
                 return;
             }
             let u_toidx = toidx as usize;
-            (*towin).w_topline = lnum + (dp.df_lnum[u_toidx] - dp.df_lnum[u_fromidx]);
+            towin.w_topline = lnum + (dp.df_lnum[u_toidx] - dp.df_lnum[u_fromidx]);
             if lnum >= dp.df_lnum[u_fromidx] {
                 calculate_topfill_and_topline(
                     u_fromidx,
                     u_toidx,
-                    (*fromwin).w_topline,
-                    (*fromwin).w_topfill,
-                    &mut (*towin).w_topfill,
-                    &mut (*towin).w_topline,
+                    fromwin.w_topline,
+                    fromwin.w_topfill,
+                    &mut towin.w_topfill,
+                    &mut towin.w_topline,
                 );
             }
         } else {
-            (*towin).w_topline =
-                (*(*towin).w_buffer).b_ml.ml_line_count - ((*frombuf).b_ml.ml_line_count - lnum);
+            towin.w_topline =
+                (*towin.w_buffer).b_ml.ml_line_count - ((*frombuf).b_ml.ml_line_count - lnum);
         }
-        (*towin).w_botfill = false;
-        if (*towin).w_topline > (*(*towin).w_buffer).b_ml.ml_line_count {
-            (*towin).w_topline = (*(*towin).w_buffer).b_ml.ml_line_count;
-            (*towin).w_botfill = true;
+        towin.w_botfill = false;
+        if towin.w_topline > (*towin.w_buffer).b_ml.ml_line_count {
+            towin.w_topline = (*towin.w_buffer).b_ml.ml_line_count;
+            towin.w_botfill = true;
         }
-        if (*towin).w_topline < 1 {
-            (*towin).w_topline = 1;
-            (*towin).w_topfill = 0;
+        if towin.w_topline < 1 {
+            towin.w_topline = 1;
+            towin.w_topfill = 0;
         }
-        invalidate_botline_win(towin);
-        changed_line_abv_curs_win(towin);
-        check_topfill(towin, false);
+        invalidate_botline_win(&raw mut *towin);
+        changed_line_abv_curs_win(&raw mut *towin);
+        check_topfill(&raw mut *towin, false);
         hasFolding(
-            towin,
-            (*towin).w_topline,
-            &raw mut (*towin).w_topline,
+            &raw mut *towin,
+            towin.w_topline,
+            &raw mut towin.w_topline,
             ptr::null_mut(),
         );
     }
@@ -3714,7 +3714,7 @@ pub unsafe fn diff_get_corresponding_line(buf1: *mut buf_T, lnum1: linenr_T) -> 
         lnum.min((*g_st().curbuf).b_ml.ml_line_count)
     }
 }
-pub unsafe fn diff_lnum_win(lnum: linenr_T, wp: *mut win_T) -> linenr_T {
+pub unsafe fn diff_lnum_win(lnum: linenr_T, wp: &mut win_T) -> linenr_T {
     unsafe {
         let idx = diff_buf_idx(g_st().curbuf, &mut *g_st().curtab);
         if idx == DB_COUNT as c_int {
@@ -3729,9 +3729,9 @@ pub unsafe fn diff_lnum_win(lnum: linenr_T, wp: *mut win_T) -> linenr_T {
             .iter()
             .find(|dp| lnum <= dp.df_lnum[u_idx] + dp.df_count[u_idx])
         else {
-            return (*(*wp).w_buffer).b_ml.ml_line_count - ((*g_st().curbuf).b_ml.ml_line_count - lnum);
+            return (*wp.w_buffer).b_ml.ml_line_count - ((*g_st().curbuf).b_ml.ml_line_count - lnum);
         };
-        let i = diff_buf_idx((*wp).w_buffer, &mut *g_st().curtab);
+        let i = diff_buf_idx(wp.w_buffer, &mut *g_st().curtab);
         if i == DB_COUNT as c_int {
             return 0;
         }

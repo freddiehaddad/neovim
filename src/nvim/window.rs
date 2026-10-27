@@ -2912,57 +2912,57 @@ pub unsafe fn win_splitmove(wp: *mut win_T, size: c_int, flags: c_int) -> c_int 
     }
 }
 
-pub unsafe fn win_move_after(win1: *mut win_T, win2: *mut win_T) {
+pub unsafe fn win_move_after(win1: &mut win_T, win2: &mut win_T) {
     unsafe {
         if ptr::eq(win1, win2) {
             return;
         }
 
-        if !ptr::eq((*win2).w_next, win1) {
-            if !ptr::eq((*(*win1).w_frame).fr_parent, (*(*win2).w_frame).fr_parent) {
+        if !ptr::eq(win2.w_next, win1) {
+            if !ptr::eq((*win1.w_frame).fr_parent, (*win2.w_frame).fr_parent) {
                 iemsg(c"INTERNAL: trying to move a window into another frame".as_ptr());
                 return;
             }
 
             if ptr::eq(win1, g_st().lastwin) {
                 std::mem::swap(
-                    &mut (*(*win1).w_prev).w_status_height,
-                    &mut (*win1).w_status_height,
+                    &mut (*win1.w_prev).w_status_height,
+                    &mut win1.w_status_height,
                 );
                 std::mem::swap(
-                    &mut (*(*win1).w_prev).w_hsep_height,
-                    &mut (*win1).w_hsep_height,
+                    &mut (*win1.w_prev).w_hsep_height,
+                    &mut win1.w_hsep_height,
                 );
 
-                if (*(*win1).w_prev).w_vsep_width == 1 {
-                    (*(*win1).w_prev).w_vsep_width = 0;
-                    (*(*(*win1).w_prev).w_frame).fr_width -= 1;
-                    (*win1).w_vsep_width = 1;
-                    (*(*win1).w_frame).fr_width += 1;
+                if (*win1.w_prev).w_vsep_width == 1 {
+                    (*win1.w_prev).w_vsep_width = 0;
+                    (*(*win1.w_prev).w_frame).fr_width -= 1;
+                    win1.w_vsep_width = 1;
+                    (*win1.w_frame).fr_width += 1;
                 }
             } else if ptr::eq(win2, g_st().lastwin) {
-                std::mem::swap(&mut (*win1).w_status_height, &mut (*win2).w_status_height);
-                std::mem::swap(&mut (*win1).w_hsep_height, &mut (*win2).w_hsep_height);
+                std::mem::swap(&mut win1.w_status_height, &mut win2.w_status_height);
+                std::mem::swap(&mut win1.w_hsep_height, &mut win2.w_hsep_height);
 
-                if (*win1).w_vsep_width == 1 {
-                    (*win2).w_vsep_width = 1;
-                    (*(*win2).w_frame).fr_width += 1;
-                    (*win1).w_vsep_width = 0;
-                    (*(*win1).w_frame).fr_width -= 1;
+                if win1.w_vsep_width == 1 {
+                    win2.w_vsep_width = 1;
+                    (*win2.w_frame).fr_width += 1;
+                    win1.w_vsep_width = 0;
+                    (*win1.w_frame).fr_width -= 1;
                 }
             }
-            win_remove(win1, ptr::null_mut());
-            frame_remove(&mut *(*win1).w_frame);
-            win_append(win2, win1, ptr::null_mut());
-            frame_append(&mut *(*win2).w_frame, &mut *(*win1).w_frame);
+            win_remove(&raw mut *win1, ptr::null_mut());
+            frame_remove(&mut *win1.w_frame);
+            win_append(&raw mut *win2, &raw mut *win1, ptr::null_mut());
+            frame_append(&mut *win2.w_frame, &mut *win1.w_frame);
 
             win_comp_pos();
             redraw_later(*curwin.as_ptr(), UPD_NOT_VALID);
         }
-        (*win1).w_pos_changed = true;
-        (*win2).w_pos_changed = true;
+        win1.w_pos_changed = true;
+        win2.w_pos_changed = true;
 
-        win_enter(win1, false);
+        win_enter(&raw mut *win1, false);
     }
 }
 

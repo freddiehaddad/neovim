@@ -685,7 +685,7 @@ unsafe fn str_to_mapargs(
 }
 
 unsafe fn map_add(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     local: bool,
     keys: *const c_char,
     args: &MapArguments,
@@ -700,7 +700,7 @@ unsafe fn map_add(
     unsafe {
         if *keys == Ctrl_C {
             if local {
-                (*buf).b_mapped_ctrl_c |= mode;
+                buf.b_mapped_ctrl_c |= mode;
             } else {
                 g_st().mapped_ctrl_c |= mode;
             }
@@ -744,7 +744,7 @@ unsafe fn map_add(
 
         if is_abbr {
             if local {
-                (*buf).b_first_abbr.insert(0, mp);
+                buf.b_first_abbr.insert(0, mp);
             } else {
                 let abbr = &raw mut map_st().first_abbr;
                 (*abbr).insert(0, mp);
@@ -752,7 +752,7 @@ unsafe fn map_add(
         } else {
             let n = map_hash(mp.m_mode, *mp.m_keys.as_ptr() as u8);
             if local {
-                (&mut (*buf).b_maphash)[n].insert(0, mp);
+                (&mut buf.b_maphash)[n].insert(0, mp);
             } else {
                 let mh = &raw mut map_st().maphash;
                 (*mh)[n].insert(0, mp);
@@ -766,7 +766,7 @@ unsafe fn buf_do_map(
     args: &mut MapArguments,
     mode: c_int,
     is_abbrev: bool,
-    buf: *mut buf_T,
+    buf: &mut buf_T,
 ) -> c_int {
     unsafe {
         let mut retval: c_int = 0;
@@ -894,7 +894,7 @@ unsafe fn buf_do_map(
                 }
 
                 if !local && !has_rhs && maptype != MAPTYPE_UNMAP {
-                    for bucket in get_map_buckets(buf, is_abbrev) {
+                    for bucket in get_map_buckets(&raw mut *buf, is_abbrev) {
                         if g_st().got_int {
                             break;
                         }
@@ -947,13 +947,14 @@ unsafe fn buf_do_map(
                         }
                         let mpp: &mut Vec<mapblock_T> = if is_abbrev {
                             if local {
-                                &mut (*buf).b_first_abbr
+                                &mut buf.b_first_abbr
                             } else {
                                 let abbr = &raw mut map_st().first_abbr;
                                 &mut *abbr
                             }
                         } else if local {
-                            &mut (&mut (*buf).b_maphash)[hash]
+                            let bmh = &raw mut buf.b_maphash;
+                            &mut (*bmh)[hash]
                         } else {
                             let mh = &raw mut map_st().maphash;
                             &mut (*mh)[hash]
@@ -1045,7 +1046,8 @@ unsafe fn buf_do_map(
                                     if !is_abbrev && new_hash != hash {
                                         let moved = mpp.remove(idx);
                                         if local {
-                                            (&mut (*buf).b_maphash)[new_hash].insert(0, moved);
+                                            let bmh = &raw mut buf.b_maphash;
+                                            (*bmh)[new_hash].insert(0, moved);
                                         } else {
                                             let mh = &raw mut map_st().maphash;
                                             (*mh)[new_hash].insert(0, moved);
@@ -1066,7 +1068,7 @@ unsafe fn buf_do_map(
                         }
                     } else if *lhs == Ctrl_C {
                         if local {
-                            (*buf).b_mapped_ctrl_c &= !mode;
+                            buf.b_mapped_ctrl_c &= !mode;
                         } else {
                             g_st().mapped_ctrl_c &= !mode;
                         }
@@ -1129,7 +1131,7 @@ pub unsafe fn do_map(maptype: c_int, arg: *mut c_char, mode: c_int, is_abbrev: b
         let mut result = str_to_mapargs(arg, maptype == MAPTYPE_UNMAP, &mut parsed_args);
         match result {
             0 => {
-                result = buf_do_map(maptype, &mut parsed_args, mode, is_abbrev, g_st().curbuf);
+                result = buf_do_map(maptype, &mut parsed_args, mode, is_abbrev, &mut *g_st().curbuf);
             }
             1 => {}
             _ => {
@@ -2482,7 +2484,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr: Eva
             &mut unmap_args,
             mode,
             is_abbr != 0,
-            g_st().curbuf,
+            &mut *g_st().curbuf,
         );
 
         let alt = (!lhsrawalt.is_null()).then(|| {
@@ -2491,7 +2493,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr: Eva
             })
         });
         map_add(
-            g_st().curbuf,
+            &mut *g_st().curbuf,
             buffer,
             lhsraw,
             &args,
@@ -2505,7 +2507,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr: Eva
         );
         if !lhsrawalt.is_null() {
             map_add(
-                g_st().curbuf,
+                &mut *g_st().curbuf,
                 buffer,
                 lhsrawalt,
                 &args,
@@ -2617,7 +2619,7 @@ pub unsafe fn add_map(lhs: *mut c_char, rhs: *mut c_char, mode: c_int, buffer: b
         );
         args.buffer = buffer;
 
-        buf_do_map(MAPTYPE_NOREMAP, &mut args, mode, false, g_st().curbuf);
+        buf_do_map(MAPTYPE_NOREMAP, &mut args, mode, false, &mut *g_st().curbuf);
     }
 }
 
@@ -2762,7 +2764,7 @@ unsafe fn do_exmap(eap: &mut exarg_T, isabbrev: bool) {
         let mut parsed_args = MapArguments::new();
         let result = str_to_mapargs(eap.arg, maptype == MAPTYPE_UNMAP, &mut parsed_args);
         match result {
-            0 => match buf_do_map(maptype, &mut parsed_args, mode, isabbrev, g_st().curbuf) {
+            0 => match buf_do_map(maptype, &mut parsed_args, mode, isabbrev, &mut *g_st().curbuf) {
                 1 => {
                     emsg(gettext(e_invarg.as_ptr()));
                 }
@@ -2999,7 +3001,7 @@ pub unsafe fn modify_keymap(
                 maptype = MAPTYPE_NOREMAP;
             }
 
-            match buf_do_map(maptype, &mut parsed_args, mode_val, is_abbrev, target_buf) {
+            match buf_do_map(maptype, &mut parsed_args, mode_val, is_abbrev, &mut *target_buf) {
                 0 => {}
                 1 => {
                     api_set_error!(err, ErrorType::kErrorTypeException, e_invarg.as_ptr(), 0);

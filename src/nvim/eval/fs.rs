@@ -1442,12 +1442,12 @@ pub unsafe fn f_readdir(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
 /// Caller has allocated a blob in "rettv".
 unsafe fn read_blob(
     fd: *mut FILE,
-    rettv: *mut typval_T,
+    rettv: &mut typval_T,
     mut offset: off_T,
     size_arg: off_T,
 ) -> c_int {
     unsafe {
-        let blob = (*rettv).vval.v_blob();
+        let blob = rettv.vval.v_blob();
         let mut file_info = FileInfo::new();
         if !os_fileinfo_fd(fileno(fd), &mut file_info) {
             return FAIL; // can't read the file, error
@@ -1485,8 +1485,8 @@ unsafe fn read_blob(
         bv.resize(size as usize, 0);
         if fread(bv.as_mut_ptr().cast(), 1, bv.len(), fd) < bv.len() {
             // An empty blob is returned on error.
-            crate::eval::typval::tv_blob_unref((*rettv).vval.v_blob());
-            (*rettv).vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
+            crate::eval::typval::tv_blob_unref(rettv.vval.v_blob());
+            rettv.vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
             return FAIL;
         }
         OK
@@ -1494,7 +1494,7 @@ unsafe fn read_blob(
 }
 
 /// "readfile()" or "readblob()" function
-unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: *mut typval_T, always_blob: bool) {
+unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: &mut typval_T, always_blob: bool) {
     unsafe {
         let mut binary = false;
         let mut blob = always_blob;
@@ -1525,9 +1525,9 @@ unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: *mut typval_T, always
         }
 
         if blob {
-            tv_blob_alloc_ret(rettv);
+            tv_blob_alloc_ret(&raw mut *rettv);
         } else {
-            tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN);
+            tv_list_alloc_ret(&raw mut *rettv, K_LIST_LEN_UNKNOWN);
         }
 
         // Always open the file in binary mode, library functions have a mind of
@@ -1556,7 +1556,7 @@ unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: *mut typval_T, always
             return;
         }
 
-        let l = (*rettv).vval.v_list();
+        let l = rettv.vval.v_list();
         let buf_ptr = buf.as_mut_ptr();
 
         while maxline < 0 || i64::from(tv_list_len(l)) < maxline {

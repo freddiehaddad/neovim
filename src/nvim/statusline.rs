@@ -335,7 +335,7 @@ unsafe fn stl_st() -> &'static mut StatuslineState {
 }
 
 /// Redraw the status line of window `wp`.
-pub unsafe fn win_redr_status(wp: *mut win_T) {
+pub unsafe fn win_redr_status(wp: &mut win_T) {
     unsafe {
         let is_stl_global = global_stl_height() > 0;
 
@@ -344,34 +344,34 @@ pub unsafe fn win_redr_status(wp: *mut win_T) {
         }
 
         stl_st().redr_status_busy = true;
-        (*wp).w_redr_status = false;
+        wp.w_redr_status = false;
 
         let mut stl_curwin = ctx_saved_curwin();
         if stl_curwin.is_null() {
             stl_curwin = *curwin.as_ptr();
         }
-        let is_stl_curwin = wp == stl_curwin;
+        let is_stl_curwin = ptr::eq(wp, stl_curwin);
 
-        if (*wp).w_status_height == 0 && !(is_stl_global && is_stl_curwin) {
+        if wp.w_status_height == 0 && !(is_stl_global && is_stl_curwin) {
             g_st().redraw_cmdline = true;
         } else if !redrawing() {
-            (*wp).w_redr_status = true;
-        } else if *(*wp).w_onebuf_opt.wo_stl != NUL
-            || !(*wp).w_floating
+            wp.w_redr_status = true;
+        } else if *wp.w_onebuf_opt.wo_stl != NUL
+            || !wp.w_floating
             || (is_stl_global && is_stl_curwin)
         {
-            win_redr_stl_expr(wp, false, false, false);
+            win_redr_stl_expr(&raw mut *wp, false, false, false);
         }
 
         let mut group: hlf_T = HLF_C;
-        if (*wp).w_vsep_width != 0 && (*wp).w_status_height != 0 && redrawing() {
+        if wp.w_vsep_width != 0 && wp.w_status_height != 0 && redrawing() {
             let fillchar = if stl_connected(wp) {
-                fillchar_status(&raw mut group, wp)
+                fillchar_status(&raw mut group, &raw mut *wp)
             } else {
-                (*wp).w_p_fcs_chars.vert
+                wp.w_p_fcs_chars.vert
             };
-            let attr = win_hl_attr(wp, group);
-            grid_line_start(&raw mut g_st().default_gridview, w_endrow(wp));
+            let attr = win_hl_attr(&raw mut *wp, group);
+            grid_line_start(&raw mut g_st().default_gridview, w_endrow(&raw mut *wp));
             grid_line_put_schar(w_endcol(wp), fillchar, attr);
             grid_line_flush();
         }
@@ -394,9 +394,9 @@ pub unsafe fn get_trans_bufname(buf: *mut buf_T) {
 
 /// Return true if the status line of window `wp` is connected to the status
 /// line of the window right of it. If not, then it's a vertical separator.
-pub unsafe fn stl_connected(wp: *mut win_T) -> bool {
+pub unsafe fn stl_connected(wp: &mut win_T) -> bool {
     unsafe {
-        let mut fr = (*wp).w_frame;
+        let mut fr = wp.w_frame;
         while !(*fr).fr_parent.is_null() {
             if (*(*fr).fr_parent).fr_layout == FR_COL {
                 if !(*fr).fr_next.is_null() {
@@ -781,17 +781,17 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
     }
 }
 
-pub unsafe fn win_redr_winbar(wp: *mut win_T) {
+pub unsafe fn win_redr_winbar(wp: &mut win_T) {
     unsafe {
         if stl_st().winbar_entered {
             return;
         }
         stl_st().winbar_entered = true;
 
-        if (*wp).w_winbar_height == 0 || !redrawing() {
+        if wp.w_winbar_height == 0 || !redrawing() {
             // Do nothing.
-        } else if *opt_vars().p_wbr != NUL || *(*wp).w_onebuf_opt.wo_wbr != NUL {
-            win_redr_stl_expr(wp, true, false, false);
+        } else if *opt_vars().p_wbr != NUL || *wp.w_onebuf_opt.wo_wbr != NUL {
+            win_redr_stl_expr(&raw mut *wp, true, false, false);
         }
         stl_st().winbar_entered = false;
     }
@@ -2032,7 +2032,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     );
                 }
                 STL_ALTPERCENT => {
-                    get_rel_pos(wp, buf_tmp.as_mut_ptr(), TMPLEN as c_int);
+                    get_rel_pos(&mut *wp, buf_tmp.as_mut_ptr(), TMPLEN as c_int);
                     str = buf_tmp.as_mut_ptr();
                 }
                 STL_SHOWCMD => {
@@ -2043,7 +2043,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 STL_ARGLISTSTAT => {
                     fillable = false;
                     buf_tmp[0] = NUL;
-                    if append_arg_number(wp, buf_tmp.as_mut_ptr(), buf_tmp.len()) > 0 {
+                    if append_arg_number(&mut *wp, buf_tmp.as_mut_ptr(), buf_tmp.len()) > 0 {
                         str = buf_tmp.as_mut_ptr();
                     }
                 }

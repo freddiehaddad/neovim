@@ -1077,10 +1077,10 @@ pub unsafe fn spell_check_window(wp: &mut win_T) -> bool {
             && !(&(*w_s).b_langp)[0].lp_slang.is_null()
     }
 }
-pub unsafe fn no_spell_checking(wp: *mut win_T) -> bool {
+pub unsafe fn no_spell_checking(wp: &mut win_T) -> bool {
     unsafe {
-        let w_s = (*wp).w_s_ptr();
-        if (*wp).w_onebuf_opt.wo_spell == 0 || *(*w_s).b_p_spl == NUL || (*w_s).b_langp.is_empty() {
+        let w_s = wp.w_s_ptr();
+        if wp.w_onebuf_opt.wo_spell == 0 || *(*w_s).b_p_spl == NUL || (*w_s).b_langp.is_empty() {
             emsg(gettext((&raw const e_no_spell).cast()));
             return true;
         }
@@ -1113,7 +1113,7 @@ unsafe fn can_syn_spell(wp: *mut win_T, lnum: linenr_T, col: c_int) -> bool {
     }
 }
 pub unsafe fn spell_move_to(
-    wp: *mut win_T,
+    wp: &mut win_T,
     dir: c_int,
     behaviour: smt_T,
     curline: bool,
@@ -1130,7 +1130,7 @@ pub unsafe fn spell_move_to(
         };
         let mut found_len: usize = 0;
         let mut attr: hlf_T = HLF_COUNT;
-        let has_syntax = syntax_present(wp);
+        let has_syntax = syntax_present(&raw mut *wp);
         let mut buf_vec: Vec<c_char>;
         let mut buf: *mut c_char = ptr::null_mut();
         let mut buflen: usize = 0;
@@ -1139,14 +1139,14 @@ pub unsafe fn spell_move_to(
         let mut found_one = false;
         let mut wrapped = false;
         let mut ret: usize = 0;
-        let mut lnum = (*wp).w_cursor.lnum;
+        let mut lnum = wp.w_cursor.lnum;
         let ds = &raw mut g_st().decor_state;
         let saved_decor_start = std::mem::replace(&mut *ds, crate::decoration::DecorState::new());
         let mut decor_lnum: linenr_T = -1;
         'theend: {
             while !g_st().got_int {
-                let mut line = ml_get_buf((*wp).w_buffer, lnum);
-                let mut len = ml_get_buf_len((*wp).w_buffer, lnum) as usize;
+                let mut line = ml_get_buf(wp.w_buffer, lnum);
+                let mut len = ml_get_buf_len(wp.w_buffer, lnum) as usize;
                 if buflen < len + MAXWLEN + 2 {
                     buflen = len + MAXWLEN + 2;
                     buf_vec = vec![0; buflen];
@@ -1157,19 +1157,19 @@ pub unsafe fn spell_move_to(
                 }
                 if capcol == 0 {
                     capcol = getwhitecols(line) as colnr_T;
-                } else if curline && wp == *curwin.as_ptr() {
+                } else if curline && ptr::eq(wp, *curwin.as_ptr()) {
                     let col = getwhitecols(line) as colnr_T;
                     if check_need_cap(&mut **curwin.as_ptr(), lnum, col) {
                         capcol = col;
                     }
-                    line = ml_get_buf((*wp).w_buffer, lnum);
+                    line = ml_get_buf(wp.w_buffer, lnum);
                 }
                 let empty_line = *skipwhite(line) == NUL;
                 { let s = line; std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                if lnum < (*(*wp).w_buffer).b_ml.ml_line_count {
+                if lnum < (*wp.w_buffer).b_ml.ml_line_count {
                     spell_cat_line(
                         buf.add(std::ffi::CStr::from_ptr(buf).to_bytes().len()),
-                        ml_get_buf((*wp).w_buffer, lnum + 1),
+                        ml_get_buf(wp.w_buffer, lnum + 1),
                         MAXWLEN as c_int,
                     );
                 }
@@ -1177,14 +1177,14 @@ pub unsafe fn spell_move_to(
                 let endp = buf.add(len);
                 while p < endp {
                     if dir == BACKWARD
-                        && lnum == (*wp).w_cursor.lnum
+                        && lnum == wp.w_cursor.lnum
                         && !wrapped
-                        && (p.offset_from(buf) as colnr_T) >= (*wp).w_cursor.col
+                        && (p.offset_from(buf) as colnr_T) >= wp.w_cursor.col
                     {
                         break;
                     }
                     attr = HLF_COUNT;
-                    len = spell_check(wp, p, &raw mut attr, &raw mut capcol, false);
+                    len = spell_check(&raw mut *wp, p, &raw mut attr, &raw mut capcol, false);
                     if attr != HLF_COUNT
                         && (behaviour == SMT_ALL
                             || (behaviour == SMT_BAD && attr == HLF_SPB)
@@ -1196,20 +1196,20 @@ pub unsafe fn spell_move_to(
                             p.offset_from(buf) as colnr_T
                         };
                         if dir == BACKWARD
-                            || lnum != (*wp).w_cursor.lnum
+                            || lnum != wp.w_cursor.lnum
                             || wrapped
-                            || check_col > (*wp).w_cursor.col
+                            || check_col > wp.w_cursor.col
                         {
                             let col = p.offset_from(buf) as colnr_T;
-                            let w_s = (*wp).w_s_ptr();
+                            let w_s = wp.w_s_ptr();
                             let no_plain_buffer =
                                 ((*w_s).b_p_spo_flags & kOptSpoFlagNoplainbuffer) != 0;
                             let mut can_spell = !no_plain_buffer;
-                            match decor_spell_nav_col(wp, lnum, &mut decor_lnum, col) {
+                            match decor_spell_nav_col(&raw mut *wp, lnum, &mut decor_lnum, col) {
                                 kTrue => can_spell = true,
                                 kFalse => can_spell = false,
                                 kNone if has_syntax => {
-                                    can_spell = can_syn_spell(wp, lnum, col);
+                                    can_spell = can_syn_spell(&raw mut *wp, lnum, col);
                                 }
                                 _ => {}
                             }
@@ -1223,7 +1223,7 @@ pub unsafe fn spell_move_to(
                                     coladd: 0,
                                 };
                                 if dir == FORWARD {
-                                    (*wp).w_cursor = found_pos;
+                                    wp.w_cursor = found_pos;
                                     if !attrp.is_null() {
                                         *attrp = attr;
                                     }
@@ -1242,14 +1242,14 @@ pub unsafe fn spell_move_to(
                     capcol -= len as c_int;
                 }
                 if dir == BACKWARD && found_pos.lnum != 0 {
-                    (*wp).w_cursor = found_pos;
+                    wp.w_cursor = found_pos;
                     ret = found_len;
                     break 'theend;
                 }
                 if curline {
                     break;
                 }
-                if lnum == (*wp).w_cursor.lnum && wrapped {
+                if lnum == wp.w_cursor.lnum && wrapped {
                     break;
                 }
                 if dir == BACKWARD {
@@ -1258,7 +1258,7 @@ pub unsafe fn spell_move_to(
                     } else if opt_vars().p_ws == 0 {
                         break;
                     } else {
-                        lnum = (*(*wp).w_buffer).b_ml.ml_line_count;
+                        lnum = (*wp.w_buffer).b_ml.ml_line_count;
                         wrapped = true;
                         if !shortmess(kShmSearch) {
                             give_warning(gettext((&raw const top_bot_msg).cast()), true, false);
@@ -1266,7 +1266,7 @@ pub unsafe fn spell_move_to(
                     }
                     capcol = -1;
                 } else {
-                    if lnum < (*(*wp).w_buffer).b_ml.ml_line_count {
+                    if lnum < (*wp.w_buffer).b_ml.ml_line_count {
                         lnum += 1;
                     } else if opt_vars().p_ws == 0 {
                         break;
@@ -1277,7 +1277,7 @@ pub unsafe fn spell_move_to(
                             give_warning(gettext((&raw const bot_top_msg).cast()), true, false);
                         }
                     }
-                    if lnum == (*wp).w_cursor.lnum && !found_one {
+                    if lnum == wp.w_cursor.lnum && !found_one {
                         break;
                     }
                     if attr == HLF_COUNT {
@@ -2779,7 +2779,7 @@ unsafe fn spell_soundfold_wsal(slang: &mut slang_T, inword: *const c_char, res: 
 }
 pub unsafe fn ex_spellinfo(_eap: &mut exarg_T) {
     unsafe {
-        if no_spell_checking(*curwin.as_ptr()) {
+        if no_spell_checking(&mut **curwin.as_ptr()) {
             return;
         }
         msg_ext_set_kind(c"list_cmd".as_ptr());
@@ -2816,7 +2816,7 @@ pub unsafe fn ex_spellinfo(_eap: &mut exarg_T) {
 }
 pub unsafe fn ex_spelldump(eap: &mut exarg_T) {
     unsafe {
-        if no_spell_checking(*curwin.as_ptr()) {
+        if no_spell_checking(&mut **curwin.as_ptr()) {
             return;
         }
         let spl = get_option_value(kOptSpelllang, OPT_LOCAL);
@@ -3225,7 +3225,7 @@ pub unsafe fn spell_to_word_end(start: *mut c_char, win: *mut win_T) -> *mut c_c
 }
 pub unsafe fn spell_word_start(startcol: c_int) -> c_int {
     unsafe {
-        if no_spell_checking(*curwin.as_ptr()) {
+        if no_spell_checking(&mut **curwin.as_ptr()) {
             return startcol;
         }
         let line = get_cursor_line_ptr();

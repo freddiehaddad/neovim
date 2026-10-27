@@ -130,7 +130,7 @@ use crate::highlight::win_hl_attr;
 
 /// Add match to the match list of window `wp` (`match_add`).
 unsafe fn match_add(
-    wp: *mut win_T,
+    wp: &mut win_T,
     grp: *const c_char,
     pat: *const c_char,
     prio: c_int,
@@ -153,10 +153,10 @@ unsafe fn match_add(
             return -1;
         }
         if id == -1 {
-            id = (*wp).w_next_match_id;
-            (*wp).w_next_match_id += 1;
+            id = wp.w_next_match_id;
+            wp.w_next_match_id += 1;
         } else {
-            if (*wp).w_match_head.iter().any(|cur| cur.mit_id == id) {
+            if wp.w_match_head.iter().any(|cur| cur.mit_id == id) {
                 semsg!(
                     gettext(c"E801: ID already taken: %lld".as_ptr()),
                     i64::from(id),
@@ -164,8 +164,8 @@ unsafe fn match_add(
                 return -1;
             }
 
-            if (*wp).w_next_match_id < id + 100 {
-                (*wp).w_next_match_id = id + 100;
+            if wp.w_next_match_id < id + 100 {
+                wp.w_next_match_id = id + 100;
             }
         }
 
@@ -305,7 +305,7 @@ unsafe fn match_add(
             }
 
             if toplnum != 0 {
-                redraw_win_range_later(wp, toplnum, botlnum);
+                redraw_win_range_later(&raw mut *wp, toplnum, botlnum);
                 m.mit_toplnum = toplnum;
                 m.mit_botlnum = botlnum;
                 rtype = UPD_VALID;
@@ -316,16 +316,16 @@ unsafe fn match_add(
             .w_match_head
             .iter()
             .position(|cur| prio < cur.mit_priority)
-            .unwrap_or((*wp).w_match_head.len());
-        (*wp).w_match_head.insert(insert_idx, m);
+            .unwrap_or(wp.w_match_head.len());
+        wp.w_match_head.insert(insert_idx, m);
 
-        redraw_later(wp, rtype);
+        redraw_later(&raw mut *wp, rtype);
         id
     }
 }
 
 /// Delete match with ID `id` in the match list of window `wp` (`match_delete`).
-unsafe fn match_delete(wp: *mut win_T, id: c_int, perr: bool) -> c_int {
+unsafe fn match_delete(wp: &mut win_T, id: c_int, perr: bool) -> c_int {
     unsafe {
         let mut rtype = UPD_SOME_VALID;
 
@@ -340,18 +340,18 @@ unsafe fn match_delete(wp: *mut win_T, id: c_int, perr: bool) -> c_int {
             }
             return -1;
         }
-        let Some(idx) = (*wp).w_match_head.iter().position(|cur| cur.mit_id == id) else {
+        let Some(idx) = wp.w_match_head.iter().position(|cur| cur.mit_id == id) else {
             if perr {
                 semsg!(gettext(c"E803: ID not found: %lld".as_ptr()), i64::from(id));
             }
             return -1;
         };
-        let cur = (*wp).w_match_head.remove(idx);
+        let cur = wp.w_match_head.remove(idx);
         if cur.mit_toplnum != 0 {
-            redraw_win_range_later(wp, cur.mit_toplnum, cur.mit_botlnum);
+            redraw_win_range_later(&raw mut *wp, cur.mit_toplnum, cur.mit_botlnum);
             rtype = UPD_VALID;
         }
-        redraw_later(wp, rtype);
+        redraw_later(&raw mut *wp, rtype);
         0
     }
 }
@@ -1124,11 +1124,11 @@ pub unsafe fn f_setmatches(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
             };
             if i == 0 {
                 let pat = tv_dict_get_string(d, c"pattern".as_ptr());
-                if match_add(win, group, pat, priority, id, ptr::null_mut(), conceal) != id {
+                if match_add(&mut *win, group, pat, priority, id, ptr::null_mut(), conceal) != id {
                     match_add_failed = true;
                 }
             } else {
-                if match_add(win, group, ptr::null(), priority, id, s, conceal) != id {
+                if match_add(&mut *win, group, ptr::null(), priority, id, s, conceal) != id {
                     match_add_failed = true;
                 }
                 tv_list_unref(s);
@@ -1183,7 +1183,7 @@ pub unsafe fn f_matchadd(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
             return;
         }
 
-        rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(win, grp, pat, prio, id, ptr::null_mut(), conceal_char) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(&mut *win, grp, pat, prio, id, ptr::null_mut(), conceal_char) as varnumber_T);
     }
 }
 
@@ -1241,7 +1241,7 @@ pub unsafe fn f_matchaddpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
             return;
         }
 
-        rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(win, group, ptr::null(), prio, id, l, conceal_char) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(&mut *win, group, ptr::null(), prio, id, l, conceal_char) as varnumber_T);
     }
 }
 
@@ -1278,7 +1278,7 @@ pub unsafe fn f_matchdelete(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
         rettv.vval = crate::eval::typval::TypvalVval::Number(if win.is_null() {
             -1
         } else {
-            match_delete(win, tv_get_number(argvars) as c_int, true) as varnumber_T
+            match_delete(&mut *win, tv_get_number(argvars) as c_int, true) as varnumber_T
         });
     }
 }
@@ -1297,7 +1297,7 @@ pub unsafe fn ex_match(eap: &mut exarg_T) {
         };
 
         if eap.skip == 0 {
-            match_delete(*curwin.as_ptr(), id, false);
+            match_delete(&mut **curwin.as_ptr(), id, false);
         }
 
         let arg = eap.arg;
@@ -1340,7 +1340,7 @@ pub unsafe fn ex_match(eap: &mut exarg_T) {
                     let c = *end;
                     *end = NUL;
                     match_add(
-                        *curwin.as_ptr(),
+                        &mut **curwin.as_ptr(),
                         g.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                         p.add(1),
                         10,

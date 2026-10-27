@@ -198,8 +198,8 @@ unsafe fn ds_st() -> &'static mut DrawscreenState {
 }
 
 #[inline]
-pub unsafe fn w_endcol(wp: *const win_T) -> c_int {
-    unsafe { (*wp).w_wincol + (*wp).w_width }
+pub unsafe fn w_endcol(wp: &win_T) -> c_int {
+    wp.w_wincol + wp.w_width
 }
 
 #[inline]
@@ -680,7 +680,7 @@ pub unsafe fn update_screen() -> c_int {
         while !wp.is_null() {
             if (*wp).w_config.hide && !(*wp).w_grid_alloc.chars.is_empty() {
                 if ptr::eq(wp, *curwin.as_ptr()) && global_stl_height() > 0 {
-                    win_redr_status(wp);
+                    win_redr_status(&mut *wp);
                 }
                 (*wp).w_redr_type = 0;
                 wp = (*wp).w_next;
@@ -718,8 +718,8 @@ pub unsafe fn update_screen() -> c_int {
             }
 
             if (*wp).w_redr_status {
-                win_redr_winbar(wp);
-                win_redr_status(wp);
+                win_redr_winbar(&mut *wp);
+                win_redr_status(&mut *wp);
             }
 
             wp = (*wp).w_next;
@@ -1241,7 +1241,7 @@ unsafe fn vsep_connected(wp: &mut win_T, corner: WindowCorner) -> bool {
         let sep_col = if corner == WindowCorner::TopLeft || corner == WindowCorner::BottomLeft {
             wp.w_wincol - 1
         } else {
-            w_endcol(&raw mut *wp)
+            w_endcol(&*wp)
         };
         let mut fr = wp.w_frame;
 
@@ -1272,7 +1272,7 @@ unsafe fn vsep_connected(wp: &mut win_T, corner: WindowCorner) -> bool {
             }
         }
 
-        sep_col == (*(*fr).fr_win).w_wincol - 1 || sep_col == w_endcol((*fr).fr_win)
+        sep_col == (*(*fr).fr_win).w_wincol - 1 || sep_col == w_endcol(&*(*fr).fr_win)
     }
 }
 
@@ -1285,7 +1285,7 @@ unsafe fn draw_vsep_win(wp: &mut win_T) {
         for row in wp.w_winrow..w_endrow(&raw mut *wp) {
             grid_line_start(&raw mut g_st().default_gridview, row);
             grid_line_put_schar(
-                w_endcol(&raw mut *wp),
+                w_endcol(&*wp),
                 wp.w_p_fcs_chars.vert,
                 win_hl_attr(&raw mut *wp, HLF_C),
             );
@@ -1303,7 +1303,7 @@ unsafe fn draw_hsep_win(wp: &mut win_T) {
         grid_line_start(&raw mut g_st().default_gridview, w_endrow(&raw mut *wp));
         grid_line_fill(
             wp.w_wincol,
-            w_endcol(&raw mut *wp),
+            w_endcol(&*wp),
             wp.w_p_fcs_chars.horiz,
             win_hl_attr(&raw mut *wp, HLF_C),
         );
@@ -1375,7 +1375,7 @@ unsafe fn draw_sep_connectors_win(wp: &mut win_T) {
         if top_right {
             grid_line_start(&raw mut g_st().default_gridview, wp.w_winrow - 1);
             grid_line_put_schar(
-                w_endcol(&raw mut *wp),
+                w_endcol(&*wp),
                 get_corner_sep_connector(wp, WindowCorner::TopRight),
                 hl,
             );
@@ -1393,7 +1393,7 @@ unsafe fn draw_sep_connectors_win(wp: &mut win_T) {
         if bot_right {
             grid_line_start(&raw mut g_st().default_gridview, w_endrow(&raw mut *wp));
             grid_line_put_schar(
-                w_endcol(&raw mut *wp),
+                w_endcol(&*wp),
                 get_corner_sep_connector(wp, WindowCorner::BottomRight),
                 hl,
             );
@@ -2811,8 +2811,8 @@ pub unsafe fn redraw_statuslines() {
         while !wp.is_null() {
             if (*wp).w_redr_status {
                 win_check_ns_hl(wp);
-                win_redr_winbar(wp);
-                win_redr_status(wp);
+                win_redr_winbar(&mut *wp);
+                win_redr_status(&mut *wp);
             }
             wp = (*wp).w_next;
         }

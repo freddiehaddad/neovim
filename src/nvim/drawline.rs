@@ -1959,7 +1959,7 @@ pub unsafe fn win_line(
                 let pos = wp.w_cursor;
                 wp.w_cursor.lnum = lnum;
                 wp.w_cursor.col = linecol;
-                let len = spell_move_to(&raw mut *wp, FORWARD, SMT_ALL, true, &raw mut spell_hlf);
+                let len = spell_move_to(&mut *wp, FORWARD, SMT_ALL, true, &raw mut spell_hlf);
 
                 line = ml_get_buf(wp.w_buffer, lnum);
                 ptr = line.add(linecol as usize);

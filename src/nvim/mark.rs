@@ -584,13 +584,13 @@ pub unsafe fn get_jumplist(win: &mut win_T, mut count: c_int) -> *mut fmark_T {
 }
 
 /// Get mark in `count` position in the changelist relative to the current index (`get_changelist`).
-pub unsafe fn get_changelist(buf: &mut buf_T, win: *mut win_T, count: c_int) -> *mut fmark_T {
+pub unsafe fn get_changelist(buf: &mut buf_T, win: &mut win_T, count: c_int) -> *mut fmark_T {
     unsafe {
         if buf.b_changelistlen == 0 {
             return ptr::null_mut();
         }
 
-        let mut n = (*win).w_changelistidx;
+        let mut n = win.w_changelistidx;
         if n + count < 0 {
             if n == 0 {
                 return ptr::null_mut();
@@ -604,7 +604,7 @@ pub unsafe fn get_changelist(buf: &mut buf_T, win: *mut win_T, count: c_int) -> 
         } else {
             n += count;
         }
-        (*win).w_changelistidx = n;
+        win.w_changelistidx = n;
         let fm = &raw mut buf.b_changelist[n as usize];
         (*fm).fnum = (*g_st().curbuf).b_fnum;
         fm

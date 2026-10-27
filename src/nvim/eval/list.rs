@@ -198,7 +198,7 @@ unsafe fn filter_map_blob(
 
         let mut b_ret = b;
         if filtermap == FilterMap::MapNew {
-            tv_blob_copy(b, rettv);
+            tv_blob_copy(b, &mut *rettv);
             b_ret = (*rettv).vval.v_blob();
         }
 

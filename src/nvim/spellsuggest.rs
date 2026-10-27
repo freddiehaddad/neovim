@@ -731,7 +731,7 @@ pub unsafe fn spell_suggest(count: c_int) {
                 badlen += 1;
                 end_visual_mode();
                 badlen = badlen.min(get_cursor_line_len() - (**curwin.as_ptr()).w_cursor.col);
-            } else if spell_move_to(*curwin.as_ptr(), FORWARD, SMT_ALL, true, ptr::null_mut()) == 0
+            } else if spell_move_to(&mut **curwin.as_ptr(), FORWARD, SMT_ALL, true, ptr::null_mut()) == 0
                 || (**curwin.as_ptr()).w_cursor.col > prev_cursor.col
             {
                 (**curwin.as_ptr()).w_cursor = prev_cursor;

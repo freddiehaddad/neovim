@@ -387,7 +387,7 @@ unsafe fn call_click_def_func(
                 .map_or(c"".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut()),
             argv.len() as c_int,
             argv.as_mut_ptr(),
-            &raw mut rettv,
+            &mut rettv,
         );
         tv_clear(&raw mut rettv);
         mouse_st().got_click = false;
@@ -1500,7 +1500,7 @@ pub unsafe fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button
             });
 
         if mouse_st().on_status_line && mouse_st().on_sep_line {
-            if stl_connected(wp) {
+            if stl_connected(&mut *wp) {
                 mouse_st().on_sep_line = false;
             } else {
                 mouse_st().on_status_line = false;
@@ -1539,7 +1539,7 @@ pub unsafe fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button
                 }
 
                 if mouse_st().status_line_offset != 0 && mouse_st().sep_line_offset != 0 {
-                    if stl_connected(wp) {
+                    if stl_connected(&mut *wp) {
                         mouse_st().sep_line_offset = 0;
                     } else {
                         mouse_st().status_line_offset = 0;

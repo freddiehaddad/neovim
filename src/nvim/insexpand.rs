@@ -6845,7 +6845,7 @@ pub unsafe fn free_insexpand_stuff() {
 unsafe fn spell_back_to_badword() {
     unsafe {
         let mut tpos = (**curwin.as_ptr()).w_cursor;
-        insexp().spell_bad_len = spell_move_to(*curwin.as_ptr(), BACKWARD, SMT_ALL, true, ptr::null_mut());
+        insexp().spell_bad_len = spell_move_to(&mut **curwin.as_ptr(), BACKWARD, SMT_ALL, true, ptr::null_mut());
         if (**curwin.as_ptr()).w_cursor.col != tpos.col {
             start_arrow(&raw mut tpos, true, NUL as c_int);
         }

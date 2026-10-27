@@ -3079,7 +3079,7 @@ pub unsafe fn display_showcmd() {
             if norm_st().showcmd_is_clear && g_st().vgetc_busy == 0 {
                 (**curwin.as_ptr()).w_redr_status = true;
             } else {
-                win_redr_status(*curwin.as_ptr());
+                win_redr_status(&mut **curwin.as_ptr());
                 setcursor();
             }
             return;
@@ -3221,7 +3221,7 @@ pub unsafe fn check_scrollbind(vtopline_diff: linenr_T, leftcol_diff: c_int) {
                     if (*old_curwin).w_onebuf_opt.wo_diff != 0
                         && (**curwin.as_ptr()).w_onebuf_opt.wo_diff != 0
                     {
-                        diff_set_topline(old_curwin, *curwin.as_ptr());
+                        diff_set_topline(&mut *old_curwin, &mut **curwin.as_ptr());
                     } else {
                         (**curwin.as_ptr()).w_scbind_pos += vtopline_diff;
                         let curr_vtopline = get_vtopline(&mut **curwin.as_ptr());
@@ -3752,7 +3752,7 @@ unsafe fn nv_zg_zw(cap: &mut cmdarg_T, mut nchar: c_int) -> c_int {
             let pos = (**curwin.as_ptr()).w_cursor;
 
             g_st().emsg_off += 1;
-            len = spell_move_to(*curwin.as_ptr(), FORWARD, SMT_ALL, true, ptr::null_mut());
+            len = spell_move_to(&mut **curwin.as_ptr(), FORWARD, SMT_ALL, true, ptr::null_mut());
             g_st().emsg_off -= 1;
             if len != 0 && (**curwin.as_ptr()).w_cursor.col <= pos.col {
                 ptr = ml_get_pos(&(**curwin.as_ptr()).w_cursor);
@@ -5530,7 +5530,7 @@ unsafe fn nv_brackets(cap: &mut cmdarg_T) {
             setpcmark();
             for _ in 0..cap.count1 {
                 if spell_move_to(
-                    *curwin.as_ptr(),
+                    &mut **curwin.as_ptr(),
                     if cap.cmdchar == b']' as c_int {
                         FORWARD
                     } else {
@@ -6186,7 +6186,7 @@ unsafe fn nv_pcmark(cap: &mut cmdarg_T) {
         }
 
         let fm = if cap.cmdchar == b'g' as c_int {
-            get_changelist(&mut *g_st().curbuf, *curwin.as_ptr(), cap.count1)
+            get_changelist(&mut *g_st().curbuf, &mut **curwin.as_ptr(), cap.count1)
         } else {
             flags |= KMarkNoContext | kMarkJumpList;
             get_jumplist(&mut **curwin.as_ptr(), cap.count1)

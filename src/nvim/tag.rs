@@ -3419,14 +3419,14 @@ pub unsafe fn get_tagstack(wp: &mut win_T, retdict: *mut dict_T) {
     }
 }
 
-unsafe fn tagstack_clear(wp: *mut win_T) {
+unsafe fn tagstack_clear(wp: &mut win_T) {
     unsafe {
-        let tagstack = (&raw mut (*wp).w_tagstack).cast::<taggy_T>();
-        for i in 0..(*wp).w_tagstacklen as usize {
+        let tagstack = (&raw mut wp.w_tagstack).cast::<taggy_T>();
+        for i in 0..wp.w_tagstacklen as usize {
             tagstack_clear_entry(&mut *tagstack.add(i));
         }
-        (*wp).w_tagstacklen = 0;
-        (*wp).w_tagstackidx = 0;
+        wp.w_tagstacklen = 0;
+        wp.w_tagstackidx = 0;
     }
 }
 
@@ -3522,14 +3522,12 @@ unsafe fn tagstack_push_items(wp: *mut win_T, l: *mut list_T) {
     }
 }
 
-unsafe fn tagstack_set_curidx(wp: *mut win_T, curidx: c_int) {
-    unsafe {
-        (*wp).w_tagstackidx = curidx.max(0).min((*wp).w_tagstacklen);
-    }
+unsafe fn tagstack_set_curidx(wp: &mut win_T, curidx: c_int) {
+    wp.w_tagstackidx = curidx.max(0).min(wp.w_tagstacklen);
 }
 
 /// Set the tag stack entries of the specified window.
-pub unsafe fn set_tagstack(wp: *mut win_T, d: *const dict_T, action: c_int) -> c_int {
+pub unsafe fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> c_int {
     unsafe {
         if tag_st().tfu_in_use {
             emsg(gettext(E_CANNOT_MODIFY_TAG_STACK_WITHIN_TAGFUNC.as_ptr()));
@@ -3556,15 +3554,15 @@ pub unsafe fn set_tagstack(wp: *mut win_T, d: *const dict_T, action: c_int) -> c
         }
 
         if action == b't' as c_int {
-            let tagstack = (&raw mut (*wp).w_tagstack).cast::<taggy_T>();
-            let tagstackidx = (*wp).w_tagstackidx;
-            let mut tagstacklen = (*wp).w_tagstacklen;
+            let tagstack = (&raw mut wp.w_tagstack).cast::<taggy_T>();
+            let tagstackidx = wp.w_tagstackidx;
+            let mut tagstacklen = wp.w_tagstacklen;
 
             while tagstackidx < tagstacklen {
                 tagstacklen -= 1;
                 tagstack_clear_entry(&mut *tagstack.add(tagstacklen as usize));
             }
-            (*wp).w_tagstacklen = tagstacklen;
+            wp.w_tagstacklen = tagstacklen;
         }
 
         if !l.is_null() {
@@ -3572,8 +3570,8 @@ pub unsafe fn set_tagstack(wp: *mut win_T, d: *const dict_T, action: c_int) -> c
                 tagstack_clear(wp);
             }
 
-            tagstack_push_items(wp, l);
-            (*wp).w_tagstackidx = (*wp).w_tagstacklen;
+            tagstack_push_items(&raw mut *wp, l);
+            wp.w_tagstackidx = wp.w_tagstacklen;
         }
 
         OK

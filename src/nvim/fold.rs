@@ -514,7 +514,7 @@ pub unsafe fn foldManualAllowed(create: bool) -> c_int {
 
 /// Create a fold from line "start" to line "end" (inclusive) in the current
 /// window.
-pub unsafe fn foldCreate(wp: *mut win_T, mut start: pos_T, mut end: pos_T) {
+pub unsafe fn foldCreate(wp: &mut win_T, mut start: pos_T, mut end: pos_T) {
     unsafe {
         let mut use_level = false;
         let mut closed = false;
@@ -529,15 +529,15 @@ pub unsafe fn foldCreate(wp: *mut win_T, mut start: pos_T, mut end: pos_T) {
             end_rel = end;
         }
 
-        if foldmethodIsMarker(wp) {
+        if foldmethodIsMarker(&raw mut *wp) {
             foldCreateMarkers(wp, start, end);
             return;
         }
 
-        checkupdate(wp);
+        checkupdate(&raw mut *wp);
 
         let mut i_usize: usize = 0;
-        let mut gap = &mut (*wp).w_folds;
+        let mut gap = &mut wp.w_folds;
         if !gap.is_empty() {
             loop {
                 let (found, idx) = foldFind(gap, start_rel.lnum);
@@ -551,7 +551,7 @@ pub unsafe fn foldCreate(wp: *mut win_T, mut start: pos_T, mut end: pos_T) {
                     end_rel.lnum -= fp.fd_top;
                     if use_level || fp.fd_flags == FD_LEVEL {
                         use_level = true;
-                        if i64::from(level) >= (*wp).w_onebuf_opt.wo_fdl {
+                        if i64::from(level) >= wp.w_onebuf_opt.wo_fdl {
                             closed = true;
                         }
                     } else if fp.fd_flags == FD_CLOSED {
@@ -596,14 +596,14 @@ pub unsafe fn foldCreate(wp: *mut win_T, mut start: pos_T, mut end: pos_T) {
                 },
             );
 
-            if use_level && !closed && i64::from(level) < (*wp).w_onebuf_opt.wo_fdl {
+            if use_level && !closed && i64::from(level) < wp.w_onebuf_opt.wo_fdl {
                 closeFold(start, 1);
             }
             if !use_level {
-                (*wp).w_fold_manual = true;
+                wp.w_fold_manual = true;
             }
 
-            changed_window_setting(wp);
+            changed_window_setting(&raw mut *wp);
         }
     }
 }
@@ -997,7 +997,7 @@ unsafe fn setManualFold(pos: pos_T, opening: bool, recurse: bool, donep: *mut c_
             let mut wp = g_st().firstwin;
             while !wp.is_null() {
                 if !ptr::eq(wp, *curwin.as_ptr()) && foldmethodIsDiff(wp) && (*wp).w_onebuf_opt.wo_scb != 0 {
-                    let dlnum = diff_lnum_win((**curwin.as_ptr()).w_cursor.lnum, wp);
+                    let dlnum = diff_lnum_win((**curwin.as_ptr()).w_cursor.lnum, &mut *wp);
                     if dlnum != 0 {
                         setManualFoldWin(&mut *wp, dlnum, opening, recurse, ptr::null_mut());
                     }
@@ -1325,16 +1325,16 @@ unsafe fn setSmallMaybe(gap: &mut [fold_T]) {
     }
 }
 
-unsafe fn foldCreateMarkers(wp: *mut win_T, start: pos_T, end: pos_T) {
+unsafe fn foldCreateMarkers(wp: &mut win_T, start: pos_T, end: pos_T) {
     unsafe {
-        let buf = (*wp).w_buffer;
+        let buf = wp.w_buffer;
         if (*buf).b_p_ma == 0 {
             emsg(gettext(e_modifiable.as_ptr()));
             return;
         }
-        parseMarker(wp);
+        parseMarker(&raw mut *wp);
 
-        foldAddMarker(&mut *buf, start, (*wp).w_onebuf_opt.wo_fmr, fold_st().foldstartmarkerlen);
+        foldAddMarker(&mut *buf, start, wp.w_onebuf_opt.wo_fmr, fold_st().foldstartmarkerlen);
         foldAddMarker(&mut *buf, end, fold_st().foldendmarker, fold_st().foldendmarkerlen);
 
         changed_lines(buf, start.lnum, 0, end.lnum, 0, false);
