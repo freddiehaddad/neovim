@@ -12,16 +12,16 @@ You can install Neovim from [download](#install-from-download), [package](#insta
 Install from download
 =====================
 
-Downloads are available on the [Releases](https://github.com/neovim/neovim/releases) page.
+Downloads are available on the [Releases](https://github.com/freddiehaddad/neovim/releases) page.
 
-* Latest [stable release](https://github.com/neovim/neovim/releases/latest)
-    * [macOS x86_64](https://github.com/neovim/neovim/releases/latest/download/nvim-macos-x86_64.tar.gz)
-    * [macOS arm64](https://github.com/neovim/neovim/releases/latest/download/nvim-macos-arm64.tar.gz)
-    * [Linux x86_64](https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz)
-    * [Linux arm64](https://github.com/neovim/neovim/releases/latest/download/nvim-linux-arm64.tar.gz)
-    * [Windows x86_64](https://github.com/neovim/neovim/releases/latest/download/nvim-win64.msi)
-    * [Windows arm64](https://github.com/neovim/neovim/releases/latest/download/nvim-win-arm64.msi)
-* Latest [development prerelease](https://github.com/neovim/neovim/releases/nightly)
+* Latest [stable release](https://github.com/freddiehaddad/neovim/releases/latest)
+    * [macOS x86_64](https://github.com/freddiehaddad/neovim/releases/latest/download/nvim-macos-x86_64.tar.gz)
+    * [macOS arm64](https://github.com/freddiehaddad/neovim/releases/latest/download/nvim-macos-arm64.tar.gz)
+    * [Linux x86_64](https://github.com/freddiehaddad/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz)
+    * [Linux arm64](https://github.com/freddiehaddad/neovim/releases/latest/download/nvim-linux-arm64.tar.gz)
+    * [Windows x86_64](https://github.com/freddiehaddad/neovim/releases/latest/download/nvim-win64.msi)
+    * [Windows arm64](https://github.com/freddiehaddad/neovim/releases/latest/download/nvim-win-arm64.msi)
+* Latest [development prerelease](https://github.com/freddiehaddad/neovim/releases/tag/nightly)
 
 
 Install from package
@@ -464,31 +464,22 @@ cd /usr/ports/editors/neovim/ && make install
 Install from source
 ===================
 
-If a package is not provided for your platform, you can build Neovim from source. See [BUILD.md](./BUILD.md) for details.  If you have the [prerequisites](./BUILD.md#build-prerequisites) then building is easy:
+If a package is not provided for your platform, you can build Neovim from source. See [BUILD.md](./BUILD.md) for details. If you have the [prerequisites](./BUILD.md#build-prerequisites) then building and installing is a single command:
 ```bash
-make CMAKE_BUILD_TYPE=Release
-sudo make install
+cargo xtask install
 ```
 
-For Unix-like systems this installs Neovim to `/usr/local`, while for Windows to `C:/Program Files`. Note, however, that this can complicate uninstallation. The following example avoids this by isolating an installation under `$HOME/neovim`:
+On Unix-like systems this installs Neovim to `~/.local`, while on Windows it installs to `%USERPROFILE%\.local\bin\nvim-win64`. To install to a custom prefix (such as `$HOME/neovim` or `/usr/local`):
 ```bash
-rm -r build/  # clear the CMake cache
-make CMAKE_EXTRA_FLAGS="-DCMAKE_INSTALL_PREFIX=$HOME/neovim"
-make install
+cargo xtask install --prefix "$HOME/neovim"
 export PATH="$HOME/neovim/bin:$PATH"
 ```
 
 ## Uninstall
 
-There is a CMake target to _uninstall_ after `make install`:
+To uninstall, remove the installed binary and runtime directory from your install prefix (e.g. `~/.local` or `/usr/local`):
 
 ```bash
-sudo cmake --build build/ --target uninstall
-```
-
-Alternatively, just delete the `CMAKE_INSTALL_PREFIX` artifacts:
-
-```bash
-sudo rm /usr/local/bin/nvim
-sudo rm -r /usr/local/share/nvim/
+rm -f ~/.local/bin/nvim ~/.local/bin/tee ~/.local/bin/xxd
+rm -rf ~/.local/lib/nvim ~/.local/share/nvim ~/.local/share/man/man1/nvim.1
 ```

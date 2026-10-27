@@ -1,24 +1,19 @@
 <h1 align="center">
   <img src="https://raw.githubusercontent.com/neovim/neovim.github.io/master/static/logos/neovim-logo-300x87.png" alt="Neovim">
 
-  <a href="https://neovim.io/doc/">Documentation</a> |
-  <a href="https://app.element.io/#/room/#neovim:matrix.org">Chat</a>
+  <a href="https://neovim.io/doc/">Documentation</a>
 </h1>
 
-[![Coverity Scan analysis](https://scan.coverity.com/projects/2227/badge.svg)](https://scan.coverity.com/projects/2227)
-[![Packages](https://repology.org/badge/tiny-repos/neovim.svg)](https://repology.org/metapackage/neovim)
-[![Debian CI](https://badges.debian.net/badges/debian/testing/neovim/version.svg)](https://buildd.debian.org/neovim)
-[![Downloads](https://img.shields.io/github/downloads/neovim/neovim/total.svg?maxAge=2592001)](https://github.com/neovim/neovim/releases/)
+[![Test](https://github.com/freddiehaddad/neovim/actions/workflows/test.yml/badge.svg)](https://github.com/freddiehaddad/neovim/actions/workflows/test.yml)
+[![CodeQL](https://github.com/freddiehaddad/neovim/actions/workflows/codeql.yml/badge.svg)](https://github.com/freddiehaddad/neovim/actions/workflows/codeql.yml)
+[![Downloads](https://img.shields.io/github/downloads/freddiehaddad/neovim/total.svg?maxAge=2592001)](https://github.com/freddiehaddad/neovim/releases/)
 
-Neovim is a project that seeks to aggressively refactor [Vim](https://www.vim.org/) in order to:
+This repository is a pure-Rust port of [Neovim](https://github.com/neovim/neovim), preserving full API, plugin, and runtime compatibility while replacing the legacy C codebase and CMake build system with Rust and Cargo:
 
 - Simplify maintenance and encourage [contributions](CONTRIBUTING.md)
-- Split the work between multiple developers
+- Memory-safe, modular Rust architecture with zero `.c`/`.h` source files in the tree
 - Enable [advanced UIs] without modifications to the core
 - Maximize [extensibility](https://neovim.io/doc/user/api-ui-events.html#api-ui-events)
-
-See the [Introduction](https://github.com/neovim/neovim/wiki/Introduction) wiki page and [Roadmap]
-for more information.
 
 Features
 --------
@@ -31,7 +26,7 @@ Features
 - Asynchronous [job control](https://github.com/neovim/neovim/pull/2247)
 - [Shared data (shada)](https://github.com/neovim/neovim/pull/2506) among multiple editor instances
 - [XDG base directories](https://github.com/neovim/neovim/pull/3470) support
-- Compatible with most Vim plugins, including Ruby and Python plugins
+- Compatible with most Vim and Neovim plugins, including Lua, Ruby, and Python plugins
 
 See [`:help nvim-features`][nvim-features] for the full list, and [`:help news`][nvim-news] for noteworthy changes in the latest version!
 
@@ -39,77 +34,71 @@ Install from package
 --------------------
 
 Pre-built packages for Windows, macOS, and Linux are found on the
-[Releases](https://github.com/neovim/neovim/releases/) page.
+[Releases](https://github.com/freddiehaddad/neovim/releases/) page.
 
-[Managed packages] are in [Homebrew], [Debian], [Ubuntu], [Fedora], [Arch Linux], [Void Linux], [Gentoo], and more!
+See [INSTALL.md](./INSTALL.md) for detailed installation instructions.
 
 Install from source
 -------------------
 
-See [BUILD.md](./BUILD.md) and [supported platforms](https://neovim.io/doc/user/support.html#supported-platforms) for details.
+See [BUILD.md](./BUILD.md) for detailed build instructions.
 
-The build is CMake-based, but a Makefile is provided as a convenience.
-After installing the dependencies, run the following command.
+The build uses standard Rust `cargo` and `cargo xtask` (which automatically fetches and builds bundled third-party C libraries in `.deps/` on first run):
 ```bash
-make CMAKE_BUILD_TYPE=RelWithDebInfo
-sudo make install
+cargo xtask install
 ```
 
-To install to a non-default location:
+To install to a custom prefix:
 ```bash
-make CMAKE_BUILD_TYPE=RelWithDebInfo CMAKE_INSTALL_PREFIX=/full/path/
-make install
+cargo xtask install --prefix /full/path
 ```
 
-CMake hints for inspecting the build:
+Useful `cargo xtask` commands:
 
-- `cmake --build build --target help` lists all build targets.
-- `build/CMakeCache.txt` (or `cmake -LAH build/`) contains the resolved values of all CMake variables.
-- `build/compile_commands.json` shows the full compiler invocations for each translation unit.
+- `cargo xtask --help` lists all available build, lint, doc, package, and test subcommands.
+- `cargo xtask build --release` builds the release binary and stages runtime files in `target/nvim-build/`.
+- `cargo xtask dist` packages a distributable release archive (`.tar.gz` / `.zip`, plus `.appimage` on Linux and `.msi` on Windows) in `target/release/`.
 
 Transitioning from Vim
---------------------
+----------------------
 
 See [`:help nvim-from-vim`](https://neovim.io/doc/user/nvim.html#nvim-from-vim) for instructions.
 
 Project layout
 --------------
 
-    ├─ cmake/           CMake utils
-    ├─ cmake.config/    CMake defines
-    ├─ cmake.deps/      subproject to fetch and build dependencies (optional)
-    ├─ runtime/         plugins and docs
-    ├─ src/nvim/        application source code (see src/nvim/README.md)
-    │  ├─ api/          API subsystem
-    │  ├─ eval/         Vimscript subsystem
-    │  ├─ event/        event-loop subsystem
-    │  ├─ generators/   code generation (pre-compilation)
-    │  ├─ lib/          generic data structures
-    │  ├─ lua/          Lua subsystem
-    │  ├─ msgpack_rpc/  RPC subsystem
-    │  ├─ os/           low-level platform code
-    │  └─ tui/          built-in UI
-    └─ test/            tests (see test/README.md)
+    ├─ runtime/         built-in plugins, syntax, and :help documentation
+    ├─ src/
+    │  ├─ cjson/        Rust port of lua-cjson
+    │  ├─ gen/          Lua documentation & runtime generators
+    │  ├─ lpeg/         Rust port of LPeg
+    │  ├─ mpack/        Rust port of libmpack / lmpack
+    │  ├─ nvim/         Neovim core Rust source code (see src/nvim/README.md)
+    │  │  ├─ api/       RPC & Lua API subsystem
+    │  │  ├─ eval/      Vimscript evaluation subsystem
+    │  │  ├─ event/     libuv event-loop subsystem
+    │  │  ├─ lua/       Lua integration & treesitter subsystem
+    │  │  ├─ msgpack_rpc/ Msgpack-RPC channel & unpacker subsystem
+    │  │  ├─ os/        low-level platform code
+    │  │  ├─ tui/       built-in terminal UI & termkey
+    │  │  ├─ viml/      Vimscript parser & expression compiler
+    │  │  └─ vterm/     Rust port of libvterm
+    │  ├─ tee/          Rust `tee` helper binary
+    │  ├─ unibilium/    Rust port of unibilium terminfo library
+    │  ├─ xdiff/        Rust port of git xdiff
+    │  ├─ xtask/        Cargo build, test, lint, and packaging automation
+    │  └─ xxd/          Rust `xxd` hex dump utility
+    └─ test/            functional and legacy tests (see test/README.md)
 
 License
 -------
 
 Neovim contributions since [b17d96][license-commit] are licensed under the
-Apache 2.0 license, except for contributions copied from Vim (identified by the
-`vim-patch` token). See [LICENSE.txt](./LICENSE.txt) for details.
+Apache 2.0 license, except for contributions ported from Vim. See [LICENSE.txt](./LICENSE.txt) for details.
 
 [license-commit]: https://github.com/neovim/neovim/commit/b17d9691a24099c9210289f16afb1a498a89d803
 [nvim-features]: https://neovim.io/doc/user/vim_diff.html#nvim-features
 [nvim-news]: https://neovim.io/doc/user/news.html
-[Roadmap]: https://neovim.io/roadmap/
 [advanced UIs]: https://github.com/neovim/neovim/wiki/Related-projects#gui
-[Managed packages]: ./INSTALL.md#install-from-package
-[Debian]: https://packages.debian.org/testing/neovim
-[Ubuntu]: https://packages.ubuntu.com/search?keywords=neovim
-[Fedora]: https://packages.fedoraproject.org/pkgs/neovim/neovim/
-[Arch Linux]: https://www.archlinux.org/packages/?q=neovim
-[Void Linux]: https://voidlinux.org/packages/?arch=x86_64&q=neovim
-[Gentoo]: https://packages.gentoo.org/packages/app-editors/neovim
-[Homebrew]: https://formulae.brew.sh/formula/neovim
 
 <!-- vim: set tw=80: -->
