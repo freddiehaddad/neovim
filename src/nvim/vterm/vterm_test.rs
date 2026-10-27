@@ -1074,7 +1074,7 @@ mod tests {
         r: bool,
     }
 
-    unsafe fn init() -> *mut VTerm {
+    unsafe fn init() -> &'static mut VTerm {
         unsafe {
             crate::option_vars::opt_vars().p_emoji = 1;
             vtt_st().state_pos = VTermPos { row: 0, col: 0 };
@@ -1087,7 +1087,7 @@ mod tests {
             vtt_st().want_state_scrollback = false;
             vtt_st().want_screen_scrollback = false;
             let cell = Box::new(std::cell::UnsafeCell::new(vterm_new(25, 80)));
-            let vt = cell.get();
+            let vt = &mut *cell.get();
             vtt_st().TEST_VT = Some(cell);
             vterm_output_set_callback(vt, Some(term_output), ptr::null_mut());
             vterm_set_utf8(vt, 1);
@@ -1095,19 +1095,19 @@ mod tests {
         }
     }
 
-    unsafe fn vterm_free(_vt: *mut VTerm) {
+    unsafe fn vterm_free(_vt: &mut VTerm) {
         unsafe {
             vtt_st().TEST_VT = None;
         }
     }
 
-    unsafe fn wantparser(vt: *mut VTerm) {
+    unsafe fn wantparser(vt: &mut VTerm) {
         unsafe {
             vterm_parser_set_callbacks(vt, Some(&PARSER_CBS), ptr::null_mut());
         }
     }
 
-    unsafe fn wantstate(vt: *mut VTerm, opts: StateOpts) -> *mut VTermStateFull {
+    unsafe fn wantstate(vt: &mut VTerm, opts: StateOpts) -> *mut VTermStateFull {
         unsafe {
             let state = vterm_obtain_state(vt);
             vterm_state_set_callbacks(state, Some(&STATE_CBS), ptr::null_mut());
@@ -1132,7 +1132,7 @@ mod tests {
         }
     }
 
-    unsafe fn wantscreen(vt: *mut VTerm, opts: ScreenOpts) -> *mut VTermScreen {
+    unsafe fn wantscreen(vt: &mut VTerm, opts: ScreenOpts) -> *mut VTermScreen {
         unsafe {
             let screen = vterm_obtain_screen(vt);
             vterm_screen_set_callbacks(screen, Some(&SCREEN_CBS), ptr::null_mut());
@@ -1154,7 +1154,7 @@ mod tests {
         unsafe {
             if !state.is_null() {
                 vterm_state_reset(state, 1);
-                vterm_state_get_cursorpos(state, &raw mut vtt_st().state_pos);
+                vterm_state_get_cursorpos(state, &mut vtt_st().state_pos);
             }
             if !screen.is_null() {
                 vterm_screen_reset(screen, 1);
@@ -1162,7 +1162,7 @@ mod tests {
         }
     }
 
-    unsafe fn push(input: &[u8], vt: *mut VTerm) {
+    unsafe fn push(input: &[u8], vt: &mut VTerm) {
         unsafe {
             vterm_input_write(vt, input.as_ptr().cast(), input.len());
         }
@@ -1234,7 +1234,7 @@ mod tests {
         }
     }
 
-    unsafe fn resize(rows: c_int, cols: c_int, vt: *mut VTerm) {
+    unsafe fn resize(rows: c_int, cols: c_int, vt: &mut VTerm) {
         unsafe {
             vterm_set_size(vt, rows, cols);
         }
@@ -1430,25 +1430,25 @@ mod tests {
         }
     }
 
-    unsafe fn mousemove(row: c_int, col: c_int, vt: *mut VTerm, mod_: VTermModifier) {
+    unsafe fn mousemove(row: c_int, col: c_int, vt: &mut VTerm, mod_: VTermModifier) {
         unsafe {
             vterm_mouse_move(vt, row, col, mod_);
         }
     }
 
-    unsafe fn mousebtn(press: u8, button: c_int, vt: *mut VTerm, mod_: VTermModifier) {
+    unsafe fn mousebtn(press: u8, button: c_int, vt: &mut VTerm, mod_: VTermModifier) {
         unsafe {
             vterm_mouse_button(vt, button, press == b'd' || press == b'D', mod_);
         }
     }
 
-    unsafe fn inchar(c: u32, vt: *mut VTerm, mod_: VTermModifier) {
+    unsafe fn inchar(c: u32, vt: &mut VTerm, mod_: VTermModifier) {
         unsafe {
             vterm_keyboard_unichar(vt, c, mod_);
         }
     }
 
-    unsafe fn inkey(input_key: &str, vt: *mut VTerm, mod_: VTermModifier) {
+    unsafe fn inkey(input_key: &str, vt: &mut VTerm, mod_: VTermModifier) {
         const VTERM_KEY_ESCAPE: VTermKey = 4;
         const VTERM_KEY_UP: VTermKey = 5;
         const VTERM_KEY_DEL: VTermKey = 10;
@@ -4270,60 +4270,60 @@ mod tests {
             reset(state, screen);
             reset(state, screen);
             push(b"AAAAAAAAAAAA", vt);
-            screen_row(0, b"AAAAAAAAAA", screen, (*vt).cols);
-            screen_row(1, b"AA", screen, (*vt).cols);
+            screen_row(0, b"AAAAAAAAAA", screen, vt.cols);
+            screen_row(1, b"AA", screen, vt.cols);
             lineinfo(1, false, false, true, state);
             cursor(1, 2, state);
             resize(5, 15, vt);
-            screen_row(0, b"AAAAAAAAAAAA", screen, (*vt).cols);
+            screen_row(0, b"AAAAAAAAAAAA", screen, vt.cols);
             lineinfo(1, false, false, false, state);
             cursor(0, 12, state);
             resize(5, 20, vt);
-            screen_row(0, b"AAAAAAAAAAAA", screen, (*vt).cols);
+            screen_row(0, b"AAAAAAAAAAAA", screen, vt.cols);
             lineinfo(1, false, false, false, state);
             cursor(0, 12, state);
             reset(state, screen);
             resize(5, 10, vt);
             push(b"ABCDEFGHI", vt);
-            screen_row(0, b"ABCDEFGHI", screen, (*vt).cols);
+            screen_row(0, b"ABCDEFGHI", screen, vt.cols);
             lineinfo(1, false, false, false, state);
             cursor(0, 9, state);
             resize(5, 8, vt);
-            screen_row(1, b"I", screen, (*vt).cols);
+            screen_row(1, b"I", screen, vt.cols);
             lineinfo(1, false, false, true, state);
             cursor(1, 1, state);
             resize(5, 6, vt);
-            screen_row(0, b"ABCDEF", screen, (*vt).cols);
-            screen_row(1, b"GHI", screen, (*vt).cols);
+            screen_row(0, b"ABCDEF", screen, vt.cols);
+            screen_row(1, b"GHI", screen, vt.cols);
             lineinfo(1, false, false, true, state);
             cursor(1, 3, state);
             reset(state, screen);
             resize(5, 10, vt);
             push(b"PROMPT GOES HERE\r\n> \r\n\r\nPROMPT GOES HERE\r\n> ", vt);
-            screen_row(0, b"> ", screen, (*vt).cols);
-            screen_row(2, b"PROMPT GOE", screen, (*vt).cols);
-            screen_row(3, b"S HERE", screen, (*vt).cols);
+            screen_row(0, b"> ", screen, vt.cols);
+            screen_row(2, b"PROMPT GOE", screen, vt.cols);
+            screen_row(3, b"S HERE", screen, vt.cols);
             lineinfo(3, false, false, true, state);
-            screen_row(4, b"> ", screen, (*vt).cols);
+            screen_row(4, b"> ", screen, vt.cols);
             cursor(4, 2, state);
             resize(5, 11, vt);
-            screen_row(0, b"> ", screen, (*vt).cols);
-            screen_row(2, b"PROMPT GOES", screen, (*vt).cols);
-            screen_row(3, b" HERE", screen, (*vt).cols);
+            screen_row(0, b"> ", screen, vt.cols);
+            screen_row(2, b"PROMPT GOES", screen, vt.cols);
+            screen_row(3, b" HERE", screen, vt.cols);
             lineinfo(3, false, false, true, state);
-            screen_row(4, b"> ", screen, (*vt).cols);
+            screen_row(4, b"> ", screen, vt.cols);
             cursor(4, 2, state);
             resize(5, 12, vt);
-            screen_row(0, b"> ", screen, (*vt).cols);
-            screen_row(2, b"PROMPT GOES ", screen, (*vt).cols);
-            screen_row(3, b"HERE", screen, (*vt).cols);
+            screen_row(0, b"> ", screen, vt.cols);
+            screen_row(2, b"PROMPT GOES ", screen, vt.cols);
+            screen_row(3, b"HERE", screen, vt.cols);
             lineinfo(3, false, false, true, state);
-            screen_row(4, b"> ", screen, (*vt).cols);
+            screen_row(4, b"> ", screen, vt.cols);
             cursor(4, 2, state);
             resize(5, 16, vt);
-            screen_row(0, b"> ", screen, (*vt).cols);
+            screen_row(0, b"> ", screen, vt.cols);
             lineinfo(3, false, false, false, state);
-            screen_row(3, b"> ", screen, (*vt).cols);
+            screen_row(3, b"> ", screen, vt.cols);
             cursor(3, 2, state);
             reset(state, screen);
             resize(5, 5, vt);
@@ -4334,20 +4334,20 @@ mod tests {
             reset(state, screen);
             resize(4, 4, vt);
             push(b"ABCD\r\nX", vt);
-            screen_row(0, b"ABCD", screen, (*vt).cols);
-            screen_row(1, b"X", screen, (*vt).cols);
+            screen_row(0, b"ABCD", screen, vt.cols);
+            screen_row(1, b"X", screen, vt.cols);
             cursor(1, 1, state);
             resize(4, 5, vt);
-            screen_row(0, b"ABCD", screen, (*vt).cols);
-            screen_row(1, b"X", screen, (*vt).cols);
+            screen_row(0, b"ABCD", screen, vt.cols);
+            screen_row(1, b"X", screen, vt.cols);
             cursor(1, 1, state);
             reset(state, screen);
             resize(4, 4, vt);
             push(b"ABCD\r\nX", vt);
             cursor(1, 1, state);
             resize(3, 4, vt);
-            screen_row(0, b"ABCD", screen, (*vt).cols);
-            screen_row(1, b"X", screen, (*vt).cols);
+            screen_row(0, b"ABCD", screen, vt.cols);
+            screen_row(1, b"X", screen, vt.cols);
             cursor(1, 1, state);
             resize(5, 10, vt);
             vterm_free(vt);

@@ -492,11 +492,9 @@ unsafe fn tui_query_extended_underline(tui: &mut TUIData) {
     }
 }
 
-pub unsafe fn tui_enable_extended_underline(tui: &mut TUIData) {
-    unsafe {
-        terminfo_set_if_empty(tui, kTerm_set_underline_style, c"\x1b[4:%p1%dm");
-        tui.can_set_underline_color = true;
-    }
+pub fn tui_enable_extended_underline(tui: &mut TUIData) {
+    terminfo_set_if_empty(tui, kTerm_set_underline_style, c"\x1b[4:%p1%dm");
+    tui.can_set_underline_color = true;
 }
 
 pub unsafe fn tui_handle_primary_device_attr(
@@ -2133,7 +2131,7 @@ pub unsafe fn tui_visual_bell(tui: &mut TUIData) {
     }
 }
 
-pub unsafe fn tui_default_colors_set(
+pub fn tui_default_colors_set(
     tui: &mut TUIData,
     rgb_fg: Integer,
     rgb_bg: Integer,
@@ -2141,17 +2139,15 @@ pub unsafe fn tui_default_colors_set(
     cterm_fg: Integer,
     cterm_bg: Integer,
 ) {
-    unsafe {
-        tui.clear_attrs.rgb_fg_color = rgb_fg as i32;
-        tui.clear_attrs.rgb_bg_color = rgb_bg as i32;
-        tui.clear_attrs.rgb_sp_color = rgb_sp as i32;
-        tui.clear_attrs.cterm_fg_color = cterm_fg as i16;
-        tui.clear_attrs.cterm_bg_color = cterm_bg as i16;
+    tui.clear_attrs.rgb_fg_color = rgb_fg as i32;
+    tui.clear_attrs.rgb_bg_color = rgb_bg as i32;
+    tui.clear_attrs.rgb_sp_color = rgb_sp as i32;
+    tui.clear_attrs.cterm_fg_color = cterm_fg as i16;
+    tui.clear_attrs.cterm_bg_color = cterm_bg as i16;
 
-        tui.print_attr_id = -1;
-        tui.set_default_colors = true;
-        invalidate(tui, 0, tui.grid.height, 0, tui.grid.width);
-    }
+    tui.print_attr_id = -1;
+    tui.set_default_colors = true;
+    invalidate(tui, 0, tui.grid.height, 0, tui.grid.width);
 }
 
 pub unsafe fn tui_ui_send(tui: &mut TUIData, content: NvimString) {

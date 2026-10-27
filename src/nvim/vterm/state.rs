@@ -341,10 +341,10 @@ unsafe fn erase(state: *mut VTermStateFull, rect: VTermRect, selective: c_int) {
     }
 }
 
-unsafe fn vterm_state_new(vt: *mut VTerm) -> Box<VTermStateFull> {
+unsafe fn vterm_state_new(vt: &mut VTerm) -> Box<VTermStateFull> {
     unsafe {
-        let rows = (*vt).rows;
-        let cols = (*vt).cols;
+        let rows = vt.rows;
+        let cols = vt.cols;
         let mut state = Box::new(VTermStateFull {
             vt,
             callbacks: None,
@@ -613,7 +613,7 @@ unsafe fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) 
             &raw mut (*state).encoding[(*state).gsingle_set as usize]
         } else if ((*bytes.add(eaten) as u8) & 0x80) == 0 {
             &raw mut (*state).encoding[(*state).gl_set as usize]
-        } else if ((*(*state).vt).mode & VT_MODE_UTF8) != 0 {
+        } else if ((&mut *(*state).vt).mode & VT_MODE_UTF8) != 0 {
             &raw mut (*state).encoding_utf8
         } else {
             &raw mut (*state).encoding[(*state).gr_set as usize]
@@ -900,11 +900,11 @@ unsafe fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull
                 match *bytes.add(1) as u8 {
                     b'F' => {
                         // S7C1T
-                        (*(*state).vt).mode &= !VT_MODE_CTRL8BIT;
+                        (&mut *(*state).vt).mode &= !VT_MODE_CTRL8BIT;
                     }
                     b'G' => {
                         // S8C1T
-                        (*(*state).vt).mode |= VT_MODE_CTRL8BIT;
+                        (&mut *(*state).vt).mode |= VT_MODE_CTRL8BIT;
                     }
                     _ => return 0,
                 }
@@ -1158,20 +1158,20 @@ unsafe fn request_dec_mode(state: *mut VTermStateFull, num: c_int) {
             2031 => ((*state).mode & MODE_THEME_UPDATES) != 0,
             _ => {
                 let s = format!("?{num};0$y");
-                vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, s.as_bytes());
+                vterm_push_output_ctrl_bytes(&mut *(*state).vt, C1_CSI, s.as_bytes());
                 return;
             }
         };
 
         let s = format!("?{num};{}$y", if reply { 1 } else { 2 });
-        vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, s.as_bytes());
+        vterm_push_output_ctrl_bytes(&mut *(*state).vt, C1_CSI, s.as_bytes());
     }
 }
 
 unsafe fn request_version_string(state: *mut VTermStateFull) {
     unsafe {
         let s = format!(">|libvterm({VTERM_VERSION_MAJOR}.{VTERM_VERSION_MINOR})");
-        vterm_push_output_str_bytes((*state).vt, C1_DCS, true, s.as_bytes());
+        vterm_push_output_str_bytes(&mut *(*state).vt, C1_DCS, true, s.as_bytes());
     }
 }
 
@@ -1204,7 +1204,7 @@ unsafe fn request_key_encoding_flags(state: *mut VTermStateFull) {
         }
 
         let s = format!("?{reply}u");
-        vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, s.as_bytes());
+        vterm_push_output_ctrl_bytes(&mut *(*state).vt, C1_CSI, s.as_bytes());
     }
 }
 
@@ -1656,12 +1656,12 @@ unsafe fn on_csi(
                     buf.push(b'?');
                     buf.extend_from_slice(attr);
                     buf.push(b'c');
-                    vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, &buf);
+                    vterm_push_output_ctrl_bytes(&mut *(*state).vt, C1_CSI, &buf);
                 }
             }
             CMD_DA2 => {
                 // DEC secondary Device Attributes
-                vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, b">0;100;0c");
+                vterm_push_output_ctrl_bytes(&mut *(*state).vt, C1_CSI, b">0;100;0c");
             }
             0x64 => {
                 // VPA - ECMA-48 8.3.158
@@ -1786,12 +1786,12 @@ unsafe fn on_csi(
                     0..=4 => {}
                     5 => {
                         let s = format!("{qmark}0n");
-                        vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, s.as_bytes());
+                        vterm_push_output_ctrl_bytes(&mut *(*state).vt, C1_CSI, s.as_bytes());
                     }
                     6 => {
                         let s =
                             format!("{qmark}{};{}R", (*state).pos.row + 1, (*state).pos.col + 1);
-                        vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, s.as_bytes());
+                        vterm_push_output_ctrl_bytes(&mut *(*state).vt, C1_CSI, s.as_bytes());
                     }
                     996 => {
                         if let Some(callbacks) = (*state).callbacks
@@ -1799,7 +1799,7 @@ unsafe fn on_csi(
                             && cb(&raw mut dark, (*state).screen_ptr()) != 0
                         {
                             let s: &[u8] = if dark { b"?997;1n" } else { b"?997;2n" };
-                            vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, s);
+                            vterm_push_output_ctrl_bytes(&mut *(*state).vt, C1_CSI, s);
                         }
                     }
                     _ => {}
@@ -2270,7 +2270,7 @@ unsafe fn on_osc(command: c_int, frag: VTermStringFragment, state: *mut VTermSta
 
 unsafe fn request_status_string(state: *mut VTermStateFull, frag: VTermStringFragment) {
     unsafe {
-        let vt = (*state).vt;
+        let vt = &mut *(*state).vt;
         let tmp = (&raw mut (*state).tmp.words[0]).cast::<u8>();
 
         let mut frag_str = frag.str_;
@@ -2365,7 +2365,7 @@ unsafe fn request_status_string(state: *mut VTermStateFull, frag: VTermStringFra
                 vterm_push_output_str_bytes(vt, C1_DCS, true, s.as_bytes());
             }
             _ => {
-                vterm_push_output_str_bytes((*state).vt, C1_DCS, true, b"0$r");
+                vterm_push_output_str_bytes(&mut *(*state).vt, C1_DCS, true, b"0$r");
             }
         }
     }
@@ -2527,14 +2527,14 @@ static PARSER_CALLBACKS: VTermParserCallbacks = VTermParserCallbacks {
     resize: Some(on_resize),
 };
 
-pub unsafe fn vterm_obtain_state(vt: *mut VTerm) -> *mut VTermStateFull {
+pub unsafe fn vterm_obtain_state(vt: &mut VTerm) -> *mut VTermStateFull {
     unsafe {
-        if (*vt).state.is_none() {
-            (*vt).state = Some(vterm_state_new(vt));
-            let state = (*vt).state_mut_ptr();
+        if vt.state.is_none() {
+            vt.state = Some(vterm_state_new(vt));
+            let state = vt.state_mut_ptr();
             vterm_parser_set_callbacks(vt, Some(&PARSER_CALLBACKS), state);
         }
-        (*vt).state_mut_ptr()
+        vt.state_mut_ptr()
     }
 }
 
@@ -2558,7 +2558,7 @@ pub unsafe fn vterm_state_reset(state: *mut VTermStateFull, hard: c_int) {
 
         (*state).mouse_flags = 0;
 
-        (*(*state).vt).mode &= !VT_MODE_CTRL8BIT;
+        (&mut *(*state).vt).mode &= !VT_MODE_CTRL8BIT;
 
         for col in 0..(*state).cols {
             if col % 8 == 0 {
@@ -2580,7 +2580,7 @@ pub unsafe fn vterm_state_reset(state: *mut VTermStateFull, hard: c_int) {
 
         vterm_state_resetpen(state);
 
-        let default_enc = if ((*(*state).vt).mode & VT_MODE_UTF8) != 0 {
+        let default_enc = if ((&mut *(*state).vt).mode & VT_MODE_UTF8) != 0 {
             vterm_lookup_encoding(VTermEncodingType::ENC_UTF8, b'u' as c_char)
         } else {
             vterm_lookup_encoding(VTermEncodingType::ENC_SINGLE_94, b'B' as c_char)
@@ -2644,7 +2644,7 @@ pub unsafe fn vterm_state_set_unrecognised_fallbacks(
         if let Some(fbs) = fallbacks {
             (*state).fallbacks = Some(fbs);
             if !user.is_null() {
-                (*(*state).vt).outdata = user;
+                (&mut *(*state).vt).outdata = user;
             }
         } else {
             (*state).fallbacks = None;
@@ -2742,7 +2742,7 @@ pub unsafe fn vterm_state_set_termprop(
 pub unsafe fn vterm_state_focus_in(state: *mut VTermStateFull) {
     unsafe {
         if ((*state).mode & MODE_REPORT_FOCUS) != 0 {
-            vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, b"I");
+            vterm_push_output_ctrl_bytes(&mut *(*state).vt, C1_CSI, b"I");
         }
     }
 }
@@ -2750,7 +2750,7 @@ pub unsafe fn vterm_state_focus_in(state: *mut VTermStateFull) {
 pub unsafe fn vterm_state_focus_out(state: *mut VTermStateFull) {
     unsafe {
         if ((*state).mode & MODE_REPORT_FOCUS) != 0 {
-            vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, b"O");
+            vterm_push_output_ctrl_bytes(&mut *(*state).vt, C1_CSI, b"O");
         }
     }
 }

@@ -31,72 +31,68 @@ pub fn vterm_new(rows: c_int, cols: c_int) -> VTerm {
     vt
 }
 
-pub unsafe fn vterm_get_size(vt: *const VTerm, rowsp: *mut c_int, colsp: *mut c_int) {
+pub unsafe fn vterm_get_size(vt: &VTerm, rowsp: *mut c_int, colsp: *mut c_int) {
     unsafe {
         if !rowsp.is_null() {
-            *rowsp = (*vt).rows;
+            *rowsp = vt.rows;
         }
         if !colsp.is_null() {
-            *colsp = (*vt).cols;
+            *colsp = vt.cols;
         }
     }
 }
 
-pub unsafe fn vterm_set_size(vt: *mut VTerm, rows: c_int, cols: c_int) {
+pub unsafe fn vterm_set_size(vt: &mut VTerm, rows: c_int, cols: c_int) {
     if rows < 1 || cols < 1 {
         return;
     }
 
     unsafe {
-        (*vt).rows = rows;
-        (*vt).cols = cols;
+        vt.rows = rows;
+        vt.cols = cols;
 
-        if let Some(callbacks) = (*vt).parser.callbacks
+        if let Some(callbacks) = vt.parser.callbacks
             && let Some(resize_cb) = callbacks.resize
         {
-            let _ = resize_cb(rows, cols, (*vt).state_mut_ptr());
+            let _ = resize_cb(rows, cols, vt.state_mut_ptr());
         }
     }
 }
 
-pub unsafe fn vterm_set_utf8(vt: *mut VTerm, is_utf8: c_int) {
-    unsafe {
-        if is_utf8 != 0 {
-            (*vt).mode |= VT_MODE_UTF8;
-        } else {
-            (*vt).mode &= !VT_MODE_UTF8;
-        }
+pub fn vterm_set_utf8(vt: &mut VTerm, is_utf8: c_int) {
+    if is_utf8 != 0 {
+        vt.mode |= VT_MODE_UTF8;
+    } else {
+        vt.mode &= !VT_MODE_UTF8;
     }
 }
 
-pub unsafe fn vterm_output_set_callback(
-    vt: *mut VTerm,
+pub fn vterm_output_set_callback(
+    vt: &mut VTerm,
     func: VTermOutputCallback,
     user: *mut Terminal,
 ) {
-    unsafe {
-        (*vt).outfunc = func;
-        (*vt).outdata = user;
-    }
+    vt.outfunc = func;
+    vt.outdata = user;
 }
 
-pub unsafe fn vterm_push_output_bytes(vt: *mut VTerm, bytes: *const c_char, len: usize) {
+pub unsafe fn vterm_push_output_bytes(vt: &mut VTerm, bytes: *const c_char, len: usize) {
     unsafe {
-        if let Some(func) = (*vt).outfunc {
-            func(bytes, len, (*vt).outdata);
+        if let Some(func) = vt.outfunc {
+            func(bytes, len, vt.outdata);
         }
     }
 }
 
-pub unsafe fn vterm_push_output_bytes_slice(vt: *mut VTerm, payload: &[u8]) {
+pub unsafe fn vterm_push_output_bytes_slice(vt: &mut VTerm, payload: &[u8]) {
     unsafe {
         vterm_push_output_bytes(vt, payload.as_ptr().cast::<c_char>(), payload.len());
     }
 }
 
-pub unsafe fn vterm_push_output_ctrl_bytes(vt: *mut VTerm, ctrl: u8, payload: &[u8]) {
+pub unsafe fn vterm_push_output_ctrl_bytes(vt: &mut VTerm, ctrl: u8, payload: &[u8]) {
     unsafe {
-        let ctrl8bit = ((*vt).mode & VT_MODE_CTRL8BIT) != 0;
+        let ctrl8bit = (vt.mode & VT_MODE_CTRL8BIT) != 0;
         let mut buf = Vec::with_capacity(2 + payload.len());
         if ctrl >= 0x80 && !ctrl8bit {
             buf.push(0x1b);
@@ -109,9 +105,9 @@ pub unsafe fn vterm_push_output_ctrl_bytes(vt: *mut VTerm, ctrl: u8, payload: &[
     }
 }
 
-pub unsafe fn vterm_push_output_str_bytes(vt: *mut VTerm, ctrl: u8, term: bool, payload: &[u8]) {
+pub unsafe fn vterm_push_output_str_bytes(vt: &mut VTerm, ctrl: u8, term: bool, payload: &[u8]) {
     unsafe {
-        let ctrl8bit = ((*vt).mode & VT_MODE_CTRL8BIT) != 0;
+        let ctrl8bit = (vt.mode & VT_MODE_CTRL8BIT) != 0;
         let mut buf = Vec::with_capacity(4 + payload.len());
         if ctrl != 0 {
             if ctrl >= 0x80 && !ctrl8bit {

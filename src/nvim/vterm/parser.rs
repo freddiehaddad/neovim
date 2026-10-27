@@ -118,62 +118,62 @@ fn is_string_state(state: c_int) -> bool {
     state >= OSC_COMMAND
 }
 
-unsafe fn do_control(vt: *mut VTerm, control: u8) {
+unsafe fn do_control(vt: &mut VTerm, control: u8) {
     unsafe {
-        if let Some(callbacks) = (*vt).parser.callbacks
+        if let Some(callbacks) = vt.parser.callbacks
             && let Some(cb) = callbacks.control
         {
-            cb(control, (*vt).state_mut_ptr());
+            cb(control, vt.state_mut_ptr());
         }
     }
 }
 
-unsafe fn do_csi(vt: *mut VTerm, command: c_char) {
+unsafe fn do_csi(vt: &mut VTerm, command: c_char) {
     unsafe {
-        if let Some(callbacks) = (*vt).parser.callbacks
+        if let Some(callbacks) = vt.parser.callbacks
             && let Some(cb) = callbacks.csi
         {
-            let leader = if (*vt).parser.csi.leaderlen != 0 {
-                (*vt).parser.csi.leader.as_ptr()
+            let leader = if vt.parser.csi.leaderlen != 0 {
+                vt.parser.csi.leader.as_ptr()
             } else {
                 ptr::null()
             };
-            let intermed = if (*vt).parser.intermedlen != 0 {
-                (*vt).parser.intermed.as_ptr()
+            let intermed = if vt.parser.intermedlen != 0 {
+                vt.parser.intermed.as_ptr()
             } else {
                 ptr::null()
             };
             cb(
                 leader,
-                (*vt).parser.csi.args.as_ptr(),
-                (*vt).parser.csi.argi,
+                vt.parser.csi.args.as_ptr(),
+                vt.parser.csi.argi,
                 intermed,
                 command,
-                (*vt).state_mut_ptr(),
+                vt.state_mut_ptr(),
             );
         }
     }
 }
 
-unsafe fn do_escape(vt: *mut VTerm, command: c_char) {
+unsafe fn do_escape(vt: &mut VTerm, command: c_char) {
     unsafe {
         let mut seq = [0 as c_char; INTERMED_MAX + 1];
-        let mut len = (*vt).parser.intermedlen as usize;
-        ptr::copy_nonoverlapping((*vt).parser.intermed.as_ptr(), seq.as_mut_ptr(), len);
+        let mut len = vt.parser.intermedlen as usize;
+        ptr::copy_nonoverlapping(vt.parser.intermed.as_ptr(), seq.as_mut_ptr(), len);
         seq[len] = command;
         len += 1;
         seq[len] = 0;
 
-        if let Some(callbacks) = (*vt).parser.callbacks
+        if let Some(callbacks) = vt.parser.callbacks
             && let Some(cb) = callbacks.escape
         {
-            cb(seq.as_ptr(), len, (*vt).state_mut_ptr());
+            cb(seq.as_ptr(), len, vt.state_mut_ptr());
         }
     }
 }
 
 unsafe fn string_fragment(
-    vt: *mut VTerm,
+    vt: &mut VTerm,
     str_: *const c_char,
     len: usize,
     final_: bool,
@@ -181,16 +181,16 @@ unsafe fn string_fragment(
 ) {
     unsafe {
         let frag =
-            VTermStringFragment::new(str_, len, (*vt).parser.string_initial, final_, terminator);
-        let callbacks = (*vt).parser.callbacks;
-        let state = (*vt).state_mut_ptr();
+            VTermStringFragment::new(str_, len, vt.parser.string_initial, final_, terminator);
+        let callbacks = vt.parser.callbacks;
+        let state = vt.state_mut_ptr();
 
-        match (*vt).parser.state {
+        match vt.parser.state {
             OSC => {
                 if let Some(cbs) = callbacks
                     && let Some(cb) = cbs.osc
                 {
-                    cb((*vt).parser.osc.command, frag, state);
+                    cb(vt.parser.osc.command, frag, state);
                 }
             }
             DCS_VTERM => {
@@ -198,8 +198,8 @@ unsafe fn string_fragment(
                     && let Some(cb) = cbs.dcs
                 {
                     cb(
-                        (*vt).parser.dcs.command.as_ptr(),
-                        (*vt).parser.dcs.commandlen as usize,
+                        vt.parser.dcs.command.as_ptr(),
+                        vt.parser.dcs.commandlen as usize,
                         frag,
                         state,
                     );
@@ -229,25 +229,25 @@ unsafe fn string_fragment(
             _ => return,
         }
 
-        (*vt).parser.string_initial = false;
+        vt.parser.string_initial = false;
     }
 }
 
-pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize) -> usize {
+pub unsafe fn vterm_input_write(vt: &mut VTerm, bytes: *const c_char, len: usize) -> usize {
     unsafe {
         let mut pos: usize = 0;
-        let mut string_start: *const c_char = match (*vt).parser.state {
+        let mut string_start: *const c_char = match vt.parser.state {
             OSC | DCS_VTERM | APC | PM | SOS => bytes,
             _ => ptr::null(),
         };
 
         while pos < len {
             let mut c = *bytes.add(pos) as u8;
-            let mut c1_allowed = ((*vt).mode & 0x01) == 0;
+            let mut c1_allowed = (vt.mode & 0x01) == 0;
 
             if c == 0x00 || c == 0x7f {
                 // NUL, DEL
-                if is_string_state((*vt).parser.state) {
+                if is_string_state(vt.parser.state) {
                     string_fragment(
                         vt,
                         string_start,
@@ -257,7 +257,7 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
                     );
                     string_start = bytes.add(pos + 1);
                 }
-                if (*vt).parser.emit_nul {
+                if vt.parser.emit_nul {
                     do_control(vt, c);
                 }
                 pos += 1;
@@ -265,32 +265,32 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
             }
             if c == 0x18 || c == 0x1a {
                 // CAN, SUB
-                (*vt).parser.in_esc = 0;
-                (*vt).parser.state = NORMAL;
+                vt.parser.in_esc = 0;
+                vt.parser.state = NORMAL;
                 string_start = ptr::null();
-                if (*vt).parser.emit_nul {
+                if vt.parser.emit_nul {
                     do_control(vt, c);
                 }
                 pos += 1;
                 continue;
             } else if c == 0x1b {
                 // ESC
-                (*vt).parser.intermedlen = 0;
-                if !is_string_state((*vt).parser.state) {
-                    (*vt).parser.state = NORMAL;
+                vt.parser.intermedlen = 0;
+                if !is_string_state(vt.parser.state) {
+                    vt.parser.state = NORMAL;
                 }
-                (*vt).parser.in_esc = 1;
+                vt.parser.in_esc = 1;
                 pos += 1;
                 continue;
-            } else if c == 0x07 && is_string_state((*vt).parser.state) {
+            } else if c == 0x07 && is_string_state(vt.parser.state) {
                 // BEL, can stand for ST in OSC or DCS state
             } else if c < 0x20 {
                 // other C0
-                if (*vt).parser.state == SOS {
+                if vt.parser.state == SOS {
                     pos += 1;
                     continue;
                 }
-                if is_string_state((*vt).parser.state) {
+                if is_string_state(vt.parser.state) {
                     string_fragment(
                         vt,
                         string_start,
@@ -300,7 +300,7 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
                     );
                 }
                 do_control(vt, c);
-                if is_string_state((*vt).parser.state) {
+                if is_string_state(vt.parser.state) {
                     string_start = bytes.add(pos + 1);
                 }
                 pos += 1;
@@ -309,122 +309,122 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
 
             let mut string_len = (bytes.add(pos) as usize).wrapping_sub(string_start as usize);
 
-            if (*vt).parser.in_esc != 0 {
-                if (*vt).parser.intermedlen == 0
+            if vt.parser.in_esc != 0 {
+                if vt.parser.intermedlen == 0
                     && (0x40..0x60).contains(&c)
-                    && (!is_string_state((*vt).parser.state) || c == 0x5c)
+                    && (!is_string_state(vt.parser.state) || c == 0x5c)
                 {
                     c += 0x40;
                     c1_allowed = true;
                     string_len = string_len.saturating_sub(1);
-                    (*vt).parser.in_esc = 0;
+                    vt.parser.in_esc = 0;
                 } else {
                     string_start = ptr::null();
-                    (*vt).parser.state = NORMAL;
+                    vt.parser.state = NORMAL;
                 }
             }
 
             'state_machine: {
-                if (*vt).parser.state == CSI_LEADER {
+                if vt.parser.state == CSI_LEADER {
                     if (0x3c..=0x3f).contains(&c) {
-                        if ((*vt).parser.csi.leaderlen as usize) < CSI_LEADER_MAX - 1 {
-                            let idx = (*vt).parser.csi.leaderlen as usize;
-                            (*vt).parser.csi.leader[idx] = c as c_char;
-                            (*vt).parser.csi.leaderlen += 1;
+                        if (vt.parser.csi.leaderlen as usize) < CSI_LEADER_MAX - 1 {
+                            let idx = vt.parser.csi.leaderlen as usize;
+                            vt.parser.csi.leader[idx] = c as c_char;
+                            vt.parser.csi.leaderlen += 1;
                         }
                         break 'state_machine;
                     }
 
-                    (*vt).parser.csi.leader[(*vt).parser.csi.leaderlen as usize] = 0;
-                    (*vt).parser.csi.argi = 0;
-                    (*vt).parser.csi.args[0] = CSI_ARG_MISSING;
-                    (*vt).parser.state = CSI_ARGS;
+                    vt.parser.csi.leader[vt.parser.csi.leaderlen as usize] = 0;
+                    vt.parser.csi.argi = 0;
+                    vt.parser.csi.args[0] = CSI_ARG_MISSING;
+                    vt.parser.state = CSI_ARGS;
                 }
 
-                if (*vt).parser.state == CSI_ARGS {
+                if vt.parser.state == CSI_ARGS {
                     if c.is_ascii_digit() {
-                        let argi = (*vt).parser.csi.argi as usize;
-                        if (*vt).parser.csi.args[argi] == CSI_ARG_MISSING {
-                            (*vt).parser.csi.args[argi] = 0;
+                        let argi = vt.parser.csi.argi as usize;
+                        if vt.parser.csi.args[argi] == CSI_ARG_MISSING {
+                            vt.parser.csi.args[argi] = 0;
                         }
-                        (*vt).parser.csi.args[argi] *= 10;
-                        (*vt).parser.csi.args[argi] += c_long::from(c - b'0');
+                        vt.parser.csi.args[argi] *= 10;
+                        vt.parser.csi.args[argi] += c_long::from(c - b'0');
                         break 'state_machine;
                     }
                     if c == b':' {
-                        let argi = (*vt).parser.csi.argi as usize;
-                        (*vt).parser.csi.args[argi] |= CSI_ARG_FLAG_MORE;
+                        let argi = vt.parser.csi.argi as usize;
+                        vt.parser.csi.args[argi] |= CSI_ARG_FLAG_MORE;
                         c = b';';
                     }
                     if c == b';' {
-                        (*vt).parser.csi.argi += 1;
-                        let argi = (*vt).parser.csi.argi as usize;
-                        (*vt).parser.csi.args[argi] = CSI_ARG_MISSING;
+                        vt.parser.csi.argi += 1;
+                        let argi = vt.parser.csi.argi as usize;
+                        vt.parser.csi.args[argi] = CSI_ARG_MISSING;
                         break 'state_machine;
                     }
 
-                    (*vt).parser.csi.argi += 1;
-                    (*vt).parser.intermedlen = 0;
-                    (*vt).parser.state = CSI_INTERMED;
+                    vt.parser.csi.argi += 1;
+                    vt.parser.intermedlen = 0;
+                    vt.parser.state = CSI_INTERMED;
                 }
 
-                if (*vt).parser.state == CSI_INTERMED {
+                if vt.parser.state == CSI_INTERMED {
                     if is_intermed(c) {
-                        if ((*vt).parser.intermedlen as usize) < INTERMED_MAX - 1 {
-                            let idx = (*vt).parser.intermedlen as usize;
-                            (*vt).parser.intermed[idx] = c as c_char;
-                            (*vt).parser.intermedlen += 1;
+                        if (vt.parser.intermedlen as usize) < INTERMED_MAX - 1 {
+                            let idx = vt.parser.intermedlen as usize;
+                            vt.parser.intermed[idx] = c as c_char;
+                            vt.parser.intermedlen += 1;
                         }
                         break 'state_machine;
                     } else if c == 0x1b {
                         // ESC in CSI cancels
                     } else if (0x40..=0x7e).contains(&c) {
-                        (*vt).parser.intermed[(*vt).parser.intermedlen as usize] = 0;
+                        vt.parser.intermed[vt.parser.intermedlen as usize] = 0;
                         do_csi(vt, c as c_char);
                     }
 
-                    (*vt).parser.state = NORMAL;
+                    vt.parser.state = NORMAL;
                     string_start = ptr::null();
                     break 'state_machine;
                 }
 
-                if (*vt).parser.state == OSC_COMMAND {
+                if vt.parser.state == OSC_COMMAND {
                     if c.is_ascii_digit() {
-                        if (*vt).parser.osc.command == -1 {
-                            (*vt).parser.osc.command = 0;
+                        if vt.parser.osc.command == -1 {
+                            vt.parser.osc.command = 0;
                         } else {
-                            (*vt).parser.osc.command *= 10;
+                            vt.parser.osc.command *= 10;
                         }
-                        (*vt).parser.osc.command += c_int::from(c - b'0');
+                        vt.parser.osc.command += c_int::from(c - b'0');
                         break 'state_machine;
                     }
                     if c == b';' {
-                        (*vt).parser.state = OSC;
+                        vt.parser.state = OSC;
                         string_start = bytes.add(pos + 1);
                         break 'state_machine;
                     }
 
                     string_start = bytes.add(pos);
                     string_len = 0;
-                    (*vt).parser.state = OSC;
+                    vt.parser.state = OSC;
                     // Fall through to string_state
                 }
 
-                if (*vt).parser.state == DCS_COMMAND {
-                    if ((*vt).parser.dcs.commandlen as usize) < CSI_LEADER_MAX {
-                        let idx = (*vt).parser.dcs.commandlen as usize;
-                        (*vt).parser.dcs.command[idx] = c as c_char;
-                        (*vt).parser.dcs.commandlen += 1;
+                if vt.parser.state == DCS_COMMAND {
+                    if (vt.parser.dcs.commandlen as usize) < CSI_LEADER_MAX {
+                        let idx = vt.parser.dcs.commandlen as usize;
+                        vt.parser.dcs.command[idx] = c as c_char;
+                        vt.parser.dcs.commandlen += 1;
                     }
 
                     if (0x40..=0x7e).contains(&c) {
                         string_start = bytes.add(pos + 1);
-                        (*vt).parser.state = DCS_VTERM;
+                        vt.parser.state = DCS_VTERM;
                     }
                     break 'state_machine;
                 }
 
-                match (*vt).parser.state {
+                match vt.parser.state {
                     OSC | DCS_VTERM | APC | PM | SOS => {
                         if c == 0x07 || (c1_allowed && c == 0x9c) {
                             string_fragment(
@@ -438,22 +438,22 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
                                     VTERM_TERMINATOR_ST
                                 },
                             );
-                            (*vt).parser.state = NORMAL;
+                            vt.parser.state = NORMAL;
                             string_start = ptr::null();
                         }
                     }
                     NORMAL => {
-                        if (*vt).parser.in_esc != 0 {
+                        if vt.parser.in_esc != 0 {
                             if is_intermed(c) {
-                                if ((*vt).parser.intermedlen as usize) < INTERMED_MAX - 1 {
-                                    let idx = (*vt).parser.intermedlen as usize;
-                                    (*vt).parser.intermed[idx] = c as c_char;
-                                    (*vt).parser.intermedlen += 1;
+                                if (vt.parser.intermedlen as usize) < INTERMED_MAX - 1 {
+                                    let idx = vt.parser.intermedlen as usize;
+                                    vt.parser.intermed[idx] = c as c_char;
+                                    vt.parser.intermedlen += 1;
                                 }
                             } else if (0x30..0x7f).contains(&c) {
                                 do_escape(vt, c as c_char);
-                                (*vt).parser.in_esc = 0;
-                                (*vt).parser.state = NORMAL;
+                                vt.parser.in_esc = 0;
+                                vt.parser.state = NORMAL;
                                 string_start = ptr::null();
                             }
                             break 'state_machine;
@@ -462,40 +462,40 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
                             match c {
                                 0x90 => {
                                     // DCS
-                                    (*vt).parser.string_initial = true;
-                                    (*vt).parser.dcs.commandlen = 0;
-                                    (*vt).parser.state = DCS_COMMAND;
+                                    vt.parser.string_initial = true;
+                                    vt.parser.dcs.commandlen = 0;
+                                    vt.parser.state = DCS_COMMAND;
                                     string_start = ptr::null();
                                 }
                                 0x98 => {
                                     // SOS
-                                    (*vt).parser.string_initial = true;
-                                    (*vt).parser.state = SOS;
+                                    vt.parser.string_initial = true;
+                                    vt.parser.state = SOS;
                                     string_start = bytes.add(pos + 1);
                                 }
                                 0x9b => {
                                     // CSI
-                                    (*vt).parser.csi.leaderlen = 0;
-                                    (*vt).parser.state = CSI_LEADER;
+                                    vt.parser.csi.leaderlen = 0;
+                                    vt.parser.state = CSI_LEADER;
                                     string_start = ptr::null();
                                 }
                                 0x9d => {
                                     // OSC
-                                    (*vt).parser.osc.command = -1;
-                                    (*vt).parser.string_initial = true;
-                                    (*vt).parser.state = OSC_COMMAND;
+                                    vt.parser.osc.command = -1;
+                                    vt.parser.string_initial = true;
+                                    vt.parser.state = OSC_COMMAND;
                                     string_start = ptr::null();
                                 }
                                 0x9e => {
                                     // PM
-                                    (*vt).parser.string_initial = true;
-                                    (*vt).parser.state = PM;
+                                    vt.parser.string_initial = true;
+                                    vt.parser.state = PM;
                                     string_start = bytes.add(pos + 1);
                                 }
                                 0x9f => {
                                     // APC
-                                    (*vt).parser.string_initial = true;
-                                    (*vt).parser.state = APC;
+                                    vt.parser.string_initial = true;
+                                    vt.parser.state = APC;
                                     string_start = bytes.add(pos + 1);
                                 }
                                 _ => {
@@ -504,11 +504,11 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
                             }
                         } else {
                             let mut eaten: usize = 0;
-                            if let Some(callbacks) = (*vt).parser.callbacks
+                            if let Some(callbacks) = vt.parser.callbacks
                                 && let Some(cb) = callbacks.text
                             {
                                 eaten =
-                                    cb(bytes.add(pos), len - pos, (*vt).state_mut_ptr()) as usize;
+                                    cb(bytes.add(pos), len - pos, vt.state_mut_ptr()) as usize;
                             }
 
                             if eaten == 0 {
@@ -528,7 +528,7 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
         if !string_start.is_null() {
             let mut string_len = (bytes.add(pos) as usize).wrapping_sub(string_start as usize);
             if string_len > 0 {
-                if (*vt).parser.in_esc != 0 {
+                if vt.parser.in_esc != 0 {
                     string_len -= 1;
                 }
                 string_fragment(vt, string_start, string_len, false, VTERM_TERMINATOR_ST);
@@ -539,12 +539,10 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
     }
 }
 
-pub unsafe fn vterm_parser_set_callbacks(
-    vt: *mut VTerm,
+pub fn vterm_parser_set_callbacks(
+    vt: &mut VTerm,
     callbacks: Option<&'static VTermParserCallbacks>,
     _user: *mut VTermStateFull,
 ) {
-    unsafe {
-        (*vt).parser.callbacks = callbacks;
-    }
+    vt.parser.callbacks = callbacks;
 }

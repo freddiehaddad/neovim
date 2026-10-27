@@ -1331,7 +1331,7 @@ static STATE_CBS: VTermStateCallbacks = VTermStateCallbacks {
     sb_clear: Some(sb_clear),
 };
 
-unsafe fn screen_new(vt: *mut VTerm) -> Option<Box<VTermScreen>> {
+unsafe fn screen_new(vt: &mut VTerm) -> Option<Box<VTermScreen>> {
     unsafe {
         let state = vterm_obtain_state(vt);
         if state.is_null() {
@@ -1439,16 +1439,16 @@ pub unsafe fn vterm_screen_get_cell(
     }
 }
 
-pub unsafe fn vterm_obtain_screen(vt: *mut VTerm) -> *mut VTermScreen {
+pub unsafe fn vterm_obtain_screen(vt: &mut VTerm) -> *mut VTermScreen {
     unsafe {
-        if (*vt).screen.is_none() {
-            (*vt).screen = screen_new(vt);
-            let screen_ptr = (*vt).screen_mut_ptr();
+        if vt.screen.is_none() {
+            vt.screen = screen_new(vt);
+            let screen_ptr = vt.screen_mut_ptr();
             if !screen_ptr.is_null() {
-                vterm_state_set_callbacks((*vt).state_mut_ptr(), Some(&STATE_CBS), screen_ptr);
+                vterm_state_set_callbacks(vt.state_mut_ptr(), Some(&STATE_CBS), screen_ptr);
             }
         }
-        (*vt).screen_mut_ptr()
+        vt.screen_mut_ptr()
     }
 }
 
@@ -1463,7 +1463,7 @@ pub unsafe fn vterm_screen_enable_altscreen(screen: *mut VTermScreen, altscreen:
         if (&*screen).buffers[BUFIDX_ALTSCREEN].is_empty() && altscreen != 0 {
             let mut rows: c_int = 0;
             let mut cols: c_int = 0;
-            vterm_get_size((*screen).vt, &raw mut rows, &raw mut cols);
+            vterm_get_size(&*(*screen).vt, &raw mut rows, &raw mut cols);
 
             (&mut *screen).buffers[BUFIDX_ALTSCREEN] = alloc_buffer(screen, rows, cols);
         }
