@@ -193,37 +193,74 @@ use crate::option::OPT_LOCAL;
 use crate::os::fs::MAXPATHL;
 use crate::regexp::MAXCOL;
 use crate::search::{BACKWARD, FORWARD};
-static mut diff_busy: bool = false;
-static mut diff_need_update: bool = false;
-static mut diff_flags: c_int =
-    DIFF_INTERNAL | DIFF_FILLER | DIFF_CLOSE_OFF | DIFF_LINEMATCH | DIFF_INLINE_CHAR;
-static mut diff_algorithm: c_int = XDF_INDENT_HEURISTIC;
 const diff_word_gap: c_int = 5;
-static mut linematch_lines: c_int = 40;
-static mut diff_a_works: TriState = kNone;
-static mut next_diff_id: u64 = 1;
-static mut diff_finger_dp_idx: Option<usize> = None;
-static mut diff_finger_tp: *mut tabpage_T = ptr::null_mut();
-static mut diff_finger_idx: c_int = -1;
-static mut diff_finger_lnum: linenr_T = 0;
 
-static mut f_diff_hlid_prev_lnum: linenr_T = 0;
-static mut f_diff_hlid_changedtick: varnumber_T = 0;
-static mut f_diff_hlid_fnum: c_int = 0;
-static mut f_diff_hlid_prev_diff_flags: c_int = 0;
-static mut f_diff_hlid_change_start: c_int = 0;
-static mut f_diff_hlid_change_end: c_int = 0;
-static mut f_diff_hlid_hlID: hlf_T = 0;
+struct DiffState {
+    diff_busy: bool,
+    diff_need_update: bool,
+    diff_flags: c_int,
+    diff_algorithm: c_int,
+    linematch_lines: c_int,
+    diff_a_works: TriState,
+    next_diff_id: u64,
+    diff_finger_dp_idx: Option<usize>,
+    diff_finger_tp: *mut tabpage_T,
+    diff_finger_idx: c_int,
+    diff_finger_lnum: linenr_T,
+    f_diff_hlid_prev_lnum: linenr_T,
+    f_diff_hlid_changedtick: varnumber_T,
+    f_diff_hlid_fnum: c_int,
+    f_diff_hlid_prev_diff_flags: c_int,
+    f_diff_hlid_change_start: c_int,
+    f_diff_hlid_change_end: c_int,
+    f_diff_hlid_hlID: hlf_T,
+}
+
+impl DiffState {
+    const fn new() -> Self {
+        Self {
+            diff_busy: false,
+            diff_need_update: false,
+            diff_flags: DIFF_INTERNAL
+                | DIFF_FILLER
+                | DIFF_CLOSE_OFF
+                | DIFF_LINEMATCH
+                | DIFF_INLINE_CHAR,
+            diff_algorithm: XDF_INDENT_HEURISTIC,
+            linematch_lines: 40,
+            diff_a_works: kNone,
+            next_diff_id: 1,
+            diff_finger_dp_idx: None,
+            diff_finger_tp: ptr::null_mut(),
+            diff_finger_idx: -1,
+            diff_finger_lnum: 0,
+            f_diff_hlid_prev_lnum: 0,
+            f_diff_hlid_changedtick: 0,
+            f_diff_hlid_fnum: 0,
+            f_diff_hlid_prev_diff_flags: 0,
+            f_diff_hlid_change_start: 0,
+            f_diff_hlid_change_end: 0,
+            f_diff_hlid_hlID: 0,
+        }
+    }
+}
+
+static DIFF_STATE: GlobalState<DiffState> = GlobalState::new(DiffState::new());
+
+#[inline]
+unsafe fn diff_st() -> &'static mut DiffState {
+    unsafe { &mut *DIFF_STATE.as_ptr() }
+}
 #[inline]
 const fn has_dip_key(v: &OptKeyDict_dip, idx: u64) -> bool {
     (v.is_set__dip_ & (1u64 << idx)) != 0
 }
 unsafe fn diff_scan_start(tp: *mut tabpage_T, idx: c_int, lnum: linenr_T) -> usize {
     unsafe {
-        if let Some(dp_idx) = diff_finger_dp_idx
-            && diff_finger_tp == tp
-            && diff_finger_idx == idx
-            && lnum >= diff_finger_lnum
+        if let Some(dp_idx) = diff_st().diff_finger_dp_idx
+            && diff_st().diff_finger_tp == tp
+            && diff_st().diff_finger_idx == idx
+            && lnum >= diff_st().diff_finger_lnum
             && dp_idx < (*tp).tp_diffs.len()
         {
             return dp_idx;
@@ -238,10 +275,10 @@ unsafe fn diff_scan_remember(
     dp_idx: Option<usize>,
 ) {
     unsafe {
-        diff_finger_tp = tp;
-        diff_finger_idx = idx;
-        diff_finger_lnum = lnum;
-        diff_finger_dp_idx = Some(dp_idx.unwrap_or(0));
+        diff_st().diff_finger_tp = tp;
+        diff_st().diff_finger_idx = idx;
+        diff_st().diff_finger_lnum = lnum;
+        diff_st().diff_finger_dp_idx = Some(dp_idx.unwrap_or(0));
     }
 }
 pub unsafe fn diff_buf_delete(buf: *mut buf_T) {
@@ -369,7 +406,7 @@ unsafe fn diff_mark_adjust_tp(
     amount_after: linenr_T,
 ) {
     unsafe {
-        diff_finger_dp_idx = None;
+        diff_st().diff_finger_dp_idx = None;
         if diff_internal() != 0 {
             (*tp).tp_diff_invalid = 1;
             (*tp).tp_diff_update = 1;
@@ -399,7 +436,7 @@ unsafe fn diff_mark_adjust_tp(
                     (&(*tp).tp_diffs)[pi].df_lnum[idx] + (&(*tp).tp_diffs)[pi].df_count[idx] < line1
                 }
             };
-            if dp_past_line2 && dprev_before_line1 && !diff_busy {
+            if dp_past_line2 && dprev_before_line1 && !diff_st().diff_busy {
                 let dprev_copy = dprev_idx.map(|pi| {
                     (
                         (&(*tp).tp_diffs)[pi].df_lnum,
@@ -430,7 +467,7 @@ unsafe fn diff_mark_adjust_tp(
                 + (&(*tp).tp_diffs)[dp_idx].df_count[idx]
                 - 1;
             if last >= line1 - 1 {
-                if diff_busy {
+                if diff_st().diff_busy {
                     if (&(*tp).tp_diffs)[dp_idx].df_lnum[idx] > line2 {
                         (&mut (*tp).tp_diffs)[dp_idx].df_lnum[idx] += amount_after;
                     }
@@ -515,7 +552,7 @@ unsafe fn diff_mark_adjust_tp(
             }
             if let Some(pi) = dprev_idx
                 && !(&(*tp).tp_diffs)[dp_idx].is_linematched
-                && !diff_busy
+                && !diff_st().diff_busy
                 && (&(*tp).tp_diffs)[pi].df_lnum[idx] + (&(*tp).tp_diffs)[pi].df_count[idx]
                     == (&(*tp).tp_diffs)[dp_idx].df_lnum[idx]
             {
@@ -554,9 +591,9 @@ unsafe fn diff_mark_adjust_tp(
 }
 unsafe fn diff_alloc_new(tp: *mut tabpage_T, idx: usize) -> usize {
     unsafe {
-        let df_id = next_diff_id;
-        next_diff_id += 1;
-        diff_finger_dp_idx = None;
+        let df_id = diff_st().next_diff_id;
+        diff_st().next_diff_id += 1;
+        diff_st().diff_finger_dp_idx = None;
         (*tp).tp_diffs.insert(
             idx,
             diff_T {
@@ -573,7 +610,7 @@ unsafe fn diff_alloc_new(tp: *mut tabpage_T, idx: usize) -> usize {
 }
 unsafe fn diff_free(tp: *mut tabpage_T, idx: usize) {
     unsafe {
-        diff_finger_dp_idx = None;
+        diff_st().diff_finger_dp_idx = None;
         (*tp).tp_diffs.remove(idx);
     }
 }
@@ -753,7 +790,7 @@ unsafe fn diff_write_buffer(
         len = 0;
         for lnum in start..=end {
             let mut s = ml_get_buf(buf, lnum);
-            if (diff_flags & DIFF_ICASE) != 0 {
+            if (diff_st().diff_flags & DIFF_ICASE) != 0 {
                 while *s != NUL {
                     let c: c_int;
                     let mut c_len: c_int = 1;
@@ -868,7 +905,7 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
             let mut num_anchors: usize = usize::MAX;
             let mut anchors: [[linenr_T; MAX_DIFF_ANCHORS]; DB_COUNT] =
                 [[0; MAX_DIFF_ANCHORS]; DB_COUNT];
-            if (diff_flags & DIFF_ANCHOR) != 0 {
+            if (diff_st().diff_flags & DIFF_ANCHOR) != 0 {
                 for idx in 0..DB_COUNT {
                     if (*curtab).tp_diffbuf[idx].is_null() {
                         continue;
@@ -948,7 +985,7 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
                 }
                 clear_diffin(&mut (*dio).dio_orig);
                 if anchor_i != 0 {
-                    diff_finger_dp_idx = None;
+                    diff_st().diff_finger_dp_idx = None;
                     for dp in &mut (*curtab).tp_diffs {
                         for (idx, anchor_row) in anchors.iter().enumerate() {
                             if anchor_row[anchor_i - 1] > 0 {
@@ -968,14 +1005,14 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
 pub unsafe fn diff_internal() -> c_int {
     unsafe {
         c_int::from(
-            (diff_flags & DIFF_INTERNAL) != 0 && crate::eval::typval::Callback::raw_cb_type(&raw const p_dex) == kCallbackNone,
+            (diff_st().diff_flags & DIFF_INTERNAL) != 0 && crate::eval::typval::Callback::raw_cb_type(&raw const p_dex) == kCallbackNone,
         )
     }
 }
 pub unsafe fn ex_diffupdate(eap: *mut exarg_T) {
     unsafe {
-        if diff_busy {
-            diff_need_update = true;
+        if diff_st().diff_busy {
+            diff_st().diff_need_update = true;
             return;
         }
         let had_diffs = !(*curtab).tp_diffs.is_empty();
@@ -1097,10 +1134,10 @@ unsafe fn check_external_diff(diffio: *mut diffio_T) -> c_int {
             if crate::eval::typval::Callback::raw_cb_type(&raw const p_dex) != kCallbackNone {
                 break;
             }
-            if diff_a_works != kNone {
+            if diff_st().diff_a_works != kNone {
                 break;
             }
-            diff_a_works = ok;
+            diff_st().diff_a_works = ok;
             if ok != 0 {
                 break;
             }
@@ -1110,7 +1147,7 @@ unsafe fn check_external_diff(diffio: *mut diffio_T) -> c_int {
                 emsg(gettext(c"E810: Cannot read or write temp files".as_ptr()));
             }
             emsg(gettext(c"E97: Cannot create diffs".as_ptr()));
-            diff_a_works = kNone;
+            diff_st().diff_a_works = kNone;
             return FAIL;
         }
         OK
@@ -1119,7 +1156,7 @@ unsafe fn check_external_diff(diffio: *mut diffio_T) -> c_int {
 unsafe fn diff_file_internal(diffio: *mut diffio_T) -> c_int {
     unsafe {
         let mut param = xpparam_t {
-            flags: diff_algorithm as c_ulong,
+            flags: diff_st().diff_algorithm as c_ulong,
         };
         let emit_cfg = xdemitconf_t {
             ctxlen: 0,
@@ -1127,16 +1164,16 @@ unsafe fn diff_file_internal(diffio: *mut diffio_T) -> c_int {
             flags: 0,
         };
         let mut emit_cb = xdemitcb_t::Diff(&raw mut (*diffio).dio_diff);
-        if (diff_flags & DIFF_IWHITE) != 0 {
+        if (diff_st().diff_flags & DIFF_IWHITE) != 0 {
             param.flags |= XDF_IGNORE_WHITESPACE_CHANGE;
         }
-        if (diff_flags & DIFF_IWHITEALL) != 0 {
+        if (diff_st().diff_flags & DIFF_IWHITEALL) != 0 {
             param.flags |= XDF_IGNORE_WHITESPACE;
         }
-        if (diff_flags & DIFF_IWHITEEOL) != 0 {
+        if (diff_st().diff_flags & DIFF_IWHITEEOL) != 0 {
             param.flags |= XDF_IGNORE_WHITESPACE_AT_EOL;
         }
-        if (diff_flags & DIFF_IBLANK) != 0 {
+        if (diff_st().diff_flags & DIFF_IBLANK) != 0 {
             param.flags |= XDF_IGNORE_BLANK_LINES;
         }
         if (*diffio).dio_orig.din_mmfile.size > MAX_XDIFF_SIZE
@@ -1197,33 +1234,33 @@ unsafe fn diff_file(dio: *mut diffio_T) -> c_int {
             cmd,
             len,
             c"diff %s%s%s%s%s%s%s%s %s".as_ptr(),
-            if diff_a_works == kFalse {
+            if diff_st().diff_a_works == kFalse {
                 c"".as_ptr()
             } else {
                 c"-a ".as_ptr()
             },
             c"".as_ptr(),
-            if (diff_flags & DIFF_IWHITE) != 0 {
+            if (diff_st().diff_flags & DIFF_IWHITE) != 0 {
                 c"-b ".as_ptr()
             } else {
                 c"".as_ptr()
             },
-            if (diff_flags & DIFF_IWHITEALL) != 0 {
+            if (diff_st().diff_flags & DIFF_IWHITEALL) != 0 {
                 c"-w ".as_ptr()
             } else {
                 c"".as_ptr()
             },
-            if (diff_flags & DIFF_IWHITEEOL) != 0 {
+            if (diff_st().diff_flags & DIFF_IWHITEEOL) != 0 {
                 c"-Z ".as_ptr()
             } else {
                 c"".as_ptr()
             },
-            if (diff_flags & DIFF_IBLANK) != 0 {
+            if (diff_st().diff_flags & DIFF_IBLANK) != 0 {
                 c"-B ".as_ptr()
             } else {
                 c"".as_ptr()
             },
-            if (diff_flags & DIFF_ICASE) != 0 {
+            if (diff_st().diff_flags & DIFF_ICASE) != 0 {
                 c"-i ".as_ptr()
             } else {
                 c"".as_ptr()
@@ -1366,7 +1403,7 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
                 cmdmod.cmod_tab = 0;
                 if win_split(
                     0,
-                    if (diff_flags & DIFF_VERTICAL) != 0 {
+                    if (diff_st().diff_flags & DIFF_VERTICAL) != 0 {
                         WSP_VERT
                     } else {
                         0
@@ -1412,7 +1449,7 @@ pub unsafe fn ex_diffsplit(eap: *mut exarg_T) {
         cmdmod.cmod_tab = 0;
         if win_split(
             0,
-            if (diff_flags & DIFF_VERTICAL) != 0 {
+            if (diff_st().diff_flags & DIFF_VERTICAL) != 0 {
                 WSP_VERT
             } else {
                 0
@@ -1471,7 +1508,7 @@ pub unsafe fn diff_win_options(wp: *mut win_T, addbuf: bool) {
             (*wp).w_onebuf_opt.wo_crb_save = (*wp).w_onebuf_opt.wo_crb;
         }
         (*wp).w_onebuf_opt.wo_crb = 1;
-        if (diff_flags & DIFF_FOLLOWWRAP) == 0 {
+        if (diff_st().diff_flags & DIFF_FOLLOWWRAP) == 0 {
             if (*wp).w_onebuf_opt.wo_diff == 0 {
                 (*wp).w_onebuf_opt.wo_wrap_save = (*wp).w_onebuf_opt.wo_wrap;
             }
@@ -1537,7 +1574,7 @@ pub unsafe fn ex_diffoff(eap: *mut exarg_T) {
                     if (*wp).w_onebuf_opt.wo_crb != 0 {
                         (*wp).w_onebuf_opt.wo_crb = (*wp).w_onebuf_opt.wo_crb_save;
                     }
-                    if (diff_flags & DIFF_FOLLOWWRAP) == 0
+                    if (diff_st().diff_flags & DIFF_FOLLOWWRAP) == 0
                         && (*wp).w_onebuf_opt.wo_wrap == 0
                         && (*wp).w_onebuf_opt.wo_wrap_save != 0
                     {
@@ -1581,7 +1618,7 @@ pub unsafe fn ex_diffoff(eap: *mut exarg_T) {
             diff_buf_clear();
         }
         if !diffwin {
-            diff_need_update = false;
+            diff_st().diff_need_update = false;
             (*curtab).tp_diff_invalid = 0;
             (*curtab).tp_diff_update = 0;
             diff_clear(curtab);
@@ -1725,7 +1762,7 @@ unsafe fn process_hunk(
                 }
             }
             if dpl_idx > dp_idx {
-                diff_finger_dp_idx = None;
+                diff_st().diff_finger_dp_idx = None;
                 (*curtab).tp_diffs.drain((dp_idx + 1)..=dpl_idx);
             }
         } else {
@@ -1810,13 +1847,13 @@ unsafe fn diff_copy_entry(dp_idx: usize, idx_orig: usize, idx_new: usize) {
 }
 pub unsafe fn diff_clear(tp: *mut tabpage_T) {
     unsafe {
-        diff_finger_dp_idx = None;
+        diff_st().diff_finger_dp_idx = None;
         (*tp).tp_diffs.clear();
     }
 }
 pub unsafe fn diff_linematch(dp: *const diff_T) -> bool {
     unsafe {
-        if (diff_flags & DIFF_LINEMATCH) == 0 {
+        if (diff_st().diff_flags & DIFF_LINEMATCH) == 0 {
             return false;
         }
         let mut tsize: c_int = 0;
@@ -1828,7 +1865,7 @@ pub unsafe fn diff_linematch(dp: *const diff_T) -> bool {
                 tsize += (*dp).df_count[i];
             }
         }
-        tsize <= linematch_lines
+        tsize <= diff_st().linematch_lines
     }
 }
 unsafe fn get_max_diff_length(dp: *const diff_T) -> c_int {
@@ -1952,7 +1989,7 @@ unsafe fn calculate_topfill_and_topline(
                 }
             }
         }
-        if (diff_flags & DIFF_FILLER) != 0 {
+        if (diff_st().diff_flags & DIFF_FILLER) != 0 {
             *topfill = max_virt_lines - virtual_lines_passed;
         }
         *topline = curlinenum_to;
@@ -2023,7 +2060,7 @@ unsafe fn run_linematch_algorithm(dp_idx: usize) {
             }
         }
         let diffbuf_refs: Vec<&mmfile_t> = diffbufs_mm[..ndiffs].iter().collect();
-        let iwhite = (diff_flags & (DIFF_IWHITEALL | DIFF_IWHITE)) != 0;
+        let iwhite = (diff_st().diff_flags & (DIFF_IWHITEALL | DIFF_IWHITE)) != 0;
         let decisions = linematch_nbuffers(&diffbuf_refs, &diff_length[..ndiffs], iwhite);
         drop(diffbufs_vec);
         apply_linematch_results(dp_idx, &decisions);
@@ -2090,7 +2127,7 @@ pub unsafe fn diff_check_with_linestatus(
             == (&(*curtab).tp_diffs)[dp_idx].df_lnum[u_idx]
                 + (&(*curtab).tp_diffs)[dp_idx].df_count[u_idx]
         {
-            if (diff_flags & DIFF_FILLER) != 0 {
+            if (diff_st().diff_flags & DIFF_FILLER) != 0 {
                 let maxcount = get_max_diff_length(&(&(*curtab).tp_diffs)[dp_idx]);
                 num_fill += maxcount - (&(*curtab).tp_diffs)[dp_idx].df_count[u_idx];
             }
@@ -2151,7 +2188,7 @@ pub unsafe fn diff_check_with_linestatus(
 }
 pub unsafe fn diff_check_fill(wp: *mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
-        if (diff_flags & DIFF_FILLER) == 0 {
+        if (diff_st().diff_flags & DIFF_FILLER) == 0 {
             return 0;
         }
         let n = diff_check_with_linestatus(wp, lnum, ptr::null_mut());
@@ -2191,7 +2228,7 @@ unsafe fn diff_equal_char(p1: *const c_char, p2: *const c_char, len: *mut c_int)
         }
         if l > 1 {
             if strncmp(p1, p2, l as usize) != 0
-                && ((diff_flags & DIFF_ICASE) == 0
+                && ((diff_st().diff_flags & DIFF_ICASE) == 0
                     || utf_fold(utf_ptr2char(p1)) != utf_fold(utf_ptr2char(p2)))
             {
                 return false;
@@ -2199,7 +2236,7 @@ unsafe fn diff_equal_char(p1: *const c_char, p2: *const c_char, len: *mut c_int)
             *len = l;
         } else {
             if *p1 != *p2
-                && ((diff_flags & DIFF_ICASE) == 0
+                && ((diff_st().diff_flags & DIFF_ICASE) == 0
                     || tolower(*p1 as u8 as c_int) != tolower(*p2 as u8 as c_int))
             {
                 return false;
@@ -2211,20 +2248,20 @@ unsafe fn diff_equal_char(p1: *const c_char, p2: *const c_char, len: *mut c_int)
 }
 unsafe fn diff_cmp(s1: *const c_char, s2: *const c_char) -> c_int {
     unsafe {
-        if (diff_flags & DIFF_IBLANK) != 0 && (*skipwhite(s1) == NUL || *skipwhite(s2) == NUL) {
+        if (diff_st().diff_flags & DIFF_IBLANK) != 0 && (*skipwhite(s1) == NUL || *skipwhite(s2) == NUL) {
             return 0;
         }
-        if (diff_flags & (DIFF_ICASE | ALL_WHITE_DIFF)) == 0 {
+        if (diff_st().diff_flags & (DIFF_ICASE | ALL_WHITE_DIFF)) == 0 {
             return strcmp(s1, s2);
         }
-        if (diff_flags & DIFF_ICASE) != 0 && (diff_flags & ALL_WHITE_DIFF) == 0 {
+        if (diff_st().diff_flags & DIFF_ICASE) != 0 && (diff_st().diff_flags & ALL_WHITE_DIFF) == 0 {
             return mb_stricmp(s1, s2);
         }
         let mut p1: *const c_char = s1;
         let mut p2: *const c_char = s2;
         while *p1 != NUL && *p2 != NUL {
-            if ((diff_flags & DIFF_IWHITE) != 0 && ascii_iswhite(*p1) && ascii_iswhite(*p2))
-                || ((diff_flags & DIFF_IWHITEALL) != 0
+            if ((diff_st().diff_flags & DIFF_IWHITE) != 0 && ascii_iswhite(*p1) && ascii_iswhite(*p2))
+                || ((diff_st().diff_flags & DIFF_IWHITEALL) != 0
                     && (ascii_iswhite(*p1) || ascii_iswhite(*p2)))
             {
                 p1 = skipwhite(p1);
@@ -2394,7 +2431,7 @@ unsafe fn parse_diffanchors(
 pub unsafe fn diffanchors_changed(buflocal: bool) -> c_int {
     unsafe {
         let result = parse_diffanchors(true, curbuf, ptr::null_mut(), ptr::null_mut());
-        if result == OK && (diff_flags & DIFF_ANCHOR) != 0 {
+        if result == OK && (diff_st().diff_flags & DIFF_ANCHOR) != 0 {
             let mut tp = first_tabpage;
             while !tp.is_null() {
                 if !buflocal {
@@ -2464,7 +2501,7 @@ pub unsafe fn diffopt_changed() -> c_int {
         if (flags & DIFF_HORIZONTAL) != 0 && (flags & DIFF_VERTICAL) != 0 {
             ret = FAIL;
         } else {
-            if diff_flags != flags || diff_algorithm != algorithm {
+            if diff_st().diff_flags != flags || diff_st().diff_algorithm != algorithm {
                 let mut tp = first_tabpage;
                 while !tp.is_null() {
                     (*tp).tp_diff_invalid = 1;
@@ -2476,9 +2513,9 @@ pub unsafe fn diffopt_changed() -> c_int {
             } else {
                 6
             };
-            diff_flags = flags;
+            diff_st().diff_flags = flags;
             diff_context = if context == 0 { 1 } else { context };
-            linematch_lines = if has_dip_key(&*v, KEYSET_OPTIDX_dip__linematch) {
+            diff_st().linematch_lines = if has_dip_key(&*v, KEYSET_OPTIDX_dip__linematch) {
                 (*v).linematch as c_int
             } else {
                 0
@@ -2488,7 +2525,7 @@ pub unsafe fn diffopt_changed() -> c_int {
             } else {
                 2
             };
-            diff_algorithm = algorithm;
+            diff_st().diff_algorithm = algorithm;
             diff_redraw(true);
             check_scrollbind(0, 0);
         }
@@ -2496,20 +2533,20 @@ pub unsafe fn diffopt_changed() -> c_int {
     }
 }
 pub unsafe fn diffopt_horizontal() -> bool {
-    unsafe { (diff_flags & DIFF_HORIZONTAL) != 0 }
+    unsafe { (diff_st().diff_flags & DIFF_HORIZONTAL) != 0 }
 }
 pub unsafe fn diffopt_hiddenoff() -> bool {
-    unsafe { (diff_flags & DIFF_HIDDEN_OFF) != 0 }
+    unsafe { (diff_st().diff_flags & DIFF_HIDDEN_OFF) != 0 }
 }
 pub unsafe fn diffopt_closeoff() -> bool {
-    unsafe { (diff_flags & DIFF_CLOSE_OFF) != 0 }
+    unsafe { (diff_st().diff_flags & DIFF_CLOSE_OFF) != 0 }
 }
 pub unsafe fn diffopt_filler() -> bool {
-    unsafe { (diff_flags & DIFF_FILLER) != 0 }
+    unsafe { (diff_st().diff_flags & DIFF_FILLER) != 0 }
 }
 pub unsafe fn diff_update_line(lnum: linenr_T) {
     unsafe {
-        if (diff_flags & ALL_INLINE_DIFF) == 0 {
+        if (diff_st().diff_flags & ALL_INLINE_DIFF) == 0 {
             return;
         }
         let idx = diff_buf_idx(curbuf, curtab);
@@ -2570,7 +2607,7 @@ unsafe fn diff_find_change_simple(
     endp: *mut c_int,
 ) -> bool {
     unsafe {
-        let line_org_owned = if (diff_flags & DIFF_INLINE_NONE) != 0 {
+        let line_org_owned = if (diff_st().diff_flags & DIFF_INLINE_NONE) != 0 {
             None
         } else {
             Some(CStr::from_ptr(ml_get_buf((*wp).w_buffer, lnum)).to_owned())
@@ -2586,17 +2623,17 @@ unsafe fn diff_find_change_simple(
                     continue;
                 }
                 added = false;
-                if (diff_flags & DIFF_INLINE_NONE) != 0 {
+                if (diff_st().diff_flags & DIFF_INLINE_NONE) != 0 {
                     break;
                 }
                 let line_new = ml_get_buf((*curtab).tp_diffbuf[i], (*dp).df_lnum[i] + off);
                 let mut si_org: c_int = 0;
                 let mut si_new: c_int = 0;
                 while *line_org.add(si_org as usize) != NUL {
-                    if ((diff_flags & DIFF_IWHITE) != 0
+                    if ((diff_st().diff_flags & DIFF_IWHITE) != 0
                         && ascii_iswhite(*line_org.add(si_org as usize))
                         && ascii_iswhite(*line_new.add(si_new as usize)))
-                        || ((diff_flags & DIFF_IWHITEALL) != 0
+                        || ((diff_st().diff_flags & DIFF_IWHITEALL) != 0
                             && (ascii_iswhite(*line_org.add(si_org as usize))
                                 || ascii_iswhite(*line_new.add(si_new as usize))))
                     {
@@ -2624,10 +2661,10 @@ unsafe fn diff_find_change_simple(
                     let mut ei_org = strlen(line_org) as c_int;
                     let mut ei_new = strlen(line_new) as c_int;
                     while ei_org >= *startp && ei_new >= si_new && ei_org >= 0 && ei_new >= 0 {
-                        if ((diff_flags & DIFF_IWHITE) != 0
+                        if ((diff_st().diff_flags & DIFF_IWHITE) != 0
                             && ascii_iswhite(*line_org.add(ei_org as usize))
                             && ascii_iswhite(*line_new.add(ei_new as usize)))
-                            || ((diff_flags & DIFF_IWHITEALL) != 0
+                            || ((diff_st().diff_flags & DIFF_IWHITEALL) != 0
                                 && (ascii_iswhite(*line_org.add(ei_org as usize))
                                     || ascii_iswhite(*line_new.add(ei_new as usize))))
                         {
@@ -2825,7 +2862,7 @@ unsafe fn diff_refine_inline_word_highlight(
 }
 unsafe fn diff_find_change_inline_diff(dp_idx: usize) {
     unsafe {
-        let save_diff_algorithm = diff_algorithm;
+        let save_diff_algorithm = diff_st().diff_algorithm;
         let mut dio = diffio_T {
             dio_orig: diffin_T {
                 din_fname: None,
@@ -2849,7 +2886,7 @@ unsafe fn diff_find_change_inline_diff(dp_idx: usize) {
             },
             dio_internal: 1,
         };
-        diff_algorithm |= XDF_INDENT_HEURISTIC;
+        diff_st().diff_algorithm |= XDF_INDENT_HEURISTIC;
         let dp_lnum = (&(*curtab).tp_diffs)[dp_idx].df_lnum;
         let dp_count = (&(*curtab).tp_diffs)[dp_idx].df_count;
         let orig_diff = std::mem::take(&mut (*curtab).tp_diffs);
@@ -2890,7 +2927,7 @@ unsafe fn diff_find_change_inline_diff(dp_idx: usize) {
                     let mut s = curline;
                     while *s != NUL {
                         let mut new_in_keyword = false;
-                        if (diff_flags & DIFF_INLINE_WORD) != 0 {
+                        if (diff_st().diff_flags & DIFF_INLINE_WORD) != 0 {
                             new_in_keyword = mb_get_class_tab(
                                 s,
                                 (&raw const (*(*curtab).tp_diffbuf[file1_idx as usize]).b_chartab)
@@ -2902,12 +2939,12 @@ unsafe fn diff_find_change_inline_diff(dp_idx: usize) {
                             numlines += 1;
                         }
                         if ascii_iswhite(*s) {
-                            if (diff_flags & DIFF_IWHITEALL) != 0 {
+                            if (diff_st().diff_flags & DIFF_IWHITEALL) != 0 {
                                 in_keyword = false;
                                 s = skipwhite(s);
                                 continue;
-                            } else if ((diff_flags & DIFF_IWHITEEOL) != 0
-                                || (diff_flags & DIFF_IWHITE) != 0)
+                            } else if ((diff_st().diff_flags & DIFF_IWHITEEOL) != 0
+                                || (diff_st().diff_flags & DIFF_IWHITE) != 0)
                                 && !last_white
                             {
                                 eol_ga_len = curstr.len() as c_int;
@@ -2915,8 +2952,8 @@ unsafe fn diff_find_change_inline_diff(dp_idx: usize) {
                                 eol_numlines = numlines;
                                 last_white = true;
                             }
-                        } else if (diff_flags & DIFF_IWHITEEOL) != 0
-                            || (diff_flags & DIFF_IWHITE) != 0
+                        } else if (diff_st().diff_flags & DIFF_IWHITEEOL) != 0
+                            || (diff_st().diff_flags & DIFF_IWHITE) != 0
                         {
                             last_white = false;
                             eol_ga_len = -1;
@@ -2928,10 +2965,10 @@ unsafe fn diff_find_change_inline_diff(dp_idx: usize) {
                             curstr.push(NUL as u8);
                         } else {
                             char_len = utfc_ptr2len(s);
-                            if ascii_iswhite(*s) && (diff_flags & DIFF_IWHITE) != 0 {
+                            if ascii_iswhite(*s) && (diff_st().diff_flags & DIFF_IWHITE) != 0 {
                                 char_len = skipwhite(s).offset_from(s) as c_int;
                             }
-                            if (diff_flags & DIFF_ICASE) != 0 {
+                            if (diff_st().diff_flags & DIFF_ICASE) != 0 {
                                 let mut c = utf_ptr2char(s);
                                 let c_len = utf_char2len(c);
                                 c = utf_fold(c);
@@ -2974,14 +3011,14 @@ unsafe fn diff_find_change_inline_diff(dp_idx: usize) {
                         curstr.push(NL as u8);
                         numlines += 1;
                     }
-                    if ((diff_flags & DIFF_IWHITEEOL) != 0 || (diff_flags & DIFF_IWHITE) != 0)
+                    if ((diff_st().diff_flags & DIFF_IWHITEEOL) != 0 || (diff_st().diff_flags & DIFF_IWHITE) != 0)
                         && eol_ga_len != -1
                     {
                         curstr.truncate(eol_ga_len as usize);
                         lm.truncate(eol_linemap_len as usize);
                         numlines = eol_numlines;
                     }
-                    if (diff_flags & DIFF_IWHITEALL) == 0 {
+                    if (diff_st().diff_flags & DIFF_IWHITEALL) == 0 {
                         curstr.push(NL as u8);
                         let _ = numlines;
                         lm.push(linemap_entry_T {
@@ -3012,13 +3049,13 @@ unsafe fn diff_find_change_inline_diff(dp_idx: usize) {
                     clear_diffout(&mut dio.dio_diff);
                 }
             }
-            if (diff_flags & DIFF_INLINE_WORD) != 0 && file1_idx != -1 {
+            if (diff_st().diff_flags & DIFF_INLINE_WORD) != 0 && file1_idx != -1 {
                 diff_refine_inline_word_highlight(
                     &linemap,
                     file1_idx as usize,
                     dp_lnum[file1_idx as usize],
                 );
-            } else if (diff_flags & DIFF_INLINE_CHAR) != 0 && file1_idx != -1 {
+            } else if (diff_st().diff_flags & DIFF_INLINE_CHAR) != 0 && file1_idx != -1 {
                 diff_refine_inline_char_highlight(&linemap, file1_idx as usize);
             }
             for new_diff in &(*curtab).tp_diffs {
@@ -3058,7 +3095,7 @@ unsafe fn diff_find_change_inline_diff(dp_idx: usize) {
                 changes.push(change);
             }
         }
-        diff_algorithm = save_diff_algorithm;
+        diff_st().diff_algorithm = save_diff_algorithm;
         diff_clear(curtab);
         (*curtab).tp_diffs = orig_diff;
         (*curtab).tp_diffbuf = orig_diffbuf;
@@ -3085,7 +3122,7 @@ pub unsafe fn diff_find_change(wp: *mut win_T, lnum: linenr_T, diffline: *mut di
             return false;
         }
         let off = lnum - (&(*curtab).tp_diffs)[dp_idx].df_lnum[u_idx];
-        if (diff_flags & ALL_INLINE_DIFF) == 0 {
+        if (diff_st().diff_flags & ALL_INLINE_DIFF) == 0 {
             let mut change_start: c_int = MAXCOL;
             let mut change_end: c_int = -1;
             let ret = diff_find_change_simple(
@@ -3312,7 +3349,7 @@ pub unsafe fn ex_diffgetput(eap: *mut exarg_T) {
             }
             idx_other = idx_o as usize;
         }
-        diff_busy = true;
+        diff_st().diff_busy = true;
         if (*eap).addr_count == 0 {
             let mut linestatus: c_int = 0;
             if (*eap).line1 == (*curbuf).b_ml.ml_line_count
@@ -3372,8 +3409,8 @@ pub unsafe fn ex_diffgetput(eap: *mut exarg_T) {
                 ctx_restore(&raw mut aco);
             }
         }
-        diff_busy = false;
-        if diff_need_update {
+        diff_st().diff_busy = false;
+        if diff_st().diff_need_update {
             ex_diffupdate(ptr::null_mut());
         }
         check_cursor(curwin);
@@ -3390,8 +3427,8 @@ pub unsafe fn ex_diffgetput(eap: *mut exarg_T) {
                 wp = (*wp).w_next;
             }
         }
-        if diff_need_update {
-            diff_need_update = false;
+        if diff_st().diff_need_update {
+            diff_st().diff_need_update = false;
         } else {
             diff_redraw(false);
             window_layout_lock();
@@ -3821,75 +3858,75 @@ pub unsafe fn f_diff_filler(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
 pub unsafe fn f_diff_hlID(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut diffline = diffline_T::default();
-        let cache_results = (diff_flags & ALL_INLINE_DIFF) == 0;
+        let cache_results = (diff_st().diff_flags & ALL_INLINE_DIFF) == 0;
         let mut lnum = tv_get_lnum(argvars);
         if lnum < 0 {
             lnum = 0;
         }
         if !cache_results
-            || lnum != f_diff_hlid_prev_lnum
-            || f_diff_hlid_changedtick != buf_get_changedtick(curbuf)
-            || f_diff_hlid_fnum != (*curbuf).b_fnum
-            || diff_flags != f_diff_hlid_prev_diff_flags
+            || lnum != diff_st().f_diff_hlid_prev_lnum
+            || diff_st().f_diff_hlid_changedtick != buf_get_changedtick(curbuf)
+            || diff_st().f_diff_hlid_fnum != (*curbuf).b_fnum
+            || diff_st().diff_flags != diff_st().f_diff_hlid_prev_diff_flags
         {
             let mut linestatus: c_int = 0;
             diff_check_with_linestatus(curwin, lnum, &raw mut linestatus);
             if linestatus < 0 {
                 if linestatus == -1 {
-                    f_diff_hlid_change_start = MAXCOL;
-                    f_diff_hlid_change_end = -1;
+                    diff_st().f_diff_hlid_change_start = MAXCOL;
+                    diff_st().f_diff_hlid_change_end = -1;
                     if diff_find_change(curwin, lnum, &raw mut diffline) {
-                        f_diff_hlid_hlID = HLF_ADD;
+                        diff_st().f_diff_hlid_hlID = HLF_ADD;
                     } else {
-                        f_diff_hlid_hlID = HLF_CHD;
+                        diff_st().f_diff_hlid_hlID = HLF_CHD;
                         if !diffline.changes.is_empty() && cache_results {
-                            f_diff_hlid_change_start =
+                            diff_st().f_diff_hlid_change_start =
                                 diffline.changes[0].dc_start[diffline.bufidx as usize];
-                            f_diff_hlid_change_end =
+                            diff_st().f_diff_hlid_change_end =
                                 diffline.changes[0].dc_end[diffline.bufidx as usize];
                         }
                     }
                 } else {
-                    f_diff_hlid_hlID = HLF_ADD;
+                    diff_st().f_diff_hlid_hlID = HLF_ADD;
                 }
             } else {
-                f_diff_hlid_hlID = 0;
+                diff_st().f_diff_hlid_hlID = 0;
             }
             if cache_results {
-                f_diff_hlid_prev_lnum = lnum;
-                f_diff_hlid_changedtick = buf_get_changedtick(curbuf);
-                f_diff_hlid_fnum = (*curbuf).b_fnum;
-                f_diff_hlid_prev_diff_flags = diff_flags;
+                diff_st().f_diff_hlid_prev_lnum = lnum;
+                diff_st().f_diff_hlid_changedtick = buf_get_changedtick(curbuf);
+                diff_st().f_diff_hlid_fnum = (*curbuf).b_fnum;
+                diff_st().f_diff_hlid_prev_diff_flags = diff_st().diff_flags;
             }
         }
-        if f_diff_hlid_hlID == HLF_CHD || f_diff_hlid_hlID == HLF_TXD {
+        if diff_st().f_diff_hlid_hlID == HLF_CHD || diff_st().f_diff_hlid_hlID == HLF_TXD {
             let col = tv_get_number(argvars.add(1)) as c_int - 1;
             if cache_results {
-                if col >= f_diff_hlid_change_start && col < f_diff_hlid_change_end {
-                    f_diff_hlid_hlID = HLF_TXD;
+                if col >= diff_st().f_diff_hlid_change_start && col < diff_st().f_diff_hlid_change_end {
+                    diff_st().f_diff_hlid_hlID = HLF_TXD;
                 } else {
-                    f_diff_hlid_hlID = HLF_CHD;
+                    diff_st().f_diff_hlid_hlID = HLF_CHD;
                 }
             } else {
-                f_diff_hlid_hlID = HLF_CHD;
+                diff_st().f_diff_hlid_hlID = HLF_CHD;
                 for change in &diffline.changes {
                     let added = diff_change_parse(
                         &diffline,
                         change,
-                        &raw mut f_diff_hlid_change_start,
-                        &raw mut f_diff_hlid_change_end,
+                        &raw mut diff_st().f_diff_hlid_change_start,
+                        &raw mut diff_st().f_diff_hlid_change_end,
                     );
-                    if col >= f_diff_hlid_change_start && col < f_diff_hlid_change_end {
-                        f_diff_hlid_hlID = if added { HLF_TXA } else { HLF_TXD };
+                    if col >= diff_st().f_diff_hlid_change_start && col < diff_st().f_diff_hlid_change_end {
+                        diff_st().f_diff_hlid_hlID = if added { HLF_TXA } else { HLF_TXD };
                         break;
                     }
-                    if col < f_diff_hlid_change_start {
+                    if col < diff_st().f_diff_hlid_change_start {
                         break;
                     }
                 }
             }
         }
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(f_diff_hlid_hlID as varnumber_T);
+        (*rettv).vval = crate::eval::typval::TypvalVval::Number(diff_st().f_diff_hlid_hlID as varnumber_T);
     }
 }
 #[cfg(test)]

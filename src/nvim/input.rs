@@ -238,44 +238,82 @@ enum map_result_T {
     map_result_nomatch = 3,
 }
 
-static mut curscript: c_int = -1;
-static mut scriptin: [FileDescriptor; NSCRIPT] = [const {
-    FileDescriptor {
-        fd: 0,
-        buffer: ptr::null_mut(),
-        read_pos: ptr::null_mut(),
-        write_pos: ptr::null_mut(),
-        wr: false,
-        eof: false,
-        non_blocking: false,
-        bytes_read: 0,
-    }
-}; NSCRIPT];
-static mut redobuff: RedoState = RedoState::new();
-static mut recordbuff: Vec<c_char> = Vec::new();
-static mut readbuf1: StuffBuf = StuffBuf::new();
-static mut readbuf2: StuffBuf = StuffBuf::new();
-static mut ungot: UngotKey = UngotKey {
-    c: -1,
-    mod_mask: 0,
-    mouse_grid: 0,
-    mouse_row: 0,
-    mouse_col: 0,
-    stuffed: false,
-};
-static mut on_key_buf: Vec<c_char> = Vec::new();
-static mut on_key_ignore_len: usize = 0;
-static mut on_key_blocked: c_int = 0;
-static mut typeahead_char: c_int = 0;
-static mut block_redo: bool = false;
-static mut KeyNoremap: c_int = 0;
-static mut last_recorded_len: usize = 0;
-static mut saved_typebuf: [typebuf_T; NSCRIPT] = [const { typebuf_T::ZERO }; NSCRIPT];
-static mut no_reduce_keys: c_int = 0;
+struct InputModuleState {
+    curscript: c_int,
+    scriptin: [FileDescriptor; NSCRIPT],
+    redobuff: RedoState,
+    recordbuff: Vec<c_char>,
+    readbuf1: StuffBuf,
+    readbuf2: StuffBuf,
+    ungot: UngotKey,
+    on_key_buf: Vec<c_char>,
+    on_key_ignore_len: usize,
+    on_key_blocked: c_int,
+    typeahead_char: c_int,
+    block_redo: bool,
+    KeyNoremap: c_int,
+    last_recorded_len: usize,
+    saved_typebuf: [typebuf_T; NSCRIPT],
+    no_reduce_keys: c_int,
+    GOTCHARS_STATE: gotchars_state_T,
+    UPDATESCRIPT_COUNT: c_int,
+    SHOWCMD_STATE: gotchars_state_T,
+    LAST_VGETC_RECORDED_LEN: usize,
+    VGETORPEEK_TC: c_int,
+}
 
-static mut GOTCHARS_STATE: gotchars_state_T = gotchars_state_T::new();
-static mut UPDATESCRIPT_COUNT: c_int = 0;
-static mut SHOWCMD_STATE: gotchars_state_T = gotchars_state_T::new();
+impl InputModuleState {
+    const fn new() -> Self {
+        Self {
+            curscript: -1,
+            scriptin: [const {
+                FileDescriptor {
+                    fd: 0,
+                    buffer: ptr::null_mut(),
+                    read_pos: ptr::null_mut(),
+                    write_pos: ptr::null_mut(),
+                    wr: false,
+                    eof: false,
+                    non_blocking: false,
+                    bytes_read: 0,
+                }
+            }; NSCRIPT],
+            redobuff: RedoState::new(),
+            recordbuff: Vec::new(),
+            readbuf1: StuffBuf::new(),
+            readbuf2: StuffBuf::new(),
+            ungot: UngotKey {
+                c: -1,
+                mod_mask: 0,
+                mouse_grid: 0,
+                mouse_row: 0,
+                mouse_col: 0,
+                stuffed: false,
+            },
+            on_key_buf: Vec::new(),
+            on_key_ignore_len: 0,
+            on_key_blocked: 0,
+            typeahead_char: 0,
+            block_redo: false,
+            KeyNoremap: 0,
+            last_recorded_len: 0,
+            saved_typebuf: [const { typebuf_T::ZERO }; NSCRIPT],
+            no_reduce_keys: 0,
+            GOTCHARS_STATE: gotchars_state_T::new(),
+            UPDATESCRIPT_COUNT: 0,
+            SHOWCMD_STATE: gotchars_state_T::new(),
+            LAST_VGETC_RECORDED_LEN: 0,
+            VGETORPEEK_TC: 0,
+        }
+    }
+}
+
+static INP_STATE: GlobalState<InputModuleState> = GlobalState::new(InputModuleState::new());
+
+#[inline]
+unsafe fn inp_st() -> &'static mut InputModuleState {
+    unsafe { &mut *INP_STATE.as_ptr() }
+}
 
 #[inline]
 unsafe fn tb_buf_ptr() -> *mut u8 {
@@ -292,8 +330,6 @@ unsafe fn tb_noremap_ptr() -> *mut u8 {
         (*p).as_mut_ptr()
     }
 }
-static mut LAST_VGETC_RECORDED_LEN: usize = 0;
-static mut VGETORPEEK_TC: c_int = 0;
 
 use crate::api::buffer::LUA_INTERNAL_CALL;
 use crate::cmdexpand::{Ctrl_N, Ctrl_P, MB_MAXBYTES};
@@ -337,15 +373,15 @@ pub(crate) unsafe fn langmap_adjust(c: &mut c_int, condition: bool) {
 /// Gets the contents of the record buffer as a string (typeahead encoding) and clears the buffer.
 pub unsafe fn get_recorded() -> std::ffi::CString {
     unsafe {
-        let rb = &raw mut recordbuff;
+        let rb = &raw mut inp_st().recordbuff;
         let mut bytes: Vec<u8> = std::mem::take(&mut *rb)
             .into_iter()
             .map(|b| b as u8)
             .collect();
         let mut len = bytes.len();
 
-        if len >= last_recorded_len {
-            len -= last_recorded_len;
+        if len >= inp_st().last_recorded_len {
+            len -= inp_st().last_recorded_len;
             bytes.truncate(len);
         }
 
@@ -410,7 +446,7 @@ pub unsafe fn redo_keys(spec: *const CmdSpec) -> Option<std::ffi::CString> {
         let spec = if !spec.is_null() {
             spec
         } else {
-            &raw const redobuff.cur
+            &raw const inp_st().redobuff.cur
         };
 
         let mut buf: Vec<c_char> = Vec::new();
@@ -432,7 +468,7 @@ pub unsafe fn redo_keys(spec: *const CmdSpec) -> Option<std::ffi::CString> {
 /// Gets the pending change's `CmdSpec` (without `body`).
 pub unsafe fn redo_spec() -> CmdSpec {
     unsafe {
-        let cur = &raw const redobuff.cur;
+        let cur = &raw const inp_st().redobuff.cur;
         (*cur).without_body()
     }
 }
@@ -519,9 +555,9 @@ pub unsafe fn sb_add_char(sb: &mut Vec<c_char>, c: c_int) {
 
 unsafe fn read_readbuffers(advance: bool) -> c_int {
     unsafe {
-        let mut c = read_readbuf(&raw mut readbuf1, advance);
+        let mut c = read_readbuf(&raw mut inp_st().readbuf1, advance);
         if c == NUL {
-            c = read_readbuf(&raw mut readbuf2, advance);
+            c = read_readbuf(&raw mut inp_st().readbuf2, advance);
         }
         c
     }
@@ -551,24 +587,24 @@ unsafe fn read_readbuf(buf: *mut StuffBuf, advance: bool) -> c_int {
 
 unsafe fn start_stuff() {
     unsafe {
-        readbuf1.insert = readbuf1.read;
-        readbuf2.insert = readbuf2.read;
+        inp_st().readbuf1.insert = inp_st().readbuf1.read;
+        inp_st().readbuf2.insert = inp_st().readbuf2.read;
     }
 }
 
 /// Returns true if the readahead ("stuff") buffer is empty.
 pub unsafe fn stuff_empty() -> bool {
     unsafe {
-        let k1 = &raw const readbuf1.keys;
-        let k2 = &raw const readbuf2.keys;
+        let k1 = &raw const inp_st().readbuf1.keys;
+        let k2 = &raw const inp_st().readbuf2.keys;
         (*k1).is_empty() && (*k2).is_empty()
     }
 }
 
-/// Returns true if `readbuf1` is empty.
+/// Returns true if `inp_st().readbuf1` is empty.
 pub unsafe fn readbuf1_empty() -> bool {
     unsafe {
-        let k1 = &raw const readbuf1.keys;
+        let k1 = &raw const inp_st().readbuf1.keys;
         (*k1).is_empty()
     }
 }
@@ -576,7 +612,7 @@ pub unsafe fn readbuf1_empty() -> bool {
 /// Set a typeahead character that won't be flushed.
 pub unsafe fn typeahead_noflush(c: c_int) {
     unsafe {
-        typeahead_char = c;
+        inp_st().typeahead_char = c;
     }
 }
 
@@ -589,12 +625,12 @@ pub unsafe fn flush_buffers(flush_typeahead: flush_buffers_T) {
             atom_composite_abort();
         }
 
-        let k2 = &raw const readbuf2.keys;
+        let k2 = &raw const inp_st().readbuf2.keys;
         if !(*k2).is_empty() && Visual.active {
             Visual.need_end = true;
         }
-        readbuf1 = StuffBuf::new();
-        readbuf2 = StuffBuf::new();
+        inp_st().readbuf1 = StuffBuf::new();
+        inp_st().readbuf2 = StuffBuf::new();
 
         if flush_typeahead == FLUSH_MINIMAL {
             if typebuf.tb_off + typebuf.tb_maplen >= typebuf.tb_buflen {
@@ -630,13 +666,13 @@ pub unsafe fn flush_buffers(flush_typeahead: flush_buffers_T) {
 /// Hides keys from `vim.on_key()` callbacks.
 pub unsafe fn block_on_key() {
     unsafe {
-        on_key_blocked += 1;
+        inp_st().on_key_blocked += 1;
     }
 }
 
 pub unsafe fn unblock_on_key() {
     unsafe {
-        on_key_blocked -= 1;
+        inp_st().on_key_blocked -= 1;
     }
 }
 
@@ -654,11 +690,11 @@ pub unsafe fn beep_flush() {
 pub unsafe fn redo_new(spec: CmdSpec) {
     unsafe {
         assert!(spec.body.is_empty());
-        if block_redo {
+        if inp_st().block_redo {
             return;
         }
 
-        let rb = &raw mut redobuff;
+        let rb = &raw mut inp_st().redobuff;
         (*rb).old = std::mem::replace(&mut (*rb).cur, spec);
     }
 }
@@ -666,7 +702,7 @@ pub unsafe fn redo_new(spec: CmdSpec) {
 /// Frees both redo buffers.
 pub unsafe fn redo_free_all() {
     unsafe {
-        let rb = &raw mut redobuff;
+        let rb = &raw mut inp_st().redobuff;
         *rb = RedoState::new();
     }
 }
@@ -678,10 +714,10 @@ pub unsafe fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec) {
             atom_redo_prepped();
         }
         redo_new(spec.without_body());
-        if block_redo {
+        if inp_st().block_redo {
             return;
         }
-        let body = &raw mut redobuff.cur.body;
+        let body = &raw mut inp_st().redobuff.cur.body;
         redo_chars(&raw const spec, &mut *body, arg_meta);
     }
 }
@@ -694,10 +730,10 @@ pub unsafe fn prep_redo_visual(keys: *const c_char, len: usize, spec: CmdSpec) {
         stored.count = 0;
         atom_redo_prepped();
         redo_new(stored);
-        if block_redo {
+        if inp_st().block_redo {
             return;
         }
-        let body = &raw mut redobuff.cur.body;
+        let body = &raw mut inp_st().redobuff.cur.body;
         if !keys.is_null() && len > 0 {
             (*body).extend_from_slice(std::slice::from_raw_parts(keys, len));
         }
@@ -709,22 +745,22 @@ pub unsafe fn prep_redo_visual(keys: *const c_char, len: usize, spec: CmdSpec) {
 /// Discard the contents of the redo buffer and restore the previous redo buffer.
 pub unsafe fn redo_cancel() {
     unsafe {
-        if block_redo {
+        if inp_st().block_redo {
             return;
         }
 
         atom_redo_cancel();
-        let rb = &raw mut redobuff;
+        let rb = &raw mut inp_st().redobuff;
         (*rb).cur = std::mem::take(&mut (*rb).old);
-        readbuf1 = StuffBuf::new();
-        readbuf2 = StuffBuf::new();
+        inp_st().readbuf1 = StuffBuf::new();
+        inp_st().readbuf2 = StuffBuf::new();
     }
 }
 
 /// Saves the redo state to `save_redo` and detaches it.
 pub unsafe fn save_redobuff(save_redo: *mut RedoState) {
     unsafe {
-        let rb = &raw mut redobuff;
+        let rb = &raw mut inp_st().redobuff;
         (*save_redo).cur = (*rb).cur.clone();
         (*save_redo).old = std::mem::take(&mut (*rb).old);
     }
@@ -733,7 +769,7 @@ pub unsafe fn save_redobuff(save_redo: *mut RedoState) {
 /// Restores the redo state from `save_redo`.
 pub unsafe fn restore_redobuff(save_redo: *mut RedoState) {
     unsafe {
-        let rb = &raw mut redobuff;
+        let rb = &raw mut inp_st().redobuff;
         *rb = std::mem::take(&mut *save_redo);
     }
 }
@@ -741,10 +777,10 @@ pub unsafe fn restore_redobuff(save_redo: *mut RedoState) {
 /// Append `len` bytes of `s` (-1: up to the NUL) to the redo buffer.
 pub unsafe fn redo_append_str(s: *const c_char, len: isize) {
     unsafe {
-        if !block_redo {
+        if !inp_st().block_redo {
             let slen = if len < 0 { strlen(s) } else { len as usize };
             if !s.is_null() && slen > 0 {
-                let body = &raw mut redobuff.cur.body;
+                let body = &raw mut inp_st().redobuff.cur.body;
                 (*body).extend_from_slice(std::slice::from_raw_parts(s, slen));
             }
         }
@@ -797,13 +833,13 @@ pub unsafe fn sb_add_lit(buf: &mut Vec<c_char>, str_: *const c_char, len: c_int)
     }
 }
 
-/// Append to redo literally; no-op if `block_redo` is set.
+/// Append to redo literally; no-op if `inp_st().block_redo` is set.
 pub unsafe fn redo_append_lit(str_: *const c_char, len: c_int) {
     unsafe {
-        if block_redo {
+        if inp_st().block_redo {
             return;
         }
-        let body = &raw mut redobuff.cur.body;
+        let body = &raw mut inp_st().redobuff.cur.body;
         sb_add_lit(&mut *body, str_, len);
     }
 }
@@ -826,10 +862,10 @@ pub unsafe fn sb_add_spec(buf: &mut Vec<c_char>, mut s: *const c_char) {
 /// Append `s` to the redo buffer.
 pub unsafe fn redo_append_spec(s: *const c_char) {
     unsafe {
-        if block_redo {
+        if inp_st().block_redo {
             return;
         }
-        let body = &raw mut redobuff.cur.body;
+        let body = &raw mut inp_st().redobuff.cur.body;
         sb_add_spec(&mut *body, s);
     }
 }
@@ -837,8 +873,8 @@ pub unsafe fn redo_append_spec(s: *const c_char) {
 /// Appends character `c` to the redo buffer, translated to typeahead encoding.
 pub unsafe fn redo_append_char(c: c_int) {
     unsafe {
-        if !block_redo {
-            let body = &raw mut redobuff.cur.body;
+        if !inp_st().block_redo {
+            let body = &raw mut inp_st().redobuff.cur.body;
             sb_add_char(&mut *body, c);
         }
     }
@@ -847,14 +883,14 @@ pub unsafe fn redo_append_char(c: c_int) {
 /// Appends string `s` (must be typeahead encoding) to the stuff buffer.
 pub unsafe fn stuffReadbuff(s: *const c_char) {
     unsafe {
-        add_buff(&raw mut readbuf1, s, -1);
+        add_buff(&raw mut inp_st().readbuf1, s, -1);
     }
 }
 
 /// Appends string `s` (must be typeahead encoding) to the redo stuff buffer.
 pub unsafe fn stuffRedoReadbuff(s: *const c_char) {
     unsafe {
-        add_buff(&raw mut readbuf2, s, -1);
+        add_buff(&raw mut inp_st().readbuf2, s, -1);
     }
 }
 
@@ -864,7 +900,7 @@ pub unsafe fn stuffReadbuffLen(s: *const c_char, len: isize) {
             let last_ins = &raw mut last_insert_ga;
             (*last_ins).extend_from_slice(std::slice::from_raw_parts(s, len as usize));
         }
-        add_buff(&raw mut readbuf1, s, len);
+        add_buff(&raw mut inp_st().readbuf1, s, len);
     }
 }
 
@@ -889,14 +925,14 @@ pub unsafe fn stuffReadbuffSpecial(mut s: *const c_char) {
 /// Appends character `c` to the stuff buffer, translated to typeahead encoding.
 pub unsafe fn stuffcharReadbuff(c: c_int) {
     unsafe {
-        add_char_buff(&raw mut readbuf1, c);
+        add_char_buff(&raw mut inp_st().readbuf1, c);
     }
 }
 
 /// Append a number to the stuff buffer.
 pub unsafe fn stuffnumReadbuff(n: c_int) {
     unsafe {
-        add_num_buff(&raw mut readbuf1, n);
+        add_num_buff(&raw mut inp_st().readbuf1, n);
     }
 }
 
@@ -929,9 +965,9 @@ pub unsafe fn stuffescaped(mut arg: *const c_char, literally: bool) {
 pub unsafe fn start_redo(count: c_int, old_redo: bool) -> c_int {
     unsafe {
         let rd = if old_redo {
-            &raw mut redobuff.old
+            &raw mut inp_st().redobuff.old
         } else {
-            &raw mut redobuff.cur
+            &raw mut inp_st().redobuff.cur
         };
         if (*rd).body.is_empty() && (*rd).regname == 0 && (*rd).count == 0 {
             return FAIL;
@@ -946,14 +982,14 @@ pub unsafe fn start_redo(count: c_int, old_redo: bool) -> c_int {
         }
         let mut prefix: Vec<c_char> = Vec::new();
         redo_prefix(&raw const spec, &mut prefix, true);
-        add_buff(&raw mut readbuf2, prefix.as_ptr(), prefix.len() as isize);
+        add_buff(&raw mut inp_st().readbuf2, prefix.as_ptr(), prefix.len() as isize);
         drop(prefix);
         if spec.regname == b'=' as c_int {
             cmd_silent = true;
         }
 
         add_buff(
-            &raw mut readbuf2,
+            &raw mut inp_st().readbuf2,
             (*rd).body.as_ptr(),
             (*rd).body.len() as isize,
         );
@@ -964,7 +1000,7 @@ pub unsafe fn start_redo(count: c_int, old_redo: bool) -> c_int {
 /// Repeats the last insert (`R`, `o`, `O`, `a`, `A`, `i` or `I` command).
 pub unsafe fn start_redo_ins() -> c_int {
     unsafe {
-        let body = &raw const redobuff.cur.body;
+        let body = &raw const inp_st().redobuff.cur.body;
         if (*body).is_empty() {
             return FAIL;
         }
@@ -979,7 +1015,7 @@ pub unsafe fn start_redo_ins() -> c_int {
             }
             if !vim_strchr(c"AaIiRrOo".as_ptr(), *p as u8 as c_int).is_null() {
                 if *p == b'O' as c_char || *p == b'o' as c_char {
-                    add_buff(&raw mut readbuf2, NL_STR.as_ptr(), -1);
+                    add_buff(&raw mut inp_st().readbuf2, NL_STR.as_ptr(), -1);
                 }
                 p = p.add(1);
                 break;
@@ -987,15 +1023,15 @@ pub unsafe fn start_redo_ins() -> c_int {
             p = p.add(1);
         }
 
-        add_buff(&raw mut readbuf2, p, end.offset_from(p));
-        block_redo = true;
+        add_buff(&raw mut inp_st().readbuf2, p, end.offset_from(p));
+        inp_st().block_redo = true;
         OK
     }
 }
 
 pub unsafe fn stop_redo_ins() {
     unsafe {
-        block_redo = false;
+        inp_st().block_redo = false;
     }
 }
 
@@ -1017,7 +1053,7 @@ unsafe fn init_typebuf() {
 
 /// Returns true when keys cannot be remapped.
 pub unsafe fn noremap_keys() -> bool {
-    unsafe { (KeyNoremap & ((RM_NONE | RM_SCRIPT) as c_int)) != 0 }
+    unsafe { (inp_st().KeyNoremap & ((RM_NONE | RM_SCRIPT) as c_int)) != 0 }
 }
 
 /// Insert a string in position `offset` in the typeahead buffer.
@@ -1147,7 +1183,7 @@ pub unsafe fn requeue_key(c: c_int, modifiers: c_int, extra_consumed: c_int, rec
         let len = special_to_buf(c, modifiers, true, buf.as_mut_ptr()) as usize;
         assert!(len < buf.len());
         buf[len] = NUL as c_char;
-        ins_typebuf(buf.as_mut_ptr(), KeyNoremap, 0, !KeyTyped, cmd_silent);
+        ins_typebuf(buf.as_mut_ptr(), inp_st().KeyNoremap, 0, !KeyTyped, cmd_silent);
         ungetchars(len as c_int + extra_consumed, recorded);
     }
 }
@@ -1293,41 +1329,41 @@ unsafe fn gotchars(chars: *const u8, len: usize) {
             todo -= 1;
             let b = *s;
             s = s.add(1);
-            if !gotchars_add_byte(&raw mut GOTCHARS_STATE, b) {
+            if !gotchars_add_byte(&raw mut inp_st().GOTCHARS_STATE, b) {
                 continue;
             }
 
-            let buflen = GOTCHARS_STATE.buflen;
+            let buflen = inp_st().GOTCHARS_STATE.buflen;
             for i in 0..buflen {
-                updatescript(GOTCHARS_STATE.buf[i] as c_int);
+                updatescript(inp_st().GOTCHARS_STATE.buf[i] as c_int);
             }
 
-            if buflen > on_key_ignore_len {
-                let start_ptr = (&raw const GOTCHARS_STATE.buf)
+            if buflen > inp_st().on_key_ignore_len {
+                let start_ptr = (&raw const inp_st().GOTCHARS_STATE.buf)
                     .cast::<c_char>()
-                    .add(on_key_ignore_len);
-                let okb = &raw mut on_key_buf;
+                    .add(inp_st().on_key_ignore_len);
+                let okb = &raw mut inp_st().on_key_buf;
                 (*okb).extend_from_slice(std::slice::from_raw_parts(
                     start_ptr,
-                    buflen - on_key_ignore_len,
+                    buflen - inp_st().on_key_ignore_len,
                 ));
-                on_key_ignore_len = 0;
+                inp_st().on_key_ignore_len = 0;
             } else {
-                on_key_ignore_len -= buflen;
+                inp_st().on_key_ignore_len -= buflen;
             }
 
             if reg_recording != 0 {
-                let rb = &raw mut recordbuff;
+                let rb = &raw mut inp_st().recordbuff;
                 (*rb).extend_from_slice(std::slice::from_raw_parts(
-                    (&raw const GOTCHARS_STATE.buf).cast::<c_char>(),
+                    (&raw const inp_st().GOTCHARS_STATE.buf).cast::<c_char>(),
                     buflen,
                 ));
-                last_recorded_len = last_recorded_len.wrapping_add(buflen);
+                inp_st().last_recorded_len = inp_st().last_recorded_len.wrapping_add(buflen);
             }
 
-            atom_typed_add((&raw const GOTCHARS_STATE.buf).cast::<u8>(), buflen);
+            atom_typed_add((&raw const inp_st().GOTCHARS_STATE.buf).cast::<u8>(), buflen);
 
-            GOTCHARS_STATE.buflen = 0;
+            inp_st().GOTCHARS_STATE.buflen = 0;
         }
 
         may_sync_undo();
@@ -1340,7 +1376,7 @@ unsafe fn gotchars(chars: *const u8, len: usize) {
 pub unsafe fn gotchars_ignore() {
     unsafe {
         let nop_buf: [u8; 3] = [K_SPECIAL, KS_EXTRA, KE_IGNORE];
-        on_key_ignore_len += 3;
+        inp_st().on_key_ignore_len += 3;
         gotchars(nop_buf.as_ptr(), 3);
     }
 }
@@ -1351,23 +1387,23 @@ unsafe fn ungetchars(len: c_int, recorded: bool) {
             return;
         }
         let len_u = len as usize;
-        let rb = &raw mut recordbuff;
+        let rb = &raw mut inp_st().recordbuff;
         if recorded && reg_recording != 0 && (*rb).len() >= len_u {
             (*rb).truncate((*rb).len() - len_u);
-            last_recorded_len = last_recorded_len.wrapping_sub(len_u);
+            inp_st().last_recorded_len = inp_st().last_recorded_len.wrapping_sub(len_u);
         }
         atom_typed_del(len_u);
-        let okb = &raw mut on_key_buf;
+        let okb = &raw mut inp_st().on_key_buf;
         let trim = len_u.min((*okb).len());
         (*okb).truncate((*okb).len() - trim);
-        on_key_ignore_len += len_u - trim;
+        inp_st().on_key_ignore_len += len_u - trim;
     }
 }
 
 /// Sync undo when typed characters are obtained from the typeahead buffer.
 pub unsafe fn may_sync_undo() {
     unsafe {
-        if ((State & (MODE_INSERT | MODE_CMDLINE)) == 0 || Ins.moved != kInsNone) && curscript < 0 {
+        if ((State & (MODE_INSERT | MODE_CMDLINE)) == 0 || Ins.moved != kInsNone) && inp_st().curscript < 0 {
             u_sync(false);
         }
     }
@@ -1400,10 +1436,10 @@ unsafe fn free_typebuf() {
 
 unsafe fn save_typebuf() {
     unsafe {
-        assert!(curscript >= 0);
+        assert!(inp_st().curscript >= 0);
         init_typebuf();
         let prev_cnt = typebuf.tb_change_cnt;
-        saved_typebuf[curscript as usize] =
+        inp_st().saved_typebuf[inp_st().curscript as usize] =
             std::mem::replace((&raw mut typebuf).as_mut().unwrap(), typebuf_T::ZERO);
         typebuf.tb_change_cnt = prev_cnt;
         alloc_typebuf();
@@ -1411,7 +1447,7 @@ unsafe fn save_typebuf() {
 }
 
 unsafe fn can_get_ungot() -> bool {
-    unsafe { ungot.c != -1 && (ungot.stuffed || stuff_empty()) }
+    unsafe { inp_st().ungot.c != -1 && (inp_st().ungot.stuffed || stuff_empty()) }
 }
 
 /// Save all three kinds of typeahead, so that the user must type at a prompt.
@@ -1422,11 +1458,11 @@ pub unsafe fn save_typeahead(tp: *mut tasave_T) {
             std::mem::replace((&raw mut typebuf).as_mut().unwrap(), typebuf_T::ZERO);
         typebuf.tb_change_cnt = prev_cnt;
         alloc_typebuf();
-        (*tp).ungot = ungot;
-        ungot.c = -1;
+        (*tp).ungot = inp_st().ungot;
+        inp_st().ungot.c = -1;
 
-        let rb1 = &raw mut readbuf1;
-        let rb2 = &raw mut readbuf2;
+        let rb1 = &raw mut inp_st().readbuf1;
+        let rb2 = &raw mut inp_st().readbuf2;
         (*tp).save_readbuf1 = std::mem::replace(&mut *rb1, StuffBuf::new());
         (*tp).save_readbuf2 = std::mem::replace(&mut *rb2, StuffBuf::new());
     }
@@ -1437,10 +1473,10 @@ pub unsafe fn restore_typeahead(tp: *mut tasave_T) {
     unsafe {
         free_typebuf();
         typebuf = std::mem::replace(&mut (*tp).save_typebuf, typebuf_T::ZERO);
-        ungot = (*tp).ungot;
+        inp_st().ungot = (*tp).ungot;
 
-        let rb1 = &raw mut readbuf1;
-        let rb2 = &raw mut readbuf2;
+        let rb1 = &raw mut inp_st().readbuf1;
+        let rb2 = &raw mut inp_st().readbuf2;
         *rb1 = std::mem::replace(&mut (*tp).save_readbuf1, StuffBuf::new());
         *rb2 = std::mem::replace(&mut (*tp).save_readbuf2, StuffBuf::new());
     }
@@ -1449,7 +1485,7 @@ pub unsafe fn restore_typeahead(tp: *mut tasave_T) {
 /// Open a new script file for the `":source!"` command.
 pub unsafe fn openscript(name: *mut c_char, directly: bool) {
     unsafe {
-        if curscript + 1 == NSCRIPT as c_int {
+        if inp_st().curscript + 1 == NSCRIPT as c_int {
             emsg(gettext((&raw const e_nesting).cast()));
             return;
         }
@@ -1462,12 +1498,12 @@ pub unsafe fn openscript(name: *mut c_char, directly: bool) {
             return;
         }
 
-        curscript += 1;
+        inp_st().curscript += 1;
         let namebuff_ptr = (&raw mut NameBuff).cast::<c_char>();
         expand_env(name, namebuff_ptr, MAXPATHL as c_int);
-        let scriptin_ptr = (&raw mut scriptin)
+        let scriptin_ptr = (&raw mut inp_st().scriptin)
             .cast::<FileDescriptor>()
-            .add(curscript as usize);
+            .add(inp_st().curscript as usize);
         let error = file_open(scriptin_ptr, namebuff_ptr, K_FILE_READ_ONLY, 0);
         if error != 0 {
             semsg!(
@@ -1475,7 +1511,7 @@ pub unsafe fn openscript(name: *mut c_char, directly: bool) {
                 name,
                 uv_strerror(error),
             );
-            curscript -= 1;
+            inp_st().curscript -= 1;
             return;
         }
         save_typebuf();
@@ -1492,12 +1528,12 @@ pub unsafe fn openscript(name: *mut c_char, directly: bool) {
             restart_edit = 0;
             finish_op = false;
 
-            let oldcurscript = curscript;
+            let oldcurscript = inp_st().curscript;
             loop {
                 update_topline_cursor();
                 normal_cmd(&raw mut oa, false);
                 vpeekc();
-                if curscript < oldcurscript {
+                if inp_st().curscript < oldcurscript {
                     break;
                 }
             }
@@ -1512,24 +1548,24 @@ pub unsafe fn openscript(name: *mut c_char, directly: bool) {
 
 unsafe fn closescript() {
     unsafe {
-        assert!(curscript >= 0);
+        assert!(inp_st().curscript >= 0);
         free_typebuf();
         typebuf = std::mem::replace(
-            &mut (&raw mut saved_typebuf).as_mut().unwrap()[curscript as usize],
+            &mut (&raw mut inp_st().saved_typebuf).as_mut().unwrap()[inp_st().curscript as usize],
             typebuf_T::ZERO,
         );
 
-        let scriptin_ptr = (&raw mut scriptin)
+        let scriptin_ptr = (&raw mut inp_st().scriptin)
             .cast::<FileDescriptor>()
-            .add(curscript as usize);
+            .add(inp_st().curscript as usize);
         file_close(scriptin_ptr, false);
-        curscript -= 1;
+        inp_st().curscript -= 1;
     }
 }
 
 pub unsafe fn close_all_scripts() {
     unsafe {
-        while curscript >= 0 {
+        while inp_st().curscript >= 0 {
             closescript();
         }
     }
@@ -1537,10 +1573,10 @@ pub unsafe fn close_all_scripts() {
 
 pub unsafe fn open_scriptin(scriptin_name: *mut c_char) -> bool {
     unsafe {
-        assert!(curscript == -1);
-        curscript += 1;
+        assert!(inp_st().curscript == -1);
+        inp_st().curscript += 1;
 
-        let scriptin0 = (&raw mut scriptin).cast::<FileDescriptor>();
+        let scriptin0 = (&raw mut inp_st().scriptin).cast::<FileDescriptor>();
         let error = if strcmp(scriptin_name, c"-".as_ptr()) == 0 {
             file_open_stdin(scriptin0)
         } else {
@@ -1567,7 +1603,7 @@ pub unsafe fn open_scriptin(scriptin_name: *mut c_char) -> bool {
                 );
                 let _ = std::io::Write::write_all(&mut std::io::stderr(), slice);
             }
-            curscript -= 1;
+            inp_st().curscript -= 1;
             return false;
         }
         save_typebuf();
@@ -1578,7 +1614,7 @@ pub unsafe fn open_scriptin(scriptin_name: *mut c_char) -> bool {
 
 /// Return true when reading keys from a script file.
 pub unsafe fn using_script() -> c_int {
-    unsafe { c_int::from(curscript >= 0) }
+    unsafe { c_int::from(inp_st().curscript >= 0) }
 }
 
 /// Called just before doing a blocking wait.
@@ -1601,12 +1637,12 @@ unsafe fn updatescript(c: c_int) {
         let idle = c == 0;
         if idle
             || (p_uc > 0 && {
-                UPDATESCRIPT_COUNT += 1;
-                (UPDATESCRIPT_COUNT as OptInt) >= p_uc
+                inp_st().UPDATESCRIPT_COUNT += 1;
+                (inp_st().UPDATESCRIPT_COUNT as OptInt) >= p_uc
             })
         {
             ml_sync_all(c_int::from(idle), 1, p_fs != 0 || idle);
-            UPDATESCRIPT_COUNT = 0;
+            inp_st().UPDATESCRIPT_COUNT = 0;
         }
     }
 }
@@ -1639,18 +1675,18 @@ unsafe fn add_byte_to_showcmd(byte: u8) {
             return;
         }
 
-        if !gotchars_add_byte(&raw mut SHOWCMD_STATE, byte) {
+        if !gotchars_add_byte(&raw mut inp_st().SHOWCMD_STATE, byte) {
             return;
         }
 
-        let buflen = SHOWCMD_STATE.buflen;
-        SHOWCMD_STATE.buf[buflen] = NUL as u8;
-        SHOWCMD_STATE.buflen = 0;
+        let buflen = inp_st().SHOWCMD_STATE.buflen;
+        inp_st().SHOWCMD_STATE.buf[buflen] = NUL as u8;
+        inp_st().SHOWCMD_STATE.buflen = 0;
 
         let mut modifiers: c_int = 0;
         let mut c: c_int = NUL;
 
-        let mut ptr = (&raw const SHOWCMD_STATE.buf).cast::<u8>();
+        let mut ptr = (&raw const inp_st().SHOWCMD_STATE.buf).cast::<u8>();
         if *ptr == K_SPECIAL && *ptr.add(1) == KS_MODIFIER && *ptr.add(2) != NUL as u8 {
             modifiers = *ptr.add(2) as c_int;
             ptr = ptr.add(3);
@@ -1702,18 +1738,18 @@ pub unsafe fn vgetc() -> c_int {
         }
 
         if can_get_ungot() {
-            c = ungot.c;
-            ungot.c = -1;
-            mod_mask = ungot.mod_mask;
-            mouse_grid = ungot.mouse_grid;
-            mouse_row = ungot.mouse_row;
-            mouse_col = ungot.mouse_col;
+            c = inp_st().ungot.c;
+            inp_st().ungot.c = -1;
+            mod_mask = inp_st().ungot.mod_mask;
+            mouse_grid = inp_st().ungot.mouse_grid;
+            mouse_row = inp_st().ungot.mouse_row;
+            mouse_col = inp_st().ungot.mouse_col;
         } else {
             mod_mask = 0;
             vgetc_mod_mask = 0;
             vgetc_char = 0;
 
-            last_recorded_len = last_recorded_len.wrapping_sub(LAST_VGETC_RECORDED_LEN);
+            inp_st().last_recorded_len = inp_st().last_recorded_len.wrapping_sub(inp_st().LAST_VGETC_RECORDED_LEN);
 
             loop {
                 let mut did_inc = false;
@@ -1768,7 +1804,7 @@ pub unsafe fn vgetc() -> c_int {
                     requeue_key(c, 0, 3, true);
                     ins_typebuf(
                         ESC_STR.as_ptr().cast_mut(),
-                        KeyNoremap,
+                        inp_st().KeyNoremap,
                         0,
                         !KeyTyped,
                         cmd_silent,
@@ -1832,14 +1868,14 @@ pub unsafe fn vgetc() -> c_int {
                 break;
             }
 
-            LAST_VGETC_RECORDED_LEN = last_recorded_len;
+            inp_st().LAST_VGETC_RECORDED_LEN = inp_st().last_recorded_len;
         }
 
         may_garbage_collect = false;
 
-        let okb = &raw mut on_key_buf;
+        let okb = &raw mut inp_st().on_key_buf;
         (*okb).push(NUL as c_char);
-        if on_key_blocked == 0 && nlua_exec_on_key(c, (*okb).as_mut_ptr()) {
+        if inp_st().on_key_blocked == 0 && nlua_exec_on_key(c, (*okb).as_mut_ptr()) {
             if c == K_COMMAND {
                 let _ = getcmdkeycmd(NUL, 0, false);
             } else if c == K_LUA {
@@ -1886,7 +1922,7 @@ pub unsafe fn plain_vgetc() -> c_int {
 pub unsafe fn vpeekc() -> c_int {
     unsafe {
         if can_get_ungot() {
-            return ungot.c;
+            return inp_st().ungot.c;
         }
         vgetorpeek(false)
     }
@@ -1971,7 +2007,7 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow
         allow_keys += 1;
         block_on_key();
         if !simplify {
-            no_reduce_keys += 1;
+            inp_st().no_reduce_keys += 1;
         }
         atom_payload_start();
         loop {
@@ -2012,7 +2048,7 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow
         allow_keys -= 1;
         unblock_on_key();
         if !simplify {
-            no_reduce_keys -= 1;
+            inp_st().no_reduce_keys -= 1;
         }
 
         if cursor_flag == b'h' as c_char {
@@ -2151,7 +2187,7 @@ unsafe fn at_ins_compl_key() -> bool {
 
 unsafe fn check_simplify_modifier(max_offset: c_int) -> c_int {
     unsafe {
-        if (State & MODE_TERMINAL) != 0 || no_reduce_keys > 0 {
+        if (State & MODE_TERMINAL) != 0 || inp_st().no_reduce_keys > 0 {
             return 0;
         }
 
@@ -2580,7 +2616,7 @@ unsafe fn handle_mapping(
 /// Unget one character (can only be done once!).
 pub unsafe fn vungetc(c: c_int) {
     unsafe {
-        ungot = UngotKey {
+        inp_st().ungot = UngotKey {
             c,
             mod_mask,
             mouse_grid,
@@ -2627,10 +2663,10 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
         start_stuff();
         check_end_reg_executing(advance);
         loop {
-            if typeahead_char != 0 {
-                c = typeahead_char;
+            if inp_st().typeahead_char != 0 {
+                c = inp_st().typeahead_char;
                 if advance {
-                    typeahead_char = 0;
+                    inp_st().typeahead_char = 0;
                 }
             } else {
                 c = read_readbuffers(advance);
@@ -2701,7 +2737,7 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
                                     KeyTyped = true;
                                     gotchars(tb_buf_ptr().add(typebuf.tb_off as usize), 1);
                                 }
-                                KeyNoremap =
+                                inp_st().KeyNoremap =
                                     *tb_noremap_ptr().add(typebuf.tb_off as usize) as c_int;
                                 del_typebuf(1, 0);
                             }
@@ -2825,13 +2861,13 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
                         }
 
                         c = if (State & MODE_CMDLINE) != 0
-                            || (cmdwin_type > 0 && VGETORPEEK_TC == ESC)
+                            || (cmdwin_type > 0 && inp_st().VGETORPEEK_TC == ESC)
                         {
                             Ctrl_C
                         } else {
                             ESC
                         };
-                        VGETORPEEK_TC = c;
+                        inp_st().VGETORPEEK_TC = c;
 
                         if advance {
                             typebuf_was_empty = true;
@@ -3012,11 +3048,11 @@ unsafe fn inchar(buf: *mut u8, maxlen: c_int, wait_time: c_long) -> c_int {
         }
 
         let mut read_size: isize = -1;
-        while curscript >= 0 && read_size <= 0 && !ignore_script {
+        while inp_st().curscript >= 0 && read_size <= 0 && !ignore_script {
             let mut script_char: c_char = 0;
-            let scriptin_ptr = (&raw mut scriptin)
+            let scriptin_ptr = (&raw mut inp_st().scriptin)
                 .cast::<FileDescriptor>()
-                .add(curscript as usize);
+                .add(inp_st().curscript as usize);
             if got_int || {
                 read_size = file_read(scriptin_ptr, &raw mut script_char, 1);
                 read_size != 1
@@ -3314,15 +3350,15 @@ pub unsafe fn paste_store(channel_id: u64, state: TriState, str_: NvimString, cr
             return;
         }
 
-        let need_redo = !block_redo;
+        let need_redo = !inp_st().block_redo;
         let need_record = reg_recording != 0 && !is_internal_call(channel_id);
 
         if !need_redo && !need_record {
             return;
         }
 
-        let rbody = &raw mut redobuff.cur.body;
-        let recbuf = &raw mut recordbuff;
+        let rbody = &raw mut inp_st().redobuff.cur.body;
+        let recbuf = &raw mut inp_st().recordbuff;
 
         if state != kNone {
             let c = if state == kFalse {
