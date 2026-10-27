@@ -83,7 +83,7 @@ pub struct cstack_T {
     pub cs_flags: [c_int; CSTACK_LEN],
     pub cs_pending: [c_char; CSTACK_LEN],
     pub cs_rettv: [Option<typval_T>; CSTACK_LEN],
-    pub cs_exception: [*mut except_T; CSTACK_LEN],
+    pub cs_exception: [Option<std::rc::Rc<except_T>>; CSTACK_LEN],
     pub cs_forinfo: [Option<Box<forinfo_T>>; CSTACK_LEN],
     pub cs_line: [c_int; CSTACK_LEN],
     pub cs_idx: c_int,
@@ -99,7 +99,7 @@ impl Default for cstack_T {
             cs_flags: [0; CSTACK_LEN],
             cs_pending: [0; CSTACK_LEN],
             cs_rettv: [None; CSTACK_LEN],
-            cs_exception: [ptr::null_mut(); CSTACK_LEN],
+            cs_exception: [const { None }; CSTACK_LEN],
             cs_forinfo: [const { None }; CSTACK_LEN],
             cs_line: [0; CSTACK_LEN],
             cs_idx: -1,
@@ -140,17 +140,17 @@ impl Drop for except_T {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum PendingVal {
     None,
     Return(Option<typval_T>),
-    Throw(*mut except_T),
+    Throw(Option<std::rc::Rc<except_T>>),
 }
 
 #[repr(C)]
 pub struct cleanup_T {
     pub pending: c_int,
-    pub exception: *mut except_T,
+    pub exception: Option<std::rc::Rc<except_T>>,
 }
 
 impl cleanup_T {
@@ -158,7 +158,7 @@ impl cleanup_T {
     pub const fn new() -> Self {
         Self {
             pending: 0,
-            exception: ptr::null_mut(),
+            exception: None,
         }
     }
 }
@@ -172,7 +172,7 @@ impl Default for cleanup_T {
 
 #[repr(C)]
 pub struct exception_state_T {
-    pub estate_current_exception: *mut except_T,
+    pub estate_current_exception: Option<std::rc::Rc<except_T>>,
     pub estate_did_throw: bool,
     pub estate_need_rethrow: bool,
     pub estate_trylevel: c_int,
@@ -182,7 +182,7 @@ pub struct exception_state_T {
 impl exception_state_T {
     pub const fn new() -> Self {
         Self {
-            estate_current_exception: ptr::null_mut(),
+            estate_current_exception: None,
             estate_did_throw: false,
             estate_need_rethrow: false,
             estate_trylevel: 0,
@@ -272,7 +272,10 @@ pub unsafe fn cause_errthrow(
         cause_abort = true;
 
         if did_throw {
-            if (*current_exception).r#type == ET_INTERRUPT {
+            if (*(&raw const current_exception))
+                .as_ref()
+                .is_some_and(|e| e.r#type == ET_INTERRUPT)
+            {
                 got_int = false;
             }
             discard_current_exception();
@@ -355,7 +358,10 @@ pub unsafe fn do_intthrow(cstack: *mut cstack_T) -> bool {
         }
 
         if did_throw {
-            if (*current_exception).r#type == ET_INTERRUPT {
+            if (*(&raw const current_exception))
+                .as_ref()
+                .is_some_and(|e| e.r#type == ET_INTERRUPT)
+            {
                 return false;
             }
             discard_current_exception();
@@ -447,7 +453,7 @@ unsafe fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int 
                     emsg(gettext(
                         c"E608: Cannot :throw exceptions with 'Vim' prefix".as_ptr(),
                     ));
-                    current_exception = ptr::null_mut();
+                    current_exception = None;
                     return FAIL;
                 }
                 (ET_USER, Vec::new(), val_str)
@@ -471,14 +477,14 @@ unsafe fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int 
         let stacktrace = stacktrace_create();
         tv_list_ref(stacktrace);
 
-        let excp = Box::into_raw(Box::new(except_T {
+        let excp = std::rc::Rc::new(except_T {
             r#type,
             value: excp_value,
             messages,
             throw_name,
             throw_lnum,
             stacktrace,
-        }));
+        });
 
         if p_verbose >= 13 || debug_break_level > 0 {
             let save_msg_silent = msg_silent;
@@ -495,7 +501,7 @@ unsafe fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int 
             smsg!(
                 0,
                 gettext(c"Exception thrown: %s".as_ptr()),
-                (*excp).value.as_ptr(),
+                excp.value.as_ptr(),
             );
             msg_puts(c"\n".as_ptr());
 
@@ -510,19 +516,22 @@ unsafe fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int 
             }
         }
 
-        current_exception = excp;
+        current_exception = Some(excp);
         OK
     }
 }
 
-unsafe fn discard_exception(excp: *mut except_T, was_finished: bool) {
+unsafe fn discard_exception(excp: Option<std::rc::Rc<except_T>>, was_finished: bool) {
     unsafe {
-        if current_exception == excp {
-            current_exception = ptr::null_mut();
-        }
-        if excp.is_null() {
+        let Some(excp) = excp else {
             internal_error(c"discard_exception()".as_ptr());
             return;
+        };
+        if (*(&raw const current_exception))
+            .as_ref()
+            .is_some_and(|cur| std::rc::Rc::ptr_eq(cur, &excp))
+        {
+            current_exception = None;
         }
 
         if p_verbose >= 13 || debug_break_level > 0 {
@@ -542,7 +551,7 @@ unsafe fn discard_exception(excp: *mut except_T, was_finished: bool) {
             } else {
                 gettext(c"Exception discarded: %s".as_ptr())
             };
-            smsg!(0, fmt, (*excp).value.as_ptr());
+            smsg!(0, fmt, excp.value.as_ptr());
             msg_puts(c"\n".as_ptr());
             if debug_break_level > 0 || *p_vfile == NUL {
                 cmdline_row = msg_row;
@@ -559,41 +568,41 @@ unsafe fn discard_exception(excp: *mut except_T, was_finished: bool) {
                 IOSIZE,
             );
         }
-        drop(Box::from_raw(excp));
+        drop(excp);
     }
 }
 
 pub unsafe fn discard_current_exception() {
     unsafe {
-        if !current_exception.is_null() {
-            discard_exception(current_exception, false);
+        if let Some(excp) = (*(&raw mut current_exception)).take() {
+            discard_exception(Some(excp), false);
         }
         did_throw = false;
         need_rethrow = false;
     }
 }
 
-unsafe fn catch_exception(excp: *mut except_T) {
+unsafe fn catch_exception(excp: &std::rc::Rc<except_T>) {
     unsafe {
         let stack = &raw mut caught_stack;
-        (*stack).push(excp);
-        set_vim_var_string(VV_EXCEPTION, (*excp).value.as_ptr(), -1);
-        set_vim_var_list(VV_STACKTRACE, (*excp).stacktrace);
-        if !(*excp).throw_name.as_bytes().is_empty() {
-            let iobufflen = if (*excp).throw_lnum != 0 {
+        (*stack).push(excp.clone());
+        set_vim_var_string(VV_EXCEPTION, excp.value.as_ptr(), -1);
+        set_vim_var_list(VV_STACKTRACE, excp.stacktrace);
+        if !excp.throw_name.as_bytes().is_empty() {
+            let iobufflen = if excp.throw_lnum != 0 {
                 vim_snprintf_safelen!(
                     ptr::addr_of_mut!(IObuff).cast(),
                     IOSIZE,
                     gettext(c"%s, line %lld".as_ptr()),
-                    (*excp).throw_name.as_ptr(),
-                    i64::from((*excp).throw_lnum),
+                    excp.throw_name.as_ptr(),
+                    i64::from(excp.throw_lnum),
                 )
             } else {
                 vim_snprintf_safelen!(
                     ptr::addr_of_mut!(IObuff).cast(),
                     IOSIZE,
                     c"%s".as_ptr(),
-                    (*excp).throw_name.as_ptr(),
+                    excp.throw_name.as_ptr(),
                 )
             };
             set_vim_var_string(
@@ -620,7 +629,7 @@ unsafe fn catch_exception(excp: *mut except_T) {
             smsg!(
                 0,
                 gettext(c"Exception caught: %s".as_ptr()),
-                (*excp).value.as_ptr(),
+                excp.value.as_ptr(),
             );
             msg_puts(c"\n".as_ptr());
 
@@ -637,31 +646,34 @@ unsafe fn catch_exception(excp: *mut except_T) {
     }
 }
 
-unsafe fn finish_exception(excp: *mut except_T) {
+unsafe fn finish_exception(excp: Option<std::rc::Rc<except_T>>) {
     unsafe {
         let stack = &raw mut caught_stack;
-        if (*stack).last().copied() != Some(excp) {
+        if match ((*stack).last(), excp.as_ref()) {
+            (Some(last), Some(e)) => !std::rc::Rc::ptr_eq(last, e),
+            _ => true,
+        } {
             internal_error(c"finish_exception()".as_ptr());
         }
         (*stack).pop();
-        if let Some(&top) = (*stack).last() {
-            set_vim_var_string(VV_EXCEPTION, (*top).value.as_ptr(), -1);
-            set_vim_var_list(VV_STACKTRACE, (*top).stacktrace);
-            if !(*top).throw_name.as_bytes().is_empty() {
-                let iobufflen = if (*top).throw_lnum != 0 {
+        if let Some(top) = (*stack).last() {
+            set_vim_var_string(VV_EXCEPTION, top.value.as_ptr(), -1);
+            set_vim_var_list(VV_STACKTRACE, top.stacktrace);
+            if !top.throw_name.as_bytes().is_empty() {
+                let iobufflen = if top.throw_lnum != 0 {
                     vim_snprintf_safelen!(
                         ptr::addr_of_mut!(IObuff).cast(),
                         IOSIZE,
                         gettext(c"%s, line %lld".as_ptr()),
-                        (*top).throw_name.as_ptr(),
-                        i64::from((*top).throw_lnum),
+                        top.throw_name.as_ptr(),
+                        i64::from(top.throw_lnum),
                     )
                 } else {
                     vim_snprintf_safelen!(
                         ptr::addr_of_mut!(IObuff).cast(),
                         IOSIZE,
                         c"%s".as_ptr(),
-                        (*top).throw_name.as_ptr(),
+                        top.throw_name.as_ptr(),
                     )
                 };
                 set_vim_var_string(
@@ -684,7 +696,7 @@ unsafe fn finish_exception(excp: *mut except_T) {
 
 pub unsafe fn exception_state_save(estate: *mut exception_state_T) {
     unsafe {
-        (*estate).estate_current_exception = current_exception;
+        (*estate).estate_current_exception = (*(&raw const current_exception)).clone();
         (*estate).estate_did_throw = did_throw;
         (*estate).estate_need_rethrow = need_rethrow;
         (*estate).estate_trylevel = trylevel;
@@ -697,7 +709,7 @@ pub unsafe fn exception_state_restore(estate: *mut exception_state_T) {
         if did_throw {
             handle_did_throw();
         }
-        current_exception = (*estate).estate_current_exception;
+        current_exception = (*estate).estate_current_exception.take();
         did_throw = (*estate).estate_did_throw;
         need_rethrow = (*estate).estate_need_rethrow;
         trylevel = (*estate).estate_trylevel;
@@ -707,7 +719,7 @@ pub unsafe fn exception_state_restore(estate: *mut exception_state_T) {
 
 pub unsafe fn exception_state_clear() {
     unsafe {
-        current_exception = ptr::null_mut();
+        current_exception = None;
         did_throw = false;
         need_rethrow = false;
         trylevel = 0;
@@ -725,6 +737,7 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
 
         let s_owned: Option<CString>;
         let mesg_owned: Option<CString>;
+        let excp_hold: Option<std::rc::Rc<except_T>>;
         let s: *const c_char = match pending {
             CSTP_NONE => return,
             CSTP_CONTINUE => c":continue".as_ptr(),
@@ -740,11 +753,11 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
             }
             _ => {
                 if (pending & CSTP_THROW) != 0 {
-                    let excp = match value {
+                    excp_hold = match value {
                         PendingVal::Throw(excp) => excp,
-                        _ => ptr::null_mut(),
+                        _ => None,
                     };
-                    assert!(!excp.is_null());
+                    let excp = excp_hold.as_ref().unwrap();
                     vim_snprintf!(
                         ptr::addr_of_mut!(IObuff).cast(),
                         IOSIZE,
@@ -755,7 +768,7 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
                     mesg = mesg_owned
                         .as_ref()
                         .map_or(ptr::null_mut(), |cs| cs.as_ptr().cast_mut());
-                    (*excp).value.as_ptr()
+                    excp.value.as_ptr()
                 } else if (pending & CSTP_ERROR) != 0 && (pending & CSTP_INTERRUPT) != 0 {
                     gettext(c"Error and interrupt".as_ptr())
                 } else if (pending & CSTP_ERROR) != 0 {
@@ -1134,7 +1147,7 @@ pub unsafe fn do_throw(cstack: *mut cstack_T) {
                 }
             }
             (*cstack).cs_flags[u_idx] &= !CSF_ACTIVE;
-            (*cstack).cs_exception[u_idx] = current_exception;
+            (&mut (*cstack).cs_exception)[u_idx] = (*(&raw const current_exception)).clone();
         }
 
         did_throw = true;
@@ -1257,11 +1270,13 @@ pub unsafe fn ex_catch(eap: *mut exarg_T) {
                     } else {
                         let prev_got_int = got_int;
                         got_int = false;
-                        caught = vim_regexec_nl(
-                            &mut regmatch,
-                            (*current_exception).value.as_ptr().cast_mut(),
-                            0,
-                        );
+                        let val_ptr = (*(&raw const current_exception))
+                            .as_ref()
+                            .unwrap()
+                            .value
+                            .as_ptr()
+                            .cast_mut();
+                        caught = vim_regexec_nl(&mut regmatch, val_ptr, 0);
                         got_int |= prev_got_int;
                         vim_regfree(regmatch.regprog);
                     }
@@ -1273,8 +1288,19 @@ pub unsafe fn ex_catch(eap: *mut exarg_T) {
                 did_emsg = 0;
                 got_int = false;
                 did_throw = false;
-                catch_exception((*cstack).cs_exception[u_idx]);
-                if (*cstack).cs_exception[(*cstack).cs_idx as usize] != current_exception {
+                if let Some(ref excp) = (*cstack).cs_exception[u_idx] {
+                    catch_exception(excp);
+                } else {
+                    internal_error(c"catch_exception()".as_ptr());
+                }
+                if !match (
+                    (*cstack).cs_exception[(*cstack).cs_idx as usize].as_ref(),
+                    (*(&raw const current_exception)).as_ref(),
+                ) {
+                    (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
+                    (None, None) => true,
+                    _ => false,
+                } {
                     internal_error(c"ex_catch()".as_ptr());
                 }
             } else {
@@ -1351,7 +1377,16 @@ pub unsafe fn ex_finally(eap: *mut exarg_T) {
                 }
                 (*cstack).cs_pending[cur_idx] = pending as c_char;
 
-                if did_throw && (*cstack).cs_exception[cur_idx] != current_exception {
+                if did_throw
+                    && !match (
+                        (*cstack).cs_exception[cur_idx].as_ref(),
+                        (*(&raw const current_exception)).as_ref(),
+                    ) {
+                        (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
+                        (None, None) => true,
+                        _ => false,
+                    }
+                {
                     internal_error(c"ex_finally()".as_ptr());
                 }
             }
@@ -1429,7 +1464,7 @@ pub unsafe fn ex_endtry(eap: *mut exarg_T) {
             if pending == CSTP_RETURN {
                 rettv = (&mut (*cstack).cs_rettv)[u_idx].take();
             } else if (pending & CSTP_THROW) != 0 {
-                current_exception = (*cstack).cs_exception[u_idx];
+                current_exception = (&mut (*cstack).cs_exception)[u_idx].take();
             }
         }
 
@@ -1444,7 +1479,7 @@ pub unsafe fn ex_endtry(eap: *mut exarg_T) {
             let report_val = if pending == CSTP_RETURN {
                 PendingVal::Return(rettv)
             } else if (pending & CSTP_THROW) != 0 {
-                PendingVal::Throw(current_exception)
+                PendingVal::Throw((*(&raw const current_exception)).clone())
             } else {
                 PendingVal::None
             };
@@ -1491,10 +1526,9 @@ pub unsafe fn enter_cleanup(csp: *mut cleanup_T) {
                 });
 
             if did_throw || need_rethrow {
-                (*csp).exception = current_exception;
-                current_exception = ptr::null_mut();
+                (*csp).exception = (*(&raw mut current_exception)).take();
             } else {
-                (*csp).exception = ptr::null_mut();
+                (*csp).exception = None;
                 if did_emsg != 0 {
                     force_abort |= cause_abort;
                     cause_abort = false;
@@ -1505,10 +1539,10 @@ pub unsafe fn enter_cleanup(csp: *mut cleanup_T) {
             did_throw = false;
             need_rethrow = false;
 
-            report_make_pending(pending, PendingVal::Throw((*csp).exception));
+            report_make_pending(pending, PendingVal::Throw((*csp).exception.clone()));
         } else {
             (*csp).pending = CSTP_NONE;
-            (*csp).exception = ptr::null_mut();
+            (*csp).exception = None;
         }
     }
 }
@@ -1522,7 +1556,7 @@ pub unsafe fn leave_cleanup(csp: *mut cleanup_T) {
 
         if aborting() || need_rethrow {
             if (pending & CSTP_THROW) != 0 {
-                discard_exception((*csp).exception, false);
+                discard_exception((*csp).exception.take(), false);
             } else {
                 report_discard_pending(pending, PendingVal::None);
             }
@@ -1532,7 +1566,7 @@ pub unsafe fn leave_cleanup(csp: *mut cleanup_T) {
             }
         } else {
             if (pending & CSTP_THROW) != 0 {
-                current_exception = (*csp).exception;
+                current_exception = (*csp).exception.take();
             } else if (pending & CSTP_ERROR) != 0 {
                 cause_abort = force_abort;
                 force_abort = false;
@@ -1551,7 +1585,7 @@ pub unsafe fn leave_cleanup(csp: *mut cleanup_T) {
             report_resume_pending(
                 pending,
                 if (pending & CSTP_THROW) != 0 {
-                    PendingVal::Throw(current_exception)
+                    PendingVal::Throw((*(&raw const current_exception)).clone())
                 } else {
                     PendingVal::None
                 },
@@ -1591,9 +1625,12 @@ pub unsafe fn cleanup_conditionals(
                         _ => {
                             if ((*cstack).cs_flags[u_idx] & CSF_FINALLY) != 0 {
                                 if (pend & CSTP_THROW) != 0
-                                    && !(*cstack).cs_exception[u_idx].is_null()
+                                    && (*cstack).cs_exception[u_idx].is_some()
                                 {
-                                    discard_exception((*cstack).cs_exception[u_idx], false);
+                                    discard_exception(
+                                        (&mut (*cstack).cs_exception)[u_idx].take(),
+                                        false,
+                                    );
                                 } else {
                                     report_discard_pending(pend, PendingVal::None);
                                 }
@@ -1608,7 +1645,7 @@ pub unsafe fn cleanup_conditionals(
                         && ((*cstack).cs_flags[u_idx] & CSF_CAUGHT) != 0
                         && ((*cstack).cs_flags[u_idx] & CSF_FINISHED) == 0
                     {
-                        finish_exception((*cstack).cs_exception[u_idx]);
+                        finish_exception((&mut (*cstack).cs_exception)[u_idx].take());
                         (*cstack).cs_flags[u_idx] |= CSF_FINISHED;
                     }
                     if ((*cstack).cs_flags[u_idx] & CSF_TRUE) != 0 {

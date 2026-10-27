@@ -174,7 +174,7 @@ pub unsafe fn array_add(a: &mut Array, item: Object) {
 
 #[repr(C)]
 pub struct TryState {
-    pub current_exception: *mut except_T,
+    pub current_exception: Option<std::rc::Rc<except_T>>,
     pub msg_list: Option<Vec<msglist_T>>,
     pub got_int: c_int,
     pub did_throw: bool,
@@ -185,7 +185,7 @@ pub struct TryState {
 impl TryState {
     pub const fn new() -> Self {
         Self {
-            current_exception: ptr::null_mut(),
+            current_exception: None,
             msg_list: None,
             got_int: 0,
             did_throw: false,
@@ -357,10 +357,11 @@ pub unsafe fn error_set(e: *const Error) -> bool {
 pub unsafe fn try_enter(tstate: *mut TryState) {
     unsafe {
         let saved_msg_list = std::mem::replace(&mut *(&raw mut msg_list), Some(Vec::new()));
+        let saved_excp = (*(&raw mut current_exception)).take();
         ptr::write(
             tstate,
             TryState {
-                current_exception,
+                current_exception: saved_excp,
                 msg_list: saved_msg_list,
                 got_int: c_int::from(got_int),
                 did_throw,
@@ -368,7 +369,6 @@ pub unsafe fn try_enter(tstate: *mut TryState) {
                 did_emsg,
             },
         );
-        current_exception = ptr::null_mut();
         got_int = false;
         did_throw = false;
         need_rethrow = false;
@@ -409,38 +409,40 @@ pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
             );
             free_global_msglist();
         } else if did_throw || need_rethrow {
-            if !(*current_exception).throw_name.as_bytes().is_empty() {
-                if (*current_exception).throw_lnum != 0 {
-                    api_set_error!(
-                        err,
-                        ErrorType::kErrorTypeException,
-                        c"%s, line %d: %s".as_ptr(),
-                        (*current_exception).throw_name.as_ptr(),
-                        (*current_exception).throw_lnum,
-                        (*current_exception).value.as_ptr(),
-                    );
+            if let Some(ref excp) = *(&raw const current_exception) {
+                if !excp.throw_name.as_bytes().is_empty() {
+                    if excp.throw_lnum != 0 {
+                        api_set_error!(
+                            err,
+                            ErrorType::kErrorTypeException,
+                            c"%s, line %d: %s".as_ptr(),
+                            excp.throw_name.as_ptr(),
+                            excp.throw_lnum,
+                            excp.value.as_ptr(),
+                        );
+                    } else {
+                        api_set_error!(
+                            err,
+                            ErrorType::kErrorTypeException,
+                            c"%s: %s".as_ptr(),
+                            excp.throw_name.as_ptr(),
+                            excp.value.as_ptr(),
+                        );
+                    }
                 } else {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
-                        c"%s: %s".as_ptr(),
-                        (*current_exception).throw_name.as_ptr(),
-                        (*current_exception).value.as_ptr(),
+                        c"%s".as_ptr(),
+                        excp.value.as_ptr(),
                     );
                 }
-            } else {
-                api_set_error!(
-                    err,
-                    ErrorType::kErrorTypeException,
-                    c"%s".as_ptr(),
-                    (*current_exception).value.as_ptr(),
-                );
             }
             discard_current_exception();
         }
 
         msg_list = (*tstate).msg_list.clone();
-        current_exception = (*tstate).current_exception;
+        current_exception = (*tstate).current_exception.clone();
         got_int = (*tstate).got_int != 0;
         did_throw = (*tstate).did_throw;
         need_rethrow = (*tstate).need_rethrow != 0;

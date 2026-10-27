@@ -630,7 +630,7 @@ impl Default for loop_cookie {
 struct dbg_stuff {
     trylevel: c_int,
     force_abort: c_int,
-    caught_stack: Vec<*mut except_T>,
+    caught_stack: Vec<std::rc::Rc<except_T>>,
     vv_exception: Option<std::ffi::CString>,
     vv_throwpoint: Option<std::ffi::CString>,
     did_emsg: c_int,
@@ -638,7 +638,7 @@ struct dbg_stuff {
     did_throw: bool,
     need_rethrow: c_int,
     check_cstack: c_int,
-    current_exception: *mut except_T,
+    current_exception: Option<std::rc::Rc<except_T>>,
 }
 
 impl dbg_stuff {
@@ -654,7 +654,7 @@ impl dbg_stuff {
             did_throw: false,
             need_rethrow: 0,
             check_cstack: 0,
-            current_exception: ptr::null_mut(),
+            current_exception: None,
         }
     }
 }
@@ -4856,8 +4856,7 @@ unsafe fn save_dbg_stuff(dsp: *mut dbg_stuff) {
         need_rethrow = false;
         (*dsp).check_cstack = c_int::from(check_cstack);
         check_cstack = false;
-        (*dsp).current_exception = current_exception;
-        current_exception = ptr::null_mut();
+        (*dsp).current_exception = (*(&raw mut current_exception)).take();
     }
 }
 
@@ -4875,7 +4874,7 @@ unsafe fn restore_dbg_stuff(dsp: *mut dbg_stuff) {
         did_throw = (*dsp).did_throw;
         need_rethrow = (*dsp).need_rethrow != 0;
         check_cstack = (*dsp).check_cstack != 0;
-        current_exception = (*dsp).current_exception;
+        current_exception = (*dsp).current_exception.take();
     }
 }
 
@@ -5275,7 +5274,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                     c_int::from(cstack.cs_pending[cstack.cs_idx as usize])
                         & (CSTP_ERROR | CSTP_INTERRUPT | CSTP_THROW),
                     if did_throw {
-                        PendingVal::Throw(current_exception)
+                        PendingVal::Throw((*(&raw const current_exception)).clone())
                     } else {
                         PendingVal::None
                     },
@@ -5429,33 +5428,35 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
 /// Handle when "did_throw" is set after executing commands.
 pub unsafe fn handle_did_throw() {
     unsafe {
-        debug_assert!(!current_exception.is_null());
+        let cur_excp = (*(&raw const current_exception)).clone();
+        debug_assert!(cur_excp.is_some());
+        let excp = cur_excp.as_ref().unwrap();
         let mut p: Option<std::ffi::CString> = None;
         let mut messages: Vec<msglist_T> = Vec::new();
 
-        match (*current_exception).r#type {
+        match excp.r#type {
             ET_USER => {
                 let _ = vim_snprintf!(
                     (&raw mut IObuff).cast(),
                     IOSIZE,
                     gettext(c"E605: Exception not caught: %s".as_ptr()),
-                    (*current_exception).value.as_ptr(),
+                    excp.value.as_ptr(),
                 );
                 p = Some(cstr_to_cstring((&raw const IObuff).cast()));
             }
             ET_ERROR => {
-                messages = std::mem::take(&mut (*current_exception).messages);
+                messages = excp.messages.clone();
             }
             ET_INTERRUPT => {}
             _ => {}
         }
 
-        let throw_name = std::mem::take(&mut (*current_exception).throw_name);
         estack_push(
             ETYPE_EXCEPT,
-            throw_name.as_ptr().cast_mut(),
-            (*current_exception).throw_lnum,
+            excp.throw_name.as_ptr().cast_mut(),
+            excp.throw_lnum,
         );
+        drop(cur_excp);
 
         discard_current_exception();
 
@@ -5477,7 +5478,6 @@ pub unsafe fn handle_did_throw() {
             let _ = emsg(p.as_ptr());
         }
         estack_pop();
-        drop(throw_name);
     }
 }
 
