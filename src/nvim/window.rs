@@ -1642,7 +1642,7 @@ pub unsafe fn win_set_buf(win: &mut win_T, buf: &mut buf_T, err: &mut Error) {
                 opt_vars().p_acd = save_acd;
             }
         }
-        try_leave(&raw const tstate, err);
+        try_leave(&tstate, err);
 
         if !win_ok && !error_set(err) {
             api_set_error!(
@@ -3531,7 +3531,7 @@ unsafe fn win_close_buffer(win: *mut win_T, action: c_int, abort_if_last: bool) 
         let mut retval = false;
         if !(*win).w_buffer.is_null() {
             let mut bufref: bufref_T = bufref_T::new();
-            set_bufref(&raw mut bufref, g_st().curbuf);
+            set_bufref(&mut bufref, g_st().curbuf);
             (*win).w_locked += 1;
             retval = close_buffer(win, (*win).w_buffer, action, abort_if_last, true, true);
             if win_valid_any_tab(win) {
@@ -3690,7 +3690,7 @@ pub unsafe fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
         }
 
         let mut bufref: bufref_T = bufref_T::new();
-        set_bufref(&raw mut bufref, (*win).w_buffer);
+        set_bufref(&mut bufref, (*win).w_buffer);
 
         win_close_buffer(win, if free_buf { DOBUF_UNLOAD } else { 0 }, true);
 
@@ -3742,7 +3742,7 @@ pub unsafe fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
             }
         }
 
-        set_bufref(&raw mut bufref, (*win).w_buffer);
+        set_bufref(&mut bufref, (*win).w_buffer);
 
         if !(*win).w_buffer.is_null() {
             (*(*win).w_buffer).b_nwindows -= 1;
@@ -4011,7 +4011,7 @@ pub unsafe fn win_close_othertab(
         }
 
         let mut bufref: bufref_T = bufref_T::new();
-        set_bufref(&raw mut bufref, (*win).w_buffer);
+        set_bufref(&mut bufref, (*win).w_buffer);
 
         if !(*win).w_buffer.is_null() {
             close_buffer(
@@ -4070,7 +4070,7 @@ pub unsafe fn win_close_othertab(
             ui_comp_remove_grid(&mut (*win).w_grid_alloc);
         }
 
-        set_bufref(&raw mut bufref, (*win).w_buffer);
+        set_bufref(&mut bufref, (*win).w_buffer);
 
         if !(*win).w_buffer.is_null() {
             (*(*win).w_buffer).b_nwindows -= 1;
@@ -5128,7 +5128,7 @@ unsafe fn alloc_tabpage() -> *mut tabpage_T {
         let map_ptr = &raw mut g_st().tabpage_handles;
         (*map_ptr).insert((*tp).handle, tp);
 
-        init_var_dict(&mut *tv_dict_alloc(), (&raw mut (*tp).tp_winvar).cast(), VAR_SCOPE);
+        init_var_dict(&mut *tv_dict_alloc(), &mut *(&raw mut (*tp).tp_winvar).cast(), VAR_SCOPE);
         (*tp).tp_ch_used = opt_vars().p_ch;
 
         tp
@@ -6245,7 +6245,7 @@ pub unsafe fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
 
         init_var_dict(
             &mut *tv_dict_alloc(),
-            (&raw mut (*new_wp).w_winvar).cast(),
+            &mut *(&raw mut (*new_wp).w_winvar).cast(),
             VAR_SCOPE,
         );
 
@@ -6294,8 +6294,8 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
 
         (*wp).w_ns_set.clear();
 
-        clear_winopt(&raw mut (*wp).w_onebuf_opt);
-        clear_winopt(&raw mut (*wp).w_allbuf_opt);
+        clear_winopt(&mut (*wp).w_onebuf_opt);
+        clear_winopt(&mut (*wp).w_allbuf_opt);
 
         (*wp).w_p_lcs_chars.multispace = Vec::new();
         (*wp).w_p_lcs_chars.leadmultispace = Vec::new();
@@ -6317,7 +6317,7 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         (*wp).w_lines.clear();
 
         for i in 0..(*wp).w_tagstacklen as usize {
-            tagstack_clear_entry(&raw mut (*wp).w_tagstack[i]);
+            tagstack_clear_entry(&mut (*wp).w_tagstack[i]);
         }
         (*wp).w_tagstacklen = 0;
 
@@ -6349,7 +6349,7 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
                 let wip_wp = &mut (&mut (*buf).b_wininfo)[pw];
                 wip_wp.wi_win = ptr::null_mut();
                 if (*wp).w_config.style == kWinStyleMinimal && wip_wp.wi_optset {
-                    clear_winopt(&raw mut wip_wp.wi_opt);
+                    clear_winopt(&mut wip_wp.wi_opt);
                     wip_wp.wi_folds.clear();
                     wip_wp.wi_optset = false;
                 }
@@ -6390,7 +6390,7 @@ impl Drop for win_T {
     fn drop(&mut self) {
         unsafe {
             for i in 0..self.w_tagstacklen as usize {
-                tagstack_clear_entry(&raw mut self.w_tagstack[i]);
+                tagstack_clear_entry(&mut self.w_tagstack[i]);
             }
             self.w_tagstacklen = 0;
 
@@ -6810,7 +6810,7 @@ pub unsafe fn may_trigger_win_scrolled_resized() {
                 c"%d".as_ptr(),
                 (*resize_win).handle,
             );
-            set_bufref(&raw mut resize_bufref, (*resize_win).w_buffer);
+            set_bufref(&mut resize_bufref, (*resize_win).w_buffer);
         }
 
         let mut scroll_winid = [0 as c_char; NUMBUFLEN];
@@ -6824,12 +6824,12 @@ pub unsafe fn may_trigger_win_scrolled_resized() {
                 c"%d".as_ptr(),
                 (*scroll_win).handle,
             );
-            set_bufref(&raw mut scroll_bufref, (*scroll_win).w_buffer);
+            set_bufref(&mut scroll_bufref, (*scroll_win).w_buffer);
         }
 
         if trigger_resize && !windows_list.is_null() {
             let mut save_v_event: save_v_event_T = save_v_event_T::new();
-            let v_event = get_v_event(&raw mut save_v_event);
+            let v_event = get_v_event(&mut save_v_event);
 
             if tv_dict_add_list(v_event, c"windows".as_ptr(), 7, windows_list) == OK {
                 tv_dict_set_keys_readonly(v_event);
@@ -6852,12 +6852,12 @@ pub unsafe fn may_trigger_win_scrolled_resized() {
                     win,
                 );
             }
-            restore_v_event(&mut *v_event, &raw mut save_v_event);
+            restore_v_event(&mut *v_event, &mut save_v_event);
         }
 
         if trigger_scroll && !scroll_dict.is_null() {
             let mut save_v_event: save_v_event_T = save_v_event_T::new();
-            let v_event = get_v_event(&raw mut save_v_event);
+            let v_event = get_v_event(&mut save_v_event);
 
             tv_dict_extend(&mut *v_event, &mut *scroll_dict, c"move".as_ptr());
             tv_dict_set_keys_readonly(v_event);
@@ -6882,7 +6882,7 @@ pub unsafe fn may_trigger_win_scrolled_resized() {
                 win,
             );
 
-            restore_v_event(&mut *v_event, &raw mut save_v_event);
+            restore_v_event(&mut *v_event, &mut save_v_event);
         }
 
         win_st().win_scrolled_resized_recursive = false;

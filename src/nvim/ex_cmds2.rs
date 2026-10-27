@@ -151,7 +151,7 @@ pub unsafe fn autowrite(buf: &mut buf_T, forceit: bool) -> c_int {
             return FAIL;
         }
         let mut bufref: bufref_T = bufref_T::new();
-        set_bufref(&raw mut bufref, &raw mut *buf);
+        set_bufref(&mut bufref, &raw mut *buf);
         let mut r = buf_write_all(buf, forceit);
 
         if bufref_valid(&raw mut bufref) && bufIsChanged(buf) {
@@ -172,7 +172,7 @@ pub unsafe fn autowrite_all() {
         while !buf.is_null() {
             if bufIsChanged(&mut *buf) && (*buf).b_p_ro == 0 && !bt_dontwrite(buf) {
                 let mut bufref: bufref_T = bufref_T::new();
-                set_bufref(&raw mut bufref, buf);
+                set_bufref(&mut bufref, buf);
                 buf_write_all(&mut *buf, false);
                 if !bufref_valid(&raw mut bufref) {
                     buf = g_st().firstbuf;
@@ -189,7 +189,7 @@ pub unsafe fn check_changed(buf: &mut buf_T, flags: c_int) -> bool {
     unsafe {
         let forceit = (flags & CCGD_FORCEIT) != 0;
         let mut bufref: bufref_T = bufref_T::new();
-        set_bufref(&raw mut bufref, &raw mut *buf);
+        set_bufref(&mut bufref, &raw mut *buf);
 
         if !forceit
             && bufIsChanged(buf)
@@ -274,7 +274,7 @@ pub unsafe fn dialog_changed(buf: &mut buf_T, checkall: bool) {
             while !buf2.is_null() {
                 if bufIsChanged(&mut *buf2) && !(*buf2).b_ffname.is_null() && (*buf2).b_p_ro == 0 {
                     let mut bufref: bufref_T = bufref_T::new();
-                    set_bufref(&raw mut bufref, buf2);
+                    set_bufref(&mut bufref, buf2);
 
                     if !(*buf2).b_fname.is_null()
                         && check_overwrite(
@@ -390,7 +390,7 @@ pub unsafe fn check_changed_any(hidden: bool, unload: bool) -> bool {
             buf = buflist_findnr(bufnrs[i]);
             if !buf.is_null() && (!hidden || (*buf).b_nwindows == 0) && bufIsChanged(&mut *buf) {
                 let mut bufref: bufref_T = bufref_T::new();
-                set_bufref(&raw mut bufref, buf);
+                set_bufref(&mut bufref, buf);
 
                 if check_changed(
                     &mut *buf,
@@ -445,7 +445,7 @@ pub unsafe fn check_changed_any(hidden: bool, unload: bool) -> bool {
                     while !wp.is_null() {
                         if (*wp).w_buffer == buf {
                             let mut bufref: bufref_T = bufref_T::new();
-                            set_bufref(&raw mut bufref, buf);
+                            set_bufref(&mut bufref, buf);
                             goto_tabpage_win(&mut *tp, wp);
                             if !bufref_valid(&raw mut bufref) {
                                 wiped = true;

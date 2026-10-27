@@ -2819,7 +2819,7 @@ const fn fmt_bool(val: bool) -> &'static str {
 }
 
 pub unsafe fn terminfo_info_msg(
-    ti: *const TerminfoEntry,
+    ti: &TerminfoEntry,
     termname: Option<&CStr>,
     from_db: bool,
 ) -> Vec<u8> {
@@ -2838,18 +2838,18 @@ pub unsafe fn terminfo_info_msg(
 
         let header = format!(
             "Boolean capabilities:\n  back_color_erase: {}\n  truecolor ('Tc'): {}\n  RGB: {}\n  extended underline ('Su'): {}\n\nNumeric capabilities: (-1 for unknown)\n  lines: {}\n  columns: {}\n  max_colors: {}\n\nString capabilities:\n",
-            fmt_bool((*ti).back_color_erase),
-            fmt_bool((*ti).Tc),
-            fmt_bool((*ti).RGB),
-            fmt_bool((*ti).Su),
-            (*ti).lines,
-            (*ti).columns,
-            (*ti).max_colors
+            fmt_bool(ti.back_color_erase),
+            fmt_bool(ti.Tc),
+            fmt_bool(ti.RGB),
+            fmt_bool(ti.Su),
+            ti.lines,
+            ti.columns,
+            ti.max_colors
         );
         data.extend_from_slice(header.as_bytes());
 
         for (i, &name) in STRING_NAMES.iter().enumerate() {
-            if let Some(ref s) = (*ti).defs[i] {
+            if let Some(ref s) = ti.defs[i] {
                 let prefix = format!("  {name:<31} = ");
                 data.extend_from_slice(prefix.as_bytes());
                 kv_transstr(&mut data, s.as_ptr(), false);
@@ -2858,11 +2858,11 @@ pub unsafe fn terminfo_info_msg(
         }
 
         for (i, &name) in KEY_NAMES.iter().enumerate() {
-            if let Some(ref s) = (*ti).keys[i][0] {
+            if let Some(ref s) = ti.keys[i][0] {
                 let prefix = format!("  key_{name:<27} = ");
                 data.extend_from_slice(prefix.as_bytes());
                 kv_transstr(&mut data, s.as_ptr(), false);
-                if let Some(ref ss) = (*ti).keys[i][1] {
+                if let Some(ref ss) = ti.keys[i][1] {
                     let sprefix = format!(", key_s{name} = ");
                     data.extend_from_slice(sprefix.as_bytes());
                     kv_transstr(&mut data, ss.as_ptr(), false);
@@ -2872,7 +2872,7 @@ pub unsafe fn terminfo_info_msg(
         }
 
         for (i, &name) in FKEY_NAMES.iter().enumerate() {
-            if let Some(ref s) = (*ti).f_keys[i] {
+            if let Some(ref s) = ti.f_keys[i] {
                 let prefix = format!("  key_{name:<27} = ");
                 data.extend_from_slice(prefix.as_bytes());
                 kv_transstr(&mut data, s.as_ptr(), false);

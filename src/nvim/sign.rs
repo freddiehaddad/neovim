@@ -647,27 +647,27 @@ unsafe fn sign_undefine_by_name(name: *const c_char) -> c_int {
     }
 }
 
-unsafe fn sign_list_defined(sp: *mut sign_T) {
+unsafe fn sign_list_defined(sp: &mut sign_T) {
     unsafe {
-        smsg!(0, c"sign %s".as_ptr(), (*sp).sn_name.as_ptr());
-        if let Some(ref icon) = (*sp).sn_icon {
+        smsg!(0, c"sign %s".as_ptr(), sp.sn_name.as_ptr());
+        if let Some(ref icon) = sp.sn_icon {
             msg_puts(c" icon=".as_ptr());
             msg_outtrans(icon.as_ptr(), 0, false);
             msg_puts(gettext(c" (not supported)".as_ptr()));
         }
-        if (*sp).sn_text[0] != 0 {
+        if sp.sn_text[0] != 0 {
             msg_puts(c" text=".as_ptr());
             let mut buf = [0 as c_char; SIGN_WIDTH * MAX_SCHAR_SIZE];
-            describe_sign_text(buf.as_mut_ptr(), (*sp).sn_text.as_mut_ptr());
+            describe_sign_text(buf.as_mut_ptr(), sp.sn_text.as_mut_ptr());
             msg_outtrans(buf.as_ptr(), 0, false);
         }
-        if (*sp).sn_priority > 0 {
+        if sp.sn_priority > 0 {
             let mut lbuf = [0 as c_char; MSG_BUF_LEN];
             vim_snprintf!(
                 lbuf.as_mut_ptr(),
                 MSG_BUF_LEN,
                 c" priority=%d".as_ptr(),
-                (*sp).sn_priority,
+                sp.sn_priority,
             );
             msg_puts(lbuf.as_ptr());
         }
@@ -678,10 +678,10 @@ unsafe fn sign_list_defined(sp: *mut sign_T) {
             c" numhl=".as_ptr(),
         ];
         let hls = [
-            (*sp).sn_line_hl,
-            (*sp).sn_text_hl,
-            (*sp).sn_cul_hl,
-            (*sp).sn_num_hl,
+            sp.sn_line_hl,
+            sp.sn_text_hl,
+            sp.sn_cul_hl,
+            sp.sn_num_hl,
         ];
         for i in 0..4 {
             if hls[i] > 0 {
@@ -697,7 +697,7 @@ unsafe fn sign_list_by_name(name: *mut c_char) {
     unsafe {
         let sp = pmap_get_sign(name);
         if !sp.is_null() {
-            sign_list_defined(sp);
+            sign_list_defined(&mut *sp);
         } else {
             semsg!(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
         }
@@ -1113,28 +1113,28 @@ pub unsafe fn ex_sign(eap: &mut exarg_T) {
     }
 }
 
-unsafe fn sign_get_info_dict(sp: *mut sign_T) -> *mut dict_T {
+unsafe fn sign_get_info_dict(sp: &mut sign_T) -> *mut dict_T {
     unsafe {
         let d = tv_dict_alloc();
 
-        tv_dict_add_str(d, c"name".as_ptr(), 4, (*sp).sn_name.as_ptr());
+        tv_dict_add_str(d, c"name".as_ptr(), 4, sp.sn_name.as_ptr());
 
-        if let Some(ref icon) = (*sp).sn_icon {
+        if let Some(ref icon) = sp.sn_icon {
             tv_dict_add_str(d, c"icon".as_ptr(), 4, icon.as_ptr());
         }
-        if (*sp).sn_text[0] != 0 {
+        if sp.sn_text[0] != 0 {
             let mut buf = [0 as c_char; SIGN_WIDTH * MAX_SCHAR_SIZE];
-            describe_sign_text(buf.as_mut_ptr(), (*sp).sn_text.as_mut_ptr());
+            describe_sign_text(buf.as_mut_ptr(), sp.sn_text.as_mut_ptr());
             tv_dict_add_str(d, c"text".as_ptr(), 4, buf.as_ptr());
         }
-        if (*sp).sn_priority > 0 {
-            tv_dict_add_nr(d, c"priority".as_ptr(), 8, i64::from((*sp).sn_priority));
+        if sp.sn_priority > 0 {
+            tv_dict_add_nr(d, c"priority".as_ptr(), 8, i64::from(sp.sn_priority));
         }
         let args = [
-            (c"linehl".as_ptr(), 6usize, (*sp).sn_line_hl),
-            (c"texthl".as_ptr(), 6usize, (*sp).sn_text_hl),
-            (c"culhl".as_ptr(), 5usize, (*sp).sn_cul_hl),
-            (c"numhl".as_ptr(), 5usize, (*sp).sn_num_hl),
+            (c"linehl".as_ptr(), 6usize, sp.sn_line_hl),
+            (c"texthl".as_ptr(), 6usize, sp.sn_text_hl),
+            (c"culhl".as_ptr(), 5usize, sp.sn_cul_hl),
+            (c"numhl".as_ptr(), 5usize, sp.sn_num_hl),
         ];
         for (name, len, hl) in args {
             if hl > 0 {
@@ -1517,7 +1517,7 @@ pub unsafe fn f_sign_getdefined(argvars: *mut typval_T, rettv: &mut typval_T, _f
         } else {
             let sp = pmap_get_sign(tv_get_string(argvars));
             if !sp.is_null() {
-                tv_list_append_dict(rettv.vval.v_list(), sign_get_info_dict(sp));
+                tv_list_append_dict(rettv.vval.v_list(), sign_get_info_dict(&mut *sp));
             }
         }
     }

@@ -297,17 +297,17 @@ unsafe fn ctx_positions(ctx: *mut Context, flags: CtxStateFlags) -> [*mut pos_T;
     }
 }
 
-pub unsafe fn ctx_free(ctx: *mut Context) {
+pub unsafe fn ctx_free(ctx: &mut Context) {
     unsafe {
-        let buf = handle_get_buffer((*ctx).buf);
+        let buf = handle_get_buffer(ctx.buf);
         if !buf.is_null() {
-            for i in 0..(*ctx).pos_marks.len() {
-                if (*ctx).pos_marks[i] != 0 {
-                    extmark_del_id(buf, ctx_marks_ns(), (*ctx).pos_marks[i]);
+            for i in 0..ctx.pos_marks.len() {
+                if ctx.pos_marks[i] != 0 {
+                    extmark_del_id(buf, ctx_marks_ns(), ctx.pos_marks[i]);
                 }
             }
         }
-        api_free_array((*ctx).funcs);
+        api_free_array(ctx.funcs);
         *ctx = CONTEXT_INIT;
     }
 }
@@ -412,37 +412,37 @@ pub unsafe fn ctx_save(ctx: *mut Context, flags: CtxStateFlags) {
     }
 }
 
-pub unsafe fn ctx_load(ctx: *mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags) {
+pub unsafe fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags) {
     unsafe {
         if (flags & kCtxCursor) != 0 {
-            assert!(handle_get_buffer((*ctx).buf) == g_st().curbuf);
-            (**curwin.as_ptr()).w_cursor = (*ctx).pos;
-            if (*ctx).curswant >= 0 {
-                (**curwin.as_ptr()).w_curswant = (*ctx).curswant;
+            assert!(handle_get_buffer(ctx.buf) == g_st().curbuf);
+            (**curwin.as_ptr()).w_cursor = ctx.pos;
+            if ctx.curswant >= 0 {
+                (**curwin.as_ptr()).w_curswant = ctx.curswant;
                 (**curwin.as_ptr()).w_set_curswant = false;
             } else {
                 (**curwin.as_ptr()).w_set_curswant = true;
             }
         }
 
-        let buf = handle_get_buffer((*ctx).buf);
+        let buf = handle_get_buffer(ctx.buf);
         if (flags & (kCtxVisual | kCtxMarks)) != 0 && !buf.is_null() {
-            let pos = ctx_positions(ctx, flags);
+            let pos = ctx_positions(&raw mut *ctx, flags);
             for (i, &pos_ptr) in pos.iter().enumerate() {
-                if pos_ptr.is_null() || (*ctx).pos_marks[i] == 0 {
+                if pos_ptr.is_null() || ctx.pos_marks[i] == 0 {
                     continue;
                 }
-                extmark_get_pos(buf, ctx_marks_ns(), (*ctx).pos_marks[i], &mut *pos_ptr);
+                extmark_get_pos(buf, ctx_marks_ns(), ctx.pos_marks[i], &mut *pos_ptr);
             }
             if (flags & kCtxVisual) != 0 {
-                (*buf).b_visual = (*ctx).visual;
-                (*buf).b_visual_mode_eval = (*ctx).visual_mode_eval;
+                (*buf).b_visual = ctx.visual;
+                (*buf).b_visual_mode_eval = ctx.visual_mode_eval;
             }
             if (flags & kCtxMarks) != 0 {
-                (*buf).b_op_start = (*ctx).op_start;
-                (*buf).b_op_end = (*ctx).op_end;
-                (*buf).b_last_change = (*ctx).last_change.clone();
-                (*buf).b_last_insert = (*ctx).last_insert.clone();
+                (*buf).b_op_start = ctx.op_start;
+                (*buf).b_op_end = ctx.op_end;
+                (*buf).b_last_change = ctx.last_change.clone();
+                (*buf).b_last_insert = ctx.last_insert.clone();
             }
         }
 
@@ -453,35 +453,35 @@ pub unsafe fn ctx_load(ctx: *mut Context, flags: CtxStateFlags, loadflags: CtxLo
                 }
             }
             shada_read_string(
-                &(*ctx).regs,
+                &ctx.regs,
                 kShaDaWantInfo | kShaDaForceit | kShaDaNanos | kShaDaNoHistory,
             );
         }
 
         if (flags & kCtxJumps) != 0 {
             shada_read_string(
-                &(*ctx).jumps,
+                &ctx.jumps,
                 kShaDaWantInfo | kShaDaForceit | kShaDaNoHistory,
             );
         }
 
         if (flags & kCtxBufs) != 0 {
             shada_read_string(
-                &(*ctx).bufs,
+                &ctx.bufs,
                 kShaDaWantInfo | kShaDaForceit | kShaDaNoHistory | kShaDaNoOpt,
             );
         }
 
         if (flags & kCtxGVars) != 0 {
             shada_read_string(
-                &(*ctx).gvars,
+                &ctx.gvars,
                 kShaDaWantInfo | kShaDaForceit | kShaDaNoHistory | kShaDaNoOpt,
             );
         }
 
         if (flags & kCtxFuncs) != 0 {
-            for i in 0..(*ctx).funcs.size {
-                do_cmdline_cmd((*(*ctx).funcs.items.add(i)).data.string().data);
+            for i in 0..ctx.funcs.size {
+                do_cmdline_cmd((*ctx.funcs.items.add(i)).data.string().data);
             }
         }
     }
@@ -908,7 +908,7 @@ pub unsafe fn ctx_switch(
         *curwin.as_ptr() = wp;
         g_st().curbuf = (**curwin.as_ptr()).w_buffer;
         (*cs).cs_new_curwin = (**curwin.as_ptr()).handle;
-        set_bufref(&raw mut (*cs).cs_new_curbuf, g_st().curbuf.cast());
+        set_bufref(&mut (*cs).cs_new_curbuf, g_st().curbuf.cast());
 
         if (*cs).cs_mode == kCtxSwitchBuf && (*cs).cs_new_curwin != (*cs).cs_curwin {
             if ctx_st().CTX_SWITCH_DEPTH == 0 {

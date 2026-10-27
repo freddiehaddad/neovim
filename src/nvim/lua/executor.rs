@@ -959,13 +959,13 @@ unsafe extern "C-unwind" fn nlua_check_interrupt(lstate: *mut lua_State) -> c_in
 
 pub unsafe fn nlua_ex_getline(
     _c: c_int,
-    ecd: *mut ExDocmdCookie,
+    ecd: &mut ExDocmdCookie,
     _indent: c_int,
     _do_concat: bool,
 ) -> Option<std::ffi::CString> {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
-        nlua_pushref(lstate, (*ecd).getline);
+        nlua_pushref(lstate, ecd.getline);
         if nlua_pcall(lstate, 0, 1) != 0 {
             nlua_error(
                 lstate,
@@ -979,7 +979,7 @@ pub unsafe fn nlua_ex_getline(
         }
         let line = crate::memory::cstr_to_cstring(lua_tostring(lstate, -1));
         lua_pop(lstate, 1);
-        (*ecd).got_line = true;
+        ecd.got_line = true;
         Some(line)
     }
 }
@@ -1087,7 +1087,7 @@ unsafe fn nlua_common_vim_init(lstate: *mut lua_State, is_thread: bool) {
         lua_pushcfunction(lstate, Some(nlua_nil_index));
         lua_setfield(lstate, -2, c"__newindex".as_ptr());
         lua_setmetatable(lstate, -2);
-        (*ref_state).nil_ref = nlua_ref(lstate, ref_state, -1);
+        (*ref_state).nil_ref = nlua_ref(lstate, &mut *ref_state, -1);
         lua_pushvalue(lstate, -1);
         lua_setfield(lstate, LUA_REGISTRYINDEX, c"mpack.NIL".as_ptr());
         lua_setfield(lstate, -2, c"NIL".as_ptr());
@@ -1095,7 +1095,7 @@ unsafe fn nlua_common_vim_init(lstate: *mut lua_State, is_thread: bool) {
         lua_createtable(lstate, 0, 0);
         lua_pushcfunction(lstate, Some(nlua_empty_dict_tostring));
         lua_setfield(lstate, -2, c"__tostring".as_ptr());
-        (*ref_state).empty_dict_ref = nlua_ref(lstate, ref_state, -1);
+        (*ref_state).empty_dict_ref = nlua_ref(lstate, &mut *ref_state, -1);
         lua_pushvalue(lstate, -1);
         lua_setfield(lstate, LUA_REGISTRYINDEX, c"mpack.empty_dict".as_ptr());
         lua_setfield(lstate, -2, c"_empty_dict_mt".as_ptr());
@@ -1409,8 +1409,8 @@ pub unsafe fn nlua_free_all_mem() {
 unsafe extern "C-unwind" fn nlua_common_free_all_mem(lstate: *mut lua_State) {
     unsafe {
         let ref_state = nlua_get_ref_state(lstate);
-        nlua_unref(lstate, ref_state, (*ref_state).nil_ref);
-        nlua_unref(lstate, ref_state, (*ref_state).empty_dict_ref);
+        nlua_unref(lstate, &mut *ref_state, (*ref_state).nil_ref);
+        nlua_unref(lstate, &mut *ref_state, (*ref_state).empty_dict_ref);
         lua_close(lstate);
     }
 }
@@ -1421,7 +1421,7 @@ pub unsafe fn nlua_print_event(text: NvimString) {
         let raw =
             msg_use_printf() != 0
                 && redirecting() == 0
-                && crate::eval::typval::Callback::raw_cb_type(&raw const g_st().on_print) == kCallbackNone;
+                && crate::eval::typval::Callback::raw_cb_type(&g_st().on_print) == kCallbackNone;
 
         let mut msg: HlMessage = vec![HlMessageChunk { text, hl_id: 0 }];
         let mut needs_clear = false;
@@ -1714,9 +1714,9 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
                 &raw mut rettv,
                 nargs,
                 vim_args.as_mut_ptr(),
-                &raw mut funcexe,
+                &mut funcexe,
             );
-            try_leave(&raw const tstate, &mut err);
+            try_leave(&tstate, &mut err);
             g_st().current_sctx = save_current_sctx;
 
             if !error_set(&err) {
@@ -1841,27 +1841,27 @@ unsafe extern "C-unwind" fn nlua_getenv(lstate: *mut lua_State) -> c_int {
 
 pub unsafe fn nlua_ref(
     lstate: *mut lua_State,
-    ref_state: *mut nlua_ref_state_t,
+    ref_state: &mut nlua_ref_state_t,
     index: c_int,
 ) -> LuaRef {
     unsafe {
         lua_pushvalue(lstate, index);
         let ref_ = luaL_ref(lstate, LUA_REGISTRYINDEX);
         if ref_ > 0 {
-            (*ref_state).ref_count += 1;
+            ref_state.ref_count += 1;
         }
         ref_
     }
 }
 
 pub unsafe fn nlua_ref_global(lstate: *mut lua_State, index: c_int) -> LuaRef {
-    unsafe { nlua_ref(lstate, g_st().nlua_global_refs, index) }
+    unsafe { nlua_ref(lstate, &mut *g_st().nlua_global_refs, index) }
 }
 
-pub unsafe fn nlua_unref(lstate: *mut lua_State, ref_state: *mut nlua_ref_state_t, ref_: LuaRef) {
+pub unsafe fn nlua_unref(lstate: *mut lua_State, ref_state: &mut nlua_ref_state_t, ref_: LuaRef) {
     unsafe {
         if ref_ > 0 {
-            (*ref_state).ref_count -= 1;
+            ref_state.ref_count -= 1;
             luaL_unref(lstate, LUA_REGISTRYINDEX, ref_);
         }
     }
@@ -1869,7 +1869,7 @@ pub unsafe fn nlua_unref(lstate: *mut lua_State, ref_state: *mut nlua_ref_state_
 
 pub unsafe fn nlua_unref_global(lstate: *mut lua_State, ref_: LuaRef) {
     unsafe {
-        nlua_unref(lstate, g_st().nlua_global_refs, ref_);
+        nlua_unref(lstate, &mut *g_st().nlua_global_refs, ref_);
     }
 }
 
@@ -2234,7 +2234,7 @@ pub unsafe fn nlua_call_ref_ctx(
         if fast {
             if nlua_fast_cfpcall(lstate, nargs, mode_ret(mode), -1) < 0 {
                 api_set_error!(
-                    err,
+                    &mut *err,
                     ErrorType::kErrorTypeException,
                     c"fast context failure".as_ptr(),
                 );
@@ -2701,13 +2701,13 @@ pub unsafe fn nlua_exec_on_key(c: c_int, typed_buf: *mut c_char) -> bool {
     }
 }
 
-pub unsafe fn nlua_set_sctx(current: *mut sctx_T) {
+pub unsafe fn nlua_set_sctx(current: &mut sctx_T) {
     unsafe {
-        if !script_is_lua((*current).sc_sid) {
+        if !script_is_lua(current.sc_sid) {
             return;
         }
 
-        (*current).sc_lnum = 0;
+        current.sc_lnum = 0;
 
         if opt_vars().p_verbose <= 0 {
             return;
@@ -2737,55 +2737,55 @@ pub unsafe fn nlua_set_sctx(current: *mut sctx_T) {
                 let si: *mut scriptitem_T = new_script_item(Some(source_path), &raw mut sid);
                 (*si).sn_lua = true;
             }
-            (*current).sc_sid = sid;
-            (*current).sc_seq = -1;
-            (*current).sc_lnum = info.currentline;
+            current.sc_sid = sid;
+            current.sc_seq = -1;
+            current.sc_lnum = info.currentline;
         }
     }
 }
 
-pub unsafe fn nlua_do_ucmd(cmd: *mut ucmd_T, eap: &mut exarg_T, preview: bool) -> c_int {
+pub unsafe fn nlua_do_ucmd(cmd: &mut ucmd_T, eap: &mut exarg_T, preview: bool) -> c_int {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
         nlua_pushref(
             lstate,
             if preview {
-                (*cmd).uc_preview_luaref
+                cmd.uc_preview_luaref
             } else {
-                (*cmd).uc_luaref
+                cmd.uc_luaref
             },
         );
 
         lua_newtable(lstate);
         nlua_push_eap(lstate, &raw mut *eap, &g_st().cmdmod);
 
-        lua_pushstring(lstate, (*cmd).uc_name.as_ptr());
+        lua_pushstring(lstate, cmd.uc_name.as_ptr());
         lua_setfield(lstate, -2, c"name".as_ptr());
 
         if eap.addr_count == 0 {
-            lua_pushinteger(lstate, (*cmd).uc_def as lua_Integer);
+            lua_pushinteger(lstate, cmd.uc_def as lua_Integer);
             lua_setfield(lstate, -2, c"count".as_ptr());
         }
 
-        if ((*cmd).uc_argt & EX_NOSPC) != 0 {
+        if (cmd.uc_argt & EX_NOSPC) != 0 {
             lua_createtable(lstate, 1, 0);
-            if ((*cmd).uc_argt & EX_NEEDARG) != 0 || *eap.arg != NUL {
+            if (cmd.uc_argt & EX_NEEDARG) != 0 || *eap.arg != NUL {
                 lua_pushstring(lstate, eap.arg);
                 lua_rawseti(lstate, -2, 1);
             }
             lua_setfield(lstate, -2, c"fargs".as_ptr());
         }
 
-        let narg_ch = if ((*cmd).uc_argt & EX_EXTRA) != 0 {
-            if ((*cmd).uc_argt & EX_NOSPC) != 0 {
-                if ((*cmd).uc_argt & EX_ARGSPACE) != 0 {
+        let narg_ch = if (cmd.uc_argt & EX_EXTRA) != 0 {
+            if (cmd.uc_argt & EX_NOSPC) != 0 {
+                if (cmd.uc_argt & EX_ARGSPACE) != 0 {
                     b'_'
-                } else if ((*cmd).uc_argt & EX_NEEDARG) != 0 {
+                } else if (cmd.uc_argt & EX_NEEDARG) != 0 {
                     b'1'
                 } else {
                     b'?'
                 }
-            } else if ((*cmd).uc_argt & EX_NEEDARG) != 0 {
+            } else if (cmd.uc_argt & EX_NEEDARG) != 0 {
                 b'+'
             } else {
                 b'*'

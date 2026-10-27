@@ -400,14 +400,14 @@ pub unsafe fn ex_menu(eap: &mut exarg_T) {
             menuarg.modes = modes;
             menuarg.noremap[0] = noremap;
             menuarg.silent[0] = silent;
-            add_menu_path(menu_path, &raw mut menuarg, pri_tab.as_ptr(), map_to);
+            add_menu_path(menu_path, &mut menuarg, pri_tab.as_ptr(), map_to);
 
             if menu_is_popup(menu_path) {
                 for idx in 0..MENU_INDEX_TIP {
                     if (modes & (1 << idx)) != 0 {
                         let p = popup_mode_name(menu_path, idx as usize);
                         menuarg.modes = modes;
-                        add_menu_path(p.as_ptr(), &raw mut menuarg, pri_tab.as_ptr(), map_to);
+                        add_menu_path(p.as_ptr(), &mut menuarg, pri_tab.as_ptr(), map_to);
                     }
                 }
             }
@@ -422,12 +422,12 @@ pub unsafe fn ex_menu(eap: &mut exarg_T) {
 /// Add the menu with the given name to the menu hierarchy (`add_menu_path`).
 unsafe fn add_menu_path(
     menu_path: *const c_char,
-    menuarg: *mut vimmenu_T,
+    menuarg: &mut vimmenu_T,
     pri_tab: *const c_int,
     call_data: *const c_char,
 ) -> c_int {
     unsafe {
-        let mut modes = (*menuarg).modes;
+        let mut modes = menuarg.modes;
         let mut menu: *mut vimmenu_T = ptr::null_mut();
         let mut pri_idx: usize = 0;
         let mut old_modes: c_int = 0;
@@ -595,8 +595,8 @@ unsafe fn add_menu_path(
                     } else {
                         (*menu).strings[i] = p.clone();
                     }
-                    (*menu).noremap[i] = (*menuarg).noremap[0];
-                    (*menu).silent[i] = (*menuarg).silent[0];
+                    (*menu).noremap[i] = menuarg.noremap[0];
+                    (*menu).silent[i] = menuarg.silent[0];
                 }
             }
         }
@@ -666,7 +666,7 @@ unsafe fn remove_menu(
         let mut found_menu = false;
         while idx < menup.len() {
             let menu: *mut vimmenu_T = &raw mut menup[idx];
-            if *name == NUL || menu_name_equal(name, menu) {
+            if *name == NUL || menu_name_equal(name, &*menu) {
                 if *p != NUL && (*menu).children.is_empty() {
                     if !silent {
                         emsg(gettext(E_NOTSUBMENU.as_ptr()));
@@ -1266,9 +1266,9 @@ unsafe fn menu_name_skip(name: *mut c_char) -> *mut c_char {
 }
 
 /// Return true when `name` matches with menu `menu` (`menu_name_equal`).
-unsafe fn menu_name_equal(name: *const c_char, menu: *const vimmenu_T) -> bool {
+unsafe fn menu_name_equal(name: *const c_char, menu: &vimmenu_T) -> bool {
     unsafe {
-        if let Some(ref en_name) = (*menu).en_name
+        if let Some(ref en_name) = menu.en_name
             && (menu_namecmp(name, en_name.as_ptr())
                 || (*menu)
                     .en_dname
@@ -1277,7 +1277,7 @@ unsafe fn menu_name_equal(name: *const c_char, menu: *const vimmenu_T) -> bool {
         {
             return true;
         }
-        menu_namecmp(name, (*menu).name.as_ptr()) || menu_namecmp(name, (*menu).dname.as_ptr())
+        menu_namecmp(name, menu.name.as_ptr()) || menu_namecmp(name, menu.dname.as_ptr())
     }
 }
 
@@ -1557,12 +1557,12 @@ pub unsafe fn show_popupmenu() {
             return;
         }
 
-        pum_show_popupmenu(menu);
+        pum_show_popupmenu(&mut *menu);
     }
 }
 
 /// Execute `menu` (`execute_menu`).
-pub unsafe fn execute_menu(eap: *const exarg_T, menu: *mut vimmenu_T, mode_idx: c_int) {
+pub unsafe fn execute_menu(eap: *const exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
     unsafe {
         let mut idx = mode_idx;
 
@@ -1617,24 +1617,24 @@ pub unsafe fn execute_menu(eap: *const exarg_T, menu: *mut vimmenu_T, mode_idx: 
         }
 
         let u_idx = idx as usize;
-        if let Some(ref cmd_str) = (*menu).strings[u_idx]
-            && ((*menu).modes & (1 << idx)) != 0
+        if let Some(ref cmd_str) = menu.strings[u_idx]
+            && (menu.modes & (1 << idx)) != 0
         {
             let cmd_ptr = cmd_str.as_ptr().cast_mut();
             if eap.is_null() || g_st().current_sctx.sc_sid != 0 {
                 let mut save_state = save_state_T::new();
                 g_st().ex_normal_busy += 1;
-                save_current_state(&raw mut save_state);
-                exec_normal_cmd(cmd_ptr, (*menu).noremap[u_idx], (*menu).silent[u_idx]);
-                restore_current_state(&raw mut save_state);
+                save_current_state(&mut save_state);
+                exec_normal_cmd(cmd_ptr, menu.noremap[u_idx], menu.silent[u_idx]);
+                restore_current_state(&mut save_state);
                 g_st().ex_normal_busy -= 1;
             } else {
                 ins_typebuf(
                     cmd_ptr,
-                    (*menu).noremap[u_idx],
+                    menu.noremap[u_idx],
                     0,
                     true,
-                    (*menu).silent[u_idx],
+                    menu.silent[u_idx],
                 );
             }
         } else if !eap.is_null() {
@@ -1733,7 +1733,7 @@ pub unsafe fn ex_emenu(eap: &mut exarg_T) {
             return;
         }
 
-        execute_menu(eap, menu, mode_idx);
+        execute_menu(eap, &mut *menu, mode_idx);
     }
 }
 
@@ -1910,29 +1910,29 @@ unsafe fn menu_translate_tab_and_shift(arg_start: *mut c_char) -> *mut c_char {
 }
 
 /// Get the information about a menu item in mode `modes` (`menuitem_getinfo`).
-unsafe fn menuitem_getinfo(menu: *const vimmenu_T, modes: c_int, dict: *mut dict_T) {
+unsafe fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: *mut dict_T) {
     unsafe {
-        tv_dict_add_str(dict, c"name".as_ptr(), 4, (*menu).name.as_ptr());
-        tv_dict_add_str(dict, c"display".as_ptr(), 7, (*menu).dname.as_ptr());
-        if let Some(ref actext) = (*menu).actext {
+        tv_dict_add_str(dict, c"name".as_ptr(), 4, menu.name.as_ptr());
+        tv_dict_add_str(dict, c"display".as_ptr(), 7, menu.dname.as_ptr());
+        if let Some(ref actext) = menu.actext {
             tv_dict_add_str(dict, c"accel".as_ptr(), 5, actext.as_ptr());
         }
-        tv_dict_add_nr(dict, c"priority".as_ptr(), 8, i64::from((*menu).priority));
-        tv_dict_add_str(dict, c"modes".as_ptr(), 5, get_menu_mode_str((*menu).modes));
+        tv_dict_add_nr(dict, c"priority".as_ptr(), 8, i64::from(menu.priority));
+        tv_dict_add_str(dict, c"modes".as_ptr(), 5, get_menu_mode_str(menu.modes));
 
         let mut buf = [0 as c_char; NUMBUFLEN];
-        let buflen = utf_char2bytes((*menu).mnemonic, buf.as_mut_ptr());
+        let buflen = utf_char2bytes(menu.mnemonic, buf.as_mut_ptr());
         buf[buflen as usize] = NUL;
         tv_dict_add_str_len(dict, c"shortcut".as_ptr(), 8, buf.as_ptr(), buflen);
 
-        if (*menu).children.is_empty() {
+        if menu.children.is_empty() {
             let mut bit = 0usize;
             while bit < MENU_MODES && ((1 << bit) & modes) == 0 {
                 bit += 1;
             }
 
             if bit < MENU_MODES {
-                if let Some(ref s) = (*menu).strings[bit] {
+                if let Some(ref s) = menu.strings[bit] {
                     if s.as_bytes().is_empty() {
                         tv_dict_add_str(dict, c"rhs".as_ptr(), 3, c"<Nop>".as_ptr());
                     } else {
@@ -1948,7 +1948,7 @@ unsafe fn menuitem_getinfo(menu: *const vimmenu_T, modes: c_int, dict: *mut dict
                     dict,
                     c"noremenu".as_ptr(),
                     8,
-                    if (*menu).noremap[bit] == REMAP_NONE {
+                    if menu.noremap[bit] == REMAP_NONE {
                         kBoolVarTrue
                     } else {
                         kBoolVarFalse
@@ -1958,7 +1958,7 @@ unsafe fn menuitem_getinfo(menu: *const vimmenu_T, modes: c_int, dict: *mut dict
                     dict,
                     c"script".as_ptr(),
                     6,
-                    if (*menu).noremap[bit] == REMAP_SCRIPT {
+                    if menu.noremap[bit] == REMAP_SCRIPT {
                         kBoolVarTrue
                     } else {
                         kBoolVarFalse
@@ -1968,7 +1968,7 @@ unsafe fn menuitem_getinfo(menu: *const vimmenu_T, modes: c_int, dict: *mut dict
                     dict,
                     c"silent".as_ptr(),
                     6,
-                    if (*menu).silent[bit] {
+                    if menu.silent[bit] {
                         kBoolVarTrue
                     } else {
                         kBoolVarFalse
@@ -1978,7 +1978,7 @@ unsafe fn menuitem_getinfo(menu: *const vimmenu_T, modes: c_int, dict: *mut dict
                     dict,
                     c"enabled".as_ptr(),
                     7,
-                    if ((*menu).enabled & (1 << bit)) != 0 {
+                    if (menu.enabled & (1 << bit)) != 0 {
                         kBoolVarTrue
                     } else {
                         kBoolVarFalse
@@ -1988,7 +1988,7 @@ unsafe fn menuitem_getinfo(menu: *const vimmenu_T, modes: c_int, dict: *mut dict
         } else {
             let l = tv_list_alloc(kListLenMayKnow);
             tv_dict_add_list(dict, c"submenus".as_ptr(), 8, l);
-            for child in &(*menu).children {
+            for child in &menu.children {
                 tv_list_append_string(l, child.dname.as_ptr(), -1);
             }
         }
@@ -2073,7 +2073,7 @@ pub unsafe fn f_menu_info(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
         }
 
         if ((*found).modes & modes) != 0 {
-            menuitem_getinfo(found, modes, retdict);
+            menuitem_getinfo(&*found, modes, retdict);
         }
     }
 }

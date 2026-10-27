@@ -1193,7 +1193,7 @@ pub unsafe fn change_indent(type_: c_int, amount: c_int, round: c_int, call_chan
             vcol = 0;
             if *line != NUL {
                 let mut csarg = CharsizeArg::new();
-                let cstype: CSType = init_charsize_arg(&raw mut csarg, *curwin.as_ptr(), 0, line);
+                let cstype: CSType = init_charsize_arg(&mut csarg, *curwin.as_ptr(), 0, line);
                 let mut ci: StrCharInfo = utf_ptr2StrCharInfo(line);
                 loop {
                     let cli: ClusterInfo = utf_ClusterInfo(ci);
@@ -1740,7 +1740,7 @@ pub unsafe fn get_lisp_indent() -> c_int {
 
                 let line = get_cursor_line_ptr();
                 let mut csarg = CharsizeArg::new();
-                let cstype: CSType = init_charsize_arg(&raw mut csarg, *curwin.as_ptr(), (*pos).lnum, line);
+                let cstype: CSType = init_charsize_arg(&mut csarg, *curwin.as_ptr(), (*pos).lnum, line);
 
                 let mut sci: StrCharInfo = utf_ptr2StrCharInfo(line);
                 amount = 0;

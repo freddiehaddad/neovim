@@ -2182,46 +2182,46 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<bt_reg
     }
 }
 
-unsafe fn reg_save(save: *mut regsave_T) {
+unsafe fn reg_save(save: &mut regsave_T) {
     unsafe {
         let bp = &raw const re_st().backpos;
         let len = (*bp).len() as c_int;
         if REG_MULTI() {
-            (*save).rs_u = crate::regexp::RegPos::Pos(lpos_T {
+            save.rs_u = crate::regexp::RegPos::Pos(lpos_T {
                 col: re_st().rex.input.offset_from(re_st().rex.line) as colnr_T,
                 lnum: re_st().rex.lnum,
             });
         } else {
-            (*save).rs_u = crate::regexp::RegPos::Ptr(re_st().rex.input);
+            save.rs_u = crate::regexp::RegPos::Ptr(re_st().rex.input);
         }
-        (*save).rs_len = len;
+        save.rs_len = len;
     }
 }
 
-unsafe fn reg_restore(save: *mut regsave_T) {
+unsafe fn reg_restore(save: &mut regsave_T) {
     unsafe {
         if REG_MULTI() {
-            let pos = (*save).rs_u.pos();
+            let pos = save.rs_u.pos();
             if re_st().rex.lnum != pos.lnum {
                 re_st().rex.lnum = pos.lnum;
                 re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
             }
             re_st().rex.input = re_st().rex.line.add(pos.col as usize);
         } else {
-            re_st().rex.input = (*save).rs_u.ptr();
+            re_st().rex.input = save.rs_u.ptr();
         }
         let bp = &raw mut re_st().backpos;
-        (*bp).truncate((*save).rs_len as usize);
+        (*bp).truncate(save.rs_len as usize);
     }
 }
 
-unsafe fn reg_save_equal(save: *const regsave_T) -> bool {
+unsafe fn reg_save_equal(save: &regsave_T) -> bool {
     unsafe {
         if REG_MULTI() {
-            let pos = (*save).rs_u.pos();
+            let pos = save.rs_u.pos();
             re_st().rex.lnum == pos.lnum && re_st().rex.input == re_st().rex.line.add(pos.col as usize)
         } else {
-            re_st().rex.input == (*save).rs_u.ptr()
+            re_st().rex.input == save.rs_u.ptr()
         }
     }
 }
@@ -2614,37 +2614,37 @@ unsafe fn regstack_pop(scan: *mut *mut u8) {
     }
 }
 
-unsafe fn save_subexpr(bp: *mut regbehind_T) {
+unsafe fn save_subexpr(bp: &mut regbehind_T) {
     unsafe {
-        (*bp).save_need_clear_subexpr = re_st().rex.need_clear_subexpr;
+        bp.save_need_clear_subexpr = re_st().rex.need_clear_subexpr;
         if re_st().rex.need_clear_subexpr != 0 {
             return;
         }
         for i in 0..NSUBEXP {
             if REG_MULTI() {
-                (*bp).save_start[i].se_u = crate::regexp::RegPos::Pos(*re_st().rex.reg_startpos.add(i));
-                (*bp).save_end[i].se_u = crate::regexp::RegPos::Pos(*re_st().rex.reg_endpos.add(i));
+                bp.save_start[i].se_u = crate::regexp::RegPos::Pos(*re_st().rex.reg_startpos.add(i));
+                bp.save_end[i].se_u = crate::regexp::RegPos::Pos(*re_st().rex.reg_endpos.add(i));
             } else {
-                (*bp).save_start[i].se_u = crate::regexp::RegPos::Ptr(*re_st().rex.reg_startp.add(i));
-                (*bp).save_end[i].se_u = crate::regexp::RegPos::Ptr(*re_st().rex.reg_endp.add(i));
+                bp.save_start[i].se_u = crate::regexp::RegPos::Ptr(*re_st().rex.reg_startp.add(i));
+                bp.save_end[i].se_u = crate::regexp::RegPos::Ptr(*re_st().rex.reg_endp.add(i));
             }
         }
     }
 }
 
-unsafe fn restore_subexpr(bp: *mut regbehind_T) {
+unsafe fn restore_subexpr(bp: &mut regbehind_T) {
     unsafe {
-        re_st().rex.need_clear_subexpr = (*bp).save_need_clear_subexpr;
+        re_st().rex.need_clear_subexpr = bp.save_need_clear_subexpr;
         if re_st().rex.need_clear_subexpr != 0 {
             return;
         }
         for i in 0..NSUBEXP {
             if REG_MULTI() {
-                *re_st().rex.reg_startpos.add(i) = (*bp).save_start[i].se_u.pos();
-                *re_st().rex.reg_endpos.add(i) = (*bp).save_end[i].se_u.pos();
+                *re_st().rex.reg_startpos.add(i) = bp.save_start[i].se_u.pos();
+                *re_st().rex.reg_endpos.add(i) = bp.save_end[i].se_u.pos();
             } else {
-                *re_st().rex.reg_startp.add(i) = (*bp).save_start[i].se_u.ptr();
-                *re_st().rex.reg_endp.add(i) = (*bp).save_end[i].se_u.ptr();
+                *re_st().rex.reg_startp.add(i) = bp.save_start[i].se_u.ptr();
+                *re_st().rex.reg_endp.add(i) = bp.save_end[i].se_u.ptr();
             }
         }
     }
@@ -3138,7 +3138,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                             let idx = if let Some(pos) =
                                 (*bp).iter().position(|item| item.bp_scan == scan)
                             {
-                                if reg_save_equal(&raw const (*bp).as_slice()[pos].bp_pos) {
+                                if reg_save_equal(&(*bp).as_slice()[pos].bp_pos) {
                                     status = RA_NOMATCH;
                                 }
                                 pos
@@ -3152,7 +3152,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                             };
                             if status != RA_NOMATCH {
                                 let pos_ptr = &raw mut (*bp).as_mut_slice()[idx].bp_pos;
-                                reg_save(pos_ptr);
+                                reg_save(&mut *pos_ptr);
                             }
                         }
                         x if (MOPEN..=MOPEN + 9).contains(&x) => {
@@ -3445,7 +3445,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                                 if rp.is_null() {
                                     status = RA_FAIL;
                                 } else {
-                                    save_subexpr(rp.cast::<regbehind_T>().sub(1));
+                                    save_subexpr(&mut *rp.cast::<regbehind_T>().sub(1));
                                     (*rp).rs_no = op as i16;
                                     reg_save((*rp).rs_un.regsave_mut());
                                 }
@@ -3639,7 +3639,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                             (*rs).truncate((*rs).len() - size_of::<regbehind_T>() / 8);
                         } else {
                             let bp = rp.cast::<regbehind_T>().sub(1);
-                            reg_save(&raw mut (*bp).save_after);
+                            reg_save(&mut (*bp).save_after);
                             (*bp).save_behind = re_st().behind_pos;
                             re_st().behind_pos = *(*rp).rs_un.regsave();
                             (*rp).rs_state = RS_BEHIND2;
@@ -3649,13 +3649,13 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                     }
                     RS_BEHIND2 => {
                         let bp = rp.cast::<regbehind_T>().sub(1);
-                        if status == RA_MATCH && reg_save_equal(&raw const re_st().behind_pos) {
+                        if status == RA_MATCH && reg_save_equal(&re_st().behind_pos) {
                             re_st().behind_pos = (*bp).save_behind;
                             if (*rp).rs_no == BEHIND as i16 {
-                                reg_restore(&raw mut (*bp).save_after);
+                                reg_restore(&mut (*bp).save_after);
                             } else {
                                 status = RA_NOMATCH;
-                                restore_subexpr(bp);
+                                restore_subexpr(&mut *bp);
                             }
                             regstack_pop(&raw mut scan);
                             (*rs).truncate((*rs).len() - size_of::<regbehind_T>() / 8);
@@ -3709,16 +3709,16 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                                 scan = OPERAND((*rp).rs_scan).add(4);
                                 if status == RA_MATCH {
                                     status = RA_NOMATCH;
-                                    restore_subexpr(bp);
+                                    restore_subexpr(&mut *bp);
                                 }
                             } else {
                                 re_st().behind_pos = (*bp).save_behind;
                                 if (*rp).rs_no == NOBEHIND as i16 {
-                                    reg_restore(&raw mut (*bp).save_after);
+                                    reg_restore(&mut (*bp).save_after);
                                     status = RA_MATCH;
                                 } else if status == RA_MATCH {
                                     status = RA_NOMATCH;
-                                    restore_subexpr(bp);
+                                    restore_subexpr(&mut *bp);
                                 }
                                 regstack_pop(&raw mut scan);
                                 (*rs).truncate((*rs).len() - size_of::<regbehind_T>() / 8);
@@ -3817,7 +3817,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
 }
 
 unsafe fn regtry(
-    prog: *mut bt_regprog_T,
+    prog: &mut bt_regprog_T,
     col: colnr_T,
     tm: Option<proftime_T>,
     timed_out: *mut c_int,
@@ -3825,9 +3825,9 @@ unsafe fn regtry(
     unsafe {
         re_st().rex.input = re_st().rex.line.add(col as usize);
         re_st().rex.need_clear_subexpr = 1;
-        re_st().rex.need_clear_zsubexpr = c_int::from((*prog).reghasz == REX_SET as u8);
+        re_st().rex.need_clear_zsubexpr = c_int::from(prog.reghasz == REX_SET as u8);
 
-        if !regmatch((*prog).program.as_mut_ptr().add(1), tm, timed_out) {
+        if !regmatch(prog.program.as_mut_ptr().add(1), tm, timed_out) {
             return 0;
         }
 
@@ -3854,7 +3854,7 @@ unsafe fn regtry(
 
         g_st().re_extmatch_out = None;
 
-        if (*prog).reghasz == REX_SET as u8 {
+        if prog.reghasz == REX_SET as u8 {
             cleanup_zsubexpr();
             let mut extmatch = reg_extmatch_T::default();
             for i in 0..NSUBEXP {
@@ -3986,7 +3986,7 @@ unsafe fn bt_regexec_both(
                             && (*prog).regstart < 255
                             && mb_tolower((*prog).regstart) == mb_tolower(c))))
             {
-                retval = regtry(prog, col, tm, timed_out);
+                retval = regtry(&mut *prog, col, tm, timed_out);
             } else {
                 retval = 0;
             }
@@ -4007,7 +4007,7 @@ unsafe fn bt_regexec_both(
                     break;
                 }
 
-                retval = regtry(prog, col, tm, timed_out);
+                retval = regtry(&mut *prog, col, tm, timed_out);
                 if retval > 0 {
                     break;
                 }

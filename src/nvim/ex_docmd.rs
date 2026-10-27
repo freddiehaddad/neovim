@@ -4857,48 +4857,48 @@ unsafe fn sourcing_lnum_ptr() -> *mut linenr_T {
     }
 }
 
-unsafe fn save_dbg_stuff(dsp: *mut dbg_stuff) {
+unsafe fn save_dbg_stuff(dsp: &mut dbg_stuff) {
     unsafe {
-        (*dsp).trylevel = g_st().trylevel;
+        dsp.trylevel = g_st().trylevel;
         g_st().trylevel = 0;
-        (*dsp).force_abort = c_int::from(g_st().force_abort);
+        dsp.force_abort = c_int::from(g_st().force_abort);
         g_st().force_abort = false;
         let stack = &raw mut g_st().caught_stack;
-        (*dsp).caught_stack = std::mem::take(&mut *stack);
-        (*dsp).vv_exception = v_exception(None);
-        (*dsp).vv_throwpoint = v_throwpoint(None);
+        dsp.caught_stack = std::mem::take(&mut *stack);
+        dsp.vv_exception = v_exception(None);
+        dsp.vv_throwpoint = v_throwpoint(None);
 
         // Necessary for debugging an inactive ":catch", ":finally", ":endtry".
-        (*dsp).did_emsg = g_st().did_emsg;
+        dsp.did_emsg = g_st().did_emsg;
         g_st().did_emsg = 0;
-        (*dsp).got_int = c_int::from(g_st().got_int);
+        dsp.got_int = c_int::from(g_st().got_int);
         g_st().got_int = false;
-        (*dsp).did_throw = g_st().did_throw;
+        dsp.did_throw = g_st().did_throw;
         g_st().did_throw = false;
-        (*dsp).need_rethrow = c_int::from(g_st().need_rethrow);
+        dsp.need_rethrow = c_int::from(g_st().need_rethrow);
         g_st().need_rethrow = false;
-        (*dsp).check_cstack = c_int::from(g_st().check_cstack);
+        dsp.check_cstack = c_int::from(g_st().check_cstack);
         g_st().check_cstack = false;
         let ce = &raw mut g_st().current_exception;
-        (*dsp).current_exception = (*ce).take();
+        dsp.current_exception = (*ce).take();
     }
 }
 
-unsafe fn restore_dbg_stuff(dsp: *mut dbg_stuff) {
+unsafe fn restore_dbg_stuff(dsp: &mut dbg_stuff) {
     unsafe {
         g_st().suppress_errthrow = false;
-        g_st().trylevel = (*dsp).trylevel;
-        g_st().force_abort = (*dsp).force_abort != 0;
+        g_st().trylevel = dsp.trylevel;
+        g_st().force_abort = dsp.force_abort != 0;
         let stack = &raw mut g_st().caught_stack;
-        *stack = std::mem::take(&mut (*dsp).caught_stack);
-        v_exception((*dsp).vv_exception.take());
-        v_throwpoint((*dsp).vv_throwpoint.take());
-        g_st().did_emsg = (*dsp).did_emsg;
-        g_st().got_int = (*dsp).got_int != 0;
-        g_st().did_throw = (*dsp).did_throw;
-        g_st().need_rethrow = (*dsp).need_rethrow != 0;
-        g_st().check_cstack = (*dsp).check_cstack != 0;
-        g_st().current_exception = (*dsp).current_exception.take();
+        *stack = std::mem::take(&mut dsp.caught_stack);
+        v_exception(dsp.vv_exception.take());
+        v_throwpoint(dsp.vv_throwpoint.take());
+        g_st().did_emsg = dsp.did_emsg;
+        g_st().got_int = dsp.got_int != 0;
+        g_st().did_throw = dsp.did_throw;
+        g_st().need_rethrow = dsp.need_rethrow != 0;
+        g_st().check_cstack = dsp.check_cstack != 0;
+        g_st().current_exception = dsp.current_exception.take();
     }
 }
 
@@ -5027,8 +5027,8 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
             dbg_tick = func_dbg_tick(&mut *fcp);
         } else if let Some(sp) = source_cookie {
             fname = sourcing_name();
-            breakpoint = source_breakpoint(sp);
-            dbg_tick = source_dbg_tick(sp);
+            breakpoint = source_breakpoint(&mut *sp);
+            dbg_tick = source_dbg_tick(&mut *sp);
         }
 
         if RECURSIVE.load(std::sync::atomic::Ordering::Relaxed) == 0 {
@@ -5037,7 +5037,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
         }
 
         if (flags & DOCMD_EXCRESET) != 0 {
-            save_dbg_stuff(&raw mut debug_saved);
+            save_dbg_stuff(&mut debug_saved);
         }
 
         let initial_trylevel = g_st().trylevel;
@@ -5404,7 +5404,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
         }
         if fgetline
             .as_source()
-            .is_some_and(|sp| g_st().ex_nesting_level > source_level(sp))
+            .is_some_and(|sp| g_st().ex_nesting_level > source_level(&mut *sp))
             || fgetline
                 .as_func()
                 .is_some_and(|fcp| g_st().ex_nesting_level > func_level(&mut *fcp) + 1)
@@ -5427,7 +5427,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
         }
 
         if (flags & DOCMD_EXCRESET) != 0 {
-            restore_dbg_stuff(&raw mut debug_saved);
+            restore_dbg_stuff(&mut debug_saved);
         }
 
         g_st().msg_list = saved_msg_list;
@@ -5519,32 +5519,32 @@ pub unsafe fn handle_did_throw() {
 /// Obtain a line when inside a ":while" or ":for" loop.
 pub unsafe fn get_loop_line(
     c: c_int,
-    cp: *mut loop_cookie,
+    cp: &mut loop_cookie,
     indent: c_int,
     do_concat: bool,
 ) -> Option<std::ffi::CString> {
     unsafe {
-        let lines = &mut (*cp).lines;
+        let lines = &mut cp.lines;
 
-        if ((*cp).current_line + 1) as usize >= lines.len() {
-            if (*cp).repeating != 0 {
+        if (cp.current_line + 1) as usize >= lines.len() {
+            if cp.repeating != 0 {
                 return None;
             }
-            let line = if !(*cp).lc_getline.is_none() {
-                (*cp).lc_getline.call(c, indent, do_concat)
+            let line = if !cp.lc_getline.is_none() {
+                cp.lc_getline.call(c, indent, do_concat)
             } else {
                 getcmdline(c, 0, indent, do_concat)
             };
             if let Some(ref l) = line {
                 store_loop_line(lines, l.as_ptr());
-                (*cp).current_line += 1;
+                cp.current_line += 1;
             }
             return line;
         }
 
         g_st().KeyTyped = false;
-        (*cp).current_line += 1;
-        let wp = &lines[(*cp).current_line as usize];
+        cp.current_line += 1;
+        let wp = &lines[cp.current_line as usize];
         *sourcing_lnum_ptr() = wp.lnum;
         Some(wp.line.clone())
     }
@@ -9665,7 +9665,7 @@ pub unsafe fn ex_win_close(forceit: c_int, win: *mut win_T, tp: *mut tabpage_T) 
         if need_hide && !buf_hide(&*buf) && forceit == 0 {
             if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && opt_vars().p_write != 0 {
                 let mut bufref: bufref_T = bufref_T::new();
-                set_bufref(&raw mut bufref, buf);
+                set_bufref(&mut bufref, buf);
                 dialog_changed(&mut *buf, false);
                 if bufref_valid(&raw mut bufref) && bufIsChanged(&mut *buf) {
                     return;
@@ -10687,9 +10687,9 @@ pub unsafe fn do_exedit(eap: &mut exarg_T, old_curwin: *mut win_T) {
                     let need_hide = curbufIsChanged() && (*g_st().curbuf).b_nwindows <= 1;
                     if !need_hide || buf_hide(&*g_st().curbuf) {
                         let mut cs: cleanup_T = cleanup_T::new();
-                        enter_cleanup(&raw mut cs);
+                        enter_cleanup(&mut cs);
                         win_close(*curwin.as_ptr(), !need_hide && !buf_hide(&*g_st().curbuf), false);
-                        leave_cleanup(&raw mut cs);
+                        leave_cleanup(&mut cs);
                     }
                 }
             } else if g_st().readonlymode && (*g_st().curbuf).b_nwindows == 1 {
@@ -11745,42 +11745,42 @@ pub unsafe fn update_topline_cursor() {
     }
 }
 
-pub unsafe fn save_current_state(sst: *mut save_state_T) {
+pub unsafe fn save_current_state(sst: &mut save_state_T) {
     unsafe {
-        (*sst).save_msg_scroll = g_st().msg_scroll;
-        (*sst).save_restart_edit = g_st().restart_edit;
-        (*sst).save_msg_didout = g_st().msg_didout;
-        (*sst).save_State = g_st().State;
-        (*sst).save_finish_op = g_st().finish_op;
-        (*sst).save_opcount = g_st().opcount;
-        (*sst).save_reg_executing = g_st().reg_executing;
-        (*sst).save_pending_end_reg_executing = g_st().pending_end_reg_executing;
+        sst.save_msg_scroll = g_st().msg_scroll;
+        sst.save_restart_edit = g_st().restart_edit;
+        sst.save_msg_didout = g_st().msg_didout;
+        sst.save_State = g_st().State;
+        sst.save_finish_op = g_st().finish_op;
+        sst.save_opcount = g_st().opcount;
+        sst.save_reg_executing = g_st().reg_executing;
+        sst.save_pending_end_reg_executing = g_st().pending_end_reg_executing;
 
         g_st().msg_scroll = 0;
         g_st().restart_edit = 0;
 
-        save_typeahead((&raw mut (*sst).tabuf).cast());
+        save_typeahead(&mut *(&raw mut sst.tabuf).cast());
     }
 }
 
-pub unsafe fn restore_current_state(sst: *mut save_state_T) {
+pub unsafe fn restore_current_state(sst: &mut save_state_T) {
     unsafe {
-        restore_typeahead((&raw mut (*sst).tabuf).cast());
+        restore_typeahead(&mut *(&raw mut sst.tabuf).cast());
 
-        g_st().msg_scroll = (*sst).save_msg_scroll;
+        g_st().msg_scroll = sst.save_msg_scroll;
         if g_st().force_restart_edit {
             g_st().force_restart_edit = false;
         } else {
-            g_st().restart_edit = (*sst).save_restart_edit;
+            g_st().restart_edit = sst.save_restart_edit;
         }
-        g_st().finish_op = (*sst).save_finish_op;
-        g_st().opcount = (*sst).save_opcount;
-        g_st().reg_executing = (*sst).save_reg_executing;
-        g_st().pending_end_reg_executing = (*sst).save_pending_end_reg_executing;
+        g_st().finish_op = sst.save_finish_op;
+        g_st().opcount = sst.save_opcount;
+        g_st().reg_executing = sst.save_reg_executing;
+        g_st().pending_end_reg_executing = sst.save_pending_end_reg_executing;
 
-        g_st().msg_didout |= (*sst).save_msg_didout;
+        g_st().msg_didout |= sst.save_msg_didout;
 
-        g_st().State = (*sst).save_State;
+        g_st().State = sst.save_State;
         ui_cursor_shape();
     }
 }
@@ -11849,7 +11849,7 @@ unsafe fn ex_normal(eap: &mut exarg_T) {
 
         g_st().ex_normal_busy += 1;
         let mut save_state = save_state_T::new();
-        save_current_state(&raw mut save_state);
+        save_current_state(&mut save_state);
 
         loop {
             if eap.addr_count != 0 {
@@ -11877,7 +11877,7 @@ unsafe fn ex_normal(eap: &mut exarg_T) {
         }
 
         update_topline_cursor();
-        restore_current_state(&raw mut save_state);
+        restore_current_state(&mut save_state);
         g_st().ex_normal_busy -= 1;
 
         setmouse();

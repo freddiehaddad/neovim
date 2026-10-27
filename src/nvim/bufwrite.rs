@@ -179,7 +179,7 @@ unsafe fn ucs2bytes(mut c: u32, pp: *mut *mut c_char, flags: c_int) -> bool {
 }
 
 unsafe fn buf_write_convert_with_iconv(
-    ip: *mut bw_info,
+    ip: &mut bw_info,
     bufp: *mut *mut c_char,
     lenp: &mut c_int,
 ) -> c_int {
@@ -187,14 +187,14 @@ unsafe fn buf_write_convert_with_iconv(
         let len = *lenp;
         let mut from: *const c_char = *bufp;
         let mut fromlen = len as usize;
-        let mut tolen = (*ip).bw_conv_buf.len();
-        let conv_buf = (*ip).bw_conv_buf.as_mut_ptr();
+        let mut tolen = ip.bw_conv_buf.len();
+        let conv_buf = ip.bw_conv_buf.as_mut_ptr();
         let mut to = conv_buf;
 
-        if (*ip).bw_first != 0 {
+        if ip.bw_first != 0 {
             let save_len = tolen;
             let _ = call_iconv(
-                (*ip).bw_iconv_fd,
+                ip.bw_iconv_fd,
                 ptr::null_mut(),
                 ptr::null_mut(),
                 &raw mut to,
@@ -204,11 +204,11 @@ unsafe fn buf_write_convert_with_iconv(
                 to = conv_buf;
                 tolen = save_len;
             }
-            (*ip).bw_first = 0;
+            ip.bw_first = 0;
         }
 
         if call_iconv(
-            (*ip).bw_iconv_fd,
+            ip.bw_iconv_fd,
             &raw mut from,
             &raw mut fromlen,
             &raw mut to,
@@ -216,7 +216,7 @@ unsafe fn buf_write_convert_with_iconv(
         ) == usize::MAX
             && os_errno() != ICONV_EINVAL
         {
-            (*ip).bw_conv_error = 1;
+            ip.bw_conv_error = 1;
             return -1;
         }
 
@@ -227,12 +227,12 @@ unsafe fn buf_write_convert_with_iconv(
     }
 }
 
-unsafe fn buf_write_convert(ip: *mut bw_info, bufp: *mut *mut c_char, lenp: &mut c_int) -> c_int {
+unsafe fn buf_write_convert(ip: &mut bw_info, bufp: *mut *mut c_char, lenp: &mut c_int) -> c_int {
     unsafe {
-        let flags = (*ip).bw_flags;
+        let flags = ip.bw_flags;
         let mut wlen = *lenp;
-        let conv_buflen = (*ip).bw_conv_buf.len();
-        let conv_buf = (*ip).bw_conv_buf.as_mut_ptr();
+        let conv_buflen = ip.bw_conv_buf.len();
+        let conv_buf = ip.bw_conv_buf.as_mut_ptr();
 
         if (flags & (FIO_UCS4 | FIO_UTF16 | FIO_UCS2 | FIO_LATIN1)) != 0 {
             let mut p = if (flags & FIO_LATIN1) != 0 {
@@ -262,12 +262,12 @@ unsafe fn buf_write_convert(ip: *mut bw_info, bufp: *mut *mut c_char, lenp: &mut
                     }
                 }
 
-                if ucs2bytes(c, &raw mut p, flags) && (*ip).bw_conv_error == 0 {
-                    (*ip).bw_conv_error = 1;
-                    (*ip).bw_conv_error_lnum = (*ip).bw_start_lnum;
+                if ucs2bytes(c, &raw mut p, flags) && ip.bw_conv_error == 0 {
+                    ip.bw_conv_error = 1;
+                    ip.bw_conv_error_lnum = ip.bw_start_lnum;
                 }
                 if c == NL {
-                    (*ip).bw_start_lnum += 1;
+                    ip.bw_start_lnum += 1;
                 }
                 wlen += n;
             }
@@ -279,7 +279,7 @@ unsafe fn buf_write_convert(ip: *mut bw_info, bufp: *mut *mut c_char, lenp: &mut
             }
         }
 
-        if (*ip).bw_iconv_fd != -1 {
+        if ip.bw_iconv_fd != -1 {
             return buf_write_convert_with_iconv(ip, bufp, lenp);
         }
 
@@ -287,22 +287,22 @@ unsafe fn buf_write_convert(ip: *mut bw_info, bufp: *mut *mut c_char, lenp: &mut
     }
 }
 
-unsafe fn buf_write_bytes(ip: *mut bw_info) -> c_int {
+unsafe fn buf_write_bytes(ip: &mut bw_info) -> c_int {
     unsafe {
-        let mut buf = (*ip).bw_buf.as_mut_ptr();
-        let mut len = (*ip).bw_len;
-        let flags = (*ip).bw_flags;
+        let mut buf = ip.bw_buf.as_mut_ptr();
+        let mut len = ip.bw_len;
+        let flags = ip.bw_flags;
 
         if (flags & FIO_NOCONVERT) == 0 {
             let converted = buf_write_convert(ip, &raw mut buf, &mut len);
             if converted < 0 {
                 return FAIL;
             }
-            let remaining = (*ip).bw_len - converted;
-            (*ip).bw_len = remaining;
+            let remaining = ip.bw_len - converted;
+            ip.bw_len = remaining;
 
-            if (*ip).bw_fd >= 0 {
-                let wlen = write_eintr((*ip).bw_fd, buf.cast(), len as usize) as c_int;
+            if ip.bw_fd >= 0 {
+                let wlen = write_eintr(ip.bw_fd, buf.cast(), len as usize) as c_int;
                 if wlen < len {
                     return FAIL;
                 }
@@ -311,12 +311,12 @@ unsafe fn buf_write_bytes(ip: *mut bw_info) -> c_int {
             if remaining > 0 {
                 let c = converted as usize;
                 let r = remaining as usize;
-                (*ip).bw_buf.as_mut_slice().copy_within(c..c + r, 0);
+                ip.bw_buf.as_mut_slice().copy_within(c..c + r, 0);
             }
         } else {
-            (*ip).bw_len = 0;
-            if (*ip).bw_fd >= 0 {
-                let wlen = write_eintr((*ip).bw_fd, buf.cast(), len as usize) as c_int;
+            ip.bw_len = 0;
+            if ip.bw_fd >= 0 {
+                let wlen = write_eintr(ip.bw_fd, buf.cast(), len as usize) as c_int;
                 if wlen < len {
                     return FAIL;
                 }
@@ -404,7 +404,7 @@ unsafe fn buf_write_do_autocmds(
         let buf_fname_s = *fnamep == (*buf).b_sfname;
 
         let _ = ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
-        set_bufref(&raw mut bufref, buf);
+        set_bufref(&mut bufref, buf);
 
         if append {
             did_cmd = apply_autocmds_exarg(EVENT_FILEAPPENDCMD, sfname, sfname, false, g_st().curbuf, eap);
@@ -634,12 +634,12 @@ unsafe fn set_err_arg(msg: *const c_char, arg: c_int) -> Error_T {
     }
 }
 
-unsafe fn emit_err(e: *mut Error_T, msg_id: *const c_char) {
+unsafe fn emit_err(e: &mut Error_T, msg_id: *const c_char) {
     unsafe {
         let mut errmsg = [0 as c_char; IOSIZE];
-        let msg_ptr = (*e).msg.as_ref().map_or(c"".as_ptr(), |m| m.as_ptr());
-        if let Some(num) = (*e).num {
-            if (*e).arg != 0 {
+        let msg_ptr = e.msg.as_ref().map_or(c"".as_ptr(), |m| m.as_ptr());
+        if let Some(num) = e.num {
+            if e.arg != 0 {
                 let _ = vim_snprintf!(
                     errmsg.as_mut_ptr(),
                     IOSIZE,
@@ -647,7 +647,7 @@ unsafe fn emit_err(e: *mut Error_T, msg_id: *const c_char) {
                     num.as_ptr(),
                     (&raw const g_st().IObuff).cast::<c_char>(),
                     msg_ptr,
-                    uv_strerror((*e).arg),
+                    uv_strerror(e.arg),
                 );
             } else {
                 let _ = vim_snprintf!(
@@ -659,8 +659,8 @@ unsafe fn emit_err(e: *mut Error_T, msg_id: *const c_char) {
                     msg_ptr,
                 );
             }
-        } else if (*e).arg != 0 {
-            let _ = vim_snprintf!(errmsg.as_mut_ptr(), IOSIZE, msg_ptr, uv_strerror((*e).arg));
+        } else if e.arg != 0 {
+            let _ = vim_snprintf!(errmsg.as_mut_ptr(), IOSIZE, msg_ptr, uv_strerror(e.arg));
         } else {
             xstrlcpy(errmsg.as_mut_ptr(), msg_ptr, IOSIZE);
         }
@@ -679,7 +679,7 @@ unsafe fn emit_err(e: *mut Error_T, msg_id: *const c_char) {
         } else {
             emsg(errmsg.as_ptr());
         }
-        (*e).msg = None;
+        e.msg = None;
     }
 }
 
@@ -876,7 +876,7 @@ unsafe fn buf_write_make_backup(
     forceit: bool,
     backup_copyp: &mut bool,
     backupp: &mut Option<std::ffi::CString>,
-    err: *mut Error_T,
+    err: &mut Error_T,
 ) -> c_int {
     unsafe {
         let mut file_info = FileInfo::new();
@@ -1045,12 +1045,12 @@ unsafe fn buf_write_make_backup(
                 }
             }
 
-            if backupp.is_none() && (*err).msg.is_none() {
+            if backupp.is_none() && err.msg.is_none() {
                 *err = set_err(gettext(
                     c"E509: Cannot create backup file (add ! to override)".as_ptr(),
                 ));
             }
-            if (some_error || (*err).msg.is_some()) && !forceit {
+            if (some_error || err.msg.is_some()) && !forceit {
                 return FAIL;
             }
             *err = set_err(ptr::null());
@@ -1406,7 +1406,7 @@ pub unsafe fn buf_write(
                         if write_info.bw_iconv_fd != -1 {
                             write_info.bw_conv_buf = vec![0; (bufsize as usize) * ICONV_MULT];
                             write_info.bw_first = 1;
-                        } else if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_ccv) != kCallbackNone {
+                        } else if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != kCallbackNone {
                             wfname_owned = vim_tempname();
                             match wfname_owned {
                                 Some(ref wf) => wfname = wf.as_ptr().cast_mut(),
@@ -1549,7 +1549,7 @@ pub unsafe fn buf_write(
                             write_info.bw_len = make_bom(buffer, fenc);
                             if write_info.bw_len > 0 {
                                 write_info.bw_flags = FIO_NOCONVERT | wb_flags;
-                                if buf_write_bytes(&raw mut write_info) == FAIL {
+                                if buf_write_bytes(&mut write_info) == FAIL {
                                     end = 0;
                                 } else {
                                     nchars += i64::from(write_info.bw_len);
@@ -1600,7 +1600,7 @@ pub unsafe fn buf_write(
                                 if write_info.bw_len != bufsize {
                                     continue;
                                 }
-                                if buf_write_bytes(&raw mut write_info) == FAIL {
+                                if buf_write_bytes(&mut write_info) == FAIL {
                                     end = 0;
                                     break;
                                 }
@@ -1628,7 +1628,7 @@ pub unsafe fn buf_write(
                                 if fileformat == EOL_DOS {
                                     write_info.bw_len += 1;
                                     if write_info.bw_len == bufsize {
-                                        if buf_write_bytes(&raw mut write_info) == FAIL {
+                                        if buf_write_bytes(&mut write_info) == FAIL {
                                             end = 0;
                                             break;
                                         }
@@ -1641,7 +1641,7 @@ pub unsafe fn buf_write(
                             }
                             write_info.bw_len += 1;
                             if write_info.bw_len == bufsize {
-                                if buf_write_bytes(&raw mut write_info) == FAIL {
+                                if buf_write_bytes(&mut write_info) == FAIL {
                                     end = 0;
                                     break;
                                 }
@@ -1690,7 +1690,7 @@ pub unsafe fn buf_write(
                         }
                         if write_info.bw_len > 0 && end > 0 {
                             let remaining = write_info.bw_len;
-                            if buf_write_bytes(&raw mut write_info) == FAIL {
+                            if buf_write_bytes(&mut write_info) == FAIL {
                                 end = 0;
                             }
                             nchars += i64::from(remaining - write_info.bw_len);

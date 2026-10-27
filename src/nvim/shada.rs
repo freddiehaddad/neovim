@@ -951,11 +951,9 @@ unsafe fn hmll_insert(hmll: &mut HMLList, mut after_idx: Option<usize>, data: Sh
 }
 
 #[inline]
-unsafe fn hmll_dealloc(hmll: *mut HMLList) {
-    unsafe {
-        (*hmll).contained_entries = std::collections::HashMap::new();
-        (*hmll).entries = Vec::new();
-    }
+unsafe fn hmll_dealloc(hmll: &mut HMLList) {
+    hmll.contained_entries = std::collections::HashMap::new();
+        hmll.entries = Vec::new();
 }
 
 unsafe fn sd_reader_skip(sd_reader: *mut FileDescriptor, offset: usize) -> ShaDaReadResult {
@@ -1096,27 +1094,27 @@ unsafe fn shada_hist_iter(
     }
 }
 
-unsafe fn hms_insert(hms_p: *mut HistoryMergerState, entry: ShadaEntry, do_iter: bool) {
+unsafe fn hms_insert(hms_p: &mut HistoryMergerState, entry: ShadaEntry, do_iter: bool) {
     unsafe {
         if do_iter {
-            while (*hms_p).last_hist_entry.entry_type != ShadaEntryType::kSDItemMissing
-                && (*hms_p).last_hist_entry.timestamp < entry.timestamp
+            while hms_p.last_hist_entry.entry_type != ShadaEntryType::kSDItemMissing
+                && hms_p.last_hist_entry.timestamp < entry.timestamp
             {
-                let last_entry = std::mem::replace(&mut (*hms_p).last_hist_entry, MISSING_ENTRY);
+                let last_entry = std::mem::replace(&mut hms_p.last_hist_entry, MISSING_ENTRY);
                 hms_insert(hms_p, last_entry, false);
-                if (*hms_p).iter.is_none() {
-                    (*hms_p).last_hist_entry.entry_type = ShadaEntryType::kSDItemMissing;
+                if hms_p.iter.is_none() {
+                    hms_p.last_hist_entry.entry_type = ShadaEntryType::kSDItemMissing;
                     break;
                 }
-                (*hms_p).iter = shada_hist_iter(
-                    (*hms_p).iter,
-                    (*hms_p).history_type,
-                    (*hms_p).reading,
-                    &mut (*hms_p).last_hist_entry,
+                hms_p.iter = shada_hist_iter(
+                    hms_p.iter,
+                    hms_p.history_type,
+                    hms_p.reading,
+                    &mut hms_p.last_hist_entry,
                 );
             }
         }
-        let hmll = &mut (*hms_p).hmll;
+        let hmll = &mut hms_p.hmll;
         let key = entry
             .data
             .history_item()
@@ -1148,40 +1146,40 @@ unsafe fn hms_insert(hms_p: *mut HistoryMergerState, entry: ShadaEntry, do_iter:
 
 #[inline]
 unsafe fn hms_init(
-    hms_p: *mut HistoryMergerState,
+    hms_p: &mut HistoryMergerState,
     history_type: u8,
     num_elements: usize,
     do_merge: bool,
     reading: bool,
 ) {
     unsafe {
-        hmll_init(&mut (*hms_p).hmll, num_elements);
-        (*hms_p).do_merge = do_merge;
-        (*hms_p).reading = reading;
-        (*hms_p).iter = shada_hist_iter(
+        hmll_init(&mut hms_p.hmll, num_elements);
+        hms_p.do_merge = do_merge;
+        hms_p.reading = reading;
+        hms_p.iter = shada_hist_iter(
             None,
             history_type,
-            (*hms_p).reading,
-            &mut (*hms_p).last_hist_entry,
+            hms_p.reading,
+            &mut hms_p.last_hist_entry,
         );
-        (*hms_p).history_type = history_type;
+        hms_p.history_type = history_type;
     }
 }
 
 #[inline]
-unsafe fn hms_insert_whole_neovim_history(hms_p: *mut HistoryMergerState) {
+unsafe fn hms_insert_whole_neovim_history(hms_p: &mut HistoryMergerState) {
     unsafe {
-        while (*hms_p).last_hist_entry.entry_type != ShadaEntryType::kSDItemMissing {
-            let last_entry = std::mem::replace(&mut (*hms_p).last_hist_entry, MISSING_ENTRY);
+        while hms_p.last_hist_entry.entry_type != ShadaEntryType::kSDItemMissing {
+            let last_entry = std::mem::replace(&mut hms_p.last_hist_entry, MISSING_ENTRY);
             hms_insert(hms_p, last_entry, false);
-            if (*hms_p).iter.is_none() {
+            if hms_p.iter.is_none() {
                 break;
             }
-            (*hms_p).iter = shada_hist_iter(
-                (*hms_p).iter,
-                (*hms_p).history_type,
-                (*hms_p).reading,
-                &mut (*hms_p).last_hist_entry,
+            hms_p.iter = shada_hist_iter(
+                hms_p.iter,
+                hms_p.history_type,
+                hms_p.reading,
+                &mut hms_p.last_hist_entry,
             );
         }
     }
@@ -1215,9 +1213,9 @@ fn hms_to_he_array(
 }
 
 #[inline]
-unsafe fn hms_dealloc(hms_p: *mut HistoryMergerState) {
+unsafe fn hms_dealloc(hms_p: &mut HistoryMergerState) {
     unsafe {
-        hmll_dealloc(&mut (*hms_p).hmll);
+        hmll_dealloc(&mut hms_p.hmll);
     }
 }
 
@@ -2484,7 +2482,7 @@ unsafe fn shada_get_buflist(removable_bufs: &std::collections::HashSet<*mut buf_
 #[inline]
 unsafe fn add_search_pattern(
     ret_pse: *mut ShadaEntry,
-    get_pattern: unsafe fn(*mut SearchPattern),
+    get_pattern: unsafe fn(&mut SearchPattern),
     is_substitute_pattern: bool,
     search_last_used: bool,
     search_highlighted: bool,
@@ -2531,7 +2529,7 @@ unsafe fn add_search_pattern(
 
 #[inline]
 unsafe fn shada_initialize_registers(
-    wms: *mut WriteMergerState,
+    wms: &mut WriteMergerState,
     max_reg_lines: c_int,
     scale_ts: bool,
 ) {
@@ -2554,7 +2552,7 @@ unsafe fn shada_initialize_registers(
                 continue;
             }
             let idx = op_reg_index(c_int::from(name)) as usize;
-            (*wms).registers[idx] = ShadaEntry {
+            wms.registers[idx] = ShadaEntry {
                 can_free_entry: false,
                 entry_type: ShadaEntryType::kSDItemRegister,
                 timestamp: if scale_ts {
@@ -2976,7 +2974,7 @@ unsafe fn shada_write(
             }
 
             if dump_registers {
-                shada_initialize_registers(wms, max_reg_lines, true);
+                shada_initialize_registers(&mut *wms, max_reg_lines, true);
             }
 
             if num_marked_files > 0 {
@@ -4403,7 +4401,7 @@ unsafe fn shada_init_jumps(
 pub unsafe fn shada_encode_regs(scale_ts: bool, since: Timestamp) -> Vec<u8> {
     unsafe {
         let mut wms = WriteMergerState::new();
-        shada_initialize_registers(&raw mut *wms, -1, scale_ts);
+        shada_initialize_registers(&mut *wms, -1, scale_ts);
         let mut packer = packer_string_buffer();
         for entry in wms.registers {
             if entry.entry_type == ShadaEntryType::kSDItemRegister

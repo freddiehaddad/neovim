@@ -1479,7 +1479,7 @@ unsafe fn qf_parse_line(
 }
 
 unsafe fn qf_setup_state(
-    pstate: *mut qfstate_T,
+    pstate: &mut qfstate_T,
     enc: *mut c_char,
     efile: *const c_char,
     tv: *mut typval_T,
@@ -1488,9 +1488,9 @@ unsafe fn qf_setup_state(
     lnumlast: linenr_T,
 ) -> c_int {
     unsafe {
-        (*pstate).vc.vc_type = CONV_NONE;
+        pstate.vc.vc_type = CONV_NONE;
         if !enc.is_null() && *enc != NUL {
-            convert_setup(&mut (*pstate).vc, enc, opt_vars().p_enc);
+            convert_setup(&mut pstate.vc, enc, opt_vars().p_enc);
         }
 
         if !efile.is_null() {
@@ -1503,15 +1503,15 @@ unsafe fn qf_setup_state(
                 semsg!(gettext((&raw const e_openerrf).cast()), efile);
                 return FAIL;
             };
-            (*pstate).source = QfInputSource::File(fd);
+            pstate.source = QfInputSource::File(fd);
         } else if !tv.is_null() {
             if (*tv).v_type == VarType::VAR_STRING {
-                (*pstate).source = QfInputSource::Str((*tv).vval.v_string());
+                pstate.source = QfInputSource::Str((*tv).vval.v_string());
             } else if (*tv).v_type == VarType::VAR_LIST {
-                (*pstate).source = QfInputSource::List(tv_list_first((*tv).vval.v_list()));
+                pstate.source = QfInputSource::List(tv_list_first((*tv).vval.v_list()));
             }
         } else {
-            (*pstate).source = QfInputSource::Buf {
+            pstate.source = QfInputSource::Buf {
                 buf,
                 buflnum: lnumfirst,
                 lnumlast,
@@ -1543,7 +1543,7 @@ unsafe fn qf_init_ext(
 
         qf_st().qf_last_bufname = None;
 
-        if qf_setup_state(&raw mut state, enc, efile, tv, buf, lnumfirst, lnumlast) == FAIL {
+        if qf_setup_state(&mut state, enc, efile, tv, buf, lnumfirst, lnumlast) == FAIL {
             if qf_idx == qi.qf_curlist {
                 qf_update_buffer(qi, old_count);
             }
@@ -2638,7 +2638,7 @@ unsafe fn qf_get_fnum(
             let b = buflist_new(bufname_ptr, ptr::null_mut(), 0, BLN_NOOPT);
             qf_st().qf_last_bufname =
                 ptr_cstr.or_else(|| Some(CStr::from_ptr(bufname_ptr).to_owned()));
-            set_bufref(&raw mut qf_st().qf_last_bufref, b);
+            set_bufref(&mut qf_st().qf_last_bufref, b);
             b
         };
         if buf.is_null() {
@@ -5759,28 +5759,29 @@ unsafe fn existing_swapfile(buf: &buf_T) -> bool {
         false
 }
 
-unsafe fn vgr_process_args(eap: &mut exarg_T, args: *mut vgr_args_T) -> c_int {
+unsafe fn vgr_process_args(eap: &mut exarg_T, args: &mut vgr_args_T) -> c_int {
     unsafe {
         *args = vgr_args_T::new();
 
-        (*args).regmatch.regprog = ptr::null_mut();
-        (*args).qf_title = Some(CStr::from_ptr(qf_cmdtitle(*eap.cmdlinep)).to_owned());
-        (*args).tomatch = if eap.addr_count > 0 {
+        args.regmatch.regprog = ptr::null_mut();
+        args.qf_title = Some(CStr::from_ptr(qf_cmdtitle(*eap.cmdlinep)).to_owned());
+        args.tomatch = if eap.addr_count > 0 {
             eap.line2
         } else {
             MAXLNUM
         };
 
         let mut spat: *mut c_char = ptr::null_mut();
-        let mut p = skip_vimgrep_pat(eap.arg, &raw mut spat, &raw mut (*args).flags);
+        let mut p = skip_vimgrep_pat(eap.arg, &raw mut spat, &raw mut args.flags);
         if p.is_null() {
             emsg(gettext((&raw const e_invalpat).cast()));
             return FAIL;
         }
-        (*args).spat = (!spat.is_null()).then(|| CStr::from_ptr(spat).to_owned());
+        args.spat = (!spat.is_null()).then(|| CStr::from_ptr(spat).to_owned());
 
-        vgr_init_regmatch(&mut (*args).regmatch, (*args).spat_ptr());
-        if (*args).regmatch.regprog.is_null() {
+        let spat_ptr = args.spat_ptr();
+        vgr_init_regmatch(&mut args.regmatch, spat_ptr);
+        if args.regmatch.regprog.is_null() {
             return FAIL;
         }
 
@@ -5792,7 +5793,7 @@ unsafe fn vgr_process_args(eap: &mut exarg_T, args: *mut vgr_args_T) -> c_int {
             return FAIL;
         }
 
-        if get_arglist_exp(p, &mut (*args).fnames, true) == FAIL || (*args).fnames.is_empty() {
+        if get_arglist_exp(p, &mut args.fnames, true) == FAIL || args.fnames.is_empty() {
             emsg(gettext((&raw const e_nomatch).cast()));
             return FAIL;
         }
@@ -5804,7 +5805,7 @@ unsafe fn vgr_process_args(eap: &mut exarg_T, args: *mut vgr_args_T) -> c_int {
 unsafe fn vgr_process_files(
     wp: *mut win_T,
     qi: &mut qf_info_T,
-    cmd_args: *mut vgr_args_T,
+    cmd_args: &mut vgr_args_T,
     redraw_for_dummy: &mut bool,
     first_match_buf: *mut *mut buf_T,
     target_dir: &mut Option<std::ffi::CString>,
@@ -5822,8 +5823,8 @@ unsafe fn vgr_process_files(
         let mut seconds: time_t = 0;
         let mut fi: usize = 0;
         let mut aborted = false;
-        while fi < (*cmd_args).fnames.len() && !g_st().got_int && (*cmd_args).tomatch > 0 {
-            let fname_exp = (*cmd_args).fnames.as_slice()[fi].as_ptr().cast_mut();
+        while fi < cmd_args.fnames.len() && !g_st().got_int && cmd_args.tomatch > 0 {
+            let fname_exp = cmd_args.fnames.as_slice()[fi].as_ptr().cast_mut();
             let fname = path_try_shorten_fname(fname_exp);
             let now = os_time() as time_t;
             if now > seconds {
@@ -5867,11 +5868,11 @@ unsafe fn vgr_process_files(
                     qf_get_curlist(&raw mut *qi),
                     fname,
                     &mut *buf,
-                    (*cmd_args).spat_ptr(),
-                    &mut (*cmd_args).regmatch,
-                    &mut (*cmd_args).tomatch,
+                    cmd_args.spat_ptr(),
+                    &mut cmd_args.regmatch,
+                    &mut cmd_args.tomatch,
                     c_int::from(duplicate_name),
-                    (*cmd_args).flags,
+                    cmd_args.flags,
                 );
 
                 if using_dummy {
@@ -5890,7 +5891,7 @@ unsafe fn vgr_process_files(
                             wipe_dummy_buffer(&mut *buf, dirname_start.as_mut_ptr());
                             buf = ptr::null_mut();
                         } else if buf != *first_match_buf
-                            || ((*cmd_args).flags & VGR_NOJUMP) != 0
+                            || (cmd_args.flags & VGR_NOJUMP) != 0
                             || existing_swapfile(&*buf)
                         {
                             unload_dummy_buffer(buf, dirname_start.as_mut_ptr());
@@ -5952,7 +5953,7 @@ pub unsafe fn ex_vimgrep(eap: &mut exarg_T) {
         let qi = qf_cmd_get_or_alloc_stack(eap, &raw mut wp);
         let mut target_dir: Option<std::ffi::CString> = None;
         let mut args = vgr_args_T::new();
-        if vgr_process_args(eap, &raw mut args) != FAIL {
+        if vgr_process_args(eap, &mut args) != FAIL {
             if (eap.cmdidx != CMD_grepadd
                 && eap.cmdidx != CMD_lgrepadd
                 && eap.cmdidx != CMD_vimgrepadd
@@ -5972,7 +5973,7 @@ pub unsafe fn ex_vimgrep(eap: &mut exarg_T) {
             let status = vgr_process_files(
                 wp,
                 &mut *qi,
-                &raw mut args,
+                &mut args,
                 &mut redraw_for_dummy,
                 &raw mut first_match_buf,
                 &mut target_dir,
@@ -6064,7 +6065,7 @@ unsafe fn load_dummy_buffer(
 
         let mut failed = true;
         let mut newbufref: bufref_T = bufref_T::new();
-        set_bufref(&raw mut newbufref, newbuf);
+        set_bufref(&mut newbufref, newbuf);
 
         buf_copy_options(newbuf, BCO_ENTER | BCO_NOHELP);
 
@@ -6092,7 +6093,7 @@ unsafe fn load_dummy_buffer(
             if readfile_result == OK && !g_st().got_int && ((*g_st().curbuf).b_flags & BF_NEW) == 0 {
                 failed = false;
                 if g_st().curbuf != newbuf {
-                    set_bufref(&raw mut newbuf_to_wipe, newbuf);
+                    set_bufref(&mut newbuf_to_wipe, newbuf);
                     newbuf = g_st().curbuf;
                 }
             }
@@ -6151,9 +6152,9 @@ unsafe fn wipe_dummy_buffer(buf: &mut buf_T, dirname_start: *mut c_char) {
 
         if !give_up && g_st().curbuf != buf && buf.b_nwindows == 0 {
             let mut cs: cleanup_T = cleanup_T::new();
-            enter_cleanup(&raw mut cs);
+            enter_cleanup(&mut cs);
             wipe_buffer(&raw mut *buf, true);
-            leave_cleanup(&raw mut cs);
+            leave_cleanup(&mut cs);
 
             if !dirname_start.is_null() {
                 restore_start_dir(dirname_start);

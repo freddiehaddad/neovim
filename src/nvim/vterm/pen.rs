@@ -130,9 +130,9 @@ pub struct VTermStateCallbacks {
         Option<unsafe fn(rect: VTermRect, selective: c_int, user: *mut VTermScreen) -> c_int>,
     pub initpen: Option<unsafe fn(user: *mut VTermScreen) -> c_int>,
     pub setpenattr:
-        Option<unsafe fn(attr: VTermAttr, val: *mut VTermValue, user: *mut VTermScreen) -> c_int>,
+        Option<unsafe fn(attr: VTermAttr, val: &mut VTermValue, user: *mut VTermScreen) -> c_int>,
     pub settermprop:
-        Option<unsafe fn(prop: VTermProp, val: *mut VTermValue, user: *mut VTermScreen) -> c_int>,
+        Option<unsafe fn(prop: VTermProp, val: &mut VTermValue, user: *mut VTermScreen) -> c_int>,
     pub bell: Option<unsafe fn(user: *mut VTermScreen) -> c_int>,
     pub resize: Option<VTermStateResizeFn>,
     pub theme: Option<unsafe fn(dark: &mut bool, user: *mut VTermScreen) -> c_int>,
@@ -489,7 +489,7 @@ unsafe fn setpenattr(
         if let Some(callbacks) = state.callbacks
             && let Some(cb) = callbacks.setpenattr
         {
-            cb(attr, val, state.screen_ptr());
+            cb(attr, &mut *val, state.screen_ptr());
         }
     }
 }
@@ -1009,7 +1009,7 @@ pub unsafe fn vterm_state_set_penattr(
         if let Some(callbacks) = state.callbacks
             && let Some(cb) = callbacks.setpenattr
         {
-            cb(attr, val, state.screen_ptr());
+            cb(attr, &mut *val, state.screen_ptr());
         }
 
         1

@@ -70,7 +70,7 @@ impl StreamCbData {
                     &mut *stream, buf, count, &mut *chan, eof,
                 )),
                 Self::ShellBuf(dbuf) => Some(crate::os::shell::system_data_cb(
-                    &mut *stream, buf, count, dbuf, eof,
+                    &mut *stream, buf, count, &mut *dbuf, eof,
                 )),
                 Self::ShellOut => Some(crate::os::shell::out_data_cb(&mut *stream, buf, count, eof)),
                 Self::Input(input) => {

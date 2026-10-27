@@ -1028,7 +1028,7 @@ pub unsafe fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
                 false,
             );
 
-            restore_v_event(&mut *dict, (&raw const save_v_event).cast_mut());
+            restore_v_event(&mut *dict, &mut save_v_event);
         }
     }
 }
@@ -1232,7 +1232,7 @@ pub unsafe fn terminal_enter() -> bool {
             s.close = true;
         }
 
-        state_enter(&raw mut s);
+        state_enter(&mut s);
 
         if !s.got_bsl_o {
             g_st().restart_edit = 0;
@@ -1342,15 +1342,15 @@ unsafe fn terminal_check_focus(s: *mut TerminalState) -> bool {
     }
 }
 
-unsafe fn terminal_check(s: *mut TerminalState) -> c_int {
+unsafe fn terminal_check(s: &mut TerminalState) -> c_int {
     unsafe {
         debug_assert!(
-            !(*s).close
-                || ((*(*s).term).buf_handle == 0
-                    && (*s).term != (*g_st().curbuf).terminal)
+            !s.close
+                || ((*s.term).buf_handle == 0
+                    && s.term != (*g_st().curbuf).terminal)
         );
 
-        if g_st().Ins.stop_insert_mode || !terminal_check_focus(s) {
+        if g_st().Ins.stop_insert_mode || !terminal_check_focus(&raw mut *s) {
             return 0;
         }
 
@@ -1359,7 +1359,7 @@ unsafe fn terminal_check(s: *mut TerminalState) -> c_int {
         terminal_check_cursor();
         validate_cursor(*curwin.as_ptr());
 
-        (*(*s).term).refcount += 1;
+        (*s.term).refcount += 1;
         if has_event(EVENT_TEXTCHANGEDT)
             && (*g_st().curbuf).b_last_changedtick_i != buf_get_changedtick(g_st().curbuf)
         {
@@ -1373,12 +1373,12 @@ unsafe fn terminal_check(s: *mut TerminalState) -> c_int {
             (*g_st().curbuf).b_last_changedtick_i = buf_get_changedtick(g_st().curbuf);
         }
         may_trigger_win_scrolled_resized();
-        (*(*s).term).refcount -= 1;
-        if (*(*s).term).buf_handle == 0 {
-            (*s).close = true;
+        (*s.term).refcount -= 1;
+        if (*s.term).buf_handle == 0 {
+            s.close = true;
         }
 
-        if !terminal_check_focus(s) {
+        if !terminal_check_focus(&raw mut *s) {
             return 0;
         }
         terminal_check_cursor();
@@ -1395,13 +1395,13 @@ unsafe fn terminal_check(s: *mut TerminalState) -> c_int {
         }
 
         setcursor();
-        refresh_cursor(&mut *(*s).term, &mut (*s).cursor_visible);
+        refresh_cursor(&mut *s.term, &mut s.cursor_visible);
         ui_flush();
         1
     }
 }
 
-unsafe fn terminal_execute(s: *mut TerminalState, key: c_int) -> c_int {
+unsafe fn terminal_execute(s: &mut TerminalState, key: c_int) -> c_int {
     unsafe {
         let mut tmp_mod_mask = g_st().mod_mask;
         let mod_key = merge_modifiers(key, &mut tmp_mod_mask);
@@ -1411,7 +1411,7 @@ unsafe fn terminal_execute(s: *mut TerminalState, key: c_int) -> c_int {
             | K_MIDDLERELEASE | K_RIGHTMOUSE | K_RIGHTDRAG | K_RIGHTRELEASE | K_X1MOUSE
             | K_X1DRAG | K_X1RELEASE | K_X2MOUSE | K_X2DRAG | K_X2RELEASE | K_MOUSEDOWN
             | K_MOUSEUP | K_MOUSELEFT | K_MOUSERIGHT | K_MOUSEMOVE => {
-                if send_mouse_event(&mut *(*s).term, key) {
+                if send_mouse_event(&mut *s.term, key) {
                     return 0;
                 }
             }
@@ -1419,11 +1419,11 @@ unsafe fn terminal_execute(s: *mut TerminalState, key: c_int) -> c_int {
                 paste_repeat(1);
             }
             K_EVENT => {
-                (*(*s).term).refcount += 1;
+                (*s.term).refcount += 1;
                 state_handle_k_event();
-                (*(*s).term).refcount -= 1;
-                if (*(*s).term).buf_handle == 0 {
-                    (*s).close = true;
+                (*s.term).refcount -= 1;
+                if (*s.term).buf_handle == 0 {
+                    s.close = true;
                 }
             }
             K_COMMAND => {
@@ -1434,33 +1434,33 @@ unsafe fn terminal_execute(s: *mut TerminalState, key: c_int) -> c_int {
             }
             K_IGNORE | K_NOP => {}
             _ => {
-                if mod_key == Ctrl_N && (*s).got_bsl {
+                if mod_key == Ctrl_N && s.got_bsl {
                     return 0;
                 }
-                if mod_key == Ctrl_O && (*s).got_bsl {
-                    (*s).got_bsl_o = true;
+                if mod_key == Ctrl_O && s.got_bsl {
+                    s.got_bsl_o = true;
                     g_st().restart_edit = b'I' as c_int;
                     return 0;
                 }
                 if mod_key == Ctrl_C {
                     g_st().got_int = false;
                 }
-                if mod_key == Ctrl_BSL && !(*s).got_bsl {
-                    (*s).got_bsl = true;
+                if mod_key == Ctrl_BSL && !s.got_bsl {
+                    s.got_bsl = true;
                     return 1;
                 }
-                if (*(*s).term).suspended {
-                    channel_term_resume(&mut *(*(*s).term).opts.data);
-                    terminal_set_state(&mut *(*s).term, false);
+                if (*s.term).suspended {
+                    channel_term_resume(&mut *(*s.term).opts.data);
+                    terminal_set_state(&mut *s.term, false);
                     return 1;
                 }
-                if (*(*s).term).closed {
-                    (*s).close = true;
+                if (*s.term).closed {
+                    s.close = true;
                     return 0;
                 }
 
-                (*s).got_bsl = false;
-                terminal_send_key(&mut *(*s).term, key);
+                s.got_bsl = false;
+                terminal_send_key(&mut *s.term, key);
             }
         }
 
@@ -1891,20 +1891,20 @@ unsafe fn buf_set_term_title(buf: *mut buf_T, title: *const c_char, len: usize) 
     }
 }
 
-unsafe fn term_settermprop(prop: VTermProp, val: *mut VTermValue, term: *mut Terminal) -> c_int {
+unsafe fn term_settermprop(prop: VTermProp, val: &mut VTermValue, term: *mut Terminal) -> c_int {
     unsafe {
         let term = &mut *term;
         match prop {
             VTERM_PROP_ALTSCREEN => {
-                term.in_altscreen = (*val).boolean() != 0;
+                term.in_altscreen = val.boolean() != 0;
             }
             VTERM_PROP_CURSORVISIBLE => {
-                term.cursor.visible = (*val).boolean() != 0;
+                term.cursor.visible = val.boolean() != 0;
                 invalidate_terminal(term, -1, -1);
             }
             VTERM_PROP_TITLE => {
                 let buf = handle_get_buffer(term.buf_handle);
-                let frag = (*val).string();
+                let frag = val.string();
                 let flen = frag.len();
 
                 if frag.initial() && frag.final_() {
@@ -1927,24 +1927,24 @@ unsafe fn term_settermprop(prop: VTermProp, val: *mut VTermValue, term: *mut Ter
                 }
             }
             VTERM_PROP_MOUSE => {
-                term.forward_mouse = (*val).number() != 0;
+                term.forward_mouse = val.number() != 0;
             }
             VTERM_PROP_CURSORBLINK => {
-                term.cursor.blink = (*val).boolean() != 0;
+                term.cursor.blink = val.boolean() != 0;
                 term.pending.cursor = true;
                 invalidate_terminal(term, -1, -1);
             }
             VTERM_PROP_CURSORSHAPE => {
-                term.cursor.shape = (*val).number();
+                term.cursor.shape = val.number();
                 term.pending.cursor = true;
                 invalidate_terminal(term, -1, -1);
             }
             VTERM_PROP_THEMEUPDATES => {
-                term.theme_updates = (*val).boolean() != 0;
+                term.theme_updates = val.boolean() != 0;
             }
             VTERM_PROP_SYNCOUTPUT => {
-                term.synchronized_output = (*val).boolean() != 0;
-                if (*val).boolean() == 0 {
+                term.synchronized_output = val.boolean() != 0;
+                if val.boolean() == 0 {
                     term.sync_flush_pending = true;
                 }
             }

@@ -1685,11 +1685,9 @@ pub unsafe fn os_fileinfo_id_equal(
 
 /// Get the `FileID` of a `FileInfo`.
 #[cfg(test)]
-pub unsafe fn os_fileinfo_id(file_info: &FileInfo, file_id: *mut FileID) {
-    unsafe {
-        (*file_id).inode = file_info.stat.st_ino;
-        (*file_id).device_id = file_info.stat.st_dev;
-    }
+pub unsafe fn os_fileinfo_id(file_info: &FileInfo, file_id: &mut FileID) {
+    file_id.inode = file_info.stat.st_ino;
+        file_id.device_id = file_info.stat.st_dev;
 }
 
 /// Get the inode of a `FileInfo`.
@@ -1713,12 +1711,12 @@ pub unsafe fn os_fileinfo_blocksize(file_info: &FileInfo) -> u64 {
 }
 
 /// Get the `FileID` for a given path.
-pub unsafe fn os_fileid(path: *const c_char, file_id: *mut FileID) -> bool {
+pub unsafe fn os_fileid(path: *const c_char, file_id: &mut FileID) -> bool {
     unsafe {
         let mut statbuf = uv_stat_t::default();
         if os_stat(path, &raw mut statbuf) == 0 {
-            (*file_id).inode = statbuf.st_ino;
-            (*file_id).device_id = statbuf.st_dev;
+            file_id.inode = statbuf.st_ino;
+            file_id.device_id = statbuf.st_dev;
             true
         } else {
             false
@@ -1727,10 +1725,8 @@ pub unsafe fn os_fileid(path: *const c_char, file_id: *mut FileID) -> bool {
 }
 
 /// Check if two `FileID`s are equal.
-pub unsafe fn os_fileid_equal(file_id_1: *const FileID, file_id_2: *const FileID) -> bool {
-    unsafe {
-        (*file_id_1).inode == (*file_id_2).inode && (*file_id_1).device_id == (*file_id_2).device_id
-    }
+pub unsafe fn os_fileid_equal(file_id_1: &FileID, file_id_2: &FileID) -> bool {
+    file_id_1.inode == file_id_2.inode && file_id_1.device_id == file_id_2.device_id
 }
 
 /// Return the canonicalized absolute pathname.
@@ -1919,12 +1915,12 @@ mod tests {
             assert_eq!(os_fileinfo_blocksize(&fi1), 4096);
 
             let mut id1 = FileID::new();
-            os_fileinfo_id(&fi1, &raw mut id1);
+            os_fileinfo_id(&fi1, &mut id1);
             let id2 = FileID {
                 inode: 42,
                 device_id: 7,
             };
-            assert!(os_fileid_equal(&raw const id1, &raw const id2));
+            assert!(os_fileid_equal(&id1, &id2));
         }
     }
 
@@ -2074,9 +2070,9 @@ mod tests {
             assert!(os_fileinfo_blocksize(&fi) > 0);
 
             let mut fid = FileID::new();
-            assert!(!os_fileid(c"/non-existent-xyz".as_ptr(), &raw mut fid));
-            assert!(os_fileid(fpath_c.as_ptr(), &raw mut fid));
-            assert!(os_fileid_equal(&raw const fid, &raw const fid));
+            assert!(!os_fileid(c"/non-existent-xyz".as_ptr(), &mut fid));
+            assert!(os_fileid(fpath_c.as_ptr(), &mut fid));
+            assert!(os_fileid_equal(&fid, &fid));
 
             // os_rename & os_remove
             let renamed = format!("{base}/renamed.dat");

@@ -288,9 +288,9 @@ unsafe fn putglyph(state: &mut VTermStateFull, schar: schar_T, width: c_int, pos
     }
 }
 
-unsafe fn updatecursor(state: &mut VTermStateFull, oldpos: *const VTermPos, cancel_phantom: c_int) {
+unsafe fn updatecursor(state: &mut VTermStateFull, oldpos: &VTermPos, cancel_phantom: c_int) {
     unsafe {
-        if state.pos.col == (*oldpos).col && state.pos.row == (*oldpos).row {
+        if state.pos.col == oldpos.col && state.pos.row == oldpos.row {
             return;
         }
 
@@ -712,7 +712,7 @@ unsafe fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) 
             }
         }
 
-        updatecursor(state, &raw const oldpos, 0);
+        updatecursor(state, &oldpos, 0);
 
         eaten as c_int
     }
@@ -808,7 +808,7 @@ unsafe fn on_control(control: u8, state: *mut VTermStateFull) -> c_int {
             }
         }
 
-        updatecursor(state, &raw const oldpos, 1);
+        updatecursor(state, &oldpos, 1);
 
         1
     }
@@ -867,7 +867,7 @@ unsafe fn savecursor(state: &mut VTermStateFull, save: c_int) {
 
             vterm_state_savepen(state, 0);
 
-            updatecursor(state, &raw const oldpos, 1);
+            updatecursor(state, &oldpos, 1);
         }
     }
 }
@@ -1048,7 +1048,7 @@ unsafe fn set_dec_mode(state: &mut VTermStateFull, num: c_int, val: c_int) {
                 } else {
                     0
                 };
-                updatecursor(state, &raw const oldpos, 1);
+                updatecursor(state, &oldpos, 1);
             }
             7 => {
                 set_mode_bit(&mut state.mode, MODE_AUTOWRAP, val != 0);
@@ -2015,7 +2015,7 @@ unsafe fn on_csi(
             }
         }
 
-        updatecursor(state, &raw const oldpos, cancel_phantom);
+        updatecursor(state, &oldpos, cancel_phantom);
 
         1
     }
@@ -2492,7 +2492,7 @@ unsafe fn on_resize(rows: c_int, cols: c_int, state: *mut VTermStateFull) -> c_i
             state.pos.col = cols - 1;
         }
 
-        updatecursor(state, &raw const oldpos, 1);
+        updatecursor(state, &oldpos, 1);
 
         1
     }
@@ -2644,7 +2644,7 @@ pub unsafe fn vterm_state_set_termprop(
     unsafe {
         if let Some(callbacks) = state.callbacks
             && let Some(cb) = callbacks.settermprop
-            && cb(prop, val, state.screen_ptr()) == 0
+            && cb(prop, &mut *val, state.screen_ptr()) == 0
         {
             return 0;
         }

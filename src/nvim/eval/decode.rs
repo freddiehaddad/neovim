@@ -1072,6 +1072,8 @@ unsafe fn positive_integer_to_special_typval(rettv: *mut typval_T, val: u64) {
 
 unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
     unsafe {
+        let parser = &mut *parser;
+        let node = &mut *node;
         let mut result: *mut typval_T = std::ptr::null_mut();
         let parent = mpack_parent_node(node);
         if !parent.is_null() {
@@ -1096,18 +1098,18 @@ unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
                 mpack_token_type_t::MPACK_TOKEN_STR
                 | mpack_token_type_t::MPACK_TOKEN_BIN
                 | mpack_token_type_t::MPACK_TOKEN_EXT => {
-                    assert_eq!((*node).tok.r#type, mpack_token_type_t::MPACK_TOKEN_CHUNK);
+                    assert_eq!(node.tok.r#type, mpack_token_type_t::MPACK_TOKEN_CHUNK);
                 }
                 _ => std::process::abort(),
             }
         } else {
-            result = (*parser).data.typval();
+            result = parser.data.typval();
         }
 
-        (*node).data[0] = mpack_data_t::Typval(result);
-        (*node).data[1] = mpack_data_t::Null;
+        node.data[0] = mpack_data_t::Typval(result);
+        node.data[1] = mpack_data_t::Null;
 
-        match (*node).tok.r#type {
+        match node.tok.r#type {
             mpack_token_type_t::MPACK_TOKEN_NIL => {
                 *result = typval_T {
                     v_type: VarType::VAR_SPECIAL,
@@ -1116,7 +1118,7 @@ unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
                 };
             }
             mpack_token_type_t::MPACK_TOKEN_BOOLEAN => {
-                let b = mpack_unpack_boolean((*node).tok);
+                let b = mpack_unpack_boolean(node.tok);
                 *result = typval_T {
                     v_type: VarType::VAR_BOOL,
                     v_lock: VAR_UNLOCKED,
@@ -1127,46 +1129,46 @@ unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
                 *result = typval_T {
                     v_type: VarType::VAR_NUMBER,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::Number(mpack_unpack_sint((*node).tok)),
+                    vval: TypvalVval::Number(mpack_unpack_sint(node.tok)),
                 };
             }
             mpack_token_type_t::MPACK_TOKEN_UINT => {
-                positive_integer_to_special_typval(result, mpack_unpack_uint((*node).tok));
+                positive_integer_to_special_typval(result, mpack_unpack_uint(node.tok));
             }
             mpack_token_type_t::MPACK_TOKEN_FLOAT => {
                 *result = typval_T {
                     v_type: VarType::VAR_FLOAT,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::Float(mpack_unpack_float_fast((*node).tok)),
+                    vval: TypvalVval::Float(mpack_unpack_float_fast(node.tok)),
                 };
             }
             mpack_token_type_t::MPACK_TOKEN_BIN
             | mpack_token_type_t::MPACK_TOKEN_STR
             | mpack_token_type_t::MPACK_TOKEN_EXT => {
-                (*node).data[1] = mpack_data_t::OwnedBytes(vec![0u8; (*node).tok.length as usize]);
+                node.data[1] = mpack_data_t::OwnedBytes(vec![0u8; node.tok.length as usize]);
             }
             mpack_token_type_t::MPACK_TOKEN_CHUNK => {
                 let data = (*parent).data[1].owned_bytes_mut();
-                let len = (*node).tok.length as usize;
+                let len = node.tok.length as usize;
                 if len > 0 {
                     let chunk =
-                        std::slice::from_raw_parts((*node).tok.data.chunk_ptr().cast::<u8>(), len);
+                        std::slice::from_raw_parts(node.tok.data.chunk_ptr().cast::<u8>(), len);
                     data[(*parent).pos..((*parent).pos + len)].copy_from_slice(chunk);
                 }
             }
             mpack_token_type_t::MPACK_TOKEN_ARRAY => {
-                let list = tv_list_alloc((*node).tok.length as isize);
+                let list = tv_list_alloc(node.tok.length as isize);
                 tv_list_ref(list);
                 *result = typval_T {
                     v_type: VarType::VAR_LIST,
                     v_lock: VAR_UNLOCKED,
                     vval: TypvalVval::List(list),
                 };
-                (*node).data[1] = mpack_data_t::List(list);
+                node.data[1] = mpack_data_t::List(list);
             }
             mpack_token_type_t::MPACK_TOKEN_MAP => {
-                (*node).data[1] =
-                    mpack_data_t::MapPairs(vec![[typval_T::new(); 2]; (*node).tok.length as usize]);
+                node.data[1] =
+                    mpack_data_t::MapPairs(vec![[typval_T::new(); 2]; node.tok.length as usize]);
             }
             mpack_token_type_t::MPACK_TOKEN_NONE => std::process::abort(),
         }

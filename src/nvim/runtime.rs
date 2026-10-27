@@ -2582,16 +2582,16 @@ pub unsafe fn ex_options(_eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn source_breakpoint(sp: *mut source_cookie_T) -> *mut linenr_T {
-    unsafe { &raw mut (*sp).breakpoint }
+pub unsafe fn source_breakpoint(sp: &mut source_cookie_T) -> *mut linenr_T {
+    &raw mut sp.breakpoint
 }
 
-pub unsafe fn source_dbg_tick(sp: *mut source_cookie_T) -> *mut c_int {
-    unsafe { &raw mut (*sp).dbg_tick }
+pub unsafe fn source_dbg_tick(sp: &mut source_cookie_T) -> *mut c_int {
+    &raw mut sp.dbg_tick
 }
 
-pub unsafe fn source_level(sp: *mut source_cookie_T) -> c_int {
-    unsafe { (*sp).level }
+pub unsafe fn source_level(sp: &mut source_cookie_T) -> c_int {
+    sp.level
 }
 
 unsafe fn fopen_noinh_readbin(filename: *const c_char) -> *mut FILE {
@@ -2715,9 +2715,9 @@ unsafe fn do_source_buffer_init(
     }
 }
 
-unsafe fn do_source_str_init(sp: *mut source_cookie_T, mut str_ptr: *const c_char) {
+unsafe fn do_source_str_init(sp: &mut source_cookie_T, mut str_ptr: *const c_char) {
     unsafe {
-        (*sp).buflines.clear();
+        sp.buflines.clear();
         while *str_ptr != NUL {
             let eol = skip_to_newline(str_ptr);
             let slice = std::slice::from_raw_parts(
@@ -2729,8 +2729,8 @@ unsafe fn do_source_str_init(sp: *mut source_cookie_T, mut str_ptr: *const c_cha
                 .push(std::ffi::CString::new(slice).unwrap_or_default());
             str_ptr = eol.add(usize::from(*eol != NUL));
         }
-        (*sp).buf_lnum = 0;
-        (*sp).source_from_buf_or_str = true;
+        sp.buf_lnum = 0;
+        sp.source_from_buf_or_str = true;
     }
 }
 
@@ -3031,7 +3031,7 @@ unsafe fn do_source_ext(
             } else if !si.is_null() && (*si).sn_lua {
                 nlua_exec_file(fname_exp);
             } else {
-                firstline = getsourceline(0, &raw mut cookie, 0, true);
+                firstline = getsourceline(0, &mut cookie, 0, true);
                 if let Some(ref fl) = firstline
                     && fl.to_bytes().starts_with(&[0xef, 0xbb, 0xbf])
                 {
@@ -3376,28 +3376,28 @@ pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: &mut typval_T, _fpt
 /// Get one full line from a sourced file.
 pub unsafe fn getsourceline(
     _c: c_int,
-    sp: *mut source_cookie_T,
+    sp: &mut source_cookie_T,
     _indent: c_int,
     do_concat: bool,
 ) -> Option<std::ffi::CString> {
     unsafe {
-        if (*sp).dbg_tick < g_st().debug_tick && !(*sp).source_from_buf_or_str {
+        if sp.dbg_tick < g_st().debug_tick && !sp.source_from_buf_or_str {
             let fname_ptr = (*sp)
                 .fname
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-            (*sp).breakpoint = dbg_find_breakpoint(true, fname_ptr, sourcing_lnum());
-            (*sp).dbg_tick = g_st().debug_tick;
+            sp.breakpoint = dbg_find_breakpoint(true, fname_ptr, sourcing_lnum());
+            sp.dbg_tick = g_st().debug_tick;
         }
         if g_st().do_profiling == PROF_YES {
             script_line_end();
         }
-        set_sourcing_lnum((*sp).sourcing_lnum + 1);
+        set_sourcing_lnum(sp.sourcing_lnum + 1);
         let mut line_vec =
-            if (*sp).finished || (!(*sp).source_from_buf_or_str && (*sp).fp.is_none()) {
+            if sp.finished || (!sp.source_from_buf_or_str && sp.fp.is_none()) {
                 None
-            } else if let Some(next) = (*sp).nextline.take() {
-                (*sp).sourcing_lnum += 1;
+            } else if let Some(next) = sp.nextline.take() {
+                sp.sourcing_lnum += 1;
                 Some(next)
             } else {
                 get_one_sourceline(sp)
@@ -3410,10 +3410,10 @@ pub unsafe fn getsourceline(
             && do_concat
             && vim_strchr(opt_vars().p_cpo, kCpoConcat).is_null()
         {
-            (*sp).sourcing_lnum -= 1;
+            sp.sourcing_lnum -= 1;
 
-            (*sp).nextline = get_one_sourceline(sp);
-            if let Some(ref next) = (*sp).nextline {
+            sp.nextline = get_one_sourceline(sp);
+            if let Some(ref next) = sp.nextline {
                 let p = skipwhite(next.as_ptr());
                 if *p == b'\\' as c_char
                     || (*p == b'"' as c_char
@@ -3424,14 +3424,14 @@ pub unsafe fn getsourceline(
                         buf.pop();
                     }
                     buf.reserve(400);
-                    while let Some(ref next) = (*sp).nextline
+                    while let Some(ref next) = sp.nextline
                         && concat_continued_line(
                             buf,
                             next.as_ptr(),
                             CStr::from_ptr(next.as_ptr()).to_bytes().len(),
                         )
                     {
-                        (*sp).nextline = get_one_sourceline(sp);
+                        sp.nextline = get_one_sourceline(sp);
                     }
                     if buf.last() != Some(&NUL) {
                         buf.push(NUL);
@@ -3442,9 +3442,9 @@ pub unsafe fn getsourceline(
 
         let line = line_vec.map(|b| {
             let len = b.len().saturating_sub(usize::from(b.last() == Some(&NUL)));
-            if (*sp).conv.vc_type != CONV_NONE
+            if sp.conv.vc_type != CONV_NONE
                 && let Some(s) =
-                    string_convert(&(*sp).conv, b.as_ptr().cast_mut(), ptr::null_mut())
+                    string_convert(&sp.conv, b.as_ptr().cast_mut(), ptr::null_mut())
             {
                 cstr_to_cstring(s.as_ptr().cast())
             } else {
@@ -3452,45 +3452,45 @@ pub unsafe fn getsourceline(
             }
         });
 
-        if !(*sp).source_from_buf_or_str
-            && (*sp).breakpoint != 0
-            && (*sp).breakpoint <= sourcing_lnum()
+        if !sp.source_from_buf_or_str
+            && sp.breakpoint != 0
+            && sp.breakpoint <= sourcing_lnum()
         {
             let fname_ptr = (*sp)
                 .fname
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             dbg_breakpoint(fname_ptr, sourcing_lnum());
-            (*sp).breakpoint = dbg_find_breakpoint(true, fname_ptr, sourcing_lnum());
-            (*sp).dbg_tick = g_st().debug_tick;
+            sp.breakpoint = dbg_find_breakpoint(true, fname_ptr, sourcing_lnum());
+            sp.dbg_tick = g_st().debug_tick;
         }
 
         line
     }
 }
 
-unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> Option<Vec<c_char>> {
+unsafe fn get_one_sourceline(sp: &mut source_cookie_T) -> Option<Vec<c_char>> {
     unsafe {
         let mut buf: Vec<c_char> = Vec::with_capacity(250);
         let mut have_read = false;
 
-        (*sp).sourcing_lnum += 1;
+        sp.sourcing_lnum += 1;
         loop {
             #[cfg(windows)]
             let mut len: usize;
             #[cfg(not(windows))]
             let len: usize;
             let mut filled_chunk = false;
-            if (*sp).source_from_buf_or_str {
-                if ((*sp).buf_lnum as usize) >= (*sp).buflines.len() {
+            if sp.source_from_buf_or_str {
+                if (sp.buf_lnum as usize) >= sp.buflines.len() {
                     break;
                 }
-                let line_bytes = (*sp).buflines.as_slice()[(*sp).buf_lnum as usize].to_bytes();
+                let line_bytes = sp.buflines.as_slice()[sp.buf_lnum as usize].to_bytes();
                 buf.extend_from_slice(std::slice::from_raw_parts(
                     line_bytes.as_ptr().cast::<c_char>(),
                     line_bytes.len(),
                 ));
-                (*sp).buf_lnum += 1;
+                sp.buf_lnum += 1;
                 buf.push(NUL);
                 len = buf.len();
             } else {
@@ -3521,7 +3521,7 @@ unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> Option<Vec<c_char>> {
             #[cfg(windows)]
             {
                 if (len == 1 || (len >= 2 && buf[len - 2] == b'\n' as c_char))
-                    && (*sp).fileformat == EOL_DOS
+                    && sp.fileformat == EOL_DOS
                     && buf[len - 1] == Ctrl_Z
                 {
                     buf.truncate(len - 1);
@@ -3531,7 +3531,7 @@ unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> Option<Vec<c_char>> {
 
             have_read = true;
 
-            if !(*sp).source_from_buf_or_str && filled_chunk && buf[len - 1] != b'\n' as c_char {
+            if !sp.source_from_buf_or_str && filled_chunk && buf[len - 1] != b'\n' as c_char {
                 continue;
             }
 
@@ -3539,25 +3539,25 @@ unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> Option<Vec<c_char>> {
                 #[cfg(windows)]
                 {
                     let has_cr = len >= 2 && buf[len - 2] == b'\r' as c_char;
-                    if (*sp).fileformat == EOL_UNKNOWN {
-                        (*sp).fileformat = if has_cr { EOL_DOS } else { EOL_UNIX };
+                    if sp.fileformat == EOL_UNKNOWN {
+                        sp.fileformat = if has_cr { EOL_DOS } else { EOL_UNIX };
                     }
 
-                    if (*sp).fileformat == EOL_DOS {
+                    if sp.fileformat == EOL_DOS {
                         if has_cr {
                             buf[len - 2] = b'\n' as c_char;
                             len -= 1;
                             buf.truncate(len);
                         } else {
-                            if !(*sp).error {
+                            if !sp.error {
                                 msg_source(crate::highlight::hl_attr(HLF_W as c_int));
                                 emsg(gettext(
                                     c"W15: Warning: Wrong line separator, ^M may be missing"
                                         .as_ptr(),
                                 ));
                             }
-                            (*sp).error = true;
-                            (*sp).fileformat = EOL_UNIX;
+                            sp.error = true;
+                            sp.fileformat = EOL_UNIX;
                         }
                     }
                 }
@@ -3567,7 +3567,7 @@ unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> Option<Vec<c_char>> {
                     c -= 1;
                 }
                 if ((len as isize) & 1) != (c & 1) {
-                    (*sp).sourcing_lnum += 1;
+                    sp.sourcing_lnum += 1;
                     continue;
                 }
 

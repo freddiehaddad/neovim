@@ -466,7 +466,7 @@ pub unsafe fn do_tag(
                 use_tagstack = false;
                 new_tag = true;
                 if g_st().g_do_tagpreview != 0 {
-                    tagstack_clear_entry(&raw mut tag_st().ptag_entry);
+                    tagstack_clear_entry(&mut tag_st().ptag_entry);
                     tag_st().ptag_entry.tagname = Some(CStr::from_ptr(tag).to_owned());
                 }
             } else {
@@ -489,13 +489,13 @@ pub unsafe fn do_tag(
                             cur_match = tag_st().ptag_entry.cur_match;
                             cur_fnum = tag_st().ptag_entry.cur_fnum;
                         } else {
-                            tagstack_clear_entry(&raw mut tag_st().ptag_entry);
+                            tagstack_clear_entry(&mut tag_st().ptag_entry);
                             tag_st().ptag_entry.tagname = Some(CStr::from_ptr(tag).to_owned());
                         }
                     } else {
                         while tagstackidx < tagstacklen {
                             tagstacklen -= 1;
-                            tagstack_clear_entry(tagstack.add(tagstacklen as usize));
+                            tagstack_clear_entry(&mut *tagstack.add(tagstacklen as usize));
                         }
 
                         tagstacklen += 1;
@@ -503,7 +503,7 @@ pub unsafe fn do_tag(
                             tagstacklen = TAGSTACKSIZE;
                             (&mut (**curwin.as_ptr()).w_tagstack)[..tagstacklen as usize].rotate_left(1);
                             tagstackidx -= 1;
-                            tagstack_clear_entry(tagstack.add(tagstackidx as usize));
+                            tagstack_clear_entry(&mut *tagstack.add(tagstackidx as usize));
                         }
 
                         (*tagstack.add(tagstackidx as usize)).tagname =
@@ -1187,21 +1187,21 @@ unsafe fn tag_strnicmp(mut s1: *const c_char, mut s2: *const c_char, mut len: us
     }
 }
 
-unsafe fn prepare_pats(pats: *mut pat_T, has_re: bool) {
+unsafe fn prepare_pats(pats: &mut pat_T, has_re: bool) {
     unsafe {
-        (*pats).head = (*pats).pat;
-        (*pats).headlen = (*pats).len;
+        pats.head = pats.pat;
+        pats.headlen = pats.len;
         if has_re {
-            if *(*pats).pat == b'^' as c_char {
-                (*pats).head = (*pats).pat.add(1);
-            } else if *(*pats).pat == b'\\' as c_char && *(*pats).pat.add(1) == b'<' as c_char {
-                (*pats).head = (*pats).pat.add(2);
+            if *pats.pat == b'^' as c_char {
+                pats.head = pats.pat.add(1);
+            } else if *pats.pat == b'\\' as c_char && *pats.pat.add(1) == b'<' as c_char {
+                pats.head = pats.pat.add(2);
             }
-            if (*pats).head == (*pats).pat {
-                (*pats).headlen = 0;
+            if pats.head == pats.pat {
+                pats.headlen = 0;
             } else {
-                (*pats).headlen = 0;
-                while *(*pats).head.add((*pats).headlen as usize) != NUL {
+                pats.headlen = 0;
+                while *pats.head.add(pats.headlen as usize) != NUL {
                     let magic_chars = if opt_vars().p_magic != 0 {
                         c".[~*\\$".as_ptr()
                     } else {
@@ -1209,25 +1209,25 @@ unsafe fn prepare_pats(pats: *mut pat_T, has_re: bool) {
                     };
                     if !vim_strchr(
                         magic_chars,
-                        *(*pats).head.add((*pats).headlen as usize) as u8 as c_int,
+                        *pats.head.add(pats.headlen as usize) as u8 as c_int,
                     )
                     .is_null()
                     {
                         break;
                     }
-                    (*pats).headlen += 1;
+                    pats.headlen += 1;
                 }
             }
-            if opt_vars().p_tl != 0 && ((*pats).headlen as OptInt) > opt_vars().p_tl {
-                (*pats).headlen = opt_vars().p_tl as c_int;
+            if opt_vars().p_tl != 0 && (pats.headlen as OptInt) > opt_vars().p_tl {
+                pats.headlen = opt_vars().p_tl as c_int;
             }
         }
 
         if has_re {
-            (*pats).regmatch.regprog =
-                vim_regcomp((*pats).pat, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
+            pats.regmatch.regprog =
+                vim_regcomp(pats.pat, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
         } else {
-            (*pats).regmatch.regprog = ptr::null_mut();
+            pats.regmatch.regprog = ptr::null_mut();
         }
     }
 }
@@ -1676,24 +1676,24 @@ unsafe fn findtags_apply_tfu(
 
 unsafe fn findtags_get_next_line(
     st: &mut findtags_state_T,
-    sinfo_p: *mut tagsearch_info_T,
+    sinfo_p: &mut tagsearch_info_T,
 ) -> tags_read_status_T {
     unsafe {
         let mut eof: bool;
 
         if st.state == tagsearch_state_T::TS_BINARY {
             let offset =
-                (*sinfo_p).low_offset + (((*sinfo_p).high_offset - (*sinfo_p).low_offset) / 2);
-            if offset == (*sinfo_p).curr_offset {
+                sinfo_p.low_offset + ((sinfo_p.high_offset - sinfo_p.low_offset) / 2);
+            if offset == sinfo_p.curr_offset {
                 return tags_read_status_T::TAGS_READ_EOF;
             } else {
-                (*sinfo_p).curr_offset = offset;
+                sinfo_p.curr_offset = offset;
             }
         } else if st.state == tagsearch_state_T::TS_SKIP_BACK {
             let lbuf_size = (&*st).lbuf.len() as c_int;
-            (*sinfo_p).curr_offset -= (lbuf_size * 2) as off_T;
-            if (*sinfo_p).curr_offset < 0 {
-                (*sinfo_p).curr_offset = 0;
+            sinfo_p.curr_offset -= (lbuf_size * 2) as off_T;
+            if sinfo_p.curr_offset < 0 {
+                sinfo_p.curr_offset = 0;
                 vim_fseek((&*st).fp_ptr(), 0, SEEK_SET);
                 st.state = tagsearch_state_T::TS_STEP_FORWARD;
             }
@@ -1705,25 +1705,25 @@ unsafe fn findtags_get_next_line(
         if st.state == tagsearch_state_T::TS_BINARY
             || st.state == tagsearch_state_T::TS_SKIP_BACK
         {
-            (*sinfo_p).curr_offset_used = (*sinfo_p).curr_offset;
-            g_st().vim_ignored = vim_fseek(fp, (*sinfo_p).curr_offset, SEEK_SET);
+            sinfo_p.curr_offset_used = sinfo_p.curr_offset;
+            g_st().vim_ignored = vim_fseek(fp, sinfo_p.curr_offset, SEEK_SET);
             eof = vim_fgets(lbuf_ptr, lbuf_size, fp);
-            if !eof && (*sinfo_p).curr_offset != 0 {
-                (*sinfo_p).curr_offset = vim_ftell(fp);
-                if (*sinfo_p).curr_offset == (*sinfo_p).high_offset {
-                    g_st().vim_ignored = vim_fseek(fp, (*sinfo_p).low_offset, SEEK_SET);
-                    (*sinfo_p).curr_offset = (*sinfo_p).low_offset;
+            if !eof && sinfo_p.curr_offset != 0 {
+                sinfo_p.curr_offset = vim_ftell(fp);
+                if sinfo_p.curr_offset == sinfo_p.high_offset {
+                    g_st().vim_ignored = vim_fseek(fp, sinfo_p.low_offset, SEEK_SET);
+                    sinfo_p.curr_offset = sinfo_p.low_offset;
                 }
                 eof = vim_fgets(lbuf_ptr, lbuf_size, fp);
             }
             while !eof && vim_isblankline(lbuf_ptr) {
-                (*sinfo_p).curr_offset = vim_ftell(fp);
+                sinfo_p.curr_offset = vim_ftell(fp);
                 eof = vim_fgets(lbuf_ptr, lbuf_size, fp);
             }
             if eof {
                 st.state = tagsearch_state_T::TS_SKIP_BACK;
-                (*sinfo_p).match_offset = vim_ftell(fp);
-                (*sinfo_p).curr_offset = (*sinfo_p).curr_offset_used;
+                sinfo_p.match_offset = vim_ftell(fp);
+                sinfo_p.curr_offset = sinfo_p.curr_offset_used;
                 return tags_read_status_T::TAGS_READ_IGNORE;
             }
         } else {
@@ -2154,7 +2154,7 @@ unsafe fn findtags_get_all_tags(
                 break;
             }
             if !st.get_searchpat {
-                let retval = findtags_get_next_line(st, &raw mut search_info);
+                let retval = findtags_get_next_line(st, &mut search_info);
                 if retval == tags_read_status_T::TAGS_READ_IGNORE {
                     continue;
                 }
@@ -2364,7 +2364,7 @@ pub unsafe fn find_tags(
 
         let save_emsg_off = g_st().emsg_off;
         g_st().emsg_off = 1;
-        prepare_pats(&raw mut st.orgpat, has_re);
+        prepare_pats(&mut st.orgpat, has_re);
         g_st().emsg_off = save_emsg_off;
         if has_re && st.orgpat.regmatch.regprog.is_null() {
             retval = FAIL;
@@ -2396,7 +2396,7 @@ pub unsafe fn find_tags(
 
                     let mut tn = tagname_T::new();
                     let mut first_file: c_int = 1;
-                    while get_tagfname(&raw mut tn, first_file, st.tag_fname.as_mut_ptr()) == OK {
+                    while get_tagfname(&mut tn, first_file, st.tag_fname.as_mut_ptr()) == OK {
                         findtags_in_file(&mut st, flags, buf_ffname);
                         if st.stop_searching {
                             retval = OK;
@@ -2465,12 +2465,12 @@ pub unsafe fn free_tag_stuff() {
             do_tag(ptr::null_mut(), ptr::null_mut(), DT_FREE, 0, 0, false);
         }
         tag_freematch();
-        tagstack_clear_entry(&raw mut tag_st().ptag_entry);
+        tagstack_clear_entry(&mut tag_st().ptag_entry);
     }
 }
 
 /// Get the next name of a tag file from the tag file list.
-pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) -> c_int {
+pub unsafe fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> c_int {
     unsafe {
         let mut fname: Option<std::ffi::CString>;
 
@@ -2490,11 +2490,11 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
             }
 
             let len = (*tf).len() as c_int;
-            if (*tnp).tn_hf_idx >= len {
-                if (*tnp).tn_hf_idx > len || *opt_vars().p_hf == NUL {
+            if tnp.tn_hf_idx >= len {
+                if tnp.tn_hf_idx > len || *opt_vars().p_hf == NUL {
                     return FAIL;
                 }
-                (*tnp).tn_hf_idx += 1;
+                tnp.tn_hf_idx += 1;
                 xstrlcpy(buf, opt_vars().p_hf, MAXPATHL - 4);
                 { let s = c"tags".as_ptr(); std::ptr::copy_nonoverlapping(s, path_tail(buf), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 simplify_filename(buf);
@@ -2506,10 +2506,10 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
             } else {
                 xstrlcpy(
                     buf,
-                    (*tf).as_slice()[(*tnp).tn_hf_idx as usize].as_ptr(),
+                    (*tf).as_slice()[tnp.tn_hf_idx as usize].as_ptr(),
                     MAXPATHL,
                 );
-                (*tnp).tn_hf_idx += 1;
+                tnp.tn_hf_idx += 1;
             }
             return OK;
         }
@@ -2520,25 +2520,25 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
             } else {
                 opt_vars().p_tags
             };
-            (*tnp).tn_tags = Some(CStr::from_ptr(src).to_owned());
-            (*tnp).tn_np = (*tnp).tn_tags.as_ref().unwrap().as_ptr().cast_mut();
+            tnp.tn_tags = Some(CStr::from_ptr(src).to_owned());
+            tnp.tn_np = tnp.tn_tags.as_ref().unwrap().as_ptr().cast_mut();
         }
 
         loop {
-            if (*tnp).tn_did_filefind_init != 0 {
-                fname = vim_findfile((*tnp).tn_search_ctx.as_mut());
+            if tnp.tn_did_filefind_init != 0 {
+                fname = vim_findfile(tnp.tn_search_ctx.as_mut());
                 if fname.is_some() {
                     break;
                 }
-                (*tnp).tn_did_filefind_init = 0;
+                tnp.tn_did_filefind_init = 0;
             } else {
-                if *(*tnp).tn_np == NUL {
-                    (*tnp).tn_search_ctx = None;
+                if *tnp.tn_np == NUL {
+                    tnp.tn_search_ctx = None;
                     return FAIL;
                 }
 
                 *buf = NUL;
-                copy_option_part(&raw mut (*tnp).tn_np, buf, MAXPATHL - 1, c" ,".as_ptr());
+                copy_option_part(&raw mut tnp.tn_np, buf, MAXPATHL - 1, c" ,".as_ptr());
 
                 let mut r_ptr = vim_findfile_stopdir(buf);
                 let mut filename = path_tail(buf);
@@ -2550,7 +2550,7 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
                 *filename = NUL;
                 filename = filename.add(1);
 
-                (*tnp).tn_search_ctx = vim_findfile_init(
+                tnp.tn_search_ctx = vim_findfile_init(
                     buf,
                     filename,
                     std::ffi::CStr::from_ptr(filename).to_bytes().len(),
@@ -2558,12 +2558,12 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
                     100,
                     0,
                     FINDFILE_FILE,
-                    (*tnp).tn_search_ctx.take(),
+                    tnp.tn_search_ctx.take(),
                     1,
                     (*g_st().curbuf).b_ffname,
                 );
-                if (*tnp).tn_search_ctx.is_some() {
-                    (*tnp).tn_did_filefind_init = 1;
+                if tnp.tn_search_ctx.is_some() {
+                    tnp.tn_did_filefind_init = 1;
                 }
             }
         }
@@ -3132,11 +3132,9 @@ unsafe fn find_extra(pp: *mut *mut c_char) -> c_int {
 }
 
 /// Free a single entry in a tag stack.
-pub unsafe fn tagstack_clear_entry(item: *mut taggy_T) {
-    unsafe {
-        (*item).tagname = None;
-        (*item).user_data = None;
-    }
+pub unsafe fn tagstack_clear_entry(item: &mut taggy_T) {
+    item.tagname = None;
+        item.user_data = None;
 }
 
 pub unsafe fn tag_listfiles_extra(idx: usize) -> Option<(*const c_char, *const c_char)> {
@@ -3345,34 +3343,34 @@ pub unsafe fn get_tags(list: *mut list_T, pat: *mut c_char, buf_fname: *mut c_ch
     }
 }
 
-unsafe fn get_tag_details(tag: *mut taggy_T, retdict: *mut dict_T) {
+unsafe fn get_tag_details(tag: &mut taggy_T, retdict: *mut dict_T) {
     unsafe {
         tv_dict_add_str(
             retdict,
             c"tagname".as_ptr(),
             7,
-            (*tag).tagname.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+            tag.tagname.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
         );
         tv_dict_add_nr(
             retdict,
             c"matchnr".as_ptr(),
             7,
-            ((*tag).cur_match + 1) as varnumber_T,
+            (tag.cur_match + 1) as varnumber_T,
         );
         tv_dict_add_nr(
             retdict,
             c"bufnr".as_ptr(),
             5,
-            (*tag).cur_fnum as varnumber_T,
+            tag.cur_fnum as varnumber_T,
         );
-        if let Some(ref ud) = (*tag).user_data {
+        if let Some(ref ud) = tag.user_data {
             tv_dict_add_str(retdict, c"user_data".as_ptr(), 9, ud.as_ptr());
         }
 
         let pos = tv_list_alloc(4);
         tv_dict_add_list(retdict, c"from".as_ptr(), 4, pos);
 
-        let fmark = &raw mut (*tag).fmark;
+        let fmark = &raw mut tag.fmark;
         tv_list_append_number(
             pos,
             if (*fmark).fnum != -1 {
@@ -3416,7 +3414,7 @@ pub unsafe fn get_tagstack(wp: &mut win_T, retdict: *mut dict_T) {
         for i in 0..wp.w_tagstacklen as usize {
             let d = tv_dict_alloc();
             tv_list_append_dict(l, d);
-            get_tag_details(tagstack.add(i), d);
+            get_tag_details(&mut *tagstack.add(i), d);
         }
     }
 }
@@ -3425,7 +3423,7 @@ unsafe fn tagstack_clear(wp: *mut win_T) {
     unsafe {
         let tagstack = (&raw mut (*wp).w_tagstack).cast::<taggy_T>();
         for i in 0..(*wp).w_tagstacklen as usize {
-            tagstack_clear_entry(tagstack.add(i));
+            tagstack_clear_entry(&mut *tagstack.add(i));
         }
         (*wp).w_tagstacklen = 0;
         (*wp).w_tagstackidx = 0;
@@ -3436,7 +3434,7 @@ unsafe fn tagstack_shift(wp: *mut win_T) {
     unsafe {
         let len = (*wp).w_tagstacklen as usize;
         (&mut (*wp).w_tagstack)[..len].rotate_left(1);
-        tagstack_clear_entry(&raw mut (*wp).w_tagstack[len - 1]);
+        tagstack_clear_entry(&mut (*wp).w_tagstack[len - 1]);
         (*wp).w_tagstacklen -= 1;
     }
 }
@@ -3564,7 +3562,7 @@ pub unsafe fn set_tagstack(wp: *mut win_T, d: *const dict_T, action: c_int) -> c
 
             while tagstackidx < tagstacklen {
                 tagstacklen -= 1;
-                tagstack_clear_entry(tagstack.add(tagstacklen as usize));
+                tagstack_clear_entry(&mut *tagstack.add(tagstacklen as usize));
             }
             (*wp).w_tagstacklen = tagstacklen;
         }

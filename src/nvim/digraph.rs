@@ -1848,18 +1848,18 @@ pub unsafe fn listdigraphs(use_headers: bool) {
     }
 }
 
-unsafe fn digraph_getlist_appendpair(dp: *const digr_T, l: *mut list_T) {
+unsafe fn digraph_getlist_appendpair(dp: &digr_T, l: *mut list_T) {
     unsafe {
         let l2 = tv_list_alloc(2);
         tv_list_append_list(l, l2);
 
         let mut buf = [0 as c_char; 30];
-        buf[0] = (*dp).char1 as c_char;
-        buf[1] = (*dp).char2 as c_char;
+        buf[0] = dp.char1 as c_char;
+        buf[1] = dp.char2 as c_char;
         buf[2] = NUL;
         tv_list_append_string(l2, buf.as_ptr(), -1);
 
-        let len = utf_char2bytes((*dp).result, buf.as_mut_ptr()) as usize;
+        let len = utf_char2bytes(dp.result, buf.as_mut_ptr()) as usize;
         buf[len] = NUL;
         tv_list_append_string(l2, buf.as_ptr(), -1);
     }
@@ -1883,7 +1883,7 @@ pub unsafe fn digraph_getlist_common(list_all: bool, rettv: &mut typval_T) {
                     result: getexactdigraph(c_int::from(dp.char1), c_int::from(dp.char2), false),
                 };
                 if tmp.result != 0 && tmp.result != c_int::from(tmp.char2) {
-                    digraph_getlist_appendpair(&raw const tmp, rettv.vval.v_list());
+                    digraph_getlist_appendpair(&tmp, rettv.vval.v_list());
                 }
             }
         }

@@ -431,7 +431,7 @@ pub unsafe fn save_re_pat(idx: c_int, pat: *mut c_char, patlen: usize, magic: c_
 
         let new_pat =
             CString::new(std::slice::from_raw_parts(pat.cast::<u8>(), patlen)).unwrap_or_default();
-        free_spat(&raw mut srch().spats[i]);
+        free_spat(&mut srch().spats[i]);
         srch().spats[i].pat = Some(new_pat);
         srch().spats[i].magic = magic != 0;
         srch().spats[i].no_scs = g_st().Search.no_smartcase;
@@ -470,7 +470,7 @@ pub unsafe fn restore_search_patterns() {
         }
 
         for i in 0..2 {
-            free_spat(&raw mut srch().spats[i]);
+            free_spat(&mut srch().spats[i]);
             srch().spats[i] = std::mem::replace(&mut srch().saved_spats[i], EMPTY_SEARCH_PATTERN);
         }
         set_vv_searchforward();
@@ -481,17 +481,15 @@ pub unsafe fn restore_search_patterns() {
 }
 
 #[inline]
-unsafe fn free_spat(spat: *mut SearchPattern) {
-    unsafe {
-        (*spat).pat = None;
-        (*spat).additional_data = None;
-    }
+unsafe fn free_spat(spat: &mut SearchPattern) {
+    spat.pat = None;
+        spat.additional_data = None;
 }
 
 pub unsafe fn free_search_patterns() {
     unsafe {
-        free_spat(&raw mut srch().spats[0]);
-        free_spat(&raw mut srch().spats[1]);
+        free_spat(&mut srch().spats[0]);
+        free_spat(&mut srch().spats[1]);
         srch().spats = [EMPTY_SEARCH_PATTERN, EMPTY_SEARCH_PATTERN];
         srch().mr_pattern = None;
     }
@@ -665,7 +663,7 @@ pub unsafe fn reset_search_dir() {
 pub unsafe fn set_last_search_pat(s: *const c_char, idx: c_int, magic: c_int, setlast: bool) {
     unsafe {
         let i = idx as usize;
-        free_spat(&raw mut srch().spats[i]);
+        free_spat(&mut srch().spats[i]);
         if *s == NUL {
             srch().spats[i].pat = None;
         } else {
@@ -684,7 +682,7 @@ pub unsafe fn set_last_search_pat(s: *const c_char, idx: c_int, magic: c_int, se
             srch().last_idx = idx;
         }
         if srch().save_level != 0 {
-            free_spat(&raw mut srch().saved_spats[i]);
+            free_spat(&mut srch().saved_spats[i]);
             srch().saved_spats[i] = srch().spats[0].clone();
             srch().saved_spats[i].pat = srch().spats[i].pat.clone();
             srch().saved_spats_last_idx = srch().last_idx;
@@ -2833,7 +2831,7 @@ unsafe fn cmdline_search_stat(
             dirc,
             pos,
             cursor_pos,
-            &raw mut stat,
+            &mut stat,
             recompute,
             maxcount,
             timeout,
@@ -2924,7 +2922,7 @@ unsafe fn update_search_stat(
     dirc: c_int,
     pos: &mut pos_T,
     cursor_pos: &mut pos_T,
-    stat: *mut searchstat_T,
+    stat: &mut searchstat_T,
     recompute: bool,
     maxcount: c_int,
     timeout: c_int,
@@ -2936,11 +2934,11 @@ unsafe fn update_search_stat(
         *stat = searchstat_T::default();
 
         if dirc == 0 && !recompute && !empty_pos(srch().stat_lastpos) {
-            (*stat).cur = srch().stat_cur;
-            (*stat).cnt = srch().stat_cnt;
-            (*stat).exact_match = srch().stat_exact_match;
-            (*stat).incomplete = srch().stat_incomplete;
-            (*stat).last_maxcount = srch().stat_last_maxcount;
+            stat.cur = srch().stat_cur;
+            stat.cnt = srch().stat_cnt;
+            stat.exact_match = srch().stat_exact_match;
+            stat.incomplete = srch().stat_incomplete;
+            stat.last_maxcount = srch().stat_last_maxcount;
             return;
         }
         srch().stat_last_maxcount = maxcount;
@@ -3041,11 +3039,11 @@ unsafe fn update_search_stat(
                 srch().stat_lastpos = p;
             }
         }
-        (*stat).cur = srch().stat_cur;
-        (*stat).cnt = srch().stat_cnt;
-        (*stat).exact_match = srch().stat_exact_match;
-        (*stat).incomplete = srch().stat_incomplete;
-        (*stat).last_maxcount = srch().stat_last_maxcount;
+        stat.cur = srch().stat_cur;
+        stat.cnt = srch().stat_cnt;
+        stat.exact_match = srch().stat_exact_match;
+        stat.incomplete = srch().stat_incomplete;
+        stat.last_maxcount = srch().stat_last_maxcount;
         opt_vars().p_ws = save_ws;
     }
 }
@@ -3153,7 +3151,7 @@ pub unsafe fn f_searchcount(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
                 0,
                 &mut pos,
                 &mut { cursor_pos },
-                &raw mut stat,
+                &mut stat,
                 recompute,
                 maxcount,
                 timeout,
@@ -3987,16 +3985,16 @@ unsafe fn show_pat_in_path(
     }
 }
 
-pub unsafe fn get_search_pattern(pat: *mut SearchPattern) {
+pub unsafe fn get_search_pattern(pat: &mut SearchPattern) {
     unsafe {
         *pat = srch().spats[0].clone();
     }
 }
 
-pub unsafe fn get_substitute_pattern(pat: *mut SearchPattern) {
+pub unsafe fn get_substitute_pattern(pat: &mut SearchPattern) {
     unsafe {
         *pat = srch().spats[1].clone();
-        (*pat).off = SearchOffset {
+        pat.off = SearchOffset {
             dir: 0,
             line: false,
             end: false,
@@ -4041,7 +4039,7 @@ pub unsafe fn search_pattern_cleared(substitute: bool) -> bool {
 
 pub unsafe fn set_search_pattern(pat: SearchPattern) {
     unsafe {
-        free_spat(&raw mut srch().spats[0]);
+        free_spat(&mut srch().spats[0]);
         srch().spats[0] = pat;
         set_vv_searchforward();
     }
@@ -4049,7 +4047,7 @@ pub unsafe fn set_search_pattern(pat: SearchPattern) {
 
 pub unsafe fn set_substitute_pattern(pat: SearchPattern) {
     unsafe {
-        free_spat(&raw mut srch().spats[1]);
+        free_spat(&mut srch().spats[1]);
         srch().spats[1] = pat;
         srch().spats[1].off = SearchOffset {
             dir: 0,

@@ -638,7 +638,7 @@ pub unsafe fn deleteFold(
                 found_fp = fp;
                 found_off = lnum_off;
 
-                if check_closed(&raw mut *wp, fp, &mut use_level, level, &mut maybe_small, lnum_off) {
+                if check_closed(&raw mut *wp, &mut *fp, &mut use_level, level, &mut maybe_small, lnum_off) {
                     break;
                 }
 
@@ -660,7 +660,7 @@ pub unsafe fn deleteFold(
                     if !did_one {
                         parseMarker(&raw mut *wp);
                     }
-                    deleteFoldMarkers(wp, found_fp, recursive != 0, found_off);
+                    deleteFoldMarkers(wp, &mut *found_fp, recursive != 0, found_off);
                 }
                 did_one = true;
 
@@ -1067,7 +1067,7 @@ unsafe fn setManualFoldWin(
                     (*fp).fd_flags = FD_OPEN;
                     done |= DONE_ACTION;
                     if recurse {
-                        foldOpenNested(fp);
+                        foldOpenNested(&mut *fp);
                     }
                 }
                 break;
@@ -1101,9 +1101,9 @@ unsafe fn setManualFoldWin(
     }
 }
 
-unsafe fn foldOpenNested(fpr: *mut fold_T) {
+unsafe fn foldOpenNested(fpr: &mut fold_T) {
     unsafe {
-        for child in &mut (*fpr).fd_nested {
+        for child in &mut fpr.fd_nested {
             foldOpenNested(child);
             child.fd_flags = FD_OPEN;
         }
@@ -1261,7 +1261,7 @@ unsafe fn getDeepestNestingRecurse(gap: &[fold_T]) -> c_int {
 
 unsafe fn check_closed(
     wp: *mut win_T,
-    fp: *mut fold_T,
+    fp: &mut fold_T,
     use_levelp: &mut bool,
     level: c_int,
     maybe_smallp: &mut bool,
@@ -1270,24 +1270,24 @@ unsafe fn check_closed(
     unsafe {
         let mut closed = false;
 
-        if *use_levelp || (*fp).fd_flags == FD_LEVEL {
+        if *use_levelp || fp.fd_flags == FD_LEVEL {
             *use_levelp = true;
             if i64::from(level) >= (*wp).w_onebuf_opt.wo_fdl {
                 closed = true;
             }
-        } else if (*fp).fd_flags == FD_CLOSED {
+        } else if fp.fd_flags == FD_CLOSED {
             closed = true;
         }
 
-        if (*fp).fd_small == kNone {
+        if fp.fd_small == kNone {
             *maybe_smallp = true;
         }
         if closed {
             if *maybe_smallp {
-                (*fp).fd_small = kNone;
+                fp.fd_small = kNone;
             }
             checkSmall(wp, fp, lnum_off);
-            if (*fp).fd_small == kTrue {
+            if fp.fd_small == kTrue {
                 closed = false;
             }
         }
@@ -1295,26 +1295,26 @@ unsafe fn check_closed(
     }
 }
 
-unsafe fn checkSmall(wp: *mut win_T, fp: *mut fold_T, lnum_off: linenr_T) {
+unsafe fn checkSmall(wp: *mut win_T, fp: &mut fold_T, lnum_off: linenr_T) {
     unsafe {
-        if (*fp).fd_small != kNone {
+        if fp.fd_small != kNone {
             return;
         }
 
-        setSmallMaybe(&mut (*fp).fd_nested);
+        setSmallMaybe(&mut fp.fd_nested);
 
-        if i64::from((*fp).fd_len) > (*wp).w_onebuf_opt.wo_fml {
-            (*fp).fd_small = kFalse;
+        if i64::from(fp.fd_len) > (*wp).w_onebuf_opt.wo_fml {
+            fp.fd_small = kFalse;
         } else {
             let mut count: c_int = 0;
-            for n in 0..(*fp).fd_len {
-                count += plines_win_nofold(wp, (*fp).fd_top + lnum_off + n);
+            for n in 0..fp.fd_len {
+                count += plines_win_nofold(wp, fp.fd_top + lnum_off + n);
                 if i64::from(count) > (*wp).w_onebuf_opt.wo_fml {
-                    (*fp).fd_small = kFalse;
+                    fp.fd_small = kFalse;
                     return;
                 }
             }
-            (*fp).fd_small = kTrue;
+            fp.fd_small = kTrue;
         }
     }
 }
@@ -1392,22 +1392,22 @@ unsafe fn foldAddMarker(buf: &mut buf_T, pos: pos_T, marker: *const c_char, mark
     }
 }
 
-unsafe fn deleteFoldMarkers(wp: &mut win_T, fp: *mut fold_T, recursive: bool, lnum_off: linenr_T) {
+unsafe fn deleteFoldMarkers(wp: &mut win_T, fp: &mut fold_T, recursive: bool, lnum_off: linenr_T) {
     unsafe {
         if recursive {
-            for child in &mut (*fp).fd_nested {
-                deleteFoldMarkers(wp, child, true, lnum_off + (*fp).fd_top);
+            for child in &mut fp.fd_nested {
+                deleteFoldMarkers(wp, child, true, lnum_off + fp.fd_top);
             }
         }
         foldDelMarker(
             &mut *wp.w_buffer,
-            (*fp).fd_top + lnum_off,
+            fp.fd_top + lnum_off,
             wp.w_onebuf_opt.wo_fmr,
             fold_st().foldstartmarkerlen,
         );
         foldDelMarker(
             &mut *wp.w_buffer,
-            (*fp).fd_top + lnum_off + (*fp).fd_len - 1,
+            fp.fd_top + lnum_off + fp.fd_len - 1,
             fold_st().foldendmarker,
             fold_st().foldendmarkerlen,
         );
@@ -2719,19 +2719,19 @@ unsafe fn put_foldopen_recurse(
     }
 }
 
-unsafe fn put_fold_open_close(fd: *mut FILE, fp: *const fold_T, off: linenr_T) -> c_int {
+unsafe fn put_fold_open_close(fd: *mut FILE, fp: &fold_T, off: linenr_T) -> c_int {
     unsafe {
         let mut buf = [0 as c_char; 32];
         vim_snprintf!(
             buf.as_mut_ptr(),
             buf.len(),
             c"%d".as_ptr(),
-            (*fp).fd_top + off,
+            fp.fd_top + off,
         );
         if fputs(buf.as_ptr(), fd) < 0 || put_eol(fd) == FAIL {
             return FAIL;
         }
-        let cmd = if (*fp).fd_flags == FD_CLOSED {
+        let cmd = if fp.fd_flags == FD_CLOSED {
             c"sil! normal! zc".as_ptr()
         } else {
             c"sil! normal! zo".as_ptr()

@@ -71,18 +71,16 @@ unsafe fn rstream_space(stream: &mut RStream) -> usize {
 pub unsafe fn rstream_init_fd(loop_: *mut Loop, stream: *mut RStream, fd: c_int) {
     unsafe {
         stream_init(loop_, &mut (*stream).s, fd, false);
-        rstream_init(stream);
+        rstream_init(&mut *stream);
     }
 }
 
-pub unsafe fn rstream_init(stream: *mut RStream) {
-    unsafe {
-        (*stream).num_bytes = 0;
-        (*stream).buffer = vec![0; ARENA_BLOCK_SIZE];
-        (*stream).read_pos = 0;
-        (*stream).write_pos = 0;
-        (*stream).s.is_rstream = true;
-    }
+pub unsafe fn rstream_init(stream: &mut RStream) {
+    stream.num_bytes = 0;
+        stream.buffer = vec![0; ARENA_BLOCK_SIZE];
+        stream.read_pos = 0;
+        stream.write_pos = 0;
+        stream.s.is_rstream = true;
 }
 
 pub unsafe fn rstream_start_inner(stream: &mut RStream) {

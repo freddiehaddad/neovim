@@ -218,7 +218,7 @@ unsafe fn coladvance2(
             }
 
             let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(&raw mut csarg, wp, pos.lnum, line);
+            let cstype: CSType = init_charsize_arg(&mut csarg, wp, pos.lnum, line);
             let mut ci = utf_ptr2StrCharInfo(line);
             col = 0;
             while col <= wcol && *ci.ptr != NUL {

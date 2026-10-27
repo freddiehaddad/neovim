@@ -505,7 +505,7 @@ pub unsafe fn u_savecommon(
                         let uep: *mut u_entry_T =
                             &raw mut uhp_mut(buf, newhead).uh_entries.as_mut_slice()[i];
 
-                        if u_entry_resized(buf, uep)
+                        if u_entry_resized(buf, &*uep)
                             || ((*uep).ue_size() > 1
                                 && top >= (*uep).ue_top
                                 && top + 2 <= (*uep).ue_top + (*uep).ue_size() + 1)
@@ -581,18 +581,18 @@ pub unsafe fn u_savecommon(
     }
 }
 
-unsafe fn u_entry_resized(buf: *mut buf_T, uep: *const u_entry_T) -> bool {
+unsafe fn u_entry_resized(buf: *mut buf_T, uep: &u_entry_T) -> bool {
     unsafe {
         let newhead = uhp_ref(buf, (*buf).b_u_newhead.unwrap());
         if !newhead.uh_getbot_entry || !ptr::eq(uep, newhead.uh_entries.as_ptr()) {
-            (*uep).ue_top + (*uep).ue_size() + 1
-                != if (*uep).ue_bot == 0 {
+            uep.ue_top + uep.ue_size() + 1
+                != if uep.ue_bot == 0 {
                     (*buf).b_ml.ml_line_count + 1
                 } else {
-                    (*uep).ue_bot
+                    uep.ue_bot
                 }
         } else {
-            (*uep).ue_lcount != (*buf).b_ml.ml_line_count
+            uep.ue_lcount != (*buf).b_ml.ml_line_count
         }
     }
 }
@@ -803,7 +803,7 @@ unsafe fn serialize_uhp(bi: &mut bufinfo_T, uhp: usize) -> bool {
         for i in 0..NMARKS {
             serialize_pos(bi, uhp_ref(buf, uhp).uh_namedm[i].mark);
         }
-        serialize_visualinfo(bi, &raw mut uhp_mut(buf, uhp).uh_visual);
+        serialize_visualinfo(bi, &mut uhp_mut(buf, uhp).uh_visual);
         let mut time_buf = (uhp_ref(buf, uhp).uh_time as u64).to_be_bytes();
         undo_write(bi, time_buf.as_mut_ptr(), time_buf.len());
 
@@ -862,7 +862,7 @@ unsafe fn unserialize_uhp(
             uhp.uh_namedm[i].timestamp = cur_timestamp;
             uhp.uh_namedm[i].fnum = 0;
         }
-        unserialize_visualinfo(bi, &raw mut uhp.uh_visual);
+        unserialize_visualinfo(bi, &mut uhp.uh_visual);
         uhp.uh_time = undo_read_time(bi);
 
         loop {
@@ -1058,21 +1058,21 @@ unsafe fn unserialize_pos(bi: &mut bufinfo_T, pos: &mut pos_T) {
     }
 }
 
-unsafe fn serialize_visualinfo(bi: &mut bufinfo_T, info: *mut visualinfo_T) {
+unsafe fn serialize_visualinfo(bi: &mut bufinfo_T, info: &mut visualinfo_T) {
     unsafe {
-        serialize_pos(bi, (*info).vi_start);
-        serialize_pos(bi, (*info).vi_end);
-        undo_write_bytes(bi, (*info).vi_mode as u64, 4);
-        undo_write_bytes(bi, (*info).vi_curswant as u64, 4);
+        serialize_pos(bi, info.vi_start);
+        serialize_pos(bi, info.vi_end);
+        undo_write_bytes(bi, info.vi_mode as u64, 4);
+        undo_write_bytes(bi, info.vi_curswant as u64, 4);
     }
 }
 
-unsafe fn unserialize_visualinfo(bi: &mut bufinfo_T, info: *mut visualinfo_T) {
+unsafe fn unserialize_visualinfo(bi: &mut bufinfo_T, info: &mut visualinfo_T) {
     unsafe {
-        unserialize_pos(bi, &mut (*info).vi_start);
-        unserialize_pos(bi, &mut (*info).vi_end);
-        (*info).vi_mode = undo_read_4c(bi);
-        (*info).vi_curswant = undo_read_4c(bi);
+        unserialize_pos(bi, &mut info.vi_start);
+        unserialize_pos(bi, &mut info.vi_end);
+        info.vi_mode = undo_read_4c(bi);
+        info.vi_curswant = undo_read_4c(bi);
     }
 }
 
@@ -2830,7 +2830,7 @@ pub unsafe fn u_forget_unchanged(buf: &mut buf_T) {
             return;
         };
         let uep: *mut u_entry_T = &raw mut uhp_mut(&raw mut *buf, uhp).uh_entries.as_mut_slice()[0];
-        if u_entry_resized(&raw mut *buf, uep) {
+        if u_entry_resized(&raw mut *buf, &*uep) {
             return;
         }
         for i in 0..(*uep).ue_size() {
@@ -3153,23 +3153,23 @@ pub unsafe fn u_force_get_undo_header(buf: *mut buf_T) -> Option<usize> {
 }
 
 /// Checkpoints the undo state of `buf` and detaches its undotree.
-pub unsafe fn u_checkpoint(uc: *mut UndoCheckpoint, buf: &mut buf_T) {
+pub unsafe fn u_checkpoint(uc: &mut UndoCheckpoint, buf: &mut buf_T) {
     unsafe {
-        (*uc).uc_synced = buf.b_u_synced;
-        (*uc).uc_oldhead = buf.b_u_oldhead;
-        (*uc).uc_newhead = buf.b_u_newhead;
-        (*uc).uc_curhead = buf.b_u_curhead;
-        (*uc).uc_numhead = buf.b_u_numhead;
-        (*uc).uc_seq_last = buf.b_u_seq_last;
-        (*uc).uc_save_nr_last = buf.b_u_save_nr_last;
-        (*uc).uc_seq_cur = buf.b_u_seq_cur;
-        (*uc).uc_time_cur = buf.b_u_time_cur;
-        (*uc).uc_save_nr_cur = buf.b_u_save_nr_cur;
-        (*uc).uc_line_ptr = buf.b_u_line_ptr.take();
-        (*uc).uc_line_lnum = buf.b_u_line_lnum;
-        (*uc).uc_line_colnr = buf.b_u_line_colnr;
-        (*uc).uc_undolevels = buf.b_p_ul;
-        (*uc).uc_changedtick = buf_get_changedtick(&raw mut *buf);
+        uc.uc_synced = buf.b_u_synced;
+        uc.uc_oldhead = buf.b_u_oldhead;
+        uc.uc_newhead = buf.b_u_newhead;
+        uc.uc_curhead = buf.b_u_curhead;
+        uc.uc_numhead = buf.b_u_numhead;
+        uc.uc_seq_last = buf.b_u_seq_last;
+        uc.uc_save_nr_last = buf.b_u_save_nr_last;
+        uc.uc_seq_cur = buf.b_u_seq_cur;
+        uc.uc_time_cur = buf.b_u_time_cur;
+        uc.uc_save_nr_cur = buf.b_u_save_nr_cur;
+        uc.uc_line_ptr = buf.b_u_line_ptr.take();
+        uc.uc_line_lnum = buf.b_u_line_lnum;
+        uc.uc_line_colnr = buf.b_u_line_colnr;
+        uc.uc_undolevels = buf.b_p_ul;
+        uc.uc_changedtick = buf_get_changedtick(&raw mut *buf);
 
         u_clearall(&raw mut *buf);
         buf.b_p_ul = OptInt::from(c_int::MAX);
@@ -3177,9 +3177,9 @@ pub unsafe fn u_checkpoint(uc: *mut UndoCheckpoint, buf: &mut buf_T) {
 }
 
 /// Reverts `buf` from a checkpoint.
-pub unsafe fn u_rollback(uc: *mut UndoCheckpoint, buf: &mut buf_T) {
+pub unsafe fn u_rollback(uc: &mut UndoCheckpoint, buf: &mut buf_T) {
     unsafe {
-        if buf.b_u_seq_cur != (*uc).uc_seq_cur {
+        if buf.b_u_seq_cur != uc.uc_seq_cur {
             let mut count: c_int = 0;
             let mut uhp = buf.b_u_curhead.or(buf.b_u_newhead);
             while let Some(uh) = uhp {
@@ -3199,26 +3199,26 @@ pub unsafe fn u_rollback(uc: *mut UndoCheckpoint, buf: &mut buf_T) {
         }
 
         u_blockfree(&raw mut *buf);
-        buf.b_u_oldhead = (*uc).uc_oldhead;
-        buf.b_u_newhead = (*uc).uc_newhead;
-        buf.b_u_curhead = (*uc).uc_curhead;
-        buf.b_u_numhead = (*uc).uc_numhead;
-        buf.b_u_seq_last = (*uc).uc_seq_last;
-        buf.b_u_save_nr_last = (*uc).uc_save_nr_last;
-        buf.b_u_seq_cur = (*uc).uc_seq_cur;
-        buf.b_u_time_cur = (*uc).uc_time_cur;
-        buf.b_u_save_nr_cur = (*uc).uc_save_nr_cur;
-        buf.b_u_line_ptr = (*uc).uc_line_ptr.take();
-        buf.b_u_line_lnum = (*uc).uc_line_lnum;
-        buf.b_u_line_colnr = (*uc).uc_line_colnr;
+        buf.b_u_oldhead = uc.uc_oldhead;
+        buf.b_u_newhead = uc.uc_newhead;
+        buf.b_u_curhead = uc.uc_curhead;
+        buf.b_u_numhead = uc.uc_numhead;
+        buf.b_u_seq_last = uc.uc_seq_last;
+        buf.b_u_save_nr_last = uc.uc_save_nr_last;
+        buf.b_u_seq_cur = uc.uc_seq_cur;
+        buf.b_u_time_cur = uc.uc_time_cur;
+        buf.b_u_save_nr_cur = uc.uc_save_nr_cur;
+        buf.b_u_line_ptr = uc.uc_line_ptr.take();
+        buf.b_u_line_lnum = uc.uc_line_lnum;
+        buf.b_u_line_colnr = uc.uc_line_colnr;
         if buf.b_u_curhead.is_none() {
-            buf.b_u_synced = (*uc).uc_synced;
+            buf.b_u_synced = uc.uc_synced;
         }
 
-        if (*uc).uc_changedtick != buf_get_changedtick(&raw mut *buf) {
-            buf_set_changedtick(&raw mut *buf, (*uc).uc_changedtick);
+        if uc.uc_changedtick != buf_get_changedtick(&raw mut *buf) {
+            buf_set_changedtick(&raw mut *buf, uc.uc_changedtick);
         }
-        buf.b_p_ul = (*uc).uc_undolevels;
+        buf.b_p_ul = uc.uc_undolevels;
     }
 }
 

@@ -704,27 +704,27 @@ unsafe fn finish_exception(excp: Option<std::rc::Rc<except_T>>) {
     }
 }
 
-pub unsafe fn exception_state_save(estate: *mut exception_state_T) {
+pub unsafe fn exception_state_save(estate: &mut exception_state_T) {
     unsafe {
         let ce = &raw const g_st().current_exception;
-        (*estate).estate_current_exception = (*ce).clone();
-        (*estate).estate_did_throw = g_st().did_throw;
-        (*estate).estate_need_rethrow = g_st().need_rethrow;
-        (*estate).estate_trylevel = g_st().trylevel;
-        (*estate).estate_did_emsg = g_st().did_emsg;
+        estate.estate_current_exception = (*ce).clone();
+        estate.estate_did_throw = g_st().did_throw;
+        estate.estate_need_rethrow = g_st().need_rethrow;
+        estate.estate_trylevel = g_st().trylevel;
+        estate.estate_did_emsg = g_st().did_emsg;
     }
 }
 
-pub unsafe fn exception_state_restore(estate: *mut exception_state_T) {
+pub unsafe fn exception_state_restore(estate: &mut exception_state_T) {
     unsafe {
         if g_st().did_throw {
             handle_did_throw();
         }
-        g_st().current_exception = (*estate).estate_current_exception.take();
-        g_st().did_throw = (*estate).estate_did_throw;
-        g_st().need_rethrow = (*estate).estate_need_rethrow;
-        g_st().trylevel = (*estate).estate_trylevel;
-        g_st().did_emsg = (*estate).estate_did_emsg;
+        g_st().current_exception = estate.estate_current_exception.take();
+        g_st().did_throw = estate.estate_did_throw;
+        g_st().need_rethrow = estate.estate_need_rethrow;
+        g_st().trylevel = estate.estate_trylevel;
+        g_st().did_emsg = estate.estate_did_emsg;
     }
 }
 
@@ -1520,12 +1520,12 @@ pub unsafe fn ex_endtry(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn enter_cleanup(csp: *mut cleanup_T) {
+pub unsafe fn enter_cleanup(csp: &mut cleanup_T) {
     unsafe {
         let pending = CSTP_NONE;
 
         if g_st().did_emsg != 0 || g_st().got_int || g_st().did_throw || g_st().need_rethrow {
-            (*csp).pending = (if g_st().did_emsg != 0 { CSTP_ERROR } else { 0 })
+            csp.pending = (if g_st().did_emsg != 0 { CSTP_ERROR } else { 0 })
                 | (if g_st().got_int { CSTP_INTERRUPT } else { 0 })
                 | (if g_st().did_throw || g_st().need_rethrow {
                     CSTP_THROW
@@ -1535,9 +1535,9 @@ pub unsafe fn enter_cleanup(csp: *mut cleanup_T) {
 
             if g_st().did_throw || g_st().need_rethrow {
                 let ce = &raw mut g_st().current_exception;
-                (*csp).exception = (*ce).take();
+                csp.exception = (*ce).take();
             } else {
-                (*csp).exception = None;
+                csp.exception = None;
                 if g_st().did_emsg != 0 {
                     g_st().force_abort |= exeval_st().cause_abort;
                     exeval_st().cause_abort = false;
@@ -1548,24 +1548,24 @@ pub unsafe fn enter_cleanup(csp: *mut cleanup_T) {
             g_st().did_throw = false;
             g_st().need_rethrow = false;
 
-            report_make_pending(pending, PendingVal::Throw((*csp).exception.clone()));
+            report_make_pending(pending, PendingVal::Throw(csp.exception.clone()));
         } else {
-            (*csp).pending = CSTP_NONE;
-            (*csp).exception = None;
+            csp.pending = CSTP_NONE;
+            csp.exception = None;
         }
     }
 }
 
-pub unsafe fn leave_cleanup(csp: *mut cleanup_T) {
+pub unsafe fn leave_cleanup(csp: &mut cleanup_T) {
     unsafe {
-        let pending = (*csp).pending;
+        let pending = csp.pending;
         if pending == CSTP_NONE {
             return;
         }
 
         if aborting() || g_st().need_rethrow {
             if (pending & CSTP_THROW) != 0 {
-                discard_exception((*csp).exception.take(), false);
+                discard_exception(csp.exception.take(), false);
             } else {
                 report_discard_pending(pending, PendingVal::None);
             }
@@ -1575,7 +1575,7 @@ pub unsafe fn leave_cleanup(csp: *mut cleanup_T) {
             }
         } else {
             if (pending & CSTP_THROW) != 0 {
-                g_st().current_exception = (*csp).exception.take();
+                g_st().current_exception = csp.exception.take();
             } else if (pending & CSTP_ERROR) != 0 {
                 exeval_st().cause_abort = g_st().force_abort;
                 g_st().force_abort = false;

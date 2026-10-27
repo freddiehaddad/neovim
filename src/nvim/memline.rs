@@ -378,13 +378,13 @@ unsafe fn pb_count_max(mfp: &memfile_T) -> u16 {
 }
 
 #[inline]
-unsafe fn pb_ptr(pp: *mut PointerBlock, idx: usize) -> *mut PointerEntry {
-    unsafe { (&raw mut (*pp).pb_pointer).cast::<PointerEntry>().add(idx) }
+unsafe fn pb_ptr(pp: &mut PointerBlock, idx: usize) -> *mut PointerEntry {
+    unsafe { (&raw mut pp.pb_pointer).cast::<PointerEntry>().add(idx) }
 }
 
 #[inline]
-unsafe fn db_idx_ptr(dp: *mut DataBlock, idx: usize) -> *mut c_uint {
-    unsafe { (&raw mut (*dp).db_index).cast::<c_uint>().add(idx) }
+unsafe fn db_idx_ptr(dp: &mut DataBlock, idx: usize) -> *mut c_uint {
+    unsafe { (&raw mut dp.db_index).cast::<c_uint>().add(idx) }
 }
 
 
@@ -447,7 +447,7 @@ pub unsafe fn ml_open(buf: &mut buf_T) -> c_int {
         if !buf.b_spell {
             (*b0p).set_dirty(if buf.b_changed != 0 { B0_DIRTY } else { 0 });
             (*b0p).set_flags((get_fileformat(&raw mut *buf) + 1) as u8);
-            set_b0_fname(b0p, &raw mut *buf);
+            set_b0_fname(&mut *b0p, &raw mut *buf);
             os_get_username((&raw mut (*b0p).b0_uname).cast(), B0_UNAME_SIZE);
             (*b0p).b0_uname[B0_UNAME_SIZE - 1] = NUL;
             os_get_hostname((&raw mut (*b0p).b0_hname).cast(), B0_HNAME_SIZE);
@@ -468,7 +468,7 @@ pub unsafe fn ml_open(buf: &mut buf_T) -> c_int {
         }
         let pp = (*hp).data_ptr().cast::<PointerBlock>();
         (*pp).pb_count = 1;
-        let pe0 = pb_ptr(pp, 0);
+        let pe0 = pb_ptr(&mut *pp, 0);
         (*pe0).pe_bnum = 2;
         (*pe0).pe_page_count = 1;
         (*pe0).pe_old_lnum = 1;
@@ -483,7 +483,7 @@ pub unsafe fn ml_open(buf: &mut buf_T) -> c_int {
 
         let dp = (*hp).data_ptr().cast::<DataBlock>();
         (*dp).db_txt_start -= 1;
-        *db_idx_ptr(dp, 0) = (*dp).db_txt_start;
+        *db_idx_ptr(&mut *dp, 0) = (*dp).db_txt_start;
         (*dp).db_free -= 1 + INDEX_SIZE as c_uint;
         (*dp).db_line_count = 1;
         *dp.cast::<c_char>().add((*dp).db_txt_start as usize) = NUL;
@@ -719,8 +719,8 @@ pub unsafe fn ml_timestamp(buf: *mut buf_T) {
 }
 
 #[inline]
-unsafe fn ml_check_b0_id(b0p: *const ZeroBlock) -> bool {
-    unsafe { (*b0p).b0_id[0] == BLOCK0_ID0 && (*b0p).b0_id[1] == BLOCK0_ID1 }
+unsafe fn ml_check_b0_id(b0p: &ZeroBlock) -> bool {
+    b0p.b0_id[0] == BLOCK0_ID0 && b0p.b0_id[1] == BLOCK0_ID1
 }
 
 #[inline]
@@ -745,24 +745,24 @@ unsafe fn ml_upd_block0(buf: *mut buf_T, what: upd_block0_T) {
             return;
         }
         let b0p = (*hp).data_ptr().cast::<ZeroBlock>();
-        if !ml_check_b0_id(b0p) {
+        if !ml_check_b0_id(&*b0p) {
             iemsg(tr(c"E304: ml_upd_block0(): Didn't get block 0??"));
         } else if what == upd_block0_T::UB_FNAME {
-            set_b0_fname(b0p, buf);
+            set_b0_fname(&mut *b0p, buf);
         } else {
-            set_b0_dir_flag(b0p, buf);
+            set_b0_dir_flag(&mut *b0p, buf);
         }
         mf_put(mfp, hp, true, false);
     }
 }
 
-unsafe fn set_b0_fname(b0p: *mut ZeroBlock, buf: *mut buf_T) {
+unsafe fn set_b0_fname(b0p: &mut ZeroBlock, buf: *mut buf_T) {
     unsafe {
         if (*buf).b_ffname.is_null() {
-            (*b0p).b0_fname[0] = NUL;
+            b0p.b0_fname[0] = NUL;
         } else {
             let mut uname = [0 as c_char; B0_UNAME_SIZE];
-            let fname_ptr = (&raw mut (*b0p).b0_fname).cast::<c_char>();
+            let fname_ptr = (&raw mut b0p.b0_fname).cast::<c_char>();
             let flen = home_replace(
                 ptr::null_mut(),
                 (*buf).b_ffname,
@@ -770,7 +770,7 @@ unsafe fn set_b0_fname(b0p: *mut ZeroBlock, buf: *mut buf_T) {
                 B0_FNAME_SIZE_CRYPT,
                 true,
             );
-            if (*b0p).b0_fname[0] == b'~' as c_char {
+            if b0p.b0_fname[0] == b'~' as c_char {
                 let retval = os_get_username((&raw mut uname).cast(), B0_UNAME_SIZE);
                 let ulen = std::ffi::CStr::from_ptr((&raw const uname).cast()).to_bytes().len();
                 if retval == FAIL || ulen + flen > B0_FNAME_SIZE_CRYPT - 1 {
@@ -784,18 +784,18 @@ unsafe fn set_b0_fname(b0p: *mut ZeroBlock, buf: *mut buf_T) {
             if os_fileinfo((*buf).b_ffname, &mut file_info) {
                 long_to_char(
                     file_info.stat.st_mtim.tv_sec as c_long,
-                    (&raw mut (*b0p).b0_mtime).cast(),
+                    (&raw mut b0p.b0_mtime).cast(),
                 );
                 long_to_char(
                     os_fileinfo_inode(&file_info) as c_long,
-                    (&raw mut (*b0p).b0_ino).cast(),
+                    (&raw mut b0p.b0_ino).cast(),
                 );
                 buf_store_file_info(buf, &mut file_info);
                 (*buf).b_mtime_read = (*buf).b_mtime;
                 (*buf).b_mtime_read_ns = (*buf).b_mtime_ns;
             } else {
-                long_to_char(0, (&raw mut (*b0p).b0_mtime).cast());
-                long_to_char(0, (&raw mut (*b0p).b0_ino).cast());
+                long_to_char(0, (&raw mut b0p.b0_mtime).cast());
+                long_to_char(0, (&raw mut b0p.b0_ino).cast());
                 (*buf).b_mtime = 0;
                 (*buf).b_mtime_ns = 0;
                 (*buf).b_mtime_read = 0;
@@ -809,7 +809,7 @@ unsafe fn set_b0_fname(b0p: *mut ZeroBlock, buf: *mut buf_T) {
     }
 }
 
-unsafe fn set_b0_dir_flag(b0p: *mut ZeroBlock, buf: *mut buf_T) {
+unsafe fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: *mut buf_T) {
     unsafe {
         let mfp = (*buf).b_ml.mfp_ptr();
         let mf_fname_ptr = (*mfp)
@@ -817,24 +817,24 @@ unsafe fn set_b0_dir_flag(b0p: *mut ZeroBlock, buf: *mut buf_T) {
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         if same_directory(mf_fname_ptr, (*buf).b_ffname) {
-            (*b0p).set_flags((*b0p).flags() | B0_SAME_DIR);
+            b0p.set_flags(b0p.flags() | B0_SAME_DIR);
         } else {
-            (*b0p).set_flags((*b0p).flags() & !B0_SAME_DIR);
+            b0p.set_flags(b0p.flags() & !B0_SAME_DIR);
         }
     }
 }
 
-unsafe fn add_b0_fenc(b0p: *mut ZeroBlock, buf: *mut buf_T) {
+unsafe fn add_b0_fenc(b0p: &mut ZeroBlock, buf: *mut buf_T) {
     unsafe {
         let size = B0_FNAME_SIZE_NOCRYPT;
         let n = std::ffi::CStr::from_ptr((*buf).b_p_fenc).to_bytes().len();
-        let fname_ptr = (&raw mut (*b0p).b0_fname).cast::<c_char>();
+        let fname_ptr = (&raw mut b0p.b0_fname).cast::<c_char>();
         if std::ffi::CStr::from_ptr(fname_ptr).to_bytes().len() + n + 1 > size {
-            (*b0p).set_flags((*b0p).flags() & !B0_HAS_FENC);
+            b0p.set_flags(b0p.flags() & !B0_HAS_FENC);
         } else {
             ptr::copy((*buf).b_p_fenc, fname_ptr.add(size - n), n);
             *fname_ptr.add(size - n - 1) = NUL;
-            (*b0p).set_flags((*b0p).flags() | B0_HAS_FENC);
+            b0p.set_flags(b0p.flags() | B0_HAS_FENC);
         }
     }
 }
@@ -986,7 +986,7 @@ pub unsafe fn ml_recover(checkext: bool) {
             ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
             return;
         }
-        if !ml_check_b0_id(b0p) {
+        if !ml_check_b0_id(&*b0p) {
             semsg!(
                 tr(c"E307: %s does not look like a Nvim swap file"),
                 (*mfp)
@@ -997,7 +997,7 @@ pub unsafe fn ml_recover(checkext: bool) {
             ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
             return;
         }
-        if b0_magic_wrong(b0p) {
+        if b0_magic_wrong(&*b0p) {
             msg_start();
             msg_outtrans(
                 (*mfp)
@@ -1206,7 +1206,7 @@ pub unsafe fn ml_recover(checkext: bool) {
 
                     if idx == 0 && line_count != 0 {
                         for i in 0..((*pp).pb_count as usize) {
-                            line_count -= (*pb_ptr(pp, i)).pe_line_count;
+                            line_count -= (*pb_ptr(&mut *pp, i)).pe_line_count;
                         }
                         if line_count != 0 {
                             error += 1;
@@ -1220,7 +1220,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                         lnum += 1;
                         error += 1;
                     } else if idx < c_int::from((*pp).pb_count) {
-                        let pe = pb_ptr(pp, idx as usize);
+                        let pe = pb_ptr(&mut *pp, idx as usize);
                         if (*pe).pe_bnum < 0 {
                             if !cannot_open {
                                 line_count = (*pe).pe_line_count;
@@ -1343,7 +1343,7 @@ pub unsafe fn ml_recover(checkext: bool) {
 
                         let mut did_questions = false;
                         for i in 0..((*dp).db_line_count as isize) {
-                            let idx_ptr = db_idx_ptr(dp, i as usize);
+                            let idx_ptr = db_idx_ptr(&mut *dp, i as usize);
                             if idx_ptr.cast::<c_char>()
                                 >= dp.cast::<c_char>().add((*dp).db_txt_start as usize)
                             {
@@ -1671,9 +1671,9 @@ pub unsafe fn swapfile_dict(fname: *const c_char, d: *mut dict_T) {
             if read_eintr(fd, (&raw mut b0).cast(), size_of::<ZeroBlock>())
                 == size_of::<ZeroBlock>() as isize
             {
-                if !ml_check_b0_id(&raw const b0) {
+                if !ml_check_b0_id(&b0) {
                     tv_dict_add_str_len(d, c"error".as_ptr(), 5, c"Not a swap file".as_ptr(), 15);
-                } else if b0_magic_wrong(&raw const b0) {
+                } else if b0_magic_wrong(&b0) {
                     tv_dict_add_str_len(
                         d,
                         c"error".as_ptr(),
@@ -1797,7 +1797,7 @@ unsafe fn swapfile_info(fname: *mut c_char, msg: &mut Vec<u8>) -> time_t {
                     ]
                 {
                     sb_push_cstr(msg, tr(c"         [from Vim version 3.0]"));
-                } else if !ml_check_b0_id(&raw const b0) {
+                } else if !ml_check_b0_id(&b0) {
                     sb_push_cstr(msg, tr(c"         [does not look like a Nvim swap file]"));
                 } else if !ml_check_b0_strings(&raw const b0) {
                     sb_push_cstr(msg, tr(c"         [garbled strings (not nul terminated)]"));
@@ -1843,7 +1843,7 @@ unsafe fn swapfile_info(fname: *mut c_char, msg: &mut Vec<u8>) -> time_t {
                         }
                     }
 
-                    if b0_magic_wrong(&raw const b0) {
+                    if b0_magic_wrong(&b0) {
                         sb_push_cstr(msg, tr(c"\n         [not usable on this computer]"));
                     }
                 }
@@ -1878,7 +1878,7 @@ unsafe fn swapfile_unchanged(fname: *mut c_char) -> bool {
         }
 
         let mut ret = true;
-        if !ml_check_b0_id(&raw const b0) || b0_magic_wrong(&raw const b0) {
+        if !ml_check_b0_id(&b0) || b0_magic_wrong(&b0) {
             ret = false;
         }
         if b0.dirty() != 0 {
@@ -2166,11 +2166,11 @@ unsafe fn ml_get_buf_impl(buf: *mut buf_T, mut lnum: linenr_T, will_change: bool
 
             let dp = (*hp).data_ptr().cast::<DataBlock>();
             let idx = (lnum - (*buf).b_ml.ml_locked_low) as usize;
-            let start = *db_idx_ptr(dp, idx) & DB_INDEX_MASK;
+            let start = *db_idx_ptr(&mut *dp, idx) & DB_INDEX_MASK;
             let end = if idx == 0 {
                 (*dp).db_txt_end
             } else {
-                *db_idx_ptr(dp, idx - 1) & DB_INDEX_MASK
+                *db_idx_ptr(&mut *dp, idx - 1) & DB_INDEX_MASK
             };
 
             (*buf).b_ml.ml_line_ptr = dp.cast::<c_char>().add(start as usize);
@@ -2278,7 +2278,7 @@ unsafe fn ml_append_int(
                 let offset = if db_idx < 0 {
                     (*dp).db_txt_end as c_int
                 } else {
-                    (*db_idx_ptr(dp, db_idx as usize) & DB_INDEX_MASK) as c_int
+                    (*db_idx_ptr(&mut *dp, db_idx as usize) & DB_INDEX_MASK) as c_int
                 };
                 ptr::copy(
                     dp.cast::<c_char>()
@@ -2288,18 +2288,18 @@ unsafe fn ml_append_int(
                 );
                 let mut i = line_count - 1;
                 while i > db_idx {
-                    *db_idx_ptr(dp, (i + 1) as usize) = *db_idx_ptr(dp, i as usize) - len as c_uint;
+                    *db_idx_ptr(&mut *dp, (i + 1) as usize) = *db_idx_ptr(&mut *dp, i as usize) - len as c_uint;
                     i -= 1;
                 }
-                *db_idx_ptr(dp, (db_idx + 1) as usize) = (offset - len) as c_uint;
+                *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) = (offset - len) as c_uint;
             } else {
-                *db_idx_ptr(dp, (db_idx + 1) as usize) = (*dp).db_txt_start;
+                *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) = (*dp).db_txt_start;
             }
 
-            let dst_off = *db_idx_ptr(dp, (db_idx + 1) as usize) as usize;
+            let dst_off = *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) as usize;
             ptr::copy(line, dp.cast::<c_char>().add(dst_off), len as usize);
             if (flags & ML_APPEND_MARK) != 0 {
-                *db_idx_ptr(dp, (db_idx + 1) as usize) |= DB_MARKED;
+                *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) |= DB_MARKED;
             }
 
             (*buf).b_ml.ml_flags |= ML_LOCKED_DIRTY;
@@ -2320,7 +2320,7 @@ unsafe fn ml_append_int(
                 if lines_moved == 0 {
                     in_left = false;
                 } else {
-                    data_moved = ((*db_idx_ptr(dp, db_idx as usize) & DB_INDEX_MASK)
+                    data_moved = ((*db_idx_ptr(&mut *dp, db_idx as usize) & DB_INDEX_MASK)
                         - (*dp).db_txt_start) as c_int;
                     total_moved = data_moved + lines_moved * (INDEX_SIZE as c_int);
                     if i64::from((*dp).db_free) + i64::from(total_moved) >= space_needed {
@@ -2360,9 +2360,9 @@ unsafe fn ml_append_int(
             if !in_left {
                 (*dp_right).db_txt_start -= len as c_uint;
                 (*dp_right).db_free -= len as c_uint + INDEX_SIZE as c_uint;
-                *db_idx_ptr(dp_right, 0) = (*dp_right).db_txt_start;
+                *db_idx_ptr(&mut *dp_right, 0) = (*dp_right).db_txt_start;
                 if (flags & ML_APPEND_MARK) != 0 {
-                    *db_idx_ptr(dp_right, 0) |= DB_MARKED;
+                    *db_idx_ptr(&mut *dp_right, 0) |= DB_MARKED;
                 }
                 ptr::copy(
                     line,
@@ -2394,8 +2394,8 @@ unsafe fn ml_append_int(
                 let mut to = line_count_right;
                 let mut from = db_idx + 1;
                 while from < line_count_left {
-                    *db_idx_ptr(dp_right, to as usize) =
-                        (*db_idx_ptr(dp, from as usize)).wrapping_add(offset as c_uint);
+                    *db_idx_ptr(&mut *dp_right, to as usize) =
+                        (*db_idx_ptr(&mut *dp, from as usize)).wrapping_add(offset as c_uint);
                     from += 1;
                     to += 1;
                 }
@@ -2406,9 +2406,9 @@ unsafe fn ml_append_int(
             if in_left {
                 (*dp_left).db_txt_start -= len as c_uint;
                 (*dp_left).db_free -= len as c_uint + INDEX_SIZE as c_uint;
-                *db_idx_ptr(dp_left, line_count_left as usize) = (*dp_left).db_txt_start;
+                *db_idx_ptr(&mut *dp_left, line_count_left as usize) = (*dp_left).db_txt_start;
                 if (flags & ML_APPEND_MARK) != 0 {
-                    *db_idx_ptr(dp_left, line_count_left as usize) |= DB_MARKED;
+                    *db_idx_ptr(&mut *dp_left, line_count_left as usize) |= DB_MARKED;
                 }
                 ptr::copy(
                     line,
@@ -2465,17 +2465,17 @@ unsafe fn ml_append_int(
                 if (*pp).pb_count < (*pp).pb_count_max {
                     if pb_idx + 1 < (*pp).pb_count as usize {
                         ptr::copy(
-                            pb_ptr(pp, pb_idx + 1),
-                            pb_ptr(pp, pb_idx + 2),
+                            pb_ptr(&mut *pp, pb_idx + 1),
+                            pb_ptr(&mut *pp, pb_idx + 2),
                             (*pp).pb_count as usize - pb_idx - 1,
                         );
                     }
                     (*pp).pb_count += 1;
-                    let pe_cur = pb_ptr(pp, pb_idx);
+                    let pe_cur = pb_ptr(&mut *pp, pb_idx);
                     (*pe_cur).pe_line_count = line_count_left;
                     (*pe_cur).pe_bnum = bnum_left;
                     (*pe_cur).pe_page_count = page_count_left;
-                    let pe_next = pb_ptr(pp, pb_idx + 1);
+                    let pe_next = pb_ptr(&mut *pp, pb_idx + 1);
                     (*pe_next).pe_line_count = line_count_right;
                     (*pe_next).pe_bnum = bnum_right;
                     (*pe_next).pe_page_count = page_count_right;
@@ -2519,7 +2519,7 @@ unsafe fn ml_append_int(
 
                     ptr::copy(pp.cast::<u8>(), pp_new.cast::<u8>(), page_size as usize);
                     (*pp).pb_count = 1;
-                    let pe0 = pb_ptr(pp, 0);
+                    let pe0 = pb_ptr(&mut *pp, 0);
                     (*pe0).pe_bnum = (*hp_new).bh_bnum;
                     (*pe0).pe_line_count = (*buf).b_ml.ml_line_count;
                     (*pe0).pe_old_lnum = 1;
@@ -2534,13 +2534,13 @@ unsafe fn ml_append_int(
                 total_moved = c_int::from((*pp).pb_count) - (pb_idx as c_int) - 1;
                 if total_moved != 0 {
                     ptr::copy(
-                        pb_ptr(pp, pb_idx + 1),
-                        pb_ptr(pp_new, 0),
+                        pb_ptr(&mut *pp, pb_idx + 1),
+                        pb_ptr(&mut *pp_new, 0),
                         total_moved as usize,
                     );
                     (*pp_new).pb_count = total_moved as u16;
                     (*pp).pb_count = (c_int::from((*pp).pb_count) - (total_moved - 1)) as u16;
-                    let pe_next = pb_ptr(pp, pb_idx + 1);
+                    let pe_next = pb_ptr(&mut *pp, pb_idx + 1);
                     (*pe_next).pe_bnum = bnum_right;
                     (*pe_next).pe_line_count = line_count_right;
                     (*pe_next).pe_page_count = page_count_right;
@@ -2549,13 +2549,13 @@ unsafe fn ml_append_int(
                     }
                 } else {
                     (*pp_new).pb_count = 1;
-                    let pe_new0 = pb_ptr(pp_new, 0);
+                    let pe_new0 = pb_ptr(&mut *pp_new, 0);
                     (*pe_new0).pe_bnum = bnum_right;
                     (*pe_new0).pe_line_count = line_count_right;
                     (*pe_new0).pe_page_count = page_count_right;
                     (*pe_new0).pe_old_lnum = lnum_right;
                 }
-                let pe_cur = pb_ptr(pp, pb_idx);
+                let pe_cur = pb_ptr(&mut *pp, pb_idx);
                 (*pe_cur).pe_bnum = bnum_left;
                 (*pe_cur).pe_line_count = line_count_left;
                 (*pe_cur).pe_page_count = page_count_left;
@@ -2567,11 +2567,11 @@ unsafe fn ml_append_int(
 
                 line_count_right = 0;
                 for i in 0..((*pp_new).pb_count as usize) {
-                    line_count_right += (*pb_ptr(pp_new, i)).pe_line_count;
+                    line_count_right += (*pb_ptr(&mut *pp_new, i)).pe_line_count;
                 }
                 line_count_left = 0;
                 for i in 0..((*pp).pb_count as usize) {
-                    line_count_left += (*pb_ptr(pp, i)).pe_line_count;
+                    line_count_left += (*pb_ptr(&mut *pp, i)).pe_line_count;
                 }
 
                 bnum_left = (*hp).bh_bnum;
@@ -2828,11 +2828,11 @@ unsafe fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int 
         }
         (*buf).b_ml.ml_line_count -= 1;
 
-        let line_start = (*db_idx_ptr(dp, idx as usize) & DB_INDEX_MASK) as c_int;
+        let line_start = (*db_idx_ptr(&mut *dp, idx as usize) & DB_INDEX_MASK) as c_int;
         let line_size: c_int = if idx == 0 {
             ((*dp).db_txt_end as c_int) - line_start
         } else {
-            ((*db_idx_ptr(dp, (idx - 1) as usize) & DB_INDEX_MASK) as c_int) - line_start
+            ((*db_idx_ptr(&mut *dp, (idx - 1) as usize) & DB_INDEX_MASK) as c_int) - line_start
         };
 
         assert!(line_size >= 1);
@@ -2843,7 +2843,7 @@ unsafe fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int 
         );
 
         if count == 1 {
-            mf_free(&mut *mfp, hp);
+            mf_free(&mut *mfp, &mut *hp);
             (*buf).b_ml.ml_locked = ptr::null_mut();
 
             let mut stack_idx = (*buf).b_ml.ml_stack_top - 1;
@@ -2864,12 +2864,12 @@ unsafe fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int 
                 (*pp).pb_count -= 1;
                 count = c_int::from((*pp).pb_count);
                 if count == 0 {
-                    mf_free(&mut *mfp, hp);
+                    mf_free(&mut *mfp, &mut *hp);
                 } else {
                     if count != idx {
                         ptr::copy(
-                            pb_ptr(pp, (idx + 1) as usize),
-                            pb_ptr(pp, idx as usize),
+                            pb_ptr(&mut *pp, (idx + 1) as usize),
+                            pb_ptr(&mut *pp, idx as usize),
                             (count - idx) as usize,
                         );
                     }
@@ -2899,8 +2899,8 @@ unsafe fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int 
             );
 
             for i in idx..(count - 1) {
-                *db_idx_ptr(dp, i as usize) =
-                    *db_idx_ptr(dp, (i + 1) as usize) + (line_size as c_uint);
+                *db_idx_ptr(&mut *dp, i as usize) =
+                    *db_idx_ptr(&mut *dp, (i + 1) as usize) + (line_size as c_uint);
             }
 
             (*dp).db_free += (line_size as c_uint) + (INDEX_SIZE as c_uint);
@@ -2946,7 +2946,7 @@ pub unsafe fn ml_setmarked(lnum: linenr_T) {
             return;
         }
         let dp = (*hp).data_ptr().cast::<DataBlock>();
-        *db_idx_ptr(dp, (lnum - (*g_st().curbuf).b_ml.ml_locked_low) as usize) |= DB_MARKED;
+        *db_idx_ptr(&mut *dp, (lnum - (*g_st().curbuf).b_ml.ml_locked_low) as usize) |= DB_MARKED;
         (*g_st().curbuf).b_ml.ml_flags |= ML_LOCKED_DIRTY;
     }
 }
@@ -3060,12 +3060,12 @@ unsafe fn ml_flush_line(buf: *mut buf_T, noalloc: bool) {
             } else {
                 let dp = (*hp).data_ptr().cast::<DataBlock>();
                 let idx = (lnum - (*buf).b_ml.ml_locked_low) as usize;
-                let start = (*db_idx_ptr(dp, idx) & DB_INDEX_MASK) as c_int;
+                let start = (*db_idx_ptr(&mut *dp, idx) & DB_INDEX_MASK) as c_int;
                 let old_line = dp.cast::<c_char>().add(start as usize);
                 let old_len: c_int = if idx == 0 {
                     ((*dp).db_txt_end as c_int) - start
                 } else {
-                    ((*db_idx_ptr(dp, idx - 1) & DB_INDEX_MASK) as c_int) - start
+                    ((*db_idx_ptr(&mut *dp, idx - 1) & DB_INDEX_MASK) as c_int) - start
                 };
                 let new_len = (*buf).b_ml.ml_line_textlen;
                 let extra = new_len - old_len;
@@ -3081,10 +3081,10 @@ unsafe fn ml_flush_line(buf: *mut buf_T, noalloc: bool) {
                             (start - (*dp).db_txt_start as c_int) as usize,
                         );
                         for i in (idx + 1)..count {
-                            *db_idx_ptr(dp, i) = (*db_idx_ptr(dp, i)).wrapping_sub(extra as c_uint);
+                            *db_idx_ptr(&mut *dp, i) = (*db_idx_ptr(&mut *dp, i)).wrapping_sub(extra as c_uint);
                         }
                     }
-                    *db_idx_ptr(dp, idx) = (*db_idx_ptr(dp, idx)).wrapping_sub(extra as c_uint);
+                    *db_idx_ptr(&mut *dp, idx) = (*db_idx_ptr(&mut *dp, idx)).wrapping_sub(extra as c_uint);
 
                     (*dp).db_free = (*dp).db_free.wrapping_sub(extra as c_uint);
                     (*dp).db_txt_start = (*dp).db_txt_start.wrapping_sub(extra as c_uint);
@@ -3099,7 +3099,7 @@ unsafe fn ml_flush_line(buf: *mut buf_T, noalloc: bool) {
                         ml_updatechunk(buf, lnum, extra, ML_CHNK_UPDLINE);
                     }
                 } else {
-                    let mark_flag = if (*db_idx_ptr(dp, idx) & DB_MARKED) != 0 {
+                    let mark_flag = if (*db_idx_ptr(&mut *dp, idx) & DB_MARKED) != 0 {
                         ML_APPEND_MARK
                     } else {
                         0
@@ -3244,7 +3244,7 @@ unsafe fn ml_find_line(buf: *mut buf_T, lnum: linenr_T, action: c_int) -> *mut b
             let mut dirty = false;
             let mut idx: c_int = 0;
             while idx < c_int::from((*pp).pb_count) {
-                let pe = pb_ptr(pp, idx as usize);
+                let pe = pb_ptr(&mut *pp, idx as usize);
                 let t = (*pe).pe_line_count;
                 low += t;
                 if low > lnum {
@@ -3279,10 +3279,10 @@ unsafe fn ml_find_line(buf: *mut buf_T, lnum: linenr_T, action: c_int) -> *mut b
                 return ml_find_line_error_noblock(buf, action);
             }
             if action == ML_DELETE {
-                (*pb_ptr(pp, idx as usize)).pe_line_count -= 1;
+                (*pb_ptr(&mut *pp, idx as usize)).pe_line_count -= 1;
                 dirty = true;
             } else if action == ML_INSERT {
-                (*pb_ptr(pp, idx as usize)).pe_line_count += 1;
+                (*pb_ptr(&mut *pp, idx as usize)).pe_line_count += 1;
                 dirty = true;
             }
             mf_put(mfp, hp, dirty, false);
@@ -3332,7 +3332,7 @@ unsafe fn ml_lineadd(buf: *mut buf_T, count: c_int) {
                 iemsg(tr(e_pointer_block_id_wrong_two));
                 break;
             }
-            (*pb_ptr(pp, ip.ip_index as usize)).pe_line_count += count;
+            (*pb_ptr(&mut *pp, ip.ip_index as usize)).pe_line_count += count;
             ip.ip_high += count;
             mf_put(mfp, hp, true, false);
             idx -= 1;
@@ -3807,13 +3807,11 @@ unsafe fn findswapname(
 }
 
 #[inline]
-unsafe fn b0_magic_wrong(b0p: *const ZeroBlock) -> bool {
-    unsafe {
-        (*b0p).b0_magic_long != B0_MAGIC_LONG
-            || (*b0p).b0_magic_int != B0_MAGIC_INT
-            || (*b0p).b0_magic_short != B0_MAGIC_SHORT
-            || (*b0p).b0_magic_char != B0_MAGIC_CHAR
-    }
+unsafe fn b0_magic_wrong(b0p: &ZeroBlock) -> bool {
+    b0p.b0_magic_long != B0_MAGIC_LONG
+            || b0p.b0_magic_int != B0_MAGIC_INT
+            || b0p.b0_magic_short != B0_MAGIC_SHORT
+            || b0p.b0_magic_char != B0_MAGIC_CHAR
 }
 
 unsafe fn fnamecmp_ino(fname_c: *mut c_char, fname_s: *mut c_char, ino_block0: c_long) -> bool {
@@ -3895,7 +3893,7 @@ pub unsafe fn ml_setflags(buf: *mut buf_T) {
             (*b0p).set_dirty(if (*buf).b_changed != 0 { B0_DIRTY } else { 0 });
             let ff_bits = ((get_fileformat(buf) + 1) as u8) & B0_FF_MASK;
             (*b0p).set_flags(((*b0p).flags() & !B0_FF_MASK) | ff_bits);
-            add_b0_fenc(b0p, buf);
+            add_b0_fenc(&mut *b0p, buf);
             (*hp).bh_flags |= BH_DIRTY;
             mf_sync(&mut *mfp, MFS_ZERO);
         }
@@ -3987,10 +3985,10 @@ unsafe fn ml_updatechunk(buf: *mut buf_T, line: linenr_T, mut len: c_int, updtyp
                     let text_end = if idx == 0 {
                         (*dp).db_txt_end as c_int
                     } else {
-                        (*db_idx_ptr(dp, (idx - 1) as usize) & DB_INDEX_MASK) as c_int
+                        (*db_idx_ptr(&mut *dp, (idx - 1) as usize) & DB_INDEX_MASK) as c_int
                     };
                     size +=
-                        text_end - ((*db_idx_ptr(dp, end_idx as usize) & DB_INDEX_MASK) as c_int);
+                        text_end - ((*db_idx_ptr(&mut *dp, end_idx as usize) & DB_INDEX_MASK) as c_int);
                 }
                 (*chunks.add(curix as usize)).mlcs_numlines = linecnt;
                 (*chunks.add((curix + 1) as usize)).mlcs_numlines -= linecnt;
@@ -4018,7 +4016,7 @@ unsafe fn ml_updatechunk(buf: *mut buf_T, line: linenr_T, mut len: c_int, updtyp
                     let rest = if (*dp).db_line_count == 1 {
                         ((*dp).db_txt_end - (*dp).db_txt_start) as c_int
                     } else {
-                        ((*db_idx_ptr(dp, ((*dp).db_line_count - 2) as usize) & DB_INDEX_MASK)
+                        ((*db_idx_ptr(&mut *dp, ((*dp).db_line_count - 2) as usize) & DB_INDEX_MASK)
                             as c_int)
                             - ((*dp).db_txt_start as c_int)
                     };
@@ -4136,7 +4134,7 @@ pub unsafe fn ml_find_line_or_offset(
             let text_end = if idx == 0 {
                 (*dp).db_txt_end as c_int
             } else {
-                (*db_idx_ptr(dp, (idx - 1) as usize) & DB_INDEX_MASK) as c_int
+                (*db_idx_ptr(&mut *dp, (idx - 1) as usize) & DB_INDEX_MASK) as c_int
             };
 
             if lnum != 0 {
@@ -4150,7 +4148,7 @@ pub unsafe fn ml_find_line_or_offset(
                 loop {
                     if offset
                         < size + text_end
-                            - ((*db_idx_ptr(dp, idx as usize) & DB_INDEX_MASK) as c_int)
+                            - ((*db_idx_ptr(&mut *dp, idx as usize) & DB_INDEX_MASK) as c_int)
                             + ffdos
                     {
                         break;
@@ -4165,7 +4163,7 @@ pub unsafe fn ml_find_line_or_offset(
                     idx += 1;
                 }
             }
-            let len = text_end - ((*db_idx_ptr(dp, idx as usize) & DB_INDEX_MASK) as c_int);
+            let len = text_end - ((*db_idx_ptr(&mut *dp, idx as usize) & DB_INDEX_MASK) as c_int);
             size += len;
             if offset != 0 && size >= offset {
                 if size + ffdos == offset {
@@ -4175,7 +4173,7 @@ pub unsafe fn ml_find_line_or_offset(
                 } else {
                     *offp = offset - size + len
                         - (text_end
-                            - ((*db_idx_ptr(dp, (idx - 1) as usize) & DB_INDEX_MASK) as c_int));
+                            - ((*db_idx_ptr(&mut *dp, (idx - 1) as usize) & DB_INDEX_MASK) as c_int));
                 }
                 curline += idx - start_idx + extra;
                 if curline > (*buf).b_ml.ml_line_count {

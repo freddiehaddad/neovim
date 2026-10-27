@@ -1571,8 +1571,8 @@ pub(super) unsafe fn ri_upper(c: c_int) -> bool {
 }
 
 /// Return true if compiled regular expression `prog` can match a line break.
-pub unsafe fn re_multiline(prog: *const regprog_T) -> c_int {
-    unsafe { ((*prog).regflags & RF_HASNL) as c_int }
+pub unsafe fn re_multiline(prog: &regprog_T) -> c_int {
+    (prog.regflags & RF_HASNL) as c_int
 }
 
 /// Check for an equivalence class name `[=a=]`. `pp` points to the `[`.
@@ -1763,31 +1763,31 @@ pub(super) unsafe fn initchr(str_: *mut c_char) {
     }
 }
 
-pub(super) unsafe fn save_parse_state(ps: *mut parse_state_T) {
+pub(super) unsafe fn save_parse_state(ps: &mut parse_state_T) {
     unsafe {
-        (*ps).regparse = re_st().regparse;
-        (*ps).prevchr_len = re_st().prevchr_len;
-        (*ps).curchr = re_st().curchr;
-        (*ps).prevchr = re_st().prevchr;
-        (*ps).prevprevchr = re_st().prevprevchr;
-        (*ps).nextchr = re_st().nextchr;
-        (*ps).at_start = re_st().at_start;
-        (*ps).prev_at_start = re_st().prev_at_start;
-        (*ps).regnpar = re_st().regnpar;
+        ps.regparse = re_st().regparse;
+        ps.prevchr_len = re_st().prevchr_len;
+        ps.curchr = re_st().curchr;
+        ps.prevchr = re_st().prevchr;
+        ps.prevprevchr = re_st().prevprevchr;
+        ps.nextchr = re_st().nextchr;
+        ps.at_start = re_st().at_start;
+        ps.prev_at_start = re_st().prev_at_start;
+        ps.regnpar = re_st().regnpar;
     }
 }
 
-pub(super) unsafe fn restore_parse_state(ps: *mut parse_state_T) {
+pub(super) unsafe fn restore_parse_state(ps: &mut parse_state_T) {
     unsafe {
-        re_st().regparse = (*ps).regparse;
-        re_st().prevchr_len = (*ps).prevchr_len;
-        re_st().curchr = (*ps).curchr;
-        re_st().prevchr = (*ps).prevchr;
-        re_st().prevprevchr = (*ps).prevprevchr;
-        re_st().nextchr = (*ps).nextchr;
-        re_st().at_start = (*ps).at_start;
-        re_st().prev_at_start = (*ps).prev_at_start;
-        re_st().regnpar = (*ps).regnpar;
+        re_st().regparse = ps.regparse;
+        re_st().prevchr_len = ps.prevchr_len;
+        re_st().curchr = ps.curchr;
+        re_st().prevchr = ps.prevchr;
+        re_st().prevprevchr = ps.prevprevchr;
+        re_st().nextchr = ps.nextchr;
+        re_st().at_start = ps.at_start;
+        re_st().prev_at_start = ps.prev_at_start;
+        re_st().regnpar = ps.regnpar;
     }
 }
 
@@ -2575,7 +2575,7 @@ pub(crate) unsafe fn fill_submatch_list(
             return argskip;
         }
 
-        tv_list_init_static10((*listarg).vval.v_list().cast::<staticList10_T>());
+        tv_list_init_static10(&mut *(*listarg).vval.v_list().cast::<staticList10_T>());
 
         let mut li = tv_list_first((*listarg).vval.v_list());
         for i in 0..10 {
@@ -2746,7 +2746,7 @@ unsafe fn vim_regsub_both(
                             &raw mut rettv,
                             1,
                             argv.as_mut_ptr(),
-                            &raw mut funcexe,
+                            &mut funcexe,
                         );
                     } else if (*expr).v_type == VarType::VAR_PARTIAL {
                         let partial = (*expr).vval.v_partial();
@@ -2758,7 +2758,7 @@ unsafe fn vim_regsub_both(
                             &raw mut rettv,
                             1,
                             argv.as_mut_ptr(),
-                            &raw mut funcexe,
+                            &mut funcexe,
                         );
                     }
                     if rettv.v_type == VarType::VAR_UNKNOWN {

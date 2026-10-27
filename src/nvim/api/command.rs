@@ -1355,7 +1355,7 @@ pub unsafe extern "C" fn nvim_create_user_command(
     err: &mut Error,
 ) {
     unsafe {
-        create_user_command(channel_id, name, cmd, opts, 0, err);
+        create_user_command(channel_id, name, cmd, &mut *opts, 0, err);
     }
 }
 
@@ -1397,7 +1397,7 @@ pub unsafe extern "C" fn nvim_buf_create_user_command(
 
         let save_curbuf = g_st().curbuf;
         g_st().curbuf = target_buf;
-        create_user_command(channel_id, name, cmd, opts, UC_BUFFER, err);
+        create_user_command(channel_id, name, cmd, &mut *opts, UC_BUFFER, err);
         g_st().curbuf = save_curbuf;
     }
 }
@@ -1449,7 +1449,7 @@ pub unsafe fn create_user_command(
     channel_id: u64,
     name: NvimString,
     cmd: Object,
-    opts: *mut KeyDict_user_command,
+    opts: &mut KeyDict_user_command,
     flags: c_int,
     err: &mut Error,
 ) {
@@ -1479,7 +1479,7 @@ pub unsafe fn create_user_command(
                 );
                 break 'err;
             }
-            let mask = (*opts).is_set__user_command_;
+            let mask = opts.is_set__user_command_;
             if has_key(mask, KEYSET_OPTIDX_user_command__range)
                 && has_key(mask, KEYSET_OPTIDX_user_command__count)
             {
@@ -1492,8 +1492,8 @@ pub unsafe fn create_user_command(
                 break 'err;
             }
 
-            if (*opts).nargs.obj_type == ObjectType::kObjectTypeInteger {
-                match (*opts).nargs.data.integer() {
+            if opts.nargs.obj_type == ObjectType::kObjectTypeInteger {
+                match opts.nargs.data.integer() {
                     0 => {}
                     1 => {
                         argt |= EX_EXTRA | EX_NOSPC | EX_NEEDARG;
@@ -1503,18 +1503,18 @@ pub unsafe fn create_user_command(
                         break 'err;
                     }
                 }
-            } else if (*opts).nargs.obj_type == ObjectType::kObjectTypeString {
-                if (*opts).nargs.data.string().size > 1 {
+            } else if opts.nargs.obj_type == ObjectType::kObjectTypeString {
+                if opts.nargs.data.string().size > 1 {
                     api_err_invalid(
                         err,
                         c"nargs".as_ptr(),
-                        (*opts).nargs.data.string().data,
+                        opts.nargs.data.string().data,
                         0,
                         true,
                     );
                     break 'err;
                 }
-                match *(*opts).nargs.data.string().data as u8 {
+                match *opts.nargs.data.string().data as u8 {
                     b'*' => argt |= EX_EXTRA,
                     b'?' => argt |= EX_EXTRA | EX_NOSPC,
                     b'+' => argt |= EX_EXTRA | EX_NEEDARG,
@@ -1523,7 +1523,7 @@ pub unsafe fn create_user_command(
                         api_err_invalid(
                             err,
                             c"nargs".as_ptr(),
-                            (*opts).nargs.data.string().data,
+                            opts.nargs.data.string().data,
                             0,
                             true,
                         );
@@ -1545,64 +1545,64 @@ pub unsafe fn create_user_command(
                 break 'err;
             }
 
-            if (*opts).range.obj_type == ObjectType::kObjectTypeBoolean {
-                if (*opts).range.data.boolean() {
+            if opts.range.obj_type == ObjectType::kObjectTypeBoolean {
+                if opts.range.data.boolean() {
                     argt |= EX_RANGE;
                     addr_type_arg = ADDR_LINES;
                 }
-            } else if (*opts).range.obj_type == ObjectType::kObjectTypeString {
-                if !(*(*opts).range.data.string().data == b'%' as c_char
-                    && (*opts).range.data.string().size == 1)
+            } else if opts.range.obj_type == ObjectType::kObjectTypeString {
+                if !(*opts.range.data.string().data == b'%' as c_char
+                    && opts.range.data.string().size == 1)
                 {
                     api_err_invalid(err, c"range".as_ptr(), c"".as_ptr(), 0, true);
                     break 'err;
                 }
                 argt |= EX_RANGE | EX_DFLALL;
                 addr_type_arg = ADDR_LINES;
-            } else if (*opts).range.obj_type == ObjectType::kObjectTypeInteger {
+            } else if opts.range.obj_type == ObjectType::kObjectTypeInteger {
                 argt |= EX_RANGE | EX_ZEROR;
-                def = (*opts).range.data.integer();
+                def = opts.range.data.integer();
                 addr_type_arg = ADDR_LINES;
             } else if has_key(mask, KEYSET_OPTIDX_user_command__range) {
                 api_err_invalid(err, c"range".as_ptr(), c"".as_ptr(), 0, true);
                 break 'err;
             }
 
-            if (*opts).count.obj_type == ObjectType::kObjectTypeBoolean {
-                if (*opts).count.data.boolean() {
+            if opts.count.obj_type == ObjectType::kObjectTypeBoolean {
+                if opts.count.data.boolean() {
                     argt |= EX_COUNT | EX_ZEROR | EX_RANGE;
                     addr_type_arg = ADDR_OTHER;
                     def = 0;
                 }
-            } else if (*opts).count.obj_type == ObjectType::kObjectTypeInteger {
+            } else if opts.count.obj_type == ObjectType::kObjectTypeInteger {
                 argt |= EX_COUNT | EX_ZEROR | EX_RANGE;
                 addr_type_arg = ADDR_OTHER;
-                def = (*opts).count.data.integer();
+                def = opts.count.data.integer();
             } else if has_key(mask, KEYSET_OPTIDX_user_command__count) {
                 api_err_invalid(err, c"count".as_ptr(), c"".as_ptr(), 0, true);
                 break 'err;
             }
 
             if has_key(mask, KEYSET_OPTIDX_user_command__addr) {
-                if (*opts).addr.obj_type != ObjectType::kObjectTypeString {
+                if opts.addr.obj_type != ObjectType::kObjectTypeString {
                     api_err_exp(
                         err,
                         c"addr".as_ptr(),
                         api_typename(ObjectType::kObjectTypeString),
-                        api_typename((*opts).addr.obj_type),
+                        api_typename(opts.addr.obj_type),
                     );
                     break 'err;
                 }
                 if parse_addr_type_arg(
-                    (*opts).addr.data.string().data,
-                    (*opts).addr.data.string().size as c_int,
+                    opts.addr.data.string().data,
+                    opts.addr.data.string().size as c_int,
                     &mut addr_type_arg,
                 ) != OK
                 {
                     api_err_invalid(
                         err,
                         c"addr".as_ptr(),
-                        (*opts).addr.data.string().data,
+                        opts.addr.data.string().data,
                         0,
                         true,
                     );
@@ -1614,21 +1614,21 @@ pub unsafe fn create_user_command(
                 }
             }
 
-            if (*opts).bang {
+            if opts.bang {
                 argt |= EX_BANG;
             }
-            if (*opts).bar {
+            if opts.bar {
                 argt |= EX_TRLBAR;
             }
-            if (*opts).register_ {
+            if opts.register_ {
                 argt |= EX_REGSTR;
             }
-            if (*opts).keepscript {
+            if opts.keepscript {
                 argt |= EX_KEEPSCRIPT;
             }
 
             let force = if has_key(mask, KEYSET_OPTIDX_user_command__force) {
-                (*opts).force
+                opts.force
             } else {
                 true
             };
@@ -1636,15 +1636,15 @@ pub unsafe fn create_user_command(
                 break 'err;
             }
 
-            if (*opts).complete.obj_type == ObjectType::kObjectTypeLuaRef {
+            if opts.complete.obj_type == ObjectType::kObjectTypeLuaRef {
                 context = EXPAND_USER_LUA;
-                compl_luaref = (*opts).complete.data.luaref();
-                (*opts).complete.data =
+                compl_luaref = opts.complete.data.luaref();
+                opts.complete.data =
                     crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
-            } else if (*opts).complete.obj_type == ObjectType::kObjectTypeString {
+            } else if opts.complete.obj_type == ObjectType::kObjectTypeString {
                 if parse_compl_arg(
-                    (*opts).complete.data.string().data,
-                    (*opts).complete.data.string().size as c_int,
+                    opts.complete.data.string().data,
+                    opts.complete.data.string().size as c_int,
                     &mut context,
                     &mut argt,
                     &mut compl_arg,
@@ -1653,7 +1653,7 @@ pub unsafe fn create_user_command(
                     api_err_invalid(
                         err,
                         c"complete".as_ptr(),
-                        (*opts).complete.data.string().data,
+                        opts.complete.data.string().data,
                         0,
                         true,
                     );
@@ -1670,33 +1670,33 @@ pub unsafe fn create_user_command(
             }
 
             if has_key(mask, KEYSET_OPTIDX_user_command__preview) {
-                if (*opts).preview.obj_type != ObjectType::kObjectTypeLuaRef {
+                if opts.preview.obj_type != ObjectType::kObjectTypeLuaRef {
                     api_err_exp(
                         err,
                         c"preview".as_ptr(),
                         api_typename(ObjectType::kObjectTypeLuaRef),
-                        api_typename((*opts).preview.obj_type),
+                        api_typename(opts.preview.obj_type),
                     );
                     break 'err;
                 }
                 argt |= EX_PREVIEW;
-                preview_luaref = (*opts).preview.data.luaref();
-                (*opts).preview.data =
+                preview_luaref = opts.preview.data.luaref();
+                opts.preview.data =
                     crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
             }
 
             let mut desc: *const c_char = ptr::null();
             if has_key(mask, KEYSET_OPTIDX_user_command__desc) {
-                if (*opts).desc.obj_type != ObjectType::kObjectTypeString {
+                if opts.desc.obj_type != ObjectType::kObjectTypeString {
                     api_err_exp(
                         err,
                         c"desc".as_ptr(),
                         api_typename(ObjectType::kObjectTypeString),
-                        api_typename((*opts).desc.obj_type),
+                        api_typename(opts.desc.obj_type),
                     );
                     break 'err;
                 }
-                desc = (*opts).desc.data.string().data;
+                desc = opts.desc.data.string().data;
             }
 
             match cmd.obj_type {

@@ -874,16 +874,16 @@ unsafe fn atom_staged() -> bool {
     }
 }
 
-unsafe fn atom_stage_flush(frame: *mut CmdFrame) {
+unsafe fn atom_stage_flush(frame: &mut CmdFrame) {
     unsafe {
-        let Some(ref keys) = (*frame).staged.keys else {
+        let Some(ref keys) = frame.staged.keys else {
             return;
         };
         let cascade = !keys.as_bytes().is_empty()
-            && !(*frame).staged.cascaded
-            && atom_st().global_ops == (*frame).global_ops;
-        atom_push(cascade, &mut (*frame).staged);
-        (*frame).staged = CmdAtom::default();
+            && !frame.staged.cascaded
+            && atom_st().global_ops == frame.global_ops;
+        atom_push(cascade, &mut frame.staged);
+        frame.staged = CmdAtom::default();
     }
 }
 
@@ -1738,47 +1738,47 @@ pub unsafe fn atom_ins_start(
     }
 }
 
-pub unsafe fn atom_ins_end(session: *mut InsSession, busy: bool) {
+pub unsafe fn atom_ins_end(session: &mut InsSession, busy: bool) {
     unsafe {
-        let visual = (*session).vis != kVInsNone;
-        let user_input = (*session).typed || g_st().maptick != (*session).origin.maptick;
+        let visual = session.vis != kVInsNone;
+        let user_input = session.typed || g_st().maptick != session.origin.maptick;
 
         if mc_replaying() {
-            (*session).vsel = None;
+            session.vsel = None;
             return;
         }
         if mc_ins_commit() {
             if has_event(EVENT_CMDATOM) && !atom_composite_active() {
                 atom_ins_push(session, false);
             }
-            (*session).vsel = None;
+            session.vsel = None;
             return;
         }
         if !user_input
             || busy
             || g_st().restart_edit != 0
             || !atom_buf_has_consumers()
-            || (visual && (*session).vis != kVInsKeys && (*session).vsel.is_none())
+            || (visual && session.vis != kVInsKeys && session.vsel.is_none())
         {
             if user_input && (busy || g_st().restart_edit != 0) && atom_composite_active() {
                 atom_st().composite.lossy = true;
             }
-            (*session).vsel = None;
+            session.vsel = None;
             return;
         }
         atom_ins_push(session, mc_buf_has_cursors(g_st().curbuf));
-        (*session).vsel = None;
+        session.vsel = None;
     }
 }
 
-unsafe fn atom_ins_push(session: *const InsSession, cascade: bool) {
+unsafe fn atom_ins_push(session: &InsSession, cascade: bool) {
     unsafe {
-        let mut atom = atom_from_redo(if (*session).vis != kVInsNone {
+        let mut atom = atom_from_redo(if session.vis != kVInsNone {
             kAVisual
         } else {
             kAInsert
         });
-        if let Some(ref vsel) = (*session).vsel
+        if let Some(ref vsel) = session.vsel
             && let Some(ref cur_keys) = atom.keys
         {
             assert!(cur_keys.as_bytes().starts_with(b"1v"));
@@ -1796,7 +1796,7 @@ unsafe fn atom_ins_push(session: *const InsSession, cascade: bool) {
             return;
         }
         atom.text = get_last_insert_save();
-        atom.origin = (*session).origin;
+        atom.origin = session.origin;
         atom_push_raw(cascade, &mut atom);
     }
 }
@@ -2053,7 +2053,7 @@ pub unsafe fn atom_cmd_end(ca: &mut cmdarg_T) {
             atom_st().composite.follow = if (*old).follow { kTrue } else { kFalse };
         }
         let refresh_visual = atom_capture_cmd(ca, old, is_root);
-        atom_stage_flush(old);
+        atom_stage_flush(&mut *old);
         if atom_composite_active()
             && (*old).payload_start != usize::MAX
             && (*old).payload_end > (*old).payload_start

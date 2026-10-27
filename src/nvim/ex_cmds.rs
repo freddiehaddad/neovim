@@ -2522,7 +2522,7 @@ pub unsafe fn do_wqall(eap: &mut exarg_T) {
                 error += 1;
             } else {
                 let mut bufref: bufref_T = bufref_T::new();
-                set_bufref(&raw mut bufref, buf);
+                set_bufref(&mut bufref, buf);
                 if handle_mkdir_p_arg(eap, (*buf).b_fname) == FAIL
                     || buf_write_all(&mut *buf, eap.forceit != 0) == FAIL
                 {
@@ -2772,7 +2772,7 @@ pub unsafe fn do_ecmd(
             command = (*eap).do_ecmd_cmd;
         }
 
-        set_bufref(&raw mut old_curbuf, g_st().curbuf);
+        set_bufref(&mut old_curbuf, g_st().curbuf);
 
         'theend: {
             if fnum != 0 {
@@ -2891,7 +2891,7 @@ pub unsafe fn do_ecmd(
                     if !oldwin.is_null() {
                         oldwin = *curwin.as_ptr();
                     }
-                    set_bufref(&raw mut old_curbuf, g_st().curbuf);
+                    set_bufref(&mut old_curbuf, g_st().curbuf);
                 }
                 if buf.is_null() {
                     break 'theend;
@@ -2907,7 +2907,7 @@ pub unsafe fn do_ecmd(
                     oldbuf = false;
                 } else {
                     oldbuf = true;
-                    set_bufref(&raw mut bufref, buf);
+                    set_bufref(&mut bufref, buf);
                     buf_check_timestamp(&mut *buf);
                     if !bufref_valid(&raw mut bufref) || g_st().curbuf != old_curbuf.br_buf {
                         break 'theend;
@@ -2928,7 +2928,7 @@ pub unsafe fn do_ecmd(
                         new_name = Some(cstr_to_cstring((*buf).b_fname));
                     }
                     let save_au_new_curbuf = g_st().au_new_curbuf;
-                    set_bufref(&raw mut g_st().au_new_curbuf, buf);
+                    set_bufref(&mut g_st().au_new_curbuf, buf);
                     apply_autocmds(
                         EVENT_BUFLEAVE,
                         ptr::null_mut(),
@@ -3057,7 +3057,7 @@ pub unsafe fn do_ecmd(
                 } else {
                     None
                 };
-                set_bufref(&raw mut bufref, buf);
+                set_bufref(&mut bufref, buf);
 
                 if ((*g_st().curbuf).b_flags & BF_NEVERLOADED) == 0
                     && (opt_vars().p_ur < 0 || ((*g_st().curbuf).b_ml.ml_line_count as OptInt) <= opt_vars().p_ur)
@@ -3810,52 +3810,52 @@ fn sub_grow_buf(new_start: &mut SubBuf, new_start_size: &mut usize, mut needed_s
 /// Parse `cmd` string for `:substitute`'s `{flags}` and update `subflags_arg` accordingly.
 unsafe fn sub_parse_flags(
     mut cmd: *mut c_char,
-    subflags_arg: *mut subflags_T,
+    subflags_arg: &mut subflags_T,
     which_pat: &mut c_int,
 ) -> *mut c_char {
     unsafe {
         if *cmd == b'&' as c_char {
             cmd = cmd.add(1);
         } else {
-            (*subflags_arg).do_all = opt_vars().p_gd != 0;
-            (*subflags_arg).do_ask = false;
-            (*subflags_arg).do_error = true;
-            (*subflags_arg).do_print = false;
-            (*subflags_arg).do_list = false;
-            (*subflags_arg).do_count = false;
-            (*subflags_arg).do_number = false;
-            (*subflags_arg).do_ic = SubIgnoreType::kSubHonorOptions;
+            subflags_arg.do_all = opt_vars().p_gd != 0;
+            subflags_arg.do_ask = false;
+            subflags_arg.do_error = true;
+            subflags_arg.do_print = false;
+            subflags_arg.do_list = false;
+            subflags_arg.do_count = false;
+            subflags_arg.do_number = false;
+            subflags_arg.do_ic = SubIgnoreType::kSubHonorOptions;
         }
         while *cmd != NUL {
             if *cmd == b'g' as c_char {
-                (*subflags_arg).do_all = !(*subflags_arg).do_all;
+                subflags_arg.do_all = !subflags_arg.do_all;
             } else if *cmd == b'c' as c_char {
-                (*subflags_arg).do_ask = !(*subflags_arg).do_ask;
+                subflags_arg.do_ask = !subflags_arg.do_ask;
             } else if *cmd == b'n' as c_char {
-                (*subflags_arg).do_count = true;
+                subflags_arg.do_count = true;
             } else if *cmd == b'e' as c_char {
-                (*subflags_arg).do_error = !(*subflags_arg).do_error;
+                subflags_arg.do_error = !subflags_arg.do_error;
             } else if *cmd == b'r' as c_char {
                 *which_pat = RE_LAST;
             } else if *cmd == b'p' as c_char {
-                (*subflags_arg).do_print = true;
+                subflags_arg.do_print = true;
             } else if *cmd == b'#' as c_char {
-                (*subflags_arg).do_print = true;
-                (*subflags_arg).do_number = true;
+                subflags_arg.do_print = true;
+                subflags_arg.do_number = true;
             } else if *cmd == b'l' as c_char {
-                (*subflags_arg).do_print = true;
-                (*subflags_arg).do_list = true;
+                subflags_arg.do_print = true;
+                subflags_arg.do_list = true;
             } else if *cmd == b'i' as c_char {
-                (*subflags_arg).do_ic = SubIgnoreType::kSubIgnoreCase;
+                subflags_arg.do_ic = SubIgnoreType::kSubIgnoreCase;
             } else if *cmd == b'I' as c_char {
-                (*subflags_arg).do_ic = SubIgnoreType::kSubMatchCase;
+                subflags_arg.do_ic = SubIgnoreType::kSubMatchCase;
             } else {
                 break;
             }
             cmd = cmd.add(1);
         }
-        if (*subflags_arg).do_count {
-            (*subflags_arg).do_ask = false;
+        if subflags_arg.do_count {
+            subflags_arg.do_ask = false;
         }
 
         cmd
@@ -4042,7 +4042,7 @@ unsafe fn do_sub(
             return 0;
         }
 
-        cmd = sub_parse_flags(cmd, &raw mut excmds_st().subflags, &mut which_pat);
+        cmd = sub_parse_flags(cmd, &mut excmds_st().subflags, &mut which_pat);
 
         let save_do_all = excmds_st().subflags.do_all;
         let save_do_ask = excmds_st().subflags.do_ask;
@@ -4595,7 +4595,7 @@ unsafe fn do_sub(
                         || !(excmds_st().subflags.do_all || do_again)
                         || (*sub_firstline.data().add(matchcol as usize) == NUL
                             && nmatch <= 1
-                            && re_multiline(regmatch.regprog) == 0);
+                            && re_multiline(&*regmatch.regprog) == 0);
                     nmatch = -1;
 
                     if lastone
@@ -4803,7 +4803,7 @@ unsafe fn do_sub(
                 retv = show_sub(
                     eap,
                     old_cursor,
-                    &raw mut preview_lines,
+                    &mut preview_lines,
                     excmds_st().pre_hl_id,
                     cmdpreview_ns,
                     cmdpreview_bufnr,
@@ -5153,14 +5153,14 @@ pub unsafe fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> boo
 unsafe fn show_sub(
     eap: &mut exarg_T,
     old_cusr: pos_T,
-    preview_lines: *mut PreviewLines,
+    preview_lines: &mut PreviewLines,
     hl_id: c_int,
     cmdpreview_ns: c_int,
     cmdpreview_bufnr: handle_T,
 ) -> c_int {
     unsafe {
         let save_shm_p = cstr_to_cstring(opt_vars().p_shm);
-        let subresults = &(*preview_lines).subresults;
+        let subresults = &preview_lines.subresults;
         let orig_buf = g_st().curbuf;
         let mut cmdpreview_buf: *mut buf_T = ptr::null_mut();
 

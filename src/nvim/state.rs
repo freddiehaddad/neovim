@@ -99,10 +99,10 @@ unsafe fn state_mod_st() -> &'static mut StateModuleState {
     unsafe { &mut *STATE_MOD_STATE.as_ptr() }
 }
 
-pub unsafe fn state_enter<S: EditorState>(s: *mut S) {
+pub unsafe fn state_enter<S: EditorState>(s: &mut S) {
     unsafe {
         loop {
-            let check_result = (*s).check();
+            let check_result = s.check();
 
             if check_result == 0 {
                 break;
@@ -153,7 +153,7 @@ pub unsafe fn state_enter<S: EditorState>(s: *mut S) {
                     );
                 }
 
-                let execute_result = (*s).execute(key);
+                let execute_result = s.execute(key);
                 if execute_result == 0 {
                     return;
                 } else if execute_result == -1 {

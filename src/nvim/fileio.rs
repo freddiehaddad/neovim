@@ -1585,7 +1585,7 @@ pub unsafe fn readfile(
                     if fio_flags == 0
                         && !read_stdin
                         && !read_buffer
-                        && crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_ccv) != kCallbackNone
+                        && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != kCallbackNone
                         && !read_fifo
                         && iconv_fd == -1
                     {
@@ -1723,7 +1723,7 @@ pub unsafe fn readfile(
                                 } else if conv_restlen > 0 {
                                     if fio_flags != 0 || iconv_fd != -1 {
                                         if can_retry {
-                                            if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_ccv) != kCallbackNone && iconv_fd != -1 {
+                                            if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != kCallbackNone && iconv_fd != -1 {
                                                 did_iconv = true;
                                             } else {
                                                 advance_fenc = true;
@@ -1830,7 +1830,7 @@ pub unsafe fn readfile(
                                 || from_size > CONV_RESTLEN
                             {
                                 if can_retry {
-                                    if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_ccv) != kCallbackNone && iconv_fd != -1 {
+                                    if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != kCallbackNone && iconv_fd != -1 {
                                         did_iconv = true;
                                     } else {
                                         advance_fenc = true;
@@ -1942,7 +1942,7 @@ pub unsafe fn readfile(
                                     {
                                         if p == ptr.cast::<u8>() {
                                             if can_retry {
-                                                if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_ccv) != kCallbackNone
+                                                if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != kCallbackNone
                                                     && iconv_fd != -1
                                                 {
                                                     did_iconv = true;
@@ -1982,7 +1982,7 @@ pub unsafe fn readfile(
 
                                         if !(0xd800..=0xdbff).contains(&u16c) {
                                             if can_retry {
-                                                if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_ccv) != kCallbackNone
+                                                if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != kCallbackNone
                                                     && iconv_fd != -1
                                                 {
                                                     did_iconv = true;
@@ -2037,7 +2037,7 @@ pub unsafe fn readfile(
                                         u8c = utf_ptr2char(p.cast()) as c_uint;
                                         if len == 0 {
                                             if can_retry {
-                                                if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_ccv) != kCallbackNone
+                                                if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != kCallbackNone
                                                     && iconv_fd != -1
                                                 {
                                                     did_iconv = true;
@@ -2137,7 +2137,7 @@ pub unsafe fn readfile(
                                 }
                             }
                             if p < ptr.cast::<u8>().offset(size) && !incomplete_tail {
-                                if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_ccv) != kCallbackNone && iconv_fd != -1 {
+                                if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != kCallbackNone && iconv_fd != -1 {
                                     did_iconv = true;
                                 } else {
                                     advance_fenc = true;
@@ -3689,7 +3689,7 @@ pub unsafe fn check_timestamps(focus: c_int) -> c_int {
             while !buf.is_null() {
                 if (*buf).b_nwindows > 0 {
                     let mut bufref: bufref_T = bufref_T::new();
-                    set_bufref(&raw mut bufref, buf);
+                    set_bufref(&mut bufref, buf);
                     let n = buf_check_timestamp(&mut *buf);
                     didit = didit.max(n);
                     if n > 0 && !bufref_valid(&raw mut bufref) {
@@ -3761,7 +3761,7 @@ pub unsafe fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
         let orig_mode = buf.b_orig_mode;
 
         let mut bufref: bufref_T = bufref_T::new();
-        set_bufref(&raw mut bufref, &raw mut *buf);
+        set_bufref(&mut bufref, &raw mut *buf);
 
         if !buf.terminal.is_null()
             || buf.b_ffname.is_null()
@@ -4014,7 +4014,7 @@ pub unsafe fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool
             savebuf = ptr::null_mut();
         } else {
             savebuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_DUMMY);
-            set_bufref(&raw mut bufref, savebuf);
+            set_bufref(&mut bufref, savebuf);
             if !savebuf.is_null() && buf == g_st().curbuf {
                 g_st().curbuf = savebuf;
                 (**curwin.as_ptr()).w_buffer = savebuf;

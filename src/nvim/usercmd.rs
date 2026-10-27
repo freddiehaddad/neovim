@@ -1188,7 +1188,7 @@ pub unsafe fn uc_add_command(
         (*cmd).uc_compl = context;
         (*cmd).uc_script_ctx = g_st().current_sctx;
         (*cmd).uc_script_ctx.sc_lnum += sourcing_lnum();
-        nlua_set_sctx(&raw mut (*cmd).uc_script_ctx);
+        nlua_set_sctx(&mut (*cmd).uc_script_ctx);
         (*cmd).uc_compl_arg = compl_arg;
         (*cmd).uc_compl_luaref = compl_luaref;
         (*cmd).uc_preview_luaref = preview_luaref;
@@ -1667,7 +1667,7 @@ unsafe fn uc_check_code(
     code: *mut c_char,
     len: usize,
     mut buf: *mut c_char,
-    cmd: *mut ucmd_T,
+    cmd: &mut ucmd_T,
     eap: &mut exarg_T,
     split_buf: &mut Option<CString>,
     split_len: &mut usize,
@@ -1812,7 +1812,7 @@ unsafe fn uc_check_code(
                         if eap.addr_count > 0 {
                             i64::from(eap.line2)
                         } else {
-                            (*cmd).uc_def
+                            cmd.uc_def
                         }
                     }
                 };
@@ -1889,11 +1889,11 @@ pub unsafe fn do_ucmd(eap: &mut exarg_T, preview: bool) -> c_int {
 
         if preview {
             debug_assert!((*cmd).uc_preview_luaref > 0);
-            return nlua_do_ucmd(cmd, eap, true);
+            return nlua_do_ucmd(&mut *cmd, eap, true);
         }
 
         if (*cmd).uc_luaref > 0 {
-            nlua_do_ucmd(cmd, eap, false);
+            nlua_do_ucmd(&mut *cmd, eap, false);
             return 0;
         }
 
@@ -1949,7 +1949,7 @@ pub unsafe fn do_ucmd(eap: &mut exarg_T, preview: bool) -> c_int {
                     start,
                     end.offset_from(start) as usize,
                     q,
-                    cmd,
+                    &mut *cmd,
                     eap,
                     &mut split_buf,
                     &mut split_len,

@@ -1018,7 +1018,7 @@ pub unsafe fn buf_ensure_loaded(buf: &mut buf_T) -> bool {
         }
 
         let mut bufref: bufref_T = bufref_T::new();
-        set_bufref(&raw mut bufref, &raw mut *buf);
+        set_bufref(&mut bufref, &raw mut *buf);
         let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), &raw mut *buf, 0);
         let status = open_buffer(false, ptr::null_mut(), 0);
@@ -1083,7 +1083,7 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
             (*(*g_st().curbuf).b_ml.mfp_ptr()).mf_dirty = MF_DIRTY_YES_NOSYNC;
         }
 
-        set_bufref(&raw mut old_curbuf, g_st().curbuf);
+        set_bufref(&mut old_curbuf, g_st().curbuf);
         (*g_st().curbuf).b_modified_was_set = false;
 
         (**curwin.as_ptr()).w_valid = 0;
@@ -1211,7 +1211,7 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
             && augroup_exists(c"filetypedetect".as_ptr())
         {
             let mut bufref: bufref_T = bufref_T::new();
-            set_bufref(&raw mut bufref, g_st().curbuf);
+            set_bufref(&mut bufref, g_st().curbuf);
             do_doautocmd(
                 c"filetypedetect BufRead".as_ptr().cast_mut(),
                 false,
@@ -1273,11 +1273,11 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
 }
 
 /// Store `buf` in `bufref` and set the free count.
-pub unsafe fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T) {
+pub unsafe fn set_bufref(bufref: &mut bufref_T, buf: *mut buf_T) {
     unsafe {
-        (*bufref).br_buf = buf;
-        (*bufref).br_fnum = if buf.is_null() { 0 } else { (*buf).b_fnum };
-        (*bufref).br_buf_free_count = buf_st().buf_free_count;
+        bufref.br_buf = buf;
+        bufref.br_fnum = if buf.is_null() { 0 } else { (*buf).b_fnum };
+        bufref.br_buf_free_count = buf_st().buf_free_count;
     }
 }
 
@@ -1416,7 +1416,7 @@ pub unsafe fn close_buffer(
         }
 
         let mut bufref: bufref_T = bufref_T::new();
-        set_bufref(&raw mut bufref, buf);
+        set_bufref(&mut bufref, buf);
 
         if win_valid && (*win).w_buffer == buf && (*buf).b_nwindows == 1 {
             (*buf).b_locked += 1;
@@ -1598,7 +1598,7 @@ pub unsafe fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
         (*buf).b_locked_split += 1;
 
         let mut bufref: bufref_T = bufref_T::new();
-        set_bufref(&raw mut bufref, buf);
+        set_bufref(&mut bufref, buf);
 
         if !(*buf).terminal.is_null() {
             buf_close_terminal(buf);
@@ -1693,7 +1693,7 @@ pub unsafe fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
         if (flags & BFA_KEEP_UNDO) == 0 {
             u_clearallandblockfree(buf);
         }
-        syntax_clear(&raw mut (*buf).b_s);
+        syntax_clear(&mut (*buf).b_s);
         (*buf).b_flags &= !BF_READERR;
         true
     }
@@ -1862,7 +1862,7 @@ pub unsafe fn goto_buffer(eap: &mut exarg_T, start: c_int, dir: c_int, count: c_
         );
 
         let mut old_curbuf: bufref_T = bufref_T::new();
-        set_bufref(&raw mut old_curbuf, g_st().curbuf);
+        set_bufref(&mut old_curbuf, g_st().curbuf);
 
         if g_st().swap_exists_action == SEA_NONE {
             g_st().swap_exists_action = SEA_DIALOG;
@@ -1885,11 +1885,11 @@ pub unsafe fn goto_buffer(eap: &mut exarg_T, start: c_int, dir: c_int, count: c_
 
         if g_st().swap_exists_action == SEA_QUIT && *eap.cmd == b's' as c_char {
             let mut cs: cleanup_T = cleanup_T::new();
-            enter_cleanup(&raw mut cs);
+            enter_cleanup(&mut cs);
             win_close(*curwin.as_ptr(), true, false);
             g_st().swap_exists_action = save_sea;
             g_st().swap_exists_did_quit = true;
-            leave_cleanup(&raw mut cs);
+            leave_cleanup(&mut cs);
         } else {
             handle_swap_exists(&raw mut old_curbuf);
         }
@@ -1903,7 +1903,7 @@ pub unsafe fn handle_swap_exists(old_curbuf: *mut bufref_T) {
         let old_tw = (*g_st().curbuf).b_p_tw;
 
         if g_st().swap_exists_action == SEA_QUIT {
-            enter_cleanup(&raw mut cs);
+            enter_cleanup(&mut cs);
 
             g_st().swap_exists_action = SEA_NONE;
             g_st().swap_exists_did_quit = true;
@@ -1926,9 +1926,9 @@ pub unsafe fn handle_swap_exists(old_curbuf: *mut bufref_T) {
                 }
             }
 
-            leave_cleanup(&raw mut cs);
+            leave_cleanup(&mut cs);
         } else if g_st().swap_exists_action == SEA_RECOVER {
-            enter_cleanup(&raw mut cs);
+            enter_cleanup(&mut cs);
 
             g_st().msg_scroll = 1;
             ml_recover(false);
@@ -1936,7 +1936,7 @@ pub unsafe fn handle_swap_exists(old_curbuf: *mut bufref_T) {
             g_st().cmdline_row = g_st().msg_row;
             do_modelines(0);
 
-            leave_cleanup(&raw mut cs);
+            leave_cleanup(&mut cs);
         }
         g_st().swap_exists_action = SEA_NONE;
     }
@@ -2077,7 +2077,7 @@ unsafe fn empty_curbuf(close_others: bool, forceit: c_int, action: c_int) -> c_i
         }
 
         let mut bufref: bufref_T = bufref_T::new();
-        set_bufref(&raw mut bufref, buf);
+        set_bufref(&mut bufref, buf);
 
         if close_others {
             let mut can_close_all_others = true;
@@ -2233,7 +2233,7 @@ unsafe fn do_buffer_ext(
             if !can_unload_buffer(buf) {
                 return FAIL;
             }
-            set_bufref(&raw mut bufref, buf);
+            set_bufref(&mut bufref, buf);
 
             if action != DOBUF_WIPE && (*buf).b_ml.ml_mfp.is_none() && (*buf).b_p_bl == 0 {
                 return FAIL;
@@ -2487,7 +2487,7 @@ unsafe fn do_buffer_ext(
         if action == DOBUF_GOTO && !can_abandon(&mut *g_st().curbuf, (flags & DOBUF_FORCEIT) != 0) {
             if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && opt_vars().p_write != 0 {
                 let mut bufref: bufref_T = bufref_T::new();
-                set_bufref(&raw mut bufref, buf);
+                set_bufref(&mut bufref, buf);
                 dialog_changed(&mut *g_st().curbuf, false);
                 if !bufref_valid(&raw mut bufref) {
                     return FAIL;
@@ -2551,8 +2551,8 @@ pub unsafe fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) 
         let prevbuf = g_st().curbuf;
         let mut newbufref: bufref_T = bufref_T::new();
         let mut prevbufref: bufref_T = bufref_T::new();
-        set_bufref(&raw mut prevbufref, prevbuf);
-        set_bufref(&raw mut newbufref, buf);
+        set_bufref(&mut prevbufref, prevbuf);
+        set_bufref(&mut newbufref, buf);
 
         if !apply_autocmds(
             EVENT_BUFLEAVE,
@@ -2787,7 +2787,7 @@ pub unsafe fn buflist_new(
         let ffname_cstr = fname_expand(g_st().curbuf, &raw mut ffname, &raw mut sfname);
 
         let mut file_id: FileID = FileID::new();
-        let file_id_valid = !sfname.is_null() && os_fileid(sfname, (&raw mut file_id).cast());
+        let file_id_valid = !sfname.is_null() && os_fileid(sfname, &mut *(&raw mut file_id).cast());
         if !ffname.is_null() && (flags & (BLN_DUMMY | BLN_NEW)) == 0 {
             buf = buflist_findname_file_id(ffname, &raw mut file_id, file_id_valid);
             if !buf.is_null() {
@@ -2811,7 +2811,7 @@ pub unsafe fn buflist_new(
                 if (flags & BLN_LISTED) != 0 && (*buf).b_p_bl == 0 {
                     (*buf).b_p_bl = 1;
                     let mut bufref: bufref_T = bufref_T::new();
-                    set_bufref(&raw mut bufref, buf);
+                    set_bufref(&mut bufref, buf);
                     if (flags & BLN_DUMMY) == 0
                         && apply_autocmds(
                             EVENT_BUFADD,
@@ -2835,7 +2835,7 @@ pub unsafe fn buflist_new(
 
             debug_assert!(!g_st().curbuf.is_null());
             buf = g_st().curbuf;
-            set_bufref(&raw mut bufref, buf);
+            set_bufref(&mut bufref, buf);
             trigger_undo_ftplugin(&mut *buf, &mut **curwin.as_ptr());
             buf_freeall(buf, BFA_WIPE | BFA_DEL);
             if aborting() {
@@ -2848,7 +2848,7 @@ pub unsafe fn buflist_new(
         }
         if buf != g_st().curbuf || g_st().curbuf.is_null() {
             buf = buf_T::alloc();
-            init_var_dict(&mut *tv_dict_alloc(), (&raw mut (*buf).b_bufvar).cast(), VAR_SCOPE);
+            init_var_dict(&mut *tv_dict_alloc(), &mut *(&raw mut (*buf).b_bufvar).cast(), VAR_SCOPE);
             (*buf).changedtick_di.di_key = b"changedtick\0".iter().map(|&b| b as c_char).collect();
             buf_init_changedtick(buf);
         }
@@ -2922,7 +2922,7 @@ pub unsafe fn buflist_new(
         (*buf).update_callbacks.clear();
         if (flags & BLN_DUMMY) == 0 {
             let mut bufref: bufref_T = bufref_T::new();
-            set_bufref(&raw mut bufref, buf);
+            set_bufref(&mut bufref, buf);
             if apply_autocmds(EVENT_BUFNEW, ptr::null_mut(), ptr::null_mut(), false, buf)
                 && !bufref_valid(&raw mut bufref)
             {
@@ -3170,7 +3170,7 @@ pub unsafe fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T {
 pub unsafe fn buflist_findname(ffname: *mut c_char) -> *mut buf_T {
     unsafe {
         let mut file_id: FileID = FileID::new();
-        let file_id_valid = os_fileid(ffname, (&raw mut file_id).cast());
+        let file_id_valid = os_fileid(ffname, &mut *(&raw mut file_id).cast());
         buflist_findname_file_id(ffname, &raw mut file_id, file_id_valid)
     }
 }
@@ -3514,7 +3514,7 @@ pub unsafe fn buflist_setfpos(
         let mut wip = if let Some(i) = (*buf).b_wininfo.iter().position(|w| w.wi_win == win) {
             let mut wip = (*buf).b_wininfo.remove(i);
             if copy_options && wip.wi_optset {
-                clear_winopt(&raw mut wip.wi_opt);
+                clear_winopt(&mut wip.wi_opt);
                 wip.wi_folds.clear();
                 wip.wi_optset = false;
             }
@@ -3538,7 +3538,7 @@ pub unsafe fn buflist_setfpos(
             wip.wi_changelistidx = (*win).w_changelistidx;
         }
         if copy_options && !win.is_null() {
-            copy_winopt(&raw mut (*win).w_onebuf_opt, &raw mut wip.wi_opt);
+            copy_winopt(&mut (*win).w_onebuf_opt, &mut wip.wi_opt);
             wip.wi_fold_manual = (*win).w_fold_manual;
             wip.wi_folds.clone_from(&(*win).w_folds);
             wip.wi_optset = true;
@@ -3548,15 +3548,15 @@ pub unsafe fn buflist_setfpos(
     }
 }
 
-unsafe fn wininfo_other_tab_diff(wip: *const WinInfo) -> bool {
+unsafe fn wininfo_other_tab_diff(wip: &WinInfo) -> bool {
     unsafe {
-        if (*wip).wi_opt.wo_diff == 0 {
+        if wip.wi_opt.wo_diff == 0 {
             return false;
         }
 
         let mut wp = g_st().firstwin;
         while !wp.is_null() {
-            if (*wip).wi_win == wp {
+            if wip.wi_win == wp {
                 return false;
             }
             wp = (*wp).w_next;
@@ -3600,7 +3600,7 @@ unsafe fn find_wininfo(
 /// Reset the local window options to the values last used in this window.
 pub unsafe fn get_winopts(buf: *mut buf_T) {
     unsafe {
-        clear_winopt(&raw mut (**curwin.as_ptr()).w_onebuf_opt);
+        clear_winopt(&mut (**curwin.as_ptr()).w_onebuf_opt);
         clearFolding(*curwin.as_ptr());
 
         let wip = find_wininfo(buf, true, true);
@@ -3611,7 +3611,7 @@ pub unsafe fn get_winopts(buf: *mut buf_T) {
             && (*(*wip).wi_win).w_config.style != kWinStyleMinimal
         {
             let wp = (*wip).wi_win;
-            copy_winopt(&raw mut (*wp).w_onebuf_opt, &raw mut (**curwin.as_ptr()).w_onebuf_opt);
+            copy_winopt(&mut (*wp).w_onebuf_opt, &mut (**curwin.as_ptr()).w_onebuf_opt);
             (**curwin.as_ptr()).w_fold_manual = (*wp).w_fold_manual;
             (**curwin.as_ptr()).w_foldinvalid = true;
             (**curwin.as_ptr()).w_folds.clone_from(&(*wp).w_folds);
@@ -3621,14 +3621,14 @@ pub unsafe fn get_winopts(buf: *mut buf_T) {
                 || (*wip).wi_win == *curwin.as_ptr()
                 || (*(*wip).wi_win).w_config.style != kWinStyleMinimal)
         {
-            copy_winopt(&raw mut (*wip).wi_opt, &raw mut (**curwin.as_ptr()).w_onebuf_opt);
+            copy_winopt(&mut (*wip).wi_opt, &mut (**curwin.as_ptr()).w_onebuf_opt);
             (**curwin.as_ptr()).w_fold_manual = (*wip).wi_fold_manual;
             (**curwin.as_ptr()).w_foldinvalid = true;
             (**curwin.as_ptr()).w_folds.clone_from(&(*wip).wi_folds);
         } else {
             copy_winopt(
-                &raw mut (**curwin.as_ptr()).w_allbuf_opt,
-                &raw mut (**curwin.as_ptr()).w_onebuf_opt,
+                &mut (**curwin.as_ptr()).w_allbuf_opt,
+                &mut (**curwin.as_ptr()).w_onebuf_opt,
             );
         }
         if !wip.is_null() {
@@ -3862,7 +3862,7 @@ pub unsafe fn setfname(
                 return FAIL;
             };
 
-            file_id_valid = os_fileid(ffname, (&raw mut file_id).cast());
+            file_id_valid = os_fileid(ffname, &mut *(&raw mut file_id).cast());
             if ((*buf).b_flags & BF_DUMMY) == 0 {
                 obuf = buflist_findname_file_id(ffname, &raw mut file_id, file_id_valid);
             }
@@ -4027,7 +4027,7 @@ unsafe fn otherfile_buf(
             let mut file_id: FileID = FileID::new();
             if file_id_p.is_null() {
                 file_id_p = &raw mut file_id;
-                file_id_valid = os_fileid(ffname, file_id_p.cast());
+                file_id_valid = os_fileid(ffname, &mut *file_id_p.cast());
             }
             if !file_id_valid {
                 return true;
@@ -4047,7 +4047,7 @@ unsafe fn otherfile_buf(
 pub unsafe fn buf_set_file_id(buf: *mut buf_T) {
     unsafe {
         let mut file_id: FileID = FileID::new();
-        if !(*buf).b_fname.is_null() && os_fileid((*buf).b_fname, (&raw mut file_id).cast()) {
+        if !(*buf).b_fname.is_null() && os_fileid((*buf).b_fname, &mut *(&raw mut file_id).cast()) {
             (*buf).file_id_valid = true;
             (*buf).file_id = file_id;
         } else {
@@ -4059,7 +4059,7 @@ pub unsafe fn buf_set_file_id(buf: *mut buf_T) {
 #[inline]
 unsafe fn buf_same_file_id(buf: &mut buf_T, file_id: *mut FileID) -> bool {
     unsafe {
-        buf.file_id_valid && os_fileid_equal((&raw const buf.file_id).cast(), file_id.cast())
+        buf.file_id_valid && os_fileid_equal(&*(&raw const buf.file_id).cast(), &*file_id.cast())
     }
 }
 
@@ -4633,7 +4633,7 @@ pub unsafe fn ex_buffer_all(eap: &mut exarg_T) {
 
             if wp.is_null() && split_ret == OK {
                 let mut bufref: bufref_T = bufref_T::new();
-                set_bufref(&raw mut bufref, buf);
+                set_bufref(&mut bufref, buf);
                 let p_ea_save = opt_vars().p_ea;
                 opt_vars().p_ea = 1;
                 split_ret = win_split(0, WSP_ROOM | WSP_BELOW);
@@ -4652,12 +4652,12 @@ pub unsafe fn ex_buffer_all(eap: &mut exarg_T) {
                 }
                 if g_st().swap_exists_action == SEA_QUIT {
                     let mut cs: cleanup_T = cleanup_T::new();
-                    enter_cleanup(&raw mut cs);
+                    enter_cleanup(&mut cs);
                     win_close(*curwin.as_ptr(), true, false);
                     open_wins -= 1;
                     g_st().swap_exists_action = SEA_NONE;
                     g_st().swap_exists_did_quit = true;
-                    leave_cleanup(&raw mut cs);
+                    leave_cleanup(&mut cs);
                 } else {
                     handle_swap_exists(ptr::null_mut());
                 }

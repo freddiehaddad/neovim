@@ -349,9 +349,9 @@ pub unsafe fn spell_check(
             if (*mi.mi_lp.lp_slang).sl_fidxs.is_empty() {
                 continue;
             }
-            find_word(&raw mut mi, FIND_FOLDWORD);
-            find_word(&raw mut mi, FIND_KEEPWORD);
-            find_prefix(&raw mut mi, FIND_FOLDWORD);
+            find_word(&mut mi, FIND_FOLDWORD);
+            find_word(&mut mi, FIND_KEEPWORD);
+            find_prefix(&mut mi, FIND_FOLDWORD);
             if (*mi.mi_lp.lp_slang).sl_nobreak
                 && mi.mi_result == SP_BAD
                 && mi.mi_result2 != SP_BAD
@@ -401,7 +401,7 @@ pub unsafe fn spell_check(
                         }
                         mi.mi_compoff =
                             fp.offset_from((&raw const mi.mi_fword).cast::<c_char>()) as c_int;
-                        find_word(&raw mut mi, FIND_COMPOUND);
+                        find_word(&mut mi, FIND_COMPOUND);
                         if mi.mi_result != SP_BAD {
                             mi.mi_end = p;
                             break;
@@ -469,39 +469,39 @@ unsafe fn advance_camelcase_word(
         end
     }
 }
-unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
+unsafe fn find_word(mip: &mut matchinf_T, mode: c_int) {
     unsafe {
         let mut wlen: c_int = 0;
         let mut flen: c_int;
         let ptr: *mut c_char;
-        let slang = &mut *(*mip).mi_lp.lp_slang;
+        let slang = &mut *mip.mi_lp.lp_slang;
         let byts: *mut u8;
         let idxs: *mut idx_T;
         if mode == FIND_KEEPWORD || mode == FIND_KEEPCOMPOUND {
             if slang.sl_kbyts.is_empty() {
                 return;
             }
-            ptr = (*mip).mi_word;
+            ptr = mip.mi_word;
             flen = 9999;
             byts = slang.sl_kbyts.as_mut_ptr();
             idxs = slang.sl_kidxs.as_mut_ptr();
             if mode == FIND_KEEPCOMPOUND {
-                wlen += (*mip).mi_compoff;
+                wlen += mip.mi_compoff;
             }
         } else {
             if slang.sl_fbyts.is_empty() {
                 return;
             }
-            ptr = (&raw mut (*mip).mi_fword).cast();
-            flen = (*mip).mi_fwordlen;
+            ptr = (&raw mut mip.mi_fword).cast();
+            flen = mip.mi_fwordlen;
             byts = slang.sl_fbyts.as_mut_ptr();
             idxs = slang.sl_fidxs.as_mut_ptr();
             if mode == FIND_PREFIX {
-                wlen = (*mip).mi_prefixlen;
-                flen -= (*mip).mi_prefixlen;
+                wlen = mip.mi_prefixlen;
+                flen -= mip.mi_prefixlen;
             } else if mode == FIND_COMPOUND {
-                wlen = (*mip).mi_compoff;
-                flen -= (*mip).mi_compoff;
+                wlen = mip.mi_compoff;
+                flen -= mip.mi_compoff;
             }
         }
         let mut arridx: idx_T = 0;
@@ -509,7 +509,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
         let mut endidx: [idx_T; MAXWLEN] = [0; MAXWLEN];
         let mut endidxcnt: usize = 0;
         loop {
-            if flen <= 0 && *(*mip).mi_fend != NUL {
+            if flen <= 0 && *mip.mi_fend != NUL {
                 flen = fold_more(mip);
             }
             let mut len = *byts.add(arridx as usize) as c_int;
@@ -561,7 +561,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
             flen -= 1;
             if c == b' ' as c_int {
                 loop {
-                    if flen <= 0 && *(*mip).mi_fend != NUL {
+                    if flen <= 0 && *mip.mi_fend != NUL {
                         flen = fold_more(mip);
                     }
                     let ch = *ptr.add(wlen as usize);
@@ -580,7 +580,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
             if utf_head_off(ptr, ptr.add(wlen as usize)) > 0 {
                 continue;
             }
-            let word_ends = if spell_iswordp(ptr.add(wlen as usize), (*mip).mi_win) {
+            let word_ends = if spell_iswordp(ptr.add(wlen as usize), mip.mi_win) {
                 if slang.sl_compprog.is_none() && !slang.sl_nobreak {
                     continue;
                 }
@@ -590,7 +590,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
             };
             let mut prefix_found = false;
             if mode != FIND_KEEPWORD {
-                let mut p = (*mip).mi_word;
+                let mut p = mip.mi_word;
                 if { let _p1 = ptr; let _p2 = p; let _n = wlen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                     let mut s = ptr;
                     let s_end = ptr.add(wlen as usize);
@@ -598,7 +598,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                         mb_ptr_adv(&mut p);
                         mb_ptr_adv(&mut s);
                     }
-                    wlen = p.offset_from((*mip).mi_word) as c_int;
+                    wlen = p.offset_from(mip.mi_word) as c_int;
                 }
             }
             let mut len = *byts.add((arridx - 1) as usize) as c_int;
@@ -607,21 +607,21 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                 len -= 1;
                 arridx += 1;
                 if mode == FIND_FOLDWORD {
-                    if (*mip).mi_cend != (*mip).mi_word.add(wlen as usize) {
-                        (*mip).mi_cend = (*mip).mi_word.add(wlen as usize);
-                        (*mip).mi_capflags = captype((*mip).mi_word, (*mip).mi_cend);
+                    if mip.mi_cend != mip.mi_word.add(wlen as usize) {
+                        mip.mi_cend = mip.mi_word.add(wlen as usize);
+                        mip.mi_capflags = captype(mip.mi_word, mip.mi_cend);
                     }
-                    if (*mip).mi_capflags == WF_KEEPCAP
-                        || !spell_valid_case((*mip).mi_capflags, flags as c_int)
+                    if mip.mi_capflags == WF_KEEPCAP
+                        || !spell_valid_case(mip.mi_capflags, flags as c_int)
                     {
                         continue;
                     }
                 } else if mode == FIND_PREFIX && !prefix_found {
                     let c = valid_word_prefix(
-                        (*mip).mi_prefcnt,
-                        (*mip).mi_prefarridx,
+                        mip.mi_prefcnt,
+                        mip.mi_prefarridx,
                         flags as c_int,
-                        (*mip).mi_word.add((*mip).mi_cprefixlen as usize),
+                        mip.mi_word.add(mip.mi_cprefixlen as usize),
                         slang,
                         false,
                     );
@@ -637,34 +637,34 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                     if (mode == FIND_COMPOUND || mode == FIND_KEEPCOMPOUND)
                         && (flags & WF_BANNED as u32) == 0
                     {
-                        (*mip).mi_result = SP_OK;
+                        mip.mi_result = SP_OK;
                         break;
                     }
                 } else if mode == FIND_COMPOUND || mode == FIND_KEEPCOMPOUND || !word_ends {
-                    if (flags >> 24) == 0 || wlen - (*mip).mi_compoff < slang.sl_compminlen {
+                    if (flags >> 24) == 0 || wlen - mip.mi_compoff < slang.sl_compminlen {
                         continue;
                     }
                     if slang.sl_compminlen > 0
                         && mb_charlen_len(
-                            (*mip).mi_word.add((*mip).mi_compoff as usize),
-                            wlen - (*mip).mi_compoff,
+                            mip.mi_word.add(mip.mi_compoff as usize),
+                            wlen - mip.mi_compoff,
                         ) < slang.sl_compminlen
                     {
                         continue;
                     }
                     if !word_ends
-                        && (*mip).mi_complen + (*mip).mi_compextra + 2 > slang.sl_compmax
+                        && mip.mi_complen + mip.mi_compextra + 2 > slang.sl_compmax
                         && slang.sl_compsylmax == MAXWLEN as c_int
                     {
                         continue;
                     }
-                    if (*mip).mi_complen > 0 && (flags & WF_NOCOMPBEF as u32) != 0 {
+                    if mip.mi_complen > 0 && (flags & WF_NOCOMPBEF as u32) != 0 {
                         continue;
                     }
                     if !word_ends && (flags & WF_NOCOMPAFT as u32) != 0 {
                         continue;
                     }
-                    let flags_cstr = if (*mip).mi_complen == 0 {
+                    let flags_cstr = if mip.mi_complen == 0 {
                         &slang.sl_compstartflags
                     } else {
                         &slang.sl_compallflags
@@ -682,26 +682,26 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                     }
                     if mode == FIND_COMPOUND {
                         let mut p: *mut c_char;
-                        if { let _p1 = ptr; let _p2 = (*mip).mi_word; let _n = (*mip).mi_compoff as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
-                            p = (*mip).mi_word;
+                        if { let _p1 = ptr; let _p2 = mip.mi_word; let _n = mip.mi_compoff as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+                            p = mip.mi_word;
                             let mut s = ptr;
-                            let s_end = ptr.add((*mip).mi_compoff as usize);
+                            let s_end = ptr.add(mip.mi_compoff as usize);
                             while s < s_end {
                                 mb_ptr_adv(&mut p);
                                 mb_ptr_adv(&mut s);
                             }
                         } else {
-                            p = (*mip).mi_word.add((*mip).mi_compoff as usize);
+                            p = mip.mi_word.add(mip.mi_compoff as usize);
                         }
-                        let capflags = captype(p, (*mip).mi_word.add(wlen as usize));
+                        let capflags = captype(p, mip.mi_word.add(wlen as usize));
                         if capflags == WF_KEEPCAP
                             || (capflags == WF_ALLCAP && (flags & WF_FIXCAP as u32) != 0)
                         {
                             continue;
                         }
                         if capflags != WF_ALLCAP {
-                            mb_ptr_back((*mip).mi_word, &mut p);
-                            if if spell_iswordp_nmw(p, (*mip).mi_win) {
+                            mb_ptr_back(mip.mi_word, &mut p);
+                            if if spell_iswordp_nmw(p, mip.mi_win) {
                                 capflags == WF_ONECAP
                             } else {
                                 (flags & WF_ONECAP as u32) != 0 && capflags != WF_ONECAP
@@ -710,14 +710,14 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                             }
                         }
                     }
-                    (*mip).mi_compflags[(*mip).mi_complen as usize] = (flags >> 24) as u8;
-                    (*mip).mi_compflags[(*mip).mi_complen as usize + 1] = 0;
+                    mip.mi_compflags[mip.mi_complen as usize] = (flags >> 24) as u8;
+                    mip.mi_compflags[mip.mi_complen as usize + 1] = 0;
                     if word_ends {
                         let mut fword: [c_char; MAXWLEN] = [0; MAXWLEN];
                         if slang.sl_compsylmax < MAXWLEN as c_int {
-                            if ptr == (*mip).mi_word {
+                            if ptr == mip.mi_word {
                                 spell_casefold(
-                                    (*mip).mi_win,
+                                    mip.mi_win,
                                     ptr,
                                     wlen,
                                     (&raw mut fword).cast(),
@@ -730,12 +730,12 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                         if !can_compound(
                             slang,
                             (&raw const fword).cast(),
-                            (&raw const (*mip).mi_compflags).cast(),
+                            (&raw const mip.mi_compflags).cast(),
                         ) {
                             continue;
                         }
                     } else if slang.sl_comprules.is_some()
-                        && !match_compoundrule(slang, (&raw const (*mip).mi_compflags).cast())
+                        && !match_compoundrule(slang, (&raw const mip.mi_compflags).cast())
                     {
                         continue;
                     }
@@ -744,15 +744,15 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                 }
                 let mut nobreak_result = SP_OK;
                 if !word_ends {
-                    let save_result = (*mip).mi_result;
-                    let save_end = (*mip).mi_end;
-                    let save_lp = (*mip).mi_lp;
+                    let save_result = mip.mi_result;
+                    let save_end = mip.mi_end;
+                    let save_lp = mip.mi_lp;
                     if slang.sl_nobreak {
-                        (*mip).mi_result = SP_BAD;
+                        mip.mi_result = SP_BAD;
                     }
-                    (*mip).mi_compoff = endlen[endidxcnt];
+                    mip.mi_compoff = endlen[endidxcnt];
                     if mode == FIND_KEEPWORD {
-                        let mut p = (&raw mut (*mip).mi_fword).cast::<c_char>();
+                        let mut p = (&raw mut mip.mi_fword).cast::<c_char>();
                         if { let _p1 = ptr; let _p2 = p; let _n = wlen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                             let mut s = ptr;
                             let s_end = ptr.add(wlen as usize);
@@ -760,45 +760,45 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                                 mb_ptr_adv(&mut p);
                                 mb_ptr_adv(&mut s);
                             }
-                            (*mip).mi_compoff = p
-                                .offset_from((&raw const (*mip).mi_fword).cast::<c_char>())
+                            mip.mi_compoff = p
+                                .offset_from((&raw const mip.mi_fword).cast::<c_char>())
                                 as c_int;
                         }
                     }
-                    (*mip).mi_complen += 1;
+                    mip.mi_complen += 1;
                     if (flags & WF_COMPROOT as u32) != 0 {
-                        (*mip).mi_compextra += 1;
+                        mip.mi_compextra += 1;
                     }
-                    let w_s = (*(*mip).mi_win).w_s_ptr();
+                    let w_s = (*mip.mi_win).w_s_ptr();
                     for lpi in 0..(*w_s).b_langp.len() {
                         if slang.sl_nobreak {
-                            (*mip).mi_lp = (&(*w_s).b_langp)[lpi];
-                            if (*(*mip).mi_lp.lp_slang).sl_fidxs.is_empty()
-                                || !(*(*mip).mi_lp.lp_slang).sl_nobreak
+                            mip.mi_lp = (&(*w_s).b_langp)[lpi];
+                            if (*mip.mi_lp.lp_slang).sl_fidxs.is_empty()
+                                || !(*mip.mi_lp.lp_slang).sl_nobreak
                             {
                                 continue;
                             }
                         }
                         find_word(mip, FIND_COMPOUND);
-                        if !slang.sl_nobreak || (*mip).mi_result == SP_BAD {
-                            (*mip).mi_compoff = wlen;
+                        if !slang.sl_nobreak || mip.mi_result == SP_BAD {
+                            mip.mi_compoff = wlen;
                             find_word(mip, FIND_KEEPCOMPOUND);
                         }
                         if !slang.sl_nobreak {
                             break;
                         }
                     }
-                    (*mip).mi_complen -= 1;
+                    mip.mi_complen -= 1;
                     if (flags & WF_COMPROOT as u32) != 0 {
-                        (*mip).mi_compextra -= 1;
+                        mip.mi_compextra -= 1;
                     }
-                    (*mip).mi_lp = save_lp;
+                    mip.mi_lp = save_lp;
                     if slang.sl_nobreak {
-                        nobreak_result = (*mip).mi_result;
-                        (*mip).mi_result = save_result;
-                        (*mip).mi_end = save_end;
+                        nobreak_result = mip.mi_result;
+                        mip.mi_result = save_result;
+                        mip.mi_end = save_end;
                     } else {
-                        if (*mip).mi_result == SP_OK {
+                        if mip.mi_result == SP_OK {
                             break;
                         }
                         continue;
@@ -807,7 +807,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                 let res = if (flags & WF_BANNED as u32) != 0 {
                     SP_BANNED
                 } else if (flags & WF_REGION as u32) != 0 {
-                    if (((*mip).mi_lp.lp_region as u32) & (flags >> 16)) != 0 {
+                    if ((mip.mi_lp.lp_region as u32) & (flags >> 16)) != 0 {
                         SP_OK
                     } else {
                         SP_LOCAL
@@ -817,25 +817,25 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                 } else {
                     SP_OK
                 };
-                let new_end = (*mip).mi_word.add(wlen as usize);
+                let new_end = mip.mi_word.add(wlen as usize);
                 if nobreak_result == SP_BAD {
-                    if (*mip).mi_result2 > res {
-                        (*mip).mi_result2 = res;
-                        (*mip).mi_end2 = new_end;
-                    } else if (*mip).mi_result2 == res && (*mip).mi_end2 < new_end {
-                        (*mip).mi_end2 = new_end;
+                    if mip.mi_result2 > res {
+                        mip.mi_result2 = res;
+                        mip.mi_end2 = new_end;
+                    } else if mip.mi_result2 == res && mip.mi_end2 < new_end {
+                        mip.mi_end2 = new_end;
                     }
-                } else if (*mip).mi_result > res {
-                    (*mip).mi_result = res;
-                    (*mip).mi_end = new_end;
-                } else if (*mip).mi_result == res && (*mip).mi_end < new_end {
-                    (*mip).mi_end = new_end;
+                } else if mip.mi_result > res {
+                    mip.mi_result = res;
+                    mip.mi_end = new_end;
+                } else if mip.mi_result == res && mip.mi_end < new_end {
+                    mip.mi_end = new_end;
                 }
-                if (*mip).mi_result == SP_OK {
+                if mip.mi_result == SP_OK {
                     break;
                 }
             }
-            if (*mip).mi_result == SP_OK {
+            if mip.mi_result == SP_OK {
                 break;
             }
         }
@@ -965,44 +965,44 @@ pub unsafe fn valid_word_prefix(
         0
     }
 }
-unsafe fn find_prefix(mip: *mut matchinf_T, mode: c_int) {
+unsafe fn find_prefix(mip: &mut matchinf_T, mode: c_int) {
     unsafe {
         let mut arridx: idx_T = 0;
         let mut wlen: c_int = 0;
-        let slang = &mut *(*mip).mi_lp.lp_slang;
+        let slang = &mut *mip.mi_lp.lp_slang;
         if slang.sl_pbyts.is_empty() {
             return;
         }
         let byts = slang.sl_pbyts.as_mut_ptr();
-        let mut ptr = (&raw mut (*mip).mi_fword).cast::<c_char>();
-        let mut flen = (*mip).mi_fwordlen;
+        let mut ptr = (&raw mut mip.mi_fword).cast::<c_char>();
+        let mut flen = mip.mi_fwordlen;
         if mode == FIND_COMPOUND {
-            ptr = ptr.add((*mip).mi_compoff as usize);
-            flen -= (*mip).mi_compoff;
+            ptr = ptr.add(mip.mi_compoff as usize);
+            flen -= mip.mi_compoff;
         }
         let idxs = slang.sl_pidxs.as_mut_ptr();
         loop {
-            if flen == 0 && *(*mip).mi_fend != NUL {
+            if flen == 0 && *mip.mi_fend != NUL {
                 flen = fold_more(mip);
             }
             let mut len = *byts.add(arridx as usize) as c_int;
             arridx += 1;
             if *byts.add(arridx as usize) == 0 {
-                (*mip).mi_prefarridx = arridx;
-                (*mip).mi_prefcnt = len;
+                mip.mi_prefarridx = arridx;
+                mip.mi_prefcnt = len;
                 while len > 0 && *byts.add(arridx as usize) == 0 {
                     arridx += 1;
                     len -= 1;
                 }
-                (*mip).mi_prefcnt -= len;
-                (*mip).mi_prefixlen = wlen;
+                mip.mi_prefcnt -= len;
+                mip.mi_prefixlen = wlen;
                 if mode == FIND_COMPOUND {
-                    (*mip).mi_prefixlen += (*mip).mi_compoff;
+                    mip.mi_prefixlen += mip.mi_compoff;
                 }
-                (*mip).mi_cprefixlen = nofold_len(
-                    (&raw mut (*mip).mi_fword).cast(),
-                    (*mip).mi_prefixlen,
-                    (*mip).mi_word,
+                mip.mi_cprefixlen = nofold_len(
+                    (&raw mut mip.mi_fword).cast(),
+                    mip.mi_prefixlen,
+                    mip.mi_word,
                 );
                 find_word(mip, FIND_PREFIX);
                 if len == 0 {
@@ -1036,30 +1036,30 @@ unsafe fn find_prefix(mip: *mut matchinf_T, mode: c_int) {
         }
     }
 }
-unsafe fn fold_more(mip: *mut matchinf_T) -> c_int {
+unsafe fn fold_more(mip: &mut matchinf_T) -> c_int {
     unsafe {
-        let p = (*mip).mi_fend;
+        let p = mip.mi_fend;
         loop {
-            mb_ptr_adv(&mut (*mip).mi_fend);
-            if *(*mip).mi_fend == NUL || !spell_iswordp((*mip).mi_fend, (*mip).mi_win) {
+            mb_ptr_adv(&mut mip.mi_fend);
+            if *mip.mi_fend == NUL || !spell_iswordp(mip.mi_fend, mip.mi_win) {
                 break;
             }
         }
-        if *(*mip).mi_fend != NUL {
-            mb_ptr_adv(&mut (*mip).mi_fend);
+        if *mip.mi_fend != NUL {
+            mb_ptr_adv(&mut mip.mi_fend);
         }
-        let dst = (&raw mut (*mip).mi_fword)
+        let dst = (&raw mut mip.mi_fword)
             .cast::<c_char>()
-            .add((*mip).mi_fwordlen as usize);
+            .add(mip.mi_fwordlen as usize);
         spell_casefold(
-            (*mip).mi_win,
+            mip.mi_win,
             p,
-            (*mip).mi_fend.offset_from(p) as c_int,
+            mip.mi_fend.offset_from(p) as c_int,
             dst,
-            MAXWLEN as c_int - (*mip).mi_fwordlen,
+            MAXWLEN as c_int - mip.mi_fwordlen,
         );
         let flen = std::ffi::CStr::from_ptr(dst).to_bytes().len() as c_int;
-        (*mip).mi_fwordlen += flen;
+        mip.mi_fwordlen += flen;
         flen
     }
 }
@@ -1664,7 +1664,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
             br_fnum: 0,
             br_buf_free_count: 0,
         };
-        set_bufref(&raw mut bufref, (*wp).w_buffer);
+        set_bufref(&mut bufref, (*wp).w_buffer);
         if spell_priv_st().parse_spelllang_recursive {
             return ptr::null_mut();
         }
@@ -2079,32 +2079,30 @@ pub unsafe fn close_spellbuf(buf: &mut Option<Box<buf_T>>) {
         }
     }
 }
-pub unsafe fn clear_spell_chartab(sp: *mut spelltab_T) {
-    unsafe {
-        (*sp).st_isw = [false; 256];
-        (*sp).st_isu = [false; 256];
+pub unsafe fn clear_spell_chartab(sp: &mut spelltab_T) {
+    sp.st_isw = [false; 256];
+        sp.st_isu = [false; 256];
         for i in 0..256 {
-            (*sp).st_fold[i] = i as u8;
-            (*sp).st_upper[i] = i as u8;
+            sp.st_fold[i] = i as u8;
+            sp.st_upper[i] = i as u8;
         }
         for i in (b'0' as usize)..=(b'9' as usize) {
-            (*sp).st_isw[i] = true;
+            sp.st_isw[i] = true;
         }
         for i in (b'A' as usize)..=(b'Z' as usize) {
-            (*sp).st_isw[i] = true;
-            (*sp).st_isu[i] = true;
-            (*sp).st_fold[i] = (i + 0x20) as u8;
+            sp.st_isw[i] = true;
+            sp.st_isu[i] = true;
+            sp.st_fold[i] = (i + 0x20) as u8;
         }
         for i in (b'a' as usize)..=(b'z' as usize) {
-            (*sp).st_isw[i] = true;
-            (*sp).st_upper[i] = (i - 0x20) as u8;
+            sp.st_isw[i] = true;
+            sp.st_upper[i] = (i - 0x20) as u8;
         }
-    }
 }
 pub unsafe fn init_spell_chartab() {
     unsafe {
         spell_priv_st().did_set_spelltab = false;
-        clear_spell_chartab(&raw mut spell_priv_st().spelltab);
+        clear_spell_chartab(&mut spell_priv_st().spelltab);
         for i in 128..256 {
             let f = utf_fold(i as c_int);
             let u = mb_toupper(i as c_int);

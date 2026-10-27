@@ -3003,7 +3003,7 @@ pub unsafe fn validate_spellcapcheck(args: &mut optset_T) -> *const c_char {
         let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         let mut errmsg = compile_cap_prog(args.os_newval.data.string().data, &mut prog);
-        try_leave(&raw const tstate, &mut err);
+        try_leave(&tstate, &mut err);
 
         g_st().emsg_silent = save_emsg_silent;
         g_st().suppress_errthrow = save_suppress_errthrow;

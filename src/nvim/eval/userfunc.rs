@@ -795,7 +795,7 @@ pub unsafe fn get_func_tv(
     rettv: *mut typval_T,
     arg: *mut *mut c_char,
     evalarg: *mut evalarg_T,
-    funcexe: *mut funcexe_T,
+    funcexe: &mut funcexe_T,
 ) -> c_int {
     unsafe {
         let mut argvars: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
@@ -803,10 +803,10 @@ pub unsafe fn get_func_tv(
         let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
 
         let mut argp = *arg;
-        let partial_argc = if (*funcexe).fe_partial.is_null() {
+        let partial_argc = if funcexe.fe_partial.is_null() {
             0
         } else {
-            (*(*funcexe).fe_partial).pt_argv.len() as c_int
+            (*funcexe.fe_partial).pt_argv.len() as c_int
         };
         let mut ret = get_func_arguments(
             &raw mut argp,
@@ -1003,7 +1003,7 @@ unsafe fn add_nr_var(dp: &mut dict_T, name: *const c_char, nr: varnumber_T) {
         (*v).di_tv.v_type = VarType::VAR_NUMBER;
         (*v).di_tv.v_lock = VAR_FIXED;
         (*v).di_tv.vval = crate::eval::typval::TypvalVval::Number(nr);
-        hash_add(&mut dp.dv_hashtab, v);
+        hash_add(&mut dp.dv_hashtab, &mut *v);
     }
 }
 
@@ -1239,7 +1239,7 @@ pub unsafe fn call_user_func(
         uf_st().call_depth += 1;
         save_search_patterns();
         if !ins_compl_active() {
-            save_redobuff(&raw mut save_redo);
+            save_redobuff(&mut save_redo);
             did_save_redo = true;
         }
         (*fp).uf_calls += 1;
@@ -1256,7 +1256,7 @@ pub unsafe fn call_user_func(
 
         init_var_dict(
             &mut (*fc).fc_l_vars,
-            (&raw mut (*fc).fc_l_vars_var).cast(),
+            &mut *(&raw mut (*fc).fc_l_vars_var).cast(),
             VAR_DEF_SCOPE,
         );
         if !selfdict.is_null() {
@@ -1266,12 +1266,12 @@ pub unsafe fn call_user_func(
             (*v).di_tv.v_lock = VAR_UNLOCKED;
             (*v).di_tv.vval = crate::eval::typval::TypvalVval::Dict(selfdict);
             (*selfdict).dv_refcount += 1;
-            hash_add(&mut (*fc).fc_l_vars.dv_hashtab, v);
+            hash_add(&mut (*fc).fc_l_vars.dv_hashtab, &mut *v);
         }
 
         init_var_dict(
             &mut (*fc).fc_l_avars,
-            (&raw mut (*fc).fc_l_avars_var).cast(),
+            &mut *(&raw mut (*fc).fc_l_avars_var).cast(),
             VAR_SCOPE,
         );
         let uf_args_len = (*fp).uf_args.len() as c_int;
@@ -1294,7 +1294,7 @@ pub unsafe fn call_user_func(
             (*v).di_tv.v_type = VarType::VAR_LIST;
             (*v).di_tv.v_lock = VAR_FIXED;
             (*v).di_tv.vval = crate::eval::typval::TypvalVval::List(&raw mut (*fc).fc_l_varlist);
-            hash_add(&mut (*fc).fc_l_avars.dv_hashtab, v);
+            hash_add(&mut (*fc).fc_l_avars.dv_hashtab, &mut *v);
         }
         tv_list_init_static(&mut (*fc).fc_l_varlist);
         tv_list_set_lock(&raw mut (*fc).fc_l_varlist, VAR_FIXED);
@@ -1373,9 +1373,9 @@ pub unsafe fn call_user_func(
 
             if addlocal {
                 tv_copy(&raw const (*v).di_tv, &raw mut (*v).di_tv);
-                hash_add(&mut (*fc).fc_l_vars.dv_hashtab, v);
+                hash_add(&mut (*fc).fc_l_vars.dv_hashtab, &mut *v);
             } else {
-                hash_add(&mut (*fc).fc_l_avars.dv_hashtab, v);
+                hash_add(&mut (*fc).fc_l_avars.dv_hashtab, &mut *v);
             }
 
             if ai >= 0 && (ai as usize) < MAX_FUNC_ARGS {
@@ -1788,7 +1788,7 @@ pub unsafe fn func_call(
             funcexe.fe_evaluate = true;
             funcexe.fe_partial = partial;
             funcexe.fe_selfdict = selfdict;
-            r = call_func(name, -1, rettv, argc, argv.as_mut_ptr(), &raw mut funcexe);
+            r = call_func(name, -1, rettv, argc, argv.as_mut_ptr(), &mut funcexe);
         }
 
         while argc > 0 {
@@ -1881,7 +1881,7 @@ pub unsafe fn call_func(
     rettv: *mut typval_T,
     argcount_in: c_int,
     argvars_in: *mut typval_T,
-    funcexe: *mut funcexe_T,
+    funcexe: &mut funcexe_T,
 ) -> c_int {
     unsafe {
         let mut ret = FAIL;
@@ -1893,11 +1893,11 @@ pub unsafe fn call_func(
         let mut name_owned: Option<std::ffi::CString> = None;
         let mut argcount = argcount_in;
         let mut argvars = argvars_in;
-        let mut selfdict = (*funcexe).fe_selfdict;
+        let mut selfdict = funcexe.fe_selfdict;
         let mut argv: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
         let mut argv_clear = 0;
         let mut argv_base = 0;
-        let partial = (*funcexe).fe_partial;
+        let partial = funcexe.fe_partial;
 
         (*rettv).v_type = VarType::VAR_UNKNOWN;
 
@@ -1921,7 +1921,7 @@ pub unsafe fn call_func(
             name_owned = Some(nm);
         }
 
-        (*funcexe).fe_doesrange = false;
+        funcexe.fe_doesrange = false;
 
         let mut skip_eval = false;
         if !partial.is_null() {
@@ -1952,7 +1952,7 @@ pub unsafe fn call_func(
             }
         }
 
-        if !skip_eval && error == FCERR_NONE && (*funcexe).fe_evaluate {
+        if !skip_eval && error == FCERR_NONE && funcexe.fe_evaluate {
             let is_global =
                 fp.is_null() && *fname == b'g' as c_char && *fname.add(1) == b':' as c_char;
             let rfname = if is_global { fname.add(2) } else { fname };
@@ -1965,7 +1965,7 @@ pub unsafe fn call_func(
                 if len > 0 {
                     error = FCERR_NONE;
                     argv_add_base(
-                        (*funcexe).fe_basetv,
+                        funcexe.fe_basetv,
                         &raw mut argvars,
                         &mut argcount,
                         argv.as_mut_ptr(),
@@ -1994,23 +1994,23 @@ pub unsafe fn call_func(
                 if !fp.is_null() && ((*fp).uf_flags & FC_DELETED) != 0 {
                     error = FCERR_DELETED;
                 } else if !fp.is_null() {
-                    if (*funcexe).fe_fill_submatch {
+                    if funcexe.fe_fill_submatch {
                         argcount =
                             crate::regexp::fill_submatch_list(argcount, argvars, argv_clear, &mut *fp);
                     }
 
                     argv_add_base(
-                        (*funcexe).fe_basetv,
+                        funcexe.fe_basetv,
                         &raw mut argvars,
                         &mut argcount,
                         argv.as_mut_ptr(),
                         &mut argv_base,
                     );
 
-                    error = call_user_func_check(fp, argcount, argvars, rettv, funcexe, selfdict);
+                    error = call_user_func_check(fp, argcount, argvars, rettv, &raw mut *funcexe, selfdict);
                 }
-            } else if !(*funcexe).fe_basetv.is_null() {
-                error = call_internal_method(fname, argcount, argvars, rettv, (*funcexe).fe_basetv);
+            } else if !funcexe.fe_basetv.is_null() {
+                error = call_internal_method(fname, argcount, argvars, rettv, funcexe.fe_basetv);
             } else {
                 error = call_internal_func(fname, argcount, argvars, rettv);
             }
@@ -2024,7 +2024,7 @@ pub unsafe fn call_func(
             user_func_error(
                 error,
                 name_owned.as_ref().map_or(funcname, |nm| nm.as_ptr()),
-                (*funcexe).fe_found_var,
+                funcexe.fe_found_var,
             );
         }
 
@@ -3293,7 +3293,7 @@ pub unsafe fn ex_function(eap: &mut exarg_T) {
         (*fp).uf_calls = 0;
         (*fp).uf_script_ctx = g_st().current_sctx;
         (*fp).uf_script_ctx.sc_lnum += sourcing_lnum_top;
-        nlua_set_sctx(&raw mut (*fp).uf_script_ctx);
+        nlua_set_sctx(&mut (*fp).uf_script_ctx);
 
         ret_free!();
     }
@@ -3623,7 +3623,7 @@ unsafe fn ex_call_inner(
             funcexe.fe_doesrange = false;
             let mut rettv: typval_T = typval_T::new();
             rettv.v_type = VarType::VAR_UNKNOWN;
-            if get_func_tv(name, -1, &raw mut rettv, arg, evalarg, &raw mut funcexe) == FAIL {
+            if get_func_tv(name, -1, &raw mut rettv, arg, evalarg, &mut funcexe) == FAIL {
                 failed = true;
                 break;
             }
@@ -3703,7 +3703,7 @@ unsafe fn ex_defer_inner(
                 if fdef.is_null() {
                     emsg_funcname(e_unknown_function_str.as_ptr(), name);
                     r = FAIL;
-                } else if check_internal_func(fdef, argcount) == -1 {
+                } else if check_internal_func(&*fdef, argcount) == -1 {
                     r = FAIL;
                 }
             } else {
@@ -3778,7 +3778,7 @@ unsafe fn handle_defer_one(funccal: &mut funccall_T) {
             let argcount = (dr.dr_argvars.len() - 1) as c_int;
 
             let mut estate = exception_state_T::new();
-            exception_state_save(&raw mut estate);
+            exception_state_save(&mut estate);
             exception_state_clear();
 
             call_func(
@@ -3787,10 +3787,10 @@ unsafe fn handle_defer_one(funccal: &mut funccall_T) {
                 &raw mut rettv,
                 argcount,
                 dr.dr_argvars.as_mut_ptr(),
-                &raw mut funcexe,
+                &mut funcexe,
             );
 
-            exception_state_restore(&raw mut estate);
+            exception_state_restore(&mut estate);
 
             tv_clear(&raw mut rettv);
             drop(name_cstr);

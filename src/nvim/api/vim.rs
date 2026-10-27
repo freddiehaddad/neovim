@@ -398,7 +398,7 @@ pub unsafe extern "C" fn nvim_get_hl(
     arena: *mut Arena,
     err: &mut Error,
 ) -> Dict {
-    unsafe { ns_get_hl_defs(ns_id as NS, opts, arena, err) }
+    unsafe { ns_get_hl_defs(ns_id as NS, &mut *opts, arena, err) }
 }
 
 /// Sets a highlight group. By default, replaces the entire definition (e.g. `nvim_set_hl(0, 'Visual', {})`
@@ -1001,7 +1001,7 @@ pub unsafe extern "C" fn nvim_get_runtime_file(
         for fname in &files {
             rv.push(cstr_to_arena_obj(arena, fname.as_ptr()));
         }
-        arena_take_arraybuilder(arena, &raw mut rv)
+        arena_take_arraybuilder(arena, &mut rv)
     }
 }
 
@@ -3307,9 +3307,9 @@ pub unsafe extern "C" fn nvim__complete_set(
     }
 }
 
-unsafe fn redraw_status(wp: &mut win_T, opts: *mut KeyDict_redraw, flush: &mut bool) {
+unsafe fn redraw_status(wp: &mut win_T, opts: &mut KeyDict_redraw, flush: &mut bool) {
     unsafe {
-        if (*opts).statuscolumn && *wp.w_onebuf_opt.wo_stc != NUL {
+        if opts.statuscolumn && *wp.w_onebuf_opt.wo_stc != NUL {
             wp.w_nrwidth_line_count = 0;
             changed_window_setting(&raw mut *wp);
         }
@@ -3321,14 +3321,14 @@ unsafe fn redraw_status(wp: &mut win_T, opts: *mut KeyDict_redraw, flush: &mut b
             *flush = true;
         }
 
-        if *flush && ((*opts).statusline || (*opts).winbar) {
+        if *flush && (opts.statusline || opts.winbar) {
             wp.w_redr_status = true;
-        } else if (*opts).statusline || (*opts).winbar {
+        } else if opts.statusline || opts.winbar {
             win_check_ns_hl(&raw mut *wp);
-            if (*opts).winbar {
+            if opts.winbar {
                 win_redr_winbar(&raw mut *wp);
             }
-            if (*opts).statusline {
+            if opts.statusline {
                 win_redr_status(&raw mut *wp);
             }
             win_check_ns_hl(ptr::null_mut());
@@ -3481,12 +3481,12 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: &mut Error
                 let mut wp = g_st().firstwin;
                 while !wp.is_null() {
                     if buf.is_null() || (*wp).w_buffer == buf {
-                        redraw_status(&mut *wp, opts, &mut (*opts).flush);
+                        redraw_status(&mut *wp, &mut *opts, &mut (*opts).flush);
                     }
                     wp = (*wp).w_next;
                 }
             } else {
-                redraw_status(&mut *win, opts, &mut (*opts).flush);
+                redraw_status(&mut *win, &mut *opts, &mut (*opts).flush);
             }
             flush_ui = true;
         }

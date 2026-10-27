@@ -427,7 +427,7 @@ pub unsafe fn update_topline(wp: *mut win_T) {
                             if i64::from(n) >= *so_ptr {
                                 break;
                             }
-                            botline_forw(wp, &raw mut loff);
+                            botline_forw(wp, &mut loff);
                         }
                         if i64::from(n) >= *so_ptr && !eof_pressure {
                             check_botline = false;
@@ -646,31 +646,27 @@ pub unsafe fn set_topline(wp: *mut win_T, mut lnum: linenr_T) {
 }
 
 /// Saves the view of `wp`, for `restore_viewstate()`.
-pub unsafe fn save_viewstate(wp: &mut win_T, vs: *mut viewstate_T) {
-    unsafe {
-        (*vs).vs_curswant = wp.w_curswant;
-        (*vs).vs_set_curswant = wp.w_set_curswant;
-        (*vs).vs_leftcol = wp.w_leftcol;
-        (*vs).vs_skipcol = wp.w_skipcol;
-        (*vs).vs_topline = wp.w_topline;
-        (*vs).vs_topfill = wp.w_topfill;
-        (*vs).vs_botline = wp.w_botline;
-        (*vs).vs_empty_rows = wp.w_empty_rows;
-    }
+pub unsafe fn save_viewstate(wp: &mut win_T, vs: &mut viewstate_T) {
+    vs.vs_curswant = wp.w_curswant;
+        vs.vs_set_curswant = wp.w_set_curswant;
+        vs.vs_leftcol = wp.w_leftcol;
+        vs.vs_skipcol = wp.w_skipcol;
+        vs.vs_topline = wp.w_topline;
+        vs.vs_topfill = wp.w_topfill;
+        vs.vs_botline = wp.w_botline;
+        vs.vs_empty_rows = wp.w_empty_rows;
 }
 
 /// Restores the view saved by `save_viewstate()`. No validation.
-pub unsafe fn restore_viewstate(wp: &mut win_T, vs: *const viewstate_T) {
-    unsafe {
-        wp.w_curswant = (*vs).vs_curswant;
-        wp.w_set_curswant = (*vs).vs_set_curswant;
-        wp.w_leftcol = (*vs).vs_leftcol;
-        wp.w_skipcol = (*vs).vs_skipcol;
-        wp.w_topline = (*vs).vs_topline;
-        wp.w_topfill = (*vs).vs_topfill;
-        wp.w_botline = (*vs).vs_botline;
-        wp.w_empty_rows = (*vs).vs_empty_rows;
-    }
+pub unsafe fn restore_viewstate(wp: &mut win_T, vs: &viewstate_T) {
+    wp.w_curswant = vs.vs_curswant;
+        wp.w_set_curswant = vs.vs_set_curswant;
+        wp.w_leftcol = vs.vs_leftcol;
+        wp.w_skipcol = vs.vs_skipcol;
+        wp.w_topline = vs.vs_topline;
+        wp.w_topfill = vs.vs_topfill;
+        wp.w_botline = vs.vs_botline;
+        wp.w_empty_rows = vs.vs_empty_rows;
 }
 
 /// Call this function when the length of the cursor line (in screen
@@ -1892,20 +1888,20 @@ unsafe fn topline_back(wp: *mut win_T, lp: *mut lineoff_T) {
     }
 }
 
-unsafe fn botline_forw(wp: *mut win_T, lp: *mut lineoff_T) {
+unsafe fn botline_forw(wp: *mut win_T, lp: &mut lineoff_T) {
     unsafe {
-        if (*lp).fill < win_get_fill(wp, (*lp).lnum + 1) {
-            (*lp).fill += 1;
-            (*lp).height = 1;
+        if lp.fill < win_get_fill(wp, lp.lnum + 1) {
+            lp.fill += 1;
+            lp.height = 1;
         } else {
-            (*lp).lnum += 1;
-            (*lp).fill = 0;
-            if (*lp).lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
-                (*lp).height = MAXCOL;
-            } else if hasFolding(wp, (*lp).lnum, ptr::null_mut(), &raw mut (*lp).lnum) {
-                (*lp).height = c_int::from(!decor_conceal_line(wp, (*lp).lnum - 1, false));
+            lp.lnum += 1;
+            lp.fill = 0;
+            if lp.lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
+                lp.height = MAXCOL;
+            } else if hasFolding(wp, lp.lnum, ptr::null_mut(), &raw mut lp.lnum) {
+                lp.height = c_int::from(!decor_conceal_line(wp, lp.lnum - 1, false));
             } else {
-                (*lp).height = plines_win_nofill(wp, (*lp).lnum, true);
+                lp.height = plines_win_nofill(wp, lp.lnum, true);
             }
         }
     }
@@ -2174,7 +2170,7 @@ pub unsafe fn scroll_cursor_bot(wp: *mut win_T, min_scroll: c_int, set_topbot: b
 
             if boff.lnum < (*(*wp).w_buffer).b_ml.ml_line_count {
                 let boff_lnum_before = boff.lnum;
-                botline_forw(wp, &raw mut boff);
+                botline_forw(wp, &mut boff);
                 used += boff.height;
                 if used > (*wp).w_view_height {
                     break;
@@ -2205,7 +2201,7 @@ pub unsafe fn scroll_cursor_bot(wp: *mut win_T, min_scroll: c_int, set_topbot: b
             boff.lnum = (*wp).w_topline - 1;
             let mut i = 0;
             while i < scrolled && boff.lnum < (*wp).w_botline {
-                botline_forw(wp, &raw mut boff);
+                botline_forw(wp, &mut boff);
                 i += boff.height;
                 lc += 1;
             }
@@ -2282,7 +2278,7 @@ pub unsafe fn scroll_cursor_halfway(wp: *mut win_T, atend: bool, prefer_above: b
                 }
                 used += loff.height;
                 if !atend && boff.lnum < (*(*wp).w_buffer).b_ml.ml_line_count {
-                    botline_forw(wp, &raw mut boff);
+                    botline_forw(wp, &mut boff);
                     used += boff.height;
                 }
                 if used > want_height {
@@ -2306,7 +2302,7 @@ pub unsafe fn scroll_cursor_halfway(wp: *mut win_T, atend: bool, prefer_above: b
                     round == 1 && below <= above
                 } {
                     if boff.lnum < (*(*wp).w_buffer).b_ml.ml_line_count {
-                        botline_forw(wp, &raw mut boff);
+                        botline_forw(wp, &mut boff);
                         used += boff.height;
                         if used > (*wp).w_view_height {
                             done = true;
@@ -2482,7 +2478,7 @@ unsafe fn get_scroll_overlap(dir: Direction) -> c_int {
         if dir == FORWARD {
             topline_back(*curwin.as_ptr(), &raw mut loff);
         } else {
-            botline_forw(*curwin.as_ptr(), &raw mut loff);
+            botline_forw(*curwin.as_ptr(), &mut loff);
         }
 
         let h2 = loff.height;
@@ -2492,7 +2488,7 @@ unsafe fn get_scroll_overlap(dir: Direction) -> c_int {
         if dir == FORWARD {
             topline_back(*curwin.as_ptr(), &raw mut loff);
         } else {
-            botline_forw(*curwin.as_ptr(), &raw mut loff);
+            botline_forw(*curwin.as_ptr(), &mut loff);
         }
 
         let h3 = loff.height;
@@ -2502,7 +2498,7 @@ unsafe fn get_scroll_overlap(dir: Direction) -> c_int {
         if dir == FORWARD {
             topline_back(*curwin.as_ptr(), &raw mut loff);
         } else {
-            botline_forw(*curwin.as_ptr(), &raw mut loff);
+            botline_forw(*curwin.as_ptr(), &mut loff);
         }
 
         let h4 = loff.height;
@@ -2778,10 +2774,10 @@ mod tests {
             (*wp).w_empty_rows = 3;
 
             let mut vs = viewstate_T::default();
-            save_viewstate(&mut *wp, &raw mut vs);
+            save_viewstate(&mut *wp, &mut vs);
             let mut wp2_box = win_T::new();
             let wp2: *mut win_T = &raw mut wp2_box;
-            restore_viewstate(&mut *wp2, &raw const vs);
+            restore_viewstate(&mut *wp2, &vs);
             assert_eq!((*wp2).w_curswant, 42);
             assert!((*wp2).w_set_curswant);
             assert_eq!((*wp2).w_leftcol, 4);

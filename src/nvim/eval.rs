@@ -389,25 +389,25 @@ unsafe fn tv_list_item_next(_l: *const list_T, li: *const listitem_T) -> *mut li
     unsafe { (*li).li_next }
 }
 
-pub unsafe fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T {
+pub unsafe fn get_v_event(sve: &mut save_v_event_T) -> *mut dict_T {
     unsafe {
         let v_event = get_vim_var_dict(VV_EVENT);
 
         if (*v_event).dv_hashtab.ht_used > 0 {
-            (*sve).sve_did_save = true;
-            (*sve).sve_hashtab = std::mem::take(&mut (*v_event).dv_hashtab);
+            sve.sve_did_save = true;
+            sve.sve_hashtab = std::mem::take(&mut (*v_event).dv_hashtab);
         } else {
-            (*sve).sve_did_save = false;
+            sve.sve_did_save = false;
         }
         v_event
     }
 }
 
-pub unsafe fn restore_v_event(v_event: &mut dict_T, sve: *mut save_v_event_T) {
+pub unsafe fn restore_v_event(v_event: &mut dict_T, sve: &mut save_v_event_T) {
     unsafe {
         tv_dict_free_contents(&raw mut *v_event);
-        if (*sve).sve_did_save {
-            v_event.dv_hashtab = std::mem::take(&mut (*sve).sve_hashtab);
+        if sve.sve_did_save {
+            v_event.dv_hashtab = std::mem::take(&mut sve.sve_hashtab);
         }
     }
 }
@@ -562,7 +562,7 @@ unsafe fn eval_expr_partial(
             fe_basetv: ptr::null_mut(),
             fe_found_var: false,
         };
-        if call_func(s, -1, rettv, argc, argv, &raw mut funcexe) == FAIL {
+        if call_func(s, -1, rettv, argc, argv, &mut funcexe) == FAIL {
             return FAIL;
         }
 
@@ -599,7 +599,7 @@ unsafe fn eval_expr_func(
             fe_basetv: ptr::null_mut(),
             fe_found_var: false,
         };
-        if call_func(s, -1, rettv, argc, argv, &raw mut funcexe) == FAIL {
+        if call_func(s, -1, rettv, argc, argv, &mut funcexe) == FAIL {
             return FAIL;
         }
 
@@ -902,7 +902,7 @@ pub unsafe fn call_vim_function(
             fe_basetv: ptr::null_mut(),
             fe_found_var: false,
         };
-        let ret = call_func(func, len, rettv, argc, argv, &raw mut funcexe);
+        let ret = call_func(func, len, rettv, argc, argv, &mut funcexe);
 
         if ret == FAIL {
             tv_clear(rettv);
@@ -2129,7 +2129,7 @@ unsafe fn eval_func(
             fe_basetv: basetv,
             fe_found_var: found_var,
         };
-        let mut ret = get_func_tv(s, len, rettv, arg, evalarg, &raw mut funcexe);
+        let mut ret = get_func_tv(s, len, rettv, arg, evalarg, &mut funcexe);
 
         drop(s_vec);
 
@@ -3153,7 +3153,7 @@ unsafe fn call_func_rettv(
             rettv,
             arg,
             evalarg,
-            &raw mut funcexe,
+            &mut funcexe,
         );
 
         if evaluate {
@@ -5369,7 +5369,7 @@ pub unsafe fn callback_call(
         };
 
         eval_st().callback_depth += 1;
-        let ret = call_func(name, -1, rettv, argcount_in, argvars_in, &raw mut funcexe);
+        let ret = call_func(name, -1, rettv, argcount_in, argvars_in, &mut funcexe);
         eval_st().callback_depth -= 1;
         ret != 0
     }
@@ -5427,7 +5427,7 @@ pub unsafe fn find_timer_by_nr(xx: varnumber_T) -> *mut timer_T {
     }
 }
 
-pub unsafe fn add_timer_info(rettv: *mut typval_T, timer: *mut timer_T) {
+pub unsafe fn add_timer_info(rettv: *mut typval_T, timer: &mut timer_T) {
     unsafe {
         let list = (*rettv).vval.v_list();
         let dict = tv_dict_alloc();
@@ -5437,23 +5437,23 @@ pub unsafe fn add_timer_info(rettv: *mut typval_T, timer: *mut timer_T) {
             dict,
             c"id".as_ptr(),
             2,
-            varnumber_T::from((*timer).timer_id),
+            varnumber_T::from(timer.timer_id),
         );
-        tv_dict_add_nr(dict, c"time".as_ptr(), 4, (*timer).timeout);
+        tv_dict_add_nr(dict, c"time".as_ptr(), 4, timer.timeout);
         tv_dict_add_nr(
             dict,
             c"paused".as_ptr(),
             6,
-            varnumber_T::from((*timer).paused),
+            varnumber_T::from(timer.paused),
         );
         tv_dict_add_nr(
             dict,
             c"repeat".as_ptr(),
             6,
-            if (*timer).repeat_count < 0 {
+            if timer.repeat_count < 0 {
                 -1
             } else {
-                varnumber_T::from((*timer).repeat_count)
+                varnumber_T::from(timer.repeat_count)
             },
         );
 
@@ -5461,7 +5461,7 @@ pub unsafe fn add_timer_info(rettv: *mut typval_T, timer: *mut timer_T) {
         if tv_dict_add(dict, di) == FAIL {
             tv_dict_item_free(di);
         } else {
-            callback_put(&mut (*timer).callback, &mut (*di).di_tv);
+            callback_put(&mut timer.callback, &mut (*di).di_tv);
         }
     }
 }
@@ -5472,37 +5472,37 @@ pub unsafe fn add_timer_info_all(rettv: *mut typval_T) {
         tv_list_alloc_ret(rettv, (*timers_ptr).len() as isize);
         for &timer in (*timers_ptr).values() {
             if !(*timer).stopped || (*timer).refcount > 1 {
-                add_timer_info(rettv, timer);
+                add_timer_info(rettv, &mut *timer);
             }
         }
     }
 }
 
 /// Invoked on the main loop.
-pub unsafe fn timer_due_cb(_tw: &mut TimeWatcher, timer: *mut timer_T) {
+pub unsafe fn timer_due_cb(_tw: &mut TimeWatcher, timer: &mut timer_T) {
     unsafe {
         let save_did_emsg = g_st().did_emsg;
         let called_emsg_before = g_st().called_emsg;
 
-        if (*timer).stopped || (*timer).paused {
+        if timer.stopped || timer.paused {
             return;
         }
 
-        (*timer).refcount += 1;
-        if (*timer).repeat_count >= 0 {
-            (*timer).repeat_count -= 1;
-            if (*timer).repeat_count == 0 {
+        timer.refcount += 1;
+        if timer.repeat_count >= 0 {
+            timer.repeat_count -= 1;
+            if timer.repeat_count == 0 {
                 timer_stop(timer);
             }
         }
 
         let mut argv = [tv_initial_value(), tv_initial_value()];
         argv[0].v_type = VarType::VAR_NUMBER;
-        argv[0].vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from((*timer).timer_id));
+        argv[0].vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(timer.timer_id));
         let mut rettv = tv_initial_value();
 
         callback_call(
-            &raw mut (*timer).callback,
+            &raw mut timer.callback,
             1,
             argv.as_mut_ptr(),
             &raw mut rettv,
@@ -5510,7 +5510,7 @@ pub unsafe fn timer_due_cb(_tw: &mut TimeWatcher, timer: *mut timer_T) {
 
         {
             if g_st().called_emsg > called_emsg_before && g_st().did_emsg != 0 {
-                (*timer).emsg_count += 1;
+                timer.emsg_count += 1;
                 if g_st().did_throw {
                     discard_current_exception();
                 }
@@ -5518,14 +5518,14 @@ pub unsafe fn timer_due_cb(_tw: &mut TimeWatcher, timer: *mut timer_T) {
             g_st().did_emsg = save_did_emsg;
         }
 
-        if (*timer).emsg_count >= 3 {
+        if timer.emsg_count >= 3 {
             timer_stop(timer);
         }
 
         tv_clear(&raw mut rettv);
 
-        if !(*timer).stopped && (*timer).timeout == 0 {
-            time_watcher_start(&mut (*timer).watcher, 0, 0);
+        if !timer.stopped && timer.timeout == 0 {
+            time_watcher_start(&mut timer.watcher, 0, 0);
         }
         timer_decref(timer);
     }
@@ -5565,32 +5565,32 @@ pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: Callback)
     }
 }
 
-pub unsafe fn timer_stop(timer: *mut timer_T) {
+pub unsafe fn timer_stop(timer: &mut timer_T) {
     unsafe {
-        if (*timer).stopped {
+        if timer.stopped {
             return;
         }
-        (*timer).stopped = true;
+        timer.stopped = true;
         {
-            time_watcher_stop(&mut (*timer).watcher);
-            time_watcher_close(&mut (*timer).watcher);
+            time_watcher_stop(&mut timer.watcher);
+            time_watcher_close(&mut timer.watcher);
         }
     }
 }
 
-pub(crate) unsafe fn timer_close_cb(_tw: &mut TimeWatcher, timer: *mut timer_T) {
+pub(crate) unsafe fn timer_close_cb(_tw: &mut TimeWatcher, timer: &mut timer_T) {
     unsafe {
         let timers_ptr = &raw mut eval_st().timers;
-        let _ = (*timers_ptr).remove(&((*timer).timer_id as u64));
+        let _ = (*timers_ptr).remove(&(timer.timer_id as u64));
         timer_decref(timer);
     }
 }
 
-unsafe fn timer_decref(timer: *mut timer_T) {
+unsafe fn timer_decref(timer: &mut timer_T) {
     unsafe {
-        (*timer).refcount -= 1;
-        if (*timer).refcount == 0 {
-            drop(Box::from_raw(timer));
+        timer.refcount -= 1;
+        if timer.refcount == 0 {
+            drop(Box::from_raw(&raw mut *timer));
         }
     }
 }
@@ -5600,7 +5600,7 @@ pub unsafe fn timer_stop_all() {
         let timers_ptr = &raw const eval_st().timers;
         let all_timers: Vec<*mut timer_T> = (*timers_ptr).values().copied().collect();
         for timer in all_timers {
-            timer_stop(timer);
+            timer_stop(&mut *timer);
         }
     }
 }
@@ -6962,22 +6962,22 @@ pub unsafe fn do_string_sub(
 /// Common code for getting job callbacks for `jobstart`.
 pub unsafe fn common_job_callbacks(
     vopts: *mut dict_T,
-    on_stdout: *mut CallbackReader,
-    on_stderr: *mut CallbackReader,
+    on_stdout: &mut CallbackReader,
+    on_stderr: &mut CallbackReader,
     on_exit: &mut Callback,
 ) -> bool {
     unsafe {
-        if tv_dict_get_callback(vopts, c"on_stdout".as_ptr(), 9, &mut (*on_stdout).cb)
-            && tv_dict_get_callback(vopts, c"on_stderr".as_ptr(), 9, &mut (*on_stderr).cb)
+        if tv_dict_get_callback(vopts, c"on_stdout".as_ptr(), 9, &mut on_stdout.cb)
+            && tv_dict_get_callback(vopts, c"on_stderr".as_ptr(), 9, &mut on_stderr.cb)
             && tv_dict_get_callback(vopts, c"on_exit".as_ptr(), 7, on_exit)
         {
-            (*on_stdout).buffered = tv_dict_get_number(vopts, c"stdout_buffered".as_ptr()) != 0;
-            (*on_stderr).buffered = tv_dict_get_number(vopts, c"stderr_buffered".as_ptr()) != 0;
-            if (*on_stdout).buffered && (*on_stdout).cb.cb_type() == kCallbackNone {
-                (*on_stdout).self_dict = vopts;
+            on_stdout.buffered = tv_dict_get_number(vopts, c"stdout_buffered".as_ptr()) != 0;
+            on_stderr.buffered = tv_dict_get_number(vopts, c"stderr_buffered".as_ptr()) != 0;
+            if on_stdout.buffered && on_stdout.cb.cb_type() == kCallbackNone {
+                on_stdout.self_dict = vopts;
             }
-            if (*on_stderr).buffered && (*on_stderr).cb.cb_type() == kCallbackNone {
-                (*on_stderr).self_dict = vopts;
+            if on_stderr.buffered && on_stderr.cb.cb_type() == kCallbackNone {
+                on_stderr.self_dict = vopts;
             }
             (*vopts).dv_refcount += 1;
             return true;
@@ -7108,7 +7108,7 @@ pub unsafe fn eval_call_provider(
             &raw mut rettv,
             2,
             argvars.as_mut_ptr(),
-            &raw mut funcexe,
+            &mut funcexe,
         );
 
         tv_list_unref(arguments);

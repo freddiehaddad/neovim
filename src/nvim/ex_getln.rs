@@ -476,8 +476,8 @@ unsafe fn init_incsearch_state(s: *mut incsearch_state_T) {
         clearpos(&mut s.match_end);
         s.save_cursor = (**curwin.as_ptr()).w_cursor;
         s.search_start = (**curwin.as_ptr()).w_cursor;
-        save_viewstate(&mut **curwin.as_ptr(), &raw mut s.init_viewstate);
-        save_viewstate(&mut **curwin.as_ptr(), &raw mut s.old_viewstate);
+        save_viewstate(&mut **curwin.as_ptr(), &mut s.init_viewstate);
+        save_viewstate(&mut **curwin.as_ptr(), &mut s.old_viewstate);
     }
 }
 
@@ -815,7 +815,7 @@ unsafe fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut inc
 
         // first restore the old curwin values, so the screen is
         // positioned in the same way as the actual search command
-        restore_viewstate(&mut **curwin.as_ptr(), &raw mut (*s).old_viewstate);
+        restore_viewstate(&mut **curwin.as_ptr(), &(*s).old_viewstate);
         changed_cline_bef_curs(&mut **curwin.as_ptr());
         update_topline(*curwin.as_ptr());
 
@@ -965,7 +965,7 @@ unsafe fn finish_incsearch_highlighting(
             }
             (**curwin.as_ptr()).w_cursor = (*s).search_start;
         }
-        restore_viewstate(&mut **curwin.as_ptr(), &raw mut (*s).old_viewstate);
+        restore_viewstate(&mut **curwin.as_ptr(), &(*s).old_viewstate);
         g_st().Search.hl_match = false;
 
         // by default search all lines
@@ -1130,7 +1130,7 @@ unsafe fn command_line_enter(
 
             if has_event(EVENT_CMDLINEENTER) {
                 let mut save_v_event: save_v_event_T = save_v_event_T::new();
-                let dict = get_v_event(&raw mut save_v_event);
+                let dict = get_v_event(&mut save_v_event);
 
                 tv_dict_add_str(dict, c"cmdtype".as_ptr(), 7, firstcbuf.as_ptr());
                 tv_dict_add_nr(dict, c"cmdlevel".as_ptr(), 8, getln_st().ccline.level as varnumber_T);
@@ -1144,8 +1144,8 @@ unsafe fn command_line_enter(
                     false,
                     g_st().curbuf,
                 );
-                restore_v_event(&mut *dict, &raw mut save_v_event);
-                try_leave(&raw const tstate, &mut err);
+                restore_v_event(&mut *dict, &mut save_v_event);
+                try_leave(&tstate, &mut err);
 
                 if error_set(&err) {
                     if !ui_has(kUIMessages) {
@@ -1202,7 +1202,7 @@ unsafe fn command_line_enter(
             g_st().did_emsg = 0;
             g_st().got_int = false;
 
-            state_enter(s);
+            state_enter(&mut *s);
 
             if !(*s).event_cmdlineleavepre_triggered {
                 set_vim_var_char((*s).c);
@@ -1211,7 +1211,7 @@ unsafe fn command_line_enter(
 
             if has_event(EVENT_CMDLINELEAVE) {
                 let mut save_v_event: save_v_event_T = save_v_event_T::new();
-                let dict = get_v_event(&raw mut save_v_event);
+                let dict = get_v_event(&mut save_v_event);
 
                 tv_dict_add_str(dict, c"cmdtype".as_ptr(), 7, firstcbuf.as_ptr());
                 tv_dict_add_nr(dict, c"cmdlevel".as_ptr(), 8, getln_st().ccline.level as varnumber_T);
@@ -1236,11 +1236,11 @@ unsafe fn command_line_enter(
                     false,
                     g_st().curbuf,
                 );
-                try_leave(&raw const tstate, &mut err);
+                try_leave(&tstate, &mut err);
                 if tv_dict_get_number(dict, c"abort".as_ptr()) != 0 {
                     (*s).gotesc = true;
                 }
-                restore_v_event(&mut *dict, &raw mut save_v_event);
+                restore_v_event(&mut *dict, &mut save_v_event);
             }
 
             g_st().cmdmsg_rl = false;
@@ -2093,7 +2093,7 @@ unsafe fn may_do_command_line_next_incsearch(
             update_topline(*curwin.as_ptr());
             validate_cursor(*curwin.as_ptr());
             g_st().Search.hl_match = true;
-            save_viewstate(&mut **curwin.as_ptr(), &raw mut (*s).old_viewstate);
+            save_viewstate(&mut **curwin.as_ptr(), &mut (*s).old_viewstate);
             redraw_later(*curwin.as_ptr(), UPD_NOT_VALID);
             update_screen();
             g_st().Search.hl_match = false;
@@ -3017,7 +3017,7 @@ unsafe fn cmdpreview_open_win(cmdpreview_buf: *mut buf_T) -> *mut win_T {
             (*cmdpreview_buf).b_fnum,
             0,
         );
-        try_leave(&raw const tstate, &mut err);
+        try_leave(&tstate, &mut err);
         if error_set(&err) || result == FAIL {
             api_clear_error(&mut err);
             return ptr::null_mut();
@@ -3072,14 +3072,14 @@ unsafe fn cmdpreview_prepare() -> CpInfo {
                     cp_bufinfo.save_b_changed = (*buf).b_changed;
                     cp_bufinfo.save_b_op_start = (*buf).b_op_start;
                     cp_bufinfo.save_b_op_end = (*buf).b_op_end;
-                    u_checkpoint(&raw mut cp_bufinfo.undo_checkpoint, &mut *buf);
+                    u_checkpoint(&mut cp_bufinfo.undo_checkpoint, &mut *buf);
                     cpinfo.buf_info.push(cp_bufinfo);
                 }
 
                 let mut cp_wininfo = CpWinInfo::new();
                 cp_wininfo.win = win;
                 cp_wininfo.save_w_cursor = (*win).w_cursor;
-                save_viewstate(&mut *win, &raw mut cp_wininfo.save_viewstate);
+                save_viewstate(&mut *win, &mut cp_wininfo.save_viewstate);
                 cp_wininfo.save_w_p_cul = (*win).w_onebuf_opt.wo_cul;
                 cp_wininfo.save_w_p_cuc = (*win).w_onebuf_opt.wo_cuc;
 
@@ -3117,18 +3117,18 @@ unsafe fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
 
             extmark_clear(buf, getln_st().cmdpreview_ns as u32, 0, 0, MAXLNUM, MAXCOL);
 
-            u_rollback(&raw mut cp_bufinfo.undo_checkpoint, &mut *buf);
+            u_rollback(&mut cp_bufinfo.undo_checkpoint, &mut *buf);
 
             (*buf).b_op_start = cp_bufinfo.save_b_op_start;
             (*buf).b_op_end = cp_bufinfo.save_b_op_end;
             (*buf).b_p_ma = cp_bufinfo.save_b_p_ma;
         }
 
-        for mut cp_wininfo in cpinfo.win_info.drain(..) {
+        for cp_wininfo in cpinfo.win_info.drain(..) {
             let win = cp_wininfo.win;
 
             (*win).w_cursor = cp_wininfo.save_w_cursor;
-            restore_viewstate(&mut *win, &raw mut cp_wininfo.save_viewstate);
+            restore_viewstate(&mut *win, &cp_wininfo.save_viewstate);
 
             (*win).w_onebuf_opt.wo_cul = cp_wininfo.save_w_p_cul;
             (*win).w_onebuf_opt.wo_cuc = cp_wininfo.save_w_p_cuc;
@@ -3217,7 +3217,7 @@ unsafe fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
         let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         cmdpreview_type = execute_cmd(&mut ea, &mut cmod, true);
-        try_leave(&raw const tstate, &mut err);
+        try_leave(&tstate, &mut err);
         if error_set(&err) {
             api_clear_error(&mut err);
             cmdpreview_type = 0;
@@ -3259,7 +3259,7 @@ unsafe fn do_autocmd_cmdlinechanged(firstc: c_int) {
         if has_event(EVENT_CMDLINECHANGED) {
             let mut err = error_init();
             let mut save_v_event: save_v_event_T = save_v_event_T::new();
-            let dict = get_v_event(&raw mut save_v_event);
+            let dict = get_v_event(&mut save_v_event);
 
             let mut firstcbuf: [c_char; 2] = [firstc as c_char, 0];
 
@@ -3275,8 +3275,8 @@ unsafe fn do_autocmd_cmdlinechanged(firstc: c_int) {
                 false,
                 g_st().curbuf,
             );
-            restore_v_event(&mut *dict, &raw mut save_v_event);
-            try_leave(&raw const tstate, &mut err);
+            restore_v_event(&mut *dict, &mut save_v_event);
+            try_leave(&tstate, &mut err);
             if error_set(&err) {
                 if !ui_has(kUIMessages) {
                     msg_putchar(b'\n' as c_int);
@@ -3688,7 +3688,7 @@ pub unsafe fn realloc_cmdbuff(mut len: c_int) {
 /// Color expression cmdline using built-in expressions parser.
 unsafe fn color_expr_cmdline(
     colored_ccline: &CmdlineInfo,
-    ret_ccline_colors: *mut ColoredCmdline,
+    ret_ccline_colors: &mut ColoredCmdline,
 ) {
     unsafe {
         let parser_lines = [
@@ -3710,19 +3710,19 @@ unsafe fn color_expr_cmdline(
         let colors = pstate.colors.take().unwrap_or_default();
         drop(pstate);
 
-        (*ret_ccline_colors).colors.reserve(colors.len());
+        ret_ccline_colors.colors.reserve(colors.len());
         let mut prev_end: usize = 0;
         for chunk in colors {
             debug_assert!(chunk.start.col < c_int::MAX as usize);
             debug_assert!(chunk.end_col < c_int::MAX as usize);
             if chunk.start.col != prev_end {
-                (*ret_ccline_colors).colors.push(CmdlineColorChunk {
+                ret_ccline_colors.colors.push(CmdlineColorChunk {
                     start: prev_end as c_int,
                     end: chunk.start.col as c_int,
                     hl_id: 0,
                 });
             }
-            (*ret_ccline_colors).colors.push(CmdlineColorChunk {
+            ret_ccline_colors.colors.push(CmdlineColorChunk {
                 start: chunk.start.col as c_int,
                 end: chunk.end_col as c_int,
                 hl_id: syn_name2id(chunk.group.as_ptr()),
@@ -3730,7 +3730,7 @@ unsafe fn color_expr_cmdline(
             prev_end = chunk.end_col;
         }
         if prev_end < colored_ccline.cmdlen as usize {
-            (*ret_ccline_colors).colors.push(CmdlineColorChunk {
+            ret_ccline_colors.colors.push(CmdlineColorChunk {
                 start: prev_end as c_int,
                 end: colored_ccline.cmdlen,
                 hl_id: 0,
@@ -3802,10 +3802,10 @@ unsafe fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         18,
                         &mut color_cb,
                     );
-                    try_leave(&raw const tstate, &mut err);
+                    try_leave(&tstate, &mut err);
                     can_free_cb = true;
                 } else if colored_ccline.cmdfirstc == b'=' as c_int {
-                    color_expr_cmdline(colored_ccline, ccline_colors);
+                    color_expr_cmdline(colored_ccline, &mut *ccline_colors);
                 }
                 if error_set(&err) || !dgc_ret {
                     break 'color_cmdline_error;
@@ -3840,7 +3840,7 @@ unsafe fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                 if g_st().got_int {
                     getln_st().getln_interrupted_highlight = true;
                 }
-                try_leave(&raw const tstate, &mut err);
+                try_leave(&tstate, &mut err);
                 if error_set(&err) || !cbcall_ret {
                     break 'color_cmdline_error;
                 }

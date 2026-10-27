@@ -2429,7 +2429,7 @@ pub unsafe fn autocmd_register(
         let es = &raw const rt_st().exestack;
         let sourcing_lnum = (*es).last().map_or(0, |top| top.es_lnum);
         ac.script_ctx.sc_lnum += sourcing_lnum;
-        nlua_set_sctx(&raw mut ac.script_ctx);
+        nlua_set_sctx(&mut ac.script_ctx);
         ac.once = once;
         ac.nested = nested;
         ac.desc = if desc.is_null() {
@@ -2543,7 +2543,7 @@ pub unsafe fn ex_doautoall(eap: &mut exarg_T) {
             }
 
             ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
-            set_bufref(&raw mut bufref, buf);
+            set_bufref(&mut bufref, buf);
 
             retval = do_doautocmd(arg, false, &raw mut did_aucmd);
 
@@ -2620,7 +2620,7 @@ pub unsafe fn deferred_event(mut e: AutoCmdEvent) {
         let buf = find_buffer_by_handle(e.buf, &mut err);
         if !buf.is_null() {
             let mut save_v_event: save_v_event_T = save_v_event_T::new();
-            let v_event = get_v_event(&raw mut save_v_event);
+            let v_event = get_v_event(&mut save_v_event);
             if !data.is_null() && (*data).obj_type == ObjectType::kObjectTypeDict {
                 for i in 0..(*data).data.dict().size {
                     let item = *(*data).data.dict().items.add(i);
@@ -2653,7 +2653,7 @@ pub unsafe fn deferred_event(mut e: AutoCmdEvent) {
             );
             ctx_restore(&mut aco);
 
-            restore_v_event(&mut *v_event, &raw mut save_v_event);
+            restore_v_event(&mut *v_event, &mut save_v_event);
         }
     }
 }
@@ -3050,7 +3050,7 @@ pub unsafe fn apply_autocmds_group(
             if !g_st().autocmd_busy {
                 save_search_patterns();
                 if !ins_compl_active() {
-                    save_redobuff(&raw mut save_redo);
+                    save_redobuff(&mut save_redo);
                     did_save_redobuff = true;
                 }
                 (*g_st().curbuf).b_did_filetype = (*g_st().curbuf).b_keep_filetype;
@@ -3954,7 +3954,7 @@ pub unsafe fn do_autocmd_uienter(chanid: u64, attached: bool) {
         au_st().uienter_recursive = true;
 
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
-        let dict = get_v_event(&raw mut save_v_event);
+        let dict = get_v_event(&mut save_v_event);
         assert!(chanid < i64::MAX as u64);
         tv_dict_add_nr(dict, c"chan".as_ptr(), 4, chanid as varnumber_T);
         tv_dict_set_keys_readonly(dict);
@@ -3969,7 +3969,7 @@ pub unsafe fn do_autocmd_uienter(chanid: u64, attached: bool) {
             false,
             g_st().curbuf,
         );
-        restore_v_event(&mut *dict, &raw mut save_v_event);
+        restore_v_event(&mut *dict, &mut save_v_event);
 
         au_st().uienter_recursive = false;
     }

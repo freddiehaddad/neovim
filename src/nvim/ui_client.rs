@@ -430,14 +430,14 @@ pub unsafe fn ui_client_event_grid_line(_args: Array) {
     std::process::abort()
 }
 
-pub unsafe fn ui_client_event_raw_line(g: *mut GridLineEvent) {
+pub unsafe fn ui_client_event_raw_line(g: &mut GridLineEvent) {
     unsafe {
-        let grid = (*g).args[0];
-        let row = (*g).args[1];
-        let startcol = (*g).args[2];
-        let endcol = Integer::from(startcol) + Integer::from((*g).coloff);
-        let clearcol = endcol + Integer::from((*g).clear_width);
-        let lineflags = if (*g).wrap { kLineFlagWrap } else { 0 };
+        let grid = g.args[0];
+        let row = g.args[1];
+        let startcol = g.args[2];
+        let endcol = Integer::from(startcol) + Integer::from(g.coloff);
+        let clearcol = endcol + Integer::from(g.clear_width);
+        let lineflags = if g.wrap { kLineFlagWrap } else { 0 };
 
         let char_buf = &raw mut g_st().grid_line_buf_char;
         let attr_buf = &raw mut g_st().grid_line_buf_attr;
@@ -448,7 +448,7 @@ pub unsafe fn ui_client_event_raw_line(g: *mut GridLineEvent) {
             Integer::from(startcol),
             endcol,
             clearcol,
-            Integer::from((*g).cur_attr),
+            Integer::from(g.cur_attr),
             lineflags,
             (*char_buf).as_mut_ptr(),
             (*attr_buf).as_mut_ptr(),

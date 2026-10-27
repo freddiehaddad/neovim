@@ -2053,7 +2053,7 @@ pub unsafe fn vcol2col(
     unsafe {
         let line = ml_get_buf(wp.w_buffer, lnum);
         let mut csarg = CharsizeArg::new();
-        let cstype: CSType = init_charsize_arg(&raw mut csarg, &raw mut *wp, lnum, line);
+        let cstype: CSType = init_charsize_arg(&mut csarg, &raw mut *wp, lnum, line);
         let mut ci = utf_ptr2StrCharInfo(line);
         let mut cur_vcol: c_int = 0;
         while cur_vcol < vcol && *ci.ptr != NUL {

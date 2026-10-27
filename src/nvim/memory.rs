@@ -641,7 +641,7 @@ pub unsafe fn free_all_mem() {
                 br_fnum: 0,
                 br_buf_free_count: 0,
             };
-            set_bufref(&raw mut bufref, buf);
+            set_bufref(&mut bufref, buf);
             let nextbuf = (*buf).b_next;
             (*buf).b_nwindows = 0;
 

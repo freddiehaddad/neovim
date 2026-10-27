@@ -682,12 +682,12 @@ unsafe fn diff_check_unchanged(tp: &mut tabpage_T, dp_idx: usize) {
         }
     }
 }
-unsafe fn diff_check_sanity(tp: &mut tabpage_T, dp: *const diff_T) -> c_int {
+unsafe fn diff_check_sanity(tp: &tabpage_T, dp: &diff_T) -> c_int {
     unsafe {
         for i in 0..DB_COUNT {
             let buf = tp.tp_diffbuf[i];
             if !buf.is_null()
-                && (*dp).df_lnum[i] + (*dp).df_count[i] - 1 > (*buf).b_ml.ml_line_count
+                && dp.df_lnum[i] + dp.df_count[i] - 1 > (*buf).b_ml.ml_line_count
             {
                 return FAIL;
             }
@@ -761,7 +761,7 @@ unsafe fn clear_diffout(dout: &mut diffout_T) {
 }
 unsafe fn diff_write_buffer(
     buf: *mut buf_T,
-    m: *mut mmfile_t,
+    m: &mut mmfile_t,
     backing: &mut Vec<c_char>,
     start: linenr_T,
     mut end: linenr_T,
@@ -772,8 +772,8 @@ unsafe fn diff_write_buffer(
         }
         if ((*buf).b_ml.ml_flags & ML_EMPTY) != 0 || end < start {
             *backing = Vec::new();
-            (*m).ptr = ptr::null_mut();
-            (*m).size = 0;
+            m.ptr = ptr::null_mut();
+            m.size = 0;
             return OK;
         }
         let mut len: usize = 0;
@@ -782,8 +782,8 @@ unsafe fn diff_write_buffer(
         }
         *backing = vec![0; len];
         let ptr = backing.as_mut_ptr();
-        (*m).ptr = ptr;
-        (*m).size = len as c_int;
+        m.ptr = ptr;
+        m.size = len as c_int;
         len = 0;
         for lnum in start..=end {
             let mut s = ml_get_buf(buf, lnum);
@@ -829,13 +829,13 @@ unsafe fn diff_write_buffer(
 }
 unsafe fn diff_write(
     buf: *mut buf_T,
-    din: *mut diffin_T,
+    din: &mut diffin_T,
     start: linenr_T,
     mut end: linenr_T,
 ) -> c_int {
     unsafe {
-        let Some(ref din_fname) = (*din).din_fname else {
-            return diff_write_buffer(buf, &raw mut (*din).din_mmfile, &mut (*din).din_buf, start, end);
+        let Some(ref din_fname) = din.din_fname else {
+            return diff_write_buffer(buf, &mut din.din_mmfile, &mut din.din_buf, start, end);
         };
         if frames_locked() {
             return FAIL;
@@ -871,19 +871,19 @@ unsafe fn diff_write(
         r
     }
 }
-unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: &mut exarg_T) {
+unsafe fn diff_try_update(dio: &mut diffio_T, idx_orig: usize, eap: &mut exarg_T) {
     unsafe {
         let take_tempname = || vim_tempname();
         'theend: {
-            if (*dio).dio_internal != 0 {
-                (*dio).dio_diff.dout_ga.clear();
+            if dio.dio_internal != 0 {
+                dio.dio_diff.dout_ga.clear();
             } else {
-                (*dio).dio_orig.din_fname = take_tempname();
-                (*dio).dio_new.din_fname = take_tempname();
-                (*dio).dio_diff.dout_fname = take_tempname();
-                if (*dio).dio_orig.din_fname.is_none()
-                    || (*dio).dio_new.din_fname.is_none()
-                    || (*dio).dio_diff.dout_fname.is_none()
+                dio.dio_orig.din_fname = take_tempname();
+                dio.dio_new.din_fname = take_tempname();
+                dio.dio_diff.dout_fname = take_tempname();
+                if dio.dio_orig.din_fname.is_none()
+                    || dio.dio_new.din_fname.is_none()
+                    || dio.dio_diff.dout_fname.is_none()
                 {
                     break 'theend;
                 }
@@ -949,7 +949,7 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: &mut exarg_T
                     anchors[idx_orig][anchor_i] - 1
                 };
                 let mut buf = (*g_st().curtab).tp_diffbuf[idx_orig];
-                if diff_write(buf, &raw mut (*dio).dio_orig, lnum_start, lnum_end) == FAIL {
+                if diff_write(buf, &mut dio.dio_orig, lnum_start, lnum_end) == FAIL {
                     diff_clear(&mut *g_st().curtab);
                     break 'theend;
                 }
@@ -970,17 +970,17 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: &mut exarg_T
                     } else {
                         anchor_row[anchor_i] - 1
                     };
-                    if diff_write(buf, &raw mut (*dio).dio_new, lnum_start, lnum_end) == FAIL {
+                    if diff_write(buf, &mut dio.dio_new, lnum_start, lnum_end) == FAIL {
                         continue;
                     }
                     if diff_file(dio) == FAIL {
                         continue;
                     }
                     diff_read(idx_orig, idx_new, dio);
-                    clear_diffin(&mut (*dio).dio_new);
-                    clear_diffout(&mut (*dio).dio_diff);
+                    clear_diffin(&mut dio.dio_new);
+                    clear_diffout(&mut dio.dio_diff);
                 }
-                clear_diffin(&mut (*dio).dio_orig);
+                clear_diffin(&mut dio.dio_orig);
                 if anchor_i != 0 {
                     diff_st().diff_finger_dp_idx = None;
                     for dp in &mut (*g_st().curtab).tp_diffs {
@@ -1002,7 +1002,7 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: &mut exarg_T
 pub unsafe fn diff_internal() -> c_int {
     unsafe {
         c_int::from(
-            (diff_st().diff_flags & DIFF_INTERNAL) != 0 && crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_dex) == kCallbackNone,
+            (diff_st().diff_flags & DIFF_INTERNAL) != 0 && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) == kCallbackNone,
         )
     }
 }
@@ -1059,7 +1059,7 @@ pub unsafe fn ex_diffupdate(eap: &mut exarg_T) {
                 },
                 dio_internal: diff_internal(),
             };
-            diff_try_update(&raw mut diffio, idx_orig, eap);
+            diff_try_update(&mut diffio, idx_orig, eap);
             (**curwin.as_ptr()).w_valid_cursor.lnum = 0;
         }
         if had_diffs || !(*g_st().curtab).tp_diffs.is_empty() {
@@ -1076,13 +1076,13 @@ pub unsafe fn ex_diffupdate(eap: &mut exarg_T) {
         }
     }
 }
-unsafe fn check_external_diff(diffio: *mut diffio_T) -> c_int {
+unsafe fn check_external_diff(diffio: &mut diffio_T) -> c_int {
     unsafe {
         let mut io_error = false;
         let mut ok: TriState;
-        let orig_fname = (*diffio).dio_orig.din_fname.as_ref().unwrap().as_ptr();
-        let new_fname = (*diffio).dio_new.din_fname.as_ref().unwrap().as_ptr();
-        let diff_fname = (*diffio).dio_diff.dout_fname.as_ref().unwrap().as_ptr();
+        let orig_fname = diffio.dio_orig.din_fname.as_ref().unwrap().as_ptr();
+        let new_fname = diffio.dio_new.din_fname.as_ref().unwrap().as_ptr();
+        let diff_fname = diffio.dio_diff.dout_fname.as_ref().unwrap().as_ptr();
         loop {
             ok = kFalse;
             let mut fd = os_fopen(orig_fname, c"w".as_ptr());
@@ -1127,7 +1127,7 @@ unsafe fn check_external_diff(diffio: *mut diffio_T) -> c_int {
                 }
                 let _ = os_remove(orig_fname);
             }
-            if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_dex) != kCallbackNone {
+            if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) != kCallbackNone {
                 break;
             }
             if diff_st().diff_a_works != kNone {
@@ -1149,7 +1149,7 @@ unsafe fn check_external_diff(diffio: *mut diffio_T) -> c_int {
         OK
     }
 }
-unsafe fn diff_file_internal(diffio: *mut diffio_T) -> c_int {
+unsafe fn diff_file_internal(diffio: &mut diffio_T) -> c_int {
     unsafe {
         let mut param = xpparam_t {
             flags: diff_st().diff_algorithm as c_ulong,
@@ -1159,7 +1159,7 @@ unsafe fn diff_file_internal(diffio: *mut diffio_T) -> c_int {
             interhunkctxlen: 0,
             flags: 0,
         };
-        let mut emit_cb = xdemitcb_t::Diff(&raw mut (*diffio).dio_diff);
+        let mut emit_cb = xdemitcb_t::Diff(&raw mut diffio.dio_diff);
         if (diff_st().diff_flags & DIFF_IWHITE) != 0 {
             param.flags |= XDF_IGNORE_WHITESPACE_CHANGE;
         }
@@ -1172,8 +1172,8 @@ unsafe fn diff_file_internal(diffio: *mut diffio_T) -> c_int {
         if (diff_st().diff_flags & DIFF_IBLANK) != 0 {
             param.flags |= XDF_IGNORE_BLANK_LINES;
         }
-        if (*diffio).dio_orig.din_mmfile.size > MAX_XDIFF_SIZE
-            || (*diffio).dio_new.din_mmfile.size > MAX_XDIFF_SIZE
+        if diffio.dio_orig.din_mmfile.size > MAX_XDIFF_SIZE
+            || diffio.dio_new.din_mmfile.size > MAX_XDIFF_SIZE
         {
             emsg(gettext(
                 (&raw const e_problem_creating_internal_diff).cast(),
@@ -1181,8 +1181,8 @@ unsafe fn diff_file_internal(diffio: *mut diffio_T) -> c_int {
             return FAIL;
         }
         if xdl_diff(
-            &raw mut (*diffio).dio_orig.din_mmfile,
-            &raw mut (*diffio).dio_new.din_mmfile,
+            &raw mut diffio.dio_orig.din_mmfile,
+            &raw mut diffio.dio_new.din_mmfile,
             &raw const param,
             &raw const emit_cfg,
             &raw mut emit_cb,
@@ -1196,7 +1196,7 @@ unsafe fn diff_file_internal(diffio: *mut diffio_T) -> c_int {
         OK
     }
 }
-unsafe fn diff_file(dio: *mut diffio_T) -> c_int {
+unsafe fn diff_file(dio: &mut diffio_T) -> c_int {
     unsafe {
         let tmp_orig = (*dio)
             .dio_orig
@@ -1213,11 +1213,11 @@ unsafe fn diff_file(dio: *mut diffio_T) -> c_int {
             .dout_fname
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_dex) != kCallbackNone {
+        if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) != kCallbackNone {
             eval_diff(tmp_orig, tmp_new, tmp_diff);
             return OK;
         }
-        if (*dio).dio_internal != 0 {
+        if dio.dio_internal != 0 {
             return diff_file_internal(dio);
         }
         let len = std::ffi::CStr::from_ptr(tmp_orig).to_bytes().len() + std::ffi::CStr::from_ptr(tmp_new).to_bytes().len() + std::ffi::CStr::from_ptr(tmp_diff).to_bytes().len() + std::ffi::CStr::from_ptr(opt_vars().p_srr).to_bytes().len() + 27;
@@ -1345,7 +1345,7 @@ pub unsafe fn ex_diffpatch(eap: &mut exarg_T) {
                     shorten_fnames(1);
                 }
             }
-            if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_pex) != kCallbackNone {
+            if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_pex) != kCallbackNone {
                 #[cfg(unix)]
                 eval_patch(
                     tmp_orig,
@@ -1439,7 +1439,7 @@ pub unsafe fn ex_diffsplit(eap: &mut exarg_T) {
             br_fnum: 0,
             br_buf_free_count: 0,
         };
-        set_bufref(&raw mut old_curbuf, g_st().curbuf);
+        set_bufref(&mut old_curbuf, g_st().curbuf);
         validate_cursor(*curwin.as_ptr());
         set_fraction(*curwin.as_ptr());
         g_st().cmdmod.cmod_tab = 0;
@@ -1684,13 +1684,13 @@ unsafe fn process_hunk(
     dp_idx_p: &mut usize,
     idx_orig: usize,
     idx_new: usize,
-    hunk: *const diffhunk_T,
+    hunk: &diffhunk_T,
     notsetp: &mut bool,
 ) {
     unsafe {
         let mut dp_idx = *dp_idx_p;
         while dp_idx < (*g_st().curtab).tp_diffs.len()
-            && (*hunk).lnum_orig
+            && hunk.lnum_orig
                 > (&(*g_st().curtab).tp_diffs)[dp_idx].df_lnum[idx_orig]
                     + (&(*g_st().curtab).tp_diffs)[dp_idx].df_count[idx_orig]
         {
@@ -1701,15 +1701,15 @@ unsafe fn process_hunk(
             *notsetp = true;
         }
         if dp_idx < (*g_st().curtab).tp_diffs.len()
-            && (*hunk).lnum_orig
+            && hunk.lnum_orig
                 <= (&(*g_st().curtab).tp_diffs)[dp_idx].df_lnum[idx_orig]
                     + (&(*g_st().curtab).tp_diffs)[dp_idx].df_count[idx_orig]
-            && (*hunk).lnum_orig + (*hunk).count_orig
+            && hunk.lnum_orig + hunk.count_orig
                 >= (&(*g_st().curtab).tp_diffs)[dp_idx].df_lnum[idx_orig]
         {
             let mut dpl_idx = dp_idx;
             while dpl_idx + 1 < (*g_st().curtab).tp_diffs.len() {
-                if (*hunk).lnum_orig + (*hunk).count_orig
+                if hunk.lnum_orig + hunk.count_orig
                     < (&(*g_st().curtab).tp_diffs)[dpl_idx + 1].df_lnum[idx_orig]
                 {
                     break;
@@ -1719,7 +1719,7 @@ unsafe fn process_hunk(
             let dpl_lnum = (&(*g_st().curtab).tp_diffs)[dpl_idx].df_lnum;
             let dpl_count = (&(*g_st().curtab).tp_diffs)[dpl_idx].df_count;
             let dp = &mut (&mut (*g_st().curtab).tp_diffs)[dp_idx];
-            let mut off = dp.df_lnum[idx_orig] - (*hunk).lnum_orig;
+            let mut off = dp.df_lnum[idx_orig] - hunk.lnum_orig;
             if off > 0 {
                 for i in idx_orig..idx_new {
                     if !(*g_st().curtab).tp_diffbuf[i].is_null() {
@@ -1727,24 +1727,24 @@ unsafe fn process_hunk(
                         dp.df_count[i] += off;
                     }
                 }
-                dp.df_lnum[idx_new] = (*hunk).lnum_new;
-                dp.df_count[idx_new] = (*hunk).count_new;
+                dp.df_lnum[idx_new] = hunk.lnum_new;
+                dp.df_count[idx_new] = hunk.count_new;
             } else if *notsetp {
-                dp.df_lnum[idx_new] = (*hunk).lnum_new + off;
-                dp.df_count[idx_new] = (*hunk).count_new - off;
+                dp.df_lnum[idx_new] = hunk.lnum_new + off;
+                dp.df_count[idx_new] = hunk.count_new - off;
             } else {
                 let orig_size_in_dp = (*hunk)
                     .count_orig
-                    .min(dp.df_lnum[idx_orig] + dp.df_count[idx_orig] - (*hunk).lnum_orig);
-                let size_diff = (*hunk).count_new - orig_size_in_dp;
+                    .min(dp.df_lnum[idx_orig] + dp.df_count[idx_orig] - hunk.lnum_orig);
+                let size_diff = hunk.count_new - orig_size_in_dp;
                 dp.df_count[idx_new] += size_diff;
-                off = (*hunk).lnum_new + (*hunk).count_new
+                off = hunk.lnum_new + hunk.count_new
                     - (dp.df_lnum[idx_new] + dp.df_count[idx_new]);
                 if off > 0 {
                     dp.df_count[idx_new] += off;
                 }
             }
-            off = ((*hunk).lnum_orig + (*hunk).count_orig)
+            off = (hunk.lnum_orig + hunk.count_orig)
                 - (dpl_lnum[idx_orig] + dpl_count[idx_orig]);
             if off < 0 {
                 if *notsetp || dp_idx != dpl_idx {
@@ -1763,10 +1763,10 @@ unsafe fn process_hunk(
             }
         } else {
             dp_idx = diff_alloc_new(&mut *g_st().curtab, dp_idx);
-            (&mut (*g_st().curtab).tp_diffs)[dp_idx].df_lnum[idx_orig] = (*hunk).lnum_orig;
-            (&mut (*g_st().curtab).tp_diffs)[dp_idx].df_count[idx_orig] = (*hunk).count_orig;
-            (&mut (*g_st().curtab).tp_diffs)[dp_idx].df_lnum[idx_new] = (*hunk).lnum_new;
-            (&mut (*g_st().curtab).tp_diffs)[dp_idx].df_count[idx_new] = (*hunk).count_new;
+            (&mut (*g_st().curtab).tp_diffs)[dp_idx].df_lnum[idx_orig] = hunk.lnum_orig;
+            (&mut (*g_st().curtab).tp_diffs)[dp_idx].df_count[idx_orig] = hunk.count_orig;
+            (&mut (*g_st().curtab).tp_diffs)[dp_idx].df_lnum[idx_new] = hunk.lnum_new;
+            (&mut (*g_st().curtab).tp_diffs)[dp_idx].df_count[idx_new] = hunk.count_new;
             for i in (idx_orig + 1)..idx_new {
                 if !(*g_st().curtab).tp_diffbuf[i].is_null() {
                     diff_copy_entry(dp_idx, idx_orig, i);
@@ -1777,15 +1777,15 @@ unsafe fn process_hunk(
         *dp_idx_p = dp_idx;
     }
 }
-unsafe fn diff_read(idx_orig: usize, idx_new: usize, dio: *mut diffio_T) {
+unsafe fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut diffio_T) {
     unsafe {
         let mut fd: *mut FILE = ptr::null_mut();
         let mut line_hunk_idx: c_int = 0;
         let mut dp_idx: usize = 0;
-        let dout = &raw mut (*dio).dio_diff;
+        let dout = &raw mut dio.dio_diff;
         let mut notset = true;
         let mut diffstyle = diffstyle_T::DIFF_NONE;
-        if (*dio).dio_internal == 0 {
+        if dio.dio_internal == 0 {
             fd = os_fopen((*dout).dout_fname.as_ref().unwrap().as_ptr(), c"r".as_ptr());
             if fd.is_null() {
                 emsg(gettext(c"E98: Cannot read diff output".as_ptr()));
@@ -1799,7 +1799,7 @@ unsafe fn diff_read(idx_orig: usize, idx_new: usize, dio: *mut diffio_T) {
                 lnum_new: 0,
                 count_new: 0,
             };
-            let eof = if (*dio).dio_internal != 0 {
+            let eof = if dio.dio_internal != 0 {
                 extract_hunk_internal(dout, &raw mut hunk, &mut line_hunk_idx)
             } else {
                 extract_hunk(fd, &raw mut hunk, &raw mut diffstyle)
@@ -1811,7 +1811,7 @@ unsafe fn diff_read(idx_orig: usize, idx_new: usize, dio: *mut diffio_T) {
                 &mut dp_idx,
                 idx_orig,
                 idx_new,
-                &raw const hunk,
+                &hunk,
                 &mut notset,
             );
         }
@@ -1864,12 +1864,12 @@ pub unsafe fn diff_linematch(dp: *const diff_T) -> bool {
         tsize <= diff_st().linematch_lines
     }
 }
-unsafe fn get_max_diff_length(dp: *const diff_T) -> c_int {
+unsafe fn get_max_diff_length(dp: &diff_T) -> c_int {
     unsafe {
         let mut maxlength: c_int = 0;
         for k in 0..DB_COUNT {
-            if !(*g_st().curtab).tp_diffbuf[k].is_null() && (*dp).df_count[k] > maxlength {
-                maxlength = (*dp).df_count[k];
+            if !(*g_st().curtab).tp_diffbuf[k].is_null() && dp.df_count[k] > maxlength {
+                maxlength = dp.df_count[k];
             }
         }
         maxlength
@@ -2042,7 +2042,7 @@ unsafe fn run_linematch_algorithm(dp_idx: usize) {
                 if dp_count[i] > 0 {
                     diff_write_buffer(
                         (*g_st().curtab).tp_diffbuf[i],
-                        &raw mut diffbufs_mm[ndiffs],
+                        &mut diffbufs_mm[ndiffs],
                         &mut diffbufs_vec[ndiffs],
                         dp_lnum[i],
                         dp_lnum[i] + dp_count[i] - 1,
@@ -2191,23 +2191,23 @@ pub unsafe fn diff_check_fill(wp: *mut win_T, lnum: linenr_T) -> c_int {
         n.max(0)
     }
 }
-unsafe fn diff_equal_entry(dp: *const diff_T, idx1: usize, idx2: usize) -> bool {
+unsafe fn diff_equal_entry(dp: &diff_T, idx1: usize, idx2: usize) -> bool {
     unsafe {
-        if (*dp).df_count[idx1] != (*dp).df_count[idx2] {
+        if dp.df_count[idx1] != dp.df_count[idx2] {
             return false;
         }
         if diff_check_sanity(&mut *g_st().curtab, dp) == FAIL {
             return false;
         }
-        for i in 0..(*dp).df_count[idx1] {
+        for i in 0..dp.df_count[idx1] {
             let line = CStr::from_ptr(ml_get_buf(
                 (*g_st().curtab).tp_diffbuf[idx1],
-                (*dp).df_lnum[idx1] + i,
+                dp.df_lnum[idx1] + i,
             ))
             .to_owned();
             let cmp = diff_cmp(
                 line.as_ptr(),
-                ml_get_buf((*g_st().curtab).tp_diffbuf[idx2], (*dp).df_lnum[idx2] + i),
+                ml_get_buf((*g_st().curtab).tp_diffbuf[idx2], dp.df_lnum[idx2] + i),
             );
             if cmp != 0 {
                 return false;
@@ -2595,7 +2595,7 @@ pub unsafe fn diff_change_parse(
 unsafe fn diff_find_change_simple(
     wp: &mut win_T,
     lnum: linenr_T,
-    dp: *const diff_T,
+    dp: &diff_T,
     idx: usize,
     startp: &mut c_int,
     endp: &mut c_int,
@@ -2610,17 +2610,17 @@ unsafe fn diff_find_change_simple(
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         let mut added = true;
-        let off = lnum - (*dp).df_lnum[idx];
+        let off = lnum - dp.df_lnum[idx];
         for i in 0..DB_COUNT {
             if !(*g_st().curtab).tp_diffbuf[i].is_null() && i != idx {
-                if off >= (*dp).df_count[i] {
+                if off >= dp.df_count[i] {
                     continue;
                 }
                 added = false;
                 if (diff_st().diff_flags & DIFF_INLINE_NONE) != 0 {
                     break;
                 }
-                let line_new = ml_get_buf((*g_st().curtab).tp_diffbuf[i], (*dp).df_lnum[i] + off);
+                let line_new = ml_get_buf((*g_st().curtab).tp_diffbuf[i], dp.df_lnum[i] + off);
                 let mut si_org: c_int = 0;
                 let mut si_new: c_int = 0;
                 while *line_org.add(si_org as usize) != NUL {
@@ -3035,11 +3035,11 @@ unsafe fn diff_find_change_inline_diff(dp_idx: usize) {
                     dio.dio_orig.din_mmfile.size = curstr.len() as c_int;
                 }
                 if file1_idx != i as isize {
-                    let diff_status = diff_file_internal(&raw mut dio);
+                    let diff_status = diff_file_internal(&mut dio);
                     if diff_status == FAIL {
                         break 'done;
                     }
-                    diff_read(0, i, &raw mut dio);
+                    diff_read(0, i, &mut dio);
                     clear_diffout(&mut dio.dio_diff);
                 }
             }
@@ -3832,17 +3832,15 @@ pub(crate) unsafe fn xdiff_out(
     count_a: c_int,
     start_b: c_int,
     count_b: c_int,
-    dout: *mut diffout_T,
+    dout: &mut diffout_T,
 ) -> c_int {
-    unsafe {
-        (*dout).dout_ga.push(diffhunk_T {
+    dout.dout_ga.push(diffhunk_T {
             lnum_orig: start_a + 1,
             count_orig: count_a,
             lnum_new: start_b + 1,
             count_new: count_b,
         });
         0
-    }
 }
 pub unsafe fn f_diff_filler(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {

@@ -1138,7 +1138,7 @@ pub unsafe fn build_statuscol_str(
     relnum: c_int,
     virtnum: c_int,
     buf: CharBuf,
-    stcp: *mut statuscol_T,
+    stcp: &mut statuscol_T,
 ) -> c_int {
     unsafe {
         if relnum >= 0 {
@@ -1158,7 +1158,7 @@ pub unsafe fn build_statuscol_str(
             kOptStatuscolumn,
             OPT_LOCAL,
             0,
-            (*stcp).width,
+            stcp.width,
             &raw mut hlrec_ptr,
             ptr::null_mut(),
             &raw mut clickrec,
@@ -1166,11 +1166,11 @@ pub unsafe fn build_statuscol_str(
         );
         drop(stc);
 
-        (*stcp).hlrec.clear();
+        stcp.hlrec.clear();
         if !hlrec_ptr.is_null() {
             let mut sp = hlrec_ptr;
             while !(*sp).start.is_null() {
-                (*stcp).hlrec.push(*sp);
+                stcp.hlrec.push(*sp);
                 sp = sp.add(1);
             }
         }

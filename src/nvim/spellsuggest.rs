@@ -420,13 +420,13 @@ unsafe fn was_banned(su: &mut suginfo_T, word: *const c_char) -> bool {
 }
 
 unsafe fn can_be_compound(
-    sp: *const trystate_T,
+    sp: &trystate_T,
     slang: &mut slang_T,
     compflags: *mut u8,
     flag: c_int,
 ) -> bool {
     unsafe {
-        let flags_cstr = if (*sp).ts_complen == (*sp).ts_compsplit {
+        let flags_cstr = if sp.ts_complen == sp.ts_compsplit {
             &slang.sl_compstartflags
         } else {
             &slang.sl_compallflags
@@ -439,11 +439,11 @@ unsafe fn can_be_compound(
         ) {
             return false;
         }
-        if slang.sl_comprules.is_some() && (*sp).ts_complen > (*sp).ts_compsplit {
-            let complen = (*sp).ts_complen as usize;
+        if slang.sl_comprules.is_some() && sp.ts_complen > sp.ts_compsplit {
+            let complen = sp.ts_complen as usize;
             *compflags.add(complen) = flag as u8;
             *compflags.add(complen + 1) = 0;
-            let v = match_compoundrule(slang, compflags.add((*sp).ts_compsplit as usize));
+            let v = match_compoundrule(slang, compflags.add(sp.ts_compsplit as usize));
             *compflags.add(complen) = 0;
             return v;
         }
@@ -1607,7 +1607,7 @@ unsafe fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char
                                     stack[udepth].ts_complen + 1 - stack[udepth].ts_compsplit,
                                 ) < slang.sl_compmax)
                             && can_be_compound(
-                                &raw const stack[udepth],
+                                &stack[udepth],
                                 slang,
                                 (&raw mut compflags).cast(),
                                 ((flags as u32) >> 24) as c_int,

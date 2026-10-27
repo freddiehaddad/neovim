@@ -132,7 +132,7 @@ unsafe fn set_vservername(srvs: &[*mut SocketWatcher]) {
 pub unsafe fn server_teardown() {
     unsafe {
         for &watcher in watchers_mut().iter() {
-            socket_watcher_close(watcher);
+            socket_watcher_close(&mut *watcher);
         }
         srv_st().watchers = Vec::new();
     }
@@ -258,7 +258,7 @@ pub unsafe fn server_start(addr: *const c_char) -> c_int {
                 if uv_handle_get_type((*watcher).stream_ptr().cast()) == UV_TCP {
                     uv_freeaddrinfo((*watcher).tcp_addrinfo.cast());
                 }
-                socket_watcher_close(watcher);
+                socket_watcher_close(&mut *watcher);
                 return 2;
             }
         }
@@ -275,7 +275,7 @@ pub unsafe fn server_start(addr: *const c_char) -> c_int {
                 uv_strerror(result),
                 (*watcher).addr.as_ptr(),
             );
-            socket_watcher_close(watcher);
+            socket_watcher_close(&mut *watcher);
             return result;
         }
 
@@ -314,7 +314,7 @@ pub unsafe fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bo
         };
 
         let watcher = w.swap_remove(idx);
-        socket_watcher_close(watcher);
+        socket_watcher_close(&mut *watcher);
 
         if !keep_vservername && { let _a = addr.as_ptr(); let _b = get_vim_var_str(VV_SEND_SERVER); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
             set_vservername(w);

@@ -868,13 +868,13 @@ pub unsafe fn decor_redraw_reset(wp: *mut win_T, state: &mut DecorState) -> bool
     }
 }
 
-pub unsafe fn decor_virt_pos(decor: *const DecorRange) -> bool {
-    unsafe { (*decor).data.is_vt() || (*decor).data.is_ui() }
+pub unsafe fn decor_virt_pos(decor: &DecorRange) -> bool {
+    decor.data.is_vt() || decor.data.is_ui()
 }
 
-pub unsafe fn decor_virt_pos_kind(decor: *const DecorRange) -> VirtTextPos {
+pub unsafe fn decor_virt_pos_kind(decor: &DecorRange) -> VirtTextPos {
     unsafe {
-        match (*decor).data {
+        match decor.data {
             DecorRangeData::Vt(vt) => (*vt).pos,
             DecorRangeData::Ui(ui) => ui.pos,
             _ => kVPosEndOfLine,
@@ -1156,24 +1156,24 @@ pub unsafe fn decor_range_add_sh(
     }
 }
 
-pub unsafe fn decor_init_draw_col(win_col: c_int, hidden: bool, item: *mut DecorRange) {
+pub unsafe fn decor_init_draw_col(win_col: c_int, hidden: bool, item: &mut DecorRange) {
     unsafe {
-        let vt = if (*item).data.is_vt() {
-            (*item).data.vt()
+        let vt = if item.data.is_vt() {
+            item.data.vt()
         } else {
             ptr::null_mut()
         };
         let pos = decor_virt_pos_kind(item);
         if win_col < 0 && pos != kVPosInline {
-            (*item).draw_col = win_col;
+            item.draw_col = win_col;
         } else if pos == kVPosOverlay {
-            (*item).draw_col = if !vt.is_null() && ((*vt).flags & kVTHide) != 0 && hidden {
+            item.draw_col = if !vt.is_null() && ((*vt).flags & kVTHide) != 0 && hidden {
                 c_int::MIN
             } else {
                 win_col
             };
         } else {
-            (*item).draw_col = -1;
+            item.draw_col = -1;
         }
     }
 }
@@ -1186,7 +1186,7 @@ pub unsafe fn decor_recheck_draw_col(win_col: c_int, hidden: bool, state: &mut D
             let slot_idx = (&state.ranges_i)[i as usize] as usize;
             let r: *mut DecorRange = (&mut state.slots)[slot_idx].range_mut();
             if (*r).draw_col == -3 {
-                decor_init_draw_col(win_col, hidden, r);
+                decor_init_draw_col(win_col, hidden, &mut *r);
             }
         }
     }
@@ -1292,7 +1292,7 @@ pub unsafe fn decor_redraw_col_impl(
 
             let keep: bool;
             if (*r).end_row < row || ((*r).end_row == row && (*r).end_col <= col) {
-                keep = (*r).start_row >= row && decor_virt_pos(r);
+                keep = (*r).start_row >= row && decor_virt_pos(&*r);
             } else {
                 keep = true;
 
@@ -1335,10 +1335,10 @@ pub unsafe fn decor_redraw_col_impl(
 
             if (*r).start_row == row
                 && (*r).start_col <= col
-                && decor_virt_pos(r)
+                && decor_virt_pos(&*r)
                 && (*r).draw_col == -10
             {
-                decor_init_draw_col(win_col, hidden, r);
+                decor_init_draw_col(win_col, hidden, &mut *r);
             }
 
             if keep {
@@ -1640,7 +1640,7 @@ pub unsafe fn decor_redraw_eol(
         for i in 0..count {
             let slot_idx = (&state.ranges_i)[i as usize] as usize;
             let r: *const DecorRange = (&state.slots)[slot_idx].range();
-            has_virt_pos |= (*r).start_row == state.row && decor_virt_pos(r);
+            has_virt_pos |= (*r).start_row == state.row && decor_virt_pos(&*r);
 
             if (*r).data.is_sh() && ((*r).data.sh().flags & kSHHlEol) != 0 {
                 *eol_attr = hl_combine_attr(*eol_attr, (*r).attr_id);
@@ -1660,7 +1660,7 @@ unsafe fn decor_virt_line_wrap(wp: *mut win_T, overflow: VirtLineOverflow) -> bo
 
 pub unsafe fn decor_virt_line_rows(
     wp: *mut win_T,
-    vl: *const VirtLine,
+    vl: &VirtLine,
     target_row: c_int,
     skip_cells: *mut c_int,
 ) -> c_int {
@@ -1668,11 +1668,11 @@ pub unsafe fn decor_virt_line_rows(
         if !skip_cells.is_null() {
             *skip_cells = 0;
         }
-        if !decor_virt_line_wrap(wp, (*vl).overflow) {
+        if !decor_virt_line_wrap(wp, vl.overflow) {
             return 1;
         }
         let row_width = (*wp).w_view_width
-            - if ((*vl).flags & kVLLeftcol) != 0 {
+            - if (vl.flags & kVLLeftcol) != 0 {
                 0
             } else {
                 win_col_off(wp)
@@ -1680,7 +1680,7 @@ pub unsafe fn decor_virt_line_rows(
         if row_width <= 0 {
             return 1;
         }
-        let vt = &(*vl).line;
+        let vt = &vl.line;
         let buf = (*wp).w_buffer;
         let mut vcol: c_int = 0;
         let mut row_cells: c_int = 0;
@@ -1765,7 +1765,7 @@ pub unsafe fn decor_virt_lines(
                                 for item in virt_lines {
                                     let rows = decor_virt_line_rows(
                                         wp,
-                                        &raw const *item,
+                                        &*item,
                                         0,
                                         ptr::null_mut(),
                                     );

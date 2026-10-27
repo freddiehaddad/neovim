@@ -213,11 +213,11 @@ impl Drop for HlMessageChunk {
 
 use crate::api::vim::HlMessage;
 
-pub unsafe fn api_set_error_str(err: *mut Error, err_type: ErrorType, msg: *const c_char) {
+pub unsafe fn api_set_error_str(err: &mut Error, err_type: ErrorType, msg: *const c_char) {
     unsafe {
         debug_assert!(!matches!(err_type, ErrorType::kErrorTypeNone));
-        (*err).msg = Some(CStr::from_ptr(msg).to_owned());
-        (*err).err_type = err_type;
+        err.msg = Some(CStr::from_ptr(msg).to_owned());
+        err.err_type = err_type;
     }
 }
 
@@ -268,7 +268,7 @@ pub unsafe fn try_wrap<F: FnOnce()>(err: &mut Error, f: F) {
         let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         f();
-        try_leave(&raw const tstate, err);
+        try_leave(&tstate, err);
     }
 }
 
@@ -278,7 +278,7 @@ pub unsafe fn try_wrap_err<F: FnOnce(&mut Error)>(err: &mut Error, f: F) {
         let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         f(err);
-        try_leave(&raw const tstate, err);
+        try_leave(&tstate, err);
     }
 }
 
@@ -390,7 +390,7 @@ pub unsafe fn try_enter(tstate: *mut TryState) {
 }
 
 /// Ends a `try_enter` block; sets error message if any (`try_leave`).
-pub unsafe fn try_leave(tstate: *const TryState, err: &mut Error) {
+pub unsafe fn try_leave(tstate: &TryState, err: &mut Error) {
     unsafe {
         debug_assert!(g_st().trylevel > 0);
         g_st().trylevel -= 1;
@@ -455,12 +455,12 @@ pub unsafe fn try_leave(tstate: *const TryState, err: &mut Error) {
             discard_current_exception();
         }
 
-        g_st().msg_list = (*tstate).msg_list.clone();
-        g_st().current_exception = (*tstate).current_exception.clone();
-        g_st().got_int = (*tstate).got_int != 0;
-        g_st().did_throw = (*tstate).did_throw;
-        g_st().need_rethrow = (*tstate).need_rethrow != 0;
-        g_st().did_emsg = (*tstate).did_emsg;
+        g_st().msg_list = tstate.msg_list.clone();
+        g_st().current_exception = tstate.current_exception.clone();
+        g_st().got_int = tstate.got_int != 0;
+        g_st().did_throw = tstate.did_throw;
+        g_st().need_rethrow = tstate.need_rethrow != 0;
+        g_st().did_emsg = tstate.did_emsg;
     }
 }
 
@@ -802,7 +802,7 @@ pub unsafe fn string_to_array(input: NvimString, crlf: bool, arena: *mut Arena) 
             i += 1;
         }
 
-        arena_take_arraybuilder(arena, &raw mut ret)
+        arena_take_arraybuilder(arena, &mut ret)
     }
 }
 
@@ -923,13 +923,13 @@ pub unsafe fn arena_string(arena: *mut Arena, str_: NvimString) -> NvimString {
     }
 }
 
-pub unsafe fn arena_take_arraybuilder(arena: *mut Arena, arr: *mut ArrayBuilder) -> Array {
+pub unsafe fn arena_take_arraybuilder(arena: *mut Arena, arr: &mut ArrayBuilder) -> Array {
     unsafe {
-        let len = (*arr).len();
+        let len = arr.len();
         let mut ret = arena_array(arena, len);
         ret.size = len;
         if len > 0 {
-            ptr::copy_nonoverlapping((*arr).as_ptr(), ret.items, len);
+            ptr::copy_nonoverlapping(arr.as_ptr(), ret.items, len);
         }
         *arr = Vec::new();
         ret

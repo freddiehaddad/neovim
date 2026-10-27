@@ -1540,12 +1540,12 @@ unsafe fn win_update(wp: &mut win_T) {
                 }
 
                 if !g_st().screen_search_hl.rm.regprog.is_null()
-                    && re_multiline(g_st().screen_search_hl.rm.regprog) != 0
+                    && re_multiline(&*g_st().screen_search_hl.rm.regprog) != 0
                 {
                     top_to_mod = true;
                 } else {
                     top_to_mod = wp.w_match_head.iter().any(|cur| {
-                        !cur.mit_match.regprog.is_null() && re_multiline(cur.mit_match.regprog) != 0
+                        !cur.mit_match.regprog.is_null() && re_multiline(&*cur.mit_match.regprog) != 0
                     });
                 }
             }
@@ -1925,7 +1925,7 @@ unsafe fn win_update(wp: &mut win_T) {
         }
 
         let mut cursorline_fi = foldinfo_T::new();
-        win_update_cursorline(wp, &raw mut cursorline_fi);
+        win_update_cursorline(wp, &mut cursorline_fi);
         if ptr::eq(wp, *curwin.as_ptr()) {
             ds_st().conceal_cursor_used = conceal_cursor_line(*curwin.as_ptr());
         }
@@ -2166,9 +2166,9 @@ unsafe fn win_update(wp: &mut win_T) {
                             0,
                             concealed,
                             if display_buf_line {
-                                &raw mut spv
+                                &mut spv
                             } else {
-                                &raw mut zero_spv
+                                &mut zero_spv
                             },
                             foldinfo,
                         );
@@ -2256,7 +2256,7 @@ unsafe fn win_update(wp: &mut win_T) {
                             view_height,
                             wl_size,
                             false,
-                            &raw mut spv,
+                            &mut spv,
                             info,
                         );
                     }
@@ -2369,7 +2369,7 @@ unsafe fn win_update(wp: &mut win_T) {
                             wp.w_view_height,
                             0,
                             false,
-                            &raw mut zero_spv,
+                            &mut zero_spv,
                             zero_foldinfo,
                         );
                         if wp.w_redr_statuscol {
@@ -2876,7 +2876,7 @@ pub unsafe fn win_cursorline_standout(wp: *const win_T) -> bool {
     }
 }
 
-pub unsafe fn win_update_cursorline(wp: &mut win_T, foldinfo: *mut foldinfo_T) {
+pub unsafe fn win_update_cursorline(wp: &mut win_T, foldinfo: &mut foldinfo_T) {
     unsafe {
         wp.w_cursorline = if win_cursorline_standout(&raw mut *wp) {
             wp.w_cursor.lnum
@@ -2885,8 +2885,8 @@ pub unsafe fn win_update_cursorline(wp: &mut win_T, foldinfo: *mut foldinfo_T) {
         };
         if wp.w_onebuf_opt.wo_cul != 0 {
             *foldinfo = fold_info(&raw mut *wp, wp.w_cursor.lnum);
-            if (*foldinfo).fi_level != 0 && (*foldinfo).fi_lines > 0 {
-                wp.w_cursorline = (*foldinfo).fi_lnum;
+            if foldinfo.fi_level != 0 && foldinfo.fi_lines > 0 {
+                wp.w_cursorline = foldinfo.fi_lnum;
             }
         }
     }

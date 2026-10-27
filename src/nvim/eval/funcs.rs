@@ -1191,17 +1191,17 @@ pub unsafe fn find_internal_func_lua(name: *const c_char) -> *const c_char {
 }
 
 /// Check the argument count to use for internal function "fdef".
-pub unsafe fn check_internal_func(fdef: *const EvalFuncDef, argcount: c_int) -> c_int {
+pub unsafe fn check_internal_func(fdef: &EvalFuncDef, argcount: c_int) -> c_int {
     unsafe {
-        let res = if argcount < c_int::from((*fdef).min_argc) {
+        let res = if argcount < c_int::from(fdef.min_argc) {
             FCERR_TOOFEW
-        } else if argcount > c_int::from((*fdef).max_argc) {
+        } else if argcount > c_int::from(fdef.max_argc) {
             FCERR_TOOMANY
         } else {
-            return c_int::from((*fdef).base_arg);
+            return c_int::from(fdef.base_arg);
         };
 
-        let name = (*fdef).name.map_or(ptr::null(), |s| s.as_ptr());
+        let name = fdef.name.map_or(ptr::null(), |s| s.as_ptr());
         if res == FCERR_TOOMANY {
             semsg!(gettext(e_toomanyarg.as_ptr()), name);
         } else {
@@ -2198,18 +2198,18 @@ pub unsafe fn f_eventhandler(_argvars: *mut typval_T, rettv: &mut typval_T, _fpt
 
 pub unsafe fn get_list_line(
     _c: c_int,
-    p: *mut GetListLineCookie,
+    p: &mut GetListLineCookie,
     _indent: c_int,
     _do_concat: bool,
 ) -> Option<std::ffi::CString> {
     unsafe {
-        let item = (*p).li;
+        let item = p.li;
         if item.is_null() {
             return None;
         }
         let mut buf = [0 as c_char; NUMBUFLEN];
         let s = tv_get_string_buf_chk(&raw const (*item).li_tv, buf.as_mut_ptr());
-        (*p).li = (*item).li_next;
+        p.li = (*item).li_next;
         if s.is_null() {
             None
         } else {
@@ -3250,14 +3250,14 @@ pub unsafe fn f_getpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
 }
 
 /// Convert from `block_def` to a byte vector.
-unsafe fn block_def2str(bd: *const block_def) -> Vec<c_char> {
+unsafe fn block_def2str(bd: &block_def) -> Vec<c_char> {
     unsafe {
-        let startspaces = (*bd).startspaces as usize;
-        let endspaces = (*bd).endspaces as usize;
-        let textlen = (*bd).textlen as usize;
+        let startspaces = bd.startspaces as usize;
+        let endspaces = bd.endspaces as usize;
+        let textlen = bd.textlen as usize;
         let size = startspaces + endspaces + textlen;
         let mut data = vec![b' ' as c_char; size];
-        ptr::copy((*bd).textstart, data.as_mut_ptr().add(startspaces), textlen);
+        ptr::copy(bd.textstart, data.as_mut_ptr().add(startspaces), textlen);
         data
     }
 }
@@ -3424,8 +3424,8 @@ pub unsafe fn f_getregion(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
         for lnum in p1.lnum..=p2.lnum {
             if region_type == kMTBlockWise {
                 let mut bd = block_def::new();
-                block_prep(&mut oa, &raw mut bd, lnum, false);
-                let akt = block_def2str(&raw const bd);
+                block_prep(&mut oa, &mut bd, lnum, false);
+                let akt = block_def2str(&bd);
                 tv_list_append_string(rettv.vval.v_list(), akt.as_ptr(), akt.len() as isize);
             } else if region_type == kMTLineWise || (p1.lnum < lnum && lnum < p2.lnum) {
                 tv_list_append_string(
@@ -3446,11 +3446,11 @@ pub unsafe fn f_getregion(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
                         col: p2.col,
                         coladd: p2.coladd,
                     },
-                    &raw mut bd,
+                    &mut bd,
                     lnum,
                     inclusive,
                 );
-                let akt = block_def2str(&raw const bd);
+                let akt = block_def2str(&bd);
                 tv_list_append_string(rettv.vval.v_list(), akt.as_ptr(), akt.len() as isize);
             }
         }
@@ -4756,8 +4756,8 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 
             if !common_job_callbacks(
                 job_opts,
-                &raw mut on_stdout,
-                &raw mut on_stderr,
+                &mut on_stdout,
+                &mut on_stderr,
                 &mut on_exit,
             ) {
                 return;
@@ -9087,7 +9087,7 @@ pub unsafe fn f_tagfiles(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
 
         let mut first = true;
         let mut tn = tagname_T::new();
-        while get_tagfname(&raw mut tn, c_int::from(first), fname.as_mut_ptr()) == OK {
+        while get_tagfname(&mut tn, c_int::from(first), fname.as_mut_ptr()) == OK {
             tv_list_append_string(rettv.vval.v_list(), fname.as_ptr(), -1);
             first = false;
         }
@@ -9124,7 +9124,7 @@ pub unsafe fn f_timer_info(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
         if (*argvars).v_type != VarType::VAR_UNKNOWN {
             let timer = find_timer_by_nr(tv_get_number(argvars));
             if !timer.is_null() && (!(*timer).stopped || (*timer).refcount > 1) {
-                add_timer_info(rettv, timer);
+                add_timer_info(rettv, &mut *timer);
             }
         } else {
             add_timer_info_all(rettv);
@@ -9197,7 +9197,7 @@ pub unsafe fn f_timer_stop(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr:
         if timer.is_null() {
             return;
         }
-        timer_stop(timer);
+        timer_stop(&mut *timer);
     }
 }
 

@@ -1041,7 +1041,7 @@ pub unsafe fn f_winrestview(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr
             set_topline(*curwin.as_ptr(), tv_get_number(&raw const (*di).di_tv) as linenr_T);
         }
         let mut vs = viewstate_T::default();
-        save_viewstate(&mut **curwin.as_ptr(), &raw mut vs);
+        save_viewstate(&mut **curwin.as_ptr(), &mut vs);
         let di = tv_dict_find(dict, c"curswant".as_ptr(), 8);
         if !di.is_null() {
             vs.vs_curswant = tv_get_number(&raw const (*di).di_tv) as colnr_T;
@@ -1059,7 +1059,7 @@ pub unsafe fn f_winrestview(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr
         if !di.is_null() {
             vs.vs_skipcol = tv_get_number(&raw const (*di).di_tv) as colnr_T;
         }
-        restore_viewstate(&mut **curwin.as_ptr(), &raw const vs);
+        restore_viewstate(&mut **curwin.as_ptr(), &vs);
 
         check_cursor(*curwin.as_ptr());
         changed_window_setting(*curwin.as_ptr());
@@ -1099,7 +1099,7 @@ pub unsafe fn f_winsaveview(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr
         );
         update_curswant();
         let mut vs = viewstate_T::default();
-        save_viewstate(&mut **curwin.as_ptr(), &raw mut vs);
+        save_viewstate(&mut **curwin.as_ptr(), &mut vs);
         tv_dict_add_nr(dict, c"curswant".as_ptr(), 8, vs.vs_curswant as varnumber_T);
 
         tv_dict_add_nr(dict, c"topline".as_ptr(), 7, vs.vs_topline as varnumber_T);

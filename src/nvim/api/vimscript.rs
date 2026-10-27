@@ -107,7 +107,7 @@ pub unsafe extern "C" fn nvim_exec2(
 ) -> Dict {
     unsafe {
         let mut result = Dict::new();
-        let output = exec_impl(channel_id, src, opts, err);
+        let output = exec_impl(channel_id, src, &mut *opts, err);
         if error_set(err) {
             return result;
         }
@@ -125,7 +125,7 @@ pub unsafe extern "C" fn nvim_exec2(
 pub unsafe fn exec_impl(
     channel_id: u64,
     src: NvimString,
-    opts: *mut KeyDict_exec_opts,
+    opts: &mut KeyDict_exec_opts,
     err: &mut Error,
 ) -> NvimString {
     unsafe {
@@ -134,13 +134,13 @@ pub unsafe fn exec_impl(
         let save_capture_ga = g_st().capture_ga;
         let save_msg_col = g_st().msg_col;
         let mut capture_local: Vec<c_char> = Vec::new();
-        if (*opts).output {
+        if opts.output {
             g_st().capture_ga = &raw mut capture_local;
         }
 
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
-        if (*opts).output {
+        if opts.output {
             g_st().msg_silent += 1;
             g_st().redir_off = false;
             g_st().msg_col = 0;
@@ -148,7 +148,7 @@ pub unsafe fn exec_impl(
 
         let save_current_sctx = api_set_sctx(channel_id);
         do_source_str(src.data, c"nvim_exec2()".as_ptr());
-        if (*opts).output {
+        if opts.output {
             g_st().capture_ga = save_capture_ga;
             g_st().msg_silent = save_msg_silent;
             g_st().redir_off = save_redir_off;
@@ -157,7 +157,7 @@ pub unsafe fn exec_impl(
         g_st().current_sctx = save_current_sctx;
         try_leave(&tstate, err);
 
-        if !error_set(err) && (*opts).output && capture_local.len() > 1 {
+        if !error_set(err) && opts.output && capture_local.len() > 1 {
             let slice = if capture_local[0] == b'\n' as c_char {
                 &capture_local[1..]
             } else {

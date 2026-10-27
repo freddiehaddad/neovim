@@ -190,8 +190,8 @@ pub unsafe fn hash_lookup(
 ///
 /// # Safety
 /// `ht` and `di` must be valid pointers, and `di` must outlive the entry in `ht`.
-pub unsafe fn hash_add(ht: &mut hashtab_T, di: *mut crate::eval::typval::dictitem_T) -> c_int {
-    let key = unsafe { (*di).di_key.as_mut_ptr() };
+pub unsafe fn hash_add(ht: &mut hashtab_T, di: &mut crate::eval::typval::dictitem_T) -> c_int {
+    let key = di.di_key.as_mut_ptr();
     let len = unsafe { CStr::from_ptr(key).to_bytes().len() };
     let hash = unsafe { hash_hash(key) };
     let hi = unsafe { hash_lookup(&raw mut *ht, key, len, hash) };
@@ -205,7 +205,7 @@ pub unsafe fn hash_add(ht: &mut hashtab_T, di: *mut crate::eval::typval::dictite
         return FAIL;
     }
     unsafe {
-        hash_add_item(ht, hi, key, di, hash);
+        hash_add_item(ht, hi, key, &raw mut *di, hash);
     }
     OK
 }
@@ -409,18 +409,18 @@ mod tests {
             let ht: *mut hashtab_T = &raw mut ht_val;
             assert_eq!((*ht).ht_used, 0);
 
-            let items: Vec<*mut crate::eval::typval::dictitem_T> = keys
+            let mut items: Vec<*mut crate::eval::typval::dictitem_T> = keys
                 .iter()
                 .map(|k| crate::eval::typval::tv_dict_item_alloc(k.as_ptr()))
                 .collect();
 
             for &di in &items {
-                assert_eq!(hash_add(&mut *ht, di), OK);
+                assert_eq!(hash_add(&mut *ht, &mut *di), OK);
             }
             assert_eq!((*ht).ht_used, 50);
             // Duplicate key returns FAIL
             crate::globals::g_st().emsg_skip += 1;
-            assert_eq!(hash_add(&mut *ht, items[0]), FAIL);
+            assert_eq!(hash_add(&mut *ht, &mut *items[0]), FAIL);
             crate::globals::g_st().emsg_skip -= 1;
 
             for (k, &di) in keys.iter().zip(&items) {

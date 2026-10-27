@@ -491,7 +491,7 @@ unsafe fn shift_block(oap: &mut oparg_T, amount: c_int) {
         opt_vars().p_ri = 0;
 
         g_st().State = MODE_INSERT;
-        block_prep(oap, &raw mut bd, (**curwin.as_ptr()).w_cursor.lnum, true);
+        block_prep(oap, &mut bd, (**curwin.as_ptr()).w_cursor.lnum, true);
         if bd.is_short != 0 {
             return;
         }
@@ -525,7 +525,7 @@ unsafe fn shift_block(oap: &mut oparg_T, amount: c_int) {
 
             let mut csarg = CharsizeArg::new();
             let cstype: CSType = init_charsize_arg(
-                &raw mut csarg,
+                &mut csarg,
                 *curwin.as_ptr(),
                 (**curwin.as_ptr()).w_cursor.lnum,
                 bd.textstart,
@@ -597,7 +597,7 @@ unsafe fn shift_block(oap: &mut oparg_T, amount: c_int) {
 
             let mut csarg = CharsizeArg::new();
             let mut cstype: CSType = init_charsize_arg(
-                &raw mut csarg,
+                &mut csarg,
                 *curwin.as_ptr(),
                 (**curwin.as_ptr()).w_cursor.lnum,
                 bd.textstart,
@@ -626,7 +626,7 @@ unsafe fn shift_block(oap: &mut oparg_T, amount: c_int) {
             if bd.startspaces != 0 {
                 verbatim_copy_width -= bd.start_char_vcols;
             }
-            cstype = init_charsize_arg(&raw mut csarg, *curwin.as_ptr(), 0, bd.textstart);
+            cstype = init_charsize_arg(&mut csarg, *curwin.as_ptr(), 0, bd.textstart);
             let mut ci = utf_ptr2StrCharInfo(verbatim_copy_end);
             while verbatim_copy_width < destination_col {
                 let cli = utf_ClusterInfo(ci);
@@ -687,7 +687,7 @@ unsafe fn block_insert(
     s: *const c_char,
     slen: usize,
     b_insert: bool,
-    bdp: *mut block_def,
+    bdp: &mut block_def,
 ) {
     unsafe {
         let mut ts_val: c_int;
@@ -699,39 +699,39 @@ unsafe fn block_insert(
 
         for lnum in (oap.start.lnum + 1)..=oap.end.lnum {
             block_prep(oap, bdp, lnum, true);
-            if (*bdp).is_short != 0 && b_insert {
+            if bdp.is_short != 0 && b_insert {
                 continue;
             }
 
             let mut oldp = ml_get(lnum);
 
             if b_insert {
-                ts_val = (*bdp).start_char_vcols;
-                spaces = (*bdp).startspaces;
+                ts_val = bdp.start_char_vcols;
+                spaces = bdp.startspaces;
                 if spaces != 0 {
                     count = ts_val - 1;
                 }
-                offset = (*bdp).textcol;
+                offset = bdp.textcol;
             } else {
-                ts_val = (*bdp).end_char_vcols;
-                if (*bdp).is_short == 0 {
-                    spaces = if (*bdp).endspaces != 0 {
-                        ts_val - (*bdp).endspaces
+                ts_val = bdp.end_char_vcols;
+                if bdp.is_short == 0 {
+                    spaces = if bdp.endspaces != 0 {
+                        ts_val - bdp.endspaces
                     } else {
                         0
                     };
                     if spaces != 0 {
                         count = ts_val - 1;
                     }
-                    offset = (*bdp).textcol + (*bdp).textlen - c_int::from(spaces != 0);
+                    offset = bdp.textcol + bdp.textlen - c_int::from(spaces != 0);
                 } else {
-                    if (*bdp).is_MAX == 0 {
-                        spaces = (oap.end_vcol - (*bdp).end_vcol) + 1;
+                    if bdp.is_MAX == 0 {
+                        spaces = (oap.end_vcol - bdp.end_vcol) + 1;
                     } else {
                         spaces = 0;
                     }
                     count = spaces;
-                    offset = (*bdp).textcol + (*bdp).textlen;
+                    offset = bdp.textcol + bdp.textlen;
                 }
             }
 
@@ -744,7 +744,7 @@ unsafe fn block_insert(
             let alloc_len = (ml_get_len(lnum) as usize)
                 + (spaces as usize)
                 + slen
-                + if spaces > 0 && (*bdp).is_short == 0 {
+                + if spaces > 0 && bdp.is_short == 0 {
                     (ts_val - spaces) as usize
                 } else {
                     0
@@ -764,7 +764,7 @@ unsafe fn block_insert(
             offset += slen as c_int;
 
             let mut skipped: c_int = 0;
-            if spaces > 0 && (*bdp).is_short == 0 {
+            if spaces > 0 && bdp.is_short == 0 {
                 if *oldp == b'\t' as c_char {
                     ptr::write_bytes(
                         newp.add((offset + spaces) as usize),
@@ -923,7 +923,7 @@ pub unsafe fn op_delete(oap: &mut oparg_T) -> c_int {
                 }
 
                 for lnum in (**curwin.as_ptr()).w_cursor.lnum..=oap.end.lnum {
-                    block_prep(oap, &raw mut bd, lnum, true);
+                    block_prep(oap, &mut bd, lnum, true);
                     if bd.textlen == 0 {
                         continue;
                     }
@@ -1209,7 +1209,7 @@ unsafe fn op_replace(oap: &mut oparg_T, mut c: c_int) -> c_int {
             bd.is_MAX = c_int::from((**curwin.as_ptr()).w_curswant == MAXCOL);
             while (**curwin.as_ptr()).w_cursor.lnum <= oap.end.lnum {
                 (**curwin.as_ptr()).w_cursor.col = 0;
-                block_prep(oap, &raw mut bd, (**curwin.as_ptr()).w_cursor.lnum, true);
+                block_prep(oap, &mut bd, (**curwin.as_ptr()).w_cursor.lnum, true);
                 if bd.textlen == 0 && (g_st().virtual_op == 0 || bd.is_MAX != 0) {
                     (**curwin.as_ptr()).w_cursor.lnum += 1;
                     continue;
@@ -1430,7 +1430,7 @@ pub unsafe fn op_tilde(oap: &mut oparg_T) {
         let mut pos = oap.start;
         if oap.motion_type == kMTBlockWise {
             while pos.lnum <= oap.end.lnum {
-                block_prep(oap, &raw mut bd, pos.lnum, false);
+                block_prep(oap, &mut bd, pos.lnum, false);
                 pos.col = bd.textcol;
                 let one_change = swapchars(oap.op_type, &mut pos, bd.textlen) != 0;
                 did_change |= one_change;
@@ -1593,7 +1593,7 @@ pub unsafe fn op_insert(oap: &mut oparg_T, count1: c_int) {
                 }
                 (**curwin.as_ptr()).w_onebuf_opt.wo_ve_flags = old_ve_flags;
             }
-            block_prep(oap, &raw mut bd, oap.start.lnum, true);
+            block_prep(oap, &mut bd, oap.start.lnum, true);
             ind_pre_col = getwhitecols_curline() as colnr_T;
             ind_pre_vcol = get_indent();
             pre_textlen = ml_get_len(oap.start.lnum) - bd.textcol;
@@ -1686,7 +1686,7 @@ pub unsafe fn op_insert(oap: &mut oparg_T, count1: c_int) {
                 oap.end.col += ind_post_col - ind_pre_col;
                 oap.end_vcol += ind_post_vcol - ind_pre_vcol;
             }
-            block_prep(oap, &raw mut bd2, oap.start.lnum, true);
+            block_prep(oap, &mut bd2, oap.start.lnum, true);
             if did_indent && bd.textcol - ind_post_col > 0 {
                 oap.start.col -= ind_post_col - ind_pre_col;
                 oap.start_vcol -= ind_post_vcol - ind_pre_vcol;
@@ -1737,7 +1737,7 @@ pub unsafe fn op_insert(oap: &mut oparg_T, count1: c_int) {
                         ins_text.as_ptr(),
                         ins_len as usize,
                         oap.op_type == OP_INSERT,
-                        &raw mut bd,
+                        &mut bd,
                     );
                 }
 
@@ -1810,7 +1810,7 @@ pub unsafe fn op_change(oap: &mut oparg_T) -> c_int {
                 let mut ins_text = vec![0 as c_char; (ins_len as usize) + 1];
                 { let _d = (ins_text.as_mut_ptr()).cast::<u8>(); let _n = ins_len as usize; if _n > 0 { std::ptr::copy_nonoverlapping((firstline.add(bd.textcol as usize)).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                 for linenr in (oap.start.lnum + 1)..=oap.end.lnum {
-                    block_prep(oap, &raw mut bd, linenr, true);
+                    block_prep(oap, &mut bd, linenr, true);
                     if bd.is_short == 0 || g_st().virtual_op != 0 {
                         let mut vpos = pos_T {
                             lnum: linenr,
@@ -2183,30 +2183,30 @@ pub unsafe fn restore_lbr(lbr_saved: bool) {
 }
 
 /// Prepare a few things for block mode yank/delete/tilde.
-pub unsafe fn block_prep(oap: &mut oparg_T, bdp: *mut block_def, lnum: linenr_T, is_del: bool) {
+pub unsafe fn block_prep(oap: &mut oparg_T, bdp: &mut block_def, lnum: linenr_T, is_del: bool) {
     unsafe {
         let mut incr: c_int = 0;
         let lbr_saved = reset_lbr();
 
-        (*bdp).startspaces = 0;
-        (*bdp).endspaces = 0;
-        (*bdp).textlen = 0;
-        (*bdp).start_vcol = 0;
-        (*bdp).end_vcol = 0;
-        (*bdp).is_short = 0;
-        (*bdp).is_oneChar = 0;
-        (*bdp).pre_whitesp = 0;
-        (*bdp).pre_whitesp_c = 0;
-        (*bdp).end_char_vcols = 0;
-        (*bdp).start_char_vcols = 0;
+        bdp.startspaces = 0;
+        bdp.endspaces = 0;
+        bdp.textlen = 0;
+        bdp.start_vcol = 0;
+        bdp.end_vcol = 0;
+        bdp.is_short = 0;
+        bdp.is_oneChar = 0;
+        bdp.pre_whitesp = 0;
+        bdp.pre_whitesp_c = 0;
+        bdp.end_char_vcols = 0;
+        bdp.start_char_vcols = 0;
 
         let line = ml_get(lnum);
         let mut prev_pstart = line;
 
         let mut csarg = CharsizeArg::new();
-        let mut cstype = init_charsize_arg(&raw mut csarg, *curwin.as_ptr(), lnum, line);
+        let mut cstype = init_charsize_arg(&mut csarg, *curwin.as_ptr(), lnum, line);
         let mut ci = utf_ptr2StrCharInfo(line);
-        let mut vcol = (*bdp).start_vcol;
+        let mut vcol = bdp.start_vcol;
         while vcol < oap.start_vcol && *ci.ptr != NUL {
             let cli = utf_ClusterInfo(ci);
             incr = win_charsize(
@@ -2220,51 +2220,51 @@ pub unsafe fn block_prep(oap: &mut oparg_T, bdp: *mut block_def, lnum: linenr_T,
             .width;
             vcol += incr;
             if ascii_iswhite(ci.chr.value) {
-                (*bdp).pre_whitesp += incr;
-                (*bdp).pre_whitesp_c += 1;
+                bdp.pre_whitesp += incr;
+                bdp.pre_whitesp_c += 1;
             } else {
-                (*bdp).pre_whitesp = 0;
-                (*bdp).pre_whitesp_c = 0;
+                bdp.pre_whitesp = 0;
+                bdp.pre_whitesp_c = 0;
             }
             prev_pstart = ci.ptr.cast_mut();
             ci = cli.next;
         }
-        (*bdp).start_vcol = vcol;
+        bdp.start_vcol = vcol;
         let mut pstart = ci.ptr.cast_mut();
 
-        (*bdp).start_char_vcols = incr;
-        if (*bdp).start_vcol < oap.start_vcol {
-            (*bdp).end_vcol = (*bdp).start_vcol;
-            (*bdp).is_short = 1;
+        bdp.start_char_vcols = incr;
+        if bdp.start_vcol < oap.start_vcol {
+            bdp.end_vcol = bdp.start_vcol;
+            bdp.is_short = 1;
             if !is_del || oap.op_type == OP_APPEND {
-                (*bdp).endspaces = oap.end_vcol - oap.start_vcol + 1;
+                bdp.endspaces = oap.end_vcol - oap.start_vcol + 1;
             }
         } else {
-            (*bdp).startspaces = (*bdp).start_vcol - oap.start_vcol;
-            if is_del && (*bdp).startspaces != 0 {
-                (*bdp).startspaces = (*bdp).start_char_vcols - (*bdp).startspaces;
+            bdp.startspaces = bdp.start_vcol - oap.start_vcol;
+            if is_del && bdp.startspaces != 0 {
+                bdp.startspaces = bdp.start_char_vcols - bdp.startspaces;
             }
             let mut pend: *const c_char = pstart;
-            (*bdp).end_vcol = (*bdp).start_vcol;
-            if (*bdp).end_vcol > oap.end_vcol {
-                (*bdp).is_oneChar = 1;
+            bdp.end_vcol = bdp.start_vcol;
+            if bdp.end_vcol > oap.end_vcol {
+                bdp.is_oneChar = 1;
                 if oap.op_type == OP_INSERT {
-                    (*bdp).endspaces = (*bdp).start_char_vcols - (*bdp).startspaces;
+                    bdp.endspaces = bdp.start_char_vcols - bdp.startspaces;
                 } else if oap.op_type == OP_APPEND {
-                    (*bdp).startspaces += oap.end_vcol - oap.start_vcol + 1;
-                    (*bdp).endspaces = (*bdp).start_char_vcols - (*bdp).startspaces;
+                    bdp.startspaces += oap.end_vcol - oap.start_vcol + 1;
+                    bdp.endspaces = bdp.start_char_vcols - bdp.startspaces;
                 } else {
-                    (*bdp).startspaces = oap.end_vcol - oap.start_vcol + 1;
+                    bdp.startspaces = oap.end_vcol - oap.start_vcol + 1;
                     if is_del && oap.op_type != OP_LSHIFT {
-                        (*bdp).startspaces =
-                            (*bdp).start_char_vcols - ((*bdp).start_vcol - oap.start_vcol);
-                        (*bdp).endspaces = (*bdp).end_vcol - oap.end_vcol - 1;
+                        bdp.startspaces =
+                            bdp.start_char_vcols - (bdp.start_vcol - oap.start_vcol);
+                        bdp.endspaces = bdp.end_vcol - oap.end_vcol - 1;
                     }
                 }
             } else {
-                cstype = init_charsize_arg(&raw mut csarg, *curwin.as_ptr(), lnum, line);
+                cstype = init_charsize_arg(&mut csarg, *curwin.as_ptr(), lnum, line);
                 ci = utf_ptr2StrCharInfo(pend);
-                vcol = (*bdp).end_vcol;
+                vcol = bdp.end_vcol;
                 let mut prev_pend = pend;
                 while vcol <= oap.end_vcol && *ci.ptr != NUL {
                     prev_pend = ci.ptr;
@@ -2281,35 +2281,35 @@ pub unsafe fn block_prep(oap: &mut oparg_T, bdp: *mut block_def, lnum: linenr_T,
                     vcol += incr;
                     ci = cli.next;
                 }
-                (*bdp).end_vcol = vcol;
+                bdp.end_vcol = vcol;
                 pend = ci.ptr;
 
-                if (*bdp).end_vcol <= oap.end_vcol
+                if bdp.end_vcol <= oap.end_vcol
                     && (!is_del || oap.op_type == OP_APPEND || oap.op_type == OP_REPLACE)
                 {
-                    (*bdp).is_short = 1;
+                    bdp.is_short = 1;
                     if oap.op_type == OP_APPEND || g_st().virtual_op != 0 {
-                        (*bdp).endspaces =
-                            oap.end_vcol - (*bdp).end_vcol + c_int::from(oap.inclusive);
+                        bdp.endspaces =
+                            oap.end_vcol - bdp.end_vcol + c_int::from(oap.inclusive);
                     }
-                } else if (*bdp).end_vcol > oap.end_vcol {
-                    (*bdp).endspaces = (*bdp).end_vcol - oap.end_vcol - 1;
-                    if !is_del && (*bdp).endspaces != 0 {
-                        (*bdp).endspaces = incr - (*bdp).endspaces;
+                } else if bdp.end_vcol > oap.end_vcol {
+                    bdp.endspaces = bdp.end_vcol - oap.end_vcol - 1;
+                    if !is_del && bdp.endspaces != 0 {
+                        bdp.endspaces = incr - bdp.endspaces;
                         if !ptr::eq(pend, pstart) {
                             pend = prev_pend;
                         }
                     }
                 }
             }
-            (*bdp).end_char_vcols = incr;
-            if is_del && (*bdp).startspaces != 0 {
+            bdp.end_char_vcols = incr;
+            if is_del && bdp.startspaces != 0 {
                 pstart = prev_pstart;
             }
-            (*bdp).textlen = pend.offset_from(pstart) as c_int;
+            bdp.textlen = pend.offset_from(pstart) as c_int;
         }
-        (*bdp).textcol = pstart.offset_from(line) as colnr_T;
-        (*bdp).textstart = pstart;
+        bdp.textcol = pstart.offset_from(line) as colnr_T;
+        bdp.textstart = pstart;
         restore_lbr(lbr_saved);
     }
 }
@@ -2391,9 +2391,9 @@ pub unsafe fn getregionpos_line(
             let mut bd = block_def::new();
 
             if region_type == kMTBlockWise {
-                block_prep(oap, &raw mut bd, lnum, false);
+                block_prep(oap, &mut bd, lnum, false);
             } else {
-                charwise_block_prep(p1, p2, &raw mut bd, lnum, inclusive);
+                charwise_block_prep(p1, p2, &mut bd, lnum, inclusive);
             }
 
             if bd.is_oneChar != 0 {
@@ -2451,7 +2451,7 @@ pub unsafe fn getregionpos_line(
 pub unsafe fn charwise_block_prep(
     mut start: pos_T,
     mut end: pos_T,
-    bdp: *mut block_def,
+    bdp: &mut block_def,
     lnum: linenr_T,
     inclusive: bool,
 ) {
@@ -2463,10 +2463,10 @@ pub unsafe fn charwise_block_prep(
         let p = ml_get(lnum);
         let plen = ml_get_len(lnum);
 
-        (*bdp).startspaces = 0;
-        (*bdp).endspaces = 0;
-        (*bdp).is_oneChar = 0;
-        (*bdp).start_char_vcols = 0;
+        bdp.startspaces = 0;
+        bdp.endspaces = 0;
+        bdp.is_oneChar = 0;
+        bdp.start_char_vcols = 0;
 
         if lnum == start.lnum {
             startcol = start.col;
@@ -2480,8 +2480,8 @@ pub unsafe fn charwise_block_prep(
                     0,
                 );
                 if ce != cs && start.coladd > 0 {
-                    (*bdp).start_char_vcols = ce - cs + 1;
-                    (*bdp).startspaces = ((*bdp).start_char_vcols - start.coladd).max(0);
+                    bdp.start_char_vcols = ce - cs + 1;
+                    bdp.startspaces = (bdp.start_char_vcols - start.coladd).max(0);
                     startcol += 1;
                 }
             }
@@ -2502,11 +2502,11 @@ pub unsafe fn charwise_block_prep(
                     || (cs + end.coladd < ce && utf_head_off(p, p.add(endcol as usize)) == 0)
                 {
                     if start.lnum == end.lnum && start.col == end.col {
-                        (*bdp).is_oneChar = 1;
-                        (*bdp).startspaces = end.coladd - start.coladd + c_int::from(inclusive);
+                        bdp.is_oneChar = 1;
+                        bdp.startspaces = end.coladd - start.coladd + c_int::from(inclusive);
                         endcol = startcol;
                     } else {
-                        (*bdp).endspaces = end.coladd + c_int::from(inclusive);
+                        bdp.endspaces = end.coladd + c_int::from(inclusive);
                         endcol -= c_int::from(inclusive);
                     }
                 }
@@ -2515,13 +2515,13 @@ pub unsafe fn charwise_block_prep(
         if endcol == MAXCOL {
             endcol = ml_get_len(lnum);
         }
-        if startcol > endcol || (*bdp).is_oneChar != 0 {
-            (*bdp).textlen = 0;
+        if startcol > endcol || bdp.is_oneChar != 0 {
+            bdp.textlen = 0;
         } else {
-            (*bdp).textlen = endcol - startcol + c_int::from(inclusive);
+            bdp.textlen = endcol - startcol + c_int::from(inclusive);
         }
-        (*bdp).textcol = startcol;
-        (*bdp).textstart = if startcol <= plen {
+        bdp.textcol = startcol;
+        bdp.textstart = if startcol <= plen {
             p.add(startcol as usize)
         } else {
             p
@@ -2564,7 +2564,7 @@ pub unsafe fn op_addsub(oap: &mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
             let mut pos = oap.start;
             while pos.lnum <= oap.end.lnum {
                 if oap.motion_type == kMTBlockWise {
-                    block_prep(oap, &raw mut bd, pos.lnum, false);
+                    block_prep(oap, &mut bd, pos.lnum, false);
                     pos.col = bd.textcol;
                     length = bd.textlen;
                 } else if oap.motion_type == kMTLineWise {
@@ -3182,7 +3182,7 @@ pub unsafe fn cursor_pos_info(dict: *mut dict_T) {
 
                     if l_VIsual_mode == Ctrl_V {
                         g_st().virtual_op = TriState::from(virtual_active(*curwin.as_ptr()));
-                        block_prep(&mut oparg, &raw mut bd, lnum, false);
+                        block_prep(&mut oparg, &mut bd, lnum, false);
                         g_st().virtual_op = kNone;
                         s = bd.textstart;
                         len = bd.textlen;
@@ -3493,7 +3493,7 @@ unsafe fn op_function(oap: &oparg_T) {
         let orig_start = (*g_st().curbuf).b_op_start;
         let orig_end = (*g_st().curbuf).b_op_end;
 
-        if crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_opfunc) == kCallbackNone {
+        if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_opfunc) == kCallbackNone {
             emsg(tr(c"E774: 'operatorfunc' is empty".as_ptr()));
         } else {
             (*g_st().curbuf).b_op_start = oap.start;
@@ -3527,7 +3527,7 @@ unsafe fn op_function(oap: &oparg_T) {
             g_st().finish_op = false;
 
             let mut save_redo = RedoState::new();
-            save_redobuff(&raw mut save_redo);
+            save_redobuff(&mut save_redo);
 
             let mut rettv: typval_T = typval_T::new();
             if callback_call(
@@ -3975,7 +3975,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                         if g_st().restart_edit == 0 {
                             g_st().restart_edit = restart_edit_save;
                         }
-                        atom_ins_end(&raw mut session, busy);
+                        atom_ins_end(&mut session, busy);
                     }
                 }
                 OP_FILTER | OP_INDENT | OP_COLON => {
@@ -4053,7 +4053,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                             (*oap).motion_type == kMTBlockWise,
                         );
                         op_insert(oap, cap.count1);
-                        atom_ins_end(&raw mut session, false);
+                        atom_ins_end(&mut session, false);
 
                         reset_lbr();
                         auto_format(false, true);

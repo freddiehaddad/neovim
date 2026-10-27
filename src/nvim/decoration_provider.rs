@@ -94,7 +94,7 @@ const fn decor_provider_init(ns_id: NS) -> DecorProvider {
 }
 
 #[inline]
-unsafe fn clear_ref(r: *mut LuaRef) {
+unsafe fn clear_ref(r: &mut LuaRef) {
     unsafe {
         if *r != LUA_NOREF {
             api_free_luaref(*r);
@@ -104,12 +104,12 @@ unsafe fn clear_ref(r: *mut LuaRef) {
 }
 
 unsafe fn decor_provider_error(
-    provider: *mut DecorProvider,
+    provider: &mut DecorProvider,
     name: *const c_char,
     msg: *const c_char,
 ) {
     unsafe {
-        let ns = describe_ns((*provider).ns_id, c"(UNKNOWN PLUGIN)".as_ptr());
+        let ns = describe_ns(provider.ns_id, c"(UNKNOWN PLUGIN)".as_ptr());
         logmsg!(
             LOGLVL_ERR,
             ptr::null(),
@@ -176,7 +176,7 @@ unsafe fn decor_provider_invoke(
         }
 
         if error_set(&err) && (*provider).error_count < CB_MAX_ERROR {
-            decor_provider_error(provider, name, err.msg_ptr());
+            decor_provider_error(&mut *provider, name, err.msg_ptr());
             (*provider).error_count += 1;
 
             if (*provider).error_count >= CB_MAX_ERROR {
@@ -564,14 +564,14 @@ pub unsafe fn decor_provider_clear(p: *mut DecorProvider) {
         if p.is_null() {
             return;
         }
-        clear_ref(&raw mut (*p).redraw_start);
-        clear_ref(&raw mut (*p).redraw_buf);
-        clear_ref(&raw mut (*p).redraw_win);
-        clear_ref(&raw mut (*p).redraw_line);
-        clear_ref(&raw mut (*p).redraw_range);
-        clear_ref(&raw mut (*p).redraw_end);
-        clear_ref(&raw mut (*p).spell_nav);
-        clear_ref(&raw mut (*p).conceal_line);
+        clear_ref(&mut (*p).redraw_start);
+        clear_ref(&mut (*p).redraw_buf);
+        clear_ref(&mut (*p).redraw_win);
+        clear_ref(&mut (*p).redraw_line);
+        clear_ref(&mut (*p).redraw_range);
+        clear_ref(&mut (*p).redraw_end);
+        clear_ref(&mut (*p).spell_nav);
+        clear_ref(&mut (*p).conceal_line);
         (*p).state = kDecorProviderDisabled;
     }
 }

@@ -202,8 +202,8 @@ impl Callback {
     }
 
     #[inline]
-    pub unsafe fn raw_cb_type(cb: *const Self) -> c_int {
-        unsafe { (*cb).cb_type() }
+    pub unsafe fn raw_cb_type(cb: &Self) -> c_int {
+        cb.cb_type()
     }
 }
 
@@ -1051,12 +1051,12 @@ pub unsafe extern "C" fn tv_list_alloc(_len: isize) -> *mut list_T {
 }
 
 /// Initialize a static list with 10 items.
-pub unsafe fn tv_list_init_static10(sl: *mut staticList10_T) {
+pub unsafe fn tv_list_init_static10(sl: &mut staticList10_T) {
     unsafe {
         const SL_SIZE: usize = 10;
         *sl = staticList10_T::new();
-        let l = &raw mut (*sl).sl_list;
-        let items = (&raw mut (*sl).sl_items).cast::<listitem_T>();
+        let l = &raw mut sl.sl_list;
+        let items = (&raw mut sl.sl_items).cast::<listitem_T>();
 
         (*l).lv_first = items;
         (*l).lv_last = items.add(SL_SIZE - 1);
@@ -2091,7 +2091,7 @@ unsafe fn item_compare2(
             &raw mut rettv,
             2,
             argv.as_mut_ptr(),
-            &raw mut funcexe,
+            &mut funcexe,
         );
         tv_clear(&raw mut argv[0]);
         tv_clear(&raw mut argv[1]);
@@ -2726,10 +2726,10 @@ pub unsafe fn tv_dict_watcher_remove(
 }
 
 /// Test if `key` matches with `watcher->key_pattern`.
-unsafe fn tv_dict_watcher_matches(watcher: *const DictWatcher, key: *const c_char) -> bool {
+unsafe fn tv_dict_watcher_matches(watcher: &DictWatcher, key: *const c_char) -> bool {
     unsafe {
-        let len = (*watcher).key_pattern_len;
-        let pat_ptr = (*watcher).key_pattern.as_ptr();
+        let len = watcher.key_pattern_len;
+        let pat_ptr = watcher.key_pattern.as_ptr();
         if len > 0 && *pat_ptr.add(len - 1) == b'*' as c_char {
             { let _p1 = key; let _p2 = pat_ptr; let _n = len - 1; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
         } else {
@@ -3137,7 +3137,7 @@ pub unsafe fn tv_dict_add(d: *mut dict_T, item: *mut dictitem_T) -> c_int {
         if tv_dict_wrong_func_name(d, &raw mut (*item).di_tv, key_ptr) != 0 {
             return FAIL;
         }
-        hash_add(&mut (*d).dv_hashtab, item)
+        hash_add(&mut (*d).dv_hashtab, &mut *item)
     }
 }
 

@@ -355,35 +355,35 @@ unsafe fn trigger_autocomplete(s: *mut InsertState) -> bool {
 }
 
 #[inline]
-unsafe fn may_trigger_autocomplete(s: *mut InsertState) {
+unsafe fn may_trigger_autocomplete(s: &mut InsertState) {
     unsafe {
         if ins_compl_has_autocomplete() && !char_avail() && (**curwin.as_ptr()).w_cursor.col > 0 {
-            (*s).c = char_before_cursor();
-            if vim_isprintc((*s).c) {
-                let _ = trigger_autocomplete(s);
+            s.c = char_before_cursor();
+            if vim_isprintc(s.c) {
+                let _ = trigger_autocomplete(&raw mut *s);
             }
         }
     }
 }
 
-unsafe fn insert_enter(s: *mut InsertState) {
+unsafe fn insert_enter(s: &mut InsertState) {
     unsafe {
-        (*s).did_backspace = true;
-        (*s).old_topfill = -1;
-        (*s).replaceState = MODE_REPLACE;
-        (*s).cmdchar_todo = (*s).cmdchar;
-        (*s).ins_just_started = true;
+        s.did_backspace = true;
+        s.old_topfill = -1;
+        s.replaceState = MODE_REPLACE;
+        s.cmdchar_todo = s.cmdchar;
+        s.ins_just_started = true;
         g_st().Ins.did_restart_edit = g_st().restart_edit;
         msg_check_for_delay(true);
         g_st().Ins.update_start_orig = true;
 
         ins_compl_clear();
 
-        if (*s).cmdchar != b'r' as c_int && (*s).cmdchar != b'v' as c_int {
+        if s.cmdchar != b'r' as c_int && s.cmdchar != b'v' as c_int {
             let save_cursor = (**curwin.as_ptr()).w_cursor;
-            let ptr = if (*s).cmdchar == b'R' as c_int {
+            let ptr = if s.cmdchar == b'R' as c_int {
                 c"r".as_ptr()
-            } else if (*s).cmdchar == b'V' as c_int {
+            } else if s.cmdchar == b'V' as c_int {
                 c"v".as_ptr()
             } else {
                 c"i".as_ptr()
@@ -412,7 +412,7 @@ unsafe fn insert_enter(s: *mut InsertState) {
             g_st().Ins.start = g_st().where_paste_started;
         } else {
             g_st().Ins.start = (**curwin.as_ptr()).w_cursor;
-            if (*s).startln != 0 {
+            if s.startln != 0 {
                 g_st().Ins.start.col = 0;
             }
         }
@@ -424,15 +424,15 @@ unsafe fn insert_enter(s: *mut InsertState) {
             g_st().Ins.ai_col = 0;
         }
 
-        if (*s).cmdchar != NUL as c_int && g_st().restart_edit == 0 {
-            if (*s).cmdchar == b'V' as c_int || (*s).cmdchar == b'v' as c_int {
+        if s.cmdchar != NUL as c_int && g_st().restart_edit == 0 {
+            if s.cmdchar == b'V' as c_int || s.cmdchar == b'v' as c_int {
                 prep_redo(
                     false,
                     false,
                     CmdSpec {
-                        count: (*s).count as c_long,
+                        count: s.count as c_long,
                         cmd: b'g' as c_int,
-                        cmd2: if (*s).cmdchar == b'v' as c_int {
+                        cmd2: if s.cmdchar == b'v' as c_int {
                             b'r' as c_int
                         } else {
                             b'R' as c_int
@@ -445,9 +445,9 @@ unsafe fn insert_enter(s: *mut InsertState) {
                     false,
                     false,
                     CmdSpec {
-                        count: (*s).count as c_long,
-                        cmd: (*s).cmdchar,
-                        cmd2: if (*s).cmdchar == b'g' as c_int {
+                        count: s.count as c_long,
+                        cmd: s.cmdchar,
+                        cmd2: if s.cmdchar == b'g' as c_int {
                             b'I' as c_int
                         } else {
                             NUL as c_int
@@ -455,17 +455,17 @@ unsafe fn insert_enter(s: *mut InsertState) {
                         ..CmdSpec::default()
                     },
                 );
-                if (*s).cmdchar == b'r' as c_int {
-                    (*s).count = 1;
+                if s.cmdchar == b'r' as c_int {
+                    s.count = 1;
                 }
             }
         }
 
-        if (*s).cmdchar == b'R' as c_int {
+        if s.cmdchar == b'R' as c_int {
             g_st().State = MODE_REPLACE;
-        } else if (*s).cmdchar == b'V' as c_int || (*s).cmdchar == b'v' as c_int {
+        } else if s.cmdchar == b'V' as c_int || s.cmdchar == b'v' as c_int {
             g_st().State = MODE_VREPLACE;
-            (*s).replaceState = MODE_VREPLACE;
+            s.replaceState = MODE_VREPLACE;
             g_st().orig_line_count = (*g_st().curbuf).b_ml.ml_line_count;
             g_st().vr_lines_changed = 1;
         } else {
@@ -511,9 +511,9 @@ unsafe fn insert_enter(s: *mut InsertState) {
                     if *ptr.add(1) == NUL {
                         (**curwin.as_ptr()).w_cursor.col += 1;
                     } else {
-                        (*s).i = utfc_ptr2len(ptr);
-                        if *ptr.offset((*s).i as isize) == NUL {
-                            (**curwin.as_ptr()).w_cursor.col += (*s).i;
+                        s.i = utfc_ptr2len(ptr);
+                        if *ptr.offset(s.i as isize) == NUL {
+                            (**curwin.as_ptr()).w_cursor.col += s.i;
                         }
                     }
                 }
@@ -531,13 +531,13 @@ unsafe fn insert_enter(s: *mut InsertState) {
             foldOpenCursor();
         }
 
-        (*s).i = 0;
+        s.i = 0;
         if opt_vars().p_smd != 0 && g_st().msg_silent == 0 {
-            (*s).i = showmode();
+            s.i = showmode();
         }
 
         if g_st().Ins.did_restart_edit == 0 {
-            change_warning(g_st().curbuf, if (*s).i == 0 { 0 } else { (*s).i + 1 });
+            change_warning(g_st().curbuf, if s.i == 0 { 0 } else { s.i + 1 });
         }
 
         ui_cursor_shape();
@@ -550,7 +550,7 @@ unsafe fn insert_enter(s: *mut InsertState) {
 
         loop {
             state_enter(s);
-            if ins_esc(&mut (*s).count, (*s).cmdchar, (*s).nomove) {
+            if ins_esc(&mut s.count, s.cmdchar, s.nomove) {
                 break;
             }
         }
@@ -562,7 +562,7 @@ unsafe fn insert_enter(s: *mut InsertState) {
 
         pum_check_clear();
         foldUpdateAfterInsert();
-        if (*s).cmdchar != b'r' as c_int && (*s).cmdchar != b'v' as c_int && (*s).c != Ctrl_C {
+        if s.cmdchar != b'r' as c_int && s.cmdchar != b'v' as c_int && s.c != Ctrl_C {
             ins_apply_autocmds(EVENT_INSERTLEAVE);
         }
         g_st().did_cursorhold = false;
@@ -573,7 +573,7 @@ unsafe fn insert_enter(s: *mut InsertState) {
     }
 }
 
-unsafe fn insert_check(s: *mut InsertState) -> c_int {
+unsafe fn insert_check(s: &mut InsertState) -> c_int {
     unsafe {
         mc_ins_cascade();
 
@@ -584,7 +584,7 @@ unsafe fn insert_check(s: *mut InsertState) -> c_int {
         }
 
         if g_st().Ins.moved != kInsNone {
-            (*s).count = 0;
+            s.count = 0;
         }
 
         if g_st().Ins.update_start_orig {
@@ -598,7 +598,7 @@ unsafe fn insert_check(s: *mut InsertState) -> c_int {
         }
 
         if g_st().Ins.stop_insert_mode && !ins_compl_active() {
-            (*s).count = 0;
+            s.count = 0;
             return 0;
         }
 
@@ -624,23 +624,23 @@ unsafe fn insert_check(s: *mut InsertState) -> c_int {
         }
 
         if bt_prompt(g_st().curbuf) {
-            init_prompt((*s).cmdchar_todo);
-            (*s).cmdchar_todo = NUL as c_int;
+            init_prompt(s.cmdchar_todo);
+            s.cmdchar_todo = NUL as c_int;
         }
 
         if (*g_st().curbuf).b_mod_set
             && (**curwin.as_ptr()).w_onebuf_opt.wo_wrap != 0
             && (**curwin.as_ptr()).w_onebuf_opt.wo_sms == 0
-            && !(*s).did_backspace
-            && (**curwin.as_ptr()).w_topline == (*s).old_topline
-            && (**curwin.as_ptr()).w_topfill == (*s).old_topfill
-            && (*s).count <= 1
+            && !s.did_backspace
+            && (**curwin.as_ptr()).w_topline == s.old_topline
+            && (**curwin.as_ptr()).w_topfill == s.old_topfill
+            && s.count <= 1
         {
-            (*s).mincol = (**curwin.as_ptr()).w_wcol;
+            s.mincol = (**curwin.as_ptr()).w_wcol;
             validate_cursor_col(&mut **curwin.as_ptr());
 
             if (**curwin.as_ptr()).w_wcol
-                < (*s).mincol
+                < s.mincol
                     - tabstop_at(
                         get_nolist_virtcol(),
                         (*g_st().curbuf).b_p_ts,
@@ -657,22 +657,22 @@ unsafe fn insert_check(s: *mut InsertState) -> c_int {
                     *curwin.as_ptr(),
                     (**curwin.as_ptr()).w_topline,
                     ptr::null_mut(),
-                    &raw mut (*s).old_topline,
+                    &raw mut s.old_topline,
                 ) {
-                    set_topline(*curwin.as_ptr(), (*s).old_topline + 1);
+                    set_topline(*curwin.as_ptr(), s.old_topline + 1);
                 } else {
                     set_topline(*curwin.as_ptr(), (**curwin.as_ptr()).w_topline + 1);
                 }
             }
         }
 
-        if (*s).count <= 1 {
+        if s.count <= 1 {
             update_topline(*curwin.as_ptr());
         }
 
-        (*s).did_backspace = false;
+        s.did_backspace = false;
 
-        if (*s).count <= 1 {
+        if s.count <= 1 {
             validate_cursor(*curwin.as_ptr());
         }
 
@@ -686,14 +686,14 @@ unsafe fn insert_check(s: *mut InsertState) -> c_int {
             do_check_cursorbind();
         }
 
-        if (*s).count <= 1 {
+        if s.count <= 1 {
             update_curswant();
         }
-        (*s).old_topline = (**curwin.as_ptr()).w_topline;
-        (*s).old_topfill = (**curwin.as_ptr()).w_topfill;
+        s.old_topline = (**curwin.as_ptr()).w_topline;
+        s.old_topfill = (**curwin.as_ptr()).w_topfill;
 
-        if (*s).c != K_EVENT && (*s).c != K_COMPLETE_DELAY {
-            (*s).lastc = (*s).c;
+        if s.c != K_EVENT && s.c != K_COMPLETE_DELAY {
+            s.lastc = s.c;
         }
 
         if g_st().Ins.dont_sync_undo == kNone {
@@ -702,16 +702,16 @@ unsafe fn insert_check(s: *mut InsertState) -> c_int {
             g_st().Ins.dont_sync_undo = kFalse;
         }
 
-        if (*s).ins_just_started {
-            (*s).ins_just_started = false;
+        if s.ins_just_started {
+            s.ins_just_started = false;
             if ins_compl_has_autocomplete() && !char_avail() && (**curwin.as_ptr()).w_cursor.col > 0 {
-                (*s).c = char_before_cursor();
-                if vim_isprintc((*s).c) {
+                s.c = char_before_cursor();
+                if vim_isprintc(s.c) {
                     ins_compl_enable_autocomplete();
                     ins_compl_arm_autostart();
                     ins_compl_init_get_longest();
                     if !ins_compl_arm_autocomplete_delay() {
-                        insert_do_complete(s);
+                        insert_do_complete(&raw mut *s);
                         insert_handle_key_post(s);
                         return 1;
                     }
@@ -723,14 +723,14 @@ unsafe fn insert_check(s: *mut InsertState) -> c_int {
     }
 }
 
-unsafe fn insert_execute(s: *mut InsertState, key: c_int) -> c_int {
+unsafe fn insert_execute(s: &mut InsertState, key: c_int) -> c_int {
     unsafe {
         if g_st().Ins.stop_insert_mode {
             if key != K_IGNORE && key != K_NOP {
                 vungetc(key);
             }
-            (*s).count = 0;
-            (*s).nomove = true;
+            s.count = 0;
+            s.nomove = true;
             ins_compl_prep(ESC);
             return 0;
         }
@@ -738,7 +738,7 @@ unsafe fn insert_execute(s: *mut InsertState, key: c_int) -> c_int {
         if key == K_IGNORE || key == K_NOP {
             return -1;
         }
-        (*s).c = key;
+        s.c = key;
 
         if key != K_EVENT {
             g_st().did_cursorhold = true;
@@ -756,38 +756,38 @@ unsafe fn insert_execute(s: *mut InsertState, key: c_int) -> c_int {
             && ins_compl_has_shown_match()
             && pum_wanted()
         {
-            if ((*s).c == K_BS || (*s).c == Ctrl_H) && (**curwin.as_ptr()).w_cursor.col > ins_compl_col() {
-                (*s).c = ins_compl_bs();
-                if (*s).c == NUL as c_int {
+            if (s.c == K_BS || s.c == Ctrl_H) && (**curwin.as_ptr()).w_cursor.col > ins_compl_col() {
+                s.c = ins_compl_bs();
+                if s.c == NUL as c_int {
                     return 1;
                 }
             }
 
             if !ins_compl_used_match() {
-                if (*s).c == Ctrl_L && (!ctrl_x_mode_line_or_eval() || ins_compl_long_shown_match())
+                if s.c == Ctrl_L && (!ctrl_x_mode_line_or_eval() || ins_compl_long_shown_match())
                 {
                     ins_compl_addfrommatch();
                     return 1;
                 }
 
-                let is_commit = ins_compl_commit_char((*s).c);
-                if !is_commit && ins_compl_accept_char((*s).c) {
-                    if let Some(str_) = do_insert_char_pre((*s).c) {
+                let is_commit = ins_compl_commit_char(s.c);
+                if !is_commit && ins_compl_accept_char(s.c) {
+                    if let Some(str_) = do_insert_char_pre(s.c) {
                         let mut p = str_.as_ptr().cast_mut();
                         while *p != NUL {
                             ins_compl_addleader(utf_ptr2char(p));
                             p = p.add(utfc_ptr2len(p) as usize);
                         }
                     } else {
-                        ins_compl_addleader((*s).c);
+                        ins_compl_addleader(s.c);
                     }
                     return 1;
                 }
 
-                if ((*s).c == Ctrl_Y
+                if (s.c == Ctrl_Y
                     || is_commit
                     || (ins_compl_enter_selects()
-                        && ((*s).c == CAR || (*s).c == K_KENTER || (*s).c == NL)))
+                        && (s.c == CAR || s.c == K_KENTER || s.c == NL)))
                     && stop_arrow() == OK
                 {
                     ins_compl_delete(false);
@@ -798,62 +798,62 @@ unsafe fn insert_execute(s: *mut InsertState, key: c_int) -> c_int {
                     } else {
                         ins_compl_insert(false, false);
                     }
-                } else if ascii_iswhite_nl_or_nul((*s).c) && ins_compl_preinsert_effect() {
+                } else if ascii_iswhite_nl_or_nul(s.c) && ins_compl_preinsert_effect() {
                     ins_compl_delete(false);
                 }
             }
         }
 
         ins_compl_init_get_longest();
-        if ins_compl_prep((*s).c) {
+        if ins_compl_prep(s.c) {
             return 1;
         }
 
-        if (*s).c == Ctrl_BSL {
+        if s.c == Ctrl_BSL {
             ins_redraw(false);
             g_st().no_mapping += 1;
             g_st().allow_keys += 1;
-            (*s).c = plain_vgetc();
+            s.c = plain_vgetc();
             g_st().no_mapping -= 1;
             g_st().allow_keys -= 1;
-            if (*s).c != Ctrl_N && (*s).c != Ctrl_G && (*s).c != Ctrl_O {
-                vungetc((*s).c);
-                (*s).c = Ctrl_BSL;
+            if s.c != Ctrl_N && s.c != Ctrl_G && s.c != Ctrl_O {
+                vungetc(s.c);
+                s.c = Ctrl_BSL;
             } else {
-                if (*s).c == Ctrl_O {
+                if s.c == Ctrl_O {
                     ins_ctrl_o();
                     g_st().ins_at_eol = false;
-                    (*s).nomove = true;
+                    s.nomove = true;
                 }
-                (*s).count = 0;
+                s.count = 0;
                 return 0;
             }
         }
 
-        if (*s).c != K_EVENT {
-            (*s).c = do_digraph((*s).c);
+        if s.c != K_EVENT {
+            s.c = do_digraph(s.c);
         }
 
-        if ((*s).c == Ctrl_V || (*s).c == Ctrl_Q) && ctrl_x_mode_cmdline() {
-            insert_do_complete(s);
+        if (s.c == Ctrl_V || s.c == Ctrl_Q) && ctrl_x_mode_cmdline() {
+            insert_do_complete(&raw mut *s);
             insert_handle_key_post(s);
             return 1;
         }
 
-        if (*s).c == Ctrl_V || (*s).c == Ctrl_Q {
+        if s.c == Ctrl_V || s.c == Ctrl_Q {
             ins_ctrl_v();
-            (*s).c = Ctrl_V;
+            s.c = Ctrl_V;
             return 1;
         }
 
         if cindent_on() && ctrl_x_mode_none() {
-            (*s).line_is_white = inindent(0);
-            if in_cinkeys((*s).c, b'!' as c_int, (*s).line_is_white) && stop_arrow() == OK {
+            s.line_is_white = inindent(0);
+            if in_cinkeys(s.c, b'!' as c_int, s.line_is_white) && stop_arrow() == OK {
                 do_c_expr_indent();
                 return 1;
             }
             if g_st().Ins.can_cindent
-                && in_cinkeys((*s).c, b'*' as c_int, (*s).line_is_white)
+                && in_cinkeys(s.c, b'*' as c_int, s.line_is_white)
                 && stop_arrow() == OK
             {
                 do_c_expr_indent();
@@ -861,7 +861,7 @@ unsafe fn insert_execute(s: *mut InsertState, key: c_int) -> c_int {
         }
 
         if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0 {
-            (*s).c = match (*s).c {
+            s.c = match s.c {
                 K_LEFT => K_RIGHT,
                 K_S_LEFT => K_S_RIGHT,
                 K_C_LEFT => K_C_RIGHT,
@@ -872,7 +872,7 @@ unsafe fn insert_execute(s: *mut InsertState, key: c_int) -> c_int {
             };
         }
 
-        if ins_start_select((*s).c) {
+        if ins_start_select(s.c) {
             return 1;
         }
 
@@ -880,12 +880,12 @@ unsafe fn insert_execute(s: *mut InsertState, key: c_int) -> c_int {
     }
 }
 
-unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
+unsafe fn insert_handle_key(s: &mut InsertState) -> c_int {
     unsafe {
         let mut goto_normalchar = false;
         let mut goto_do_complete = false;
 
-        match (*s).c {
+        match s.c {
             ESC => {
                 if !echeck_abbr(ESC + ABBR_OFF) {
                     return 0;
@@ -910,19 +910,19 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
             }
             Ctrl_O => {
                 if ctrl_x_mode_omni() {
-                    insert_do_complete(s);
+                    insert_do_complete(&raw mut *s);
                 } else if !echeck_abbr(Ctrl_O + ABBR_OFF) {
                     ins_ctrl_o();
                     if (get_ve_flags(*curwin.as_ptr()) & kOptVeFlagOnemore) != 0 {
                         g_st().ins_at_eol = false;
-                        (*s).nomove = true;
+                        s.nomove = true;
                     }
-                    (*s).count = 0;
+                    s.count = 0;
                     return 0;
                 }
             }
             K_INS | K_KINS => {
-                ins_insert((*s).replaceState);
+                ins_insert(s.replaceState);
             }
             K_SELECT | K_IGNORE => {}
             K_HELP | K_F1 | K_XF1 => {
@@ -933,20 +933,20 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
                 goto_normalchar = true;
             }
             c if c == b' ' as c_int || c == K_ZERO || c == NUL as c_int || c == Ctrl_A => {
-                if stuff_inserted(NUL as c_int, 1, c_int::from((*s).c == Ctrl_A)) == FAIL
-                    && (*s).c != Ctrl_A
+                if stuff_inserted(NUL as c_int, 1, c_int::from(s.c == Ctrl_A)) == FAIL
+                    && s.c != Ctrl_A
                 {
                     return 0;
                 }
-                (*s).inserted_space = 0;
+                s.inserted_space = 0;
             }
             Ctrl_R => {
                 if ctrl_x_mode_register() && !ins_compl_active() {
-                    insert_do_complete(s);
+                    insert_do_complete(&raw mut *s);
                 } else {
                     ins_reg();
                     auto_format(false, true);
-                    (*s).inserted_space = 0;
+                    s.inserted_space = 0;
                 }
             }
             Ctrl_G => {
@@ -964,22 +964,22 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
             }
             Ctrl_D => {
                 if ctrl_x_mode_path_defines() {
-                    insert_do_complete(s);
+                    insert_do_complete(&raw mut *s);
                 } else {
-                    ins_shift((*s).c, (*s).lastc);
+                    ins_shift(s.c, s.lastc);
                     auto_format(false, true);
-                    (*s).inserted_space = 0;
+                    s.inserted_space = 0;
                 }
             }
             Ctrl_T => {
                 if ctrl_x_mode_thesaurus() {
                     if check_compl_option(false) {
-                        insert_do_complete(s);
+                        insert_do_complete(&raw mut *s);
                     }
                 } else {
-                    ins_shift((*s).c, (*s).lastc);
+                    ins_shift(s.c, s.lastc);
                     auto_format(false, true);
-                    (*s).inserted_space = 0;
+                    s.inserted_space = 0;
                 }
             }
             K_DEL | K_KDEL => {
@@ -987,9 +987,9 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
                 auto_format(false, true);
             }
             K_BS | Ctrl_H => {
-                (*s).did_backspace = ins_bs((*s).c, BACKSPACE_CHAR, &raw mut (*s).inserted_space);
+                s.did_backspace = ins_bs(s.c, BACKSPACE_CHAR, &raw mut s.inserted_space);
                 auto_format(false, true);
-                if (*s).did_backspace {
+                if s.did_backspace {
                     may_trigger_autocomplete(s);
                 }
             }
@@ -997,25 +997,25 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
                 if bt_prompt(g_st().curbuf) && (g_st().mod_mask & MOD_MASK_SHIFT) == 0 {
                     stuffcharReadbuff(Ctrl_W);
                     g_st().restart_edit = b'A' as c_int;
-                    (*s).nomove = true;
-                    (*s).count = 0;
+                    s.nomove = true;
+                    s.count = 0;
                     return 0;
                 }
-                (*s).did_backspace = ins_bs((*s).c, BACKSPACE_WORD, &raw mut (*s).inserted_space);
+                s.did_backspace = ins_bs(s.c, BACKSPACE_WORD, &raw mut s.inserted_space);
                 auto_format(false, true);
-                if (*s).did_backspace {
+                if s.did_backspace {
                     may_trigger_autocomplete(s);
                 }
             }
             Ctrl_U => {
                 if ctrl_x_mode_function() {
-                    insert_do_complete(s);
+                    insert_do_complete(&raw mut *s);
                 } else {
-                    (*s).did_backspace =
-                        ins_bs((*s).c, BACKSPACE_LINE, &raw mut (*s).inserted_space);
+                    s.did_backspace =
+                        ins_bs(s.c, BACKSPACE_LINE, &raw mut s.inserted_space);
                     auto_format(false, true);
-                    (*s).inserted_space = 0;
-                    if (*s).did_backspace {
+                    s.inserted_space = 0;
+                    if s.did_backspace {
                         may_trigger_autocomplete(s);
                     }
                 }
@@ -1024,7 +1024,7 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
             | K_MOUSEMOVE | K_MIDDLEMOUSE | K_MIDDLEDRAG | K_MIDDLERELEASE | K_RIGHTMOUSE
             | K_RIGHTDRAG | K_RIGHTRELEASE | K_X1MOUSE | K_X1DRAG | K_X1RELEASE | K_X2MOUSE
             | K_X2DRAG | K_X2RELEASE => {
-                ins_mouse((*s).c);
+                ins_mouse(s.c);
             }
             K_MOUSEDOWN => {
                 ins_mousescroll(MSCR_DOWN);
@@ -1045,16 +1045,16 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
                     br_buf_free_count: 0,
                 };
                 let tick = buf_get_changedtick(g_st().curbuf);
-                set_bufref(&raw mut save_curbuf, g_st().curbuf);
+                set_bufref(&mut save_curbuf, g_st().curbuf);
 
-                if (*s).c == K_PASTE_START {
+                if s.c == K_PASTE_START {
                     paste_repeat(1);
-                } else if (*s).c == K_EVENT {
+                } else if s.c == K_EVENT {
                     state_handle_k_event();
                     if g_st().Ins.dont_sync_undo == kTrue {
                         g_st().Ins.dont_sync_undo = kNone;
                     }
-                } else if (*s).c == K_COMMAND {
+                } else if s.c == K_COMMAND {
                     do_cmdline(ptr::null_mut(), crate::cmdexpand::LineGetter::CmdKeyCmd, 0);
                 } else {
                     map_execute_lua(false, false);
@@ -1063,7 +1063,7 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
                 if g_st().pum_want.active {
                     if pum_visible() {
                         g_st().edit_submode_extra = ptr::null_mut();
-                        insert_do_complete(s);
+                        insert_do_complete(&raw mut *s);
                         if g_st().pum_want.finish {
                             ins_compl_prep(Ctrl_Y);
                         }
@@ -1088,19 +1088,19 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
                 }
                 ins_compl_clear_autocomplete_delay();
                 if ins_compl_has_autocomplete() && !char_avail() && (**curwin.as_ptr()).w_cursor.col != 0 {
-                    (*s).c = char_before_cursor();
-                    if vim_isprintc((*s).c) {
+                    s.c = char_before_cursor();
+                    if vim_isprintc(s.c) {
                         ins_compl_enable_autocomplete();
                         ins_compl_arm_autostart();
-                        insert_do_complete(s);
+                        insert_do_complete(&raw mut *s);
                     }
                 }
             }
             K_HOME | K_KHOME | K_S_HOME | K_C_HOME => {
-                ins_home((*s).c);
+                ins_home(s.c);
             }
             K_END | K_KEND | K_S_END | K_C_END => {
-                ins_end((*s).c);
+                ins_end(s.c);
             }
             K_LEFT => {
                 if (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) != 0 {
@@ -1124,7 +1124,7 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
             }
             K_UP => {
                 if pum_visible() {
-                    insert_do_complete(s);
+                    insert_do_complete(&raw mut *s);
                 } else if (g_st().mod_mask & MOD_MASK_SHIFT) != 0 {
                     ins_pageup();
                 } else {
@@ -1133,14 +1133,14 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
             }
             K_S_UP | K_PAGEUP | K_KPAGEUP => {
                 if pum_visible() {
-                    insert_do_complete(s);
+                    insert_do_complete(&raw mut *s);
                 } else {
                     ins_pageup();
                 }
             }
             K_DOWN => {
                 if pum_visible() {
-                    insert_do_complete(s);
+                    insert_do_complete(&raw mut *s);
                 } else if (g_st().mod_mask & MOD_MASK_SHIFT) != 0 {
                     ins_pagedown();
                 } else {
@@ -1149,19 +1149,19 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
             }
             K_S_DOWN | K_PAGEDOWN | K_KPAGEDOWN => {
                 if pum_visible() {
-                    insert_do_complete(s);
+                    insert_do_complete(&raw mut *s);
                 } else {
                     ins_pagedown();
                 }
             }
             K_S_TAB | TAB => {
-                if (*s).c == K_S_TAB {
-                    (*s).c = TAB;
+                if s.c == K_S_TAB {
+                    s.c = TAB;
                 }
                 if ctrl_x_mode_path_patterns() {
-                    insert_do_complete(s);
+                    insert_do_complete(&raw mut *s);
                 } else {
-                    (*s).inserted_space = 0;
+                    s.inserted_space = 0;
                     if ins_tab() {
                         goto_normalchar = true;
                     } else {
@@ -1170,16 +1170,16 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
                 }
             }
             K_KENTER | CAR | NL => {
-                if (*s).c == K_KENTER {
-                    (*s).c = CAR;
+                if s.c == K_KENTER {
+                    s.c = CAR;
                 }
-                if bt_quickfix(g_st().curbuf) && (*s).c == CAR {
+                if bt_quickfix(g_st().curbuf) && s.c == CAR {
                     if (**curwin.as_ptr()).w_llist_ref.is_null() {
                         do_cmdline_cmd(c".cc".as_ptr());
                     } else {
                         do_cmdline_cmd(c".ll".as_ptr());
                     }
-                } else if (*s).c == CAR && bt_cmdwin(g_st().curbuf) {
+                } else if s.c == CAR && bt_cmdwin(g_st().curbuf) {
                     cmdwin_do_action(c"confirm".as_ptr());
                     return 0;
                 } else if (g_st().mod_mask & MOD_MASK_SHIFT) == 0 && bt_prompt(g_st().curbuf) {
@@ -1188,21 +1188,21 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
                         return 0;
                     }
                 } else {
-                    if !ins_eol((*s).c) {
+                    if !ins_eol(s.c) {
                         return 0;
                     }
                     auto_format(false, false);
-                    (*s).inserted_space = 0;
+                    s.inserted_space = 0;
                 }
             }
             Ctrl_K => {
                 if ctrl_x_mode_dictionary() {
                     if check_compl_option(true) {
-                        insert_do_complete(s);
+                        insert_do_complete(&raw mut *s);
                     }
                 } else {
-                    (*s).c = ins_digraph();
-                    if (*s).c != NUL as c_int {
+                    s.c = ins_digraph();
+                    if s.c != NUL as c_int {
                         goto_normalchar = true;
                     }
                 }
@@ -1214,21 +1214,21 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
                 if !ctrl_x_mode_tags() {
                     goto_normalchar = true;
                 } else {
-                    insert_do_complete(s);
+                    insert_do_complete(&raw mut *s);
                 }
             }
             Ctrl_F => {
                 if !ctrl_x_mode_files() {
                     goto_normalchar = true;
                 } else {
-                    insert_do_complete(s);
+                    insert_do_complete(&raw mut *s);
                 }
             }
             c if c == b's' as c_int || c == Ctrl_S => {
                 if !ctrl_x_mode_spell() {
                     goto_normalchar = true;
                 } else {
-                    insert_do_complete(s);
+                    insert_do_complete(&raw mut *s);
                 }
             }
             Ctrl_L => {
@@ -1242,7 +1242,7 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
                 goto_do_complete = true;
             }
             Ctrl_Y | Ctrl_E => {
-                (*s).c = ins_ctrl_ey((*s).c);
+                s.c = ins_ctrl_ey(s.c);
             }
             _ => {
                 goto_normalchar = true;
@@ -1256,40 +1256,40 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
             {
                 goto_normalchar = true;
             } else {
-                insert_do_complete(s);
+                insert_do_complete(&raw mut *s);
             }
         }
 
         if goto_normalchar {
             let mut skip_char = false;
             if opt_vars().p_paste == 0 {
-                if let Some(str_) = do_insert_char_pre((*s).c) {
+                if let Some(str_) = do_insert_char_pre(s.c) {
                     let str_ptr = str_.as_ptr().cast_mut();
                     if *str_ptr != NUL && stop_arrow() != FAIL {
                         let mut p = str_ptr;
                         while *p != NUL {
-                            (*s).c = utf_ptr2char(p);
-                            if (*s).c == CAR || (*s).c == K_KENTER || (*s).c == NL {
-                                ins_eol((*s).c);
+                            s.c = utf_ptr2char(p);
+                            if s.c == CAR || s.c == K_KENTER || s.c == NL {
+                                ins_eol(s.c);
                             } else {
-                                ins_char((*s).c);
+                                ins_char(s.c);
                             }
                             p = p.add(utfc_ptr2len(p) as usize);
                         }
                         redo_append_lit(str_ptr, -1);
                     }
-                    (*s).c = NUL as c_int;
+                    s.c = NUL as c_int;
                 }
-                if (*s).c == NUL as c_int {
+                if s.c == NUL as c_int {
                     skip_char = true;
                 }
             }
 
             if !skip_char {
-                ins_try_si((*s).c);
+                ins_try_si(s.c);
 
-                if (*s).c == b' ' as c_int {
-                    (*s).inserted_space = 1;
+                if s.c == b' ' as c_int {
+                    s.inserted_space = 1;
                     if inindent(0) {
                         g_st().Ins.can_cindent = false;
                     }
@@ -1298,22 +1298,22 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
                     }
                 }
 
-                if vim_iswordc((*s).c)
-                    || (!echeck_abbr(if (*s).c >= 0x100 {
-                        (*s).c + ABBR_OFF
+                if vim_iswordc(s.c)
+                    || (!echeck_abbr(if s.c >= 0x100 {
+                        s.c + ABBR_OFF
                     } else {
-                        (*s).c
-                    }) && (*s).c != Ctrl_RSB)
+                        s.c
+                    }) && s.c != Ctrl_RSB)
                 {
-                    insert_special((*s).c, 0, 0);
+                    insert_special(s.c, 0, 0);
                     g_st().Ins.revins_legal += 1;
                     g_st().Ins.revins_chars += 1;
                 }
 
                 auto_format(false, true);
                 foldOpenCursor();
-                if ins_compl_has_autocomplete() && !char_avail() && vim_isprintc((*s).c) {
-                    let _ = trigger_autocomplete(s);
+                if ins_compl_has_autocomplete() && !char_avail() && vim_isprintc(s.c) {
+                    let _ = trigger_autocomplete(&raw mut *s);
                 }
             }
         }
@@ -1337,17 +1337,17 @@ unsafe fn insert_do_complete(s: *mut InsertState) {
     }
 }
 
-unsafe fn insert_do_cindent(s: *mut InsertState) {
+unsafe fn insert_do_cindent(s: &mut InsertState) {
     unsafe {
-        if in_cinkeys((*s).c, b' ' as c_int, (*s).line_is_white) && stop_arrow() == OK {
+        if in_cinkeys(s.c, b' ' as c_int, s.line_is_white) && stop_arrow() == OK {
             do_c_expr_indent();
         }
     }
 }
 
-unsafe fn insert_handle_key_post(s: *mut InsertState) {
+unsafe fn insert_handle_key_post(s: &mut InsertState) {
     unsafe {
-        if (*s).c != K_EVENT && (*s).c != K_COMPLETE_DELAY && ctrl_x_mode_normal() {
+        if s.c != K_EVENT && s.c != K_COMPLETE_DELAY && ctrl_x_mode_normal() {
             g_st().did_cursorhold = false;
         }
 
@@ -1356,7 +1356,7 @@ unsafe fn insert_handle_key_post(s: *mut InsertState) {
         }
 
         if g_st().Ins.moved != kInsNone {
-            (*s).inserted_space = 0;
+            s.inserted_space = 0;
         }
 
         if g_st().Ins.can_cindent && cindent_on() && ctrl_x_mode_normal() {
@@ -1391,7 +1391,7 @@ pub unsafe fn edit(cmdchar: c_int, startln: bool, count: c_int) -> bool {
         s.cmdchar = cmdchar;
         s.startln = c_int::from(startln);
         s.count = count;
-        insert_enter(&raw mut s);
+        insert_enter(&mut s);
         s.c == Ctrl_O
     }
 }
@@ -3782,7 +3782,7 @@ unsafe fn ins_tab() -> bool {
             let tab = c"\t".as_ptr().cast_mut();
             let tab_v = b'\t' as i32;
             let mut csarg = CharsizeArg::new();
-            let mut cstype = init_charsize_arg(&raw mut csarg, *curwin.as_ptr(), 0, tab);
+            let mut cstype = init_charsize_arg(&mut csarg, *curwin.as_ptr(), 0, tab);
 
             while ascii_iswhite(*ptr as u8 as c_int) {
                 let i = win_charsize(cstype, vcol, tab, tab_v, &raw mut csarg, 1).width;
@@ -3805,7 +3805,7 @@ unsafe fn ins_tab() -> bool {
 
             if change_col >= 0 {
                 let mut repl_off: c_int = 0;
-                cstype = init_charsize_arg(&raw mut csarg, *curwin.as_ptr(), 0, ptr);
+                cstype = init_charsize_arg(&mut csarg, *curwin.as_ptr(), 0, ptr);
                 while vcol < want_vcol && *ptr == b' ' as c_char {
                     vcol += win_charsize(cstype, vcol, ptr, b' ' as i32, &raw mut csarg, 1).width;
                     ptr = ptr.add(1);
@@ -3978,7 +3978,7 @@ pub unsafe fn ins_copychar(lnum: linenr_T) -> c_int {
         let line = ml_get(lnum);
 
         let mut csarg = CharsizeArg::new();
-        let cstype = init_charsize_arg(&raw mut csarg, *curwin.as_ptr(), lnum, line);
+        let cstype = init_charsize_arg(&mut csarg, *curwin.as_ptr(), lnum, line);
         let mut ci = utf_ptr2StrCharInfo(line);
         let mut vcol: c_int = 0;
         while vcol < end_vcol && *ci.ptr != NUL {

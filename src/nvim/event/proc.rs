@@ -208,7 +208,7 @@ pub unsafe fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> c
         }
 
         let status = match proc_.r#type {
-            kProcTypeUv => libuv_proc_spawn((&raw mut *proc_).cast()),
+            kProcTypeUv => libuv_proc_spawn(&mut *(&raw mut *proc_).cast()),
             kProcTypePty => pty_proc_spawn(&mut *(&raw mut *proc_).cast()),
             _ => unreachable!(),
         };
@@ -440,7 +440,7 @@ unsafe fn proc_close(proc_: &mut Proc) {
         }
 
         match proc_.r#type {
-            kProcTypeUv => libuv_proc_close((&raw mut *proc_).cast()),
+            kProcTypeUv => libuv_proc_close(&mut *(&raw mut *proc_).cast()),
             kProcTypePty => pty_proc_close(&mut *(&raw mut *proc_).cast()),
             _ => unreachable!(),
         }

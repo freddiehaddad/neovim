@@ -189,71 +189,71 @@ unsafe fn libuv_proc_stdio(
 }
 
 /// @returns zero on success, or negative error code
-pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
+pub unsafe fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> c_int {
     unsafe {
-        let proc_: *mut Proc = &raw mut (*uvproc).proc_;
-        let uv: *mut uv_handle_t = (&raw mut (*uvproc).uv).cast();
+        let proc_: *mut Proc = &raw mut uvproc.proc_;
+        let uv: *mut uv_handle_t = (&raw mut uvproc.uv).cast();
 
         #[cfg(windows)]
         {
             if os_shell_is_cmdexe((*proc_).argv.as_slice()[0].as_ptr()) {
-                (*uvproc).uvopts.flags |= UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS;
+                uvproc.uvopts.flags |= UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS;
                 path_to_backslash((*proc_).argv.as_slice()[0].as_ptr().cast_mut());
             }
             if (*proc_).detach {
-                (*uvproc).uvopts.flags |= UV_PROCESS_DETACHED;
+                uvproc.uvopts.flags |= UV_PROCESS_DETACHED;
             }
         }
         #[cfg(not(windows))]
         {
-            (*uvproc).uvopts.flags |= UV_PROCESS_DETACHED;
+            uvproc.uvopts.flags |= UV_PROCESS_DETACHED;
         }
 
-        (*uvproc).args_ptrs = (*proc_)
+        uvproc.args_ptrs = (*proc_)
             .argv
             .iter()
             .map(|s| s.as_ptr().cast_mut())
             .chain(std::iter::once(ptr::null_mut()))
             .collect();
-        (*uvproc).uvopts.file = proc_get_exepath(&mut *proc_);
-        (*uvproc).uvopts.args = (*uvproc).args_ptrs.as_mut_ptr();
-        (*uvproc).uvopts.flags |= UV_PROCESS_WINDOWS_HIDE;
+        uvproc.uvopts.file = proc_get_exepath(&mut *proc_);
+        uvproc.uvopts.args = uvproc.args_ptrs.as_mut_ptr();
+        uvproc.uvopts.flags |= UV_PROCESS_WINDOWS_HIDE;
 
-        (*uvproc).uvopts.exit_cb = Some(exit_cb);
-        (*uvproc).uvopts.cwd = (*proc_).cwd.as_ref().map_or(ptr::null(), |s| s.as_ptr());
+        uvproc.uvopts.exit_cb = Some(exit_cb);
+        uvproc.uvopts.cwd = (*proc_).cwd.as_ref().map_or(ptr::null(), |s| s.as_ptr());
 
-        (*uvproc).uvopts.stdio = (*uvproc).uvstdio.as_mut_ptr();
-        (*uvproc).uvopts.stdio_count = 3;
-        (*uvproc).uvstdio[0].flags = UV_IGNORE;
-        (*uvproc).uvstdio[1].flags = UV_IGNORE;
-        (*uvproc).uvstdio[2].flags = UV_IGNORE;
+        uvproc.uvopts.stdio = uvproc.uvstdio.as_mut_ptr();
+        uvproc.uvopts.stdio_count = 3;
+        uvproc.uvstdio[0].flags = UV_IGNORE;
+        uvproc.uvstdio[1].flags = UV_IGNORE;
+        uvproc.uvstdio[2].flags = UV_IGNORE;
 
         if g_st().ui_client_forward_stdin {
             debug_assert_eq!(UI_CLIENT_STDIN_FD, 3);
-            (*uvproc).uvopts.stdio_count = 4;
-            (*uvproc).uvstdio[3].data.fd = 0;
-            (*uvproc).uvstdio[3].flags = UV_INHERIT_FD;
+            uvproc.uvopts.stdio_count = 4;
+            uvproc.uvstdio[3].data.fd = 0;
+            uvproc.uvstdio[3].flags = UV_INHERIT_FD;
         }
         *uv.cast::<*mut Proc>() = proc_;
 
         if !(*proc_).env.is_null() {
-            (*uvproc).env_vec = tv_dict_to_env((*proc_).env);
-            (*uvproc).env_ptrs = (*uvproc)
+            uvproc.env_vec = tv_dict_to_env((*proc_).env);
+            uvproc.env_ptrs = (*uvproc)
                 .env_vec
                 .iter()
                 .map(|s| s.as_ptr().cast_mut())
                 .chain(std::iter::once(ptr::null_mut()))
                 .collect();
-            (*uvproc).uvopts.env = (*uvproc).env_ptrs.as_mut_ptr();
+            uvproc.uvopts.env = uvproc.env_ptrs.as_mut_ptr();
         } else {
-            (*uvproc).uvopts.env = ptr::null_mut();
+            uvproc.uvopts.env = ptr::null_mut();
         }
 
         let mut to_close = [-1 as c_int; 3];
 
         if !(*proc_).r#in.closed {
             libuv_proc_stdio(
-                uvproc,
+                &raw mut *uvproc,
                 0,
                 (&raw mut (*proc_).r#in.uv).cast(),
                 true,
@@ -265,7 +265,7 @@ pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
 
         if !(*proc_).out.s.closed {
             libuv_proc_stdio(
-                uvproc,
+                &raw mut *uvproc,
                 1,
                 (&raw mut (*proc_).out.s.uv).cast(),
                 false,
@@ -277,7 +277,7 @@ pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
 
         if !(*proc_).err.s.closed {
             libuv_proc_stdio(
-                uvproc,
+                &raw mut *uvproc,
                 2,
                 (&raw mut (*proc_).err.s.uv).cast(),
                 false,
@@ -286,19 +286,19 @@ pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
                 &mut to_close,
             );
         } else if (*proc_).fwd_err {
-            (*uvproc).uvstdio[2].flags = UV_INHERIT_FD;
-            (*uvproc).uvstdio[2].data.fd = STDERR_FILENO;
+            uvproc.uvstdio[2].flags = UV_INHERIT_FD;
+            uvproc.uvstdio[2].data.fd = STDERR_FILENO;
         }
 
         let status = uv_spawn(
             (*proc_).loop_.cast(),
             uv.cast(),
-            &raw const (*uvproc).uvopts,
+            &raw const uvproc.uvopts,
         );
         if status != 0 {
-            (*uvproc).env_ptrs.clear();
-            (*uvproc).env_vec.clear();
-            (*uvproc).uvopts.env = ptr::null_mut();
+            uvproc.env_ptrs.clear();
+            uvproc.env_vec.clear();
+            uvproc.uvopts.env = ptr::null_mut();
         } else {
             (*proc_).pid = uv_process_get_pid(uv.cast());
         }
@@ -312,9 +312,9 @@ pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
     }
 }
 
-pub unsafe fn libuv_proc_close(uvproc: *mut LibuvProc) {
+pub unsafe fn libuv_proc_close(uvproc: &mut LibuvProc) {
     unsafe {
-        uv_close((&raw mut (*uvproc).uv).cast(), Some(close_cb));
+        uv_close((&raw mut uvproc.uv).cast(), Some(close_cb));
     }
 }
 

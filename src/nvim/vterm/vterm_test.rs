@@ -503,7 +503,7 @@ const fn vterm_get_prop_type(prop: VTermProp) -> VTermValueType {
     }
 }
 
-pub unsafe fn state_settermprop<T>(prop: VTermProp, val: *mut VTermValue, _user: *mut T) -> c_int {
+pub unsafe fn state_settermprop<T>(prop: VTermProp, val: &mut VTermValue, _user: *mut T) -> c_int {
     unsafe {
         if !vtt_st().want_state_settermprop {
             return 1;
@@ -566,25 +566,25 @@ pub unsafe fn state_erase(rect: VTermRect, selective: c_int, _user: *mut VTermSc
 
 pub unsafe fn state_setpenattr(
     attr: VTermAttr,
-    val: *mut VTermValue,
+    val: &mut VTermValue,
     _user: *mut VTermScreen,
 ) -> c_int {
     unsafe {
         match attr {
-            VTERM_ATTR_BOLD => vtt_st().STATE_PEN.bold = (*val).boolean(),
-            VTERM_ATTR_UNDERLINE => vtt_st().STATE_PEN.underline = (*val).number(),
-            VTERM_ATTR_ITALIC => vtt_st().STATE_PEN.italic = (*val).boolean(),
-            VTERM_ATTR_BLINK => vtt_st().STATE_PEN.blink = (*val).boolean(),
-            VTERM_ATTR_REVERSE => vtt_st().STATE_PEN.reverse = (*val).boolean(),
-            VTERM_ATTR_CONCEAL => vtt_st().STATE_PEN.conceal = (*val).boolean(),
-            VTERM_ATTR_STRIKE => vtt_st().STATE_PEN.strike = (*val).boolean(),
-            VTERM_ATTR_FONT => vtt_st().STATE_PEN.font = (*val).number(),
-            VTERM_ATTR_SMALL => vtt_st().STATE_PEN.small = (*val).boolean(),
-            VTERM_ATTR_BASELINE => vtt_st().STATE_PEN.baseline = (*val).number(),
-            VTERM_ATTR_DIM => vtt_st().STATE_PEN.dim = (*val).boolean(),
-            VTERM_ATTR_OVERLINE => vtt_st().STATE_PEN.overline = (*val).boolean(),
-            VTERM_ATTR_FOREGROUND => vtt_st().STATE_PEN.foreground = (*val).color(),
-            VTERM_ATTR_BACKGROUND => vtt_st().STATE_PEN.background = (*val).color(),
+            VTERM_ATTR_BOLD => vtt_st().STATE_PEN.bold = val.boolean(),
+            VTERM_ATTR_UNDERLINE => vtt_st().STATE_PEN.underline = val.number(),
+            VTERM_ATTR_ITALIC => vtt_st().STATE_PEN.italic = val.boolean(),
+            VTERM_ATTR_BLINK => vtt_st().STATE_PEN.blink = val.boolean(),
+            VTERM_ATTR_REVERSE => vtt_st().STATE_PEN.reverse = val.boolean(),
+            VTERM_ATTR_CONCEAL => vtt_st().STATE_PEN.conceal = val.boolean(),
+            VTERM_ATTR_STRIKE => vtt_st().STATE_PEN.strike = val.boolean(),
+            VTERM_ATTR_FONT => vtt_st().STATE_PEN.font = val.number(),
+            VTERM_ATTR_SMALL => vtt_st().STATE_PEN.small = val.boolean(),
+            VTERM_ATTR_BASELINE => vtt_st().STATE_PEN.baseline = val.number(),
+            VTERM_ATTR_DIM => vtt_st().STATE_PEN.dim = val.boolean(),
+            VTERM_ATTR_OVERLINE => vtt_st().STATE_PEN.overline = val.boolean(),
+            VTERM_ATTR_FOREGROUND => vtt_st().STATE_PEN.foreground = val.color(),
+            VTERM_ATTR_BACKGROUND => vtt_st().STATE_PEN.background = val.color(),
             VTERM_N_ATTRS => return 0,
             _ => {}
         }

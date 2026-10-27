@@ -294,10 +294,9 @@ pub unsafe fn mf_put(mfp: *mut memfile_T, hp: *mut bhdr_T, dirty: bool, infile: 
 }
 
 /// Signal block as no longer used (may put it in the free list).
-pub unsafe fn mf_free(mfp: &mut memfile_T, hp: *mut bhdr_T) {
-    unsafe {
-        let bnum = (*hp).bh_bnum;
-        let page_count = (*hp).bh_page_count;
+pub unsafe fn mf_free(mfp: &mut memfile_T, hp: &mut bhdr_T) {
+    let bnum = hp.bh_bnum;
+        let page_count = hp.bh_page_count;
         let _ = mfp.mf_hash.remove(&bnum);
         if bnum < 0 {
             mfp.mf_neg_count -= 1;
@@ -309,7 +308,6 @@ pub unsafe fn mf_free(mfp: &mut memfile_T, hp: *mut bhdr_T) {
                 bh_flags: 0,
             });
         }
-    }
 }
 
 /// Sync memory file to disk.
@@ -682,7 +680,7 @@ mod tests {
             let hp2 = mf_get(mfp, 0, 1);
             assert_eq!(hp2, hp1);
             mf_put(mfp, hp2, false, false);
-            mf_free(mfp, hp2);
+            mf_free(mfp, &mut *hp2);
 
             mf_close(Some(mfp_box), false);
         }

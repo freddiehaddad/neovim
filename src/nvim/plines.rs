@@ -184,21 +184,21 @@ pub unsafe fn linetabsize_eol(wp: *mut win_T, lnum: linenr_T) -> c_int {
 }
 
 pub unsafe fn init_charsize_arg(
-    csarg: *mut CharsizeArg,
+    csarg: &mut CharsizeArg,
     wp: *mut win_T,
     lnum: linenr_T,
     line: *mut c_char,
 ) -> CSType {
     unsafe {
-        (*csarg).win = wp;
-        (*csarg).line = line;
-        (*csarg).max_head_vcol = 0;
-        (*csarg).cur_text_width_left = 0;
-        (*csarg).cur_text_width_right = 0;
-        (*csarg).virt_row = -1;
-        (*csarg).skip_cur_text = false;
-        (*csarg).indent_width = c_int::MIN;
-        (*csarg).use_tabstop = (*wp).w_onebuf_opt.wo_list == 0 || (*wp).w_p_lcs_chars.tab1 != 0;
+        csarg.win = wp;
+        csarg.line = line;
+        csarg.max_head_vcol = 0;
+        csarg.cur_text_width_left = 0;
+        csarg.cur_text_width_right = 0;
+        csarg.virt_row = -1;
+        csarg.skip_cur_text = false;
+        csarg.indent_width = c_int::MIN;
+        csarg.use_tabstop = (*wp).w_onebuf_opt.wo_list == 0 || (*wp).w_p_lcs_chars.tab1 != 0;
 
         if lnum > 0
             && marktree_itr_get_filter(
@@ -208,13 +208,13 @@ pub unsafe fn init_charsize_arg(
                 lnum,
                 0,
                 &INLINE_FILTER,
-                &mut (*csarg).iter,
+                &mut csarg.iter,
             )
         {
-            (*csarg).virt_row = lnum - 1;
+            csarg.virt_row = lnum - 1;
         }
 
-        if (*csarg).virt_row >= 0
+        if csarg.virt_row >= 0
             || ((*wp).w_onebuf_opt.wo_wrap != 0
                 && ((*wp).w_onebuf_opt.wo_lbr != 0
                     || (*wp).w_onebuf_opt.wo_bri != 0
@@ -228,16 +228,16 @@ pub unsafe fn init_charsize_arg(
 }
 
 pub unsafe fn init_charsize_arg_skip_cur_text(
-    csarg: *mut CharsizeArg,
+    csarg: &mut CharsizeArg,
     wp: &mut win_T,
     lnum: linenr_T,
     line: *mut c_char,
 ) -> CSType {
     unsafe {
         let mut cstype = init_charsize_arg(csarg, &raw mut *wp, 0, line);
-        (*csarg).skip_cur_text = true;
+        csarg.skip_cur_text = true;
         if lnum > 0 && (*wp.w_buffer).b_marktree.meta_root[kMTMetaInline] > 0 {
-            (*csarg).virt_row = lnum - 1;
+            csarg.virt_row = lnum - 1;
             cstype = kCharsizeRegular;
         }
         cstype
@@ -627,19 +627,19 @@ unsafe fn in_win_border(wp: *mut win_T, vcol: colnr_T) -> bool {
 }
 
 pub unsafe fn linesize_regular(
-    csarg: *mut CharsizeArg,
+    csarg: &mut CharsizeArg,
     mut vcol_arg: c_int,
     len: colnr_T,
 ) -> c_int {
     unsafe {
-        let line: *const c_char = (*csarg).line;
+        let line: *const c_char = csarg.line;
         let mut vcol = i64::from(vcol_arg);
 
         let mut ci = utf_ptr2StrCharInfo(line);
         while (ci.ptr.offset_from(line) as colnr_T) < len && *ci.ptr != NUL {
             let cli = utf_ClusterInfo(ci);
             vcol +=
-                i64::from(charsize_regular(csarg, ci.ptr, vcol_arg, ci.chr.value, cli.cells).width);
+                i64::from(charsize_regular(&raw mut *csarg, ci.ptr, vcol_arg, ci.chr.value, cli.cells).width);
             ci = cli.next;
             if vcol > i64::from(MAXCOL) {
                 vcol_arg = MAXCOL;
@@ -649,9 +649,9 @@ pub unsafe fn linesize_regular(
             }
         }
 
-        if len == MAXCOL && (*csarg).virt_row >= 0 && *ci.ptr == NUL {
-            let head = charsize_regular(csarg, ci.ptr, vcol_arg, ci.chr.value, 0).head;
-            vcol += i64::from((*csarg).cur_text_width_left + (*csarg).cur_text_width_right + head);
+        if len == MAXCOL && csarg.virt_row >= 0 && *ci.ptr == NUL {
+            let head = charsize_regular(&raw mut *csarg, ci.ptr, vcol_arg, ci.chr.value, 0).head;
+            vcol += i64::from(csarg.cur_text_width_left + csarg.cur_text_width_right + head);
             vcol_arg = if vcol > i64::from(MAXCOL) {
                 MAXCOL
             } else {
@@ -663,11 +663,11 @@ pub unsafe fn linesize_regular(
     }
 }
 
-pub unsafe fn linesize_fast(csarg: *const CharsizeArg, mut vcol_arg: c_int, len: colnr_T) -> c_int {
+pub unsafe fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: c_int, len: colnr_T) -> c_int {
     unsafe {
-        let wp = (*csarg).win;
-        let use_tabstop = (*csarg).use_tabstop;
-        let line: *const c_char = (*csarg).line;
+        let wp = csarg.win;
+        let use_tabstop = csarg.use_tabstop;
+        let line: *const c_char = csarg.line;
         let mut vcol = i64::from(vcol_arg);
 
         let mut ci = utf_ptr2StrCharInfo(line);

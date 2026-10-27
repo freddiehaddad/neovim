@@ -974,13 +974,13 @@ pub unsafe fn set_hl_group(
             g.sg_link = link_id;
             g.sg_script_ctx = g_st().current_sctx;
             g.sg_script_ctx.sc_lnum += sourcing_lnum();
-            nlua_set_sctx(&raw mut g.sg_script_ctx);
+            nlua_set_sctx(&mut g.sg_script_ctx);
             g.sg_set |= SG_LINK;
             if is_default {
                 g.sg_deflink = link_id;
                 g.sg_deflink_sctx = g_st().current_sctx;
                 g.sg_deflink_sctx.sc_lnum += sourcing_lnum();
-                nlua_set_sctx(&raw mut g.sg_deflink_sctx);
+                nlua_set_sctx(&mut g.sg_deflink_sctx);
             }
         } else {
             g.sg_link = 0;
@@ -1073,7 +1073,7 @@ pub unsafe fn set_hl_group(
 
         g.sg_script_ctx = g_st().current_sctx;
         g.sg_script_ctx.sc_lnum += sourcing_lnum();
-        nlua_set_sctx(&raw mut g.sg_script_ctx);
+        nlua_set_sctx(&mut g.sg_script_ctx);
 
         g.sg_attr = hl_get_syn_attr(0, id, attrs);
 
@@ -1210,7 +1210,7 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                     (*hlgroup).sg_deflink = to_id;
                     (*hlgroup).sg_deflink_sctx = g_st().current_sctx;
                     (*hlgroup).sg_deflink_sctx.sc_lnum += sourcing_lnum();
-                    nlua_set_sctx(&raw mut (*hlgroup).sg_deflink_sctx);
+                    nlua_set_sctx(&mut (*hlgroup).sg_deflink_sctx);
                 }
             }
 
@@ -1231,7 +1231,7 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                     (*hlgroup).sg_link = to_id;
                     (*hlgroup).sg_script_ctx = g_st().current_sctx;
                     (*hlgroup).sg_script_ctx.sc_lnum += sourcing_lnum();
-                    nlua_set_sctx(&raw mut (*hlgroup).sg_script_ctx);
+                    nlua_set_sctx(&mut (*hlgroup).sg_script_ctx);
                     (*hlgroup).sg_cleared = false;
                     redraw_all_later(UPD_SOME_VALID);
                     g_st().need_highlight_changed = true;
@@ -1598,7 +1598,7 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
         let g = &mut *hl_table().add(idx as usize);
         g.sg_script_ctx = g_st().current_sctx;
         g.sg_script_ctx.sc_lnum += sourcing_lnum();
-        nlua_set_sctx(&raw mut g.sg_script_ctx);
+        nlua_set_sctx(&mut g.sg_script_ctx);
 
         if (did_change || *hl_table().add(idx as usize) != item_before) && !did_highlight_changed {
             if !g_st().updating_screen {
@@ -1823,45 +1823,45 @@ unsafe fn hlgroup2dict(hl: *mut Dict, ns_id: NS, hl_id: c_int, arena: *mut Arena
 
 pub unsafe fn ns_get_hl_defs(
     ns_id: NS,
-    opts: *mut KeyDict_get_highlight,
+    opts: &mut KeyDict_get_highlight,
     arena: *mut Arena,
     err: &mut Error,
 ) -> Dict {
     unsafe {
         let link = if has_key(
-            (*opts).is_set__get_highlight_,
+            opts.is_set__get_highlight_,
             KEYSET_OPTIDX_get_highlight__link,
         ) {
-            (*opts).link
+            opts.link
         } else {
             true
         };
         let mut id: c_int = -1;
         if has_key(
-            (*opts).is_set__get_highlight_,
+            opts.is_set__get_highlight_,
             KEYSET_OPTIDX_get_highlight__name,
         ) {
             let create = if has_key(
-                (*opts).is_set__get_highlight_,
+                opts.is_set__get_highlight_,
                 KEYSET_OPTIDX_get_highlight__create,
             ) {
-                (*opts).create
+                opts.create
             } else {
                 true
             };
             id = if create {
-                syn_check_group((*opts).name.data, (*opts).name.size)
+                syn_check_group(opts.name.data, opts.name.size)
             } else {
-                syn_name2id_len((*opts).name.data, (*opts).name.size)
+                syn_name2id_len(opts.name.data, opts.name.size)
             };
             if id == 0 && !create {
                 return Dict::new();
             }
         } else if has_key(
-            (*opts).is_set__get_highlight_,
+            opts.is_set__get_highlight_,
             KEYSET_OPTIDX_get_highlight__id,
         ) {
-            id = (*opts).id as c_int;
+            id = opts.id as c_int;
         }
 
         if id != -1 {

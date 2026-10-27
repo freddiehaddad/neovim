@@ -295,68 +295,68 @@ unsafe fn mc_track_upd(buf: *mut buf_T, mark: *mut u32, pos: pos_T) {
     }
 }
 
-unsafe fn mc_sandbox_enter(sb: *mut McSandbox, save_regs: bool) {
+unsafe fn mc_sandbox_enter(sb: &mut McSandbox, save_regs: bool) {
     unsafe {
         assert!(!mc_replaying());
         set_vim_var_bool(VV_CASCADING, kBoolVarTrue);
-        (*sb).primary = CONTEXT_INIT;
+        sb.primary = CONTEXT_INIT;
         ctx_save(
-            &mut (*sb).primary,
+            &mut sb.primary,
             kCtxCursor | kCtxVisual | kCtxMarks | if save_regs { kCtxRegs } else { 0 },
         );
-        (*sb).cursor_mark = 0;
-        mc_track_upd(g_st().curbuf, &mut (*sb).cursor_mark, (*sb).primary.pos);
-        save_viewstate(&mut **curwin.as_ptr(), &mut (*sb).view);
-        (*sb).topline_mark = 0;
+        sb.cursor_mark = 0;
+        mc_track_upd(g_st().curbuf, &mut sb.cursor_mark, sb.primary.pos);
+        save_viewstate(&mut **curwin.as_ptr(), &mut sb.view);
+        sb.topline_mark = 0;
         mc_track_upd(
             g_st().curbuf,
-            &mut (*sb).topline_mark,
+            &mut sb.topline_mark,
             pos_T {
-                lnum: (*sb).view.vs_topline,
+                lnum: sb.view.vs_topline,
                 col: 0,
                 coladd: 0,
             },
         );
-        (*sb).visual = g_st().Visual;
-        save_current_state(&mut (*sb).sst);
+        sb.visual = g_st().Visual;
+        save_current_state(&mut sb.sst);
         save_search_patterns();
-        save_redobuff(&mut (*sb).redo);
+        save_redobuff(&mut sb.redo);
     }
 }
 
-unsafe fn mc_sandbox_leave(sb: *mut McSandbox) {
+unsafe fn mc_sandbox_leave(sb: &mut McSandbox) {
     unsafe {
-        if !(*sb).primary.regs.is_empty() {
-            ctx_load(&mut (*sb).primary, kCtxRegs, 0);
+        if !sb.primary.regs.is_empty() {
+            ctx_load(&mut sb.primary, kCtxRegs, 0);
         }
-        restore_redobuff(&mut (*sb).redo);
+        restore_redobuff(&mut sb.redo);
         restore_search_patterns();
-        g_st().Visual = (*sb).visual;
-        restore_current_state(&mut (*sb).sst);
-        let buf = handle_get_buffer((*sb).primary.buf);
+        g_st().Visual = sb.visual;
+        restore_current_state(&mut sb.sst);
+        let buf = handle_get_buffer(sb.primary.buf);
         let mut topline = INIT_POS;
         let mut topline_valid = false;
         if !buf.is_null() {
             extmark_get_pos(
                 buf,
                 mc_session_ns(),
-                (*sb).cursor_mark,
-                &mut (*sb).primary.pos,
+                sb.cursor_mark,
+                &mut sb.primary.pos,
             );
-            extmark_del_id(buf, mc_session_ns(), (*sb).cursor_mark);
-            topline_valid = extmark_get_pos(buf, mc_session_ns(), (*sb).topline_mark, &mut topline);
-            extmark_del_id(buf, mc_session_ns(), (*sb).topline_mark);
+            extmark_del_id(buf, mc_session_ns(), sb.cursor_mark);
+            topline_valid = extmark_get_pos(buf, mc_session_ns(), sb.topline_mark, &mut topline);
+            extmark_del_id(buf, mc_session_ns(), sb.topline_mark);
         }
         if buf == g_st().curbuf {
-            restore_viewstate(&mut **curwin.as_ptr(), &(*sb).view);
-            ctx_load(&mut (*sb).primary, kCtxCursor | kCtxVisual | kCtxMarks, 0);
+            restore_viewstate(&mut **curwin.as_ptr(), &sb.view);
+            ctx_load(&mut sb.primary, kCtxCursor | kCtxVisual | kCtxMarks, 0);
             check_cursor(*curwin.as_ptr());
             if topline_valid {
                 set_topline(*curwin.as_ptr(), topline.lnum.min((*g_st().curbuf).b_ml.ml_line_count));
                 update_topline(*curwin.as_ptr());
             }
         }
-        ctx_free(&mut (*sb).primary);
+        ctx_free(&mut sb.primary);
         set_vim_var_bool(VV_CASCADING, kBoolVarFalse);
     }
 }
@@ -391,7 +391,7 @@ unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
         let mut regs_ts: Timestamp = 0;
         if swap_regs {
             if reg_max_ts(false) >= mc_st().mc_start.time {
-                ctx_load(&raw mut mc_st().mc_start.ctx, kCtxRegs, 0);
+                ctx_load(&mut mc_st().mc_start.ctx, kCtxRegs, 0);
             }
             if !ctx.regs.is_empty() {
                 ctx_load(&mut ctx, kCtxRegs, kCtxMergeReg);
@@ -618,7 +618,7 @@ unsafe fn mc_cleanup(dedupe: bool, primary: *const pos_T, keep_mark: u32) {
         }
         cursors_mut().truncate(n);
         if n == 0 && had_cursors {
-            ctx_free(&raw mut mc_st().mc_start.ctx);
+            ctx_free(&mut mc_st().mc_start.ctx);
             mc_st().mc_start.time = 0;
             mc_lua_enable(false);
         }
@@ -689,11 +689,11 @@ unsafe fn mc_ins_save_state() -> McInsSaved {
     }
 }
 
-unsafe fn mc_ins_restore_state(saved: *const McInsSaved) {
+unsafe fn mc_ins_restore_state(saved: &McInsSaved) {
     unsafe {
-        g_st().Ins = (*saved).ins;
-        (*g_st().curbuf).b_last_changedtick = (*saved).last_changedtick;
-        (*g_st().curbuf).b_last_changedtick_i = (*saved).last_changedtick_i;
+        g_st().Ins = saved.ins;
+        (*g_st().curbuf).b_last_changedtick = saved.last_changedtick;
+        (*g_st().curbuf).b_last_changedtick_i = saved.last_changedtick_i;
     }
 }
 
@@ -727,11 +727,11 @@ unsafe fn mc_ins_regions_clear() {
 }
 
 #[inline]
-unsafe fn mc_ctx_resolve(ctx: *const Context, pos: &mut pos_T) -> bool {
+unsafe fn mc_ctx_resolve(ctx: &Context, pos: &mut pos_T) -> bool {
     unsafe {
-        handle_get_buffer((*ctx).buf) == g_st().curbuf
-            && (*ctx).mark != 0
-            && extmark_get_pos(g_st().curbuf, mc_ns(), (*ctx).mark, pos)
+        handle_get_buffer(ctx.buf) == g_st().curbuf
+            && ctx.mark != 0
+            && extmark_get_pos(g_st().curbuf, mc_ns(), ctx.mark, pos)
     }
 }
 
@@ -1129,7 +1129,7 @@ unsafe fn mc_reg_gather() {
 
         let mut joined: [Vec<c_char>; MC_REGS.len()] = [const { Vec::new() }; MC_REGS.len()];
         for &ctx_ptr in &order {
-            ctx_load(ctx_ptr, kCtxRegs, 0);
+            ctx_load(&mut *ctx_ptr, kCtxRegs, 0);
             let mut idx = 0;
             while MC_REGS[idx] != 0 {
                 if gather[idx] {
@@ -1959,6 +1959,6 @@ pub unsafe fn mc_free_all() {
         }
         *cursors_mut() = Vec::new();
         *ins_regions_mut() = Vec::new();
-        ctx_free(&raw mut mc_st().mc_start.ctx);
+        ctx_free(&mut mc_st().mc_start.ctx);
     }
 }

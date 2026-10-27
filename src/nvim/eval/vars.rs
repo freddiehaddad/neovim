@@ -576,8 +576,8 @@ use crate::api::private::helpers::integer_obj;
 
 pub unsafe fn evalvars_init() {
     unsafe {
-        init_var_dict(&mut *get_globvar_dict(), &raw mut vars_st().globvars_var, VAR_DEF_SCOPE);
-        init_var_dict(&mut vars_st().vimvardict, &raw mut vars_st().vimvars_var, VAR_SCOPE);
+        init_var_dict(&mut *get_globvar_dict(), &mut vars_st().globvars_var, VAR_DEF_SCOPE);
+        init_var_dict(&mut vars_st().vimvardict, &mut vars_st().vimvars_var, VAR_SCOPE);
         vars_st().vimvardict.dv_lock = VAR_FIXED;
         hash_clear(&mut vars_st().compat_hashtab);
 
@@ -598,10 +598,10 @@ pub unsafe fn evalvars_init() {
                 .di_key
                 .extend(name_bytes.iter().map(|&b| b as c_char));
             if (*p).vv_di.di_tv.v_type != VarType::VAR_UNKNOWN {
-                hash_add(&mut vars_st().vimvardict.dv_hashtab, &raw mut (*p).vv_di);
+                hash_add(&mut vars_st().vimvardict.dv_hashtab, &mut (*p).vv_di);
             }
             if ((*p).vv_flags & VV_COMPAT) != 0 {
-                hash_add(&mut vars_st().compat_hashtab, &raw mut (*p).vv_di);
+                hash_add(&mut vars_st().compat_hashtab, &mut (*p).vv_di);
             }
         }
         let vim_version = varnumber_T::from(min_vim_version());
@@ -912,7 +912,7 @@ pub unsafe fn prepare_vimvar(idx: c_int, save_tv: *mut typval_T) {
         *save_tv = (*p).vv_di.di_tv;
         (*p).vv_di.di_tv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         if (*p).vv_di.di_tv.v_type == VarType::VAR_UNKNOWN {
-            hash_add(&mut vars_st().vimvardict.dv_hashtab, &raw mut (*p).vv_di);
+            hash_add(&mut vars_st().vimvardict.dv_hashtab, &mut (*p).vv_di);
         }
     }
 }
@@ -2833,7 +2833,7 @@ unsafe fn find_var_ht_dict(
                 || g_st().current_sctx.sc_sid == SID_LUA)
             && g_st().current_sctx.sc_sid <= crate::runtime::script_items_len()
         {
-            nlua_set_sctx(&raw mut g_st().current_sctx);
+            nlua_set_sctx(&mut g_st().current_sctx);
             if g_st().current_sctx.sc_sid == SID_STR || g_st().current_sctx.sc_sid == SID_LUA {
                 new_script_item(None, &raw mut g_st().current_sctx.sc_sid);
             }
@@ -2875,24 +2875,24 @@ pub unsafe fn get_var_value(name: *const c_char) -> *mut c_char {
 pub unsafe fn new_script_vars() -> Box<scriptvar_T> {
     unsafe {
         let mut sv = Box::new(scriptvar_T::new());
-        init_var_dict(&mut sv.sv_dict, &raw mut sv.sv_var, VAR_SCOPE);
+        init_var_dict(&mut sv.sv_dict, &mut sv.sv_var, VAR_SCOPE);
         sv
     }
 }
 
 /// Initialize dictionary "dict" as a scope and set variable "dict_var" to point to it.
-pub unsafe fn init_var_dict(dict: &mut dict_T, dict_var: *mut ScopeDictDictItem, scope: ScopeType) {
+pub unsafe fn init_var_dict(dict: &mut dict_T, dict_var: &mut ScopeDictDictItem, scope: ScopeType) {
     unsafe {
         hash_clear(&mut dict.dv_hashtab);
         dict.dv_lock = VAR_UNLOCKED;
         dict.dv_scope = scope;
         dict.dv_refcount = DO_NOT_FREE_CNT;
         dict.dv_copyID = 0;
-        (*dict_var).di_tv.vval = crate::eval::typval::TypvalVval::Dict(dict);
-        (*dict_var).di_tv.v_type = VarType::VAR_DICT;
-        (*dict_var).di_tv.v_lock = VAR_FIXED;
-        (*dict_var).di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
-        (*dict_var).di_key.clear();
+        dict_var.di_tv.vval = crate::eval::typval::TypvalVval::Dict(dict);
+        dict_var.di_tv.v_type = VarType::VAR_DICT;
+        dict_var.di_tv.v_lock = VAR_FIXED;
+        dict_var.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
+        dict_var.di_key.clear();
         dict.watchers.clear();
     }
 }
@@ -3163,7 +3163,7 @@ pub unsafe fn set_var_const(
             debug_assert!(!dict.is_null());
 
             di = crate::eval::typval::tv_dict_item_alloc_len(varname, varname_len);
-            if hash_add(&mut *ht, di) == FAIL {
+            if hash_add(&mut *ht, &mut *di) == FAIL {
                 crate::eval::typval::tv_dict_item_free(di);
                 return;
             }

@@ -346,7 +346,7 @@ pub unsafe extern "C" fn nvim_open_win(
         let is_split = has_key(mask, KEYSET_OPTIDX_win_config__split)
             || has_key(mask, KEYSET_OPTIDX_win_config__vertical);
         let mut fconfig = WIN_CONFIG_INIT;
-        if !parse_win_config(ptr::null_mut(), config, &mut fconfig, false, !is_split, err) {
+        if !parse_win_config(ptr::null_mut(), &mut *config, &mut fconfig, false, !is_split, err) {
             return 0;
         }
 
@@ -619,18 +619,18 @@ unsafe fn win_find_altwin(win: *mut win_T, tp: &mut tabpage_T) -> *mut win_T {
 
 unsafe fn win_config_split(
     win: *mut win_T,
-    config: *const KeyDict_win_config,
+    config: &KeyDict_win_config,
     fconfig: &mut WinConfig,
     err: &mut Error,
 ) -> bool {
     unsafe {
         let was_split = !(*win).w_floating;
-        let mask = (*config).is_set__win_config_;
+        let mask = config.is_set__win_config_;
         let has_split = has_key(mask, KEYSET_OPTIDX_win_config__split);
         let has_vertical = has_key(mask, KEYSET_OPTIDX_win_config__vertical);
         let old_split = win_split_dir(win);
         if has_vertical && !has_split {
-            if (*config).vertical {
+            if config.vertical {
                 fconfig.split = if old_split == kWinSplitRight || opt_vars().p_spr != 0 {
                     kWinSplitRight
                 } else {
@@ -656,10 +656,10 @@ unsafe fn win_config_split(
 
             let mut parent: *mut win_T = ptr::null_mut();
             let mut parent_tp: *mut tabpage_T = ptr::null_mut();
-            if (*config).win == 0 {
+            if config.win == 0 {
                 parent = *curwin.as_ptr();
                 parent_tp = g_st().curtab;
-            } else if (*config).win > 0 {
+            } else if config.win > 0 {
                 parent = find_window_by_handle(fconfig.window, err);
                 if parent.is_null() {
                     return false;
@@ -903,7 +903,7 @@ unsafe fn win_config_split(
 
 unsafe fn win_config_float_tp(
     win: *mut win_T,
-    config: *const KeyDict_win_config,
+    config: &KeyDict_win_config,
     fconfig: &WinConfig,
     err: &mut Error,
 ) -> bool {
@@ -911,7 +911,7 @@ unsafe fn win_config_float_tp(
         let mut win_tp = win_find_tabpage(win);
         let mut parent = win;
         let mut parent_tp = win_tp;
-        if has_key((*config).is_set__win_config_, KEYSET_OPTIDX_win_config__win) {
+        if has_key(config.is_set__win_config_, KEYSET_OPTIDX_win_config__win) {
             parent = find_window_by_handle(fconfig.window, err);
             if parent.is_null() {
                 return false;
@@ -1054,7 +1054,7 @@ pub unsafe extern "C" fn nvim_win_set_config(
 
         if !parse_win_config(
             w,
-            config,
+            &mut *config,
             &mut fconfig,
             !was_split || to_split,
             will_float,
@@ -1064,10 +1064,10 @@ pub unsafe extern "C" fn nvim_win_set_config(
         }
 
         if to_split {
-            if !win_config_split(w, config, &mut fconfig, err) {
+            if !win_config_split(w, &*config, &mut fconfig, err) {
                 return;
             }
-        } else if !win_config_float_tp(w, config, &fconfig, err) {
+        } else if !win_config_float_tp(w, &*config, &fconfig, err) {
             return;
         }
 
@@ -1646,7 +1646,7 @@ pub unsafe fn parse_winborder(
 
 unsafe fn parse_win_config(
     wp: *mut win_T,
-    config: *mut KeyDict_win_config,
+    config: &mut KeyDict_win_config,
     fconfig: &mut WinConfig,
     reconf: bool,
     will_float: bool,
@@ -1656,12 +1656,12 @@ unsafe fn parse_win_config(
         let mut has_relative = false;
         let mut relative_is_win = false;
         let mut is_split = false;
-        let mask = (*config).is_set__win_config_;
+        let mask = config.is_set__win_config_;
 
         'fail: {
-            if (*config).relative.size > 0 {
-                if !parse_float_relative((*config).relative, &mut fconfig.relative) {
-                    api_err_invalid(err, c"relative".as_ptr(), (*config).relative.data, 0, true);
+            if config.relative.size > 0 {
+                if !parse_float_relative(config.relative, &mut fconfig.relative) {
+                    api_err_invalid(err, c"relative".as_ptr(), config.relative.data, 0, true);
                     break 'fail;
                 }
 
@@ -1679,7 +1679,7 @@ unsafe fn parse_win_config(
                     relative_is_win = true;
                     fconfig.bufpos.lnum = -1;
                 }
-            } else if !(*config).external {
+            } else if !config.external {
                 if has_key(mask, KEYSET_OPTIDX_win_config__vertical)
                     || has_key(mask, KEYSET_OPTIDX_win_config__split)
                 {
@@ -1709,16 +1709,16 @@ unsafe fn parse_win_config(
                     api_err_conflict(err, c"split".as_ptr(), c"floating windows".as_ptr());
                     break 'fail;
                 }
-                if !parse_config_split((*config).split, &mut fconfig.split) {
-                    api_err_invalid(err, c"split".as_ptr(), (*config).split.data, 0, true);
+                if !parse_config_split(config.split, &mut fconfig.split) {
+                    api_err_invalid(err, c"split".as_ptr(), config.split.data, 0, true);
                     break 'fail;
                 }
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__anchor)
-                && !parse_float_anchor((*config).anchor, &mut fconfig.anchor)
+                && !parse_float_anchor(config.anchor, &mut fconfig.anchor)
             {
-                api_err_invalid(err, c"anchor".as_ptr(), (*config).anchor.data, 0, true);
+                api_err_invalid(err, c"anchor".as_ptr(), config.anchor.data, 0, true);
                 break 'fail;
             }
 
@@ -1727,7 +1727,7 @@ unsafe fn parse_win_config(
                     generate_api_error(wp, c"row".as_ptr(), err);
                     break 'fail;
                 }
-                fconfig.row = (*config).row;
+                fconfig.row = config.row;
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__col) {
@@ -1735,7 +1735,7 @@ unsafe fn parse_win_config(
                     generate_api_error(wp, c"col".as_ptr(), err);
                     break 'fail;
                 }
-                fconfig.col = (*config).col;
+                fconfig.col = config.col;
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__bufpos) {
@@ -1743,7 +1743,7 @@ unsafe fn parse_win_config(
                     generate_api_error(wp, c"bufpos".as_ptr(), err);
                     break 'fail;
                 } else {
-                    if !parse_float_bufpos((*config).bufpos, &mut fconfig.bufpos) {
+                    if !parse_float_bufpos(config.bufpos, &mut fconfig.bufpos) {
                         api_err_exp(
                             err,
                             c"bufpos".as_ptr(),
@@ -1767,7 +1767,7 @@ unsafe fn parse_win_config(
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__width) {
-                if (*config).width <= 0 {
+                if config.width <= 0 {
                     api_err_exp(
                         err,
                         c"width".as_ptr(),
@@ -1776,14 +1776,14 @@ unsafe fn parse_win_config(
                     );
                     break 'fail;
                 }
-                fconfig.width = (*config).width as c_int;
+                fconfig.width = config.width as c_int;
             } else if !reconf && !is_split {
                 api_err_required(err, c"width".as_ptr());
                 break 'fail;
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__height) {
-                if (*config).height <= 0 {
+                if config.height <= 0 {
                     api_err_exp(
                         err,
                         c"height".as_ptr(),
@@ -1792,14 +1792,14 @@ unsafe fn parse_win_config(
                     );
                     break 'fail;
                 }
-                fconfig.height = (*config).height as c_int;
+                fconfig.height = config.height as c_int;
             } else if !reconf && !is_split {
                 api_err_required(err, c"height".as_ptr());
                 break 'fail;
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__external) {
-                fconfig.external = (*config).external;
+                fconfig.external = config.external;
                 if has_relative && fconfig.external {
                     api_err_conflict(err, c"relative".as_ptr(), c"external".as_ptr());
                     break 'fail;
@@ -1826,7 +1826,7 @@ unsafe fn parse_win_config(
                     && (*wp).w_floating
                     && fconfig.relative == kFloatRelativeWindow)
             {
-                let target_win = find_window_by_handle((*config).win, err);
+                let target_win = find_window_by_handle(config.win, err);
                 if target_win.is_null() {
                     break 'fail;
                 }
@@ -1848,7 +1848,7 @@ unsafe fn parse_win_config(
                         );
                         break 'fail;
                     }
-                    fconfig.window = (*config).win;
+                    fconfig.window = config.win;
                 }
                 if fconfig.window == 0 {
                     fconfig.window = (**curwin.as_ptr()).handle;
@@ -1856,12 +1856,12 @@ unsafe fn parse_win_config(
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__focusable) {
-                fconfig.focusable = (*config).focusable;
-                fconfig.mouse = (*config).focusable;
+                fconfig.focusable = config.focusable;
+                fconfig.mouse = config.focusable;
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__mouse) {
-                fconfig.mouse = (*config).mouse;
+                fconfig.mouse = config.mouse;
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__zindex) {
@@ -1869,7 +1869,7 @@ unsafe fn parse_win_config(
                     api_err_conflict(err, c"zindex".as_ptr(), c"non-float window".as_ptr());
                     break 'fail;
                 }
-                if (*config).zindex <= 0 {
+                if config.zindex <= 0 {
                     api_err_exp(
                         err,
                         c"zindex".as_ptr(),
@@ -1878,7 +1878,7 @@ unsafe fn parse_win_config(
                     );
                     break 'fail;
                 }
-                fconfig.zindex = (*config).zindex as c_int;
+                fconfig.zindex = config.zindex as c_int;
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__title) {
@@ -1887,12 +1887,12 @@ unsafe fn parse_win_config(
                     break 'fail;
                 }
 
-                parse_bordertext((*config).title, kBorderTextTitle, fconfig, err);
+                parse_bordertext(config.title, kBorderTextTitle, fconfig, err);
                 if error_set(err) {
                     break 'fail;
                 }
 
-                if !parse_bordertext_pos(wp, (*config).title_pos, kBorderTextTitle, fconfig, err) {
+                if !parse_bordertext_pos(wp, config.title_pos, kBorderTextTitle, fconfig, err) {
                     break 'fail;
                 }
             } else if has_key(mask, KEYSET_OPTIDX_win_config__title_pos) {
@@ -1906,12 +1906,12 @@ unsafe fn parse_win_config(
                     break 'fail;
                 }
 
-                parse_bordertext((*config).footer, kBorderTextFooter, fconfig, err);
+                parse_bordertext(config.footer, kBorderTextFooter, fconfig, err);
                 if error_set(err) {
                     break 'fail;
                 }
 
-                if !parse_bordertext_pos(wp, (*config).footer_pos, kBorderTextFooter, fconfig, err)
+                if !parse_bordertext_pos(wp, config.footer_pos, kBorderTextFooter, fconfig, err)
                 {
                     break 'fail;
                 }
@@ -1925,7 +1925,7 @@ unsafe fn parse_win_config(
                     api_err_conflict(err, c"border".as_ptr(), c"non-float window".as_ptr());
                     break 'fail;
                 }
-                let border_style = (*config).border;
+                let border_style = config.border;
                 if border_style.obj_type != ObjectType::kObjectTypeNil {
                     parse_border_style(border_style, &raw mut *fconfig, err);
                     if error_set(err) {
@@ -1940,18 +1940,18 @@ unsafe fn parse_win_config(
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__style) {
-                if *(*config).style.data == NUL {
+                if *config.style.data == NUL {
                     fconfig.style = kWinStyleUnused;
-                } else if { let _a = (*config).style.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"minimal") } {
+                } else if { let _a = config.style.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"minimal") } {
                     fconfig.style = kWinStyleMinimal;
                 } else {
-                    api_err_invalid(err, c"style".as_ptr(), (*config).style.data, 0, true);
+                    api_err_invalid(err, c"style".as_ptr(), config.style.data, 0, true);
                     break 'fail;
                 }
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__noautocmd) {
-                if !wp.is_null() && (*config).noautocmd != fconfig.noautocmd {
+                if !wp.is_null() && config.noautocmd != fconfig.noautocmd {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
@@ -1959,26 +1959,26 @@ unsafe fn parse_win_config(
                     );
                     break 'fail;
                 }
-                fconfig.noautocmd = (*config).noautocmd;
+                fconfig.noautocmd = config.noautocmd;
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__fixed) {
-                fconfig.fixed = (*config).fixed;
+                fconfig.fixed = config.fixed;
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__hide) {
-                if !will_float && (*config).hide {
+                if !will_float && config.hide {
                     api_err_conflict(err, c"hide".as_ptr(), c"non-float window".as_ptr());
                     break 'fail;
                 }
-                if fconfig.hide && !(*config).hide {
+                if fconfig.hide && !config.hide {
                     redraw_later(wp, UPD_NOT_VALID);
                 }
-                fconfig.hide = (*config).hide;
+                fconfig.hide = config.hide;
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config___cmdline_offset) {
-                fconfig._cmdline_offset = (*config)._cmdline_offset as c_int;
+                fconfig._cmdline_offset = config._cmdline_offset as c_int;
             }
 
             return true;

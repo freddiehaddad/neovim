@@ -98,7 +98,7 @@ impl Event {
                 }
                 Self::TimeWatcher(watcher) => crate::event::time::time_event(&mut *watcher),
                 Self::TimeWatcherClose(watcher) => crate::event::time::close_event(&mut *watcher),
-                Self::Signal(watcher) => crate::event::signal::signal_event(watcher),
+                Self::Signal(watcher) => crate::event::signal::signal_event(&mut *watcher),
                 Self::RStreamRead(stream) => crate::event::rstream::read_event(&mut *stream),
                 Self::SocketConnection { watcher, status } => {
                     crate::event::socket::connection_event(watcher, status);

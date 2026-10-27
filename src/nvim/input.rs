@@ -544,34 +544,32 @@ pub unsafe fn sb_add_char(sb: &mut Vec<c_char>, c: c_int) {
 
 unsafe fn read_readbuffers(advance: bool) -> c_int {
     unsafe {
-        let mut c = read_readbuf(&raw mut inp_st().readbuf1, advance);
+        let mut c = read_readbuf(&mut inp_st().readbuf1, advance);
         if c == NUL {
-            c = read_readbuf(&raw mut inp_st().readbuf2, advance);
+            c = read_readbuf(&mut inp_st().readbuf2, advance);
         }
         c
     }
 }
 
-unsafe fn read_readbuf(buf: *mut StuffBuf, advance: bool) -> c_int {
-    unsafe {
-        if (*buf).read == (*buf).keys.len() {
+unsafe fn read_readbuf(buf: &mut StuffBuf, advance: bool) -> c_int {
+    if buf.read == buf.keys.len() {
             return NUL;
         }
 
-        let c = (*buf).keys.as_slice()[(*buf).read] as u8 as c_int;
+        let c = buf.keys.as_slice()[buf.read] as u8 as c_int;
 
         if advance {
-            (*buf).read += 1;
-            if (*buf).read == (*buf).keys.len() {
-                (*buf).keys.clear();
-                (*buf).read = 0;
-                (*buf).insert = 0;
+            buf.read += 1;
+            if buf.read == buf.keys.len() {
+                buf.keys.clear();
+                buf.read = 0;
+                buf.insert = 0;
             } else {
-                (*buf).insert = (*buf).insert.max((*buf).read);
+                buf.insert = buf.insert.max(buf.read);
             }
         }
         c
-    }
 }
 
 unsafe fn start_stuff() {
@@ -747,11 +745,11 @@ pub unsafe fn redo_cancel() {
 }
 
 /// Saves the redo state to `save_redo` and detaches it.
-pub unsafe fn save_redobuff(save_redo: *mut RedoState) {
+pub unsafe fn save_redobuff(save_redo: &mut RedoState) {
     unsafe {
         let rb = &raw mut inp_st().redobuff;
-        (*save_redo).cur = (*rb).cur.clone();
-        (*save_redo).old = std::mem::take(&mut (*rb).old);
+        save_redo.cur = (*rb).cur.clone();
+        save_redo.old = std::mem::take(&mut (*rb).old);
     }
 }
 
@@ -1263,48 +1261,48 @@ pub unsafe fn del_typebuf(len: c_int, offset: c_int) {
     }
 }
 
-unsafe fn gotchars_add_byte(state: *mut gotchars_state_T, byte: u8) -> bool {
+unsafe fn gotchars_add_byte(state: &mut gotchars_state_T, byte: u8) -> bool {
     unsafe {
-        (*state).buf[(*state).buflen] = byte;
-        (*state).buflen += 1;
+        state.buf[state.buflen] = byte;
+        state.buflen += 1;
         let mut c = byte as c_int;
         let mut retval = false;
-        let in_special = (*state).pending_special > 0;
-        let in_mbyte = (*state).pending_mbyte > 0;
+        let in_special = state.pending_special > 0;
+        let in_mbyte = state.pending_mbyte > 0;
 
         'ret_false: {
             if in_special {
-                (*state).pending_special -= 1;
+                state.pending_special -= 1;
             } else if c == K_SPECIAL as c_int {
-                (*state).pending_special = 2;
+                state.pending_special = 2;
             }
 
-            if (*state).pending_special > 0 {
+            if state.pending_special > 0 {
                 break 'ret_false;
             }
 
             if in_mbyte {
-                (*state).pending_mbyte -= 1;
+                state.pending_mbyte -= 1;
             } else {
                 if in_special {
-                    if (*state).prev_c == KS_MODIFIER as c_int {
+                    if state.prev_c == KS_MODIFIER as c_int {
                         break 'ret_false;
                     }
-                    c = to_special((*state).prev_c, c);
+                    c = to_special(state.prev_c, c);
                     if c == K_COMPLETE_DELAY {
-                        (*state).buflen = 0;
+                        state.buflen = 0;
                     }
                 }
-                (*state).pending_mbyte = (mb_byte2len_check(c) - 1) as c_uint;
+                state.pending_mbyte = (mb_byte2len_check(c) - 1) as c_uint;
             }
 
-            if (*state).pending_mbyte > 0 {
+            if state.pending_mbyte > 0 {
                 break 'ret_false;
             }
 
             retval = true;
         }
-        (*state).prev_c = c;
+        state.prev_c = c;
         retval
     }
 }
@@ -1318,7 +1316,7 @@ unsafe fn gotchars(chars: *const u8, len: usize) {
             todo -= 1;
             let b = *s;
             s = s.add(1);
-            if !gotchars_add_byte(&raw mut inp_st().GOTCHARS_STATE, b) {
+            if !gotchars_add_byte(&mut inp_st().GOTCHARS_STATE, b) {
                 continue;
             }
 
@@ -1440,34 +1438,34 @@ unsafe fn can_get_ungot() -> bool {
 }
 
 /// Save all three kinds of typeahead, so that the user must type at a prompt.
-pub unsafe fn save_typeahead(tp: *mut tasave_T) {
+pub unsafe fn save_typeahead(tp: &mut tasave_T) {
     unsafe {
         let prev_cnt = g_st().typebuf.tb_change_cnt;
-        (*tp).save_typebuf =
+        tp.save_typebuf =
             std::mem::replace(&mut g_st().typebuf, typebuf_T::ZERO);
         g_st().typebuf.tb_change_cnt = prev_cnt;
         alloc_typebuf();
-        (*tp).ungot = inp_st().ungot;
+        tp.ungot = inp_st().ungot;
         inp_st().ungot.c = -1;
 
         let rb1 = &raw mut inp_st().readbuf1;
         let rb2 = &raw mut inp_st().readbuf2;
-        (*tp).save_readbuf1 = std::mem::replace(&mut *rb1, StuffBuf::new());
-        (*tp).save_readbuf2 = std::mem::replace(&mut *rb2, StuffBuf::new());
+        tp.save_readbuf1 = std::mem::replace(&mut *rb1, StuffBuf::new());
+        tp.save_readbuf2 = std::mem::replace(&mut *rb2, StuffBuf::new());
     }
 }
 
 /// Restore the typeahead to what it was before calling `save_typeahead()`.
-pub unsafe fn restore_typeahead(tp: *mut tasave_T) {
+pub unsafe fn restore_typeahead(tp: &mut tasave_T) {
     unsafe {
         free_typebuf();
-        g_st().typebuf = std::mem::replace(&mut (*tp).save_typebuf, typebuf_T::ZERO);
-        inp_st().ungot = (*tp).ungot;
+        g_st().typebuf = std::mem::replace(&mut tp.save_typebuf, typebuf_T::ZERO);
+        inp_st().ungot = tp.ungot;
 
         let rb1 = &raw mut inp_st().readbuf1;
         let rb2 = &raw mut inp_st().readbuf2;
-        *rb1 = std::mem::replace(&mut (*tp).save_readbuf1, StuffBuf::new());
-        *rb2 = std::mem::replace(&mut (*tp).save_readbuf2, StuffBuf::new());
+        *rb1 = std::mem::replace(&mut tp.save_readbuf1, StuffBuf::new());
+        *rb2 = std::mem::replace(&mut tp.save_readbuf2, StuffBuf::new());
     }
 }
 
@@ -1662,7 +1660,7 @@ unsafe fn add_byte_to_showcmd(byte: u8) {
             return;
         }
 
-        if !gotchars_add_byte(&raw mut inp_st().SHOWCMD_STATE, byte) {
+        if !gotchars_add_byte(&mut inp_st().SHOWCMD_STATE, byte) {
             return;
         }
 
@@ -2774,7 +2772,7 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
 
                                     let mut csarg = CharsizeArg::new();
                                     let cstype: CSType = init_charsize_arg(
-                                        &raw mut csarg,
+                                        &mut csarg,
                                         *curwin.as_ptr(),
                                         (**curwin.as_ptr()).w_cursor.lnum,
                                         ptr,

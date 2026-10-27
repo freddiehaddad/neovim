@@ -380,7 +380,7 @@ pub unsafe fn tui_start(
         let tui: &mut TUIData = &mut **(*tui_out).as_mut().unwrap();
 
         signal_watcher_init(&mut *tui.loop_, tui_winch_handle(tui), &raw mut *tui);
-        signal_watcher_start(tui_winch_handle(tui), SIGWINCH);
+        signal_watcher_start(&mut *tui_winch_handle(tui), SIGWINCH);
 
         tui.grid.cells.clear();
         tui_terminal_start(tui);
@@ -1226,8 +1226,8 @@ pub unsafe fn tui_stop(tui: &mut TUIData) {
         tui_terminal_stop(tui);
         stream_set_blocking((*input).in_fd, true);
         tinput_destroy(&mut *input);
-        signal_watcher_stop(tui_winch_handle(tui));
-        signal_watcher_close(tui_winch_handle(tui));
+        signal_watcher_stop(&mut *tui_winch_handle(tui));
+        signal_watcher_close(&mut *tui_winch_handle(tui));
         uv_close(tui_startup_delay_timer(tui).cast(), None);
     }
 }
@@ -2253,7 +2253,7 @@ unsafe fn show_verbose_terminfo(tui: &mut TUIData) {
             capacity: 2,
         };
         let mut str_bytes = terminfo_info_msg(
-            &raw const tui.ti,
+            &tui.ti,
             tui.term.as_deref(),
             tui.terminfo_found_in_db,
         );

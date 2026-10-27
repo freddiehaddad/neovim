@@ -89,7 +89,7 @@ impl xdemitcb_t {
     ) -> c_int {
         match self {
             Self::Diff(dout) => unsafe {
-                crate::diff::xdiff_out(start_a, count_a, start_b, count_b, dout)
+                crate::diff::xdiff_out(start_a, count_a, start_b, count_b, &mut *dout)
             },
             Self::OnHunk(priv_data) => unsafe {
                 crate::lua::xdiff::call_on_hunk_cb(start_a, count_a, start_b, count_b, priv_data)

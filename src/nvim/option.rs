@@ -2077,7 +2077,7 @@ unsafe fn do_one_set_option(
                 gotocmdline(true);
                 *did_show = true;
             }
-            showoneopt(opt, opt_flags);
+            showoneopt(&mut *opt, opt_flags);
 
             if opt_vars().p_verbose > 0 {
                 if varp == (*opt).var {
@@ -2624,7 +2624,7 @@ pub unsafe fn set_option_sctx(opt_idx: OptIndex, opt_flags: c_int, mut script_ct
         if (opt_flags & OPT_MODELINE) == 0 {
             script_ctx.sc_lnum += sourcing_lnum();
         }
-        nlua_set_sctx(&raw mut script_ctx);
+        nlua_set_sctx(&mut script_ctx);
 
         if both || (opt_flags & OPT_GLOBAL) != 0 || option_is_global_only(opt_idx) {
             (*get_option(opt_idx)).script_ctx = script_ctx;
@@ -6432,7 +6432,7 @@ unsafe fn showoptions(all: bool, opt_flags: c_int) {
                 let mut i = row as usize;
                 while i < item_count {
                     msg_advance(col);
-                    showoneopt(items[i], opt_flags);
+                    showoneopt(&mut *items[i], opt_flags);
                     col += INC;
                     i += rows as usize;
                 }
@@ -6477,19 +6477,19 @@ pub unsafe fn ui_refresh_options() {
     }
 }
 
-unsafe fn showoneopt(opt: *mut vimoption_T, opt_flags: c_int) {
+unsafe fn showoneopt(opt: &mut vimoption_T, opt_flags: c_int) {
     unsafe {
         let save_silent = g_st().silent_mode;
 
         g_st().silent_mode = false;
         g_st().info_message = true;
 
-        let opt_idx = get_opt_idx(opt);
-        let varp = get_varp_scope(opt, opt_flags);
+        let opt_idx = get_opt_idx(&raw mut *opt);
+        let varp = get_varp_scope(&raw mut *opt, opt_flags);
 
         if option_has_type(opt_idx, ObjectType::kObjectTypeBoolean) {
-            let val_int = if (*opt).immutable {
-                c_int::from((*opt).def_val.data.boolean())
+            let val_int = if opt.immutable {
+                c_int::from(opt.def_val.data.boolean())
             } else if varp.cast::<c_int>() == &raw mut (*g_st().curbuf).b_changed {
                 c_int::from(curbufIsChanged())
             } else {
@@ -6505,7 +6505,7 @@ unsafe fn showoneopt(opt: *mut vimoption_T, opt_flags: c_int) {
         } else {
             msg_puts(c"  ".as_ptr());
         }
-        msg_puts((*opt).fullname.as_ptr());
+        msg_puts(opt.fullname.as_ptr());
         if !option_has_type(opt_idx, ObjectType::kObjectTypeBoolean) {
             msg_putchar(b'=' as c_int);
             optval_fmt(opt_idx, opt_flags);
@@ -7271,12 +7271,12 @@ pub unsafe fn get_findfunc() -> *mut Callback {
 pub unsafe fn win_copy_options(wp_from: *mut win_T, wp_to: *mut win_T) {
     unsafe {
         copy_winopt(
-            &raw mut (*wp_from).w_onebuf_opt,
-            &raw mut (*wp_to).w_onebuf_opt,
+            &mut (*wp_from).w_onebuf_opt,
+            &mut (*wp_to).w_onebuf_opt,
         );
         copy_winopt(
-            &raw mut (*wp_from).w_allbuf_opt,
-            &raw mut (*wp_to).w_allbuf_opt,
+            &mut (*wp_from).w_allbuf_opt,
+            &mut (*wp_to).w_allbuf_opt,
         );
         didset_window_options(wp_to, true);
     }
@@ -7294,150 +7294,150 @@ unsafe fn copy_option_val(val: *const c_char) -> *mut c_char {
 }
 
 /// Copy the options from one winopt_T to another.
-pub unsafe fn copy_winopt(from: *mut winopt_T, to: *mut winopt_T) {
+pub unsafe fn copy_winopt(from: &mut winopt_T, to: &mut winopt_T) {
     unsafe {
         let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
-        (*to).wo_arab = (*from).wo_arab;
-        (*to).wo_list = (*from).wo_list;
-        (*to).wo_lcs = copy_option_val((*from).wo_lcs);
-        (*to).wo_fcs = copy_option_val((*from).wo_fcs);
-        (*to).wo_nu = (*from).wo_nu;
-        (*to).wo_rnu = (*from).wo_rnu;
-        (*to).wo_ve = copy_option_val((*from).wo_ve);
-        (*to).wo_ve_flags = (*from).wo_ve_flags;
-        (*to).wo_nuw = (*from).wo_nuw;
-        (*to).wo_rl = (*from).wo_rl;
-        (*to).wo_rlc = copy_option_val((*from).wo_rlc);
-        (*to).wo_sbr = copy_option_val((*from).wo_sbr);
-        (*to).wo_stl = copy_option_val((*from).wo_stl);
-        (*to).wo_wbr = copy_option_val((*from).wo_wbr);
-        (*to).wo_wrap = (*from).wo_wrap;
-        (*to).wo_wrap_save = (*from).wo_wrap_save;
-        (*to).wo_lbr = (*from).wo_lbr;
-        (*to).wo_bri = (*from).wo_bri;
-        (*to).wo_briopt = copy_option_val((*from).wo_briopt);
-        (*to).wo_scb = (*from).wo_scb;
-        (*to).wo_scb_save = (*from).wo_scb_save;
-        (*to).wo_sms = (*from).wo_sms;
-        (*to).wo_crb = (*from).wo_crb;
-        (*to).wo_crb_save = (*from).wo_crb_save;
-        (*to).wo_siso = (*from).wo_siso;
-        (*to).wo_so = (*from).wo_so;
-        (*to).wo_sop = (*from).wo_sop;
-        (*to).wo_spell = (*from).wo_spell;
-        (*to).wo_cuc = (*from).wo_cuc;
-        (*to).wo_cul = (*from).wo_cul;
-        (*to).wo_culopt = copy_option_val((*from).wo_culopt);
-        (*to).wo_cc = copy_option_val((*from).wo_cc);
-        (*to).wo_diff = (*from).wo_diff;
-        (*to).wo_diff_saved = (*from).wo_diff_saved;
-        (*to).wo_eiw = copy_option_val((*from).wo_eiw);
-        (*to).wo_cocu = copy_option_val((*from).wo_cocu);
-        (*to).wo_cole = (*from).wo_cole;
-        (*to).wo_fdc = copy_option_val((*from).wo_fdc);
-        (*to).wo_fdc_save = if (*from).wo_diff_saved != 0 {
-            alloc_string_option((*from).wo_fdc_save)
+        to.wo_arab = from.wo_arab;
+        to.wo_list = from.wo_list;
+        to.wo_lcs = copy_option_val(from.wo_lcs);
+        to.wo_fcs = copy_option_val(from.wo_fcs);
+        to.wo_nu = from.wo_nu;
+        to.wo_rnu = from.wo_rnu;
+        to.wo_ve = copy_option_val(from.wo_ve);
+        to.wo_ve_flags = from.wo_ve_flags;
+        to.wo_nuw = from.wo_nuw;
+        to.wo_rl = from.wo_rl;
+        to.wo_rlc = copy_option_val(from.wo_rlc);
+        to.wo_sbr = copy_option_val(from.wo_sbr);
+        to.wo_stl = copy_option_val(from.wo_stl);
+        to.wo_wbr = copy_option_val(from.wo_wbr);
+        to.wo_wrap = from.wo_wrap;
+        to.wo_wrap_save = from.wo_wrap_save;
+        to.wo_lbr = from.wo_lbr;
+        to.wo_bri = from.wo_bri;
+        to.wo_briopt = copy_option_val(from.wo_briopt);
+        to.wo_scb = from.wo_scb;
+        to.wo_scb_save = from.wo_scb_save;
+        to.wo_sms = from.wo_sms;
+        to.wo_crb = from.wo_crb;
+        to.wo_crb_save = from.wo_crb_save;
+        to.wo_siso = from.wo_siso;
+        to.wo_so = from.wo_so;
+        to.wo_sop = from.wo_sop;
+        to.wo_spell = from.wo_spell;
+        to.wo_cuc = from.wo_cuc;
+        to.wo_cul = from.wo_cul;
+        to.wo_culopt = copy_option_val(from.wo_culopt);
+        to.wo_cc = copy_option_val(from.wo_cc);
+        to.wo_diff = from.wo_diff;
+        to.wo_diff_saved = from.wo_diff_saved;
+        to.wo_eiw = copy_option_val(from.wo_eiw);
+        to.wo_cocu = copy_option_val(from.wo_cocu);
+        to.wo_cole = from.wo_cole;
+        to.wo_fdc = copy_option_val(from.wo_fdc);
+        to.wo_fdc_save = if from.wo_diff_saved != 0 {
+            alloc_string_option(from.wo_fdc_save)
         } else {
             empty_opt
         };
-        (*to).wo_fen = (*from).wo_fen;
-        (*to).wo_fen_save = (*from).wo_fen_save;
-        (*to).wo_fdi = copy_option_val((*from).wo_fdi);
-        (*to).wo_fml = (*from).wo_fml;
-        (*to).wo_fdl = (*from).wo_fdl;
-        (*to).wo_fdl_save = (*from).wo_fdl_save;
-        (*to).wo_fdm = copy_option_val((*from).wo_fdm);
-        (*to).wo_fdm_save = if (*from).wo_diff_saved != 0 {
-            alloc_string_option((*from).wo_fdm_save)
+        to.wo_fen = from.wo_fen;
+        to.wo_fen_save = from.wo_fen_save;
+        to.wo_fdi = copy_option_val(from.wo_fdi);
+        to.wo_fml = from.wo_fml;
+        to.wo_fdl = from.wo_fdl;
+        to.wo_fdl_save = from.wo_fdl_save;
+        to.wo_fdm = copy_option_val(from.wo_fdm);
+        to.wo_fdm_save = if from.wo_diff_saved != 0 {
+            alloc_string_option(from.wo_fdm_save)
         } else {
             empty_opt
         };
-        (*to).wo_fdn = (*from).wo_fdn;
+        to.wo_fdn = from.wo_fdn;
         callback_copy(
-            &mut (*to).wo_fde,
-            &*(&raw const (*from).wo_fde),
+            &mut to.wo_fde,
+            &*(&raw const from.wo_fde),
         );
         callback_copy(
-            &mut (*to).wo_fdt,
-            &*(&raw const (*from).wo_fdt),
+            &mut to.wo_fdt,
+            &*(&raw const from.wo_fdt),
         );
-        (*to).wo_fmr = copy_option_val((*from).wo_fmr);
-        (*to).wo_scl = copy_option_val((*from).wo_scl);
-        (*to).wo_lhi = (*from).wo_lhi;
-        (*to).wo_winhl = copy_option_val((*from).wo_winhl);
-        (*to).wo_winbl = (*from).wo_winbl;
-        (*to).wo_stc = copy_option_val((*from).wo_stc);
+        to.wo_fmr = copy_option_val(from.wo_fmr);
+        to.wo_scl = copy_option_val(from.wo_scl);
+        to.wo_lhi = from.wo_lhi;
+        to.wo_winhl = copy_option_val(from.wo_winhl);
+        to.wo_winbl = from.wo_winbl;
+        to.wo_stc = copy_option_val(from.wo_stc);
 
-        (*to).wo_wrap_flags = (*from).wo_wrap_flags;
-        (*to).wo_stl_flags = (*from).wo_stl_flags;
-        (*to).wo_wbr_flags = (*from).wo_wbr_flags;
-        (*to).wo_fde_flags = (*from).wo_fde_flags;
-        (*to).wo_fdt_flags = (*from).wo_fdt_flags;
+        to.wo_wrap_flags = from.wo_wrap_flags;
+        to.wo_stl_flags = from.wo_stl_flags;
+        to.wo_wbr_flags = from.wo_wbr_flags;
+        to.wo_fde_flags = from.wo_fde_flags;
+        to.wo_fdt_flags = from.wo_fdt_flags;
 
-        (*to).wo_script_ctx = (*from).wo_script_ctx;
+        to.wo_script_ctx = from.wo_script_ctx;
         check_winopt(to);
     }
 }
 
 unsafe fn check_win_options(win: &mut win_T) {
     unsafe {
-        check_winopt(&raw mut win.w_onebuf_opt);
-        check_winopt(&raw mut win.w_allbuf_opt);
+        check_winopt(&mut win.w_onebuf_opt);
+        check_winopt(&mut win.w_allbuf_opt);
     }
 }
 
-unsafe fn check_winopt(wop: *mut winopt_T) {
+unsafe fn check_winopt(wop: &mut winopt_T) {
     unsafe {
-        check_string_option(&raw mut (*wop).wo_fdc);
-        check_string_option(&raw mut (*wop).wo_fdc_save);
-        check_string_option(&raw mut (*wop).wo_fdi);
-        check_string_option(&raw mut (*wop).wo_fdm);
-        check_string_option(&raw mut (*wop).wo_fdm_save);
-        check_string_option(&raw mut (*wop).wo_fmr);
-        check_string_option(&raw mut (*wop).wo_eiw);
-        check_string_option(&raw mut (*wop).wo_scl);
-        check_string_option(&raw mut (*wop).wo_rlc);
-        check_string_option(&raw mut (*wop).wo_sbr);
-        check_string_option(&raw mut (*wop).wo_stl);
-        check_string_option(&raw mut (*wop).wo_culopt);
-        check_string_option(&raw mut (*wop).wo_cc);
-        check_string_option(&raw mut (*wop).wo_cocu);
-        check_string_option(&raw mut (*wop).wo_briopt);
-        check_string_option(&raw mut (*wop).wo_winhl);
-        check_string_option(&raw mut (*wop).wo_lcs);
-        check_string_option(&raw mut (*wop).wo_fcs);
-        check_string_option(&raw mut (*wop).wo_ve);
-        check_string_option(&raw mut (*wop).wo_wbr);
-        check_string_option(&raw mut (*wop).wo_stc);
+        check_string_option(&raw mut wop.wo_fdc);
+        check_string_option(&raw mut wop.wo_fdc_save);
+        check_string_option(&raw mut wop.wo_fdi);
+        check_string_option(&raw mut wop.wo_fdm);
+        check_string_option(&raw mut wop.wo_fdm_save);
+        check_string_option(&raw mut wop.wo_fmr);
+        check_string_option(&raw mut wop.wo_eiw);
+        check_string_option(&raw mut wop.wo_scl);
+        check_string_option(&raw mut wop.wo_rlc);
+        check_string_option(&raw mut wop.wo_sbr);
+        check_string_option(&raw mut wop.wo_stl);
+        check_string_option(&raw mut wop.wo_culopt);
+        check_string_option(&raw mut wop.wo_cc);
+        check_string_option(&raw mut wop.wo_cocu);
+        check_string_option(&raw mut wop.wo_briopt);
+        check_string_option(&raw mut wop.wo_winhl);
+        check_string_option(&raw mut wop.wo_lcs);
+        check_string_option(&raw mut wop.wo_fcs);
+        check_string_option(&raw mut wop.wo_ve);
+        check_string_option(&raw mut wop.wo_wbr);
+        check_string_option(&raw mut wop.wo_stc);
     }
 }
 
 /// Free the allocated memory inside a winopt_T.
-pub unsafe fn clear_winopt(wop: *mut winopt_T) {
+pub unsafe fn clear_winopt(wop: &mut winopt_T) {
     unsafe {
-        clear_string_option(&raw mut (*wop).wo_fdc);
-        clear_string_option(&raw mut (*wop).wo_fdc_save);
-        clear_string_option(&raw mut (*wop).wo_fdi);
-        clear_string_option(&raw mut (*wop).wo_fdm);
-        clear_string_option(&raw mut (*wop).wo_fdm_save);
-        callback_free(&mut (*wop).wo_fde);
-        callback_free(&mut (*wop).wo_fdt);
-        clear_string_option(&raw mut (*wop).wo_fmr);
-        clear_string_option(&raw mut (*wop).wo_eiw);
-        clear_string_option(&raw mut (*wop).wo_scl);
-        clear_string_option(&raw mut (*wop).wo_rlc);
-        clear_string_option(&raw mut (*wop).wo_sbr);
-        clear_string_option(&raw mut (*wop).wo_stl);
-        clear_string_option(&raw mut (*wop).wo_culopt);
-        clear_string_option(&raw mut (*wop).wo_cc);
-        clear_string_option(&raw mut (*wop).wo_cocu);
-        clear_string_option(&raw mut (*wop).wo_briopt);
-        clear_string_option(&raw mut (*wop).wo_winhl);
-        clear_string_option(&raw mut (*wop).wo_lcs);
-        clear_string_option(&raw mut (*wop).wo_fcs);
-        clear_string_option(&raw mut (*wop).wo_ve);
-        clear_string_option(&raw mut (*wop).wo_wbr);
-        clear_string_option(&raw mut (*wop).wo_stc);
+        clear_string_option(&raw mut wop.wo_fdc);
+        clear_string_option(&raw mut wop.wo_fdc_save);
+        clear_string_option(&raw mut wop.wo_fdi);
+        clear_string_option(&raw mut wop.wo_fdm);
+        clear_string_option(&raw mut wop.wo_fdm_save);
+        callback_free(&mut wop.wo_fde);
+        callback_free(&mut wop.wo_fdt);
+        clear_string_option(&raw mut wop.wo_fmr);
+        clear_string_option(&raw mut wop.wo_eiw);
+        clear_string_option(&raw mut wop.wo_scl);
+        clear_string_option(&raw mut wop.wo_rlc);
+        clear_string_option(&raw mut wop.wo_sbr);
+        clear_string_option(&raw mut wop.wo_stl);
+        clear_string_option(&raw mut wop.wo_culopt);
+        clear_string_option(&raw mut wop.wo_cc);
+        clear_string_option(&raw mut wop.wo_cocu);
+        clear_string_option(&raw mut wop.wo_briopt);
+        clear_string_option(&raw mut wop.wo_winhl);
+        clear_string_option(&raw mut wop.wo_lcs);
+        clear_string_option(&raw mut wop.wo_fcs);
+        clear_string_option(&raw mut wop.wo_ve);
+        clear_string_option(&raw mut wop.wo_wbr);
+        clear_string_option(&raw mut wop.wo_stc);
     }
 }
 
@@ -8771,7 +8771,7 @@ pub unsafe fn get_option_info(
             return Dict::new();
         }
 
-        option_info_dict(get_option(opt_idx), opt_flags, buf, win, arena)
+        option_info_dict(&mut *get_option(opt_idx), opt_flags, buf, win, arena)
     }
 }
 
@@ -8781,7 +8781,7 @@ pub unsafe fn get_all_options_info(arena: *mut Arena) -> Dict {
         let mut retval = arena_dict(arena, kOptCount as usize);
         for opt_idx in 0..kOptCount {
             let opt = get_option(opt_idx);
-            let opt_dict = option_info_dict(opt, OPT_GLOBAL, g_st().curbuf, *curwin.as_ptr(), arena);
+            let opt_dict = option_info_dict(&mut *opt, OPT_GLOBAL, g_st().curbuf, *curwin.as_ptr(), arena);
             put_c(&mut retval, (*opt).fullname.as_ptr(), dict_obj(opt_dict));
         }
         retval
@@ -8789,25 +8789,25 @@ pub unsafe fn get_all_options_info(arena: *mut Arena) -> Dict {
 }
 
 unsafe fn option_info_dict(
-    opt: *mut vimoption_T,
+    opt: &mut vimoption_T,
     opt_flags: c_int,
     buf: *mut buf_T,
     win: *mut win_T,
     arena: *mut Arena,
 ) -> Dict {
     unsafe {
-        let opt_idx = get_opt_idx(opt);
+        let opt_idx = get_opt_idx(&raw mut *opt);
         let mut dict = arena_dict(arena, 13);
 
         put_c(
             &mut dict,
             c"name".as_ptr(),
-            cstr_as_obj((*opt).fullname.as_ptr()),
+            cstr_as_obj(opt.fullname.as_ptr()),
         );
         put_c(
             &mut dict,
             c"shortname".as_ptr(),
-            cstr_as_obj((*opt).shortname.map_or(ptr::null(), |s| s.as_ptr())),
+            cstr_as_obj(opt.shortname.map_or(ptr::null(), |s| s.as_ptr())),
         );
 
         let scope = if option_has_scope(opt_idx, kOptScopeBuf) {
@@ -8830,18 +8830,18 @@ unsafe fn option_info_dict(
         put_c(
             &mut dict,
             c"commalist".as_ptr(),
-            boolean_obj(((*opt).flags & kOptFlagComma) != 0),
+            boolean_obj((opt.flags & kOptFlagComma) != 0),
         );
         put_c(
             &mut dict,
             c"flaglist".as_ptr(),
-            boolean_obj(((*opt).flags & kOptFlagFlagList) != 0),
+            boolean_obj((opt.flags & kOptFlagFlagList) != 0),
         );
 
         put_c(
             &mut dict,
             c"was_set".as_ptr(),
-            boolean_obj(((*opt).flags & kOptFlagWasSet) != 0),
+            boolean_obj((opt.flags & kOptFlagWasSet) != 0),
         );
 
         let mut script_ctx = sctx_T {
@@ -8851,18 +8851,18 @@ unsafe fn option_info_dict(
             sc_chan: 0,
         };
         if opt_flags == OPT_GLOBAL {
-            script_ctx = (*opt).script_ctx;
+            script_ctx = opt.script_ctx;
         } else {
             if option_has_scope(opt_idx, kOptScopeBuf) {
                 script_ctx =
-                    (*buf).b_p_script_ctx[(*opt).scope_idx[kOptScopeBuf as usize] as usize];
+                    (*buf).b_p_script_ctx[opt.scope_idx[kOptScopeBuf as usize] as usize];
             }
             if option_has_scope(opt_idx, kOptScopeWin) {
                 script_ctx = (*win).w_onebuf_opt.wo_script_ctx
-                    [(*opt).scope_idx[kOptScopeWin as usize] as usize];
+                    [opt.scope_idx[kOptScopeWin as usize] as usize];
             }
             if opt_flags != OPT_LOCAL && script_ctx.sc_sid == 0 {
-                script_ctx = (*opt).script_ctx;
+                script_ctx = opt.script_ctx;
             }
         }
 
@@ -8885,13 +8885,13 @@ unsafe fn option_info_dict(
         put_c(
             &mut dict,
             c"type".as_ptr(),
-            cstr_as_obj(optval_type_name((*get_option(get_opt_idx(opt))).opt_type)),
+            cstr_as_obj(optval_type_name((*get_option(get_opt_idx(&raw mut *opt))).opt_type)),
         );
-        put_c(&mut dict, c"default".as_ptr(), (*opt).def_val);
+        put_c(&mut dict, c"default".as_ptr(), opt.def_val);
         put_c(
             &mut dict,
             c"allows_duplicates".as_ptr(),
-            boolean_obj(((*opt).flags & kOptFlagNoDup) == 0),
+            boolean_obj((opt.flags & kOptFlagNoDup) == 0),
         );
 
         dict

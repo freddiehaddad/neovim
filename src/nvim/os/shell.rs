@@ -898,9 +898,9 @@ unsafe fn do_os_system(
             if has_input {
                 wstream_init(&mut *s_in, 0);
             }
-            rstream_init(r_out);
+            rstream_init(&mut *r_out);
             rstream_start(&mut *r_out, cb_data);
-            rstream_init(r_err);
+            rstream_init(&mut *r_err);
             rstream_start(&mut *r_err, cb_data);
 
             if has_input {
@@ -958,12 +958,12 @@ pub(crate) unsafe fn system_data_cb(
     _stream: &mut RStream,
     buf: *const c_char,
     count: usize,
-    dbuf: *mut Vec<c_char>,
+    dbuf: &mut Vec<c_char>,
     _eof: bool,
 ) -> usize {
     unsafe {
         if !buf.is_null() && count > 0 {
-            (*dbuf).extend_from_slice(std::slice::from_raw_parts(buf, count));
+            dbuf.extend_from_slice(std::slice::from_raw_parts(buf, count));
         }
         count
     }

@@ -827,7 +827,7 @@ pub unsafe fn check_compl_option(dict_opt: bool) -> bool {
             *(*g_st().curbuf).b_p_tsr == NUL
                 && *opt_vars().p_tsr == NUL
                 && (*g_st().curbuf).b_p_tsrfu.cb_type() == kCallbackNone
-                && crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_tsrfu) == kCallbackNone
+                && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_tsrfu) == kCallbackNone
         };
         if empty {
             insexp().ctrl_x_mode = CTRL_X_NORMAL;
@@ -905,8 +905,8 @@ pub unsafe fn vim_is_ctrl_x_key(c: c_int) -> bool {
 }
 
 #[inline]
-unsafe fn match_at_original_text(match_: *const compl_T) -> bool {
-    unsafe { ((*match_).cp_flags & CP_ORIGINAL_TEXT) != 0 }
+unsafe fn match_at_original_text(match_: &compl_T) -> bool {
+    (match_.cp_flags & CP_ORIGINAL_TEXT) != 0
 }
 
 /// Return the index of the entry holding the original text, None if not found.
@@ -929,7 +929,7 @@ unsafe fn find_original_text_match_idx() -> Option<usize> {
 unsafe fn do_autocmd_completedone(c: c_int, mode: c_int, word: *mut NvimString) {
     unsafe {
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
-        let v_event = get_v_event(&raw mut save_v_event);
+        let v_event = get_v_event(&mut save_v_event);
 
         if word.is_null() || (*word).data.is_null() {
             tv_dict_add_str_len(v_event, c"complete_word".as_ptr(), 13, c"".as_ptr(), 0);
@@ -970,7 +970,7 @@ unsafe fn do_autocmd_completedone(c: c_int, mode: c_int, word: *mut NvimString) 
         tv_dict_set_keys_readonly(v_event);
 
         ins_apply_autocmds(EVENT_COMPLETEDONE);
-        restore_v_event(&mut *v_event, &raw mut save_v_event);
+        restore_v_event(&mut *v_event, &mut save_v_event);
     }
 }
 
@@ -1004,7 +1004,7 @@ pub unsafe fn ins_compl_commit_char(c: c_int) -> bool {
         }
         let shown = compl_opt(insexp().compl_shown_idx);
         !shown.is_null()
-            && !match_at_original_text(shown)
+            && !match_at_original_text(&*shown)
             && (*shown)
                 .cp_commit_chars
                 .as_ref()
@@ -1350,7 +1350,7 @@ unsafe fn ins_compl_add(
         }
 
         let match_ptr = compl_at(insert_idx);
-        if !match_at_original_text(match_ptr) {
+        if !match_at_original_text(&*match_ptr) {
             compl_strings_add((*match_ptr).cp_str.data, (*match_ptr).cp_str.size);
         }
 
@@ -1360,7 +1360,7 @@ unsafe fn ins_compl_add(
             && !ins_compl_preinsert_longest()
             && !ctrl_x_mode_thesaurus()
         {
-            ins_compl_longest_match(match_ptr);
+            ins_compl_longest_match(&mut *match_ptr);
         }
 
         OK
@@ -1368,20 +1368,20 @@ unsafe fn ins_compl_add(
 }
 
 /// Check that "str[len]" matches with "match->cp_str", considering "match->cp_flags".
-unsafe fn ins_compl_equal(match_: *mut compl_T, str_ptr: *const c_char, len: usize) -> bool {
+unsafe fn ins_compl_equal(match_: &mut compl_T, str_ptr: *const c_char, len: usize) -> bool {
     unsafe {
-        if ((*match_).cp_flags & CP_EQUAL) != 0 {
+        if (match_.cp_flags & CP_EQUAL) != 0 {
             return true;
         }
-        if ((*match_).cp_flags & CP_ICASE) != 0 {
-            return { let _p1 = (*match_).cp_str.data; let _p2 = str_ptr; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) };
+        if (match_.cp_flags & CP_ICASE) != 0 {
+            return { let _p1 = match_.cp_str.data; let _p2 = str_ptr; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) };
         }
-        { let _p1 = (*match_).cp_str.data; let _p2 = str_ptr; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+        { let _p1 = match_.cp_str.data; let _p2 = str_ptr; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
     }
 }
 
 /// Like `ins_compl_equal()`, but ignore case in the `'longest'`-inserted part of the leader.
-unsafe fn ins_compl_equal_sc(match_: *mut compl_T, str_ptr: *const c_char, len: usize) -> bool {
+unsafe fn ins_compl_equal_sc(match_: &mut compl_T, str_ptr: *const c_char, len: usize) -> bool {
     unsafe {
         let typed = insexp().compl_length;
         let longest_end = if insexp().compl_get_longest && insexp().compl_longest_end_col > insexp().compl_col {
@@ -1390,22 +1390,22 @@ unsafe fn ins_compl_equal_sc(match_: *mut compl_T, str_ptr: *const c_char, len: 
             typed
         };
 
-        if ((*match_).cp_flags & (CP_EQUAL | CP_ICASE)) != 0 || longest_end <= typed {
+        if (match_.cp_flags & (CP_EQUAL | CP_ICASE)) != 0 || longest_end <= typed {
             return ins_compl_equal(match_, str_ptr, len);
         }
 
-        if (*match_).cp_str.size < len {
+        if match_.cp_str.size < len {
             return false;
         }
 
         for i in 0..len {
             let idx = i as c_int;
             let mismatch = if idx >= typed && idx < longest_end {
-                let c1 = *(*match_).cp_str.data.add(i) as u8;
+                let c1 = *match_.cp_str.data.add(i) as u8;
                 let c2 = *str_ptr.add(i) as u8;
                 !c1.eq_ignore_ascii_case(&c2)
             } else {
-                *(*match_).cp_str.data.add(i) != *str_ptr.add(i)
+                *match_.cp_str.data.add(i) != *str_ptr.add(i)
             };
             if mismatch {
                 return false;
@@ -1504,10 +1504,10 @@ pub unsafe fn ins_compl_lnum_in_range(lnum: linenr_T) -> bool {
 }
 
 /// Reduce the longest common string for match "match".
-unsafe fn ins_compl_longest_match(match_: *mut compl_T) {
+unsafe fn ins_compl_longest_match(match_: &mut compl_T) {
     unsafe {
         if insexp().compl_leader.data.is_null() {
-            insexp().compl_leader = copy_string((*match_).cp_str, ptr::null_mut());
+            insexp().compl_leader = copy_string(match_.cp_str, ptr::null_mut());
 
             let had_match = (**curwin.as_ptr()).w_cursor.col > insexp().compl_col;
             ins_compl_longest_insert(insexp().compl_leader.data);
@@ -1520,12 +1520,12 @@ unsafe fn ins_compl_longest_match(match_: *mut compl_T) {
         }
 
         let mut p = insexp().compl_leader.data;
-        let mut s = (*match_).cp_str.data;
+        let mut s = match_.cp_str.data;
         while *p != NUL {
             let c1 = utf_ptr2char(p);
             let c2 = utf_ptr2char(s);
 
-            let diff = if ((*match_).cp_flags & CP_ICASE) != 0 {
+            let diff = if (match_.cp_flags & CP_ICASE) != 0 {
                 mb_tolower(c1) != mb_tolower(c2)
             } else {
                 c1 != c2
@@ -1682,7 +1682,7 @@ unsafe fn trigger_complete_changed_event(cur: c_int) {
             ins_compl_dict_alloc(compl_opt(insexp().compl_curr_idx))
         };
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
-        let v_event = get_v_event(&raw mut save_v_event);
+        let v_event = get_v_event(&mut save_v_event);
         tv_dict_add_dict(v_event, c"completed_item".as_ptr(), 14, item);
         pum_set_event_info(v_event);
         tv_dict_set_keys_readonly(v_event);
@@ -1699,7 +1699,7 @@ unsafe fn trigger_complete_changed_event(cur: c_int) {
         g_st().textlock -= 1;
         RECURSIVE.store(false, std::sync::atomic::Ordering::Relaxed);
 
-        restore_v_event(&mut *v_event, &raw mut save_v_event);
+        restore_v_event(&mut *v_event, &mut save_v_event);
     }
 }
 
@@ -1906,7 +1906,7 @@ unsafe fn ins_compl_build_pum() -> c_int {
         let is_cpt_completion = !(*cpt_sources).is_empty();
 
         let list = &raw mut insexp().compl_list;
-        let mut shown_match_ok = match_at_original_text(compl_opt(insexp().compl_shown_idx));
+        let mut shown_match_ok = match_at_original_text(&*compl_opt(insexp().compl_shown_idx));
 
         if { let _a = insexp().compl_leader.data; let _b = insexp().compl_orig_text.data; (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } && !shown_match_ok {
             insexp().compl_shown_idx = if compl_no_select {
@@ -2772,7 +2772,7 @@ pub unsafe fn ins_compl_addfrommatch() {
         let shown = compl_at(shown_idx);
         let mut p = (*shown).cp_str.data;
         if ((*shown).cp_str.size as c_int) <= len {
-            if !match_at_original_text(shown) {
+            if !match_at_original_text(&*shown) {
                 return;
             }
 
@@ -2784,7 +2784,7 @@ pub unsafe fn ins_compl_addfrommatch() {
             {
                 let cp = compl_at(ci);
                 if insexp().compl_leader.data.is_null()
-                    || ins_compl_equal(cp, insexp().compl_leader.data, insexp().compl_leader.size)
+                    || ins_compl_equal(&mut *cp, insexp().compl_leader.data, insexp().compl_leader.size)
                 {
                     p = (*cp).cp_str.data;
                     plen = (*cp).cp_str.size;
@@ -4022,7 +4022,7 @@ unsafe fn thesaurus_func_complete(type_: c_int) -> bool {
     unsafe {
         type_ == CTRL_X_THESAURUS
             && ((*g_st().curbuf).b_p_tsrfu.cb_type() != kCallbackNone
-                || crate::eval::typval::Callback::raw_cb_type(&raw const opt_vars().p_tsrfu) != kCallbackNone)
+                || crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_tsrfu) != kCallbackNone)
     }
 }
 
@@ -4041,7 +4041,7 @@ unsafe fn may_advance_cpt_index(cpt: *const c_char) -> bool {
 }
 
 unsafe fn process_next_cpt_value(
-    st: *mut ins_compl_next_state_T,
+    st: &mut ins_compl_next_state_T,
     compl_type_arg: &mut c_int,
     start_match_pos: &mut pos_T,
     fuzzy_collect: bool,
@@ -4052,61 +4052,61 @@ unsafe fn process_next_cpt_value(
         let mut status = INS_COMPL_CPT_OK;
         let skip_source = insexp().compl_autocomplete && insexp().compl_from_nonkeyword;
 
-        (*st).found_all = false;
+        st.found_all = false;
         *advance_cpt_idx = false;
 
-        while (*st).e_cpt_char() == b',' as c_char || (*st).e_cpt_char() == b' ' as c_char {
-            (*st).e_cpt_idx += 1;
+        while st.e_cpt_char() == b',' as c_char || st.e_cpt_char() == b' ' as c_char {
+            st.e_cpt_idx += 1;
         }
 
-        if (*st).e_cpt_char() == b'.' as c_char
+        if st.e_cpt_char() == b'.' as c_char
             && !(*g_st().curbuf).b_scanned
             && !skip_source
             && !insexp().compl_time_slice_expired
         {
-            (*st).ins_buf = g_st().curbuf;
-            (*st).first_match_pos = *start_match_pos;
-            if ctrl_x_mode_normal() && !fuzzy_collect && dec(&mut (*st).first_match_pos) < 0 {
-                (*st).first_match_pos.lnum = (*(*st).ins_buf).b_ml.ml_line_count;
-                (*st).first_match_pos.col = ml_get_len((*st).first_match_pos.lnum);
+            st.ins_buf = g_st().curbuf;
+            st.first_match_pos = *start_match_pos;
+            if ctrl_x_mode_normal() && !fuzzy_collect && dec(&mut st.first_match_pos) < 0 {
+                st.first_match_pos.lnum = (*st.ins_buf).b_ml.ml_line_count;
+                st.first_match_pos.col = ml_get_len(st.first_match_pos.lnum);
             }
-            (*st).last_match_pos = (*st).first_match_pos;
+            st.last_match_pos = st.first_match_pos;
             compl_type = 0;
-            (*st).set_match_pos = true;
+            st.set_match_pos = true;
         } else if !skip_source
             && !insexp().compl_time_slice_expired
-            && !vim_strchr(c"buwU".as_ptr(), c_int::from((*st).e_cpt_char() as u8)).is_null()
+            && !vim_strchr(c"buwU".as_ptr(), c_int::from(st.e_cpt_char() as u8)).is_null()
             && {
-                (*st).ins_buf =
-                    ins_compl_next_buf((*st).ins_buf, c_int::from((*st).e_cpt_char()));
-                !ptr::eq((*st).ins_buf, g_st().curbuf)
+                st.ins_buf =
+                    ins_compl_next_buf(st.ins_buf, c_int::from(st.e_cpt_char()));
+                !ptr::eq(st.ins_buf, g_st().curbuf)
             }
         {
-            if !(*(*st).ins_buf).b_ml.ml_mfp.is_none() {
+            if !(*st.ins_buf).b_ml.ml_mfp.is_none() {
                 insexp().compl_started = true;
-                (*st).first_match_pos.col = 0;
-                (*st).last_match_pos.col = 0;
-                (*st).first_match_pos.lnum = (*(*st).ins_buf).b_ml.ml_line_count + 1;
-                (*st).last_match_pos.lnum = 0;
+                st.first_match_pos.col = 0;
+                st.last_match_pos.col = 0;
+                st.first_match_pos.lnum = (*st.ins_buf).b_ml.ml_line_count + 1;
+                st.last_match_pos.lnum = 0;
                 compl_type = 0;
             } else {
-                (*st).found_all = true;
-                if (*(*st).ins_buf).b_fname.is_null() {
+                st.found_all = true;
+                if (*st.ins_buf).b_fname.is_null() {
                     *compl_type_arg = compl_type;
                     return INS_COMPL_CPT_CONT;
                 }
                 compl_type = CTRL_X_DICTIONARY;
-                (*st).dict = Some(CStr::from_ptr((*(*st).ins_buf).b_fname).to_owned());
-                (*st).dict_f = DICT_EXACT;
+                st.dict = Some(CStr::from_ptr((*st.ins_buf).b_fname).to_owned());
+                st.dict_f = DICT_EXACT;
             }
             if !shortmess(kShmCompletionscan) && !insexp().compl_autocomplete {
                 let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
-                let name = if (*(*st).ins_buf).b_fname.is_null() {
-                    buf_spname((*st).ins_buf)
-                } else if (*(*st).ins_buf).b_sfname.is_null() {
-                    (*(*st).ins_buf).b_fname
+                let name = if (*st.ins_buf).b_fname.is_null() {
+                    buf_spname(st.ins_buf)
+                } else if (*st.ins_buf).b_sfname.is_null() {
+                    (*st.ins_buf).b_fname
                 } else {
-                    (*(*st).ins_buf).b_sfname
+                    (*st.ins_buf).b_sfname
                 };
                 vim_snprintf!(iobuff_ptr, IOSIZE, gettext(c"Scanning: %s".as_ptr()), name);
                 msg_progress(
@@ -4120,41 +4120,41 @@ unsafe fn process_next_cpt_value(
                     false,
                 );
             }
-        } else if (*st).e_cpt_char() == NUL {
+        } else if st.e_cpt_char() == NUL {
             status = INS_COMPL_CPT_END;
         } else {
             if ctrl_x_mode_line_or_eval() {
                 // compl_type = -1;
-            } else if (*st).e_cpt_char() == b'F' as c_char
-                || (*st).e_cpt_char() == b'o' as c_char
+            } else if st.e_cpt_char() == b'F' as c_char
+                || st.e_cpt_char() == b'o' as c_char
             {
                 compl_type = CTRL_X_FUNCTION;
-                (*st).func_cb = get_callback_if_cpt_func((*st).e_cpt_ptr(), insexp().cpt_sources_index);
-                if (*st).func_cb == CptFuncSource::None {
+                st.func_cb = get_callback_if_cpt_func(st.e_cpt_ptr(), insexp().cpt_sources_index);
+                if st.func_cb == CptFuncSource::None {
                     compl_type = -1;
                 }
             } else if !skip_source {
-                if (*st).e_cpt_char() == b'k' as c_char
-                    || (*st).e_cpt_char() == b's' as c_char
+                if st.e_cpt_char() == b'k' as c_char
+                    || st.e_cpt_char() == b's' as c_char
                 {
-                    if (*st).e_cpt_char() == b'k' as c_char {
+                    if st.e_cpt_char() == b'k' as c_char {
                         compl_type = CTRL_X_DICTIONARY;
                     } else {
                         compl_type = CTRL_X_THESAURUS;
                     }
-                    (*st).e_cpt_idx += 1;
-                    if (*st).e_cpt_char() != b',' as c_char && (*st).e_cpt_char() != NUL {
-                        (*st).dict = Some(CStr::from_ptr((*st).e_cpt_ptr()).to_owned());
-                        (*st).dict_f = DICT_FIRST;
+                    st.e_cpt_idx += 1;
+                    if st.e_cpt_char() != b',' as c_char && st.e_cpt_char() != NUL {
+                        st.dict = Some(CStr::from_ptr(st.e_cpt_ptr()).to_owned());
+                        st.dict_f = DICT_FIRST;
                     }
-                } else if (*st).e_cpt_char() == b'i' as c_char {
+                } else if st.e_cpt_char() == b'i' as c_char {
                     compl_type = CTRL_X_PATH_PATTERNS;
-                } else if (*st).e_cpt_char() == b'd' as c_char {
+                } else if st.e_cpt_char() == b'd' as c_char {
                     compl_type = CTRL_X_PATH_DEFINES;
-                } else if (*st).e_cpt_char() == b'f' as c_char {
+                } else if st.e_cpt_char() == b'f' as c_char {
                     compl_type = CTRL_X_BUFNAMES;
-                } else if (*st).e_cpt_char() == b']' as c_char
-                    || (*st).e_cpt_char() == b't' as c_char
+                } else if st.e_cpt_char() == b']' as c_char
+                    || st.e_cpt_char() == b't' as c_char
                 {
                     compl_type = CTRL_X_TAGS;
                     if !shortmess(kShmCompletionscan) && !insexp().compl_autocomplete {
@@ -4180,12 +4180,12 @@ unsafe fn process_next_cpt_value(
             }
 
             let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
-            let mut cpt_ptr = (*st).e_cpt_ptr();
+            let mut cpt_ptr = st.e_cpt_ptr();
             copy_option_part(&raw mut cpt_ptr, iobuff_ptr, IOSIZE, c",".as_ptr());
-            (*st).e_cpt_idx = cpt_ptr.offset_from((*st).e_cpt_copy.as_ptr()) as usize;
+            st.e_cpt_idx = cpt_ptr.offset_from(st.e_cpt_copy.as_ptr()) as usize;
             *advance_cpt_idx = may_advance_cpt_index(cpt_ptr);
 
-            (*st).found_all = true;
+            st.found_all = true;
             if compl_type == -1 {
                 status = INS_COMPL_CPT_CONT;
             }
@@ -4664,7 +4664,7 @@ unsafe fn ins_compl_get_next_word_or_line(
 }
 
 unsafe fn get_next_default_completion(
-    st: *mut ins_compl_next_state_T,
+    st: &mut ins_compl_next_state_T,
     start_pos: &mut pos_T,
 ) -> c_int {
     unsafe {
@@ -4673,18 +4673,18 @@ unsafe fn get_next_default_completion(
         let in_fuzzy_collect = !compl_status_adding() && cot_fuzzy() && insexp().compl_length > 0;
         let leader = ins_compl_leader();
         let mut score = FUZZY_SCORE_NONE;
-        let in_curbuf = ptr::eq((*st).ins_buf, g_st().curbuf);
+        let in_curbuf = ptr::eq(st.ins_buf, g_st().curbuf);
 
         let save_p_scs = opt_vars().p_scs;
-        debug_assert!(!(*st).ins_buf.is_null());
-        if (*(*st).ins_buf).b_p_inf != 0 {
+        debug_assert!(!st.ins_buf.is_null());
+        if (*st.ins_buf).b_p_inf != 0 {
             opt_vars().p_scs = 0;
         }
 
         let save_p_ws = opt_vars().p_ws;
         if !in_curbuf {
             opt_vars().p_ws = 0;
-        } else if (*st).e_cpt_char() == b'.' as c_char {
+        } else if st.e_cpt_char() == b'.' as c_char {
             opt_vars().p_ws = 1;
         }
         let mut looped_around = false;
@@ -4696,8 +4696,8 @@ unsafe fn get_next_default_completion(
 
             if in_fuzzy_collect {
                 found_new_match = c_int::from(search_for_fuzzy_match(
-                    &mut *(*st).ins_buf,
-                    &mut *(*st).cur_match_pos_ptr(),
+                    &mut *st.ins_buf,
+                    &mut *st.cur_match_pos_ptr(),
                     leader,
                     insexp().compl_direction,
                     start_pos,
@@ -4710,16 +4710,16 @@ unsafe fn get_next_default_completion(
                 || (insexp().compl_cont_status & CONT_SOL) != 0
             {
                 found_new_match = search_for_exact_line(
-                    &mut *(*st).ins_buf,
-                    &mut *(*st).cur_match_pos_ptr(),
+                    &mut *st.ins_buf,
+                    &mut *st.cur_match_pos_ptr(),
                     insexp().compl_direction,
                     compl_pattern_ptr(),
                 );
             } else {
                 found_new_match = searchit(
                     ptr::null_mut(),
-                    (*st).ins_buf,
-                    (*st).cur_match_pos_ptr(),
+                    st.ins_buf,
+                    st.cur_match_pos_ptr(),
                     ptr::null_mut(),
                     insexp().compl_direction,
                     compl_pattern_ptr(),
@@ -4732,24 +4732,24 @@ unsafe fn get_next_default_completion(
                 );
             }
             g_st().msg_silent -= 1;
-            let cur_pos = (*st).cur_match_pos();
-            if !insexp().compl_started || (*st).set_match_pos {
+            let cur_pos = st.cur_match_pos();
+            if !insexp().compl_started || st.set_match_pos {
                 insexp().compl_started = true;
-                (*st).first_match_pos = cur_pos;
-                (*st).last_match_pos = cur_pos;
-                (*st).set_match_pos = false;
-            } else if (*st).first_match_pos.lnum == (*st).last_match_pos.lnum
-                && (*st).first_match_pos.col == (*st).last_match_pos.col
+                st.first_match_pos = cur_pos;
+                st.last_match_pos = cur_pos;
+                st.set_match_pos = false;
+            } else if st.first_match_pos.lnum == st.last_match_pos.lnum
+                && st.first_match_pos.col == st.last_match_pos.col
             {
                 found_new_match = FAIL;
             } else if (compl_dir_forward()
-                && ((*st).prev_match_pos.lnum > cur_pos.lnum
-                    || ((*st).prev_match_pos.lnum == cur_pos.lnum
-                        && (*st).prev_match_pos.col >= cur_pos.col)))
+                && (st.prev_match_pos.lnum > cur_pos.lnum
+                    || (st.prev_match_pos.lnum == cur_pos.lnum
+                        && st.prev_match_pos.col >= cur_pos.col)))
                 || (!compl_dir_forward()
-                    && ((*st).prev_match_pos.lnum < cur_pos.lnum
-                        || ((*st).prev_match_pos.lnum == cur_pos.lnum
-                            && (*st).prev_match_pos.col <= cur_pos.col)))
+                    && (st.prev_match_pos.lnum < cur_pos.lnum
+                        || (st.prev_match_pos.lnum == cur_pos.lnum
+                            && st.prev_match_pos.col <= cur_pos.col)))
             {
                 if looped_around {
                     found_new_match = FAIL;
@@ -4757,7 +4757,7 @@ unsafe fn get_next_default_completion(
                     looped_around = true;
                 }
             }
-            (*st).prev_match_pos = cur_pos;
+            st.prev_match_pos = cur_pos;
             if found_new_match == FAIL {
                 break;
             }
@@ -4772,8 +4772,8 @@ unsafe fn get_next_default_completion(
 
             if !in_fuzzy_collect {
                 ptr = ins_compl_get_next_word_or_line(
-                    &mut *(*st).ins_buf,
-                    &mut *(*st).cur_match_pos_ptr(),
+                    &mut *st.ins_buf,
+                    &mut *st.cur_match_pos_ptr(),
                     &raw mut len,
                     &raw mut cont_s_ipos,
                 );
@@ -4784,7 +4784,7 @@ unsafe fn get_next_default_completion(
             }
 
             if is_nearest_active() && in_curbuf {
-                score = ((*st).cur_match_pos().lnum - (**curwin.as_ptr()).w_cursor.lnum).abs();
+                score = (st.cur_match_pos().lnum - (**curwin.as_ptr()).w_cursor.lnum).abs();
             }
 
             if ins_compl_add_infercase(
@@ -4794,7 +4794,7 @@ unsafe fn get_next_default_completion(
                 if in_curbuf {
                     ptr::null_mut()
                 } else {
-                    (*(*st).ins_buf).b_sfname
+                    (*st.ins_buf).b_sfname
                 },
                 0,
                 cont_s_ipos,
@@ -4947,7 +4947,7 @@ unsafe fn get_callback_if_cpt_func(p: *mut c_char, idx: c_int) -> CptFuncSource 
 
 unsafe fn get_next_completion_match(
     type_: c_int,
-    st: *mut ins_compl_next_state_T,
+    st: &mut ins_compl_next_state_T,
     ini: &mut pos_T,
 ) -> bool {
     unsafe {
@@ -4959,11 +4959,11 @@ unsafe fn get_next_completion_match(
                 get_next_include_file_completion(type_);
             }
             CTRL_X_DICTIONARY | CTRL_X_THESAURUS => {
-                let dict_cstr = (*st).dict.take();
+                let dict_cstr = st.dict.take();
                 let dict_ptr = dict_cstr
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                get_next_dict_tsr_completion(type_, dict_ptr, (*st).dict_f);
+                get_next_dict_tsr_completion(type_, dict_ptr, st.dict_f);
             }
             CTRL_X_TAGS => {
                 get_next_tag_completion();
@@ -4976,7 +4976,7 @@ unsafe fn get_next_completion_match(
             }
             CTRL_X_FUNCTION => {
                 if ctrl_x_mode_normal() {
-                    get_cpt_func_completion_matches(&mut *(*st).func_cb.as_ptr());
+                    get_cpt_func_completion_matches(&mut *st.func_cb.as_ptr());
                 } else {
                     expand_by_function(type_, compl_pattern_ptr(), ptr::null_mut());
                 }
@@ -4985,7 +4985,7 @@ unsafe fn get_next_completion_match(
                 expand_by_function(type_, compl_pattern_ptr(), ptr::null_mut());
             }
             CTRL_X_SPELL => {
-                get_next_spell_completion((*st).first_match_pos.lnum);
+                get_next_spell_completion(st.first_match_pos.lnum);
             }
             CTRL_X_BUFNAMES => {
                 get_next_bufname_token();
@@ -4995,8 +4995,8 @@ unsafe fn get_next_completion_match(
             }
             _ => {
                 found_new_match = get_next_default_completion(st, ini);
-                if found_new_match == FAIL && ptr::eq((*st).ins_buf, g_st().curbuf) {
-                    (*st).found_all = true;
+                if found_new_match == FAIL && ptr::eq(st.ins_buf, g_st().curbuf) {
+                    st.found_all = true;
                 }
             }
         }
@@ -5215,7 +5215,7 @@ unsafe fn ins_compl_get_exp(ini: &mut pos_T) -> c_int {
                 && (!insexp().compl_started || st.found_all)
             {
                 let status = process_next_cpt_value(
-                    ptr::from_mut(st),
+                    &mut *ptr::from_mut(st),
                     &mut type_,
                     &mut start_pos,
                     cot_fuzzy(),
@@ -5247,7 +5247,7 @@ unsafe fn ins_compl_get_exp(ini: &mut pos_T) -> c_int {
 
             found_new_match = c_int::from(get_next_completion_match(
                 type_,
-                ptr::from_mut(st),
+                &mut *ptr::from_mut(st),
                 &mut start_pos,
             ));
 
@@ -5290,7 +5290,7 @@ unsafe fn ins_compl_get_exp(ini: &mut pos_T) -> c_int {
             if !compl_dir_forward() {
                 while let Some(curr_i) = insexp().compl_curr_idx
                     && let Some(prev_i) = compl_prev_idx(curr_i)
-                    && !match_at_original_text(compl_at(prev_i))
+                    && !match_at_original_text(&*compl_at(prev_i))
                 {
                     insexp().compl_curr_idx = Some(prev_i);
                 }
@@ -5345,7 +5345,7 @@ unsafe fn ins_compl_update_shown_match() {
         };
         let mut leader = get_leader_for_startcol(compl_at(shown_idx), true);
 
-        while !ins_compl_equal(compl_at(shown_idx), (*leader).data, (*leader).size)
+        while !ins_compl_equal(&mut *compl_at(shown_idx), (*leader).data, (*leader).size)
             && let Some(next_i) = compl_next_idx(shown_idx)
             && next_i != 0
         {
@@ -5355,10 +5355,10 @@ unsafe fn ins_compl_update_shown_match() {
         }
 
         if compl_shows_dir_backward()
-            && !ins_compl_equal(compl_at(shown_idx), (*leader).data, (*leader).size)
+            && !ins_compl_equal(&mut *compl_at(shown_idx), (*leader).data, (*leader).size)
             && compl_next_idx(shown_idx).is_none_or(|ni| ni == 0)
         {
-            while !ins_compl_equal(compl_at(shown_idx), (*leader).data, (*leader).size)
+            while !ins_compl_equal(&mut *compl_at(shown_idx), (*leader).data, (*leader).size)
                 && let Some(prev_i) = compl_prev_idx(shown_idx)
                 && prev_i != 0
             {
@@ -5616,7 +5616,7 @@ pub unsafe fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
             }
         }
         let shown = compl_opt(insexp().compl_shown_idx);
-        insexp().compl_used_match = !(match_at_original_text(shown) || (preinsert && !insert_prefix));
+        insexp().compl_used_match = !(match_at_original_text(&*shown) || (preinsert && !insert_prefix));
 
         let dict = ins_compl_dict_alloc(shown);
         set_vim_var_dict(VV_COMPLETED_ITEM, dict);
@@ -5689,7 +5689,7 @@ unsafe fn find_next_match_in_menu() -> Option<usize> {
             let m = compl_at(match_idx);
             if compl_next_idx(match_idx).is_none()
                 || (*m).cp_in_match_array
-                || match_at_original_text(m)
+                || match_at_original_text(&*m)
             {
                 break;
             }
@@ -5779,9 +5779,9 @@ unsafe fn find_next_completion_match(
             let shown = compl_opt(insexp().compl_shown_idx);
             let leader = get_leader_for_startcol(shown, false);
 
-            if !match_at_original_text(shown)
+            if !match_at_original_text(&*shown)
                 && !(*leader).data.is_null()
-                && !ins_compl_equal(shown, (*leader).data, (*leader).size)
+                && !ins_compl_equal(&mut *shown, (*leader).data, (*leader).size)
                 && !(cot_fuzzy() && (*shown).cp_score != FUZZY_SCORE_NONE)
             {
                 todo += 1;
@@ -5818,7 +5818,7 @@ unsafe fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: 
         }
 
         if !insexp().compl_leader.data.is_null()
-            && !match_at_original_text(compl_opt(insexp().compl_shown_idx))
+            && !match_at_original_text(&*compl_opt(insexp().compl_shown_idx))
             && !cot_fuzzy()
         {
             ins_compl_update_shown_match();
@@ -5854,7 +5854,7 @@ unsafe fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: 
         } else if insert_match {
             if !insexp().compl_get_longest || insexp().compl_used_match {
                 let preinsert_longest = ins_compl_preinsert_longest()
-                    && match_at_original_text(compl_opt(insexp().compl_shown_idx));
+                    && match_at_original_text(&*compl_opt(insexp().compl_shown_idx));
                 ins_compl_insert(compl_preinsert || preinsert_longest, preinsert_longest);
             } else {
                 debug_assert!(!insexp().compl_leader.data.is_null());
@@ -5875,7 +5875,7 @@ unsafe fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: 
         }
 
         let shown = compl_opt(insexp().compl_shown_idx);
-        if compl_no_insert && !started && !match_at_original_text(shown) {
+        if compl_no_insert && !started && !match_at_original_text(&*shown) {
             insexp().compl_enter_selects = true;
         } else {
             let arr = &raw const insexp().compl_match_array;
@@ -6558,7 +6558,7 @@ unsafe fn ins_compl_show_statusmsg() {
         if g_st().edit_submode_extra.is_null() {
             let curr_idx = insexp().compl_curr_idx.unwrap();
             let curr = compl_at(curr_idx);
-            if match_at_original_text(curr) {
+            if match_at_original_text(&*curr) {
                 g_st().edit_submode_extra = gettext(c"Back at original".as_ptr());
                 g_st().edit_submode_highl = HLF_W;
             } else if (insexp().compl_cont_status & CONT_S_IPOS) != 0 {

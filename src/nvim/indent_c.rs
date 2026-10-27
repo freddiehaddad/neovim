@@ -1126,13 +1126,13 @@ unsafe fn cin_iswhileofdo_end(terminated: c_int) -> bool {
 unsafe fn cin_isbreak(p: *const c_char) -> bool {
     unsafe { cin_starts_with(p, c"break".as_ptr()) }
 }
-unsafe fn cin_is_cpp_baseclass(cached: *mut cpp_baseclass_cache_T) -> bool {
+unsafe fn cin_is_cpp_baseclass(cached: &mut cpp_baseclass_cache_T) -> bool {
     unsafe {
-        let pos = &raw mut (*cached).lpos;
+        let pos = &raw mut cached.lpos;
         let mut lnum = (**curwin.as_ptr()).w_cursor.lnum;
         let mut line: *const c_char = get_cursor_line_ptr();
         if (*pos).lnum <= lnum {
-            return (*cached).found != 0;
+            return cached.found != 0;
         }
         (*pos).col = 0;
         let mut s: *const c_char = skipwhite(line);
@@ -1241,7 +1241,7 @@ unsafe fn cin_is_cpp_baseclass(cached: *mut cpp_baseclass_cache_T) -> bool {
                 s = cin_skipcomment(s.add(1));
             }
         }
-        (*cached).found = c_int::from(cpp_base_class);
+        cached.found = c_int::from(cpp_base_class);
         if cpp_base_class {
             (*pos).lnum = lnum;
         }
@@ -2418,7 +2418,7 @@ pub unsafe fn get_c_indent() -> c_int {
                                 n = 0;
                                 if lookfor != LOOKFOR_TERM && (*g_st().curbuf).b_ind_cpp_baseclass > 0 {
                                     n = c_int::from(cin_is_cpp_baseclass(
-                                        &raw mut cache_cpp_baseclass,
+                                        &mut cache_cpp_baseclass,
                                     ));
                                     l = get_cursor_line_ptr();
                                 }
@@ -2793,7 +2793,7 @@ pub unsafe fn get_c_indent() -> c_int {
                     }
                     n = 0;
                     if (*g_st().curbuf).b_ind_cpp_baseclass != 0 {
-                        n = c_int::from(cin_is_cpp_baseclass(&raw mut cache_cpp_baseclass));
+                        n = c_int::from(cin_is_cpp_baseclass(&mut cache_cpp_baseclass));
                         l = get_cursor_line_ptr();
                     }
                     if n != 0 {

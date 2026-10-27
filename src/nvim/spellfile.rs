@@ -5500,7 +5500,7 @@ unsafe fn set_spell_charflags(flags_in: *const c_char, cnt: c_int, fol: *const c
         let mut new_st = spelltab_T::new();
         let mut p = fol;
 
-        clear_spell_chartab(&raw mut new_st);
+        clear_spell_chartab(&mut new_st);
 
         for i in 0..128 {
             if (i as c_int) < cnt {
@@ -5517,18 +5517,18 @@ unsafe fn set_spell_charflags(flags_in: *const c_char, cnt: c_int, fol: *const c
             }
         }
 
-        set_spell_finish(&raw mut new_st);
+        set_spell_finish(&mut new_st);
     }
 }
 
-unsafe fn set_spell_finish(new_st: *mut spelltab_T) -> c_int {
+unsafe fn set_spell_finish(new_st: &mut spelltab_T) -> c_int {
     unsafe {
         if spell_priv_st().did_set_spelltab {
             for i in 0..256 {
-                if spell_priv_st().spelltab.st_isw[i] != (*new_st).st_isw[i]
-                    || spell_priv_st().spelltab.st_isu[i] != (*new_st).st_isu[i]
-                    || spell_priv_st().spelltab.st_fold[i] != (*new_st).st_fold[i]
-                    || spell_priv_st().spelltab.st_upper[i] != (*new_st).st_upper[i]
+                if spell_priv_st().spelltab.st_isw[i] != new_st.st_isw[i]
+                    || spell_priv_st().spelltab.st_isu[i] != new_st.st_isu[i]
+                    || spell_priv_st().spelltab.st_fold[i] != new_st.st_fold[i]
+                    || spell_priv_st().spelltab.st_upper[i] != new_st.st_upper[i]
                 {
                     emsg(gettext(
                         c"E763: Word characters differ between spell files".as_ptr(),

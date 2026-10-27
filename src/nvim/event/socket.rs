@@ -415,9 +415,9 @@ pub unsafe fn socket_watcher_accept(watcher: *mut SocketWatcher, stream: &mut RS
     }
 }
 
-pub unsafe fn socket_watcher_close(watcher: *mut SocketWatcher) {
+pub unsafe fn socket_watcher_close(watcher: &mut SocketWatcher) {
     unsafe {
-        uv_close((*watcher).stream_ptr().cast(), Some(close_cb));
+        uv_close(watcher.stream_ptr().cast(), Some(close_cb));
     }
 }
 

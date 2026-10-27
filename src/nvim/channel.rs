@@ -430,10 +430,8 @@ pub unsafe fn channel_decref(chan: *mut Channel) {
     }
 }
 
-pub unsafe fn callback_reader_start(reader: *mut CallbackReader, r#type: &'static CStr) {
-    unsafe {
-        (*reader).reader_type = Some(r#type);
-    }
+pub unsafe fn callback_reader_start(reader: &mut CallbackReader, r#type: &'static CStr) {
+    reader.reader_type = Some(r#type);
 }
 
 pub unsafe fn free_channel_event(chan: &mut Channel) {
@@ -605,19 +603,19 @@ pub unsafe fn channel_job_start(
             wstream_init(&mut (*proc_ptr).r#in, 0);
         }
         if has_out {
-            rstream_init(&raw mut (*proc_ptr).out);
+            rstream_init(&mut (*proc_ptr).out);
         }
 
         if rpc {
             rpc_start(&mut *chan);
         } else if has_out {
-            callback_reader_start(&raw mut (*ct).on_data, c"stdout");
+            callback_reader_start(&mut (*ct).on_data, c"stdout");
             rstream_start(&mut (*proc_ptr).out, StreamCbData::ChannelData(chan));
         }
 
         if has_err {
-            callback_reader_start(&raw mut (*ct).on_stderr, c"stderr");
-            rstream_init(&raw mut (*proc_ptr).err);
+            callback_reader_start(&mut (*ct).on_stderr, c"stderr");
+            rstream_init(&mut (*proc_ptr).err);
             rstream_start(&mut (*proc_ptr).err, StreamCbData::ChannelStderr(chan));
         }
 
@@ -661,13 +659,13 @@ pub unsafe fn channel_connect(
 
         (*socket_stream).s.internal_data = StreamInternalData::Channel(channel);
         wstream_init(&mut (*socket_stream).s, 0);
-        rstream_init(socket_stream);
+        rstream_init(&mut *socket_stream);
 
         if rpc {
             rpc_start(&mut *channel);
         } else {
             (*channel).on_data = on_output;
-            callback_reader_start(&raw mut (*channel).on_data, c"data");
+            callback_reader_start(&mut (*channel).on_data, c"data");
             rstream_start(&mut *socket_stream, StreamCbData::ChannelData(channel));
         }
 
@@ -688,7 +686,7 @@ pub unsafe fn channel_from_connection(watcher: *mut SocketWatcher) {
         }
         (*socket_stream).s.internal_data = StreamInternalData::Channel(channel);
         wstream_init(&mut (*socket_stream).s, 0);
-        rstream_init(socket_stream);
+        rstream_init(&mut *socket_stream);
         rpc_start(&mut *channel);
         channel_create_event(&mut *channel, (*watcher).addr.as_ptr());
     }
@@ -744,7 +742,7 @@ pub unsafe fn channel_from_stdio(
             rpc_start(&mut *channel);
         } else {
             (*channel).on_data = on_output;
-            callback_reader_start(&raw mut (*channel).on_data, c"stdin");
+            callback_reader_start(&mut (*channel).on_data, c"stdin");
             rstream_start(&mut *stdio_in, StreamCbData::ChannelData(channel));
         }
 
@@ -829,7 +827,7 @@ pub unsafe fn on_channel_data(
 ) -> usize {
     unsafe {
         let ct = &raw mut *chan;
-        on_channel_output(stream, chan, buf, count, eof, &raw mut (*ct).on_data)
+        on_channel_output(stream, chan, buf, count, eof, &mut (*ct).on_data)
     }
 }
 
@@ -842,7 +840,7 @@ pub unsafe fn on_job_stderr(
 ) -> usize {
     unsafe {
         let ct = &raw mut *chan;
-        on_channel_output(stream, chan, buf, count, eof, &raw mut (*ct).on_stderr)
+        on_channel_output(stream, chan, buf, count, eof, &mut (*ct).on_stderr)
     }
 }
 
@@ -852,7 +850,7 @@ unsafe fn on_channel_output(
     buf: *const c_char,
     count: usize,
     eof: bool,
-    reader: *mut CallbackReader,
+    reader: &mut CallbackReader,
 ) -> usize {
     unsafe {
         let ct = &raw mut *chan;
@@ -861,11 +859,11 @@ unsafe fn on_channel_output(
         }
 
         if eof {
-            (*reader).eof = true;
+            reader.eof = true;
         }
 
         #[cfg(windows)]
-        if (*reader).fwd_err && count > 0 {
+        if reader.fwd_err && count > 0 {
             let wres = os_write(STDOUT_FILENO, buf, count, false);
             return wres.max(0) as usize;
         }
@@ -906,8 +904,8 @@ pub unsafe fn on_channel_event(chan: &mut Channel) {
         (*ct).callback_scheduled = false;
 
         let exit_status = (*ct).exit_status;
-        channel_reader_callbacks(chan, &raw mut (*ct).on_data);
-        channel_reader_callbacks(chan, &raw mut (*ct).on_stderr);
+        channel_reader_callbacks(chan, &mut (*ct).on_data);
+        channel_reader_callbacks(chan, &mut (*ct).on_stderr);
         if exit_status > -1 {
             channel_callback_call(chan, ptr::null_mut());
             (*ct).exit_status = -1;
@@ -923,18 +921,18 @@ pub unsafe fn on_channel_event(chan: &mut Channel) {
     }
 }
 
-pub unsafe fn channel_reader_callbacks(chan: &mut Channel, reader: *mut CallbackReader) {
+pub unsafe fn channel_reader_callbacks(chan: &mut Channel, reader: &mut CallbackReader) {
     unsafe {
-        if (*reader).buffered {
-            if (*reader).eof {
-                if !(*reader).self_dict.is_null() {
-                    let reader_type = (*reader).reader_type.unwrap();
-                    if tv_dict_find((*reader).self_dict, reader_type.as_ptr(), -1).is_null() {
+        if reader.buffered {
+            if reader.eof {
+                if !reader.self_dict.is_null() {
+                    let reader_type = reader.reader_type.unwrap();
+                    if tv_dict_find(reader.self_dict, reader_type.as_ptr(), -1).is_null() {
                         let data =
-                            buffer_to_tv_list((*reader).buffer.as_ptr(), (*reader).buffer.len());
+                            buffer_to_tv_list(reader.buffer.as_ptr(), reader.buffer.len());
                         let type_len = reader_type.to_bytes().len();
                         let _ = tv_dict_add_list(
-                            (*reader).self_dict,
+                            reader.self_dict,
                             reader_type.as_ptr(),
                             type_len,
                             data,
@@ -947,18 +945,18 @@ pub unsafe fn channel_reader_callbacks(chan: &mut Channel, reader: *mut Callback
                         );
                     }
                 } else {
-                    channel_callback_call(chan, reader);
+                    channel_callback_call(chan, &raw mut *reader);
                 }
-                (*reader).eof = false;
+                reader.eof = false;
             }
         } else {
-            let is_eof = (*reader).eof;
-            if !(*reader).buffer.is_empty() {
-                channel_callback_call(chan, reader);
+            let is_eof = reader.eof;
+            if !reader.buffer.is_empty() {
+                channel_callback_call(chan, &raw mut *reader);
             }
             if is_eof {
-                channel_callback_call(chan, reader);
-                (*reader).eof = false;
+                channel_callback_call(chan, &raw mut *reader);
+                reader.eof = false;
             }
         }
     }
@@ -1195,7 +1193,7 @@ pub unsafe fn channel_event(chan: *mut Channel, event: event_T) {
 pub unsafe fn set_info_event(chan: &mut Channel, event: event_T) {
     unsafe {
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
-        let dict = get_v_event(&raw mut save_v_event);
+        let dict = get_v_event(&mut save_v_event);
         let mut arena = Arena {
             cur_blk: ptr::null_mut(),
             pos: 0,
@@ -1217,7 +1215,7 @@ pub unsafe fn set_info_event(chan: &mut Channel, event: event_T) {
 
         let _ = apply_autocmds(event, ptr::null_mut(), ptr::null_mut(), true, g_st().curbuf);
 
-        restore_v_event(&mut *dict, &raw mut save_v_event);
+        restore_v_event(&mut *dict, &mut save_v_event);
         arena_mem_free(arena_finish(&raw mut arena));
         channel_decref(&raw mut *chan);
     }

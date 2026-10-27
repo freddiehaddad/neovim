@@ -47,35 +47,35 @@ pub unsafe fn signal_watcher_init(
     }
 }
 
-pub unsafe fn signal_watcher_start(watcher: *mut SignalWatcher, signum: c_int) {
+pub unsafe fn signal_watcher_start(watcher: &mut SignalWatcher, signum: c_int) {
     unsafe {
-        (*watcher).signum = signum;
+        watcher.signum = signum;
         uv_signal_start(
-            (&raw mut (*watcher).uv).cast(),
+            (&raw mut watcher.uv).cast(),
             Some(signal_watcher_cb),
             signum,
         );
     }
 }
 
-pub unsafe fn signal_watcher_stop(watcher: *mut SignalWatcher) {
+pub unsafe fn signal_watcher_stop(watcher: &mut SignalWatcher) {
     unsafe {
-        uv_signal_stop((&raw mut (*watcher).uv).cast());
+        uv_signal_stop((&raw mut watcher.uv).cast());
     }
 }
 
-pub unsafe fn signal_watcher_close(watcher: *mut SignalWatcher) {
+pub unsafe fn signal_watcher_close(watcher: &mut SignalWatcher) {
     unsafe {
-        uv_close((&raw mut (*watcher).uv).cast(), None);
+        uv_close((&raw mut watcher.uv).cast(), None);
     }
 }
 
-pub unsafe fn signal_event(watcher: *mut SignalWatcher) {
+pub unsafe fn signal_event(watcher: &mut SignalWatcher) {
     unsafe {
-        if (*watcher).data.is_null() {
-            crate::os::signal::on_signal((*watcher).signum);
+        if watcher.data.is_null() {
+            crate::os::signal::on_signal(watcher.signum);
         } else {
-            crate::tui::tui::sigwinch_cb(&mut *(*watcher).data);
+            crate::tui::tui::sigwinch_cb(&mut *watcher.data);
         }
     }
 }
@@ -88,7 +88,7 @@ unsafe extern "C" fn signal_watcher_cb(handle: *mut uv_signal_t, signum: c_int) 
         if !events.is_null() {
             multiqueue_put_event(events, Event::Signal(watcher));
         } else {
-            signal_event(watcher);
+            signal_event(&mut *watcher);
         }
     }
 }

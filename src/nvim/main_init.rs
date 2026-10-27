@@ -934,7 +934,7 @@ pub unsafe fn getout(mut exitval: c_int) -> ! {
                     let buf = (*wp).w_buffer;
                     if buf_get_changedtick(buf) != -1 {
                         let mut bufref: bufref_T = bufref_T::new();
-                        set_bufref(&raw mut bufref, buf);
+                        set_bufref(&mut bufref, buf);
                         apply_autocmds(
                             EVENT_BUFWINLEAVE,
                             (*buf).b_fname,
@@ -957,7 +957,7 @@ pub unsafe fn getout(mut exitval: c_int) -> ! {
             while !buf.is_null() {
                 if (*buf).b_ml.ml_mfp.is_some() {
                     let mut bufref: bufref_T = bufref_T::new();
-                    set_bufref(&raw mut bufref, buf);
+                    set_bufref(&mut bufref, buf);
                     apply_autocmds(EVENT_BUFUNLOAD, (*buf).b_fname, (*buf).b_fname, false, buf);
                     if !bufref_valid(&raw mut bufref) {
                         break;
@@ -1759,9 +1759,9 @@ unsafe fn command_line_scan(parmp: &mut mparm_T) {
                 if parmp.diff_mode != 0
                     && os_isdir(p_vec.as_ptr())
                     && gargcount() > 0
-                    && !os_isdir(alist_name(garglist()))
+                    && !os_isdir(alist_name(&mut *garglist()))
                 {
-                    let tail = path_tail(alist_name(garglist()));
+                    let tail = path_tail(alist_name(&mut *garglist()));
                     let joined =
                         concat_fnames(cstr_as_string(p_vec.as_ptr()), cstr_as_string(tail), true);
                     p_vec = joined
@@ -1818,7 +1818,7 @@ unsafe fn set_argf_var() {
         let list = tv_list_alloc(kListLenMayKnow);
         let count = gargcount();
         for i in 0..count {
-            let fname = alist_name(garglist().add(i as usize));
+            let fname = alist_name(&mut *garglist().add(i as usize));
             if !fname.is_null() {
                 let _ = vim_FullName(fname, (&raw mut g_st().NameBuff).cast(), MAXPATHL, false);
                 tv_list_append_string(list, (&raw const g_st().NameBuff).cast(), -1);
@@ -1895,7 +1895,7 @@ unsafe fn init_path(exename: *const c_char) {
 }
 
 unsafe fn get_fname(_parmp: &mut mparm_T) -> *mut c_char {
-    unsafe { alist_name(garglist()) }
+    unsafe { alist_name(&mut *garglist()) }
 }
 
 unsafe fn set_window_layout(paramp: &mut mparm_T) {
@@ -2168,7 +2168,7 @@ unsafe fn edit_buffers(parmp: &mut mparm_T) {
                 (**curwin.as_ptr()).w_arg_idx = arg_idx;
                 g_st().swap_exists_did_quit = false;
                 let fname = if arg_idx < gargcount() {
-                    alist_name(garglist().add(arg_idx as usize))
+                    alist_name(&mut *garglist().add(arg_idx as usize))
                 } else {
                     ptr::null_mut()
                 };

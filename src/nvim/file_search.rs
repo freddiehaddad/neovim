@@ -1001,7 +1001,7 @@ unsafe fn ff_check_visited(
             expand_size = fnamelen;
             url = true;
         } else {
-            if !os_fileid(fname, &raw mut file_id) {
+            if !os_fileid(fname, &mut file_id) {
                 return FAIL;
             }
         }
@@ -1015,7 +1015,7 @@ unsafe fn ff_check_visited(
                 ))
                 || (!url
                     && vp.file_id_valid
-                    && os_fileid_equal(&raw const vp.file_id, &raw const file_id)))
+                    && os_fileid_equal(&vp.file_id, &file_id)))
                 && ff_wc_equal(
                     vp.ffv_wc_path
                         .as_ref()
@@ -1691,7 +1691,7 @@ pub unsafe fn do_autocmd_dirchanged(
         RECURSIVE.store(true, std::sync::atomic::Ordering::Relaxed);
 
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
-        let dict = get_v_event(&raw mut save_v_event);
+        let dict = get_v_event(&mut save_v_event);
         let mut buf: [c_char; 8] = [0; 8];
 
         let scope_cstr = match scope {
@@ -1727,7 +1727,7 @@ pub unsafe fn do_autocmd_dirchanged(
 
         apply_autocmds(event, buf.as_mut_ptr(), new_dir, false, g_st().curbuf);
 
-        restore_v_event(&mut *dict, &raw mut save_v_event);
+        restore_v_event(&mut *dict, &mut save_v_event);
 
         RECURSIVE.store(false, std::sync::atomic::Ordering::Relaxed);
     }

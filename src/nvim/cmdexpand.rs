@@ -202,13 +202,13 @@ impl LineGetter {
                 Self::Func(cookie) => {
                     crate::eval::userfunc::get_func_line(c, &mut *cookie, indent, do_concat)
                 }
-                Self::Source(cookie) => crate::runtime::getsourceline(c, cookie, indent, do_concat),
-                Self::Loop(cookie) => crate::ex_docmd::get_loop_line(c, cookie, indent, do_concat),
+                Self::Source(cookie) => crate::runtime::getsourceline(c, &mut *cookie, indent, do_concat),
+                Self::Loop(cookie) => crate::ex_docmd::get_loop_line(c, &mut *cookie, indent, do_concat),
                 Self::List(cookie) => {
-                    crate::eval::funcs::get_list_line(c, cookie, indent, do_concat)
+                    crate::eval::funcs::get_list_line(c, &mut *cookie, indent, do_concat)
                 }
                 Self::LuaEx(cookie) => {
-                    crate::lua::executor::nlua_ex_getline(c, cookie, indent, do_concat)
+                    crate::lua::executor::nlua_ex_getline(c, &mut *cookie, indent, do_concat)
                 }
             }
         }

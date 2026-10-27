@@ -113,39 +113,39 @@ unsafe fn find_win_for_curbuf() {
 }
 
 /// Used before making a change in `buf`, which is not the current one (`change_other_buffer_prepare`).
-unsafe fn change_other_buffer_prepare(cob: *mut cob_T, buf: *mut buf_T) {
+unsafe fn change_other_buffer_prepare(cob: &mut cob_T, buf: *mut buf_T) {
     unsafe {
         *cob = cob_T::new();
 
-        (*cob).cob_save_VIsual_active = c_int::from(g_st().Visual.active);
+        cob.cob_save_VIsual_active = c_int::from(g_st().Visual.active);
         g_st().Visual.active = false;
-        (*cob).cob_curwin_save = *curwin.as_ptr();
+        cob.cob_curwin_save = *curwin.as_ptr();
         g_st().curbuf = buf;
         find_win_for_curbuf();
 
         if (**curwin.as_ptr()).w_buffer != buf {
             g_st().curbuf = (**curwin.as_ptr()).w_buffer;
             ctx_switch(
-                &raw mut (*cob).cob_aco,
+                &raw mut cob.cob_aco,
                 ptr::null_mut(),
                 ptr::null_mut(),
                 buf,
                 0,
             );
-            (*cob).cob_using_aco = 1;
+            cob.cob_using_aco = 1;
         }
     }
 }
 
-unsafe fn change_other_buffer_restore(cob: *mut cob_T) {
+unsafe fn change_other_buffer_restore(cob: &mut cob_T) {
     unsafe {
-        if (*cob).cob_using_aco != 0 {
-            ctx_restore(&mut (*cob).cob_aco);
+        if cob.cob_using_aco != 0 {
+            ctx_restore(&mut cob.cob_aco);
         } else {
-            *curwin.as_ptr() = (*cob).cob_curwin_save;
+            *curwin.as_ptr() = cob.cob_curwin_save;
             g_st().curbuf = (**curwin.as_ptr()).w_buffer;
         }
-        g_st().Visual.active = (*cob).cob_save_VIsual_active != 0;
+        g_st().Visual.active = cob.cob_save_VIsual_active != 0;
     }
 }
 
@@ -169,7 +169,7 @@ unsafe fn set_buffer_lines(
 
         let mut cob = cob_T::new();
         if !is_curbuf {
-            change_other_buffer_prepare(&raw mut cob, buf);
+            change_other_buffer_prepare(&mut cob, buf);
         }
 
         let append_lnum = if append {
@@ -185,7 +185,7 @@ unsafe fn set_buffer_lines(
             l = (*lines).vval.v_list();
             if l.is_null() || tv_list_len(l) == 0 {
                 if !is_curbuf {
-                    change_other_buffer_restore(&raw mut cob);
+                    change_other_buffer_restore(&mut cob);
                 }
                 return;
             }
@@ -264,7 +264,7 @@ unsafe fn set_buffer_lines(
         }
 
         if !is_curbuf {
-            change_other_buffer_restore(&raw mut cob);
+            change_other_buffer_restore(&mut cob);
         }
     }
 }
@@ -688,7 +688,7 @@ pub unsafe fn f_deletebufline(argvars: *mut typval_T, rettv: &mut typval_T, _fpt
         let is_curbuf = buf == g_st().curbuf;
         let mut cob = cob_T::new();
         if !is_curbuf {
-            change_other_buffer_prepare(&raw mut cob, buf);
+            change_other_buffer_prepare(&mut cob, buf);
         }
 
         if last > (*g_st().curbuf).b_ml.ml_line_count {
@@ -730,7 +730,7 @@ pub unsafe fn f_deletebufline(argvars: *mut typval_T, rettv: &mut typval_T, _fpt
         }
 
         if !is_curbuf {
-            change_other_buffer_restore(&raw mut cob);
+            change_other_buffer_restore(&mut cob);
         }
     }
 }

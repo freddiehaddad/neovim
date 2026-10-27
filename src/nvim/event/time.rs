@@ -85,7 +85,7 @@ pub unsafe fn time_event(watcher: &mut TimeWatcher) {
     unsafe {
         match watcher.data {
             TimeWatcherData::None => {}
-            TimeWatcherData::EvalTimer(timer) => crate::eval::timer_due_cb(watcher, timer),
+            TimeWatcherData::EvalTimer(timer) => crate::eval::timer_due_cb(watcher, &mut *timer),
             TimeWatcherData::WaitDummy => crate::eval::funcs::dummy_timer_due_cb(watcher),
             TimeWatcherData::TerminalRefresh => crate::terminal::refresh_timer_cb(),
         }
@@ -110,7 +110,7 @@ pub unsafe fn close_event(watcher: &mut TimeWatcher) {
     unsafe {
         match watcher.data {
             TimeWatcherData::None | TimeWatcherData::TerminalRefresh => {}
-            TimeWatcherData::EvalTimer(timer) => crate::eval::timer_close_cb(watcher, timer),
+            TimeWatcherData::EvalTimer(timer) => crate::eval::timer_close_cb(watcher, &mut *timer),
             TimeWatcherData::WaitDummy => drop(Box::from_raw(watcher)),
         }
     }

@@ -612,7 +612,7 @@ pub unsafe fn do_record(c: c_int) -> c_int {
             }
         } else {
             let mut save_v_event: save_v_event_T = save_v_event_T::new();
-            let dict = get_v_event(&raw mut save_v_event);
+            let dict = get_v_event(&mut save_v_event);
 
             let mut p_vec = get_recorded().into_bytes_with_nul();
             let p = p_vec.as_mut_ptr().cast::<c_char>();
@@ -632,7 +632,7 @@ pub unsafe fn do_record(c: c_int) -> c_int {
                 false,
                 g_st().curbuf,
             );
-            restore_v_event(&mut *dict, &raw mut save_v_event);
+            restore_v_event(&mut *dict, &mut save_v_event);
             g_st().reg_recorded = g_st().reg_recording;
             g_st().reg_recording = 0;
             if opt_vars().p_ch == 0 || ui_has(kUIMessages) {
@@ -1107,28 +1107,28 @@ pub unsafe fn clear_registers() {
 
 unsafe fn yank_copy_line(
     reg: *mut yankreg_T,
-    bd: *mut block_def,
+    bd: &mut block_def,
     y_idx: usize,
     exclude_trailing_space: bool,
 ) {
     unsafe {
         if exclude_trailing_space {
-            (*bd).endspaces = 0;
+            bd.endspaces = 0;
         }
-        let size = (*bd).startspaces + (*bd).endspaces + (*bd).textlen;
+        let size = bd.startspaces + bd.endspaces + bd.textlen;
         assert!(size >= 0);
         let mut buf_vec = vec![0 as c_char; (size as usize) + 1];
         let mut pnew = buf_vec.as_mut_ptr();
-        ptr::write_bytes(pnew.cast::<u8>(), b' ', (*bd).startspaces as usize);
-        pnew = pnew.add((*bd).startspaces as usize);
-        ptr::copy((*bd).textstart, pnew, (*bd).textlen as usize);
-        pnew = pnew.add((*bd).textlen as usize);
-        ptr::write_bytes(pnew.cast::<u8>(), b' ', (*bd).endspaces as usize);
-        pnew = pnew.add((*bd).endspaces as usize);
+        ptr::write_bytes(pnew.cast::<u8>(), b' ', bd.startspaces as usize);
+        pnew = pnew.add(bd.startspaces as usize);
+        ptr::copy(bd.textstart, pnew, bd.textlen as usize);
+        pnew = pnew.add(bd.textlen as usize);
+        ptr::write_bytes(pnew.cast::<u8>(), b' ', bd.endspaces as usize);
+        pnew = pnew.add(bd.endspaces as usize);
         if exclude_trailing_space {
-            let mut s = (*bd).textlen + (*bd).endspaces;
-            while s > 0 && ascii_iswhite(*(*bd).textstart.add((s - 1) as usize) as u8) {
-                s = s - utf_head_off((*bd).textstart, (*bd).textstart.add((s - 1) as usize)) - 1;
+            let mut s = bd.textlen + bd.endspaces;
+            while s > 0 && ascii_iswhite(*bd.textstart.add((s - 1) as usize) as u8) {
+                s = s - utf_head_off(bd.textstart, bd.textstart.add((s - 1) as usize)) - 1;
                 pnew = pnew.sub(1);
             }
         }
@@ -1197,8 +1197,8 @@ pub unsafe fn op_yank_reg(oap: &mut oparg_T, message: bool, mut reg: *mut yankre
         while lnum <= yankendlnum {
             match (*reg).y_type {
                 MotionType::kMTBlockWise => {
-                    block_prep(oap, &raw mut bd, lnum, false);
-                    yank_copy_line(reg, &raw mut bd, y_idx, oap.excl_tr_ws);
+                    block_prep(oap, &mut bd, lnum, false);
+                    yank_copy_line(reg, &mut bd, y_idx, oap.excl_tr_ws);
                 }
                 MotionType::kMTLineWise => {
                     (&mut *reg).y_array[y_idx] =
@@ -1208,7 +1208,7 @@ pub unsafe fn op_yank_reg(oap: &mut oparg_T, message: bool, mut reg: *mut yankre
                     charwise_block_prep(
                         oap.start,
                         oap.end,
-                        &raw mut bd,
+                        &mut bd,
                         lnum,
                         oap.inclusive,
                     );
@@ -1216,7 +1216,7 @@ pub unsafe fn op_yank_reg(oap: &mut oparg_T, message: bool, mut reg: *mut yankre
                     if tmp < bd.textlen {
                         bd.textlen = tmp;
                     }
-                    yank_copy_line(reg, &raw mut bd, y_idx, false);
+                    yank_copy_line(reg, &mut bd, y_idx, false);
                 }
                 MotionType::kMTUnknown => std::process::abort(),
             }
@@ -1399,7 +1399,7 @@ pub unsafe fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
         reg_st().textyankpost_recursive = true;
 
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
-        let dict = get_v_event(&raw mut save_v_event);
+        let dict = get_v_event(&mut save_v_event);
 
         let reg_ref = &*reg;
         let list = tv_list_alloc(reg_ref.y_array.len() as isize);
@@ -1452,7 +1452,7 @@ pub unsafe fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
             g_st().curbuf,
         );
         g_st().textlock -= 1;
-        restore_v_event(&mut *dict, &raw mut save_v_event);
+        restore_v_event(&mut *dict, &mut save_v_event);
 
         reg_st().textyankpost_recursive = false;
     }
@@ -1475,7 +1475,7 @@ unsafe fn put_do_autocmd(
         }
 
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
-        let v_event = get_v_event(&raw mut save_v_event);
+        let v_event = get_v_event(&mut save_v_event);
 
         let list = tv_list_alloc(if !reg.is_null() {
             (*reg).y_array.len() as isize
@@ -1546,7 +1546,7 @@ unsafe fn put_do_autocmd(
         g_st().textlock -= 1;
         reg_st().put_autocmd_recursive = false;
 
-        restore_v_event(&mut *v_event, &raw mut save_v_event);
+        restore_v_event(&mut *v_event, &mut save_v_event);
     }
 }
 
@@ -1983,7 +1983,7 @@ pub unsafe fn do_put(
 
                     let mut csarg = CharsizeArg::new();
                     let mut cstype: CSType =
-                        init_charsize_arg(&raw mut csarg, *curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum, oldp);
+                        init_charsize_arg(&mut csarg, *curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum, oldp);
                     let mut ci = utf_ptr2StrCharInfo(oldp);
                     vcol = 0;
                     while vcol < col && *ci.ptr != NUL {
@@ -2025,7 +2025,7 @@ pub unsafe fn do_put(
                         spaces = y_width + 1;
 
                         cstype =
-                            init_charsize_arg(&raw mut csarg, *curwin.as_ptr(), 0, (*y_array.add(i)).data);
+                            init_charsize_arg(&mut csarg, *curwin.as_ptr(), 0, (*y_array.add(i)).data);
                         ci = utf_ptr2StrCharInfo((*y_array.add(i)).data);
                         while *ci.ptr != NUL {
                             let cli = utf_ClusterInfo(ci);

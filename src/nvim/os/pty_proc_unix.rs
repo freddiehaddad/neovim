@@ -280,7 +280,7 @@ mod unix_impl {
         unsafe {
             let termios_default_ptr = TERMIOS_DEFAULT.as_ptr();
             if (*termios_default_ptr).c_cflag == 0 {
-                init_termios(termios_default_ptr);
+                init_termios(&mut *termios_default_ptr);
             }
 
             let proc_: *mut Proc = ptyproc;
@@ -435,9 +435,9 @@ mod unix_impl {
         }
     }
 
-    pub unsafe fn pty_proc_resume(ptyproc: *mut PtyProc) {
+    pub unsafe fn pty_proc_resume(ptyproc: &mut PtyProc) {
         unsafe {
-            killpg((*ptyproc).pid, SIGCONT);
+            killpg(ptyproc.pid, SIGCONT);
         }
     }
 
@@ -537,31 +537,31 @@ mod unix_impl {
         }
     }
 
-    unsafe fn init_termios(t: *mut termios) {
+    unsafe fn init_termios(t: &mut termios) {
         unsafe {
-            (*t).c_iflag = ICRNL | IXON | IUTF8;
-            (*t).c_oflag = OPOST | ONLCR;
-            (*t).c_cflag = CS8 | CREAD;
-            (*t).c_lflag = ISIG | ICANON | IEXTEN | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE;
+            t.c_iflag = ICRNL | IXON | IUTF8;
+            t.c_oflag = OPOST | ONLCR;
+            t.c_cflag = CS8 | CREAD;
+            t.c_lflag = ISIG | ICANON | IEXTEN | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE;
 
-            cfsetispeed(t, 38400);
-            cfsetospeed(t, 38400);
+            cfsetispeed(&raw mut *t, 38400);
+            cfsetospeed(&raw mut *t, 38400);
 
-            (*t).c_cc[VINTR] = 0x1f & b'C';
-            (*t).c_cc[VQUIT] = 0x1f & b'\\';
-            (*t).c_cc[VERASE] = 0x7f;
-            (*t).c_cc[VKILL] = 0x1f & b'U';
-            (*t).c_cc[VEOF] = 0x1f & b'D';
-            (*t).c_cc[VEOL] = POSIX_VDISABLE;
-            (*t).c_cc[VEOL2] = POSIX_VDISABLE;
-            (*t).c_cc[VSTART] = 0x1f & b'Q';
-            (*t).c_cc[VSTOP] = 0x1f & b'S';
-            (*t).c_cc[VSUSP] = 0x1f & b'Z';
-            (*t).c_cc[VREPRINT] = 0x1f & b'R';
-            (*t).c_cc[VWERASE] = 0x1f & b'W';
-            (*t).c_cc[VLNEXT] = 0x1f & b'V';
-            (*t).c_cc[VMIN] = 1;
-            (*t).c_cc[VTIME] = 0;
+            t.c_cc[VINTR] = 0x1f & b'C';
+            t.c_cc[VQUIT] = 0x1f & b'\\';
+            t.c_cc[VERASE] = 0x7f;
+            t.c_cc[VKILL] = 0x1f & b'U';
+            t.c_cc[VEOF] = 0x1f & b'D';
+            t.c_cc[VEOL] = POSIX_VDISABLE;
+            t.c_cc[VEOL2] = POSIX_VDISABLE;
+            t.c_cc[VSTART] = 0x1f & b'Q';
+            t.c_cc[VSTOP] = 0x1f & b'S';
+            t.c_cc[VSUSP] = 0x1f & b'Z';
+            t.c_cc[VREPRINT] = 0x1f & b'R';
+            t.c_cc[VWERASE] = 0x1f & b'W';
+            t.c_cc[VLNEXT] = 0x1f & b'V';
+            t.c_cc[VMIN] = 1;
+            t.c_cc[VTIME] = 0;
         }
     }
 

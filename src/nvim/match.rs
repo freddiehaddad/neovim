@@ -576,7 +576,7 @@ pub unsafe fn prepare_search_hl(wp: &mut win_T, search_hl: &mut match_T, lnum: l
             }
             if !(*shl).rm.regprog.is_null()
                 && (*shl).lnum == 0
-                && re_multiline((*shl).rm.regprog) != 0
+                && re_multiline(&*(*shl).rm.regprog) != 0
             {
                 if (*shl).first_lnum == 0 {
                     (*shl).first_lnum = lnum;

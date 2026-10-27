@@ -1561,7 +1561,7 @@ unsafe fn nfa_regpiece() -> c_int {
     unsafe {
         let mut old_state = parse_state_T::new();
 
-        save_parse_state(&raw mut old_state);
+        save_parse_state(&mut old_state);
         let pv = &raw mut re_st().post_vec;
         let my_post_start = (*pv).len();
 
@@ -1594,7 +1594,7 @@ unsafe fn nfa_regpiece_multi(
         if op == Magic(b'*' as c_int) {
             EMIT(NFA_STAR);
         } else if op == Magic(b'+' as c_int) {
-            restore_parse_state(&raw mut *old_state);
+            restore_parse_state(&mut *old_state);
             re_st().curchr = -1;
             if nfa_regatom() == FAIL {
                 return FAIL;
@@ -1663,7 +1663,7 @@ unsafe fn nfa_regpiece_multi(
                     return FAIL;
                 }
                 (*pv).truncate(my_post_start);
-                save_parse_state(&raw mut new_state);
+                save_parse_state(&mut new_state);
 
                 let quest = if greedy {
                     NFA_QUEST
@@ -1671,7 +1671,7 @@ unsafe fn nfa_regpiece_multi(
                     NFA_QUEST_NONGREEDY
                 };
                 for i in 0..maxval {
-                    restore_parse_state(&raw mut *old_state);
+                    restore_parse_state(&mut *old_state);
                     let old_post_pos = (*pv).len();
                     if nfa_regatom() == FAIL {
                         return FAIL;
@@ -1694,7 +1694,7 @@ unsafe fn nfa_regpiece_multi(
                         break;
                     }
                 }
-                restore_parse_state(&raw mut new_state);
+                restore_parse_state(&mut new_state);
                 re_st().curchr = -1;
             }
         }
@@ -3165,10 +3165,10 @@ unsafe fn match_zref(subidx: c_int, bytelen: &mut c_int) -> bool {
     }
 }
 
-unsafe fn nfa_save_listids(prog: *mut nfa_regprog_T, list: *mut c_int) {
+unsafe fn nfa_save_listids(prog: &mut nfa_regprog_T, list: *mut c_int) {
     unsafe {
-        let mut p = (*prog).state.as_mut_ptr();
-        let mut i = (*prog).nstate;
+        let mut p = prog.state.as_mut_ptr();
+        let mut i = prog.nstate;
         while {
             i -= 1;
             i >= 0
@@ -3180,10 +3180,10 @@ unsafe fn nfa_save_listids(prog: *mut nfa_regprog_T, list: *mut c_int) {
     }
 }
 
-unsafe fn nfa_restore_listids(prog: *mut nfa_regprog_T, list: *const c_int) {
+unsafe fn nfa_restore_listids(prog: &mut nfa_regprog_T, list: *const c_int) {
     unsafe {
-        let mut p = (*prog).state.as_mut_ptr();
-        let mut i = (*prog).nstate;
+        let mut p = prog.state.as_mut_ptr();
+        let mut i = prog.nstate;
         while {
             i -= 1;
             i >= 0
@@ -3291,7 +3291,7 @@ unsafe fn recursive_regmatch(
             if listids.len() < nstate_len {
                 listids.resize(nstate_len, 0);
             }
-            nfa_save_listids(prog, listids.as_mut_ptr());
+            nfa_save_listids(&mut *prog, listids.as_mut_ptr());
             need_restore = true;
         } else {
             re_st().nfa_ll_index += 1;
@@ -3304,7 +3304,7 @@ unsafe fn recursive_regmatch(
         let result = nfa_regmatch(prog, st.out, submatch, m);
 
         if need_restore {
-            nfa_restore_listids(prog, listids.as_ptr());
+            nfa_restore_listids(&mut *prog, listids.as_ptr());
         } else {
             re_st().nfa_ll_index -= 1;
             re_st().rex.nfa_alt_listid = re_st().rex.nfa_listid;
@@ -4594,7 +4594,7 @@ unsafe fn finish_nfa_regmatch(prog: *mut nfa_regprog_T, list: &mut [nfa_list_T; 
 }
 
 unsafe fn nfa_regtry(
-    prog: *mut nfa_regprog_T,
+    prog: &mut nfa_regprog_T,
     col: colnr_T,
     tm: Option<proftime_T>,
     timed_out: *mut c_int,
@@ -4602,7 +4602,7 @@ unsafe fn nfa_regtry(
     unsafe {
         let mut subs = regsubs_T::new();
         let mut m = regsubs_T::new();
-        let start = (*prog).start;
+        let start = prog.start;
 
         re_st().rex.input = re_st().rex.line.add(col as usize);
         nfa_st().nfa_time_limit = tm;
@@ -4614,7 +4614,7 @@ unsafe fn nfa_regtry(
         clear_sub(&raw mut subs.synt);
         clear_sub(&raw mut m.synt);
 
-        let result = nfa_regmatch(prog, start, &raw mut subs, &raw mut m);
+        let result = nfa_regmatch(&raw mut *prog, start, &raw mut subs, &raw mut m);
         if result == 0 {
             return 0;
         } else if result == NFA_TOO_EXPENSIVE {
@@ -4659,7 +4659,7 @@ unsafe fn nfa_regtry(
 
         g_st().re_extmatch_out = None;
 
-        if (*prog).reghasz == REX_SET {
+        if prog.reghasz == REX_SET {
             cleanup_zsubexpr();
             let mut extmatch = reg_extmatch_T::default();
             for i in 1..subs.synt.in_use as usize {
@@ -4779,7 +4779,7 @@ unsafe fn nfa_regexec_both(
             st.lastlist[1] = 0;
         }
 
-        retval = nfa_regtry(prog, col, tm, timed_out);
+        retval = nfa_regtry(&mut *prog, col, tm, timed_out);
         finish_nfa_regexec(retval, col)
     }
 }

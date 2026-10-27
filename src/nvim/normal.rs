@@ -1704,7 +1704,7 @@ pub unsafe fn normal_enter() {
         let prev_oap = norm_st().current_oap;
         norm_st().current_oap = &raw mut state.oa;
         state.toplevel = true;
-        state_enter(&raw mut state);
+        state_enter(&mut state);
         norm_st().current_oap = prev_oap;
     }
 }
@@ -7381,7 +7381,7 @@ unsafe fn invoke_edit(cap: &mut cmdarg_T, repl: c_int, cmd: c_int, startln: c_in
             g_st().restart_edit = restart_edit_save;
         }
 
-        atom_ins_end(&raw mut session, busy);
+        atom_ins_end(&mut session, busy);
     }
 }
 

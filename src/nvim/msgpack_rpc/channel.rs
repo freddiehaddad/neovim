@@ -231,8 +231,8 @@ pub unsafe fn find_channel(id: u64) -> *mut Channel {
 }
 
 #[inline]
-fn unpacker_closed(p: *const Unpacker) -> bool {
-    unsafe { (*p).state < 0 }
+fn unpacker_closed(p: &Unpacker) -> bool {
+    p.state < 0
 }
 
 pub unsafe fn rpc_init() {
@@ -443,7 +443,7 @@ pub(crate) unsafe fn receive_msgpack(
             (*p).read_size = c;
             parse_msgpack(channel);
 
-            if !unpacker_closed(p) {
+            if !unpacker_closed(&*p) {
                 consumed = c - (*p).read_size;
             }
         }
@@ -478,7 +478,7 @@ unsafe fn parse_msgpack(channel: &mut Channel) {
             if (*p).msg_type == MessageType::kMessageTypeRedrawEvent {
                 if g_st().ui_client_attached {
                     if (*p).has_grid_line_event {
-                        ui_client_event_raw_line(&raw mut (*p).grid_line_event);
+                        ui_client_event_raw_line(&mut (*p).grid_line_event);
                         (*p).has_grid_line_event = false;
                     } else if let Some(ui_fn) = (*p).ui_handler.r#fn
                         && (*p).result.obj_type == ObjectType::kObjectTypeArray
@@ -535,54 +535,54 @@ unsafe fn parse_msgpack(channel: &mut Channel) {
                     );
                     return;
                 }
-                handle_request(channel, p, res.data.array());
+                handle_request(channel, &mut *p, res.data.array());
             }
         }
 
-        if unpacker_closed(p) {
+        if unpacker_closed(&*p) {
             chan_close_on_err(channel, (*p).unpack_error.msg_ptr(), LOGLVL_INF);
             api_clear_error(&mut (*p).unpack_error);
         }
     }
 }
 
-unsafe fn handle_request(channel: &mut Channel, p: *mut Unpacker, args: Array) {
+unsafe fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
     unsafe {
         assert!(
-            (*p).msg_type == MessageType::kMessageTypeRequest
-                || (*p).msg_type == MessageType::kMessageTypeNotification
+            p.msg_type == MessageType::kMessageTypeRequest
+                || p.msg_type == MessageType::kMessageTypeNotification
         );
 
-        if (*p).handler.r#fn.is_none() {
+        if p.handler.r#fn.is_none() {
             send_error(
                 channel,
-                (*p).handler,
-                (*p).msg_type,
-                (*p).request_id,
-                (*p).unpack_error.msg_ptr(),
+                p.handler,
+                p.msg_type,
+                p.request_id,
+                p.unpack_error.msg_ptr(),
             );
-            api_clear_error(&mut (*p).unpack_error);
-            arena_mem_free(arena_finish(&raw mut (*p).arena));
+            api_clear_error(&mut p.unpack_error);
+            arena_mem_free(arena_finish(&raw mut p.arena));
             return;
         }
 
         let cp = &raw mut *channel;
         let evdata = RequestEvent {
-            r#type: (*p).msg_type,
+            r#type: p.msg_type,
             channel,
-            handler: (*p).handler,
+            handler: p.handler,
             args,
-            used_mem: (*p).arena,
-            request_id: (*p).request_id,
+            used_mem: p.arena,
+            request_id: p.request_id,
         };
-        (*p).arena = Arena {
+        p.arena = Arena {
             cur_blk: ptr::null_mut(),
             pos: 0,
             size: 0,
         };
         channel_incref(&raw mut *channel);
 
-        if (*p).handler.fast {
+        if p.handler.fast {
             let is_get_mode = (*p)
                 .handler
                 .r#fn
@@ -707,7 +707,7 @@ pub unsafe fn internal_read_event(channel: &mut Channel, buffer: std::rc::Rc<WBu
 
         (*p).read_ptr = buffer.data_ptr();
         (*p).read_size = buffer.size();
-        if !unpacker_closed(p) {
+        if !unpacker_closed(&*p) {
             parse_msgpack(channel);
 
             if (*p).read_size != 0 && !(*ct).rpc.closed {

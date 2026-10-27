@@ -166,7 +166,7 @@ impl Drop for WinInfo {
     fn drop(&mut self) {
         unsafe {
             if self.wi_optset {
-                crate::option::clear_winopt(&raw mut self.wi_opt);
+                crate::option::clear_winopt(&mut self.wi_opt);
             }
         }
     }
@@ -571,7 +571,7 @@ pub unsafe fn get_jumplist(win: &mut win_T, mut count: c_int) -> *mut fmark_T {
 
             let jmp = &raw mut win.w_jumplist[win.w_jumplistidx as usize];
             if (*jmp).fmark.fnum == 0 {
-                fname2fnum(jmp);
+                fname2fnum(&mut *jmp);
             }
             if (*jmp).fmark.fnum != (*g_st().curbuf).b_fnum && buflist_findnr((*jmp).fmark.fnum).is_null()
             {
@@ -658,7 +658,7 @@ pub unsafe fn mark_get_global(resolve: bool, mut name: c_int) -> *mut xfmark_T {
         }
         let mark = &raw mut g_st().namedfm[name as usize];
         if resolve && (*mark).fmark.fnum == 0 {
-            fname2fnum(mark);
+            fname2fnum(&mut *mark);
         }
         mark
     }
@@ -905,9 +905,9 @@ pub unsafe fn getnextmark(startpos: &mut pos_T, dir: c_int, begin_line: c_int) -
 }
 
 /// For an extended filemark: set the `fnum` from the `fname` (`fname2fnum`).
-unsafe fn fname2fnum(fm: *mut xfmark_T) {
+unsafe fn fname2fnum(fm: &mut xfmark_T) {
     unsafe {
-        let Some(ref fname_cstr) = (*fm).fname else {
+        let Some(ref fname_cstr) = fm.fname else {
             return;
         };
         let fname = fname_cstr.as_ptr();
@@ -943,29 +943,29 @@ pub unsafe fn fmarks_check_names(buf: *mut buf_T) {
         }
 
         for i in 0..NGLOBALMARKS {
-            fmarks_check_one((&raw mut g_st().namedfm).cast::<xfmark_T>().add(i), name, buf);
+            fmarks_check_one(&mut *(&raw mut g_st().namedfm).cast::<xfmark_T>().add(i), name, buf);
         }
 
         let mut wp = first_win_in_tab(g_st().curtab);
         while !wp.is_null() {
             for i in 0..((*wp).w_jumplistlen as usize) {
-                fmarks_check_one(&raw mut (*wp).w_jumplist[i], name, buf);
+                fmarks_check_one(&mut (*wp).w_jumplist[i], name, buf);
             }
             wp = (*wp).w_next;
         }
     }
 }
 
-unsafe fn fmarks_check_one(fm: *mut xfmark_T, name: *mut c_char, buf: *mut buf_T) {
+unsafe fn fmarks_check_one(fm: &mut xfmark_T, name: *mut c_char, buf: *mut buf_T) {
     unsafe {
-        if (*fm).fmark.fnum == 0
+        if fm.fmark.fnum == 0
             && (*fm)
                 .fname
                 .as_ref()
                 .is_some_and(|f| path_equal(name, f.as_ptr(), kPathCmpLiteral))
         {
-            (*fm).fmark.fnum = (*buf).b_fnum;
-            (*fm).fname = None;
+            fm.fmark.fnum = (*buf).b_fnum;
+            fm.fname = None;
         }
     }
 }
@@ -1935,7 +1935,7 @@ pub unsafe fn cleanup_jumplist(wp: &mut win_T, loadfiles: bool) {
         if loadfiles {
             for i in 0..(wp.w_jumplistlen as usize) {
                 if wp.w_jumplist[i].fmark.fnum == 0 && wp.w_jumplist[i].fmark.mark.lnum != 0 {
-                    fname2fnum(&raw mut wp.w_jumplist[i]);
+                    fname2fnum(&mut wp.w_jumplist[i]);
                 }
             }
         }
