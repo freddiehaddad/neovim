@@ -144,10 +144,8 @@ impl Drop for mapblock_T {
 
 #[derive(Clone)]
 pub struct typebuf_T {
-    pub tb_buf_owned: Vec<u8>,
-    pub tb_noremap_owned: Vec<u8>,
-    pub tb_buf: *mut u8,
-    pub tb_noremap: *mut u8,
+    pub tb_buf: Vec<u8>,
+    pub tb_noremap: Vec<u8>,
     pub tb_buflen: c_int,
     pub tb_off: c_int,
     pub tb_len: c_int,
@@ -159,10 +157,8 @@ pub struct typebuf_T {
 
 impl typebuf_T {
     pub const ZERO: Self = Self {
-        tb_buf_owned: Vec::new(),
-        tb_noremap_owned: Vec::new(),
-        tb_buf: ptr::null_mut(),
-        tb_noremap: ptr::null_mut(),
+        tb_buf: Vec::new(),
+        tb_noremap: Vec::new(),
         tb_buflen: 0,
         tb_off: 0,
         tb_len: 0,

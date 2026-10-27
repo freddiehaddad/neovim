@@ -55,7 +55,7 @@ use crate::mbyte::{
 use crate::mcursor::mc_replaying;
 use crate::memline::ml_sync_all;
 use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_from_bytes};
-use crate::message::{emsg, internal_error, semsg, semsg_multiline};
+use crate::message::{emsg, semsg, semsg_multiline};
 use crate::mouse::{is_mouse_key, mouse_comp_pos, mouse_find_win_inner};
 use crate::r#move::{validate_cursor, win_col_off};
 use crate::normal::{add_to_showcmd, normal_cmd, pop_showcmd, push_showcmd};
@@ -269,8 +269,6 @@ static mut on_key_blocked: c_int = 0;
 static mut typeahead_char: c_int = 0;
 static mut block_redo: bool = false;
 static mut KeyNoremap: c_int = 0;
-static mut typebuf_init: [u8; TYPELEN_INIT] = [0; TYPELEN_INIT];
-static mut noremapbuf_init: [u8; TYPELEN_INIT] = [0; TYPELEN_INIT];
 static mut last_recorded_len: usize = 0;
 static mut saved_typebuf: [typebuf_T; NSCRIPT] = [const { typebuf_T::ZERO }; NSCRIPT];
 static mut no_reduce_keys: c_int = 0;
@@ -278,6 +276,16 @@ static mut no_reduce_keys: c_int = 0;
 static mut GOTCHARS_STATE: gotchars_state_T = gotchars_state_T::new();
 static mut UPDATESCRIPT_COUNT: c_int = 0;
 static mut SHOWCMD_STATE: gotchars_state_T = gotchars_state_T::new();
+
+#[inline]
+unsafe fn tb_buf_ptr() -> *mut u8 {
+    unsafe { (*(&raw mut typebuf.tb_buf)).as_mut_ptr() }
+}
+
+#[inline]
+unsafe fn tb_noremap_ptr() -> *mut u8 {
+    unsafe { (*(&raw mut typebuf.tb_noremap)).as_mut_ptr() }
+}
 static mut LAST_VGETC_RECORDED_LEN: usize = 0;
 static mut VGETORPEEK_TC: c_int = 0;
 
@@ -595,7 +603,8 @@ pub unsafe fn flush_buffers(flush_typeahead: flush_buffers_T) {
             }
         } else {
             if flush_typeahead == FLUSH_INPUT {
-                while inchar(typebuf.tb_buf, typebuf.tb_buflen - 1, 10) != 0 {}
+                init_typebuf();
+                while inchar(tb_buf_ptr(), typebuf.tb_buflen - 1, 10) != 0 {}
             }
             typebuf.tb_off = MAXMAPLEN as c_int;
             typebuf.tb_len = 0;
@@ -986,12 +995,12 @@ pub unsafe fn stop_redo_ins() {
 
 unsafe fn init_typebuf() {
     unsafe {
-        if !typebuf.tb_buf.is_null() {
+        if !(*(&raw const typebuf.tb_buf)).is_empty() {
             return;
         }
 
-        typebuf.tb_buf = (&raw mut typebuf_init).cast::<u8>();
-        typebuf.tb_noremap = (&raw mut noremapbuf_init).cast::<u8>();
+        typebuf.tb_buf = vec![0u8; TYPELEN_INIT];
+        typebuf.tb_noremap = vec![0u8; TYPELEN_INIT];
         typebuf.tb_buflen = TYPELEN_INIT as c_int;
         typebuf.tb_len = 0;
         typebuf.tb_off = (MAXMAPLEN + 4) as c_int;
@@ -1026,7 +1035,7 @@ pub unsafe fn ins_typebuf(
             typebuf.tb_off -= addlen;
             ptr::copy(
                 str_.cast::<u8>(),
-                typebuf.tb_buf.add(typebuf.tb_off as usize),
+                tb_buf_ptr().add(typebuf.tb_off as usize),
                 addlen as usize,
             );
         } else if typebuf.tb_len == 0
@@ -1035,7 +1044,7 @@ pub unsafe fn ins_typebuf(
             typebuf.tb_off = (typebuf.tb_buflen - addlen - (3 * (MAXMAPLEN + 4)) as c_int) / 2;
             ptr::copy(
                 str_.cast::<u8>(),
-                typebuf.tb_buf.add(typebuf.tb_off as usize),
+                tb_buf_ptr().add(typebuf.tb_off as usize),
                 addlen as usize,
             );
         } else {
@@ -1054,7 +1063,7 @@ pub unsafe fn ins_typebuf(
             typebuf.tb_buflen = newlen;
 
             ptr::copy(
-                typebuf.tb_buf.add(typebuf.tb_off as usize),
+                tb_buf_ptr().add(typebuf.tb_off as usize),
                 s1.add(newoff as usize),
                 offset as usize,
             );
@@ -1066,25 +1075,23 @@ pub unsafe fn ins_typebuf(
             let bytes = typebuf.tb_len - offset + 1;
             assert!(bytes > 0);
             ptr::copy(
-                typebuf.tb_buf.add((typebuf.tb_off + offset) as usize),
+                tb_buf_ptr().add((typebuf.tb_off + offset) as usize),
                 s1.add((newoff + offset + addlen) as usize),
                 bytes as usize,
             );
-            typebuf.tb_buf = s1;
-            typebuf.tb_buf_owned = s1_vec;
+            typebuf.tb_buf = s1_vec;
 
             ptr::copy(
-                typebuf.tb_noremap.add(typebuf.tb_off as usize),
+                tb_noremap_ptr().add(typebuf.tb_off as usize),
                 s2.add(newoff as usize),
                 offset as usize,
             );
             ptr::copy(
-                typebuf.tb_noremap.add((typebuf.tb_off + offset) as usize),
+                tb_noremap_ptr().add((typebuf.tb_off + offset) as usize),
                 s2.add((newoff + offset + addlen) as usize),
                 (typebuf.tb_len - offset) as usize,
             );
-            typebuf.tb_noremap = s2;
-            typebuf.tb_noremap_owned = s2_vec;
+            typebuf.tb_noremap = s2_vec;
 
             typebuf.tb_off = newoff;
         }
@@ -1107,9 +1114,8 @@ pub unsafe fn ins_typebuf(
         };
         for i in 0..addlen {
             nrm -= 1;
-            *typebuf
-                .tb_noremap
-                .add((typebuf.tb_off + i + offset) as usize) = if nrm >= 0 { val } else { RM_YES };
+            *tb_noremap_ptr().add((typebuf.tb_off + i + offset) as usize) =
+                if nrm >= 0 { val } else { RM_YES };
         }
 
         if nottyped || typebuf.tb_maplen > offset {
@@ -1170,13 +1176,13 @@ pub unsafe fn del_typebuf(len: c_int, offset: c_int) {
             let i = typebuf.tb_off + offset;
             if typebuf.tb_off > MAXMAPLEN as c_int {
                 ptr::copy(
-                    typebuf.tb_buf.add(typebuf.tb_off as usize),
-                    typebuf.tb_buf.add(MAXMAPLEN),
+                    tb_buf_ptr().add(typebuf.tb_off as usize),
+                    tb_buf_ptr().add(MAXMAPLEN),
                     offset as usize,
                 );
                 ptr::copy(
-                    typebuf.tb_noremap.add(typebuf.tb_off as usize),
-                    typebuf.tb_noremap.add(MAXMAPLEN),
+                    tb_noremap_ptr().add(typebuf.tb_off as usize),
+                    tb_noremap_ptr().add(MAXMAPLEN),
                     offset as usize,
                 );
                 typebuf.tb_off = MAXMAPLEN as c_int;
@@ -1184,13 +1190,13 @@ pub unsafe fn del_typebuf(len: c_int, offset: c_int) {
             let bytes = typebuf.tb_len - offset + 1;
             assert!(bytes > 0);
             ptr::copy(
-                typebuf.tb_buf.add((i + len) as usize),
-                typebuf.tb_buf.add((typebuf.tb_off + offset) as usize),
+                tb_buf_ptr().add((i + len) as usize),
+                tb_buf_ptr().add((typebuf.tb_off + offset) as usize),
                 bytes as usize,
             );
             ptr::copy(
-                typebuf.tb_noremap.add((i + len) as usize),
-                typebuf.tb_noremap.add((typebuf.tb_off + offset) as usize),
+                tb_noremap_ptr().add((i + len) as usize),
+                tb_noremap_ptr().add((typebuf.tb_off + offset) as usize),
                 (typebuf.tb_len - offset) as usize,
             );
         }
@@ -1362,12 +1368,8 @@ pub unsafe fn may_sync_undo() {
 
 unsafe fn alloc_typebuf() {
     unsafe {
-        let mut b1 = vec![0u8; TYPELEN_INIT];
-        let mut b2 = vec![0u8; TYPELEN_INIT];
-        typebuf.tb_buf = b1.as_mut_ptr();
-        typebuf.tb_noremap = b2.as_mut_ptr();
-        typebuf.tb_buf_owned = b1;
-        typebuf.tb_noremap_owned = b2;
+        typebuf.tb_buf = vec![0u8; TYPELEN_INIT];
+        typebuf.tb_noremap = vec![0u8; TYPELEN_INIT];
         typebuf.tb_buflen = TYPELEN_INIT as c_int;
         typebuf.tb_off = (MAXMAPLEN + 4) as c_int;
         typebuf.tb_len = 0;
@@ -1384,18 +1386,8 @@ unsafe fn alloc_typebuf() {
 
 unsafe fn free_typebuf() {
     unsafe {
-        if typebuf.tb_buf == (&raw mut typebuf_init).cast::<u8>() {
-            internal_error(c"Free typebuf 1".as_ptr());
-        } else {
-            typebuf.tb_buf_owned = Vec::new();
-            typebuf.tb_buf = ptr::null_mut();
-        }
-        if typebuf.tb_noremap == (&raw mut noremapbuf_init).cast::<u8>() {
-            internal_error(c"Free typebuf 2".as_ptr());
-        } else {
-            typebuf.tb_noremap_owned = Vec::new();
-            typebuf.tb_noremap = ptr::null_mut();
-        }
+        typebuf.tb_buf = Vec::new();
+        typebuf.tb_noremap = Vec::new();
     }
 }
 
@@ -2123,7 +2115,7 @@ unsafe fn put_string_in_typebuf(
         }
         ptr::copy(
             string,
-            typebuf.tb_buf.add((typebuf.tb_off + offset) as usize),
+            tb_buf_ptr().add((typebuf.tb_off + offset) as usize),
             new_slen as usize,
         );
         OK
@@ -2132,7 +2124,7 @@ unsafe fn put_string_in_typebuf(
 
 unsafe fn at_ins_compl_key() -> bool {
     unsafe {
-        let p = typebuf.tb_buf.add(typebuf.tb_off as usize);
+        let p = tb_buf_ptr().add(typebuf.tb_off as usize);
         let mut c = *p as c_int;
 
         if typebuf.tb_len > 3
@@ -2158,7 +2150,7 @@ unsafe fn check_simplify_modifier(max_offset: c_int) -> c_int {
             if offset + 3 >= typebuf.tb_len {
                 break;
             }
-            let tp = typebuf.tb_buf.add((typebuf.tb_off + offset) as usize);
+            let tp = tb_buf_ptr().add((typebuf.tb_off + offset) as usize);
             if *tp == K_SPECIAL && *tp.add(1) == KS_MODIFIER {
                 let mut modifier = *tp.add(2) as c_int;
                 let c = *tp.add(3) as c_int;
@@ -2269,7 +2261,7 @@ unsafe fn handle_mapping(
         let local_State = get_real_state();
         let mut is_plug_map = false;
 
-        let tb_start = typebuf.tb_buf.add(typebuf.tb_off as usize);
+        let tb_start = tb_buf_ptr().add(typebuf.tb_off as usize);
         if typebuf.tb_len >= 3
             && *tb_start == K_SPECIAL
             && *tb_start.add(1) == KS_EXTRA
@@ -2283,7 +2275,7 @@ unsafe fn handle_mapping(
             && (no_zero_mapping == 0 || tb_b1 != b'0' as c_int)
             && (typebuf.tb_maplen == 0
                 || is_plug_map
-                || (*typebuf.tb_noremap.add(typebuf.tb_off as usize) & (RM_NONE | RM_ABBR)) == 0)
+                || (*tb_noremap_ptr().add(typebuf.tb_off as usize) & (RM_NONE | RM_ABBR)) == 0)
             && !(p_paste != 0 && (State & (MODE_INSERT | MODE_CMDLINE)) != 0)
             && !(State == MODE_HITRETURN && (tb_b1 == CAR || tb_b1 == b' ' as c_int))
             && State != MODE_ASKMORE
@@ -2337,7 +2329,7 @@ unsafe fn handle_mapping(
                     let mut mlen =
                         key_iter.offset_from(cand.m_keys.as_ptr().cast::<u8>()) as c_int;
                     let mut tb_mlen =
-                        (tmp_tb_iter.offset_from(typebuf.tb_buf) as c_int) - typebuf.tb_off;
+                        (tmp_tb_iter.offset_from(tb_buf_ptr()) as c_int) - typebuf.tb_off;
 
                     loop {
                         let mut c2 = char_iter(&raw mut tmp_tb_iter, nomap);
@@ -2368,12 +2360,12 @@ unsafe fn handle_mapping(
 
                         mlen = key_iter.offset_from(cand.m_keys.as_ptr().cast::<u8>()) as c_int;
                         tb_mlen =
-                            (tmp_tb_iter.offset_from(typebuf.tb_buf) as c_int) - typebuf.tb_off;
+                            (tmp_tb_iter.offset_from(tb_buf_ptr()) as c_int) - typebuf.tb_off;
                     }
 
                     keylen = cand.m_keylen;
                     if mlen == keylen || (mlen == typebuf.tb_len && typebuf.tb_len < keylen) {
-                        let mut s = typebuf.tb_noremap.add(typebuf.tb_off as usize);
+                        let mut s = tb_noremap_ptr().add(typebuf.tb_off as usize);
                         let m_keys_u8 = cand.m_keys.as_ptr().cast::<u8>();
                         if *s == RM_SCRIPT
                             && (*m_keys_u8 != K_SPECIAL
@@ -2428,7 +2420,7 @@ unsafe fn handle_mapping(
             if no_mapping == 0 || allow_keys != 0 {
                 if tb_b1 == K_SPECIAL as c_int
                     && (typebuf.tb_len < 2
-                        || (*typebuf.tb_buf.add((typebuf.tb_off + 1) as usize) == KS_MODIFIER
+                        || (*tb_buf_ptr().add((typebuf.tb_off + 1) as usize) == KS_MODIFIER
                             && typebuf.tb_len < 4))
                 {
                     keylen = KEYLEN_PART_KEY;
@@ -2461,9 +2453,7 @@ unsafe fn handle_mapping(
             let mp = mp.unwrap();
             if keylen > typebuf.tb_maplen && (mp.m_mode & MODE_LANGMAP) == 0 {
                 gotchars(
-                    typebuf
-                        .tb_buf
-                        .add((typebuf.tb_off + typebuf.tb_maplen) as usize),
+                    tb_buf_ptr().add((typebuf.tb_off + typebuf.tb_maplen) as usize),
                     (keylen - typebuf.tb_maplen) as usize,
                 );
                 atom_map_start(mp.m_keys.as_ptr(), mp.m_keylen as usize, !advance);
@@ -2657,7 +2647,7 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
                     }
                     let mut keylen: c_int = 0;
                     if got_int {
-                        c = inchar(typebuf.tb_buf, typebuf.tb_buflen - 1, 0);
+                        c = inchar(tb_buf_ptr(), typebuf.tb_buflen - 1, 0);
                         if (c != 0 || typebuf.tb_maplen != 0)
                             && (State & (MODE_INSERT | MODE_CMDLINE)) != 0
                         {
@@ -2668,8 +2658,8 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
                         flush_buffers(FLUSH_INPUT);
 
                         if advance {
-                            *typebuf.tb_buf = c as u8;
-                            gotchars(typebuf.tb_buf, 1);
+                            *tb_buf_ptr() = c as u8;
+                            gotchars(tb_buf_ptr(), 1);
                         }
                         cmd_silent = false;
 
@@ -2693,17 +2683,17 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
                         }
 
                         if result == map_result_T::map_result_get as c_int {
-                            c = *typebuf.tb_buf.add(typebuf.tb_off as usize) as c_int;
+                            c = *tb_buf_ptr().add(typebuf.tb_off as usize) as c_int;
                             if advance {
                                 cmd_silent = typebuf.tb_silent > 0;
                                 if typebuf.tb_maplen > 0 {
                                     KeyTyped = false;
                                 } else {
                                     KeyTyped = true;
-                                    gotchars(typebuf.tb_buf.add(typebuf.tb_off as usize), 1);
+                                    gotchars(tb_buf_ptr().add(typebuf.tb_off as usize), 1);
                                 }
                                 KeyNoremap =
-                                    *typebuf.tb_noremap.add(typebuf.tb_off as usize) as c_int;
+                                    *tb_noremap_ptr().add(typebuf.tb_off as usize) as c_int;
                                 del_typebuf(1, 0);
                             }
                             break;
@@ -2715,7 +2705,7 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
                     let mut new_wrow = (*curwin).w_wrow;
                     if advance
                         && typebuf.tb_len == 1
-                        && *typebuf.tb_buf.add(typebuf.tb_off as usize) == ESC as u8
+                        && *tb_buf_ptr().add(typebuf.tb_off as usize) == ESC as u8
                         && no_mapping == 0
                         && ex_normal_busy == 0
                         && typebuf.tb_maplen == 0
@@ -2723,9 +2713,7 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
                         && (p_timeout != 0 || (keylen == KEYLEN_PART_KEY && p_ttimeout != 0))
                         && {
                             c = inchar(
-                                typebuf
-                                    .tb_buf
-                                    .add((typebuf.tb_off + typebuf.tb_len) as usize),
+                                tb_buf_ptr().add((typebuf.tb_off + typebuf.tb_len) as usize),
                                 3,
                                 25,
                             );
@@ -2812,7 +2800,7 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
                     }
 
                     for n in 1..=c {
-                        *typebuf.tb_noremap.add((typebuf.tb_off + n) as usize) = RM_YES;
+                        *tb_noremap_ptr().add((typebuf.tb_off + n) as usize) = RM_YES;
                     }
                     typebuf.tb_len += c;
 
@@ -2861,15 +2849,13 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
                         {
                             if (State & MODE_INSERT) != 0
                                 && utf_ptr2cells(
-                                    typebuf
-                                        .tb_buf
+                                    tb_buf_ptr()
                                         .add((typebuf.tb_off + typebuf.tb_len - 1) as usize)
                                         .cast::<c_char>(),
                                 ) == 1
                             {
                                 edit_putchar(
-                                    *typebuf
-                                        .tb_buf
+                                    *tb_buf_ptr()
                                         .add((typebuf.tb_off + typebuf.tb_len - 1) as usize)
                                         as c_int,
                                     false,
@@ -2887,7 +2873,7 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
                             }
                             while showcmd_idx < typebuf.tb_len {
                                 add_byte_to_showcmd(
-                                    *typebuf.tb_buf.add((typebuf.tb_off + showcmd_idx) as usize),
+                                    *tb_buf_ptr().add((typebuf.tb_off + showcmd_idx) as usize),
                                 );
                                 showcmd_idx += 1;
                             }
@@ -2899,8 +2885,7 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
                             && !(*get_cmdline_info()).cmdbuff.is_null()
                             && cmdline_star == 0
                         {
-                            let p = typebuf
-                                .tb_buf
+                            let p = tb_buf_ptr()
                                 .add((typebuf.tb_off + typebuf.tb_len - 1) as usize)
                                 .cast::<c_char>();
                             if utf_ptr2cells(p) == 1 && (*p as u8) < 128 {
@@ -2929,9 +2914,7 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
 
                     let wait_tb_len = typebuf.tb_len;
                     c = inchar(
-                        typebuf
-                            .tb_buf
-                            .add((typebuf.tb_off + typebuf.tb_len) as usize),
+                        tb_buf_ptr().add((typebuf.tb_off + typebuf.tb_len) as usize),
                         typebuf.tb_buflen - typebuf.tb_off - typebuf.tb_len - 1,
                         wait_time,
                     );
@@ -2962,14 +2945,11 @@ unsafe fn vgetorpeek(advance: bool) -> c_int {
                             continue;
                         }
                     } else {
-                        while *typebuf
-                            .tb_buf
-                            .add((typebuf.tb_off + typebuf.tb_len) as usize)
+                        while *tb_buf_ptr().add((typebuf.tb_off + typebuf.tb_len) as usize)
                             != NUL as u8
                         {
-                            *typebuf
-                                .tb_noremap
-                                .add((typebuf.tb_off + typebuf.tb_len) as usize) = RM_YES;
+                            *tb_noremap_ptr().add((typebuf.tb_off + typebuf.tb_len) as usize) =
+                                RM_YES;
                             typebuf.tb_len += 1;
                         }
                     }
