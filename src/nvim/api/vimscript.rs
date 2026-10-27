@@ -632,10 +632,10 @@ pub unsafe extern "C" fn nvim_parse_expression(
             put_c(&mut ret, c"highlight", array_obj(hl_arr));
         }
 
-        let ast = if east.root.is_null() {
-            nil_obj()
+        let ast = if let Some(ref root) = east.root {
+            expr_ast_node_to_obj(root, arena)
         } else {
-            expr_ast_node_to_obj(&*east.root, arena)
+            nil_obj()
         };
         put_c(&mut ret, c"ast", ast);
 
@@ -648,7 +648,7 @@ unsafe fn expr_ast_node_to_obj(node: &ExprASTNode, arena: *mut Arena) -> Object 
     unsafe {
         let nt = node.r#type;
         let items_size = 3
-            + usize::from(!node.children.is_null())
+            + usize::from(node.children.is_some())
             + usize::from(nt == kExprNodeOption || nt == kExprNodePlainIdentifier)
             + usize::from(
                 nt == kExprNodeOption
@@ -664,18 +664,17 @@ unsafe fn expr_ast_node_to_obj(node: &ExprASTNode, arena: *mut Arena) -> Object 
             + usize::from(nt == kExprNodeAssignment);
         let mut ret_node = arena_dict(arena, items_size);
 
-        if !node.children.is_null() {
-            let first_child = &*node.children;
-            let num_children = 1 + usize::from(!first_child.next.is_null());
+        if let Some(ref first_child) = node.children {
+            let num_children = 1 + usize::from(first_child.next.is_some());
             let mut children_array = arena_array(arena, num_children);
             add_c(
                 &mut children_array,
                 expr_ast_node_to_obj(first_child, arena),
             );
-            if !first_child.next.is_null() {
+            if let Some(ref second_child) = first_child.next {
                 add_c(
                     &mut children_array,
-                    expr_ast_node_to_obj(&*first_child.next, arena),
+                    expr_ast_node_to_obj(second_child, arena),
                 );
             }
             put_c(&mut ret_node, c"children", array_obj(children_array));
