@@ -14,7 +14,9 @@ use crate::eval::encode::{
     encode_special_var_names, encode_tv2echo, encode_tv2string,
 };
 use crate::eval::executor::eexe_mod_op;
-use crate::eval::gc::{gc_first_dict, gc_first_list};
+use crate::eval::gc::{
+    gc_register_dict, gc_register_list, gc_unregister_dict, gc_unregister_list,
+};
 use crate::eval::vars::{
     get_globvar_dict, valid_varname, var_check_fixed, var_check_ro, var_wrong_func_name,
 };
@@ -416,8 +418,7 @@ pub struct list_T {
     pub lv_watch: Vec<std::rc::Rc<listwatch_T>>,
     pub lv_idx_item: *mut listitem_T,
     pub lv_copylist: *mut list_T,
-    pub lv_used_next: *mut list_T,
-    pub lv_used_prev: *mut list_T,
+    pub lv_gc_idx: Option<usize>,
     pub lv_refcount: c_int,
     pub lv_len: c_int,
     pub lv_idx: c_int,
@@ -434,8 +435,7 @@ impl list_T {
             lv_watch: Vec::new(),
             lv_idx_item: ptr::null_mut(),
             lv_copylist: ptr::null_mut(),
-            lv_used_next: ptr::null_mut(),
-            lv_used_prev: ptr::null_mut(),
+            lv_gc_idx: None,
             lv_refcount: 0,
             lv_len: 0,
             lv_idx: 0,
@@ -449,16 +449,8 @@ impl list_T {
 impl Drop for list_T {
     fn drop(&mut self) {
         unsafe {
-            let self_ptr = std::ptr::from_mut(self);
-            if !self.lv_used_prev.is_null() || ptr::eq(gc_first_list, self_ptr) {
-                if self.lv_used_prev.is_null() {
-                    gc_first_list = self.lv_used_next;
-                } else {
-                    (*self.lv_used_prev).lv_used_next = self.lv_used_next;
-                }
-                if !self.lv_used_next.is_null() {
-                    (*self.lv_used_next).lv_used_prev = self.lv_used_prev;
-                }
+            if let Some(idx) = self.lv_gc_idx.take() {
+                gc_unregister_list(idx);
             }
             nlua_clear_ref(&mut self.lua_table_ref);
         }
@@ -502,8 +494,7 @@ pub struct dict_T {
     pub dv_copyID: c_int,
     pub dv_hashtab: crate::hashtab::hashtab_T,
     pub dv_copydict: *mut dict_T,
-    pub dv_used_next: *mut dict_T,
-    pub dv_used_prev: *mut dict_T,
+    pub dv_gc_idx: Option<usize>,
     pub watchers: Vec<DictWatcher>,
     pub lua_table_ref: c_int,
 }
@@ -517,8 +508,7 @@ impl dict_T {
             dv_copyID: 0,
             dv_hashtab: crate::hashtab::hashtab_T::new(),
             dv_copydict: ptr::null_mut(),
-            dv_used_next: ptr::null_mut(),
-            dv_used_prev: ptr::null_mut(),
+            dv_gc_idx: None,
             watchers: Vec::new(),
             lua_table_ref: LUA_NOREF,
         }
@@ -528,16 +518,8 @@ impl dict_T {
 impl Drop for dict_T {
     fn drop(&mut self) {
         unsafe {
-            let self_ptr = std::ptr::from_mut(self);
-            if !self.dv_used_prev.is_null() || ptr::eq(gc_first_dict, self_ptr) {
-                if self.dv_used_prev.is_null() {
-                    gc_first_dict = self.dv_used_next;
-                } else {
-                    (*self.dv_used_prev).dv_used_next = self.dv_used_next;
-                }
-                if !self.dv_used_next.is_null() {
-                    (*self.dv_used_next).dv_used_prev = self.dv_used_prev;
-                }
+            if let Some(idx) = self.dv_gc_idx.take() {
+                gc_unregister_dict(idx);
             }
             nlua_clear_ref(&mut self.lua_table_ref);
         }
@@ -1039,8 +1021,7 @@ pub unsafe extern "C" fn tv_list_alloc(_len: isize) -> *mut list_T {
             lv_watch: Vec::new(),
             lv_idx_item: ptr::null_mut(),
             lv_copylist: ptr::null_mut(),
-            lv_used_next: gc_first_list,
-            lv_used_prev: ptr::null_mut(),
+            lv_gc_idx: None,
             lv_refcount: 0,
             lv_len: 0,
             lv_idx: 0,
@@ -1049,10 +1030,7 @@ pub unsafe extern "C" fn tv_list_alloc(_len: isize) -> *mut list_T {
             lua_table_ref: LUA_NOREF,
         }));
 
-        if !gc_first_list.is_null() {
-            (*gc_first_list).lv_used_prev = list;
-        }
-        gc_first_list = list;
+        gc_register_list(list);
         list
     }
 }
@@ -2883,16 +2861,12 @@ pub unsafe fn tv_dict_alloc() -> *mut dict_T {
             dv_copyID: 0,
             dv_hashtab: crate::hashtab::hashtab_T::new(),
             dv_copydict: ptr::null_mut(),
-            dv_used_next: gc_first_dict,
-            dv_used_prev: ptr::null_mut(),
+            dv_gc_idx: None,
             watchers: Vec::new(),
             lua_table_ref: LUA_NOREF,
         }));
 
-        if !gc_first_dict.is_null() {
-            (*gc_first_dict).dv_used_prev = d;
-        }
-        gc_first_dict = d;
+        gc_register_dict(d);
 
         d
     }

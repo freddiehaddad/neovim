@@ -111,7 +111,7 @@ use crate::cmdexpand::{
 use crate::cursor::{colnr_T, linenr_T, pos_T};
 use crate::eval::encode::{encode_list_write, encode_tv2echo, encode_tv2string};
 use crate::eval::executor::eexe_mod_op;
-use crate::eval::gc::{gc_first_dict, gc_first_list};
+use crate::eval::gc::{gc_dicts_slice, gc_lists_slice};
 use crate::event::multiqueue::{multiqueue_free, multiqueue_new_child};
 use crate::event::time::{
     TimeWatcher, TimeWatcherData, time_watcher_close, time_watcher_init, time_watcher_start,
@@ -4518,44 +4518,40 @@ unsafe fn free_unref_items(copyID: c_int) -> c_int {
 
         tv_in_free_unref_items = true;
 
-        let mut dd = gc_first_dict;
-        while !dd.is_null() {
+        for &dd in gc_dicts_slice().iter().rev() {
             if ((*dd).dv_copyID & COPYID_MASK) != (copyID & COPYID_MASK) {
                 tv_dict_free_contents(dd);
                 did_free = true;
             }
-            dd = (*dd).dv_used_next;
         }
 
-        let mut ll = gc_first_list;
-        while !ll.is_null() {
+        for &ll in gc_lists_slice().iter().rev() {
             if (tv_list_copyid(ll) & COPYID_MASK) != (copyID & COPYID_MASK)
                 && !tv_list_has_watchers(ll)
             {
                 tv_list_free_contents(ll);
                 did_free = true;
             }
-            ll = (*ll).lv_used_next;
         }
 
-        let mut dd_cur = gc_first_dict;
-        while !dd_cur.is_null() {
-            let dd_next = (*dd_cur).dv_used_next;
+        let mut i = gc_dicts_slice().len();
+        while i > 0 {
+            i -= 1;
+            let dd_cur = gc_dicts_slice()[i];
             if ((*dd_cur).dv_copyID & COPYID_MASK) != (copyID & COPYID_MASK) {
                 drop(Box::from_raw(dd_cur));
             }
-            dd_cur = dd_next;
         }
 
-        let mut ll_cur = gc_first_list;
-        while !ll_cur.is_null() {
-            let ll_next = (*ll_cur).lv_used_next;
+        let mut j = gc_lists_slice().len();
+        while j > 0 {
+            j -= 1;
+            let ll_cur = gc_lists_slice()[j];
             if ((*ll_cur).lv_copyID & COPYID_MASK) != (copyID & COPYID_MASK)
                 && !tv_list_has_watchers(ll_cur)
             {
                 drop(Box::from_raw(ll_cur));
             }
-            ll_cur = ll_next;
         }
 
         tv_in_free_unref_items = false;

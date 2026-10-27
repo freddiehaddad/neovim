@@ -326,8 +326,7 @@ const fn empty_dict() -> dict_T {
         dv_copyID: 0,
         dv_hashtab: hashtab_T::new(),
         dv_copydict: ptr::null_mut(),
-        dv_used_next: ptr::null_mut(),
-        dv_used_prev: ptr::null_mut(),
+        dv_gc_idx: None,
         watchers: Vec::new(),
         lua_table_ref: 0,
     }
