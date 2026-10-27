@@ -165,7 +165,30 @@ jobs:
           NVIM_COMMIT: ${{ github.sha }}
           DEBUG: api
         run: |
-          envsubst < "$GITHUB_WORKSPACE/.github/workflows/notes.md" > "$RUNNER_TEMP/notes.md"
+          cat <<EOF > "$RUNNER_TEMP/notes.md"
+          \`\`\`
+          ${NVIM_VERSION}
+          \`\`\`
+
+          ## Release notes
+
+          - [Changelog](https://github.com/freddiehaddad/neovim/commit/${NVIM_COMMIT}) (fixes + features)
+          - [News](./runtime/doc/news.txt) (\`:help news\` in Nvim)
+
+          ## Install
+
+          ### Windows
+          1. Download **nvim-win64.zip** (or **nvim-win-arm64.zip** for ARM)
+          2. Extract the zip and run \`bin\nvim.exe\`
+
+          ### macOS
+          1. Download **nvim-macos-x86_64.tar.gz** or **nvim-macos-arm64.tar.gz**
+          2. Run \`xattr -c ./nvim-macos-*.tar.gz\` and extract with \`tar xzvf\`
+
+          ### Linux
+          1. Download **nvim-linux-x86_64.tar.gz** or **nvim-linux-arm64.tar.gz**
+          2. Extract with \`tar xzvf\` and run \`./nvim-linux-*/bin/nvim\`
+          EOF
           if [ "$TAG_NAME" != "nightly" ]; then
             gh release create stable $PRERELEASE --notes-file "$RUNNER_TEMP/notes.md" --title "$SUBJECT" --target $GITHUB_SHA nvim-macos-x86_64/* nvim-macos-arm64/* nvim-linux-x86_64/* nvim-linux-arm64/* nvim-win-x86_64/* nvim-win-arm64/*
           fi

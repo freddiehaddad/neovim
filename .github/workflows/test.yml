@@ -70,6 +70,18 @@ jobs:
       - name: linterrcodes
         run: cargo xtask linterrcodes
 
+      - if: ${{ github.event_name == 'pull_request' }}
+        name: lintcommit
+        run: cargo xtask lintcommit
+
+      - name: Generate docs
+        run: |
+          cargo xtask doc
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Job failed, run 'cargo xtask doc' and commit your doc changes."
+            git diff --color --exit-code
+          fi
+
       - name: lintdoc
         run: cargo xtask lintdoc
 
@@ -196,4 +208,51 @@ jobs:
           fi
 
   windows:
-    uses: ./.github/workflows/test_windows.yml
+    runs-on: windows-2025
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [functional, old]
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+
+      - name: Build
+        run: cargo xtask build --release
+
+      - name: Install test deps
+        run: |
+          $PSNativeCommandArgumentPassing = 'Legacy'
+
+          & target\nvim-build\bin\nvim.exe "--version"
+
+          # Ensure that the "win32" feature is set.
+          & target\nvim-build\bin\nvim.exe -u NONE --headless -c 'exe !has(\"win32\").\"cq\"'
+
+          python -m pip install pynvim
+          python -c "import pynvim; print(str(pynvim))"
+
+          node --version
+          npm.cmd --version
+
+          npm.cmd install -g neovim
+          Get-Command -CommandType Application neovim-node-host.cmd
+          npm.cmd link neovim
+
+      - if: ${{ matrix.test == 'functional' }}
+        name: functionaltest
+        timeout-minutes: 20
+        env:
+          TEST_TIMEOUT: 600
+        run: |
+          $ErrorActionPreference = 'Continue'
+          Start-Process -WindowStyle Hidden (Get-Command sleep.exe).Source infinity
+          cargo xtask functionaltest --release
+
+      - if: ${{ matrix.test == 'old' }}
+        name: oldtest
+        run: cargo xtask oldtest --release

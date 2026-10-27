@@ -23,5 +23,27 @@ runs:
       run: ./.github/scripts/install_deps.sh ${INSTALL_FLAGS}
       shell: bash
 
-    - name: Cache
-      uses: ./.github/actions/cache
+    - run: echo "CACHE_KEY=${GITHUB_JOB}" >> $GITHUB_ENV # zizmor: ignore[github-env]
+      shell: bash
+
+    - if: ${{ matrix }}
+      env:
+        MATRIX_JOIN: ${{ join(matrix.*, '-') }}
+      run: echo "CACHE_KEY=${CACHE_KEY}-${MATRIX_JOIN}" >> $GITHUB_ENV # zizmor: ignore[github-env]
+      shell: bash
+
+    - if: ${{ matrix.build }}
+      env:
+        MATRIX_JOIN: ${{ join(matrix.build.*, '-') }}
+      run: echo "CACHE_KEY=${CACHE_KEY}-${MATRIX_JOIN}" >> $GITHUB_ENV # zizmor: ignore[github-env]
+      shell: bash
+
+    - id: image
+      run: echo "version=$ImageVersion" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - uses: actions/cache@v6.1.0
+      with:
+        path: .deps
+        key: ${{ env.CACHE_KEY }}-${{ steps.image.outputs.version }}-${{ hashFiles('deps.txt',
+          'src/deps_build.rs', 'Cargo.toml', 'Cargo.lock', '.github/**') }}
