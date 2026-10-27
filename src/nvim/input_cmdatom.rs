@@ -766,7 +766,6 @@ unsafe fn atom_emit(atom: *const CmdAtom) {
             ptr::null_mut(),
             AUGROUP_ALL,
             buf,
-            ptr::null_mut(),
             &mut obj,
         );
         api_free_dict(data);

@@ -347,7 +347,6 @@ unsafe fn do_markset_autocmd(c: c_char, pos: *const pos_T, buf: *mut buf_T) {
             ptr::null_mut(),
             AUGROUP_ALL,
             buf,
-            ptr::null_mut(),
             &raw mut dict_obj,
         );
     }

@@ -5744,7 +5744,6 @@ pub unsafe fn tabpage_move(nr: c_int) {
                 ptr::null_mut(),
                 AUGROUP_ALL,
                 curbuf,
-                ptr::null_mut(),
                 &raw mut obj,
             );
         }

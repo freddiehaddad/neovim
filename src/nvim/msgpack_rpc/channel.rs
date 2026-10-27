@@ -108,10 +108,10 @@ impl Drop for RemoteUI {
 #[repr(C)]
 pub struct ChannelCallFrame {
     pub request_id: u32,
-    pub returned: bool,
-    pub errored: bool,
-    pub result: Object,
-    pub result_mem: ArenaMem,
+    pub returned: std::cell::Cell<bool>,
+    pub errored: std::cell::Cell<bool>,
+    pub result: std::cell::Cell<Object>,
+    pub result_mem: std::cell::Cell<ArenaMem>,
 }
 
 #[repr(C)]
@@ -139,7 +139,7 @@ pub struct RpcState {
     pub unpacker: Option<Box<Unpacker>>,
     pub ui: *mut RemoteUI,
     pub next_request_id: u32,
-    pub call_stack: Vec<*mut ChannelCallFrame>,
+    pub call_stack: Vec<std::rc::Rc<ChannelCallFrame>>,
     pub info: Dict,
     pub client_type: ClientType,
 }
@@ -349,19 +349,16 @@ pub unsafe fn rpc_send_call(
 
         serialize_request(&raw mut channel, 1, request_id, method_name, args);
 
-        let mut frame = ChannelCallFrame {
+        let frame = std::rc::Rc::new(ChannelCallFrame {
             request_id,
-            returned: false,
-            errored: false,
-            result: OBJECT_NIL,
-            result_mem: ptr::null_mut(),
-        };
-        let frame_ptr: *mut ChannelCallFrame = &raw mut frame;
-        (*rpc).call_stack.push(frame_ptr);
+            returned: std::cell::Cell::new(false),
+            errored: std::cell::Cell::new(false),
+            result: std::cell::Cell::new(OBJECT_NIL),
+            result_mem: std::cell::Cell::new(ptr::null_mut()),
+        });
+        (*rpc).call_stack.push(frame.clone());
 
-        while !ptr::read_volatile(&raw const (*frame_ptr).returned)
-            && !ptr::read_volatile(&raw const (*rpc).closed)
-        {
+        while !frame.returned.get() && !ptr::read_volatile(&raw const (*rpc).closed) {
             if !(*cp).events.is_null() && !multiqueue_empty((*cp).events) {
                 multiqueue_process_events((*cp).events);
             } else {
@@ -370,7 +367,7 @@ pub unsafe fn rpc_send_call(
         }
         (*rpc).call_stack.pop();
 
-        if !(*frame_ptr).returned {
+        if !frame.returned.get() {
             {
                 api_set_error!(
                     err,
@@ -383,8 +380,8 @@ pub unsafe fn rpc_send_call(
             return OBJECT_NIL;
         }
 
-        if (*frame_ptr).errored {
-            let res = (*frame_ptr).result;
+        if frame.errored.get() {
+            let res = frame.result.get();
             if res.obj_type == ObjectType::kObjectTypeString {
                 api_set_error!(
                     err,
@@ -426,18 +423,18 @@ pub unsafe fn rpc_send_call(
                 );
             }
 
-            arena_mem_free((*frame_ptr).result_mem);
-            (*frame_ptr).result_mem = ptr::null_mut();
+            arena_mem_free(frame.result_mem.get());
+            frame.result_mem.set(ptr::null_mut());
         }
 
         channel_decref(channel);
 
-        *result_mem = (*frame_ptr).result_mem;
+        *result_mem = frame.result_mem.get();
 
-        if (*frame_ptr).errored {
+        if frame.errored.get() {
             OBJECT_NIL
         } else {
-            (*frame_ptr).result
+            frame.result.get()
         }
     }
 }
@@ -479,15 +476,13 @@ unsafe fn receive_msgpack(
     }
 }
 
-unsafe fn find_call_frame(rpc: *mut RpcState, request_id: u32) -> *mut ChannelCallFrame {
-    unsafe {
-        for &frame in (*rpc).call_stack.iter().rev() {
-            if (*frame).request_id == request_id {
-                return frame;
-            }
+fn find_call_frame(rpc: &RpcState, request_id: u32) -> Option<std::rc::Rc<ChannelCallFrame>> {
+    for frame in rpc.call_stack.iter().rev() {
+        if frame.request_id == request_id {
+            return Some(frame.clone());
         }
-        ptr::null_mut()
     }
+    None
 }
 
 unsafe fn parse_msgpack(channel: *mut Channel) {
@@ -510,18 +505,23 @@ unsafe fn parse_msgpack(channel: *mut Channel) {
                 }
                 arena_mem_free(arena_finish(&raw mut (*p).arena));
             } else if (*p).msg_type == MessageType::kMessageTypeResponse {
-                let frame = if (*ct).rpc.client_type == kClientTypeMsgpackRpc {
-                    find_call_frame(&raw mut (*ct).rpc, (*p).request_id)
+                let frame_opt = if (*ct).rpc.client_type == kClientTypeMsgpackRpc {
+                    find_call_frame(&(*ct).rpc, (*p).request_id)
                 } else {
-                    (*ct)
-                        .rpc
-                        .call_stack
-                        .last()
-                        .copied()
-                        .unwrap_or(ptr::null_mut())
+                    (*ct).rpc.call_stack.last().cloned()
                 };
 
-                if frame.is_null() || (*p).request_id != (*frame).request_id {
+                let Some(frame) = frame_opt else {
+                    let msg = format!(
+                        "ch {} (type={}) returned a response with an unknown request id {}. Ensure the client is properly synchronized\0",
+                        (*cp).id,
+                        (*ct).rpc.client_type as u32,
+                        (*p).request_id
+                    );
+                    chan_close_on_err(channel, msg.as_ptr().cast::<c_char>(), LOGLVL_ERR);
+                    return;
+                };
+                if (*p).request_id != frame.request_id {
                     let msg = format!(
                         "ch {} (type={}) returned a response with an unknown request id {}. Ensure the client is properly synchronized\0",
                         (*cp).id,
@@ -532,15 +532,16 @@ unsafe fn parse_msgpack(channel: *mut Channel) {
                     return;
                 }
 
-                (*frame).returned = true;
-                (*frame).errored = (*p).error.obj_type != ObjectType::kObjectTypeNil;
+                let errored = (*p).error.obj_type != ObjectType::kObjectTypeNil;
+                frame.returned.set(true);
+                frame.errored.set(errored);
 
-                if (*frame).errored {
-                    (*frame).result = (*p).error;
+                if errored {
+                    frame.result.set((*p).error);
                 } else {
-                    (*frame).result = (*p).result;
+                    frame.result.set((*p).result);
                 }
-                (*frame).result_mem = arena_finish(&raw mut (*p).arena);
+                frame.result_mem.set(arena_finish(&raw mut (*p).arena));
             } else {
                 let res = (*p).result;
                 if (*p).result.obj_type != ObjectType::kObjectTypeArray {
@@ -861,18 +862,18 @@ unsafe fn chan_close_on_err(channel: *mut Channel, msg: *const c_char, loglevel:
         let ct = channel;
         let p: *mut Unpacker = (*ct).rpc.unpacker.as_deref_mut().unwrap();
 
-        for &frame in &(*ct).rpc.call_stack {
-            if (*frame).returned {
+        for frame in &(*ct).rpc.call_stack {
+            if frame.returned.get() {
                 continue;
             }
-            (*frame).returned = true;
-            (*frame).errored = true;
+            frame.returned.set(true);
+            frame.errored.set(true);
             let s = arena_string(&raw mut (*p).arena, cstr_as_string(msg));
-            (*frame).result = Object {
+            frame.result.set(Object {
                 obj_type: ObjectType::kObjectTypeString,
                 data: ObjectData::String(s),
-            };
-            (*frame).result_mem = arena_finish(&raw mut (*p).arena);
+            });
+            frame.result_mem.set(arena_finish(&raw mut (*p).arena));
         }
 
         {
@@ -1090,40 +1091,38 @@ mod tests {
 
     #[test]
     fn find_call_frame_searches_stack_from_top() {
-        unsafe {
-            let mut rpc = RpcState {
-                closed: false,
-                unpacker: None,
-                ui: ptr::null_mut(),
-                next_request_id: 1,
-                call_stack: Vec::new(),
-                info: Dict {
-                    items: ptr::null_mut(),
-                    size: 0,
-                    capacity: 0,
-                },
-                client_type: kClientTypeMsgpackRpc,
-            };
-            let mut f1 = ChannelCallFrame {
-                request_id: 10,
-                returned: false,
-                errored: false,
-                result: OBJECT_NIL,
-                result_mem: ptr::null_mut(),
-            };
-            let mut f2 = ChannelCallFrame {
-                request_id: 20,
-                returned: false,
-                errored: false,
-                result: OBJECT_NIL,
-                result_mem: ptr::null_mut(),
-            };
-            rpc.call_stack.push(&raw mut f1);
-            rpc.call_stack.push(&raw mut f2);
+        let mut rpc = RpcState {
+            closed: false,
+            unpacker: None,
+            ui: ptr::null_mut(),
+            next_request_id: 1,
+            call_stack: Vec::new(),
+            info: Dict {
+                items: ptr::null_mut(),
+                size: 0,
+                capacity: 0,
+            },
+            client_type: kClientTypeMsgpackRpc,
+        };
+        let f1 = std::rc::Rc::new(ChannelCallFrame {
+            request_id: 10,
+            returned: std::cell::Cell::new(false),
+            errored: std::cell::Cell::new(false),
+            result: std::cell::Cell::new(OBJECT_NIL),
+            result_mem: std::cell::Cell::new(ptr::null_mut()),
+        });
+        let f2 = std::rc::Rc::new(ChannelCallFrame {
+            request_id: 20,
+            returned: std::cell::Cell::new(false),
+            errored: std::cell::Cell::new(false),
+            result: std::cell::Cell::new(OBJECT_NIL),
+            result_mem: std::cell::Cell::new(ptr::null_mut()),
+        });
+        rpc.call_stack.push(f1.clone());
+        rpc.call_stack.push(f2.clone());
 
-            assert_eq!(find_call_frame(&raw mut rpc, 20), &raw mut f2);
-            assert_eq!(find_call_frame(&raw mut rpc, 10), &raw mut f1);
-            assert!(find_call_frame(&raw mut rpc, 99).is_null());
-        }
+        assert!(std::rc::Rc::ptr_eq(&find_call_frame(&rpc, 20).unwrap(), &f2));
+        assert!(std::rc::Rc::ptr_eq(&find_call_frame(&rpc, 10).unwrap(), &f1));
+        assert!(find_call_frame(&rpc, 99).is_none());
     }
 }

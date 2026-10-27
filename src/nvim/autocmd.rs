@@ -335,7 +335,6 @@ pub struct AutoCmdEvent {
     pub fname_io: Option<std::ffi::CString>,
     pub buf: Buffer,
     pub group: c_int,
-    pub eap: *mut exarg_T,
     pub data: Option<Object>,
 }
 
@@ -2552,7 +2551,6 @@ pub unsafe fn aucmd_defer(
     fname_io: *mut c_char,
     group: c_int,
     buf: *mut buf_T,
-    eap: *mut exarg_T,
     data: *mut Object,
 ) {
     unsafe {
@@ -2562,7 +2560,6 @@ pub unsafe fn aucmd_defer(
             fname_io: (!fname_io.is_null()).then(|| CStr::from_ptr(fname_io).to_owned()),
             group,
             buf: (*buf).b_fnum,
-            eap,
             data: (!data.is_null()).then(|| copy_object(*data, ptr::null_mut())),
         });
 
@@ -2582,7 +2579,6 @@ pub unsafe fn deferred_event(mut e: AutoCmdEvent) {
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         let group = e.group;
-        let eap = e.eap;
         let data = e.data.as_mut().map_or(ptr::null_mut(), |d| &raw mut *d);
 
         let mut err = Error::new();
@@ -2609,7 +2605,16 @@ pub unsafe fn deferred_event(mut e: AutoCmdEvent) {
             let mut aco: CtxSwitch = CtxSwitch::new();
             ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
             apply_autocmds_group(
-                event, fname, fname_io, false, group, buf, win, eap, data, false,
+                event,
+                fname,
+                fname_io,
+                false,
+                group,
+                buf,
+                win,
+                ptr::null_mut(),
+                data,
+                false,
             );
             ctx_restore(&raw mut aco);
 
