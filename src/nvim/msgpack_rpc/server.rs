@@ -10,7 +10,7 @@ use crate::event::socket::{
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::globals::*;
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
-use crate::memory::{cstr_to_cstring, strequal, xstrlcpy};
+use crate::memory::{cstr_to_cstring, xstrlcpy};
 use crate::os::env::{os_env_exists, os_get_pid, os_getenv_cstr, os_unsetenv};
 use crate::os::stdpaths::get_appname;
 use crate::path::{fix_fname, to_slash, to_slash_save};
@@ -316,7 +316,7 @@ pub unsafe fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bo
         let watcher = w.swap_remove(idx);
         socket_watcher_close(watcher);
 
-        if !keep_vservername && strequal(addr.as_ptr(), get_vim_var_str(VV_SEND_SERVER)) {
+        if !keep_vservername && { let _a = addr.as_ptr(); let _b = get_vim_var_str(VV_SEND_SERVER); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
             set_vservername(w);
         }
 

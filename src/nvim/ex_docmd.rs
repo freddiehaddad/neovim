@@ -145,7 +145,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::{get_encoding_name, mb_copy_char, utf_head_off, utfc_ptr2len};
 use crate::memline::{goto_byte, ml_clearmarked, ml_preserve, ml_recover, ml_setmarked};
 use crate::memory::{
-    ArenaMem, arena_mem_free, cstr_from_bytes, cstr_to_cstring, strequal, xstrlcat, xstrlcpy,
+    ArenaMem, arena_mem_free, cstr_from_bytes, cstr_to_cstring, xstrlcat, xstrlcpy,
 };
 use crate::menu::{ex_emenu, ex_menu, ex_menutranslate, save_state_T};
 use crate::message::{
@@ -9227,7 +9227,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
         };
         let mut after_cmd = (*eap).arg;
 
-        if strequal(quit_cmd, c":::".as_ptr()) {
+        if { let _a = quit_cmd; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b":::" } {
             startreason = c"restart".as_ptr();
             if (*eap).args.len() > 1 {
                 let arg1 = (*eap).args.as_slice()[1];
@@ -9262,10 +9262,10 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
         while !li.is_null() {
             let arg = tv_get_string(&raw const (*li).li_tv);
             let i = argv_vec.len();
-            if i > 0 && strequal(arg, c"--".as_ptr()) {
+            if i > 0 && { let _a = arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"--" } {
                 break;
             }
-            if i > 0 && strequal(arg, c"-S".as_ptr()) {
+            if i > 0 && { let _a = arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"-S" } {
                 if !(*li).li_next.is_null() {
                     let next_arg = tv_get_string(&raw const (*(*li).li_next).li_tv);
                     if *next_arg != b'-' as c_char {
@@ -9275,14 +9275,14 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
                 li = (*li).li_next;
                 continue;
             }
-            if i > 0 && strequal(arg, c"-s".as_ptr()) {
+            if i > 0 && { let _a = arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"-s" } {
                 li = (*li).li_next;
                 if !li.is_null() {
                     li = (*li).li_next;
                 }
                 continue;
             }
-            if i > 0 && strequal(arg, c"--listen".as_ptr()) {
+            if i > 0 && { let _a = arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"--listen" } {
                 let next_li = (*li).li_next;
                 if !next_li.is_null() {
                     let addr = tv_get_string(&raw const (*next_li).li_tv);
@@ -9301,9 +9301,9 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
                 }
             }
             if i == 0
-                || (!strequal(arg, c"--embed".as_ptr())
-                    && !strequal(arg, c"--headless".as_ptr())
-                    && !strequal(arg, c"-".as_ptr()))
+                || (!{ let _a = arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"--embed" }
+                    && !{ let _a = arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"--headless" }
+                    && !{ let _a = arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"-" })
             {
                 argv_vec.push(CStr::from_ptr(arg).to_owned());
                 if argv_vec.len() == 1 {

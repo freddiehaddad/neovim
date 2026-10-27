@@ -445,7 +445,6 @@ pub unsafe fn lineempty(lnum: linenr_T) -> bool {
 
 use crate::buffer::{bt_cmdwin, bt_prompt, bt_quickfix};
 use crate::highlight::{hl_attr, win_hl_attr};
-use crate::memory::strequal;
 
 #[inline]
 unsafe fn normal_state_init(s: *mut NormalState) {
@@ -4395,8 +4394,8 @@ unsafe fn nv_K_getcmd(
             return 0;
         }
 
-        let isman = strequal(kp, c"man".as_ptr());
-        let isman_s = strequal(kp, c"man -s".as_ptr());
+        let isman = { let _a = kp; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"man" };
+        let isman_s = { let _a = kp; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"man -s" };
         if (*cap).count0 != 0 && !(isman || isman_s) {
             *buflen = vim_snprintf!(
                 buf,
@@ -4483,11 +4482,11 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
         } else {
             (*g_st().curbuf).b_p_kp
         };
-        let kp_helpbang = strequal(kp, c":help!".as_ptr());
+        let kp_helpbang = { let _a = kp; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b":help!" };
         let kp_help = kp_helpbang
             || *kp == NUL
-            || strequal(kp, c":he".as_ptr())
-            || strequal(kp, c":help".as_ptr());
+            || { let _a = kp; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b":he" }
+            || { let _a = kp; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b":help" };
         if kp_help && !kp_helpbang && *skipwhite(ptr) == NUL {
             emsg(tr(e_noident.as_ptr()));
             return;
@@ -4580,7 +4579,7 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
                     c"/?^$\\".as_ptr()
                 }
             } else if tag_cmd {
-                if strequal((*g_st().curbuf).b_p_ft, c"help".as_ptr()) {
+                if { let _a = (*g_st().curbuf).b_p_ft; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"help" } {
                     c"".as_ptr()
                 } else {
                     c"\\|\"\n[".as_ptr()

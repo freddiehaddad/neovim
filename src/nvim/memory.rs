@@ -291,19 +291,6 @@ pub unsafe fn free_cstring(p: *mut c_char) {
     }
 }
 
-/// Copy `len` bytes from `src` to `dst` and NUL-terminate at `dst[len]` (`xmemcpyz`).
-pub unsafe fn xmemcpyz(dst: *mut c_void, src: *const c_void, len: usize) -> *mut c_void {
-    if len > 0 {
-        unsafe {
-            std::ptr::copy_nonoverlapping(src.cast::<u8>(), dst.cast::<u8>(), len);
-        }
-    }
-    unsafe {
-        *dst.cast::<u8>().add(len) = 0;
-    }
-    dst
-}
-
 /// Portable `strnlen` (`xstrnlen`).
 pub unsafe fn xstrnlen(s: *const c_char, n: usize) -> usize {
     let slice = unsafe { std::slice::from_raw_parts(s.cast::<u8>(), n) };
@@ -364,39 +351,6 @@ pub fn cstr_from_bytes(bytes: &[u8]) -> CString {
     v.extend_from_slice(&bytes[..end]);
     v.push(0);
     unsafe { CString::from_vec_with_nul_unchecked(v) }
-}
-
-/// Return true if C string `a` equals Rust string `b` (`strequal_str`).
-#[inline]
-pub unsafe fn strequal_str(a: *const c_char, b: &str) -> bool {
-    if a.is_null() {
-        return false;
-    }
-    unsafe { CStr::from_ptr(a).to_bytes() == b.as_bytes() }
-}
-
-/// Return true if C string `a` equals Rust string `b` ignoring ASCII case (`striequal_str`).
-#[inline]
-pub unsafe fn striequal_str(a: *const c_char, b: &str) -> bool {
-    if a.is_null() {
-        return false;
-    }
-    unsafe {
-        CStr::from_ptr(a)
-            .to_bytes()
-            .eq_ignore_ascii_case(b.as_bytes())
-    }
-}
-
-/// Return true if C strings `a` and `b` are equal (both may be null) (`strequal`).
-pub unsafe fn strequal(a: *const c_char, b: *const c_char) -> bool {
-    if a.is_null() && b.is_null() {
-        return true;
-    }
-    if a.is_null() || b.is_null() {
-        return false;
-    }
-    unsafe { CStr::from_ptr(a).to_bytes() == CStr::from_ptr(b).to_bytes() }
 }
 
 /// Finish allocations in `arena` and return an `ArenaMem` handle (`arena_finish`).

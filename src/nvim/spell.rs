@@ -28,7 +28,7 @@ use crate::mbyte::{
 use crate::memline::{
     ml_append, ml_close, ml_delete, ml_get_buf, ml_get_buf_len, ml_open, ml_open_file, ml_replace,
 };
-use crate::memory::{xmemcpyz, xstrlcpy};
+use crate::memory::{xstrlcpy};
 use crate::message::{
     emsg, give_warning, msg_end, msg_ext_set_kind, msg_putchar, msg_puts, msg_start, semsg, smsg,
 };
@@ -724,11 +724,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                                     MAXWLEN as c_int,
                                 );
                             } else {
-                                xmemcpyz(
-                                    (&raw mut fword).cast(),
-                                    ptr.cast(),
-                                    endlen[endidxcnt] as usize,
-                                );
+                                { let _d = ((&raw mut fword)).cast::<u8>(); let _n = endlen[endidxcnt] as usize; if _n > 0 { std::ptr::copy_nonoverlapping((ptr).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                             }
                         }
                         if !can_compound(
@@ -1607,11 +1603,7 @@ pub unsafe fn init_syl_tab(slang: *mut slang_T) -> c_int {
                     sy_chars: [0; SY_MAXLEN],
                     sy_len: part.len() as c_int,
                 };
-                xmemcpyz(
-                    (&raw mut syl.sy_chars).cast(),
-                    part.as_ptr().cast(),
-                    part.len(),
-                );
+                { let _d = ((&raw mut syl.sy_chars)).cast::<u8>(); let _n = part.len(); if _n > 0 { std::ptr::copy_nonoverlapping((part.as_ptr()).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                 syl_items.push(syl);
             }
         }

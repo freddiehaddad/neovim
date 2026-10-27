@@ -1,7 +1,6 @@
 //! Built-in fallback terminfo entries and database loader (`src/nvim/tui/terminfo.c`).
 
 use crate::charset::{NUL, kv_transstr};
-use crate::memory::strequal;
 use crate::strings::vim_snprintf;
 use crate::tui::termkey::driver_ti::{
     TerminfoEntry, kTermCount, kTermKeyCount, kTerminfoFuncKeyMax,
@@ -2656,12 +2655,12 @@ pub unsafe fn terminfo_is_bsd_console(term: *const c_char) -> bool {
         target_os = "dragonfly"
     ))]
     unsafe {
-        if strequal(term, c"vt220".as_ptr()) || strequal(term, c"vt100".as_ptr()) {
+        if { let _a = term; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"vt220" } || { let _a = term; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"vt100" } {
             return true;
         }
         #[cfg(target_os = "freebsd")]
         {
-            return strequal(term, c"xterm".as_ptr())
+            return { let _a = term; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"xterm" }
                 && os_env_exists(c"XTERM_VERSION".as_ptr(), true);
         }
     }
@@ -2674,7 +2673,7 @@ pub unsafe fn terminfo_from_builtin(
     termname: &mut Option<std::ffi::CString>,
 ) -> TerminfoEntry {
     unsafe {
-        if strequal(term, c"ghostty".as_ptr()) || strequal(term, c"xterm-ghostty".as_ptr()) {
+        if { let _a = term; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"ghostty" } || { let _a = term; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"xterm-ghostty" } {
             *termname = Some(c"ghostty".to_owned());
             GHOSTTY_TERMINFO.to_entry()
         } else if terminfo_is_term_family(term, c"xterm".as_ptr()) {
@@ -2774,7 +2773,7 @@ pub unsafe fn terminfo_from_database(ti: *mut TerminfoEntry, termname: *const c_
         for (i, &name) in UNI_EXT.iter().enumerate() {
             for val in 0..max {
                 let n = ut.get_ext_str_name(val);
-                if !n.is_null() && strequal(n, name.as_ptr()) {
+                if !n.is_null() && { let _a = n; let _b = name.as_ptr(); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
                     let data = ut.get_ext_str(val);
                     (*ti).defs[kTermExtOffset + i] = if !data.is_null() {
                         Some(Cow::Owned(CStr::from_ptr(data).to_owned()))

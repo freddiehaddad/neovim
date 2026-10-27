@@ -12,7 +12,7 @@ use crate::math::{FAIL, OK};
 #[cfg(unix)]
 use crate::mbyte::mb_isalpha;
 use crate::mbyte::{mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2len};
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, xmemcpyz, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcat, xstrlcpy};
 use crate::option::copy_option_part;
 use crate::option_vars::*;
 use crate::os::env::{expand_env_esc, expand_env_save_opt, os_getenv_cstr, vim_env_iter};
@@ -2341,7 +2341,7 @@ pub unsafe fn path_guess_exepath(argv0: *const c_char, buf: *mut c_char, bufsize
                     if dir_len + 1 > MAXPATHL {
                         continue;
                     }
-                    xmemcpyz(namebuff.cast(), dir.cast(), dir_len);
+                    { let _d = (namebuff).cast::<u8>(); let _n = dir_len; if _n > 0 { std::ptr::copy_nonoverlapping((dir).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                     xstrlcat(namebuff, PATHSEPSTR.as_ptr().cast::<c_char>(), MAXPATHL);
                     xstrlcat(namebuff, argv0, MAXPATHL);
                     if os_can_exe(namebuff, None, false) {

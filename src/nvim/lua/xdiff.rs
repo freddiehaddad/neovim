@@ -10,7 +10,6 @@ use crate::lua::converter::{
     luaL_error, luaL_where, nlua_pop_keydict,
 };
 use crate::lua::executor::{api_free_luaref, nlua_pushref};
-use crate::memory::strequal;
 use crate::xdiff::xdiffi::xdl_diff;
 use crate::xdiff::{
     XDF_HISTOGRAM_DIFF, XDF_IGNORE_CR_AT_EOL, XDF_INDENT_HEURISTIC, XDF_NEED_MINIMAL,
@@ -336,9 +335,9 @@ unsafe fn process_xdl_diff_opts(
 
         'validate: {
             if opts.has_key(KEYSET_OPTIDX_RESULT_TYPE) {
-                if strequal(c"unified".as_ptr(), opts.result_type.data) {
+                if { let _b = opts.result_type.data; !_b.is_null() && std::ffi::CStr::from_ptr(_b).to_bytes() == b"unified" } {
                     // default
-                } else if strequal(c"indices".as_ptr(), opts.result_type.data) {
+                } else if { let _b = opts.result_type.data; !_b.is_null() && std::ffi::CStr::from_ptr(_b).to_bytes() == b"indices" } {
                     had_result_type_indices = true;
                 } else {
                     api_set_error!(
@@ -351,13 +350,13 @@ unsafe fn process_xdl_diff_opts(
             }
 
             if opts.has_key(KEYSET_OPTIDX_ALGORITHM) {
-                if strequal(c"myers".as_ptr(), opts.algorithm.data) {
+                if { let _b = opts.algorithm.data; !_b.is_null() && std::ffi::CStr::from_ptr(_b).to_bytes() == b"myers" } {
                     // default
-                } else if strequal(c"minimal".as_ptr(), opts.algorithm.data) {
+                } else if { let _b = opts.algorithm.data; !_b.is_null() && std::ffi::CStr::from_ptr(_b).to_bytes() == b"minimal" } {
                     params.flags |= XDF_NEED_MINIMAL;
-                } else if strequal(c"patience".as_ptr(), opts.algorithm.data) {
+                } else if { let _b = opts.algorithm.data; !_b.is_null() && std::ffi::CStr::from_ptr(_b).to_bytes() == b"patience" } {
                     params.flags |= XDF_PATIENCE_DIFF;
-                } else if strequal(c"histogram".as_ptr(), opts.algorithm.data) {
+                } else if { let _b = opts.algorithm.data; !_b.is_null() && std::ffi::CStr::from_ptr(_b).to_bytes() == b"histogram" } {
                     params.flags |= XDF_HISTOGRAM_DIFF;
                 } else {
                     api_set_error!(

@@ -137,8 +137,7 @@ use crate::memline::{
 };
 use crate::memory::{
     ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, cstr_from_bytes,
-    cstr_to_cstring, free_block, strequal,
-};
+    cstr_to_cstring, free_block, };
 use crate::menu::{get_menu_cmd_modes, menu_get};
 use crate::message::{
     emsg, internal_error, msg_clr_eos, msg_ext_set_kind, msg_putchar, msg_puts, msg_scroll_flush,
@@ -5965,7 +5964,7 @@ pub unsafe fn f_msgpackdump(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
         }
         let data = packer_take_string(&raw mut packer);
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
-            && strequal(tv_get_string(argvars.add(1)), c"B".as_ptr())
+            && { let _a = tv_get_string(argvars.add(1)); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"B" }
         {
             let b = &mut *tv_blob_alloc_ret(rettv);
             if !data.is_empty() {
@@ -8622,34 +8621,34 @@ pub unsafe fn f_stdpath(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             return;
         }
 
-        if strequal(p, c"config".as_ptr()) {
+        if { let _a = p; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"config" } {
             if let Some(s) = get_xdg_home(XDGVarType::kXDGConfigHome) {
                 crate::eval::typval::tv_set_string(rettv, s.as_ptr());
             }
-        } else if strequal(p, c"data".as_ptr()) {
+        } else if { let _a = p; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"data" } {
             if let Some(s) = get_xdg_home(XDGVarType::kXDGDataHome) {
                 crate::eval::typval::tv_set_string(rettv, s.as_ptr());
             }
-        } else if strequal(p, c"cache".as_ptr()) {
+        } else if { let _a = p; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"cache" } {
             if let Some(s) = get_xdg_home(XDGVarType::kXDGCacheHome) {
                 crate::eval::typval::tv_set_string(rettv, s.as_ptr());
             }
-        } else if strequal(p, c"state".as_ptr()) {
+        } else if { let _a = p; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"state" } {
             if let Some(s) = get_xdg_home(XDGVarType::kXDGStateHome) {
                 crate::eval::typval::tv_set_string(rettv, s.as_ptr());
             }
-        } else if strequal(p, c"log".as_ptr()) {
+        } else if { let _a = p; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"log" } {
             if let Some(state_home) = get_xdg_home(XDGVarType::kXDGStateHome) {
                 let log_dir = concat_fnames_cstr(state_home.as_ptr(), c"logs".as_ptr(), true);
                 crate::eval::typval::tv_set_string(rettv, log_dir.as_ptr());
             }
-        } else if strequal(p, c"run".as_ptr()) {
+        } else if { let _a = p; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"run" } {
             if let Some(s) = stdpaths_get_xdg_var(XDGVarType::kXDGRuntimeDir) {
                 crate::eval::typval::tv_set_string(rettv, s.as_ptr());
             }
-        } else if strequal(p, c"config_dirs".as_ptr()) {
+        } else if { let _a = p; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"config_dirs" } {
             get_xdg_var_list(XDGVarType::kXDGConfigDirs, rettv);
-        } else if strequal(p, c"data_dirs".as_ptr()) {
+        } else if { let _a = p; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"data_dirs" } {
             get_xdg_var_list(XDGVarType::kXDGDataDirs, rettv);
         } else {
             semsg!(gettext(c"E6100: \"%s\" is not a valid stdpath".as_ptr()), p);

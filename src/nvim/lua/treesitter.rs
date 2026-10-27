@@ -20,7 +20,7 @@ use crate::lua::converter::{
     luaL_newmetatable, luaL_ref, luaL_register, luaL_unref,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{raw_alloc, raw_calloc, raw_dealloc, raw_realloc, strequal, xstrlcpy};
+use crate::memory::{raw_alloc, raw_calloc, raw_dealloc, raw_realloc, xstrlcpy};
 use crate::msgpack_rpc::packer::handle_T;
 use crate::os::dl::UvLib;
 use crate::os::time::os_hrtime;
@@ -1723,7 +1723,7 @@ unsafe extern "C-unwind" fn node_field(L: *mut lua_State) -> c_int {
 
         for i in 0..count {
             let child_field_name = ts_node_field_name_for_child(node, i);
-            if strequal(field_name, child_field_name) {
+            if { let _a = field_name; let _b = child_field_name; (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
                 let child = ts_node_child(node, i);
                 push_node(L, child, 1);
                 curr_index += 1;

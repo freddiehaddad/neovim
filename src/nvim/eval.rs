@@ -133,7 +133,7 @@ use crate::mbyte::{
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
-    Arena, arena_finish, arena_mem_free, cstr_from_bytes, cstr_to_cstring, strequal, };
+    Arena, arena_finish, arena_mem_free, cstr_from_bytes, cstr_to_cstring, };
 use crate::msgpack_rpc::channel::find_channel;
 use crate::ops::set_ref_in_opfunc;
 use crate::optionstr::{OptIndex, free_string_option};
@@ -7132,13 +7132,13 @@ pub unsafe fn eval_call_provider(
 /// Checks if provider for feature `feat` is enabled.
 pub unsafe fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> bool {
     unsafe {
-        if !strequal(feat, c"clipboard".as_ptr())
-            && !strequal(feat, c"python3".as_ptr())
-            && !strequal(feat, c"python3_compiled".as_ptr())
-            && !strequal(feat, c"python3_dynamic".as_ptr())
-            && !strequal(feat, c"perl".as_ptr())
-            && !strequal(feat, c"ruby".as_ptr())
-            && !strequal(feat, c"node".as_ptr())
+        if !{ let _a = feat; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"clipboard" }
+            && !{ let _a = feat; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"python3" }
+            && !{ let _a = feat; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"python3_compiled" }
+            && !{ let _a = feat; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"python3_dynamic" }
+            && !{ let _a = feat; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"perl" }
+            && !{ let _a = feat; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"ruby" }
+            && !{ let _a = feat; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"node" }
         {
             return false;
         }

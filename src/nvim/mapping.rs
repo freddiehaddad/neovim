@@ -46,7 +46,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_prevptr, mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
-use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free, xmemcpyz, xstrlcpy};
+use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free, xstrlcpy};
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_outtrans,
     msg_outtrans_special, msg_putchar, msg_puts, msg_puts_hl, msg_start, semsg, semsg_multiline,
@@ -662,11 +662,7 @@ unsafe fn str_to_mapargs(
             return 1;
         }
         let mut lhs_to_replace = [0 as c_char; 256];
-        xmemcpyz(
-            lhs_to_replace.as_mut_ptr().cast(),
-            to_parse.cast(),
-            orig_lhs_len,
-        );
+        { let _d = (lhs_to_replace.as_mut_ptr()).cast::<u8>(); let _n = orig_lhs_len; if _n > 0 { std::ptr::copy_nonoverlapping((to_parse).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
 
         let orig_rhs_len = CStr::from_ptr(rhs_start).to_bytes().len();
         if !set_maparg_lhs_rhs(
@@ -837,7 +833,7 @@ unsafe fn buf_do_map(
                     if is_abbrev && maptype != MAPTYPE_UNMAP {
                         let mut same: c_int = -1;
                         let mut keys_unescaped = [0 as c_char; MAXMAPLEN + 1];
-                        xmemcpyz(keys_unescaped.as_mut_ptr().cast(), lhs.cast(), len as usize);
+                        { let _d = (keys_unescaped.as_mut_ptr()).cast::<u8>(); let _n = len as usize; if _n > 0 { std::ptr::copy_nonoverlapping((lhs).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                         let keys_unescaped_len = vim_unescape_ks(keys_unescaped.as_mut_ptr());
                         let mut p = keys_unescaped.as_ptr();
                         let end_p = p.add(keys_unescaped_len);

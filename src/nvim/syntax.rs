@@ -26,7 +26,6 @@ use crate::mbyte::{
     mb_ptr_adv, mb_ptr_back, mb_strcmp_ic, utf_head_off, utf_ptr2char, utfc_ptr2len,
 };
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
-use crate::memory::xmemcpyz;
 use crate::message::{
     emsg, msg, msg_advance, msg_ext_set_kind, msg_outnum, msg_outtrans, msg_outtrans_len,
     msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg,
@@ -2739,7 +2738,7 @@ unsafe fn check_keyword_id(
         }
 
         let mut keyword = [0 as c_char; MAXKEYWLEN + 1];
-        xmemcpyz(keyword.as_mut_ptr().cast(), kwp.cast(), kwlen as usize);
+        { let _d = (keyword.as_mut_ptr()).cast::<u8>(); let _n = kwlen as usize; if _n > 0 { std::ptr::copy_nonoverlapping((kwp).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
 
         let mut kp: *const keyentry_T = std::ptr::null();
 
@@ -4759,7 +4758,7 @@ unsafe fn get_id_list(
                 }
                 let mut name_buf = vec![0 as c_char; end.offset_from(p) as usize + 3];
                 let name = name_buf.as_mut_ptr();
-                xmemcpyz(name.add(1).cast(), p.cast(), end.offset_from(p) as usize);
+                { let _d = (name.add(1)).cast::<u8>(); let _n = end.offset_from(p) as usize; if _n > 0 { std::ptr::copy_nonoverlapping((p).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                 let mut id: c_int;
                 if (std::ffi::CStr::from_ptr(name.add(1)).to_bytes() == b"ALLBUT")
                     || (std::ffi::CStr::from_ptr(name.add(1)).to_bytes() == b"ALL")

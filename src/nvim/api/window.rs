@@ -20,7 +20,7 @@ use crate::globals::*;
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LuaRef, lua_State};
 use crate::lua::executor::{kRetMultiStack, nlua_call_ref};
-use crate::memory::{Arena, strequal_str as strequal};
+use crate::memory::Arena;
 use crate::message::emsg;
 use crate::r#move::{update_topline, validate_cursor};
 use crate::msgpack_rpc::packer::Integer;
@@ -775,8 +775,9 @@ pub unsafe extern "C" fn nvim_win_resize(
             KEYSET_OPTIDX_win_resize__anchor,
         ) {
             let anchor = (*opts).anchor.data;
-            let is_height = strequal(anchor, "top") || strequal(anchor, "bottom");
-            let is_width = strequal(anchor, "left") || strequal(anchor, "right");
+            let anchor_bytes = (*opts).anchor.as_bytes();
+            let is_height = anchor_bytes == b"top" || anchor_bytes == b"bottom";
+            let is_width = anchor_bytes == b"left" || anchor_bytes == b"right";
 
             if !(is_height || is_width) {
                 api_err_exp(
@@ -800,8 +801,8 @@ pub unsafe extern "C" fn nvim_win_resize(
                 return;
             }
 
-            from_top = !strequal(anchor, "bottom");
-            from_left = !strequal(anchor, "right");
+            from_top = anchor_bytes != b"bottom";
+            from_left = anchor_bytes != b"right";
         }
         if height >= 0 {
             try_wrap(err, || {

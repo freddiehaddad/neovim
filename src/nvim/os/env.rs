@@ -16,7 +16,7 @@ use crate::mbyte::{utf_isalnum, utf_ptr2char, utf_ptr2len};
 use crate::mbyte::{utf_valid_string, utf16_to_utf8};
 #[cfg(any(windows, test))]
 use crate::memory::xstrlcat;
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, xmemcpyz, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcpy};
 #[cfg(windows)]
 use crate::message::emsg;
 #[cfg(any(windows, test))]
@@ -289,7 +289,7 @@ pub unsafe fn os_getenv_buf(name: *const c_char, buf: *mut c_char, bufsize: usiz
                 let mut e = vec![0 as c_char; size];
                 r = uv_os_getenv(name, e.as_mut_ptr(), &raw mut size);
                 if r == 0 && size != 0 && e[0] != NUL {
-                    let _ = xmemcpyz(buf.cast(), e.as_ptr().cast(), bufsize.min(size) - 1);
+                    let _ = { let _d = (buf).cast::<u8>(); let _n = bufsize.min(size) - 1; if _n > 0 { std::ptr::copy_nonoverlapping((e.as_ptr()).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                 }
             }
             assert_ne!(r, UV_EINVAL);
@@ -530,7 +530,7 @@ pub unsafe fn init_homedir() {
                 if let Some(pos) = rest.iter().position(|&b| b == b'%') {
                     let p = var.add(1 + pos);
                     let buf = (&raw mut g_st().os_buf).cast::<c_char>();
-                    let _ = xmemcpyz(buf.cast(), var.add(1).cast(), pos);
+                    let _ = { let _d = (buf).cast::<u8>(); let _n = pos; if _n > 0 { std::ptr::copy_nonoverlapping((var.add(1)).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                     var = ptr::null_mut();
                     if let Some(exp) = os_getenv_cstr(buf)
                         && !exp.as_bytes().is_empty()
@@ -1206,7 +1206,7 @@ pub unsafe fn os_setenv_append_path(fname: *const c_char) -> bool {
         let dirlen = (tail as usize) - (fname as usize);
         let buf = (&raw mut g_st().os_buf).cast::<c_char>();
         assert!((tail as usize) >= (fname as usize) && dirlen + 1 < MAXPATHL);
-        let _ = xmemcpyz(buf.cast(), fname.cast(), dirlen);
+        let _ = { let _d = (buf).cast::<u8>(); let _n = dirlen; if _n > 0 { std::ptr::copy_nonoverlapping((fname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
         let path_cstr = os_getenv_cstr(c"PATH".as_ptr());
         let pathlen = path_cstr.as_ref().map_or(0, |c| c.as_bytes().len());
         let newlen = pathlen + dirlen + 2;

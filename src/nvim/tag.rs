@@ -44,7 +44,7 @@ use crate::mark::{fm_getname, fmark_T, fmarkv_T, mark_view_make, mark_view_resto
 use crate::mbyte::{
     convert_setup, mb_ptr_adv, mb_strnicmp, string_convert, utfc_ptr2len, vimconv_T,
 };
-use crate::memory::{cstr_to_cstring, xmemcpyz, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_to_cstring, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, give_warning, msg, msg_delay, msg_outtrans, msg_putchar, msg_puts, msg_puts_title, semsg,
     smsg, verbose_enter, verbose_leave, wait_return,
@@ -1030,11 +1030,7 @@ unsafe fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> c_int {
             parse_match(m, &mut tagp);
 
             let mut len = (tagp.tagname_end.offset_from(tagp.tagname) as c_int).min(128);
-            xmemcpyz(
-                tag_name.as_mut_ptr().cast(),
-                tagp.tagname.cast(),
-                len as usize,
-            );
+            { let _d = (tag_name.as_mut_ptr()).cast::<u8>(); let _n = len as usize; if _n > 0 { std::ptr::copy_nonoverlapping((tagp.tagname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
             tag_name[len as usize] = NUL;
 
             let p = tag_full_fname(&mut tagp);
@@ -1592,11 +1588,7 @@ unsafe fn findtags_in_help_init(st: *mut findtags_state_T) -> bool {
         } else {
             let i = std::ffi::CStr::from_ptr(tag_fname).to_bytes().len() as c_int;
             if i > 3 && *tag_fname.add((i - 3) as usize) == b'-' as c_char {
-                xmemcpyz(
-                    st.help_lang.as_mut_ptr().cast(),
-                    tag_fname.add((i - 2) as usize).cast(),
-                    2,
-                );
+                { let _d = (st.help_lang.as_mut_ptr()).cast::<u8>(); let _n = 2; if _n > 0 { std::ptr::copy_nonoverlapping((tag_fname.add((i - 2) as usize)).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
             } else {
                 { let s = c"en".as_ptr(); std::ptr::copy_nonoverlapping(s, st.help_lang.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             }
@@ -2096,14 +2088,14 @@ unsafe fn findtags_add_match(
                 if tagpp.command.add(2) < temp_end {
                     let len = temp_end.offset_from(tagpp.command.add(2)) as usize;
                     let mut v = vec![0 as c_char; len + 2];
-                    xmemcpyz(v.as_mut_ptr().cast(), tagpp.command.add(2).cast(), len);
+                    { let _d = (v.as_mut_ptr()).cast::<u8>(); let _n = len; if _n > 0 { std::ptr::copy_nonoverlapping((tagpp.command.add(2)).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                     mfp_vec = Some(v);
                 }
                 (*st).get_searchpat = false;
             } else {
                 let len = tagpp.tagname_end.offset_from(tagpp.tagname) as usize;
                 let mut v = vec![0 as c_char; 1 + len + 1];
-                xmemcpyz(v.as_mut_ptr().cast(), tagpp.tagname.cast(), len);
+                { let _d = (v.as_mut_ptr()).cast::<u8>(); let _n = len; if _n > 0 { std::ptr::copy_nonoverlapping((tagpp.tagname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                 mfp_vec = Some(v);
 
                 if (g_st().State & MODE_INSERT) != 0 {
@@ -3247,7 +3239,7 @@ unsafe fn add_tag_field(
                 }
             }
             len = (end.offset_from(start) as c_int).min(MAXPATHL as c_int - 1);
-            xmemcpyz(buf.cast(), start.cast(), len as usize);
+            { let _d = (buf).cast::<u8>(); let _n = len as usize; if _n > 0 { std::ptr::copy_nonoverlapping((start).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
         }
         *buf.add(len as usize) = NUL;
         tv_dict_add_str(dict, field_name, std::ffi::CStr::from_ptr(field_name).to_bytes().len(), buf)

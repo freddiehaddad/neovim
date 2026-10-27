@@ -19,7 +19,7 @@ use crate::grid::{sattr_T, schar_T, schar_from_ascii, schar_get, schar_get_adv};
 use crate::highlight::{HlAttrs, hl_get_url, hlattrs2dict, syn_attr2entry};
 use crate::lua::converter::{Boolean, Float};
 use crate::mbyte::utf_ambiguous_width;
-use crate::memory::{Arena, arena_finish, arena_mem_free, strequal};
+use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::msgpack_rpc::channel::{RemoteUI, find_channel, rpc_write_raw};
 use crate::msgpack_rpc::packer::{
     Integer, PackerBuffer, handle_T, mpack_array, mpack_bool, mpack_object_array, mpack_uint,
@@ -549,7 +549,7 @@ unsafe fn ui_set_option(
     err: *mut Error,
 ) {
     unsafe {
-        if strequal(name.data, c"override".as_ptr()) {
+        if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"override" } {
             if value.obj_type != ObjectType::kObjectTypeBoolean {
                 api_err_exp(
                     err,
@@ -563,7 +563,7 @@ unsafe fn ui_set_option(
             return;
         }
 
-        if strequal(name.data, c"rgb".as_ptr()) {
+        if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"rgb" } {
             if value.obj_type != ObjectType::kObjectTypeBoolean {
                 api_err_exp(
                     err,
@@ -580,7 +580,7 @@ unsafe fn ui_set_option(
             return;
         }
 
-        if strequal(name.data, c"term_name".as_ptr()) {
+        if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"term_name" } {
             if value.obj_type != ObjectType::kObjectTypeString {
                 api_err_exp(
                     err,
@@ -602,7 +602,7 @@ unsafe fn ui_set_option(
             return;
         }
 
-        if strequal(name.data, c"term_colors".as_ptr()) {
+        if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"term_colors" } {
             if value.obj_type != ObjectType::kObjectTypeInteger {
                 api_err_exp(
                     err,
@@ -617,7 +617,7 @@ unsafe fn ui_set_option(
             return;
         }
 
-        if strequal(name.data, c"stdin_fd".as_ptr()) {
+        if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"stdin_fd" } {
             if value.obj_type != ObjectType::kObjectTypeInteger {
                 api_err_exp(
                     err,
@@ -649,7 +649,7 @@ unsafe fn ui_set_option(
             return;
         }
 
-        if strequal(name.data, c"stdin_tty".as_ptr()) {
+        if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"stdin_tty" } {
             if value.obj_type != ObjectType::kObjectTypeBoolean {
                 api_err_exp(
                     err,
@@ -666,7 +666,7 @@ unsafe fn ui_set_option(
             return;
         }
 
-        if strequal(name.data, c"stdout_tty".as_ptr()) {
+        if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"stdout_tty" } {
             if value.obj_type != ObjectType::kObjectTypeBoolean {
                 api_err_exp(
                     err,
@@ -683,9 +683,9 @@ unsafe fn ui_set_option(
             return;
         }
 
-        let is_popupmenu = strequal(name.data, c"popupmenu_external".as_ptr());
+        let is_popupmenu = { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"popupmenu_external" };
         for (i, ext_name) in ui_ext_names.iter().enumerate().take(kUIExtCount) {
-            if strequal(name.data, ext_name.as_ptr()) || (i == kUIPopupmenu && is_popupmenu) {
+            if { let _a = name.data; let _b = ext_name.as_ptr(); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } || (i == kUIPopupmenu && is_popupmenu) {
                 if value.obj_type != ObjectType::kObjectTypeBoolean {
                     api_err_exp(
                         err,

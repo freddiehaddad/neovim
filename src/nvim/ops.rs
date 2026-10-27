@@ -61,7 +61,6 @@ use crate::memline::{
     dec, decl, gchar_pos, inc, ml_append, ml_get, ml_get_buf_len, ml_get_buf_mut, ml_get_len,
     ml_get_pos, ml_get_pos_len, ml_replace, ml_replace_len,
 };
-use crate::memory::xmemcpyz;
 use crate::message::{emsg, internal_error, msg, msg_keep, msg_start, msgmore, smsg};
 use crate::mouse::setmouse;
 use crate::r#move::validate_virtcol;
@@ -1809,11 +1808,7 @@ pub unsafe fn op_change(oap: *mut oparg_T) -> c_int {
             let ins_len = ml_get_len((*oap).start.lnum) - pre_textlen;
             if ins_len > 0 {
                 let mut ins_text = vec![0 as c_char; (ins_len as usize) + 1];
-                xmemcpyz(
-                    ins_text.as_mut_ptr().cast(),
-                    firstline.add(bd.textcol as usize).cast(),
-                    ins_len as usize,
-                );
+                { let _d = (ins_text.as_mut_ptr()).cast::<u8>(); let _n = ins_len as usize; if _n > 0 { std::ptr::copy_nonoverlapping((firstline.add(bd.textcol as usize)).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                 for linenr in ((*oap).start.lnum + 1)..=(*oap).end.lnum {
                     block_prep(oap, &raw mut bd, linenr, true);
                     if bd.is_short == 0 || g_st().virtual_op != 0 {

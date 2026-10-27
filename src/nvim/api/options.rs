@@ -21,7 +21,7 @@ use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::globals::*;
 use crate::lua::converter::Boolean;
 use crate::memline::ml_open;
-use crate::memory::{Arena, arena_memdupz, strequal_str};
+use crate::memory::{Arena, arena_memdupz};
 use crate::option::{
     OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, OPT_GLOBAL, OPT_LOCAL, OptScope, OptTarget,
     PREFIX_NONE, copy_option_part, escape_option_str_cmdline, find_option, get_all_options_info,
@@ -118,9 +118,9 @@ unsafe fn validate_option_value_args(
         }
 
         if has_key(mask, KEYSET_OPTIDX_option__scope) {
-            if strequal_str((*opts).scope.data, "local") {
+            if { let _a = (*opts).scope.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"local" } {
                 *opt_flags = OPT_LOCAL;
-            } else if strequal_str((*opts).scope.data, "global") {
+            } else if { let _a = (*opts).scope.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"global" } {
                 *opt_flags = OPT_GLOBAL;
             } else {
                 api_err_exp(
@@ -180,13 +180,13 @@ unsafe fn validate_option_value_args(
         }
 
         if !operation.is_null() && has_key(mask, KEYSET_OPTIDX_option__operation) {
-            if strequal_str((*opts).operation.data, "set") {
+            if { let _a = (*opts).operation.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"set" } {
                 *operation = OP_NONE;
-            } else if strequal_str((*opts).operation.data, "append") {
+            } else if { let _a = (*opts).operation.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"append" } {
                 *operation = OP_ADDING;
-            } else if strequal_str((*opts).operation.data, "prepend") {
+            } else if { let _a = (*opts).operation.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"prepend" } {
                 *operation = OP_PREPENDING;
-            } else if strequal_str((*opts).operation.data, "remove") {
+            } else if { let _a = (*opts).operation.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"remove" } {
                 *operation = OP_REMOVING;
             } else {
                 api_err_exp(
@@ -892,9 +892,9 @@ mod tests {
         assert!(has_key(mask, KEYSET_OPTIDX_option__scope));
         assert!(!has_key(mask, KEYSET_OPTIDX_option__win));
         unsafe {
-            assert!(strequal_str(c"local".as_ptr(), "local"));
-            assert!(!strequal_str(c"local".as_ptr(), "global"));
-            assert!(!strequal_str(std::ptr::null(), "local"));
+            assert!({ let _a = c"local".as_ptr(); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"local" });
+            assert!(!{ let _a = c"local".as_ptr(); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"global" });
+            assert!(!{ let _a: *const c_char = std::ptr::null(); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"local" });
         }
     }
 }

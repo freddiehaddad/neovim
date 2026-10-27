@@ -26,7 +26,7 @@ use crate::highlight::OptionalKeys;
 use crate::highlight_group::{syn_check_group, syn_id2name};
 use crate::lua::converter::Boolean;
 use crate::mbyte::{mb_string2cells, mb_string2cells_len};
-use crate::memory::{Arena, strequal, strequal_str, striequal_str};
+use crate::memory::{Arena};
 use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::didset_window_options;
@@ -1256,13 +1256,13 @@ unsafe fn parse_float_anchor(anchor: NvimString, out: *mut FloatAnchor) -> bool 
             *out = 0;
         }
         let str_ptr = anchor.data;
-        if striequal_str(str_ptr, "NW") {
+        if { let _a = str_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"NW") } {
             *out = 0;
-        } else if striequal_str(str_ptr, "NE") {
+        } else if { let _a = str_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"NE") } {
             *out = kFloatAnchorEast;
-        } else if striequal_str(str_ptr, "SW") {
+        } else if { let _a = str_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"SW") } {
             *out = kFloatAnchorSouth;
-        } else if striequal_str(str_ptr, "SE") {
+        } else if { let _a = str_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"SE") } {
             *out = kFloatAnchorSouth | kFloatAnchorEast;
         } else {
             return false;
@@ -1274,17 +1274,17 @@ unsafe fn parse_float_anchor(anchor: NvimString, out: *mut FloatAnchor) -> bool 
 unsafe fn parse_float_relative(relative: NvimString, out: *mut FloatRelative) -> bool {
     unsafe {
         let str_ptr = relative.data;
-        if striequal_str(str_ptr, "editor") {
+        if { let _a = str_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"editor") } {
             *out = kFloatRelativeEditor;
-        } else if striequal_str(str_ptr, "win") {
+        } else if { let _a = str_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"win") } {
             *out = kFloatRelativeWindow;
-        } else if striequal_str(str_ptr, "cursor") {
+        } else if { let _a = str_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"cursor") } {
             *out = kFloatRelativeCursor;
-        } else if striequal_str(str_ptr, "mouse") {
+        } else if { let _a = str_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"mouse") } {
             *out = kFloatRelativeMouse;
-        } else if striequal_str(str_ptr, "tabline") {
+        } else if { let _a = str_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"tabline") } {
             *out = kFloatRelativeTabline;
-        } else if striequal_str(str_ptr, "laststatus") {
+        } else if { let _a = str_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"laststatus") } {
             *out = kFloatRelativeLaststatus;
         } else {
             return false;
@@ -1296,13 +1296,13 @@ unsafe fn parse_float_relative(relative: NvimString, out: *mut FloatRelative) ->
 unsafe fn parse_config_split(split: NvimString, out: *mut WinSplit) -> bool {
     unsafe {
         let str_ptr = split.data;
-        if striequal_str(str_ptr, "left") {
+        if { let _a = str_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"left") } {
             *out = kWinSplitLeft;
-        } else if striequal_str(str_ptr, "right") {
+        } else if { let _a = str_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"right") } {
             *out = kWinSplitRight;
-        } else if striequal_str(str_ptr, "above") {
+        } else if { let _a = str_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"above") } {
             *out = kWinSplitAbove;
-        } else if striequal_str(str_ptr, "below") {
+        } else if { let _a = str_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"below") } {
             *out = kWinSplitBelow;
         } else {
             return false;
@@ -1418,11 +1418,11 @@ unsafe fn parse_bordertext_pos(
         }
 
         let pos = bordertext_pos.data;
-        if strequal_str(pos, "left") {
+        if { let _a = pos; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"left" } {
             *align = kAlignLeft;
-        } else if strequal_str(pos, "center") {
+        } else if { let _a = pos; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"center" } {
             *align = kAlignCenter;
-        } else if strequal_str(pos, "right") {
+        } else if { let _a = pos; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"right" } {
             *align = kAlignRight;
         } else {
             api_err_invalid(
@@ -1556,7 +1556,7 @@ pub unsafe fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: *m
             }
         } else if style.obj_type == ObjectType::kObjectTypeString {
             let str_val = style.data.string();
-            if str_val.size == 0 || strequal_str(str_val.data, "none") {
+            if str_val.size == 0 || { let _a = str_val.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"none" } {
                 (*fconfig).border = false;
                 (*fconfig).title = false;
                 (*fconfig).footer = false;
@@ -1564,7 +1564,7 @@ pub unsafe fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: *m
             }
             for i in 0..6 {
                 let def_name = opt_winborder_values[i + 1].as_ptr();
-                if strequal(str_val.data, def_name) {
+                if { let _a = str_val.data; let _b = def_name; (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
                     *chars = [[0; MAX_SCHAR_SIZE]; 8];
                     for (slot, piece) in chars.iter_mut().zip(DEFAULTS_CHARS[i].iter()) {
                         let bytes = piece.as_bytes();
@@ -1944,7 +1944,7 @@ unsafe fn parse_win_config(
             if has_key(mask, KEYSET_OPTIDX_win_config__style) {
                 if *(*config).style.data == NUL {
                     (*fconfig).style = kWinStyleUnused;
-                } else if striequal_str((*config).style.data, "minimal") {
+                } else if { let _a = (*config).style.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"minimal") } {
                     (*fconfig).style = kWinStyleMinimal;
                 } else {
                     api_err_invalid(err, c"style".as_ptr(), (*config).style.data, 0, true);

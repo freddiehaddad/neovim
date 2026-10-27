@@ -41,7 +41,7 @@ use crate::keycodes::{
     K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_UP, NL,
 };
 use crate::mbyte::{mb_string2cells, mb_strnicmp, ptr2cells, utf_ptr2cells, utfc_ptr2len};
-use crate::memory::{Arena, arena_finish, arena_mem_free, strequal};
+use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::menu::{execute_menu, get_menu_mode_flag, menu_find, menu_is_separator, vimmenu_T};
 use crate::message::emsg;
 use crate::mouse::mouse_find_win_outer;
@@ -410,9 +410,9 @@ unsafe fn pum_compute_horizontal_placement(
 #[inline]
 unsafe fn pum_border_width() -> c_int {
     unsafe {
-        if *opt_vars().p_pumborder == NUL || strequal(opt_vars().p_pumborder, opt_winborder_values[7].as_ptr()) {
+        if *opt_vars().p_pumborder == NUL || { let _a = opt_vars().p_pumborder; let _b = opt_winborder_values[7].as_ptr(); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
             0
-        } else if strequal(opt_vars().p_pumborder, opt_winborder_values[3].as_ptr()) {
+        } else if { let _a = opt_vars().p_pumborder; let _b = opt_winborder_values[3].as_ptr(); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
             1
         } else {
             2
@@ -822,7 +822,7 @@ pub unsafe fn pum_redraw() {
                 return;
             }
 
-            if strequal(opt_vars().p_pumborder, opt_winborder_values[3].as_ptr()) {
+            if { let _a = opt_vars().p_pumborder; let _b = opt_winborder_values[3].as_ptr(); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
                 fconfig.shadow = true;
                 let blend = syn_check_group(c"PmenuShadow".as_ptr(), 11);
                 let through = syn_check_group(c"PmenuShadowThrough".as_ptr(), 18);

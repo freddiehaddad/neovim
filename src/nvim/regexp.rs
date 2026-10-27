@@ -22,7 +22,6 @@ use crate::mbyte::{
     utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len, utf_strnicmp, utfc_ptr2len,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::xmemcpyz;
 use crate::message::{emsg, iemsg, internal_error, msg_puts, semsg, verbose_enter, verbose_leave};
 use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
@@ -3110,7 +3109,7 @@ pub unsafe fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                     len = ((*re_st().rsm.sm_mmatch).endpos[no].col - (*re_st().rsm.sm_mmatch).startpos[no].col)
                         as isize;
                     if round == 2 {
-                        xmemcpyz(retval.cast(), s.cast(), len as usize);
+                        { let _d = (retval).cast::<u8>(); let _n = len as usize; if _n > 0 { std::ptr::copy_nonoverlapping((s).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                     }
                     len += 1;
                 } else {

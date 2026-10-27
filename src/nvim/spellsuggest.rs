@@ -21,7 +21,7 @@ use crate::mbyte::{
     utfc_ptr2len,
 };
 use crate::memline::{ml_get_buf, ml_replace};
-use crate::memory::{xmemcpyz, xstrlcpy};
+use crate::memory::{xstrlcpy};
 use crate::message::{emsg, internal_error, msg, msg_ext_set_kind, semsg, smsg};
 use crate::normal::end_visual_mode;
 use crate::option::{copy_option_part, option_next_keyval, option_slice_eq};
@@ -920,11 +920,7 @@ unsafe fn spell_find_suggest(
         (*su).su_maxcount = maxcount;
         (*su).su_maxscore = SCORE_MAXINIT;
         (*su).su_badlen = (*su).su_badlen.min(MAXWLEN as c_int - 1);
-        xmemcpyz(
-            (&raw mut (*su).su_badword).cast(),
-            (*su).su_badptr.cast(),
-            (*su).su_badlen as usize,
-        );
+        { let _d = ((&raw mut (*su).su_badword)).cast::<u8>(); let _n = (*su).su_badlen as usize; if _n > 0 { std::ptr::copy_nonoverlapping(((*su).su_badptr).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
         spell_casefold(
             *curwin.as_ptr(),
             (*su).su_badptr,
@@ -1397,17 +1393,13 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                             compflags[stack[udepth].ts_complen as usize] =
                                 ((flags as u32) >> 24) as u8;
                             compflags[stack[udepth].ts_complen as usize + 1] = 0;
-                            xmemcpyz(
-                                (&raw mut preword)
+                            { let _d = ((&raw mut preword)
                                     .cast::<c_char>()
                                     .add(stack[udepth].ts_prewordlen as usize)
-                                    .cast(),
-                                (&raw const tword)
+                                    ).cast::<u8>(); let _n = (stack[udepth].ts_twordlen - stack[udepth].ts_splitoff) as usize; if _n > 0 { std::ptr::copy_nonoverlapping(((&raw const tword)
                                     .cast::<c_char>()
                                     .add(stack[udepth].ts_splitoff as usize)
-                                    .cast(),
-                                (stack[udepth].ts_twordlen - stack[udepth].ts_splitoff) as usize,
-                            );
+                                    ).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                             if match_checkcompoundpattern(
                                 (&raw mut preword).cast(),
                                 stack[udepth].ts_prewordlen as c_int,
@@ -2482,17 +2474,13 @@ unsafe fn stp_sal_score(
         };
         let pgood = if lendiff > 0 && (stp.st_wordlen + lendiff) < MAXWLEN as c_int {
             { let s = stp.st_word.as_ptr(); std::ptr::copy_nonoverlapping(s, (&raw mut goodword).cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-            xmemcpyz(
-                (&raw mut goodword)
+            { let _d = ((&raw mut goodword)
                     .cast::<c_char>()
                     .add(stp.st_wordlen as usize)
-                    .cast(),
-                (*su)
+                    ).cast::<u8>(); let _n = lendiff as usize; if _n > 0 { std::ptr::copy_nonoverlapping(((*su)
                     .su_badptr
                     .add(((*su).su_badlen - lendiff) as usize)
-                    .cast(),
-                lendiff as usize,
-            );
+                    ).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
             (&raw mut goodword).cast()
         } else {
             stp.st_word.as_ptr().cast_mut()

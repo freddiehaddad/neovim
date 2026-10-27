@@ -34,7 +34,7 @@ use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::mbyte::mb_islower;
-use crate::memory::{Arena, arena_alloc, arena_memdupz, cstr_from_bytes, strequal_str};
+use crate::memory::{Arena, arena_alloc, arena_memdupz, cstr_from_bytes};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::{RE_MAGIC, vim_regcomp};
 use crate::register::valid_yank_reg;
@@ -1103,17 +1103,17 @@ pub unsafe extern "C" fn nvim_cmd(
                 if has_key(mods_mask, KEYSET_OPTIDX_cmd_mods__split) {
                     if *mods.split.data == NUL {
                         // Empty string
-                    } else if strequal_str(mods.split.data, "aboveleft")
-                        || strequal_str(mods.split.data, "leftabove")
+                    } else if { let _a = mods.split.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"aboveleft" }
+                        || { let _a = mods.split.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"leftabove" }
                     {
                         cmod.cmod_split |= WSP_ABOVE;
-                    } else if strequal_str(mods.split.data, "belowright")
-                        || strequal_str(mods.split.data, "rightbelow")
+                    } else if { let _a = mods.split.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"belowright" }
+                        || { let _a = mods.split.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"rightbelow" }
                     {
                         cmod.cmod_split |= WSP_BELOW;
-                    } else if strequal_str(mods.split.data, "topleft") {
+                    } else if { let _a = mods.split.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"topleft" } {
                         cmod.cmod_split |= WSP_TOP;
-                    } else if strequal_str(mods.split.data, "botright") {
+                    } else if { let _a = mods.split.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"botright" } {
                         cmod.cmod_split |= WSP_BOT;
                     } else {
                         api_err_invalid(err, c"mods.split".as_ptr(), c"".as_ptr(), 0, true);

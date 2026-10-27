@@ -72,7 +72,7 @@ use crate::mark::setpcmark;
 use crate::math::{FAIL, OK};
 use crate::mcursor::mc_init;
 use crate::memline::{ml_close_all, ml_close_notmod, ml_recover, ml_sync_all, recover_names};
-use crate::memory::{mem_st, free_all_mem, strequal, striequal_str};
+use crate::memory::{mem_st, free_all_mem};
 use crate::message::{msg_putchar, semsg, wait_return};
 use crate::mouse::setmouse;
 use crate::r#move::update_topline;
@@ -420,7 +420,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
         init_startuptime(&raw mut params);
 
         for i in 1..params.argc {
-            if striequal_str(*params.argv.add(i as usize), "--clean") {
+            if { let _a = *params.argv.add(i as usize); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"--clean") } {
                 params.clean = true;
                 break;
             }
@@ -1147,7 +1147,7 @@ unsafe fn remote_request(
     ui_only: bool,
 ) {
     unsafe {
-        let is_ui = strequal(*argv.add(remote_args as usize), c"--remote-ui".as_ptr());
+        let is_ui = { let _a = *argv.add(remote_args as usize); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"--remote-ui" };
         if ui_only && !is_ui {
             return;
         }
@@ -1175,7 +1175,7 @@ unsafe fn remote_request(
                     nvim_env_buf.as_mut_ptr(),
                     nvim_env_buf.len(),
                 );
-                if strequal(server_addr, nvim_env) {
+                if { let _a = server_addr; let _b = nvim_env; (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
                     fprintf!(
                         stderr,
                         c"%s".as_ptr(),
@@ -1247,7 +1247,7 @@ unsafe fn remote_request(
 
         for i in 0..dict.size {
             let item = &*dict.items.add(i);
-            if strequal(item.key.data, c"errmsg".as_ptr()) {
+            if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"errmsg" } {
                 if item.value.obj_type != ObjectType::kObjectTypeString {
                     fprintf!(
                         stderr,
@@ -1257,7 +1257,7 @@ unsafe fn remote_request(
                 }
                 fprintf!(stderr, c"%s\n".as_ptr(), item.value.data.string().data);
                 os_exit(2);
-            } else if strequal(item.key.data, c"result".as_ptr()) {
+            } else if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"result" } {
                 if item.value.obj_type != ObjectType::kObjectTypeString {
                     fprintf!(
                         stderr,
@@ -1266,7 +1266,7 @@ unsafe fn remote_request(
                     os_exit(2);
                 }
                 printf!(c"%s".as_ptr(), item.value.data.string().data);
-            } else if strequal(item.key.data, c"tabbed".as_ptr()) {
+            } else if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"tabbed" } {
                 if item.value.obj_type != ObjectType::kObjectTypeBoolean {
                     fprintf!(
                         stderr,
@@ -1279,7 +1279,7 @@ unsafe fn remote_request(
                 } else {
                     kFalse
                 };
-            } else if strequal(item.key.data, c"should_exit".as_ptr()) {
+            } else if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"should_exit" } {
                 if item.value.obj_type != ObjectType::kObjectTypeBoolean {
                     fprintf!(
                         stderr,
@@ -1368,13 +1368,13 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                     }
                     b'-' => {
                         let sub = arg0.add(argv_idx as usize);
-                        if striequal_str(sub, "help") {
+                        if { let _a = sub; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"help") } {
                             usage();
                             os_exit(0);
-                        } else if striequal_str(sub, "version") {
+                        } else if { let _a = sub; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"version") } {
                             version();
                             os_exit(0);
-                        } else if striequal_str(sub, "api-info") {
+                        } else if { let _a = sub; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"api-info") } {
                             #[cfg(windows)]
                             {
                                 _setmode(STDOUT_FILENO, 0x8000);
@@ -1389,9 +1389,9 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                                 );
                             }
                             os_exit(0);
-                        } else if striequal_str(sub, "headless") {
+                        } else if { let _a = sub; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"headless") } {
                             g_st().headless_mode = true;
-                        } else if striequal_str(sub, "embed") {
+                        } else if { let _a = sub; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"embed") } {
                             g_st().embedded_mode = true;
                         } else if strnicmp_ascii(sub, b"listen") {
                             want_argument = true;
@@ -1619,17 +1619,17 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                             }
                         }
                         b'-' => {
-                            if strequal(prev_arg, c"--cmd".as_ptr()) {
+                            if { let _a = prev_arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"--cmd" } {
                                 if (*parmp).pre_commands.len() >= MAX_ARG_CMDS {
                                     mainerr(ERR_EXTRA_CMD.as_ptr(), ptr::null(), ptr::null());
                                 }
                                 (*parmp)
                                     .pre_commands
                                     .push(CStr::from_ptr(cur_arg).to_owned());
-                            } else if strequal(prev_arg, c"--listen".as_ptr()) {
+                            } else if { let _a = prev_arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"--listen" } {
                                 to_slash_if_needed(cur_arg);
                                 (*parmp).listen_addr = Some(CStr::from_ptr(cur_arg).to_owned());
-                            } else if strequal(prev_arg, c"--server".as_ptr()) {
+                            } else if { let _a = prev_arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"--server" } {
                                 to_slash_if_needed(cur_arg);
                                 (*parmp).server_addr = Some(CStr::from_ptr(cur_arg).to_owned());
                             }
@@ -1847,13 +1847,13 @@ unsafe fn init_startuptime(paramp: *mut mparm_T) {
     unsafe {
         let mut is_embed = false;
         for i in 1..((*paramp).argc - 1) {
-            if striequal_str(*(*paramp).argv.add(i as usize), "--embed") {
+            if { let _a = *(*paramp).argv.add(i as usize); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"--embed") } {
                 is_embed = true;
                 break;
             }
         }
         for i in 1..((*paramp).argc - 1) {
-            if striequal_str(*(*paramp).argv.add(i as usize), "--startuptime") {
+            if { let _a = *(*paramp).argv.add(i as usize); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"--startuptime") } {
                 time_init(
                     *(*paramp).argv.add((i + 1) as usize),
                     if is_embed {

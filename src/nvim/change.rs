@@ -43,7 +43,6 @@ use crate::memline::{
     ml_add_deleted_len, ml_append, ml_delete_flags, ml_get, ml_get_buf, ml_get_len,
     ml_line_alloced, ml_open_file, ml_replace, ml_setflags,
 };
-use crate::memory::xmemcpyz;
 use crate::message::{
     msg_clr_eos, msg_delay, msg_end, msg_ext_set_kind, msg_puts_hl, msg_source, msg_start, siemsg,
     wait_return,
@@ -1374,7 +1373,7 @@ pub unsafe fn open_line(
                 allocated_vec = vec![0 as c_char; bytes as usize];
                 leader = allocated_vec.as_mut_ptr();
 
-                xmemcpyz(leader.cast(), saved_line.cast(), lead_len as usize);
+                { let _d = (leader).cast::<u8>(); let _n = lead_len as usize; if _n > 0 { std::ptr::copy_nonoverlapping((saved_line).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
 
                 for li in 0..comment_start {
                     if !ascii_iswhite(*leader.add(li as usize)) {

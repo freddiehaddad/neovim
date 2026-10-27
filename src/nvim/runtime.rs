@@ -49,7 +49,7 @@ use crate::mbyte::{
 };
 use crate::memline::ml_get;
 use crate::memory::{
-    Arena, cstr_from_bytes, cstr_to_cstring, strequal, xmemcpyz, xstrlcat, xstrlcpy,
+    Arena, cstr_from_bytes, cstr_to_cstring, xstrlcat, xstrlcpy,
 };
 #[cfg(windows)]
 use crate::message::msg_source;
@@ -2298,13 +2298,13 @@ unsafe fn add_dir(
             let appname_len = CStr::from_ptr(appname).to_bytes().len();
             debug_assert!(appname_len < IOSIZE - 6);
             let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
-            xmemcpyz(iobuff.cast(), appname.cast(), appname_len);
+            { let _d = (iobuff).cast::<u8>(); let _n = appname_len; if _n > 0 { std::ptr::copy_nonoverlapping((appname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
             #[cfg(windows)]
             if matches!(type_, XDGVarType::kXDGDataHome | XDGVarType::kXDGStateHome) {
                 xstrlcat(iobuff, c"-data".as_ptr(), IOSIZE);
                 appname_len += 5;
             }
-            xmemcpyz(dest.cast(), iobuff.cast(), appname_len);
+            { let _d = (dest).cast::<u8>(); let _n = appname_len; if _n > 0 { std::ptr::copy_nonoverlapping((iobuff).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
             dest = dest.add(appname_len);
             if !suf1.is_null() {
                 *dest = PATHSEP;
@@ -2988,7 +2988,7 @@ unsafe fn do_source_ext(
             if fname.is_null()
                 && !eap.is_null()
                 && !ex_lua
-                && !strequal((*g_st().curbuf).b_p_ft, c"lua".as_ptr())
+                && !{ let _a = (*g_st().curbuf).b_p_ft; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"lua" }
                 && !(!(*g_st().curbuf).b_fname.is_null()
                     && path_with_extension((*g_st().curbuf).b_fname, c"lua".as_ptr()))
             {
@@ -3023,7 +3023,7 @@ unsafe fn do_source_ext(
             if fname.is_null()
                 && (ex_lua
                     || ts_lua
-                    || strequal((*g_st().curbuf).b_p_ft, c"lua".as_ptr())
+                    || { let _a = (*g_st().curbuf).b_p_ft; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"lua" }
                     || (!(*g_st().curbuf).b_fname.is_null()
                         && path_with_extension((*g_st().curbuf).b_fname, c"lua".as_ptr())))
             {

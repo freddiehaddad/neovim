@@ -44,7 +44,7 @@ use crate::mark::{
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
-use crate::memory::{ARENA_BLOCK_SIZE, strequal};
+use crate::memory::{ARENA_BLOCK_SIZE};
 use crate::message::{semsg, siemsg, smsg, verbose_enter, verbose_leave};
 use crate::mpack::mpack_core::MPACK_OK;
 use crate::msgpack_rpc::packer::{
@@ -1741,7 +1741,7 @@ unsafe fn shada_filename(mut file: *const c_char) -> Option<std::ffi::CString> {
     unsafe {
         if file.is_null() || *file == NUL {
             if !opt_vars().p_shadafile.is_null() && *opt_vars().p_shadafile != NUL {
-                if !strequal(opt_vars().p_shadafile, c"NONE".as_ptr()) {
+                if !{ let _a = opt_vars().p_shadafile; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"NONE" } {
                     file = opt_vars().p_shadafile;
                 } else {
                     return None;

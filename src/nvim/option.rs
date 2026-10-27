@@ -94,7 +94,7 @@ use crate::mbyte::{enc_locale, utfc_ptr2len};
 use crate::mcursor::{kOptFollow, mc_ins_replay_can_join};
 use crate::memfile::mf_close_file;
 use crate::memline::{ml_open_file, ml_open_files};
-use crate::memory::{Arena, strequal, xmemcpyz, xstrlcpy};
+use crate::memory::{Arena, xstrlcpy};
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar,
     msg_puts, msg_puts_title, msg_source,
@@ -1206,7 +1206,7 @@ pub unsafe fn set_init_3() {
         let mut len: usize = 0;
         let mut name = [0 as c_char; MAXPATHL];
         let p = invocation_path_tail(opt_vars().p_sh, &raw mut len);
-        xmemcpyz(name.as_mut_ptr().cast(), p.cast(), len);
+        { let _d = (name.as_mut_ptr()).cast::<u8>(); let _n = len; if _n > 0 { std::ptr::copy_nonoverlapping((p).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
         for (i, rule) in SHELL_RULES.iter().enumerate() {
             if !c_str_contains(name.as_ptr(), rule.pat.to_bytes()) {
                 continue;
@@ -1795,9 +1795,9 @@ unsafe fn validate_opt_idx(
 /// Skip over the name of a TTY option or keycode option.
 unsafe fn find_tty_option_end(arg: *const c_char) -> *const c_char {
     unsafe {
-        if strequal(arg, c"term".as_ptr()) {
+        if { let _a = arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"term" } {
             return arg.add("term".len());
-        } else if strequal(arg, c"ttytype".as_ptr()) {
+        } else if { let _a = arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"ttytype" } {
             return arg.add("ttytype".len());
         }
 
@@ -3903,7 +3903,7 @@ pub unsafe fn is_tty_option(name: *const c_char) -> bool {
 /// Get value of TTY option.
 pub unsafe fn get_tty_option(name: *const c_char) -> Object {
     unsafe {
-        if strequal(name, c"t_Co".as_ptr()) {
+        if { let _a = name; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"t_Co" } {
             if g_st().t_colors <= 1 {
                 cstr_to_obj(c"".as_ptr())
             } else {
@@ -3911,14 +3911,14 @@ pub unsafe fn get_tty_option(name: *const c_char) -> Object {
                 vim_snprintf!(value.as_mut_ptr(), NUMBUFLEN, c"%d".as_ptr(), g_st().t_colors);
                 cstr_to_obj(value.as_ptr())
             }
-        } else if strequal(name, c"term".as_ptr()) {
+        } else if { let _a = name; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"term" } {
             let term_ptr = &raw const opt_st().P_TERM;
             cstr_to_obj(
                 (*term_ptr)
                     .as_ref()
                     .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
             )
-        } else if strequal(name, c"ttytype".as_ptr()) {
+        } else if { let _a = name; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"ttytype" } {
             let tty_ptr = &raw const opt_st().P_TTYTYPE;
             cstr_to_obj(
                 (*tty_ptr)
@@ -3935,12 +3935,12 @@ pub unsafe fn get_tty_option(name: *const c_char) -> Object {
 
 pub unsafe fn set_tty_option(name: *const c_char, value: Option<std::ffi::CString>) -> bool {
     unsafe {
-        if strequal(name, c"term".as_ptr()) {
+        if { let _a = name; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"term" } {
             opt_st().P_TERM = value;
             return true;
         }
 
-        if strequal(name, c"ttytype".as_ptr()) {
+        if { let _a = name; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"ttytype" } {
             opt_st().P_TTYTYPE = value;
             return true;
         }

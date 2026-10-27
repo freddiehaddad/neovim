@@ -59,7 +59,7 @@ use crate::mapping::{ExpandMappings, set_context_in_map_cmd};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_len};
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, xmemcpyz};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring};
 use crate::menu::{get_menu_name, get_menu_names, menu_is_separator, set_context_in_menu_cmd};
 use crate::message::{
     emsg, msg_advance, msg_clr_eos, msg_ext_set_kind, msg_outtrans, msg_outtrans_long, msg_putchar,
@@ -3070,7 +3070,7 @@ pub unsafe fn addstar(fname: *mut c_char, mut len: usize, context: c_int) -> CSt
         } else {
             let mut retval_vec = vec![0 as c_char; len + 4];
             let retval = retval_vec.as_mut_ptr();
-            xmemcpyz(retval.cast(), fname.cast(), len);
+            { let _d = (retval).cast::<u8>(); let _n = len; if _n > 0 { std::ptr::copy_nonoverlapping((fname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
 
             let tail = path_tail(retval);
             #[cfg(windows)]
@@ -4340,7 +4340,7 @@ unsafe fn expand_files_and_dirs(
         if (*xp).xp_backslash != XP_BS_NONE {
             let pat_len = std::ffi::CStr::from_ptr(pat).to_bytes().len();
             let mut pat_vec = vec![0 as c_char; pat_len + 1];
-            xmemcpyz(pat_vec.as_mut_ptr().cast(), pat.cast(), pat_len);
+            { let _d = (pat_vec.as_mut_ptr()).cast::<u8>(); let _n = pat_len; if _n > 0 { std::ptr::copy_nonoverlapping((pat).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
             pat = pat_vec.as_mut_ptr();
             pat_owned = Some(pat_vec);
 
@@ -5219,7 +5219,7 @@ unsafe fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<CString>, flag
 
         let mut patlen = std::ffi::CStr::from_ptr(filepat).to_bytes().len();
         let mut pat_vec = vec![0 as c_char; patlen + 1];
-        xmemcpyz(pat_vec.as_mut_ptr().cast(), filepat.cast(), patlen);
+        { let _d = (pat_vec.as_mut_ptr()).cast::<u8>(); let _n = patlen; if _n > 0 { std::ptr::copy_nonoverlapping((filepat).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
         let pat = pat_vec.as_mut_ptr();
         let mut e = pat.add(patlen);
         let mut s = pat;
@@ -5292,13 +5292,13 @@ unsafe fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<CString>, flag
 
             if pathlen + seplen + patlen < MAXPATHL {
                 if pathlen > 0 {
-                    xmemcpyz(buf.cast(), s.cast(), pathlen);
+                    { let _d = (buf).cast::<u8>(); let _n = pathlen; if _n > 0 { std::ptr::copy_nonoverlapping((s).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                     if seplen > 0 {
-                        xmemcpyz(buf.add(pathlen).cast(), PATHSEPSTR.as_ptr().cast(), seplen);
+                        { let _d = (buf.add(pathlen)).cast::<u8>(); let _n = seplen; if _n > 0 { std::ptr::copy_nonoverlapping((PATHSEPSTR.as_ptr()).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                         pathlen += seplen;
                     }
                 }
-                xmemcpyz(buf.add(pathlen).cast(), pat.cast(), patlen);
+                { let _d = (buf.add(pathlen)).cast::<u8>(); let _n = patlen; if _n > 0 { std::ptr::copy_nonoverlapping((pat).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
 
                 expand_shellcmd_onedir(buf, pathlen, flags, &mut found_ht, matches);
             }
@@ -5567,10 +5567,10 @@ pub unsafe fn globpath(
 
             if pathlen + seplen + filelen < MAXPATHL {
                 if seplen > 0 {
-                    xmemcpyz(buf.add(pathlen).cast(), PATHSEPSTR.as_ptr().cast(), seplen);
+                    { let _d = (buf.add(pathlen)).cast::<u8>(); let _n = seplen; if _n > 0 { std::ptr::copy_nonoverlapping((PATHSEPSTR.as_ptr()).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                     pathlen += seplen;
                 }
-                xmemcpyz(buf.add(pathlen).cast(), file.cast(), filelen);
+                { let _d = (buf.add(pathlen)).cast::<u8>(); let _n = filelen; if _n > 0 { std::ptr::copy_nonoverlapping((file).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
 
                 let mut p: Vec<CString> = Vec::new();
                 ExpandFromContext(&raw mut xpc, buf, &mut p, WILD_SILENT | expand_options);

@@ -32,7 +32,6 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_adjust_cursor, ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::mcursor::mc_replaying;
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_replace_buf};
-use crate::memory::xmemcpyz;
 use crate::message::emsg;
 use crate::r#move::changed_window_setting;
 use crate::ops::skip_comment;
@@ -1365,7 +1364,7 @@ unsafe fn foldAddMarker(buf: *mut buf_T, pos: pos_T, marker: *const c_char, mark
         let newline = newline_vec.as_mut_ptr();
         ptr::copy_nonoverlapping(line, newline, line_len + 1);
         let added = if p.is_null() || line_is_comment {
-            xmemcpyz(newline.add(line_len).cast(), marker.cast(), markerlen);
+            { let _d = (newline.add(line_len)).cast::<u8>(); let _n = markerlen; if _n > 0 { std::ptr::copy_nonoverlapping((marker).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
             markerlen
         } else {
             ptr::copy_nonoverlapping(cms, newline.add(line_len), cms_len + 1);

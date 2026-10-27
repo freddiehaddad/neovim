@@ -32,7 +32,7 @@ use crate::hashtab::{
 use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str};
 use crate::mbyte::{mb_strcmp_ic, string_convert, utf_char2bytes, utfc_ptr2len, vimconv_T};
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, strequal, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcpy};
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
 use crate::strings::{
@@ -2569,7 +2569,7 @@ pub unsafe fn tv_callback_equal(cb1: *const Callback, cb2: *const Callback) -> b
         }
         match (*cb1).cb_type() {
             kCallbackFuncref | kCallbackExpr => {
-                strequal((*cb1).data.as_funcref(), (*cb2).data.as_funcref())
+                { let _a = (*cb1).data.as_funcref(); let _b = (*cb2).data.as_funcref(); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) }
             }
             kCallbackPartial => (*cb1).data.as_partial() == (*cb2).data.as_partial(),
             kCallbackLua => (*cb1).data.as_luaref() == (*cb2).data.as_luaref(),

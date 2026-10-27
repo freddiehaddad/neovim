@@ -17,7 +17,7 @@ use crate::eval::vars::{VV_FNAME, set_vim_var_string};
 use crate::eval::{eval_expr_option_tv, get_v_event, restore_v_event};
 use crate::globals::*;
 use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2char, utfc_ptr2len};
-use crate::memory::{xmemcpyz, xstrlcpy};
+use crate::memory::{xstrlcpy};
 use crate::message::{emsg, semsg};
 use crate::normal::get_visual_text;
 use crate::option::{OPT_LOCAL, copy_option_part, was_set_insecurely};
@@ -208,7 +208,7 @@ pub unsafe fn vim_findfile_init(
             let len = path_tail(rel_fname).offset_from(rel_fname) as usize;
 
             if !vim_isAbsName(rel_fname) && len + 1 < MAXPATHL {
-                xmemcpyz(expand_ptr.cast(), rel_fname.cast(), len);
+                { let _d = (expand_ptr).cast::<u8>(); let _n = len; if _n > 0 { std::ptr::copy_nonoverlapping((rel_fname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                 let full = FullName_save(expand_ptr, false).unwrap_or_default();
                 search_ctx.ffsc_start_dir =
                     cbuf_to_string(full.as_ptr(), full.as_bytes().len());
@@ -263,7 +263,7 @@ pub unsafe fn vim_findfile_init(
                     CStr::from_ptr(helper).to_bytes().len()
                 };
                 let dir_str = if *helper != NUL && !vim_isAbsName(helper) && len + 1 < MAXPATHL {
-                    xmemcpyz(expand_ptr.cast(), helper.cast(), len);
+                    { let _d = (expand_ptr).cast::<u8>(); let _n = len; if _n > 0 { std::ptr::copy_nonoverlapping((helper).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                     FullName_save(helper, len != 0).unwrap_or_default()
                 } else {
                     std::ffi::CString::new(std::slice::from_raw_parts(helper.cast::<u8>(), len))
@@ -997,7 +997,7 @@ unsafe fn ff_check_visited(
         let mut expand_size: usize = 0;
 
         if path_with_url(fname) != 0 {
-            xmemcpyz(expand_buf.as_mut_ptr().cast(), fname.cast(), fnamelen);
+            { let _d = (expand_buf.as_mut_ptr()).cast::<u8>(); let _n = fnamelen; if _n > 0 { std::ptr::copy_nonoverlapping((fname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
             expand_size = fnamelen;
             url = true;
         } else {

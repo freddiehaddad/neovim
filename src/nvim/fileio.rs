@@ -52,7 +52,7 @@ use crate::memfile::mf_fullname;
 use crate::memline::{
     check_need_swap, ml_append, ml_delete, ml_get, ml_get_buf, ml_get_len, ml_open,
 };
-use crate::memory::{cstr_to_cstring, strequal, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_to_cstring, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, msg, msg_check_for_delay, msg_clr_eos, msg_delay, msg_end, msg_may_trunc, msg_outtrans,
     msg_progress, msg_putchar, msg_puts, msg_puts_hl, msg_schedule_semsg, msg_start, msg_trunc,
@@ -4158,7 +4158,7 @@ unsafe fn vim_mktempdir() {
                 (TEMP_FILE_PATH_MAXLEN - 64) as c_int,
             );
             if !os_isdir(tmp.as_ptr()) {
-                if strequal(c"$TMPDIR".as_ptr(), temp_dir.as_ptr()) {
+                if { let _b = temp_dir.as_ptr(); !_b.is_null() && std::ffi::CStr::from_ptr(_b).to_bytes() == b"$TMPDIR" } {
                     if !os_env_exists(c"TMPDIR".as_ptr(), true) {
                         logmsg!(
                             LOG_DEBUG,

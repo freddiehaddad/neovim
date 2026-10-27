@@ -20,7 +20,7 @@ use crate::mbyte::{
     vimconv_T,
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
-use crate::memory::{strequal, xmemcpyz, xstrlcat, xstrlcpy};
+use crate::memory::{xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, msg, msg_clr_eos, msg_outtrans_long, msg_puts, msg_start, semsg, smsg, verbose_enter,
     verbose_leave,
@@ -2345,7 +2345,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                                     let p_cond = prefcond[idx as usize]
                                         .as_ref()
                                         .map_or(ptr::null(), |s| s.as_ptr());
-                                    if strequal(p_cond, (*aff_entry).cond_ptr()) {
+                                    if { let _a = p_cond; let _b = (*aff_entry).cond_ptr(); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
                                         break;
                                     }
                                     idx -= 1;
@@ -2786,11 +2786,7 @@ unsafe fn process_compflags(spin: *mut spellinfo_T, aff: &mut afffile_T, compfla
                 let prevp = cur;
                 let flag = get_affitem(aff.af_flagtype, &raw mut cur);
                 if flag != 0 {
-                    xmemcpyz(
-                        key.as_mut_ptr().cast(),
-                        prevp.cast(),
-                        cur.offset_from(prevp) as usize,
-                    );
+                    { let _d = (key.as_mut_ptr()).cast::<u8>(); let _n = cur.offset_from(prevp) as usize; if _n > 0 { std::ptr::copy_nonoverlapping((prevp).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                     let key_bytes = std::ffi::CStr::from_ptr(key.as_ptr()).to_bytes();
                     let id = if let Some(ci) = aff.af_comp.get(key_bytes) {
                         ci.ci_newID
@@ -3237,11 +3233,7 @@ unsafe fn get_pfxlist(
         while *p != NUL {
             let prevp = p;
             if get_affitem(affile.af_flagtype, &raw mut p) != 0 {
-                xmemcpyz(
-                    key.as_mut_ptr().cast(),
-                    prevp.cast(),
-                    p.offset_from(prevp) as usize,
-                );
+                { let _d = (key.as_mut_ptr()).cast::<u8>(); let _n = p.offset_from(prevp) as usize; if _n > 0 { std::ptr::copy_nonoverlapping((prevp).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                 let key_bytes = std::ffi::CStr::from_ptr(key.as_ptr()).to_bytes();
                 if let Some(ah) = affile.af_pref.get(key_bytes) {
                     let id = ah.ah_newID;
@@ -3271,11 +3263,7 @@ unsafe fn get_compflags(
         while *p != NUL {
             let prevp = p;
             if get_affitem(affile.af_flagtype, &raw mut p) != 0 {
-                xmemcpyz(
-                    key.as_mut_ptr().cast(),
-                    prevp.cast(),
-                    p.offset_from(prevp) as usize,
-                );
+                { let _d = (key.as_mut_ptr()).cast::<u8>(); let _n = p.offset_from(prevp) as usize; if _n > 0 { std::ptr::copy_nonoverlapping((prevp).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                 let key_bytes = std::ffi::CStr::from_ptr(key.as_ptr()).to_bytes();
                 if let Some(ci) = affile.af_comp.get(key_bytes)
                     && store_afflist_add(store_afflist, cntp, ci.ci_newID) == FAIL
@@ -3495,11 +3483,7 @@ unsafe fn store_aff_word(
                             }
 
                             if !use_pfxlist.is_null() && (*ae).ae_compforbid != 0 {
-                                xmemcpyz(
-                                    pfx_pfxlist.as_mut_ptr().cast(),
-                                    use_pfxlist.cast(),
-                                    use_pfxlen as usize,
-                                );
+                                { let _d = (pfx_pfxlist.as_mut_ptr()).cast::<u8>(); let _n = use_pfxlen as usize; if _n > 0 { std::ptr::copy_nonoverlapping((use_pfxlist).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                                 use_pfxlist = pfx_pfxlist.as_mut_ptr();
                             }
 
@@ -5482,7 +5466,7 @@ unsafe fn init_spellfile() {
             if plen >= buf_len {
                 return;
             }
-            xmemcpyz(buf.cast(), (*g_st().curbuf).b_s.b_p_spl.cast(), plen);
+            { let _d = (buf).cast::<u8>(); let _n = plen; if _n > 0 { std::ptr::copy_nonoverlapping(((*g_st().curbuf).b_s.b_p_spl).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
         }
 
         let cur_len = std::ffi::CStr::from_ptr(buf).to_bytes().len();

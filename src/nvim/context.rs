@@ -23,7 +23,7 @@ use crate::extmark::{extmark_del_id, extmark_get_pos, extmark_set_pos};
 use crate::fileio::shorten_fnames;
 use crate::globals::*;
 use crate::mark::{fmark_T, fmarkv_T};
-use crate::memory::{Arena, strequal_str};
+use crate::memory::{Arena};
 use crate::msgpack_rpc::packer::handle_T;
 use crate::normal::visualinfo_T;
 use crate::option::buf_copy_options;
@@ -558,19 +558,19 @@ pub unsafe fn ctx_from_dict(dict: Dict, ctx: *mut Context, err: *mut Error) -> C
             if item.value.obj_type != ObjectType::kObjectTypeArray {
                 continue;
             }
-            if strequal_str(item.key.data, "regs") {
+            if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"regs" } {
                 types |= kCtxRegs;
                 (*ctx).regs = array_to_string(item.value.data.array(), err);
-            } else if strequal_str(item.key.data, "jumps") {
+            } else if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"jumps" } {
                 types |= kCtxJumps;
                 (*ctx).jumps = array_to_string(item.value.data.array(), err);
-            } else if strequal_str(item.key.data, "bufs") {
+            } else if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"bufs" } {
                 types |= kCtxBufs;
                 (*ctx).bufs = array_to_string(item.value.data.array(), err);
-            } else if strequal_str(item.key.data, "gvars") {
+            } else if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"gvars" } {
                 types |= kCtxGVars;
                 (*ctx).gvars = array_to_string(item.value.data.array(), err);
-            } else if strequal_str(item.key.data, "funcs") {
+            } else if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"funcs" } {
                 types |= kCtxFuncs;
                 (*ctx).funcs = copy_object(item.value, ptr::null_mut()).data.array();
             }

@@ -56,7 +56,7 @@ use crate::lua::treesitter::nlua_treesitter_init;
 use crate::main_init::{getout, os_exit, preserve_exit};
 use crate::math::{FAIL, OK};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{Arena, ArenaMem, arena_finish, arena_mem_free, strequal};
+use crate::memory::{Arena, ArenaMem, arena_finish, arena_mem_free};
 use crate::message::{
     emsg, msg_ext_no_fast, msg_multihl, msg_putchar, msg_use_printf, redirecting, semsg_multiline,
 };
@@ -1193,12 +1193,12 @@ unsafe extern "C-unwind" fn nlua_ui_attach(lstate: *mut lua_State) -> c_int {
             let val = lua_toboolean(lstate, -1) != 0;
 
             let mut matched = false;
-            if strequal(s, c"set_cmdheight".as_ptr()) {
+            if { let _a = s; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"set_cmdheight" } {
                 g_st().ui_refresh_cmdheight = val;
                 matched = true;
             } else {
                 for (i, slot) in ext_widgets.iter_mut().enumerate() {
-                    if strequal(s, ui_ext_names[i].as_ptr()) {
+                    if { let _a = s; let _b = ui_ext_names[i].as_ptr(); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
                         if val {
                             tbl_has_true_val = true;
                         }
@@ -2468,7 +2468,7 @@ pub unsafe fn ex_luafile(eap: *mut exarg_T) {
 pub unsafe fn nlua_exec_file(path: *const c_char) -> bool {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
-        if !strequal(path, c"-".as_ptr()) {
+        if !{ let _a = path; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"-" } {
             lua_getglobal(lstate, c"loadfile".as_ptr());
             lua_pushstring(lstate, path);
         } else {

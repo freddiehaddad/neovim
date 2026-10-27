@@ -52,7 +52,7 @@ use crate::hashtab::{
 use crate::lua::executor::{nlua_funcref_str, nlua_set_sctx};
 use crate::math::{FAIL, OK};
 use crate::mbyte::utf_char2bytes;
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, strequal, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, internal_error, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind,
     msg_outtrans, msg_putchar, msg_puts, msg_puts_len, msg_start, semsg,
@@ -680,7 +680,7 @@ pub unsafe fn evalvars_init() {
             startreason_buf.as_mut_ptr(),
             startreason_buf.len(),
         );
-        if strequal(startreason, c"restart!".as_ptr()) || strequal(startreason, c"restart".as_ptr())
+        if { let _a = startreason; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"restart!" } || { let _a = startreason; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"restart" }
         {
             set_vim_var_string(VV_STARTREASON, startreason, -1);
         }

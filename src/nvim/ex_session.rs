@@ -17,7 +17,6 @@ use crate::globals::*;
 use crate::hashtab::hashitem_empty;
 use crate::mapping::makemap;
 use crate::mbyte::utfc_ptr2len;
-use crate::memory::xmemcpyz;
 use crate::message::{emsg, semsg};
 use crate::option::{OPT_GLOBAL, OPT_LOCAL, makefoldset, makeset};
 use crate::option_vars::*;
@@ -1272,7 +1271,7 @@ unsafe fn get_view_file(c: c_char) -> Option<CString> {
         *s = b'=' as c_char;
         *s.add(1) = c;
         s = s.add(2);
-        xmemcpyz(s.cast(), b".vim".as_ptr().cast(), 4);
+        { let _d = (s).cast::<u8>(); let _n = 4; if _n > 0 { std::ptr::copy_nonoverlapping((b".vim".as_ptr()).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
 
         Some(CStr::from_ptr(retval).to_owned())
     }

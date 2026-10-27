@@ -86,7 +86,7 @@ use crate::mbyte::{convert_setup, ptr2cells, remove_bom, string_convert, utfc_pt
 use crate::memline::{
     check_need_swap, ml_append_buf, ml_delete, ml_get_buf, ml_get_buf_len, ml_open,
 };
-use crate::memory::{strequal, xstrlcat, xstrlcpy};
+use crate::memory::{xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, internal_error, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_keep,
     msg_outtrans, msg_prt_line, msg_putchar, msg_puts, msg_puts_hl, msg_start, msg_strtrunc, semsg,
@@ -1494,7 +1494,7 @@ unsafe fn qf_setup_state(
         }
 
         if !efile.is_null() {
-            let raw_fd = if strequal(efile, c"-".as_ptr()) {
+            let raw_fd = if { let _a = efile; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"-" } {
                 fdopen(os_open_stdin_fd(), c"r".as_ptr())
             } else {
                 os_fopen(efile, c"r".as_ptr()).cast::<FILE>()
@@ -6461,7 +6461,7 @@ unsafe fn qf_getprop_qfidx(qi: *mut qf_info_T, what: *mut dict_T) -> c_int {
                     }
                 }
             } else if (*di).di_tv.v_type == VarType::VAR_STRING
-                && strequal((*di).di_tv.vval.v_string(), c"$".as_ptr())
+                && { let _a = (*di).di_tv.vval.v_string(); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"$" }
             {
                 qf_idx = (*qi).qf_listcount - 1;
             } else {
@@ -7012,7 +7012,7 @@ unsafe fn qf_setprop_get_qfidx(
                     *newlist = false;
                 }
             } else if (*di).di_tv.v_type == VarType::VAR_STRING
-                && strequal((*di).di_tv.vval.v_string(), c"$".as_ptr())
+                && { let _a = (*di).di_tv.vval.v_string(); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"$" }
             {
                 if !qf_stack_empty(qi) {
                     qf_idx = (*qi).qf_listcount - 1;

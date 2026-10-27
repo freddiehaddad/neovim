@@ -37,7 +37,6 @@ use crate::mbyte::{
     utf_ptr2char, utfc_ptr2len,
 };
 use crate::memline::{ml_append, ml_delete, ml_get_buf, ml_get_buf_len};
-use crate::memory::{strequal};
 use crate::message::{emsg, semsg};
 use crate::r#move::{
     changed_line_abv_curs, changed_line_abv_curs_win, changed_window_setting, check_topfill,
@@ -2471,11 +2470,11 @@ pub unsafe fn diffopt_changed() -> c_int {
         if has_dip_key(&*v, KEYSET_OPTIDX_dip__inline_) {
             flags &= !ALL_INLINE;
             let inline_ptr = (&raw const (*v).inline_).cast::<c_char>();
-            if strequal(inline_ptr, c"simple".as_ptr()) {
+            if { let _a = inline_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"simple" } {
                 flags |= DIFF_INLINE_SIMPLE;
-            } else if strequal(inline_ptr, c"char".as_ptr()) {
+            } else if { let _a = inline_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"char" } {
                 flags |= DIFF_INLINE_CHAR;
-            } else if strequal(inline_ptr, c"word".as_ptr()) {
+            } else if { let _a = inline_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"word" } {
                 flags |= DIFF_INLINE_WORD;
             } else {
                 flags |= DIFF_INLINE_NONE;
@@ -2488,11 +2487,11 @@ pub unsafe fn diffopt_changed() -> c_int {
         };
         if has_dip_key(&*v, KEYSET_OPTIDX_dip__algorithm) {
             let algo_ptr = (&raw const (*v).algorithm).cast::<c_char>();
-            if strequal(algo_ptr, c"minimal".as_ptr()) {
+            if { let _a = algo_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"minimal" } {
                 algorithm |= XDF_NEED_MINIMAL;
-            } else if strequal(algo_ptr, c"patience".as_ptr()) {
+            } else if { let _a = algo_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"patience" } {
                 algorithm |= XDF_PATIENCE_DIFF;
-            } else if strequal(algo_ptr, c"histogram".as_ptr()) {
+            } else if { let _a = algo_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"histogram" } {
                 algorithm |= XDF_HISTOGRAM_DIFF;
             }
         }

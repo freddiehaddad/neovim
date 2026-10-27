@@ -78,7 +78,7 @@ use crate::mbyte::{
     utfc_ptr2len,
 };
 use crate::memline::{dec, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
-use crate::memory::{strequal, xstrlcpy};
+use crate::memory::{xstrlcpy};
 use crate::message::{
     emsg, internal_error, msg, msg_clr_cmdline, msg_delay, msg_ext_set_kind, msg_progress, semsg,
 };
@@ -1912,7 +1912,7 @@ unsafe fn ins_compl_build_pum() -> c_int {
         let list = &raw mut insexp().compl_list;
         let mut shown_match_ok = match_at_original_text(compl_opt(insexp().compl_shown_idx));
 
-        if strequal(insexp().compl_leader.data, insexp().compl_orig_text.data) && !shown_match_ok {
+        if { let _a = insexp().compl_leader.data; let _b = insexp().compl_orig_text.data; (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } && !shown_match_ok {
             insexp().compl_shown_idx = if compl_no_select {
                 Some(0)
             } else {
@@ -5865,7 +5865,7 @@ unsafe fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: 
                 ins_compl_insert_bytes(insexp().compl_leader.data.add(get_compl_len() as usize), -1);
             }
             let shown = compl_opt(insexp().compl_shown_idx);
-            if strequal((*shown).cp_str.data, insexp().compl_orig_text.data) {
+            if { let _a = (*shown).cp_str.data; let _b = insexp().compl_orig_text.data; (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
                 restore_orig_extmarks();
             }
         } else {

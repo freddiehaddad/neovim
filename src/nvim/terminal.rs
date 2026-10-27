@@ -79,7 +79,6 @@ use crate::keycodes::{
 use crate::mark::{kMarkAdjustTerm, mark_adjust_buf};
 use crate::mbyte::{mb_check_adjust_col, utf_ptr2char, utf_ptr2len};
 use crate::memline::{ml_append_buf, ml_delete_buf, ml_replace_buf};
-use crate::memory::strequal;
 use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, do_mousescroll, mouse_find_win_inner,
 };
@@ -1111,7 +1110,7 @@ unsafe fn set_terminal_winopts(s: *mut TerminalState) {
         if (**curwin.as_ptr()).w_onebuf_opt.wo_cul != 0
             && ((**curwin.as_ptr()).w_p_culopt_flags & kOptCuloptFlagNumber) != 0
         {
-            if !strequal((**curwin.as_ptr()).w_onebuf_opt.wo_culopt, c"number".as_ptr()) {
+            if !{ let _a = (**curwin.as_ptr()).w_onebuf_opt.wo_culopt; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"number" } {
                 (*s).save_w_p_culopt =
                     Some(CStr::from_ptr((**curwin.as_ptr()).w_onebuf_opt.wo_culopt).to_owned());
                 free_string_option((**curwin.as_ptr()).w_onebuf_opt.wo_culopt);

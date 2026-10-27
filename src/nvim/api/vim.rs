@@ -83,7 +83,7 @@ use crate::mark::mark_get_global;
 use crate::math::{FAIL, xpopcount};
 use crate::mbyte::{mb_string2cells, utfc_ptr2len, utfc_ptr2schar};
 use crate::memline::ml_open;
-use crate::memory::{Arena, arena_alloc, arena_strdup, strequal};
+use crate::memory::{Arena, arena_alloc, arena_strdup};
 use crate::message::{
     msg_ext_no_fast, msg_id_exists, msg_multihl, verbose_enter, verbose_leave, verbose_stop,
 };
@@ -713,42 +713,42 @@ pub unsafe extern "C" fn nvim_input_mouse(
                 break 'check None;
             }
 
-            let mut code: c_int = if strequal(button.data, c"left".as_ptr()) {
+            let mut code: c_int = if { let _a = button.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"left" } {
                 c_int::from(KE_LEFTMOUSE)
-            } else if strequal(button.data, c"middle".as_ptr()) {
+            } else if { let _a = button.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"middle" } {
                 c_int::from(KE_MIDDLEMOUSE)
-            } else if strequal(button.data, c"right".as_ptr()) {
+            } else if { let _a = button.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"right" } {
                 c_int::from(KE_RIGHTMOUSE)
-            } else if strequal(button.data, c"wheel".as_ptr()) {
+            } else if { let _a = button.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"wheel" } {
                 c_int::from(KE_MOUSEDOWN)
-            } else if strequal(button.data, c"x1".as_ptr()) {
+            } else if { let _a = button.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"x1" } {
                 c_int::from(KE_X1MOUSE)
-            } else if strequal(button.data, c"x2".as_ptr()) {
+            } else if { let _a = button.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"x2" } {
                 c_int::from(KE_X2MOUSE)
-            } else if strequal(button.data, c"move".as_ptr()) {
+            } else if { let _a = button.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"move" } {
                 c_int::from(KE_MOUSEMOVE)
             } else {
                 break 'check None;
             };
 
             if code == c_int::from(KE_MOUSEDOWN) {
-                if strequal(action.data, c"down".as_ptr()) {
+                if { let _a = action.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"down" } {
                     code = c_int::from(KE_MOUSEUP);
-                } else if strequal(action.data, c"up".as_ptr()) {
+                } else if { let _a = action.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"up" } {
                     // code = KE_MOUSEDOWN
-                } else if strequal(action.data, c"left".as_ptr()) {
+                } else if { let _a = action.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"left" } {
                     code = c_int::from(KE_MOUSERIGHT);
-                } else if strequal(action.data, c"right".as_ptr()) {
+                } else if { let _a = action.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"right" } {
                     code = c_int::from(KE_MOUSELEFT);
                 } else {
                     break 'check None;
                 }
             } else if code != c_int::from(KE_MOUSEMOVE) {
-                if strequal(action.data, c"press".as_ptr()) {
+                if { let _a = action.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"press" } {
                     // pass
-                } else if strequal(action.data, c"drag".as_ptr()) {
+                } else if { let _a = action.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"drag" } {
                     code += c_int::from(KE_LEFTDRAG) - c_int::from(KE_LEFTMOUSE);
-                } else if strequal(action.data, c"release".as_ptr()) {
+                } else if { let _a = action.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"release" } {
                     code += c_int::from(KE_LEFTRELEASE) - c_int::from(KE_LEFTMOUSE);
                 } else {
                     break 'check None;
@@ -1323,7 +1323,7 @@ pub unsafe extern "C" fn nvim_echo(
             };
         }
 
-        let is_progress = strequal(kind, c"progress".as_ptr());
+        let is_progress = { let _a = kind; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"progress" };
         let mut needs_clear = !history;
         let has_percent =
             ((*opts).is_set__echo_opts_ & (1u64 << KEYSET_OPTIDX_echo_opts__percent)) != 0;
@@ -1347,10 +1347,10 @@ pub unsafe extern "C" fn nvim_echo(
             }
 
             if is_progress
-                && !(strequal((*opts).status.data, c"success".as_ptr())
-                    || strequal((*opts).status.data, c"failed".as_ptr())
-                    || strequal((*opts).status.data, c"running".as_ptr())
-                    || strequal((*opts).status.data, c"cancel".as_ptr()))
+                && !({ let _a = (*opts).status.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"success" }
+                    || { let _a = (*opts).status.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"failed" }
+                    || { let _a = (*opts).status.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"running" }
+                    || { let _a = (*opts).status.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"cancel" })
             {
                 api_err_exp(
                     err,
@@ -1378,7 +1378,7 @@ pub unsafe extern "C" fn nvim_echo(
             }
 
             if !validate_s(
-                !is_progress || !strequal((*opts).source.data, c"nvim".as_ptr()),
+                !is_progress || !{ let _a = (*opts).source.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"nvim" },
                 c"source".as_ptr(),
                 (*opts).source.data,
                 err,
@@ -2122,17 +2122,17 @@ pub unsafe extern "C" fn nvim_get_context(
                 let item = types[i];
                 if item.obj_type == ObjectType::kObjectTypeString {
                     let s = item.data.string().data;
-                    if strequal(s, c"regs".as_ptr()) {
+                    if { let _a = s; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"regs" } {
                         int_types |= kCtxRegs;
-                    } else if strequal(s, c"jumps".as_ptr()) {
+                    } else if { let _a = s; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"jumps" } {
                         int_types |= kCtxJumps;
-                    } else if strequal(s, c"bufs".as_ptr()) {
+                    } else if { let _a = s; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"bufs" } {
                         int_types |= kCtxBufs;
-                    } else if strequal(s, c"gvars".as_ptr()) {
+                    } else if { let _a = s; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"gvars" } {
                         int_types |= kCtxGVars;
-                    } else if strequal(s, c"sfuncs".as_ptr()) {
+                    } else if { let _a = s; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"sfuncs" } {
                         int_types |= kCtxSFuncs;
-                    } else if strequal(s, c"funcs".as_ptr()) {
+                    } else if { let _a = s; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"funcs" } {
                         int_types |= kCtxFuncs;
                     } else {
                         let _ = validate_s(false, c"type".as_ptr(), s, err);
@@ -2371,7 +2371,7 @@ pub unsafe extern "C" fn nvim_set_client_info(
 
         let mut has_major = false;
         for i in 0..version.size {
-            if strequal(version[i].key.data, c"major".as_ptr()) {
+            if { let _a = version[i].key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"major" } {
                 has_major = true;
                 break;
             }

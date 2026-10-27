@@ -37,7 +37,6 @@ use crate::mark::{fmark_T, fmarkv_T};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{enc_canonize, get_encoding_name, utf_ptr2char, utfc_ptr2len, utfc_ptr2schar};
 use crate::memline::ml_setflags;
-use crate::memory::xmemcpyz;
 use crate::message::{kOptMessagesopt, msg_grid_validate, verbose_open, verbose_stop};
 use crate::r#move::validate_virtcol;
 use crate::msgpack_rpc::packer::Integer;
@@ -3448,11 +3447,7 @@ unsafe fn opt_values_err(
             return e_invarg.as_ptr();
         };
         let mut itembuf = [0 as c_char; 64];
-        xmemcpyz(
-            itembuf.as_mut_ptr().cast(),
-            item.cast(),
-            itemlen.min(itembuf.len() - 1),
-        );
+        { let _d = (itembuf.as_mut_ptr()).cast::<u8>(); let _n = itemlen.min(itembuf.len() - 1); if _n > 0 { std::ptr::copy_nonoverlapping((item).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
         let mut n = vim_snprintf!(
             errbuf.data,
             errbuf.size,
@@ -3538,11 +3533,7 @@ unsafe fn opt_schema_err(
             return e_invarg.as_ptr();
         }
         let mut keybuf = [0 as c_char; 64];
-        xmemcpyz(
-            keybuf.as_mut_ptr().cast(),
-            key.cast(),
-            keylen.min(keybuf.len() - 1),
-        );
+        { let _d = (keybuf.as_mut_ptr()).cast::<u8>(); let _n = keylen.min(keybuf.len() - 1); if _n > 0 { std::ptr::copy_nonoverlapping((key).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
         opt_error(errbuf, fmt, keybuf.as_ptr())
     }
 }

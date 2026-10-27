@@ -23,7 +23,7 @@ use crate::globals::*;
 use crate::highlight::{HLATTRS_INIT, HlAttrs, KeyDict_highlight, dict2hlattrs};
 use crate::log::{LOGLVL_ERR, LOGLVL_INF, logmsg};
 use crate::main_init::os_exit;
-use crate::memory::{Arena, strequal};
+use crate::memory::{Arena};
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::msgpack_rpc::packer::Integer;
 use crate::msgpack_rpc::unpacker::GridLineEvent;
@@ -217,7 +217,7 @@ pub unsafe fn ui_client_attach(
         debug_assert!(m.data.dict().size > 0);
         for i in 0..m.data.dict().size {
             let item = *m.data.dict().items.add(i);
-            if strequal(item.key.data, c"version".as_ptr()) {
+            if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"version" } {
                 version = item.value.data.dict();
                 break;
             } else if i + 1 == m.data.dict().size {
@@ -499,7 +499,7 @@ pub unsafe fn channel_connect_event(server_addr: std::ffi::CString) {
         let on_data = CallbackReader::none();
         let chan = channel_connect(is_tcp, addr_ptr, true, on_data, 50, &raw mut err);
 
-        if !strequal(err, c"".as_ptr()) {
+        if !{ let _a = err; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"" } {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),

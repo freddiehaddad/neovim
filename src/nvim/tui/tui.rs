@@ -39,7 +39,7 @@ use crate::highlight::{HLATTRS_INIT, HlAttrs};
 use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, log_st, logmsg};
 use crate::lua::executor::{kRetObject, nlua_exec};
 use crate::mbyte::{utf_ambiguous_width, utf_char2cells, utf_ptr2char};
-use crate::memory::{Arena, arena_finish, arena_mem_free, arena_memdupz, strequal};
+use crate::memory::{Arena, arena_finish, arena_mem_free, arena_memdupz};
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::option::OptInt;
 #[cfg(windows)]
@@ -942,7 +942,7 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
         } else {
             0
         };
-        let wezterm = strequal(termprg, c"WezTerm".as_ptr());
+        let wezterm = { let _a = termprg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"WezTerm" };
         let weztermv: *const c_char = if wezterm {
             term_program_version_env
         } else {
@@ -1824,11 +1824,11 @@ pub unsafe fn tui_grid_cursor_goto(tui: *mut TUIData, _grid: Integer, row: Integ
 
 unsafe fn tui_cursor_decode_shape(shape_str: *const c_char) -> CursorShape {
     unsafe {
-        if strequal(shape_str, c"block".as_ptr()) {
+        if { let _a = shape_str; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"block" } {
             CursorShape::SHAPE_BLOCK
-        } else if strequal(shape_str, c"vertical".as_ptr()) {
+        } else if { let _a = shape_str; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"vertical" } {
             CursorShape::SHAPE_VER
-        } else if strequal(shape_str, c"horizontal".as_ptr()) {
+        } else if { let _a = shape_str; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"horizontal" } {
             CursorShape::SHAPE_HOR
         } else {
             if log_st().g_min_log_level <= LOGLVL_WRN {
@@ -1860,13 +1860,13 @@ unsafe fn decode_cursor_entry(args: Dict) -> cursorentry_T {
             let item = args[i];
             let key = item.key.data;
             let value = item.value;
-            if strequal(key, c"cursor_shape".as_ptr()) {
+            if { let _a = key; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"cursor_shape" } {
                 r.shape = tui_cursor_decode_shape(value.data.string().data);
-            } else if strequal(key, c"blinkon".as_ptr()) {
+            } else if { let _a = key; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"blinkon" } {
                 r.blinkon = value.data.integer() as c_int;
-            } else if strequal(key, c"blinkoff".as_ptr()) {
+            } else if { let _a = key; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"blinkoff" } {
                 r.blinkoff = value.data.integer() as c_int;
-            } else if strequal(key, c"attr_id".as_ptr()) {
+            } else if { let _a = key; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"attr_id" } {
                 r.id = value.data.integer() as c_int;
             }
         }
@@ -2434,7 +2434,7 @@ pub unsafe fn tui_screenshot(tui: *mut TUIData, path: NvimString) {
 
 pub unsafe fn tui_option_set(tui: *mut TUIData, name: NvimString, value: Object) {
     unsafe {
-        if strequal(name.data, c"mousemoveevent".as_ptr()) {
+        if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"mousemoveevent" } {
             if (*tui).mouse_move_enabled != value.data.boolean() {
                 if (*tui).mouse_enabled {
                     tui_mouse_off(tui);
@@ -2444,7 +2444,7 @@ pub unsafe fn tui_option_set(tui: *mut TUIData, name: NvimString, value: Object)
                     (*tui).mouse_move_enabled = value.data.boolean();
                 }
             }
-        } else if strequal(name.data, c"termguicolors".as_ptr()) {
+        } else if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"termguicolors" } {
             (*tui).rgb = value.data.boolean();
             (*tui).print_attr_id = -1;
             invalidate(tui, 0, (*tui).grid.height, 0, (*tui).grid.width);
@@ -2461,13 +2461,13 @@ pub unsafe fn tui_option_set(tui: *mut TUIData, name: NvimString, value: Object)
                 };
                 rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_set_option".as_ptr(), args);
             }
-        } else if strequal(name.data, c"ttimeout".as_ptr()) {
+        } else if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"ttimeout" } {
             (*tui).input.ttimeout = value.data.boolean();
-        } else if strequal(name.data, c"ttimeoutlen".as_ptr()) {
+        } else if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"ttimeoutlen" } {
             (*tui).input.ttimeoutlen = value.data.integer() as OptInt;
-        } else if strequal(name.data, c"verbose".as_ptr()) {
+        } else if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"verbose" } {
             (*tui).verbose = value.data.integer();
-        } else if strequal(name.data, c"termsync".as_ptr()) {
+        } else if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"termsync" } {
             (*tui).sync_output = value.data.boolean();
         }
     }
@@ -2806,7 +2806,7 @@ unsafe fn terminfo_set_str(tui: *mut TUIData, str_: TerminfoDef, val: &'static C
 
 unsafe fn term_has_truecolor(tui: *mut TUIData, colorterm: *const c_char) -> bool {
     unsafe {
-        if strequal(colorterm, c"truecolor".as_ptr()) || strequal(colorterm, c"24bit".as_ptr()) {
+        if { let _a = colorterm; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"truecolor" } || { let _a = colorterm; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"24bit" } {
             return true;
         }
 
@@ -3308,7 +3308,7 @@ pub(crate) unsafe fn tui_tk_ti_getstr(
             tui_st().stty_erase_ptr = tui_get_stty_erase(input);
         }
 
-        if strequal(name, c"key_backspace".as_ptr()) {
+        if { let _a = name; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"key_backspace" } {
             if log_st().g_min_log_level <= LOGLVL_DBG {
                 logmsg!(
                     LOGLVL_DBG,
@@ -3323,7 +3323,7 @@ pub(crate) unsafe fn tui_tk_ti_getstr(
             if *tui_st().stty_erase_ptr != 0 {
                 return tui_st().stty_erase_ptr;
             }
-        } else if strequal(name, c"key_dc".as_ptr()) {
+        } else if { let _a = name; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"key_dc" } {
             if log_st().g_min_log_level <= LOGLVL_DBG {
                 logmsg!(
                     LOGLVL_DBG,
@@ -3337,7 +3337,7 @@ pub(crate) unsafe fn tui_tk_ti_getstr(
             }
             if !value.is_null()
                 && value != usize::MAX as *const c_char
-                && strequal(tui_st().stty_erase_ptr, value)
+                && { let _a = tui_st().stty_erase_ptr; let _b = value; (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) }
             {
                 return if *tui_st().stty_erase_ptr == DEL {
                     c"\x08".as_ptr()
@@ -3345,7 +3345,7 @@ pub(crate) unsafe fn tui_tk_ti_getstr(
                     c"\x7f".as_ptr()
                 };
             }
-        } else if strequal(name, c"key_mouse".as_ptr()) {
+        } else if { let _a = name; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"key_mouse" } {
             if log_st().g_min_log_level <= LOGLVL_DBG {
                 logmsg!(
                     LOGLVL_DBG,
