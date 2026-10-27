@@ -1331,7 +1331,7 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
     }
 }
 
-pub unsafe fn did_set_runtimepackpath(_args: *mut optset_T) -> *const c_char {
+pub unsafe fn did_set_runtimepackpath(_args: &mut optset_T) -> *const c_char {
     unsafe {
         rt_st().runtime_search_path_valid = false;
         ptr::null()

@@ -7274,7 +7274,7 @@ unsafe fn frame_setwidth(curfrp: *mut frame_T, mut width: c_int, from_left: bool
     }
 }
 
-pub unsafe fn did_set_winminheight(_args: *mut optset_T) -> *const c_char {
+pub unsafe fn did_set_winminheight(_args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut first = true;
         while opt_vars().p_wmh > 0 {
@@ -7293,7 +7293,7 @@ pub unsafe fn did_set_winminheight(_args: *mut optset_T) -> *const c_char {
     }
 }
 
-pub unsafe fn did_set_winminwidth(_args: *mut optset_T) -> *const c_char {
+pub unsafe fn did_set_winminwidth(_args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut first = true;
         while opt_vars().p_wmw > 0 {

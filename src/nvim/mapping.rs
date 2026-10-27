@@ -2651,7 +2651,7 @@ pub unsafe fn langmap_init() {
 
 /// Called when langmap option is set; the language map can be
 /// changed at any time!
-pub unsafe fn did_set_langmap(args: *mut optset_T) -> *const c_char {
+pub unsafe fn did_set_langmap(args: &mut optset_T) -> *const c_char {
     unsafe {
         langmap_init();
 
@@ -2699,7 +2699,7 @@ pub unsafe fn did_set_langmap(args: *mut optset_T) -> *const c_char {
                 }
                 if to == NUL as c_int {
                     return opt_error(
-                        (*args).os_errbuf,
+                        args.os_errbuf,
                         c"E357: 'langmap': Matching character missing for %s".as_ptr(),
                         transchar(from),
                     );
@@ -2729,7 +2729,7 @@ pub unsafe fn did_set_langmap(args: *mut optset_T) -> *const c_char {
                         if *p != NUL {
                             if *p != b',' as c_char {
                                 return opt_error(
-                                    (*args).os_errbuf,
+                                    args.os_errbuf,
                                     c"E358: 'langmap': Extra characters after semicolon: %s"
                                         .as_ptr(),
                                     p,

@@ -3285,9 +3285,9 @@ unsafe fn parse_cpt_callbacks(cpt: *mut c_char, cbp: &mut Vec<Callback>) {
     }
 }
 
-pub unsafe fn set_cpt_callbacks(args: *mut optset_T) -> c_int {
+pub unsafe fn set_cpt_callbacks(args: &mut optset_T) -> c_int {
     unsafe {
-        let opt_flags = (*args).os_flags;
+        let opt_flags = args.os_flags;
 
         if g_st().curbuf.is_null() {
             return FAIL;

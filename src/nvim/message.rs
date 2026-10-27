@@ -1630,10 +1630,10 @@ pub unsafe fn msg_hist_clear_temp() {
 }
 
 /// Check the 'messagesopt' fields after schema validation.
-pub unsafe fn validate_messagesopt(args: *mut optset_T) -> *const c_char {
+pub unsafe fn validate_messagesopt(args: &mut optset_T) -> *const c_char {
     unsafe {
         let v = opt_keyset(
-            (*args).os_newval.data.string().data,
+            args.os_newval.data.string().data,
             kOptMessagesopt,
             ptr::null_mut(),
         )
@@ -1655,7 +1655,7 @@ pub unsafe fn validate_messagesopt(args: *mut optset_T) -> *const c_char {
 }
 
 /// Process the updated 'messagesopt' option value.
-pub unsafe fn did_set_messagesopt(_args: *mut optset_T) -> *const c_char {
+pub unsafe fn did_set_messagesopt(_args: &mut optset_T) -> *const c_char {
     unsafe {
         let v = opt_keyset(opt_vars().p_mopt, kOptMessagesopt, ptr::null_mut()).cast::<OptKeyDict_mopt>();
 

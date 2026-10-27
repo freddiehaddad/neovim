@@ -5111,9 +5111,9 @@ pub unsafe fn cmdline_init() {
 }
 
 /// Validate the `'cedit'` option.
-pub unsafe fn validate_cedit(args: *mut optset_T) -> *const c_char {
+pub unsafe fn validate_cedit(args: &mut optset_T) -> *const c_char {
     unsafe {
-        let value = (*args).os_newval.data.string().data;
+        let value = args.os_newval.data.string().data;
         if *value != NUL {
             let n = string_to_key(value);
             if n == 0 || vim_isprintc(n) {
@@ -5125,7 +5125,7 @@ pub unsafe fn validate_cedit(args: *mut optset_T) -> *const c_char {
 }
 
 /// The `'cedit'` option is changed.
-pub unsafe fn did_set_cedit(_args: *mut optset_T) -> *const c_char {
+pub unsafe fn did_set_cedit(_args: &mut optset_T) -> *const c_char {
     unsafe {
         getln_st().cedit_key = if *opt_vars().p_cedit == NUL {
             -1
