@@ -323,9 +323,9 @@ pub struct AutoPatCmd {
     pub sfname: Option<std::ffi::CString>,
     pub group: c_int,
     pub event: event_T,
-    pub script_ctx: sctx_T,
-    pub arg_bufnr: c_int,
-    pub data: *mut Object,
+    pub script_ctx: std::rc::Rc<std::cell::Cell<sctx_T>>,
+    pub arg_bufnr: std::rc::Rc<std::cell::Cell<c_int>>,
+    pub data: Option<Object>,
 }
 
 #[repr(C)]
@@ -1269,7 +1269,7 @@ static EVENT_HASH: [event_T; 150] = [
 ];
 
 static mut autocmds: [AutoCmdVec; NUM_EVENTS] = [const { Vec::new() }; NUM_EVENTS];
-static mut active_apc_list: Vec<*mut AutoPatCmd> = Vec::new();
+static mut active_apc_list: Vec<std::rc::Rc<std::cell::Cell<c_int>>> = Vec::new();
 static mut autocmd_winid: handle_T = 0;
 static mut next_augroup_id: c_int = 1;
 static mut deleted_augroup: *const c_char = ptr::null();
@@ -1697,9 +1697,9 @@ pub unsafe fn au_get_autocmds_for_event(event: event_T) -> &'static mut AutoCmdV
 pub unsafe fn aubuflocal_remove(buf: *mut buf_T) {
     unsafe {
         let apc_list = &raw const active_apc_list;
-        for &apc in (*apc_list).iter().rev() {
-            if (*buf).b_fnum == (*apc).arg_bufnr {
-                (*apc).arg_bufnr = 0;
+        for arg_bufnr in (*apc_list).iter().rev() {
+            if (*buf).b_fnum == arg_bufnr.get() {
+                arg_bufnr.set(0);
             }
         }
 
@@ -3045,21 +3045,21 @@ pub unsafe fn apply_autocmds_group(
                 sfname: sfname_owned,
                 group,
                 event,
-                script_ctx: sctx_T {
+                script_ctx: std::rc::Rc::new(std::cell::Cell::new(sctx_T {
                     sc_sid: 0,
                     sc_seq: 0,
                     sc_lnum: 0,
                     sc_chan: 0,
-                },
-                arg_bufnr: autocmd_bufnr,
-                data: ptr::null_mut(),
+                })),
+                arg_bufnr: std::rc::Rc::new(std::cell::Cell::new(autocmd_bufnr)),
+                data: None,
             };
-            aucmd_next(&raw mut patcmd);
+            aucmd_next(&mut patcmd);
 
             if patcmd.lastpat.is_some() {
                 let apc_list = &raw mut active_apc_list;
-                (*apc_list).push(&raw mut patcmd);
-                patcmd.data = data;
+                (*apc_list).push(patcmd.arg_bufnr.clone());
+                patcmd.data = (!data.is_null()).then(|| *data);
 
                 let save_cmdbang = get_vim_var_nr(VV_CMDBANG);
                 let save_cmdarg = if !eap.is_null() {
@@ -3096,7 +3096,10 @@ pub unsafe fn apply_autocmds_group(
                     set_vim_var_nr(VV_CMDBANG, save_cmdbang);
                 }
                 let apc_list = &raw mut active_apc_list;
-                if (*apc_list).last().copied() == Some(&raw mut patcmd) {
+                if (*apc_list)
+                    .last()
+                    .is_some_and(|last| std::rc::Rc::ptr_eq(last, &patcmd.arg_bufnr))
+                {
                     (*apc_list).pop();
                 }
             }
@@ -3226,35 +3229,35 @@ pub unsafe fn is_autocmd_blocked() -> bool {
     unsafe { autocmd_blocked != 0 }
 }
 
-unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
+unsafe fn aucmd_next(apc: &mut AutoPatCmd) {
     unsafe {
         let es = &raw mut exestack;
         let entry = (*es).last_mut().unwrap();
 
-        let acs = &raw mut autocmds[(*apc).event as usize];
-        assert!((*apc).ausize <= (*acs).len());
-        let mut i = (*apc).auidx;
-        while i < (*apc).ausize && !got_int {
+        let acs = &raw mut autocmds[apc.event as usize];
+        assert!(apc.ausize <= (*acs).len());
+        let mut i = apc.auidx;
+        while i < apc.ausize && !got_int {
             let ac = &(&*acs)[i];
             let Some(ref ap) = ac.pat else {
                 i += 1;
                 continue;
             };
-            if !(*apc)
+            if !apc
                 .lastpat
                 .as_ref()
                 .is_some_and(|l| std::rc::Rc::ptr_eq(l, ap))
             {
-                if (*apc).group != AUGROUP_ALL && (*apc).group != ap.group {
+                if apc.group != AUGROUP_ALL && apc.group != ap.group {
                     i += 1;
                     continue;
                 }
                 let matches = if ap.buflocal_nr == 0 {
-                    let fname_ptr = (*apc)
+                    let fname_ptr = apc
                         .fname
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                    let sfname_ptr = (*apc)
+                    let sfname_ptr = apc
                         .sfname
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -3272,14 +3275,14 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
                         c_int::from(ap.allow_dirs),
                     )
                 } else {
-                    ap.buflocal_nr == (*apc).arg_bufnr
+                    ap.buflocal_nr == apc.arg_bufnr.get()
                 };
                 if !matches {
                     i += 1;
                     continue;
                 }
 
-                let name = event_nr2name((*apc).event);
+                let name = event_nr2name(apc.event);
                 let name_str = CStr::from_ptr(name).to_string_lossy();
                 let pat_str = ap.pat.to_string_lossy();
                 let formatted = format!("{name_str} Autocommands for \"{pat_str}\"");
@@ -3291,11 +3294,11 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
                 }
 
                 entry.es_name = Some(name_cstr);
-                entry.es_info = crate::profile::EStackInfo::AuCmd(apc);
+                entry.es_info = crate::profile::EStackInfo::AuCmd(apc.script_ctx.clone());
             }
 
-            (*apc).lastpat = Some(ap.clone());
-            (*apc).auidx = i;
+            apc.lastpat = Some(ap.clone());
+            apc.auidx = i;
 
             line_breakcheck();
             return;
@@ -3304,8 +3307,8 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
         entry.es_name = None;
         entry.es_info = crate::profile::EStackInfo::None;
 
-        (*apc).lastpat = None;
-        (*apc).auidx = usize::MAX;
+        apc.lastpat = None;
+        apc.auidx = usize::MAX;
     }
 }
 
@@ -3313,7 +3316,7 @@ unsafe fn au_callback(
     mut callback: Callback,
     id: i64,
     group: c_int,
-    apc: *const AutoPatCmd,
+    apc: &AutoPatCmd,
 ) -> bool {
     unsafe {
         if callback.cb_type() == kCallbackLua {
@@ -3333,14 +3336,13 @@ unsafe fn au_callback(
             size += 1;
             data_items[size] = KeyValuePair {
                 key: static_cstr_as_string(c"event"),
-                value: cstr_as_obj(event_nr2name((*apc).event)),
+                value: cstr_as_obj(event_nr2name(apc.event)),
             };
             size += 1;
             data_items[size] = KeyValuePair {
                 key: static_cstr_as_string(c"file"),
                 value: cstr_as_obj(
-                    (*apc)
-                        .afile_orig
+                    apc.afile_orig
                         .as_ref()
                         .map_or(ptr::null(), |s| s.as_ptr()),
                 ),
@@ -3362,10 +3364,10 @@ unsafe fn au_callback(
             };
             size += 1;
 
-            if !(*apc).data.is_null() {
+            if let Some(data_val) = apc.data {
                 data_items[size] = KeyValuePair {
                     key: static_cstr_as_string(c"data"),
-                    value: *(*apc).data,
+                    value: data_val,
                 };
                 size += 1;
             }
@@ -3420,13 +3422,14 @@ pub unsafe fn getnextac(
     _do_concat: bool,
 ) -> Option<CString> {
     unsafe {
-        let acs = &raw mut autocmds[(*apc).event as usize];
+        let apc = &mut *apc;
+        let acs = &raw mut autocmds[apc.event as usize];
 
         aucmd_next(apc);
-        (*apc).lastpat.as_ref()?;
+        apc.lastpat.as_ref()?;
 
-        assert!((*apc).auidx < (*acs).len());
-        let auidx = (*apc).auidx;
+        assert!(apc.auidx < (*acs).len());
+        let auidx = apc.auidx;
         let ac = &mut (&mut *acs)[auidx];
         assert!(ac.pat.is_some());
         let mut oneshot = ac.once;
@@ -3441,7 +3444,7 @@ pub unsafe fn getnextac(
 
         autocmd_nested = ac.nested;
         current_sctx = ac.script_ctx;
-        (*apc).script_ctx = current_sctx;
+        apc.script_ctx.set(current_sctx);
 
         let retval = match &ac.handler {
             AutoCmdHandler::Cmd(cmd) => cmd.clone(),
@@ -3474,10 +3477,10 @@ pub unsafe fn getnextac(
             aucmd_del(&mut (&mut *acs)[auidx]);
         }
 
-        if (*apc).auidx < (*apc).ausize {
-            (*apc).auidx += 1;
+        if apc.auidx < apc.ausize {
+            apc.auidx += 1;
         } else {
-            (*apc).auidx = usize::MAX;
+            apc.auidx = usize::MAX;
         }
 
         Some(retval)

@@ -93,27 +93,27 @@ use crate::eval::funcs::MAX_FUNC_ARGS;
 use crate::globals::{IOSIZE, PROF_NONE};
 use crate::keycodes::K_SPECIAL;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum EStackInfo {
     None,
     Ufunc(*mut ufunc_T),
-    AuCmd(*mut crate::autocmd::AutoPatCmd),
+    AuCmd(std::rc::Rc<std::cell::Cell<crate::runtime::sctx_T>>),
 }
 
 impl EStackInfo {
     #[inline]
-    pub const fn ufunc(self) -> *mut ufunc_T {
-        match self {
+    pub const fn ufunc(&self) -> *mut ufunc_T {
+        match *self {
             Self::Ufunc(p) => p,
             _ => std::ptr::null_mut(),
         }
     }
 
     #[inline]
-    pub const fn aucmd(self) -> *mut crate::autocmd::AutoPatCmd {
+    pub fn aucmd_sctx(&self) -> crate::runtime::sctx_T {
         match self {
-            Self::AuCmd(p) => p,
-            _ => std::ptr::null_mut(),
+            Self::AuCmd(sctx) => sctx.get(),
+            _ => crate::runtime::sctx_T::new(),
         }
     }
 }

@@ -432,9 +432,9 @@ pub unsafe fn estack_sfile(which: estack_arg_T) -> Option<std::ffi::CString> {
             for entry in (*es).iter().rev() {
                 if entry.es_type == ETYPE_UFUNC || entry.es_type == ETYPE_AUCMD {
                     let def_ctx = if entry.es_type == ETYPE_UFUNC {
-                        &(*entry.es_info.ufunc()).uf_script_ctx
+                        (*entry.es_info.ufunc()).uf_script_ctx
                     } else {
-                        &(*entry.es_info.aucmd()).script_ctx
+                        entry.es_info.aucmd_sctx()
                     };
                     return if def_ctx.sc_sid > 0 {
                         Some(cstr_to_cstring((*script_item(def_ctx.sc_sid)).name_ptr()))
@@ -557,7 +557,7 @@ pub unsafe fn stacktrace_create() -> *mut list_T {
                 lnum += sctx.sc_lnum;
                 stacktrace_push_item(l, fp, ptr::null(), lnum, filepath.as_ptr());
             } else if entry.es_type == ETYPE_AUCMD {
-                let sctx = (*entry.es_info.aucmd()).script_ctx;
+                let sctx = entry.es_info.aucmd_sctx();
                 let filepath = if sctx.sc_sid > 0 {
                     get_scriptname(sctx, false)
                 } else {
